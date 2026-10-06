@@ -1234,10 +1234,15 @@ service cloud.firestore {
       // an image in that company's shared gallery (audit 2026-08-02 — the
       // 2026-07-08 /pins fix never reached this rule). Delete is untouched.
       // notViewer() on the owner branch of every write (decision B, 2026-09-25).
+      // source + path are frozen too, and a client may never CREATE a
+      // source:'homeowner' photo: getHomeownerPortalView signs a homeowner
+      // photo's `path` with the admin SDK (review R3-3, 2026-10-06). Only the
+      // portal upload (admin SDK) writes those photos.
       allow update: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
-        && didNotChange(['userId', 'companyId']);
+        && didNotChange(['userId', 'companyId', 'source', 'path']);
       allow delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
       allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
+        && request.resource.data.get('source', '') != 'homeowner'
         && (request.resource.data.get('companyId', '') == ''
             || request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
@@ -1445,12 +1450,18 @@ service cloud.firestore {
 
     // ── USER SETTINGS / PROFILE ───────────────────────
     // Profile is self-owned but privileged fields are locked to the server.
+    // e2eTestAccount (+ its provisioning stamps) is written only by
+    // provisionE2ETestUser and is the gate on cleanupE2ETestData, which
+    // deletes Storage objects with the admin SDK; it was client-settable
+    // until 2026-10-06 (review R3-2).
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin();
       allow create: if isOwner(uid)
-        && !request.resource.data.keys().hasAny(['role','plan','accessCode','isAdmin','companyId']);
+        && !request.resource.data.keys().hasAny(['role','plan','accessCode','isAdmin','companyId',
+                                                 'e2eTestAccount','provisionedBy','provisionedAt','provisionAction']);
       allow update: if isOwner(uid)
-        && didNotChange(['role','plan','accessCode','isAdmin','companyId']);
+        && didNotChange(['role','plan','accessCode','isAdmin','companyId',
+                         'e2eTestAccount','provisionedBy','provisionedAt','provisionAction']);
       allow delete: if isAdmin();
 
       // ── Template sync subcollections (feat/template-sync) ──
@@ -2460,13 +2471,31 @@ service cloud.firestore {
               'acceptedTier', 'acceptedPrice', 'acceptedFinancing',
               'acceptedSignature', 'acceptedAt', 'acceptedVia']));
     }
+    // deal_rooms.leadId (2026-10-05): a deal names only the writer's own lead
+    // or one in the writer's company. The accepted deal writes to that lead
+    // (createDealAcceptToken re-checks the same thing server-side). A lead id
+    // with no doc yet is allowed — nothing to write to, and the server drops
+    // it at mint time. Checked on create and whenever leadId changes.
+    function dealLeadOk(d) {
+      let lid = d.get('leadId', null);
+      return lid == null || lid == ''
+        || (lid is string && lid.matches('^[A-Za-z0-9_-]{1,128}$')
+            && (!exists(/databases/$(database)/documents/leads/$(lid))
+                || get(/databases/$(database)/documents/leads/$(lid)).data.get('userId', '') == request.auth.uid
+                || (request.auth.token.get('companyId', '') != ''
+                    && get(/databases/$(database)/documents/leads/$(lid)).data.get('companyId', '')
+                         == request.auth.token.get('companyId', ''))));
+    }
     match /deal_rooms/{dealId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
       allow update: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
-        && dealAcceptanceIntact();
+        && dealAcceptanceIntact()
+        && (request.resource.data.get('leadId', null) == resource.data.get('leadId', null)
+            || isAdmin() || dealLeadOk(request.resource.data));
       allow delete: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
         && !dealIsClosed(resource.data);
-      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
+        && dealLeadOk(request.resource.data);
     }
 
     // Close Board deal acceptance (1a). createDealAcceptToken mints these;
@@ -2580,6 +2609,26 @@ service cloud.firestore {
     // never need direct access, and leaking the list would identify
     // every number that opted out.
     match /sms_opt_outs/{phone} {
+      allow read, write: if false;
+    }
+
+    // ── SMS DO NOT TEXT LIST (admin-SDK only, 2026-10-05) ──
+    // sms_dnc/{companyId}__{phoneKey}: a company's internal Do Not Text
+    // list. Written and read ONLY by functions (manageSmsCompliance, and
+    // incomingSMS copying a STOP reply); enforced in sms-optout.js
+    // isOptedOut. A client write could take a number off the list (texting
+    // someone who asked not to be texted) or plant one on another company's.
+    match /sms_dnc/{id} {
+      allow read, write: if false;
+    }
+
+    // ── SMS TEXTING MASTER SWITCH (admin-SDK only, 2026-10-05) ──
+    // sms_settings/{companyId}: { enabled, registered }. Read and written only
+    // through functions (manageSmsCompliance getSettings / setEnabled; every
+    // send path reads it, sms-texting-gate.js). A client write could set
+    // registered: true and text another business's customers under NBD's
+    // registered brand, or switch a company's texting back on.
+    match /sms_settings/{id} {
       allow read, write: if false;
     }
 

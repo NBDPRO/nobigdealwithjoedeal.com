@@ -1152,6 +1152,11 @@ window.NBDDocGen = {
       const paymentsReceived = Number(data.paymentsReceived || 0);
       const total = subtotal + tax;
       const balanceDue = total - paymentsReceived;
+      // Blank due date → the ONE invoice due-date rule (deposit-rule.js
+      // INVOICE_DUE_DAYS, 7 days), not "Upon receipt".
+      const _drInv = window.NBDDepositRule;
+      const dueStr = data.dueDate || new Date(_drInv ? _drInv.invoiceDueDateMs(Date.now()) : Date.now() + 7 * 86400000)
+        .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
       return {
         coverTagline: 'Final billing<br>for your project.',
         coverSub:     'Itemized invoice with payment detail and remaining balance. Pay online, by check, or by ACH.',
@@ -1159,14 +1164,14 @@ window.NBDDocGen = {
         projectMeta: [
           { label: 'Invoice Date', value: data.invoiceDate || todayStr },
           { label: 'Invoice No.',  value: data.invoiceNumber || this._seededDocNumber('INV', [data.leadId, fullName, data.invoiceDate || todayStr]) },
-          { label: 'Due',          value: data.dueDate || 'Upon receipt' },
+          { label: 'Due',          value: dueStr },
         ],
         summary: {
           headline: 'Invoice for completed work.',
           body: data.notes || null,
         },
         invoice: {
-          number: data.invoiceNumber, date: data.invoiceDate || todayStr, dueDate: data.dueDate, status: data.status || 'due',
+          number: data.invoiceNumber, date: data.invoiceDate || todayStr, dueDate: dueStr, status: data.status || 'due',
         },
         lines, subtotal, tax, paymentsReceived, total, balanceDue,
         notes: data.notes || null,
@@ -3568,6 +3573,11 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
       const lead = window._leads.find(l => l.id === leadId);
       if (!lead) return;
       const fullName = ((lead.firstName||'')+' '+(lead.lastName||'')).trim();
+      // The price is the lead's PRIMARY estimate's locked total when it has one
+      // (review R2-2-4, 2026-10-06) — lead.jobValue lagged a re-saved estimate.
+      const _pe = lead.primaryEstimateId ? (window._estimates || []).find(e => e && e.id === lead.primaryEstimateId) : null;
+      const _peVal = _pe ? (Number(_pe.grandTotal || _pe.total || _pe.amount) || 0) : 0;
+      const _price = _peVal > 0 ? _peVal : (lead.jobValue||lead.estimateAmount||'');
       const map = {
         homeownerName: fullName,
         address: lead.address||'',
@@ -3576,9 +3586,9 @@ ${price ? '<div style="text-align:right;margin:24px 0;"><span style="font-size:1
         claimNumber: lead.claimNumber||'',
         policyNumber: lead.policyNumber||'',
         insuranceCompany: lead.insCarrier||lead.insuranceCompany||'',
-        totalPrice: lead.jobValue||lead.estimateAmount||'',
-        contractPrice: lead.jobValue||lead.estimateAmount||'',
-        totalAmount: lead.jobValue||lead.estimateAmount||'',
+        totalPrice: _price,
+        contractPrice: _price,
+        totalAmount: _price,
         originalApproved: lead.estimateAmount||lead.jobValue||'',
         estimatedRepairCost: lead.estimateAmount||lead.jobValue||'',
         projectDescription: lead.scopeOfWork||lead.notes||'',

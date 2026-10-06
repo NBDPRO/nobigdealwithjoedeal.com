@@ -360,11 +360,16 @@ const caseCard = (p, { withDesc = false } = {}) => {
 
 // Compact crawlable list for the jobs past a card cap — every job still gets
 // its link without a wall of images.
+// Folded behind a native <details> (2026-10-05): on a phone the 20-odd links ran
+// a screen and a half under the cards. Still plain <a href> in the HTML, so
+// crawlers and the internal-link gates see every one.
 const moreList = (ps, heading) => (ps.length ? `
-    <p class="nbd-recent-jobs-more-h">${heading}</p>
-    <ul class="nbd-recent-jobs-more">
-${ps.map((p) => `      <li><a href="/our-work/${esc(p.slug)}">${esc(p.title)}</a> <span>${esc(p.city)}${p.year ? ` · ${esc(String(p.year))}` : ''}</span></li>`).join('\n')}
-    </ul>` : '');
+    <details class="nbd-recent-jobs-fold">
+      <summary class="nbd-recent-jobs-more-h">${heading} (${ps.length})</summary>
+      <ul class="nbd-recent-jobs-more">
+${ps.map((p) => `        <li><a href="/our-work/${esc(p.slug)}">${esc(p.title)}</a> <span>${esc(p.city)}${p.year ? ` · ${esc(String(p.year))}` : ''}</span></li>`).join('\n')}
+      </ul>
+    </details>` : '');
 
 // The dated-price line with its "what it runs today" link — gallery cards and
 // case pages (both non-link containers). linkClass reuses an existing
@@ -398,16 +403,33 @@ const card = (p) => {
           <h3>${esc(p.title)}</h3>${price ? `
           <div class="project-price">${esc(price)}</div>` : ''}${price && ctx ? `
           ${datedLine(ctx, 'p', '', 'nbd-recent-jobs-all')}` : ''}
-          <p>${esc(p.description)}</p>
+          <p class="project-desc">${esc(p.description)}</p>
           <div class="project-meta">${meta}</div>
           <div class="project-services">
             ${pills}
           </div>
-          <button type="button" class="project-view">View photos &rarr;</button>
-          <a class="project-view" href="/our-work/${esc(p.slug)}" style="display:inline-block;text-decoration:none;margin-left:8px;">View full project &rarr;</a>
+          <div class="project-actions">
+            <button type="button" class="project-view">View photos &rarr;</button>
+            <a class="project-full" href="/our-work/${esc(p.slug)}">View full project &rarr;</a>
+          </div>
+          ${BOOK_LIKE_THIS}
         </div>
       </div>`;
 };
+
+// "Book an inspection like this" — on every gallery card and case page
+// (homeowner revamp 2026-10-05). A plain link to /inspect: that form reads
+// only utm_* params, and stamping UTMs on an internal link would restart the
+// visitor's GA4 session attribution, so no job slug rides along.
+const BOOK_LIKE_THIS = '<a class="project-book" href="/inspect">Book an inspection like this &rarr;</a>';
+
+// Phone gallery cap (our-work.js): the first SHOW_FIRST matching cards show,
+// the rest collapse behind this button. Every card stays in the HTML (crawl,
+// no-JS); the button ships hidden and only our-work.js reveals it.
+const SHOW_FIRST = 12;
+const showMore = `    <div class="ow-more-wrap">
+      <button type="button" class="ow-more" id="owMore" data-step="${SHOW_FIRST}" hidden>Show more jobs</button>
+    </div>`;
 
 const activeServices = Object.keys(SERVICES).filter((s) => live.some((p) => p.services.includes(s)));
 const filters = [
@@ -431,6 +453,7 @@ ${filters}
     <div class="gallery" id="gallery">
 ${live.map(card).join('\n\n')}
     </div>
+${showMore}
 <!-- OURWORK-STATIC-END -->`;
 
 // ── Schema ──────────────────────────────────────────────────────
@@ -623,10 +646,11 @@ const STRIP_RE = /<!-- OURWORK-STRIP-START service="([a-z-]+)" -->[\s\S]*?<!-- O
 // this site already carries (see documentation/projects/WEEKLY_CADENCE.md
 // backlog item 10).
 const detailPhotoCard = (ph) => {
-  const img = `<img src="${esc(ph.src)}" alt="${esc(ph.alt)}" loading="lazy" decoding="async" width="400" height="300" style="width:100%;height:200px;object-fit:cover;border-radius:10px;display:block;">`;
-  return `      <figure style="margin:0;">
+  // Sized by .pd-photo in project-cards.css (inline style attributes until 2026-10-05).
+  const img = `<img src="${esc(ph.src)}" alt="${esc(ph.alt)}" loading="lazy" decoding="async" width="400" height="300">`;
+  return `      <figure class="pd-photo">
         ${pictureFor(ph.src, img)}
-        <figcaption style="font-size:.75rem;color:var(--gray,#5d6673);margin-top:6px;">${esc(ph.caption || ph.alt)}</figcaption>
+        <figcaption>${esc(ph.caption || ph.alt)}</figcaption>
       </figure>`;
 };
 
@@ -789,19 +813,25 @@ const shareTitle = (p) => `${titleLead(p)} — ${titlePhrase(p)}`;
 const trimTail = (s) => s.replace(/[\s—–\-,:;+&→]+$/u, '').replace(/\s+(a|an|the|of|to|and|for|near|by|with)$/i, '');
 // Every candidate <title> for a job, best first. A cut mid-phrase reads as
 // nonsense ("— Charcoal Over | NBD"), so whole phrases and whole leading
-// clauses come first and are allowed a little past TITLE_MAX (to
-// TITLE_HARD_MAX) before any word-boundary cut is considered:
+// clauses come first, shedding the brand suffix and then the state before
+// any word-boundary cut is considered. Every candidate is within TITLE_MAX
+// (2026-10-05: the old 75-char slack tier left 11 case titles over 65, each
+// a check-seo-surface title-length warning; the brand is in og:site_name and
+// the schema, and service + town are the words a search matches on):
 //   1. the whole phrase, then whole leading clauses (split at ", ", ": ",
-//      " + ", " → "; >= TITLE_MIN_PHRASE chars), within TITLE_MAX
-//   2. the same, within TITLE_HARD_MAX
-//   3. a single later clause on its own, within TITLE_MAX (only reached
+//      " + ", " → "; >= TITLE_MIN_PHRASE chars), with " | NBD"
+//   2. the same without " | NBD"
+//   3. the same without " | NBD" and with the town's state dropped
+//      ("Cincinnati, OH" → "Cincinnati")
+//   4. a single later clause on its own, with " | NBD" (only reached
 //      when two jobs share a leading clause — "Three Layers Off")
-//   4. the phrase cut at a word boundary, within TITLE_MAX
-//   5. service + town alone
-const TITLE_HARD_MAX = 75;
+//   5. the phrase cut at a word boundary, with " | NBD"
+//   6. service + town alone
 const titleCandidates = (p) => {
   const head = `${titleLead(p)} — `;
   const tail = ' | NBD';
+  const t = townOf(p);
+  const headNoState = t ? `${titleService(p)} in ${t.name} — ` : head;
   const phrase = titlePhrase(p);
   // Not " & " — it joins two nouns ("Gutter Section & Shingle Repair"), and
   // cutting there leaves half a phrase.
@@ -814,10 +844,12 @@ const titleCandidates = (p) => {
   const wrap = (s) => head + s + tail;
   const later = clauses.slice(1).map((c) => trimTail(c.replace(/^(, |: | \+ | → )/, '')))
     .filter((c) => c.length >= TITLE_MIN_PHRASE);
+  const fits = (s) => s.length <= TITLE_MAX;
   const out = [
-    ...whole.map(wrap).filter((t) => t.length <= TITLE_MAX),
-    ...whole.map(wrap).filter((t) => t.length <= TITLE_HARD_MAX),
-    ...later.map(wrap).filter((t) => t.length <= TITLE_MAX),
+    ...whole.map(wrap).filter(fits),
+    ...whole.map((s) => head + s).filter(fits),
+    ...whole.map((s) => headNoState + s).filter(fits),
+    ...later.map(wrap).filter(fits),
   ];
   const budget = TITLE_MAX - head.length - tail.length;
   const cut = phrase.slice(0, budget + 1);
@@ -830,15 +862,19 @@ const titleCandidates = (p) => {
 // (stable on manifest order), each taking its best candidate not already
 // taken — so a one-clause job keeps its only short form and a many-clause
 // job moves to its next one. A job left with nothing unique is refused.
+// Uniqueness ignores the " | NBD" suffix and the town's state, so two jobs
+// can't end up a suffix apart ("… — Three Layers Off" vs "… — Three Layers
+// Off | NBD") once the shed-the-suffix tiers exist.
+const titleKey = (t) => t.replace(/ \| NBD$/, '').replace(/, [A-Z]{2} — /, ' — ');
 const PAGE_TITLES = new Map();
 {
   const taken = new Map();
   const order = live.map((p, i) => ({ p, i, c: titleCandidates(p) }))
     .sort((a, b) => a.c.length - b.c.length || a.i - b.i);
   for (const { p, c } of order) {
-    const t = c.find((x) => !taken.has(x));
-    if (!t) { fail(`project "${p.slug}" has no unique <title> — every short form ("${c[0]}") is taken by "${taken.get(c[0])}"; shorten or reword one job title`); continue; }
-    taken.set(t, p.slug);
+    const t = c.find((x) => !taken.has(titleKey(x)));
+    if (!t) { fail(`project "${p.slug}" has no unique <title> — every short form ("${c[0]}") is taken by "${taken.get(titleKey(c[0]))}"; shorten or reword one job title`); continue; }
+    taken.set(titleKey(t), p.slug);
     PAGE_TITLES.set(p.slug, t);
   }
   if (process.exitCode) process.exit(1);
@@ -891,7 +927,7 @@ const detailPage = (p) => {
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
-<link rel="stylesheet" href="/assets/css/project-cards.css?v=1">
+<link rel="stylesheet" href="/assets/css/project-cards.css?v=2">
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/mobile-cta.css">
 <script type="application/ld+json">${JSON.stringify(detailSchema(p))}</script>
@@ -962,12 +998,14 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
     ${datedLine(dated(p), 'p', 'pd-links', '')}` : ''}
     <div class="pd-meta">${PIN_SVG} ${metaBits.join(' · ')}</div>
     <p class="pd-desc">${esc(p.description)}</p>
+    <div class="pd-book">${BOOK_LIKE_THIS}</div>
 ${narrativeHtml(p) ? `${narrativeHtml(p)}\n` : ''}${factsHtml(p)}
     <h2 class="pd-h2">Photos</h2>
     <div class="pd-photos">
 ${p.photos.map(detailPhotoCard).join('\n')}
     </div>
 ${linksOutHtml(p)}
+    <div class="pd-book pd-book-end">${BOOK_LIKE_THIS}</div>
     <a class="pd-back" href="/our-work">&larr; See more of our work</a>
   </div>
 </main>
@@ -1136,10 +1174,11 @@ for (const f of readdirSync(SERVICES_DIR)) {
 }
 
 // 2b. /areas/<town> — "Jobs we've done in <Town>" (OURWORK-AREA), placed
-// just before the page's <!-- SERVICES --> section.
+// right under the hero, before the page's <!-- WHY NBD --> section (moved up from
+// <!-- SERVICES --> in the 2026-10-05 revamp: real jobs are the proof, show them early).
 const AREA_START = '<!-- OURWORK-AREA-START -->';
 const AREA_END = '<!-- OURWORK-AREA-END -->';
-const AREA_ANCHOR = '<!-- SERVICES -->';
+const AREA_ANCHOR = '<!-- WHY NBD -->';
 let areaCount = 0;
 for (const f of readdirSync(AREAS_DIR)) {
   if (!f.endsWith('.html') || f === 'index.html') continue;
@@ -1155,12 +1194,12 @@ for (const f of readdirSync(AREAS_DIR)) {
 }
 
 // 2c. Town-specific service pages (/services/<prefix>-<town>.html) —
-// "Real <service> jobs in <Town>" (OURWORK-LOCAL), placed just before the
-// quick-quote form. Pages that already carry a service-wide OURWORK-STRIP
+// "Real <service> jobs in <Town>" (OURWORK-LOCAL), placed right under the hero,
+// before the transparency strip (moved up from the quick-quote form, 2026-10-05). Pages that already carry a service-wide OURWORK-STRIP
 // (the wood-siding town pages) are skipped: one jobs strip per page.
 const LOCAL_START = '<!-- OURWORK-LOCAL-START -->';
 const LOCAL_END = '<!-- OURWORK-LOCAL-END -->';
-const LOCAL_ANCHOR = '<section class="qlf-section" id="quote">';
+const LOCAL_ANCHOR = '<!-- Transparency strip (injected) -->';
 let localCount = 0;
 {
   const prefixes = Object.keys(TOWN_PAGE_PREFIX).sort((a, b) => b.length - a.length);
@@ -1179,7 +1218,7 @@ let localCount = 0;
     if (block) localCount++;
     stampFile(file, (src, eol) => {
       const out = syncRegion(src, eol, LOCAL_START, LOCAL_END, block, LOCAL_ANCHOR);
-      if (out === null) { console.error(`FATAL: docs/services/${f}: has ${jobs.length} matching job(s) but no quick-quote anchor to place OURWORK-LOCAL before`); process.exit(1); }
+      if (out === null) { console.error(`FATAL: docs/services/${f}: has ${jobs.length} matching job(s) but no transparency-strip anchor to place OURWORK-LOCAL before`); process.exit(1); }
       return out;
     }, false);
   }

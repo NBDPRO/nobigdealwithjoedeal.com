@@ -53,9 +53,9 @@ NBD-prefixed APIs → T3-E docs close.
 
 | Card | Town | Price | The story |
 |---|---|---|---|
-| Kalb siding peak reseal | Loveland | unpriced | The 2026-07-29 "Higgins" frames — Jo named Terri Kalb; EXIF matched the known 13:39–13:47 visit; no invoice exists in Drive or CRM (searched by name + variants), unpriced by evidence not oversight |
+| Kalb siding peak reseal | Loveland | unpriced | The 2026-07-29 "Customer BZ" frames — Jo named Terri Kalb; EXIF matched the known 13:39–13:47 visit; no invoice exists in Drive or CRM (searched by name + variants), unpriced by evidence not oversight |
 | Wilson wind repair 2023 | **Loveland** | unpriced | Jo guessed "amelia?" — the 2023 JKRC customer book (Drive, Scott's sheet) has him at Apache Trail, which is Miami Twp East / ZIP 45140 = Loveland mailing. Published on document + map evidence, Jo signed off |
-| Garrity EPDM inspection | Loveland | $100–200 | First flat-roof/EPDM card in the gallery. 5 detail frames picked from ~137 raw against the 13-photo report captions; ponding frame needed a 90° rotation (EXIF orientation stripped) |
+| Customer BP EPDM inspection | Loveland | $100–200 | First flat-roof/EPDM card in the gallery. 5 detail frames picked from ~137 raw against the 13-photo report captions; ponding frame needed a 90° rotation (EXIF orientation stripped) |
 | By Golly's commercial rebuild | Milford | $73,000–74,000 | Jo cleared the courtesy call AND naming. Combined retail $73,481.40 = $64,011.90 RCV + the Oct tarp $2,086.50 + re-issued repair $7,383.00 (Jo confirmed same job). Only 2 photos exist for the whole job — both carry baked-in claim-annotation circles, no clean originals anywhere (verified exhaustively 08-28); frame 2 cropped top 10% for a partial crew face |
 
 ## Techniques proven this session (reusable)
@@ -73,7 +73,7 @@ NBD-prefixed APIs → T3-E docs close.
   verify-the-claims found it in one pass. Photo sets touching faces get a
   second independent look before publish, always.
 - **Every wide angle on a low flat roof leaks the neighbors.** All three
-  refused Garrity frames failed the same way (adjacent houses, yard
+  refused Customer BP frames failed the same way (adjacent houses, yard
   contents, streetscape over the parapet). Flat-roof cards should plan on
   detail shots only.
 - **The deprecation-gate lesson generalizes**: before trusting any
@@ -82,14 +82,14 @@ NBD-prefixed APIs → T3-E docs close.
 
 ## Jo decisions recorded this session
 
-Kalb = Terri Kalb, Loveland · Garrity = Loveland · Wilson = Loveland
+Kalb = Terri Kalb, Loveland · Customer BP = Loveland · Wilson = Loveland
 (sign-off on doc evidence over his Amelia guess) · By Golly's courtesy
 call cleared, naming approved, Oct invoices same job · merge #1305.
 
 ## Still open (all carried to the 08-31 handoff)
 
 ~~GBP/Facebook posting session~~ (DONE — see Addendum 2) · Rock 2
-side-decisions (above) · Philpot card (TAMKO brand-sensitivity, Jo's
+side-decisions (above) · Customer EE card (TAMKO brand-sensitivity, Jo's
 call) · draft PR #1299 (INDEX handoff consolidation — needs rebase over
 this session's INDEX edit; finish or close) · Sharon Batavia gutter
 frames for the thin gutter page (generic illustration only, never
@@ -99,7 +99,7 @@ completion-dated).
 
 Jo answered the four held calls in-session and the sweep executed:
 
-- **Philpot → PUBLISHED, manufacturer unnamed** (Jo's pick): 44th card,
+- **Customer EE → PUBLISHED, manufacturer unnamed** (Jo's pick): 44th card,
   `loveland-oh-shingle-samples-2026`, $300–500, roof-inspection. The
   second-look QA caught a background pool + the home's entry ensemble in
   the staging frame (top-30% crop applied) — and flagged that the
@@ -110,7 +110,7 @@ Jo answered the four held calls in-session and the sweep executed:
   (education imagery, no town, no dates). The two WIDE frames were
   refused — both mapped the prospect's private backyard (covered pool,
   deck, pergola) — same flat/low-angle-leaks-the-neighbors pattern as
-  Garrity; the packed-run frame shipped as a tight 4:3 window instead,
+  Customer BP; the packed-run frame shipped as a tight 4:3 window instead,
   and the "clear run" frame died in cropping (no story left).
 - **Rock 2 pre-V2 docs → READ-ONLY** (no migration) — recorded in
   [estimate-engines-audit item 3](../../docs/dev/estimate-engines-audit.md);

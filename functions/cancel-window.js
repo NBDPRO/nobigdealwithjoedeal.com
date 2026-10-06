@@ -28,6 +28,13 @@ const { envelopeIsContract } = require('./job-spine-logic');
 // Generated document types that are contracts (they carry the packet).
 const CONTRACT_DOC_TYPES = ['contract', 'proposal'];
 
+// Platform tenant (same convention as lead-alert.js / render-pdf.js).
+const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+// Shown to the rep when a contract would print a blank seller on the Notice
+// of Cancellation (a company that has not set its legal business name).
+const SELLER_NAME_REQUIRED_MSG = 'Add your legal business name first (Settings → Company → Brand Identity → Legal / Company Name). '
+  + 'It is printed as the seller on the contract and its Notice of Cancellation, so this contract was not sent.';
+
 function isContractDocType(type) {
   return CONTRACT_DOC_TYPES.indexOf(String(type || '')) !== -1;
 }
@@ -60,11 +67,33 @@ function cancelByFor(html, when, timeZone) {
   return KyLaw.packetCancelBy(html) || KyLaw.cancelBy(when == null ? new Date() : when, timeZone);
 }
 
-/** Stamp lead.cancelBy. Best-effort; never throws. */
-async function stampLeadCancelBy(db, leadId, cancelBy, logger) {
-  if (!leadId || !/^\d{4}-\d{2}-\d{2}$/.test(String(cancelBy || ''))) return false;
+/**
+ * Does `lead` belong to this owner? Its userId is the owner's, or (a teammate's
+ * lead) both carry the same companyId. A lead with neither match is another
+ * tenant's — a public signing link must never write to it.
+ */
+function leadBelongsTo(lead, owner) {
+  const l = lead || {};
+  const o = owner || {};
+  if (o.ownerUid && l.userId === o.ownerUid) return true;
+  return !!(o.companyId && l.companyId && String(l.companyId) === String(o.companyId));
+}
+
+/**
+ * Stamp lead.cancelBy — only on a lead that belongs to `owner`
+ * ({ ownerUid, companyId } of the signed record). Best-effort; never throws.
+ */
+async function stampLeadCancelBy(db, leadId, cancelBy, logger, owner) {
+  if (!leadId || !/^[A-Za-z0-9_-]{1,128}$/.test(String(leadId))) return false;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(cancelBy || ''))) return false;
   try {
-    await db.doc(`leads/${leadId}`).update({ cancelBy: String(cancelBy) });
+    const ref = db.doc(`leads/${leadId}`);
+    const snap = await ref.get();
+    if (!snap.exists || !leadBelongsTo(snap.data(), owner)) {
+      if (logger) logger.warn('[cancel-window] lead cancelBy refused: not the owner\'s lead', { leadId });
+      return false;
+    }
+    await ref.update({ cancelBy: String(cancelBy) });
     return true;
   } catch (e) {
     if (logger) logger.warn('[cancel-window] lead cancelBy stamp failed', { leadId, msg: e && e.message });
@@ -85,9 +114,15 @@ function packetOptsFrom(lead, profile) {
   const cp = profile || {};
   const brand = cp.brand || {};
   const j = KyLaw.classifyLead(l) || {};
+  // The seller on the Notice of Cancellation. Only NBD's own lead (tenant key
+  // = the NBD owner uid; a key-less legacy lead is NBD's) falls back to NBD's
+  // name; another company with none set gets '' and the send is refused
+  // (SELLER_NAME_REQUIRED_MSG) — never NBD named as their seller.
+  const tenantKey = l.companyId || l.userId;
+  const nbd = !tenantKey || String(tenantKey) === NBD_OWNER_UID;
   return {
     timeZone: KyLaw.resolveTimeZone(cp),
-    sellerName: brand.legalName || cp.companyName || 'No Big Deal Home Solutions',
+    sellerName: brand.legalName || cp.companyName || (nbd ? 'No Big Deal Home Solutions' : ''),
     sellerAddress: KyLaw.contractorMailingAddress(cp),
     email: (brand.contact && brand.contact.email) || '',
     fax: String(cp.businessFax || '').trim(),
@@ -127,6 +162,7 @@ async function loadPacketOpts(db, leadId) {
 }
 
 module.exports = {
-  CONTRACT_DOC_TYPES, isContractDocType, finalizeSignedPacket, cancelByFor, stampLeadCancelBy,
+  SELLER_NAME_REQUIRED_MSG,
+  CONTRACT_DOC_TYPES, isContractDocType, finalizeSignedPacket, cancelByFor, stampLeadCancelBy, leadBelongsTo,
   packetOptsFrom, loadPacketOpts, envelopeNeedsCancelNotice,
 };

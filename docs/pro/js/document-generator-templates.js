@@ -1127,9 +1127,15 @@
     const _cpInv = tenantCp(data);
     const _invFinancePartner = _cpInv.financePartner || defaultFinancePartner();
     const _invLateText = _cpInv.latePaymentChargeText || '1.5% monthly finance charge';
+    // The ONE invoice due-date rule (deposit-rule.js INVOICE_DUE_DAYS — Jo
+    // 2026-10-05: 7 days everywhere). This said "Due upon receipt".
+    const _invDr = window.NBDDepositRule;
+    const _invDueDays = _invDr ? _invDr.INVOICE_DUE_DAYS : 7;
+    const _invDueDefault = new Date(_invDr ? _invDr.invoiceDueDateMs(Date.now()) : Date.now() + 7 * 86400000)
+      .toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const d = Object.assign({ homeownerName:'[Homeowner Name]', address:'[Property Address]',
       homeownerPhone:'', homeownerEmail:'',
-      invoiceNumber:'INV-'+(Date.now()%100000), invoiceDate:today(), dueDate:'Due upon receipt',
+      invoiceNumber:'INV-'+(Date.now()%100000), invoiceDate:today(), dueDate:_invDueDefault,
       // No placeholder line items / no phantom prior payment: an invoice must
       // reflect only the rep-entered figures. generate() synthesizes a single
       // summary line from the required Total Amount; taxRate/paymentsReceived
@@ -1137,8 +1143,8 @@
       lineItems:[],
       taxRate:0, paymentsReceived:0,
       claimNumber:'', insuranceCompany:'',
-      // Extra properties worked under one job. Invoice NBD-2026-0810-RK bills
-      // 1944 AND 1942 Kentucky Ave together; before this the second building
+      // Extra properties worked under one job. Invoice NBD-2026-0810-XXXX bills
+      // 100 AND 102 Kentucky Ave together; before this the second building
       // could not be shown at all. Empty array = block is omitted entirely.
       serviceAddresses:[],
       notes:'Thank you for choosing ' + C.name + '. We appreciate your business and trust in our team.' }, data);
@@ -1245,7 +1251,7 @@
         <div style="background:#fff8f5;padding:16px;border-radius:8px;border:1px solid #f0d0c0;">
           <div style="font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Late Payment</div>
           <div style="font-size:13px;line-height:1.8;color:#555;">
-            Payment is due upon receipt unless otherwise agreed in writing. Accounts past 30 days may be
+            Payment is due within ${_invDueDays} days of the invoice date (Net ${_invDueDays}) unless otherwise agreed in writing. Accounts past 30 days may be
             subject to a ${esc(_invLateText)}.
           </div>
         </div>
@@ -1272,7 +1278,7 @@
   // document-generator.js already had a `receipt` branch in _buildPremiumData
   // and in the server-render map, but `receipt` was never registered in
   // DOCUMENT_TYPES — so there was no way to produce one from the app. Jobs
-  // that were paid in full (Higgins, Philpot) had no closing document at all.
+  // that were paid in full (Customer BZ, Customer EE) had no closing document at all.
   DG.renderReceipt = function(data) {
     const d = Object.assign({
       homeownerName:'[Homeowner Name]', address:'[Property Address]',

@@ -31,16 +31,16 @@ This note is the reusable map. Companion notes:
 | SDXC Card | 101–106MEDIA (206 / 878 / 546 / 74 / 165 / 338) = 2,291 | **Unscanned.** 102MEDIA (878) + 103MEDIA (546) are the biggest unscanned rolls anywhere |
 | SDXC 64GB | 101–107MEDIA = 1,660 | 102/103MEDIA duplicate "SDXC Card" 1:1; **107MEDIA (96) scanned** — source of the installed-screens shot |
 | MICRO SD 64GB | 103–105MEDIA = 223 | Oldest drone archive (2025) |
-| HSFTOOLS THERMAL | 202605 (130 thermal) | Thermal-inspection imagery (Rita Hatley job; same set duplicated in her customer folder). **Differentiated marketing material** — nobody else in the market shows thermal moisture scans |
+| HSFTOOLS THERMAL | 202605 (130 thermal) | Thermal-inspection imagery (Customer BX job; same set duplicated in her customer folder). **Differentiated marketing material** — nobody else in the market shows thermal moisture scans |
 | USB30FD / SANDISK 256 | wallpapers, old school files | Non-job |
 
 ## Curated customer sets (COMPANIES/NBD/CUSTOMERS — 2,250 imgs, 25+ folders)
 
-Largest: Ty Mom Phone shots (269 HEIC) · Brian Goddard Build Day drone
-(263 ×2 exact-duplicate folders + 63 loose) · Rita Hatley (136 iPhone + 130
-thermals) · Heather Woods (121) · Troy (105) · Jennifer Morgan McCane (175) ·
-Dan Philpot (77) · Houston Weedn (70) · Alison Coleman (69) · Louie (69).
-ORC brand adds 224 (Mike Shaw 90…); SPR adds 166 (duplicated under ASUS ROG
+Largest: Customer FO Phone shots (269 HEIC) · Customer BR Build Day drone
+(263 ×2 exact-duplicate folders + 63 loose) · Customer BX (136 iPhone + 130
+thermals) · Customer BY (121) · Troy (105) · Jennifer Customer DR (175) ·
+Customer EE (77) · Customer FS (70) · Customer G (69) · Louie (69).
+ORC brand adds 224 (Customer DO 90…); SPR adds 166 (duplicated under ASUS ROG
 Documents). iPhone sets are HEIC — **decode with `heic-convert` (npm), the
 repo's sharp build can't read HEVC**; some .HEIC files are secretly JPEG.
 
@@ -49,7 +49,7 @@ repo's sharp build can't read HEVC**; some .HEIC files are secretly JPEG.
 - **"Scans to Sort" = bank checks + receipts (~100 PDFs), zero images** —
   never anything from there on the public site.
 - MLR Drive-takeout under ASUS ROG Documents contains staff-account exports
-  (kala@/patrick@madladderroofing.com) — internal, keep private.
+  (staff-account emails removed) — internal, keep private.
 - Standing photo rules from the credibility session apply to everything
   here: EXIF strip via `prepare-project-images.mjs`, anonymous crops for
   non-consented properties, condition-not-claim captions, no manufacturer
@@ -71,7 +71,7 @@ repo's sharp build can't read HEVC**; some .HEIC files are secretly JPEG.
   process 0728 (FeltBuster + staged HDZ), action 0842, finished 0880,
   box-gutter reline 0888/0904, flashing 0896. Needs Jo: customer name,
   city, consentOnFile, price-range-or-skip → then a PUBLISH-PROJECT run.
-- ✅ Ty Mom Phone shots — 145 unique of 269 records (half are duplicate
+- ✅ Customer FO Phone shots — 145 unique of 269 records (half are duplicate
   uploads). Moss macro published; guards close-ups (IMG_6391/6426) and a
   15-shot inspection-storytelling series banked as spares.
 - 🔔 NBD > INTERNAL > Content > **Soft Wash** folder created by Jo

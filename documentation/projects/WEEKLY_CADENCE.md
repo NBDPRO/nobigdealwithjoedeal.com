@@ -230,9 +230,9 @@
       console, confirm the billing account's contact email + card expiry.
 - [x] **~~Clear the address-audit gate~~ DONE 2026-08-27, Jo-delegated to a
       session.** The four $0 leads retired (recoverable soft-delete, reason
-      stamped); Galfrey turned out to be blocked by a one-letter road-name
+      stamped); Customer BN turned out to be blocked by a one-letter road-name
       typo (Murdoch → **Murdock**) — corrected, geocoded unambiguously, and
-      written FULLY mailable (`10595 Cozaddale-Murdock Rd, Goshen, OH
+      written FULLY mailable (`[street address], Goshen, OH
       45122`), not just state-patched. Replicated gate scan confirms
       `legacyMangled: 0, blank: 0` → the 11:00Z fire self-greens.
       Details: [CRM-ADDRESS-INTEGRITY-2026-08-18](../audit/CRM-ADDRESS-INTEGRITY-2026-08-18.md)

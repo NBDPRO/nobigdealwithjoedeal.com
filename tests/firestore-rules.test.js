@@ -2646,6 +2646,78 @@ async function run() {
     throw new Error('53 documents.htmlPath: ' + s53Fail.length + ' check(s) went the wrong way:\n    ' + s53Fail.join('\n    '));
   }
 
+  // ─── 54. deal_rooms.leadId names only the writer's own / company's lead (2026-10-05) ───
+  // An accepted deal writes to its lead (cancelBy, install date, tier, job
+  // stage), so a deal must never point at another tenant's lead. CREATE and
+  // UPDATE (re-pointing leadId) both checked.
+  const s54Fail = []; let s54Pass = 0;
+  async function x54(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s54Pass++;
+    } catch (e) { s54Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const a54 = env.authenticatedContext('a54', { role: 'sales_rep', companyId: 'co-a54' }).firestore();
+  const t54 = env.authenticatedContext('t54', { role: 'sales_rep', companyId: 'co-a54' }).firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'leads/lead54-own'), { userId: 'a54', companyId: 'co-a54', name: 'own' });
+    await setDoc(doc(d, 'leads/lead54-mate'), { userId: 't54', companyId: 'co-a54', name: 'teammate' });
+    await setDoc(doc(d, 'leads/lead54-victim'), { userId: 'v54', companyId: 'co-v54', name: 'victim' });
+    await setDoc(doc(d, 'leads/lead54-legacy'), { userId: 'v54', name: 'victim, no companyId' });
+    await setDoc(doc(d, 'deal_rooms/d54-open'), { userId: 'a54', leadId: 'lead54-own', status: 'sent', notes: '' });
+  });
+  await x54('create: deal on own lead', 'allow', setDoc(doc(a54, 'deal_rooms/d54-1'), { userId: 'a54', leadId: 'lead54-own', status: 'draft' }));
+  await x54('create: deal on a teammate\'s lead (same company)', 'allow', setDoc(doc(a54, 'deal_rooms/d54-2'), { userId: 'a54', leadId: 'lead54-mate', status: 'draft' }));
+  await x54('create: deal with no lead', 'allow', setDoc(doc(a54, 'deal_rooms/d54-3'), { userId: 'a54', leadId: null, status: 'draft' }));
+  await x54('create: deal naming a lead id with no doc', 'allow', setDoc(doc(a54, 'deal_rooms/d54-4'), { userId: 'a54', leadId: 'lead54-none', status: 'draft' }));
+  await x54('create: deal on another tenant\'s lead', 'deny', setDoc(doc(a54, 'deal_rooms/d54-5'), { userId: 'a54', leadId: 'lead54-victim', status: 'draft' }));
+  await x54('create: deal on another tenant\'s legacy lead (no companyId)', 'deny', setDoc(doc(a54, 'deal_rooms/d54-6'), { userId: 'a54', leadId: 'lead54-legacy', status: 'draft' }));
+  await x54('create: spoofed deal companyId does not help', 'deny', setDoc(doc(a54, 'deal_rooms/d54-7'), { userId: 'a54', companyId: 'co-v54', leadId: 'lead54-victim', status: 'draft' }));
+  await x54('create: a leadId with a slash', 'deny', setDoc(doc(a54, 'deal_rooms/d54-8'), { userId: 'a54', leadId: 'a/b', status: 'draft' }));
+  await x54('update: edit an open deal, lead unchanged', 'allow', updateDoc(doc(a54, 'deal_rooms/d54-open'), { notes: 'x' }));
+  await x54('update: full re-sync, same lead', 'allow', setDoc(doc(a54, 'deal_rooms/d54-open'), { userId: 'a54', leadId: 'lead54-own', status: 'viewed', notes: 'y' }));
+  await x54('update: re-point leadId at another tenant\'s lead', 'deny', updateDoc(doc(a54, 'deal_rooms/d54-open'), { leadId: 'lead54-victim' }));
+  await x54('update: re-point leadId at a teammate\'s lead', 'allow', updateDoc(doc(a54, 'deal_rooms/d54-open'), { leadId: 'lead54-mate' }));
+  await x54('teammate reads nothing new (owner-only read stands)', 'deny', getDoc(doc(t54, 'deal_rooms/d54-open')));
+  console.log('  54: ' + s54Pass + ' deal leadId checks passed, ' + s54Fail.length + ' failed');
+  if (s54Fail.length) {
+    throw new Error('54 deal leadId: ' + s54Fail.length + ' check(s) went the wrong way:\n    ' + s54Fail.join('\n    '));
+  }
+
+  // 55. sms_dnc — a company's internal Do Not Text list (2026-10-05). Server
+  //     only (manageSmsCompliance + incomingSMS); enforced in sms-optout.js
+  //     isOptedOut. No client may read it, or write it as CREATE (plant a
+  //     number on a list) or UPDATE / DELETE (take one off — then text someone
+  //     who asked not to be texted), not even the company's own admin.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'sms_dnc/co-a__8595550134'), { companyId: 'co-a', key: '8595550134', source: 'manual', addedAt: 1 });
+  });
+  await assertFails(getDoc(doc(alice,   'sms_dnc/co-a__8595550134')));
+  await assertFails(getDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134')));
+  await assertFails(getDocs(query(collection(coAdmin, 'sms_dnc'), where('companyId', '==', 'co-a'))));
+  await assertFails(setDoc(doc(alice,   'sms_dnc/co-a__5135550123'), { companyId: 'co-a', key: '5135550123', source: 'manual', addedAt: 1 }));
+  await assertFails(setDoc(doc(coAdmin, 'sms_dnc/co-b__5135550123'), { companyId: 'co-b', key: '5135550123', source: 'manual', addedAt: 1 }));
+  await assertFails(updateDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134'), { source: 'manual' }));
+  await assertFails(updateDoc(doc(alice,   'sms_dnc/co-a__8595550134'), { companyId: 'co-z' }));
+  await assertFails(deleteDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134')));
+  console.log('  55: sms_dnc client read / create / update / delete all denied');
+
+  // 56. sms_settings — the per-company texting master switch (2026-10-05).
+  //     Server only. A client CREATE (registered: true on a company that has
+  //     no registration) or UPDATE (switch it back on) must both fail, even
+  //     for the company's own admin.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'sms_settings/co-a'), { enabled: false });
+  });
+  await assertFails(getDoc(doc(coAdmin, 'sms_settings/co-a')));
+  await assertFails(setDoc(doc(coAdmin, 'sms_settings/co-b'), { registered: true, enabled: true }));
+  await assertFails(setDoc(doc(solo,    'sms_settings/solo1'), { registered: true }));
+  await assertFails(updateDoc(doc(coAdmin, 'sms_settings/co-a'), { enabled: true }));
+  await assertFails(updateDoc(doc(coAdmin, 'sms_settings/co-a'), { registered: true }));
+  await assertFails(deleteDoc(doc(coAdmin, 'sms_settings/co-a')));
+  console.log('  56: sms_settings client read / create / update / delete all denied');
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }

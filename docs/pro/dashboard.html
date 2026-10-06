@@ -23,7 +23,7 @@
      used to carry. Customer/vault/login already loaded the file; dashboard now joins. -->
 <link rel="stylesheet" href="css/theme-system.css?v=10">
 <link rel="stylesheet" href="css/theme-art.css?v=2">
-<link rel="stylesheet" href="css/agent-inbox.css?v=4">
+<link rel="stylesheet" href="css/agent-inbox.css?v=5">
 <link rel="stylesheet" href="css/agent-bots.css?v=1">
 <link rel="stylesheet" href="css/sort-customers.css?v=1">
 <link rel="stylesheet" href="css/triage-deck.css?v=2">
@@ -54,7 +54,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=9" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=18" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=20" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=8" as="script">
@@ -119,7 +119,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=145"></script>
+<script src="js/script-loader.js?v=146"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -138,13 +138,14 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=35"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=37"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=11">
-<link rel="stylesheet" href="css/ui-primitives.css?v=12">
+<link rel="stylesheet" href="css/dashboard-app.css?v=12">
+<link rel="stylesheet" href="css/ui-primitives.css?v=13">
+<link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=3">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
 <link rel="stylesheet" href="css/close-board.css?v=2">
@@ -240,7 +241,7 @@
     <a href="/pro/ai-tool-finder.html" class="nnav-link" data-page="codex"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h12a1 1 0 011 1v10l-4 4H4a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M13 14v4"/><path d="M7 7h6M7 10h3"/></svg></span><span class="nnav-lbl">Codex</span></a>
     <a href="/pro/project-codex.html" class="nnav-link" data-page="project-codex"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 3V1.5h6V3"/><path d="M7 8h6M7 11h4"/></svg></span><span class="nnav-lbl">My Codex</span></a>
     <a href="/pro/understand.html" class="nnav-link" data-page="understand"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4.5A3 3 0 004 7.5c0 1.2.7 2.2 1.7 2.7A3 3 0 007 15h3"/><path d="M13 4.5A3 3 0 0116 7.5c0 1.2-.7 2.2-1.7 2.7A3 3 0 0013 15h-3"/><circle cx="10" cy="3" r="1.5"/><path d="M10 18V9"/></svg></span><span class="nnav-lbl">Understand</span></a>
-    <a href="/pro/demo.html" class="nnav-link demo-link" data-page="demo"><span class="nnav-icon">▶</span><span class="nnav-lbl">Demo</span></a>
+    <a href="/pro/sandbox" class="nnav-link demo-link" data-page="demo"><span class="nnav-icon">▶</span><span class="nnav-lbl">Demo</span></a>
   </div>
 
   <div class="nnav-right">
@@ -262,7 +263,7 @@
     <a href="/pro/ai-tool-finder.html" class="nnav-drawer-link" data-page="codex"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h12a1 1 0 011 1v10l-4 4H4a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M13 14v4"/><path d="M7 7h6M7 10h3"/></svg></span> Codex</a>
     <a href="/pro/project-codex.html" class="nnav-drawer-link" data-page="project-codex"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 3V1.5h6V3"/><path d="M7 8h6M7 11h4"/></svg></span> My Codex</a>
     <a href="/pro/understand.html" class="nnav-drawer-link" data-page="understand"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4.5A3 3 0 004 7.5c0 1.2.7 2.2 1.7 2.7A3 3 0 007 15h3"/><path d="M13 4.5A3 3 0 0116 7.5c0 1.2-.7 2.2-1.7 2.7A3 3 0 0013 15h-3"/><circle cx="10" cy="3" r="1.5"/><path d="M10 18V9"/></svg></span> Understand</a>
-    <a href="/pro/demo.html" class="nnav-drawer-link demo-link" data-page="demo"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M6 4l10 6-10 6V4z"/></svg></span> Live Demo</a>
+    <a href="/pro/sandbox" class="nnav-drawer-link demo-link" data-page="demo"><span class="nnav-icon"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M6 4l10 6-10 6V4z"/></svg></span> Live Demo</a>
   </div>
   <div class="nnav-drawer-footer">
     <span id="nnav-drawer-user" style="font-size:10px;color:#8b9bb4;text-align:center;letter-spacing:.5px;"></span>
@@ -815,6 +816,8 @@
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="refrewards" id="nav-refrewards"><span class="ni-icon">🎁</span>Referrals</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="signs" id="nav-signs"><span class="ni-icon">🪧</span>Yard Signs</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="winback" id="nav-winback"><span class="ni-icon">🤝</span>Past Customers</div>
+      <!-- Roof Care Plan members (2026-10-05): hidden until care-plan-crm.js confirms the plan is on (CARE_PLAN_MODE) for the platform tenant's owner. -->
+      <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="careplan" id="nav-careplan" data-careplan-nav hidden><span class="ni-icon">🛡</span>Care Plan</div>
       <div class="ni" role="button" tabindex="0" data-action="windowOpen" data-target="/pro/daily-success/" id="nav-daily"><span class="ni-icon">📅</span>Success Tracker</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="storm" id="nav-storm"><span class="ni-icon">⛈️</span>Storm Watch</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="closeboard" id="nav-closeboard"><span class="ni-icon">📋</span>Close Board</div>
@@ -2418,6 +2421,9 @@
   <!-- Past Customers (win-back): template-hydrated mount; winback.js (lazy 'winback' bundle) renders the list into .view-scroll on init. -->
   <div class="view" id="view-winback" data-view-template="tpl-view-winback"></div>
   <template id="tpl-view-winback"><div class="view-scroll" id="winbackScroll"></div></template>
+  <!-- Roof Care Plan members: template-hydrated mount; care-plan-members.js (lazy 'careplan' bundle) renders into .view-scroll on init. -->
+  <div class="view" id="view-careplan" data-view-template="tpl-view-careplan"></div>
+  <template id="tpl-view-careplan"><div class="view-scroll" id="careplanScroll"></div></template>
   <!-- Sunday business review (2026-10-04): template-hydrated mount; week-review.js (lazy 'weekreview' bundle) renders into .view-scroll on init. Owner-only figures. -->
   <div class="view" id="view-weekreview" data-view-template="tpl-view-weekreview"></div>
   <template id="tpl-view-weekreview"><div class="view-scroll" id="weekReviewScroll"></div></template>
@@ -3932,7 +3938,7 @@
               <div class="sf"><label>Business Email</label><input type="text" id="coEmail" placeholder="JD@nobigdealwithjoedeal.com"></div>
             </div>
             <div class="sf-row">
-              <div class="sf"><label>Street Address</label><input type="text" id="coAddress" placeholder="6563 Manila Rd"></div>
+              <div class="sf"><label>Street Address</label><input type="text" id="coAddress" placeholder="123 Main St"></div>
               <div class="sf"><label>City, State ZIP</label><input type="text" id="coCity" placeholder="Goshen, OH 45122"></div>
             </div>
             <div class="sf-row">
@@ -4008,6 +4014,12 @@
                 <input type="color" id="cp_brand_colorAccent" value="#BD5728"></div>
             </div>
             <div style="margin:14px 0 6px;font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--m);">Contact — used on your portal, texts &amp; lead alerts</div>
+            <!-- 2026-10-05 (Jo): a company with no lead-alert contact gets its
+                 website / form leads alerted to NOBODY (functions/lead-alert.js
+                 resolveAlertTarget). Shown by dashboard-bootstrap.module.js
+                 _cpAlertContactsWarning for a non-NBD company until it saves an
+                 Email here. NBD never sees it. -->
+            <div id="cp_alertWarn" role="status" hidden class="cp-alert-warn"><strong>Set your lead alert contacts.</strong> New leads from your website and forms are not sent to anyone until you add your company Email below and save — lead alerts go to that address.</div>
             <div class="sf-row">
               <div class="sf"><label>Phone</label>
                 <input type="text" id="cp_brand_phone" placeholder="(859) 420-7382"></div>
@@ -4044,7 +4056,7 @@
             </div>
             <div class="sf-row">
               <div class="sf"><label>Letterhead Address (one line, optional)</label>
-                <input type="text" id="cp_businessAddress" placeholder="6563 Manila Rd, Goshen OH 45122"></div>
+                <input type="text" id="cp_businessAddress" placeholder="123 Main St, Goshen OH 45122"></div>
               <div class="sf"><label>License # (shown in footer disclaimer)</label>
                 <input type="text" id="cp_businessLicense" placeholder="OH-HIC-12345 / KY-CON-98765"></div>
             </div>
@@ -5382,7 +5394,7 @@
     </div>
     <div class="mfield"><label>Address</label>
       <div class="ac-wrap">
-        <input type="text" id="lAddr" placeholder="1054 Klondyke Rd, Goshen OH 45122" autocomplete="off">
+        <input type="text" id="lAddr" placeholder="456 Example Rd, Goshen OH 45122" autocomplete="off">
         <div class="ac-drop dn" id="ac-lAddr"></div>
       </div>
     </div>
@@ -5708,7 +5720,7 @@
       </div>
       <div class="mfield">
         <label>Property Address</label>
-        <input type="text" id="wcAddr" placeholder="1054 Klondyke Rd, Goshen OH 45122" class="w-full">
+        <input type="text" id="wcAddr" placeholder="456 Example Rd, Goshen OH 45122" class="w-full">
       </div>
       <div class="mfield">
         <label>Installation Date</label>
@@ -5971,7 +5983,7 @@
 <!-- Canonical customer URL builder (window.NBDUrl). Loaded BEFORE
      dashboard-actions.js because that file calls NBDUrl.customer(). -->
 <script defer src="js/nbd-url.js?v=1"></script>
-<script defer src="js/dashboard-state.js?v=9"></script>
+<script defer src="js/dashboard-state.js?v=10"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
 <script defer src="js/team-names.js?v=1"></script>
 <script defer src="js/dashboard-api.js?v=5"></script>
@@ -5998,7 +6010,7 @@
      because this file was only ever loaded on customer.html, so the dashboard
      silently ran the fallbacks. Dependency-free and already unit-tested
      (tests/customer-estimate-rows.test.js). -->
-<script defer src="js/customer-estimate-rows.js?v=3"></script>
+<script defer src="js/customer-estimate-rows.js?v=5"></script>
 <script defer src="js/materials-list.js?v=1"></script>
 <script defer src="js/customer-estimate-hub.js?v=4"></script>
 <script defer src="js/customer-photo-hub.js?v=2"></script>
@@ -6007,8 +6019,8 @@
      classic dashboard-actions.js mount/unmount wiring to call. -->
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
-<script defer src="js/dashboard-widgets.js?v=9"></script>
-<script defer src="js/dashboard-ui.js?v=11"></script>
+<script defer src="js/dashboard-widgets.js?v=10"></script>
+<script defer src="js/dashboard-ui.js?v=12"></script>
 <script defer src="js/dashboard-actions.js?v=17"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
@@ -6218,6 +6230,9 @@
   </div>
   <div class="mm-item" data-action="mobileNav" data-target="winback" data-close-more>
     <span class="mm-item-icon">🤝</span>Past Customers
+  </div>
+  <div class="mm-item" data-action="mobileNav" data-target="careplan" data-close-more data-careplan-nav hidden>
+    <span class="mm-item-icon">🛡</span>Care Plan
   </div>
   <div class="mm-item" data-action="mobileNav" data-target="money" data-close-more>
     <span class="mm-item-icon">💵</span>Money
@@ -6904,7 +6919,7 @@
 <script defer src="js/crm-leads.js?v=9"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
-<script defer src="js/crm-pipeline.js?v=18"></script>
+<script defer src="js/crm-pipeline.js?v=20"></script>
 <script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -6921,7 +6936,7 @@
 <script defer src="js/tasks.js?v=7"></script>
 <script defer src="js/dol-fill.js?v=2"></script>
 <script defer src="js/notif-bell.js?v=7"></script>
-<script defer src="js/agent-inbox.js?v=6"></script>
+<script defer src="js/agent-inbox.js?v=7"></script>
 <script defer src="js/agent-bots-settings.js?v=3"></script>
 <script defer src="js/buying-intent-strike.js?v=3"></script>
 <script defer src="js/lead-dedup.js?v=4"></script>
@@ -6979,8 +6994,8 @@
 <script defer src="js/numbers-logic.js?v=1"></script>
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=1"></script>
-<script defer src="js/widgets.js?v=13"></script>
-<script defer src="js/today-home.js?v=1"></script>
+<script defer src="js/widgets.js?v=14"></script>
+<script defer src="js/today-home.js?v=2"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=3"></script>
 <script defer src="js/ui.js?v=9"></script>
@@ -7066,6 +7081,9 @@
      defaults. After company-profile.js (reads _companyProfile at call time);
      estimate-config.js and deposit-rule.js ask it first. -->
 <script defer src="js/tenant-rules.js?v=1"></script>
+<!-- Roof Care Plan (2026-10-05): member badge, nav reveal, invite / billing
+     link dialog. After tenant-rules.js (isPlatformTenant). -->
+<script defer src="js/care-plan-crm.js?v=1"></script>
 <!-- LAZY (2026-10-05, boot budget): the Business Rules editor and the logo
      upload / company export buttons ride ScriptLoader's 'tenantsettings'
      bundle (goTo('settings')); the new-owner setup checklist rides 'setup',
@@ -7079,7 +7097,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=9"></script>
+<script defer src="js/analytics-kpi.js?v=10"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->

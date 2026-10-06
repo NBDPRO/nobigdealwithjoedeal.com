@@ -406,8 +406,14 @@
         return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
       case 'todayISO':
         return toDateInput(new Date());
-      case 'jobValue':
-        return lead.jobValue || est.grandTotal || est.total || est.amount || 0;
+      case 'jobValue': {
+        // The estimate being documented wins over lead.jobValue (review
+        // R2-2-4, 2026-10-06): a revised estimate's contract prefilled the
+        // lead's older number. lead.jobValue only when no estimate is selected
+        // or it carries no price.
+        var estPrice = Number(est.grandTotal || est.total || est.amount) || 0;
+        return estPrice > 0 ? estPrice : (lead.jobValue || 0);
+      }
       case 'invoiceNumber':
         return 'INV-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-5);
       case 'receiptNumber':
@@ -451,9 +457,14 @@
           return (_m && _m.manufacturerName && _m.manufacturerName !== _m.manufacturer + ' shingles') ? _m.manufacturerName : '';
         } catch (e) { return ''; }
       case 'dueDate':
-        var d = new Date();
-        d.setDate(d.getDate() + 30);
-        return toDateInput(d);
+        // The ONE invoice due-date rule (deposit-rule.js INVOICE_DUE_DAYS —
+        // Jo 2026-10-05: 7 days everywhere). This said +30, so a generated
+        // invoice disagreed with the CRM invoice and the Stripe invoice.
+        var _drDue = window.NBDDepositRule;
+        return toDateInput(new Date(_drDue ? _drDue.invoiceDueDateMs(Date.now()) : Date.now() + 7 * 86400000));
+      case 'invoiceTerms':
+        var _drTerms = window.NBDDepositRule;
+        return (_drTerms ? _drTerms.netTermsText() : 'Net 7.') + ' Check, ACH, or credit card accepted.';
       case 'scopeItems':
         // Prefer lead.scopeOfWork as newline list, else estimate description
         var raw = lead.scopeOfWork || est.description || '';
@@ -960,7 +971,7 @@
           id: 'terms', title: 'Payment Terms', collapsed: true,
           fields: [
             { key: 'paymentTerms', label: 'Payment Terms', type: 'textarea', rows: 2,
-              source: 'literal:Net 30. Check, ACH, or credit card accepted.',
+              source: 'computed.invoiceTerms',
               persist: PERSIST.DOCUMENT }
           ]
         }
@@ -1937,8 +1948,8 @@
   // five invoices generated on 2026-08-18 carrying no street address.
   // These check the address is actually deliverable. See
   // documentation/audit/CRM-ADDRESS-INTEGRITY-2026-08-18.md.
-  var ADDR_HOUSE_NUMBER = /^\s*\d+[a-zA-Z]?\s+\S/;   // "1944 Kentucky Ave"
-  var ADDR_LEGACY_MANGLED = /^\s*\d+[a-zA-Z]?\s*,/;   // "7003, Greenstone Trace, ..."
+  var ADDR_HOUSE_NUMBER = /^\s*\d+[a-zA-Z]?\s+\S/;   // "100 Kentucky Ave"
+  var ADDR_LEGACY_MANGLED = /^\s*\d+[a-zA-Z]?\s*,/;   // "7003, Wrenfield Trace, ..."
   var ADDR_ZIP = /\b\d{5}(-\d{4})?\b/;
   var ADDR_STATE = /\b(OH|KY|IN)\b/i;
 
@@ -3113,8 +3124,8 @@
     data.homeownerAddress = data.address || data.homeownerAddress || '';
     data.propertyAddress = data.address || '';
 
-    // Extra properties worked under one job (Anthony Scandariato: 1944 AND
-    // 1942 Kentucky Ave on invoice NBD-2026-0810-RK). Sourced from the lead
+    // Extra properties worked under one job (Customer ET: 100 AND
+    // 102 Kentucky Ave on invoice NBD-2026-0810-XXXX). Sourced from the lead
     // — the rep maintains them on the customer record, documents just
     // reflect them — so there is no per-document copy to drift. Always an
     // array; renderers omit the SERVICE LOCATIONS block when it is empty.

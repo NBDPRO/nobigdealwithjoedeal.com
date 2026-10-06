@@ -50,7 +50,7 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     ok('name, address and phone stay required', ['f-name', 'f-address', 'f-phone'].every((id) => new RegExp('id="' + id + '"[^>]*required').test(FORM)));
     ok('the intake block on the form is the scheduling choice only', /<div data-nbd-intake="ins" data-extras="false" data-cal-hint="Pick your time on the next screen\."><\/div>/.test(FORM));
     ok('no email / story / referral / photo field on the form', !/f-email|f-story|f-referral|Photos/.test(FORM.replace(/<!--[\s\S]*?-->/g, '')));
-    ok('the consent sentence is byte-for-byte the live one (#2225 owns its change)', FORM.includes('<label class="sc-consent"><input type="checkbox" id="ins-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>'));
+    ok('the consent sentence is byte-for-byte the live one (#2225 owns its change)', FORM.includes('<label class="sc-consent"><input type="checkbox" id="ins-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>'));
     ok('the box is not pre-checked', !/id="ins-consent"[^>]*checked/.test(FORM));
     ok('the walk-it line is on the page', HTML.includes('You don&rsquo;t have to be home, but you&rsquo;re welcome to walk it with Joe.'));
     ok('the moved fields live on the thank-you screen', /id="insDetails" hidden/.test(SUCCESS) && ['f-story', 'f-email', 'f-referral', 'insXIntake', 'insDetailsSave', 'insDetailsStatus'].every((id) => SUCCESS.includes('id="' + id + '"')));
@@ -202,9 +202,9 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     ok('...and the CRM card gets note lines, the email and the referral code', /What happened: Leak over the porch/.test(crm.notes) && /Email: pat@example\.com/.test(crm.notes) && crm.email === 'pat@example.com' && crm.redeemReferralCode === 'JOHN-AB12');
     ok('...phone and phoneDigits on the card are untouched', crm.phoneDigits === '8595550100' && !('phone' in crm));
 
-    db = fakeDb({ [GKEY]: grant('inspect_leads'), 'inspect_leads/pub-9': {}, [crmKey]: { notes: 'x', email: 'rep@typed.com', redeemReferralCode: 'OLD-1' } });
+    db = fakeDb({ [GKEY]: grant('inspect_leads'), 'inspect_leads/pub-9': {}, [crmKey]: { notes: 'x', email: 'rep-typed@example.com', redeemReferralCode: 'OLD-1' } });
     await PLP.saveIntakeUpdate(db, { token: TOKEN, email: 'pat@example.com', referralCode: 'NEW-2' });
-    ok('fill-only: an email or referral code already on the card is never overwritten', db.store.get(crmKey).email === 'rep@typed.com' && db.store.get(crmKey).redeemReferralCode === 'OLD-1');
+    ok('fill-only: an email or referral code already on the card is never overwritten', db.store.get(crmKey).email === 'rep-typed@example.com' && db.store.get(crmKey).redeemReferralCode === 'OLD-1');
 
     db = fakeDb({ [GKEY]: grant('estimate_leads'), 'estimate_leads/pub-9': {} });
     out = await PLP.saveIntakeUpdate(db, { token: TOKEN, story: 'hello', email: 'pat@example.com' });

@@ -80,6 +80,29 @@ async function loadContext(db) {
   return { db, leads, idx: L.buildLeadIndex([...leads.values()]), invoicesByLead, invoicesById: new Map(invSnap.docs.map((d) => [d.id, Object.assign({ id: d.id }, d.data())])) };
 }
 
+/**
+ * The job + estimate a new mirror belongs to (L.mirrorJobStamp): reads the
+ * lead's jobs and its primary estimate. Any failed read → {} (un-stamped, as
+ * before) — a stamp is a help, never a reason to drop a payment.
+ */
+async function mirrorStampFor(ctx, lead, src) {
+  try {
+    const leadRef = ctx.db.collection('leads').doc(String(lead.id));
+    const js = await leadRef.collection('jobs').limit(5).get();
+    const jobs = (js.docs || []).map((d) => Object.assign({ id: d.id }, d.data() || {}));
+    const eid = typeof lead.primaryEstimateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(lead.primaryEstimateId) ? lead.primaryEstimateId : null;
+    let est = null;
+    if (eid) {
+      const es = await ctx.db.collection('estimates').doc(eid).get();
+      est = es.exists ? (es.data() || {}) : null;
+    }
+    return L.mirrorJobStamp(lead, jobs, est, ((src && src.created) || 0) * 1000);
+  } catch (e) {
+    logger.warn('[stripeLedger] mirror job stamp skipped', { leadId: lead && lead.id, err: e && e.message });
+    return {};
+  }
+}
+
 // ── the booking step ─────────────────────────────────────────────────────
 /**
  * Credit one movement to the lead's CRM invoice — the one it links to, or the
@@ -114,6 +137,9 @@ async function book(ctx, { leadId, mv, stripeInvoice, sourceObject, dryRun }) {
     return { invoiceId, created: !invoiceId, credited: !!plan, why: invoiceId ? pick.why : 'mirror_' + pick.why };
   }
   const db = ctx.db;
+  // A new mirror is stamped with the customer's job when there is no doubt
+  // (2026-10-05) — read before the transaction (reads only, no write).
+  const stamp = invoiceId ? {} : await mirrorStampFor(ctx, lead, stripeInvoice || sourceObject);
   const result = await db.runTransaction(async (tx) => {
     let ref, inv;
     if (invoiceId) {
@@ -123,7 +149,7 @@ async function book(ctx, { leadId, mv, stripeInvoice, sourceObject, dryRun }) {
       inv = snap.data();
     } else {
       ref = db.collection('invoices').doc();
-      inv = L.mirrorInvoice(stripeInvoice || sourceObject, lead, OWNER, Date.now());
+      inv = L.mirrorInvoice(stripeInvoice || sourceObject, lead, OWNER, Date.now(), stamp);
       tx.set(ref, inv);
       created = true;
     }
@@ -314,7 +340,7 @@ async function ingestInvoice(ctx, invOrId, opts) {
     const invs = ctx.invoicesByLead.get(match.leadId) || [];
     if (!invs.some((i) => i.stripeInvoiceId === inv.id)) {
       const ref = ctx.db.collection('invoices').doc();
-      const mirror = L.mirrorInvoice(inv, match._lead, OWNER, Date.now());
+      const mirror = L.mirrorInvoice(inv, match._lead, OWNER, Date.now(), await mirrorStampFor(ctx, match._lead, inv));
       await ref.set(mirror);
       ctx.invoicesByLead.set(match.leadId, invs.concat(Object.assign({ id: ref.id }, mirror)));
       ctx.invoicesById.set(ref.id, Object.assign({ id: ref.id }, mirror));

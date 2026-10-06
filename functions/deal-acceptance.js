@@ -43,6 +43,7 @@ const { fillLeadInstallDate } = require('./deal-install-date');
 const { spineAfterDealAccept } = require('./job-spine');
 const DV = require('./deal-view-logic');
 const ESL = require('./estimate-send-logic');
+const ThursdayGate = require('./thursday-video-gate');
 const EVA = require('./estimate-view-alert');
 const DP = require('./deal-packet-logic');
 const { reencodePhoto } = require('./photo-reencode');
@@ -84,20 +85,34 @@ const DEAL_ROOM_SCRIPT_URLS = [
   'https://www.nobigdealwithjoedeal.com/pro/deal-room.js',
   'https://nobigdeal-pro.web.app/pro/deal-room.js',
 ].join(' ');
-const DEAL_ROOM_CSP = [
-  "default-src 'none'",
-  'script-src ' + DEAL_ROOM_SCRIPT_URLS,
-  'script-src-elem ' + DEAL_ROOM_SCRIPT_URLS,
-  "script-src-attr 'none'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' data: https://fonts.gstatic.com",
-  "img-src 'self' data: blob: https:",
-  "connect-src 'self'",
-  "form-action 'none'",
-  "frame-ancestors 'none'",
-  "base-uri 'none'",
-  "object-src 'none'",
-].join('; ');
+// NBD deals only (2026-10-05): the "A video from Thursday" card script, by
+// the same exact-path rule, plus same-origin media for its video + WebVTT
+// captions. Every other tenant's deal room keeps the policy above unchanged,
+// so a tenant page cannot pull NBD's card in by itself.
+const THURSDAY_SCRIPT_URLS = [
+  'https://nobigdealwithjoedeal.com' + ThursdayGate.DEAL_ROOM_SCRIPT_PATH,
+  'https://www.nobigdealwithjoedeal.com' + ThursdayGate.DEAL_ROOM_SCRIPT_PATH,
+  'https://nobigdeal-pro.web.app' + ThursdayGate.DEAL_ROOM_SCRIPT_PATH,
+].join(' ');
+function dealRoomCsp(withThursday) {
+  const scripts = withThursday ? DEAL_ROOM_SCRIPT_URLS + ' ' + THURSDAY_SCRIPT_URLS : DEAL_ROOM_SCRIPT_URLS;
+  return [
+    "default-src 'none'",
+    'script-src ' + scripts,
+    'script-src-elem ' + scripts,
+    "script-src-attr 'none'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    ...(withThursday ? ["media-src 'self'"] : []),
+    "connect-src 'self'",
+    "form-action 'none'",
+    "frame-ancestors 'none'",
+    "base-uri 'none'",
+    "object-src 'none'",
+  ].join('; ');
+}
+const DEAL_ROOM_CSP = dealRoomCsp(false);
 // Shown on the deal page beside the signature (deal-room.js prints the same
 // words) and stored with the acceptance when the homeowner ticks it.
 const DEAL_CONSENT_TEXT = 'I agree to sign electronically. My electronic signature is the legal equivalent of my handwritten signature.';
@@ -154,6 +169,29 @@ exports.createDealAcceptToken = onCall(
       throw new HttpsError('failed-precondition', 'This deal is already accepted — no new link needed.');
     }
 
+    // The deal's company: the minting owner's own claim (never the client-
+    // written deal.companyId) — an admin minting someone else's deal falls
+    // back to the deal's fields.
+    const claimCo = request.auth.token && typeof request.auth.token.companyId === 'string' ? request.auth.token.companyId : '';
+    const ownerCompanyId = deal.userId === uid ? (claimCo || uid) : (deal.companyId || deal.userId);
+    // deal_rooms.leadId is client-written and unbound by the rules: the
+    // accepted deal writes to that lead (cancelBy, install date, tier, job
+    // stage), so it must be the deal owner's lead (or their company's). A
+    // lead that no longer exists is dropped, never carried.
+    let leadId = null;
+    if (deal.leadId != null && deal.leadId !== '') {
+      if (typeof deal.leadId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(deal.leadId)) {
+        throw new HttpsError('failed-precondition', 'This deal is linked to an invalid lead.');
+      }
+      const leadSnap = await db.doc(`leads/${deal.leadId}`).get();
+      if (leadSnap.exists) {
+        if (!CW.leadBelongsTo(leadSnap.data(), { ownerUid: deal.userId, companyId: ownerCompanyId })) {
+          throw new HttpsError('permission-denied', 'This deal is linked to a lead you do not own.');
+        }
+        leadId = deal.leadId;
+      }
+    }
+
     // The interactive deal-room HTML must already be uploaded to Storage by
     // the client (uploadDealPage → deal_rooms/<uid>/<dealId>.html). We serve
     // THAT, not arbitrary HTML.
@@ -181,8 +219,8 @@ exports.createDealAcceptToken = onCall(
     await db.doc(`deal_accept_tokens/${token}`).set({
       dealId,
       ownerUid: deal.userId,
-      companyId: deal.companyId || deal.userId,
-      leadId: deal.leadId || null,
+      companyId: ownerCompanyId,
+      leadId,
       customerName: String(deal.customerName || '').slice(0, 120),
       htmlPath,
       tierPrices,
@@ -308,17 +346,20 @@ exports.getDealRoom = onRequest(
     // strict CSP (it is simply ignored where the CSP applies). Tokens are
     // hex, but escape for the attribute anyway.
     const escAttr = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    const withThursday = ThursdayGate.isNbdTenant(tok.companyId || tok.ownerUid);
     const inject = `<meta name="nbd-deal-token" content="${escAttr(token)}">`
       + `<meta name="nbd-deal-submit" content="${escAttr(SUBMIT_PATH)}">`
       + `<meta name="nbd-deal-read" content="${escAttr(READ_PATH)}">`
-      + `<script>window.__NBD_DEAL_TOKEN=${JSON.stringify(token)};window.__NBD_DEAL_SUBMIT_URL=${JSON.stringify(SUBMIT_PATH)};</script>`;
+      + `<script>window.__NBD_DEAL_TOKEN=${JSON.stringify(token)};window.__NBD_DEAL_SUBMIT_URL=${JSON.stringify(SUBMIT_PATH)};</script>`
+      // NBD deals only: the Thursday card marker + script (empty otherwise).
+      + (withThursday ? ThursdayGate.DEAL_ROOM_INJECT : '');
     html = html.includes('</head>') ? html.replace('</head>', inject + '</head>') : inject + html;
 
     res.status(200)
       .set('Content-Type', 'text/html; charset=utf-8')
       .set('X-Robots-Tag', 'noindex, nofollow')
       .set('Cache-Control', 'no-store')
-      .set('Content-Security-Policy', DEAL_ROOM_CSP)
+      .set('Content-Security-Policy', withThursday ? dealRoomCsp(true) : DEAL_ROOM_CSP)
       .set('X-Content-Type-Options', 'nosniff')
       .set('Referrer-Policy', 'no-referrer')
       .send(html);
@@ -449,7 +490,7 @@ exports.submitDealAcceptance = onRequest(
           acceptedEvidence: evidence,
         });
         return {
-          dealId: t.dealId, ownerUid: t.ownerUid, leadId: t.leadId || null,
+          dealId: t.dealId, ownerUid: t.ownerUid, companyId: t.companyId || null, leadId: t.leadId || null,
           customerName: t.customerName || '', price, htmlPath: t.htmlPath || null,
         };
       });
@@ -641,7 +682,7 @@ async function recordDealCancelWindow(db, info, when) {
   cancelBy = CW.cancelByFor(html, when);
   try { await db.doc(`deal_rooms/${info.dealId}`).update({ cancelBy }); }
   catch (e) { logger.warn('[submitDealAcceptance] deal cancelBy stamp failed', { msg: e && e.message }); }
-  await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger);
+  await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid, companyId: info.companyId });
   return cancelBy;
 }
 

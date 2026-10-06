@@ -4147,6 +4147,28 @@
         // Update existing estimate
         await updateDoc(doc(db,'estimates',editId), {...data, updatedAt:serverTimestamp()});
         window._editingEstimateId = null;
+        // Re-save of the lead's PRIMARY estimate (V2 reopen / re-send): the
+        // pipeline, Home KPIs, Numbers and crm_summary read lead.jobValue, so
+        // it follows the new total (review R2-2-3, 2026-10-06). Same rules as
+        // the create branch below: only the primary estimate's number, never a
+        // $0 (_canStampJobValue), best-effort — a lead-write failure must not
+        // fail the save. A non-primary estimate leaves the lead alone.
+        const _prev = (window._estimates || []).find(e => e && e.id === editId) || null;
+        const _editLeadId = data.leadId || (_prev && _prev.leadId) || null;
+        if (_editLeadId) {
+          try {
+            const leadRef = doc(db, 'leads', _editLeadId);
+            const leadSnap = await getDoc(leadRef);
+            const lead = leadSnap.exists() ? leadSnap.data() : null;
+            const newVal = _estValue(data);
+            if (lead && lead.primaryEstimateId === editId && _canStampJobValue(newVal)
+                && newVal !== Number(lead.jobValue)) {
+              await updateDoc(leadRef, { jobValue: newVal, lastEstimateAt: serverTimestamp() });
+            }
+          } catch (stampErr) {
+            console.warn('[_saveEstimate] lead jobValue re-stamp failed:', stampErr);
+          }
+        }
         await loadEstimates();
         return editId;
       } else {
@@ -6111,6 +6133,23 @@
     // A fresh populate = user hasn't moved a swatch yet (mirror onboarding.js).
     _cpColorsTouched = false;
     _cpWireColorInputs();
+    _cpAlertContactsWarning(rawContact);
+  }
+
+  // "Set your lead alert contacts" (2026-10-05, Jo): a non-NBD company whose
+  // profile has no alertEmail / alertSms gets its public leads alerted to
+  // nobody (functions/lead-alert.js). NBD — decided by the company key
+  // (tenant-rules.js isPlatformTenant), never the brand — never sees it.
+  function _cpAlertContactsWarning(rawContact) {
+    const el = document.getElementById('cp_alertWarn');
+    if (!el) return;
+    let isNbd = true;
+    try {
+      const TR = window.NBDTenantRules;
+      if (TR && typeof TR.isPlatformTenant === 'function') isNbd = TR.isPlatformTenant();
+    } catch (_) { isNbd = true; }
+    const c = rawContact || {};
+    el.hidden = isNbd || !!(c.alertEmail || c.alertSms);
   }
 
   async function _loadCompanyProfileSettings() {

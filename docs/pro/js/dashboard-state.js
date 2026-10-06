@@ -78,6 +78,8 @@ const routeConfig = {
   'refrewards':   { label: 'Referrals',         parent: null },
   'signs':        { label: 'Yard Signs',        parent: null },
   'winback':      { label: 'Past Customers',    parent: null },
+  // Roof Care Plan members (2026-10-05, js/care-plan-members.js).
+  'careplan':     { label: 'Care Plan',         parent: null },
   // Sunday business review (2026-10-04, js/week-review.js).
   'weekreview':   { label: 'Sunday Review',     parent: null }
 };
@@ -468,8 +470,8 @@ const _acCache  = {};
 // Wave 141: USPS-standard road-suffix abbreviations + state name →
 // 2-letter code mapping. Used by formatMailingAddress() below to
 // produce a USPS-compliant single-line label like
-// "1054 Klondyke Rd, Goshen, OH 45122" instead of the old
-// comma-spliced "1054, Klondyke Road, Goshen".
+// "456 Example Rd, Goshen, OH 45122" instead of the old
+// comma-spliced "456, Example Road, Goshen".
 //
 // Source list mirrors USPS Pub 28 Appendix C — only the suffixes
 // nominatim is realistically going to surface in the US (the full
