@@ -388,6 +388,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <script src="/assets/js/nav-faq.js" defer></script>
 <link rel="stylesheet" href="/assets/css/mobile-cta.css">
 <link rel="stylesheet" href="/assets/css/quick-lead-form.css">
+<link rel="stylesheet" href="/assets/css/care-plan-checkout.css">
 <style>.nbd-skip{position:absolute;left:-9999px;top:0;z-index:100000;background:#BD5728;color:#fff;padding:10px 16px;font-weight:700;text-decoration:none;border-radius:0 0 6px 0}.nbd-skip:focus{left:0}</style>
 <link rel="stylesheet" href="/assets/css/nbd-nav-logo-mobile.css">
 <link rel="stylesheet" href="/assets/css/nbd-social.css">
@@ -697,7 +698,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
     <h1>The Roof Care Plan.<br><span>Small Problems, Caught Early.</span></h1>
     <p class="hero-sub">The Roof Care Plan is an annual roof maintenance membership: $199 a year or $19 a month, no lock-in, cancel anytime. Once a year I inspect your roof top to bottom and hand you a written condition report with photos, and I handle sealant touch-ups plus up to 3 shingles on the spot. Members get priority scheduling after storms and 10% off repairs; pipe boots and bigger fixes are quoted at the member discount.</p>
     <div class="hero-btns">
-      <a href="/#contact" class="btn-primary"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 L4 6 V12 C4 17 8 21 12 22 C16 21 20 17 20 12 V6 Z"/></svg> Get My Care Plan &rarr;</a>
+      <a href="/#contact" class="btn-primary" data-careplan-cta><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 L4 6 V12 C4 17 8 21 12 22 C16 21 20 17 20 12 V6 Z"/></svg> Get My Care Plan &rarr;</a>
       <a href="tel:+18594207382" class="btn-outline">&#128222; (859) 420-7382</a>
       <a href="/services/roof-inspection" class="btn-outline">Start with a free inspection</a>
     </div>
@@ -797,13 +798,58 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 
 <!-- FINAL CTA -->
 
+<!-- ROOF CARE PLAN ONLINE SIGNUP (2026-10-05) — hidden until the server says the plan is on
+     (care-plan-checkout.js → carePlanPublic). Payment is on Stripe's own page. -->
+<section class="cp-join" id="careplan-join" hidden aria-labelledby="cpJoinTitle">
+  <div class="cp-join-wrap">
+    <div data-cp-join hidden>
+      <span class="section-label">Join online</span>
+      <h2 class="section-title" id="cpJoinTitle" data-cp-title>Join the Roof Care Plan</h2>
+      <form class="cp-form" data-cp-form novalidate>
+        <fieldset class="cp-plans">
+          <legend>Choose how you pay</legend>
+          <label class="cp-plan"><input type="radio" name="cp_interval" value="year" checked> <span><strong>$199 a year</strong> &middot; billed yearly</span></label>
+          <label class="cp-plan"><input type="radio" name="cp_interval" value="month"> <span><strong>$19 a month</strong> &middot; billed monthly</span></label>
+        </fieldset>
+        <fieldset class="cp-person" data-cp-person>
+          <legend>Your details</legend>
+          <div class="cp-row">
+            <label>First name<input name="cp_firstName" autocomplete="given-name" required maxlength="100"></label>
+            <label>Last name<input name="cp_lastName" autocomplete="family-name" maxlength="100"></label>
+          </div>
+          <div class="cp-row">
+            <label>Email<input name="cp_email" type="email" autocomplete="email" required maxlength="200"></label>
+            <label>Phone<input name="cp_phone" type="tel" autocomplete="tel" required maxlength="30"></label>
+          </div>
+          <div class="cp-row">
+            <label class="cp-wide">Home address for the plan<input name="cp_address" autocomplete="street-address" required maxlength="300"></label>
+            <label>ZIP<input name="cp_zip" inputmode="numeric" autocomplete="postal-code" maxlength="10"></label>
+          </div>
+        </fieldset>
+        <div class="cp-hp" aria-hidden="true"><label>Leave blank<input name="nbd_hp" tabindex="-1" autocomplete="off"></label></div>
+        <label class="cp-terms"><input type="checkbox" name="cp_terms" required> <span><strong>Renewal terms:</strong> <span data-cp-terms-text>$199 today, then $199 every year until you cancel &mdash; the plan renews automatically. No lock-in: cancel anytime from your billing link or by calling or texting Joe, and you will not be charged again. Your plan stays active through the time you have already paid for.</span></span></label>
+        <button type="submit" class="btn-primary cp-submit">Continue to secure checkout</button>
+        <p class="cp-fine">You pay on Stripe&rsquo;s secure checkout page; your card never touches this site. Stripe emails your receipt.</p>
+      </form>
+    </div>
+    <div class="cp-joined" data-cp-joined hidden>
+      <span class="section-label">You&rsquo;re in</span>
+      <h2 class="section-title">Welcome to the Roof Care Plan.</h2>
+      <p>Thanks &mdash; your membership is set up and Stripe has emailed your receipt. Joe will reach out to schedule your first inspection. Questions? Call or text <a href="tel:+18594207382">(859) 420-7382</a>.</p>
+      <p>Need to update your card or cancel? It&rsquo;s one click, anytime.</p>
+      <button type="button" class="btn-outline cp-manage" data-cp-manage>Manage or cancel my plan</button>
+    </div>
+    <p class="cp-msg" data-cp-msg role="status" hidden></p>
+  </div>
+</section>
+
 <!-- QUICK LEAD FORM (injected, hub-capture sweep 2026-07-20) — same embed as the city/areas pages; posts through the hardened submitPublicLead gateway -->
 <section class="qlf-section" id="quote"><div class="qlf-wrap"><div data-nbd-quick-form data-service="Roof Care Plan"></div></div></section>
 <section class="final-cta">
   <h2>Keep Your Roof Healthy.<br>Skip the Surprises.</h2>
   <p>Enrolling takes one call. Joe handles the rest &mdash; a yearly look, the small fixes, and a heads-up before anything turns into a real bill. No pressure. Seriously.</p>
   <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:16px;">
-    <a href="/#contact" class="btn-white"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 L4 6 V12 C4 17 8 21 12 22 C16 21 20 17 20 12 V6 Z"/></svg> Get My Care Plan &rarr;</a>
+    <a href="/#contact" class="btn-white" data-careplan-cta><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 L4 6 V12 C4 17 8 21 12 22 C16 21 20 17 20 12 V6 Z"/></svg> Get My Care Plan &rarr;</a>
     <a href="/services/roof-inspection" class="btn-white" style="background:transparent;border:2px solid white;color:#fff;">Start with a free inspection</a>
   </div>
   <div class="phone">Or call/text Joe directly: <a href="tel:+18594207382">(859) 420-7382</a></div>
@@ -937,4 +983,5 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 </div>
 <script src="/assets/js/google-reviews-widget.js" defer></script>
 <script defer src="/assets/js/quick-lead-form.js"></script>
+<script defer src="/assets/js/care-plan-checkout.js"></script>
 </body></html>

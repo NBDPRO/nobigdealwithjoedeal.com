@@ -144,6 +144,10 @@
     const lead = currentLead(id);
     if (!lead) { toast('Customer not loaded yet — try again in a moment.', 'error'); return false; }
     if (!lead.email) { toast('No email address for this customer — add one first.', 'error'); return false; }
+    // Paid in full is judged from the invoices — load them first (same as review-deck.js).
+    if (window.NBDRevenue && typeof window.NBDRevenue.loadInvoices === 'function') {
+      try { await window.NBDRevenue.loadInvoices(); } catch (_) { /* nothing counts as paid then */ }
+    }
     const gate = reviewGate(lead);
     if (!gate.ok) { toast(gate.why, 'warning'); return false; }
     const RE = window.ReviewEngine;

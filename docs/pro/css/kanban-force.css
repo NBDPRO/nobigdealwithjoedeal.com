@@ -1866,3 +1866,66 @@
   /* collapsed health dot yields the corner to the count pill */
   body.sidebar-collapsed .sidebar .ni .health-indicator{top:auto!important;bottom:2px;right:4px;}
   body.sidebar-collapsed .sidebar .ni .nbadge:not(.dn){display:block!important;position:absolute;top:2px;right:4px;font-size:8px!important;line-height:1;padding:2px 4px!important;min-width:14px;text-align:center;border-radius:8px;}
+
+/* ══ PIPELINE CARDS on the A1 foundation (A3, 2026-10-05) ════════════════
+   Board cards (.k-card) and the phone list cards (.cl-card), restyled on the
+   --ui-* tokens (ui-primitives.css → FOUNDATION). Hierarchy per card:
+     name → the job value (the one number) → address → status chips → actions.
+   - The value stops being glowing orange text (bare --orange on the default
+     navy is ~2.5:1): it reads in the card ink, tabular, with an orange tick
+     carrying the brand instead.
+   - Resting elevation 1, raised 2 on hover; hairline edges; one radius.
+   - Chips calm down: 4px radius, tabular, less tracking.
+   - Phone list: Open stays the one solid primary; Call/Text/Map step down
+     to quiet tinted tiles (no borders), Call keeps a green edge.
+   :root-prefixed (0,2,0) so it beats the base .k-card / .cl-card rules here
+   and in mobile-polish.css, while every theme reskin
+   (:root[data-theme=…] .k-card, ≥0,3,0), the stage-colour left borders
+   (#kbody-… ids) and the aging !important accents still win. Sizes and
+   layout are untouched (the phone-pipeline geometry specs pin them). */
+:root .k-card{
+  border-top-color:var(--ui-line-divider);border-right-color:var(--ui-line-divider);border-bottom-color:var(--ui-line-divider);
+  border-radius:var(--ui-radius-md);
+  box-shadow:var(--ui-elev-1), var(--ui-edge-light);
+  transition:box-shadow var(--ui-dur-hover) var(--ui-ease), border-color var(--ui-dur-hover) var(--ui-ease), background-color var(--ui-dur-hover) var(--ui-ease), transform var(--ui-dur-press) var(--ui-ease);
+}
+:root .k-card:hover{box-shadow:var(--ui-elev-2), var(--ui-edge-light);border-top-color:var(--ui-line-strong);border-right-color:var(--ui-line-strong);border-bottom-color:var(--ui-line-strong);}
+:root .k-card .kc-val-badge{
+  color:var(--ink, var(--t));
+  text-shadow:none;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:0;
+}
+:root .k-card .kc-val-badge::before{
+  content:"";display:inline-block;width:6px;height:6px;margin-right:6px;vertical-align:.18em;
+  border-radius:var(--ui-radius-pill);background:var(--orange);
+}
+:root .k-card .kc-tag{border-radius:var(--ui-radius-xs);letter-spacing:.04em;font-variant-numeric:tabular-nums;}
+:root .k-card .kc-carrier{border-radius:var(--ui-radius-xs);}
+:root .k-card .kc-days{border-radius:var(--ui-radius-xs);font-variant-numeric:tabular-nums;}
+:root .kcol-count{border-radius:var(--ui-radius-xs);font-variant-numeric:tabular-nums;}
+:root .k-empty{border-color:var(--ui-line-hair);border-radius:var(--ui-radius-md);}
+
+:root .cl-card{
+  border-color:var(--ui-line-hair);
+  border-radius:var(--ui-radius-lg);
+  box-shadow:var(--ui-elev-1), var(--ui-edge-light);
+  transition:transform var(--ui-dur-reorder) var(--ui-ease), border-color var(--ui-dur-hover) var(--ui-ease), box-shadow var(--ui-dur-hover) var(--ui-ease);
+}
+:root .cl-card-val{color:var(--t);font-variant-numeric:tabular-nums;letter-spacing:0;}
+:root .cl-card-val::before{
+  content:"";display:inline-block;width:6px;height:6px;margin-right:6px;vertical-align:.18em;
+  border-radius:var(--ui-radius-pill);background:var(--orange);
+}
+:root .cl-card-touch{font-variant-numeric:tabular-nums;}
+:root .cl-card-stale{display:inline-block;padding:0 6px;border-radius:var(--ui-radius-xs);background:color-mix(in srgb, var(--red) 15%, transparent);color:color-mix(in srgb, var(--red) 35%, var(--t));line-height:20px;}
+:root .cl-card-btn{
+  border-color:transparent;
+  background:color-mix(in srgb, var(--t) 7%, transparent);
+  border-radius:var(--ui-radius-md);
+  transition:background-color var(--ui-dur-hover) var(--ui-ease), transform var(--ui-dur-press) var(--ui-ease);
+}
+:root .cl-card-btn:active{transform:scale(var(--ui-press-scale));}
+:root .cl-card-btn.cl-call{border-color:color-mix(in srgb, var(--green) 55%, transparent);}
+:root .cl-card-btn.cl-open{background:var(--orange);border-color:var(--orange);color:var(--accent-fg);}
+:root .cl-card-btn span{letter-spacing:.05em;}

@@ -204,6 +204,31 @@ function makeDom() {
     const noEmail = loadLeadBrief({ _leads: [{ id: 'L1' }], ReviewEngine: RE });
     await noEmail.win.NBDLeadAI.askReview('L1');
     ok('no email on file → nothing sent, says so', sends.length === before + 1 && /No email/.test((noEmail.toasts[0] || [])[0]));
+    // 2026-10-05 regression (#2132): the gate reads the shared invoice cache, so
+    // askReview must load invoices BEFORE judging — a gate that only turns true
+    // once loadInvoices has resolved proves the order.
+    {
+      let loaded = false;
+      const order = [];
+      const NBDRevenue = { loadInvoices: async () => { await tick(); loaded = true; order.push('load'); return []; } };
+      const late = loadLeadBrief({ _leads: [{ id: 'L1', email: 'ana@example.com' }], NBDRevenue,
+        ReviewEngine: Object.assign({}, RE, { paidInFullFor: () => { order.push('gate'); return loaded; } }) });
+      const n0 = sends.length;
+      const r = await late.win.NBDLeadAI.askReview('L1');
+      ok('askReview loads the invoices before the paid-in-full gate', r === true && sends.length === n0 + 1 && order.join(',') === 'load,gate', order);
+      const failing = loadLeadBrief({ _leads: [{ id: 'L1', email: 'ana@example.com' }], NBDRevenue: { loadInvoices: async () => { throw new Error('offline'); } },
+        ReviewEngine: Object.assign({}, RE, { paidInFullFor: () => false }) });
+      const n1 = sends.length;
+      const r2 = await failing.win.NBDLeadAI.askReview('L1');
+      ok('…a failed invoice load still fails closed (no email)', r2 === false && sends.length === n1);
+    }
+    {
+      // customer.html must ship NBDRevenue, and before review-engine.js (HTML comments stripped).
+      const tags = read('docs/pro/customer.html').replace(/<!--[\s\S]*?-->/g, '');
+      const cr = tags.search(/<script defer src="js\/collected-revenue\.js\?v=\d+"><\/script>/);
+      const re = tags.search(/<script defer src="js\/review-engine\.js\?v=\d+"><\/script>/);
+      ok('customer page loads collected-revenue.js before review-engine.js', cr !== -1 && re !== -1 && cr < re, { cr, re });
+    }
     const html = read('docs/pro/customer.html');
     ok('customer page: Ask for review button', /id="askReviewBtn" data-action="NBDLeadAI\.askReview" data-pass-customer-id="true"/.test(html));
     ok('role-gate blocks it for view-only roles', /'NBDLeadAI\.askReview'/.test(read('docs/pro/js/role-gate.js')));
