@@ -5,10 +5,11 @@
  * 2. Card → lightbox: each generated card carries a data-project JSON
  *    payload (display fields only); clicking "View photos" (or the card
  *    image) opens the modal and mounts the shared NBDCarousel.
+ * 3. Show-more cap (2026-10-05): 12 matching cards, then #owMore.
  *
  * The static HTML is the source of truth — this file never renders into
  * the grid, fetches nothing, and with JS disabled the gallery remains a
- * fully readable crawlable page (filters and lightbox simply inert).
+ * fully readable crawlable page (filters, cap and lightbox simply inert).
  * All payload strings are rendered via textContent (never markup).
  */
 (function () {
@@ -24,14 +25,45 @@
   // click it — so those links were landing on the full unfiltered wall of 45
   // projects. 55 hrefs across docs/ use this form against 8 ids; matching both
   // here is cheaper and safer than restamping every generated strip.
+  //
+  // Show-more cap (2026-10-05): only the first `step` MATCHING cards show;
+  // the rest get .ow-collapsed (a separate class from .hidden, which stays
+  // "filtered out") behind #owMore. The button ships `hidden`, so with JS off
+  // every card shows and nothing is missing from the HTML. A filter change
+  // resets the cap to the first `step` of the new set.
   const filters = document.querySelector('.filters');
+  const more = document.getElementById('owMore');
+  const step = more ? (parseInt(more.dataset.step, 10) || 12) : 0;
+  let limit = step;
+  function applyCap() {
+    if (!more) return;
+    let shown = 0, left = 0;
+    document.querySelectorAll('.project').forEach(function (p) {
+      if (p.classList.contains('hidden')) { p.classList.toggle('ow-collapsed', false); return; }
+      const collapse = shown >= limit;
+      p.classList.toggle('ow-collapsed', collapse);
+      if (collapse) left++; else shown++;
+    });
+    more.hidden = left === 0;
+    more.textContent = 'Show ' + Math.min(step, left) + ' more job' + (Math.min(step, left) === 1 ? '' : 's') +
+      ' (' + left + ' left)';
+  }
   function applyFilter(svc) {
+    limit = step;
     filters.querySelectorAll('.filter-btn').forEach(function (b) {
       b.classList.toggle('active', b.dataset.service === svc);
     });
     document.querySelectorAll('.project').forEach(function (p) {
       const list = (p.dataset.services || '').split(/\s+/);
       p.classList.toggle('hidden', svc !== 'all' && list.indexOf(svc) === -1);
+    });
+    applyCap();
+  }
+  if (more) {
+    applyCap();
+    more.addEventListener('click', function () {
+      limit += step;
+      applyCap();
     });
   }
   if (filters) {
@@ -41,6 +73,10 @@
       applyFilter(btn.dataset.service);
       history.replaceState(null, '',
         btn.dataset.service === 'all' ? location.pathname : '#service=' + btn.dataset.service);
+      // Deep in the grid the filtered set can be shorter than the scroll
+      // position; bring its top back under the pinned chips.
+      const g = document.getElementById('gallery');
+      if (g && g.getBoundingClientRect().top < 0) g.scrollIntoView({ block: 'start' });
     });
     const m = /^#(?:service=|svc-)([a-z][a-z-]*)$/.exec(location.hash);
     if (m && filters.querySelector('.filter-btn[data-service="' + m[1] + '"]')) {

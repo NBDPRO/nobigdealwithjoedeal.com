@@ -1308,6 +1308,9 @@ function buildCard(l){
   // Lets reps scan Insurance vs Cash vs Finance at a glance without
   // opening the card. Falls back to inferJobType() for older records
   // that predate the explicit field. Silently empty if unknowable.
+  // Roof Care Plan member (2026-10-05): from the server-written lead mirror
+  // (care-plan-crm.js badgeHtml — static markup, no lead text).
+  const carePlanBadge = (window.NBDCarePlan && typeof window.NBDCarePlan.badgeHtml === 'function') ? window.NBDCarePlan.badgeHtml(l) : '';
   let jobTypeBadge = '';
   try {
     const _jt = l.jobType ||
@@ -1548,7 +1551,7 @@ function buildCard(l){
          glow now has 12px of empty space to fade into. Plus we
          tightened the glow itself in the CSS rule (8px not 20px). -->
     <div class="cpx-dflex-aicenter-jcspacebet">
-      <div class="cpx-dflex-aicenter-gap4px">${jobTypeBadge}${leadScoreBadge}${stageAgeBadge}</div>
+      <div class="cpx-dflex-aicenter-gap4px">${jobTypeBadge}${leadScoreBadge}${stageAgeBadge}${carePlanBadge}</div>
       <div class="cpx-dflex-aicenter-gap4px-2">
         ${estCount > 0 ? `<span class="cpx-fs10px-bgs3-bd1pxsolid"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 3V1.5h6V3"/><path d="M7 8h6M7 11h4"/></svg> ${estCount}</span>` : ''}
         ${photoCount > 0 ? `<span class="cpx-fs10px-bgs3-bd1pxsolid-2"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><rect x="2" y="6" width="16" height="11" rx="1.5"/><circle cx="10" cy="11" r="3"/><path d="M7 6l1-3h4l1 3"/></svg> ${photoCount}</span>` : ''}
