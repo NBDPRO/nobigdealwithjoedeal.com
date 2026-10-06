@@ -142,7 +142,9 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm,
     const insHtml = read('docs/inspect.html');
     const ins = strip(read('docs/assets/js/inspect-form.js'));
     ok('/inspect: real photo upload replaces the file-names-only field', /data-nbd-intake="ins"/.test(insHtml) && !/photoNames/.test(ins) && !/inspectPhotoNote/.test(insHtml));
-    ok('/inspect: intake validated + posted + photos uploaded', /NBDIntake\.read\(form, 'ins'\)/.test(ins) && /NBDIntake\.afterSubmit\(ok/.test(ins));
+    // 2026-10-06 (shorter form): the choice is read on submit; photos moved to the
+    // thank-you add-details step (tests/inspect-short-form-2026-10-06.test.js).
+    ok('/inspect: intake validated + posted + photos uploaded', /NBDIntake\.read\(form, 'ins'\)/.test(ins) && /NBDIntake\.afterSubmit\(document\.getElementById\('insIntakeAfter'\)/.test(ins));
 
     const t = read('docs/sites/t/index.html');
     const ts = strip(read('docs/sites/t/site.js'));
