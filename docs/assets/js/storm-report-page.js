@@ -134,7 +134,7 @@
     var hailNear = near.filter(function (e) { return e.type === 'hail'; }).length;
     var sev = (S.data.events || []).some(function (e) { return e.severity === 'severe'; });
     if ((hailNear || c.tornado) && sev) return { h: 'Severe storm activity near you — worth a free inspection.', d: 'Severe storm activity this close to your home is worth a trained eye on the roof — only an inspection can show whether there’s real damage. Joe inspects free and documents anything he finds; if you file, he meets your adjuster on the roof — the claim stays yours.' };
-    if (c.hail || c.tornado || c.wind > 3) return { h: 'Worth a free inspection.', d: 'There’s real storm history here. Joe will get on the roof, document anything claimable, and tell you straight whether it’s worth filing.' };
+    if (c.hail || c.tornado || c.wind > 3) return { h: 'Worth a free inspection.', d: 'There’s real storm history here. Joe will get on the roof and document what he finds so you can decide your next step.' };
     return { h: 'A free inspection is the only way to be sure.', d: 'Light storm history on record near you — but damage isn’t always obvious from the ground. Joe checks it free, no obligation.' };
   }
   function renderReport(saved) {

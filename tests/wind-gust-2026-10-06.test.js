@@ -396,7 +396,7 @@ const MTW = [39.087, -84.39];
     ok('readings without the context line → hidden (guardrail)', noCtx.el('sr-rep-gusts').hidden === true);
     const markup = read('docs/storm-report.html');
     ok('block ships hidden in the HTML (no flash before render)', /<div class="sr-gusts" id="sr-rep-gusts" hidden>/.test(markup));
-    ok('page loads the bumped storm-report-page.js?v=3', /storm-report-page\.js\?v=3"/.test(markup));
+    ok('page loads the bumped storm-report-page.js?v=4', /storm-report-page\.js\?v=4"/.test(markup));
     ok('.sr-gusts wraps long words (no 390px overflow)', /\.sr-gusts\{[^}]*overflow-wrap:anywhere/.test(markup));
   }
 
