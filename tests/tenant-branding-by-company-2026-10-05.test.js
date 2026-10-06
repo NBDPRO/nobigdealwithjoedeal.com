@@ -181,7 +181,7 @@ Module._load = function (request) {
       ok('hidden once the company has an alert email', show(false, { alertEmail: 'a@b.test' }) === false);
       ok('never shown to NBD (decided by company key)', show(true, {}) === false);
     }
-    ok('dashboard-bootstrap cache-bust bumped', /dashboard-bootstrap\.module\.js\?v=36/.test(read('docs/pro/dashboard.html')));
+    ok('dashboard-bootstrap cache-bust bumped', +((read('docs/pro/dashboard.html').match(/dashboard-bootstrap\.module\.js\?v=(\d+)/) || [])[1] || 0) >= 36);
   }
 
   // ══════════════════════════════════════════════════════════════════
