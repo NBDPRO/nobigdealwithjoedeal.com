@@ -39,7 +39,9 @@ const L = require(path.join(ROOT, 'functions', 'agent-mcp-logic.js'));
   ok('CoS reads + files reports, but no customer notes / reminders', names('cos').indexOf('file_report') !== -1 && names('cos').indexOf('file_note') === -1 && names('cos').indexOf('file_reminder') === -1);
   ok('Marcus reads and files notes + reminders', ['list_leads', 'lead_detail', 'schedule', 'file_note', 'file_reminder'].every((t) => names('marcus').indexOf(t) !== -1));
   ok('only Quinn can verify items', Object.keys(L.BOTS).filter((b) => L.botAllows(b, 'verify_item')).join() === 'quinn');
-  ok('no tool anywhere sends, edits a customer or deletes', !Object.keys(L.TOOLS).some((t) => /send|text_|email|sms|delete|update|move|charge|pay/i.test(t)));
+  // The draft tools (2026-10-06) only FILE a draft for the owner to send —
+  // tests/agent-drafts-2026-10-06.test.js proves they never send.
+  ok('no tool anywhere sends, edits a customer or deletes', !Object.keys(L.TOOLS).filter((t) => L.DRAFT_TOOLS.indexOf(t) === -1).some((t) => /send|text_|email|sms|delete|update|move|charge|pay/i.test(t)) && L.DRAFT_TOOLS.every((t) => /^(draft_|file_)/.test(t)));
   ok('every tool has an object input schema', Object.values(L.TOOLS).every((t) => t.inputSchema && t.inputSchema.type === 'object'));
 
   console.log('B. minimization');
