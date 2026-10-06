@@ -480,10 +480,11 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
     const EST = {
       name: `[E2E] Invoice source ${stamp}`,
       addr: '742 Invoice Test Ct, Cincinnati, OH',
-      // Linkage is copied verbatim onto the invoice; the pipeline's
-      // enrichment read of this (nonexistent) lead is best-effort and
-      // swallows the permission error.
-      leadId: `e2e-missing-lead-${stamp}`,
+      // Linkage is copied verbatim onto the invoice. The lead is created in
+      // the page below: since #2220 (2026-10-05 security review) an invoice
+      // may only name a lead the writer can reach, so a made-up leadId is
+      // refused at create (PERMISSION_DENIED), exactly as it should be.
+      leadId: null,
       rows: [
         { desc: 'Tear-off + disposal', qty: 20, rate: 100, total: 2000 },
         { desc: 'Shingles (architectural)', qty: 1, rate: 1500, total: 1500 },
@@ -526,6 +527,16 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
           return rid;
         }
       }
+      // A real lead of the signed-in user for the invoice to bind to.
+      const fsLead = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const dbLead = window.db || window._db;
+      const uidLead = (window._auth || window.auth).currentUser.uid;
+      const tokLead = await (window._auth || window.auth).currentUser.getIdTokenResult();
+      const leadRef = await fsLead.addDoc(fsLead.collection(dbLead, 'leads'), {
+        userId: uidLead, companyId: (tokLead.claims && tokLead.claims.companyId) || uidLead,
+        firstName: 'E2E', lastName: 'Invoice', address: est.addr, stage: 'new', meter: 'manual', e2eTestData: true,
+      });
+      est.leadId = leadRef.id;
       const estimateId = await saveEstimateTolerant(est);
       const invoiceId = await window.InvoicePipeline.createInvoiceFromEstimate(estimateId);
       const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
@@ -535,7 +546,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
       // allowed while createdBy/companyId/estimateId/createdAt stay frozen.
       await fsMod.updateDoc(fsMod.doc(db, 'invoices', invoiceId), { e2eTestData: true });
       const snap = await fsMod.getDoc(fsMod.doc(db, 'invoices', invoiceId));
-      return { estimateId, invoiceId, inv: snap.data() };
+      return { estimateId, invoiceId, leadId: est.leadId, inv: snap.data() };
     }, EST);
 
     const inv = out.inv;
@@ -556,7 +567,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
     expect(inv.depositPaid, 'deposit not marked paid at create').toBe(false);
     expect(inv.amountPaid, 'nothing collected at create').toBe(0);
     expect(inv.estimateId, 'invoice → estimate linkage').toBe(out.estimateId);
-    expect(inv.leadId, 'invoice inherits the estimate leadId').toBe(EST.leadId);
+    expect(inv.leadId, 'invoice inherits the estimate leadId').toBe(out.leadId);
     expect(inv.createdBy, 'createdBy stamped').toBeTruthy();
     expect(inv.companyId, 'companyId stamped (solo convention: uid)').toBeTruthy();
     expect(inv.items.length, 'row-shaped estimate keeps its line items').toBe(EST.rows.length);
