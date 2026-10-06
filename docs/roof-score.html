@@ -80,6 +80,7 @@ a{color:inherit}
 /* consent + err */
 .sc-consent{display:flex;gap:10px;align-items:flex-start;margin-top:16px;font-size:.78rem;color:var(--gray-sub);line-height:1.4}
 .sc-consent input{margin-top:2px;width:18px;height:18px;flex-shrink:0;accent-color:var(--orange)}
+.sc-consent a{color:inherit;text-decoration:underline}
 .sc-err{color:#b91c1c;font-size:.82rem;margin-top:10px;min-height:1em}
 /* loading */
 .sc-spin{width:42px;height:42px;border:4px solid var(--light-gray);border-top-color:var(--orange);border-radius:50%;animation:scSpin 1s linear infinite;margin:30px auto 18px}
@@ -513,7 +514,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
         <span class="sc-label">Email <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--gray)">(optional)</span></span>
         <input type="email" class="sc-input" id="rs-email" aria-label="Email (optional)" placeholder="you@email.com" autocomplete="email" inputmode="email">
         <div id="rs-intake"></div>
-        <label class="sc-consent"><input type="checkbox" id="rs-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>
+        <label class="sc-consent"><input type="checkbox" id="rs-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a></span></label>
         <div class="sc-err" id="rs-contact-err"></div>
         <div class="sc-btns"><button class="sc-back" data-step="4">← Back</button><button class="sc-next" id="rs-submit" data-action="submit">Show my full report →</button></div>
       </div>

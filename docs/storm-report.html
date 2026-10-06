@@ -57,6 +57,7 @@ a{color:inherit}
 .sr-label{display:block;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--gray-sub);margin:16px 0 8px}
 .sr-consent{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:.78rem;color:var(--gray-sub);line-height:1.4}
 .sr-consent input{margin-top:2px;width:18px;height:18px;flex-shrink:0;accent-color:var(--orange)}
+.sr-consent a{color:inherit;text-decoration:underline}
 .sr-err{color:#b91c1c;font-size:.82rem;margin-top:10px;min-height:1em}
 .sr-spin{width:42px;height:42px;border:4px solid var(--light-gray);border-top-color:var(--orange);border-radius:50%;animation:srSpin 1s linear infinite;margin:24px auto 16px}
 @keyframes srSpin{to{transform:rotate(360deg)}}
@@ -420,7 +421,7 @@ nav.tool-nav .nav-cta:hover{background:#A14A22}
         <span class="sr-label">Email <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--gray)">(optional — for your copy)</span></span>
         <input type="email" class="sr-input" id="sr-email" aria-label="Email (optional)" placeholder="you@email.com" autocomplete="email" inputmode="email">
         <div id="sr-intake"></div>
-        <label class="sr-consent"><input type="checkbox" id="sr-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message &amp; data rates may apply. Reply STOP to opt out. Not a condition of purchase.</span></label>
+        <label class="sr-consent"><input type="checkbox" id="sr-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a></span></label>
         <div class="sr-err" id="sr-gate-err"></div>
         <button class="sr-btn" id="sr-unlock" data-action="unlock">Show my full report →</button>
       </div>
