@@ -216,17 +216,33 @@ function leadMirror(carePlanId, plan) {
 }
 
 // ── Yearly inspection reminder ───────────────────────────────────────────
-const YEAR_MS = 365.25 * 24 * 3600 * 1000;
-/** 0 in the first membership year, 1 in the second, … */
-function membershipYearIndex(activatedAtMs, nowMs) {
-  const a = Number(activatedAtMs), n = Number(nowMs);
-  if (!Number.isFinite(a) || !Number.isFinite(n) || n < a) return 0;
-  return Math.floor((n - a) / YEAR_MS);
-}
 function addYears(ms, years) {
   const d = new Date(ms);
   d.setUTCFullYear(d.getUTCFullYear() + years);
   return d.getTime();
+}
+// Stripe renews on the subscription's anchor, which is a little BEFORE
+// activatedAtMs (stamped when our webhook ran): an anniversary counts once
+// it is within this grace of now.
+const ANNIVERSARY_GRACE_MS = 3 * 24 * 3600 * 1000;
+/**
+ * 0 in the first membership year, 1 in the second, … — counted in CALENDAR
+ * anniversaries (addYears), not 365.25-day years: Stripe renews a yearly plan
+ * exactly one calendar year on (365 days in a normal year), which a 365.25-day
+ * year read as "still year 0" and then jumped to year 2, so the year-2
+ * inspection task was never created (review round 4 R4-6-2).
+ */
+function membershipYearIndex(activatedAtMs, nowMs) {
+  const a = Number(activatedAtMs), n = Number(nowMs);
+  if (!Number.isFinite(a) || !Number.isFinite(n) || n < a) return 0;
+  let k = 0;
+  while (k < 200 && addYears(a, k + 1) - ANNIVERSARY_GRACE_MS <= n) k++;
+  return k;
+}
+// The Eastern calendar date of an instant ("YYYY-MM-DD") — the task's due
+// date. The UTC date made an evening join's first visit due a day late (R4-6-3).
+function etDay(ms) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
 }
 /**
  * The inspection task for membership year `yearIndex`. Year 0 is due two
@@ -238,7 +254,7 @@ function inspectionTask(args) {
   const y = Math.max(0, Math.floor(Number(a.yearIndex) || 0));
   const start = Number(a.activatedAtMs);
   const dueMs = y === 0 ? start + 14 * 24 * 3600 * 1000 : addYears(start, y);
-  const due = new Date(dueMs).toISOString().slice(0, 10);
+  const due = etDay(dueMs);
   const title = 'Roof Care Plan — yearly inspection' + (y === 0 ? ' (first visit)' : ' (year ' + (y + 1) + ')');
   return {
     id: 'careplan_' + a.carePlanId + '_y' + (y + 1),

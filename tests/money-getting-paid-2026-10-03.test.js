@@ -455,8 +455,10 @@ function browser(seed, extra) {
       && /finPatch\.dueDate = new Date\(Number\(fin\.due_date\) \* 1000\)/.test(read('functions/stripe-crm-invoice.js')));
     ok('no "Net 14" / 14-day due date left on any invoice writer',
       !/Net 14|14 \* 24 \* 60 \* 60 \* 1000/.test(read('docs/pro/js/invoice-pipeline.js') + read('functions/deposit-draft-logic.js')));
+    // 3 (2026-10-06): createInvoice, the deposit draft, and _sentPatch's
+    // first-send re-date (review round 4 R4-6-4).
     ok('the sandbox fallbacks in invoice-pipeline.js equal INVOICE_DUE_DAYS',
-      (lf(read('docs/pro/js/invoice-pipeline.js')).match(/\+ 7 \* 86400000/g) || []).length === 2 && DR.INVOICE_DUE_DAYS === 7);
+      (lf(read('docs/pro/js/invoice-pipeline.js')).match(/\+ 7 \* 86400000/g) || []).length === 3 && DR.INVOICE_DUE_DAYS === 7);
     if (MPL) {
       const pay = MPL.invoicePayload({ total: 100, items: [], amountPaid: 0 }, null, 'NBD-1', NOW, null);
       const want = new Date(NOW + 7 * 864e5).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });

@@ -613,7 +613,7 @@ async function _nbdInvoicePipeline(fnName) {
   if (!window._db && window.db) window._db = window.db;
   if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
     if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-    await window.ScriptLoader.load('js/invoice-pipeline.js?v=18');
+    await window.ScriptLoader.load('js/invoice-pipeline.js?v=19');
   }
   if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
     throw new Error('InvoicePipeline.' + fnName + ' missing after load');
@@ -668,7 +668,7 @@ window.NBDCustomerInvoices = {
       if (!window._db && window.db) window._db = window.db;
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=18');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=19');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         throw new Error('InvoicePipeline.showInvoiceDetailModal missing after load');
@@ -694,7 +694,7 @@ window.NBDCustomerInvoices = {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) {
           throw new Error('ScriptLoader unavailable');
         }
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=18');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=19');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.markPaidUI === 'function')) {
         throw new Error('InvoicePipeline.markPaidUI missing after load');
@@ -828,7 +828,7 @@ window.loadInvoices = async function(leadId) {
       // the Kentucky insurance hold applies (KRS 367.626). FAIL CLOSED: no
       // jurisdiction module or no lead on the page → no Pay button.
       const safePayUrl = (_J && typeof _J.payUrlUnlessHeld === 'function' && _payLead)
-        ? (_J.payUrlUnlessHeld(_payLead, inv, new Date()) || null) : null;
+        ? (_J.payUrlUnlessHeld(_payLead, inv, new Date(), _J.resolveTimeZone(typeof window._legal === 'function' ? window._legal() : (window._companyProfile || {}))) || null) : null;
       // Invoices are stamped `createdAt`; fall back to a legacy `date` if any
       // old doc carried one. Guard against an unparseable value so a single bad
       // row can't render "Invalid Date".

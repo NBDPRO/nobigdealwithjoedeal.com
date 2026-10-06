@@ -528,6 +528,8 @@ async function renderListWith(invoices) {
     _db: {}, doc() {}, collection() {}, query() {}, where() {}, orderBy() {}, limit() {},
     _auth: { currentUser: { uid: 'u1' } },
     getDocs: async () => ({ docs: invoices.map((inv) => ({ id: inv.id, data: () => inv })) }),
+    // dashboard.html loads ky-insurance-law.js: the list asks its invoiceOverdue.
+    NBDJurisdiction: require(require('path').join(__dirname, '..', 'docs/pro/js/ky-insurance-law.js')),
   };
   try { await IP.renderInvoiceList('x'); }
   finally {

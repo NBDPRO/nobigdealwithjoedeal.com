@@ -1877,7 +1877,8 @@ exports.reportWarrantyClaim = onRequest(
       const taskRef = await db.collection(`leads/${tok.leadId}/tasks`).add({
         text: taskText,
         done: false,
-        dueDate: new Date().toISOString().slice(0, 10),
+        // Today in Eastern, not the UTC date (an evening report was due tomorrow).
+        dueDate: KyLaw.isoDay(KyLaw.todayIn(KyLaw.DEFAULT_TIME_ZONE)),
         source: 'homeowner_warranty_claim',
         claimId: claimRef.id,
         createdAt: FieldValue.serverTimestamp(),

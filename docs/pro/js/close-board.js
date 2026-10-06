@@ -1060,7 +1060,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     </div>
     <div class="schedule-section">
       <p style="font-size:12px;color:#8b8e96;margin-bottom:8px;">Preferred installation date:</p>
-      <input type="date" id="schedDate" class="schedule-input" min="${new Date().toISOString().split('T')[0]}">
+      <input type="date" id="schedDate" class="schedule-input" min="${new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)}">
     </div>
     <button class="sign-btn" id="submitBtn" data-deal-action="submit" disabled>✓ ACCEPT & SCHEDULE</button>
   </div>

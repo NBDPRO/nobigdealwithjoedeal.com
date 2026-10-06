@@ -77,6 +77,22 @@ function _isTerminalLead(l) {
 }
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const DIGEST_TZ = 'America/New_York';
+
+// Eastern wall-clock offset (ms) at an instant: EDT -4h, EST -5h.
+function _etOffsetMs(t) {
+  const p = new Intl.DateTimeFormat('en-US', { timeZone: DIGEST_TZ, hourCycle: 'h23',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' }).formatToParts(new Date(t));
+  const g = (k) => Number((p.find((x) => x.type === k) || {}).value);
+  return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second')) - Math.floor(t / 1000) * 1000;
+}
+// The same Eastern wall-clock time 7 CALENDAR days before nowMs. A rolling
+// 7×24h window dropped an hour the week DST ends (Nov) and counted one twice
+// the week it starts (Mar) — review round 4 R4-6-14.
+function weekCutoffMs(nowMs) {
+  const back = nowMs - ONE_WEEK_MS;
+  return back + (_etOffsetMs(nowMs) - _etOffsetMs(back));
+}
 
 // ─── Branded HTML template (mirrors email-functions.js styling) ──
 const TEMPLATE_STYLES = `
@@ -282,9 +298,9 @@ function _paymentsOnlyOf(inv) {
 //      every open lead, but 3 small fields per doc instead of whole
 //      documents, and paginated with no truncation cap.
 // The weekly deltas can no longer be wrong for reps with >2000 leads.
-async function aggregateUserMetrics(db, uid) {
-  const now = Date.now();
-  const cutoff = now - ONE_WEEK_MS;
+async function aggregateUserMetrics(db, uid, nowMs) {
+  const now = nowMs != null ? nowMs : Date.now();
+  const cutoff = weekCutoffMs(now);
   const cutoffTs = Timestamp.fromMillis(cutoff);
 
   const [createdSnap, updatedSnap] = await Promise.all([
@@ -403,6 +419,7 @@ async function aggregateUserMetrics(db, uid) {
 // For tests (tests/r2-money-parse-multijob-2026-10-06.test.js runs it on a
 // fake db). index.js re-exports only weeklyDigest, so this deploys nothing.
 exports._aggregateUserMetrics = aggregateUserMetrics;
+exports._weekCutoffMs = weekCutoffMs;
 
 // ─── Scheduled function ─────────────────────────────────────────
 exports.weeklyDigest = onSchedule(
@@ -429,8 +446,8 @@ exports.weeklyDigest = onSchedule(
 
     // Friendly week label like "Apr 28 — May 4".
     const now = new Date();
-    const weekStart = new Date(now.getTime() - ONE_WEEK_MS);
-    const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const weekStart = new Date(weekCutoffMs(now.getTime()));
+    const fmt = (d) => d.toLocaleDateString('en-US', { timeZone: DIGEST_TZ, month: 'short', day: 'numeric' });
     const weekLabel = `${fmt(weekStart)} — ${fmt(now)}`;
 
     // 2.6: paginate ALL users. The previous single .limit(500).get() meant

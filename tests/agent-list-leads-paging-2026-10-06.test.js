@@ -233,7 +233,7 @@ const FORBIDDEN_RE = /5135550|859555000|example\.test|CLM-|POL-|000-00-0000|1970
   ok('list_leads still only for bots that had it (Marcus, Quinn, Tucker; not CoS)', ['marcus', 'quinn', 'tucker'].every((b) => L.botAllows(b, 'list_leads')) && !L.botAllows('cos', 'list_leads'));
   ok('server version 1.3.0 (list_leads paging)', L.SERVER_INFO.version === '1.3.0');
   const src = fs.readFileSync(path.join(ROOT, 'functions', 'agent-mcp.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-  ok('handler passes the key\'s company as the cursor scope', /L\.listLeadsPage\(\s*await companyLeads\(company\)\s*,\s*args\s*,\s*Date\.now\(\)\s*,\s*company\s*\)/.test(src));
+  ok('handler passes the key\'s company as the cursor scope', /L\.listLeadsPage\(\s*await companyLeads\(company\)\s*,\s*args\s*,\s*Date\.now\(\)\s*,\s*company\s*(,\s*tz\s*)?\)/.test(src));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);

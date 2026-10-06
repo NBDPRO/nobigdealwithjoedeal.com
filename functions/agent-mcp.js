@@ -172,11 +172,11 @@ async function runTool(name, args, key) {
     const [leads, jobsByLead] = await Promise.all([companyLeads(company), companyJobsByLead(company)]);
     return L.toolText(Object.assign(L.summary(leads, today, jobsByLead), { today, timezone: tz }));
   }
-  if (name === 'overdue_followups') return L.toolText({ today, customers: L.overdueFollowups(await companyLeads(company), today, args.limit) });
+  if (name === 'overdue_followups') return L.toolText({ today, customers: L.overdueFollowups(await companyLeads(company), today, args.limit, tz) });
   if (name === 'list_leads') {
     // Paged (2026-10-06): customers + total + next_cursor; the cursor is
     // bound to THIS key's company and filters, so a cursor from elsewhere is refused.
-    const page = L.listLeadsPage(await companyLeads(company), args, Date.now(), company);
+    const page = L.listLeadsPage(await companyLeads(company), args, Date.now(), company, tz);
     return page.error ? L.toolErr(page.error) : L.toolText(page);
   }
 
@@ -189,9 +189,9 @@ async function runTool(name, args, key) {
       db().collection('leads').doc(lead.id).collection('tasks').where('done', '==', false).limit(20).get(),
     ]);
     const lastNotes = notes.docs.map((d) => d.data()).sort((x, y) => L.ms(y.createdAt) - L.ms(x.createdAt)).slice(0, 5)
-      .map((n) => ({ when: L.ms(n.createdAt) ? new Date(L.ms(n.createdAt)).toISOString().slice(0, 10) : null, text: String(n.text || '').slice(0, 400) }));
+      .map((n) => ({ when: L.ms(n.createdAt) ? L.dayInZone(L.ms(n.createdAt), tz) : null, text: String(n.text || '').slice(0, 400) }));
     const open = tasks.docs.map((d) => d.data()).map((t) => ({ due: t.dueDate || null, text: String(t.title || t.text || '').slice(0, 200) }));
-    return L.toolText(Object.assign(L.minimalLead(lead), { notes: lastNotes, open_reminders: open }));
+    return L.toolText(Object.assign(L.minimalLead(lead, tz), { notes: lastNotes, open_reminders: open }));
   }
 
   if (name === 'schedule') {
@@ -282,7 +282,7 @@ async function runTool(name, args, key) {
     const [leads, estimates, deals] = await Promise.all([
       companyLeads(company), companyDocs('estimates', company, ['companyId', 'userId']), companyDocs('deal_rooms', company, ['userId']),
     ]);
-    return L.toolText({ estimates: L.estimatesStatus(estimates, deals, leads, args, Date.now()),
+    return L.toolText({ estimates: L.estimatesStatus(estimates, deals, leads, args, Date.now(), tz),
       note: 'total_customer_facing is what the homeowner sees. Cost and margin are never shared here.' });
   }
 
@@ -300,7 +300,7 @@ async function runTool(name, args, key) {
 
   if (name === 'post_job') {
     const [leads, invoices] = await Promise.all([companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy'])]);
-    return L.toolText({ jobs: L.postJob(leads, invoices, Date.now(), args) });
+    return L.toolText({ jobs: L.postJob(leads, invoices, Date.now(), args, tz) });
   }
 
   if (name === 'lead_sources') {
@@ -312,7 +312,7 @@ async function runTool(name, args, key) {
     const [leads, invoices, expenses] = await Promise.all([
       companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy']), companyDocs('expenses', company, ['companyId', 'userId']),
     ]);
-    return L.toolText(L.jobProfit(leads, invoices, expenses, Date.now(), args));
+    return L.toolText(L.jobProfit(leads, invoices, expenses, Date.now(), args, tz));
   }
 
   if (name === 'storm_near_customers') {

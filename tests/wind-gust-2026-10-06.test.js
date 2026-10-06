@@ -396,7 +396,8 @@ const MTW = [39.087, -84.39];
     ok('readings without the context line → hidden (guardrail)', noCtx.el('sr-rep-gusts').hidden === true);
     const markup = read('docs/storm-report.html');
     ok('block ships hidden in the HTML (no flash before render)', /<div class="sr-gusts" id="sr-rep-gusts" hidden>/.test(markup));
-    ok('page loads the bumped storm-report-page.js?v=4', /storm-report-page\.js\?v=4"/.test(markup));
+    // At least v4 — later fixes bump it again (R4 storm dates: v5).
+    ok('page loads the bumped storm-report-page.js?v=4', Number((markup.match(/storm-report-page\.js\?v=(\d+)"/) || [])[1]) >= 4);
     ok('.sr-gusts wraps long words (no 390px overflow)', /\.sr-gusts\{[^}]*overflow-wrap:anywhere/.test(markup));
   }
 
@@ -487,7 +488,7 @@ const MTW = [39.087, -84.39];
     ok('opening another card removes a stale note', /getElementById\('cdStormWind'\)[\s\S]{0,120}getAttribute\('data-lead-id'\) !== leadId\) _stormWind\.remove\(\)/.test(dw));
     ok('cache-busters bumped (storm-integration v3, loader v146, widgets v10)',
       /'js\/storm-integration\.js\?v=3'/.test(read('docs/pro/js/script-loader.js')) &&
-      /script-loader\.js\?v=146/.test(read('docs/pro/dashboard.html')) && /script-loader\.js\?v=146/.test(read('docs/pro/customer.html')) &&
+      Number((read('docs/pro/dashboard.html').match(/script-loader\.js\?v=(\d+)/) || [])[1]) >= 146 && Number((read('docs/pro/customer.html').match(/script-loader\.js\?v=(\d+)/) || [])[1]) >= 146 &&
       /dashboard-widgets\.js\?v=10/.test(read('docs/pro/dashboard.html')));
   }
 
