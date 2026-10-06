@@ -37,6 +37,7 @@ const { getStorage } = require('firebase-admin/storage');
 const P = require('./money-paper-logic');
 const SPINE = require('./job-spine-logic');
 const stageRoles = require('./stage-roles');
+const PIF = require('./paid-in-full');
 
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
@@ -266,10 +267,47 @@ async function markJobPaid(db, inv) {
  * Only on a real write (before !== undefined) — never on history. Separate
  * from the money-paper kill switch. Never throws (recordJobEvent).
  */
+/**
+ * Did this invoice going 'paid' pay the JOB off? (2026-10-05) A paid deposit
+ * invoice is not the job paid in full — paid-in-full.js invoiceSettlesJob
+ * (not a deposit invoice; no other invoice on the lead still owes; a partial
+ * bill reaches the lead's jobValue). Reads the lead and its invoices once per
+ * trigger run (memoised on the after object, so the spine, the job-paid mark
+ * and the paid-not-closed task all see one answer). A read failure falls back
+ * to what the invoice itself says (a deposit invoice still never settles).
+ * deps.loadLeadInvoices overrides the Firestore read (tests).
+ */
+const _settled = new WeakMap();
+function settlesJob(deps, invoiceId, after) {
+  if (!after || typeof after !== 'object') return Promise.resolve({ settles: false, reason: 'no_invoice' });
+  if (_settled.has(after)) return _settled.get(after);
+  const p = (async () => {
+    let lead = null;
+    let invoices = null;
+    try {
+      const ls = await deps.db.collection('leads').doc(String(after.leadId)).get();
+      lead = ls.exists ? ls.data() : null;
+      const jobId = typeof after.jobId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(after.jobId) ? after.jobId : null;
+      invoices = await (deps.loadLeadInvoices || PIF.loadLeadInvoices)(deps.db, String(after.leadId), lead || {}, jobId);
+    } catch (e) {
+      logger.warn('[moneyPaper] paid-in-full check: could not read the lead/invoices — judging the invoice alone', { invoiceId, err: e && e.message });
+    }
+    return PIF.invoiceSettlesJob(Object.assign({ id: String(invoiceId) }, after), lead, invoices);
+  })();
+  _settled.set(after, p);
+  return p;
+}
+
 async function spineOnInvoice(deps, invoiceId, before, after) {
   if (before === undefined || !after) return null;
-  const events = SPINE.invoiceEvents(before, after);
+  let events = SPINE.invoiceEvents(before, after);
   if (!events.length) return null;
+  // paid_in_full only when the job is actually paid off. Otherwise the money
+  // that landed is at most a deposit: deposit_paid (at least Contract
+  // Signed, forward only — never Final Payment).
+  if (events.indexOf('paid_in_full') !== -1 && !(await settlesJob(deps, invoiceId, after)).settles) {
+    events = events.map((e) => (e === 'paid_in_full' ? 'deposit_paid' : e));
+  }
   const record = deps.recordJobEvent || require('./job-spine').recordJobEvent;
   const last = P.lastPayment(after);
   const method = last && last.method ? String(last.method) : '';
@@ -305,6 +343,13 @@ async function flagPaidNotClosed(deps, invoiceId, inv) {
 
 async function handle(invoiceId, after, deps, before) {
   const spine = await spineOnInvoice(deps, invoiceId, before, after);
+  // One timeline line per NEW payment, every tenant, every path (the Stripe
+  // webhook, the ledger, Mark Paid, Record payment) — payment-timeline.js,
+  // create-only per payment id. Only on a real write (never history), and
+  // not affected by the money-paper kill switch. Never throws.
+  const timeline = before !== undefined
+    ? await (deps.writePaymentTimeline || require('./payment-timeline').writePaymentTimeline)(deps.db, invoiceId, before, after, { FieldValue: deps.FieldValue })
+    : null;
   if (process.env.NBD_MONEY_PAPER === 'off') return spine ? { skipped: 'killswitch', spine } : { skipped: 'killswitch' };
   const d = P.decide(after, { ownerUid: OWNER });
   // before === undefined → a caller that cannot tell (tests of the rules
@@ -315,17 +360,21 @@ async function handle(invoiceId, after, deps, before) {
     if (!t.becamePaid) { d.fileReceipt = false; d.markOob = false; }
   }
   const out = spine ? { spine } : {};
+  if (timeline && (timeline.written || timeline.existing)) out.timeline = timeline;
   // Multi-job stage 2b: an invoice paid in full ON THIS WRITE marks its job
   // paid (the invoice's own jobId, else the customer's active job). A job is
   // done only when closed out AND paid in full (Jo, J3); jobsOnJobWrite then
   // moves the customer's card to their next open job.
   if (before !== undefined && after && transitions(before, after).becamePaid
-      && (after.companyId || after.userId) === OWNER && after.leadId) {
+      && (after.companyId || after.userId) === OWNER && after.leadId
+      && (await settlesJob(deps, invoiceId, after)).settles) {
     out.jobPaid = await markJobPaid(deps.db, after).catch((e) => { logger.warn('[moneyPaper] job paid mark failed', { invoiceId, err: e && e.message }); return null; });
   }
   // Paid in full ON THIS WRITE but the lead is not on a won stage → one task
   // for the owner to confirm the close (never moves the stage). Any tenant.
-  if (before !== undefined && after && transitions(before, after).becamePaid && after.leadId) {
+  // A paid deposit invoice is not "paid in full" (settlesJob, 2026-10-05).
+  if (before !== undefined && after && transitions(before, after).becamePaid && after.leadId
+      && (await settlesJob(deps, invoiceId, after)).settles) {
     out.paidNotClosed = await flagPaidNotClosed(deps, invoiceId, after).catch((e) => { logger.warn('[moneyPaper] paid-not-closed flag failed', { invoiceId, err: e && e.message }); return null; });
   }
   if (!d.fileInvoice && !d.fileReceipt && !d.markOob
@@ -355,4 +404,4 @@ exports.moneyPaperOnInvoice = onDocumentWritten(
   }
 );
 
-exports._internal = { handle, payQr, markJobPaid, flagPaidNotClosed, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };
+exports._internal = { handle, payQr, markJobPaid, flagPaidNotClosed, settlesJob, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };

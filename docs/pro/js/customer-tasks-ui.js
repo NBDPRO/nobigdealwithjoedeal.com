@@ -606,12 +606,57 @@ window.loadProjectTimeline = async function(leadId) {
 //
 // So the money path dead-ended at "customer paid by check" and the invoice
 // stayed open forever.
+
+// Lazy-load invoice-pipeline.js (same rules as markPaid below: alias
+// window._db, ScriptLoader dedupes) and return its API once `fnName` exists.
+async function _nbdInvoicePipeline(fnName) {
+  if (!window._db && window.db) window._db = window.db;
+  if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
+    if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
+    await window.ScriptLoader.load('js/invoice-pipeline.js?v=16');
+  }
+  if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
+    throw new Error('InvoicePipeline.' + fnName + ' missing after load');
+  }
+  return window.InvoicePipeline;
+}
 //
 // invoice-pipeline.js is 82 KB and this page already boots heavy, so it is
 // lazy-loaded on the click rather than added to the defer list. ScriptLoader
 // is already on this page, resolves immediately if the file is present, and
 // dedupes concurrent calls.
 window.NBDCustomerInvoices = {
+  // Record payment (2026-10-03): ONE sheet for money that came in on this
+  // job — check, Zelle, cash, card or ACH outside Stripe — whether or not
+  // the job has an invoice yet (invoice-pipeline.js recordPaymentUI makes it
+  // from the estimate, else from the job total the rep confirms).
+  recordPayment: async function (leadId) {
+    leadId = leadId || window._customerId;
+    if (!leadId) return;
+    try {
+      const IP = await _nbdInvoicePipeline('recordPaymentUI');
+      const paid = await IP.recordPaymentUI(leadId);
+      const reload = window.loadInvoices;
+      if (paid && typeof reload === 'function') await reload(leadId);
+    } catch (err) {
+      console.error('[invoices] recordPayment failed', err);
+      if (typeof window.showToast === 'function') window.showToast('Could not open the payment form. Reload and try again.', 'error');
+    }
+  },
+  // "Send balance" on a part-paid invoice: the existing send sheet (email /
+  // text / portal) — one tap to choose, nothing goes out on its own.
+  sendBalance: async function (invoiceId) {
+    if (!invoiceId) return;
+    try {
+      const IP = await _nbdInvoicePipeline('sendInvoiceUI');
+      await IP.sendInvoiceUI(invoiceId);
+      const reload = window.loadInvoices;
+      if (typeof reload === 'function' && window._customerId) await reload(window._customerId);
+    } catch (err) {
+      console.error('[invoices] sendBalance failed', err);
+      if (typeof window.showToast === 'function') window.showToast('Could not open the send form. Reload and try again.', 'error');
+    }
+  },
   // "Draft deposit — review & send" (2026-10-03): the draft deposit invoice
   // the server made when the contract was signed. Opens the invoice detail
   // (invoice-pipeline.js showInvoiceDetailModal), whose Send to Customer
@@ -623,7 +668,7 @@ window.NBDCustomerInvoices = {
       if (!window._db && window.db) window._db = window.db;
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=14');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=16');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         throw new Error('InvoicePipeline.showInvoiceDetailModal missing after load');
@@ -649,7 +694,7 @@ window.NBDCustomerInvoices = {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) {
           throw new Error('ScriptLoader unavailable');
         }
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=14');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=16');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.markPaidUI === 'function')) {
         throw new Error('InvoicePipeline.markPaidUI missing after load');
@@ -729,12 +774,17 @@ window.loadInvoices = async function(leadId) {
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt));
 
+    const esc = window.nbdEsc || (s => String(s == null ? '' : s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
+    // Record payment (2026-10-03): money in on this job, invoice or not —
+    // the only way to log a check / Zelle / cash on a job with no invoice.
+    const recordBtn = '<button type="button" class="btn btn-orange ipx-rp-open" data-rp-open'
+      + ' data-action="NBDCustomerInvoices.recordPayment" data-arg="' + esc(leadId) + '">💵 Record payment</button>';
+
     if (!invoices.length) {
-      document.getElementById('invoiceList').innerHTML = '<div class="empty"><div class="empty-icon">💰</div>No invoices yet</div>';
+      document.getElementById('invoiceList').innerHTML = recordBtn + '<div class="empty"><div class="empty-icon">💰</div>No invoices yet</div>';
       return;
     }
 
-    const esc = window.nbdEsc || (s => String(s == null ? '' : s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])));
     // 'partial' = part paid (Stripe ledger + Record Payment). It was missing,
     // so a part-paid invoice rendered as "draft".
     const ALLOWED_STATUSES = new Set(['draft','sent','viewed','partial','paid','overdue','cancelled']);
@@ -749,7 +799,10 @@ window.loadInvoices = async function(leadId) {
     // on a signed contract), void, cancelled or deleted.
     let totalOwed = 0;
     const isDepositDraft = (inv) => !!(inv && inv.status === 'draft' && inv.autoDraft && inv.autoDraft.kind === 'deposit_on_sign');
-    let html = '';
+    const _J = window.NBDJurisdiction;
+    const _payLead = (window._currentLead && typeof window._currentLead === 'object'
+      && (!window._customerId || window._customerId === leadId)) ? window._currentLead : null;
+    let html = recordBtn;
 
     invoices.forEach(inv => {
       // invoice-pipeline writes `total` (never `amount` — that legacy key
@@ -768,9 +821,14 @@ window.loadInvoices = async function(leadId) {
       const depDraft = isDepositDraft(inv);
 
       const safeStatus = ALLOWED_STATUSES.has(inv.status) ? inv.status : 'draft';
-      // invoice-pipeline writes `stripePaymentLink` (invoice-pipeline.js:637-641);
-      // nothing anywhere ever wrote `paymentUrl` — this button was dead (D12).
-      const safePayUrl = /^https?:/i.test(String(inv.stripePaymentLink || '')) ? inv.stripePaymentLink : null;
+      // The pay link is stripePaymentLink (a CRM payment link) OR
+      // stripeHostedUrl (a Stripe Invoice — every invoice the ledger mirrors
+      // in); this read only the first, so no Stripe invoice ever showed Pay.
+      // ky-insurance-law.js payUrlUnlessHeld reads both and returns '' while
+      // the Kentucky insurance hold applies (KRS 367.626). FAIL CLOSED: no
+      // jurisdiction module or no lead on the page → no Pay button.
+      const safePayUrl = (_J && typeof _J.payUrlUnlessHeld === 'function' && _payLead)
+        ? (_J.payUrlUnlessHeld(_payLead, inv, new Date()) || null) : null;
       // Invoices are stamped `createdAt`; fall back to a legacy `date` if any
       // old doc carried one. Guard against an unparseable value so a single bad
       // row can't render "Invalid Date".
@@ -799,6 +857,10 @@ window.loadInvoices = async function(leadId) {
             ${safeStatus !== 'paid' ? `
               <button type="button" class="doc-btn" data-action="NBDCustomerInvoices.markPaid" data-arg="${esc(inv.id)}"
                       title="Record a check or cash payment">Mark Paid</button>
+            ` : ''}
+            ${(safeStatus !== 'paid' && safeStatus !== 'draft' && safeStatus !== 'cancelled' && bal > 0 && bal < amount) ? `
+              <button type="button" class="doc-btn ipx-send-balance" data-send-balance data-action="NBDCustomerInvoices.sendBalance" data-arg="${esc(inv.id)}"
+                      title="Send the remaining balance — you pick email, text or portal">Send balance</button>
             ` : ''}
           </div>
         </div>
