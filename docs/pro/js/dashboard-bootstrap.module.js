@@ -4141,6 +4141,28 @@
         // Update existing estimate
         await updateDoc(doc(db,'estimates',editId), {...data, updatedAt:serverTimestamp()});
         window._editingEstimateId = null;
+        // Re-save of the lead's PRIMARY estimate (V2 reopen / re-send): the
+        // pipeline, Home KPIs, Numbers and crm_summary read lead.jobValue, so
+        // it follows the new total (review R2-2-3, 2026-10-06). Same rules as
+        // the create branch below: only the primary estimate's number, never a
+        // $0 (_canStampJobValue), best-effort — a lead-write failure must not
+        // fail the save. A non-primary estimate leaves the lead alone.
+        const _prev = (window._estimates || []).find(e => e && e.id === editId) || null;
+        const _editLeadId = data.leadId || (_prev && _prev.leadId) || null;
+        if (_editLeadId) {
+          try {
+            const leadRef = doc(db, 'leads', _editLeadId);
+            const leadSnap = await getDoc(leadRef);
+            const lead = leadSnap.exists() ? leadSnap.data() : null;
+            const newVal = _estValue(data);
+            if (lead && lead.primaryEstimateId === editId && _canStampJobValue(newVal)
+                && newVal !== Number(lead.jobValue)) {
+              await updateDoc(leadRef, { jobValue: newVal, lastEstimateAt: serverTimestamp() });
+            }
+          } catch (stampErr) {
+            console.warn('[_saveEstimate] lead jobValue re-stamp failed:', stampErr);
+          }
+        }
         await loadEstimates();
         return editId;
       } else {

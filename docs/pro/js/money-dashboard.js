@@ -159,6 +159,13 @@
   var WON_STAGES = ['closed', 'install_complete', 'final_photos', 'final_payment', 'deductible_collected', 'collections', 'warranty_claim', 'Complete'];
   // Role-aware (freeform-pipeline foundation): prefer the denormalized
   // _stageRole (custom-stage-safe), fall back to WON_STAGES for un-stamped leads.
+  // The ONE money reader (customer-estimate-rows.js moneyValue); the fallback
+  // strips the same characters when that file is absent (unit-test sandbox).
+  function mdMoney(v) {
+    var R = (typeof window !== 'undefined') && window.NBDCustomerEstimateRows;
+    if (R && typeof R.moneyValue === 'function') return R.moneyValue(v);
+    return parseFloat(String(v == null ? '' : v).replace(/[^0-9.-]/g, '')) || 0;
+  }
   function isWon(l) {
     var won = (l && l._stageRole) ? l._stageRole === 'won' : WON_STAGES.indexOf((l && (l._stageKey || l.stage)) || '') !== -1;
     return won && !!l && !l.deleted;
@@ -260,12 +267,22 @@
 
     // Job profitability (jobValue basis), costed won jobs only — uncosted jobs
     // would inflate margin (the trap a unit test caught in the Insights cards).
-    var wonLeads = leads.filter(isWon);
+    // Every won JOB (data.jobRecs — a customer's second job is its own deal;
+    // review R2-2-7, 2026-10-06). Direct costs are logged per CUSTOMER
+    // (expense.leadId), so a customer's won jobs are pooled against them.
+    // Money through the ONE reader (moneyValue): '$45,000' is 45000.
+    var wonLeads = (data.jobRecs || leads).filter(isWon);
     var wonContractCents = 0, wonDirectCents = 0, costedJobs = 0;
+    var revByLead = {}, wonOrder = [];
     wonLeads.forEach(function (l) {
-      var revC = Math.round((parseFloat(l.jobValue) || 0) * 100);
-      var dc = directByLead[l.id] || 0;
-      if (revC > 0 && dc > 0) { wonContractCents += revC; wonDirectCents += dc; costedJobs += 1; }
+      var revC = Math.round(mdMoney(l.jobValue) * 100);
+      if (!(revC > 0)) return;
+      if (revByLead[l.id] == null) { revByLead[l.id] = { c: 0, n: 0 }; wonOrder.push(l.id); }
+      revByLead[l.id].c += revC; revByLead[l.id].n += 1;
+    });
+    wonOrder.forEach(function (id) {
+      var dc = directByLead[id] || 0;
+      if (dc > 0) { wonContractCents += revByLead[id].c; wonDirectCents += dc; costedJobs += revByLead[id].n; }
     });
     var grossMargin = wonContractCents > 0 ? Math.round(((wonContractCents - wonDirectCents) / wonContractCents) * 100) : null;
 
@@ -420,7 +437,13 @@
   // ── Data fetch ──────────────────────────────────────────────────────
   async function fetchData() {
     var db = window.db || window._db, u = uid();
-    var out = { leads: window._leads || [], expenses: [], invoices: [], suppliers: [], monthCloses: {}, year: new Date().getFullYear() };
+    // jobRecs: every JOB of these customers (jobs-store.js recordsFor), so the
+    // won-job contract value counts a customer's second job like the Home KPI
+    // tiles do (review R2-2-7, 2026-10-06). Leads as-is until jobs have loaded.
+    var _leadsNow = window._leads || [];
+    var out = { leads: _leadsNow,
+      jobRecs: (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(_leadsNow) : null,
+      expenses: [], invoices: [], suppliers: [], monthCloses: {}, year: new Date().getFullYear() };
     if (!db || !u || !window.getDocs) return out;
     var col = window.collection, q = window.query, where = window.where, getDocs = window.getDocs;
     var staff = isStaff() && claims().companyId;
