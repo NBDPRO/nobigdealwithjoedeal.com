@@ -631,9 +631,10 @@
         }
       );
       // Then add each action item as a task on the lead.
-      let added = 0;
+      let added = 0, tried = 0;
       for (const text of items) {
         if (typeof text !== 'string' || !text.trim()) continue;
+        tried++;
         try {
           await fb.addDoc(
             fb.collection(fb.db, 'leads', leadId, 'tasks'),
@@ -650,6 +651,12 @@
         } catch (taskErr) {
           console.warn('[NBDQuickCapture] task write failed:', taskErr.message);
         }
+      }
+      // The capture was written with items.length before any task existed;
+      // store what was really committed (review R4, voice capture).
+      if (added !== items.length) {
+        try { await fb.updateDoc(captureRef, { tasksCommitted: added }); }
+        catch (e) { console.warn('[NBDQuickCapture] tasksCommitted update failed:', e && e.message); }
       }
       // Activity log entry summarizing the capture.
       try {
@@ -673,7 +680,10 @@
         await fb.updateDoc(ref, { updatedAt: fb.serverTimestamp() });
       } catch (_) {}
 
-      toast('Added ' + added + ' task' + (added === 1 ? '' : 's') + ' ✓', 'success');
+      // Real counts: a failed task write is never reported as added.
+      if (added === tried) toast('Added ' + added + ' task' + (added === 1 ? '' : 's') + ' ✓', 'success');
+      else if (added === 0) toast('Couldn\'t add the ' + tried + ' task' + (tried === 1 ? '' : 's') + ' — add them by hand on the lead', 'error');
+      else toast('Added ' + added + ' of ' + tried + ' tasks — ' + (tried - added) + ' failed, add ' + (tried - added === 1 ? 'it' : 'them') + ' by hand on the lead', 'warning');
       // Tell the kanban + bell to refresh.
       try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'voice-capture' } })); } catch (_) {}
       close();

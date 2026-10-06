@@ -98,7 +98,7 @@
       // Full packet / Paperwork only (2026-10-04) — also in the estimates
       // bundle; the loader runs it once.
       'js/deal-packet.js?v=1',
-      'js/close-board.js?v=10'
+      'js/close-board.js?v=11'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -188,7 +188,7 @@
       'js/document-generator.js?v=18',
       'js/document-generator-templates.js?v=13',
       'js/document-generator-library.js?v=2', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=6',
+      'js/doc-preflight.js?v=7',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -239,7 +239,7 @@
       'js/product-data.js?v=3',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=3',
-      'js/product-library.js?v=9',
+      'js/product-library.js?v=10',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
@@ -261,7 +261,7 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=8',
+      'js/estimate-finalization.js?v=9',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
       'js/estimate-v2-ui.js?v=24',

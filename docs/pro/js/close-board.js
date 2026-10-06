@@ -1417,12 +1417,33 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
         deal.status === DEAL_STATUS.DRAFT ? { status: DEAL_STATUS.SENT } : {}
       ));
     }
-    try {
-      await navigator.clipboard?.writeText(url);
-      if (window.showToast) window.showToast('Accept link copied!', 'success');
-    } catch (e) {
-      if (window.showToast) window.showToast('Link ready — paste it to your customer', 'success');
+    // Success only when the link really reached the clipboard; otherwise show
+    // the link itself so the rep can still send it (review R4-7-10).
+    const copied = await _copyText(url);
+    if (window.showToast) {
+      window.showToast(copied ? 'Accept link copied!' : 'Couldn\'t copy — accept link: ' + url, copied ? 'success' : 'info');
     }
+  }
+
+  // true only when the text really reached the clipboard: the async API, then
+  // the legacy execCommand copy (portal-link-helpers.js copyForLead's layers).
+  // A missing navigator.clipboard is not a copy.
+  async function _copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* fall through */ }
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (_) { return false; }
   }
 
   // ============================================================================

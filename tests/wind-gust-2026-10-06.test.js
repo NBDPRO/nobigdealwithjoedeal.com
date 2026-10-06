@@ -487,7 +487,8 @@ const MTW = [39.087, -84.39];
     ok('opening another card removes a stale note', /getElementById\('cdStormWind'\)[\s\S]{0,120}getAttribute\('data-lead-id'\) !== leadId\) _stormWind\.remove\(\)/.test(dw));
     ok('cache-busters bumped (storm-integration v3, loader v146, widgets v10)',
       /'js\/storm-integration\.js\?v=3'/.test(read('docs/pro/js/script-loader.js')) &&
-      /script-loader\.js\?v=146/.test(read('docs/pro/dashboard.html')) && /script-loader\.js\?v=146/.test(read('docs/pro/customer.html')) &&
+      // At least v146: a later change may bump the loader again.
+      ['docs/pro/dashboard.html', 'docs/pro/customer.html'].every((p) => Number((read(p).match(/script-loader\.js\?v=(\d+)/) || [])[1]) >= 146) &&
       /dashboard-widgets\.js\?v=10/.test(read('docs/pro/dashboard.html')));
   }
 

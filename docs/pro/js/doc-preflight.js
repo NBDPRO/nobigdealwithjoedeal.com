@@ -151,10 +151,22 @@
     if (key === 'depositAmount' || key === 'payment1Amount') {
       var lead = (ctx && ctx.lead) || {};
       var est = (ctx && ctx.estimate) || {};
-      var jv = parseFloat(lead.jobValue || est.grandTotal || 0);
-      return !!jv && String(v) === (jv * 0.5).toFixed(2);
+      // The old prefill read lead.jobValue first; the price now reads the
+      // estimate first (review R4). Half of either is a retired default.
+      var half = function (n) { return n > 0 && String(v) === (n * 0.5).toFixed(2); };
+      return half(parseFloat(lead.jobValue || est.grandTotal || 0)) || half(_estPrice(est));
     }
     return false;
+  }
+
+  // The estimate's own total (grandTotal / total / amount, "$9,000"-style
+  // strings too), else 0. Through the shared two-shape reader when loaded.
+  function _estPrice(est) {
+    var api = (typeof window !== 'undefined') && window.NBDCustomerEstimateRows;
+    if (api && typeof api.estimateValue === 'function') return api.estimateValue(est) || 0;
+    if (!est) return 0;
+    var c = _depCents(est.grandTotal != null ? est.grandTotal : est.total != null ? est.total : est.amount);
+    return c ? c / 100 : 0;
   }
 
   // ── Deposit-rule fields (review of PR #1765, 2026-09-25) ──────────
@@ -386,7 +398,7 @@
     var est = ctx.estimate || {};
     var total = Object.prototype.hasOwnProperty.call(extra, 'total') && extra.total !== undefined
       ? extra.total
-      : (lead.jobValue || est.grandTotal || est.total || est.amount || 0);
+      : (_estPrice(est) > 0 ? _estPrice(est) : (lead.jobValue || 0)); // estimate first (review R4)
     // Cents here, so a "$9,000.00"-style value can't be read as no price.
     var opts = { totalCents: Math.max(0, _depCents(total) || 0), lead: lead };
     // The address as the form shows it now (Kentucky hold, 2026-09-27).

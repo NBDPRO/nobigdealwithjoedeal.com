@@ -694,8 +694,8 @@
     // cost-basis line totals.)
     const summaryRows = [
       ['Line Item Total (before O&P)', fmtMoney(scopeGrand)],
-      ['Overhead (' + Math.round((estimate.overheadPct || 0.10) * 100) + '%)', fmtMoney(estimate.overhead)],
-      ['Profit (' + Math.round((estimate.profitPct || 0.10) * 100) + '%)', fmtMoney(estimate.profit)],
+      ['Overhead (' + Math.round((estimate.overheadPct ?? 0.10) * 100) + '%)', fmtMoney(estimate.overhead)],
+      ['Profit (' + Math.round((estimate.profitPct ?? 0.10) * 100) + '%)', fmtMoney(estimate.profit)],
       ['Subtotal', fmtMoney(estimate.subtotal)]
     ];
     if (estimate.taxRate && estimate.taxRate > 0) {
@@ -806,8 +806,8 @@
         for the local market.
         Code-required items cite applicable state and local residential codes and the
         International Residential Code (IRC) where applicable.`}
-        Overhead and profit calculated at ${Math.round((estimate.overheadPct || 0.10) * 100)}% +
-        ${Math.round((estimate.profitPct || 0.10) * 100)}% per industry standard.
+        Overhead and profit calculated at ${Math.round((estimate.overheadPct ?? 0.10) * 100)}% +
+        ${Math.round((estimate.profitPct ?? 0.10) * 100)}% per industry standard.
       </div>
 
       <div class="footer">
