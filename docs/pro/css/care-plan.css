@@ -1,0 +1,119 @@
+/* care-plan.css — Roof Care Plan surfaces in the rep dashboard + customer
+ * page (2026-10-05): the member badge on a pipeline card, the customer-page
+ * chip + action, the invite / billing-link dialog, the members view and the
+ * estimate builder's member-discount note. Theme tokens only (DESIGN.md
+ * "Rep dashboard"); every colour comes from a theme token through color-mix.
+ */
+
+/* The members-view nav entries stay hidden until care-plan-crm.js shows them
+   (.ni / .mm-item set their own display, which beats [hidden] otherwise). */
+[data-careplan-nav][hidden] { display: none !important; }
+
+/* Pipeline card badge (crm-pipeline.js buildCard) — sits with the job-type /
+   score / age badges. */
+.kc-tag.cp-tag {
+  background: color-mix(in srgb, var(--green) 16%, transparent);
+  color: var(--green);
+  white-space: nowrap;
+}
+
+/* Customer page header chip + action */
+.cp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--ui-radius-pill, 999px);
+  border: 1px solid color-mix(in srgb, var(--green) 55%, transparent);
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 10%, transparent);
+  white-space: nowrap;
+}
+.cp-chip.is-ended {
+  border-color: var(--br);
+  color: var(--m);
+  background: transparent;
+}
+.cp-action {
+  min-height: 44px;
+  font-size: 13px;
+}
+
+/* Invite / billing-link dialog (native <dialog>) */
+.cp-dialog {
+  max-width: min(480px, calc(100vw - 32px));
+  width: 100%;
+  border: 1px solid var(--br);
+  border-radius: var(--ui-radius-lg, 12px);
+  background: var(--s);
+  color: var(--t);
+  padding: 20px;
+  box-shadow: var(--ui-elev-3, none);
+}
+.cp-dialog::backdrop { background: color-mix(in srgb, var(--bg) 70%, transparent); }
+.cp-dialog h2 { margin: 0 0 8px; font-size: 18px; }
+.cp-dialog p { margin: 0 0 12px; font-size: 14px; line-height: 1.45; color: var(--m); }
+.cp-dialog .cp-link {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 13px;
+  padding: 10px;
+  border: 1px solid var(--br);
+  border-radius: var(--ui-radius-sm, 6px);
+  background: var(--s2);
+  color: var(--t);
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+}
+.cp-dialog .cp-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cp-dialog .cp-actions > * { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.cp-dialog .cp-fine { font-size: 12px; margin-top: 12px; }
+
+/* Members view (#/careplan, care-plan-members.js) */
+.cp-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+.cp-filters .btn { min-height: 44px; }
+.cp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  background: var(--s2);
+  border: 1px solid var(--br);
+  border-left: 4px solid var(--br);
+  border-radius: var(--ui-radius-md, 8px);
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.cp-row.is-member { border-left-color: var(--green); }
+.cp-row.is-pending { border-left-color: var(--gold); }
+.cp-row-main { flex: 1 1 220px; min-width: 0; }
+.cp-row-name { font-weight: 800; color: var(--t); text-decoration: none; overflow-wrap: anywhere; }
+.cp-row-meta { font-size: 12px; color: var(--m); margin-top: 2px; overflow-wrap: anywhere; }
+.cp-row .btn { min-height: 44px; flex: 0 0 auto; }
+
+/* Estimate builder: the member-discount note above the scope list
+   (estimate-v2-ui.js _memberDiscountHtml) and the line itself. */
+.cp-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 8px 10px;
+  margin: 0 0 8px;
+  border-radius: var(--ui-radius-md, 8px);
+  border: 1px solid var(--br);
+  color: var(--t);
+  background: var(--s2);
+}
+.cp-note.is-on {
+  border-color: color-mix(in srgb, var(--green) 55%, transparent);
+  background: color-mix(in srgb, var(--green) 10%, var(--s2));
+}
+.cp-note-btn { min-height: 44px; }
+.v2-scope-item.cp-discount-row .total { color: var(--green); }

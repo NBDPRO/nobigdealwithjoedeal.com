@@ -128,6 +128,27 @@ const SHARED_REPORT_CSP = [
 // Each returns the common descriptor the mint path writes into the token doc,
 // having already proved the caller may share the thing.
 
+/**
+ * reports.leadId is client-written and not bound to the report's tenant by the
+ * rules, and the share email goes to that lead's address. Keep it only when
+ * the lead is the report owner's (lead.userId) or the report's company's
+ * (lead.companyId — reports.companyId IS pinned on create); otherwise null, so
+ * no other company's homeowner is ever looked up or emailed.
+ */
+async function ownedReportLeadId(db, leadId, ownerUid, companyId) {
+  if (typeof leadId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(leadId)) return null;
+  try {
+    const snap = await db.doc(`leads/${leadId}`).get();
+    if (!snap.exists) return null;
+    const lead = snap.data() || {};
+    if (ownerUid && lead.userId === ownerUid) return leadId;
+    if (companyId && lead.companyId && String(lead.companyId) === String(companyId)) return leadId;
+  } catch (e) {
+    logger.warn('[createReportShareToken] report lead check failed', { err: e && e.message });
+  }
+  return null;
+}
+
 async function resolveReportSubject(db, { uid, isAdmin, reportId }) {
   // Owner-scope: the rep must own the report (or be platform admin).
   const repSnap = await db.doc(`reports/${reportId}`).get();
@@ -138,13 +159,14 @@ async function resolveReportSubject(db, { uid, isAdmin, reportId }) {
     throw new HttpsError('failed-precondition', 'This report has no saved content to share');
   }
   const meta = report.metadata || {};
+  const companyId = report.companyId || report.userId;
   return {
     kind: 'report',
     logId: reportId,
     reportId,
     ownerUid: report.userId,
-    companyId: report.companyId || report.userId,
-    leadId: report.leadId || null,
+    companyId,
+    leadId: await ownedReportLeadId(db, report.leadId, report.userId, companyId),
     customerName: String(meta.propertyAddress || report.type || '').slice(0, 160),
     subjectNoun: 'inspection report',
     bodyNoun: report.type || 'inspection report',

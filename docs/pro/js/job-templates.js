@@ -1488,6 +1488,26 @@
   }
 
   // ═════════════════════════════════════════════════════════
+  // Roof Care Plan member discount (2026-10-05)
+  // ═════════════════════════════════════════════════════════
+  // The member's lead (meta.lead / meta.leadId) + the selection's kind of
+  // work → care-plan-discount.js. Every template repair work, not an insurance
+  // claim → a "Roof Care Plan member — 10% off repairs" row on the payload
+  // and the totals lowered by it. Otherwise the payload comes back as it was,
+  // with workKind recorded. The build screen's preview runs this SAME
+  // function on the SAME payload, so the shown and saved totals agree.
+  function applyMemberDiscount(payload, resolved, meta) {
+    const D = (typeof window !== 'undefined' && window.NBDCarePlanDiscount) || null;
+    if (!D || !payload) return payload;
+    const tpls = ((resolved && resolved.sourceTemplates) || []).map(get).filter(Boolean);
+    const workKind = D.workKindOfTemplates(tpls);
+    const decision = D.decide({ lead: _templateLead(meta), workKind: workKind, jobMode: payload.mode, priceMode: 'line-item' });
+    const base = Object.assign({}, payload, { workKind: workKind });
+    if (!decision.applies) return Object.assign(base, { memberDiscount: null, memberDiscountReason: decision.reason });
+    return Object.assign(D.applyToSaved(base), { memberDiscountReason: decision.reason });
+  }
+
+  // ═════════════════════════════════════════════════════════
   // Actions
   // ═════════════════════════════════════════════════════════
 
@@ -1515,6 +1535,16 @@
       // Upgrades move grandTotal; the deposit follows it (2026-09-25) — a
       // $1,900 base with a $300 upgrade is a $2,200 job, not a no-deposit one.
       if (payload && payload.grandTotal !== undefined) {
+        const dep = depositStamp(payload.grandTotal, payload.mode, opts);
+        payload = Object.assign({}, payload, { deposit: dep.deposit, depositPlan: dep.depositPlan });
+      }
+    }
+    // Roof Care Plan member — 10% off repairs, AFTER upgrades (same order as
+    // the V2 builder), and the deposit follows the discounted total.
+    const md = applyMemberDiscount(payload, resolved, opts);
+    if (md !== payload) {
+      payload = md;
+      if (payload.memberDiscount && payload.grandTotal !== undefined) {
         const dep = depositStamp(payload.grandTotal, payload.mode, opts);
         payload = Object.assign({}, payload, { deposit: dep.deposit, depositPlan: dep.depositPlan });
       }
@@ -1632,8 +1662,12 @@
     // whether the V2 UI consumes them or the caller gets the raw result.
     if (usedIds.length) markUsed(usedIds);
 
+    // Roof Care Plan (2026-10-05): repair templates mark the job repair work
+    // (member discount on); a replacement/install template marks it a roof.
+    const D = (typeof window !== 'undefined' && window.NBDCarePlanDiscount) || null;
+    const workKind = D ? D.workKindOfTemplates(usedIds.map(get).filter(Boolean)) : null;
     if (window.EstimateV2UI && typeof window.EstimateV2UI.addScopeEntries === 'function') {
-      const result = window.EstimateV2UI.addScopeEntries(entries, measurements, { minJobCharge }) || {};
+      const result = window.EstimateV2UI.addScopeEntries(entries, measurements, { minJobCharge, workKind }) || {};
       return Object.assign({}, result, {
         warnings: warnings.concat(Array.isArray(result.warnings) ? result.warnings : [])
       });
@@ -1685,6 +1719,7 @@
     applyUpgrades,
     createEstimate,
     insertIntoV2,
+    applyMemberDiscount,
     openLibrary
   };
 
