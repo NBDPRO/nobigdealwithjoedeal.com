@@ -377,13 +377,13 @@ ok('server: a client verdict cannot switch Kentucky OFF',
     pl.transactionDate === J.isoDay(J.todayIn('America/New_York')), pl.transactionDate);
 }
 
-const sOhCash = serverContract(OH_ADDR, 'cash', { address: '6563 Manila Rd, Goshen, OH 45122', email: 'info@x.test' });
+const sOhCash = serverContract(OH_ADDR, 'cash', { address: '123 Main St, Goshen, OH 45122', email: 'info@x.test' });
 const sOhText = text(sOhCash.html);
 ok('server OH cash: the promised "attached Notice of Cancellation form" is attached — two FTC copies',
   /attached Notice of Cancellation form/i.test(sOhText) && count(sOhCash.html, /data-nbd-noc="ftc"/g) === 2);
 ok('server OH cash: FTC form text verbatim + seller + deadline (3 business days after Mon Sep 28 → Thu Oct 1)',
   sOhText.includes(FTC_FORM_FIRST) && sOhText.includes('NOT LATER THAN MIDNIGHT OF October 1, 2026') &&
-  sOhText.includes('No Big Deal Home Solutions, at 6563 Manila Rd, Goshen, OH 45122'));
+  sOhText.includes('No Big Deal Home Solutions, at 123 Main St, Goshen, OH 45122'));
 ok('server OH cash: 429.1(a) statement bold next to the signatures',
   sOhCash.html.indexOf('data-nbd-statutory="ftc-429-1-a"') > sOhCash.html.indexOf('Acceptance &amp; Signatures') &&
   sOhCash.html.indexOf('data-nbd-statutory="ftc-429-1-a"') < sOhCash.html.indexOf('class="sig-grid"'));
