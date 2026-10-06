@@ -278,6 +278,7 @@
     "sms-optout-key.test.js",
     "sms-stop-intent-2026-10-05.test.js",
     "sms-dnc-2026-10-05.test.js",
+    "sms-consent-quiet-switch-2026-10-05.test.js",
     "sms-outbox-client.test.js",
     "sms-outbox-server.test.js",
     "sms-send-optout-order.test.js",
