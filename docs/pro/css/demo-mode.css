@@ -1,0 +1,80 @@
+/* demo-mode.css — the "Sample account" strip on CRM pages served under
+   /pro/explore/ (Pro demo phase 2, wave 1). Loaded only by demo-mode.js,
+   only there. Sits above the toast layer like the offline/alert strips
+   (z-scale rule: status strips above toast, never demoted). */
+.nbd-demo-strip {
+  position: fixed;
+  /* left/right 0 + auto margins, not left:50% + translate: a left:50% box
+     shrinks to half the viewport and truncated the label on phones. */
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: max-content;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 10008;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+  padding: 5px 6px 5px 12px;
+  border-radius: 999px;
+  background: #12223D;
+  color: #fff;
+  border: 1px solid rgba(221, 135, 95, .55);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+  font: 600 12px/1.2 Barlow, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  pointer-events: auto;
+}
+.nbd-demo-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.nbd-demo-label strong { color: #DD875F; font-weight: 800; }
+.nbd-demo-long { font-weight: 500; color: #E8ECF2; }
+.nbd-demo-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+.nbd-demo-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, .25);
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  padding: 4px 10px;
+  min-height: 26px;
+  border-radius: 999px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.nbd-demo-btn:hover, .nbd-demo-btn:focus-visible { border-color: #DD875F; }
+.nbd-demo-cta { background: #BD5728; border-color: #BD5728; }
+.nbd-demo-cta:hover { background: #A14A22; }
+.nbd-demo-toast {
+  position: fixed;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: max-content;
+  bottom: calc(60px + env(safe-area-inset-bottom));
+  z-index: 10008;
+  max-width: min(520px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #12223D;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, .15);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .35);
+  font: 500 13px/1.4 Barlow, system-ui, sans-serif;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .18s ease;
+}
+.nbd-demo-toast.is-on { opacity: 1; visibility: visible; }
+.nbd-demo-toast.is-block { border-color: #E5484D; }
+/* Phones: sit above the dashboard's bottom nav and the customer card's FAB row. */
+@media (max-width: 900px) {
+  .nbd-demo-strip { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .nbd-demo-toast { bottom: calc(128px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 560px) {
+  .nbd-demo-long { display: none; }
+}

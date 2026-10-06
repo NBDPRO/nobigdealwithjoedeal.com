@@ -1036,6 +1036,39 @@ jobs:
           cd tests
           node customer-realtime-mount-lifecycle.test.js
 
+  # Pro demo phase 2 (2026-10-06): the browser-only sample account at
+  # /pro/explore makes ZERO network calls to Firebase, Stripe, Twilio or any
+  # other service. Same "wired-individually" contract as the two jobs above:
+  # a plain node script that serves docs/ with firebase.json's own rewrites
+  # and effective headers (tests/lib/demo-hosting-server.js; the Hosting
+  # emulator sends none of firebase.json's headers, so it could not test the
+  # demo CSP) and drives Chromium WITH the demo service worker running
+  # (playwright.config.js blocks service workers, so this cannot be a spec).
+  # It walks the real dashboard and customer card on the sample data and
+  # fails on any off-origin request, any function-rewrite hit, any tripwire
+  # block or any connect-src refusal. No functions/ deps needed.
+  pro-demo-zero-network:
+    name: Pro demo zero-network walk (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Install test deps
+        run: |
+          cd tests
+          npm install --silent --no-audit --no-fund
+      - name: Install Playwright chromium
+        run: |
+          cd tests
+          npx playwright install --with-deps chromium
+      - name: Run the zero-network walk
+        run: |
+          cd tests
+          node pro-demo-zero-network-2026-10-06.test.js
+
   # CRITICAL RECIPE NOTE: tests/playwright.config.js defaults baseURL to
   # PRODUCTION — PLAYWRIGHT_BASE_URL must stay pinned to the hosting
   # emulator here or this job smoke-tests the live site. Advisory on
