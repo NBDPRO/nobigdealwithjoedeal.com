@@ -305,7 +305,7 @@
       // Labelled for what it DOES. This button was once relabelled "🗑 Delete"
       // because deleteEstimateAction called deleteDoc() and destroyed the
       // document. Since R5-8-2 (#2286) it is a SOFT delete: the estimate gets
-      // deleted:true, the dashboard/portal readers drop it, and the lead's
+      // the deleted flag, the dashboard/portal readers drop it, and the lead's
       // primary + jobValue are re-synced. So it is an archive again, and the
       // confirm says so (estimate-crm-ops.js deleteEstimateAction).
       '<button type="button" class="ceh-btn danger" data-ceh-act="archive" data-ceh-id="' + id + '">🗄 Archive</button>' +

@@ -85,7 +85,7 @@ async function deleteEstimateAction(id) {
   const label = src.name || src.addr || 'this estimate';
   const _ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
   // _deleteEstimate is a SOFT delete since R5-8-2 (#2286): it archives the
-  // estimate (deleted:true), drops it from the estimate lists and the lead's
+  // estimate (sets its deleted flag), drops it from the estimate lists and the lead's
   // pipeline totals, and re-points the lead's primary estimate. "This cannot
   // be undone" described the old deleteDoc and is no longer true.
   if (!(await _ask('Archive "' + label + '"? It will be removed from your estimate lists and from this customer\'s totals.'))) return;
