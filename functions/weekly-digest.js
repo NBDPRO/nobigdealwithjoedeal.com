@@ -35,45 +35,31 @@ const { jobRecords, jobsByLeadFromDocs } = require('./jobs-logic');
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM     = defineSecret('EMAIL_FROM');
 
-// Stages that count as a "win" for revenue + count purposes. Includes
-// the contract-signed and deductible-collected milestones, since both
-// represent committed revenue even if the job isn't installed yet.
-const WON_STAGES = new Set([
-  'closed', 'contract_signed', 'deductible_collected', 'final_payment'
-]);
-
-// Active pipeline = anything not won, not lost, not new-untouched.
-// We use a negative filter so future stages auto-roll in.
-const TERMINAL_STAGES = new Set([
-  'closed', 'lost', 'final_payment', 'deductible_collected'
-]);
-
-// 2026-09-15: hardcoded fast-path + role-aware fallback — same pattern as
-// functions/portal.js's progressKeyFor (fixed 2026-09-08 after a real
-// customer-facing bug from this exact class of gap: a homeowner on a
-// tenant's custom "won" stage got a false 409 because a second hardcoded
-// list disagreed with the role-aware view). The sets above preserve this
-// digest's existing, deliberately broader "won" definition (contract_signed
-// counts as committed revenue pre-install) for every stage they already
-// name; the role fallback only fires for a stage NEITHER set recognizes —
-// a tenant custom stage added via Settings > Pipelines, previously invisible
-// here and silently undercounted in every Monday digest.
+// A signed contract is BOOKED, not open pipeline (Jo, 2026-10-06): a "win"
+// is the shared sale test (stage-roles.js isSale — contract_signed, any
+// in-production job stage, any won stage, persisted stageRole first so a
+// tenant's custom stage counts). The kanban header, the Home KPI tiles and
+// agent crm_summary use the same test. This replaced two hand-kept Sets
+// that had drifted: they counted job_created…install_in_progress (and
+// contract_signed, in the pipeline scan) as open pipeline.
 function _isWonLead(l) {
-  const key = String(l && l.stage || '').toLowerCase();
-  if (WON_STAGES.has(key)) return true;
-  if (TERMINAL_STAGES.has(key)) return false; // explicitly lost/closed-not-won
-  return stageRoles.roleFor(l) === stageRoles.ROLE.WON;
+  return stageRoles.isSale(l);
 }
 function _isLostLead(l) {
   const key = String(l && l.stage || '').toLowerCase();
   if (key === 'lost') return true;
   return stageRoles.roleFor(l) === stageRoles.ROLE.LOST;
 }
+// Out of the active pipeline: booked (a sale) or lost.
 function _isTerminalLead(l) {
-  const key = String(l && l.stage || '').toLowerCase();
-  if (TERMINAL_STAGES.has(key)) return true;
-  const role = stageRoles.roleFor(l);
-  return role === stageRoles.ROLE.WON || role === stageRoles.ROLE.LOST;
+  return stageRoles.isSale(l) || _isLostLead(l);
+}
+// When a win happened: the close date (stamped at signing — stage-roles.js
+// needsClosedAt), else the current stage's start. Without closedAt a deal
+// signed in March would re-count as "won this week" when it moves to
+// Permit Pulled.
+function _wonAtMs(l) {
+  return timestampMillis(l.closedAt) || timestampMillis(l.stageStartedAt);
 }
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -326,12 +312,13 @@ async function aggregateUserMetrics(db, uid, nowMs) {
     .map(d => ({ id: d.id, ...d.data() }))
     .filter(l => !l.deleted);
 
-  // Won THIS WEEK = reached a won stage in the window (stageStartedAt), not
-  // merely touched: a March close that got a note on Tuesday is not a win this
-  // week. stageStartedAt is stamped on every stage move (backfilled by
-  // migrations 002/003); a doc without it falls back to "touched this week".
+  // Won THIS WEEK = closed in the window (_wonAtMs: closedAt, else
+  // stageStartedAt), not merely touched: a March close that got a note on
+  // Tuesday is not a win this week. stageStartedAt is stamped on every stage
+  // move (backfilled by migrations 002/003); a doc with neither date falls
+  // back to "touched this week".
   const wonThisWeek = touchedThisWeek.filter(_isWonLead)
-    .filter(l => !l.stageStartedAt || timestampMillis(l.stageStartedAt) >= cutoff);
+    .filter(l => !_wonAtMs(l) || _wonAtMs(l) >= cutoff);
   // BOOKED value of those wins — projected, not money (labelled so below).
   const wonRevenue = wonThisWeek.reduce((s, l) => s + moneyValue(l.jobValue), 0);
 

@@ -4744,6 +4744,8 @@
       <div class="stab-panel dn" id="stab-panel-ai-texting">
         <h3 style="margin:0 0 4px;font-family:'Barlow Condensed',sans-serif;font-size:18px;color:var(--t);">🤖 AI Texting Persona</h3>
         <div id="aiPersonaMount"></div>
+        <!-- Texting rules: the company's texting switch + Do Not Text list (rendered by sms-compliance-settings.js) -->
+        <div id="smsComplianceMount" class="mt-14"></div>
       </div><!-- /stab-panel-ai-texting -->
 
       <!-- ══ TAB: BOTS & API (connect your own AI bots — rendered by agent-bots-settings.js) ══ -->
@@ -7098,7 +7100,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=10"></script>
+<script defer src="js/analytics-kpi.js?v=11"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
