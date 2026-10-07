@@ -1136,8 +1136,15 @@ window.NBDDocGen = {
       const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
       const tax = Number(data.tax || (subtotal * (data.taxRate || 0)));
       const paymentsReceived = Number(data.paymentsReceived || 0);
-      const total = subtotal + tax;
+      // doc-preflight's quote rounding / job-minimum row (2026-10-05); 0 for
+      // every other caller. Same row shape as estimate.hbs.
+      const rounding = Number(data.roundingAdjustment) || 0;
+      const total = subtotal + tax + rounding;
       const balanceDue = total - paymentsReceived;
+      const roundingRow = rounding ? {
+        rounding, roundingLabel: data.roundingLabel || 'Rounding',
+        roundingSign: rounding < 0 ? '−' : '', roundingAbs: Math.abs(rounding),
+      } : {};
       // Blank due date → the ONE invoice due-date rule (deposit-rule.js
       // INVOICE_DUE_DAYS, 7 days), not "Upon receipt".
       const _drInv = window.NBDDepositRule;
@@ -1159,7 +1166,7 @@ window.NBDDocGen = {
         invoice: {
           number: data.invoiceNumber, date: data.invoiceDate || todayStr, dueDate: dueStr, status: data.status || 'due',
         },
-        lines, subtotal, tax, paymentsReceived, total, balanceDue,
+        lines, subtotal, tax, ...roundingRow, paymentsReceived, total, balanceDue,
         notes: data.notes || null,
         payUrl: data.payUrl || null,
       };
