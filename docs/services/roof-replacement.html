@@ -370,7 +370,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,0.75); padding: 5
       "name": "What shingles do you use?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "I install GAF Timberline shingles as my default lineup — carrying a lifetime limited manufacturer warranty on the materials. I carry architectural (dimensional) shingles as my standard and can also install TAMKO's impact-resistant shingles, including HailGuard, the first asphalt shingle with a hail warranty, which may qualify for insurance discounts in Ohio."
+        "text": "I install GAF Timberline shingles as my default lineup — carrying the manufacturer warranty per product/package on the materials. I carry architectural (dimensional) shingles as my standard and can also install TAMKO's impact-resistant shingles, including HailGuard, the first asphalt shingle with a hail warranty, which may qualify for insurance discounts in Ohio."
       }
     },
     {
@@ -456,7 +456,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <link rel="stylesheet" href="/assets/css/mfr-source.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -472,7 +472,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -529,6 +529,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -551,6 +552,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -588,8 +590,8 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -885,7 +887,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
     <div class="content-body">
       <p>A roof replacement is one of the biggest investments a homeowner makes — and it's also one of the most common jobs where homeowners get taken advantage of. <strong>Joe Deal started No Big Deal Home Solutions specifically because he was tired of watching big companies charge $18,000 for jobs that cost $6,000.</strong></p>
       <p>When you call Joe for a roof replacement in Cincinnati or the surrounding area, he shows up personally. He gets on the roof. He gives you a straight honest assessment of what needs to happen — and what doesn't. If repair is the right call instead of replacement, he'll tell you that too.</p>
-      <p>Every roof replacement starts with a <strong>complete tear-off</strong> — I don't layer new shingles over old ones and call it a day. I pull everything, inspect the decking, replace any damaged boards, install fresh underlayment, and then install your new shingles using GAF Timberline products — or TAMKO impact-resistant shingles for hail country — carrying a lifetime manufacturer shingle warranty. Weighing 3-tab against architectural? <a href="/blog/architectural-shingles-vs-3-tab">Joe's honest breakdown of the real cost difference</a> covers when the upgrade is worth it — and when it isn't.</p>
+      <p>Every roof replacement starts with a <strong>complete tear-off</strong> — I don't layer new shingles over old ones and call it a day. I pull everything, inspect the decking, replace any damaged boards, install fresh underlayment, and then install your new shingles using GAF Timberline products — or TAMKO impact-resistant shingles for hail country — carrying the manufacturer shingle warranty per product/package. Weighing 3-tab against architectural? <a href="/blog/architectural-shingles-vs-3-tab">Joe's honest breakdown of the real cost difference</a> covers when the upgrade is worth it — and when it isn't.</p>
       <p>If your roof was damaged by storm, hail, or wind, I <strong>document everything and meet your adjuster on the roof</strong>. Most homeowners have never been through a claim — I explain every step, and the claim stays yours.</p>
       <ul class="include-list">
         <li>Complete tear-off &amp; debris disposal — nothing left behind</li>
@@ -895,8 +897,9 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         <li>Ice and water shield in valleys and eave edges</li>
         <li>Ridge cap, flashing, and pipe boot replacement</li>
         <li>Damage documented from first inspection through the adjuster meeting</li>
-        <li><a href="/the-pledge" style="color:inherit;border-bottom:1.5px solid var(--orange);font-weight:700;text-decoration:none">The Pledge</a> — NBD backed, no expiration</li>
-        <li>Lifetime manufacturer shingle warranty (GAF or TAMKO)</li>
+        <li><a href="/the-pledge" style="color:inherit;border-bottom:1.5px solid var(--orange);font-weight:700;text-decoration:none">The Pledge</a> — NBD Pledge: for as long as you own the home, we'll come back and make it right</li>
+        <li>Written labor warranty up to 20 years, by package</li>
+        <li>Manufacturer shingle warranty per product/package (GAF or TAMKO)</li>
         <li>Full cleanup — magnetic nail sweep, haul-away included</li>
       </ul>
     </div>
@@ -905,7 +908,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         <h3>Every Replacement Includes</h3>
         <div class="stat-grid">
           <div class="stat-box"><div class="stat-num">Written</div><div class="stat-label">Labor Guarantee</div></div>
-          <div class="stat-box"><div class="stat-num">Lifetime</div><div class="stat-label">Shingle Warranty</div></div>
+          <div class="stat-box"><div class="stat-num">Up to 20yr</div><div class="stat-label">Written Labor Warranty, by Package</div></div>
           <div class="stat-box"><div class="stat-num">$0</div><div class="stat-label">Estimate Cost</div></div>
           <div class="stat-box"><div class="stat-num">100%</div><div class="stat-label">Insurance Help</div></div>
         </div>
@@ -950,7 +953,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         <div>
           <div class="label">★ The NBD Guarantee</div>
           <h3>Standard. Preferred. Elite. <br>Pick what fits your house.</h3>
-          <p>Every tier includes <strong>The Pledge</strong> — as long as I'm in business and you own the home, you can call about anything I worked on and I'll come look at it, free. The tiers decide shingle, components, and the warranty paperwork that rides along. Plus an interactive 3-question decision tree to help you pick.</p>
+          <p>Every tier includes <strong>The Pledge</strong> — as long as I'm in business and you own the home, you can call about anything I worked on and I'll come look at it, free. The tiers decide shingle, components, the written labor warranty (up to 20 years, by package), and the manufacturer warranty paperwork that rides along. Plus an interactive 3-question decision tree to help you pick.</p>
         </div>
         <span class="nbd-tier-cta">Compare All Three Tiers →</span>
       </a>
@@ -965,7 +968,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         </a>
         <a href="/services/roofivent" class="nbd-component">
           <div class="nbd-comp-num">02</div>
-          <div class="nbd-comp-body"><h4>Roofivent Ventilation <span class="arrow">→</span></h4><p>Polypropylene, lifetime warranty, replaceable gaskets. Pipe Flashing on Standard. iVent ECO on Preferred + Elite.</p></div>
+          <div class="nbd-comp-body"><h4>Roofivent Ventilation <span class="arrow">→</span></h4><p>Polypropylene, manufacturer warranty, replaceable gaskets. Pipe Flashing on Standard. iVent ECO on Preferred + Elite.</p></div>
         </a>
         <a href="/services/gaf-pivot-boot" class="nbd-component">
           <div class="nbd-comp-num">03</div>
@@ -1000,7 +1003,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <p class="storm-sub">GAF Timberline is my default lineup. But if you live where hail and high wind hit hard, I also install <strong>TAMKO's impact-resistant shingles</strong> — Titan XT, StormFighter Flex, and at the top HailGuard, the first asphalt shingle to carry an actual hail warranty. And as a <strong>TAMKO Pro Gold™ certified contractor</strong>, I can register TAMKO's enhanced warranties — coverage a non-certified installer can't offer.</p>
     </div>
     <div class="storm-grid">
-      <div class="storm-card"><div class="stage">Value floor</div><div class="nm">Heritage</div><span class="badge">Lifetime warranty</span><p>A true architectural roof at TAMKO's value price — no impact rating.</p></div>
+      <div class="storm-card"><div class="stage">Value floor</div><div class="nm">Heritage</div><span class="badge">Manufacturer warranty</span><p>A true architectural roof at TAMKO's value price — no impact rating.</p></div>
       <div class="storm-card"><div class="stage">Step up to impact</div><div class="nm">Titan XT</div><span class="badge">UL Class 3</span><p>Impact protection without the top-tier price · 160 mph wind.</p></div>
       <div class="storm-card"><div class="stage">Storm armor</div><div class="nm">StormFighter Flex</div><span class="badge">UL Class 4</span><p>Full Class 4 impact, 160 mph wind — voted #1 Product of the Year.</p></div>
       <div class="storm-card"><div class="stage">Top of the lineup</div><div class="nm">HailGuard</div><span class="badge">Hail warranty</span><p>Class 4, tested beyond — the first asphalt shingle with a written hail warranty.</p></div>
@@ -1175,7 +1178,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
     </div>
     <div class="faq-item">
       <div class="faq-q">What shingles do you use?</div>
-      <div class="faq-a">I install GAF Timberline shingles as my default lineup — carrying a lifetime limited manufacturer warranty on the materials. I carry architectural (dimensional) shingles as my standard and can also install TAMKO's impact-resistant shingles, including HailGuard, the first asphalt shingle with a hail warranty, which may qualify for insurance discounts in Ohio.</div>
+      <div class="faq-a">I install GAF Timberline shingles as my default lineup — carrying the manufacturer warranty per product/package on the materials. I carry architectural (dimensional) shingles as my standard and can also install TAMKO's impact-resistant shingles, including HailGuard, the first asphalt shingle with a hail warranty, which may qualify for insurance discounts in Ohio.</div>
     </div>
     <div class="faq-item">
       <div class="faq-q">Do you tear off the old roof or go over it?</div>

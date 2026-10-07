@@ -54,7 +54,7 @@ test.describe('phone: Send for review + estimate follow-ups @shard2', () => {
   test('Send for review stamps lastSharedAt only after the share sheet; the follow-up card lists a 3-day-old estimate', async ({ page }) => {
     test.setTimeout(180_000);
     const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
-    const calls = { mint: [], record: [] };
+    const calls = { mint: [], record: [], text: [] };
     await page.route(/createEstimateReviewLink/, async (route) => {
       if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
       calls.mint.push(JSON.parse(route.request().postData() || '{}'));
@@ -65,6 +65,14 @@ test.describe('phone: Send for review + estimate follow-ups @shard2', () => {
       if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
       calls.record.push(JSON.parse(route.request().postData() || '{}'));
       await route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { ok: true, spine: null } }) });
+    });
+    // phoneTextAction (review R2-3-2): a share that carries the customer's
+    // phone asks the server "ok to text?" first and fails CLOSED on an error,
+    // so the stub answers yes (check) and records the Comm Log row (sent).
+    await page.route(/phoneTextAction/, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+      calls.text.push(JSON.parse(route.request().postData() || '{}'));
+      await route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify({ result: { ok: true } }) });
     });
     // The iPhone share sheet: record what Jo would send, resolve as if sent.
     await page.addInitScript(() => {
@@ -128,6 +136,9 @@ test.describe('phone: Send for review + estimate follow-ups @shard2', () => {
     await send.tap();
     await expect.poll(() => page.evaluate(() => window.__shares.length), { timeout: 15_000, message: 'the share sheet opened' }).toBe(1);
     const shared = await page.evaluate(() => window.__shares[0]);
+    const checks = calls.text.map((c) => c.data || {}).filter((d) => d.action === 'check');
+    expect(checks.length, 'the server was asked ok-to-text before the sheet opened').toBeGreaterThan(0);
+    expect(checks[0].leadId, 'about THIS customer').toBe(leadA);
     expect(calls.mint[0] && calls.mint[0].data, 'the link was minted for THIS document').toEqual({ leadId: leadA, documentId: 'doc-est' });
     expect(shared.text, 'the message carries the tracked link').toContain(REVIEW_URL);
     expect(shared.text, 'and never the Storage token URL').not.toMatch(/firebasestorage|alt=media|token=/);

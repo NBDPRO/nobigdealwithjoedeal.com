@@ -28,9 +28,10 @@
       if (/HAIL/.test(key)) {
         warranty = 'the TAMKO HailGuard Limited System Warranty — a 10-year non-prorated Full Start period plus a 7-year hail warranty (requires TAMKO Synthetic Guard and Moisture Guard)';
       } else if (/TITAN|SFFLEX|STORMFIGHTER/.test(key)) {
-        warranty = 'the TAMKO Limited Lifetime shingle warranty (single-family), with 160 mph wind coverage when installed with TAMKO starter and hip & ridge';
+        // Never "lifetime" on a product warranty (Jo, 2026-10-06).
+        warranty = 'the TAMKO limited shingle warranty (single-family; manufacturer terms apply), with 160 mph wind coverage when installed with TAMKO starter and hip & ridge';
       } else {
-        warranty = 'the TAMKO Limited Lifetime shingle warranty (single-family)';
+        warranty = 'the TAMKO limited shingle warranty (single-family; manufacturer terms apply)';
       }
     }
     // Short bullet form (for the server warranty.hbs feature grid). Empty for
@@ -39,7 +40,7 @@
     if (manufacturer === 'TAMKO') {
       feature = /HAIL/.test(key)
         ? 'TAMKO HailGuard hail warranty — 10-yr Full Start + 7-yr hail'
-        : 'TAMKO Limited Lifetime manufacturer shingle warranty';
+        : 'TAMKO limited manufacturer shingle warranty (manufacturer terms apply)';
     }
     return {
       manufacturer: manufacturer,
@@ -493,8 +494,8 @@
     return (typeof window !== 'undefined' && window.NBD_COMPANY_PROFILE_DEFAULTS) || {};
   }
   // NBD-only marketing defaults (2026-10-04, tenant-ready). The Acorn Finance
-  // partnership, NBD's services list and its value props ("Lifetime
-  // workmanship warranty on every tier") belong to NBD. Another company gets
+  // partnership, NBD's services list and its value props (the NBD Pledge)
+  // belong to NBD. Another company gets
   // them BLANK — company-profile.js _legal() blanks the profile copies the
   // same way it neutralizes the legal text — and these fallbacks follow suit,
   // so the financing / services / value blocks are simply left out.
@@ -519,7 +520,7 @@
     const vp = cpDefaults().valueProps;
     if (Array.isArray(vp) && vp.length) return vp;
     return [
-      {icon:'🛡️',title:'Warranty Protection',desc:'Lifetime workmanship warranty on every tier, plus full manufacturer coverage on all materials.'},
+      {icon:'🛡️',title:'Warranty Protection',desc:'NBD Pledge: for as long as you own the home, we\'ll come back and make it right. Written labor warranty up to 20 years, by package, plus the manufacturer warranty for the package you choose and any extended manufacturer warranty you buy.'},
       {icon:'📋',title:'Storm Damage Documentation',desc:'We inspect and photograph the damage and give you a detailed repair estimate. You manage your claim with your insurer, and we can meet your adjuster after you file.'},
       {icon:'⭐',title:'5-Star Service',desc:'Exceptional service from first contact through final walkthrough and beyond.'},
       {icon:'💰',title:'Flexible Financing',desc:'Affordable monthly payments through our financing marketplace partner.'}
@@ -562,12 +563,13 @@
     const cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
     // Five tiers (Jo, 2026-10-02): Economy is a 1-YEAR labor warranty + the
     // shingle maker's standard limited warranty, NO system warranty; Beyond is
-    // Elite's terms + TAMKO's HailGuard hail warranty. The fallback copies
-    // TIER_DISPLAY for a page that didn't load the config.
+    // Elite's terms + TAMKO's HailGuard hail warranty. Written labor years by
+    // package (Jo, 2026-10-06): estimate-config TIER_LABOR_YEARS. The fallback
+    // copies TIER_DISPLAY for a page that didn't load the config.
     const _fallbackWarranty = {
       economy: { workmanshipYears: 1, systemWarranty: false, transferable: false },
-      good: { transferable: false }, better: { transferable: true, transferWindowDays: 30 }, best: { transferable: true, inspection: true },
-      beyond: { transferable: true, inspection: true, hailWarranty: true }
+      good: { workmanshipYears: 5, transferable: false }, better: { workmanshipYears: 10, transferable: true, transferWindowDays: 30 }, best: { workmanshipYears: 20, transferable: true, inspection: true },
+      beyond: { workmanshipYears: 20, transferable: true, inspection: true, hailWarranty: true }
     };
     const label = (cfg && typeof cfg.tierLabel === 'function') ? cfg.tierLabel(d.warrantyTier) : ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[d.warrantyTier] || d.warrantyTier;
     const w = (cfg && cfg.TIER_DISPLAY && cfg.TIER_DISPLAY[d.warrantyTier] && cfg.TIER_DISPLAY[d.warrantyTier].warranty)
@@ -580,11 +582,31 @@
     const termYears = Number(w.workmanshipYears) > 0 ? Number(w.workmanshipYears) : 0;
     d.expirationDate = termYears
       ? termYears + (termYears === 1 ? ' year' : ' years') + ' from issue date'
-      : 'No expiration — lifetime coverage';
+      : 'See your estimate';
+
+    // Two warranty lines (Jo, 2026-10-06): workmanship — NBD's is the NBD
+    // Pledge; another company prints ITS OWN configured sentence or none —
+    // and the manufacturer warranty this job bought (package + any extended
+    // warranty sold), never a guessed term. tenant-rules.js builds both.
+    const _nbd = isNbdDoc();
+    const _TR = (typeof window !== 'undefined') ? window.NBDTenantRules : null;
+    const _lines = (_TR && typeof _TR.warrantyLines === 'function')
+      ? _TR.warrantyLines({ tier: d.warrantyTier, isNbd: _nbd, lineItems: d.estimateLineItems, extendedWarranty: d.extendedWarranty })
+      : { pledge: _nbd ? ((cfg && cfg.PLEDGE_PROMISE) || 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right.') : null,
+          workmanship: _nbd ? ((cfg && typeof cfg.laborWarrantyLine === 'function' && cfg.laborWarrantyLine(d.warrantyTier)) || 'Written workmanship (labor) warranty per your package — see your estimate') : null,
+          manufacturer: 'Manufacturer warranty: ' + (w.systemWarranty === false ? 'the shingle manufacturer’s standard limited warranty on the shingles; no system warranty' : (w.hailWarranty ? 'TAMKO HailGuard hail warranty on the TAMKO HailGuard shingles (manufacturer terms apply)'
+            // GAF System Plus (Standard and up, 2026-10-05): NBD only, GAF roof only.
+            : ((_nbd && w.systemPlus && resolveDocManufacturer(d.estimateLineItems).manufacturer === 'GAF'
+                && !(_TR && typeof _TR.isPlatformTenant === 'function' && _TR.isPlatformTenant() === false))
+              ? 'GAF System Plus Limited Warranty, included with the ' + label + ' package (registered with GAF; GAF’s terms apply)'
+              : 'per manufacturer — see your estimate'))) };
+    const _ownW = _nbd ? '' : (_lines.workmanship || '');
+    const _mfgLine = _lines.manufacturer;
+    const _mfgTerms = String(_mfgLine).replace(/^Manufacturer warranty:\s*/, '');
 
     let warrantyText = termYears
-      ? 'Our team guarantees the quality of installation for ' + (termYears === 1 ? 'one (1) year' : termYears + ' years') + ' from the issue date. If any defect in workmanship causes a leak or failure within that period, we will repair it at no cost to you.'
-      : 'Our team guarantees the quality of installation for the lifetime of this roof. If any defect in workmanship causes a leak or failure, we will repair it at no cost to you.';
+      ? 'Written workmanship warranty: our team guarantees the quality of installation for ' + (termYears === 1 ? 'one (1) year' : termYears + ' years') + ' from the issue date. If any defect in workmanship causes a leak or failure within that period, we will repair it at no cost to you.'
+      : 'Written workmanship warranty: per your package — see your estimate.';
     if (w.inspection) warrantyText += ' Includes priority service response and annual courtesy inspections.';
     // Transferability is tier-driven by default; the rep-selected checkbox
     // (d.transferable) can only ADD transferability on top of the tier's
@@ -592,27 +614,21 @@
     const isTransferable = w.transferable || d.transferable;
     if (isTransferable && w.transferWindowDays) warrantyText += ' This coverage is transferable to one subsequent owner within ' + w.transferWindowDays + ' days of sale.';
     else if (isTransferable) warrantyText += ' This coverage is fully transferable and follows the property through all subsequent owners.';
-    // Material warranty sentence. Economy: the maker's standard limited
-    // warranty, never a system warranty — and not the resolver's sentence,
-    // which can say "Limited Lifetime". Beyond: TAMKO HailGuard's hail warranty.
-    const _mfgRes = resolveDocManufacturer(d.estimateLineItems).manufacturerWarranty;
-    const mfgSentence = termYears
-      ? 'the shingle manufacturer\'s standard limited warranty (no system warranty is included)'
-      : (w.hailWarranty && !/HAIL/i.test(_mfgRes)
-        ? 'TAMKO\'s HailGuard hail warranty on the TAMKO HailGuard shingles (manufacturer terms apply)'
-        : _mfgRes);
-    // The manufacturer warranty by NAME for the details grid (2026-10-04):
-    // the tier decides Economy (standard limited, no system warranty) and
-    // Beyond (HailGuard); otherwise the shingle actually on the estimate.
+    // Another company: its own sentence (escaped), never NBD's terms.
+    if (!_nbd) warrantyText = _ownW ? esc(_ownW) : '';
+    // NBD's Pledge — a promise on every NBD job, printed apart from the
+    // written terms and never called a "lifetime warranty" (Jo, 2026-10-06).
+    const _pledge = _nbd ? (_lines.pledge || '') : '';
+    // The shingle on the estimate, for the details grid's Shingles row (the
+    // manufacturer warranty itself is _mfgLine above, 2026-10-06).
     const _mfgRes2 = resolveDocManufacturer(d.estimateLineItems);
-    const mfgShort = termYears
-      ? _mfgRes2.manufacturer + ' standard limited warranty (no system warranty)'
-      : (w.hailWarranty ? 'TAMKO HailGuard hail warranty'
-        : (_mfgRes2.manufacturerWarrantyFeature || (_mfgRes2.manufacturer + ' limited manufacturer warranty')));
-    const badgeText = termYears
-      ? termYears + '-YEAR WORKMANSHIP (LABOR) WARRANTY — ' + t.label + ' TIER'
-      : 'LIFETIME WORKMANSHIP WARRANTY — ' + t.label + ' TIER';
-    const coverageText = termYears ? termYears + '-Year Workmanship (Labor)' : 'Lifetime Workmanship';
+    const badgeText = !_nbd
+      ? (_ownW ? 'WORKMANSHIP WARRANTY — ' : 'WARRANTY — ') + t.label + ' TIER'
+      : 'NBD PLEDGE · ' + (termYears ? termYears + '-YEAR ' : '') + 'WRITTEN WORKMANSHIP (LABOR) WARRANTY — ' + t.label + ' TIER';
+    const coverageText = !_nbd
+      ? (_ownW ? 'Workmanship — see above' : 'Manufacturer warranty only')
+      : (termYears ? termYears + '-Year Workmanship (Labor)' : 'Workmanship (Labor) — see your estimate');
+    if (!_nbd) d.expirationDate = 'See above';
 
     // Job-type warranty (2026-09-25). A Job Template estimate's warranty is
     // set by its job type (5 yr gutter system, 2 yr install, 1 yr repair only
@@ -666,16 +682,16 @@
           <p style="color:#555;">${esc(d.address)}</p>
           ${job ? `<div class="tier-badge">${job.badge}</div>
           <p style="max-width:520px;margin:0 auto;font-size:14px;color:#444;">${job.body}</p>` : `<div class="tier-badge">${esc(badgeText)}</div>
-          <p style="max-width:520px;margin:0 auto;font-size:14px;color:#444;">${warrantyText}</p>
-          <p style="font-size:14px;color:#444;margin-top:8px;">
-            Additionally, the roofing materials carry ${esc(mfgSentence)}.</p>`}
+          ${_pledge ? `<p style="max-width:520px;margin:0 auto 8px;font-size:14px;color:#444;font-weight:700;">${esc(_pledge)}</p>` : ''}
+          ${warrantyText ? `<p style="max-width:520px;margin:0 auto;font-size:14px;color:#444;">${warrantyText}</p>` : ''}
+          <p style="font-size:14px;color:#444;margin-top:8px;">${esc(_mfgLine)}.</p>`}
         </div>
         <dl class="cert-details">
           <div><dt>Certificate #</dt><dd>${esc(d.certificateNumber)}</dd></div>
           <div><dt>Issue Date</dt><dd>${esc(longDate(d.issueDate))}</dd></div>
           <div><dt>Install Date</dt><dd>${esc(longDate(d.installDate || d.issueDate))}</dd></div>
           <div><dt>Coverage</dt><dd>${job ? job.coverage : coverageText}</dd></div>
-          ${job ? '' : `<div><dt>Manufacturer Warranty</dt><dd>${esc(mfgShort)}</dd></div>`}
+          ${job ? '' : `<div><dt>Manufacturer Warranty</dt><dd>${esc(_mfgTerms)}</dd></div>`}
           ${job || _mfgRes2.manufacturerName === _mfgRes2.manufacturer + ' shingles' ? '' : `<div><dt>Shingles</dt><dd>${esc(_mfgRes2.manufacturerName)}</dd></div>`}
           <div><dt>Expiration</dt><dd>${esc(job ? job.expiration : d.expirationDate)}</dd></div>
           ${d.workPerformed ? `<div><dt>Work Performed</dt><dd>${esc(d.workPerformed)}</dd></div>` : ''}

@@ -105,23 +105,20 @@ const show = (h) => h.slice(0, 5).map((x) => x.slice(0, 140)).join(' | ');
 
 ok('walked a real homeowner tree (' + FILES.length + ' files)', FILES.length > 300);
 
-// ── 1. Workmanship warranty: the Pledge page says what the CRM writes ──
-console.log('\n1. workmanship warranty terms ↔ docs/pro/js/estimate-config.js');
+// ── 1. Written labor warranty: "up to 20 years, by package" ──────────
+// 2026-10-06 (Jo's final warranty model): the site no longer calls any tier's
+// labor warranty "lifetime". The written labor/workmanship warranty is by
+// package, up to 20 years (Economy 1, Standard 5, Preferred 10, Elite 20);
+// the Pledge is a separate promise; product warranties are the
+// manufacturer's, per product/package. The old "code truth" pins against
+// docs/pro/js/estimate-config.js were dropped here: that file still carries
+// the older lifetime tiers and is the CRM's to update, not this page's.
+console.log('\n1. written labor warranty terms on the Pledge page');
 {
-  const CFG = require(path.join(DOCS, 'pro', 'js', 'estimate-config.js'));
-  const lifetime = Object.keys(CFG.TIER_DISPLAY).filter((k) => !CFG.TIER_DISPLAY[k].warranty.workmanshipYears);
-  const limited = Object.keys(CFG.TIER_DISPLAY).filter((k) => CFG.TIER_DISPLAY[k].warranty.workmanshipYears);
-  const labels = lifetime.map((k) => CFG.TIER_DISPLAY[k].label);
-  ok('code truth: Standard, Preferred and Elite are lifetime tiers', ['Standard', 'Preferred', 'Elite'].every((l) => labels.includes(l)), labels.join(','));
-  ok('code truth: at least one roof tier is NOT lifetime (Economy)', limited.length > 0 && limited.every((k) => /^1-year/.test(CFG.tierWarrantyText(k, true))));
-  const W = CFG.WORKMANSHIP_WARRANTY;
-  ok('code truth: non-roof work carries a fixed-year (not lifetime) warranty', [W.gutter_system, W.install_default, W.repair].every((w) => w && Number.isFinite(w.years) && w.years > 0 && w.years < 10));
   const pledge = stripComments(read('docs/the-pledge/index.html'), 'x.html');
-  const m = /the workmanship warranty for that job \(lifetime on our ([^;)]+) roofs; repairs, gutters and other work carry their own written terms\)/.exec(pledge);
-  ok('the Pledge page names the job-specific warranty and the lifetime tiers', !!m);
-  const named = m ? m[1].split(/,\s*|\s+and\s+/).map((s) => s.trim()).filter(Boolean) : [];
-  ok('...every tier it calls lifetime IS lifetime in the config', named.length >= 3 && named.every((l) => labels.includes(l)), named.join(','));
-  ok('...and no fixed-year tier is called lifetime', limited.every((k) => !named.includes(CFG.TIER_DISPLAY[k].label)));
+  ok('the Pledge page states the written labor warranty: up to 20 years, by package', /your written labor warranty \(up to 20 years, by package; repairs and smaller jobs carry their own written terms\)/.test(pledge));
+  ok('...and the manufacturer warranty per product/package', /the manufacturer warranty per product\/package on materials/.test(pledge));
+  ok('...and no longer calls any roof tier lifetime', !/lifetime on our [^;)]+ roofs/i.test(pledge));
   const blanket = hits(/lifetime workmanship (coverage|warranty) on every (job|estimate|roof)|Every estimate spells out exactly what's covered and exactly what isn't\. Lifetime workmanship coverage/i, true);
   ok('no page promises lifetime workmanship on every job', blanket.length === 0, show(blanket));
 }
@@ -240,6 +237,112 @@ console.log('\n9. 24-hour promise = reply within 24 hours');
   ok('/free-tools inspection card exists', card.length > 0);
   ok('...and promises a reply within 24 hrs, not a 24-hour inspection', /reply within 24 hrs/.test(card) && /replies within 24 hours/.test(card) && !/24-H(ou)?r Inspection|inspection[^.<]{0,30}within 24 hours/i.test(card));
   ok('/inspect mini-footer copy is light on navy (>= 75% white)', /\.mini-footer p\{color:rgba\(255,255,255,\.(7[5-9]|[89]\d?)\)\}/.test(inspect));
+}
+
+// ── 10. No promise about what the carrier pays or approves (2026-10-06) ─
+// The Mason hail hero said "how to make sure your carrier pays what your
+// Mason roof actually needs"; ~25 hail/storm/area pages sold the same result
+// in other words ("what adjusters need to approve a complete scope",
+// "Documentation is what gets a claim approved", "the threshold for full
+// replacement under most policies", "build claims"). Jo: Joe inspects,
+// photographs, documents and writes the estimate; what a claim pays is the
+// insurer's call. The neutral line is "so you have clear photos and an
+// itemized estimate to share with your insurer". Homeowner QUESTIONS ("How
+// long does it take to get a claim approved?") and conditionals ("insurance
+// covers the rest when a claim is approved") still pass.
+console.log('\n10. no carrier-pays / claim-approval promises');
+{
+  const OUTCOME = new RegExp([
+    /\b(make sure|ensure|so that)\b[^.;!?<]{0,40}\b(carriers?|insurers?|insurance|adjusters?)\b[^.;!?<]{0,30}\b(pays?|covers?|approves?)\b/,
+    /\b(need|needs|require|requires)\b[^.;!?<]{0,25}\bto (approve|pay out)\b/,
+    /\bgets? (a |the |your )?claims? approved\b(?!\s+in\b)/, // "get a claim approved in Ohio?" is the blog's question
+    /\bgetting the claim paid\b/,
+    /\bsupports? (the )?full replacement\b/,
+    /\bthreshold (that triggers|for) full replacement\b/,
+    /\bqualify as insurance work\b|\bstorm damage that qualifies for a claim\b|\boften qualifies for a claim\b/,
+    /\bapproved at full value\b|\bpay out a legitimate claim in full\b/,
+    /\bdifference between a partial and full approval\b/,
+    /\binsurance companies take damage seriously and will pay\b/,
+    /\bbuild claims\b/,
+  ].map((r) => r.source).join('|'), 'i');
+  const promise = hits(OUTCOME, true);
+  ok('no homeowner page promises what the carrier pays or approves (whole tree)', promise.length === 0, show(promise));
+  const SRC = ['scripts/merge-hail-claim-content.js', 'scripts/build-town-pages.mjs', 'site-src/data/towns.json']
+    .concat(fs.readdirSync(path.join(ROOT, 'site-src', 'partials')).map((n) => 'site-src/partials/' + n));
+  const srcHits = SRC.filter((rel) => OUTCOME.test(stripComments(read(rel), rel.replace(/\.mjs$/, '.js'))));
+  ok('no partial, town data or page generator carries one either', srcHits.length === 0, srcHits.join(', '));
+  const mason = stripComments(read('docs/services/hail-damage-mason-oh.html'), 'x.html');
+  ok('the Mason hail page uses the neutral documentation line', /how to document every strike, so you have clear photos and an itemized estimate to share with your insurer\./.test(mason));
+  const neutral = FILES.filter((f) => /so you have clear photos and an itemized estimate to share with your insurer/.test(f.text)).length;
+  ok('the neutral line replaced the promises across the hail/storm/area pages (>= 20 files)', neutral >= 20, String(neutral));
+}
+
+// ── 11. Jo's final warranty model (2026-10-06) ─────────────────────────
+// The NBD Pledge is a PROMISE on every job: "NBD Pledge: for as long as you
+// own the home, we'll come back and make it right." It is never called a
+// lifetime (workmanship) warranty. The written labor warranty is by package,
+// up to 20 years. Manufacturer/product warranties are stated separately and
+// are never called "lifetime". #2204/#2205/#2248/#2250 dropped the Pledge
+// from trust rows, town pages and meta descriptions; these pins put it back
+// and keep it there. Text is read with comments stripped AND with tags
+// replaced by a space, so a split like "Lifetime</div><div>Shingle Warranty"
+// still trips the ban.
+console.log('\n11. Pledge promise, written labor warranty, no "lifetime" warranty');
+{
+  const PROMISE = "NBD Pledge: for as long as you own the home, we'll come back and make it right";
+  const untag = (t) => t.replace(/<[^>]+>/g, ' ').replace(/&rsquo;|&#8217;|’/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ');
+  // "lifetime" glued to a warranty word, with any product qualifiers between.
+  const LIFETIME_WARRANTY = [
+    /\blifetime[\s-]+(?:(?:limited|material|manufacturer|shingle|functionality|workmanship|labor|product|designer)[\s-]+)*(?:warrant\w*|coverage|guarantee)/i,
+    /\blimited[\s-]+lifetime\b/i,
+    /\blifetime[\s-]+(?:limited|functionality|workmanship)\b/i,
+    /\bwarrant(?:y|ies)\s*:?\s*lifetime\b/i,
+    /\bLIFETIME\s+Labor\b/i,
+  ];
+  const textOf = (raw, rel) => { const t = stripComments(raw, rel); return [t, untag(t)]; };
+  const scan = (rel, raw) => {
+    const out = [];
+    for (const t of textOf(raw, rel)) for (const re of LIFETIME_WARRANTY) { const m = re.exec(t); if (m) out.push(rel + ': ' + t.slice(Math.max(0, m.index - 40), m.index + 60)); }
+    return out;
+  };
+  // Whole homeowner tree (partial regions, homepage and llms-full.txt included)
+  // plus the sources and generators that stamp those pages.
+  const SRC = fs.readdirSync(path.join(ROOT, 'site-src', 'partials')).map((n) => 'site-src/partials/' + n)
+    .concat(['site-src/data/towns.json', 'scripts/build-town-pages.mjs', 'scripts/build-llms.mjs', 'scripts/build-projects.mjs']);
+  const bad = [];
+  for (const f of FILES) bad.push(...scan(f.rel, fs.readFileSync(path.join(DOCS, f.rel), 'utf8')));
+  for (const rel of SRC) bad.push(...scan(rel, read(rel)));
+  ok('no "lifetime warranty" / "lifetime workmanship" / lifetime product warranty anywhere on the homeowner site or its sources', bad.length === 0, show([...new Set(bad)]));
+
+  // The Pledge is a promise, not workmanship coverage.
+  const asCoverage = hits(/(?:NBD |The )?Pledge on (?:my |all )?(?:installation )?workmanship|workmanship is covered (?:separately )?by (?:<a [^>]*>)?The Pledge/i, true);
+  ok('the Pledge is never described as the workmanship coverage', asCoverage.length === 0, show(asCoverage));
+
+  // The promise wording, word for word, where the Pledge is defined.
+  const vis = (rel) => untag(stripComments(read(rel).replace(PARTIAL, ' '), rel));
+  for (const rel of ['docs/the-pledge/index.html', 'docs/services/roof-replacement.html', 'docs/services/gutter-replacement.html', 'docs/services/siding-replacement.html', 'docs/services/roof-repair.html', 'docs/services/siding-repair.html']) {
+    ok(rel.replace('docs/', '') + ' states the Pledge promise word for word', vis(rel).includes(PROMISE));
+  }
+  // The Pledge appears on the roofing, gutters and siding pages (page body, not just nav/footer partials).
+  for (const rel of ['docs/services/roof-replacement.html', 'docs/services/roof-repair.html', 'docs/services/gutter-replacement.html', 'docs/services/siding-replacement.html', 'docs/services/siding-repair.html', 'docs/services/wood-siding-repair.html']) {
+    ok(rel.replace('docs/', '') + ' names the NBD Pledge in its own body', /\b(?:NBD|The) Pledge\b/.test(vis(rel)));
+  }
+  // Where warranty terms are discussed: the written labor warranty by package.
+  for (const rel of ['docs/the-pledge/index.html', 'docs/services/the-nbd-guarantee/index.html', 'docs/services/roof-replacement.html', 'docs/services/gutter-replacement.html', 'docs/services/siding-replacement.html', 'docs/llms.txt']) {
+    ok(rel.replace('docs/', '') + ' says "written labor warranty up to 20 years, by package"', /written labor warranty \(?up to 20 years, by package/i.test(vis(rel)));
+  }
+  // Restored by this PR after #2204 / #2248 / #2250 dropped them.
+  for (const s of ['hail-damage-insurance-claim', 'roof-cleaning-soft-wash', 'roof-inspection']) {
+    ok(s + ': the hero proof row carries "Backed by the NBD Pledge"', /<ul class="svc-proof">[^\n]*<li>Backed by the NBD Pledge<\/li><\/ul>/.test(read('docs/services/' + s + '.html')));
+  }
+  for (const t of ['batavia', 'loveland', 'mason', 'west-chester']) {
+    const src = read('docs/services/roof-replacement-' + t + '-oh.html');
+    ok('roof-replacement-' + t + ': included list + schema carry the Pledge', /<strong>The NBD Pledge\.<\/strong> For as long as you own the home, we'll come back and make it right\./.test(src) && /"description": "Roof replacement in [^"]*Backed by the NBD Pledge\."/.test(src));
+  }
+  const TOWNS = ['hail-damage-batavia', 'hail-damage-cincinnati', 'hail-damage-loveland', 'hail-damage-maineville', 'hail-damage-mason', 'hail-damage-west-chester',
+    'storm-damage-batavia', 'storm-damage-cincinnati', 'storm-damage-fayetteville', 'storm-damage-loveland', 'storm-damage-mason', 'storm-damage-west-chester'];
+  const noMeta = TOWNS.filter((t) => { const m = /<meta name="description" content="([^"]*)"/.exec(read('docs/services/' + t + '-oh.html')); return !m || !/NBD Pledge/.test(m[1]) || m[1].length > 160; });
+  ok('hail/storm town pages: meta description names the NBD Pledge (<= 160 chars)', noMeta.length === 0, noMeta.join(', '));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

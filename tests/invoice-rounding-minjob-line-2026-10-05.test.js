@@ -160,7 +160,9 @@ function liftFooting() {
     let refused = null;
     const res = { status: (s) => ({ json: (j) => { refused = Object.assign({ status: s }, j); } }) };
     const ctx = { invoice, invoiceId: 'INV1', res, db: { doc: () => ({ get: async () => ({ exists: false }) }) }, decoded: { uid: 'u1' },
-      logger: { error() {}, warn() {}, info() {} }, Math, Number, String, Object, Array, JSON, console, __out: null };
+      logger: { error() {}, warn() {}, info() {} }, Math, Number, String, Object, Array, JSON, console, __out: null,
+      // stripe.js's deposit-first charge rule (review R2-2-6, 2026-10-06).
+      InvoiceCharge: require(path.join(__dirname, '..', 'functions', 'invoice-charge.js')) };
     vm.createContext(ctx);
     await vm.runInContext('(async () => {\n' + body + '\n__out = { chargeLineItems, linkTotalCents, expectedTotalCents };\n})()', ctx);
     if (refused) return { ok: false, error: refused.error, status: refused.status };
