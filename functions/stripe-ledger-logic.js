@@ -185,6 +185,10 @@ function findManualDuplicate(invoices, mv) {
     if (!inv || inv.deleted === true) continue;
     for (const p of inv.payments || []) {
       if (!p || p.source === 'stripe_ledger' || p.stripeRef) continue;
+      // A catch-up "Paid in full?" entry is a stand-in, not a payment Jo
+      // typed for this charge: planCatchUpAbsorb replaces it with the real
+      // Stripe payment (its own date and method) instead of just linking.
+      if (isCatchUpPayment(p)) continue;
       if (cents(p.amount) !== mv.amountCents) continue;
       const at = p.at && typeof p.at.toDate === 'function' ? p.at.toDate().getTime()
         : p.at && typeof p.at.seconds === 'number' ? p.at.seconds * 1000 : new Date(p.at).getTime();
@@ -233,6 +237,175 @@ function planCredit(inv, mv) {
     keys: keys.concat(mv.key),
     overpaidCents: Math.max(0, newPaidC - totalC),
   };
+}
+
+// ── catch-up "Paid in full?" vs a real Stripe payment (R6-2-8) ───────────
+//
+// "Catch up my numbers" (docs/pro/js/catchup.js, #2159) asks "Paid in full?"
+// for a won job with no money recorded and, on Yes, records ONE payment for
+// the whole job total — a balancing entry standing in for money Jo knows came
+// in but did not itemise. Its payments[] entry carries
+// basis: 'catchup_paid_in_full'.
+//
+// A Stripe payment for that same job can reach the CRM later (Jo assigns it
+// from the review list, or the webhook / nightly reconcile matches it). It
+// used to find no open invoice and no equal-amount manual payment, so it was
+// mirrored as a NEW paid invoice: a $12,000 job read $18,000 collected on
+// Home, Numbers, the digest and the agent's collected_revenue.
+//
+// Now the real payment takes the place of that much of the catch-up entry on
+// the same invoice: the catch-up entry is reduced (or, at zero, moved to
+// supersededPayments[]), the Stripe payment is added on its own date, and a
+// reconciliations[] line records what changed. The job's total collected
+// stays the job total, and every revenue reader (they all sum payments[])
+// agrees. If the Stripe payment is MORE than the catch-up entry can give way
+// to, nothing is booked and the ledger row stays in the review list with a
+// reason, for Jo to sort out — never a silent double count, never a silent
+// drop.
+const CATCHUP_BASIS = 'catchup_paid_in_full';
+// A Stripe payment counts as part of a catch-up "paid in full" job when it is
+// dated from 180 days before that payment's date to 14 days after (a deposit
+// months before the job finished; the final card payment a few days after the
+// date Jo picked). Outside that it is other money (an earlier or later job) and
+// is booked as before.
+const CATCHUP_BEFORE_MS = 180 * 86400000;
+const CATCHUP_AFTER_MS = 14 * 86400000;
+
+function msOf(v) {
+  if (v == null) return NaN;
+  if (typeof v.toDate === 'function') return v.toDate().getTime();
+  if (typeof v.seconds === 'number') return v.seconds * 1000;
+  if (typeof v.toMillis === 'function') return v.toMillis();
+  return new Date(v).getTime();
+}
+
+function isCatchUpPayment(p) {
+  return !!p && p.basis === CATCHUP_BASIS && p.source !== 'stripe_ledger' && !p.stripeRef && !p.paymentIntentId;
+}
+
+/**
+ * The invoice a Stripe movement must reconcile against because the job was
+ * marked paid in full by catch-up. invoices: the lead's CRM invoices; pick:
+ * pickInvoice's answer.
+ *   → null                               nothing to reconcile (book as before)
+ *   | { invoiceId }                      reconcile on this invoice
+ *   | { invoiceId: null, ambiguous, invoiceIds }   several such jobs — Jo picks
+ * When pickInvoice already found a home (an open invoice with room, or the
+ * invoice this payment is linked to), that answer stands unless it IS a
+ * catch-up invoice.
+ */
+function findCatchUpInvoice(invoices, mv, pick) {
+  if (!mv || !(mv.amountCents > 0)) return null;
+  const at = Number(mv.atMs);
+  const live = (invoices || []).filter((i) => i && i.id && i.deleted !== true && i.status !== 'void');
+  const hits = live.filter((inv) => (inv.payments || []).concat(inv.supersededPayments || []).some((p) => {
+    if (!isCatchUpPayment(p)) return false;
+    const pm = msOf(p.at != null ? p.at : p.date);
+    if (!isFinite(pm) || !isFinite(at)) return true;   // no usable date: assume it is this job (safer than a double count)
+    return at >= pm - CATCHUP_BEFORE_MS && at <= pm + CATCHUP_AFTER_MS;
+  }));
+  if (!hits.length) return null;
+  if (pick && pick.invoiceId) return hits.some((i) => i.id === pick.invoiceId) ? { invoiceId: pick.invoiceId } : null;
+  if (hits.length === 1) return { invoiceId: hits[0].id };
+  return { invoiceId: null, ambiguous: true, invoiceIds: hits.map((i) => i.id) };
+}
+
+/**
+ * Apply one Stripe movement to an invoice that holds a catch-up "paid in
+ * full" entry. Pure; nowMs stamps the audit lines.
+ *   → null    nothing to absorb: already credited (stripeCreditKeys), no
+ *             catch-up entry, or the invoice's own balance has room for the
+ *             whole payment (planCredit books it as an ordinary payment)
+ *   | { ok: false, reason: 'exceeds_paid_in_full', amountCents, roomCents, catchUpCents }
+ *   | { ok: true, payment, payments, supersededPayments, reconciliations,
+ *       amountPaid, balanceDue, status, paid, depositPaid, keys, absorbedCents }
+ * The open balance is filled first; only the rest comes out of the catch-up
+ * entry (newest first). amountPaid therefore rises by the open balance only.
+ */
+function planCatchUpAbsorb(inv, mv, nowMs) {
+  if (!inv || !mv || !mv.key || !(mv.amountCents > 0)) return null;
+  const keys = Array.isArray(inv.stripeCreditKeys) ? inv.stripeCreditKeys : [];
+  if (keys.includes(mv.key)) return null;
+  if (mv.paymentIntentId && Array.isArray(inv.paidIntentIds) && inv.paidIntentIds.includes(mv.paymentIntentId)) return null;
+  const pays = Array.isArray(inv.payments) ? inv.payments : [];
+  const cuIdx = [];
+  pays.forEach((p, i) => { if (isCatchUpPayment(p) && cents(p.amount) > 0) cuIdx.push(i); });
+  const hadCatchUp = cuIdx.length > 0 || (inv.supersededPayments || []).some(isCatchUpPayment);
+  if (!hadCatchUp) return null;
+  const totalC = cents(inv.total);
+  const paidC = cents(inv.amountPaid);
+  const roomC = Math.max(0, totalC - paidC);
+  if (mv.amountCents <= roomC) return null;
+  const needC = mv.amountCents - roomC;
+  const catchUpC = cuIdx.reduce((s, i) => s + cents(pays[i].amount), 0);
+  if (needC > catchUpC) return { ok: false, reason: 'exceeds_paid_in_full', amountCents: mv.amountCents, roomCents: roomC, catchUpCents: catchUpC };
+
+  const now = new Date(Number(nowMs) || Date.now());
+  const next = pays.slice();
+  const superseded = (Array.isArray(inv.supersededPayments) ? inv.supersededPayments : []).slice();
+  const touched = [];
+  let left = needC;
+  for (let k = cuIdx.length - 1; k >= 0 && left > 0; k--) {
+    const i = cuIdx[k];
+    const p = next[i];
+    const fromC = cents(p.amount);
+    const takeC = Math.min(fromC, left);
+    left -= takeC;
+    const toC = fromC - takeC;
+    const reducedBy = (Array.isArray(p.reducedBy) ? p.reducedBy : []).concat({ stripeRef: mv.key, amount: takeC / 100, at: now });
+    const updated = Object.assign({}, p, {
+      amount: toC / 100,
+      originalAmount: p.originalAmount != null ? p.originalAmount : fromC / 100,
+      reducedBy,
+    });
+    touched.push({ paymentId: p.paymentId || null, fromAmount: fromC / 100, toAmount: toC / 100 });
+    if (toC === 0) { superseded.push(Object.assign(updated, { supersededAt: now })); next[i] = null; }
+    else next[i] = updated;
+  }
+  const payment = { amount: mv.amountCents / 100, at: new Date(mv.atMs), method: mv.method || 'stripe', source: 'stripe_ledger', stripeRef: mv.key, replacesCatchUp: needC / 100 };
+  if (mv.paymentIntentId) payment.paymentIntentId = mv.paymentIntentId;
+  if (mv.reference) payment.reference = mv.reference;
+  const payments = next.filter(Boolean).concat(payment);
+  const newPaidC = paidC + roomC;
+  const balC = Math.max(0, totalC - newPaidC);
+  const depC = cents(inv.depositAmount);
+  const reconciliations = (Array.isArray(inv.reconciliations) ? inv.reconciliations : []).concat({
+    at: now,
+    kind: 'stripe_replaced_catchup_paid_in_full',
+    stripeRef: mv.key,
+    stripeAmount: mv.amountCents / 100,
+    catchUpReducedBy: needC / 100,
+    appliedToBalance: roomC / 100,
+    catchUpPayments: touched,
+    note: 'A Stripe payment of $' + (mv.amountCents / 100).toFixed(2) + ' was assigned to this job after it was marked paid in full from Catch up. '
+      + 'It replaces $' + (needC / 100).toFixed(2) + ' of that catch-up payment, so the job is not counted twice.',
+  });
+  return {
+    ok: true,
+    payment,
+    payments,
+    supersededPayments: superseded,
+    reconciliations,
+    amountPaid: newPaidC / 100,
+    balanceDue: balC / 100,
+    paid: balC === 0,
+    status: balC === 0 ? 'paid' : 'partial',
+    depositPaid: !!inv.depositPaid || (depC > 0 && newPaidC >= depC),
+    keys: keys.concat(mv.key),
+    absorbedCents: needC,
+  };
+}
+
+/** What Jo reads when a Stripe payment cannot be reconciled with catch-up. */
+function catchUpConflictMessage(r, amountCents) {
+  const $ = (c) => '$' + ((Number(c) || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (r && r.ambiguous) {
+    return 'This customer has more than one job marked "Paid in full" from Catch up around the date of this ' + $(amountCents)
+      + ' Stripe payment, so it was not recorded (it would count twice). Fix the right job\'s invoice (undo or lower its catch-up payment), then assign it again.';
+  }
+  const room = r ? (r.roomCents || 0) + (r.catchUpCents || 0) : 0;
+  return 'This job was marked "Paid in full" from Catch up, and this ' + $(amountCents) + ' Stripe payment is more than that catch-up payment can give way to ('
+    + $(room) + '). Nothing was recorded, so the job is not counted twice. Check the job\'s invoice (its total, or undo the catch-up payment), then assign it again.';
 }
 
 // ── ledger rows ──────────────────────────────────────────────────────────
@@ -471,6 +644,7 @@ module.exports = {
   normEmail, normPhone, addressKey, nameTokens, leadName,
   buildLeadIndex, matchLead, nameAgrees,
   cents, pickInvoice, findManualDuplicate, planCredit,
+  CATCHUP_BASIS, isCatchUpPayment, findCatchUpInvoice, planCatchUpAbsorb, catchUpConflictMessage,
   methodOfCharge, partyFromCustomer, nbdNumberOf,
   chargeEntry, refundEntry, disputeEntry, payoutEntry, outOfBandEntry, isPaidOutOfBand, oobAmountCents, mirrorInvoice, mirrorJobStamp,
 };
