@@ -241,6 +241,23 @@ function utcStamp(ms) {
 }
 
 /**
+ * ms → "2026-10-06 21:05:22 EDT" — the signing time in the envelope's zone
+ * (default America/New_York), zone named. The line stamped on the signed
+ * pages printed a bare ISO "…T01:05:22.000Z", which reads as the NEXT day
+ * for any evening Eastern signing (review round 4 D10).
+ */
+function zonedStamp(ms, tz) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n <= 0) return '-';
+  let zone = 'America/New_York';
+  try { if (tz) { new Intl.DateTimeFormat('en-US', { timeZone: tz }).format(0); zone = tz; } } catch (_) { /* default zone */ }
+  const p = new Intl.DateTimeFormat('en-US', { timeZone: zone, hourCycle: 'h23', timeZoneName: 'short',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date(n));
+  const g = (k) => (p.find((x) => x.type === k) || {}).value || '';
+  return g('year') + '-' + g('month') + '-' + g('day') + ' ' + g('hour') + ':' + g('minute') + ':' + g('second') + ' ' + g('timeZoneName');
+}
+
+/**
  * The lines of the signature certificate appended to the executed PDF.
  * env: the envelope (with signers[] carrying evidence); extra: { completedAt }.
  */
@@ -325,5 +342,5 @@ module.exports = {
   MAX_SIGNERS, DEFAULT_SIGNER_ID, CONSENT_TEXT, REMINDER_EVERY_MS, REMINDER_MAX, REQUIRED_EVIDENCE, EMAIL_RE,
   normalizeSigners, fieldsForSigner, nextPendingSigner, signerForToken, sanitizeSignerInput,
   validateSignerLayout, pickSignerValues, buildSignerEvidence, missingEvidence, estimateStatusFor,
-  utcStamp, certificateLines, escHtml, linkEmail, signedCopyEmail, senderName,
+  utcStamp, zonedStamp, certificateLines, escHtml, linkEmail, signedCopyEmail, senderName,
 };

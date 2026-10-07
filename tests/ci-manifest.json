@@ -90,6 +90,7 @@
     "address-match.test.js",
     "cron-gate-drift.test.js",
     "address-audit-script.test.js",
+    "zip-state-check-2026-10-07.test.js",
     "backup-freshness.test.js",
     "vendor-config-export.test.js",
     "billing-gate.test.js",
@@ -149,6 +150,7 @@
     "microsite-publication-gate.test.js",
     "tenant-site-publish-2026-10-04.test.js",
     "migration-run-once-guard.test.js",
+    "backfill-oaks-brand-dryrun-2026-10-07.test.js",
     "money-dashboard.test.js",
     "monthly-overhead-logic.test.js",
     "notif-bell-merge.test.js",
@@ -389,6 +391,7 @@
     "unloaded-cache-gates.test.js",
     "xactimate-human-readable.test.js",
     "homeowner-wall-links.test.js",
+    "project-photo-crew-not-joe-2026-10-07.test.js",
     "careers-posting-parked.test.js",
     "subcontracting-honesty.test.js",
     "leads-loaded-account-switch.test.js",
@@ -455,6 +458,7 @@
     "r4-erasure-export-honesty-2026-10-06.test.js",
     "doc-preflight-invoice-tax-2026-10-05.test.js",
     "r4-ui-silent-fixes-2026-10-06.test.js",
+    "review-r4-dates-fixes-2026-10-06.test.js",
     "receipts-zelle-ach-2026-10-04.test.js"
   ],
   "smoke": {

@@ -128,8 +128,8 @@
       'js/stripe-ledger-ui-logic.js?v=1',
       'js/stripe-ledger-panel.js?v=2',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
-      'js/invoice-reminder.js?v=6',
-      'js/money-dashboard.js?v=9'
+      'js/invoice-reminder.js?v=7',
+      'js/money-dashboard.js?v=10'
     ],
     repos: [
       'js/rep-os.js?v=4'
@@ -264,7 +264,7 @@
       'js/estimate-finalization.js?v=10',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=29',
+      'js/estimate-v2-ui.js?v=30',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=5',
@@ -320,7 +320,7 @@
       // KY claim-wording filter (2026-10-04) — BEFORE the two report
       // builders, which run every caption / report string through it.
       'js/claim-wording-filter.js?v=1',
-      'js/inspection-report-engine.js?v=7',
+      'js/inspection-report-engine.js?v=8',
       'js/photo-report.js?v=5'
     ],
     // D2D tracker (PR 2e). The door-to-door knock tracker — only the D2D
@@ -348,7 +348,7 @@
     ],
     // Warranty cert wizard — opened from the Docs view only.
     warranty: [
-      'js/warranty-cert.js?v=8'
+      'js/warranty-cert.js?v=9'
     ],
     // Theme engine cluster (2026-08-07). The 189-theme engine (162 KB) + its
     // four cosmetic companions were eager on every boot; they are a Settings/

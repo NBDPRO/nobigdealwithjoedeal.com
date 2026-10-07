@@ -496,6 +496,41 @@
     return payUrlOf(invoice);
   }
 
+  /**
+   * invoiceOverdue(invoice, lead, now, tz) → { pastDue, held, overdue, days }
+   * THE overdue rule (review round 4 R4-6-6) — the server's overdue task
+   * (invoice-overdue-logic.js), the Invoices tab, Money aging/Collections and
+   * Today's plan all ask this, so they agree:
+   *   pastDue  today, in the tenant's zone, is AFTER the due date's calendar
+   *            day (due Oct 13 → overdue from Oct 14, whatever the clock time)
+   *   held     the Kentucky pay hold applies (payLinkHold): KRS 367.626 bars
+   *            asking for payment yet, so it is never overdue for collection
+   *   overdue  pastDue && !held
+   *   days     whole calendar days past due (0 unless overdue)
+   * Whether the invoice is OWED (not paid/draft/void) is the caller's check
+   * (invoice-owed.js). No readable due date: never overdue.
+   */
+  function _dueInstant(v) {
+    if (v == null || v === '') return null;
+    if (typeof v === 'string') return v;
+    if (typeof v.toDate === 'function') { try { return v.toDate(); } catch (_) { return null; } }
+    if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (_) { return null; } }
+    if (typeof v === 'object' && !(v instanceof Date) && typeof v.seconds === 'number') return v.seconds * 1000;
+    return v;
+  }
+  function invoiceOverdue(invoice, lead, now, tz) {
+    var inv = invoice || {};
+    var none = { pastDue: false, held: false, overdue: false, days: 0 };
+    var dueDay = toUtcDay(_dueInstant(inv.dueDate), tz);
+    if (dueDay == null) return none;
+    var today = toUtcDay(now == null ? new Date() : now, tz);
+    if (today == null) return none;
+    var pastDue = today > dueDay;
+    var held = payLinkHold(lead || null, inv, now == null ? new Date() : now, tz).held;
+    var overdue = pastDue && !held;
+    return { pastDue: pastDue, held: held, overdue: overdue, days: overdue ? Math.round((today - dueDay) / 86400000) : 0 };
+  }
+
   /** The first day payment may be asked for ("October 6, 2026"), or ''. */
   function kyReleaseDateText(decisionDate, tz) {
     var end = kyWindowEnd(decisionDate, tz);
@@ -916,6 +951,7 @@
     kyPaymentsReleased: kyPaymentsReleased,
     kyReleaseDateText: kyReleaseDateText,
     payLinkHold: payLinkHold,
+    invoiceOverdue: invoiceOverdue,
     payUrlOf: payUrlOf,
     payUrlUnlessHeld: payUrlUnlessHeld,
     addBusinessDays: addBusinessDays,

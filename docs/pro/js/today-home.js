@@ -124,6 +124,8 @@
       callGroups: groups,
       invoices: invoices,
       isOwedInvoice: R && R.isOwedInvoice, owedDollarsOf: R && R.owedDollarsOf,
+      invoiceOverdue: w.NBDJurisdiction && typeof w.NBDJurisdiction.invoiceOverdue === 'function' ? w.NBDJurisdiction.invoiceOverdue : null,
+      tz: w.NBDJurisdiction ? w.NBDJurisdiction.resolveTimeZone(typeof w._legal === 'function' ? w._legal() : w._companyProfile) : undefined,
       isDepositDraft: IP && typeof IP.isDepositDraft === 'function' ? IP.isDepositDraft : null,
       stripeNeedsReview: (HA && HA.lastCounts && HA.lastCounts.stripe) || 0,
       noNextStep: nns,
