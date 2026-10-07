@@ -128,6 +128,9 @@
    *   "lead.firstName"          — pull from window._leadDoc
    *   "estimate.grandTotal"     — pull from first estimate
    *   "estimate.lineItems"      — map estimate.lineItems to doc line-items
+   *   "estimate.invoiceLineItems" — the same, minus the Sales tax / Rounding
+   *                               footing rows (the invoice prints those from
+   *                               its own Tax Rate (%) + rounding row)
    *   "photos"                  — all photos
    *   "photos.before"           — photos with phase=='before'
    *   "photos.after"            — photos with phase=='after'
@@ -301,6 +304,7 @@
     if (typeof src === 'string' && src.indexOf('estimate.') === 0) {
       var key = src.slice('estimate.'.length);
       if (key === 'lineItems') return mapEstimateLineItems(ctx.estimate);
+      if (key === 'invoiceLineItems') return withoutFootingRows(mapEstimateLineItems(ctx.estimate));
       // A Job Template estimate saves no tier (2026-09-25). Its warranty
       // wording tier comes from its job type: 'better' for roofing (the value
       // that flow always saved, so roofing paperwork is unchanged) and '' for
@@ -368,6 +372,102 @@
     }).filter(function (r) { return r.code || r.name; });
   }
 
+  // ── Invoice tax + Save-to-estimate totals (2026-10-05) ────────────
+  // estimate.taxRate is a DECIMAL (0.07). The invoice's Tax Rate (%) field
+  // shows a percent. Money below is integer cents.
+  function isPerSqEstimate(est) {
+    return !!est && ((est.priceMode === 'per-sq') || (est.prices != null));
+  }
+
+  // The estimate's tax rate as the invoice field shows it: 0.07 → 7. A per-SQ
+  // estimate's one customer line IS the tier price with tax inside it, so 0.
+  function invoiceTaxRatePct(est) {
+    if (!est || isPerSqEstimate(est)) return 0;
+    var r = Number(est.taxRate);
+    if (!isFinite(r) || r <= 0) return 0;
+    return Math.round(r * 1e6) / 1e4;
+  }
+
+  function moneyCents(v) {
+    var n = parseFloat(typeof v === 'string' ? v.replace(/[$,\s]/g, '') : v);
+    return isFinite(n) ? Math.round(n * 100) : 0;
+  }
+
+  // One row's amount in cents: its total, else qty × rate (the editor's rule).
+  function lineItemCents(it) {
+    it = it || {};
+    var amt = parseFloat(it.total != null ? it.total : it.amount);
+    if (isFinite(amt)) return Math.round(amt * 100);
+    var qty = parseFloat(it.qty != null ? it.qty : it.quantity) || 0;
+    var rate = parseFloat(it.rate != null ? it.rate : it.unitPrice) || 0;
+    return Math.round(qty * rate * 100);
+  }
+  function lineItemsCents(items) {
+    return (Array.isArray(items) ? items : []).reduce(function (s, it) { return s + lineItemCents(it); }, 0);
+  }
+
+  // buildDocLineItems (customer-estimate-rows.js, R2-2-2 #2247) ends a
+  // classic estimate's lines with derived footing rows — "Sales tax (r%)"
+  // (code TAX) and "Rounding" / "Minimum job charge adjustment" (code ADJ) —
+  // so a contract foots to the price. They are computed from the saved
+  // subtotal/tax/grandTotal on every read, so they are never saved back as
+  // priced lines, and the invoice (which prints tax from its Tax Rate (%) and
+  // the rounding row below) prefills without them so tax is not counted twice.
+  function isFootingRow(it) {
+    return !!it && (it.code === 'TAX' || it.code === 'ADJ');
+  }
+  function withoutFootingRows(items) {
+    return (Array.isArray(items) ? items : []).filter(function (it) { return !isFootingRow(it); });
+  }
+
+  // The money in a list of lines (qty, rate, amount per row) — rewording a
+  // description is not a price change.
+  function lineItemsMoneyKey(items) {
+    return (Array.isArray(items) ? items : []).map(function (it) {
+      it = it || {};
+      var qty = parseFloat(it.qty != null ? it.qty : it.quantity);
+      return (isFinite(qty) ? qty : '') + '|' + moneyCents(it.rate != null ? it.rate : it.unitPrice) + '|' + lineItemCents(it);
+    }).join(';');
+  }
+
+  function estimateGrandCents(est) {
+    return moneyCents(est && (est.grandTotal != null ? est.grandTotal : est.total));
+  }
+
+  // The quote's rounding step: the tenant's builder setting when the builder
+  // is loaded, else the config's, else $25.
+  function quoteRoundStepCents() {
+    try {
+      var EB = window.EstimateBuilderV2;
+      var s = EB && typeof EB.loadSettings === 'function' ? EB.loadSettings() : null;
+      var c = s ? Math.round(Number(s.roundTo) * 100) : 0;
+      if (c > 0) return c;
+    } catch (e) { /* fall through */ }
+    var cfg = window.NBD_ESTIMATE_CONFIG;
+    return (cfg && cfg.ROUND_TO_CENTS > 0) ? cfg.ROUND_TO_CENTS : 2500;
+  }
+
+  // The quote's rule on a new line sum: tax at the estimate's saved rate,
+  // total to the nearest step, then the job minimum the estimate was floored
+  // to (estimate-builder-v2.js resolveEstimate). The floor is only known when
+  // the estimate was floored — its saved grandTotal is that floor.
+  function quoteTotalsCents(est, subtotalCents) {
+    var rate = Number(est && est.taxRate);
+    if (!isFinite(rate) || rate < 0) rate = 0;
+    var taxCents = Math.round(subtotalCents * rate);
+    var step = quoteRoundStepCents();
+    var totalCents = Math.round((subtotalCents + taxCents) / step) * step;
+    var floorCents = 0;
+    if (est && est.minJobApplied) {
+      floorCents = est.minJobCharge != null && Number(est.minJobCharge) > 0
+        ? moneyCents(est.minJobCharge) : estimateGrandCents(est);
+    }
+    var floored = floorCents > 0 && totalCents < floorCents;
+    if (floored) totalCents = floorCents;
+    return { subtotalCents: subtotalCents, taxCents: taxCents, totalCents: totalCents,
+      minJobApplied: floored, floorCents: floorCents };
+  }
+
   /**
    * The job's deposit plan from deposit-rule.js (2026-09-25): the contract
    * price the pre-flight prefills (computed.jobValue's own priority), the
@@ -414,6 +514,8 @@
         var estPrice = Number(est.grandTotal || est.total || est.amount) || 0;
         return estPrice > 0 ? estPrice : (lead.jobValue || 0);
       }
+      case 'invoiceTaxRatePct':
+        return invoiceTaxRatePct(ctx.estimate);
       case 'invoiceNumber':
         return 'INV-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-5);
       case 'receiptNumber':
@@ -958,11 +1060,17 @@
           id: 'items', title: 'Line Items & Totals', collapsed: false,
           fields: [
             { key: 'lineItems', label: 'Line Items', type: 'line-items', required: true,
-              source: 'estimate.lineItems', persist: PERSIST.DOCUMENT },
+              source: 'estimate.invoiceLineItems', persist: PERSIST.DOCUMENT },
             { key: 'subtotal', label: 'Subtotal', type: 'currency', required: true,
               source: 'computed.jobValue', persist: PERSIST.DOCUMENT },
-            { key: 'taxRate', label: 'Tax Rate (%)', type: 'number',
-              source: 'literal:0', persist: PERSIST.DOCUMENT },
+            // A PERCENT (7 = 7%), prefilled from the estimate's saved decimal
+            // taxRate. hydrateDerivedFields hands the renderers taxRate =
+            // this / 100. It was `taxRate`, defaulted to 0 and read as a
+            // decimal, so a $525 job invoiced $480 and typing 7 billed 700%
+            // tax (2026-10-05). New key on purpose: a `taxRate` saved under
+            // the old meaning is never reloaded as a percent.
+            { key: 'taxRatePct', label: 'Tax Rate (%)', type: 'number',
+              source: 'computed.invoiceTaxRatePct', persist: PERSIST.DOCUMENT },
             { key: 'totalPrice', label: 'Total Due', type: 'currency', required: true,
               source: 'computed.jobValue', persist: PERSIST.DOCUMENT }
           ]
@@ -2725,7 +2833,10 @@
       toast('Firestore not available.', 'error');
       return;
     }
-    var items = state.values[fieldKey] || [];
+    // Footing rows (Sales tax / Rounding, see isFootingRow) are re-derived
+    // from subtotal/tax/grandTotal on every read; saved as plain lines they
+    // would lose their code and print the tax twice on the next document.
+    var items = withoutFootingRows(state.values[fieldKey] || []);
     var mapped = items.map(function (it) {
       var qty = parseFloat(it.qty) || 0;
       var rate = parseFloat(it.rate) || 0;
@@ -2742,21 +2853,39 @@
     var lineItemsTotal = mapped.reduce(function (s, i) { return s + (parseFloat(i.amount) || 0); }, 0);
     // V2-pkb (estimate-qa-2026-06-08): for PER-SQ estimates the grandTotal is
     // locked to the selected tier price — editing the internal line items here
-    // must NOT overwrite it. Only line-item / legacy estimates derive grandTotal
-    // from the line-item sum. (Detected via the saved priceMode/prices fields.)
-    var perSqLocked = (est.priceMode === 'per-sq') || (est.prices != null);
+    // must NOT overwrite it. (Detected via the saved priceMode/prices fields.)
+    var perSqLocked = isPerSqEstimate(est);
+    // grandTotal is the customer total — subtotal + tax + rounding / job
+    // minimum. It was set to the bare line sum, so Save with no edits turned
+    // a $525 estimate into $480 (2026-10-05). Unchanged lines keep the saved
+    // totals; changed lines re-total by the quote's own rule.
+    var linesChanged = lineItemsMoneyKey(items) !== lineItemsMoneyKey(withoutFootingRows(mapEstimateLineItems(est)));
+    var totals = (!perSqLocked && linesChanged) ? quoteTotalsCents(est, lineItemsCents(items)) : null;
     var estUpdate = {
       lineItems: mapped,
       lineItemsTotal: lineItemsTotal,
       updatedAt: window.serverTimestamp ? window.serverTimestamp() : new Date()
     };
-    if (!perSqLocked) { estUpdate.grandTotal = lineItemsTotal; }
+    if (totals) {
+      estUpdate.subtotal = totals.subtotalCents / 100;
+      estUpdate.tax = totals.taxCents / 100;
+      estUpdate.grandTotal = totals.totalCents / 100;
+      estUpdate.minJobApplied = totals.minJobApplied;
+      // Keep the floor known after a re-total lifts the job above it.
+      if (totals.floorCents > 0) estUpdate.minJobCharge = totals.floorCents / 100;
+    }
     try {
       await window.updateDoc(window.doc(window.db, 'estimates', est.id), estUpdate);
       // Mutate cached copy so subsequent fields see it
       est.lineItems = mapped;
       est.lineItemsTotal = lineItemsTotal;
-      if (!perSqLocked) { est.grandTotal = lineItemsTotal; }
+      if (totals) {
+        est.subtotal = estUpdate.subtotal;
+        est.tax = estUpdate.tax;
+        est.grandTotal = estUpdate.grandTotal;
+        est.minJobApplied = estUpdate.minJobApplied;
+        if (estUpdate.minJobCharge != null) est.minJobCharge = estUpdate.minJobCharge;
+      }
       toast('Line items saved to estimate.', 'success');
     } catch (err) {
       console.error('[DocPreflight] Save to estimate failed', err);
@@ -3252,6 +3381,34 @@
     // the certificate shows the rep's repair cost instead of the $0.00 default.
     if (data.totalPrice == null && data.estimatedRepairCost) data.totalPrice = data.estimatedRepairCost;
 
+    // Invoice tax (2026-10-05). The field is a percent; the renderers
+    // (renderInvoice, _buildServerPayload) take a decimal taxRate. Tax is
+    // cents-rounded here so both renderers print the same figure. While the
+    // lines and the rate are still the estimate's own, the invoice carries
+    // the quote's rounding / job-minimum row so it totals the estimate's
+    // grandTotal ($480 + $33.60 tax + $11.40 rounding = $525). A gap wider
+    // than a rounding step is not rounding, so it is never labelled as one.
+    if (data.taxRatePct !== undefined) {
+      var _pct = parseFloat(data.taxRatePct);
+      if (!isFinite(_pct) || _pct < 0) _pct = 0;
+      data.taxRate = _pct / 100;
+      var _subC = lineItemsCents(data.lineItems);
+      var _taxC = Math.round(_subC * data.taxRate);
+      data.tax = _taxC / 100;
+      var _invEst = state.estimate || null;
+      if (_invEst && !isPerSqEstimate(_invEst)
+          && Math.abs(_pct - invoiceTaxRatePct(_invEst)) < 1e-9
+          && lineItemsMoneyKey(data.lineItems) === lineItemsMoneyKey(withoutFootingRows(mapEstimateLineItems(_invEst)))) {
+        var _grandC = estimateGrandCents(_invEst);
+        var _adjC = _grandC - _subC - _taxC;
+        var _isFloor = !!_invEst.minJobApplied && _adjC > 0;
+        if (_grandC > 0 && _adjC !== 0 && (_isFloor || Math.abs(_adjC) * 2 <= quoteRoundStepCents())) {
+          data.roundingAdjustment = _adjC / 100;
+          data.roundingLabel = _isFloor ? 'Minimum job charge adjustment' : 'Rounding';
+        }
+      }
+    }
+
     // Line items: templates expect qty/unitPrice/total on each row
     if (Array.isArray(data.lineItems)) {
       data.lineItems = data.lineItems.map(function (it) {
@@ -3288,7 +3445,8 @@
     _state: state,
     _resolveFieldValue: resolveFieldValue,
     _applyDocEdits: applyDocEdits,
-    _hydrateDerivedFields: hydrateDerivedFields
+    _hydrateDerivedFields: hydrateDerivedFields,
+    _saveLineItemsToEstimate: saveLineItemsToEstimate
   };
 
 })();
