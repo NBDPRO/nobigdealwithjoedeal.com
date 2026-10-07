@@ -321,7 +321,9 @@ function serverDb(seed) {
     const b = src.indexOf('} : null;', a);
     const code = (a >= 0 && b > a) ? src.slice(a, b + 9) : '';
     const run = (lead, inv, zelleBrand, tenantKey) => {
-      const ctx = { KyLaw: J, lead, _unpaidInvoice: inv, kyTz: J.DEFAULT_TIME_ZONE, Date, Math, Number, tenantKey: tenantKey === undefined ? ZC.NBD_OWNER_UID : tenantKey, require: (p) => require(path.join(ROOT, 'functions', p)) };
+      // InvoiceCharge: main's R2-2-6 balance card (invoice-charge.js
+      // portalBalanceCard) now builds the base object (merge 2026-10-07).
+      const ctx = { KyLaw: J, InvoiceCharge: require(path.join(ROOT, 'functions', 'invoice-charge.js')), lead, _unpaidInvoice: inv, kyTz: J.DEFAULT_TIME_ZONE, Date, Math, Number, tenantKey: tenantKey === undefined ? ZC.NBD_OWNER_UID : tenantKey, require: (p) => require(path.join(ROOT, 'functions', p)) };
       if (zelleBrand !== undefined) ctx.zelleBrand = zelleBrand;
       vm.createContext(ctx);
       vm.runInContext(code + '\nthis.__b = _balance;', ctx);

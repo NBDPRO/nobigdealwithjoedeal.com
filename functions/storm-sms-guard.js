@@ -46,6 +46,8 @@
 const crypto = require('crypto');
 const OptOut = require('./sms-optout');
 const { SEND_WINDOW } = require('./sms-outbox-guard');
+// Texting hours in the homeowner's local time (state / ZIP), 2026-10-05.
+const SendWindow = require('./sms-send-window');
 
 /** One storm text per subscriber per this many hours — across BOTH crons.
  *  Covers NWS re-issuing an updated warning under a new alert id, and a
@@ -163,7 +165,7 @@ function isAlreadyExists(e) {
 
 /**
  * The claim transaction (see header). Resolves { claimed: true } or
- * { claimed: false, reason: 'inactive' | 'cooldown' | 'already_claimed' }.
+ * { claimed: false, reason: 'inactive' | 'no_consent' | 'cooldown' | 'already_claimed' }.
  * Rejects on a Firestore error — the caller must then NOT send.
  */
 async function claimStormText(db, args) {
@@ -177,6 +179,10 @@ async function claimStormText(db, args) {
     const claimSnap = claimRef ? await tx.get(claimRef) : null;
     const sub = subSnap.exists ? (subSnap.data() || {}) : null;
     if (!sub || sub.active !== true) { verdict = { claimed: false, reason: 'inactive' }; return; }
+    // TCPA consent (texting review 2026-10-05, fix #4): only a subscriber
+    // whose signup stored an explicit tcpaConsent === true is texted. Older
+    // signups carry no consent record and are skipped, not guessed at.
+    if (sub.tcpaConsent !== true) { verdict = { claimed: false, reason: 'no_consent' }; return; }
     if (inStormCooldown(sub, nowMs, args.cooldownH)) { verdict = { claimed: false, reason: 'cooldown' }; return; }
     if (claimSnap && claimSnap.exists) { verdict = { claimed: false, reason: 'already_claimed' }; return; }
     if (claimRef) {
@@ -200,10 +206,12 @@ async function claimStormText(db, args) {
  * opt-out register → claim → send → stamp, for ONE subscriber.
  *
  * args: { db, subscriberRef, phone, claimRef?, claimData?, source, eventKey,
+ *         companyId (whose Do Not Text list applies — REQUIRED; without it
+ *         the opt-out lookup rejects and nothing is sent),
  *         send: async () => twilioResult, logger, nowMs?, serverTimestamp?,
  *         optOutTimeoutMs? }
- * Resolves { status } — 'sent' | 'opted_out' | 'optout_unverified' |
- * 'inactive' | 'cooldown' | 'already_claimed' | 'claim_failed' |
+ * Resolves { status } — 'sent' | 'quiet_hours' | 'opted_out' | 'optout_unverified' |
+ * 'inactive' | 'no_consent' | 'cooldown' | 'already_claimed' | 'claim_failed' |
  * 'send_failed' (with .error). Never throws.
  */
 async function sendGuardedStormText(args) {
@@ -212,22 +220,27 @@ async function sendGuardedStormText(args) {
   const log = logger || { info() {}, warn() {}, error() {} };
   const subId = subscriberRef && subscriberRef.id;
 
-  // 0) TCPA quiet hours in the recipient's local time. Skipped, not queued;
-  // nothing is claimed, so the person is not put into cooldown.
-  if (!withinStormSendWindow(args.nowMs != null ? args.nowMs : Date.now(), args.tz)) {
+  // 0) TCPA quiet hours in the recipient's local time — their tz if the doc
+  // has one, else their state / ZIP (sms-send-window.js). Skipped, not
+  // queued; nothing is claimed, so the person is not put into cooldown.
+  const where = Object.assign({}, args.recipient || {}, args.tz ? { tz: args.tz } : {});
+  if (!SendWindow.withinRecipientWindow(args.nowMs != null ? args.nowMs : Date.now(), where)) {
     return { status: 'quiet_hours' };
   }
 
   // 1) TCPA register — the same OptOut.isOptedOut the CRM's sendSMS uses. An unreadable register is not a clean one: no send.
   let opt;
   try {
-    opt = await OptOut.isOptedOut(db, phone, { timeoutMs: args.optOutTimeoutMs || OptOut.READ_TIMEOUT_MS });
+    opt = await OptOut.isOptedOut(db, phone, {
+      companyId: args.companyId,
+      timeoutMs: args.optOutTimeoutMs || OptOut.READ_TIMEOUT_MS,
+    });
   } catch (e) {
     log.error('storm_sms_optout_unverified', { source, sub: subId, err: e && e.message });
     return { status: 'optout_unverified' };
   }
   if (opt.optedOut) {
-    log.info('storm_sms_opted_out', { source, sub: subId, viaLegacyKey: opt.viaLegacyKey });
+    log.info('storm_sms_opted_out', { source, sub: subId, viaLegacyKey: opt.viaLegacyKey, list: opt.source });
     return { status: 'opted_out' };
   }
 

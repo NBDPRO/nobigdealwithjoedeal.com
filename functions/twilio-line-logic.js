@@ -6,7 +6,10 @@
  * What lives here:
  *   - the Twilio request signature (X-Twilio-Signature, HMAC-SHA1) and the
  *     URL candidates it is checked against behind the Hosting rewrite
- *   - the keyword table (STOP / START / HELP) — one place
+ *   - the keyword decision (STOP / START / HELP) — delegated to
+ *     sms-stop-intent.js, the ONE classifier incomingSMS uses too, so
+ *     "Stop.", "please stop texting me", "remove me from your list" are
+ *     opt-outs on this line exactly as on the main inbound webhook
  *   - every TwiML body the line ever returns (all of them fixed strings or
  *     built from config; no TwiML ever echoes text a caller sent)
  *   - the Firestore row shapes: sms_log (Comm Log contract: leadId + uid +
@@ -24,6 +27,7 @@
 
 const crypto = require('crypto');
 const { phoneDigits10 } = require('./phone-utils');
+const StopIntent = require('./sms-stop-intent');
 
 // The public origin Twilio is pointed at (Hosting rewrites /api/twilio/*).
 const PUBLIC_BASE = 'https://nobigdealwithjoedeal.com';
@@ -36,13 +40,13 @@ const PATHS = {
   voiceStatus: '/api/twilio/voice-status',
 };
 
-// Keyword sets. STOP mirrors Twilio's default opt-out list (Advanced Opt-Out)
-// so the register never misses one Twilio already honoured. START is the
-// CTIA resume set only — never "YES" (a customer answering a question with
-// YES must not read as a re-subscribe). INFO is Twilio's HELP synonym.
-const STOP_WORDS = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT', 'REVOKE', 'OPTOUT']);
-const START_WORDS = new Set(['START', 'UNSTOP']);
-const HELP_WORDS = new Set(['HELP', 'INFO']);
+// Keyword sets: sms-stop-intent.js owns them (no second copy here). STOP
+// covers Twilio's default opt-out list (Advanced Opt-Out) so the register
+// never misses one Twilio already honoured. START is the CTIA resume set only
+// — never "YES". INFO is Twilio's HELP synonym.
+const STOP_WORDS = new Set(StopIntent.STOP_KEYWORDS.map((k) => k.replace(/ /g, '')));
+const START_WORDS = new Set(StopIntent.START_KEYWORDS);
+const HELP_WORDS = new Set(StopIntent.HELP_KEYWORDS);
 
 const BODY_CAP = 1600;          // Twilio's max concatenated SMS length
 const PREVIEW_CAP = 140;        // bell / inbox preview
@@ -136,16 +140,20 @@ function candidateUrls(headers, originalUrl) {
 
 // ── Inbound SMS ───────────────────────────────────────────────────────────
 /**
- * 'stop' | 'start' | 'help' | null — whole-message keyword, like Twilio.
- * STOP is read a little more loosely than Twilio does ("Stop." counts): when
- * in doubt an opt-out is honoured. START and HELP stay exact.
+ * The full classification (sms-stop-intent.js classifyInbound):
+ * { intent: 'stop'|'help'|'start'|null, keyword, match: 'keyword'|'phrase'|null }.
+ * STOP is read far more loosely than Twilio's Advanced Opt-Out (which only
+ * knows whole-message keywords): "please stop texting me" is an opt-out here
+ * even though Twilio passes it through — so this register is the ONLY record
+ * of it. START and HELP stay whole-message only.
  */
+function inboundIntent(body) {
+  return StopIntent.classifyInbound(body);
+}
+
+/** 'stop' | 'start' | 'help' | null. */
 function keywordOf(body) {
-  const w = String(body == null ? '' : body).trim().toUpperCase();
-  if (STOP_WORDS.has(w) || STOP_WORDS.has(w.replace(/[.!\s]+$/, ''))) return 'stop';
-  if (START_WORDS.has(w)) return 'start';
-  if (HELP_WORDS.has(w)) return 'help';
-  return null;
+  return inboundIntent(body).intent;
 }
 
 /** Stored body: control chars out, angle brackets neutralised, capped. */
@@ -165,6 +173,19 @@ function isSid(s, prefixes) {
 function nbdLeads(docs, ownerUid) {
   return (docs || []).filter((d) => d && d.data && (d.data.companyId || d.data.userId) === ownerUid
     && d.data.deleted !== true && !d.data.e2eTestData);
+}
+
+/**
+ * True when the number belongs to ANOTHER tenant's live lead and to no NBD
+ * lead. The line is NBD-only, so such a text must not be filed into NBD's
+ * inbox, sms_log or unmatched_sms — that would put another company's customer
+ * conversation in front of NBD. Routing it to that tenant is a later decision
+ * (Jo); for now the body is not stored anywhere.
+ */
+function heldOnlyByOtherTenant(docs, ownerUid) {
+  const live = (docs || []).filter((d) => d && d.data && d.data.deleted !== true && !d.data.e2eTestData);
+  return nbdLeads(live, ownerUid).length === 0
+    && live.some((d) => { const t = d.data.companyId || d.data.userId; return !!t && t !== ownerUid; });
 }
 
 /**
@@ -192,7 +213,15 @@ function inboundSmsLogRow({ from, body, uid, leadId, companyId, messageSid, ts }
 
 /** Timeline text for the lead note (top-level `notes`, what the customer page shows). */
 function smsNoteText(kind, body) {
-  if (kind === 'stop') return '💬 Replied ' + cleanBody(body, 20).trim().toUpperCase() + ' to the NBD text line — texting is OFF for this number (opt-out recorded).';
+  if (kind === 'stop') {
+    // A whole-message keyword is quoted; a plain-English "please stop texting
+    // me" is long, so the note says what it meant instead of a cut-off quote.
+    const kw = cleanBody(body, 40).trim();
+    return (kw.length <= 20 && StopIntent.classifyInbound(body).match === 'keyword'
+      ? '💬 Replied ' + kw.toUpperCase()
+      : '💬 Asked to stop texting')
+      + ' to the NBD text line — texting is OFF for this number (opt-out recorded).';
+  }
   if (kind === 'start') return '💬 Replied ' + cleanBody(body, 20).trim().toUpperCase() + ' to the NBD text line — texting is back ON for this number.';
   if (kind === 'help') return '💬 Replied HELP to the NBD text line (Twilio sent the standard help reply).';
   return '💬 Text from customer: ' + cleanBody(body);
@@ -360,7 +389,7 @@ module.exports = {
   PUBLIC_BASE, PATHS, STOP_WORDS, START_WORDS, HELP_WORDS, BODY_CAP, EMPTY_TWIML, FINAL_DELIVERY,
   isEnabled, forwardTo, displayPhone, spokenPhone, last4,
   computeSignature, verifySignature, candidateUrls,
-  keywordOf, cleanBody, isSid, nbdLeads,
+  keywordOf, inboundIntent, cleanBody, isSid, nbdLeads, heldOnlyByOtherTenant,
   inboundSmsLogRow, smsNoteText, leadNote, unknownTextInboxItem, bellForText,
   deliveryUpdate,
   xmlEsc, darkVoiceTwiml, forwardCallerId, forwardTwiml, callOutcome, afterDialTwiml, fmtDuration, callNote,

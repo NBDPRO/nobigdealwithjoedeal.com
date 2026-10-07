@@ -103,8 +103,8 @@ first thing the next session should close.
   default-on-create stamp). The rate card currently lives in the Drive sheet
   *NBD MASTER Lead Cost Settings*.
 - **Duplicate-lead detection.** Jo has been double-charged at least twice in two
-  weeks because customers re-submit under an adjacent, dearer category — Nicole
-  Kupper arrived as Siding Repair `$23.38` and again as Siding Installation
+  weeks because customers re-submit under an adjacent, dearer category — Customer CQ
+   arrived as Siding Repair `$23.38` and again as Siding Installation
   `$99.65` for the same job. Matching new leads on phone or address inside 60
   days and badging the card would turn that into a refund request instead of a
   silent loss.
@@ -121,7 +121,7 @@ was selected over the real value. The field looked unset; it was not.
 
 This was found the hard way: a CRM cleanup pass on 2026-09-06 set Source on ~26
 records and silently downgraded every one of them from `Thumbtack` to `Online`.
-Diane Garrity, who was not edited that day, still reads `Thumbtack` — which is
+Customer BP, who was not edited that day, still reads `Thumbtack` — which is
 what made the comparison possible.
 
 **Fixed:** `dashboard.html` now offers Thumbtack / Yelp / Angi / Website alongside
@@ -132,9 +132,9 @@ made cost-per-source unanswerable.
 
 **Not fixed:** the ~26 records already downgraded. They need setting back to
 Thumbtack by hand once this deploys — the list is every lead edited on
-2026-09-06 (Zanders, Greene, Doerbeck, Santiago, Sutton, Anderson, Binford,
-Dindar, Bryant, Brown, Jones, Traci K, Coleman, McGlynn, Gilkey, Tran, Qadir,
-Wolfe, Gaines, Carry, Jean-Mary, Southman, Holton, Diop, Tolbert, Ketayi).
+2026-09-06 (Customer FZ, Customer DN, Customer AZ, Customer C, Customer FH, Customer CO, Customer Q,
+Customer AW, Customer EF, Customer AJ, Customer H, another customer, Customer G, Customer DI, Customer BQ, Customer EO, Customer EG,
+Customer AP, Customer DD, Customer FY, Customer CF, Customer EZ, Customer CC, Customer AY, Customer FM, Customer CN).
 
 **The general lesson for this codebase:** any `<select>` whose options are a
 narrower set than the values the ingest can write is a silent data-loss bug, not
@@ -176,8 +176,8 @@ When a knock becomes a real customer the source is retyped as `Door Knock` —
 **8** records — and it leaves the prospect pool. The numerator is empty by
 construction and always will be.
 
-Door knocking has in fact produced **Rita Hatley** ($3,145, closed) and
-**John & Jennifer Morgan-McCane** ($17,500, `supplement_requested`, created
+Door knocking has in fact produced **Customer BX** ($3,145, closed) and
+**Customer DR** ($17,500, `supplement_requested`, created
 2026-04-03), and carries **$44,245 of pipeline — more than any other source.**
 
 ### Won value by source, and why the session got it backwards
@@ -192,7 +192,7 @@ Door knocking has in fact produced **Rita Hatley** ($3,145, closed) and
 | `Online` | 25 | 5 | $2,925 |
 | `Door-to-Door` | 64 | 0 | $0 |
 
-`Direct` is a default, not an observation — **Brian Goddard ($22,882.19) sits in
+`Direct` is a default, not an observation — **Customer BR ($22,882.19) sits in
 it**, and Joe confirms that job actually came from Yelp. Corrected, Yelp has
 produced roughly **$51,662** and is the best-performing channel in the business.
 It has never appeared in a single report in this app.
@@ -220,13 +220,13 @@ collection, not in the analysis — and it inverted the ranking.
 
 ### Fixed by hand on 2026-09-06
 
-The prospect at `129 Seymour Ave, 45237` is the same property as the Goddard job:
-address corrected to `129 W Seymour Ave, 45216`, source set to `Door Knock`,
+The prospect at `[street address], 45237` is the same property as the Customer BR job:
+address corrected to `[street address], 45216`, source set to `Door Knock`,
 overdue follow-up cleared, notes annotated, record hidden (the roof is done).
 **Note this edit moved that record from the `Door-to-Door` bucket into
 `Door Knock`**, which is why those counts read 64/8 rather than 65/7.
-Not done deliberately: Promote to Customer (would duplicate Goddard) and Job
+Not done deliberately: Promote to Customer (would duplicate Customer BR) and Job
 Value on the prospect (would double-count $22,882).
 
-A note on the Goddard customer records `SOURCE = YELP` and why the field itself
-was left alone. **Add Goddard to the post-deploy source-correction list in §8.**
+A note on the Customer BR customer records `SOURCE = YELP` and why the field itself
+was left alone. **Add Customer BR to the post-deploy source-correction list in §8.**

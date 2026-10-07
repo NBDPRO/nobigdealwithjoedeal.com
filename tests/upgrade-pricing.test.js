@@ -918,9 +918,14 @@ test('a tenant-priced odd unit ($12.34 × 33 LF drain) prints $407.22 in every r
 test('the printed lines, the subtotal and the grand total each move by EXACTLY the quote', () => {
   const priced = U.price(['alurex'], ctxFor(K5, k5, { taxRate: basePayload.taxRate }));
   const est = U.applyToEstimate(basePayload, priced);
-  const sum = (rows) => rows.reduce((s, r) => s + cents(r.total), 0);
+  // Scope lines only: the footing rows (sales tax, Rounding / minimum job —
+  // customer-estimate-rows.js footingRows, 2026-10-06) move with the TAX, not the quote.
+  const scope = (rows) => rows.filter((r) => r.code !== 'TAX' && r.code !== 'ADJ');
+  const sum = (rows) => scope(rows).reduce((s, r) => s + cents(r.total), 0);
+  const all = (rows) => rows.reduce((s, r) => s + cents(r.total), 0);
   eq(sum(CR.buildDisplayRows(est)) - sum(CR.buildDisplayRows(basePayload)), 246600, 'display lines delta');
   eq(sum(CR.buildDocLineItems(est)) - sum(CR.buildDocLineItems(basePayload)), 246600, 'doc lines delta');
+  eq(all(CR.buildDisplayRows(est)), cents(est.grandTotal), 'display rows (with tax + rounding) foot to the upgraded grand total');
   eq(sum(IP.buildRowItems(est)) - sum(IP.buildRowItems(basePayload)), 246600, 'invoice lines delta');
   eq(cents(est.subtotal) - cents(basePayload.subtotal), 246600, 'subtotal delta');
   eq(cents(est.tax) - cents(basePayload.tax), priced.taxCents, 'tax delta');

@@ -40,4 +40,31 @@ function sanitizeIntake(body) {
   return out;
 }
 
-module.exports = { INTAKE_OPTIONAL, INTAKE_MAXLEN, INTAKE_ENUMS, sanitizeIntake };
+/**
+ * The /inspect thank-you screen (2026-10-06, Jo: "shorter form") also asks the
+ * three free-text extras its first screen used to carry: "What happened?",
+ * email and a referral code. They are accepted ONLY by updatePublicLeadIntake,
+ * ONLY for an inspect_leads grant, under the SAME caps the inspect kind
+ * applies at submit (story 1500, email 200, referralCode 32). submitPublicLead
+ * is untouched. Anything malformed is silently dropped, like sanitizeIntake.
+ */
+const FOLLOWUP_EXTRA_MAXLEN = { story: 1500, email: 200, referralCode: 32 };
+const FOLLOWUP_EXTRA_COLLECTIONS = ['inspect_leads'];
+function sanitizeFollowUpExtras(body) {
+  const b = body || {};
+  const out = {};
+  const str = (k) => (typeof b[k] === 'string' ? b[k].trim() : '');
+  const story = str('story');
+  if (story && story.length <= FOLLOWUP_EXTRA_MAXLEN.story) out.story = story.replace(/[<>]/g, '');
+  const email = str('email');
+  if (email && email.length <= FOLLOWUP_EXTRA_MAXLEN.email && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email)) out.email = email;
+  // Same normalisation lead-bridge applies to redeemReferralCode.
+  const code = str('referralCode').toUpperCase().replace(/[^A-Z0-9-]/g, '');
+  if (code && code.length <= FOLLOWUP_EXTRA_MAXLEN.referralCode) out.referralCode = code;
+  return out;
+}
+
+module.exports = {
+  INTAKE_OPTIONAL, INTAKE_MAXLEN, INTAKE_ENUMS, sanitizeIntake,
+  FOLLOWUP_EXTRA_MAXLEN, FOLLOWUP_EXTRA_COLLECTIONS, sanitizeFollowUpExtras,
+};

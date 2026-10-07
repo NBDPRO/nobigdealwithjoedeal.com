@@ -95,8 +95,15 @@
     sendFollowUpEmail: state.sendFollowUpEmail,
     openSMSChooser: (knockId) => {
       const k = state.knocks.find(x => x.id === knockId);
-      if (k) state.openSMSTemplateChooser(k);
+      if (!k) return;
+      // Door-knock texts need the homeowner's OK on file (2026-10-05).
+      if (typeof state.canTextKnock === 'function' && !state.canTextKnock(k)) {
+        window.showToast?.(state.NO_CONSENT_MSG || 'No texting OK on file for this homeowner.', 'error');
+        return;
+      }
+      state.openSMSTemplateChooser(k);
     },
+    recordSmsConsent: (knockId) => state.recordSmsConsent && state.recordSmsConsent(knockId),
     exportCSV: state.exportKnocksCSV,
     calcRoute: () => {
       state.calculateWalkingRoute();
