@@ -43,12 +43,14 @@ const crypto = require('crypto');
 const { onRequest, onCall, HttpsError } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 const { enforceRateLimit } = require('./integrations/upstash-ratelimit');
 const L = require('./agent-mcp-logic');
 const SW = require('./schedule-window');
 const OptOut = require('./sms-optout');
 const Suppress = require('./email-suppression');
 const TextingGate = require('./sms-texting-gate');
+const { keyCreatorAllowed } = require('./member-offboarding');
 const PhoneText = require('./phone-text-check');
 const Outbox = require('./sms-outbox-guard');
 
@@ -433,6 +435,22 @@ async function authenticate(raw) {
   const snap = await db().collection('agent_keys').doc(id).get();
   const k = snap.exists ? snap.data() : null;
   if (!k || k.active !== true) return refuse();
+  // R3-1 (2026-10-06): the person who made the key must still be entitled to
+  // it, on every call: enabled, not a viewer, still in the key's company
+  // (removeMember strips the claim; deactivateUser disables the account). The
+  // platform admin's house keys and creator-less server keys are handled
+  // explicitly in keyCreatorAllowed. An Auth outage is a 503, not "revoked".
+  if (k.createdBy) {
+    let creator = null;
+    try { creator = await getAuth().getUser(String(k.createdBy)); }
+    catch (e) {
+      if (!(e && e.code === 'auth/user-not-found')) {
+        logger.warn('[crmMcp] creator check failed', { msg: e && e.message });
+        return { status: 503, body: L.rpcError(null, -32000, 'The CRM could not check this key right now. Try again shortly.') };
+      }
+    }
+    if (!keyCreatorAllowed(k, creator)) return refuse();
+  }
   let bot;
   if (k.customBotId) {
     // A company bot's key: the bot must still exist, be active and belong to

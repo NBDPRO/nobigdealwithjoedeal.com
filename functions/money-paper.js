@@ -35,6 +35,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const P = require('./money-paper-logic');
+const LAP = require('./lead-artifact-paths');
 const SPINE = require('./job-spine-logic');
 const stageRoles = require('./stage-roles');
 const PIF = require('./paid-in-full');
@@ -87,7 +88,15 @@ async function plateFor(db, bucket, lead, leadId) {
   try {
     const snap = await db.collection('photos').where('leadId', '==', leadId).limit(200).get();
     const photos = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
-    const p = P.pickPlatePhoto(lead, photos);
+    // Only this lead's tenant's photos, each naming an object in its owner's
+    // or a company member's folder: photo docs are client-written, and the
+    // path below is signed with the admin SDK (2026-10-06).
+    const memo = new Map();
+    const candidates = [];
+    for (const c of P.platePhotosForLead(lead, photos)) {
+      if (await LAP.photoObjectAllowed(db, P.plateObjectPath(c), c, memo)) candidates.push(c);
+    }
+    const p = P.pickPlatePhoto(lead, candidates);
     if (!p) return null;
     const path = p.path || p.storagePath;
     let url = null;

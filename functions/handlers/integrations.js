@@ -273,7 +273,17 @@ const PUBLIC_LEAD_KINDS = {
     // has ever carried it. Declared here as a boolean so the express-written-
     // consent record actually persists and lead-alert's SMS ack can gate on
     // it instead of inferring consent from the collection name.
-    boolOptional: ['tcpaConsent'],
+    // phoneVerified (R5-9-4, 2026-10-06): what the browser says about the OTP
+    // step. Stored for context only and labelled "reported by form" in the
+    // CRM note: nothing server-side checks it, so nothing may rely on it.
+    boolOptional: ['tcpaConsent', 'phoneVerified'],
+    // ballpark (R5-9-4): the funnel posts the range it SHOWED the homeowner
+    // as `ballpark: { min, max }`; stored as bounded whole-dollar
+    // ballparkMin/ballparkMax (see sanitizeBallpark). The big `estimateData`
+    // blob is still NOT allowlisted: it is an unbounded nested object posted
+    // only on follow-up event docs the bridge skips, and estimateSummary
+    // already carries its plain-text form for the email path.
+    ballpark: true,
     // Coordinates (2026-09-06). The funnel has ALWAYS posted these — the
     // wizard geocodes the address at step 1 and puts `lat`/`lon` in the
     // submitted leadData — but they are NUMBERS, and the optional loop below
@@ -365,6 +375,39 @@ const { SECRETS: INT_SECRETS } = require('../integrations/_shared');
 // CRM — defence in depth behind the client-side escaping (security audit
 // 2026-09-29 found the Cmd-K palette rendering web-form names raw).
 function noAngle(s) { return String(s).replace(/[<>]/g, ''); }
+
+// Over-cap optional FREE TEXT (R5-9-5, 2026-10-06). The optional loop used to
+// drop an over-length message/story outright while the visitor saw success,
+// so a homeowner's long description vanished. These keys are prose a person
+// typed, so they are cut to the cap with a visible marker instead. Every other
+// optional (email, phone, zip, enums, selects, UTMs, codes) keeps the strict
+// drop, because a truncated structured value would be wrong, not shorter.
+const TRUNCATE_FREE_TEXT = ['message', 'story'];
+const TRUNCATED_MARK = '… [truncated]';
+function truncateFreeText(v, max) {
+  let keep = Math.max(0, max - TRUNCATED_MARK.length);
+  // Never split a surrogate pair (an emoji) at the cut.
+  const c = v.charCodeAt(keep - 1);
+  if (c >= 0xD800 && c <= 0xDBFF) keep -= 1;
+  return v.slice(0, keep) + TRUNCATED_MARK;
+}
+
+// The /estimate ballpark (R5-9-4): accepts the posted `ballpark: {min,max}`
+// (or flat ballparkMin/ballparkMax). Both must be finite, 0 <= min <= max,
+// max > 0 (the funnel's {0,0} "not computed yet" default is not a range) and
+// max <= BALLPARK_MAX. Rounded to whole dollars. Anything else → {} (dropped;
+// an optional answer never fails the lead).
+const BALLPARK_MAX = 1000000;
+function sanitizeBallpark(body) {
+  const b = body || {};
+  const bp = (b.ballpark && typeof b.ballpark === 'object' && !Array.isArray(b.ballpark))
+    ? b.ballpark : { min: b.ballparkMin, max: b.ballparkMax };
+  const num = (v) => ((typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) ? Number(v) : NaN);
+  const lo = num(bp.min), hi = num(bp.max);
+  if (!isFinite(lo) || !isFinite(hi)) return {};
+  if (lo < 0 || hi <= 0 || lo > hi || hi > BALLPARK_MAX) return {};
+  return { ballparkMin: Math.round(lo), ballparkMax: Math.round(hi) };
+}
 
 function rateLimitIpKey(ip) {
   const s = String(ip || '');
@@ -497,8 +540,14 @@ exports.submitPublicLead = onRequest(
       // Per-field cap when the kind declares one (e.g. a 1500-char message),
       // else a conservative 500-char default. Over-cap → drop (not 400):
       // an optional field should never fail an otherwise-valid submission.
+      // Free text (message/story) is cut to the cap with a marker instead.
       const max = (spec.maxLen && spec.maxLen[key]) || 500;
-      if (v.length === 0 || v.length > max) continue;
+      if (v.length === 0) continue;
+      if (v.length > max) {
+        if (!TRUNCATE_FREE_TEXT.includes(key)) continue;
+        data[key] = noAngle(truncateFreeText(v, max));
+        continue;
+      }
       data[key] = noAngle(v);
     }
 
@@ -532,6 +581,7 @@ exports.submitPublicLead = onRequest(
       data[key] = n;
     }
     if (data.lat === 0 && data.lon === 0) { delete data.lat; delete data.lon; }
+    if (spec.ballpark) Object.assign(data, sanitizeBallpark(body));
     // Enum-valued intake answers: anything off-list is dropped, never stored.
     for (const [k, allowed] of Object.entries(INTAKE_ENUMS)) {
       if (data[k] != null && !allowed.includes(data[k])) delete data[k];
@@ -648,4 +698,4 @@ exports.submitPublicLead = onRequest(
 );
 
 // Test seam (2026-09-30): the per-kind field specs, read-only use in tests.
-exports._publicLeadSpec = { PUBLIC_LEAD_KINDS, SERVICE_KINDS, INTAKE_OPTIONAL, INTAKE_ENUMS };
+exports._publicLeadSpec = { PUBLIC_LEAD_KINDS, SERVICE_KINDS, INTAKE_OPTIONAL, INTAKE_ENUMS, TRUNCATE_FREE_TEXT, TRUNCATED_MARK, sanitizeBallpark };

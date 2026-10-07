@@ -517,6 +517,16 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only storage --project nbd-storage-test 'node storage-rules.test.js'
+      # A removed member's files move to the owner (2026-10-06, Jo): the real
+      # move module + storage.rules + firestore.rules on the Firestore + Storage
+      # emulators, end to end (rep uploads and signs, owner removes, ex-rep
+      # locked out, records repointed, signed hashes verify, crash + resume).
+      # Proved red against the pre-move code before this was wired. The move
+      # module imports no firebase SDK, so tests/ deps are enough here.
+      - name: Run member file-move integration test under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore,storage --project demo-nbd-offboard 'node member-storage-move.integration.test.js'
 
   # Referral-CODE $200-bonus trigger. Previously ONLY runnable by hand
   # (emulators:exec locally) — so the money-path bugs the 2026-07-08 sweep found
