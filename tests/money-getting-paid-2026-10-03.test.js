@@ -209,13 +209,15 @@ function browser(seed, extra) {
   {
     const src = lf(read('functions/portal.js'));
     const a = src.indexOf('    // Pay link: stripePaymentLink OR stripeHostedUrl');
-    const b = src.indexOf('} : null;', a);
-    const code = (a >= 0 && b > a) ? src.slice(a, b + 9) : '';
+    // Since 2026-10-06 (review R2-2-6) the card is built by
+    // invoice-charge.js portalBalanceCard; the block ends at its `: null;`.
+    const b = src.indexOf(': null;', src.indexOf('const _balance', a));
+    const code = (a >= 0 && b > a) ? src.slice(a, b + 7) : '';
     ok('portal: the balance build is liftable', !!code);
     const run = (lead, inv) => {
       // tenantKey + require: the balance build asks zelle-contact.js whether
       // this tenant is NBD (Zelle / "Pay by bank" are NBD-only, 2026-10-04).
-      const ctx = { KyLaw: J, lead, _unpaidInvoice: inv, kyTz: J.DEFAULT_TIME_ZONE, Date, Math, Number,
+      const ctx = { KyLaw: J, InvoiceCharge: require(path.join(__dirname, '..', 'functions', 'invoice-charge.js')), lead, _unpaidInvoice: inv, kyTz: J.DEFAULT_TIME_ZONE, Date, Math, Number,
         tenantKey: 'co_other', require: (p) => require(path.join(ROOT, 'functions', p)) };
       vm.createContext(ctx);
       vm.runInContext(code + '\nthis.__b = _balance;', ctx);

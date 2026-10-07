@@ -187,14 +187,14 @@ well-cited):
 
 ## §5 — Real customer documents bypass all of this anyway
 
-- The seven actual September 2026 client PDFs (Hildeman, Eppert, Gilkey, etc.)
+- The seven actual September 2026 client PDFs (Customer CA, Customer BF, Customer BQ, etc.)
   were rendered from **hand-typed Google Docs** by a generic renderer
   (`scripts/render-estimate-pdf.py`) with **zero tier vocabulary of any kind**
   — whatever a rep typed that day (e.g. `"OPTION 1 — PREMIUM MICROMESH"`) is
   what the customer saw, independent of both Good/Better/Best and
   Standard/Preferred/Elite.
 - **Ruling one thing out explicitly, since it was the prompt for this audit:**
-  the Becca Hildeman $1,616 undercharge (`SESSION-2026-09-07-client-pdfs-and-drive-tidy.md`)
+  the Customer CA $1,616 undercharge (`SESSION-2026-09-07-client-pdfs-and-drive-tidy.md`)
   was a **document-versioning bug** — the renderer was pointed at a stale
   Sep-2 Google Doc superseded by a Sep-3 reprice — not a tier-naming or
   tier-math mismatch. Don't let it get folded into the naming mess above; it's
@@ -852,7 +852,7 @@ above for cross-corroboration).
 | Low | — | Marketing site | Public site shows no leakage of the internal 5/10/20-yr scheme (non-drift, reported for completeness) |
 | Low | — | Product catalog | Open Q: is TAMKO sell pricing still an unconfirmed GAF-mirrored placeholder as of today? |
 | Low | — | Real proposals | Real filed customer estimates bypass all in-code tier vocabulary entirely (hand-typed Google Docs) |
-| Low | — | Real proposals | Open Q: is the Hildeman $1,616 gap tier drift or pure document-versioning? — **ruled: versioning, see §5** |
+| Low | — | Real proposals | Open Q: is the Customer CA $1,616 gap tier drift or pure document-versioning? — **ruled: versioning, see §5** |
 | Low | — | Historical QA | `RATE-SHEET.md`'s config `_version` citation stale (figures still match) |
 | Low | — | Historical QA | Open Q: does B-8's `materialMarkupPct ?? 0.25` fallback caveat still hold in the live insurance path? |
 | Low | — | Historical QA | Open Q: was the $642 CLASSIC-below-minimum item ever formally closed? (inferable, never stated) |

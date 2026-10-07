@@ -391,6 +391,18 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     const snap = await window.getDocs(q);
     return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
   }
+  /**
+   * The customer's jobs (leads/{id}/jobs), for soleJobOf. null when it
+   * cannot be read — the caller then treats the customer as multi-job (no
+   * un-stamped paid invoice is credited), never a guess.
+   */
+  async function _loadLeadJobs(db, leadId) {
+    try {
+      if (!leadId || typeof window.getDocs !== 'function') return null;
+      const snap = await window.getDocs(window.collection(db, 'leads', String(leadId), 'jobs'));
+      return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+    } catch (e) { return null; }
+  }
 
   /** The payment's timeline note (nbd:payment-timeline), at its stable doc id. */
   async function _writePaymentTimeline(db, invoiceId, leadId, entry) {
@@ -1348,25 +1360,48 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * when either side has no job stamp — an unpaid one (a PAID invoice with
    * no job stamp is an earlier job's history). The deposit draft's filter
    * (functions/deposit-draft-logic.js). Oldest first.
+   *
+   * opts (2026-10-05) = { soleJob, since }: a PAID invoice with no job stamp
+   * — a deposit mirrored in from the Stripe dashboard (stripe-ledger-logic.js
+   * mirrorInvoice never knew the job) — IS this job's when the customer has
+   * exactly ONE job (soleJob: the caller read leads/{id}/jobs, see soleJobOf)
+   * AND it was made on or after this job's estimate (since = the estimate's
+   * createdAt), so an earlier roof's payment never credits this one. With two
+   * or more jobs, or no estimate date, it stays out as before: the final
+   * invoice then shows no credit for it (visible on the paper, the rep fixes
+   * it) — never a silent credit to the wrong job.
    */
-  function jobInvoicesOf(invoices, jobId) {
+  function jobInvoicesOf(invoices, jobId, opts) {
     const jid = _jbJobId(jobId);
+    const o = opts || {};
+    const sinceMs = _jbMs(o.since);
+    const adopt = !!jid && o.soleJob === true && sinceMs > 0;
     return (Array.isArray(invoices) ? invoices : []).filter(function (inv) {
       if (!inv || inv.deleted === true || inv.deletedAt) return false;
       const st = String(inv.status || '').toLowerCase();
       if (JOB_BILLING_DEAD[st]) return false;
       const ij = _jbJobId(inv.jobId);
       if (jid && ij) return ij === jid;
-      return st !== 'paid';
+      if (st !== 'paid') return true;
+      return adopt && !ij && _jbMs(inv.createdAt) >= sinceMs;
     }).sort(function (a, b) { return _jbMs(a.createdAt) - _jbMs(b.createdAt); });
+  }
+  /**
+   * soleJobOf(jobs, jobId) — true when leads/{id}/jobs (not deleted) holds
+   * exactly one job and it is jobId. Unread / empty / two or more → false.
+   */
+  function soleJobOf(jobs, jobId) {
+    const jid = _jbJobId(jobId);
+    const live = (Array.isArray(jobs) ? jobs : []).filter(function (j) { return j && j.deleted !== true; });
+    return !!jid && live.length === 1 && live[0].id === jid;
   }
   /** Live = still in play for its job: anything but paid (after jobInvoicesOf). */
   function isLiveInvoice(inv) {
     return !!inv && String(inv.status || '').toLowerCase() !== 'paid';
   }
   /**
-   * planJobInvoice(jobTotalCents, invoices, jobId) — what billing this job
-   * needs now.
+   * planJobInvoice(jobTotalCents, invoices, jobId, opts) — what billing this
+   * job needs now (opts: jobInvoicesOf's).
    *  → { action: 'open', invoiceId, reason: 'live_invoice' }
    *      a live invoice bills the whole job: use it (with no job total to
    *      compare, any live invoice for the job is the job's bill);
@@ -1374,8 +1409,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    *      earlier invoices already bill the whole job;
    *  | { action: 'create', credits: [{ invoiceId, label, cents, paid }], creditCents }
    */
-  function planJobInvoice(jobTotalCents, invoices, jobId) {
-    const mine = jobInvoicesOf(invoices, jobId);
+  function planJobInvoice(jobTotalCents, invoices, jobId, opts) {
+    const mine = jobInvoicesOf(invoices, jobId, opts);
     const totalC = Math.max(0, Math.round(Number(jobTotalCents) || 0));
     const covering = mine.filter(function (inv) {
       return isLiveInvoice(inv) && (totalC === 0 || _jbCents(inv.total) >= totalC);
@@ -1608,7 +1643,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         let existing;
         try { existing = await _loadLeadInvoices(db, est.leadId); }
         catch (e) { throw new Error('Could not check the other invoices for this job — try again so it is not billed twice.'); }
-        const plan = planJobInvoice(Math.round(Number(total) * 100), existing, jobId);
+        // A deposit paid through the Stripe dashboard is mirrored in with no
+        // job stamp: credit it when this is the customer's only job and it
+        // was paid after this estimate (nbd:job-billing jobInvoicesOf opts).
+        const jobs = jobId ? await _loadLeadJobs(db, est.leadId) : null;
+        const plan = planJobInvoice(Math.round(Number(total) * 100), existing, jobId,
+          { soleJob: soleJobOf(jobs, jobId), since: est.createdAt });
         if (plan.action === 'open' && plan.invoiceId) return { invoiceId: plan.invoiceId, reused: true, reason: plan.reason };
         if (plan.action === 'create') jobCredits = plan.credits;
       }
@@ -3787,6 +3827,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     isPartPaid,
     canSendBalance,
     jobInvoicesOf,
+    soleJobOf,
     isLiveInvoice,
     planJobInvoice,
     applyJobCredits,
@@ -3867,6 +3908,25 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   if (typeof document === 'undefined' || typeof window === 'undefined') return;
   if (_NBD_IP_DELEGATE_BOUND) return;
   _NBD_IP_DELEGATE_BOUND = true;
+  // true only when the text really reached the clipboard: the async API, then
+  // the legacy execCommand copy (portal-link-helpers.js copyForLead's layers).
+  async function _copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* fall through */ }
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (_) { return false; }
+  }
   document.addEventListener('click', function (ev) {
     const t = ev.target.closest && ev.target.closest('[data-ip-action]');
     if (!t) return;
@@ -3902,7 +3962,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         // "Connect Stripe" on an invoice (2026-10-04): Settings → Billing,
         // where the Stripe Connect card lives.
         case 'connectStripe': {
-          if (typeof window.goTo === 'function') window.goTo('settings');
+          // customer.html lazy-loads this file but has no goTo and no Billing
+          // panel (review R4-7-8): open the dashboard on Settings → Billing,
+          // the same ?settings=billing link Stripe Connect returns to.
+          if (typeof window.goTo !== 'function') { window.location.href = '/pro/dashboard.html?settings=billing'; break; }
+          window.goTo('settings');
           // Settings hydrates late and opens on Profile: switch once the
           // Billing panel exists, a few times, so Profile cannot win the race.
           let tries = 0;
@@ -3917,8 +3981,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           break;
         }
         case 'copyStripeLink':  {
-          if (id) navigator.clipboard.writeText(id);
-          if (typeof showToast === 'function') showToast('Payment link copied!', 'ok');
+          // Toast only once the copy has really happened (review R4 F6); a
+          // failed copy shows the link so the rep can still send it.
+          if (!id) break;
+          _copyText(id).then(function (copied) {
+            if (typeof showToast !== 'function') return;
+            if (copied) showToast('Payment link copied!', 'success');
+            else showToast('Couldn\'t copy — payment link: ' + id, 'info');
+          });
           break;
         }
         default: console.warn('[invoice-pipeline] no dispatch for', action);

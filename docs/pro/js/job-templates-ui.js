@@ -1317,7 +1317,23 @@
   }
 
   // Public: reRender — repaints whichever host is live.
-  function reRender() {
+  // opts.background (the engine's one-time cloud pull, 2026-10-06): data
+  // changed under the rep, not because they did something. Never rebuild an
+  // open Configure/Preview/Success screen (paintModal resets scrollTop and
+  // the inputs); those steps re-read the templates on their next paint. An
+  // open library repaints in place, keeping its scroll position.
+  function reRender(opts) {
+    if (opts && opts.background) {
+      if (modalOpen()) {
+        if (state.step !== 'library') { paintView(); return; }
+        var mb = document.getElementById('jtModalBody');
+        var keep = mb ? mb.scrollTop : 0;
+        if (state.host === 'modal') paintModal();
+        if (mb) mb.scrollTop = keep;
+      }
+      paintView();
+      return;
+    }
     if (modalOpen() && state.step !== 'library') { paintModal(); return; }
     if (modalOpen() && state.host === 'modal') { paintModal(); }
     paintView();

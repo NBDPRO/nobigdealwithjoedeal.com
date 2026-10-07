@@ -123,7 +123,9 @@ const statusText = (box) => { const w = box.children[0]; const s = w && w.status
 
   // Wiring on /inspect.
   ok('/inspect no longer sends file names as if they were photos', !/photoNames/.test(JS.replace(/\/\/.*$/gm, '')));
-  ok('/inspect hands the submission\'s photoToken to afterSubmit', /photoToken: \(res && res\.photoToken\) \|\| null/.test(JS));
+  // 2026-10-06 (shorter form): photos are picked on the thank-you "add
+  // details" step; the submission's grant is kept and handed to afterSubmit.
+  ok('/inspect hands the submission\'s photoToken to afterSubmit', /mountDetails\(res && res\.photoToken, data\)/.test(JS) && /photoToken: _grant/.test(JS));
   ok('the old "photos were not sent" note is gone from /inspect', !/inspectPhotoNote/.test(HTML) && !/inspectPhotoNote/.test(JS));
   ok('/inspect loads the shared intake block', /<div data-nbd-intake="ins"/.test(HTML) && /intake-extras\.js/.test(HTML));
 

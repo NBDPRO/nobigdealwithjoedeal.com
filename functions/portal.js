@@ -61,6 +61,7 @@ const { buildDisplayRows, buildDocLineItems, tierApplies } = require('./customer
 // Pay link (stripePaymentLink OR stripeHostedUrl) + the Kentucky hold in one
 // call: the homeowner never sees a link the KRS 367.626 window still holds.
 const KyLaw = require('./ky-insurance-law');
+const InvoiceCharge = require('./invoice-charge');
 // The estimate's deposit-rule stamp, validated + whitelisted (2026-09-25).
 const { safeDepositPlan } = require('./deposit-plan-view');
 // Single authority check for portal-link mint/revoke: platform admin, owning
@@ -93,6 +94,9 @@ function scheduleWindowFor(lead) {
 // short title and the raw schedule fields leave the server — never a value,
 // claim, crew or note — and the reader's browser decides past/future.
 const JOBS = require('./jobs-logic');
+const { awaitBriefly } = require('./await-briefly');
+// Platform tenant (lead-alert.js convention): NBD = the tenant key is this uid.
+const PORTAL_NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 function otherJobsFor(lead, jobs) {
   const l = lead || {};
@@ -508,11 +512,25 @@ function _homeownerUrlIsStale(p, nowMs) {
   return !exp || exp - nowMs < HOMEOWNER_URL_RENEW_MS;
 }
 
-async function _refreshHomeownerPhotoUrls(docs, nowMs) {
+// `path` and `source` are on a CLIENT-writable doc, and the signature is the
+// admin SDK's, so it reads any object in the bucket. Review R3-3 (2026-10-06):
+// a rep planted source:'homeowner' + a victim's path on their own photo and
+// got a 7-day read URL written back to them. Only the object the portal
+// upload itself writes — homeowner-uploads/{ownerUid}/{leadId}/ — is signed.
+function _isHomeownerUploadPath(path, ownerUid, leadId) {
+  if (typeof path !== 'string' || !path) return false;
+  if (typeof ownerUid !== 'string' || !ownerUid || ownerUid.includes('/')) return false;
+  if (typeof leadId !== 'string' || !leadId || leadId.includes('/')) return false;
+  if (path.includes('..') || path.includes('//') || path.includes('\\')) return false;
+  return path.startsWith(`homeowner-uploads/${ownerUid}/${leadId}/`);
+}
+
+async function _refreshHomeownerPhotoUrls(docs, nowMs, ownerUid, leadId) {
   const fresh = new Map();
   const stale = docs.filter((d) => {
     const p = d.data();
     return p.source === 'homeowner' && typeof p.path === 'string' && p.path
+      && _isHomeownerUploadPath(p.path, ownerUid, leadId)
       && _homeownerUrlIsStale(p, nowMs);
   });
   if (!stale.length) return fresh;
@@ -690,7 +708,8 @@ exports.getHomeownerPortalView = onRequest(
     // the companyId, never the brand strings (a tenant that never set
     // legalName looks like NBD by brand). No profile at all → no Zelle line,
     // unless this IS the platform owner.
-    let zelleBrand = (tenantKey && tenantKey === (process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1')) ? null : undefined;
+    let zelleBrand = (tenantKey && String(tenantKey) === PORTAL_NBD_OWNER_UID) ? null : undefined;
+    const _portalIsNbd = !tenantKey || String(tenantKey) === PORTAL_NBD_OWNER_UID;
     if (tenantKey) {
       try {
         const cpSnap = await db.doc(`companyProfile/${tenantKey}`).get();
@@ -743,7 +762,9 @@ exports.getHomeownerPortalView = onRequest(
       || SHARED_SIG.includes(e.signatureStatus)
       || !!e.sentAt;
 
-    const estimates = estSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    // An archived (soft-deleted) estimate is gone for the homeowner too, as a
+    // hard-deleted one was (review R5-8-2).
+    const estimates = estSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => e.deleted !== true)
       .filter(e => recordInPortalTenant(e, ['userId'], tenant));
     estimates.sort((a, b) => {
       const ta = a.createdAt?.toMillis?.() || 0;
@@ -866,7 +887,7 @@ exports.getHomeownerPortalView = onRequest(
     // Refresh any homeowner-upload URL that is dead or nearly dead before
     // it reaches the gallery. Rep-uploaded photos carry permanent variant
     // URLs in `urls` and are untouched.
-    const _freshUrls = await _refreshHomeownerPhotoUrls(photoSnap.docs, Date.now());
+    const _freshUrls = await _refreshHomeownerPhotoUrls(photoSnap.docs, Date.now(), tok.ownerUid, tok.leadId);
 
     // Documents shelf (2026-09-16). Two visibility rules on leads/{id}/documents:
     //   - generated === true (document-generator.js output: contract, estimate,
@@ -961,14 +982,19 @@ exports.getHomeownerPortalView = onRequest(
     // never while the Kentucky insurance hold applies: a hosted Stripe
     // invoice is minted outside createStripePaymentLink's gate. https only.
     const _payUrl = _unpaidInvoice ? KyLaw.payUrlUnlessHeld(lead, _unpaidInvoice, Date.now(), kyTz) : '';
-    const _balance = _unpaidInvoice ? {
-      amountCents: Math.round(Number(_unpaidInvoice.balanceDue) * 100),
-      stripePaymentLink: /^https:\/\//i.test(_payUrl) ? _payUrl : null,
+    // What is due NOW (review R2-2-6): the rest of the deposit while it is
+    // unmet, else the balance — invoice-charge.js, the same rule
+    // createStripePaymentLink charges — and Pay Now only when the link
+    // charges exactly that (portalBalanceCard).
+    const _dueCard = _unpaidInvoice ? InvoiceCharge.portalBalanceCard(_unpaidInvoice, _payUrl) : null;
+    const _balance = _dueCard ? {
+      ..._dueCard,
       // "Pay by bank (ACH) — lower fees" shows only beside a real link (the
-      // Kentucky hold above blanks the link, and with it this line).
+      // Kentucky hold above blanks the link, and with it this line; so does
+      // portalBalanceCard when the link would not charge what is due now).
       // ACH is requested only on the NBD platform account's links
       // (functions/stripe.js), so only its customers are told about it.
-      payByBank: /^https:\/\//i.test(_payUrl) && require('./zelle-contact').isNbdCompany(tenantKey ? String(tenantKey) : ''),
+      payByBank: !!_dueCard.stripePaymentLink && require('./zelle-contact').isNbdCompany(tenantKey ? String(tenantKey) : ''),
       // Zelle is a way to pay, so it obeys the same Kentucky hold as the link.
       zelle: (typeof zelleBrand === 'undefined' || KyLaw.payLinkHold(lead, _unpaidInvoice, Date.now(), kyTz).held) ? null
         : (require('./zelle-contact').zelleContactOf(zelleBrand, tenantKey ? String(tenantKey) : '').text || null),
@@ -1010,6 +1036,11 @@ exports.getHomeownerPortalView = onRequest(
         work:        lead.warranty.work || '',
         installDate: lead.warranty.installDate || null,
         certNumber:  lead.warranty.certNumber || null,
+        // The certificate's two warranty lines (2026-10-06): workmanship (the
+        // NBD Pledge / the company's own) and the manufacturer warranty sold.
+        pledgeLine:       lead.warranty.pledgeLine || '',
+        workmanshipLine:  lead.warranty.workmanshipLine || '',
+        manufacturerLine: lead.warranty.manufacturerLine || '',
         // 2026-09-15 (Warranty Claim lane): lets the portal swap the "Start a
         // warranty claim" button for a "Claim in progress" state instead of
         // letting the homeowner file a second report on top of an open one.
@@ -1036,7 +1067,12 @@ exports.getHomeownerPortalView = onRequest(
         // wrong-tenant branding for a non-NBD rep. Read both. Per-tenant
         // companyProfile (tenantName, from brand.legalName) is the canonical
         // source and wins when present; the rep.* reads cover pre-profile data.
-        name: tenantName || rep.companyName || rep.company || 'No Big Deal Home Solutions',
+        // Blank-name fallback (2026-10-05): NBD's name only on NBD's own
+        // portal (tenant key = the NBD owner uid); another company with no
+        // name set gets '' and isNbd:false so the client stays neutral
+        // instead of reading a blank name as NBD.
+        name: tenantName || rep.companyName || rep.company || (_portalIsNbd ? 'No Big Deal Home Solutions' : ''),
+        isNbd: _portalIsNbd,
         // Tenant-set only (server-guarded https/hex); null/absent for NBD so
         // the client keeps its hardcoded NBD logo + footer byte-identical.
         logoUrl: tenantLogoUrl || null,
@@ -1158,10 +1194,14 @@ exports.getHomeownerPortalView = onRequest(
     // Bump use counter on a real OPEN only (fire-and-forget; don't fail the
     // response). Polls just refresh lastSeenAt so they don't burn the replay
     // budget (QA finding — see isPoll above).
-    tokRef.update(isPoll
+    // R4-10 (2026-10-06): collected and awaited (briefly) before the
+    // response below — after it, Cloud Run throttles the CPU and these writes
+    // (and the view alert) could be lost.
+    const pendingWrites = [];
+    pendingWrites.push(tokRef.update(isPoll
       ? { lastSeenAt: FieldValue.serverTimestamp() }
       : { uses: FieldValue.increment(1), lastSeenAt: FieldValue.serverTimestamp() }
-    ).catch(() => {});
+    ).catch(() => {}));
 
     // 2026-09-16 (view-tracking fix): this open-tracking write existed
     // already, but ONLY on portal_tokens/{token} — nothing rep-facing reads
@@ -1175,17 +1215,18 @@ exports.getHomeownerPortalView = onRequest(
     // read it for free off the same lead object they already have loaded —
     // no new query, no new subscription.
     if (!isPoll) {
-      db.doc(`leads/${tok.leadId}`).update({ lastPortalOpenAt: FieldValue.serverTimestamp() }).catch(() => {});
+      pendingWrites.push(db.doc(`leads/${tok.leadId}`).update({ lastPortalOpenAt: FieldValue.serverTimestamp() }).catch(() => {}));
       // 2026-10-03: also stamp lead.lastViewedAt and — when Jo has sent this
       // homeowner something (lastSharedAt / sharedDocId) — the ONE
       // estimate_viewed alert, throttled per lead per 6h across every open
       // path (functions/estimate-view-alert.js). Fire-and-forget.
-      EVA.recordEstimateView(db, {
+      pendingWrites.push(EVA.recordEstimateView(db, {
         leadId: String(tok.leadId), ownerUid: tok.ownerUid || null, source: 'portal',
         alert: !!(lead.sharedDocId || lead.lastSharedAt),
-      }).catch(() => {});
+      }).catch(() => {}));
     }
 
+    await awaitBriefly(pendingWrites);
     res.status(200).json(view);
   }
 );
@@ -2518,7 +2559,7 @@ exports.getEstimateForView = onRequest(
 
     const estRef = db.doc(`estimates/${estimateId}`);
     const [estSnap, tokLeadSnap] = await Promise.all([estRef.get(), db.doc(`leads/${tok.leadId}`).get()]);
-    if (!estSnap.exists) { res.status(404).json({ error: 'Estimate not found.' }); return; }
+    if (!estSnap.exists || estSnap.data().deleted === true) { res.status(404).json({ error: 'Estimate not found.' }); return; }
     const est = estSnap.data();
     // 2026-09-25 (review of PR #1777): same tenant scope as
     // getHomeownerPortalView. The leadId check below ties the estimate to the

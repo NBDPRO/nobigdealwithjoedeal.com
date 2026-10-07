@@ -157,12 +157,17 @@
 
   // Hydrate any static rating/count hooks elsewhere on the page (e.g. the
   // /review hero score box, the homepage #reviews summary) from the same
-  // payload. The hooks ship with static fallback text, so a failed fetch
-  // simply leaves them untouched — last-known-true beats a zero.
+  // payload. The rating/stars hooks ship with static fallback text, so a
+  // failed fetch simply leaves them untouched — last-known-true beats a zero.
+  // The COUNT is the exception (2026-10-06): a hard-coded "29" goes stale the
+  // day the next review lands, so data-nbd-gr-total ships EMPTY inside a
+  // `hidden` data-nbd-gr-total-wrap, and only a live count reveals it. A
+  // failed fetch shows "5.0 on Google" with no count at all.
   //
   // Five hooks, because the pages need different shapes of the same numbers:
   //   data-nbd-gr-rating  the score alone ("5.0")
-  //   data-nbd-gr-total   the count alone ("29") — the page owns the wording
+  //   data-nbd-gr-total   the count alone ("31") — the page owns the wording;
+  //                       ships empty, inside a hidden data-nbd-gr-total-wrap
   //   data-nbd-gr-count   a whole ready-made sentence (/review's tap target)
   //   data-nbd-gr-stars   the star row, re-rendered from the live rating
   //   data-nbd-gr-recent  " · N new this month" — only when `recent` exists
@@ -183,6 +188,10 @@
     });
     document.querySelectorAll('[data-nbd-gr-total]').forEach((el) => {
       el.textContent = String(total);
+    });
+    // Reveal the count phrase only now that there is a live count in it.
+    document.querySelectorAll('[data-nbd-gr-total-wrap]').forEach((el) => {
+      el.hidden = false;
     });
     document.querySelectorAll('[data-nbd-gr-count]').forEach((el) => {
       el.textContent = total + ' Google review' + (total === 1 ? '' : 's') + ' • tap to see them all';

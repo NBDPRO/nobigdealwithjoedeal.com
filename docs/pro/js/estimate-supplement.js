@@ -433,12 +433,20 @@
     let _rawBrand = {};
     try { _rawBrand = (typeof window !== 'undefined' && window._brand && window._brand()) || {}; }
     catch (_) { _rawBrand = {}; }
+    // NBD is decided by the signed-in company key (tenant-rules.js), never
+    // the brand name (2026-10-05); the brand test is only the fallback when
+    // tenant-rules is not on the page. Another company never inherits NBD's
+    // name or seal: un-hydrated NBD defaults on its page read as blank.
+    const _TR = (typeof window !== 'undefined') ? window.NBDTenantRules : null;
+    const isNbd = (_TR && typeof _TR.isPlatformTenant === 'function')
+      ? _TR.isPlatformTenant()
+      : (!_rawBrand.legalName || _rawBrand.legalName === 'No Big Deal Home Solutions');
+    if (!isNbd && _rawBrand.legalName === 'No Big Deal Home Solutions') _rawBrand = {};
     const _bc = _rawBrand.contact || {};
-    const isNbd = !_rawBrand.legalName || _rawBrand.legalName === 'No Big Deal Home Solutions';
     const _b = {
       isNbd,
-      legalName: _rawBrand.legalName || 'No Big Deal Home Solutions',
-      seal: _rawBrand.seal || _rawBrand.displayName || _rawBrand.legalName || 'NBD',
+      legalName: _rawBrand.legalName || (isNbd ? 'No Big Deal Home Solutions' : ''),
+      seal: _rawBrand.seal || _rawBrand.displayName || _rawBrand.legalName || (isNbd ? 'NBD' : ''),
       contact: { phone: _bc.phone || '', email: _bc.email || '', address: _bc.address || '' }
     };
 
@@ -449,7 +457,7 @@
       name: 'No Big Deal Home Solutions',
       phone: '(859) 420-7382',
       email: 'JD@nobigdealwithjoedeal.com',
-      address: '6563 Manila Rd · Goshen, OH'
+      address: '' // no public street address
     } : {
       name: _b.legalName,
       phone: _b.contact.phone,

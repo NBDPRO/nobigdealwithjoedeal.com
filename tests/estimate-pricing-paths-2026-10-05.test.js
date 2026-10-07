@@ -167,7 +167,7 @@ const RULE = P.win.NBDDepositRule;
 if (!EB || !EL || !CFG || !RULE) { console.log('FATAL: pricing stack did not load'); process.exit(1); }
 
 const TIERS = ['economy', 'good', 'better', 'best', 'beyond'];
-const KY_ADDR = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+const KY_ADDR = '100 Kentucky Ave, Fort Thomas, KY 41075';
 
 // Per-SQ input with the geometry pinned (waste 1.0 → sq = rawSqft / 100) and
 // insurance mode (tax 0) unless a test says otherwise. Default add-ons on a

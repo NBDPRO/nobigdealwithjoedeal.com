@@ -39,6 +39,23 @@ const CONSENT_TEXT =
 
 /** Reminder cadence — the same one BoldSign was configured with (every 2 days, 3 times). */
 const REMINDER_EVERY_MS = 2 * 86_400_000;
+
+// Platform tenant (same convention as lead-alert.js / render-pdf.js): NBD is
+// the record whose tenant key (companyId, else the owner uid) IS the NBD owner
+// uid — never decided by brand name. A key-less legacy record is NBD's.
+const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+const NBD_LEGAL = 'No Big Deal Home Solutions';
+/**
+ * The sending company's name for envelope copy. resolveCompanyName hands back
+ * '' for NBD (its legalName IS the NBD name) and for a tenant that never set
+ * one: NBD keeps its name; any other tenant gets '' (neutral wording), never
+ * NBD's.
+ */
+function senderName(name, tenantKey) {
+  const n = String(name || '').trim();
+  if (n) return n;
+  return (!tenantKey || String(tenantKey) === NBD_OWNER_UID) ? NBD_LEGAL : '';
+}
 const REMINDER_MAX = 3;
 
 function str(v, max) {
@@ -234,7 +251,7 @@ function certificateLines(env, extra) {
   out.push({ h: 'Signature Certificate' });
   out.push({ t: 'Document: ' + (e.title || 'Document') });
   out.push({ t: 'Envelope ID: ' + (x.envelopeId || e.id || '-') });
-  out.push({ t: 'Sent by: ' + (e.companyName || 'No Big Deal Home Solutions') });
+  out.push({ t: 'Sent by: ' + (senderName(e.companyName, e.companyId || e.ownerUid) || '-') });
   out.push({ t: 'Original document SHA-256: ' + (e.sourceSha256 || '-') });
   out.push({ t: 'Pages in original: ' + (e.pageCount || (Array.isArray(e.pages) ? e.pages.length : '-')) });
   out.push({ t: 'Sent: ' + utcStamp(e.sentAtMs) + '    Completed: ' + utcStamp(x.completedAt) });
@@ -265,11 +282,16 @@ function escHtml(s) {
 /** The "please sign" email — also the reminder (reminder: true) and the next-signer handoff. */
 function linkEmail(o) {
   const p = o || {};
-  const brand = escHtml(p.brand || 'No Big Deal Home Solutions');
+  // p.tenantKey: the envelope's companyId || ownerUid (see senderName).
+  const brand = escHtml(senderName(p.brand, p.tenantKey));
   const title = escHtml(p.title || 'a document');
   const lead = p.reminder
-    ? `A friendly reminder: <strong>${title}</strong> from ${brand} is still waiting for your signature.`
-    : `${brand} has <strong>${title}</strong> ready for your signature. You can review and sign it right on your phone — it takes about a minute.`;
+    ? (brand
+      ? `A friendly reminder: <strong>${title}</strong> from ${brand} is still waiting for your signature.`
+      : `A friendly reminder: <strong>${title}</strong> is still waiting for your signature.`)
+    : (brand
+      ? `${brand} has <strong>${title}</strong> ready for your signature. You can review and sign it right on your phone — it takes about a minute.`
+      : `<strong>${title}</strong> is ready for your signature. You can review and sign it right on your phone — it takes about a minute.`);
   return {
     subject: (p.reminder ? 'Reminder: please sign ' : 'Please sign: ') + (p.title || 'your document'),
     html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#12223d;">
@@ -287,13 +309,13 @@ function linkEmail(o) {
 /** The signed copy, delivered to every signer when the envelope completes. */
 function signedCopyEmail(o) {
   const p = o || {};
-  const brand = escHtml(p.brand || 'No Big Deal Home Solutions');
+  const brand = escHtml(senderName(p.brand, p.tenantKey));
   const title = escHtml(p.title || 'your document');
   return {
     subject: 'Signed copy: ' + (p.title || 'your document'),
     html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#12223d;">
             <p>Hi ${escHtml(p.name || 'there')},</p>
-            <p>Thank you — <strong>${title}</strong> with ${brand} is fully signed. Your copy is attached as a PDF${p.attached === false ? ' (it was too large to attach — ask your rep and they will send it)' : ''}.</p>
+            <p>Thank you — <strong>${title}</strong>${brand ? ' with ' + brand : ''} is fully signed. Your copy is attached as a PDF${p.attached === false ? ' (it was too large to attach — ask your rep and they will send it)' : ''}.</p>
             <p style="font-size:12px;color:#666;">Keep this email for your records. The last page of the PDF is the signature certificate.</p>
           </div>`,
   };
@@ -303,5 +325,5 @@ module.exports = {
   MAX_SIGNERS, DEFAULT_SIGNER_ID, CONSENT_TEXT, REMINDER_EVERY_MS, REMINDER_MAX, REQUIRED_EVIDENCE, EMAIL_RE,
   normalizeSigners, fieldsForSigner, nextPendingSigner, signerForToken, sanitizeSignerInput,
   validateSignerLayout, pickSignerValues, buildSignerEvidence, missingEvidence, estimateStatusFor,
-  utcStamp, certificateLines, escHtml, linkEmail, signedCopyEmail,
+  utcStamp, certificateLines, escHtml, linkEmail, signedCopyEmail, senderName,
 };

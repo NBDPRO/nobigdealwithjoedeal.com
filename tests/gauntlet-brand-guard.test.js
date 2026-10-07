@@ -190,14 +190,16 @@ console.log('\nBRAND GUARD — warranty tier picker is tenant-named');
     return { opt: opt0.textContent, desc: els.wcTierDesc.textContent, eyebrow: els.wcEyebrow.textContent };
   }
   const nbd = relabel({ legalName: 'No Big Deal Home Solutions' });
-  ok('NBD keeps "Standard — NBD Lifetime Pledge"', nbd.opt === 'Standard — NBD Lifetime Pledge');
+  // Jo, 2026-10-06 (final): the Pledge is a promise, never "lifetime"; Standard's written labor term is 5 years.
+  ok('NBD sees "Standard — NBD Pledge · 5-Year Labor"', nbd.opt === 'Standard — NBD Pledge · 5-Year Labor', nbd.opt);
   ok('NBD keeps the "NBD Guarantee" eyebrow', nbd.eyebrow === 'NBD Guarantee');
   const t = relabel({ legalName: 'Demo Roofing Co', seal: 'DRC' });
-  ok('a tenant with a seal sees "Standard — DRC Lifetime Pledge"', t.opt === 'Standard — DRC Lifetime Pledge');
+  // 2026-10-06 (Jo): the Lifetime Pledge is NBD's own; another company's rep sees the plain package name.
+  ok('a tenant with a seal sees the plain "Standard" (never a Lifetime Pledge)', t.opt === 'Standard', t.opt);
   ok('…and no "NBD" in the tier description', !/\bNBD\b/.test(t.desc));
   ok('…and the eyebrow reads "DRC Guarantee"', t.eyebrow === 'DRC Guarantee');
   const t2 = relabel({ legalName: 'Demo Roofing Co' });
-  ok('a tenant without a seal gets its legal name', t2.opt === 'Standard — Demo Roofing Co Lifetime Pledge');
+  ok('a tenant without a seal: plain "Standard" too', t2.opt === 'Standard', t2.opt);
 }
 
 console.log('\n──────────────────────────────');

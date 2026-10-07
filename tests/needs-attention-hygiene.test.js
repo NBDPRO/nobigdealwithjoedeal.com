@@ -74,10 +74,10 @@ ok('CONTROL deductible_collected is still terminal', !flagged({ stage: 'deductib
 
 console.log('\n  Thumbtack proxy phone');
 ok('fresh Thumbtack lead on a 669 number is flagged',
-  flagged({ stage: 'new', source: 'Thumbtack', phone: '669-314-3841' }));
-ok('...with +1 and punctuation too', flagged({ stage: 'new', source: 'thumbtack', phone: '+1 (669) 315-6302' }));
+  flagged({ stage: 'new', source: 'Thumbtack', phone: '669-555-0116' }));
+ok('...with +1 and punctuation too', flagged({ stage: 'new', source: 'thumbtack', phone: '+1 (669) 555-0117' }));
 ok('CONTROL Thumbtack lead with a real 513 number is not',
-  !flagged({ stage: 'new', source: 'Thumbtack', phone: '513-388-8025' }));
+  !flagged({ stage: 'new', source: 'Thumbtack', phone: '513-555-0118' }));
 ok('CONTROL a 669 number NOT from Thumbtack is not (a real San Jose caller)',
   !flagged({ stage: 'new', source: 'Website — Contact form', phone: '669-555-0100' }));
 
@@ -97,7 +97,7 @@ console.log('\n  existing behaviour kept');
 ok('7+ days in an ordinary stage is still flagged', flagged({ stage: 'contacted', stageStartedAt: ago(9) }));
 ok('CONTROL a clean, fresh lead is not flagged', !flagged({ stage: 'contacted', stageStartedAt: ago(1) }));
 ok('CONTROL a prospect is never flagged',
-  !flagged({ isProspect: true, stage: 'new', source: 'Thumbtack', phone: '669-314-3841' }));
+  !flagged({ isProspect: true, stage: 'new', source: 'Thumbtack', phone: '669-555-0116' }));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) { console.log('FAILED:', fails.join(' | ')); process.exit(1); }

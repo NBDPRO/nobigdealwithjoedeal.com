@@ -1205,7 +1205,7 @@ function _abbreviateRoadSuffix(road) {
   const s = String(road || '').trim();
   if (!s) return '';
   // Tokenize on whitespace; abbreviate only the LAST token if it
-  // matches a known suffix. "Klondyke Road" → "Klondyke Rd";
+  // matches a known suffix. "Example Road" → "Example Rd";
   // "St James Court" → "St James Ct" (first "St" untouched, last
   // "Court" → "Ct"). Doesn't touch directional suffixes (N/S/E/W).
   const tokens = s.split(/\s+/);
@@ -1238,7 +1238,7 @@ function _state2letter(state, addrObj) {
  *
  *   formatMailingAddress({ display_name, address: { house_number,
  *     road, city, town, village, state, "ISO3166-2-lvl4", postcode } })
- *   → "1054 Klondyke Rd, Goshen, OH 45122"
+ *   → "456 Example Rd, Goshen, OH 45122"
  *
  * Falls back to a tidied display_name slice when structured fields
  * are missing (offline / non-US results / nominatim variants).
@@ -1286,7 +1286,7 @@ function selectAcItem(inputId, idx) {
   // structured nominatim addressdetails — house_number + road
   // (suffix-abbreviated) + city + 2-letter state + ZIP. Replaces the
   // old `display_name.split(',').slice(0,3)` which produced
-  // "1054, Klondyke Road, Goshen" (wrong on every count: comma
+  // "456, Example Road, Goshen" (wrong on every count: comma
   // after house number, full road name instead of "Rd", missing
   // ZIP, state spelled out, county included).
   const label = formatMailingAddress(r) || r.display_name || '';
@@ -1434,7 +1434,7 @@ const DOC_TEMPLATES = {
 <p><strong>Scope of Work:</strong> Complete roof replacement including tear-off, decking inspection, synthetic underlayment, architectural shingles (GAF Timberline series), ridge cap, flashing, pipe boots, drip edge, and full cleanup.</p>
 <p><strong>Materials:</strong> <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> Color: <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
 <p><strong>Contract Price:</strong> $<span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> &nbsp;&nbsp; <strong>Start Date:</strong> <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
-<p><strong>NBD Guarantee:</strong> Lifetime workmanship warranty on every install — Standard (non-transferable), Preferred (transferable to 1 subsequent owner within 30 days of sale), Elite (fully transferable + annual courtesy inspection + signed certificate). GAF Timberline shingle manufacturer lifetime warranty included on all installs.</p>
+<p><strong>NBD Guarantee:</strong> NBD Pledge: for as long as you own the home, we'll come back and make it right. Written workmanship (labor) warranty by package — Standard 5 years (non-transferable), Preferred 10 years (transferable to 1 subsequent owner within 30 days of sale), Elite 20 years (fully transferable + annual courtesy inspection + signed certificate). GAF System Plus Limited Warranty included on Standard, Preferred and Elite installs — GAF's manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply; not a workmanship warranty). Other manufacturer warranties per product/package, provided by the manufacturer.</p>
 <p><strong>Payment Terms:</strong> {{PAYMENT_TERMS}}</p>
 <p>By signing below, homeowner authorizes {{COMPANY}} to perform the above work.</p>
 <p><strong>Homeowner Signature:</strong> <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> Date: <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
@@ -1460,13 +1460,14 @@ const DOC_TEMPLATES = {
 </div>
 <h2>Guarantee Terms</h2>
 <div class="doc-check-grid">
-  <div class="doc-check-item"><span class="doc-checkbox"></span>Standard — NBD Lifetime Pledge (non-transferable)</div>
-  <div class="doc-check-item"><span class="doc-checkbox"></span>Preferred — NBD Lifetime Pledge (transferable to 1 subsequent owner within 30 days of sale)</div>
-  <div class="doc-check-item"><span class="doc-checkbox"></span>Elite — NBD Lifetime Pledge (fully transferable + annual courtesy inspection)</div>
+  <div class="doc-check-item"><span class="doc-checkbox"></span>Economy — 1-year written labor warranty (non-transferable)</div>
+  <div class="doc-check-item"><span class="doc-checkbox"></span>Standard — 5-year written labor warranty (non-transferable)</div>
+  <div class="doc-check-item"><span class="doc-checkbox"></span>Preferred — 10-year written labor warranty (transferable to 1 subsequent owner within 30 days of sale)</div>
+  <div class="doc-check-item"><span class="doc-checkbox"></span>Elite — 20-year written labor warranty (fully transferable + annual courtesy inspection)</div>
 </div>
-<p style="font-size:12px;color:#555;margin-top:12px;line-height:1.7;">{{COMPANY}} guarantees all labor performed under this installation against defects in workmanship for the lifetime of the installation, beginning on the installation date. This guarantee covers labor costs to repair or correct any installation defect at no charge to the homeowner. It does not cover damage caused by acts of nature, improper maintenance, or alterations made by others. Manufacturer shingle warranty is separate and provided by GAF directly.</p>
+<p style="font-size:12px;color:#555;margin-top:12px;line-height:1.7;">NBD Pledge: for as long as you own the home, we'll come back and make it right. In writing, {{COMPANY}} guarantees all labor performed under this installation against defects in workmanship for the term of the tier checked above, beginning on the installation date. This guarantee covers labor costs to repair or correct any installation defect at no charge to the homeowner. It does not cover damage caused by acts of nature, improper maintenance, or alterations made by others. Manufacturer shingle warranty is separate and provided by the manufacturer directly.</p>
 <h2>Transferability</h2>
-<p style="font-size:12px;color:#555;line-height:1.7;">Preferred and Elite guarantees are transferable as noted above. To transfer, notify {{COMPANY}} in writing within 30 days of property sale. A transfer fee of $0 applies. New owner receives the same lifetime workmanship coverage in writing.</p>
+<p style="font-size:12px;color:#555;line-height:1.7;">Preferred and Elite guarantees are transferable as noted above. To transfer, notify {{COMPANY}} in writing within 30 days of property sale. A transfer fee of $0 applies. New owner receives the remaining written workmanship coverage in writing.</p>
 <div class="doc-sig-block">
   <div class="doc-sig-row">
     <div class="doc-sig-field"><div class="doc-field-line"></div><div class="doc-sig-label">Homeowner Signature &amp; Date</div></div>
@@ -1551,7 +1552,7 @@ const DOC_TEMPLATES = {
 <p><strong>Work Completed:</strong> <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
 <p><strong>Completion Date:</strong> <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> &nbsp;&nbsp; <strong>Invoice #:</strong> <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
 <p><strong>Total Contract Amount:</strong> $<span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
-<p><strong>Warranty:</strong> NBD Lifetime Pledge — effective date of installation. <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
+<p><strong>Warranty:</strong> NBD Pledge + written labor warranty per package — effective date of installation. <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
 <p>All work has been completed per the agreed scope of work and to the homeowner's satisfaction.</p>
 <p><strong>Homeowner Signature:</strong> <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> Date: <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
 <p><strong>Contractor:</strong> {{REP_NAME}} — {{COMPANY}} — {{COMPANY_PHONE}}</p>`

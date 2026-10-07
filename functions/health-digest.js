@@ -296,6 +296,34 @@ function renderPdfSection(r) {
     + ' ' + lifetime + '</div>';
 }
 
+// R4-7-5 (2026-10-06): the email queue carries dunning, dispute alerts,
+// erasure confirmations and the backup alarm, and it used to go quiet with a
+// green heartbeat. Count what is waiting and what failed for good. (This
+// digest itself rides the queue, so a queue that is fully down shows up as
+// the digest NOT arriving; the worker now throws when unconfigured, which the
+// heartbeat records.) null = the counts could not be read, and it says so.
+const EMAIL_QUEUE_BACKLOG_WARN = 25; // one worker tick's batch
+async function gatherEmailQueue(db) {
+  const n = async (status) => {
+    const agg = await db.collection('email_queue').where('status', '==', status).count().get();
+    return (agg.data() || {}).count || 0;
+  };
+  const [pending, sending, failed] = await Promise.all([n('pending'), n('sending'), n('failed')]);
+  return { pending, sending, failed };
+}
+function emailQueueBad(q) {
+  return !q || q.pending >= EMAIL_QUEUE_BACKLOG_WARN || q.failed > 0;
+}
+function renderEmailQueueSection(q) {
+  if (!q) return '<div style="font-size:13px;margin-bottom:14px;color:#c0392b;"><strong>⚠ Email queue counts unavailable</strong> (read failed).</div>';
+  const line = '<strong>' + fmtNum(q.pending) + '</strong> pending · <strong>' + fmtNum(q.sending) + '</strong> sending · <strong>' + fmtNum(q.failed) + '</strong> failed for good.';
+  if (emailQueueBad(q)) {
+    return '<div style="font-size:13px;margin-bottom:14px;color:#c0392b;"><strong>⚠ Email queue needs a look</strong> — ' + line
+      + ' Failed rows are never retried (status <code>failed</code> in <code>email_queue</code>); a pending backlog means the worker is not draining.</div>';
+  }
+  return '<div style="font-size:13px;margin-bottom:14px;">' + line + '</div>';
+}
+
 function renderCronGatesSection() {
   const rows = gateStatus(process.env).map((g) =>
     '<tr><td style="padding:4px 12px;font-family:monospace;font-size:11px;">' + escHtml(g.name) + '</td>' +
@@ -315,7 +343,7 @@ function renderAiSpendSection(aiSpend) {
     + '<div style="font-size:12px;color:#666;margin-bottom:14px;">This month by feature: ' + (top || '—') + '</div>';
 }
 
-function buildEmailBody({ vision, stripe, api, activity, imagePipe, renderPdf, periodLabel, aiSpend, scorecard }) {
+function buildEmailBody({ vision, stripe, api, activity, imagePipe, renderPdf, periodLabel, aiSpend, scorecard, emailQueue }) {
   const topLeadsRows = vision.topLeads.length
     ? vision.topLeads.map(l =>
         '<tr><td style="padding:6px 12px;border-bottom:1px solid #eee;font-family:monospace;font-size:11px;">' + l.leadId.slice(0, 14) + '…</td>' +
@@ -342,6 +370,9 @@ function buildEmailBody({ vision, stripe, api, activity, imagePipe, renderPdf, p
     '<div style="font-family:-apple-system,system-ui,sans-serif;max-width:600px;margin:0 auto;color:#1a1612;">',
     '<h2 style="font-size:18px;margin:0 0 4px;letter-spacing:.04em;text-transform:uppercase;color:#bd5728;">NBD Pro · Health Digest</h2>',
     '<div style="color:#888;font-size:12px;margin-bottom:18px;">' + periodLabel + '</div>',
+
+    '<h3 style="font-size:14px;color:#1a1612;margin:18px 0 8px;border-bottom:2px solid #bd5728;padding-bottom:4px;">Email Queue</h3>',
+    renderEmailQueueSection(emailQueue === undefined ? null : emailQueue),
 
     '<h3 style="font-size:14px;color:#1a1612;margin:18px 0 8px;border-bottom:2px solid #bd5728;padding-bottom:4px;">AI Spend</h3>',
     renderAiSpendSection(aiSpend === undefined ? null : aiSpend),
@@ -414,18 +445,20 @@ exports.healthDigestCron = onSchedule(
       // silence, not as a false alarm — same convention as the gathers above.
       gatherRenderPdf(db, cutoffMs).catch(e => { logger.warn('health_digest.render_pdf_failed', e.message); return { attempted: false, okCount: 0, failCount: 0, failRecent: false, okRecent: false, neverOk: false, lastFailStage: '', lastFailErr: '', lastFailAtIso: '', lastOkAtIso: '' }; }),
     ]);
-    const [aiSpend, scorecard] = await Promise.all([
+    const [aiSpend, scorecard, emailQueue] = await Promise.all([
       AiSpend.readAiSpend(db, now).catch(e => { logger.warn('health_digest.ai_spend_failed', e.message); return null; }),
       Scorecard.gatherScorecard(db, now).catch(e => { logger.warn('health_digest.scorecard_failed', e.message); return null; }),
+      gatherEmailQueue(db).catch(e => { logger.warn('health_digest.email_queue_failed', e.message); return null; }),
     ]);
 
     const periodLabel = cutoff.toUTCString() + ' → ' + new Date(now).toUTCString();
-    const bodyHtml = buildEmailBody({ vision, stripe, api, activity, imagePipe, renderPdf, periodLabel, aiSpend, scorecard });
+    const bodyHtml = buildEmailBody({ vision, stripe, api, activity, imagePipe, renderPdf, periodLabel, aiSpend, scorecard, emailQueue });
     const subject = 'NBD Pro · Health Digest · ' + fmtUsd(vision.userTotal) + ' Vision · ' + fmtNum(activity.photos) + ' photos'
       + (imagePipe.genuineRecent ? ' · ⚠ pipeline orphan' : '')
       // In the subject because the body went unread for eleven weeks while this
       // path was 100% down; a warning only inside the email is not a warning.
-      + (renderPdfBroken(renderPdf) ? ' · ⚠ PDF renders failing' : '');
+      + (renderPdfBroken(renderPdf) ? ' · ⚠ PDF renders failing' : '')
+      + (emailQueueBad(emailQueue) ? ' · ⚠ email queue' : '');
 
     await db.collection('email_queue').add({
       to: RECIPIENT,
@@ -447,8 +480,10 @@ exports.healthDigestCron = onSchedule(
       renderPdfBroken: renderPdfBroken(renderPdf),
       renderPdfOk: renderPdf.okCount,
       renderPdfFail: renderPdf.failCount,
+      emailQueuePending: emailQueue ? emailQueue.pending : null,
+      emailQueueFailed: emailQueue ? emailQueue.failed : null,
     });
   }
 );
 
-exports._test = { buildEmailBody, fmtUsd, fmtNum, escHtml, gatherImagePipeline, gatherRenderPdf, renderPdfBroken, renderPdfSection, renderCronGatesSection, renderAiSpendSection };
+exports._test = { buildEmailBody, fmtUsd, fmtNum, escHtml, gatherImagePipeline, gatherRenderPdf, renderPdfBroken, renderPdfSection, renderCronGatesSection, renderAiSpendSection, gatherEmailQueue, emailQueueBad, renderEmailQueueSection };

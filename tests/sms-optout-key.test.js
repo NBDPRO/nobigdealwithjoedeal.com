@@ -65,6 +65,9 @@ function makeDb(seed) {
 }
 
 const C = OptOut.COLLECTION;
+// Every lookup names whose Do Not Text list applies (2026-10-05); see
+// tests/sms-dnc-2026-10-05.test.js for the list itself.
+const T = { companyId: 'co-1' };
 
 // Formats Twilio sends (always E.164) vs formats reps type. Every pair below
 // is the SAME human being.
@@ -123,7 +126,7 @@ check('K5  empty/garbage input yields no key rather than a junk one', () => {
   await checkAsync('K6  STOP from Twilio is honoured on a rep-typed send', async () => {
     const db = makeDb();
     await OptOut.recordOptOut(db, '+18595550134', { keyword: 'STOP' });
-    const r = await OptOut.isOptedOut(db, '(859) 555-0134');
+    const r = await OptOut.isOptedOut(db, '(859) 555-0134', T);
     assert.strictEqual(r.optedOut, true, 'the exact failure this fix exists to close');
     assert.strictEqual(r.viaLegacyKey, false, 'a freshly written record must hit the canonical key');
   });
@@ -132,7 +135,7 @@ check('K5  empty/garbage input yields no key rather than a junk one', () => {
     const db = makeDb();
     await OptOut.recordOptOut(db, '+18595550134', { keyword: 'STOP' });
     for (const [, typed] of SAME_PERSON.filter((p) => p[0] === '+18595550134')) {
-      const r = await OptOut.isOptedOut(db, typed);
+      const r = await OptOut.isOptedOut(db, typed, T);
       assert.strictEqual(r.optedOut, true, `${typed} should be suppressed`);
     }
   });
@@ -140,7 +143,7 @@ check('K5  empty/garbage input yields no key rather than a junk one', () => {
   await checkAsync('K8  a PRE-MIGRATION 11-digit record is still honoured', async () => {
     // The backfill may not have run yet. Nobody may be missed in that window.
     const db = makeDb({ [`${C}/18595550134`]: { keyword: 'STOP' } });
-    const r = await OptOut.isOptedOut(db, '(859) 555-0134');
+    const r = await OptOut.isOptedOut(db, '(859) 555-0134', T);
     assert.strictEqual(r.optedOut, true, 'legacy records must remain honoured pre-backfill');
     assert.strictEqual(r.viaLegacyKey, true, 'and must be reported so the fallback can be retired');
     assert.strictEqual(r.key, '18595550134');
@@ -149,7 +152,7 @@ check('K5  empty/garbage input yields no key rather than a junk one', () => {
   await checkAsync('K9  a number that never opted out is NOT suppressed', async () => {
     // Without this, a check that returns true for everything passes K6-K8.
     const db = makeDb({ [`${C}/18595550134`]: { keyword: 'STOP' } });
-    const r = await OptOut.isOptedOut(db, '(513) 555-9999');
+    const r = await OptOut.isOptedOut(db, '(513) 555-9999', T);
     assert.strictEqual(r.optedOut, false);
     assert.strictEqual(r.viaLegacyKey, false);
   });
@@ -160,7 +163,7 @@ check('K5  empty/garbage input yields no key rather than a junk one', () => {
       [`${C}/8595550134`]: { keyword: 'STOP' },    // canonical
     });
     await OptOut.clearOptOut(db, '+18595550134');
-    const r = await OptOut.isOptedOut(db, '(859) 555-0134');
+    const r = await OptOut.isOptedOut(db, '(859) 555-0134', T);
     assert.strictEqual(r.optedOut, false,
       'clearing only the canonical key would leave the legacy branch suppressing a '
       + 'homeowner who explicitly asked to resume');
@@ -173,7 +176,7 @@ check('K5  empty/garbage input yields no key rather than a junk one', () => {
     const db = makeDb();
     db._failNextGet();
     await assert.rejects(
-      () => OptOut.isOptedOut(db, '+18595550134'),
+      () => OptOut.isOptedOut(db, '+18595550134', T),
       /outage/,
       'the lookup must propagate, not swallow into a false negative',
     );
@@ -181,7 +184,7 @@ check('K5  empty/garbage input yields no key rather than a junk one', () => {
 
   await checkAsync('K12 no phone means no lookup and no suppression', async () => {
     const db = makeDb();
-    const r = await OptOut.isOptedOut(db, '');
+    const r = await OptOut.isOptedOut(db, '', T);
     assert.strictEqual(r.optedOut, false);
     assert.strictEqual(r.key, '');
   });
@@ -227,7 +230,7 @@ check('K5  empty/garbage input yields no key rather than a junk one', () => {
 
   await checkAsync('K17 a bounded lookup whose read hangs rejects with code optout_read_timeout', async () => {
     const t0 = Date.now();
-    const e = await within(rejection(OptOut.isOptedOut(hangingDb(1), '(859) 555-0134', { timeoutMs: 30 })), 2000);
+    const e = await within(rejection(OptOut.isOptedOut(hangingDb(1), '(859) 555-0134', { companyId: 'co-1', timeoutMs: 30 })), 2000);
     assert.ok(e, 'expected a rejection, got a verdict');
     assert.strictEqual(e.code, 'optout_read_timeout', 'got ' + (e && (e.code || e.message)));
     assert.ok(Date.now() - t0 < 1000, 'rejected at the bound, not long after it');
@@ -236,7 +239,7 @@ check('K5  empty/garbage input yields no key rather than a junk one', () => {
   await checkAsync('K18 the bound covers the whole lookup, not only its first read', async () => {
     // Canonical key misses (read 1), the legacy '1'+key read hangs (read 2).
     const db = hangingDb(2);
-    const e = await within(rejection(OptOut.isOptedOut(db, '(859) 555-0134', { timeoutMs: 30 })), 2000);
+    const e = await within(rejection(OptOut.isOptedOut(db, '(859) 555-0134', { companyId: 'co-1', timeoutMs: 30 })), 2000);
     assert.strictEqual(db.reads(), 2, 'the second read is the one that hung');
     assert.ok(e && e.code === 'optout_read_timeout', 'got ' + (e && (e.code || e.message)));
   });
@@ -249,7 +252,7 @@ check('K5  empty/garbage input yields no key rather than a junk one', () => {
     try {
       for (const opts of [{}, { timeoutMs: undefined }, { timeoutMs: 0 }, { timeoutMs: -5 },
         { timeoutMs: NaN }, { timeoutMs: 'soon' }, { timeoutMs: Infinity }, { timeOutMs: 30 }]) {
-        const e = await within(rejection(OptOut.isOptedOut(hangingDb(1), '8595550134', opts)), 2000);
+        const e = await within(rejection(OptOut.isOptedOut(hangingDb(1), '8595550134', Object.assign({ companyId: 'co-1' }, opts))), 2000);
         assert.ok(e && e.code === 'optout_read_timeout',
           JSON.stringify(opts) + ' → ' + (e ? (e.code || e.message) : 'a verdict'));
       }
@@ -261,9 +264,9 @@ check('K5  empty/garbage input yields no key rather than a junk one', () => {
   await checkAsync('K20 a bounded lookup that answers in time returns the verdict and leaves no timer', async () => {
     const before = activeTimers();
     const hit = await OptOut.isOptedOut(makeDb({ [C + '/8595550134']: { phone: '+18595550134' } }),
-      '(859) 555-0134', { timeoutMs: 5000 });
+      '(859) 555-0134', { companyId: 'co-1', timeoutMs: 5000 });
     assert.strictEqual(hit.optedOut, true);
-    const miss = await OptOut.isOptedOut(makeDb(), '(859) 555-0134', { timeoutMs: 5000 });
+    const miss = await OptOut.isOptedOut(makeDb(), '(859) 555-0134', { companyId: 'co-1', timeoutMs: 5000 });
     assert.strictEqual(miss.optedOut, false);
     assert.strictEqual(activeTimers(), before, 'the deadline timer must be cleared once the lookup answers');
   });
@@ -271,7 +274,7 @@ check('K5  empty/garbage input yields no key rather than a junk one', () => {
   await checkAsync('K21 a read error inside the bound still rejects as that read error', async () => {
     const db = makeDb();
     db._failNextGet();
-    const e = await within(rejection(OptOut.isOptedOut(db, '(859) 555-0134', { timeoutMs: 5000 })), 2000);
+    const e = await within(rejection(OptOut.isOptedOut(db, '(859) 555-0134', { companyId: 'co-1', timeoutMs: 5000 })), 2000);
     assert.ok(e && /emulated Firestore outage/.test(e.message), 'got ' + (e && e.message));
   });
 

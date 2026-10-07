@@ -370,7 +370,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,0.75); padding: 5
       "name": "What shingles do you use?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "I install GAF Timberline shingles as my default lineup — carrying a lifetime limited manufacturer warranty on the materials. I carry architectural (dimensional) shingles as my standard and can also install TAMKO's impact-resistant shingles, including HailGuard, the first asphalt shingle with a hail warranty, which may qualify for insurance discounts in Ohio."
+        "text": "I install GAF Timberline shingles as my default lineup — carrying the manufacturer warranty per product/package on the materials. I carry architectural (dimensional) shingles as my standard and can also install TAMKO's impact-resistant shingles, including HailGuard, the first asphalt shingle with a hail warranty, which may qualify for insurance discounts in Ohio."
       }
     },
     {
@@ -456,7 +456,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <link rel="stylesheet" href="/assets/css/mfr-source.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -469,10 +469,10 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "url": "https://nobigdealwithjoedeal.com",
       "telephone": "+18594207382",
       "email": "jd@nobigdealwithjoedeal.com",
-      "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Licensed, insured, locally owned. Call Joe directly.",
+      "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -529,6 +529,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -551,6 +552,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -588,8 +590,8 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -632,6 +634,9 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <!-- /nbd:partial schema-entity -->
 <link rel="stylesheet" href="/assets/css/nbd-nav.css">
 <link rel="stylesheet" href="/assets/css/service-revamp.css">
+<!-- nbd:updated-schema -->
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://nobigdealwithjoedeal.com/services/roof-replacement#webpage","url":"https://nobigdealwithjoedeal.com/services/roof-replacement","name":"Roof Replacement in Greater Cincinnati & Northern Kentucky","dateModified":"2026-10-06","isPartOf":{"@id":"https://nobigdealwithjoedeal.com/#website"},"about":{"@id":"https://nobigdealwithjoedeal.com/#org"}}</script>
+<!-- /nbd:updated-schema -->
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
@@ -678,7 +683,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         <li><a href="/free-tools" style="color:var(--orange-light,#dd875f)">All Free Tools</a></li>
         <li><a href="/storm-alerts" style="color:var(--orange-light,#dd875f)">Storm Alerts</a></li>
         <li><a href="/storm-report" style="color:var(--orange-light,#dd875f)">5-Year Storm Report</a></li>
-        <li><a href="/storm-check" style="color:var(--orange-light,#dd875f)">Is It Worth a Claim?</a></li><li><a href="/inspect" style="color:var(--orange-light,#dd875f)">Free 24-Hr Inspection</a></li>
+        <li><a href="/storm-check" style="color:var(--orange-light,#dd875f)">Is It Worth a Claim?</a></li><li><a href="/inspect" style="color:var(--orange-light,#dd875f)">Free Inspection</a></li>
       </ul>
     </li>
     <li><a href="/about">About Joe</a></li>
@@ -734,7 +739,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <a href="/storm-alerts" style="color:#dd875f">Storm Alerts</a>
   <a href="/storm-report" style="color:#dd875f">5-Year Storm Report</a>
   <a href="/storm-check" style="color:#dd875f">Is It Worth a Claim?</a>
-  <a href="/inspect" style="color:#dd875f">Free 24-Hr Inspection</a>
+  <a href="/inspect" style="color:#dd875f">Free Inspection</a>
   <a href="/free-tools" style="color:#dd875f">All Free Tools</a>
   <a href="#quote" style="color:#bd5728;font-weight:800;">Book Inspection &rarr;</a>
 </div>
@@ -882,7 +887,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
     <div class="content-body">
       <p>A roof replacement is one of the biggest investments a homeowner makes — and it's also one of the most common jobs where homeowners get taken advantage of. <strong>Joe Deal started No Big Deal Home Solutions specifically because he was tired of watching big companies charge $18,000 for jobs that cost $6,000.</strong></p>
       <p>When you call Joe for a roof replacement in Cincinnati or the surrounding area, he shows up personally. He gets on the roof. He gives you a straight honest assessment of what needs to happen — and what doesn't. If repair is the right call instead of replacement, he'll tell you that too.</p>
-      <p>Every roof replacement starts with a <strong>complete tear-off</strong> — I don't layer new shingles over old ones and call it a day. I pull everything, inspect the decking, replace any damaged boards, install fresh underlayment, and then install your new shingles using GAF Timberline products — or TAMKO impact-resistant shingles for hail country — carrying a lifetime manufacturer shingle warranty. Weighing 3-tab against architectural? <a href="/blog/architectural-shingles-vs-3-tab">Joe's honest breakdown of the real cost difference</a> covers when the upgrade is worth it — and when it isn't.</p>
+      <p>Every roof replacement starts with a <strong>complete tear-off</strong> — I don't layer new shingles over old ones and call it a day. I pull everything, inspect the decking, replace any damaged boards, install fresh underlayment, and then install your new shingles using GAF Timberline products — or TAMKO impact-resistant shingles for hail country — carrying the manufacturer shingle warranty per product/package. Weighing 3-tab against architectural? <a href="/blog/architectural-shingles-vs-3-tab">Joe's honest breakdown of the real cost difference</a> covers when the upgrade is worth it — and when it isn't.</p>
       <p>If your roof was damaged by storm, hail, or wind, I <strong>document everything and meet your adjuster on the roof</strong>. Most homeowners have never been through a claim — I explain every step, and the claim stays yours.</p>
       <ul class="include-list">
         <li>Complete tear-off &amp; debris disposal — nothing left behind</li>
@@ -892,8 +897,9 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         <li>Ice and water shield in valleys and eave edges</li>
         <li>Ridge cap, flashing, and pipe boot replacement</li>
         <li>Damage documented from first inspection through the adjuster meeting</li>
-        <li><a href="/the-pledge" style="color:inherit;border-bottom:1.5px solid var(--orange);font-weight:700;text-decoration:none">The Pledge</a> — NBD backed, no expiration</li>
-        <li>Lifetime manufacturer shingle warranty (GAF or TAMKO)</li>
+        <li><a href="/the-pledge" style="color:inherit;border-bottom:1.5px solid var(--orange);font-weight:700;text-decoration:none">The Pledge</a> — NBD Pledge: for as long as you own the home, we'll come back and make it right</li>
+        <li>Written labor warranty up to 20 years, by package</li>
+        <li>Manufacturer shingle warranty per product/package (GAF or TAMKO)</li>
         <li>Full cleanup — magnetic nail sweep, haul-away included</li>
       </ul>
     </div>
@@ -902,7 +908,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         <h3>Every Replacement Includes</h3>
         <div class="stat-grid">
           <div class="stat-box"><div class="stat-num">Written</div><div class="stat-label">Labor Guarantee</div></div>
-          <div class="stat-box"><div class="stat-num">Lifetime</div><div class="stat-label">Shingle Warranty</div></div>
+          <div class="stat-box"><div class="stat-num">Up to 20yr</div><div class="stat-label">Written Labor Warranty, by Package</div></div>
           <div class="stat-box"><div class="stat-num">$0</div><div class="stat-label">Estimate Cost</div></div>
           <div class="stat-box"><div class="stat-num">100%</div><div class="stat-label">Insurance Help</div></div>
         </div>
@@ -947,7 +953,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         <div>
           <div class="label">★ The NBD Guarantee</div>
           <h3>Standard. Preferred. Elite. <br>Pick what fits your house.</h3>
-          <p>Every tier includes <strong>The Pledge</strong> — as long as I'm in business and you own the home, you can call about anything I worked on and I'll come look at it, free. The tiers decide shingle, components, and the warranty paperwork that rides along. Plus an interactive 3-question decision tree to help you pick.</p>
+          <p>Every tier includes <strong>The Pledge</strong> — as long as I'm in business and you own the home, you can call about anything I worked on and I'll come look at it, free. The tiers decide shingle, components, the written labor warranty (up to 20 years, by package), and the manufacturer warranty paperwork that rides along. Plus an interactive 3-question decision tree to help you pick.</p>
         </div>
         <span class="nbd-tier-cta">Compare All Three Tiers →</span>
       </a>
@@ -962,7 +968,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         </a>
         <a href="/services/roofivent" class="nbd-component">
           <div class="nbd-comp-num">02</div>
-          <div class="nbd-comp-body"><h4>Roofivent Ventilation <span class="arrow">→</span></h4><p>Polypropylene, lifetime warranty, replaceable gaskets. Pipe Flashing on Standard. iVent ECO on Preferred + Elite.</p></div>
+          <div class="nbd-comp-body"><h4>Roofivent Ventilation <span class="arrow">→</span></h4><p>Polypropylene, manufacturer warranty, replaceable gaskets. Pipe Flashing on Standard. iVent ECO on Preferred + Elite.</p></div>
         </a>
         <a href="/services/gaf-pivot-boot" class="nbd-component">
           <div class="nbd-comp-num">03</div>
@@ -997,7 +1003,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <p class="storm-sub">GAF Timberline is my default lineup. But if you live where hail and high wind hit hard, I also install <strong>TAMKO's impact-resistant shingles</strong> — Titan XT, StormFighter Flex, and at the top HailGuard, the first asphalt shingle to carry an actual hail warranty. And as a <strong>TAMKO Pro Gold™ certified contractor</strong>, I can register TAMKO's enhanced warranties — coverage a non-certified installer can't offer.</p>
     </div>
     <div class="storm-grid">
-      <div class="storm-card"><div class="stage">Value floor</div><div class="nm">Heritage</div><span class="badge">Lifetime warranty</span><p>A true architectural roof at TAMKO's value price — no impact rating.</p></div>
+      <div class="storm-card"><div class="stage">Value floor</div><div class="nm">Heritage</div><span class="badge">Manufacturer warranty</span><p>A true architectural roof at TAMKO's value price — no impact rating.</p></div>
       <div class="storm-card"><div class="stage">Step up to impact</div><div class="nm">Titan XT</div><span class="badge">UL Class 3</span><p>Impact protection without the top-tier price · 160 mph wind.</p></div>
       <div class="storm-card"><div class="stage">Storm armor</div><div class="nm">StormFighter Flex</div><span class="badge">UL Class 4</span><p>Full Class 4 impact, 160 mph wind — voted #1 Product of the Year.</p></div>
       <div class="storm-card"><div class="stage">Top of the lineup</div><div class="nm">HailGuard</div><span class="badge">Hail warranty</span><p>Class 4, tested beyond — the first asphalt shingle with a written hail warranty.</p></div>
@@ -1172,7 +1178,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
     </div>
     <div class="faq-item">
       <div class="faq-q">What shingles do you use?</div>
-      <div class="faq-a">I install GAF Timberline shingles as my default lineup — carrying a lifetime limited manufacturer warranty on the materials. I carry architectural (dimensional) shingles as my standard and can also install TAMKO's impact-resistant shingles, including HailGuard, the first asphalt shingle with a hail warranty, which may qualify for insurance discounts in Ohio.</div>
+      <div class="faq-a">I install GAF Timberline shingles as my default lineup — carrying the manufacturer warranty per product/package on the materials. I carry architectural (dimensional) shingles as my standard and can also install TAMKO's impact-resistant shingles, including HailGuard, the first asphalt shingle with a hail warranty, which may qualify for insurance discounts in Ohio.</div>
     </div>
     <div class="faq-item">
       <div class="faq-q">Do you tear off the old roof or go over it?</div>
@@ -1287,6 +1293,9 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
     </details>
   </div>
 </section>
+<!-- nbd:updated -->
+<div class="nbd-updated" style="max-width:1100px;margin:0 auto;padding:18px 20px 22px;text-align:center"><p style="margin:0;font-size:13px;line-height:1.5;color:#5b6472">Last updated <time datetime="2026-10-06">October 6, 2026</time></p></div>
+<!-- /nbd:updated -->
 </main>
 <!-- nbd:partial footer-extended -->
 <footer>
@@ -1295,8 +1304,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <a href="/" aria-label="No Big Deal Home Solutions — home" style="display:inline-block;margin-bottom:12px"><picture class="nbd-pic"><source type="image/webp" srcset="/assets/images/nbd-logo-150w.webp 1x, /assets/images/nbd-logo-300w.webp 2x, /assets/images/nbd-logo-450w.webp 3x"><img src="/assets/images/nbd-logo.png" width="600" height="308" alt="No Big Deal Home Solutions" style="height:60px;width:auto;border-radius:6px;display:block"></picture></a>
       <p class="footer-desc">Roofing, siding, gutters, storm damage, and interior drywall repair serving Greater Cincinnati, Northern Kentucky &amp; the Lexington area. Honest assessments, fair pricing, and quality work backed by warranty.</p>
       <div class="footer-badges">
-        <span class="footer-badge">Licensed</span>
-        <span class="footer-badge">Insured</span>
+        <span class="footer-badge">Fully insured</span>
       </div>
     </div>
     <div class="footer-col">
@@ -1330,7 +1338,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         <li><a href="/estimate" style="color:var(--orange);">Instant Estimate</a></li>
         <li><a href="/storm-alerts">Storm Alerts</a></li>
           <li><a href="/storm-report">5-Year Storm Report</a></li>
-          <li><a href="/storm-check">Is It Worth a Claim?</a></li><li><a href="/inspect">Free 24-Hour Inspection</a></li>
+          <li><a href="/storm-check">Is It Worth a Claim?</a></li><li><a href="/inspect">Free Inspection</a></li>
         <li><a href="/#contact">Get My Free Estimate →</a></li>
         <li><a href="/careers">Careers</a></li>
         <li><a href="/partners">Partners &amp; Sponsorships</a></li>
@@ -1359,17 +1367,17 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div data-nbd-certbar="v1" style="border-top:1px solid rgba(255,255,255,.08);padding:18px 0 4px;margin-top:8px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
     <a href="https://www.gaf.com/en-us/roofing-contractors/residential" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 12px;text-decoration:none;line-height:1.2">
       <img src="/assets/gaf/gaf-certified-badge-120.png" alt="GAF Certified™ Residential Roofing Contractor" width="40" height="40" loading="lazy" style="display:block">
-      <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">GAF Certified™ Contractor<br><span style="color:rgba(255,255,255,.62);font-weight:600;font-size:.65rem">Verify on GAF.com →</span></span>
+      <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">GAF Certified™ Contractor<br><span style="color:rgba(255,255,255,.8);font-weight:600;font-size:.7rem">Verify on GAF.com →</span></span>
     </a>
     <a href="https://www.tamko.com/locate-a-contractor" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 12px;text-decoration:none;line-height:1.2">
       <picture class="nbd-pic"><source type="image/webp" srcset="/assets/tamko/tamko-pro-gold-badge-120.webp 1x"><img src="/assets/tamko/tamko-pro-gold-badge-120.png" alt="TAMKO Pro Gold™ Certified Roofing Contractor badge" width="36" height="40" loading="lazy" style="display:block;height:40px;width:auto"></picture>
-      <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">TAMKO Pro Gold™ Certified<br><span style="color:rgba(255,255,255,.62);font-weight:600;font-size:.65rem">Verify on TAMKO.com →</span></span>
+      <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">TAMKO Pro Gold™ Certified<br><span style="color:rgba(255,255,255,.8);font-weight:600;font-size:.7rem">Verify on TAMKO.com →</span></span>
     </a>
     <a href="https://www.americanoperator.com/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 12px;text-decoration:none;line-height:1.2">
       <img src="/assets/american-operator/american-operator-badge-120.png" alt="Locally Owned &amp; Operated — Certified by American Operator badge" width="35" height="40" loading="lazy" style="display:block;height:40px;width:auto">
-      <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">Locally Owned &amp; Operated<br><span style="color:rgba(255,255,255,.62);font-weight:600;font-size:.65rem">Certified by American Operator →</span></span>
+      <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">Locally Owned &amp; Operated<br><span style="color:rgba(255,255,255,.8);font-weight:600;font-size:.7rem">Certified by American Operator →</span></span>
     </a>
-    <p style="font-size:.62rem;color:rgba(255,255,255,.62);line-height:1.6;flex:1;min-width:280px"><span data-nosnippet>Independent Contractor. Not an employee or agent of GAF Materials LLC or TAMKO Building Products LLC. Contractors enrolled in GAF or TAMKO certification programs are not employees or agents of those manufacturers, and neither controls or otherwise supervises these independent businesses. GAF® and GAF Certified™ are either registered trademarks or trademarks of BMIC LLC in the United States and/or other countries. GAF ID 1162011. TAMKO®, TAMKO Pro™, ProShield® and HailGuard™ are trademarks or registered trademarks of TAMKO Building Products LLC. TAMKO Pro ID 181382.</span></p>
+    <p style="font-size:.62rem;color:rgba(255,255,255,.78);line-height:1.6;flex:1;min-width:280px"><span data-nosnippet>Independent Contractor. Not an employee or agent of GAF Materials LLC or TAMKO Building Products LLC. Contractors enrolled in GAF or TAMKO certification programs are not employees or agents of those manufacturers, and neither controls or otherwise supervises these independent businesses. GAF® and GAF Certified™ are either registered trademarks or trademarks of BMIC LLC in the United States and/or other countries. GAF ID 1162011. TAMKO®, TAMKO Pro™, ProShield® and HailGuard™ are trademarks or registered trademarks of TAMKO Building Products LLC. TAMKO Pro ID 181382.</span></p>
   </div>
   <div class="footer-bottom">
     <p>© 2026 No Big Deal Home Solutions. All rights reserved. <span style="opacity:.4">·</span> <a href="/privacy" data-nbd-privacy="1" style="color:inherit;text-decoration:none">Privacy</a> <span style="opacity:.4">·</span> <a href="/terms" data-nbd-terms="1" style="color:inherit;text-decoration:none">Terms</a> <span style="opacity:.4">·</span> <a href="/free-roof" data-nbd-freeroof-footer="v1" style="color:inherit;text-decoration:none">Free Roof Program</a> <span class="nbd-social" data-nbd-social="v1">
@@ -1387,10 +1395,13 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/ann-bar.js"></script>
   <script src="/assets/js/google-reviews-widget.js" defer></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
-<div class="mobile-cta-strip" aria-label="Quick contact options">
-  <a href="tel:+18594207382" class="mobile-cta-call"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>Call Joe</a>
-  <a href="sms:+18594207382" class="mobile-cta-text"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Text Joe</a>
+<!-- nbd:partial mobile-cta book_href="/inspect" -->
+<div class="mobile-cta-strip mobile-cta-bookfirst" aria-label="Quick contact options">
+  <a href="/inspect" class="mobile-cta-book">Book free inspection</a>
+  <a href="tel:+18594207382" class="mobile-cta-call mobile-cta-icon" aria-label="Call Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg><span>Call</span></a>
+  <a href="sms:+18594207382" class="mobile-cta-text mobile-cta-icon" aria-label="Text Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg><span>Text</span></a>
 </div>
+<!-- /nbd:partial mobile-cta -->
 <script defer src="/assets/js/quick-lead-form.js"></script>
 </body>
 </html>

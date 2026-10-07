@@ -56,9 +56,10 @@
     return ['economy', 'good', 'better', 'best', 'beyond'];
   }
 
-  // Tier-card subtitle: material differentiator + warranty phrase. Economy is
-  // a 1-year LABOR warranty (never "lifetime"); Beyond is HailGuard + TAMKO's
-  // hail warranty. The warranty half comes from TIER_DISPLAY when loaded.
+  // Tier-card subtitle: material differentiator + warranty phrase: the
+  // package's WRITTEN labor years (Jo, 2026-10-06 — estimate-config
+  // TIER_LABOR_YEARS; never "lifetime"); Beyond adds TAMKO's hail warranty.
+  // The warranty half comes from TIER_DISPLAY when loaded.
   const _TIER_MATERIAL = {
     economy: 'Economy Architectural',
     good:    'Standard Materials',
@@ -71,12 +72,17 @@
     const disp = cfg && cfg.TIER_DISPLAY && cfg.TIER_DISPLAY[key];
     const w = disp ? disp.warranty : ({
       economy: { workmanshipYears: 1 },
-      beyond:  { hailWarranty: true }
+      good:    { workmanshipYears: 5, systemPlus: true },
+      better:  { workmanshipYears: 10, systemPlus: true },
+      best:    { workmanshipYears: 20, systemPlus: true },
+      beyond:  { workmanshipYears: 20, hailWarranty: true }
     })[key] || {};
-    let warranty;
-    if (w.workmanshipYears) warranty = w.workmanshipYears + '-Year Labor Warranty';
-    else if (w.hailWarranty) warranty = 'Lifetime Warranty + Hail Warranty';
-    else warranty = 'Lifetime Warranty';
+    let warranty = (w.workmanshipYears ? w.workmanshipYears + '-Year Labor Warranty' : 'Labor Warranty per Package')
+      + (w.hailWarranty ? ' + Hail Warranty' : '');
+    // GAF System Plus is included on Standard/Preferred/Elite (2026-10-05) —
+    // NBD's GAF certification, so the platform tenant only.
+    const tr = (typeof window !== 'undefined') ? window.NBDTenantRules : null;
+    if (w.systemPlus && (!tr || typeof tr.isPlatformTenant !== 'function' || tr.isPlatformTenant())) warranty += ' + GAF System Plus';
     return (_TIER_MATERIAL[key] || 'Custom Scope') + ' · ' + warranty;
   }
 
@@ -539,7 +545,7 @@
       tagline: 'Roofing · Siding · Storm Restoration',
       phone: '(859) 420-7382',
       email: 'JD@nobigdealwithjoedeal.com',
-      address: '6563 Manila Rd · Goshen, OH',
+      address: '', // no public street address
       license: 'OH / KY licensed'
     } : {
       name: _b.name,
@@ -694,8 +700,8 @@
     // cost-basis line totals.)
     const summaryRows = [
       ['Line Item Total (before O&P)', fmtMoney(scopeGrand)],
-      ['Overhead (' + Math.round((estimate.overheadPct || 0.10) * 100) + '%)', fmtMoney(estimate.overhead)],
-      ['Profit (' + Math.round((estimate.profitPct || 0.10) * 100) + '%)', fmtMoney(estimate.profit)],
+      ['Overhead (' + Math.round((estimate.overheadPct ?? 0.10) * 100) + '%)', fmtMoney(estimate.overhead)],
+      ['Profit (' + Math.round((estimate.profitPct ?? 0.10) * 100) + '%)', fmtMoney(estimate.profit)],
       ['Subtotal', fmtMoney(estimate.subtotal)]
     ];
     if (estimate.taxRate && estimate.taxRate > 0) {
@@ -806,8 +812,8 @@
         for the local market.
         Code-required items cite applicable state and local residential codes and the
         International Residential Code (IRC) where applicable.`}
-        Overhead and profit calculated at ${Math.round((estimate.overheadPct || 0.10) * 100)}% +
-        ${Math.round((estimate.profitPct || 0.10) * 100)}% per industry standard.
+        Overhead and profit calculated at ${Math.round((estimate.overheadPct ?? 0.10) * 100)}% +
+        ${Math.round((estimate.profitPct ?? 0.10) * 100)}% per industry standard.
       </div>
 
       <div class="footer">
@@ -865,7 +871,7 @@ ${footer}
       tagline: 'Contractor-Built · Contractor-Priced',
       phone: '(859) 420-7382',
       email: 'JD@nobigdealwithjoedeal.com',
-      address: '6563 Manila Rd · Goshen, OH'
+      address: '' // no public street address
     } : {
       name: _b.name,
       tagline: _b.tagline || 'Contractor-Built · Contractor-Priced',
@@ -899,8 +905,8 @@ ${footer}
     if (tiers) {
       // GBB audit, 2026-09-09: "Impact + 20yr Warranty" was one of eight
       // independent warranty-duration schemes found live at once; the other
-      // two subs didn't even state a duration. Every tier is lifetime
-      // workmanship now (estimate-config.js TIER_DISPLAY) — the material
+      // two subs didn't even state a duration. Each tier states its written
+      // labor years (estimate-config.js TIER_DISPLAY) — the material
       // differentiator half matches TIER_RATES' own comments there.
       // Five tiers since 2026-10-02: every tier in TIER_ORDER that the data
       // carries gets a card; Economy says 1-year labor, Beyond says HailGuard.
@@ -1001,7 +1007,8 @@ ${footer}
       <h2>Warranty</h2>
       <p style="font-size:12px;color:#444;">
         <strong>Materials:</strong> Manufacturer warranty per product (see scope details).<br>
-        <strong>Workmanship:</strong> Lifetime ${escapeHtml(_b.isNbd ? 'NBD' : _b.seal)} labor warranty on all installation — transferability varies by tier, see above.<br>
+        ${_b.isNbd ? `<strong>NBD Pledge:</strong> for as long as you own the home, we'll come back and make it right.<br>
+        <strong>Workmanship:</strong> Written labor warranty by package — 1 to 20 years; length and transferability are listed on each option above.<br>` : `<strong>Workmanship:</strong> Workmanship warranty terms as stated in your written agreement.<br>`}
         <strong>System Warranty:</strong> Available with ${escapeHtml(((estimate.lines || []).find(l => /warranty/i.test(l.name)) || {}).name || 'Better/Best tier upgrades')}.
       </p>
     ` : `
@@ -1077,7 +1084,7 @@ ${footer}
       <div class="footer">
         <div style="display:flex;justify-content:space-between;">
           <span>${escapeHtml(company.name)} · ${escapeHtml(company.phone)}</span>
-          <span>${escapeHtml(company.email)} · ${escapeHtml(company.address)}</span>
+          <span>${escapeHtml(company.email)}${company.address ? ' · ' + escapeHtml(company.address) : ''}</span>
         </div>
       </div>
     `;

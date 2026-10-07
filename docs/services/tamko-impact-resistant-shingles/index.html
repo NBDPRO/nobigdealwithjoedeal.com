@@ -226,7 +226,7 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <link rel="stylesheet" href="/assets/css/mfr-source.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -239,10 +239,10 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
       "url": "https://nobigdealwithjoedeal.com",
       "telephone": "+18594207382",
       "email": "jd@nobigdealwithjoedeal.com",
-      "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Licensed, insured, locally owned. Call Joe directly.",
+      "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -299,6 +299,7 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -321,6 +322,7 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -358,8 +360,8 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -401,6 +403,9 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
 </script>
 <!-- /nbd:partial schema-entity -->
 <link rel="stylesheet" href="/assets/css/nbd-nav.css">
+<!-- nbd:updated-schema -->
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://nobigdealwithjoedeal.com/services/tamko-impact-resistant-shingles#webpage","url":"https://nobigdealwithjoedeal.com/services/tamko-impact-resistant-shingles","name":"TAMKO Impact-Resistant Shingles for Hail Country","dateModified":"2026-10-06","isPartOf":{"@id":"https://nobigdealwithjoedeal.com/#website"},"about":{"@id":"https://nobigdealwithjoedeal.com/#org"}}</script>
+<!-- /nbd:updated-schema -->
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
@@ -505,7 +510,7 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
       <div class="decision-card">
         <div class="pick">The value floor</div>
         <h3>Heritage</h3>
-        <p>A true architectural roof at the best price in the lineup — limited-lifetime warranty, 110–130&nbsp;mph wind. My straight-up value pick.</p>
+        <p>A true architectural roof at the best price in the lineup — limited manufacturer warranty, 110–130&nbsp;mph wind. My straight-up value pick.</p>
         <a href="#heritage">Go to Heritage →</a>
       </div>
       <div class="decision-card">
@@ -543,11 +548,11 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
     <div class="product-grid">
       <div class="product-copy">
         <h3>What it is</h3>
-        <p><strong>Heritage</strong> is TAMKO's flagship architectural shingle — a true dimensional laminated shingle (not 3-tab) at a value price. It's my honest answer when the budget is tight but you still want a real architectural roof with a lifetime warranty. It carries no impact rating — it's the value floor under TAMKO's impact-resistant lines, and the place to start if hail isn't your top worry.</p>
+        <p><strong>Heritage</strong> is TAMKO's flagship architectural shingle — a true dimensional laminated shingle (not 3-tab) at a value price. It's my honest answer when the budget is tight but you still want a real architectural roof with a solid manufacturer warranty. It carries no impact rating — it's the value floor under TAMKO's impact-resistant lines, and the place to start if hail isn't your top worry.</p>
         <h3>Why it works</h3>
         <ul>
           <li><strong>Real architectural look.</strong> Dimensional shadow lines that match what neighbors are putting on.</li>
-          <li><strong>Limited Lifetime warranty</strong> on the shingle material (single-family residential).</li>
+          <li><strong>Limited manufacturer warranty</strong> on the shingle material (single-family residential; terms per product and package).</li>
           <li><strong>110–130 mph wind rating</strong> with the proper TAMKO starter and ridge.</li>
           <li><strong>Class A fire rating</strong> — the top fire classification.</li>
         </ul>
@@ -555,7 +560,7 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
         <ul>
           <li class="minus">You want a true architectural roof at the best price, and impact rating isn't your priority.</li>
           <li class="minus">It's a rental or a house you don't plan to keep more than 5–7 years.</li>
-          <li class="minus">You want a lifetime-warranty TAMKO roof without paying for the impact tiers.</li>
+          <li class="minus">You want a real architectural TAMKO roof without paying for the impact tiers.</li>
         </ul>
       </div>
       <div class="product-specs">
@@ -563,7 +568,7 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
         <div class="spec-row"><span class="k">Type</span><span class="v">Architectural laminated</span></div>
         <div class="spec-row"><span class="k">Impact rating</span><span class="v">Standard</span></div>
         <div class="spec-row"><span class="k">Wind rating</span><span class="v">110–130 mph</span></div>
-        <div class="spec-row"><span class="k">Material warranty</span><span class="v">Limited Lifetime</span></div>
+        <div class="spec-row"><span class="k">Material warranty</span><span class="v">Limited manufacturer, per product</span></div>
         <div class="spec-row"><span class="k">Class A fire rating</span><span class="v">Yes · ASTM E108</span></div>
         <div class="spec-row"><span class="k">Best for</span><span class="v">Value / NS-equivalent</span></div>
       </div>
@@ -600,7 +605,7 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
         <ul>
           <li><strong>UL 2218 Class 3 impact rating</strong> — built to take hail that bruises a standard shingle.</li>
           <li><strong>160 mph WindGuard wind rating</strong> — among the strongest wind coverage in the lineup.</li>
-          <li><strong>Limited Lifetime warranty</strong> (single-family residential), transferable.</li>
+          <li><strong>Limited manufacturer warranty</strong> (single-family residential), transferable.</li>
           <li><strong>Class A fire rating</strong>, plus Florida Building Code and Miami-Dade County approval — a high engineering bar.</li>
         </ul>
         <h3>When Titan XT is the right call</h3>
@@ -615,7 +620,7 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
         <div class="spec-row"><span class="k">Type</span><span class="v">Architectural · ForceFX</span></div>
         <div class="spec-row"><span class="k">Impact rating</span><span class="v hl">UL 2218 Class&nbsp;3</span></div>
         <div class="spec-row"><span class="k">Wind rating</span><span class="v hl">160 mph WindGuard*</span></div>
-        <div class="spec-row"><span class="k">Material warranty</span><span class="v">Limited Lifetime · transferable</span></div>
+        <div class="spec-row"><span class="k">Material warranty</span><span class="v">Limited manufacturer · transferable</span></div>
         <div class="spec-row"><span class="k">Class A fire rating</span><span class="v">Yes · ASTM E108</span></div>
         <div class="spec-row"><span class="k">Code approvals</span><span class="v">FL Building Code · Miami-Dade</span></div>
       </div>
@@ -666,7 +671,7 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
         <ul>
           <li><strong>UL 2218 Class 4 impact rating</strong> — the highest impact classification an asphalt shingle can earn.</li>
           <li><strong>160 mph WindGuard wind rating</strong> with the TAMKO system.</li>
-          <li><strong>Limited Lifetime warranty</strong> (single-family residential), transferable.</li>
+          <li><strong>Limited manufacturer warranty</strong> (single-family residential), transferable.</li>
           <li><strong>Class A fire rating</strong>, Florida Building Code and Miami-Dade approved — engineered for severe weather.</li>
           <li><strong>Class 4 may earn an insurance discount</strong> in OH/KY. <a href="#class-4-discount" style="color:#A14A22;font-weight:700">See how ↓</a></li>
         </ul>
@@ -682,7 +687,7 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
         <div class="spec-row"><span class="k">Type</span><span class="v">Architectural · ForceFX</span></div>
         <div class="spec-row"><span class="k">Impact rating</span><span class="v hl">UL 2218 Class&nbsp;4</span></div>
         <div class="spec-row"><span class="k">Wind rating</span><span class="v hl">160 mph WindGuard*</span></div>
-        <div class="spec-row"><span class="k">Material warranty</span><span class="v">Limited Lifetime · transferable</span></div>
+        <div class="spec-row"><span class="k">Material warranty</span><span class="v">Limited manufacturer · transferable</span></div>
         <div class="spec-row"><span class="k">Class A fire rating</span><span class="v">Yes · ASTM E108</span></div>
         <div class="spec-row"><span class="k">Code approvals</span><span class="v">FL Building Code · Miami-Dade</span></div>
         <div class="spec-row"><span class="k">Recognition</span><span class="v">Voted #1 Product of the Year</span></div>
@@ -894,6 +899,9 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
   <div class="phone">Or call Joe: <a href="tel:+18594207382">(859) 420-7382</a></div>
 </section>
 
+<!-- nbd:updated -->
+<div class="nbd-updated" style="max-width:1100px;margin:0 auto;padding:18px 20px 22px;text-align:center"><p style="margin:0;font-size:13px;line-height:1.5;color:#5b6472">Last updated <time datetime="2026-10-06">October 6, 2026</time></p></div>
+<!-- /nbd:updated -->
 </main>
 <footer>
   <div class="footer-grid">
@@ -961,9 +969,12 @@ footer.foot .nbd-social a,.review-footer .nbd-social a{background:rgba(255,255,2
 
 <script defer src="/assets/js/ann-bar.js"></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
-<div class="mobile-cta-strip" aria-label="Quick contact options">
-  <a href="tel:+18594207382" class="mobile-cta-call"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>Call Joe</a>
-  <a href="sms:+18594207382" class="mobile-cta-text"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Text Joe</a>
+<!-- nbd:partial mobile-cta book_href="/inspect" -->
+<div class="mobile-cta-strip mobile-cta-bookfirst" aria-label="Quick contact options">
+  <a href="/inspect" class="mobile-cta-book">Book free inspection</a>
+  <a href="tel:+18594207382" class="mobile-cta-call mobile-cta-icon" aria-label="Call Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg><span>Call</span></a>
+  <a href="sms:+18594207382" class="mobile-cta-text mobile-cta-icon" aria-label="Text Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg><span>Text</span></a>
 </div>
+<!-- /nbd:partial mobile-cta -->
 </body>
 </html>

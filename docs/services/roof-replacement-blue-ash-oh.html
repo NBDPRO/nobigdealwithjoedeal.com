@@ -194,7 +194,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -207,10 +207,10 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "url": "https://nobigdealwithjoedeal.com",
       "telephone": "+18594207382",
       "email": "jd@nobigdealwithjoedeal.com",
-      "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Licensed, insured, locally owned. Call Joe directly.",
+      "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -267,6 +267,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -289,6 +290,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -326,8 +328,8 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -370,6 +372,9 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <!-- /nbd:partial schema-entity -->
 <link rel="stylesheet" href="/assets/css/nbd-nav.css">
 <link rel="stylesheet" href="/assets/css/service-revamp.css">
+<!-- nbd:updated-schema -->
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://nobigdealwithjoedeal.com/services/roof-replacement-blue-ash-oh#webpage","url":"https://nobigdealwithjoedeal.com/services/roof-replacement-blue-ash-oh","name":"Roof Replacement in Blue Ash, OH","dateModified":"2026-10-06","isPartOf":{"@id":"https://nobigdealwithjoedeal.com/#website"},"about":{"@id":"https://nobigdealwithjoedeal.com/#org"}}</script>
+<!-- /nbd:updated-schema -->
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
@@ -414,7 +419,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         <li><a href="/free-tools" style="color:var(--orange-light,#dd875f)">All Free Tools</a></li>
         <li><a href="/storm-alerts" style="color:var(--orange-light,#dd875f)">Storm Alerts</a></li>
         <li><a href="/storm-report" style="color:var(--orange-light,#dd875f)">5-Year Storm Report</a></li>
-        <li><a href="/storm-check" style="color:var(--orange-light,#dd875f)">Is It Worth a Claim?</a></li><li><a href="/inspect" style="color:var(--orange-light,#dd875f)">Free 24-Hr Inspection</a></li>
+        <li><a href="/storm-check" style="color:var(--orange-light,#dd875f)">Is It Worth a Claim?</a></li><li><a href="/inspect" style="color:var(--orange-light,#dd875f)">Free Inspection</a></li>
       </ul>
     </li>
     <li><a href="/about">About Joe</a></li>
@@ -470,7 +475,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <a href="/storm-alerts" style="color:#dd875f">Storm Alerts</a>
   <a href="/storm-report" style="color:#dd875f">5-Year Storm Report</a>
   <a href="/storm-check" style="color:#dd875f">Is It Worth a Claim?</a>
-  <a href="/inspect" style="color:#dd875f">Free 24-Hr Inspection</a>
+  <a href="/inspect" style="color:#dd875f">Free Inspection</a>
   <a href="/free-tools" style="color:#dd875f">All Free Tools</a>
   <a href="#quote" style="color:#bd5728;font-weight:800;">Book Inspection &rarr;</a>
 </div>
@@ -620,6 +625,9 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   </div>
 </section>
 
+<!-- nbd:updated -->
+<div class="nbd-updated" style="max-width:1100px;margin:0 auto;padding:18px 20px 22px;text-align:center"><p style="margin:0;font-size:13px;line-height:1.5;color:#5b6472">Last updated <time datetime="2026-10-06">October 6, 2026</time></p></div>
+<!-- /nbd:updated -->
 </main>
 <!-- nbd:partial footer-standard crumb_service_href="/services/roof-replacement" crumb_service_name="Roof Replacement" crumb_city_href="/areas/blue-ash-oh" crumb_city_name="Blue Ash" -->
 <footer>
@@ -627,17 +635,17 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div data-nbd-certbar="v1" style="max-width:1100px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;text-align:left">
     <a href="https://www.gaf.com/en-us/roofing-contractors/residential" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 12px;text-decoration:none;line-height:1.2">
       <img src="/assets/gaf/gaf-certified-badge-120.png" alt="GAF Certified™ Residential Roofing Contractor" width="40" height="40" loading="lazy" style="display:block">
-      <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">GAF Certified™ Contractor<br><span style="color:rgba(255,255,255,.62);font-weight:600;font-size:.65rem">Verify on GAF.com →</span></span>
+      <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">GAF Certified™ Contractor<br><span style="color:rgba(255,255,255,.8);font-weight:600;font-size:.7rem">Verify on GAF.com →</span></span>
     </a>
     <a href="https://www.tamko.com/locate-a-contractor" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 12px;text-decoration:none;line-height:1.2">
       <picture class="nbd-pic"><source type="image/webp" srcset="/assets/tamko/tamko-pro-gold-badge-120.webp 1x"><img src="/assets/tamko/tamko-pro-gold-badge-120.png" alt="TAMKO Pro Gold™ Certified Roofing Contractor badge" width="36" height="40" loading="lazy" style="display:block;height:40px;width:auto"></picture>
-      <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">TAMKO Pro Gold™ Certified<br><span style="color:rgba(255,255,255,.62);font-weight:600;font-size:.65rem">Verify on TAMKO.com →</span></span>
+      <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">TAMKO Pro Gold™ Certified<br><span style="color:rgba(255,255,255,.8);font-weight:600;font-size:.7rem">Verify on TAMKO.com →</span></span>
     </a>
     <a href="https://www.americanoperator.com/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 12px;text-decoration:none;line-height:1.2">
       <img src="/assets/american-operator/american-operator-badge-120.png" alt="Locally Owned &amp; Operated — Certified by American Operator badge" width="35" height="40" loading="lazy" style="display:block;height:40px;width:auto">
-      <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">Locally Owned &amp; Operated<br><span style="color:rgba(255,255,255,.62);font-weight:600;font-size:.65rem">Certified by American Operator →</span></span>
+      <span style="color:rgba(255,255,255,.8);font-size:.72rem;font-weight:700">Locally Owned &amp; Operated<br><span style="color:rgba(255,255,255,.8);font-weight:600;font-size:.7rem">Certified by American Operator →</span></span>
     </a>
-    <p style="font-size:.62rem;color:rgba(255,255,255,.62);line-height:1.6;flex:1;min-width:280px"><span data-nosnippet>Independent Contractor. Not an employee or agent of GAF Materials LLC or TAMKO Building Products LLC. Contractors enrolled in GAF or TAMKO certification programs are not employees or agents of those manufacturers, and neither controls or otherwise supervises these independent businesses. GAF® and GAF Certified™ are either registered trademarks or trademarks of BMIC LLC in the United States and/or other countries. GAF ID 1162011. TAMKO®, TAMKO Pro™, ProShield® and HailGuard™ are trademarks or registered trademarks of TAMKO Building Products LLC. TAMKO Pro ID 181382.</span></p>
+    <p style="font-size:.62rem;color:rgba(255,255,255,.78);line-height:1.6;flex:1;min-width:280px"><span data-nosnippet>Independent Contractor. Not an employee or agent of GAF Materials LLC or TAMKO Building Products LLC. Contractors enrolled in GAF or TAMKO certification programs are not employees or agents of those manufacturers, and neither controls or otherwise supervises these independent businesses. GAF® and GAF Certified™ are either registered trademarks or trademarks of BMIC LLC in the United States and/or other countries. GAF ID 1162011. TAMKO®, TAMKO Pro™, ProShield® and HailGuard™ are trademarks or registered trademarks of TAMKO Building Products LLC. TAMKO Pro ID 181382.</span></p>
   </div>
   <p>&copy; 2026 No Big Deal Home Solutions — Greater Cincinnati <span style="opacity:.4">·</span> <a href="/privacy" data-nbd-privacy="1" style="color:inherit;text-decoration:none">Privacy</a> <span style="opacity:.4">·</span> <a href="/terms" data-nbd-terms="1" style="color:inherit;text-decoration:none">Terms</a> <span style="opacity:.4">·</span> <a href="/free-roof" data-nbd-freeroof-footer="v1" style="color:inherit;text-decoration:none">Free Roof Program</a> <span style="opacity:.4">·</span> <a href="/careers" style="color:inherit;text-decoration:none">Careers</a> <span style="opacity:.4">·</span> <a href="/partners" style="color:inherit;text-decoration:none">Partners &amp; Sponsorships</a> <span class="nbd-social" data-nbd-social="v1">
   <a class="s-fb" href="https://www.facebook.com/people/No-Big-Deal-Home-Solutions/61577416645584/" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 22v-8h2.6l.4-3H13V9.1c0-.9.2-1.5 1.4-1.5H16V5c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.5-4 4.1V11H7v3h2.6v8H13z"/></svg></a>
@@ -648,17 +656,20 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <a href="/services/roof-replacement">Roof Replacement</a> · <a href="/areas/blue-ash-oh">Blue Ash</a> · <a href="/">nobigdealwithjoedeal.com</a><br>
   <a href="tel:+18594207382">(859) 420-7382</a> · <a href="mailto:jd&#64;nobigdealwithjoedeal&#46;com">jd&#64;nobigdealwithjoedeal&#46;com</a></p>
   <!-- Quiet pro door — same posture as footer-extended/footer-blog: visible only to those looking for it -->
-  <p style="margin-top:10px"><a href="/pro/" style="color:inherit;text-decoration:none;font-size:.78rem;opacity:.55">Are you a contractor? → NBD Pro</a></p>
+  <p style="margin-top:10px"><a href="/pro/" style="color:inherit;text-decoration:none;font-size:.78rem">Are you a contractor? → NBD Pro</a></p>
 </footer>
 <!-- /nbd:partial footer-standard -->
 
 <script defer  src="/assets/js/inline/b1d1695580.js"></script>
 <script defer src="/assets/js/ann-bar.js"></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
-<div class="mobile-cta-strip" aria-label="Quick contact options">
-  <a href="tel:+18594207382" class="mobile-cta-call"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>Call Joe</a>
-  <a href="sms:+18594207382" class="mobile-cta-text"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Text Joe</a>
+<!-- nbd:partial mobile-cta book_href="/inspect" -->
+<div class="mobile-cta-strip mobile-cta-bookfirst" aria-label="Quick contact options">
+  <a href="/inspect" class="mobile-cta-book">Book free inspection</a>
+  <a href="tel:+18594207382" class="mobile-cta-call mobile-cta-icon" aria-label="Call Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg><span>Call</span></a>
+  <a href="sms:+18594207382" class="mobile-cta-text mobile-cta-icon" aria-label="Text Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg><span>Text</span></a>
 </div>
+<!-- /nbd:partial mobile-cta -->
 <script defer src="/assets/js/quick-lead-form.js"></script>
 </body>
 </html>

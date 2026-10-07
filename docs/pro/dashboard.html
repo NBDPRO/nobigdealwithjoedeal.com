@@ -54,7 +54,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=9" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=19" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=20" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=8" as="script">
@@ -119,7 +119,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=146"></script>
+<script src="js/script-loader.js?v=150"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -138,12 +138,12 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=36"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=39"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=11">
+<link rel="stylesheet" href="css/dashboard-app.css?v=12">
 <link rel="stylesheet" href="css/ui-primitives.css?v=13">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=4">
@@ -3942,7 +3942,7 @@
               <div class="sf"><label>Business Email</label><input type="text" id="coEmail" placeholder="JD@nobigdealwithjoedeal.com"></div>
             </div>
             <div class="sf-row">
-              <div class="sf"><label>Street Address</label><input type="text" id="coAddress" placeholder="6563 Manila Rd"></div>
+              <div class="sf"><label>Street Address</label><input type="text" id="coAddress" placeholder="123 Main St"></div>
               <div class="sf"><label>City, State ZIP</label><input type="text" id="coCity" placeholder="Goshen, OH 45122"></div>
             </div>
             <div class="sf-row">
@@ -4018,6 +4018,12 @@
                 <input type="color" id="cp_brand_colorAccent" value="#BD5728"></div>
             </div>
             <div style="margin:14px 0 6px;font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--m);">Contact — used on your portal, texts &amp; lead alerts</div>
+            <!-- 2026-10-05 (Jo): a company with no lead-alert contact gets its
+                 website / form leads alerted to NOBODY (functions/lead-alert.js
+                 resolveAlertTarget). Shown by dashboard-bootstrap.module.js
+                 _cpAlertContactsWarning for a non-NBD company until it saves an
+                 Email here. NBD never sees it. -->
+            <div id="cp_alertWarn" role="status" hidden class="cp-alert-warn"><strong>Set your lead alert contacts.</strong> New leads from your website and forms are not sent to anyone until you add your company Email below and save — lead alerts go to that address.</div>
             <div class="sf-row">
               <div class="sf"><label>Phone</label>
                 <input type="text" id="cp_brand_phone" placeholder="(859) 420-7382"></div>
@@ -4063,7 +4069,7 @@
             </div>
             <div class="sf-row">
               <div class="sf"><label>Letterhead Address (one line, optional)</label>
-                <input type="text" id="cp_businessAddress" placeholder="6563 Manila Rd, Goshen OH 45122"></div>
+                <input type="text" id="cp_businessAddress" placeholder="123 Main St, Goshen OH 45122"></div>
               <div class="sf"><label>License # (shown in footer disclaimer)</label>
                 <input type="text" id="cp_businessLicense" placeholder="OH-HIC-12345 / KY-CON-98765"></div>
             </div>
@@ -4751,6 +4757,8 @@
       <div class="stab-panel dn" id="stab-panel-ai-texting">
         <h3 style="margin:0 0 4px;font-family:'Barlow Condensed',sans-serif;font-size:18px;color:var(--t);">🤖 AI Texting Persona</h3>
         <div id="aiPersonaMount"></div>
+        <!-- Texting rules: the company's texting switch + Do Not Text list (rendered by sms-compliance-settings.js) -->
+        <div id="smsComplianceMount" class="mt-14"></div>
       </div><!-- /stab-panel-ai-texting -->
 
       <!-- ══ TAB: BOTS & API (connect your own AI bots — rendered by agent-bots-settings.js) ══ -->
@@ -5401,7 +5409,7 @@
     </div>
     <div class="mfield"><label>Address</label>
       <div class="ac-wrap">
-        <input type="text" id="lAddr" placeholder="1054 Klondyke Rd, Goshen OH 45122" autocomplete="off">
+        <input type="text" id="lAddr" placeholder="456 Example Rd, Goshen OH 45122" autocomplete="off">
         <div class="ac-drop dn" id="ac-lAddr"></div>
       </div>
     </div>
@@ -5727,7 +5735,7 @@
       </div>
       <div class="mfield">
         <label>Property Address</label>
-        <input type="text" id="wcAddr" placeholder="1054 Klondyke Rd, Goshen OH 45122" class="w-full">
+        <input type="text" id="wcAddr" placeholder="456 Example Rd, Goshen OH 45122" class="w-full">
       </div>
       <div class="mfield">
         <label>Installation Date</label>
@@ -5737,9 +5745,9 @@
         <label>Guarantee Tier</label>
         <select id="wcTier" class="w-full" data-on-change="updateCertPreview">
           <option value="economy">Economy — 1-Year Labor Warranty (no system warranty)</option>
-          <option value="standard" selected>Standard — NBD Lifetime Pledge</option>
-          <option value="preferred">Preferred — Lifetime + Transferable to One Owner</option>
-          <option value="elite">Elite — Lifetime + Fully Transferable + Annual Inspection</option>
+          <option value="standard" selected>Standard — NBD Pledge · 5-Year Labor</option>
+          <option value="preferred">Preferred — 10-Year Labor + Transferable to One Owner</option>
+          <option value="elite">Elite — 20-Year Labor + Fully Transferable + Annual Inspection</option>
           <option value="beyond">Beyond — Elite terms + TAMKO HailGuard Hail Warranty</option>
         </select>
       </div>
@@ -6017,7 +6025,7 @@
      because this file was only ever loaded on customer.html, so the dashboard
      silently ran the fallbacks. Dependency-free and already unit-tested
      (tests/customer-estimate-rows.test.js). -->
-<script defer src="js/customer-estimate-rows.js?v=3"></script>
+<script defer src="js/customer-estimate-rows.js?v=5"></script>
 <script defer src="js/materials-list.js?v=1"></script>
 <script defer src="js/customer-estimate-hub.js?v=4"></script>
 <script defer src="js/customer-photo-hub.js?v=2"></script>
@@ -6027,7 +6035,7 @@
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
 <script defer src="js/dashboard-widgets.js?v=10"></script>
-<script defer src="js/dashboard-ui.js?v=11"></script>
+<script defer src="js/dashboard-ui.js?v=13"></script>
 <script defer src="js/dashboard-actions.js?v=18"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
@@ -6926,7 +6934,7 @@
 <script defer src="js/crm-leads.js?v=9"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
-<script defer src="js/crm-pipeline.js?v=19"></script>
+<script defer src="js/crm-pipeline.js?v=20"></script>
 <script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to
@@ -6943,7 +6951,7 @@
 <script defer src="js/tasks.js?v=7"></script>
 <script defer src="js/dol-fill.js?v=2"></script>
 <script defer src="js/notif-bell.js?v=7"></script>
-<script defer src="js/agent-inbox.js?v=7"></script>
+<script defer src="js/agent-inbox.js?v=8"></script>
 <script defer src="js/agent-bots-settings.js?v=3"></script>
 <script defer src="js/buying-intent-strike.js?v=3"></script>
 <script defer src="js/lead-dedup.js?v=4"></script>
@@ -6985,8 +6993,8 @@
 <!-- Send from Jo's own phone (share sheet / Messages) + the estimate follow-up
      cadence and its Home card (2026-10-03). phone-share.js first: close-board.js
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
-<script defer src="js/phone-share.js?v=1"></script>
-<script defer src="js/estimate-followups.js?v=2"></script>
+<script defer src="js/phone-share.js?v=2"></script>
+<script defer src="js/estimate-followups.js?v=3"></script>
 <script defer src="js/game-sprite.js?v=1"></script>
 <script defer src="js/game-card.js?v=3"></script>
 <script defer src="js/hot-leads-widget.js?v=2"></script>
@@ -7001,14 +7009,14 @@
 <script defer src="js/numbers-logic.js?v=1"></script>
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
-<script defer src="js/widgets.js?v=13"></script>
+<script defer src="js/widgets.js?v=14"></script>
 <script defer src="js/today-home.js?v=2"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=3"></script>
 <script defer src="js/ui.js?v=9"></script>
 <script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>
-<script defer src="js/nbd-comms.js?v=5"></script>
+<script defer src="js/nbd-comms.js?v=6"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>
 <script defer src="js/paperwork-write.js?v=1"></script>
@@ -7022,7 +7030,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=19"></script>
+<script defer src="js/invoice-pipeline.js?v=21"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -7051,7 +7059,7 @@
 <script defer src="js/d2d-storm-layer.js?v=1"></script>
 <script defer src="js/schedule-planner-logic.js?v=2"></script>
 <script defer src="js/production-logic.js?v=1"></script>
-<script defer src="js/production.js?v=1"></script>
+<script defer src="js/production.js?v=2"></script>
 <script defer src="js/schedule-planner.js?v=4"></script>
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
      the dictate callable in summarize mode, write a structured
@@ -7061,7 +7069,7 @@
 <script defer src="js/voicemail.js?v=3"></script>
 <!-- estimate-config.js MUST load before estimates.js + estimate-builder-v2.js;
      it exposes window.NBD_ESTIMATE_CONFIG which both engines read. -->
-<script defer src="js/estimate-config.js?v=6"></script>
+<script defer src="js/estimate-config.js?v=8"></script>
 <!-- deposit-rule.js (2026-09-25): the ONE deposit rule every quote, contract,
      invoice, Job Template and Close Board deal reads. Eager and small; after
      estimate-config (its thresholds) and before company-profile.js (whose
@@ -7082,12 +7090,12 @@
 <script defer src="js/review-engine.js?v=7"></script>
 <script defer src="js/review-deck.js?v=2"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
-<script defer src="js/company-profile.js?v=7"></script>
+<script defer src="js/company-profile.js?v=9"></script>
 <!-- tenant-rules.js (2026-10-04, tenant-ready): each company's own business
      rules (tiers, names, warranties, shingle locks, deposit) with NBD-only
      defaults. After company-profile.js (reads _companyProfile at call time);
      estimate-config.js and deposit-rule.js ask it first. -->
-<script defer src="js/tenant-rules.js?v=1"></script>
+<script defer src="js/tenant-rules.js?v=3"></script>
 <!-- Roof Care Plan (2026-10-05): member badge, nav reveal, invite / billing
      link dialog. After tenant-rules.js (isPlatformTenant). -->
 <script defer src="js/care-plan-crm.js?v=1"></script>
@@ -7104,7 +7112,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=9"></script>
+<script defer src="js/analytics-kpi.js?v=11"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
@@ -7172,7 +7180,7 @@
 <!-- W128: NBD Whisper — dictate-anywhere with AI cleanup -->
 <script defer src="js/nbd-whisper.js?v=2"></script>
 <!-- W130: NBD Quick Capture — voice scratchpad with summarize + save-to-lead routing -->
-<script defer src="js/quick-capture.js?v=3"></script>
+<script defer src="js/quick-capture.js?v=4"></script>
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->
 <script defer src="js/quick-capture-inbox.js?v=3"></script>
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->
