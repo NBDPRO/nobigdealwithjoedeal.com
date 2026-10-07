@@ -98,7 +98,7 @@
       // Full packet / Paperwork only (2026-10-04) — also in the estimates
       // bundle; the loader runs it once.
       'js/deal-packet.js?v=1',
-      'js/close-board.js?v=12'
+      'js/close-board.js?v=13'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
