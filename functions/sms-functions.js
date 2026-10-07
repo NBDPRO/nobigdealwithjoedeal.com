@@ -1588,6 +1588,13 @@ exports.incomingSMS = onRequest(
         return;
       }
 
+      // 2026-10-07 (R6-3-1): a STOP word the classifier can't read safely
+      // ("thanks but stop", "I want to cancel"). Not an opt-out — nothing is
+      // recorded — but no AI reply is drafted for it, and the rep gets a
+      // high-priority "may be asking to stop" bell plus a flagged note, so a
+      // person decides before anyone texts this number again.
+      const possibleStop = intent.intent === 'possible_stop';
+
       // Idempotency: Twilio retries the webhook on any non-2xx / timeout, which
       // would otherwise create DUPLICATE inbound notes + AI drafts + push
       // notifications. Claim the MessageSid once (mirrors the Stripe webhook's
@@ -1726,14 +1733,19 @@ exports.incomingSMS = onRequest(
         // ref so T-1 can link the generated draft back to the source
         // incoming note via `incomingMsgId` (lets the rep UI later show
         // "draft for: <quoted incoming message>").
-        const incomingNoteRef = await db.collection('leads').doc(leadId).collection('notes').add({
+        const incomingNote = {
           type: 'sms',
           direction: 'incoming',
           from: fromPhone,
           body: messageBody,
           twilioSid: messageSid,
           createdAt: FieldValue.serverTimestamp()
-        });
+        };
+        if (possibleStop) {
+          incomingNote.possibleStop = true;
+          incomingNote.possibleStopKeyword = intent.keyword;
+        }
+        const incomingNoteRef = await db.collection('leads').doc(leadId).collection('notes').add(incomingNote);
 
         // Update lead's lastContactedAt
         await db.doc(`leads/${leadId}`).update({
@@ -1755,16 +1767,21 @@ exports.incomingSMS = onRequest(
         // Firestore writes. 12 drafts/number/hour is generous for a real
         // back-and-forth, tight against a flood. On overflow we skip ONLY
         // the draft — the inbound SMS is still saved + the rep notified.
-        let aiDraftAllowed = true;
-        try {
-          await enforceRateLimit('aiDraft:phone', phoneDigits || fromPhone, 12, 60 * 60_000);
-        } catch (e) {
-          if (e.rateLimited) {
-            aiDraftAllowed = false;
-            logger.info('[incomingSMS] AI draft skipped — per-number hourly cap', { leadId });
+        let aiDraftAllowed = !possibleStop;
+        if (possibleStop) {
+          logger.info('[incomingSMS] AI draft skipped — message may be a STOP', { leadId, keyword: intent.keyword });
+        }
+        if (aiDraftAllowed) {
+          try {
+            await enforceRateLimit('aiDraft:phone', phoneDigits || fromPhone, 12, 60 * 60_000);
+          } catch (e) {
+            if (e.rateLimited) {
+              aiDraftAllowed = false;
+              logger.info('[incomingSMS] AI draft skipped — per-number hourly cap', { leadId });
+            }
+            // Non-rate-limit error (limiter unavailable): fall through and
+            // attempt the draft rather than dropping a legit reply.
           }
-          // Non-rate-limit error (limiter unavailable): fall through and
-          // attempt the draft rather than dropping a legit reply.
         }
         if (aiDraftAllowed) {
           try {
@@ -1788,6 +1805,30 @@ exports.incomingSMS = onRequest(
         // never got told a customer texted back. userId is present on
         // every matched lead (the phoneDigits match queries by it).
         const notifyUid = lead.assignedTo || lead.userId;
+        // R6-3-1: the visible flag for a possible STOP — a high-priority bell
+        // on the dashboard (notif-bell.js renders `notifications` docs for
+        // userId). Best-effort: a failed bell never fails the webhook; the
+        // flagged note above and the missing AI draft stand on their own.
+        if (possibleStop && notifyUid) {
+          try {
+            const who = ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || 'A customer';
+            await db.collection('notifications').add({
+              userId: notifyUid,
+              companyId: lead.companyId || lead.userId || null,
+              type: 'sms_possible_stop',
+              priority: 'high',
+              leadId,
+              title: '⚠️ ' + who + ' may be asking you to stop texting',
+              message: 'They wrote: "' + String(messageBody).slice(0, 140) + '". No AI reply was drafted. '
+                + 'Read it before anyone texts them again; if they meant stop, mark the number Do Not Text.',
+              read: false,
+              dismissed: false,
+              createdAt: FieldValue.serverTimestamp(),
+            });
+          } catch (e) {
+            logger.warn('[incomingSMS] possible-STOP bell failed', { leadId, err: e && e.message });
+          }
+        }
         if (notifyUid) {
           // Get rep's FCM token
           const repTokensSnap = await db
@@ -1805,7 +1846,9 @@ exports.incomingSMS = onRequest(
               await getMessaging().send({
                 token,
                 notification: {
-                  title: `New Message from ${lead.firstName || 'Customer'}`,
+                  title: possibleStop
+                    ? `⚠️ ${lead.firstName || 'Customer'} may be asking to stop texting`
+                    : `New Message from ${lead.firstName || 'Customer'}`,
                   body: messageBody.substring(0, 100)
                 },
                 data: {
@@ -1829,6 +1872,11 @@ exports.incomingSMS = onRequest(
           twilioSid: messageSid,
           receivedAt: FieldValue.serverTimestamp()
         };
+        // R6-3-1: the admin triage shows this one as "may be asking to stop".
+        if (possibleStop) {
+          unmatchedRow.possibleStop = true;
+          unmatchedRow.possibleStopKeyword = intent.keyword;
+        }
         if (route.ambiguity) {
           unmatchedRow.ambiguous = true;
           unmatchedRow.ambiguity = route.ambiguity;

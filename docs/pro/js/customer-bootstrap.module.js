@@ -822,10 +822,34 @@ async function loadCustomerData(id) {
       };
     }
     // Header SMS booking button
+    // R6-3-2 (2026-10-07): the link is an <a href="sms:…"> with the booking
+    // text written in, so a tap used to open Messages with no STOP / Do Not
+    // Text / texting-hours check. Now the tap waits for the server's "ok to
+    // text?" (phone-share.js checkText → phoneTextAction) and only then opens
+    // Messages; a "no" — or a check that can't run — says why and opens
+    // nothing. Wired once; reads the lead at TAP time.
     const smsBooking = document.getElementById('smsBookingLink');
-    if (smsBooking) {
-      smsBooking.addEventListener('click', () => {
-        logCommunication(id, 'sms', 'Sent booking link via SMS');
+    if (smsBooking && !smsBooking.dataset.nbdTextCheck) {
+      smsBooking.dataset.nbdTextCheck = '1';
+      smsBooking.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        const href = smsBooking.getAttribute('href') || '';
+        if (!/^sms:\d/.test(href)) return;
+        const cur = window._currentLead || lead;
+        const leadId = window._customerId || id;
+        const PS = window.NBDPhoneShare;
+        let chk = null;
+        try {
+          chk = (PS && typeof PS.checkText === 'function') ? await PS.checkText({ phone: cur.phone, leadId }) : null;
+        } catch (_) { chk = null; }
+        if (!chk || chk.ok !== true) {
+          if (typeof window.showToast === 'function') {
+            window.showToast((chk && chk.reason) || 'Couldn’t check whether this customer can be texted — nothing was sent. Reload and try again.', 'error');
+          }
+          return;
+        }
+        logCommunication(leadId, 'sms', 'Sent booking link via SMS');
+        window.location.href = href;
       });
     }
     // Contact section: NO communication logging, deliberately.
