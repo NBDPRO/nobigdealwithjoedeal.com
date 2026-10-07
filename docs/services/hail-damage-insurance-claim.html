@@ -432,7 +432,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -448,7 +448,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -505,6 +505,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -527,6 +528,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -728,7 +730,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div class="hero-inner">
     <div class="hero-badge">Hail &amp; Storm Damage · Greater Cincinnati</div>
     <h1>Hail Claims.<br><span>It's What I Do.</span></h1>
-    <ul class="svc-proof"><li>GAF Certified&trade;</li><li>TAMKO Pro Gold&trade;</li><li>5-star rated</li></ul>
+    <ul class="svc-proof"><li>GAF Certified&trade;</li><li>TAMKO Pro Gold&trade;</li><li>5-star rated</li><li>Backed by the NBD Pledge</li></ul>
     <div class="hero-btns svc-cta"><a href="/inspect" class="btn-primary">Book a free hail inspection</a></div>
     <p class="svc-alt">Leak right now? <a href="tel:+18594207382">Call Joe — (859) 420-7382</a></p>
     <p class="svc-reviewed">Reviewed by <a href="/about"><strong>Joe Deal</strong></a> &middot; September 2026</p>
@@ -817,7 +819,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <span class="section-label">Hail &amp; Wind Damage</span>
       <h2 class="section-title">Why Does Hail Damage<br>Get Missed?</h2>
       <p>Most homeowners look at their roof after a storm and think everything looks fine. It's not. Hail damage hides. It bruises the mat under the granules, cracks the asphalt, and compromises the seal strip — and your insurance company is counting on you not knowing that.</p>
-      <p>Joe Deal has been doing insurance restoration work in Greater Cincinnati for over 7 years. He knows exactly what adjusters look for, what they try to underpay, and how to document damage so all of it is on the record when the adjuster comes out.</p>
+      <p>Joe Deal has been doing insurance restoration work in Greater Cincinnati for over 7 years. He knows exactly what adjusters look for, what gets missed on a first look, and how to document damage so all of it is on the record when the adjuster comes out.</p>
       <p><strong>Here's the deal:</strong> You call Joe. He comes out, gets on your roof, and does a real inspection — not a 10-minute walkthrough. He documents every hit, every cracked shingle, every damaged soft metal. He builds the photo report and the estimate. You file the claim; he meets your adjuster on the roof and writes a supplement if the first scope misses damage. The claim and every decision on it stay yours.</p>
       <ul class="include-list">
         <li>Full roof and exterior hail damage inspection at no charge</li>
@@ -833,12 +835,12 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <div class="stat-grid">
         <div class="stat-box"><div class="stat-num">1"</div><div class="stat-label">Hail size that causes real damage</div></div>
         <div class="stat-box"><div class="stat-num">$0</div><div class="stat-label">Cost of Joe's inspection</div></div>
-        <div class="stat-box"><div class="stat-num">30%</div><div class="stat-label">Avg underpayment on first adjuster offer</div></div>
+        <div class="stat-box"><div class="stat-num">You</div><div class="stat-label">File and own the claim</div></div>
         <div class="stat-box"><div class="stat-num">100%</div><div class="stat-label">Inspections fully photo-documented</div></div>
       </div>
       <div class="warranty-badge">
-        <div class="big">LIFETIME</div>
-        <div class="small">Labor Guarantee on Every Replacement</div>
+        <div class="big">UP TO 20 YRS</div>
+        <div class="small">Written labor warranty, by package &mdash; plus the NBD Pledge</div>
       </div>
     </div>
   </div>

@@ -3591,6 +3591,24 @@
     _setStat('weekTasks',     weekTasks);
   }
 
+  // The stageRole a lead write should carry for `stage`, or null when it can't
+  // be known (R5-8-3, 2026-10-06). Tenant-aware: window.stageRole is the
+  // resolved pipeline roleOf once applyPipelineConfig runs (NOT the ES import,
+  // which only knows built-in keys). Same normalise-then-classify shape as the
+  // Edit Lead save (crm-leads.js) and CSV import (data-import.js). Only the
+  // five roles firestore.rules stageWriteOk() accepts are returned — anything
+  // else would deny the whole lead write, and Firestore rejects undefined.
+  function _stageRoleForWrite(stage) {
+    if (stage == null || stage === '') return null;
+    if (typeof window.stageRole !== 'function') return null;
+    let role = null;
+    try {
+      const key = typeof window.normalizeStage === 'function' ? window.normalizeStage(stage) : stage;
+      role = window.stageRole(key);
+    } catch (_) { return null; }
+    return ['new', 'active', 'job', 'won', 'lost'].includes(role) ? role : null;
+  }
+
   // Optimistic kanban refresh helper — push the just-saved lead into
   // window._leads in-memory and re-render so the card appears IMMEDIATELY,
   // before loadLeads makes its round-trip. On iOS where loadLeads can
@@ -3621,7 +3639,9 @@
         ? normalizeStage(_stage)
         : (_stage || 'new')
     };
-    merged._stageRole = stageRole(merged._stageKey);
+    // Tenant-aware window.stageRole, as loadLeads stamps it (a custom stage's
+    // role lives in the resolved pipeline config, not the ES import).
+    merged._stageRole = (window.stageRole || stageRole)(merged._stageKey);
     if (idx >= 0) window._leads[idx] = merged;
     else window._leads.unshift(merged);
     // Claim the cache for this account so a failed loadLeads() keeps this
@@ -3702,6 +3722,19 @@
       // edit updateDoc (so editing a lead's phone refreshes the key).
       // Canonical transform — keep identical to functions/phone-utils.js.
       data.phoneDigits = String(data.phone || '').replace(/\D/g, '').replace(/^1/, '').slice(-10);
+
+      // Denormalised stageRole beside the stage (R5-8-3, 2026-10-06): every
+      // server classifier trusts it first (functions/stage-roles.js roleFor),
+      // and this path — quick add, call center, D2D convert, Edit Lead — wrote
+      // only `stage`, so new leads drifted back to role-less after migration
+      // 008 healed the backlog. Stamped on `data` here so it reaches every
+      // write branch below (NBDRepos.leads.create, both addDoc fallbacks, the
+      // edit updateDoc). No stage in the payload → no role: an edit that omits
+      // the stage leaves the stored pair alone, and no default stage is invented.
+      if (data.stage != null && data.stage !== '') {
+        const _role = _stageRoleForWrite(data.stage);
+        if (_role) data.stageRole = _role;
+      }
 
       // NEW LEAD: Geocode address and create map pin
       if (!editId || editId.startsWith('d-')) {

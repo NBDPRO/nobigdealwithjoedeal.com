@@ -227,6 +227,25 @@
     ADDON_ACCESS_MODERATE_PER_SQ:  15,   // tight lot / longer carry / protect landscaping
     ADDON_ACCESS_DIFFICULT_PER_SQ: 35,   // no driveway / hillside (crane/boom = equipment lines)
 
+    // ── NBD's warranty model (Jo, 2026-10-06, final) ──────────────────
+    // Two different things, never blurred together:
+    //   1. The NBD Pledge — a PROMISE on every NBD job, every tier:
+    //      PLEDGE_PROMISE below. It is not a warranty term and is never
+    //      called a "lifetime workmanship warranty" (that would contradict
+    //      the written terms in 2).
+    //   2. A WRITTEN workmanship (labor) warranty whose length depends on the
+    //      package: TIER_LABOR_YEARS — the ONE tier→years map every
+    //      certificate, contract, proposal, estimate PDF and tier table reads
+    //      (through TIER_DISPLAY[t].warranty.workmanshipYears /
+    //      laborWarrantyLine()). Copies that exist for pages which never load
+    //      this file are pinned byte-for-byte by
+    //      tests/warranty-pledge-labor-years-2026-10-06.test.js.
+    // The manufacturer warranty is a third, separate line (tenant-rules.js
+    // manufacturerWarranty: per package + any extended warranty sold).
+    // Beyond (the fifth package) carries Elite's term, 20 years (Jo, 2026-10-06).
+    PLEDGE_PROMISE: 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right.',
+    TIER_LABOR_YEARS: Object.freeze({ economy: 1, good: 5, better: 10, best: 20, beyond: 20 }),
+
     // ── Customer-facing tier display (2026-09-09, Jo-confirmed) ──────
     // GBB tier audit (documentation/audit/GBB-TIER-SOURCE-OF-TRUTH-2026-09-09.md)
     // found the internal good/better/best keys above leaking to customers
@@ -237,6 +256,8 @@
     // schemas), but every CUSTOMER-FACING surface renders the tier through
     // TIER_DISPLAY instead of hardcoding its own label/warranty text.
     // Rep-facing/internal tool UI may keep saying Good/Better/Best.
+    // workmanshipYears is TIER_LABOR_YEARS (above), restated per tier.
+    //
     // The ONE customer-facing phrase for the GAF System Plus inclusion
     // (Standard/Preferred/Elite — TIER_DISPLAY[tier].warranty.systemPlus).
     // GAF's own framing: a manufacturer warranty on the GAF shingles and
@@ -247,7 +268,7 @@
     TIER_DISPLAY: Object.freeze({
       // Economy (Jo, 2026-10-02): "only one year labor warranty, and then
       // just the limited warranty from the shingle package itself — no
-      // system warranty." NOT the lifetime ladder the other tiers share.
+      // system warranty."
       economy: Object.freeze({
         label: 'Economy',
         warranty: Object.freeze({ workmanshipYears: 1, systemWarranty: false, transferable: false, transferWindowDays: 0, inspection: false })
@@ -261,24 +282,31 @@
       // keeps the maker's standard limited warranty; Beyond is TAMKO HailGuard.
       good: Object.freeze({
         label: 'Standard',
-        warranty: Object.freeze({ transferable: false, transferWindowDays: 0, inspection: false, systemPlus: true })
+        warranty: Object.freeze({ workmanshipYears: 5, transferable: false, transferWindowDays: 0, inspection: false, systemPlus: true })
       }),
       better: Object.freeze({
         label: 'Preferred',
-        warranty: Object.freeze({ transferable: true, transferWindowDays: 30, inspection: false, systemPlus: true })
+        warranty: Object.freeze({ workmanshipYears: 10, transferable: true, transferWindowDays: 30, inspection: false, systemPlus: true })
       }),
       best: Object.freeze({
         label: 'Elite',
-        warranty: Object.freeze({ transferable: true, transferWindowDays: 0, inspection: true, systemPlus: true })
+        warranty: Object.freeze({ workmanshipYears: 20, transferable: true, transferWindowDays: 0, inspection: true, systemPlus: true })
       }),
       // Beyond: Elite's workmanship terms, on TAMKO HailGuard — the only
       // shingle with a manufacturer hail warranty. No GAF System Plus (not a
       // GAF roof).
       beyond: Object.freeze({
         label: 'Beyond',
-        warranty: Object.freeze({ transferable: true, transferWindowDays: 0, inspection: true, hailWarranty: true })
+        warranty: Object.freeze({ workmanshipYears: 20, transferable: true, transferWindowDays: 0, inspection: true, hailWarranty: true })
       })
     }),
+
+    // laborWarrantyLine(key) -> "Written workmanship (labor) warranty: N years
+    // from the installation date" for NBD's package, '' for an unknown tier.
+    laborWarrantyLine: function (tier) {
+      var y = CFG.TIER_LABOR_YEARS[tier];
+      return y ? 'Written workmanship (labor) warranty: ' + y + (y === 1 ? ' year' : ' years') + ' from the installation date' : '';
+    },
 
     // tierLabel(key) -> the customer-facing name ('Standard'/'Preferred'/
     // 'Elite'). Falls back to a capitalized version of an unknown/legacy
@@ -295,24 +323,22 @@
     },
 
     // tierWarrantyText(key) -> the one sentence every generator should
-    // print for that tier's workmanship guarantee (lifetime + transferability
-    // model, replacing the 5/10/20-year scheme the audit found in 8+ places).
-    // Kept as one formatted string, not just the raw object, so the wording
-    // only ever needs to change here.
+    // print for that tier's WRITTEN workmanship (labor) warranty: its years
+    // (TIER_LABOR_YEARS) + transferability. Kept as one formatted string,
+    // not just the raw object, so the wording only ever needs to change here.
+    // The NBD Pledge is a separate line (PLEDGE_PROMISE), never folded in.
     tierWarrantyText: function (tier, builtin) {
       // A company's own warranty sentence (tenant-rules.js) wins; a company
       // that has not written one gets a neutral sentence, never NBD's
-      // lifetime ladder below (2026-10-04). NBD: null → unchanged.
+      // ladder below (2026-10-04). NBD: null → unchanged.
       var tr = builtin === true ? null : _tenantRules();
       var own = tr && typeof tr.warrantyTextOverride === 'function' ? tr.warrantyTextOverride(tier) : null;
       if (own != null) return own;
       var t = CFG.TIER_DISPLAY[tier];
-      if (!t) return 'Lifetime workmanship warranty.';
+      if (!t) return 'Written workmanship (labor) warranty per your package — see your estimate.';
       var w = t.warranty;
-      if (w.workmanshipYears) {
-        return w.workmanshipYears + '-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.';
-      }
-      var parts = ['Lifetime workmanship warranty'];
+      var y = w.workmanshipYears;
+      var parts = [y + '-year written workmanship (labor) warranty'];
       if (!w.transferable) {
         parts.push('does not transfer on sale of property');
       } else if (w.transferWindowDays) {
@@ -321,14 +347,14 @@
         parts.push('fully transferable — follows the property through all subsequent owners');
       }
       if (w.inspection) parts.push('annual courtesy inspection included');
+      if (w.systemWarranty === false) parts.push('the shingle manufacturer\'s standard limited warranty applies; no system warranty');
       if (w.systemPlus) parts.push(CFG.SYSTEM_PLUS_TEXT);
       if (w.hailWarranty) parts.push('plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply)');
       return parts.join('; ') + '.';
     },
 
-    // tierWarrantyBlurb(key) -> just the differentiator phrase (no "Lifetime
-    // workmanship warranty" prefix), for compact spots — tier cards, badges —
-    // where the duration is already stated once elsewhere on the page.
+    // tierWarrantyBlurb(key) -> the short form for compact spots — tier
+    // cards, badges: the labor years + the differentiator.
     tierWarrantyBlurb: function (tier, builtin) {
       var tr = builtin === true ? null : _tenantRules();
       var own = tr && typeof tr.warrantyBlurbOverride === 'function' ? tr.warrantyBlurbOverride(tier) : null;
@@ -336,12 +362,13 @@
       var t = CFG.TIER_DISPLAY[tier];
       if (!t) return '';
       var w = t.warranty;
-      if (w.workmanshipYears) return w.workmanshipYears + '-year labor warranty';
-      if (w.hailWarranty) return 'Fully transferable + annual inspection + hail warranty';
+      var yrs = w.workmanshipYears + '-year labor warranty';
+      if (w.systemWarranty === false) return yrs + ' · no system warranty';
+      if (w.hailWarranty) return yrs + ' · fully transferable + annual inspection + hail warranty';
       var sp = w.systemPlus ? ' + GAF System Plus' : '';
-      if (!w.transferable) return 'Non-transferable' + sp;
-      if (w.transferWindowDays) return 'Transferable to 1 subsequent owner' + sp;
-      return (w.inspection ? 'Fully transferable + annual inspection' : 'Fully transferable') + sp;
+      if (!w.transferable) return yrs + ' · non-transferable' + sp;
+      if (w.transferWindowDays) return yrs + ' · transferable to 1 subsequent owner' + sp;
+      return yrs + (w.inspection ? ' · fully transferable + annual inspection' : ' · fully transferable') + sp;
     },
 
     // ── Workmanship warranty by JOB TYPE (2026-09-25, Jo-confirmed) ──

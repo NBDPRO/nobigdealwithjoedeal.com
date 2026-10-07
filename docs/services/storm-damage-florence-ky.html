@@ -54,7 +54,7 @@
       "name": "How does the storm damage insurance claim process work for Florence, KY homeowners?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Kentucky storm damage claims follow the same insurer-adjuster process as Ohio claims. You report the damage to your carrier, they schedule an adjuster, the adjuster produces a scope of loss. My role is to document the damage first, attend the adjuster meeting, review the scope, and supplement anything that's missing. The process is the same whether you're in Florence or Cincinnati."
+        "text": "Kentucky storm damage claims follow the same insurer-adjuster process as Ohio claims. You report the damage to your carrier, they schedule an adjuster, the adjuster produces a scope of loss. My role is to document the damage first, meet the adjuster on the roof, check the scope against my estimate, and send a supplement (my updated estimate) for anything it missed. The claim stays yours. The process is the same whether you're in Florence or Cincinnati."
       }
     },
     {
@@ -70,7 +70,7 @@
       "name": "What should I do immediately after storm damage in Florence?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "It depends. With an active leak, get it tarped and report the damage promptly; otherwise, call Joe for a free inspection before calling your insurance company. The inspection creates the documentation package that your claim is built on — a weak documentation of damage leads to an underpaid claim. I also provide emergency tarping if interior protection is needed while the claim is pending."
+        "text": "It depends. With an active leak, get it tarped and report the damage promptly; otherwise, call Joe for a free inspection before calling your insurance company. The inspection creates the documentation package that your claim is built on — thin documentation gives the adjuster less to go on. I also provide emergency tarping if interior protection is needed while the claim is pending."
       }
     },
     {
@@ -194,7 +194,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -210,7 +210,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -267,6 +267,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -289,6 +290,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -487,7 +489,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div class="combo-hero-content">
     <div class="combo-badge">📍 Serving Florence, KY — Boone County</div>
     <h1>Wind &amp; Storm Damage Repair<br>in <span>Florence, KY</span></h1>
-    <p>Florence sits in Boone County along the I-75 corridor, and its NOAA storm record since 2019 includes an <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1340869" target="_blank" rel="noopener">EF1 tornado from Limaburg to Florence on June 17, 2026</a> and 1.75-inch hail near Burlington on June 18, 2021. Kentucky storm damage claims follow the same insurer-adjuster-supplement process as Ohio. I handle both sides of the river with equal experience.</p>
+    <p>Florence sits in Boone County along the I-75 corridor, and its NOAA storm record since 2019 includes an <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1340869" target="_blank" rel="noopener">EF1 tornado from Limaburg to Florence on June 17, 2026</a> and 1.75-inch hail near Burlington on June 18, 2021. Kentucky storm damage claims follow the same insurer-and-adjuster process as Ohio: you file the claim, and I document the damage and meet the adjuster on the roof, on both sides of the river.</p>
     <div class="hero-btns svc-cta"><a href="/inspect" class="btn-primary">Book a free inspection</a></div>
     <p class="svc-alt">Leak right now? <a href="tel:+18594207382">Call Joe — (859) 420-7382</a></p>
   </div>
@@ -520,7 +522,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div class="section-inner">
     <div class="local-box">
       <h2>⛈️ Storm Damage Repair in Florence, KY</h2>
-      <p>Florence sits in Boone County along the I-75 corridor, and its NOAA storm record since 2019 includes an <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1340869" target="_blank" rel="noopener">EF1 tornado from Limaburg to Florence on June 17, 2026</a> and 1.75-inch hail near Burlington on June 18, 2021. Kentucky storm damage claims follow the same insurer/adjuster/supplement process as Ohio — I handle both sides of the river with equal experience. For Florence's significant investor and rental property population, I coordinate with property owners and managers directly, keeping out-of-area owners informed without requiring on-site presence during the inspection and adjuster process.</p>
+      <p>Florence sits in Boone County along the I-75 corridor, and its NOAA storm record since 2019 includes an <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1340869" target="_blank" rel="noopener">EF1 tornado from Limaburg to Florence on June 17, 2026</a> and 1.75-inch hail near Burlington on June 18, 2021. Kentucky storm damage claims follow the same insurer-and-adjuster process as Ohio: you file the claim, and I document the damage and meet the adjuster on the roof, on both sides of the river. For Florence's significant investor and rental property population, I coordinate with property owners and managers directly, keeping out-of-area owners informed without requiring on-site presence during the inspection and adjuster process.</p>
     </div>
 
     <p style="font-size:.88rem;color:var(--gray);line-height:1.7;margin-top:16px">Who to call first after storm damage in Florence depends: with an active leak, get it tarped and report the damage promptly; otherwise, the first call should be to Joe. The free inspection builds the documentation package that your claim depends on. I photograph every impact point on the roof, all gutter damage, siding hits, and soft metal dents that establish the storm event on your property. That documentation goes into the claim file and supports a complete scope of loss when the adjuster arrives.</p>
@@ -539,7 +541,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <div class="inc-item"><span class="inc-check">✓</span> Emergency tarp installation if interior is at risk</div>
       <div class="inc-item"><span class="inc-check">✓</span> <span>Leak-damaged drywall and ceilings replaced by my <a href="/services/interior-repair" style="color:#A14A22;font-weight:700;text-decoration:underline">interior crew</a> once the roof is fixed</span></div>
       <div class="inc-item"><span class="inc-check">✓</span> Kentucky claim documentation and adjuster meeting on site</div>
-      <div class="inc-item"><span class="inc-check">✓</span> Supplement documentation if initial adjuster scope is underpaid</div>
+      <div class="inc-item"><span class="inc-check">✓</span> Supplement (my updated estimate) if the adjuster's scope misses damage</div>
       <div class="inc-item"><span class="inc-check">✓</span> Full repair or replacement using materials matched to original spec</div>
       <div class="inc-item"><span class="inc-check">✓</span> Post-repair inspection and photo documentation</div>
       <div class="inc-item"><span class="inc-check">✓</span> NBD Lifetime Pledge on all installed work</div>
@@ -558,7 +560,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       </div>
       <div class="faq-item">
         <div class="faq-q">How does the storm damage insurance claim process work for Florence, KY homeowners? <span class="faq-arrow">▸</span></div>
-        <div class="faq-a">Kentucky storm damage claims follow the same insurer-adjuster process as Ohio claims. You report the damage to your carrier, they schedule an adjuster, the adjuster produces a scope of loss. My role is to document the damage first, attend the adjuster meeting, review the scope, and supplement anything that's missing. The process is the same whether you're in Florence or Cincinnati.</div>
+        <div class="faq-a">Kentucky storm damage claims follow the same insurer-adjuster process as Ohio claims. You report the damage to your carrier, they schedule an adjuster, the adjuster produces a scope of loss. My role is to document the damage first, meet the adjuster on the roof, check the scope against my estimate, and send a supplement (my updated estimate) for anything it missed. The claim stays yours. The process is the same whether you're in Florence or Cincinnati.</div>
       </div>
       <div class="faq-item">
         <div class="faq-q">Does Florence, KY get significant storm damage? <span class="faq-arrow">▸</span></div>
@@ -566,7 +568,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       </div>
       <div class="faq-item">
         <div class="faq-q">What should I do immediately after storm damage in Florence? <span class="faq-arrow">▸</span></div>
-        <div class="faq-a">It depends. With an active leak, get it tarped and report the damage promptly; otherwise, call Joe for a free inspection before calling your insurance company. The inspection creates the documentation package that your claim is built on — a weak documentation of damage leads to an underpaid claim. I also provide emergency tarping if interior protection is needed while the claim is pending.</div>
+        <div class="faq-a">It depends. With an active leak, get it tarped and report the damage promptly; otherwise, call Joe for a free inspection before calling your insurance company. The inspection creates the documentation package that your claim is built on — thin documentation gives the adjuster less to go on. I also provide emergency tarping if interior protection is needed while the claim is pending.</div>
       </div>
       <div class="faq-item">
         <div class="faq-q">Can Joe work on storm damage claims for Florence investor-owned and rental properties? <span class="faq-arrow">▸</span></div>
