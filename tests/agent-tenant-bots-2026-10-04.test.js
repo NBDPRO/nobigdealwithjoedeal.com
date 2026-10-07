@@ -92,6 +92,9 @@ const serverTimestamp = () => { const t = Date.now(); return { toMillis: () => t
 const origLoad = Module._load;
 Module._load = function (request, parent, isMain) {
   if (request === 'firebase-admin/firestore') return { getFirestore: () => DB, FieldValue: { serverTimestamp } };
+  // R3-1 (2026-10-06): crmMcp re-checks every key's creator in Auth. Each
+  // test identity is an enabled member carrying its own claims.
+  if (request === 'firebase-admin/auth') return { getAuth: () => ({ getUser: async (uid) => { const w = Object.values(who).find((x) => x.uid === uid); return { uid, disabled: false, customClaims: w ? w.token : {} }; } }) };
   if (/upstash-ratelimit$/.test(request)) return { enforceRateLimit: async () => ({ count: 1 }) };
   return origLoad.apply(this, arguments);
 };
