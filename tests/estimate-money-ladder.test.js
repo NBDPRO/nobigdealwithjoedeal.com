@@ -97,8 +97,10 @@ console.log('ESTIMATE MONEY LADDER — two shapes, never a $0 stamp');
   const inv = decomment(read('invoice-pipeline.js'));
   ok('invoice total is a two-shape read',
     /estimateValue\(est\)/.test(inv) && !/const savedGrand = Number\(est\.grandTotal\);/.test(inv));
+  // R6-2-1 (2026-10-07): non-empty rows win, else lineItems — behaviour is
+  // driven in tests/preflight-save-to-estimate-r6-2026-10-07.test.js.
   ok('invoice line items read Classic lineItems as well as V2 rows',
-    /est\.rows \|\| est\.lineItems/.test(inv));
+    /const src = useRows \? est\.rows : \(\(est && Array\.isArray\(est\.lineItems\)\) \? est\.lineItems : \[\]\);/.test(inv));
   ok('a $0 invoice can never be persisted',
     /Number\(invoiceData\.total\) > 0/.test(inv) && /throw new Error/.test(inv),
     'the backstop must sit before addDoc');

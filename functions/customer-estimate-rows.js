@@ -222,8 +222,13 @@
       return shape({ code: r.code, desc: r.desc, unit: 'ea', qty: 1, rate: r.total, total: r.total });
     }
 
-    // Classic estimates already carry the customer-facing ladder.
-    if (Array.isArray(est.lineItems) && est.lineItems.length) {
+    // Classic estimates already carry the customer-facing ladder. A doc that
+    // ALSO has rows is a builder estimate whose lineItems were written by doc
+    // pre-flight's old "Save to estimate" (review R6-2-1, 2026-10-07): the
+    // contract, estimate link, invoice and portal all print its rows, so the
+    // document line items do too — one set of lines on every surface.
+    const hasRows = Array.isArray(est.rows) && est.rows.length > 0;
+    if (!hasRows && Array.isArray(est.lineItems) && est.lineItems.length) {
       const lines = est.lineItems.map(function (it) {
         if (it && (it.code === 'TAX' || it.code === 'ADJ')) return null; // a footing row saved back from pre-flight
         const qty = numFrom(it.quantity != null ? it.quantity : it.qty);
