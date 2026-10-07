@@ -216,7 +216,7 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
     // Marked sent: the buttons go away, and a second tap is impossible.
     await expect(page.locator('#invoiceList [data-send-receipt]')).toHaveCount(0, { timeout: 20_000 });
     const sent = await safeEvaluate(page, async (invId) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const d = await fs.getDoc(fs.doc(window.db, 'invoices', invId));
       return ((d.data().payments || [])[0] || {}).receipt || null;
     }, inv[0].id);

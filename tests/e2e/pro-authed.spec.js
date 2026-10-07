@@ -528,7 +528,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
         }
       }
       // A real lead of the signed-in user for the invoice to bind to.
-      const fsLead = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsLead = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const dbLead = window.db || window._db;
       const uidLead = (window._auth || window.auth).currentUser.uid;
       const tokLead = await (window._auth || window.auth).currentUser.getIdTokenResult();
@@ -621,7 +621,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
       // review) a photo may only name a lead the writer can reach, so a
       // made-up leadId is refused at create (PERMISSION_DENIED) — same fix
       // as the invoice journey above.
-      const fsLead = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsLead = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const dbLead = window.db || window._db;
       const uidLead = (window._auth || window.auth).currentUser.uid;
       const tokLead = await (window._auth || window.auth).currentUser.getIdTokenResult();
@@ -687,7 +687,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
       const file = new File([blob], 'e2e_dash.jpg', { type: 'image/jpeg' });
 
       // A real lead (#2220 photo lead binding — see the leg above).
-      const fsLead = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsLead = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const dbLead = window.db || window._db;
       const uidLead = (window._auth || window.auth).currentUser.uid;
       const tokLead = await (window._auth || window.auth).currentUser.getIdTokenResult();
