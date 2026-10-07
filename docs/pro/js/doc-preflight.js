@@ -2896,6 +2896,12 @@
    * Save the current line-items state back onto the underlying estimate document.
    */
   async function saveLineItemsToEstimate(fieldKey) {
+    // These lines came from the SIGNED price (review R6-2-2): saving them back
+    // would overwrite the rep's unsigned revision with the signed scope.
+    if (state.signedBill) {
+      toast('These lines are the signed price. Change the estimate in the builder, then have the homeowner re-sign.', 'error');
+      return;
+    }
     var est = pickPreflightEstimate();
     if (!est || !est.id) {
       toast('No estimate found to update.', 'error');
@@ -2997,6 +3003,17 @@
     // Hydrate context
     var lead = window._leadDoc || {};
     var estimate = pickPreflightEstimate() || null;
+    // A bill (invoice / receipt) charges the SIGNED price until the homeowner
+    // re-signs, however the estimate was edited since (review R6-2-2, Jo
+    // 2026-10-07 — customer-estimate-rows.js signedView). Every other document
+    // (a contract for the re-sign, a proposal) reads the estimate as saved.
+    var signedBill = false;
+    var _sp = window.NBDCustomerEstimateRows;
+    if (estimate && (type === 'invoice' || type === 'receipt') && _sp && typeof _sp.hasUnsignedChanges === 'function'
+        && _sp.hasUnsignedChanges(estimate)) {
+      estimate = _sp.signedView(estimate);
+      signedBill = true;
+    }
     var photos = window._allPhotos || [];
     var overrides = (lead.docOverrides && lead.docOverrides[type]) || {};
 
@@ -3067,6 +3084,7 @@
     state.softAck = false;
     state.softIssues = [];
     state.estimate = estimate;
+    state.signedBill = signedBill;
     state.legalNotes = collectLegalNotes();
 
     // Seed signers from the template's defaultSigners (declared on the

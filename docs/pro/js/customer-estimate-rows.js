@@ -520,6 +520,133 @@
     return result(null, text);
   }
 
+  // ── Signed price (review R6-2-2 / R6-2-5; Jo's rules, 2026-10-07) ────────
+  // A signed estimate stays editable, but the SIGNED price is what every bill
+  // charges (deposit + final drafts, invoices, the portal's amount, Stripe)
+  // until the homeowner re-signs. When a signature lands, the server stamps
+  // estimates/{id}.signedPrice (functions/signed-price.js; the field is
+  // server-only in firestore.rules):
+  //   { fields: <the priced fields below, as signed>, fingerprint, totalCents,
+  //     source, sourceId, at }
+  // Billing readers read signedView(est): the estimate with its priced fields
+  // put back to what was signed. Everything else (the builder, the estimate
+  // link, the contract for a re-sign) keeps reading the estimate as saved.
+  // pricedFingerprint is the version of an estimate's price: a signed
+  // estimate whose fingerprint moved has changes the homeowner never signed,
+  // and a deal-room link carries the fingerprint it was issued at.
+  const PRICED_FIELDS = [
+    'grandTotal', 'total', 'amount', 'subtotal', 'tax', 'taxAmount', 'taxRate',
+    'rows', 'lineItems', 'prices', 'priceMode', 'tier', 'selectedTier', 'tierName',
+    'tierApplies', 'builder', 'sourceTemplates', 'materialMarkupPct', 'overhead',
+    'profit', 'overheadPct', 'profitPct', 'minJobApplied', 'mode', 'jobMode',
+    'claim', 'deposit', 'depositPlan', 'depositPctOverride', 'depositOverridePct',
+  ];
+  // Carried with the signed price, but not part of its version: the deposit
+  // stamp is derived from the price (and carries display text).
+  const UNVERSIONED = { deposit: true, depositPlan: true };
+
+  // Only the claim's money inputs are priced (the deposit rule's deductible +
+  // ACV); its carrier / claim number are not, and stay as saved.
+  function _claimMoney(c) {
+    if (!c || typeof c !== 'object') return null;
+    const n = function (v) { const x = Number(v); return (v == null || v === '' || !isFinite(x)) ? null : x; };
+    return { deductible: n(c.deductible), acv: n(c.acv) };
+  }
+
+  // Canonical JSON: keys sorted, timestamps as millis, undefined dropped, so
+  // the browser and the admin SDK hash the same document identically.
+  function _canon(v) {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number') return isFinite(v) ? v : null;
+    if (typeof v !== 'object') return v;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (Array.isArray(v)) return v.map(_canon);
+    const out = {};
+    Object.keys(v).sort().forEach(function (k) {
+      if (v[k] !== undefined) out[k] = _canon(v[k]);
+    });
+    return out;
+  }
+
+  // cyrb53 — a small, dependency-free 53-bit string hash (browser + Node alike).
+  function _hash53(str) {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);
+  }
+
+  /** The priced fields of an estimate, as they would be signed (present keys only). */
+  function signedPriceSnapshot(est) {
+    const out = {};
+    if (!est || typeof est !== 'object') return out;
+    PRICED_FIELDS.forEach(function (k) {
+      if (est[k] === undefined) return;
+      out[k] = (k === 'claim') ? _claimMoney(est[k]) : est[k];
+    });
+    return out;
+  }
+
+  /** The version of an estimate's price — changes when any priced field does. */
+  function pricedFingerprint(est) {
+    const snap = signedPriceSnapshot(est);
+    const versioned = {};
+    Object.keys(snap).forEach(function (k) { if (!UNVERSIONED[k]) versioned[k] = snap[k]; });
+    return 'p1-' + _hash53(JSON.stringify(_canon(versioned)));
+  }
+
+  function _signed(est) {
+    const sp = est && est.signedPrice;
+    return (sp && typeof sp === 'object' && sp.fields && typeof sp.fields === 'object') ? sp : null;
+  }
+
+  /** Has this estimate been signed (a server-stamped signed price)? */
+  function hasSignedPrice(est) { return !!_signed(est); }
+
+  /**
+   * The estimate as SIGNED: every priced field put back to the signed copy
+   * (a field the signed copy did not have is removed, so a line list added
+   * after signing cannot leak into a bill). No signed price → est unchanged.
+   */
+  function signedView(est) {
+    const sp = _signed(est);
+    if (!sp) return est;
+    const out = Object.assign({}, est);
+    PRICED_FIELDS.forEach(function (k) {
+      if (k === 'claim') {
+        if (sp.fields.claim && typeof sp.fields.claim === 'object') {
+          out.claim = Object.assign({}, (est.claim && typeof est.claim === 'object') ? est.claim : {}, sp.fields.claim);
+        }
+        return;
+      }
+      if (Object.prototype.hasOwnProperty.call(sp.fields, k)) out[k] = sp.fields[k];
+      else delete out[k];
+    });
+    return out;
+  }
+
+  /** Signed, then re-priced: the saved estimate is not what the homeowner signed. */
+  function hasUnsignedChanges(est) {
+    const sp = _signed(est);
+    if (!sp) return false;
+    return pricedFingerprint(est) !== (sp.fingerprint || pricedFingerprint(signedView(est)));
+  }
+
+  /** The signed total in cents, or null when the estimate has no signed price. */
+  function signedTotalCents(est) {
+    const sp = _signed(est);
+    if (!sp) return null;
+    if (Number.isFinite(Number(sp.totalCents)) && Number(sp.totalCents) > 0) return Math.round(Number(sp.totalCents));
+    const v = estimateValue(signedView(est));
+    return v > 0 ? Math.round(v * 100) : null;
+  }
+  // ── end signed price ──
+
   const _api = {
     buildDocLineItems: buildDocLineItems,
     buildDisplayRows: buildDisplayRows,
@@ -532,6 +659,13 @@
     WORKMANSHIP_WARRANTY_FALLBACK: WORKMANSHIP_WARRANTY_FALLBACK,
     ROOFING_TEMPLATE_ID_RE: ROOFING_TEMPLATE_ID_RE,
     LEGACY_WARRANTY_BY_ID: LEGACY_WARRANTY_BY_ID,
+    PRICED_FIELDS: PRICED_FIELDS,
+    signedPriceSnapshot: signedPriceSnapshot,
+    pricedFingerprint: pricedFingerprint,
+    hasSignedPrice: hasSignedPrice,
+    signedView: signedView,
+    hasUnsignedChanges: hasUnsignedChanges,
+    signedTotalCents: signedTotalCents,
   };
   if (typeof window !== 'undefined') {
     window.NBDCustomerEstimateRows = _api;

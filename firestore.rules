@@ -1061,14 +1061,21 @@ service cloud.firestore {
       // owner could rewrite userId/createdBy or spoof viewCount/viewedAt to fake
       // engagement). The edit payload (_buildSavePayload) carries none of these
       // keys, so normal edits pass `didNotChange`. Mirrors the /expenses guard.
+      // signedPrice (review R6-2-2, Jo 2026-10-07) is the price the homeowner
+      // SIGNED, which every bill charges until they re-sign. Only the server
+      // stamps it, when a signature lands (functions/signed-price.js), so a
+      // client can neither change nor remove it — an edit re-prices the
+      // estimate, never what was signed — and can't create an estimate
+      // carrying one (below).
       allow update: if (isOwner(resource.data.userId) && notViewer()
-            && didNotChange(['userId', 'companyId', 'createdBy', 'createdAt', 'viewedAt', 'viewCount', 'lastViewedAt', 'lastViewedVia']))
+            && didNotChange(['userId', 'companyId', 'createdBy', 'createdAt', 'viewedAt', 'viewCount', 'lastViewedAt', 'lastViewedVia', 'signedPrice']))
         || isAdmin();
       // companyId (when present) must be the caller's tenant — pins it so an
       // owner can't stamp a VICTIM tenant's companyId and inject an estimate
       // into that team's company-scoped rollups. Absent is allowed (legacy /
       // solo clients that don't stamp); '== uid' is the solo convention.
       allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
+        && !('signedPrice' in request.resource.data)
         && (request.resource.data.get('companyId', '') == ''
             || request.resource.data.companyId == request.auth.token.get('companyId', '')
             || (request.auth.token.get('companyId', '') == ''
