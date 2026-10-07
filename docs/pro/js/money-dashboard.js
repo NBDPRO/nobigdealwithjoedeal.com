@@ -212,17 +212,27 @@
     var now = data.now ? toJSDate(data.now) : new Date();
     var agingCents = { current: 0, d1_30: 0, d31_60: 0, d61_plus: 0 };
     var collectionsQueue = [];
+    var J = data.jurisdiction || (typeof window !== 'undefined' ? window.NBDJurisdiction : null);
+    var tz = data.timeZone;
+    if (tz === undefined && J && typeof J.resolveTimeZone === 'function' && typeof window !== 'undefined') {
+      try { tz = J.resolveTimeZone(typeof window._legal === 'function' ? window._legal() : (window._companyProfile || {})); } catch (_) { tz = undefined; }
+    }
     invoices.forEach(function (inv) {
       var balC = Math.round(owedDollarsOf(inv) * 100);
       if (balC <= 0) return;
-      var due = toJSDate(inv.dueDate);
-      var daysPastDue = due ? Math.floor((now.getTime() - due.getTime()) / 86400000) : 0;
+      var lead = (inv.leadId && Array.isArray(leads)) ? leads.find(function (l) { return l && l.id === inv.leadId; }) : null;
+      // THE overdue rule (ky-insurance-law.js invoiceOverdue — the server's
+      // task, the Invoices tab and Today's plan agree): days past due count
+      // tenant calendar days after the due date, and a Kentucky insurance
+      // invoice inside its KRS 367.626 window is never past due (it stays
+      // 'current' and out of Collections). No module → nothing past due.
+      var st = (J && typeof J.invoiceOverdue === 'function') ? J.invoiceOverdue(inv, lead, now, tz) : null;
+      var daysPastDue = st ? st.days : 0;
       var bucket = daysPastDue <= 0 ? 'current' : daysPastDue <= 30 ? 'd1_30' : daysPastDue <= 60 ? 'd31_60' : 'd61_plus';
       agingCents[bucket] += balC;
       // Freeform-pipeline-safe: reads the LINKED lead's own current stage
       // (not a hardcoded string) so a tenant that renamed/relocated the
       // built-in 'collections' stage still shows the right badge.
-      var lead = (inv.leadId && Array.isArray(leads)) ? leads.find(function (l) { return l && l.id === inv.leadId; }) : null;
       collectionsQueue.push({
         id: inv.id || null,
         leadId: inv.leadId || null,
@@ -236,6 +246,7 @@
         dueDate: inv.dueDate || null,
         daysPastDue: daysPastDue,
         bucket: bucket,
+        kyHold: !!(st && st.held),
         inCollections: !!lead && (lead._stageKey || lead.stage) === 'collections',
         // Set by invoice-reminder.js on a real send (2026-10-01).
         lastReminderAt: inv.lastReminderAt || null,

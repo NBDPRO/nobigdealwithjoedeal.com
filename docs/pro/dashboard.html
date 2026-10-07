@@ -6930,7 +6930,7 @@
 <script defer src="js/schedule-window-ui.js?v=1"></script>
 <!-- Today (2026-10-03): the pure plan + THE follow-up rule (followUpDue) that
      crm-pipeline / crm-snooze / analytics-kpi read — before them. -->
-<script defer src="js/today-plan.js?v=1"></script>
+<script defer src="js/today-plan.js?v=2"></script>
 <script defer src="js/crm-leads.js?v=9"></script>
 <!-- Multi-job (2026-09-30): a customer's jobs; crm-pipeline renders one card per open job. -->
 <script defer src="js/jobs-store.js?v=4"></script>
@@ -6949,7 +6949,8 @@
 <script defer src="js/crm.js?v=35"></script>
 <script defer src="js/crm-list-view.js?v=9"></script>
 <script defer src="js/tasks.js?v=7"></script>
-<script defer src="js/dol-fill.js?v=2"></script>
+<script defer src="js/storm-time.js?v=1"></script>
+<script defer src="js/dol-fill.js?v=3"></script>
 <script defer src="js/notif-bell.js?v=7"></script>
 <script defer src="js/agent-inbox.js?v=8"></script>
 <script defer src="js/agent-bots-settings.js?v=3"></script>
@@ -7009,8 +7010,8 @@
 <script defer src="js/numbers-logic.js?v=1"></script>
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
-<script defer src="js/widgets.js?v=14"></script>
-<script defer src="js/today-home.js?v=2"></script>
+<script defer src="js/widgets.js?v=15"></script>
+<script defer src="js/today-home.js?v=3"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=3"></script>
 <script defer src="js/ui.js?v=9"></script>
@@ -7056,7 +7057,7 @@
 <script defer src="js/smart-calendar.js?v=5"></script>
 <script defer src="js/calendar-feed-ui.js?v=1"></script>
 <script defer src="js/google-calendar-ui.js?v=6"></script>
-<script defer src="js/d2d-storm-layer.js?v=1"></script>
+<script defer src="js/d2d-storm-layer.js?v=2"></script>
 <script defer src="js/schedule-planner-logic.js?v=2"></script>
 <script defer src="js/production-logic.js?v=1"></script>
 <script defer src="js/production.js?v=2"></script>
@@ -7066,7 +7067,7 @@
      activity entry, and auto-create tasks from extracted action items.
      Loaded after voice-memo.js (sibling module) — they coexist; this
      adds the summary + upload + auto-task layer. -->
-<script defer src="js/voicemail.js?v=3"></script>
+<script defer src="js/voicemail.js?v=4"></script>
 <!-- estimate-config.js MUST load before estimates.js + estimate-builder-v2.js;
      it exposes window.NBD_ESTIMATE_CONFIG which both engines read. -->
 <script defer src="js/estimate-config.js?v=8"></script>
@@ -7074,12 +7075,12 @@
      invoice, Job Template and Close Board deal reads. Eager and small; after
      estimate-config (its thresholds) and before company-profile.js (whose
      payment-terms defaults are the rule's own sentence). -->
-<script defer src="js/deposit-rule.js?v=4"></script>
+<script defer src="js/deposit-rule.js?v=5"></script>
 <!-- ky-insurance-law.js (2026-09-27): which law a contract is written under —
      Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
      Cancellation, no AOB. Eager: the docgen bundle, the Next Actions panel and
      the Close Board deal room all read it. -->
-<script defer src="js/ky-insurance-law.js?v=5"></script>
+<script defer src="js/ky-insurance-law.js?v=6"></script>
 <!-- LAZY: estimates.js + the rest of the estimate engine load via ScriptLoader's
      `estimates` bundle (PR 2c). estimate-config stays eager (prerequisite read
      at load by the builder). -->

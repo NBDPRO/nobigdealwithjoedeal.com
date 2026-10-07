@@ -44,6 +44,22 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   }
   // nbd:owed-rule:end
 
+  // The tenant's timezone for date rules (functions/stripe.js passes
+  // KyLaw.resolveTimeZone(companyProfile) server-side — same here).
+  function _tenantTz() {
+    const J = window.NBDJurisdiction;
+    if (!J || typeof J.resolveTimeZone !== 'function') return undefined;
+    try { return J.resolveTimeZone(typeof window._legal === 'function' ? window._legal() : (window._companyProfile || {})); } catch (_) { return undefined; }
+  }
+  // THE overdue rule (ky-insurance-law.js invoiceOverdue). Without the module
+  // nothing is called overdue rather than guessing with a second rule.
+  function _overdueNow(inv, now) {
+    const J = window.NBDJurisdiction;
+    if (!J || typeof J.invoiceOverdue !== 'function') return false;
+    const lead = inv && inv.leadId ? (window._leads || []).find((l) => l && l.id === inv.leadId) || null : null;
+    return J.invoiceOverdue(inv, lead, now || new Date(), _tenantTz()).overdue;
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // UTILITIES
   // ═══════════════════════════════════════════════════════════════════════
@@ -346,7 +362,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       } catch (_) { lead = null; }
       if (!lead) return '';
     }
-    return J.payUrlUnlessHeld(lead, invoice, (deps && deps.now) || new Date());
+    return J.payUrlUnlessHeld(lead, invoice, (deps && deps.now) || new Date(), _tenantTz());
   }
   // The Zelle line for a homeowner message (2026-10-04): the company's Zelle
   // pair, under the SAME Kentucky hold as the pay link — Zelle is a way to
@@ -1934,6 +1950,17 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       updatedAt: now,
     };
     if (priorStatus === 'draft' || !(inv && inv.sentAt)) patch.sentAt = now;
+    // A draft's dueDate was stamped when it was DRAFTED (deposit-draft-logic,
+    // createInvoice): first send restarts the 7-day clock, so a final drafted
+    // at install and sent 11 days later is not "5 days past due" the next
+    // morning (review round 4 R4-6-4). A Stripe invoice carries its own due
+    // date (days_until_due) and is left alone.
+    const _stripeInv = !!(inv && (inv.stripeInvoiceKind === 'invoice' || inv.stripeHostedUrl));
+    const _dr = (typeof window !== 'undefined' && window.NBDDepositRule) || null;
+    if (priorStatus === 'draft' && !(inv && inv.sentAt) && !_stripeInv) {
+      const _nowMs = now instanceof Date ? now.getTime() : Number(now);
+      patch.dueDate = new Date(_dr ? _dr.invoiceDueDateMs(_nowMs) : _nowMs + 7 * 86400000);
+    }
     return patch;
   }
 
@@ -2758,7 +2785,10 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       invoices.forEach(inv => {
         const dueDate = new Date(inv.dueDate?.toDate?.() || inv.dueDate);
         // Only an owed invoice can be overdue — a void/draft/cancelled row is not.
-        const isOverdue = isOwedInvoice(inv) && dueDate < new Date();
+        // THE overdue rule (ky-insurance-law.js invoiceOverdue — the server's
+        // task, Money and Today's plan agree): the tenant-zone day after the
+        // due date, never while the Kentucky pay hold applies.
+        const isOverdue = isOwedInvoice(inv) && _overdueNow(inv);
         const statusBg = inv.status === 'paid' ? 'var(--green)' : isOverdue ? 'var(--red)' : 'var(--blue)';
 
         html += `

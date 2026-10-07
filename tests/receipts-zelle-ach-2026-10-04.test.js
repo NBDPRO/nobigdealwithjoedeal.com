@@ -431,7 +431,7 @@ function serverDb(seed) {
     const ct = read('docs/pro/js/customer-tasks-ui.js');
     ok('customer page: "Pay by bank (ACH) — lower fees" right under the Pay link, and an ACH in flight shows',
       /class="doc-btn">Pay<\/a>\s*\$\{\(typeof window\._isNbdPlatformTenant === 'function' && window\._isNbdPlatformTenant\(\) === true\) \? '<div class="invoice-paynote" data-pay-by-bank>Pay by bank \(ACH\) — lower fees<\/div>' : ''\}/.test(ct) && /data-ach-pending/.test(ct));
-    ok('customer page: the Pay link still only through the Kentucky hold', /_J\.payUrlUnlessHeld\(_payLead, inv, new Date\(\)\)/.test(ct));
+    ok('customer page: the Pay link still only through the Kentucky hold', /_J\.payUrlUnlessHeld\(_payLead, inv, new Date\(\)[,)]/.test(ct)); // #2268 added the tenant time-zone arg
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

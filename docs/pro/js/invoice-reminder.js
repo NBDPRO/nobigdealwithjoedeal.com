@@ -54,7 +54,6 @@
     var hold = (typeof opts.holdFn === 'function') ? (opts.holdFn(lead || null, inv, now) || {}) : {};
     var balance = (inv.balanceDue != null && inv.balanceDue !== '') ? Number(inv.balanceDue) : Number(inv.total) || 0;
     var due = toDate(inv.dueDate);
-    var daysPastDue = due ? Math.floor((now.getTime() - due.getTime()) / 86400000) : 0;
     var num = inv.nbdInvoiceNumber || inv.stripeInvoiceNumber || '';
     var company = opts.company || 'us';
     var who = firstName(inv, lead);
@@ -62,6 +61,10 @@
     // Stripe Invoice) — this read only the first, so a Stripe-invoice
     // reminder never carried its link. No module → no link (fail closed).
     var J = jurisdiction(opts);
+    // Days past due by THE overdue rule (ky-insurance-law.js invoiceOverdue:
+    // tenant calendar days after the due date, 0 under the Kentucky hold) —
+    // the same count Money's Collections list shows.
+    var daysPastDue = (J && typeof J.invoiceOverdue === 'function') ? J.invoiceOverdue(inv, lead || null, now, opts.timeZone).days : 0;
     var link = hold.held ? '' : ((J && typeof J.payUrlOf === 'function') ? J.payUrlOf(inv) : '');
     var dueText = due ? due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
     var line1 = (who ? 'Hi ' + who + ', ' : 'Hi, ') + 'a friendly reminder from ' + company + ': invoice'
@@ -145,7 +148,7 @@
       if (IPz && typeof IPz.zelleTextFor === 'function') zelleText = IPz.zelleTextFor(br);
     } catch (_) { zelleText = ''; }
     var r = buildReminder(inv, lead, {
-      company: companyName(), repName: repName(), now: new Date(), zelle: zelleText,
+      company: companyName(), repName: repName(), now: new Date(), timeZone: tz, zelle: zelleText,
       payByBank: (function () { try { return typeof root._isNbdPlatformTenant === 'function' && root._isNbdPlatformTenant() === true; } catch (_) { return false; } })(),
       holdFn: function (l, i, n) { return J.payLinkHold(l, i, n, tz); },
     });

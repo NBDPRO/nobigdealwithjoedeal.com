@@ -495,13 +495,17 @@
         var cents = Math.round(o.owedDollarsOf(inv) * 100);
         if (!(cents > 0)) return;
         var lead = inv.leadId ? byId.get(String(inv.leadId)) : null;
-        var dueMs = toMs(inv.dueDate);
+        // THE overdue rule (ky-insurance-law.js invoiceOverdue, injected as
+        // o.invoiceOverdue): the tenant-zone day after the due date, never
+        // while the Kentucky pay hold applies — the same answer as the server
+        // task, the Invoices tab and Money.
+        var st = typeof o.invoiceOverdue === 'function' ? o.invoiceOverdue(inv, lead, new Date(now), o.tz) : null;
         money.push({
           key: 'inv:' + inv.id, kind: 'invoice', invoiceId: inv.id, leadId: lead ? String(lead.id) : (inv.leadId || null),
           name: (lead && leadName(lead)) || String(inv.customerName || inv.billToName || '').trim() || 'Invoice',
           phone: digits10(lead && (lead.phone || lead.phoneDigits)),
           cents: cents, number: String(inv.invoiceNumber || inv.number || ''),
-          overdue: String(inv.status || '').toLowerCase() === 'overdue' || (dueMs != null && dueMs < startOfLocalDay(now)),
+          overdue: st ? (st.overdue || (String(inv.status || '').toLowerCase() === 'overdue' && !st.held)) : String(inv.status || '').toLowerCase() === 'overdue',
         });
       });
     }

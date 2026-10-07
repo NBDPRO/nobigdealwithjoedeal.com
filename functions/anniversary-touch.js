@@ -138,7 +138,8 @@ function timestampMillis(t) {
 
 function fmtMonthDay(ms) {
   if (!ms) return '';
-  return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  // Eastern (the server runs in UTC: a 9:30pm win printed as the next day).
+  return new Date(ms).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function buildEmailHtml({ firstName, anniversaries }) {
