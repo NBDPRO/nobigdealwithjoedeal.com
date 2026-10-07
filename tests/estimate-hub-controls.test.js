@@ -65,11 +65,26 @@ const HUB_CODE = decomment(HUB);
 
 // ── 1. The destructive control says what it does ──────────────────────
 {
-  ok('the destructive button is not labelled "Archive"',
-    !/>🗄 Archive</.test(HUB_CODE),
-    'an archive-box label on a deleteDoc() is a data-loss trap');
-  ok('it is labelled as a delete',
-    /🗑 Delete</.test(HUB_CODE));
+  // 2026-10-06 (after R5-8-2 #2286): the action is a soft delete now, so the
+  // button is honestly an Archive again and the confirm must say so. The old
+  // "cannot be undone" wording described the deleteDoc and is now false.
+  ok('the hub button is labelled "Archive" (it soft-deletes since R5-8-2)',
+    /data-ceh-act="archive"[^>]*>🗄 Archive</.test(HUB_CODE),
+    'the action archives; a Delete label overstates it');
+  ok('the hub button is no longer labelled "Delete"',
+    !/>🗑 Delete</.test(HUB_CODE));
+  const OPS1 = decomment(read('estimate-crm-ops.js'));
+  const delBody = (OPS1.match(/async function deleteEstimateAction\(id\) \{[\s\S]*?\n\}/) || [''])[0];
+  ok('deleteEstimateAction\'s confirm says the estimate is archived and removed from totals',
+    /_ask\('Archive "' \+ label \+ '"\? It will be removed from your estimate lists and from this customer\\'s totals\.'\)/.test(delBody),
+    delBody.slice(0, 400));
+  ok('deleteEstimateAction\'s confirm no longer claims it "cannot be undone"',
+    delBody.length > 0 && !/cannot be undone/i.test(delBody));
+  ok('the success toast says archived, not deleted',
+    /Estimate archived/.test(delBody) && !/Estimate deleted/.test(delBody));
+  const WIDGETS = decomment(read('dashboard-widgets.js'));
+  ok('the dashboard estimates-list button (same action) is titled Archive, selector unchanged',
+    /data-act="delete" title="Archive estimate"/.test(WIDGETS) && !/title="Delete estimate"/.test(WIDGETS));
 
   // The action it dispatches must still be the real delete — relabelling would
   // be worse than useless if the wiring silently changed too.
@@ -79,8 +94,7 @@ const HUB_CODE = decomment(HUB);
   // Review R5-8-2 (2026-10-06): _deleteEstimate is now a SOFT delete through
   // estimate-lead-sync.js (same write as the customer page's Archive, plus the
   // lead primary/jobValue sync), and the dashboard estimates readers drop
-  // deleted:true. The "Delete" label stays (the confirm still says it cannot be
-  // undone from the UI); it could honestly go back to Archive now.
+  // deleted:true. The hub label went back to "Archive" on 2026-10-06 (above).
   // Globals Tranche 3 T3-C (2026-09-18): real declaration now, not window.X.
   const boot = read('dashboard-bootstrap.module.js');
   ok('_deleteEstimate is a soft delete through archiveEstimateAndSyncLead (no deleteDoc)',
