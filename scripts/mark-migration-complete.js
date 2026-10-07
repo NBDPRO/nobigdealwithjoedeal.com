@@ -37,6 +37,7 @@ const KNOWN = [
   'backfill-lead-stageRole',
   'backfill-lead-updatedAt',
   'backfill-leads-phoneDigits',
+  'backfill-oaks-brand',
   'backfill-photos-createdAt',
   'backfill-photos-variants',
   'backfill-pins-companyId',

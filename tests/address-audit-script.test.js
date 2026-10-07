@@ -172,6 +172,23 @@ const BLANK = { id: 'A4', firstName: 'Blank', lastName: 'Row', address: '', jobV
     ok('--csv is refused in CI (exit 2)', csv.code === 2);
   }
 
+  console.log('ADDRESS AUDIT SCRIPT — ZIP vs state is report-only and ids-only (2026-10-07)');
+  {
+    const WRONG_ZIP = { id: 'Z1', firstName: 'Wrong', lastName: 'Zip', address: '123 Example St, Cincinnati, OH 46211', jobValue: 100 };
+    const OTHER = { id: 'Z2', firstName: 'Other', lastName: 'State', address: '1 Main St, Huntington, WV 25701', jobValue: 100 };
+    const { code, out } = await runAudit([CLEAN, WRONG_ZIP, OTHER]);
+    ok('a ZIP/state mismatch does NOT change the exit code (still PASS)', code === 0);
+    ok('mismatch count is reported (1)', /ZIP\/state MISMATCH\s+1\b/.test(out));
+    ok('matching count is reported (1)', /ZIP matches state\s+1\b/.test(out));
+    ok('other state counted as unchecked (1)', /unchecked state\s+1\b/.test(out));
+    ok('the mismatching lead is named by doc id', /^\s+mismatch: Z1$/m.test(out));
+    ok('the clean lead is not listed as a mismatch', !/mismatch: A1/.test(out));
+    const ci = await runAudit([CLEAN, WRONG_ZIP], [], { ci: true });
+    const zipBlock = (ci.out.split('ZIP vs state')[1] || '').split('───')[0];
+    ok('in CI the ZIP block is present', /mismatch: Z1/.test(zipBlock));
+    ok('in CI the ZIP block carries no name or address', !/Wrong|Example St|Cincinnati|46211/.test(zipBlock));
+  }
+
   console.log('ADDRESS AUDIT SCRIPT — soft-deleted rows are not the working set');
   {
     // The regression that would make this gate useless: retired rows counted.
