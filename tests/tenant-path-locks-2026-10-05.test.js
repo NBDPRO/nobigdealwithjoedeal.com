@@ -187,8 +187,15 @@ function makeBucket() {
     const xt = await flag(deps(db2), 'INV2', paidInv({ companyId: 'C-OTHER' }));
     ok('another tenant\'s paid invoice naming the lead files NOTHING', xt === null && ![...db2.store.keys()].some((k) => k.startsWith('leads/L1/tasks/')), String(xt));
     const db3 = makeDb(seedLead);
+    // Merged with R3-6 (#2260, 2026-10-07): the stricter check wins. An
+    // invoice that carries no tenant at all (no companyId, no createdBy)
+    // cannot be shown to share the lead's company, so it files nothing —
+    // payment-timeline.js already refuses its payment note the same way.
     const legacy = await flag(deps(db3), 'INV3', paidInv({}));
-    ok('a legacy invoice with no companyId is still judged by its leadId (unchanged)', !!legacy, String(legacy));
+    ok('a tenant-less legacy invoice (no companyId, no createdBy) files nothing on a company lead (R3-6)', legacy === null && ![...db3.store.keys()].some((k) => k.startsWith('leads/L1/tasks/')), String(legacy));
+    const db4 = makeDb({ 'leads/L1': { userId: 'U1', companyId: 'U1', stage: 'contract_signed', firstName: 'Pat' } });
+    const legacyOwn = await flag(deps(db4), 'INV4', paidInv({ createdBy: 'U1' }));
+    ok('…while a solo owner\'s unstamped invoice (createdBy = the lead\'s tenant) still files the task', !!legacyOwn && [...db4.store.keys()].some((k) => k.startsWith('leads/L1/tasks/')), String(legacyOwn));
   }
 
   // ════════════════════════════════════════════════════════════════════

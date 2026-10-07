@@ -302,6 +302,9 @@ try { OFF = require(path.join(FN, 'member-offboarding.js')); } catch (e) { OFF =
         normalizeRole: (r) => (['viewer', 'sales_rep', 'manager', 'company_admin'].includes(r) ? r : null),
         normalizeEmail: (e) => (typeof e === 'string' ? e.trim().toLowerCase() : ''),
         isOwnerCaller: () => true,
+        // R3-9 (#2260): the real owner/platform-admin guard, not a stub —
+        // removeMember calls it before touching the target.
+        protectedTargetRefusal: loadWith('handlers/_shared.js', baseStubs(db, auth)).protectedTargetRefusal,
       },
     });
     const mod = loadWith('handlers/admin.js', stubs);

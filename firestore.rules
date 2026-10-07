@@ -2430,10 +2430,15 @@ service cloud.firestore {
         // trigger files PDFs onto, and drafts tasks under, the invoice's
         // lead. No leadId (an estimate never tied to a lead) still passes.
         && (noLeadId(request.resource.data.get('leadId', null))
-            || leadReachable(request.resource.data.leadId));
+            || leadReachable(request.resource.data.leadId))
+        // …and (R3-6, 2026-10-06) the id is a plain doc id naming only the
+        // writer's own / company's lead: payment-timeline.js writes a
+        // payment note onto it.
+        && dealLeadOk(request.resource.data);
       // .get('role','') — reading an absent claim with != THROWS (solo owners
-      // have no role claim). Freeze owner/tenant/provenance; money fields stay
-      // mutable (markPaid rewrites balanceDue/amountPaid/status).
+      // have no role claim). Freeze owner/tenant/provenance and the lead/job
+      // it bills (R3-6); money fields stay mutable (markPaid rewrites
+      // balanceDue/amountPaid/status).
       allow update: if isAdmin()
         || (
           (
@@ -2442,7 +2447,10 @@ service cloud.firestore {
                 && resource.data.companyId != null
                 && resource.data.companyId == myCompanyId())
           )
-          && didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt'])
+          // jobId frozen (R3-6); leadId frozen once set — a lead-less
+          // invoice may be attached once, to a lead the writer can reach
+          // (leadIdStable, 2026-10-05).
+          && didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId'])
           && leadIdStable()
         );
       allow delete: if isAdmin()
@@ -2494,10 +2502,29 @@ service cloud.firestore {
     }
 
     // ── REFERRALS ────────────────────────────────────
+    // R3-5 (2026-10-06): onReferralLeadWrite searches codes across tenants, so
+    // a referral doc is pinned to the writer's company and to a referrer lead
+    // of that company on create, and its identity fields are frozen after.
+    function referralLeadOk(d) {
+      let lid = d.get('referrerLeadId', null);
+      return lid is string && lid.matches('^[A-Za-z0-9_-]{1,128}$')
+        && exists(/databases/$(database)/documents/leads/$(lid))
+        && (get(/databases/$(database)/documents/leads/$(lid)).data.get('userId', '') == request.auth.uid
+            || (request.auth.token.get('companyId', '') != ''
+                && get(/databases/$(database)/documents/leads/$(lid)).data.get('companyId', '')
+                     == request.auth.token.get('companyId', '')));
+    }
     match /referrals/{docId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid;
-      allow update: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
+      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
+        && request.resource.data.get('companyId', null) is string
+        && (request.resource.data.companyId == request.auth.token.get('companyId', '')
+            || (request.auth.token.get('companyId', '') == ''
+                && request.resource.data.companyId == request.auth.uid))
+        && referralLeadOk(request.resource.data);
+      allow update: if isAdmin()
+        || (isOwner(resource.data.userId) && notViewer()
+            && didNotChange(['userId', 'companyId', 'code', 'referrerLeadId']));
       allow delete: if isAdmin();
     }
 

@@ -187,6 +187,20 @@ async function dispatchToSigner(db, ref, envelopeId, env, signers, uid, opts) {
   const o = opts || {};
   const signer = ESL.nextPendingSigner(Object.assign({}, env, { signers }));
   if (!signer) throw new HttpsError('failed-precondition', 'Everyone has already signed this document.');
+  // R3-11: every signer email — the link now, the next signer's link and the
+  // signed copy later — must be on the lead's record (its email or a saved
+  // alternate). Checked here because send, resend and the estimate path all
+  // come through this one place.
+  if (signers.some((s) => s && s.email)) {
+    let lead = o.lead || null;
+    if (!lead && env.leadId) {
+      const ls = await db.doc(`leads/${env.leadId}`).get();
+      lead = ls.exists ? (ls.data() || {}) : null;
+    }
+    if (signers.some((s) => s && s.email && !ESL.recipientOnRecord(lead, s.email))) {
+      throw new HttpsError('failed-precondition', ESL.SIGN_EMAIL_NOT_ON_RECORD);
+    }
+  }
   const { link, token, expiresAtMs } = await IO.mintSignerLink(db, envelopeId, env, signer);
   let mail = { emailed: false, stubbed: false, error: null };
   if (o.sendEmail !== false) {
@@ -449,6 +463,10 @@ exports.sendEsignEnvelope = onCall(
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
     assertNotViewer(request.auth.token); // decision B — see createEsignEnvelope
     await callableRateLimit(request, 'sendEsignEnvelope', 20, 60_000);
+    // R3-11: a daily cap on emailed links, shared with createSignRequest.
+    if ((request.data || {}).sendEmail !== false) {
+      await callableRateLimit(request, 'signLinkEmailDaily', ESL.SIGN_EMAIL_DAILY_CAP, 86_400_000);
+    }
 
     const { envelopeId, signerName, signerEmail, sendEmail, signers: signerInput, reminders } = request.data || {};
     const db = getFirestore();
@@ -572,6 +590,10 @@ exports.sendEstimateEnvelope = onCall(
     // homeowner, even for an estimate the viewer owns.
     assertNotViewer(request.auth.token);
     await callableRateLimit(request, 'sendEstimateEnvelope', 20, 60_000);
+    // R3-11: a daily cap on emailed links, shared with createSignRequest.
+    if ((request.data || {}).sendEmail !== false) {
+      await callableRateLimit(request, 'signLinkEmailDaily', ESL.SIGN_EMAIL_DAILY_CAP, 86_400_000);
+    }
 
     const d = request.data || {};
     const estimateId = typeof d.estimateId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(d.estimateId) ? d.estimateId : null;
@@ -614,6 +636,10 @@ exports.sendEstimateEnvelope = onCall(
         : [{ name: d.signerName, email: d.signerEmail }];
       signers = ESL.sanitizeSignerInput(raw.slice(0, ESL.MAX_SIGNERS), { requireEmail: sendEmail });
     } catch (e) { throw new HttpsError('invalid-argument', e.message); }
+    // R3-11: refuse before the contract PDF is built (dispatchToSigner checks again).
+    if (signers.some((s) => s && s.email && !ESL.recipientOnRecord(lead, s.email))) {
+      throw new HttpsError('failed-precondition', ESL.SIGN_EMAIL_NOT_ON_RECORD);
+    }
 
     const { companyName, profile } = await resolveCompanyName(db, lead);
     // The seller on the contract and its Notice of Cancellation. NBD keeps its
@@ -705,7 +731,7 @@ exports.sendEstimateEnvelope = onCall(
       audit: [{ event: 'created', at: Date.now(), by: uid, from: 'estimate', estimateId }],
     };
     await ref.set(env);
-    const out = await dispatchToSigner(db, ref, envelopeId, env, signers, uid, { sendEmail, reminders: d.reminders });
+    const out = await dispatchToSigner(db, ref, envelopeId, env, signers, uid, { sendEmail, reminders: d.reminders, lead });
     logger.info('[sendEstimateEnvelope] sent', { estimateId, envelopeId, signers: signers.length, emailed: out.emailed });
     return Object.assign({ envelopeId }, out);
   }

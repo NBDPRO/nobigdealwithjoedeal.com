@@ -114,7 +114,7 @@ function hasLiveSubscription(sub) {
 }
 
 // Shared helpers (B2).
-const { requireAuth, viewOnlyRefusal } = require('./shared');
+const { requireAuth, viewOnlyRefusal, billingPortalRefusal } = require('./shared');
 const { httpRateLimit } = require('./integrations/upstash-ratelimit');
 
 // setCustomUserClaims REPLACES the entire claim set. Writing a bare billing
@@ -1060,8 +1060,8 @@ exports.createCustomerPortalSession = onRequest(
     // 2026-09-25 (decision B): a viewer is read-only. The Stripe billing
     // portal is where the COMPANY's subscription and payment method are
     // managed (what it allows is Stripe's portal configuration) — refused
-    // for a viewer. (Any other member reaching it is a pre-existing
-    // question, unchanged here.)
+    // for a viewer. (Since 2026-10-06 every other non-admin member is
+    // refused too — billingPortalRefusal below.)
     const viewOnly = viewOnlyRefusal(decoded);
     if (viewOnly) { res.status(viewOnly.status).json(viewOnly.body); return; }
 
@@ -1071,6 +1071,15 @@ exports.createCustomerPortalSession = onRequest(
       // operators). Resolve via the companyId claim so company admins can
       // reach the portal for their company's subscription.
       const billingKey = decoded.companyId || decoded.uid;
+      // Owner / company_admin / platform admin only (R3 review, Jo
+      // 2026-10-06): the portal changes or cancels the company's plan. The
+      // company doc is read only when the claims alone don't already allow.
+      let portalRefusal = billingPortalRefusal(decoded, null);
+      if (portalRefusal) {
+        const companySnap = await db.doc(`companies/${billingKey}`).get();
+        portalRefusal = billingPortalRefusal(decoded, companySnap.exists ? (companySnap.data() || {}).ownerId || null : null);
+      }
+      if (portalRefusal) { res.status(portalRefusal.status).json(portalRefusal.body); return; }
       const subscriptionSnap = await db.doc(`subscriptions/${billingKey}`).get();
 
       // A FREE tenant now has a subscriptions doc (canonical single source of
