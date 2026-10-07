@@ -90,13 +90,17 @@ function toCsv(rows) {
   return [keys.join(',')].concat(rows.map((r) => keys.map((k) => csvCell(r[k])).join(','))).join('\n');
 }
 
-function exportReadme(companyName, counts, photoNote, generatedAt) {
+function exportReadme(companyName, counts, photoNote, generatedAt, opts) {
+  const truncated = (opts && Array.isArray(opts.truncated)) ? opts.truncated : [];
+  const cut = (k) => (truncated.indexOf(k) !== -1
+    ? '  (TRUNCATED: this file holds the first ' + ((opts && opts.limit) || counts[k]) + ' records only; contact NBD Pro support for the full set)'
+    : '');
   return [
     'Data export — ' + (companyName || 'your company'),
     'Generated ' + generatedAt,
     '',
     'Each collection is here twice: <name>.json (every field) and <name>.csv (one row per record).',
-    Object.keys(counts).map((k) => '  ' + k + ': ' + counts[k]).join('\n'),
+    Object.keys(counts).map((k) => '  ' + k + ': ' + counts[k] + cut(k)).join('\n'),
     '',
     'Photos: photos.json lists every photo with its storage path. ' + photoNote,
     'Permanent public storage links were removed from the records on purpose.',

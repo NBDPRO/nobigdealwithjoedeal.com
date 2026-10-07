@@ -13,6 +13,9 @@
   import { getFirestore, collection, addDoc, getDocs, getDoc, updateDoc, deleteDoc, doc, orderBy, query, serverTimestamp, where, arrayUnion, increment, limit, startAfter, setDoc, writeBatch, runTransaction, onSnapshot, disableNetwork, enableNetwork } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   import { getStorage, ref, uploadBytes, getDownloadURL, listAll } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
   import { connectEmulatorsIfLocal, isLocalEmulatorEnv, emulatorAppCheckFakeToken } from "./nbd-emulator-connect.js"; // Audit #3: localhost-only, no-op in prod
+  // Estimate delete/archive + lead primary/jobValue sync, shared with the
+  // customer page (review R5-8-2).
+  import { archiveEstimateAndSyncLead } from "./estimate-lead-sync.js";
 
   // ═══ GLOBAL CRM STATE (MUST BE TOP-LEVEL) ═══
   // Per S27 architectural rule: All CRM global state declared before any function definitions
@@ -2325,7 +2328,8 @@
             // Last resort: fetch the single estimate directly from Firestore
             try {
               const snap = await getDoc(doc(db, 'estimates', estParam));
-              if (snap.exists()) {
+              // An archived (soft-deleted) estimate stays gone (review R5-8-2).
+              if (snap.exists() && snap.data().deleted !== true) {
                 found = { id: snap.id, ...snap.data() };
                 window._estimates = [...(window._estimates || []), found];
               }
@@ -2395,7 +2399,8 @@
           if (!found) {
             try {
               const snap = await getDoc(doc(db, 'estimates', estParam));
-              if (snap.exists()) {
+              // An archived (soft-deleted) estimate stays gone (review R5-8-2).
+              if (snap.exists() && snap.data().deleted !== true) {
                 found = { id: snap.id, ...snap.data() };
                 window._estimates = [...(window._estimates || []), found];
               }
@@ -3589,6 +3594,24 @@
     _setStat('weekTasks',     weekTasks);
   }
 
+  // The stageRole a lead write should carry for `stage`, or null when it can't
+  // be known (R5-8-3, 2026-10-06). Tenant-aware: window.stageRole is the
+  // resolved pipeline roleOf once applyPipelineConfig runs (NOT the ES import,
+  // which only knows built-in keys). Same normalise-then-classify shape as the
+  // Edit Lead save (crm-leads.js) and CSV import (data-import.js). Only the
+  // five roles firestore.rules stageWriteOk() accepts are returned — anything
+  // else would deny the whole lead write, and Firestore rejects undefined.
+  function _stageRoleForWrite(stage) {
+    if (stage == null || stage === '') return null;
+    if (typeof window.stageRole !== 'function') return null;
+    let role = null;
+    try {
+      const key = typeof window.normalizeStage === 'function' ? window.normalizeStage(stage) : stage;
+      role = window.stageRole(key);
+    } catch (_) { return null; }
+    return ['new', 'active', 'job', 'won', 'lost'].includes(role) ? role : null;
+  }
+
   // Optimistic kanban refresh helper — push the just-saved lead into
   // window._leads in-memory and re-render so the card appears IMMEDIATELY,
   // before loadLeads makes its round-trip. On iOS where loadLeads can
@@ -3619,7 +3642,9 @@
         ? normalizeStage(_stage)
         : (_stage || 'new')
     };
-    merged._stageRole = stageRole(merged._stageKey);
+    // Tenant-aware window.stageRole, as loadLeads stamps it (a custom stage's
+    // role lives in the resolved pipeline config, not the ES import).
+    merged._stageRole = (window.stageRole || stageRole)(merged._stageKey);
     if (idx >= 0) window._leads[idx] = merged;
     else window._leads.unshift(merged);
     // Claim the cache for this account so a failed loadLeads() keeps this
@@ -3700,6 +3725,19 @@
       // edit updateDoc (so editing a lead's phone refreshes the key).
       // Canonical transform — keep identical to functions/phone-utils.js.
       data.phoneDigits = String(data.phone || '').replace(/\D/g, '').replace(/^1/, '').slice(-10);
+
+      // Denormalised stageRole beside the stage (R5-8-3, 2026-10-06): every
+      // server classifier trusts it first (functions/stage-roles.js roleFor),
+      // and this path — quick add, call center, D2D convert, Edit Lead — wrote
+      // only `stage`, so new leads drifted back to role-less after migration
+      // 008 healed the backlog. Stamped on `data` here so it reaches every
+      // write branch below (NBDRepos.leads.create, both addDoc fallbacks, the
+      // edit updateDoc). No stage in the payload → no role: an edit that omits
+      // the stage leaves the stored pair alone, and no default stage is invented.
+      if (data.stage != null && data.stage !== '') {
+        const _role = _stageRoleForWrite(data.stage);
+        if (_role) data.stageRole = _role;
+      }
 
       // NEW LEAD: Geocode address and create map pin
       if (!editId || editId.startsWith('d-')) {
@@ -4071,7 +4109,10 @@
         const snap = await getDocs(query(collection(db,'estimates'), scope));
         snap.docs.forEach(d => { byId[d.id] = {id:d.id,...d.data()}; });
       }
+      // Soft-deleted (archived) estimates are gone from every dashboard
+      // surface, as a hard delete was (review R5-8-2).
       window._estimates = Object.values(byId)
+        .filter(e => e.deleted !== true)
         .sort((a,b) => {
           const ta = a.createdAt?.toDate?.()?.getTime() || 0;
           const tb = b.createdAt?.toDate?.()?.getTime() || 0;
@@ -4112,7 +4153,8 @@
     const own = {}, comp = {};
     const rebuild = () => {
       const merged = Object.assign({}, comp, own); // own wins on a shared doc
-      window._estimates = Object.values(merged).sort(sortDesc);
+      // Soft-deleted estimates drop out here too (review R5-8-2).
+      window._estimates = Object.values(merged).filter(e => e.deleted !== true).sort(sortDesc);
       renderEstimatesList(window._estimates);
     };
     const onErr = (err) => {
@@ -4277,15 +4319,28 @@
   };
 
   // ── ESTIMATE CRUD HELPERS ─────────────────────
-  // Delete an estimate by document id. Cascade: we don't have
-  // child collections under an estimate, so a single deleteDoc is
-  // enough. Called from the estimates list overflow menu.
+  // Delete an estimate by document id. Called from the estimates list
+  // overflow menu and the customer Estimates hub.
+  // SOFT delete (review R5-8-2): this was a deleteDoc, against the "never
+  // deleteDoc estimates" rule, and it left the lead's primaryEstimateId and
+  // jobValue on the gone estimate — pipeline, KPIs and leaderboard kept its
+  // dollars. archiveEstimateAndSyncLead (estimate-lead-sync.js) is the same
+  // call the customer page's Archive makes: { deleted, deletedAt }, then the
+  // lead's primary is promoted/cleared the way _assignEstimateToLead stamps.
   // Registered in __NBD_CALL_REGISTRY at the end of this file (Globals
   // Tranche 3 T3-C, 2026-09-18), no longer a bare window global.
   async function _deleteEstimate(id) {
     try {
       if (!id) return false;
-      await deleteDoc(doc(db, 'estimates', id));
+      const list = window._estimates || [];
+      await archiveEstimateAndSyncLead({
+        estimateId: id,
+        estimate: list.find(e => e && e.id === id) || null,
+        estimates: list,
+        fs: { db, doc, getDoc, updateDoc, serverTimestamp },
+        estValue: _estValue,
+        ask: window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m))),
+      });
       await loadEstimates();
       return true;
     } catch (e) {

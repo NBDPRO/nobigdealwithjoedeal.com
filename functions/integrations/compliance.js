@@ -419,28 +419,44 @@ exports.requestAccountErasure = onCall(
 
     // Email the link. The email-functions module is already wired
     // with Resend — we just enqueue a send job.
+    //
+    // R4-7-2 (2026-10-06): this used to swallow every failure here (and a
+    // missing email) and still answer { success: true }, so the person was
+    // told a confirmation was on its way when none could ever arrive. Both
+    // cases now throw, so the client shows an error and the person can retry
+    // or contact support. Re-requesting is safe: it overwrites the token.
+    let email = null;
     try {
       const userRecord = await getAuth().getUser(uid);
-      const email = userRecord.email;
+      email = userRecord.email || null;
+    } catch (e) {
+      logger.error('requestAccountErasure: account lookup failed', { uid, err: e.message });
+      throw new HttpsError('unavailable', 'Could not send the confirmation email. Please try again.');
+    }
+    if (!email) {
+      logger.error('requestAccountErasure: account has no email on file', { uid });
+      throw new HttpsError('failed-precondition',
+        'This account has no email address on file, so a confirmation link cannot be sent. Contact support to delete the account.');
+    }
+    try {
       const confirmUrl =
         'https://nobigdealwithjoedeal.com/pro/account-erasure?uid=' +
         encodeURIComponent(uid) + '&token=' + encodeURIComponent(token);
-      if (email) {
-        await db.collection('email_queue').add({
-          to: email,
-          subject: 'Confirm account deletion — NBD Pro',
-          bodyPlain:
-            'You (or someone using your account) requested that your NBD Pro account be permanently deleted.\n\n' +
-            'To confirm, open this link within 24 hours:\n' +
-            confirmUrl + '\n\n' +
-            'If you did not make this request, you can ignore this email — your account will remain active.',
-          status: 'pending',   // F-wave fix: worker query filters by status
-          createdAt: FieldValue.serverTimestamp(),
-          source: 'requestAccountErasure'
-        });
-      }
+      await db.collection('email_queue').add({
+        to: email,
+        subject: 'Confirm account deletion — NBD Pro',
+        bodyPlain:
+          'You (or someone using your account) requested that your NBD Pro account be permanently deleted.\n\n' +
+          'To confirm, open this link within 24 hours:\n' +
+          confirmUrl + '\n\n' +
+          'If you did not make this request, you can ignore this email — your account will remain active.',
+        status: 'pending',   // F-wave fix: worker query filters by status
+        createdAt: FieldValue.serverTimestamp(),
+        source: 'requestAccountErasure'
+      });
     } catch (e) {
-      logger.warn('requestAccountErasure: email enqueue failed', { err: e.message });
+      logger.error('requestAccountErasure: email enqueue failed', { uid, err: e.message });
+      throw new HttpsError('unavailable', 'Could not send the confirmation email. Please try again.');
     }
 
     return { success: true };
@@ -601,7 +617,10 @@ exports.confirmAccountErasure = onRequest(
     const data = reqSnap.data();
     if (data.confirmed) { res.status(410).json({ error: 'Already processed' }); return; }
     if (data.tokenHash !== hash) { res.status(403).json({ error: 'Invalid token' }); return; }
-    if (data.expiresAt && data.expiresAt.toMillis() < Date.now()) {
+    // A PARTIAL erasure (the person already confirmed with this token, and
+    // some steps failed) stays retryable with the same link past the 24h
+    // window: they asked for erasure and must be able to finish it.
+    if (!data.partial && data.expiresAt && data.expiresAt.toMillis() < Date.now()) {
       res.status(410).json({ error: 'Link expired' }); return;
     }
 
@@ -618,12 +637,22 @@ exports.confirmAccountErasure = onRequest(
       return;
     }
 
-    // Mark confirmed BEFORE starting the delete so a crash/retry
-    // can't double-run.
+    // R4-7-1 (2026-10-06): `confirmed: true` used to be written HERE, before
+    // the cascade, and every step below only logger.warn'ed on failure — so a
+    // partial erasure answered 200 "Account deleted" and the link then said
+    // "Already processed", with no way to finish. Now the attempt is stamped
+    // here, failures are collected per step, and `confirmed` is set only when
+    // every step succeeded. Every step is idempotent (deletes of what is
+    // already gone are no-ops), so a retry with the same link simply re-runs
+    // the cascade.
     await reqRef.update({
-      confirmed: true,
-      confirmedAt: FieldValue.serverTimestamp()
+      lastAttemptAt: FieldValue.serverTimestamp()
     });
+    const failures = [];
+    const fail = (step, target, e) => {
+      failures.push({ step, target, err: String((e && e.message) || e).slice(0, 300) });
+      logger.error('erasure: ' + step + ' failed for ' + target, { uid, err: e && e.message });
+    };
 
     // M-01: cascade uses the canonical user-owned registry so the
     // surface stays synchronized with Article 20 export. Covers:
@@ -669,7 +698,7 @@ exports.confirmAccountErasure = onRequest(
           if (snap.size < 500) break;
         }
       } catch (e) {
-        logger.warn('erasure: cascade failed for ' + spec.name, { err: e.message });
+        fail('collection', spec.name, e);
       }
     }
 
@@ -688,8 +717,7 @@ exports.confirmAccountErasure = onRequest(
           if (snap.size < 500) break;
         }
       } catch (e) {
-        logger.warn('erasure: collectionGroup cascade failed for ' + groupName,
-          { err: e.message });
+        fail('collectionGroup', groupName, e);
       }
     }
 
@@ -701,8 +729,7 @@ exports.confirmAccountErasure = onRequest(
     try {
       await db.recursiveDelete(db.doc(NESTED_LEADS_PATH(uid)));
     } catch (e) {
-      logger.warn('erasure: nested-leads recursiveDelete failed',
-        { uid, err: e.message });
+      fail('recursiveDelete', 'nested-leads', e);
     }
 
     // Phase-2.1: daily-success entries live at daily_entries/{uid}/entries/*
@@ -711,7 +738,7 @@ exports.confirmAccountErasure = onRequest(
     try {
       await db.recursiveDelete(db.doc('daily_entries/' + uid));
     } catch (e) {
-      logger.warn('erasure: daily_entries recursiveDelete failed', { uid, err: e.message });
+      fail('recursiveDelete', 'daily_entries', e);
     }
 
     // ── (4) Storage prefix sweeps ──
@@ -725,11 +752,11 @@ exports.confirmAccountErasure = onRequest(
         try {
           await bucket.deleteFiles({ prefix: prefix + '/' + uid + '/', force: true });
         } catch (e) {
-          logger.warn('erasure: storage sweep failed for ' + prefix, { err: e.message });
+          fail('storage', prefix, e);
         }
       }
     } catch (e) {
-      logger.warn('erasure: storage bucket unavailable', { err: e.message });
+      fail('storage', 'bucket', e);
     }
 
     // ── (5) owner-keyed `{uid}`-path docs ──
@@ -741,7 +768,7 @@ exports.confirmAccountErasure = onRequest(
     // no subcollections it's just a doc delete, so it's safe across the board.
     for (const coll of OWNER_KEYED_DOCS) {
       try { await db.recursiveDelete(db.doc(coll + '/' + uid)); }
-      catch (e) { logger.warn('erasure: owner-doc delete failed for ' + coll, { err: e.message }); }
+      catch (e) { fail('ownerDoc', coll, e); }
     }
 
     // Disable the Auth account (don't delete — we keep the uid so
@@ -750,7 +777,8 @@ exports.confirmAccountErasure = onRequest(
       await getAuth().updateUser(uid, { disabled: true });
       await getAuth().revokeRefreshTokens(uid);
     } catch (e) {
-      logger.warn('erasure: auth disable failed', { err: e.message });
+      // Already-deleted Auth user: nothing left to disable.
+      if (!(e && e.code === 'auth/user-not-found')) fail('auth', 'disable', e);
     }
 
     // `retained` is recorded even when empty. A retention hold that isn't
@@ -759,6 +787,43 @@ exports.confirmAccountErasure = onRequest(
     // 2026-09-08, when four prefixes were absent from the list and nothing
     // said whether that was policy or oversight. The audit row now answers
     // that question for every future erasure.
+    if (failures.length) {
+      // Partial: NOT confirmed. The audit row lists what is still there, the
+      // request stays retryable with the same link (see the expiry check
+      // above), and the person is told the truth instead of "deleted".
+      await reqRef.update({
+        confirmed: false,
+        partial: true,
+        failures,
+        lastFailedAt: FieldValue.serverTimestamp()
+      });
+      await db.collection('audit_log').add({
+        type: 'gdpr_erasure_partial',
+        op: 'delete',
+        ids: { uid },
+        failures,
+        retained: ERASURE_RETAINED_PREFIXES,
+        stripeCancelled: billing.cancelled,
+        ts: FieldValue.serverTimestamp()
+      });
+      logger.error('confirmAccountErasure: PARTIAL erasure, request left retryable', { uid, failed: failures.length });
+      res.status(500).json({
+        error: 'Some of your data could not be deleted yet. Nothing is wrong with your request: '
+          + 'open the same link again to finish, or contact support if it keeps failing.',
+        code: 'erasure_partial',
+        partial: true,
+        failedSteps: failures.map((f) => f.step + ':' + f.target),
+      });
+      return;
+    }
+
+    await reqRef.update({
+      confirmed: true,
+      partial: false,
+      failures: [],
+      confirmedAt: FieldValue.serverTimestamp()
+    });
+
     await db.collection('audit_log').add({
       type: 'gdpr_erasure_confirmed',
       op: 'delete',

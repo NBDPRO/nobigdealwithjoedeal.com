@@ -754,7 +754,9 @@ exports.getHomeownerPortalView = onRequest(
       || SHARED_SIG.includes(e.signatureStatus)
       || !!e.sentAt;
 
-    const estimates = estSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    // An archived (soft-deleted) estimate is gone for the homeowner too, as a
+    // hard-deleted one was (review R5-8-2).
+    const estimates = estSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => e.deleted !== true)
       .filter(e => recordInPortalTenant(e, ['userId'], tenant));
     estimates.sort((a, b) => {
       const ta = a.createdAt?.toMillis?.() || 0;
@@ -1014,6 +1016,11 @@ exports.getHomeownerPortalView = onRequest(
         work:        lead.warranty.work || '',
         installDate: lead.warranty.installDate || null,
         certNumber:  lead.warranty.certNumber || null,
+        // The certificate's two warranty lines (2026-10-06): workmanship (the
+        // NBD Pledge / the company's own) and the manufacturer warranty sold.
+        pledgeLine:       lead.warranty.pledgeLine || '',
+        workmanshipLine:  lead.warranty.workmanshipLine || '',
+        manufacturerLine: lead.warranty.manufacturerLine || '',
         // 2026-09-15 (Warranty Claim lane): lets the portal swap the "Start a
         // warranty claim" button for a "Claim in progress" state instead of
         // letting the homeowner file a second report on top of an open one.
@@ -2532,7 +2539,7 @@ exports.getEstimateForView = onRequest(
 
     const estRef = db.doc(`estimates/${estimateId}`);
     const [estSnap, tokLeadSnap] = await Promise.all([estRef.get(), db.doc(`leads/${tok.leadId}`).get()]);
-    if (!estSnap.exists) { res.status(404).json({ error: 'Estimate not found.' }); return; }
+    if (!estSnap.exists || estSnap.data().deleted === true) { res.status(404).json({ error: 'Estimate not found.' }); return; }
     const est = estSnap.data();
     // 2026-09-25 (review of PR #1777): same tenant scope as
     // getHomeownerPortalView. The leadId check below ties the estimate to the

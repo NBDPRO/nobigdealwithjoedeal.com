@@ -57,6 +57,7 @@ function fakeDb(seed, sharedLog) {
       update: async (d) => { if (!store.has(p)) throw new Error('NOT_FOUND ' + p); log.push('update:' + p); store.set(p, Object.assign({}, store.get(p), d)); },
       set: async (d, o) => { log.push('set:' + p); store.set(p, Object.assign({}, (o && o.merge) ? store.get(p) : {}, d)); },
       delete: async () => { log.push('delete:' + p); store.delete(p); },
+      collection: (c) => db.collection(p + '/' + c),
     };
     return r;
   }
@@ -323,6 +324,16 @@ try { OFF = require(path.join(FN, 'member-offboarding.js')); } catch (e) { OFF =
     ok('removeMember reassigns BEFORE stripping claims (a failed sweep stays retryable)',
       reassignedAt >= 0 && strippedAt > reassignedAt, db.log.join(' ') + ' | ' + events.join(' '));
     ok('removeMember timeout raised for the sweep (≥ 120s)', (mod.removeMember.__opts.timeoutSeconds || 0) >= 120);
+    // 2026-10-06 file move: every moved doc is in the move's ledger, the move
+    // is armed (phase collect), and the claim strip locks the Storage folder.
+    const { keyOf } = require(path.join(__dirname, '..', 'functions', 'member-storage-move.js'));
+    const led = (p) => db.store.get('member_offboarding/co-a__rep/ledger/' + keyOf(p));
+    ok('removeMember: each moved doc is recorded in the file-move ledger',
+      !!led('leads/L1') && led('leads/L1').docId === 'L1' && !!led('estimates/E1') && led('estimates/E1').scanned === false);
+    ok('removeMember: the file move is armed after the reassignment (phase collect)',
+      (db.store.get('member_offboarding/co-a__rep') || {}).phase === 'collect' && db.store.get('member_offboarding/co-a__rep').toUid === 'owner');
+    ok('removeMember: the claim strip sets offboardLock (Storage folder locked)', users.rep.customClaims.offboardLock === true);
+    ok('removeMember: a file-move slice that cannot run leaves the removal successful', res && res.filesMove === 'running', JSON.stringify(res));
   }
   {
     // Reassign must happen before the claim strip: make the sweep fail and
@@ -354,6 +365,33 @@ try { OFF = require(path.join(FN, 'member-offboarding.js')); } catch (e) { OFF =
     const { db, mod, req } = adminRig();
     await mod.updateUserRole.__handler(req({ uid: 'rep', role: 'manager' }));
     ok('updateUserRole → manager: nothing revoked', db.store.get('agent_keys/k1').active === true && db.store.get('calendar_feed_tokens/F1').status === 'active');
+  }
+  // Follow-up (Jo 2026-10-06): any DOWNGRADE away from company_admin / manager
+  // revokes too, not only a move to viewer.
+  {
+    const R = OFF && OFF.roleChangeRevokesAccess;
+    ok('roleChangeRevokesAccess is exported', typeof R === 'function');
+    if (typeof R === 'function') {
+      ok('downgrades away from company_admin / manager revoke',
+        R('company_admin', 'manager') && R('company_admin', 'sales_rep') && R('manager', 'sales_rep'));
+      ok('any move to viewer revokes', R('sales_rep', 'viewer') && R('manager', 'viewer') && R(undefined, 'viewer'));
+      ok('upgrades, no-ops and lower-role moves do not revoke',
+        !R('sales_rep', 'manager') && !R('manager', 'company_admin') && !R('manager', 'manager')
+        && !R('company_admin', 'company_admin') && !R(undefined, 'sales_rep') && !R('viewer', 'sales_rep'));
+    }
+  }
+  for (const [from, to, revoked] of [['manager', 'sales_rep', true], ['company_admin', 'manager', true], ['company_admin', 'sales_rep', true], ['sales_rep', 'manager', false], ['manager', 'company_admin', false]]) {
+    const { db, users, events, mod, req } = adminRig();
+    users.rep.customClaims.role = from;
+    await mod.updateUserRole.__handler(req({ uid: 'rep', role: to }));
+    const off = db.store.get('agent_keys/k1').active === false && db.store.get('calendar_feed_tokens/F1').status === 'revoked';
+    const on = db.store.get('agent_keys/k1').active === true && db.store.get('calendar_feed_tokens/F1').status === 'active';
+    ok('updateUserRole ' + from + ' → ' + to + ': bot key + calendar feed ' + (revoked ? 'revoked' : 'kept'), revoked ? off : on);
+    if (revoked) {
+      const revokedAt = events.indexOf('update:agent_keys/k1');
+      const claimsAt = events.indexOf('claims:rep');
+      ok('updateUserRole ' + from + ' → ' + to + ': revokes BEFORE the claim change', revokedAt >= 0 && claimsAt > revokedAt, events.join(' '));
+    }
   }
 
   // ═════════════════════════════════════════════════════════════════════

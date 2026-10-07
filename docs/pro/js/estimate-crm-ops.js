@@ -84,16 +84,20 @@ async function deleteEstimateAction(id) {
   if (!src) { showToast('Estimate not found', 'error'); return; }
   const label = src.name || src.addr || 'this estimate';
   const _ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
-  if (!(await _ask('Delete "' + label + '"? This cannot be undone.'))) return;
+  // _deleteEstimate is a SOFT delete since R5-8-2 (#2286): it archives the
+  // estimate (sets its deleted flag), drops it from the estimate lists and the lead's
+  // pipeline totals, and re-points the lead's primary estimate. "This cannot
+  // be undone" described the old deleteDoc and is no longer true.
+  if (!(await _ask('Archive "' + label + '"? It will be removed from your estimate lists and from this customer\'s totals.'))) return;
   // Registry-only (Globals Tranche 3 T3-C, 2026-09-18), not a bare window global.
   var _nbdReg = window.__NBD_CALL_REGISTRY;
   if (!_nbdReg || typeof _nbdReg._deleteEstimate !== 'function') {
-    showToast('Delete not available', 'error');
+    showToast('Archive not available', 'error');
     return;
   }
   const ok = await _nbdReg._deleteEstimate(id);
-  if (ok) showToast('\u2713 Estimate deleted', 'success');
-  else showToast('Failed to delete', 'error');
+  if (ok) showToast('\u2713 Estimate archived', 'success');
+  else showToast('Failed to archive', 'error');
 }
 
 // Lead picker modal for the Assign action. Built via createElement
