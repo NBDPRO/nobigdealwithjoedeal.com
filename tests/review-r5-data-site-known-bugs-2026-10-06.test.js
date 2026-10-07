@@ -86,24 +86,7 @@ console.log('\nreview-r5-data-site-known-bugs\n');
 
 // R5-8-1: FIXED by #2282 (pins dropped; its own regression test covers it).
 
-// R5-8-2 (MED). Fix in flight: #2286. Deleting the primary estimate leaves the lead pointing at it:
-// _deleteEstimate hard-deletes (against the "never deleteDoc estimates" rule
-// the customer page states) and never touches lead.primaryEstimateId /
-// lead.jobValue; the customer-page Archive soft-deletes the same way. The
-// pipeline card, KPIs and leaderboard keep the deleted estimate's dollars.
-// Prod: 1 lead whose primaryEstimateId points at a missing estimate.
-{
-  const body = bodyAfter(src('docs/pro/js/dashboard-bootstrap.module.js'), 'async function _deleteEstimate(');
-  ok('KNOWN BUG R5-8-2: _deleteEstimate hard-deletes the estimate doc',
-    !!body && /deleteDoc\(doc\(db,\s*'estimates',\s*id\)\)/.test(body));
-  ok('KNOWN BUG R5-8-2: _deleteEstimate never clears the lead\'s primaryEstimateId/jobValue',
-    !!body && !/primaryEstimateId|jobValue|'leads'/.test(body));
-  const cb = src('docs/pro/js/customer-bootstrap.module.js');
-  const at = cb.indexOf("getElementById('deleteEstimateBtn').onclick");
-  const arch = at === -1 ? null : bodyAfter(cb, '{', at + 40);
-  ok('KNOWN BUG R5-8-2: customer-page Archive leaves primaryEstimateId/jobValue on the lead',
-    !!arch && /deleted:\s*true/.test(arch) && !/primaryEstimateId|jobValue/.test(arch));
-}
+// R5-8-2: FIXED by #2286 (pins dropped; its own regression test covers it).
 
 // R5-8-3: FIXED by #2285 (pins dropped; its own regression test covers it).
 
