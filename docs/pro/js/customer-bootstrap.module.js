@@ -22,6 +22,9 @@ import {
   subTypeOptionsFor as _subTypeOptionsFor,
 } from "./crm-stages.js";
 import { commitStageChange as _commitStageChange } from "./stage-write.js";
+// Estimate archive + lead primary/jobValue sync, shared with the dashboard's
+// Delete (review R5-8-2).
+import { archiveEstimateAndSyncLead } from "./estimate-lead-sync.js";
 // dashboard-bootstrap.module.js exposes these identically; mirrored here so
 // stage-checklist.js's auto-task generator (window.StageChecklist, a plain
 // script loaded on both pages) has the same functions to call regardless
@@ -1960,6 +1963,47 @@ async function setPrimaryEstimate(estId) {
   }
 }
 
+// Archive (soft-delete) one of this lead's estimates. Both Archive buttons
+// (the preview sheet and the legacy viewer modal) come through here, and the
+// write itself is archiveEstimateAndSyncLead — the same call the dashboard's
+// Delete makes — so archiving the PRIMARY estimate also promotes the next
+// live one (or clears the pointer and its jobValue) instead of leaving the
+// pipeline, KPIs and leaderboard on a ghost (review R5-8-2). Throws when the
+// archive itself fails; the callers toast that.
+async function _archiveCustomerEstimate(estimateId) {
+  const leadId = window._customerId;
+  const list = window._customerEstimates || [];
+  const rowsApi = window.NBDCustomerEstimateRows || {};
+  const { leadPatch } = await archiveEstimateAndSyncLead({
+    estimateId,
+    estimate: list.find(e => e && e.id === estimateId) || null,
+    estimates: list,
+    fs: { db, doc, getDoc, updateDoc, serverTimestamp },
+    // Same reader + fallback as setPrimaryEstimate above.
+    estValue: (e) => typeof rowsApi.estimateValue === 'function'
+      ? rowsApi.estimateValue(e)
+      : Number(e.grandTotal != null ? e.grandTotal : e.total != null ? e.total : e.amount) || 0,
+    ask: window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m))),
+  });
+  // No leads snapshot listener on this page: refresh the in-memory lead and
+  // the header cell like setPrimaryEstimate does.
+  if (leadPatch) {
+    if (window._currentLead) Object.assign(window._currentLead, leadPatch);
+    if (window._leadDoc) Object.assign(window._leadDoc, leadPatch);
+    if ('jobValue' in leadPatch) {
+      const jv = document.getElementById('infoJobValue');
+      const v = Number(leadPatch.jobValue) || 0;
+      if (jv) jv.textContent = v ? '$' + v.toLocaleString() : '—';
+    }
+  }
+  window._currentEstimateId = null;
+  await loadEstimates(leadId);
+  const leadSnap = await getDoc(doc(db, 'leads', leadId));
+  if (leadSnap.exists()) {
+    await loadTimeline(leadId, leadSnap.data());
+  }
+}
+
 async function loadEstimates(leadId) {
   try {
     const estDocs = await _getEstimateDocsForLead(leadId);
@@ -3340,17 +3384,8 @@ window.viewEstimate = function(estimateId) {
         const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
         if (!(await ask('Archive this estimate? It will be hidden but never permanently deleted.'))) return;
         try {
-          // SOFT DELETE — never deleteDoc on estimates (standing rule).
-          await updateDoc(doc(db, 'estimates', estimateId), {
-            deleted: true,
-            deletedAt: serverTimestamp()
-          });
-          window._currentEstimateId = null;
-          await loadEstimates(window._customerId);
-          const leadSnap = await getDoc(doc(db, 'leads', window._customerId));
-          if (leadSnap.exists()) {
-            await loadTimeline(window._customerId, leadSnap.data());
-          }
+          // SOFT DELETE + lead sync — never deleteDoc on estimates (standing rule).
+          await _archiveCustomerEstimate(estimateId);
         } catch (error) {
           console.error('Archive error:', error);
           _cbNotify('Could not archive estimate: ' + ((error && error.message) || 'unknown error'), 'error');
@@ -3466,22 +3501,12 @@ window.viewEstimate = function(estimateId) {
     if (!(await ask('Archive this estimate? It will be hidden but never permanently deleted.'))) return;
 
     try {
-      // SOFT DELETE — never use deleteDoc on estimates (standing rule: never lose a job)
-      await updateDoc(doc(db, 'estimates', estimateId), {
-        deleted: true,
-        deletedAt: serverTimestamp()
-      });
+      // SOFT DELETE + lead sync — never use deleteDoc on estimates (standing rule: never lose a job)
+      await _archiveCustomerEstimate(estimateId);
       // Close the viewer (not the create modal). Pre-fix this called
       // closeEstimateModal() which would have hidden the wrong modal
       // even if the viewer had been working.
       closeEstimateViewerModal();
-      await loadEstimates(window._customerId);
-      
-      // Reload timeline
-      const leadSnap = await getDoc(doc(db, 'leads', window._customerId));
-      if (leadSnap.exists()) {
-        await loadTimeline(window._customerId, leadSnap.data());
-      }
     } catch (error) {
       console.error('Archive error:', error);
       _cbNotify('Could not archive estimate: ' + ((error && error.message) || 'unknown error'), 'error');
@@ -3725,10 +3750,11 @@ window.generateCertFromEstimate = async function(estimateId) {
   const _sd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(lead.scheduledDate || ''));
   const installDay = _sd ? new Date(+_sd[1], +_sd[2] - 1, +_sd[3]) : new Date(_now.getFullYear(), _now.getMonth(), _now.getDate());
   // GBB audit, 2026-09-09: was a hardcoded `warrantyYears = 5` regardless of
-  // which tier the estimate underneath was actually sold at — a homeowner
-  // who bought Elite could receive a certificate claiming only 5 years. All
-  // tiers are now lifetime workmanship (estimate-config.js TIER_DISPLAY);
-  // only the transferability/inspection differentiator varies by tier.
+  // which tier the estimate underneath was actually sold at. Jo, 2026-10-06
+  // (final): each package carries a WRITTEN labor warranty — Economy 1,
+  // Standard 5, Preferred 10, Elite 20 years (estimate-config.js
+  // TIER_LABOR_YEARS, read through TIER_DISPLAY) — and every NBD job also
+  // carries the NBD Pledge, a promise that is never a "lifetime warranty".
   // A job-type warranty has no tier; a new roofing template estimate prints
   // the tier wording its flow always saved ('better').
   const _tierKey = _jobW ? '' : (_jw ? _jw.wordingTier : String(est.tier || est.tierName || '').toLowerCase());
@@ -3737,22 +3763,31 @@ window.generateCertFromEstimate = async function(estimateId) {
     ? _cfg.tierLabel(_tierKey) : ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' })[_tierKey] || '';
   const warrantyBlurb = (_cfg && typeof _cfg.tierWarrantyBlurb === 'function')
     ? _cfg.tierWarrantyBlurb(_tierKey) : '';
-  // Five tiers (Jo, 2026-10-02): an Economy roof is a 1-YEAR labor warranty +
-  // the shingle maker's standard limited warranty, NO system warranty — this
-  // certificate must not say lifetime for it. Beyond adds TAMKO's HailGuard
-  // hail warranty. TIER_DISPLAY when loaded, else the same facts by key.
+  // TIER_DISPLAY when loaded, else the same facts by key (pinned equal to
+  // TIER_LABOR_YEARS by tests/warranty-pledge-labor-years-2026-10-06.test.js).
+  // Economy: the shingle maker's standard limited warranty, NO system
+  // warranty. Beyond adds TAMKO's HailGuard hail warranty.
   const _tierW = (_cfg && _cfg.TIER_DISPLAY && _cfg.TIER_DISPLAY[_tierKey] && _cfg.TIER_DISPLAY[_tierKey].warranty)
-    || ({ economy: { workmanshipYears: 1 }, beyond: { hailWarranty: true } })[_tierKey] || {};
+    || ({ economy: { workmanshipYears: 1, systemWarranty: false }, good: { workmanshipYears: 5 }, better: { workmanshipYears: 10 },
+      best: { workmanshipYears: 20 }, beyond: { workmanshipYears: 20, hailWarranty: true } })[_tierKey] || {};
   const _tierYears = Number(_tierW.workmanshipYears) > 0 ? Number(_tierW.workmanshipYears) : 0;
-  const _roofPeriod = _tierYears ? _tierYears + '-Year Workmanship (Labor)' : 'Lifetime Workmanship';
-  const _roofBody = _tierYears
-    ? 'This warranty covers defects in workmanship for ' + (_tierYears === 1 ? 'one (1) year' : _tierYears + ' years') + ' from the completion date. The shingles carry the manufacturer\'s standard limited warranty; no system warranty is included.'
-    : 'This warranty covers defects in workmanship for the lifetime of the installation.'
-      + (_tierW.hailWarranty ? ' The TAMKO HailGuard shingles also carry TAMKO\'s HailGuard hail warranty (manufacturer terms apply).' : '')
-      // GAF System Plus (Standard and up, 2026-10-05) — NBD's GAF certification,
-      // so the platform tenant only.
-      + (_tierW.systemPlus && (!window.NBDTenantRules || typeof window.NBDTenantRules.isPlatformTenant !== 'function' || window.NBDTenantRules.isPlatformTenant())
-        ? ' The GAF shingles and qualifying GAF accessories also carry the GAF System Plus Limited Warranty, GAF\'s manufacturer warranty (GAF terms apply).' : '');
+  // NBD's Pledge and years are NBD's own (Jo, 2026-10-06). Another company
+  // prints ITS OWN configured warranty sentence, or no workmanship line at
+  // all — never NBD's terms.
+  const _TRc = window.NBDTenantRules;
+  const _certNbd = !(_TRc && typeof _TRc.isPlatformTenant === 'function' && _TRc.isPlatformTenant() === false);
+  const _certOwnW = (!_certNbd && typeof _TRc.ownWarrantyText === 'function') ? (_TRc.ownWarrantyText(_tierKey) || '') : '';
+  const _certPledge = !_certNbd ? ''
+    : ((_TRc && typeof _TRc.pledgeLine === 'function' && _TRc.pledgeLine()) || (_cfg && _cfg.PLEDGE_PROMISE)
+      || 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right.');
+  const _roofPeriod = !_certNbd ? (_certOwnW ? 'As stated below' : '')
+    : (_tierYears ? _tierYears + '-Year Written Workmanship (Labor)' : 'Written Workmanship (Labor) — see your estimate');
+  const _roofBody = !_certNbd ? _certOwnW
+    : ((_tierYears
+      ? 'Written workmanship warranty: this warranty covers defects in workmanship for ' + (_tierYears === 1 ? 'one (1) year' : _tierYears + ' years') + ' from the completion date.'
+      : 'Written workmanship warranty: per your package — see your estimate.')
+      + (_tierW.systemWarranty === false ? ' The shingles carry the manufacturer\'s standard limited warranty; no system warranty is included.' : '')
+      + (_tierW.hailWarranty ? ' The TAMKO HailGuard shingles also carry TAMKO\'s HailGuard hail warranty (manufacturer terms apply).' : ''));
 
   // Accent is a literal here, not var(--orange): this popup links only
   // nbd-mobile.css, which never DECLARES --orange (it only reads it with a
@@ -3773,6 +3808,36 @@ window.generateCertFromEstimate = async function(estimateId) {
   // into the popup. That keeps the popup on-theme for white-label tenants
   // instead of hardcoding NBD orange, and satisfies the bare-hex drift guard
   // in tests/crm-theme-contract.test.js.
+  // The manufacturer warranty THIS job bought, on its own line (2026-10-06):
+  // the package's warranty plus any extended manufacturer warranty sold on the
+  // estimate. Nothing known → "per manufacturer — see your estimate".
+  const _certItems = (window.NBDCustomerEstimateRows && typeof window.NBDCustomerEstimateRows.buildDocLineItems === 'function'
+    && window.NBDCustomerEstimateRows.buildDocLineItems(est)) || est.lineItems || [];
+  const _mfgLine = _jobW ? '' : ((_TRc && typeof _TRc.warrantyLines === 'function')
+    ? _TRc.warrantyLines({ tier: _tierKey, isNbd: _certNbd, lineItems: _certItems, extendedWarranty: est.extendedWarranty || lead.extendedWarranty || null }).manufacturer
+    : 'Manufacturer warranty: per manufacturer — see your estimate');
+  // The certificate wears THIS company's identity (companyProfile/{companyId},
+  // via window._brand()): it printed NBD's logo, name and an "NBD-" number
+  // for every company. NBD stays byte-identical. Another company: its own
+  // legal name / seal / logo, never NBD's — a brand that still resolves to
+  // NBD's defaults (profile not set up) prints no name and no logo rather
+  // than someone else's. Every field is escaped where it is printed.
+  try {
+    if (window._companyProfileLoaded !== true && typeof window._loadCompanyProfile === 'function') await window._loadCompanyProfile();
+  } catch (_) { /* render with what is available */ }
+  const _NBD_NAME = 'No Big Deal Home Solutions';
+  const _certBrand = (typeof window._brand === 'function' && window._brand()) || {};
+  const _ownName = (!_certNbd && _certBrand.legalName && _certBrand.legalName !== _NBD_NAME) ? String(_certBrand.legalName) : '';
+  const _coName = _certNbd ? _NBD_NAME : _ownName;
+  const _coMark = _certNbd ? 'NBD' : (_ownName ? String(_certBrand.seal || '') : '');
+  const _logoRaw = _certNbd ? '/assets/images/nbd-logo-light-bg.png' : (_ownName ? String(_certBrand.logoUrl || '') : '');
+  // Only an https:// or root-relative image — never javascript:/data: from a profile field.
+  const _logoSrc = /^(https:\/\/|\/(?!\/))/i.test(_logoRaw) ? _logoRaw : '';
+  let _certPfx = _certNbd ? 'NBD' : 'CUS';
+  try {
+    if (typeof window._tenantIdPrefix === 'function') _certPfx = String((await window._tenantIdPrefix()) || _certPfx);
+  } catch (_) { /* keep the fallback */ }
+  if (!_certNbd && _certPfx.toUpperCase() === 'NBD') _certPfx = 'CUS';
   const accent = (getComputedStyle(document.documentElement)
     .getPropertyValue('--orange') || '').trim() || '#BD5728';
   const html = `<!DOCTYPE html>
@@ -3800,9 +3865,9 @@ window.generateCertFromEstimate = async function(estimateId) {
 </style><link rel="stylesheet" href="/assets/css/nbd-mobile.css">
 </head><body>
 <div class="cert">
-  <img src="/assets/images/nbd-logo-light-bg.png" alt="No Big Deal Home Solutions" style="height:64px;width:auto;display:block;margin:0 auto 10px;" loading="lazy" decoding="async" />
-  <div class="logo">NBD</div>
-  <div class="logo-sub">No Big Deal Home Solutions</div>
+  ${_logoSrc ? `<img src="${esc(_logoSrc)}" alt="${esc(_coName)}" style="height:64px;width:auto;display:block;margin:0 auto 10px;" loading="lazy" decoding="async" />` : ''}
+  ${_coMark ? `<div class="logo">${esc(_coMark)}</div>` : ''}
+  ${_coName ? `<div class="logo-sub">${esc(_coName)}</div>` : ''}
   <h1>WARRANTY CERTIFICATE</h1>
   <div class="seal">Certificate of Workmanship Warranty</div>
   <div class="details">
@@ -3811,11 +3876,13 @@ window.generateCertFromEstimate = async function(estimateId) {
     <div class="row"><span class="label">Work Performed</span><span class="value">${esc(est.title || (_jobW && est.name) || 'Roofing Installation')}</span></div>
     <div class="row"><span class="label">Completion Date</span><span class="value">${installDay.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</span></div>
     ${tierLabelStr ? `<div class="row"><span class="label">Guarantee Tier</span><span class="value">${esc(tierLabelStr)}</span></div>` : ''}
-    <div class="row"><span class="label">Warranty Period</span><span class="value">${_jobW ? esc(_jobW.years ? _jobW.years + '-Year Workmanship' : 'As stated below') : esc(_roofPeriod)}</span></div>
+    ${(_jobW || _roofPeriod) ? `<div class="row"><span class="label">Warranty Period</span><span class="value">${_jobW ? esc(_jobW.years ? _jobW.years + '-Year Workmanship' : 'As stated below') : esc(_roofPeriod)}</span></div>` : ''}
+    ${_mfgLine ? `<div class="row"><span class="label">Manufacturer Warranty</span><span class="value">${esc(_mfgLine.replace(/^Manufacturer warranty:\s*/, ''))}</span></div>` : ''}
     ${warrantyBlurb ? `<div class="row"><span class="label">${_tierYears ? 'Coverage' : 'Transferability'}</span><span class="value">${esc(warrantyBlurb)}</span></div>` : ''}
-    <div class="row"><span class="label">Certificate #</span><span class="value">NBD-${estimateId.slice(0,8).toUpperCase()}</span></div>
+    ${_certPledge ? `<div class="row"><span class="label">NBD Pledge</span><span class="value">${esc(_certPledge.replace(/^NBD Pledge:\s*/, ''))}</span></div>` : ''}
+    <div class="row"><span class="label">Certificate #</span><span class="value">${esc(_certPfx)}-${esc(String(estimateId).slice(0,8).toUpperCase())}</span></div>
   </div>
-  <p style="font-size:12px;color:#666;line-height:1.7;margin:20px 0;">This certificate warrants that all work performed by No Big Deal Home Solutions at the above property was completed using industry-standard materials and craftsmanship. ${_jobW ? esc(_jobW.text) + ' Defects in the workmanship it covers, appearing within that period, will be repaired at no cost to you.' : esc(_roofBody)}</p>
+  <p style="font-size:12px;color:#666;line-height:1.7;margin:20px 0;">This certificate warrants that all work performed by ${esc(_coName || 'your contractor')} at the above property was completed using industry-standard materials and craftsmanship. ${_jobW ? esc(_jobW.text) + ' Defects in the workmanship it covers, appearing within that period, will be repaired at no cost to you.' : esc(_roofBody)}${_certPledge ? ' ' + esc(_certPledge) : ''}</p>
   <div class="footer">
     <div class="sig"><div class="sig-line">Contractor Signature</div></div>
     <div class="sig"><div class="sig-line">Date Issued: ${new Date().toLocaleDateString()}</div></div>

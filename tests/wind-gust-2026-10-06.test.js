@@ -486,9 +486,11 @@ const MTW = [39.087, -84.39];
     ok('rep switched cards mid-lookup → nothing attached to the wrong lead', (await runCrm('x', { switchTo: 'L2' })).length === 0);
     const dw = stripComments(read('docs/pro/js/dashboard-widgets.js'));
     ok('opening another card removes a stale note', /getElementById\('cdStormWind'\)[\s\S]{0,120}getAttribute\('data-lead-id'\) !== leadId\) _stormWind\.remove\(\)/.test(dw));
-    ok('cache-busters bumped (storm-integration v3, loader v146, widgets v10)',
+    // Loader: v146 or later (a later PR bumping it again must not fail this).
+    const loaderV = (f) => Number((/script-loader\.js\?v=(\d+)/.exec(read(f)) || [])[1]) >= 146;
+    ok('cache-busters bumped (storm-integration v3, loader v146+, widgets v10)',
       /'js\/storm-integration\.js\?v=3'/.test(read('docs/pro/js/script-loader.js')) &&
-      Number((read('docs/pro/dashboard.html').match(/script-loader\.js\?v=(\d+)/) || [])[1]) >= 146 && Number((read('docs/pro/customer.html').match(/script-loader\.js\?v=(\d+)/) || [])[1]) >= 146 &&
+      loaderV('docs/pro/dashboard.html') && loaderV('docs/pro/customer.html') &&
       /dashboard-widgets\.js\?v=10/.test(read('docs/pro/dashboard.html')));
   }
 

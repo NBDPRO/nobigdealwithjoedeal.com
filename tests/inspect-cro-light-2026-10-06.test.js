@@ -43,7 +43,9 @@ const pills = [...row.matchAll(/<span class="trust-pill">([\s\S]*?)<\/span>\s*(?
   .map((m) => m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
 ok('hero trust row found', row.length > 0);
 ok('rating pill uses the live data-nbd-gr-rating + data-nbd-gr-total hooks',
-  /data-nbd-gr-rating>[\d.]+<\/span>\s*on Google\s*\(<span data-nbd-gr-total>\d+<\/span>\s*reviews\)/.test(row));
+  // 2026-10-06: the count ships EMPTY in a hidden wrap the widget reveals only
+  // with a live count, so a failed fetch shows no stale number.
+  /data-nbd-gr-rating>[\d.]+<\/span>\s*on Google<span data-nbd-gr-total-wrap hidden>\s*\(<span data-nbd-gr-total><\/span>\s*reviews\)<\/span>/.test(row));
 ['GAF Certified', 'TAMKO Pro Gold', 'Fully insured'].forEach((p) => {
   ok('pill "' + p + '"', pills.some((x) => x.replace(/^\W+/, '') === p), JSON.stringify(pills));
 });
