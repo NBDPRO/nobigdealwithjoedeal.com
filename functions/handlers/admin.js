@@ -38,7 +38,9 @@ const {
 // truth; invites.js does not require admin.js, so this edge is one-way/safe).
 const { seatLimitForPlan, isInviteExpired } = require('./invites');
 // R3-1 (2026-10-06): what a removed / deactivated / demoted member loses.
-const { reassignMemberRecords, revokeMemberAccessTokens } = require('../member-offboarding');
+const { reassignMemberRecords, revokeMemberAccessTokens, roleChangeRevokesAccess } = require('../member-offboarding');
+// 2026-10-06 (Jo): a removed member's stored files move to the owner too.
+const { prepareMemberStorageMove, markRecordsReassigned, runMemberStorageMove, LOCK_CLAIM } = require('../member-storage-move');
 
 // ═══════════════════════════════════════════════════════════════
 // getAdminAnalytics — C3: ops dashboard numbers for the Team Manager.
@@ -637,10 +639,13 @@ exports.updateUserRole = onCall(
     }
 
     // R3-1: a viewer may not hold a bot key or a calendar feed link (neither
-    // can be minted by one), so a demotion to viewer turns theirs off. Before
-    // the claim change, so a failure leaves the role as it was for a retry.
-    if (role === 'viewer') {
-      await revokeMemberAccessTokens(getFirestore(), userRecord.uid, 'role-viewer');
+    // can be minted by one), so a demotion to viewer turns theirs off, and so
+    // does any downgrade away from company_admin / manager (Jo 2026-10-06;
+    // roleChangeRevokesAccess). Before the claim change, so a failure leaves
+    // the role as it was for a retry.
+    if (roleChangeRevokesAccess(existingClaims.role, role)) {
+      await revokeMemberAccessTokens(getFirestore(), userRecord.uid,
+        role === 'viewer' ? 'role-viewer' : 'role-downgrade');
     }
 
     await getAuth().setCustomUserClaims(userRecord.uid, {
@@ -796,12 +801,26 @@ exports.deactivateUser = onCall(
 // if either throws, the rep still carries this company's claim, so
 // callerMayManageTarget lets the admin retry. Why reassign rather than a
 // rules change: see functions/member-offboarding.js.
+//
+// Files (2026-10-06, Jo): Storage authorizes on the uid in the object path,
+// so the records moving was not enough: the ex-rep could still read and
+// delete photos/<rep>/..., documents/<rep>/... and the rest. The reassignment
+// now records every moved doc in the storage move's ledger (same batch), and
+// after the claim strip the move copies each company file to the owner's
+// folder, repoints the records and deletes the original
+// (functions/member-storage-move.js). The claim strip also sets the
+// offboardLock claim, which storage.rules honours, so the old folder is
+// locked for the whole move. One bounded slice runs here; the
+// resumeMemberStorageMoves cron finishes a large one.
 async function offboardMember(db, uid, toUid, companyId) {
   const revoked = await revokeMemberAccessTokens(db, uid, 'member-removed');
-  const reassigned = await reassignMemberRecords(db, { fromUid: uid, toUid, companyId });
+  const move = await prepareMemberStorageMove(db, { companyId, fromUid: uid, toUid });
+  const reassigned = await reassignMemberRecords(db, { fromUid: uid, toUid, companyId, ledger: move.ledger });
+  await markRecordsReassigned(move.ref);
   logger.info('removeMember.offboarded', {
-    companyId, targetUid: uid, ...revoked, reassigned: reassigned.total, skipped: reassigned.skipped,
+    companyId, targetUid: uid, ...revoked, reassigned: reassigned.total, skipped: reassigned.skipped, storageMove: move.id,
   });
+  return move.id;
 }
 exports.removeMember = onCall(
   {
@@ -847,6 +866,7 @@ exports.removeMember = onCall(
     // guard must gate the CLAIM MUTATION, not the roster-row delete: deleting
     // our own tenant's invite row harms no one.
     const isPendingInvite = member.status === 'invited' && !lookupUid;
+    let moveId = null;
 
     if (userRecord) {
       // Never remove the owner or yourself.
@@ -867,10 +887,10 @@ exports.removeMember = onCall(
         throw new HttpsError('permission-denied', 'User belongs to another company');
       }
       if (managesTarget) {
-        await offboardMember(db, userRecord.uid, ownerId || callerUid, companyId);
+        moveId = await offboardMember(db, userRecord.uid, ownerId || callerUid, companyId);
         // Strip companyId + role; PRESERVE everything else (plan/subscription/
         // billing claims the Stripe webhook maintains).
-        const stripped = { ...existingClaims };
+        const stripped = { ...existingClaims, [LOCK_CLAIM]: true };
         delete stripped.companyId;
         delete stripped.role;
         await getAuth().setCustomUserClaims(userRecord.uid, stripped);
@@ -882,7 +902,22 @@ exports.removeMember = onCall(
 
     await memberRef.delete();
     logger.info('removeMember', { companyId, targetEmail, hadAccount: !!userRecord });
-    return { success: true, removed: true, hadAccount: !!userRecord };
+
+    // The removal is done. Start the file move; whatever this slice does not
+    // finish, the cron does, so a failure here never fails the removal.
+    let filesMove = null;
+    if (moveId) {
+      try {
+        const { getStorage } = require('firebase-admin/storage');
+        filesMove = (await runMemberStorageMove(db, getStorage().bucket(), moveId, {
+          auth: getAuth(), logger, deadlineMs: 45_000,
+        })).status;
+      } catch (e) {
+        logger.warn('removeMember.storageMove deferred to cron', { moveId, msg: e && e.message });
+        filesMove = 'running';
+      }
+    }
+    return { success: true, removed: true, hadAccount: !!userRecord, filesMove };
   }
 );
 

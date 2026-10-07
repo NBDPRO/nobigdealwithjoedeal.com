@@ -466,7 +466,7 @@ const tenantOpsDone = (async () => {
     'leads/l1': { companyId: 'co-a', firstName: '=HYPERLINK("x")' },
     'leads/l9': { companyId: 'co-b', firstName: 'Other company' },
     'leads/legacy': { userId: OAKS, firstName: 'Legacy (no companyId)' },
-    'photos/p1': { companyId: 'co-a', storagePath: 'photos/co-a/1.jpg', url: 'https://firebasestorage.googleapis.com/x?alt=media&token=abc' },
+    'photos/p1': { companyId: 'co-a', userId: 'co-a', storagePath: 'photos/co-a/1.jpg', url: 'https://firebasestorage.googleapis.com/x?alt=media&token=abc' },
     'invoices/i1': { companyId: 'co-a', totalCents: 1000 },
   });
   const bucket = { file: () => ({ getSignedUrl: async () => ['https://storage.googleapis.com/signed?X-Goog-Expires=86400'] }) };
