@@ -532,10 +532,16 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
       const dbLead = window.db || window._db;
       const uidLead = (window._auth || window.auth).currentUser.uid;
       const tokLead = await (window._auth || window.auth).currentUser.getIdTokenResult();
-      const leadRef = await fsLead.addDoc(fsLead.collection(dbLead, 'leads'), {
+      // setDoc on a pre-minted id, ALREADY_EXISTS = it landed: the emulator
+      // can report a write that committed as ALREADY_EXISTS on a transport
+      // retry (the same flake saveEstimateTolerant absorbs).
+      const leadRef = fsLead.doc(fsLead.collection(dbLead, 'leads'));
+      try {
+        await fsLead.setDoc(leadRef, {
         userId: uidLead, companyId: (tokLead.claims && tokLead.claims.companyId) || uidLead,
         firstName: 'E2E', lastName: 'Invoice', address: est.addr, stage: 'new', meter: 'manual', e2eTestData: true,
       });
+      } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
       est.leadId = leadRef.id;
       const estimateId = await saveEstimateTolerant(est);
       const invoiceId = await window.InvoicePipeline.createInvoiceFromEstimate(estimateId);
@@ -611,7 +617,25 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
       ctx.fillStyle = '#d2691e'; ctx.fillRect(0, 0, 80, 60);
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.8));
 
-      const leadId = 'e2e-photo-lead-' + args.stamp;
+      // A real lead of the signed-in user: since #2220 (2026-10-05 security
+      // review) a photo may only name a lead the writer can reach, so a
+      // made-up leadId is refused at create (PERMISSION_DENIED) — same fix
+      // as the invoice journey above.
+      const fsLead = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const dbLead = window.db || window._db;
+      const uidLead = (window._auth || window.auth).currentUser.uid;
+      const tokLead = await (window._auth || window.auth).currentUser.getIdTokenResult();
+      // setDoc on a pre-minted id, ALREADY_EXISTS = it landed: the emulator
+      // can report a write that committed as ALREADY_EXISTS on a transport
+      // retry (the same flake saveEstimateTolerant absorbs).
+      const leadRef = fsLead.doc(fsLead.collection(dbLead, 'leads'));
+      try {
+        await fsLead.setDoc(leadRef, {
+        userId: uidLead, companyId: (tokLead.claims && tokLead.claims.companyId) || uidLead,
+        firstName: 'E2E', lastName: 'Photo', address: '742 Photo Test Ct, Cincinnati, OH', stage: 'new', meter: 'manual', e2eTestData: true,
+      });
+      } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
+      const leadId = leadRef.id;
       const photo = await window.PhotoEngine.uploadFromFile(
         leadId, blob, ['before'], '[E2E] photo journey ' + args.stamp);
 
@@ -662,7 +686,19 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.8));
       const file = new File([blob], 'e2e_dash.jpg', { type: 'image/jpeg' });
 
-      const leadId = 'e2e-dash-photo-lead-' + args.stamp;
+      // A real lead (#2220 photo lead binding — see the leg above).
+      const fsLead = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const dbLead = window.db || window._db;
+      const uidLead = (window._auth || window.auth).currentUser.uid;
+      const tokLead = await (window._auth || window.auth).currentUser.getIdTokenResult();
+      const leadRef = fsLead.doc(fsLead.collection(dbLead, 'leads'));
+      try {
+        await fsLead.setDoc(leadRef, {
+          userId: uidLead, companyId: (tokLead.claims && tokLead.claims.companyId) || uidLead,
+          firstName: 'E2E', lastName: 'Dash Photo', address: '744 Photo Test Ct, Cincinnati, OH', stage: 'new', meter: 'manual', e2eTestData: true,
+        });
+      } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
+      const leadId = leadRef.id;
       // Registry-only (Globals Tranche 3 T3-C, 2026-09-18), not a bare window global.
       const url = await window.__NBD_CALL_REGISTRY._uploadPhoto(leadId, file);
 
