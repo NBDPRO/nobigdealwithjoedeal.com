@@ -29,6 +29,7 @@
 'use strict';
 
 const DR = require('./deposit-rule');
+const PIF = require('./paid-in-full');
 const J = require('./ky-insurance-law');
 const IFE = require('./invoice-from-estimate');
 const CER = require('./customer-estimate-rows');
@@ -156,6 +157,10 @@ function decideDepositDraft(ctx) {
   // never a second one. Void / deleted invoices don't count.
   const existing = (Array.isArray(ctx.existingInvoices) ? ctx.existingInvoices : []).filter((inv) => {
     if (!inv || _isDeleted(inv)) return false;
+    // Another tenant's invoice naming this lead is not this job's invoice —
+    // it must not block (or stand in for) this tenant's deposit draft
+    // (paid-in-full.js invoiceInLeadTenant, 2026-10-05).
+    if (!PIF.invoiceInLeadTenant(inv, lead)) return false;
     const st = String(inv.status || '').toLowerCase();
     if (st === 'void' || st === 'voided' || st === 'cancelled' || st === 'canceled') return false;
     const ij = _validJobId(inv.jobId);
