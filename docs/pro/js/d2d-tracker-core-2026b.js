@@ -2329,6 +2329,11 @@
       // until the user explicitly promotes it via the CRM lead detail
       // modal (Promote to Customer button).
       const isAppointment = knock.disposition === 'appointment';
+      // stageRole beside the stage (R5-8-3, 2026-10-06) so the direct-write
+      // fallback below carries it too (_saveLead stamps its own). Tenant-aware
+      // window.stageRole; only one of the five roles firestore.rules accepts,
+      // otherwise the key is omitted (never undefined).
+      const _stageRole = typeof window.stageRole === 'function' ? window.stageRole(stage) : null;
       const leadData = {
         firstName,
         lastName,
@@ -2340,6 +2345,7 @@
         phoneDigits: String(knock.phone || '').replace(/\D/g, '').replace(/^1/, '').slice(-10),
         email: knock.email || '',
         stage,
+        ...(['new', 'active', 'job', 'won', 'lost'].includes(_stageRole) ? { stageRole: _stageRole } : {}),
         jobType,
         // 'Door Knock' is the canonical source string (Joe, 2026-09-06). This
         // line used to write 'Door-to-Door' while maps-overlays.js wrote

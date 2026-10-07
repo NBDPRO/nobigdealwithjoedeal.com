@@ -610,7 +610,8 @@ ok('tierWarrantyText says "' + SP + '" on Standard/Preferred/Elite', INCL.every(
 ok('tierWarrantyText never mentions System Plus on Economy/Beyond', EXCL.every((t) => !/System Plus/i.test(C.tierWarrantyText(t))));
 ok('tierWarrantyBlurb ends "+ GAF System Plus" on Standard/Preferred/Elite, not on Economy/Beyond',
   INCL.every((t) => /\+ GAF System Plus$/.test(C.tierWarrantyBlurb(t))) && EXCL.every((t) => !/System Plus/i.test(C.tierWarrantyBlurb(t))));
-ok('the workmanship part of each sentence is unchanged (still starts "Lifetime workmanship warranty")', INCL.every((t) => /^Lifetime workmanship warranty; /.test(C.tierWarrantyText(t))));
+// Jo, 2026-10-06 (final): the workmanship part is the package's WRITTEN labor years, never "lifetime".
+ok('the workmanship part of each sentence is the written labor years (5/10/20), never lifetime', INCL.every((t) => /^(5|10|20)-year written workmanship \(labor\) warranty; /.test(C.tierWarrantyText(t)) && !/lifetime/i.test(C.tierWarrantyText(t))));
 
 // Fallback copies for pages that do not load estimate-config.js.
 const esc = (s) => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -687,21 +688,29 @@ ok('certificate: Economy and Beyond never do', !/System Plus/.test(cert(DG, 'eco
 ok('certificate: a TAMKO roof on Standard does not claim GAF System Plus', !/System Plus/.test(cert(DG, 'good', [{ code: 'RFG 240-TAMKO', name: 'TAMKO Heritage' }])));
 ok('certificate: another company\'s certificate never claims GAF System Plus', INCL.every((t) => !/System Plus/.test(cert(docgen(false), t, HDZ))));
 
-// Legacy / server warranty certificate (warranty-cert.js).
-const wcWin = { NBDDocGen: DG };
-wcWin.window = wcWin;
-const wcSb = { window: wcWin, document: { getElementById: () => null, addEventListener() {}, querySelector: () => null }, console: { log() {}, warn() {}, error() {} } };
-vm.createContext(wcSb);
-vm.runInContext(read('docs/pro/js/warranty-cert.js'), wcSb, { filename: 'warranty-cert.js' });
-const wcSys = vm.runInContext('_wcSystemPlus', wcSb);
-const wcFeat = vm.runInContext('WC_SYSTEM_PLUS_FEATURE', wcSb);
-ok('warranty-cert: System Plus feature on NBD Standard/Preferred/Elite GAF roofs only',
-  ['standard', 'preferred', 'elite'].every((t) => wcSys(t, true, 'GAF Timberline HDZ reroof') === true)
-  && !wcSys('economy', true, 'GAF Timberline HDZ') && !wcSys('beyond', true, 'TAMKO HailGuard')
-  && !wcSys('standard', false, 'GAF Timberline HDZ') && !wcSys('standard', true, 'TAMKO Heritage reroof'));
-ok('warranty-cert: the feature names GAF System Plus as GAF\'s manufacturer warranty', /^GAF System Plus Limited Warranty — GAF’s manufacturer warranty/.test(wcFeat));
-ok('warranty-cert: both the server payload and the legacy cert use it',
-  (stripComments(read('docs/pro/js/warranty-cert.js')).match(/_wcSystemPlus\(/g) || []).length === 3);
+// Legacy / server warranty certificate (warranty-cert.js). Since 2026-10-06
+// (#2270) the certificate's manufacturer line comes from tenant-rules.js
+// warrantyLines (what the job bought), which names GAF System Plus on NBD's
+// Standard/Preferred/Elite GAF roofs — so the check runs on that shared rule.
+function rulesTR(companyId, profile) {
+  const win = { _userClaims: { companyId }, _companyProfile: profile || null };
+  win.window = win;
+  const sb = { window: win, console: { log() {}, warn() {}, error() {} } };
+  vm.createContext(sb);
+  vm.runInContext(read('docs/pro/js/estimate-config.js'), sb);
+  vm.runInContext(read('docs/pro/js/tenant-rules.js'), sb);
+  return win.NBDTenantRules;
+}
+const TRn = rulesTR(NBD_UID, null);
+const mfgOf = (tr, tier, items) => tr.warrantyLines({ tier, lineItems: items }).manufacturer;
+ok('warranty-cert (shared rule): System Plus on NBD Standard/Preferred/Elite GAF roofs only',
+  INCL.every((t) => /GAF System Plus Limited Warranty/.test(mfgOf(TRn, t, HDZ)))
+  && !/System Plus/.test(mfgOf(TRn, 'economy', HDZ)) && !/System Plus/.test(mfgOf(TRn, 'beyond', [{ code: 'RFG 240-TAMKO-HAIL', name: 'TAMKO HailGuard' }]))
+  && !/System Plus/.test(mfgOf(TRn, 'good', [{ code: 'RFG 240-TAMKO', name: 'TAMKO Heritage' }]))
+  && !/System Plus/.test(mfgOf(rulesTR('someOtherCompany', { brand: { legalName: 'Oak Roofing LLC' } }), 'good', HDZ)));
+ok('warranty-cert: the line names GAF System Plus as GAF\'s warranty, included with the package', /^Manufacturer warranty: GAF System Plus Limited Warranty, included with the Standard package \(registered with GAF; GAF’s terms apply\)/.test(mfgOf(TRn, 'good', HDZ)), mfgOf(TRn, 'good', HDZ));
+ok('warranty-cert: both the server payload and the legacy cert print that shared line',
+  /manufacturerLine: lines\.manufacturer/.test(stripComments(read('docs/pro/js/warranty-cert.js'))) && /TR\.warrantyLines\(/.test(stripComments(read('docs/pro/js/warranty-cert.js'))));
 
 // Close Board / deal room cards read tierWarrantyText (pinned above via the
 // config); the agent rules reference is a server copy of the ladder.

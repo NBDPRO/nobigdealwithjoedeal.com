@@ -69,7 +69,7 @@
     // Academy / training — never loaded unless the user enters an
     // academy or training tab. Biggest single lazy win (~150KB).
     academy: [
-      'js/academy-insurance-tree-data.js?v=2',
+      'js/academy-insurance-tree-data.js?v=3',
       'js/academy-insurance-tree.js?v=2',
       'js/academy-retail-tree.js?v=1',
       'js/academy-courses.js?v=1',
@@ -98,7 +98,7 @@
       // Full packet / Paperwork only (2026-10-04) — also in the estimates
       // bundle; the loader runs it once.
       'js/deal-packet.js?v=1',
-      'js/close-board.js?v=11'
+      'js/close-board.js?v=12'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -185,10 +185,10 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=18',
-      'js/document-generator-templates.js?v=13',
-      'js/document-generator-library.js?v=3', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=6',
+      'js/document-generator.js?v=20',
+      'js/document-generator-templates.js?v=15',
+      'js/document-generator-library.js?v=4', // 2026-10-04 template library; needs -templates' _tpl
+      'js/doc-preflight.js?v=8',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -261,10 +261,10 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=8',
+      'js/estimate-finalization.js?v=9',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=28',
+      'js/estimate-v2-ui.js?v=29',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=5',
@@ -348,7 +348,7 @@
     ],
     // Warranty cert wizard — opened from the Docs view only.
     warranty: [
-      'js/warranty-cert.js?v=7'
+      'js/warranty-cert.js?v=8'
     ],
     // Theme engine cluster (2026-08-07). The 189-theme engine (162 KB) + its
     // four cosmetic companions were eager on every boot; they are a Settings/
