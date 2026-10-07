@@ -35,6 +35,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const P = require('./money-paper-logic');
+const LAP = require('./lead-artifact-paths');
 const SPINE = require('./job-spine-logic');
 const stageRoles = require('./stage-roles');
 const PIF = require('./paid-in-full');
@@ -87,7 +88,15 @@ async function plateFor(db, bucket, lead, leadId) {
   try {
     const snap = await db.collection('photos').where('leadId', '==', leadId).limit(200).get();
     const photos = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
-    const p = P.pickPlatePhoto(lead, photos);
+    // Only this lead's tenant's photos, each naming an object in its owner's
+    // or a company member's folder: photo docs are client-written, and the
+    // path below is signed with the admin SDK (2026-10-06).
+    const memo = new Map();
+    const candidates = [];
+    for (const c of P.platePhotosForLead(lead, photos)) {
+      if (await LAP.photoObjectAllowed(db, P.plateObjectPath(c), c, memo)) candidates.push(c);
+    }
+    const p = P.pickPlatePhoto(lead, candidates);
     if (!p) return null;
     const path = p.path || p.storagePath;
     let url = null;
@@ -150,6 +159,9 @@ async function fileOne(deps, invRef, invoiceId, kind) {
     const ls = await db.collection('leads').doc(leadId).get();
     const lead = ls.exists ? ls.data() : null;
     if (!lead) throw new Error('lead ' + leadId + ' not found');
+    // An invoice naming another tenant's lead must not file paper (with that
+    // customer's name and address on it) onto that lead (2026-10-05).
+    if (!PIF.invoiceInLeadTenant(inv, lead)) throw new Error('invoice tenant is not the lead tenant — refusing to file');
     const plate = await plateFor(db, bucket, lead, leadId);
     const payload = kind === 'invoice'
       ? P.invoicePayload(inv, lead, c.id, nowMs, plate)
@@ -346,8 +358,11 @@ async function flagPaidNotClosed(deps, invoiceId, inv) {
   const leadRef = deps.db.collection('leads').doc(String(inv.leadId));
   const ls = await leadRef.get();
   if (!ls.exists) return null;
-  // Never file a task on another company's lead (R3-6, 2026-10-06).
-  if (!require('./payment-timeline').invoiceLeadSameTenant(inv, ls.data() || {})) {
+  // Never file a task on another company's lead. Both checks must pass:
+  // R3-6 (2026-10-06, the stricter one — a missing tenant on either side is
+  // not "same") and the 2026-10-05 security review's PIF check.
+  if (!require('./payment-timeline').invoiceLeadSameTenant(inv, ls.data() || {})
+      || !PIF.invoiceInLeadTenant(inv, ls.data())) {
     logger.warn('[moneyPaper] paid-not-closed skipped — invoice and lead are in different companies', { invoiceId, leadId: inv.leadId });
     return null;
   }
@@ -435,4 +450,4 @@ function spineFailures(out) {
   return s ? Object.keys(s).filter((k) => s[k] && s[k].reason === 'error') : [];
 }
 
-exports._internal = { handle, spineOnInvoice, spineFailures, payQr, markJobPaid, flagPaidNotClosed, settlesJob, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };
+exports._internal = { handle, spineOnInvoice, spineFailures, payQr, plateFor, markJobPaid, flagPaidNotClosed, settlesJob, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };

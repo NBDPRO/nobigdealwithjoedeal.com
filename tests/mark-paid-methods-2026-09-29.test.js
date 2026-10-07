@@ -79,7 +79,8 @@ function throws(fn, re) {
   ok('proof path + name kept', full.proofStoragePath === 'payment-proofs/zzqa-uid/inv1/1_check.jpg' && full.proofName === 'check.jpg');
   ok('recordedBy / recordedAt stamped', full.recordedBy === 'zzqa-uid' && full.recordedAt === recordedAt);
   ok('exactly the documented keys', Object.keys(full).sort().join(',') ===
-    ['amount', 'at', 'method', 'note', 'paymentId', 'proofName', 'proofStoragePath', 'recordedAt', 'recordedBy', 'reference'].sort().join(','),
+    // + receipt: every payment carries a receipt DRAFT (2026-10-04) — never auto-sent.
+    ['amount', 'at', 'method', 'note', 'paymentId', 'proofName', 'proofStoragePath', 'receipt', 'recordedAt', 'recordedBy', 'reference'].sort().join(','),
     Object.keys(full).join(','));
 
   console.log('\n4. proof (and reference/note) optional');

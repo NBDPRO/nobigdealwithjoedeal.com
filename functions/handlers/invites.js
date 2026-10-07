@@ -45,6 +45,8 @@ const { getAuth } = require('firebase-admin/auth');
 const { Resend } = require('resend');
 const { CORS_ORIGINS, INVITE_ALLOWED_ROLES, isOwnerCaller, requireTeamAdmin } = require('./_shared');
 const { callableRateLimit } = require('../shared');
+// R3-1 (2026-10-06): a benched seat's bot keys + calendar feed links go off.
+const { revokeMemberAccessTokens } = require('../member-offboarding');
 const { findPendingInvite } = require('./invite-lookup');
 // Seat caps live in billing.js PLAN_LIMITS (server source of truth for the
 // plan table; mirrors docs/pro/js/billing-gate.js PLANS).
@@ -725,6 +727,8 @@ exports.assignSeats = onCall(
             deactivatedBy: uid, deactivatedReason: 'seat-unassigned',
           }, { merge: true });
           benched++;
+          await revokeMemberAccessTokens(getFirestore(), md.uid, 'seat-unassigned')
+            .catch((e) => logger.warn('assignSeats.revoke_tokens_failed', { companyId, member: m.id, err: e.message }));
         } catch (e) { logger.warn('assignSeats.bench_failed', { companyId, member: m.id, err: e.message }); }
       }
     }

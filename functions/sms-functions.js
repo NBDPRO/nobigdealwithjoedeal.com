@@ -1428,7 +1428,12 @@ exports.sendD2DSMS = onRequest(
       // Log to Firestore. companyId: the offline outbox's activity check reads
       // sms_log per tenant (sms-outbox-guard.js activityScope), so a D2D text
       // must carry its sender's company to count as a competitor there.
-      await logSMSToFirestore(db, phoneNumber, body, decoded.uid, knockId, 'sent', message.sid, decoded.companyId || null);
+      // leadId is the lead the knock was converted into (convertToLead /
+      // _saveLead stamp knock.leadId), or null when it hasn't been — never the
+      // knock id, which matched no lead's Communication Log (R5-8-4,
+      // 2026-10-06). The knock id rides in its own field.
+      const linkedLeadId = typeof knock.leadId === 'string' && knock.leadId ? knock.leadId : null;
+      await logSMSToFirestore(db, phoneNumber, body, decoded.uid, linkedLeadId, 'sent', message.sid, decoded.companyId || null, { knockId });
 
       res.json({
         success: true,

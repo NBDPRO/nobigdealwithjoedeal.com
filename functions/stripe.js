@@ -30,6 +30,9 @@ const { FieldValue } = require('firebase-admin/firestore');
 // docs/pro/js/ky-insurance-law.js.
 const KyLaw = require('./ky-insurance-law');
 const KyPayLinkGate = require('./ky-pay-link-gate-logic');
+// Bank payments (ACH, 2026-10-04): offered on every homeowner pay surface,
+// processing is not money, a failed debit reverts + alerts Jo (internal).
+const AchPay = require('./ach-payments');
 const InvoiceCharge = require('./invoice-charge');
 // Lazy require (2026-08-07): the stripe SDK is ~20 MB of parse weight that
 // every deployed function paid at cold start (index.js pulls this module
@@ -1571,7 +1574,12 @@ exports.createStripePaymentLink = onRequest(
         return;
       }
 
-      const paymentLink = await stripe.paymentLinks.create({
+      // Card + Link + bank (ACH); steps down to the account's defaults when
+      // ACH is not switched on in the Stripe dashboard (ach-payments.js).
+      // ACH is requested ONLY on the NBD platform account's own link; a
+      // Connect tenant's link keeps its account defaults, exactly as before.
+      const _achOnLink = !connectState && isPlatformTenant(decoded);
+      const { result: paymentLink } = await AchPay.createWithAch((p) => stripe.paymentLinks.create(p), {
         line_items: chargeLineItems,
         // Single-use: without this the link is reusable and a homeowner (or a
         // double-click) can pay it repeatedly, each payment firing a fresh
@@ -1604,7 +1612,7 @@ exports.createStripePaymentLink = onRequest(
           transfer_data: { destination: connectState.accountId },
           application_fee_amount: feeCents,
         } : {}),
-      });
+      }, _achOnLink ? AchPay.applyToPaymentLink : AchPay.noAch, null, logger);
 
       logger.info('payment_link_created', {
         invoiceId, uid: decoded.uid, paymentLinkId: paymentLink.id,
@@ -1856,6 +1864,14 @@ exports.invoiceWebhook = onRequest(
       // every ledger step is idempotent, and it never re-credits a payment
       // the payment-link branch below credits (paidIntentIds).
       await require('./stripe-ledger').onEvent(db, event);
+
+      // Bank payments (ACH, 2026-10-04): processing marks the invoice
+      // achPending (never money); a failed debit is taken back off the
+      // invoice and Jo is alerted once (internal only). handled:true on a
+      // payment_failed suppresses the "card declined" alert below.
+      const achOut = await AchPay.handleAchEvent(db, event, {
+        logger, alert: (o) => alertInvoicePaymentEvent(db, o),
+      });
 
       // Handle payment_intent.succeeded event
       if (event.type === 'payment_intent.succeeded') {
@@ -2784,7 +2800,7 @@ exports.invoiceWebhook = onRequest(
         // open for a retry — nothing in the CRM changes.
         const pi = event.data.object;
         const meta = pi.metadata || {};
-        if (meta.invoiceId) {
+        if (meta.invoiceId && !(achOut && achOut.handled)) {
           const invSnap = await db.collection('invoices').doc(String(meta.invoiceId)).get();
           const invoice = invSnap.exists ? invSnap.data() : null;
           const amount = ((pi.amount || 0) / 100).toFixed(2);

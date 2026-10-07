@@ -107,7 +107,8 @@ console.log('\nmarkup — docs/index.html summary row carries an EMPTY recent ho
   const m = /<div class="reviews-score">([\s\S]*?)<\/div>/.exec(INDEX_SRC);
   ok('the reviews-score line exists', !!m);
   ok('it carries data-nbd-gr-recent right after the count',
-    !!m && /data-nbd-gr-total>\d+<\/span> reviews<span data-nbd-gr-recent><\/span>/.test(m[1]), m && m[1]);
+    // 2026-10-06: the count ships empty inside a hidden wrap (no stale "29").
+    !!m && /data-nbd-gr-total><\/span> reviews<\/span><span data-nbd-gr-recent><\/span>/.test(m[1]), m && m[1]);
   ok('the hook ships EMPTY — no static "new this month" that could go stale',
     !/<[a-z]+[^>]*\sdata-nbd-gr-recent[^>]*>[^<]+</.test(INDEX_SRC.replace(/<!--[\s\S]*?-->/g, '')));
 }

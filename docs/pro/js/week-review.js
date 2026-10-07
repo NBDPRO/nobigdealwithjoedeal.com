@@ -200,6 +200,8 @@
       '<button type="button" class="wr-btn wr-btn-ghost" data-wr="hd-import">🧡 Import Home Depot</button></div>';
     const gaps = card('🕳️ Data gaps',
       '<div class="wr-dim wr-small">Costed ' + c.costed + ' of ' + c.total + ' won jobs · ' + (c.total - g.noPayment.length) + ' of ' + c.total + ' with a payment recorded.</div>' +
+      // One card at a time on the phone (catchup.js, 2026-10-04).
+      '<div class="wr-row-end"><button type="button" class="wr-btn wr-btn-primary" id="wrCatchUpBtn" data-action="goTo" data-target="catchup">📋 Catch up my numbers — one job at a time</button></div>' +
       renderGapList('cost', 'Won jobs with no costs (sub invoice, materials, receipts)', g.noCost, (l) =>
         '<li class="wr-row">' + custLink(l) + '<span class="wr-dim">' + money(Nn.bookedCents(l)) + '</span>' +
         '<button type="button" class="wr-btn" data-wr="add-cost" data-id="' + esc(l.id) + '">+ Add cost</button></li>', costsExtra) +

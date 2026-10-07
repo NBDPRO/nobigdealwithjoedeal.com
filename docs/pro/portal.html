@@ -518,6 +518,9 @@
   .progress-next-done{ background: transparent; border-color: var(--nbd-success); font-weight:700; }
   /* A week-planned job: the line plus what happens next (2026-09-29). */
   .progress-schedule-note{ margin-top: 4px; font-size: var(--nbd-text-sm, 13px); font-weight: 500; color: var(--nbd-ink-subtle); }
+  /* Balance card: "Pay by bank (ACH) — lower fees" + the Zelle line
+     (2026-10-04). portal.js adds no inline style for these. */
+  .portal-pay-note{ color: var(--muted); margin: 8px 0 0; font-size: var(--nbd-text-sm, 14px); line-height: 1.5; }
 
   /* Print stylesheet (2026-09-16). A homeowner's real use case: handing an
      insurance adjuster a paper copy. Without this, the page printed as-is
@@ -591,6 +594,6 @@
 <!-- "A video from Thursday" card (NBD only; ships dark until a video is
      configured). Before portal.js, which reads window.NBDThursdayVideo. -->
 <script defer src="js/thursday-video.js?v=1"></script>
-<script src="js/portal.js?v=10" defer></script>
+<script src="js/portal.js?v=12" defer></script>
 </body>
 </html>

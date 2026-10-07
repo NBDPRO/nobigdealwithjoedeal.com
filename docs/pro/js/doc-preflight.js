@@ -128,6 +128,9 @@
    *   "lead.firstName"          — pull from window._leadDoc
    *   "estimate.grandTotal"     — pull from first estimate
    *   "estimate.lineItems"      — map estimate.lineItems to doc line-items
+   *   "estimate.invoiceLineItems" — the same, minus the Sales tax / Rounding
+   *                               footing rows (the invoice prints those from
+   *                               its own Tax Rate (%) + rounding row)
    *   "photos"                  — all photos
    *   "photos.before"           — photos with phase=='before'
    *   "photos.after"            — photos with phase=='after'
@@ -151,10 +154,22 @@
     if (key === 'depositAmount' || key === 'payment1Amount') {
       var lead = (ctx && ctx.lead) || {};
       var est = (ctx && ctx.estimate) || {};
-      var jv = parseFloat(lead.jobValue || est.grandTotal || 0);
-      return !!jv && String(v) === (jv * 0.5).toFixed(2);
+      // The old prefill read lead.jobValue first; the price now reads the
+      // estimate first (review R4). Half of either is a retired default.
+      var half = function (n) { return n > 0 && String(v) === (n * 0.5).toFixed(2); };
+      return half(parseFloat(lead.jobValue || est.grandTotal || 0)) || half(_estPrice(est));
     }
     return false;
+  }
+
+  // The estimate's own total (grandTotal / total / amount, "$9,000"-style
+  // strings too), else 0. Through the shared two-shape reader when loaded.
+  function _estPrice(est) {
+    var api = (typeof window !== 'undefined') && window.NBDCustomerEstimateRows;
+    if (api && typeof api.estimateValue === 'function') return api.estimateValue(est) || 0;
+    if (!est) return 0;
+    var c = _depCents(est.grandTotal != null ? est.grandTotal : est.total != null ? est.total : est.amount);
+    return c ? c / 100 : 0;
   }
 
   // ── Deposit-rule fields (review of PR #1765, 2026-09-25) ──────────
@@ -301,6 +316,7 @@
     if (typeof src === 'string' && src.indexOf('estimate.') === 0) {
       var key = src.slice('estimate.'.length);
       if (key === 'lineItems') return mapEstimateLineItems(ctx.estimate);
+      if (key === 'invoiceLineItems') return withoutFootingRows(mapEstimateLineItems(ctx.estimate));
       // A Job Template estimate saves no tier (2026-09-25). Its warranty
       // wording tier comes from its job type: 'better' for roofing (the value
       // that flow always saved, so roofing paperwork is unchanged) and '' for
@@ -368,6 +384,102 @@
     }).filter(function (r) { return r.code || r.name; });
   }
 
+  // ── Invoice tax + Save-to-estimate totals (2026-10-05) ────────────
+  // estimate.taxRate is a DECIMAL (0.07). The invoice's Tax Rate (%) field
+  // shows a percent. Money below is integer cents.
+  function isPerSqEstimate(est) {
+    return !!est && ((est.priceMode === 'per-sq') || (est.prices != null));
+  }
+
+  // The estimate's tax rate as the invoice field shows it: 0.07 → 7. A per-SQ
+  // estimate's one customer line IS the tier price with tax inside it, so 0.
+  function invoiceTaxRatePct(est) {
+    if (!est || isPerSqEstimate(est)) return 0;
+    var r = Number(est.taxRate);
+    if (!isFinite(r) || r <= 0) return 0;
+    return Math.round(r * 1e6) / 1e4;
+  }
+
+  function moneyCents(v) {
+    var n = parseFloat(typeof v === 'string' ? v.replace(/[$,\s]/g, '') : v);
+    return isFinite(n) ? Math.round(n * 100) : 0;
+  }
+
+  // One row's amount in cents: its total, else qty × rate (the editor's rule).
+  function lineItemCents(it) {
+    it = it || {};
+    var amt = parseFloat(it.total != null ? it.total : it.amount);
+    if (isFinite(amt)) return Math.round(amt * 100);
+    var qty = parseFloat(it.qty != null ? it.qty : it.quantity) || 0;
+    var rate = parseFloat(it.rate != null ? it.rate : it.unitPrice) || 0;
+    return Math.round(qty * rate * 100);
+  }
+  function lineItemsCents(items) {
+    return (Array.isArray(items) ? items : []).reduce(function (s, it) { return s + lineItemCents(it); }, 0);
+  }
+
+  // buildDocLineItems (customer-estimate-rows.js, R2-2-2 #2247) ends a
+  // classic estimate's lines with derived footing rows — "Sales tax (r%)"
+  // (code TAX) and "Rounding" / "Minimum job charge adjustment" (code ADJ) —
+  // so a contract foots to the price. They are computed from the saved
+  // subtotal/tax/grandTotal on every read, so they are never saved back as
+  // priced lines, and the invoice (which prints tax from its Tax Rate (%) and
+  // the rounding row below) prefills without them so tax is not counted twice.
+  function isFootingRow(it) {
+    return !!it && (it.code === 'TAX' || it.code === 'ADJ');
+  }
+  function withoutFootingRows(items) {
+    return (Array.isArray(items) ? items : []).filter(function (it) { return !isFootingRow(it); });
+  }
+
+  // The money in a list of lines (qty, rate, amount per row) — rewording a
+  // description is not a price change.
+  function lineItemsMoneyKey(items) {
+    return (Array.isArray(items) ? items : []).map(function (it) {
+      it = it || {};
+      var qty = parseFloat(it.qty != null ? it.qty : it.quantity);
+      return (isFinite(qty) ? qty : '') + '|' + moneyCents(it.rate != null ? it.rate : it.unitPrice) + '|' + lineItemCents(it);
+    }).join(';');
+  }
+
+  function estimateGrandCents(est) {
+    return moneyCents(est && (est.grandTotal != null ? est.grandTotal : est.total));
+  }
+
+  // The quote's rounding step: the tenant's builder setting when the builder
+  // is loaded, else the config's, else $25.
+  function quoteRoundStepCents() {
+    try {
+      var EB = window.EstimateBuilderV2;
+      var s = EB && typeof EB.loadSettings === 'function' ? EB.loadSettings() : null;
+      var c = s ? Math.round(Number(s.roundTo) * 100) : 0;
+      if (c > 0) return c;
+    } catch (e) { /* fall through */ }
+    var cfg = window.NBD_ESTIMATE_CONFIG;
+    return (cfg && cfg.ROUND_TO_CENTS > 0) ? cfg.ROUND_TO_CENTS : 2500;
+  }
+
+  // The quote's rule on a new line sum: tax at the estimate's saved rate,
+  // total to the nearest step, then the job minimum the estimate was floored
+  // to (estimate-builder-v2.js resolveEstimate). The floor is only known when
+  // the estimate was floored — its saved grandTotal is that floor.
+  function quoteTotalsCents(est, subtotalCents) {
+    var rate = Number(est && est.taxRate);
+    if (!isFinite(rate) || rate < 0) rate = 0;
+    var taxCents = Math.round(subtotalCents * rate);
+    var step = quoteRoundStepCents();
+    var totalCents = Math.round((subtotalCents + taxCents) / step) * step;
+    var floorCents = 0;
+    if (est && est.minJobApplied) {
+      floorCents = est.minJobCharge != null && Number(est.minJobCharge) > 0
+        ? moneyCents(est.minJobCharge) : estimateGrandCents(est);
+    }
+    var floored = floorCents > 0 && totalCents < floorCents;
+    if (floored) totalCents = floorCents;
+    return { subtotalCents: subtotalCents, taxCents: taxCents, totalCents: totalCents,
+      minJobApplied: floored, floorCents: floorCents };
+  }
+
   /**
    * The job's deposit plan from deposit-rule.js (2026-09-25): the contract
    * price the pre-flight prefills (computed.jobValue's own priority), the
@@ -386,7 +498,7 @@
     var est = ctx.estimate || {};
     var total = Object.prototype.hasOwnProperty.call(extra, 'total') && extra.total !== undefined
       ? extra.total
-      : (lead.jobValue || est.grandTotal || est.total || est.amount || 0);
+      : (_estPrice(est) > 0 ? _estPrice(est) : (lead.jobValue || 0)); // estimate first (review R4)
     // Cents here, so a "$9,000.00"-style value can't be read as no price.
     var opts = { totalCents: Math.max(0, _depCents(total) || 0), lead: lead };
     // The address as the form shows it now (Kentucky hold, 2026-09-27).
@@ -414,6 +526,8 @@
         var estPrice = Number(est.grandTotal || est.total || est.amount) || 0;
         return estPrice > 0 ? estPrice : (lead.jobValue || 0);
       }
+      case 'invoiceTaxRatePct':
+        return invoiceTaxRatePct(ctx.estimate);
       case 'invoiceNumber':
         return 'INV-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-5);
       case 'receiptNumber':
@@ -523,34 +637,34 @@
     { key: 'companyEmail',   label: 'Company Email', type: 'email', source: 'literal:info@nobigdealwithjoedeal.com', persist: PERSIST.DOCUMENT }
   ];
 
-  // GBB audit, 2026-09-09: was 5yr/10yr/20yr — the generator this feeds
-  // (document-generator.js renderWarrantyBadge) now prints Lifetime
-  // workmanship for every tier (estimate-config.js TIER_DISPLAY); only
-  // transferability/inspection and manufacturer coverage vary by tier.
+  // Jo, 2026-10-06 (final): each package carries a WRITTEN labor warranty —
+  // Economy 1, Good/Standard 5, Better/Preferred 10, Best/Elite 20 years
+  // (estimate-config.js TIER_LABOR_YEARS; Beyond = Elite's 20) —
+  // plus the NBD Pledge (a promise, never a "lifetime warranty").
   // Five tiers (Jo, 2026-10-02): Economy is a 1-YEAR labor warranty + the
   // shingle maker's standard limited warranty, NO system warranty; Beyond is
   // Best's terms + TAMKO's HailGuard hail warranty.
   var WARRANTY_TIER_OPTIONS = [
     { value: 'economy', label: 'Economy — 1-Year Labor + Mfr Standard Limited (no system warranty)' },
-    { value: 'good',   label: 'Good — Lifetime Workmanship + Standard Mfr' },
-    { value: 'better', label: 'Better — Lifetime Workmanship + Enhanced Mfr (transferable)' },
-    { value: 'best',   label: 'Best — Lifetime Workmanship + Premium Mfr (fully transferable + inspection)' },
-    { value: 'beyond', label: 'Beyond — Lifetime Workmanship + TAMKO HailGuard hail warranty (fully transferable + inspection)' }
+    { value: 'good',   label: 'Good — 5-Year Labor + Mfr per package' },
+    { value: 'better', label: 'Better — 10-Year Labor + Mfr per package (transferable)' },
+    { value: 'best',   label: 'Best — 20-Year Labor + Mfr per package (fully transferable + inspection)' },
+    { value: 'beyond', label: 'Beyond — 20-Year Labor + TAMKO HailGuard hail warranty (fully transferable + inspection)' }
   ];
 
   // The tier's workmanship sentence: estimate-config.js tierWarrantyText when
   // loaded (it isn't on customer.html), else this copy of it. An unknown tier
-  // gets the plain lifetime sentence with no transfer/inspection perks.
+  // gets a plain "per your package" sentence with no transfer/inspection perks.
   function tierWarrantySentence(tier) {
     var cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
     if (cfg && typeof cfg.tierWarrantyText === 'function') return cfg.tierWarrantyText(tier);
     return ({
-      economy: '1-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.',
-      good:    'Lifetime workmanship warranty; does not transfer on sale of property; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
-      better:  'Lifetime workmanship warranty; transferable to one subsequent owner within 30 days of sale; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
-      best:    'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
-      beyond:  'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
-    })[tier] || 'Lifetime workmanship warranty.';
+      economy: '1-year written workmanship (labor) warranty; does not transfer on sale of property; the shingle manufacturer\'s standard limited warranty applies; no system warranty.',
+      good:    '5-year written workmanship (labor) warranty; does not transfer on sale of property; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      better:  '10-year written workmanship (labor) warranty; transferable to one subsequent owner within 30 days of sale; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      best:    '20-year written workmanship (labor) warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      beyond:  '20-year written workmanship (labor) warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
+    })[tier] || 'Written workmanship (labor) warranty per your package — see your estimate.';
   }
 
   var DOC_SCHEMAS = {
@@ -958,11 +1072,17 @@
           id: 'items', title: 'Line Items & Totals', collapsed: false,
           fields: [
             { key: 'lineItems', label: 'Line Items', type: 'line-items', required: true,
-              source: 'estimate.lineItems', persist: PERSIST.DOCUMENT },
+              source: 'estimate.invoiceLineItems', persist: PERSIST.DOCUMENT },
             { key: 'subtotal', label: 'Subtotal', type: 'currency', required: true,
               source: 'computed.jobValue', persist: PERSIST.DOCUMENT },
-            { key: 'taxRate', label: 'Tax Rate (%)', type: 'number',
-              source: 'literal:0', persist: PERSIST.DOCUMENT },
+            // A PERCENT (7 = 7%), prefilled from the estimate's saved decimal
+            // taxRate. hydrateDerivedFields hands the renderers taxRate =
+            // this / 100. It was `taxRate`, defaulted to 0 and read as a
+            // decimal, so a $525 job invoiced $480 and typing 7 billed 700%
+            // tax (2026-10-05). New key on purpose: a `taxRate` saved under
+            // the old meaning is never reloaded as a percent.
+            { key: 'taxRatePct', label: 'Tax Rate (%)', type: 'number',
+              source: 'computed.invoiceTaxRatePct', persist: PERSIST.DOCUMENT },
             { key: 'totalPrice', label: 'Total Due', type: 'currency', required: true,
               source: 'computed.jobValue', persist: PERSIST.DOCUMENT }
           ]
@@ -2159,13 +2279,13 @@
         '</div></div></div>';
     }
     // GBB audit, 2026-09-09: was 5/10/20-year — see WARRANTY_TIER_OPTIONS above.
-    // Five tiers since 2026-10-02 — Economy is 1-year labor, never lifetime.
+    // Five tiers since 2026-10-02; written labor years by package (Jo, 2026-10-06).
     var tiers = [
       { id: 'economy', name: 'Economy', tag: '1-Year Labor',              desc: '1-year workmanship (labor) warranty. Shingle manufacturer\'s standard limited warranty; no system warranty.' },
-      { id: 'good',   name: 'Good',   tag: 'Lifetime Workmanship',        desc: 'Lifetime workmanship warranty, non-transferable. Standard manufacturer coverage.' },
-      { id: 'better', name: 'Better', tag: 'Lifetime + Enhanced Mfr',     desc: 'Lifetime workmanship, transferable to 1 subsequent owner. Enhanced manufacturer coverage.' },
-      { id: 'best',   name: 'Best',   tag: 'Lifetime + Premium Mfr',      desc: 'Lifetime workmanship, fully transferable + annual inspection. Premium manufacturer coverage.' },
-      { id: 'beyond', name: 'Beyond', tag: 'Lifetime + HailGuard Hail',   desc: 'Lifetime workmanship, fully transferable + annual inspection. TAMKO HailGuard shingles with TAMKO\'s hail warranty.' }
+      { id: 'good',   name: 'Good',   tag: '5-Year Labor',                desc: '5-year written workmanship (labor) warranty, non-transferable. Manufacturer warranty per package.' },
+      { id: 'better', name: 'Better', tag: '10-Year Labor',               desc: '10-year written workmanship (labor) warranty, transferable to 1 subsequent owner. Manufacturer warranty per package.' },
+      { id: 'best',   name: 'Best',   tag: '20-Year Labor',               desc: '20-year written workmanship (labor) warranty, fully transferable + annual inspection. Manufacturer warranty per package.' },
+      { id: 'beyond', name: 'Beyond', tag: '20-Year Labor + HailGuard',   desc: '20-year written workmanship (labor) warranty, fully transferable + annual inspection. TAMKO HailGuard shingles with TAMKO\'s hail warranty.' }
     ];
     var cur = (value || 'better').toLowerCase();
     var cards = tiers.map(function (t) {
@@ -2725,7 +2845,10 @@
       toast('Firestore not available.', 'error');
       return;
     }
-    var items = state.values[fieldKey] || [];
+    // Footing rows (Sales tax / Rounding, see isFootingRow) are re-derived
+    // from subtotal/tax/grandTotal on every read; saved as plain lines they
+    // would lose their code and print the tax twice on the next document.
+    var items = withoutFootingRows(state.values[fieldKey] || []);
     var mapped = items.map(function (it) {
       var qty = parseFloat(it.qty) || 0;
       var rate = parseFloat(it.rate) || 0;
@@ -2742,21 +2865,39 @@
     var lineItemsTotal = mapped.reduce(function (s, i) { return s + (parseFloat(i.amount) || 0); }, 0);
     // V2-pkb (estimate-qa-2026-06-08): for PER-SQ estimates the grandTotal is
     // locked to the selected tier price — editing the internal line items here
-    // must NOT overwrite it. Only line-item / legacy estimates derive grandTotal
-    // from the line-item sum. (Detected via the saved priceMode/prices fields.)
-    var perSqLocked = (est.priceMode === 'per-sq') || (est.prices != null);
+    // must NOT overwrite it. (Detected via the saved priceMode/prices fields.)
+    var perSqLocked = isPerSqEstimate(est);
+    // grandTotal is the customer total — subtotal + tax + rounding / job
+    // minimum. It was set to the bare line sum, so Save with no edits turned
+    // a $525 estimate into $480 (2026-10-05). Unchanged lines keep the saved
+    // totals; changed lines re-total by the quote's own rule.
+    var linesChanged = lineItemsMoneyKey(items) !== lineItemsMoneyKey(withoutFootingRows(mapEstimateLineItems(est)));
+    var totals = (!perSqLocked && linesChanged) ? quoteTotalsCents(est, lineItemsCents(items)) : null;
     var estUpdate = {
       lineItems: mapped,
       lineItemsTotal: lineItemsTotal,
       updatedAt: window.serverTimestamp ? window.serverTimestamp() : new Date()
     };
-    if (!perSqLocked) { estUpdate.grandTotal = lineItemsTotal; }
+    if (totals) {
+      estUpdate.subtotal = totals.subtotalCents / 100;
+      estUpdate.tax = totals.taxCents / 100;
+      estUpdate.grandTotal = totals.totalCents / 100;
+      estUpdate.minJobApplied = totals.minJobApplied;
+      // Keep the floor known after a re-total lifts the job above it.
+      if (totals.floorCents > 0) estUpdate.minJobCharge = totals.floorCents / 100;
+    }
     try {
       await window.updateDoc(window.doc(window.db, 'estimates', est.id), estUpdate);
       // Mutate cached copy so subsequent fields see it
       est.lineItems = mapped;
       est.lineItemsTotal = lineItemsTotal;
-      if (!perSqLocked) { est.grandTotal = lineItemsTotal; }
+      if (totals) {
+        est.subtotal = estUpdate.subtotal;
+        est.tax = estUpdate.tax;
+        est.grandTotal = estUpdate.grandTotal;
+        est.minJobApplied = estUpdate.minJobApplied;
+        if (estUpdate.minJobCharge != null) est.minJobCharge = estUpdate.minJobCharge;
+      }
       toast('Line items saved to estimate.', 'success');
     } catch (err) {
       console.error('[DocPreflight] Save to estimate failed', err);
@@ -3171,9 +3312,22 @@
     if (data.warranty == null && data.warrantyTier) {                                                                // contract (renderer's "5 · Warranty"
       // section is dropped entirely when warranty is null/empty). Mirrors
       // renderWarrantyBadge's composition. Five tiers since 2026-10-02.
-      var _wTxt = tierWarrantySentence(data.warrantyTier);
-      var _wMfg = window.NBDDocGen && window.NBDDocGen.MANUFACTURER_COVERAGE && window.NBDDocGen.MANUFACTURER_COVERAGE[data.warrantyTier]; // (2026-09-09 GBB
-      data.warranty = _wMfg ? (_wTxt + ' ' + _wMfg.level + ' manufacturer coverage — ' + _wMfg.note) : _wTxt;          // tier consolidation, #1529)
+      // Two separate lines (Jo, 2026-10-06): the workmanship warranty — NBD's
+      // NBD Pledge, or another company's OWN configured sentence ('' = none,
+      // never NBD's ladder) — and the manufacturer warranty THIS job bought
+      // (the estimate's shingle + any extended manufacturer warranty sold).
+      // Replaces the tier-guessed "Enhanced/Premium manufacturer coverage".
+      var _wTR = window.NBDTenantRules;
+      var _wTenant = !!(_wTR && typeof _wTR.isPlatformTenant === 'function' && _wTR.isPlatformTenant() === false);
+      var _wEst = state.estimate || null;
+      var _wLines = (_wTR && typeof _wTR.warrantyLines === 'function')
+        ? _wTR.warrantyLines({ tier: data.warrantyTier, isNbd: !_wTenant, lineItems: manufacturerItems(_wEst), extendedWarranty: (_wEst && _wEst.extendedWarranty) || data.extendedWarranty || null })
+        : null;
+      data.warranty = _wTenant ? ((_wLines && _wLines.workmanship) || '') : tierWarrantySentence(data.warrantyTier);
+      if (data.manufacturerWarranty == null && _wLines) data.manufacturerWarranty = _wLines.manufacturer;
+      if (_wLines) data.warrantyIsPledge = !_wTenant && !!_wLines.isPledge;
+      // NBD's Pledge (a promise, every tier) prints as its own block (2026-10-06).
+      if (_wLines && !_wTenant && _wLines.pledge) data.warrantyPledge = _wLines.pledge;
     }
     if (data.scopeSummary == null && data.scopeCompleted) data.scopeSummary = data.scopeCompleted;                     // certificate_of_completion
 
@@ -3185,7 +3339,7 @@
     // Scoped to the documents that read each field, so every other
     // document's merge data stays exactly what it was.
     var _est = state.estimate || null;
-    if ((state.type === 'warranty_certificate' || state.type === 'material_selection') && data.estimateLineItems == null) {
+    if ((state.type === 'warranty_certificate' || state.type === 'material_selection' || state.type === 'proposal_options') && data.estimateLineItems == null) {
       data.estimateLineItems = manufacturerItems(_est);
     }
     // Good-Better-Best options: every tier price the estimate saved (dollars,
@@ -3211,7 +3365,7 @@
     // actually reaches this template (today it's masked by an unrelated
     // paymentSchedule.map crash in _buildServerPayload that falls back to the
     // client renderer first — see the audit's "fix both together" note).
-    // Same lifetime+transferability model every other generator reads;
+    // Same written-years + transferability model every other generator reads;
     // window.NBD_ESTIMATE_CONFIG isn't loaded on customer.html (only
     // dashboard.html), so this needs the same local fallback pattern used
     // elsewhere (_v2TierLabel() etc.) rather than assuming the config global.
@@ -3238,6 +3392,34 @@
     // figure as estimatedRepairCost — bridge it AFTER both are $-formatted so
     // the certificate shows the rep's repair cost instead of the $0.00 default.
     if (data.totalPrice == null && data.estimatedRepairCost) data.totalPrice = data.estimatedRepairCost;
+
+    // Invoice tax (2026-10-05). The field is a percent; the renderers
+    // (renderInvoice, _buildServerPayload) take a decimal taxRate. Tax is
+    // cents-rounded here so both renderers print the same figure. While the
+    // lines and the rate are still the estimate's own, the invoice carries
+    // the quote's rounding / job-minimum row so it totals the estimate's
+    // grandTotal ($480 + $33.60 tax + $11.40 rounding = $525). A gap wider
+    // than a rounding step is not rounding, so it is never labelled as one.
+    if (data.taxRatePct !== undefined) {
+      var _pct = parseFloat(data.taxRatePct);
+      if (!isFinite(_pct) || _pct < 0) _pct = 0;
+      data.taxRate = _pct / 100;
+      var _subC = lineItemsCents(data.lineItems);
+      var _taxC = Math.round(_subC * data.taxRate);
+      data.tax = _taxC / 100;
+      var _invEst = state.estimate || null;
+      if (_invEst && !isPerSqEstimate(_invEst)
+          && Math.abs(_pct - invoiceTaxRatePct(_invEst)) < 1e-9
+          && lineItemsMoneyKey(data.lineItems) === lineItemsMoneyKey(withoutFootingRows(mapEstimateLineItems(_invEst)))) {
+        var _grandC = estimateGrandCents(_invEst);
+        var _adjC = _grandC - _subC - _taxC;
+        var _isFloor = !!_invEst.minJobApplied && _adjC > 0;
+        if (_grandC > 0 && _adjC !== 0 && (_isFloor || Math.abs(_adjC) * 2 <= quoteRoundStepCents())) {
+          data.roundingAdjustment = _adjC / 100;
+          data.roundingLabel = _isFloor ? 'Minimum job charge adjustment' : 'Rounding';
+        }
+      }
+    }
 
     // Line items: templates expect qty/unitPrice/total on each row
     if (Array.isArray(data.lineItems)) {
@@ -3275,7 +3457,8 @@
     _state: state,
     _resolveFieldValue: resolveFieldValue,
     _applyDocEdits: applyDocEdits,
-    _hydrateDerivedFields: hydrateDerivedFields
+    _hydrateDerivedFields: hydrateDerivedFields,
+    _saveLineItemsToEstimate: saveLineItemsToEstimate
   };
 
 })();

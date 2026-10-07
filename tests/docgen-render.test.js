@@ -31,8 +31,12 @@ const DG_DIR = path.join(__dirname, '..', 'docs/pro/js');
 const SRC_DOCGEN    = fs.readFileSync(path.join(DG_DIR, 'document-generator.js'), 'utf8');
 const SRC_TEMPLATES = fs.readFileSync(path.join(DG_DIR, 'document-generator-templates.js'), 'utf8');
 
-function loadFullDocGen(brand) {
-  const win = { _brand: () => brand };
+function loadFullDocGen(brand, platform) {
+  // The NBD platform tenant is decided by companyId (company-profile.js
+  // _isNbdPlatformTenant); by default the harness signs in as the tenant the
+  // brand describes — an NBD brand is NBD's own companyId.
+  const _plat = (platform === undefined) ? (!brand || !brand.legalName || brand.legalName === 'No Big Deal Home Solutions') : platform;
+  const win = { _brand: () => brand, _isNbdPlatformTenant: () => _plat };
   win.window = win;
   const noop = () => ({ style: {}, appendChild() {}, setAttribute() {}, addEventListener() {} });
   const sandbox = {
@@ -221,7 +225,11 @@ ok('blank renderFooter: no orphan &nbsp;|&nbsp;', !/&nbsp;\|&nbsp;/.test(blFtr))
 // NBD exactly as before (all NBD fields are set, so filter(Boolean)
 // keeps all parts and join reproduces the original strings). ──
 const nbdInv = renderType(NBD_BRAND, 'renderInvoice', BASE);
-ok('NBD invoice: still lists "Zelle — info@nobigdealwithjoedeal.com"', /Zelle — info@nobigdealwithjoedeal\.com/.test(nbdInv));
+// Zelle goes to (859) 420-7382 or jd@ — NOT info@ (Jo, 2026-10-04). The
+// documents email itself stays info@ (pinned just below).
+ok('NBD invoice: lists "Zelle — (859) 420-7382 or jd@nobigdealwithjoedeal.com"', /Zelle — \(859\) 420-7382 or jd@nobigdealwithjoedeal\.com/.test(nbdInv));
+ok('NBD invoice: Zelle is never sent to info@', !/Zelle — [^<]*info@/.test(nbdInv));
+ok('NBD invoice: the documents email is still info@ (footer / letterhead)', /info@nobigdealwithjoedeal\.com/.test(nbdInv));
 ok('NBD invoice: footer keeps " &middot; " joins', / &middot; /.test(nbdInv));
 const dgNbdFull = loadFullDocGen(NBD_BRAND);
 ok('NBD renderHeader: keeps &nbsp;|&nbsp; joins', /&nbsp;\|&nbsp;/.test(dgNbdFull.renderHeader({})));
@@ -229,7 +237,14 @@ ok('NBD renderFooter: keeps &nbsp;|&nbsp; joins', /&nbsp;\|&nbsp;/.test(dgNbdFul
 const nbdHang = renderType(NBD_BRAND, 'renderDoorHanger', BASE);
 ok('NBD door hanger: keeps "CALL OR TEXT: (859) 420-7382"', /CALL OR TEXT: \(859\) 420-7382/.test(nbdHang));
 const nbdPay = renderType(NBD_BRAND, 'renderPaymentAgreement', Object.assign({ totalAmount: 12500, depositAmount: 4000, progressAmount: 4500, finalAmount: 4000 }, BASE));
-ok('NBD payment agreement: keeps "For Zelle payments" term', /For Zelle payments, send to <strong>info@nobigdealwithjoedeal\.com<\/strong>/.test(nbdPay));
+ok('NBD payment agreement: "For Zelle payments" → phone + jd@ (Jo, 2026-10-04)', /For Zelle payments, send to <strong>\(859\) 420-7382 or jd@nobigdealwithjoedeal\.com<\/strong>/.test(nbdPay));
+ok('NBD payment agreement: no Zelle line names info@', !/For Zelle payments, send to <strong>[^<]*info@/.test(nbdPay));
+// A tenant with no Zelle pair of its own keeps the old behaviour (its own
+// documents email) — never NBD's Zelle.
+const oaksPay = renderType(OAKS_BRAND, 'renderPaymentAgreement', Object.assign({ totalAmount: 12500, depositAmount: 4000, progressAmount: 4500, finalAmount: 4000 }, BASE));
+ok('Oaks (no Zelle set): Zelle line falls back to its own email, never NBD\'s', /For Zelle payments, send to <strong>joe@oaksrfc\.com<\/strong>/.test(oaksPay) && !/jd@nobigdealwithjoedeal|420-7382/.test(oaksPay));
+const oaksZ = Object.assign({}, OAKS_BRAND, { contact: Object.assign({}, OAKS_BRAND.contact, { zelleEmail: 'pay@oaksrfc.com', zellePhone: '(513) 555-0100' }) });
+ok('Oaks with its own Zelle pair: prints phone + email', /For Zelle payments, send to <strong>\(513\) 555-0100 or pay@oaksrfc\.com<\/strong>/.test(renderType(oaksZ, 'renderPaymentAgreement', Object.assign({ totalAmount: 12500, depositAmount: 4000, progressAmount: 4500, finalAmount: 4000 }, BASE))));
 
 // ════════════════════════════════════════════════════════════════════
 // STORM HISTORY REPORT — populated-data branch. The two DOC_TYPES passes

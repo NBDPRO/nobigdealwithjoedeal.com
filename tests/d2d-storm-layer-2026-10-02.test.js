@@ -29,6 +29,7 @@ function ok(label, cond, detail) {
 const win = { location: { search: '', pathname: '/pro/dashboard.html', hash: '' }, history: { replaceState() {} } };
 win.window = win;
 const ctx = vm.createContext({ window: win, document: { readyState: 'complete', addEventListener() {} }, console, Math, JSON, Date, Number, String, setTimeout });
+vm.runInContext(read('docs/pro/js/storm-time.js'), ctx); // dashboard.html loads it first
 vm.runInContext(read('docs/pro/js/d2d-storm-layer.js'), ctx);
 const S = win.NBDD2DStorms;
 

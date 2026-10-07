@@ -69,7 +69,7 @@
     // Academy / training — never loaded unless the user enters an
     // academy or training tab. Biggest single lazy win (~150KB).
     academy: [
-      'js/academy-insurance-tree-data.js?v=2',
+      'js/academy-insurance-tree-data.js?v=3',
       'js/academy-insurance-tree.js?v=2',
       'js/academy-retail-tree.js?v=1',
       'js/academy-courses.js?v=1',
@@ -98,7 +98,7 @@
       // Full packet / Paperwork only (2026-10-04) — also in the estimates
       // bundle; the loader runs it once.
       'js/deal-packet.js?v=1',
-      'js/close-board.js?v=11'
+      'js/close-board.js?v=13'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -128,8 +128,8 @@
       'js/stripe-ledger-ui-logic.js?v=1',
       'js/stripe-ledger-panel.js?v=2',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
-      'js/invoice-reminder.js?v=5',
-      'js/money-dashboard.js?v=9'
+      'js/invoice-reminder.js?v=7',
+      'js/money-dashboard.js?v=10'
     ],
     repos: [
       'js/rep-os.js?v=4'
@@ -156,7 +156,15 @@
     // the owner-only data reads (numbers-data.js) are eager on the page; this
     // is just the view.
     weekreview: [
-      'js/week-review.js?v=1'
+      'js/week-review.js?v=2'
+    ],
+    // Catch up my numbers (2026-10-04, #/catchup): the deck rules, then the
+    // view. numbers-logic / numbers-data / the lost-reason picker and
+    // invoice-pipeline.js (Record payment) are eager on the dashboard.
+    catchup: [
+      'js/catchup-logic.js?v=1',
+      'css/catchup.css?v=1',
+      'js/catchup.js?v=1'
     ],
     decision: [
       'css/decision-engine-view.css?v=2',
@@ -185,10 +193,10 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=18',
-      'js/document-generator-templates.js?v=13',
-      'js/document-generator-library.js?v=3', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=6',
+      'js/document-generator.js?v=22',
+      'js/document-generator-templates.js?v=17',
+      'js/document-generator-library.js?v=4', // 2026-10-04 template library; needs -templates' _tpl
+      'js/doc-preflight.js?v=9',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -239,7 +247,7 @@
       'js/product-data.js?v=3',
       'js/roofivent-catalog.js?v=2',
       'js/catalog-costs.js?v=3',
-      'js/product-library.js?v=9',
+      'js/product-library.js?v=10',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
@@ -261,10 +269,10 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=8',
+      'js/estimate-finalization.js?v=10',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=28',
+      'js/estimate-v2-ui.js?v=30',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=5',
@@ -320,7 +328,7 @@
       // KY claim-wording filter (2026-10-04) — BEFORE the two report
       // builders, which run every caption / report string through it.
       'js/claim-wording-filter.js?v=1',
-      'js/inspection-report-engine.js?v=7',
+      'js/inspection-report-engine.js?v=8',
       'js/photo-report.js?v=5'
     ],
     // D2D tracker (PR 2e). The door-to-door knock tracker — only the D2D
@@ -348,7 +356,7 @@
     ],
     // Warranty cert wizard — opened from the Docs view only.
     warranty: [
-      'js/warranty-cert.js?v=7'
+      'js/warranty-cert.js?v=9'
     ],
     // Theme engine cluster (2026-08-07). The 189-theme engine (162 KB) + its
     // four cosmetic companions were eager on every boot; they are a Settings/
@@ -482,6 +490,7 @@
     winback:     ['winback'],
     careplan:    ['careplan'],
     weekreview:  ['weekreview'],
+    catchup:     ['catchup'],
     repos:       ['repos'],
     'talk-tank': ['talktank'],
     calls:       ['callcenter'],

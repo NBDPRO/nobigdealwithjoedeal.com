@@ -702,6 +702,13 @@ exports.getHomeownerPortalView = onRequest(
     // functions/stripe.js: KyLaw.resolveTimeZone(companyProfile)).
     let kyTz = KyLaw.DEFAULT_TIME_ZONE;
     const tenantKey = lead.companyId || tok.ownerUid;
+    // Where a Zelle payment goes (2026-10-04, zelle-contact.js): the tenant's
+    // own brand.contact.zelle* pair; NBD's defaults ((859) 420-7382 or jd@ —
+    // never info@) only when tenantKey IS the NBD platform tenant — keyed on
+    // the companyId, never the brand strings (a tenant that never set
+    // legalName looks like NBD by brand). No profile at all → no Zelle line,
+    // unless this IS the platform owner.
+    let zelleBrand = (tenantKey && String(tenantKey) === PORTAL_NBD_OWNER_UID) ? null : undefined;
     const _portalIsNbd = !tenantKey || String(tenantKey) === PORTAL_NBD_OWNER_UID;
     if (tenantKey) {
       try {
@@ -709,6 +716,7 @@ exports.getHomeownerPortalView = onRequest(
         if (cpSnap.exists) {
           try { kyTz = KyLaw.resolveTimeZone(cpSnap.data() || {}); } catch (_) { /* default zone */ }
           const _b = (cpSnap.data() || {}).brand || {};
+          zelleBrand = _b;
           const _ln = _b.legalName || '';
           const _isTenant = _ln && _ln !== 'No Big Deal Home Solutions';
           tenantName = _isTenant ? _ln : '';  // NBD-name guard (byte-identical; mirrors render-pdf.js/sms-functions.js)
@@ -754,7 +762,9 @@ exports.getHomeownerPortalView = onRequest(
       || SHARED_SIG.includes(e.signatureStatus)
       || !!e.sentAt;
 
-    const estimates = estSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    // An archived (soft-deleted) estimate is gone for the homeowner too, as a
+    // hard-deleted one was (review R5-8-2).
+    const estimates = estSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => e.deleted !== true)
       .filter(e => recordInPortalTenant(e, ['userId'], tenant));
     estimates.sort((a, b) => {
       const ta = a.createdAt?.toMillis?.() || 0;
@@ -976,7 +986,19 @@ exports.getHomeownerPortalView = onRequest(
     // unmet, else the balance — invoice-charge.js, the same rule
     // createStripePaymentLink charges — and Pay Now only when the link
     // charges exactly that (portalBalanceCard).
-    const _balance = _unpaidInvoice ? InvoiceCharge.portalBalanceCard(_unpaidInvoice, _payUrl) : null;
+    const _dueCard = _unpaidInvoice ? InvoiceCharge.portalBalanceCard(_unpaidInvoice, _payUrl) : null;
+    const _balance = _dueCard ? {
+      ..._dueCard,
+      // "Pay by bank (ACH) — lower fees" shows only beside a real link (the
+      // Kentucky hold above blanks the link, and with it this line; so does
+      // portalBalanceCard when the link would not charge what is due now).
+      // ACH is requested only on the NBD platform account's links
+      // (functions/stripe.js), so only its customers are told about it.
+      payByBank: !!_dueCard.stripePaymentLink && require('./zelle-contact').isNbdCompany(tenantKey ? String(tenantKey) : ''),
+      // Zelle is a way to pay, so it obeys the same Kentucky hold as the link.
+      zelle: (typeof zelleBrand === 'undefined' || KyLaw.payLinkHold(lead, _unpaidInvoice, Date.now(), kyTz).held) ? null
+        : (require('./zelle-contact').zelleContactOf(zelleBrand, tenantKey ? String(tenantKey) : '').text || null),
+    } : null;
     // The tracker's "Pay your invoice" link is this SAME already-sent link —
     // never a new one. A Kentucky insurance job's link is withheld at
     // creation (stripe.js runs ky-insurance-law.js server-side), so a held
@@ -1014,6 +1036,11 @@ exports.getHomeownerPortalView = onRequest(
         work:        lead.warranty.work || '',
         installDate: lead.warranty.installDate || null,
         certNumber:  lead.warranty.certNumber || null,
+        // The certificate's two warranty lines (2026-10-06): workmanship (the
+        // NBD Pledge / the company's own) and the manufacturer warranty sold.
+        pledgeLine:       lead.warranty.pledgeLine || '',
+        workmanshipLine:  lead.warranty.workmanshipLine || '',
+        manufacturerLine: lead.warranty.manufacturerLine || '',
         // 2026-09-15 (Warranty Claim lane): lets the portal swap the "Start a
         // warranty claim" button for a "Claim in progress" state instead of
         // letting the homeowner file a second report on top of an open one.
@@ -1885,7 +1912,8 @@ exports.reportWarrantyClaim = onRequest(
       const taskRef = await db.collection(`leads/${tok.leadId}/tasks`).add({
         text: taskText,
         done: false,
-        dueDate: new Date().toISOString().slice(0, 10),
+        // Today in Eastern, not the UTC date (an evening report was due tomorrow).
+        dueDate: KyLaw.isoDay(KyLaw.todayIn(KyLaw.DEFAULT_TIME_ZONE)),
         source: 'homeowner_warranty_claim',
         claimId: claimRef.id,
         createdAt: FieldValue.serverTimestamp(),
@@ -2532,7 +2560,7 @@ exports.getEstimateForView = onRequest(
 
     const estRef = db.doc(`estimates/${estimateId}`);
     const [estSnap, tokLeadSnap] = await Promise.all([estRef.get(), db.doc(`leads/${tok.leadId}`).get()]);
-    if (!estSnap.exists) { res.status(404).json({ error: 'Estimate not found.' }); return; }
+    if (!estSnap.exists || estSnap.data().deleted === true) { res.status(404).json({ error: 'Estimate not found.' }); return; }
     const est = estSnap.data();
     // 2026-09-25 (review of PR #1777): same tenant scope as
     // getHomeownerPortalView. The leadId check below ties the estimate to the

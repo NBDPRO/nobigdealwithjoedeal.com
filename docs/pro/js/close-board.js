@@ -93,11 +93,11 @@
     const cfg = window.NBD_ESTIMATE_CONFIG;
     if (cfg && typeof cfg.tierWarrantyText === 'function') return cfg.tierWarrantyText(key);
     return ({
-      economy: '1-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.',
-      good: 'Lifetime workmanship warranty; does not transfer on sale of property; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
-      better: 'Lifetime workmanship warranty; transferable to one subsequent owner within 30 days of sale; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
-      best: 'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
-      beyond: 'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
+      economy: '1-year written workmanship (labor) warranty; does not transfer on sale of property; the shingle manufacturer\'s standard limited warranty applies; no system warranty.',
+      good: '5-year written workmanship (labor) warranty; does not transfer on sale of property; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      better: '10-year written workmanship (labor) warranty; transferable to one subsequent owner within 30 days of sale; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      best: '20-year written workmanship (labor) warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      beyond: '20-year written workmanship (labor) warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
     })[key] || '';
   }
 
@@ -346,7 +346,10 @@
       const data = {
         ...deal,
         userId: uid,
-        companyId: window._userClaims?.companyId || uid,
+        // R3-12: companyId is write-once in firestore.rules. A deal the server
+        // already holds keeps the companyId it carries (a sync that ran before
+        // the claims loaded would otherwise send the uid and be refused).
+        companyId: deal.companyId || window._userClaims?.companyId || uid,
         updatedAt: new Date().toISOString()
       };
       // The homeowner's acceptance is server-written (deal-acceptance.js) and
@@ -1111,7 +1114,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     </div>
     <div class="schedule-section">
       <p style="font-size:12px;color:#8b8e96;margin-bottom:8px;">Preferred installation date:</p>
-      <input type="date" id="schedDate" class="schedule-input" min="${new Date().toISOString().split('T')[0]}">
+      <input type="date" id="schedDate" class="schedule-input" min="${new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)}">
     </div>
     <button class="sign-btn" id="submitBtn" data-deal-action="submit" disabled>✓ ACCEPT & SCHEDULE</button>
   </div>
@@ -1481,12 +1484,33 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
         deal.status === DEAL_STATUS.DRAFT ? { status: DEAL_STATUS.SENT } : {}
       ));
     }
-    try {
-      await navigator.clipboard?.writeText(url);
-      if (window.showToast) window.showToast('Accept link copied!', 'success');
-    } catch (e) {
-      if (window.showToast) window.showToast('Link ready — paste it to your customer', 'success');
+    // Success only when the link really reached the clipboard; otherwise show
+    // the link itself so the rep can still send it (review R4-7-10).
+    const copied = await _copyText(url);
+    if (window.showToast) {
+      window.showToast(copied ? 'Accept link copied!' : 'Couldn\'t copy — accept link: ' + url, copied ? 'success' : 'info');
     }
+  }
+
+  // true only when the text really reached the clipboard: the async API, then
+  // the legacy execCommand copy (portal-link-helpers.js copyForLead's layers).
+  // A missing navigator.clipboard is not a copy.
+  async function _copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* fall through */ }
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (_) { return false; }
   }
 
   // ============================================================================
