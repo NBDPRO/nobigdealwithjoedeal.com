@@ -32,6 +32,17 @@ const Module = require('module');
 const vm = require('vm');
 const crypto = require('crypto');
 
+// Clock pinned to 12:00 ET on a weekday (still ticking). The owner-send path
+// checks the homeowner's texting hours (8am-9pm local) against Date.now(), so
+// on the real clock this suite went red every evening after 9pm ET and
+// blocked the merge queue (2026-10-07, run 37553484276).
+{
+  const realNow = Date.now;
+  const start = realNow();
+  const NOON_ET = Date.parse('2026-10-06T16:00:00Z');
+  Date.now = () => NOON_ET + (realNow() - start);
+}
+
 const ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 let passed = 0, failed = 0;
