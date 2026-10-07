@@ -94,9 +94,9 @@
     if (cfg && typeof cfg.tierWarrantyText === 'function') return cfg.tierWarrantyText(key);
     return ({
       economy: '1-year written workmanship (labor) warranty; does not transfer on sale of property; the shingle manufacturer\'s standard limited warranty applies; no system warranty.',
-      good: '5-year written workmanship (labor) warranty; does not transfer on sale of property.',
-      better: '10-year written workmanship (labor) warranty; transferable to one subsequent owner within 30 days of sale.',
-      best: '20-year written workmanship (labor) warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included.',
+      good: '5-year written workmanship (labor) warranty; does not transfer on sale of property; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      better: '10-year written workmanship (labor) warranty; transferable to one subsequent owner within 30 days of sale; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      best: '20-year written workmanship (labor) warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
       beyond: '20-year written workmanship (labor) warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
     })[key] || '';
   }
@@ -1277,10 +1277,12 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       if (window.showToast) window.showToast('Sharing is still loading — try again', 'error');
       return;
     }
-    const res = await window.NBDPhoneShare.share({
+    // NBDPhoneShare asks the server "ok to text?" first (STOP / Do Not Text /
+    // consent / hours — review R2-3-2) and logs the send on the lead.
+    const res = await window.NBDPhoneShare.share(Object.assign({
       text: msg, phone: deal.customerPhone, title: 'Roof estimate',
-      noRetry: !!_phonePending[dealId],
-    });
+      noRetry: !!_phonePending[dealId], source: 'deal_link',
+    }, _dealTextWho(deal)));
     if (res.needsTap) {
       _phonePending[dealId] = msg;
       if (window.showToast) window.showToast('Link ready — tap 📱 Text again to send it from your phone', 'info');
@@ -1296,11 +1298,22 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     if (window.showToast) window.showToast('Shared from your phone ✓', 'success');
   }
 
+  // Who a deal text is about, for the server check: the deal's lead, or (a
+  // deal with no customer card) the number's own lists only.
+  function _dealTextWho(deal) {
+    return deal && deal.leadId ? { leadId: deal.leadId } : { recipient: 'number' };
+  }
+
   async function sendViaSMS(dealId) {
     const deal = _findDeal(dealId);
     if (!deal || !deal.customerPhone) {
       if (window.showToast) window.showToast('No phone number for this customer', 'error');
       return;
+    }
+    // Ask "ok to text?" while the link is minted, so the share sheet still
+    // has the tap when it opens.
+    if (!_serverSmsOk && window.NBDPhoneShare && typeof window.NBDPhoneShare.precheck === 'function') {
+      window.NBDPhoneShare.precheck(Object.assign({ phone: deal.customerPhone }, _dealTextWho(deal)));
     }
     // Second tap after Safari refused the first share: the link is already
     // minted and the message written — share it now, inside this tap.

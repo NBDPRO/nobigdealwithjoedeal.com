@@ -594,7 +594,12 @@
       ? _TR.warrantyLines({ tier: d.warrantyTier, isNbd: _nbd, lineItems: d.estimateLineItems, extendedWarranty: d.extendedWarranty })
       : { pledge: _nbd ? ((cfg && cfg.PLEDGE_PROMISE) || 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right.') : null,
           workmanship: _nbd ? ((cfg && typeof cfg.laborWarrantyLine === 'function' && cfg.laborWarrantyLine(d.warrantyTier)) || 'Written workmanship (labor) warranty per your package — see your estimate') : null,
-          manufacturer: 'Manufacturer warranty: ' + (w.systemWarranty === false ? 'the shingle manufacturer’s standard limited warranty on the shingles; no system warranty' : (w.hailWarranty ? 'TAMKO HailGuard hail warranty on the TAMKO HailGuard shingles (manufacturer terms apply)' : 'per manufacturer — see your estimate')) };
+          manufacturer: 'Manufacturer warranty: ' + (w.systemWarranty === false ? 'the shingle manufacturer’s standard limited warranty on the shingles; no system warranty' : (w.hailWarranty ? 'TAMKO HailGuard hail warranty on the TAMKO HailGuard shingles (manufacturer terms apply)'
+            // GAF System Plus (Standard and up, 2026-10-05): NBD only, GAF roof only.
+            : ((_nbd && w.systemPlus && resolveDocManufacturer(d.estimateLineItems).manufacturer === 'GAF'
+                && !(_TR && typeof _TR.isPlatformTenant === 'function' && _TR.isPlatformTenant() === false))
+              ? 'GAF System Plus Limited Warranty, included with the ' + label + ' package (registered with GAF; GAF’s terms apply)'
+              : 'per manufacturer — see your estimate'))) };
     const _ownW = _nbd ? '' : (_lines.workmanship || '');
     const _mfgLine = _lines.manufacturer;
     const _mfgTerms = String(_mfgLine).replace(/^Manufacturer warranty:\s*/, '');

@@ -28,6 +28,7 @@
     "care-plan-page-2026-10-05.test.js",
     "oaks-own-intake-2026-10-04.test.js",
     "estimate-funnel-unblock-2026-10-03.test.js",
+    "inspect-short-form-2026-10-06.test.js",
     "estimate-funnel-lost-lead-banner-2026-10-05.test.js",
     "portal-photo-exif-2026-10-03.test.js",
     "leaderboard-rep-names-2026-09-28.test.js",
@@ -283,6 +284,7 @@
     "sms-stop-intent-2026-10-05.test.js",
     "sms-dnc-2026-10-05.test.js",
     "sms-consent-quiet-switch-2026-10-05.test.js",
+    "texting-r2-fixes-2026-10-06.test.js",
     "sms-compliance-settings-ui-2026-10-05.test.js",
     "sms-outbox-client.test.js",
     "sms-outbox-server.test.js",
@@ -396,6 +398,7 @@
     "strip-redundant-inline-css.test.js",
     "upgrade-pricing.test.js",
     "job-template-honest-paperwork.test.js",
+    "job-templates-late-refresh-2026-10-06.test.js",
     "estimate-gutter-source.test.js",
     "draw-geom.test.js",
     "draw-reticle-css-scope.test.js",
@@ -436,7 +439,8 @@
     "r2-money-lines-jobvalue-2026-10-06.test.js",
     "r2-money-parse-multijob-2026-10-06.test.js",
     "contract-signed-is-booked-2026-10-06.test.js",
-    "no-personal-data-in-repo-2026-10-06.test.js"
+    "no-personal-data-in-repo-2026-10-06.test.js",
+    "system-plus-standard-and-up-2026-10-05.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

@@ -72,13 +72,17 @@
     const disp = cfg && cfg.TIER_DISPLAY && cfg.TIER_DISPLAY[key];
     const w = disp ? disp.warranty : ({
       economy: { workmanshipYears: 1 },
-      good:    { workmanshipYears: 5 },
-      better:  { workmanshipYears: 10 },
-      best:    { workmanshipYears: 20 },
+      good:    { workmanshipYears: 5, systemPlus: true },
+      better:  { workmanshipYears: 10, systemPlus: true },
+      best:    { workmanshipYears: 20, systemPlus: true },
       beyond:  { workmanshipYears: 20, hailWarranty: true }
     })[key] || {};
-    const warranty = (w.workmanshipYears ? w.workmanshipYears + '-Year Labor Warranty' : 'Labor Warranty per Package')
+    let warranty = (w.workmanshipYears ? w.workmanshipYears + '-Year Labor Warranty' : 'Labor Warranty per Package')
       + (w.hailWarranty ? ' + Hail Warranty' : '');
+    // GAF System Plus is included on Standard/Preferred/Elite (2026-10-05) —
+    // NBD's GAF certification, so the platform tenant only.
+    const tr = (typeof window !== 'undefined') ? window.NBDTenantRules : null;
+    if (w.systemPlus && (!tr || typeof tr.isPlatformTenant !== 'function' || tr.isPlatformTenant())) warranty += ' + GAF System Plus';
     return (_TIER_MATERIAL[key] || 'Custom Scope') + ' · ' + warranty;
   }
 

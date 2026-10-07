@@ -758,6 +758,12 @@
 
       // ── Custom templates: LWW by updatedAt ──
       const locals = loadCustoms();
+      // Snapshot what this device already showed, so the repaint below only
+      // fires when the pull actually changed something (2026-10-06: an
+      // unconditional repaint rebuilt the open picker ~0.5 s after it opened
+      // and threw a rep who had already scrolled back to the top).
+      const tplsBefore = JSON.stringify(locals);
+      let usageChanged = false;
       const byId = {};
       const order = [];
       locals.forEach(t => {
@@ -805,6 +811,7 @@
             last: isFinite(Number(win.last)) ? Number(win.last) : null
           };
           if (l && (lLast > cLast || !c)) localNewer = true;
+          if (!l || win !== l || Number(l.n) !== mergedUsage[k].n) usageChanged = true;
         });
         if (ls) {
           try { ls.setItem(USAGE_KEY, JSON.stringify(mergedUsage)); }
@@ -817,9 +824,12 @@
       // saved estimates from other devices resolve on reopen HERE.
       registerAllCustomItems();
       // Repaint the library if the UI is live (guarded — the engine may
-      // load standalone; reRender only repaints hosts that exist).
-      if (window.JobTemplatesUI && typeof window.JobTemplatesUI.reRender === 'function') {
-        try { window.JobTemplatesUI.reRender(); } catch (e) { /* UI's problem */ }
+      // load standalone; reRender only repaints hosts that exist). Only when
+      // the pull changed the templates or the usage overlay, and flagged
+      // `background` so an open Configure/Preview screen is left alone.
+      const changed = usageChanged || JSON.stringify(merged) !== tplsBefore;
+      if (changed && window.JobTemplatesUI && typeof window.JobTemplatesUI.reRender === 'function') {
+        try { window.JobTemplatesUI.reRender({ background: true }); } catch (e) { /* UI's problem */ }
       }
       return true;
     }).catch(e => {

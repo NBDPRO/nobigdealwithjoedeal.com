@@ -252,7 +252,9 @@ section('E. customer-facing CRM source: no "lifetime" warranty wording left (com
   const ALLOWED = /never (be )?call(ed)? (it|anything)? ?(a )?"lifetime|not a "lifetime warranty"|Never write "lifetime warranty"|never a "lifetime"|never "lifetime"|\/lifetime\/i|never call a product warranty lifetime/i;
   const hits = [];
   for (const rel of FILES) {
-    const lines = stripComments(read(rel).replace(/\r\n/g, '\n')).split('\n');
+    // tenant-rules.js keeps NBD's OLD built-in sentences only to RECOGNISE a
+    // stale saved copy (and drop it) — detection data, never printed.
+    const lines = stripComments(read(rel).replace(/\r\n/g, '\n')).replace(/var LEGACY_BUILTIN_WARRANTY = \{[\s\S]*?\};/, '').split('\n');
     lines.forEach((l, i) => { if (LIFETIME_WARRANTY.test(l) && !ALLOWED.test(l)) hits.push(rel + ':' + (i + 1) + ': ' + lifetimeHit(l)); });
   }
   ok('no customer-facing CRM string calls anything a lifetime warranty / workmanship / pledge', hits.length === 0, hits.slice(0, 6).join(' | '));

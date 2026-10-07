@@ -22,7 +22,13 @@ const MAX_LIST = 50;
 const LIST_CURSOR_MAX = 400;
 // Draft limits (2026-10-06; the draft rules sit above the company-bot section).
 const SMS_MAX = 480;
-const STOP_LINE = 'Reply STOP to opt out.';
+// The STOP line on a draft the owner sends from their OWN phone (review R2-3-1,
+// Jo 2026-10-06). "to opt out" promised an opt-out system that never sees the
+// reply — it lands on the owner's phone. This wording is true: the owner reads
+// it, and records it with "They replied STOP" (phone-text-check.js 'stop').
+// TODO(TWILIO_INBOUND_ENABLED): once the business line's inbound is live,
+// drafts should go through it, where a STOP is recorded by itself.
+const STOP_LINE = "Reply STOP and we'll stop texting.";
 const REASON_MAX = 300;
 const EMAIL_SUBJECT_MAX = 140;
 
@@ -443,10 +449,13 @@ function estimatesStatus(estimates, deals, leads, args, nowMs) {
 // copy of the jurisdiction module.
 const TIERS = [
   { key: 'economy', label: 'Economy', ratePerSq: 440, warranty: '1-year written workmanship (labor) warranty plus the shingle maker\'s limited warranty; no system warranty; not transferable', crmOnly: true, notes: 'Never 3-tab shingles.' },
-  { key: 'good', label: 'Standard', ratePerSq: 550, warranty: '5-year written workmanship (labor) warranty; not transferable' },
-  { key: 'better', label: 'Preferred', ratePerSq: 660, warranty: '10-year written workmanship (labor) warranty; transferable to one later owner within 30 days of sale' },
-  { key: 'best', label: 'Elite', ratePerSq: 770, warranty: '20-year written workmanship (labor) warranty; fully transferable; annual inspection' },
-  { key: 'beyond', label: 'Beyond', ratePerSq: 880, warranty: '20-year written workmanship (labor) warranty; fully transferable; annual inspection (Elite terms) plus TAMKO\'s hail warranty', crmOnly: true, notes: 'Locked to TAMKO HailGuard shingles.' },
+  // GAF System Plus (Standard and up, Jo 2026-10-05) is GAF's MANUFACTURER
+  // warranty, included in the tier price — never sold as a separate line,
+  // never described as workmanship.
+  { key: 'good', label: 'Standard', ratePerSq: 550, warranty: '5-year written workmanship (labor) warranty; not transferable; GAF System Plus warranty included (GAF manufacturer warranty on the shingles + qualifying GAF accessories, not workmanship)' },
+  { key: 'better', label: 'Preferred', ratePerSq: 660, warranty: '10-year written workmanship (labor) warranty; transferable to one later owner within 30 days of sale; GAF System Plus warranty included (GAF manufacturer warranty on the shingles + qualifying GAF accessories, not workmanship)' },
+  { key: 'best', label: 'Elite', ratePerSq: 770, warranty: '20-year written workmanship (labor) warranty; fully transferable; annual inspection; GAF System Plus warranty included (GAF manufacturer warranty on the shingles + qualifying GAF accessories, not workmanship)' },
+  { key: 'beyond', label: 'Beyond', ratePerSq: 880, warranty: '20-year written workmanship (labor) warranty; fully transferable; annual inspection (Elite terms) plus TAMKO\'s hail warranty; no GAF System Plus (not a GAF roof)', crmOnly: true, notes: 'Locked to TAMKO HailGuard shingles.' },
 ];
 // The NBD Pledge (Jo, 2026-10-06): a PROMISE on every NBD job, every tier —
 // never call it (or anything) a "lifetime warranty". Same text as
@@ -827,6 +836,26 @@ function companyNames(profile, isNbd) {
 }
 function hasStopLine(body) { return /\b(reply|text)\s+["']?stop\b/i.test(String(body || '')); }
 
+/**
+ * The checks a text draft must pass — at filing AND again on the edited text
+ * when the owner taps send (review R2-3-1): the company name, a STOP line, the
+ * Kentucky claim wording. Never appends: an edit that removed the
+ * STOP line is refused, not repaired behind the owner's back.
+ * @returns {string|null} what is wrong, or null
+ */
+function editedTextProblem(body, names) {
+  const b = draftText(body);
+  if (!b) return 'The text is empty.';
+  const ns = (names || []).filter(Boolean);
+  if (!ns.length) return 'The company has no name set on its profile, so a text cannot say who it is from.';
+  const low = b.toLowerCase();
+  if (!ns.some((n) => low.indexOf(n.toLowerCase()) !== -1)) return 'Say who it is from: the text must include the company name ("' + ns[ns.length - 1] + '").';
+  if (!hasStopLine(b)) return 'Keep the STOP line in the text ("' + STOP_LINE + '").';
+  const claim = claimWordingProblem(b);
+  if (claim) return claim;
+  return null;
+}
+
 /** draft_text args → { body } (company name checked, STOP line appended) or { error }. */
 function buildTextDraft(args, names) {
   const a = args || {};
@@ -1082,6 +1111,6 @@ module.exports = {
   teamActivity, annotationsFor, WRITES,
   TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
   botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,
-  SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, buildTextDraft, textGate, buildEmailDraft, emailGate, buildSocialDraft,
+  SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, editedTextProblem, buildTextDraft, textGate, buildEmailDraft, emailGate, buildSocialDraft,
   planAllowsBots, accessDecision, validTimeZone, companyTimeZone, dayInZone, rulesReferenceFor, houseRuleLines, NEUTRAL_GUIDANCE,
 };

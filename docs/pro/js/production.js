@@ -524,7 +524,9 @@
     const text = P().jobSheet({ lead, orders: orders || [], sub });
     const share = window.NBDPhoneShare;
     if (share && typeof share.share === 'function') {
-      const r = await share.share({ text, title: 'Job sheet — ' + ((lead && lead.address) || ''), phone: sub && sub.phone, subject: 'Job sheet — ' + ((lead && lead.address) || '') });
+      // recipient 'crew': the sub's number is checked against the STOP and
+      // Do Not Text lists (no homeowner hours / consent) — review R2-3-2.
+      const r = await share.share({ text, title: 'Job sheet — ' + ((lead && lead.address) || ''), phone: sub && sub.phone, subject: 'Job sheet — ' + ((lead && lead.address) || ''), recipient: 'crew' });
       if (r && r.shared) toast('Job sheet sent ✓', 'success');
       return r;
     }
@@ -670,7 +672,9 @@
       tom.innerHTML = rows.length ? '<div class="pr-h">Tomorrow\'s installs</div>' + rows.map((r) =>
         '<div class="pr-tom" data-pr-lead="' + esc(r.id) + '"><div><b>' + esc(r.name) + '</b> · ' + esc(r.when) + (r.address ? ' · ' + esc(r.address) : '') + '</div>' +
         '<div class="pr-tom-text">' + esc(r.text) + '</div>' +
-        '<div class="pr-row">' + (r.phone ? '<a class="btn btn-orange pr-small" href="' + esc(window.NBDPhoneShare ? window.NBDPhoneShare.smsHref(r.phone, r.text) : 'sms:' + r.phone) + '">💬 Text</a>' : '') +
+        // 💬 Text goes through NBDPhoneShare (server "ok to text?" first,
+        // review R2-3-2) — never a bare sms: link.
+        '<div class="pr-row">' + (r.phone ? '<button type="button" class="btn btn-orange pr-small" data-pr-action="tom-text">💬 Text</button>' : '') +
         (r.email && window.NBDPhoneShare && window.NBDPhoneShare.mailtoHref(r.email, 'Tomorrow at ' + r.address, r.text) ? '<a class="btn btn-ghost pr-small" href="' + esc(window.NBDPhoneShare.mailtoHref(r.email, 'Tomorrow at ' + r.address, r.text)) + '">✉ Email</a>' : '') +
         '<button type="button" class="btn btn-ghost pr-small" data-pr-action="tom-share">📤 Share…</button></div></div>').join('') : '';
     }
@@ -761,10 +765,15 @@
       const act = t.dataset.prAction;
       if (act === 'rain-close') { closeRain(); return; }
       if (act === 'rain-save') { t.disabled = true; saveRain().catch((e) => { const m = $('prRainMsg'); if (m) m.textContent = 'Could not save: ' + ((e && e.message) || ''); t.disabled = false; }); return; }
-      if (act === 'tom-share') {
+      if (act === 'tom-share' || act === 'tom-text') {
         const id = t.closest('[data-pr-lead]') && t.closest('[data-pr-lead]').dataset.prLead;
         const row = P().tomorrowInstalls(window._leads || [], todayYmd(), reminderCtx()).find((r) => r.id === id);
-        if (row && window.NBDPhoneShare) window.NBDPhoneShare.share({ text: row.text, phone: row.phone, email: row.email, subject: 'Tomorrow at ' + row.address });
+        if (row && window.NBDPhoneShare) {
+          window.NBDPhoneShare.share({
+            text: row.text, phone: row.phone, email: act === 'tom-text' ? '' : row.email, subject: 'Tomorrow at ' + row.address,
+            leadId: row.id, source: 'install_reminder', preferSms: act === 'tom-text',
+          });
+        }
         return;
       }
       if (t.closest('#productionPanel') || t.closest('#prRainSheet') === null) { onPanelAction(act, t); }
