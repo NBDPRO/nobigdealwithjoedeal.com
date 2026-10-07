@@ -611,6 +611,12 @@ window.loadProjectTimeline = async function(leadId) {
 // window._db, ScriptLoader dedupes) and return its API once `fnName` exists.
 async function _nbdInvoicePipeline(fnName) {
   if (!window._db && window.db) window._db = window.db;
+  // Same for auth (2026-10-07, found by the sample account): the module's
+  // getAuthToken() reads window._auth, which this page never set (only the
+  // photo engine aliased it, and only once it had loaded), so a pay-link
+  // mint from this page threw "Not authenticated": "Send balance" went out
+  // without its pay link and "Create Payment Link" failed.
+  if (!window._auth && window.auth) window._auth = window.auth;
   if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
     if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
     await window.ScriptLoader.load('js/invoice-pipeline.js?v=21');
@@ -685,8 +691,9 @@ window.NBDCustomerInvoices = {
   review: async function (invoiceId) {
     if (!invoiceId) return;
     try {
-      // Same lazy load as markPaid below (window._db alias + ScriptLoader).
+      // Same lazy load as markPaid below (window._db / _auth alias + ScriptLoader).
       if (!window._db && window.db) window._db = window.db;
+      if (!window._auth && window.auth) window._auth = window.auth;
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
         await window.ScriptLoader.load('js/invoice-pipeline.js?v=21');
@@ -710,7 +717,9 @@ window.NBDCustomerInvoices = {
       // "Firestore (v9) not initialized" the moment Mark Paid is tapped.
       // Alias the same instance rather than editing the module: it is the
       // identical object on the dashboard, so nothing there changes.
+      // window._auth likewise (the pay-link re-mint after a payment needs it).
       if (!window._db && window.db) window._db = window.db;
+      if (!window._auth && window.auth) window._auth = window.auth;
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.markPaidUI === 'function')) {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) {
           throw new Error('ScriptLoader unavailable');
