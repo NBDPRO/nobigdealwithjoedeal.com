@@ -160,23 +160,41 @@ const EXPORT_LIMIT = 5000;
 const SIGN_LIMIT = 300;
 const MAX_ZIP_BYTES = 8 * 1024 * 1024;
 
-async function collectCompany(db, companyId, ownerId) {
+// R4-7-3 (2026-10-06): a failed query used to be logger.warn'ed and the
+// export shipped with 0 rows for that collection, and a collection over
+// EXPORT_LIMIT was cut off with no notice. A tenant leaving in the grace
+// period could walk away with an export missing their invoices and never
+// know. Now a failed read FAILS the export (they can retry), and a capped
+// read is named in `truncated` so the README says so.
+function exportReadFailed(name, coll, e) {
+  logger.error('export query failed', { coll, err: e && e.message });
+  return new HttpsError('unavailable', 'Your export could not read your ' + name.replace(/_/g, ' ')
+    + ' just now, so no file was made (an export missing records would look complete). Please try again in a minute.');
+}
+
+async function collectCompany(db, companyId, ownerId, truncated) {
   const out = {};
   for (const [name, coll, field, legacy] of EXPORT_COLLECTIONS) {
     const byId = new Map();
-    const take = (snap) => snap.docs.forEach((d) => { if (!byId.has(d.id)) byId.set(d.id, d); });
-    try { take(await db.collection(coll).where(field, '==', companyId).limit(EXPORT_LIMIT).get()); } catch (e) { logger.warn('export query failed', { coll, err: e && e.message }); }
+    let capped = false;
+    const take = (snap) => {
+      if (snap.docs.length >= EXPORT_LIMIT) capped = true;
+      snap.docs.forEach((d) => { if (!byId.has(d.id)) byId.set(d.id, d); });
+    };
+    try { take(await db.collection(coll).where(field, '==', companyId).limit(EXPORT_LIMIT).get()); } catch (e) { throw exportReadFailed(name, coll, e); }
     // Legacy docs written before companyId was stamped belong to the owner.
     if (ownerId) {
-      try {
-        const legacySnap = await db.collection(coll).where(legacy, '==', ownerId).limit(EXPORT_LIMIT).get();
-        legacySnap.docs.forEach((d) => {
-          const c = (d.data() || {})[field];
-          if (!c || c === companyId) { if (!byId.has(d.id)) byId.set(d.id, d); }
-        });
-      } catch (_) { /* best effort */ }
+      let legacySnap;
+      try { legacySnap = await db.collection(coll).where(legacy, '==', ownerId).limit(EXPORT_LIMIT).get(); }
+      catch (e) { throw exportReadFailed(name, coll, e); }
+      if (legacySnap.docs.length >= EXPORT_LIMIT) capped = true;
+      legacySnap.docs.forEach((d) => {
+        const c = (d.data() || {})[field];
+        if (!c || c === companyId) { if (!byId.has(d.id)) byId.set(d.id, d); }
+      });
     }
     out[name] = Array.from(byId.values());
+    if (capped && Array.isArray(truncated)) truncated.push(name);
   }
   return out;
 }
@@ -192,7 +210,8 @@ async function buildCompanyExport(db, bucket, companyId, opts) {
   const now = o.now || new Date();
   const day = now.toISOString().slice(0, 10);
   // companyId == the owner's uid for every self-serve company (provisioning.js).
-  const docs = await collectCompany(db, companyId, co.ownerId || companyId);
+  const truncated = [];
+  const docs = await collectCompany(db, companyId, co.ownerId || companyId, truncated);
 
   const files = [];
   const counts = {};
@@ -231,9 +250,10 @@ async function buildCompanyExport(db, bucket, companyId, opts) {
   const photoNote = signed
     ? (signed + ' photo(s) carry a download link valid for 24 hours (signedUrl24h).' + (unsigned ? ' The other ' + unsigned + ' list their storage path only — ask NBD Pro support for a photo archive.' : ''))
     : 'Download links could not be created for this export — each photo lists its storage path; ask NBD Pro support for a photo archive.';
-  files.unshift({ name: 'README.txt', data: T.exportReadme(companyName, counts, photoNote, now.toISOString()) });
+  files.unshift({ name: 'README.txt', data: T.exportReadme(companyName, counts, photoNote, now.toISOString(), { truncated, limit: EXPORT_LIMIT }) });
+  if (truncated.length) logger.warn('export truncated at EXPORT_LIMIT', { companyId, truncated });
   const zip = buildZip(files, now);
-  return { zip, filename: `${slug}-export-${day}.zip`, counts, signed, unsigned };
+  return { zip, filename: `${slug}-export-${day}.zip`, counts, signed, unsigned, truncated };
 }
 
 exports.exportCompanyData = onCall({ region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, timeoutSeconds: 300, memory: '1GiB' }, async (request) => {
