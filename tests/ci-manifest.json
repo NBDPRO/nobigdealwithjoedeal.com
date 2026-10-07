@@ -348,6 +348,7 @@
     "calcom-webhook-payload.test.js",
     "lead-alert-calcom.test.js",
     "lead-alert-thumbtack.test.js",
+    "forms-to-crm-2026-10-06.test.js",
     "favicon-contract.test.js",
     "lead-form-phone-contract.test.js",
     "pro-claims-honesty-2026-09-13.test.js",
