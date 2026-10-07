@@ -3,8 +3,8 @@
  * welcome video (Jo, 2026-10-05).
  *
  * The old #intro-video slot waited for a YouTube ID and never shipped. It is
- * now a self-hosted 30-second look at the free inspection, presented by
- * Thursday (NBD's assistant presenter). Pins:
+ * now a self-hosted 34-second look at the free inspection, presented by
+ * Thursday (NBD's assistant presenter); v3 cut live 2026-10-07. Pins:
  *   - exactly one <video> in #intro-video, with controls + playsinline +
  *     preload="none" + a poster, and NO autoplay / muted / loop;
  *   - a WebVTT captions <track>. The web copy has NO burned-in captions
@@ -16,6 +16,8 @@
  *     (< 4 MB) and faststart (moov before mdat, so it starts on play without
  *     a full download), the VTT is real WebVTT, the poster is a WebP with no
  *     EXIF/XMP chunk;
+ *   - the captions carry the v3 script and no on-video AI-assistant line
+ *     (the video itself never says it; platform/page labels handle that);
  *   - the site CSP still admits same-origin media (media-src 'self').
  *
  * Swapping the video = replace the three files and bump ?v= in the one
@@ -69,6 +71,10 @@ if (src && fs.existsSync(local(src))) {
 if (vtt && fs.existsSync(local(vtt))) {
   const t = fs.readFileSync(local(vtt), 'utf8').replace(/^\uFEFF/, '');
   ok('captions file is WebVTT with cues', /^WEBVTT\r?\n/.test(t) && /\d\d:\d\d:\d\d\.\d{3} --> \d\d:\d\d:\d\d\.\d{3}/.test(t));
+  const said = t.replace(/^WEBVTT.*$|^[\d:.]+ --> [\d:.]+.*$/gm, ' ').replace(/\s+/g, ' ').trim();
+  ok('captions carry the v3 script (opener + closer URL)',
+    /Hi, I'm Thursday, with Joe Deal at No Big Deal Home Solutions\./.test(said) && /Book yours at nobigdealwithjoedeal\.com\/inspect\./.test(said), said.slice(0, 120));
+  ok('captions have no on-video AI-assistant line', !/\bAI\b|artificial intelligence|assistant/i.test(said));
 } else ok('captions file exists', false, vtt);
 
 if (poster && fs.existsSync(local(poster))) {
