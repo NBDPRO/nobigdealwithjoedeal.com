@@ -528,47 +528,8 @@ exports.submitDealAcceptance = onRequest(
         if (!(price > 0)) {
           const e = new Error('unpriced'); e._http = 400; e._msg = 'That package isn’t priced on this deal. Choose another or ask your rep.'; throw e;
         }
-        // A STALE price is refused (review R6-2-5, Jo 2026-10-07): the
-        // estimate was re-saved after this link was issued, or the page's
-        // price for this package is no longer the estimate's. The homeowner
-        // is answered with the current price and can accept only that one,
-        // confirmed (deal-room.js re-asks). Legacy links (no fingerprint)
-        // still get the price comparison, via the deal's own estimate.
-        const room = dealRoomSnap.data() || {};
-        const okId = (v) => typeof v === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(v);
-        const estId = okId(t.estimateId) ? t.estimateId : (okId(room.estimateId) ? room.estimateId : null);
-        let accepted = { ok: true, price };
-        if (estId) {
-          const es = await tx.get(db.doc(`estimates/${estId}`));
-          const est = es.exists ? (es.data() || {}) : null;
-          if (est && est.userId === t.ownerUid) {
-            const SP = require('./signed-price');
-            accepted = SP.checkDealPrice({ est, tier, offeredPrice: price, issuedFingerprint: t.estimateFingerprint || null, confirmPrice });
-            if (!accepted.ok) {
-              let depositDue = null;
-              if (accepted.tierPrice != null) {
-                // What is due at signing at the new price — deposit-rule.js on
-                // the estimate's inputs and the lead (a Kentucky insurance job
-                // stays $0 at signing).
-                let lead = null;
-                if (okId(t.leadId)) { const ls = await tx.get(db.doc(`leads/${t.leadId}`)); lead = ls.exists ? (ls.data() || {}) : null; }
-                try {
-                  const DAT = require('./deal-accepted-tier');
-                  const f = DAT.retierFields(est, accepted.tierPrice, { lead, depositRule: require('./deposit-rule') });
-                  depositDue = Number.isFinite(Number(f.deposit)) ? Number(f.deposit) : null;
-                } catch (_) { depositDue = null; }
-              }
-              const e = new Error('price_changed'); e._http = 409;
-              e._msg = accepted.tierPrice != null
-                ? 'Your rep updated this estimate after this page was made. This package is now $'
-                  + Number(accepted.tierPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                  + '. Review the new price, then tap Accept again to agree to it.'
-                : 'Your rep updated this estimate after this page was made, and this package needs an updated page. Please ask your rep for the new link.';
-              e._json = { error: e._msg, code: 'price_changed', tier, tierPrice: accepted.tierPrice, currentPrices: accepted.currentPrices, depositDue };
-              throw e;
-            }
-          }
-        }
+        // A STALE price is refused (review R6-2-5) — staleDealPrice below.
+        const accepted = await staleDealPrice(db, tx, t, dealRoomSnap.data() || {}, tier, price, confirmPrice);
         const acceptedPrice = accepted.price;
         if (accepted.changedFrom != null) evidence.priceChangedFrom = accepted.changedFrom;
         tx.update(tokRef, { status: 'accepted', acceptedAt: FieldValue.serverTimestamp() });
@@ -650,6 +611,50 @@ exports.submitDealAcceptance = onRequest(
     res.status(200).json({ ok: true });
   }
 );
+
+// ═══════════════════════════════════════════════════════════════
+// A stale deal-room price (review R6-2-5, Jo 2026-10-07).
+// ═══════════════════════════════════════════════════════════════
+/**
+ * Inside submitDealAcceptance's transaction (reads only): may the homeowner
+ * accept `tier` at the page's `price`? Refused when the estimate was re-saved
+ * after this link was issued (the token's estimateFingerprint moved) or the
+ * page's price for this package is no longer the estimate's — the homeowner
+ * is answered (409 price_changed) with the CURRENT price and can accept only
+ * that one, confirmed (deal-room.js re-asks). Legacy links (no fingerprint)
+ * still get the price comparison, via the deal's own estimate.
+ * signed-price.js checkDealPrice has the rule.
+ * → { ok: true, price, changedFrom? }; throws the 409 otherwise.
+ */
+async function staleDealPrice(db, tx, t, room, tier, price, confirmPrice) {
+  const okId = (v) => typeof v === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(v);
+  const estId = okId(t.estimateId) ? t.estimateId : (okId(room.estimateId) ? room.estimateId : null);
+  if (!estId) return { ok: true, price };
+  const es = await tx.get(db.doc(`estimates/${estId}`));
+  const est = es.exists ? (es.data() || {}) : null;
+  if (!est || est.userId !== t.ownerUid) return { ok: true, price };
+  const accepted = require('./signed-price').checkDealPrice({ est, tier, offeredPrice: price, issuedFingerprint: t.estimateFingerprint || null, confirmPrice });
+  if (accepted.ok) return accepted;
+  // What is due at signing at the new price — deposit-rule.js on the
+  // estimate's inputs and the lead (a Kentucky insurance job stays $0).
+  let depositDue = null;
+  if (accepted.tierPrice != null) {
+    let lead = null;
+    if (okId(t.leadId)) { const ls = await tx.get(db.doc(`leads/${t.leadId}`)); lead = ls.exists ? (ls.data() || {}) : null; }
+    try {
+      const f = require('./deal-accepted-tier').retierFields(est, accepted.tierPrice, { lead, depositRule: require('./deposit-rule') });
+      depositDue = Number.isFinite(Number(f.deposit)) ? Number(f.deposit) : null;
+    } catch (_) { depositDue = null; }
+  }
+  const e = new Error('price_changed'); e._http = 409;
+  e._msg = accepted.tierPrice != null
+    ? 'Your rep updated this estimate after this page was made. This package is now $'
+      + Number(accepted.tierPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      + '. Review the new price, then tap Accept again to agree to it.'
+    : 'Your rep updated this estimate after this page was made, and this package needs an updated page. Please ask your rep for the new link.';
+  e._json = { error: e._msg, code: 'price_changed', tier, tierPrice: accepted.tierPrice, currentPrices: accepted.currentPrices, depositDue };
+  throw e;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Deal packet photos (2026-10-04). See deal-packet-logic.js for the rules.
