@@ -70,8 +70,11 @@ export function clone(v) {
   return out;
 }
 
+// A Date is a value, not a map: Firestore stores it as a Timestamp (clone).
+// Wave 4: it used to count as a plain object here, so a top-level Date field
+// (an invoice's createdAt / dueDate) was walked as a map and stored as {}.
 function isPlainObject(v) {
-  return v !== null && typeof v === 'object' && !Array.isArray(v) &&
+  return v !== null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date) &&
     !(v instanceof Timestamp) && !(v instanceof GeoPoint) && !(v instanceof FieldValue);
 }
 
@@ -219,6 +222,10 @@ export function reviveSeed(v) {
   // Wave 2: {"__media": "roof-front.svg"} -> this origin's /pro/demo-sdk/media/ URL
   // (the CRM renders photo URLs only when they are absolute).
   if (v.__media) return /^[\w-]+\.(svg|png|jpg|webp)$/.test(String(v.__media)) ? (typeof location !== 'undefined' ? location.origin : '') + '/pro/demo-sdk/media/' + v.__media : '';
+  // Wave 4: {"__here": "/pro/explore/sample-pay?…"} -> this origin's absolute
+  // URL (a sample pay link: the CRM shows only http(s) pay links). Only paths
+  // inside the sample account resolve; anything else is ''.
+  if (v.__here) return /^\/pro\/explore\/[\w-]+(\?[\w.%&=-]*)?$/.test(String(v.__here)) ? (typeof location !== 'undefined' ? location.origin : '') + v.__here : '';
   const out = {};
   for (const k of Object.keys(v)) out[k] = reviveSeed(v[k]);
   return out;

@@ -25,6 +25,11 @@
  *      insurance sample shows money due at signing.
  *   G. /pro/sandbox's "Explore the whole sample account" stays a disabled
  *      placeholder (a later wave turns it on).
+ *   H. Wave 3: the offline map, Storm Center, Agent inbox and Ask Joe.
+ *   I. Wave 4: invoices and payments (the REAL deposit rule and Kentucky
+ *      hold recomputed over the seed), sample pay links, the direct function
+ *      answers (endpoints.js) run here, the production seed, the Settings
+ *      "available in your real account" cards and the Ask Joe layout rule.
  */
 'use strict';
 
@@ -440,6 +445,120 @@ ok('demo-mode.js: wraps fetch, XHR, sendBeacon, WebSocket and EventSource', /win
   let spErr = null;
   try { await call('attachStormProof', { leadId: 'sample-lead-01' }); } catch (e) { spErr = e.message; }
   ok('attachStormProof says what it would do (no fake "verified" proof)', /In your real account this would look up verified hail reports/.test(spErr || ''));
+
+  // ── I. wave 4: invoices, payments, production, Settings ─────────────────
+  console.log('I. wave 4 (invoices, payments, pay links, production strip, Settings)');
+  const R = require(path.join(DOCS, 'pro', 'js', 'deposit-rule.js'));
+  const KYL = require(path.join(DOCS, 'pro', 'js', 'ky-insurance-law.js'));
+  const live = (d) => store.reviveSeed(d);
+  const invs = Object.entries(D).filter(([p]) => /^invoices\//.test(p)).map(([p, d]) => Object.assign({ id: p.split('/')[1] }, live(d)));
+  const leadOfInv = (inv) => Object.assign({ id: inv.leadId }, live(D['leads/' + inv.leadId]));
+  const isKyIns = (l) => !!KYL.classify({ address: l.address, zip: l.zip, state: l.state, jobType: l.jobType, claimNumber: l.claimNumber, insuranceCarrier: l.insuranceCarrier }).kyInsurance;
+  ok('seed v4 or later carries invoices: paid, part-paid and draft, cash and Kentucky insurance',
+    seed.version >= 4 && invs.length >= 6 && ['paid', 'partial', 'draft'].every((s) => invs.some((i) => i.status === s)) &&
+    invs.some((i) => isKyIns(leadOfInv(i))) && invs.some((i) => !isKyIns(leadOfInv(i))), invs.map((i) => i.id + ':' + i.status).join(' '));
+  ok('every invoice is the sample company\'s and labelled a sample (description and line items)',
+    invs.every((i) => i.companyId === 'demo-owner' && i.createdBy === 'demo-owner' && i.isSample === true && /\(sample\)/.test(i.description) && i.items.every((it) => /\(sample price\)/.test(it.description))));
+  // The deposit rule, recomputed by the REAL deposit-rule.js and spelled out.
+  const ruleBad = invs.filter((i) => {
+    const l = leadOfInv(i);
+    if (isKyIns(l)) return !(i.depositAmount === 0 && /^Nothing is due at signing/.test(i.depositTerms) && i.kyInsuranceHold === true);
+    const want = i.total < 2000 ? 0 : Math.round(i.total * 0.5 / 25) * 25;
+    const plan = R.fromEstimate({ total: i.total, mode: 'cash' }, { totalCents: Math.round(i.total * 100), lead: l });
+    return i.depositAmount !== want || plan.depositCents !== want * 100 || !/due at signing/.test(i.depositTerms);
+  });
+  ok('deposits follow the rule: cash under $2,000 none, $2,000+ 50% at signing; Kentucky insurance nothing at signing', ruleBad.length === 0, ruleBad.map((i) => i.id + ' ' + i.depositAmount).join(', '));
+  const ledgerBad = invs.filter((i) => {
+    const paid = Math.round((i.payments || []).reduce((s, p) => s + p.amount * 100, 0));
+    const bal = Math.round(i.total * 100) - paid;
+    const st = bal === 0 ? 'paid' : paid > 0 ? 'partial' : i.status;
+    return Math.round(i.amountPaid * 100) !== paid || Math.round(i.balanceDue * 100) !== bal || i.status !== st;
+  });
+  ok('every invoice\'s ledger adds up (amountPaid = its payments, balanceDue = total − paid, status matches)', ledgerBad.length === 0, ledgerBad.map((i) => i.id).join(', '));
+  // Kentucky insurance: no money asked before the carrier's written decision + the window; no live pay link.
+  const kyInvs = invs.filter((i) => isKyIns(leadOfInv(i)));
+  const kyEarly = [];
+  kyInvs.forEach((i) => (i.payments || []).forEach((p) => { if (!KYL.kyPaymentsReleased(leadOfInv(i).carrierDecisionAt, p.at.toDate())) kyEarly.push(i.id + ' ' + p.paymentId); }));
+  ok('Kentucky insurance: every payment is dated after the written decision and the 5-business-day window', kyInvs.length >= 3 && kyEarly.length === 0, kyEarly.join(', '));
+  const linkBad = invs.filter((i) => i.stripePaymentLink && (KYL.payLinkHold(leadOfInv(i), i, new Date()).held || !/^https:\/\/example\.test\/pro\/explore\/sample-pay\?invoice=[\w-]+&amount=\d+\.\d\d$/.test(i.stripePaymentLink)));
+  ok('pay links in the seed are sample links only, and never on a held Kentucky insurance invoice', invs.some((i) => i.stripePaymentLink) && linkBad.length === 0, linkBad.map((i) => i.id).join(', '));
+  const grace = invs.find((i) => i.leadId === 'sample-lead-16');
+  ok('the signed Kentucky insurance job (no carrier decision yet): draft, $0 deposit, pay link held by the REAL ky-insurance-law.js',
+    grace && grace.status === 'draft' && !grace.stripePaymentLink && KYL.payLinkHold(leadOfInv(grace), grace, new Date()).held === true);
+  const moneyText = JSON.stringify(invs) + JSON.stringify(Object.entries(D).filter(([p]) => /^(notes|companies\/demo-owner\/subs|leads\/[^/]+\/jobs)\//.test(p)));
+  ok('no assignment of benefits and no claim-outcome copy in invoices, payment notes, subs or orders',
+    !/assignment of benefits|\baob\b|direction to pay|we (handle|negotiate|fight)|underpaid|recovered|get (you|it) approved|lifetime/i.test(moneyText));
+  const ca = D['connectAccounts/demo-owner'];
+  ok('the sample payout account is test mode (never livemode) and marked as a sample', ca && ca.livemode === false && ca.isSample === true && /^acct_sample/.test(ca.accountId));
+  const subs = Object.entries(D).filter(([p]) => /^companies\/demo-owner\/subs\//.test(p)).map(([, d]) => d);
+  ok('the sub roster: invented independent subcontractors, never employees or "our crew"',
+    subs.length >= 2 && subs.every((s) => /\(sample sub\)/.test(s.name) && /independent subcontractor/i.test(s.notes)) && !/employee|our (crew|team)|in-house/i.test(JSON.stringify(subs)));
+  const orders = Object.entries(D).filter(([p]) => /^leads\/[^/]+\/jobs\/[^/]+\/orders\//.test(p)).map(([, d]) => d);
+  const priceKey = (o) => JSON.stringify(o).match(/"(price|cost|unitPrice|amount|rate|total|cents)\w*"\s*:/i);
+  ok('material orders carry quantities only (no price, cost or amount field)', orders.length >= 3 && orders.every((o) => !priceKey(o)), (orders.map(priceKey).find(Boolean) || [])[0]);
+  const prodLead = D['leads/sample-lead-17'];
+  ok('a job in production fills the strip: permit filed, sub on the roster, a start window', prodLead.permitFiledAt && prodLead.subId === 'sample-sub-01' && prodLead.scheduledDate && prodLead.scheduledStart === '07:00');
+
+  // I1b. A Date written by the CRM (invoice createdAt / dueDate) is stored as a
+  // Timestamp, like Firestore does (it used to be walked as a map: {}).
+  const when = new Date('2026-09-01T15:00:00Z');
+  await F.setDoc(F.doc(db, 'invoices', 'date-probe'), { createdAt: when, nested: { at: when }, list: [when] });
+  const probe = (await F.getDoc(F.doc(db, 'invoices', 'date-probe'))).data();
+  ok('a Date field is stored as a Timestamp (top level, nested and in an array), as Firestore does',
+    [probe.createdAt, probe.nested.at, probe.list[0]].every((t) => t instanceof F.Timestamp && t.toDate().getTime() === when.getTime()), JSON.stringify(probe));
+  await F.updateDoc(F.doc(db, 'invoices', 'date-probe'), { paidAt: when });
+  ok('…updateDoc too', (await F.getDoc(F.doc(db, 'invoices', 'date-probe'))).data().paidAt instanceof F.Timestamp);
+  await F.deleteDoc(F.doc(db, 'invoices', 'date-probe'));
+
+  // I2. The direct function answers (endpoints.js), run here.
+  const epCode = stripComments(read('docs/pro/demo-sdk/endpoints.js'));
+  ok('demo-sdk/endpoints.js makes no request of its own', !NET.test(epCode), (epCode.match(NET) || [])[0]);
+  globalThis.NBDJurisdiction = KYL;
+  const EP = (await imp('endpoints.js')).default;
+  const ans = async (n, b) => { const r = await EP.answerFunction(n, JSON.stringify(b || {})); return { status: r.status, body: await r.json() }; };
+  ok('endpoints.js answers exactly the three direct POSTs (pay link, email, text)', EP.NAMES.slice().sort().join(',') === 'createStripePaymentLink,sendEmail,sendSMS');
+  const heldAns = await ans('createStripePaymentLink', { invoiceId: grace.id });
+  ok('pay link on a held Kentucky insurance invoice: refused with the CRM\'s own KY_CANCELLATION_WINDOW error', heldAns.status === 409 && /^KY_CANCELLATION_WINDOW: Online payment link withheld: Kentucky insurance job \(KRS 367\.626\)/.test(heldAns.body.error), JSON.stringify(heldAns));
+  const felix = invs.find((i) => i.leadId === 'sample-lead-21');
+  const okAns = await ans('createStripePaymentLink', { invoiceId: felix.id });
+  ok('pay link on an owed cash invoice: a sample link for the balance, never a Stripe URL', okAns.status === 200 && okAns.body.url === 'https://example.test/pro/explore/sample-pay?invoice=' + felix.id + '&amount=6900.00' && okAns.body.sample === true && !/stripe\.com/.test(JSON.stringify(okAns.body)), JSON.stringify(okAns));
+  const paidAns = await ans('createStripePaymentLink', { invoiceId: invs.find((i) => i.status === 'paid').id });
+  ok('pay link on a paid invoice: refused (nothing owed)', paidAns.status === 400);
+  const smsAns = await ans('sendSMS', { to: '+15135550120', body: 'Your invoice is ready.', leadId: 'sample-lead-21' });
+  const mailAns = await ans('sendEmail', { to: 'felix.grant@example.com', subject: 'Invoice', html: '<p>Hi</p>', invoiceId: felix.id });
+  ok('a text or an email: refused 403 "nothing was sent" (nbd-comms.js then never hands off to sms: / mailto:)',
+    smsAns.status === 403 && mailAns.status === 403 && smsAns.body.code === 'sample_account' && /nothing was sent/.test(smsAns.body.error) && /nothing was sent/.test(mailAns.body.error));
+  const nc = stripComments(read('docs/pro/js/nbd-comms.js'));
+  ok('…nbd-comms.js really treats a 403 as a final refusal with no handoff (the contract the answer relies on)',
+    /if \(plat\.status === 403 \|\| plat\.status === 401\) \{[\s\S]{0,400}return \{ success: false, mode: 'platform'/.test(nc) && /if \(plat\.status === 403 \|\| \(plat\.status >= 500/.test(nc));
+  const unk = await ans('stripeWebhook', {});
+  ok('any other function name is not answered (404)', unk.status === 404);
+
+  // I3. The shell wiring for wave 4 (comments stripped).
+  ok('demo-mode.js: the fetch wrapper answers the three function POSTs BEFORE the block check',
+    fetchFn.indexOf('endpointName(url, method)') !== -1 && fetchFn.indexOf('endpointName(url, method)') < fetchFn.indexOf('allowed(url, method)'));
+  ok('demo-mode.js: only POSTs to the CRM\'s own two function bases, only those three names',
+    dm2.indexOf("var FN_URL = /^(?:https:\\/\\/us-central1-nobigdeal-pro\\.cloudfunctions\\.net|http:\\/\\/127\\.0\\.0\\.1:5001\\/nobigdeal-pro\\/us-central1)\\/([A-Za-z]+)$/;") !== -1 &&
+    /var ENDPOINTS = \{ createStripePaymentLink: true, sendEmail: true, sendSMS: true \};/.test(dm2) && /if \(String\(method \|\| 'GET'\)\.toUpperCase\(\) !== 'POST'\) return null;/.test(dm2));
+  ok('demo-mode.js: loads endpoints.js and real-account.js, turns on Stripe test mode for the sample payout account, guards the share sheet',
+    /loadScript\('\/pro\/demo-sdk\/endpoints\.js\?v=\d+', true\)/.test(dm2) && /loadScript\('\/pro\/demo-sdk\/real-account\.js\?v=\d+', false\)/.test(dm2) &&
+    /window\.__NBD_CONNECT_ALLOW_TEST_MODE = true;/.test(dm2) && /Object\.defineProperty\(navigator, 'share'/.test(dm2) && /new DOMException\('Nothing is shared from the sample account', 'AbortError'\)/.test(dm2));
+  const ra = stripComments(read('docs/pro/demo-sdk/real-account.js'));
+  ok('real-account.js: cards over billing, team, sign-in, Bots & API keys and AI texting; a note over push', ['billing', 'team', 'access', 'bots', 'ai-texting'].every((p) => ra.indexOf("'stab-panel-" + p + "'") !== -1) && /'stab-panel-notifications'/.test(ra) && /push\.disabled = true/.test(ra));
+  ok('real-account.js: data import opens the card, never the importer (window capture + the global)', /window\.addEventListener\('click', function \(e\) \{[\s\S]{0,200}e\.stopImmediatePropagation\(\);\s*openSheet\(IMPORT\);[\s\S]{0,20}\}, true\);/.test(ra) && /Object\.defineProperty\(window, 'openLeadImport'/.test(ra) && !NET.test(ra));
+  const css4 = read('docs/pro/css/demo-mode.css');
+  ok('demo-mode.css: a sealed panel shows only its card (its own controls hidden)', /html\.nbd-demo \[data-nbd-demo-sealed\] > :not\(\.nbd-demo-real-card\) \{ display: none !important; \}/.test(css4));
+  ok('demo-mode.css: Ask Joe reserves room under its input for the strip (desktop) and moves the strip to the top (phones)',
+    /html\.nbd-demo #view-joe\.active \.joe-input-area \{ padding-bottom: calc\(14px \+ 58px/.test(css4) &&
+    /@media \(max-width: 900px\) \{[\s\S]*?html\.nbd-demo body:has\(#view-joe\.active\) \.nbd-demo-strip \{ top: calc\(50px \+ env\(safe-area-inset-top, 0px\)\); bottom: auto; \}/.test(css4));
+  ok('demo-mode.js loads the wave 4 stylesheet (v=4 or later)', /demo-mode\.css\?v=([4-9]|\d\d+)'/.test(dm2));
+  const pay = read('docs/pro/explore/sample-pay.html');
+  ok('the sample pay page: noindex, says it is a sample, takes no card (no form, no input, button disabled), no inline script',
+    /<meta name="robots" content="noindex, nofollow">/.test(pay) && /This is a sample\./.test(pay) && !/<form|<input/i.test(pay) && /<button[^>]*disabled/.test(pay) &&
+    !/<script(?![^>]*\bsrc=)[^>]*>/i.test(pay) && /<script defer src="\/pro\/explore\/explore-pay\.js\?v=\d+"><\/script>/.test(pay));
+  ok('…its script is one the demo worker serves from /pro/explore/ itself (explore-*.js)', /explore-\[\\w-\]\+\\\.\(js\|css\)/.test(read('docs/pro/explore/demo-sw.js')) && !NET.test(stripComments(read('docs/pro/explore/explore-pay.js'))));
+  const fnsSrc = stripComments(read('docs/pro/demo-sdk/firebase-functions.js'));
+  ok('screens behind a card refuse quietly (no second notice): payout status, bot keys, AI persona, Stripe balance', /const QUIET = new Set\(\['getConnectStatus', 'listAgentKeys', 'previewAiPersona', 'getStripeOverview', 'getJobWeather'\]\);/.test(fnsSrc) && /if \(!shown && !QUIET\.has\(name\)\) demoNotice/.test(fnsSrc));
 
   // ── G. sandbox placeholder ──────────────────────────────────────────────
   console.log('G. /pro/sandbox placeholder');

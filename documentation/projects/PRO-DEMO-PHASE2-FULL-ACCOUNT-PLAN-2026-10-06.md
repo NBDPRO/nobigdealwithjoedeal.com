@@ -1,5 +1,24 @@
 # Pro demo, phase 2: explore the whole sample account (plan only)
 
+> **Update 2026-10-07 — wave 4 built (draft PR stacked on wave 3, awaiting Jo).**
+>
+> **Invoices and payments.** Seed v4 adds seven invoices (paid, part paid, draft; Ohio cash and Kentucky insurance). Every deposit comes from the real `deposit-rule.js`; the seed builder fails if a Kentucky insurance invoice asks for anything at signing or takes a payment before the carrier's written decision plus the 5-business-day window (the real `ky-insurance-law.js`). Record Payment, Mark Paid and the payment timeline run unchanged on the fake store.
+>
+> **Pay links are samples.** The sample company has a test-mode payout account, and `demo-mode.js` turns on the CRM's own Stripe test-mode switch for it. The CRM's three direct function POSTs (`createStripePaymentLink`, `sendEmail`, `sendSMS`) are answered by `docs/pro/demo-sdk/endpoints.js` before any request is made:
+> - a pay link is a page in the sample account (`/pro/explore/sample-pay`) that says it is a sample and takes no card;
+> - a held Kentucky insurance invoice is refused with the CRM's own `KY_CANCELLATION_WINDOW` message;
+> - an email or text shows the "Nothing was sent" sheet and is refused (403), so `nbd-comms.js` never hands off to `sms:` / `mailto:`.
+>
+> **Production strip.** A sample sub roster (independent subcontractors), permits, start windows and material orders (quantities only). "Send to sub" shows the job sheet in "Nothing was sent": `navigator.share` is guarded in the sample account.
+>
+> **Settings.** `docs/pro/demo-sdk/real-account.js` puts an "Available in your real account" card over billing, team, sign-in methods, Bots & API keys and AI texting (their own controls hidden), a push note over notifications (push switched off), and in place of data import. The rest of Settings saves in this browser only.
+>
+> **Ask Joe overlap (wave 3 known issue): fixed.** While Ask Joe is open its input bar reserves room at the bottom for the strip (`demo-mode.css`), on desktop and phone.
+>
+> **Real-CRM fix found by the sample data.** On the customer page `invoice-pipeline.js` read `window._auth`, which only the photo engine ever set, so pay-link mints from that page threw "Not authenticated" ("Send balance" went out without its link). `customer-tasks-ui.js` now aliases it like `window._db`. Also a fake-store fidelity fix: a top-level `Date` field was stored as `{}` (invoice "Invalid Date").
+>
+> **Next:** turn on the `/pro/sandbox` Explore button, then "save as my real account".
+
 > **Update 2026-10-06 — wave 3 built (draft PR stacked on wave 2, awaiting Jo).**
 >
 > **Door-to-Door and Storm Center** run on an offline SVG sample map, `docs/pro/demo-sdk/basemap.js`.

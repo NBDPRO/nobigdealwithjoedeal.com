@@ -156,8 +156,25 @@ const WOULD = {
   // Wave 3: on a real address only.
   attachStormProof: 'look up verified hail reports near this address and attach a server-stamped storm proof to the customer',
   reverifyCompanyKnocks: 're-check every door address against Google and county parcel records',
-  lookupParcel: 'look up the county parcel record for this door'
+  lookupParcel: 'look up the county parcel record for this door',
+  // Wave 4: money and production.
+  stripeLedgerSync: 'bring your Stripe payment history into the ledger',
+  assignStripeTransaction: 'attach this Stripe payment to a customer',
+  createConnectAccount: 'set up Stripe payouts for your company',
+  createConnectOnboardingLink: 'open Stripe to finish setting up payouts',
+  createConnectDashboardLink: 'open your Stripe dashboard',
+  createAgentKey: 'make an API key for a bot',
+  getJobWeather: 'check the weather.gov forecast for each scheduled job'
 };
+
+// Wave 4: callables that a screen the sample account covers with an
+// "available in your real account" card (real-account.js) makes as it opens:
+// billing's Stripe payout status, the Bots & API key list, the AI texting
+// persona, and the Money view's Stripe balance (which already says inline
+// that it is not in the sample account). They still refuse, but without a
+// second notice on top of the card: nothing to tell the visitor that the
+// screen does not already say.
+const QUIET = new Set(['getConnectStatus', 'listAgentKeys', 'previewAiPersona', 'getStripeOverview', 'getJobWeather']);
 
 export function sampleCallableMessage(name) {
   const doing = WOULD[name];
@@ -186,7 +203,7 @@ export function httpsCallable(_functions, name) {
     const shown = await previewFor(name, payload);
     const e = callableError(name);
     // The preview already says it; a second toast on top of it is noise.
-    if (!shown) demoNotice(e.message, { kind: 'callable', callable: name });
+    if (!shown && !QUIET.has(name)) demoNotice(e.message, { kind: 'callable', callable: name });
     throw e;
   };
   fn.stream = async () => { throw callableError(name); };

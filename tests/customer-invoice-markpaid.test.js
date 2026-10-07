@@ -101,6 +101,19 @@ ok('the handler aliases window._db from window.db before calling',
 ok('the customer bootstrap does set window.db (the alias source exists)',
   /window\.db\s*=\s*db;/.test(customerBootstrap));
 
+// Same for auth (2026-10-07): getAuthToken() reads window._auth, which the
+// customer page never set, so every pay-link mint from it ("Send balance"'s
+// re-mint, "Create Payment Link") threw "Not authenticated". Every one of the
+// three lazy-load sites (the shared helper, review, markPaid) aliases it.
+// Behaviour: tests/pro-demo-zero-network-2026-10-06.test.js step 22 (Send
+// balance carries a freshly minted link).
+ok('invoice-pipeline getAuthToken() still reads window._auth',
+  /async function getAuthToken\(\) \{[\s\S]{0,200}window\._auth\?\.currentUser/.test(invoicePipeline));
+ok('the customer bootstrap still does NOT set window._auth', !/window\._auth\s*=/.test(customerBootstrap));
+ok('each lazy-load site aliases window._auth from window.auth (helper, review, markPaid)',
+  (tasksUi.match(/if \(!window\._auth && window\.auth\) window\._auth = window\.auth;/g) || []).length === 3,
+  'without it a pay-link mint from the customer page throws "Not authenticated"');
+
 // ── the target function is real and exported ────────────────────────────
 ok('markPaidUI is defined in invoice-pipeline', /async function markPaidUI\(invoiceId\)/.test(invoicePipeline));
 ok('markPaidUI is on the InvoicePipeline public API',

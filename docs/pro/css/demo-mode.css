@@ -148,3 +148,48 @@ html.nbd-demo #nbd-doc-viewer-overlay .nbdv-footer { padding-bottom: calc(56px +
 .nbd-demo-lbl.is-water.on-dark { color: #a9cbe6; }
 .nbd-demo-lbl.is-park { color: #3c6b2f; }
 .nbd-demo-lbl.is-park.on-dark { color: #bfe0b0; }
+
+/* Wave 4 (2026-10-07): Ask Joe. The strip sat on top of the Ask Joe input
+   (desktop: the left half of the box; phone: the whole row). While Ask Joe is
+   open its input bar gets that much extra padding at the bottom, so the strip
+   sits in reserved space under the input and the footer line, never on them.
+   Toasts float above the input while it is open. */
+html.nbd-demo #view-joe.active .joe-input-area { padding-bottom: calc(14px + 58px + env(safe-area-inset-bottom, 0px)); }
+html.nbd-demo body:has(#view-joe.active) .nbd-demo-toast { bottom: calc(170px + env(safe-area-inset-bottom)); }
+@media (max-width: 900px) {
+  /* Phones: the Ask Joe pane is pinned between the app bar and the bottom
+     nav and its input row sits right where the strip floats (84px up), with
+     no room to reserve. The strip moves to the top instead, over the
+     breadcrumb row under the app bar, while Ask Joe is open. */
+  html.nbd-demo #view-joe.active .joe-input-area { padding-bottom: 14px; }
+  html.nbd-demo body:has(#view-joe.active) .nbd-demo-strip { top: calc(50px + env(safe-area-inset-top, 0px)); bottom: auto; }
+  html.nbd-demo body:has(#view-joe.active) .nbd-demo-toast { bottom: calc(250px + env(safe-area-inset-bottom)); }
+}
+
+/* Wave 4: "Available in your real account" (demo-sdk/real-account.js). A
+   sealed Settings panel shows only the card: its own controls are hidden, so
+   they are never wired in the sample account. */
+html.nbd-demo [data-nbd-demo-sealed] > :not(.nbd-demo-real-card) { display: none !important; }
+.nbd-demo-real-card {
+  box-sizing: border-box;
+  max-width: 640px;
+  margin: 0 0 16px;
+  padding: 18px 18px 16px;
+  border-radius: 12px;
+  background: #12223D;
+  color: #E8ECF2;
+  border: 1px solid rgba(221, 135, 95, .55);
+  font: 500 14px/1.5 Barlow, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.nbd-demo-real-card.is-note { padding: 12px 14px; margin-bottom: 12px; }
+.nbd-demo-real-kicker { font: 800 11px/1 Barlow, system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #DD875F; }
+.nbd-demo-real-title { margin: 8px 0 6px; font: 800 20px/1.2 'Barlow Condensed', Barlow, system-ui, sans-serif; color: #fff; }
+.nbd-demo-real-card.is-note .nbd-demo-real-title { font-size: 16px; margin: 6px 0 4px; }
+.nbd-demo-real-body { margin: 0; color: #E8ECF2; }
+.nbd-demo-real-cta {
+  display: inline-flex; align-items: center; min-height: 44px; margin-top: 14px; padding: 0 18px;
+  border-radius: 8px; background: #BD5728; color: #fff; text-decoration: none; font: 700 14px/1 Barlow, system-ui, sans-serif;
+}
+.nbd-demo-real-cta:hover, .nbd-demo-real-cta:focus-visible { background: #A14A22; }
+.nbd-demo-real-sheet .nbd-demo-real-card { margin: 0 0 8px; max-width: none; }
+.nbd-demo-real-sheet { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }

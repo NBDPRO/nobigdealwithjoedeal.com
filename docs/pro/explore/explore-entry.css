@@ -33,3 +33,8 @@ body.xe {
 .xe-actions[hidden] { display: none; }
 .xe-card a { color: #DD875F; }
 .xe-card .pl-btn { color: #fff; }
+/* Wave 4 (2026-10-07): the sample pay link page (sample-pay.html). */
+.xe-pay { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0 0 16px; font-size: 16px; }
+.xe-pay dt { color: #B7C0CE; font-weight: 600; }
+.xe-pay dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.xe-pay-btn { margin-top: 16px; width: 100%; opacity: .55; cursor: not-allowed; }

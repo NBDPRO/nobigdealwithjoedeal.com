@@ -32,6 +32,19 @@
 //      reports the sample neighbourhood as the visitor's location.
 //   8. Keeps window.callClaude on sample answers (Ask Joe), and stops sms: /
 //      mailto: / tel: links from opening the visitor's own apps.
+//   Wave 4 (2026-10-07), invoices, payments and Settings:
+//   9. Answers the CRM's three DIRECT function POSTs (createStripePaymentLink,
+//      sendEmail, sendSMS) from /pro/demo-sdk/endpoints.js instead of making
+//      the request: sample pay links that say so, and "Nothing was sent"
+//      sheets. Every other function URL is still blocked.
+//  10. Turns on the CRM's own Stripe test-mode switch for the sample payout
+//      account, so invoices offer pay links (the sample kind).
+//  11. Keeps the share sheet (navigator.share) from handing a sample message
+//      to the visitor's own apps.
+//  12. Shows "available in your real account" cards over the Settings
+//      screens the sample account does not run (billing, team, sign-in,
+//      bots & API keys, AI texting, push) and in place of data import
+//      (/pro/demo-sdk/real-account.js). Never wired.
 (function () {
   'use strict';
   var PREFIX = '/pro/explore/';
@@ -119,6 +132,30 @@
   }
   state.say = function (msg) { notice(msg); };
 
+  // Wave 4: the CRM's DIRECT Cloud Function POSTs that the sample account
+  // answers itself (/pro/demo-sdk/endpoints.js): the invoice pay link and
+  // the email / text sends. Recognised by exact function name, POST only;
+  // anything else on a function URL falls through to the tripwire below.
+  var FN_URL = /^(?:https:\/\/us-central1-nobigdeal-pro\.cloudfunctions\.net|http:\/\/127\.0\.0\.1:5001\/nobigdeal-pro\/us-central1)\/([A-Za-z]+)$/;
+  var ENDPOINTS = { createStripePaymentLink: true, sendEmail: true, sendSMS: true };
+  var endpointsApi = null, endpointWaiters = [];
+  state.endpointsLoaded = function (api) {
+    endpointsApi = api;
+    var w = endpointWaiters; endpointWaiters = [];
+    w.forEach(function (fn) { try { fn(api); } catch (_) {} });
+  };
+  function withEndpoints(fn) {
+    if (endpointsApi) return Promise.resolve(fn(endpointsApi));
+    return new Promise(function (resolve, reject) {
+      endpointWaiters.push(function (api) { try { resolve(fn(api)); } catch (e) { reject(e); } });
+    });
+  }
+  function endpointName(url, method) {
+    if (String(method || 'GET').toUpperCase() !== 'POST') return null;
+    var m = FN_URL.exec(String(url || ''));
+    return m && ENDPOINTS[m[1]] === true ? m[1] : null;
+  }
+
   var realFetch = window.fetch;
   if (realFetch) {
     window.fetch = function (input, init) {
@@ -126,6 +163,11 @@
       var method = (init && init.method) || (input && typeof input === 'object' && input.method) || 'GET';
       if (offlineKey(url, method)) {
         return withOffline(function (api) { return api.answer(url); });
+      }
+      var fnName = endpointName(url, method);
+      if (fnName) {
+        var body = init && typeof init.body === 'string' ? init.body : '';
+        return withEndpoints(function (api) { return api.answerFunction(fnName, body); });
       }
       if (!allowed(url, method)) {
         block(url, 'fetch ' + String(method).toUpperCase());
@@ -195,6 +237,28 @@
   }
   loadScript('/pro/demo-sdk/basemap.js?v=1', false);
   loadScript('/pro/demo-sdk/offline.js?v=1', true);
+  // Wave 4.
+  loadScript('/pro/demo-sdk/endpoints.js?v=1', true);
+  loadScript('/pro/demo-sdk/real-account.js?v=1', false);
+
+  // Stripe test mode for the sample payout account (seed connectAccounts,
+  // livemode false): the CRM's own switch (invoice-pipeline.js
+  // _canCollectOnline), so invoices offer pay links, which endpoints.js
+  // answers with sample links. Only here, under /pro/explore/.
+  window.__NBD_CONNECT_ALLOW_TEST_MODE = true;
+
+  // The share sheet ("Send to sub", job sheets): a sample message never goes
+  // to the visitor's own Messages / Mail. phone-share.js treats the refusal
+  // as a cancel, so it does not fall back to an sms: link either.
+  try {
+    Object.defineProperty(navigator, 'share', {
+      configurable: true, writable: true,
+      value: function (data) {
+        withEndpoints(function (api) { return api.previewShare(data || {}); });
+        return Promise.reject(new DOMException('Nothing is shared from the sample account', 'AbortError'));
+      }
+    });
+  } catch (_) { /* no share sheet to guard */ }
 
   // b. The visitor's position: the sample neighbourhood. The maps never ask
   //    the browser for the real location.
@@ -311,7 +375,7 @@
     if (document.getElementById('nbd-demo-strip')) return;
     var link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = '/pro/css/demo-mode.css?v=3';
+    link.href = '/pro/css/demo-mode.css?v=4';
     document.head.appendChild(link);
     var bar = document.createElement('div');
     bar.id = 'nbd-demo-strip';

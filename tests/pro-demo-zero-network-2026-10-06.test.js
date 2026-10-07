@@ -433,6 +433,187 @@ async function waitFor(page, fn, arg, ms) {
     const offlineUsed = await page.evaluate(() => (window.__NBD_DEMO__.offlineAnswers || []).map((a) => a.url.replace(/\?.*$/, '')));
     ok('the maps\' weather / geocoder / storm-report reads were answered offline (the path was exercised)', offlineUsed.some((u) => /nominatim/.test(u)) && offlineUsed.some((u) => /api\.weather\.gov/.test(u)) && offlineUsed.some((u) => /storm-report/.test(u)), JSON.stringify([...new Set(offlineUsed)]));
 
+    // ── wave 4: Ask Joe layout, money, invoices, pay links, production, Settings ──
+    console.log('17. Ask Joe: the Sample account strip never covers the input (desktop and phone)');
+    // Box overlap AND a hit test across the input and the Send button: no tap
+    // there may land on the Sample account strip or its toast. (The CRM's own
+    // toasts and the phone's bottom nav are the real app's layout, not ours.)
+    const joeBoxes = () => page.evaluate(() => {
+      const r = (id) => { const b = document.getElementById(id).getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
+      const misses = [];
+      const tapsLand = (id) => {
+        const el = document.getElementById(id), b = el.getBoundingClientRect(), y = (b.top + b.bottom) / 2;
+        return [0.1, 0.5, 0.9].every((f) => {
+          const hit = document.elementFromPoint(b.left + (b.right - b.left) * f, y);
+          const good = !!hit && !(hit.closest && hit.closest('#nbd-demo-strip, .nbd-demo-toast'));
+          if (!good) misses.push(id + '@' + f + '→' + (hit ? hit.tagName + '#' + hit.id + '.' + String(hit.className).slice(0, 40) : 'none'));
+          return good;
+        });
+      };
+      // A visitor scrolls the input into view first (the phone pane can be taller than the screen).
+      document.getElementById('joeInput').scrollIntoView({ block: 'center' });
+      return { input: r('joeInput'), send: r('joeSendBtn'), strip: r('nbd-demo-strip'), inputTaps: tapsLand('joeInput'), sendTaps: tapsLand('joeSendBtn'), misses };
+    });
+    const hits = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+    const jd = await joeBoxes();
+    ok('desktop: the strip clears the Ask Joe input and Send button (boxes and taps)', !hits(jd.strip, jd.input) && !hits(jd.strip, jd.send) && jd.inputTaps && jd.sendTaps, JSON.stringify(jd));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(600);
+    const jp = await joeBoxes();
+    // On a phone the pane has no room to reserve: the strip moves up under the app bar.
+    ok('phone (390 wide): the strip moves to the top while Ask Joe is open and clears the input and Send button', jp.strip.t < 100 && !hits(jp.strip, jp.input) && !hits(jp.strip, jp.send) && jp.inputTaps && jp.sendTaps, JSON.stringify(jp));
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.waitForTimeout(400);
+
+    console.log('18. Money: collected money only, from the sample payments');
+    await page.evaluate(() => window.goTo('money'));
+    await waitFor(page, () => /COLLECTED VS SPENT/i.test((document.getElementById('view-money') || {}).innerText || ''), null, 20000);
+    await page.waitForTimeout(800);
+    const money = await page.evaluate(async () => {
+      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const year = new Date().getFullYear();
+      const s = await F.getDocs(F.collection(F.getFirestore(), 'invoices'));
+      let cents = 0;
+      s.docs.forEach((d) => (d.data().payments || []).forEach((p) => { const at = p.at && p.at.toDate ? p.at.toDate() : new Date(p.at); if (at.getFullYear() === year) cents += Math.round(p.amount * 100); }));
+      return { text: document.getElementById('view-money').innerText, cents, year };
+    });
+    const cashM = new RegExp('CASH\\W+' + money.year + '[^$]*?COLLECTED\\s*\\$([\\d,]+)', 'i').exec(money.text);
+    ok('the Money view labels revenue as collected money only (payments by payment date)', /collected money only/i.test(money.text) && /COLLECTED/.test(money.text), money.text.slice(0, 300));
+    ok('…and its collected total is exactly the sample payments dated this year', !!cashM && Number(cashM[1].replace(/,/g, '')) * 100 === money.cents && money.cents > 0, JSON.stringify({ shown: cashM && cashM[1], cents: money.cents }));
+
+    console.log('19. Create an invoice from an estimate: the real deposit rule, a sample pay link; a Kentucky insurance job holds it');
+    async function createInvoice(leadId) {
+      await page.evaluate((id) => { window.InvoicePipeline.createInvoiceUI(id); }, leadId);
+      await page.locator('#nbd-inv-create').click();
+      await page.waitForSelector('#nbd-inv-detail-host .invoice-detail', { timeout: 20000 });
+      await page.waitForTimeout(1500); // the pay-link attempt runs after the detail opens
+      const r = await page.evaluate(async (id) => {
+        const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const s = await F.getDocs(F.query(F.collection(F.getFirestore(), 'invoices'), F.where('leadId', '==', id)));
+        const d = s.docs.map((x) => x.data()).sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())[0];
+        return { total: d.total, deposit: d.depositAmount, link: d.stripePaymentLink, ky: d.kyInsuranceHold, terms: d.terms, created: d.createdAt && typeof d.createdAt.toDate === 'function', detail: document.getElementById('nbd-inv-detail-host').innerText };
+      }, leadId);
+      await page.evaluate(() => { const m = document.getElementById('nbd-invoice-detail-modal'); if (m) m.remove(); });
+      return r;
+    }
+    const cInv = await createInvoice('sample-lead-13');
+    ok('a retail invoice: 50% deposit at signing from the real rule, and a SAMPLE pay link for it (never Stripe)',
+      cInv.total >= 2000 && cInv.deposit === Math.round(cInv.total * 0.5 / 25) * 25 && /50% deposit of \$[\d,]+ due at signing/.test(cInv.terms) &&
+      new RegExp('^' + ORIGIN.replace(/[.]/g, '\\.') + '/pro/explore/sample-pay\\?invoice=[\\w-]+&amount=\\d+\\.\\d\\d$').test(cInv.link || ''), JSON.stringify(cInv).slice(0, 400));
+    ok('…the new invoice\'s dates are real Timestamps (no "Invalid Date" on the invoice)', cInv.created && !/Invalid Date/.test(cInv.detail), cInv.detail.slice(0, 300));
+    const kInv = await createInvoice('sample-lead-01');
+    const heldAns = await page.evaluate(() => (window.__NBD_DEMO__.endpointAnswers || []).filter((a) => a.fn === 'createStripePaymentLink' && a.held).length);
+    ok('Jordan\'s Kentucky insurance invoice: $0 at signing, the hold note, and NO pay link (the server answer refused it)',
+      kInv.deposit === 0 && kInv.ky === true && !kInv.link && /nothing is due at signing/i.test(kInv.detail) && heldAns >= 1, JSON.stringify({ deposit: kInv.deposit, link: kInv.link, heldAns }));
+
+    console.log('20. Settings: "available in your real account" cards, never wired');
+    await page.evaluate(() => window.goTo('settings'));
+    await waitFor(page, () => !!document.getElementById('stab-panel-billing') && typeof window.switchSettingsTab === 'function', null, 20000);
+    const sealed = {};
+    for (const t of ['billing', 'team', 'access', 'bots', 'ai-texting']) {
+      await page.evaluate((x) => window.switchSettingsTab(x), t);
+      await page.waitForTimeout(300);
+      sealed[t] = await page.evaluate((x) => {
+        const p = document.getElementById('stab-panel-' + x);
+        const card = p.querySelector(':scope > .nbd-demo-real-card');
+        const live = [...p.querySelectorAll('button, input, select, textarea, a')].filter((el) => !el.closest('.nbd-demo-real-card') && el.getClientRects().length > 0);
+        return { card: card ? card.innerText : '', visibleControls: live.length };
+      }, t);
+    }
+    ok('billing, team, sign-in, Bots & API keys and AI texting each show the card, with none of their own controls reachable',
+      Object.values(sealed).every((s) => /Available in your real account/i.test(s.card) && s.visibleControls === 0), JSON.stringify(sealed).slice(0, 600));
+    await page.evaluate(() => window.switchSettingsTab('notifications'));
+    const notif = await page.evaluate(() => ({ card: (document.querySelector('#stab-panel-notifications > .nbd-demo-real-card') || {}).innerText || '', push: document.getElementById('chPush').disabled && !document.getElementById('chPush').checked }));
+    ok('notifications: a push note on top, the push channel switched off', /Push notifications/.test(notif.card) && notif.push, JSON.stringify(notif));
+    await page.evaluate(() => window.switchSettingsTab('profile'));
+    await page.locator('#stab-panel-profile [data-fn="openLeadImport"]').click();
+    await page.waitForSelector('#nbd-demo-real-sheet', { timeout: 10000 });
+    const imp = await page.evaluate(() => ({ text: document.getElementById('nbd-demo-real-sheet').innerText, importer: [...document.querySelectorAll('.modal-bg.open, .di-overlay, #leadImportModal, [id*="import" i].open')].filter((e) => e.getClientRects().length).map((e) => e.id || e.className) }));
+    ok('Import leads opens the card, not the importer', /Import your customers/.test(imp.text) && imp.importer.length === 0, JSON.stringify(imp));
+    await page.locator('#nbd-demo-real-sheet [data-nbd-real="close"]').click();
+
+    console.log('21. Customer card: record a payment against the fake store');
+    async function openCustomer(id, name) {
+      await page.evaluate((x) => { window.location.href = '/pro/customer.html?id=' + x; }, id);
+      await page.waitForURL(new RegExp('/pro/explore/customer\\?id=' + id + '$'), { timeout: 30000 });
+      await waitFor(page, (n) => document.body.innerText.indexOf(n) !== -1 && /Record payment/.test((document.getElementById('invoiceList') || {}).innerText || ''), name, 30000);
+    }
+    await openCustomer('sample-lead-21', 'Felix Grant');
+    const before21 = await page.evaluate(() => document.getElementById('invoiceList').innerText);
+    ok('Felix\'s invoice: part paid (the 50% deposit), the balance owed', /PARTIAL/i.test(before21) && /\$6,900\.00 owed/.test(before21), before21.slice(0, 300));
+    await page.locator('#invoiceList [data-action="NBDCustomerInvoices.markPaid"]').first().click();
+    await page.waitForSelector('#nbd-markpaid-modal #nbd-mp-amount', { timeout: 20000 });
+    const defAmt = await page.locator('#nbd-mp-amount').inputValue();
+    await page.locator('#nbd-mp-ref').fill('1101');
+    await page.locator('#nbd-mp-save').click();
+    await waitFor(page, () => /\bPAID\b/i.test(document.getElementById('invoiceList').innerText) && !/owed/.test(document.getElementById('invoiceList').innerText), null, 20000).catch(() => {});
+    const paid21 = await page.evaluate(async () => {
+      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const db = F.getFirestore();
+      const inv = (await F.getDoc(F.doc(db, 'invoices', 'sample-inv-01'))).data();
+      const notes = (await F.getDocs(F.query(F.collection(db, 'notes'), F.where('leadId', '==', 'sample-lead-21')))).docs.map((d) => d.data()).filter((n) => n.type === 'payment');
+      return { status: inv.status, bal: inv.balanceDue, n: inv.payments.length, last: inv.payments[inv.payments.length - 1], notes: notes.length, list: document.getElementById('invoiceList').innerText };
+    });
+    ok('Record Payment defaults to the balance and saves it: the invoice is paid, two payments, a payment note on the timeline',
+      defAmt === '6900.00' && paid21.status === 'paid' && paid21.bal === 0 && paid21.n === 2 && paid21.last.method === 'check' && paid21.last.amount === 6900 && paid21.notes >= 2 && /TOTAL OWED\s*\$0\.00/i.test(paid21.list),
+      JSON.stringify({ defAmt, status: paid21.status, bal: paid21.bal, n: paid21.n, notes: paid21.notes }));
+
+    console.log('22. Pay links are samples and say so; Send balance shows "Nothing was sent"');
+    await openCustomer('sample-lead-19', 'Ben Albright');
+    const benPay = await page.evaluate(() => [...document.querySelectorAll('#invoiceList a.doc-btn')].map((a) => a.href));
+    ok('Ben\'s invoice offers a Pay link, and it is a sample page in the sample account', benPay.length === 1 && benPay[0] === ORIGIN + '/pro/explore/sample-pay?invoice=sample-inv-03&amount=7700.00', JSON.stringify(benPay));
+    const payPage = await ctx.newPage();
+    await payPage.goto(benPay[0]);
+    const payText = await payPage.evaluate(() => ({ text: document.body.innerText, disabled: document.querySelector('.xe-pay-btn').disabled, inputs: document.querySelectorAll('input, form').length }));
+    ok('the pay page says it is a sample, shows the amount, and takes no card', /This is a sample\./.test(payText.text) && /\$7,700\.00 \(sample\)/.test(payText.text) && payText.disabled && payText.inputs === 0, payText.text.slice(0, 300));
+    await payPage.close();
+    await page.locator('#invoiceList [data-action="NBDCustomerInvoices.sendBalance"]').first().click();
+    await page.locator('#nbd-send-invoice-modal .nbd-send-method[data-method="sms"]').click();
+    await page.waitForSelector('#nbd-send-preview[data-kind="text"]', { timeout: 20000 });
+    const benSms = await page.evaluate(() => document.getElementById('nbd-send-preview').innerText);
+    ok('Send balance by text: "Nothing was sent", the text to Ben with a fresh SAMPLE pay link for the balance',
+      /Nothing was sent/.test(benSms) && /Ben Albright/.test(benSms) && /remaining balance of \$7,700\.00/.test(benSms) && benSms.indexOf('Payment link: ' + ORIGIN + '/pro/explore/sample-pay?invoice=sample-inv-03&amount=7700.00') !== -1, benSms.slice(0, 600));
+    await page.locator('#nbd-send-preview [data-nbd-sp="close"]').click();
+    await page.waitForTimeout(800);
+    const benAfter = await page.evaluate(async () => {
+      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const inv = (await F.getDoc(F.doc(F.getFirestore(), 'invoices', 'sample-inv-03'))).data();
+      return { status: inv.status, sms: (window.__NBD_DEMO__.endpointAnswers || []).filter((a) => a.fn === 'sendSMS' && a.refused).length };
+    });
+    ok('…the invoice is not marked sent (still part paid), and the text was refused, never handed to Messages', benAfter.status === 'partial' && benAfter.sms >= 1 && /\/pro\/explore\/customer/.test(page.url()), JSON.stringify(benAfter));
+
+    console.log('23. Kentucky insurance invoice before the carrier decision: the pay link stays held');
+    await openCustomer('sample-lead-16', 'Grace Holm');
+    // The customer card's own "open this invoice" path (NBDCustomerInvoices.review).
+    await page.evaluate(() => { window.NBDCustomerInvoices.review('sample-inv-07'); });
+    await page.waitForSelector('#nbd-inv-detail-host [data-ip-ky-hold]', { timeout: 20000 });
+    const gDetail = await page.evaluate(() => document.getElementById('nbd-inv-detail-host').innerText);
+    await page.locator('#nbd-inv-detail-host [data-ip-action="createPayLink"]').click();
+    await page.waitForTimeout(1500);
+    const gAfter = await page.evaluate(async () => {
+      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const inv = (await F.getDoc(F.doc(F.getFirestore(), 'invoices', 'sample-inv-07'))).data();
+      return { link: inv.stripePaymentLink, held: (window.__NBD_DEMO__.endpointAnswers || []).some((a) => a.invoiceId === 'sample-inv-07' && a.held) };
+    });
+    ok('Grace\'s invoice: "Nothing is due at signing", the KRS 367.626 hold note, and Create Payment Link is refused (no link)',
+      /Nothing is due at signing/.test(gDetail) && /KRS 367\.626/.test(gDetail) && !gAfter.link && gAfter.held, JSON.stringify(gAfter));
+    await page.evaluate(() => { const m = document.getElementById('nbd-invoice-detail-modal'); if (m) m.remove(); });
+
+    console.log('24. The production strip and "Send to sub"');
+    await openCustomer('sample-lead-17', 'Ezra Lane');
+    await waitFor(page, () => /Ridge Line Roofing/.test((document.getElementById('productionPanel') || {}).innerText || ''), null, 20000);
+    const prod = await page.evaluate(() => document.getElementById('productionPanel').innerText.replace(/\s+/g, ' '));
+    ok('Ezra\'s job card: permit filed, materials ordered, delivery date, the sample sub, a two-day start',
+      /PERMIT\s*Filed #BA-2026-0412 \(sample\) · Blue Ash/i.test(prod) && /ORDERED\s*Gulf Eagle Supply/i.test(prod) && /DELIVERY/i.test(prod) && /SUB\s*Ridge Line Roofing \(sample sub\)/i.test(prod) && /7:00 am · 2-day job/.test(prod), prod.slice(0, 400));
+    const urlProd = page.url();
+    await page.locator('#productionPanel [data-pr-action="sheet"]').first().click();
+    await page.locator('#productionPanel [data-pr-action="send-sheet"]').click();
+    await page.waitForSelector('#nbd-send-preview[data-kind="share"]', { timeout: 15000 });
+    const sheet = await page.evaluate(() => document.getElementById('nbd-send-preview').innerText);
+    ok('"Send to sub" shows the job sheet in "Nothing was sent" (no share sheet, no Messages), with no dollar figure',
+      /Nothing was sent/.test(sheet) && /JOB SHEET/.test(sheet) && /402 Example Hill Rd/.test(sheet) && !/\$\d/.test(sheet) && page.url() === urlProd, sheet.slice(0, 500));
+    await page.locator('#nbd-send-preview [data-nbd-sp="close"]').click();
+
     // ── the zero-network verdict for the walk ─────────────────────────────
     console.log('verdict');
     const state = await page.evaluate(() => ({ blocked: window.__NBD_DEMO__.blocked.slice(), csp: window.__cspViolations.slice() }));
