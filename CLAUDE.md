@@ -80,6 +80,8 @@ e. Run the tests before calling any change to pricing logic done:
    `deposit-rule`, `job-templates`, `estimate-money-ladder`. A `KNOWN BUG` test pins
    today's behaviour on purpose; flip it only in the PR that fixes that bug, with
    Jo's OK.
+f. Agents never run a prod script with `--apply` (or `--write`) unless Jo approved
+   that specific run in chat; a script that writes prod defaults to a dry run.
 
 ## Read first
 

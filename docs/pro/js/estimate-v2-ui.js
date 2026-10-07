@@ -3879,8 +3879,9 @@
     );
 
     const estNum = (meta.estimate && meta.estimate.number) || 'EST-' + Date.now().toString().slice(-6);
+    // The rep's LOCAL date — the UTC date dated evening estimates tomorrow.
     const dateStr = (meta.estimate && meta.estimate.date)
-      || new Date().toISOString().split('T')[0];
+      || new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     const dateFmt = (function () {
       try {
         return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US',
@@ -4731,7 +4732,7 @@
       photos: (state.photos || []).slice(),
       estimate: {
         number: await _v2EstNumber(Date.now()),
-        date: new Date().toISOString().split('T')[0],
+        date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10), // local date, not UTC (evening = tomorrow)
         preparedBy: _v2PreparedBy()
       }
     };

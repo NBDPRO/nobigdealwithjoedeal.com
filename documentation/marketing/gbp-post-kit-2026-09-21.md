@@ -317,7 +317,7 @@ surface on the profile** (individual photos there have out-drawn typical
 posts, one past 1,000 views) and it was last refreshed that same day. All
 twenty-six re-encoded photos from this round are graded and ready:
 
-- `cincinnati-oh-smartside-trim-repair-2026-1/2/3` — Joe working, wide gable, rot evidence
+- `cincinnati-oh-smartside-trim-repair-2026-1/2/3` — crew member working, wide gable, rot evidence
 - `cincinnati-oh-gutter-shingle-repair-2026-1/2/3` — aerial, gutter, shingle repair
 - `cincinnati-oh-interior-drywall-repair-2026-1/2/3` — the ceiling/wall crack set
 - `batavia-oh-storm-siding-gutter-repair-2026-1/2/3` — house exterior, gutter corner, gutter detail

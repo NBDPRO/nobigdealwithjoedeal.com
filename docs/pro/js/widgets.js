@@ -651,7 +651,9 @@ const WIDGETS = [
     render(el){
       const cfg = JSON.parse(localStorage.getItem('nbd_ds_config') || '{}');
       const floors = cfg.floors || [{label:'Doors Knocked',target:30,unit:''},{label:'Contacts Made',target:10,unit:''},{label:'Appts Set',target:3,unit:''}];
-      const today = new Date().toISOString().split('T')[0];
+      // LOCAL date — daily-success writes this key with todayKey() (local);
+      // the UTC date read 0 / locked every evening after 8pm ET.
+      const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
       const progress = JSON.parse(localStorage.getItem('nbd_floor_progress_'+today) || '{}');
       el.innerHTML = floors.map((f,i) => {
         const val = progress[i] || 0;
@@ -703,7 +705,9 @@ const WIDGETS = [
     render(el){
       const cfg = JSON.parse(localStorage.getItem('nbd_ds_config') || '{}');
       const reward = cfg.goldenGoose || 'Set your reward in Settings → Daily OS';
-      const today = new Date().toISOString().split('T')[0];
+      // LOCAL date — daily-success writes this key with todayKey() (local);
+      // the UTC date read 0 / locked every evening after 8pm ET.
+      const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
       const progress = JSON.parse(localStorage.getItem('nbd_floor_progress_'+today) || '{}');
       const floors = cfg.floors || [];
       const allHit = floors.length > 0 && floors.every((f,i) => (progress[i]||0) >= f.target);

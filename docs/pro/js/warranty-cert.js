@@ -123,8 +123,8 @@ function openWarrantyCertWizard(lead) {
       }
     } catch (_) { /* leave the select at its default */ }
   }
-  // Default date to today
-  document.getElementById('wcDate').value = new Date().toISOString().split('T')[0];
+  // Default date to today — the LOCAL date (the UTC date is tomorrow after 8pm ET)
+  document.getElementById('wcDate').value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   updateCertPreview();
   modal.classList.add('open');
 }

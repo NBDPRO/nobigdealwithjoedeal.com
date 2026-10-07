@@ -828,7 +828,7 @@ window.loadInvoices = async function(leadId) {
       // the Kentucky insurance hold applies (KRS 367.626). FAIL CLOSED: no
       // jurisdiction module or no lead on the page → no Pay button.
       const safePayUrl = (_J && typeof _J.payUrlUnlessHeld === 'function' && _payLead)
-        ? (_J.payUrlUnlessHeld(_payLead, inv, new Date()) || null) : null;
+        ? (_J.payUrlUnlessHeld(_payLead, inv, new Date(), _J.resolveTimeZone(typeof window._legal === 'function' ? window._legal() : (window._companyProfile || {}))) || null) : null;
       // Invoices are stamped `createdAt`; fall back to a legacy `date` if any
       // old doc carried one. Guard against an unparseable value so a single bad
       // row can't render "Invalid Date".

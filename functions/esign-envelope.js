@@ -1082,7 +1082,7 @@ exports.submitEsignEnvelope = onRequest(
     try {
       const stamped = await stampPdf(source, (env.fields || []).concat(env.systemFields || []), Object.assign({}, all, sys.values), {
         certificateLine:
-          `Signed electronically ${new Date(when).toISOString()} · envelope ${tok.envelopeId} · ` +
+          `Signed electronically ${ESL.zonedStamp(when, env.timeZone)} · envelope ${tok.envelopeId} · ` +
           `${signersAfter.map((s) => s.typedName || s.name || 'signer').join(', ')}`.slice(0, 160),
       });
       if (stamped.missingRequired.length) throw new Error('missing required after assembly: ' + stamped.missingRequired.join(','));

@@ -127,6 +127,24 @@ function fmtDate(ms) {
   return new Date(ms).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'long', day: 'numeric', year: 'numeric' });
 }
 
+// The invoice's STORED due date (the one Stripe and the CRM show) as text in
+// Eastern; '' when there is none or it is unreadable. A bare "YYYY-MM-DD"
+// is a calendar date and prints as written.
+function storedDueText(v) {
+  if (v == null || v === '') return '';
+  if (typeof v === 'string') {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.trim());
+    if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', year: 'numeric' });
+  }
+  let t;
+  if (typeof v.toMillis === 'function') t = v.toMillis();
+  else if (typeof v.toDate === 'function') t = v.toDate().getTime();
+  else if (v instanceof Date) t = v.getTime();
+  else if (typeof v === 'object' && typeof v.seconds === 'number') t = v.seconds * 1000;
+  else t = new Date(v).getTime();
+  return Number.isFinite(t) ? fmtDate(t) : '';
+}
+
 function preparedFor(inv, lead) {
   const name = inv.customerName || (lead ? (((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || lead.name) : '') || 'Homeowner';
   return {
@@ -158,7 +176,9 @@ function invoicePayload(inv, lead, id, nowMs, plate) {
   const tax = inv.tax != null ? (Number(inv.tax) || 0) : Math.max(0, Math.round((total - subtotal) * 100) / 100);
   const paid = Number(inv.amountPaid) || 0;
   const balanceDue = Math.max(0, Math.round((total - paid) * 100) / 100);
-  const due = fmtDate(DR.invoiceDueDateMs(nowMs));
+  // The stored due date; the 7-day rule only when the invoice has none
+  // (review round 4 R4-6-5: the PDF printed render time + 7).
+  const due = storedDueText(inv.dueDate) || fmtDate(DR.invoiceDueDateMs(nowMs));
   return {
     docNumber: id,
     coverTagline: 'Invoice for<br>your project.',

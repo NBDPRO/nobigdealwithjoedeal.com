@@ -46,7 +46,8 @@ function toDate(v) {
 function periodStart(p) {
   const now = new Date();
   if (p === 'day') { const d = new Date(now); d.setHours(0,0,0,0); return d; }
-  if (p === 'week') { const d = new Date(now); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d; }
+  // Weeks start MONDAY (Jo 2026-06-25 — the game card, trends and roof-rep do).
+  if (p === 'week') { const d = new Date(now); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); d.setHours(0,0,0,0); return d; }
   if (p === 'month') return new Date(now.getFullYear(), now.getMonth(), 1);
   return new Date(2020, 0, 1);
 }

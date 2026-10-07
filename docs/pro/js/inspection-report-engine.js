@@ -1684,7 +1684,7 @@
             </div>
             <div class="form-group">
               <label>Inspection Date</label>
-              <input type="date" name="inspectionDate" value="${state.data.inspectionDate || new Date().toISOString().split('T')[0]}" required>
+              <input type="date" name="inspectionDate" value="${state.data.inspectionDate || new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)}" required>
             </div>
           </form>
         </div>
