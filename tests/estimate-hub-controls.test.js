@@ -76,22 +76,29 @@ const HUB_CODE = decomment(HUB);
   ok('it still dispatches deleteEstimateAction',
     /case 'archive':\s*withEstimates\('deleteEstimateAction'/.test(HUB_CODE));
 
-  // The underlying call really is destructive — pin that, so this test explains
-  // itself if anyone wonders why the label matters.
+  // Review R5-8-2 (2026-10-06): _deleteEstimate is now a SOFT delete through
+  // estimate-lead-sync.js (same write as the customer page's Archive, plus the
+  // lead primary/jobValue sync), and the dashboard estimates readers drop
+  // deleted:true. The "Delete" label stays (the confirm still says it cannot be
+  // undone from the UI); it could honestly go back to Archive now.
   // Globals Tranche 3 T3-C (2026-09-18): real declaration now, not window.X.
   const boot = read('dashboard-bootstrap.module.js');
-  ok('_deleteEstimate is genuinely a hard delete (deleteDoc)',
-    /async function _deleteEstimate\(id\) \{[\s\S]{0,300}deleteDoc\(doc\(db, 'estimates', id\)\)/.test(boot),
-    'if this became a soft delete, the label could honestly go back to Archive');
+  ok('_deleteEstimate is a soft delete through archiveEstimateAndSyncLead (no deleteDoc)',
+    /async function _deleteEstimate\(id\) \{[\s\S]{0,1200}archiveEstimateAndSyncLead\(/.test(boot)
+      && !/async function _deleteEstimate\(id\) \{[\s\S]{0,1200}deleteDoc\(doc\(db, 'estimates', id\)\)/.test(boot),
+    'R5-8-2: never deleteDoc an estimate');
 
   // The constraint that made relabel (not soft-delete) the right call. Scope
   // this to the ESTIMATES listeners specifically — dashboard-bootstrap also
   // queries where('deleted','==',true) against /leads for the trash view, and a
   // whole-file grep matches that and reports the opposite of the truth.
   const estQueryLines = boot.split('\n').filter((l) => /collection\(db, ?'estimates'\)/.test(l));
-  ok('the tenant estimates snapshots still apply no `deleted` filter',
+  // The filter is applied client-side (filter(e => e.deleted !== true)), not as
+  // a where() — a where('deleted', ...) would also drop every estimate that has
+  // no `deleted` field at all.
+  ok('the tenant estimates queries apply no where(\'deleted\') (filtered client-side instead)',
     estQueryLines.length > 0 && !estQueryLines.some((l) => /where\('deleted'/.test(l)),
-    'if a deleted filter is added, a real Archive becomes viable — revisit the label');
+    'a where on deleted hides every estimate without the field');
 }
 
 // ── 2. A duplicate made from a customer stays with that customer ──────

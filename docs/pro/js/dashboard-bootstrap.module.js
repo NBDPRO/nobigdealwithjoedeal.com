@@ -13,6 +13,9 @@
   import { getFirestore, collection, addDoc, getDocs, getDoc, updateDoc, deleteDoc, doc, orderBy, query, serverTimestamp, where, arrayUnion, increment, limit, startAfter, setDoc, writeBatch, runTransaction, onSnapshot, disableNetwork, enableNetwork } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
   import { getStorage, ref, uploadBytes, getDownloadURL, listAll } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
   import { connectEmulatorsIfLocal, isLocalEmulatorEnv, emulatorAppCheckFakeToken } from "./nbd-emulator-connect.js"; // Audit #3: localhost-only, no-op in prod
+  // Estimate delete/archive + lead primary/jobValue sync, shared with the
+  // customer page (review R5-8-2).
+  import { archiveEstimateAndSyncLead } from "./estimate-lead-sync.js";
 
   // ═══ GLOBAL CRM STATE (MUST BE TOP-LEVEL) ═══
   // Per S27 architectural rule: All CRM global state declared before any function definitions
@@ -2322,7 +2325,8 @@
             // Last resort: fetch the single estimate directly from Firestore
             try {
               const snap = await getDoc(doc(db, 'estimates', estParam));
-              if (snap.exists()) {
+              // An archived (soft-deleted) estimate stays gone (review R5-8-2).
+              if (snap.exists() && snap.data().deleted !== true) {
                 found = { id: snap.id, ...snap.data() };
                 window._estimates = [...(window._estimates || []), found];
               }
@@ -2392,7 +2396,8 @@
           if (!found) {
             try {
               const snap = await getDoc(doc(db, 'estimates', estParam));
-              if (snap.exists()) {
+              // An archived (soft-deleted) estimate stays gone (review R5-8-2).
+              if (snap.exists() && snap.data().deleted !== true) {
                 found = { id: snap.id, ...snap.data() };
                 window._estimates = [...(window._estimates || []), found];
               }
@@ -4101,7 +4106,10 @@
         const snap = await getDocs(query(collection(db,'estimates'), scope));
         snap.docs.forEach(d => { byId[d.id] = {id:d.id,...d.data()}; });
       }
+      // Soft-deleted (archived) estimates are gone from every dashboard
+      // surface, as a hard delete was (review R5-8-2).
       window._estimates = Object.values(byId)
+        .filter(e => e.deleted !== true)
         .sort((a,b) => {
           const ta = a.createdAt?.toDate?.()?.getTime() || 0;
           const tb = b.createdAt?.toDate?.()?.getTime() || 0;
@@ -4142,7 +4150,8 @@
     const own = {}, comp = {};
     const rebuild = () => {
       const merged = Object.assign({}, comp, own); // own wins on a shared doc
-      window._estimates = Object.values(merged).sort(sortDesc);
+      // Soft-deleted estimates drop out here too (review R5-8-2).
+      window._estimates = Object.values(merged).filter(e => e.deleted !== true).sort(sortDesc);
       renderEstimatesList(window._estimates);
     };
     const onErr = (err) => {
@@ -4307,15 +4316,28 @@
   };
 
   // ── ESTIMATE CRUD HELPERS ─────────────────────
-  // Delete an estimate by document id. Cascade: we don't have
-  // child collections under an estimate, so a single deleteDoc is
-  // enough. Called from the estimates list overflow menu.
+  // Delete an estimate by document id. Called from the estimates list
+  // overflow menu and the customer Estimates hub.
+  // SOFT delete (review R5-8-2): this was a deleteDoc, against the "never
+  // deleteDoc estimates" rule, and it left the lead's primaryEstimateId and
+  // jobValue on the gone estimate — pipeline, KPIs and leaderboard kept its
+  // dollars. archiveEstimateAndSyncLead (estimate-lead-sync.js) is the same
+  // call the customer page's Archive makes: { deleted, deletedAt }, then the
+  // lead's primary is promoted/cleared the way _assignEstimateToLead stamps.
   // Registered in __NBD_CALL_REGISTRY at the end of this file (Globals
   // Tranche 3 T3-C, 2026-09-18), no longer a bare window global.
   async function _deleteEstimate(id) {
     try {
       if (!id) return false;
-      await deleteDoc(doc(db, 'estimates', id));
+      const list = window._estimates || [];
+      await archiveEstimateAndSyncLead({
+        estimateId: id,
+        estimate: list.find(e => e && e.id === id) || null,
+        estimates: list,
+        fs: { db, doc, getDoc, updateDoc, serverTimestamp },
+        estValue: _estValue,
+        ask: window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m))),
+      });
       await loadEstimates();
       return true;
     } catch (e) {
