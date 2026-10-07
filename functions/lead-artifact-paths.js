@@ -518,7 +518,36 @@ function uidInLeadTenant(uid, lead, userDoc) {
   return !!userDoc && typeof userDoc.companyId === 'string' && userDoc.companyId === cid;
 }
 
+// ── Paths a SERVER signs on a lead's behalf (2026-10-05 security review) ──
+// A photo doc's path / storagePath is client-written. Anything that turns it
+// into a signed URL must first prove the object sits in the prefix the lead
+// owns, or a rep can name any object in the bucket and get a link to it.
+function _pathSeg(s) {
+  return typeof s === 'string' && s.length > 0 && s.length <= 128 && s.indexOf('/') === -1 && s !== '.' && s !== '..';
+}
+function _cleanPath(p) {
+  return typeof p === 'string' && p.length > 0 && p.length <= 600
+    && p.indexOf('..') === -1 && p.indexOf('\\') === -1 && p.indexOf('//') === -1 && p.charAt(0) !== '/';
+}
+
+/** homeowner-uploads/<ownerUid>/<leadId>/<file> — the one shape uploadHomeownerPhoto writes. */
+function isHomeownerUploadPathFor(p, ownerUid, leadId) {
+  if (!_cleanPath(p) || !_pathSeg(ownerUid) || !_pathSeg(leadId)) return false;
+  const parts = p.split('/');
+  return parts.length === 4 && parts[0] === 'homeowner-uploads'
+    && parts[1] === ownerUid && parts[2] === leadId && /^[A-Za-z0-9._-]{1,200}$/.test(parts[3]);
+}
+
+/** photos/<ownerUid>/… — an object under the lead owner's own photo prefix. */
+function isOwnerPhotoPath(p, ownerUid) {
+  if (!_cleanPath(p) || !_pathSeg(ownerUid)) return false;
+  const pre = 'photos/' + ownerUid + '/';
+  return p.indexOf(pre) === 0 && p.length > pre.length;
+}
+
 module.exports = {
+  isHomeownerUploadPathFor,
+  isOwnerPhotoPath,
   VARIANT_SUFFIXES,
   variantPathsFor,
   isReapablePhotoPath,

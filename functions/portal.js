@@ -702,6 +702,13 @@ exports.getHomeownerPortalView = onRequest(
     // functions/stripe.js: KyLaw.resolveTimeZone(companyProfile)).
     let kyTz = KyLaw.DEFAULT_TIME_ZONE;
     const tenantKey = lead.companyId || tok.ownerUid;
+    // Where a Zelle payment goes (2026-10-04, zelle-contact.js): the tenant's
+    // own brand.contact.zelle* pair; NBD's defaults ((859) 420-7382 or jd@ —
+    // never info@) only when tenantKey IS the NBD platform tenant — keyed on
+    // the companyId, never the brand strings (a tenant that never set
+    // legalName looks like NBD by brand). No profile at all → no Zelle line,
+    // unless this IS the platform owner.
+    let zelleBrand = (tenantKey && String(tenantKey) === PORTAL_NBD_OWNER_UID) ? null : undefined;
     const _portalIsNbd = !tenantKey || String(tenantKey) === PORTAL_NBD_OWNER_UID;
     if (tenantKey) {
       try {
@@ -709,6 +716,7 @@ exports.getHomeownerPortalView = onRequest(
         if (cpSnap.exists) {
           try { kyTz = KyLaw.resolveTimeZone(cpSnap.data() || {}); } catch (_) { /* default zone */ }
           const _b = (cpSnap.data() || {}).brand || {};
+          zelleBrand = _b;
           const _ln = _b.legalName || '';
           const _isTenant = _ln && _ln !== 'No Big Deal Home Solutions';
           tenantName = _isTenant ? _ln : '';  // NBD-name guard (byte-identical; mirrors render-pdf.js/sms-functions.js)
@@ -978,7 +986,19 @@ exports.getHomeownerPortalView = onRequest(
     // unmet, else the balance — invoice-charge.js, the same rule
     // createStripePaymentLink charges — and Pay Now only when the link
     // charges exactly that (portalBalanceCard).
-    const _balance = _unpaidInvoice ? InvoiceCharge.portalBalanceCard(_unpaidInvoice, _payUrl) : null;
+    const _dueCard = _unpaidInvoice ? InvoiceCharge.portalBalanceCard(_unpaidInvoice, _payUrl) : null;
+    const _balance = _dueCard ? {
+      ..._dueCard,
+      // "Pay by bank (ACH) — lower fees" shows only beside a real link (the
+      // Kentucky hold above blanks the link, and with it this line; so does
+      // portalBalanceCard when the link would not charge what is due now).
+      // ACH is requested only on the NBD platform account's links
+      // (functions/stripe.js), so only its customers are told about it.
+      payByBank: !!_dueCard.stripePaymentLink && require('./zelle-contact').isNbdCompany(tenantKey ? String(tenantKey) : ''),
+      // Zelle is a way to pay, so it obeys the same Kentucky hold as the link.
+      zelle: (typeof zelleBrand === 'undefined' || KyLaw.payLinkHold(lead, _unpaidInvoice, Date.now(), kyTz).held) ? null
+        : (require('./zelle-contact').zelleContactOf(zelleBrand, tenantKey ? String(tenantKey) : '').text || null),
+    } : null;
     // The tracker's "Pay your invoice" link is this SAME already-sent link —
     // never a new one. A Kentucky insurance job's link is withheld at
     // creation (stripe.js runs ky-insurance-law.js server-side), so a held

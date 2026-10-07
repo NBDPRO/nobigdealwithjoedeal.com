@@ -91,6 +91,8 @@ async function run() {
     await setDoc(doc(db, 'companyProfile/solo1'),       { legalName: 'Solo Op', _seed: true });                                      // solo operator (uid key)
     await setDoc(doc(db, 'docPrefixes/ACO'),           { companyId: 'co-a', seal: 'ACO', reservedVia: 'seed' });                    // co-a already holds prefix ACO
     await setDoc(doc(db, 'counters/customerIds'),      { next: 42 });
+    await setDoc(doc(db, 'counters/customerIds_co-a'), { next: 7 });
+    await setDoc(doc(db, 'counters/customerIds_co-b'), { next: 42 });
     await setDoc(doc(db, 'leads/leadA'),               { userId: 'alice', companyId: 'co-a', name: 'Alice Homeowner', phone: '+15555550100' });
     await setDoc(doc(db, 'estimates/estA'),            { userId: 'alice', companyId: 'co-a', total: 28500 });
     await setDoc(doc(db, 'photos/photoA'),             { userId: 'alice', url: 'photos/alice/roof.jpg' });
@@ -244,13 +246,35 @@ async function run() {
   await check('companyProfile: solo op WRITES own (uid key)',  'allow', setDoc(doc(solo, 'companyProfile/solo1'), { tagline: 'solo edit' }, { merge: true }));
   await check('companyProfile: B reads solo op config',        'deny',  getDoc(doc(bob, 'companyProfile/solo1')));
 
-  // counters #1.2 — writes are now monotonic (+1 only). Overwrite/garble
-  // DENIED; the legit +1 increment ALLOWED; read intentionally open (the
-  // client mint transaction must read to compute next+1 — accepted P3).
-  // Seeded at next:42. Order: overwrite-deny (stays 42) → +1 (42→43).
-  await check('counters: overwrite to garbage DENIED',        'deny',  setDoc(doc(bob, 'counters/customerIds'), { next: 999999 }));
-  await check('counters: legit +1 increment ALLOWED',         'allow', setDoc(doc(bob, 'counters/customerIds'), { next: 43 }));
-  await check('counters: read intentionally open (mint txn)', 'allow', getDoc(doc(bob, 'counters/customerIds')));
+  // counters #1.2 — writes are monotonic (+1 only). 2026-10-05: and scoped
+  // to the caller's OWN tenant counter (customerIds_<tenant key, lower>);
+  // NBD's legacy shared customerIds is NBD-only. That closes the accepted P3
+  // (read leaked another tenant's count; any authed user could advance it).
+  // Bob's own counter seeded at 42. Order: overwrite-deny (stays 42) → +1.
+  await check('counters: overwrite own to garbage DENIED',     'deny',  setDoc(doc(bob, 'counters/customerIds_co-b'), { next: 999999 }));
+  await check('counters: legit +1 on OWN counter ALLOWED',      'allow', setDoc(doc(bob, 'counters/customerIds_co-b'), { next: 43 }));
+  await check('counters: read OWN counter ALLOWED (mint txn)',  'allow', getDoc(doc(bob, 'counters/customerIds_co-b')));
+  await check('counters: B reads A counter DENIED',             'deny',  getDoc(doc(bob, 'counters/customerIds_co-a')));
+  await check('counters: B advances A counter DENIED',          'deny',  setDoc(doc(bob, 'counters/customerIds_co-a'), { next: 8 }));
+  await check('counters: B reads NBD shared counter DENIED',    'deny',  getDoc(doc(bob, 'counters/customerIds')));
+  await check('counters: B advances NBD shared counter DENIED', 'deny',  setDoc(doc(bob, 'counters/customerIds'), { next: 43 }));
+  await check('counters: B creates an arbitrary counter DENIED','deny',  setDoc(doc(bob, 'counters/anything'), { next: 1 }));
+  await check('counters: solo (no claim) creates own uid counter ALLOWED', 'allow', setDoc(doc(solo, 'counters/customerIds_solo1'), { next: 1 }));
+  await check('counters: A peer advances A counter ALLOWED',    'allow', setDoc(doc(dave, 'counters/customerIds_co-a'), { next: 8 }));
+  {
+    // NBD (control): the platform tenant still mints from the legacy shared
+    // counter, by companyId claim or (owner, no claim) by uid; mixed-case
+    // uids lower-case like company-profile.js _custCounterId.
+    const NBD = '1phDvAVXHSg82wDLegAbQFq14Ci1';
+    const nbdOwner = env.authenticatedContext(NBD, { companyId: NBD, owner: true }).firestore();
+    const nbdRep = env.authenticatedContext('nbdrep1', { role: 'sales_rep', companyId: NBD }).firestore();
+    await check('counters: NBD owner reads shared customerIds ALLOWED', 'allow', getDoc(doc(nbdOwner, 'counters/customerIds')));
+    await check('counters: NBD owner +1 shared customerIds ALLOWED',    'allow', setDoc(doc(nbdOwner, 'counters/customerIds'), { next: 43 }));
+    await check('counters: NBD teammate +1 shared customerIds ALLOWED', 'allow', setDoc(doc(nbdRep, 'counters/customerIds'), { next: 44 }));
+    const mixed = env.authenticatedContext('SoloMixedCase9', {}).firestore();
+    await check('counters: mixed-case solo uid uses its lower-cased id ALLOWED', 'allow', setDoc(doc(mixed, 'counters/customerIds_solomixedcase9'), { next: 1 }));
+    await check('counters: …and not the mixed-case spelling (DENIED)', 'deny', setDoc(doc(mixed, 'counters/customerIds_SoloMixedCase9'), { next: 1 }));
+  }
 
   // ═══════════════════════════════════════════════════════════
   // C2. DOC-PREFIX REGISTRY + brand.docPrefix/seal immutability.
@@ -298,6 +322,10 @@ async function run() {
       const db = ctx.firestore();
       await setDoc(doc(db, 'users/r3fxuser'), { firstName: 'Fx' });
       await setDoc(doc(db, 'users/r3fxe2e'),  { email: 'e2e@example.test', e2eTestAccount: true, provisionedBy: 'owner', provisionAction: 'created' });
+      // The photos below name leadB; a photo create must name a lead the
+      // writer can reach (flat-collection lead binding, 2026-10-05), so the
+      // lead exists and is bob's.
+      await setDoc(doc(db, 'leads/leadB'), { userId: 'bob', companyId: 'co-b', name: 'Bob customer' });
       await setDoc(doc(db, 'photos/r3fxRep'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB', storagePath: 'photos/bob/leadB/a.jpg' });
       await setDoc(doc(db, 'photos/r3fxHo'),  { userId: 'bob', companyId: 'co-b', leadId: 'leadB', source: 'homeowner',
         sharedWithHomeowner: true, path: 'homeowner-uploads/bob/leadB/1700000000000.jpg' });

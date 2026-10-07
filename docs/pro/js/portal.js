@@ -1023,6 +1023,13 @@
       const payAction = view.balance.stripePaymentLink
         ? '<a class="btn" style="margin-top:12px;" href="' + esc(safeUrl(view.balance.stripePaymentLink)) + '" target="_blank" rel="noopener">Pay Now →</a>'
         : '<p style="color:var(--muted);margin:12px 0 0;">Ask your rep for a payment link to pay online.</p>';
+      // Bank payment (ACH) is on the same Stripe page as the card — say so,
+      // only beside a real link. Zelle: the company's Zelle pair from the
+      // server (null while the Kentucky hold applies, or none set).
+      const bankLine = view.balance.stripePaymentLink && view.balance.payByBank
+        ? '<p class="portal-pay-note" data-pay-by-bank>Pay by bank (ACH) — lower fees. Choose “US bank account” on the payment page.</p>' : '';
+      const zelleLine = view.balance.zelle
+        ? '<p class="portal-pay-note" data-zelle>Zelle: ' + esc(view.balance.zelle) + '</p>' : '';
       // A deposit invoice (review R2-2-6): the server sends what is due NOW —
       // the deposit while it is unpaid — and the whole amount owed beside it.
       const isDeposit = view.balance.kind === 'deposit';
@@ -1037,6 +1044,8 @@
           '<div class="card-title">' + esc(amount) + '</div>' +
           owedLine +
           payAction +
+          bankLine +
+          zelleLine +
         '</div>'
       );
     }

@@ -159,6 +159,9 @@ async function fileOne(deps, invRef, invoiceId, kind) {
     const ls = await db.collection('leads').doc(leadId).get();
     const lead = ls.exists ? ls.data() : null;
     if (!lead) throw new Error('lead ' + leadId + ' not found');
+    // An invoice naming another tenant's lead must not file paper (with that
+    // customer's name and address on it) onto that lead (2026-10-05).
+    if (!PIF.invoiceInLeadTenant(inv, lead)) throw new Error('invoice tenant is not the lead tenant — refusing to file');
     const plate = await plateFor(db, bucket, lead, leadId);
     const payload = kind === 'invoice'
       ? P.invoicePayload(inv, lead, c.id, nowMs, plate)
@@ -355,6 +358,11 @@ async function flagPaidNotClosed(deps, invoiceId, inv) {
   const leadRef = deps.db.collection('leads').doc(String(inv.leadId));
   const ls = await leadRef.get();
   if (!ls.exists) return null;
+  // Another tenant's invoice naming this lead files nothing here (2026-10-05).
+  if (!PIF.invoiceInLeadTenant(inv, ls.data())) {
+    logger.warn('[moneyPaper] paid-not-closed skipped — invoice tenant is not the lead tenant', { invoiceId, leadId: inv.leadId });
+    return null;
+  }
   const et = P.etParts(deps.now());               // { y, md: 'MMDD' } — the task wants 'YYYY-MM-DD'
   const today = et.y + '-' + et.md.slice(0, 2) + '-' + et.md.slice(2);
   const task = P.paidNotClosedTask(ls.data(), inv, invoiceId, today, stageRoles);
@@ -439,4 +447,4 @@ function spineFailures(out) {
   return s ? Object.keys(s).filter((k) => s[k] && s[k].reason === 'error') : [];
 }
 
-exports._internal = { handle, spineOnInvoice, spineFailures, payQr, markJobPaid, flagPaidNotClosed, settlesJob, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };
+exports._internal = { handle, spineOnInvoice, spineFailures, payQr, plateFor, markJobPaid, flagPaidNotClosed, settlesJob, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };
