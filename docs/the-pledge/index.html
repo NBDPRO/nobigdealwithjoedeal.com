@@ -28,8 +28,8 @@
   "@context": "https://schema.org",
   "@type": "Service",
   "name": "The NBD Lifetime Pledge",
-  "serviceType": "Lifetime Workmanship Standby",
-  "description": "Joe Deal's personal Lifetime Pledge: for as long as he is in business and you own the home, you can call about anything he worked on. Free diagnosis. Honest answer. Fair quote if a fix is needed.",
+  "serviceType": "Homeowner Standby Promise",
+  "description": "NBD Pledge: for as long as you own the home, we'll come back and make it right. Joe Deal's personal promise on every NBD job: for as long as he is in business and you own the home, you can call about anything he worked on. Free diagnosis. Honest answer. Fair quote if a fix is needed. It is separate from the written labor warranty (up to 20 years, by package) and the manufacturer warranty per product/package.",
   "provider": {"@id": "https://nobigdealwithjoedeal.com/#org"},
   "areaServed": "Greater Cincinnati, OH and Northern Kentucky",
   "url": "https://nobigdealwithjoedeal.com/the-pledge"
@@ -276,7 +276,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -292,7 +292,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -349,6 +349,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -371,6 +372,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -580,6 +582,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
     <p class="section-lede" style="margin-top:-22px;font-weight:700;color:var(--navy-dark)">I don't.</p>
 
     <div class="pledge-block">
+      <p><strong>NBD Pledge: for as long as you own the home, we'll come back and make it right.</strong></p>
       <p>For as long as I'm in business and you own this home, you can call me about anything I worked on — and <span class="pledge-emph">I'll come look</span>. <strong>No charge to diagnose. No charge to give you a straight answer.</strong></p>
       <p>If I caused the problem, I make it right under whatever warranty applies to that job. If something else caused it — weather, age, another contractor's work, a tree your neighbor finally pruned five years too late — I'll tell you exactly what's going on, and quote the fix fairly if you want me to handle it. <strong>No pressure. No upsell. No runaround.</strong></p>
       <p>That's the Pledge. It's not free repairs forever — that wouldn't be honest, and you'd see right through it. It's something better: <span class="pledge-emph">you'll always know what's wrong with your house, you'll always get a straight answer, and you'll never get ducked.</span></p>
@@ -637,7 +640,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
       <div class="layer">
         <div class="label">Layer 1 · Per Job</div>
         <h3>A Written Warranty &amp; Agreement.</h3>
-        <p>Every estimate spells out exactly what's covered and exactly what isn't: the workmanship warranty for that job (lifetime on our Standard, Preferred and Elite roofs; repairs, gutters and other work carry their own written terms), manufacturer warranties on materials, scope of the work, what triggers a re-visit. You'll see all of it in writing before you sign anything. No fine print. No "ask me later."</p>
+        <p>Every estimate spells out exactly what's covered and exactly what isn't: your written labor warranty (up to 20 years, by package; repairs and smaller jobs carry their own written terms), the manufacturer warranty per product/package on materials, scope of the work, what triggers a re-visit. You'll see all of it in writing before you sign anything. No fine print. No "ask me later."</p>
       </div>
       <div class="layer featured">
         <div class="label">Layer 2 · As Long As I&rsquo;m In Business</div>

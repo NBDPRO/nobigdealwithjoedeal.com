@@ -200,7 +200,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -216,7 +216,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -273,6 +273,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -295,6 +296,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -601,7 +603,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <div class="inc-item"><span class="inc-check">✓</span> Full tear-off and disposal of existing shingles and underlayment</div>
       <div class="inc-item"><span class="inc-check">✓</span> Decking inspection — rotted or damaged boards replaced before new shingles</div>
       <div class="inc-item"><span class="inc-check">✓</span> Synthetic underlayment installed to manufacturer spec</div>
-      <div class="inc-item"><span class="inc-check">✓</span> GAF Timberline HDZ architectural shingles, or TAMKO impact-resistant shingles for hail country — lifetime manufacturer warranty</div>
+      <div class="inc-item"><span class="inc-check">✓</span> GAF Timberline HDZ architectural shingles, or TAMKO impact-resistant shingles for hail country — manufacturer warranty per product/package</div>
       <div class="inc-item"><span class="inc-check">✓</span> New pipe boots, ridge cap, and flashing at all penetrations</div>
       <div class="inc-item"><span class="inc-check">✓</span> Gutter and fascia inspection during installation</div>
       <div class="inc-item"><span class="inc-check">✓</span> NBD Lifetime Pledge — I back every install personally</div>

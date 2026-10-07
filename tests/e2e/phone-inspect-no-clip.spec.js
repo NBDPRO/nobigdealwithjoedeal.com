@@ -37,8 +37,11 @@ for (const [width, height] of [[375, 812], [390, 844]]) {
       });
 
       await page.goto('/inspect');
-      // The overflow came from the injected intake block — wait for it.
-      await expect(page.locator('#insPhotos')).toBeAttached({ timeout: 10_000 });
+      // The overflow came from the injected intake block — wait for it. Since
+      // the short form (2026-10-06) /inspect mounts only the scheduling choice
+      // (data-extras=false); the photo input moved to the thank-you screen.
+      await expect(page.locator('[data-nbd-intake="ins"][data-nbd-intake-ready="1"]')).toBeAttached({ timeout: 10_000 });
+      await expect(page.locator('#insSched')).toBeVisible();
       await expect(page.locator('#inspectSubmit')).toBeVisible();
 
       const m = await page.evaluate(() => {
@@ -66,7 +69,9 @@ for (const [width, height] of [[375, 812], [390, 844]]) {
       expect(m.gridWidth, why).toBeLessThanOrEqual(m.vw);
       expect(m.heroRight, why).toBeLessThanOrEqual(m.vw);
       expect(m.panelRight, why).toBeLessThanOrEqual(m.vw);
-      expect(m.photosRight, why).toBeLessThanOrEqual(m.vw);
+      // The photo input, when a form carries it, is one of the controls in
+      // m.over below; on /inspect it is on the thank-you screen now.
+      if (m.photosRight !== null) expect(m.photosRight, why).toBeLessThanOrEqual(m.vw);
       expect(m.submitRight, why).toBeLessThanOrEqual(m.vw);
       expect(m.over, why).toEqual([]);
     });

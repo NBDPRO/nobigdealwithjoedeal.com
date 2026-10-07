@@ -408,7 +408,7 @@
           cancel:  'Cancel the invite for ' + email + '?',
           disable: 'Disable ' + email + '? Their login stops working until re-enabled. Their leads stay.',
           enable:  'Re-enable ' + email + '?',
-          remove:  'Remove ' + email + ' from the team? Their access is revoked; their leads stay.'
+          remove:  'Remove ' + email + ' from the team? Their access is revoked, their bot keys and calendar link stop working, and their customers move to the company owner.'
         };
         var ask = window.nbdConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
         if (!(await ask(confirms[action] || 'Proceed?'))) return;

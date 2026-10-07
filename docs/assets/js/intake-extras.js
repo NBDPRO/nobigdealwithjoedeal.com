@@ -5,7 +5,11 @@
  * and how they heard about us.
  *
  *   NBDIntake.html(prefix, opts)     → markup for the block (static pages paste
- *                                      the same markup; JS-built forms call it)
+ *                                      the same markup; JS-built forms call it).
+ *                                      opts.sched:false / opts.extras:false
+ *                                      drop the scheduling choice / the rest
+ *                                      (/inspect, 2026-10-06: the choice on the
+ *                                      form, the extras on the thank-you screen)
  *   NBDIntake.read(root, prefix, o)  → { error } | { fields, files }
  *                                      (o.optional: no scheduling choice is
  *                                      fine — the /estimate thank-you screen)
@@ -49,12 +53,14 @@
     const o = Object.assign({}, DEFAULTS, opts || {});
     _optsByPrefix[p] = o;
     const insurance = o.insurance !== false;
-    return '' +
+    const sched = o.sched === false ? '' : '' +
       '<fieldset class="nbd-intake-sched" id="' + p + 'Sched">' +
         '<legend>How should we schedule?' + (o.optional ? '' : ' <span class="nbd-intake-req">*</span>') + '</legend>' +
-        (o.calUrl ? '<label class="nbd-intake-choice"><input type="radio" name="' + p + 'Scheduling" value="calendar"> <span><b>Pick a date &amp; time now</b><small>The calendar opens right after you send this.</small></span></label>' : '') +
+        (o.calUrl ? '<label class="nbd-intake-choice"><input type="radio" name="' + p + 'Scheduling" value="calendar"> <span><b>Pick a date &amp; time now</b><small>' + (o.calHint ? esc(o.calHint) : 'The calendar opens right after you send this.') + '</small></span></label>' : '') +
         '<label class="nbd-intake-choice"><input type="radio" name="' + p + 'Scheduling" value="contact_me"> <span><b>Please contact me to coordinate scheduling</b><small>' + esc(o.who) + ' will call or text you to set a time.</small></span></label>' +
-      '</fieldset>' +
+      '</fieldset>';
+    if (o.extras === false) return sched;
+    return sched +
       '<div class="nbd-intake-row">' +
         '<label class="nbd-intake-field">Best time to reach you<select id="' + p + 'BestTime"><option value="">Any time</option><option>Morning</option><option>Afternoon</option><option>Evening</option><option>Text me first</option></select></label>' +
         (insurance ? '<label class="nbd-intake-field">Insurance claim?<select id="' + p + 'Insurance"><option value="">—</option><option value="yes">Yes, filing or filed</option><option value="no">No</option><option value="not_sure">Not sure yet</option></select></label>' : '') +
@@ -158,7 +164,9 @@
     wrap.className = 'nbd-intake-after';
     box.appendChild(wrap);
     const parts = [];
-    if (i.fields && i.fields.scheduling === 'calendar') {
+    // ownCalendar: the host page renders its own Pick My Time button (/inspect,
+    // 2026-10-06), so no second button and no popup here.
+    if (i.fields && i.fields.scheduling === 'calendar' && !i.ownCalendar) {
       parts.push('<p><a class="nbd-intake-cal" href="' + esc(cal()) + '" target="_blank" rel="noopener">📅 Pick your date &amp; time →</a></p>');
     } else if (i.fields && i.fields.scheduling === 'contact_me' && !i.quietContact) {
       // quietContact: the host page's own success text already says who
@@ -170,7 +178,7 @@
     wrap.innerHTML = parts.join('');
     // Book-now: open the calendar straight away (a new tab keeps the
     // confirmation on screen); the button stays as the fallback if blocked.
-    if (i.fields && i.fields.scheduling === 'calendar') {
+    if (i.fields && i.fields.scheduling === 'calendar' && !i.ownCalendar) {
       try { window.open(cal(), '_blank', 'noopener'); } catch (_) { /* button remains */ }
     }
     if (!files.length) return;
@@ -192,6 +200,9 @@
       if (el.hasAttribute('data-who')) opts.who = el.getAttribute('data-who');
       if (el.hasAttribute('data-tel')) { opts.phoneTel = el.getAttribute('data-tel'); opts.phoneDisplay = el.getAttribute('data-phone') || opts.phoneTel; }
       if (el.getAttribute('data-cal') === 'none') opts.calUrl = null;
+      if (el.getAttribute('data-extras') === 'false') opts.extras = false;
+      // Per-form wording under the calendar choice (/inspect, 2026-10-06).
+      if (el.hasAttribute('data-cal-hint')) opts.calHint = el.getAttribute('data-cal-hint');
       el.innerHTML = html(el.getAttribute('data-nbd-intake'), opts);
       el.setAttribute('data-nbd-intake-ready', '1');
     });

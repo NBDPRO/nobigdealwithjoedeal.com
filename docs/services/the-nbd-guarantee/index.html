@@ -29,7 +29,7 @@
   "@type": "Service",
   "serviceType": "Roof Replacement Tier System",
   "name": "The NBD Guarantee",
-  "description": "Three roof replacement tiers from NBD — Standard (GAF Timberline NS), Preferred (GAF Timberline HDZ), Elite (GAF Timberline UHDZ). Each tier includes the NBD Lifetime Pledge: I come back for the life of the roof.",
+  "description": "Three roof replacement tiers from NBD — Standard (GAF Timberline NS), Preferred (GAF Timberline HDZ), Elite (GAF Timberline UHDZ). Each tier includes the NBD Pledge: for as long as you own the home, we'll come back and make it right. Each tier also carries a written labor warranty up to 20 years, by package; the manufacturer warranty is per product/package.",
   "provider": {"@id": "https://nobigdealwithjoedeal.com/#org"},
   "areaServed": "Greater Cincinnati, OH and Northern Kentucky",
   "url": "https://nobigdealwithjoedeal.com/services/the-nbd-guarantee"
@@ -260,7 +260,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <link rel="stylesheet" href="/assets/css/mfr-source.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -276,7 +276,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -333,6 +333,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -355,6 +356,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -545,7 +547,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
       <li><strong>Name-brand architectural shingles</strong> — GAF Timberline by default, or <a href="/services/tamko-impact-resistant-shingles">TAMKO's impact-resistant shingles</a> for hail country. No cheap off-brand substitutes.</li>
       <li><strong>GAF Certified Contractor</strong> — System Plus Limited Warranty available</li>
       <li><strong><a href="/the-pledge">The Pledge</a> — reactive, for as long as I'm in business:</strong> you call about anything I worked on, I come look, free</li>
-      <li><strong>Honest scope</strong> — written warranty, no fine print, no "ask me later"</li>
+      <li><strong>Honest scope</strong> — written labor warranty up to 20 years, by package; manufacturer warranty per product/package; no fine print, no "ask me later"</li>
     </ul>
   </div>
 
@@ -561,7 +563,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
       <ul class="tc-features">
         <li>GAF Timberline NS architectural shingles</li>
         <li>Standard galvanized roofing nails</li>
-        <li><strong>Roofivent iVent Pipe Flashing</strong> — replaceable EPDM gasket, lifetime functionality warranty</li>
+        <li><strong>Roofivent iVent Pipe Flashing</strong> — replaceable EPDM gasket, manufacturer functionality warranty</li>
         <li>GAF Cobra ridge ventilation</li>
         <li>Standard install accessories</li>
         <li class="muted">No LumaNail™ · no GAF Pivot Boot · no proactive annual outreach</li>
@@ -667,7 +669,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
         </tr>
         <tr>
           <td>Pipe boots</td>
-          <td><strong style="color:#A14A22">Roofivent iVent Pipe Flashing</strong> (lifetime, EPDM)</td>
+          <td><strong style="color:#A14A22">Roofivent iVent Pipe Flashing</strong> (replaceable EPDM gasket)</td>
           <td><strong style="color:#A14A22">GAF Master Flow Pivot</strong></td>
           <td><strong style="color:#A14A22">GAF Master Flow Pivot</strong></td>
         </tr>
@@ -762,7 +764,7 @@ footer { background: var(--navy-dark); color: rgba(255,255,255,.72); padding: 60
       <div class="gtss-card">
         <div class="stage">Value floor</div>
         <div class="nm">Heritage</div>
-        <span class="badge">Lifetime warranty</span>
+        <span class="badge">Manufacturer warranty</span>
         <p>A true architectural roof at the best price — the TAMKO answer to GAF Timberline NS.</p>
       </div>
       <div class="gtss-card">

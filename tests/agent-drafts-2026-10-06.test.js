@@ -92,6 +92,9 @@ const serverTimestamp = () => { const t = Date.now(); return { toMillis: () => t
 const origLoad = Module._load;
 Module._load = function (request) {
   if (request === 'firebase-admin/firestore') return { getFirestore: () => DB, FieldValue: { serverTimestamp } };
+  // R3-1 (2026-10-06): crmMcp re-checks every key's creator in Auth. Each
+  // test identity is an enabled member carrying its own claims.
+  if (request === 'firebase-admin/auth') return { getAuth: () => ({ getUser: async (uid) => ({ uid, disabled: false, customClaims: uid === 'ownerA' ? { companyId: 'coA', role: 'company_admin' } : {} }) }) };
   if (/upstash-ratelimit$/.test(request)) return { enforceRateLimit: async () => ({ count: 1 }) };
   return origLoad.apply(this, arguments);
 };
@@ -156,13 +159,14 @@ const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')
   ok('server version 1.3.0 (1.2.0 drafts; 1.3.0 list_leads paging)', L.SERVER_INFO.version === '1.3.0');
   const nbdNames = L.companyNames({}, true);
   let d = L.buildTextDraft({ body: 'Hi Maria, Joe with No Big Deal — still want the gutter quote?', reason: 'quiet 14 days' }, nbdNames);
-  ok('STOP line appended when missing', d.body === 'Hi Maria, Joe with No Big Deal — still want the gutter quote?\nReply STOP to opt out.');
+  // Review R2-3-1 (2026-10-06): the honest line for a text sent from the owner's phone.
+  ok('STOP line appended when missing', d.body === 'Hi Maria, Joe with No Big Deal — still want the gutter quote?\nReply STOP and we\'ll stop texting.');
   d = L.buildTextDraft({ body: 'No Big Deal here. Reply STOP to opt out.', reason: 'x' }, nbdNames);
   ok('STOP line not doubled when present', (d.body.match(/STOP/g) || []).length === 1);
   ok('company name is required', /company name/.test(L.buildTextDraft({ body: 'Hi Maria, want a quote?', reason: 'x' }, nbdNames).error || ''));
   ok('a company with no name set cannot text', !!L.buildTextDraft({ body: 'Hi', reason: 'x' }, L.companyNames({}, false)).error);
-  ok('480 characters including the STOP line', !!L.buildTextDraft({ body: 'No Big Deal ' + 'x'.repeat(460), reason: 'x' }, nbdNames).error
-    && !L.buildTextDraft({ body: 'No Big Deal ' + 'x'.repeat(445), reason: 'x' }, nbdNames).error);
+  ok('480 characters including the STOP line', !!L.buildTextDraft({ body: 'No Big Deal ' + 'x'.repeat(434), reason: 'x' }, nbdNames).error
+    && !L.buildTextDraft({ body: 'No Big Deal ' + 'x'.repeat(433), reason: 'x' }, nbdNames).error);
   ok('reason is required', !!L.buildTextDraft({ body: 'No Big Deal hi' }, nbdNames).error);
   ok('email: from must be jd or info', !!L.buildEmailDraft({ subject: 's', body: 'b', reason: 'r', from: 'joe' }).error && L.buildEmailDraft({ subject: 's', body: 'b', reason: 'r', from: 'info' }).fromAddress === 'info@nobigdealwithjoedeal.com');
   ok('social: unknown platform / brand / non-https media refused', !!L.buildSocialDraft({ brand: 'nbd', platform: 'myspace', caption: 'c', reason: 'r' }).error
@@ -176,7 +180,7 @@ const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')
   let t = await tool('marcus', 'draft_text', { lead_id: 'ok1', body: 'Hi Maria, Joe from No Big Deal. Still want that gutter quote?', reason: 'Estimate viewed 3x, quiet 9 days' });
   let items = inbox();
   ok('Marcus files a text draft', !t.isError && t.json && t.json.filed === true && t.json.kind === 'draft_text' && items.length === 1, t.text);
-  ok('the inbox item holds the body + STOP line, the lead, the reason and consent — never the number', items[0] && items[0].kind === 'draft_text' && items[0].leadId === 'ok1' && /Reply STOP to opt out\.$/.test(items[0].text)
+  ok('the inbox item holds the body + STOP line, the lead, the reason and consent — never the number', items[0] && items[0].kind === 'draft_text' && items[0].leadId === 'ok1' && /Reply STOP and we'll stop texting\.$/.test(items[0].text)
     && items[0].consentOnFile === true && items[0].status === 'pending' && !/555|0147/.test(JSON.stringify(items[0])));
   t = await tool('marcus', 'draft_text', { lead_id: 'stop1', body: 'No Big Deal here — quick question.', reason: 'x' });
   ok('Do-Not-Text (STOP register, canonical key) → refused', t.isError && /Do-Not-Text/.test(t.text));
@@ -230,11 +234,11 @@ const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')
   ok('check: ok, with the recipient for the owner only', r.r && r.r.results[txt.id].ok === true && r.r.results[txt.id].to === '+15135550147' && r.r.results[em.id].to === 'maria@example.test' && r.r.results[txt.id].name === 'Maria Lopez', JSON.stringify(r.r || r.err && r.err.message));
   DB.docs.set('sms_opt_outs/5135550147', { phone: '+15135550147' });
   r = await call(jo, { action: 'check', ids: [txt.id] });
-  ok('check re-reads the Do-Not-Text list now (a STOP since filing blocks the send)', r.r && r.r.results[txt.id].ok === false && /Do-Not-Text/.test(r.r.results[txt.id].reason) && !r.r.results[txt.id].to);
+  ok('check re-reads the Do-Not-Text list now (a STOP since filing blocks the send)', r.r && r.r.results[txt.id].ok === false && r.r.results[txt.id].code === 'opted_out' && /replied STOP/.test(r.r.results[txt.id].reason) && !r.r.results[txt.id].to);
   DB.docs.delete('sms_opt_outs/5135550147');
   DB.docs.set('sms_dnc/' + NBD + '__5135550147', { companyId: NBD, key: '5135550147', source: 'manual' });
   r = await call(jo, { action: 'check', ids: [txt.id] });
-  ok('check also re-reads the company Do Not Text list (added since filing → blocked, no number)', r.r && r.r.results[txt.id].ok === false && /company's Do-Not-Text list/.test(r.r.results[txt.id].reason) && !r.r.results[txt.id].to, JSON.stringify(r.r || r.err && r.err.message));
+  ok('check also re-reads the company Do Not Text list (added since filing → blocked, no number)', r.r && r.r.results[txt.id].ok === false && r.r.results[txt.id].code === 'dnc' && /company's Do Not Text list/.test(r.r.results[txt.id].reason) && !r.r.results[txt.id].to, JSON.stringify(r.r || r.err && r.err.message));
   DB.docs.delete('sms_dnc/' + NBD + '__5135550147');
   for (const [who, label] of [[{ uid: 'v1', token: { companyId: NBD, role: 'viewer' } }, 'viewer'], [{ uid: 'rep1', token: { companyId: NBD, role: 'sales_rep' } }, 'sales rep']]) {
     r = await call(who, { action: 'check', ids: [txt.id] });
@@ -248,7 +252,7 @@ const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')
   ok('…a note on the customer\'s card', rows('notes').some((n) => n.leadId === 'ok1' && n.userId === NBD && /Texted from my phone/.test(n.text) && /drafted by Marcus/.test(n.text)));
   const after = DB.docs.get('agent_inbox/' + txt.id);
   ok('…and the item is sent_by_owner with the edited text', after.status === 'sent_by_owner' && after.decidedBy === NBD && /Thursday works/.test(after.text) && /^sms_log:/.test(after.result || ''));
-  r = await call(jo, { action: 'sent', id: txt.id, body: 'again' });
+  r = await call(jo, { action: 'sent', id: txt.id, body: 'Hi Maria, Joe from No Big Deal — Thursday works?\nReply STOP to opt out.' });
   ok('a double tap logs once', r.r && r.r.already === true && rows('sms_log').length === 1);
   r = await call(jo, { action: 'sent', id: em.id, subject: 'Your gutter quote', body: 'Hi Maria' });
   const eml = rows('email_log');
@@ -284,7 +288,10 @@ const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')
   ok('the Social Studio draft is status draft, owned by the owner, with no server-only key (the create rule)', post.data.status === 'draft' && post.data.companyId === NBD && post.data.createdBy === NBD && post.data.caption === 'Edited tip' && !FORBIDDEN.some((k) => k in post.data));
   ok('drafts are not in "Add all" and the deck skips them', A.bulkIds([{ id: 'a', kind: 'draft_text' }, { id: 'b', kind: 'note' }], false).join() === 'b' && /filter\(\(it\) => !isDraft\(it\)\)/.test(read('docs/pro/js/agent-inbox.js')));
   const src = read('docs/pro/js/agent-inbox.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  ok('the inbox never sends: no SMS / email API, and the sms: link is not prevented', !/sendSMS|sendEmail|NBDComms|sendQueued/.test(src) && !/preventDefault/.test(src));
+  // Review R2-3-1: the sms: link is held (preventDefault) until the server's
+  // 'sent' check answers ok, then opened — still the owner's own Messages app.
+  ok('the inbox never sends: no SMS / email API; the sms: link opens only after the server says ok', !/sendSMS|sendEmail|NBDComms|sendQueued/.test(src)
+    && /if \(act === 'text'\) ev\.preventDefault\(\);[\s\S]{0,200}if \(await markSent\(id\)\) \{[\s\S]{0,80}window\.location\.assign\(href\)/.test(src));
   ok('rowHtml routes the three kinds to the draft renderer', /if \(isDraft\(it\)\) return draftRowHtml/.test(src));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
