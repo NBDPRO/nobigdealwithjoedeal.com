@@ -2893,6 +2893,35 @@ async function run() {
     throw new Error('59 invoice/referral tenant: ' + s59Fail.length + ' check(s) went the wrong way:\n    ' + s59Fail.join('\n    '));
   }
 
+  // ─── 60. estimates.signedPrice is server-only (review R6-2-2, Jo 2026-10-07) ───
+  // The price the homeowner SIGNED, which every bill charges until they
+  // re-sign. functions/signed-price.js stamps it (admin SDK) when a signature
+  // lands; a rep's edit re-prices the estimate but can never move, remove or
+  // forge what was signed.
+  const a60 = env.authenticatedContext('a60', { companyId: 'co-a60' }).firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'estimates/est60-signed'), { userId: 'a60', companyId: 'co-a60', leadId: 'lead60', grandTotal: 14500,
+      signedPrice: { fields: { grandTotal: 14500 }, fingerprint: 'p1-x', totalCents: 1450000, source: 'contract_signed', sourceId: 'doc_1', at: 1 } });
+    await setDoc(doc(d, 'estimates/est60-plain'), { userId: 'a60', companyId: 'co-a60', leadId: 'lead60', grandTotal: 9000 });
+  });
+  const s60Fail = []; let s60Pass = 0;
+  async function x60(label, want, promise) {
+    try { await (want === 'allow' ? assertSucceeds(promise) : assertFails(promise)); s60Pass++; }
+    catch (e) { s60Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  await x60('signed estimate: re-price it (the edit stands)', 'allow', updateDoc(doc(a60, 'estimates/est60-signed'), { grandTotal: 16200, subtotal: 16200 }));
+  await x60('signed estimate: change the signed price', 'deny', updateDoc(doc(a60, 'estimates/est60-signed'), { 'signedPrice.totalCents': 1620000 }));
+  await x60('signed estimate: replace the signed price', 'deny', updateDoc(doc(a60, 'estimates/est60-signed'), { signedPrice: { fields: { grandTotal: 16200 }, totalCents: 1620000 } }));
+  await x60('signed estimate: remove the signed price', 'deny', updateDoc(doc(a60, 'estimates/est60-signed'), { signedPrice: deleteField() }));
+  await x60('unsigned estimate: forge a signed price', 'deny', updateDoc(doc(a60, 'estimates/est60-plain'), { signedPrice: { fields: { grandTotal: 1 }, totalCents: 100 } }));
+  await x60('create an estimate carrying a signed price', 'deny', setDoc(doc(a60, 'estimates/est60-new1'), { userId: 'a60', companyId: 'co-a60', grandTotal: 5000, signedPrice: { totalCents: 500000 } }));
+  await x60('create an estimate without one', 'allow', setDoc(doc(a60, 'estimates/est60-new2'), { userId: 'a60', companyId: 'co-a60', grandTotal: 5000 }));
+  console.log('  60: ' + s60Pass + ' signed-price checks passed, ' + s60Fail.length + ' failed');
+  if (s60Fail.length) {
+    throw new Error('60 estimates.signedPrice: ' + s60Fail.length + ' check(s) went the wrong way:\n    ' + s60Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }
