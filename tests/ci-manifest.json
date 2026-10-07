@@ -357,6 +357,7 @@
     "pro-claims-honesty-2026-09-13.test.js",
     "pro-demo-story-2026-10-06.test.js",
     "homeowner-claims-honesty-2026-10-05.test.js",
+    "homeowner-honesty-schema-reviews-2026-10-06.test.js",
     "seo-audit-fixes-2026-10-06.test.js",
     "town-rr-pages-overlap-2026-10-06.test.js",
     "deal-acceptance-atomicity.test.js",
