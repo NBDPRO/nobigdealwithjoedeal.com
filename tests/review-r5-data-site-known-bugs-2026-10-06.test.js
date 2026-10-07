@@ -84,24 +84,9 @@ console.log('\nreview-r5-data-site-known-bugs\n');
 
 // ════════════════════════ AREA 8: data integrity ═════════════════════════
 
-// R5-8-1 (HIGH, prod-confirmed). Cal.com webhook resolves the rep by the
-// organizer's Auth EMAIL first (#1945, 2026-10-01). NBD's Cal.com organizer
-// email is the legacy personal account (no claims, no company doc, last
-// sign-in April), while the calcomUsername belongs to Jo's real account. Since
-// 10/01 every new booking lands in the legacy account's CRM, with no
-// customerId. Prod: booking 2026-10-01 → legacy account; 9/11–9/24 → Jo.
-// The pin: when the email resolves, the username owner is never consulted.
-{
-  const s = src('functions/integrations/calcom.js');
-  const iEmail = s.indexOf('getAuth().getUserByEmail(organizerEmail)');
-  const iUser = s.indexOf("where('calcomUsername', '==', organizerUsername)");
-  ok('KNOWN BUG R5-8-1: organizer email lookup runs before the username lookup',
-    iEmail !== -1 && iUser !== -1 && iEmail < iUser);
-  ok('KNOWN BUG R5-8-1: username lookup only runs when the email matched nobody',
-    /if\s*\(\s*!repUid\s*&&\s*organizerUsername\s*\)/.test(s));
-}
+// R5-8-1: FIXED by #2282 (pins dropped; its own regression test covers it).
 
-// R5-8-2 (MED). Deleting the primary estimate leaves the lead pointing at it:
+// R5-8-2 (MED). Fix in flight: #2286. Deleting the primary estimate leaves the lead pointing at it:
 // _deleteEstimate hard-deletes (against the "never deleteDoc estimates" rule
 // the customer page states) and never touches lead.primaryEstimateId /
 // lead.jobValue; the customer-page Archive soft-deletes the same way. The
@@ -120,7 +105,7 @@ console.log('\nreview-r5-data-site-known-bugs\n');
     !!arch && /deleted:\s*true/.test(arch) && !/primaryEstimateId|jobValue/.test(arch));
 }
 
-// R5-8-3 (LOW). window._saveLead (every CRM-created lead: quick add, call
+// R5-8-3 (LOW). Fix in flight: #2285. window._saveLead (every CRM-created lead: quick add, call
 // center, D2D, tools) writes the stage but never stageRole, so migration
 // 008's heal is one-time: CRM-created leads go back to having no persisted
 // role (server classifiers that trust stageRole first fall back). Prod today:
@@ -132,7 +117,7 @@ console.log('\nreview-r5-data-site-known-bugs\n');
     !!body && body.length > 2000 && !/stageRole/.test(body));
 }
 
-// R5-8-4 (LOW, dormant until A2P). sendD2DSMS logs the KNOCK id as the
+// R5-8-4 (LOW, dormant until A2P). Fix in flight: #2285. sendD2DSMS logs the KNOCK id as the
 // sms_log leadId, so a D2D text never shows on the lead's Communication Log
 // and a lead-scoped query never finds it.
 {
@@ -143,7 +128,7 @@ console.log('\nreview-r5-data-site-known-bugs\n');
 
 // ════════════════════════ AREA 9: homeowner site ═════════════════════════
 
-// R5-9-1 (HIGH, legal). Kentucky service pages still promise claim advocacy
+// R5-9-1 (HIGH, legal). Fix in flight: #2284. Kentucky service pages still promise claim advocacy
 // (getting underpaid claims "corrected", denied claims "recoverable", "harder
 // to underpay") — in body copy AND in FAQ JSON-LD. #2104/#2263 did not reach
 // these lines. The KY wording scan only walks docs/pro + functions.
@@ -168,57 +153,13 @@ console.log('\nreview-r5-data-site-known-bugs\n');
     /const SCAN_DIRS = \['docs\/pro', 'functions'\];/.test(scan));
 }
 
-// R5-9-2 (MED). Homepage contact form posts `service` (Service Needed), it is
-// stored on contact_leads, but the CRM lead notes drop it (only estimate_leads
-// get a service line), and the alert summary has no service field.
-const LBL = require(path.join(ROOT, 'functions', 'lead-bridge-logic.js'));
-{
-  const d = LBL.mapPublicLeadToLead({
-    collection: 'contact_leads', sourceId: 'x1',
-    data: { name: 'Test Person', phone: '5135550100', address: '1 Main St', service: 'Gutter Replacement', source: 'homepage' },
-    ownerUid: 'u1', companyId: 'u1',
-  });
-  ok('KNOWN BUG R5-9-2: contact-form "Service Needed" is not in the CRM lead',
-    !!d && !JSON.stringify(d).includes('Gutter Replacement'));
-  const alert = bodyAfter(src('functions/lead-alert.js'), 'function summarize(d)');
-  ok('KNOWN BUG R5-9-2: lead alert summary never reads service', !!alert && !/service/.test(alert));
-}
+// R5-9-2: FIXED by #2283 (pins dropped; its own regression test covers it).
 
-// R5-9-3 (LOW-MED). Free Roof "Which fits best?" category is allowlisted and
-// stored but the CRM lead never shows it.
-{
-  const d = LBL.mapPublicLeadToLead({
-    collection: 'free_roof_entries', sourceId: 'x2',
-    data: { name: 'Test Person', phone: '5135550100', address: '1 Main St', story: 'hi', category: 'veteran', source: 'free-roof' },
-    ownerUid: 'u1', companyId: 'u1',
-  });
-  ok('KNOWN BUG R5-9-3: Free Roof category is not in the CRM lead', !!d && !JSON.stringify(d).includes('veteran'));
-}
+// R5-9-3: FIXED by #2283 (pins dropped; its own regression test covers it).
 
-// R5-9-4 (MED). /estimate shows the homeowner a ballpark range, but the
-// gateway's estimate allowlist has no ballpark (nor estimateData /
-// phoneVerified), so the range they were quoted is never saved.
-{
-  const funnel = src('docs/assets/js/inline/4053149b2f.js');
-  ok('KNOWN BUG R5-9-4: estimator computes a ballpark', /funnelData\.ballpark\s*=\s*\{\s*min:/.test(funnel));
-  const gw = src('functions/handlers/integrations.js');
-  const at = gw.indexOf("estimateSummary: 2000");
-  const region = at === -1 ? '' : gw.slice(at, gw.indexOf('boolOptional', at));
-  ok('KNOWN BUG R5-9-4: estimate allowlist has no ballpark field',
-    region.includes("'estimateSummary']") && !/ballpark/.test(region));
-}
+// R5-9-4: FIXED by #2283 (pins dropped; its own regression test covers it).
 
-// R5-9-5 (LOW-MED). A homepage message over 1,500 characters is DROPPED
-// whole (optional-field loop `continue`s) while the visitor sees success; the
-// textarea has no maxlength. (/inspect is fixed by #2230's maxlength.)
-{
-  const gw = src('functions/handlers/integrations.js');
-  ok('KNOWN BUG R5-9-5: over-cap optional text is dropped, not truncated',
-    /if \(v\.length === 0 \|\| v\.length > max\) continue;/.test(gw));
-  const home = stripHtmlComments(read('docs/index.html'));
-  const ta = (home.match(/<textarea id="fieldMessage"[^>]*>/) || [''])[0];
-  ok('KNOWN BUG R5-9-5: homepage message box has no maxlength', !!ta && !/maxlength/i.test(ta));
-}
+// R5-9-5: FIXED by #2283 (pins dropped; its own regression test covers it).
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) { console.log('FAILED:\n  ' + fails.join('\n  ')); process.exit(1); }
