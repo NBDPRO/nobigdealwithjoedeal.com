@@ -261,6 +261,17 @@ Object.assign(exports, leadBridgeFns);
 const smsFunctions = require('./sms-functions');
 Object.assign(exports, smsFunctions);
 
+// NBD's Twilio line (+1 937 764 4855, 2026-10-06): inbound texts, delivery
+// callbacks, inbound calls forwarded to Jo's cell + the <Dial> action. Served
+// at /api/twilio/* (firebase.json). SHIPS DARK — TWILIO_INBOUND_ENABLED unset
+// = fixed TwiML, nothing read or written. Named exports only (twilio-line.js
+// also exports a test seam).
+const twilioLine = require('./twilio-line');
+exports.twilioSmsWebhook      = twilioLine.twilioSmsWebhook;
+exports.twilioSmsStatus       = twilioLine.twilioSmsStatus;
+exports.twilioVoiceWebhook    = twilioLine.twilioVoiceWebhook;
+exports.twilioVoiceDialStatus = twilioLine.twilioVoiceDialStatus;
+
 // ═══════════════════════════════════════════════════════════════
 // AUDIT LOG TRIGGERS (H-4)
 // Loaded from a sibling module to keep index.js tractable.
@@ -427,6 +438,17 @@ Object.assign(exports, calendarFeedFunctions);
 // functions/email-suppression.js. See functions/email-unsubscribe.js.
 const emailUnsubscribeFunctions = require('./email-unsubscribe');
 Object.assign(exports, emailUnsubscribeFunctions);
+
+// Texting compliance (2026-10-05): a company's internal Do Not Text list,
+// managed from the CRM. Enforced in functions/sms-optout.js isOptedOut,
+// which every send path calls. See functions/sms-dnc.js.
+exports.manageSmsCompliance = require('./sms-dnc').manageSmsCompliance;
+
+// "Ok to text this customer from my phone?" (review R2-3-1 / R2-3-2,
+// 2026-10-06): the server check every phone send asks before Messages opens
+// (STOP register + Do Not Text, consent, switch, homeowner-time hours), the
+// sms_log row for a phone send, and "They replied STOP". phone-text-check.js.
+exports.phoneTextAction = require('./phone-text-check').phoneTextAction;
 
 // Resend's own bounce / spam-complaint signal, folded into the same register
 // (sources 'bounce' and 'complaint'). DARK until the owner adds the endpoint
@@ -731,6 +753,13 @@ exports.anniversaryAutoTouch = anniversaryTouch.anniversaryAutoTouch;
 // anything; the owner and all tenant data are untouched.
 const lapseEnforcement = require('./lapse-enforcement');
 exports.enforceLapsedSeats = lapseEnforcement.enforceLapsedSeats;
+
+// ═══════════════════════════════════════════════════════════════
+// MEMBER FILE MOVE — a removed member's stored files go to the owner
+// ═══════════════════════════════════════════════════════════════
+// 2026-10-06 (Jo): removeMember starts the move (member-storage-move.js);
+// this cron finishes any move its inline slice did not, every 5 minutes.
+exports.resumeMemberStorageMoves = require('./member-storage-move-cron').resumeMemberStorageMoves;
 
 // ═══════════════════════════════════════════════════════════════
 // REVIEW REQUEST NUDGE — daily post-win review-ask sweep

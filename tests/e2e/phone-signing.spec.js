@@ -740,54 +740,40 @@ test.describe('phone signing: photo review controls @audit', () => {
   });
 });
 
-// ── homeowner#10: sandbox per-card arrows ──────────────────────────────
-test.describe('phone signing: sandbox stage arrows @audit', () => {
-  test('the arrows that move a card on a phone are finger-sized and work', async ({ browser }) => {
-    test.setTimeout(60_000);
+// ── homeowner#10 → the guided demo (2026-10-06) ───────────────────────
+// The drag-the-pipeline sandbox (and its per-card arrows) was replaced by the
+// guided job story at /pro/sandbox. The phone rule it held is the same one:
+// the one control a prospect needs — Back / Next under the thumb — is
+// finger-sized, is the element under its own centre (not covered), works by
+// tap, and nothing scrolls sideways on any step.
+test.describe('phone signing: guided demo pager @audit', () => {
+  test('Back / Next are finger-sized, reachable, and walk every step with no sideways scroll', async ({ browser }) => {
+    test.setTimeout(90_000);
     for (const width of [...PHONES, DESKTOP]) {
-      await test.step(`${width}px`, async () => {
+      await test.step(width + 'px', async () => {
         const phone = width < 1000;
         const ctx = await browser.newContext(ctxOpts(width));
         try {
           const p = await ctx.newPage();
-          await p.goto('/pro/sandbox.html');
-          await expect(p.locator('.sb-arrow').first()).toBeVisible();
-          const counts = () => p.evaluate(() => [...document.querySelectorAll('.sb-col')].map((c) => c.querySelectorAll('.sb-card').length).join(','));
-          const before = await counts();
-          const sel = '.sb-card .sb-arrow[data-action="next"]';
-          await p.locator(sel).first().scrollIntoViewIfNeeded();
-          const a = await p.evaluate(probeFn, sel);
-          const nav = await p.evaluate(() => {
-            const mark = document.querySelector('.sb-logo .mark').getBoundingClientRect();
-            const cta = document.querySelector('.sb-nav-right a.cta');
-            const badge = document.querySelector('.sb-badge');
-            const lines = (el) => {
-              const c = getComputedStyle(el);
-              const inner = el.getBoundingClientRect().height - parseFloat(c.paddingTop) - parseFloat(c.paddingBottom) - parseFloat(c.borderTopWidth) - parseFloat(c.borderBottomWidth);
-              return Math.round(inner / parseFloat(c.lineHeight));
-            };
-            // The logo's 'NBD PRO' text is an inline span: no padding, so lines() holds.
-            const logoText = document.querySelector('.sb-logo > span:last-child');
-            const vw = document.documentElement.clientWidth;
-            const navRight = Math.max(...[...document.querySelectorAll('.sb-nav *')].filter((e) => e.offsetParent).map((e) => e.getBoundingClientRect().right));
-            return { markW: mark.width, ctaLines: lines(cta), badgeLines: badge.offsetParent ? lines(badge) : 0, logoLines: lines(logoText), navPastEdge: navRight - vw };
-          });
-          if (phone) {
-            expect(a.w, 'arrow width').toBeGreaterThanOrEqual(40);
-            expect(a.h, 'arrow height').toBeGreaterThanOrEqual(36);
-            expect(a.reach, 'arrow is the element under its own centre').toBe(true);
-            expect(nav.markW, 'NBD mark keeps its 32px square').toBeGreaterThanOrEqual(31);
-            expect(nav.ctaLines, 'START FREE on one line').toBeLessThanOrEqual(1);
-            expect(nav.badgeLines, 'sandbox badge on one line (or hidden)').toBeLessThanOrEqual(1);
-            expect(nav.logoLines, 'NBD PRO wordmark on one line').toBeLessThanOrEqual(1);
-            expect(nav.navPastEdge, 'nav content past the right edge').toBeLessThanOrEqual(0);
-          } else {
-            expect(a.h, 'desktop arrows unchanged').toBeLessThanOrEqual(24);
+          await p.goto('/pro/sandbox');
+          const next = p.locator('.sx-pager [data-sx-nav="next"]');
+          await expect(next).toBeVisible();
+          await expect(p.locator('#sx-count')).toHaveText(/Step 1 of 9/);
+          for (const sel of ['.sx-pager [data-sx-nav="next"]', '.sx-pager [data-sx-nav="back"]']) {
+            const a = await p.evaluate(probeFn, sel);
+            expect(a.h, sel + ' height').toBeGreaterThanOrEqual(44);
+            expect(a.w, sel + ' width').toBeGreaterThanOrEqual(phone ? 100 : 120);
+            if (sel.includes('next')) expect(a.reach, sel + ' is the element under its own centre (covered by ' + a.by + ')').toBe(true);
           }
-          const next = p.locator(sel).first();
+          for (let i = 2; i <= 9; i++) {
+            if (phone) await next.tap(); else await next.click();
+            await expect(p.locator('#sx-count')).toHaveText(new RegExp('Step ' + i + ' of 9'));
+            const sideways = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+            expect(sideways, 'step ' + i + ' scrolls sideways').toBeLessThanOrEqual(0);
+          }
           if (phone) await next.tap(); else await next.click();
-          await expect.poll(counts, { message: 'tapping › moved the card to the next stage' }).not.toBe(before);
-          await expect(p.locator('#drawerWrap')).not.toHaveClass(/open/);
+          await expect(p.locator('#sx-count')).toHaveText(/Done/);
+          await expect(p.locator('.sx-cta-main')).toBeVisible();
         } finally {
           await ctx.close();
         }

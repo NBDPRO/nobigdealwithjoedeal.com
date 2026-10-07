@@ -87,8 +87,9 @@ console.log('\nE-SIGN — 3 of 25 doc types ship a default signer block; links e
   ok('code truth: TTL_DAYS is still 14 (this test needs updating if that ever changes)', m && m[1] === '14');
   ok('demo.html no longer says 9 are e-sign ready', countAcross('9 e-sign ready with homeowner') === 0);
   ok('demo.html no longer says links expire after 7 days', countAcross('expire after 7 days') === 0);
-  ok("demo.html matches index.html's already-corrected count", read('docs/pro/demo.html').includes('3 e-sign ready out of the box'));
-  ok('demo.html states the real TTL', read('docs/pro/demo.html').includes('expire after 14 days'));
+  // demo.html was retired 2026-10-06 (301 → /pro/sandbox, the guided demo).
+  ok('demo.html is retired; the guided demo states the real TTL', !fs.existsSync(path.join(DOCS, 'pro', 'demo.html'))
+    && read('docs/pro/sandbox.html').includes('links expire after 14 days'));
 }
 
 // 2026-10-04: the 09-13 fix said texts "send and receive on a shared NBD Pro
@@ -96,17 +97,17 @@ console.log('\nE-SIGN — 3 of 25 doc types ship a default signer block; links e
 // registration and delivered zero texts in 45 days. Texting is "coming soon".
 console.log('\nA2P — texting is coming soon: no A2P registration, so no texts deliver today (shared number included)');
 {
-  ok('demo.html mockup no longer implies A2P is a one-time, already-available toggle',
-     !/SMS delivery activates with one-time carrier \(A2P\) registration\.<\/div>/.test(read('docs/pro/demo.html')));
+  ok('no public page implies A2P is a one-time, already-available toggle',
+     countAcross('SMS delivery activates with one-time carrier (A2P) registration.</div>') === 0);
   ok('no public page claims texts send on a shared NBD Pro number today',
      countAcross('shared NBD Pro number') === 0);
-  ok('demo.html says texting is coming soon', /Texting: coming soon/.test(read('docs/pro/demo.html')));
+  ok('the guided demo says texting from NBD Pro is coming soon', /Texting from NBD Pro itself: coming soon/.test(read('docs/pro/sandbox.html')));
   ok('index.html says texting is coming soon', /Texting: coming soon/.test(read('docs/pro/index.html')));
 }
 
 console.log('\nLEGAL (2026-10-04) — no AOB on the public Pro pages; the FAQ never manages claims or coordinates adjusters');
 {
-  const PUB = ['index', 'pricing', 'register', 'how-to', 'demo'].map((p) => read('docs/pro/' + p + '.html'));
+  const PUB = ['index', 'pricing', 'register', 'how-to', 'sandbox'].map((p) => read('docs/pro/' + p + '.html')).concat([read('docs/pro/js/sandbox-story.js')]);
   ok('no "AOBs" in a public Pro page feature list', PUB.every((s) => !/\bAOBs\b/.test(s)));
   ok('how-to no longer lists AOB as a document', !/AOB, contracts, supplement letters/.test(PUB[3]));
   ok('the "claims management, adjuster coordination" FAQ answer is gone', countAcross('claims management, adjuster coordination') === 0);
@@ -170,12 +171,19 @@ console.log("\nCAP MODAL — enforceGate hard-blocks new leads at 100%; the moda
   ok('the cap modal states leads pause, not "no lockout"', bg.includes('New leads pause until you upgrade or your cycle resets'));
 }
 
-console.log('\nSANDBOX TIERS — relabeled to the live Standard/Preferred/Elite lifetime model (#1529), not the retired 10/15/25-yr one');
+// 2026-10-06 (Jo): the guided demo at /pro/sandbox is a SAMPLE company's
+// estimate, so it makes no lifetime-workmanship claim at all, and GAF System
+// Plus is on Standard and up (Jo 10/05). The full checks live in
+// tests/pro-demo-story-2026-10-06.test.js; these keep the old pins honest.
+console.log('\nSANDBOX TIERS — Standard/Preferred/Elite, System Plus on each, no lifetime or year-count workmanship claims');
 {
-  const sb = read('docs/pro/sandbox.html');
+  // Comments stripped: the file headers may NAME a banned claim to explain the ban.
+  const sb = read('docs/pro/sandbox.html').replace(/<!--[\s\S]*?-->/g, '')
+    + read('docs/pro/js/sandbox-story.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/([;,{}()])\s*\/\/.*$/gm, '$1');
   ok('no 10-yr/15-yr/25-yr workmanship chips remain', !/\d+-yr workmanship|ridge vent · 15-yr|full ice &amp; water · 25-yr/.test(sb));
-  ok('chips now read Standard/Preferred/Elite', sb.includes('<h4>Standard</h4>') && sb.includes('<h4>Preferred</h4>') && sb.includes('<h4>Elite</h4>'));
-  ok("chips claim lifetime workmanship, matching how-to.html's tier table", (sb.match(/lifetime/gi) || []).length >= 3);
+  ok('tiers read Standard/Preferred/Elite', ["label: 'Standard'", "label: 'Preferred'", "label: 'Elite'"].every((l) => sb.includes(l)));
+  ok('no "lifetime" claim anywhere in the demo', !/lifetime/i.test(sb));
+  ok('System Plus is on the tiers', /systemPlus: 'GAF System Plus Limited Warranty included'/.test(sb));
 }
 
 console.log('\nESX EXPORT — the fake "Xactimate Export (ESX)" button is gone; the drawing tool no longer implies it produces a real ESX file');
@@ -377,7 +385,7 @@ console.log('\nLANDING (2026-10-04) — every /pro section claim is tied to the 
     ok('CTA: the demo URL lives in ONE constant (landing-page.js), nowhere in the HTML',
       js.split(demo).length === 2 && /var DEMO_URL = 'https:\/\/cal\.com\/nobigdeal\/nbd-pro-demo';/.test(js) && !idx.includes(demo));
     ok('CTA: every Book a demo button is wired to that constant', buttons.length >= 3 && buttons.every((b) => /data-demo-link/.test(b)));
-    ok('CTA: Try the sandbox goes to the sandbox', has(/<a class="pl-btn pl-btn-ghost" href="\/pro\/sandbox\.html">Try the sandbox<\/a>/));
+    ok('CTA: Try the sandbox goes to the sandbox (canonical extensionless URL)', has(/<a class="pl-btn pl-btn-ghost" href="\/pro\/sandbox">Try the sandbox<\/a>/));
     ok('CTA: paid plan buttons keep the data-plan wiring', ['starter', 'team', 'growth'].every((p) => idx.includes('data-pl-action="goRegister" data-plan="' + p + '"')));
   }
   // Story — Jo's figures; NBD uses independent subcontractor crews

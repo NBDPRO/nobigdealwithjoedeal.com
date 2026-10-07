@@ -172,8 +172,14 @@ section('Phase 1a: shared estimate preview sheet (mobile-first, both doc shapes)
   const cust = read(path.join(PRO_JS, 'customer-bootstrap.module.js'));
   assert('customer viewEstimate prefers EstimatePreview with archive support',
     /window\.viewEstimate = function\(estimateId\)[\s\S]{0,1200}EstimatePreview\.open\(estimate[\s\S]{0,600}onArchive/.test(cust));
+  // Review R5-8-2: the soft-delete write moved into the shared
+  // estimate-lead-sync.js (the dashboard Delete calls it too).
+  const estLeadSync = read(path.join(PRO_JS, 'estimate-lead-sync.js'));
   assert('customer archive path stays a SOFT delete',
-    /EstimatePreview\.open\(estimate[\s\S]{0,1400}deleted: true/.test(cust));
+    /EstimatePreview\.open\(estimate[\s\S]{0,1400}_archiveCustomerEstimate\(estimateId\)/.test(cust)
+      && /async function _archiveCustomerEstimate\(estimateId\) \{[\s\S]{0,800}archiveEstimateAndSyncLead\(/.test(cust)
+      && /deleted: true, deletedAt: fs\.serverTimestamp\(\)/.test(estLeadSync)
+      && !/deleteDoc/.test(estLeadSync.replace(/\/\/.*$/gm, '')));
 
   // Both pages actually load the module.
   const dashHtml = read(path.join(ROOT, 'docs/pro/dashboard.html'));

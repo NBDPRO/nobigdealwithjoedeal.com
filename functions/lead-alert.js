@@ -40,6 +40,11 @@ const _twilio = () => (_twilioSdk = _twilioSdk || require('twilio'));
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const L = require('./lead-bridge-logic');
 const C = require('./tcpa-consent');
+// Homeowner-ack text: the checks every send path makes (2026-10-05).
+const OptOut = require('./sms-optout');
+const TextingGate = require('./sms-texting-gate');
+const SendWindow = require('./sms-send-window');
+const Outbox = require('./sms-outbox-guard');   // nowMs: the one clock seam the send paths share
 const CL = require('./integrations/calcom-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -62,20 +67,23 @@ const ALERT_SMS = '+18594207382'; // Joe's cell — default when a lead has no t
 const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 
 // Resolve who gets the alert for a lead's tenant (Phase C, TenantContext).
-// NBD — and any lead without a configured tenant alert contact — falls back to
-// Joe, so this is byte-identical until a tenant sets companyProfile.brand.contact
-// .alertEmail / .alertSms. A configured tenant gets its leads routed to itself.
+// NBD's leads (no companyId, or the NBD owner uid) go to Joe — byte-identical.
+// A configured tenant gets its leads routed to itself. A non-NBD tenant with
+// NO alert contact is alerted NOWHERE (Jo, 2026-10-05): another company's lead
+// is never sent to Joe. Its CRM Settings shows a 'Set your lead alert
+// contacts' warning instead (dashboard-bootstrap.module.js), and the
+// alert_outbox row records skipped:no-target.
 // isNbd rides along so the homeowner-ack gates key on WHOSE lead it is rather
 // than which brand string happened to resolve.
 async function resolveAlertTarget(companyId) {
   const isNbd = !companyId || String(companyId) === NBD_OWNER_UID;
   const fallback = isNbd
     ? { emails: ALERT_EMAILS, sms: ALERT_SMS, name: 'No Big Deal Home Solutions', seal: 'NBD', isNbd: true }
-    // Unresolved NON-NBD tenant: keep Joe's ROUTING as the backstop (the lead
-    // must not vanish unseen) but never his brand — per the #1129 convention
-    // the tenant arm gets empty strings, and isNbd:false keeps the homeowner
-    // acks (Joe-branded copy) from firing at another company's customer.
-    : { emails: ALERT_EMAILS, sms: ALERT_SMS, name: '', seal: '', isNbd: false };
+    // Unresolved NON-NBD tenant: no routing at all (never Joe's inbox or
+    // cell) and never his brand — empty strings per the #1129 convention, and
+    // isNbd:false keeps the homeowner acks (Joe-branded copy) from firing at
+    // another company's customer. The lead itself is still in their CRM.
+    : { emails: null, sms: null, name: '', seal: '', isNbd: false };
   if (isNbd) return fallback;
   try {
     const snap = await getFirestore().collection('companyProfile').doc(String(companyId)).get();
@@ -134,7 +142,13 @@ function summarize(d) {
   const email = d.email || '';
   const story = d.story || d.message || d.details || '';
   const concern = d.concern || '';
-  return { name, phone, address, email, story, concern };
+  // Form answers that used to be stored but never shown (R5-9-2..4): the
+  // contact form's service, the Free Roof category (labelled), and the
+  // /estimate ballpark the homeowner was shown. All rendered through esc().
+  const service = d.service || '';
+  const category = d.category ? L.freeRoofCategoryLabel(d.category) : '';
+  const ballpark = L.ballparkText(d);
+  return { name, phone, address, email, story, concern, service, category, ballpark };
 }
 
 // `notice` (optional) is a caller-supplied warning rendered above the details:
@@ -162,6 +176,9 @@ function emailHtml(label, source, s, leadId, name, notice) {
         ${row('Address', s.address)}
         ${row('Email', s.email)}
         ${row('Concern', s.concern ? (CONCERN_LABEL[s.concern] || s.concern) : '')}
+        ${row('Service', s.service)}
+        ${row('Category', s.category)}
+        ${row('Ballpark shown', s.ballpark)}
         ${row('Message', s.story)}
       </table>
       ${telDigits ? `<p style="text-align:center;margin:22px 0 6px"><a href="tel:${telDigits}" style="display:inline-block;background:#BD5728;color:#fff;padding:13px 30px;border-radius:6px;text-decoration:none;font-weight:700;font-size:16px">Call ${esc(s.phone)}</a></p>` : ''}
@@ -179,6 +196,9 @@ function smsBody(label, source, s, seal, notice) {
   if (notice && notice.sms) lines.unshift(notice.sms);
   if (s.address) lines.push(s.address);
   if (s.concern) lines.push('Concern: ' + (CONCERN_LABEL[s.concern] || s.concern));
+  if (s.service) lines.push('Service: ' + s.service);
+  if (s.category) lines.push('Category: ' + s.category);
+  if (s.ballpark) lines.push('Shown ' + s.ballpark);
   if (s.story) lines.push(String(s.story).slice(0, 200));
   return lines.join('\n').slice(0, 480);
 }
@@ -413,6 +433,25 @@ async function ackHomeownerSms(collection, d, leadId, target) {
   const digits = String(d.phone || d.phoneNumber || '').replace(/[^\d]/g, '');
   if (digits.length !== 10 && !(digits.length === 11 && digits[0] === '1')) return;
   const to = '+1' + digits.slice(-10);
+  // 2026-10-05 (texting review): the same three checks as every other send
+  // path — the STOP register + the company's Do Not Text list, the company's
+  // texting master switch, and texting hours in the homeowner's time. Any
+  // read error skips the ack (fail closed); the ack is a courtesy, never
+  // worth a text to someone who said stop.
+  const tenantKey = TextingGate.tenantKeyOfRecord(d) || TextingGate.NBD_OWNER_UID;
+  try {
+    const opt = await OptOut.isOptedOut(getFirestore(), to, { companyId: tenantKey, timeoutMs: OptOut.READ_TIMEOUT_MS });
+    if (opt.optedOut) { logger.info('leadAck: sms suppressed', { collection, leadId, reason: 'opted_out' }); return; }
+    const status = await TextingGate.textingStatus(getFirestore(), tenantKey);
+    if (!status.allowed) { logger.info('leadAck: sms suppressed', { collection, leadId, reason: 'texting_' + status.reason }); return; }
+  } catch (e) {
+    logger.error('leadAck: sms suppressed — compliance check unreadable', { collection, leadId, err: e && e.message });
+    return;
+  }
+  if (!SendWindow.withinRecipientWindow(Outbox.nowMs(), d)) {
+    logger.info('leadAck: sms suppressed', { collection, leadId, reason: 'quiet_hours' });
+    return;
+  }
   try {
     const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
     const firstName = String(d.firstName || '').trim();

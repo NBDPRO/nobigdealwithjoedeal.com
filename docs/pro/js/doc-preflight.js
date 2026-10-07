@@ -128,6 +128,9 @@
    *   "lead.firstName"          — pull from window._leadDoc
    *   "estimate.grandTotal"     — pull from first estimate
    *   "estimate.lineItems"      — map estimate.lineItems to doc line-items
+   *   "estimate.invoiceLineItems" — the same, minus the Sales tax / Rounding
+   *                               footing rows (the invoice prints those from
+   *                               its own Tax Rate (%) + rounding row)
    *   "photos"                  — all photos
    *   "photos.before"           — photos with phase=='before'
    *   "photos.after"            — photos with phase=='after'
@@ -301,6 +304,7 @@
     if (typeof src === 'string' && src.indexOf('estimate.') === 0) {
       var key = src.slice('estimate.'.length);
       if (key === 'lineItems') return mapEstimateLineItems(ctx.estimate);
+      if (key === 'invoiceLineItems') return withoutFootingRows(mapEstimateLineItems(ctx.estimate));
       // A Job Template estimate saves no tier (2026-09-25). Its warranty
       // wording tier comes from its job type: 'better' for roofing (the value
       // that flow always saved, so roofing paperwork is unchanged) and '' for
@@ -402,6 +406,20 @@
     return (Array.isArray(items) ? items : []).reduce(function (s, it) { return s + lineItemCents(it); }, 0);
   }
 
+  // buildDocLineItems (customer-estimate-rows.js, R2-2-2 #2247) ends a
+  // classic estimate's lines with derived footing rows — "Sales tax (r%)"
+  // (code TAX) and "Rounding" / "Minimum job charge adjustment" (code ADJ) —
+  // so a contract foots to the price. They are computed from the saved
+  // subtotal/tax/grandTotal on every read, so they are never saved back as
+  // priced lines, and the invoice (which prints tax from its Tax Rate (%) and
+  // the rounding row below) prefills without them so tax is not counted twice.
+  function isFootingRow(it) {
+    return !!it && (it.code === 'TAX' || it.code === 'ADJ');
+  }
+  function withoutFootingRows(items) {
+    return (Array.isArray(items) ? items : []).filter(function (it) { return !isFootingRow(it); });
+  }
+
   // The money in a list of lines (qty, rate, amount per row) — rewording a
   // description is not a price change.
   function lineItemsMoneyKey(items) {
@@ -488,8 +506,14 @@
         return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
       case 'todayISO':
         return toDateInput(new Date());
-      case 'jobValue':
-        return lead.jobValue || est.grandTotal || est.total || est.amount || 0;
+      case 'jobValue': {
+        // The estimate being documented wins over lead.jobValue (review
+        // R2-2-4, 2026-10-06): a revised estimate's contract prefilled the
+        // lead's older number. lead.jobValue only when no estimate is selected
+        // or it carries no price.
+        var estPrice = Number(est.grandTotal || est.total || est.amount) || 0;
+        return estPrice > 0 ? estPrice : (lead.jobValue || 0);
+      }
       case 'invoiceTaxRatePct':
         return invoiceTaxRatePct(ctx.estimate);
       case 'invoiceNumber':
@@ -535,9 +559,14 @@
           return (_m && _m.manufacturerName && _m.manufacturerName !== _m.manufacturer + ' shingles') ? _m.manufacturerName : '';
         } catch (e) { return ''; }
       case 'dueDate':
-        var d = new Date();
-        d.setDate(d.getDate() + 30);
-        return toDateInput(d);
+        // The ONE invoice due-date rule (deposit-rule.js INVOICE_DUE_DAYS —
+        // Jo 2026-10-05: 7 days everywhere). This said +30, so a generated
+        // invoice disagreed with the CRM invoice and the Stripe invoice.
+        var _drDue = window.NBDDepositRule;
+        return toDateInput(new Date(_drDue ? _drDue.invoiceDueDateMs(Date.now()) : Date.now() + 7 * 86400000));
+      case 'invoiceTerms':
+        var _drTerms = window.NBDDepositRule;
+        return (_drTerms ? _drTerms.netTermsText() : 'Net 7.') + ' Check, ACH, or credit card accepted.';
       case 'scopeItems':
         // Prefer lead.scopeOfWork as newline list, else estimate description
         var raw = lead.scopeOfWork || est.description || '';
@@ -596,34 +625,34 @@
     { key: 'companyEmail',   label: 'Company Email', type: 'email', source: 'literal:info@nobigdealwithjoedeal.com', persist: PERSIST.DOCUMENT }
   ];
 
-  // GBB audit, 2026-09-09: was 5yr/10yr/20yr — the generator this feeds
-  // (document-generator.js renderWarrantyBadge) now prints Lifetime
-  // workmanship for every tier (estimate-config.js TIER_DISPLAY); only
-  // transferability/inspection and manufacturer coverage vary by tier.
+  // Jo, 2026-10-06 (final): each package carries a WRITTEN labor warranty —
+  // Economy 1, Good/Standard 5, Better/Preferred 10, Best/Elite 20 years
+  // (estimate-config.js TIER_LABOR_YEARS; Beyond = Elite's 20) —
+  // plus the NBD Pledge (a promise, never a "lifetime warranty").
   // Five tiers (Jo, 2026-10-02): Economy is a 1-YEAR labor warranty + the
   // shingle maker's standard limited warranty, NO system warranty; Beyond is
   // Best's terms + TAMKO's HailGuard hail warranty.
   var WARRANTY_TIER_OPTIONS = [
     { value: 'economy', label: 'Economy — 1-Year Labor + Mfr Standard Limited (no system warranty)' },
-    { value: 'good',   label: 'Good — Lifetime Workmanship + Standard Mfr' },
-    { value: 'better', label: 'Better — Lifetime Workmanship + Enhanced Mfr (transferable)' },
-    { value: 'best',   label: 'Best — Lifetime Workmanship + Premium Mfr (fully transferable + inspection)' },
-    { value: 'beyond', label: 'Beyond — Lifetime Workmanship + TAMKO HailGuard hail warranty (fully transferable + inspection)' }
+    { value: 'good',   label: 'Good — 5-Year Labor + Mfr per package' },
+    { value: 'better', label: 'Better — 10-Year Labor + Mfr per package (transferable)' },
+    { value: 'best',   label: 'Best — 20-Year Labor + Mfr per package (fully transferable + inspection)' },
+    { value: 'beyond', label: 'Beyond — 20-Year Labor + TAMKO HailGuard hail warranty (fully transferable + inspection)' }
   ];
 
   // The tier's workmanship sentence: estimate-config.js tierWarrantyText when
   // loaded (it isn't on customer.html), else this copy of it. An unknown tier
-  // gets the plain lifetime sentence with no transfer/inspection perks.
+  // gets a plain "per your package" sentence with no transfer/inspection perks.
   function tierWarrantySentence(tier) {
     var cfg = (typeof window !== 'undefined') ? window.NBD_ESTIMATE_CONFIG : null;
     if (cfg && typeof cfg.tierWarrantyText === 'function') return cfg.tierWarrantyText(tier);
     return ({
-      economy: '1-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.',
-      good:    'Lifetime workmanship warranty; does not transfer on sale of property.',
-      better:  'Lifetime workmanship warranty; transferable to one subsequent owner within 30 days of sale.',
-      best:    'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included.',
-      beyond:  'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
-    })[tier] || 'Lifetime workmanship warranty.';
+      economy: '1-year written workmanship (labor) warranty; does not transfer on sale of property; the shingle manufacturer\'s standard limited warranty applies; no system warranty.',
+      good:    '5-year written workmanship (labor) warranty; does not transfer on sale of property; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      better:  '10-year written workmanship (labor) warranty; transferable to one subsequent owner within 30 days of sale; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      best:    '20-year written workmanship (labor) warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      beyond:  '20-year written workmanship (labor) warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
+    })[tier] || 'Written workmanship (labor) warranty per your package — see your estimate.';
   }
 
   var DOC_SCHEMAS = {
@@ -1031,7 +1060,7 @@
           id: 'items', title: 'Line Items & Totals', collapsed: false,
           fields: [
             { key: 'lineItems', label: 'Line Items', type: 'line-items', required: true,
-              source: 'estimate.lineItems', persist: PERSIST.DOCUMENT },
+              source: 'estimate.invoiceLineItems', persist: PERSIST.DOCUMENT },
             { key: 'subtotal', label: 'Subtotal', type: 'currency', required: true,
               source: 'computed.jobValue', persist: PERSIST.DOCUMENT },
             // A PERCENT (7 = 7%), prefilled from the estimate's saved decimal
@@ -1050,7 +1079,7 @@
           id: 'terms', title: 'Payment Terms', collapsed: true,
           fields: [
             { key: 'paymentTerms', label: 'Payment Terms', type: 'textarea', rows: 2,
-              source: 'literal:Net 30. Check, ACH, or credit card accepted.',
+              source: 'computed.invoiceTerms',
               persist: PERSIST.DOCUMENT }
           ]
         }
@@ -2027,8 +2056,8 @@
   // five invoices generated on 2026-08-18 carrying no street address.
   // These check the address is actually deliverable. See
   // documentation/audit/CRM-ADDRESS-INTEGRITY-2026-08-18.md.
-  var ADDR_HOUSE_NUMBER = /^\s*\d+[a-zA-Z]?\s+\S/;   // "1944 Kentucky Ave"
-  var ADDR_LEGACY_MANGLED = /^\s*\d+[a-zA-Z]?\s*,/;   // "7003, Greenstone Trace, ..."
+  var ADDR_HOUSE_NUMBER = /^\s*\d+[a-zA-Z]?\s+\S/;   // "100 Kentucky Ave"
+  var ADDR_LEGACY_MANGLED = /^\s*\d+[a-zA-Z]?\s*,/;   // "7003, Wrenfield Trace, ..."
   var ADDR_ZIP = /\b\d{5}(-\d{4})?\b/;
   var ADDR_STATE = /\b(OH|KY|IN)\b/i;
 
@@ -2238,13 +2267,13 @@
         '</div></div></div>';
     }
     // GBB audit, 2026-09-09: was 5/10/20-year — see WARRANTY_TIER_OPTIONS above.
-    // Five tiers since 2026-10-02 — Economy is 1-year labor, never lifetime.
+    // Five tiers since 2026-10-02; written labor years by package (Jo, 2026-10-06).
     var tiers = [
       { id: 'economy', name: 'Economy', tag: '1-Year Labor',              desc: '1-year workmanship (labor) warranty. Shingle manufacturer\'s standard limited warranty; no system warranty.' },
-      { id: 'good',   name: 'Good',   tag: 'Lifetime Workmanship',        desc: 'Lifetime workmanship warranty, non-transferable. Standard manufacturer coverage.' },
-      { id: 'better', name: 'Better', tag: 'Lifetime + Enhanced Mfr',     desc: 'Lifetime workmanship, transferable to 1 subsequent owner. Enhanced manufacturer coverage.' },
-      { id: 'best',   name: 'Best',   tag: 'Lifetime + Premium Mfr',      desc: 'Lifetime workmanship, fully transferable + annual inspection. Premium manufacturer coverage.' },
-      { id: 'beyond', name: 'Beyond', tag: 'Lifetime + HailGuard Hail',   desc: 'Lifetime workmanship, fully transferable + annual inspection. TAMKO HailGuard shingles with TAMKO\'s hail warranty.' }
+      { id: 'good',   name: 'Good',   tag: '5-Year Labor',                desc: '5-year written workmanship (labor) warranty, non-transferable. Manufacturer warranty per package.' },
+      { id: 'better', name: 'Better', tag: '10-Year Labor',               desc: '10-year written workmanship (labor) warranty, transferable to 1 subsequent owner. Manufacturer warranty per package.' },
+      { id: 'best',   name: 'Best',   tag: '20-Year Labor',               desc: '20-year written workmanship (labor) warranty, fully transferable + annual inspection. Manufacturer warranty per package.' },
+      { id: 'beyond', name: 'Beyond', tag: '20-Year Labor + HailGuard',   desc: '20-year written workmanship (labor) warranty, fully transferable + annual inspection. TAMKO HailGuard shingles with TAMKO\'s hail warranty.' }
     ];
     var cur = (value || 'better').toLowerCase();
     var cards = tiers.map(function (t) {
@@ -2804,7 +2833,10 @@
       toast('Firestore not available.', 'error');
       return;
     }
-    var items = state.values[fieldKey] || [];
+    // Footing rows (Sales tax / Rounding, see isFootingRow) are re-derived
+    // from subtotal/tax/grandTotal on every read; saved as plain lines they
+    // would lose their code and print the tax twice on the next document.
+    var items = withoutFootingRows(state.values[fieldKey] || []);
     var mapped = items.map(function (it) {
       var qty = parseFloat(it.qty) || 0;
       var rate = parseFloat(it.rate) || 0;
@@ -2827,7 +2859,7 @@
     // minimum. It was set to the bare line sum, so Save with no edits turned
     // a $525 estimate into $480 (2026-10-05). Unchanged lines keep the saved
     // totals; changed lines re-total by the quote's own rule.
-    var linesChanged = lineItemsMoneyKey(items) !== lineItemsMoneyKey(mapEstimateLineItems(est));
+    var linesChanged = lineItemsMoneyKey(items) !== lineItemsMoneyKey(withoutFootingRows(mapEstimateLineItems(est)));
     var totals = (!perSqLocked && linesChanged) ? quoteTotalsCents(est, lineItemsCents(items)) : null;
     var estUpdate = {
       lineItems: mapped,
@@ -3221,8 +3253,8 @@
     data.homeownerAddress = data.address || data.homeownerAddress || '';
     data.propertyAddress = data.address || '';
 
-    // Extra properties worked under one job (Anthony Scandariato: 1944 AND
-    // 1942 Kentucky Ave on invoice NBD-2026-0810-RK). Sourced from the lead
+    // Extra properties worked under one job (Customer ET: 100 AND
+    // 102 Kentucky Ave on invoice NBD-2026-0810-XXXX). Sourced from the lead
     // — the rep maintains them on the customer record, documents just
     // reflect them — so there is no per-document copy to drift. Always an
     // array; renderers omit the SERVICE LOCATIONS block when it is empty.
@@ -3268,9 +3300,22 @@
     if (data.warranty == null && data.warrantyTier) {                                                                // contract (renderer's "5 · Warranty"
       // section is dropped entirely when warranty is null/empty). Mirrors
       // renderWarrantyBadge's composition. Five tiers since 2026-10-02.
-      var _wTxt = tierWarrantySentence(data.warrantyTier);
-      var _wMfg = window.NBDDocGen && window.NBDDocGen.MANUFACTURER_COVERAGE && window.NBDDocGen.MANUFACTURER_COVERAGE[data.warrantyTier]; // (2026-09-09 GBB
-      data.warranty = _wMfg ? (_wTxt + ' ' + _wMfg.level + ' manufacturer coverage — ' + _wMfg.note) : _wTxt;          // tier consolidation, #1529)
+      // Two separate lines (Jo, 2026-10-06): the workmanship warranty — NBD's
+      // NBD Pledge, or another company's OWN configured sentence ('' = none,
+      // never NBD's ladder) — and the manufacturer warranty THIS job bought
+      // (the estimate's shingle + any extended manufacturer warranty sold).
+      // Replaces the tier-guessed "Enhanced/Premium manufacturer coverage".
+      var _wTR = window.NBDTenantRules;
+      var _wTenant = !!(_wTR && typeof _wTR.isPlatformTenant === 'function' && _wTR.isPlatformTenant() === false);
+      var _wEst = state.estimate || null;
+      var _wLines = (_wTR && typeof _wTR.warrantyLines === 'function')
+        ? _wTR.warrantyLines({ tier: data.warrantyTier, isNbd: !_wTenant, lineItems: manufacturerItems(_wEst), extendedWarranty: (_wEst && _wEst.extendedWarranty) || data.extendedWarranty || null })
+        : null;
+      data.warranty = _wTenant ? ((_wLines && _wLines.workmanship) || '') : tierWarrantySentence(data.warrantyTier);
+      if (data.manufacturerWarranty == null && _wLines) data.manufacturerWarranty = _wLines.manufacturer;
+      if (_wLines) data.warrantyIsPledge = !_wTenant && !!_wLines.isPledge;
+      // NBD's Pledge (a promise, every tier) prints as its own block (2026-10-06).
+      if (_wLines && !_wTenant && _wLines.pledge) data.warrantyPledge = _wLines.pledge;
     }
     if (data.scopeSummary == null && data.scopeCompleted) data.scopeSummary = data.scopeCompleted;                     // certificate_of_completion
 
@@ -3282,7 +3327,7 @@
     // Scoped to the documents that read each field, so every other
     // document's merge data stays exactly what it was.
     var _est = state.estimate || null;
-    if ((state.type === 'warranty_certificate' || state.type === 'material_selection') && data.estimateLineItems == null) {
+    if ((state.type === 'warranty_certificate' || state.type === 'material_selection' || state.type === 'proposal_options') && data.estimateLineItems == null) {
       data.estimateLineItems = manufacturerItems(_est);
     }
     // Good-Better-Best options: every tier price the estimate saved (dollars,
@@ -3308,7 +3353,7 @@
     // actually reaches this template (today it's masked by an unrelated
     // paymentSchedule.map crash in _buildServerPayload that falls back to the
     // client renderer first — see the audit's "fix both together" note).
-    // Same lifetime+transferability model every other generator reads;
+    // Same written-years + transferability model every other generator reads;
     // window.NBD_ESTIMATE_CONFIG isn't loaded on customer.html (only
     // dashboard.html), so this needs the same local fallback pattern used
     // elsewhere (_v2TierLabel() etc.) rather than assuming the config global.
@@ -3353,7 +3398,7 @@
       var _invEst = state.estimate || null;
       if (_invEst && !isPerSqEstimate(_invEst)
           && Math.abs(_pct - invoiceTaxRatePct(_invEst)) < 1e-9
-          && lineItemsMoneyKey(data.lineItems) === lineItemsMoneyKey(mapEstimateLineItems(_invEst))) {
+          && lineItemsMoneyKey(data.lineItems) === lineItemsMoneyKey(withoutFootingRows(mapEstimateLineItems(_invEst)))) {
         var _grandC = estimateGrandCents(_invEst);
         var _adjC = _grandC - _subC - _taxC;
         var _isFloor = !!_invEst.minJobApplied && _adjC > 0;

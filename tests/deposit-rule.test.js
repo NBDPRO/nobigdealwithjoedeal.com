@@ -958,35 +958,39 @@ function closeBoardPage(price, mode, deductible) {
     const ui = read('docs/pro/js/job-templates-ui.js').replace(/\r\n/g, '\n');
     ok('the build screen passes the selected lead\'s deductible (deductibleOrOwedByHO)', /opts\.deductible = Number\(leadDed\)/.test(ui) && /lead\.deductibleOrOwedByHO/.test(ui));
 
-    // sandbox.html's demo, run for real with the rule loaded first.
-    const els = {};
-    const mk = () => ({ _h: '', set innerHTML(v) { this._h = String(v); }, get innerHTML() { return this._h; }, textContent: '',
-      classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } }, setAttribute() {}, getAttribute() { return null; },
-      addEventListener() {}, appendChild() {}, querySelector: () => null, querySelectorAll: () => [], closest: () => null, style: {}, dataset: {} });
-    const sb = { console: { log() {}, warn() {}, error() {} }, JSON, Math, Number, String, Array, Object, Date, setTimeout, clearTimeout,
-      document: { querySelector: (s) => (els[s] = els[s] || mk()), querySelectorAll: () => [], getElementById: (id) => (els['#' + id] = els['#' + id] || mk()),
-        addEventListener() {}, createElement: mk, documentElement: mk(), body: mk() },
-      localStorage: { getItem: () => null, setItem() {} }, matchMedia: () => ({ matches: false, addEventListener() {} }) };
+    // sandbox.html's guided demo (2026-10-06, replaced the drag-the-pipeline
+    // sandbox), run for real with the Kentucky law + the rule loaded first.
+    const sb = { console: { log() {}, warn() {}, error() {} } };
     sb.window = sb;
     vm.createContext(sb);
     let demoErr = null;
+    let ky = '', cash = '';
     try {
+      vm.runInContext(read('docs/pro/js/ky-insurance-law.js'), sb, { filename: 'ky-insurance-law.js' });
       vm.runInContext(read('docs/pro/js/deposit-rule.js'), sb, { filename: 'deposit-rule.js' });
-      vm.runInContext(read('docs/pro/js/sandbox-demo.js'), sb, { filename: 'sandbox-demo.js' });
+      vm.runInContext(read('docs/pro/js/sandbox-story.js'), sb, { filename: 'sandbox-story.js' });
+      const D = sb.NBDProDemo;
+      const st = D.freshState();
+      ky = stripTags(D.renderScreen('sign', st));
+      st.mode = 'retail';
+      cash = stripTags(D.renderScreen('sign', st));
     } catch (e) { demoErr = e; }
-    const summary = stripTags((els['#estSummary'] || { innerHTML: '' }).innerHTML);
-    ok('sandbox demo: the selected tier states the rule\'s deposit ($12,300 → "Due at signing $6,150"), not a hard-coded "50% deposit"',
-      !demoErr && /Due at signing \$6,150/.test(summary) && !/50% deposit/.test(summary), (demoErr && demoErr.message) || summary);
+    ok('sandbox demo, Kentucky insurance job: the rule\'s "Nothing is due at signing" and the deductible after the decision + window',
+      !demoErr && /Nothing is due at signing/.test(ky) && /After your insurer’s written coverage decision and the 5-business-day cancellation window/.test(ky)
+      && !/Due at signing/.test(ky), (demoErr && demoErr.message) || ky.slice(0, 300));
+    ok('sandbox demo, retail job: the rule\'s deposit ($17,160 → "Due at signing: $8,575"), not a hard-coded figure',
+      !demoErr && /Due at signing: \$8,575/.test(cash) && /50% deposit/.test(cash), (demoErr && demoErr.message) || cash.slice(0, 300));
     const sbHtml = read('docs/pro/sandbox.html');
-    ok('sandbox.html loads deposit-rule.js (deferred) before the demo', /<script defer src="\/pro\/js\/deposit-rule\.js\?v=\d+"><\/script>/.test(sbHtml)
-      && sbHtml.indexOf('js/deposit-rule.js') < sbHtml.indexOf('js/sandbox-demo.js'));
+    ok('sandbox.html loads ky-insurance-law.js and deposit-rule.js (deferred) before the demo', /<script defer src="\/pro\/js\/deposit-rule\.js\?v=\d+"><\/script>/.test(sbHtml)
+      && sbHtml.indexOf('js/ky-insurance-law.js') < sbHtml.indexOf('js/sandbox-story.js')
+      && sbHtml.indexOf('js/deposit-rule.js') < sbHtml.indexOf('js/sandbox-story.js'));
   }
 
   // ══════════════════════════════════════════════════════════════════
   section('11. KENTUCKY INSURANCE — nothing at signing (Jo, 2026-09-27; KRS 367.626)');
   // ══════════════════════════════════════════════════════════════════
   {
-    const KY = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+    const KY = '100 Kentucky Ave, Fort Thomas, KY 41075';
     const OHA = '1 Elm St, Cincinnati, OH 45202';
     const WHEN = 'After your insurer’s written coverage decision and the 5-business-day cancellation window';
     const k1 = R.compute({ total: 15000, mode: 'insurance', deductible: 2000, acv: 10500, address: KY });
@@ -1053,7 +1057,7 @@ function closeBoardPage(price, mode, deductible) {
   // used to look at est.mode only, so the same KY lead priced in cash mode
   // printed those notices AND a 50% deposit at signing (KRS 367.626).
   {
-    const KY = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+    const KY = '100 Kentucky Ave, Fort Thomas, KY 41075';
     const OHA = '1 Elm St, Cincinnati, OH 45202';
     const J = W.NBDJurisdiction;
     const kyClaimLead = { id: 'lead_kyc', firstName: 'Kay', lastName: 'Why', address: KY, claimNumber: 'CLM-77' };
@@ -1109,7 +1113,7 @@ function closeBoardPage(price, mode, deductible) {
   // Same law as section 12: a KY lead with a claim on file is an insurance
   // job even when priced in cash mode; nothing may be due at signing.
   {
-    const KY = '1944 Kentucky Ave, Fort Thomas, KY 41075';
+    const KY = '100 Kentucky Ave, Fort Thomas, KY 41075';
     const OHA = '1 Elm St, Cincinnati, OH 45202';
     const kyClaimLead = { id: 'lead_kyc2', firstName: 'Kay', lastName: 'Why', address: KY, claimNumber: 'CLM-88' };
     const ohClaimLead = { id: 'lead_ohc2', firstName: 'Oh', lastName: 'Io', address: OHA, claimNumber: 'CLM-89' };
@@ -1167,7 +1171,7 @@ function closeBoardPage(price, mode, deductible) {
       };
       sb.window = sb; sb.addEventListener = () => {}; sb.showToast = () => {}; sb.open = () => null;
       sb._db = null; sb._user = { uid: 'u1' }; sb._userClaims = { companyId: 'c1' };
-      sb._companyProfile = { brand: { contact: { mailingAddress: '6563 Manila Rd, Goshen, OH 45122', email: 'x@nbd.test' } } };
+      sb._companyProfile = { brand: { contact: { mailingAddress: '123 Main St, Goshen, OH 45122', email: 'x@nbd.test' } } };
       sb.getLineItems = () => [];
       vm.createContext(sb);
       vm.runInContext(read('docs/pro/js/deposit-rule.js'), sb, { filename: 'deposit-rule.js' });

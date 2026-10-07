@@ -40,7 +40,7 @@ console.log('\n2. pipeline cards (Jo J3)');
   ok('no lead → no cards', JS.cardsFor(null, [job('j1')]).length === 0);
 }
 {
-  // Pat Schwemlein: the shake repair is closed but not yet paid in full; a
+  // Pat Oakfield: the shake repair is closed but not yet paid in full; a
   // caulk job is added → TWO open cards.
   const l = lead({ stage: 'closed', stageRole: 'won', jobValue: 250 });
   const cards = JS.cardsFor(l, [job('j1', { stage: 'closed', stageRole: 'won' }), job('j2', { stage: 'new', stageRole: 'new', jobValue: 180, title: 'Caulk + sealant' })]);

@@ -439,6 +439,9 @@ const VERDICTS = {
   // Roof Care Plan (care-plan.js): the CRM actions are owner / NBD company_admin
   // only; the checkout + portal endpoint and the Stripe webhook are public.
   carePlanAdmin: 'role-gated', carePlanPublic: 'public', carePlanWebhook: 'public',
+  // NBD's Twilio line (twilio-line.js, 2026-10-06): Twilio webhooks — no user
+  // auth, X-Twilio-Signature verified instead (like incomingSMS).
+  twilioSmsWebhook: 'public', twilioSmsStatus: 'public', twilioVoiceWebhook: 'public', twilioVoiceDialStatus: 'public',
   // Google Calendar sync (2026-09-29): owner / owner's company_admin / platform admin only.
   setupGoogleCalendar: 'role-gated', getGoogleCalendarStatus: 'role-gated', getBusyTimes: 'role-gated',
   // Social Studio (2026-10-04): requireSocialManager refuses viewer / rep / manager.
@@ -466,6 +469,14 @@ const VERDICTS = {
   getHailHistory: 'read-paid',
   integrationAvailability: 'read', integrationStatus: 'role-gated', listTeamMembers: 'role-gated',
   lookupParcel: 'read-paid', markEmailUnsubscribed: 'already', mintOwnerClaims: 'role-gated',
+  // Texting compliance (2026-10-05, sms-dnc.js): list is a read; add refuses a
+  // viewer / member itself; remove goes through requireTeamAdmin. Proven in
+  // tests/sms-dnc-2026-10-05.test.js section D.
+  manageSmsCompliance: 'already',
+  // "Ok to text from my phone?" + phone-send log + "They replied STOP"
+  // (phone-text-check.js, 2026-10-06): refuses viewer / member itself before
+  // any read. Proven in tests/texting-r2-fixes-2026-10-06.test.js.
+  phoneTextAction: 'already',
   notifyNewLead: 'public', previewAiPersona: 'refused', provisionE2ETestUser: 'role-gated',
   registerDeviceFingerprint: 'self', removeMember: 'role-gated', renderPdf: 'refused',
   replyToPortalMessage: 'refused', requestAccountErasure: 'self', requestMeasurement: 'refused',

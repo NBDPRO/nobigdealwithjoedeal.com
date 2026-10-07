@@ -54,11 +54,12 @@ ok('labels: Economy / Standard / Preferred / Elite / Beyond', TIERS.map(C.tierLa
 ok('catalog pricing column: economy → good, beyond → best, others unchanged', C.productTier('economy') === 'good' && C.productTier('beyond') === 'best' && C.productTier('better') === 'better');
 const eco = C.tierWarrantyText('economy');
 ok('Economy warranty: 1-year labor + manufacturer limited, NO system warranty, never "lifetime"',
-  /1-year workmanship/.test(eco) && /limited warranty/.test(eco) && /No system warranty/.test(eco) && !/lifetime/i.test(eco), eco);
-ok('Economy blurb says 1-year labor', C.tierWarrantyBlurb('economy') === '1-year labor warranty');
+  /1-year written workmanship/.test(eco) && /limited warranty/.test(eco) && /no system warranty/i.test(eco) && !/lifetime/i.test(eco), eco);
+ok('Economy blurb says 1-year labor', /^1-year labor warranty/.test(C.tierWarrantyBlurb('economy')), C.tierWarrantyBlurb('economy'));
 const bey = C.tierWarrantyText('beyond');
 ok('Beyond warranty: Elite terms + TAMKO HailGuard hail warranty', /fully transferable/.test(bey) && /annual courtesy inspection/.test(bey) && /HailGuard hail warranty/.test(bey), bey);
-ok('Good/Better/Best wording unchanged (still lifetime)', TIERS.slice(1, 4).every((t) => /^Lifetime workmanship warranty/.test(C.tierWarrantyText(t))));
+// Jo, 2026-10-06 (final): written labor years by package — never "lifetime".
+ok('Good/Better/Best: 5 / 10 / 20-year written labor warranty, never lifetime', ['5', '10', '20'].every((y, i) => new RegExp('^' + y + '-year written workmanship \\(labor\\) warranty').test(C.tierWarrantyText(TIERS[i + 1])) && !/lifetime/i.test(C.tierWarrantyText(TIERS[i + 1]))));
 ok('a rate generation stamp exists (device-saved rates are checked against it)', typeof C._ratesVersion === 'string' && C._ratesVersion.length >= 10);
 
 console.log('\n2. Shingle locks');
@@ -162,7 +163,7 @@ ok('estimate-rows labels all five, both copies identical', /economy: 'Economy'/.
     const html5 = CB.generatePageHTML({ id: 'd1', customerName: 'Pat', address: '1 Test St, Milford OH', tiers: { economy: t(9000), good: t(11000), better: t(13000), best: t(15000), beyond: t(17000) } });
     const order = [...html5.matchAll(/data-deal-tier="(\w+)"/g)].map((m) => m[1]).join();
     ok('the deal page shows all five priced tiers, cheapest first', order === TIERS.join(), order);
-    ok('...with Beyond described as TAMKO HailGuard and Economy as 1-year labor', /TAMKO HailGuard/.test(html5) && /1-year workmanship \(labor\) warranty/.test(html5));
+    ok('...with Beyond described as TAMKO HailGuard and Economy as 1-year labor', /TAMKO HailGuard/.test(html5) && /1-year written workmanship \(labor\) warranty/.test(html5));
     const html3 = CB.generatePageHTML({ id: 'd2', customerName: 'Pat', address: '1 Test St, Milford OH', tiers: { good: t(11000), better: t(13000), best: t(15000) } });
     ok('an older three-tier deal renders exactly its three', [...html3.matchAll(/data-deal-tier="(\w+)"/g)].map((m) => m[1]).join() === 'good,better,best');
     const html0 = CB.generatePageHTML({ id: 'd3', customerName: 'Pat', address: '1 Test St, Milford OH', tiers: { good: t(11000), better: t(0), best: t(15000) } });
@@ -175,8 +176,8 @@ ok('estimate-rows labels all five, both copies identical', /economy: 'Economy'/.
 console.log('\n8. Homeowner portal warranty card');
 {
   const pj = read('docs/pro/js/portal.js');
-  ok('an Economy card never falls back to the Lifetime Pledge title',
-    /const pledgeTitle = w\.tier === 'economy'\s*\? 'Economy — 1-Year Labor Warranty'/.test(pj) && /esc\(w\.tierLabel \|\| pledgeTitle\)/.test(pj));
+  ok('an Economy card never falls back to a lifetime title (NBD: the Pledge + 1-year labor)',
+    /const pledgeTitle = w\.tier === 'economy'\s*\? \(isNbdCompany \? 'Economy — NBD Pledge · 1-Year Labor Warranty' : 'Economy — 1-Year Labor Warranty'\)/.test(pj) && /esc\(w\.tierLabel \|\| pledgeTitle\)/.test(pj) && !/Lifetime Pledge'/.test(pj));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

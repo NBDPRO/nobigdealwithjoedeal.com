@@ -194,6 +194,25 @@ function saveEnv(est) {
     ok('save on a floored job keeps the $500 minimum', cents(u.grandTotal) === 50000 && u.minJobApplied === true && cents(u.minJobCharge) === 50000);
   }
   {
+    // Merge with R2-2-2 (#2247, 2026-10-07): estimate.lineItems (contract,
+    // proposal...) now ends with derived "Sales tax" / "Rounding" footing rows.
+    // The invoice prefills WITHOUT them (its tax comes from Tax Rate (%)), and
+    // Save from a document that shows them never writes them back as lines.
+    const est = est525();
+    const ctx = { lead: {}, estimate: est, photos: [], overrides: {}, depositDropped: [] };
+    const contractLines = env.pf._resolveFieldValue({ key: 'lineItems', source: 'estimate.lineItems' }, ctx);
+    const invoiceLines = openInvoice(env, est).lineItems;
+    ok('merge: contract lines carry the TAX + ADJ footing rows (R2-2-2)', contractLines.some((r) => r.code === 'TAX') && contractLines.some((r) => r.code === 'ADJ'));
+    ok('merge: invoice lines do not (tax is not counted twice)', invoiceLines.length === 2 && !invoiceLines.some((r) => r.code === 'TAX' || r.code === 'ADJ'));
+    const { e, writes } = saveEnv(est);
+    e.pf._state.values = { lineItems: JSON.parse(JSON.stringify(contractLines)) };
+    await e.pf._saveLineItemsToEstimate('lineItems');
+    const u = (writes[0] && writes[0].upd) || {};
+    ok('merge: Save from a footed document writes only the priced lines and keeps $525',
+      Array.isArray(u.lineItems) && u.lineItems.length === 2 && !u.lineItems.some((r) => /sales tax|rounding/i.test(r.description || ''))
+      && u.grandTotal === undefined && cents(est.grandTotal) === 52500);
+  }
+  {
     const est = { id: 'EPSQ', priceMode: 'per-sq', prices: { better: 12000 }, selectedTier: 'better', taxRate: 0.07, grandTotal: 12000 };
     const { e, writes } = saveEnv(est);
     const values = openInvoice(e, est, (v) => { v.lineItems[0] = Object.assign({}, v.lineItems[0], { rate: 9000, total: 9000 }); });

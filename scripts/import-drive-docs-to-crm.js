@@ -25,7 +25,7 @@
  * A Drive folder is matched to a lead ONLY on a unique normalized full-name
  * match. Zero matches or two matches → skipped and reported. The same
  * discipline as the refund matcher, for the same reason: this session already
- * caught "Terry Greene" resolving to MICHAEL Greene.
+ * caught "Customer FG" resolving to Customer DN.
  *
  * WHAT IT SKIPS, DELIBERATELY
  *   • .gdoc/.gsheet/.gslides — Drive pointer stubs, not documents. Uploading
@@ -141,7 +141,7 @@ function walk(dir, out) {
   });
 
   // Exact full name first. Failing that, a household folder ("John and
-  // Jennifer Morgan-McCane", "Barbara & Mustafa Dindar") names two people
+  // Jane Example", "Pat & Sam Example") names two people
   // where the CRM stores one — so fall back to the SURNAME, but only under
   // TWO independent confirmations:
   //
@@ -149,9 +149,9 @@ function walk(dir, out) {
   //   2. that lead's FIRST NAME also appears in the folder name.
   //
   // Requirement 2 is the one that matters. Surname alone is precisely the
-  // join that resolved "Terry Greene" to MICHAEL Greene earlier in this
+  // join that resolved "Customer FG" to Customer DN earlier in this
   // session; the first-name check rejects that pairing, because "Michael"
-  // does not appear in "Terry Greene". A single signal guesses. Two agree.
+  // does not appear in "Customer FG". A single signal guesses. Two agree.
   function matchLead(folder) {
     const exact = byName.get(norm(folder)) || [];
     if (exact.length === 1) return { lead: exact[0], why: '' };
@@ -187,7 +187,7 @@ function walk(dir, out) {
 
     // A single typo'd character in a surname that is already unique. Two
     // signals still: the surname matched exactly, and the full names differ by
-    // at most two edits. "Terry Greene" vs "Michael Greene" is nowhere near.
+    // at most two edits. "Customer FG" vs "Customer DN" is nowhere near.
     const ed = (a, b) => {
       a = String(a); b = String(b);
       const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);

@@ -147,13 +147,17 @@ const vm = require('vm');
 
 const D2D = fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js/d2d-tracker-core-2026b.js'), 'utf8');
 
-function loadComms(respond) {
+function loadComms(respond, phoneCheck) {
   const toasts = [];
   const opened = [];
   const posts = [];
   const events = [];
+  const checks = [];
   const window = {
     _user: { getIdToken: async () => 'id-token' },
+    // The server 'ok to text?' a hand-off asks first (review R2-3-2, phone-share.js).
+    // Default: ok. tests/texting-r2-fixes-2026-10-06.test.js drives the refusals.
+    NBDPhoneShare: { checkText: async (o) => { checks.push(o); return phoneCheck ? phoneCheck(o) : { ok: true }; } },
     showToast: (msg, type) => toasts.push({ msg, type }),
     dispatchEvent: (e) => events.push(e),
     location: {
@@ -180,7 +184,7 @@ function loadComms(respond) {
   };
   vm.createContext(sandbox);
   vm.runInContext(SRC, sandbox, { filename: 'nbd-comms.js' });
-  return { NBDComms: window.NBDComms, toasts, opened, posts, events };
+  return { NBDComms: window.NBDComms, toasts, opened, posts, events, checks };
 }
 
 const jsonRes = (status, body) => () => ({ ok: status >= 200 && status < 300, status, json: async () => body });
@@ -288,8 +292,11 @@ const tick = () => new Promise((r) => setImmediate(r));
   {
     // d2d-tracker-core-2026b.js sendFollowUpSMS opened sms: on ANY failure,
     // including the 403 opted_out that NBDComms had just refused.
-    const factory = new Function('window', 'state', 'SMS_TEMPLATES', '_fillTemplate', 'formatDate',
-      extractFunction(D2D, 'sendFollowUpSMS') + '\nreturn sendFollowUpSMS;');
+    // (canTextKnock — the door-knock consent check, 2026-10-05 — is extracted
+    // with it; NO_CONSENT_MSG is a const beside it. The knock below carries
+    // smsConsent so these checks reach the NBDComms refusal they are about.)
+    const factory = new Function('window', 'state', 'SMS_TEMPLATES', '_fillTemplate', 'formatDate', 'NO_CONSENT_MSG',
+      extractFunction(D2D, 'canTextKnock') + '\n' + extractFunction(D2D, 'sendFollowUpSMS') + '\nreturn sendFollowUpSMS;');
     async function d2d(result) {
       const opened = [];
       const toasts = [];
@@ -300,8 +307,8 @@ const tick = () => new Promise((r) => setImmediate(r));
         _user: { displayName: 'Joe' },
       };
       const send = factory(win, { currentRep: { name: 'Joe' } },
-        { follow_up: { body: 'Hi {name}' } }, (b) => b, () => 'soon');
-      send({ id: 'knock-1', phone: '(859) 555-0134', homeowner: 'Sam', disposition: 'follow_up' }, 'follow_up');
+        { follow_up: { body: 'Hi {name}' } }, (b) => b, () => 'soon', 'no consent');
+      send({ id: 'knock-1', phone: '(859) 555-0134', homeowner: 'Sam', disposition: 'follow_up', smsConsent: true }, 'follow_up');
       await tick(); await tick();
       return { opened, toasts };
     }
