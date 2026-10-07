@@ -2020,7 +2020,13 @@ function getCustomerDocData() {
   const afterPhotos = photos.filter(p => (p.phase||'').toLowerCase() === 'after');
   const duringPhotos = photos.filter(p => (p.phase||'').toLowerCase() === 'during');
   const name = ((lead.firstName||'') + ' ' + (lead.lastName||'')).trim();
-  const jobVal = lead.jobValue || (est ? est.grandTotal : 0);
+  // The estimate's total wins over lead.jobValue, which can lag a re-saved
+  // estimate (review R2-2-4 / R4); lead.jobValue only when it has no price.
+  const _rows = window.NBDCustomerEstimateRows;
+  const _estVal = !est ? 0 : (_rows && typeof _rows.estimateValue === 'function')
+    ? _rows.estimateValue(est)
+    : (Number(est.grandTotal || est.total || est.amount) || 0);
+  const jobVal = _estVal > 0 ? _estVal : (lead.jobValue || 0);
 
   return {
     // Customer info

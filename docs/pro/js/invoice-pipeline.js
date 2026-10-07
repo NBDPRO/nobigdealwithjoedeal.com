@@ -3591,6 +3591,25 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   if (typeof document === 'undefined' || typeof window === 'undefined') return;
   if (_NBD_IP_DELEGATE_BOUND) return;
   _NBD_IP_DELEGATE_BOUND = true;
+  // true only when the text really reached the clipboard: the async API, then
+  // the legacy execCommand copy (portal-link-helpers.js copyForLead's layers).
+  async function _copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* fall through */ }
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (_) { return false; }
+  }
   document.addEventListener('click', function (ev) {
     const t = ev.target.closest && ev.target.closest('[data-ip-action]');
     if (!t) return;
@@ -3621,7 +3640,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         // "Connect Stripe" on an invoice (2026-10-04): Settings → Billing,
         // where the Stripe Connect card lives.
         case 'connectStripe': {
-          if (typeof window.goTo === 'function') window.goTo('settings');
+          // customer.html lazy-loads this file but has no goTo and no Billing
+          // panel (review R4-7-8): open the dashboard on Settings → Billing,
+          // the same ?settings=billing link Stripe Connect returns to.
+          if (typeof window.goTo !== 'function') { window.location.href = '/pro/dashboard.html?settings=billing'; break; }
+          window.goTo('settings');
           // Settings hydrates late and opens on Profile: switch once the
           // Billing panel exists, a few times, so Profile cannot win the race.
           let tries = 0;
@@ -3636,8 +3659,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           break;
         }
         case 'copyStripeLink':  {
-          if (id) navigator.clipboard.writeText(id);
-          if (typeof showToast === 'function') showToast('Payment link copied!', 'ok');
+          // Toast only once the copy has really happened (review R4 F6); a
+          // failed copy shows the link so the rep can still send it.
+          if (!id) break;
+          _copyText(id).then(function (copied) {
+            if (typeof showToast !== 'function') return;
+            if (copied) showToast('Payment link copied!', 'success');
+            else showToast('Couldn\'t copy — payment link: ' + id, 'info');
+          });
           break;
         }
         default: console.warn('[invoice-pipeline] no dispatch for', action);

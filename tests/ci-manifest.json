@@ -359,6 +359,7 @@
     "homeowner-claims-honesty-2026-10-05.test.js",
     "homeowner-honesty-schema-reviews-2026-10-06.test.js",
     "seo-audit-fixes-2026-10-06.test.js",
+    "seo-hub-vs-town-2026-10-06.test.js",
     "town-rr-pages-overlap-2026-10-06.test.js",
     "deal-acceptance-atomicity.test.js",
     "refer-form-errors-visible-2026-09-28.test.js",
@@ -430,6 +431,7 @@
     "boot-offline-reads-2026-10-04.test.js",
     "no-conflict-markers-2026-10-04.test.js",
     "merge-leftovers-guard-2026-10-05.test.js",
+    "r3-7-anonymous-provider-refused-2026-10-06.test.js",
     "field-photos-client-2026-10-04.test.js",
     "field-photos-server-2026-10-04.test.js",
     "estimate-pricing-paths-2026-10-05.test.js",
@@ -452,6 +454,7 @@
     "member-storage-move-2026-10-06.test.js",
     "r4-erasure-export-honesty-2026-10-06.test.js",
     "doc-preflight-invoice-tax-2026-10-05.test.js",
+    "r4-ui-silent-fixes-2026-10-06.test.js",
     "review-r4-dates-fixes-2026-10-06.test.js"
   ],
   "smoke": {
