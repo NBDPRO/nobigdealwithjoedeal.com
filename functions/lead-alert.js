@@ -142,7 +142,13 @@ function summarize(d) {
   const email = d.email || '';
   const story = d.story || d.message || d.details || '';
   const concern = d.concern || '';
-  return { name, phone, address, email, story, concern };
+  // Form answers that used to be stored but never shown (R5-9-2..4): the
+  // contact form's service, the Free Roof category (labelled), and the
+  // /estimate ballpark the homeowner was shown. All rendered through esc().
+  const service = d.service || '';
+  const category = d.category ? L.freeRoofCategoryLabel(d.category) : '';
+  const ballpark = L.ballparkText(d);
+  return { name, phone, address, email, story, concern, service, category, ballpark };
 }
 
 // `notice` (optional) is a caller-supplied warning rendered above the details:
@@ -170,6 +176,9 @@ function emailHtml(label, source, s, leadId, name, notice) {
         ${row('Address', s.address)}
         ${row('Email', s.email)}
         ${row('Concern', s.concern ? (CONCERN_LABEL[s.concern] || s.concern) : '')}
+        ${row('Service', s.service)}
+        ${row('Category', s.category)}
+        ${row('Ballpark shown', s.ballpark)}
         ${row('Message', s.story)}
       </table>
       ${telDigits ? `<p style="text-align:center;margin:22px 0 6px"><a href="tel:${telDigits}" style="display:inline-block;background:#BD5728;color:#fff;padding:13px 30px;border-radius:6px;text-decoration:none;font-weight:700;font-size:16px">Call ${esc(s.phone)}</a></p>` : ''}
@@ -187,6 +196,9 @@ function smsBody(label, source, s, seal, notice) {
   if (notice && notice.sms) lines.unshift(notice.sms);
   if (s.address) lines.push(s.address);
   if (s.concern) lines.push('Concern: ' + (CONCERN_LABEL[s.concern] || s.concern));
+  if (s.service) lines.push('Service: ' + s.service);
+  if (s.category) lines.push('Category: ' + s.category);
+  if (s.ballpark) lines.push('Shown ' + s.ballpark);
   if (s.story) lines.push(String(s.story).slice(0, 200));
   return lines.join('\n').slice(0, 480);
 }
