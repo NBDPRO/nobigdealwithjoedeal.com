@@ -105,53 +105,13 @@ console.log('\nreview-r5-data-site-known-bugs\n');
     !!arch && /deleted:\s*true/.test(arch) && !/primaryEstimateId|jobValue/.test(arch));
 }
 
-// R5-8-3 (LOW). Fix in flight: #2285. window._saveLead (every CRM-created lead: quick add, call
-// center, D2D, tools) writes the stage but never stageRole, so migration
-// 008's heal is one-time: CRM-created leads go back to having no persisted
-// role (server classifiers that trust stageRole first fall back). Prod today:
-// 0 leads without a role.
-{
-  const s = src('docs/pro/js/dashboard-bootstrap.module.js');
-  const body = bodyAfter(s, 'window._saveLead = async (data) =>');
-  ok('KNOWN BUG R5-8-3: _saveLead never writes stageRole',
-    !!body && body.length > 2000 && !/stageRole/.test(body));
-}
+// R5-8-3: FIXED by #2285 (pins dropped; its own regression test covers it).
 
-// R5-8-4 (LOW, dormant until A2P). Fix in flight: #2285. sendD2DSMS logs the KNOCK id as the
-// sms_log leadId, so a D2D text never shows on the lead's Communication Log
-// and a lead-scoped query never finds it.
-{
-  const s = src('functions/sms-functions.js');
-  ok('KNOWN BUG R5-8-4: D2D SMS log passes knockId as leadId',
-    /logSMSToFirestore\(db,\s*phoneNumber,\s*body,\s*decoded\.uid,\s*knockId,/.test(s));
-}
+// R5-8-4: FIXED by #2285 (pins dropped; its own regression test covers it).
 
 // ════════════════════════ AREA 9: homeowner site ═════════════════════════
 
-// R5-9-1 (HIGH, legal). Fix in flight: #2284. Kentucky service pages still promise claim advocacy
-// (getting underpaid claims "corrected", denied claims "recoverable", "harder
-// to underpay") — in body copy AND in FAQ JSON-LD. #2104/#2263 did not reach
-// these lines. The KY wording scan only walks docs/pro + functions.
-{
-  const PHRASES = [
-    ['docs/services/storm-damage-covington-ky.html', 'I have experience getting them corrected on Kentucky claims'],
-    ['docs/services/hail-damage-lexington-ky.html', 'underpaid and denied claims are recoverable in many cases'],
-    ['docs/services/hail-damage-erlanger-ky.html', 'harder to underpay'],
-    ['docs/services/hail-damage-covington-ky.html', 'If the initial estimate is underpaid, I supplement'],
-    ['docs/services/storm-damage-erlanger-ky.html', 'fully paid claim from an underpaid one'],
-  ];
-  for (const [f, p] of PHRASES) {
-    const h = stripHtmlComments(read(f));
-    ok('KNOWN BUG R5-9-1: ' + path.basename(f) + ' still says "' + p.slice(0, 40) + '…"', h.includes(p));
-  }
-  const ld = stripHtmlComments(read('docs/services/storm-damage-covington-ky.html'))
-    .match(/<script type="application\/ld\+json">[\s\S]*?<\/script>/g) || [];
-  ok('KNOWN BUG R5-9-1: the Covington claim line is also in FAQ JSON-LD',
-    ld.some((b) => b.includes('getting them corrected on Kentucky claims')));
-  const scan = src('tests/ky-claims-wording-scan.test.js');
-  ok('KNOWN BUG R5-9-1: KY wording scan never walks the public site',
-    /const SCAN_DIRS = \['docs\/pro', 'functions'\];/.test(scan));
-}
+// R5-9-1: FIXED by #2284 (pins dropped; its own regression test covers it).
 
 // R5-9-2: FIXED by #2283 (pins dropped; its own regression test covers it).
 
