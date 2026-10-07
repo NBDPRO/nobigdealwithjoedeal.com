@@ -1213,10 +1213,34 @@
   // not hold — quoting them promises coverage NBD can't register. Default GAF
   // warranty corrected to System Plus. (Re-add the Master-Elite tiers only if/
   // when Joe earns Master Elite.)  [accuracy fix 2026-06-24]
+  //
+  // 2026-10-05 (Jo): "System Plus is Standard and up" — it is INCLUDED in the
+  // Standard, Preferred and Elite tier prices, never a separate charge, and the
+  // tier warranty text says so (estimate-config.js TIER_DISPLAY.systemPlus).
+  // This line stays in the catalog ONLY so estimates saved with it still
+  // reopen at the price they were quoted; no default template carries it any
+  // more. Do not add it to a new Standard/Preferred/Elite quote: that would
+  // charge for coverage the tier already includes.
+  // System Plus is a GAF MANUFACTURER warranty (GAF shingles + qualifying GAF
+  // accessories). It is NOT a workmanship warranty — GAF's workmanship
+  // coverage is Golden Pledge, which only GAF Master Elite contractors offer.
   A({ code:'WAR SYSP-GAF', name:'GAF System Plus Limited Warranty', sub:'warranty', cat:'warranty', unit:'JOB', mat:285, lab:85,
-      desc:'GAF System Plus — material + workmanship system warranty, registerable by GAF Certified contractors (what NBD holds).', tier:'best',
-      reason:'GAF System Plus Limited Warranty covers the full system; NBD can register it as a GAF Certified contractor.',
-      tags:['warranty','gaf','system-plus','best-tier'], retailDefault:true });
+      desc:'GAF System Plus Limited Warranty — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories, registered by a GAF Certified contractor. Materials coverage, not workmanship. Included in the Standard, Preferred and Elite tiers — legacy line, do not add to those quotes.', tier:'any',
+      reason:'GAF System Plus Limited Warranty is GAF\'s manufacturer (materials) warranty; NBD registers it as a GAF Certified contractor. Now included in Standard/Preferred/Elite — kept so older saved estimates reopen.',
+      tags:['warranty','gaf','system-plus','legacy'] });
+  // The cost the old separate System Plus line carried, folded into the
+  // per-JOB jobsite-protection line of the two default templates that used to
+  // carry it (jt_fr_asphalt_best, jt_sp_designer_shingle_full) so their customer
+  // totals stay exactly what they were (Jo-approved fold, 2026-10-05).
+  // composedOf: this line's cost is the SUM of its components, each looked up
+  // through find() — so a tenant's own cost book for 'LAB JSP' / 'WAR SYSP-GAF'
+  // still prices it, exactly as the two old lines did. No figure of its own is
+  // published. A per-JOB line, not the per-SQ shingle line, because a fixed
+  // $ moved onto a per-SQ rate would drift with roof size.
+  A({ code:'LAB JSP-SYS', name:'Jobsite Protection & Warranty Registration', sub:'labor-overhead', cat:'labor', unit:'JOB',
+      composedOf:['LAB JSP','WAR SYSP-GAF'], tier:'any',
+      reason:'Jobsite protection (tarps/ground cover) plus manufacturer warranty registration for the installed system.',
+      tags:['labor','overhead','protection','warranty','registration'] });
   // OC system warranties (Preferred / Platinum Preferred) require Owens Corning
   // contractor-network status, which Joe holds NONE of — quoting any OC system
   // warranty would promise coverage NBD cannot register. OC shingles still carry
@@ -1267,6 +1291,21 @@
   const BY_CODE = {};
   ITEMS.forEach(item => { BY_CODE[item.code] = item; });
 
+  // Composite lines (composedOf, 2026-10-05): the published baseline is the
+  // sum of the components' baselines — the line carries no figure of its own.
+  // find() below re-sums through the tenant's cost book on every lookup.
+  ITEMS.forEach(item => {
+    if (!Array.isArray(item.composedOf)) return;
+    let m = 0, l = 0;
+    item.composedOf.forEach(c => {
+      const p = BY_CODE[c];
+      if (p) { m += Number(p.materialCost) || 0; l += Number(p.laborCost) || 0; }
+    });
+    item.materialCost = m;
+    item.laborCost = l;
+    item.unitCost = m + l;
+  });
+
   // ═════════════════════════════════════════════════════════
   // Public API
   // ═════════════════════════════════════════════════════════
@@ -1298,26 +1337,21 @@
     // lands late (cold device, Firestore still in flight) is picked up on the
     // next lookup with no re-registration step — and so the published baseline
     // stays intact underneath for a tenant who has no book.
-    find: function(code) {
+    find: function find(code) {
       const base = BY_CODE[code] || null;
       if (!base) return null;
-      try {
-        const cc = window.NBDCatalogCosts;
-        const entry = (cc && typeof cc.xactCost === 'function') ? cc.xactCost(code) : null;
-        // Validate HERE as well as in catalog-costs.js. Not belt-and-braces:
-        // this is the last point before the number becomes a customer total,
-        // and an unchecked Object.assign will happily write NaN over a good
-        // baseline — which prices a line at NaN rather than falling back.
-        // Caught by a corrupt-book probe while wiring this up.
-        if (entry) {
-          const mat = Number(entry.materialCost);
-          const lab = Number(entry.laborCost);
-          if (isFinite(mat) && isFinite(lab) && mat >= 0 && lab >= 0) {
-            return Object.assign({}, base, { materialCost: mat, laborCost: lab });
-          }
-        }
-      } catch (e) { /* no book is a normal state, not an error */ }
-      return base;
+      const own = findOwn(base, code);
+      if (own !== base || !Array.isArray(base.composedOf)) return own;
+      // Composite line with no tenant entry of its own: its cost is the sum
+      // of its components, each through THIS lookup — so a tenant whose book
+      // prices 'LAB JSP' and 'WAR SYSP-GAF' gets exactly the sum of the two
+      // lines it used to be quoted as.
+      let m = 0, l = 0;
+      base.composedOf.forEach(c => {
+        const p = find(c);
+        if (p) { m += Number(p.materialCost) || 0; l += Number(p.laborCost) || 0; }
+      });
+      return Object.assign({}, base, { materialCost: m, laborCost: l, unitCost: m + l });
     },
 
     // Filter by category
@@ -1349,6 +1383,27 @@
       return ITEMS.filter(i => i.requiresPhoto);
     }
   };
+
+  // The tenant's own entry for exactly this code, else the published base.
+  function findOwn(base, code) {
+      try {
+        const cc = window.NBDCatalogCosts;
+        const entry = (cc && typeof cc.xactCost === 'function') ? cc.xactCost(code) : null;
+        // Validate HERE as well as in catalog-costs.js. Not belt-and-braces:
+        // this is the last point before the number becomes a customer total,
+        // and an unchecked Object.assign will happily write NaN over a good
+        // baseline — which prices a line at NaN rather than falling back.
+        // Caught by a corrupt-book probe while wiring this up.
+        if (entry) {
+          const mat = Number(entry.materialCost);
+          const lab = Number(entry.laborCost);
+          if (isFinite(mat) && isFinite(lab) && mat >= 0 && lab >= 0) {
+            return Object.assign({}, base, { materialCost: mat, laborCost: lab });
+          }
+        }
+      } catch (e) { /* no book is a normal state, not an error */ }
+      return base;
+  }
 
   // Bridge into the v2 estimate engine's catalog if available
   if (window.EstimateBuilderV2 && window.EstimateBuilderV2.CATALOG) {

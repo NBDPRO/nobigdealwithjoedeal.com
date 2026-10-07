@@ -227,7 +227,95 @@ function matchExistingLead(leads, { email, phoneDigits } = {}) {
   return null;
 }
 
+// ── REP ROUTING (review R5-8-1, 2026-10-06) ─────────────────────────────
+// Which CRM account a booking belongs to. calcom.js does the lookups (Auth by
+// organizer email, users where calcomUsername == organizer username, the
+// optional system/calcomRouting doc); these functions only decide.
+//
+// Since #1945 the email match won even when that account belonged to NO
+// company, so a tenant whose Cal.com organizer email is an old company-less
+// login had every booking land in that dead account while the account that
+// owns the company (and carries the username) got nothing. The email-first
+// order itself stays: any user can write their own users/{uid}.calcomUsername,
+// so a username must never beat an email match that is a real tenant account.
+
+const COMPANY_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+function idOrNull(v) { return typeof v === 'string' && COMPANY_ID_RE.test(v) ? v : null; }
+
+/**
+ * The company an account belongs to, or null when it is not a CRM tenant
+ * account. Only server-controlled sources count: the companyId custom claim,
+ * users/{uid}.companyId (clients cannot create or change it — firestore.rules
+ * users/{uid}), or a companies/{uid} doc that names this uid as ownerId (the
+ * solo-owner convention, companyId == uid, as in handlers/_shared.js
+ * requireTeamAdmin).
+ */
+function accountCompanyId({ uid, claims, userData, companyData } = {}) {
+  const fromClaim = idOrNull(claims && claims.companyId);
+  if (fromClaim) return fromClaim;
+  const fromUser = idOrNull(userData && userData.companyId);
+  if (fromUser) return fromUser;
+  if (uid && isObj(companyData) && companyData.ownerId === uid) return uid;
+  return null;
+}
+
+/**
+ * The companyId an optional server-only routing doc maps this booking to,
+ * by event-type slug first, then organizer username (case-insensitive).
+ * Shape: { byEventSlug: { <slug>: <companyId> }, byUsername: { <username>: <companyId> } }.
+ * Returns null when absent or not a plain id.
+ */
+function pickConfiguredCompanyId(cfg, { eventSlug, organizerUsername } = {}) {
+  if (!isObj(cfg)) return null;
+  const own = (map, key) => (isObj(map) && key && Object.prototype.hasOwnProperty.call(map, key) ? idOrNull(map[key]) : null);
+  const slug = typeof eventSlug === 'string' ? eventSlug.trim() : '';
+  const user = typeof organizerUsername === 'string' ? organizerUsername.trim() : '';
+  return own(cfg.byEventSlug, slug) || own(cfg.byUsername, user) || own(cfg.byUsername, user.toLowerCase()) || null;
+}
+
+/**
+ * Decide the rep. Inputs are lookup results:
+ *   configured        { uid, companyId } from the routing doc, or null
+ *   emailAccount      { uid, companyId|null } — the Auth account with the organizer email, or null
+ *   usernameClaimants [{ uid, companyId|null }] — users carrying the organizer username (up to 2 read)
+ * Returns { repUid, repCompanyId, reason, conflict }. repUid null = unassigned.
+ * Order:
+ *   1. configured mapping (server-only, so it is trusted first)
+ *   2. email account that belongs to a company (wins over any username — security)
+ *   3. the ONE username claimant, only when it belongs to a company
+ *   4. a company-less email account (legacy solo fallback, companyId = uid)
+ *   5. nobody (a username claimed twice never assigns through the username)
+ */
+function resolveCalcomRep({ configured, emailAccount, usernameClaimants } = {}) {
+  const valid = (a) => isObj(a) && typeof a.uid === 'string' && a.uid !== '';
+  if (valid(configured) && idOrNull(configured.companyId)) {
+    return { repUid: configured.uid, repCompanyId: configured.companyId, reason: 'configured', conflict: false };
+  }
+  const email = valid(emailAccount) ? emailAccount : null;
+  const claimants = (Array.isArray(usernameClaimants) ? usernameClaimants : []).filter(valid);
+  const ambiguous = claimants.length > 1;
+  const unique = claimants.length === 1 ? claimants[0] : null;
+  const uniqueCo = unique ? idOrNull(unique.companyId) : null;
+  const emailCo = email ? idOrNull(email.companyId) : null;
+
+  if (email && emailCo) {
+    const conflict = !!(unique && uniqueCo && unique.uid !== email.uid && uniqueCo !== emailCo);
+    return { repUid: email.uid, repCompanyId: emailCo, reason: conflict ? 'email_over_username' : 'email', conflict };
+  }
+  if (unique && uniqueCo) {
+    return { repUid: unique.uid, repCompanyId: uniqueCo, reason: email ? 'username_over_companyless_email' : 'username', conflict: false };
+  }
+  if (email) {
+    return { repUid: email.uid, repCompanyId: email.uid, reason: 'email_no_company', conflict: false };
+  }
+  const reason = ambiguous ? 'username_ambiguous' : (unique ? 'username_no_company' : 'no_match');
+  return { repUid: null, repCompanyId: null, reason, conflict: false };
+}
+
 module.exports = {
+  resolveCalcomRep,
+  accountCompanyId,
+  pickConfiguredCompanyId,
   resolveAttendeePhone,
   resolveBookingAddress,
   extractEventType,

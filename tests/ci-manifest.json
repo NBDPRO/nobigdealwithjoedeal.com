@@ -169,6 +169,7 @@
     "scheduling-logic.test.js",
     "secret-stub-guard.test.js",
     "seo-surface.test.js",
+    "schema-entity-address-2026-10-06.test.js",
     "tamko-page-rename.test.js",
     "smart-calendar-forecast.test.js",
     "schedule-events-2026-09-28.test.js",
@@ -269,6 +270,8 @@
     "winback-2026-10-01.test.js",
     "theme-liveops-2026-10-01.test.js",
     "five-tier-paperwork-2026-10-02.test.js",
+    "warranty-pledge-vs-system-2026-10-06.test.js",
+    "warranty-pledge-labor-years-2026-10-06.test.js",
     "theme-daylight-2026-10-01.test.js",
     "stripe-ledger-ui-2026-09-29.test.js",
     "daily-success-sync-2026-09-29.test.js",
@@ -345,13 +348,16 @@
     "photo-report-sharing.test.js",
     "session-revocation.test.js",
     "calcom-webhook-payload.test.js",
+    "calcom-rep-routing-2026-10-06.test.js",
     "lead-alert-calcom.test.js",
     "lead-alert-thumbtack.test.js",
+    "forms-to-crm-2026-10-06.test.js",
     "favicon-contract.test.js",
     "lead-form-phone-contract.test.js",
     "pro-claims-honesty-2026-09-13.test.js",
     "pro-demo-story-2026-10-06.test.js",
     "homeowner-claims-honesty-2026-10-05.test.js",
+    "homeowner-honesty-schema-reviews-2026-10-06.test.js",
     "seo-audit-fixes-2026-10-06.test.js",
     "town-rr-pages-overlap-2026-10-06.test.js",
     "deal-acceptance-atomicity.test.js",
@@ -392,10 +398,12 @@
     "map-views-hydration.test.js",
     "lead-trades-unknown.test.js",
     "edit-lead-stage-write-2026-09-28.test.js",
+    "r5-stagerole-d2d-smslog-2026-10-06.test.js",
     "revenue-collected-only-2026-09-28.test.js",
     "strip-redundant-inline-css.test.js",
     "upgrade-pricing.test.js",
     "job-template-honest-paperwork.test.js",
+    "job-templates-late-refresh-2026-10-06.test.js",
     "estimate-gutter-source.test.js",
     "draw-geom.test.js",
     "draw-reticle-css-scope.test.js",
@@ -409,6 +417,7 @@
     "ky-insurance-contracts.test.js",
     "contract-cancel-forms.test.js",
     "ky-claims-wording-scan.test.js",
+    "oh-claims-wording-scan.test.js",
     "voice-intel-anthropic-key.test.js",
     "check-js-syntax.test.js",
     "bounded-live-listeners-2026-10-03.test.js",
@@ -437,7 +446,12 @@
     "r2-money-lines-jobvalue-2026-10-06.test.js",
     "r2-money-parse-multijob-2026-10-06.test.js",
     "contract-signed-is-booked-2026-10-06.test.js",
-    "no-personal-data-in-repo-2026-10-06.test.js"
+    "no-personal-data-in-repo-2026-10-06.test.js",
+    "system-plus-standard-and-up-2026-10-05.test.js",
+    "member-offboarding-2026-10-06.test.js",
+    "sec-photo-path-confinement-2026-10-06.test.js",
+    "member-storage-move-2026-10-06.test.js",
+    "r4-erasure-export-honesty-2026-10-06.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
@@ -742,6 +756,13 @@
       "toast. Pins label honesty, that the action is still the real delete, and",
       "that the dashboard's own unassigning default is unchanged."
     ],
+    "estimate-delete-lead-sync-2026-10-06.test.js": [
+      "Review R5-8-2: the dashboard Delete hard-deleted an estimate and the",
+      "customer Archive soft-deleted it, and neither touched the lead — its",
+      "primaryEstimateId/jobValue kept the gone estimate's dollars. Runs the",
+      "shared estimate-lead-sync.js (promote next live / clear / leave alone)",
+      "and checks both pages call it and the readers drop deleted estimates."
+    ],
     "empty-tenant-load-banner.test.js": [
       "Empty-tenant first run: the load-status banner gated success on",
       "(loaded && count > 0), so an account with ZERO leads — i.e. every brand",
@@ -997,7 +1018,8 @@
     "public-intake.test.js",
     "referral-rewards.test.js",
     "smoke.test.js",
-    "storage-rules.test.js"
+    "storage-rules.test.js",
+    "member-storage-move.integration.test.js"
   ],
   "quarantined": {}
 }

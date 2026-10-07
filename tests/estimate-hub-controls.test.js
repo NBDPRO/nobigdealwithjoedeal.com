@@ -65,33 +65,54 @@ const HUB_CODE = decomment(HUB);
 
 // ── 1. The destructive control says what it does ──────────────────────
 {
-  ok('the destructive button is not labelled "Archive"',
-    !/>🗄 Archive</.test(HUB_CODE),
-    'an archive-box label on a deleteDoc() is a data-loss trap');
-  ok('it is labelled as a delete',
-    /🗑 Delete</.test(HUB_CODE));
+  // 2026-10-06 (after R5-8-2 #2286): the action is a soft delete now, so the
+  // button is honestly an Archive again and the confirm must say so. The old
+  // "cannot be undone" wording described the deleteDoc and is now false.
+  ok('the hub button is labelled "Archive" (it soft-deletes since R5-8-2)',
+    /data-ceh-act="archive"[^>]*>🗄 Archive</.test(HUB_CODE),
+    'the action archives; a Delete label overstates it');
+  ok('the hub button is no longer labelled "Delete"',
+    !/>🗑 Delete</.test(HUB_CODE));
+  const OPS1 = decomment(read('estimate-crm-ops.js'));
+  const delBody = (OPS1.match(/async function deleteEstimateAction\(id\) \{[\s\S]*?\n\}/) || [''])[0];
+  ok('deleteEstimateAction\'s confirm says the estimate is archived and removed from totals',
+    /_ask\('Archive "' \+ label \+ '"\? It will be removed from your estimate lists and from this customer\\'s totals\.'\)/.test(delBody),
+    delBody.slice(0, 400));
+  ok('deleteEstimateAction\'s confirm no longer claims it "cannot be undone"',
+    delBody.length > 0 && !/cannot be undone/i.test(delBody));
+  ok('the success toast says archived, not deleted',
+    /Estimate archived/.test(delBody) && !/Estimate deleted/.test(delBody));
+  const WIDGETS = decomment(read('dashboard-widgets.js'));
+  ok('the dashboard estimates-list button (same action) is titled Archive, selector unchanged',
+    /data-act="delete" title="Archive estimate"/.test(WIDGETS) && !/title="Delete estimate"/.test(WIDGETS));
 
   // The action it dispatches must still be the real delete — relabelling would
   // be worse than useless if the wiring silently changed too.
   ok('it still dispatches deleteEstimateAction',
     /case 'archive':\s*withEstimates\('deleteEstimateAction'/.test(HUB_CODE));
 
-  // The underlying call really is destructive — pin that, so this test explains
-  // itself if anyone wonders why the label matters.
+  // Review R5-8-2 (2026-10-06): _deleteEstimate is now a SOFT delete through
+  // estimate-lead-sync.js (same write as the customer page's Archive, plus the
+  // lead primary/jobValue sync), and the dashboard estimates readers drop
+  // deleted:true. The hub label went back to "Archive" on 2026-10-06 (above).
   // Globals Tranche 3 T3-C (2026-09-18): real declaration now, not window.X.
   const boot = read('dashboard-bootstrap.module.js');
-  ok('_deleteEstimate is genuinely a hard delete (deleteDoc)',
-    /async function _deleteEstimate\(id\) \{[\s\S]{0,300}deleteDoc\(doc\(db, 'estimates', id\)\)/.test(boot),
-    'if this became a soft delete, the label could honestly go back to Archive');
+  ok('_deleteEstimate is a soft delete through archiveEstimateAndSyncLead (no deleteDoc)',
+    /async function _deleteEstimate\(id\) \{[\s\S]{0,1200}archiveEstimateAndSyncLead\(/.test(boot)
+      && !/async function _deleteEstimate\(id\) \{[\s\S]{0,1200}deleteDoc\(doc\(db, 'estimates', id\)\)/.test(boot),
+    'R5-8-2: never deleteDoc an estimate');
 
   // The constraint that made relabel (not soft-delete) the right call. Scope
   // this to the ESTIMATES listeners specifically — dashboard-bootstrap also
   // queries where('deleted','==',true) against /leads for the trash view, and a
   // whole-file grep matches that and reports the opposite of the truth.
   const estQueryLines = boot.split('\n').filter((l) => /collection\(db, ?'estimates'\)/.test(l));
-  ok('the tenant estimates snapshots still apply no `deleted` filter',
+  // The filter is applied client-side (filter(e => e.deleted !== true)), not as
+  // a where() — a where('deleted', ...) would also drop every estimate that has
+  // no `deleted` field at all.
+  ok('the tenant estimates queries apply no where(\'deleted\') (filtered client-side instead)',
     estQueryLines.length > 0 && !estQueryLines.some((l) => /where\('deleted'/.test(l)),
-    'if a deleted filter is added, a real Archive becomes viable — revisit the label');
+    'a where on deleted hides every estimate without the field');
 }
 
 // ── 2. A duplicate made from a customer stays with that customer ──────
