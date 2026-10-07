@@ -163,9 +163,12 @@ ok('retail-quote / Oaks: estimate # uses OAK- prefix (docPrefix)', /Estimate #OA
 // GBB audit 2026-09-09 (documentation/audit/GBB-TIER-SOURCE-OF-TRUTH-2026-09-09.md
 // §3/§8 PR3): was "10-year" — contradicted the tier cards above it on the same
 // document, one of 8 independent warranty-duration schemes found live at once.
-// Every tier is lifetime workmanship now (estimate-config.js TIER_DISPLAY).
-ok('retail-quote / NBD: workmanship line says "Lifetime NBD labor warranty"', /Lifetime NBD labor warranty/.test(retNbd));
-ok('retail-quote / Oaks: workmanship line says "Lifetime ORC labor warranty"', /Lifetime ORC labor warranty/.test(retOak));
+// Jo, 2026-10-06 (final): NBD prints the NBD Pledge (a promise) + the written
+// labor warranty by package (1 to 20 years) — never "lifetime". Another
+// company never gets NBD's terms: its written agreement governs.
+ok('retail-quote / NBD: the NBD Pledge + written labor warranty by package, no "lifetime"',
+  /NBD Pledge:<\/strong> for as long as you own the home, we'll come back and make it right/.test(retNbd) && /Written labor warranty by package — 1 to 20 years/.test(retNbd) && !/lifetime/i.test(retNbd));
+ok('retail-quote / Oaks: no NBD Pledge, no "lifetime" labor warranty', !/Pledge|lifetime/i.test(retOak) && /Workmanship warranty terms as stated in your written agreement/.test(retOak));
 
 // single-quote = retail quote WITHOUT the Good/Better/Best cards. The fixture's
 // meta.tiers has a Better card at $16,500; retail-quote renders it, single-quote

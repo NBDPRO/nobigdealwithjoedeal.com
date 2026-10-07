@@ -51,10 +51,10 @@
     },
     {
       "@type": "Question",
-      "name": "Why are hail claims in Amelia sometimes underpaid?",
+      "name": "Why does documentation matter for hail claims in Amelia?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Eastern Clermont County has a smaller adjuster pool than Hamilton County markets. Claims here are more likely to receive initial settlements that don't fully cover the damage, particularly if the adjuster is unfamiliar with the area's storm history. My documentation package — including photo evidence and impact density mapping — helps counter underpayment from the start."
+        "text": "Eastern Clermont County has a smaller adjuster pool than Hamilton County markets, and an adjuster who doesn't know the area's storm history can miss damage on a first look. My documentation package — photo evidence and impact density mapping — puts every hit on the record before the adjuster comes out. If the scope still misses damage, I send a supplement (my updated estimate). You file and own the claim, and what it pays is up to your insurer."
       }
     },
     {
@@ -70,7 +70,7 @@
       "name": "How does Joe document hail damage for an Amelia insurance claim?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "I use a systematic on-roof photo assessment that documents strike patterns, granule loss, soft-metal dents on gutters and vents, and impact density across the roof surface. This creates the evidence package that supports your claim and gives the adjuster what they need to approve the full scope."
+        "text": "I use a systematic on-roof photo assessment that documents strike patterns, granule loss, soft-metal dents on gutters and vents, and impact density across the roof surface. That gives you one clear evidence package: photos and an itemized estimate to share with your insurer."
       }
     }
   ]
@@ -203,7 +203,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -219,7 +219,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -276,6 +276,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -298,6 +299,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -496,7 +498,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div class="combo-hero-content">
     <div class="combo-badge">📍 Serving Amelia, OH — Clermont County</div>
     <h1>Hail Damage Roof Inspection<br>in <span>Amelia, OH</span></h1>
-    <p>NOAA logged <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=882799" target="_blank" rel="noopener">1.25-inch hail in Amelia on May 23, 2020</a>; most of the town's other severe-weather reports since 2019 are wind. The smaller adjuster pool in eastern Clermont County means claims here are more likely to be initially underpaid. I bring 7+ years of insurance restoration experience to every Amelia inspection.</p>
+    <p>NOAA logged <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=882799" target="_blank" rel="noopener">1.25-inch hail in Amelia on May 23, 2020</a>; most of the town's other severe-weather reports since 2019 are wind. With a smaller adjuster pool in eastern Clermont County, I document every hit before the adjuster comes out so nothing is left off the record. I bring 7+ years of insurance restoration experience to every Amelia inspection.</p>
     <div class="hero-btns svc-cta"><a href="/inspect" class="btn-primary">Book a free inspection</a></div>
     <p class="svc-alt">Leak right now? <a href="tel:+18594207382">Call Joe — (859) 420-7382</a></p>
   </div>
@@ -529,7 +531,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div class="section-inner">
     <div class="local-box">
       <h2>🌨️ Hail Damage Repair in Amelia, OH</h2>
-      <p>NOAA's Storm Events Database has 14 severe-weather reports within about 4 miles of Amelia from 2019 through June 2026 — one of them <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=882799" target="_blank" rel="noopener">1.25-inch hail in Amelia on May 23, 2020</a>, most of the rest wind. The smaller adjuster pool in eastern Clermont County means claims here are more likely to be initially underpaid or under-documented. I bring 7+ years of insurance restoration experience to every Amelia inspection.</p>
+      <p>NOAA's Storm Events Database has 14 severe-weather reports within about 4 miles of Amelia from 2019 through June 2026 — one of them <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=882799" target="_blank" rel="noopener">1.25-inch hail in Amelia on May 23, 2020</a>, most of the rest wind. With a smaller adjuster pool in eastern Clermont County, I document every hit before the adjuster comes out so nothing is left off the record. I bring 7+ years of insurance restoration experience to every Amelia inspection.</p>
     </div>
   </div>
 </section>
@@ -560,8 +562,8 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         <div class="faq-a">NOAA's Storm Events Database has 14 severe-weather reports within about 4 miles of Amelia from 2019 through June 2026. Only one is hail an inch or larger — 1.25-inch hail in Amelia on May 23, 2020; the rest are wind. Not every event makes the news, but even smaller events can cause significant cumulative damage to aging shingles.</div>
       </div>
       <div class="faq-item">
-        <div class="faq-q">Why are hail claims in Amelia sometimes underpaid? <span class="faq-arrow">▸</span></div>
-        <div class="faq-a">Eastern Clermont County has a smaller adjuster pool than Hamilton County markets. Claims here are more likely to receive initial settlements that don't fully cover the damage, particularly if the adjuster is unfamiliar with the area's storm history. My documentation package — including photo evidence and impact density mapping — helps counter underpayment from the start.</div>
+        <div class="faq-q">Why does documentation matter for hail claims in Amelia? <span class="faq-arrow">▸</span></div>
+        <div class="faq-a">Eastern Clermont County has a smaller adjuster pool than Hamilton County markets, and an adjuster who doesn't know the area's storm history can miss damage on a first look. My documentation package — photo evidence and impact density mapping — puts every hit on the record before the adjuster comes out. If the scope still misses damage, I send a supplement (my updated estimate). You file and own the claim, and what it pays is up to your insurer.</div>
       </div>
       <div class="faq-item">
         <div class="faq-q">Can older three-tab shingles common in Amelia handle hail impacts? <span class="faq-arrow">▸</span></div>
@@ -569,7 +571,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       </div>
       <div class="faq-item">
         <div class="faq-q">How does Joe document hail damage for an Amelia insurance claim? <span class="faq-arrow">▸</span></div>
-        <div class="faq-a">I use a systematic on-roof photo assessment that documents strike patterns, granule loss, soft-metal dents on gutters and vents, and impact density across the roof surface. This creates the evidence package that supports your claim and gives the adjuster what they need to approve the full scope.</div>
+        <div class="faq-a">I use a systematic on-roof photo assessment that documents strike patterns, granule loss, soft-metal dents on gutters and vents, and impact density across the roof surface. That gives you one clear evidence package: photos and an itemized estimate to share with your insurer.</div>
       </div>
     </div>
   </div>

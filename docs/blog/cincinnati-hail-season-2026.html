@@ -423,7 +423,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -439,7 +439,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -496,6 +496,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -518,6 +519,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -721,7 +723,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
       <p>Hail season in the Cincinnati area runs <strong>March through August</strong>, but the real danger window is <strong>April through June</strong>. These are the months when spring atmospheric conditions create the kind of severe thunderstorms that produce quarter-sized hail and larger. Every year, we see damage we could have prevented if homeowners had simply known what to do in the first 48 hours.</p>
 
       <h2>What Size Hail Actually Causes Damage?</h2>
-      <p><strong>Quarter-sized hail (1 inch) and larger</strong> causes significant damage to roofs, siding, and gutters. This is the threshold where insurance companies take damage seriously and will pay claims.</p>
+      <p><strong>Quarter-sized hail (1 inch) and larger</strong> causes significant damage to roofs, siding, and gutters. This is the size where functional damage gets common, so it is worth an inspection; what a claim pays is up to your policy and your insurer.</p>
       <p>But here's what surprises people: <strong>even pea-sized hail can damage soft metals</strong> — your AC condenser, gutter systems, aluminum trim, and flashing. These smaller dents are often the best evidence of a qualifying hail event, because they're obvious and they're everywhere on your property.</p>
       <p>If you see hail falling and it's bigger than a pea, start taking pictures. Don't wait to see if it caused damage — document it while it's happening.</p>
 
@@ -780,7 +782,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 
       <h2>What Happens When You File</h2>
       <p>Once your contractor has documented damage, you file the claim with your insurance company. Here's what you include: the claim form, your contractor's inspection report and photos, your own ground-level photos and video, any measurement data. This gives the adjuster a complete picture before they even visit your property.</p>
-      <p>The adjuster will schedule a site visit. Joe can meet the adjuster, answer questions, and point out damage that might otherwise be missed. The goal is ensuring you're not underpaid.</p>
+      <p>The adjuster will schedule a site visit. Joe can meet the adjuster, answer questions, and point out damage that might otherwise be missed. If the scope misses damage, Joe can send a supplement (his updated estimate). You file and own the claim, and what it pays is up to your insurer.</p>
       <p>If the adjuster's initial scope is too low, you can request a supplement based on the contractor's documentation. This is normal and expected in the claims process.</p>
 
       <h2 id="quick-answers">Quick answers</h2>

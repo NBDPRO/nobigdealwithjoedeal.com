@@ -62,15 +62,15 @@
       "name": "How can I tell if my Wilmington home has hail damage?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Ground-level indicators include dented gutters, dings on AC units, and chipped paint on window trim or fascia. On the roof: random dark spots (granule loss exposing the asphalt mat beneath). My inspection includes impact density documentation — dents per 10 sq ft — which gives adjusters the evidence they need to approve a valid claim."
+        "text": "Ground-level indicators include dented gutters, dings on AC units, and chipped paint on window trim or fascia. On the roof: random dark spots (granule loss exposing the asphalt mat beneath). My inspection includes impact density documentation — dents per 10 sq ft — so you have clear photos and an itemized estimate to share with your insurer."
       }
     },
     {
       "@type": "Question",
-      "name": "Can Joe help if the adjuster underpays my Wilmington hail claim?",
+      "name": "Can Joe help if the adjuster's scope misses damage on my Wilmington hail claim?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. Supplement documentation is a standard part of my process. In smaller markets like Clinton County where adjuster presence is thin and initial assessments often run low, professional documentation and a contractor who documents the shortfall line by line makes a real difference in the final settlement."
+        "text": "Yes. If the adjuster's scope misses damage I found, I send a supplement (my updated estimate) with the photos, line by line. In smaller markets like Clinton County, where adjuster presence is thin, complete documentation matters. You file and own the claim, and what it pays is up to your insurer."
       }
     }
   ]
@@ -203,7 +203,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -219,7 +219,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -276,6 +276,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -298,6 +299,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -565,11 +567,11 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       </div>
       <div class="faq-item">
         <div class="faq-q">How can I tell if my Wilmington home has hail damage? <span class="faq-arrow">▸</span></div>
-        <div class="faq-a">Ground-level indicators include dented gutters, dings on AC units, and chipped paint on window trim or fascia. On the roof: random dark spots (granule loss exposing the asphalt mat beneath). My inspection includes impact density documentation — dents per 10 sq ft — which gives adjusters the evidence they need to approve a valid claim.</div>
+        <div class="faq-a">Ground-level indicators include dented gutters, dings on AC units, and chipped paint on window trim or fascia. On the roof: random dark spots (granule loss exposing the asphalt mat beneath). My inspection includes impact density documentation — dents per 10 sq ft — so you have clear photos and an itemized estimate to share with your insurer.</div>
       </div>
       <div class="faq-item">
-        <div class="faq-q">Can Joe help if the adjuster underpays my Wilmington hail claim? <span class="faq-arrow">▸</span></div>
-        <div class="faq-a">Yes. Supplement documentation is a standard part of my process. In smaller markets like Clinton County where adjuster presence is thin and initial assessments often run low, professional documentation and a contractor who documents the shortfall line by line makes a real difference in the final settlement.</div>
+        <div class="faq-q">Can Joe help if the adjuster's scope misses damage on my Wilmington hail claim? <span class="faq-arrow">▸</span></div>
+        <div class="faq-a">Yes. If the adjuster's scope misses damage I found, I send a supplement (my updated estimate) with the photos, line by line. In smaller markets like Clinton County, where adjuster presence is thin, complete documentation matters. You file and own the claim, and what it pays is up to your insurer.</div>
       </div>
     </div>
   </div>

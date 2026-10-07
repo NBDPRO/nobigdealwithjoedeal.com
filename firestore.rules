@@ -944,11 +944,19 @@ service cloud.firestore {
       // SENDS a text.
       match /ai_drafts/{draftId} {
         allow read: if isAuth() && (isAdmin() || isOwner(resource.data.userId));
+        // Status moves a rep may make (review R2-3-3, 2026-10-06):
+        //   pending → approved | dismissed   (approve sends — onAiDraftApproved)
+        //   failed  → pending  | dismissed   ("edit and try again" re-queues it)
+        // NEVER sent / approved / failed → approved: a stale tab tapping
+        // Approve on a draft already sent must not text the homeowner again.
         allow update: if isAuth()
           && isOwner(resource.data.userId) && notViewer()
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['status', 'draftText', 'approvedAt', 'approvedBy', 'editedByRep', 'dismissedAt'])
-          && request.resource.data.status in ['approved', 'dismissed'];
+          && ((resource.data.status == 'pending'
+                && request.resource.data.status in ['approved', 'dismissed'])
+            || (resource.data.status == 'failed'
+                && request.resource.data.status in ['pending', 'dismissed']));
         allow create, delete: if false; // admin SDK only
       }
 
@@ -1238,11 +1246,36 @@ service cloud.firestore {
       // source:'homeowner' photo: getHomeownerPortalView signs a homeowner
       // photo's `path` with the admin SDK (review R3-3, 2026-10-06). Only the
       // portal upload (admin SDK) writes those photos.
+      // Object-path fields (2026-10-06, follow-up to R3-2/R3-3): storagePath,
+      // thumbStoragePath and path are read by admin-SDK servers that sign,
+      // download or delete the object (reel/social studio, money-paper plate,
+      // tenant export, cleanup). A client may only name an object under its
+      // OWN upload prefix, photos/{uid}/ — every client uploader writes there
+      // (storage.rules owns that prefix). Absent / null / '' is fine.
+      // On update: `path` stays frozen (admin-only homeowner/web-form field);
+      // storagePath / thumbStoragePath may stay as they are or move to the
+      // writer's own prefix — the annotation save-over re-points storagePath
+      // at the flattened copy it just uploaded under photos/{uid}/.
+      function ownPhotoObject(v) {
+        return v == null || v == ''
+          || (v is string
+              && v.matches('photos/' + request.auth.uid + '/.+')
+              && !v.matches('.*[.][.].*')
+              && !v.matches('.*[/][/].*'));
+      }
+      function photoPathFieldOk(field) {
+        return ownPhotoObject(request.resource.data.get(field, null));
+      }
       allow update: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
-        && didNotChange(['userId', 'companyId', 'source', 'path']);
+        && didNotChange(['userId', 'companyId', 'source', 'path'])
+        && (didNotChange(['storagePath']) || photoPathFieldOk('storagePath'))
+        && (didNotChange(['thumbStoragePath']) || photoPathFieldOk('thumbStoragePath'));
       allow delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
       allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
         && request.resource.data.get('source', '') != 'homeowner'
+        && photoPathFieldOk('storagePath')
+        && photoPathFieldOk('thumbStoragePath')
+        && photoPathFieldOk('path')
         && (request.resource.data.get('companyId', '') == ''
             || request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''

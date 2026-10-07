@@ -194,7 +194,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -210,7 +210,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -267,6 +267,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -289,6 +290,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -487,7 +489,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div class="combo-hero-content">
     <div class="combo-badge">📍 Serving Fort Mitchell, KY — Kenton County</div>
     <h1>Hail Damage Roof Inspection<br>in <span>Fort Mitchell, KY</span></h1>
-    <p>Fort Mitchell gets hail too — NOAA logged <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=802778" target="_blank" rel="noopener">1-inch hail near Erlanger on March 14, 2019</a> and <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1168930" target="_blank" rel="noopener">near Covington on April 2, 2024</a> — but the hillside terrain means impact damage looks different here. Some roof planes face directly into the storm track; others are partially sheltered. I document this per-plane variation in the format adjusters need to approve a complete scope.</p>
+    <p>Fort Mitchell gets hail too — NOAA logged <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=802778" target="_blank" rel="noopener">1-inch hail near Erlanger on March 14, 2019</a> and <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1168930" target="_blank" rel="noopener">near Covington on April 2, 2024</a> — but the hillside terrain means impact damage looks different here. Some roof planes face directly into the storm track; others are partially sheltered. I document this per-plane variation, so you have clear photos and an itemized estimate to share with your insurer.</p>
     <div class="hero-btns svc-cta"><a href="/inspect" class="btn-primary">Book a free inspection</a></div>
     <p class="svc-alt">Leak right now? <a href="tel:+18594207382">Call Joe — (859) 420-7382</a></p>
   </div>
@@ -540,7 +542,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <div class="inc-item"><span class="inc-check">✓</span> Soft metal corroborating evidence — gutters, vent caps, AC units</div>
       <div class="inc-item"><span class="inc-check">✓</span> Damage documentation and a line-item estimate for your Kentucky homeowner's claim</div>
       <div class="inc-item"><span class="inc-check">✓</span> Adjuster meeting — I'm on-site at your Fort Mitchell property</div>
-      <div class="inc-item"><span class="inc-check">✓</span> Supplement documentation when initial scope undervalues damage</div>
+      <div class="inc-item"><span class="inc-check">✓</span> Supplement (my updated estimate) if the adjuster's scope misses damage</div>
       <div class="inc-item"><span class="inc-check">✓</span> Full roof replacement using GAF system materials</div>
     </div>
   </div>

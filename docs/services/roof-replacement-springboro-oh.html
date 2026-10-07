@@ -203,7 +203,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -219,7 +219,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -276,6 +276,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -298,6 +299,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -496,7 +498,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div class="combo-hero-content">
     <div class="combo-badge">📍 Serving Springboro, OH — Warren County</div>
     <h1>Roof Replacement<br>in <span>Springboro, OH</span></h1>
-    <p>Springboro's higher-value housing stock means roof replacement claims here can be substantial. I document damage to the standard that supports full replacement cost recovery — and install to match the architectural profiles these homes were built with.</p>
+    <p>Springboro's higher-value housing stock means roof replacement claims here can be substantial. I document damage thoroughly, so you have clear photos and an itemized estimate to share with your insurer — and install to match the architectural profiles these homes were built with.</p>
     <div class="hero-btns svc-cta"><a href="/inspect" class="btn-primary">Book a free inspection</a></div>
     <p class="svc-alt">Rather talk? <a href="tel:+18594207382">Call or text Joe — (859) 420-7382</a></p>
     <a href="https://www.gaf.com/en-us/roofing-contractors/residential" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:8px 14px;margin-top:18px;text-decoration:none;line-height:1.3"><picture class="nbd-pic"><source type="image/webp" srcset="/assets/gaf/gaf-certified-badge-320-56w.webp 1x, /assets/gaf/gaf-certified-badge-320-112w.webp 2x, /assets/gaf/gaf-certified-badge-320-168w.webp 3x"><img src="/assets/gaf/gaf-certified-badge-320.png" alt="GAF Certified&trade; Residential Roofing Contractor" width="48" height="48" loading="lazy" style="display:block;flex-shrink:0"></picture><span style="text-align:left"><strong style="display:block;color:#fff;font-size:.82rem;letter-spacing:.02em">GAF Certified&trade; Contractor</strong><span style="display:block;font-size:.66rem;color:rgba(255,255,255,.7);font-weight:600;margin-top:2px">System Plus Limited Warranty available &middot; <span style="color:#f9c97a;font-weight:700">Verify on GAF.com &rarr;</span></span></span></a>
@@ -531,7 +533,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div class="section-inner">
     <div class="local-box">
       <h2>🏠 Roof Replacement in Springboro</h2>
-      <p>Springboro's southern Warren County position along I-75 made it one of the fastest-growing communities in Ohio through the 2000s. The housing stock skews higher-value than many Warren County communities, with architectural shingles and dimensional profiles that require like-for-like replacement when storm damage justifies a claim. When hail does hit — NOAA logged <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1231565" target="_blank" rel="noopener">1-inch hail in Springboro on February 27, 2025</a> — I document damage to the standard that supports full replacement cost recovery under these higher-value policies.</p>
+      <p>Springboro's southern Warren County position along I-75 made it one of the fastest-growing communities in Ohio through the 2000s. The housing stock skews higher-value than many Warren County communities, with architectural shingles and dimensional profiles that require like-for-like replacement when storm damage justifies a claim. When hail does hit — NOAA logged <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1231565" target="_blank" rel="noopener">1-inch hail in Springboro on February 27, 2025</a> — I document damage thoroughly, so you have clear photos and an itemized estimate to share with your insurer.</p>
     </div>
   </div>
 </section>

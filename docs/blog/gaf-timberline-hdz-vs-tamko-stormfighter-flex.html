@@ -191,7 +191,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 </style><link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -207,7 +207,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -264,6 +264,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -286,6 +287,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -500,9 +502,9 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 
   <h2>What Each Shingle <span>Actually Is.</span></h2>
 
-  <p><strong>Timberline HDZ</strong> is GAF's flagship architectural shingle — the most-installed shingle in North America. It's what roughly 80% of my own customers land on. The LayerLock™ nailing zone gives crews a wider strike zone, which means a more consistent install in any weather. It carries the WindProven™ limited wind warranty — <strong>no maximum wind speed</strong> — when installed with the GAF starter strip and ridge cap, plus StainGuard Plus™ 25-year algae protection and a lifetime limited material warranty that's transferable. <a href="/services/gaf-timberline">Every HDZ color and spec is here.</a></p>
+  <p><strong>Timberline HDZ</strong> is GAF's flagship architectural shingle — the most-installed shingle in North America. It's what roughly 80% of my own customers land on. The LayerLock™ nailing zone gives crews a wider strike zone, which means a more consistent install in any weather. It carries the WindProven™ limited wind warranty — <strong>no maximum wind speed</strong> — when installed with the GAF starter strip and ridge cap, plus StainGuard Plus™ 25-year algae protection and a transferable limited manufacturer material warranty (terms per product and package). <a href="/services/gaf-timberline">Every HDZ color and spec is here.</a></p>
 
-  <p><strong>StormFighter Flex</strong> is a different animal. It's the Class 4 tier of <a href="/services/tamko-impact-resistant-shingles">TAMKO's impact-resistant lineup</a>: full <strong>UL 2218 Class 4</strong> — the top of the impact-resistance scale — built on TAMKO's ForceFX reinforced construction with the AnchorLock nailing zone. It runs a 160 mph WindGuard rating with the full TAMKO system, carries a Class A fire rating with Miami-Dade approval, has a cold-weather install window, and was voted #1 Product of the Year in a 40,000-person Kantar survey. Also lifetime limited, also transferable.</p>
+  <p><strong>StormFighter Flex</strong> is a different animal. It's the Class 4 tier of <a href="/services/tamko-impact-resistant-shingles">TAMKO's impact-resistant lineup</a>: full <strong>UL 2218 Class 4</strong> — the top of the impact-resistance scale — built on TAMKO's ForceFX reinforced construction with the AnchorLock nailing zone. It runs a 160 mph WindGuard rating with the full TAMKO system, carries a Class A fire rating with Miami-Dade approval, has a cold-weather install window, and was voted #1 Product of the Year in a 40,000-person Kantar survey. Also a transferable limited manufacturer warranty.</p>
 
   <p>Notice what that comparison actually says: these aren't two versions of the same roof. One is the proven all-rounder. The other is storm armor.</p>
 
@@ -516,7 +518,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 
   <h2>The "It's Too New" <span>Worry.</span></h2>
 
-  <p>Fair concern. Here's how I'd think about it instead of guessing from the launch date. StormFighter Flex isn't built from scratch — it rides on the same ForceFX construction and AnchorLock nailing zone as Titan XT, TAMKO's established impact line. It carries a transferable limited lifetime warranty, a Class A fire rating, Miami-Dade approval, and that 40,000-person Product of the Year vote. TAMKO and GAF are both major, established manufacturers — this was never a name-brand-versus-off-brand question.</p>
+  <p>Fair concern. Here's how I'd think about it instead of guessing from the launch date. StormFighter Flex isn't built from scratch — it rides on the same ForceFX construction and AnchorLock nailing zone as Titan XT, TAMKO's established impact line. It carries a transferable limited manufacturer warranty, a Class A fire rating, Miami-Dade approval, and that 40,000-person Product of the Year vote. TAMKO and GAF are both major, established manufacturers — this was never a name-brand-versus-off-brand question.</p>
 
   <p>But if what you want is the longest track record on the most houses? That's literally Timberline HDZ. There is nothing wrong with picking the proven thing because it's proven. That's not timid — that's how I'd buy a roof I plan to look at for 25 years.</p>
 
@@ -528,7 +530,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 
   <h2>Longevity and <span>Warranties.</span></h2>
 
-  <p>Both shingles carry a limited lifetime material warranty, and both are transferable. On wind, HDZ's WindProven warranty has no maximum speed, and StormFighter Flex is rated to 160 mph — for a "not particularly windy" area, both are more coverage than you'll ever cash in.</p>
+  <p>Both shingles carry a limited manufacturer material warranty (terms per product and package), and both are transferable. On wind, HDZ's WindProven warranty has no maximum speed, and StormFighter Flex is rated to 160 mph — for a "not particularly windy" area, both are more coverage than you'll ever cash in.</p>
 
   <p>Here's the fine print that actually matters, and it's the same for both brands: <strong>the headline numbers require the full manufacturer system.</strong> WindProven needs the GAF starter strip and ridge cap. The 160 mph WindGuard rating needs TAMKO starter and TAMKO hip &amp; ridge. A bargain quote that swaps in generic accessories can quietly cost you the warranty the shingle was advertised on.</p>
 

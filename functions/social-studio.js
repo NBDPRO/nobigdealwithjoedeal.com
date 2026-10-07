@@ -41,6 +41,7 @@ const { getStorage } = require('firebase-admin/storage');
 const { CORS_ORIGINS } = require('./handlers/_shared');
 const L = require('./social-logic');
 const SR = require('./stage-roles');
+const LAP = require('./lead-artifact-paths');
 const { makeAdapters } = require('./social-adapters');
 const { runPublisher, postBlockers: approvalBlockers } = require('./social-publisher');
 // Platform tenant (same convention as lead-alert.js / render-pdf.js): NBD is
@@ -95,12 +96,17 @@ async function loadLead(db, leadId, ctx) {
 async function leadPhotos(db, leadId, lead, ctx) {
   const q = await db.collection('photos').where('leadId', '==', leadId).limit(200).get();
   const out = [];
-  q.forEach((d) => {
+  const memo = new Map();
+  for (const d of q.docs) {
     const p = d.data() || {};
     const sameTenant = p.companyId ? String(p.companyId) === ctx.companyId : (p.userId === ctx.uid || p.userId === lead.userId);
     const path = p.storagePath || p.path;
-    if (sameTenant && typeof path === 'string' && PHOTO_PATH_RE.test(path)) out.push(Object.assign({ id: d.id }, p));
-  });
+    // ...and in the photo's own upload folder, or a company member's (a
+    // removed rep's reassigned photo): the doc is client-written, and the
+    // object is downloaded with the admin SDK and published (2026-10-06).
+    if (sameTenant && typeof path === 'string' && PHOTO_PATH_RE.test(path)
+      && await LAP.photoObjectAllowed(db, path, p, memo)) out.push(Object.assign({ id: d.id }, p));
+  }
   return out;
 }
 

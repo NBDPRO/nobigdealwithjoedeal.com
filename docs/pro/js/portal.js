@@ -1023,10 +1023,19 @@
       const payAction = view.balance.stripePaymentLink
         ? '<a class="btn" style="margin-top:12px;" href="' + esc(safeUrl(view.balance.stripePaymentLink)) + '" target="_blank" rel="noopener">Pay Now →</a>'
         : '<p style="color:var(--muted);margin:12px 0 0;">Ask your rep for a payment link to pay online.</p>';
+      // A deposit invoice (review R2-2-6): the server sends what is due NOW —
+      // the deposit while it is unpaid — and the whole amount owed beside it.
+      const isDeposit = view.balance.kind === 'deposit';
+      const owedCents = Number(view.balance.totalOwedCents);
+      const owedLine = (isDeposit && owedCents > view.balance.amountCents)
+        ? '<p class="progress-schedule-note">Total owed ' + esc((owedCents / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' }))
+          + ' — the rest is due later, as your contract says.</p>'
+        : '';
       parts.push(
         '<div class="card">' +
-          '<div class="card-label">💳 Balance Due</div>' +
+          '<div class="card-label">💳 ' + (isDeposit ? 'Deposit Due' : 'Balance Due') + '</div>' +
           '<div class="card-title">' + esc(amount) + '</div>' +
+          owedLine +
           payAction +
         '</div>'
       );
@@ -1305,11 +1314,12 @@
                        : w.tier === 'beyond' ? '#0f5257'
                        : w.tier === 'economy' ? '#5b5f66'
                        : '#A14A22';
-      // Economy is a 1-YEAR labor warranty (Jo, 2026-10-02), never the
-      // Lifetime Pledge — even when an older card carries no saved label.
+      // Economy is a 1-YEAR labor warranty (Jo, 2026-10-02). The NBD Pledge
+      // is NBD's promise on every job and never a "lifetime" warranty
+      // (Jo, 2026-10-06) — even when an older card carries no saved label.
       const pledgeTitle = w.tier === 'economy'
-        ? 'Economy — 1-Year Labor Warranty'
-        : (isNbdCompany ? 'NBD Lifetime Pledge' : (companyName ? companyName + ' Lifetime Pledge' : 'Lifetime Pledge'));
+        ? (isNbdCompany ? 'Economy — NBD Pledge · 1-Year Labor Warranty' : 'Economy — 1-Year Labor Warranty')
+        : (isNbdCompany ? 'NBD Pledge' : (companyName ? companyName + ' Warranty' : 'Warranty'));
       const installLabel = w.installDate
         ? new Date(w.installDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
         : '—';
@@ -1339,7 +1349,9 @@
             '<div style="background:' + tierAccent + ';color:#fff;font-family:\'Barlow Condensed\',sans-serif;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:5px 12px;border-radius:3px;white-space:nowrap;">' + esc(w.tier || 'standard') + '</div>' +
           '</div>' +
 
-          (w.tierDesc ? '<p style="color:var(--text);margin:0 0 14px;font-size:13px;line-height:1.55;">' + esc(w.tierDesc) + '</p>' : '') +
+          // NBD's Pledge (its promise), the written terms, and the
+          // manufacturer warranty this job bought, each on its own line (2026-10-06).
+          ((w.pledgeLine || w.tierDesc || w.manufacturerLine) ? '<p style="color:var(--text);margin:0 0 14px;font-size:13px;line-height:1.55;">' + [isNbdCompany ? w.pledgeLine : '', w.tierDesc, w.manufacturerLine].filter(Boolean).map(esc).join('<br>') + '</p>' : '') +
 
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">' +
             '<div style="background:var(--nbd-bg-tint);border:1px solid var(--br,#2a3344);border-radius:7px;padding:10px 12px;">' +
