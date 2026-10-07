@@ -180,7 +180,7 @@ const POSTS = [
     tag: "Insurance",
     title: "Does Homeowner Insurance Cover Hail Damage in Ohio?",
     meta: "By Joe Deal · July 2025 · 7 min read",
-    excerpt: "Yes — but the details matter. ACV vs RCV policies, why claims get underpaid, how long you have to file, and what actually happens when you call your insurance company. Straight talk from a Cincinnati roofer.",
+    excerpt: "Yes — but the details matter. ACV vs RCV policies, why first estimates miss damage, how long you have to file, and what actually happens when you call your insurance company. Straight talk from a Cincinnati roofer.",
     published: "2025-07-21",
   },
   {
