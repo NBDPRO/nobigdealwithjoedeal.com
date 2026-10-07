@@ -67,10 +67,10 @@
     },
     {
       "@type": "Question",
-      "name": "What if my insurance claim in Clarksville gets denied or underpaid?",
+      "name": "What if my insurance claim in Clarksville gets denied or comes in low?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Underpaid claims are common in smaller markets where documentation is thin. My process includes supplement documentation — reviewing the initial payment against the actual scope and submitting the missing line items when the insurance company's estimate doesn't cover the real cost of proper repair."
+        "text": "Thin documentation is common in smaller markets. If the adjuster's scope misses damage I found, I send a supplement (my updated estimate) with the missing line items and photos, and you can ask your carrier for a re-inspection or hire a licensed public adjuster. You file and own the claim, and what it pays is up to your insurer."
       }
     }
   ]
@@ -194,7 +194,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -210,7 +210,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -267,6 +267,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -289,6 +290,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -326,8 +328,8 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -487,7 +489,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div class="combo-hero-content">
     <div class="combo-badge">📍 Serving Clarksville, OH — Clinton County</div>
     <h1>Wind &amp; Storm Damage Repair<br>in <span>Clarksville, OH</span></h1>
-    <p>NOAA's Storm Events Database has 18 severe-weather reports within about 3 miles of Clarksville from 2019 through June 2026, including two EF0 tornadoes near Middleboro and <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1116258" target="_blank" rel="noopener">1.5-inch hail on July 18, 2023</a>. Small rural communities often lack experienced insurance restoration contractors — meaning storm damage goes under-documented and claims get underpaid. I cover all of Clinton County.</p>
+    <p>NOAA's Storm Events Database has 18 severe-weather reports within about 3 miles of Clarksville from 2019 through June 2026, including two EF0 tornadoes near Middleboro and <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1116258" target="_blank" rel="noopener">1.5-inch hail on July 18, 2023</a>. Small rural communities often lack experienced insurance restoration contractors — meaning storm damage can go under-documented. I cover all of Clinton County.</p>
     <div class="hero-btns svc-cta"><a href="/inspect" class="btn-primary">Book a free inspection</a></div>
     <p class="svc-alt">Leak right now? <a href="tel:+18594207382">Call Joe — (859) 420-7382</a></p>
   </div>
@@ -520,7 +522,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div class="section-inner">
     <div class="local-box">
       <h2>⛈️ Storm Damage Repair in Clarksville, OH</h2>
-      <p>NOAA's Storm Events Database has 18 severe-weather reports within about 3 miles of Clarksville from 2019 through June 2026, including two EF0 tornadoes near Middleboro and <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1116258" target="_blank" rel="noopener">1.5-inch hail on July 18, 2023</a>. Small rural communities like Clarksville often lack local contractors experienced in insurance restoration — meaning storm damage goes under-documented and claims get underpaid. I cover all of Clinton County with the same thorough inspection and adjuster meetings I provide in larger markets.</p>
+      <p>NOAA's Storm Events Database has 18 severe-weather reports within about 3 miles of Clarksville from 2019 through June 2026, including two EF0 tornadoes near Middleboro and <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=1116258" target="_blank" rel="noopener">1.5-inch hail on July 18, 2023</a>. Small rural communities like Clarksville often lack local contractors experienced in insurance restoration — meaning storm damage can go under-documented. I cover all of Clinton County with the same thorough inspection and adjuster meetings I provide in larger markets.</p>
     </div>
   </div>
 </section>
@@ -560,8 +562,8 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         <div class="faq-a">Wind, hail, falling limbs, and ice damage all qualify under most policies. On older village-stock homes in Clarksville, wind uplift at vulnerable eaves and hail impacts on aging shingles are the most common documented damage types. I photograph all of it during the free inspection.</div>
       </div>
       <div class="faq-item">
-        <div class="faq-q">What if my insurance claim in Clarksville gets denied or underpaid? <span class="faq-arrow">▸</span></div>
-        <div class="faq-a">Underpaid claims are common in smaller markets where documentation is thin. My process includes supplement documentation — reviewing the initial payment against the actual scope and submitting the missing line items when the insurance company's estimate doesn't cover the real cost of proper repair.</div>
+        <div class="faq-q">What if my insurance claim in Clarksville gets denied or comes in low? <span class="faq-arrow">▸</span></div>
+        <div class="faq-a">Thin documentation is common in smaller markets. If the adjuster's scope misses damage I found, I send a supplement (my updated estimate) with the missing line items and photos, and you can ask your carrier for a re-inspection or hire a licensed public adjuster. You file and own the claim, and what it pays is up to your insurer.</div>
       </div>
     </div>
   </div>

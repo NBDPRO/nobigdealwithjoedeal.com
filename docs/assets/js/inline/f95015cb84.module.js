@@ -61,7 +61,7 @@ function ensureAppCheck() {
         const key = typeof window.__NBD_APP_CHECK_KEY === 'string' ? window.__NBD_APP_CHECK_KEY.trim() : '';
         if (!key) return;
         const { initializeAppCheck, ReCaptchaEnterpriseProvider } =
-          await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js');
+          await import('/assets/vendor/firebase/10.12.2/firebase-app-check.js');
         initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(key), isTokenAutoRefreshEnabled: true });
       } catch (_) {}
     })();

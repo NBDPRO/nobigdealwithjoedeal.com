@@ -455,7 +455,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -471,7 +471,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -528,6 +528,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -550,6 +551,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -587,8 +589,8 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -824,7 +826,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
     <h3>What if the adjuster misses damage or I disagree with the estimate?</h3>
     <p>Ask for a copy of the estimate and read it line by line. Missed items can be sent back as a supplement with photos and a line-item estimate, you can request a reinspection in writing, and many policies include an appraisal clause for disputes over the amount of the loss.</p>
 
-    <p>If a storm came through and you haven't filed yet, start with a <a href="/services/roof-inspection">free roof inspection</a> so you know what's actually up there before anyone from the insurance company sees it. Here's more on <a href="/services/hail-damage-insurance-claim">what I do on a hail damage claim</a>, and if you want to know how your policy pays, read <a href="/blog/does-homeowner-insurance-cover-hail-damage-ohio">Does Homeowner Insurance Cover Hail Damage in Ohio?</a> Or call or text me at <a href="tel:+18594207382">(859) 420-7382</a>.</p>
+    <p>If a storm came through and you haven't filed yet, start with a <a href="/inspect">free roof inspection</a> so you know what's actually up there before anyone from the insurance company sees it. Here's more on <a href="/services/hail-damage-insurance-claim">what I do on a hail damage claim</a>, and if you want to know how your policy pays, read <a href="/blog/does-homeowner-insurance-cover-hail-damage-ohio">Does Homeowner Insurance Cover Hail Damage in Ohio?</a> Or call or text me at <a href="tel:+18594207382">(859) 420-7382</a>.</p>
 
   </div>
 </article>

@@ -293,6 +293,9 @@ function loadPage(opts) {
   const longTimers = [];
   const disk = opts.disk || newDisk();
   const window = {
+    // The server 'ok to text?' every Messages hand-off asks first (review R2-3-2,
+    // phone-share.js): yes here; its refusals: tests/texting-r2-fixes-2026-10-06.test.js.
+    NBDPhoneShare: { checkText: async () => ({ ok: true }) },
     console: QUIET, document, navigator,
     location: { hostname: 'nobigdealwithjoedeal.com', href: 'https://nobigdealwithjoedeal.com/pro/dashboard.html' },
     localStorage: {

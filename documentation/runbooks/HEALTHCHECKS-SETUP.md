@@ -79,12 +79,12 @@ table drifts from it.
 | `health-digest-cron` | healthDigestCron | 1 day | 6 hours | daily health digest |
 | `lead-follow-up-sweep` | leadFollowUpSweep | 3 hours | 4 hours | follow-up to untouched new leads |
 | `storm-poller` | stormPoller | 30 minutes | 1 hour | the one storm poller (#2148) — storm alert texts + NWS watch |
-| `social-publisher` | socialPublisher | 5 minutes | 30 minutes | scheduled Social Studio posts go out (#2162) |
+| `social-publisher` | socialPublisher, resumeMemberStorageMoves | 5 minutes | 30 minutes | scheduled Social Studio posts go out (#2162); removed-member storage-move resume (#2271) |
 | `calls-texts-ingest` | callCenterIngest, callCenterTranscribe, textInboxIngest | 30 minutes | 1 hour | call recordings, transcripts, texts in |
 | `hourly-crons` | runAbandonRecovery, textInboxNotes | 1 hour | 2 hours | abandoned-estimate recovery + text notes |
 | `call-followups` | callWatch, callCenterSweep | 12 hours | 1 hour | call watch (2h, 08-20 ET) + promise sweep (07:15/15:15 ET) |
 | `daily-retention` | firestoreBackupRetention, auditLogRetentionCron, recordingRetentionCron, pdfRenderRetention, promiseCleanup, reelCleanup | 1 day | 6 hours | cleanup / retention jobs (incl. promise cleanup, Reel cleanup) |
-| `daily-customer-touches` | dailyLeadDigest, morningBrief, onFollowUpDue, onYardSignPickupDue, anniversaryAutoTouch, reviewRequestNudge, onAfterInstallDay, esignReminderSweep | 1 day | 6 hours | morning digests + nudges to Jo; e-sign reminders to signers (10:00 ET) |
+| `daily-customer-touches` | dailyLeadDigest, morningBrief, onFollowUpDue, onYardSignPickupDue, anniversaryAutoTouch, reviewRequestNudge, onAfterInstallDay, esignReminderSweep, invoiceOverdueSweep | 1 day | 6 hours | morning digests + nudges to Jo; e-sign reminders to signers (10:00 ET); invoice overdue sweep (08:15 ET) |
 | `daily-syncs` | syncGbpReviews, googleCalendarReconcile, hailMatchCron | 1 day | 6 hours | GBP reviews, Google Calendar reconcile, hail match |
 | `weekly-crons` | weeklyDigest, dormantLeadNudge, weeklyVendorConfigExport | 1 week | 12 hours | weekly digest (Mon) + dormant-lead nudge (Wed) + vendor-config export (Sun) |
 | `monthly-crons` | monthlyMarketingReport, monthlyOverheadAlertCron | cron 0 7 1 * * (America/New_York) | 12 hours | marketing report + overhead alert, 1st of month |

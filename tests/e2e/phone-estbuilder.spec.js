@@ -481,6 +481,29 @@ async function forceStandalone(page) {
   });
 }
 
+// The Job Templates modal repaints under the finger: job-templates.js runs
+// a one-shot hydrateFromCloud() when the estimates bundle loads and calls
+// JobTemplatesUI.reRender() when it lands (job-templates.js ~L822), which
+// rebuilds #jtModalBody — the library, or the configure step if the rep is
+// already there — from state. On a loaded runner that lands 0.5s+ after
+// openPicker, so a scroll/tap started on the old node fails "Element is not
+// attached to the DOM" (merge-queue flake on "Make required", 2026-10-06;
+// same class as phone-estdata estimate#11, #2258). Two parts:
+//  - before openPicker, the spec awaits its own hydrateFromCloud(): the same
+//    users/{uid}/jobTemplates read, so it resolves with (after) the boot
+//    one, and that repaint is done before the picker paints;
+//  - tapSettled retries the scroll + tap on a re-resolved node until the tap
+//    has taken, judged by `taken` (checked first, so a tap that already
+//    landed is never repeated), for any other repaint.
+async function tapSettled(target, taken, what) {
+  await expect(async () => {
+    if (await taken()) return;
+    await target.scrollIntoViewIfNeeded({ timeout: 2_000 });
+    await target.tap({ timeout: 2_000 });
+    await expect.poll(taken, { timeout: 5_000, message: what + ' took' }).toBe(true);
+  }, what + ' settles and takes the tap').toPass({ timeout: 30_000 });
+}
+
 const dollarsToCents = (s) => Math.round(Number(String(s).replace(/[$,]/g, '')) * 100);
 
 test.describe('phone estbuilder: Job Templates upgrades, installed app at 412px @shard2', () => {
@@ -496,13 +519,13 @@ test.describe('phone estbuilder: Job Templates upgrades, installed app at 412px 
     await safeWaitForFunction(page, () => !!(window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function'), { timeout: 20_000 });
     await safeEvaluate(page, async (leadId) => {
       await window.ScriptLoader.loadBundle('estimates');
+      await window.JobTemplates.hydrateFromCloud(); // the boot hydrate's repaint lands first (see tapSettled)
       window.JobTemplatesUI.openPicker({ leadId });
     }, lead.id);
     await expect(page.locator('#jtModal.open')).toBeVisible({ timeout: 15_000 });
     const use = page.locator('#jtModal [data-jt-action="quick-use"][data-id="jt_gi_k5_seamless_full"]');
-    await use.scrollIntoViewIfNeeded();
-    await use.tap();
     const card = page.locator('#jtUpgCard [data-upg-card]');
+    await tapSettled(use, () => card.isVisible(), 'Use this template');
     await expect(card, 'the build screen shows an Upgrades card').toBeVisible({ timeout: 15_000 });
 
     let lineCents = 0;
@@ -654,6 +677,7 @@ test.describe('phone estbuilder: Job Templates upgrades, installed app at 412px 
     await safeWaitForFunction(page, () => window._companyProfileLoaded === true, { timeout: 20_000 });
     await safeEvaluate(page, async () => {
       await window.ScriptLoader.loadBundle('estimates');
+      await window.JobTemplates.hydrateFromCloud(); // the boot hydrate's repaint lands first (see tapSettled)
       // In-page tenant price for the 3x4 step-up, so the homeowner page has
       // an option OUTSIDE the leaf group (nothing is written anywhere).
       // Settings → Upgrade prices' shape (#1762), in memory only.
@@ -664,9 +688,8 @@ test.describe('phone estbuilder: Job Templates upgrades, installed app at 412px 
     });
     await expect(page.locator('#jtModal.open')).toBeVisible({ timeout: 15_000 });
     const use = page.locator('#jtModal [data-jt-action="quick-use"][data-id="jt_gi_k5_seamless_full"]');
-    await use.scrollIntoViewIfNeeded();
-    await use.tap();
     const card = page.locator('#jtUpgCard [data-upg-card]');
+    await tapSettled(use, () => card.isVisible(), 'Use this template');
     await expect(card).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('#jtUpgCard [data-jt-action="upg-pick"][data-id="downspout_3x4_step_up"]'),
       'fixture: the in-page tenant price makes the 3x4 step-up pickable').toBeEnabled();

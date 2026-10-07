@@ -22,14 +22,20 @@ const MAX_LIST = 50;
 const LIST_CURSOR_MAX = 400;
 // Draft limits (2026-10-06; the draft rules sit above the company-bot section).
 const SMS_MAX = 480;
-const STOP_LINE = 'Reply STOP to opt out.';
+// The STOP line on a draft the owner sends from their OWN phone (review R2-3-1,
+// Jo 2026-10-06). "to opt out" promised an opt-out system that never sees the
+// reply — it lands on the owner's phone. This wording is true: the owner reads
+// it, and records it with "They replied STOP" (phone-text-check.js 'stop').
+// TODO(TWILIO_INBOUND_ENABLED): once the business line's inbound is live,
+// drafts should go through it, where a STOP is recorded by itself.
+const STOP_LINE = "Reply STOP and we'll stop texting.";
 const REASON_MAX = 300;
 const EMAIL_SUBJECT_MAX = 140;
 
 // ── Tools ──────────────────────────────────────────────────────────────
 const TOOLS = {
   crm_summary: {
-    description: 'Pipeline at a glance: active customers by stage, open pipeline value (PROJECTED — booked/estimated, not money received), follow-ups due today and overdue.',
+    description: 'Pipeline at a glance: active customers by stage, open pipeline value (PROJECTED — deals still in play; a signed contract or a job in production is booked, not pipeline; never money received), follow-ups due today and overdue.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   schedule: {
@@ -221,6 +227,11 @@ const { moneyValue } = require('./customer-estimate-rows');
 const { jobRecords } = require('./jobs-logic');
 function stageKeyOf(l) { return _SRK.canonicalStageKey(l && l.stage) || String((l && l.stage) || 'new'); }
 function isClosedLead(l) { const r = _SRK.roleFor(Object.assign({}, l, { _stageKey: stageKeyOf(l) })); return r === 'won' || r === 'lost' || CLOSED.test(stageKeyOf(l)); }
+// Out of the OPEN pipeline: closed/lost above, or BOOKED — a signed contract
+// or an in-production job (Jo, 2026-10-06; stage-roles.js isSale, the test
+// the kanban header, Home KPI tiles and weekly digest use). Follow-ups keep
+// isClosedLead: a signed job still has production follow-ups.
+function isOutOfPipeline(l) { return isClosedLead(l) || _SRK.isSale(l); }
 function ms(v) {
   if (!v) return 0;
   if (typeof v === 'number') return v;
@@ -261,7 +272,7 @@ function summary(leads, todayYmd, jobsByLead) {
   const byStage = {};
   let pipeline = 0, dueToday = 0, overdue = 0;
   jobRecords(act, jobsByLead).forEach((r) => {
-    if (!isClosedLead(r)) pipeline += moneyValue(r.jobValue);
+    if (!isOutOfPipeline(r)) pipeline += moneyValue(r.jobValue);
   });
   act.forEach((l) => {
     const st = stageKeyOf(l);
@@ -272,7 +283,7 @@ function summary(leads, todayYmd, jobsByLead) {
       else if (l.followUp < todayYmd) overdue++;
     }
   });
-  return { customers: act.length, by_stage: byStage, open_pipeline_value_projected: Math.round(pipeline), followups_due_today: dueToday, followups_overdue: overdue, note: 'Pipeline value is projected (estimates / booked), not money collected.' };
+  return { customers: act.length, by_stage: byStage, open_pipeline_value_projected: Math.round(pipeline), followups_due_today: dueToday, followups_overdue: overdue, note: 'Pipeline value is projected: open deals only (a signed contract or a job in production is booked, not pipeline), not money collected.' };
 }
 
 function overdueFollowups(leads, todayYmd, limit) {
@@ -437,12 +448,19 @@ function estimatesStatus(estimates, deals, leads, args, nowMs) {
 // file and fails on any drift. Kentucky lines come from the server's own
 // copy of the jurisdiction module.
 const TIERS = [
-  { key: 'economy', label: 'Economy', ratePerSq: 440, warranty: '1-year workmanship plus the shingle maker\'s limited warranty; no system warranty; not transferable', crmOnly: true, notes: 'Never 3-tab shingles.' },
-  { key: 'good', label: 'Standard', ratePerSq: 550, warranty: 'Lifetime system warranty; not transferable' },
-  { key: 'better', label: 'Preferred', ratePerSq: 660, warranty: 'Lifetime system warranty; transferable to one later owner within 30 days of sale' },
-  { key: 'best', label: 'Elite', ratePerSq: 770, warranty: 'Lifetime system warranty; fully transferable; annual inspection' },
-  { key: 'beyond', label: 'Beyond', ratePerSq: 880, warranty: 'Elite warranty plus TAMKO\'s hail warranty', crmOnly: true, notes: 'Locked to TAMKO HailGuard shingles.' },
+  { key: 'economy', label: 'Economy', ratePerSq: 440, warranty: '1-year written workmanship (labor) warranty plus the shingle maker\'s limited warranty; no system warranty; not transferable', crmOnly: true, notes: 'Never 3-tab shingles.' },
+  // GAF System Plus (Standard and up, Jo 2026-10-05) is GAF's MANUFACTURER
+  // warranty, included in the tier price — never sold as a separate line,
+  // never described as workmanship.
+  { key: 'good', label: 'Standard', ratePerSq: 550, warranty: '5-year written workmanship (labor) warranty; not transferable; GAF System Plus warranty included (GAF manufacturer warranty on the shingles + qualifying GAF accessories, not workmanship)' },
+  { key: 'better', label: 'Preferred', ratePerSq: 660, warranty: '10-year written workmanship (labor) warranty; transferable to one later owner within 30 days of sale; GAF System Plus warranty included (GAF manufacturer warranty on the shingles + qualifying GAF accessories, not workmanship)' },
+  { key: 'best', label: 'Elite', ratePerSq: 770, warranty: '20-year written workmanship (labor) warranty; fully transferable; annual inspection; GAF System Plus warranty included (GAF manufacturer warranty on the shingles + qualifying GAF accessories, not workmanship)' },
+  { key: 'beyond', label: 'Beyond', ratePerSq: 880, warranty: '20-year written workmanship (labor) warranty; fully transferable; annual inspection (Elite terms) plus TAMKO\'s hail warranty; no GAF System Plus (not a GAF roof)', crmOnly: true, notes: 'Locked to TAMKO HailGuard shingles.' },
 ];
+// The NBD Pledge (Jo, 2026-10-06): a PROMISE on every NBD job, every tier —
+// never call it (or anything) a "lifetime warranty". Same text as
+// docs/pro/js/estimate-config.js PLEDGE_PROMISE (pinned by test).
+const PLEDGE_PROMISE = 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right.';
 const WORKMANSHIP_YEARS = { gutter_system: 5, guard_only: 2, install_default: 2, repair: 1, none: 0 };
 const DEPOSIT = { cashNoDepositUnderCents: 200000, cashDepositPct: 50, insurance: 'Kentucky insurance job: nothing due at signing; deductible + ACV due after the carrier\'s written decision and the 5-business-day cancellation window.' };
 let KY = null;
@@ -454,6 +472,8 @@ function rulesReference() {
     tier_note: 'Per-SQ retail rates exclude delivery and add-ons. Economy and Beyond are CRM-only (not on the public site). Older jobs keep the year and "priced in <year>" context.',
     workmanship_warranty_years: Object.assign({}, WORKMANSHIP_YEARS),
     repair_warranty_note: 'Repairs carry 1 year only when the rep ticks the box.',
+    pledge: PLEDGE_PROMISE,
+    pledge_note: 'The NBD Pledge is a promise on every NBD job, every tier. It is not a warranty term: the written labor warranty is by package (1 to 20 years, above). Never write "lifetime warranty" or "lifetime workmanship", and never call a product warranty lifetime.',
     deposit: { cash_under_2000: 'no deposit', cash_2000_and_up: DEPOSIT.cashDepositPct + '% at signing', insurance: DEPOSIT.insurance },
     kentucky_insurance_jobs: {
       never_say: ['we handle your claim', 'we negotiate with your insurance', 'we manage / deal with / fight the adjuster for you'],
@@ -816,6 +836,26 @@ function companyNames(profile, isNbd) {
 }
 function hasStopLine(body) { return /\b(reply|text)\s+["']?stop\b/i.test(String(body || '')); }
 
+/**
+ * The checks a text draft must pass — at filing AND again on the edited text
+ * when the owner taps send (review R2-3-1): the company name, a STOP line, the
+ * Kentucky claim wording. Never appends: an edit that removed the
+ * STOP line is refused, not repaired behind the owner's back.
+ * @returns {string|null} what is wrong, or null
+ */
+function editedTextProblem(body, names) {
+  const b = draftText(body);
+  if (!b) return 'The text is empty.';
+  const ns = (names || []).filter(Boolean);
+  if (!ns.length) return 'The company has no name set on its profile, so a text cannot say who it is from.';
+  const low = b.toLowerCase();
+  if (!ns.some((n) => low.indexOf(n.toLowerCase()) !== -1)) return 'Say who it is from: the text must include the company name ("' + ns[ns.length - 1] + '").';
+  if (!hasStopLine(b)) return 'Keep the STOP line in the text ("' + STOP_LINE + '").';
+  const claim = claimWordingProblem(b);
+  if (claim) return claim;
+  return null;
+}
+
 /** draft_text args → { body } (company name checked, STOP line appended) or { error }. */
 function buildTextDraft(args, names) {
   const a = args || {};
@@ -1069,8 +1109,8 @@ module.exports = {
   estimatesStatus, estimateTotal, paymentsOf, collectedRevenue,
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
-  TIERS, WORKMANSHIP_YEARS, DEPOSIT, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
+  TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
   botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,
-  SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, buildTextDraft, textGate, buildEmailDraft, emailGate, buildSocialDraft,
+  SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, editedTextProblem, buildTextDraft, textGate, buildEmailDraft, emailGate, buildSocialDraft,
   planAllowsBots, accessDecision, validTimeZone, companyTimeZone, dayInZone, rulesReferenceFor, houseRuleLines, NEUTRAL_GUIDANCE,
 };

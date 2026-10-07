@@ -343,6 +343,60 @@ async function run() {
       updateDoc(doc(bob, 'photos/r3fxRep'), { url: 'https://x.test/a', storagePath: 'photos/bob/leadB/photo_r3fxRep.jpg', isAnnotated: true }));
   }
 
+  // D3. PHOTO OBJECT PATHS (follow-up to R3-2/R3-3, 2026-10-06)
+  //     storagePath / thumbStoragePath / path are read by admin-SDK servers that
+  //     sign, download or publish the object (reel + social studio, invoice
+  //     plate, tenant export). A client may name only an object under its OWN
+  //     photos/{uid}/ prefix, on create, and on update (unless unchanged).
+  //     `path` stays frozen on update (D2). Server halves:
+  //     sec-photo-path-confinement-2026-10-06.test.js.
+  {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'photos/d3Own'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB',
+        storagePath: 'photos/bob/leadB/a.jpg', thumbStoragePath: 'photos/bob/leadB/thumbs/a_thumb.jpg' });
+      await setDoc(doc(db, 'photos/d3Legacy'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB',
+        storagePath: 'legacy/bob/old.jpg' });
+    });
+    const base = { userId: 'bob', companyId: 'co-b', leadId: 'leadB' };
+    const VICTIM = 'pdf-renders/alice/1700000000000-contract.pdf';
+    await check('D3: CREATE with storagePath of another tenant\'s object', 'deny',
+      setDoc(doc(bob, 'photos/d3c1'), { ...base, storagePath: VICTIM }));
+    await check('D3: CREATE with storagePath under another uid\'s photos/', 'deny',
+      setDoc(doc(bob, 'photos/d3c2'), { ...base, storagePath: 'photos/alice/leadA/a.jpg' }));
+    await check('D3: CREATE with storagePath under a uid that merely starts with mine', 'deny',
+      setDoc(doc(bob, 'photos/d3c3'), { ...base, storagePath: 'photos/bobby/a.jpg' }));
+    await check('D3: CREATE with storagePath climbing out via ..', 'deny',
+      setDoc(doc(bob, 'photos/d3c4'), { ...base, storagePath: 'photos/bob/../alice/a.jpg' }));
+    await check('D3: CREATE with an empty path segment (photos/bob//...)', 'deny',
+      setDoc(doc(bob, 'photos/d3c4b'), { ...base, storagePath: 'photos/bob//a.jpg' }));
+    await check('D3: CREATE with a foreign thumbStoragePath', 'deny',
+      setDoc(doc(bob, 'photos/d3c5'), { ...base, storagePath: 'photos/bob/leadB/a.jpg', thumbStoragePath: 'calls/alice/rec.mp3' }));
+    await check('D3: CREATE with a foreign path (non-homeowner photo)', 'deny',
+      setDoc(doc(bob, 'photos/d3c6'), { ...base, path: 'homeowner-uploads/alice/leadA/1.jpg' }));
+    await check('D3: CREATE with a non-string storagePath', 'deny',
+      setDoc(doc(bob, 'photos/d3c7'), { ...base, storagePath: ['photos/bob/a.jpg'] }));
+    await check('D3 control: CREATE with own storagePath + thumbStoragePath (photo-engine shape)', 'allow',
+      setDoc(doc(bob, 'photos/d3ok1'), { ...base, storagePath: 'photos/bob/leadB/u1_std.jpg', thumbStoragePath: 'photos/bob/leadB/thumbs/u1_thumb.jpg' }));
+    await check('D3 control: CREATE with own flat storagePath (customer-page shape)', 'allow',
+      setDoc(doc(bob, 'photos/d3ok2'), { ...base, storagePath: 'photos/bob/1700000000000_a.jpg' }));
+    await check('D3 control: CREATE with no path fields (url-only legacy shape)', 'allow',
+      setDoc(doc(bob, 'photos/d3ok3'), { ...base, url: 'https://x.test/a' }));
+    await check('D3 control: CREATE with storagePath null', 'allow',
+      setDoc(doc(bob, 'photos/d3ok4'), { ...base, storagePath: null }));
+
+    await check('D3: UPDATE re-points storagePath at another tenant\'s object', 'deny',
+      updateDoc(doc(bob, 'photos/d3Own'), { storagePath: VICTIM }));
+    await check('D3: UPDATE re-points thumbStoragePath at another uid\'s photo', 'deny',
+      updateDoc(doc(bob, 'photos/d3Own'), { thumbStoragePath: 'photos/alice/leadA/thumbs/x.jpg' }));
+    await check('D3: UPDATE via setDoc-merge re-points storagePath', 'deny',
+      setDoc(doc(bob, 'photos/d3Own'), { storagePath: VICTIM }, { merge: true }));
+    await check('D3 control: UPDATE other fields on a legacy off-prefix photo (path unchanged)', 'allow',
+      updateDoc(doc(bob, 'photos/d3Legacy'), { description: 'ridge', phase: 'After' }));
+    await check('D3 control: annotation save-over moves storagePath to own prefix', 'allow',
+      updateDoc(doc(bob, 'photos/d3Own'), { url: 'https://x.test/b', storagePath: 'photos/bob/leadB/photo_d3Own.jpg', isAnnotated: true }));
+  }
+
   // ═══════════════════════════════════════════════════════════
   // E. CREATE-PIN ENFORCEMENT (Phase-1.5) — companyId pinned to the
   //    caller's own tenant on create. Foreign id rejected; own claim/uid OK.
@@ -666,6 +720,154 @@ async function run() {
     }
     await checkEmpty("Z: B re-created it; reads none of A's top-level notes",
       getDocs(query(collection(bob, 'notes'), where('leadId', '==', 'leadGone'))));
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // OFFBOARD — review R3-1 fix (2026-10-06): a removed member loses the
+  // company's records. Rules authorize company records on isOwner(userId),
+  // so removeMember now hands the member's company records to the owner
+  // (functions/member-offboarding.js reassignMemberRecords — the REAL sweep
+  // runs here, against the emulator, with the admin SDK) before it strips
+  // their claims. Then the rules deny the ex-rep with no rule change:
+  // get, update, delete and their own userId list query alike. Owner and
+  // solo-owner controls prove nothing else moved.
+  // ═══════════════════════════════════════════════════════════
+  {
+    const { getDocs, collection, query, where } = require('firebase/firestore');
+    const { initializeApp: initAdminApp } = require('firebase-admin/app');
+    const { getFirestore: getAdminFirestore } = require('firebase-admin/firestore');
+    let OFF = null;
+    try { OFF = require(path.resolve(__dirname, '../functions/member-offboarding.js')); } catch (_) { OFF = null; }
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'leads/offLead'),    { userId: 'offrep', companyId: 'co-a', name: 'Company customer', phone: '+15555550177' });
+      await setDoc(doc(db, 'estimates/offEst'), { userId: 'offrep', companyId: 'co-a', leadId: 'offLead', total: 12000 });
+      await setDoc(doc(db, 'photos/offPhoto'),  { userId: 'offrep', leadId: 'offLead', url: 'x' });        // no companyId (predates stamping)
+      await setDoc(doc(db, 'leads/offSolo'),    { userId: 'offrep', companyId: 'offrep', name: 'Rep solo-era customer' });
+      await setDoc(doc(db, 'leads/soloOwn'),    { userId: 'solo1', companyId: 'solo1', name: 'Solo owner customer' });
+    });
+    const offRepLive = env.authenticatedContext('offrep', { role: 'sales_rep', companyId: 'co-a' }).firestore();
+    await check('OFFBOARD control: rep reads own company lead while still a member', 'allow', getDoc(doc(offRepLive, 'leads/offLead')));
+
+    // removeMember: sweep to the owner (aliceca, co-a company_admin), then the claim strip.
+    let swept = null, sweepErr = null;
+    try {
+      const adminDb = getAdminFirestore(initAdminApp({ projectId: PROJECT_ID }, 'xtenant-offboard'));
+      swept = await OFF.reassignMemberRecords(adminDb, { fromUid: 'offrep', toUid: 'aliceca', companyId: 'co-a' });
+    } catch (e) { sweepErr = e; }
+    results.push(swept && swept.total === 3
+      ? { label: 'OFFBOARD: removeMember sweep moved lead + estimate + photo', expect: 'swept', outcome: 'PASS', note: JSON.stringify(swept.moved) }
+      : { label: 'OFFBOARD: removeMember sweep moved lead + estimate + photo', expect: 'swept', outcome: 'FAIL', note: '>>> ' + (sweepErr ? sweepErr.message : JSON.stringify(swept)) });
+    const offRemoved = env.authenticatedContext('offrep', {}).firestore();   // after removeMember: claims stripped
+
+    await check('OFFBOARD: removed rep cannot READ former company lead',    'deny', getDoc(doc(offRemoved, 'leads/offLead')));
+    await check('OFFBOARD: removed rep cannot UPDATE former company lead',  'deny', updateDoc(doc(offRemoved, 'leads/offLead'), { notes: 'exported before I left' }));
+    await check('OFFBOARD: removed rep cannot DELETE former company lead',  'deny', deleteDoc(doc(offRemoved, 'leads/offLead')));
+    await check('OFFBOARD: removed rep cannot READ former company estimate', 'deny', getDoc(doc(offRemoved, 'estimates/offEst')));
+    await check('OFFBOARD: removed rep cannot READ former company photo',   'deny', getDoc(doc(offRemoved, 'photos/offPhoto')));
+    try {
+      const snap = await getDocs(query(collection(offRemoved, 'leads'), where('userId', '==', 'offrep')));
+      const ids = snap.docs.map((d) => d.id).sort().join(',');
+      results.push(ids === 'offSolo'
+        ? { label: "OFFBOARD: removed rep's own userId query lists only their solo-era lead", expect: 'list', outcome: 'PASS', note: ids }
+        : { label: "OFFBOARD: removed rep's own userId query lists only their solo-era lead", expect: 'list', outcome: 'FAIL', note: '>>> listed ' + ids });
+    } catch (e) {
+      results.push({ label: "OFFBOARD: removed rep's own userId query lists only their solo-era lead", expect: 'list', outcome: 'FAIL', note: '>>> query denied' });
+    }
+    await check("OFFBOARD control: removed rep still reads their own solo-era lead", 'allow', getDoc(doc(offRemoved, 'leads/offSolo')));
+    await check('OFFBOARD control: owner READS the reassigned lead',   'allow', getDoc(doc(aliceCA, 'leads/offLead')));
+    await check('OFFBOARD control: owner UPDATES the reassigned lead', 'allow', updateDoc(doc(aliceCA, 'leads/offLead'), { notes: 'taking this one' }));
+    await check('OFFBOARD control: owner READS the reassigned photo',  'allow', getDoc(doc(aliceCA, 'photos/offPhoto')));
+    await check('OFFBOARD control: owner DELETES the reassigned lead', 'allow', deleteDoc(doc(aliceCA, 'leads/offLead')));
+    await check('OFFBOARD control: solo owner still READS own lead',   'allow', getDoc(doc(solo, 'leads/soloOwn')));
+    await check('OFFBOARD control: solo owner still UPDATES own lead', 'allow', updateDoc(doc(solo, 'leads/soloOwn'), { notes: 'unaffected' }));
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // R3-7 / R3-12 FIX (review round 3, 2026-10-06)
+  //
+  // R3-7: an Anonymous-provider token is no longer a signed-in user.
+  // isAuth() refuses sign_in_provider 'anonymous', so every rule built on it
+  // (isOwner, notViewer, the role helpers) refuses it too. Anonymous sign-in
+  // was turned off in the Firebase console the same day; this is the second
+  // lock, for any account that already exists and can still refresh a token.
+  //
+  // R3-12: on the flat owner-keyed collections, userId and companyId are
+  // WRITE-ONCE on UPDATE (the customerId pattern on /leads): a doc cannot be
+  // handed to another user or re-tenanted, and a companyId stamped onto a
+  // doc that never had one must be the writer's own tenant. Every case writes
+  // its own seeded document so no check can mask another.
+  // ═══════════════════════════════════════════════════════════
+  {
+    const { deleteField } = require('firebase/firestore');
+    const R37_ANON = env.authenticatedContext('r37anon', { firebase: { sign_in_provider: 'anonymous' } }).firestore();
+    const R37_PW   = env.authenticatedContext('r37pw',   { firebase: { sign_in_provider: 'password' } }).firestore();
+    const R37_CUST = env.authenticatedContext('r37cust', { firebase: { sign_in_provider: 'custom' } }).firestore();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'tasks/r37anonOwned'), { userId: 'r37anon', companyId: 'r37anon', title: 'left over' });
+    });
+
+    // R3-7 — the attack list from the report, one check each.
+    await check('R3-7: anonymous account cannot read docPrefixes (tenant owner uids)', 'deny',
+      getDoc(doc(R37_ANON, 'docPrefixes/ACO')));
+    await check('R3-7: anonymous account cannot create companies/{own uid}', 'deny',
+      setDoc(doc(R37_ANON, 'companies/r37anon'), { ownerId: 'r37anon', name: 'Anon Roofing' }));
+    await check('R3-7: anonymous account cannot create a solo lead', 'deny',
+      setDoc(doc(R37_ANON, 'leads/r37anonLead'), { userId: 'r37anon', companyId: 'r37anon', name: 'x', meter: 'manual' }));
+    await check('R3-7: anonymous account cannot create its own users/{uid} doc', 'deny',
+      setDoc(doc(R37_ANON, 'users/r37anon'), { email: '', displayName: 'anon' }));
+    await check('R3-7: anonymous account cannot read a doc it owns', 'deny',
+      getDoc(doc(R37_ANON, 'tasks/r37anonOwned')));
+    await check('R3-7: anonymous account cannot create a task', 'deny',
+      setDoc(doc(R37_ANON, 'tasks/r37anonNew'), { userId: 'r37anon', title: 'x' }));
+    // Controls: the real sign-in providers are untouched.
+    await check('R3-7 control: password-provider account still reads docPrefixes', 'allow',
+      getDoc(doc(R37_PW, 'docPrefixes/ACO')));
+    await check('R3-7 control: custom-token account (access-code login) still reads docPrefixes', 'allow',
+      getDoc(doc(R37_CUST, 'docPrefixes/ACO')));
+    await check('R3-7 control: password-provider solo owner still creates companies/{own uid}', 'allow',
+      setDoc(doc(R37_PW, 'companies/r37pw'), { ownerId: 'r37pw', name: 'Real Roofing' }));
+
+    // R3-12 — every flat owner-keyed collection with an owner update rule.
+    const R312 = ['tasks', 'drawings', 'communications', 'lead_documents', 'review_requests',
+      'drip_queue', 'deal_rooms', 'dailyTracker', 'products', 'templates', 'notes'];
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      for (const coll of R312) {
+        for (const id of ['gift', 'retenant', 'drop', 'edit', 'resend']) {
+          await setDoc(doc(db, `${coll}/r312${id}`), { userId: 'bob', companyId: 'co-b', title: 'call 1-800-SCAM' });
+        }
+        await setDoc(doc(db, `${coll}/r312legacyOwn`),   { userId: 'bob', title: 'legacy, no companyId' });
+        await setDoc(doc(db, `${coll}/r312legacyOther`), { userId: 'bob', title: 'legacy, no companyId' });
+      }
+    });
+    for (const coll of R312) {
+      await check(`R3-12: ${coll} owner cannot re-gift userId to another tenant's user`, 'deny',
+        updateDoc(doc(bob, `${coll}/r312gift`), { userId: 'alice' }));
+      await check(`R3-12: ${coll} owner cannot re-tenant companyId`, 'deny',
+        updateDoc(doc(bob, `${coll}/r312retenant`), { companyId: 'co-a' }));
+      await check(`R3-12: ${coll} owner cannot clear userId`, 'deny',
+        updateDoc(doc(bob, `${coll}/r312drop`), { userId: deleteField() }));
+      await check(`R3-12: ${coll} legacy doc: companyId first stamp cannot name another tenant`, 'deny',
+        updateDoc(doc(bob, `${coll}/r312legacyOther`), { companyId: 'co-a' }));
+      // Controls: ordinary edits, a same-value resend (setDoc merge of the
+      // whole local copy) and a first stamp of the writer's own tenant.
+      await check(`R3-12 control: ${coll} owner still edits content`, 'allow',
+        updateDoc(doc(bob, `${coll}/r312edit`), { title: 'edited' }));
+      await check(`R3-12 control: ${coll} owner may resend the same userId/companyId`, 'allow',
+        setDoc(doc(bob, `${coll}/r312resend`), { userId: 'bob', companyId: 'co-b', title: 'resent' }, { merge: true }));
+      await check(`R3-12 control: ${coll} legacy doc: owner stamps their own companyId once`, 'allow',
+        updateDoc(doc(bob, `${coll}/r312legacyOwn`), { companyId: 'co-b' }));
+    }
+    // The solo-operator tenant key is the uid (no companyId claim).
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'tasks/r312solo'), { userId: 'solo1', title: 'legacy' });
+      await setDoc(doc(ctx.firestore(), 'tasks/r312soloOther'), { userId: 'solo1', title: 'legacy' });
+    });
+    await check('R3-12 control: solo operator stamps companyId = own uid once', 'allow',
+      updateDoc(doc(solo, 'tasks/r312solo'), { companyId: 'solo1' }));
+    await check('R3-12: solo operator cannot stamp another tenant as companyId', 'deny',
+      updateDoc(doc(solo, 'tasks/r312soloOther'), { companyId: 'co-a' }));
   }
 
   // ── Summary ────────────────────────────────────────────────

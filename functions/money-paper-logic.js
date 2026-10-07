@@ -26,6 +26,7 @@
 
 // The ONE invoice due-date rule (deposit-rule.js INVOICE_DUE_DAYS).
 const DR = require('./deposit-rule');
+const LAP = require('./lead-artifact-paths');
 
 const CODES = { invoice: 'NBD-500', receipt: 'NBD-510' };
 
@@ -83,6 +84,30 @@ function decide(after, opts) {
     out.markOob = true;
   }
   return out;
+}
+
+// The Storage object a plate photo names: path, else storagePath, else (legacy
+// url-only docs) the object inside its download url. '' when none.
+function plateObjectPath(p) {
+  if (!p) return '';
+  return p.path || p.storagePath || LAP.storagePathFromUrl(p.url) || '';
+}
+
+// The photos plateFor may use for `lead` (2026-10-06). Photo docs are
+// client-written and their object is signed with the admin SDK, so a photo
+// counts only when it is the lead's tenant's (same owner, or same companyId)
+// AND names a photo-shaped object (photos/{uid}/ or this lead's
+// homeowner-uploads/{uid}/{leadId}/). A url that is not a Storage object is
+// dropped (Chromium would fetch it). plateFor then checks the uid in the path
+// against the photo's owner or company (photoObjectAllowed) before signing.
+function platePhotosForLead(lead, photos) {
+  const l = lead || {};
+  return (photos || []).filter((p) => {
+    if (!p) return false;
+    const sameTenant = (typeof p.userId === 'string' && p.userId && p.userId === l.userId)
+      || (typeof l.companyId === 'string' && l.companyId && p.companyId === l.companyId);
+    return sameTenant && !!LAP.photoObjectUid(plateObjectPath(p), p);
+  });
 }
 
 // P4 (Jo, 2026-09-30): the cover photo, else the newest After photo, else none.
@@ -212,6 +237,20 @@ function pdfPathFor(ownerUid, leadId, id) {
   return 'documents/' + ownerUid + '/' + leadId + '/' + id + '.pdf';
 }
 
+// The Storage object metadata a filed PDF is saved with. `signed: 'true'` in
+// the custom metadata is the storage.rules lock (storedObjectIsSigned): a
+// filed invoice/receipt is a record, so no client may overwrite or delete it
+// (R3-4, 2026-10-06 — an owner could overwrite one with text/html behind a
+// live /report/<token> link). Admin-SDK writes are unaffected.
+// tests/storage-rules.test.js seeds its object from THIS function.
+function filedPdfMetadata(kind, id, invoiceId) {
+  return {
+    contentType: 'application/pdf',
+    cacheControl: 'private, max-age=31536000',
+    metadata: { docCode: CODES[kind], instanceId: id, invoiceId, signed: 'true' },
+  };
+}
+
 // ── "Paid but not closed" (2026-10-03 data audit) ────────────────────────
 // Three owner-tenant invoices were paid in full while their lead sat on an
 // open stage: a Zelle/check payoff recorded with Mark Paid only advances a
@@ -250,4 +289,4 @@ function paidNotClosedTaskId(invoiceId) {
   return 'paid-not-closed-' + String(invoiceId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80);
 }
 
-module.exports = { CODES, etParts, instanceId, decide, pickPlatePhoto, invoicePayload, receiptPayload, documentRow, pdfPathFor, lastPayment, toCents, paidNotClosedTask, paidNotClosedTaskId };
+module.exports = { CODES, etParts, instanceId, decide, pickPlatePhoto, platePhotosForLead, plateObjectPath, invoicePayload, receiptPayload, documentRow, pdfPathFor, filedPdfMetadata, lastPayment, toCents, paidNotClosedTask, paidNotClosedTaskId };

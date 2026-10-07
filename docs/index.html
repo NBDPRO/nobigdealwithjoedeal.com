@@ -605,7 +605,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -621,7 +621,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -678,6 +678,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -700,6 +701,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -737,8 +739,8 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -1084,7 +1086,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
           <div class="nbd-comp-num">02</div>
           <div class="nbd-comp-body">
             <h4>Roofivent Ventilation <span class="arrow">→</span></h4>
-            <p>Polypropylene, lifetime warranty, replaceable gaskets. Pipe Flashing on Standard. iVent ECO on Preferred + Elite.</p>
+            <p>Polypropylene, manufacturer warranty, replaceable gaskets. Pipe Flashing on Standard. iVent ECO on Preferred + Elite.</p>
           </div>
         </a>
         <a href="/services/gaf-pivot-boot" class="nbd-component">
@@ -1134,7 +1136,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
       <div class="storm-card">
         <div class="stage">Value floor</div>
         <div class="nm">Heritage</div>
-        <span class="badge">Lifetime warranty</span>
+        <span class="badge">Manufacturer warranty</span>
         <p>A true architectural roof at TAMKO's value price — no impact rating.</p>
       </div>
       <div class="storm-card">
@@ -1176,10 +1178,10 @@ footer.foot a,.review-footer a{color:#bd5728!important}
       <a href="/services/roof-replacement" class="service-card reveal">
         <span class="sc-badge">Most Requested</span>
         <div class="sc-title">Roof Replacement</div>
-        <div class="sc-body">Full tear-off and installation using GAF Timberline shingles — or TAMKO impact-resistant shingles for hail country — with a lifetime manufacturer warranty on materials. I inspect for structural issues and document storm damage for your insurance claim.</div>
+        <div class="sc-body">Full tear-off and installation using GAF Timberline shingles — or TAMKO impact-resistant shingles for hail country — with the manufacturer warranty per product/package on materials. I inspect for structural issues and document storm damage for your insurance claim.</div>
         <ul class="sc-bullets">
           <li class="sc-bullet">Complete tear-off &amp; disposal</li>
-          <li class="sc-bullet">GAF Timberline shingles (or TAMKO impact-resistant shingles for hail) — lifetime manufacturer warranty</li>
+          <li class="sc-bullet">GAF Timberline shingles (or TAMKO impact-resistant shingles for hail) — manufacturer warranty per product/package</li>
           <li class="sc-bullet">Free roof inspection included</li>
           <li class="sc-bullet">Insurance damage documentation</li>
           <li class="sc-bullet">NBD Lifetime Pledge — NBD backed, every package</li>
@@ -1559,11 +1561,14 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     </div>
     <!-- The score, star row and review count are hydrated from the live
          Places payload by js/google-reviews-widget.js (data-nbd-gr-* hooks).
-         The values below are the static fallback: they are what a visitor
-         sees if the fetch fails, so they must stay TRUE at rest, not zeroed.
-         Do not hardcode a number here without updating the profile — before
-         2026-09-20 this row was static-only and would have kept claiming 5.0
-         forever if the rating ever moved.
+         The rating and stars below are the static fallback a visitor sees if
+         the fetch fails, so they must stay TRUE at rest, not zeroed. The
+         review COUNT has no static fallback (2026-10-06): a hard-coded count
+         goes stale the day the next review lands, so data-nbd-gr-total ships
+         empty inside a hidden data-nbd-gr-total-wrap that the widget reveals
+         only when the live payload carries a count. Before 2026-09-20 this
+         row was static-only and would have kept claiming 5.0 forever if the
+         rating ever moved.
          data-nbd-gr-recent ships EMPTY on purpose: it is filled with
          " · N new this month" only when the payload carries `recent`
          (Google's count grew against a real baseline), and never gets a
@@ -1571,7 +1576,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     <div class="reviews-rating reveal">
       <div class="reviews-stars" data-nbd-gr-stars>★★★★★</div>
       <div>
-        <div class="reviews-score"><span data-nbd-gr-rating>5.0</span> on Google &middot; <span data-nbd-gr-total>29</span> reviews<span data-nbd-gr-recent></span></div>
+        <div class="reviews-score"><span data-nbd-gr-rating>5.0</span> on Google<span data-nbd-gr-total-wrap hidden> &middot; <span data-nbd-gr-total></span> reviews</span><span data-nbd-gr-recent></span></div>
         <div class="reviews-score-sub"><a href="https://g.page/r/CXzIjLwvtRPdEBM" target="_blank" rel="noopener noreferrer" style="color:inherit">Verified Google Business Profile</a> — real reviews from Cincinnati &amp; N. Kentucky homeowners</div>
       </div>
       <a href="/#contact" class="btn-primary" style="margin-left:auto">Get My Free Estimate →</a>
@@ -1821,7 +1826,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
             </div>
             <div class="form-group">
               <label for="fieldMessage">Tell Me About Your Project</label>
-              <textarea id="fieldMessage" placeholder="Describe what's going on — we'll get back to you with honest answers and a fair quote."></textarea>
+              <textarea id="fieldMessage" maxlength="1500" placeholder="Describe what's going on — we'll get back to you with honest answers and a fair quote."></textarea>
             </div>
             <!-- Scheduling choice (required), photos, best time, insurance, how heard — js/intake-extras.js -->
             <div data-nbd-intake="hp"></div>

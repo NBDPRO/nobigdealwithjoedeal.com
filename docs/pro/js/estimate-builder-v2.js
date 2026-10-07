@@ -41,9 +41,9 @@
   // Per-SQ flat rates (Joe's contractor pricing)
   const TIER_RATES = (_NBD_CFG && _NBD_CFG.TIER_RATES) || {
     economy: 440,  // Economy-grade architectural (never 3-tab), 1-yr labor
-    good:    550,  // Standard system + standard accessories
-    better:  660,  // Upgraded materials + system warranty
-    best:    770,  // Impact-rated + workmanship warranty package
+    good:    550,  // Standard system + standard accessories; GAF System Plus included
+    better:  660,  // Upgraded materials; GAF System Plus included
+    best:    770,  // Impact-rated; GAF System Plus included + annual inspection
     beyond:  880   // TAMKO HailGuard only
   };
   // A device's saved tier rates must carry this to be honoured (loadSettings).

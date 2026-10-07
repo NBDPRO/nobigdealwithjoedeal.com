@@ -45,13 +45,13 @@ const CHECKS = {
   'health-digest-cron':      { period: '1 day',     grace: '6 hours',    why: 'daily health digest' },
   'lead-follow-up-sweep':    { period: '3 hours',   grace: '4 hours',    why: 'follow-up to untouched new leads' },
   'storm-poller':            { period: '30 minutes', grace: '1 hour',    why: 'the one storm poller (#2148) — storm alert texts + NWS watch' },
-  'social-publisher':        { period: '5 minutes', grace: '30 minutes', why: 'scheduled Social Studio posts go out (#2162)' },
+  'social-publisher':        { period: '5 minutes', grace: '30 minutes', why: 'scheduled Social Studio posts go out (#2162); removed-member storage-move resume (#2271)' },
   // ── shared: same cadence, failures still surface via /fail
   'calls-texts-ingest':      { period: '30 minutes', grace: '1 hour',    why: 'call recordings, transcripts, texts in' },
   'hourly-crons':            { period: '1 hour',    grace: '2 hours',    why: 'abandoned-estimate recovery + text notes' },
   'call-followups':          { period: '12 hours',  grace: '1 hour',     why: 'call watch (2h, 08-20 ET) + promise sweep (07:15/15:15 ET)' },
   'daily-retention':         { period: '1 day',     grace: '6 hours',    why: 'cleanup / retention jobs (incl. promise cleanup, Reel cleanup)' },
-  'daily-customer-touches':  { period: '1 day',     grace: '6 hours',    why: 'morning digests + nudges to Jo; e-sign reminders to signers (10:00 ET)' },
+  'daily-customer-touches':  { period: '1 day',     grace: '6 hours',    why: 'morning digests + nudges to Jo; e-sign reminders to signers (10:00 ET); invoice overdue sweep (08:15 ET)' },
   'daily-syncs':             { period: '1 day',     grace: '6 hours',    why: 'GBP reviews, Google Calendar reconcile, hail match' },
   'weekly-crons':            { period: '1 week',    grace: '12 hours',   why: 'weekly digest (Mon) + dormant-lead nudge (Wed) + vendor-config export (Sun)' },
   'monthly-crons':           { period: 'cron 0 7 1 * * (America/New_York)', grace: '12 hours', why: 'marketing report + overhead alert, 1st of month' },
@@ -70,6 +70,7 @@ const PLAN = {
   leadFollowUpSweep:         { slug: 'lead-follow-up-sweep' },
   stormPoller:               { slug: 'storm-poller' },      // #2148: replaced checkStormAlerts + stormWatch
   socialPublisher:           { slug: 'social-publisher' },  // #2162: every 5 min
+  resumeMemberStorageMoves:  { slug: 'social-publisher' },  // #2271: every 5 min; shares the 5-min check (a stall leaves a removed member's folder locked, no data loss)
 
   callCenterIngest:          { slug: 'calls-texts-ingest' },
   callCenterTranscribe:      { slug: 'calls-texts-ingest' },
@@ -96,6 +97,7 @@ const PLAN = {
   reviewRequestNudge:        { slug: 'daily-customer-touches' },
   onAfterInstallDay:         { slug: 'daily-customer-touches' }, // #2147: 07:15 ET push to Jo
   esignReminderSweep:        { slug: 'daily-customer-touches' }, // #2166: 10:00 ET signer reminders
+  invoiceOverdueSweep:       { slug: 'daily-customer-touches' }, // R4 dates: 08:15 ET overdue flags
 
   syncGbpReviews:            { slug: 'daily-syncs' },
   googleCalendarReconcile:   { slug: 'daily-syncs' },

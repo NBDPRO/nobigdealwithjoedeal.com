@@ -1,5 +1,5 @@
   import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
-  import { getAuth, onAuthStateChanged, signInAnonymously } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
+  import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
   import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, orderBy, limit } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 
   const firebaseConfig = {
