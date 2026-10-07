@@ -270,6 +270,8 @@
     "winback-2026-10-01.test.js",
     "theme-liveops-2026-10-01.test.js",
     "five-tier-paperwork-2026-10-02.test.js",
+    "warranty-pledge-vs-system-2026-10-06.test.js",
+    "warranty-pledge-labor-years-2026-10-06.test.js",
     "theme-daylight-2026-10-01.test.js",
     "stripe-ledger-ui-2026-09-29.test.js",
     "daily-success-sync-2026-09-29.test.js",
