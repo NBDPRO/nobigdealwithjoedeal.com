@@ -308,6 +308,123 @@ async function run() {
   await check('subscriptions: rep self-upgrades plan',       'deny', setDoc(doc(bob, 'subscriptions/bob'), { plan: 'professional', status: 'active' }));
   await check('company_admin(co-b) reads co-a leaderboard',  'deny', getDoc(doc(bobCA, 'leaderboard/alice')));
 
+  // D2. SERVER-ONLY FLAGS + PORTAL-SIGNED PHOTO FIELDS (review R3, 2026-10-06)
+  //     R3-2: users/{uid}.e2eTestAccount gates cleanupE2ETestData, which deletes
+  //     Storage objects with the admin SDK. It was client-settable on create AND
+  //     update. R3-3: getHomeownerPortalView signs a source:'homeowner' photo's
+  //     `path` for 7 days; a client could create one, or re-point one, at any
+  //     object. Each case writes its own doc so one hole cannot mask another.
+  {
+    const fxNew  = env.authenticatedContext('r3fxnew',  { role: 'sales_rep', companyId: 'co-b' }).firestore();
+    const fxUser = env.authenticatedContext('r3fxuser', { role: 'sales_rep', companyId: 'co-b' }).firestore();
+    const fxE2E  = env.authenticatedContext('r3fxe2e',  {}).firestore();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'users/r3fxuser'), { firstName: 'Fx' });
+      await setDoc(doc(db, 'users/r3fxe2e'),  { email: 'e2e@example.test', e2eTestAccount: true, provisionedBy: 'owner', provisionAction: 'created' });
+      // The photos below name leadB; a photo create must name a lead the
+      // writer can reach (flat-collection lead binding, 2026-10-05), so the
+      // lead exists and is bob's.
+      await setDoc(doc(db, 'leads/leadB'), { userId: 'bob', companyId: 'co-b', name: 'Bob customer' });
+      await setDoc(doc(db, 'photos/r3fxRep'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB', storagePath: 'photos/bob/leadB/a.jpg' });
+      await setDoc(doc(db, 'photos/r3fxHo'),  { userId: 'bob', companyId: 'co-b', leadId: 'leadB', source: 'homeowner',
+        sharedWithHomeowner: true, path: 'homeowner-uploads/bob/leadB/1700000000000.jpg' });
+    });
+    await check('R3-2: user cannot CREATE own users doc with e2eTestAccount:true', 'deny',
+      setDoc(doc(fxNew, 'users/r3fxnew'), { firstName: 'New', e2eTestAccount: true }));
+    await check('R3-2: user cannot CREATE own users doc with provisionedBy', 'deny',
+      setDoc(doc(fxNew, 'users/r3fxnew'), { firstName: 'New', provisionedBy: 'r3fxnew' }));
+    await check('R3-2 control: user CREATES own users doc with plain profile fields', 'allow',
+      setDoc(doc(fxNew, 'users/r3fxnew'), { firstName: 'New' }));
+    await check('R3-2: user cannot UPDATE own users doc to e2eTestAccount:true', 'deny',
+      updateDoc(doc(fxUser, 'users/r3fxuser'), { e2eTestAccount: true }));
+    await check('R3-2: user cannot setDoc-merge e2eTestAccount onto own users doc', 'deny',
+      setDoc(doc(fxUser, 'users/r3fxuser'), { e2eTestAccount: true }, { merge: true }));
+    await check('R3-2: seeded user (alice) cannot UPDATE to e2eTestAccount:true', 'deny',
+      updateDoc(doc(alice, 'users/alice'), { e2eTestAccount: true }));
+    await check('R3-2 control: user UPDATES own profile fields', 'allow',
+      updateDoc(doc(fxUser, 'users/r3fxuser'), { firstName: 'Fx2' }));
+    await check('R3-2: the E2E account cannot clear its own flag', 'deny',
+      updateDoc(doc(fxE2E, 'users/r3fxe2e'), { e2eTestAccount: false }));
+    await check('R3-2: the E2E account cannot rewrite its provisioning stamp', 'deny',
+      updateDoc(doc(fxE2E, 'users/r3fxe2e'), { provisionAction: 'forged' }));
+    await check('R3-2 control: the E2E account still UPDATES its other fields', 'allow',
+      updateDoc(doc(fxE2E, 'users/r3fxe2e'), { displayName: 'E2E' }));
+
+    await check("R3-3: client cannot CREATE a source:'homeowner' photo", 'deny',
+      setDoc(doc(bob, 'photos/r3fxNewHo'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB',
+        source: 'homeowner', sharedWithHomeowner: true, path: 'pdf-renders/alice/1700000000000-contract.pdf' }));
+    await check('R3-3 control: client CREATES an ordinary photo', 'allow',
+      setDoc(doc(bob, 'photos/r3fxNewRep'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB',
+        sharedWithHomeowner: true, storagePath: 'photos/bob/leadB/b.jpg' }));
+    await check("R3-3: photo UPDATE cannot set source:'homeowner' + a path", 'deny',
+      updateDoc(doc(bob, 'photos/r3fxRep'), { source: 'homeowner', sharedWithHomeowner: true, path: 'documents/alice/leadA/contract.html' }));
+    await check('R3-3: photo UPDATE cannot add a path alone', 'deny',
+      updateDoc(doc(bob, 'photos/r3fxRep'), { path: 'documents/alice/leadA/contract.html' }));
+    await check("R3-3: homeowner photo UPDATE cannot re-point path at another tenant's object", 'deny',
+      updateDoc(doc(bob, 'photos/r3fxHo'), { path: 'pdf-renders/alice/1700000000000-contract.pdf' }));
+    await check('R3-3: homeowner photo UPDATE cannot change source', 'deny',
+      updateDoc(doc(bob, 'photos/r3fxHo'), { source: 'rep' }));
+    await check('R3-3 control: owner still toggles share / edits a homeowner photo', 'allow',
+      updateDoc(doc(bob, 'photos/r3fxHo'), { sharedWithHomeowner: false, description: 'gutter' }));
+    await check('R3-3 control: owner annotates over a rep photo (url + storagePath change)', 'allow',
+      updateDoc(doc(bob, 'photos/r3fxRep'), { url: 'https://x.test/a', storagePath: 'photos/bob/leadB/photo_r3fxRep.jpg', isAnnotated: true }));
+  }
+
+  // D3. PHOTO OBJECT PATHS (follow-up to R3-2/R3-3, 2026-10-06)
+  //     storagePath / thumbStoragePath / path are read by admin-SDK servers that
+  //     sign, download or publish the object (reel + social studio, invoice
+  //     plate, tenant export). A client may name only an object under its OWN
+  //     photos/{uid}/ prefix, on create, and on update (unless unchanged).
+  //     `path` stays frozen on update (D2). Server halves:
+  //     sec-photo-path-confinement-2026-10-06.test.js.
+  {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'photos/d3Own'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB',
+        storagePath: 'photos/bob/leadB/a.jpg', thumbStoragePath: 'photos/bob/leadB/thumbs/a_thumb.jpg' });
+      await setDoc(doc(db, 'photos/d3Legacy'), { userId: 'bob', companyId: 'co-b', leadId: 'leadB',
+        storagePath: 'legacy/bob/old.jpg' });
+    });
+    const base = { userId: 'bob', companyId: 'co-b', leadId: 'leadB' };
+    const VICTIM = 'pdf-renders/alice/1700000000000-contract.pdf';
+    await check('D3: CREATE with storagePath of another tenant\'s object', 'deny',
+      setDoc(doc(bob, 'photos/d3c1'), { ...base, storagePath: VICTIM }));
+    await check('D3: CREATE with storagePath under another uid\'s photos/', 'deny',
+      setDoc(doc(bob, 'photos/d3c2'), { ...base, storagePath: 'photos/alice/leadA/a.jpg' }));
+    await check('D3: CREATE with storagePath under a uid that merely starts with mine', 'deny',
+      setDoc(doc(bob, 'photos/d3c3'), { ...base, storagePath: 'photos/bobby/a.jpg' }));
+    await check('D3: CREATE with storagePath climbing out via ..', 'deny',
+      setDoc(doc(bob, 'photos/d3c4'), { ...base, storagePath: 'photos/bob/../alice/a.jpg' }));
+    await check('D3: CREATE with an empty path segment (photos/bob//...)', 'deny',
+      setDoc(doc(bob, 'photos/d3c4b'), { ...base, storagePath: 'photos/bob//a.jpg' }));
+    await check('D3: CREATE with a foreign thumbStoragePath', 'deny',
+      setDoc(doc(bob, 'photos/d3c5'), { ...base, storagePath: 'photos/bob/leadB/a.jpg', thumbStoragePath: 'calls/alice/rec.mp3' }));
+    await check('D3: CREATE with a foreign path (non-homeowner photo)', 'deny',
+      setDoc(doc(bob, 'photos/d3c6'), { ...base, path: 'homeowner-uploads/alice/leadA/1.jpg' }));
+    await check('D3: CREATE with a non-string storagePath', 'deny',
+      setDoc(doc(bob, 'photos/d3c7'), { ...base, storagePath: ['photos/bob/a.jpg'] }));
+    await check('D3 control: CREATE with own storagePath + thumbStoragePath (photo-engine shape)', 'allow',
+      setDoc(doc(bob, 'photos/d3ok1'), { ...base, storagePath: 'photos/bob/leadB/u1_std.jpg', thumbStoragePath: 'photos/bob/leadB/thumbs/u1_thumb.jpg' }));
+    await check('D3 control: CREATE with own flat storagePath (customer-page shape)', 'allow',
+      setDoc(doc(bob, 'photos/d3ok2'), { ...base, storagePath: 'photos/bob/1700000000000_a.jpg' }));
+    await check('D3 control: CREATE with no path fields (url-only legacy shape)', 'allow',
+      setDoc(doc(bob, 'photos/d3ok3'), { ...base, url: 'https://x.test/a' }));
+    await check('D3 control: CREATE with storagePath null', 'allow',
+      setDoc(doc(bob, 'photos/d3ok4'), { ...base, storagePath: null }));
+
+    await check('D3: UPDATE re-points storagePath at another tenant\'s object', 'deny',
+      updateDoc(doc(bob, 'photos/d3Own'), { storagePath: VICTIM }));
+    await check('D3: UPDATE re-points thumbStoragePath at another uid\'s photo', 'deny',
+      updateDoc(doc(bob, 'photos/d3Own'), { thumbStoragePath: 'photos/alice/leadA/thumbs/x.jpg' }));
+    await check('D3: UPDATE via setDoc-merge re-points storagePath', 'deny',
+      setDoc(doc(bob, 'photos/d3Own'), { storagePath: VICTIM }, { merge: true }));
+    await check('D3 control: UPDATE other fields on a legacy off-prefix photo (path unchanged)', 'allow',
+      updateDoc(doc(bob, 'photos/d3Legacy'), { description: 'ridge', phase: 'After' }));
+    await check('D3 control: annotation save-over moves storagePath to own prefix', 'allow',
+      updateDoc(doc(bob, 'photos/d3Own'), { url: 'https://x.test/b', storagePath: 'photos/bob/leadB/photo_d3Own.jpg', isAnnotated: true }));
+  }
+
   // ═══════════════════════════════════════════════════════════
   // E. CREATE-PIN ENFORCEMENT (Phase-1.5) — companyId pinned to the
   //    caller's own tenant on create. Foreign id rejected; own claim/uid OK.
@@ -631,6 +748,67 @@ async function run() {
     }
     await checkEmpty("Z: B re-created it; reads none of A's top-level notes",
       getDocs(query(collection(bob, 'notes'), where('leadId', '==', 'leadGone'))));
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // OFFBOARD — review R3-1 fix (2026-10-06): a removed member loses the
+  // company's records. Rules authorize company records on isOwner(userId),
+  // so removeMember now hands the member's company records to the owner
+  // (functions/member-offboarding.js reassignMemberRecords — the REAL sweep
+  // runs here, against the emulator, with the admin SDK) before it strips
+  // their claims. Then the rules deny the ex-rep with no rule change:
+  // get, update, delete and their own userId list query alike. Owner and
+  // solo-owner controls prove nothing else moved.
+  // ═══════════════════════════════════════════════════════════
+  {
+    const { getDocs, collection, query, where } = require('firebase/firestore');
+    const { initializeApp: initAdminApp } = require('firebase-admin/app');
+    const { getFirestore: getAdminFirestore } = require('firebase-admin/firestore');
+    let OFF = null;
+    try { OFF = require(path.resolve(__dirname, '../functions/member-offboarding.js')); } catch (_) { OFF = null; }
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'leads/offLead'),    { userId: 'offrep', companyId: 'co-a', name: 'Company customer', phone: '+15555550177' });
+      await setDoc(doc(db, 'estimates/offEst'), { userId: 'offrep', companyId: 'co-a', leadId: 'offLead', total: 12000 });
+      await setDoc(doc(db, 'photos/offPhoto'),  { userId: 'offrep', leadId: 'offLead', url: 'x' });        // no companyId (predates stamping)
+      await setDoc(doc(db, 'leads/offSolo'),    { userId: 'offrep', companyId: 'offrep', name: 'Rep solo-era customer' });
+      await setDoc(doc(db, 'leads/soloOwn'),    { userId: 'solo1', companyId: 'solo1', name: 'Solo owner customer' });
+    });
+    const offRepLive = env.authenticatedContext('offrep', { role: 'sales_rep', companyId: 'co-a' }).firestore();
+    await check('OFFBOARD control: rep reads own company lead while still a member', 'allow', getDoc(doc(offRepLive, 'leads/offLead')));
+
+    // removeMember: sweep to the owner (aliceca, co-a company_admin), then the claim strip.
+    let swept = null, sweepErr = null;
+    try {
+      const adminDb = getAdminFirestore(initAdminApp({ projectId: PROJECT_ID }, 'xtenant-offboard'));
+      swept = await OFF.reassignMemberRecords(adminDb, { fromUid: 'offrep', toUid: 'aliceca', companyId: 'co-a' });
+    } catch (e) { sweepErr = e; }
+    results.push(swept && swept.total === 3
+      ? { label: 'OFFBOARD: removeMember sweep moved lead + estimate + photo', expect: 'swept', outcome: 'PASS', note: JSON.stringify(swept.moved) }
+      : { label: 'OFFBOARD: removeMember sweep moved lead + estimate + photo', expect: 'swept', outcome: 'FAIL', note: '>>> ' + (sweepErr ? sweepErr.message : JSON.stringify(swept)) });
+    const offRemoved = env.authenticatedContext('offrep', {}).firestore();   // after removeMember: claims stripped
+
+    await check('OFFBOARD: removed rep cannot READ former company lead',    'deny', getDoc(doc(offRemoved, 'leads/offLead')));
+    await check('OFFBOARD: removed rep cannot UPDATE former company lead',  'deny', updateDoc(doc(offRemoved, 'leads/offLead'), { notes: 'exported before I left' }));
+    await check('OFFBOARD: removed rep cannot DELETE former company lead',  'deny', deleteDoc(doc(offRemoved, 'leads/offLead')));
+    await check('OFFBOARD: removed rep cannot READ former company estimate', 'deny', getDoc(doc(offRemoved, 'estimates/offEst')));
+    await check('OFFBOARD: removed rep cannot READ former company photo',   'deny', getDoc(doc(offRemoved, 'photos/offPhoto')));
+    try {
+      const snap = await getDocs(query(collection(offRemoved, 'leads'), where('userId', '==', 'offrep')));
+      const ids = snap.docs.map((d) => d.id).sort().join(',');
+      results.push(ids === 'offSolo'
+        ? { label: "OFFBOARD: removed rep's own userId query lists only their solo-era lead", expect: 'list', outcome: 'PASS', note: ids }
+        : { label: "OFFBOARD: removed rep's own userId query lists only their solo-era lead", expect: 'list', outcome: 'FAIL', note: '>>> listed ' + ids });
+    } catch (e) {
+      results.push({ label: "OFFBOARD: removed rep's own userId query lists only their solo-era lead", expect: 'list', outcome: 'FAIL', note: '>>> query denied' });
+    }
+    await check("OFFBOARD control: removed rep still reads their own solo-era lead", 'allow', getDoc(doc(offRemoved, 'leads/offSolo')));
+    await check('OFFBOARD control: owner READS the reassigned lead',   'allow', getDoc(doc(aliceCA, 'leads/offLead')));
+    await check('OFFBOARD control: owner UPDATES the reassigned lead', 'allow', updateDoc(doc(aliceCA, 'leads/offLead'), { notes: 'taking this one' }));
+    await check('OFFBOARD control: owner READS the reassigned photo',  'allow', getDoc(doc(aliceCA, 'photos/offPhoto')));
+    await check('OFFBOARD control: owner DELETES the reassigned lead', 'allow', deleteDoc(doc(aliceCA, 'leads/offLead')));
+    await check('OFFBOARD control: solo owner still READS own lead',   'allow', getDoc(doc(solo, 'leads/soloOwn')));
+    await check('OFFBOARD control: solo owner still UPDATES own lead', 'allow', updateDoc(doc(solo, 'leads/soloOwn'), { notes: 'unaffected' }));
   }
 
   // ── Summary ────────────────────────────────────────────────

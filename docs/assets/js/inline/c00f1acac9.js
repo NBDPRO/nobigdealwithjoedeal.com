@@ -58,7 +58,7 @@ const POSTS = [
   {
     url: "/blog/hail-season-prep-checklist",
     tag: "Storm Damage",
-    title: "Hail Season Prep: The 20-Minute Walkaround That Wins Claims Later",
+    title: "Hail Season Prep: The 20-Minute Walkaround That Documents Your Roof Before the Storm",
     meta: "By Joe Deal · July 2026 · 8 min read",
     excerpt: "Before the next Cincinnati hail storm: the photos to take now, the policy lines to read, and the walkaround Joe Deal wishes every homeowner did each spring.",
     published: "2026-07-13",
@@ -180,7 +180,7 @@ const POSTS = [
     tag: "Insurance",
     title: "Does Homeowner Insurance Cover Hail Damage in Ohio?",
     meta: "By Joe Deal · July 2025 · 7 min read",
-    excerpt: "Yes — but the details matter. ACV vs RCV policies, why claims get underpaid, how long you have to file, and what actually happens when you call your insurance company. Straight talk from a Cincinnati roofer.",
+    excerpt: "Yes — but the details matter. ACV vs RCV policies, why first estimates miss damage, how long you have to file, and what actually happens when you call your insurance company. Straight talk from a Cincinnati roofer.",
     published: "2025-07-21",
   },
   {

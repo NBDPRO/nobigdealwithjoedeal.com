@@ -52,7 +52,7 @@ const COORDS = {
 
 const FAMILIES = [
   { prefix: 'hail-damage-insurance-claim', hub: 'hail-damage-insurance-claim.html', label: 'Hail Claim Help', icon: '📋' },
-  { prefix: 'hail-damage', hub: 'hail-damage-insurance-claim.html', label: 'Hail Damage Repair', icon: '🛡️' },
+  { prefix: 'hail-damage', hub: 'hail-damage-insurance-claim.html', label: 'Hail Damage Inspection', icon: '🛡️' },
   { prefix: 'storm-damage', hub: 'storm-damage.html', label: 'Storm Damage Repair', icon: '⛈️' },
   { prefix: 'roof-replacement', hub: 'roof-replacement.html', label: 'Roof Replacement', icon: '🏠' },
   { prefix: 'roof-repair', hub: 'roof-repair.html', label: 'Roof Repair', icon: '🔧' },
@@ -66,6 +66,8 @@ const GUIDES = {
   'hail-damage': [
     ['/blog/does-homeowner-insurance-cover-hail-damage-ohio', 'Does Insurance Cover Hail Damage?'],
     ['/blog/cincinnati-hail-season-2026', 'Cincinnati Hail Season Guide'],
+    // 2026-10-06 SEO audit fix #8: the weakest helpful pages get town links.
+    ['/blog/how-to-choose-a-roofer-after-a-storm', 'How to Choose a Roofer After a Storm'],
   ],
   'hail-damage-insurance-claim': [
     ['/blog/how-to-file-storm-damage-insurance-claim-ohio', 'How to File a Storm Claim in Ohio'],
@@ -74,6 +76,8 @@ const GUIDES = {
   'storm-damage': [
     ['/blog/how-to-file-storm-damage-insurance-claim-ohio', 'How to File a Storm Claim in Ohio'],
     ['/blog/how-long-roof-insurance-claim-ohio', 'How Long an Ohio Roof Claim Takes'],
+    ['/services/emergency-roof-tarping', 'Emergency Roof Tarping'],
+    ['/blog/how-to-choose-a-roofer-after-a-storm', 'How to Choose a Roofer After a Storm'],
   ],
   'roof-replacement': [
     ['/blog/how-much-does-roof-cost-cincinnati-2026', 'What a New Roof Costs in Cincinnati'],
@@ -81,6 +85,8 @@ const GUIDES = {
   ],
   'roof-repair': [
     ['/blog/signs-your-roof-needs-replacement-vs-repair', 'Repair or Replace? The Signs'],
+    ['/services/emergency-roof-tarping', 'Emergency Roof Tarping'],
+    ['/services/roof-care-plan', 'Roof Care Plan'],
   ],
   'roof-inspection': [
     ['/blog/signs-your-roof-needs-replacement-vs-repair', 'Repair or Replace? The Signs'],

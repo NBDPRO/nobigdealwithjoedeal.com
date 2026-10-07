@@ -20,7 +20,7 @@
  * WHY A HARDCODED MAP AND NOT RE-GEOCODING
  * ────────────────────────────────────────
  * Re-geocoding a mangled string returns whatever Nominatim thinks
- * "7003, Greenstone Trace, O'Bannon Creek" means — which is how the row
+ * "7003, Wrenfield Trace, O'Bannon Creek" means — which is how the row
  * broke in the first place. Every correction below is transcribed from a
  * finished NBD document (invoice, estimate, photo report) where Joe wrote
  * the address himself. Nothing here is inferred. A row with no verified
@@ -55,8 +55,8 @@
  *   export NBD_PROJECT=nobigdeal-pro               # optional override
  *
  * RUN
- *   node scripts/backfill-legacy-addresses.js               # dry-run
- *   node scripts/backfill-legacy-addresses.js --apply --yes # write
+ *   node scripts/backfill-legacy-addresses.js --data=<file>               # dry-run
+ *   node scripts/backfill-legacy-addresses.js --data=<file> --apply --yes # write
  *   node scripts/audit-lead-addresses.js --list             # verify
  */
 
@@ -75,10 +75,10 @@ const PAGE = 500;
  * Two sources are accepted, and nothing else:
  *
  *  1. A DOCUMENT: something in Drive/NBD/CUSTOMERS/<customer>/ where the
- *     address is written out properly. Hand-listed below.
+ *     address is written out properly.
  *
- *  2. A RE-GEOCODE: scripts/legacy-address-corrections.json holds the
- *     pre-Wave-141 strings put back through Nominatim and formatted by the
+ *  2. A RE-GEOCODE: the pre-Wave-141 strings put back through Nominatim and
+ *     formatted by the
  *     shipped formatMailingAddress() — i.e. the fixed write path re-run over
  *     the old data. Every row there cleared three guards before being
  *     written down: the house number is unchanged, the first token of the
@@ -89,22 +89,30 @@ const PAGE = 500;
  *
  * `expectCurrent` still gates every write, so a record edited by hand since
  * the audit is skipped rather than overwritten.
+ *
+ * WHERE THE CORRECTIONS LIVE (since 2026-10-06)
+ * ─────────────────────────────────────────────
+ * Each correction pairs a lead doc id with a customer's name and home
+ * address, and this repo is public, so the list is NOT in the repo. It used to
+ * be scripts/legacy-address-corrections.json plus one hand-listed entry here;
+ * both now live together in Jo's private notes folder. Pass the file:
+ *
+ *   node scripts/backfill-legacy-addresses.js --data=<path>/legacy-address-corrections.json
+ *   NBD_ADDRESS_CORRECTIONS_FILE=<path> node scripts/backfill-legacy-addresses.js
+ *
+ * Shape: an array of { id, who, expectCurrent, correct, source, note? }.
+ * Missing file → exit 2 with a message, never a silent "0 corrections".
  */
-const GEOCODED = require('./legacy-address-corrections.json');
+const { loadPrivateJson } = require('./_private-data');
 
-const CORRECTIONS = GEOCODED.concat([
-  {
-    id: 'HEiG1d11LRfpaMyIgqNq',
-    who: 'Anthony Scandariato',
-    expectCurrent: 'Red Knight Properties - Kentucky Ave, Cincinnati, OH 45223',
-    correct: '1944 Kentucky Ave, Cincinnati, OH 45223',
-    source: 'Invoice NBD-2026-0810-RK (Drive: Anthony Scandariato/Docs)',
-    // The job covers 1944 AND 1942 Kentucky Ave — two multi-family buildings
-    // on one invoice. `address` holds the primary; the second building has
-    // nowhere to live until multi-address support ships. Flagged on run.
-    note: 'SECOND BUILDING 1942 Kentucky Ave now lives in serviceAddresses[] (multi-address support shipped 2026-08-18).',
-  },
-]);
+const CORRECTIONS = loadPrivateJson({
+  envVar: 'NBD_ADDRESS_CORRECTIONS_FILE',
+  what: 'the verified address-corrections list',
+});
+if (!Array.isArray(CORRECTIONS) || !CORRECTIONS.every((c) => c && c.id && 'expectCurrent' in c && c.correct)) {
+  console.error('\n  The corrections file must be an array of { id, who, expectCurrent, correct, source }.\n');
+  process.exit(2);
+}
 
 // Same signature the audit uses — a leading house number then a comma.
 const LEGACY_MANGLED = /^\s*\d+[a-zA-Z]?\s*,/;

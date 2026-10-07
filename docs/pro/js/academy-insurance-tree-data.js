@@ -1995,7 +1995,7 @@
 
         <p><strong>Warranty Documentation:**</strong> Prepare manufacturer warranty documentation for the new shingles. Most shingles come with 20-30 year warranties. Provide homeowner with: warranty certificate, details of what's covered, how to file a warranty claim, contact information for manufacturer. "Your new shingles come with a 30-year warranty against manufacturing defects. Here's the paperwork."</p>
 
-        <p><strong>Workmanship Warranty:**</strong> Provide your own workmanship warranty. NBD backs every tier with a lifetime workmanship warranty — Standard is non-transferable, Preferred transfers to one subsequent owner, Elite is fully transferable with an annual courtesy inspection. "We warranty our installation workmanship for the life of the roof. If any issues arise from our installation, we'll fix them at no cost."</p>
+        <p><strong>Workmanship Warranty:**</strong> Provide your own workmanship warranty. NBD backs every job with the NBD Pledge (for as long as you own the home, we'll come back and make it right) plus a written labor warranty by package — Standard 5 years (non-transferable), Preferred 10 years (transfers to one subsequent owner), Elite 20 years (fully transferable with an annual courtesy inspection). "Your written labor warranty is on your paperwork. And for as long as you own the home, we'll come back and make it right."</p>
 
         <p><strong>Final Signoff:**</strong> Have homeowner sign a completion form. "Work completed on [date]. Quality inspected and approved. Homeowner accepts the work as completed per the work agreement." This is your final documentation.</p>
       </div>`,
@@ -2237,7 +2237,7 @@
 
         <p><strong>Final Invoice & Receipt:**</strong> Provide a final invoice showing all amounts paid. "Total work value: $12,000. Insurance payment: $10,000. Homeowner payment: $1,500. Your responsibility paid: $500. Total paid: $12,000. PAID IN FULL." This is your final record.</p>
 
-        <p><strong>Professional Closure:**</strong> A final conversation: "Your roof project is complete. Insurance has paid, you've paid your responsibility, and everything is documented. You have a lifetime workmanship warranty from us and a 30-year manufacturer warranty. If anything comes up, give me a call. And please don't hesitate to refer us to neighbors or friends—we appreciate your business."</p>
+        <p><strong>Professional Closure:**</strong> A final conversation: "Your roof project is complete. Insurance has paid, you've paid your responsibility, and everything is documented. You have the written labor warranty for your package, the NBD Pledge, and the manufacturer's warranty on the materials. If anything comes up, give me a call. And please don't hesitate to refer us to neighbors or friends—we appreciate your business."</p>
       </div>`,
       checklist: [
         `Calculate homeowner's remaining balance`,

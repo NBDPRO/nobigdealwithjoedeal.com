@@ -2544,18 +2544,18 @@ async function run() {
     throw new Error('50 social studio: ' + s50Fail.length + ' check(s) went the wrong way:\n    ' + s50Fail.join('\n    '));
   }
 
-  // 54. Flat-collection lead binding (2026-10-05 security review). /photos,
+  // 58. Flat-collection lead binding (2026-10-05 security review). /photos,
   // /invoices and /notes name their lead by a client-written leadId FIELD.
   // CREATE: a named lead must be one the writer owns or reaches as company
   // staff (an unattached photo / lead-less invoice still saves). UPDATE:
   // leadId is frozen (a row with none may be attached once), notes freeze
   // userId too, and no client can make a photo source:'homeowner' (the portal
   // re-signs those paths). Existing rows that do not move keep updating.
-  const s54Fail = [];
-  let s54Pass = 0;
-  async function x54(label, want, promise) {
-    try { if (want === 'allow') await assertSucceeds(promise); else await assertFails(promise); s54Pass++; }
-    catch (_) { s54Fail.push(label + ' (wanted ' + want + ')'); }
+  const s58Fail = [];
+  let s58Pass = 0;
+  async function x58(label, want, promise) {
+    try { if (want === 'allow') await assertSucceeds(promise); else await assertFails(promise); s58Pass++; }
+    catch (_) { s58Fail.push(label + ' (wanted ' + want + ')'); }
   }
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
@@ -2570,42 +2570,42 @@ async function run() {
   });
   const ph54 = (u, extra) => Object.assign({ userId: u, companyId: 'co-a', url: 'p/x.jpg' }, extra || {});
   // /photos CREATE
-  await x54('photo on own lead', 'allow', setDoc(doc(alice, 'photos/c54-own'), ph54('alice', { leadId: 'leadA2' })));
-  await x54('photo on own legacy lead (no companyId)', 'allow', setDoc(doc(alice, 'photos/c54-legacy'), ph54('alice', { leadId: 'leadA' })));
-  await x54('unattached photo (no leadId)', 'allow', setDoc(doc(alice, 'photos/c54-none'), ph54('alice')));
-  await x54('unattached photo (leadId null)', 'allow', setDoc(doc(alice, 'photos/c54-null'), ph54('alice', { leadId: null })));
-  await x54('manager photo on a teammate lead in the tenant', 'allow', setDoc(doc(mgrA, 'photos/c54-mgr'), ph54('mia', { leadId: 'leadA2' })));
-  await x54('photo on ANOTHER tenant\'s lead', 'deny', setDoc(doc(alice, 'photos/c54-xt'), ph54('alice', { leadId: 'leadB' })));
-  await x54('other-tenant manager photo on leadA2', 'deny', setDoc(doc(mgrB, 'photos/c54-mgrB'), { userId: 'mob', companyId: 'co-b', url: 'p/x.jpg', leadId: 'leadA2' }));
-  await x54('sales_rep photo on a TEAMMATE\'s lead', 'deny', setDoc(doc(alice, 'photos/c54-mate'), ph54('alice', { leadId: 'leadCar2' })));
-  await x54('photo on a lead that does not exist', 'deny', setDoc(doc(alice, 'photos/c54-ghost'), ph54('alice', { leadId: 'no-such-lead-54' })));
-  await x54('client-written source:homeowner', 'deny', setDoc(doc(alice, 'photos/c54-ho'), ph54('alice', { leadId: 'leadA2', source: 'homeowner', path: 'documents/bob/leadB/x.html' })));
+  await x58('photo on own lead', 'allow', setDoc(doc(alice, 'photos/c54-own'), ph54('alice', { leadId: 'leadA2' })));
+  await x58('photo on own legacy lead (no companyId)', 'allow', setDoc(doc(alice, 'photos/c54-legacy'), ph54('alice', { leadId: 'leadA' })));
+  await x58('unattached photo (no leadId)', 'allow', setDoc(doc(alice, 'photos/c54-none'), ph54('alice')));
+  await x58('unattached photo (leadId null)', 'allow', setDoc(doc(alice, 'photos/c54-null'), ph54('alice', { leadId: null })));
+  await x58('manager photo on a teammate lead in the tenant', 'allow', setDoc(doc(mgrA, 'photos/c54-mgr'), ph54('mia', { leadId: 'leadA2' })));
+  await x58('photo on ANOTHER tenant\'s lead', 'deny', setDoc(doc(alice, 'photos/c54-xt'), ph54('alice', { leadId: 'leadB' })));
+  await x58('other-tenant manager photo on leadA2', 'deny', setDoc(doc(mgrB, 'photos/c54-mgrB'), { userId: 'mob', companyId: 'co-b', url: 'p/x.jpg', leadId: 'leadA2' }));
+  await x58('sales_rep photo on a TEAMMATE\'s lead', 'deny', setDoc(doc(alice, 'photos/c54-mate'), ph54('alice', { leadId: 'leadCar2' })));
+  await x58('photo on a lead that does not exist', 'deny', setDoc(doc(alice, 'photos/c54-ghost'), ph54('alice', { leadId: 'no-such-lead-54' })));
+  await x58('client-written source:homeowner', 'deny', setDoc(doc(alice, 'photos/c54-ho'), ph54('alice', { leadId: 'leadA2', source: 'homeowner', path: 'documents/bob/leadB/x.html' })));
   // /photos UPDATE
-  await x54('photo caption edit', 'allow', updateDoc(doc(alice, 'photos/p54-own'), { caption: 'x' }));
-  await x54('photo moved to another lead', 'deny', updateDoc(doc(alice, 'photos/p54-own'), { leadId: 'leadA' }));
-  await x54('photo moved to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'photos/p54-own'), { leadId: 'leadB' }));
-  await x54('own photo flipped to source:homeowner', 'deny', updateDoc(doc(alice, 'photos/p54-own'), { source: 'homeowner', path: 'documents/bob/leadB/x.html' }));
-  await x54('real homeowner photo: share toggle still works', 'allow', updateDoc(doc(alice, 'photos/p54-ho'), { sharedWithHomeowner: true }));
-  await x54('unattached photo attached to own lead', 'allow', updateDoc(doc(alice, 'photos/p54-loose'), { leadId: 'leadA2' }));
-  await x54('unattached photo attached to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'photos/p54-loose2'), { leadId: 'leadB' }));
+  await x58('photo caption edit', 'allow', updateDoc(doc(alice, 'photos/p54-own'), { caption: 'x' }));
+  await x58('photo moved to another lead', 'deny', updateDoc(doc(alice, 'photos/p54-own'), { leadId: 'leadA' }));
+  await x58('photo moved to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'photos/p54-own'), { leadId: 'leadB' }));
+  await x58('own photo flipped to source:homeowner', 'deny', updateDoc(doc(alice, 'photos/p54-own'), { source: 'homeowner', path: 'documents/bob/leadB/x.html' }));
+  await x58('real homeowner photo: share toggle still works', 'allow', updateDoc(doc(alice, 'photos/p54-ho'), { sharedWithHomeowner: true }));
+  await x58('unattached photo attached to own lead', 'allow', updateDoc(doc(alice, 'photos/p54-loose'), { leadId: 'leadA2' }));
+  await x58('unattached photo attached to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'photos/p54-loose2'), { leadId: 'leadB' }));
   // /notes UPDATE
-  await x54('note text edit', 'allow', updateDoc(doc(alice, 'notes/n54'), { text: 'edited' }));
-  await x54('note moved to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'notes/n54'), { leadId: 'leadB' }));
-  await x54('note re-authored', 'deny', updateDoc(doc(alice, 'notes/n54'), { userId: 'bob' }));
+  await x58('note text edit', 'allow', updateDoc(doc(alice, 'notes/n54'), { text: 'edited' }));
+  await x58('note moved to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'notes/n54'), { leadId: 'leadB' }));
+  await x58('note re-authored', 'deny', updateDoc(doc(alice, 'notes/n54'), { userId: 'bob' }));
   // /invoices CREATE
   const inv54 = (u, extra) => Object.assign({ createdBy: u, companyId: 'co-a', total: 100, status: 'draft' }, extra || {});
-  await x54('invoice on own lead', 'allow', setDoc(doc(alice, 'invoices/c54-own'), inv54('alice', { leadId: 'leadA2' })));
-  await x54('invoice with no lead (leadId null)', 'allow', setDoc(doc(alice, 'invoices/c54-null'), inv54('alice', { leadId: null })));
-  await x54('manager invoice on a teammate lead in the tenant', 'allow', setDoc(doc(mgrA, 'invoices/c54-mgr'), inv54('mia', { leadId: 'leadA2' })));
-  await x54('invoice on ANOTHER tenant\'s lead', 'deny', setDoc(doc(alice, 'invoices/c54-xt'), inv54('alice', { leadId: 'leadB' })));
-  await x54('invoice on a lead that does not exist', 'deny', setDoc(doc(alice, 'invoices/c54-ghost'), inv54('alice', { leadId: 'no-such-lead-54' })));
+  await x58('invoice on own lead', 'allow', setDoc(doc(alice, 'invoices/c54-own'), inv54('alice', { leadId: 'leadA2' })));
+  await x58('invoice with no lead (leadId null)', 'allow', setDoc(doc(alice, 'invoices/c54-null'), inv54('alice', { leadId: null })));
+  await x58('manager invoice on a teammate lead in the tenant', 'allow', setDoc(doc(mgrA, 'invoices/c54-mgr'), inv54('mia', { leadId: 'leadA2' })));
+  await x58('invoice on ANOTHER tenant\'s lead', 'deny', setDoc(doc(alice, 'invoices/c54-xt'), inv54('alice', { leadId: 'leadB' })));
+  await x58('invoice on a lead that does not exist', 'deny', setDoc(doc(alice, 'invoices/c54-ghost'), inv54('alice', { leadId: 'no-such-lead-54' })));
   // /invoices UPDATE
-  await x54('invoice money update (leadId unchanged)', 'allow', updateDoc(doc(alice, 'invoices/i54'), { status: 'paid', amountPaid: 100 }));
-  await x54('invoice moved to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'invoices/i54'), { leadId: 'leadB' }));
-  await x54('lead-less invoice attached to own lead', 'allow', updateDoc(doc(alice, 'invoices/i54-loose'), { leadId: 'leadA2' }));
-  console.log('  54: ' + s54Pass + ' flat-collection lead-binding checks passed, ' + s54Fail.length + ' failed');
-  if (s54Fail.length) {
-    throw new Error('54 flat-collection lead binding: ' + s54Fail.length + ' check(s) went the wrong way:\n    ' + s54Fail.join('\n    '));
+  await x58('invoice money update (leadId unchanged)', 'allow', updateDoc(doc(alice, 'invoices/i54'), { status: 'paid', amountPaid: 100 }));
+  await x58('invoice moved to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'invoices/i54'), { leadId: 'leadB' }));
+  await x58('lead-less invoice attached to own lead', 'allow', updateDoc(doc(alice, 'invoices/i54-loose'), { leadId: 'leadA2' }));
+  console.log('  58: ' + s58Pass + ' flat-collection lead-binding checks passed, ' + s58Fail.length + ' failed');
+  if (s58Fail.length) {
+    throw new Error('58 flat-collection lead binding: ' + s58Fail.length + ' check(s) went the wrong way:\n    ' + s58Fail.join('\n    '));
   }
 
   // 52. Server-side plan lead cap (2026-10-04, tenant-ready). Every client
@@ -2767,6 +2767,67 @@ async function run() {
   await assertFails(updateDoc(doc(alice,   'sms_dnc/co-a__8595550134'), { companyId: 'co-z' }));
   await assertFails(deleteDoc(doc(coAdmin, 'sms_dnc/co-a__8595550134')));
   console.log('  55: sms_dnc client read / create / update / delete all denied');
+
+  // 56. sms_settings — the per-company texting master switch (2026-10-05).
+  //     Server only. A client CREATE (registered: true on a company that has
+  //     no registration) or UPDATE (switch it back on) must both fail, even
+  //     for the company's own admin.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'sms_settings/co-a'), { enabled: false });
+  });
+  await assertFails(getDoc(doc(coAdmin, 'sms_settings/co-a')));
+  await assertFails(setDoc(doc(coAdmin, 'sms_settings/co-b'), { registered: true, enabled: true }));
+  await assertFails(setDoc(doc(solo,    'sms_settings/solo1'), { registered: true }));
+  await assertFails(updateDoc(doc(coAdmin, 'sms_settings/co-a'), { enabled: true }));
+  await assertFails(updateDoc(doc(coAdmin, 'sms_settings/co-a'), { registered: true }));
+  await assertFails(deleteDoc(doc(coAdmin, 'sms_settings/co-a')));
+  console.log('  56: sms_settings client read / create / update / delete all denied');
+
+  // 57. ai_drafts status moves (review R2-3-3, 2026-10-06). onAiDraftApproved
+  //     texts the homeowner on → approved, so a rep may set 'approved' ONLY
+  //     from 'pending' — never from sent / failed / approved / dismissed (a
+  //     stale tab re-approving a sent draft texted them twice). A failed draft
+  //     may go back to 'pending' (the panel's "edit and try again") or be
+  //     dismissed; nothing else moves it. Every transition below.
+  const s57Fail = []; let s57Pass = 0;
+  async function x57(label, want, promise) {
+    try { if (want === 'allow') await assertSucceeds(promise); else await assertFails(promise); s57Pass++; }
+    catch (_) { s57Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const STATUSES57 = ['pending', 'approved', 'sent', 'failed', 'dismissed'];
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'leads/lead57'), { userId: 'alice', companyId: 'co-a', name: 'Sam' });
+    await setDoc(doc(d, 'leads/lead57v'), { userId: 'vic', companyId: 'co-v', name: 'Vee' });
+    for (const from of STATUSES57) {
+      for (const to of STATUSES57) {
+        await setDoc(doc(d, 'leads/lead57/ai_drafts/' + from + '-' + to), { userId: 'alice', leadId: 'lead57', status: from, draftText: 'Thanks Sam' });
+      }
+    }
+    await setDoc(doc(d, 'leads/lead57/ai_drafts/bob-pending'), { userId: 'alice', leadId: 'lead57', status: 'pending', draftText: 'x' });
+    await setDoc(doc(d, 'leads/lead57v/ai_drafts/vic-pending'), { userId: 'vic', leadId: 'lead57v', status: 'pending', draftText: 'x' });
+    await setDoc(doc(d, 'leads/lead57/ai_drafts/edit-pending'), { userId: 'alice', leadId: 'lead57', status: 'pending', draftText: 'x' });
+    await setDoc(doc(d, 'leads/lead57/ai_drafts/nostatus'), { userId: 'alice', leadId: 'lead57', draftText: 'x' });
+  });
+  const ALLOWED57 = { 'pending-approved': 1, 'pending-dismissed': 1, 'failed-pending': 1, 'failed-dismissed': 1 };
+  for (const from of STATUSES57) {
+    for (const to of STATUSES57) {
+      const key = from + '-' + to;
+      const patch = to === 'approved'
+        ? { status: 'approved', draftText: 'Thanks Sam!', editedByRep: true, approvedBy: 'alice', approvedAt: 1 }
+        : (to === 'dismissed' ? { status: 'dismissed', dismissedAt: 1 } : { status: to });
+      await x57(from + ' → ' + to, ALLOWED57[key] ? 'allow' : 'deny', updateDoc(doc(alice, 'leads/lead57/ai_drafts/' + key), patch));
+    }
+  }
+  await x57('pending → approved by another tenant\'s rep', 'deny', updateDoc(doc(bob, 'leads/lead57/ai_drafts/bob-pending'), { status: 'approved' }));
+  await x57('pending → approved by a viewer on their own lead', 'deny', updateDoc(doc(viewer, 'leads/lead57v/ai_drafts/vic-pending'), { status: 'approved' }));
+  await x57('an edit that keeps status pending (no transition) is refused', 'deny', updateDoc(doc(alice, 'leads/lead57/ai_drafts/edit-pending'), { draftText: 'y' }));
+  await x57('a draft with no status cannot be approved', 'deny', updateDoc(doc(alice, 'leads/lead57/ai_drafts/nostatus'), { status: 'approved' }));
+  await x57('pending → approved may not smuggle a server field (twilioSid)', 'deny', updateDoc(doc(alice, 'leads/lead57/ai_drafts/edit-pending'), { status: 'approved', twilioSid: 'SM1' }));
+  console.log('  57: ' + s57Pass + ' ai_drafts status-move checks passed, ' + s57Fail.length + ' failed');
+  if (s57Fail.length) {
+    throw new Error('57 ai_drafts status moves: ' + s57Fail.length + ' check(s) went the wrong way:\n    ' + s57Fail.join('\n    '));
+  }
 
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();

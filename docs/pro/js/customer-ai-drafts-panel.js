@@ -200,7 +200,7 @@
                    -webkit-tap-highlight-color:transparent;">✕ Dismiss</button>
         </div>
         <div class="aidp-status" role="status" aria-live="polite"
-          style="font-size:11px; color:var(--m,#9aa3b2); margin-top:8px; min-height:14px;"></div>
+          style="font-size:11px; color:var(--m,#9aa3b2); margin-top:8px; min-height:14px;">${draft.heldReason === 'quiet_hours' ? '⏸ ' + escapeHtml(draft.heldMessage || 'Held: outside texting hours in the homeowner\'s time zone.') : ''}</div>
       </div>`;
   }
 
@@ -276,6 +276,23 @@
       if (!edited) { setStatus('Add some text before sending.'); if (ta) ta.focus(); return; }
       const original = card.getAttribute('data-aidp-original') || '';
       setBusy(true);
+      // Review R2-3-3 (2026-10-06): the list is a one-time getDocs, so this
+      // card can be stale — another tab or device may have sent it already.
+      // Approve only a draft that is STILL pending (the rules and the trigger
+      // refuse anything else too; this tells the rep why).
+      try {
+        const cur = window.getDoc ? await window.getDoc(ref) : null;
+        const st = cur && cur.exists() ? ((cur.data() || {}).status || '') : (cur ? 'gone' : 'pending');
+        if (st !== 'pending') {
+          setBusy(false);
+          setStatus(st === 'sent' ? 'Already sent — this reply went out from another tab or device.' : 'This draft was already handled (' + st + ').');
+          if (window.showToast) window.showToast(st === 'sent' ? 'That reply was already sent — not sending it again' : 'That draft was already handled', 'info');
+          return;
+        }
+      } catch (e) {
+        setBusy(false); setStatus('Could not check this draft — try again.');
+        return;
+      }
       setStatus(card.getAttribute('data-aidp-portal') === '1'
         ? 'Approving — posting to the portal thread…'
         : 'Approving — sending from the business line…');
@@ -331,6 +348,14 @@
               detail: { source: 'ai-draft-sent', leadId: window._customerId || null },
             }));
           } catch (_) {}
+        } else if (st === 'pending' && d.heldReason === 'quiet_hours') {
+          // onAiDraftApproved put it back: outside texting hours in the
+          // homeowner's time zone (2026-10-05). Nothing was sent; the card
+          // stays so the rep can approve it again inside the hours.
+          settled = true;
+          setBusy(false);
+          setStatus('⏸ ' + (d.heldMessage || 'Not sent: it is outside texting hours in the homeowner\'s time zone.'));
+          if (window.showToast) window.showToast('AI reply held: outside texting hours', 'warning');
         } else if (st === 'failed') {
           settled = true;
           setBusy(false);

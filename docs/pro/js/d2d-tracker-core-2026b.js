@@ -249,13 +249,16 @@
   }
 
   // SMS templates — {company} resolves per tenant at send/preview time.
+  // Every door-knock text names the company ({company}) and says how to stop
+  // (texting review 2026-10-05). The server adds the same footer to any knock
+  // text that lacks it, so an older cached copy of this file still complies.
   const SMS_TEMPLATES = {
-    interested: { label: 'Thanks for Chatting', body: 'Hey {name}! This is {rep} from {company}. Great chatting today — I\'d love to take a closer look at your roof. Let me know a good time!' },
-    appointment: { label: 'Appointment Confirmation', body: 'Hi {name}! {rep} from {company} confirming our upcoming roof inspection. Looking forward to it!' },
-    storm_damage: { label: 'Storm Damage Alert', body: 'Hi {name}, {rep} from {company}. I noticed some storm damage on your roof today. I offer free inspections — would you like me to come take a closer look?' },
-    ins_has_claim: { label: 'Insurance Help', body: 'Hi {name}, {rep} from {company}. I can document the storm damage and give you a repair estimate to share with your insurer. Want to set up a time to chat?' },
-    follow_up: { label: 'General Follow-up', body: 'Hi {name}! {rep} from {company} checking in. We chatted recently about your roof — any updates on your end? Happy to answer any questions.' },
-    not_home: { label: 'Missed You', body: 'Hi {name}, {rep} from {company}. I stopped by {address} today but missed you. I noticed a few things on your roof I\'d love to discuss. When works best for a quick chat?' }
+    interested: { label: 'Thanks for Chatting', body: 'Hey {name}! This is {rep} from {company}. Great chatting today — I\'d love to take a closer look at your roof. Let me know a good time! Reply STOP to opt out.' },
+    appointment: { label: 'Appointment Confirmation', body: 'Hi {name}! {rep} from {company} confirming our upcoming roof inspection. Looking forward to it! Reply STOP to opt out.' },
+    storm_damage: { label: 'Storm Damage Alert', body: 'Hi {name}, {rep} from {company}. I noticed some storm damage on your roof today. I offer free inspections — would you like me to come take a closer look? Reply STOP to opt out.' },
+    ins_has_claim: { label: 'Insurance Help', body: 'Hi {name}, {rep} from {company}. I can document the storm damage and give you a repair estimate to share with your insurer. Want to set up a time to chat? Reply STOP to opt out.' },
+    follow_up: { label: 'General Follow-up', body: 'Hi {name}! {rep} from {company} checking in. We chatted recently about your roof — any updates on your end? Happy to answer any questions. Reply STOP to opt out.' },
+    not_home: { label: 'Missed You', body: 'Hi {name}, {rep} from {company}. I stopped by {address} today but missed you. I noticed a few things on your roof I\'d love to discuss. When works best for a quick chat? Reply STOP to opt out.' }
   };
 
   // Gamification challenges
@@ -2057,6 +2060,10 @@
         lng: data.lng || null,
         homeowner: data.homeowner || '',
         phone: data.phone || '',
+        // The rep's record that the homeowner said OK to texts at this number.
+        // Door-knock texts are refused without it (server: sms-functions.js
+        // knockConsentRefusal). Only an explicit true counts.
+        smsConsent: data.smsConsent === true && !!data.phone,
         email: data.email || '',
         disposition: disposition,
         notes: data.notes || '',
@@ -2103,6 +2110,10 @@
         addrNeedsReverify: !!data.addrNeedsReverify || (data.addrConfidence && data.addrConfidence !== 'verified') || false,
         addrVerifiedAt: window.serverTimestamp()
       };
+      if (knockDoc.smsConsent) {
+        knockDoc.smsConsentAt = window.serverTimestamp();
+        knockDoc.smsConsentBy = window._user.uid;
+      }
 
       if (followUpDate) {
         knockDoc.followUpDate = followUpDate;
@@ -2318,6 +2329,11 @@
       // until the user explicitly promotes it via the CRM lead detail
       // modal (Promote to Customer button).
       const isAppointment = knock.disposition === 'appointment';
+      // stageRole beside the stage (R5-8-3, 2026-10-06) so the direct-write
+      // fallback below carries it too (_saveLead stamps its own). Tenant-aware
+      // window.stageRole; only one of the five roles firestore.rules accepts,
+      // otherwise the key is omitted (never undefined).
+      const _stageRole = typeof window.stageRole === 'function' ? window.stageRole(stage) : null;
       const leadData = {
         firstName,
         lastName,
@@ -2329,6 +2345,7 @@
         phoneDigits: String(knock.phone || '').replace(/\D/g, '').replace(/^1/, '').slice(-10),
         email: knock.email || '',
         stage,
+        ...(['new', 'active', 'job', 'won', 'lost'].includes(_stageRole) ? { stageRole: _stageRole } : {}),
         jobType,
         // 'Door Knock' is the canonical source string (Joe, 2026-09-06). This
         // line used to write 'Door-to-Door' while maps-overlays.js wrote
@@ -4918,9 +4935,31 @@
   // ============================================================================
   // SMS / EMAIL TEMPLATES (data layer — chooser UI lives in ui module)
   // ============================================================================
+  // Door-knock texts need the homeowner's OK on file (texting review
+  // 2026-10-05). The server enforces it; this says so before the rep writes.
+  function canTextKnock(knock) {
+    return !!(knock && knock.phone && knock.smsConsent === true);
+  }
+  const NO_CONSENT_MSG = 'No texting OK on file. Ask the homeowner first, then tap "✓ OK to text" on the knock.';
+
+  async function recordSmsConsent(knockId) {
+    const knock = state.knocks.find((k) => k.id === knockId);
+    if (!knock || !knock.phone) { window.showToast?.('No phone number for this contact', 'error'); return; }
+    const ok = await uiConfirm('Did the homeowner say it is OK to text ' + knock.phone + '?', { okLabel: 'Yes, they said OK' });
+    if (!ok) return;
+    await updateKnock(knockId, {
+      smsConsent: true,
+      smsConsentAt: window.serverTimestamp(),
+      smsConsentBy: (window._user && window._user.uid) || null,
+    });
+    window.showToast?.('Saved: OK to text', 'ok');
+    if (window.D2D && typeof window.D2D.closeKnockDetail === 'function') window.D2D.closeKnockDetail();
+  }
+
   function sendFollowUpSMS(knock, templateKey) {
     const phone = knock.phone;
     if (!phone) { window.showToast?.('No phone number for this contact', 'error'); return; }
+    if (!canTextKnock(knock)) { window.showToast?.(NO_CONSENT_MSG, 'error'); return; }
     const repName = state.currentRep?.name || window._user?.displayName || 'your local roofer';
     const tmpl = SMS_TEMPLATES[templateKey] || SMS_TEMPLATES[knock.disposition] || SMS_TEMPLATES.follow_up;
     const body = _fillTemplate(tmpl.body, {
@@ -5139,6 +5178,9 @@
   state.flushKnockPhotoQueue = flushKnockPhotoQueue;
   state.uploadVoiceMemo = uploadVoiceMemo;
   state.sendFollowUpSMS = sendFollowUpSMS;
+  state.canTextKnock = canTextKnock;
+  state.recordSmsConsent = recordSmsConsent;
+  state.NO_CONSENT_MSG = NO_CONSENT_MSG;
   state.sendFollowUpEmail = sendFollowUpEmail;
   state.initD2D = initD2D;
   // Storm Watch deep link (d2d-storm-layer.js) turns the Storms layer on.

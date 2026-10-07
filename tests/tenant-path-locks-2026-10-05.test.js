@@ -114,12 +114,12 @@ function makeBucket() {
     const consts = (SRC.match(/^const HOMEOWNER_URL_(TTL|RENEW)_MS = [^\n]+$/gm) || []).join('\n');
     const signed = [];
     const sb = {
-      console, isHomeownerUploadPathFor: LAP.isHomeownerUploadPathFor,
+      console,
       logger: { warn() {} },
       getStorage: () => ({ bucket: () => ({ file: (p) => ({ async getSignedUrl() { signed.push(p); return ['https://signed/' + p]; } }) }) }),
     };
     vm.createContext(sb);
-    vm.runInContext(consts + '\n' + grab('_homeownerUrlIsStale') + '\n' + grab('_refreshHomeownerPhotoUrls') + '\nthis.refresh = _refreshHomeownerPhotoUrls;', sb);
+    vm.runInContext(consts + '\n' + grab('_isHomeownerUploadPath') + '\n' + grab('_homeownerUrlIsStale') + '\n' + grab('_refreshHomeownerPhotoUrls') + '\nthis.refresh = _refreshHomeownerPhotoUrls;', sb);
     const docOf = (id, p) => ({ id, data: () => p, ref: { update: async () => {} } });
     const tok = { ownerUid: 'U1', leadId: 'L1' };
     const docs = [
@@ -129,13 +129,15 @@ function makeBucket() {
       docOf('other-lead', { source: 'homeowner', path: 'homeowner-uploads/U1/L-OTHER/1.jpg', urlExpiresAt: 0 }),
       docOf('other-owner', { source: 'homeowner', path: 'homeowner-uploads/VICTIM/L1/1.jpg', urlExpiresAt: 0 }),
     ];
-    const fresh = await sb.refresh(docs, Date.now(), tok);
+    // Merged with main's R3-3 fix (2026-10-07): the guard is portal.js's own
+    // _isHomeownerUploadPath and the refresh takes (ownerUid, leadId).
+    const fresh = await sb.refresh(docs, Date.now(), tok.ownerUid, tok.leadId);
     ok('the real homeowner upload is still re-signed', fresh.has('good') && signed.indexOf('homeowner-uploads/U1/L1/1.jpg') !== -1, JSON.stringify(signed));
     ok('another tenant\'s contract named by a planted photo doc is NOT signed', !fresh.has('victim-contract') && signed.indexOf('documents/VICTIM/LV/contract.html') === -1);
     ok('another tenant\'s photo object is NOT signed', !fresh.has('victim-photo'));
     ok('another lead\'s / another owner\'s homeowner upload is NOT signed', !fresh.has('other-lead') && !fresh.has('other-owner'));
     ok('exactly one object was signed', signed.length === 1, JSON.stringify(signed));
-    ok('getHomeownerPortalView passes the token in', /_refreshHomeownerPhotoUrls\(photoSnap\.docs, Date\.now\(\), tok\)/.test(SRC.replace(/\/\/[^\n]*/g, '')));
+    ok('getHomeownerPortalView passes the token\'s owner + lead in', /_refreshHomeownerPhotoUrls\(photoSnap\.docs, Date\.now\(\), tok\.ownerUid, tok\.leadId\)/.test(SRC.replace(/\/\/[^\n]*/g, '')));
   }
 
   // ════════════════════════════════════════════════════════════════════
@@ -148,8 +150,8 @@ function makeBucket() {
       const LEAD = { userId: 'U1', companyId: 'C1', coverPhotoId: null };
       const t = (n) => ({ _seconds: n, toMillis: () => n });
       const photo = (o) => Object.assign({ leadId: 'L1', phase: 'After', userId: 'U1', companyId: 'C1' }, o);
-      async function plate(photos, lead) {
-        const seed = {}; photos.forEach((p, i) => { seed['photos/p' + i] = p; });
+      async function plate(photos, lead, extraSeed) {
+        const seed = Object.assign({}, extraSeed || {}); photos.forEach((p, i) => { seed['photos/p' + i] = p; });
         const db = makeDb(seed); const bucket = makeBucket();
         const r = await plateFor(db, bucket, lead || LEAD, 'L1');
         return { r, signed: bucket.signed };
@@ -162,7 +164,9 @@ function makeBucket() {
       ok('a tenant photo whose path is outside photos/{lead owner}/ is never signed', !c.r && c.signed.length === 0, JSON.stringify(c));
       const d = await plate([photo({ path: 'photos/VICTIM/LV/1.jpg' })]);
       ok('…another uid\'s photos/ prefix is never signed', !d.r && d.signed.length === 0, JSON.stringify(d));
-      const e = await plate([photo({ userId: 'U2', storagePath: 'photos/U1/L1/team.jpg' })]);
+      // Main's plate guard (#2267, LAP.photoObjectAllowed) proves company
+      // membership of the folder's uid from users/{uid}.companyId.
+      const e = await plate([photo({ userId: 'U2', storagePath: 'photos/U1/L1/team.jpg' })], null, { 'users/U1': { companyId: 'C1' } });
       ok('a same-company teammate\'s photo (in the owner prefix) still plates', e.r && e.signed[0] === 'photos/U1/L1/team.jpg', JSON.stringify(e));
       void t;
     }
