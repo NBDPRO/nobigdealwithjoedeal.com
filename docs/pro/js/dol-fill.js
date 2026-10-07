@@ -60,16 +60,22 @@
    * bigger, and more recent.
    */
   function suggest(lead, events) {
+    // IEM report times are UTC with no zone suffix: read them through the one
+    // storm-time reader (storm-time.js) and take the EASTERN date — the same
+    // day functions/storm-tag-logic.js files the storm under. A missing reader
+    // suggests nothing rather than a wrong date of loss.
+    const ST = window.NBDStormTime;
+    if (!ST) return [];
     const created = ms(lead.createdAt) || Date.now();
     const lat = Number(lead.lat), lng = Number(lead.lng);
     return (events || []).map((e) => {
-      const t = Date.parse(String(e.date || '').replace(' ', 'T'));
+      const t = ST.validMs(e.date) || NaN;
       const mi = haversineMi(lat, lng, Number(e.lat), Number(e.lon));
       return { e, t, mi };
     }).filter((x) => Number.isFinite(x.t) && x.t <= created + 86400000 && x.t >= created - LOOKBACK_DAYS * 86400000
       && x.mi <= NEAR_MI && (x.e.type === 'hail' || (x.e.type === 'wind' && Number(x.e.magnitude) >= 58) || x.e.type === 'tornado'))
       .map((x) => ({
-        date: new Date(x.t).toISOString().slice(0, 10),
+        date: ST.ymdEt(x.t),
         type: x.e.type, magnitude: x.e.magnitude == null ? null : Number(x.e.magnitude),
         miles: Math.round(x.mi * 10) / 10, city: x.e.city || '',
         score: (x.e.type === 'hail' ? 1000 : x.e.type === 'tornado' ? 800 : 500) - x.mi * 60 + (x.e.type === 'hail' ? (Number(x.e.magnitude) || 0) * 40 : 0) + x.t / 1e11,
