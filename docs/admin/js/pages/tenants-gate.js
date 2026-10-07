@@ -4,9 +4,9 @@
  * custom claim, or the NBD owner account (functions/tenant-ops.js
  * adminListTenants applies the same test server-side).
  */
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js';
-import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from '/assets/vendor/firebase/10.12.2/firebase-app-check.js';
+import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDTrotINzl2YjdGbH25BpC-FPv8i_fXNvg",

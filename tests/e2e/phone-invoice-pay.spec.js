@@ -70,7 +70,7 @@ async function reachable(locator) {
 async function seedLeadAndEstimate(page) {
   return safeEvaluate(page, async () => {
     const stamp = Date.now();
-    const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db || window._db;
     const uid = (window._auth || window.auth).currentUser.uid;
     const companyId = (window._userClaims && window._userClaims.companyId) || uid;

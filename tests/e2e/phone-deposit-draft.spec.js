@@ -77,7 +77,7 @@ test.describe('phone deposit draft: review & send chip on the customer page @sha
 
     // Lead + estimate first (ids), then the server-shaped draft.
     const ids = await safeEvaluate(page, async ({ lead, est }) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       // Ids picked here + setDoc, ALREADY_EXISTS swallowed: under CI load the
       // Firestore emulator lets the SDK retry a commit whose first attempt
@@ -105,7 +105,7 @@ test.describe('phone deposit draft: review & send chip on the customer page @sha
 
     // A sent $2,000 invoice too, so Total Owed has something real to count.
     await safeEvaluate(page, async ({ id, inv, leadId, uid, companyId }) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const due = new Date(inv.dueDateMs); delete inv.dueDateMs;
       const swallowRetry = (e) => { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }; // see the lead seed above

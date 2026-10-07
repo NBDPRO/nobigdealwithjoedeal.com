@@ -59,7 +59,7 @@
   // header note).
   async function mintTokenUrl(leadId) {
     if (!leadId) throw new Error('leadId required');
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const fns = mod.getFunctions();
     const call = mod.httpsCallable(fns, 'createPortalToken');
     const res = await call({ leadId: leadId, ttlDays: 30 });

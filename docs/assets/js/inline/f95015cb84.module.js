@@ -1,7 +1,7 @@
 /* @generated — extracted from inline <script type="module"> by audit-homeowner-2026-05-22.
    Hash: f95015cb84.  Do not edit by hand. */
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { initializeApp } from "/assets/vendor/firebase/10.12.2/firebase-app.js";
+import { getFunctions, httpsCallable } from "/assets/vendor/firebase/10.12.2/firebase-functions.js";
 
 const app = initializeApp({
   apiKey:"AIzaSyDTrotINzl2YjdGbH25BpC-FPv8i_fXNvg",
@@ -61,7 +61,7 @@ function ensureAppCheck() {
         const key = typeof window.__NBD_APP_CHECK_KEY === 'string' ? window.__NBD_APP_CHECK_KEY.trim() : '';
         if (!key) return;
         const { initializeAppCheck, ReCaptchaEnterpriseProvider } =
-          await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js');
+          await import('/assets/vendor/firebase/10.12.2/firebase-app-check.js');
         initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(key), isTokenAutoRefreshEnabled: true });
       } catch (_) {}
     })();

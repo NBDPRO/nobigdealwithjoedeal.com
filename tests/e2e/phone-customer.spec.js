@@ -63,7 +63,7 @@ async function seedLead(page, { photos }) {
         claimNumber: 'CLM-' + stamp, claimStatus: 'Claim Filed', e2eTestData: true,
       });
     } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
-    const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db || window._db;
     const uid = (window._auth || window.auth).currentUser.uid;
     // Polled: under emulator load the write can land a beat after

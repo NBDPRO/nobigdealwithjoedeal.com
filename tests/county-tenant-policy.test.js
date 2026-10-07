@@ -586,7 +586,7 @@ console.log('\nGlobals Tranche 3 T3-C: the panel loader is registry-only');
 // doc read ever sets the flag, and nothing is published company-wide from a
 // panel that was not painted from it.
 const CP_SRC = fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js/company-profile.js'), 'utf8');
-const FS_IMPORT_RE = /import\((['"])https:\/\/www\.gstatic\.com\/firebasejs\/10\.12\.2\/firebase-firestore\.js\1\)/g;
+const FS_IMPORT_RE = /import\((['"])\/assets\/vendor\/firebase\/[\d.]+\/firebase-firestore\.js\1\)/g;
 const flushTimers = () => new Promise((r) => setTimeout(r, 150));
 // Await p, or fail naming what never settled.
 const within = (p, ms, label) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(label + ' never settled')), ms))]);

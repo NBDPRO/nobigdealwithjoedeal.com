@@ -5,16 +5,16 @@
  * drop 'unsafe-inline' on this page. All previous inline onclick="..."
  * handlers are now wired via addEventListener.
  */
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken as getAppCheckToken }
-  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js';
+  from '/assets/vendor/firebase/10.12.2/firebase-app-check.js';
 import {
   getAuth, signInWithEmailAndPassword, signInWithCustomToken, sendPasswordResetEmail,
   setPersistence, browserLocalPersistence, browserSessionPersistence,
   GoogleAuthProvider, signInWithPopup, signOut
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
+} from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
+import { getFunctions, httpsCallable } from '/assets/vendor/firebase/10.12.2/firebase-functions.js';
 import { connectEmulatorsIfLocal, emulatorAppCheckIfLocal } from '../nbd-emulator-connect.js'; // Audit #3: localhost-only, no-op in prod
 
 const firebaseConfig = {

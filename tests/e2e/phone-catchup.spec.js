@@ -20,7 +20,7 @@ let creds = null;
 try { creds = requireTestUser(); } catch (_) { /* every test skips below */ }
 
 const readDoc = (page, p) => safeEvaluate(page, async (path) => {
-  const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+  const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
   const s = await fs.getDocFromServer(fs.doc(window.db || window._db, path));
   if (!s.exists()) return null;
   const d = s.data();
@@ -28,7 +28,7 @@ const readDoc = (page, p) => safeEvaluate(page, async (path) => {
   return Object.assign({}, d, { closedAt: ms(d.closedAt), soldTierAt: ms(d.soldTierAt) });
 }, p);
 const invoicesFor = (page, leadId) => safeEvaluate(page, async (id) => {
-  const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+  const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
   const q = fs.query(fs.collection(window.db, 'invoices'), fs.where('leadId', '==', id), fs.where('createdBy', '==', window._user.uid));
   const s = await fs.getDocsFromServer(q);
   return s.docs.map((d) => {
@@ -48,10 +48,12 @@ test.describe.serial('phone catch-up: two won jobs, reload keeps progress @shard
 
   async function seedLead(fields) {
     return safeEvaluate(page, async ({ f, tag }) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const uid = window._user.uid;
       const co = (window._userClaims && window._userClaims.companyId) || uid;
-      const data = Object.assign({ userId: uid, companyId: co, e2eTestData: true, e2eRun: tag }, f);
+      // meter: server lead meter (firestore.rules leadMeterOk, #2152) — without
+      // it the create is PERMISSION_DENIED for a non-owner test user.
+      const data = Object.assign({ userId: uid, companyId: co, e2eTestData: true, e2eRun: tag, meter: 'manual' }, f);
       ['createdAt', 'closedAt', 'stageStartedAt'].forEach((k) => { if (typeof data[k] === 'number') data[k] = fs.Timestamp.fromMillis(data[k]); });
       const ref = await fs.addDoc(fs.collection(window.db, 'leads'), data);
       return ref.id;
@@ -105,7 +107,7 @@ test.describe.serial('phone catch-up: two won jobs, reload keeps progress @shard
     // The invoices + timeline notes Record payment made carry no run tag: remove them by lead.
     try {
       await safeEvaluate(page, async (leadIds) => {
-        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const uid = window._user.uid;
         for (const id of leadIds) {
           for (const c of ['invoices', 'notes']) {
@@ -195,6 +197,9 @@ test.describe.serial('phone catch-up: two won jobs, reload keeps progress @shard
     // Package in one tap; close date saved.
     await card.locator('[data-cu="tier"][data-tier="better"]').tap();
     await expect.poll(async () => (await readDoc(page, 'leads/' + ids.a)).soldTier, { message: 'package saved', timeout: 15_000 }).toBe('better');
+    // The doc lands before the handler finishes (undo log, then re-render) and
+    // a tap while it is busy is dropped; wait for the re-rendered card.
+    await expect(card.locator('.cu-chip.cu-ok', { hasText: 'Package' })).toHaveCount(1, { timeout: 15_000 });
     const closeDay = ymd(now - 30 * DAY);
     await card.locator('[data-cu="close-date"]').fill(closeDay);
     await card.locator('[data-cu="save-close"]').tap();

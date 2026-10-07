@@ -277,7 +277,7 @@ function formatAiText(text) {
 async function loadPipelineContext() {
   try {
     if (window._db && window._authUser) {
-      const { collection, getDocs, query } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const { collection, getDocs, query } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const uid = window._authUser.uid;
       const snap = await getDocs(query(collection(window._db, 'leads', uid, 'leads')));
       let totalRevenue = 0;

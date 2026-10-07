@@ -21,7 +21,7 @@
   'use strict';
   if (window.NBDCarePlan && window.NBDCarePlan.__v === 1) return;
 
-  const FUNCTIONS_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
+  const FUNCTIONS_SDK = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
   const MEMBER_STATUSES = ['active', 'past_due'];
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m, t) => { if (typeof window.showToast === 'function') window.showToast(m, t || 'info'); };

@@ -24,7 +24,7 @@
   if (window.NBDMySkin) return;
 
   var L = function () { return window.NBDMySkinLogic; };
-  var STORAGE_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
+  var STORAGE_SDK = '/assets/vendor/firebase/10.12.2/firebase-storage.js';
   var cfg = null;          // normalized config for the signed-in user
   var uid = null;
   var urls = {};           // slot -> blob: URL currently painted

@@ -180,7 +180,7 @@
       // CDN fetch fails, load() resolves anyway and the generator's existing
       // `typeof ApexCharts === 'undefined'` guard degrades gracefully.
       '/assets/vendor/apexcharts/apexcharts.min.js',
-      'js/rep-report-generator.js?v=6'
+      'js/rep-report-generator.js?v=7'
     ],
     // Doc-generation cluster (PR 2b). Only needed when the rep generates a
     // document — from a lead-card doc chip (_generateDocWithPreflight) or
@@ -246,7 +246,7 @@
       'js/nbd-logo-asset.js?v=3',
       'js/product-data.js?v=3',
       'js/roofivent-catalog.js?v=2',
-      'js/catalog-costs.js?v=3',
+      'js/catalog-costs.js?v=4',
       'js/product-library.js?v=10',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
@@ -356,7 +356,7 @@
     ],
     // Warranty cert wizard — opened from the Docs view only.
     warranty: [
-      'js/warranty-cert.js?v=9'
+      'js/warranty-cert.js?v=10'
     ],
     // Theme engine cluster (2026-08-07). The 189-theme engine (162 KB) + its
     // four cosmetic companions were eager on every boot; they are a Settings/
@@ -436,7 +436,7 @@
       // Instant Roofer cross-check card + the V3 wizard's "Draw it" hand-off
       // (2026-10-04). Last: it binds to the engine seam like draw-reticle.
       'css/draw-measure-check.css?v=1',
-      'js/draw-measure-check.js?v=1'
+      'js/draw-measure-check.js?v=2'
     ],
     // Talk Tank inbox (2026-09-14, boot-weight containment) — a single-view
     // module with zero callers outside goTo('talk-tank'); was two static
@@ -447,7 +447,7 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-view.js?v=11'
+      'js/call-center-view.js?v=12'
     ],
     // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
     // Rules editor (Settings → Estimates) and the logo upload / company export
@@ -460,7 +460,7 @@
     // under Settings → AI Texting. Hooks the tab, and paints a tab already open.
     tenantsettings: [
       'js/tenant-rules-settings.js?v=1',
-      'js/tenant-account-ui.js?v=1',
+      'js/tenant-account-ui.js?v=2',
       'js/sms-compliance-settings.js?v=1'
     ],
     // New-owner setup checklist on Home (2026-10-05, #2152 boot budget).

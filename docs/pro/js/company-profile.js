@@ -446,7 +446,7 @@
           }
         } catch (_) { /* ignore */ }
       }
-      const { getDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const { getDoc, doc } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       // QA 2026-06-21 #1: on a cold boot the Firestore WebChannel can still be
       // establishing, so this first getDoc throws "client is offline" and the
       // feature silently fell back to localStorage/defaults until a reload.
@@ -686,7 +686,7 @@
       console.warn('[company-profile] save skipped: no tenant key (auth not ready)');
       return window._companyProfile;
     }
-    const { setDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const { setDoc, doc } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     // brand.docPrefix / brand.seal are the tenant's globally-reserved customer-ID
     // prefix — they're set ONLY by the reserveCompanyPrefix callable (admin SDK)
     // and are immutable to client writes (firestore.rules). A full-profile "save

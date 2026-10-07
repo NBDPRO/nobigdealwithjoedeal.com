@@ -3818,7 +3818,7 @@
   // errors (which the caller catches and falls back from).
   async function _tryServerRenderEstimate(format, estimate, meta, previewHtml) {
     if (!window._functions || !window._httpsCallable) {
-      const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._functions = mod.getFunctions();
       window._httpsCallable = mod.httpsCallable;
     }
@@ -5046,7 +5046,7 @@
       // 2. Send.
       say(inPerson ? 'Preparing the contract…' : 'Sending the contract…');
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = mod.getFunctions();
         window._httpsCallable = mod.httpsCallable;
       }
