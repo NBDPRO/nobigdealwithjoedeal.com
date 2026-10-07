@@ -24,6 +24,10 @@ window.NBDDocGen = {
     name: 'No Big Deal Home Solutions',
     phone: '(859) 420-7382',
     email: 'info@nobigdealwithjoedeal.com',
+    // Zelle has its own pair (Jo, 2026-10-04) — the documents email stays
+    // info@. company-profile.js brand.contact.zelle*; functions/zelle-contact.js.
+    zelleEmail: 'jd@nobigdealwithjoedeal.com',
+    zellePhone: '(859) 420-7382', // NBD COMPANY default — _resolveCompany() blanks it for any other tenant
     website: 'nobigdealwithjoedeal.com',
     tagline: 'No Big Deal — We\'ve Got You Covered',
     address: '', // Optional
@@ -63,7 +67,12 @@ window.NBDDocGen = {
    * base values (email info@, the document tagline, no address).
    */
   _resolveCompany() {
-    const base = this.COMPANY;
+    // NBD's Zelle pair is the default ONLY for the NBD platform tenant
+    // (company-profile.js _isNbdPlatformTenant — companyId, not brand
+    // strings). Any other identity gets '' unless its own brand set one.
+    let platform = false;
+    try { platform = typeof window !== 'undefined' && typeof window._isNbdPlatformTenant === 'function' && window._isNbdPlatformTenant() === true; } catch (_) { platform = false; }
+    const base = platform ? this.COMPANY : Object.assign({}, this.COMPANY, { zelleEmail: '', zellePhone: '' });
     try {
       const b = (typeof window !== 'undefined' && window._brand) ? window._brand() : null;
       if (b && b.legalName) {
@@ -72,11 +81,17 @@ window.NBDDocGen = {
         const contact = b.contact || {};
         const fb = isNbd
           ? base
-          : { phone: '', email: '', website: '', tagline: '', address: '' };
+          : { phone: '', email: '', website: '', tagline: '', address: '', zelleEmail: '', zellePhone: '' };
         return {
           name:    b.legalName,
           phone:   contact.phone   || fb.phone,
           email:   contact.email   || fb.email,
+          // Where Zelle goes. A tenant that set none gets '' and the
+          // templates fall back to `email`, as they always did.
+          // An NBD-named brand from another identity carries NBD's merged
+          // defaults in `contact`, so it gets no Zelle pair at all.
+          zelleEmail: (isNbd && !platform) ? '' : (contact.zelleEmail || fb.zelleEmail || ''),
+          zellePhone: (isNbd && !platform) ? '' : (contact.zellePhone || fb.zellePhone || ''),
           website: contact.website || fb.website,
           tagline: b.tagline       || fb.tagline,
           address: contact.address || fb.address,

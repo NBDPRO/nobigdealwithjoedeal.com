@@ -458,7 +458,9 @@
     "r4-erasure-export-honesty-2026-10-06.test.js",
     "doc-preflight-invoice-tax-2026-10-05.test.js",
     "r4-ui-silent-fixes-2026-10-06.test.js",
-    "review-r4-dates-fixes-2026-10-06.test.js"
+    "review-r4-dates-fixes-2026-10-06.test.js",
+    "receipts-zelle-ach-2026-10-04.test.js",
+    "catchup-2026-10-04.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

@@ -69,7 +69,12 @@
     var dueText = due ? due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
     var line1 = (who ? 'Hi ' + who + ', ' : 'Hi, ') + 'a friendly reminder from ' + company + ': invoice'
       + (num ? ' ' + num : '') + ' for ' + money(balance) + (dueText ? ' was due ' + dueText : ' is still open') + '.';
-    var line2 = link ? 'You can pay here: ' + link : 'Reply here with any questions or to set up payment.';
+    // Bank payment (ACH) is on the same page — lower fees (2026-10-04). The
+    // Zelle line (opts.zelle — the company's Zelle pair) obeys the same hold.
+    var zelle = (!hold.held && opts.zelle) ? ' Zelle: ' + String(opts.zelle) + '.' : '';
+    // The ACH note only where ACH is offered (opts.payByBank: the NBD
+    // platform tenant — functions/stripe.js requests ACH on no other link).
+    var line2 = (link ? 'You can pay here: ' + link + (opts.payByBank === true ? ' (card or bank/ACH — bank has lower fees)' : '') + '.' : 'Reply here with any questions or to set up payment.') + zelle;
     var sign = opts.repName ? ' Thanks, ' + opts.repName : ' Thanks!';
     var last = toDate(inv.lastReminderAt);
     return {
@@ -134,8 +139,17 @@
     // (functions/stripe.js: KyLaw.resolveTimeZone(companyProfile)).
     var tz;
     try { tz = J.resolveTimeZone(typeof root._legal === 'function' ? root._legal() : (root._companyProfile || {})); } catch (_) { tz = undefined; }
+    // Where Zelle goes: the company's Zelle pair (invoice-pipeline.js
+    // zelleTextFor — NBD: (859) 420-7382 or jd@, never info@).
+    var zelleText = '';
+    try {
+      var IPz = root.InvoicePipeline;
+      var br = typeof root._brand === 'function' ? root._brand() : null;
+      if (IPz && typeof IPz.zelleTextFor === 'function') zelleText = IPz.zelleTextFor(br);
+    } catch (_) { zelleText = ''; }
     var r = buildReminder(inv, lead, {
-      company: companyName(), repName: repName(), now: new Date(), timeZone: tz,
+      company: companyName(), repName: repName(), now: new Date(), timeZone: tz, zelle: zelleText,
+      payByBank: (function () { try { return typeof root._isNbdPlatformTenant === 'function' && root._isNbdPlatformTenant() === true; } catch (_) { return false; } })(),
       holdFn: function (l, i, n) { return J.payLinkHold(l, i, n, tz); },
     });
     if (r.held) { toast('Kentucky insurance job — no payment requests until ' + (r.releaseDate || 'the cancellation window ends') + '.', 'error'); return; }

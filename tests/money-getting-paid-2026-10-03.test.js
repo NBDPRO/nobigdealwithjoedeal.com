@@ -215,7 +215,10 @@ function browser(seed, extra) {
     const code = (a >= 0 && b > a) ? src.slice(a, b + 7) : '';
     ok('portal: the balance build is liftable', !!code);
     const run = (lead, inv) => {
-      const ctx = { KyLaw: J, InvoiceCharge: require(path.join(__dirname, '..', 'functions', 'invoice-charge.js')), lead, _unpaidInvoice: inv, kyTz: J.DEFAULT_TIME_ZONE, Date, Math, Number };
+      // tenantKey + require: the balance build asks zelle-contact.js whether
+      // this tenant is NBD (Zelle / "Pay by bank" are NBD-only, 2026-10-04).
+      const ctx = { KyLaw: J, InvoiceCharge: require(path.join(__dirname, '..', 'functions', 'invoice-charge.js')), lead, _unpaidInvoice: inv, kyTz: J.DEFAULT_TIME_ZONE, Date, Math, Number,
+        tenantKey: 'co_other', require: (p) => require(path.join(ROOT, 'functions', p)) };
       vm.createContext(ctx);
       vm.runInContext(code + '\nthis.__b = _balance;', ctx);
       return ctx.__b;
@@ -550,9 +553,10 @@ function browser(seed, extra) {
       && doc.createdBy === 'u1' && doc.companyId === 'u1' && doc.jobId === 'j1' && doc.totalConfirmedBy === 'u1' && doc.customerName === 'Pat Jones' && doc.source === 'record_payment');
     let threw = false; try { IP.jobValueInvoiceDoc({ lead: ohLead, totalCents: 0 }); } catch (_) { threw = true; }
     ok('never a $0 invoice', threw);
-    // The receipt email (coordinator, 2026-10-03): Jo is entering weeks-old
-    // checks — Record payment must not email the customer unless he ticks
-    // "Email a receipt"; markPaid's own default stays as it was.
+    // Receipts (Jo, 2026-10-04 — supersedes the 2026-10-03 "Email a receipt"
+    // box): recording a payment NEVER emails the customer, from any caller.
+    // The payment gets a receipt DRAFT; "Send receipt" sends it
+    // (tests/receipts-zelle-ach-2026-10-04.test.js).
     {
       const withEmail = Object.assign({}, ohLead, { email: 'delivered@resend.dev' });
       const run = async (sendReceipt) => {
@@ -564,19 +568,16 @@ function browser(seed, extra) {
         return B;
       };
       const off = await run(undefined);
-      ok('Record payment, receipt box unticked (default) → payment recorded, NO email', off.emails.length === 0 && off.store.get('invoices/r1').amountPaid === 3000);
-      const offF = await run(false);
-      ok('…explicitly unticked → no email', offF.emails.length === 0);
+      ok('Record payment → payment recorded, NO email, receipt drafted on the payment',
+        off.emails.length === 0 && off.store.get('invoices/r1').amountPaid === 3000 && off.store.get('invoices/r1').payments[0].receipt.status === 'draft');
       const on = await run(true);
-      ok('Record payment, box ticked → exactly ONE receipt email to the customer',
-        on.emails.length === 1 && on.emails[0].to === 'delivered@resend.dev' && on.emails[0].kind === 'receipt');
+      ok('…even a caller passing sendReceipt:true sends nothing (the flag is gone)', on.emails.length === 0);
       const B = browser({ 'invoices/r2': { leadId: 'L1', status: 'sent', total: 100, amountPaid: 0, balanceDue: 100, customerEmail: 'delivered@resend.dev' } });
       await IP.markPaid('r2', '50', 'cash', { at: new Date(NOW) });
-      ok('markPaid\'s default for its other callers is unchanged (still one receipt)', B.emails.length === 1);
+      ok('markPaid from any other caller: no email either (was: one automatic receipt)', B.emails.length === 0);
       const sheet = lf(read('docs/pro/js/invoice-pipeline.js')).split('async function recordPaymentUI')[1].split('// ═══')[0];
-      ok('the sheet has an "Email a receipt to the customer" box, unchecked, wired to sendReceipt',
-        /<input id="nbd-rp-receipt" type="checkbox" class="ipx-rp-check"> Email a receipt to the customer<\/label>/.test(sheet)
-        && !/nbd-rp-receipt"[^>]*checked/.test(sheet) && /sendReceipt: \$\('#nbd-rp-receipt'\)\.checked === true/.test(sheet));
+      ok('the sheet has no "Email a receipt" box any more — it says a receipt is drafted',
+        !/nbd-rp-receipt/.test(sheet) && !/sendReceipt/.test(sheet) && /data-rp-receipt-note/.test(sheet));
     }
     const r = await customerList([], { _currentLead: ohLead });
     ok('customer page: a "Record payment" button even with no invoices', /data-rp-open data-action="NBDCustomerInvoices\.recordPayment" data-arg="L1"/.test(r.html) && /No invoices yet/.test(r.html));

@@ -114,12 +114,12 @@
      stay BEFORE dashboard-bootstrap.module.js (deferred scripts and modules
      run in document order): it installs the accessors the bootstrap then
      assigns window._userClaims / window.addDoc through. -->
-<script defer src="js/role-gate.js?v=6"></script>
+<script defer src="js/role-gate.js?v=7"></script>
 <!-- 2026-09-29: the "Join team / Not now" prompt claimInvite now requires of
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=148"></script>
+<script src="js/script-loader.js?v=150"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -138,7 +138,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=38"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=39"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -146,7 +146,7 @@
 <link rel="stylesheet" href="css/dashboard-app.css?v=12">
 <link rel="stylesheet" href="css/ui-primitives.css?v=13">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
-<link rel="stylesheet" href="css/invoice-pipeline.css?v=3">
+<link rel="stylesheet" href="css/invoice-pipeline.css?v=4">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
 <link rel="stylesheet" href="css/close-board.css?v=2">
 <link rel="stylesheet" href="css/tenant-ready.css?v=1">
@@ -219,7 +219,7 @@
 <link rel="stylesheet" href="css/materials-list.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
 <!-- Knowing your numbers (2026-10-04): Sunday review, lost-reason sheet, Reports panels, lead-source table. -->
-<link rel="stylesheet" href="css/numbers.css?v=1">
+<link rel="stylesheet" href="css/numbers.css?v=2">
 <link rel="stylesheet" href="css/offline-sync.css?v=1">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
@@ -875,9 +875,10 @@
           <div class="page-title" id="homeGreeting" data-user-greeting>Welcome Back</div>
           <div class="page-sub">Today</div>
         </div>
-        <div class="home-hdr-acts">
+        <div class="home-hdr-acts nb-home-actions">
           <button class="btn ui-btn-quiet" data-action="module" data-target="NBDWidgets.openPicker">⚙️ Customize</button>
           <button class="btn btn-ghost nb-home-link" id="homeWeekReviewBtn" data-action="goTo" data-target="weekreview">🗓️ Sunday review</button>
+          <button class="btn btn-ghost nb-home-link" id="homeCatchUpBtn" data-action="goTo" data-target="catchup">📋 Catch up my numbers</button>
           <button class="btn btn-orange" data-action="newEstimate">＋ New Estimate</button>
         </div>
       </div>
@@ -2427,6 +2428,9 @@
   <!-- Sunday business review (2026-10-04): template-hydrated mount; week-review.js (lazy 'weekreview' bundle) renders into .view-scroll on init. Owner-only figures. -->
   <div class="view" id="view-weekreview" data-view-template="tpl-view-weekreview"></div>
   <template id="tpl-view-weekreview"><div class="view-scroll" id="weekReviewScroll"></div></template>
+  <!-- Catch up my numbers (2026-10-04): template-hydrated mount; catchup.js (lazy 'catchup' bundle) renders the decks into .view-scroll on init. Owner-only. -->
+  <div class="view" id="view-catchup" data-view-template="tpl-view-catchup"></div>
+  <template id="tpl-view-catchup"><div class="view-scroll" id="catchUpScroll"></div></template>
   <template id="tpl-view-closeboard">
     <div class="view-scroll">
       <div class="page-hdr">
@@ -4031,6 +4035,15 @@
                 <input type="text" id="cp_brand_website" placeholder="yourdomain.com"></div>
               <div class="sf"><label>Address (one line)</label>
                 <input type="text" id="cp_brand_address" placeholder="City, ST"></div>
+            </div>
+            <!-- Where customers send Zelle (2026-10-04). Its own pair, so the
+                 documents email above can stay a different address. Blank =
+                 Zelle lines use the Email above. -->
+            <div class="sf-row">
+              <div class="sf"><label>Zelle phone</label>
+                <input type="text" id="cp_brand_zellePhone" placeholder="(859) 420-7382" maxlength="40"></div>
+              <div class="sf"><label>Zelle email</label>
+                <input type="text" id="cp_brand_zelleEmail" placeholder="you@yourdomain.com" maxlength="120"></div>
             </div>
             <div style="margin:14px 0 6px;font-size:11px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--m);">Mailing address — required by law on marketing email</div>
             <div class="sf"><label>Mailing Address (one line)</label>
@@ -5985,7 +5998,7 @@
 <!-- Canonical customer URL builder (window.NBDUrl). Loaded BEFORE
      dashboard-actions.js because that file calls NBDUrl.customer(). -->
 <script defer src="js/nbd-url.js?v=1"></script>
-<script defer src="js/dashboard-state.js?v=10"></script>
+<script defer src="js/dashboard-state.js?v=11"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
 <script defer src="js/team-names.js?v=1"></script>
 <script defer src="js/dashboard-api.js?v=5"></script>
@@ -6023,7 +6036,7 @@
 <script defer src="js/estimate-preview.js?v=3"></script>
 <script defer src="js/dashboard-widgets.js?v=10"></script>
 <script defer src="js/dashboard-ui.js?v=13"></script>
-<script defer src="js/dashboard-actions.js?v=17"></script>
+<script defer src="js/dashboard-actions.js?v=18"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
 
 <!-- DOC VIEWER MODAL -->
@@ -6996,7 +7009,7 @@
      the required "Why was it lost?" sheet (crm-pipeline / crm-leads). -->
 <script defer src="js/numbers-logic.js?v=1"></script>
 <script defer src="js/numbers-data.js?v=1"></script>
-<script defer src="js/lost-reason-picker.js?v=1"></script>
+<script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=15"></script>
 <script defer src="js/today-home.js?v=3"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
@@ -7018,7 +7031,7 @@
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=19"></script>
+<script defer src="js/invoice-pipeline.js?v=21"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -7078,7 +7091,7 @@
 <script defer src="js/review-engine.js?v=7"></script>
 <script defer src="js/review-deck.js?v=2"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
-<script defer src="js/company-profile.js?v=8"></script>
+<script defer src="js/company-profile.js?v=9"></script>
 <!-- tenant-rules.js (2026-10-04, tenant-ready): each company's own business
      rules (tiers, names, warranties, shingle locks, deposit) with NBD-only
      defaults. After company-profile.js (reads _companyProfile at call time);

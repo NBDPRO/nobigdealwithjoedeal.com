@@ -238,9 +238,17 @@
         phone:      '(859) 420-7382',
         // The DOCUMENTS/portal address, not the marketing one. NBD runs two on
         // purpose: jd@ is the public marketing contact (docs/ pages, lead
-        // alerts), info@ is what customer documents carry — including the Zelle
-        // payment instruction on invoices. Do not unify these.
+        // alerts), info@ is what customer documents carry. Do not unify these.
         email:      'info@nobigdealwithjoedeal.com',
+        // Where a homeowner sends a ZELLE payment (Jo, 2026-10-04: "(859)
+        // 420-7382 or jd@", NOT info@). Its own pair so the documents email
+        // above can stay info@. Every "For Zelle payments, send to …" line,
+        // the Stripe invoice footer and the portal read these
+        // (functions/zelle-contact.js is the server twin). Identity fields:
+        // blanked for any other tenant that has not set its own, and then
+        // each surface falls back to what it did before.
+        zelleEmail: 'jd@nobigdealwithjoedeal.com',
+        zellePhone: '(859) 420-7382',
         website:    'nobigdealwithjoedeal.com',
         // Documents have never printed a company address; keep that. The
         // letterhead address lives on companyProfile.businessAddress and feeds
@@ -737,7 +745,32 @@
   // 'mailingAddress' belongs here for the same reason as the rest: it is a
   // postal address that identifies a specific business. Left to deep-merge, a
   // stranger tenant would inherit NBD's the moment NBD sets one.
-  const _IDENTITY_CONTACT = ['phone', 'email', 'website', 'address', 'mailingAddress', 'alertEmail', 'alertSms'];
+  // 'zelleEmail' / 'zellePhone' (2026-10-04): where money goes — a stranger
+  // tenant must never print NBD's Zelle on its invoices.
+  const _IDENTITY_CONTACT = ['phone', 'email', 'website', 'address', 'mailingAddress', 'alertEmail', 'alertSms', 'zelleEmail', 'zellePhone'];
+
+  // Is the signed-in identity the NBD PLATFORM tenant? Keyed on the
+  // companyId claim (or, with none, the uid) — never on brand strings, which
+  // any tenant that never set brand.legalName shares with NBD. Sync, so the
+  // render paths can call it; claims read for a different account (the same
+  // stale test as _resolveCompanyKey) and an unknown identity are false.
+  function _isNbdPlatformTenant() {
+    try {
+      const OWNER = window.__NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+      const claims = window._userClaims || null;
+      const cur = (window.auth && window.auth.currentUser) || window._user || null;
+      const claimUid = claims && (claims.user_id || claims.sub);
+      const stale = !!(claimUid && cur && cur.uid && String(claimUid) !== String(cur.uid));
+      const cid = (!stale && claims && claims.companyId) ? String(claims.companyId) : '';
+      if (cid) return cid === OWNER;
+      return !!(cur && cur.uid && String(cur.uid) === OWNER);
+    } catch (_) { return false; }
+  }
+  // Where money goes (Zelle, 2026-10-04): every Zelle consumer
+  // (invoice-pipeline.js zelleTextFor, document-generator.js _resolveCompany)
+  // prints NBD's pair only when this is true. _resolveBrand below still hands
+  // an NBD-looking brand its full defaults (same object, byte-identical).
+  window._isNbdPlatformTenant = _isNbdPlatformTenant;
 
   function _resolveBrand() {
     const profile = window._companyProfile || NBD_COMPANY_PROFILE_DEFAULTS;
