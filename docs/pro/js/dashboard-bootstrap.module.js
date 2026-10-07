@@ -856,7 +856,10 @@
     const fname = (lead.firstName || lead.fname || '').trim();
     const lname = (lead.lastName  || lead.lname || '').trim();
     const name  = (fname + ' ' + lname).trim();
-    const jobVal = lead.jobValue || (est ? est.grandTotal : 0);
+    // The estimate's total wins over lead.jobValue, which can lag a re-saved
+    // estimate (review R2-2-4 / R4); lead.jobValue only when it has no price.
+    const _estVal = est ? _estValue(est) : 0;
+    const jobVal = _estVal > 0 ? _estVal : (lead.jobValue || 0);
     const isComplete = (lead.stage || '').toLowerCase().includes('complete') ||
                        (lead.stage || '').toLowerCase().includes('closed');
     return {

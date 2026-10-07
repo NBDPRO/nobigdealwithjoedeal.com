@@ -811,6 +811,93 @@ async function run() {
     await check('OFFBOARD control: solo owner still UPDATES own lead', 'allow', updateDoc(doc(solo, 'leads/soloOwn'), { notes: 'unaffected' }));
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // R3-7 / R3-12 FIX (review round 3, 2026-10-06)
+  //
+  // R3-7: an Anonymous-provider token is no longer a signed-in user.
+  // isAuth() refuses sign_in_provider 'anonymous', so every rule built on it
+  // (isOwner, notViewer, the role helpers) refuses it too. Anonymous sign-in
+  // was turned off in the Firebase console the same day; this is the second
+  // lock, for any account that already exists and can still refresh a token.
+  //
+  // R3-12: on the flat owner-keyed collections, userId and companyId are
+  // WRITE-ONCE on UPDATE (the customerId pattern on /leads): a doc cannot be
+  // handed to another user or re-tenanted, and a companyId stamped onto a
+  // doc that never had one must be the writer's own tenant. Every case writes
+  // its own seeded document so no check can mask another.
+  // ═══════════════════════════════════════════════════════════
+  {
+    const { deleteField } = require('firebase/firestore');
+    const R37_ANON = env.authenticatedContext('r37anon', { firebase: { sign_in_provider: 'anonymous' } }).firestore();
+    const R37_PW   = env.authenticatedContext('r37pw',   { firebase: { sign_in_provider: 'password' } }).firestore();
+    const R37_CUST = env.authenticatedContext('r37cust', { firebase: { sign_in_provider: 'custom' } }).firestore();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'tasks/r37anonOwned'), { userId: 'r37anon', companyId: 'r37anon', title: 'left over' });
+    });
+
+    // R3-7 — the attack list from the report, one check each.
+    await check('R3-7: anonymous account cannot read docPrefixes (tenant owner uids)', 'deny',
+      getDoc(doc(R37_ANON, 'docPrefixes/ACO')));
+    await check('R3-7: anonymous account cannot create companies/{own uid}', 'deny',
+      setDoc(doc(R37_ANON, 'companies/r37anon'), { ownerId: 'r37anon', name: 'Anon Roofing' }));
+    await check('R3-7: anonymous account cannot create a solo lead', 'deny',
+      setDoc(doc(R37_ANON, 'leads/r37anonLead'), { userId: 'r37anon', companyId: 'r37anon', name: 'x', meter: 'manual' }));
+    await check('R3-7: anonymous account cannot create its own users/{uid} doc', 'deny',
+      setDoc(doc(R37_ANON, 'users/r37anon'), { email: '', displayName: 'anon' }));
+    await check('R3-7: anonymous account cannot read a doc it owns', 'deny',
+      getDoc(doc(R37_ANON, 'tasks/r37anonOwned')));
+    await check('R3-7: anonymous account cannot create a task', 'deny',
+      setDoc(doc(R37_ANON, 'tasks/r37anonNew'), { userId: 'r37anon', title: 'x' }));
+    // Controls: the real sign-in providers are untouched.
+    await check('R3-7 control: password-provider account still reads docPrefixes', 'allow',
+      getDoc(doc(R37_PW, 'docPrefixes/ACO')));
+    await check('R3-7 control: custom-token account (access-code login) still reads docPrefixes', 'allow',
+      getDoc(doc(R37_CUST, 'docPrefixes/ACO')));
+    await check('R3-7 control: password-provider solo owner still creates companies/{own uid}', 'allow',
+      setDoc(doc(R37_PW, 'companies/r37pw'), { ownerId: 'r37pw', name: 'Real Roofing' }));
+
+    // R3-12 — every flat owner-keyed collection with an owner update rule.
+    const R312 = ['tasks', 'drawings', 'communications', 'lead_documents', 'review_requests',
+      'drip_queue', 'deal_rooms', 'dailyTracker', 'products', 'templates', 'notes'];
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      for (const coll of R312) {
+        for (const id of ['gift', 'retenant', 'drop', 'edit', 'resend']) {
+          await setDoc(doc(db, `${coll}/r312${id}`), { userId: 'bob', companyId: 'co-b', title: 'call 1-800-SCAM' });
+        }
+        await setDoc(doc(db, `${coll}/r312legacyOwn`),   { userId: 'bob', title: 'legacy, no companyId' });
+        await setDoc(doc(db, `${coll}/r312legacyOther`), { userId: 'bob', title: 'legacy, no companyId' });
+      }
+    });
+    for (const coll of R312) {
+      await check(`R3-12: ${coll} owner cannot re-gift userId to another tenant's user`, 'deny',
+        updateDoc(doc(bob, `${coll}/r312gift`), { userId: 'alice' }));
+      await check(`R3-12: ${coll} owner cannot re-tenant companyId`, 'deny',
+        updateDoc(doc(bob, `${coll}/r312retenant`), { companyId: 'co-a' }));
+      await check(`R3-12: ${coll} owner cannot clear userId`, 'deny',
+        updateDoc(doc(bob, `${coll}/r312drop`), { userId: deleteField() }));
+      await check(`R3-12: ${coll} legacy doc: companyId first stamp cannot name another tenant`, 'deny',
+        updateDoc(doc(bob, `${coll}/r312legacyOther`), { companyId: 'co-a' }));
+      // Controls: ordinary edits, a same-value resend (setDoc merge of the
+      // whole local copy) and a first stamp of the writer's own tenant.
+      await check(`R3-12 control: ${coll} owner still edits content`, 'allow',
+        updateDoc(doc(bob, `${coll}/r312edit`), { title: 'edited' }));
+      await check(`R3-12 control: ${coll} owner may resend the same userId/companyId`, 'allow',
+        setDoc(doc(bob, `${coll}/r312resend`), { userId: 'bob', companyId: 'co-b', title: 'resent' }, { merge: true }));
+      await check(`R3-12 control: ${coll} legacy doc: owner stamps their own companyId once`, 'allow',
+        updateDoc(doc(bob, `${coll}/r312legacyOwn`), { companyId: 'co-b' }));
+    }
+    // The solo-operator tenant key is the uid (no companyId claim).
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'tasks/r312solo'), { userId: 'solo1', title: 'legacy' });
+      await setDoc(doc(ctx.firestore(), 'tasks/r312soloOther'), { userId: 'solo1', title: 'legacy' });
+    });
+    await check('R3-12 control: solo operator stamps companyId = own uid once', 'allow',
+      updateDoc(doc(solo, 'tasks/r312solo'), { companyId: 'solo1' }));
+    await check('R3-12: solo operator cannot stamp another tenant as companyId', 'deny',
+      updateDoc(doc(solo, 'tasks/r312soloOther'), { companyId: 'co-a' }));
+  }
+
   // ── Summary ────────────────────────────────────────────────
   const pass = results.filter(r => r.outcome === 'PASS').length;
   const fail = results.filter(r => r.outcome === 'FAIL').length;
