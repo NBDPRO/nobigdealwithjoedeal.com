@@ -397,6 +397,7 @@
     "map-views-hydration.test.js",
     "lead-trades-unknown.test.js",
     "edit-lead-stage-write-2026-09-28.test.js",
+    "r5-stagerole-d2d-smslog-2026-10-06.test.js",
     "revenue-collected-only-2026-09-28.test.js",
     "strip-redundant-inline-css.test.js",
     "upgrade-pricing.test.js",

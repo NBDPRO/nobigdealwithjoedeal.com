@@ -57,9 +57,16 @@ async function seedDemoLeads(uid) {
   const batch = [];
   for (const lead of leads) {
     const { createdAt, ...rest } = lead;
+    // stageRole beside the stage (R5-8-3, 2026-10-06), tenant-aware
+    // window.stageRole on the normalised key; omitted unless it is one of the
+    // five roles firestore.rules accepts (never undefined).
+    const _stageRole = typeof window.stageRole === 'function'
+      ? window.stageRole(typeof window.normalizeStage === 'function' ? window.normalizeStage(rest.stage) : rest.stage)
+      : null;
     try {
       const ref = await addDoc(collection(db,'leads'), {
         ...rest,
+        ...(['new', 'active', 'job', 'won', 'lost'].includes(_stageRole) ? { stageRole: _stageRole } : {}),
         userId: uid,
         companyId: window._userClaims?.companyId || uid,
         // Sample leads use their own small allowance (functions/lead-cap.js),
