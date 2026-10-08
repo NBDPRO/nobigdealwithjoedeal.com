@@ -20,12 +20,19 @@ const path = require('path');
 
 const PRO = path.join(__dirname, '..', 'docs', 'pro');
 const CEILING = {
-  blockingScripts: 28,          // measured 28 (2026-10-03) — never grow
+  blockingScripts: 29,          // measured 28 (2026-10-03) — never grow. ONE deliberate raise 2026-10-06: demo-mode.js (Pro demo phase 2) must run before every other script so the sample account's guard + network tripwire exist first; on the real page it returns on line one (~9 KB)
   blockingBytes: 300 * 1024,    // measured 278 KB
-  localScripts: 194,            // measured 178; deliberate raises 2026-10-05: + client-error-reporter.js (#2140, must run at boot to catch boot errors) + the offline sync badge (#2145) = 193 [+1 on merge: both PRs' boot tags, measured]
+  localScripts: 196,            // measured 178; deliberate raises 2026-10-05: + client-error-reporter.js (#2140, must run at boot to catch boot errors) + the offline sync badge (#2145) = 193 [+1 on merge: both PRs' boot tags, measured]; 2026-10-06 + storm-time.js (review R4-6-1: the one UTC→Eastern storm-date reader dol-fill + the D2D storm layer need at boot, 1.9 KB) = 195; +1 2026-10-07 demo-mode.js (Pro demo phase 2, #2294) = 196
   localBytes: 4.4 * 1024 * 1024, // measured 4.08 MB
   htmlBytes: 520 * 1024,        // measured 477 KB
 };
+// +1 local tag, deliberate (2026-10-05, #2155): js/photo-cache.js (window.NBDPhotoCache).
+// It REPLACES the boot-time read of every photos doc, and its consumers (job-detail hero,
+// Photos tab, photo hub, inspection report) read window.NBDPhotoCache
+// synchronously behind a guard — lazy-loading it would turn a missing helper into silent
+// "no photos" (page-scoped-helper rule). Kept as its own line so the other PRs that raise
+// localScripts on the line above merge without a conflict.
+CEILING.localScripts += 1;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
@@ -66,6 +73,50 @@ ok('control: counts local tags, skips CDN + commented-out tags, splits blocking 
   ctl.blockingScripts === 0 && ctl.missing.length === 3 && ctl.localScripts === 0);
 const real = measure('<script src="dashboard-boot-budget-2026-10-03.test.js"></script><script defer src="dashboard-boot-budget-2026-10-03.test.js"></script>', __dirname);
 ok('control: a blocking tag and a deferred tag are told apart', real.localScripts === 2 && real.blockingScripts === 1);
+
+// ── BOOT READS (2026-10-04) ────────────────────────────────────────────────
+// Bytes are half the boot cost; Firestore reads are the other half. The boot
+// read path is loadLeads + the post-auth tail it triggers (loadPins,
+// loadZones). Every collection read there must be BOUNDED (limit(...)) — the
+// one deliberate exception is that leads page through the WHOLE book (500 a
+// page, the kanban must be complete), which carries limit(_PAGE) per page.
+//   measured 2026-10-03 (before): 3 unbounded boot reads — photos (every doc
+//     in scope, own + company), pins, zones;
+//   measured 2026-10-04 (after):  0 — photos load per lead on demand
+//     (js/photo-cache.js), pins capped to the newest PIN_CAP, zones to ZONE_CAP.
+// The runtime twin is tests/e2e/boot-weight.spec.js "boot reads", which
+// counts the queries the SDK actually starts. Ceiling: never grow.
+console.log('\nDASHBOARD BOOT READS');
+const UNBOUNDED_BOOT_READS_CEILING = 0;
+function bootReadCalls(src) {
+  const fnBody = (name, endMarker) => {
+    const a = src.indexOf('async function ' + name + '(');
+    if (a < 0) return '';
+    const b = src.indexOf(endMarker, a);
+    return src.slice(a, b < 0 ? a + 20000 : b);
+  };
+  const bodies = [
+    fnBody('loadLeads', 'window._loadLeads = loadLeads'),
+    fnBody('loadPins', 'async function _savePin'),
+    fnBody('loadZones', 'window.loadZones = loadZones'),
+  ].map((s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''));
+  const calls = [];
+  for (const body of bodies) {
+    for (const m of body.matchAll(/getDocs\(\s*query\(\s*collection\(\s*db\s*,\s*'([\w-]+)'([^;]*)/g)) {
+      calls.push({ coll: m[1], bounded: /\blimit\(/.test(m[2]) });
+    }
+  }
+  return { found: bodies.every(Boolean), calls };
+}
+const br = bootReadCalls(fs.readFileSync(path.join(PRO, 'js', 'dashboard-bootstrap.module.js'), 'utf8'));
+const unbounded = br.calls.filter((c) => !c.bounded);
+ok('found loadLeads / loadPins / loadZones', br.found);
+ok('boot read calls located (' + br.calls.length + ')', br.calls.length >= 3);
+ok('unbounded boot reads: ' + unbounded.length + ' ≤ ' + UNBOUNDED_BOOT_READS_CEILING + ' (was 3: photos, pins, zones)',
+  unbounded.length <= UNBOUNDED_BOOT_READS_CEILING, unbounded.map((c) => c.coll).join(', '));
+ok('no photos read anywhere on the boot path', !br.calls.some((c) => c.coll === 'photos'));
+const ctlReads = bootReadCalls("async function loadLeads() { await getDocs(query(collection(db,'photos'), s)); }\nwindow._loadLeads = loadLeads\nasync function loadPins() { getDocs(query(collection(db,'pins'), s, limit(5))); }\nasync function _savePin\nasync function loadZones() {}\nwindow.loadZones = loadZones");
+ok('control: an unbounded read is counted, a limit()ed one is not', ctlReads.calls.length === 2 && ctlReads.calls.filter((c) => !c.bounded).length === 1);
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

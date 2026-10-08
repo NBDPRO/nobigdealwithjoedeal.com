@@ -25,10 +25,10 @@
 
 import {
   collection, query, orderBy, onSnapshot, doc, getDoc, where
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+} from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 import {
   ref as storageRef, uploadBytesResumable, getDownloadURL
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
+} from '/assets/vendor/firebase/10.12.2/firebase-storage.js';
 
 // ─── Consent modes (must match companies/{id}.recordingConsentMode) ─
 export const CONSENT_MODES = Object.freeze({

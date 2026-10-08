@@ -26,7 +26,8 @@
  *   5. Photo detail — expands INLINE under the grid: full image, description,
  *                     tag toggles, and ★ Set cover / 🗑 Delete / ⤓ Open.
  *
- * Data: renders from window._photoCache[leadId] (already loaded at boot, and
+ * Data: renders from window._photoCache[leadId] (filled on demand by
+ * js/photo-cache.js since 2026-10-04 — no longer at boot — and
  * team-scoped — own + companyId). Mutations update that cache in place rather
  * than re-querying, so the overlay hero, the kanban card thumb strip and this
  * panel can never disagree. PhotoEngine.getPhotosForLead is deliberately NOT
@@ -556,8 +557,16 @@
         onClick(ev);
       }, true);
       _clickBound = true;
+      // Photos load on demand (js/photo-cache.js, 2026-10-04): repaint when
+      // this lead's bag arrives after the tab is already showing.
+      window.addEventListener('nbd:photos-loaded', function (ev) {
+        var ids = (ev && ev.detail && ev.detail.leadIds) || [];
+        if (_leadId && ids.indexOf(_leadId) !== -1) refresh();
+      });
     }
     render();
+    var pc = window.NBDPhotoCache;
+    if (pc && typeof pc.ensure === 'function' && !pc.isLoaded(leadId)) pc.ensure([leadId]);
     return true;
   }
 

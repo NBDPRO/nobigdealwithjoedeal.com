@@ -86,9 +86,14 @@
     const leads = window._leads || [];
     const inv = _data.invs;
     const owedCents = R ? inv.reduce((s, i) => s + Math.round(R.owedDollarsOf(i) * 100), 0) : null;
+    // Every JOB (jobs-store.js recordsFor) for the booked figures and the
+    // source table — a repeat customer's second sale counts (review R6-2-13).
+    const J = window.NBDJobs;
+    const jobRecords = J && typeof J.recordsFor === 'function' ? J.recordsFor(leads) : null;
     _review = N().weeklyReview({
       nowMs: _data.now,
       leads,
+      jobRecords,
       labelFn: stageLabel,
       spend: _data.spend,
       collectedBetween: R ? (a, b) => R.collectedBetween(inv, a, b) : null,
@@ -200,6 +205,8 @@
       '<button type="button" class="wr-btn wr-btn-ghost" data-wr="hd-import">🧡 Import Home Depot</button></div>';
     const gaps = card('🕳️ Data gaps',
       '<div class="wr-dim wr-small">Costed ' + c.costed + ' of ' + c.total + ' won jobs · ' + (c.total - g.noPayment.length) + ' of ' + c.total + ' with a payment recorded.</div>' +
+      // One card at a time on the phone (catchup.js, 2026-10-04).
+      '<div class="wr-row-end"><button type="button" class="wr-btn wr-btn-primary" id="wrCatchUpBtn" data-action="goTo" data-target="catchup">📋 Catch up my numbers — one job at a time</button></div>' +
       renderGapList('cost', 'Won jobs with no costs (sub invoice, materials, receipts)', g.noCost, (l) =>
         '<li class="wr-row">' + custLink(l) + '<span class="wr-dim">' + money(Nn.bookedCents(l)) + '</span>' +
         '<button type="button" class="wr-btn" data-wr="add-cost" data-id="' + esc(l.id) + '">+ Add cost</button></li>', costsExtra) +

@@ -12,7 +12,7 @@
 {"@context":"https://schema.org","@type":"WebApplication","name":"NBD Free Roof Inspection Request","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"provider":{"@id":"https://nobigdealwithjoedeal.com/#org"}}
 </script>
 <meta property="og:type" content="website">
-<meta property="og:title" content="Free 24-Hour Roof Inspection — Joe Deal NBD">
+<meta property="og:title" content="Free 24-Hour Roof Inspection | Joe Deal, No Big Deal">
 <meta property="og:description" content="Joe Deal, owner. 7+ years on roofs across Greater Cincinnati and Northern Kentucky. You get photos and a straight answer.">
 <meta property="og:url" content="https://nobigdealwithjoedeal.com/inspect">
 <meta property="og:image" content="https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg">
@@ -66,7 +66,6 @@ h1 span{color:#BD5728}
 
 .trust-row{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:28px}
 .trust-pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);padding:8px 14px;border-radius:20px;font-size:.78rem;font-weight:600;color:rgba(255,255,255,.88)}
-.trust-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--success)}
 /* CRO #5 (2026-10-06): four proof pills fit two rows on a 375px phone */
 @media(max-width:480px){.trust-row{gap:6px}.trust-pill{padding:6px 10px;gap:6px;font-size:.74rem}}
 
@@ -104,12 +103,56 @@ h1 span{color:#BD5728}
 .form-success h3{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--navy);margin-bottom:8px}
 .form-success p{font-size:.9rem;color:var(--gray-sub);line-height:1.55}
 .form-success p strong{color:var(--navy)}
+/* Thank-you screen (2026-10-06): Pick My Time for a calendar choice, then the
+   optional "add details" step that used to sit on the form. */
+.ins-pick-time{display:block;width:100%;margin:14px 0 6px;background:#BD5728;color:#fff;text-decoration:none;padding:16px;border-radius:8px;font-weight:800;font-size:1rem;letter-spacing:.04em;text-transform:uppercase;text-align:center}
+.ins-pick-time:hover{background:#A14A22}
+.ins-pick-time[hidden]{display:none}
+/* The panel is tall now: land on its headline, clear of the sticky top bar,
+   and let the one-column grid shrink to the phone (the file input inside
+   would otherwise widen the track past the screen). */
+#inspectSuccess{scroll-margin-top:84px}
+.form-panel{min-width:0}
+.ins-details{margin-top:18px;padding-top:16px;border-top:1px solid rgba(26,48,87,.15);text-align:left;min-width:0}
+.ins-details[hidden]{display:none}
+.ins-details h4{font-size:.95rem;font-weight:800;color:var(--navy);margin-bottom:4px}
+.ins-details .ins-details-sub{font-size:.82rem;margin-bottom:12px}
+.ins-details input[type=file]{max-width:100%;min-width:0}
+.ins-details .submit-btn{margin-top:4px}
+.ins-details-status{font-size:.85rem;margin-top:8px;color:var(--gray-sub)}
+.ins-details-status.error{color:#7f1d1d}
+.ins-details-status a{color:inherit;font-weight:700}
 
 .fine-print{font-size:.72rem;color:var(--gray);margin-top:14px;line-height:1.55;text-align:center}
 /* consent (TCPA, 2026-10-03) — same markup as /storm-check's .sc-consent */
 .sc-consent{display:flex;gap:10px;align-items:flex-start;margin:4px 0 12px;font-size:.78rem;color:var(--gray-sub);line-height:1.4}
 .sc-consent input{margin-top:2px;width:18px;height:18px;flex-shrink:0;accent-color:var(--orange)}
 .sc-consent a{color:inherit;text-decoration:underline}
+
+/* QR kicker (CRO #7, 2026-10-06): one line for known QR sources, set by
+   inspect-form.js with textContent; hidden for everyone else. */
+.qr-kicker{font-size:.95rem;font-weight:700;color:var(--orange-light);margin:0 0 10px}
+.qr-kicker[hidden]{display:none}
+/* Referral code from ?ref= (CRO #8) */
+.ins-ref-note{font-size:.85rem;color:var(--navy);background:rgba(34,160,107,.08);border:1px solid rgba(34,160,107,.35);border-radius:8px;padding:10px 12px;margin:0 0 14px}
+.ins-ref-note[hidden]{display:none}
+.ins-ref{margin:0 0 14px}
+.ins-ref[hidden]{display:none}
+.ins-ref summary{cursor:pointer;font-size:.85rem;font-weight:700;color:var(--navy);padding:10px 0;min-height:44px;display:flex;align-items:center}
+.ins-ref .form-row{margin-top:4px}
+/* What happens + FAQ (CRO #6, 2026-10-06) */
+.ins-next{background:#fff;padding:48px 5% 40px;color:var(--navy)}
+.ins-next-inner{max-width:880px;margin:0 auto}
+.ins-next h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(1.6rem,4vw,2.2rem);letter-spacing:.02em;margin-bottom:18px;color:var(--navy)}
+.ins-steps{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0 0 36px;padding:0;counter-reset:step}
+.ins-steps li{counter-increment:step;background:var(--light-gray);border-radius:10px;padding:18px 16px;font-size:.92rem;line-height:1.55;color:var(--gray-sub)}
+.ins-steps li::before{content:counter(step);display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--orange);color:#fff;font-weight:800;margin-bottom:8px}
+.ins-steps strong{display:block;color:var(--navy);margin-bottom:4px}
+.ins-faq details{border-top:1px solid rgba(26,48,87,.15)}
+.ins-faq details:last-child{border-bottom:1px solid rgba(26,48,87,.15)}
+.ins-faq summary{cursor:pointer;font-weight:700;padding:14px 0;min-height:44px;display:flex;align-items:center;color:var(--navy)}
+.ins-faq details p{padding:0 0 14px;font-size:.92rem;line-height:1.6;color:var(--gray-sub)}
+@media(max-width:720px){.ins-steps{grid-template-columns:minmax(0,1fr)}}
 
 /* Tagline footer */
 .tagline-bar{background:var(--navy-dark);color:#fff;text-align:center;padding:36px 5%;font-family:'Bebas Neue',sans-serif;font-size:clamp(1.1rem,2.6vw,1.55rem);letter-spacing:.04em}
@@ -157,7 +200,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nobigdealwithjoedeal.com/"},{"@type":"ListItem","position":2,"name":"Free Roof Inspection","item":"https://nobigdealwithjoedeal.com/inspect"}]}</script>
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -173,7 +216,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -230,6 +273,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -252,6 +296,7 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -289,8 +334,8 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -353,19 +398,20 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 <section class="hero">
   <div class="hero-grid">
     <div class="hero-left">
-      <div class="hero-badge">Free &middot; 24-Hour Turnaround</div>
+      <p class="qr-kicker" id="insKicker" hidden></p>
+      <div class="hero-badge">Reply within 24 hours, usually the same day</div>
       <h1>Free 24-Hour <span>Roof Inspection</span></h1>
       <p class="subhead"><strong>Photos and a straight answer. Hiring me is up to you.</strong> Joe Deal, owner. 7+ years on roofs across Cincinnati and Northern Kentucky.</p>
 
       <div class="trust-row">
-        <span class="trust-pill"><span aria-hidden="true">&#9733;</span><span><span data-nbd-gr-rating>5.0</span> on Google (<span data-nbd-gr-total>29</span> reviews)</span></span>
-        <span class="trust-pill"><span class="dot"></span> GAF Certified</span>
-        <span class="trust-pill"><span class="dot"></span> TAMKO Pro Gold</span>
-        <span class="trust-pill"><span class="dot"></span> Fully insured</span>
+        <span class="trust-pill"><span aria-hidden="true">&#9733;</span><span><span data-nbd-gr-rating>5.0</span> on Google<span data-nbd-gr-total-wrap hidden> (<span data-nbd-gr-total></span> reviews)</span></span></span>
+        <span class="trust-pill">GAF Certified</span>
+        <span class="trust-pill">TAMKO Pro Gold</span>
+        <span class="trust-pill">Fully insured</span>
       </div>
 
       <div class="owner-line">
-        <strong>Owner on every job.</strong> Joe gets on every roof himself &mdash; no salesmen, and nobody hands your project off without you knowing.
+        <strong>Owner on every job.</strong> Joe gets on every roof himself, and you deal with him from start to finish.
       </div>
 
       <a href="tel:+18594207382" class="phone-cta">
@@ -376,12 +422,15 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 
     <aside class="form-panel">
       <h2>Get Your Free Inspection</h2>
-      <p class="form-intro">Tell us a bit about your roof and we&rsquo;ll be in touch within 24 hours.</p>
+      <p class="form-intro">Your name, the address and a phone number is all it takes. Joe gets back to you, usually the same day.</p>
 
       <form id="inspectForm" novalidate>
         <input type="hidden" name="utm_source" id="utm_source" value="">
         <input type="hidden" name="utm_medium" id="utm_medium" value="">
         <input type="hidden" name="utm_campaign" id="utm_campaign" value="">
+        <!-- ?ref=CODE (CRO #8): stamped by inspect-form.js, posted with the submit. -->
+        <input type="hidden" name="referralCode" id="insRefCode" value="">
+        <p class="ins-ref-note" id="insRefNote" hidden>Referred by a neighbor? Your code <strong id="insRefNoteCode"></strong> is applied.</p>
 
         <div class="form-row">
           <label for="f-name">Your Name</label>
@@ -395,35 +444,75 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
           <label for="f-phone">Mobile phone</label>
           <input type="tel" id="f-phone" name="phone" autocomplete="tel" inputmode="tel" placeholder="(859) 555-1234" required>
         </div>
-        <div class="form-row">
-          <label for="f-email">Email <span class="opt">(optional)</span></label>
-          <input type="email" id="f-email" name="email" autocomplete="email">
-        </div>
-        <div class="form-row">
-          <label for="f-story">What happened? <span class="opt">(optional)</span></label>
-          <textarea id="f-story" name="story" rows="3" placeholder="Storm, leak, age, insurance claim, just want a checkup..."></textarea>
-        </div>
-        <div class="form-row">
-          <label for="f-referral">Referral code <span class="opt">(optional — if a friend referred you)</span></label>
-          <input type="text" id="f-referral" name="referralCode" placeholder="e.g. JOHN-AB12" autocapitalize="characters" maxlength="32">
-        </div>
-        <!-- Scheduling choice (required), photos (uploaded for real), best time,
-             insurance, how heard — js/intake-extras.js (2026-09-30). -->
-        <div data-nbd-intake="ins"></div>
+        <!-- Scheduling choice (required) — js/intake-extras.js. Shorter form
+             (Jo, 2026-10-06): email, "What happened?", referral code, photos,
+             best time, insurance and how heard moved to the thank-you screen
+             (#insDetails), saved onto the same lead via updatePublicLeadIntake. -->
+        <div data-nbd-intake="ins" data-extras="false" data-cal-hint="Pick your time on the next screen."></div>
 
         <div style="position:absolute;left:-9999px;" aria-hidden="true"><label for="f-nbd-hp">Leave blank</label><input type="text" id="f-nbd-hp" name="nbd_hp" tabindex="-1" autocomplete="off"></div>
         <label class="sc-consent"><input type="checkbox" id="ins-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>
         <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Fully insured &middot; Joe on every roof</p>
         <button type="submit" class="submit-btn" id="inspectSubmit">Request Free Inspection</button>
-        <p class="fine-print">I respect your time. I respond within 24 hours.</p>
+        <p class="fine-print">You don&rsquo;t have to be home, but you&rsquo;re welcome to walk it with Joe. Joe replies within 24 hours, usually the same day.</p>
       </form>
 
-      <div class="form-success" id="inspectSuccess" role="status" aria-live="polite">
+      <div class="form-success" id="inspectSuccess">
+        <div role="status" aria-live="polite">
         <div class="check" aria-hidden="true">&#10003;</div>
-        <h3>Got it &mdash; thanks!</h3>
-        <p>Joe will reach out <strong>within 24 hours</strong> to schedule your inspection. If it&rsquo;s urgent, call or text <strong>(859) 420-7382</strong>.</p>
+        <!-- Headline + next step follow the scheduling choice (inspect-form.js,
+             textContent only). Default = "contact me". -->
+        <h3 id="insThanksTitle">Joe will reach out, usually the same day</h3>
+        <p id="insThanksText">He&rsquo;ll call or text to set a time. If it&rsquo;s urgent, call or text <strong>(859) 420-7382</strong>.</p>
+        </div>
+        <a class="ins-pick-time" id="insPickTime" href="https://cal.com/nobigdeal/roof-inspection" target="_blank" rel="noopener" hidden>Pick My Time</a>
+
+        <!-- Optional "add details" step: shown only when the lead was saved and
+             the gateway handed back its one-time grant. -->
+        <div class="ins-details" id="insDetails" hidden>
+          <h4>Add details <span class="opt">(optional)</span></h4>
+          <p class="ins-details-sub">Your request is already with Joe. Anything here helps him show up ready, or skip it.</p>
+          <div class="form-row">
+            <label for="f-story">What happened? <span class="opt">(optional)</span></label>
+            <textarea id="f-story" rows="3" maxlength="1500" placeholder="Storm, leak, age, insurance claim, just want a checkup..."></textarea>
+          </div>
+          <div id="insXIntake"></div>
+          <div class="form-row">
+            <label for="f-email">Email <span class="opt">(optional)</span></label>
+            <input type="email" id="f-email" autocomplete="email" maxlength="200">
+          </div>
+          <details class="ins-ref" id="insRefWrap">
+            <summary>Have a referral code?</summary>
+            <div class="form-row">
+              <label for="f-referral">Referral code <span class="opt">(optional, if a friend referred you)</span></label>
+              <input type="text" id="f-referral" placeholder="e.g. JOHN-AB12" autocapitalize="characters" maxlength="32">
+            </div>
+          </details>
+          <button type="button" class="submit-btn" id="insDetailsSave">Send to Joe</button>
+          <div class="ins-details-status" id="insDetailsStatus" role="status" aria-live="polite"></div>
+        </div>
+        <!-- Photo upload result (intake-extras afterSubmit). -->
+        <div id="insIntakeAfter"></div>
       </div>
     </aside>
+  </div>
+</section>
+
+<section class="ins-next" aria-labelledby="insNextTitle">
+  <div class="ins-next-inner">
+    <h2 id="insNextTitle">What happens next</h2>
+    <ol class="ins-steps">
+      <li><strong>You pick a time, or Joe calls to set one.</strong> Book it on the next screen, or he calls or texts you, usually the same day.</li>
+      <li><strong>Joe gets on the roof himself.</strong> He photographs every concern. A standard home usually takes 45 minutes to an hour.</li>
+      <li><strong>You get a straight answer.</strong> What needs fixing now, what can wait, and what doesn&rsquo;t need anything. A written photo report is $150 if you want one.</li>
+    </ol>
+    <h2>Questions people ask</h2>
+    <div class="ins-faq">
+      <details><summary>Is it really free?</summary><p>Yes. The inspection and Joe&rsquo;s rundown cost nothing. The written photo report is the only paid part, and only if you ask for it.</p></details>
+      <details><summary>Do I need to be home?</summary><p>You don&rsquo;t have to be home, but you&rsquo;re welcome to walk it with Joe.</p></details>
+      <details><summary>Who shows up?</summary><p>Joe Deal, the owner. He gets on every roof himself. No salesmen.</p></details>
+      <details><summary>What about insurance?</summary><p>If there&rsquo;s storm damage, I&rsquo;ll document it with photos. If you file, I can meet your adjuster. Whether to file is your call.</p></details>
+    </div>
   </div>
 </section>
 
@@ -440,8 +529,8 @@ nav .nav-logo{margin-right:clamp(12px,1.5vw,28px)}
 
 <script src="/assets/js/public-lead-submit.js" defer></script>
 <script defer src="/assets/js/google-reviews-widget.js"></script>
-<script src="/assets/js/intake-extras.js?v=2" defer></script>
-<script src="/assets/js/inspect-form.js?v=3" defer></script>
+<script src="/assets/js/intake-extras.js?v=4" defer></script>
+<script src="/assets/js/inspect-form.js?v=5" defer></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
 <!-- nbd:partial mobile-cta book_href="#inspectForm" -->
 <div class="mobile-cta-strip mobile-cta-bookfirst" aria-label="Quick contact options">

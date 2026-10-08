@@ -256,7 +256,10 @@ async function call(fn, request) {
 async function http(fn, body, ip, ua) { const { req, res } = reqRes(body, ip, ua); await fn(req, res); return res; }
 
 const UID = 'UID_OWNER';
-const OH_LEAD = { userId: UID, companyId: UID, firstName: 'Pat', lastName: 'Smith', address: '5 Vine St, Cincinnati, OH 45202', phone: '513-555-0101', email: 'pat@example.test', jobType: 'retail' };
+const OH_LEAD = { userId: UID, companyId: UID, firstName: 'Pat', lastName: 'Smith', address: '5 Vine St, Cincinnati, OH 45202', phone: '513-555-0101', email: 'pat@example.test', jobType: 'retail',
+  // Sam (co-owner) is a saved alternate: a link goes only to an email on the
+  // lead's record (R3-11, 2026-10-06).
+  altEmails: ['sam@example.test'] };
 // A post-sweep V2 estimate: retail lives in retailTotal; materialTotal /
 // laborTotal are the COST basis, which must never reach the contract.
 const ESTIMATE = {
@@ -352,6 +355,14 @@ const tokenFor = (db, envelopeId, signerId) => {
     const dbS = makeDb(seed({ 'estimates/EST1': Object.assign({}, ESTIMATE, { signatureStatus: 'signed' }) }));
     const r = await call(load(dbS, makeStorage()).fns.sendEstimateEnvelope, Object.assign({ data: { estimateId: 'EST1', signers: [{ name: 'Pat', email: 'pat@example.test' }] } }, AUTH));
     ok('already signed → failed-precondition', r.error && r.error.code === 'failed-precondition' && /already signed/.test(r.error.message));
+  }
+  {
+    // R3-11 (2026-10-06): a signer email not on the lead's record is refused
+    // before any envelope or PDF exists.
+    const dbX = makeDb(seed());
+    const r = await call(load(dbX, makeStorage()).fns.sendEstimateEnvelope, Object.assign({ data: { estimateId: 'EST1', signers: [{ name: 'Pat', email: 'pat@example.test' }, { name: 'Stranger', email: 'victim@bank.test' }] } }, AUTH));
+    ok('a signer email not on the lead → failed-precondition', r.error && r.error.code === 'failed-precondition' && /record/.test(r.error.message), r.error && r.error.message);
+    ok('... and no envelope was created', dbX._all('esign_envelopes').length === 0);
   }
   {
     const dbE = makeDb(seed());
@@ -603,6 +614,7 @@ const tokenFor = (db, envelopeId, signerId) => {
       './deal-packet-logic': require(path.join(FN, 'deal-packet-logic.js')),
       './photo-reencode': { reencodePhoto: async (x) => x },
       './await-briefly': require(path.join(FN, 'await-briefly.js')),
+      './portal-after-signing': require(path.join(FN, 'portal-after-signing.js')),
     };
     const mod = { exports: {} };
     new Function('module', 'exports', 'require', fs.readFileSync(path.join(FN, 'deal-acceptance.js'), 'utf8'))(

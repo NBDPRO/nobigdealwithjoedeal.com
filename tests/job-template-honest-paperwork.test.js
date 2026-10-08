@@ -385,7 +385,10 @@ section('6. PORTAL — functions/portal.js tier label (lifted and run)');
   if (m && v) {
     const ctx = { tierApplies: SERVER_ROWS.tierApplies };
     vm.createContext(ctx);
-    vm.runInContext('this.__name = function (latest) { return (' + m[1] + '); };'
+    // Since review R6-2-2 (2026-10-07) the card reads the estimate's priced
+    // view (signed-price.js portalPriced) as `latestPriced` — the same doc
+    // when it carries no signed price, as here.
+    vm.runInContext('this.__name = function (latest) { var latestPriced = latest; return (' + m[1] + '); };'
       + 'this.__tier = function (est) { return (' + v[1] + '); };', ctx);
     const name = ctx.__name, tier = ctx.__tier;
     ok('new gutter template estimate → no tier name', name(payloadFor(['jt_gi_k5_seamless_full'])) === null);
@@ -557,9 +560,11 @@ function throughPreflight(env, type, est) {
     ok(tag + ' all ' + roofIds.length + ' roofing templates × proposal/contract/certificate: identical HTML + data to a pre-change estimate',
       diffs.length === 0, diffs.slice(0, 4).join('; '));
     const one = await throughPreflight(env, 'contract', payloadFor(['jt_fr_asphalt_good']));
-    const expectSentence = withConfig ? CFG.tierWarrantyText('better') : 'Lifetime workmanship warranty.';
-    ok(tag + ' roofing contract still prints the existing wording ("' + expectSentence.slice(0, 40) + '…")',
-      one.html && one.html.indexOf(expectSentence) !== -1 && /Preferred: Lifetime Workmanship/.test(one.html));
+    // Jo, 2026-10-06 (final): the tier's written labor years + the NBD Pledge, never "lifetime".
+    const expectSentence = withConfig ? CFG.tierWarrantyText('better') : '10-year written workmanship (labor) warranty.';
+    ok(tag + ' roofing contract still prints the tier wording ("' + expectSentence.slice(0, 40) + '…")',
+      one.html && one.html.indexOf(expectSentence) !== -1 && /Preferred: NBD Pledge \+ 10-Year Workmanship/.test(one.html)
+      && !/lifetime/i.test(one.html.replace(/<!--[\s\S]*?-->/g, '')));
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -785,8 +790,8 @@ function throughPreflight(env, type, est) {
         a.retail === b.retail && a.single === b.single);
       ok('roofing template ' + id + ': server PDF payload identical', JSON.stringify(a.pdf) === JSON.stringify(b.pdf)
         && JSON.stringify(a.pdfSingle) === JSON.stringify(b.pdfSingle));
-      ok('roofing template ' + id + ': still the lifetime wording', /Lifetime/.test(workLine(a.retail) || '')
-        && /^Lifetime workmanship warranty on every tier/.test(a.pdf.terms.warranty || ''));
+      ok('roofing template ' + id + ': still the roofing tier wording (Pledge + written labor years)', /Written labor warranty by package/.test(workLine(a.retail) || '')
+        && /^NBD Pledge: for as long as you own the home, we'll come back and make it right\. Written labor warranty by package/.test(a.pdf.terms.warranty || ''));
       ok('plain V2 estimate: save payload gains no job-type keys',
         !('warrantyKind' in V2.buildSavePayload(b.est, b.state)) && !('sourceTemplates' in V2.buildSavePayload(b.est, b.state)));
     }
@@ -796,7 +801,7 @@ function throughPreflight(env, type, est) {
       st.mode = 'per-sq'; st.jobMode = 'cash'; st.measurements.rawSqft = st.measurements.rawSqft || 2000;
     } });
     ok('per-SQ re-price in V2: roofing wording (the tier is real there)', perSq.est.priceMode === 'per-sq'
-      && /Lifetime/.test(workLine(perSq.retail) || ''), perSq.est.priceMode);
+      && /Written labor warranty by package/.test(workLine(perSq.retail) || ''), perSq.est.priceMode);
   }
 
   // ══════════════════════════════════════════════════════════════════

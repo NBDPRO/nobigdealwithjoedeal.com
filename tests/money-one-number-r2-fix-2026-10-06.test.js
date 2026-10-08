@@ -328,6 +328,11 @@ function preflightDeposit(lead, estimate) {
     ok('…after a $2,000 check: the link asks for the remaining $4,000 of the deposit', r3.status === 200 && r3.charged === 400000, r3.charged);
     const r4 = await S.mint(Object.assign({}, inv0, { amountPaid: 6000, balanceDue: 6000, depositPaid: true, status: 'partial' }));
     ok('…after the deposit is paid: the link asks for the $6,000 balance', r4.status === 200 && r4.charged === 600000 && r4.stamp && r4.stamp.stripeChargeKind === 'balance', r4.charged);
+    // R6-2-6: the stamp also records what was already paid at the mint, so
+    // the portal stops offering a link once money lands after it.
+    ok('…each mint stamps the amount already paid at that moment (stripeChargePaidCents: $0 on the deposit link, $6,000 on the balance link)',
+      r.stamp && r.stamp.stripeChargePaidCents === 0 && r4.stamp && r4.stamp.stripeChargePaidCents === 600000,
+      JSON.stringify({ dep: r.stamp, bal: r4.stamp }));
     const r5 = await S.mint(Object.assign({}, inv0, { amountPaid: 12000, balanceDue: 0, status: 'partial' }));
     ok('…paid in full: refused, nothing charged', r5.status === 400 && r5.charged === null);
     const noDep = await S.mint({ leadId: 'L', total: 1500, tax: 0, depositAmount: 0, amountPaid: 0, items: [{ description: 'Repair', total: 1500 }] });
@@ -345,14 +350,17 @@ function preflightDeposit(lead, estimate) {
     ok('portal: a pre-fix link (no stamp — it charged the whole job) is NOT offered on a deposit invoice', IC.portalBalanceCard(legacy, legacy.stripePaymentLink).stripePaymentLink === null);
     const afterDep = Object.assign({}, stampDep, { amountPaid: 6000, balanceDue: 6000, depositPaid: true, status: 'partial' });
     const c3 = IC.portalBalanceCard(afterDep, afterDep.stripePaymentLink);
-    ok('portal: after the deposit, "Balance Due $6,000" — and the spent $6,000 deposit link is not offered as the balance link... unless it matches',
-      c3.kind === 'balance' && c3.amountCents === 600000 && c3.stripePaymentLink === 'https://buy.stripe.test/1');
+    // Review R6-2-6 (2026-10-07): this used to assert the spent deposit link
+    // WAS offered here because its cents matched — that was the bug. A link
+    // stamped kind 'deposit' is never the balance link.
+    ok('portal: after the deposit, "Balance Due $6,000" — and the spent $6,000 deposit link is NOT offered as the balance link (R6-2-6)',
+      c3.kind === 'balance' && c3.amountCents === 600000 && c3.stripePaymentLink === null && c3.linkPending === true, JSON.stringify(c3));
     const plain = { total: 1500, depositAmount: 0, amountPaid: 0, balanceDue: 1500, stripePaymentLink: 'https://buy.stripe.test/p' };
     ok('portal: a plain invoice with a pre-fix link keeps its Pay Now (unchanged)', IC.portalBalanceCard(plain, plain.stripePaymentLink).stripePaymentLink === 'https://buy.stripe.test/p');
     ok('portal: a held link ("" from payUrlUnlessHeld) is never offered', IC.portalBalanceCard(stampDep, '').stripePaymentLink === null);
     const portalSrc = stripComments(rd('functions/portal.js'));
     ok('functions/portal.js builds its Balance Due card from InvoiceCharge.portalBalanceCard (after the KY hold)',
-      /const _payUrl = _unpaidInvoice \? KyLaw\.payUrlUnlessHeld\(/.test(portalSrc) && /InvoiceCharge\.portalBalanceCard\(_unpaidInvoice, _payUrl\)/.test(portalSrc)
+      /const _payUrl = _unpaidInvoice \? KyLaw\.payUrlUnlessHeld\(/.test(portalSrc) && /InvoiceCharge\.portalBalanceCard\(_unpaidInvoice, _payUrl, _kyHold\)/.test(portalSrc)
         && !/amountCents:\s*Math\.round\(Number\(_unpaidInvoice\.balanceDue\)/.test(portalSrc));
     const pjs = stripComments(rd('docs/pro/js/portal.js'));
     ok('docs/pro/js/portal.js labels a deposit "Deposit Due"', /view\.balance\.kind === 'deposit'/.test(pjs) && /'Deposit Due'/.test(pjs));

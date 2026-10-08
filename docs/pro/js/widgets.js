@@ -83,6 +83,16 @@ function _inPlay(l) {
   if (r === 'won' || r === 'lost' || r === 'job') return false;
   return !(typeof window.isJobStage === 'function' && window.isJobStage(_normStage(l)));
 }
+// A sale (booked): THE shared test, numbers-logic.js isSale — won, in
+// production, or Contract Signed. Without that module (a failed script load)
+// the same rule by hand.
+function _wgIsSale(l) {
+  const N = window.NBDNumbers;
+  if (N && typeof N.isSale === 'function') return N.isSale(l);
+  const r = _roleOf(l);
+  if (r === 'lost') return false;
+  return r === 'won' || r === 'job' || _normStage(l) === 'contract_signed';
+}
 // Display label for a lead's stage — never the raw key ("estimate_submitted").
 function _stageText(l) {
   const k = _normStage(l);
@@ -537,9 +547,11 @@ const WIDGETS = [
         const owner = l.userId || '(unknown)';
         if (!byRep[owner]) byRep[owner] = { name: '', rev: 0, deals: 0 };
         if (!byRep[owner].name && l.repName) byRep[owner].name = l.repName;
-        const role = l._stageRole
-          || (typeof window.stageRole === 'function' ? window.stageRole(l._stageKey || l.stage) : '');
-        if (role === 'won' || role === 'job') {
+        // Booked = THE sale test (numbers-logic.js isSale): won, in
+        // production, or Contract Signed — the same set as Home, Analytics,
+        // the kanban and crm_summary. Won/job roles alone left every signed
+        // contract out (review R6-2-11).
+        if (_wgIsSale(l)) {
           byRep[owner].deals++;
           byRep[owner].rev += _wgMoney(l.jobValue);
         }
@@ -651,7 +663,9 @@ const WIDGETS = [
     render(el){
       const cfg = JSON.parse(localStorage.getItem('nbd_ds_config') || '{}');
       const floors = cfg.floors || [{label:'Doors Knocked',target:30,unit:''},{label:'Contacts Made',target:10,unit:''},{label:'Appts Set',target:3,unit:''}];
-      const today = new Date().toISOString().split('T')[0];
+      // LOCAL date — daily-success writes this key with todayKey() (local);
+      // the UTC date read 0 / locked every evening after 8pm ET.
+      const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
       const progress = JSON.parse(localStorage.getItem('nbd_floor_progress_'+today) || '{}');
       el.innerHTML = floors.map((f,i) => {
         const val = progress[i] || 0;
@@ -703,7 +717,9 @@ const WIDGETS = [
     render(el){
       const cfg = JSON.parse(localStorage.getItem('nbd_ds_config') || '{}');
       const reward = cfg.goldenGoose || 'Set your reward in Settings → Daily OS';
-      const today = new Date().toISOString().split('T')[0];
+      // LOCAL date — daily-success writes this key with todayKey() (local);
+      // the UTC date read 0 / locked every evening after 8pm ET.
+      const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
       const progress = JSON.parse(localStorage.getItem('nbd_floor_progress_'+today) || '{}');
       const floors = cfg.floors || [];
       const allHit = floors.length > 0 && floors.every((f,i) => (progress[i]||0) >= f.target);
@@ -840,7 +856,7 @@ function _thuTenantKey() {
 
 async function _thuCallable(name, data) {
   if (!window._functions || !window._httpsCallable) {
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     window._functions = window._functions || mod.getFunctions();
     window._httpsCallable = window._httpsCallable || mod.httpsCallable;
   }

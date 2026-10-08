@@ -28,7 +28,7 @@
   'use strict';
   if (typeof window === 'undefined' || window.NBDToday) return;
   var w = window, doc = document;
-  var FUNCTIONS_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
+  var FUNCTIONS_SDK = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
   var MAPS = 'https://www.google.com/maps/search/?api=1&query=';
   var CAP = 6;
 
@@ -124,6 +124,8 @@
       callGroups: groups,
       invoices: invoices,
       isOwedInvoice: R && R.isOwedInvoice, owedDollarsOf: R && R.owedDollarsOf,
+      invoiceOverdue: w.NBDJurisdiction && typeof w.NBDJurisdiction.invoiceOverdue === 'function' ? w.NBDJurisdiction.invoiceOverdue : null,
+      tz: w.NBDJurisdiction ? w.NBDJurisdiction.resolveTimeZone(typeof w._legal === 'function' ? w._legal() : w._companyProfile) : undefined,
       isDepositDraft: IP && typeof IP.isDepositDraft === 'function' ? IP.isDepositDraft : null,
       stripeNeedsReview: (HA && HA.lastCounts && HA.lastCounts.stripe) || 0,
       noNextStep: nns,

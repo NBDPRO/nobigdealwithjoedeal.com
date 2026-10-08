@@ -58,6 +58,7 @@ const { reencodePhoto } = require('./photo-reencode');
 // stay identical). NEVER emit est.rows raw — pre-sweep V2 rows carry the
 // contractor's COST basis.
 const { buildDisplayRows, buildDocLineItems, tierApplies } = require('./customer-estimate-rows');
+const { portalPriced } = require('./signed-price');
 // Pay link (stripePaymentLink OR stripeHostedUrl) + the Kentucky hold in one
 // call: the homeowner never sees a link the KRS 367.626 window still holds.
 const KyLaw = require('./ky-insurance-law');
@@ -467,6 +468,9 @@ exports.revokePortalToken = onCall(
 const {
   HOMEOWNER_PROGRESS_COPY, resolveHomeownerProgress, paidInFullFor, milestoneDatesFor, invoiceOwes,
 } = require('./homeowner-progress');
+// What the portal says once the job is signed (status line, payments) —
+// homeowner money audit 2026-10-07 M1/M3. Pure; see the module header.
+const PAS = require('./portal-after-signing');
 
 // The lead's invoices that belong to this portal's tenant (portal-authz.js).
 // Used by the view (balance card + tracker) and by the rating gate.
@@ -702,6 +706,13 @@ exports.getHomeownerPortalView = onRequest(
     // functions/stripe.js: KyLaw.resolveTimeZone(companyProfile)).
     let kyTz = KyLaw.DEFAULT_TIME_ZONE;
     const tenantKey = lead.companyId || tok.ownerUid;
+    // Where a Zelle payment goes (2026-10-04, zelle-contact.js): the tenant's
+    // own brand.contact.zelle* pair; NBD's defaults ((859) 420-7382 or jd@ —
+    // never info@) only when tenantKey IS the NBD platform tenant — keyed on
+    // the companyId, never the brand strings (a tenant that never set
+    // legalName looks like NBD by brand). No profile at all → no Zelle line,
+    // unless this IS the platform owner.
+    let zelleBrand = (tenantKey && String(tenantKey) === PORTAL_NBD_OWNER_UID) ? null : undefined;
     const _portalIsNbd = !tenantKey || String(tenantKey) === PORTAL_NBD_OWNER_UID;
     if (tenantKey) {
       try {
@@ -709,6 +720,7 @@ exports.getHomeownerPortalView = onRequest(
         if (cpSnap.exists) {
           try { kyTz = KyLaw.resolveTimeZone(cpSnap.data() || {}); } catch (_) { /* default zone */ }
           const _b = (cpSnap.data() || {}).brand || {};
+          zelleBrand = _b;
           const _ln = _b.legalName || '';
           const _isTenant = _ln && _ln !== 'No Big Deal Home Solutions';
           tenantName = _isTenant ? _ln : '';  // NBD-name guard (byte-identical; mirrors render-pdf.js/sms-functions.js)
@@ -754,7 +766,9 @@ exports.getHomeownerPortalView = onRequest(
       || SHARED_SIG.includes(e.signatureStatus)
       || !!e.sentAt;
 
-    const estimates = estSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    // An archived (soft-deleted) estimate is gone for the homeowner too, as a
+    // hard-deleted one was (review R5-8-2).
+    const estimates = estSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => e.deleted !== true)
       .filter(e => recordInPortalTenant(e, ['userId'], tenant));
     estimates.sort((a, b) => {
       const ta = a.createdAt?.toMillis?.() || 0;
@@ -762,6 +776,12 @@ exports.getHomeownerPortalView = onRequest(
       return tb - ta;
     });
     const latest = estimates.find(isSharedEstimate) || null;
+    // The card's money is the SIGNED price once there is one (review R6-2-2,
+    // Jo 2026-10-07): a rep's later edit is not what the homeowner signed or
+    // is billed, so "✓ Signed" never sits beside a re-priced total
+    // (signed-price.js portalPriced; a revision out for a new signature shows
+    // the revision — that is what they are being asked to sign).
+    const latestPriced = latest ? portalPriced(latest) : null;
 
     // REDACTION: only non-sensitive fields reach the homeowner.
     // No claim details, no internal notes, no rep commission, no
@@ -976,7 +996,23 @@ exports.getHomeownerPortalView = onRequest(
     // unmet, else the balance — invoice-charge.js, the same rule
     // createStripePaymentLink charges — and Pay Now only when the link
     // charges exactly that (portalBalanceCard).
-    const _balance = _unpaidInvoice ? InvoiceCharge.portalBalanceCard(_unpaidInvoice, _payUrl) : null;
+    // While the Kentucky hold applies nothing is due, and the card says what
+    // happens next instead of "Balance due" (money audit H2, 2026-10-07).
+    const _kyHold = _unpaidInvoice ? KyLaw.payLinkHold(lead, _unpaidInvoice, Date.now(), kyTz) : null;
+    const _dueCard = _unpaidInvoice ? InvoiceCharge.portalBalanceCard(_unpaidInvoice, _payUrl, _kyHold) : null;
+    const _balance = _dueCard ? {
+      ..._dueCard,
+      // "Pay by bank (ACH) — lower fees" shows only beside a real link (the
+      // Kentucky hold above blanks the link, and with it this line; so does
+      // portalBalanceCard when the link would not charge what is due now).
+      // ACH is requested only on the NBD platform account's links
+      // (functions/stripe.js), so only its customers are told about it.
+      payByBank: !!_dueCard.stripePaymentLink && require('./zelle-contact').isNbdCompany(tenantKey ? String(tenantKey) : ''),
+      // Zelle is a way to pay, so it obeys the same Kentucky hold as the link.
+      // An invoice waiting on the carrier's numbers asks for nothing either.
+      zelle: (typeof zelleBrand === 'undefined' || (_kyHold && _kyHold.held) || !(_dueCard.amountCents > 0)) ? null
+        : (require('./zelle-contact').zelleContactOf(zelleBrand, tenantKey ? String(tenantKey) : '').text || null),
+    } : null;
     // The tracker's "Pay your invoice" link is this SAME already-sent link —
     // never a new one. A Kentucky insurance job's link is withheld at
     // creation (stripe.js runs ky-insurance-law.js server-side), so a held
@@ -986,6 +1022,26 @@ exports.getHomeownerPortalView = onRequest(
     if (hp.currentKey === 'payment' && hp.pending && _balance && _balance.stripePaymentLink) {
       progress.payLink = _balance.stripePaymentLink;
     }
+
+    // Signed by ANY path (audit M1, 2026-10-07): a deal-room acceptance never
+    // touches the estimate's signatureStatus, so the card read "Sent to you"
+    // from signing to paid in full. This lead's accepted deal rooms (tenant-
+    // filtered) count, as do the signed price stamp and the job's own stage.
+    // Best-effort: a failed read only loses the deal-room signal.
+    let _deals = [];
+    try {
+      const ds = await db.collection('deal_rooms').where('leadId', '==', tok.leadId).limit(20).get();
+      _deals = ds.docs.map((d) => d.data() || {}).filter((d) => recordInPortalTenant(d, ['userId'], tenant));
+    } catch (e) {
+      logger.warn('portal deal-room read failed', { err: e && e.message });
+    }
+    const _signedVia = PAS.signedVia({ estimate: latest, deals: _deals, progress: hp });
+    const _jobStatus = PAS.portalJobStatus({
+      progress: hp, via: _signedVia, invoices: tenantInvoices, signatureStatus: latest && latest.signatureStatus,
+    });
+    // What was paid, when and how (audit M3) — from the invoices' payments[]
+    // ledger, in cents, redacted (no processor ids, notes or proof paths).
+    const _paid = PAS.paidSummaryFor(tenantInvoices);
 
     const view = {
       homeowner: {
@@ -1014,6 +1070,11 @@ exports.getHomeownerPortalView = onRequest(
         work:        lead.warranty.work || '',
         installDate: lead.warranty.installDate || null,
         certNumber:  lead.warranty.certNumber || null,
+        // The certificate's two warranty lines (2026-10-06): workmanship (the
+        // NBD Pledge / the company's own) and the manufacturer warranty sold.
+        pledgeLine:       lead.warranty.pledgeLine || '',
+        workmanshipLine:  lead.warranty.workmanshipLine || '',
+        manufacturerLine: lead.warranty.manufacturerLine || '',
         // 2026-09-15 (Warranty Claim lane): lets the portal swap the "Start a
         // warranty claim" button for a "Claim in progress" state instead of
         // letting the homeowner file a second report on top of an open one.
@@ -1059,7 +1120,7 @@ exports.getHomeownerPortalView = onRequest(
       estimate: latest ? {
         id:              latest.id,
         builder:         latest.builder || 'classic',
-        grandTotal:      latest.grandTotal || latest.total || null,
+        grandTotal:      latestPriced.grandTotal || latestPriced.total || null,
         // V2 estimate builder persists only the tier KEY (good/better/best),
         // not tierName, so the portal's tier-label line was dropped for all V2
         // estimates. Derive the label from the key when tierName is absent.
@@ -1075,12 +1136,16 @@ exports.getHomeownerPortalView = onRequest(
         // so this line told gutter and repair customers they bought
         // "Preferred". tierApplies() is the shared rule (it also covers
         // template estimates saved before the fix — see its comment).
-        tierName:        tierApplies(latest)
-          ? (latest.tierName
-            || ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' }[latest.tier])
+        tierName:        tierApplies(latestPriced)
+          ? (latestPriced.tierName
+            || ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' }[latestPriced.tier])
             || null)
           : null,
         signatureStatus: latest.signatureStatus || 'none',
+        // The job's status in the homeowner's words once it is signed by any
+        // path (null = not signed: the card shows the signature pill).
+        jobStatus:       _jobStatus,
+        signedVia:       _signedVia,
         signedAt:        latest.signedAt?.toDate?.()?.toISOString() || null,
         // signedDocumentUrl: historical BoldSign-signed estimates carry the
         // webhook's URL (kept readable); in-house ones get a fresh signed URL.
@@ -1090,7 +1155,7 @@ exports.getHomeownerPortalView = onRequest(
         // What is due at signing, in the rule's own words (deposit-rule.js via
         // the saved stamp, 2026-09-25) — the same sentence the homeowner's
         // quote, contract and invoice print. null when absent or stale.
-        depositPlan: safeDepositPlan(latest),
+        depositPlan: safeDepositPlan(latestPriced),
         createdAt: latest.createdAt?.toDate?.()?.toISOString() || null
       } : null,
       bookingUrl: rep.calcomUsername
@@ -1134,6 +1199,9 @@ exports.getHomeownerPortalView = onRequest(
       // null when there's no outstanding invoice — most jobs, most of the
       // time. See the build above for why this never mints a new link.
       balance: _balance,
+      // { payments: [{ date, amountCents, method, invoiceNumber }],
+      //   totalPaidCents } — null until money lands.
+      paid: _paid,
       tokenInfo: {
         daysRemaining: tok.expiresAt
           ? Math.max(0, Math.ceil((tok.expiresAt.toMillis() - Date.now()) / 86_400_000))
@@ -1885,7 +1953,8 @@ exports.reportWarrantyClaim = onRequest(
       const taskRef = await db.collection(`leads/${tok.leadId}/tasks`).add({
         text: taskText,
         done: false,
-        dueDate: new Date().toISOString().slice(0, 10),
+        // Today in Eastern, not the UTC date (an evening report was due tomorrow).
+        dueDate: KyLaw.isoDay(KyLaw.todayIn(KyLaw.DEFAULT_TIME_ZONE)),
         source: 'homeowner_warranty_claim',
         claimId: claimRef.id,
         createdAt: FieldValue.serverTimestamp(),
@@ -2532,7 +2601,7 @@ exports.getEstimateForView = onRequest(
 
     const estRef = db.doc(`estimates/${estimateId}`);
     const [estSnap, tokLeadSnap] = await Promise.all([estRef.get(), db.doc(`leads/${tok.leadId}`).get()]);
-    if (!estSnap.exists) { res.status(404).json({ error: 'Estimate not found.' }); return; }
+    if (!estSnap.exists || estSnap.data().deleted === true) { res.status(404).json({ error: 'Estimate not found.' }); return; }
     const est = estSnap.data();
     // 2026-09-25 (review of PR #1777): same tenant scope as
     // getHomeownerPortalView. The leadId check below ties the estimate to the

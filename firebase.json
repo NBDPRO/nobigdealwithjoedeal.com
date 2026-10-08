@@ -69,6 +69,9 @@
       { "source": "/our-work/apartment-complex-complete.html", "destination": "/our-work/apartment-complex-tearoff", "type": 301 }
     ],
     "rewrites": [
+      { "_comment": "Pro demo phase 2 (2026-10-06): the browser-only sample account. The REAL page files are served under /pro/explore/ so /pro/explore/demo-sw.js (scope /pro/explore/) can answer their Firebase SDK imports with the in-browser fake in docs/pro/demo-sdk/. One copy of each page; nothing touches the live database. Rewrites only fire when no file matches, and docs/pro/explore/ holds no dashboard/customer file. Plan: documentation/projects/PRO-DEMO-PHASE2-FULL-ACCOUNT-PLAN-2026-10-06.md",
+        "source": "/pro/explore/dashboard", "destination": "/pro/dashboard.html" },
+      { "source": "/pro/explore/customer", "destination": "/pro/customer.html" },
       { "_comment": "Pillar 5 phase 1: universal tenant microsite. /sites/t/<companyId-or-slug> serves the one static template (rewrites only fire when no real file matches, so site.js/site.css still serve directly); /api/site-config is the whitelisted server-side companyProfile read behind it.",
         "source": "/api/site-config", "function": { "functionId": "getPublicSiteConfig", "region": "us-central1" } },
       { "source": "/api/social-media", "function": { "functionId": "socialMedia", "region": "us-central1" } },
@@ -450,6 +453,32 @@
         "source": "/assets/fonts/**",
         "headers": [
           { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
+      },
+      {
+        "_comment": "Self-hosted Firebase JS SDK (2026-10-04, scripts/vendor-firebase-sdk.js). The path carries the SDK version, so a file at a given URL never changes — cache it like gstatic did instead of revalidating ~7 modules on every page load (the **/*.js rule above says max-age=0).",
+        "source": "/assets/vendor/firebase/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
+      },
+      {
+        "_comment": "Pro demo phase 2 (2026-10-06): the sample account's network guarantee. LAST in this list on purpose (last match wins, see the /sw.js comment above), so it overrides the /pro/** policy for everything under /pro/explore. connect-src 'self' ONLY: no firestore.googleapis.com, identitytoolkit, securetoken, *.cloudfunctions.net, Stripe, Twilio or Sentry host, so even a page that somehow loaded the real Firebase SDK could not reach the live database. frame-src has no firebaseapp.com (no auth iframe). No report-uri/report-to: CSP reports POST to /cspReport, a Cloud Function, and the demo calls no functions. Report-Only carries the same policy so the /pro/** report-only block (which does report) is replaced, not kept. www.gstatic.com stays in script-src only because the demo service worker answers those SDK URLs with the same-origin fake; the browser checks CSP before the worker sees the request. Guarded by tests/pro-demo-sdk-2026-10-06.test.js; zero-network walk in tests/pro-demo-zero-network-2026-10-06.test.js.",
+        "source": "/pro/explore",
+        "headers": [
+          { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self'; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'" },
+          { "key": "Content-Security-Policy-Report-Only", "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self'; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'" },
+          { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" },
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+        ]
+      },
+      {
+        "source": "/pro/explore/**",
+        "headers": [
+          { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self'; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'" },
+          { "key": "Content-Security-Policy-Report-Only", "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self'; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'" },
+          { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" },
+          { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
         ]
       }
     ]

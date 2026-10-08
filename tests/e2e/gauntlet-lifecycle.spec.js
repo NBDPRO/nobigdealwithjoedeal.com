@@ -78,7 +78,7 @@ async function eventually(fn, { timeout = 30_000, interval = 1_000, label = 'con
 /** In-page callable through the app's own (emulator-connected, App-Check-shimmed) SDK. */
 async function callFromPageOnce(page, fnName, payload) {
   return page.evaluate(async ({ name, data }) => {
-    const m = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const m = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const emu = await import('/pro/js/nbd-emulator-connect.js');
     const fns = m.getFunctions();
     await emu.connectEmulatorsIfLocal({ functions: fns });
@@ -123,7 +123,7 @@ async function probeRead(page, leadId) {
     try {
       await page.waitForFunction(() => window._user && window._user.uid, null, { timeout: 20_000 });
       last = await page.evaluate(async (id) => {
-        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         try {
           const snap = await fs.getDoc(fs.doc(window.db || window._db, 'leads', id));
           return { denied: false, exists: snap.exists() };

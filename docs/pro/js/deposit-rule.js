@@ -588,6 +588,44 @@
     };
   }
 
+  /**
+   * invoiceDeposit(plan) → { depositCents, awaitingCarrierNumbers, note }
+   * What the job's invoice asks for BEFORE the balance — the invoice's
+   * depositAmount, which invoice-charge.js chargeDueNow charges first (the
+   * pay link, the Stripe invoice, the portal's amount-due card).
+   *
+   * Insurance jobs, Kentucky and Ohio alike (Jo's rule, 2026-09-25): the
+   * deductible + the carrier's first (ACV) check, from the figures recorded
+   * on the claim; the rest (depreciation, supplements) on completion.
+   * Before 2026-10-07 (homeowner money audit H2) a Kentucky invoice carried
+   * plan.depositCents — $0, because nothing is due AT SIGNING — so once the
+   * KRS 367.626 window ran, the link charged the whole job ($13,250) instead
+   * of the $9,000 the estimate, deal room and portal plan promised. The KY
+   * hold itself (ky-insurance-law.js payLinkHold) still decides WHEN.
+   *
+   * Never a guess: an insurance job with no deductible, or a Kentucky job
+   * with no ACV, is awaitingCarrierNumbers — the invoice bills nothing until
+   * the rep enters them (an Ohio deductible with no ACV yet stays the
+   * deductible, which the rule says is always due).
+   */
+  var AWAITING_NOTE = 'Waiting on the carrier’s numbers — enter the deductible and the ACV on the estimate, then tap ' +
+    'Create Invoice again. Nothing is billed until then.';
+  function invoiceDeposit(plan) {
+    var none = { depositCents: 0, awaitingCarrierNumbers: false, note: '' };
+    if (!plan || !(plan.totalCents > 0)) return none;
+    var total = plan.totalCents;
+    var insurance = plan.mode === 'insurance' || plan.kyHold === true;
+    if (!insurance) return { depositCents: plan.depositCents, awaitingCarrierNumbers: false, note: '' };
+    if (plan.needsDeductible || plan.deductibleCents == null) {
+      return { depositCents: 0, awaitingCarrierNumbers: true, note: AWAITING_NOTE };
+    }
+    if (!plan.kyHold) return { depositCents: plan.depositCents, awaitingCarrierNumbers: false, note: '' };
+    var ded = plan.deductibleCents;
+    if (ded >= total) return { depositCents: total, awaitingCarrierNumbers: false, note: '' };
+    if (plan.acvCheckCents == null) return { depositCents: 0, awaitingCarrierNumbers: true, note: AWAITING_NOTE };
+    return { depositCents: Math.min(total, ded + plan.acvCheckCents), awaitingCarrierNumbers: false, note: '' };
+  }
+
   // Generic statement of the rule for boilerplate that knows no job (company
   // profile payment-terms defaults, contract fallback).
   function policyText(override) {
@@ -615,9 +653,23 @@
   // "7 days; was 14" — while the CRM invoice doc and its terms said Net 14,
   // so one bill carried two due dates. Every writer now reads this value.
   var INVOICE_DUE_DAYS = 7;
+  var INVOICE_DUE_ZONE = 'America/New_York';
+  // Eastern wall-clock time minus the instant (EDT -4h, EST -5h).
+  function _etOffsetMs(t) {
+    var p = new Intl.DateTimeFormat('en-US', { timeZone: INVOICE_DUE_ZONE, hourCycle: 'h23',
+      year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' }).formatToParts(new Date(t));
+    var g = function (k) { for (var i = 0; i < p.length; i++) if (p[i].type === k) return +p[i].value; return 0; };
+    return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second')) - Math.floor(t / 1000) * 1000;
+  }
+  // 7 Eastern CALENDAR days on, same wall-clock time. Adding 168h made the
+  // due date the 6th day across the November DST change (review round 4
+  // R4-6-7): created Oct 31 12:30am ET, due Nov 6 11:30pm.
   function invoiceDueDateMs(nowMs) {
     var n = Number(nowMs);
-    return (Number.isFinite(n) ? n : Date.now()) + INVOICE_DUE_DAYS * 86400000;
+    var t = Number.isFinite(n) ? n : Date.now();
+    var wall = t + _etOffsetMs(t) + INVOICE_DUE_DAYS * 86400000; // the target, as Eastern wall time
+    var guess = wall - _etOffsetMs(t);
+    return wall - _etOffsetMs(guess);
   }
   function netTermsText() { return 'Net ' + INVOICE_DUE_DAYS + '.'; }
 
@@ -630,6 +682,7 @@
     compute: compute,
     fromEstimate: fromEstimate,
     toStored: toStored,
+    invoiceDeposit: invoiceDeposit,
     policyText: policyText,
     hasLegacyPlaceholderDeductible: hasLegacyPlaceholderDeductible,
     fmtCents: fmtCents,

@@ -517,7 +517,7 @@ section('photo-review.html has zero inline scripts (CSP-safe)');
   // The extracted file exists and is non-empty.
   const reviewJs = read(path.join(ROOT, 'docs/pro/js/pages/photo-review.js'));
   assert('docs/pro/js/pages/photo-review.js exists with imports',
-    /import\s*\{[^}]*\}\s*from\s+["']https:\/\/www\.gstatic\.com\/firebasejs/.test(reviewJs));
+    /import\s*\{[^}]*\}\s*from\s+["']\/assets\/vendor\/firebase\//.test(reviewJs));
 
   // NEW-D31 (fixed 2026-09-02): the bulk-Share copy half calls
   // PortalLinkHelpers.copyForLead, whose _minter() needs either
@@ -538,7 +538,7 @@ section('photo-review.html has zero inline scripts (CSP-safe)');
     && /connectEmulatorsIfLocal\(\{[^}]*functions: fns[^}]*\}\)/.test(reviewJs)
     && /'\/pro\/portal\.html\?token='/.test(reviewJs));
   assert('photo-review.js imports getFunctions/httpsCallable from the pinned SDK',
-    /import\s*\{\s*getFunctions,\s*httpsCallable\s*\}\s*from\s+"https:\/\/www\.gstatic\.com\/firebasejs\/10\.12\.2\/firebase-functions\.js"/.test(reviewJs));
+    /import\s*\{\s*getFunctions,\s*httpsCallable\s*\}\s*from\s+"\/assets\/vendor\/firebase\/[\d.]+\/firebase-functions\.js"/.test(reviewJs));
   assert('the minter is defined before the bulk-Share handler binds',
     reviewJs.indexOf('window._mintPortalUrl = async function') < reviewJs.indexOf("getElementById('prBulkShare')"));
 }
@@ -1188,8 +1188,12 @@ section('customer.html: perf — all <script src> defers, preconnect hints prese
   // HTML parsing until the script downloads + executes — that's the
   // 53-script TTI tax we just paid down.
   const scriptLines = customer.split('\n').filter(l => /<script[^>]*\ssrc=/.test(l));
+  // One deliberate exception (Pro demo phase 2, 2026-10-06): demo-mode.js is
+  // synchronous and first so its sample-account guard and network tripwire
+  // exist before any other script — on this real page it returns on line one.
   const blocking = scriptLines.filter(l =>
-    !/ defer[ >]/.test(l) && !/type="module"/.test(l) && !/ async[ >]/.test(l)
+    !/ defer[ >]/.test(l) && !/type="module"/.test(l) && !/ async[ >]/.test(l) &&
+    !/^<script src="\/pro\/js\/demo-mode\.js\?v=\d+"><\/script>\s*$/.test(l.trim())
   );
   assert('zero blocking <script src> tags remain in customer.html',
     blocking.length === 0,

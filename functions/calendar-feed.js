@@ -37,10 +37,12 @@
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 const { httpRateLimit, enforceRateLimit } = require('./integrations/upstash-ratelimit');
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const { buildCalendar, leadEventToAppointment } = require('./calendar-feed-logic');
 const JOBS = require('./jobs-logic');
+const { feedOwnerAllowed } = require('./member-offboarding');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -217,6 +219,25 @@ exports.getCalendarFeed = onRequest(
     }
     if (tok.status !== 'active') {
       fail(410, 'This calendar link was rotated. Get a fresh one from NBD Pro → Schedule.');
+      return;
+    }
+
+    // R3-1 (2026-10-06): the token never expires, so the person behind it is
+    // re-checked on every fetch. A rep who was removed (claims stripped),
+    // deactivated (disabled), made a viewer, or moved to another company gets
+    // nothing. removeMember / deactivateUser / updateUserRole also revoke the
+    // token; this catches a revoke that failed and every path that disables.
+    let owner = null;
+    try { owner = await getAuth().getUser(String(tok.uid || '')); }
+    catch (e) {
+      if (!(e && e.code === 'auth/user-not-found')) {
+        logger.error('[getCalendarFeed] owner check failed', { err: e && e.message });
+        fail(503, 'Calendar temporarily unavailable.', { 'Retry-After': '300' });
+        return;
+      }
+    }
+    if (!feedOwnerAllowed(tok, owner)) {
+      fail(410, 'This calendar link is turned off.');
       return;
     }
 

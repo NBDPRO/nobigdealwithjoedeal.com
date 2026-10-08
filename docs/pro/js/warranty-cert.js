@@ -5,16 +5,27 @@
 
 // ══ WARRANTY CERTIFICATE GENERATOR ═══════════════════════════════════════
 // Use var to avoid redeclaration collision with dashboard.html inline script
+// Written workmanship (labor) warranty years per cert tier (Jo, 2026-10-06):
+// estimate-config.js TIER_LABOR_YEARS. This copy only covers a page that
+// never loaded the config (pinned equal by
+// tests/warranty-pledge-labor-years-2026-10-06.test.js). The NBD Pledge is a
+// promise on top of these written terms, never a "lifetime warranty".
+var WC_LABOR_YEARS = WC_LABOR_YEARS || (function () {
+  var c = (typeof window !== 'undefined' && window.NBD_ESTIMATE_CONFIG) || null;
+  var y = (c && c.TIER_LABOR_YEARS) || { economy: 1, good: 5, better: 10, best: 20, beyond: 20 };
+  return { economy: y.economy, standard: y.good, preferred: y.better, elite: y.best, beyond: y.beyond };
+})();
+function _wcYears(n) { return n === 1 ? 'one (1) year' : n + ' years'; }
 var WC_TIER_DESCS = WC_TIER_DESCS || {
-  standard: 'NBD will return and correct any labor-related defect at no charge for the lifetime of the installation. Does not transfer on sale of property.',
-  preferred: 'NBD will return and correct any labor-related defect at no charge for the lifetime of the installation. Transferable to one subsequent owner within 30 days of sale.',
-  elite: 'NBD will return and correct any labor-related defect at no charge for the lifetime of the installation. Fully transferable — follows the property through all subsequent owners. Annual courtesy inspection included.',
+  standard: 'NBD will return and correct any labor-related defect at no charge for ' + _wcYears(WC_LABOR_YEARS.standard) + ' from the installation date (written workmanship warranty). Does not transfer on sale of property.',
+  preferred: 'NBD will return and correct any labor-related defect at no charge for ' + _wcYears(WC_LABOR_YEARS.preferred) + ' from the installation date (written workmanship warranty). Transferable to one subsequent owner within 30 days of sale.',
+  elite: 'NBD will return and correct any labor-related defect at no charge for ' + _wcYears(WC_LABOR_YEARS.elite) + ' from the installation date (written workmanship warranty). Fully transferable — follows the property through all subsequent owners. Annual courtesy inspection included.',
   // Five tiers (Jo, 2026-10-02). Economy is a 1-YEAR labor warranty plus the
-  // shingle manufacturer's standard limited warranty — never lifetime, never
-  // a system warranty. Beyond is Elite's workmanship terms on TAMKO HailGuard,
-  // the one shingle with a manufacturer hail warranty.
-  economy: 'NBD will return and correct any labor-related defect at no charge for one (1) year from the installation date. The shingles carry the manufacturer\'s standard limited warranty, provided directly by the manufacturer. No system warranty is included. Does not transfer on sale of property.',
-  beyond: 'NBD will return and correct any labor-related defect at no charge for the lifetime of the installation. Fully transferable — follows the property through all subsequent owners. Annual courtesy inspection included. The TAMKO HailGuard shingles also carry TAMKO\'s HailGuard hail warranty (manufacturer terms apply).'
+  // shingle manufacturer's standard limited warranty — never a system
+  // warranty. Beyond is Elite's workmanship terms on TAMKO HailGuard, the one
+  // shingle with a manufacturer hail warranty.
+  economy: 'NBD will return and correct any labor-related defect at no charge for ' + _wcYears(WC_LABOR_YEARS.economy) + ' from the installation date (written workmanship warranty). The shingles carry the manufacturer\'s standard limited warranty, provided directly by the manufacturer. No system warranty is included. Does not transfer on sale of property.',
+  beyond: 'NBD will return and correct any labor-related defect at no charge for ' + _wcYears(WC_LABOR_YEARS.beyond) + ' from the installation date (written workmanship warranty). Fully transferable — follows the property through all subsequent owners. Annual courtesy inspection included. The TAMKO HailGuard shingles also carry TAMKO\'s HailGuard hail warranty (manufacturer terms apply).'
 };
 
 // Per-cert-tier wording flags, shared by the server payload and the legacy
@@ -30,11 +41,43 @@ function _wcTierFlags(tier) {
   };
 }
 
+// The company's own configured workmanship sentence for a cert tier, '' when
+// it never wrote one (tenant-rules.js). Never NBD's wording for another company.
+function _wcOwnWorkmanship(tier) {
+  const TR = window.NBDTenantRules;
+  return (TR && typeof TR.ownWarrantyText === 'function') ? (TR.ownWarrantyText(tier) || '') : '';
+}
+
+// The two warranty lines (2026-10-06): workmanship (NBD: the NBD Pledge;
+// another company: its own sentence or none) and the manufacturer warranty the
+// job actually bought. tenant-rules.js builds both; without it, the honest
+// floor — never an invented manufacturer term.
+function _wcLines(tier, isNbd) {
+  const TR = window.NBDTenantRules;
+  if (TR && typeof TR.warrantyLines === 'function') {
+    return TR.warrantyLines({ tier, isNbd, lineItems: _wcCurrentJob.lineItems, extendedWarranty: _wcCurrentJob.extendedWarranty });
+  }
+  const eco = tier === 'economy';
+  const own = isNbd ? '' : _wcOwnWorkmanship(tier);
+  const _y = WC_LABOR_YEARS[tier] || WC_LABOR_YEARS.standard;
+  return {
+    pledge: isNbd ? ((window.NBD_ESTIMATE_CONFIG && window.NBD_ESTIMATE_CONFIG.PLEDGE_PROMISE) || 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right.') : null,
+    workmanship: isNbd ? ('Written workmanship (labor) warranty: ' + _y + (_y === 1 ? ' year' : ' years') + ' from the installation date') : (own || null),
+    isPledge: isNbd,
+    maker: (tier === 'beyond' && isNbd) ? 'TAMKO' : null,
+    manufacturer: 'Manufacturer warranty: ' + (eco ? 'the shingle manufacturer’s standard limited warranty on the shingles; no system warranty' : (tier === 'beyond' && isNbd ? 'TAMKO HailGuard hail warranty on the TAMKO HailGuard shingles (manufacturer terms apply)' : 'per manufacturer — see your estimate'))
+  };
+}
+
 // Step 17: track the lead id that opened the wizard so the generator
 // can persist the warranty payload back onto the lead doc. Previously
 // the PDF was one-shot — generated, downloaded, gone. Now the same
 // data drives a digital warranty card on the homeowner portal.
 var _wcCurrentLeadId = null;
+// 2026-10-06: what the job actually bought — the estimate's line items (the
+// shingle, any extended manufacturer warranty line) and an explicit
+// extendedWarranty value — so the manufacturer line names only that.
+var _wcCurrentJob = { lineItems: [], extendedWarranty: null };
 
 function openWarrantyCertWizard(lead) {
   const modal = document.getElementById('warrantyCertModal');
@@ -43,20 +86,27 @@ function openWarrantyCertWizard(lead) {
   // objects (the common case).
   _wcCurrentLeadId = lead && typeof lead === 'object' ? (lead.id || null)
                   : (typeof lead === 'string' ? lead : null);
+  _wcCurrentJob = {
+    lineItems: (lead && typeof lead === 'object' && (lead.estimateLineItems || lead.lineItems)) || [],
+    extendedWarranty: (lead && typeof lead === 'object' && lead.extendedWarranty) || null
+  };
   // Pre-fill from lead if provided
   if (lead) {
     const owner = `${lead.firstName||''} ${lead.lastName||''}`.trim() || '';
     document.getElementById('wcOwner').value = owner;
     document.getElementById('wcAddr').value = lead.address || '';
-    // Manufacturer pre-fill: if the lead carries estimate line items, detect the
-    // shingle (TAMKO vs GAF) via the shared resolver; else default to GAF Timberline.
-    let _mfgWork = 'GAF Timberline';
+    // Manufacturer pre-fill: if the lead carries estimate line items, name the
+    // shingle on them via the shared resolver. No shingle on the estimate →
+    // name none (2026-10-06: it used to default to "GAF Timberline", a guess
+    // printed on the homeowner's certificate).
+    let _mfgWork = '';
     try {
       const _li = lead.estimateLineItems || lead.lineItems || [];
       const _res = window.NBDDocGen && window.NBDDocGen.resolveDocManufacturer && window.NBDDocGen.resolveDocManufacturer(_li);
-      if (_res && _res.manufacturer === 'TAMKO' && _res.manufacturerName) _mfgWork = _res.manufacturerName;
-    } catch (_) { /* default GAF */ }
-    document.getElementById('wcWork').value = lead.damageType ? `${lead.damageType} — ${_mfgWork}` : `Roof replacement — ${_mfgWork}`;
+      if (_res && _res.manufacturerName && _res.manufacturerName !== _res.manufacturer + ' shingles') _mfgWork = _res.manufacturerName;
+    } catch (_) { /* name no shingle */ }
+    const _workBase = lead.damageType || 'Roof replacement';
+    document.getElementById('wcWork').value = _mfgWork ? `${_workBase} — ${_mfgWork}` : _workBase;
     // GBB audit §7.3, 2026-09-09: this certificate is the roofing job's
     // actual warranty, not a separate rep-picked product — pre-fill the
     // Guarantee Tier from the pricing tier the estimate was actually sold
@@ -73,8 +123,8 @@ function openWarrantyCertWizard(lead) {
       }
     } catch (_) { /* leave the select at its default */ }
   }
-  // Default date to today
-  document.getElementById('wcDate').value = new Date().toISOString().split('T')[0];
+  // Default date to today — the LOCAL date (the UTC date is tomorrow after 8pm ET)
+  document.getElementById('wcDate').value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   updateCertPreview();
   modal.classList.add('open');
 }
@@ -89,16 +139,18 @@ function updateCertPreview() {
   const _b = (window._brand && window._brand()) || null;
   const isNbd = !_b || !_b.legalName || _b.legalName === 'No Big Deal Home Solutions';
   const raw = WC_TIER_DESCS[tier] || '';
-  desc.textContent = isNbd ? raw : String(raw).replace(/\bNBD\b/g, (_b.seal || _b.legalName || 'We'));
+  // Another company never inherits NBD's lifetime terms (2026-10-06): its own
+  // configured workmanship sentence, or nothing.
+  desc.textContent = isNbd ? raw : _wcOwnWorkmanship(tier);
   // The Guarantee Tier <select> is static markup in dashboard.html whose first
-  // option read "Standard — NBD Lifetime Pledge" for EVERY tenant's rep. Name
-  // the pledge the way generateWarrantyCertPDF prints it (NBD unchanged).
+  // option read "Standard — NBD …Pledge" for EVERY tenant's rep. The
+  // Pledge is NBD's alone (2026-10-06); another company sees the plain name.
   const seal = isNbd ? 'NBD' : (_b.seal || _b.legalName || '');
   // (Found by value: Economy sits above Standard since the five-tier change.)
   const sel = document.getElementById('wcTier');
   const stdOpt = sel && sel.options ? Array.prototype.find.call(sel.options, o => o && o.value === 'standard') : null;
   if (stdOpt) {
-    stdOpt.textContent = 'Standard — ' + (seal ? seal + ' Lifetime Pledge' : 'Lifetime Pledge');
+    stdOpt.textContent = isNbd ? 'Standard — NBD Pledge · ' + WC_LABOR_YEARS.standard + '-Year Labor' : 'Standard';
   }
   // Same for the modal's eyebrow ("NBD Guarantee" above the title).
   const eyebrow = document.getElementById('wcEyebrow');
@@ -146,40 +198,49 @@ async function generateWarrantyCertPDF() {
   const _certPrefix = window._tenantIdPrefix ? await window._tenantIdPrefix() : 'CUS';
   const certNum = _certPrefix + '-' + Date.now().toString().slice(-6);
 
-  // Signature seal / pledge name. NBD → 'NBD Lifetime Pledge' (byte-identical);
-  // tenant → '<seal> Lifetime Pledge', or a neutral 'Lifetime Pledge' if it set
-  // no seal. brandSeal is also the subject the guarantee descriptions name.
+  // Seal subject. The NBD Pledge is NBD's own promise (Jo, 2026-10-06) and is
+  // never a "lifetime warranty": NBD's tier labels name the Pledge plus the
+  // package's WRITTEN labor years. Another company's certificate never names
+  // the Pledge — it prints the company's own configured workmanship warranty,
+  // or no workmanship line at all. brandSeal is also the subject the
+  // guarantee descriptions name.
   const brandSeal = isNbd ? 'NBD' : (_b.seal || _b.legalName || '');
-  const pledgeName = brandSeal ? (brandSeal + ' Lifetime Pledge') : 'Lifetime Pledge';
+  const _lab = (k) => 'NBD Pledge · ' + WC_LABOR_YEARS[k] + '-Year Labor Warranty';
+  const lines = _wcLines(tier, isNbd);
+  const _cfgW = window.NBD_ESTIMATE_CONFIG;
+  const _pkg = (k, fb) => (_cfgW && typeof _cfgW.tierLabel === 'function') ? (_cfgW.tierLabel(k) || fb) : fb;
 
-  const tierLabels = {
-    // Economy is NOT the Lifetime Pledge — its label never names it.
-    economy: 'Economy — 1-Year Labor Warranty',
-    standard: 'Standard — ' + pledgeName,
-    preferred: 'Preferred — ' + pledgeName + ' (Transferable to One Owner)',
-    elite: 'Elite — ' + pledgeName + ' (Fully Transferable + Annual Inspection)',
-    beyond: 'Beyond — ' + pledgeName + ' (Fully Transferable + Annual Inspection + TAMKO HailGuard Hail Warranty)'
+  const tierLabels = isNbd ? {
+    economy: 'Economy — ' + _lab('economy'),
+    standard: 'Standard — ' + _lab('standard'),
+    preferred: 'Preferred — ' + _lab('preferred') + ' (Transferable to One Owner)',
+    elite: 'Elite — ' + _lab('elite') + ' (Fully Transferable + Annual Inspection)',
+    beyond: 'Beyond — ' + _lab('beyond') + ' (Fully Transferable + Annual Inspection + TAMKO HailGuard Hail Warranty)'
+  } : {
+    economy: _pkg('economy', 'Economy'), standard: _pkg('good', 'Standard'), preferred: _pkg('better', 'Preferred'),
+    elite: _pkg('best', 'Elite'), beyond: _pkg('beyond', 'Beyond')
   };
   const tierLabel = tierLabels[tier] || tierLabels.standard;
-  // WC_TIER_DESCS embeds the literal subject 'NBD'; keep it verbatim for NBD,
-  // swap in the tenant's seal/legal name otherwise.
+  // WC_TIER_DESCS are NBD's terms; another company's are its own sentence.
   const _rawDesc = WC_TIER_DESCS[tier] || WC_TIER_DESCS.standard;
-  const tierDesc = isNbd
-    ? _rawDesc
-    : String(_rawDesc || '').replace(/\bNBD\b/g, brandSeal || 'We');
+  const tierDesc = isNbd ? _rawDesc : _wcOwnWorkmanship(tier);
 
-  const { isElite, isPreferred, isEconomy, isBeyond } = _wcTierFlags(tier);
+  // NBD's tier perks (transfer, inspection) are NBD's terms — never another company's.
+  const _flags = _wcTierFlags(tier);
+  const isEconomy = _flags.isEconomy, isBeyond = _flags.isBeyond;
+  const isElite = isNbd && _flags.isElite, isPreferred = isNbd && _flags.isPreferred;
   // Legacy-fallback wording that differs by tier. Economy: a 1-year labor
   // warranty + the manufacturer's standard limited warranty, no system
   // warranty. Beyond: the HailGuard hail warranty is TAMKO's.
-  const certTitle = isEconomy ? 'Warranty Certificate' : 'Lifetime Warranty Certificate';
+  const certTitle = 'Warranty Certificate';
   // (Escaped where it is printed — escCert is declared further down.)
-  const termFeature = isEconomy ? '1-year labor warranty from the installation date' : (pledgeName + ' — no expiration');
-  const mfgFeature = isEconomy
-    ? 'Shingle manufacturer’s standard limited warranty (no system warranty)'
-    : (isBeyond ? 'TAMKO HailGuard hail warranty on the shingles (manufacturer terms apply)' : 'GAF Timberline lifetime manufacturer shingle warranty');
-  const mfgName = isBeyond ? 'TAMKO' : (isEconomy ? 'shingle' : 'GAF');
-  const sealWord = isEconomy ? '1-Year<br>Labor<br>Warranty' : 'Lifetime<br>Guarantee';
+  // Two separate lines: workmanship (the NBD Pledge / the company's own / none)
+  // and the manufacturer warranty this job bought.
+  const termFeature = lines.workmanship || '';
+  const pledgeFeature = lines.pledge || '';
+  const mfgFeature = lines.manufacturer;
+  const mfgName = lines.maker ? lines.maker + ' manufacturer' : 'manufacturer';
+  const sealWord = isNbd ? 'Pledge' : 'Warranty';
 
   // D-1: try the new server-side Puppeteer renderer first. It returns
   // a real vector PDF (not a html2canvas screenshot) using the shared
@@ -189,7 +250,10 @@ async function generateWarrantyCertPDF() {
     const ok = await _tryServerRender({
       owner, addr, date, tier, work, dateFormatted, certNum,
       tierLabel, tierLabelLong: tierLabel, tierTerms: tierDesc,
-      isElite, isPreferred, isEconomy, isBeyond
+      isElite, isPreferred, isEconomy, isBeyond,
+      pledgeLine: lines.pledge || '', laborYears: isNbd ? (WC_LABOR_YEARS[tier] || 0) : 0,
+      workmanshipLine: lines.workmanship || '', manufacturerLine: lines.manufacturer,
+      isPledge: !!lines.isPledge, manufacturerName: lines.maker || ''
     });
     if (ok) return; // server render succeeded — bail before the legacy path runs
   } catch (e) {
@@ -263,14 +327,15 @@ async function generateWarrantyCertPDF() {
     <div class="field" style="grid-column:1/-1;"><label>Work Performed</label><div class="val">${escCert(work)}</div></div>
   </div>
 
-  <h2>Guarantee Terms</h2>
+  ${tierDesc ? `<h2>Guarantee Terms</h2>
   <div class="guarantee-box">
-    <div class="tier">${tierLabel}</div>
-    <div class="terms">${tierDesc}</div>
-  </div>
+    <div class="tier">${isNbd ? tierLabel : escCert(tierLabel)}</div>
+    <div class="terms">${isNbd ? tierDesc : escCert(tierDesc)}</div>
+  </div>` : ''}
 
   <div class="features">
-    <div class="feature"><div class="feature-dot"></div>${escCert(termFeature)}</div>
+    ${pledgeFeature ? '<div class="feature"><div class="feature-dot"></div>' + escCert(pledgeFeature) + '</div>' : ''}
+    ${termFeature ? '<div class="feature"><div class="feature-dot"></div>' + escCert(termFeature) + '</div>' : ''}
     <div class="feature"><div class="feature-dot"></div>${escCert(mfgFeature)}</div>
     ${isPreferred||isElite ? '<div class="feature"><div class="feature-dot"></div>Transferable to new owner on sale</div>' : ''}
     ${isElite ? '<div class="feature"><div class="feature-dot"></div>Annual courtesy inspection included</div>' : ''}
@@ -279,7 +344,7 @@ async function generateWarrantyCertPDF() {
     <div class="feature"><div class="feature-dot"></div>${isNbd ? 'Recorded on file at NBD Home Solutions' : ('Recorded on file at ' + escCert(_b.legalName))}</div>
   </div>
 
-  <p style="font-size:11px;color:#666;margin-top:16px;line-height:1.7;">This guarantee covers defects in labor and workmanship only. It does not cover damage caused by acts of nature, severe weather events, improper maintenance, or modifications made by parties other than ${isNbd ? 'No Big Deal Home Solutions' : escCert(_b.legalName)}. The ${mfgName} manufacturer shingle warranty${isBeyond ? ' (including the HailGuard hail warranty)' : ''} is a separate warranty provided directly by ${isEconomy ? 'the shingle manufacturer' : mfgName} and is not administered by ${isNbd ? 'No Big Deal Home Solutions' : escCert(_b.legalName)}.</p>
+  <p style="font-size:11px;color:#666;margin-top:16px;line-height:1.7;">${termFeature ? 'This guarantee covers defects in labor and workmanship only. It does not cover damage caused by acts of nature, severe weather events, improper maintenance, or modifications made by parties other than ' + (isNbd ? 'No Big Deal Home Solutions' : escCert(_b.legalName)) + '. ' : ''}The ${escCert(mfgName)} shingle warranty${isBeyond && lines.maker === 'TAMKO' ? ' (including the HailGuard hail warranty)' : ''} is a separate warranty provided directly by ${(isEconomy || !lines.maker) ? 'the shingle manufacturer' : escCert(lines.maker)} and is not administered by ${isNbd ? 'No Big Deal Home Solutions' : escCert(_b.legalName)}.</p>
 
   <h2>Signatures</h2>
   <div class="sig-section">
@@ -358,6 +423,9 @@ async function generateWarrantyCertPDF() {
     address: addr,
     installDate: date,
     certNumber: certNum,
+    pledgeLine: lines.pledge || '',
+    workmanshipLine: lines.workmanship || '',
+    manufacturerLine: lines.manufacturer,
   }).catch(() => { /* silent — see comment above */ });
 
   showToast('✓ Warranty certificate generated', 'success');
@@ -371,7 +439,7 @@ async function generateWarrantyCertPDF() {
 // html2canvas fallback.
 async function _tryServerRender(payload) {
   if (!window._functions || !window._httpsCallable) {
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     window._functions = mod.getFunctions();
     window._httpsCallable = mod.httpsCallable;
   }
@@ -433,11 +501,6 @@ async function _tryServerRender(payload) {
     email: isNbd ? 'jd@nobigdealwithjoedeal.com' : (_bc.email || ''),
   };
 
-  // Detect manufacturer from the (rep-editable) work description so the server
-  // warranty PDF reflects TAMKO when applicable; defaults to GAF.
-  const _wMfg = (window.NBDDocGen && window.NBDDocGen.resolveDocManufacturer)
-    ? window.NBDDocGen.resolveDocManufacturer([{ name: payload.work }])
-    : { manufacturer: 'GAF', manufacturerWarrantyFeature: '' };
   const r = await fn({
     template: 'warranty',
     payload: {
@@ -452,15 +515,21 @@ async function _tryServerRender(payload) {
       certNumber:     payload.certNum,
       isElite:        payload.isElite,
       isPreferred:    payload.isPreferred,
-      // Five tiers (2026-10-02): warranty.hbs swaps the Lifetime Pledge copy
+      // Five tiers (2026-10-02): warranty.hbs swaps the Pledge copy
       // for 1-year labor wording on Economy, and names TAMKO HailGuard's hail
       // warranty on Beyond (the shingle is HailGuard by rule, so TAMKO).
       isEconomy:      !!payload.isEconomy,
       isBeyond:       !!payload.isBeyond,
-      manufacturer:                payload.isBeyond ? 'TAMKO' : _wMfg.manufacturer,
-      manufacturerWarrantyFeature: (payload.isBeyond && !/HAIL/i.test(_wMfg.manufacturerWarrantyFeature || ''))
-        ? 'TAMKO HailGuard hail warranty on the shingles (manufacturer terms apply)'
-        : _wMfg.manufacturerWarrantyFeature,
+      // The two warranty lines (2026-10-06): warranty.hbs prints the
+      // workmanship line (the NBD Pledge only when the server says this is
+      // NBD) and the manufacturer warranty the job bought. manufacturer names
+      // the shingle maker for the disclaimer — '' when the job names none.
+      pledgeLine:                  payload.pledgeLine || '',
+      laborYears:                  Number(payload.laborYears) || 0,
+      workmanshipLine:             payload.workmanshipLine || '',
+      manufacturerLine:            payload.manufacturerLine || '',
+      isPledge:                    !!payload.isPledge,
+      manufacturer:                payload.manufacturerName || '',
       // D-2.5 cover fields
       preparedFor,
       preparedBy,
@@ -479,7 +548,7 @@ async function _tryServerRender(payload) {
   if (window.NBDDocViewer && typeof window.NBDDocViewer.open === 'function') {
     window.NBDDocViewer.open({
       url:      data.url,
-      title:    (payload.isEconomy ? 'Warranty Certificate' : 'Lifetime Warranty Certificate') + (payload.owner ? ' — ' + payload.owner : ''),
+      title:    'Warranty Certificate' + (payload.owner ? ' — ' + payload.owner : ''),
       filename: data.filename || filename,
     });
   } else {
@@ -499,7 +568,7 @@ async function _tryServerRender(payload) {
 // than NBDRepos because that helper insists on creating a brand-new
 // document, and we want a merge-update onto the existing lead. Falls
 // back gracefully when called outside the dashboard's Firebase context.
-async function _persistWarrantyToLead({ leadId, tier, tierLabel, tierDesc, work, owner, address, installDate, certNumber }) {
+async function _persistWarrantyToLead({ leadId, tier, tierLabel, tierDesc, work, owner, address, installDate, certNumber, pledgeLine, workmanshipLine, manufacturerLine }) {
   if (!leadId) return;
   if (!window._db || !window.doc || !window.updateDoc || !window.serverTimestamp) return;
   try {
@@ -513,6 +582,11 @@ async function _persistWarrantyToLead({ leadId, tier, tierLabel, tierDesc, work,
         address,
         installDate: installDate || null,
         certNumber,
+        // The warranty lines the certificate printed (2026-10-06): NBD's
+        // Pledge (promise), the written labor warranty, the manufacturer's.
+        pledgeLine: pledgeLine || '',
+        workmanshipLine: workmanshipLine || '',
+        manufacturerLine: manufacturerLine || '',
         // We pass the wall-clock millis here (not serverTimestamp)
         // because Firestore rejects nested serverTimestamp sentinels.
         // The outer updatedAt below is the source of truth for "when

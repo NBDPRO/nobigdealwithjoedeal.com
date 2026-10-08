@@ -50,6 +50,9 @@ const { reencodePhoto } = require('./photo-reencode');
 const KyLaw = require('./ky-insurance-law');
 const CW = require('./cancel-window');
 const { awaitBriefly } = require('./await-briefly');
+const PAS = require('./portal-after-signing');
+// The only link the refusal page may carry: our own homeowner portal.
+const PORTAL_LINK_RE = /^https:\/\/nobigdealwithjoedeal\.com\/pro\/portal\.html\?token=[A-Za-z0-9]{10,64}$/;
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -228,6 +231,23 @@ exports.createDealAcceptToken = onCall(
     const tierPrices = {};
     VALID_TIERS.forEach((t) => { tierPrices[t] = Number(tiers[t] && tiers[t].price) || 0; });
 
+    // The version of the estimate this link is issued at (review R6-2-5, Jo
+    // 2026-10-07): a re-save after this moves the fingerprint, and
+    // submitDealAcceptance refuses the old price (signed-price.js
+    // checkDealPrice). Only the deal owner's own estimate counts.
+    let estimateId = null;
+    let estimateFingerprint = null;
+    if (typeof deal.estimateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(deal.estimateId)) {
+      try {
+        const es = await db.doc(`estimates/${deal.estimateId}`).get();
+        const est = es.exists ? (es.data() || {}) : null;
+        if (est && est.deleted !== true && est.userId === deal.userId) {
+          estimateId = deal.estimateId;
+          estimateFingerprint = require('./customer-estimate-rows').pricedFingerprint(est);
+        }
+      } catch (e) { logger.warn('[createDealAcceptToken] estimate read failed', { msg: e && e.message }); }
+    }
+
     const now = Date.now();
     // Link life is a company setting since 2026-10-03
     // (companyProfile/{tenant}.salesLinks.dealLinkDays, 1–90, default still
@@ -249,6 +269,8 @@ exports.createDealAcceptToken = onCall(
       customerName: String(deal.customerName || '').slice(0, 120),
       htmlPath,
       tierPrices,
+      estimateId,
+      estimateFingerprint,
       status: 'pending',
       mintedBy: uid,
       mintedAt: FieldValue.serverTimestamp(),
@@ -280,7 +302,12 @@ exports.getDealRoom = onRequest(
     memory: '256MiB',
   },
   async (req, res) => {
-    const errPage = (code, msg) => {
+    const errPage = (code, msg, linkUrl, linkText) => {
+      // An optional https link under the message (the homeowner's portal on
+      // an already-signed job) — escaped, and only our own portal page.
+      const link = (typeof linkUrl === 'string' && PORTAL_LINK_RE.test(linkUrl))
+        ? `<p style="margin-top:18px"><a href="${escHtml(linkUrl)}" style="display:inline-block;background:#BD5728;color:#fff;font-weight:700;text-decoration:none;padding:12px 20px;border-radius:10px">${escHtml(linkText || 'Open your project page')}</a></p>`
+        : '';
       res.status(code).set('Content-Type', 'text/html; charset=utf-8').set('X-Robots-Tag', 'noindex, nofollow')
         // Neutral <title> — this error/edge page (invalid / expired /
         // already-accepted) is served for EVERY tenant's /deal/<token> link, so
@@ -288,7 +315,7 @@ exports.getDealRoom = onRequest(
         // facing tab / link-preview. Matches the neutral-error pattern of the
         // sibling SSR surfaces (report-sharing.js 'Inspection Report',
         // share-ssr.js 'Link unavailable').
-        .send(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Deal</title><body style="font-family:system-ui,-apple-system,sans-serif;background:#0f1115;color:#e5e7eb;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center;padding:24px"><div><div style="font-size:44px">🤝</div><p style="max-width:420px;line-height:1.6;font-size:16px">${escHtml(msg)}</p></div></body>`);
+        .send(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Deal</title><body style="font-family:system-ui,-apple-system,sans-serif;background:#0f1115;color:#e5e7eb;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center;padding:24px"><div><div style="font-size:44px">🤝</div><p style="max-width:420px;line-height:1.6;font-size:16px">${escHtml(msg)}</p>${link}</div></body>`);
     };
     // token is the last path segment: /deal/<token>
     const m = (req.path || '').match(/\/deal\/([A-Za-z0-9]{10,64})\/?$/);
@@ -320,6 +347,21 @@ exports.getDealRoom = onRequest(
     // 'viewed' or offer a second acceptance (see DONE_STATUSES).
     if (DONE_STATUSES.includes((dealRoomSnap.data() || {}).status)) {
       errPage(410, ALREADY_ACCEPTED_MSG); return;
+    }
+    // Signed by ANY path (homeowner money audit M5, 2026-10-07): a deal link
+    // for an estimate that was already e-signed — or accepted in a sibling
+    // deal room — still loaded and took a second signature after the job was
+    // paid in full. Refused here, with the way to the homeowner's portal.
+    let signedRefusal = null;
+    try {
+      signedRefusal = await alreadySignedRefusal(db, (ref) => ref.get(), tok, dealRoomSnap.data() || {});
+    } catch (e) { logger.warn('[getDealRoom] signed check failed', { msg: e && e.message }); }
+    if (signedRefusal) {
+      const portalUrl = await portalUrlForLead(db, tok);
+      errPage(signedRefusal.status, signedRefusal.message + (portalUrl
+        ? ' Your project page has your paperwork, your payments and what is due.'
+        : ' Your rep can send you a link to your project page.'), portalUrl, 'Open your project page');
+      return;
     }
 
     // Fire-and-forget viewed stamps (do not gate the response). update(), not
@@ -422,6 +464,9 @@ exports.submitDealAcceptance = onRequest(
     // wire (defends a future renderer against a stored-XSS payload here).
     const financing = Number.isFinite(Number(b.financing)) ? Number(b.financing) : null;
     const scheduledDate = typeof b.scheduledDate === 'string' ? b.scheduledDate.slice(0, 40) : '';
+    // The CURRENT price the homeowner confirmed after a stale-price refusal
+    // (R6-2-5) — a number or null; the server compares it with its own.
+    const confirmPrice = (b.confirmPrice != null && Number.isFinite(Number(b.confirmPrice))) ? Number(b.confirmPrice) : null;
 
     // Charset-validate the token BEFORE it becomes a Firestore doc-path segment
     // — a '/' would otherwise make db.doc() throw an uncaught 500. Mirrors
@@ -499,6 +544,7 @@ exports.submitDealAcceptance = onRequest(
         if (DONE_STATUSES.includes((dealRoomSnap.data() || {}).status)) {
           const e = new Error('done'); e._http = 409; e._msg = ALREADY_ACCEPTED_MSG; throw e;
         }
+        await refuseIfSigned(db, tx, t, dealRoomSnap.data() || {}); // signed elsewhere (audit M5)
         const price = (t.tierPrices && t.tierPrices[tier]) || 0;
         // A package with no price on this deal is refused, never recorded as a
         // $0 acceptance (a tier the rep didn't price, or a link minted before
@@ -506,13 +552,17 @@ exports.submitDealAcceptance = onRequest(
         if (!(price > 0)) {
           const e = new Error('unpriced'); e._http = 400; e._msg = 'That package isn’t priced on this deal. Choose another or ask your rep.'; throw e;
         }
+        // A STALE price is refused (review R6-2-5) — staleDealPrice below.
+        const accepted = await staleDealPrice(db, tx, t, dealRoomSnap.data() || {}, tier, price, confirmPrice);
+        const acceptedPrice = accepted.price;
+        if (accepted.changedFrom != null) evidence.priceChangedFrom = accepted.changedFrom;
         tx.update(tokRef, { status: 'accepted', acceptedAt: FieldValue.serverTimestamp() });
         // update(), not set(merge) — the existence check above means this must
         // modify an existing doc, never create one.
         tx.update(dealRoomRef, {
           status: 'accepted',
           acceptedTier: tier,
-          acceptedPrice: price,
+          acceptedPrice,
           acceptedFinancing: financing,
           acceptedSignature: signature,
           scheduledInstallDate: scheduledDate || null,
@@ -522,11 +572,11 @@ exports.submitDealAcceptance = onRequest(
         });
         return {
           dealId: t.dealId, ownerUid: t.ownerUid, companyId: t.companyId || null, leadId: t.leadId || null,
-          customerName: t.customerName || '', price, htmlPath: t.htmlPath || null,
+          customerName: t.customerName || '', price: acceptedPrice, htmlPath: t.htmlPath || null,
         };
       });
     } catch (err) {
-      if (err && err._http) { res.status(err._http).json({ error: err._msg }); return; }
+      if (err && err._http) { res.status(err._http).json(err._json || { error: err._msg }); return; }
       logger.error('[submitDealAcceptance] burn+record txn failed', { msg: err.message });
       res.status(500).json({ error: 'Could not record your acceptance. Try again.' }); return;
     }
@@ -585,6 +635,102 @@ exports.submitDealAcceptance = onRequest(
     res.status(200).json({ ok: true });
   }
 );
+
+// ═══════════════════════════════════════════════════════════════
+// One signature per job (homeowner money audit M5, 2026-10-07).
+// ═══════════════════════════════════════════════════════════════
+/**
+ * The deal's estimate (the token's estimateId, else the deal room's), read
+ * with `get` (plain or transactional), and portal-after-signing.js
+ * dealLinkRefusal on it. Another tenant's estimate, or none, never refuses.
+ * → { status, code, message } | null
+ */
+async function alreadySignedRefusal(db, get, t, room) {
+  const okId = (v) => typeof v === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(v);
+  const estId = okId(t && t.estimateId) ? t.estimateId : (okId(room && room.estimateId) ? room.estimateId : null);
+  if (!estId) return null;
+  const es = await get(db.doc(`estimates/${estId}`));
+  const est = es && es.exists ? (es.data() || {}) : null;
+  if (!est || est.userId !== t.ownerUid) return null;
+  if (t.leadId && est.leadId && est.leadId !== t.leadId) return null;
+  return PAS.dealLinkRefusal({ estimate: est });
+}
+
+/**
+ * Inside submitDealAcceptance's transaction: the job was signed by another
+ * path (e-sign, a sibling deal room) after this page loaded — the race the
+ * getDealRoom check cannot close. Throws the 410 { code: 'already_signed' }.
+ */
+async function refuseIfSigned(db, tx, t, room) {
+  const r = await alreadySignedRefusal(db, (ref) => tx.get(ref), t, room);
+  if (!r) return;
+  const e = new Error('signed'); e._http = r.status;
+  e._msg = r.message + ' Your rep can send you a link to your project page.';
+  e._json = { error: e._msg, code: r.code };
+  throw e;
+}
+
+/** The homeowner's existing portal link for this deal's lead, or null (never minted here). */
+async function portalUrlForLead(db, tok) {
+  if (!tok || typeof tok.leadId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(tok.leadId)) return null;
+  try {
+    const qs = await db.collection('portal_tokens').where('leadId', '==', tok.leadId).limit(20).get();
+    const rows = qs.docs.map((d) => {
+      const x = d.data() || {};
+      return { id: d.id, leadId: x.leadId, ownerUid: x.ownerUid,
+        expiresAtMs: x.expiresAt && x.expiresAt.toMillis ? x.expiresAt.toMillis() : 0,
+        uses: x.uses, maxUses: x.maxUses };
+    });
+    return PAS.portalUrlFor(rows, tok.leadId, tok.ownerUid, Date.now());
+  } catch (e) {
+    logger.warn('[getDealRoom] portal link lookup failed', { msg: e && e.message });
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// A stale deal-room price (review R6-2-5, Jo 2026-10-07).
+// ═══════════════════════════════════════════════════════════════
+/**
+ * Inside submitDealAcceptance's transaction (reads only): may the homeowner
+ * accept `tier` at the page's `price`? Refused when the estimate was re-saved
+ * after this link was issued (the token's estimateFingerprint moved) or the
+ * page's price for this package is no longer the estimate's — the homeowner
+ * is answered (409 price_changed) with the CURRENT price and can accept only
+ * that one, confirmed (deal-room.js re-asks). Legacy links (no fingerprint)
+ * still get the price comparison, via the deal's own estimate.
+ * signed-price.js checkDealPrice has the rule.
+ * → { ok: true, price, changedFrom? }; throws the 409 otherwise.
+ */
+async function staleDealPrice(db, tx, t, room, tier, price, confirmPrice) {
+  const okId = (v) => typeof v === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(v);
+  const estId = okId(t.estimateId) ? t.estimateId : (okId(room.estimateId) ? room.estimateId : null);
+  if (!estId) return { ok: true, price };
+  const es = await tx.get(db.doc(`estimates/${estId}`));
+  const est = es.exists ? (es.data() || {}) : null;
+  if (!est || est.userId !== t.ownerUid) return { ok: true, price };
+  const accepted = require('./signed-price').checkDealPrice({ est, tier, offeredPrice: price, issuedFingerprint: t.estimateFingerprint || null, confirmPrice });
+  if (accepted.ok) return accepted;
+  // What is due at signing at the new price — deposit-rule.js on the
+  // estimate's inputs and the lead (a Kentucky insurance job stays $0).
+  let depositDue = null;
+  if (accepted.tierPrice != null) {
+    let lead = null;
+    if (okId(t.leadId)) { const ls = await tx.get(db.doc(`leads/${t.leadId}`)); lead = ls.exists ? (ls.data() || {}) : null; }
+    try {
+      const f = require('./deal-accepted-tier').retierFields(est, accepted.tierPrice, { lead, depositRule: require('./deposit-rule') });
+      depositDue = Number.isFinite(Number(f.deposit)) ? Number(f.deposit) : null;
+    } catch (_) { depositDue = null; }
+  }
+  const e = new Error('price_changed'); e._http = 409;
+  e._msg = accepted.tierPrice != null
+    ? 'Your rep updated this estimate after this page was made. This package is now $'
+      + Number(accepted.tierPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      + '. Review the new price, then tap Accept again to agree to it.'
+    : 'Your rep updated this estimate after this page was made, and this package needs an updated page. Please ask your rep for the new link.';
+  e._json = { error: e._msg, code: 'price_changed', tier, tierPrice: accepted.tierPrice, currentPrices: accepted.currentPrices, depositDue };
+  throw e;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Deal packet photos (2026-10-04). See deal-packet-logic.js for the rules.

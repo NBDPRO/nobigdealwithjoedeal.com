@@ -34,7 +34,6 @@
 <script defer src="/assets/js/inline/2a90205f1b.js"></script>
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
-<link rel="stylesheet" href="/assets/css/homeowner-wall.css">
 <style>
 :root {
   --navy: #1a3057;
@@ -138,145 +137,6 @@ section{padding:80px 40px}
 .sec-title.white{color:white}
 .sec-desc{color:var(--gray);max-width:580px;margin:0 auto;line-height:1.75;font-size:1rem}
 
-/* ── HERO ── */
-.hero{background:var(--navy-dark);position:relative;overflow:hidden;min-height:640px;display:flex;align-items:center}
-.hero-pattern{position:absolute;top:0;right:0;bottom:0;left:0;background-image:repeating-linear-gradient(45deg,transparent,transparent 40px,rgba(189,87,40,.04) 40px,rgba(189,87,40,.04) 41px);z-index:0}
-.hero-bg{position:absolute;top:0;right:0;bottom:0;left:0;background:linear-gradient(135deg,rgba(18,34,61,.88) 0%,rgba(18,34,61,.78) 55%,rgba(189,87,40,.18) 100%),image-set(url(/assets/images/drone-hero-crew.webp) type("image/webp"), url(/assets/images/drone-hero-crew.jpg) type("image/jpeg")) center/cover no-repeat;z-index:1}
-@media(max-width:600px){.hero-bg{background:linear-gradient(135deg,rgba(18,34,61,.88) 0%,rgba(18,34,61,.78) 55%,rgba(189,87,40,.18) 100%),image-set(url(/assets/images/drone-hero-crew-800.webp) type("image/webp"), url(/assets/images/drone-hero-crew.jpg) type("image/jpeg")) center/cover no-repeat}}
-.hero-content{position:relative;z-index:2;max-width:1200px;margin:0 auto;padding:80px 40px;display:grid;grid-template-columns:1fr 400px;gap:64px;align-items:center;width:100%}
-.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(189,87,40,.18);border:1px solid rgba(189,87,40,.4);color:var(--orange-light);padding:6px 16px;border-radius:100px;font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:24px;animation:fadeUp .6s ease both}
-.hero-badge::before{content:'';width:6px;height:6px;background:var(--orange);border-radius:50%;animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
-.hero h1{font-family:'Bebas Neue',sans-serif;font-size:clamp(3rem,5.5vw,5.5rem);color:white;line-height:.92;letter-spacing:.02em;margin-bottom:10px;animation:fadeUp .6s ease .1s both}
-.hero h1 span{color:#BD5728}
-.hero h1 .hero-h1-kicker{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:clamp(.95rem,1.5vw,1.2rem);letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.75);line-height:1.2;margin-bottom:12px}
-.hero-tagline{font-family:'Dancing Script',cursive;font-size:1.45rem;color:var(--orange-light);margin-bottom:22px;animation:fadeUp .6s ease .2s both}
-.hero p{color:rgba(255,255,255,.72);font-size:.95rem;line-height:1.7;margin-bottom:32px;max-width:500px;animation:fadeUp .6s ease .3s both}
-.hero-btns{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:36px;animation:fadeUp .6s ease .35s both}
-.hero-trust{display:flex;align-items:center;gap:20px;animation:fadeUp .6s ease .45s both}
-.hero-trust-item{display:flex;align-items:center;gap:7px;font-size:.72rem;color:rgba(255,255,255,.55);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
-.hero-trust-dot{width:5px;height:5px;border-radius:50%;background:var(--orange);opacity:.5}
-/* Desktop only (two-column hero, >1024px), 2026-09-29 QA audit: the tall
-   right-hand card vertically centered the left column, pushing "Call Joe"
-   below the fold at 1280x720. Top-align the columns, trim the top padding,
-   and show the call button + calendar link right under the tagline. Visual
-   order only (flex `order`); the markup order — and the stacked mobile
-   layout — are unchanged. */
-@media(min-width:1025px){
-  .hero-content{align-items:start;padding-top:44px}
-  .hero-left{display:flex;flex-direction:column;align-items:flex-start}
-  .hero-left>.hero-badge{order:1}
-  .hero-left>h1{order:2}
-  .hero-left>.hero-tagline{order:3}
-  .hero-left>.hero-btns{order:4;margin-bottom:12px}
-  .hero-left>.hero-link-secondary{order:5;margin-bottom:28px}
-  .hero-left>p{order:6}
-  .hero-left>.hero-trust{order:7}
-}
-@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-
-/* WARRANTY CARD in hero */
-.warranty-card{background:white;border-radius:14px;padding:32px 28px;box-shadow:0 24px 80px rgba(0,0,0,.4);position:relative;animation:fadeUp .7s ease .25s both}
-.wc-ribbon{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:#BD5728;color:white;font-size:.66rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:5px 20px;border-radius:100px;white-space:nowrap;box-shadow:0 4px 16px rgba(189,87,40,.4)}
-.wc-title{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:.05em;color:var(--navy-dark);text-align:center;margin:14px 0 20px}
-.wc-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px}
-.wc-stat{background:var(--off-white);border-radius:8px;padding:16px 12px;text-align:center;border:1px solid var(--light-gray)}
-.wc-num{font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--orange);letter-spacing:.04em;line-height:1;display:block}
-.wc-label{font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#5b6572;margin-top:4px;display:block;line-height:1.3}
-.wc-phone{display:flex;align-items:center;justify-content:center;gap:10px;background:var(--navy-dark);color:white;border-radius:8px;padding:14px;text-decoration:none;transition:background .2s}
-.wc-phone:hover{background:var(--navy-light)}
-.wc-phone-icon{width:34px;height:34px;background:var(--orange);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
-.wc-phone-text strong{display:block;font-size:.95rem;font-weight:800;letter-spacing:.03em}
-.wc-phone-text span{font-size:.68rem;color:rgba(255,255,255,.5);letter-spacing:.06em;text-transform:uppercase}
-
-/* ── TRUST BAR ── */
-.trust-bar{background:var(--navy);border-top:3px solid var(--orange)}
-.trust-bar-inner{max-width:1200px;margin:0 auto;padding:0 40px;display:flex;align-items:stretch;justify-content:space-around}
-.trust-item{display:flex;align-items:center;gap:14px;padding:20px 16px;color:white;border-right:1px solid rgba(255,255,255,.08);flex:1;justify-content:center;text-decoration:none;transition:background .2s}
-.trust-item:last-child{border-right:none}
-a.trust-item:hover{background:rgba(189,87,40,.08)}
-a.trust-item:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
-.trust-icon{width:38px;height:38px;background:var(--orange);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1rem}
-.trust-text strong{display:block;font-size:.82rem;font-weight:700;letter-spacing:.04em}
-.trust-text span{font-size:.7rem;color:rgba(255,255,255,.72)}
-
-/* ── SERVICES ── */
-.services-section{background:var(--off-white)}
-.services-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
-.service-card{background:white;border-radius:12px;border:1px solid var(--light-gray);padding:28px 24px;transition:all .28s;position:relative;overflow:hidden;display:block;text-decoration:none;color:inherit;cursor:pointer}
-.service-card:hover .sc-link{gap:10px}
-.service-card:focus-visible{outline:3px solid var(--orange);outline-offset:3px}
-.service-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:var(--orange);transition:height .28s}
-.service-card:hover{transform:translateY(-5px);box-shadow:0 16px 48px rgba(0,0,0,.1);border-color:transparent}
-.service-card:hover::before{height:6px}
-.sc-badge{position:absolute;top:14px;right:14px;background:#BD5728;color:var(--white);font-size:.65rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;border-radius:4px;line-height:1.2}
-.sc-badge.sc-badge-storm{background:var(--navy-dark)}
-.sc-title{font-family:'Bebas Neue',sans-serif;font-size:1.7rem;letter-spacing:.04em;color:var(--navy-dark);margin-bottom:12px;margin-top:4px}
-.sc-body{font-size:.97rem;color:#4b5563;line-height:1.65;margin-bottom:18px}
-.sc-bullets{list-style:none;display:flex;flex-direction:column;gap:7px;margin-bottom:20px}
-.sc-bullet{display:flex;align-items:flex-start;gap:8px;font-size:.78rem;color:var(--gray-sub)}
-.sc-bullet::before{content:'→';color:var(--orange);font-weight:800;flex-shrink:0;font-size:.8rem}
-.sc-link{font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--orange);text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:gap .2s;margin-top:auto}
-
-/* ── HOW IT WORKS ── */
-.hiw-section{background:white}
-.hiw-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:32px;position:relative}
-.hiw-grid::before{content:'';position:absolute;top:28px;left:80px;right:80px;height:1px;background:var(--light-gray);z-index:0}
-.hiw-step{position:relative;z-index:1;text-align:center}
-.hiw-num{width:56px;height:56px;border-radius:50%;background:var(--navy-dark);border:3px solid var(--orange);color:var(--orange);font-family:'Bebas Neue',sans-serif;font-size:1.6rem;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;box-shadow:0 4px 20px rgba(18,34,61,.25)}
-.hiw-title{font-family:'Bebas Neue',sans-serif;font-size:1.15rem;letter-spacing:.04em;color:var(--navy-dark);margin-bottom:10px}
-.hiw-body{font-size:.92rem;color:var(--gray);line-height:1.75}
-.hiw-cta{text-align:center;margin-top:56px}
-
-/* ── WHY NOT BIG GUYS ── */
-.compare-section{background:var(--navy-dark);position:relative;overflow:hidden}
-.compare-section::before{content:'';position:absolute;top:0;right:0;bottom:0;left:0;background:repeating-linear-gradient(-45deg,transparent,transparent 35px,rgba(189,87,40,.03) 35px,rgba(189,87,40,.03) 36px)}
-.compare-table{display:grid;grid-template-columns:1fr auto 1fr;gap:0;max-width:900px;margin:0 auto;position:relative;z-index:1;background:rgba(255,255,255,.04);border-radius:14px;overflow:hidden;border:1px solid rgba(189,87,40,.2)}
-.compare-col-header{padding:20px 24px;font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:.06em;border-bottom:1px solid rgba(255,255,255,.08)}
-.compare-col-header.them{color:rgba(255,255,255,.7);background:rgba(255,255,255,.03)}
-.compare-col-header.us{color:var(--orange-light);background:rgba(189,87,40,.08)}
-.compare-divider-hdr{padding:20px 16px;font-family:'Bebas Neue',sans-serif;font-size:.9rem;color:rgba(255,255,255,.7);text-align:center;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.2)}
-.compare-row{display:contents}
-.compare-cell{padding:14px 24px;font-size:.82rem;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:flex-start;gap:10px}
-.compare-cell.them{color:rgba(255,255,255,.65);background:rgba(255,255,255,.02)}
-.compare-cell.us{color:rgba(255,255,255,.82);background:rgba(189,87,40,.05)}
-.compare-cell.divider{padding:14px 16px;text-align:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:.75rem;color:rgba(255,255,255,.65);border-bottom:1px solid rgba(255,255,255,.05);background:rgba(0,0,0,.15)}
-.compare-cta{text-align:center;margin-top:48px;position:relative;z-index:1}
-.compare-cta p{color:rgba(255,255,255,.5);margin-bottom:20px;font-size:.92rem}
-
-/* ── ABOUT ── */
-.about-section{background:white}
-.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center}
-.about-img-block{position:relative}
-.about-img-main{background:var(--navy);border-radius:16px;overflow:hidden;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;position:relative}
-.about-img-main::before{content:'NBD';position:absolute;font-family:'Bebas Neue',sans-serif;font-size:13rem;color:rgba(189,87,40,.07);letter-spacing:-.05em}
-.about-ph{text-align:center;padding:40px;position:relative;z-index:1}
-.about-ph .ico{font-size:5rem;display:block;margin-bottom:16px}
-.about-ph p{color:rgba(255,255,255,.4);font-size:.85rem}
-.about-badge{position:absolute;bottom:-20px;right:-20px;background:#BD5728;color:white;border-radius:12px;padding:20px 24px;text-align:center;box-shadow:0 8px 32px rgba(189,87,40,.4)}
-.about-badge .big-num{font-family:'Bebas Neue',sans-serif;font-size:2.5rem;letter-spacing:.05em;line-height:1;display:block}
-.about-badge small{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
-.about-content p{color:var(--gray);line-height:1.75;margin-bottom:18px;font-size:.93rem}
-.about-results{background:var(--navy);border-radius:12px;padding:28px 32px;margin:28px 0}
-.about-results-lbl{font-size:.65rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--orange-light);margin-bottom:18px}
-.about-result{display:flex;align-items:flex-start;gap:16px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.07)}
-.about-result:last-child{border-bottom:none;padding-bottom:0}
-.about-result-num{font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--orange-light);line-height:1;min-width:60px}
-.about-result-text{font-size:.82rem;color:rgba(255,255,255,.65);line-height:1.55;padding-top:4px}
-
-/* ── SERVICE AREAS ── */
-.areas-section{background:var(--off-white)}
-.areas-grid{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:40px}
-.area-tag{background:white;border:1px solid var(--light-gray);border-radius:100px;padding:8px 18px;font-size:.8rem;font-weight:600;color:var(--navy-dark);transition:all .2s}
-.area-tag:hover{border-color:var(--orange);color:var(--orange);background:rgba(189,87,40,.04)}
-.areas-contact{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
-.areas-contact-item{display:flex;align-items:flex-start;gap:12px}
-.aci-icon{width:38px;height:38px;background:var(--navy);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0}
-.aci-text strong{display:block;font-size:.82rem;font-weight:700;color:var(--navy-dark);margin-bottom:2px}
-.aci-text span{font-size:.78rem;color:var(--gray)}
-.aci-text a{font-size:.82rem;color:var(--navy-dark);text-decoration:none;font-weight:600;transition:color .2s}
-.aci-text a:hover{color:var(--orange)}
-
 /* ── REVIEWS ── */
 .reviews-section{background:white}
 .reviews-rating{display:flex;align-items:center;justify-content:center;gap:20px;margin-bottom:40px;padding:24px;background:var(--off-white);border-radius:10px;border:1px solid var(--light-gray)}
@@ -295,28 +155,7 @@ a.trust-item:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
 .review-qmark{position:absolute;top:14px;right:20px;font-family:'Bebas Neue',sans-serif;font-size:4rem;color:rgba(189,87,40,.1);line-height:1}
 .reviews-cta{text-align:center}
 
-/* ── CONTACT ── */
-.contact-section{background:var(--navy-dark);position:relative;overflow:hidden}
-.contact-section::before{content:'';position:absolute;top:0;right:0;bottom:0;left:0;background:repeating-linear-gradient(45deg,transparent,transparent 50px,rgba(189,87,40,.03) 50px,rgba(189,87,40,.03) 51px)}
-.contact-grid{display:grid;grid-template-columns:1fr 1fr 300px;gap:48px;align-items:start;position:relative;z-index:1}
-.contact-left h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(2rem,3.5vw,3.2rem);color:white;letter-spacing:.03em;line-height:1.05;margin-bottom:16px}
-.contact-left h2 span{color:#BD5728}
-.contact-left p{color:rgba(255,255,255,.55);font-size:.92rem;line-height:1.75;margin-bottom:32px}
-.contact-methods{display:flex;flex-direction:column;gap:16px}
-.contact-method{display:flex;align-items:center;gap:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:18px 20px;text-decoration:none;transition:all .2s}
-.contact-method:hover{border-color:rgba(189,87,40,.4);background:rgba(189,87,40,.06)}
-.cm-icon{width:42px;height:42px;background:var(--orange);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
-.cm-text{min-width:0;flex:1}
-.cm-text strong{display:block;font-size:.9rem;font-weight:700;color:white;letter-spacing:.02em;overflow-wrap:anywhere}
-.cm-text span{font-size:.72rem;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.08em}
-.contact-process{margin-top:36px;padding-top:28px;border-top:1px solid rgba(255,255,255,.09)}
-.contact-process .eyebrow-small{font-size:.72rem;font-weight:700;letter-spacing:.14em;color:var(--orange-light);text-transform:uppercase;margin-bottom:16px}
-.contact-steps{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:20px}
-.contact-steps li{display:flex;gap:16px;align-items:flex-start}
-.contact-steps .step-num{font-family:'Bebas Neue',sans-serif;font-size:1.9rem;font-weight:400;color:var(--orange);line-height:1;min-width:3rem;letter-spacing:.02em}
-.contact-steps strong{display:block;color:white;font-size:1.02rem;margin-bottom:4px;letter-spacing:.01em}
-.contact-steps p{color:rgba(255,255,255,.68);font-size:.88rem;line-height:1.55;margin:0}
-@media(max-width:900px){.contact-process{display:none}}
+/* ── LEAD FORM ── */
 .contact-form-card{background:white;border-radius:14px;padding:36px 32px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .cf-title{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:.04em;color:var(--navy-dark);margin-bottom:4px}
 .cf-sub{font-size:.8rem;color:var(--gray);margin-bottom:24px}
@@ -374,54 +213,19 @@ footer{background:var(--navy-dark);border-top:3px solid var(--orange);padding:60
 .back-to-top:hover{background:#BD5728}
 
 /* ── RESPONSIVE ── */
-@media(max-width:1024px){
-  .hero-content{grid-template-columns:1fr;gap:40px}
-  .warranty-card{max-width:480px}
-  .services-grid{grid-template-columns:repeat(2,1fr)}
-  .hiw-grid{grid-template-columns:repeat(2,1fr)}
-  .hiw-grid::before{display:none}
-  .about-grid{grid-template-columns:1fr;gap:40px}
-  .about-badge{bottom:10px;right:10px}
-  .contact-grid{grid-template-columns:1fr 1fr}
-  .areas-contact{grid-template-columns:repeat(2,1fr)}
-  .footer-grid{grid-template-columns:1fr 1fr;gap:32px}
-}
-@media(max-width:900px){.home-sidebar{display:none}.contact-grid{grid-template-columns:1fr}.contact-grid>*{min-width:0}}
+@media(max-width:1024px){.footer-grid{grid-template-columns:1fr 1fr;gap:32px}}
 @media(max-width:768px){
   section{padding:44px 20px}
   nav{padding:0 20px}
   .nav-links{display:none}
   .hamburger{display:flex}
-  .hero-content{padding:52px 20px}
-  .section-header{margin-bottom:36px}
-  .services-grid{grid-template-columns:1fr;gap:16px}
-  .service-card{padding:22px 20px}
-  .sc-bullets{margin-bottom:14px}
-  .hiw-grid{grid-template-columns:1fr 1fr;gap:20px}
-  .hiw-step{padding-bottom:0}
-  .compare-table{grid-template-columns:1fr auto 1fr}
+  .section-header{margin-bottom:28px}
   .reviews-grid{grid-template-columns:1fr;gap:16px}
-  .trust-bar-inner{flex-wrap:wrap}
-  .trust-item{border-right:none;border-bottom:1px solid rgba(255,255,255,.08);justify-content:flex-start;padding:14px}
   footer{padding:40px 20px 0}
   .footer-grid{grid-template-columns:1fr;gap:28px}
   .footer-bottom{flex-direction:column;gap:12px;text-align:center}
-  .areas-contact{grid-template-columns:1fr 1fr;gap:14px}
   .form-row{grid-template-columns:1fr}
   .ann-bar{font-size:.68rem}
-  /* Hide overflow city tags on mobile — show 10 most common, then link to full list */
-  .areas-grid .area-tag:nth-child(n+11){display:none}
-  .areas-ky-label{display:none}
-  .areas-grid[data-ky]{display:none}
-  /* Mobile hero: single primary CTA — reclaims ~60px viewport, bottom sticky strip covers secondary */
-  .hero-btns{flex-direction:column;gap:10px}
-  .hero-btns .btn-primary{width:100%;justify-content:center}
-  .hero-btns .btn-ghost{display:none}
-  /* ...except the Instant Estimate button (2026-10-03): with every other
-     secondary hidden, a phone visitor who won't call had no way into the
-     estimate funnel from the hero. It sits directly under "Call Joe". */
-  .hero-btns .btn-ghost.hero-btn-estimate{display:inline-flex;width:100%;justify-content:center}
-  .hero-btns-sub{display:none!important}
 }
 
 /* ── STICKY MOBILE CTA ── */
@@ -436,64 +240,127 @@ footer{background:var(--navy-dark);border-top:3px solid var(--orange);padding:60
   /* Push footer content above the strip — account for iPhone home indicator. */
   body{padding-bottom:calc(80px + env(safe-area-inset-bottom, 0px))}
 }
-/* Wave 28: collapse 2-col grids to 1-col on smallest phones so each
-   item gets full width and the page doesn't feel squashed. */
 @media(max-width:480px){
-  /* Hero trust row: base flex (no wrap) crammed 3 uppercase items + 2 dots
-     into 375px, word-wrapping the labels and misaligning icons/dots. Wrap as
-     whole nowrap items and drop the now-orphaned dot separators. */
-  .hero-trust{flex-wrap:wrap;gap:9px 16px}
-  .hero-trust-item{white-space:nowrap}
-  .hero-trust-dot{display:none}
-  .hiw-grid{grid-template-columns:1fr;gap:24px}
-  .areas-contact{grid-template-columns:1fr;gap:14px}
-
-  /* Trust bar: 4-up flex was wrapping to 2x2 at ~140px each, forcing
-     "Goshen, / OH — / your / neighbor" word-stacking. Stack one-per-row. */
-  .trust-bar-inner{flex-direction:column;padding:0 16px}
-  .trust-item{flex:0 0 auto;width:100%;justify-content:flex-start;padding:14px 4px;gap:12px}
-  .trust-item:not(:last-child){border-bottom:1px solid rgba(255,255,255,.08)}
-
-  /* Compare table: 1fr/auto/1fr grid was leaking desktop pixel widths to
-     mobile (~148/42/134), forcing every cell to vertical word-stack.
-     Collapse to a single column; hide the "vs" dividers; rely on the
-     existing them/us background contrast to pair rows visually. */
-  .compare-table{grid-template-columns:1fr}
-  .compare-divider-hdr,.compare-cell.divider{display:none}
-  .compare-col-header{padding:14px 16px;font-size:1rem;text-align:center}
-  .compare-cell{padding:12px 16px;font-size:.85rem;line-height:1.45}
-
-  /* Reviews rating header: 3-child flex (stars / score / CTA) at nowrap
-     was crushing "5.0 / 5.0" to one-number-per-line. Stack vertically;
-     neutralize the inline margin-left:auto on the CTA. */
+  /* Reviews rating header: stack stars / score / CTA on small phones. */
   .reviews-rating{flex-direction:column;gap:16px;padding:20px 18px;align-items:center;text-align:center}
   .reviews-rating > a.btn-primary{margin-left:0!important;width:100%;justify-content:center}
+  .reviews-score{font-size:1.9rem}
 }
 
-/* ── HOMEPAGE SIDEBAR ───────────────────────────── */
-.home-sidebar{display:flex;flex-direction:column;gap:28px;}
-.hs-card{background:var(--off-white);border-radius:14px;padding:28px;border:1px solid var(--light-gray);}
-.hs-card h3{font-size:.9rem;font-weight:800;color:var(--navy-dark);margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em;}
-.hs-links{list-style:none;display:flex;flex-direction:column;gap:10px;}
-.hs-links li a{font-size:.85rem;color:var(--gray-sub);display:flex;align-items:center;gap:8px;transition:color .2s;text-decoration:none;}
-.hs-links li a:hover{color:var(--orange);}
-.hs-links li a::before{content:'→';color:var(--orange);font-weight:700;}
-.hs-cta{background:var(--navy-dark);color:white;border-radius:14px;padding:28px;text-align:center;}
-.hs-cta h3{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;margin-bottom:10px;color:white;letter-spacing:.03em;}
-.hs-cta p{font-size:.83rem;color:rgba(255,255,255,.75);line-height:1.6;margin-bottom:20px;}
-.hs-btn{display:block;background:#BD5728;color:white;padding:13px 20px;border-radius:8px;font-weight:800;font-size:.88rem;text-decoration:none;margin-bottom:10px;transition:background .2s;}
-.hs-btn:hover{background:#A14A22;}
-.hs-phone{display:block;background:transparent;border:1px solid rgba(255,255,255,.3);color:rgba(255,255,255,.8);font-size:.83rem;text-decoration:none;padding:10px 20px;border-radius:8px;transition:all .2s;}
-.hs-phone:hover{border-color:var(--orange);color:white;}
-.hs-trust{display:flex;flex-direction:column;gap:10px;}
-.hs-trust-item{display:flex;align-items:flex-start;gap:10px;font-size:.83rem;color:var(--gray-sub);line-height:1.5;}
-.hs-trust-item span.icon{font-size:1rem;flex-shrink:0;margin-top:1px;}
-.hs-trust-item strong{color:var(--navy-dark);display:block;}
-.hs-blog-item{padding:10px 0;border-bottom:1px solid var(--light-gray);}
-.hs-blog-item:last-child{border-bottom:none;padding-bottom:0;}
-.hs-blog-item .tag{font-size:.68rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#A14A22;margin-bottom:4px;}
-.hs-blog-item a{font-size:.84rem;font-weight:600;color:var(--navy-dark);text-decoration:none;line-height:1.4;display:block;}
-.hs-blog-item a:hover{color:var(--orange);}
+/* ── HOME REBUILD (2026-10-05) — phone first; one primary action (Book) ──
+   Graded spacing scale; radii 8px / 100px only (marketing contract). */
+:root{--s1:8px;--s2:12px;--s3:16px;--s4:24px;--s5:32px;--s6:48px;--s7:72px;--s8:96px;--tap:48px}
+/* section titles: one size on every home section (nbd-mobile.css clamps h2 to 25.6px on phones) */
+main#main .sec-title{font-size:clamp(2rem,7.5vw,3rem)!important;line-height:1.02!important}
+.hx-wrap{max-width:1200px;margin:0 auto;padding:0 var(--s3)}
+.hx-btn{display:flex;align-items:center;justify-content:center;min-height:56px;padding:0 var(--s4);border-radius:8px;background:var(--orange);color:var(--white);font-family:'Montserrat',sans-serif;font-weight:800;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;box-shadow:0 8px 24px rgba(189,87,40,.35);transition:background .2s,transform .2s}
+.hx-btn:hover{background:var(--orange-dark);transform:translateY(-1px)}
+.hx-btn:focus-visible,.hx-alt a:focus-visible,.hj-card:focus-visible,.hj-more:focus-visible,.hj-strip:focus-visible{outline:3px solid var(--orange-light);outline-offset:3px}
+.hx-alt{margin:var(--s2) 0 0;text-align:center;font-size:.95rem!important;color:rgba(255,255,255,.88)}
+.hx-alt a{display:inline-block;padding:12px 4px;color:var(--white);font-weight:700;text-decoration:underline;text-underline-offset:4px}
+
+/* HERO: the real crew photo stays visible; the gradient sits only behind the words */
+section.hx-hero{position:relative;padding:0;background:var(--navy-dark);color:var(--white);overflow:hidden}
+.hx-hero picture{position:absolute;inset:0;display:block}
+.hx-hero-img{width:100%;height:100%;object-fit:cover;object-position:center 35%;display:block}
+.hx-hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(18,34,61,.1) 0%,rgba(18,34,61,.3) 34%,rgba(18,34,61,.92) 60%,var(--navy-dark) 100%)}
+.hx-hero .hx-wrap{position:relative;z-index:1;padding-top:236px;padding-bottom:var(--s5)}
+.hx-cap{position:absolute;top:var(--s3);left:var(--s3);z-index:1;margin:0;font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--white);background:rgba(18,34,61,.78);padding:6px 12px;border-radius:100px}
+.hx-cap b{color:var(--orange-light)}
+.hx-hero h1{font-family:'Bebas Neue',sans-serif;font-weight:400;font-size:clamp(2.5rem,10.5vw,4.6rem);line-height:.95;letter-spacing:.01em;color:var(--white);margin:0;max-width:18ch}
+.hx-hero h1 span{color:var(--orange-light)}
+.hx-proof{list-style:none;margin:var(--s3) 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px var(--s3);font-size:.82rem;font-weight:700;color:var(--white)}
+.hx-proof li{display:inline-flex;align-items:center;gap:6px}
+.hx-proof li::before{content:"";width:6px;height:6px;border-radius:100px;background:var(--orange)}
+.hx-cta{margin-top:var(--s4)}
+
+/* JOBS: real roofs with real prices — a swipe strip on phones, a row of four on desktop */
+.home-jobs{background:var(--off-white);padding:var(--s6) 0 var(--s4)}
+.home-jobs .eyebrow,.home-how .eyebrow,.home-book .eyebrow{margin-bottom:6px}
+.home-jobs .eyebrow{color:var(--orange-dark)}
+.home-jobs .sec-title{margin:0}
+.hj-strip{display:grid;grid-auto-flow:column;grid-auto-columns:80%;gap:var(--s3);overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;margin:var(--s4) calc(-1*var(--s3)) 0;padding:0 var(--s3) var(--s2);scroll-padding:0 var(--s3);scrollbar-width:none}
+.hj-strip::-webkit-scrollbar{display:none}
+.hj-card{scroll-snap-align:start;display:flex;flex-direction:column;background:var(--white);border:1px solid var(--light-gray);border-radius:8px;overflow:hidden;color:var(--navy-dark);text-decoration:none;transition:box-shadow .2s,transform .2s}
+.hj-card:hover{box-shadow:0 10px 28px rgba(18,34,61,.12);transform:translateY(-2px)}
+.hj-card picture{display:block}
+.hj-img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover}
+.hj-body{display:flex;flex-direction:column;gap:4px;padding:var(--s2) var(--s3) var(--s3)}
+.hj-body b{font-size:.95rem;line-height:1.3}
+.hj-meta{font-size:.8rem;color:var(--gray)}
+.hj-price{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:.03em;color:var(--orange-dark);font-variant-numeric:tabular-nums}
+.hj-note{font-size:.74rem;font-style:italic;color:var(--gray)}
+.hj-more{display:inline-flex;align-items:center;min-height:var(--tap);margin-top:var(--s1);font-weight:700;font-size:.92rem;color:var(--orange-dark);text-decoration:none}
+.hj-more:hover{text-decoration:underline}
+
+/* HOW: what happens when you book — a timeline, not icon cards */
+section.home-how{background:var(--navy-dark);color:var(--white);padding:var(--s6) 0}
+.home-how .eyebrow{color:var(--orange-light)}
+.home-how .sec-title{color:var(--white);margin:0}
+.hh-sub{margin:var(--s2) 0 0;color:rgba(255,255,255,.85)!important;max-width:34rem}
+.hh-steps{list-style:none;margin:var(--s5) 0 0;padding:0 0 0 var(--s4);border-left:2px solid rgba(221,135,95,.5);display:grid;gap:var(--s4);counter-reset:hh}
+.hh-steps li{position:relative;counter-increment:hh}
+.hh-steps li::before{content:counter(hh);position:absolute;left:calc(-1*var(--s4) - 15px);top:-2px;width:28px;height:28px;border-radius:100px;background:var(--orange);color:var(--white);display:grid;place-items:center;font-weight:800;font-size:.8rem}
+.hh-steps b{font-size:1.02rem}
+.hh-steps p{margin:4px 0 0;color:rgba(255,255,255,.85)!important;font-size:.92rem!important;line-height:1.55!important}
+.hh-badges{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s4);margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid rgba(255,255,255,.14)}
+.hh-badge{display:flex;align-items:center;gap:var(--s2);min-height:var(--tap);color:rgba(255,255,255,.88);text-decoration:none;font-size:.8rem;line-height:1.35}
+.hh-badge img{height:44px;width:auto;background:var(--white);border-radius:8px;padding:3px;flex-shrink:0}
+.hh-badge b{display:block;color:var(--white)}
+.hh-badge:hover b{color:var(--orange-light)}
+.hh-compare{display:inline-flex;align-items:center;min-height:var(--tap);margin-top:var(--s3);font-weight:700;color:var(--orange-light);text-decoration:none}
+.hh-compare:hover{text-decoration:underline}
+.hh-services{display:flex;flex-wrap:wrap;gap:var(--s1);margin-top:var(--s4)}
+.hh-services a{display:inline-flex;align-items:center;min-height:44px;padding:0 var(--s3);border:1px solid rgba(255,255,255,.3);border-radius:100px;color:var(--white);font-size:.85rem;font-weight:600;text-decoration:none}
+.hh-services a:hover{border-color:var(--orange-light);color:var(--orange-light)}
+.hh-about{color:var(--orange-light);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+
+/* BOOK: the last screen repeats the one action, then the form for people who'd rather type */
+section.home-book{background:var(--navy);padding:var(--s6) 0;border-top:3px solid var(--orange)}
+.home-book .eyebrow{color:var(--orange-light)}
+.home-book .sec-title{color:var(--white);margin:0}
+.hb-lede{margin:var(--s2) 0 var(--s4);color:rgba(255,255,255,.85)!important}
+.hb-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s5)}
+.hb-grid>*{min-width:0}
+.home-book .contact-form-card{padding:28px 20px}
+
+/* motion: CSS only, and only for people who haven't asked for less */
+@media (prefers-reduced-motion:no-preference){
+  .hx-hero h1,.hx-proof,.hx-cta{animation:fadeUp .6s ease both}
+  .hx-proof{animation-delay:.08s}.hx-cta{animation-delay:.16s}
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+@media (min-width:768px){
+  .hx-wrap{padding:0 40px}
+  .hx-cta{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap}
+  .hx-cta .hx-btn{min-height:60px;padding:0 var(--s5)}
+  .hx-alt{text-align:left;margin:0}
+  .hj-strip{grid-auto-flow:row;grid-template-columns:repeat(2,1fr);overflow:visible;margin:var(--s4) 0 0;padding:0}
+  .home-jobs{padding:var(--s7) 0 var(--s5)}
+  section.home-how,section.home-book{padding:var(--s7) 0}
+}
+@media (min-width:1025px){
+  section.hx-hero{min-height:640px;display:flex;align-items:center}
+  section.hx-hero .hx-wrap{width:100%;padding-top:var(--s8);padding-bottom:var(--s8)}
+  .hx-hero-img{object-position:center}
+  .hx-hero::after{background:linear-gradient(90deg,rgba(18,34,61,.94) 0%,rgba(18,34,61,.8) 38%,rgba(18,34,61,.1) 72%)}
+  .hx-cap{top:auto;bottom:var(--s4);left:auto;right:40px}
+  .hx-hero h1{font-size:clamp(3.4rem,5.4vw,5rem)}
+  .hj-strip{grid-template-columns:repeat(4,1fr)}
+  .hh-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:var(--s7);align-items:start}
+  .hh-grid .hh-steps{margin-top:0}
+  .hb-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--s7);align-items:start}
+}
+
+/* STICKY PHONE BAR: Book is the filled button; Call / Text are the quick ones */
+@media(max-width:768px){
+  .ann-bar{display:none!important}
+  .mobile-cta-strip{padding:10px 16px calc(10px + env(safe-area-inset-bottom, 0px));gap:8px}
+  .mobile-cta-strip a.mobile-cta-book{flex:1;min-height:var(--tap);background:var(--orange);color:var(--white);border:none}
+  .mobile-cta-strip a.mobile-cta-call,.mobile-cta-strip a.mobile-cta-text{flex:0 0 60px;flex-direction:column;gap:2px;min-height:var(--tap);padding:6px 4px;font-size:.62rem;background:transparent;border:2px solid rgba(255,255,255,.35)}
+}
+
 @media print {
   .ann-bar, nav, .mobile-nav, .cta-float, .footer-cta, footer .social { display: none !important; }
   body { background: #fff !important; color: #000 !important; }
@@ -591,21 +458,13 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
   <script src="/assets/js/nav-faq.js" defer></script>
-<style>
-/* CSP-safe replacements for former inline hover handlers (script-src-attr 'none' blocks onmouseover=) */
-.hero-link-secondary:hover{color:var(--orange)!important}
-.ql-pledge:hover{background:#ffe8d6!important}
-.ql-tamko:hover{background:#fff4ee!important;border-color:#bd5728!important}
-.ql-guarantee:hover{background:#A14A22!important;color:#fff!important}
-.partner-logo-img:hover{filter:none!important;opacity:1!important}
-</style>
 <style>/* iOS-zoom fix (conversion audit): 16px inputs prevent Safari auto-zoom on focus */@media(max-width:600px){input,select,textarea{font-size:16px!important}}</style>
 <style>.nbd-skip{position:absolute;left:-9999px;top:0;z-index:100000;background:#BD5728;color:#fff;padding:10px 16px;font-weight:700;text-decoration:none;border-radius:0 0 6px 0}.nbd-skip:focus{left:0}</style>
 <link rel="stylesheet" href="/assets/css/nbd-nav-logo-mobile.css">
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -621,7 +480,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -678,6 +537,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -700,6 +560,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -737,8 +598,8 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -839,7 +700,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     <li><a href="/blog">Blog</a></li>
     <li><a href="/estimate" class="nav-instant">Instant Estimate
       <svg class="nav-ico" viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><path d="M13 2 L4 14 L11 14 L10 22 L20 10 L13 10 Z"/></svg></a></li>
-    <li><a href="/#contact" class="nav-cta">Book Inspection &rarr;</a></li>
+    <li><a href="/inspect" class="nav-cta">Book Inspection &rarr;</a></li>
   </ul>
   <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="mobileNav">
     <span></span><span></span><span></span>
@@ -887,495 +748,107 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   <a href="/storm-check" style="color:#dd875f">Is It Worth a Claim?</a>
   <a href="/inspect" style="color:#dd875f">Free Inspection</a>
   <a href="/free-tools" style="color:#dd875f">All Free Tools</a>
-  <a href="/#contact" style="color:#bd5728;font-weight:800;">Book Inspection &rarr;</a>
+  <a href="/inspect" style="color:#bd5728;font-weight:800;">Book Inspection &rarr;</a>
 </div>
 <main id="main">
-<!-- HERO -->
-<section class="hero" id="home">
-  <div class="hero-pattern"></div>
-  <div class="hero-bg"></div>
-  <div class="hero-content">
-    <div class="hero-left">
-      <div class="hero-badge">Owner-Operated · I'm on every roof</div>
-      <h1><span class="hero-h1-kicker">Cincinnati &amp; Northern KY Roofing</span>No Big Deal.<br><span>Seriously — it's in the name.</span></h1>
-      <div class="hero-tagline">One call. One guy. One job done right.</div>
-      <p>I'm Joe Deal. I pick up the phone.<span class="trim-mobile"> I walk your roof. I put my name on every install.</span> Roofing, siding, gutters, storm damage &mdash; start to finish, no call centers, no handoffs, no BS.<span class="trim-mobile"> That's it. That's the pitch.</span></p>
-      <p class="trim-mobile" style="color:rgba(255,255,255,.55);font-size:.86rem;font-style:italic;margin-top:-14px;margin-bottom:28px;max-width:500px">Seven years on Cincinnati roofs under other companies &mdash; now finally under my own name.</p>
-      <div class="hero-btns">
-        <a href="tel:+18594207382" class="btn-primary"><svg class="ico ico-fill" viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.36 2.3.56 3.6.56.55 0 1 .45 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.56 3.6a1 1 0 0 1-.25 1z"/></svg>Call Joe — (859) 420-7382</a>
-        <a href="/estimate" class="btn-ghost hero-btn-estimate"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg>Get an instant estimate</a>
-      </div>
-      <a href="/book" class="hero-link-secondary" style="display:inline-flex;align-items:center;gap:6px;color:rgba(255,255,255,.82);font-size:.92rem;text-decoration:underline;text-underline-offset:4px;margin-top:14px;transition:color .2s ease"><svg class="ico" viewBox="0 0 24 24" style="width:14px;height:14px"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>Or pick a time on my calendar →</a>
-      <div class="hero-trust">
-        <div class="hero-trust-item"><svg class="ico" viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>Fully Insured</div>
-        <div class="hero-trust-dot"></div>
-        <div class="hero-trust-item"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M8.5 13 L7 22 L12 19 L17 22 L15.5 13"/></svg>GAF Certified</div>
-        <div class="hero-trust-dot"></div>
-        <div class="hero-trust-item"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M8.5 13 L7 22 L12 19 L17 22 L15.5 13"/></svg>TAMKO Pro Gold</div>
-        <div class="hero-trust-dot"></div>
-        <div class="hero-trust-item"><svg class="ico ico-fill" viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9"/></svg>5-Star Rated</div>
-        <div class="hero-trust-dot"></div>
-        <div class="hero-trust-item"><svg class="ico" viewBox="0 0 24 24"><path d="M3 11 L12 3 L21 11"/><path d="M5 10 V20 H19 V10"/></svg>Locally Owned</div>
-      </div>
+<!-- HERO — one sentence, one proof line, one action (2026-10-05 rebuild).
+     The crew photo is a real <img> (the LCP element, preloaded in <head>) so
+     the browser can size it before paint; the gradient sits only where the
+     words are. The old Barlow Condensed kicker (a face this page never
+     loaded, so it rendered as Arial) is gone with the rest of the stack. -->
+<section class="hx-hero" id="home">
+  <picture><source media="(max-width:600px)" srcset="/assets/images/drone-hero-crew-800.webp" type="image/webp"><source srcset="/assets/images/drone-hero-crew.webp" type="image/webp"><img class="hx-hero-img" src="/assets/images/drone-hero-crew.jpg" alt="Joe's crew mid tear-off on a brick ranch, drone view" width="1600" height="1200" fetchpriority="high" decoding="async"></picture>
+  <p class="hx-cap">Our crew &middot; <b>real job</b>, not stock</p>
+  <div class="hx-wrap">
+    <h1>The Cincinnati &amp; N. KY roofer <span>who answers his own phone.</span></h1>
+    <ul class="hx-proof" aria-label="Credentials">
+      <li>GAF Certified&trade;</li>
+      <li>TAMKO Pro Gold</li>
+      <li><span><span data-nbd-gr-rating>5.0</span> on Google</span></li>
+      <li>Cincinnati &amp; N. KY</li>
+    </ul>
+    <div class="hx-cta">
+      <a class="hx-btn" href="/inspect">Book a free inspection</a>
+      <p class="hx-alt">Rather talk? <a href="tel:+18594207382">Call or text Joe &mdash; (859) 420-7382</a></p>
     </div>
-    <div class="hero-right">
-      <div class="warranty-card">
-        <div class="wc-ribbon">The NBD Guarantee</div>
-        <div class="wc-title">I Put My Name On It</div>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;">
-          <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:#f8f9fb;border:1px solid #e5e7eb;border-radius:8px;">
-            <img src="/assets/gaf/gaf-certified-badge-120.png" alt="GAF Certified™ Residential Roofing Contractor badge" width="56" height="56" loading="lazy" style="display:block;flex-shrink:0;">
-            <div style="line-height:1.25;">
-              <div style="font-size:.78rem;font-weight:800;color:#1a3057;letter-spacing:.02em;">GAF Certified™ Contractor</div>
-              <div style="font-size:.66rem;color:#646c7a;margin-top:2px;">System Plus Limited Warranty available · <a href="https://www.gaf.com/en-us/roofing-contractors/residential" target="_blank" rel="noopener" style="color:#A14A22;font-weight:700;text-decoration:none;">Verify on GAF.com →</a></div>
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:12px;padding:8px 12px;background:#f8f9fb;border:1px solid #e5e7eb;border-radius:8px;">
-            <picture class="nbd-pic"><source type="image/webp" srcset="/assets/tamko/tamko-pro-gold-badge-120.webp 1x"><img src="/assets/tamko/tamko-pro-gold-badge-120.png" alt="TAMKO Pro Gold™ Certified Roofing Contractor badge" width="51" height="56" loading="lazy" style="display:block;flex-shrink:0;height:56px;width:auto;"></picture>
-            <div style="line-height:1.25;">
-              <div style="font-size:.78rem;font-weight:800;color:#1a3057;letter-spacing:.02em;">TAMKO Pro Gold™ Certified</div>
-              <div style="font-size:.66rem;color:#646c7a;margin-top:2px;">ProShield® Enhanced Warranty available · <a href="https://www.tamko.com/locate-a-contractor" target="_blank" rel="noopener" style="color:#A14A22;font-weight:700;text-decoration:none;">Verify on TAMKO.com →</a></div>
-            </div>
-          </div>
-        </div>
-        <a href="/the-pledge" style="display:flex;align-items:center;gap:10px;margin:14px 0 10px;padding:10px 12px;background:#fff4ee;border:1px solid #f7d8c2;border-left:3px solid #bd5728;border-radius:6px;text-decoration:none;transition:all .15s" class="ql-pledge">
-          <div style="flex-shrink:0;color:#bd5728"><svg class="ico" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M12 2 L4 6 V12 C4 17 8 21 12 22 C16 21 20 17 20 12 V6 Z"/></svg></div>
-          <div style="flex:1;line-height:1.35">
-            <div style="font-size:.7rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#A14A22;">On every NBD roof</div>
-            <div style="font-size:.78rem;color:#1a3057;font-weight:600">The Pledge: <span style="font-weight:400;color:#4a4a4a">you call about anything I worked on, I come look. Free. Forever.</span> <strong style="color:#A14A22;font-weight:800">Read &rarr;</strong></div>
-          </div>
-        </a>
-        <div style="display:flex;flex-direction:column;gap:8px;margin:8px 0 16px;">
-          <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 12px;background:#f8f9fb;border-radius:6px;border-left:3px solid #c8a87a;">
-            <div style="flex-shrink:0;margin-top:1px;color:#1a3057;"><svg class="ico" viewBox="0 0 24 24" style="width:22px;height:22px"><path d="M3 11 L12 3 L21 11"/><path d="M5 10 V20 H19 V10"/></svg></div>
-            <div>
-              <div style="font-weight:700;font-size:.82rem;color:#1a3057;margin-bottom:2px;">Standard — GAF Timberline NS <span style="font-weight:400;color:#646c7a;">or TAMKO Heritage</span></div>
-              <div style="font-size:.72rem;color:#646c7a;line-height:1.4;">Architectural shingles · Manufacturer warranty · Roofivent Pipe Flashing</div>
-            </div>
-          </div>
-          <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 12px;background:#f8f9fb;border-radius:6px;border-left:3px solid #bd5728;">
-            <div style="flex-shrink:0;margin-top:1px;color:#bd5728;"><svg class="ico" viewBox="0 0 24 24" style="width:22px;height:22px"><path d="M12 2 L4 6 V12 C4 17 8 21 12 22 C16 21 20 17 20 12 V6 Z"/></svg></div>
-            <div>
-              <div style="font-weight:700;font-size:.82rem;color:#1a3057;margin-bottom:2px;">Preferred — GAF Timberline HDZ <span style="font-weight:400;color:#646c7a;">or TAMKO Titan XT</span> <span style="font-size:.6rem;background:#BD5728;color:#fff;padding:1px 5px;border-radius:3px;font-weight:800;letter-spacing:.04em;vertical-align:1px;">MOST CHOSEN</span></div>
-              <div style="font-size:.72rem;color:#646c7a;line-height:1.4;">Full system install · GAF Pivot Boot · Roofivent iVent ECO · transferable warranty</div>
-            </div>
-          </div>
-          <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 12px;background:#fff4ee;border-radius:6px;border-left:3px solid #bd5728;">
-            <div style="flex-shrink:0;margin-top:1px;color:#bd5728;"><svg class="ico ico-fill" viewBox="0 0 24 24" style="width:22px;height:22px"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9"/></svg></div>
-            <div>
-              <div style="font-weight:700;font-size:.82rem;color:#1a3057;margin-bottom:2px;">Elite — UHDZ + The NBD Build bundle <span style="font-weight:400;color:#646c7a;">or TAMKO StormFighter Flex / HailGuard</span></div>
-              <div style="font-size:.72rem;color:#646c7a;line-height:1.4;">LumaNail™ + Pivot Boot + Roofivent · proactive annual outreach (I call you) · signed certificate</div>
-            </div>
-          </div>
-        </div>
-        <a href="/services/tamko-impact-resistant-shingles" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:9px 12px;background:#fbfaf8;border:1px dashed #d8b48a;border-radius:6px;text-decoration:none;transition:all .15s" class="ql-tamko">
-          <div style="flex-shrink:0;color:#a14a22"><svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M13 2 L4 14 H11 L11 22 L20 10 H13 Z"/></svg></div>
-          <div style="flex:1;line-height:1.35">
-            <div style="font-size:.72rem;color:#1a3057;font-weight:600">Live in hail country? Ask about <strong style="color:#A14A22;font-weight:800">TAMKO's impact-resistant shingles</strong> — impact-rated, up to a hail warranty. <strong style="color:#A14A22;font-weight:800">See it &rarr;</strong></div>
-          </div>
-        </a>
-        <a href="/services/the-nbd-guarantee" style="display:flex;align-items:center;justify-content:center;gap:8px;background:#fff4ee;color:#A14A22;text-decoration:none;font-weight:800;font-size:.78rem;letter-spacing:.04em;padding:11px;border-radius:6px;margin-bottom:10px;border:1px solid #f7d8c2;transition:all .15s;" class="ql-guarantee">
-          Compare All Three Tiers →
-        </a>
-        <a href="tel:+18594207382" class="wc-phone">
-          <div class="wc-phone-icon"><svg class="ico ico-fill" viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.36 2.3.56 3.6.56.55 0 1 .45 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.56 3.6a1 1 0 0 1-.25 1z"/></svg></div>
-          <div class="wc-phone-text">
-            <strong>(859) 420-7382</strong>
-            <span>Call or text Joe directly</span>
-          </div>
-        </a>
+  </div>
+</section>
+
+<!-- RECENT JOBS — generated from assets/data/projects.json (HOME_PICKS in
+     scripts/build-projects.mjs). Edit the data or the picks, then run
+     node scripts/build-projects.mjs. -->
+<!-- OURWORK-HOME-START -->
+<!-- generated by build-projects.mjs from assets/data/projects.json — do not hand-edit; HOME_PICKS (4) of 49 live project(s) -->
+<section class="home-jobs" id="recent-jobs" aria-labelledby="home-jobs-h">
+  <div class="hx-wrap">
+    <p class="eyebrow">Recent roofs · real prices</p>
+    <h2 class="sec-title" id="home-jobs-h">Jobs near you, <span>with the real price.</span></h2>
+    <div class="hj-strip" role="region" aria-label="Recent jobs, swipe for more" tabindex="0">
+      <a class="hj-card" href="/our-work/milford-oh-full-tearoff-replacement-2026">
+        <picture><source srcset="/assets/images/projects/milford-oh-full-tearoff-replacement-2026-1.avif" type="image/avif"><source srcset="/assets/images/projects/milford-oh-full-tearoff-replacement-2026-1.webp" type="image/webp"><img src="/assets/images/projects/milford-oh-full-tearoff-replacement-2026-1.jpg" alt="Drone view at eave height of the brick ranch before work, its old dark three-tab roof weathered and streaked" class="hj-img" loading="lazy" decoding="async" width="800" height="600"></picture>
+        <span class="hj-body"><b>Forty-Five Squares, Two Days</b><span class="hj-meta">Milford, OH · 2026</span><span class="hj-price">$24,500–$25,500</span></span>
+      </a>
+      <a class="hj-card" href="/our-work/norwood-oh-victorian-three-system-2026">
+        <picture><source srcset="/assets/images/projects/norwood-oh-victorian-three-system-2026-1.webp" type="image/webp"><img src="/assets/images/projects/norwood-oh-victorian-three-system-2026-1.jpg" alt="Three-story white Victorian with a steep mansard, dormers and a flat upper roof, shot from the front" class="hj-img" loading="lazy" decoding="async" width="800" height="600"></picture>
+        <span class="hj-body"><b>Three Roof Systems, One Victorian</b><span class="hj-meta">Norwood, OH · 2026</span><span class="hj-price">$15,000–$16,000</span></span>
+      </a>
+      <a class="hj-card" href="/our-work/newtown-oh-steep-pitch-replacement-2026">
+        <picture><source srcset="/assets/images/projects/newtown-oh-steep-pitch-replacement-2026-1.webp" type="image/webp"><img src="/assets/images/projects/newtown-oh-steep-pitch-replacement-2026-1.jpg" alt="Top-down view of the original roof: weathered, streaked shingles across all seven facets with the masonry chimney mid-slope" class="hj-img" loading="lazy" decoding="async" width="800" height="600"></picture>
+        <span class="hj-body"><b>Ten-Twelve Pitch, Plank Decking</b><span class="hj-meta">Newtown, OH · 2026</span><span class="hj-price">$9,500–$10,500</span></span>
+      </a>
+      <a class="hj-card" href="/our-work/cincinnati-oh-full-tearoff-reroof-2026">
+        <picture><source srcset="/assets/images/projects/cincinnati-oh-full-tearoff-reroof-2026-1.avif" type="image/avif"><source srcset="/assets/images/projects/cincinnati-oh-full-tearoff-reroof-2026-1.webp" type="image/webp"><img src="/assets/images/projects/cincinnati-oh-full-tearoff-reroof-2026-1.jpg" alt="Drone view of the crew stripping two layers of shingles down to plank decking on a two-story hip roof" class="hj-img" loading="lazy" decoding="async" width="800" height="600"></picture>
+        <span class="hj-body"><b>Three Layers Off — Full Tear-Off Re-Roof</b><span class="hj-meta">Cincinnati, OH · 2026</span><span class="hj-price">$22,500–$23,500</span></span>
+      </a>
+    </div>
+    <a class="hj-more" href="/our-work">See all 49 jobs &rarr;</a>
+  </div>
+</section>
+<!-- OURWORK-HOME-END -->
+
+<!-- WHAT HAPPENS WHEN YOU BOOK — #process and #about are inbound anchors
+     from ~45 pages' nav/footer, so both ids live here. -->
+<section class="home-how" id="process">
+  <div class="hx-wrap hh-grid">
+    <div id="about">
+      <p class="eyebrow">What happens when you book</p>
+      <h2 class="sec-title">Free, Joe on the roof, <span>no pitch.</span></h2>
+      <p class="hh-sub">I'm Joe Deal &mdash; 7+ years on Cincinnati roofs, now under my own name. No call centers, no handoffs. <a href="/about" class="hh-about">More about Joe &rarr;</a></p>
+    </div>
+    <div>
+      <ol class="hh-steps">
+        <li><b>You ask for an inspection</b><p>Send me the address online, or call or text &mdash; I answer myself. Not a call center, not a scheduler.</p></li>
+        <li><b>I walk the roof</b><p>I come out personally, get on the roof, check everything, and give you a straight, honest assessment &mdash; not a sales pitch.</p></li>
+        <li><b>You decide &mdash; no pressure</b><p>A fair quote in writing with your options explained, and the damage documented if insurance applies. No pressure calls, no expiring discounts.</p></li>
+      </ol>
+      <div class="hh-badges">
+        <a class="hh-badge" href="https://www.gaf.com/en-us/roofing-contractors/residential" target="_blank" rel="noopener"><img src="/assets/gaf/gaf-certified-badge-120.png" alt="GAF Certified&trade; Residential Roofing Contractor badge" width="44" height="44" loading="lazy"><span><b>GAF Certified&trade;</b>System Plus warranty available &middot; verify on GAF.com</span></a>
+        <a class="hh-badge" href="https://www.tamko.com/locate-a-contractor" target="_blank" rel="noopener"><img src="/assets/tamko/tamko-pro-gold-badge-120.png" alt="TAMKO Pro Gold&trade; Certified Roofing Contractor badge" width="40" height="44" loading="lazy"><span><b>TAMKO Pro Gold&trade;</b>ProShield&reg; warranty available &middot; verify on TAMKO.com</span></a>
+      </div>
+      <a class="hh-compare" href="/services/roof-replacement">Compare our three roof systems &rarr;</a>
+      <!-- #services: the nav's Services trigger (/#services) on ~280 pages lands here -->
+      <div class="hh-services" id="services" role="navigation" aria-label="What I do">
+        <a href="/services/roof-replacement">Roof replacement</a>
+        <a href="/services/roof-repair">Roof repair</a>
+        <a href="/services/storm-damage">Storm &amp; insurance</a>
+        <a href="/services/siding-replacement">Siding</a>
+        <a href="/services/gutter-replacement">Gutters</a>
+        <a href="/services/commercial-roofing">Commercial</a>
       </div>
     </div>
   </div>
 </section>
 
-<!-- TRUST BAR (canonical 4-item set) -->
-<div class="trust-bar">
-  <div class="trust-bar-inner">
-    <div class="trust-item">
-      <div class="trust-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 L4 6 V12 C4 17 8 21 12 22 C16 21 20 17 20 12 V6 Z"/></svg></div>
-      <div class="trust-text"><strong>Fully Insured</strong> <span>Every job, fully covered</span></div>
-    </div>
-    <a href="https://www.gaf.com/en-us/roofing-contractors/residential" target="_blank" rel="noopener" class="trust-item">
-      <div class="trust-icon"><svg class="ico" viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg></div>
-      <div class="trust-text"><strong>GAF &amp; TAMKO Certified</strong> <span>GAF Certified&trade; &middot; TAMKO Pro Gold&trade;</span></div>
-    </a>
-    <div class="trust-item">
-      <div class="trust-icon"><svg class="ico" viewBox="0 0 24 24"><path d="M3 11 L12 3 L21 11"/><path d="M5 10 V20 H19 V10"/></svg></div>
-      <div class="trust-text"><strong>Locally Owned</strong> <span>Greater Cincinnati</span></div>
-    </div>
-    <a href="/review" class="trust-item">
-      <div class="trust-icon"><svg class="ico ico-fill" viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9"/></svg></div>
-      <div class="trust-text"><strong>5-Star Rated</strong> <span>Verified Google reviews</span></div>
-    </a>
-  </div>
-</div>
-
-<!-- THE NBD PREMIUM SYSTEM (NEW FEATURE BLOCK) -->
-<style>
-.nbd-system{background:linear-gradient(135deg,#12223d 0%,#1a3057 100%);color:#fff;padding:72px 5% 64px;position:relative;overflow:hidden}
-.nbd-system::before{content:'';position:absolute;top:-100px;right:-100px;width:380px;height:380px;background:radial-gradient(circle,rgba(189,87,40,.15),transparent 70%);pointer-events:none}
-.nbd-system-inner{max-width:1200px;margin:0 auto;position:relative;z-index:1}
-.nbd-system-head{text-align:center;max-width:780px;margin:0 auto 44px}
-.nbd-system-eyebrow{display:inline-flex;align-items:center;gap:8px;color:#dd875f;font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
-.nbd-system-eyebrow .dot{width:6px;height:6px;background:#bd5728;border-radius:50%;box-shadow:0 0 10px rgba(189,87,40,.6)}
-.nbd-system h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(2rem,4.5vw,3.2rem);letter-spacing:1px;line-height:1.05;margin-bottom:14px;color:#fff}
-.nbd-system h2 span{color:#BD5728}
-.nbd-system-sub{font-size:1.02rem;color:rgba(255,255,255,.78);line-height:1.65}
-.nbd-system-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:24px;align-items:stretch}
-.nbd-tier-card{background:rgba(255,255,255,.05);border:1px solid rgba(189,87,40,.4);border-left:6px solid #bd5728;border-radius:14px;padding:32px 36px;display:flex;flex-direction:column;justify-content:space-between;text-decoration:none;color:#fff;transition:all .2s}
-.nbd-tier-card:hover{background:rgba(189,87,40,.08);transform:translateY(-2px);box-shadow:0 16px 48px rgba(0,0,0,.3)}
-.nbd-tier-card .label{font-size:.7rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#dd875f;margin-bottom:10px}
-.nbd-tier-card h3{font-family:'Bebas Neue',sans-serif;font-size:clamp(1.6rem,2.5vw,2.2rem);letter-spacing:.04em;line-height:1.1;margin-bottom:14px;color:#fff}
-.nbd-tier-card .tier-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-.nbd-tier-pill{background:rgba(255,255,255,.1);color:#fff;font-size:.72rem;font-weight:700;letter-spacing:.06em;padding:5px 11px;border-radius:100px;border:1px solid rgba(255,255,255,.2)}
-.nbd-tier-pill.featured{background:#BD5728;border-color:#BD5728}
-.nbd-tier-card p{font-size:.92rem;line-height:1.6;color:rgba(255,255,255,.82);margin-bottom:18px}
-.nbd-tier-cta{display:inline-flex;align-items:center;gap:6px;color:#dd875f;font-weight:800;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase}
-.nbd-components-col{display:flex;flex-direction:column;gap:12px}
-.nbd-component{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:18px 20px;text-decoration:none;color:#fff;transition:all .2s;display:flex;align-items:flex-start;gap:14px;flex:1}
-.nbd-component:hover{background:rgba(189,87,40,.08);border-color:rgba(189,87,40,.4);transform:translateX(2px)}
-.nbd-comp-num{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:#dd875f;line-height:1;flex-shrink:0;width:32px}
-.nbd-comp-body h4{font-family:'Bebas Neue',sans-serif;font-size:1.05rem;color:#fff;letter-spacing:.04em;margin-bottom:4px;display:flex;align-items:center;gap:8px}
-.nbd-comp-body h4 .arrow{color:#dd875f;font-size:.9rem;opacity:1;transition:transform .2s}
-.nbd-component:hover .arrow{transform:translateX(3px);opacity:1}
-.nbd-comp-body p{font-size:.78rem;color:rgba(255,255,255,.7);line-height:1.5;margin:0}
-@media(max-width:900px){.nbd-system-grid{grid-template-columns:1fr;gap:16px}.nbd-tier-card{padding:24px 22px}}
-</style>
-<section class="nbd-system" id="nbd-system">
-  <div class="nbd-system-inner">
-    <div class="nbd-system-head">
-      <div class="nbd-system-eyebrow"><span class="dot"></span> The NBD Premium System</div>
-      <h2>Three honest tiers. <span>Real upgrades on every roof.</span></h2>
-      <p class="nbd-system-sub">Most contractors quote you one number for "a new roof." NBD gives you three honest tiers — Standard, Preferred, Elite — each with real premium components engineered to outlast the failures that kill normal roofs. Pick what fits your house.</p>
-    </div>
-    <div class="nbd-system-grid">
-
-      <a href="/services/the-nbd-guarantee" class="nbd-tier-card">
-        <div>
-          <div class="label">★ The NBD Guarantee</div>
-          <h3>Standard. Preferred. Elite. <br>Pick what fits your house.</h3>
-          <div class="tier-row">
-            <span class="nbd-tier-pill">Standard</span>
-            <span class="nbd-tier-pill featured">Preferred · Most Chosen</span>
-            <span class="nbd-tier-pill">Elite</span>
-          </div>
-          <p>Every tier includes <span style="color:#fff;font-weight:700;border-bottom:1.5px solid #bd5728">The Pledge</span> — call me about anything I worked on, I come look, free, forever. The tiers decide shingle, components, and the warranty paperwork that rides along. Plus an interactive 3-question decision tree to help you pick.</p>
-        </div>
-        <span class="nbd-tier-cta">Compare All Three Tiers →</span>
-      </a>
-
-      <div class="nbd-components-col">
-        <a href="/services/the-nbd-build" class="nbd-component" style="background:rgba(189,87,40,.1);border-color:rgba(189,87,40,.3)">
-          <div class="nbd-comp-num">★</div>
-          <div class="nbd-comp-body">
-            <h4>The NBD Build <span class="arrow">→</span></h4>
-            <p>Three premium components, three roof failure modes solved. Bundled into Elite, à-la-carte on lower tiers.</p>
-          </div>
-        </a>
-        <a href="/services/lumanail" class="nbd-component">
-          <div class="nbd-comp-num">01</div>
-          <div class="nbd-comp-body">
-            <h4>LumaNail™ Fasteners <span class="arrow">→</span></h4>
-            <p>Orange roofing nails you can actually verify. Bundled into every Elite roof.</p>
-          </div>
-        </a>
-        <a href="/services/roofivent" class="nbd-component">
-          <div class="nbd-comp-num">02</div>
-          <div class="nbd-comp-body">
-            <h4>Roofivent Ventilation <span class="arrow">→</span></h4>
-            <p>Polypropylene, lifetime warranty, replaceable gaskets. Pipe Flashing on Standard. iVent ECO on Preferred + Elite.</p>
-          </div>
-        </a>
-        <a href="/services/gaf-pivot-boot" class="nbd-component">
-          <div class="nbd-comp-num">03</div>
-          <div class="nbd-comp-body">
-            <h4>GAF Pivot Pipe Boot <span class="arrow">→</span></h4>
-            <p>All-metal, no parts to fail, 50-year warranty. Bundled into Preferred + Elite.</p>
-          </div>
-        </a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- TAMKO IMPACT-RESISTANT SHINGLES BAND -->
-<style>
-.storm-band{background:linear-gradient(135deg,#fbf7f2 0%,#f5efe6 100%);padding:64px 5%;position:relative;overflow:hidden;border-top:1px solid #ece4d8}
-.storm-band::before{content:'';position:absolute;top:-120px;left:-80px;width:340px;height:340px;background:radial-gradient(circle,rgba(189,87,40,.1),transparent 70%);pointer-events:none}
-.storm-inner{max-width:1180px;margin:0 auto;position:relative;z-index:1}
-.storm-head{max-width:760px;margin:0 auto 38px;text-align:center}
-.storm-eyebrow{display:inline-flex;align-items:center;gap:8px;color:#a14a22;font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
-.storm-eyebrow svg{width:16px;height:16px}
-.storm-band h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(1.9rem,4vw,2.9rem);letter-spacing:1px;line-height:1.05;color:#12223d;margin-bottom:12px}
-.storm-band h2 span{color:#BD5728}
-.storm-sub{font-size:1rem;color:#4a4a4a;line-height:1.65}
-.storm-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:30px}
-.storm-card{background:#fff;border:1px solid #ece4d8;border-top:3px solid #bd5728;border-radius:12px;padding:22px 18px;text-align:left;display:flex;flex-direction:column;gap:8px;box-shadow:0 4px 14px rgba(18,34,61,.05)}
-.storm-card .stage{font-size:.66rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--gray)}
-.storm-card .nm{font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:.03em;color:#12223d;line-height:1}
-.storm-card .badge{align-self:flex-start;font-size:.64rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#a14a22;background:rgba(189,87,40,.1);border:1px solid rgba(189,87,40,.25);padding:3px 8px;border-radius:100px}
-.storm-card p{font-size:.82rem;color:#4a4a4a;line-height:1.55;margin:0}
-.storm-cta{text-align:center}
-.storm-cta a{display:inline-flex;align-items:center;gap:8px;background:#BD5728;color:#fff;text-decoration:none;font-weight:800;font-size:.82rem;letter-spacing:.04em;text-transform:uppercase;padding:14px 28px;border-radius:8px;transition:all .2s}
-.storm-cta a:hover{background:#a14a22;transform:translateY(-1px)}
-.storm-cta .note{display:block;font-size:.78rem;color:#5d6673;margin-top:12px}
-@media(max-width:980px){.storm-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:520px){.storm-grid{grid-template-columns:1fr}}
-</style>
-<section class="storm-band" id="storm-series">
-  <div class="storm-inner">
-    <div class="storm-head">
-      <div class="storm-eyebrow"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 L4 14 H11 L11 22 L20 10 H13 Z"/></svg> Built for Hail Country</div>
-      <h2>Worried about hail? Meet <span>TAMKO's impact-resistant shingles.</span></h2>
-      <p class="storm-sub">GAF Timberline is my default lineup. But if you live where hail and high wind hit hard, I also install <strong>TAMKO's impact-resistant shingles</strong> — Titan XT, StormFighter Flex, and at the top HailGuard, the first asphalt shingle to carry an actual hail warranty. And as a <strong>TAMKO Pro Gold™ certified contractor</strong>, I can register TAMKO's enhanced warranties — coverage a non-certified installer can't offer.</p>
-    </div>
-    <div class="storm-grid">
-      <div class="storm-card">
-        <div class="stage">Value floor</div>
-        <div class="nm">Heritage</div>
-        <span class="badge">Lifetime warranty</span>
-        <p>A true architectural roof at TAMKO's value price — no impact rating.</p>
-      </div>
-      <div class="storm-card">
-        <div class="stage">Step up to impact</div>
-        <div class="nm">Titan XT</div>
-        <span class="badge">UL Class 3</span>
-        <p>Impact protection without the top-tier price · 160 mph wind.</p>
-      </div>
-      <div class="storm-card">
-        <div class="stage">Storm armor</div>
-        <div class="nm">StormFighter Flex</div>
-        <span class="badge">UL Class 4</span>
-        <p>Full Class 4 impact, 160 mph wind — voted #1 Product of the Year.</p>
-      </div>
-      <div class="storm-card">
-        <div class="stage">Top of the lineup</div>
-        <div class="nm">HailGuard</div>
-        <span class="badge">Hail warranty</span>
-        <p>Class 4, tested beyond — the first asphalt shingle with a written hail warranty.</p>
-      </div>
-    </div>
-    <div class="storm-cta">
-      <a href="/services/tamko-impact-resistant-shingles">Explore TAMKO's impact-resistant shingles →</a>
-      <span class="note">Vents, pipe boots, and the NBD Pledge ride on every roof — GAF or TAMKO.</span>
-    </div>
-  </div>
-</section>
-
-<!-- SERVICES -->
-<section class="services-section" id="services">
-  <div class="section-inner">
-    <div class="section-header">
-      <div class="eyebrow reveal">What I Do</div>
-      <h2 class="sec-title reveal">Roofing, Siding, Gutters, <span>and Storm Claims</span></h2>
-      <p class="sec-desc reveal">No layers. No handoffs. One person who knows the work, knows insurance restoration, and picks up when you call.</p>
-    </div>
-    <div class="services-grid">
-
-      <a href="/services/roof-replacement" class="service-card reveal">
-        <span class="sc-badge">Most Requested</span>
-        <div class="sc-title">Roof Replacement</div>
-        <div class="sc-body">Full tear-off and installation using GAF Timberline shingles — or TAMKO impact-resistant shingles for hail country — with a lifetime manufacturer warranty on materials. I inspect for structural issues and document storm damage for your insurance claim.</div>
-        <ul class="sc-bullets">
-          <li class="sc-bullet">Complete tear-off &amp; disposal</li>
-          <li class="sc-bullet">GAF Timberline shingles (or TAMKO impact-resistant shingles for hail) — lifetime manufacturer warranty</li>
-          <li class="sc-bullet">Free roof inspection included</li>
-          <li class="sc-bullet">Insurance damage documentation</li>
-          <li class="sc-bullet">NBD Lifetime Pledge — NBD backed, every package</li>
-        </ul>
-        <span class="sc-link">See Full Details →</span>
-      </a>
-
-      <a href="/services/roof-repair" class="service-card reveal">
-        <div class="sc-title">Roof Repair</div>
-        <div class="sc-body">Leaks, missing shingles, flashing problems — we fix what others won't. We believe in repair when repair is the right call.</div>
-        <ul class="sc-bullets">
-          <li class="sc-bullet">Leak sealing &amp; flashing repair</li>
-          <li class="sc-bullet">Shingle replacement (matched)</li>
-          <li class="sc-bullet">Storm damage response</li>
-          <li class="sc-bullet">Pipe boot &amp; valley repair</li>
-        </ul>
-        <span class="sc-link">See Full Details →</span>
-      </a>
-
-      <a href="/services/siding-replacement" class="service-card reveal">
-        <div class="sc-title">Siding Replacement</div>
-        <div class="sc-body">Vinyl, shake, dutch lap, reverse board batten and more. We use trusted brands like Polaris and Royal and help with insurance claims.</div>
-        <ul class="sc-bullets">
-          <li class="sc-bullet">Vinyl, shake, dutch lap &amp; more</li>
-          <li class="sc-bullet">Polaris &amp; Royal brands</li>
-          <li class="sc-bullet">House wrap &amp; insulation upgrade</li>
-          <li class="sc-bullet">Claim documentation</li>
-        </ul>
-        <span class="sc-link">See Full Details →</span>
-      </a>
-
-      <a href="/services/siding-repair" class="service-card reveal">
-        <div class="sc-title">Siding Repair</div>
-        <div class="sc-body">Cracked panels, loose boards, gaps from weather — we fix the problem without pushing a full replacement you don't need.</div>
-        <ul class="sc-bullets">
-          <li class="sc-bullet">Individual panel replacement</li>
-          <li class="sc-bullet">Material matching &amp; color blend</li>
-          <li class="sc-bullet">Storm &amp; impact damage repair</li>
-          <li class="sc-bullet">Caulking &amp; sealing</li>
-        </ul>
-        <span class="sc-link">See Full Details →</span>
-      </a>
-
-      <a href="/services/gutter-replacement" class="service-card reveal">
-        <div class="sc-title">Gutter Replacement</div>
-        <div class="sc-body">Custom-cut seamless gutters installed on-site. Fewer joints means fewer leaks and less maintenance year after year.</div>
-        <ul class="sc-bullets">
-          <li class="sc-bullet">5" &amp; 6" K-Style seamless gutters</li>
-          <li class="sc-bullet">Custom cut on-site</li>
-          <li class="sc-bullet">Downspout installation</li>
-          <li class="sc-bullet">Gutter guard options</li>
-        </ul>
-        <span class="sc-link">See Full Details →</span>
-      </a>
-
-      <a href="/services/storm-damage" class="service-card reveal">
-        <span class="sc-badge sc-badge-storm">Storm Claim?</span>
-        <div class="sc-title">Storm Damage &amp; Insurance</div>
-        <!-- "Xactimate" was machine-only on this page until 2026-09-20: it
-             appeared once, in the knowsAbout JSON-LD array, and nowhere a
-             human could read it. It is the single competency that separates
-             this from a roofer who just "helps with the claim", so it is
-             named here in the same words about.html:690 already uses. -->
-        <div class="sc-body">Storm hit your home? We document the damage, write the estimate, meet your adjuster after you file, and get your home back to 100%. I estimate in <strong>Xactimate</strong> — the same software your insurer prices the claim in — so I can read their scope line by line.</div>
-        <ul class="sc-bullets">
-          <li class="sc-bullet">Full damage documentation</li>
-          <li class="sc-bullet">Xactimate estimating — I speak your adjuster's language</li>
-          <li class="sc-bullet">Emergency tarping available</li>
-          <li class="sc-bullet">Works with all major insurers</li>
-        </ul>
-        <span class="sc-link">See Full Details →</span>
-      </a>
-
-    </div>
-  </div>
-</section>
-
-<!-- HOW IT WORKS -->
-<section class="hiw-section" id="process">
-  <div class="section-inner">
-    <div class="section-header">
-      <div class="eyebrow reveal">How It Works</div>
-      <h2 class="sec-title reveal">Start to Finish, <span>I Handle It.</span></h2>
-      <p class="sec-desc reveal">Every step, personally. No handoffs, no surprises, and you always know who's coming.</p>
-    </div>
-    <div class="hiw-grid">
-      <div class="hiw-step reveal">
-        <div class="hiw-num">01</div>
-        <div class="hiw-title">Joe Picks Up</div>
-        <div class="hiw-body">Call or text — Joe answers himself. Not a call center, not a scheduler. You talk to the guy running your job from the very first conversation.</div>
-      </div>
-      <div class="hiw-step reveal">
-        <div class="hiw-num">02</div>
-        <div class="hiw-title">Joe Shows Up</div>
-        <div class="hiw-body">I come out personally, get on the roof, check everything, and give you a straight honest assessment — not a sales pitch designed to upsell.</div>
-      </div>
-      <div class="hiw-step reveal">
-        <div class="hiw-num">03</div>
-        <div class="hiw-title">You Decide — No Pressure</div>
-        <div class="hiw-body">Fair quote, options explained, damage documented if insurance applies. No follow-up pressure calls. No expiring discounts. Your call, your timeline.</div>
-      </div>
-      <div class="hiw-step reveal">
-        <div class="hiw-num">04</div>
-        <div class="hiw-title">Done Right, Backed Up</div>
-        <div class="hiw-body">Crew shows up on time, cleans up every day, doesn't leave until it's right. Every job backed by the NBD Guarantee and The Lifetime Pledge — call me about anything I worked on and I come look, free, for as long as I'm in business and you own the home.</div>
-      </div>
-    </div>
-    <div class="hiw-cta reveal" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-      <a href="/#contact" class="btn-primary">Get My Free Estimate →</a>
-      <a href="/book" class="btn-primary" style="background:var(--navy);border:2px solid var(--orange);"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>Pick a Time Online →</a>
-    </div>
-  </div>
-</section>
-
-<!-- FREE TOOLS BAND — the hub was nav-only; give it a content-level door -->
-<section id="free-tools-band" aria-label="Free homeowner tools" style="background:var(--off-white);padding:52px 5%;border-top:1px solid var(--light-gray)">
-  <div style="max-width:1100px;margin:0 auto;text-align:center">
-    <div class="eyebrow reveal">Not Ready to Call?</div>
-    <h2 class="sec-title reveal">Start With a <span>Free Tool.</span></h2>
-    <p class="sec-desc reveal" style="max-width:640px;margin-left:auto;margin-right:auto">No phone call, no salesperson — check your own roof in a couple of minutes. When you're ready, the results come straight to me.</p>
-    <div class="reveal" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:26px">
-      <a href="/roof-score" style="display:inline-block;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:14px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.92rem">Roof Score <span style="display:block;font-weight:400;font-size:.76rem;color:var(--gray-sub);margin-top:2px">60-second roof health check</span></a>
-      <a href="/estimate" style="display:inline-block;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:14px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.92rem">Instant Estimate <span style="display:block;font-weight:400;font-size:.76rem;color:var(--gray-sub);margin-top:2px">Ballpark price from satellite view</span></a>
-      <a href="/storm-check" style="display:inline-block;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:14px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.92rem">Is It Worth a Claim? <span style="display:block;font-weight:400;font-size:.76rem;color:var(--gray-sub);margin-top:2px">Storm damage claim check</span></a>
-      <a href="/visualizer" style="display:inline-block;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:14px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.92rem">Roof Visualizer <span style="display:block;font-weight:400;font-size:.76rem;color:var(--gray-sub);margin-top:2px">See colors on your own photo</span></a>
-    </div>
-    <p class="reveal" style="margin-top:22px"><a href="/free-tools" style="color:var(--orange-dark);font-weight:700;font-size:.9rem;text-decoration:none;border-bottom:1px solid rgba(189,87,40,.4);padding-bottom:1px">See all 7 free tools →</a></p>
-  </div>
-</section>
-
-<!-- WHY NOT THE BIG GUYS -->
-<section class="compare-section" id="compare">
-  <div class="section-inner">
-    <div class="section-header">
-      <div class="eyebrow reveal" style="color:rgba(255,255,255,.5)">The Honest Difference</div>
-      <h2 class="sec-title white reveal">Big Brand Doesn't Mean <span>Better Work.</span></h2>
-      <p class="sec-desc reveal" style="color:rgba(255,255,255,.75)">Big brand doesn't mean better work. I am just as educated as the project manager or sales rep they'll send to your house — without the TV budget overhead you're paying for.</p>
-    </div>
-
-    <div class="compare-table reveal">
-      <div class="compare-col-header them">Big Roofing Companies</div>
-      <div class="compare-divider-hdr">vs</div>
-      <div class="compare-col-header us">No Big Deal Home Solutions</div>
-
-      <div class="compare-cell them">❌ Salesman shows up, not the contractor</div>
-      <div class="compare-cell divider">vs</div>
-      <div class="compare-cell us">✅ Joe shows up himself — every time</div>
-
-      <div class="compare-cell them">❌ Inflated quotes to cover marketing costs</div>
-      <div class="compare-cell divider">vs</div>
-      <div class="compare-cell us">✅ Fair quotes with lower overhead = real savings</div>
-
-      <div class="compare-cell them">❌ Push replacements even when repair works</div>
-      <div class="compare-cell divider">vs</div>
-      <div class="compare-cell us">✅ Honest: repair when it's right, replace when needed</div>
-
-      <!-- The honest axis here is ANONYMITY, not subcontracting-vs-not. This row
-           used to read "❌ Subcontractors you've never met" / "✅ My own crews",
-           which put a practice NBD uses in the bad column and claimed employment
-           in the good one. Corrected 2026-09-20. Both cells changed together on
-           purpose: softening only the right one leaves an ❌ indicting our own
-           arrangement. -->
-      <div class="compare-cell them">❌ A different crew every time, whoever's free</div>
-      <div class="compare-cell divider">vs</div>
-      <div class="compare-cell us">✅ The same crews, job after job — people I've worked with for years</div>
-
-      <div class="compare-cell them">❌ Hard to reach after contract is signed</div>
-      <div class="compare-cell divider">vs</div>
-      <div class="compare-cell us">✅ Call or text Joe directly, any time</div>
-
-      <div class="compare-cell them">❌ Insurance claim? You're on your own</div>
-      <div class="compare-cell divider">vs</div>
-      <div class="compare-cell us">✅ We document the damage and meet your adjuster on the roof</div>
-
-      <div class="compare-cell them">❌ Pressure tactics and expiring discounts</div>
-      <div class="compare-cell divider">vs</div>
-      <div class="compare-cell us">✅ No pressure, no gimmicks — just straight talk</div>
-    </div>
-
-    <div class="compare-cta reveal">
-      <p>Ready to work with someone who just does the job right?</p>
-      <a href="/#contact" class="btn-primary">Get My Free Estimate →</a>
-    </div>
-  </div>
-</section>
-
-<!-- WELCOME VIDEO: "Meet Thursday", a 30-second self-hosted look at the free
-     inspection (Jo, 2026-10-05; re-finished in Remotion 2026-10-06). One place to swap it: replace the files
+<!-- WELCOME VIDEO: "Meet Thursday", a 34-second self-hosted look at the free
+     inspection (Jo, 2026-10-05; re-finished in Remotion 2026-10-06; v3 cut live 2026-10-07). One place to swap it: replace the files
      /assets/video/thursday-welcome.mp4 + .en.vtt and
      /assets/img/thursday-welcome-poster.webp, then bump ?v= in this block.
      No autoplay; preload="none" fetches nothing until Play. The width/height
      attributes + aspect-ratio reserve the box (CLS 0). media-src 'self' is
      already in the firebase.json CSP. tests/home-welcome-video-2026-10-05.test.js -->
 <style>
-.intro-video-section{background:var(--off-white)}
-.iv-grid{display:grid;gap:24px;align-items:center}
+.intro-video-section{background:var(--off-white);padding:var(--s6) 0}
+.iv-grid{display:grid;gap:var(--s3);align-items:center}
 .iv-copy{text-align:center}
 .intro-video-section .eyebrow{color:var(--orange-dark);margin-bottom:6px}
 .intro-video-section .sec-title{margin:0 0 10px}
@@ -1384,169 +857,24 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 .iv-video{display:block;width:100%;height:auto;aspect-ratio:9/16;border-radius:8px;background:var(--navy-dark);box-shadow:0 14px 40px rgba(18,34,61,.25)}
 .iv-video:focus-visible{outline:3px solid var(--orange);outline-offset:3px}
 @media(min-width:769px){
-  .iv-grid{grid-template-columns:minmax(0,1fr) 300px;gap:56px}
+  .iv-grid{grid-template-columns:minmax(0,1fr) 300px;gap:var(--s5)}
   .iv-copy{text-align:left}
   .iv-desc{margin:0}
   .iv-frame{max-width:300px}
 }
 </style>
 <section class="intro-video-section" id="intro-video" aria-labelledby="iv-h">
-  <div class="section-inner iv-grid">
+  <div class="hx-wrap iv-grid">
     <div class="iv-copy">
       <p class="eyebrow">Meet Thursday</p>
       <h2 class="sec-title" id="iv-h">A quick look at your <span>free inspection</span></h2>
-      <p class="iv-desc">30 seconds on what happens when Joe comes out: what he checks on the roof, the photos you get, and your options after.</p>
+      <p class="iv-desc">About 30 seconds on what happens when Joe comes out: what he checks on the roof, the photos you get, and your options after.</p>
     </div>
     <div class="iv-frame">
-      <video class="iv-video" controls playsinline preload="none" width="540" height="960" poster="/assets/img/thursday-welcome-poster.webp?v=2" aria-label="Meet Thursday: a quick look at your free inspection">
-        <source src="/assets/video/thursday-welcome.mp4?v=2" type="video/mp4">
-        <track kind="captions" src="/assets/video/thursday-welcome.en.vtt?v=2" srclang="en" label="English">
+      <video class="iv-video" controls playsinline preload="none" width="540" height="960" poster="/assets/img/thursday-welcome-poster.webp?v=3" aria-label="Meet Thursday: a quick look at your free inspection">
+        <source src="/assets/video/thursday-welcome.mp4?v=3" type="video/mp4">
+        <track kind="captions" src="/assets/video/thursday-welcome.en.vtt?v=3" srclang="en" label="English">
       </video>
-    </div>
-  </div>
-</section>
-
-<!-- ABOUT -->
-<section class="about-section" id="about">
-  <div class="section-inner">
-    <div class="about-grid">
-      <div class="about-img-block reveal">
-        <div class="about-img-main">
-          <picture style="width:100%;height:100%;display:block"><source srcset="/assets/images/joe-hero.webp" type="image/webp"><img src="/assets/images/joe-hero.jpg" alt="Joe Deal — Owner &amp; Operator, No Big Deal Home Solutions" width="1024" height="1024" loading="lazy" style="width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:16px;display:block;"></picture>
-        </div>
-        <a class="about-badge" href="/review" style="text-decoration:none" aria-label="See our Google reviews">
-          <span class="big-num">5★</span>
-          <small>Google Rated</small>
-        </a>
-      </div>
-
-      <div class="about-content reveal">
-        <div class="eyebrow" style="text-align:left;padding-left:0">About Joe</div>
-        <h2 class="sec-title" style="text-align:left">It's Just Me. <span>That's the Point.</span></h2>
-        <p>I spent years inside the roofing industry — watching owners and investors enter the business to make money without actually knowing the work. They'd promise smooth jobs and zero issues, then lean on sales reps and project managers to handle everything. The homeowner paid for that overhead and still got inconsistency.</p>
-        <p>I started No Big Deal because I know the work, I know insurance restoration, and I wanted to be the person who actually handles it — not the person who delegates it. Coming up on 7 years in this trade. I learned what works and what doesn't in the field, not in a training room.</p>
-
-        <div class="about-results">
-          <div class="about-results-lbl">What That Looks Like in Practice</div>
-          <div class="about-result">
-            <div class="about-result-num">Life</div>
-            <div class="about-result-text">NBD Lifetime Pledge backed by Joe personally. Signed and on record.</div>
-          </div>
-          <div class="about-result">
-            <div class="about-result-num">$0</div>
-            <div class="about-result-text">What you pay to have Joe come out and give you a full honest assessment. Free, no pressure, no obligation.</div>
-          </div>
-          <div class="about-result">
-            <div class="about-result-num">1</div>
-            <div class="about-result-text">Number of people who answer the phone when you call. Joe. Not a call center — Joe.</div>
-          </div>
-        </div>
-        <a href="/#contact" class="btn-primary">Talk to Joe Today →</a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- SERVICE AREAS -->
-<section class="areas-section" id="areas">
-  <div class="section-inner">
-    <div class="section-header">
-      <div class="eyebrow reveal">Where I Work</div>
-      <h2 class="sec-title reveal">Serving Greater <span>Cincinnati &amp; Beyond</span></h2>
-      <p class="sec-desc reveal">Quality roofing and exterior services across Southwest Ohio and Kentucky — Northern Kentucky down to the Lexington area.</p>
-    </div>
-    <div class="areas-grid reveal">
-      <a href="/areas/cincinnati-oh" class="area-tag" style="text-decoration:none;color:inherit;">Cincinnati, OH</a>
-      <a href="/areas/goshen-oh" class="area-tag" style="text-decoration:none;color:inherit;">Goshen, OH</a>
-      <a href="/areas/milford-oh" class="area-tag" style="text-decoration:none;color:inherit;">Milford, OH</a>
-      <a href="/areas/batavia-oh" class="area-tag" style="text-decoration:none;color:inherit;">Batavia, OH</a>
-      <a href="/areas/loveland-oh" class="area-tag" style="text-decoration:none;color:inherit;">Loveland, OH</a>
-      <a href="/areas/mason-oh" class="area-tag" style="text-decoration:none;color:inherit;">Mason, OH</a>
-      <a href="/areas/lebanon-oh" class="area-tag" style="text-decoration:none;color:inherit;">Lebanon, OH</a>
-      <a href="/areas/anderson-township-oh" class="area-tag" style="text-decoration:none;color:inherit;">Anderson Twp, OH</a>
-      <a href="/areas/maineville-oh" class="area-tag" style="text-decoration:none;color:inherit;">Maineville, OH</a>
-      <a href="/areas/blue-ash-oh" class="area-tag" style="text-decoration:none;color:inherit;">Blue Ash, OH</a>
-      <a href="/areas/indian-hill-oh" class="area-tag" style="text-decoration:none;color:inherit;">Indian Hill, OH</a>
-      <a href="/areas/west-chester-oh" class="area-tag" style="text-decoration:none;color:inherit;">West Chester, OH</a>
-      <a href="/areas/fairfield-oh" class="area-tag" style="text-decoration:none;color:inherit;">Fairfield, OH</a>
-      <a href="/areas/amelia-oh" class="area-tag" style="text-decoration:none;color:inherit;">Amelia, OH</a>
-      <a href="/areas/monroe-oh" class="area-tag" style="text-decoration:none;color:inherit;">Monroe, OH</a>
-      <a href="/areas/springboro-oh" class="area-tag" style="text-decoration:none;color:inherit;">Springboro, OH</a>
-      <a href="/areas/fayetteville-oh" class="area-tag" style="text-decoration:none;color:inherit;">Fayetteville, OH</a>
-      <a href="/areas/blanchester-oh" class="area-tag" style="text-decoration:none;color:inherit;">Blanchester, OH</a>
-      <a href="/areas/mt-orab-oh" class="area-tag" style="text-decoration:none;color:inherit;">Mt. Orab, OH</a>
-      <a href="/areas/wilmington-oh" class="area-tag" style="text-decoration:none;color:inherit;">Wilmington, OH</a>
-      <a href="/areas/clarksville-oh" class="area-tag" style="text-decoration:none;color:inherit;">Clarksville, OH</a>
-    </div>
-    <div class="areas-ky-label reveal" style="text-align:center;margin:18px 0 10px;">
-      <span style="font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--orange-dark);background:rgba(189,87,40,.1);padding:5px 18px;border-radius:100px;border:1px solid rgba(189,87,40,.25);">Also Serving Kentucky — NKY &amp; the Bluegrass</span>
-    </div>
-    <div class="areas-grid reveal" data-ky="true" style="max-width:600px;margin:0 auto;">
-      <a href="/areas/florence-ky" class="area-tag" style="text-decoration:none;color:inherit;">Florence, KY</a>
-      <a href="/areas/erlanger-ky" class="area-tag" style="text-decoration:none;color:inherit;">Erlanger, KY</a>
-      <a href="/areas/covington-ky" class="area-tag" style="text-decoration:none;color:inherit;">Covington, KY</a>
-      <a href="/areas/fort-mitchell-ky" class="area-tag" style="text-decoration:none;color:inherit;">Fort Mitchell, KY</a>
-      <a href="/areas/lexington-ky" class="area-tag" style="text-decoration:none;color:inherit;">Lexington, KY</a>
-      <a href="/areas/georgetown-ky" class="area-tag" style="text-decoration:none;color:inherit;">Georgetown, KY</a>
-      <a href="/areas/nicholasville-ky" class="area-tag" style="text-decoration:none;color:inherit;">Nicholasville, KY</a>
-      <a href="/areas/winchester-ky" class="area-tag" style="text-decoration:none;color:inherit;">Winchester, KY</a>
-      <a href="/areas/richmond-ky" class="area-tag" style="text-decoration:none;color:inherit;">Richmond, KY</a>
-      <a href="/areas/versailles-ky" class="area-tag" style="text-decoration:none;color:inherit;">Versailles, KY</a>
-    </div>
-    <div class="areas-view-all reveal" style="text-align:center;margin:20px 0 28px;">
-      <a href="/areas" style="display:inline-flex;align-items:center;gap:8px;background:var(--orange);color:white;padding:10px 22px;border-radius:100px;font-size:.82rem;font-weight:700;text-decoration:none;letter-spacing:.04em;">See All 31 Service Areas →</a>
-    </div>
-    <div class="areas-contact reveal">
-      <div class="areas-contact-item">
-        <div class="aci-icon" style="color:var(--orange)"><svg class="ico ico-fill" viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.36 2.3.56 3.6.56.55 0 1 .45 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.56 3.6a1 1 0 0 1-.25 1z"/></svg></div>
-        <div class="aci-text">
-          <strong>Call or Text</strong>
-          <a href="tel:+18594207382">(859) 420-7382</a>
-        </div>
-      </div>
-      <div class="areas-contact-item">
-        <div class="aci-icon" style="color:var(--orange)"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg></div>
-        <div class="aci-text">
-          <strong>Email Joe</strong>
-          <a href="mailto:jd&#64;nobigdealwithjoedeal&#46;com">jd&#64;nobigdealwithjoedeal&#46;com</a>
-        </div>
-      </div>
-      <div class="areas-contact-item">
-        <div class="aci-icon" style="color:var(--orange)"><svg class="ico" viewBox="0 0 24 24"><path d="M12 22s-7-7.5-7-13a7 7 0 0 1 14 0c0 5.5-7 13-7 13z"/><circle cx="12" cy="9" r="2.5"/></svg></div>
-        <div class="aci-text">
-          <strong>Based In</strong>
-          <span>Goshen / Cincinnati area, OH</span>
-        </div>
-      </div>
-      <div class="areas-contact-item">
-        <div class="aci-icon" style="color:var(--orange)"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></div>
-        <div class="aci-text">
-          <strong>Hours</strong>
-          <span>Mon–Sat 7AM–6PM, Sun available</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- REVIEWS -->
-<!-- HOMEOWNER WALL (T3) — real job photos from /assets/data/homeowner-wall.json.
-     Ships hidden; homeowner-wall.js reveals it only once the manifest has >=3 real photos. -->
-<section class="homeowner-wall-section" id="homeowner-wall" hidden aria-hidden="true">
-  <div style="max-width:1160px;margin:0 auto;padding:0 24px;text-align:center">
-    <h2 class="sec-title reveal">Real Roofs. <span>Real Neighbors.</span></h2>
-    <p class="sec-desc reveal">Actual jobs on actual homes around Greater Cincinnati — no stock photos, no stand-ins. Tap any photo for the full write-up.</p>
-    <div class="hw-grid"></div>
-    <!-- The one hub with no body-level door before 2026-09-20: /our-work was
-         reachable from the nav, the drawer and the footer, and from nowhere a
-         reader actually looks. Deliberately NO count — the "See all 7 free
-         tools" / "See All 31 Service Areas" idiom elsewhere on this page
-         hardcodes numbers that nothing guards, and this list grows every time
-         Jo closes a job. Sits INSIDE the section on purpose: it reads as
-         "here are more of these", which only makes sense once the photos above
-         it rendered, and the section is JS-revealed as one unit. -->
-    <div style="margin-top:28px">
-      <a href="/our-work" class="btn-ghost">See every job — photos, towns and prices →</a>
     </div>
   </div>
 </section>
@@ -1554,27 +882,30 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 <section class="reviews-section" id="reviews">
   <div class="section-inner">
     <div class="section-header">
-      <div class="eyebrow reveal">What Clients Say</div>
-      <h2 class="sec-title reveal">Straight Talk <span>From Real People</span></h2>
+      <div class="eyebrow">What Clients Say</div>
+      <h2 class="sec-title">Straight Talk <span>From Real People</span></h2>
     </div>
     <!-- The score, star row and review count are hydrated from the live
          Places payload by js/google-reviews-widget.js (data-nbd-gr-* hooks).
-         The values below are the static fallback: they are what a visitor
-         sees if the fetch fails, so they must stay TRUE at rest, not zeroed.
-         Do not hardcode a number here without updating the profile — before
-         2026-09-20 this row was static-only and would have kept claiming 5.0
-         forever if the rating ever moved.
+         The rating and stars below are the static fallback a visitor sees if
+         the fetch fails, so they must stay TRUE at rest, not zeroed. The
+         review COUNT has no static fallback (2026-10-06): a hard-coded count
+         goes stale the day the next review lands, so data-nbd-gr-total ships
+         empty inside a hidden data-nbd-gr-total-wrap that the widget reveals
+         only when the live payload carries a count. Before 2026-09-20 this
+         row was static-only and would have kept claiming 5.0 forever if the
+         rating ever moved.
          data-nbd-gr-recent ships EMPTY on purpose: it is filled with
          " · N new this month" only when the payload carries `recent`
          (Google's count grew against a real baseline), and never gets a
          static fallback — a stale "new this month" would be a false claim. -->
-    <div class="reviews-rating reveal">
+    <div class="reviews-rating">
       <div class="reviews-stars" data-nbd-gr-stars>★★★★★</div>
       <div>
-        <div class="reviews-score"><span data-nbd-gr-rating>5.0</span> on Google &middot; <span data-nbd-gr-total>29</span> reviews<span data-nbd-gr-recent></span></div>
+        <div class="reviews-score"><span data-nbd-gr-rating>5.0</span> on Google<span data-nbd-gr-total-wrap hidden> &middot; <span data-nbd-gr-total></span> reviews</span><span data-nbd-gr-recent></span></div>
         <div class="reviews-score-sub"><a href="https://g.page/r/CXzIjLwvtRPdEBM" target="_blank" rel="noopener noreferrer" style="color:inherit">Verified Google Business Profile</a> — real reviews from Cincinnati &amp; N. Kentucky homeowners</div>
       </div>
-      <a href="/#contact" class="btn-primary" style="margin-left:auto">Get My Free Estimate →</a>
+      <a href="/inspect" class="btn-primary" style="margin-left:auto">Book a free inspection</a>
     </div>
     <!-- Live Google reviews (Firebase Function → Places API). The hardcoded
          5.0/5.0 score + 3 sample review cards here were removed 2026-07-03
@@ -1586,78 +917,13 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   </div>
 </section>
 <script src="/assets/js/google-reviews-widget.js" defer></script>
-<script src="/assets/js/homeowner-wall.js" defer></script>
 
-<!-- CERTIFICATIONS & BRAND PARTNERS -->
-<section style="background:var(--navy);padding:56px 5%;border-top:3px solid var(--orange)">
-  <div style="max-width:1100px;margin:0 auto">
-    <div style="text-align:center;margin-bottom:36px">
-      <p style="font-size:.72rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#dd875f;margin-bottom:8px">The People Behind My Work</p>
-      <h3 style="font-family:'Bebas Neue',sans-serif;font-size:clamp(1.6rem,3vw,2.4rem);color:white;letter-spacing:.03em;line-height:1.1">Certified Installer. Real Partners. <span style="color:#dd875f">Real Backing.</span></h3>
-    </div>
-
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:16px">
-
-      <div style="background:rgba(189,87,40,.08);border:1px solid rgba(189,87,40,.3);border-radius:10px;padding:20px 20px 18px;text-align:center">
-        <picture class="nbd-pic"><source type="image/webp" srcset="/assets/gaf/gaf-certified-badge-320-96w.webp 1x, /assets/gaf/gaf-certified-badge-320-192w.webp 2x, /assets/gaf/gaf-certified-badge-320-288w.webp 3x"><img src="/assets/gaf/gaf-certified-badge-320.png" alt="GAF Certified™ Residential Roofing Contractor badge" width="96" height="96" loading="lazy" style="display:block;margin:0 auto 10px;"></picture>
-        <p style="font-size:.62rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#dd875f;margin-bottom:6px">Manufacturer</p>
-        <p style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:white;letter-spacing:.04em;margin-bottom:4px">GAF Certified™ Contractor</p>
-        <p style="font-size:.74rem;color:rgba(255,255,255,.6);line-height:1.5;margin-bottom:8px">Full GAF system install · GAF System Plus Limited Warranty available on qualifying installs.</p>
-        <a href="https://www.gaf.com/en-us/roofing-contractors/residential" target="_blank" rel="noopener" style="display:inline-block;font-size:.7rem;font-weight:800;color:#dd875f;text-decoration:none;letter-spacing:.04em;border-bottom:1px solid rgba(189,87,40,.4);padding-bottom:1px">Verify on GAF.com →</a>
-      </div>
-
-      <div style="background:rgba(189,87,40,.08);border:1px solid rgba(189,87,40,.3);border-radius:10px;padding:20px 20px 18px;text-align:center">
-        <div style="background:white;border-radius:6px;padding:8px;margin:0 auto 10px;width:96px;height:96px;display:flex;align-items:center;justify-content:center">
-          <picture class="nbd-pic"><source type="image/webp" srcset="/assets/tamko/tamko-pro-gold-badge-320-87w.webp 1x, /assets/tamko/tamko-pro-gold-badge-320-145w.webp 2x, /assets/tamko/tamko-pro-gold-badge-320-232w.webp 3x"><img src="/assets/tamko/tamko-pro-gold-badge-320.png" alt="TAMKO Pro Gold™ Certified Roofing Contractor badge" width="72" height="80" loading="lazy" style="display:block;height:80px;width:auto"></picture>
-        </div>
-        <p style="font-size:.62rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#dd875f;margin-bottom:6px">Manufacturer</p>
-        <p style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:white;letter-spacing:.04em;margin-bottom:4px">TAMKO Pro Gold™ Certified</p>
-        <p style="font-size:.74rem;color:rgba(255,255,255,.6);line-height:1.5;margin-bottom:8px">Impact-resistant shingle installer · ProShield® Enhanced Limited System Warranty available on qualifying installs.</p>
-        <a href="https://www.tamko.com/locate-a-contractor" target="_blank" rel="noopener" style="display:inline-block;font-size:.7rem;font-weight:800;color:#dd875f;text-decoration:none;letter-spacing:.04em;border-bottom:1px solid rgba(189,87,40,.4);padding-bottom:1px">Verify on TAMKO.com →</a>
-      </div>
-
-      <div style="background:rgba(189,87,40,.08);border:1px solid rgba(189,87,40,.3);border-radius:10px;padding:20px 20px 18px;text-align:center">
-        <picture class="nbd-pic"><source type="image/webp" srcset="/assets/american-operator/american-operator-badge-320-160w.webp 1x"><img src="/assets/american-operator/american-operator-badge-320.png" alt="Locally Owned &amp; Operated — Certified by American Operator badge" width="84" height="96" loading="lazy" style="display:block;margin:0 auto 10px;height:96px;width:auto"></picture>
-        <p style="font-size:.62rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#dd875f;margin-bottom:6px">Certification</p>
-        <p style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:white;letter-spacing:.04em;margin-bottom:4px">Locally Owned &amp; Operated</p>
-        <p style="font-size:.74rem;color:rgba(255,255,255,.6);line-height:1.5;margin-bottom:8px">Independently certified · One owner on your project, start to finish — never a franchise or national rollup.</p>
-        <a href="https://www.americanoperator.com/" target="_blank" rel="noopener" style="display:inline-block;font-size:.7rem;font-weight:800;color:#dd875f;text-decoration:none;letter-spacing:.04em;border-bottom:1px solid rgba(189,87,40,.4);padding-bottom:1px">Certified by American Operator →</a>
-      </div>
-
-      <div style="background:rgba(0,0,0,.12);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:20px 20px 18px;text-align:center">
-        <div style="background:white;border-radius:6px;padding:10px;margin:0 auto 12px;width:96px;height:96px;display:flex;align-items:center;justify-content:center"><picture class="nbd-pic"><source type="image/webp" srcset="/assets/partners/united-restore-80w.webp 1x, /assets/partners/united-restore-160w.webp 2x, /assets/partners/united-restore-240w.webp 3x"><img src="/assets/partners/united-restore.png" alt="United Restore — insurance restoration partner" width="80" height="80" loading="lazy" style="max-width:100%;height:auto;object-fit:contain;display:block"></picture></div>
-        <p style="font-size:.62rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#dd875f;margin-bottom:6px">Insurance Restoration</p>
-        <p style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:white;letter-spacing:.04em;margin-bottom:4px">United Restore</p>
-        <p style="font-size:.74rem;color:rgba(255,255,255,.6);line-height:1.5">Water, fire &amp; smoke mitigation partner</p>
-      </div>
-
-      <div style="background:rgba(0,0,0,.12);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:20px 20px 18px;text-align:center">
-        <div style="background:white;border-radius:6px;padding:10px;margin:0 auto 12px;width:96px;height:96px;display:flex;align-items:center;justify-content:center"><img src="/assets/partners/acorn-finance.png" alt="Acorn Finance — homeowner financing marketplace partner" width="80" height="75" loading="lazy" style="max-width:100%;height:auto;object-fit:contain;display:block"></div>
-        <p style="font-size:.62rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#dd875f;margin-bottom:6px">Homeowner Financing</p>
-        <p style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:white;letter-spacing:.04em;margin-bottom:4px">Acorn Finance</p>
-        <p style="font-size:.74rem;color:rgba(255,255,255,.6);line-height:1.5">Lending marketplace partner</p>
-      </div>
-
-      <div style="background:rgba(0,0,0,.12);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:20px 20px 18px;text-align:center">
-        <div style="background:white;border-radius:6px;padding:18px 10px;margin:0 auto 12px;width:96px;height:96px;display:flex;align-items:center;justify-content:center"><img src="/assets/partners/james-hardie.svg" alt="James Hardie — fiber cement siding manufacturer" width="76" height="76" loading="lazy" style="max-width:100%;height:auto;object-fit:contain;display:block"></div>
-        <p style="font-size:.62rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#dd875f;margin-bottom:6px">Siding Alliance</p>
-        <p style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:white;letter-spacing:.04em;margin-bottom:4px">James Hardie</p>
-        <p style="font-size:.74rem;color:rgba(255,255,255,.6);line-height:1.5">Fiber cement siding alliance member</p>
-      </div>
-
-    </div>
-
-    <p style="text-align:center;font-size:.75rem;color:rgba(255,255,255,.65);margin-top:20px">Also sourcing from <strong style="color:rgba(255,255,255,.65)">ABC Supply</strong>, <strong style="color:rgba(255,255,255,.65)">SRS Distribution</strong>, and <strong style="color:rgba(255,255,255,.65)">Beacon Building Products</strong> — only top-tier wholesale channels.</p>
-    <p style="text-align:center;font-size:.72rem;color:rgba(255,255,255,.72);margin-top:14px;line-height:1.65;max-width:880px;margin-left:auto;margin-right:auto"><span data-nosnippet>No Big Deal Home Solutions is an Independent Contractor and is not an employee or agent of GAF Materials LLC. Contractors enrolled in GAF certification programs are not employees or agents of GAF, and GAF does not control or otherwise supervise these independent businesses. Contractors may receive benefits, such as loyalty rewards points and discounts on marketing tools from GAF, for participating in the program. GAF® and GAF Certified™ are either registered trademarks or trademarks of BMIC LLC in the United States and/or other countries. GAF ID 1162011.</span></p>
-    <p style="text-align:center;font-size:.72rem;color:rgba(255,255,255,.72);margin-top:10px;line-height:1.65;max-width:880px;margin-left:auto;margin-right:auto"><span data-nosnippet>No Big Deal Home Solutions is likewise an Independent Contractor enrolled in The TAMKO Edge™ contractor program and is not an employee or agent of TAMKO Building Products LLC. TAMKO does not control or otherwise supervise these independent businesses. TAMKO®, TAMKO Pro™, The TAMKO Edge™, Heritage®, Titan XT®, StormFighter FLEX™, HailGuard™, ProShield® and Full Start® are trademarks or registered trademarks of TAMKO Building Products LLC. TAMKO Pro ID 181382.</span></p>
-  </div>
-</section>
-
-<!-- FAQ -->
+<!-- FAQ — the five questions homeowners ask most. The FAQPage JSON-LD below
+     mirrors these word for word (tests/faq-schema-sync-2026-10-03.test.js). -->
 <style>
 .faq-section{background:var(--off-white)}
 .faq-section .faq-list{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
-.faq-section .faq-item{background:var(--white);border:1px solid var(--light-gray);border-radius:12px;overflow:hidden}
+.faq-section .faq-item{background:var(--white);border:1px solid var(--light-gray);border-radius:8px;overflow:hidden}
 .faq-section .faq-q{padding:20px 24px;font-weight:700;font-size:1rem;color:var(--navy);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:16px;transition:background .2s}
 .faq-section .faq-q:hover{background:var(--off-white)}
 .faq-section .faq-q::after{content:'+';font-size:1.5rem;line-height:1;color:var(--orange);font-weight:300;transition:transform .2s;flex-shrink:0}
@@ -1665,25 +931,22 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 .faq-section .faq-q:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
 .faq-section .faq-a{display:none;padding:0 24px 22px;font-size:.92rem;color:var(--gray-sub);line-height:1.72}
 .faq-section .faq-item.open .faq-a{display:block}
-.faq-section .faq-a a{color:var(--orange);font-weight:600}
-.faq-section .faq-footnote{text-align:center;font-size:.82rem;color:var(--gray);margin-top:30px}
+.faq-section .faq-a a{color:var(--orange-dark);font-weight:600}
+@media(max-width:768px){.faq-section .faq-q{padding:16px 18px}.faq-section .faq-a{padding:0 18px 18px}}
 </style>
 <section class="faq-section" id="faq">
   <div class="section-inner">
     <div class="section-header">
-      <div class="eyebrow reveal">Straight Answers</div>
-      <h2 class="sec-title reveal">Questions Homeowners <span>Actually Ask</span></h2>
-      <p class="sec-desc reveal">No fine print, no runaround — just honest answers to what people want to know before they call.</p>
+      <div class="eyebrow">Straight Answers</div>
+      <h2 class="sec-title">Questions Homeowners <span>Actually Ask</span></h2>
     </div>
-    <div class="faq-list reveal">
+    <div class="faq-list">
       <div class="faq-item open"><div class="faq-q">How much does a new roof cost in the Cincinnati area?</div><div class="faq-a"><p>It depends on your roof's size, pitch, and the shingle you pick — but to give you a real number: most architectural-shingle replacements in Greater Cincinnati run about <strong>$740–$825 per roofing square</strong> installed, with budget and premium tiers landing roughly <strong>$615–$965 per square</strong>. Our free <a href="/estimate">Instant Estimate</a> gives you a tailored ballpark in about 60 seconds — no phone call, no pressure.</p></div></div>
+      <div class="faq-item"><div class="faq-q">Do you do storm damage insurance jobs?</div><div class="faq-a"><p>Absolutely — storm work is a big part of what we do. The claim is yours to file and decide. We document the damage properly, write a line-item estimate, and meet your adjuster on the roof after you file, so you're not stuck translating roofing jargon. I estimate in <strong>Xactimate</strong> — the same software your insurer prices the claim in — so I can read their scope line by line.</p></div></div>
       <div class="faq-item"><div class="faq-q">Do you offer financing?</div><div class="faq-a"><p>Yes — through <a href="/services/financing">Acorn Finance</a>, a lending marketplace that lets you check your options with a soft credit pull that doesn't affect your credit score. You'll see the actual lender, rate, and full terms before you commit to anything. If financing isn't the right move for your project, Joe will tell you straight.</p></div></div>
-      <div class="faq-item"><div class="faq-q">Do you do storm damage insurance jobs?</div><div class="faq-a"><p>Absolutely — storm work is a big part of what we do. The claim is yours to file and decide. We document the damage properly, write a line-item estimate, and meet your adjuster on the roof after you file, so you're not stuck translating roofing jargon.</p></div></div>
-      <div class="faq-item"><div class="faq-q">What areas do you serve?</div><div class="faq-a"><p>We cover Greater Cincinnati — across Southwest Ohio and into Kentucky. Cincinnati, Milford, Loveland, Mason, Batavia, West Chester and the surrounding communities are all areas I work regularly, and as of 2026 I also serve the Lexington area — Lexington, Georgetown, Nicholasville, Winchester, Richmond, and Versailles — on scheduled trips. Not sure if you're in range? Just <a href="tel:+18594207382">call Joe</a> and ask.</p></div></div>
+      <div class="faq-item"><div class="faq-q">What areas do you serve?</div><div class="faq-a"><p>We cover Greater Cincinnati — across Southwest Ohio and into Kentucky. Cincinnati, Milford, Loveland, Mason, Batavia, West Chester and the surrounding communities are all areas I work regularly, and as of 2026 I also serve the Lexington area — Lexington, Georgetown, Nicholasville, Winchester, Richmond, and Versailles — on scheduled trips. Not sure if you're in range? See <a href="/areas">every area I serve</a> or just <a href="tel:+18594207382">call Joe</a> and ask.</p></div></div>
       <div class="faq-item"><div class="faq-q">Are you insured and certified?</div><div class="faq-a"><p>Yes — No Big Deal is fully insured, and we're factory-certified by the biggest names in roofing: <strong>GAF</strong> (GAF Certified) and <strong>TAMKO</strong> (Pro Gold). Those certifications unlock the strongest manufacturer warranties available — and you can verify each one directly with the manufacturer. On siding, I'm a member of the <strong>James Hardie Alliance</strong>. And as of 2026, No Big Deal is certified <strong>Locally Owned &amp; Operated</strong> by American Operator — one local owner, not a franchise.</p></div></div>
-      <div class="faq-item"><div class="faq-q">What actually happens when I call?</div><div class="faq-a"><p>You get Joe — not a call center, not a salesperson reading a script. Tell him what's going on and he'll give you a straight answer, usually the same day. If you need an inspection, he'll set one up. No pressure, no obligation, no runaround — that's kind of the whole point.</p></div></div>
     </div>
-    <p class="faq-footnote reveal">Still have a question? Call Joe directly at <a href="tel:+18594207382" style="color:var(--orange-dark);font-weight:700">(859) 420-7382</a> — he answers.</p>
   </div>
 </section>
 <script type="application/ld+json">
@@ -1692,83 +955,29 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   "@type": "FAQPage",
   "mainEntity": [
     {"@type": "Question", "name": "How much does a new roof cost in the Cincinnati area?", "acceptedAnswer": {"@type": "Answer", "text": "It depends on your roof's size, pitch, and the shingle you pick — but to give you a real number: most architectural-shingle replacements in Greater Cincinnati run about $740–$825 per roofing square installed, with budget and premium tiers landing roughly $615–$965 per square. Our free Instant Estimate gives you a tailored ballpark in about 60 seconds — no phone call, no pressure."}},
+    {"@type": "Question", "name": "Do you do storm damage insurance jobs?", "acceptedAnswer": {"@type": "Answer", "text": "Absolutely — storm work is a big part of what we do. The claim is yours to file and decide. We document the damage properly, write a line-item estimate, and meet your adjuster on the roof after you file, so you're not stuck translating roofing jargon. I estimate in Xactimate — the same software your insurer prices the claim in — so I can read their scope line by line."}},
     {"@type": "Question", "name": "Do you offer financing?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — through Acorn Finance, a lending marketplace that lets you check your options with a soft credit pull that doesn't affect your credit score. You'll see the actual lender, rate, and full terms before you commit to anything. If financing isn't the right move for your project, Joe will tell you straight."}},
-    {"@type": "Question", "name": "Do you do storm damage insurance jobs?", "acceptedAnswer": {"@type": "Answer", "text": "Absolutely — storm work is a big part of what we do. The claim is yours to file and decide. We document the damage properly, write a line-item estimate, and meet your adjuster on the roof after you file, so you're not stuck translating roofing jargon."}},
-    {"@type": "Question", "name": "What areas do you serve?", "acceptedAnswer": {"@type": "Answer", "text": "We cover Greater Cincinnati — across Southwest Ohio and into Kentucky. Cincinnati, Milford, Loveland, Mason, Batavia, West Chester and the surrounding communities are all areas I work regularly, and as of 2026 I also serve the Lexington area — Lexington, Georgetown, Nicholasville, Winchester, Richmond, and Versailles — on scheduled trips. Not sure if you're in range? Just call Joe and ask."}},
-    {"@type": "Question", "name": "Are you insured and certified?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — No Big Deal is fully insured, and we're factory-certified by the biggest names in roofing: GAF (GAF Certified) and TAMKO (Pro Gold). Those certifications unlock the strongest manufacturer warranties available — and you can verify each one directly with the manufacturer. On siding, I'm a member of the James Hardie Alliance. And as of 2026, No Big Deal is certified Locally Owned & Operated by American Operator — one local owner, not a franchise."}},
-    {"@type": "Question", "name": "What actually happens when I call?", "acceptedAnswer": {"@type": "Answer", "text": "You get Joe — not a call center, not a salesperson reading a script. Tell him what's going on and he'll give you a straight answer, usually the same day. If you need an inspection, he'll set one up. No pressure, no obligation, no runaround — that's kind of the whole point."}}
+    {"@type": "Question", "name": "What areas do you serve?", "acceptedAnswer": {"@type": "Answer", "text": "We cover Greater Cincinnati — across Southwest Ohio and into Kentucky. Cincinnati, Milford, Loveland, Mason, Batavia, West Chester and the surrounding communities are all areas I work regularly, and as of 2026 I also serve the Lexington area — Lexington, Georgetown, Nicholasville, Winchester, Richmond, and Versailles — on scheduled trips. Not sure if you're in range? See every area I serve or just call Joe and ask."}},
+    {"@type": "Question", "name": "Are you insured and certified?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — No Big Deal is fully insured, and we're factory-certified by the biggest names in roofing: GAF (GAF Certified) and TAMKO (Pro Gold). Those certifications unlock the strongest manufacturer warranties available — and you can verify each one directly with the manufacturer. On siding, I'm a member of the James Hardie Alliance. And as of 2026, No Big Deal is certified Locally Owned & Operated by American Operator — one local owner, not a franchise."}}
   ]
 }
 </script>
 
-<!-- CONTACT -->
-<!-- BOOK BAND — the calendar has six visit types; the homepage leads with three -->
-<section id="book-band" aria-label="Book an appointment with Joe" style="background:var(--white);padding:52px 5%;border-top:1px solid var(--light-gray)">
-  <div style="max-width:1100px;margin:0 auto;text-align:center">
-    <div class="eyebrow reveal">Rather Not Call?</div>
-    <h2 class="sec-title reveal">Pick a Time <span>on My Calendar.</span></h2>
-    <p class="sec-desc reveal" style="max-width:660px;margin-left:auto;margin-right:auto">Real availability, straight off my phone. Pick what matches where you actually are &mdash; a quick question is a phone call, an adjuster showing up is a whole morning.</p>
-    <div class="reveal" style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:26px">
-      <a href="https://cal.com/nobigdeal/roof-inspection" target="_blank" rel="noopener noreferrer" style="display:block;text-align:left;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:16px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.95rem;max-width:320px">Free Roof Inspection<span style="display:block;font-weight:400;font-size:.78rem;color:var(--gray-sub);margin-top:4px;line-height:1.5">I get on your roof, check everything, and tell you straight whether you need work.</span><span style="display:inline-block;font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--orange-dark);background:rgba(189,87,40,.1);border-radius:100px;padding:3px 9px;margin-top:8px">30 min &middot; At your home</span></a>
-      <a href="https://cal.com/nobigdeal/roof-question-call" target="_blank" rel="noopener noreferrer" style="display:block;text-align:left;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:16px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.95rem;max-width:320px">15-Minute Question Call<span style="display:block;font-weight:400;font-size:.78rem;color:var(--gray-sub);margin-top:4px;line-height:1.5">Got a quote you want a second set of eyes on? I'll call you. No pitch.</span><span style="display:inline-block;font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--orange-dark);background:rgba(189,87,40,.1);border-radius:100px;padding:3px 9px;margin-top:8px">15 min &middot; Phone</span></a>
-      <a href="https://cal.com/nobigdeal/adjuster-meeting" target="_blank" rel="noopener noreferrer" style="display:block;text-align:left;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:16px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.95rem;max-width:320px">Insurance Adjuster Meeting<span style="display:block;font-weight:400;font-size:.78rem;color:var(--gray-sub);margin-top:4px;line-height:1.5">Your adjuster is coming out &mdash; I'll be there to walk the roof with them.</span><span style="display:inline-block;font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--orange-dark);background:rgba(189,87,40,.1);border-radius:100px;padding:3px 9px;margin-top:8px">60 min &middot; At your home</span></a>
-    </div>
-    <p class="reveal" style="margin-top:22px"><a href="/book" style="color:var(--orange);font-weight:700;font-size:.9rem;text-decoration:none;border-bottom:1px solid rgba(189,87,40,.4);padding-bottom:1px">See all 6 appointment types &rarr;</a></p>
-  </div>
-</section>
-
-<section class="contact-section" id="contact">
-  <div class="section-inner">
-    <div class="contact-grid">
-      <div class="contact-left reveal">
-        <div class="eyebrow" style="color:rgba(255,255,255,.7)">Get in Touch</div>
-        <h2>Call Joe. <span>He Answers.</span></h2>
-        <p>No pressure. No obligation. No callback from someone you've never met. Tell Joe what's going on and he'll give you a straight answer — usually same day.</p>
-        <div class="contact-methods">
-          <a href="tel:+18594207382" class="contact-method">
-            <div class="cm-icon" style="color:var(--orange)"><svg class="ico ico-fill" viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.36 2.3.56 3.6.56.55 0 1 .45 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.56 3.6a1 1 0 0 1-.25 1z"/></svg></div>
-            <div class="cm-text">
-              <strong>(859) 420-7382</strong>
-              <span>Call or text Joe directly</span>
-            </div>
-          </a>
-          <a href="mailto:jd&#64;nobigdealwithjoedeal&#46;com" class="contact-method">
-            <div class="cm-icon" style="color:var(--orange)"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg></div>
-            <div class="cm-text">
-              <strong>jd&#64;nobigdealwithjoedeal&#46;com</strong>
-              <span>Email Joe anytime</span>
-            </div>
-          </a>
-        </div>
-        <div class="contact-process">
-          <div class="eyebrow-small">After you submit</div>
-          <ol class="contact-steps">
-            <li>
-              <span class="step-num">01</span>
-              <div>
-                <strong>I'll read it personally.</strong>
-                <p>Usually within the hour during business hours. No auto-reply queue.</p>
-              </div>
-            </li>
-            <li>
-              <span class="step-num">02</span>
-              <div>
-                <strong>I'll call or text you back.</strong>
-                <p>From <a href="tel:+18594207382" style="color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:3px">(859) 420-7382</a> — same number you'd use to reach me directly.</p>
-              </div>
-            </li>
-            <li>
-              <span class="step-num">03</span>
-              <div>
-                <strong>We'll book a free inspection.</strong>
-                <p>On your schedule. No pressure, no obligation, no sales rep.</p>
-              </div>
-            </li>
-          </ol>
-        </div>
+<!-- BOOK — the last screen repeats the one action; the form is for people
+     who'd rather type. #contact is an inbound anchor from ~120 pages. -->
+<section class="home-book" id="contact">
+  <div class="hx-wrap hb-grid">
+    <div>
+      <p class="eyebrow">Ready when you are</p>
+      <h2 class="sec-title">Book your free <span>inspection.</span></h2>
+      <p class="hb-lede">Tell me where the house is and what&rsquo;s going on &mdash; usually 45 minutes to an hour at your home, no pressure, no obligation. Rather pick the time yourself? <a class="hh-about" href="/book">My calendar is open</a>.</p>
+      <div class="hx-cta">
+        <a class="hx-btn" href="/inspect">Book a free inspection</a>
+        <p class="hx-alt">Rather talk? <a href="tel:+18594207382">Call or text Joe &mdash; (859) 420-7382</a></p>
       </div>
+    </div>
 
-      <div class="contact-right reveal">
+      <div class="contact-right">
         <div class="contact-form-card">
           <div class="cf-title">Free Estimate Request</div>
           <div class="cf-sub">I will get back to you personally — usually same day.</div>
@@ -1821,7 +1030,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
             </div>
             <div class="form-group">
               <label for="fieldMessage">Tell Me About Your Project</label>
-              <textarea id="fieldMessage" placeholder="Describe what's going on — we'll get back to you with honest answers and a fair quote."></textarea>
+              <textarea id="fieldMessage" maxlength="1500" placeholder="Describe what's going on — we'll get back to you with honest answers and a fair quote."></textarea>
             </div>
             <!-- Scheduling choice (required), photos, best time, insurance, how heard — js/intake-extras.js -->
             <div data-nbd-intake="hp"></div>
@@ -1835,116 +1044,9 @@ footer.foot a,.review-footer a{color:#bd5728!important}
           </form>
         </div>
       </div>
-
-      <!-- ── HOMEPAGE SIDEBAR ── -->
-      <aside class="home-sidebar">
-        <div class="hs-cta">
-          <h3>Free Estimate</h3>
-          <p>Call or text Joe directly. No call centers, no pressure, no runaround.</p>
-          <a href="/#contact" class="hs-btn">Get My Free Estimate →</a>
-          <a href="tel:+18594207382" class="hs-phone"><svg class="ico ico-fill" viewBox="0 0 24 24" style="width:1em;height:1em;margin-right:4px"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.36 2.3.56 3.6.56.55 0 1 .45 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.56 3.6a1 1 0 0 1-.25 1z"/></svg>(859) 420-7382</a>
-        </div>
-
-        <div class="hs-card">
-          <h3>Our Services</h3>
-          <ul class="hs-links">
-            <li><a href="/the-pledge" style="color:var(--orange-dark);font-weight:800;">The Lifetime Pledge</a></li>
-            <li><a href="/services/the-nbd-guarantee" style="color:var(--orange-dark);font-weight:800;">The NBD Guarantee</a></li>
-<li><a href="/services/lumanail" style="color:var(--orange-dark);font-weight:800;">LumaNail™ Upgrade</a></li>
-<li><a href="/services/the-nbd-build" style="color:var(--orange-dark);font-weight:800;">The NBD Build</a></li>
-<li><a href="/services/roofivent" style="color:var(--orange-dark);font-weight:800;">Roofivent Products</a></li>
-<li><a href="/services/gaf-pivot-boot" style="color:var(--orange-dark);font-weight:800;">GAF Pivot Boot</a></li>
-<li><a href="/services/gaf-timberline" style="color:var(--orange-dark);font-weight:800;">GAF Timberline Lineup</a></li>
-<li><a href="/services/roof-replacement">Roof Replacement</a></li>
-            <li><a href="/services/roof-repair">Roof Repair</a></li>
-            <li><a href="/services/commercial-roofing">Commercial Roofing</a></li>
-            <li><a href="/services/siding-replacement">Siding Replacement</a></li>
-            <li><a href="/services/siding-repair">Siding Repair</a></li>
-            <li><a href="/services/gutter-replacement">Gutter Replacement</a></li>
-            <li><a href="/services/gutter-cleaning">Gutter Cleaning</a></li>
-            <li><a href="/services/storm-damage">Storm Damage &amp; Insurance</a></li>
-            <li><a href="/services/hail-damage-insurance-claim">Hail Damage Claims</a></li>
-            <li><a href="/services/roof-inspection">Roof Inspection</a></li>
-            <li><a href="/services/roof-cleaning-soft-wash">Roof Cleaning</a></li>
-            <li><a href="/services/interior-repair">Interior Repair</a></li>
-            <li><a href="/services/financing">Financing</a></li>
-          </ul>
-        </div>
-
-        <div class="hs-card">
-          <h3>Why Joe?</h3>
-          <div class="hs-trust">
-            <div class="hs-trust-item"><span class="icon" style="color:var(--orange)"><svg class="ico ico-fill" viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9"/></svg></span><div><strong>5-Star Rated</strong> on Google</div></div>
-            <div class="hs-trust-item"><span class="icon" style="color:var(--orange)"><svg class="ico" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/></svg></span><div><strong>Fully Insured</strong> in Ohio</div></div>
-            <div class="hs-trust-item"><span class="icon" style="color:var(--orange)"><svg class="ico" viewBox="0 0 24 24"><path d="M3 11 L12 3 L21 11"/><path d="M5 10 V20 H19 V10"/></svg></span><div><strong>Locally Owned</strong> — Greater Cincinnati</div></div>
-            <div class="hs-trust-item"><span class="icon" style="color:var(--orange)"><svg class="ico ico-fill" viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.36 2.3.56 3.6.56.55 0 1 .45 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.56 3.6a1 1 0 0 1-.25 1z"/></svg></span><div><strong>I pick up</strong> — no call centers</div></div>
-            <div class="hs-trust-item"><span class="icon" style="color:var(--orange)"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg></span><div><strong>Free inspections</strong> — no obligation</div></div>
-          </div>
-        </div>
-
-        <div class="hs-card">
-          <h3>Service Areas</h3>
-          <ul class="hs-links">
-            <li><a href="#areas">Goshen &amp; Batavia</a></li>
-            <li><a href="#areas">Milford &amp; Loveland</a></li>
-            <li><a href="#areas">Mason &amp; Lebanon</a></li>
-            <li><a href="#areas">Blue Ash &amp; Amelia</a></li>
-            <li><a href="#areas">Greater Cincinnati</a></li>
-          </ul>
-        </div>
-
-        <div class="hs-card">
-          <h3>From the Blog</h3>
-          <div class="hs-blog-item">
-            <div class="tag">Insurance</div>
-            <a href="/blog/my-roof-is-too-old-will-insurance-still-pay">My Roof Is Too Old — Will Insurance Still Pay?</a>
-          </div>
-          <div class="hs-blog-item">
-            <div class="tag">Storm Damage</div>
-            <a href="/blog/state-farm-allstate-roof-claims-ohio">How to File a Storm Damage Claim in Ohio</a>
-          </div>
-          <div class="hs-blog-item">
-            <div class="tag">Roofing</div>
-            <a href="/blog/architectural-shingles-vs-3-tab">Architectural vs. 3-Tab: Is the Upgrade Worth It?</a>
-          </div>
-          <div class="hs-blog-item">
-            <div class="tag">Roofing</div>
-            <a href="/blog/how-long-does-roof-replacement-take-cincinnati">How Long Does Roof Replacement Take?</a>
-          </div>
-        </div>
-      </aside>
-
-    </div>
   </div>
 </section>
 
-<!-- BRANDS WE INSTALL -->
-<section class="brands-strip" aria-label="Brands we install" style="background:var(--off-white);padding:44px 40px;border-top:1px solid var(--light-gray);border-bottom:1px solid var(--light-gray)">
-  <div style="max-width:1200px;margin:0 auto;text-align:center">
-    <div class="eyebrow" style="margin-bottom:18px;color:#A14A22">Brands I Install</div>
-    <p style="color:#646c7a;max-width:640px;margin:0 auto 24px;font-size:.95rem;line-height:1.6">We install premium materials from manufacturers that stand behind their products. If a shingle, siding panel, or trim piece fails — I want the same people backing us up as I count on.</p>
-    <div class="brands-row" style="display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:24px 40px;margin-top:12px">
-      <div class="brand-mark" aria-label="GAF" style="display:inline-flex;align-items:center;justify-content:center;height:72px;min-width:160px;padding:10px 18px;background:#fff;border:1px solid var(--light-gray);border-radius:8px">
-        <picture class="nbd-pic"><source type="image/webp" srcset="/assets/gaf/gaf-certified-badge-320-56w.webp 1x, /assets/gaf/gaf-certified-badge-320-112w.webp 2x, /assets/gaf/gaf-certified-badge-320-168w.webp 3x"><img src="/assets/gaf/gaf-certified-badge-320.png" alt="GAF Certified Contractor" width="72" height="52" loading="lazy" style="height:52px;width:auto;max-width:100%;object-fit:contain;filter:grayscale(100%) brightness(.55);opacity:.85;transition:filter .3s ease,opacity .3s ease" class="partner-logo-img"></picture>
-      </div>
-      <div class="brand-mark" aria-label="TAMKO Building Products" style="display:inline-flex;align-items:center;justify-content:center;height:72px;min-width:160px;padding:10px 18px;background:#fff;border:1px solid var(--light-gray);border-radius:8px">
-        <img src="/assets/tamko/tamko-logo-color.svg" alt="TAMKO Building Products" width="110" height="44" loading="lazy" style="height:42px;width:auto;max-width:100%;object-fit:contain;filter:grayscale(100%) brightness(.55);opacity:.85;transition:filter .3s ease,opacity .3s ease" class="partner-logo-img">
-      </div>
-      <div class="brand-mark" aria-label="James Hardie" style="display:inline-flex;align-items:center;justify-content:center;height:72px;min-width:160px;padding:10px 18px;background:#fff;border:1px solid var(--light-gray);border-radius:8px">
-        <img src="/assets/partners/james-hardie.svg" alt="James Hardie" width="140" height="36" loading="lazy" style="height:28px;width:auto;max-width:100%;object-fit:contain;filter:grayscale(100%) brightness(.55);opacity:.85;transition:filter .3s ease,opacity .3s ease" class="partner-logo-img">
-      </div>
-      <div class="brand-mark" aria-label="Royal Building Products" style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;height:72px;min-width:160px;padding:10px 18px;background:#fff;border:1px solid var(--light-gray);border-radius:8px;font-family:'Bebas Neue',sans-serif;letter-spacing:.06em;color:#555;line-height:1">
-        <span style="font-size:1.5rem;font-weight:400">ROYAL</span>
-        <span style="font-size:.7rem;letter-spacing:.14em;color:#646c7a;margin-top:2px;font-family:'Montserrat',sans-serif;font-weight:600">BUILDING PRODUCTS</span>
-      </div>
-      <div class="brand-mark" aria-label="Polaris Siding" style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;height:72px;min-width:160px;padding:10px 18px;background:#fff;border:1px solid var(--light-gray);border-radius:8px;font-family:'Bebas Neue',sans-serif;letter-spacing:.06em;color:#555;line-height:1">
-        <span style="font-size:1.5rem;font-weight:400">POLARIS</span>
-        <span style="font-size:.7rem;letter-spacing:.14em;color:#646c7a;margin-top:2px;font-family:'Montserrat',sans-serif;font-weight:600">SIDING</span>
-      </div>
-    </div>
-    <p style="color:#646c7a;font-size:.75rem;margin-top:22px">Brand names are trademarks of their respective manufacturers. No Big Deal Home Solutions is an independent installer.</p>
-  </div>
-</section>
 </main>
 
 <!-- FOOTER -->
@@ -2013,7 +1115,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         <ul class="footer-links">
           <li><a href="tel:+18594207382">(859) 420-7382</a></li>
           <li><a href="mailto:jd&#64;nobigdealwithjoedeal&#46;com">jd&#64;nobigdealwithjoedeal&#46;com</a></li>
-          <li><a href="#areas">Goshen / Cincinnati, OH</a></li>
+          <li><a href="/areas">Goshen / Cincinnati, OH</a></li>
           <li style="color:rgba(255,255,255,.65);font-size:.78rem;margin-top:8px">Mon–Sat 7AM–6PM</li>
           <li style="color:rgba(255,255,255,.65);font-size:.78rem">Sunday available</li>
         </ul>
@@ -2065,15 +1167,12 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 <script defer  src="/assets/js/inline/20fa0c9b91.js"></script>
 
 <!-- STICKY MOBILE CTA STRIP -->
-<div class="mobile-cta-strip" aria-label="Quick contact options">
-  <a href="tel:+18594207382" class="mobile-cta-call">
-    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
-    Call Joe
-  </a>
-  <a href="sms:+18594207382" class="mobile-cta-text">
-    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
-    Text Us
-  </a>
+<!-- nbd:partial mobile-cta book_href="/inspect" -->
+<div class="mobile-cta-strip mobile-cta-bookfirst" aria-label="Quick contact options">
+  <a href="/inspect" class="mobile-cta-book">Book free inspection</a>
+  <a href="tel:+18594207382" class="mobile-cta-call mobile-cta-icon" aria-label="Call Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg><span>Call</span></a>
+  <a href="sms:+18594207382" class="mobile-cta-text mobile-cta-icon" aria-label="Text Joe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg><span>Text</span></a>
 </div>
+<!-- /nbd:partial mobile-cta -->
 </body>
 </html>

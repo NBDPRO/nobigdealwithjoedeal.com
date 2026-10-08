@@ -9,6 +9,8 @@
     invoice { number, date, dueDate, status }
     lines[] { description, quantity, unit, unitPrice, lineTotal }
     subtotal, tax, total, paymentsReceived, balanceDue
+    rounding, roundingLabel, roundingSign, roundingAbs (optional — the
+      quote's rounding / job-minimum row, as estimate.hbs prints it)
     notes (optional)
     payUrl (optional)
 --}}
@@ -63,6 +65,7 @@
     <tfoot>
       <tr class="totals-row"><td colspan="3"></td><td class="num totals-label">Subtotal</td><td class="num money">{{money subtotal}}</td></tr>
       {{#if tax}}<tr class="totals-row"><td colspan="3"></td><td class="num totals-label">Tax</td><td class="num money">{{money tax}}</td></tr>{{/if}}
+      {{#if rounding}}<tr class="totals-row"><td colspan="3"></td><td class="num totals-label">{{roundingLabel}}</td><td class="num money">{{roundingSign}}{{money roundingAbs}}</td></tr>{{/if}}
       {{#if paymentsReceived}}<tr class="totals-row"><td colspan="3"></td><td class="num totals-label">Payments Received</td><td class="num money">−{{money paymentsReceived}}</td></tr>{{/if}}
     </tfoot>
   </table>

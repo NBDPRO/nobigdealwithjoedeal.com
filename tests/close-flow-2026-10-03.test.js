@@ -116,7 +116,13 @@ function loadV2(opts) {
     getAcceptLink: async (deal) => { calls.push(['link', deal.id]); return 'https://example.test/deal/tok123'; },
     markShared: (id, via) => { calls.push(['marked', via]); },
   };
-  win.showToast = () => {};
+  win.showToast = (m, t) => { calls.push(['toast', m, t]); };
+  // R6-3-2: the server's "ok to text?" (phone-share.js checkText). Default
+  // yes; opts.textCheck is the server's answer; opts.noPhoneShare = the
+  // module never loaded (must block, not open Messages unchecked).
+  win.NBDPhoneShare = opts.noPhoneShare ? undefined : {
+    checkText: async (o) => { calls.push(['checkText', o]); return opts.textCheck || { ok: true }; },
+  };
   win.goTo = () => { calls.push(['goTo']); };
   // The in-house e-sign callable (2026-10-04). Records every call; the
   // server's answer is opts.callableResult (default: emailed, link returned).
@@ -273,6 +279,31 @@ async function asyncTests() {
     const r2 = await M.T.sendToHomeowner();
     ok('no navigator.share → sms: with the customer phone + link', r2 === 'sms' && /^sms:\(?5135550101\?body=/.test(M.loc.href.replace(/[()\s-]/g, '')) && /tok123/.test(decodeURIComponent(M.loc.href)), M.loc.href);
     ok('…stamped sent via sms', M.calls.some((c) => c[0] === 'marked' && c[1] === 'sms'));
+    ok('…after the server "ok to text?" for THIS lead and phone (R6-3-2)',
+      M.calls.some((c) => c[0] === 'checkText' && c[1].leadId === 'L1' && /5135550101/.test(String(c[1].phone).replace(/\D/g, ''))),
+      JSON.stringify(M.calls.filter((c) => c[0] === 'checkText')));
+
+    // R6-3-2 (2026-10-07): a customer who replied STOP / is on the Do Not
+    // Text list / it is 11pm for → the automatic hand-off does NOT open
+    // Messages, says why, and stamps nothing.
+    const STOPPED = { ok: false, code: 'opted_out', reason: 'This customer replied STOP — they asked not to be texted. Call or email instead.' };
+    const B = loadV2({ textCheck: STOPPED });
+    const b3 = await B.T.sendToHomeowner();
+    ok('R6-3-2: opted-out customer → Messages NOT opened by the automatic hand-off', !/^sms:/.test(B.loc.href) && b3 === 'blocked', b3 + ' ' + B.loc.href);
+    ok('R6-3-2: …the rep is told why (the server reason)', B.calls.some((c) => c[0] === 'toast' && /replied STOP/.test(c[1]) && c[2] === 'error'));
+    ok('R6-3-2: …and the deal is NOT stamped sent via sms', !B.calls.some((c) => c[0] === 'marked' && c[1] === 'sms'));
+    // The 💬 Text link in the share box: the tap is held for the same check.
+    B.calls.length = 0;
+    const b4 = await B.T._textShare();
+    ok('R6-3-2: the 💬 Text link is blocked the same way (no sms:, reason shown)',
+      b4 === 'blocked' && !/^sms:/.test(B.loc.href) && B.calls.some((c) => c[0] === 'toast' && /replied STOP/.test(c[1])), b4);
+    const Q = loadV2({ textCheck: { ok: false, code: 'quiet_hours', reason: 'It is 11:30 PM for this homeowner — texting hours are 8am–9pm their time.' } });
+    const b5 = await Q.T.sendToHomeowner();
+    ok('R6-3-2: outside texting hours → blocked with the hours reason', b5 === 'blocked' && !/^sms:/.test(Q.loc.href) && Q.calls.some((c) => c[0] === 'toast' && /texting hours/.test(c[1])));
+    const N = loadV2({ noPhoneShare: true });
+    const b6 = await N.T.sendToHomeowner();
+    ok('R6-3-2: check unavailable (phone-share.js not loaded) → blocked, never an unchecked hand-off',
+      b6 === 'blocked' && !/^sms:/.test(N.loc.href) && N.calls.some((c) => c[0] === 'toast' && /Couldn.t check/.test(c[1])), b6 + ' ' + N.loc.href);
 
     // Save fails → no deal, no link.
     const F = loadV2({ saveFails: true, share: true });

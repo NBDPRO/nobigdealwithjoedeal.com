@@ -27,7 +27,11 @@ function loadIIFE(file) {
     console: { log() {}, warn() {}, error() {} },
     setTimeout, clearTimeout, Date, Math, JSON,
   };
-  vm.runInNewContext(src, sandbox, { filename: file });
+  // dashboard.html loads ky-insurance-law.js (window.NBDJurisdiction) before
+  // money-dashboard.js: aging asks its invoiceOverdue (THE overdue rule).
+  const ctx = vm.createContext(sandbox);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'docs/pro/js/ky-insurance-law.js'), 'utf8'), ctx, { filename: 'ky-insurance-law.js' });
+  vm.runInContext(src, ctx, { filename: file });
   return { win, doc };
 }
 

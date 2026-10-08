@@ -295,7 +295,7 @@ const BOOT_CODE = decomment(BOOT);
     !/fetch\(\s*['"]https:\/\/us-central1/.test(CODE),
     'a raw fetch to an onCall+enforceAppCheck function 401s');
   ok('it self-provisions the functions SDK when absent',
-    /import\('https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/firebase-functions\.js'\)/.test(CODE),
+    /import\('\/assets\/vendor\/firebase\/[\d.]+\/firebase-functions\.js'\)/.test(CODE),
     'the globals are set lazily and may be missing at click time');
 
   // Per-page App Check rule: an enforceAppCheck callable page that never inits

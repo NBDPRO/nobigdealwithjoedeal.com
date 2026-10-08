@@ -43,12 +43,14 @@ const crypto = require('crypto');
 const { onRequest, onCall, HttpsError } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 const { enforceRateLimit } = require('./integrations/upstash-ratelimit');
 const L = require('./agent-mcp-logic');
 const SW = require('./schedule-window');
 const OptOut = require('./sms-optout');
 const Suppress = require('./email-suppression');
 const TextingGate = require('./sms-texting-gate');
+const { keyCreatorAllowed } = require('./member-offboarding');
 const PhoneText = require('./phone-text-check');
 const Outbox = require('./sms-outbox-guard');
 
@@ -174,11 +176,11 @@ async function runTool(name, args, key) {
     const [leads, jobsByLead] = await Promise.all([companyLeads(company), companyJobsByLead(company)]);
     return L.toolText(Object.assign(L.summary(leads, today, jobsByLead), { today, timezone: tz }));
   }
-  if (name === 'overdue_followups') return L.toolText({ today, customers: L.overdueFollowups(await companyLeads(company), today, args.limit) });
+  if (name === 'overdue_followups') return L.toolText({ today, customers: L.overdueFollowups(await companyLeads(company), today, args.limit, tz) });
   if (name === 'list_leads') {
     // Paged (2026-10-06): customers + total + next_cursor; the cursor is
     // bound to THIS key's company and filters, so a cursor from elsewhere is refused.
-    const page = L.listLeadsPage(await companyLeads(company), args, Date.now(), company);
+    const page = L.listLeadsPage(await companyLeads(company), args, Date.now(), company, tz);
     return page.error ? L.toolErr(page.error) : L.toolText(page);
   }
 
@@ -191,9 +193,9 @@ async function runTool(name, args, key) {
       db().collection('leads').doc(lead.id).collection('tasks').where('done', '==', false).limit(20).get(),
     ]);
     const lastNotes = notes.docs.map((d) => d.data()).sort((x, y) => L.ms(y.createdAt) - L.ms(x.createdAt)).slice(0, 5)
-      .map((n) => ({ when: L.ms(n.createdAt) ? new Date(L.ms(n.createdAt)).toISOString().slice(0, 10) : null, text: String(n.text || '').slice(0, 400) }));
+      .map((n) => ({ when: L.ms(n.createdAt) ? L.dayInZone(L.ms(n.createdAt), tz) : null, text: String(n.text || '').slice(0, 400) }));
     const open = tasks.docs.map((d) => d.data()).map((t) => ({ due: t.dueDate || null, text: String(t.title || t.text || '').slice(0, 200) }));
-    return L.toolText(Object.assign(L.minimalLead(lead), { notes: lastNotes, open_reminders: open }));
+    return L.toolText(Object.assign(L.minimalLead(lead, tz), { notes: lastNotes, open_reminders: open }));
   }
 
   if (name === 'schedule') {
@@ -284,7 +286,7 @@ async function runTool(name, args, key) {
     const [leads, estimates, deals] = await Promise.all([
       companyLeads(company), companyDocs('estimates', company, ['companyId', 'userId']), companyDocs('deal_rooms', company, ['userId']),
     ]);
-    return L.toolText({ estimates: L.estimatesStatus(estimates, deals, leads, args, Date.now()),
+    return L.toolText({ estimates: L.estimatesStatus(estimates, deals, leads, args, Date.now(), tz),
       note: 'total_customer_facing is what the homeowner sees. Cost and margin are never shared here.' });
   }
 
@@ -302,7 +304,7 @@ async function runTool(name, args, key) {
 
   if (name === 'post_job') {
     const [leads, invoices] = await Promise.all([companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy'])]);
-    return L.toolText({ jobs: L.postJob(leads, invoices, Date.now(), args) });
+    return L.toolText({ jobs: L.postJob(leads, invoices, Date.now(), args, tz) });
   }
 
   if (name === 'lead_sources') {
@@ -311,10 +313,13 @@ async function runTool(name, args, key) {
   }
 
   if (name === 'job_profit') {
-    const [leads, invoices, expenses] = await Promise.all([
+    // The company's jobs too, so a repeat customer's finished first job is
+    // listed after the card moved on (review R6-2-10).
+    const [leads, invoices, expenses, jobsByLead] = await Promise.all([
       companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy']), companyDocs('expenses', company, ['companyId', 'userId']),
+      companyJobsByLead(company),
     ]);
-    return L.toolText(L.jobProfit(leads, invoices, expenses, Date.now(), args));
+    return L.toolText(L.jobProfit(leads, invoices, expenses, Date.now(), args, tz, jobsByLead));
   }
 
   if (name === 'storm_near_customers') {
@@ -433,6 +438,22 @@ async function authenticate(raw) {
   const snap = await db().collection('agent_keys').doc(id).get();
   const k = snap.exists ? snap.data() : null;
   if (!k || k.active !== true) return refuse();
+  // R3-1 (2026-10-06): the person who made the key must still be entitled to
+  // it, on every call: enabled, not a viewer, still in the key's company
+  // (removeMember strips the claim; deactivateUser disables the account). The
+  // platform admin's house keys and creator-less server keys are handled
+  // explicitly in keyCreatorAllowed. An Auth outage is a 503, not "revoked".
+  if (k.createdBy) {
+    let creator = null;
+    try { creator = await getAuth().getUser(String(k.createdBy)); }
+    catch (e) {
+      if (!(e && e.code === 'auth/user-not-found')) {
+        logger.warn('[crmMcp] creator check failed', { msg: e && e.message });
+        return { status: 503, body: L.rpcError(null, -32000, 'The CRM could not check this key right now. Try again shortly.') };
+      }
+    }
+    if (!keyCreatorAllowed(k, creator)) return refuse();
+  }
   let bot;
   if (k.customBotId) {
     // A company bot's key: the bot must still exist, be active and belong to

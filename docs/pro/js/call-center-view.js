@@ -26,8 +26,8 @@
   'use strict';
   if (window.NBDCallCenter) return;
 
-  var FUNCTIONS_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
-  var STORAGE_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
+  var FUNCTIONS_SDK = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
+  var STORAGE_SDK = '/assets/vendor/firebase/10.12.2/firebase-storage.js';
   var LIMIT = 300;
   var state = { calls: [], filter: 'attention', q: '', loading: false, loaded: false, error: '', blobUrls: {}, busy: {} };
 

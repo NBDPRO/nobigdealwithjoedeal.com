@@ -1671,7 +1671,9 @@ async function run() {
     invoices:          { mk: (u) => ({ createdBy: u, companyId: CO, totalCents: 1000 }),          upd: { status: 'paid' } },
     drip_queue:        { mk: (u) => ({ userId: u, leadId: LEAD[u], step: 1 }),                    upd: { step: 2 } },
     lead_documents:    { mk: (u) => ({ userId: u, leadId: LEAD[u], name: 'x.pdf' }),              upd: { name: 'y.pdf' } },
-    referrals:         { mk: (u) => ({ userId: u, code: 'R1' }),                                  upd: { code: 'R2' }, noDelete: true }, // delete is admin-only for everyone
+    // referrals: companyId + referrerLeadId pinned to the writer's company, and
+    // code frozen after create (section 58, 2026-10-06).
+    referrals:         { mk: (u) => ({ userId: u, companyId: CO, code: 'R1', referrerLeadId: LEAD[u] }), upd: { rewardsPaid: 100 }, noDelete: true }, // delete is admin-only for everyone
     review_requests:   { mk: (u) => ({ userId: u, leadId: LEAD[u] }),                             upd: { status: 'sent' }, noDelete: true }, // same
     reports:           { mk: (u) => ({ userId: u, companyId: CO, kind: 'summary' }),              upd: null },   // update is admin-only for everyone
     deal_rooms:        { mk: (u) => ({ userId: u, leadId: LEAD[u] }),                             upd: { tier: 'better' } },
@@ -1695,7 +1697,6 @@ async function run() {
       for (const [s, d] of Object.entries(sub)) await setDoc(doc(db, 'leads/' + LEAD[u] + '/' + s + '/s34'), d.mk());
       await setDoc(doc(db, 'leads/' + LEAD[u] + '/ai_drafts/s34'), { userId: u, leadId: LEAD[u], status: 'pending', draftText: 'hi' });
       await setDoc(doc(db, 'notes/s34-' + u), { userId: u, leadId: LEAD[u], text: 'note' });
-      await setDoc(doc(db, 'counters/s34-' + u), { next: 5 });
       await setDoc(doc(db, 'notifications/s34-' + u), { userId: u, read: false });
     }
     // Staff fixtures on the rep's lead, for the other-roles-unchanged block.
@@ -1747,9 +1748,11 @@ async function run() {
     await x34('notes(flat) delete: ' + who + '-author', want, deleteDoc(doc(db, 'notes/s34-' + u)));
     // /emails: the sent log, keyed to the token email.
     await x34('emails create: ' + who, want, setDoc(doc(db, 'emails/s34-' + u), { sentBy: u + '@x.test', sentByUid: u, to: 'h@x.test' }));
-    // /counters: the customer-id mint (create at 1, then +1).
-    await x34('counters create: ' + who, want, setDoc(doc(db, 'counters/s34-new-' + u), { next: 1 }));
-    await x34('counters update: ' + who, want, updateDoc(doc(db, 'counters/s34-' + u), { next: 6 }));
+    // /counters: the customer-id mint (create at 1, then +1), on the
+    // tenant's OWN counter (2026-10-05: counters are tenant-scoped). vx runs
+    // first and is refused; rx then creates it and advances it.
+    await x34('counters create: ' + who, want, setDoc(doc(db, 'counters/customerIds_' + CO), { next: 1 }));
+    await x34('counters update: ' + who, want, updateDoc(doc(db, 'counters/customerIds_' + CO), { next: 2 }));
   }
 
   // ── uid-keyed tenant docs a viewer could previously write under its OWN uid
@@ -2543,6 +2546,70 @@ async function run() {
     throw new Error('50 social studio: ' + s50Fail.length + ' check(s) went the wrong way:\n    ' + s50Fail.join('\n    '));
   }
 
+  // 58. Flat-collection lead binding (2026-10-05 security review). /photos,
+  // /invoices and /notes name their lead by a client-written leadId FIELD.
+  // CREATE: a named lead must be one the writer owns or reaches as company
+  // staff (an unattached photo / lead-less invoice still saves). UPDATE:
+  // leadId is frozen (a row with none may be attached once), notes freeze
+  // userId too, and no client can make a photo source:'homeowner' (the portal
+  // re-signs those paths). Existing rows that do not move keep updating.
+  const s58Fail = [];
+  let s58Pass = 0;
+  async function x58(label, want, promise) {
+    try { if (want === 'allow') await assertSucceeds(promise); else await assertFails(promise); s58Pass++; }
+    catch (_) { s58Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'photos/p54-own'), { userId: 'alice', companyId: 'co-a', leadId: 'leadA2', url: 'p/1.jpg' });
+    await setDoc(doc(db, 'photos/p54-loose'), { userId: 'alice', companyId: 'co-a', leadId: null, url: 'p/2.jpg' });
+    await setDoc(doc(db, 'photos/p54-loose2'), { userId: 'alice', companyId: 'co-a', url: 'p/3.jpg' });
+    // A real homeowner upload (server-written) on alice's lead.
+    await setDoc(doc(db, 'photos/p54-ho'), { userId: 'alice', companyId: 'co-a', leadId: 'leadA2', source: 'homeowner', path: 'homeowner-uploads/alice/leadA2/1.jpg' });
+    await setDoc(doc(db, 'notes/n54'), { userId: 'alice', leadId: 'leadA2', text: 'n' });
+    await setDoc(doc(db, 'invoices/i54'), { createdBy: 'alice', companyId: 'co-a', leadId: 'leadA2', total: 100, status: 'sent' });
+    await setDoc(doc(db, 'invoices/i54-loose'), { createdBy: 'alice', companyId: 'co-a', leadId: null, total: 100, status: 'sent' });
+  });
+  const ph54 = (u, extra) => Object.assign({ userId: u, companyId: 'co-a', url: 'p/x.jpg' }, extra || {});
+  // /photos CREATE
+  await x58('photo on own lead', 'allow', setDoc(doc(alice, 'photos/c54-own'), ph54('alice', { leadId: 'leadA2' })));
+  await x58('photo on own legacy lead (no companyId)', 'allow', setDoc(doc(alice, 'photos/c54-legacy'), ph54('alice', { leadId: 'leadA' })));
+  await x58('unattached photo (no leadId)', 'allow', setDoc(doc(alice, 'photos/c54-none'), ph54('alice')));
+  await x58('unattached photo (leadId null)', 'allow', setDoc(doc(alice, 'photos/c54-null'), ph54('alice', { leadId: null })));
+  await x58('manager photo on a teammate lead in the tenant', 'allow', setDoc(doc(mgrA, 'photos/c54-mgr'), ph54('mia', { leadId: 'leadA2' })));
+  await x58('photo on ANOTHER tenant\'s lead', 'deny', setDoc(doc(alice, 'photos/c54-xt'), ph54('alice', { leadId: 'leadB' })));
+  await x58('other-tenant manager photo on leadA2', 'deny', setDoc(doc(mgrB, 'photos/c54-mgrB'), { userId: 'mob', companyId: 'co-b', url: 'p/x.jpg', leadId: 'leadA2' }));
+  await x58('sales_rep photo on a TEAMMATE\'s lead', 'deny', setDoc(doc(alice, 'photos/c54-mate'), ph54('alice', { leadId: 'leadCar2' })));
+  await x58('photo on a lead that does not exist', 'deny', setDoc(doc(alice, 'photos/c54-ghost'), ph54('alice', { leadId: 'no-such-lead-54' })));
+  await x58('client-written source:homeowner', 'deny', setDoc(doc(alice, 'photos/c54-ho'), ph54('alice', { leadId: 'leadA2', source: 'homeowner', path: 'documents/bob/leadB/x.html' })));
+  // /photos UPDATE
+  await x58('photo caption edit', 'allow', updateDoc(doc(alice, 'photos/p54-own'), { caption: 'x' }));
+  await x58('photo moved to another lead', 'deny', updateDoc(doc(alice, 'photos/p54-own'), { leadId: 'leadA' }));
+  await x58('photo moved to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'photos/p54-own'), { leadId: 'leadB' }));
+  await x58('own photo flipped to source:homeowner', 'deny', updateDoc(doc(alice, 'photos/p54-own'), { source: 'homeowner', path: 'documents/bob/leadB/x.html' }));
+  await x58('real homeowner photo: share toggle still works', 'allow', updateDoc(doc(alice, 'photos/p54-ho'), { sharedWithHomeowner: true }));
+  await x58('unattached photo attached to own lead', 'allow', updateDoc(doc(alice, 'photos/p54-loose'), { leadId: 'leadA2' }));
+  await x58('unattached photo attached to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'photos/p54-loose2'), { leadId: 'leadB' }));
+  // /notes UPDATE
+  await x58('note text edit', 'allow', updateDoc(doc(alice, 'notes/n54'), { text: 'edited' }));
+  await x58('note moved to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'notes/n54'), { leadId: 'leadB' }));
+  await x58('note re-authored', 'deny', updateDoc(doc(alice, 'notes/n54'), { userId: 'bob' }));
+  // /invoices CREATE
+  const inv54 = (u, extra) => Object.assign({ createdBy: u, companyId: 'co-a', total: 100, status: 'draft' }, extra || {});
+  await x58('invoice on own lead', 'allow', setDoc(doc(alice, 'invoices/c54-own'), inv54('alice', { leadId: 'leadA2' })));
+  await x58('invoice with no lead (leadId null)', 'allow', setDoc(doc(alice, 'invoices/c54-null'), inv54('alice', { leadId: null })));
+  await x58('manager invoice on a teammate lead in the tenant', 'allow', setDoc(doc(mgrA, 'invoices/c54-mgr'), inv54('mia', { leadId: 'leadA2' })));
+  await x58('invoice on ANOTHER tenant\'s lead', 'deny', setDoc(doc(alice, 'invoices/c54-xt'), inv54('alice', { leadId: 'leadB' })));
+  await x58('invoice on a lead that does not exist', 'deny', setDoc(doc(alice, 'invoices/c54-ghost'), inv54('alice', { leadId: 'no-such-lead-54' })));
+  // /invoices UPDATE
+  await x58('invoice money update (leadId unchanged)', 'allow', updateDoc(doc(alice, 'invoices/i54'), { status: 'paid', amountPaid: 100 }));
+  await x58('invoice moved to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'invoices/i54'), { leadId: 'leadB' }));
+  await x58('lead-less invoice attached to own lead', 'allow', updateDoc(doc(alice, 'invoices/i54-loose'), { leadId: 'leadA2' }));
+  console.log('  58: ' + s58Pass + ' flat-collection lead-binding checks passed, ' + s58Fail.length + ' failed');
+  if (s58Fail.length) {
+    throw new Error('58 flat-collection lead binding: ' + s58Fail.length + ' check(s) went the wrong way:\n    ' + s58Fail.join('\n    '));
+  }
+
   // 52. Server-side plan lead cap (2026-10-04, tenant-ready). Every client
   // lead create names its `meter`; subscriptions/{companyId}.leadCap (written
   // by functions/lead-cap.js) blocks metered creates at the plan cap, except
@@ -2729,7 +2796,7 @@ async function run() {
     try { if (want === 'allow') await assertSucceeds(promise); else await assertFails(promise); s57Pass++; }
     catch (_) { s57Fail.push(label + ' (wanted ' + want + ')'); }
   }
-  const STATUSES57 = ['pending', 'approved', 'sent', 'failed', 'dismissed'];
+  const STATUSES57 = ['pending', 'approved', 'sent', 'failed', 'dismissed', 'send_uncertain'];
   await env.withSecurityRulesDisabled(async (ctx) => {
     const d = ctx.firestore();
     await setDoc(doc(d, 'leads/lead57'), { userId: 'alice', companyId: 'co-a', name: 'Sam' });
@@ -2744,7 +2811,10 @@ async function run() {
     await setDoc(doc(d, 'leads/lead57/ai_drafts/edit-pending'), { userId: 'alice', leadId: 'lead57', status: 'pending', draftText: 'x' });
     await setDoc(doc(d, 'leads/lead57/ai_drafts/nostatus'), { userId: 'alice', leadId: 'lead57', draftText: 'x' });
   });
-  const ALLOWED57 = { 'pending-approved': 1, 'pending-dismissed': 1, 'failed-pending': 1, 'failed-dismissed': 1 };
+  // send_uncertain (R6-3-3, 2026-10-07): Twilio may have taken it. Only the rep
+  // re-queues it (→ pending) or dismisses it; it is never approved directly.
+  const ALLOWED57 = { 'pending-approved': 1, 'pending-dismissed': 1, 'failed-pending': 1, 'failed-dismissed': 1,
+    'send_uncertain-pending': 1, 'send_uncertain-dismissed': 1 };
   for (const from of STATUSES57) {
     for (const to of STATUSES57) {
       const key = from + '-' + to;
@@ -2762,6 +2832,97 @@ async function run() {
   console.log('  57: ' + s57Pass + ' ai_drafts status-move checks passed, ' + s57Fail.length + ' failed');
   if (s57Fail.length) {
     throw new Error('57 ai_drafts status moves: ' + s57Fail.length + ' check(s) went the wrong way:\n    ' + s57Fail.join('\n    '));
+  }
+
+  // ─── 59. invoices.leadId + referrals stay inside the writer's company (2026-10-06, R3-5/R3-6) ───
+  // payment-timeline.js writes a "Payment received" note onto an invoice's
+  // lead, and onReferralLeadWrite trusts a referral doc's companyId / code /
+  // referrerLeadId. So an invoice may only name a lead of the writer's own
+  // company, and a referral doc is pinned to the writer's company and lead.
+  // CREATE and UPDATE both checked.
+  const s59Fail = []; let s59Pass = 0;
+  async function x59(label, want, promise) {
+    try {
+      if (want === 'deny') await assertFails(promise); else await assertSucceeds(promise);
+      s59Pass++;
+    } catch (e) { s59Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const a58 = env.authenticatedContext('a58', { role: 'sales_rep', companyId: 'co-a58' }).firestore();
+  const t58 = env.authenticatedContext('t58', { role: 'sales_rep', companyId: 'co-a58' }).firestore();
+  const b58 = env.authenticatedContext('b58', { role: 'sales_rep', companyId: 'co-b58' }).firestore();
+  const s58 = env.authenticatedContext('s58', {}).firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'leads/lead58-own'), { userId: 'a58', companyId: 'co-a58', name: 'own' });
+    await setDoc(doc(d, 'leads/lead58-mate'), { userId: 't58', companyId: 'co-a58', name: 'teammate' });
+    await setDoc(doc(d, 'leads/lead58-victim'), { userId: 'b58', companyId: 'co-b58', name: 'victim' });
+    await setDoc(doc(d, 'leads/lead58-solo'), { userId: 's58', name: 'solo legacy' });
+    await setDoc(doc(d, 'invoices/inv58'), { createdBy: 'a58', companyId: 'co-a58', leadId: 'lead58-own', jobId: 'job1', createdAt: 1, total: 100, status: 'sent' });
+    await setDoc(doc(d, 'referrals/ref58'), { userId: 'a58', companyId: 'co-a58', code: 'OWNN-1111', referrerLeadId: 'lead58-own', status: 'active', rewardsPaid: 0 });
+  });
+  const inv58 = (lead) => ({ createdBy: 'a58', companyId: 'co-a58', leadId: lead, createdAt: 2, total: 100, status: 'sent' });
+  // invoices — CREATE
+  await x59('invoice create: own lead', 'allow', setDoc(doc(a58, 'invoices/i58-1'), inv58('lead58-own')));
+  // A sales_rep cannot reach a teammate's lead (leadReachable, #2220 — reps
+  // are deliberately not company pipeline readers; a manager can, see §58).
+  await x59('invoice create: a sales rep on a teammate\'s lead', 'deny', setDoc(doc(a58, 'invoices/i58-2'), inv58('lead58-mate')));
+  await x59('invoice create: no lead', 'allow', setDoc(doc(a58, 'invoices/i58-3'), { createdBy: 'a58', companyId: 'co-a58', createdAt: 2, total: 1 }));
+  await x59('invoice create: another company\'s lead', 'deny', setDoc(doc(a58, 'invoices/i58-4'), inv58('lead58-victim')));
+  await x59('invoice create: a leadId with a slash', 'deny', setDoc(doc(a58, 'invoices/i58-5'), inv58('a/b')));
+  await x59('invoice create: solo owner on own legacy lead', 'allow', setDoc(doc(s58, 'invoices/i58-6'), { createdBy: 's58', companyId: 's58', leadId: 'lead58-solo', createdAt: 2, total: 1 }));
+  // invoices — UPDATE
+  await x59('invoice update: money fields, lead unchanged', 'allow', updateDoc(doc(a58, 'invoices/inv58'), { status: 'paid', balanceDue: 0 }));
+  await x59('invoice update: re-point leadId at another company\'s lead', 'deny', updateDoc(doc(a58, 'invoices/inv58'), { leadId: 'lead58-victim' }));
+  await x59('invoice update: re-point leadId at a teammate\'s lead (frozen)', 'deny', updateDoc(doc(a58, 'invoices/inv58'), { leadId: 'lead58-mate' }));
+  await x59('invoice update: change jobId (frozen)', 'deny', updateDoc(doc(a58, 'invoices/inv58'), { jobId: 'job2' }));
+  // referrals — CREATE
+  const ref58 = (o) => Object.assign({ userId: 'a58', companyId: 'co-a58', code: 'OWNN-2222', referrerLeadId: 'lead58-own', status: 'active', referredLeads: [], rewardsPaid: 0 }, o || {});
+  await x59('referral create: own company, own lead', 'allow', setDoc(doc(a58, 'referrals/r58-1'), ref58()));
+  await x59('referral create: a teammate\'s lead', 'allow', setDoc(doc(a58, 'referrals/r58-2'), ref58({ referrerLeadId: 'lead58-mate' })));
+  await x59('referral create: stamped with another company\'s companyId', 'deny', setDoc(doc(b58, 'referrals/000r58forged'), ref58({ userId: 'b58', companyId: 'co-a58', referrerLeadId: 'lead58-victim' })));
+  await x59('referral create: own companyId, another company\'s lead', 'deny', setDoc(doc(a58, 'referrals/r58-3'), ref58({ referrerLeadId: 'lead58-victim' })));
+  await x59('referral create: a lead that does not exist', 'deny', setDoc(doc(a58, 'referrals/r58-4'), ref58({ referrerLeadId: 'lead58-nope' })));
+  await x59('referral create: no companyId', 'deny', setDoc(doc(a58, 'referrals/r58-5'), ref58({ companyId: null })));
+  await x59('referral create: for someone else', 'deny', setDoc(doc(a58, 'referrals/r58-6'), ref58({ userId: 't58' })));
+  await x59('referral create: a solo owner keyed on their uid', 'allow', setDoc(doc(s58, 'referrals/r58-7'), ref58({ userId: 's58', companyId: 's58', referrerLeadId: 'lead58-solo' })));
+  // referrals — UPDATE
+  await x59('referral update: ledger fields', 'allow', updateDoc(doc(a58, 'referrals/ref58'), { rewardsPaid: 100, rewardsOwedTotal: 0 }));
+  await x59('referral update: change companyId', 'deny', updateDoc(doc(a58, 'referrals/ref58'), { companyId: 'co-b58' }));
+  await x59('referral update: change code', 'deny', updateDoc(doc(a58, 'referrals/ref58'), { code: 'ALIC-7K2Q' }));
+  await x59('referral update: change referrerLeadId', 'deny', updateDoc(doc(a58, 'referrals/ref58'), { referrerLeadId: 'lead58-mate' }));
+  await x59('referral update: hand to another user', 'deny', updateDoc(doc(a58, 'referrals/ref58'), { userId: 't58' }));
+  console.log('  59: ' + s59Pass + ' invoice/referral tenant checks passed, ' + s59Fail.length + ' failed');
+  if (s59Fail.length) {
+    throw new Error('59 invoice/referral tenant: ' + s59Fail.length + ' check(s) went the wrong way:\n    ' + s59Fail.join('\n    '));
+  }
+
+  // ─── 60. estimates.signedPrice is server-only (review R6-2-2, Jo 2026-10-07) ───
+  // The price the homeowner SIGNED, which every bill charges until they
+  // re-sign. functions/signed-price.js stamps it (admin SDK) when a signature
+  // lands; a rep's edit re-prices the estimate but can never move, remove or
+  // forge what was signed.
+  const a60 = env.authenticatedContext('a60', { companyId: 'co-a60' }).firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'estimates/est60-signed'), { userId: 'a60', companyId: 'co-a60', leadId: 'lead60', grandTotal: 14500,
+      signedPrice: { fields: { grandTotal: 14500 }, fingerprint: 'p1-x', totalCents: 1450000, source: 'contract_signed', sourceId: 'doc_1', at: 1 } });
+    await setDoc(doc(d, 'estimates/est60-plain'), { userId: 'a60', companyId: 'co-a60', leadId: 'lead60', grandTotal: 9000 });
+  });
+  const s60Fail = []; let s60Pass = 0;
+  async function x60(label, want, promise) {
+    try { await (want === 'allow' ? assertSucceeds(promise) : assertFails(promise)); s60Pass++; }
+    catch (e) { s60Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  await x60('signed estimate: re-price it (the edit stands)', 'allow', updateDoc(doc(a60, 'estimates/est60-signed'), { grandTotal: 16200, subtotal: 16200 }));
+  await x60('signed estimate: change the signed price', 'deny', updateDoc(doc(a60, 'estimates/est60-signed'), { 'signedPrice.totalCents': 1620000 }));
+  await x60('signed estimate: replace the signed price', 'deny', updateDoc(doc(a60, 'estimates/est60-signed'), { signedPrice: { fields: { grandTotal: 16200 }, totalCents: 1620000 } }));
+  await x60('signed estimate: remove the signed price', 'deny', updateDoc(doc(a60, 'estimates/est60-signed'), { signedPrice: deleteField() }));
+  await x60('unsigned estimate: forge a signed price', 'deny', updateDoc(doc(a60, 'estimates/est60-plain'), { signedPrice: { fields: { grandTotal: 1 }, totalCents: 100 } }));
+  await x60('create an estimate carrying a signed price', 'deny', setDoc(doc(a60, 'estimates/est60-new1'), { userId: 'a60', companyId: 'co-a60', grandTotal: 5000, signedPrice: { totalCents: 500000 } }));
+  await x60('create an estimate without one', 'allow', setDoc(doc(a60, 'estimates/est60-new2'), { userId: 'a60', companyId: 'co-a60', grandTotal: 5000 }));
+  console.log('  60: ' + s60Pass + ' signed-price checks passed, ' + s60Fail.length + ' failed');
+  if (s60Fail.length) {
+    throw new Error('60 estimates.signedPrice: ' + s60Fail.length + ' check(s) went the wrong way:\n    ' + s60Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

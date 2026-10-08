@@ -395,11 +395,11 @@
   // Same five sentences as estimate-config.js tierWarrantyText (doc-preflight
   // keeps the same copy for pages that do not load the config).
   var TIER_FALLBACK_WARRANTY = {
-    economy: '1-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.',
-    good:    'Lifetime workmanship warranty; does not transfer on sale of property.',
-    better:  'Lifetime workmanship warranty; transferable to one subsequent owner within 30 days of sale.',
-    best:    'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included.',
-    beyond:  'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
+    economy: '1-year written workmanship (labor) warranty; does not transfer on sale of property; the shingle manufacturer\'s standard limited warranty applies; no system warranty.',
+    good:    '5-year written workmanship (labor) warranty; does not transfer on sale of property; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+    better:  '10-year written workmanship (labor) warranty; transferable to one subsequent owner within 30 days of sale; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+    best:    '20-year written workmanship (labor) warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+    beyond:  '20-year written workmanship (labor) warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
   };
   var TIER_SHINGLE = {
     economy: 'Economy-grade architectural shingles (never a 3-tab)',
@@ -421,10 +421,25 @@
     var jur = jurisdictionOf(d);
     var insurance = !!(jur && jur.insurance);
     var tiers = order.filter(function (t) { return T.toCents(prices[t]) > 0; });
+    // Warranty lines per option (Jo, 2026-10-06): NBD — the NBD Pledge
+    // (promise) + the package's written labor years; another company — its
+    // OWN sentence or none — and the
+    // manufacturer warranty for that package (the quoted option reads the
+    // estimate's own shingle + any extended warranty sold; the others name
+    // only what the package itself fixes, else "per manufacturer").
+    var TR = (typeof window !== 'undefined') ? window.NBDTenantRules : null;
+    var tenant = !!(TR && typeof TR.isPlatformTenant === 'function' && TR.isPlatformTenant() === false);
+    var lines = function (t) {
+      return (TR && typeof TR.warrantyLines === 'function')
+        ? TR.warrantyLines({ tier: t, isNbd: !tenant, lineItems: t === quoted ? d.estimateLineItems : [], extendedWarranty: t === quoted ? d.extendedWarranty : null })
+        : null;
+    };
 
     var cards = tiers.map(function (t) {
       var c = T.toCents(prices[t]);
-      var mfg = DG.MANUFACTURER_COVERAGE && DG.MANUFACTURER_COVERAGE[t];
+      var wl = lines(t);
+      var work = tenant ? ((wl && wl.workmanship) || '') : warranty(t);
+      var mfg = wl ? String(wl.manufacturer).replace(/^Manufacturer warranty:\s*/, '') : '';
       var due = '';
       if (R && typeof R.fromEstimate === 'function') {
         try {
@@ -439,8 +454,11 @@
         '<div class="lib-tier-price">' + esc(T.centsText(c)) + '</div>' +
         '<dl>' +
           (TIER_SHINGLE[t] ? '<dt>Shingles</dt><dd>' + esc(TIER_SHINGLE[t]) + '</dd>' : '') +
-          '<dt>Workmanship</dt><dd>' + esc(warranty(t)) + '</dd>' +
-          (mfg ? '<dt>Manufacturer coverage</dt><dd>' + esc(mfg.level + ' — ' + mfg.note) + '</dd>' : '') +
+          // NBD: the Pledge (a promise) and the package's WRITTEN labor
+          // warranty, as separate rows (Jo, 2026-10-06).
+          ((!tenant && wl && wl.pledge) ? '<dt>NBD Pledge</dt><dd>' + esc(wl.pledge) + '</dd>' : '') +
+          (work ? '<dt>' + (tenant ? 'Workmanship' : 'Written labor warranty') + '</dt><dd>' + esc(work) + '</dd>' : '') +
+          (mfg ? '<dt>Manufacturer warranty</dt><dd>' + esc(mfg) + '</dd>' : '') +
           (due ? '<dt>Payment</dt><dd>' + esc(due) + '</dd>' : '') +
         '</dl></div>';
     }).join('');

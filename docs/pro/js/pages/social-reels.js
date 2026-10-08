@@ -17,8 +17,8 @@
  * Reads companies/{c}/reels + reel_media (firestore.rules: owner +
  * company_admin read, server-only write). CSP: delegated listeners only.
  */
-import { collection, onSnapshot, query, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { ref as sref, uploadBytesResumable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { collection, onSnapshot, query, limit } from "/assets/vendor/firebase/10.12.2/firebase-firestore.js";
+import { ref as sref, uploadBytesResumable } from "/assets/vendor/firebase/10.12.2/firebase-storage.js";
 
 const R = window.NBDReelLogic;
 const MEDIA_BASE = '/api/social-media';

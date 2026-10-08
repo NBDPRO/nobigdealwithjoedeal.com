@@ -2821,7 +2821,7 @@ try { localStorage.removeItem('nbd_google_solar_key'); } catch (_) {}
 
 async function _sunExposureCallable() {
   if (!window._functions || !window._httpsCallable) {
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     window._functions = window._functions || mod.getFunctions();
     window._httpsCallable = window._httpsCallable || mod.httpsCallable;
   }

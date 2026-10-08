@@ -93,12 +93,38 @@
     const cfg = window.NBD_ESTIMATE_CONFIG;
     if (cfg && typeof cfg.tierWarrantyText === 'function') return cfg.tierWarrantyText(key);
     return ({
-      economy: '1-year workmanship (labor) warranty; the shingle manufacturer\'s standard limited warranty applies. No system warranty.',
-      good: 'Lifetime workmanship warranty; does not transfer on sale of property.',
-      better: 'Lifetime workmanship warranty; transferable to one subsequent owner within 30 days of sale.',
-      best: 'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included.',
-      beyond: 'Lifetime workmanship warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
+      economy: '1-year written workmanship (labor) warranty; does not transfer on sale of property; the shingle manufacturer\'s standard limited warranty applies; no system warranty.',
+      good: '5-year written workmanship (labor) warranty; does not transfer on sale of property; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      better: '10-year written workmanship (labor) warranty; transferable to one subsequent owner within 30 days of sale; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      best: '20-year written workmanship (labor) warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; GAF System Plus warranty included — GAF\'s manufacturer warranty on the GAF shingles and qualifying GAF accessories (GAF terms apply).',
+      beyond: '20-year written workmanship (labor) warranty; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included; plus TAMKO\'s HailGuard hail warranty on the shingles (manufacturer terms apply).'
     })[key] || '';
+  }
+
+  // The warranty a deal's package cards print (2026-10-07, audit H4). A $500
+  // shingle-patch repair printed the Preferred card's "10-year … transferable
+  // … GAF System Plus" sentence, because every card printed its TIER's roofing
+  // warranty whatever the job was. A repair (or a gutter or other Job Template
+  // job) carries its JOB TYPE's warranty instead, from
+  // NBDCustomerEstimateRows.estimateWarranty — the sentence the estimate and
+  // contract print: '' = the job carries none (an unticked repair), so the
+  // card prints no warranty line. null = roofing: the tier sentence above.
+  function dealWarrantyText(deal, key) {
+    if (deal && typeof deal.jobWarranty === 'string') return deal.jobWarranty;
+    return tierDisplayWarrantyText(key);
+  }
+  // estimateData.jobType → the job-type sentence, or null for roofing.
+  // Fails closed: with the rows helper missing, a repair or a non-roof Job
+  // Template job prints no warranty rather than a roofing tier's.
+  function _jobWarrantyOf(estimateData) {
+    const jt = estimateData && estimateData.jobType;
+    if (!jt || typeof jt !== 'object') return null;
+    const CER = window.NBDCustomerEstimateRows;
+    if (!CER || typeof CER.estimateWarranty !== 'function') {
+      return (jt.workKind === 'repair' || (jt.warrantyKind && jt.warrantyKind !== 'roof')) ? '' : null;
+    }
+    const w = CER.estimateWarranty(jt);
+    return (w && typeof w.text === 'string') ? w.text : null;
   }
 
   // Per-tier card copy (2026-09-25). The cards promised scope no tier price
@@ -334,7 +360,7 @@
   async function syncDealToFirestore(deal) {
     if (!window._db || !window._user) return false;
     try {
-      const { setDoc, updateDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const { setDoc, updateDoc, doc } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const uid = window._user.uid;
       // Checked AFTER the import await, with nothing awaited between it and
       // the write: that await is the window the race lived in.
@@ -346,7 +372,10 @@
       const data = {
         ...deal,
         userId: uid,
-        companyId: window._userClaims?.companyId || uid,
+        // R3-12: companyId is write-once in firestore.rules. A deal the server
+        // already holds keeps the companyId it carries (a sync that ran before
+        // the claims loaded would otherwise send the uid and be refused).
+        companyId: deal.companyId || window._userClaims?.companyId || uid,
         updatedAt: new Date().toISOString()
       };
       // The homeowner's acceptance is server-written (deal-acceptance.js) and
@@ -407,7 +436,7 @@
     const uid = window._user.uid;
     const confirmedBeforeRead = _dealRoomsForCurrentUser().filter(d => _isConfirmedBy(d, uid)).map(d => d.id);
     try {
-      const { getDocs, query, collection, where } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const { getDocs, query, collection, where } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const snap = await getDocs(query(
         collection(window._db, DEAL_COLLECTION),
         where('userId', '==', uid)
@@ -517,6 +546,9 @@
       // warranty on its card (tierDisplayWarrantyText). The field is kept
       // for an explicitly passed value only; nothing renders it.
       warranty: opts.warranty || '',
+      // The job type's warranty sentence (dealWarrantyText): a string for a
+      // repair or other Job Template job ('' = none), null for roofing.
+      jobWarranty: typeof opts.jobWarranty === 'string' ? opts.jobWarranty : null,
 
       // Insurance
       insuranceClaim: opts.insuranceClaim || false,
@@ -605,7 +637,7 @@
       _dealDeletesInFlight.add(dealId);
       let kept = false;
       try {
-        const { deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const { deleteDoc, doc } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         await deleteDoc(doc(window._db, DEAL_COLLECTION, dealId));
       } catch (e) {
         if (onServer || !e || e.code !== 'permission-denied') {
@@ -737,6 +769,7 @@
     // The deposit inputs (R2-2-5); a refresh keeps an older snapshot when the
     // caller passes none.
     const _depBasis = _depositBasisOf(estimateData);
+    const _jobWarranty = _jobWarrantyOf(estimateData);
     // Same estimate, still open → refresh that deal in place.
     const existing = findOpenDealForEstimate(estimateId);
     if (existing) {
@@ -749,6 +782,7 @@
         address: leadData?.address || existing.address || '',
         tiers,
         depositBasis: _depBasis || existing.depositBasis || null,
+        jobWarranty: _jobWarranty,
         insuranceClaim: _isIns,
         insuranceCarrier: _carrier,
         claimNumber: leadData?.claimNumber || '',
@@ -767,6 +801,7 @@
       packetPhotoIds: _packet.packetPhotoIds,
       scopeSummary: _scope,
       depositBasis: _depBasis,
+      jobWarranty: _jobWarranty,
       selectedProducts,
       insuranceClaim: _isIns,
       insuranceCarrier: _carrier,
@@ -803,6 +838,13 @@
           ? '<img src="' + esc(logo) + '" alt="' + esc(b.legalName) + '" style="max-height:48px;max-width:240px;display:inline-block;">'
           : esc(b.legalName)),
       accent,
+      // The insurance line on the trust row and the footer (2026-10-07). It
+      // claimed a licence for every company; NBD has no OH/KY registration
+      // number behind that word (Jo, 2026-10-05), so NBD says "Fully insured".
+      // Another company has no configured trust line to read, so it gets the
+      // neutral "Insured" and no licence claim made on its behalf.
+      insured: isNbd ? 'Fully insured' : 'Insured',
+      insuredTitle: isNbd ? 'Fully Insured' : 'Insured',
     };
   }
 
@@ -840,9 +882,12 @@
     const reviews = BRAND.isNbd
       ? '<a class="trust-link" href="https://nobigdealwithjoedeal.com/review" target="_blank" rel="noopener noreferrer">⭐ Read our Google reviews</a>'
       : '';
+    // A repair or other job-type deal whose job carries no workmanship
+    // warranty (an unticked repair) prints no warranty row at all.
+    const _noWarranty = deal.jobWarranty === '';
     const trust = '<div class="section-title">Why Homeowners Choose Us</div><div class="trust">' +
-      '<div class="trust-row">✓ Licensed &amp; insured</div>' +
-      '<div class="trust-row">✓ Every package above carries its own written warranty</div>' +
+      '<div class="trust-row">✓ ' + esc(BRAND.insured) + '</div>' +
+      (_noWarranty ? '' : '<div class="trust-row">✓ Every package above carries its own written warranty</div>') +
       '<div class="trust-row">✓ Questions? Call or text ' + esc(deal.repName || 'your rep') + ' any time</div>' +
       reviews + '</div>';
     return PHOTO_MARKER + scopeHtml + trust;
@@ -1080,7 +1125,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       <div class="tier-price">${fmtCurrency(_dt[t].price)}</div>
       ${_payFor[t] ? `<div class="tier-monthly">or est. ${_payFor[t]}/mo with financing*</div>` : ''}
       <div class="tier-desc">${esc(_dt[t].description || TIER_DESCRIPTIONS[t] || '')}</div>
-      <div class="tier-warranty">🛡️ ${esc(tierDisplayWarrantyText(t))}</div>
+      ${dealWarrantyText(deal, t) ? `<div class="tier-warranty">🛡️ ${esc(dealWarrantyText(deal, t))}</div>` : ''}
       ${depositLine(_dt[t].price)}
     </div>`).join('')}
   </div>
@@ -1111,7 +1156,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     </div>
     <div class="schedule-section">
       <p style="font-size:12px;color:#8b8e96;margin-bottom:8px;">Preferred installation date:</p>
-      <input type="date" id="schedDate" class="schedule-input" min="${new Date().toISOString().split('T')[0]}">
+      <input type="date" id="schedDate" class="schedule-input" min="${new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)}">
     </div>
     <button class="sign-btn" id="submitBtn" data-deal-action="submit" disabled>✓ ACCEPT & SCHEDULE</button>
   </div>
@@ -1119,7 +1164,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
   ${cxlPacket}
 
   <div class="footer">
-    <div>${BRAND.nameEsc} · Licensed & Insured</div>
+    <div>${BRAND.nameEsc} · ${esc(BRAND.insuredTitle)}</div>
     <div style="margin-top:4px;">This estimate is valid until ${fmtDate(deal.expiresAt)}</div>
   </div>
 </div>
@@ -1140,7 +1185,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       band: _band ? { aprLo: _band.aprLo, aprHi: _band.aprHi, months: _band.defaultTermYears * 12, lender: _band.lender } : null,
     }).replace(/</g, '\\u003c')
   }</script>
-<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=4"><\/script>
+<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=5"><\/script>
 </body></html>`;
   }
 
@@ -1180,7 +1225,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
   async function uploadDealPage(deal, html) {
     if (!window._storage || !window._user) return null;
     try {
-      const { ref, uploadString, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+      const { ref, uploadString, getDownloadURL } = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js');
       const storageRef = ref(window._storage, `deal_rooms/${window._user.uid}/${deal.id}.html`);
       await uploadString(storageRef, html, 'raw', { contentType: 'text/html' });
       const downloadUrl = await getDownloadURL(storageRef);
@@ -1435,7 +1480,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     // emulator run that skipped it would mint tokens against PRODUCTION.
     if (!window._httpsCallable || !window._functions) {
       try {
-        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         try {
           const emu = await import('./nbd-emulator-connect.js');
@@ -1481,12 +1526,33 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
         deal.status === DEAL_STATUS.DRAFT ? { status: DEAL_STATUS.SENT } : {}
       ));
     }
-    try {
-      await navigator.clipboard?.writeText(url);
-      if (window.showToast) window.showToast('Accept link copied!', 'success');
-    } catch (e) {
-      if (window.showToast) window.showToast('Link ready — paste it to your customer', 'success');
+    // Success only when the link really reached the clipboard; otherwise show
+    // the link itself so the rep can still send it (review R4-7-10).
+    const copied = await _copyText(url);
+    if (window.showToast) {
+      window.showToast(copied ? 'Accept link copied!' : 'Couldn\'t copy — accept link: ' + url, copied ? 'success' : 'info');
     }
+  }
+
+  // true only when the text really reached the clipboard: the async API, then
+  // the legacy execCommand copy (portal-link-helpers.js copyForLead's layers).
+  // A missing navigator.clipboard is not a copy.
+  async function _copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* fall through */ }
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (_) { return false; }
   }
 
   // ============================================================================

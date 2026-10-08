@@ -154,7 +154,7 @@
     }
     try {
       const { doc, updateDoc, arrayUnion, addDoc, collection, serverTimestamp } =
-        await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+        await import("/assets/vendor/firebase/10.12.2/firebase-firestore.js");
 
       const stormProof = {
         zoneId: zone.id,
@@ -235,8 +235,11 @@
       subhead: `${eventType} hit ${zoneName} on ${when}. We're inspecting every home for free.`,
       body: [
         '✓ Free, no-obligation roof inspection',
-        '✓ Insurance claim assistance from day 1',
-        '✓ Licensed + insured in OH + KY',
+        // Claim wording (2026-10-07): the homeowner files and owns the claim;
+        // the contractor documents and meets the adjuster. And no licence
+        // claim — Jo has no OH/KY registration number behind it (2026-10-05).
+        '✓ Storm damage photographed and documented for your claim',
+        '✓ Fully insured',
         '✓ Local crew — not out-of-state storm chasers'
       ],
       cta: `Call ${company.phone} — inspection in 24 hours`,
@@ -248,7 +251,7 @@
       type: 'postcard',
       front: {
         headline: `We saw the storm at ${zoneName}.`,
-        subhead: 'Your neighbors are already filing claims.',
+        subhead: 'Free inspections for every home in the area.',
         visual: 'before_after_split'
       },
       back: {
@@ -258,7 +261,7 @@
         bullets: [
           'Most homes have damage they can\'t see from the ground',
           'We document everything for your insurance claim',
-          'No upfront cost — we work directly with your carrier'
+          'You file and own your claim; we can meet your adjuster after you file'
         ],
         cta: `${company.phone}`,
         company: company.name,
@@ -271,8 +274,8 @@
       platform: 'facebook',
       text: `🏠 Homeowners in ${zoneName} — did you get hit by the ${eventType} on ${when}?\n\n` +
             `We're doing free roof inspections for everyone in the affected area. ` +
-            `We document everything for your insurance claim and work directly with your carrier.\n\n` +
-            `Local crew, OH + KY licensed, no out-of-state storm chasers.\n\n` +
+            `We document everything for your insurance claim and can meet your adjuster after you file.\n\n` +
+            `Local, fully insured, no out-of-state storm chasers.\n\n` +
             `📞 ${company.phone}\n` +
             `🌐 ${company.website}\n\n` +
             `#roofing #stormrepair #${zoneName.replace(/\s+/g, '')}`,
@@ -445,7 +448,7 @@
     if (!leadId) { if (window.showToast) window.showToast('Open a lead first', 'info'); return; }
     try {
       if (!window._functions || !window._httpsCallable) {
-        var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        var mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }

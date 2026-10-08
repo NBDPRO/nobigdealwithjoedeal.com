@@ -22,10 +22,10 @@
 
 // ── Firebase SDK Imports ──────────────────────────────────
 let __NBD_SENTRY_BOOTSTRAPPED; // module-local (globals Tranche 1 — was window.*)
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, initializeFirestore, doc, getDoc, persistentLocalCache, persistentSingleTabManager, persistentMultipleTabManager, memoryLocalCache, waitForPendingWrites, terminate, clearIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider, CustomProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
+import { initializeApp } from "/assets/vendor/firebase/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "/assets/vendor/firebase/10.12.2/firebase-auth.js";
+import { getFirestore, initializeFirestore, doc, getDoc, persistentLocalCache, persistentSingleTabManager, persistentMultipleTabManager, memoryLocalCache, waitForPendingWrites, terminate, clearIndexedDbPersistence } from "/assets/vendor/firebase/10.12.2/firebase-firestore.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, CustomProvider } from "/assets/vendor/firebase/10.12.2/firebase-app-check.js";
 // Audit #3: localhost-only emulator wiring. No-op in production.
 import { connectEmulatorsIfLocal, isLocalEmulatorEnv, emulatorAppCheckFakeToken } from "./nbd-emulator-connect.js";
 
@@ -1067,7 +1067,7 @@ async function _requestOwnerClaimMint(user) {
   if (window.__NBD_OWNER_MINT_ATTEMPTED) return;
   window.__NBD_OWNER_MINT_ATTEMPTED = true;
   try {
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const fns = mod.getFunctions(_app);
     await connectEmulatorsIfLocal({ functions: fns }); // no-op in prod
     const res = await mod.httpsCallable(fns, 'mintOwnerClaims')({});
