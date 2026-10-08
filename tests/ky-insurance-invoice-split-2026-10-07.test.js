@@ -232,7 +232,13 @@ const est = (addr, claim) => ({ userId: U, companyId: U, leadId: 'L1', jobId: 'J
       const render = (balance) => {
         const ctx = { view: { balance }, parts: [], esc: (x) => String(x).replace(/[&<>"']/g, (ch) => '&#' + ch.charCodeAt(0) + ';'), safeUrl: (u) => u, Number, String };
         vm.createContext(ctx);
-        vm.runInContext(block, ctx);
+        // The block calls the page's own pay-line / Payments-card builders
+        // (#2309, R6-2-6 + audit M3): lift and run them too.
+        const helpers = ['balancePayActionHtml', '_milestoneDateLabel', 'paidSoFarCents', 'fmtCents', 'paymentsCardHtml'].map((n) => {
+          const m = pjs.match(new RegExp('\\n  function ' + n + '\\([\\s\\S]*?\\n  \\}\\n'));
+          return m ? m[0] : '';
+        }).join('\n');
+        vm.runInContext(helpers + '\n' + block, ctx);
         return ctx.parts.join('');
       };
       const held = render({ kind: 'held', amountCents: 0, totalOwedCents: 0, stripePaymentLink: null, nextCents: 900000, releaseDate: 'September 29, 2026', zelle: null });
