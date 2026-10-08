@@ -471,6 +471,8 @@ const {
 // What the portal says once the job is signed (status line, payments) —
 // homeowner money audit 2026-10-07 M1/M3. Pure; see the module header.
 const PAS = require('./portal-after-signing');
+// "Your signed agreement" for a deal-room signature (audit M4, 2026-10-08).
+const PSA = require('./portal-signed-agreement');
 
 // The lead's invoices that belong to this portal's tenant (portal-authz.js).
 // Used by the view (balance card + tracker) and by the rating gate.
@@ -1029,9 +1031,13 @@ exports.getHomeownerPortalView = onRequest(
     // filtered) count, as do the signed price stamp and the job's own stage.
     // Best-effort: a failed read only loses the deal-room signal.
     let _deals = [];
+    // With their ids, for the signed-agreement rows (audit M4) below.
+    let _dealRows = [];
     try {
       const ds = await db.collection('deal_rooms').where('leadId', '==', tok.leadId).limit(20).get();
-      _deals = ds.docs.map((d) => d.data() || {}).filter((d) => recordInPortalTenant(d, ['userId'], tenant));
+      _dealRows = ds.docs.map((d) => ({ id: d.id, data: d.data() || {} }))
+        .filter((r) => r.data.leadId === tok.leadId && recordInPortalTenant(r.data, ['userId'], tenant));
+      _deals = _dealRows.map((r) => r.data);
     } catch (e) {
       logger.warn('portal deal-room read failed', { err: e && e.message });
     }
@@ -1041,7 +1047,14 @@ exports.getHomeownerPortalView = onRequest(
     });
     // What was paid, when and how (audit M3) — from the invoices' payments[]
     // ledger, in cents, redacted (no processor ids, notes or proof paths).
-    const _paid = PAS.paidSummaryFor(tenantInvoices);
+    // Each payment carries its receipt (audit M3 second half, 2026-10-08):
+    // the CRM's own receipt numbers (payment-receipt.js), dated in the
+    // company's zone.
+    const _paid = PAS.paidSummaryFor(tenantInvoices, { timeZone: kyTz });
+    // A deal-room signature's read-only copy (audit M4) — first on the shelf.
+    // The document itself is built on request by getPortalDocumentHtml
+    // ({ token, dealId }), behind the same token and tenant checks.
+    const _agreements = PSA.agreementsFor(_dealRows);
 
     const view = {
       homeowner: {
@@ -1195,7 +1208,7 @@ exports.getHomeownerPortalView = onRequest(
       photoPairs: _pairBeforeAfter(photoSnap.docs.map(d => ({ id: d.id, ...d.data() }))),
       // Contract/estimate/invoice/warranty/etc + any rep-shared upload +
       // signed ancillary (esign) paperwork — see the build above.
-      documents: _portalDocuments,
+      documents: _agreements.concat(_portalDocuments),
       // null when there's no outstanding invoice — most jobs, most of the
       // time. See the build above for why this never mints a new link.
       balance: _balance,
@@ -1309,9 +1322,17 @@ exports.getPortalDocumentHtml = onRequest(
     if (req.method !== 'POST') { res.status(405).end(); return; }
     if (!(await httpRateLimit(req, res, 'portal-doc-html:ip', 30, 60_000))) return;
 
-    const { token, docId } = req.body || {};
+    const { token, docId, dealId } = req.body || {};
     if (typeof token !== 'string' || !/^[A-Za-z0-9]{10,64}$/.test(token)) {
       res.status(400).json({ error: 'Invalid token' });
+      return;
+    }
+    // "Your signed agreement" (audit M4, 2026-10-08): a deal-room signature's
+    // read-only copy, built from the acceptance record (portal-signed-
+    // agreement.js). The token proves which lead; the deal must be that
+    // lead's, the portal tenant's, and signed.
+    if (dealId != null) {
+      await _signedAgreementHtml(token, dealId, res);
       return;
     }
     if (typeof docId !== 'string' || !docId) {
@@ -1369,6 +1390,83 @@ exports.getPortalDocumentHtml = onRequest(
     }
   }
 );
+
+/**
+ * getPortalDocumentHtml's { token, dealId } branch: the read-only copy of
+ * what the homeowner signed in the deal room. Refused (404) unless the token
+ * is live, its lead is the token's own (tokenMatchesLead), and the deal room
+ * is that lead's, the portal tenant's (recordInPortalTenant) and signed —
+ * another homeowner's token can never read it. 404 for all of those, so a
+ * guessed deal id learns nothing.
+ */
+async function _signedAgreementHtml(token, dealId, res) {
+  if (typeof dealId !== 'string' || !/^[A-Za-z0-9_-]{6,64}$/.test(dealId)) {
+    res.status(400).json({ error: 'dealId invalid' });
+    return;
+  }
+  const db = getFirestore();
+  try {
+    const tokSnap = await db.doc(`portal_tokens/${token}`).get();
+    if (!tokSnap.exists) { res.status(404).json({ error: 'Invalid link' }); return; }
+    const tok = tokSnap.data() || {};
+    if (tok.expiresAt && tok.expiresAt.toMillis && tok.expiresAt.toMillis() < Date.now()) {
+      res.status(410).json({ error: 'This link has expired' });
+      return;
+    }
+    if (typeof tok.leadId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(tok.leadId)) {
+      res.status(404).json({ error: 'Document not found' });
+      return;
+    }
+    const [leadSnap, dealSnap] = await Promise.all([
+      db.doc(`leads/${tok.leadId}`).get(),
+      db.doc(`deal_rooms/${dealId}`).get(),
+    ]);
+    const lead = leadSnap.exists ? (leadSnap.data() || {}) : null;
+    const deal = dealSnap.exists ? (dealSnap.data() || {}) : null;
+    if (!lead || !tokenMatchesLead(tok, lead) || !deal || deal.leadId !== tok.leadId
+        || !recordInPortalTenant(deal, ['userId'], portalTenant(tok, lead)) || !PSA.isSignedDeal(deal)) {
+      res.status(404).json({ error: 'Document not found' });
+      return;
+    }
+    // The company's name and zone (the same companyProfile read as the view).
+    const tenantKey = lead.companyId || tok.ownerUid;
+    let tz = KyLaw.DEFAULT_TIME_ZONE;
+    let companyName = (!tenantKey || String(tenantKey) === PORTAL_NBD_OWNER_UID) ? 'No Big Deal Home Solutions' : '';
+    if (tenantKey) {
+      try {
+        const cp = await db.doc(`companyProfile/${tenantKey}`).get();
+        if (cp.exists) {
+          const c = cp.data() || {};
+          try { tz = KyLaw.resolveTimeZone(c); } catch (_) { /* default zone */ }
+          const ln = c.brand && typeof c.brand.legalName === 'string' ? c.brand.legalName.trim() : '';
+          if (ln) companyName = ln;
+        }
+      } catch (e) { logger.warn('[getPortalDocumentHtml] company read failed', { err: e && e.message }); }
+    }
+    // The deal page as stored when they accepted — best-effort: without it
+    // the copy still carries the price, package, signature and date.
+    let pageHtml = null;
+    const pagePath = PSA.dealPagePath(dealId, deal);
+    if (pagePath) {
+      try {
+        const file = getStorage().bucket().file(pagePath);
+        const [meta] = await file.getMetadata();
+        if (Number(meta.size) <= MAX_PORTAL_DOC_HTML_BYTES) {
+          const [buf] = await file.download();
+          pageHtml = buf.toString('utf8');
+        }
+      } catch (e) {
+        logger.warn('[getPortalDocumentHtml] deal page read failed', { dealId, err: e && e.message });
+      }
+    }
+    const html = PSA.buildSignedAgreementHtml({ dealId, deal, pageHtml, companyName, timeZone: tz });
+    if (!html) { res.status(404).json({ error: 'Document not found' }); return; }
+    res.status(200).json({ html, name: PSA.AGREEMENT_NAME });
+  } catch (err) {
+    logger.error('[getPortalDocumentHtml] signed agreement failed', { dealId, err: err && err.message });
+    res.status(500).json({ error: 'Could not read the document' });
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Wave 118: uploadHomeownerPhoto — homeowner uploads photos via portal

@@ -27,6 +27,8 @@
 'use strict';
 
 const CER = require('./customer-estimate-rows');
+// The CRM's receipt, byte-identical to docs/pro/js/payment-receipt.js.
+const PR = require('./payment-receipt');
 
 const DONE_DEAL_STATUSES = ['accepted', 'signed', 'scheduled'];
 const NOT_LIVE_INVOICE = { draft: 1, void: 1, voided: 1, cancelled: 1, canceled: 1 };
@@ -139,22 +141,34 @@ function _isoOf(v) {
 
 /**
  * Every payment on the job, oldest first, redacted to what the homeowner
- * needs: { date (ISO or null), amountCents, method, invoiceNumber }.
+ * needs: { date (ISO or null), amountCents, method, invoiceNumber, receipt }.
  * No processor ids, no proof paths, no notes.
+ *
+ * receipt (2026-10-08, audit M3 second half): that payment's receipt, from
+ * the CRM's own receipt rules (payment-receipt.js homeownerReceiptOf — the
+ * numbers invoice-pipeline.js's "Send receipt" sends): { amount, method,
+ * dateText, invoiceNumber, paidSoFar, invoiceTotal, balanceRemaining,
+ * paidInFull }, dollars, per invoice. null when there is nothing to receipt.
+ * opts: { timeZone } — the company's zone, so the date is the day it was paid there.
  */
-function paymentsFor(invoices) {
+function paymentsFor(invoices, opts) {
+  const o = opts || {};
+  const methodLabel = (m) => METHOD_LABELS[String(m || '').toLowerCase()] || 'Payment';
   const out = [];
   (Array.isArray(invoices) ? invoices : []).forEach((inv) => {
     if (!_liveInvoice(inv)) return;
     const num = String(inv.invoiceNumber || (inv.paper && inv.paper.invoice && inv.paper.invoice.instanceId) || '').trim().slice(0, 40);
-    (Array.isArray(inv.payments) ? inv.payments : []).forEach((p) => {
+    (Array.isArray(inv.payments) ? inv.payments : []).forEach((p, i) => {
       if (!_paymentCounts(p)) return;
+      let receipt = null;
+      try { receipt = PR.homeownerReceiptOf(inv, PR.receiptKeyOf(p, i), { methodLabel, timeZone: o.timeZone }); } catch (_) { receipt = null; }
       const m = String(p.method || '').toLowerCase();
       out.push({
         date: _isoOf(p.at != null ? p.at : p.date),
         amountCents: cents(p.amount),
         method: METHOD_LABELS[m] || 'Payment',
         invoiceNumber: num || null,
+        receipt,
       });
     });
   });
@@ -163,8 +177,8 @@ function paymentsFor(invoices) {
 }
 
 /** { payments, totalPaidCents } or null when nothing has been paid. */
-function paidSummaryFor(invoices) {
-  const payments = paymentsFor(invoices);
+function paidSummaryFor(invoices, opts) {
+  const payments = paymentsFor(invoices, opts);
   if (!payments.length) return null;
   return { payments, totalPaidCents: payments.reduce((s, p) => s + p.amountCents, 0) };
 }

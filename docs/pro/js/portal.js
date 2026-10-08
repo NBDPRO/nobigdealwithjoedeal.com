@@ -94,16 +94,23 @@
   }
 
   // "Payments" card (audit M3): each payment's date, amount and method, and
-  // the total paid. '' when nothing has been paid.
+  // the total paid. '' when nothing has been paid. A payment with a receipt
+  // (2026-10-08, M3 second half) gets a "Receipt" button — its index into
+  // paid.payments; wireReceiptButtons opens it.
   function paymentsCardHtml(paid) {
     const list = paid && Array.isArray(paid.payments) ? paid.payments : [];
     if (!list.length) return '';
-    const rows = list.map(function (p) {
+    const rows = list.map(function (p, i) {
       const when = _milestoneDateLabel(p && p.date) || '';
+      const ref = p && p.invoiceNumber ? '<div class="paid-ref">' + esc('Invoice ' + p.invoiceNumber) + '</div>' : '';
+      const btn = p && p.receipt && typeof p.receipt === 'object'
+        ? '<button type="button" class="btn btn-ghost portal-receipt-btn" data-receipt-i="' + i + '" aria-label="' +
+            esc('Receipt for ' + fmtCents(p.amountCents) + (when ? ' paid ' + when : '')) + '">Receipt</button>'
+        : '';
       return '<li class="paid-row">' +
           '<div class="paid-info"><div class="paid-amount">' + esc(fmtCents(p && p.amountCents)) + '</div>' +
           '<div class="paid-meta">' + esc([when, p && p.method].filter(Boolean).join(' · ')) + '</div></div>' +
-          (p && p.invoiceNumber ? '<div class="paid-ref">' + esc('Invoice ' + p.invoiceNumber) + '</div>' : '') +
+          ((ref || btn) ? '<div class="paid-side">' + ref + btn + '</div>' : '') +
         '</li>';
     }).join('');
     return '<div class="card" data-portal-payments>' +
@@ -111,6 +118,24 @@
         '<div class="card-title">' + esc(fmtCents(paidSoFarCents(paid))) + ' paid</div>' +
         '<ul class="paid-list">' + rows + '</ul>' +
       '</div>';
+  }
+
+  // One payment's printable receipt (2026-10-08): the CRM's own receipt
+  // (payment-receipt.js buildReceiptSheetHtml, loaded before this file) from
+  // the server's redacted receipt numbers. '' when either is missing.
+  function receiptSheetHtml(R, receipt, company, jobLabel) {
+    if (!R || typeof R.buildReceiptSheetHtml !== 'function' || !receipt || typeof receipt !== 'object') return '';
+    return R.buildReceiptSheetHtml(receipt, company || '', { jobLabel: jobLabel || '' });
+  }
+
+  // A Documents-shelf row's View button: a deal-room signed agreement
+  // (kind 'agreement', 2026-10-08) carries its deal id; every other generated
+  // document its document id.
+  function docViewButtonHtml(d) {
+    if (d && d.kind === 'agreement' && d.dealId) {
+      return '<button type="button" class="btn btn-ghost portal-doc-view" data-deal-id="' + esc(d.dealId) + '">View</button>';
+    }
+    return '<button type="button" class="btn btn-ghost portal-doc-view" data-doc-id="' + esc(d && d.id) + '">View</button>';
   }
 
   function getToken() {
@@ -1064,7 +1089,7 @@
         const meta = dateLabel ? '<div class="doc-meta">' + esc(dateLabel) + '</div>' : '';
         const action = d.url
           ? '<a class="btn btn-ghost" href="' + esc(safeUrl(d.url)) + '" target="_blank" rel="noopener">Download</a>'
-          : '<button type="button" class="btn btn-ghost portal-doc-view" data-doc-id="' + esc(d.id) + '">View</button>';
+          : docViewButtonHtml(d);
         return '<div class="doc-row">' +
                  '<div class="doc-info"><div class="doc-name">' + esc(d.name) + '</div>' + meta + '</div>' +
                  action +
@@ -1596,6 +1621,8 @@
     // 2026-09-16: wire the Documents shelf's "View" buttons (no-op if the
     // card wasn't rendered, or every row had a direct download url instead).
     wirePortalDocumentsCard();
+    // 2026-10-08: the Payments card's "Receipt" buttons (no-op without one).
+    wireReceiptButtons(view, companyName, address);
   }
 
   // ─── D-2.7: Before & After ────────────────────────────────────
@@ -1694,6 +1721,8 @@
   // in on open and restored to whatever triggered it on close, and a real
   // Tab-key trap so keyboard/screen-reader focus can't leak to the page
   // behind the backdrop.
+  const DOC_SANDBOX = 'allow-popups allow-popups-to-escape-sandbox allow-forms allow-scripts allow-modals';
+  const DOC_SANDBOX_READONLY = 'allow-popups allow-popups-to-escape-sandbox';
   let _docModal = null;
   let _docModalTrapHandler = null;
   let _docModalTriggerEl = null;
@@ -1710,7 +1739,7 @@
           '</div>' +
           '<div class="doc-modal-body">' +
             '<div class="doc-modal-status">Loading…</div>' +
-            '<iframe class="doc-modal-iframe" tabindex="-1" sandbox="allow-popups allow-popups-to-escape-sandbox allow-forms allow-scripts allow-modals" title="Document"></iframe>' +
+            '<iframe class="doc-modal-iframe" tabindex="-1" sandbox="' + DOC_SANDBOX + '" title="Document"></iframe>' +
           '</div>' +
         '</div>';
       document.body.appendChild(overlay);
@@ -1794,15 +1823,20 @@
       const btn = e.target.closest('.portal-doc-view');
       if (!btn) return;
       const docId = btn.dataset.docId;
-      if (!docId) return;
+      const dealId = btn.dataset.dealId;
+      if (!docId && !dealId) return;
       const token = getToken().trim();
       const modal = _openDocModal(btn.closest('.doc-row')?.querySelector('.doc-name')?.textContent);
+      // A signed agreement (2026-10-08) is a read-only copy with nothing to
+      // run: it opens with no scripts and no forms at all. Every other
+      // document keeps the viewer's usual sandbox.
+      modal.querySelector('.doc-modal-iframe').setAttribute('sandbox', dealId ? DOC_SANDBOX_READONLY : DOC_SANDBOX);
       try {
         const res = await fetch(FUNCTIONS_BASE + '/getPortalDocumentHtml', {
           method: 'POST',
           credentials: 'omit',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, docId })
+          body: JSON.stringify(dealId ? { token, dealId } : { token, docId })
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || typeof data.html !== 'string') {
@@ -1821,10 +1855,78 @@
         iframe.srcdoc = phone ? phone.withPhoneLayout(data.html) : data.html;
         modal.querySelector('.doc-modal-status').style.display = 'none';
         iframe.style.display = 'block';
-        _emitAuditEvent('document_view', docId);
+        _emitAuditEvent('document_view', docId || null);
       } catch (err) {
         modal.querySelector('.doc-modal-status').textContent = 'Could not load this document — check your connection and try again.';
       }
+    });
+  }
+
+  // ─── 2026-10-08: one payment's receipt — view, print / save ────
+  // The receipt is our own escaped markup (payment-receipt.js), not a
+  // stored document, so it renders in the page itself and prints from it:
+  // "Print or save" marks <body> and the print stylesheet (portal.html)
+  // then prints the receipt alone.
+  let _rcptSheet = null;
+  let _rcptTrigger = null;
+  function _closeReceiptSheet() {
+    if (!_rcptSheet) return;
+    _rcptSheet.classList.remove('open');
+    document.body.classList.remove('rcpt-printing');
+    document.removeEventListener('keydown', _rcptKeydown);
+    if (_rcptTrigger && typeof _rcptTrigger.focus === 'function') _rcptTrigger.focus();
+  }
+  function _rcptKeydown(e) {
+    if (e.key === 'Escape') { _closeReceiptSheet(); return; }
+    if (e.key !== 'Tab' || !_rcptSheet) return;
+    const items = Array.from(_rcptSheet.querySelectorAll('button'));
+    if (!items.length) return;
+    e.preventDefault();
+    const idx = items.indexOf(document.activeElement);
+    const next = e.shiftKey ? items[idx <= 0 ? items.length - 1 : idx - 1] : items[idx === -1 || idx === items.length - 1 ? 0 : idx + 1];
+    next.focus();
+  }
+  function _openReceiptSheet(html, trigger) {
+    _rcptTrigger = trigger || document.activeElement;
+    if (!_rcptSheet) {
+      const overlay = document.createElement('div');
+      overlay.className = 'rcpt-overlay';
+      overlay.innerHTML =
+        '<div class="rcpt-modal" role="dialog" aria-modal="true" aria-labelledby="rcptModalTitle">' +
+          '<div class="rcpt-modal-header">' +
+            '<div class="rcpt-modal-title" id="rcptModalTitle">Receipt</div>' +
+            '<button type="button" class="btn btn-ghost rcpt-print">Print or save</button>' +
+            '<button type="button" class="doc-modal-close rcpt-close" aria-label="Close">✕</button>' +
+          '</div>' +
+          '<div class="rcpt-modal-body"></div>' +
+        '</div>';
+      document.body.appendChild(overlay);
+      overlay.querySelector('.rcpt-close').addEventListener('click', _closeReceiptSheet);
+      overlay.addEventListener('click', function (e) { if (e.target === overlay) _closeReceiptSheet(); });
+      overlay.querySelector('.rcpt-print').addEventListener('click', function () {
+        document.body.classList.add('rcpt-printing');
+        try { window.print(); } catch (_) { /* no print dialog here */ }
+      });
+      window.addEventListener('afterprint', function () { document.body.classList.remove('rcpt-printing'); });
+      _rcptSheet = overlay;
+    }
+    _rcptSheet.querySelector('.rcpt-modal-body').innerHTML = html;
+    _rcptSheet.classList.add('open');
+    document.addEventListener('keydown', _rcptKeydown);
+    _rcptSheet.querySelector('.rcpt-close').focus();
+  }
+  function wireReceiptButtons(view, company, jobLabel) {
+    const card = document.querySelector('[data-portal-payments]');
+    if (!card) return;
+    card.addEventListener('click', function (e) {
+      const btn = e.target.closest('.portal-receipt-btn');
+      if (!btn) return;
+      const i = parseInt(btn.dataset.receiptI, 10);
+      const list = view && view.paid && Array.isArray(view.paid.payments) ? view.paid.payments : [];
+      const p = Number.isInteger(i) && i >= 0 && i < list.length ? list[i] : null;
+      const html = receiptSheetHtml(window.NBDPaymentReceipt, p && p.receipt, company, jobLabel);
+      if (!html) return;
+      _openReceiptSheet(html, btn);
     });
   }
 

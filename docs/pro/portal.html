@@ -535,6 +535,44 @@
   .paid-amount{ font-weight: 700; font-variant-numeric: tabular-nums; }
   .paid-meta, .paid-ref{ color: var(--muted); font-size: var(--nbd-text-sm, 14px); line-height: 1.4; }
   .paid-ref{ text-align: right; flex-shrink: 0; }
+  /* Receipts (2026-10-08): a "Receipt" button on each payment, and the
+     receipt sheet it opens (payment-receipt.js markup, .rcpt-*). */
+  .paid-side{ display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+  .portal-receipt-btn{ min-height: 44px; padding: 8px 14px; }
+  .rcpt-overlay{
+    display: none; position: fixed; inset: 0; z-index: var(--z-overlay, 10000);
+    background: rgba(15,17,21,.72); padding: var(--nbd-space-4);
+    align-items: center; justify-content: center;
+  }
+  .rcpt-overlay.open{ display: flex; }
+  .rcpt-modal{
+    width: 100%; max-width: 560px; max-height: 92vh; overflow: auto;
+    background: #fff; color: #111; border-radius: var(--nbd-radius-lg); box-shadow: var(--nbd-shadow-md);
+  }
+  .rcpt-modal-header{
+    display: flex; align-items: center; gap: 8px; padding: var(--nbd-space-3) var(--nbd-space-4);
+    border-bottom: 1px solid var(--nbd-line);
+  }
+  .rcpt-modal-title{ font-weight: 700; flex: 1; min-width: 0; }
+  .rcpt-print{ min-height: 44px; }
+  .rcpt-close{ min-width: 44px; min-height: 44px; }
+  .rcpt{ padding: var(--nbd-space-4); }
+  .rcpt-co{ font-weight: 700; color: var(--nbd-ink-subtle, #555); }
+  .rcpt-title{ margin: 4px 0 8px; font-size: 22px; }
+  .rcpt-lead{ margin: 0 0 12px; line-height: 1.5; }
+  .rcpt-table{ width: 100%; border-collapse: collapse; }
+  .rcpt-table th, .rcpt-table td{ padding: 9px 0; border-bottom: 1px solid #eee; vertical-align: top; }
+  .rcpt-table th{ text-align: left; font-weight: 600; color: #555; padding-right: 12px; }
+  .rcpt-table td{ text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .rcpt-foot{ margin: 12px 0 0; color: #555; font-size: var(--nbd-text-sm, 14px); }
+  @media (max-width: 600px) {
+    .rcpt-overlay{
+      padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+               env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+      align-items: stretch;
+    }
+    .rcpt-modal{ max-width: none; max-height: none; height: 100%; border-radius: 0; box-shadow: none; }
+  }
 
   /* Print stylesheet (2026-09-16). A homeowner's real use case: handing an
      insurance adjuster a paper copy. Without this, the page printed as-is
@@ -560,6 +598,12 @@
     }
     .card { break-inside: avoid; box-shadow: none; }
     .doc-row, .ph-tile { break-inside: avoid; }
+    /* "Print or save" on a receipt (2026-10-08): the receipt alone. */
+    body.rcpt-printing > *:not(.rcpt-overlay) { display: none !important; }
+    body.rcpt-printing .rcpt-overlay { position: static; display: block; background: none; padding: 0; }
+    body.rcpt-printing .rcpt-modal { max-width: none; max-height: none; height: auto; box-shadow: none; overflow: visible; }
+    body.rcpt-printing .rcpt-modal-header { display: none; }
+    body:not(.rcpt-printing) .rcpt-overlay { display: none !important; }
   }
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
@@ -608,6 +652,10 @@
 <!-- "A video from Thursday" card (NBD only; ships dark until a video is
      configured). Before portal.js, which reads window.NBDThursdayVideo. -->
 <script defer src="js/thursday-video.js?v=1"></script>
-<script src="js/portal.js?v=15" defer></script>
+<!-- One payment's receipt (2026-10-08): the CRM's receipt rules, shared with
+     invoice-pipeline.js and functions/. Pure; before portal.js, which reads
+     window.NBDPaymentReceipt. -->
+<script defer src="js/payment-receipt.js?v=1"></script>
+<script src="js/portal.js?v=16" defer></script>
 </body>
 </html>
