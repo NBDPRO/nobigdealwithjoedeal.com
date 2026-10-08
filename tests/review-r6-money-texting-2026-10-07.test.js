@@ -304,21 +304,20 @@ function preflightEnv(est) {
     const minted = Object.assign({}, sent, { stripePaymentLink: 'https://buy.stripe.test/deposit', stripeInvoiceId: 'plink_dep',
       stripeChargeCents: due0.chargeCents, stripeChargeKind: due0.kind });
     // invoiceWebhook payment_intent.succeeded writes status / amountPaid /
-    // balanceDue / depositPaid and leaves the link fields alone (pinned below).
+    // balanceDue / depositPaid and leaves the link fields alone; #2309's fix is
+    // in portalBalanceCard (the link's stamped kind must be the kind due now).
     const after = Object.assign({}, minted, { status: 'partial', amountPaid: 6000, balanceDue: 6000, depositPaid: true });
     const card = IC.portalBalanceCard(after, after.stripePaymentLink);
-    const s = stripComments(rd('functions/stripe.js'));
-    const pi = s.indexOf("if (event.type === 'payment_intent.succeeded')");
-    const upd = pi === -1 ? null : blockAt(s, 'tx.update(invRef, {', "if (event.type === 'payment_intent.succeeded')");
-    ok('R6-2-6 anchor: the payment_intent.succeeded credit (tx.update(invRef, {…})) is found and still writes amountPaid / depositPaid',
-      !!upd && /amountPaid:\s*newPaid/.test(upd) && /depositPaid:/.test(upd));
-    ok('KNOWN BUG R6-2-6 (reported 2026-10-07): after the homeowner pays the $6,000 deposit online, the credit leaves stripePaymentLink / '
-      + 'stripeChargeCents in place, and because the spent deposit charge ($6,000) equals the $6,000 balance, the portal\'s Balance Due '
-      + 'card (and the tracker\'s "Pay your invoice") offers the SPENT deposit link as Pay Now — a single-use link that no longer opens, '
-      + 'or the already-paid deposit invoice. Expected no Pay Now until a balance link is minted (stamp the kind, or clear the link on credit)',
-      !!upd && !/stripePaymentLink|stripeChargeCents|stripeChargeKind|stripeHostedUrl/.test(upd)
-        && card.kind === 'balance' && card.amountCents === 600000 && card.stripePaymentLink === 'https://buy.stripe.test/deposit',
+    // Control: a link minted for THIS balance is still offered.
+    const balDue = IC.chargeDueNow(after);
+    const reminted = Object.assign({}, after, { stripePaymentLink: 'https://buy.stripe.test/balance', stripeChargeCents: balDue.chargeCents, stripeChargeKind: balDue.kind });
+    const card2 = IC.portalBalanceCard(reminted, reminted.stripePaymentLink);
+    ok('FIXED R6-2-6 (#2309; was KNOWN BUG 2026-10-07): after the $6,000 deposit is paid online, the portal\'s Balance Due $6,000 card '
+      + 'does NOT offer the spent deposit link as Pay Now, although the two amounts are equal (was: the single-use deposit link)',
+      card.kind === 'balance' && card.amountCents === 600000 && card.stripePaymentLink === null,
       JSON.stringify(card));
+    ok('R6-2-6 control: once a balance link is minted for the $6,000, the card offers it',
+      card2.kind === 'balance' && card2.amountCents === 600000 && card2.stripePaymentLink === 'https://buy.stripe.test/balance', JSON.stringify(card2));
   }
 
   // ── Dashboards (the second half of area 2) ─────────────────────────────
