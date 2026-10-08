@@ -66,8 +66,8 @@ function liftFunction(src, name) {
    ══════════════════════════════════════════════════════════════════ */
 group('getHomeownerPortalView stamps lead.lastPortalOpenAt on a genuine open', () => {
   const block = PORTAL_FN.slice(
-    PORTAL_FN.indexOf('tokRef.update(isPoll'),
-    PORTAL_FN.indexOf('tokRef.update(isPoll') + 1200
+    PORTAL_FN.indexOf('tokRef.update(!countsAsOpen'),
+    PORTAL_FN.indexOf('tokRef.update(!countsAsOpen') + 1200
   );
   assert('found the open-tracking block', block.length > 0);
   assert('writes leads/{tok.leadId}.lastPortalOpenAt', /leads\/\$\{tok\.leadId\}.*update\(\{\s*lastPortalOpenAt/.test(block), block);

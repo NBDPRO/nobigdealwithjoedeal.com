@@ -386,7 +386,7 @@ for (const stream of [process.stdout, process.stderr]) {
     // Each endpoint: the counters go into pendingWrites, and the awaited
     // flush comes BEFORE the success response (order, comments stripped).
     const sites = [
-      ['functions/portal.js', 'tokRef.update(isPoll', 'res.status(200).json(view)'],
+      ['functions/portal.js', 'tokRef.update(!countsAsOpen', 'res.status(200).json(view)'],
       ['functions/remote-signing.js', 'doc_sign_tokens/${token}`).update', "res.status(200).json({\n      html,"],
       ['functions/report-sharing.js', 'report_share_tokens/${token}`).update({\n      viewedAt', ".send(html);"],
       ['functions/deal-acceptance.js', 'deal_accept_tokens/${token}`).update({ viewedAt', ".set('Content-Security-Policy', withThursday"],

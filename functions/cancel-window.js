@@ -68,6 +68,61 @@ function cancelByFor(html, when, timeZone) {
 }
 
 /**
+ * The fields a signing writes beside cancelBy (2026-10-08, review R4 D9).
+ * A re-date that failed is never silent: the record (document / deal /
+ * envelope) and the lead carry cancelPacketStale, the customer page shows the
+ * rep a flag, and the right-to-cancel template prefills the real signing day
+ * (cancelPacketSignedOn). A clean signing clears the lead's flag.
+ *   rec   { cancelBy, signedOn, stale } — KyLaw.signingCancelBy's shape
+ *   source 'deal_room' | 'remote_sign' | 'esign' | 'in_person'
+ */
+function staleRecordPatch(rec) {
+  const r = rec || {};
+  return r.stale ? { cancelPacketStale: true, cancelPacketSignedOn: r.signedOn || '' } : {};
+}
+function staleLeadPatch(rec, source) {
+  const r = rec || {};
+  if (!r.stale) return { cancelPacketStale: false };
+  return { cancelPacketStale: true, cancelPacketSignedOn: r.signedOn || '', cancelPacketStaleSource: String(source || '') };
+}
+
+/**
+ * Re-date the Notice of Right to Cancel in a STORED record to the signing
+ * moment, trying twice (one retry) before giving up loudly.
+ *   read()      → Promise<html>  (the stored record)
+ *   write(html) → Promise        (store it back)
+ * → { cancelBy, signedOn, stale, html }
+ * cancelBy is always counted from `when` (KyLaw.signingCancelBy), never from
+ * the old packet. stale: the stored paper could not be re-dated (or could not
+ * even be read, so nobody knows what it says). A record without a packet is
+ * left untouched and is not stale.
+ */
+async function redateStoredPacket(o) {
+  const when = o.when == null ? new Date() : o.when;
+  const log = o.logger || null;
+  const label = o.label || '[cancel-window]';
+  let lastHtml = '';
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const cur = String(await o.read());
+      lastHtml = cur;
+      if (!KyLaw.hasCancelPacket(cur)) return Object.assign(KyLaw.signingCancelBy(cur, when, o.timeZone), { html: cur });
+      const next = KyLaw.restampCancelPacket(cur, when);
+      const rec = KyLaw.signingCancelBy(next, when, o.timeZone);
+      if (rec.stale) throw new Error('the re-dated notice does not carry the signing date');
+      await o.write(next);
+      return Object.assign(rec, { html: next });
+    } catch (e) {
+      lastErr = e;
+      if (log) log.warn(label + ' cancel packet re-date failed (attempt ' + attempt + ' of 2)', { msg: e && e.message });
+    }
+  }
+  if (log) log.error(label + ' cancel packet NOT re-dated — the record is flagged for a new Notice of Cancellation', { msg: lastErr && lastErr.message });
+  return Object.assign(KyLaw.signingCancelBy(lastHtml, when, o.timeZone), { stale: true, html: lastHtml });
+}
+
+/**
  * Does `lead` belong to this owner? Its userId is the owner's, or (a teammate's
  * lead) both carry the same companyId. A lead with neither match is another
  * tenant's — a public signing link must never write to it.
@@ -81,9 +136,10 @@ function leadBelongsTo(lead, owner) {
 
 /**
  * Stamp lead.cancelBy — only on a lead that belongs to `owner`
- * ({ ownerUid, companyId } of the signed record). Best-effort; never throws.
+ * ({ ownerUid, companyId } of the signed record). `extra` rides along (the
+ * staleLeadPatch flag). Best-effort; never throws.
  */
-async function stampLeadCancelBy(db, leadId, cancelBy, logger, owner) {
+async function stampLeadCancelBy(db, leadId, cancelBy, logger, owner, extra) {
   if (!leadId || !/^[A-Za-z0-9_-]{1,128}$/.test(String(leadId))) return false;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(cancelBy || ''))) return false;
   try {
@@ -93,7 +149,7 @@ async function stampLeadCancelBy(db, leadId, cancelBy, logger, owner) {
       if (logger) logger.warn('[cancel-window] lead cancelBy refused: not the owner\'s lead', { leadId });
       return false;
     }
-    await ref.update({ cancelBy: String(cancelBy) });
+    await ref.update(Object.assign({}, extra || {}, { cancelBy: String(cancelBy) }));
     return true;
   } catch (e) {
     if (logger) logger.warn('[cancel-window] lead cancelBy stamp failed', { leadId, msg: e && e.message });
@@ -140,11 +196,26 @@ function packetOptsFrom(lead, profile) {
  * document already carries them: an estimate envelope (sendEstimateEnvelope,
  * #2166) builds its contract PDF WITH the two completed FTC forms and sets
  * cancelFormsIncluded — its title is "Roofing Contract — …", so without this
- * check the homeowner's signed copy would carry a second set.
+ * check the homeowner's signed copy would carry a second set. A contract the
+ * rep UPLOADED with its own forms carries the same flag (esign-setup.js finds
+ * "Notice of Cancellation" in the PDF text, or the rep ticks the box —
+ * createEsignEnvelope / saveEsignFields store it; review R4 D8, 2026-10-08).
  */
 function envelopeNeedsCancelNotice(env) {
   if (!env || env.cancelFormsIncluded === true) return false;
   return envelopeIsContract(env);
+}
+
+/**
+ * What a signed envelope records when no dated forms of its own say otherwise
+ * (an uploaded contract carrying the rep's own forms, or one whose notice
+ * pages could not be appended): cancelBy counted from the signing for an
+ * envelope that IS the contract; '' for any other document.
+ * → { cancelBy, signedOn, stale:false }
+ */
+function envelopeSigningCancelBy(env, when, timeZone) {
+  const rec = KyLaw.signingCancelBy('', when == null ? new Date() : when, timeZone);
+  return envelopeIsContract(env) ? rec : { cancelBy: '', signedOn: rec.signedOn, stale: false };
 }
 
 async function loadPacketOpts(db, leadId) {
@@ -165,4 +236,5 @@ module.exports = {
   SELLER_NAME_REQUIRED_MSG,
   CONTRACT_DOC_TYPES, isContractDocType, finalizeSignedPacket, cancelByFor, stampLeadCancelBy, leadBelongsTo,
   packetOptsFrom, loadPacketOpts, envelopeNeedsCancelNotice,
+  staleRecordPatch, staleLeadPatch, redateStoredPacket, envelopeSigningCancelBy,
 };
