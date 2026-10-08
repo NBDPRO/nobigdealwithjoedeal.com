@@ -207,16 +207,11 @@ function preflightEnv(est) {
       !!estW && c(estW.upd.grandTotal) === 1177500 && !!leadW && leadW.ref.id === 'L' && c(leadW.upd.jobValue) === 1177500,
       JSON.stringify(env.writes.map((w) => [w.ref.col, w.ref.id, w.upd.grandTotal, w.upd.jobValue])));
   }
-  {
-    // R6-2-7, logged-estimate editor half (dashboard-widgets.js).
-    const src = stripComments(rd('docs/pro/js/dashboard-widgets.js'));
-    const body = blockAt(src, 'function _openLoggedEstimateEditor(est) {');
-    ok('R6-2-7 anchor: _openLoggedEstimateEditor is found and still writes grandTotal from the edited amount',
-      !!body && /grandTotal:\s*dollars/.test(body));
-    ok('KNOWN BUG R6-2-7 (reported 2026-10-07), logged-estimate half: editing a logged estimate\'s amount rewrites its grandTotal but '
-      + 'never the lead\'s jobValue, even when it is the primary estimate. Expected the same re-stamp as _saveEstimate\'s edit branch',
-      !!body && !/jobValue/.test(body) && !/['"]leads['"]/.test(body));
-  }
+  // R6-2-7, logged-estimate editor half (dashboard-widgets.js). DROPPED
+  // (fixed by #2311): the old pin was a source scan that stayed green on the
+  // fix (the re-stamp lives in a helper). tests/dashboards-agree-r6-2026-10-07
+  // .test.js runs the real editor against a fake DOM: re-pricing the primary
+  // logged estimate $10,700 → $11,775 moves lead.jobValue to $11,775.
 
   // R6-2-2 ─ a SIGNED estimate re-saved at a new price
   // Jo's rule (2026-10-07, #2299): a signed estimate stays editable, but the
@@ -356,74 +351,17 @@ function preflightEnv(est) {
       t.kind === 'estimate' && plan.ok === true && plan.cents === 1400000 && !!rpt && !/supplement/i.test(rpt), JSON.stringify(plan));
   }
 
-  // R6-2-10 ─ agent job_profit drops a repeat customer's finished job
-  {
-    const L = F('agent-mcp-logic.js');
-    const NOW = Date.parse('2026-10-07T16:00:00Z'), DAY = 86400000;
-    const leads = [
-      { id: 'A', userId: 'u1', firstName: 'A', stage: 'closed', jobValue: 10000, closedAt: NOW - 5 * DAY, createdAt: NOW - 30 * DAY, updatedAt: NOW - 5 * DAY, stageStartedAt: NOW - 5 * DAY },
-      // G: first job finished and paid; the customer card now sits on its SECOND job (signed).
-      { id: 'G', userId: 'u1', firstName: 'G', stage: 'contract_signed', jobValue: 8000, closedAt: NOW - 2 * DAY, createdAt: NOW - 90 * DAY, updatedAt: NOW - 2 * DAY, stageStartedAt: NOW - 2 * DAY, activeJobId: 'j2' },
-    ];
-    const pay = (amount, at) => ({ amount, at: new Date(at) });
-    const invoices = [
-      { id: 'iA', leadId: 'A', status: 'paid', total: 10000, amountPaid: 10000, balanceDue: 0, payments: [pay(10000, NOW - 5 * DAY)] },
-      { id: 'iG1', leadId: 'G', jobId: 'j1', status: 'paid', total: 10000, amountPaid: 10000, balanceDue: 0, payments: [pay(10000, NOW - 45 * DAY)] },
-    ];
-    const expenses = [{ id: 'x1', leadId: 'G', costType: 'direct', amountCents: 600000, taxCents: 0 }];
-    const jp = L.jobProfit(leads, invoices, expenses, NOW, { days: 365 });
-    ok('KNOWN BUG R6-2-10 (reported 2026-10-07): the agent\'s job_profit lists only customers whose CARD is won, so a repeat customer '
-      + 'whose card moved on to a signed second job loses the first, finished job — its $10,000 collected and $6,000 cost vanish from the '
-      + 'totals. Expected job_profit to walk job records (#2247 jobRecords) like the other surfaces',
-      Array.isArray(jp.jobs) && !jp.jobs.some((j) => j.lead_id === 'G') && jp.totals.collected === 10000, JSON.stringify({ rows: jp.jobs.map((j) => j.lead_id), totals: jp.totals }));
-  }
-
-  // R6-2-11 ─ the Team Leaderboard widget's "Booked (all time)" leaves out signed contracts
-  {
-    const src = stripComments(rd('docs/pro/js/widgets.js'));
-    const at = src.indexOf("'<div class=\"wg-tiny\">Booked (all time)</div>'");
-    const win = at === -1 ? '' : src.slice(Math.max(0, at - 2500), at);
-    ok('R6-2-11 anchor: the widget labelled "Booked (all time)" is found with its won-job filter', at !== -1 && /byRep\[owner\]\.deals\+\+/.test(win));
-    ok('KNOWN BUG R6-2-11 (reported 2026-10-07): the widget, labelled "Booked" by #2247, counts only stage roles won / job — a signed '
-      + 'contract (role active) is left out, though since #2252 a signed contract is booked on Home, Analytics, the kanban, crm_summary and '
-      + 'the digest. Expected the shared sale test (NBDNumbers.isSale)',
-      /if \(role === 'won' \|\| role === 'job'\)/.test(win) && !/isSale|contract_signed/.test(win));
-  }
-
-  // R6-2-12 ─ Analytics and Money show different gross margins for the same jobs
-  {
-    const ak = stripComments(rd('docs/pro/js/analytics-kpi.js'));
-    const blk = ak.slice(ak.indexOf('var wonRev = 0, wonDirect = 0, costedJobs = 0;'), ak.indexOf('var expGrossMargin'));
-    const md = stripComments(rd('docs/pro/js/money-dashboard.js'));
-    ok('R6-2-12 anchor: Analytics\' won-job gross margin block and the Money dashboard\'s job records are found',
-      blk.length > 40 && /jobRecs/.test(md));
-    ok('KNOWN BUG R6-2-12 (reported 2026-10-07): Analytics computes "gross margin" over won CUSTOMERS (leads.filter(_isWon), the card\'s '
-      + 'jobValue) while the Money dashboard pools won JOB records — a repeat customer\'s second job, or a card on a later stage, makes the '
-      + 'two pages print different margins for the same costs (50% vs 42% on the review fixture). Expected one pooling',
-      /var wonCustomers = leads\.filter\(function \(l\) \{ return _isWon\(l\); \}\);/.test(blk) && !/recordsFor|jobRecs|jobRecords/.test(blk));
-  }
-
-  // R6-2-13 ─ Numbers' source table / lead-source ROI read customers, not jobs
-  {
-    const roi = stripComments(rd('docs/pro/js/lead-source-roi.js'));
-    const nl = stripComments(rd('docs/pro/js/numbers-logic.js'));
-    const wr = nl.indexOf('var allTable = sourceTable(');
-    ok('R6-2-13 anchor: lead-source-roi.js and the week review call sourceTable', /Nn\.sourceTable\(/.test(roi) && wr !== -1);
-    ok('KNOWN BUG R6-2-13 (reported 2026-10-07, low): the lead-source table and the week review\'s source table are fed customer cards, '
-      + 'so a repeat customer\'s second booked job is missing ($89,500 vs the kanban\'s $99,500 on the review fixture). Expected job records '
-      + 'for the booked figures (counts can stay per customer)',
-      /Nn\.sourceTable\(leads \|\| \[\]/.test(roi) && /sourceTable\(i\.leads \|\| \[\]/.test(nl.slice(wr, wr + 120)));
-  }
-
-  // R6-2-14 ─ Leaderboard page "Deals" uses the old won test and the last edit date
-  {
-    const lb = stripComments(rd('docs/pro/js/pages/leaderboard.js'));
-    const cm = blockAt(lb, 'function computeMetrics() {');
-    ok('R6-2-14 anchor: computeMetrics is found and still counts totalDeals from wonLeads', !!cm && /const totalDeals = wonLeads\.length;/.test(cm));
-    ok('KNOWN BUG R6-2-14 (reported 2026-10-07, low): the Leaderboard page counts a deal only on a WON stage role, dated by the lead\'s '
-      + 'updatedAt — signed contracts are left out and an old win counts again when the card is edited. Expected isSale + closedAt, like Home',
-      !!cm && /_stageRole === 'won'/.test(cm) && /isInPeriod\(l\.updatedAt\)\)/.test(cm) && !/isSale|closedAt/.test(cm));
-  }
+  // R6-2-10 … R6-2-14 ─ the dashboards. DROPPED (fixed by #2311): each is
+  // flipped, on the same R6 review fixture (nine card sales = $89,500 plus
+  // customer G's finished $10,000 first job → ten sales / $99,500), in
+  // tests/dashboards-agree-r6-2026-10-07.test.js, which runs the real modules:
+  //   R6-2-10 agent job_profit lists G's finished first job ($10,000 / $6,000);
+  //   R6-2-11 the widget's "Booked (all time)" = 10 deals, $99.5k;
+  //   R6-2-12 Analytics and Money print the same 42% margin;
+  //   R6-2-13 sourceTable over job records books $99,500 / 10 won;
+  //   R6-2-14 the Leaderboard page counts 10 deals, dated by the sale, not
+  //           updatedAt.
+  // The old pins here were source scans of the pre-fix shapes.
 
   // ════════════════════════════════════════════════════════════════════
   // AREA 3 — texting compliance
@@ -601,10 +539,6 @@ function preflightEnv(est) {
     stripComments('a(); // x\r\n// whole\r\n/* b\r\n c */ d();') === 'a(); \n\n\n d();');
   ok('S: the stripper keeps a URL inside a string literal', /https:\/\/x\.test/.test(stripComments("const u = 'https://x.test'; // c")));
   ok('S: braceBlock scopes to the matching brace', braceBlock('f() { a { b } c } d', 0) === '{ a { b } c }');
-  {
-    const commented = 'function _openLoggedEstimateEditor(est) { const patch = { grandTotal: dollars }; // TODO jobValue\n }';
-    ok('S: R6-2-7 detector ignores jobValue that is only in a comment', !/jobValue/.test(blockAt(stripComments(commented), 'function _openLoggedEstimateEditor(est) {')));
-  }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n  - ' + fails.join('\n  - ')); process.exit(1); }
