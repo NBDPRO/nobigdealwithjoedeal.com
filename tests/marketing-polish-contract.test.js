@@ -562,6 +562,51 @@ const certBarTargets = marketing.filter((f) => /^services\/[a-z0-9-]+-(oh|ky)\.h
   ok('our-work.html page styles present (.hero rule)', ourWork.includes('.hero{background:linear-gradient'));
 }
 
+// ── Homepage "Areas we serve" row (2026-10-07). #2206 removed the areas grid
+// and with it every homepage link to a town page; 16 core town pages sat
+// "Discovered – not indexed". This row puts plain crawlable <a href> links
+// back, below the book section (not above the fold), resolving to real pages
+// and real towns.json slugs. ─────────────────────────────────────────────────
+{
+  const home = fs.readFileSync(path.join(DOCS, 'index.html'), 'utf8');
+  const m = home.match(/<section class="home-areas"[\s\S]*?<\/section>/);
+  ok('home: areas row present', !!m);
+  const block = m ? m[0] : '';
+  const towns = require(path.join(__dirname, '..', 'site-src', 'data', 'towns.json')).towns;
+  const known = new Set(towns.map((t) => t.slug));
+  const region = new Map(towns.map((t) => [t.slug, t.region]));
+  const slugs = [...block.matchAll(/<a href="\/areas\/([a-z0-9-]+)"/g)].map((x) => x[1]);
+  ok('home: areas row links >= 12 town pages', slugs.length >= 12, slugs.length);
+  ok('home: areas row has no duplicate towns', new Set(slugs).size === slugs.length);
+  const missing = slugs.filter((s) => !known.has(s) || !fs.existsSync(path.join(DOCS, 'areas', s + '.html')));
+  ok('home: every areas-row link is a towns.json slug with a page', missing.length === 0, missing.join(','));
+  ok('home: areas row covers Ohio and Northern Kentucky',
+    slugs.some((s) => region.get(s) === 'cincy-oh') && slugs.some((s) => region.get(s) === 'nky'));
+  for (const s of ['west-chester-oh', 'milford-oh', 'batavia-oh', 'mason-oh', 'loveland-oh', 'anderson-township-oh',
+    'cincinnati-oh', 'florence-ky', 'covington-ky', 'fort-mitchell-ky', 'erlanger-ky']) {
+    ok('home: areas row links ' + s, slugs.includes(s));
+  }
+  ok('home: areas row links /areas', /<a [^>]*href="\/areas"/.test(block));
+  ok('home: areas row has no inline handlers or scripts', !/\son[a-z]+=|<script/i.test(block));
+  const iContact = home.indexOf('id="contact"');
+  const iAreas = home.indexOf('class="home-areas"');
+  const iMain = home.indexOf('</main>');
+  ok('home: areas row sits after the book section, inside <main>', iContact > 0 && iAreas > iContact && iAreas < iMain);
+  ok('home: areas links keep a 44px tap height', /\.ha-links a\{[^}]*min-height:44px/.test(home));
+}
+
+// ── GAF vs OC vs Atlas post: no contractor wholesale prices (Jo 2026-10-07).
+// Public pages carry installed/retail figures only (public-price-policy). ────
+{
+  const post = fs.readFileSync(path.join(DOCS, 'blog', 'gaf-vs-owens-corning-vs-atlas-shingles.html'), 'utf8');
+  const body = (post.match(/<article>[\s\S]*?<\/article>/) || [''])[0];
+  ok('blog gaf-vs-oc-vs-atlas: article body found', body.length > 1000);
+  ok('blog gaf-vs-oc-vs-atlas: no wholesale/contractor price wording', !/wholesale|prices for contractors/i.test(body));
+  ok('blog gaf-vs-oc-vs-atlas: no material-only cost box', !/Material Costs Only/i.test(body));
+  const perSq = [...body.matchAll(/\$(\d{2,3})(?:–|-)\$(\d{2,3}) per/g)].map((x) => +x[1]);
+  ok('blog gaf-vs-oc-vs-atlas: per-square figures are installed retail (>= $500)', perSq.every((n) => n >= 500), perSq.join(','));
+}
+
 console.log('\n──────────────────────────────────────────────────');
 console.log(`${passed} passed, ${failed} failed`);
 if (failed) {

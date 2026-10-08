@@ -91,6 +91,10 @@ html.nbd-demo body:has(#nbd-doc-viewer-overlay.open) .nbd-demo-toast { bottom: c
 html.nbd-demo #estV2Modal.v3-on .v3-bar { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
 html.nbd-demo #estV2Modal.open:not(.v3-on) { padding-bottom: 48px; box-sizing: border-box; }
 html.nbd-demo #nbd-doc-viewer-overlay .nbdv-footer { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+/* Same for the door-knock sheet's pinned Save footer (2026-10-08). */
+html.nbd-demo body:has(#d2d-quick-knock-overlay.open) .nbd-demo-strip { bottom: calc(8px + env(safe-area-inset-bottom)); }
+html.nbd-demo body:has(#d2d-quick-knock-overlay.open) .nbd-demo-toast { bottom: calc(112px + env(safe-area-inset-bottom)); }
+html.nbd-demo #d2d-quick-knock-overlay .d2d-qk-footer { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
 
 /* Wave 2: "Nothing was sent" — the read-only preview of what a send would
    have sent (demo-sdk/send-preview.js). Above the builder and the viewer,
