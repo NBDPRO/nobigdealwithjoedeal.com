@@ -78,6 +78,7 @@ const el = {
   sent: $('suSent'), sentClose: $('suSentClose'), sentNote: $('suSentNote'),
   link: $('suLink'), copy: $('suCopy'), open: $('suOpen'),
   generatedHint: $('suGeneratedHint'), generatedHintLink: $('suGeneratedHintLink'),
+  cancelForms: $('suCancelForms'),
 };
 
 // Point the "sign a generated doc instead" hint at THIS customer's Documents
@@ -453,6 +454,7 @@ async function save() {
       fields: wireFields(),
       signerName: el.signerName.value.trim(),
       signerEmail: el.signerEmail.value.trim(),
+      cancelFormsIncluded: !!(el.cancelForms && el.cancelForms.checked),
     });
     status(`Saved — ${fields.length} field${fields.length === 1 ? '' : 's'}.`);
     return true;
@@ -534,6 +536,21 @@ async function openBytes(bytes, title) {
   await renderAll();
 }
 
+// Read every page's text and ask esign-autodetect.js whether the two FTC
+// cancellation forms are already in this PDF. Best-effort: false on error.
+async function pdfHasCancelForms() {
+  const AD = window.NBDEsignAutodetect;
+  if (!AD || typeof AD.hasCancelForms !== 'function' || !pdfDoc) return false;
+  try {
+    const pages = [];
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      const pg = await pdfDoc.getPage(i);
+      pages.push((await pg.getTextContent()).items);
+    }
+    return AD.hasCancelForms(pages);
+  } catch (_) { return false; }
+}
+
 el.file.addEventListener('change', async () => {
   const file = el.file.files && el.file.files[0];
   if (!file) return;
@@ -564,6 +581,12 @@ el.file.addEventListener('change', async () => {
     return;
   }
 
+  // A contract that already carries the two FTC Notice of Cancellation forms
+  // must not get a second set with a different date when it is signed
+  // (review R4 D8, 2026-10-08). The box starts from the PDF's own text; the
+  // rep can change it before sending (a scan has no text to read).
+  if (el.cancelForms) el.cancelForms.checked = await pdfHasCancelForms();
+
   busy('Uploading…', 'Storing the document securely.');
   const id = nid() + Math.random().toString(36).slice(2, 8);
   const path = `esign/${uid}/${leadId}/${id}/source.pdf`;
@@ -572,6 +595,7 @@ el.file.addEventListener('change', async () => {
     const r = await httpsCallable(fns, 'createEsignEnvelope')({
       leadId, envelopeId: id, sourcePath: path,
       title: file.name.replace(/\.pdf$/i, ''),
+      cancelFormsIncluded: !!(el.cancelForms && el.cancelForms.checked),
     });
     envelopeId = (r.data && r.data.envelopeId) || id;
     idle();
@@ -614,6 +638,7 @@ onAuthStateChanged(auth, async (user) => {
     fields = (d.fields || []).map((f) => Object.assign({}, f));
     el.signerName.value = d.signerName || '';
     el.signerEmail.value = d.signerEmail || '';
+    if (el.cancelForms) el.cancelForms.checked = d.cancelFormsIncluded === true;
     await openBytes(bytes, d.title);
     idle();
     currentStatus = d.status || 'draft';

@@ -177,7 +177,7 @@ function makeStorage() {
 // ═══════════════════════════════════════════════════════════════
 // Load the real handlers under stubs.
 // ═══════════════════════════════════════════════════════════════
-function load(db, storage) {
+function load(db, storage, extraStubs) {
   class HttpsError extends Error { constructor(code, message) { super(message); this.code = code; } }
   const mails = [];
   const logs = [];
@@ -221,6 +221,7 @@ function load(db, storage) {
     './cancel-notice-pdf': require(path.join(FN, 'cancel-notice-pdf.js')),
     './integrations/heartbeat': { onSchedule: (o, h) => { const f = async () => h(); f.__options = o; return f; } },
   };
+  Object.assign(stubs, extraStubs || {});
   // The Functions emulator sets FUNCTIONS_EMULATOR=true; esign-io's sendMail
   // then logs instead of sending — the "No real emails" guarantee, used here.
   const proc = { env: { FUNCTIONS_EMULATOR: 'true' } };
@@ -642,7 +643,7 @@ const tokenFor = (db, envelopeId, signerId) => {
   // sendEstimateEnvelope sets — its PDF already has them) gets nothing more.
   {
     const { PDFDocument: P } = require(path.join(FN, 'node_modules', 'pdf-lib'));
-    const signOne = async (title, extra) => {
+    const signOne = async (title, extra, extraStubs) => {
       const doc = await P.create(); doc.addPage([612, 792]);
       const bytes = Buffer.from(await doc.save());
       const stJ = makeStorage();
@@ -656,10 +657,10 @@ const tokenFor = (db, envelopeId, signerId) => {
         }, extra || {}),
         'esign_tokens/JTOKEN000001': { envelopeId: 'ENVJ1', ownerUid: UID, leadId: 'LEAD1', status: 'pending', expiresAt: { toMillis: () => Date.now() + 86_400_000 } },
       }));
-      const LJ = load(dbJ, stJ);
+      const LJ = load(dbJ, stJ, extraStubs);
       const r = await http(LJ.fns.submitEsignEnvelope, { token: 'JTOKEN000001', consent: true, signerName: 'Pat', values: { sig: { png: PNG } } });
       const signed = stJ.files.get(`esign/${UID}/LEAD1/ENVJ1/signed.pdf`);
-      return { r, env: dbJ._get('esign_envelopes/ENVJ1'), lead: dbJ._get('leads/LEAD1'), pages: signed ? (await P.load(signed)).getPageCount() : -1, text: signed ? pdfText(signed) : '' };
+      return { r, env: dbJ._get('esign_envelopes/ENVJ1'), lead: dbJ._get('leads/LEAD1'), pages: signed ? (await P.load(signed)).getPageCount() : -1, text: signed ? pdfText(signed) : '', logs: LJ.logs };
     };
     const forms = (t) => (t.match(/NOTICE OF CANCELLATION/g) || []).length;
     const c = await signOne('Roofing Contract');
@@ -669,6 +670,21 @@ const tokenFor = (db, envelopeId, signerId) => {
     const f = await signOne('Roofing Contract — 5 Vine St, Cincinnati, OH 45202', { cancelFormsIncluded: true });
     ok('cancelFormsIncluded: nothing appended (signed page + certificate only)', f.r.statusCode === 200 && f.pages === 2, f.pages);
     ok('cancelFormsIncluded: no second set of forms, no notice', forms(f.text) === 0 && !/Notice of Right to Cancel/i.test(f.text), 'forms=' + forms(f.text));
+    // 2026-10-08 (review R4 D8): a contract the rep UPLOADED with its own
+    // forms (cancelFormsIncluded set at upload, no server system fields) still
+    // records the last day to cancel — counted from the signing.
+    const KJ = require(path.join(FN, 'ky-insurance-law.js'));
+    const signDay = KJ.cancelBy(new Date(), 'America/New_York');
+    ok('uploaded contract with its own forms: cancelBy from the signing on the envelope + lead',
+      f.env.cancelBy === signDay && f.lead.cancelBy === signDay && f.env.cancelPacketStale !== true, JSON.stringify([f.env.cancelBy, f.lead.cancelBy, signDay]));
+    // 2026-10-08 (review R4 D9): the notice pages cannot be appended — tried
+    // twice, then the envelope + lead are flagged and cancelBy is still kept.
+    let appendCalls = 0;
+    const x = await signOne('Roofing Contract', null, { './cancel-notice-pdf': { appendCancelNotice: async () => { appendCalls++; throw new Error('pdf boom'); } } });
+    ok('notice append fails: the signature still completes', x.r.statusCode === 200, JSON.stringify(x.r.body));
+    ok('…tried twice, then flagged on the envelope and the lead (source esign)', appendCalls === 2 && x.env.cancelPacketStale === true &&
+      x.lead.cancelPacketStale === true && x.lead.cancelPacketStaleSource === 'esign', JSON.stringify({ appendCalls, env: x.env.cancelPacketStale, lead: x.lead }));
+    ok('…and cancelBy is still recorded, counted from the signing', x.env.cancelBy === signDay && x.lead.cancelBy === signDay, JSON.stringify([x.env.cancelBy, x.lead.cancelBy]));
     const w = await signOne('Manufacturer Warranty Registration');
     ok('a side document is left as signed (no notice, no cancelBy)', w.pages === 2 && !w.env.cancelBy && !w.lead.cancelBy, w.pages);
   }

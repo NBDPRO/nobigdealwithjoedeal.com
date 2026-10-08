@@ -27,6 +27,7 @@
 // The ONE invoice due-date rule (deposit-rule.js INVOICE_DUE_DAYS).
 const DR = require('./deposit-rule');
 const LAP = require('./lead-artifact-paths');
+const KyLaw = require('./ky-insurance-law');
 
 const CODES = { invoice: 'NBD-500', receipt: 'NBD-510' };
 
@@ -194,7 +195,12 @@ function invoicePayload(inv, lead, id, nowMs, plate) {
     invoice: { number: id, date: fmtDate(nowMs), dueDate: due, status: paid > 0 ? 'partial' : 'due' },
     lines, subtotal, tax, paymentsReceived: paid, total, balanceDue,
     notes: inv.notes || null,
-    payUrl: inv.stripeHostedUrl || null,
+    // The filed PDF prints the pay button + QR. On a Kentucky insurance job
+    // still inside its hold (carrier decision + 5 business days, and the
+    // 3-day right to cancel — ky-insurance-law.js payLinkHold, 2026-10-08)
+    // the paper carries no link: a Stripe invoice mirrored in from the
+    // dashboard never passed createStripePaymentLink's gate.
+    payUrl: (inv.stripeHostedUrl && !KyLaw.payLinkHold(lead || null, inv, nowMs).held) ? inv.stripeHostedUrl : null,
     photoPlate: plate || null,
     refs: { crmInvoice: inv.invoiceNumber || null, stripeInvoice: inv.stripeInvoiceNumber || null },
   };

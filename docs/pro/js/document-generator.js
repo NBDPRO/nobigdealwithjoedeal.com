@@ -751,6 +751,15 @@ window.NBDDocGen = {
             try { await window.NBDCustomerDocs.refresh(); }
             catch (e) { console.warn('Documents refresh failed:', e && e.message); }
           }
+          // 2026-10-08: a new Notice of Right to Cancel for this customer is
+          // the fix for "Cancel forms need a new date" — clear the flag.
+          if (type === 'right_to_cancel' && _docMetaRef && window.doc && window.updateDoc) {
+            try {
+              await window.updateDoc(window.doc(window.db, 'leads', _leadIdEarly), { cancelPacketStale: false });
+              [window._currentLead, window._leadDoc].forEach((o) => { if (o && (!o.id || o.id === _leadIdEarly)) o.cancelPacketStale = false; });
+              if (window.NBDCancelWindow && typeof window.NBDCancelWindow.render === 'function') window.NBDCancelWindow.render();
+            } catch (e) { console.warn('Cancel-forms flag clear failed:', e && e.message); }
+          }
         })();
       }
       // PR3b: load this lead's saved signatures (if any) so the viewer
@@ -812,21 +821,59 @@ window.NBDDocGen = {
           // any other caller), and that packet's "last day to cancel" is
           // recorded as cancelBy on the document AND the lead — the customer
           // page shows it and stage moves that start work warn inside it.
+          // 2026-10-08 (review R4 D9): the re-date is tried twice, cancelBy
+          // is ALWAYS counted from this signing (never read back from a
+          // packet that kept the generation date), and a packet that could
+          // not be re-dated — or a signed copy that could not be stored —
+          // flags the document and the lead (cancelPacketStale) so the rep
+          // sees "Cancel forms need a new date" on the customer page. The
+          // signature itself is never blocked.
           const _Jc = window.NBDJurisdiction;
-          if (_Jc && typeof _Jc.restampCancelPacket === 'function') {
-            try { signedHtml = _Jc.restampCancelPacket(signedHtml, new Date()); } catch (_) {}
-          }
-          const _cancelBy = (_Jc && typeof _Jc.packetCancelBy === 'function') ? _Jc.packetCancelBy(signedHtml) : '';
-          try {
-            if (_htmlPath && window.storage && window.ref && window.uploadBytes) {
-              const sRef = window.ref(window.storage, _htmlPath);
-              const blob = new Blob([signedHtml], { type: 'text/html' });
-              // signed:'true' locks the object: storage.rules refuses any
-              // later client overwrite or delete of a signed record (2026-09-29).
-              await window.uploadBytes(sRef, blob, { contentType: 'text/html', customMetadata: { signed: 'true' } });
+          const _signedAt = new Date();
+          const _hadPacket = !!(_Jc && typeof _Jc.hasCancelPacket === 'function' && _Jc.hasCancelPacket(signedHtml));
+          let _cxl = null;
+          if (_hadPacket && typeof _Jc.signingCancelBy === 'function') {
+            const _orig = signedHtml;
+            for (let _try = 1; _try <= 2; _try++) {
+              try {
+                const _next = _Jc.restampCancelPacket(_orig, _signedAt);
+                _cxl = _Jc.signingCancelBy(_next, _signedAt);
+                if (!_cxl.stale) { signedHtml = _next; break; }
+              } catch (e) {
+                console.warn('Cancel packet re-date failed (attempt ' + _try + ' of 2):', e && e.message);
+                _cxl = null;
+              }
             }
-          } catch (e) {
-            console.warn('Signed HTML upload failed:', e && e.message);
+            if (!_cxl || _cxl.stale) _cxl = Object.assign(_Jc.signingCancelBy(_orig, _signedAt), { stale: true });
+          } else if (_hadPacket) {
+            // An older cached ky-insurance-law.js without signingCancelBy.
+            try { signedHtml = _Jc.restampCancelPacket(signedHtml, _signedAt); } catch (_) {}
+            const _pc = typeof _Jc.packetCancelBy === 'function' ? _Jc.packetCancelBy(signedHtml) : '';
+            if (_pc) _cxl = { cancelBy: _pc, signedOn: '', stale: false };
+          }
+          const _cancelBy = _cxl ? _cxl.cancelBy : '';
+          let _recordStored = false;
+          for (let _try = 1; _try <= 2 && !_recordStored; _try++) {
+            try {
+              if (_htmlPath && window.storage && window.ref && window.uploadBytes) {
+                const sRef = window.ref(window.storage, _htmlPath);
+                const blob = new Blob([signedHtml], { type: 'text/html' });
+                // signed:'true' locks the object: storage.rules refuses any
+                // later client overwrite or delete of a signed record (2026-09-29).
+                await window.uploadBytes(sRef, blob, { contentType: 'text/html', customMetadata: { signed: 'true' } });
+                _recordStored = true;
+              } else {
+                break;
+              }
+            } catch (e) {
+              console.warn('Signed HTML upload failed (attempt ' + _try + ' of 2):', e && e.message);
+            }
+          }
+          // The stored copy still carries the contract's generation date.
+          if (_cxl && _htmlPath && !_recordStored) _cxl.stale = true;
+          const _stalePatch = (_cxl && _cxl.stale) ? { cancelPacketStale: true, cancelPacketSignedOn: _cxl.signedOn || '' } : {};
+          if (_cxl && _cxl.stale && typeof showToast === 'function') {
+            showToast('⚠ Signed — but the Notice of Cancellation could not be re-dated to today. Give the homeowner a new one (Documents → Right to Cancel).', 'error');
           }
           try {
             if (_docMetaRef && window.updateDoc) {
@@ -840,7 +887,7 @@ window.NBDDocGen = {
                 signedSigners: Array.isArray(signedSigners)
                   ? signedSigners.map(s => ({ role: s.role, label: s.label || null, signedAt: s.signedAt || null }))
                   : null,
-                ...(_cancelBy ? { cancelBy: _cancelBy } : {}),
+                ...(_cancelBy ? Object.assign({ cancelBy: _cancelBy }, _stalePatch) : {}),
               });
               _signedSaved = true;
             }
@@ -849,8 +896,10 @@ window.NBDDocGen = {
           }
           try {
             if (_cancelBy && _leadIdEarly && window.db && window.doc && window.updateDoc) {
-              await window.updateDoc(window.doc(window.db, 'leads', _leadIdEarly), { cancelBy: _cancelBy });
-              [window._currentLead, window._leadDoc].forEach((o) => { if (o && (!o.id || o.id === _leadIdEarly)) o.cancelBy = _cancelBy; });
+              const _leadPatch = Object.assign({ cancelBy: _cancelBy },
+                (_cxl && _cxl.stale) ? Object.assign({ cancelPacketStaleSource: 'in_person' }, _stalePatch) : { cancelPacketStale: false });
+              await window.updateDoc(window.doc(window.db, 'leads', _leadIdEarly), _leadPatch);
+              [window._currentLead, window._leadDoc].forEach((o) => { if (o && (!o.id || o.id === _leadIdEarly)) Object.assign(o, _leadPatch); });
               if (window.NBDCancelWindow && typeof window.NBDCancelWindow.render === 'function') window.NBDCancelWindow.render();
             }
           } catch (e) {
