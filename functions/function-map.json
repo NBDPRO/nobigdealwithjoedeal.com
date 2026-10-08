@@ -125,6 +125,7 @@
   "leadAlertFreeRoof": "./lead-alert",
   "leadAlertInspect": "./lead-alert",
   "leadAlertStorm": "./lead-alert",
+  "leadAlertWatchdog": "./lead-alert-watchdog",
   "leadBridgeContact": "./lead-bridge",
   "leadBridgeEstimate": "./lead-bridge",
   "leadBridgeFreeRoof": "./lead-bridge",

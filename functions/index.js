@@ -285,6 +285,9 @@ exports.stormReportEmail = require('./storm-report-email').stormReportEmail;
 // Text + email Joe the moment any public marketing lead lands (additive triggers).
 const leadAlertFns = require('./lead-alert');
 Object.assign(exports, leadAlertFns);
+// Every 10 min: a new NBD lead that no channel confirmed reaching Joe is
+// re-sent by email + push (2026-10-07). LEAD_ALERT_WATCHDOG_DISABLED=true → dry run.
+exports.leadAlertWatchdog = require('./lead-alert-watchdog').leadAlertWatchdog;
 
 // Mirror each high-intent public lead into the tenant's CRM `leads` pipeline
 // (Phase C, H-1 fix). Additive triggers; tenant-aware routing; idempotent.
