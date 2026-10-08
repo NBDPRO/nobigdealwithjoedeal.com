@@ -42,6 +42,7 @@
     "money-one-number-r2-fix-2026-10-06.test.js",
     "review-r6-money-texting-2026-10-07.test.js",
     "portal-after-signing-2026-10-07.test.js",
+    "portal-link-checks-2026-10-08.test.js",
     "customer-pipeline-order-warranty-reasons-2026-09-28.test.js",
     "next-stage-never-lost-2026-09-28.test.js",
     "analytics-stage-labels-2026-09-28.test.js",
