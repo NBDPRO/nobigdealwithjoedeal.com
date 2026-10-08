@@ -490,7 +490,8 @@
     "functions-lazy-load-2026-10-04.test.js",
     "firestore-index-coverage-2026-10-04.test.js",
     "photo-cache-lazy-2026-10-04.test.js",
-    "firebase-sdk-vendored-2026-10-04.test.js"
+    "firebase-sdk-vendored-2026-10-04.test.js",
+    "paid-in-full-supplements-r6-2026-10-07.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
