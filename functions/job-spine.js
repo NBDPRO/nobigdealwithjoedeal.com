@@ -74,6 +74,24 @@ async function recordJobEvent(db, args, deps) {
   // failure gets another try, and the draft itself is idempotent (one
   // deterministic id per lead + job). Not on a refused event.
   const refused = ['bad_lead_id', 'unknown_event', 'tenant_mismatch', 'error'];
+  // The signed price (review R6-2-2, Jo 2026-10-07): stamped on the signed
+  // estimate BEFORE the deposit draft reads it, so the draft — and every
+  // later bill — charges what was signed (signed-price.js). On a duplicate
+  // too (a retry after a failed stamp); a replay never overwrites a newer one.
+  if (DEPOSIT_DRAFT_EVENTS.indexOf(event) !== -1 && refused.indexOf(out.reason) === -1
+      && !(deps && deps.signedPrice === false)) {
+    const stamp = (deps && deps.stampSignedPrice) || require('./signed-price').stampSignedPrice;
+    try {
+      out.signedPrice = await stamp(db, {
+        leadId: String(args.leadId || '').trim(), event,
+        sourceId: args.sourceId != null ? String(args.sourceId) : '',
+        meta: (args.meta && typeof args.meta === 'object') ? args.meta : {},
+        duplicate: !!out.duplicate,
+      }, deps);
+    } catch (e) {
+      out.signedPrice = { stamped: false, reason: 'error', error: String((e && e.message) || e) };
+    }
+  }
   if (DEPOSIT_DRAFT_EVENTS.indexOf(event) !== -1 && refused.indexOf(out.reason) === -1
       && !(deps && deps.depositDraft === false)) {
     const draft = (deps && deps.draftDepositAfterSign) || require('./deposit-draft').draftDepositAfterSign;

@@ -409,8 +409,12 @@ const tick = () => new Promise((r) => setImmediate(r));
       const again = await H(db, me, { leadId: 'L1', docId: 'd1' }, deps);
       ok('idempotent: the same document again → duplicate, no second move, still one invoice',
         again.ok === true && again.duplicate === true && again.moved === false && [...db.store.keys()].filter((k) => /^invoices\//.test(k)).length === 1);
-      ok('nothing was sent: only the lead, marker, note, tasks and the draft invoice were written',
-        db.writes.every((w) => /^(leads\/L1(\/tasks\/[^/]+)?|job_events\/[^/]+|notes\/[^/]+|invoices\/[^/]+)$/.test(w[1])), JSON.stringify(db.writes.map((w) => w[1])));
+      // + the signed estimate's server-only signedPrice stamp (review R6-2-2,
+      // 2026-10-07 — functions/signed-price.js): a record, not a send.
+      ok('nothing was sent: only the lead, marker, note, tasks, the signed-price stamp and the draft invoice were written',
+        db.writes.every((w) => /^(leads\/L1(\/tasks\/[^/]+)?|job_events\/[^/]+|notes\/[^/]+|invoices\/[^/]+|estimates\/[^/]+)$/.test(w[1]))
+        && db.writes.filter((w) => /^estimates\//.test(w[1])).every((w) => w[0] === 'update' && Object.keys(w[2]).join() === 'signedPrice'),
+        JSON.stringify(db.writes.map((w) => w[1])));
     }
   } else ok('functions/in-person-signing.js loads (recordInPersonSignature exists)', false);
 

@@ -4208,6 +4208,20 @@
             console.warn('[_saveEstimate] lead jobValue re-stamp failed:', stampErr);
           }
         }
+        // Signed, then re-priced (review R6-2-2, Jo 2026-10-07): the save
+        // stands, but the bills keep the SIGNED price until the homeowner
+        // re-signs (customer-estimate-rows.js signedView) — tell the rep.
+        try {
+          const _rowsApi = window.NBDCustomerEstimateRows;
+          const _after = _prev ? Object.assign({}, _prev, data) : null;
+          if (_after && _rowsApi && typeof _rowsApi.hasUnsignedChanges === 'function' && _rowsApi.hasUnsignedChanges(_after)
+              && typeof window.showToast === 'function') {
+            const _sc = _rowsApi.signedTotalCents(_after);
+            window.showToast('Saved — not signed yet. Bills stay at the signed price'
+              + (_sc != null ? ' ($' + (_sc / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ')' : '')
+              + ' until the homeowner re-signs this version.', 'warning');
+          }
+        } catch (_) { /* a note only — never fail the save */ }
         await loadEstimates();
         return editId;
       } else {
@@ -4359,6 +4373,10 @@
       delete copy.id;
       delete copy.createdAt;
       delete copy.updatedAt;
+      // A copy is a new, unsigned estimate: no signature state, and never the
+      // server-only signed price (firestore.rules refuses it on create).
+      ['signedPrice', 'signatureStatus', 'signatureProvider', 'signatureEnvelopeId', 'signatureUpdatedAt', 'signedAt']
+        .forEach((k) => { delete copy[k]; });
       copy.leadId = null;
       const baseName = (src.name || src.addr || 'Estimate').toString().substring(0, 80);
       copy.name = baseName + ' (copy)';

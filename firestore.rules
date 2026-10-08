@@ -1066,7 +1066,7 @@ service cloud.firestore {
       // engagement). The edit payload (_buildSavePayload) carries none of these
       // keys, so normal edits pass `didNotChange`. Mirrors the /expenses guard.
       allow update: if (isOwner(resource.data.userId) && notViewer()
-            && didNotChange(['userId', 'companyId', 'createdBy', 'createdAt', 'viewedAt', 'viewCount', 'lastViewedAt', 'lastViewedVia']))
+            && didNotChange(['userId', 'companyId', 'createdBy', 'createdAt', 'viewedAt', 'viewCount', 'lastViewedAt', 'lastViewedVia', 'signedPrice']))
         || isAdmin();
       // companyId (when present) must be the caller's tenant — pins it so an
       // owner can't stamp a VICTIM tenant's companyId and inject an estimate
@@ -1076,7 +1076,13 @@ service cloud.firestore {
         && (request.resource.data.get('companyId', '') == ''
             || request.resource.data.companyId == request.auth.token.get('companyId', '')
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid));
+                && request.resource.data.companyId == request.auth.uid))
+        && !('signedPrice' in request.resource.data);
+      // signedPrice (review R6-2-2, Jo 2026-10-07) is the price the homeowner
+      // SIGNED, which every bill charges until they re-sign. Only the server
+      // stamps it when a signature lands (functions/signed-price.js): frozen
+      // on update above (an edit re-prices the estimate, never what was
+      // signed) and refused on create.
     }
 
     // ── SUPPLEMENTS (insurance leverage tool) ─────────

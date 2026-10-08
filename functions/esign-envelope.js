@@ -605,7 +605,12 @@ exports.sendEstimateEnvelope = onCall(
     if (!estSnap.exists) throw new HttpsError('not-found', 'Estimate not found');
     const est = estSnap.data() || {};
     if (est.userId !== uid) throw new HttpsError('permission-denied', 'Not your estimate');
-    if (est.signatureStatus === 'signed') {
+    // A signed estimate is sent again only to RE-SIGN a revision: it was
+    // re-priced after signing, and the bills follow the signed price until
+    // the homeowner signs the new one (review R6-2-2, Jo 2026-10-07). An
+    // unchanged signed estimate has nothing to sign.
+    if (est.signatureStatus === 'signed'
+        && !require('./customer-estimate-rows').hasUnsignedChanges(est)) {
       throw new HttpsError('failed-precondition', 'This estimate is already signed.');
     }
     const leadId = typeof est.leadId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(est.leadId) ? est.leadId : null;
@@ -708,6 +713,10 @@ exports.sendEstimateEnvelope = onCall(
       leadId,
       estimateId,
       kind: 'estimate',
+      // The priced fields as this contract prints them — the signed price
+      // when it is signed (signed-price.js), even if the estimate is edited
+      // while the link is out (review R6-2-2).
+      pricedSnapshot: require('./customer-estimate-rows').signedPriceSnapshot(est),
       title,
       sourcePath,
       sourceSha256: sha256(buf),
