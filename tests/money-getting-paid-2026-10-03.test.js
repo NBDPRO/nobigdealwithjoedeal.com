@@ -226,7 +226,10 @@ function browser(seed, extra) {
     if (code && J) {
       const inv = { status: 'sent', balanceDue: 4000, stripeHostedUrl: HOSTED };
       ok('portal: a Stripe invoice (hosted URL only) shows Pay Now', run(ohLead, inv).stripePaymentLink === HOSTED);
-      ok('portal: KY held → NO Pay Now (the balance still shows)', run(kyLeadHeld, inv).stripePaymentLink === null && run(kyLeadHeld, inv).amountCents === 400000);
+      // 2026-10-07 (money audit H2): while held, nothing is due — the card is
+      // "nothing is due yet", not "Balance due $4,000" with no way to pay.
+      ok('portal: KY held → NO Pay Now, and nothing shown as due (kind held, $0)', run(kyLeadHeld, inv).stripePaymentLink === null
+        && run(kyLeadHeld, inv).amountCents === 0 && run(kyLeadHeld, inv).kind === 'held' && run(kyLeadHeld, inv).zelle === null);
       ok('portal: http:// is not https → no link', run(ohLead, { status: 'sent', balanceDue: 1, stripePaymentLink: 'http://x.test/y' }).stripePaymentLink === null);
     }
   }

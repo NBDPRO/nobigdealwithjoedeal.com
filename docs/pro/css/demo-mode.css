@@ -1,0 +1,195 @@
+/* demo-mode.css — the "Sample account" strip on CRM pages served under
+   /pro/explore/ (Pro demo phase 2, wave 1). Loaded only by demo-mode.js,
+   only there. Sits above the toast layer like the offline/alert strips
+   (z-scale rule: status strips above toast, never demoted). */
+.nbd-demo-strip {
+  position: fixed;
+  /* left/right 0 + auto margins, not left:50% + translate: a left:50% box
+     shrinks to half the viewport and truncated the label on phones. */
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: max-content;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 10008;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+  padding: 5px 6px 5px 12px;
+  border-radius: 999px;
+  background: #12223D;
+  color: #fff;
+  border: 1px solid rgba(221, 135, 95, .55);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
+  font: 600 12px/1.2 Barlow, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  pointer-events: auto;
+}
+.nbd-demo-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.nbd-demo-label strong { color: #DD875F; font-weight: 800; }
+.nbd-demo-long { font-weight: 500; color: #E8ECF2; }
+.nbd-demo-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+.nbd-demo-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, .25);
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  padding: 4px 10px;
+  min-height: 26px;
+  border-radius: 999px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.nbd-demo-btn:hover, .nbd-demo-btn:focus-visible { border-color: #DD875F; }
+.nbd-demo-cta { background: #BD5728; border-color: #BD5728; }
+.nbd-demo-cta:hover { background: #A14A22; }
+.nbd-demo-toast {
+  position: fixed;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: max-content;
+  bottom: calc(60px + env(safe-area-inset-bottom));
+  z-index: 10008;
+  max-width: min(520px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #12223D;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, .15);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .35);
+  font: 500 13px/1.4 Barlow, system-ui, sans-serif;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .18s ease;
+}
+.nbd-demo-toast.is-on { opacity: 1; visibility: visible; }
+.nbd-demo-toast.is-block { border-color: #E5484D; }
+/* Phones: sit above the dashboard's bottom nav and the customer card's FAB row. */
+@media (max-width: 900px) {
+  .nbd-demo-strip { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .nbd-demo-toast { bottom: calc(128px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 560px) {
+  .nbd-demo-long { display: none; }
+}
+/* Wave 2 (2026-10-06): the estimate builder is a full-screen sheet with its
+   own Back / Next bar at the bottom. While it is open the strip drops to the
+   very bottom and the bar gets that much extra padding, so the strip sits in
+   reserved space and never covers Next (it used to intercept every tap). */
+/* Same for the document viewer's action row (Save / Email / Print / PDF /
+   Send for Signature). */
+html.nbd-demo body:has(#estV2Modal.open) .nbd-demo-strip,
+html.nbd-demo body:has(#nbd-doc-viewer-overlay.open) .nbd-demo-strip { bottom: calc(8px + env(safe-area-inset-bottom)); }
+html.nbd-demo body:has(#estV2Modal.open) .nbd-demo-toast,
+html.nbd-demo body:has(#nbd-doc-viewer-overlay.open) .nbd-demo-toast { bottom: calc(112px + env(safe-area-inset-bottom)); }
+html.nbd-demo #estV2Modal.v3-on .v3-bar { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+html.nbd-demo #estV2Modal.open:not(.v3-on) { padding-bottom: 48px; box-sizing: border-box; }
+html.nbd-demo #nbd-doc-viewer-overlay .nbdv-footer { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+
+/* Wave 2: "Nothing was sent" — the read-only preview of what a send would
+   have sent (demo-sdk/send-preview.js). Above the builder and the viewer,
+   below the strip. */
+.nbd-sp-back {
+  /* Wave 3: above the CRM's own sheets (10050: the Agent inbox, stage gate),
+     which a send can be tapped from; it is the last word on a send. */
+  position: fixed; inset: 0; z-index: 10060;
+  background: rgba(8, 12, 20, .72);
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 0;
+}
+@media (min-width: 720px) { .nbd-sp-back { align-items: center; padding: 24px; } }
+.nbd-sp {
+  width: 100%; max-width: 640px; max-height: calc(100vh - 24px); overflow: auto;
+  box-sizing: border-box;
+  background: #fff; color: #14181F;
+  border-radius: 16px 16px 0 0;
+  padding: 18px 16px calc(64px + env(safe-area-inset-bottom));
+  font: 400 14px/1.45 Lato, 'Segoe UI', system-ui, -apple-system, sans-serif;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .4);
+}
+@media (min-width: 720px) { .nbd-sp { border-radius: 14px; padding: 22px 24px 70px; } }
+.nbd-sp-kicker { display: inline-block; font: 800 11px/1 Barlow, system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #fff; background: #BD5728; border-radius: 999px; padding: 5px 10px; }
+.nbd-sp h2 { margin: 10px 0 4px; font: 800 22px/1.2 Montserrat, Barlow, system-ui, sans-serif; color: #12223D; }
+.nbd-sp-lede { margin: 0 0 14px; color: #4C4C4D; }
+.nbd-sp-sec { border: 1px solid #DFE2E7; border-radius: 10px; margin: 0 0 12px; padding: 0; overflow: hidden; max-width: none; }
+.nbd-sp-sec-h { background: #F6F7F8; padding: 8px 12px; font: 800 12px/1.2 Barlow, system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #1A3057; }
+.nbd-sp-rows { margin: 0; padding: 10px 12px; display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; }
+.nbd-sp-rows dt { color: #4C4C4D; font-weight: 700; }
+.nbd-sp-rows dd { margin: 0; overflow-wrap: anywhere; }
+.nbd-sp-msg { margin: 0; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.nbd-sp-frame { display: block; width: 100%; height: 420px; border: 0; background: #fff; }
+.nbd-sp-note { padding: 8px 12px; font-size: 12px; color: #4C4C4D; border-top: 1px solid #DFE2E7; }
+.nbd-sp-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+.nbd-sp-btn { appearance: none; border: 1px solid #1A3057; background: #1A3057; color: #fff; font: 700 14px/1 Barlow, system-ui, sans-serif; padding: 11px 18px; border-radius: 8px; cursor: pointer; min-height: 44px; }
+.nbd-sp-btn:hover, .nbd-sp-btn:focus-visible { background: #12223D; }
+
+/* Wave 3 (2026-10-06): the offline sample map (/pro/demo-sdk/basemap.js).
+   Tiles are drawn SVGs; street and town names are DOM labels in their own
+   pane, above the tiles and under the CRM's pins. */
+.nbd-demo-tile, .nbd-demo-tile svg { display: block; width: 100%; height: 100%; }
+.nbd-demo-lbl-icon { width: 0 !important; height: 0 !important; background: none; border: 0; }
+.nbd-demo-lbl {
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -50%);
+  white-space: nowrap; pointer-events: none;
+  font: 600 11px/1 Barlow, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #4a4336; letter-spacing: .02em;
+  text-shadow: 0 0 2px #fff, 0 0 3px #fff, 0 0 4px #fff;
+}
+.nbd-demo-lbl.on-dark { color: #f2eee4; text-shadow: 0 0 2px #000, 0 0 3px #000, 0 0 4px #000; }
+.nbd-demo-lbl.is-place { font-size: 13px; font-weight: 800; color: #2b2a26; }
+.nbd-demo-lbl.is-place.on-dark { color: #fff; }
+.nbd-demo-lbl.is-water { font-style: italic; color: #2f5f86; }
+.nbd-demo-lbl.is-water.on-dark { color: #a9cbe6; }
+.nbd-demo-lbl.is-park { color: #3c6b2f; }
+.nbd-demo-lbl.is-park.on-dark { color: #bfe0b0; }
+
+/* Wave 4 (2026-10-07): Ask Joe. The strip sat on top of the Ask Joe input
+   (desktop: the left half of the box; phone: the whole row). While Ask Joe is
+   open its input bar gets that much extra padding at the bottom, so the strip
+   sits in reserved space under the input and the footer line, never on them.
+   Toasts float above the input while it is open. */
+html.nbd-demo #view-joe.active .joe-input-area { padding-bottom: calc(14px + 58px + env(safe-area-inset-bottom, 0px)); }
+html.nbd-demo body:has(#view-joe.active) .nbd-demo-toast { bottom: calc(170px + env(safe-area-inset-bottom)); }
+@media (max-width: 900px) {
+  /* Phones: the Ask Joe pane is pinned between the app bar and the bottom
+     nav and its input row sits right where the strip floats (84px up), with
+     no room to reserve. The strip moves to the top instead, over the
+     breadcrumb row under the app bar, while Ask Joe is open. */
+  html.nbd-demo #view-joe.active .joe-input-area { padding-bottom: 14px; }
+  html.nbd-demo body:has(#view-joe.active) .nbd-demo-strip { top: calc(50px + env(safe-area-inset-top, 0px)); bottom: auto; }
+  html.nbd-demo body:has(#view-joe.active) .nbd-demo-toast { bottom: calc(250px + env(safe-area-inset-bottom)); }
+}
+
+/* Wave 4: "Available in your real account" (demo-sdk/real-account.js). A
+   sealed Settings panel shows only the card: its own controls are hidden, so
+   they are never wired in the sample account. */
+html.nbd-demo [data-nbd-demo-sealed] > :not(.nbd-demo-real-card) { display: none !important; }
+.nbd-demo-real-card {
+  box-sizing: border-box;
+  max-width: 640px;
+  margin: 0 0 16px;
+  padding: 18px 18px 16px;
+  border-radius: 12px;
+  background: #12223D;
+  color: #E8ECF2;
+  border: 1px solid rgba(221, 135, 95, .55);
+  font: 500 14px/1.5 Barlow, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.nbd-demo-real-card.is-note { padding: 12px 14px; margin-bottom: 12px; }
+.nbd-demo-real-kicker { font: 800 11px/1 Barlow, system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #DD875F; }
+.nbd-demo-real-title { margin: 8px 0 6px; font: 800 20px/1.2 'Barlow Condensed', Barlow, system-ui, sans-serif; color: #fff; }
+.nbd-demo-real-card.is-note .nbd-demo-real-title { font-size: 16px; margin: 6px 0 4px; }
+.nbd-demo-real-body { margin: 0; color: #E8ECF2; }
+.nbd-demo-real-cta {
+  display: inline-flex; align-items: center; min-height: 44px; margin-top: 14px; padding: 0 18px;
+  border-radius: 8px; background: #BD5728; color: #fff; text-decoration: none; font: 700 14px/1 Barlow, system-ui, sans-serif;
+}
+.nbd-demo-real-cta:hover, .nbd-demo-real-cta:focus-visible { background: #A14A22; }
+.nbd-demo-real-sheet .nbd-demo-real-card { margin: 0 0 8px; max-width: none; }
+.nbd-demo-real-sheet { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
