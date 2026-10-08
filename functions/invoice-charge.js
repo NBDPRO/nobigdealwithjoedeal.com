@@ -54,23 +54,49 @@ function chargeDueNow(inv, o) {
 /**
  * The homeowner portal's Balance Due card for one owed invoice (portal.js
  * getPortalView). payUrl = the link already through the Kentucky hold
- * (ky-insurance-law.js payUrlUnlessHeld). Pay Now is offered only when the
- * link charges exactly what is due now: createStripePaymentLink stamps
- * stripeChargeCents on every mint; an unstamped link (minted before
- * 2026-10-06) charged total - amountPaid, so it fits only a plain balance.
- * @returns {{ amountCents, kind: 'deposit'|'balance', totalOwedCents, stripePaymentLink }}
+ * (ky-insurance-law.js payUrlUnlessHeld) — a held invoice has payUrl '' and
+ * gets no link and no "on its way" promise.
+ *
+ * Pay Now is offered only when the link charges exactly what is due NOW
+ * (createStripePaymentLink stamps every mint, functions/stripe.js):
+ *   - stripeChargeCents must equal the cents due now, AND
+ *   - stripeChargeKind (when stamped) must be the kind due now — a link
+ *     minted for the DEPOSIT is never the balance link, even when a 50%
+ *     deposit makes the two amounts equal (review R6-2-6, 2026-10-07: the
+ *     spent $6,000 deposit link was offered as "Balance Due $6,000"), AND
+ *   - no money has landed since the mint: stripeChargePaidCents (amount
+ *     already paid when it was minted) must still equal amountPaid. A paid
+ *     link that a later change leaves at the same cents owed is spent.
+ * A link stamped before stripeChargeKind / stripeChargePaidCents existed is
+ * judged on what it carries; an unstamped link (minted before 2026-10-06)
+ * charged total - amountPaid, so it fits only a plain balance with nothing
+ * paid yet.
+ * When a link was sent but no longer fits, linkPending is true: the page
+ * says "Your balance link is on its way" instead of offering the spent one.
+ * @returns {{ amountCents, kind: 'deposit'|'balance', totalOwedCents,
+ *             stripePaymentLink: string|null, linkPending: boolean }}
  */
 function portalBalanceCard(inv, payUrl) {
   const i = inv || {};
   const due = chargeDueNow(i);
-  const stamped = i.stripeChargeCents != null && i.stripeChargeCents !== '' && Number.isFinite(Number(i.stripeChargeCents));
-  const fits = stamped ? Math.round(Number(i.stripeChargeCents)) === due.chargeCents : due.kind === 'balance';
-  const url = (fits && due.chargeCents > 0 && /^https:\/\//i.test(String(payUrl || ''))) ? String(payUrl) : null;
+  const num = (v) => v != null && v !== '' && Number.isFinite(Number(v));
+  const paidC = Math.max(0, _c(i.amountPaid));
+  const hasUrl = /^https:\/\//i.test(String(payUrl || ''));
+  let fits;
+  if (num(i.stripeChargeCents)) {
+    fits = Math.round(Number(i.stripeChargeCents)) === due.chargeCents
+      && (!i.stripeChargeKind || i.stripeChargeKind === due.kind)
+      && (!num(i.stripeChargePaidCents) || Math.round(Number(i.stripeChargePaidCents)) === paidC);
+  } else {
+    fits = due.kind === 'balance' && paidC === 0;
+  }
+  const live = fits && due.chargeCents > 0 && hasUrl;
   return {
     amountCents: due.kind === 'none' ? Math.max(0, _c(i.balanceDue)) : due.chargeCents,
     kind: due.kind === 'deposit' ? 'deposit' : 'balance',
     totalOwedCents: due.balanceCents,
-    stripePaymentLink: url,
+    stripePaymentLink: live ? String(payUrl) : null,
+    linkPending: !live && hasUrl && due.chargeCents > 0,
   };
 }
 

@@ -614,6 +614,7 @@ const tokenFor = (db, envelopeId, signerId) => {
       './deal-packet-logic': require(path.join(FN, 'deal-packet-logic.js')),
       './photo-reencode': { reencodePhoto: async (x) => x },
       './await-briefly': require(path.join(FN, 'await-briefly.js')),
+      './portal-after-signing': require(path.join(FN, 'portal-after-signing.js')),
     };
     const mod = { exports: {} };
     new Function('module', 'exports', 'require', fs.readFileSync(path.join(FN, 'deal-acceptance.js'), 'utf8'))(

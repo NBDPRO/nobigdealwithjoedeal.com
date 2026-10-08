@@ -1188,10 +1188,16 @@ exports.getSubscriptionStatus = onRequest(
 // while the link charges exactly what is due now (a pre-fix link minted for
 // the whole job on a deposit invoice is never offered). Best-effort: the link
 // is already minted; a failed stamp only hides the portal's button.
-async function _stampCharge(db, invoiceId, due, chargedCents) {
+// stripeChargePaidCents (review R6-2-6, 2026-10-07): what was already paid
+// when this link was minted. Money landing after the mint (the deposit this
+// very link collected, a check, a supplement re-bill) means the link is spent
+// for the portal, even when the next amount due happens to be the same cents.
+async function _stampCharge(db, invoiceId, due, chargedCents, paidCents) {
   try {
     await db.collection('invoices').doc(String(invoiceId)).update({
-      stripeChargeCents: chargedCents, stripeChargeKind: due.kind, updatedAt: new Date(),
+      stripeChargeCents: chargedCents, stripeChargeKind: due.kind,
+      stripeChargePaidCents: Number.isFinite(Number(paidCents)) ? Math.max(0, Math.round(Number(paidCents))) : 0,
+      updatedAt: new Date(),
     });
   } catch (e) {
     logger.warn('payment_link_charge_stamp_failed', { invoiceId, err: e && e.message });
@@ -1569,7 +1575,7 @@ exports.createStripePaymentLink = onRequest(
           invoiceId, invoice, tenantId, uid: decoded.uid, lineItems: chargeLineItems, balanceDueCents,
         });
         logger.info('crm_stripe_invoice_minted', { invoiceId, uid: decoded.uid, stripeInvoiceId: minted.id, reused: minted.reused, balanceDueCents });
-        await _stampCharge(db, invoiceId, due, balanceDueCents);
+        await _stampCharge(db, invoiceId, due, balanceDueCents, amountPaidCents);
         res.json({ url: minted.url, paymentLinkId: minted.id, stripeInvoice: true, pdfUrl: minted.pdf || null, chargedCents: balanceDueCents, chargeKind: due.kind });
         return;
       }
@@ -1620,7 +1626,7 @@ exports.createStripePaymentLink = onRequest(
         destination: connectState ? connectState.accountId : null,
         feeCents,
       });
-      await _stampCharge(db, invoiceId, due, balanceDueCents);
+      await _stampCharge(db, invoiceId, due, balanceDueCents, amountPaidCents);
       res.json({ url: paymentLink.url, paymentLinkId: paymentLink.id, chargedCents: balanceDueCents, chargeKind: due.kind });
 
     } catch (e) {

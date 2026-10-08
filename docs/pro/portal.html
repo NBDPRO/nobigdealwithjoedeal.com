@@ -521,6 +521,20 @@
   /* Balance card: "Pay by bank (ACH) — lower fees" + the Zelle line
      (2026-10-04). portal.js adds no inline style for these. */
   .portal-pay-note{ color: var(--muted); margin: 8px 0 0; font-size: var(--nbd-text-sm, 14px); line-height: 1.5; }
+  /* Balance card pay line + Payments card (2026-10-07, after-signing batch).
+     portal.js adds no inline style for these. */
+  .portal-pay-btn{ margin-top: 12px; }
+  .portal-pay-wait{ color: var(--muted); margin: 12px 0 0; line-height: 1.5; }
+  .paid-list{ list-style: none; margin: 10px 0 0; padding: 0; }
+  .paid-row{
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 0; border-top: 1px solid var(--nbd-border, #e5e7eb);
+  }
+  .paid-row:first-child{ border-top: 0; }
+  .paid-info{ min-width: 0; }
+  .paid-amount{ font-weight: 700; font-variant-numeric: tabular-nums; }
+  .paid-meta, .paid-ref{ color: var(--muted); font-size: var(--nbd-text-sm, 14px); line-height: 1.4; }
+  .paid-ref{ text-align: right; flex-shrink: 0; }
 
   /* Print stylesheet (2026-09-16). A homeowner's real use case: handing an
      insurance adjuster a paper copy. Without this, the page printed as-is
@@ -594,6 +608,6 @@
 <!-- "A video from Thursday" card (NBD only; ships dark until a video is
      configured). Before portal.js, which reads window.NBDThursdayVideo. -->
 <script defer src="js/thursday-video.js?v=1"></script>
-<script src="js/portal.js?v=12" defer></script>
+<script src="js/portal.js?v=13" defer></script>
 </body>
 </html>

@@ -170,15 +170,19 @@ if (labelSrc) {
    5. The balance card never renders a dead "Pay Now" button
    ══════════════════════════════════════════════════════════════════ */
 group('Balance card: no button at all without a real link', () => {
-  const block = liftBetween(PORTAL, "if (view.balance) {", "\n    }\n");
-  assert('found the balance-card render block', !!block);
+  // 2026-10-07 (R6-2-6): the pay line moved into balancePayActionHtml(b),
+  // which the card calls with view.balance; its behaviour (pending / ask the
+  // rep / Pay Now) is run in tests/portal-after-signing-2026-10-07.test.js.
+  const card = liftBetween(PORTAL, "if (view.balance) {", "\n    }\n");
+  const block = liftBetween(PORTAL, "function balancePayActionHtml(b) {", "\n  }\n");
+  assert('found the balance-card render block', !!block && !!card && /balancePayActionHtml\(view\.balance\)/.test(card));
   if (block) {
-    assert('the Pay Now action is gated on view.balance.stripePaymentLink specifically',
-      /view\.balance\.stripePaymentLink\s*\?/.test(block), block);
-    assert('the false branch is a message, not a button — no <a> or <button> in the fallback text',
-      /:\s*'<p /.test(block), block);
-    assert('the true branch actually renders an anchor to the link, target=_blank',
-      /<a class="btn"[\s\S]*?href="'\s*\+\s*esc\(safeUrl\(view\.balance\.stripePaymentLink\)\)[\s\S]*?target="_blank"/.test(block), block);
+    assert('the Pay Now action is gated on the balance\'s stripePaymentLink specifically',
+      /const url = b && safeUrl\(b\.stripePaymentLink\);\s*if \(url\)/.test(block), block);
+    assert('the fallback branches are messages, not buttons — no <a> or <button> in them',
+      /return '<p class="portal-pay-wait"[^']*'/.test(block) && !/return '<p[^;]*<(a|button)[ >]/.test(block), block);
+    assert('the link branch actually renders an anchor to the link, target=_blank',
+      /<a class="btn[^"]*" href="'\s*\+\s*esc\(url\)[\s\S]*?target="_blank"/.test(block), block);
   }
 });
 

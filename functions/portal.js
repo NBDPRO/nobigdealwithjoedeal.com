@@ -468,6 +468,9 @@ exports.revokePortalToken = onCall(
 const {
   HOMEOWNER_PROGRESS_COPY, resolveHomeownerProgress, paidInFullFor, milestoneDatesFor, invoiceOwes,
 } = require('./homeowner-progress');
+// What the portal says once the job is signed (status line, payments) —
+// homeowner money audit 2026-10-07 M1/M3. Pure; see the module header.
+const PAS = require('./portal-after-signing');
 
 // The lead's invoices that belong to this portal's tenant (portal-authz.js).
 // Used by the view (balance card + tracker) and by the rating gate.
@@ -1016,6 +1019,26 @@ exports.getHomeownerPortalView = onRequest(
       progress.payLink = _balance.stripePaymentLink;
     }
 
+    // Signed by ANY path (audit M1, 2026-10-07): a deal-room acceptance never
+    // touches the estimate's signatureStatus, so the card read "Sent to you"
+    // from signing to paid in full. This lead's accepted deal rooms (tenant-
+    // filtered) count, as do the signed price stamp and the job's own stage.
+    // Best-effort: a failed read only loses the deal-room signal.
+    let _deals = [];
+    try {
+      const ds = await db.collection('deal_rooms').where('leadId', '==', tok.leadId).limit(20).get();
+      _deals = ds.docs.map((d) => d.data() || {}).filter((d) => recordInPortalTenant(d, ['userId'], tenant));
+    } catch (e) {
+      logger.warn('portal deal-room read failed', { err: e && e.message });
+    }
+    const _signedVia = PAS.signedVia({ estimate: latest, deals: _deals, progress: hp });
+    const _jobStatus = PAS.portalJobStatus({
+      progress: hp, via: _signedVia, invoices: tenantInvoices, signatureStatus: latest && latest.signatureStatus,
+    });
+    // What was paid, when and how (audit M3) — from the invoices' payments[]
+    // ledger, in cents, redacted (no processor ids, notes or proof paths).
+    const _paid = PAS.paidSummaryFor(tenantInvoices);
+
     const view = {
       homeowner: {
         firstName: lead.firstName || '',
@@ -1115,6 +1138,10 @@ exports.getHomeownerPortalView = onRequest(
             || null)
           : null,
         signatureStatus: latest.signatureStatus || 'none',
+        // The job's status in the homeowner's words once it is signed by any
+        // path (null = not signed: the card shows the signature pill).
+        jobStatus:       _jobStatus,
+        signedVia:       _signedVia,
         signedAt:        latest.signedAt?.toDate?.()?.toISOString() || null,
         // signedDocumentUrl: historical BoldSign-signed estimates carry the
         // webhook's URL (kept readable); in-house ones get a fresh signed URL.
@@ -1168,6 +1195,9 @@ exports.getHomeownerPortalView = onRequest(
       // null when there's no outstanding invoice — most jobs, most of the
       // time. See the build above for why this never mints a new link.
       balance: _balance,
+      // { payments: [{ date, amountCents, method, invoiceNumber }],
+      //   totalPaidCents } — null until money lands.
+      paid: _paid,
       tokenInfo: {
         daysRemaining: tok.expiresAt
           ? Math.max(0, Math.ceil((tok.expiresAt.toMillis() - Date.now()) / 86_400_000))

@@ -37,6 +37,7 @@
     "stage-flow-ui-2026-10-03.test.js",
     "deal-accepted-tier-2026-10-03.test.js",
     "money-one-number-r2-fix-2026-10-06.test.js",
+    "portal-after-signing-2026-10-07.test.js",
     "customer-pipeline-order-warranty-reasons-2026-09-28.test.js",
     "next-stage-never-lost-2026-09-28.test.js",
     "analytics-stage-labels-2026-09-28.test.js",
