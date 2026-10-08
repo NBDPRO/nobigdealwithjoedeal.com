@@ -1728,7 +1728,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         if (!cached) throw new Error('Estimate not found');
       }
 
-      const est = estSnap.exists() ? estSnap.data() : window._estimates?.find(e => e.id === estimateId);
+      const estSaved = estSnap.exists() ? estSnap.data() : window._estimates?.find(e => e.id === estimateId);
+      // A SIGNED estimate is billed at its signed price until the homeowner
+      // re-signs, however it was edited since (review R6-2-2, Jo 2026-10-07;
+      // customer-estimate-rows.js signedView — the server drafts do the same).
+      const est = _signedViewOf(estSaved);
 
       // Build invoice from estimate — invoiceTotalsFromEstimate (above, shared
       // with the server draft deposit invoice) holds the per-SQ / row-based
@@ -3773,14 +3777,21 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     return doc;
   }
 
+  // The estimate as SIGNED (review R6-2-2): what every bill charges until the
+  // homeowner re-signs. No signed price, or the shared reader not loaded → as saved.
+  function _signedViewOf(est) {
+    const rows = (typeof window !== 'undefined') ? window.NBDCustomerEstimateRows : null;
+    return (est && rows && typeof rows.signedView === 'function') ? rows.signedView(est) : est;
+  }
+
   async function _readEstimate(db, id) {
     if (!id) return null;
     const cached = (window._estimates || []).find(e => e && e.id === id);
     try {
       const s = await window.getDoc(window.doc(db, 'estimates', id));
-      if (s.exists()) return Object.assign({ id }, s.data());
+      if (s.exists()) return _signedViewOf(Object.assign({ id }, s.data()));
     } catch (_) { /* fall back to the page cache */ }
-    return cached || null;
+    return _signedViewOf(cached) || null;
   }
 
   function _totalsOpts() {

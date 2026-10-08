@@ -148,7 +148,11 @@ function decideDepositDraft(ctx) {
   if (!est0 || _isDeleted(est0)) return { action: 'skip', reason: 'no_estimate' };
   if (!_sameTenant(est0, lead)) return { action: 'skip', reason: 'estimate_other_tenant' };
   // The deal's acceptance, else one recorded on the estimate (R2-2-1).
-  const est = _priceEstimate(est0, (ctx.deal && Number(ctx.deal.acceptedPrice) > 0) ? ctx.deal : _recordedAcceptance(est0));
+  // A SIGNED estimate bills its signed price (review R6-2-2, Jo 2026-10-07):
+  // the job spine stamps it just before this runs (signed-price.js), already
+  // at the accepted tier for a deal-room acceptance.
+  const est = CER.hasSignedPrice(est0) ? CER.signedView(est0)
+    : _priceEstimate(est0, (ctx.deal && Number(ctx.deal.acceptedPrice) > 0) ? ctx.deal : _recordedAcceptance(est0));
 
   const jobId = jobIdFor(est, lead);
   const invoiceId = draftInvoiceId(ctx.leadId, jobId);
@@ -314,7 +318,12 @@ function decideFinalDraft(ctx) {
   // estimate accepted before that only RECORDED it (acceptedTier /
   // acceptedPrice beside the rep's tier) — price it here the same way,
   // unless the rep tapped "Keep" on the customer page's chip.
-  const est0 = estRaw ? _priceEstimate(estRaw, _recordedAcceptance(estRaw)) : null;
+  // A SIGNED estimate bills its signed price, however it was edited since
+  // (review R6-2-2, Jo 2026-10-07 — signed-price.js): the signature already
+  // carries any accepted tier, so the recorded-acceptance pricing is skipped.
+  const est0 = !estRaw ? null
+    : CER.hasSignedPrice(estRaw) ? CER.signedView(estRaw)
+      : _priceEstimate(estRaw, _recordedAcceptance(estRaw));
   const jobId = jobIdFor(est0, lead);
   const invoices = Array.isArray(ctx.invoices) ? ctx.invoices : [];
   const jobOpts = { soleJob: IFE.soleJobOf(ctx.jobs, jobId), since: est0 ? est0.createdAt : null };
