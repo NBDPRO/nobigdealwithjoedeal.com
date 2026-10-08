@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Sample Pay Link · NBD Pro Sample Account</title>
+  <meta name="description" content="A sample pay link from the NBD Pro sample account. Nothing is charged here.">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
+  <meta name="theme-color" content="#0B1526">
+  <link rel="stylesheet" href="/assets/css/nbd-fonts-pro.css">
+  <link rel="stylesheet" href="/pro/css/landing.css?v=2">
+  <link rel="stylesheet" href="/pro/explore/explore-entry.css?v=2">
+  <!-- The page a sample pay link opens (Pro demo phase 2, wave 4). The
+       sample account mints these links itself (docs/pro/demo-sdk/endpoints.js);
+       a real account's link is a Stripe payment page. This page only reads
+       its own ?invoice= and ?amount= to show them; it takes no card details
+       and makes no request. -->
+  <script defer src="/pro/explore/explore-pay.js?v=1"></script>
+</head>
+<body class="xe">
+  <main class="xe-card" id="main">
+    <p class="pl-eyebrow">Sample pay link</p>
+    <h1>Pay your roofing invoice</h1>
+    <dl class="xe-pay">
+      <dt>Amount due</dt><dd id="xp-amount">See your invoice</dd>
+      <dt>Invoice</dt><dd id="xp-invoice">Sample invoice</dd>
+      <dt>From</dt><dd>Sample Roofing Co. (a sample company)</dd>
+    </dl>
+    <p class="xe-lede"><strong>This is a sample.</strong> In a real account this link opens Stripe’s secure payment page, where your homeowner pays by card and you are told when the money arrives.</p>
+    <p class="xe-note">Nothing is charged here and no card details are asked for. Kentucky insurance jobs never get a pay link until the carrier’s written decision and the cancellation window, in the sample account too.</p>
+    <button type="button" class="pl-btn pl-btn-primary xe-pay-btn" disabled aria-disabled="true">Pay by card (off in the sample)</button>
+    <div class="xe-actions">
+      <a class="pl-btn pl-btn-ghost" href="/pro/explore/dashboard">Back to the sample account</a>
+      <a class="pl-btn pl-btn-primary" href="/pro/register.html">Start free, no card</a>
+    </div>
+  </main>
+</body>
+</html>

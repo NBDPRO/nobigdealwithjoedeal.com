@@ -1083,7 +1083,39 @@
     // portal.js never mints one) — never a dead "Pay Now" button. Absent
     // entirely when there's no outstanding invoice, same gating shape as
     // every other conditional card on this page.
-    if (view.balance) {
+    // Nothing due yet (money audit H2, 2026-10-07): a Kentucky insurance job
+    // before the insurer's written decision + 5 business days (kind 'held'),
+    // or an insurance invoice still waiting on the carrier's numbers (kind
+    // 'awaiting'). The server sends $0 and no link; this says what happens
+    // next instead of a "Balance Due" with nothing to press.
+    const _nothingDue = view.balance && (view.balance.kind === 'held' || view.balance.kind === 'awaiting');
+    if (_nothingDue) {
+      const _usd = (c) => (Number(c) / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+      const held = view.balance.kind === 'held';
+      const next = Number(view.balance.nextCents) > 0 ? ' (' + esc(_usd(view.balance.nextCents)) + ')' : '';
+      const steps = held
+        ? [
+          'Your insurance company sends you its written decision on your claim.',
+          'Five business days after that decision' +
+            (view.balance.releaseDate ? ' (on or after ' + esc(view.balance.releaseDate) + ')' : '') +
+            ', your deductible and the first insurance check are due' + next + '.',
+          'The rest is due when the job is finished.'
+        ]
+        : [
+          'Waiting on the carrier’s numbers.',
+          'Once your insurance company’s figures are in, your deductible and the first insurance check are due.',
+          'The rest is due when the job is finished.'
+        ];
+      parts.push(
+        '<div class="card" data-portal-nothing-due="' + (held ? 'held' : 'awaiting') + '">' +
+          '<div class="card-label">💳 Payments</div>' +
+          '<div class="card-title">Nothing is due yet</div>' +
+          '<p class="progress-schedule-note">Here’s what happens next:</p>' +
+          steps.map(function (s, n) { return '<p class="portal-pay-note">' + (n + 1) + '. ' + s + '</p>'; }).join('') +
+        '</div>'
+      );
+    }
+    if (view.balance && !_nothingDue) {
       const amount = (view.balance.amountCents / 100).toLocaleString(undefined, {
         style: 'currency', currency: 'USD'
       });

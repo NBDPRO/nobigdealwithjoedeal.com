@@ -588,6 +588,44 @@
     };
   }
 
+  /**
+   * invoiceDeposit(plan) → { depositCents, awaitingCarrierNumbers, note }
+   * What the job's invoice asks for BEFORE the balance — the invoice's
+   * depositAmount, which invoice-charge.js chargeDueNow charges first (the
+   * pay link, the Stripe invoice, the portal's amount-due card).
+   *
+   * Insurance jobs, Kentucky and Ohio alike (Jo's rule, 2026-09-25): the
+   * deductible + the carrier's first (ACV) check, from the figures recorded
+   * on the claim; the rest (depreciation, supplements) on completion.
+   * Before 2026-10-07 (homeowner money audit H2) a Kentucky invoice carried
+   * plan.depositCents — $0, because nothing is due AT SIGNING — so once the
+   * KRS 367.626 window ran, the link charged the whole job ($13,250) instead
+   * of the $9,000 the estimate, deal room and portal plan promised. The KY
+   * hold itself (ky-insurance-law.js payLinkHold) still decides WHEN.
+   *
+   * Never a guess: an insurance job with no deductible, or a Kentucky job
+   * with no ACV, is awaitingCarrierNumbers — the invoice bills nothing until
+   * the rep enters them (an Ohio deductible with no ACV yet stays the
+   * deductible, which the rule says is always due).
+   */
+  var AWAITING_NOTE = 'Waiting on the carrier’s numbers — enter the deductible and the ACV on the estimate, then tap ' +
+    'Create Invoice again. Nothing is billed until then.';
+  function invoiceDeposit(plan) {
+    var none = { depositCents: 0, awaitingCarrierNumbers: false, note: '' };
+    if (!plan || !(plan.totalCents > 0)) return none;
+    var total = plan.totalCents;
+    var insurance = plan.mode === 'insurance' || plan.kyHold === true;
+    if (!insurance) return { depositCents: plan.depositCents, awaitingCarrierNumbers: false, note: '' };
+    if (plan.needsDeductible || plan.deductibleCents == null) {
+      return { depositCents: 0, awaitingCarrierNumbers: true, note: AWAITING_NOTE };
+    }
+    if (!plan.kyHold) return { depositCents: plan.depositCents, awaitingCarrierNumbers: false, note: '' };
+    var ded = plan.deductibleCents;
+    if (ded >= total) return { depositCents: total, awaitingCarrierNumbers: false, note: '' };
+    if (plan.acvCheckCents == null) return { depositCents: 0, awaitingCarrierNumbers: true, note: AWAITING_NOTE };
+    return { depositCents: Math.min(total, ded + plan.acvCheckCents), awaitingCarrierNumbers: false, note: '' };
+  }
+
   // Generic statement of the rule for boilerplate that knows no job (company
   // profile payment-terms defaults, contract fallback).
   function policyText(override) {
@@ -644,6 +682,7 @@
     compute: compute,
     fromEstimate: fromEstimate,
     toStored: toStored,
+    invoiceDeposit: invoiceDeposit,
     policyText: policyText,
     hasLegacyPlaceholderDeductible: hasLegacyPlaceholderDeductible,
     fmtCents: fmtCents,

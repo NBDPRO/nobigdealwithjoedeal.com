@@ -47,6 +47,10 @@ function chargeDueNow(inv, o) {
   const depMet = i.depositPaid === true || paidC >= depC;
   const depLeftC = split && !depMet ? Math.min(depC - paidC, balanceC) : 0;
   if (!(balanceC > 0)) return { kind: 'none', chargeCents: 0, balanceCents: 0, depositLeftCents: 0 };
+  // An insurance invoice made before the carrier's numbers were on the claim
+  // (deposit-rule.js invoiceDeposit, 2026-10-07): nothing is charged — not
+  // the whole job, which is what an invoice with no deposit used to charge.
+  if (i.awaitingCarrierNumbers === true) return { kind: 'awaiting', chargeCents: 0, balanceCents: balanceC, depositLeftCents: 0 };
   if (depLeftC > 0) return { kind: 'deposit', chargeCents: depLeftC, balanceCents: balanceC, depositLeftCents: depLeftC };
   return { kind: 'balance', chargeCents: balanceC, balanceCents: balanceC, depositLeftCents: 0 };
 }
@@ -54,11 +58,21 @@ function chargeDueNow(inv, o) {
 /**
  * The homeowner portal's Balance Due card for one owed invoice (portal.js
  * getPortalView). payUrl = the link already through the Kentucky hold
- * (ky-insurance-law.js payUrlUnlessHeld) — a held invoice has payUrl '' and
- * gets no link and no "on its way" promise.
+ * (ky-insurance-law.js payUrlUnlessHeld).
  *
- * Pay Now is offered only when the link charges exactly what is due NOW
- * (createStripePaymentLink stamps every mint, functions/stripe.js):
+ * hold = ky-insurance-law.js payLinkHold(lead, inv) (2026-10-07, money audit
+ * H2). Checked FIRST: while a Kentucky insurance job is held, NOTHING is
+ * due — the card is kind 'held' with amountCents 0 and no link, and carries
+ * what comes next (nextCents — the deductible + first check, when the
+ * invoice knows it — and the release date) so the portal can say "nothing
+ * is due yet — here is what happens next" instead of "Balance due $13,250".
+ * An invoice waiting on the carrier's numbers is kind 'awaiting', also $0
+ * and no link.
+ *
+ * Otherwise Pay Now is offered only when the link charges exactly what is
+ * due NOW (chargeDueNow — the deposit, the insurance deductible + first
+ * check, or the balance; createStripePaymentLink stamps every mint,
+ * functions/stripe.js):
  *   - stripeChargeCents must equal the cents due now, AND
  *   - stripeChargeKind (when stamped) must be the kind due now — a link
  *     minted for the DEPOSIT is never the balance link, even when a 50%
@@ -73,12 +87,23 @@ function chargeDueNow(inv, o) {
  * paid yet.
  * When a link was sent but no longer fits, linkPending is true: the page
  * says "Your balance link is on its way" instead of offering the spent one.
- * @returns {{ amountCents, kind: 'deposit'|'balance', totalOwedCents,
- *             stripePaymentLink: string|null, linkPending: boolean }}
+ * @returns {{ amountCents, kind: 'deposit'|'balance'|'held'|'awaiting', totalOwedCents,
+ *             stripePaymentLink: string|null, linkPending?: boolean,
+ *             nextCents?, releaseDate? }}
  */
-function portalBalanceCard(inv, payUrl) {
+function portalBalanceCard(inv, payUrl, hold) {
   const i = inv || {};
   const due = chargeDueNow(i);
+  if (hold && hold.held === true) {
+    return {
+      amountCents: 0, kind: 'held', totalOwedCents: 0, stripePaymentLink: null, linkPending: false,
+      nextCents: due.kind === 'deposit' ? due.chargeCents : null,
+      releaseDate: String(hold.releaseDate || ''),
+    };
+  }
+  if (due.kind === 'awaiting') {
+    return { amountCents: 0, kind: 'awaiting', totalOwedCents: 0, stripePaymentLink: null, linkPending: false };
+  }
   const num = (v) => v != null && v !== '' && Number.isFinite(Number(v));
   const paidC = Math.max(0, _c(i.amountPaid));
   const hasUrl = /^https:\/\//i.test(String(payUrl || ''));

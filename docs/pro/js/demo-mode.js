@@ -1,0 +1,460 @@
+// demo-mode.js — the sample-account shell for CRM pages served under
+// /pro/explore/ (Pro demo phase 2, wave 1, 2026-10-06).
+//
+// Loaded first, synchronously, in dashboard.html and customer.html. On every
+// other path (the real CRM at /pro/dashboard, /pro/customer) it returns on
+// its first line and does nothing at all.
+//
+// Under /pro/explore/ it:
+//   1. Refuses to run without the demo service worker. /pro/explore/demo-sw.js
+//      is what swaps the Firebase SDK for the in-browser fake; a hard reload
+//      bypasses it, so the page stops loading and goes back through
+//      /pro/explore, which re-arms it. (The demo route's CSP, connect-src
+//      'self', is the guarantee even then; this keeps the page from booting
+//      the real SDK at all.)
+//   2. Trips on any request that is not a same-origin static file read:
+//      fetch, XMLHttpRequest, sendBeacon, WebSocket and EventSource are
+//      wrapped; a blocked call throws, is logged to window.__NBD_DEMO__.blocked
+//      and shows a "blocked" notice, so a bug is loud in QA, never silent.
+//   3. Keeps the sample account's localStorage/sessionStorage in its own
+//      "nbd_demo:" namespace, so it never reads or overwrites a real
+//      signed-in account's cached data in the same browser.
+//   4. Keeps the visitor inside the sample account: links and navigations to
+//      the CRM pages that exist in the demo are rewritten to /pro/explore/;
+//      other CRM pages say they are in the real account instead.
+//   5. Shows the fixed "Sample account" strip with Reset and Start free.
+//   Wave 3 (2026-10-06), so the maps and Ask Joe work with nothing leaving
+//   the browser:
+//   6. Swaps Leaflet's tile layers for the offline SVG sample map
+//      (/pro/demo-sdk/basemap.js) the moment Leaflet loads.
+//   7. Answers the maps' weather / storm-report / geocoder reads from sample
+//      data (/pro/demo-sdk/offline.js) instead of making the request, and
+//      reports the sample neighbourhood as the visitor's location.
+//   8. Keeps window.callClaude on sample answers (Ask Joe), and stops sms: /
+//      mailto: / tel: links from opening the visitor's own apps.
+//   Wave 4 (2026-10-07), invoices, payments and Settings:
+//   9. Answers the CRM's three DIRECT function POSTs (createStripePaymentLink,
+//      sendEmail, sendSMS) from /pro/demo-sdk/endpoints.js instead of making
+//      the request: sample pay links that say so, and "Nothing was sent"
+//      sheets. Every other function URL is still blocked.
+//  10. Turns on the CRM's own Stripe test-mode switch for the sample payout
+//      account, so invoices offer pay links (the sample kind).
+//  11. Keeps the share sheet (navigator.share) from handing a sample message
+//      to the visitor's own apps.
+//  12. Shows "available in your real account" cards over the Settings
+//      screens the sample account does not run (billing, team, sign-in,
+//      bots & API keys, AI texting, push) and in place of data import
+//      (/pro/demo-sdk/real-account.js). Never wired.
+(function () {
+  'use strict';
+  var PREFIX = '/pro/explore/';
+  if (typeof location === 'undefined' || location.pathname.indexOf(PREFIX) !== 0) return;
+
+  var NS = 'nbd_demo:';
+  var IDB_NAME = 'nbd-demo-account';
+  var DEMO_PAGES = { dashboard: true, customer: true };
+  // Leaving the CRM for these is fine: they are public pages.
+  var EXIT_OK = /^\/(pro\/(register|pricing|sandbox|terms|index)?(\.html)?|pro\/?|privacy(\.html)?)$/;
+  var FUNCTION_PATHS = /^\/(api\/|cspReport|share\/|deal\/|report\/|calendar\/|unsubscribe\/|hooks\/|tenant-logo\/|__\/|pro\/account-erasure)/;
+
+  // ── 1. no demo service worker, no demo ─────────────────────────────────
+  var sw = navigator.serviceWorker;
+  if (!sw || !sw.controller) {
+    try { window.stop(); } catch (_) {}
+    location.replace('/pro/explore?next=' + encodeURIComponent(location.pathname + location.search));
+    return;
+  }
+
+  var state = window.__NBD_DEMO__ = { active: true, blocked: [], notices: [] };
+  document.documentElement.classList.add('nbd-demo');
+
+  // ── notices (strip toast) ──────────────────────────────────────────────
+  var toastEl = null, toastTimer = null, pending = [];
+  function notice(msg, isBlock) {
+    var text = String(msg || '').slice(0, 240);
+    state.notices.push({ at: Date.now(), message: text, blocked: !!isBlock });
+    if (!toastEl) { pending.push([text, isBlock]); return; }
+    toastEl.textContent = text;
+    toastEl.className = 'nbd-demo-toast' + (isBlock ? ' is-block' : '') + ' is-on';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { if (toastEl) toastEl.className = 'nbd-demo-toast'; }, 5200);
+  }
+  window.addEventListener('nbd-demo:notice', function (e) { notice(e.detail && e.detail.message); });
+  try {
+    sw.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'nbd-demo:blocked') block(e.data.url, e.data.why || 'service worker', true);
+    });
+  } catch (_) {}
+
+  // ── 2. network tripwire ────────────────────────────────────────────────
+  function block(url, how, fromSw) {
+    var rec = { url: String(url || '').slice(0, 300), how: how, at: Date.now() };
+    state.blocked.push(rec);
+    try { console.warn('[sample account] blocked ' + how + ': ' + rec.url); } catch (_) {}
+    notice('Blocked in the sample account: ' + (fromSw ? 'a request' : how) + ' to ' + shortUrl(rec.url) + '. Nothing left your browser.', true);
+    return rec;
+  }
+  function shortUrl(u) {
+    try { var x = new URL(u, location.href); return x.origin === location.origin ? x.pathname : x.host; } catch (_) { return 'another site'; }
+  }
+  function allowed(url, method) {
+    var m = String(method || 'GET').toUpperCase();
+    var x;
+    try { x = new URL(String(url), location.href); } catch (_) { return false; }
+    if (x.protocol === 'blob:' || x.protocol === 'data:') return true;
+    if (x.origin !== location.origin) return false;
+    if (m !== 'GET' && m !== 'HEAD') return false;
+    return !FUNCTION_PATHS.test(x.pathname);
+  }
+  // Wave 3: the maps' weather, storm-report and geocoder reads are answered
+  // from sample data (/pro/demo-sdk/offline.js) BEFORE they could leave the
+  // browser: the request is never made, so it is not "blocked" either.
+  var OFFLINE = /^(https:\/\/(nominatim\.openstreetmap\.org\/(reverse|search)\b|api\.weather\.gov\/(points\/|alerts\b)|www\.spc\.noaa\.gov\/products\/outlook\/)|\/api\/storm-report\b)/;
+  var offlineApi = null, offlineWaiters = [];
+  state.offlineLoaded = function (api) {
+    offlineApi = api;
+    var w = offlineWaiters; offlineWaiters = [];
+    w.forEach(function (fn) { try { fn(api); } catch (_) {} });
+  };
+  function withOffline(fn) {
+    if (offlineApi) return Promise.resolve(fn(offlineApi));
+    return new Promise(function (resolve, reject) {
+      offlineWaiters.push(function (api) { try { resolve(fn(api)); } catch (e) { reject(e); } });
+    });
+  }
+  function offlineKey(url, method) {
+    var m = String(method || 'GET').toUpperCase();
+    if (m !== 'GET' && m !== 'HEAD') return null;
+    var x;
+    try { x = new URL(String(url), location.href); } catch (_) { return null; }
+    var key = x.origin === location.origin ? x.pathname + x.search : x.href;
+    return OFFLINE.test(key) ? key : null;
+  }
+  state.say = function (msg) { notice(msg); };
+
+  // Wave 4: the CRM's DIRECT Cloud Function POSTs that the sample account
+  // answers itself (/pro/demo-sdk/endpoints.js): the invoice pay link and
+  // the email / text sends. Recognised by exact function name, POST only;
+  // anything else on a function URL falls through to the tripwire below.
+  var FN_URL = /^(?:https:\/\/us-central1-nobigdeal-pro\.cloudfunctions\.net|http:\/\/127\.0\.0\.1:5001\/nobigdeal-pro\/us-central1)\/([A-Za-z]+)$/;
+  var ENDPOINTS = { createStripePaymentLink: true, sendEmail: true, sendSMS: true };
+  var endpointsApi = null, endpointWaiters = [];
+  state.endpointsLoaded = function (api) {
+    endpointsApi = api;
+    var w = endpointWaiters; endpointWaiters = [];
+    w.forEach(function (fn) { try { fn(api); } catch (_) {} });
+  };
+  function withEndpoints(fn) {
+    if (endpointsApi) return Promise.resolve(fn(endpointsApi));
+    return new Promise(function (resolve, reject) {
+      endpointWaiters.push(function (api) { try { resolve(fn(api)); } catch (e) { reject(e); } });
+    });
+  }
+  function endpointName(url, method) {
+    if (String(method || 'GET').toUpperCase() !== 'POST') return null;
+    var m = FN_URL.exec(String(url || ''));
+    return m && ENDPOINTS[m[1]] === true ? m[1] : null;
+  }
+
+  var realFetch = window.fetch;
+  if (realFetch) {
+    window.fetch = function (input, init) {
+      var url = input && typeof input === 'object' && 'url' in input ? input.url : input;
+      var method = (init && init.method) || (input && typeof input === 'object' && input.method) || 'GET';
+      if (offlineKey(url, method)) {
+        return withOffline(function (api) { return api.answer(url); });
+      }
+      var fnName = endpointName(url, method);
+      if (fnName) {
+        var body = init && typeof init.body === 'string' ? init.body : '';
+        return withEndpoints(function (api) { return api.answerFunction(fnName, body); });
+      }
+      if (!allowed(url, method)) {
+        block(url, 'fetch ' + String(method).toUpperCase());
+        return Promise.reject(new TypeError('Blocked in the sample account: nothing is sent from here.'));
+      }
+      return realFetch.apply(this, arguments);
+    };
+  }
+  if (window.XMLHttpRequest) {
+    var xo = XMLHttpRequest.prototype.open, xs = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function (method, url) {
+      this.__nbdDemoOk = allowed(url, method);
+      this.__nbdDemoUrl = url;
+      this.__nbdDemoMethod = method;
+      return xo.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function () {
+      if (!this.__nbdDemoOk) {
+        block(this.__nbdDemoUrl, 'XHR ' + String(this.__nbdDemoMethod || 'GET').toUpperCase());
+        throw new DOMException('Blocked in the sample account', 'NetworkError');
+      }
+      return xs.apply(this, arguments);
+    };
+  }
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon = function (url) { block(url, 'beacon'); return false; };
+  }
+  ['WebSocket', 'EventSource'].forEach(function (name) {
+    if (!window[name]) return;
+    window[name] = function (url) {
+      block(url, name);
+      throw new DOMException('Blocked in the sample account', 'SecurityError');
+    };
+  });
+
+  // ── wave 3: maps, location and Ask Joe, all offline ───────────────────
+  // a. Leaflet's tile layers → the offline SVG sample map. Leaflet loads
+  //    lazily (the map views' bundle) and ends by setting window.L; the trap
+  //    swaps L.tileLayer right there, before any map asks for a tile, so no
+  //    tile request is ever made (the demo CSP's img-src would refuse them).
+  var leaflet;
+  function swapTiles(L) {
+    if (!L || L.__nbdDemoBasemap) return;
+    if (window.NBD_DEMO_BASEMAP) { window.NBD_DEMO_BASEMAP.install(L); return; }
+    basemapWaiters.push(L);
+  }
+  var basemapWaiters = [];
+  try {
+    Object.defineProperty(window, 'L', {
+      configurable: true, enumerable: true,
+      get: function () { return leaflet; },
+      set: function (v) { leaflet = v; swapTiles(v); }
+    });
+  } catch (_) { /* cannot trap: the CSP still stops the tiles */ }
+  function loadScript(src, isModule) {
+    var s = document.createElement('script');
+    if (isModule) s.type = 'module';
+    s.src = src;
+    if (!isModule) s.async = false;
+    s.addEventListener('load', function () {
+      if (/basemap\.js/.test(src) && window.NBD_DEMO_BASEMAP) {
+        var q = basemapWaiters; basemapWaiters = [];
+        q.forEach(function (L) { window.NBD_DEMO_BASEMAP.install(L); });
+      }
+    });
+    (document.head || document.documentElement).appendChild(s);
+  }
+  loadScript('/pro/demo-sdk/basemap.js?v=1', false);
+  loadScript('/pro/demo-sdk/offline.js?v=1', true);
+  // Wave 4.
+  loadScript('/pro/demo-sdk/endpoints.js?v=2', true);
+  loadScript('/pro/demo-sdk/real-account.js?v=1', false);
+
+  // Stripe test mode for the sample payout account (seed connectAccounts,
+  // livemode false): the CRM's own switch (invoice-pipeline.js
+  // _canCollectOnline), so invoices offer pay links, which endpoints.js
+  // answers with sample links. Only here, under /pro/explore/.
+  window.__NBD_CONNECT_ALLOW_TEST_MODE = true;
+
+  // The share sheet ("Send to sub", job sheets): a sample message never goes
+  // to the visitor's own Messages / Mail. phone-share.js treats the refusal
+  // as a cancel, so it does not fall back to an sms: link either.
+  try {
+    Object.defineProperty(navigator, 'share', {
+      configurable: true, writable: true,
+      value: function (data) {
+        withEndpoints(function (api) { return api.previewShare(data || {}); });
+        return Promise.reject(new DOMException('Nothing is shared from the sample account', 'AbortError'));
+      }
+    });
+  } catch (_) { /* no share sheet to guard */ }
+
+  // Texts from the owner's phone (2026-10-07). Since main's #2246 every
+  // phone send goes through NBDPhoneShare.share(), which asks the server
+  // "ok to text?" and then either opens the share sheet (guarded above) or,
+  // for a "Text" button / a desktop, sends the page to an sms: / mailto:
+  // URL with location.assign(), which cannot be wrapped. So the whole
+  // share() is answered here: the "Nothing was sent" sheet with the message,
+  // and a cancel, which every caller already treats as "not sent".
+  var phoneShare;
+  function guardPhoneShare(api) {
+    if (!api || typeof api.share !== 'function' || api.share.__nbdDemo) return;
+    var sample = function (opts) {
+      var o = opts || {};
+      var text = typeof api.withLink === 'function' ? api.withLink(o.text, o.url) : String(o.text || '');
+      withEndpoints(function (ep) { return ep.previewShare({ title: o.title || o.subject || '', text: text, phone: o.phone || '', email: o.email || '' }); });
+      return Promise.resolve({ shared: false, via: null, cancelled: true, sample: true });
+    };
+    sample.__nbdDemo = true;
+    try { api.share = sample; } catch (_) { /* frozen: the sms: link would still be refused by the walk */ }
+  }
+  try {
+    Object.defineProperty(window, 'NBDPhoneShare', {
+      configurable: true, enumerable: true,
+      get: function () { return phoneShare; },
+      set: function (v) { phoneShare = v; guardPhoneShare(v); }
+    });
+  } catch (_) { /* cannot trap */ }
+
+  // b. The visitor's position: the sample neighbourhood. The maps never ask
+  //    the browser for the real location.
+  try {
+    var geo = navigator.geolocation;
+    if (geo) {
+      var watchN = 0;
+      var fix = function (ok) { withOffline(function (api) { if (typeof ok === 'function') ok(api.position()); }); };
+      geo.getCurrentPosition = function (ok) { fix(ok); };
+      geo.watchPosition = function (ok) { fix(ok); return ++watchN; };
+      geo.clearWatch = function () {};
+    }
+  } catch (_) { /* no geolocation */ }
+
+  // c. Ask Joe: the CRM's js/claude-proxy.js would POST to claudeProxy. The
+  //    demo worker serves /pro/demo-sdk/claude-proxy.js in its place, whose
+  //    window.callClaude lands here: sample answers, no model.
+  state.sampleClaude = function (req) { return withOffline(function (api) { return api.callClaude(req); }); };
+
+  // ── 3. storage namespace ───────────────────────────────────────────────
+  try {
+    var SP = Storage.prototype;
+    var gi = SP.getItem, si = SP.setItem, ri = SP.removeItem, ki = SP.key;
+    var lenDesc = Object.getOwnPropertyDescriptor(SP, 'length');
+    var ownKeys = function (store) {
+      var out = [], n = lenDesc.get.call(store);
+      for (var i = 0; i < n; i++) { var k = ki.call(store, i); if (k && k.indexOf(NS) === 0) out.push(k); }
+      return out;
+    };
+    SP.getItem = function (k) { return gi.call(this, NS + k); };
+    SP.setItem = function (k, v) { return si.call(this, NS + k, v); };
+    SP.removeItem = function (k) { return ri.call(this, NS + k); };
+    SP.key = function (i) { var k = ownKeys(this)[i]; return k ? k.slice(NS.length) : null; };
+    SP.clear = function () { var self = this; ownKeys(this).forEach(function (k) { ri.call(self, k); }); };
+    Object.defineProperty(SP, 'length', { configurable: true, get: function () { return ownKeys(this).length; } });
+    state.clearStorage = function () { [localStorage, sessionStorage].forEach(function (s) { ownKeys(s).forEach(function (k) { ri.call(s, k); }); }); };
+  } catch (_) { /* storage blocked: nothing to protect */ }
+
+  // ── service workers: the demo worker stays, /pro/sw.js stays out ───────
+  try {
+    var SWC = ServiceWorkerContainer.prototype;
+    SWC.register = function () { return Promise.resolve({ scope: location.origin + PREFIX, update: function () { return Promise.resolve(); }, unregister: function () { return Promise.resolve(false); }, __nbdDemoStub: true }); };
+    SWC.getRegistrations = function () { return Promise.resolve([]); };
+  } catch (_) {}
+
+  // ── 4. keep navigation inside the sample account ───────────────────────
+  // Returns the URL to go to instead, '' to stay put, or null to allow.
+  function remap(href) {
+    var x;
+    try { x = new URL(href, location.href); } catch (_) { return null; }
+    if (x.origin !== location.origin) return null; // off-site links open normally
+    var p = x.pathname;
+    if (p.indexOf(PREFIX) === 0) return null;
+    var m = /^\/pro\/([\w-]+?)(\.html)?$/.exec(p);
+    if (m && DEMO_PAGES[m[1]]) return PREFIX + m[1] + x.search + x.hash;
+    if (/^\/pro\/login(\.html)?$/.test(p)) return '/pro/sandbox';
+    if (EXIT_OK.test(p) || p === '/') return null;
+    if (p.indexOf('/pro/') === 0) return '';
+    return null;
+  }
+  function stayNotice() { notice('That screen is in your real account. The sample account has the dashboard and customer cards for now.'); }
+
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0) return;
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a || a.hasAttribute('download')) return;
+    // Wave 3: a text / email / call link would open the visitor's own
+    // Messages, Mail or Phone app with a sample customer's details. Not here.
+    // (The Agent inbox's "Text from my phone" still runs its own handler,
+    // which shows the "Nothing was sent" sheet.)
+    var scheme = /^\s*(sms|mailto|tel):/i.exec(a.getAttribute('href') || '');
+    if (scheme) {
+      e.preventDefault();
+      if (a.getAttribute('data-ai-act') === 'text') {
+        // Since main's R2-3-1 the inbox opens this link itself with
+        // location.assign() once its 'sent' step answers ok. Take the link
+        // off the button first, so there is nothing to open (the row is
+        // redrawn after the tap either way).
+        a.setAttribute('data-nbd-demo-href', a.getAttribute('href') || '');
+        a.removeAttribute('href');
+      } else {
+        var kind = scheme[1].toLowerCase();
+        notice(kind === 'tel' ? 'In your real account this calls the customer from your phone. The sample account never contacts anyone.'
+          : 'In your real account this opens your ' + (kind === 'sms' ? 'Messages' : 'Mail') + ' app with the message ready for you to send yourself. The sample account never contacts anyone.');
+      }
+      return;
+    }
+    var to = remap(a.getAttribute('href'));
+    if (to === null) return;
+    e.preventDefault();
+    if (to === '') { stayNotice(); return; }
+    location.assign(to);
+  }, true);
+
+  if (window.navigation && typeof window.navigation.addEventListener === 'function') {
+    window.navigation.addEventListener('navigate', function (e) {
+      if (!e.cancelable || e.hashChange || e.downloadRequest) return;
+      var to = remap(e.destination && e.destination.url);
+      if (to === null) return;
+      e.preventDefault();
+      if (to === '') { stayNotice(); return; }
+      setTimeout(function () { location.assign(to); }, 0);
+    });
+  }
+
+  // ── 5. the strip ───────────────────────────────────────────────────────
+  async function resetAccount() {
+    // nbdConfirm (standalone-compat.js) on both pages; without it, reset
+    // straight away: it only clears this browser's sample data.
+    var msg = 'Reset the sample account? Every change you made here is cleared.';
+    var yes = typeof window.nbdConfirm === 'function' ? await window.nbdConfirm(msg) : true;
+    if (!yes) return;
+    try { if (state.clearStorage) state.clearStorage(); } catch (_) {}
+    var done = function () { location.replace(PREFIX + 'dashboard'); };
+    try {
+      var req = indexedDB.deleteDatabase(IDB_NAME);
+      req.onsuccess = req.onerror = req.onblocked = done;
+    } catch (_) { done(); }
+  }
+  function mountStrip() {
+    if (document.getElementById('nbd-demo-strip')) return;
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/pro/css/demo-mode.css?v=4';
+    document.head.appendChild(link);
+    var bar = document.createElement('div');
+    bar.id = 'nbd-demo-strip';
+    bar.className = 'nbd-demo-strip';
+    bar.setAttribute('role', 'region');
+    bar.setAttribute('aria-label', 'Sample account');
+    bar.innerHTML =
+      '<span class="nbd-demo-label"><strong>Sample account</strong><span class="nbd-demo-long">: nothing here is real or saved to NBD Pro</span></span>' +
+      '<span class="nbd-demo-actions">' +
+        '<button type="button" class="nbd-demo-btn" data-nbd-demo="reset">Reset</button>' +
+        '<a class="nbd-demo-btn nbd-demo-cta" href="/pro/register.html">Start free</a>' +
+      '</span>';
+    toastEl = document.createElement('div');
+    toastEl.className = 'nbd-demo-toast';
+    toastEl.setAttribute('role', 'status');
+    toastEl.setAttribute('aria-live', 'polite');
+    document.body.appendChild(bar);
+    document.body.appendChild(toastEl);
+    bar.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('[data-nbd-demo="reset"]') : null;
+      if (b) resetAccount();
+    });
+    var q = pending; pending = [];
+    q.forEach(function (n) { notice(n[0], n[1]); });
+    sampleJoeFootnote();
+  }
+  // Ask Joe's footnote names the model and offers "Change Key" (it clears a
+  // stored API key). Neither is true here: no model is called and there is
+  // no key. Rewrite it in the view template (cloned when Ask Joe opens) and
+  // in any copy already on the page. Found by its clearJoeKey control, so
+  // the real page carries no demo markup.
+  function sampleJoeFootnote() {
+    var roots = [document];
+    var tpl = document.getElementById('tpl-view-joe');
+    if (tpl && tpl.content) roots.push(tpl.content);
+    roots.forEach(function (root) {
+      var keys = root.querySelectorAll('[data-fn="clearJoeKey"]');
+      for (var i = 0; i < keys.length; i++) {
+        var foot = keys[i].parentNode;
+        if (!foot || foot.getAttribute && foot.getAttribute('data-nbd-demo-foot')) continue;
+        foot.textContent = 'Joe AI · Sample answers from the sample account · no AI model is called';
+        if (foot.setAttribute) foot.setAttribute('data-nbd-demo-foot', '1');
+      }
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountStrip);
+  else mountStrip();
+})();

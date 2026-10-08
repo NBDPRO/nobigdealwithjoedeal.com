@@ -1049,8 +1049,12 @@ function closeBoardPage(price, mode, deductible) {
     });
     let kyErr = null;
     try { await IP.createInvoiceFromEstimate('est_ky'); } catch (e) { kyErr = e; }
-    ok('KY invoice: depositAmount 0 and kyInsuranceHold set (the pay link is withheld server-side)', !kyErr && !!capKy
-      && Number(capKy.depositAmount) === 0 && capKy.kyInsuranceHold === true && capKy.emergencyServices === false,
+    // 2026-10-07 (money audit H2): the invoice asks the deductible + first
+    // check ($1,000 + $8,000) first — due after the insurer's decision + 5
+    // business days, which the server-side hold enforces. depositAmount 0
+    // made the released link charge the whole $14,000.
+    ok('KY invoice: depositAmount = deductible + first check ($9,000), kyInsuranceHold set (the pay link is withheld server-side)', !kyErr && !!capKy
+      && Number(capKy.depositAmount) === 9000 && capKy.kyInsuranceHold === true && capKy.emergencyServices === false && capKy.awaitingCarrierNumbers === false,
       (kyErr && kyErr.message) || (capKy && JSON.stringify({ d: capKy.depositAmount, h: capKy.kyInsuranceHold })));
     ok('KY invoice terms say nothing is due at signing', !!capKy && /Nothing is due at signing/.test(String(capKy.terms)), capKy && capKy.terms);
   }
