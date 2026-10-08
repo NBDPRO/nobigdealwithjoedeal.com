@@ -470,6 +470,7 @@
     "r4-erasure-export-honesty-2026-10-06.test.js",
     "doc-preflight-invoice-tax-2026-10-05.test.js",
     "preflight-save-to-estimate-r6-2026-10-07.test.js",
+    "dashboards-agree-r6-2026-10-07.test.js",
     "r4-ui-silent-fixes-2026-10-06.test.js",
     "review-r4-dates-fixes-2026-10-06.test.js",
     "receipts-zelle-ach-2026-10-04.test.js",
