@@ -99,6 +99,18 @@ async function draftDepositAfterSign(db, args, deps) {
         const existingInvoices = (invSnap.docs || []).map((d) => Object.assign({ id: d.id }, d.data() || {}));
         decision = D.decideDepositDraft(Object.assign({}, ctx, { existingInvoices }));
       }
+      // The homeowner accepted another tier on a line-item estimate and the
+      // rep hasn't applied it yet (review R6-2-3, Jo 2026-10-07): no draft —
+      // "Homeowner picked X — apply it" goes on the customer instead (once;
+      // a task the rep closed is never reopened). The chip's "Use it" runs
+      // this event again once the estimate carries the pick.
+      if (decision.action === 'skip' && decision.reason === 'accepted_tier_pending' && estimateId && decision.pick) {
+        const t = D.applyTierTask(estimateId, decision.pick, _todayEt(nowMs));
+        const tRef = leadRef.collection('tasks').doc(t.id);
+        const ts = await tx.get(tRef);
+        if (!ts.exists) tx.set(tRef, Object.assign({}, t.doc, { createdAt: FieldValue.serverTimestamp(), createdBy: 'system: deposit draft' }));
+        return { created: false, reason: decision.reason, taskId: t.id, taskCreated: !ts.exists };
+      }
       if (decision.action !== 'create') {
         return { created: false, reason: decision.reason, depositCents: decision.plan ? decision.plan.depositCents : undefined, rule: decision.plan ? decision.plan.rule : undefined };
       }

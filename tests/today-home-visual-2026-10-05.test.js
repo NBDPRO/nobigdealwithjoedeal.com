@@ -110,7 +110,7 @@ console.log('\nHOME HEADER');
   ok('the header actions sit in .home-hdr-acts with no inline style', /<div class="home-hdr-acts(?: [\w-]+)*">/.test(hdr) && !/<div style="display:flex;gap:6px;">/.test(hdr));
   ok('exactly one primary (btn-orange) in the Home header', (hdr.match(/\bbtn-orange\b/g) || []).length === 1);
   ok('Customize steps down to the quiet tier with no inline style',
-    /<button class="btn ui-btn-quiet"[^>]*data-target="NBDWidgets\.openPicker"/.test(hdr) && !/openPicker"[^>]*style=|style="[^"]*"[^>]*openPicker/.test(hdr));
+    /<button class="btn ui-btn-quiet(?: [\w-]+)*"[^>]*data-target="NBDWidgets\.openPicker"/.test(hdr) && !/openPicker"[^>]*style=|style="[^"]*"[^>]*openPicker/.test(hdr));
   ok('today-home.css cache-buster bumped past v=1', /css\/today-home\.css\?v=(\d+)/.test(html) && +html.match(/css\/today-home\.css\?v=(\d+)/)[1] > 1);
 }
 

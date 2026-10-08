@@ -188,10 +188,15 @@ const successPath = progressFn.slice(
 ok('a successful move does NOT reload the page',
   !/location\.reload\(\)/.test(successPath),
   'every other save on this page updates in place — this was the one action that still full-navigated');
+// 2026-10-08: the in-place update moved into _applyStageOnPage(lead, stage,
+// label), shared with the one-tap move's Undo — the success path calls it
+// with the NEW stage, and the helper does what the inline code did.
+const applyStart = boot.indexOf('function _applyStageOnPage(');
+const applyFn = applyStart >= 0 ? boot.slice(applyStart, boot.indexOf('\n}', applyStart)) : '';
 ok('…local stage state is updated in place instead',
-  /window\._currentStage = nextStage/.test(successPath));
+  /_applyStageOnPage\(lead, nextStage, label\)/.test(successPath) && /window\._currentStage = stage/.test(applyFn));
 ok('…the stage-progress button re-renders its own label from the NEW current stage (not stale until next load)',
-  /_nextStageFor\(lead\)/.test(successPath));
+  /_nextStageFor\(lead\)/.test(applyFn) && /btnEl\.innerHTML = `→ Move to \$\{after\.label\}`/.test(applyFn));
 
 console.log(`\n  ${passed} passed, ${failed} failed`);
 if (failed) { console.log('\n  failures:'); for (const f of fails) console.log('    - ' + f); process.exit(1); }

@@ -21,7 +21,7 @@ import {
   requiredFieldLabel as _requiredFieldLabel,
   subTypeOptionsFor as _subTypeOptionsFor,
 } from "./crm-stages.js";
-import { commitStageChange as _commitStageChange } from "./stage-write.js";
+import { commitStageChange as _commitStageChange, stageMoveNeedsConfirm as _stageMoveNeedsConfirm } from "./stage-write.js";
 // Estimate archive + lead primary/jobValue sync, shared with the dashboard's
 // Delete (review R5-8-2).
 import { archiveEstimateAndSyncLead } from "./estimate-lead-sync.js";
@@ -2475,6 +2475,13 @@ window.progressStage = async function() {
   // 3-day cancellation window (2026-10-04): a move that starts the work
   // (materials ordered, crew scheduled, …) before lead.cancelBy says so in
   // the confirm. Warn, never block — "Move" still moves.
+  //
+  // 2026-10-08 (phone audit 2026-10-07 #10): a NORMAL move no longer asks
+  // "Move customer to X?" — one tap moves it and the toast offers Undo for
+  // a few seconds (the kanban never asked either). The confirm stays only
+  // where it earns its tap: the cancellation-window warning, or a
+  // destructive destination (Lost / Archived / Cancelled) —
+  // stage-write.js stageMoveNeedsConfirm.
   let cxlWarn = '';
   try {
     const J = window.NBDJurisdiction;
@@ -2483,10 +2490,18 @@ window.progressStage = async function() {
         J.resolveTimeZone(window._legal ? window._legal() : window._companyProfile));
     }
   } catch (_) { cxlWarn = ''; }
-  const ok = await ask(cxlWarn
-    ? `⚠ ${cxlWarn}\n\nMove customer to "${label}" stage anyway?`
-    : `Move customer to "${label}" stage?`);
-  if (!ok) return;
+  const _destRole = (typeof window.stageRole === 'function') ? window.stageRole(nextStage) : null;
+  const mustAsk = _stageMoveNeedsConfirm(nextStage, { warning: cxlWarn, role: _destRole });
+  if (mustAsk) {
+    const ok = await ask(cxlWarn
+      ? `⚠ ${cxlWarn}\n\nMove customer to "${label}" stage anyway?`
+      : `Move customer to "${label}" stage?`);
+    if (!ok) return;
+  }
+  // Undo is offered only for a plain move: one that asked first, or one
+  // that ran the warranty-claim intake / resolution (those write a claim),
+  // is not silently reversible from a toast.
+  let undoable = !mustAsk;
 
   // Pre-flight: surface common failure causes immediately rather than
   // letting the writer fail silently. The original implementation
@@ -2554,6 +2569,7 @@ window.progressStage = async function() {
     try { opened = await window.WarrantyClaim.promptIntake(lead); }
     catch (e) { if (window.showToast) window.showToast('Could not open the claim: ' + e.message, 'error'); return; }
     if (!opened) return;
+    undoable = false;
   } else if (current === 'warranty_claim' && nextStage !== 'warranty_claim' && lead.openWarrantyClaimId) {
     if (!(window.WarrantyClaim && typeof window.WarrantyClaim.promptResolution === 'function')) {
       if (window.showToast) window.showToast('Warranty claim tool not loaded — reload and try again', 'warning');
@@ -2563,6 +2579,7 @@ window.progressStage = async function() {
     try { resolved = await window.WarrantyClaim.promptResolution(lead); }
     catch (e) { if (window.showToast) window.showToast('Could not resolve the claim: ' + e.message, 'error'); return; }
     if (!resolved) return;
+    undoable = false;
   }
 
   const btnEl = document.getElementById('stageProgressBtn');
@@ -2576,44 +2593,21 @@ window.progressStage = async function() {
       jobType: lead.jobType || null,
     });
 
-    // In-place update — no reload. Mirror the local state moveCard() keeps
-    // on the kanban side so a second click (or any other code on this page
-    // that reads these) sees the new stage immediately.
-    window._currentStage = nextStage;
-    lead.stage = nextStage;
-    if (window._currentLead) window._currentLead.stage = nextStage;
-    if (window._leadDoc) window._leadDoc.stage = nextStage;
+    // In-place update — no reload (see _applyStageOnPage).
+    _applyStageOnPage(lead, nextStage, label);
 
-    if (window.showToast) window.showToast('✓ Stage moved to ' + label, 'success');
-
-    // The header stage pill — it kept showing the OLD stage until a reload
-    // while the button beside it had already advanced.
-    try {
-      const stageBadge = document.getElementById('customerStage');
-      if (stageBadge) {
-        stageBadge.textContent = label;
-        stageBadge.className = 'stage-badge stage-' + String(nextStage).toLowerCase().replace(/[_\s]+/g, '-');
-      }
-    } catch (_) {}
-
-    // Re-render whatever on this page reflects the stage: the button's own
-    // "next stage" label (recomputed from the NEW current stage), and the
-    // two panels that key off it directly, each already guarded elsewhere
-    // on this page for a defer-order race.
-    const after = _nextStageFor(lead);
-    if (btnEl) {
-      if (after) {
-        btnEl.innerHTML = `→ Move to ${after.label}`;
-        btnEl.disabled = false;
+    if (window.showToast) {
+      if (undoable) {
+        // Undo = the same guarded write back (STAGE_RACE_* if another tab
+        // moved it meanwhile — then refresh rather than clobber).
+        window.showToast({
+          message: '✓ Stage moved to ' + label, type: 'success', duration: 6000, undoText: 'Undo',
+          undoAction: () => _undoStageMove(lead, oldStage, nextStage),
+        });
       } else {
-        // No further stage in this track (e.g. just hit 'closed') — hide
-        // rather than show a disabled button with nothing left to do.
-        btnEl.style.display = 'none';
+        window.showToast('✓ Stage moved to ' + label, 'success');
       }
     }
-    try { if (window.JobChecklist?.render) window.JobChecklist.render(lead); } catch (_) {}
-    try { if (window.ClaimPanel?.render) window.ClaimPanel.render('insurancePanel', lead); } catch (_) {}
-    try { if (window.WarrantyClaim?.renderPanel) window.WarrantyClaim.renderPanel('warrantyClaimPanel', lead); } catch (_) {}
   } catch (e) {
     // STAGE_RACE_NOOP / STAGE_RACE_LOST: another tab (kanban or this same
     // page open elsewhere) already moved this lead since our `oldStage`
@@ -2638,6 +2632,68 @@ window.progressStage = async function() {
     }
   }
 };
+
+// Mirror a stage change on this page without a reload: the local state
+// moveCard() keeps on the kanban side (so a second click, or any other code
+// on this page that reads these, sees the new stage), the header stage pill
+// (it kept showing the OLD stage until a reload while the button beside it
+// had already advanced), the button's own "next stage" label (recomputed
+// from the NEW current stage), and the panels that key off the stage, each
+// already guarded elsewhere on this page for a defer-order race. Shared by
+// progressStage and its Undo (2026-10-08).
+function _applyStageOnPage(lead, stage, label) {
+  window._currentStage = stage;
+  lead.stage = stage;
+  if (window._currentLead) window._currentLead.stage = stage;
+  if (window._leadDoc) window._leadDoc.stage = stage;
+  try {
+    const stageBadge = document.getElementById('customerStage');
+    if (stageBadge) {
+      stageBadge.textContent = label;
+      stageBadge.className = 'stage-badge stage-' + String(stage).toLowerCase().replace(/[_\s]+/g, '-');
+    }
+  } catch (_) {}
+  const btnEl = document.getElementById('stageProgressBtn');
+  const after = _nextStageFor(lead);
+  if (btnEl) {
+    if (after) {
+      btnEl.innerHTML = `→ Move to ${after.label}`;
+      btnEl.disabled = false;
+      btnEl.style.display = '';
+    } else {
+      // No further stage in this track (e.g. just hit 'closed') — hide
+      // rather than show a disabled button with nothing left to do.
+      btnEl.style.display = 'none';
+    }
+  }
+  try { if (window.JobChecklist?.render) window.JobChecklist.render(lead); } catch (_) {}
+  try { if (window.ClaimPanel?.render) window.ClaimPanel.render('insurancePanel', lead); } catch (_) {}
+  try { if (window.WarrantyClaim?.renderPanel) window.WarrantyClaim.renderPanel('warrantyClaimPanel', lead); } catch (_) {}
+}
+
+// Undo a one-tap stage move (2026-10-08): the same transaction-guarded write
+// back to the stage it came from. Not a delete — the history keeps both
+// entries, the honest record of what happened.
+async function _undoStageMove(lead, fromStage, movedTo) {
+  if (!window._customerId || !fromStage) return;
+  if ((window._currentStage || lead.stage) !== movedTo) return;   // moved again since
+  try {
+    await _commitStageChange(window._customerId, fromStage, movedTo, {
+      actorLabel: window.auth?.currentUser?.email,
+      jobType: lead.jobType || null,
+    });
+    const back = (typeof window.stageLabel === 'function' && window.stageLabel(fromStage)) || fromStage;
+    _applyStageOnPage(lead, fromStage, back);
+    if (window.showToast) window.showToast('Moved back to ' + back, 'info');
+  } catch (e) {
+    if (e && (e.message === 'STAGE_RACE_NOOP' || e.message === 'STAGE_RACE_LOST')) {
+      if (window.showToast) window.showToast('Another tab moved this lead — refreshing.', 'info');
+      setTimeout(() => window.location.reload(), 800);
+      return;
+    }
+    if (window.showToast) window.showToast('Could not undo the move: ' + ((e && e.message) || 'unknown error'), 'error');
+  }
+}
 
 // Task toggle
 window.toggleTask = async function(taskId, newDoneState) {

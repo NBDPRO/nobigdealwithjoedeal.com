@@ -256,31 +256,39 @@ function preflightEnv(est) {
       deal: { estimateId: 'EV2', acceptedTier: 'good', acceptedPrice: 9500 }, existingInvoices: [] });
     ok('R6-2-3 context: the deal room told the homeowner $4,750 is due at signing for Standard $9,500 (deposit-rule on the accepted price)',
       dealRoomDue === 475000, dealRoomDue);
-    ok('KNOWN BUG R6-2-3 (reported 2026-10-07): on a line-item estimate the acceptance is only recorded (recorded-differs, #2245 kept '
-      + 'line-item as record-only) and the automatic signing-day draft bills the REP\'s tier — $10,700 with a $5,350 deposit — while the '
-      + 'homeowner accepted $9,500 / $4,750 and the "use it?" chip is still pending. Expected the draft to wait for the chip, or bill the accepted tier',
-      plan.reason === 'recorded-differs' && dd.action === 'create' && c(dd.invoice.total) === 1070000 && c(dd.invoice.depositAmount) === 535000,
-      JSON.stringify({ reason: plan.reason, action: dd.action, total: dd.invoice && dd.invoice.total, dep: dd.invoice && dd.invoice.depositAmount }));
+    ok('FIXED R6-2-3 (#2305; was KNOWN BUG 2026-10-07): while the homeowner\'s Standard $9,500 pick on a line-item estimate is unresolved, '
+      + 'the automatic signing-day draft WAITS (skip accepted_tier_pending) instead of billing the rep\'s $10,700 / $5,350 — and the deal '
+      + 'room no longer offers a tier this estimate cannot rebuild',
+      dd.action === 'skip' && dd.reason === 'accepted_tier_pending' && DAT.tierOffered(est, 'good') === false && DAT.tierOffered(est, 'better') === true,
+      JSON.stringify({ reason: plan.reason, action: dd.action, why: dd.reason, total: dd.invoice && dd.invoice.total }));
   }
 
-  // R6-2-4 ─ the chip's "Use it" on a line-item estimate
+  // R6-2-4 ─ "Use it" on a line-item estimate
+  // #2305 removed the chip's client-side usePatch: "Use it" is the server's
+  // planUseAcceptedTier, which rebuilds the rows from the V2 build stored for
+  // that tier, or refuses.
   {
-    const chip = require(path.join(DG_DIR, 'accepted-tier-chip.js'));
     const est = v2LineItemEstimate({ id: 'E', acceptedTier: 'good', acceptedPrice: 9500 });
     const lead = { primaryEstimateId: 'E', jobValue: 10700, address: OH };
-    const pick = chip.pendingPick(lead, [est]);
-    const w = pick ? chip.usePatch(lead, pick, { depositRule: DR }) : { estimate: {} };
-    const est2 = Object.assign({}, est, w.estimate);
+    const none = DAT.planUseAcceptedTier({ lead, estimate: est, estimateId: 'E', depositRule: DR });
+    // The same estimate with the Standard build V2 stored beside it at save:
+    // $6,878.50 + $2,000 = $8,878.50 + 7% tax $621.50 = $9,500.
+    const good = { rows: [
+      { code: 'RFG', desc: 'Shingles', qty: '30 SQ', retailTotal: 6878.5, total: 6878.5 },
+      { code: 'LAB', desc: 'Labor', qty: '30 SQ', retailTotal: 2000, total: 2000 },
+    ], grandTotal: 9500, subtotal: 8878.5, tax: 621.5, taxRate: 0.07, minJobApplied: false };
+    const built = Object.assign({}, est, { tierRows: { v: 1, basis: { tier: 'better', totalCents: 1070000, rowsKey: DAT.rowsKey(est.rows) }, tiers: { good } } });
+    const w = DAT.planUseAcceptedTier({ lead, estimate: built, estimateId: 'E', depositRule: DR });
+    const est2 = Object.assign({}, built, w.estimate || {});
     const contract = CER.buildDisplayRows(est2);
     const inv = invoiceOf(est2);
-    ok('R6-2-4 context: "Use it" re-tiers the totals to $9,500 (subtotal $8,878.50 + tax $621.50) and moves jobValue',
-      c(est2.grandTotal) === 950000 && c(est2.subtotal) === 887850 && c(est2.tax) === 62150 && w.lead && w.lead.jobValue === 9500);
-    ok('KNOWN BUG R6-2-4 (reported 2026-10-07): "Use it" on a line-item estimate rewrites grandTotal / subtotal / tax but not the rows, '
-      + 'so the contract and estimate link print $10,621.50 of lines (Preferred-priced rows + the new tax) under a $9,500 price and the '
-      + 'invoice carries $10,621.50 of lines + tax against $9,500 — the pay link is refused. Expected the chip to re-price the rows (or '
-      + 'refuse a line-item estimate and send the rep to the builder)',
-      sumCents(contract) === 1062150 && sumCents(inv.items) + c(inv.tax) === 1062150 && c(inv.total) === 950000,
-      JSON.stringify({ contract: sumCents(contract), inv: sumCents(inv.items) + c(inv.tax), total: inv.total }));
+    ok('FIXED R6-2-4 (#2305; was KNOWN BUG 2026-10-07): "Use it" on a line-item estimate with no Standard build refuses (needs-builder) '
+      + 'and writes nothing; with the build it rebuilds the rows, so the contract and the invoice foot to the $9,500 price and jobValue '
+      + 'follows (was: $10,621.50 of lines under $9,500 and a refused pay link)',
+      none.reason === 'needs-builder' && none.estimate === null && none.lead === null
+        && w.reason === 'applied' && c(est2.grandTotal) === 950000 && sumCents(contract) === 950000
+        && sumCents(inv.items) + c(inv.tax) === 950000 && c(inv.total) === 950000 && w.lead && c(w.lead.jobValue) === 950000,
+      JSON.stringify({ none: none.reason, used: w.reason, contract: sumCents(contract), inv: sumCents(inv.items) + c(inv.tax), total: inv.total }));
   }
 
   // R6-2-5 ─ a stale deal room overrode a re-saved estimate. DROPPED (fixed by
