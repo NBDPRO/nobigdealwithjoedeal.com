@@ -82,8 +82,9 @@ ok('every registered gate is actually checked by some function (no stale entries
 // 23 (2026-10-02): + CALL_WATCH_ENABLED, the every-2-hours call check.
 // 24 since 2026-10-04: ESIGN_REMINDERS_DISABLED (esign-reminders.js).
 // 29 (2026-10-06): + TWILIO_INBOUND_ENABLED, the Twilio line's dark switch.
-ok('the registry has exactly 29 gates (update this pin deliberately if that changes)',
-  CRON_GATES.length === 29, String(CRON_GATES.length));
+// 30 (2026-10-07): + LEAD_ALERT_WATCHDOG_DISABLED, the missed-lead-alert re-send's kill switch.
+ok('the registry has exactly 30 gates (update this pin deliberately if that changes)',
+  CRON_GATES.length === 30, String(CRON_GATES.length));
 
 for (const g of CRON_GATES) {
   const files2 = foundInFile.get(g.name);

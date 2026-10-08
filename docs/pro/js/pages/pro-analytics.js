@@ -12,7 +12,7 @@
  * the bottom of the file. `bootAnalytics` is off window (Globals Tranche 3,
  * T3-C) — pro-analytics-gate.js reads it from __NBD_CALL_REGISTRY.
  */
-import { getFirestore, collection, query, where, orderBy, getDocs, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, collection, query, where, orderBy, getDocs, Timestamp } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 
 // Anthropic's published base rates per 1M tokens (claude.com/pricing, checked
 // 2026-09-30). Haiku 4.5 is $1/$5 — the page priced it at Haiku 3.5's

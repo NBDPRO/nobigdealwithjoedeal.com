@@ -256,7 +256,7 @@ exports.uploadPublicLeadPhoto = onRequest(
 // enums submitPublicLead applies — and at most INTAKE_MAX_UPDATES saves per
 // grant. Nothing here alerts anyone; the lead already did.
 // ═════════════════════════════════════════════════════════════
-const { sanitizeIntake } = require('./public-lead-intake-spec');
+const { sanitizeIntake, sanitizeFollowUpExtras, FOLLOWUP_EXTRA_COLLECTIONS } = require('./public-lead-intake-spec');
 const INTAKE_MAX_UPDATES = 3;
 const CRM_LEAD_TRIES = 3;
 const CRM_LEAD_WAIT_MS = 2500;
@@ -284,7 +284,10 @@ async function saveIntakeUpdate(db, body, opts) {
   const token = typeof b.token === 'string' ? b.token : '';
   if (!/^[a-f0-9]{48}$/.test(token)) return { status: 400, json: { error: 'This link is not valid.' } };
   const fields = sanitizeIntake(b);
-  if (!Object.keys(fields).length) return { status: 400, json: { error: 'Nothing to save.' } };
+  // /inspect's thank-you screen (2026-10-06): "What happened?", email and a
+  // referral code, for an inspect_leads grant only (checked in the transaction).
+  const extras = sanitizeFollowUpExtras(b);
+  if (!Object.keys(fields).length && !Object.keys(extras).length) return { status: 400, json: { error: 'Nothing to save.' } };
 
   const ref = db.collection(GRANTS).doc(hashToken(token));
   // Whose grant: the help wording names that company (grantContact).
@@ -300,6 +303,11 @@ async function saveIntakeUpdate(db, body, opts) {
       const g = snap.exists ? snap.data() : null;
       const c = checkIntakeGrant(g, now(), contact);
       if (!c.ok) { const e = new Error('grant'); e._http = c.status; e._msg = c.error; throw e; }
+      // Extras count only for the collection that asks them: a grant from any
+      // other form with nothing else to save is refused before it is spent.
+      if (!Object.keys(fields).length && !FOLLOWUP_EXTRA_COLLECTIONS.includes(g.collection)) {
+        const e = new Error('grant'); e._http = 400; e._msg = 'Nothing to save.'; throw e;
+      }
       tx.update(ref, { intakeUpdates: FieldValue.increment(1), lastIntakeAt: FieldValue.serverTimestamp() });
       return g;
     });
@@ -309,17 +317,20 @@ async function saveIntakeUpdate(db, body, opts) {
     throw e;
   }
   try {
-    return await _applyIntake(db, grant, fields, wait);
+    return await _applyIntake(db, grant, fields, extras, wait);
   } catch (e) {
     e._contact = contact;
     throw e;
   }
 }
 
-async function _applyIntake(db, grant, fields, wait) {
-  // The public lead (what lead-alert / the funnel-recovery job read).
+async function _applyIntake(db, grant, fields, extras, wait) {
+  const extra = FOLLOWUP_EXTRA_COLLECTIONS.includes(grant.collection) ? extras : {};
+
+  // The public lead (what lead-alert / the funnel-recovery job read). The
+  // extras land under the same keys the inspect kind stores at submit.
   await db.collection(grant.collection).doc(grant.publicId)
-    .set(Object.assign({}, fields, { intakeUpdatedAt: FieldValue.serverTimestamp() }), { merge: true });
+    .set(Object.assign({}, fields, extra, { intakeUpdatedAt: FieldValue.serverTimestamp() }), { merge: true });
 
   // The CRM card the bridge made for this submission. The bridge runs on the
   // lead's create, normally seconds before anyone reaches the thank-you
@@ -327,17 +338,25 @@ async function _applyIntake(db, grant, fields, wait) {
   // here (that would make the bridge's create() fail and lose the lead).
   const leadRef = db.collection('leads').doc(L.bridgeDocId(grant.collection, grant.publicId));
   const lines = L.intakeNoteLines(fields);
+  if (extra.story) lines.push('What happened: ' + extra.story);
+  if (extra.email) lines.push('Email: ' + extra.email);
+  if (extra.referralCode) lines.push('Referral code: ' + extra.referralCode);
   let crm = false;
   for (let i = 0; i < CRM_LEAD_TRIES && !crm; i++) {
     if (i) await wait(CRM_LEAD_WAIT_MS);
     const snap = await leadRef.get();
     if (!snap.exists) continue;
-    const prior = typeof (snap.data() || {}).notes === 'string' ? snap.data().notes : '';
+    const cur = snap.data() || {};
+    const prior = typeof cur.notes === 'string' ? cur.notes : '';
     const patch = {
       notes: (prior ? prior + '\n' : '') + 'Added on the thank-you screen:\n' + lines.join('\n'),
       updatedAt: FieldValue.serverTimestamp(),
     };
     if (fields.scheduling) patch.schedulingPreference = fields.scheduling;
+    // Fill-only: never overwrite an email or referral code already on the card
+    // (a rep's edit, or one typed at submit).
+    if (extra.email && !cur.email) patch.email = extra.email;
+    if (extra.referralCode && !cur.redeemReferralCode) patch.redeemReferralCode = extra.referralCode;
     await leadRef.update(patch);
     crm = true;
   }

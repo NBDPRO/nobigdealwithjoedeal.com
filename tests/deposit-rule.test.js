@@ -286,9 +286,16 @@ const portalBlockM = PORTAL_SRC.match(/\n(\s*)\(\(e\.depositPlan && e\.depositPl
 const portalBlock = (() => {
   if (!portalBlockM) return null;
   const expr = portalBlockM[0].trim().replace(/ \+$/, '');
-  const ctx = { esc };
+  // 2026-10-07: once money has landed the line reads "Paid so far" from
+  // view.paid (portal-after-signing-2026-10-07.test.js runs that); here
+  // nothing is paid, so it is the deposit rule's own words.
+  const helpers = ['paidSoFarCents', 'fmtCents'].map((n) => {
+    const m = PORTAL_SRC.match(new RegExp('\\n  function ' + n + '\\([\\s\\S]*?\\n  \\}\\n'));
+    return m ? m[0] : '';
+  }).join('\n');
+  const ctx = { esc, view: { paid: null } };
   vm.createContext(ctx);
-  vm.runInContext('this.__card = function (e) { return ' + expr + '; };', ctx);
+  vm.runInContext(helpers + '\nthis.__card = function (e) { return ' + expr + '; };', ctx);
   return ctx.__card;
 })();
 
@@ -1042,8 +1049,12 @@ function closeBoardPage(price, mode, deductible) {
     });
     let kyErr = null;
     try { await IP.createInvoiceFromEstimate('est_ky'); } catch (e) { kyErr = e; }
-    ok('KY invoice: depositAmount 0 and kyInsuranceHold set (the pay link is withheld server-side)', !kyErr && !!capKy
-      && Number(capKy.depositAmount) === 0 && capKy.kyInsuranceHold === true && capKy.emergencyServices === false,
+    // 2026-10-07 (money audit H2): the invoice asks the deductible + first
+    // check ($1,000 + $8,000) first — due after the insurer's decision + 5
+    // business days, which the server-side hold enforces. depositAmount 0
+    // made the released link charge the whole $14,000.
+    ok('KY invoice: depositAmount = deductible + first check ($9,000), kyInsuranceHold set (the pay link is withheld server-side)', !kyErr && !!capKy
+      && Number(capKy.depositAmount) === 9000 && capKy.kyInsuranceHold === true && capKy.emergencyServices === false && capKy.awaitingCarrierNumbers === false,
       (kyErr && kyErr.message) || (capKy && JSON.stringify({ d: capKy.depositAmount, h: capKy.kyInsuranceHold })));
     ok('KY invoice terms say nothing is due at signing', !!capKy && /Nothing is due at signing/.test(String(capKy.terms)), capKy && capKy.terms);
   }

@@ -645,11 +645,13 @@ console.log('\nWiring');
   ok('Connect state is NOT stored on the browser-writable companyProfile',
     !/companyProfile/.test(CODE) && !/pricing\.connect/.test(CODE));
 
-  ok('account creation is owner/company_admin gated',
-    /createConnectAccount = onCall\([\s\S]{0,600}requireTeamAdmin\(request\)/.test(HANDLER));
-  ok('onboarding + dashboard links are owner/company_admin gated (they authenticate the holder)',
-    /createConnectOnboardingLink = onCall\([\s\S]{0,700}requireTeamAdmin\(request\)/.test(HANDLER)
-    && /createConnectDashboardLink = onCall\([\s\S]{0,700}requireTeamAdmin\(request\)/.test(HANDLER));
+  // R3-10 (2026-10-06, approved by Jo): Connect payout setup is OWNER only,
+  // the same as seats.js. It was owner/company_admin before (#2260).
+  ok('account creation is owner-only (requireTeamAdmin ownerOnly)',
+    /createConnectAccount = onCall\([\s\S]{0,600}requireTeamAdmin\(request, null, \{ ownerOnly: true \}\)/.test(HANDLER));
+  ok('onboarding + dashboard links are owner-only (they authenticate the holder)',
+    /createConnectOnboardingLink = onCall\([\s\S]{0,700}requireTeamAdmin\(request, null, \{ ownerOnly: true \}\)/.test(HANDLER)
+    && /createConnectDashboardLink = onCall\([\s\S]{0,700}requireTeamAdmin\(request, null, \{ ownerOnly: true \}\)/.test(HANDLER));
   ok('the onboarding link is never persisted (it authenticates the account holder)',
     !/set\([\s\S]{0,120}link\.url/.test(HANDLER) && !/onboardingUrl/.test(HANDLER));
   ok('return/refresh URLs are absolute apex /pro/dashboard (the /pro/settings 404 lesson)',

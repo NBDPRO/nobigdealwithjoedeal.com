@@ -64,8 +64,11 @@ console.log('WIDGETS — no invented numbers on a tenant dashboard');
   ok('team-leaderboard still exists', w.length > 0);
   ok('it aggregates from window._leads', /window\._leads \|\| \[\]/.test(w));
   ok('it excludes soft-deleted leads', /!l\.deleted/.test(w));
-  ok('it counts won by stage ROLE, not a hardcoded name list',
-    /role === 'won' \|\| role === 'job'/.test(w),
+  // Since review R6-2-11 (2026-10-07) through THE shared sale test
+  // (numbers-logic.js isSale — role-aware, so custom pipelines still count,
+  // and a signed contract is booked as it is everywhere else).
+  ok('it counts booked by the shared sale test (NBDNumbers.isSale, role-aware), not a hardcoded name list',
+    /if \(_wgIsSale\(l\)\)/.test(w) && /function _wgIsSale\(l\) \{\s*const N = window\.NBDNumbers;\s*if \(N && typeof N\.isSale === 'function'\) return N\.isSale\(l\);/.test(CODE),
     'a name list misses custom pipelines');
   // Through the ONE money reader since review R2 (2026-10-06): '$45,000' is 45000.
   ok('it sums the canonical money field (jobValue)', /_wgMoney\(l\.jobValue\)/.test(w));

@@ -6,13 +6,13 @@
  * googleRegister flows are identical to the previous implementation —
  * only the binding changed (addEventListener instead of onclick=/onsubmit=).
  */
-import { initializeApp }                                         from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeApp }                                         from "/assets/vendor/firebase/10.12.2/firebase-app.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken as getAppCheckToken }
-                                                                from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
+                                                                from "/assets/vendor/firebase/10.12.2/firebase-app-check.js";
 import { getAuth, createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, signInWithCustomToken, sendEmailVerification }
-                                                                from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, serverTimestamp }   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getFunctions, httpsCallable }                           from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+                                                                from "/assets/vendor/firebase/10.12.2/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp }   from "/assets/vendor/firebase/10.12.2/firebase-firestore.js";
+import { getFunctions, httpsCallable }                           from "/assets/vendor/firebase/10.12.2/firebase-functions.js";
 import { connectEmulatorsIfLocal, emulatorAppCheckIfLocal }      from "../nbd-emulator-connect.js"; // Audit #3: localhost-only, no-op in prod
 import { ensureProvisioned }                                     from "../provisioning-retry.js"; // retry + pending-marker (first-run audit 2026-07-28)
 

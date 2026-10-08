@@ -7,7 +7,9 @@
  * "Skip — no reason" button, so losses could not be reported by reason; that
  * button is gone. Cancel still cancels the move.
  *
- *   NBDLostReason.prompt(lead) → Promise<{ key, note, fields } | false>
+ *   NBDLostReason.prompt(lead, opts?) → Promise<{ key, note, fields } | false>
+ *     opts.saveLabel: the save button's text (default 'Mark Lost'; the
+ *     catch-up screen sets reasons on leads that are already lost).
  *     fields = { lostReasonKey, lostReason (label — note), lostReasonNote }
  *     false  = the user cancelled (the caller must NOT move the card)
  *
@@ -22,7 +24,7 @@
 
   function N() { return window.NBDNumbers; }
 
-  function prompt(lead) {
+  function prompt(lead, opts) {
     return new Promise(function (resolve) {
       var Nn = N();
       if (!Nn) { resolve(false); return; }
@@ -93,7 +95,7 @@
       save.type = 'button';
       save.className = 'nb-btn nb-btn-primary';
       save.dataset.lr = 'save';
-      save.textContent = 'Mark Lost';
+      save.textContent = (opts && typeof opts.saveLabel === 'string' && opts.saveLabel) ? opts.saveLabel : 'Mark Lost';
       save.disabled = true;
       foot.appendChild(cancel);
       foot.appendChild(save);

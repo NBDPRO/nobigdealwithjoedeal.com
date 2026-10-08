@@ -292,7 +292,11 @@ function finish() {
       ok('the platform owner may', CP.mayManage() === true);
       const code = crmSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"])\/\/.*$/gm, '$1');
       ok('never sends anything itself: no SMS/email/queue calls, only sms:/mailto: links', !/sendSMS|sendEmail|NBDComms|email_queue|addDoc|setDoc/.test(code) && /'sms:'/.test(code) && /'mailto:'/.test(code));
-      ok('every interpolated value is escaped in the dialog', /esc\(o\.url\)/.test(code) && /esc\(smsHref\(/.test(code) && /esc\(mailHref\(/.test(code));
+      // R6-3-2 (2026-10-07): "Text it" is a button now (the sms: link opens
+      // only after the server's "ok to text?"), so no sms: href is
+      // interpolated into the dialog any more — tests/r6-texting-links-2026-10-07.test.js.
+      ok('every interpolated value is escaped in the dialog', /esc\(o\.url\)/.test(code) && /esc\(mailHref\(/.test(code)
+        && !/href="' \+ (?!esc\()/.test(code) && /data-cp-dlg="text"/.test(code));
       const pipe = read('docs/pro/js/crm-pipeline.js');
       ok('kanban card renders the badge in its top row', /\$\{jobTypeBadge\}\$\{leadScoreBadge\}\$\{stageAgeBadge\}\$\{carePlanBadge\}/.test(pipe));
       const dash = read('docs/pro/dashboard.html');

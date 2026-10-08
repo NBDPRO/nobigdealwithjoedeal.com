@@ -354,6 +354,9 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     if (ys && ys.classList.contains('active') && window.YardSigns) { try { window.YardSigns.init(); } catch (_) {} }
     const wb = document.getElementById('view-winback');
     if (wb && wb.classList.contains('active') && window.NBDWinback) { try { window.NBDWinback.init(); } catch (_) {} }
+    // Catch up my numbers is owner-only: before sign-in it can't tell.
+    const cu = document.getElementById('view-catchup');
+    if (cu && cu.classList.contains('active') && window.NBDCatchUp) { try { window.NBDCatchUp.ensure(); } catch (_) {} }
     const cpv = document.getElementById('view-careplan');
     if (cpv && cpv.classList.contains('active') && window.NBDCarePlanMembers) { try { window.NBDCarePlanMembers.init(); } catch (_) {} }
   });
@@ -585,6 +588,7 @@ function goTo(name, params = {}) {
   if(name==='winback')    { _lazyPreload.then(() => { if (window.NBDWinback)  window.NBDWinback.init();  }); }
   if(name==='careplan')   { _lazyPreload.then(() => { if (window.NBDCarePlanMembers) window.NBDCarePlanMembers.init(); }); }
   if(name==='weekreview') { _lazyPreload.then(() => { if (window.NBDWeekReview) window.NBDWeekReview.init(); }); }
+  if(name==='catchup')    { _lazyPreload.then(() => { if (window.NBDCatchUp) window.NBDCatchUp.init(); }); }
   if(name==='refrewards') { if (window.ReferralRewards) window.ReferralRewards.render(); }
   if(name==='repos')      { _lazyPreload.then(() => { if (window.RepOS)       window.RepOS.init();       }); }
   if(name==='talk-tank')  { _lazyPreload.then(() => { if (window.TalkTank)  window.TalkTank.init();  }); }
@@ -2154,6 +2158,13 @@ function _mJdTeardownRealtimeTabs(newLeadId) {
 }
 // Registered in this IIFE's own __NBD_CALL_REGISTRY block below (Globals
 // Tranche 3 T3-C, 2026-09-18), no longer a bare window global.
+
+// Photos load on demand now (js/photo-cache.js): when the open lead's bag
+// arrives, repaint the hero (the first cached photo is its fallback image).
+window.addEventListener('nbd:photos-loaded', (e) => {
+  const ids = (e && e.detail && e.detail.leadIds) || [];
+  if (window._cardDetailLeadId && ids.indexOf(window._cardDetailLeadId) !== -1) _repaintJobDetailHero();
+});
 
 // Recompute the job-detail hero from the same inputs openMobileJobDetail uses:
 // the rep-chosen cover wins, else the first cached photo.

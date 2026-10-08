@@ -65,7 +65,7 @@ async function loadProjects() {
 
   try {
     if (window._db && window._authUser) {
-      const { collection, getDocs, query, where } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const { collection, getDocs, query, where } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const uid = window._authUser.uid;
       // Leads live in the FLAT top-level `/leads` collection keyed by a
       // `userId` field (same model CRM + the deleted-bin read). The old

@@ -116,7 +116,7 @@ function buildRecoveryEmailHtml({ firstName }) {
     </div>
     <div style="text-align:center;font-size:12px;color:#6b7280;padding:20px 16px;">
       <p style="margin:0 0 6px;">No Big Deal Home Solutions · Greater Cincinnati, OH</p>
-      <p style="margin:0;">Licensed &amp; insured · GAF Certified · Owner-operated by Joe Deal</p>
+      <p style="margin:0;">Fully insured · GAF Certified · Owner-operated by Joe Deal</p>
     </div>
   </div>
 </body>
@@ -145,7 +145,7 @@ function buildRecoveryEmailText({ firstName }) {
     '',
     '---',
     'No Big Deal Home Solutions · Greater Cincinnati, OH',
-    'Licensed & insured · GAF Certified · Owner-operated by Joe Deal',
+    'Fully insured · GAF Certified · Owner-operated by Joe Deal',
   ].join('\n');
 }
 
@@ -536,3 +536,7 @@ exports.runAbandonRecovery = onSchedule(
     });
   }
 );
+
+// Real-fn-call test hook (house convention, see photo-vision.js): the
+// homeowner email builders, for tests/crm-homeowner-claims-honesty-2026-10-07.test.js.
+exports._test = { buildRecoveryEmailHtml, buildRecoveryEmailText };

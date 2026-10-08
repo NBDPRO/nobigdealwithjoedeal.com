@@ -72,11 +72,16 @@ every other JSON-LD node on the site refers to them by `{"@id": …}`
 - **Change a business fact** (hours, phone, a credential, a new town in
   `areaServed`, the address locality) → edit `schema-entity.html`, run
   `node scripts/apply-partials.js`. The address is the single `"address"` line
-  in that file: Campton, KY 41301, no street — the Google Business Profile's
-  verified (hidden) address, the Kentucky LLC's legal address (Jo, 2026-09-27).
-  It must match the GBP; if the GBP moves to the Goshen warehouse, change both
-  together. `geo` is deliberately the Greater-Cincinnati service-area point,
-  not the address.
+  in that file: Goshen, OH (the warehouse), locality + region + country only —
+  no `streetAddress`, no `postalCode`. The Google Business Profile is a
+  service-area business with NO published address ("No location; deliveries
+  and home services only", checked 2026-10-06), so the schema publishes no
+  street or ZIP either. `geo` is the Goshen-area point and must stay near the
+  locality. The Kentucky LLC's legal (Campton) address is a mailing address
+  for contracts and the CAN-SPAM line only — never put it in the schema.
+  If the GBP ever publishes an address, GBP wins: change address and geo
+  together. `tests/schema-entity-address-2026-10-06.test.js` pins all of this,
+  plus `areaServed` covering every GBP service area.
 - **Never** add a business or Joe node to a page's own JSON-LD, even a small
   one — that is a second, disconnected entity. `check-seo-surface.js` fails
   the build on it (`entity-business` / `entity-person`) and on a public page

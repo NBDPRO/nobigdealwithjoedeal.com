@@ -167,7 +167,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <link rel="stylesheet" href="/assets/css/mfr-source.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -183,7 +183,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -240,6 +240,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -262,6 +263,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -299,8 +301,8 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -519,7 +521,7 @@ footer{background:var(--navy-dark);color:rgba(255,255,255,.72);padding:60px 5% 3
       <div class="overkill-eyebrow">Real Talk From Joe — When the Pivot Boot Is Overkill</div>
       <h3>If you're selling in 5 years, the math doesn't quite work.</h3>
       <p>I'll be honest: the Pivot Boot is real-deal premium. ~$200 per boot vs ~$40 for commodity neoprene. On a typical home with 2-3 plumbing vent stacks, that's roughly a $400-600 add to the project. <strong>Worth it if you're staying — you'll skip the year-9 leak callback. Maybe not worth it if you're moving in three years.</strong></p>
-      <p>That's why I bundle it into Preferred and Elite (where customers tend to be staying) and don't push it on Standard tier (which is more often rentals or sell-soon situations). For Standard customers who want the same lifetime-warranty thinking on a budget, the <a href="/services/roofivent" style="color:#A14A22;font-weight:700;">Roofivent iVent Pipe Flashing</a> is honestly excellent — replaceable EPDM gasket, lifetime functionality warranty, and I can swap the gasket on my annual visit instead of tearing into the roof.</p>
+      <p>That's why I bundle it into Preferred and Elite (where customers tend to be staying) and don't push it on Standard tier (which is more often rentals or sell-soon situations). For Standard customers who want the same long-life thinking on a budget, the <a href="/services/roofivent" style="color:#A14A22;font-weight:700;">Roofivent iVent Pipe Flashing</a> is honestly excellent — replaceable EPDM gasket, manufacturer functionality warranty, and I can swap the gasket on my annual visit instead of tearing into the roof.</p>
       <p>Both designs reject the "throwaway boot" model. They just do it different ways. <em>If you'd rather have nothing to maintain ever, GAF Pivot. If you'd rather have something serviceable that I can fix in 10 minutes, Roofivent. Both are honest answers.</em></p>
       <p class="overkill-sig">— Joe</p>
       <p class="overkill-sig-sub">Owner &amp; Operator</p>

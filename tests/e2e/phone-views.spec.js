@@ -792,7 +792,7 @@ async function unforceStandalone(page) {
 // before its write has landed.
 async function serverUpgradePrices(page) {
   return safeEvaluate(page, async () => {
-    const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const key = await window._resolveCompanyKey();
     const snap = await fs.getDoc(fs.doc(window.db, 'companyProfile', String(key)));
     const d = snap.exists() ? snap.data() : {};
@@ -886,7 +886,7 @@ test.describe('phone views: Settings upgrade prices @audit', () => {
       const alurexPainted = await page.locator('[data-upg-id="alurex"] [data-upg-price]').inputValue();
       expect(alurexPainted, 'the seeded tenant has not priced Alu-Rex (the other device\'s save must be news here)').not.toBe('19.00');
       await safeEvaluate(page, async ({ key, entry }) => {
-        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         await fs.setDoc(fs.doc(window.db, 'companyProfile', key), { pricing: { upgradePrices: { alurex: entry } } }, { merge: true });
       }, { key: original.key, entry: OTHER_DEVICE });
       await expect(page.locator('[data-upg-id="alurex"] [data-upg-price]'), 'this device still shows its stale paint').toHaveValue(alurexPainted);
@@ -1094,7 +1094,7 @@ test.describe('phone views: Settings upgrade prices @audit', () => {
     } finally {
       await unforceStandalone(page).catch(() => {});
       await safeEvaluate(page, async (o) => {
-        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         await fs.updateDoc(fs.doc(window.db, 'companyProfile', o.key), {
           'pricing.upgradePrices': o.map == null ? fs.deleteField() : o.map,
         });
@@ -1158,7 +1158,7 @@ async function installProfileOfflineSwitch(page) {
 // companyProfile/{key}.pricing as the SERVER holds it (never window._companyProfile).
 async function serverPricing(page) {
   return safeEvaluate(page, async () => {
-    const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const key = String(await window._resolveCompanyKey());
     const snap = await fs.getDoc(fs.doc(window.db, 'companyProfile', key));
     const p = (snap.exists() && snap.data().pricing) || {};
@@ -1172,7 +1172,7 @@ async function serverPricing(page) {
 }
 async function restorePricing(page, original) {
   await safeEvaluate(page, async (o) => {
-    const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const put = (v) => (v == null ? fs.deleteField() : v);
     await fs.updateDoc(fs.doc(window.db, 'companyProfile', o.key), {
       'pricing.customJurisdictions': put(o.customJurisdictions),
@@ -1207,7 +1207,7 @@ async function profileRetryWalk(page, { act, openEstimatesTab, widths }) {
   // caller's finally), so the landing has a row to paint.
   const original = await serverPricing(page);
   await safeEvaluate(page, async ({ key, map }) => {
-    const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     await fs.updateDoc(fs.doc(window.db, 'companyProfile', key), { 'pricing.customJurisdictions': map });
   }, { key: original.key, map: Object.assign({}, original.customJurisdictions || {}, { [E2E_JUR.slug]: { name: E2E_JUR.name, cost: E2E_JUR.cost, rate: E2E_JUR.rate } }) });
   const seeded = await serverPricing(page);
@@ -1295,7 +1295,7 @@ async function profileRetryWalk(page, { act, openEstimatesTab, widths }) {
       // it on the metadata alone (company-profile.js: fromCache ||
       // hasPendingWrites), never on which keys happen to be present.
       const local = await safeEvaluate(page, async () => {
-        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const snap = await fs.getDoc(fs.doc(window.db, 'companyProfile', String(await window._resolveCompanyKey())));
         return { fromCache: snap.metadata.fromCache, pending: snap.metadata.hasPendingWrites, keys: Object.keys(snap.data() || {}), mode: window.__NBD_FS_CACHE || 'memory' };
       });

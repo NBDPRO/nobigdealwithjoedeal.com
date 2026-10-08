@@ -82,7 +82,9 @@ console.log('PORTAL WHITE-LABEL CONTRACT');
   ok('deal-room title/logo/footer are brand-interpolated',
     /<title>Your Roof Estimate — \$\{BRAND\.nameEsc\}<\/title>/.test(s)
     && /\$\{BRAND\.logoHtml\}/.test(s)
-    && /\$\{BRAND\.nameEsc\} · Licensed & Insured/.test(s));
+    // Footer insurance line is brand-driven too (2026-10-07): NBD "Fully
+    // Insured", another company "Insured" — never "Licensed".
+    && /\$\{BRAND\.nameEsc\} · \$\{esc\(BRAND\.insuredTitle\)\}/.test(s));
   ok('deal-room accent token is brand-driven', /:root\{--orange:\$\{BRAND\.accent\};\}/.test(s));
   ok('off-brand #4A9EFF financing accent is gone', !s.includes('#4A9EFF'));
   ok('NBD deal room keeps its literal wordmark',

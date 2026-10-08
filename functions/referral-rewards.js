@@ -79,6 +79,35 @@ function fullName(lead) {
   return `${(lead && lead.firstName) || ''} ${(lead && lead.lastName) || ''}`.trim();
 }
 
+/**
+ * Is a referral doc's OWNER (its userId) in the referred lead's company?
+ * (R3-5, 2026-10-06.) The code lookup below searches every tenant, and a
+ * referral doc's own companyId used to be client-forgeable — so a doc only
+ * counts when the user who owns it really belongs to the lead's company:
+ * the lead's own rep, the company owner (uid == companyId), or a user whose
+ * Auth companyId CLAIM is the lead's company. If Auth cannot be reached, the
+ * server-written users/{uid}.companyId is the fallback. A legacy lead with no
+ * companyId counts only its own rep. `deps.getUser` is for tests.
+ */
+async function referralOwnerInLeadCompany(db, ownerUid, lead, deps) {
+  if (!ownerUid || typeof ownerUid !== 'string' || !lead) return false;
+  if (lead.userId && ownerUid === lead.userId) return true;
+  const co = lead.companyId || null;
+  if (!co) return false;
+  if (ownerUid === co) return true;
+  const getUser = (deps && deps.getUser) || ((uid) => require('firebase-admin/auth').getAuth().getUser(uid));
+  try {
+    const rec = await getUser(ownerUid);
+    return !!rec && ((rec.customClaims || {}).companyId || null) === co;
+  } catch (e) {
+    if (e && e.code === 'auth/user-not-found') return false;
+    try {
+      const us = await db.doc(`users/${ownerUid}`).get();
+      return us.exists && ((us.data() || {}).companyId || null) === co;
+    } catch (_) { return false; }
+  }
+}
+
 async function handleReferralLeadWrite(event) {
   const afterSnap = event.data && event.data.after;
   const after = afterSnap && afterSnap.exists ? afterSnap.data() : null;
@@ -157,6 +186,14 @@ async function handleReferralLeadWrite(event) {
     }
     if (snap.empty) { await markInvalid('unknown-code'); return; }
 
+    // Only codes whose owner is in this lead's company count (R3-5) — a doc
+    // planted by another tenant with this tenant's companyId is ignored.
+    const eligible = [];
+    for (const d of snap.docs) {
+      if (await referralOwnerInLeadCompany(db, (d.data() || {}).userId, after)) eligible.push(d);
+    }
+    if (!eligible.length) { await markInvalid('foreign-tenant-code'); return; }
+
     // A code SHOULD be unique per mint, but until mint-time uniqueness fully
     // backfills, pick the doc belonging to THIS lead's tenant so a cross-tenant
     // collision can't shadow the right referrer (the old .limit(1) returned an
@@ -167,7 +204,7 @@ async function handleReferralLeadWrite(event) {
       if (r.userId && after.userId) return r.userId === after.userId;
       return false;
     };
-    const refDoc = snap.docs.find(sameTenantDoc) || snap.docs[0];
+    const refDoc = eligible.find(sameTenantDoc) || eligible[0];
     const referral = refDoc.data() || {};
 
     // Guard 1: the code must belong to the SAME TENANT as this lead. Compare
@@ -457,7 +494,7 @@ exports.onReferralJobWrite = onDocumentWritten(
   handleReferralJobWrite
 );
 
-exports._internal = { planJobCredit, creditJob, handleReferralJobWrite, handleReferralLeadWrite, REFERRAL_BONUS_USD };
+exports._internal = { planJobCredit, creditJob, handleReferralJobWrite, handleReferralLeadWrite, referralOwnerInLeadCompany, REFERRAL_BONUS_USD };
 
 exports.onReferralLeadWrite = onDocumentWritten(
   {

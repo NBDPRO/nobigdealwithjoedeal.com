@@ -1,6 +1,6 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, collection, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
+import { getFirestore, collection, collectionGroup, getDocs, query, where } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 import { connectEmulatorsIfLocal } from '../nbd-emulator-connect.js'; // Audit #3: localhost-only, no-op in prod
 
 const firebaseConfig = {
@@ -31,7 +31,7 @@ const WON_STAGES = ['closed','install_complete','final_photos','final_payment','
 let currentTab = 'doors';
 let currentPeriod = 'all';
 let currentUser = null;
-let rawData = { leads: [], knocks: [], invoices: [] };
+let rawData = { leads: [], knocks: [], invoices: [], jobsByLead: {} };
 
 // ── Helpers ──
 function toDate(v) {
@@ -46,7 +46,8 @@ function toDate(v) {
 function periodStart(p) {
   const now = new Date();
   if (p === 'day') { const d = new Date(now); d.setHours(0,0,0,0); return d; }
-  if (p === 'week') { const d = new Date(now); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d; }
+  // Weeks start MONDAY (Jo 2026-06-25 — the game card, trends and roof-rep do).
+  if (p === 'week') { const d = new Date(now); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); d.setHours(0,0,0,0); return d; }
   if (p === 'month') return new Date(now.getFullYear(), now.getMonth(), 1);
   return new Date(2020, 0, 1);
 }
@@ -98,6 +99,22 @@ async function loadData() {
     rawData.invoices = invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch (e) {
     console.error('Leaderboard data load error:', e);
+  }
+  // The rep's JOBS (leads/{id}/jobs — the same collection-group query
+  // jobs-store.js runs for a rep), so a repeat customer's second job is its
+  // own deal (review R6-2-14). Best-effort: a failed read counts each
+  // customer once, as before.
+  try {
+    const jobsSnap = await getDocs(query(collectionGroup(db, 'jobs'), where('userId', '==', uid)));
+    const byLead = {};
+    jobsSnap.docs.forEach(d => {
+      const leadId = d.ref.parent && d.ref.parent.parent && d.ref.parent.parent.id;
+      if (!leadId) return;
+      (byLead[leadId] = byLead[leadId] || []).push({ id: d.id, ...d.data() });
+    });
+    rawData.jobsByLead = byLead;
+  } catch (e) {
+    rawData.jobsByLead = {};
   }
 
   renderAll();
@@ -169,6 +186,29 @@ function paymentsOf(inv) {
 }
 
 // ── Compute metrics for the selected period ──
+// Every job of the rep's customers (jobs-store.js records — the pipeline's
+// own rule); the leads as-is when the jobs module or the jobs read is missing.
+function jobRecords() {
+  const J = window.NBDJobs;
+  if (!J || typeof J.records !== 'function') return rawData.leads.slice();
+  const N = window.NBDNumbers;
+  return J.records(rawData.leads, id => rawData.jobsByLead[id] || [], N ? N.canonStage : null, null);
+}
+// The sales in the selected period (numbers-logic.js salesBetween). All time =
+// every sale, dated or not. Without the numbers module (a failed script
+// load), the won stages by their close date.
+function salesInPeriod() {
+  const recs = jobRecords();
+  const N = window.NBDNumbers;
+  const start = currentPeriod === 'all' ? null : periodStart(currentPeriod).getTime();
+  if (N && typeof N.salesBetween === 'function') return N.salesBetween(recs, start, null);
+  return recs.filter(l => (l._stageRole ? l._stageRole === 'won' : WON_STAGES.includes(l._stageKey || l.stage || '')) && (start == null || isInPeriod(l.closedAt)));
+}
+function saleDate(l) {
+  const N = window.NBDNumbers;
+  const ms = N && typeof N.saleDateMs === 'function' ? N.saleDateMs(l) : 0;
+  return ms ? new Date(ms) : toDate(l.closedAt);
+}
 function computeMetrics() {
   const leads = rawData.leads.filter(l => isInPeriod(l.createdAt));
   const knocks = rawData.knocks.filter(k => isInPeriod(k.createdAt));
@@ -178,7 +218,13 @@ function computeMetrics() {
   // deposits until payoff AND then dumped the full total into the payoff
   // period (disagreeing with Money/Analytics Collected).
   const paidInvoices = rawData.invoices.filter(inv => inv.status === 'paid' && isInPeriod(inv.paidAt));
-  const wonLeads = rawData.leads.filter(l => (l._stageRole ? l._stageRole === 'won' : WON_STAGES.includes(l._stageKey || l.stage || '')) && isInPeriod(l.updatedAt));
+  // Deals = THE sale test (numbers-logic.js isSale: won, in production or
+  // Contract Signed) over every JOB (jobs-store.js records), dated by the
+  // SALE date (closedAt, else the first move into a sale stage) — never
+  // updatedAt, which re-counted an old win in this week's board the moment
+  // the card was edited, and the won role alone left signed contracts out
+  // (review R6-2-14). Same rule as Home and the Sunday review.
+  const wonLeads = salesInPeriod();
 
   const totalKnocks = knocks.length;
   const totalDeals = wonLeads.length;
@@ -303,8 +349,8 @@ function renderFeed(metrics) {
   // feed text mixes intentional <strong> markup with user data and is set via innerHTML.
   const esc = s => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
-  metrics.wonLeads.slice(0, 5).forEach(l => {
-    const d = toDate(l.updatedAt);
+  metrics.wonLeads.slice().sort((a, b) => ((saleDate(b) || 0) - (saleDate(a) || 0))).slice(0, 5).forEach(l => {
+    const d = saleDate(l);
     if (d) events.push({ icon: '🏆', text: '<strong>Deal closed</strong> — ' + esc(((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || l.address || 'Lead') + (l.jobValue ? ' · ' + fmtCurrency(parseFloat(l.jobValue)) : ''), time: d });
   });
 

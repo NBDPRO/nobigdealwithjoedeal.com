@@ -847,7 +847,7 @@
   async function callResolveAddress(payload) {
     try {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -1140,7 +1140,7 @@
     window.showToast?.('Re-verifying the whole team… this can take a minute', 'info');
     try {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -1316,7 +1316,7 @@
     if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Ordering…'; }
     try {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -1351,7 +1351,7 @@
     if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Loading…'; }
     try {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -1682,7 +1682,7 @@
         if (state.currentRep && !state.currentRep.role) state.currentRep.role = window._userClaims?.role || 'rep';
       } else {
         const initials = (window._user.displayName || 'R').split(' ').map(n => n[0]).join('').toUpperCase();
-        const {setDoc} = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const {setDoc} = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         // The /reps create rule FORBIDS a `role` (or `isAdmin`) key on the doc
         // — role is reserved for admin-SDK / custom-claim assignment to prevent
         // client-side privilege escalation. Writing role:'rep' here made every
@@ -1901,7 +1901,7 @@
     let total = null, countError = null;
     try {
       if (window._user && window._user.uid && window._db) {
-        const { getCountFromServer } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const { getCountFromServer } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const scope = (state.teamMode && state.currentRep?.role === 'manager')
           ? window.where('companyId', '==', state.currentRep.companyId)
           : window.where('userId', '==', window._user.uid);
@@ -2329,6 +2329,11 @@
       // until the user explicitly promotes it via the CRM lead detail
       // modal (Promote to Customer button).
       const isAppointment = knock.disposition === 'appointment';
+      // stageRole beside the stage (R5-8-3, 2026-10-06) so the direct-write
+      // fallback below carries it too (_saveLead stamps its own). Tenant-aware
+      // window.stageRole; only one of the five roles firestore.rules accepts,
+      // otherwise the key is omitted (never undefined).
+      const _stageRole = typeof window.stageRole === 'function' ? window.stageRole(stage) : null;
       const leadData = {
         firstName,
         lastName,
@@ -2340,6 +2345,7 @@
         phoneDigits: String(knock.phone || '').replace(/\D/g, '').replace(/^1/, '').slice(-10),
         email: knock.email || '',
         stage,
+        ...(['new', 'active', 'job', 'won', 'lost'].includes(_stageRole) ? { stageRole: _stageRole } : {}),
         jobType,
         // 'Door Knock' is the canonical source string (Joe, 2026-09-06). This
         // line used to write 'Door-to-Door' while maps-overlays.js wrote
@@ -4751,7 +4757,7 @@
   }
 
   async function _uploadKnockBlob(blob, uid, knockTempId, name, contentType) {
-    const { ref, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+    const { ref, getDownloadURL } = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js');
     const storagePath = 'photos/' + uid + '/d2d/' + knockTempId + '/' + name;
     const storageRef = ref(window._storage, storagePath);
     // Bounded: Storage uploads on a stale iOS connection hang like Firestore
@@ -4908,7 +4914,7 @@
   async function uploadVoiceMemo(blob, knockId) {
     if (!blob) return '';
     try {
-      const { ref, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+      const { ref, getDownloadURL } = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js');
       // Path must live under `audio/{uid}/...` — storage.rules:146 is the
       // only allowlisted path for audio uploads, everything else hits the
       // default-deny at storage.rules:155. Keep the `d2d/` prefix for

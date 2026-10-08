@@ -81,7 +81,9 @@ const routeConfig = {
   // Roof Care Plan members (2026-10-05, js/care-plan-members.js).
   'careplan':     { label: 'Care Plan',         parent: null },
   // Sunday business review (2026-10-04, js/week-review.js).
-  'weekreview':   { label: 'Sunday Review',     parent: null }
+  'weekreview':   { label: 'Sunday Review',     parent: null },
+  // Catch up my numbers (2026-10-04, js/catchup.js) — owner-only decks.
+  'catchup':      { label: 'Catch Up Numbers',  parent: null }
 };
 
 /**

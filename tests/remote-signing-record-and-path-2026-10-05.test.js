@@ -72,7 +72,7 @@ function makeStorage(files) {
     _files: m, downloads, saves,
   };
 }
-const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './await-briefly', 'crypto'];
+const REAL = ['./ky-insurance-law', './cancel-window', './lead-artifact-paths', './esign-logic', './await-briefly', 'crypto'];
 function loadFn(db, storage) {
   const file = path.join(FN, 'remote-signing.js');
   class HttpsError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
@@ -143,7 +143,8 @@ const VICTIM_HTML = '<html><body><p>Victim tenant contract — $99,000</p></body
 
 function world(extra) {
   return Object.assign({
-    'leads/L1': { userId: 'U1', companyId: 'C1', firstName: 'Dana' },
+    // email on record: createSignRequest mails only that (R3-11, 2026-10-06).
+    'leads/L1': { userId: 'U1', companyId: 'C1', firstName: 'Dana', email: 'dana@example.test' },
     'leads/L-VICTIM': { userId: 'VICTIM', companyId: 'C-VICTIM' },
     'users/U2': { companyId: 'C1' },          // a teammate in U1's tenant
     'users/U3': { companyId: 'C-OTHER' },     // someone else's

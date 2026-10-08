@@ -72,7 +72,7 @@ function sweep(page, run) {
     // A page mid-navigation (customer.html still booting) exposes db/auth late.
     for (let i = 0; i < 40 && !(window.db && window.auth && window.auth.currentUser); i++) await sleep(250);
     if (!(window.db && window.auth && window.auth.currentUser)) return { signedIn: false, deleted: [], failed: [] };
-    const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db;
     const uid = window.auth.currentUser.uid;
     await Promise.race([fs.waitForPendingWrites(db).catch(() => {}), sleep(10_000)]);

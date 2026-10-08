@@ -25,7 +25,17 @@
  * leads/{thumbtack_leads__<id>}, which the Cal.com filter skipped. So the
  * busiest lead channel paged nobody: 74 real leads, 0 alert_outbox rows. The
  * same leads/{leadId} trigger now alerts on the bridge's create as well; see
- * onThumbtackLeadAlert below.
+ * planThumbtack below.
+ *
+ * Push + honest SMS status (2026-10-07). The Twilio number is still not A2P
+ * registered, so every alert text is carrier-blocked (30034) — yet the outbox
+ * row said smsStatus 'sent' the moment Twilio ACCEPTED it, and email was the
+ * ONLY channel that actually reached Joe (no push on any web/Cal.com/Thumbtack
+ * lead: onNewLead pushes only leads with an assignedTo, which no bridged lead
+ * has). Now: every alert also pushes to the owner's devices (pushStatus on the
+ * row), an accepted text is recorded as 'accepted' (the carrier's verdict
+ * lands later as smsDelivery), and lead-alert-watchdog.js re-sends by email +
+ * push any lead that no channel confirmed reaching Joe.
  */
 
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
@@ -75,15 +85,18 @@ const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1
 // alert_outbox row records skipped:no-target.
 // isNbd rides along so the homeowner-ack gates key on WHOSE lead it is rather
 // than which brand string happened to resolve.
+// pushUid (2026-10-07): whose devices get the new-lead push — Joe's for an
+// NBD lead, the tenant's own owner uid (its companyId) for a configured
+// tenant, nobody for an unconfigured one (same as its email/SMS).
 async function resolveAlertTarget(companyId) {
   const isNbd = !companyId || String(companyId) === NBD_OWNER_UID;
   const fallback = isNbd
-    ? { emails: ALERT_EMAILS, sms: ALERT_SMS, name: 'No Big Deal Home Solutions', seal: 'NBD', isNbd: true }
+    ? { emails: ALERT_EMAILS, sms: ALERT_SMS, name: 'No Big Deal Home Solutions', seal: 'NBD', isNbd: true, pushUid: NBD_OWNER_UID }
     // Unresolved NON-NBD tenant: no routing at all (never Joe's inbox or
     // cell) and never his brand — empty strings per the #1129 convention, and
     // isNbd:false keeps the homeowner acks (Joe-branded copy) from firing at
     // another company's customer. The lead itself is still in their CRM.
-    : { emails: null, sms: null, name: '', seal: '', isNbd: false };
+    : { emails: null, sms: null, name: '', seal: '', isNbd: false, pushUid: null };
   if (isNbd) return fallback;
   try {
     const snap = await getFirestore().collection('companyProfile').doc(String(companyId)).get();
@@ -101,6 +114,7 @@ async function resolveAlertTarget(companyId) {
           name: b.legalName || '',
           seal: b.seal || '',
           isNbd: false,
+          pushUid: String(companyId),
         };
       }
     }
@@ -142,7 +156,13 @@ function summarize(d) {
   const email = d.email || '';
   const story = d.story || d.message || d.details || '';
   const concern = d.concern || '';
-  return { name, phone, address, email, story, concern };
+  // Form answers that used to be stored but never shown (R5-9-2..4): the
+  // contact form's service, the Free Roof category (labelled), and the
+  // /estimate ballpark the homeowner was shown. All rendered through esc().
+  const service = d.service || '';
+  const category = d.category ? L.freeRoofCategoryLabel(d.category) : '';
+  const ballpark = L.ballparkText(d);
+  return { name, phone, address, email, story, concern, service, category, ballpark };
 }
 
 // `notice` (optional) is a caller-supplied warning rendered above the details:
@@ -170,6 +190,9 @@ function emailHtml(label, source, s, leadId, name, notice) {
         ${row('Address', s.address)}
         ${row('Email', s.email)}
         ${row('Concern', s.concern ? (CONCERN_LABEL[s.concern] || s.concern) : '')}
+        ${row('Service', s.service)}
+        ${row('Category', s.category)}
+        ${row('Ballpark shown', s.ballpark)}
         ${row('Message', s.story)}
       </table>
       ${telDigits ? `<p style="text-align:center;margin:22px 0 6px"><a href="tel:${telDigits}" style="display:inline-block;background:#BD5728;color:#fff;padding:13px 30px;border-radius:6px;text-decoration:none;font-weight:700;font-size:16px">Call ${esc(s.phone)}</a></p>` : ''}
@@ -187,6 +210,9 @@ function smsBody(label, source, s, seal, notice) {
   if (notice && notice.sms) lines.unshift(notice.sms);
   if (s.address) lines.push(s.address);
   if (s.concern) lines.push('Concern: ' + (CONCERN_LABEL[s.concern] || s.concern));
+  if (s.service) lines.push('Service: ' + s.service);
+  if (s.category) lines.push('Category: ' + s.category);
+  if (s.ballpark) lines.push('Shown ' + s.ballpark);
   if (s.story) lines.push(String(s.story).slice(0, 200));
   return lines.join('\n').slice(0, 480);
 }
@@ -301,10 +327,15 @@ async function recordAlertOutbox(collection, leadId, d, target, outcomes) {
         seal: target.seal || '',
       },
       emailStatus: outcomes.email,
+      // 'accepted' = Twilio took the text, NOT that it arrived. callWatch and
+      // leadAlertWatchdog stamp the carrier's verdict on this row as
+      // smsDelivery ('delivered' | 'undelivered:<code>' | 'failed:<code>')
+      // by smsSid (2026-10-02 / 2026-10-07).
       smsStatus: outcomes.sms,
-      // Twilio "accepts" before the carrier delivers; callWatch stamps the real
-      // result on this row as smsDelivery by this id (2026-10-02).
       smsSid: outcomes.smsSid || null,
+      // 'sent' (>= 1 device took it) | 'skipped:no-device' | 'skipped:no-target' | 'failed:…'
+      pushStatus: outcomes.push || 'skipped:no-target',
+      ...(outcomes.watchdog ? { watchdogRetry: true } : {}),
       createdAt: FieldValue.serverTimestamp(),
     });
   } catch (e) {
@@ -312,9 +343,38 @@ async function recordAlertOutbox(collection, leadId, d, target, outcomes) {
   }
 }
 
+// New-lead push to the alert target's own devices (2026-10-07). Returns the
+// outcome string recorded as pushStatus. Lazy require: push-functions builds
+// its Firestore/Messaging clients at load. type 'newLead' gives the push the
+// Call / Open / Snooze buttons (push-functions notificationActionsFor).
+async function pushLeadAlert(target, collection, d, leadId, label, s, notice) {
+  if (!target || !target.pushUid) return 'skipped:no-target';
+  try {
+    const crmLeadId = collection === 'leads' ? String(leadId || '') : L.bridgeDocId(collection, leadId);
+    const title = (notice && notice.subject ? `⚠ ${notice.subject} — ` : '🔔 ') + `New lead — ${label}`;
+    const body = [s.name, s.phone, s.address].filter(Boolean).join(' · ').slice(0, 180);
+    const r = await require('./push-functions').sendCustomNotification(target.pushUid, title, body, {
+      type: 'newLead',
+      leadId: crmLeadId,
+      phone: String(d.phone || d.phoneNumber || '').replace(/[^\d+]/g, ''),
+      clickUrl: `/pro/dashboard.html?tab=leads&leadId=${encodeURIComponent(crmLeadId)}`,
+      notificationId: `lead-alert-${crmLeadId}`,
+      requireInteraction: 'true',
+    });
+    if (r && r.sent > 0) return 'sent';
+    if (r && Array.isArray(r.errors) && r.errors.length) return 'failed:' + String(r.errors[0]).slice(0, 200);
+    return 'skipped:no-device';
+  } catch (e) {
+    return 'failed:' + String(e && e.message || e).slice(0, 200);
+  }
+}
+
 // opts (all optional): label — overrides KIND_LABEL[collection]; source —
 // overrides d.source in the header; notice — see emailHtml; ack:false — skip
-// both homeowner acks (the booking tool already confirmed to the homeowner).
+// both homeowner acks (the booking tool already confirmed to the homeowner);
+// skipSms — no text (the watchdog's re-send: texts are what failed);
+// watchdog — marks the outbox row as a re-send.
+// Returns the outcomes { email, sms, push, smsSid }.
 async function alertJoe(collection, d, leadId, opts = {}) {
   const label = opts.label || KIND_LABEL[collection] || collection;
   const source = opts.source != null ? opts.source : (d.source || '');
@@ -322,18 +382,23 @@ async function alertJoe(collection, d, leadId, opts = {}) {
   const s = summarize(d);
   // Route to the lead's tenant (Oaks → Scott); NBD / unset → Joe (default).
   const target = await resolveAlertTarget(d.companyId);
-  const outcomes = { email: 'skipped:no-target', sms: 'skipped:no-target' };
+  const outcomes = { email: 'skipped:no-target', sms: 'skipped:no-target', push: 'skipped:no-target' };
+  if (opts.watchdog) outcomes.watchdog = true;
+  if (opts.skipSms && target.sms) outcomes.sms = 'skipped:watchdog-resend';
 
   // Text via Twilio (works once the number is A2P 10DLC approved). Skip when
   // the tenant configured no alert SMS — never fall back to Joe's cell.
-  if (target.sms) try {
+  if (target.sms && !opts.skipSms) try {
     const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
     const msg = await client.messages.create({
       to: target.sms,
       from: TWILIO_PHONE_NUMBER.value(),
       body: smsBody(label, source, s, target.seal, notice),
     });
-    outcomes.sms = 'sent';
+    // ACCEPTED, not sent: while the number is unregistered the carrier drops
+    // every one of these after Twilio takes it (30034). The verdict is
+    // stamped later as smsDelivery; nothing may read 'accepted' as reached.
+    outcomes.sms = 'accepted';
     outcomes.smsSid = (msg && msg.sid) || null;
     logger.info('leadAlert: sms queued', { collection, leadId, sid: msg.sid });
   } catch (e) {
@@ -368,6 +433,12 @@ async function alertJoe(collection, d, leadId, opts = {}) {
     logger.error('leadAlert: email failed', { collection, leadId, err: e.message });
   }
 
+  // Push to the target's phone(s) — the channel that works without A2P.
+  outcomes.push = await pushLeadAlert(target, collection, d, leadId, label, s, notice);
+  if (outcomes.push !== 'sent' && outcomes.push !== 'skipped:no-target') {
+    logger.warn('leadAlert: push not delivered', { collection, leadId, push: outcomes.push });
+  }
+
   // Ledger the routing decision + outcomes (see recordAlertOutbox above).
   await recordAlertOutbox(collection, leadId, d, target, outcomes);
 
@@ -376,6 +447,7 @@ async function alertJoe(collection, d, leadId, opts = {}) {
     await ackHomeowner(collection, d, leadId, target);
     await ackHomeownerSms(collection, d, leadId, target);
   }
+  return outcomes;
 }
 
 // ── Homeowner ack TEXT — gated, estimate funnel only ────────────────────
@@ -467,22 +539,39 @@ const TRIGGER_OPTS = {
   timeoutSeconds: 30,
 };
 
+// ── What a create should alert, and how (2026-10-07) ────────────────────
+// ONE decision shared by the triggers below and lead-alert-watchdog.js, so
+// the watchdog's "this lead should have reached Joe" can never drift from
+// what the triggers actually alert on. Returns
+//   { alert: false, log?: [message, meta] }  — no alert (log once if given)
+//   { alert: true, collection, data, opts, log? } — alertJoe(collection, data, leadId, opts)
+function alertPlan(collection, data, leadId) {
+  data = data || {};
+  if (collection === 'storm_alert_subscribers') return planStorm(data);
+  if (collection === 'leads') return planLeadsDoc(data, leadId);
+  // The /estimate funnel writes follow-up EVENT docs (results shown / CTA
+  // click / email request) into estimate_leads alongside the initial lead.
+  // Each is a fresh create → without this skip, one completed funnel fires
+  // up to 4 duplicate alert emails for the same homeowner. lead-bridge.js
+  // already skips these for the CRM mirror; mirror that here so the alert
+  // path agrees with the bridge on what counts as a new lead.
+  if (L.isFollowUpEvent(collection, data)) {
+    return { alert: false, log: ['leadAlert: follow-up event doc — not a new lead, skipping', { collection, type: data.type }] };
+  }
+  return { alert: true, collection, data, opts: {} };
+}
+
+async function runPlan(plan, leadId) {
+  if (plan.log) logger.info(plan.log[0], plan.log[1]);
+  if (plan.alert) await alertJoe(plan.collection, plan.data, leadId, plan.opts);
+}
+
 function onLeadAlert(collection) {
   return async (event) => {
     const snap = event.data;
     if (!snap) return;
-    const data = snap.data() || {};
-    // The /estimate funnel writes follow-up EVENT docs (results shown / CTA
-    // click / email request) into estimate_leads alongside the initial lead.
-    // Each is a fresh create → without this skip, one completed funnel fires
-    // up to 4 duplicate alert emails for the same homeowner. lead-bridge.js
-    // already skips these for the CRM mirror; mirror that here so the alert
-    // path agrees with the bridge on what counts as a new lead.
-    if (L.isFollowUpEvent(collection, data)) {
-      logger.info('leadAlert: follow-up event doc — not a new lead, skipping', { collection, type: data.type });
-      return;
-    }
-    await alertJoe(collection, data, event.params && event.params.leadId);
+    const leadId = event.params && event.params.leadId;
+    await runPlan(alertPlan(collection, snap.data() || {}, leadId), leadId);
   };
 }
 
@@ -494,23 +583,25 @@ function onLeadAlert(collection) {
 // HIGH_INTENT_STORM_CONCERNS set so the lead that pages Joe is the lead that
 // lands in his pipeline. (2026-06-25: widened from ['insurance'] per Jo.)
 const STORM_ALERT_CONCERNS = L.HIGH_INTENT_STORM_CONCERNS;
+function planStorm(data) {
+  const concern = String(data.concern || '').toLowerCase();
+  if (!STORM_ALERT_CONCERNS.includes(concern)) {
+    return { alert: false, log: ['leadAlert: storm signup is list-only (no high-intent concern) — no alert', { concern }] };
+  }
+  return { alert: true, collection: 'storm_alert_subscribers', data, opts: {} };
+}
 function onStormAlert() {
   return async (event) => {
     const snap = event.data;
     if (!snap) return;
-    const data = snap.data() || {};
-    const concern = String(data.concern || '').toLowerCase();
-    if (!STORM_ALERT_CONCERNS.includes(concern)) {
-      logger.info('leadAlert: storm signup is list-only (no high-intent concern) — no alert', { concern });
-      return;
-    }
-    await alertJoe('storm_alert_subscribers', data, event.params && event.params.leadId);
+    const leadId = event.params && event.params.leadId;
+    await runPlan(alertPlan('storm_alert_subscribers', snap.data() || {}, leadId), leadId);
   };
 }
 
 // Cal.com bookings land in `leads` directly (integrations/calcom.js M-2), so
 // this trigger sees EVERY lead create. It must stay silent for all but a
-// webhook-created booking or a bridged Thumbtack lead (onThumbtackLeadAlert):
+// webhook-created booking or a bridged Thumbtack lead (planThumbtack):
 //  - a manual CRM lead (no publicLeadKind) is Joe's own entry;
 //  - a bridged web-form lead (publicLeadKind 'inspect', 'estimate', ...)
 //    already paged him from its public collection. Alerting here would fire
@@ -526,37 +617,37 @@ function onCalcomLeadAlert() {
   return async (event) => {
     const snap = event.data;
     if (!snap) return;
-    const data = snap.data() || {};
     const leadId = event.params && event.params.leadId;
-    if (isBridgedThumbtackLead(data, leadId)) {
-      await onThumbtackLeadAlert(data, leadId);
-      return;
-    }
-    if (data.publicLeadKind !== 'calcom_booking' || data.webLead !== true) return;
-    if (data.backfilledBy) {
-      logger.info('leadAlertCalcom: backfilled booking — not a new lead, no alert', { leadId });
-      return;
-    }
-    const needsPhone = data.needsPhone === true;
-    const email = String(data.email || '').trim();
-    const title = String(data.calcomEventTitle || '').trim();
-    const slug = String(data.calcomEventSlug || '').trim();
-    // calcom-logic prepends NO_PHONE_NOTE to the stored notes; the notice below
-    // says it once, so the Message row carries only what the booker wrote.
-    const bookedNotes = String(data.notes || '').split('\n')
-      .filter((l) => l.trim() !== CL.NO_PHONE_NOTE).join('\n').trim();
-    const notice = needsPhone ? {
-      email: 'No phone on this booking — reply to the Cal.com confirmation email to get a number before the visit',
-      mailto: MAILTO_SAFE.test(email) ? email : '',
-      sms: 'NO PHONE — reply to the confirmation email',
-      subject: 'NO PHONE',
-    } : null;
-    logger.info('leadAlertCalcom: booking lead created', { leadId, needsPhone, eventSlug: slug || null });
-    await alertJoe('leads', { ...data, message: bookedNotes }, leadId, {
-      source: [title, slug].filter(Boolean).join(' · '),
-      notice,
-      ack: false,
-    });
+    await runPlan(alertPlan('leads', snap.data() || {}, leadId), leadId);
+  };
+}
+
+function planLeadsDoc(data, leadId) {
+  if (isBridgedThumbtackLead(data, leadId)) return planThumbtack(data, leadId);
+  if (data.publicLeadKind !== 'calcom_booking' || data.webLead !== true) return { alert: false };
+  if (data.backfilledBy) {
+    return { alert: false, log: ['leadAlertCalcom: backfilled booking — not a new lead, no alert', { leadId }] };
+  }
+  const needsPhone = data.needsPhone === true;
+  const email = String(data.email || '').trim();
+  const title = String(data.calcomEventTitle || '').trim();
+  const slug = String(data.calcomEventSlug || '').trim();
+  // calcom-logic prepends NO_PHONE_NOTE to the stored notes; the notice below
+  // says it once, so the Message row carries only what the booker wrote.
+  const bookedNotes = String(data.notes || '').split('\n')
+    .filter((l) => l.trim() !== CL.NO_PHONE_NOTE).join('\n').trim();
+  const notice = needsPhone ? {
+    email: 'No phone on this booking — reply to the Cal.com confirmation email to get a number before the visit',
+    mailto: MAILTO_SAFE.test(email) ? email : '',
+    sms: 'NO PHONE — reply to the confirmation email',
+    subject: 'NO PHONE',
+  } : null;
+  return {
+    alert: true,
+    collection: 'leads',
+    data: { ...data, message: bookedNotes },
+    opts: { source: [title, slug].filter(Boolean).join(' · '), notice, ack: false },
+    log: ['leadAlertCalcom: booking lead created', { leadId, needsPhone, eventSlug: slug || null }],
   };
 }
 
@@ -588,21 +679,21 @@ function isBridgedThumbtackLead(data, leadId) {
     && String(leadId || '') === L.bridgeDocId(coll, data.publicLeadId);
 }
 
-async function onThumbtackLeadAlert(data, leadId) {
+function planThumbtack(data, leadId) {
   if (data.backfilledBy) {
-    logger.info('leadAlertThumbtack: backfilled lead — not a new lead, no alert', { leadId });
-    return;
+    return { alert: false, log: ['leadAlertThumbtack: backfilled lead — not a new lead, no alert', { leadId }] };
   }
-  logger.info('leadAlertThumbtack: bridged lead created', { leadId });
   // notes is thumbtack-logic leadNotes(): the service, the description, the
   // lead cost and the questionnaire answers, which is what Joe needs for the
   // first call. The label already says Thumbtack, so leave the header's
   // "from" line empty rather than repeat it.
-  await alertJoe('leads', { ...data, message: String(data.notes || '') }, leadId, {
-    label: L.BRIDGE_KINDS.thumbtack_leads.label,
-    source: '',
-    ack: false,
-  });
+  return {
+    alert: true,
+    collection: 'leads',
+    data: { ...data, message: String(data.notes || '') },
+    opts: { label: L.BRIDGE_KINDS.thumbtack_leads.label, source: '', ack: false },
+    log: ['leadAlertThumbtack: bridged lead created', { leadId }],
+  };
 }
 
 // IMPORTANT: each export assigns onDocumentCreated(...) DIRECTLY (not via a
@@ -617,8 +708,16 @@ exports.leadAlertEstimate = onDocumentCreated({ ...TRIGGER_OPTS, document: 'esti
 exports.leadAlertInspect  = onDocumentCreated({ ...TRIGGER_OPTS, document: 'inspect_leads/{leadId}' },     onLeadAlert('inspect_leads'));
 exports.leadAlertFreeRoof = onDocumentCreated({ ...TRIGGER_OPTS, document: 'free_roof_entries/{leadId}' }, onLeadAlert('free_roof_entries'));
 exports.leadAlertStorm    = onDocumentCreated({ ...TRIGGER_OPTS, document: 'storm_alert_subscribers/{leadId}' }, onStormAlert());
-// leadAlertCalcom also alerts on bridged Thumbtack leads (onThumbtackLeadAlert).
+// leadAlertCalcom also alerts on bridged Thumbtack leads (planThumbtack).
 // The name was kept on purpose: a renamed export deploys as a NEW function and
 // leaves the old one live, because the deploy never deletes retired functions.
 // Both would then fire on every lead create and page Joe twice.
 exports.leadAlertCalcom   = onDocumentCreated({ ...TRIGGER_OPTS, document: 'leads/{leadId}' },             onCalcomLeadAlert());
+
+// For lead-alert-watchdog.js and tests. NON-enumerable on purpose: index.js
+// does Object.assign(exports, require('./lead-alert')), and only Cloud
+// Functions belong on the deployed export surface.
+Object.defineProperty(exports, '_internal', {
+  enumerable: false,
+  value: { alertPlan, alertJoe, resolveAlertTarget, SECRETS, NBD_OWNER_UID, ALERT_COLLECTIONS: Object.keys(KIND_LABEL) },
+});

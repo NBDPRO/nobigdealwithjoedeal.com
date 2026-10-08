@@ -22,14 +22,14 @@
  * customer — and falls back to the template when the proxy is unavailable.
  * Whatever the AI writes is filtered again at approval.
  */
-import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, doc, onSnapshot, updateDoc, deleteDoc, setDoc, serverTimestamp, Timestamp, query, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { initializeApp, getApps } from "/assets/vendor/firebase/10.12.2/firebase-app.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "/assets/vendor/firebase/10.12.2/firebase-app-check.js";
+import { getAuth, onAuthStateChanged } from "/assets/vendor/firebase/10.12.2/firebase-auth.js";
+import { getFirestore, collection, doc, onSnapshot, updateDoc, deleteDoc, setDoc, serverTimestamp, Timestamp, query, limit } from "/assets/vendor/firebase/10.12.2/firebase-firestore.js";
+import { getFunctions, httpsCallable } from "/assets/vendor/firebase/10.12.2/firebase-functions.js";
+import { getStorage } from "/assets/vendor/firebase/10.12.2/firebase-storage.js";
 import { connectEmulatorsIfLocal, emulatorAppCheckIfLocal } from "../nbd-emulator-connect.js";
-import { initReels } from "./social-reels.js?v=1";
+import { initReels } from "./social-reels.js?v=2";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDTrotINzl2YjdGbH25BpC-FPv8i_fXNvg",

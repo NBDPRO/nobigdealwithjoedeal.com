@@ -230,6 +230,8 @@
       '.ceh-tot-k{font-family:\'Barlow Condensed\',sans-serif;font-size:13px;font-weight:800;letter-spacing:.08em;color:var(--m,#98a0ab);}',
       '.ceh-tot-v{font-family:\'Barlow Condensed\',sans-serif;font-size:24px;font-weight:800;color:var(--green,#2ecc8a);font-variant-numeric:tabular-nums;}',
       '.ceh-sub{display:flex;justify-content:space-between;padding:3px 0;font-size:11px;color:var(--m,#98a0ab);}',
+      // Signed, then re-priced (review R6-2-2): the bills follow the signed price.
+      '.ceh-signed-note{margin-top:10px;padding:9px 11px;border-radius:8px;border:1px solid var(--orange,#BD5728);background:color-mix(in srgb, var(--orange,#BD5728) 9%, transparent);font-size:12px;line-height:1.45;color:var(--t,#eee);}',
       '.ceh-photos{display:flex;gap:6px;overflow-x:auto;margin-top:10px;-webkit-overflow-scrolling:touch;}',
       '.ceh-photos img{height:58px;border-radius:6px;flex:none;border:1px solid var(--br,#2a2f37);}',
       // Actions
@@ -257,13 +259,33 @@
     if (est.tier && tierOk) out += '<span class="ceh-chip">' + esc(String(est.tier)) + '</span>';
     if (est.sq != null && Number(est.sq)) out += '<span class="ceh-chip">' + esc(Number(est.sq).toFixed(2)) + ' SQ</span>';
     var sig = est.signatureStatus || '';
-    if (sig === 'signed') out += '<span class="ceh-chip is-good">✓ Signed</span>';
+    // Re-priced after signing (review R6-2-2): this version is NOT signed.
+    var resigned = unsignedChanges(est);
+    if (resigned) out += '<span class="ceh-chip is-warn">✎ Changed — not signed</span>';
+    if (sig === 'signed' && !resigned) out += '<span class="ceh-chip is-good">✓ Signed</span>';
     else if (sig === 'sent' || sig === 'viewed') out += '<span class="ceh-chip is-warn">✍ Awaiting sign</span>';
     else if (sig === 'declined') out += '<span class="ceh-chip is-bad">✗ Declined</span>';
     if (!est.leadId) out += '<span class="ceh-chip is-warn">Not attached</span>';
     var when = fmtWhen(est.createdAt);
     if (when) out += '<span class="ceh-chip">' + esc(when) + '</span>';
     return '<div class="ceh-chips">' + out + '</div>';
+  }
+
+  // Jo's rule (review R6-2-2, 2026-10-07): a signed estimate stays editable,
+  // but every bill — invoices, the deposit and final drafts, the portal,
+  // Stripe — charges the SIGNED price until the homeowner re-signs
+  // (customer-estimate-rows.js signedView). Say so where the rep edits it.
+  function unsignedChanges(est) {
+    var api = window.NBDCustomerEstimateRows;
+    return !!(api && typeof api.hasUnsignedChanges === 'function' && api.hasUnsignedChanges(est));
+  }
+  function signedNote(est) {
+    if (!unsignedChanges(est)) return '';
+    var api = window.NBDCustomerEstimateRows;
+    var c = api.signedTotalCents(est);
+    return '<div class="ceh-signed-note"><strong>Signed at ' + (c != null ? money(c / 100) : 'the earlier price') + '.</strong> '
+      + 'This version (' + money(totalOf(est)) + ') is not signed yet — the homeowner must re-sign it. '
+      + 'Until then every bill (invoice, deposit and final drafts, portal, pay link) follows the signed price.</div>';
   }
 
   function cardDetail(est, isPrimary) {
@@ -285,6 +307,7 @@
       html += '<div class="ceh-sub"><span>Tax</span><span>' + money(est.tax) + '</span></div>';
     }
     html += '<div class="ceh-tot"><span class="ceh-tot-k">TOTAL</span><span class="ceh-tot-v">' + money(totalOf(est)) + '</span></div>';
+    html += signedNote(est);
 
     if (Array.isArray(est.photos) && est.photos.length) {
       html += '<div class="ceh-photos">' + est.photos.map(function (p) {
@@ -302,21 +325,13 @@
       // Recommended buy list from this estimate (materials-list.js, 2026-10-02).
       (Array.isArray(est.rows) && est.rows.length && window.NBDMaterials ? '<button type="button" class="ceh-btn" data-ceh-act="materials" data-ceh-id="' + id + '">🧾 Materials</button>' : '') +
       '<button type="button" class="ceh-btn" data-ceh-act="assign" data-ceh-id="' + id + '">👤 Assign</button>' +
-      // Labelled for what it DOES. This button read "🗄 Archive" — an archive
-      // box, the universal "filed away, still there" affordance — while
-      // dispatching deleteEstimateAction, which calls deleteDoc() and destroys
-      // the document. Its own confirm already said "This cannot be undone", so
-      // the control contradicted itself and the reassuring half was the part a
-      // rep reads first.
-      //
-      // Relabelled rather than converted to a soft delete: the tenant estimates
-      // snapshots that populate window._estimates apply no `deleted` filter, so
-      // a soft-deleted estimate would stay visible on the dashboard list and
-      // Archive would look broken. A real archive needs those readers updated
-      // first — worth doing, but it is a feature, not this fix. The dashboard's
-      // own estimates list already calls this exact action "delete"; the hub
-      // was the outlier.
-      '<button type="button" class="ceh-btn danger" data-ceh-act="archive" data-ceh-id="' + id + '">🗑 Delete</button>' +
+      // Labelled for what it DOES. This button was once relabelled "🗑 Delete"
+      // because deleteEstimateAction called deleteDoc() and destroyed the
+      // document. Since R5-8-2 (#2286) it is a SOFT delete: the estimate gets
+      // the deleted flag, the dashboard/portal readers drop it, and the lead's
+      // primary + jobValue are re-synced. So it is an archive again, and the
+      // confirm says so (estimate-crm-ops.js deleteEstimateAction).
+      '<button type="button" class="ceh-btn danger" data-ceh-act="archive" data-ceh-id="' + id + '">🗄 Archive</button>' +
       '</div>';
     return html;
   }

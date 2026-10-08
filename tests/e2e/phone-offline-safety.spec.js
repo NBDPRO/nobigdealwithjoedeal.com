@@ -234,7 +234,7 @@ test.describe('installed iPhone app — offline safety @shard2', () => {
     await ctx.setOffline(false);
     await expect.poll(() => safeEvaluate(page, () => window.NBDOfflineSync.countPending()), { timeout: 60_000, message: 'queue drained' }).toBe(0);
     const server = await safeEvaluate(page, async (id) => {
-      const m = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const m = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const snap = await m.getDocFromServer(m.doc(window._db, 'leads', id));
       return snap.exists() ? snap.data().notes : null;
     }, leadId);
@@ -280,7 +280,7 @@ test.describe('installed iPhone app — offline safety @shard2', () => {
     }, { timeout: 60_000, message: 'D2D flush sent the kept knock' }).toBe(true);
     // Clean up the knock (submitKnock writes no e2eRun tag).
     await safeEvaluate(page, async (id) => {
-      const m = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const m = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       await m.deleteDoc(m.doc(window._db, 'knocks', id));
     }, knockId).catch(() => {});
   });

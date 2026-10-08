@@ -29,6 +29,13 @@
  *   noState        Has a street but no 2-letter state token.
  *   ok             House number + street + state + ZIP.
  *
+ * ZIP vs STATE (report-only, 2026-10-07)
+ *   A separate tally (scripts/_zip-state.js): does the ZIP's 3-digit prefix
+ *   belong to the stated state? OH 430–459, KY 400–427, IN 460–479; any other
+ *   state is "unchecked state". "Cincinnati, OH 46211" is a mismatch (462xx is
+ *   Indianapolis). Prints counts and the mismatching doc ids ONLY — never a
+ *   name or address — and does NOT change the exit code. Fix hits by hand.
+ *
  * EXIT CODE
  *   Non-zero when any `legacyMangled` or `blank` address remains, so this
  *   can gate CI and the corruption cannot silently return. `noStreet` does
@@ -50,6 +57,7 @@
  */
 
 const { initAdmin, getFirestore } = require('./_admin');
+const { zipStateCheck } = require('./_zip-state');
 
 const args = process.argv.slice(2);
 const LIST = args.includes('--list');
@@ -91,6 +99,7 @@ async function main() {
   const db = getFirestore();
 
   const buckets = { legacyMangled: [], blank: [], notProvided: [], noStreet: [], noState: [], noZip: [], ok: [] };
+  const zipState = { ok: 0, mismatch: [], uncheckedState: 0, noPair: 0 };
   let scanned = 0;
   let skipped = 0;   // soft-deleted (deleted === true) — retired, not broken
   let last = null;
@@ -122,6 +131,8 @@ async function main() {
       // form sets referredByLeadId, and an SMS converted into a lead sets
       // convertedFromUnmatchedSms (always with a blank address).
       if (cls === 'blank' && isIntakeLead(d)) cls = 'notProvided';
+      const zs = zipStateCheck(d.address);
+      if (zs === 'mismatch') zipState.mismatch.push(doc.id); else zipState[zs]++;
       buckets[cls].push({
         id: doc.id,
         name,
@@ -172,6 +183,15 @@ async function main() {
   }
   console.log('\n  scanned: ' + scanned +
     (skipped ? '   (plus ' + skipped + ' retired/soft-deleted, not counted)' : ''));
+
+  // Report-only — ids, never names or addresses, so it is the same in CI and
+  // locally, and it does not feed hardFails below.
+  console.log('\n  ZIP vs state (report only — does not affect exit code)');
+  console.log('    ZIP matches state      ' + String(zipState.ok).padStart(4));
+  console.log('    ZIP/state MISMATCH     ' + String(zipState.mismatch.length).padStart(4));
+  console.log('    unchecked state        ' + String(zipState.uncheckedState).padStart(4));
+  console.log('    no state + ZIP pair    ' + String(zipState.noPair).padStart(4));
+  for (const id of zipState.mismatch.slice().sort()) console.log('      mismatch: ' + id);
 
   if (LIST) {
     for (const k of order) {

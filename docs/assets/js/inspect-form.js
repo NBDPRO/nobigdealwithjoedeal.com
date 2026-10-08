@@ -16,6 +16,17 @@
  *    NBDIntake.afterSubmit sends each one (functions/public-lead-photos.js).
  *    The same block adds the REQUIRED scheduling choice, best time,
  *    insurance and how-heard.
+ *  - Shorter form (Jo, 2026-10-06): the form asks name, address, mobile, the
+ *    REQUIRED scheduling choice and the consent box, nothing else. Email,
+ *    "What happened?", referral code, photos, best time, insurance and how
+ *    heard moved to the thank-you screen as an optional "add details" step
+ *    (#insDetails), saved onto the SAME lead: the submit asks for the one-time
+ *    grant (wantsFollowUp), updatePublicLeadIntake checks it and re-sanitises
+ *    every answer server-side; photos use the same grant through
+ *    uploadPublicLeadPhoto. Same pattern as /estimate (#2133).
+ *  - The thank-you headline follows the choice: "Pick your time" with a plain
+ *    Pick My Time link (no popup: Safari blocks one opened after an await),
+ *    or "Joe will reach out, usually the same day".
  *  - Name, address and a 10-digit US mobile number are checked BEFORE the
  *    request (2026-09-13). The form is `novalidate` and this file used to post
  *    blind, so a missing phone reached the gateway, which answers a bare 400
@@ -38,6 +49,48 @@
     };
   }
 
+  // QR kicker (CRO #7, 2026-10-06): one true-by-construction line for the
+  // printed pieces that carry a utm_source. Everyone else sees nothing.
+  var KICKERS = {
+    'yard-sign': 'Saw my sign on your street?',
+    'banner-neighbor': 'Saw my sign on your street?',
+    'hanger': 'Got my door hanger?',
+    'card': 'Thanks for keeping my card.'
+  };
+  function showKicker(utms) {
+    var src = utms.utm_source || '';
+    var line = Object.prototype.hasOwnProperty.call(KICKERS, src) ? KICKERS[src] : '';
+    var el = document.getElementById('insKicker');
+    if (!el || !line) return;
+    el.textContent = line;
+    el.hidden = false;
+  }
+
+  // ?ref=CODE (CRO #8): normalised exactly like the server
+  // (public-lead-intake-spec.js / lead-bridge: upper-case, A-Z 0-9 and "-",
+  // max 32). The code rides on the submit, so skipping the optional details
+  // step can't lose it.
+  function readRef() {
+    var params;
+    try { params = new URLSearchParams(window.location.search); }
+    catch (e) { return ''; }
+    var code = String(params.get('ref') || '').toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    return code.length > 0 && code.length <= 32 ? code : '';
+  }
+  function applyRef(code) {
+    if (!code) return;
+    var input = document.getElementById('insRefCode');
+    if (!input) return;
+    input.value = code;
+    var strong = document.getElementById('insRefNoteCode');
+    if (strong) strong.textContent = code;
+    var note = document.getElementById('insRefNote');
+    if (note) note.hidden = false;
+    // Already sent with the request: don't ask for it again on the thank-you screen.
+    var wrap = document.getElementById('insRefWrap');
+    if (wrap) wrap.hidden = true;
+  }
+
   function stampHiddenFields(utms) {
     Object.keys(utms).forEach(function (k) {
       var el = document.getElementById(k);
@@ -52,6 +105,7 @@
       // The intake block's own inputs (scheduling radios) are read by
       // NBDIntake.read, not posted by name.
       if (k === 'photos' || /^ins[A-Z]/.test(k)) return;
+      if (k === 'referralCode' && !v) return;
       out[k] = typeof v === 'string' ? v.trim() : v;
     });
     out.source = '/inspect';
@@ -91,22 +145,105 @@
     return 'Please add your name, the property address and a 10-digit mobile number so Joe can reach you.';
   }
 
-  // Hides the form, shows the confirmation, then (intake-extras.js) the
-  // calendar button and the photo upload for this submission.
+  function setText(id, text) { var el = document.getElementById(id); if (el) el.textContent = text; }
+
+  // Hides the form and shows the confirmation for the choice they made:
+  // calendar → "Pick your time" with a real link (a tap opens it, so iPhone
+  // Safari never blocks it); contact me → the page's default "usually the
+  // same day" text. Then the optional add-details step, when there is a grant.
   function showSuccess(intake, res, data) {
     var form = document.getElementById('inspectForm');
     var ok = document.getElementById('inspectSuccess');
     if (form) form.style.display = 'none';
-    if (ok && window.NBDIntake) {
-      window.NBDIntake.afterSubmit(ok, {
-        prefix: 'ins', quietContact: true, fields: intake.fields, files: intake.files, photoToken: (res && res.photoToken) || null,
-        name: data.name, email: data.email, phone: data.phone, address: data.address
-      });
+    var choice = intake && intake.fields && intake.fields.scheduling;
+    var pick = document.getElementById('insPickTime');
+    if (choice === 'calendar' && pick) {
+      setText('insThanksTitle', 'Pick your time');
+      setText('insThanksText', 'Your request is in. Tap Pick My Time to choose a day that works for you.');
+      if (window.NBDIntake && typeof window.NBDIntake.calendarUrl === 'function') {
+        pick.setAttribute('href', window.NBDIntake.calendarUrl({ name: data.name, phone: data.phone, address: data.address }));
+      }
+      pick.hidden = false;
     }
+    mountDetails(res && res.photoToken, data);
     if (ok) {
       ok.classList.add('visible');
-      try { ok.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+      try { ok.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
     }
+  }
+
+  // ── Optional "add details" step (thank-you screen, 2026-10-06) ──────────
+  var _grant = null;
+  var _who = {};
+  var _busy = false;
+  function mountDetails(token, data) {
+    var wrap = document.getElementById('insDetails');
+    var box = document.getElementById('insXIntake');
+    // No grant = nothing to save against, so stay hidden.
+    if (!wrap || !token || !window.NBDIntake) return;
+    _grant = token;
+    _who = { name: data.name, phone: data.phone, address: data.address };
+    if (box && !box.childElementCount) box.innerHTML = window.NBDIntake.html('insX', { sched: false });
+    var btn = document.getElementById('insDetailsSave');
+    if (btn && !btn.getAttribute('data-wired')) {
+      btn.setAttribute('data-wired', '1');
+      btn.addEventListener('click', function () { saveDetails(btn); });
+    }
+    wrap.hidden = false;
+  }
+
+  function val(id) { var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; }
+
+  function detailsStatus(msg, isError) {
+    var st = document.getElementById('insDetailsStatus');
+    if (!st) return;
+    st.className = 'ins-details-status' + (isError ? ' error' : '');
+    st.textContent = msg;
+  }
+
+  function saveDetails(btn) {
+    if (_busy || !_grant) return;
+    var box = document.getElementById('insXIntake');
+    var intake = (window.NBDIntake && box && box.childElementCount)
+      ? window.NBDIntake.read(box, 'insX', { optional: true }) : { fields: {}, files: [] };
+    if (intake.error) { detailsStatus(intake.error, true); return; }
+    var answers = {};
+    ['bestTime', 'insuranceClaim', 'howHeard'].forEach(function (k) { if (intake.fields[k]) answers[k] = intake.fields[k]; });
+    var story = val('f-story'); if (story) answers.story = story.slice(0, 1500);
+    var email = val('f-email');
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { detailsStatus('That email doesn’t look right. Fix it, or leave it blank.', true); return; }
+    if (email) answers.email = email;
+    var code = val('f-referral'); if (code) answers.referralCode = code.slice(0, 32);
+    var hasAnswers = Object.keys(answers).length > 0;
+    var files = intake.files || [];
+    if (!hasAnswers && !files.length) { detailsStatus('Add something first, or skip this. Joe already has your request.', true); return; }
+
+    _busy = true;
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    var base = typeof window.nbdPublicFunctionsBase === 'function' ? window.nbdPublicFunctionsBase() : '';
+    var post = !hasAnswers ? Promise.resolve(true) : fetch(base + '/updatePublicLeadIntake', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'omit', mode: 'cors',
+      body: JSON.stringify(Object.assign({ token: _grant }, answers))
+    }).then(function (r) { return r.ok; }, function () { return false; });
+    return post.then(function (saved) {
+      _busy = false;
+      if (!saved) {
+        btn.disabled = false;
+        btn.textContent = 'Send to Joe';
+        detailsStatus('Couldn’t save that. Call or text Joe at (859) 420-7382.', true);
+        return;
+      }
+      btn.textContent = 'Sent ✓';
+      detailsStatus(hasAnswers ? 'Thanks, that’s on your request now.' : '', false);
+      // Photos: the same grant, uploaded and reported by intake-extras.js.
+      if (files.length && window.NBDIntake) {
+        window.NBDIntake.afterSubmit(document.getElementById('insIntakeAfter'), {
+          prefix: 'insX', ownCalendar: true, quietContact: true, fields: intake.fields, files: files, photoToken: _grant,
+          name: _who.name, phone: _who.phone, address: _who.address
+        });
+      }
+    });
   }
 
   function showError(btn, msg) {
@@ -126,6 +263,8 @@
   function onReady() {
     var utms = readUtms();
     stampHiddenFields(utms);
+    showKicker(utms);
+    applyRef(readRef());
 
     var form = document.getElementById('inspectForm');
     if (!form) return;
@@ -168,6 +307,8 @@
       var data = gatherFormData(form);
       Object.keys(intake.fields).forEach(function (k) { data[k] = intake.fields[k]; });
       data.tcpaConsent = consent === true;
+      // The one-time grant the thank-you "add details" step saves against.
+      data.wantsFollowUp = true;
 
       if (typeof window.submitPublicLead !== 'function') {
         // public-lead-submit.js failed to load — fail loud so we can
