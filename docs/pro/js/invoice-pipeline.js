@@ -3723,9 +3723,10 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
 
   /**
    * Where a payment for this lead's job lands. Pure.
-   *   { lead, invoices, estimate?, estimateId?, totalsOpts? }
+   *   { lead, invoices, estimate?, estimateId?, totalsOpts?, supplements? }
    * → { kind: 'existing', invoices: [live…] }   pay the job's live invoice
-   *   | { kind: 'estimate', estimateId, totalCents }   make it from the estimate
+   *   | { kind: 'estimate', estimateId, totalCents, supplementCents }   make it
+   *     from the estimate (totalCents includes approved supplements)
    *   | { kind: 'jobValue', suggestedCents }    the rep confirms a total
    */
   function recordPaymentTarget(ctx) {
@@ -3736,9 +3737,19 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     if (live.length) return { kind: 'existing', invoices: live, jobId };
     const estId = (typeof ctx.estimateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(ctx.estimateId)) ? ctx.estimateId : null;
     if (estId && ctx.estimate && ctx.estimate.deleted !== true) {
-      const t = invoiceTotalsFromEstimate(ctx.estimate, ctx.totalsOpts || {});
+      // The total the invoice made from this estimate will carry: the
+      // estimate's lines PLUS the approved / partly approved insurance
+      // supplements (ctx.supplements, loaded by recordPaymentContext) —
+      // exactly what createOrOpenJobInvoice folds in (applySupplementsToTotals).
+      // Without them "Paid in full?" recorded a $14,000 estimate on the
+      // $16,000 invoice it then made, and the paid job showed $2,000 owed
+      // (review R6-2-9, 2026-10-07). The estimate here is already the SIGNED
+      // view when one exists (_readEstimate).
+      const base = invoiceTotalsFromEstimate(ctx.estimate, ctx.totalsOpts || {});
+      const t = applySupplementsToTotals(base, Array.isArray(ctx.supplements) ? ctx.supplements : []);
       const c = Math.round(Number(t.total) * 100);
-      if (c > 0) return { kind: 'estimate', estimateId: estId, totalCents: c, jobId };
+      const supC = Math.round(Number(t.supplementTotal) * 100) || 0;
+      if (c > 0) return { kind: 'estimate', estimateId: estId, totalCents: c, supplementCents: supC, jobId };
     }
     const jv = toCents(Math.max(0, Number(lead.jobValue) || 0));
     return { kind: 'jobValue', suggestedCents: Number.isFinite(jv) && jv > 0 ? jv : 0, jobId };
@@ -3904,7 +3915,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     const estId = lead.primaryEstimateId
       || ((window._estimates || []).find(e => e && e.leadId === leadId && e.deleted !== true) || {}).id || null;
     const estimate = estId ? await _readEstimate(db, estId) : null;
-    const target = recordPaymentTarget({ lead, invoices, estimate, estimateId: estimate && estimate.id, totalsOpts: _totalsOpts() });
+    // Approved supplements fold into the invoice made from the estimate, so
+    // they are part of the amount owed (R6-2-9). Fail-soft ([] on any error),
+    // the same query createOrOpenJobInvoice runs.
+    const supplements = (estimate && estimate.id) ? await loadEstimateSupplements(db, estimate.id) : [];
+    const target = recordPaymentTarget({ lead, invoices, estimate, estimateId: estimate && estimate.id, totalsOpts: _totalsOpts(), supplements });
     return { lead, invoices, estimate, target };
   }
 
@@ -3942,7 +3957,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
            <select id="nbd-rp-inv" class="fi ipx-field ipx-rp-input">${opts}</select>`
         : `<div class="ipx-rp-target" data-rp-target="existing">Applies to the open invoice — ${escHtml(formatCurrency(firstBal))} owed.</div>`;
     } else if (target.kind === 'estimate') {
-      targetHtml = `<div class="ipx-rp-target" data-rp-target="estimate">No invoice yet — saving makes one from the estimate (${escHtml(fmt(target.totalCents))}), then records this payment.</div>`;
+      targetHtml = `<div class="ipx-rp-target" data-rp-target="estimate">No invoice yet — saving makes one from the estimate (${escHtml(fmt(target.totalCents))}${target.supplementCents > 0 ? escHtml(', including ' + fmt(target.supplementCents) + ' in approved supplements') : ''}), then records this payment.</div>`;
     } else {
       targetHtml = `<div class="ipx-rp-target" data-rp-target="jobValue">No invoice and no estimate on file. Confirm the job total — saving makes the invoice, then records this payment.</div>
         <label for="nbd-rp-total" class="ipx-label">Job total</label>
