@@ -176,6 +176,30 @@ const sup = (f) => Object.assign({ parentEstimateId: 'estC', userId: 'u1', versi
     ok('no email sent', B.emails.length === 0);
   });
 
+  await sec('A3 the signed price still wins (customer-estimate-rows.js signedView, #2299)', async () => {
+    if (!IP || !CU) return ok('modules loaded', false);
+    ok('customer-estimate-rows.js has signedView (#2299 merged)', !!(CER_CLIENT && typeof CER_CLIENT.signedView === 'function'));
+    // Signed at $14,000, then re-saved at $15,000 without a re-sign; the
+    // adjuster then approved a $2,000 supplement. Owed: $14,000 + $2,000.
+    const signedFields = { grandTotal: 14000, subtotal: 14000, tax: 0, taxRate: 0, mode: 'insurance',
+      rows: [{ description: 'Roof', qty: 1, unitPrice: 14000, total: 14000 }] };
+    const est = insEst({ grandTotal: 15000, subtotal: 15000, rows: [{ description: 'Roof', qty: 1, unitPrice: 15000, total: 15000 }],
+      signedPrice: { fields: signedFields, totalCents: 1400000, source: 'esign', sourceId: 'env1' } });
+    const lead = { userId: 'u1', companyId: 'u1', firstName: 'Sig', lastName: 'Ned', address: OH, stage: 'closed', stageRole: 'won',
+      jobValue: 14000, primaryEstimateId: 'estC', insCarrier: 'State Farm', claimNumber: 'C-78', createdAt: Date.now() - 90 * 86400000 };
+    const B = browser({ 'leads/C2': lead, 'estimates/estC': est, 'supplements/s1': sup() });
+    B.W._leads = [Object.assign({ id: 'C2' }, lead)];
+    CU._setData({ invs: [], expenses: [], spend: { months: {} } }, { doneJobs: {}, log: [] });
+    const ctx = await IP.recordPaymentContext('C2');
+    ok('"Paid in full?" offers the SIGNED $14,000 + the $2,000 supplement = $16,000 (not the re-saved $15,000 + $2,000)',
+      ctx.target.kind === 'estimate' && ctx.target.totalCents === 1600000, JSON.stringify(ctx.target));
+    await CU.paidInFull('C2', { method: 'check', payer: 'insurance', ymd: '2026-09-20', expectCents: 1600000 });
+    const inv = [...B.store.entries()].filter(([k]) => k.startsWith('invoices/')).map(([, v]) => v)[0];
+    ok('…the invoice it makes says $16,000 and is paid in full with one $16,000 payment',
+      inv && c(inv.total) === 1600000 && inv.payments.length === 1 && c(inv.payments[0].amount) === 1600000 && c(inv.balanceDue) === 0 && inv.status === 'paid',
+      inv && JSON.stringify({ total: inv.total, paid: inv.amountPaid, bal: inv.balanceDue }));
+  });
+
   // ════════════════════════════════════════════════════════════════════
   console.log('\nB. R6-2-6 — the portal never offers the spent deposit link');
   // ════════════════════════════════════════════════════════════════════
@@ -251,7 +275,7 @@ const sup = (f) => Object.assign({ parentEstimateId: 'estC', userId: 'u1', versi
         && /progress\.payLink = _balance\.stripePaymentLink;/.test(srv));
     const pjs = rd('docs/pro/js/portal.js');
     const pick = (re) => { const m = re.exec(pjs); return m ? m[0] : ''; };
-    const escSrc = pick(/const esc = \(s\) => [^;]*;/);
+    const escSrc = pick(/const esc = \(s\) => [\s\S]*?\.replace\(\/'\/g, '&#39;'\);/);
     const safeSrc = pick(/const safeUrl = \(u\) => \{[\s\S]*?\n  \};/);
     const fnSrc = pick(/function balancePayActionHtml\(b\) \{[\s\S]*?\n  \}/);
     ok('docs/pro/js/portal.js has balancePayActionHtml (lifted and run below)', !!(escSrc && safeSrc && fnSrc));
