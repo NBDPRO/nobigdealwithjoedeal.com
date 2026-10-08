@@ -73,6 +73,15 @@ test.describe('phone: no next step @shard2', () => {
     await page.evaluate(() => { window.goTo && window.goTo('home'); });
 
     const card = page.locator('#homeNoNextStep');
+    // On a phone the full list folds behind "More on Home" (2026-10-08, phone
+    // audit #6 — Today carries its one-line "Swipe through" row); one tap opens it.
+    const moreToggle = page.locator('#homeMoreToggle');
+    await expect(moreToggle).toBeVisible({ timeout: 20_000 });
+    await expect(card, 'folded until More on Home').toBeHidden();
+    const optOut = page.locator('#nbd-push-optin button', { hasText: 'Not now' });
+    if (await optOut.isVisible().catch(() => false)) await optOut.tap();
+    await moreToggle.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await moreToggle.tap();
     await expect(card, 'the Home card shows').toBeVisible({ timeout: 20_000 });
     await page.evaluate(() => window.NBDNoNextStep.render());
     const row = card.locator('.nns-row', { hasText: 'Quiet' + s });
