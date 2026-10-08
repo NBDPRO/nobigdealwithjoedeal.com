@@ -313,10 +313,13 @@ async function runTool(name, args, key) {
   }
 
   if (name === 'job_profit') {
-    const [leads, invoices, expenses] = await Promise.all([
+    // The company's jobs too, so a repeat customer's finished first job is
+    // listed after the card moved on (review R6-2-10).
+    const [leads, invoices, expenses, jobsByLead] = await Promise.all([
       companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy']), companyDocs('expenses', company, ['companyId', 'userId']),
+      companyJobsByLead(company),
     ]);
-    return L.toolText(L.jobProfit(leads, invoices, expenses, Date.now(), args, tz));
+    return L.toolText(L.jobProfit(leads, invoices, expenses, Date.now(), args, tz, jobsByLead));
   }
 
   if (name === 'storm_near_customers') {

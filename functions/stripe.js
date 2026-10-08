@@ -1488,6 +1488,14 @@ exports.createStripePaymentLink = onRequest(
       // amount THIS mint charges (the name every consumer already reads).
       const due = InvoiceCharge.chargeDueNow(invoice, { totalCents: expectedTotalCents });
       const balanceDueCents = due.chargeCents;
+      // An insurance invoice made before the deductible / ACV were on the
+      // claim (deposit-rule.js invoiceDeposit, 2026-10-07): charge nothing,
+      // never the whole job.
+      if (due.kind === 'awaiting') {
+        logger.info('payment_link_refused_awaiting_carrier_numbers', { invoiceId, uid: decoded.uid });
+        res.status(400).json({ error: 'Waiting on the carrier’s numbers — enter the deductible and the ACV on the estimate, then tap Create Invoice again. Nothing was charged.' });
+        return;
+      }
       if (balanceDueCents < MIN_CENTS) {
         res.status(400).json({ error: 'This invoice is already paid in full — nothing to charge.' });
         return;
@@ -1501,7 +1509,10 @@ exports.createStripePaymentLink = onRequest(
               name: `Deposit due — Invoice ${invoiceId}`,
               description: amountPaidCents > 0
                 ? `Remaining deposit after $${(amountPaidCents / 100).toFixed(2)} already paid; balance of $${((due.balanceCents - balanceDueCents) / 100).toFixed(2)} due later`
-                : `Deposit due at signing; balance of $${((due.balanceCents - balanceDueCents) / 100).toFixed(2)} due later`,
+                : (invoice.kyInsuranceHold === true
+                  // A Kentucky insurance job owes nothing at signing (KRS 367.626).
+                  ? `Your deductible and the first insurance check; balance of $${((due.balanceCents - balanceDueCents) / 100).toFixed(2)} due on completion`
+                  : `Deposit due at signing; balance of $${((due.balanceCents - balanceDueCents) / 100).toFixed(2)} due later`),
             },
             unit_amount: balanceDueCents,
           },

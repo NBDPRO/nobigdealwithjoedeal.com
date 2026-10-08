@@ -1,5 +1,59 @@
 # Pro demo, phase 2: explore the whole sample account (plan only)
 
+> **Update 2026-10-07 (later): waves 1–4 ship together as #2294** (Jo: "good to go"). #2261, #2265 and #2281 close once it merges. Merging main surfaced three things the sample account has to keep up with. Read these before changing it:
+> - **Self-hosted SDK (#2155).** The CRM imports `/assets/vendor/firebase/<ver>/firebase-*.js` from our own origin. `demo-sw.js` must answer that path (`VENDOR_SDK_RE`). If it doesn't, the real SDK loads and only the CSP stands between the demo and Firestore. The export-parity scan in `tests/pro-demo-sdk-2026-10-06.test.js` reads the vendored URLs.
+> - **"Ok to text?" (#2246).** Phone texts call `phoneTextAction` first; the fake answers `check`. `NBDPhoneShare.share` is answered by `demo-mode.js`, because its `location.assign(sms:)` can't be wrapped. The Agent inbox text button has its `href` removed before the inbox opens it.
+> - **Ask Joe footnote:** "Sample answers … no AI model is called". It no longer shows the model name or "Change Key".
+>
+> A new CRM callable on a demo page has no canned answer, and it rejects with "not in the sample account". The zero-network walk is the net for that, so run it after every merge of main.
+
+> **Update 2026-10-07 — wave 4 built (draft PR stacked on wave 3, awaiting Jo).**
+>
+> **Invoices and payments.** Seed v4 adds seven invoices (paid, part paid, draft; Ohio cash and Kentucky insurance). Every deposit comes from the real `deposit-rule.js`; the seed builder fails if a Kentucky insurance invoice asks for anything at signing or takes a payment before the carrier's written decision plus the 5-business-day window (the real `ky-insurance-law.js`). Record Payment, Mark Paid and the payment timeline run unchanged on the fake store.
+>
+> **Pay links are samples.** The sample company has a test-mode payout account, and `demo-mode.js` turns on the CRM's own Stripe test-mode switch for it. The CRM's three direct function POSTs (`createStripePaymentLink`, `sendEmail`, `sendSMS`) are answered by `docs/pro/demo-sdk/endpoints.js` before any request is made:
+> - a pay link is a page in the sample account (`/pro/explore/sample-pay`) that says it is a sample and takes no card;
+> - a held Kentucky insurance invoice is refused with the CRM's own `KY_CANCELLATION_WINDOW` message;
+> - an email or text shows the "Nothing was sent" sheet and is refused (403), so `nbd-comms.js` never hands off to `sms:` / `mailto:`.
+>
+> **Production strip.** A sample sub roster (independent subcontractors), permits, start windows and material orders (quantities only). "Send to sub" shows the job sheet in "Nothing was sent": `navigator.share` is guarded in the sample account.
+>
+> **Settings.** `docs/pro/demo-sdk/real-account.js` puts an "Available in your real account" card over billing, team, sign-in methods, Bots & API keys and AI texting (their own controls hidden), a push note over notifications (push switched off), and in place of data import. The rest of Settings saves in this browser only.
+>
+> **Ask Joe overlap (wave 3 known issue): fixed.** While Ask Joe is open its input bar reserves room at the bottom for the strip (`demo-mode.css`), on desktop and phone.
+>
+> **Real-CRM fix found by the sample data.** On the customer page `invoice-pipeline.js` read `window._auth`, which only the photo engine ever set, so pay-link mints from that page threw "Not authenticated" ("Send balance" went out without its link). `customer-tasks-ui.js` now aliases it like `window._db`. Also a fake-store fidelity fix: a top-level `Date` field was stored as `{}` (invoice "Invalid Date").
+>
+> **Next:** turn on the `/pro/sandbox` Explore button, then "save as my real account".
+
+> **Update 2026-10-06 — wave 3 built (draft PR stacked on wave 2, awaiting Jo).**
+>
+> **Door-to-Door and Storm Center** run on an offline SVG sample map, `docs/pro/demo-sdk/basemap.js`.
+> - The map is drawn in the browser: invented "Fort Thomas north" streets and houses, a park, the river and the sample towns.
+> - `demo-mode.js` swaps `L.tileLayer` the moment Leaflet sets `window.L`, so no tile is ever requested.
+>
+> **Seed v3** adds:
+> - ~70 knocks on the map's houses (Jordan's door is the appointment that became the lead);
+> - the story's hail swath, as a D2D territory in [lng, lat] and a Storm Center zone in [lat, lng];
+> - sample hail and storm reports, and one sample alert labelled "not a real warning";
+> - six Agent inbox items from the sample company's own bots.
+>
+> **Offline answers.** `docs/pro/demo-sdk/offline.js` answers the maps' Nominatim, NWS, SPC (an empty outlook) and `/api/storm-report` reads before they could leave the browser. It also gives the sample location to `navigator.geolocation`.
+>
+> **Agent inbox.** `agentDraftAction` is canned. One tap on "Text from my phone" shows the "Nothing was sent" sheet and files the draft with a note. `sms:`, `mailto:` and `tel:` links never open the visitor's apps.
+>
+> **Ask Joe.** The demo worker swaps `js/claude-proxy.js` for `docs/pro/demo-sdk/claude-proxy.js`. Ask Joe answers set questions from the sample data, each labelled "No AI model was called"; any other AI feature says AI is not in the sample account. A `window.callClaude` trap was tried and dropped: the real file's function declaration redefines the global.
+>
+> **Tests.** The zero-network walk gained steps 13–16 and now fails on any `img-src` refusal. `pro-demo-sdk` gained section H. Six mutations each turned the walk red.
+>
+> **Known (wave 1 strip):** on desktop the Sample account strip sits over the left part of the Ask Joe input.
+>
+> **Next: wave 4** (invoices, payments, production strip, Settings).
+
+> **Update 2026-10-06 — wave 2 built (draft PR stacked on wave 1, awaiting Jo).** The estimate builder (V3 wizard over V2), the document generator + viewer and a read-only e-sign preview run on the sample company. No new page and no new route: the builder and the generator already run client-side on `dashboard.html` / `customer.html`. What changed: the seed (v2) gives the sample company its **own brand** (before, company-profile.js deep-merged NBD's, so every sample document would have worn NBD's name and GAF/TAMKO numbers), its packages through the real `tenant-rules.js` (Standard / Preferred / Elite, GAF System Plus on Standard and up, every card "sample price", per-square rates = the story's prices over 26 squares), the 50%-at-$2,000 cash deposit (Kentucky insurance jobs still take nothing at signing: deposit-rule.js keys that to the property), retail line items and a scope of work on Jordan's estimate, and 11 sample photos (seven small hand-drawn SVGs in `docs/pro/demo-sdk/media/`, labelled SAMPLE DRAWING). `docs/pro/demo-sdk/send-preview.js` answers the three send-to-sign callables (`sendEstimateEnvelope`, `createSignRequest`, `createDealAcceptToken`) with a "Nothing was sent" sheet: recipients, subject, message and the page the homeowner would open in a sandboxed frame with no permissions, then the callable still rejects honestly. Two real-CRM bugs the sample data surfaced are fixed in the same PR (proposal photos printed `src="[object Object]"`; a non-NBD company's contract/proposal promised "Lifetime Workmanship"). The `/pro/sandbox` Explore button stays disabled (the plan turns it on after wave 4). Next: **wave 3** (D2D + Storm Center on an SVG basemap, Agent inbox + Ask Joe with canned answers).
+
+> **Update 2026-10-06 — wave 1 built (draft PR, awaiting Jo).** The spike settled on the **service worker route**: `/pro/explore` (entry, `docs/pro/explore/index.html`) registers `docs/pro/explore/demo-sw.js` (scope `/pro/explore/` only), which answers every `www.gstatic.com/firebasejs/*/firebase-*.js` import with a one-line re-export of the same-origin fake in `docs/pro/demo-sdk/`, maps `/pro/explore/<asset>` to `/pro/<asset>`, blanks the App Check / FCM / Sentry config scripts, and never intercepts a navigation. `firebase.json` rewrites `/pro/explore/dashboard` and `/pro/explore/customer` to the real page files (one copy of each page) and gives `/pro/explore` + `/pro/explore/**` a last-in-list CSP with `connect-src 'self'` only and no report endpoint. `docs/pro/js/demo-mode.js` (first, synchronous, inert on the real pages) refuses to run without the demo worker, trips on any non-static request (fetch/XHR/beacon/WebSocket/EventSource), namespaces localStorage/sessionStorage (`nbd_demo:`), keeps navigation inside the demo, and shows the "Sample account" strip with Reset and Start free. The seed (`docs/pro/demo-sdk/sample-company.json`) is generated by `scripts/build-demo-seed.js` from the story's `SAMPLE` (25 leads, tasks, notes, estimates; wave-1 collections only). The real dashboard (Today, pipeline/kanban moves) and customer card run on it. Proof: `tests/pro-demo-sdk-2026-10-06.test.js` (CSP contract, rewrites, SDK export parity, fake behaviour, seed honesty) and `tests/pro-demo-zero-network-2026-10-06.test.js` (Chromium walk with the worker running; fails on any off-origin request, function-rewrite hit, tripwire block or connect-src refusal; proves both guards on purpose). The `/pro/sandbox` "Explore" placeholder stays disabled. Open from the plan: photos on the customer card (no sample media yet), Q2 is answered provisionally as "survives reload, Reset clears".
+
 2026-10-06. Plan, nothing built. Phase 1 (the guided job story at `/pro/sandbox`) shipped in the same PR as this note; its end screen carries a disabled "Explore the whole sample account — coming next" placeholder that this plan fills.
 
 Jo's decision (2026-10-06): the full account is a **browser-only sample company**. Nothing touches the live database, it resets anytime, and it is NOT a real throwaway Firebase tenant. A "save this as my real account" path starts the Free plan.
