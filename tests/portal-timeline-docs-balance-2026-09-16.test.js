@@ -170,7 +170,9 @@ if (labelSrc) {
    5. The balance card never renders a dead "Pay Now" button
    ══════════════════════════════════════════════════════════════════ */
 group('Balance card: no button at all without a real link', () => {
-  const block = liftBetween(PORTAL, "if (view.balance) {", "\n    }\n");
+  // 2026-10-07: a "nothing is due yet" card (KY hold / waiting on the
+  // carrier's numbers) renders first; the Balance/Deposit Due card follows.
+  const block = liftBetween(PORTAL, "if (view.balance && !_nothingDue) {", "\n    }\n");
   assert('found the balance-card render block', !!block);
   if (block) {
     assert('the Pay Now action is gated on view.balance.stripePaymentLink specifically',
