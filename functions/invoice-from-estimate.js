@@ -81,8 +81,19 @@
     // Classic docs carry their lines on `lineItems`, V2 on `rows`. Reading
     // `rows` alone silently produced an empty item list for every Classic
     // estimate — which is how a $0 invoice got written for a $14,200 job.
-    const items = ((est && (est.rows || est.lineItems)) || []).map(function (row) {
-      const quantity = numFrom(row.qty);
+    // A non-empty rows wins (it is what the contract and estimate link
+    // print); an empty rows array falls through to lineItems.
+    // lineItems name their fields quantity / unitPrice / amount (a logged
+    // estimate saved from doc pre-flight, legacy docs). Reading only the rows
+    // names (qty / rate / total) priced every such line at $0, and the pay
+    // link was refused (review R6-2-1, 2026-10-07). Sales tax / Rounding
+    // footing rows are never lines here: tax and the adjustment come below.
+    const useRows = !!est && Array.isArray(est.rows) && est.rows.length > 0;
+    const src = useRows ? est.rows : ((est && Array.isArray(est.lineItems)) ? est.lineItems : []);
+    const items = src.filter(function (row) {
+      return !!row && (useRows || (row.code !== 'TAX' && row.code !== 'ADJ'));
+    }).map(function (row) {
+      const quantity = numFrom(row.qty != null ? row.qty : row.quantity);
       const explicitRetail = (row.retailTotal != null && Number.isFinite(Number(row.retailTotal)))
         ? Number(row.retailTotal) : null;
       const hasSplit = hasV2Pricing && (row.materialTotal != null || row.laborTotal != null);
@@ -94,7 +105,7 @@
         const lab = Number(row.laborTotal) || 0;
         lineTotal = (mat === 0 && lab === 0) ? numFrom(row.total) : mat * (1 + markup) + lab;
       } else {
-        lineTotal = numFrom(row.total);
+        lineTotal = numFrom(row.total != null ? row.total : row.amount);
       }
       if (explicitRetail != null || hasSplit) {
         // Retail-priced row: derive the unit price from the retail total (the
@@ -102,7 +113,7 @@
         unitPrice = (Number.isFinite(quantity) && quantity !== 0 && Number.isFinite(lineTotal))
           ? lineTotal / quantity : (Number.isFinite(lineTotal) ? lineTotal : 0);
       } else {
-        unitPrice = numFrom(row.rate);
+        unitPrice = numFrom(row.rate != null ? row.rate : row.unitPrice);
         if (!Number.isFinite(unitPrice) || unitPrice === 0) {
           unitPrice = (Number.isFinite(quantity) && quantity !== 0 && Number.isFinite(lineTotal))
             ? lineTotal / quantity : 0;
@@ -278,25 +289,48 @@
    * when either side has no job stamp — an unpaid one (a PAID invoice with
    * no job stamp is an earlier job's history). The deposit draft's filter
    * (functions/deposit-draft-logic.js). Oldest first.
+   *
+   * opts (2026-10-05) = { soleJob, since }: a PAID invoice with no job stamp
+   * — a deposit mirrored in from the Stripe dashboard (stripe-ledger-logic.js
+   * mirrorInvoice never knew the job) — IS this job's when the customer has
+   * exactly ONE job (soleJob: the caller read leads/{id}/jobs, see soleJobOf)
+   * AND it was made on or after this job's estimate (since = the estimate's
+   * createdAt), so an earlier roof's payment never credits this one. With two
+   * or more jobs, or no estimate date, it stays out as before: the final
+   * invoice then shows no credit for it (visible on the paper, the rep fixes
+   * it) — never a silent credit to the wrong job.
    */
-  function jobInvoicesOf(invoices, jobId) {
+  function jobInvoicesOf(invoices, jobId, opts) {
     const jid = _jbJobId(jobId);
+    const o = opts || {};
+    const sinceMs = _jbMs(o.since);
+    const adopt = !!jid && o.soleJob === true && sinceMs > 0;
     return (Array.isArray(invoices) ? invoices : []).filter(function (inv) {
       if (!inv || inv.deleted === true || inv.deletedAt) return false;
       const st = String(inv.status || '').toLowerCase();
       if (JOB_BILLING_DEAD[st]) return false;
       const ij = _jbJobId(inv.jobId);
       if (jid && ij) return ij === jid;
-      return st !== 'paid';
+      if (st !== 'paid') return true;
+      return adopt && !ij && _jbMs(inv.createdAt) >= sinceMs;
     }).sort(function (a, b) { return _jbMs(a.createdAt) - _jbMs(b.createdAt); });
+  }
+  /**
+   * soleJobOf(jobs, jobId) — true when leads/{id}/jobs (not deleted) holds
+   * exactly one job and it is jobId. Unread / empty / two or more → false.
+   */
+  function soleJobOf(jobs, jobId) {
+    const jid = _jbJobId(jobId);
+    const live = (Array.isArray(jobs) ? jobs : []).filter(function (j) { return j && j.deleted !== true; });
+    return !!jid && live.length === 1 && live[0].id === jid;
   }
   /** Live = still in play for its job: anything but paid (after jobInvoicesOf). */
   function isLiveInvoice(inv) {
     return !!inv && String(inv.status || '').toLowerCase() !== 'paid';
   }
   /**
-   * planJobInvoice(jobTotalCents, invoices, jobId) — what billing this job
-   * needs now.
+   * planJobInvoice(jobTotalCents, invoices, jobId, opts) — what billing this
+   * job needs now (opts: jobInvoicesOf's).
    *  → { action: 'open', invoiceId, reason: 'live_invoice' }
    *      a live invoice bills the whole job: use it (with no job total to
    *      compare, any live invoice for the job is the job's bill);
@@ -304,8 +338,8 @@
    *      earlier invoices already bill the whole job;
    *  | { action: 'create', credits: [{ invoiceId, label, cents, paid }], creditCents }
    */
-  function planJobInvoice(jobTotalCents, invoices, jobId) {
-    const mine = jobInvoicesOf(invoices, jobId);
+  function planJobInvoice(jobTotalCents, invoices, jobId, opts) {
+    const mine = jobInvoicesOf(invoices, jobId, opts);
     const totalC = Math.max(0, Math.round(Number(jobTotalCents) || 0));
     const covering = mine.filter(function (inv) {
       return isLiveInvoice(inv) && (totalC === 0 || _jbCents(inv.total) >= totalC);
@@ -355,5 +389,5 @@
 
 module.exports = {
   numFrom, buildRowItems, invoiceTotalsFromEstimate, resolveCustomerName, leadDisplayName,
-  jobInvoicesOf, isLiveInvoice, planJobInvoice, applyJobCredits,
+  jobInvoicesOf, soleJobOf, isLiveInvoice, planJobInvoice, applyJobCredits,
 };

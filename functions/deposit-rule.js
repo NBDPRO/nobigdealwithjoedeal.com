@@ -615,9 +615,23 @@
   // "7 days; was 14" — while the CRM invoice doc and its terms said Net 14,
   // so one bill carried two due dates. Every writer now reads this value.
   var INVOICE_DUE_DAYS = 7;
+  var INVOICE_DUE_ZONE = 'America/New_York';
+  // Eastern wall-clock time minus the instant (EDT -4h, EST -5h).
+  function _etOffsetMs(t) {
+    var p = new Intl.DateTimeFormat('en-US', { timeZone: INVOICE_DUE_ZONE, hourCycle: 'h23',
+      year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' }).formatToParts(new Date(t));
+    var g = function (k) { for (var i = 0; i < p.length; i++) if (p[i].type === k) return +p[i].value; return 0; };
+    return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second')) - Math.floor(t / 1000) * 1000;
+  }
+  // 7 Eastern CALENDAR days on, same wall-clock time. Adding 168h made the
+  // due date the 6th day across the November DST change (review round 4
+  // R4-6-7): created Oct 31 12:30am ET, due Nov 6 11:30pm.
   function invoiceDueDateMs(nowMs) {
     var n = Number(nowMs);
-    return (Number.isFinite(n) ? n : Date.now()) + INVOICE_DUE_DAYS * 86400000;
+    var t = Number.isFinite(n) ? n : Date.now();
+    var wall = t + _etOffsetMs(t) + INVOICE_DUE_DAYS * 86400000; // the target, as Eastern wall time
+    var guess = wall - _etOffsetMs(t);
+    return wall - _etOffsetMs(guess);
   }
   function netTermsText() { return 'Net ' + INVOICE_DUE_DAYS + '.'; }
 

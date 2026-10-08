@@ -81,6 +81,10 @@ function load(opts) {
   ctx.globalThis = ctx;
   ctx.location = { href: '' };
   ctx.window._customerId = 'lead-123';
+  // R6-3-2 (2026-10-07): Text Portal asks the server's "ok to text?" first
+  // (phone-share.js checkText). Yes here; the "no" paths are in
+  // tests/r6-texting-links-2026-10-07.test.js.
+  ctx.window.NBDPhoneShare = { checkText: async () => ({ ok: true }) };
   ctx.window._currentLead = opts.lead || { id: 'lead-123', firstName: 'Dana', phone: '5135550123' };
   ctx.window.PortalLinkHelpers = opts.noHelpers ? undefined : {
     resolveUrl: async (id) => { minted.push(id); return 'https://x.test/pro/portal?token=TOK'; },

@@ -293,6 +293,9 @@ function loadPage(opts) {
   const longTimers = [];
   const disk = opts.disk || newDisk();
   const window = {
+    // The server 'ok to text?' every Messages hand-off asks first (review R2-3-2,
+    // phone-share.js): yes here; its refusals: tests/texting-r2-fixes-2026-10-06.test.js.
+    NBDPhoneShare: { checkText: async () => ({ ok: true }) },
     console: QUIET, document, navigator,
     location: { hostname: 'nobigdealwithjoedeal.com', href: 'https://nobigdealwithjoedeal.com/pro/dashboard.html' },
     localStorage: {
@@ -1266,7 +1269,7 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
     const start = CP_SRC.indexOf('} else if (window.auth) {');
     const block = extractBlock(CP_SRC.slice(start + 2), 'else if (window.auth) {');
     const body = block.slice(block.indexOf('{') + 1, block.lastIndexOf('}'))
-      .replace("import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js')", '__import()');
+      .replace("import('/assets/vendor/firebase/10.12.2/firebase-auth.js')", '__import()');
     ok('command-palette fallback: the lifted block still imports the SDK signOut (the stub replaced it)', /__import\(\)/.test(body));
     const run = async (purgeAll) => {
       const order = [];
@@ -1641,15 +1644,17 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
   }
   {
     // d2d-tracker-core-2026b.js sendFollowUpSMS.
-    const factory = new Function('window', 'state', 'SMS_TEMPLATES', '_fillTemplate', 'formatDate',
-      extractFunction(D2D_SRC, 'sendFollowUpSMS') + '\nreturn sendFollowUpSMS;');
+    // (canTextKnock — the door-knock consent check, 2026-10-05 — is extracted
+    // with it; NO_CONSENT_MSG is a const beside it.)
+    const factory = new Function('window', 'state', 'SMS_TEMPLATES', '_fillTemplate', 'formatDate', 'NO_CONSENT_MSG',
+      extractFunction(D2D_SRC, 'canTextKnock') + '\n' + extractFunction(D2D_SRC, 'sendFollowUpSMS') + '\nreturn sendFollowUpSMS;');
     const opened = []; const toasts = []; let args = null;
     const win = {
       NBDComms: { sendSMS: async (...a) => { args = a; return QUEUED; } },
       open: (u) => opened.push(u), showToast: (m, t) => toasts.push(m), _user: { displayName: 'Joe' },
     };
-    factory(win, { currentRep: { name: 'Joe' } }, { follow_up: { body: 'Hi {name}' } }, (b) => b, () => 'soon')(
-      { id: 'knock-1', phone: '(859) 555-0134', homeowner: 'Sam', disposition: 'follow_up' }, 'follow_up');
+    factory(win, { currentRep: { name: 'Joe' } }, { follow_up: { body: 'Hi {name}' } }, (b) => b, () => 'soon', 'no consent')(
+      { id: 'knock-1', phone: '(859) 555-0134', homeowner: 'Sam', disposition: 'follow_up', smsConsent: true }, 'follow_up');
     await wait(5);
     ok('D2D: a queued follow-up shows no "Text sent" toast and opens nothing',
       !toasts.some((m) => /Text sent/.test(m)) && opened.length === 0, JSON.stringify(toasts));

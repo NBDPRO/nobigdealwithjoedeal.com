@@ -159,6 +159,13 @@
   var WON_STAGES = ['closed', 'install_complete', 'final_photos', 'final_payment', 'deductible_collected', 'collections', 'warranty_claim', 'Complete'];
   // Role-aware (freeform-pipeline foundation): prefer the denormalized
   // _stageRole (custom-stage-safe), fall back to WON_STAGES for un-stamped leads.
+  // The ONE money reader (customer-estimate-rows.js moneyValue); the fallback
+  // strips the same characters when that file is absent (unit-test sandbox).
+  function mdMoney(v) {
+    var R = (typeof window !== 'undefined') && window.NBDCustomerEstimateRows;
+    if (R && typeof R.moneyValue === 'function') return R.moneyValue(v);
+    return parseFloat(String(v == null ? '' : v).replace(/[^0-9.-]/g, '')) || 0;
+  }
   function isWon(l) {
     var won = (l && l._stageRole) ? l._stageRole === 'won' : WON_STAGES.indexOf((l && (l._stageKey || l.stage)) || '') !== -1;
     return won && !!l && !l.deleted;
@@ -205,17 +212,27 @@
     var now = data.now ? toJSDate(data.now) : new Date();
     var agingCents = { current: 0, d1_30: 0, d31_60: 0, d61_plus: 0 };
     var collectionsQueue = [];
+    var J = data.jurisdiction || (typeof window !== 'undefined' ? window.NBDJurisdiction : null);
+    var tz = data.timeZone;
+    if (tz === undefined && J && typeof J.resolveTimeZone === 'function' && typeof window !== 'undefined') {
+      try { tz = J.resolveTimeZone(typeof window._legal === 'function' ? window._legal() : (window._companyProfile || {})); } catch (_) { tz = undefined; }
+    }
     invoices.forEach(function (inv) {
       var balC = Math.round(owedDollarsOf(inv) * 100);
       if (balC <= 0) return;
-      var due = toJSDate(inv.dueDate);
-      var daysPastDue = due ? Math.floor((now.getTime() - due.getTime()) / 86400000) : 0;
+      var lead = (inv.leadId && Array.isArray(leads)) ? leads.find(function (l) { return l && l.id === inv.leadId; }) : null;
+      // THE overdue rule (ky-insurance-law.js invoiceOverdue — the server's
+      // task, the Invoices tab and Today's plan agree): days past due count
+      // tenant calendar days after the due date, and a Kentucky insurance
+      // invoice inside its KRS 367.626 window is never past due (it stays
+      // 'current' and out of Collections). No module → nothing past due.
+      var st = (J && typeof J.invoiceOverdue === 'function') ? J.invoiceOverdue(inv, lead, now, tz) : null;
+      var daysPastDue = st ? st.days : 0;
       var bucket = daysPastDue <= 0 ? 'current' : daysPastDue <= 30 ? 'd1_30' : daysPastDue <= 60 ? 'd31_60' : 'd61_plus';
       agingCents[bucket] += balC;
       // Freeform-pipeline-safe: reads the LINKED lead's own current stage
       // (not a hardcoded string) so a tenant that renamed/relocated the
       // built-in 'collections' stage still shows the right badge.
-      var lead = (inv.leadId && Array.isArray(leads)) ? leads.find(function (l) { return l && l.id === inv.leadId; }) : null;
       collectionsQueue.push({
         id: inv.id || null,
         leadId: inv.leadId || null,
@@ -229,6 +246,7 @@
         dueDate: inv.dueDate || null,
         daysPastDue: daysPastDue,
         bucket: bucket,
+        kyHold: !!(st && st.held),
         inCollections: !!lead && (lead._stageKey || lead.stage) === 'collections',
         // Set by invoice-reminder.js on a real send (2026-10-01).
         lastReminderAt: inv.lastReminderAt || null,
@@ -260,12 +278,22 @@
 
     // Job profitability (jobValue basis), costed won jobs only — uncosted jobs
     // would inflate margin (the trap a unit test caught in the Insights cards).
-    var wonLeads = leads.filter(isWon);
+    // Every won JOB (data.jobRecs — a customer's second job is its own deal;
+    // review R2-2-7, 2026-10-06). Direct costs are logged per CUSTOMER
+    // (expense.leadId), so a customer's won jobs are pooled against them.
+    // Money through the ONE reader (moneyValue): '$45,000' is 45000.
+    var wonLeads = (data.jobRecs || leads).filter(isWon);
     var wonContractCents = 0, wonDirectCents = 0, costedJobs = 0;
+    var revByLead = {}, wonOrder = [];
     wonLeads.forEach(function (l) {
-      var revC = Math.round((parseFloat(l.jobValue) || 0) * 100);
-      var dc = directByLead[l.id] || 0;
-      if (revC > 0 && dc > 0) { wonContractCents += revC; wonDirectCents += dc; costedJobs += 1; }
+      var revC = Math.round(mdMoney(l.jobValue) * 100);
+      if (!(revC > 0)) return;
+      if (revByLead[l.id] == null) { revByLead[l.id] = { c: 0, n: 0 }; wonOrder.push(l.id); }
+      revByLead[l.id].c += revC; revByLead[l.id].n += 1;
+    });
+    wonOrder.forEach(function (id) {
+      var dc = directByLead[id] || 0;
+      if (dc > 0) { wonContractCents += revByLead[id].c; wonDirectCents += dc; costedJobs += revByLead[id].n; }
     });
     var grossMargin = wonContractCents > 0 ? Math.round(((wonContractCents - wonDirectCents) / wonContractCents) * 100) : null;
 
@@ -420,7 +448,13 @@
   // ── Data fetch ──────────────────────────────────────────────────────
   async function fetchData() {
     var db = window.db || window._db, u = uid();
-    var out = { leads: window._leads || [], expenses: [], invoices: [], suppliers: [], monthCloses: {}, year: new Date().getFullYear() };
+    // jobRecs: every JOB of these customers (jobs-store.js recordsFor), so the
+    // won-job contract value counts a customer's second job like the Home KPI
+    // tiles do (review R2-2-7, 2026-10-06). Leads as-is until jobs have loaded.
+    var _leadsNow = window._leads || [];
+    var out = { leads: _leadsNow,
+      jobRecs: (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(_leadsNow) : null,
+      expenses: [], invoices: [], suppliers: [], monthCloses: {}, year: new Date().getFullYear() };
     if (!db || !u || !window.getDocs) return out;
     var col = window.collection, q = window.query, where = window.where, getDocs = window.getDocs;
     var staff = isStaff() && claims().companyId;

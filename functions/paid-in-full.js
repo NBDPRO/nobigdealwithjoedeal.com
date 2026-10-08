@@ -75,18 +75,28 @@ function _ms(t) {
 }
 
 /**
+ * Is this invoice in the lead's tenant? An invoice stamped with another
+ * company's id is not this customer's money (and must not drive this lead's
+ * paperwork or tasks). A legacy invoice with no companyId, or a lead with no
+ * tenant stamp, is not judged here — its leadId is the only link.
+ */
+function invoiceInLeadTenant(inv, lead) {
+  const L = lead || {};
+  const tenant = L.companyId || L.userId || null;
+  const it = (inv && inv.companyId) || null;
+  return !(tenant && it && it !== tenant && it !== L.userId);
+}
+
+/**
  * The lead's invoices that belong to it: same lead, same tenant (an invoice
  * stamped with another company's id is not this customer's money), not
  * deleted. jobId given → only that job's invoices plus any with no job stamp.
  */
 function invoicesForLead(invoices, lead, leadId, jobId) {
-  const L = lead || {};
-  const tenant = L.companyId || L.userId || null;
   return (Array.isArray(invoices) ? invoices : []).filter((inv) => {
     if (!inv || inv.deleted === true) return false;
     if (leadId && inv.leadId && String(inv.leadId) !== String(leadId)) return false;
-    const it = inv.companyId || null;
-    if (tenant && it && it !== tenant && it !== L.userId) return false;
+    if (!invoiceInLeadTenant(inv, lead)) return false;
     if (jobId && inv.jobId && inv.jobId !== jobId) return false;
     return true;
   });
@@ -200,7 +210,7 @@ function invoiceSettlesJob(inv, lead, invoices) {
 
 module.exports = {
   isPaidStage, isPaidInFull, paidInFull, pifStageKey,
-  invoicesForLead, lastPaidMs, loadLeadInvoices,
+  invoicesForLead, invoiceInLeadTenant, lastPaidMs, loadLeadInvoices,
   isDepositInvoice, billsWholeJob, paidCentsOf, invoiceSettlesJob,
   PIF_PRE_FINAL,
 };

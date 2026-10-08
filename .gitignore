@@ -86,3 +86,7 @@ globals-xref.json
 
 # Obsidian vault workspace (documentation/ is usable as a vault; config stays local)
 .obsidian/
+
+# Deploy-time version stamp (scripts/verify-live-deploy.js stamp) — written on
+# the deploy runner only, never committed.
+docs/version.json

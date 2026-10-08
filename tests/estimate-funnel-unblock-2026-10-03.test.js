@@ -344,7 +344,9 @@ function makeDom() {
     ok('...and returns the one-time follow-up grant (wantsFollowUp)', /^[a-f0-9]{48}$/.test((res.body || {}).photoToken || '') && grants.some((g) => g.name === 'public_lead_photo_grants' && g.d.collection === 'estimate_leads' && g.d.publicId === 'pub-1'));
     const S = require(path.join(ROOT, 'functions', 'handlers', 'integrations.js'))._publicLeadSpec;
     const req = S.PUBLIC_LEAD_KINDS.estimate.required;
-    ok('the estimate kind requires nothing OTP-shaped (address + source only)', req.join() === 'address,source' && !/otp|verif/i.test(JSON.stringify(S.PUBLIC_LEAD_KINDS.estimate)));
+    // 'verif' is no longer banned spec-wide: phoneVerified is now an OPTIONAL,
+    // client-reported boolean (R5-9-4, 2026-10-06) — accepted, never required.
+    ok('the estimate kind requires nothing OTP-shaped (address + source only)', req.join() === 'address,source' && !/otp|verif/i.test(JSON.stringify(req)) && !/otp/i.test(JSON.stringify(S.PUBLIC_LEAD_KINDS.estimate)));
     const { res: r2, grants: g2 } = await gateway(Object.assign({}, MIN, { wantsFollowUp: undefined }));
     ok('no grant when the page does not ask for one', r2.code === 200 && !r2.body.photoToken && g2.length === 0);
 

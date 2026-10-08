@@ -70,7 +70,7 @@
 
   async function callable(name, payload) {
     if (!window._functions || !window._httpsCallable) {
-      const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._httpsCallable = mod.httpsCallable;
     }
     if (!window._functions || !window._httpsCallable) throw new Error('Functions SDK unavailable');

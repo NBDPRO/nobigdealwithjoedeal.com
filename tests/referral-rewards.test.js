@@ -222,6 +222,10 @@ async function run() {
   console.log('\n6) Company scope — a code minted by one rep credits a lead owned by a teammate/owner in the SAME company');
   const COMPANY = 'company_XYZ';
   const REP3 = 'repUid_CCCCCCCCCCCCCCCCCCCC3'; // teammate/owner in COMPANY
+  // R3-5 (2026-10-06): the code's owner must really be in the lead's
+  // company. This suite runs without the Auth emulator, so membership comes
+  // from the server-written users doc (the trigger's fallback).
+  await setDoc('users', REP, { companyId: COMPANY });
   await setDoc('leads', 'ref_teamref', { userId: REP, companyId: COMPANY, firstName: 'Team', lastName: 'Referrer', stage: 'closed' });
   await addDoc('referrals', { code: 'TEAM-AB12', referrerLeadId: 'ref_teamref', userId: REP, companyId: COMPANY, referredLeads: [], rewardsPaid: 0, status: 'active' });
   // Lead owned by a DIFFERENT rep (REP3) but the SAME company — the old
@@ -234,6 +238,14 @@ async function run() {
   await setDoc('leads', 'ref_xcompany', { userId: REP3, companyId: 'company_OTHER', firstName: 'X', lastName: 'Co', stage: 'new', redeemReferralCode: 'TEAM-AB12' });
   const xco = await waitUntil(() => getDoc('leads', 'ref_xcompany'), (l) => l && l.referralAttributedAt);
   ok('cross-company code → flagged invalid', xco && xco.referralCodeInvalid === true);
+
+  // ═══ 7. A FORGED referral doc (R3-5) ══════════════════════════
+  console.log('\n7) A referral doc stamped with this company\'s companyId by a user of ANOTHER company is ignored');
+  await setDoc('users', REP2, { companyId: 'company_RIVAL' });
+  await addDoc('referrals', { code: 'FORG-0001', referrerLeadId: 'someRivalLead', userId: REP2, companyId: COMPANY, referredLeads: [], status: 'active' });
+  await setDoc('leads', 'ref_forged', { userId: REP3, companyId: COMPANY, firstName: 'For', lastName: 'Ged', stage: 'new', redeemReferralCode: 'FORG-0001' });
+  const forged = await waitUntil(() => getDoc('leads', 'ref_forged'), (l) => l && l.referralAttributedAt);
+  ok('forged code → flagged invalid, not attributed', forged && forged.referralCodeInvalid === true && !forged.referrerLeadId);
 
   // ── summary ──
   console.log('\n──────────────────────────────────────────────────');

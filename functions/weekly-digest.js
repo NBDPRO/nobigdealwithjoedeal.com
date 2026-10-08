@@ -27,52 +27,58 @@ const { FieldPath, getFirestore, Timestamp } = require('firebase-admin/firestore
 const { FieldValue } = require('firebase-admin/firestore');
 const { Resend } = require('resend');
 const stageRoles = require('./stage-roles');
+// The ONE money reader ('$45,000' → 45000) and the jobs rule the Home KPI
+// tiles use (review R2, 2026-10-06).
+const { moneyValue } = require('./customer-estimate-rows');
+const { jobRecords, jobsByLeadFromDocs } = require('./jobs-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM     = defineSecret('EMAIL_FROM');
 
-// Stages that count as a "win" for revenue + count purposes. Includes
-// the contract-signed and deductible-collected milestones, since both
-// represent committed revenue even if the job isn't installed yet.
-const WON_STAGES = new Set([
-  'closed', 'contract_signed', 'deductible_collected', 'final_payment'
-]);
-
-// Active pipeline = anything not won, not lost, not new-untouched.
-// We use a negative filter so future stages auto-roll in.
-const TERMINAL_STAGES = new Set([
-  'closed', 'lost', 'final_payment', 'deductible_collected'
-]);
-
-// 2026-09-15: hardcoded fast-path + role-aware fallback — same pattern as
-// functions/portal.js's progressKeyFor (fixed 2026-09-08 after a real
-// customer-facing bug from this exact class of gap: a homeowner on a
-// tenant's custom "won" stage got a false 409 because a second hardcoded
-// list disagreed with the role-aware view). The sets above preserve this
-// digest's existing, deliberately broader "won" definition (contract_signed
-// counts as committed revenue pre-install) for every stage they already
-// name; the role fallback only fires for a stage NEITHER set recognizes —
-// a tenant custom stage added via Settings > Pipelines, previously invisible
-// here and silently undercounted in every Monday digest.
+// A signed contract is BOOKED, not open pipeline (Jo, 2026-10-06): a "win"
+// is the shared sale test (stage-roles.js isSale — contract_signed, any
+// in-production job stage, any won stage, persisted stageRole first so a
+// tenant's custom stage counts). The kanban header, the Home KPI tiles and
+// agent crm_summary use the same test. This replaced two hand-kept Sets
+// that had drifted: they counted job_created…install_in_progress (and
+// contract_signed, in the pipeline scan) as open pipeline.
 function _isWonLead(l) {
-  const key = String(l && l.stage || '').toLowerCase();
-  if (WON_STAGES.has(key)) return true;
-  if (TERMINAL_STAGES.has(key)) return false; // explicitly lost/closed-not-won
-  return stageRoles.roleFor(l) === stageRoles.ROLE.WON;
+  return stageRoles.isSale(l);
 }
 function _isLostLead(l) {
   const key = String(l && l.stage || '').toLowerCase();
   if (key === 'lost') return true;
   return stageRoles.roleFor(l) === stageRoles.ROLE.LOST;
 }
+// Out of the active pipeline: booked (a sale) or lost.
 function _isTerminalLead(l) {
-  const key = String(l && l.stage || '').toLowerCase();
-  if (TERMINAL_STAGES.has(key)) return true;
-  const role = stageRoles.roleFor(l);
-  return role === stageRoles.ROLE.WON || role === stageRoles.ROLE.LOST;
+  return stageRoles.isSale(l) || _isLostLead(l);
+}
+// When a win happened: the close date (stamped at signing — stage-roles.js
+// needsClosedAt), else the current stage's start. Without closedAt a deal
+// signed in March would re-count as "won this week" when it moves to
+// Permit Pulled.
+function _wonAtMs(l) {
+  return timestampMillis(l.closedAt) || timestampMillis(l.stageStartedAt);
 }
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const DIGEST_TZ = 'America/New_York';
+
+// Eastern wall-clock offset (ms) at an instant: EDT -4h, EST -5h.
+function _etOffsetMs(t) {
+  const p = new Intl.DateTimeFormat('en-US', { timeZone: DIGEST_TZ, hourCycle: 'h23',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' }).formatToParts(new Date(t));
+  const g = (k) => Number((p.find((x) => x.type === k) || {}).value);
+  return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second')) - Math.floor(t / 1000) * 1000;
+}
+// The same Eastern wall-clock time 7 CALENDAR days before nowMs. A rolling
+// 7×24h window dropped an hour the week DST ends (Nov) and counted one twice
+// the week it starts (Mar) — review round 4 R4-6-14.
+function weekCutoffMs(nowMs) {
+  const back = nowMs - ONE_WEEK_MS;
+  return back + (_etOffsetMs(nowMs) - _etOffsetMs(back));
+}
 
 // ─── Branded HTML template (mirrors email-functions.js styling) ──
 const TEMPLATE_STYLES = `
@@ -278,9 +284,9 @@ function _paymentsOnlyOf(inv) {
 //      every open lead, but 3 small fields per doc instead of whole
 //      documents, and paginated with no truncation cap.
 // The weekly deltas can no longer be wrong for reps with >2000 leads.
-async function aggregateUserMetrics(db, uid) {
-  const now = Date.now();
-  const cutoff = now - ONE_WEEK_MS;
+async function aggregateUserMetrics(db, uid, nowMs) {
+  const now = nowMs != null ? nowMs : Date.now();
+  const cutoff = weekCutoffMs(now);
   const cutoffTs = Timestamp.fromMillis(cutoff);
 
   const [createdSnap, updatedSnap] = await Promise.all([
@@ -306,14 +312,15 @@ async function aggregateUserMetrics(db, uid) {
     .map(d => ({ id: d.id, ...d.data() }))
     .filter(l => !l.deleted);
 
-  // Won THIS WEEK = reached a won stage in the window (stageStartedAt), not
-  // merely touched: a March close that got a note on Tuesday is not a win this
-  // week. stageStartedAt is stamped on every stage move (backfilled by
-  // migrations 002/003); a doc without it falls back to "touched this week".
+  // Won THIS WEEK = closed in the window (_wonAtMs: closedAt, else
+  // stageStartedAt), not merely touched: a March close that got a note on
+  // Tuesday is not a win this week. stageStartedAt is stamped on every stage
+  // move (backfilled by migrations 002/003); a doc with neither date falls
+  // back to "touched this week".
   const wonThisWeek = touchedThisWeek.filter(_isWonLead)
-    .filter(l => !l.stageStartedAt || timestampMillis(l.stageStartedAt) >= cutoff);
+    .filter(l => !_wonAtMs(l) || _wonAtMs(l) >= cutoff);
   // BOOKED value of those wins — projected, not money (labelled so below).
-  const wonRevenue = wonThisWeek.reduce((s, l) => s + (Number(l.jobValue) || 0), 0);
+  const wonRevenue = wonThisWeek.reduce((s, l) => s + moneyValue(l.jobValue), 0);
 
   // Revenue = money COLLECTED this week (Jo, 2026-09-28: "Revenue is always
   // collected only"): each invoice payment by the date it arrived. Same
@@ -336,10 +343,13 @@ async function aggregateUserMetrics(db, uid) {
 
   const lostThisWeek = touchedThisWeek.filter(_isLostLead);
 
-  // Active pipeline = every non-terminal lead regardless of recency.
-  // Paginated field-mask read: ~3 fields/doc instead of full documents,
+  // Active pipeline = every non-terminal JOB regardless of recency — a
+  // customer's second open job adds its own value, like the Home KPI tiles
+  // (jobs-logic.js jobRecords; review R2-2-7, 2026-10-06).
+  // Paginated field-mask read: ~4 fields/doc instead of full documents,
   // and no truncation cap — big books just take more (cheap) pages.
   let activePipelineValue = 0;
+  const pipeLeads = [];
   let cursor = null;
   for (let page = 0; page < 200; page++) {
     let q = db.collection('leads')
@@ -348,18 +358,31 @@ async function aggregateUserMetrics(db, uid) {
       // stageRole added 2026-09-15 — without it in the field mask, _isTerminalLead's
       // role fallback would always see it as undefined and silently degrade to the
       // hardcoded-only check this fix exists to get past.
-      .select('stage', 'stageRole', 'jobValue', 'deleted')
+      .select('stage', 'stageRole', 'jobValue', 'deleted', 'activeJobId')
       .limit(1000);
     if (cursor) q = q.startAfter(cursor);
     const pageSnap = await q.get();
     for (const d of pageSnap.docs) {
       const l = d.data();
       if (l.deleted) continue;
-      if (_isTerminalLead(l)) continue;
-      activePipelineValue += Number(l.jobValue) || 0;
+      pipeLeads.push(Object.assign({ id: d.id }, l));
     }
     if (pageSnap.size < 1000) break;
     cursor = pageSnap.docs[pageSnap.docs.length - 1];
+  }
+  // The rep's jobs (userId equality on the jobs collection group — the index
+  // exists). Best-effort: a failed read leaves each customer counted once.
+  let jobsByLead = null;
+  try {
+    const jobSnap = await db.collectionGroup('jobs').where('userId', '==', uid)
+      .select('stage', 'stageRole', 'jobValue').limit(5000).get();
+    jobsByLead = jobsByLeadFromDocs(jobSnap.docs);
+  } catch (e) {
+    logger.warn('weekly_digest_jobs_read_failed', { uid, err: e && e.message });
+  }
+  for (const r of jobRecords(pipeLeads, jobsByLead)) {
+    if (_isTerminalLead(r)) continue;
+    activePipelineValue += moneyValue(r.jobValue);
   }
 
   // Sort new leads by creation time desc, take top 5 for display.
@@ -379,6 +402,11 @@ async function aggregateUserMetrics(db, uid) {
     hasAnyActivity: newLeads.length > 0 || wonThisWeek.length > 0 || lostThisWeek.length > 0 || collectedCents !== 0,
   };
 }
+
+// For tests (tests/r2-money-parse-multijob-2026-10-06.test.js runs it on a
+// fake db). index.js re-exports only weeklyDigest, so this deploys nothing.
+exports._aggregateUserMetrics = aggregateUserMetrics;
+exports._weekCutoffMs = weekCutoffMs;
 
 // ─── Scheduled function ─────────────────────────────────────────
 exports.weeklyDigest = onSchedule(
@@ -405,8 +433,8 @@ exports.weeklyDigest = onSchedule(
 
     // Friendly week label like "Apr 28 — May 4".
     const now = new Date();
-    const weekStart = new Date(now.getTime() - ONE_WEEK_MS);
-    const fmt = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const weekStart = new Date(weekCutoffMs(now.getTime()));
+    const fmt = (d) => d.toLocaleDateString('en-US', { timeZone: DIGEST_TZ, month: 'short', day: 'numeric' });
     const weekLabel = `${fmt(weekStart)} — ${fmt(now)}`;
 
     // 2.6: paginate ALL users. The previous single .limit(500).get() meant

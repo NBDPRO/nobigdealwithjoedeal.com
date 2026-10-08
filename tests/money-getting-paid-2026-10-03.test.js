@@ -209,11 +209,16 @@ function browser(seed, extra) {
   {
     const src = lf(read('functions/portal.js'));
     const a = src.indexOf('    // Pay link: stripePaymentLink OR stripeHostedUrl');
-    const b = src.indexOf('} : null;', a);
-    const code = (a >= 0 && b > a) ? src.slice(a, b + 9) : '';
+    // Since 2026-10-06 (review R2-2-6) the card is built by
+    // invoice-charge.js portalBalanceCard; the block ends at its `: null;`.
+    const b = src.indexOf(': null;', src.indexOf('const _balance', a));
+    const code = (a >= 0 && b > a) ? src.slice(a, b + 7) : '';
     ok('portal: the balance build is liftable', !!code);
     const run = (lead, inv) => {
-      const ctx = { KyLaw: J, lead, _unpaidInvoice: inv, kyTz: J.DEFAULT_TIME_ZONE, Date, Math, Number };
+      // tenantKey + require: the balance build asks zelle-contact.js whether
+      // this tenant is NBD (Zelle / "Pay by bank" are NBD-only, 2026-10-04).
+      const ctx = { KyLaw: J, InvoiceCharge: require(path.join(__dirname, '..', 'functions', 'invoice-charge.js')), lead, _unpaidInvoice: inv, kyTz: J.DEFAULT_TIME_ZONE, Date, Math, Number,
+        tenantKey: 'co_other', require: (p) => require(path.join(ROOT, 'functions', p)) };
       vm.createContext(ctx);
       vm.runInContext(code + '\nthis.__b = _balance;', ctx);
       return ctx.__b;
@@ -455,8 +460,10 @@ function browser(seed, extra) {
       && /finPatch\.dueDate = new Date\(Number\(fin\.due_date\) \* 1000\)/.test(read('functions/stripe-crm-invoice.js')));
     ok('no "Net 14" / 14-day due date left on any invoice writer',
       !/Net 14|14 \* 24 \* 60 \* 60 \* 1000/.test(read('docs/pro/js/invoice-pipeline.js') + read('functions/deposit-draft-logic.js')));
+    // 3 (2026-10-06): createInvoice, the deposit draft, and _sentPatch's
+    // first-send re-date (review round 4 R4-6-4).
     ok('the sandbox fallbacks in invoice-pipeline.js equal INVOICE_DUE_DAYS',
-      (lf(read('docs/pro/js/invoice-pipeline.js')).match(/\+ 7 \* 86400000/g) || []).length === 2 && DR.INVOICE_DUE_DAYS === 7);
+      (lf(read('docs/pro/js/invoice-pipeline.js')).match(/\+ 7 \* 86400000/g) || []).length === 3 && DR.INVOICE_DUE_DAYS === 7);
     if (MPL) {
       const pay = MPL.invoicePayload({ total: 100, items: [], amountPaid: 0 }, null, 'NBD-1', NOW, null);
       const want = new Date(NOW + 7 * 864e5).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
@@ -475,8 +482,10 @@ function browser(seed, extra) {
       IP.paymentTimelineNoteId('inv1', manual) === PTL.noteIdFor('inv1', manual) && PTL.noteIdFor('inv1', card) === 'pay-inv1-pi_123' && PTL.noteIdFor('inv1', ledger) === 'pay-inv1-ch_9');
     ok('the line says what came in, how, and from whom', IP.paymentTimelineText('inv1', manual) === '💵 Payment received: $1,000.00 by check #1042 from the insurance carrier — invoice inv1.');
     const db = makeDb({ 'leads/L1': { userId: 'u1' } });
-    const before = { leadId: 'L1', payments: [] };
-    const after = { leadId: 'L1', payments: [manual, card, ledger] };
+    // Every writer stamps createdBy + companyId; the note goes only onto a
+    // lead of the invoice's own company (R3-6, 2026-10-06).
+    const before = { leadId: 'L1', createdBy: 'u1', companyId: 'u1', payments: [] };
+    const after = { leadId: 'L1', createdBy: 'u1', companyId: 'u1', payments: [manual, card, ledger] };
     const w1 = await PTL.writePaymentTimeline(db, 'inv1', before, after, { FieldValue: FV });
     const notes = () => [...db.store.keys()].filter((k) => /^notes\//.test(k));
     ok('Mark Paid / webhook / ledger entries → three timeline lines on the lead', w1.written === 3 && notes().length === 3 && db.store.get('notes/pay-inv1-pi_123').leadId === 'L1' && db.store.get('notes/pay-inv1-pi_123').userId === 'u1', JSON.stringify(w1));
@@ -546,9 +555,10 @@ function browser(seed, extra) {
       && doc.createdBy === 'u1' && doc.companyId === 'u1' && doc.jobId === 'j1' && doc.totalConfirmedBy === 'u1' && doc.customerName === 'Pat Jones' && doc.source === 'record_payment');
     let threw = false; try { IP.jobValueInvoiceDoc({ lead: ohLead, totalCents: 0 }); } catch (_) { threw = true; }
     ok('never a $0 invoice', threw);
-    // The receipt email (coordinator, 2026-10-03): Jo is entering weeks-old
-    // checks — Record payment must not email the customer unless he ticks
-    // "Email a receipt"; markPaid's own default stays as it was.
+    // Receipts (Jo, 2026-10-04 — supersedes the 2026-10-03 "Email a receipt"
+    // box): recording a payment NEVER emails the customer, from any caller.
+    // The payment gets a receipt DRAFT; "Send receipt" sends it
+    // (tests/receipts-zelle-ach-2026-10-04.test.js).
     {
       const withEmail = Object.assign({}, ohLead, { email: 'delivered@resend.dev' });
       const run = async (sendReceipt) => {
@@ -560,19 +570,16 @@ function browser(seed, extra) {
         return B;
       };
       const off = await run(undefined);
-      ok('Record payment, receipt box unticked (default) → payment recorded, NO email', off.emails.length === 0 && off.store.get('invoices/r1').amountPaid === 3000);
-      const offF = await run(false);
-      ok('…explicitly unticked → no email', offF.emails.length === 0);
+      ok('Record payment → payment recorded, NO email, receipt drafted on the payment',
+        off.emails.length === 0 && off.store.get('invoices/r1').amountPaid === 3000 && off.store.get('invoices/r1').payments[0].receipt.status === 'draft');
       const on = await run(true);
-      ok('Record payment, box ticked → exactly ONE receipt email to the customer',
-        on.emails.length === 1 && on.emails[0].to === 'delivered@resend.dev' && on.emails[0].kind === 'receipt');
+      ok('…even a caller passing sendReceipt:true sends nothing (the flag is gone)', on.emails.length === 0);
       const B = browser({ 'invoices/r2': { leadId: 'L1', status: 'sent', total: 100, amountPaid: 0, balanceDue: 100, customerEmail: 'delivered@resend.dev' } });
       await IP.markPaid('r2', '50', 'cash', { at: new Date(NOW) });
-      ok('markPaid\'s default for its other callers is unchanged (still one receipt)', B.emails.length === 1);
+      ok('markPaid from any other caller: no email either (was: one automatic receipt)', B.emails.length === 0);
       const sheet = lf(read('docs/pro/js/invoice-pipeline.js')).split('async function recordPaymentUI')[1].split('// ═══')[0];
-      ok('the sheet has an "Email a receipt to the customer" box, unchecked, wired to sendReceipt',
-        /<input id="nbd-rp-receipt" type="checkbox" class="ipx-rp-check"> Email a receipt to the customer<\/label>/.test(sheet)
-        && !/nbd-rp-receipt"[^>]*checked/.test(sheet) && /sendReceipt: \$\('#nbd-rp-receipt'\)\.checked === true/.test(sheet));
+      ok('the sheet has no "Email a receipt" box any more — it says a receipt is drafted',
+        !/nbd-rp-receipt/.test(sheet) && !/sendReceipt/.test(sheet) && /data-rp-receipt-note/.test(sheet));
     }
     const r = await customerList([], { _currentLead: ohLead });
     ok('customer page: a "Record payment" button even with no invoices', /data-rp-open data-action="NBDCustomerInvoices\.recordPayment" data-arg="L1"/.test(r.html) && /No invoices yet/.test(r.html));

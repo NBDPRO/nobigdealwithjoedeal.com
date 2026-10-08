@@ -1712,7 +1712,7 @@
     _aliasFirebase();
     if (!window._db) throw new Error('Firebase not initialized');
     const { doc, setDoc, updateDoc, serverTimestamp } = await import(
-      'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+      '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
     );
     const meta = _cleanMeta(edit.meta);
     if (edit.mode === 'meta') {
@@ -1722,7 +1722,7 @@
     }
     if (!window._storage) throw new Error('Firebase not initialized');
     const { ref, uploadBytes, getDownloadURL } = await import(
-      'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js'
+      '/assets/vendor/firebase/10.12.2/firebase-storage.js'
     );
     const leadSegment = item.leadId ? (item.leadId + '/') : '';
     const fileName = edit.mode === 'over' ? `photo_${edit.photoId}.jpg` : `photo_${edit.copyId}.jpg`;
@@ -1830,7 +1830,7 @@
         _httpsCallableAnalyze = window._httpsCallable(window._functions, 'analyzePhotoVision');
         return _httpsCallableAnalyze;
       }
-      const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._functions     = window._functions     || mod.getFunctions();
       window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       _httpsCallableAnalyze = window._httpsCallable(window._functions, 'analyzePhotoVision');
@@ -2293,10 +2293,10 @@
     }
 
     const { ref, uploadBytes, getDownloadURL } = await import(
-      'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js'
+      '/assets/vendor/firebase/10.12.2/firebase-storage.js'
     );
     const { doc, setDoc, updateDoc, getDoc, serverTimestamp } = await import(
-      'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+      '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
     );
 
     const uid = window._user.uid;
@@ -2598,7 +2598,7 @@
     if (!window._db) return;
 
     const { doc, getDoc } = await import(
-      'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+      '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
     );
 
     try {
@@ -2702,7 +2702,7 @@
     }
 
     const { collection, query, where, getDocs, orderBy } = await import(
-      'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+      '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
     );
 
     // Order by the canonical `createdAt` (serverTimestamp on every write
@@ -2728,10 +2728,10 @@
     if (!window._storage || !window._db) throw new Error('Firebase not initialized');
 
     const { deleteDoc, doc, getDoc } = await import(
-      'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+      '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
     );
     const { ref, deleteObject } = await import(
-      'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js'
+      '/assets/vendor/firebase/10.12.2/firebase-storage.js'
     );
 
     try {
@@ -2876,7 +2876,7 @@
     updatePhotoTags: async (photoId, tags) => {
       if (!window._db) throw new Error('Firestore not initialized');
       const { doc, updateDoc, getDoc } = await import(
-        'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+        '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
       );
       const _tagList = Array.isArray(tags) ? tags : [];
       let phase = null;
@@ -2899,7 +2899,7 @@
     updatePhotoDescription: async (photoId, description) => {
       if (!window._db) throw new Error('Firestore not initialized');
       const { doc, updateDoc } = await import(
-        'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+        '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
       );
       await updateDoc(doc(window._db, 'photos', photoId), { description });
     },

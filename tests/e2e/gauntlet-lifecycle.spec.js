@@ -78,7 +78,7 @@ async function eventually(fn, { timeout = 30_000, interval = 1_000, label = 'con
 /** In-page callable through the app's own (emulator-connected, App-Check-shimmed) SDK. */
 async function callFromPageOnce(page, fnName, payload) {
   return page.evaluate(async ({ name, data }) => {
-    const m = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const m = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const emu = await import('/pro/js/nbd-emulator-connect.js');
     const fns = m.getFunctions();
     await emu.connectEmulatorsIfLocal({ functions: fns });
@@ -123,7 +123,7 @@ async function probeRead(page, leadId) {
     try {
       await page.waitForFunction(() => window._user && window._user.uid, null, { timeout: 20_000 });
       last = await page.evaluate(async (id) => {
-        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         try {
           const snap = await fs.getDoc(fs.doc(window.db || window._db, 'leads', id));
           return { denied: false, exists: snap.exists() };
@@ -165,13 +165,17 @@ test.describe.serial('Gauntlet lifecycle — persona / lapse / access-code / mul
 
     const coAcme = `e2e-gaunt-persona-acme-${stamp}`;   // non-NBD, has a company default persona
     const coBravo = `e2e-gaunt-persona-bravo-${stamp}`;  // non-NBD, NO company persona → synthesis path
-    const coNbd = `e2e-gaunt-persona-nbd-${stamp}`;      // NBD legalName → null (locked prompt)
+    // NBD is decided by the tenant KEY (2026-10-05, #2219), never the brand name:
+    // the platform uid (functions/lead-alert.js convention) is NBD; a stranger
+    // company that typed NBD's legal name is not.
+    const coNbd = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1'; // NBD key → null (locked prompt)
+    const coNbdName = `e2e-gaunt-persona-nbdname-${stamp}`; // NBD legalName, NOT the NBD key
     await db.doc(`companyProfile/${coAcme}`).set({
       brand: { legalName: 'Acme Roofing E2E' },
       aiTexting: { defaultPersona: { enabled: true, identityName: 'Acme Bot', presetId: 'polished-pro' } },
     });
     await db.doc(`companyProfile/${coBravo}`).set({ brand: { legalName: 'Bravo Builders E2E' } });
-    await db.doc(`companyProfile/${coNbd}`).set({ brand: { legalName: 'No Big Deal Home Solutions' } });
+    await db.doc(`companyProfile/${coNbdName}`).set({ brand: { legalName: 'No Big Deal Home Solutions' } });
 
     const repWithPersona = `e2e-gaunt-persona-rep1-${stamp}`;
     await db.doc(`users/${repWithPersona}/settings/aiPersona`).set({
@@ -219,6 +223,13 @@ test.describe.serial('Gauntlet lifecycle — persona / lapse / access-code / mul
     // (4) NBD tenant, no persona → null → caller uses the locked PERSONA_PROMPT (byte-identical).
     const p4 = await A.resolvePersona(db, `e2e-gaunt-persona-nbdrep-${stamp}`, coNbd, 'Whoever');
     expect(p4, 'NBD + no persona → null (locked PERSONA_PROMPT)').toBeNull();
+
+    // (4b) a non-NBD key whose legalName is NBD's is NOT NBD: it gets a synthesized
+    // config with the name stripped, and no Joe / No Big Deal in its prompt.
+    const p4b = await A.resolvePersona(db, `e2e-gaunt-persona-nbdnamerep-${stamp}`, coNbdName, 'Dana Rep');
+    expect(p4b, 'NBD legalName on another key synthesizes a config (not null)').toBeTruthy();
+    expect(p4b.companyName, 'NBD legal name not borrowed by another key').not.toBe('No Big Deal Home Solutions');
+    expect(P.buildPersonaPrompt(p4b), 'no Joe leak for an NBD-named stranger').not.toContain('Joe');
   });
 
   // ── 2. LAPSE — pure Node/admin (no browser) ────────────────────────

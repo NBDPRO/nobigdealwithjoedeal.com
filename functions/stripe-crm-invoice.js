@@ -4,9 +4,10 @@
  *
  * Jo (2026-09-29): "isn't it clear we would rather send an invoice over a
  * link?" A Stripe Invoice gives the homeowner a proper invoice page + PDF,
- * every payment method the account has on (card, Apple Pay, Link — and ACH /
- * bank payment the moment Jo activates it; no payment_method_types is passed,
- * so the account's own settings decide), and Stripe tracks it as an invoice
+ * card (Apple Pay / Google Pay), Link and bank payment (ACH, us_bank_account
+ * — 2026-10-04, ach-payments.js; until ACH is switched on in the Stripe
+ * dashboard the list steps down to the account's own defaults, so nothing
+ * breaks), and Stripe tracks it as an invoice
  * (open / paid / void), which is what lets the ledger tie the money back.
  *
  * createStripePaymentLink (stripe.js) calls mintCrmStripeInvoice for the
@@ -47,7 +48,19 @@ function invoiceItemsFrom(lineItems) {
   }).filter((it) => it.amount !== 0);
 }
 
-const FOOTER = 'Also accepted: Zelle to (859) 420-7382, or a check payable to No Big Deal Home Solutions, LLC. Questions? Call or text (859) 420-7382.';
+// Zelle goes to the company profile's Zelle pair (Jo, 2026-10-04: (859)
+// 420-7382 or jd@ — never info@, which stays the documents address).
+// zelle-contact.js; NBD's defaults when the profile sets none AND tenantId is
+// the NBD platform tenant (companyId-keyed, never brand strings). The ACH line
+// appears only when the invoice really offers a bank payment.
+const ZC = require('./zelle-contact');
+const ACH = require('./ach-payments');
+function footerFor(zelleText, offersAch) {
+  const z = zelleText ? 'Zelle to ' + zelleText + ', or a check' : 'a check';
+  return (offersAch ? 'Pay by bank (ACH) on this page — lower fees than a card. ' : '')
+    + 'Also accepted: ' + z + ' payable to No Big Deal Home Solutions, LLC. Questions? Call or text (859) 420-7382.';
+}
+const FOOTER = footerFor(ZC.zelleContactOf(null, ZC.NBD_OWNER_UID).text, false);
 
 /**
  * @returns {Promise<{url, id, pdf, reused}>}
@@ -93,7 +106,21 @@ async function mintCrmStripeInvoice(stripe, db, args) {
     if (p.status === 'open' && p.amount_remaining === balanceDueCents) {
       return { url: p.hosted_invoice_url, id: p.id, pdf: p.invoice_pdf, reused: true };
     }
-    if (p.status === 'open' && !(p.amount_paid > 0)) await stripe.invoices.voidInvoice(prior);
+    // R4-11 (2026-10-06): an OPEN prior that already took part of a payment
+    // used to be left as is while a new invoice was minted, so the homeowner
+    // held two payable bills for the same job. It cannot be voided without
+    // losing track of that payment, so refuse and say why; the office
+    // reconciles the prior in Stripe first.
+    if (p.status === 'open' && p.amount_paid > 0) {
+      const err = new Error('Prior Stripe invoice ' + prior + ' is open and partly paid ('
+        + p.amount_paid + ' of ' + (p.amount_due || p.total || '?') + ' cents) — not minting a second payable invoice');
+      err.code = 'prior_invoice_partly_paid';
+      err.httpStatus = 409;
+      err.publicMessage = 'This invoice already has a partly paid Stripe invoice (' + (p.number || prior) + '). '
+        + 'Record or refund that payment in Stripe before sending a new pay link, so the homeowner is never asked to pay twice.';
+      throw err;
+    }
+    if (p.status === 'open') await stripe.invoices.voidInvoice(prior);
     else if (p.status === 'draft') await stripe.invoices.del(prior);
   }
 
@@ -102,7 +129,16 @@ async function mintCrmStripeInvoice(stripe, db, args) {
     invoiceId: String(invoiceId), leadId: String(invoice.leadId || ''), companyId: String(tenantId),
     userId: String(uid), source: 'crm', chargedCents: String(balanceDueCents),
   };
-  const draft = await stripe.invoices.create({
+  // The tenant's Zelle pair (platform tenant: NBD's defaults unless Jo set
+  // his own on the profile). Best-effort read — the defaults are right.
+  let zelleText = ZC.zelleContactOf(null, String(tenantId || '')).text;
+  try {
+    const cp = await db.collection('companyProfile').doc(String(tenantId)).get();
+    if (cp && cp.exists) zelleText = ZC.zelleContactOf((cp.data() || {}).brand || null, String(tenantId || '')).text;
+  } catch (_) { /* defaults above (NBD's only for the NBD companyId) */ }
+  // Card + Link + bank (ACH), stepping down to the account's defaults if
+  // ACH is not switched on in the Stripe dashboard yet (ach-payments.js).
+  const { result: draft } = await ACH.createWithAch((p, o) => stripe.invoices.create(p, o), {
     customer: customerId,
     collection_method: 'send_invoice',
     // 7 days (Jo's live-CRM handoff, 2026-09-30); was 14. ONE value for
@@ -114,7 +150,11 @@ async function mintCrmStripeInvoice(stripe, db, args) {
     metadata,
     custom_fields: [{ name: 'NBD Invoice', value: String(invoice.invoiceNumber || invoiceId).slice(0, 30) }],
     description: invoice.customerName ? ('Invoice for ' + String(invoice.customerName).slice(0, 200)) : undefined,
-    footer: FOOTER,
+    footer: footerFor(zelleText, false),
+  }, (p, types) => {
+    ACH.applyToInvoice(p, types);
+    p.footer = footerFor(zelleText, ACH.offersAch(types));
+    return p;
   }, { idempotencyKey: 'nbd-crm-inv-' + invoiceId + '-' + balanceDueCents + '-' + (prior || 'none') });
   await invRef.update({ stripeInvoiceId: draft.id, stripeInvoiceKind: 'invoice', updatedAt: new Date() });
 
@@ -138,4 +178,4 @@ async function mintCrmStripeInvoice(stripe, db, args) {
   return { url: fin.hosted_invoice_url, id: fin.id, pdf: fin.invoice_pdf, reused: false };
 }
 
-module.exports = { invoiceItemsFrom, mintCrmStripeInvoice, FOOTER };
+module.exports = { invoiceItemsFrom, mintCrmStripeInvoice, FOOTER, footerFor };

@@ -464,7 +464,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -480,7 +480,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -537,6 +537,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -559,6 +560,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -596,8 +598,8 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -760,7 +762,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   <div class="hx-wrap">
     <h1>The Cincinnati &amp; N. KY roofer <span>who answers his own phone.</span></h1>
     <ul class="hx-proof" aria-label="Credentials">
-      <li>GAF System Plus</li>
+      <li>GAF Certified&trade;</li>
       <li>TAMKO Pro Gold</li>
       <li><span><span data-nbd-gr-rating>5.0</span> on Google</span></li>
       <li>Cincinnati &amp; N. KY</li>
@@ -810,7 +812,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   <div class="hx-wrap hh-grid">
     <div id="about">
       <p class="eyebrow">What happens when you book</p>
-      <h2 class="sec-title">Free, 30 minutes, <span>no pitch.</span></h2>
+      <h2 class="sec-title">Free, Joe on the roof, <span>no pitch.</span></h2>
       <p class="hh-sub">I'm Joe Deal &mdash; 7+ years on Cincinnati roofs, now under my own name. No call centers, no handoffs. <a href="/about" class="hh-about">More about Joe &rarr;</a></p>
     </div>
     <div>
@@ -837,8 +839,8 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   </div>
 </section>
 
-<!-- WELCOME VIDEO: "Meet Thursday", a 30-second self-hosted look at the free
-     inspection (Jo, 2026-10-05; re-finished in Remotion 2026-10-06). One place to swap it: replace the files
+<!-- WELCOME VIDEO: "Meet Thursday", a 34-second self-hosted look at the free
+     inspection (Jo, 2026-10-05; re-finished in Remotion 2026-10-06; v3 cut live 2026-10-07). One place to swap it: replace the files
      /assets/video/thursday-welcome.mp4 + .en.vtt and
      /assets/img/thursday-welcome-poster.webp, then bump ?v= in this block.
      No autoplay; preload="none" fetches nothing until Play. The width/height
@@ -866,12 +868,12 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     <div class="iv-copy">
       <p class="eyebrow">Meet Thursday</p>
       <h2 class="sec-title" id="iv-h">A quick look at your <span>free inspection</span></h2>
-      <p class="iv-desc">30 seconds on what happens when Joe comes out: what he checks on the roof, the photos you get, and your options after.</p>
+      <p class="iv-desc">About 30 seconds on what happens when Joe comes out: what he checks on the roof, the photos you get, and your options after.</p>
     </div>
     <div class="iv-frame">
-      <video class="iv-video" controls playsinline preload="none" width="540" height="960" poster="/assets/img/thursday-welcome-poster.webp?v=2" aria-label="Meet Thursday: a quick look at your free inspection">
-        <source src="/assets/video/thursday-welcome.mp4?v=2" type="video/mp4">
-        <track kind="captions" src="/assets/video/thursday-welcome.en.vtt?v=2" srclang="en" label="English">
+      <video class="iv-video" controls playsinline preload="none" width="540" height="960" poster="/assets/img/thursday-welcome-poster.webp?v=3" aria-label="Meet Thursday: a quick look at your free inspection">
+        <source src="/assets/video/thursday-welcome.mp4?v=3" type="video/mp4">
+        <track kind="captions" src="/assets/video/thursday-welcome.en.vtt?v=3" srclang="en" label="English">
       </video>
     </div>
   </div>
@@ -885,11 +887,14 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     </div>
     <!-- The score, star row and review count are hydrated from the live
          Places payload by js/google-reviews-widget.js (data-nbd-gr-* hooks).
-         The values below are the static fallback: they are what a visitor
-         sees if the fetch fails, so they must stay TRUE at rest, not zeroed.
-         Do not hardcode a number here without updating the profile — before
-         2026-09-20 this row was static-only and would have kept claiming 5.0
-         forever if the rating ever moved.
+         The rating and stars below are the static fallback a visitor sees if
+         the fetch fails, so they must stay TRUE at rest, not zeroed. The
+         review COUNT has no static fallback (2026-10-06): a hard-coded count
+         goes stale the day the next review lands, so data-nbd-gr-total ships
+         empty inside a hidden data-nbd-gr-total-wrap that the widget reveals
+         only when the live payload carries a count. Before 2026-09-20 this
+         row was static-only and would have kept claiming 5.0 forever if the
+         rating ever moved.
          data-nbd-gr-recent ships EMPTY on purpose: it is filled with
          " · N new this month" only when the payload carries `recent`
          (Google's count grew against a real baseline), and never gets a
@@ -897,7 +902,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     <div class="reviews-rating">
       <div class="reviews-stars" data-nbd-gr-stars>★★★★★</div>
       <div>
-        <div class="reviews-score"><span data-nbd-gr-rating>5.0</span> on Google &middot; <span data-nbd-gr-total>29</span> reviews<span data-nbd-gr-recent></span></div>
+        <div class="reviews-score"><span data-nbd-gr-rating>5.0</span> on Google<span data-nbd-gr-total-wrap hidden> &middot; <span data-nbd-gr-total></span> reviews</span><span data-nbd-gr-recent></span></div>
         <div class="reviews-score-sub"><a href="https://g.page/r/CXzIjLwvtRPdEBM" target="_blank" rel="noopener noreferrer" style="color:inherit">Verified Google Business Profile</a> — real reviews from Cincinnati &amp; N. Kentucky homeowners</div>
       </div>
       <a href="/inspect" class="btn-primary" style="margin-left:auto">Book a free inspection</a>
@@ -965,7 +970,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     <div>
       <p class="eyebrow">Ready when you are</p>
       <h2 class="sec-title">Book your free <span>inspection.</span></h2>
-      <p class="hb-lede">Tell me where the house is and what&rsquo;s going on &mdash; about 30 minutes at your home, no pressure, no obligation. Rather pick the time yourself? <a class="hh-about" href="/book">My calendar is open</a>.</p>
+      <p class="hb-lede">Tell me where the house is and what&rsquo;s going on &mdash; usually 45 minutes to an hour at your home, no pressure, no obligation. Rather pick the time yourself? <a class="hh-about" href="/book">My calendar is open</a>.</p>
       <div class="hx-cta">
         <a class="hx-btn" href="/inspect">Book a free inspection</a>
         <p class="hx-alt">Rather talk? <a href="tel:+18594207382">Call or text Joe &mdash; (859) 420-7382</a></p>
@@ -1025,7 +1030,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
             </div>
             <div class="form-group">
               <label for="fieldMessage">Tell Me About Your Project</label>
-              <textarea id="fieldMessage" placeholder="Describe what's going on — we'll get back to you with honest answers and a fair quote."></textarea>
+              <textarea id="fieldMessage" maxlength="1500" placeholder="Describe what's going on — we'll get back to you with honest answers and a fair quote."></textarea>
             </div>
             <!-- Scheduling choice (required), photos, best time, insurance, how heard — js/intake-extras.js -->
             <div data-nbd-intake="hp"></div>

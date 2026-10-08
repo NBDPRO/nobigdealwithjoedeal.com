@@ -44,12 +44,12 @@ async function dismissToasts(page) {
   }
 }
 const readLead = (page, id) => safeEvaluate(page, async (leadId) => {
-  const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+  const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
   const s = await fs.getDocFromServer(fs.doc(window.db || window._db, 'leads', leadId));
   return s.exists() ? s.data() : null;
 }, id);
 const readOrders = (page, id) => safeEvaluate(page, async (leadId) => {
-  const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+  const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
   const snap = await fs.getDocsFromServer(fs.collection(window.db || window._db, 'leads', leadId, 'jobs', 'j1', 'orders'));
   return snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
 }, id);
@@ -68,12 +68,13 @@ test.describe.serial('phone production flow at 390px, installed app @shard2', ()
   let leadA = null;           // the customer-page job
   const seededOrders = [];    // [leadId]
   const seededSubs = [];      // sub names (removed by name in afterAll)
+  const textChecks = [];      // phoneTextAction payloads (the ok-to-text stub)
 
   async function seedLead(fields) {
     return safeEvaluate(page, async ({ f, tag }) => {
       const id = await window._saveLead(Object.assign({ e2eTestData: true, e2eRun: tag }, f));
       if (id) return id;
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const snap = await fs.getDocs(fs.query(fs.collection(window.db, 'leads'), fs.where('userId', '==', window._user.uid), fs.where('lastName', '==', f.lastName)));
       return snap.docs.length ? snap.docs[0].id : null;
     }, { f: fields, tag: run });
@@ -113,6 +114,12 @@ test.describe.serial('phone production flow at 390px, installed app @shard2', ()
           blocks: [{ startMs: s, endMs: s + 2 * 3600000, calendars: ['jo@example.test'], titles: [] }] } }) });
       }
       if (/getJobWeather/.test(url)) return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ result: { byLead: {} } }) });
+      // phoneTextAction (review R2-3-2): a send to a sub's number is checked
+      // against the STOP / Do Not Text lists first and fails CLOSED, so yes.
+      if (/phoneTextAction/.test(url)) {
+        try { textChecks.push((JSON.parse(r.request().postData() || '{}').data) || {}); } catch (_) {}
+        return r.fulfill({ contentType: 'application/json', body: JSON.stringify({ result: { ok: true } }) });
+      }
       return r.fulfill({ contentType: 'application/json', body: '{"result":null}' });
     });
     await loginAs(page, creds);
@@ -124,7 +131,7 @@ test.describe.serial('phone production flow at 390px, installed app @shard2', ()
     testInfo.setTimeout(120_000);
     if (!context) return;
     await safeEvaluate(page, async ({ leads, names }) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       for (const id of leads) {
         try { const s = await fs.getDocs(fs.collection(db, 'leads', id, 'jobs', 'j1', 'orders')); for (const d of s.docs) await fs.deleteDoc(d.ref); } catch (_) {}
@@ -231,6 +238,7 @@ test.describe.serial('phone production flow at 390px, installed app @shard2', ()
     await page.locator('[data-pr-action="send-sheet"]').tap();
     await expect.poll(() => safeEvaluate(page, () => (window.__shared || []).length), { timeout: 10_000 }).toBe(1);
     const shared = await safeEvaluate(page, () => window.__shared[0]);
+    expect(textChecks.some((d) => d.action === 'check' && d.recipient === 'crew'), "the sub's number was checked (crew) before the sheet opened").toBe(true);
     expect(shared.text).toContain('Strip Way, Mason, OH');
     expect(shared.text).toContain('https://www.google.com/maps/search/?api=1&query=');
     expect(shared.text).toContain('Tear off, 24 SQ architectural');

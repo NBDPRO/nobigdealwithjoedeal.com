@@ -736,7 +736,11 @@ const linksOutHtml = (p) => {
   const townPeers = t ? ringPick(byTown.get(t.slug) || [], p, RELATED_BY_TOWN, skip) : [];
   const svcLinks = [`<a href="/services/${primary}">${esc(SERVICES[primary])} — how we do it</a>`];
   const local = townServiceHref(primary, t);
-  if (local) svcLinks.push(`<a href="${local}">${esc(noun)} in ${esc(t.name)}</a>`);
+  // The town-page link names the page's service ("Gutter Replacement in
+  // Cincinnati"), not the short job noun ("Gutter in Cincinnati") — SEO audit
+  // 2026-10-06, descriptive anchors to the town service pages.
+  const linkNoun = primary === 'gutter-replacement' ? 'Gutter Replacement' : noun;
+  if (local) svcLinks.push(`<a href="${local}">${esc(linkNoun)} in ${esc(t.name)}</a>`);
   const out = [`    <h2 class="pd-h2">More ${esc(noun)} Work</h2>
     <p class="pd-links">${svcLinks.join(' <span class="project-dot">·</span> ')}</p>${svcPeers.length ? `
     ${relatedList(svcPeers)}` : ''}`];

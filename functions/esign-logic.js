@@ -39,6 +39,23 @@ const CONSENT_TEXT =
 
 /** Reminder cadence — the same one BoldSign was configured with (every 2 days, 3 times). */
 const REMINDER_EVERY_MS = 2 * 86_400_000;
+
+// Platform tenant (same convention as lead-alert.js / render-pdf.js): NBD is
+// the record whose tenant key (companyId, else the owner uid) IS the NBD owner
+// uid — never decided by brand name. A key-less legacy record is NBD's.
+const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+const NBD_LEGAL = 'No Big Deal Home Solutions';
+/**
+ * The sending company's name for envelope copy. resolveCompanyName hands back
+ * '' for NBD (its legalName IS the NBD name) and for a tenant that never set
+ * one: NBD keeps its name; any other tenant gets '' (neutral wording), never
+ * NBD's.
+ */
+function senderName(name, tenantKey) {
+  const n = String(name || '').trim();
+  if (n) return n;
+  return (!tenantKey || String(tenantKey) === NBD_OWNER_UID) ? NBD_LEGAL : '';
+}
 const REMINDER_MAX = 3;
 
 function str(v, max) {
@@ -224,6 +241,23 @@ function utcStamp(ms) {
 }
 
 /**
+ * ms → "2026-10-06 21:05:22 EDT" — the signing time in the envelope's zone
+ * (default America/New_York), zone named. The line stamped on the signed
+ * pages printed a bare ISO "…T01:05:22.000Z", which reads as the NEXT day
+ * for any evening Eastern signing (review round 4 D10).
+ */
+function zonedStamp(ms, tz) {
+  const n = Number(ms);
+  if (!Number.isFinite(n) || n <= 0) return '-';
+  let zone = 'America/New_York';
+  try { if (tz) { new Intl.DateTimeFormat('en-US', { timeZone: tz }).format(0); zone = tz; } } catch (_) { /* default zone */ }
+  const p = new Intl.DateTimeFormat('en-US', { timeZone: zone, hourCycle: 'h23', timeZoneName: 'short',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date(n));
+  const g = (k) => (p.find((x) => x.type === k) || {}).value || '';
+  return g('year') + '-' + g('month') + '-' + g('day') + ' ' + g('hour') + ':' + g('minute') + ':' + g('second') + ' ' + g('timeZoneName');
+}
+
+/**
  * The lines of the signature certificate appended to the executed PDF.
  * env: the envelope (with signers[] carrying evidence); extra: { completedAt }.
  */
@@ -234,7 +268,7 @@ function certificateLines(env, extra) {
   out.push({ h: 'Signature Certificate' });
   out.push({ t: 'Document: ' + (e.title || 'Document') });
   out.push({ t: 'Envelope ID: ' + (x.envelopeId || e.id || '-') });
-  out.push({ t: 'Sent by: ' + (e.companyName || 'No Big Deal Home Solutions') });
+  out.push({ t: 'Sent by: ' + (senderName(e.companyName, e.companyId || e.ownerUid) || '-') });
   out.push({ t: 'Original document SHA-256: ' + (e.sourceSha256 || '-') });
   out.push({ t: 'Pages in original: ' + (e.pageCount || (Array.isArray(e.pages) ? e.pages.length : '-')) });
   out.push({ t: 'Sent: ' + utcStamp(e.sentAtMs) + '    Completed: ' + utcStamp(x.completedAt) });
@@ -265,11 +299,16 @@ function escHtml(s) {
 /** The "please sign" email — also the reminder (reminder: true) and the next-signer handoff. */
 function linkEmail(o) {
   const p = o || {};
-  const brand = escHtml(p.brand || 'No Big Deal Home Solutions');
+  // p.tenantKey: the envelope's companyId || ownerUid (see senderName).
+  const brand = escHtml(senderName(p.brand, p.tenantKey));
   const title = escHtml(p.title || 'a document');
   const lead = p.reminder
-    ? `A friendly reminder: <strong>${title}</strong> from ${brand} is still waiting for your signature.`
-    : `${brand} has <strong>${title}</strong> ready for your signature. You can review and sign it right on your phone — it takes about a minute.`;
+    ? (brand
+      ? `A friendly reminder: <strong>${title}</strong> from ${brand} is still waiting for your signature.`
+      : `A friendly reminder: <strong>${title}</strong> is still waiting for your signature.`)
+    : (brand
+      ? `${brand} has <strong>${title}</strong> ready for your signature. You can review and sign it right on your phone — it takes about a minute.`
+      : `<strong>${title}</strong> is ready for your signature. You can review and sign it right on your phone — it takes about a minute.`);
   return {
     subject: (p.reminder ? 'Reminder: please sign ' : 'Please sign: ') + (p.title || 'your document'),
     html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#12223d;">
@@ -287,21 +326,45 @@ function linkEmail(o) {
 /** The signed copy, delivered to every signer when the envelope completes. */
 function signedCopyEmail(o) {
   const p = o || {};
-  const brand = escHtml(p.brand || 'No Big Deal Home Solutions');
+  const brand = escHtml(senderName(p.brand, p.tenantKey));
   const title = escHtml(p.title || 'your document');
   return {
     subject: 'Signed copy: ' + (p.title || 'your document'),
     html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#12223d;">
             <p>Hi ${escHtml(p.name || 'there')},</p>
-            <p>Thank you — <strong>${title}</strong> with ${brand} is fully signed. Your copy is attached as a PDF${p.attached === false ? ' (it was too large to attach — ask your rep and they will send it)' : ''}.</p>
+            <p>Thank you — <strong>${title}</strong>${brand ? ' with ' + brand : ''} is fully signed. Your copy is attached as a PDF${p.attached === false ? ' (it was too large to attach — ask your rep and they will send it)' : ''}.</p>
             <p style="font-size:12px;color:#666;">Keep this email for your records. The last page of the PDF is the signature certificate.</p>
           </div>`,
   };
 }
 
+// ── Who a signing link may be emailed to (R3-11, Jo 2026-10-06) ──────────
+// createSignRequest and the e-sign envelopes mail from the platform domain,
+// and sign-up is open, so they must not relay to any address a caller types.
+// A signer email must be the lead's email on record, or one the rep saved on
+// the lead as an alternate (lead.altEmails — e.g. a co-owner). Compared
+// trimmed and case-insensitive. Pure.
+const SIGN_EMAIL_DAILY_CAP = 50;          // sign-link sends per user per day, both flows together
+const SIGN_EMAIL_NOT_ON_RECORD = "That email isn't on this customer's record. Save it on the customer first (their email, or an alternate email), then send.";
+
+function emailsOnRecord(lead) {
+  const out = [];
+  if (!lead || typeof lead !== 'object') return out;
+  const add = (e) => { if (typeof e === 'string' && e.trim()) out.push(e.trim().toLowerCase()); };
+  add(lead.email);
+  if (Array.isArray(lead.altEmails)) lead.altEmails.forEach(add);
+  return out;
+}
+
+function recipientOnRecord(lead, email) {
+  if (typeof email !== 'string' || !email.trim()) return false;
+  return emailsOnRecord(lead).indexOf(email.trim().toLowerCase()) !== -1;
+}
+
 module.exports = {
+  SIGN_EMAIL_DAILY_CAP, SIGN_EMAIL_NOT_ON_RECORD, emailsOnRecord, recipientOnRecord,
   MAX_SIGNERS, DEFAULT_SIGNER_ID, CONSENT_TEXT, REMINDER_EVERY_MS, REMINDER_MAX, REQUIRED_EVIDENCE, EMAIL_RE,
   normalizeSigners, fieldsForSigner, nextPendingSigner, signerForToken, sanitizeSignerInput,
   validateSignerLayout, pickSignerValues, buildSignerEvidence, missingEvidence, estimateStatusFor,
-  utcStamp, certificateLines, escHtml, linkEmail, signedCopyEmail,
+  utcStamp, zonedStamp, certificateLines, escHtml, linkEmail, signedCopyEmail, senderName,
 };

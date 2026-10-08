@@ -21,7 +21,7 @@
   'use strict';
   if (window.NBDCarePlan && window.NBDCarePlan.__v === 1) return;
 
-  const FUNCTIONS_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
+  const FUNCTIONS_SDK = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
   const MEMBER_STATUSES = ['active', 'past_due'];
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const toast = (m, t) => { if (typeof window.showToast === 'function') window.showToast(m, t || 'info'); };
@@ -79,6 +79,25 @@
   function mailHref(email, subject, body) {
     return 'mailto:' + encodeURIComponent(String(email || '')) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
   }
+  // R6-3-2 (2026-10-07): "Text it" was an <a href="sms:…"> — Messages opened
+  // with the link written in and no STOP / Do Not Text / texting-hours check.
+  // Now it asks the server's "ok to text?" first (phone-share.js checkText →
+  // phoneTextAction) and opens Messages only on a yes; a "no", or a check
+  // that can't run, says why and opens nothing.
+  async function textIt(dlg) {
+    const t = dlg && dlg._nbdText;
+    if (!t || !t.phone) return;
+    const PS = window.NBDPhoneShare;
+    let chk = null;
+    try {
+      chk = (PS && typeof PS.checkText === 'function') ? await PS.checkText({ phone: t.phone, leadId: t.leadId }) : null;
+    } catch (_) { chk = null; }
+    if (!chk || chk.ok !== true) {
+      toast((chk && chk.reason) || 'Couldn’t check whether this customer can be texted — nothing was sent. Reload and try again.', 'error');
+      return;
+    }
+    window.location.href = smsHref(t.phone, t.text);
+  }
   function openLinkDialog(o) {
     let dlg = document.getElementById('cpDialog');
     if (!dlg) {
@@ -90,6 +109,7 @@
         if (!b) { if (ev.target === dlg) dlg.close(); return; }
         const act = b.getAttribute('data-cp-dlg');
         if (act === 'close') dlg.close();
+        if (act === 'text') textIt(dlg);
         if (act === 'copy') {
           const input = dlg.querySelector('.cp-link');
           const v = input ? input.value : '';
@@ -105,6 +125,8 @@
       ? 'Hi ' + first + ', here is the link to manage or cancel your NBD Roof Care Plan: ' + o.url + ' — Joe'
       : 'Hi ' + first + ', here is the link to join the NBD Roof Care Plan — $199 a year or $19 a month, no lock-in, cancel anytime: ' + o.url + ' — Joe';
     const subject = o.kind === 'portal' ? 'Your Roof Care Plan billing link' : 'Your Roof Care Plan sign-up link';
+    // What "Text it" sends, read at tap time (the dialog is reused).
+    dlg._nbdText = o.phone ? { phone: o.phone, leadId: o.leadId || '', text } : null;
     dlg.innerHTML =
       '<h2>' + esc(o.kind === 'portal' ? 'Billing link for ' + (o.name || 'this member') : 'Roof Care Plan link for ' + (o.name || 'this customer')) + '</h2>' +
       '<p>' + esc(o.kind === 'portal'
@@ -113,7 +135,7 @@
       '<input class="cp-link" type="text" readonly aria-label="Link" value="' + esc(o.url) + '">' +
       '<div class="cp-actions">' +
         '<button type="button" class="btn btn-orange" data-cp-dlg="copy">Copy link</button>' +
-        (o.phone ? '<a class="btn btn-ghost" href="' + esc(smsHref(o.phone, text)) + '">Text it</a>' : '') +
+        (o.phone ? '<button type="button" class="btn btn-ghost" data-cp-dlg="text">Text it</button>' : '') +
         (o.email ? '<a class="btn btn-ghost" href="' + esc(mailHref(o.email, subject, text)) + '">Email it</a>' : '') +
         '<button type="button" class="ui-btn-quiet" data-cp-dlg="close">Close</button>' +
       '</div>' +
@@ -124,7 +146,7 @@
   async function invite(lead) {
     try {
       const r = await callable('carePlanAdmin', { action: 'invite', leadId: lead.id });
-      openLinkDialog({ kind: 'invite', url: r.url, name: r.name, phone: r.phone, email: r.email });
+      openLinkDialog({ kind: 'invite', url: r.url, name: r.name, phone: r.phone, email: r.email, leadId: lead.id });
     } catch (e) {
       toast(String((e && e.message) || 'Could not make the link').replace(/^.*?:\s*/, ''), 'error');
     }
@@ -133,7 +155,7 @@
     try {
       const r = await callable('carePlanAdmin', { action: 'portal', carePlanId: lead.carePlan.carePlanId });
       const name = [lead.firstName, lead.lastName].filter(Boolean).join(' ');
-      openLinkDialog({ kind: 'portal', url: r.url, name, phone: lead.phone, email: lead.email });
+      openLinkDialog({ kind: 'portal', url: r.url, name, phone: lead.phone, email: lead.email, leadId: lead.id });
     } catch (e) {
       toast(String((e && e.message) || 'Could not open billing').replace(/^.*?:\s*/, ''), 'error');
     }

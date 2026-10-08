@@ -79,12 +79,19 @@ function makeWorld(opts) {
   const writes = [];
   const smsLog = [];
   const logs = { error: [], warn: [], info: [] };
-  const docs = Object.assign({}, opts.docs || {});
+  // 2026-10-05: co-1 is a registered company with a name (the texting master
+  // switch and the door-knock company line, sms-texting-gate.js /
+  // sms-functions.js complianceGate) — not what this suite is about.
+  const docs = Object.assign({
+    'sms_settings/co-1': { registered: true },
+    'companyProfile/co-1': { brand: { legalName: 'Acme Roofing' } },
+  }, opts.docs || {});
   const limited = new Set(opts.limited || []);
   const twilioCalls = [];
   let optOutReads = 0;
 
   const docRef = (p) => ({
+    path: p,
     get: async () => {
       if (p.startsWith('sms_opt_outs/')) {
         events.push('optout-read');
@@ -130,6 +137,11 @@ function makeWorld(opts) {
     collection: (name) => Object.assign(query(name, []), {
       add: async (row) => { if (name === 'sms_log') smsLog.push(row); return { id: 'x' }; },
       doc: (id) => docRef(name + '/' + id),
+    }),
+    // onAiDraftApproved claims the send on the draft before Twilio (R6-3-3).
+    runTransaction: async (fn) => fn({
+      get: (ref) => ref.get(),
+      update: (ref, data) => { events.push('claim:' + ref.path); docs[ref.path] = Object.assign({}, docs[ref.path] || {}, data); },
     }),
   };
 
@@ -214,6 +226,9 @@ function load(opts) {
     delete require.cache[path.join(FUNCTIONS, f)];
   }
   const exported = require(MOD);
+  // Live sends are held to texting hours (2026-10-05): pin the clock to noon
+  // Eastern so this suite does not depend on when it runs.
+  require(path.join(FUNCTIONS, 'sms-outbox-guard.js')).nowMs = () => Date.parse('2026-10-05T16:00:00Z');
   // The copy of sms-optout.js this sms-functions.js is bound to. The handlers
   // read OptOut.READ_TIMEOUT_MS at call time, so a scenario can shorten the
   // bound here instead of waiting out the real 10s.
@@ -277,7 +292,7 @@ async function callSendSMS(opts, bodyOverride) {
 }
 
 async function callSendD2DSMS(opts) {
-  const knock = { userId: 'rep-1', companyId: 'co-1', phone: PHONE_TYPED, firstName: 'Sam', repName: 'Joe' };
+  const knock = { userId: 'rep-1', companyId: 'co-1', phone: PHONE_TYPED, firstName: 'Sam', repName: 'Joe', smsConsent: true };
   const docs = Object.assign({ 'knocks/knock-1': knock }, (opts && opts.docs) || {});
   const { exported, world: w } = load(Object.assign({}, opts, { docs }));
   const res = mkRes();
@@ -502,6 +517,8 @@ const OPTED_OUT = { [OPT_DOC]: { phone: '+18595550134', keyword: 'STOP' } };
       status: 'approved', draftText: text || 'Thanks Sam — we can come Tuesday.',
       customerPhone: PHONE_TYPED, userId: 'rep-1', companyId: 'co-1', approvedBy: 'rep-1',
     };
+    // The draft doc as the trigger sees it (the send claim reads it — R6-3-3).
+    world.docs[DRAFT_DOC] = Object.assign({}, after);
     await exported.onAiDraftApproved.__handler({
       data: { before: { data: () => before }, after: { data: () => after } },
       params: { leadId: 'lead-1', draftId: 'draft-1' },
@@ -542,8 +559,9 @@ const OPTED_OUT = { [OPT_DOC]: { phone: '+18595550134', keyword: 'STOP' } };
       w.logs.error.some((a) => a[0] === 'optout_record_error' && a[1] && a[1].fn === 'onAiDraftApproved'));
   }
   {
-    // Control: only 21610 means "opted out".
-    const err = Object.assign(new Error('Twilio down'), { code: 20500 });
+    // Control: only 21610 means "opted out". (A definite refusal, HTTP 400:
+    // since R6-3-3 an error with no Twilio answer is send_uncertain instead.)
+    const err = Object.assign(new Error('Invalid To number'), { code: 21211, status: 400 });
     const { exported, world: w } = load({ twilioError: err });
     await approveDraft(exported);
     ok('AI draft: a non-21610 Twilio error writes nothing to the register',

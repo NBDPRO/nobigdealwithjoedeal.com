@@ -61,7 +61,7 @@ async function seed(page) {
   const leadId = 'e2e-cxl-lead-' + stamp;
   const estimateId = 'e2e-cxl-est-' + stamp;
   return safeEvaluate(page, async ({ lead, est, leadId, estimateId }) => {
-    const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db || window._db;
     await fs.setDoc(fs.doc(db, 'leads', leadId), Object.assign({}, lead, { primaryEstimateId: estimateId, createdAt: fs.serverTimestamp() }));
     await fs.setDoc(fs.doc(db, 'estimates', estimateId), Object.assign({}, est, { leadId, createdAt: fs.serverTimestamp() }));
@@ -134,14 +134,14 @@ test.describe('contract signed in person carries the 3-day cancellation forms at
     // The documents row flips to signed with cancelBy; the lead gets cancelBy.
     const want = await page.evaluate(() => window.NBDJurisdiction.cancelBy(new Date(), 'America/New_York'));
     const signed = await safeEvaluate(page, async ({ leadId, want }) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       for (let i = 0; i < 60; i++) {
         const snap = await fs.getDocs(fs.collection(db, 'leads', leadId, 'documents'));
         const row = snap.docs.map((d) => d.data()).find((d) => d.type === 'contract' && d.status === 'signed');
         const lead = (await fs.getDoc(fs.doc(db, 'leads', leadId))).data() || {};
         if (row && row.cancelBy === want && lead.cancelBy === want) {
-          const st = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+          const st = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js');
           const bytes = await st.getBytes(st.ref(window.storage || st.getStorage(), row.htmlPath));
           return { row, leadCancelBy: lead.cancelBy, html: new TextDecoder().decode(bytes) };
         }

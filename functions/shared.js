@@ -73,9 +73,20 @@ function HttpsError() {
 // + Firestore limiter namespaces already in use, so rollouts don't
 // reset in-flight counters.
 // ═════════════════════════════════════════════════════════════
+// R3-7 (review round 3, 2026-10-06): an Anonymous-provider token is
+// refused here, before the limiter. A fresh anonymous uid is a fresh
+// per-uid bucket, so anonymous accounts defeated every limit keyed on it;
+// and this is the one helper ~80 callables share (createCompany,
+// mintOwnerClaims, claimInvite and reserveCompanyPrefix among them), so it
+// is also where they stop treating an anonymous account as a user.
+// Anonymous sign-in is off in the console; this covers any account made
+// before that, which can still refresh its ID token.
 async function callableRateLimit(request, name, limit, windowMs) {
   const uid = request.auth && request.auth.uid;
   if (!uid) return;
+  if (isAnonymousToken(request.auth.token)) {
+    throw new (HttpsError())('permission-denied', ANONYMOUS_MESSAGE);
+  }
   try {
     await enforceRateLimit('callable:' + name + ':uid', uid, limit, windowMs);
   } catch (e) {
@@ -160,6 +171,17 @@ async function requirePaidSubscription(db, decoded) {
 // refresh tokens were revoked (H-02 demo flip, GDPR erasure auth
 // disable, admin-MFA lockout) can't replay an old token.
 // ═════════════════════════════════════════════════════════════
+// R3-7: true only for a token minted by the Anonymous provider. Accepts
+// either claims shape (onCall request.auth.token, onRequest decoded token):
+// both carry firebase.sign_in_provider. A token without it (an emulator
+// mock, a hand-built stub) is NOT anonymous: absence never refuses.
+const ANONYMOUS_MESSAGE = 'Sign in with an account to continue';
+function isAnonymousToken(claims) {
+  return !!claims && typeof claims === 'object'
+    && !!claims.firebase && typeof claims.firebase === 'object'
+    && claims.firebase.sign_in_provider === 'anonymous';
+}
+
 async function requireAuth(req, { adminOnly = false } = {}) {
   const authHeader = req.headers.authorization || '';
   const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
@@ -174,6 +196,9 @@ async function requireAuth(req, { adminOnly = false } = {}) {
       return { error: { status: 401, body: { error: 'Token expired — please re-authenticate' } } };
     }
     return { error: { status: 401, body: { error: 'Invalid token' } } };
+  }
+  if (isAnonymousToken(decoded)) {
+    return { error: { status: 403, body: { error: ANONYMOUS_MESSAGE } } };
   }
   if (adminOnly && decoded.role !== 'admin') {
     return { error: { status: 403, body: { error: 'Admin access required' } } };
@@ -217,7 +242,13 @@ function isViewOnlyRole(claims) {
 }
 
 // onCall: throws HttpsError('permission-denied', 'Your role is view-only').
+// R3-7: also refuses an anonymous token. These two guard every write
+// callable / HTTP writer; an anonymous account is no more a writer than a
+// viewer is.
 function assertNotViewer(claims) {
+  if (isAnonymousToken(claims)) {
+    throw new (HttpsError())('permission-denied', ANONYMOUS_MESSAGE);
+  }
   if (isViewOnlyRole(claims)) {
     throw new (HttpsError())('permission-denied', VIEW_ONLY_MESSAGE);
   }
@@ -227,8 +258,36 @@ function assertNotViewer(claims) {
 // returns null, or { status: 403, body } for the caller to write with
 // `res.status(r.status).json(r.body)` and return — requireAuth's shape.
 function viewOnlyRefusal(decoded) {
+  if (isAnonymousToken(decoded)) {
+    return { status: 403, body: { error: ANONYMOUS_MESSAGE, code: 'anonymous' } };
+  }
   if (!isViewOnlyRole(decoded)) return null;
   return { status: 403, body: { error: VIEW_ONLY_MESSAGE, code: 'view-only' } };
+}
+
+// ═════════════════════════════════════════════════════════════
+// billingPortalRefusal — who may open the company's Stripe billing portal
+// (createCustomerPortalSession). The portal changes or cancels the
+// COMPANY's plan and payment method, so it is the owner's or a
+// company_admin's (or a platform admin's) — not any member's (R3 review,
+// Jo 2026-10-06; it used to refuse only a viewer).
+//
+// `decoded` is the Bearer token; `ownerId` is companies/{companyId}.ownerId
+// (null when unknown — the caller reads it only if the claims alone don't
+// already allow). A solo owner carries no companyId claim (or their own
+// uid) and no subordinate role. Returns null, or { status: 403, body }.
+// ═════════════════════════════════════════════════════════════
+const BILLING_OWNER_ONLY_MESSAGE = 'Only the company owner or an admin can manage billing';
+
+function billingPortalRefusal(decoded, ownerId) {
+  const d = decoded || {};
+  const uid = d.uid || '';
+  const role = typeof d.role === 'string' ? d.role.trim().toLowerCase() : '';
+  if (uid && (role === 'admin' || role === 'company_admin')) return null;
+  if (uid && ownerId && ownerId === uid) return null;
+  const { SUBORDINATE_ROLES } = require('./handlers/_shared');
+  if (uid && (!d.companyId || d.companyId === uid) && !SUBORDINATE_ROLES.has(role)) return null;
+  return { status: 403, body: { error: BILLING_OWNER_ONLY_MESSAGE, code: 'billing-owner-only' } };
 }
 
 module.exports = {
@@ -237,6 +296,9 @@ module.exports = {
   requireAuth,
   VIEW_ONLY_MESSAGE,
   isViewOnlyRole,
+  ANONYMOUS_MESSAGE,
+  isAnonymousToken,
   assertNotViewer,
   viewOnlyRefusal,
+  billingPortalRefusal,
 };

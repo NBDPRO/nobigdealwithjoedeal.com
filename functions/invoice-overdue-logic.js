@@ -32,6 +32,9 @@ function _ms(v) {
 }
 function overdueTaskId(invoiceId) { return 'invoice-overdue-' + _seg(invoiceId); }
 
+/** The shared overdue rule (KyLaw.invoiceOverdue), re-exported for callers here. */
+function overdueState(inv, lead, now, tz) { return KyLaw.invoiceOverdue(inv, lead, now, tz); }
+
 /**
  * Should this invoice get its overdue task now? Pure.
  *   inv: { id, ...doc }, lead: the lead doc | null, nowMs, tz?
@@ -46,14 +49,19 @@ function decideOverdue(inv, lead, nowMs, tz) {
   if (!(owed > 0)) return { due: false, reason: 'nothing_owed' };
   const dueMs = _ms(inv.dueDate);
   if (!Number.isFinite(dueMs)) return { due: false, reason: 'no_due_date' };
-  // Overdue the day AFTER the due date (Eastern calendar days).
-  const today = KyLaw.toUtcDay(new Date(nowMs), tz || KyLaw.DEFAULT_TIME_ZONE);
-  const dueDay = KyLaw.toUtcDay(new Date(dueMs), tz || KyLaw.DEFAULT_TIME_ZONE);
-  if (!(today > dueDay)) return { due: false, reason: 'not_yet' };
+  // THE overdue rule (ky-insurance-law.js invoiceOverdue — the browser's
+  // Invoices tab, Money aging and Today's plan ask the same function):
+  // overdue the day AFTER the due date (tenant calendar days), never while
+  // the Kentucky pay hold applies.
+  const zone = tz || KyLaw.DEFAULT_TIME_ZONE;
+  const now = new Date(nowMs);
+  const today = KyLaw.toUtcDay(now, zone);
+  if (!overdueState(inv, null, now, zone).pastDue) return { due: false, reason: 'not_yet' };
   if (!lead) return { due: false, reason: 'lead_unreadable' };
   if (lead.deleted === true || lead.deletedAt) return { due: false, reason: 'lead_deleted' };
-  if (KyLaw.payLinkHold(lead, inv, new Date(nowMs), tz).held) return { due: false, reason: 'ky_hold' };
-  const days = Math.round((today - dueDay) / 86400000);
+  const st = overdueState(inv, lead, now, zone);
+  if (st.held) return { due: false, reason: 'ky_hold' };
+  const days = st.days;
   const amt = '$' + owed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const who = String(inv.customerName || [lead.firstName, lead.lastName].filter(Boolean).join(' ') || 'the customer').slice(0, 80);
   return {
@@ -75,4 +83,4 @@ function decideOverdue(inv, lead, nowMs, tz) {
   };
 }
 
-module.exports = { OPEN_STATUSES, overdueTaskId, decideOverdue };
+module.exports = { OPEN_STATUSES, overdueTaskId, decideOverdue, overdueState };

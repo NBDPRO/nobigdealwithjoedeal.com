@@ -289,7 +289,27 @@ window.quickSmsPortalLink = async function () {
       return;
     }
 
+    // R6-3-2 (2026-10-07): the server's "ok to text?" (phone-share.js
+    // checkText → phoneTextAction: STOP register, Do Not Text list, consent,
+    // texting switch, 8am–9pm homeowner time) BEFORE Messages opens with the
+    // portal link written in. Started first so it runs while the link
+    // resolves; a "no" — or a check that can't run — says why, opens nothing
+    // and records no share.
+    const PS = window.NBDPhoneShare;
+    const leadId = lead.id || window._customerId || '';
+    const textCheck = (PS && typeof PS.checkText === 'function')
+      ? PS.checkText({ phone: lead.phone, leadId })
+      : Promise.resolve(null);
+
     const url = await _resolvePortalUrl();
+
+    const chk = await textCheck;
+    if (!chk || chk.ok !== true) {
+      if (typeof showToast === 'function') {
+        showToast((chk && chk.reason) || 'Couldn’t check whether this customer can be texted — nothing was sent. Reload and try again.', 'error');
+      }
+      return;
+    }
 
     // Friendly prefilled body — uses the customer's first name
     // when available so the SMS feels personal. Encoded for the

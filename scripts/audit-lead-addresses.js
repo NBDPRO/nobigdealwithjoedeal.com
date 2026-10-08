@@ -8,7 +8,7 @@
  * ──────────
  * Before Wave 141, the address autocomplete stored
  * `display_name.split(',').slice(0,3)` — which produced strings like
- * "1054, Klondyke Road, Goshen": a comma after the house number, the full
+ * "456, Example Road, Goshen": a comma after the house number, the full
  * road name instead of the USPS suffix, no ZIP, no 2-letter state, and a
  * Nominatim locality (hamlet / subdivision / township) where the post town
  * belongs. dashboard-ui.js formatMailingAddress() fixed the WRITE path, but
@@ -20,7 +20,7 @@
  *
  * CATEGORIES
  *   legacyMangled  Pre-Wave-141 residue: leading number followed by a comma
- *                  ("7003, Greenstone Trace, O'Bannon Creek"). Always wrong.
+ *                  ("7003, Wrenfield Trace, O'Bannon Creek"). Always wrong.
  *   blank          No address at all.
  *   noStreet       City/ZIP only, no house number — the shape Thumbtack
  *                  hands over before the customer shares their street.
@@ -28,6 +28,13 @@
  *   noZip          Has a street but no 5-digit ZIP.
  *   noState        Has a street but no 2-letter state token.
  *   ok             House number + street + state + ZIP.
+ *
+ * ZIP vs STATE (report-only, 2026-10-07)
+ *   A separate tally (scripts/_zip-state.js): does the ZIP's 3-digit prefix
+ *   belong to the stated state? OH 430–459, KY 400–427, IN 460–479; any other
+ *   state is "unchecked state". "Cincinnati, OH 46211" is a mismatch (462xx is
+ *   Indianapolis). Prints counts and the mismatching doc ids ONLY — never a
+ *   name or address — and does NOT change the exit code. Fix hits by hand.
  *
  * EXIT CODE
  *   Non-zero when any `legacyMangled` or `blank` address remains, so this
@@ -50,6 +57,7 @@
  */
 
 const { initAdmin, getFirestore } = require('./_admin');
+const { zipStateCheck } = require('./_zip-state');
 
 const args = process.argv.slice(2);
 const LIST = args.includes('--list');
@@ -91,6 +99,7 @@ async function main() {
   const db = getFirestore();
 
   const buckets = { legacyMangled: [], blank: [], notProvided: [], noStreet: [], noState: [], noZip: [], ok: [] };
+  const zipState = { ok: 0, mismatch: [], uncheckedState: 0, noPair: 0 };
   let scanned = 0;
   let skipped = 0;   // soft-deleted (deleted === true) — retired, not broken
   let last = null;
@@ -122,6 +131,8 @@ async function main() {
       // form sets referredByLeadId, and an SMS converted into a lead sets
       // convertedFromUnmatchedSms (always with a blank address).
       if (cls === 'blank' && isIntakeLead(d)) cls = 'notProvided';
+      const zs = zipStateCheck(d.address);
+      if (zs === 'mismatch') zipState.mismatch.push(doc.id); else zipState[zs]++;
       buckets[cls].push({
         id: doc.id,
         name,
@@ -172,6 +183,15 @@ async function main() {
   }
   console.log('\n  scanned: ' + scanned +
     (skipped ? '   (plus ' + skipped + ' retired/soft-deleted, not counted)' : ''));
+
+  // Report-only — ids, never names or addresses, so it is the same in CI and
+  // locally, and it does not feed hardFails below.
+  console.log('\n  ZIP vs state (report only — does not affect exit code)');
+  console.log('    ZIP matches state      ' + String(zipState.ok).padStart(4));
+  console.log('    ZIP/state MISMATCH     ' + String(zipState.mismatch.length).padStart(4));
+  console.log('    unchecked state        ' + String(zipState.uncheckedState).padStart(4));
+  console.log('    no state + ZIP pair    ' + String(zipState.noPair).padStart(4));
+  for (const id of zipState.mismatch.slice().sort()) console.log('      mismatch: ' + id);
 
   if (LIST) {
     for (const k of order) {

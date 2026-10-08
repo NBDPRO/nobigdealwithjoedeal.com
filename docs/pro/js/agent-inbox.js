@@ -32,6 +32,15 @@
  * which re-reads the Do-Not-Text / unsubscribe lists; a draft that fails it
  * shows why and has no send button.
  *
+ * Review R2-3-1 (Jo, 2026-10-06): tapping "Text from my phone" / "Open in
+ * Mail" no longer opens the app first. The server's 'sent' step checks the
+ * EDITED text (company name, STOP line, claim wording) and whether the
+ * customer may be texted right now (STOP / Do Not Text / consent / switch /
+ * hours); only when it answers ok is the item marked sent and the sms: /
+ * mailto: link opened. A STOP reply lands on the owner's phone, so texts
+ * sent from the phone in the last 14 days are listed with a one-tap "They
+ * replied STOP" (phoneTextAction 'stop' — recorded like an inbound STOP).
+ *
  * Opens from: the 🤖 Agent inbox nav entry (sidebar AI TOOLS + the phone
  * More drawer, shown to the owner / an admin), a 🤖 bell notification
  * (?agentInbox=1), the command palette ("Agent inbox"), or
@@ -51,6 +60,7 @@
   const DRAFTS = ['draft_text', 'draft_email', 'social_draft'];
   const isDraft = (it) => !!it && DRAFTS.indexOf(it.kind) !== -1;
   let _items = [];
+  let _sentPhone = [];
   let _checks = {};
   let _busy = false;
   let _socialSent = false;
@@ -130,7 +140,7 @@
 
   async function callable(name, payload) {
     if (!window._httpsCallable) {
-      const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._httpsCallable = mod.httpsCallable;
     }
     if (!window._functions) throw new Error('Functions SDK unavailable');
@@ -192,10 +202,22 @@
     try {
       await callable('agentDraftAction', { action: 'sent', id, body: ta ? ta.value : it.text, subject: sj ? sj.value : it.title });
       _items = _items.filter((x) => x.id !== id);
+      if (it.kind === 'draft_text') {
+        _sentPhone = [Object.assign({}, it, { text: ta ? ta.value : it.text, status: 'sent_by_owner' })].concat(_sentPhone.filter((x) => x.id !== id));
+      }
       if (window.showToast) window.showToast('Logged on ' + ((_checks[id] && _checks[id].name) || 'the customer') + '’s card', 'success');
       return true;
     } catch (e) {
-      if (window.showToast) window.showToast('Not logged yet: ' + ((e && (e.message || e.code)) || 'error'), 'error');
+      // Refused (the edited text failed a check, or the customer can't be
+      // texted right now): nothing is opened, nothing is logged.
+      const why = (e && e.message) || 'error';
+      if (window.showToast) window.showToast('Not sent: ' + why, 'error');
+      const row = document.getElementById('aiItem-' + id);
+      if (row) {
+        let flag = row.querySelector('.ai-draft-block');
+        if (!flag) { flag = document.createElement('div'); flag.className = 'ai-flag ai-draft-block'; row.insertBefore(flag, row.querySelector('.ai-text')); }
+        flag.textContent = why;
+      }
       return false;
     }
   }
@@ -238,6 +260,46 @@
     return snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
   }
 
+  /** Text drafts sent from the owner's phone in the last 14 days (pure). */
+  function recentPhoneSent(items, nowMs) {
+    const ms = (v) => (v && typeof v.toMillis === 'function') ? v.toMillis() : (v instanceof Date ? v.getTime() : (typeof v === 'number' ? v : 0));
+    return (items || []).filter((i) => i && i.kind === 'draft_text' && i.status === 'sent_by_owner' && i.leadId
+      && (nowMs - ms(i.decidedAt)) < 14 * 86400000)
+      .sort((a, b) => ms(b.decidedAt) - ms(a.decidedAt)).slice(0, 20);
+  }
+  async function loadSentPhone() {
+    const key = companyKey();
+    if (!key || !window.getDocs || !window.query || !window.where) return [];
+    const parts = [window.collection(window.db || window._db, COLL), window.where('companyId', '==', key), window.where('status', '==', 'sent_by_owner')];
+    if (window.limit) parts.push(window.limit(50));
+    const snap = await window.getDocs(window.query.apply(null, parts));
+    return recentPhoneSent(snap.docs.map((d) => Object.assign({ id: d.id }, d.data())), Date.now());
+  }
+  function sentRowHtml(it) {
+    const id = esc(it.id);
+    return '<div class="ai-item" id="aiSent-' + id + '"><div class="ai-top"><span class="ai-kind">📱 Sent from your phone</span>' +
+      '<span class="ai-cust">' + esc(leadName(it.leadId)) + '</span></div>' +
+      '<div class="ai-qnote">' + esc(String(it.text || '').slice(0, 200)) + '</div>' +
+      '<div class="ai-meta">A STOP reply comes to your phone, not the CRM — if they replied STOP, record it here.</div>' +
+      '<div class="ai-actions"><button type="button" class="ai-btn" data-ai-act="replied-stop" data-ai-id="' + id + '">They replied STOP</button></div></div>';
+  }
+  async function repliedStop(id, btn) {
+    const it = _sentPhone.find((x) => x.id === id);
+    if (!it) return;
+    const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
+    if (!(await ask('Record that ' + leadName(it.leadId) + ' replied STOP? Nobody at your company will be able to text this number again (they can text START to resume).'))) return;
+    if (btn) btn.disabled = true;
+    try {
+      await callable('phoneTextAction', { action: 'stop', leadId: it.leadId });
+      _sentPhone = _sentPhone.filter((x) => x.leadId !== it.leadId);
+      paint();
+      if (window.showToast) window.showToast('Recorded — this customer won’t be texted again', 'success');
+    } catch (e) {
+      if (btn) btn.disabled = false;
+      if (window.showToast) window.showToast('Could not record it: ' + ((e && e.message) || 'error'), 'error');
+    }
+  }
+
   function rowHtml(it) {
     if (isDraft(it)) return draftRowHtml(it, _checks[it.id], iosNow());
     const id = esc(it.id);
@@ -278,8 +340,9 @@
     if (deckBtn) { deckBtn.hidden = !(window.NBDTriageDeck && deckable > 1); deckBtn.textContent = 'One at a time (' + deckable + ')'; }
     const social = document.getElementById('aiSocialLink');
     if (social) social.hidden = !_socialSent;
-    list.innerHTML = pend.length ? pend.map(rowHtml).join('')
-      : '<div class="ai-empty">Nothing waiting. When the bots file notes, reminders, reports or drafts, they show up here for you to add to the CRM, send yourself, or toss.</div>';
+    list.innerHTML = (pend.length ? pend.map(rowHtml).join('')
+      : '<div class="ai-empty">Nothing waiting. When the bots file notes, reminders, reports or drafts, they show up here for you to add to the CRM, send yourself, or toss.</div>')
+      + (_sentPhone.length ? '<div class="ai-meta">Sent from your phone (last 14 days)</div>' + _sentPhone.map(sentRowHtml).join('') : '');
   }
 
   async function open() {
@@ -302,6 +365,7 @@
       '</div>';
     document.body.appendChild(ov);
     try { _items = await load(); } catch (e) { _items = []; console.warn('[agent-inbox] load failed:', (e && (e.code || e.message)) || e); }
+    try { _sentPhone = await loadSentPhone(); } catch (e) { _sentPhone = []; console.warn('[agent-inbox] sent list failed:', (e && (e.code || e.message)) || e); }
     _checks = {};
     paint();
     if (_items.some((i) => i.kind === 'draft_text' || i.kind === 'draft_email')) { _checks = await checkDrafts(_items); paint(); }
@@ -396,15 +460,23 @@
       if (window.NBDAgentBots && typeof window.NBDAgentBots.open === 'function') window.NBDAgentBots.open();
       return;
     }
-    // A text draft's link opens the owner's Messages app by itself (no
-    // preventDefault); the tap is also the "I sent it" record.
+    // Review R2-3-1: the server checks the edited text and the customer
+    // FIRST; the Messages app opens only after it answers ok (and the tap
+    // is the "I sent it" record). "Open in Mail" just opens Mail, as before;
+    // "Mark sent" is the email's record and is checked the same way.
     if (act === 'text' || act === 'mailsent') {
+      if (act === 'text') ev.preventDefault();
       if (t.dataset.aiSending) return;
       t.dataset.aiSending = '1';
-      if (await markSent(id)) paint(); else delete t.dataset.aiSending;
+      const href = act === 'text' ? t.getAttribute('href') : '';
+      if (await markSent(id)) {
+        paint();
+        if (href) { try { window.location.assign(href); } catch (_) { /* nothing else to do */ } }
+      } else delete t.dataset.aiSending;
       return;
     }
     if (act === 'mail') return;
+    if (act === 'replied-stop') return repliedStop(id, t);
     if (act === 'copy') {
       const sj = document.getElementById('aiSubj-' + id), ta = document.getElementById('aiText-' + id);
       try { await navigator.clipboard.writeText((sj && sj.value ? 'Subject: ' + sj.value + '\n\n' : '') + (ta ? ta.value : '')); if (window.showToast) window.showToast('Copied', 'success'); }
@@ -455,5 +527,5 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-  window.NBDAgentInbox = { open, openDeck, close, sortItems, writeFor, bulkIds, KINDS, COLL, isIOS, smsHref, mailtoHref, socialPostFor, draftRowHtml, rowHtml };
+  window.NBDAgentInbox = { open, openDeck, close, sortItems, writeFor, bulkIds, KINDS, COLL, isIOS, smsHref, mailtoHref, socialPostFor, draftRowHtml, rowHtml, recentPhoneSent, sentRowHtml };
 })();

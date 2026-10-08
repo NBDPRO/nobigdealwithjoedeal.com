@@ -327,8 +327,10 @@
 
   async function shareFor(leadId, text, opts) {
     const r = findRow(leadId) || {};
+    // leadId: the server's "ok to text?" check + the Comm Log row (R2-3-2).
     const res = await w.NBDPhoneShare.share(Object.assign({
       text, phone: r.phone, email: r.email, subject: 'Your roof estimate', title: 'Roof estimate',
+      leadId, source: 'estimate_followup',
     }, opts || {}));
     if (res.needsTap) {
       pending[leadId] = { text };
@@ -348,7 +350,7 @@
 
   async function callable(name, data) {
     if (!w._functions || !w._httpsCallable) {
-      const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       w._functions = w._functions || mod.getFunctions();
       try {
         const emu = await import('./nbd-emulator-connect.js');
@@ -364,6 +366,8 @@
     if (w.NBDRole && typeof w.NBDRole.guard === 'function' && !w.NBDRole.guard()) return;
     if (btn) { btn.disabled = true; btn.textContent = 'Linking…'; }
     try {
+      const pre = findRow(leadId);
+      if (pre && w.NBDPhoneShare && typeof w.NBDPhoneShare.precheck === 'function') w.NBDPhoneShare.precheck({ phone: pre.phone, leadId });
       const out = await callable('freshEstimateLink', { leadId });
       if (!out.url) throw new Error('No link came back');
       const patch = { sharedLinkUrl: out.url, sharedLinkExpiresAt: out.expiresAt || null };

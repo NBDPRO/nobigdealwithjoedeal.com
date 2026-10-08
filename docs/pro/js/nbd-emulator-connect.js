@@ -29,7 +29,7 @@
 let __NBD_EMU_LOGGED; // module-local (globals Tranche 1 — was window.*)
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]', '::1'];
 
-const SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
+const SDK = '/assets/vendor/firebase/10.12.2';
 
 // Per-instance dedupe — keyed on the actual SDK object, so reused instances
 // are skipped but distinct app instances each get wired.

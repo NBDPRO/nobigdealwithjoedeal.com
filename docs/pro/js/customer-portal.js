@@ -59,7 +59,7 @@
   // header note).
   async function mintTokenUrl(leadId) {
     if (!leadId) throw new Error('leadId required');
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const fns = mod.getFunctions();
     const call = mod.httpsCallable(fns, 'createPortalToken');
     const res = await call({ leadId: leadId, ttlDays: 30 });
@@ -129,6 +129,16 @@
 
     const name = ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim();
     const phone = (lead.phone || '').replace(/\D/g, '');
+    // R6-3-2 (2026-10-07): the server's "ok to text?" (phone-share.js
+    // checkText) before Messages opens with the portal link written in. (No
+    // caller mounts shareSMS today; gated so a future one can't skip it.)
+    const PS = window.NBDPhoneShare;
+    let chk = null;
+    try { chk = (PS && typeof PS.checkText === 'function') ? await PS.checkText({ phone: lead.phone, leadId }) : null; } catch (_) { chk = null; }
+    if (!chk || chk.ok !== true) {
+      if (typeof showToast === 'function') showToast((chk && chk.reason) || 'Couldn’t check whether this customer can be texted — nothing was sent. Reload and try again.', 'error');
+      return;
+    }
     const body = encodeURIComponent(
       `Hi${name ? ' ' + name.split(' ')[0] : ''}, here's your project portal from ${BRAND.name}! Track your progress, view photos, and more: ${url}`
     );

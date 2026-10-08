@@ -2821,7 +2821,7 @@ try { localStorage.removeItem('nbd_google_solar_key'); } catch (_) {}
 
 async function _sunExposureCallable() {
   if (!window._functions || !window._httpsCallable) {
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     window._functions = window._functions || mod.getFunctions();
     window._httpsCallable = window._httpsCallable || mod.httpsCallable;
   }
@@ -2940,11 +2940,44 @@ function renderSolarEstimate(lat) {
   window._solarOverlay = group;
 }
 
+// Tenant identity for the drawing-tool documents (Scope of Work, Measurement
+// Report, Material Takeoff, Supplement Request — 2026-10-05). NBD is decided
+// by the signed-in company key (tenant-rules.js isPlatformTenant), never by
+// the brand name, and keeps every literal exactly as it shipped. Any other
+// tenant prints its own legal name / phone / website from window._brand(), or
+// nothing — never NBD's. Awaits company-profile hydration first (same gate as
+// warranty-cert.js): before it, _brand() still holds the NBD defaults.
+async function _mrDocBrand() {
+  try {
+    if (window._companyProfileLoaded !== true && typeof window._loadCompanyProfile === 'function') {
+      await window._loadCompanyProfile();
+    }
+  } catch (_) { /* render with what we have rather than blocking the rep */ }
+  let b = null;
+  try { b = (typeof window._brand === 'function') ? (window._brand() || null) : null; } catch (_) { b = null; }
+  const TR = window.NBDTenantRules;
+  const NBD_LEGAL = 'No Big Deal Home Solutions';
+  const isNbd = (TR && typeof TR.isPlatformTenant === 'function')
+    ? TR.isPlatformTenant()
+    : (!b || !b.legalName || b.legalName === NBD_LEGAL);
+  if (isNbd) return { isNbd: true };
+  const c = (b && b.contact) || {};
+  const legal = String((b && b.legalName) || '').trim();
+  // Un-hydrated NBD defaults on another tenant's page: blank beats wrong.
+  const own = (v) => { const t = String(v || '').trim(); return /nobigdeal|420-7382/i.test(t) ? '' : t; };
+  const name = legal === NBD_LEGAL ? '' : legal;
+  return { isNbd: false, name: _esc(name), phone: _esc(own(c.phone)), website: _esc(own(c.website)) };
+}
+function _mrBrandHtml(t) { return t.isNbd ? 'No Big Deal <span>Home Solutions</span>' : t.name; }
+function _mrFootFull(t) { return t.isNbd ? 'No Big Deal Home Solutions · (859) 420-7382 · nobigdealwithjoedeal.com' : [t.name, t.phone, t.website].filter(Boolean).join(' · '); }
+function _mrFootShort(t) { return t.isNbd ? 'No Big Deal Home Solutions — nobigdealwithjoedeal.com' : [t.name, t.website].filter(Boolean).join(' — '); }
+
 // async since 2026-09-06: the filename carries a tenant-resolved prefix and
 // company-profile hydration must be awaited (company-profile.js _tenantFilePrefix).
 // Every caller discards the return value (data-action buttons, the voice-command
 // dispatch, and the maps API export), so awaiting here is safe.
 async function generateScopeFromDrawing() {
+  const _t = await _mrDocBrand();
   const addr = document.getElementById('drawSearch')?.value || 'Property Address';
   const area = document.getElementById('cr-base')?.textContent || '0 sf';
   const pitched = document.getElementById('cr-pitched')?.textContent || '0 sf';
@@ -2980,7 +3013,7 @@ h2{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;text
 .sig{margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:40px;}.sig-line{border-top:1px solid #333;padding-top:6px;font-size:11px;color:#666;margin-top:50px;}
 .foot{margin-top:30px;font-size:10px;color:#999;display:flex;justify-content:space-between;}
 @media print{body{padding:20px;}@page{margin:1.5cm;size:letter;}}</style></head><body>
-<div class="hdr"><div><div class="brand">No Big Deal <span>Home Solutions</span></div><div class="badge">Scope of Work</div></div>
+<div class="hdr"><div><div class="brand">${_mrBrandHtml(_t)}</div><div class="badge">Scope of Work</div></div>
 <div style="text-align:right;"><div style="font-size:14px;font-weight:600;">${addr}</div><div style="font-size:11px;color:#666;">${date}</div></div></div>
 
 <h2>Project Measurements</h2>
@@ -3008,10 +3041,10 @@ ${(counts.chimney || 0) > 0 ? '<div class="scope-item"><span class="scope-check"
 <div class="scope-item"><span class="scope-check">✓</span><span class="scope-text">Final inspection and walkthrough with homeowner</span><span class="scope-qty">1 JOB</span></div>
 
 <h2>Terms</h2>
-<p style="font-size:12px;line-height:1.6;color:#333;">All work performed by No Big Deal Home Solutions includes industry-standard materials and labor. Work area will be protected during installation. Final cleanup includes magnet sweep of yard and driveway. Manufacturer warranties apply per selected material tier.</p>
+<p style="font-size:12px;line-height:1.6;color:#333;">All work performed${_t.isNbd ? ' by No Big Deal Home Solutions' : (_t.name ? ' by ' + _t.name : '')} includes industry-standard materials and labor. Work area will be protected during installation. Final cleanup includes magnet sweep of yard and driveway. Manufacturer warranties apply per selected material tier.</p>
 
 <div class="sig"><div><div class="sig-line">Homeowner Signature</div></div><div><div class="sig-line">Contractor Signature</div></div></div>
-<div class="foot"><span>No Big Deal Home Solutions · (859) 420-7382 · nobigdealwithjoedeal.com</span><span>Generated by NBD Pro</span></div>
+<div class="foot"><span>${_mrFootFull(_t)}</span><span>Generated by NBD Pro</span></div>
 </body></html>`;
 
   if (window.NBDDocViewer && typeof window.NBDDocViewer.open === 'function') {
@@ -3030,12 +3063,13 @@ ${(counts.chimney || 0) > 0 ? '<div class="scope-item"><span class="scope-check"
 // Every caller discards the return value (data-action buttons, the voice-command
 // dispatch, and the maps API export), so awaiting here is safe.
 async function exportDrawReport() {
+  const _t = await _mrDocBrand();
   const addr=document.getElementById('drawSearch').value||'No Address';
   const lines=drawnLines;
   const total=lines.reduce((s,l)=>s+l.dist,0);
   const grouped={};
   lines.forEach(l=>{if(!grouped[l.name])grouped[l.name]={color:l.color,total:0,count:0};grouped[l.name].total+=l.dist;grouped[l.name].count++;});
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>NBD Drawing Report</title>
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${_t.isNbd ? 'NBD Drawing Report' : 'Drawing Report'}</title>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow:wght@400;500&display=swap" rel="stylesheet">
   <style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Barlow',sans-serif;padding:32px;max-width:850px;margin:0 auto;}
   .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:18px;border-bottom:3px solid #BD5728;margin-bottom:22px;}
@@ -3051,7 +3085,7 @@ async function exportDrawReport() {
   .card .k{font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em;margin-top:3px;}
   .foot{margin-top:28px;padding-top:14px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:10px;color:#999;}
   .total-row td{font-weight:700;border-top:2px solid #eee;}</style></head><body>
-  <div class="hdr"><div><div class="brand">No Big Deal <span>Home Solutions</span></div><div class="badge">Drawing Measurement Report</div></div>
+  <div class="hdr"><div><div class="brand">${_mrBrandHtml(_t)}</div><div class="badge">Drawing Measurement Report</div></div>
   <div><div class="addr">${addr}</div><div class="date">${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</div></div></div>
   <div class="cards">
     <div class="card"><div class="v">${document.getElementById('cr-base').textContent}</div><div class="k">Base Area</div></div>
@@ -3068,7 +3102,7 @@ async function exportDrawReport() {
   <table><thead><tr><th>Type</th><th>Length</th></tr></thead><tbody>
   ${lines.map(l=>`<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${l.color};margin-right:6px;vertical-align:middle;"></span>${l.name}</td><td>${l.dist.toFixed(1)} ft</td></tr>`).join('')}
   </tbody></table>
-  <div class="foot"><div>No Big Deal Home Solutions — nobigdealwithjoedeal.com</div><div>Measurements are estimates. Always verify on-site.</div></div>
+  <div class="foot"><div>${_mrFootShort(_t)}</div><div>Measurements are estimates. Always verify on-site.</div></div>
   </body></html>`;
   if (window.NBDDocViewer && typeof window.NBDDocViewer.open === 'function') {
     // Tenant-resolved prefix — '' when the brand is not hydrated, never 'NBD'.
@@ -3400,6 +3434,7 @@ function generateMaterialTakeoff() {
 async function showMaterialTakeoff() {
   const t = generateMaterialTakeoff();
   if(!t.materials.length || t.squares < 0.1) { showToast('Draw some lines first','info'); return; }
+  const _t = await _mrDocBrand();
 
   const addr = document.getElementById('drawSearch')?.value || 'Property';
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Material Takeoff — ${addr}</title>
@@ -3420,7 +3455,7 @@ async function showMaterialTakeoff() {
   .warn{background:#FEF3C7;border:1px solid #FCD34D;border-radius:6px;padding:10px 14px;font-size:11px;color:#92400E;margin-top:16px;}
   .foot{margin-top:28px;padding-top:14px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:10px;color:#999;}
   </style></head><body>
-  <div class="hdr"><div><div class="brand">No Big Deal <span>Home Solutions</span></div><div class="badge">Material Takeoff</div></div>
+  <div class="hdr"><div><div class="brand">${_mrBrandHtml(_t)}</div><div class="badge">Material Takeoff</div></div>
   <div><div class="addr">${addr}</div><div class="date">${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</div></div></div>
   <div class="summary">
     <div><div class="v">${t.squares.toFixed(1)} sq</div><div class="k">Total Squares</div></div>
@@ -3432,7 +3467,7 @@ async function showMaterialTakeoff() {
   ${t.materials.map(m => `<tr><td><b>${m.name}</b></td><td class="qty">${m.qty}</td><td>${m.unit}</td><td class="note">${m.note}</td></tr>`).join('')}
   </tbody></table>
   <div class="warn">⚠️ Quantities are estimates based on satellite measurements. Always verify on-site before ordering. Pipe boot count and specialty items should be confirmed during inspection.</div>
-  <div class="foot"><div>No Big Deal Home Solutions — nobigdealwithjoedeal.com</div><div>Generated from NBD Pro Drawing Tool</div></div>
+  <div class="foot"><div>${_mrFootShort(_t)}</div><div>Generated from NBD Pro Drawing Tool</div></div>
   </body></html>`;
   if (window.NBDDocViewer && typeof window.NBDDocViewer.open === 'function') {
     const slug = (addr || 'takeoff').replace(/[^A-Za-z0-9]+/g, '-').substring(0, 40);
@@ -4588,6 +4623,7 @@ function applyManualComparison() {
 // dispatch, and the maps API export), so awaiting here is safe.
 async function generateSupplementFromComparison() {
   if (!comparisonData) { showToast('Run a comparison first', 'error'); return; }
+  const _t = await _mrDocBrand();
   const ext = comparisonData.measurements;
   const addr = document.getElementById('drawSearch')?.value || 'Property Address';
   // Pitched area, and ridge lines only — same reasons as renderComparison().
@@ -4629,7 +4665,7 @@ td{font-size:12px;}.note{background:#fff8f0;border-left:4px solid #BD5728;paddin
 .sig-line{border-top:1px solid #333;padding-top:6px;font-size:11px;color:#666;margin-top:50px;}
 .foot{margin-top:30px;font-size:10px;color:#999;display:flex;justify-content:space-between;}
 @media print{body{padding:20px;}@page{margin:1.5cm;size:letter;}}</style></head><body>
-<div class="hdr"><div><div class="brand">No Big Deal <span>Home Solutions</span></div><div class="badge">Supplement Request</div></div>
+<div class="hdr"><div><div class="brand">${_mrBrandHtml(_t)}</div><div class="badge">Supplement Request</div></div>
 <div style="text-align:right;"><div style="font-size:14px;font-weight:600;">${addr}</div><div style="font-size:11px;color:#666;">${date}</div></div></div>
 <p style="font-size:13px;line-height:1.6;margin-bottom:16px;">To Whom It May Concern,</p>
 <p style="font-size:13px;line-height:1.6;margin-bottom:16px;">After conducting our own detailed field measurements at the above property, we have identified discrepancies between our measurements and the carrier's approved scope. We respectfully request a supplemental review based on the following documented differences:</p>
@@ -4638,7 +4674,7 @@ td{font-size:12px;}.note{background:#fff8f0;border-left:4px solid #BD5728;paddin
 <div class="note"><strong>Note:</strong> Our measurements were taken using satellite imagery analysis with the NBD Pro Drawing Tool and verified against on-site inspection. All measurements are in linear feet (LF) or square feet (SF) as indicated.</div>
 <p style="font-size:13px;line-height:1.6;margin-top:16px;">We kindly request that the scope be adjusted to reflect the accurate measurements documented above. We are available to meet with the adjuster on-site to verify these measurements if needed.</p>
 <div class="sig"><div><div class="sig-line">Contractor Signature</div></div><div><div class="sig-line">Date</div></div></div>
-<div class="foot"><span>No Big Deal Home Solutions · (859) 420-7382 · nobigdealwithjoedeal.com</span><span>Generated by NBD Pro</span></div>
+<div class="foot"><span>${_mrFootFull(_t)}</span><span>Generated by NBD Pro</span></div>
 </body></html>`;
 
   if (window.NBDDocViewer && typeof window.NBDDocViewer.open === 'function') {

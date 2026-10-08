@@ -367,7 +367,7 @@
       {
         "source": "/pro/ask-joe",
         "headers": [
-          { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net; frame-src https://*.firebaseapp.com; worker-src 'self' blob:;" }
+          { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://www.google.com https://www.recaptcha.net; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://www.google.com https://www.recaptcha.net; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://www.google.com https://www.recaptcha.net; frame-src https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net; worker-src 'self' blob:;" }
         ]
       },
       {
@@ -448,6 +448,13 @@
       {
         "_comment": "Self-hosted woff2 files are stable binaries (a family change would ship under a new filename), so 1yr immutable is safe — the URL changes when the content does (Jul 2026 remediation; was 30d). Rename-on-change is repo convention, not build-enforced: git history shows zero in-place font edits ever, but if you must alter a font binary, ship it under a NEW filename and update nbd-fonts.css — immutable means browsers will never revalidate the old URL. NOTE: the same remediation package proposed 1yr immutable for /assets/js/inline/** too, but per the F2 comment above those filenames are NOT re-hashed on edit (4053149b2f.js alone was edited in place 4× recently, and adding a blog post edits c00f1acac9.js in place), so an immutable year there would strand repeat visitors on stale code — inline JS deliberately stays on the 24h /assets/js/** rule.",
         "source": "/assets/fonts/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
+      },
+      {
+        "_comment": "Self-hosted Firebase JS SDK (2026-10-04, scripts/vendor-firebase-sdk.js). The path carries the SDK version, so a file at a given URL never changes — cache it like gstatic did instead of revalidating ~7 modules on every page load (the **/*.js rule above says max-age=0).",
+        "source": "/assets/vendor/firebase/**",
         "headers": [
           { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
         ]

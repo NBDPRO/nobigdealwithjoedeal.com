@@ -1232,7 +1232,7 @@
   // collided, and nothing about it carried the tenant, the date, or the lead.
   //
   // The shape now follows the house convention the hand-built client PDFs use
-  // (`NBD-2026-0902-HILD`, SESSION-2026-09-07-client-pdfs-and-drive-tidy) with
+  // (`NBD-2026-0902-XXXX`, SESSION-2026-09-07-client-pdfs-and-drive-tidy) with
   // the type infix the CRM's own generators already use (`-V2-` on estimates,
   // `-WC` on warranty certs):
   //
@@ -1399,7 +1399,7 @@
   // ═════════════════════════════════════════════════════════
   async function _tryServerRenderPhotoReport(opts) {
     if (!window._functions || !window._httpsCallable) {
-      const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._functions = mod.getFunctions();
       window._httpsCallable = mod.httpsCallable;
     }

@@ -69,7 +69,7 @@
     // Academy / training — never loaded unless the user enters an
     // academy or training tab. Biggest single lazy win (~150KB).
     academy: [
-      'js/academy-insurance-tree-data.js?v=2',
+      'js/academy-insurance-tree-data.js?v=3',
       'js/academy-insurance-tree.js?v=2',
       'js/academy-retail-tree.js?v=1',
       'js/academy-courses.js?v=1',
@@ -98,7 +98,7 @@
       // Full packet / Paperwork only (2026-10-04) — also in the estimates
       // bundle; the loader runs it once.
       'js/deal-packet.js?v=1',
-      'js/close-board.js?v=10'
+      'js/close-board.js?v=13'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -126,10 +126,10 @@
     // ExpenseConfig dependency), so it's a single-module bundle.
     money: [
       'js/stripe-ledger-ui-logic.js?v=1',
-      'js/stripe-ledger-panel.js?v=1',
+      'js/stripe-ledger-panel.js?v=3',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
-      'js/invoice-reminder.js?v=5',
-      'js/money-dashboard.js?v=8'
+      'js/invoice-reminder.js?v=7',
+      'js/money-dashboard.js?v=10'
     ],
     repos: [
       'js/rep-os.js?v=4'
@@ -156,7 +156,15 @@
     // the owner-only data reads (numbers-data.js) are eager on the page; this
     // is just the view.
     weekreview: [
-      'js/week-review.js?v=1'
+      'js/week-review.js?v=2'
+    ],
+    // Catch up my numbers (2026-10-04, #/catchup): the deck rules, then the
+    // view. numbers-logic / numbers-data / the lost-reason picker and
+    // invoice-pipeline.js (Record payment) are eager on the dashboard.
+    catchup: [
+      'js/catchup-logic.js?v=2',
+      'css/catchup.css?v=1',
+      'js/catchup.js?v=2'
     ],
     decision: [
       'css/decision-engine-view.css?v=2',
@@ -172,7 +180,7 @@
       // CDN fetch fails, load() resolves anyway and the generator's existing
       // `typeof ApexCharts === 'undefined'` guard degrades gracefully.
       '/assets/vendor/apexcharts/apexcharts.min.js',
-      'js/rep-report-generator.js?v=6'
+      'js/rep-report-generator.js?v=7'
     ],
     // Doc-generation cluster (PR 2b). Only needed when the rep generates a
     // document — from a lead-card doc chip (_generateDocWithPreflight) or
@@ -185,15 +193,15 @@
     docgen: [
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
-      'js/document-generator.js?v=17',
-      'js/document-generator-templates.js?v=13',
-      'js/document-generator-library.js?v=2', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=5',
+      'js/document-generator.js?v=22',
+      'js/document-generator-templates.js?v=17',
+      'js/document-generator-library.js?v=4', // 2026-10-04 template library; needs -templates' _tpl
+      'js/doc-preflight.js?v=10',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
       // fetch/normalize logic. Version matches customer.html's own tag.
-      'js/customer-documents.js?v=8',
+      'js/customer-documents.js?v=9',
       // Same tab's "scan/upload a signed document" rows (2026-09-17) —
       // uploadSignedDoc/handleSignedDocUpload are the exact functions
       // customer.html's Documents tab uses; no second upload path.
@@ -238,15 +246,15 @@
       'js/nbd-logo-asset.js?v=3',
       'js/product-data.js?v=3',
       'js/roofivent-catalog.js?v=2',
-      'js/catalog-costs.js?v=3',
-      'js/product-library.js?v=9',
+      'js/catalog-costs.js?v=4',
+      'js/product-library.js?v=10',
       // Price book viewer (2026-10-02): the Product Library's "Price book"
       // button. Same file the expenses bundle loads for the HD import.
       'css/price-book.css?v=1',
       'js/price-book.js?v=2',
       'js/estimate-labor-catalog.js?v=2',
-      'js/estimate-builder-v2.js?v=12',
-      'js/estimate-catalog-xactimate.js?v=3',
+      'js/estimate-builder-v2.js?v=13',
+      'js/estimate-catalog-xactimate.js?v=4',
       'js/estimate-logic-engine.js?v=8',
       // Roof Care Plan member discount (2026-10-05): pure rules the V2/V3
       // builder and the Job Templates engine call at price time — before both.
@@ -261,14 +269,14 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=7',
+      'js/estimate-finalization.js?v=10',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=24',
+      'js/estimate-v2-ui.js?v=31',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=5',
-      'js/estimate-supplement.js?v=2',
+      'js/estimate-supplement.js?v=4',
       'js/supplement-ui.js?v=3',
       // Job templates ride the estimates bundle: data is inert, the engine
       // resolves through EstimateLogic + registers custom items into
@@ -276,7 +284,7 @@
       // inserts into the V2 builder — end-of-bundle satisfies all three.
       // entity-resolver.js (the lead search/quick-create picker) must load
       // before job-templates-ui.js, which calls it from paintModal.
-      'js/job-templates-data.js?v=4',
+      'js/job-templates-data.js?v=5',
       'js/job-templates.js?v=8',
       'js/entity-resolver.js?v=2',
       'js/job-templates-ui.js?v=9',
@@ -320,7 +328,7 @@
       // KY claim-wording filter (2026-10-04) — BEFORE the two report
       // builders, which run every caption / report string through it.
       'js/claim-wording-filter.js?v=1',
-      'js/inspection-report-engine.js?v=7',
+      'js/inspection-report-engine.js?v=8',
       'js/photo-report.js?v=5'
     ],
     // D2D tracker (PR 2e). The door-to-door knock tracker — only the D2D
@@ -333,9 +341,9 @@
       // Pure knock→lead rules + the lead event writer the core's convert uses (2026-10-03).
       'js/d2d-knock-lead-logic.js?v=1',
       'js/lead-events.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=15',
-      'js/d2d-tracker-ui-2026b.js?v=9',
-      'js/d2d-tracker-2026b.js?v=3'
+      'js/d2d-tracker-core-2026b.js?v=16',
+      'js/d2d-tracker-ui-2026b.js?v=10',
+      'js/d2d-tracker-2026b.js?v=4'
     ],
     // PDF export libs (PR 2b2). jsPDF + html2pdf — ~1.1 MB combined (html2pdf
     // bundles html2canvas + its own jsPDF). The ONLY dashboard consumer is the
@@ -348,7 +356,7 @@
     ],
     // Warranty cert wizard — opened from the Docs view only.
     warranty: [
-      'js/warranty-cert.js?v=6'
+      'js/warranty-cert.js?v=10'
     ],
     // Theme engine cluster (2026-08-07). The 189-theme engine (162 KB) + its
     // four cosmetic companions were eager on every boot; they are a Settings/
@@ -422,13 +430,13 @@
     drawtool: [
       'css/maps-routing-view.css?v=2',
       'js/draw-geom.js?v=2',
-      'js/maps-routing.js?v=9',
+      'js/maps-routing.js?v=10',
       'css/draw-reticle.css?v=1',
       'js/draw-reticle.js?v=1',
       // Instant Roofer cross-check card + the V3 wizard's "Draw it" hand-off
       // (2026-10-04). Last: it binds to the engine seam like draw-reticle.
       'css/draw-measure-check.css?v=1',
-      'js/draw-measure-check.js?v=1'
+      'js/draw-measure-check.js?v=2'
     ],
     // Talk Tank inbox (2026-09-14, boot-weight containment) — a single-view
     // module with zero callers outside goTo('talk-tank'); was two static
@@ -439,7 +447,7 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-view.js?v=11'
+      'js/call-center-view.js?v=12'
     ],
     // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
     // Rules editor (Settings → Estimates) and the logo upload / company export
@@ -448,9 +456,12 @@
     // on arrival, so a tab opened before they land still renders.
     // tenant-rules.js itself stays EAGER: estimate-config.js and
     // deposit-rule.js read it synchronously.
+    // + Texting rules (2026-10-05): the texting switch and Do Not Text list
+    // under Settings → AI Texting. Hooks the tab, and paints a tab already open.
     tenantsettings: [
       'js/tenant-rules-settings.js?v=1',
-      'js/tenant-account-ui.js?v=1'
+      'js/tenant-account-ui.js?v=2',
+      'js/sms-compliance-settings.js?v=1'
     ],
     // New-owner setup checklist on Home (2026-10-05, #2152 boot budget).
     // Never needed by NBD's own company: dashboard-bootstrap.module.js loads
@@ -479,6 +490,7 @@
     winback:     ['winback'],
     careplan:    ['careplan'],
     weekreview:  ['weekreview'],
+    catchup:     ['catchup'],
     repos:       ['repos'],
     'talk-tank': ['talktank'],
     calls:       ['callcenter'],

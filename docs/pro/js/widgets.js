@@ -98,8 +98,16 @@ function _leadName(l, fallback) {
 }
 // A lead's dollar amount lives in jobValue (see pipeline-value below);
 // estValue/value are legacy fallbacks.
+// The ONE money reader (customer-estimate-rows.js moneyValue): legacy text
+// like '$45,000' reads 45000 here and on the kanban / KPI tiles alike (review
+// R2, 2026-10-06). Fallback strips the same characters if that file is absent.
+function _wgMoney(v) {
+  const R = window.NBDCustomerEstimateRows;
+  if (R && typeof R.moneyValue === 'function') return R.moneyValue(v);
+  return parseFloat(String(v == null ? '' : v).replace(/[^0-9.-]/g, '')) || 0;
+}
 function _leadValue(l) {
-  return parseFloat(l.jobValue || l.estValue || l.value || 0) || 0;
+  return _wgMoney(l.jobValue || l.estValue || l.value || 0);
 }
 function _bucketOf(l) {
   const k = _normStage(l);
@@ -138,7 +146,7 @@ const WIDGETS = [
         // widget summed `estValue || value`, fields that don't exist on a
         // lead, so Home's Pipeline Value always rendered $0 while the CRM
         // showed the real total. jobValue first, legacy fields as fallback.
-        const val = parseFloat(l.jobValue || l.estValue || l.value || 0);
+        const val = _leadValue(l);
         total += val;
         const bucket = _bucketOf(l);
         if (bucket && stages[bucket] !== undefined) stages[bucket] += val;
@@ -514,9 +522,12 @@ const WIDGETS = [
       // $48.5k, and reasonably conclude the product was showing someone else's
       // data — or that its numbers can't be trusted at all.
       //
-      // Same aggregation the real Leaderboard view uses: group non-deleted
-      // leads by owner, count won by stage ROLE (not a hardcoded name list, so
-      // custom pipelines work), and sum jobValue — the canonical money field.
+      // BOOKED, all time: group non-deleted leads by owner, count won by stage
+      // ROLE (not a hardcoded name list, so custom pipelines work), and sum the
+      // won jobs' jobValue — what was sold, not what was paid. This is NOT the
+      // Leaderboard page's ranking, which is money COLLECTED in the period
+      // (pages/leaderboard.js; revenue is collected only), so the widget says
+      // "Booked (all time)" on its face (review R2, 2026-10-06).
       // Every won JOB counts (multi-job, 2026-09-30): a customer's second job
       // is its own deal and its own value.
       const _all = (window.NBDJobs && typeof window.NBDJobs.recordsFor === 'function') ? window.NBDJobs.recordsFor(window._leads || []) : (window._leads || []);
@@ -530,7 +541,7 @@ const WIDGETS = [
           || (typeof window.stageRole === 'function' ? window.stageRole(l._stageKey || l.stage) : '');
         if (role === 'won' || role === 'job') {
           byRep[owner].deals++;
-          byRep[owner].rev += parseFloat(l.jobValue) || 0;
+          byRep[owner].rev += _wgMoney(l.jobValue);
         }
       });
       const reps = Object.entries(byRep)
@@ -553,7 +564,7 @@ const WIDGETS = [
           + 'No closed jobs yet — reps appear here once deals start closing.</div>';
         return;
       }
-      el.innerHTML = reps.map((r,i) => `
+      el.innerHTML = '<div class="wg-tiny">Booked (all time)</div>' + reps.map((r,i) => `
         <div style="display:flex;align-items:center;gap:8px;padding:5px 0;${i<reps.length-1?'border-bottom:1px solid var(--br);':''}">
           <span class="wg-fs14">${i===0?'🥇':i===1?'🥈':'🥉'}</span>
           <div class="wg-grow"><div class="wg-title-sm">${esc(r.name)}</div></div>
@@ -640,7 +651,9 @@ const WIDGETS = [
     render(el){
       const cfg = JSON.parse(localStorage.getItem('nbd_ds_config') || '{}');
       const floors = cfg.floors || [{label:'Doors Knocked',target:30,unit:''},{label:'Contacts Made',target:10,unit:''},{label:'Appts Set',target:3,unit:''}];
-      const today = new Date().toISOString().split('T')[0];
+      // LOCAL date — daily-success writes this key with todayKey() (local);
+      // the UTC date read 0 / locked every evening after 8pm ET.
+      const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
       const progress = JSON.parse(localStorage.getItem('nbd_floor_progress_'+today) || '{}');
       el.innerHTML = floors.map((f,i) => {
         const val = progress[i] || 0;
@@ -692,7 +705,9 @@ const WIDGETS = [
     render(el){
       const cfg = JSON.parse(localStorage.getItem('nbd_ds_config') || '{}');
       const reward = cfg.goldenGoose || 'Set your reward in Settings → Daily OS';
-      const today = new Date().toISOString().split('T')[0];
+      // LOCAL date — daily-success writes this key with todayKey() (local);
+      // the UTC date read 0 / locked every evening after 8pm ET.
+      const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
       const progress = JSON.parse(localStorage.getItem('nbd_floor_progress_'+today) || '{}');
       const floors = cfg.floors || [];
       const allHit = floors.length > 0 && floors.every((f,i) => (progress[i]||0) >= f.target);
@@ -829,7 +844,7 @@ function _thuTenantKey() {
 
 async function _thuCallable(name, data) {
   if (!window._functions || !window._httpsCallable) {
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     window._functions = window._functions || mod.getFunctions();
     window._httpsCallable = window._httpsCallable || mod.httpsCallable;
   }

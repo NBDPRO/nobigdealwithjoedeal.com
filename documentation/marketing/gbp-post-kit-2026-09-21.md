@@ -1,20 +1,20 @@
 # GBP + Facebook post kit — 2026-09-21
 
 **UPDATE (same day):** added Post 4 (a generic pipe-boot educational post —
-no customer/address needed, see below) and Post 5 (John Reynolds' storm
+no customer/address needed, see below) and Post 5 (Customer CG' storm
 siding + gutter repair, Batavia OH) once those landed. Originally three
 GBP updates + two Facebook variants, built from the first three jobs
 published this session (`documentation/audit/PHOTO-SWEEP-2026-09-21.md`).
 
-**UPDATE 2 (same day):** added Post 6 (Rebecca Hildeman's two-story gutter
-replacement + micromesh screens, Cincinnati OH) and Post 7 (Rachel Henry's
+**UPDATE 2 (same day):** added Post 6 (Rebecca Customer CA's two-story gutter
+replacement + micromesh screens, Cincinnati OH) and Post 7 (Customer EH's
 soffit repair, Franklin OH), sourced from the follow-up sweep
 (`documentation/audit/PHOTO-SWEEP-2-2026-09-21.md`) and published in
 [PR #1702](https://github.com/jdealtia-sys/nobigdealwithjoedeal.com/pull/1702).
 
-**UPDATE 3 (same day):** added Post 8 (Brad Musuraca's same-day gutter
+**UPDATE 3 (same day):** added Post 8 (Customer DU's same-day gutter
 cleaning — the first job in the new `gutter-cleaning` category) and
-Post 9 (Albeliz Santiago's downspout base connector repair), both
+Post 9 (Customer C's downspout base connector repair), both
 Cincinnati OH. Both were briefly thought blocked on unpaid invoices per
 the internal jobs tracker; both confirmed paid directly against Stripe
 (see [PAYMENT-TRACKER-STALENESS-2026-09-21](../audit/PAYMENT-TRACKER-STALENESS-2026-09-21.md)).
@@ -317,7 +317,7 @@ surface on the profile** (individual photos there have out-drawn typical
 posts, one past 1,000 views) and it was last refreshed that same day. All
 twenty-six re-encoded photos from this round are graded and ready:
 
-- `cincinnati-oh-smartside-trim-repair-2026-1/2/3` — Joe working, wide gable, rot evidence
+- `cincinnati-oh-smartside-trim-repair-2026-1/2/3` — crew member working, wide gable, rot evidence
 - `cincinnati-oh-gutter-shingle-repair-2026-1/2/3` — aerial, gutter, shingle repair
 - `cincinnati-oh-interior-drywall-repair-2026-1/2/3` — the ceiling/wall crack set
 - `batavia-oh-storm-siding-gutter-repair-2026-1/2/3` — house exterior, gutter corner, gutter detail
@@ -335,9 +335,9 @@ the prior finding, photos alone earn real views without needing a caption.
 
 ## Not in this kit — needs more from Jo first
 
-- **Bryce Williams — additional interior jobs** — Jo said more are coming;
+- **Customer Z — additional interior jobs** — Jo said more are coming;
   this kit only covers the one already published.
-- **Albeliz Santiago's job** — invoiced but her Photos subfolder is still
+- **Customer C's job** — invoiced but her Photos subfolder is still
   empty. Nothing to build until photos exist.
 
 *Photos for every post live in `docs/assets/images/projects/` — already

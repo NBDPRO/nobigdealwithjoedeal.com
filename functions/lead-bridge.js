@@ -66,7 +66,11 @@ async function bridgeToCrm(collection, data, sourceId) {
       const snap = await db.collection('companies').doc(companyId).get();
       companyDoc = snap.exists ? (snap.data() || {}) : null;
     } catch (e) {
-      logger.error('leadBridge: company lookup failed', { companyId, err: e && e.message });
+      // R4-7-6 (2026-10-06): a failed lookup used to fall through to "no
+      // owner → skip", dropping the lead for good. Throw so the trigger
+      // retries (retry: true below).
+      logger.error('leadBridge: company lookup failed — will retry', { companyId, err: e && e.message });
+      throw e;
     }
   }
 
@@ -86,6 +90,13 @@ async function bridgeToCrm(collection, data, sourceId) {
   });
   leadDoc.createdAt = FieldValue.serverTimestamp();
   leadDoc.stageStartedAt = FieldValue.serverTimestamp();
+  // updatedAt on create too (2026-10-06). Every other lead writer stamps it
+  // (CRM saves, thursday.js, calcom.js); the bridge did not, so 60 of NBD's 76
+  // 'new' cards had none. Readers that order or filter by updatedAt then
+  // treated them as never touched: the agent MCP's list_leads sorted them to
+  // the bottom and cut them off its 50-row page, so the office sweep reported
+  // two fresh Thumbtack leads as "no CRM card", and stale_days skipped them.
+  leadDoc.updatedAt = FieldValue.serverTimestamp();
 
   // Marketplace repeat (Thumbtack): the same phone already has a card in this
   // tenant → attach the request to it rather than mint a duplicate. A lookup
@@ -125,7 +136,12 @@ async function bridgeToCrm(collection, data, sourceId) {
     if (e && (e.code === 6 || /already exists/i.test(e.message || ''))) {
       logger.info('leadBridge: CRM lead already exists — idempotent skip', { collection, sourceId, leadId: id });
     } else {
-      logger.error('leadBridge: CRM mirror failed', { collection, sourceId, err: e && e.message });
+      // R4-7-6 (2026-10-06): rethrow. This used to log and swallow with no
+      // retry, so one transient Firestore error and the homeowner's request
+      // never reached the board. create() with the fixed id is idempotent, so
+      // a retried delivery cannot duplicate the lead.
+      logger.error('leadBridge: CRM mirror failed — will retry', { collection, sourceId, err: e && e.message });
+      throw e;
     }
   }
 }
@@ -135,12 +151,30 @@ const TRIGGER_OPTS = {
   maxInstances: 10,
   memory: '256MiB',
   timeoutSeconds: 30,
+  // R4-7-6: redeliver on a thrown error (bridgeToCrm is idempotent).
+  retry: true,
 };
+
+// With retry on, a permanent error would be redelivered for up to 7 days.
+// Past a day, stop retrying and say so loudly: the public lead and its alert
+// email are still there for a manual add.
+const RETRY_WINDOW_MS = 24 * 60 * 60 * 1000;
+function tooOldToRetry(event, collection) {
+  const t = event && event.time ? Date.parse(event.time) : NaN;
+  if (Number.isFinite(t) && Date.now() - t > RETRY_WINDOW_MS) {
+    logger.error('leadBridge: giving up after 24h of retries — add this lead by hand', {
+      collection, sourceId: event.params && event.params.leadId, eventTime: event.time,
+    });
+    return true;
+  }
+  return false;
+}
 
 function onLeadCreated(collection) {
   return async (event) => {
     const snap = event.data;
     if (!snap) return;
+    if (tooOldToRetry(event, collection)) return;
     await bridgeToCrm(collection, snap.data() || {}, event.params && event.params.leadId);
   };
 }
@@ -154,6 +188,7 @@ function onStormBridge() {
   return async (event) => {
     const snap = event.data;
     if (!snap) return;
+    if (tooOldToRetry(event, 'storm_alert_subscribers')) return;
     const data = snap.data() || {};
     if (!L.shouldBridgeStorm(data)) {
       logger.info('leadBridge: storm signup is list-only (no high-intent concern) — not bridging', { concern: data.concern });
@@ -173,6 +208,7 @@ function onThumbtackBridge() {
   return async (event) => {
     const snap = event.data;
     if (!snap) return;
+    if (tooOldToRetry(event, 'thumbtack_leads')) return;
     const data = snap.data() || {};
     if (data.isTest) {
       logger.info('leadBridge: Thumbtack test delivery — stored, not bridged', {

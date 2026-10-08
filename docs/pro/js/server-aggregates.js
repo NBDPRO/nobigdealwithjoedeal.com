@@ -29,7 +29,7 @@
   'use strict';
   if (window.NBDServerAggregates && window.NBDServerAggregates.__sentinel === 'nbd-server-agg-v1') return;
 
-  const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+  const SDK = '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 
   async function leadCount(uid) {
     const fs = await import(SDK);

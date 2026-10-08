@@ -77,10 +77,19 @@ test.describe('phone deposit draft: review & send chip on the customer page @sha
 
     // Lead + estimate first (ids), then the server-shaped draft.
     const ids = await safeEvaluate(page, async ({ lead, est }) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
-      const leadId = (await fs.addDoc(fs.collection(db, 'leads'), Object.assign({ meter: 'manual' }, lead, { createdAt: fs.serverTimestamp() }))).id;
-      const estimateId = (await fs.addDoc(fs.collection(db, 'estimates'), Object.assign({}, est, { leadId, createdAt: fs.serverTimestamp() }))).id;
+      // Ids picked here + setDoc, ALREADY_EXISTS swallowed: under CI load the
+      // Firestore emulator lets the SDK retry a commit whose first attempt
+      // already landed and rejects the retry (fixtures/auth.js loginAs;
+      // merge-queue flake 2026-10-06, 3 of 3 attempts on one run).
+      const put = async (coll, data) => {
+        const ref = fs.doc(fs.collection(db, coll));
+        try { await fs.setDoc(ref, data); } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
+        return ref.id;
+      };
+      const leadId = await put('leads', Object.assign({ meter: 'manual' }, lead, { createdAt: fs.serverTimestamp() }));
+      const estimateId = await put('estimates', Object.assign({}, est, { leadId, createdAt: fs.serverTimestamp() }));
       await fs.updateDoc(fs.doc(db, 'leads', leadId), { primaryEstimateId: estimateId });
       return { leadId, estimateId };
     }, { lead, est });
@@ -96,14 +105,15 @@ test.describe('phone deposit draft: review & send chip on the customer page @sha
 
     // A sent $2,000 invoice too, so Total Owed has something real to count.
     await safeEvaluate(page, async ({ id, inv, leadId, uid, companyId }) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const due = new Date(inv.dueDateMs); delete inv.dueDateMs;
-      await fs.setDoc(fs.doc(db, 'invoices', id), Object.assign({}, inv, { dueDate: due, createdAt: fs.serverTimestamp(), updatedAt: fs.serverTimestamp() }));
-      await fs.addDoc(fs.collection(db, 'invoices'), {
+      const swallowRetry = (e) => { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }; // see the lead seed above
+      await fs.setDoc(fs.doc(db, 'invoices', id), Object.assign({}, inv, { dueDate: due, createdAt: fs.serverTimestamp(), updatedAt: fs.serverTimestamp() })).catch(swallowRetry);
+      await fs.setDoc(fs.doc(fs.collection(db, 'invoices')), {
         leadId, createdBy: uid, companyId, status: 'sent', total: 2000, balanceDue: 2000, amountPaid: 0,
         depositAmount: 0, items: [], createdAt: fs.serverTimestamp(), dueDate: new Date(Date.now() + 864e5), e2eTestData: true,
-      });
+      }).catch(swallowRetry);
     }, { id: decision.invoiceId, inv, leadId: ids.leadId, uid, companyId });
 
     await page.goto('/pro/customer.html?id=' + ids.leadId);

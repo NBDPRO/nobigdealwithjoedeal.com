@@ -187,6 +187,20 @@ async function dispatchToSigner(db, ref, envelopeId, env, signers, uid, opts) {
   const o = opts || {};
   const signer = ESL.nextPendingSigner(Object.assign({}, env, { signers }));
   if (!signer) throw new HttpsError('failed-precondition', 'Everyone has already signed this document.');
+  // R3-11: every signer email — the link now, the next signer's link and the
+  // signed copy later — must be on the lead's record (its email or a saved
+  // alternate). Checked here because send, resend and the estimate path all
+  // come through this one place.
+  if (signers.some((s) => s && s.email)) {
+    let lead = o.lead || null;
+    if (!lead && env.leadId) {
+      const ls = await db.doc(`leads/${env.leadId}`).get();
+      lead = ls.exists ? (ls.data() || {}) : null;
+    }
+    if (signers.some((s) => s && s.email && !ESL.recipientOnRecord(lead, s.email))) {
+      throw new HttpsError('failed-precondition', ESL.SIGN_EMAIL_NOT_ON_RECORD);
+    }
+  }
   const { link, token, expiresAtMs } = await IO.mintSignerLink(db, envelopeId, env, signer);
   let mail = { emailed: false, stubbed: false, error: null };
   if (o.sendEmail !== false) {
@@ -449,10 +463,23 @@ exports.sendEsignEnvelope = onCall(
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
     assertNotViewer(request.auth.token); // decision B — see createEsignEnvelope
     await callableRateLimit(request, 'sendEsignEnvelope', 20, 60_000);
+    // R3-11: a daily cap on emailed links, shared with createSignRequest.
+    if ((request.data || {}).sendEmail !== false) {
+      await callableRateLimit(request, 'signLinkEmailDaily', ESL.SIGN_EMAIL_DAILY_CAP, 86_400_000);
+    }
 
     const { envelopeId, signerName, signerEmail, sendEmail, signers: signerInput, reminders } = request.data || {};
     const db = getFirestore();
     const { ref, env } = await loadOwnedEnvelope(db, envelopeId, uid);
+
+    // A contract envelope gets the Notice of Cancellation appended at signing
+    // (submitEsignEnvelope), naming the company as the seller. Refuse to send
+    // one for a company with no legal business name rather than print a
+    // blank seller (NBD always resolves its own name).
+    if (CW.envelopeNeedsCancelNotice(env)) {
+      const po = await CW.loadPacketOpts(db, env.leadId);
+      if (!po || !po.sellerName) throw new HttpsError('failed-precondition', CW.SELLER_NAME_REQUIRED_MSG);
+    }
 
     if (env.status === 'completed') {
       throw new HttpsError('failed-precondition', 'This envelope is already signed.');
@@ -563,6 +590,10 @@ exports.sendEstimateEnvelope = onCall(
     // homeowner, even for an estimate the viewer owns.
     assertNotViewer(request.auth.token);
     await callableRateLimit(request, 'sendEstimateEnvelope', 20, 60_000);
+    // R3-11: a daily cap on emailed links, shared with createSignRequest.
+    if ((request.data || {}).sendEmail !== false) {
+      await callableRateLimit(request, 'signLinkEmailDaily', ESL.SIGN_EMAIL_DAILY_CAP, 86_400_000);
+    }
 
     const d = request.data || {};
     const estimateId = typeof d.estimateId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(d.estimateId) ? d.estimateId : null;
@@ -605,8 +636,17 @@ exports.sendEstimateEnvelope = onCall(
         : [{ name: d.signerName, email: d.signerEmail }];
       signers = ESL.sanitizeSignerInput(raw.slice(0, ESL.MAX_SIGNERS), { requireEmail: sendEmail });
     } catch (e) { throw new HttpsError('invalid-argument', e.message); }
+    // R3-11: refuse before the contract PDF is built (dispatchToSigner checks again).
+    if (signers.some((s) => s && s.email && !ESL.recipientOnRecord(lead, s.email))) {
+      throw new HttpsError('failed-precondition', ESL.SIGN_EMAIL_NOT_ON_RECORD);
+    }
 
     const { companyName, profile } = await resolveCompanyName(db, lead);
+    // The seller on the contract and its Notice of Cancellation. NBD keeps its
+    // name; another company with no legal name set is refused here — a blank
+    // seller on a 3-day cancellation notice is worse than not sending.
+    const sellerName = ESL.senderName(companyName, lead.companyId || lead.userId);
+    if (!sellerName) throw new HttpsError('failed-precondition', CW.SELLER_NAME_REQUIRED_MSG);
     const { safeDepositPlan } = require('./deposit-plan-view');
     const { tierApplies } = require('./customer-estimate-rows');
     const timeZone = KyLaw.resolveTimeZone(profile);
@@ -616,7 +656,7 @@ exports.sendEstimateEnvelope = onCall(
     let pdf;
     try {
       pdf = await require('./estimate-esign-pdf').buildEstimateContractPdf({
-        companyName: companyName || 'No Big Deal Home Solutions',
+        companyName: sellerName,
         sellerAddress: KyLaw.contractorMailingAddress(profile),
         title: 'Roofing Contract',
         estimateNumber: est.number || estimateId.slice(0, 8),
@@ -691,7 +731,7 @@ exports.sendEstimateEnvelope = onCall(
       audit: [{ event: 'created', at: Date.now(), by: uid, from: 'estimate', estimateId }],
     };
     await ref.set(env);
-    const out = await dispatchToSigner(db, ref, envelopeId, env, signers, uid, { sendEmail, reminders: d.reminders });
+    const out = await dispatchToSigner(db, ref, envelopeId, env, signers, uid, { sendEmail, reminders: d.reminders, lead });
     logger.info('[sendEstimateEnvelope] sent', { estimateId, envelopeId, signers: signers.length, emailed: out.emailed });
     return Object.assign({ envelopeId }, out);
   }
@@ -1068,7 +1108,7 @@ exports.submitEsignEnvelope = onRequest(
     try {
       const stamped = await stampPdf(source, (env.fields || []).concat(env.systemFields || []), Object.assign({}, all, sys.values), {
         certificateLine:
-          `Signed electronically ${new Date(when).toISOString()} · envelope ${tok.envelopeId} · ` +
+          `Signed electronically ${ESL.zonedStamp(when, env.timeZone)} · envelope ${tok.envelopeId} · ` +
           `${signersAfter.map((s) => s.typedName || s.name || 'signer').join(', ')}`.slice(0, 160),
       });
       if (stamped.missingRequired.length) throw new Error('missing required after assembly: ' + stamped.missingRequired.join(','));
@@ -1131,7 +1171,7 @@ exports.submitEsignEnvelope = onRequest(
     for (const s of signersAfter) {
       if (!s.email || !ESL.EMAIL_RE.test(s.email)) { copies.push({ signerId: s.id, emailed: false, reason: 'no email' }); continue; }
       try {
-        const m = ESL.signedCopyEmail({ brand: env.companyName, name: s.typedName || s.name, title: env.title, attached: attach });
+        const m = ESL.signedCopyEmail({ brand: env.companyName, tenantKey: env.companyId || env.ownerUid, name: s.typedName || s.name, title: env.title, attached: attach });
         const r = await IO.sendMail(Object.assign({ to: s.email, subject: m.subject, html: m.html },
           attach ? { attachments: [{ filename: 'signed-' + tok.envelopeId + '.pdf', content: signedBuf.toString('base64') }] } : {}));
         copies.push({ signerId: s.id, emailed: !!r.emailed, stubbed: !!r.stubbed, at: Date.now() });

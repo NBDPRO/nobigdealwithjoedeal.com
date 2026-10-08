@@ -67,7 +67,8 @@ console.log('WIDGETS — no invented numbers on a tenant dashboard');
   ok('it counts won by stage ROLE, not a hardcoded name list',
     /role === 'won' \|\| role === 'job'/.test(w),
     'a name list misses custom pipelines');
-  ok('it sums the canonical money field (jobValue)', /parseFloat\(l\.jobValue\)/.test(w));
+  // Through the ONE money reader since review R2 (2026-10-06): '$45,000' is 45000.
+  ok('it sums the canonical money field (jobValue)', /_wgMoney\(l\.jobValue\)/.test(w));
   ok('it shows an honest empty state with no closed jobs',
     /No closed jobs yet/.test(w));
   ok('it never invents a person for an unnamed rep',

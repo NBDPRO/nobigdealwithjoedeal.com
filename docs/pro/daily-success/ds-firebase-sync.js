@@ -9,12 +9,12 @@
 // goal targets survive sign-out on userSettings/{uid}. Why each rule is what
 // it is lives in js/ds-sync-logic.js.
 
-import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { initializeApp, getApps } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, setDoc, getDocs,
   collection, writeBatch, serverTimestamp
-} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+} from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 import { connectEmulatorsIfLocal } from '/pro/js/nbd-emulator-connect.js';
 
 const FIREBASE_CONFIG = {

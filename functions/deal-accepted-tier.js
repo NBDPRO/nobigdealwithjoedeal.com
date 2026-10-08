@@ -12,6 +12,9 @@
  *   - The estimate has NO tier chosen yet → write the accepted tier and price
  *     onto it (tier / selectedTier / grandTotal) and onto the lead's jobValue
  *     (only when that estimate is the lead's primary, or the lead has none).
+ *   - (2026-10-06, R2-2-1) A tier-PRICED estimate (per-SQ / prices{}) that
+ *     already names a tier takes the accepted tier and price too — see
+ *     planAcceptedTier. The bullet below now applies to line-item estimates.
  *   - The estimate already HAS a tier → never overwrite the rep's choice.
  *     Record acceptedTier/acceptedPrice alongside it; the customer page shows
  *     "Homeowner picked X — use it?" (accepted-tier-chip.js) for a one-tap
@@ -46,6 +49,7 @@
 const TIERS = ['economy', 'good', 'better', 'best', 'beyond'];
 const cents = (n) => Math.round(Number(n) * 100) / 100;
 const DR = require('./deposit-rule');
+const PIF = require('./paid-in-full');
 
 // ── retier block: byte-identical in functions/deal-accepted-tier.js and
 //    docs/pro/js/accepted-tier-chip.js (tests/deal-accepted-tier-2026-10-03 holds them equal) ──
@@ -127,12 +131,35 @@ function planAcceptedTier(o) {
     return { reason: 'no-estimate', lead: leadUpd, estimate: null };
   }
   const chosen = String(estimate.selectedTier || estimate.tier || '').toLowerCase();
+  // 2026-10-06 (review R2-2-1, Jo): a tier-PRICED estimate (per-SQ, or one
+  // carrying the prices{} map the deal room's tiers came from) takes the
+  // homeowner's pick even when it already names a tier. V2 always saves one
+  // (state.tier defaults to 'better'), so "never overwrite the rep's choice"
+  // meant the acceptance never reached the estimate: the signing-day draft
+  // billed the accepted price (deposit-draft-logic _priceEstimate) while the
+  // estimate, jobValue, portal and install-day final invoice kept the default
+  // tier's total. Nothing on an estimate records that a rep deliberately
+  // locked a tier, so the signed acceptance wins. A line-item estimate keeps
+  // the old behaviour (record + the customer-page chip): its saved rows are
+  // priced at the rep's tier, so its total cannot be swapped for another
+  // tier's price, and the deposit draft does not reprice it either.
+  const tierPriced = estimate.priceMode === 'per-sq' || (estimate.prices != null && typeof estimate.prices === 'object');
+  const priceDiffers = Math.round(Number(estimate.grandTotal) * 100) !== Math.round(p * 100);
+  const override = !!chosen && tierPriced && (chosen !== tier || priceDiffers);
   // A template estimate that is not a roofing tier (tierApplies:false) has no
   // tier to fill — record only.
-  if (!chosen && estimate.tierApplies !== false) {
+  if ((!chosen || override) && estimate.tierApplies !== false) {
     // grandTotal + subtotal + tax + deposit for the picked tier (bug #10).
     const estUpd = Object.assign({}, stamp, { tier, selectedTier: tier, acceptedTierApplied: true },
       retierFields(estimate, p, { lead, depositRule: o.depositRule || DR, depositCollected: o.depositCollected === true }));
+    if (override) {
+      // The tier it replaced, for the rep's history; the prices map follows a
+      // re-snapshotted price so a reopen shows the same number.
+      estUpd.acceptedTierReplaced = chosen;
+      if (estimate.prices && typeof estimate.prices === 'object' && Math.round(Number(estimate.prices[tier]) * 100) !== Math.round(p * 100)) {
+        estUpd.prices = Object.assign({}, estimate.prices, { [tier]: p });
+      }
+    }
     const isPrimary = !lead.primaryEstimateId || lead.primaryEstimateId === estimateId;
     if (isPrimary) {
       leadUpd.jobValue = p;
@@ -174,7 +201,10 @@ async function applyAcceptedTier(db, info, tier, price, deps) {
       let invoices = [];
       if (estimate) {
         const q = await tx.get(db.collection('invoices').where('leadId', '==', info.leadId));
-        invoices = (q && q.docs ? q.docs : []).map((x) => x.data());
+        // Only this lead's own tenant's invoices (paid-in-full.js
+        // invoicesForLead): another company's invoice naming this lead is not
+        // money taken on it (2026-10-05).
+        invoices = PIF.invoicesForLead((q && q.docs ? q.docs : []).map((x) => x.data()), lead, info.leadId, null);
       }
       const at = now();
       const plan = planAcceptedTier({ lead, estimate, estimateId, leadId: info.leadId, ownerUid: info.ownerUid, tier, price, dealId: info.dealId, now: at,

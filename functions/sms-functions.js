@@ -41,6 +41,14 @@ const { phoneDigits10 } = require('./phone-utils');
 // used to write the register under an 11-digit key and read it under a
 // 10-digit one, so no STOP was ever honoured on an outbound send.
 const OptOut = require('./sms-optout');
+// What an inbound text asks for (STOP / HELP / START, plus plain-English
+// revocations like "stop texting me"). Pure; the decision table is tested.
+const StopIntent = require('./sms-stop-intent');
+// Whose texting a send is (tenant key) — whose Do Not Text list applies —
+// and the per-company master switch every send path checks.
+const TextingGate = require('./sms-texting-gate');
+// Texting hours in the HOMEOWNER's local time, for every outbound path.
+const SendWindow = require('./sms-send-window');
 // Storm texts: opt-out → claim → send (never double-sends). See the module.
 const StormGuard = require('./storm-sms-guard');
 // Tenant-safe inbound routing (audit 2026-08-02 HIGH-5): one shared Twilio
@@ -83,6 +91,7 @@ function escForStore(s) {
 }
 
 // Secrets
+const { secretValue } = require('./integrations/_shared');
 const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN = defineSecret('TWILIO_AUTH_TOKEN');
 const TWILIO_PHONE_NUMBER = defineSecret('TWILIO_PHONE_NUMBER');
@@ -123,15 +132,84 @@ const D2D_SMS_TEMPLATES = {
     label: 'Insurance Claim Alert',
     body: 'Hi {name}! {rep} from NBD. I noticed storm damage on your roof. I can inspect it and give you photos and a repair estimate to share with your insurer. Want to talk?'
   },
+  // 2026-10-05: follow_up and not_home now name the company (they named no
+  // one); every D2D text also gets the STOP line (withKnockFooter below).
   follow_up: {
     label: 'Follow-Up',
-    body: 'Hi {name}! Just following up from our conversation last time. Still interested in getting that roof inspected? Give me a call or text back!'
+    body: 'Hi {name}! {rep} from NBD following up from our conversation last time. Still interested in getting that roof inspected? Give me a call or text back!'
   },
   not_home: {
     label: 'Not Home Follow-Up',
-    body: 'Hi {name}! I stopped by but didn\'t catch you home. Would love to chat about your roof. Free inspection — no pressure. Hit me back!'
+    body: 'Hi {name}! {rep} from NBD — I stopped by but didn\'t catch you home. Would love to chat about your roof. Free inspection — no pressure. Hit me back!'
   }
 };
+
+// ── Door-knock texts (texting review 2026-10-05, fix #2) ─────────────────
+// A door-knock text goes only to a number whose knock carries the rep's
+// record that the homeowner said yes to texts, and always names the company
+// and says how to stop. Shared by sendD2DSMS and sendSMS-with-knockId (the
+// D2D tracker's own path, docs/pro/js/d2d-tracker-core-2026b.js).
+
+const NBD_D2D_COMPANY = 'NBD Home Solutions';
+
+/** True only for an explicit boolean consent on the knock (never inferred). */
+function knockHasConsent(knock) {
+  return !!knock && (knock.smsConsent === true || knock.tcpaConsent === true);
+}
+
+/** May this caller text about this knock? Mirrors the knocks read rule. */
+function knockAccessible(knock, decoded) {
+  if (!knock || !decoded) return false;
+  const role = decoded.role || '';
+  if (role === 'admin') return true;
+  if (knock.userId === decoded.uid) return true;
+  return ['manager', 'company_admin'].includes(role)
+    && !!decoded.companyId && knock.companyId === decoded.companyId;
+}
+
+/** The refusal (403 body) for a knock that may not be texted, or null. */
+function knockConsentRefusal(knock, decoded, to) {
+  if (!knock || !knockAccessible(knock, decoded)) {
+    return { error: 'This door knock was not found.', code: 'knock_not_found' };
+  }
+  const knockKey = OptOut.optOutKey(knock.phone || knock.phoneNumber);
+  if (!knockKey || knockKey !== OptOut.optOutKey(to)) {
+    return { error: 'This number is not the one saved on the door knock. Nothing was sent.', code: 'no_consent' };
+  }
+  if (!knockHasConsent(knock)) {
+    return {
+      error: 'No texting consent on file for this door knock. Ask the homeowner first, then tick "OK to text" on the knock.',
+      code: 'no_consent',
+    };
+  }
+  return null;
+}
+
+/** The company a door-knock text names: NBD's D2D name, or the tenant's legal name ('' = unknown). */
+async function knockCompanyName(db, knock, isNbd) {
+  if (isNbd) return NBD_D2D_COMPANY;
+  const key = TextingGate.tenantKeyOfRecord(knock);
+  if (!key) return '';
+  try {
+    const snap = await db.doc(`companyProfile/${key}`).get();
+    const b = snap.exists ? ((snap.data() || {}).brand || {}) : {};
+    const name = String(b.legalName || b.displayName || '').trim();
+    return name && name !== 'No Big Deal Home Solutions' ? name.slice(0, 80) : '';
+  } catch (e) {
+    logger.warn('knock_company_name_failed', { err: e && e.message });
+    return '';
+  }
+}
+
+/** Append "– Company." and/or "Reply STOP to opt out." when the body lacks them. */
+function withKnockFooter(body, company) {
+  const b = String(body == null ? '' : body).trim();
+  if (!b) return b;
+  let tail = '';
+  if (company && b.toLowerCase().indexOf(company.toLowerCase()) === -1) tail += ' – ' + company + '.';
+  if (!/\bSTOP\b/.test(b)) tail += ' Reply STOP to opt out.';
+  return b + tail;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
@@ -229,6 +307,20 @@ const { requirePaidSubscription, viewOnlyRefusal } = require('./shared');
 //   provider_error     502 — Twilio failed AFTER the opt-out check passed
 const OPTOUT_UNVERIFIED_MSG = 'Could not verify this number can be texted — nothing was sent. Try again in a moment.';
 
+// The 403 body for a number the register or the company's Do Not Text list
+// refuses. Same code either way ('opted_out' — every client already refuses
+// it without a handoff); the words say which list it is on.
+function optedOutBody(optOut, fallbackMsg) {
+  if (optOut && optOut.source === 'dnc') {
+    return {
+      error: 'This number is on your company\'s Do Not Text list. Contact them by phone or email.',
+      code: 'opted_out',
+      list: 'dnc',
+    };
+  }
+  return { error: fallbackMsg, code: 'opted_out' };
+}
+
 // .catch() for the opt-out read in the two HTTP send paths. A throw, or a read
 // that outlives OptOut.READ_TIMEOUT_MS, lands here; the caller answers the
 // null with 503 optout_unverified. It never returns a verdict: an unknown
@@ -251,6 +343,41 @@ function isTwilioUnsubscribed(e) {
   return !!e && Number(e.code) === 21610;
 }
 
+// Review R6-3-3 (2026-10-07): did Twilio ANSWER that it refused the message?
+// The SDK's RestException carries the API's HTTP status; a 4xx means the
+// request was read and refused, so nothing went out. Anything else — a
+// timeout, a reset socket, a 5xx, an error with no status — may have reached
+// Twilio after all: the outcome is unknown and the send must not be repeated
+// blindly.
+function isDefiniteTwilioRejection(e) {
+  const s = Number(e && e.status);
+  return Number.isInteger(s) && s >= 400 && s < 500;
+}
+
+// After an unknown outcome, ask Twilio whether it took the message: the most
+// recent messages from our number to theirs, matched on the exact text and a
+// creation time no earlier than `sinceMs`. Bounded (8s); a miss or an error
+// is NOT proof it was not sent — the caller marks the draft send_uncertain.
+async function findTwilioMessage(client, q) {
+  if (!client || !client.messages || typeof client.messages.list !== 'function') return null;
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('twilio lookup timed out')), 8000);
+  });
+  try {
+    const rows = await Promise.race([client.messages.list({ to: q.to, from: q.from, limit: 20 }), deadline]);
+    const want = String(q.body || '').trim();
+    for (const m of (Array.isArray(rows) ? rows : [])) {
+      const created = m && m.dateCreated ? new Date(m.dateCreated).getTime() : NaN;
+      if (Number.isFinite(created) && created < q.sinceMs) continue;
+      if (m && m.sid && String(m.body || '').trim() === want) return { sid: m.sid, status: m.status || null };
+    }
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Copy Twilio's STOP into the register so every later send — including the
 // AI-draft trigger, which consults only the register — is refused before it
 // reaches Twilio. Best-effort: the send has already been refused either way.
@@ -263,6 +390,17 @@ async function recordCarrierOptOut(db, phone, fn) {
   } catch (e) {
     logger.error('optout_record_error', { fn, source: 'twilio_21610', err: e && e.message });
   }
+}
+
+// A homeowner's STOP, copied onto the Do Not Text list of each company that
+// has a lead with this number — so the company SEES who stopped it (the
+// global register is what enforces it). The logic lives in sms-optout.js
+// (shared with the Twilio line, twilio-line.js); bounded, never throws.
+function copyStopToTenantLists(db, phone) {
+  return OptOut.copyStopToTenantLists(db, phone, {
+    serverTimestamp: () => FieldValue.serverTimestamp(),
+    onError: (e) => logger.error('dnc_stop_reply_copy_failed', { err: e && e.message }),
+  });
 }
 
 // ── Offline outbox: queued sends (sendQueuedSMS, or body.queued === true) ──
@@ -332,7 +470,7 @@ function claimVerdict(existing) {
  * the paid gate, the limiters and Twilio. Returns { respond } to answer now,
  * or { ctx } to carry on. Never sends.
  */
-async function queuedSendGate(db, decoded, reqBody, to) {
+async function queuedSendGate(db, decoded, reqBody, to, recipientRec) {
   const now = Outbox.nowMs();
   const v = Outbox.validateQueuedFields(reqBody, now);
   if (!v.ok) {
@@ -380,8 +518,9 @@ async function queuedSendGate(db, decoded, reqBody, to) {
     }
   }
 
-  // (b) Quiet hours — never overridable.
-  if (!Outbox.isWithinSendWindow(now)) return { respond: heldResponse('quiet_hours') };
+  // (b) Quiet hours — never overridable. In the HOMEOWNER's local time
+  // (sms-send-window.js, 2026-10-05), from the lead / knock the text is about.
+  if (!SendWindow.withinRecipientWindow(now, recipientRec || {})) return { respond: heldResponse('quiet_hours') };
 
   // Stale — overridable only by the rep's explicit "Send now" (overrideStale).
   // On the server's clock (effectiveQueuedAt): a fast device clock must not
@@ -523,6 +662,83 @@ async function queuedGateLimit(decoded) {
   }
 }
 
+// ── Every outbound text: master switch, door-knock consent, texting hours ──
+// (texting review 2026-10-05, fixes #2 #3 #5). One gate so the HTTP send
+// paths cannot drift; the AI-draft trigger and the storm / ack paths make the
+// same checks against the same modules.
+
+const SAFE_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * The record a send is about, for its consent and the homeowner's location:
+ * the knock (door-knock texts) and/or the lead. Bounded; REJECTS on a read
+ * error (caller: 503, nothing sent).
+ */
+async function readRecipient(db, reqBody) {
+  const b = reqBody || {};
+  const leadId = typeof b.leadId === 'string' && SAFE_ID_RE.test(b.leadId) ? b.leadId : null;
+  const knockId = typeof b.knockId === 'string' && SAFE_ID_RE.test(b.knockId) ? b.knockId : null;
+  const [leadSnap, knockSnap] = await withReadTimeout(Promise.all([
+    leadId ? db.doc(`leads/${leadId}`).get() : null,
+    knockId ? db.doc(`knocks/${knockId}`).get() : null,
+  ]), 'recipient read');
+  return {
+    leadId, knockId,
+    lead: leadSnap && leadSnap.exists ? (leadSnap.data() || {}) : null,
+    knock: knockSnap && knockSnap.exists ? (knockSnap.data() || {}) : null,
+    // A knockId that names nothing is still a door-knock send: it is refused
+    // below rather than quietly treated as a plain text.
+    knockAsked: !!(b && b.knockId),
+  };
+}
+
+/**
+ * The checks after the opt-out register and before any limiter or Twilio.
+ * Never sends. Returns { respond } (answer now) or { body, company, status }.
+ *   a: { to, body, knockId?, knock?, recipient (record for the hours), live }
+ */
+async function complianceGate(db, decoded, a) {
+  // 1. Master switch for the caller's company. Fail CLOSED on a read error.
+  let status;
+  try {
+    status = await withReadTimeout(TextingGate.textingStatus(db, TextingGate.tenantKeyOf(decoded)), 'texting switch read');
+  } catch (e) {
+    logger.error('texting_switch_unreadable', { err: e && e.message, code: e && e.code });
+    return { respond: { status: 503, body: Object.assign({}, TextingGate.UNVERIFIED_BODY) } };
+  }
+  if (!status.allowed) {
+    return { respond: { status: 403, body: TextingGate.refusalBody(status) } };
+  }
+
+  // 2. Door-knock texts: consent on file + the company named + STOP.
+  let body = a.body;
+  let company = '';
+  if (a.knockId) {
+    const refusal = knockConsentRefusal(a.knock, decoded, a.to);
+    if (refusal) return { respond: { status: 403, body: refusal } };
+    company = await knockCompanyName(db, a.knock, status.isNbd);
+    if (!company) {
+      return { respond: { status: 403, body: {
+        error: 'Add your company name in Settings before sending door-knock texts. Nothing was sent.',
+        code: 'no_company_name',
+      } } };
+    }
+    if (body) body = withKnockFooter(body, company);
+  }
+
+  // 3. Texting hours in the homeowner's local time. A queued send is held
+  //    for this inside queuedSendGate (409 held quiet_hours) instead.
+  if (a.live) {
+    const w = SendWindow.checkRecipientWindow(Outbox.nowMs(), a.recipient || {});
+    if (!w.ok) {
+      return { respond: { status: 403, body: {
+        error: SendWindow.quietHoursMessage(w.window), code: 'quiet_hours', reason: 'quiet_hours',
+      } } };
+    }
+  }
+  return { body, company, status };
+}
+
 // ═══════════════════════════════════════════════════════════════
 // CLOUD FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
@@ -609,16 +825,18 @@ async function handleSendSMS(req, res, queuedEndpoint) {
     // Bounded (timeoutMs): a read that HANGS must also end in that 503. The
     // client aborts at 25s and hands the abort off like being offline, so a
     // read still pending then handed off a number nobody had checked.
-    const optOut = await OptOut.isOptedOut(getFirestore(), to, { timeoutMs: OptOut.READ_TIMEOUT_MS })
-      .catch(optOutCheckFailed('sendSMS'));
+    // companyId: the caller's tenant — its Do Not Text list is checked in the
+    // same lookup (sms-optout.js), so this path cannot skip it.
+    const optOut = await OptOut.isOptedOut(getFirestore(), to, {
+      companyId: TextingGate.tenantKeyOf(decoded),
+      timeoutMs: OptOut.READ_TIMEOUT_MS,
+    }).catch(optOutCheckFailed('sendSMS'));
     if (optOut && optOut.optedOut) {
       if (optOut.viaLegacyKey) {
         logger.info('optout.legacy_key_hit', { fn: 'sendSMS', key: optOut.key });
       }
-      res.status(403).json({
-        error: 'This recipient has opted out of SMS (replied STOP). Contact them by phone or email.',
-        code: 'opted_out',
-      });
+      res.status(403).json(optedOutBody(optOut,
+        'This recipient has opted out of SMS (replied STOP). Contact them by phone or email.'));
       return;
     }
     if (!optOut) {
@@ -626,24 +844,66 @@ async function handleSendSMS(req, res, queuedEndpoint) {
       return;
     }
 
-    // Offline outbox. After the opt-out register (a STOP is a 403 whether the
-    // text was queued or not) and BEFORE the paid gate, the limiters and
-    // Twilio: a held or duplicate queued text must neither burn budget nor
-    // come back as a 402/429. Live sends skip this block entirely.
-    let queuedCtx = null;
+    // A queued request is metered BEFORE any read it makes (sendQueuedSMS:uid).
     if (queued) {
       const limited = await queuedGateLimit(decoded);
       if (limited) {
         res.status(limited.status).json(limited.body);
         return;
       }
-      const gate = await queuedSendGate(getFirestore(), decoded, req.body, to);
+    }
+
+    // The lead / door knock this text is about: its consent and where the
+    // homeowner is (texting hours). Fail closed on a read error.
+    let recip;
+    try {
+      recip = await readRecipient(getFirestore(), req.body);
+    } catch (e) {
+      // A queued text keeps the outbox's own contract (503 outbox_unverified,
+      // logged as its 'lead' stage): it stays queued and is retried.
+      if (queued) {
+        logger.error('outbox_check_error', { stage: 'lead', err: e && e.message, code: e && e.code });
+        const r = unverifiedResponse();
+        res.status(r.status).json(r.body);
+        return;
+      }
+      logger.error('send_recipient_unreadable', { err: e && e.message, code: e && e.code });
+      res.status(503).json(Object.assign({}, TextingGate.UNVERIFIED_BODY));
+      return;
+    }
+    const recipientRec = recip.knock || recip.lead || {};
+
+    // Offline outbox. After the opt-out register (a STOP is a 403 whether the
+    // text was queued or not) and BEFORE the paid gate, the limiters and
+    // Twilio: a held or duplicate queued text must neither burn budget nor
+    // come back as a 402/429. Live sends skip this block entirely.
+    let queuedCtx = null;
+    if (queued) {
+      const gate = await queuedSendGate(getFirestore(), decoded, req.body, to, recipientRec);
       if (gate.respond) {
         res.status(gate.respond.status).json(gate.respond.body);
         return;
       }
       queuedCtx = gate.ctx;
     }
+
+    // Master switch, door-knock consent + footer, and (live) texting hours —
+    // all refusals are 403s (no device-Messages handoff) or a fail-closed 503,
+    // and all come before the paid gate, the limiters and Twilio.
+    const compliance = await complianceGate(getFirestore(), decoded, {
+      to,
+      body,
+      knockId: recip.knockAsked ? (recip.knockId || '(invalid)') : null,
+      knock: recip.knock,
+      recipient: recipientRec,
+      live: !queued,
+    });
+    if (compliance.respond) {
+      res.status(compliance.respond.status).json(compliance.respond.body);
+      return;
+    }
+    // A door-knock text may have gained the company + STOP footer.
+    const outBody = compliance.body;
 
     // Per-IP cap: 30 SMS/hour from a single IP. After the opt-out check (it
     // used to run first) because its 429 is handed off like the others.
@@ -679,8 +939,11 @@ async function handleSendSMS(req, res, queuedEndpoint) {
       await enforceRateLimit('sendSMS:to', toDigits, 5, 86_400_000);
     } catch (e) {
       if (e.rateLimited) {
+        // code: the browser refuses THIS 429 instead of handing the 6th text
+        // to the rep's Messages app (review R2-3-4, nbd-comms.js).
         res.status(429).json({
-          error: 'This recipient has received the maximum SMS for today. Try tomorrow or contact them directly.'
+          error: 'This recipient has received the maximum SMS for today. Try tomorrow or contact them directly.',
+          code: 'recipient_daily_cap',
         });
         return;
       }
@@ -716,12 +979,12 @@ async function handleSendSMS(req, res, queuedEndpoint) {
       }
     }
 
-    if (!body || body.trim().length === 0) {
+    if (!outBody || outBody.trim().length === 0) {
       res.status(400).json({ error: 'Body cannot be empty' });
       return;
     }
 
-    if (body.length > 1600) {
+    if (outBody.length > 1600) {
       res.status(400).json({ error: 'Message too long (max 1600 characters)' });
       return;
     }
@@ -845,7 +1108,7 @@ async function handleSendSMS(req, res, queuedEndpoint) {
       // Send SMS
       twilioAttempted = true;
       message = await client.messages.create({
-        body,
+        body: outBody,
         from: fromPhone,
         to: formattedTo
       });
@@ -864,7 +1127,7 @@ async function handleSendSMS(req, res, queuedEndpoint) {
       // activity check (sms-outbox-guard.js) must not treat a text the
       // homeowner may well have as "nothing reached them".
       const failExtra = definite ? outboxLog : Object.assign({}, outboxLog || {}, { deliveryUnknown: true });
-      await logSMSToFirestore(db, to, body, decoded.uid, leadId || null, 'failed', null, companyId, failExtra);
+      await logSMSToFirestore(db, to, outBody, decoded.uid, leadId || null, 'failed', null, companyId, failExtra);
 
       if (isTwilioUnsubscribed(e)) {
         await recordCarrierOptOut(db, to, 'sendSMS');
@@ -903,7 +1166,7 @@ async function handleSendSMS(req, res, queuedEndpoint) {
     }
 
     // Log to Firestore
-    await logSMSToFirestore(db, to, body, decoded.uid, leadId || null, 'sent', message.sid, companyId, outboxLog);
+    await logSMSToFirestore(db, to, outBody, decoded.uid, leadId || null, 'sent', message.sid, companyId, outboxLog);
 
     res.json({
       success: true,
@@ -1060,20 +1323,31 @@ exports.sendD2DSMS = onRequest(
       // neither burns that bucket nor comes back as a 429. Fails CLOSED with
       // a 503 on a read error or a read that outlives the bound, same as
       // sendSMS.
-      const optOut = await OptOut.isOptedOut(getFirestore(), phoneNumber, { timeoutMs: OptOut.READ_TIMEOUT_MS })
-        .catch(optOutCheckFailed('sendD2DSMS'));
+      // Both the caller's and the knock's tenant lists (they differ only for a
+      // platform admin acting on another tenant's knock).
+      const optOut = await OptOut.isOptedOut(getFirestore(), phoneNumber, {
+        companyId: [TextingGate.tenantKeyOf(decoded), TextingGate.tenantKeyOfRecord(knock)].filter(Boolean),
+        timeoutMs: OptOut.READ_TIMEOUT_MS,
+      }).catch(optOutCheckFailed('sendD2DSMS'));
       if (optOut && optOut.optedOut) {
         if (optOut.viaLegacyKey) {
           logger.info('optout.legacy_key_hit', { fn: 'sendD2DSMS', key: optOut.key });
         }
-        res.status(403).json({
-          error: 'This number has opted out of SMS (replied STOP).',
-          code: 'opted_out',
-        });
+        res.status(403).json(optedOutBody(optOut, 'This number has opted out of SMS (replied STOP).'));
         return;
       }
       if (!optOut) {
         res.status(503).json({ error: OPTOUT_UNVERIFIED_MSG, code: 'optout_unverified' });
+        return;
+      }
+
+      // 2026-10-05: master switch, consent on file, texting hours — the same
+      // three checks sendSMS makes for a door-knock text (complianceGate).
+      const gate = await complianceGate(db, decoded, {
+        to: phoneNumber, body: '', knockId, knock, recipient: knock, live: true,
+      });
+      if (gate.respond) {
+        res.status(gate.respond.status).json(gate.respond.body);
         return;
       }
 
@@ -1086,6 +1360,7 @@ exports.sendD2DSMS = onRequest(
       } catch (e) {
         if (e.rateLimited) {
           res.status(429).json({
+            code: 'recipient_daily_cap',
             error: 'This recipient has received the max SMS for today.'
           });
           return;
@@ -1138,6 +1413,9 @@ exports.sendD2DSMS = onRequest(
         body = body.replace(/NBD Home Solutions/g, tenantName).replace(/\bNBD\b/g, tenantName);
       }
 
+      // Company + "Reply STOP to opt out." (the company the gate resolved).
+      body = withKnockFooter(body, gate.company);
+
       if (body.length > 1600) {
         res.status(400).json({ error: 'Generated message too long' });
         return;
@@ -1185,7 +1463,12 @@ exports.sendD2DSMS = onRequest(
       // Log to Firestore. companyId: the offline outbox's activity check reads
       // sms_log per tenant (sms-outbox-guard.js activityScope), so a D2D text
       // must carry its sender's company to count as a competitor there.
-      await logSMSToFirestore(db, phoneNumber, body, decoded.uid, knockId, 'sent', message.sid, decoded.companyId || null);
+      // leadId is the lead the knock was converted into (convertToLead /
+      // _saveLead stamp knock.leadId), or null when it hasn't been — never the
+      // knock id, which matched no lead's Communication Log (R5-8-4,
+      // 2026-10-06). The knock id rides in its own field.
+      const linkedLeadId = typeof knock.leadId === 'string' && knock.leadId ? knock.leadId : null;
+      await logSMSToFirestore(db, phoneNumber, body, decoded.uid, linkedLeadId, 'sent', message.sid, decoded.companyId || null, { knockId });
 
       res.json({
         success: true,
@@ -1230,7 +1513,16 @@ exports.incomingSMS = onRequest(
       // it returns a function, not a boolean, so the `if (!isValid)` branch
       // was never taken and the signature check was effectively off.
       const twilioSignature = req.headers['x-twilio-signature'] || '';
-      const authToken = TWILIO_AUTH_TOKEN.value();
+      // R4-7-4 (2026-10-06): secretValue(), not bare .value(). With the
+      // deploy's '__unset__' stub a bare read "validates" a signature forged
+      // with that string (a forged START would clear an opt-out). Refuse like
+      // twilio-line.js and the Stripe webhooks do.
+      const authToken = secretValue(TWILIO_AUTH_TOKEN);
+      if (!authToken) {
+        logger.error('incomingSMS: TWILIO_AUTH_TOKEN missing or stub — refusing');
+        res.status(503).json({ error: 'not configured' });
+        return;
+      }
       const url = `https://${req.get('host')}${req.originalUrl}`;
 
       // Twilio signs the sorted set of POSTed form fields as an object.
@@ -1262,26 +1554,38 @@ exports.incomingSMS = onRequest(
       // (per CTIA Short Code Monitoring Handbook § 5.2) must be
       // honored on the same day. We add the phone to
       // sms_opt_outs/{digits} and respond with TwiML confirming
-      // the opt-out. The sendSMS + sendD2DSMS functions check
-      // this collection before sending.
-      const opt = String(messageBody || '').trim().toUpperCase();
-      const STOP_WORDS = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT']);
-      const HELP_WORDS = new Set(['HELP', 'INFO']);
-      // CTIA-standard resume keywords ONLY. 'YES' was here too, but a customer
-      // replying "YES" to a rep's question would short-circuit the whole inbound
-      // pipeline — auto-send a "Welcome back" reply with NO rep approval and
-      // never create the AI draft / reach the rep. (TCPA resume ≠ "yes".)
-      const START_WORDS = new Set(['START', 'UNSTOP']);
+      // the opt-out. Every send path checks this register (sms-optout.js
+      // isOptedOut) before sending.
+      //
+      // 2026-10-05: the decision is StopIntent.classifyInbound — punctuation
+      // stripped ("Stop." is STOP), REVOKE / OPTOUT added, and plain-English
+      // revocations ("stop texting me", "don't text me", "remove me") count
+      // (FCC 2025: revocation by any reasonable means). An opt-out returns
+      // here, BEFORE the lead match and the AI draft step: no draft reply is
+      // ever written to someone who just said stop.
+      //
+      // START keywords are CTIA-standard resume words ONLY. 'YES' used to be
+      // one, but a customer replying "YES" to a rep's question would
+      // short-circuit the whole inbound pipeline — auto-send a "Welcome back"
+      // reply with NO rep approval and never create the AI draft / reach the
+      // rep. (TCPA resume ≠ "yes".)
+      const intent = StopIntent.classifyInbound(messageBody);
       // Canonical last-10 key — NOT a plain digit strip. Twilio delivers
       // E.164, so the old strip kept the leading country-code 1 and wrote a
       // key no sender ever looked up. See functions/sms-optout.js.
       const phoneDigits = OptOut.optOutKey(fromPhone);
-      if (phoneDigits && STOP_WORDS.has(opt)) {
+      if (phoneDigits && intent.intent === 'stop') {
         await OptOut.recordOptOut(db, fromPhone, {
           optedOutAt: FieldValue.serverTimestamp(),
-          keyword: opt,
+          keyword: intent.keyword,
+          match: intent.match,
           twilioSid: messageSid
         });
+        // Copy the STOP onto the Do Not Text list of every company that holds
+        // this number, so each can see it (the register above is what
+        // enforces it). Best-effort and bounded: a failure here never undoes
+        // the opt-out or delays the confirmation.
+        await copyStopToTenantLists(db, fromPhone);
         // TwiML reply confirming opt-out. Twilio sends this back.
         res.set('Content-Type', 'text/xml');
         res.status(200).send(
@@ -1291,7 +1595,7 @@ exports.incomingSMS = onRequest(
         );
         return;
       }
-      if (phoneDigits && HELP_WORDS.has(opt)) {
+      if (phoneDigits && intent.intent === 'help') {
         res.set('Content-Type', 'text/xml');
         res.status(200).send(
           '<?xml version="1.0" encoding="UTF-8"?><Response>' +
@@ -1300,12 +1604,29 @@ exports.incomingSMS = onRequest(
         );
         return;
       }
-      if (phoneDigits && START_WORDS.has(opt)) {
+      if (phoneDigits && intent.intent === 'start') {
         // Resume — delete the opt-out record so the phone is live again.
         // Clears BOTH the canonical and the legacy key: leaving a
         // pre-migration record behind would keep the lookup's legacy branch
         // suppressing someone who explicitly asked to resume.
-        await OptOut.clearOptOut(db, fromPhone);
+        // R6-3-5 (2026-10-07): ONLY what this number was told — its register
+        // record and the stop_reply copies of its STOPs (plus NBD's own
+        // owner-phone STOP: the number is NBD's). Another company's "They
+        // replied STOP" (told to that owner's own phone) stays, and so does a
+        // company's MANUAL entry. Anything it can't attribute is kept and
+        // flagged, never guessed at.
+        try {
+          const lifted = await OptOut.liftStopOnLine(db, fromPhone, {
+            line: 'incomingSMS',
+            lineCompanyId: TextingGate.NBD_OWNER_UID,
+            serverTimestamp: () => FieldValue.serverTimestamp(),
+          });
+          if (lifted.kept.length) {
+            logger.warn('optout.start_kept_other_stops', { fn: 'incomingSMS', kept: lifted.kept.length });
+          }
+        } catch (e) {
+          logger.error('optout_start_clear_failed', { fn: 'incomingSMS', err: e && e.message });
+        }
         res.set('Content-Type', 'text/xml');
         res.status(200).send(
           '<?xml version="1.0" encoding="UTF-8"?><Response>' +
@@ -1314,6 +1635,13 @@ exports.incomingSMS = onRequest(
         );
         return;
       }
+
+      // 2026-10-07 (R6-3-1): a STOP word the classifier can't read safely
+      // ("thanks but stop", "I want to cancel"). Not an opt-out — nothing is
+      // recorded — but no AI reply is drafted for it, and the rep gets a
+      // high-priority "may be asking to stop" bell plus a flagged note, so a
+      // person decides before anyone texts this number again.
+      const possibleStop = intent.intent === 'possible_stop';
 
       // Idempotency: Twilio retries the webhook on any non-2xx / timeout, which
       // would otherwise create DUPLICATE inbound notes + AI drafts + push
@@ -1453,14 +1781,19 @@ exports.incomingSMS = onRequest(
         // ref so T-1 can link the generated draft back to the source
         // incoming note via `incomingMsgId` (lets the rep UI later show
         // "draft for: <quoted incoming message>").
-        const incomingNoteRef = await db.collection('leads').doc(leadId).collection('notes').add({
+        const incomingNote = {
           type: 'sms',
           direction: 'incoming',
           from: fromPhone,
           body: messageBody,
           twilioSid: messageSid,
           createdAt: FieldValue.serverTimestamp()
-        });
+        };
+        if (possibleStop) {
+          incomingNote.possibleStop = true;
+          incomingNote.possibleStopKeyword = intent.keyword;
+        }
+        const incomingNoteRef = await db.collection('leads').doc(leadId).collection('notes').add(incomingNote);
 
         // Update lead's lastContactedAt
         await db.doc(`leads/${leadId}`).update({
@@ -1482,16 +1815,21 @@ exports.incomingSMS = onRequest(
         // Firestore writes. 12 drafts/number/hour is generous for a real
         // back-and-forth, tight against a flood. On overflow we skip ONLY
         // the draft — the inbound SMS is still saved + the rep notified.
-        let aiDraftAllowed = true;
-        try {
-          await enforceRateLimit('aiDraft:phone', phoneDigits || fromPhone, 12, 60 * 60_000);
-        } catch (e) {
-          if (e.rateLimited) {
-            aiDraftAllowed = false;
-            logger.info('[incomingSMS] AI draft skipped — per-number hourly cap', { leadId });
+        let aiDraftAllowed = !possibleStop;
+        if (possibleStop) {
+          logger.info('[incomingSMS] AI draft skipped — message may be a STOP', { leadId, keyword: intent.keyword });
+        }
+        if (aiDraftAllowed) {
+          try {
+            await enforceRateLimit('aiDraft:phone', phoneDigits || fromPhone, 12, 60 * 60_000);
+          } catch (e) {
+            if (e.rateLimited) {
+              aiDraftAllowed = false;
+              logger.info('[incomingSMS] AI draft skipped — per-number hourly cap', { leadId });
+            }
+            // Non-rate-limit error (limiter unavailable): fall through and
+            // attempt the draft rather than dropping a legit reply.
           }
-          // Non-rate-limit error (limiter unavailable): fall through and
-          // attempt the draft rather than dropping a legit reply.
         }
         if (aiDraftAllowed) {
           try {
@@ -1515,6 +1853,30 @@ exports.incomingSMS = onRequest(
         // never got told a customer texted back. userId is present on
         // every matched lead (the phoneDigits match queries by it).
         const notifyUid = lead.assignedTo || lead.userId;
+        // R6-3-1: the visible flag for a possible STOP — a high-priority bell
+        // on the dashboard (notif-bell.js renders `notifications` docs for
+        // userId). Best-effort: a failed bell never fails the webhook; the
+        // flagged note above and the missing AI draft stand on their own.
+        if (possibleStop && notifyUid) {
+          try {
+            const who = ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || 'A customer';
+            await db.collection('notifications').add({
+              userId: notifyUid,
+              companyId: lead.companyId || lead.userId || null,
+              type: 'sms_possible_stop',
+              priority: 'high',
+              leadId,
+              title: '⚠️ ' + who + ' may be asking you to stop texting',
+              message: 'They wrote: "' + String(messageBody).slice(0, 140) + '". No AI reply was drafted. '
+                + 'Read it before anyone texts them again; if they meant stop, mark the number Do Not Text.',
+              read: false,
+              dismissed: false,
+              createdAt: FieldValue.serverTimestamp(),
+            });
+          } catch (e) {
+            logger.warn('[incomingSMS] possible-STOP bell failed', { leadId, err: e && e.message });
+          }
+        }
         if (notifyUid) {
           // Get rep's FCM token
           const repTokensSnap = await db
@@ -1532,7 +1894,9 @@ exports.incomingSMS = onRequest(
               await getMessaging().send({
                 token,
                 notification: {
-                  title: `New Message from ${lead.firstName || 'Customer'}`,
+                  title: possibleStop
+                    ? `⚠️ ${lead.firstName || 'Customer'} may be asking to stop texting`
+                    : `New Message from ${lead.firstName || 'Customer'}`,
                   body: messageBody.substring(0, 100)
                 },
                 data: {
@@ -1556,6 +1920,11 @@ exports.incomingSMS = onRequest(
           twilioSid: messageSid,
           receivedAt: FieldValue.serverTimestamp()
         };
+        // R6-3-1: the admin triage shows this one as "may be asking to stop".
+        if (possibleStop) {
+          unmatchedRow.possibleStop = true;
+          unmatchedRow.possibleStopKeyword = intent.keyword;
+        }
         if (route.ambiguity) {
           unmatchedRow.ambiguous = true;
           unmatchedRow.ambiguity = route.ambiguity;
@@ -1633,6 +2002,18 @@ async function runCheckStormAlerts(event) {
     // TCPA master switch (integrations/stormAlerts.enabled; absent = on).
     if (!(await StormGuard.stormAlertsEnabled(db, logger))) {
       logger.info('storm_alerts_switched_off', { switchDoc: StormGuard.STORM_SWITCH_DOC });
+      return;
+    }
+    // ...and NBD's company-wide texting master switch (2026-10-05). The
+    // subscriber list is NBD's. A read error skips the run (fail closed).
+    let companyOn = false;
+    try {
+      companyOn = (await TextingGate.textingStatus(db, TextingGate.NBD_OWNER_UID)).allowed;
+    } catch (e) {
+      logger.error('storm_alerts_texting_switch_unreadable', { err: e && e.message });
+    }
+    if (!companyOn) {
+      logger.info('storm_alerts_company_texting_off');
       return;
     }
 
@@ -1772,9 +2153,12 @@ async function runCheckStormAlerts(event) {
               sentAt: FieldValue.serverTimestamp(),
             },
             source: 'checkStormAlerts',
+            // Storm subscribers are NBD's own list: NBD's Do Not Text list.
+            companyId: TextingGate.NBD_OWNER_UID,
             eventKey: String(alertId),
             logger,
             tz: sub.tz,
+            recipient: { zip: sub.zip, state: sub.state },
             serverTimestamp: () => FieldValue.serverTimestamp(),
             send: () => client.messages.create({
               body: body.substring(0, 1600),
@@ -1900,10 +2284,14 @@ exports.onAiDraftApproved = onDocumentUpdated(
     const after  = event.data?.after?.data();
     if (!before || !after) return;
 
-    // Only act on the first pending→approved flip. Any other write
-    // (dismiss, the trigger's own status:'sent' update, an edit after
-    // send) is a no-op so we never double-send.
-    if (before.status === 'approved') return;
+    // Only act on a pending → approved flip. Any other write (dismiss, the
+    // trigger's own status:'sent' update, an edit after send) is a no-op so
+    // we never double-send. Review R2-3-3 (2026-10-06): this used to skip
+    // only before.status === 'approved', so a stale tab (the panel loads with
+    // getDocs, no listener) tapping Approve on a draft already SENT — sent →
+    // approved — texted the homeowner a second time. firestore.rules now
+    // also allows 'approved' only from 'pending'; this is the server's half.
+    if (before.status !== 'pending') return;
     if (after.status !== 'approved') return;
 
     const { leadId, draftId } = event.params;
@@ -1973,8 +2361,13 @@ exports.onAiDraftApproved = onDocumentUpdated(
 
     // TCPA: never message a number that replied STOP. incomingSMS
     // records opt-outs at sms_opt_outs/{digits}; honor them here too.
+    // companyId: the draft's tenant (its Do Not Text list). A draft with no
+    // tenant makes the lookup reject → optout_check_error → nothing sent.
     try {
-      const optOut = await OptOut.isOptedOut(db, to);
+      const optOut = await OptOut.isOptedOut(db, to, {
+        companyId: TextingGate.tenantKeyOfRecord(after),
+        timeoutMs: OptOut.READ_TIMEOUT_MS,
+      });
       if (optOut.optedOut) {
         if (optOut.viaLegacyKey) {
           logger.info('optout.legacy_key_hit', { fn: 'onAiDraftApproved', key: optOut.key });
@@ -1989,14 +2382,132 @@ exports.onAiDraftApproved = onDocumentUpdated(
       await fail('optout_check_error', e && e.message); return;
     }
 
+    // 2026-10-05: the company's master switch, then texting hours in the
+    // homeowner's time. Both fail CLOSED on a read error.
+    let lead = {};
     try {
-      const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
-      const formattedTo = formatPhoneNumber(to);
-      const fromPhone = TWILIO_PHONE_NUMBER.value();
-      if (!formattedTo) { await fail('unformattable_phone'); return; }
+      const status = await TextingGate.textingStatus(db, TextingGate.tenantKeyOfRecord(after));
+      if (!status.allowed) { await fail('texting_disabled', TextingGate.refusalBody(status).error); return; }
+      const leadSnap = await db.doc(`leads/${leadId}`).get();
+      lead = leadSnap.exists ? (leadSnap.data() || {}) : {};
+    } catch (e) {
+      await fail('texting_check_error', e && e.message); return;
+    }
+    const hours = SendWindow.checkRecipientWindow(Outbox.nowMs(), lead);
+    if (!hours.ok) {
+      // Not a failure: the reply goes back to the rep's queue, marked, and
+      // goes out when they approve it again inside the hours. (The trigger
+      // ignores this write — before.status is 'approved'.)
+      await draftRef.update({
+        status: 'pending',
+        heldReason: 'quiet_hours',
+        heldMessage: SendWindow.quietHoursMessage(hours.window),
+        heldAt: FieldValue.serverTimestamp(),
+      }).catch((e) => logger.warn('[ai-draft-send] quiet-hours hold write failed', { leadId, draftId, err: e.message }));
+      logger.info('[ai-draft-send] held for texting hours', { leadId, draftId });
+      return;
+    }
 
-      const message = await client.messages.create({ body, from: fromPhone, to: formattedTo });
+    // ── Send exactly once (review R6-3-3, 2026-10-07) ────────────────────
+    // One try used to cover the Twilio call AND the writes after it, so a
+    // dropped connection after Twilio took the message (or a note write that
+    // failed after it was sent) marked the draft failed / twilio_error. The
+    // panel said "Did NOT send" and put it back to pending, and the rep's
+    // re-approval texted the homeowner a second time. Now:
+    //   1. the send is CLAIMED on the draft in a transaction (sendClaim)
+    //      before Twilio is called — a second delivery of this event, or a
+    //      second trigger while one is in flight, finds it and sends nothing;
+    //   2. 'failed' only for a DEFINITE Twilio rejection (an API error answer,
+    //      HTTP 4xx): nothing went out, so the rep may edit and retry;
+    //   3. any other error is an UNKNOWN outcome. The message is looked up at
+    //      Twilio by number + text: found → 'sent' with its SID; not found, or
+    //      the lookup fails → 'send_uncertain', which the panel shows as
+    //      "check before re-sending" and never re-queues by itself;
+    //   4. once Twilio returned a SID the draft is marked 'sent' FIRST; the
+    //      note / sms_log / lead writes after it cannot undo that.
+    const fromPhone = TWILIO_PHONE_NUMBER.value();
+    let client;
+    let formattedTo;
+    try {
+      client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
+      formattedTo = formatPhoneNumber(to);
+    } catch (e) {
+      await fail('twilio_error', e && e.message); return; // nothing was requested
+    }
+    if (!formattedTo) { await fail('unformattable_phone'); return; }
 
+    let claim;
+    try {
+      claim = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(draftRef);
+        const cur = snap.exists ? (snap.data() || {}) : null;
+        if (!cur || cur.status !== 'approved') return { ok: false, why: cur ? 'status_' + cur.status : 'gone' };
+        if (cur.sendClaim && cur.sendClaim.state === 'sending') return { ok: false, why: 'in_flight' };
+        tx.update(draftRef, {
+          sendClaim: { state: 'sending', at: FieldValue.serverTimestamp(), eventId: String(event.id || '').slice(0, 128) || null },
+        });
+        return { ok: true };
+      });
+    } catch (e) {
+      await fail('send_claim_error', e && e.message); return; // nothing was requested
+    }
+    if (!claim.ok) {
+      logger.info('[ai-draft-send] send already claimed or settled — not sending again', { leadId, draftId, why: claim.why });
+      return;
+    }
+    const settle = (state, fields) => draftRef.update(Object.assign({}, fields, {
+      sendClaim: { state, at: FieldValue.serverTimestamp() },
+    })).catch((e) => logger.error('[ai-draft-send] outcome write failed — the draft stays claimed (no resend possible)', {
+      leadId, draftId, state, err: e && e.message,
+    }));
+
+    const startedMs = Date.now();
+    let message = null;
+    let reconciled = false;
+    try {
+      message = await client.messages.create({ body, from: fromPhone, to: formattedTo });
+    } catch (e) {
+      logger.error('[ai-draft-send] twilio send failed', { leadId, draftId, err: e && e.message, status: e && e.status, code: e && e.code });
+      // Twilio's own STOP list refused it (21610): copy that into the register,
+      // the same as sendSMS/sendD2DSMS, so the next approval of a draft to
+      // this number stops at the opt-out check above instead of failing at
+      // Twilio again, and every other send path sees it too.
+      if (isTwilioUnsubscribed(e)) {
+        await recordCarrierOptOut(db, to, 'onAiDraftApproved');
+        await settle('rejected', { status: 'failed', failureReason: 'opted_out', sentAt: FieldValue.serverTimestamp() });
+        return;
+      }
+      if (isDefiniteTwilioRejection(e)) {
+        await settle('rejected', {
+          status: 'failed', failureReason: 'twilio_error',
+          failureDetail: String((e && e.message) || '').slice(0, 200), sentAt: FieldValue.serverTimestamp(),
+        });
+        return;
+      }
+      const found = await findTwilioMessage(client, { to: formattedTo, from: fromPhone, body, sinceMs: startedMs - 120000 })
+        .catch((le) => { logger.warn('[ai-draft-send] twilio lookup failed', { leadId, draftId, err: le && le.message }); return null; });
+      if (!found) {
+        await settle('uncertain', {
+          status: 'send_uncertain', failureReason: 'send_uncertain',
+          failureDetail: String((e && e.message) || '').slice(0, 200), sentAt: FieldValue.serverTimestamp(),
+        });
+        logger.warn('[ai-draft-send] send outcome unknown — marked send_uncertain, NOT re-sent', { leadId, draftId });
+        return;
+      }
+      message = { sid: found.sid };
+      reconciled = true;
+    }
+
+    await settle('sent', Object.assign({
+      status: 'sent',
+      twilioSid: message.sid,
+      sentAt: FieldValue.serverTimestamp(),
+      heldReason: null,
+    }, reconciled ? { sendReconciled: true } : {}));
+
+    // Everything below happens AFTER the homeowner has the text: a failure is
+    // logged and never changes the draft's 'sent'.
+    try {
       // Mirror the incomingSMS inbound-note shape so the rep's thread
       // view AND the next AI draft's context (buildLeadContext reads
       // notes where type=='sms') see this outbound reply.
@@ -2018,30 +2529,13 @@ exports.onAiDraftApproved = onDocumentUpdated(
       await logSMSToFirestore(db, to, body, after.approvedBy || after.userId || null, leadId, 'sent', message.sid,
         after.companyId || after.userId || null);
 
-      await draftRef.update({
-        status: 'sent',
-        twilioSid: message.sid,
-        sentAt: FieldValue.serverTimestamp(),
-      });
-
       // Keep the lead's recency signal fresh, same as incomingSMS.
       await db.doc(`leads/${leadId}`).update({
         lastContactedAt: FieldValue.serverTimestamp(),
       }).catch(() => {});
-
-      logger.info('[ai-draft-send] sent', { leadId, draftId, sid: message.sid });
     } catch (e) {
-      logger.error('[ai-draft-send] twilio send failed', { leadId, draftId, err: e.message });
-      // Twilio's own STOP list refused it (21610): copy that into the register,
-      // the same as sendSMS/sendD2DSMS, so the next approval of a draft to
-      // this number stops at the opt-out check above instead of failing at
-      // Twilio again, and every other send path sees it too.
-      if (isTwilioUnsubscribed(e)) {
-        await recordCarrierOptOut(db, to, 'onAiDraftApproved');
-        await fail('opted_out');
-        return;
-      }
-      await fail('twilio_error', e.message);
+      logger.warn('[ai-draft-send] post-send bookkeeping failed (the reply WAS sent)', { leadId, draftId, sid: message.sid, err: e && e.message });
     }
+    logger.info('[ai-draft-send] sent', { leadId, draftId, sid: message.sid, reconciled });
   }
 );

@@ -372,3 +372,79 @@ test.describe('boot weight — talk-tank.js is lazy on the dashboard @engines', 
     expect(errors, 'no uncaught page errors').toEqual([]);
   });
 });
+
+// ── Boot READS (startup audit 2026-10-04) ────────────────────────────────
+// The rows above guard boot BYTES; this guards boot Firestore READS. Until
+// 2026-10-04 loadLeads finished every boot with an unbounded read of EVERY
+// photos doc in scope (own + company), and loadPins / loadZones read whole
+// collections. Measured here from the client's own Listen-channel traffic:
+// every query the SDK starts is an addTarget carrying its structuredQuery,
+// so the collectionIds in those request bodies ARE the boot queries — the
+// same measure works against old and new code (old: one photos query per
+// scope at boot; new: none until a lead is opened).
+function trackFirestoreQueries(page) {
+  const queries = [];
+  page.on('request', (r) => {
+    if (r.method() !== 'POST' || !/google\.firestore\.v1\.Firestore\/(Listen|Write)\/channel/.test(r.url())) return;
+    let body = r.postData() || '';
+    // Form-encoded (count=N&ofs=..&req0___data__=<json>&req1___data__=…):
+    // decode PER FIELD — one malformed escape must not leave the whole body raw.
+    try { body = [...new URLSearchParams(body).values()].join('\n'); } catch (_) { /* keep raw */ }
+    for (const m of body.matchAll(/"structuredQuery":\{"from":\[\{"collectionId":"([\w-]+)"[^\]]*\]([\s\S]*?)\}\}?,"targetId"/g)) {
+      queries.push({ collection: m[1], body: m[2] });
+    }
+  });
+  return queries;
+}
+
+test.describe('boot reads — no photo read at boot; pins / zones capped @engines', () => {
+  test('dashboard boot issues no photos query; opening a lead fetches only that lead', async ({ page }) => {
+    const creds = requireTestUser(test);
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String((e && e.message) || e)));
+    await loginAs(page, creds);
+    const queries = trackFirestoreQueries(page);
+    await page.goto('/pro/dashboard.html');
+    await page.waitForLoadState('load');
+    await page.waitForFunction(() => window._leadsLoaded === true, null, { timeout: 30_000 });
+    // Let the post-load tail (pins, zones, estimates, jobs) run.
+    await page.waitForTimeout(3000);
+
+    const byColl = {};
+    for (const q of queries) byColl[q.collection] = (byColl[q.collection] || 0) + 1;
+    console.log('[boot-reads] queries during boot by collection: ' + JSON.stringify(byColl));
+    expect(queries.length, 'the channel tracker saw the boot queries (leads at least)').toBeGreaterThan(0);
+    expect(byColl.leads || 0, 'leads are still read in full (kanban must stay complete)').toBeGreaterThan(0);
+    expect(byColl.photos || 0, 'NO photos query at dashboard boot').toBe(0);
+    for (const q of queries.filter((x) => x.collection === 'pins' || x.collection === 'zones')) {
+      expect(q.body, q.collection + ' query carries a limit').toMatch(/"limit"/);
+    }
+
+    // The zones read is capped: drive it explicitly (window.loadZones is the
+    // map's own refresh entry) and read the query the SDK sent.
+    const zBefore = queries.length;
+    await safeEvaluate(page, async () => { await window.loadZones(); });
+    const zq = queries.slice(zBefore).filter((q) => q.collection === 'zones');
+    expect(zq.length, 'loadZones issued a zones query').toBeGreaterThan(0);
+    for (const q of zq) expect(q.body, 'zones query carries limit(ZONE_CAP)').toMatch(/"limit":300/);
+
+    // On demand: ask for one lead the way the job detail does.
+    const leadId = await safeEvaluate(page, () => (window._leads && window._leads[0] && window._leads[0].id) || null);
+    test.skip(!leadId, 'seeded tenant has no lead to open');
+    const before = queries.length;
+    await safeEvaluate(page, async (id) => { await window.NBDPhotoCache.ensure([id]); }, leadId);
+    const photoQs = queries.slice(before).filter((q) => q.collection === 'photos');
+    expect(photoQs.length, 'opening one lead → photos read in the user\'s scope(s)').toBeGreaterThan(0);
+    for (const q of photoQs) {
+      expect(q.body, 'photo read is bounded to the requested lead (leadId IN [...])').toMatch(/"fieldPath":"leadId"\},"op":"IN"/);
+      expect(q.body).toContain(leadId);
+    }
+    const loaded = await safeEvaluate(page, (id) => window.NBDPhotoCache.isLoaded(id) && Array.isArray(window._photoCache[id]), leadId);
+    expect(loaded, 'the lead\'s bag is in _photoCache').toBe(true);
+    const again = queries.length;
+    await safeEvaluate(page, async (id) => { await window.NBDPhotoCache.ensure([id]); }, leadId);
+    expect(queries.length, 'asking again reads nothing').toBe(again);
+
+    expect(errors, 'no uncaught page errors').toEqual([]);
+  });
+});

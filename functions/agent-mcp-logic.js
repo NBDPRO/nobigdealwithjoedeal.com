@@ -16,19 +16,26 @@
  */
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
-const SERVER_INFO = { name: 'nbd-crm', version: '1.2.0' };
+const SERVER_INFO = { name: 'nbd-crm', version: '1.3.0' };
 const MAX_TEXT = 2000;
 const MAX_LIST = 50;
+const LIST_CURSOR_MAX = 400;
 // Draft limits (2026-10-06; the draft rules sit above the company-bot section).
 const SMS_MAX = 480;
-const STOP_LINE = 'Reply STOP to opt out.';
+// The STOP line on a draft the owner sends from their OWN phone (review R2-3-1,
+// Jo 2026-10-06). "to opt out" promised an opt-out system that never sees the
+// reply — it lands on the owner's phone. This wording is true: the owner reads
+// it, and records it with "They replied STOP" (phone-text-check.js 'stop').
+// TODO(TWILIO_INBOUND_ENABLED): once the business line's inbound is live,
+// drafts should go through it, where a STOP is recorded by itself.
+const STOP_LINE = "Reply STOP and we'll stop texting.";
 const REASON_MAX = 300;
 const EMAIL_SUBJECT_MAX = 140;
 
 // ── Tools ──────────────────────────────────────────────────────────────
 const TOOLS = {
   crm_summary: {
-    description: 'Pipeline at a glance: active customers by stage, open pipeline value (PROJECTED — booked/estimated, not money received), follow-ups due today and overdue.',
+    description: 'Pipeline at a glance: active customers by stage, open pipeline value (PROJECTED — deals still in play; a signed contract or a job in production is booked, not pipeline; never money received), follow-ups due today and overdue.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   schedule: {
@@ -40,11 +47,12 @@ const TOOLS = {
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: MAX_LIST } }, additionalProperties: false },
   },
   list_leads: {
-    description: 'Customers, filtered by stage and/or "stale" (no update in N days), newest first. Returns lead_id, name, address, stage, follow-up date and last update — never phone or email.',
+    description: 'Customers, filtered by stage and/or "stale" (no update in N days), newest added first. Returns ONE PAGE (limit, default 20, max 50) of lead_id, name, address, stage, follow-up date and last update — never phone or email — plus total (how many customers match the filters) and next_cursor. One page is NOT the whole list: while next_cursor is not null, call list_leads again with the SAME stage / stale_days and cursor = next_cursor, and keep going until next_cursor is null. Only then do you have every match (check your count against total).',
     inputSchema: { type: 'object', properties: {
-      stage: { type: 'string', description: 'Pipeline stage key, e.g. new, contacted, inspected, estimate_sent_cash, negotiating, contract_signed' },
+      stage: { type: 'string', maxLength: 60, description: 'Pipeline stage key, the same keys crm_summary counts in by_stage, e.g. new, contacted, inspected, estimate_sent_cash, negotiating, contract_signed' },
       stale_days: { type: 'integer', minimum: 1, maximum: 3650, description: 'Only customers not updated in this many days' },
-      limit: { type: 'integer', minimum: 1, maximum: MAX_LIST },
+      limit: { type: 'integer', minimum: 1, maximum: MAX_LIST, description: 'Page size (default 20, max 50)' },
+      cursor: { type: 'string', maxLength: LIST_CURSOR_MAX, description: 'The next_cursor from the previous page of the SAME query. Leave it out for the first page.' },
     }, additionalProperties: false },
   },
   lead_detail: {
@@ -213,8 +221,17 @@ const CLOSED = /^(closed|lost|cold|dead|archived|cancel)/;
 // the case-sensitive CLOSED test into the open pipeline. Custom stages keep
 // their key; a won-role stage is closed.
 const _SRK = require('./stage-roles');
+// The ONE money reader (customer-estimate-rows.js moneyValue): legacy text
+// jobValue like '$45,000' reads 45000, the same as the CRM (review R2, 2026-10-06).
+const { moneyValue } = require('./customer-estimate-rows');
+const { jobRecords } = require('./jobs-logic');
 function stageKeyOf(l) { return _SRK.canonicalStageKey(l && l.stage) || String((l && l.stage) || 'new'); }
 function isClosedLead(l) { const r = _SRK.roleFor(Object.assign({}, l, { _stageKey: stageKeyOf(l) })); return r === 'won' || r === 'lost' || CLOSED.test(stageKeyOf(l)); }
+// Out of the OPEN pipeline: closed/lost above, or BOOKED — a signed contract
+// or an in-production job (Jo, 2026-10-06; stage-roles.js isSale, the test
+// the kanban header, Home KPI tiles and weekly digest use). Follow-ups keep
+// isClosedLead: a signed job still has production follow-ups.
+function isOutOfPipeline(l) { return isClosedLead(l) || _SRK.isSale(l); }
 function ms(v) {
   if (!v) return 0;
   if (typeof v === 'number') return v;
@@ -228,7 +245,11 @@ function ymd(d) {
 function isYmd(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')); }
 
 /** One lead → what a bot may see. NEVER phone / email / financing / claim numbers. */
-function minimalLead(l) {
+// Bot-facing dates are the company's calendar day (the same zone as the
+// tools' "today", dayInZone) — the UTC date read 9pm ET activity as tomorrow.
+// No zone given: America/New_York (nyDay).
+function dayOf(v, tz) { const t = ms(v); return t ? nyDay(t, tz) : null; }
+function minimalLead(l, tz) {
   const name = ((String(l.firstName || '') + ' ' + String(l.lastName || '')).trim()) || String(l.name || '');
   return {
     lead_id: l.id,
@@ -236,9 +257,9 @@ function minimalLead(l) {
     address: String(l.address || ''),
     stage: String(l.stage || ''),
     damage_type: String(l.damageType || ''),
-    job_value: Number(l.jobValue) || 0,
+    job_value: moneyValue(l.jobValue),
     follow_up: isYmd(l.followUp) ? l.followUp : null,
-    last_update: ms(l.updatedAt) ? new Date(ms(l.updatedAt)).toISOString().slice(0, 10) : null,
+    last_update: dayOf(l.updatedAt, tz),
   };
 }
 const FORBIDDEN_KEYS = ['phone', 'email', 'phone2', 'altPhone', 'claimNumber', 'policyNumber', 'ssn', 'dob'];
@@ -247,40 +268,128 @@ function activeLeads(leads) {
   return (leads || []).filter((l) => l && l.id && l.deleted !== true && !l.e2eTestData);
 }
 
-function summary(leads, todayYmd) {
+// jobsByLead (optional): { leadId: [jobs] } — the open pipeline then counts
+// every open JOB, like the Home KPI tiles (review R2-2-7, 2026-10-06); the
+// customer and follow-up counts stay on the leads.
+function summary(leads, todayYmd, jobsByLead) {
   const act = activeLeads(leads);
   const byStage = {};
   let pipeline = 0, dueToday = 0, overdue = 0;
+  jobRecords(act, jobsByLead).forEach((r) => {
+    if (!isOutOfPipeline(r)) pipeline += moneyValue(r.jobValue);
+  });
   act.forEach((l) => {
     const st = stageKeyOf(l);
     byStage[st] = (byStage[st] || 0) + 1;
     const closed = isClosedLead(l);
-    if (!closed) pipeline += Number(l.jobValue) || 0;
     if (isYmd(l.followUp) && !closed) {
       if (l.followUp === todayYmd) dueToday++;
       else if (l.followUp < todayYmd) overdue++;
     }
   });
-  return { customers: act.length, by_stage: byStage, open_pipeline_value_projected: Math.round(pipeline), followups_due_today: dueToday, followups_overdue: overdue, note: 'Pipeline value is projected (estimates / booked), not money collected.' };
+  return { customers: act.length, by_stage: byStage, open_pipeline_value_projected: Math.round(pipeline), followups_due_today: dueToday, followups_overdue: overdue, note: 'Pipeline value is projected: open deals only (a signed contract or a job in production is booked, not pipeline), not money collected.' };
 }
 
-function overdueFollowups(leads, todayYmd, limit) {
+function overdueFollowups(leads, todayYmd, limit, tz) {
   return activeLeads(leads)
     .filter((l) => isYmd(l.followUp) && l.followUp < todayYmd && !isClosedLead(l))
     .sort((a, b) => (a.followUp < b.followUp ? -1 : 1))
     .slice(0, clampLimit(limit))
-    .map(minimalLead);
+    .map((l) => minimalLead(l, tz));
 }
 
-function listLeads(leads, args, nowMs) {
-  const a = args || {};
+// ── list_leads paging (2026-10-06) ─────────────────────────────────────
+// One page was all a bot ever saw (max 50) — NBD has 76 'new' leads, so the
+// office sweep could not see 26 of them. Now: a STABLE order (date added,
+// newest first; lead id breaks ties — createdAt never changes, so a lead
+// edited between pages cannot jump pages), a keyset cursor, and the total.
+// The stage filter uses the same canonical stage key as crm_summary's
+// by_stage ('New' / '' / 'new' are one bucket), so total matches that count.
+//
+// The cursor is opaque base64url JSON {v, k, i, t}: k/i = the last lead's
+// createdAt ms + id, t = a tag over (company, filters, k, i). A cursor from
+// another company or another filter, or with any field edited, fails the tag
+// and is refused. It is NOT a secret-keyed MAC: someone who reads this file
+// can mint a valid tag for their OWN company + filters, which only moves
+// where their own page starts — the company still comes only from the key
+// and every row is still minimalLead. No data a bot could not list anyway.
+const LIST_CURSOR_RE = /^[A-Za-z0-9_-]{1,400}$/;
+const LEAD_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+const CURSOR_ERR = 'invalid cursor — it must be the next_cursor from the previous page of the same list_leads query. Start again without a cursor.';
+const _crypto = require('crypto');
+function createdMs(l) { const t = Math.floor(ms(l && l.createdAt)); return Number.isFinite(t) && t > 0 ? t : 0; }
+function cmpListOrder(x, y) {
+  const d = createdMs(y) - createdMs(x);
+  if (d) return d;
+  return x.id < y.id ? -1 : (x.id > y.id ? 1 : 0);
+}
+function wantStage(stage) {
+  const s = String(stage == null ? '' : stage).trim();
+  if (!s) return '';
+  return _SRK.canonicalStageKey(s) || s;
+}
+function cursorTag(scope, stage, staleDays, k, i) {
+  return _crypto.createHash('sha256').update(['nbd-list-leads-v1', String(scope || ''), stage, String(staleDays || 0), String(k), String(i)].join('')).digest('hex').slice(0, 24);
+}
+function encodeListCursor(scope, stage, staleDays, lead) {
+  const k = createdMs(lead), i = String(lead.id);
+  return Buffer.from(JSON.stringify({ v: 1, k, i, t: cursorTag(scope, stage, staleDays, k, i) }), 'utf8').toString('base64url');
+}
+function decodeListCursor(cur, scope, stage, staleDays) {
+  if (typeof cur !== 'string' || !LIST_CURSOR_RE.test(cur)) return null;
+  let o;
+  try { o = JSON.parse(Buffer.from(cur, 'base64url').toString('utf8')); } catch (e) { return null; }
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+  if (Object.keys(o).sort().join() !== 'i,k,t,v' || o.v !== 1) return null;
+  if (!Number.isSafeInteger(o.k) || o.k < 0) return null;
+  if (typeof o.i !== 'string' || !LEAD_ID_RE.test(o.i)) return null;
+  if (typeof o.t !== 'string' || o.t !== cursorTag(scope, stage, staleDays, o.k, o.i)) return null;
+  return { k: o.k, i: o.i };
+}
+
+/**
+ * One page of list_leads → { customers, total, next_cursor, page_size } or
+ * { error }. scope = the key's company id (binds the cursor to it).
+ */
+function listLeadsPage(leads, args, nowMs, scope, tz) {
+  const a = (args && typeof args === 'object' && !Array.isArray(args)) ? args : {};
+  if (a.stage != null && (typeof a.stage !== 'string' || a.stage.length > 60)) return { error: 'stage must be a pipeline stage key (text)' };
+  if (a.stale_days != null && !(Number.isInteger(Number(a.stale_days)) && Number(a.stale_days) >= 1 && Number(a.stale_days) <= 3650)) return { error: 'stale_days must be a whole number from 1 to 3650' };
+  if (a.cursor != null && typeof a.cursor !== 'string') return { error: CURSOR_ERR };
+  const stage = wantStage(a.stage);
+  const staleDays = a.stale_days != null ? Number(a.stale_days) : 0;
   let out = activeLeads(leads);
-  if (a.stage) out = out.filter((l) => String(l.stage || '') === String(a.stage));
-  if (a.stale_days) {
-    const cut = nowMs - Number(a.stale_days) * 86400000;
+  if (stage) out = out.filter((l) => stageKeyOf(l) === stage);
+  if (staleDays) {
+    const cut = nowMs - staleDays * 86400000;
     out = out.filter((l) => ms(l.updatedAt) && ms(l.updatedAt) < cut && !CLOSED.test(String(l.stage || '')));
   }
-  return out.sort((x, y) => ms(y.updatedAt) - ms(x.updatedAt)).slice(0, clampLimit(a.limit)).map(minimalLead);
+  out.sort(cmpListOrder);
+  const total = out.length;
+  let start = 0;
+  if (a.cursor != null && a.cursor !== '') {
+    const c = decodeListCursor(a.cursor, scope, stage, staleDays);
+    if (!c) return { error: CURSOR_ERR };
+    // Keyset: the first lead strictly after (k, i) in the order — a lead
+    // deleted since the last page does not shift anything.
+    start = out.findIndex((l) => createdMs(l) < c.k || (createdMs(l) === c.k && l.id > c.i));
+    if (start === -1) start = out.length;
+  }
+  const size = clampLimit(a.limit);
+  const page = out.slice(start, start + size);
+  const more = start + page.length < out.length;
+  return {
+    customers: page.map((l) => minimalLead(l, tz)),
+    total,
+    next_cursor: more && page.length ? encodeListCursor(scope, stage, staleDays, page[page.length - 1]) : null,
+    page_size: size,
+  };
+}
+
+// First page only (kept for callers that want just the rows).
+function listLeads(leads, args, nowMs, scope, tz) {
+  const p = listLeadsPage(leads, Object.assign({}, args || {}, { cursor: undefined }), nowMs, scope, tz);
+  return p.error ? [] : p.customers;
 }
 
 function clampLimit(n) { const v = Math.floor(Number(n)); return Number.isFinite(v) && v > 0 ? Math.min(v, MAX_LIST) : 20; }
@@ -289,9 +398,9 @@ function clampLimit(n) { const v = Math.floor(Number(n)); return Number.isFinite
 // grandTotal || total is what the portal shows the homeowner (portal.js);
 // rows, costs, markup and margin are never read into the answer.
 function estimateTotal(e) { const v = Number(e.grandTotal != null ? e.grandTotal : e.total); return Number.isFinite(v) ? Math.round(v * 100) / 100 : null; }
-function isoDay(v) { const t = ms(v); return t ? new Date(t).toISOString().slice(0, 10) : null; }
+function isoDay(v, tz) { return dayOf(v, tz); }
 
-function estimatesStatus(estimates, deals, leads, args, nowMs) {
+function estimatesStatus(estimates, deals, leads, args, nowMs, tz) {
   const a = args || {};
   const leadById = {};
   activeLeads(leads).forEach((l) => { leadById[l.id] = l; });
@@ -319,12 +428,12 @@ function estimatesStatus(estimates, deals, leads, args, nowMs) {
       estimate_id: e.id,
       total_customer_facing: estimateTotal(e),
       tier: String(e.tier || e.tierName || ''),
-      made: isoDay(e.createdAt),
+      made: isoDay(e.createdAt, tz),
       proposal: d ? {
         status: String(d.status || 'sent'),
-        sent: isoDay(d.sentAt || d.createdAt),
+        sent: isoDay(d.sentAt || d.createdAt, tz),
         views: Number(d.viewCount) || 0,
-        last_viewed: isoDay(d.lastViewedAt || d.viewedAt),
+        last_viewed: isoDay(d.lastViewedAt || d.viewedAt, tz),
       } : null,
     };
   });
@@ -343,12 +452,19 @@ function estimatesStatus(estimates, deals, leads, args, nowMs) {
 // file and fails on any drift. Kentucky lines come from the server's own
 // copy of the jurisdiction module.
 const TIERS = [
-  { key: 'economy', label: 'Economy', ratePerSq: 440, warranty: '1-year workmanship plus the shingle maker\'s limited warranty; no system warranty; not transferable', crmOnly: true, notes: 'Never 3-tab shingles.' },
-  { key: 'good', label: 'Standard', ratePerSq: 550, warranty: 'Lifetime system warranty; not transferable' },
-  { key: 'better', label: 'Preferred', ratePerSq: 660, warranty: 'Lifetime system warranty; transferable to one later owner within 30 days of sale' },
-  { key: 'best', label: 'Elite', ratePerSq: 770, warranty: 'Lifetime system warranty; fully transferable; annual inspection' },
-  { key: 'beyond', label: 'Beyond', ratePerSq: 880, warranty: 'Elite warranty plus TAMKO\'s hail warranty', crmOnly: true, notes: 'Locked to TAMKO HailGuard shingles.' },
+  { key: 'economy', label: 'Economy', ratePerSq: 440, warranty: '1-year written workmanship (labor) warranty plus the shingle maker\'s limited warranty; no system warranty; not transferable', crmOnly: true, notes: 'Never 3-tab shingles.' },
+  // GAF System Plus (Standard and up, Jo 2026-10-05) is GAF's MANUFACTURER
+  // warranty, included in the tier price — never sold as a separate line,
+  // never described as workmanship.
+  { key: 'good', label: 'Standard', ratePerSq: 550, warranty: '5-year written workmanship (labor) warranty; not transferable; GAF System Plus warranty included (GAF manufacturer warranty on the shingles + qualifying GAF accessories, not workmanship)' },
+  { key: 'better', label: 'Preferred', ratePerSq: 660, warranty: '10-year written workmanship (labor) warranty; transferable to one later owner within 30 days of sale; GAF System Plus warranty included (GAF manufacturer warranty on the shingles + qualifying GAF accessories, not workmanship)' },
+  { key: 'best', label: 'Elite', ratePerSq: 770, warranty: '20-year written workmanship (labor) warranty; fully transferable; annual inspection; GAF System Plus warranty included (GAF manufacturer warranty on the shingles + qualifying GAF accessories, not workmanship)' },
+  { key: 'beyond', label: 'Beyond', ratePerSq: 880, warranty: '20-year written workmanship (labor) warranty; fully transferable; annual inspection (Elite terms) plus TAMKO\'s hail warranty; no GAF System Plus (not a GAF roof)', crmOnly: true, notes: 'Locked to TAMKO HailGuard shingles.' },
 ];
+// The NBD Pledge (Jo, 2026-10-06): a PROMISE on every NBD job, every tier —
+// never call it (or anything) a "lifetime warranty". Same text as
+// docs/pro/js/estimate-config.js PLEDGE_PROMISE (pinned by test).
+const PLEDGE_PROMISE = 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right.';
 const WORKMANSHIP_YEARS = { gutter_system: 5, guard_only: 2, install_default: 2, repair: 1, none: 0 };
 const DEPOSIT = { cashNoDepositUnderCents: 200000, cashDepositPct: 50, insurance: 'Kentucky insurance job: nothing due at signing; deductible + ACV due after the carrier\'s written decision and the 5-business-day cancellation window.' };
 let KY = null;
@@ -360,6 +476,8 @@ function rulesReference() {
     tier_note: 'Per-SQ retail rates exclude delivery and add-ons. Economy and Beyond are CRM-only (not on the public site). Older jobs keep the year and "priced in <year>" context.',
     workmanship_warranty_years: Object.assign({}, WORKMANSHIP_YEARS),
     repair_warranty_note: 'Repairs carry 1 year only when the rep ticks the box.',
+    pledge: PLEDGE_PROMISE,
+    pledge_note: 'The NBD Pledge is a promise on every NBD job, every tier. It is not a warranty term: the written labor warranty is by package (1 to 20 years, above). Never write "lifetime warranty" or "lifetime workmanship", and never call a product warranty lifetime.',
     deposit: { cash_under_2000: 'no deposit', cash_2000_and_up: DEPOSIT.cashDepositPct + '% at signing', insurance: DEPOSIT.insurance },
     kentucky_insurance_jobs: {
       never_say: ['we handle your claim', 'we negotiate with your insurance', 'we manage / deal with / fight the adjuster for you'],
@@ -371,7 +489,7 @@ function rulesReference() {
       'Crews are independent subcontractors carrying their own insurance; never write "in-house crews" or W-2 employees. Jo is on every roof; no salespeople.',
       '"Revenue" means money collected (payments by date received). Estimates, contracts and pipeline are projected.',
       'Never publish cost, contractor price or margin figures anywhere public. Retail prices are fine.',
-      'Two emails on purpose: jd@ for marketing, info@ for documents and Zelle. Never merge them.',
+      'Two emails on purpose: jd@ for marketing and Zelle (Zelle: (859) 420-7382 or jd@), info@ for documents. Never merge them.',
     ],
   };
 }
@@ -392,15 +510,15 @@ function balanceByLead(invoices) {
   });
   return out;
 }
-function postJob(leads, invoices, nowMs, args) {
+function postJob(leads, invoices, nowMs, args, tz) {
   const a = args || {};
   const cut = nowMs - (Math.min(Math.max(Math.floor(Number(a.days)) || 120, 1), 730)) * 86400000;
   const owed = balanceByLead(invoices);
   return activeLeads(leads).filter((l) => roleOf(l) === 'won' && completedMs(l) >= cut)
     .sort((x, y) => completedMs(y) - completedMs(x)).slice(0, clampLimit(a.limit)).map((l) => {
       const done = completedMs(l);
-      return Object.assign(minimalLead(l), {
-        finished: done ? new Date(done).toISOString().slice(0, 10) : null,
+      return Object.assign(minimalLead(l, tz), {
+        finished: done ? nyDay(done, tz) : null,
         days_since: done ? Math.floor((nowMs - done) / 86400000) : null,
         balance_owed: owed[l.id] || 0,
         review_requested: l.reviewRequested === true || !!ms(l.reviewRequestedAt),
@@ -436,7 +554,7 @@ function leadSources(leads, expenses, nowMs, days) {
   return { days: d, sources: out, note: 'win_rate = won ÷ decided (won + lost). Spend counts expenses tagged with a marketing source.' };
 }
 const DIRECT = 'direct';
-function jobProfit(leads, invoices, expenses, nowMs, args) {
+function jobProfit(leads, invoices, expenses, nowMs, args, tz) {
   const a = args || {};
   const cut = nowMs - (Math.min(Math.max(Math.floor(Number(a.days)) || 180, 7), 730)) * 86400000;
   const got = {}, cost = {};
@@ -450,7 +568,7 @@ function jobProfit(leads, invoices, expenses, nowMs, args) {
   });
   const jobs = activeLeads(leads).filter((l) => roleOf(l) === 'won' && completedMs(l) >= cut).map((l) => {
     const c = got[l.id] || 0, k = cost[l.id] || 0;
-    return { lead_id: l.id, name: minimalLead(l).name, finished: new Date(completedMs(l)).toISOString().slice(0, 10),
+    return { lead_id: l.id, name: minimalLead(l).name, finished: nyDay(completedMs(l), tz),
       collected: c / 100, direct_costs: k / 100, profit: (c - k) / 100, margin_pct: c > 0 ? Math.round((c - k) / c * 100) : null,
       costs_logged: k > 0 };
   }).sort((x, y) => String(y.finished).localeCompare(String(x.finished))).slice(0, clampLimit(a.limit));
@@ -722,6 +840,26 @@ function companyNames(profile, isNbd) {
 }
 function hasStopLine(body) { return /\b(reply|text)\s+["']?stop\b/i.test(String(body || '')); }
 
+/**
+ * The checks a text draft must pass — at filing AND again on the edited text
+ * when the owner taps send (review R2-3-1): the company name, a STOP line, the
+ * Kentucky claim wording. Never appends: an edit that removed the
+ * STOP line is refused, not repaired behind the owner's back.
+ * @returns {string|null} what is wrong, or null
+ */
+function editedTextProblem(body, names) {
+  const b = draftText(body);
+  if (!b) return 'The text is empty.';
+  const ns = (names || []).filter(Boolean);
+  if (!ns.length) return 'The company has no name set on its profile, so a text cannot say who it is from.';
+  const low = b.toLowerCase();
+  if (!ns.some((n) => low.indexOf(n.toLowerCase()) !== -1)) return 'Say who it is from: the text must include the company name ("' + ns[ns.length - 1] + '").';
+  if (!hasStopLine(b)) return 'Keep the STOP line in the text ("' + STOP_LINE + '").';
+  const claim = claimWordingProblem(b);
+  if (claim) return claim;
+  return null;
+}
+
 /** draft_text args → { body } (company name checked, STOP line appended) or { error }. */
 function buildTextDraft(args, names) {
   const a = args || {};
@@ -747,6 +885,8 @@ function textGate(lead, optOut) {
   // phone does not need the written-consent record an automated text does —
   // the inbox shows whether one is on file.
   if (l.tcpaConsent === false) return { error: 'This customer declined texting on their form. No text draft — file a note instead.' };
+  // source 'dnc' = the company's own Do Not Text list (sms-optout.js), not a STOP reply.
+  if (optOut && optOut.optedOut && optOut.source === 'dnc') return { error: 'This customer is on your company\'s Do-Not-Text list. No text draft — file a note instead.' };
   if (!optOut || optOut.optedOut !== false) return { error: optOut && optOut.optedOut ? 'This customer is on the Do-Not-Text list (they replied STOP). No text draft — file a note instead.' : 'The Do-Not-Text list could not be checked. Try again later.' };
   return { ok: true, consentOnFile: l.tcpaConsent === true };
 }
@@ -968,13 +1108,13 @@ function toolErr(msg) { return { content: [{ type: 'text', text: msg }], isError
 
 module.exports = {
   PROTOCOL_VERSIONS, SERVER_INFO, TOOLS, BOTS, FIRST_WAVE, MAX_TEXT, MAX_LIST, FORBIDDEN_KEYS,
-  toolsForBot, botAllows, minimalLead, summary, overdueFollowups, listLeads, validateFiling,
+  toolsForBot, botAllows, minimalLead, summary, overdueFollowups, listLeads, listLeadsPage, encodeListCursor, LIST_CURSOR_MAX, validateFiling,
   claimWordingProblem, rpcResult, rpcError, initializeResult, toolText, toolErr, ymd, isYmd, ms, activeLeads,
   estimatesStatus, estimateTotal, paymentsOf, collectedRevenue,
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
-  TIERS, WORKMANSHIP_YEARS, DEPOSIT, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
+  TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
   botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,
-  SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, buildTextDraft, textGate, buildEmailDraft, emailGate, buildSocialDraft,
+  SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, editedTextProblem, buildTextDraft, textGate, buildEmailDraft, emailGate, buildSocialDraft,
   planAllowsBots, accessDecision, validTimeZone, companyTimeZone, dayInZone, rulesReferenceFor, houseRuleLines, NEUTRAL_GUIDANCE,
 };

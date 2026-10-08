@@ -37,6 +37,8 @@ let _twilioSdk = null;
 const _twilio = () => (_twilioSdk = _twilioSdk || require('twilio'));
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const StormGuard = require('./storm-sms-guard');
+const TextingGate = require('./sms-texting-gate');
+const StormTime = require('./storm-time'); // IEM valid is UTC: print it in Eastern
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -176,7 +178,17 @@ async function runStormWatch() {
   // read every run; Joe's own alert still goes out with texting shown OFF.
   const switchOn = await StormGuard.stormAlertsEnabled(db, logger);
   if (!switchOn) logger.info('stormWatch: storm texts switched off', { switchDoc: StormGuard.STORM_SWITCH_DOC });
-  const textEnabled = process.env.STORM_TEXT_ENABLED === 'true' && switchOn;
+  // 2026-10-05: NBD's company-wide texting master switch (sms-texting-gate.js)
+  // as well — it stops EVERY outbound text, storm texts included. A read
+  // error is 'off' (fail closed), like the storm switch.
+  let companyOn = false;
+  try {
+    companyOn = (await TextingGate.textingStatus(db, TextingGate.NBD_OWNER_UID)).allowed;
+  } catch (e) {
+    logger.error('stormWatch: texting switch unreadable', { err: e && e.message });
+  }
+  if (!companyOn) logger.info('stormWatch: company texting switched off');
+  const textEnabled = process.env.STORM_TEXT_ENABLED === 'true' && switchOn && companyOn;
   const nowMs = Date.now();
   // active:true is server-stamped on every subscriber (functions/handlers/
   // integrations.js's serverDefaults, never client-trusted) specifically so
@@ -204,7 +216,7 @@ async function runStormWatch() {
 
   // 1) Joe's alert — always
   const evLines = events.map((ev) =>
-    `${eventLabel(ev)} near ${ev.city || ev.county}, ${ev.st} at ${ev.valid}`);
+    `${eventLabel(ev)} near ${ev.city || ev.county}, ${ev.st} at ${StormTime.whenTextEt(ev.valid)}`);
   // Storm Watch on the D2D map (2026-10-02): the text links straight to the
   // door-knocking map on the first report, with the Storms layer on.
   const mapLink = 'https://nobigdealwithjoedeal.com/pro/dashboard.html?storm=' + events[0].lat.toFixed(3) + ',' + events[0].lon.toFixed(3);
@@ -222,7 +234,7 @@ async function runStormWatch() {
     for (const a of affected) zipCounts[a.zip] = (zipCounts[a.zip] || 0) + 1;
     const html = `<!DOCTYPE html><html><body style="font-family:'Barlow','Segoe UI',Roboto,sans-serif;color:#333">
 <h2 style="color:#BD5728">⛈️ Storm Watch — ${events.length} new report${events.length === 1 ? '' : 's'} in the service area</h2>
-<ul>${events.map((ev) => `<li><b>${esc(eventLabel(ev))}</b> near ${esc(ev.city || ev.county)}, ${esc(ev.st)} — ${esc(ev.valid)} <span style="color:#6b7280">(${ev.lat.toFixed(2)}, ${ev.lon.toFixed(2)})</span></li>`).join('')}</ul>
+<ul>${events.map((ev) => `<li><b>${esc(eventLabel(ev))}</b> near ${esc(ev.city || ev.county)}, ${esc(ev.st)} — ${esc(StormTime.whenTextEt(ev.valid))} <span style="color:#6b7280">(${ev.lat.toFixed(2)}, ${ev.lon.toFixed(2)})</span></li>`).join('')}</ul>
 <p><b>${affected.length}</b> subscriber${affected.length === 1 ? '' : 's'} within ${SUBSCRIBER_RADIUS_MI} mi${unknownZips ? ` (+${unknownZips} with unmappable zips, not texted)` : ''}: ${esc(Object.entries(zipCounts).map(([z, n]) => `${z}×${n}`).join(', ')) || '—'}</p>
 <p>${textEnabled ? 'Subscriber texts are GOING OUT now.' : '<b>Subscriber texting is OFF</b> (STORM_TEXT_ENABLED not set) — this is the list that WOULD have been texted.'}</p>
 <p>Go time: <a href="https://nobigdealwithjoedeal.com/storm-check">storm-check</a> traffic usually follows within hours.</p>
@@ -248,9 +260,12 @@ async function runStormWatch() {
         subscriberRef: a.ref,
         phone: a.to,
         source: 'stormWatch',
+        // Storm subscribers are NBD's own list: NBD's Do Not Text list.
+        companyId: TextingGate.NBD_OWNER_UID,
         eventKey: a.event.key,
         logger,
         tz: a.tz,
+        recipient: { zip: a.zip },
         serverTimestamp: () => FieldValue.serverTimestamp(),
         send: () => client.messages.create({
           to: a.to,

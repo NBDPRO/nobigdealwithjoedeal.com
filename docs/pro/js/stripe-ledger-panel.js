@@ -51,7 +51,7 @@
   // enforceAppCheck callables: the SDK attaches the App Check token itself.
   async function callable(name, payload, timeoutMs) {
     if (!window._httpsCallable || !window._functions) {
-      var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      var mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._functions = window._functions || mod.getFunctions();
       try {
         var emu = await import('./nbd-emulator-connect.js');
@@ -211,7 +211,10 @@
   function monthHtml() {
     var t = L.monthTotals(state.rows, Date.now());
     var partial = state.rows.length >= 300 && state.rows.length && L.monthKey(state.rows[state.rows.length - 1].atMs) === t.month;
-    return '<div class="sl-sec">Collected through Stripe — this month</div><div class="sl-grid">' +
+    // "Stripe gross (card)", not "Collected" (review R2, 2026-10-06): Zelle and
+    // cash are not in it and refunds sit beside it, while Home revenue is net
+    // collected across every method — two different numbers.
+    return '<div class="sl-sec">Stripe gross (card) — this month</div><div class="sl-grid">' +
       '<div class="sl-tile"><div class="sl-lbl">Gross</div><div class="sl-val" style="color:var(--green,#16a34a);">' + esc(L.fmtMoney(t.grossCents)) + '</div><div class="sl-sub">' + t.count + ' payment' + (t.count === 1 ? '' : 's') + '</div></div>' +
       '<div class="sl-tile"><div class="sl-lbl">Stripe fees</div><div class="sl-val" style="color:var(--orange,#BD5728);">' + esc(L.fmtMoney(t.feeCents)) + '</div><div class="sl-sub">' +
         (t.grossCents ? ((t.feeCents / t.grossCents) * 100).toFixed(1) + '% of gross' : 'no fees yet') + '</div></div>' +
@@ -232,7 +235,10 @@
         '<div class="sl-amt' + (d.negative ? ' neg' : '') + '">' + esc(d.amountText) + '</div></div>' +
       '<div class="sl-meta">' + esc(d.dateText) + (d.chip.label.indexOf(d.kindLabel) === 0 ? '' : ' · ' + esc(d.kindLabel)) + (d.method ? ' · ' + esc(d.method) : '') +
         (d.invoiceNumber ? ' · ' + esc(d.invoiceNumber) : '') + ' ' + chipHtml(d.chip) + '</div>' +
-      (party.length ? '<div class="sl-party">' + party.join('<br>') + '</div>' : '<div class="sl-party">No contact details on the Stripe customer.</div>');
+      (party.length ? '<div class="sl-party">' + party.join('<br>') + '</div>' : '<div class="sl-party">No contact details on the Stripe customer.</div>') +
+      // Placed but NOT booked — it would count a job twice (R6-2-8). Why, in
+      // the server's words (stripe-ledger-logic.js catchUpConflictMessage).
+      (r.review && r.review.message ? '<div class="sl-note" data-sl-review-reason>⚠️ ' + esc(r.review.message) + '</div>' : '');
     if (d.receiptUrl || d.stripeUrl) {
       h += '<div class="sl-links" style="justify-content:flex-start;margin-top:4px;">' +
         (d.receiptUrl ? '<a href="' + esc(d.receiptUrl) + '" target="_blank" rel="noopener noreferrer">Receipt ↗</a>' : '') +
@@ -360,7 +366,8 @@
     try {
       var r = await callable('assignStripeTransaction', { ledgerId: ledgerId, leadId: leadId }, 60000);
       var msg = r && r.credited
-        ? (r.created ? 'Created a CRM invoice for ' + name + ' and recorded the payment.' : 'Payment recorded on ' + name + '’s invoice.')
+        ? (r.replacedCatchUp ? 'Payment recorded on ' + name + '’s paid-in-full job — it replaces that much of the catch-up payment (not counted twice).'
+          : r.created ? 'Created a CRM invoice for ' + name + ' and recorded the payment.' : 'Payment recorded on ' + name + '’s invoice.')
         : 'Linked to ' + name + ' (it was already recorded — not counted twice).';
       toast(msg, 'success');
       delete inflight[ledgerId];
@@ -448,7 +455,7 @@
     var m = L.previewModel(res, leadsById());
     var h = '<p>Preview of ' + esc(rangeLabel(sync.days)) + ' — <strong>nothing has been written yet.</strong></p>' +
       '<div class="sl-grid" style="margin-top:10px;">' +
-      '<div class="sl-tile"><div class="sl-lbl">Collected</div><div class="sl-val">' + esc(L.fmtMoney(m.collectedCents)) + '</div><div class="sl-sub">in this range</div></div>' +
+      '<div class="sl-tile"><div class="sl-lbl">Stripe gross (card)</div><div class="sl-val">' + esc(L.fmtMoney(m.collectedCents)) + '</div><div class="sl-sub">in this range</div></div>' +
       '<div class="sl-tile"><div class="sl-lbl">Will record</div><div class="sl-val" style="color:var(--green,#16a34a);">' + (m.records + m.creates) + '</div><div class="sl-sub">' + m.creates + ' new CRM invoice' + (m.creates === 1 ? '' : 's') + '</div></div>' +
       '<div class="sl-tile"><div class="sl-lbl">Needs review</div><div class="sl-val" style="color:var(--gold,#eab308);">' + m.review + '</div><div class="sl-sub">you pick the customer</div></div>' +
       '</div>';

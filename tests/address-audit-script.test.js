@@ -113,9 +113,9 @@ function runAudit(rows, argv, opts) {
   })();
 }
 
-const CLEAN = { id: 'A1', firstName: 'Clean', lastName: 'Row', address: '5448 Hagewa Dr, Blue Ash, OH 45242', jobValue: 100 };
+const CLEAN = { id: 'A1', firstName: 'Clean', lastName: 'Row', address: '5448 Wickhaven Dr, Blue Ash, OH 45242', jobValue: 100 };
 const THIN  = { id: 'A2', firstName: 'Thin', lastName: 'Row', address: 'Cincinnati, OH 45229', jobValue: 100 };
-const MANGLED = { id: 'A3', firstName: 'Mangled', lastName: 'Row', address: '7003, Greenstone Trace, O’Bannon Creek', jobValue: 100 };
+const MANGLED = { id: 'A3', firstName: 'Mangled', lastName: 'Row', address: '7003, Wrenfield Trace, O’Bannon Creek', jobValue: 100 };
 const BLANK = { id: 'A4', firstName: 'Blank', lastName: 'Row', address: '', jobValue: 100 };
 
 (async function main() {
@@ -162,14 +162,31 @@ const BLANK = { id: 'A4', firstName: 'Blank', lastName: 'Row', address: '', jobV
     ok('CI --list still fails on the mangled row', code === 1);
     ok('CI --list prints the offending doc ids', /^\s+A3$/m.test(out) && /^\s+A2$/m.test(out));
     ok('CI --list prints no names', !/Mangled|Thin Row|Clean Row/.test(out));
-    ok('CI --list prints no addresses', !/Greenstone|Cincinnati|Hagewa/.test(out));
+    ok('CI --list prints no addresses', !/Wrenfield|Cincinnati|Wickhaven/.test(out));
     ok('CI output prints no dollar figures', !/\$/.test(out));
     const local = await runAudit([CLEAN, MANGLED], ['--list']);
-    ok('locally --list still shows name + address (the redaction is CI-only)', /Mangled Row/.test(local.out) && /Greenstone/.test(local.out));
+    ok('locally --list still shows name + address (the redaction is CI-only)', /Mangled Row/.test(local.out) && /Wrenfield/.test(local.out));
     const red = await runAudit([CLEAN, MANGLED], ['--list', '--redact']);
-    ok('--redact gives the CI output locally', !/Mangled Row|Greenstone/.test(red.out) && /^\s+A3$/m.test(red.out));
+    ok('--redact gives the CI output locally', !/Mangled Row|Wrenfield/.test(red.out) && /^\s+A3$/m.test(red.out));
     const csv = await runAudit([CLEAN, MANGLED], ['--csv'], { ci: true });
     ok('--csv is refused in CI (exit 2)', csv.code === 2);
+  }
+
+  console.log('ADDRESS AUDIT SCRIPT — ZIP vs state is report-only and ids-only (2026-10-07)');
+  {
+    const WRONG_ZIP = { id: 'Z1', firstName: 'Wrong', lastName: 'Zip', address: '123 Example St, Cincinnati, OH 46211', jobValue: 100 };
+    const OTHER = { id: 'Z2', firstName: 'Other', lastName: 'State', address: '1 Main St, Huntington, WV 25701', jobValue: 100 };
+    const { code, out } = await runAudit([CLEAN, WRONG_ZIP, OTHER]);
+    ok('a ZIP/state mismatch does NOT change the exit code (still PASS)', code === 0);
+    ok('mismatch count is reported (1)', /ZIP\/state MISMATCH\s+1\b/.test(out));
+    ok('matching count is reported (1)', /ZIP matches state\s+1\b/.test(out));
+    ok('other state counted as unchecked (1)', /unchecked state\s+1\b/.test(out));
+    ok('the mismatching lead is named by doc id', /^\s+mismatch: Z1$/m.test(out));
+    ok('the clean lead is not listed as a mismatch', !/mismatch: A1/.test(out));
+    const ci = await runAudit([CLEAN, WRONG_ZIP], [], { ci: true });
+    const zipBlock = (ci.out.split('ZIP vs state')[1] || '').split('───')[0];
+    ok('in CI the ZIP block is present', /mismatch: Z1/.test(zipBlock));
+    ok('in CI the ZIP block carries no name or address', !/Wrong|Example St|Cincinnati|46211/.test(zipBlock));
   }
 
   console.log('ADDRESS AUDIT SCRIPT — soft-deleted rows are not the working set');

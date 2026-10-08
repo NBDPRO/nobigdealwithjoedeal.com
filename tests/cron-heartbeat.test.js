@@ -103,18 +103,21 @@ console.log('\nWRAP — success pings, throw pings /fail and rethrows, work is n
   const calls = [];
   hb._overrides.pingKey = 'KEY';
   hb._overrides.fetchImpl = async (url) => { calls.push(url); return { ok: true, status: 200 }; };
-  hb._overrides.functionTarget = 'hailMatchCron';
+  // A DEDICATED-check cron: its plan slug is its kebab-case name. (Until
+  // 2026-10-04 this used hailMatchCron, which now shares 'daily-syncs' — see
+  // the PLAN section below.)
+  hb._overrides.functionTarget = 'migrationsTick';
 
   const wrapped = hb.withHeartbeat(null, async (ev) => 'result:' + ev.x);
   const out = await wrapped({ x: 1 });
   ok('handler result is returned unchanged', out === 'result:1');
-  ok('success pinged the derived slug', calls.length === 1 && calls[0] === 'https://hc-ping.com/KEY/hail-match-cron');
+  ok('success pinged the planned slug', calls.length === 1 && calls[0] === 'https://hc-ping.com/KEY/migrations-tick');
 
   const failing = hb.withHeartbeat(null, async () => { throw new Error('cron blew up'); });
   let threw = null;
   try { await failing({}); } catch (e) { threw = e; }
   ok('a throwing handler still throws (Cloud Scheduler must see the failure)', threw && threw.message === 'cron blew up');
-  ok('…after pinging /fail', calls.length === 2 && calls[1].endsWith('/hail-match-cron/fail'));
+  ok('…after pinging /fail', calls.length === 2 && calls[1].endsWith('/migrations-tick/fail'));
 
   hb._overrides.fetchImpl = async () => { throw new Error('healthchecks is down'); };
   const out2 = await wrapped({ x: 2 });
@@ -203,7 +206,67 @@ console.log('\nSOURCE CONTRACT — every cron goes through the wrapper');
   const status = codeOnly(fs.readFileSync(path.join(FUNCTIONS, 'handlers', 'integrations.js'), 'utf8'));
   ok('integrationStatus reports healthchecks', /healthchecks:\s*_hasInt\(\s*'HEALTHCHECKS_PING_KEY'\s*\)/.test(status));
   const runbook = path.join(ROOT, 'documentation', 'runbooks', 'HEALTHCHECKS-SETUP.md');
-  ok('the setup runbook exists and lists the hail-match-cron slug', fs.existsSync(runbook) && /hail-match-cron/.test(fs.readFileSync(runbook, 'utf8')));
+  ok('the setup runbook exists and lists the migrations-tick slug', fs.existsSync(runbook) && /migrations-tick/.test(fs.readFileSync(runbook, 'utf8')));
+}
+
+console.log('\nPLAN — every cron has a check (or a dated exemption), within the free tier');
+{
+  const planMod = require(path.join(FUNCTIONS, 'integrations', 'heartbeat-plan.js'));
+  const { PLAN, CHECKS, MAX_CHECKS } = planMod;
+  // Every exported cron, from source: exports.NAME = onSchedule(
+  const crons = [];
+  for (const f of walk(FUNCTIONS)) {
+    const rel = path.relative(FUNCTIONS, f).replace(/\\/g, '/');
+    if (rel === 'integrations/heartbeat.js') continue;
+    for (const m of codeOnly(fs.readFileSync(f, 'utf8')).matchAll(/^exports\.([A-Za-z_]\w*)\s*=\s*onSchedule\(/gm)) crons.push(m[1]);
+  }
+  ok('found the crons (35 on 2026-10-04)', crons.length >= 35, String(crons.length));
+  const unplanned = crons.filter((c) => !PLAN[c]);
+  ok('every cron is in heartbeat-plan.js', unplanned.length === 0, 'add to PLAN: ' + unplanned.join(', '));
+  const stale = Object.keys(PLAN).filter((n) => !crons.includes(n));
+  ok('every PLAN entry is a real cron (no stale names)', stale.length === 0, stale.join(', '));
+  const badEntry = Object.entries(PLAN).filter(([, e]) => !(e.exempt ? /\b20\d\d-\d\d-\d\d\b/.test(e.exempt) && !e.slug : typeof e.slug === 'string' && e.slug));
+  ok('each entry is { slug } or { exempt: "<YYYY-MM-DD> reason" }', badEntry.length === 0, badEntry.map(([n]) => n).join(', '));
+  const used = [...new Set(Object.values(PLAN).filter((e) => e.slug).map((e) => e.slug))];
+  ok('checks needed: ' + used.length + ' ≤ ' + MAX_CHECKS + ' (Healthchecks free tier)', used.length <= MAX_CHECKS);
+  const undocumented = used.filter((s) => !CHECKS[s] || !CHECKS[s].period || !CHECKS[s].grace);
+  ok('every slug in use has a period + grace in CHECKS', undocumented.length === 0, undocumented.join(', '));
+  const unused = Object.keys(CHECKS).filter((s) => !used.includes(s));
+  ok('no CHECKS entry is unused', unused.length === 0, unused.join(', '));
+  ok('slugs are already in canonical form (what the wrapper sends == what Jo types)', used.every((s) => hb.heartbeatSlug(s) === s), used.filter((s) => hb.heartbeatSlug(s) !== s).join(', '));
+  // Dedicated checks keep the slug they always had, so existing checks stay green.
+  const dedicated = used.filter((s) => Object.values(PLAN).filter((e) => e.slug === s).length === 1);
+  const renamed = dedicated.filter((s) => !Object.keys(PLAN).some((n) => PLAN[n].slug === s && hb.heartbeatSlug(n) === s));
+  ok('a dedicated check keeps the cron\'s historical kebab slug', renamed.length === 0, renamed.join(', '));
+
+  // Behaviour: the wrapper pings the PLANNED slug, by FUNCTION_TARGET.
+  const calls = [];
+  hb._overrides.pingKey = 'KEY';
+  hb._overrides.fetchImpl = async (url) => { calls.push(url); return { ok: true, status: 200 }; };
+  hb._overrides.functionTarget = 'callCenterIngest';
+  await hb.withHeartbeat(null, async () => 1)({});
+  ok('a grouped cron pings its SHARED slug (callCenterIngest → calls-texts-ingest)', calls[calls.length - 1] === 'https://hc-ping.com/KEY/calls-texts-ingest', calls[calls.length - 1]);
+  hb._overrides.functionTarget = 'hailMatchCron';
+  let threw = null;
+  try { await hb.withHeartbeat(null, async () => { throw new Error('x'); })({}); } catch (e) { threw = e; }
+  ok('a grouped cron\'s throw pings <shared>/fail (failures still surface)', threw && calls[calls.length - 1].endsWith('/daily-syncs/fail'));
+  hb._overrides.functionTarget = 'someBrandNewCron';
+  await hb.withHeartbeat(null, async () => 1)({});
+  ok('an unplanned cron still pings its kebab default (and the coverage check above goes red)', calls[calls.length - 1].endsWith('/some-brand-new-cron'));
+  // Exempt path, via a temporary plan entry.
+  PLAN.someBrandNewCron = { exempt: '2026-10-04 test' };
+  const before = calls.length;
+  const r = await hb.withHeartbeat(null, async () => 'ran')({});
+  ok('an exempt cron runs and pings nothing', r === 'ran' && calls.length === before);
+  delete PLAN.someBrandNewCron;
+  hb._overrides.functionTarget = undefined;
+
+  // The runbook table is the list Jo creates — it must match the plan.
+  const md = fs.readFileSync(path.join(ROOT, 'documentation', 'runbooks', 'HEALTHCHECKS-SETUP.md'), 'utf8');
+  const missingRows = used.filter((s) => !new RegExp('\\|\\s*\x60' + s + '\x60\\s*\\|').test(md));
+  ok('HEALTHCHECKS-SETUP.md has a table row for every check', missingRows.length === 0, missingRows.join(', '));
+  const unlistedCrons = crons.filter((c) => !md.includes(c));
+  ok('HEALTHCHECKS-SETUP.md names every cron', unlistedCrons.length === 0, unlistedCrons.join(', '));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

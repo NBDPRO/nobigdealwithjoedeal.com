@@ -62,7 +62,9 @@ function ok(name, cond, extra) {
 // tx.get() are two separate reads of the same token.
 // ═══════════════════════════════════════════════════════════════
 function makeFirestore(seed) {
-  const store = new Map(Object.entries(seed || {}));
+  // Every envelope here is on LEAD1, whose email on record is the signer's —
+  // a link goes only to an email on the lead (R3-11, 2026-10-06).
+  const store = new Map(Object.entries(Object.assign({ 'leads/LEAD1': { userId: 'UID1', email: 'pat@example.com' } }, seed || {})));
   const seqIndex = new Map();
 
   function currentData(p) {
@@ -208,7 +210,7 @@ function loadEsignHandlers(db) {
     // own suite is tests/contract-cancel-forms.test.js. These envelopes are
     // not contracts, so the appender is never reached.
     './job-spine-logic': { envelopeIsContract: () => false },
-    './cancel-window': { loadPacketOpts: async () => ({}), stampLeadCancelBy: async () => false },
+    './cancel-window': { loadPacketOpts: async () => ({}), stampLeadCancelBy: async () => false, envelopeNeedsCancelNotice: () => false, SELLER_NAME_REQUIRED_MSG: 'name required' },
   };
 
   const requireStub = (id) => {

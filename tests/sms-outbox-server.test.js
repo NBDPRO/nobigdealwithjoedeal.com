@@ -97,6 +97,9 @@ function makeWorld(opts) {
     return null;
   };
 
+  // 2026-10-05: every send path checks the company's texting master switch
+  // (sms-texting-gate.js). Every tenant in these scenarios (co-1, and the
+  // solo reps keyed by uid) is a registered company — see get() below.
   for (const [p, d] of Object.entries(opts.docs || {})) docs.set(p, d);
 
   function docRef(p) {
@@ -117,6 +120,8 @@ function makeWorld(opts) {
         } else if (p.startsWith('leads/')) {
           events.push('lead-read');
           const f = maybeFail('lead'); if (f) return f;
+        } else if (p.startsWith('sms_settings/') && !docs.has(p) && !opts.noSettings) {
+          return { exists: true, data: () => ({ registered: true }) };
         }
         return { exists: docs.has(p), data: () => docs.get(p) };
       },
@@ -206,6 +211,8 @@ function makeWorld(opts) {
           events.push('claim:' + ref.path);
         },
         set: (ref, data) => { docs.set(ref.path, resolveTs(data)); },
+        // onAiDraftApproved's send claim on the draft (R6-3-3).
+        update: (ref, data) => { docs.set(ref.path, Object.assign({}, docs.get(ref.path) || {}, resolveTs(data))); },
       };
       return fn(tx);
     },
@@ -371,8 +378,11 @@ const logRow = (over) => Object.assign({
     ok('live send answers 200 { success, sid } exactly as before',
       res.statusCode === 200 && res.body && res.body.success === true && res.body.sid === 'SM-1'
       && Object.keys(res.body).sort().join() === 'sid,success', JSON.stringify(res.body));
-    ok('live send makes no idempotency, activity or lead read and takes no claim',
-      !w.events.some((e) => /^(idempotency-read|activity-read|lead-read|claim)/.test(e)), w.events.join(' > '));
+    // 2026-10-05: a live send now reads its lead ONCE — where the homeowner
+    // is, for texting hours (sms-send-window.js). Still no outbox reads.
+    ok('live send makes no idempotency or activity read, takes no claim, and reads its lead once (texting hours)',
+      !w.events.some((e) => /^(idempotency-read|activity-read|claim)/.test(e))
+      && w.events.filter((e) => e === 'lead-read').length === 1, w.events.join(' > '));
     // (the register lookup reads the canonical key and, on a miss, the legacy
     // key — two 'optout-read' events — so collapse repeats before comparing)
     ok('live send keeps the #1667 order: opt-out → per-IP → paid gate → per-uid → per-recipient → Twilio',
@@ -391,8 +401,11 @@ const logRow = (over) => Object.assign({
     // flags on a live send do nothing.
     const { res, w } = await scenario({ now: ET_EDT(22, 30) },
       { to: PHONE_TYPED, body: 'Hi', queued: 'true', overrideActivity: true, clientMsgId: CLIENT_ID });
-    ok('queued:"true" (string) is a LIVE send — no quiet hours, no outbox reads',
-      res.statusCode === 200 && !w.events.includes('idempotency-read'), res.statusCode + ' ' + w.events.join(' > '));
+    // 2026-10-05: a LIVE send is held to texting hours too (it used to go
+    // out at any hour) — refused 403 quiet_hours, which no client hands off.
+    ok('queued:"true" (string) is a LIVE send — no outbox reads; at 22:30 ET it is refused quiet_hours (403, Twilio untouched)',
+      res.statusCode === 403 && res.body && res.body.code === 'quiet_hours' && w.twilioCalls.length === 0
+      && !w.events.includes('idempotency-read'), res.statusCode + ' ' + w.events.join(' > '));
   }
 
   // ═══ happy path + ordering ═════════════════════════════════════════════
@@ -414,8 +427,10 @@ const logRow = (over) => Object.assign({
       idx(e, 'auth') < idx(e, 'optout-read')
       && idx(e, 'optout-read') < idx(e, 'limit:sendQueuedSMS:uid')
       && idx(e, 'limit:sendQueuedSMS:uid') < idx(e, 'idempotency-read')
-      && idx(e, 'idempotency-read') < idx(e, 'lead-read')
-      && idx(e, 'lead-read') < idx(e, 'activity-read')
+      // (the first lead read is the texting-hours lookup ahead of the gate;
+      // the gate's own lead read is the last one)
+      && idx(e, 'idempotency-read') < e.lastIndexOf('lead-read')
+      && e.lastIndexOf('lead-read') < idx(e, 'activity-read')
       && idx(e, 'activity-read') < idx(e, 'limit:sendSMS:ip')
       && idx(e, 'limit:sendSMS:to') < idx(e, 'claim-tx')
       && idx(e, 'claim:' + claimPath) < idx(e, 'twilio-create'), e.join(' > '));
@@ -549,14 +564,14 @@ const logRow = (over) => Object.assign({
     ok('live send with a clientMsgId: 200 { success, sid } — the same shape as ever',
       res.statusCode === 200 && Object.keys(res.body).sort().join() === 'sid,success', JSON.stringify(res.body));
     ok('…claims the id (live:true) and marks it sent', claim.status === 'sent' && claim.live === true && claim.twilioSid === 'SM-1', JSON.stringify(claim));
-    ok('…still runs no outbox checks (quiet hours / activity / lead)',
-      !w.events.some((e) => /^(idempotency-read|activity-read|lead-read)/.test(e)), w.events.join(' > '));
+    ok('…still runs no outbox checks (idempotency / activity)',
+      !w.events.some((e) => /^(idempotency-read|activity-read)/.test(e)), w.events.join(' > '));
     const row = smsRows(w)[0] || {};
     ok('…its sms_log row carries the clientMsgId but is not marked queued', row.clientMsgId === CLIENT_ID && row.queued === undefined);
   }
   {
-    const { res, w } = await scenario({ now: ET_EDT(22, 0) }, liveBody({ clientMsgId: 'short' }));
-    ok('live send with a malformed clientMsgId: no claim, sent as before (and no quiet hours on a live send)',
+    const { res, w } = await scenario({}, liveBody({ clientMsgId: 'short' }));
+    ok('live send with a malformed clientMsgId: no claim, sent as before',
       res.statusCode === 200 && ![...w.docs.keys()].some((p) => p.startsWith('sms_client_ids/')));
   }
   {
@@ -1429,7 +1444,7 @@ const logRow = (over) => Object.assign({
   // ═══ round 2: every outbound path stamps the tenant ════════════════════
   console.log('R2 — every outbound sms_log writer stamps the tenant the scan reads');
   {
-    const ctx = load({ docs: { 'knocks/k1': { userId: UID, companyId: 'co-1', phone: PHONE_TYPED, homeowner: 'Sam' } } });
+    const ctx = load({ docs: { 'knocks/k1': { userId: UID, companyId: 'co-1', phone: PHONE_TYPED, homeowner: 'Sam', smsConsent: true }, 'companyProfile/co-1': { brand: { legalName: 'Acme Roofing' } } } });
     const r = await invoke(ctx.exported.sendD2DSMS.__handler, {
       method: 'POST', headers: { authorization: 'Bearer t' }, body: { knockId: 'k1', templateKey: 'follow_up' },
     });
@@ -1440,6 +1455,7 @@ const logRow = (over) => Object.assign({
   {
     const ctx = load({});
     const approved = { status: 'approved', customerPhone: PHONE_TYPED, draftText: 'Sure, tomorrow works.', userId: UID, companyId: 'co-1', approvedBy: UID };
+    ctx.w.docs.set('leads/lead-1/ai_drafts/d1', Object.assign({}, approved)); // the send claim reads it (R6-3-3)
     await ctx.exported.onAiDraftApproved.__handler({
       params: { leadId: 'lead-1', draftId: 'd1' },
       data: { before: { data: () => ({ status: 'pending' }) }, after: { data: () => approved } },

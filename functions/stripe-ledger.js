@@ -80,6 +80,29 @@ async function loadContext(db) {
   return { db, leads, idx: L.buildLeadIndex([...leads.values()]), invoicesByLead, invoicesById: new Map(invSnap.docs.map((d) => [d.id, Object.assign({ id: d.id }, d.data())])) };
 }
 
+/**
+ * The job + estimate a new mirror belongs to (L.mirrorJobStamp): reads the
+ * lead's jobs and its primary estimate. Any failed read → {} (un-stamped, as
+ * before) — a stamp is a help, never a reason to drop a payment.
+ */
+async function mirrorStampFor(ctx, lead, src) {
+  try {
+    const leadRef = ctx.db.collection('leads').doc(String(lead.id));
+    const js = await leadRef.collection('jobs').limit(5).get();
+    const jobs = (js.docs || []).map((d) => Object.assign({ id: d.id }, d.data() || {}));
+    const eid = typeof lead.primaryEstimateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(lead.primaryEstimateId) ? lead.primaryEstimateId : null;
+    let est = null;
+    if (eid) {
+      const es = await ctx.db.collection('estimates').doc(eid).get();
+      est = es.exists ? (es.data() || {}) : null;
+    }
+    return L.mirrorJobStamp(lead, jobs, est, ((src && src.created) || 0) * 1000);
+  } catch (e) {
+    logger.warn('[stripeLedger] mirror job stamp skipped', { leadId: lead && lead.id, err: e && e.message });
+    return {};
+  }
+}
+
 // ── the booking step ─────────────────────────────────────────────────────
 /**
  * Credit one movement to the lead's CRM invoice — the one it links to, or the
@@ -108,12 +131,29 @@ async function book(ctx, { leadId, mv, stripeInvoice, sourceObject, dryRun }) {
     }
     return { invoiceId: dup.invoiceId, created: false, credited: false, why: 'already_recorded_by_hand' };
   }
+  // The job was marked "Paid in full?" from Catch up (R6-2-8): this payment
+  // replaces that much of the catch-up entry on the same invoice instead of
+  // landing on a new mirror on top of it. Can't be placed → review, with why.
+  const cu = L.findCatchUpInvoice(invs, mv, pick);
+  if (cu && cu.ambiguous) {
+    return { invoiceId: null, created: false, credited: false, why: 'several_paid_in_full_jobs', needsReview: true, message: L.catchUpConflictMessage(cu, mv.amountCents) };
+  }
+  const catchUp = !!(cu && cu.invoiceId);
+  if (catchUp) invoiceId = cu.invoiceId;
   if (dryRun) {
     const target = invoiceId ? invs.find((i) => i.id === invoiceId) : null;
+    if (catchUp && target) {
+      const ab = L.planCatchUpAbsorb(target, mv, Date.now());
+      if (ab && !ab.ok) return { invoiceId: null, created: false, credited: false, why: ab.reason, needsReview: true, message: L.catchUpConflictMessage(ab, mv.amountCents) };
+      if (ab) return { invoiceId, created: false, credited: true, why: 'replaced_catchup_paid_in_full' };
+    }
     const plan = target ? L.planCredit(target, mv) : { status: 'new' };
     return { invoiceId, created: !invoiceId, credited: !!plan, why: invoiceId ? pick.why : 'mirror_' + pick.why };
   }
   const db = ctx.db;
+  // A new mirror is stamped with the customer's job when there is no doubt
+  // (2026-10-05) — read before the transaction (reads only, no write).
+  const stamp = invoiceId ? {} : await mirrorStampFor(ctx, lead, stripeInvoice || sourceObject);
   const result = await db.runTransaction(async (tx) => {
     let ref, inv;
     if (invoiceId) {
@@ -123,9 +163,35 @@ async function book(ctx, { leadId, mv, stripeInvoice, sourceObject, dryRun }) {
       inv = snap.data();
     } else {
       ref = db.collection('invoices').doc();
-      inv = L.mirrorInvoice(stripeInvoice || sourceObject, lead, OWNER, Date.now());
+      inv = L.mirrorInvoice(stripeInvoice || sourceObject, lead, OWNER, Date.now(), stamp);
       tx.set(ref, inv);
       created = true;
+    }
+    if (catchUp) {
+      // Re-planned on the invoice as read inside the transaction.
+      const ab = L.planCatchUpAbsorb(inv, mv, Date.now());
+      if (ab && !ab.ok) return { credited: false, why: ab.reason, needsReview: true, message: L.catchUpConflictMessage(ab, mv.amountCents) };
+      if (ab) {
+        const lp = inv.lastPaymentAt;
+        const lastMs = lp == null ? NaN : (typeof lp.toDate === 'function' ? lp.toDate().getTime() : new Date(lp).getTime());
+        const patch = {
+          payments: ab.payments,
+          supersededPayments: ab.supersededPayments,
+          reconciliations: ab.reconciliations,
+          amountPaid: ab.amountPaid,
+          balanceDue: ab.balanceDue,
+          depositPaid: ab.depositPaid,
+          stripeCreditKeys: ab.keys,
+          status: ab.status,
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        // lastPaymentAt never moves backwards (a deposit older than the
+        // catch-up date); paidAt is set only if the invoice was not paid yet.
+        if (!(lastMs >= ab.payment.at.getTime())) patch.lastPaymentAt = ab.payment.at;
+        if (ab.paid && !inv.paidAt) patch.paidAt = ab.payment.at;
+        tx.update(ref, patch);
+        return { credited: true, invoiceRef: ref, why: 'replaced_catchup_paid_in_full', absorbedCents: ab.absorbedCents };
+      }
     }
     const plan = L.planCredit(inv, mv);
     if (!plan) return { credited: false, why: 'already_recorded' };
@@ -145,6 +211,13 @@ async function book(ctx, { leadId, mv, stripeInvoice, sourceObject, dryRun }) {
     return { credited: true, invoiceRef: ref, overpaidCents: plan.overpaidCents };
   });
   if (result.invoiceRef) invoiceId = result.invoiceRef.id;
+  if (catchUp && result.credited) {
+    // The reconciled invoice, as written, for the rest of this run.
+    const fresh = (await db.collection('invoices').doc(invoiceId).get()).data();
+    const row = Object.assign({ id: invoiceId }, fresh);
+    ctx.invoicesByLead.set(leadId, invs.map((i) => (i.id === invoiceId ? row : i)));
+    ctx.invoicesById.set(invoiceId, row);
+  }
   if (created) {
     // Keep the in-memory context current so a second payment on the same
     // Stripe invoice (a deposit, then the balance) lands on the same mirror.
@@ -153,7 +226,12 @@ async function book(ctx, { leadId, mv, stripeInvoice, sourceObject, dryRun }) {
     ctx.invoicesByLead.set(leadId, invs.concat(row));
     ctx.invoicesById.set(invoiceId, row);
   }
-  return { invoiceId, created, credited: !!result.credited, why: result.why || (created ? 'mirrored' : pick.why), overpaidCents: result.overpaidCents || 0 };
+  const out = { invoiceId, created, credited: !!result.credited, why: result.why || (created ? 'mirrored' : pick.why), overpaidCents: result.overpaidCents || 0 };
+  // Not booked → no invoice to name (a later refund must not come off the
+  // catch-up invoice for money that was never put on it).
+  if (result.needsReview) { out.invoiceId = null; out.needsReview = true; out.message = result.message; }
+  if (result.absorbedCents) out.absorbedCents = result.absorbedCents;
+  return out;
 }
 
 async function rememberCustomer(ctx, leadId, stripeCustomerId, dryRun) {
@@ -179,6 +257,17 @@ async function writeRow(ctx, id, row, dryRun) {
   if (keepManual) { delete out.match; delete out.needsReview; }
   if (!prev.exists) out.createdAt = FieldValue.serverTimestamp();
   await ref.set(out, { merge: true });
+}
+
+/**
+ * The row's `review` reason (R6-2-8): set when booking was refused because it
+ * would count a catch-up "paid in full" job twice, cleared once a booking
+ * attempt succeeds. No booking attempt this pass (not matched) → the key is
+ * left out, so the merge keeps a reason a manual assign wrote.
+ */
+function reviewField(booked) {
+  if (!booked) return {};
+  return { review: booked.needsReview ? { reason: booked.why, message: booked.message || null } : null };
 }
 
 function summarize(row, match, booked) {
@@ -261,9 +350,10 @@ async function ingestCharge(ctx, chargeOrId, opts) {
   const store = Object.assign({}, row, {
     match: { leadId: match.leadId || null, invoiceId: booked ? booked.invoiceId || null : null, method: match.method || null,
       confidence: match.confidence, candidates: match.candidates || [], leadName: match._lead ? L.leadName(match._lead) : null },
-    // Review: real money we could not confidently place.
-    needsReview: row.status === 'succeeded' && row.amountCents > 0 && match.confidence !== 'high',
-  });
+    // Review: real money we could not confidently place — or could place but
+    // not book without counting the job twice (R6-2-8, booked.needsReview).
+    needsReview: row.status === 'succeeded' && row.amountCents > 0 && (match.confidence !== 'high' || !!(booked && booked.needsReview)),
+  }, reviewField(booked));
   delete store._id;
   await writeRow(ctx, ch.id, store, o.dryRun);
   return summarize(row, match, booked);
@@ -303,7 +393,7 @@ async function ingestInvoice(ctx, invOrId, opts) {
     }
     const store = Object.assign({}, row, { match: { leadId: match.leadId || null, invoiceId: booked ? booked.invoiceId : null, method: match.method || null,
       confidence: match.confidence, candidates: match.candidates || [], leadName: match._lead ? L.leadName(match._lead) : null },
-      needsReview: match.confidence !== 'high' });
+      needsReview: match.confidence !== 'high' || !!(booked && booked.needsReview) }, reviewField(booked));
     delete store._id;
     await writeRow(ctx, inv.id, store, o.dryRun);
     return summarize(row, match, booked);
@@ -314,7 +404,7 @@ async function ingestInvoice(ctx, invOrId, opts) {
     const invs = ctx.invoicesByLead.get(match.leadId) || [];
     if (!invs.some((i) => i.stripeInvoiceId === inv.id)) {
       const ref = ctx.db.collection('invoices').doc();
-      const mirror = L.mirrorInvoice(inv, match._lead, OWNER, Date.now());
+      const mirror = L.mirrorInvoice(inv, match._lead, OWNER, Date.now(), await mirrorStampFor(ctx, match._lead, inv));
       await ref.set(mirror);
       ctx.invoicesByLead.set(match.leadId, invs.concat(Object.assign({ id: ref.id }, mirror)));
       ctx.invoicesById.set(ref.id, Object.assign({ id: ref.id }, mirror));
@@ -540,12 +630,24 @@ async function assign(db, ledgerId, leadId, byUid) {
       reference: row.nbdInvoiceNumber || row.stripeInvoiceNumber || null },
     stripeInvoice, sourceObject });
   const lead = ctx.leads.get(leadId);
+  if (booked.needsReview) {
+    // Not booked (R6-2-8): it would count a catch-up "paid in full" job
+    // twice. The row stays in the review list with the reason, and Jo is told
+    // why — never a quiet success.
+    await db.collection(COL).doc(ledgerId).set({
+      needsReview: true,
+      review: { reason: booked.why, message: booked.message || null, leadId, by: byUid, at: new Date() },
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    throw new HttpsError('failed-precondition', booked.message || 'This payment could not be recorded without counting the job twice.');
+  }
   if (row.party && row.party.stripeCustomerId && !lead.stripeCustomerId) await db.collection('leads').doc(leadId).update({ stripeCustomerId: row.party.stripeCustomerId });
   await db.collection(COL).doc(ledgerId).set({
     match: { leadId, invoiceId: booked.invoiceId || null, method: 'manual', confidence: 'high', candidates: [], leadName: L.leadName(lead), by: byUid, at: new Date() },
-    needsReview: false, updatedAt: FieldValue.serverTimestamp(),
+    needsReview: false, review: null, updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
-  return { ok: true, invoiceId: booked.invoiceId, credited: booked.credited, created: booked.created };
+  return { ok: true, invoiceId: booked.invoiceId, credited: booked.credited, created: booked.created,
+    replacedCatchUp: booked.why === 'replaced_catchup_paid_in_full', absorbed: (booked.absorbedCents || 0) / 100 };
 }
 
 exports.assignStripeTransaction = onCall(

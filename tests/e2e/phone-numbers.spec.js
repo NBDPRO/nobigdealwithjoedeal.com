@@ -26,7 +26,7 @@ async function box(page, selector) {
   }, selector);
 }
 const readDoc = (page, path) => safeEvaluate(page, async (p) => {
-  const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+  const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
   const s = await fs.getDocFromServer(fs.doc(window.db || window._db, p));
   return s.exists() ? s.data() : null;
 }, path);
@@ -41,7 +41,7 @@ test.describe.serial('phone numbers: lost reason + Sunday review at 390px @shard
   // tagged for cleanup; returns its id after the dashboard has it in memory.
   async function seedLead(fields) {
     return safeEvaluate(page, async ({ f, tag }) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const uid = window._user.uid;
       const co = (window._userClaims && window._userClaims.companyId) || uid;
       const data = Object.assign({ userId: uid, companyId: co, e2eTestData: true, e2eRun: tag, meter: 'manual' }, f); // server lead meter (firestore.rules leadMeterOk, #2152)
@@ -199,7 +199,7 @@ test.describe.serial('phone numbers: lost reason + Sunday review at 390px @shard
       { message: 'the decision is saved for the week', timeout: 15_000 }).toBe(text);
     // Tidy: the note is not tagged, so clear it.
     await safeEvaluate(page, async (p) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       await fs.setDoc(fs.doc(window.db, p), { decision: '' }, { merge: true });
     }, 'companies/' + where.co + '/owner_numbers/week_' + where.wk);
   });

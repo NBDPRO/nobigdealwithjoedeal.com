@@ -120,7 +120,7 @@ The `afterAll` runs even after a failed test. Worst case (CI killed
 before afterAll fires): manually invoke the callable from DevTools:
 
 ```js
-const m = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+const m = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
 const f = m['httpsCallable'](m['getFunctions'](),'cleanupE2ETestData');
 console.log((await f()).data);
 ```
@@ -133,7 +133,7 @@ makes them visually obvious.
 Don't manually register + edit Firestore. There's a callable for that:
 
 ```js
-const m = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+const m = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
 const f = m['httpsCallable'](m['getFunctions'](),'provisionE2ETestUser');
 const r = await f();
 alert(JSON.stringify(r));   // shows email + password ONCE
