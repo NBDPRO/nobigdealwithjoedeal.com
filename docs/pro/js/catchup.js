@@ -158,7 +158,8 @@
     if (!at) throw new Error('Pick the date the money came in (not a future date)');
     if (!ip.isManualPaymentMethod(c.method)) throw new Error('Pick how it was paid');
     const ctx = await ip.recordPaymentContext(leadId);
-    const plan = L().paidInFullPlan(ctx.target);
+    const plan = L().paidInFullPlan(ctx.target, { collectedCents: L().collectedCentsOf(ctx.invoices) });
+    if (!plan.ok && plan.reason === 'already_collected') throw new Error('Money is already recorded for this customer (a Stripe payment, or one entered elsewhere) — use Record payment for the rest');
     if (!plan.ok) throw new Error('No single job total on file — use Record payment');
     if (c.expectCents != null && plan.cents !== c.expectCents) throw new Error('The job total changed since this opened — open it again');
     const invoiceId = await ip.recordPaymentCommit({
@@ -168,6 +169,9 @@
       method: c.method, payer: c.payer || 'homeowner', at,
       invoiceId: plan.invoiceId, reference: '',
       sendReceipt: false,
+      // A balancing entry: a Stripe payment for this job found later
+      // replaces part of it instead of adding to it (R6-2-8).
+      basis: ip.PAYMENT_BASIS_CATCHUP || 'catchup_paid_in_full',
     });
     const after = await ip.loadLeadInvoices(leadId);
     await logPayment(leadId, ctx.invoices, after, invoiceId, 'Paid in full ' + exact(plan.cents) + ' — ' + leadName(ctx.lead));
@@ -244,6 +248,11 @@
           const l = leadById(it.leadId); if (l) Object.assign(l, it.undo);
         }
       } else if (e.kind === 'payment') {
+        // Stripe money booked on this invoice since (R6-2-8) → undo would
+        // erase a real payment. Refuse, visibly.
+        const cur = await window.getDoc(window.doc(db(), 'invoices', e.invoiceId));
+        const why = L().paymentUndoBlocked(cur.exists() ? cur.data() : null, e);
+        if (why) throw new Error(why);
         if (e.created) await window.deleteDoc(window.doc(db(), 'invoices', e.invoiceId));
         else await window.updateDoc(window.doc(db(), 'invoices', e.invoiceId), Object.assign({}, e.restore, { updatedAt: new Date() }));
         if (e.noteId && typeof window.deleteDoc === 'function') {
@@ -419,9 +428,11 @@
     if (!ip || typeof ip.recordPaymentContext !== 'function') { toast('Payments did not load — reload and try again', 'error'); return; }
     let ctx;
     try { ctx = await ip.recordPaymentContext(leadId); } catch (_) { toast('Could not read the invoices — try again', 'error'); return; }
-    const plan = L().paidInFullPlan(ctx.target);
+    const plan = L().paidInFullPlan(ctx.target, { collectedCents: L().collectedCentsOf(ctx.invoices) });
     if (!plan.ok) {
-      toast(plan.reason === 'no_total' ? 'No job total on file — record what came in instead' : 'This job has more than one bill — record what came in instead', 'info');
+      toast(plan.reason === 'no_total' ? 'No job total on file — record what came in instead'
+        : plan.reason === 'already_collected' ? 'Money is already recorded for this customer — record the rest instead'
+        : 'This job has more than one bill — record what came in instead', 'info');
       recordPaymentSheet(leadId).then((ok) => { if (ok) afterWrite(); });
       return;
     }
