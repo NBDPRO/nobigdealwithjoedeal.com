@@ -235,7 +235,10 @@
         '<div class="sl-amt' + (d.negative ? ' neg' : '') + '">' + esc(d.amountText) + '</div></div>' +
       '<div class="sl-meta">' + esc(d.dateText) + (d.chip.label.indexOf(d.kindLabel) === 0 ? '' : ' · ' + esc(d.kindLabel)) + (d.method ? ' · ' + esc(d.method) : '') +
         (d.invoiceNumber ? ' · ' + esc(d.invoiceNumber) : '') + ' ' + chipHtml(d.chip) + '</div>' +
-      (party.length ? '<div class="sl-party">' + party.join('<br>') + '</div>' : '<div class="sl-party">No contact details on the Stripe customer.</div>');
+      (party.length ? '<div class="sl-party">' + party.join('<br>') + '</div>' : '<div class="sl-party">No contact details on the Stripe customer.</div>') +
+      // Placed but NOT booked — it would count a job twice (R6-2-8). Why, in
+      // the server's words (stripe-ledger-logic.js catchUpConflictMessage).
+      (r.review && r.review.message ? '<div class="sl-note" data-sl-review-reason>⚠️ ' + esc(r.review.message) + '</div>' : '');
     if (d.receiptUrl || d.stripeUrl) {
       h += '<div class="sl-links" style="justify-content:flex-start;margin-top:4px;">' +
         (d.receiptUrl ? '<a href="' + esc(d.receiptUrl) + '" target="_blank" rel="noopener noreferrer">Receipt ↗</a>' : '') +
@@ -363,7 +366,8 @@
     try {
       var r = await callable('assignStripeTransaction', { ledgerId: ledgerId, leadId: leadId }, 60000);
       var msg = r && r.credited
-        ? (r.created ? 'Created a CRM invoice for ' + name + ' and recorded the payment.' : 'Payment recorded on ' + name + '’s invoice.')
+        ? (r.replacedCatchUp ? 'Payment recorded on ' + name + '’s paid-in-full job — it replaces that much of the catch-up payment (not counted twice).'
+          : r.created ? 'Created a CRM invoice for ' + name + ' and recorded the payment.' : 'Payment recorded on ' + name + '’s invoice.')
         : 'Linked to ' + name + ' (it was already recorded — not counted twice).';
       toast(msg, 'success');
       delete inflight[ledgerId];

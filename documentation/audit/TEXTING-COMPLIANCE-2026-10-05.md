@@ -33,6 +33,30 @@ Ask Joe, close board, portal links) goes through sendSMS.
 
 ## Still open (not in Jo's list)
 
+**Update 2026-10-07 (review round 6, `fix/r6-texting-trio`):** three more
+gaps closed. Tests: `tests/r6-texting-trio-2026-10-07.test.js`.
+
+- **R6-3-3, AI reply sent twice.** `onAiDraftApproved` now claims the send on
+  the draft before Twilio is called. Only a definite Twilio refusal (HTTP 4xx)
+  is `failed`. Any other error is looked up at Twilio by number and text. If
+  Twilio has it, the draft is `sent`; if not, the draft is `send_uncertain`.
+  The panel shows "check before re-sending" and never re-queues it by itself.
+  Only the rep can put it back (`send_uncertain → pending | dismissed` in
+  `firestore.rules`).
+- **R6-3-5, START lifting another company's STOP.** Each STOP now records
+  which sender it was told to (`stopLine`). "They replied STOP" is that
+  company's own Do Not Text entry (`owner_phone`), not the global register. A
+  START to NBD's number lifts only that number's STOPs, plus NBD's own phone
+  STOP (`sms-optout.js` `liftStopOnLine`). Older entries it can't attribute
+  are kept and flagged (`startSeenAt`).
+- **R6-3-6, no hours on the no-customer check.** `phoneTextAction`'s `number`
+  path now applies 8am–9pm, Eastern when there is no location (the rule
+  below). Only `crew` skips hours.
+- **New open item:** an `owner_phone` STOP has no lift path yet. The CRM can't
+  remove a stop_reply entry, and a START to NBD's number no longer lifts
+  another company's entry. If a homeowner tells company A "you can text me
+  again", A can't record it today.
+
 - **Per-company A2P registration.** That is being designed separately. Until it
   exists, non-NBD companies cannot text at all.
 - The STOP / HELP TwiML replies still say "NBD Pro" with Joe's number for every

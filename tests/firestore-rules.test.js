@@ -2796,7 +2796,7 @@ async function run() {
     try { if (want === 'allow') await assertSucceeds(promise); else await assertFails(promise); s57Pass++; }
     catch (_) { s57Fail.push(label + ' (wanted ' + want + ')'); }
   }
-  const STATUSES57 = ['pending', 'approved', 'sent', 'failed', 'dismissed'];
+  const STATUSES57 = ['pending', 'approved', 'sent', 'failed', 'dismissed', 'send_uncertain'];
   await env.withSecurityRulesDisabled(async (ctx) => {
     const d = ctx.firestore();
     await setDoc(doc(d, 'leads/lead57'), { userId: 'alice', companyId: 'co-a', name: 'Sam' });
@@ -2811,7 +2811,10 @@ async function run() {
     await setDoc(doc(d, 'leads/lead57/ai_drafts/edit-pending'), { userId: 'alice', leadId: 'lead57', status: 'pending', draftText: 'x' });
     await setDoc(doc(d, 'leads/lead57/ai_drafts/nostatus'), { userId: 'alice', leadId: 'lead57', draftText: 'x' });
   });
-  const ALLOWED57 = { 'pending-approved': 1, 'pending-dismissed': 1, 'failed-pending': 1, 'failed-dismissed': 1 };
+  // send_uncertain (R6-3-3, 2026-10-07): Twilio may have taken it. Only the rep
+  // re-queues it (→ pending) or dismisses it; it is never approved directly.
+  const ALLOWED57 = { 'pending-approved': 1, 'pending-dismissed': 1, 'failed-pending': 1, 'failed-dismissed': 1,
+    'send_uncertain-pending': 1, 'send_uncertain-dismissed': 1 };
   for (const from of STATUSES57) {
     for (const to of STATUSES57) {
       const key = from + '-' + to;
