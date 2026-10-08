@@ -1155,6 +1155,30 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   }
 
   /**
+   * The ONE rounding rule's home (2026-10-07, ho-money audit H5):
+   * NBDCustomerEstimateRows.footingRows — the function the estimate link and
+   * the e-sign contract print their Sales tax / Rounding rows with. The
+   * browser has it on window (dashboard.html and customer.html load
+   * customer-estimate-rows.js before this file); the server and the unit
+   * tests require() the copy beside this file (functions/ and docs/pro/js/
+   * each carry one). null only if neither loaded — then the invoice keeps
+   * the subtotal-based measure it used before.
+   */
+  function _footingApi() {
+    try {
+      if (typeof window !== 'undefined' && window.NBDCustomerEstimateRows
+          && typeof window.NBDCustomerEstimateRows.footingRows === 'function') return window.NBDCustomerEstimateRows;
+    } catch (_) { /* fall through */ }
+    try {
+      if (typeof require === 'function') {
+        const m = require('./customer-estimate-rows');
+        if (m && typeof m.footingRows === 'function') return m;
+      }
+    } catch (_) { /* fall through */ }
+    return null;
+  }
+
+  /**
    * Map a saved estimate's rows to invoice line items — at the CUSTOMER price.
    *
    * Post-sweep V2 saves persist the retail price in rows[].retailTotal (and in
@@ -1223,6 +1247,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         unitPrice: Math.round((unitPrice || 0) * 100) / 100,
         total: Number.isFinite(lineTotal) ? Math.round(lineTotal * 100) / 100 : 0
       };
+    }).filter(function (item) {
+      // A $0 line is not a charge (2026-10-07, ho-money audit M8): a catalog
+      // line left at 0 LF printed "0.00 LF $0" eleven times on one bill, and
+      // a $0 line is below the pay link's $1-per-line floor (stripe.js), so
+      // it also blocked the link. Not billed, not printed.
+      return Math.round(item.total * 100) !== 0;
     });
     const ohp = (Number(est && est.overhead) || 0) + (Number(est && est.profit) || 0);
     if (hasV2Pricing && ohp > 0 && items.length) {
@@ -1276,10 +1306,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // not the internal cost-basis rows. Invoice it as a single summary line
       // so the invoice total == the signed quote.
       total = savedGrand;
-      subtotal = taxRate > 0 ? (total / (1 + taxRate)) : total;
-      tax = total - subtotal;
-      subtotal = Math.round(subtotal * 100) / 100;
-      tax = Math.round(tax * 100) / 100;
+      // In whole cents: subtotal + tax === total exactly, never a cent apart
+      // from rounding the two halves separately.
+      const _totC = Math.round(total * 100);
+      const _subC = Math.round((taxRate > 0 ? (total / (1 + taxRate)) : total) * 100);
+      subtotal = _subC / 100;
+      tax = (_totC - _subC) / 100;
       // Customer-facing name (Economy/Standard/Preferred/Elite/Beyond) from
       // the shared config — the invoice printed the raw key ("Good tier").
       const _tierKey = String(est.selectedTier || est.tier || '');
@@ -1327,7 +1359,23 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         // refused the link ($120 material / $250 labor at 7%: $525 quoted,
         // $513.60 of lines + tax). Untaxed — tax is already the quote's.
         // adjustment:true lets the pay link take either sign (stripe.js).
-        const adjCents = Math.round(total * 100) - Math.round(subtotal * 100) - Math.round(tax * 100);
+        //
+        // The cents come from THE rounding rule (footingRows, 2026-10-07):
+        // measured from the printed lines when they sit within $1 of the
+        // saved subtotal. Measuring from the subtotal (as this did) put the
+        // invoice a cent off the estimate link whenever the engine's per-row
+        // rounding left the lines a cent from the subtotal — KY audit shape:
+        // estimate link "Rounding −$4.96", invoice "Rounding −$4.95" — and
+        // the invoice's own lines + tax + rounding then missed its total by
+        // that cent. The subtotal follows: lines + tax + rounding === total.
+        let adjCents = Math.round(total * 100) - Math.round(subtotal * 100) - Math.round(tax * 100);
+        const _F = _footingApi();
+        if (_F) {
+          const _foot = _F.footingRows({ grandTotal: total, subtotal: subtotal, tax: tax, taxRate: taxRate }, items);
+          const _adj = _foot.filter(function (r) { return r.code === 'ADJ'; })[0];
+          adjCents = _adj ? Math.round(_adj.total * 100) : 0;
+          subtotal = (Math.round(total * 100) - Math.round(tax * 100) - adjCents) / 100;
+        }
         if (adjCents !== 0) {
           items.push({
             description: (est.minJobApplied && adjCents > 0) ? 'Minimum job charge adjustment' : 'Rounding',
@@ -1339,12 +1387,90 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           });
         }
       } else {
-        subtotal = items.reduce((sum, item) => sum + item.total, 0);
-        tax = subtotal * taxRate;
-        total = subtotal + tax;
+        // Whole cents (2026-10-07): an unrounded tax / total printed a
+        // total a cent off subtotal + tax.
+        const _subC = items.reduce((sum, item) => sum + Math.round(item.total * 100), 0);
+        const _taxC = Math.round(_subC * taxRate);
+        subtotal = _subC / 100;
+        tax = _taxC / 100;
+        total = (_subC + _taxC) / 100;
       }
     }
     return { items, subtotal, tax, taxRate, total };
+  }
+
+  /**
+   * The rows a HOMEOWNER reads on an invoice — the emailed invoice
+   * (buildInvoiceHtml), the in-app / printed invoice (renderInvoiceDetail)
+   * and the NBD-500 PDF (functions/money-paper-logic.js invoicePayload) —
+   * in order, adding up to the total shown (2026-10-07, ho-money audit H1).
+   *
+   * The email printed the items and then "Total", with no Sales tax row: a
+   * $13,675 job's lines summed to $12,780.09 under a $13,675.00 total (the
+   * $894.91 tax was never printed), and a per-SQ job read "Roofing system —
+   * Elite tier $22,102.80" over $23,650.00. Now:
+   *   lines (no $0 lines) → Subtotal → Sales tax (r%) → Rounding / Minimum
+   *   job charge adjustment → [Job total → each "Less deposit …" credit] →
+   *   Total
+   * The adjustment is THE rounding rule (footingRows) over the printed
+   * lines, so the invoice says the same Rounding as the estimate link; an
+   * invoice saved before that rule (subtotal-based, a cent off) prints the
+   * corrected cent, so its rows add up too.
+   *
+   * → [{ kind, label, amount, quantity?, unitPrice? }], amount in dollars
+   *   (whole cents). kind: 'line' | 'subtotal' | 'tax' | 'adjustment' |
+   *   'jobTotal' | 'credit' | 'total'. subtotal / jobTotal / total are
+   *   running totals; Σ line + tax + adjustment + credit === total, in cents
+   *   (an old invoice whose lines sit more than $1 from its saved subtotal
+   *   is printed as saved — a real gap is never relabelled Rounding).
+   */
+  function invoiceDisplayRows(inv) {
+    inv = inv || {};
+    const c = function (v) { const n = Math.round(Number(v) * 100); return Number.isFinite(n) ? n : 0; };
+    const items = (Array.isArray(inv.items) ? inv.items : []).filter(Boolean);
+    const lines = items.filter(function (it) { return it.credit !== true && it.adjustment !== true && c(it.total) !== 0; });
+    const credits = items.filter(function (it) { return it.credit === true && c(it.total) !== 0; });
+    const adjItem = items.filter(function (it) { return it.adjustment === true; })[0] || null;
+    const linesC = lines.reduce(function (s, it) { return s + c(it.total); }, 0);
+    const creditC = credits.reduce(function (s, it) { return s + c(it.total); }, 0); // ≤ 0
+    const taxC = c(inv.tax);
+    const totalC = c(inv.total);
+    const jobC = totalC - creditC;
+    const rate = Number(inv.taxRate);
+    let adjC = jobC - linesC - taxC;
+    const F = _footingApi();
+    if (F && inv.subtotal != null && inv.subtotal !== '' && Number.isFinite(Number(inv.subtotal)) && jobC > 0) {
+      const foot = F.footingRows({ grandTotal: jobC / 100, subtotal: Number(inv.subtotal), tax: taxC / 100, taxRate: rate }, lines);
+      const adj = foot.filter(function (r) { return r.code === 'ADJ'; })[0];
+      adjC = adj ? c(adj.total) : 0;
+    }
+    const baseC = jobC - taxC - adjC;
+    const rows = lines.map(function (it) {
+      const q = Number(it.quantity);
+      return {
+        kind: 'line',
+        label: String(it.description || 'Line item'),
+        quantity: Number.isFinite(q) ? q : 1,
+        unitPrice: c(it.unitPrice) / 100,
+        amount: c(it.total) / 100
+      };
+    });
+    rows.push({ kind: 'subtotal', label: 'Subtotal', amount: baseC / 100 });
+    if (taxC !== 0) {
+      const pct = (Number.isFinite(rate) && rate > 0) ? String(Math.round(rate * 100000) / 1000) + '%' : '';
+      rows.push({ kind: 'tax', label: 'Sales tax' + (pct ? ' (' + pct + ')' : ''), amount: taxC / 100 });
+    }
+    if (adjC !== 0) {
+      rows.push({ kind: 'adjustment', label: adjItem ? String(adjItem.description || 'Rounding') : 'Adjustment', amount: adjC / 100 });
+    }
+    if (credits.length) {
+      rows.push({ kind: 'jobTotal', label: 'Job total', amount: jobC / 100 });
+      credits.forEach(function (it) {
+        rows.push({ kind: 'credit', label: String(it.description || 'Less deposit paid'), amount: c(it.total) / 100 });
+      });
+    }
+    rows.push({ kind: 'total', label: 'Total', amount: totalC / 100 });
+    return rows;
   }
   // nbd:invoice-from-estimate:end
 
@@ -2200,15 +2326,15 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         // Build invoice HTML
         // ACH is offered only on the NBD platform account (functions/stripe.js);
         // no other tenant's message claims a bank option.
-        const invoiceHtml = buildInvoiceHtml(invoice, { payUrl, zelle, payByBank: _platformTenant() });
+        const invoiceHtml = buildInvoiceHtml(invoice, { payUrl, zelle, payByBank: _platformTenant(), invoiceId });
 
         // Send via NBDComms
         if (window.NBDComms?.sendEmail) {
           const emailResult = await window.NBDComms.sendEmail({
             to: invoice.customerEmail || '',
             subject: balanceSend
-              ? `Balance due ${balanceText} — Invoice ${invoiceId} from ${_invoiceCompany()}`
-              : `Invoice ${invoiceId} from ${_invoiceCompany()}`,
+              ? `Balance due ${balanceText} — Invoice ${nbdInvoiceNumberOf(invoice) || invoiceId} from ${_invoiceCompany()}`
+              : `Invoice ${nbdInvoiceNumberOf(invoice) || invoiceId} from ${_invoiceCompany()}`,
             html: invoiceHtml,
             leadId: invoice.leadId || null,
             invoiceId: invoiceId, // the server checks `to` against invoice.customerEmail
@@ -2662,13 +2788,16 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             <tbody>
       `;
 
-      inv.items?.forEach(item => {
+      // The same rows the homeowner's email prints (invoiceDisplayRows): no
+      // $0 lines, then Subtotal / Sales tax / Rounding / Total that add up.
+      const _dispRows = invoiceDisplayRows(inv);
+      _dispRows.filter(r => r.kind === 'line').forEach(r => {
         html += `
           <tr class="ipx-row">
-            <td class="ipx-td8">${_esc(item.description)}</td>
-            <td class="ipx-td8 ipx-r">${_esc(item.quantity)}</td>
-            <td class="ipx-td8 ipx-r">${formatCurrency(item.unitPrice)}</td>
-            <td class="ipx-td8 ipx-r ipx-b">${formatCurrency(item.total)}</td>
+            <td class="ipx-td8">${_esc(r.label)}</td>
+            <td class="ipx-td8 ipx-r">${_esc(r.quantity)}</td>
+            <td class="ipx-td8 ipx-r">${formatCurrency(r.unitPrice)}</td>
+            <td class="ipx-td8 ipx-r ipx-b">${formatCurrency(r.amount)}</td>
           </tr>
         `;
       });
@@ -2679,18 +2808,15 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
 
           <div class="ipx-end20">
             <div class="ipx-w300">
-              <div class="ipx-sum-row">
-                <span>Subtotal:</span>
-                <span>${formatCurrency(inv.subtotal)}</span>
-              </div>
-              <div class="ipx-sum-row">
-                <span>Tax (${((Number(inv.taxRate) || 0) * 100).toFixed(1)}%):</span>
-                <span>${formatCurrency(inv.tax)}</span>
-              </div>
+              ${_dispRows.filter(r => r.kind !== 'line').map(r => r.kind === 'total' ? `
               <div class="ipx-total-row">
-                <span>Total:</span>
-                <span>${formatCurrency(inv.total)}</span>
-              </div>
+                <span>${_esc(r.label)}:</span>
+                <span>${formatCurrency(r.amount)}</span>
+              </div>` : `
+              <div class="ipx-sum-row">
+                <span>${_esc(r.label)}:</span>
+                <span>${formatCurrency(r.amount)}</span>
+              </div>`).join('')}
               ${paymentSummaryRows(inv).map((r, idx) => r.strong ? `
               <div class="ipx-due-row">
                 <span>${_esc(r.label)}:</span>
@@ -2860,16 +2986,48 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       const s = String(u || '');
       return /^https?:\/\//i.test(s) ? s : '';
     };
-    const items = (invoice.items || [])
-      .map(item => `
+    // Lines, then Subtotal / Sales tax / Rounding / Total — rows that add up
+    // to the total printed (invoiceDisplayRows, ho-money audit H1). The
+    // email used to print the items and jump to "Total" with no tax row.
+    const _rows = invoiceDisplayRows(invoice);
+    const items = _rows.map((r) => {
+      if (r.kind === 'line') {
+        return `
         <tr>
-          <td style="padding:8px;border-bottom:1px solid #eee;">${_esc(item.description)}</td>
-          <td style="text-align:right;padding:8px;border-bottom:1px solid #eee;">${_esc(item.quantity)}</td>
-          <td style="text-align:right;padding:8px;border-bottom:1px solid #eee;">${formatCurrency(item.unitPrice)}</td>
-          <td style="text-align:right;padding:8px;border-bottom:1px solid #eee;font-weight:700;">${formatCurrency(item.total)}</td>
-        </tr>
-      `)
-      .join('');
+          <td style="padding:8px;border-bottom:1px solid #eee;">${_esc(r.label)}</td>
+          <td style="text-align:right;padding:8px;border-bottom:1px solid #eee;">${_esc(r.quantity)}</td>
+          <td style="text-align:right;padding:8px;border-bottom:1px solid #eee;">${formatCurrency(r.unitPrice)}</td>
+          <td style="text-align:right;padding:8px;border-bottom:1px solid #eee;font-weight:700;">${formatCurrency(r.amount)}</td>
+        </tr>`;
+      }
+      // Classes from the email's own <style> block (.sum / .b / .rule / .big).
+      const cls = 'sum'
+        + ((r.kind === 'total' || r.kind === 'subtotal' || r.kind === 'jobTotal') ? ' b' : '')
+        + ((r.kind === 'subtotal' || r.kind === 'total') ? ' rule' : '')
+        + (r.kind === 'total' ? ' big' : '');
+      return `
+        <tr class="${cls}">
+          <td colspan="3">${_esc(r.label)}:</td>
+          <td>${formatCurrency(r.amount)}</td>
+        </tr>`;
+    }).join('');
+    // "Due now" (ho-money audit M6): the amount Pay Online charges — the rest
+    // of the deposit while it is unmet, else the balance (the rows
+    // paymentSummaryRows prints, the rule functions/invoice-charge.js
+    // charges). It becomes the ONE emphasised row; "Total owed" read as the
+    // ask while the link charged the deposit. Only beside a way to pay: no
+    // link and no Zelle — e.g. the Kentucky insurance hold, which blanks
+    // both — prints no "Due now" (nothing may be demanded inside the hold).
+    const _pay = paymentSummaryRows(invoice);
+    const _depDue = _pay.filter((r) => /^Deposit due/.test(r.label))[0];
+    const _balRow = _pay.filter((r) => r.label === 'Balance Due')[0];
+    const _dueNow = _depDue ? _depDue.amount : (_balRow ? _balRow.amount : (Number(invoice.total) || 0));
+    const _showDueNow = !!(_safeUrl(_payUrl) || (opts && opts.zelle)) && _dueNow > 0;
+    const _num = nbdInvoiceNumberOf(invoice) || String((opts && opts.invoiceId) || '');
+    const _issuedMs = _tsMs(invoice.createdAt);
+    const _issued = new Date(Number.isFinite(_issuedMs) ? _issuedMs : Date.now())
+      .toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const _hello = String(invoice.customerName || '').trim().split(/\s+/)[0] || '';
 
     return `
       <!DOCTYPE html>
@@ -2885,16 +3043,21 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             .total { text-align: right; font-weight: 700; }
             .cta { background: var(--orange,#BD5728); color: #fff; padding: 12px 24px; border-radius: 5px; text-decoration: none; display: inline-block; margin-top: 20px; }
             .paynote { margin: 10px 0 0; font-size: 13px; color: #555; }
+            .sum td, .duenow td { text-align: right; padding: 10px; }
+            .sum.b td { font-weight: 700; }
+            .sum.rule { border-top: 2px solid #BD5728; }
+            .sum.big td { font-size: 16px; }
+            .duenow td { font-weight: 700; font-size: 16px; color: #BD5728; }
           </style>
         </head>
         <body>
           <div class="container">
             <div class="header">
               <div class="brand">${_esc(_invoiceCompany())}</div>
-              <p style="margin:5px 0 0 0;color:#999;">Your Invoice is Ready</p>
+              <p style="margin:5px 0 0 0;color:#999;">Invoice${_num ? ' ' + _esc(_num) : ''} · ${_esc(_issued)}</p>
             </div>
-            <p>Hello,</p>
-            <p>Your roofing estimate has been converted to an invoice. Please review the details below.</p>
+            <p>Hello${_hello ? ' ' + _esc(_hello) : ''},</p>
+            <p>Here is your invoice. Every line is below and adds up to the total.</p>
             <table>
               <thead>
                 <tr style="border-bottom: 2px solid #BD5728;">
@@ -2906,10 +3069,6 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
               </thead>
               <tbody>
                 ${items}
-                <tr style="border-top: 2px solid #BD5728;">
-                  <td colspan="3" style="text-align: right; padding: 10px; font-weight: 700;">Total:</td>
-                  <td style="text-align: right; padding: 10px; font-weight: 700; font-size: 16px;">${formatCurrency(invoice.total)}</td>
-                </tr>
                 <!-- Display-only fix, 2026-09-14: invoice.balanceDue is stored
                      as the full total until a REAL payment lands
                      (createInvoiceFromEstimate books it that way on purpose,
@@ -2921,7 +3080,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
                      balanceDue correctly reflects total minus amountPaid and
                      is safe to show as-is. Stored AR semantics are unchanged;
                      only what's displayed here. -->
-                ${paymentSummaryRows(invoice).map((r) => r.strong ? `
+                ${_pay.map((r) => (r.strong && !_showDueNow) ? `
                 <tr>
                   <td colspan="3" style="text-align: right; padding: 10px; font-weight: 700; color:var(--orange,#BD5728);">${_esc(r.label)}:</td>
                   <td style="text-align: right; padding: 10px; font-weight: 700; color:var(--orange,#BD5728);">${formatCurrency(r.amount)}</td>
@@ -2930,6 +3089,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
                   <td colspan="3" style="text-align: right; padding: 10px;">${_esc(r.label)}:</td>
                   <td style="text-align: right; padding: 10px;">${formatCurrency(r.amount)}</td>
                 </tr>`).join('')}
+                ${_showDueNow ? `
+                <tr class="duenow" data-due-now>
+                  <td colspan="3">Due now:</td>
+                  <td>${formatCurrency(_dueNow)}</td>
+                </tr>` : ''}
               </tbody>
             </table>
             <p><strong>Payment Terms:</strong> ${_esc(invoice.terms)}</p>
@@ -3914,6 +4078,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     // Pure helpers, exported for unit tests
     // (tests/invoice-pipeline.test.js) — no DOM/Firestore dependency.
     invoiceTotalsFromEstimate,
+    invoiceDisplayRows,
     isOwedInvoice,
     owedDollarsOf,
     supplementBillableAmount,

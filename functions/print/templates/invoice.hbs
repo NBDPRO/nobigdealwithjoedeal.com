@@ -11,6 +11,9 @@
     subtotal, tax, total, paymentsReceived, balanceDue
     rounding, roundingLabel, roundingSign, roundingAbs (optional — the
       quote's rounding / job-minimum row, as estimate.hbs prints it)
+    credits[] { label, amountAbs }, showTotal (optional — money-paper-logic.js
+      footedInvoice: each "Less deposit …" credit, then a Total row, so the
+      rows add up to the total)
     notes (optional)
     payUrl (optional)
 --}}
@@ -66,6 +69,8 @@
       <tr class="totals-row"><td colspan="3"></td><td class="num totals-label">Subtotal</td><td class="num money">{{money subtotal}}</td></tr>
       {{#if tax}}<tr class="totals-row"><td colspan="3"></td><td class="num totals-label">Tax</td><td class="num money">{{money tax}}</td></tr>{{/if}}
       {{#if rounding}}<tr class="totals-row"><td colspan="3"></td><td class="num totals-label">{{roundingLabel}}</td><td class="num money">{{roundingSign}}{{money roundingAbs}}</td></tr>{{/if}}
+      {{#each credits}}<tr class="totals-row"><td colspan="3"></td><td class="num totals-label">{{this.label}}</td><td class="num money">−{{money this.amountAbs}}</td></tr>{{/each}}
+      {{#if showTotal}}<tr class="totals-row"><td colspan="3"></td><td class="num totals-label"><strong>Total</strong></td><td class="num money"><strong>{{money total}}</strong></td></tr>{{/if}}
       {{#if paymentsReceived}}<tr class="totals-row"><td colspan="3"></td><td class="num totals-label">Payments Received</td><td class="num money">−{{money paymentsReceived}}</td></tr>{{/if}}
     </tfoot>
   </table>
