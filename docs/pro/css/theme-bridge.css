@@ -432,6 +432,38 @@ body.theme-frosted {
 .d2d-addr-confirm-lbl input { width:18px; height:18px; accent-color:var(--gold); flex-shrink:0; cursor:pointer; }
 @keyframes d2dAddrFlash { 0%,100%{ box-shadow:0 0 0 0 transparent; } 30%{ box-shadow:0 0 0 3px color-mix(in srgb, var(--gold) 55%, transparent); } }
 .d2d-addr-confirm-flash { animation:d2dAddrFlash .6s ease 2; }
+/* ── D2D knock sheet: fast path (2026-10-08, phone audit item 3) ─────
+   Save sits in a footer OUTSIDE the scrolling body, and the overlay follows
+   the visual viewport (--qk-top/--qk-h, set by _fitKnockSheetToViewport) so
+   the footer stays above the iPhone keyboard. ID-scoped: beats the
+   breakpoint .d2d-modal / .d2d-modal-body max-heights above. */
+#d2d-quick-knock-overlay { top:var(--qk-top, 0px); bottom:auto; height:var(--qk-h, 100%); }
+#d2d-quick-knock-overlay .d2d-qk-sheet { display:flex; flex-direction:column; overflow:hidden; padding-bottom:0; max-height:min(95vh, calc(var(--qk-h, 100vh) - 8px)); }
+#d2d-quick-knock-overlay .d2d-qk-sheet > .d2d-modal-hdr { flex:none; }
+#d2d-quick-knock-overlay .d2d-qk-sheet > .d2d-modal-body { flex:1 1 auto; min-height:0; max-height:none; overflow-y:auto; padding-bottom:14px; }
+.d2d-qk-footer { flex:none; padding:10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); border-top:1px solid var(--br); background:var(--s); }
+.d2d-qk-footer .d2d-save-btn { margin-top:0; min-height:52px; }
+.d2d-quick-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+.d2d-quick-btn { --dc:var(--m); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:64px; padding:8px 6px; border-radius:12px; border:1px solid color-mix(in srgb, var(--dc) 55%, var(--br)); background:color-mix(in srgb, var(--dc) 12%, var(--s2)); color:var(--t); text-align:center; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform .1s, background .15s; }
+.d2d-quick-btn:active { transform:scale(.97); }
+.d2d-quick-btn.selected { background:color-mix(in srgb, var(--dc) 30%, var(--s2)); box-shadow:0 0 0 2px var(--dc); }
+.d2d-quick-wide { grid-column:span 2; flex-direction:row; gap:10px; }
+.d2d-quick-wide .d2d-quick-txt { align-items:flex-start; text-align:left; }
+.d2d-quick-icon { font-size:20px; line-height:1; flex-shrink:0; }
+.d2d-quick-txt { display:flex; flex-direction:column; align-items:center; min-width:0; }
+.d2d-quick-label { font:800 14px/1.1 'Barlow Condensed',sans-serif; text-transform:uppercase; letter-spacing:.03em; }
+.d2d-quick-sub { font-size:12px; color:var(--m); margin-top:2px; white-space:nowrap; }
+.d2d-doornum-row { margin-top:8px; }
+/* "OK to text" was a 13px checkbox on a text-height label: the whole row is the target now. */
+#d2d-quick-knock-overlay .d2d-consent-lbl { display:flex; align-items:center; gap:10px; min-height:44px; margin-bottom:0; cursor:pointer; }
+#d2d-quick-knock-overlay .d2d-consent-lbl input { width:20px; height:20px; flex-shrink:0; }
+.d2d-doornum-input { font-size:18px; font-weight:700; letter-spacing:.04em; }
+#d2d-quick-knock-overlay .d2d-verify-btn { min-height:44px; }
+#d2d-quick-knock-overlay .d2d-addr-alt { min-height:44px; padding:8px 12px; font-size:13px; }
+/* Undo bar sits UNDER an open knock sheet (z 9999): starting the next door covers it, closing that sheet within 7s shows it again. */
+.d2d-undo-bar { position:fixed; left:12px; right:12px; bottom:calc(84px + env(safe-area-inset-bottom, 0px)); z-index:9990; display:flex; align-items:center; gap:10px; max-width:520px; margin:0 auto; padding:8px 8px 8px 14px; border-radius:12px; background:var(--s2); color:var(--t); border:1px solid var(--br); box-shadow:0 8px 24px rgba(0,0,0,.35); }
+.d2d-undo-msg { flex:1; min-width:0; font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.d2d-undo-btn { flex:none; min-width:76px; min-height:44px; padding:0 16px; border:none; border-radius:10px; background:var(--orange); color:var(--accent-fg, #fff); font:800 15px 'Barlow Condensed',sans-serif; text-transform:uppercase; letter-spacing:.05em; cursor:pointer; }
 /* ── D2D address data-quality panel (Stats tab) ─────────────────── */
 .d2d-aq-card { background:var(--s2); border:1px solid var(--br); border-radius:12px; padding:14px; }
 .d2d-aq-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; flex-wrap:wrap; }

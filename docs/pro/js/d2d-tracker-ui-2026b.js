@@ -248,7 +248,18 @@
       if (existing.classList.contains('open')) return;
       existing.remove();
     }
-    opts = opts || {};
+    // A bare data-d2d-action="openQuickKnock" (the 🚪 Knock button, the FAB)
+    // is dispatched as fn(button), so opts can be the tapped element. Only a
+    // plain object carries an address or a map pin.
+    if (!opts || typeof opts !== 'object' || opts.nodeType) opts = {};
+    // No address and no pin: start from where the rep is standing — the door
+    // they're at (2026-10-08). A GPS door number always needs the rep's tick,
+    // even when two sources agree: a sidewalk fix can sit between two houses.
+    let fromGps = false;
+    if (!opts.address && (opts.lat == null || opts.lng == null)) {
+      const here = _freshGpsFix();
+      if (here) { opts = Object.assign({}, opts, { lat: here[0], lng: here[1] }); fromGps = true; }
+    }
     const address = opts.address || '';
     const esc = state.esc;
     const DISPOSITIONS = state.DISPOSITIONS;
@@ -264,7 +275,8 @@
       disposition: null, photoFiles: [],
       insCarrier: '', claimNumber: '',
       followUpDate: '', followUpTime: '', appointmentAt: '',
-      gpsAccuracy: (typeof state.gpsAccuracy === 'number') ? Math.round(state.gpsAccuracy) : null
+      gpsAccuracy: (typeof state.gpsAccuracy === 'number') ? Math.round(state.gpsAccuracy) : null,
+      addrFromGps: fromGps
     };
 
     // Pre-populate from history
@@ -287,7 +299,7 @@
     overlay.onclick = (e) => { if (e.target === overlay) closeQuickKnock(); };
 
     const modal = document.createElement('div');
-    modal.className = 'd2d-modal';
+    modal.className = 'd2d-modal d2d-qk-sheet';
     modal.innerHTML = `
       <div class="d2d-modal-hdr">
         <div class="d2d-modal-title">Knock #${attemptNum}/${MAX_ATTEMPTS}${!state.isOnline ? ' <span class="dk-c-gold">⚡ Offline</span>' : ''}</div>
@@ -301,12 +313,32 @@
             <button type="button" class="d2d-verify-btn" data-d2d-action="verifyKnockAddress" title="Re-check the door number against Google (county parcel data when connected)">✓ Verify</button>
           </div>
           <div id="d2d-addr-note" class="d2d-addr-note"></div>
-          <div id="d2d-addr-confirm" class="d2d-addr-confirm" style="display:none;">
-            <label class="d2d-addr-confirm-lbl"><input type="checkbox" id="d2d-addr-confirm-chk"> I've confirmed this door number is correct</label>
+          <!-- Door-number rule, up front (2026-10-08). It used to surface only
+               after Save failed, scrolled back to the top of the sheet. -->
+          <div id="d2d-doornum-row" class="d2d-doornum-row" hidden>
+            <label class="d2d-field-label" for="d2d-qk-doornum">Door # — the number on this house</label>
+            <input type="text" id="d2d-qk-doornum" class="d2d-input d2d-doornum-input" inputmode="numeric" autocomplete="off" placeholder="e.g. 320">
+          </div>
+          <div id="d2d-addr-confirm" class="d2d-addr-confirm" hidden>
+            <label class="d2d-addr-confirm-lbl"><input type="checkbox" id="d2d-addr-confirm-chk"> <span id="d2d-addr-confirm-txt">I've confirmed this door number is correct</span></label>
           </div>
         </div>
 
-        <div class="d2d-field-label dk-mt12">Select Disposition:</div>
+        <!-- One-tap outcomes (2026-10-08). Not Home / Not Interested / Left
+             Info save on the tap (undo bar after); Come Back and Interested
+             select and open Contact & Notes for the details. -->
+        <div class="d2d-field-label dk-mt12">Outcome</div>
+        <div id="d2d-qk-quick" class="d2d-quick-grid">
+          ${QUICK_OUTCOMES.map(q => {
+            const d = DISPOSITIONS[q.key];
+            return `<button type="button" class="d2d-quick-btn${q.wide ? ' d2d-quick-wide' : ''}" data-quick="${q.key}" data-d2d-action="quickOutcome" data-d2d-id="${q.key}" aria-label="${esc(q.label)}${q.oneTap ? ' — saves now' : ''}">
+              <span class="d2d-quick-icon">${d.icon}</span>
+              <span class="d2d-quick-txt"><span class="d2d-quick-label">${esc(q.label)}</span><span class="d2d-quick-sub">${q.oneTap ? 'Saves now' : 'Add details'}</span></span>
+            </button>`;
+          }).join('')}
+        </div>
+
+        <div class="d2d-field-label dk-mt12">All outcomes:</div>
         ${[
           { title: 'Hot & Warm', icon: '🔥', keys: ['appointment', 'ins_has_claim', 'ins_needs_file', 'storm_damage', 'interested', 'come_back', 'callback'] },
           { title: 'Follow-up (no answer)', icon: '🔁', keys: ['revisit', 'not_home', 'left_material'] },
@@ -351,7 +383,7 @@
             <div class="d2d-field">
               <label class="d2d-field-label">Phone</label>
               <input type="tel" id="d2d-qk-phone" class="d2d-input" value="${esc(state.currentKnockEntry.phone)}" placeholder="555-123-4567">
-              <label class="d2d-field-label dk-mt8" for="d2d-qk-sms-consent">
+              <label class="d2d-field-label dk-mt8 d2d-consent-lbl" for="d2d-qk-sms-consent">
                 <input type="checkbox" id="d2d-qk-sms-consent"> Homeowner said OK to text this number
               </label>
             </div>
@@ -381,7 +413,11 @@
             <div id="d2d-voice-playback"></div>
           </div>
         </details>
-
+      </div>
+      <!-- Save lives OUTSIDE the scrolling body (2026-10-08): it sat 2.2
+           phone screens down the sheet. The sheet tracks the visual viewport
+           (_fitKnockSheetToViewport), so this stays above the keyboard. -->
+      <div class="d2d-qk-footer">
         <button id="d2d-qk-save" class="d2d-save-btn" data-d2d-action="submitKnock" disabled>
           Select Disposition
         </button>
@@ -390,6 +426,13 @@
 
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
+    // Outcome colours as a custom property (no inline style attribute).
+    modal.querySelectorAll('.d2d-quick-btn').forEach(b => {
+      const d = DISPOSITIONS[b.dataset.quick];
+      if (d) b.style.setProperty('--dc', d.color);
+    });
+    _fitKnockSheetToViewport(overlay);
+    renderDoorGate();
 
     // Setup autocomplete after DOM insertion
     setTimeout(() => state.setupAddressAutocomplete('d2d-qk-address'), 100);
@@ -410,9 +453,10 @@
         setAddrBadge('');
         const note = document.getElementById('d2d-addr-note');
         if (note) note.innerHTML = '<span class="d2d-addr-reasons">Address edited — tap ✓ Verify to re-check the door number.</span>';
-        const cw = document.getElementById('d2d-addr-confirm');
-        if (cw) cw.style.display = 'none';
+        renderDoorGate();
       });
+      // An autocomplete pick sets .value without an 'input' event.
+      input.addEventListener('change', () => renderDoorGate());
       // Bind the confirm checkbox once (CSP-safe JS property). Confirming
       // applies to the exact text in the box at tick time.
       const chk = document.getElementById('d2d-addr-confirm-chk');
@@ -421,7 +465,30 @@
         if (!e) return;
         e.addrConfirmed = chk.checked;
         if (chk.checked) e.addrVerifiedFor = (input.value || '').trim();
+        renderDoorGate();
       };
+      // Door # box (shown when the address has no house number): writes the
+      // number onto the front of the street in the address box. A number the
+      // rep typed is unverified by definition — it still needs the tick, and
+      // the saved knock is flagged for the re-verify queue.
+      const doorEl = document.getElementById('d2d-qk-doornum');
+      if (doorEl) doorEl.addEventListener('input', () => {
+        const e = state.currentKnockEntry;
+        if (!e) return;
+        const num = (doorEl.value || '').trim().replace(/[^0-9a-zA-Z-]/g, '').slice(0, 8);
+        const street = e.doorPromptStreet || _stripHouseNumber(input.value);
+        e.doorPromptStreet = street;
+        input.value = num ? (num + ' ' + street) : street;
+        e.address = input.value;
+        e.addrConfirmed = false; e.addrVerifiedFor = '';
+        e.addrNeedsReverify = true;
+        setAddrBadge(num ? 'typed' : 'unverified');
+        const note = document.getElementById('d2d-addr-note');
+        if (note) note.innerHTML = num
+          ? '<span class="d2d-addr-reasons">Door number typed by you — tick to confirm. It will be re-checked later.</span>'
+          : '<span class="d2d-addr-reasons">No house number could be resolved — type the door number.</span>';
+        renderDoorGate();
+      });
     }, 130);
 
     // Kick off door-number verification: reverse-resolve a bare map tap, or
@@ -449,6 +516,7 @@
     likely:     { t: '🟡 Confirm',       c: 'var(--gold)' },
     conflict:   { t: '🟠 Mismatch',      c: 'var(--orange)' },
     unverified: { t: '🔴 No door #',     c: 'var(--red)' },
+    typed:      { t: '✍️ Typed door #',   c: 'var(--gold)' },
     error:      { t: '⚠️ Check failed',  c: 'var(--m)' }
   };
   function setAddrBadge(kind) {
@@ -464,8 +532,6 @@
     const esc = state.esc, escAttr = state.escapeHtml;
     setAddrBadge(res.confidence);
     const note = document.getElementById('d2d-addr-note');
-    const confirmWrap = document.getElementById('d2d-addr-confirm');
-    const chk = document.getElementById('d2d-addr-confirm-chk');
     if (note) {
       let html = '<span class="d2d-addr-reasons">' + res.reasons.map(r => esc(r)).join(' ') + '</span>';
       // On a conflict, offer each source's door number as a one-tap pick.
@@ -477,22 +543,171 @@
       }
       note.innerHTML = html;
     }
-    if (confirmWrap && chk) {
-      const needsConfirm = res.confidence !== 'verified';
-      // Save hard-requires a leading door number in the box (handleSubmitKnock),
-      // so offering "I've confirmed this door number" when there is none to
-      // confirm was a dead end: ticked, then rejected. Ask for the number.
-      const typed = (document.getElementById('d2d-qk-address') || {}).value || '';
-      const hasTypedNumber = !!state.extractHouseNumber(typed);
-      if (needsConfirm && !hasTypedNumber) {
-        confirmWrap.style.display = 'none';
-        if (note) note.insertAdjacentHTML('beforeend', '<div class="d2d-addr-reasons"><b>Type the door number at the start of the address</b> (e.g. "123 Main St"), then tap ✓ Verify.</div>');
-        return;
-      }
-      confirmWrap.style.display = needsConfirm ? 'block' : 'none';
-      chk.checked = needsConfirm ? !!(state.currentKnockEntry && state.currentKnockEntry.addrConfirmed) : true;
-      // onchange is bound once at modal setup (see openQuickKnock).
+    // The confirm tick / Door # box follow from the verdict + the box text.
+    renderDoorGate();
+  }
+
+  // ── Door-number gate (one rule for one-tap outcomes AND Save) ─────────
+  // Every knock carries a house number; unless it was machine-VERIFIED (≥2
+  // sources agree, and not just a GPS fix of where the rep stands) the rep
+  // ticks the confirm box. The verdict / tick must apply to the exact text
+  // still in the address box.
+  function doorGateState() {
+    const input = document.getElementById('d2d-qk-address');
+    const address = ((input && input.value) || '').trim();
+    const e = state.currentKnockEntry || {};
+    if (!address) return { ok: false, need: 'address', address };
+    const hn = state.extractHouseNumber(address);
+    if (!hn) return { ok: false, need: 'number', address };
+    const applies = (e.addrVerifiedFor || '') === address;
+    if (applies && e.addrConfidence === 'verified' && !e.addrFromGps) return { ok: true, hn, machine: true, address };
+    if (applies && e.addrConfirmed) return { ok: true, hn, address };
+    return { ok: false, need: 'confirm', hn, address };
+  }
+
+  function _stripHouseNumber(s) {
+    return String(s || '').replace(/^\s*\d+[a-zA-Z]?\b[\s,]*/, '').trim();
+  }
+
+  // Show the gate where the rep is looking, BEFORE any Save: the Door # box
+  // when the address has no number, the confirm tick when the number isn't
+  // machine-verified. Never revealed only by a failed Save.
+  function renderDoorGate() {
+    const g = doorGateState();
+    const e = state.currentKnockEntry || {};
+    const doorRow = document.getElementById('d2d-doornum-row');
+    const doorEl = document.getElementById('d2d-qk-doornum');
+    const wrap = document.getElementById('d2d-addr-confirm');
+    const chk = document.getElementById('d2d-addr-confirm-chk');
+    const txt = document.getElementById('d2d-addr-confirm-txt');
+    // The Door # box stays up while the address is "<number?> <that street>",
+    // so it doesn't vanish under the rep's thumb after the first digit.
+    const street = e.doorPromptStreet || '';
+    const onPromptStreet = !!street && _stripHouseNumber(g.address) === street;
+    const showDoor = g.need === 'number' || onPromptStreet;
+    if (doorRow) doorRow.hidden = !showDoor;
+    // No number in the box → the box IS the street the Door # box writes onto.
+    if (g.need === 'number') e.doorPromptStreet = g.address;
+    if (doorEl && showDoor && document.activeElement !== doorEl) doorEl.value = g.hn || '';
+    if (wrap && chk) {
+      const showConfirm = !!g.hn && !g.machine;
+      wrap.hidden = !showConfirm;
+      chk.checked = showConfirm && g.ok;
+      if (txt) txt.textContent = g.hn ? `Door #${g.hn} is the house I'm at — confirmed` : "I've confirmed this door number is correct";
     }
+    return g;
+  }
+
+  // Point the rep at whatever the gate still needs. Everything it can name
+  // sits just above the outcome buttons, so this is a nudge, not a long scroll.
+  function showGateHint(g) {
+    if (g.need === 'address') {
+      window.showToast?.('Address required', 'error');
+      const a = document.getElementById('d2d-qk-address');
+      _bringIntoView(a, a);
+    } else if (g.need === 'number') {
+      window.showToast?.('Add the door number to this address', 'error');
+      const d = document.getElementById('d2d-qk-doornum');
+      const row = document.getElementById('d2d-doornum-row');
+      if (d && row && !row.hidden) _bringIntoView(row, d);
+      else { const a = document.getElementById('d2d-qk-address'); _bringIntoView(a, a); }
+    } else {
+      window.showToast?.('Confirm the door number is correct (check the box)', 'error');
+      const wrap = document.getElementById('d2d-addr-confirm');
+      if (wrap) {
+        wrap.hidden = false;
+        wrap.classList.remove('d2d-addr-confirm-flash');
+        void wrap.offsetWidth;              // restart the flash animation
+        wrap.classList.add('d2d-addr-confirm-flash');
+        _bringIntoView(wrap, document.getElementById('d2d-addr-confirm-chk'));
+      }
+    }
+  }
+
+  // Outcomes that need nothing else: the tap IS the save (undo bar after).
+  // Come Back / Interested want a name, a number, a time — they select and
+  // open Contact & Notes; Interested still becomes a CRM lead on Save.
+  const QUICK_OUTCOMES = [
+    { key: 'not_home',       label: 'Not Home',       oneTap: true },
+    { key: 'not_interested', label: 'Not Interested', oneTap: true },
+    { key: 'left_material',  label: 'Left Info',      oneTap: true },
+    { key: 'come_back',      label: 'Come Back' },
+    { key: 'interested',     label: 'Interested',     wide: true }
+  ];
+  const ONE_TAP = QUICK_OUTCOMES.filter(q => q.oneTap).map(q => q.key);
+
+  async function quickOutcome(key) {
+    const e = state.currentKnockEntry;
+    if (!e || !state.DISPOSITIONS[key]) return;
+    const sheet = document.getElementById('d2d-quick-knock-overlay');
+    const gridBtn = sheet && sheet.querySelector('.d2d-dispo-btn[data-dispo="' + key + '"]');
+    selectDispo(key, gridBtn);
+    if (ONE_TAP.indexOf(key) === -1) {
+      const det = sheet && sheet.querySelector('.d2d-details');
+      if (det) det.open = true;
+      const name = document.getElementById('d2d-qk-homeowner');
+      // Interested → straight to the name (keyboard up); Come Back just shows it.
+      _bringIntoView(name, key === 'interested' ? name : null);
+      return;
+    }
+    const g = renderDoorGate();
+    if (!g.ok) { showGateHint(g); return; }
+    await handleSubmitKnock();
+  }
+
+  // "Logged — Undo" bar for a knock that made no CRM lead. Its own element
+  // (not a toast): it must carry a 44px Undo and outlive toast caps.
+  let _undoTimer = null;
+  function showUndoBar(ref, dispoKey, address) {
+    const old = document.getElementById('d2d-undo-bar');
+    if (old) old.remove();
+    clearTimeout(_undoTimer);
+    const d = state.DISPOSITIONS[dispoKey] || { icon: '', label: dispoKey };
+    const bar = document.createElement('div');
+    bar.id = 'd2d-undo-bar';
+    bar.className = 'd2d-undo-bar';
+    bar.setAttribute('role', 'status');
+    const msg = document.createElement('span');
+    msg.className = 'd2d-undo-msg';
+    const queued = String(ref).indexOf(state.QUEUED_PREFIX || 'queued:') === 0;
+    msg.textContent = `${d.icon} ${d.label} logged${queued ? ' (offline)' : ''} — ${address}`;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'd2d-undo-btn';
+    btn.textContent = 'Undo';
+    btn.addEventListener('click', async () => {
+      clearTimeout(_undoTimer);
+      bar.remove();
+      const ok = await state.undoKnock(ref);
+      window.showToast?.(ok ? 'Knock undone' : 'Could not undo — delete it from the knock list', ok ? 'info' : 'error');
+    });
+    bar.appendChild(msg);
+    bar.appendChild(btn);
+    document.body.appendChild(bar);
+    _undoTimer = setTimeout(() => { if (bar.parentNode) bar.remove(); }, 7000);
+  }
+
+  function _freshGpsFix() {
+    const loc = state.currentLocation;
+    if (!Array.isArray(loc) || loc.length < 2 || loc[0] == null || loc[1] == null) return null;
+    if (state.gpsFixAt && Date.now() - state.gpsFixAt > 2 * 60 * 1000) return null;
+    return loc;
+  }
+
+  // Keep the sheet inside the VISUAL viewport: when the iPhone keyboard opens
+  // the overlay shrinks to the space above it, so the sticky Save footer
+  // stays on screen. CSS reads --qk-top / --qk-h (theme-bridge.css).
+  function _fitKnockSheetToViewport(overlay) {
+    const vv = window.visualViewport;
+    if (!vv || !overlay) return;
+    const fit = () => {
+      if (!overlay.isConnected) { vv.removeEventListener('resize', fit); vv.removeEventListener('scroll', fit); return; }
+      overlay.style.setProperty('--qk-top', Math.max(0, vv.offsetTop) + 'px');
+      overlay.style.setProperty('--qk-h', Math.round(vv.height) + 'px');
+    };
+    vv.addEventListener('resize', fit);
+    vv.addEventListener('scroll', fit);
+    fit();
   }
 
   function applyResolution(res, opts) {
@@ -503,11 +718,22 @@
     // Adopt the resolved address on a fresh map tap; on manual verify keep the
     // rep's typed text but still adopt coords + confidence.
     if (opts.fromTap && res.address && input) { input.value = res.address; e.address = res.address; }
+    // GPS / tap found the street but no house number: fill the street in and
+    // let the Door # box ask for the number (renderDoorGate).
+    else if (opts.fromTap && !res.address && res.street && input && !input.value.trim()) {
+      input.value = res.street; e.address = res.street; e.doorPromptStreet = res.street;
+    }
     if (res.lat != null) e.lat = res.lat;
     if (res.lng != null) e.lng = res.lng;
     e.addrConfidence = res.confidence;
     e.addrHouseNumber = res.houseNumber;
-    e.addrConfirmed = (res.confidence === 'verified'); // verified needs no manual tick
+    // Verified needs no manual tick — unless the pin was the rep's own GPS fix.
+    // A tick the rep already gave THIS exact text survives a verdict that
+    // lands after it (the open-time check can take seconds on LTE; it used
+    // to silently untick the box under the rep's thumb).
+    const boxText = ((input && input.value) || '').trim();
+    const repTicked = !!e.addrConfirmed && !!boxText && e.addrVerifiedFor === boxText;
+    e.addrConfirmed = repTicked || ((res.confidence === 'verified') && !e.addrFromGps);
     // Provenance stamped onto the saved knock (data-quality reporting + re-verify).
     e.addrSources = (res.sources || []).map(s => ({ src: s.label, hn: s.houseNumber }));
     e.addrRoundTripMeters = (typeof res.roundTripMeters === 'number') ? res.roundTripMeters : null;
@@ -535,7 +761,9 @@
     const dispo = state.DISPOSITIONS[key];
 
     document.querySelectorAll('.d2d-dispo-btn').forEach(b => b.classList.remove('selected'));
-    btn.classList.add('selected');
+    if (btn && btn.classList) btn.classList.add('selected');
+    // Mirror the pick on the one-tap row (either row can make it).
+    document.querySelectorAll('.d2d-quick-btn').forEach(b => b.classList.toggle('selected', b.dataset.quick === key));
 
     const saveBtn = document.getElementById('d2d-qk-save');
     if (saveBtn) {
@@ -624,37 +852,14 @@
     // Every knock must carry a house number, and unless it was machine-
     // VERIFIED (≥2 sources agree) the rep must tick the confirm box. This is
     // what makes "100% accurate door numbers" enforceable rather than a hope.
-    const houseNum = state.extractHouseNumber(address);
-    if (!houseNum) {
-      window.showToast?.('Add the door number to this address', 'error');
-      _bringIntoView(document.getElementById('d2d-qk-address'), document.getElementById('d2d-qk-address'));
-      return;
-    }
-    const entry = state.currentKnockEntry || {};
-    const addrConf = entry.addrConfidence;
     // The verdict must apply to the address STILL in the box. Editing the text,
     // or picking a different autocomplete suggestion (which sets .value without
     // firing 'input'), moves it out of sync with addrVerifiedFor — so a
-    // swapped-in address can never ride a prior verify/confirm.
-    const verdictAppliesToText = (entry.addrVerifiedFor || '') === address;
-    const addrOk = verdictAppliesToText && (addrConf === 'verified' || entry.addrConfirmed);
-    if (!addrOk) {
-      window.showToast?.('Confirm the door number is correct (check the box)', 'error');
-      const wrap = document.getElementById('d2d-addr-confirm');
-      if (wrap) {
-        wrap.style.display = 'block';
-        wrap.classList.remove('d2d-addr-confirm-flash');
-        void wrap.offsetWidth;              // restart the flash animation
-        wrap.classList.add('d2d-addr-confirm-flash');
-        // The flash used to play off-screen: the confirm row sits under the
-        // address at the TOP of the sheet and this gate fires from Save at the
-        // BOTTOM — on a phone ~800px of scrolled body apart — so the toast
-        // pointed at a box the rep could not see (phone audit 2026-09-25,
-        // pipeline#5). Bring it to them.
-        _bringIntoView(wrap, document.getElementById('d2d-addr-confirm-chk'));
-      }
-      return;
-    }
+    // swapped-in address can never ride a prior verify/confirm. doorGateState
+    // is the one rule (the one-tap outcomes use it too); the confirm row is
+    // already on screen above the outcomes, and the hint brings it into view.
+    const gate = renderDoorGate();
+    if (!gate.ok) { showGateHint(gate); return; }
 
     state.currentKnockEntry.address = address;
     state.currentKnockEntry.homeowner = document.getElementById('d2d-qk-homeowner')?.value || '';
@@ -721,7 +926,12 @@
     const savedDispo = state.currentKnockEntry.disposition;
     const savedPhone = state.currentKnockEntry.phone;
     const savedConsent = state.currentKnockEntry.smsConsent === true;
-    const knockId = await state.submitKnock(state.currentKnockEntry);
+    const savedAddress = state.currentKnockEntry.address;
+    // An outcome that makes no CRM lead gets an Undo bar instead of the
+    // core's toast (2026-10-08). Lead-making outcomes keep the old path:
+    // undoing the knock would orphan the lead convertToLead is writing.
+    const undoable = (state.HOT_DISPOSITIONS || []).indexOf(savedDispo) === -1;
+    const knockId = await state.submitKnock(state.currentKnockEntry, false, { quiet: undoable });
 
     if (!knockId) {
       // submitKnock returned null = error toast already shown.
@@ -731,6 +941,7 @@
 
     knockSaved = true;
     closeQuickKnock();
+    if (undoable) showUndoBar(knockId, savedDispo, savedAddress);
 
     // Hot dispositions are already auto-converted to a CRM lead by submitKnock
     // (core: convertToLead after save). A second "Convert Now?" prompt here
@@ -1454,6 +1665,7 @@
   state.setDispoFilter = setDispoFilter;
   state.openQuickKnock = openQuickKnock;
   state.selectDispo = selectDispo;
+  state.quickOutcome = quickOutcome;
   state.verifyKnockAddress = verifyKnockAddress;
   // Conflict resolver — rep picks which source's door number is right.
   state.pickAddrSource = function (args) {
