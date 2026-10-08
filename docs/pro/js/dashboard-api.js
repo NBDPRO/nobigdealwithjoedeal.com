@@ -414,7 +414,7 @@ window._gdprExport = async function () {
   const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
   if (!(await ask('Download a JSON file containing every record tied to your account (profile, leads, estimates, photos, pins, tasks, documents, api_usage). The download link expires in 24 hours.\n\nProceed?'))) return;
   try {
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const fn = mod.httpsCallable(mod.getFunctions(), 'exportMyData');
     if (typeof showToast==='function') showToast('Building export… this can take up to a minute.', 'info');
     const res = await fn({});
@@ -442,7 +442,7 @@ window._gdprRequestErasure = async function () {
   const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
   if (!(await ask(warning))) return;
   try {
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const fn = mod.httpsCallable(mod.getFunctions(), 'requestAccountErasure');
     await fn({});
     if (typeof showToast==='function') showToast('Confirmation email sent. Click the link within 24h to complete deletion.', 'success');
@@ -465,7 +465,7 @@ window._revokePortalLink = async function (leadId) {
   const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
   if (!(await ask('Revoke all active portal links for this lead and mint a new one?\n\nThe old URL stops working immediately.'))) return;
   try {
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const fns = mod.getFunctions();
     const revoke = mod.httpsCallable(fns, 'revokePortalToken');
     const r = await revoke({ leadId });
@@ -491,7 +491,7 @@ window._revokePortalLink = async function (leadId) {
 // what happens next, and the caller owns calling PortalLinkHelpers.recordShare.
 window._mintPortalUrl = async function (leadId) {
   if (!leadId) throw new Error('No lead selected');
-  const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+  const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
   const fns = mod.getFunctions();
   const call = mod.httpsCallable(fns, 'createPortalToken');
   const res = await call({ leadId, ttlDays: 30 });
@@ -505,13 +505,28 @@ window._sharePortalLink = async function (leadId) {
   const lead = (window._leads || []).find(l => l.id === leadId);
   if (!lead) { if (typeof showToast==='function') showToast('Lead not found','error'); return; }
   try {
+    // R6-3-2 (2026-10-07): the server's "ok to text?" (phone-share.js
+    // checkText → phoneTextAction: STOP register, Do Not Text list, consent,
+    // texting switch, 8am–9pm homeowner time) is asked BEFORE Messages opens
+    // with the link written in. Started now so it runs while the link mints.
+    const PS = window.NBDPhoneShare;
+    const textCheck = lead.phone
+      ? ((PS && typeof PS.checkText === 'function')
+        ? PS.checkText({ phone: lead.phone, leadId })
+        : Promise.resolve({ ok: false, reason: 'Couldn’t check whether this customer can be texted — reload the page and try again.' }))
+      : null;
     const url = await window._mintPortalUrl(leadId);
     // Try clipboard first — falls back to prompt() if denied.
     try { await navigator.clipboard.writeText(url); } catch(e) {}
     if (typeof showToast==='function') showToast('Portal link copied to clipboard', 'success');
     // Offer SMS shortcut if phone on file.
     let usedChannel = 'copy';
-    if (lead.phone) {
+    const chk = textCheck ? await textCheck : null;
+    if (lead.phone && (!chk || chk.ok !== true)) {
+      // Blocked: say why. The link is on the clipboard; no text was opened.
+      const why = (chk && chk.reason) || 'Couldn’t check whether this customer can be texted — nothing was sent.';
+      if (typeof showToast==='function') showToast(why + ' The portal link is copied — no text was opened.', 'error');
+    } else if (lead.phone) {
       const cleanPhone = String(lead.phone).replace(/\D/g, '');
       const first = lead.firstName || lead.fname || '';
       const body = encodeURIComponent(

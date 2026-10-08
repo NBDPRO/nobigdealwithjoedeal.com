@@ -302,10 +302,27 @@ async function requireTeamAdmin(request, targetCompanyId = null, opts = null) {
 // OR the target was just created in this call (a brand-new invitee with no prior
 // tenant), OR the target's own companyId claim already equals the caller's company.
 // An absent/null target companyId is treated as "not mine" → not mutable.
+//
+// A PLATFORM admin (role 'admin') is never manageable by anyone but another
+// platform admin, even when they carry this tenant's companyId (R3-9, Jo
+// 2026-10-06): a second company_admin re-roling Jo would strip 'admin'.
 function callerMayManageTarget(targetClaims, companyId, isGlobalAdmin, justCreated = false) {
   if (isGlobalAdmin) return true;
   if (justCreated) return true;
+  if (targetClaims && targetClaims.role === 'admin') return false;
   return !!companyId && (targetClaims && targetClaims.companyId) === companyId;
+}
+
+// The accounts a company_admin may not change (R3-9): a platform admin
+// (only another platform admin may), and the company OWNER (only the owner
+// themself, or a platform admin). Used by updateUserRole / deactivateUser /
+// removeMember before they touch the target's claims or Auth account.
+// Returns null, or the refusal message.
+function protectedTargetRefusal({ targetUid, targetClaims, ownerId, callerIsOwner, isGlobalAdmin }) {
+  if (isGlobalAdmin) return null;
+  if (targetClaims && targetClaims.role === 'admin') return 'Only a platform admin can change a platform admin account';
+  if (ownerId && targetUid === ownerId && !callerIsOwner) return "Only the owner can change the owner's account";
+  return null;
 }
 
 // Platform admin role is NEVER grantable through this function — not
@@ -360,6 +377,7 @@ module.exports = {
   requireTeamAdmin,
   teamAdminDecision,
   callerMayManageTarget,
+  protectedTargetRefusal,
   normalizeRole,
   normalizeEmail,
 };

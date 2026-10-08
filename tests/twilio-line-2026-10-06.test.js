@@ -353,6 +353,32 @@ const docsIn = (db, col) => [...db.store.keys()].filter((k) => k.startsWith(col 
     ok('…no NBD row, note or inbox item', !db3.store.has('sms_log/in_' + sid(72)) && !db3.store.has('notes/twsms_' + sid(72)) && !db3.store.has('agent_inbox/twsms_' + sid(72)) && !db3.store.has('sms_dnc/OWNER__5135550100'));
   }
 
+  // ── 5c. R6-3-1 (2026-10-07): STOP inside a longer reply, and possible_stop ──
+  console.log('\n— R6-3-1: a STOP inside a longer reply; an ambiguous STOP is flagged, not guessed');
+  {
+    const db = makeDb(seed());
+    await call(X.handleSms, signedReq('/api/twilio/sms', sms(80, '+15135550100', 'Not interested. Stop.')), db);
+    ok('R6-3-1: "Not interested. Stop." on the NBD line → opt-out recorded + lead flagged', db.store.has('sms_opt_outs/5135550100') && db.store.get('leads/A').smsOptedOut === true);
+
+    const db2 = makeDb(seed());
+    await call(X.handleSms, signedReq('/api/twilio/sms', sms(81, '+15135550100', 'thanks but stop')), db2);
+    const note = db2.store.get('notes/twsms_' + sid(81)) || {};
+    const bell = db2.store.get('notifications/twsms_' + sid(81)) || {};
+    ok('R6-3-1: "thanks but stop" (ambiguous) → NOT an opt-out', !db2.store.has('sms_opt_outs/5135550100') && db2.store.get('leads/A').smsOptedOut !== true);
+    ok('R6-3-1: …the note says it may be a STOP', /May be asking to stop texting/.test(note.text || '') && note.keyword === 'possible_stop', JSON.stringify(note));
+    ok('R6-3-1: …and the bell is a high-priority "may be asking you to stop" for the lead', bell.type === 'sms_possible_stop' && bell.priority === 'high' && /may be asking you to stop/.test(bell.title || '') && bell.leadId === 'A', JSON.stringify(bell));
+
+    const db3 = makeDb(seed());
+    await call(X.handleSms, signedReq('/api/twilio/sms', sms(82, '+15135550199', 'thanks but stop')), db3);
+    ok('R6-3-1: unknown number + ambiguous STOP → inbox item and unmatched row are flagged',
+      /may be asking to stop/.test((db3.store.get('agent_inbox/twsms_' + sid(82)) || {}).title || '') && (db3.store.get('unmatched_sms/tw_' + sid(82)) || {}).possibleStop === true);
+
+    const db4 = makeDb(seed());
+    await call(X.handleSms, signedReq('/api/twilio/sms', sms(83, '+15135550100', 'can you stop by tomorrow')), db4);
+    const bell4 = db4.store.get('notifications/twsms_' + sid(83)) || {};
+    ok('R6-3-1 control: "can you stop by tomorrow" → plain text bell, no opt-out, no flag', !db4.store.has('sms_opt_outs/5135550100') && bell4.type === 'incoming_sms' && !/stop/i.test(bell4.title || ''), JSON.stringify(bell4));
+  }
+
   // ── 6. idempotency ──────────────────────────────────────────────────────
   console.log('\n— idempotency');
   {

@@ -492,6 +492,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   const PAYMENT_REF_MAX = 80;
   const PAYMENT_NOTE_MAX = 500;
   const PROOF_NAME_MAX = 120;
+  // Same string as functions/stripe-ledger-logic.js CATCHUP_BASIS.
+  const PAYMENT_BASIS_CATCHUP = 'catchup_paid_in_full';
 
   function isManualPaymentMethod(m) {
     return PAYMENT_METHODS.some(x => x.key === m);
@@ -610,6 +612,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         ? input.paymentId : newPaymentId(recordedAt.getTime()),
     };
     if (isPayer(input.payer)) entry.payer = input.payer;
+    // "Catch up my numbers" → "Paid in full? Yes" (catchup.js): a balancing
+    // entry for the whole job total, not one itemised payment. The Stripe
+    // ledger replaces part of it when a real Stripe payment for the job turns
+    // up later, instead of counting both (R6-2-8,
+    // functions/stripe-ledger-logic.js planCatchUpAbsorb). Only this value.
+    if (input.basis === PAYMENT_BASIS_CATCHUP) entry.basis = PAYMENT_BASIS_CATCHUP;
     const reference = _cleanText(input.reference, PAYMENT_REF_MAX);
     const note = _cleanText(input.note, PAYMENT_NOTE_MAX);
     if (reference) entry.reference = reference;
@@ -1179,8 +1187,19 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     // Classic docs carry their lines on `lineItems`, V2 on `rows`. Reading
     // `rows` alone silently produced an empty item list for every Classic
     // estimate — which is how a $0 invoice got written for a $14,200 job.
-    const items = ((est && (est.rows || est.lineItems)) || []).map(function (row) {
-      const quantity = numFrom(row.qty);
+    // A non-empty rows wins (it is what the contract and estimate link
+    // print); an empty rows array falls through to lineItems.
+    // lineItems name their fields quantity / unitPrice / amount (a logged
+    // estimate saved from doc pre-flight, legacy docs). Reading only the rows
+    // names (qty / rate / total) priced every such line at $0, and the pay
+    // link was refused (review R6-2-1, 2026-10-07). Sales tax / Rounding
+    // footing rows are never lines here: tax and the adjustment come below.
+    const useRows = !!est && Array.isArray(est.rows) && est.rows.length > 0;
+    const src = useRows ? est.rows : ((est && Array.isArray(est.lineItems)) ? est.lineItems : []);
+    const items = src.filter(function (row) {
+      return !!row && (useRows || (row.code !== 'TAX' && row.code !== 'ADJ'));
+    }).map(function (row) {
+      const quantity = numFrom(row.qty != null ? row.qty : row.quantity);
       const explicitRetail = (row.retailTotal != null && Number.isFinite(Number(row.retailTotal)))
         ? Number(row.retailTotal) : null;
       const hasSplit = hasV2Pricing && (row.materialTotal != null || row.laborTotal != null);
@@ -1192,7 +1211,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         const lab = Number(row.laborTotal) || 0;
         lineTotal = (mat === 0 && lab === 0) ? numFrom(row.total) : mat * (1 + markup) + lab;
       } else {
-        lineTotal = numFrom(row.total);
+        lineTotal = numFrom(row.total != null ? row.total : row.amount);
       }
       if (explicitRetail != null || hasSplit) {
         // Retail-priced row: derive the unit price from the retail total (the
@@ -1200,7 +1219,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         unitPrice = (Number.isFinite(quantity) && quantity !== 0 && Number.isFinite(lineTotal))
           ? lineTotal / quantity : (Number.isFinite(lineTotal) ? lineTotal : 0);
       } else {
-        unitPrice = numFrom(row.rate);
+        unitPrice = numFrom(row.rate != null ? row.rate : row.unitPrice);
         if (!Number.isFinite(unitPrice) || unitPrice === 0) {
           unitPrice = (Number.isFinite(quantity) && quantity !== 0 && Number.isFinite(lineTotal))
             ? lineTotal / quantity : 0;
@@ -1583,7 +1602,11 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         if (!cached) throw new Error('Estimate not found');
       }
 
-      const est = estSnap.exists() ? estSnap.data() : window._estimates?.find(e => e.id === estimateId);
+      const estSaved = estSnap.exists() ? estSnap.data() : window._estimates?.find(e => e.id === estimateId);
+      // A SIGNED estimate is billed at its signed price until the homeowner
+      // re-signs, however it was edited since (review R6-2-2, Jo 2026-10-07;
+      // customer-estimate-rows.js signedView — the server drafts do the same).
+      const est = _signedViewOf(estSaved);
 
       // Build invoice from estimate — invoiceTotalsFromEstimate (above, shared
       // with the server draft deposit invoice) holds the per-SQ / row-based
@@ -2349,6 +2372,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         proofStoragePath: details.proofStoragePath,
         proofName: details.proofName,
         payer: details.payer,
+        basis: details.basis,
         paymentId: details.paymentId,
         recordedBy: (window._auth && window._auth.currentUser && window._auth.currentUser.uid)
           || (window._user && window._user.uid) || '',
@@ -3589,14 +3613,21 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     return doc;
   }
 
+  // The estimate as SIGNED (review R6-2-2): what every bill charges until the
+  // homeowner re-signs. No signed price, or the shared reader not loaded → as saved.
+  function _signedViewOf(est) {
+    const rows = (typeof window !== 'undefined') ? window.NBDCustomerEstimateRows : null;
+    return (est && rows && typeof rows.signedView === 'function') ? rows.signedView(est) : est;
+  }
+
   async function _readEstimate(db, id) {
     if (!id) return null;
     const cached = (window._estimates || []).find(e => e && e.id === id);
     try {
       const s = await window.getDoc(window.doc(db, 'estimates', id));
-      if (s.exists()) return Object.assign({ id }, s.data());
+      if (s.exists()) return _signedViewOf(Object.assign({ id }, s.data()));
     } catch (_) { /* fall back to the page cache */ }
-    return cached || null;
+    return _signedViewOf(cached) || null;
   }
 
   function _totalsOpts() {
@@ -3649,7 +3680,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       throw new Error('The invoice for this job is already paid in full — record extra money on the invoice itself.');
     }
     await markPaid(invoiceId, o.amount, o.method, {
-      at: o.at, reference: o.reference, payer: o.payer,
+      at: o.at, reference: o.reference, payer: o.payer, basis: o.basis,
     });
     return invoiceId;
   }
@@ -3885,6 +3916,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     paymentProofPath,
     proofFileCheck,
     buildManualPaymentEntry,
+    PAYMENT_BASIS_CATCHUP,
     applyPaymentToInvoice,
     paymentKey,
     findPaymentIndex,

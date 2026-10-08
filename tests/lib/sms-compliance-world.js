@@ -134,7 +134,9 @@ function makeDb(w) {
  *   docs: { path: data } seed
  *   token: decoded ID token for the caller (default rep-1 / co-1)
  *   clockMs: world clock (default 2026-10-05 12:00 America/New_York)
- *   twilioError: thrown by messages.create
+ *   twilioError: thrown by messages.create (read at call time: w.opts)
+ *   twilioAccepted: with twilioError — Twilio took the message before the error
+ *   twilioListError: thrown by messages.list
  *   readThrows(path) → true to make that doc read throw
  */
 function makeWorld(opts) {
@@ -144,6 +146,7 @@ function makeWorld(opts) {
     store: new Map(Object.entries(opts.docs || {})),
     events: [],
     twilioCalls: [],
+    twilioAccepted: [],
     aiDrafts: [],
     logs: { error: [], warn: [], info: [] },
     clock: { now: opts.clockMs != null ? opts.clockMs : Date.parse('2026-10-05T16:00:00Z') },
@@ -213,8 +216,21 @@ function makeWorld(opts) {
         create: async (msg) => {
           w.events.push('twilio-create');
           w.twilioCalls.push(msg);
-          if (opts.twilioError) throw opts.twilioError;
-          return { sid: 'SM-test-' + w.twilioCalls.length };
+          const sid = 'SM-test-' + w.twilioCalls.length;
+          // twilioAccepted: Twilio took the message, THEN the error reached us
+          // (a socket reset after the request) — it is on Twilio's list.
+          if (!w.opts.twilioError || w.opts.twilioAccepted) {
+            w.twilioAccepted.unshift(Object.assign({ sid, dateCreated: new Date(), status: 'queued' }, msg));
+          }
+          if (w.opts.twilioError) throw w.opts.twilioError;
+          return { sid };
+        },
+        // Newest first, filtered like the API's To / From parameters.
+        list: async (q) => {
+          w.events.push('twilio-list');
+          if (w.opts.twilioListError) throw w.opts.twilioListError;
+          const f = q || {};
+          return w.twilioAccepted.filter((m) => (!f.to || m.to === f.to) && (!f.from || m.from === f.from)).slice(0, f.limit || 50);
         },
       },
     }), { validateRequest: () => true }),

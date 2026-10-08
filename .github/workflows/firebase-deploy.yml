@@ -58,6 +58,17 @@ on:
           - hosting
           - functions
           - rules
+      # Set ONLY by the verify-live job below when it re-dispatches after
+      # finding the live site behind main. A reconcile run that still finds
+      # drift fails loudly instead of dispatching again — never a loop.
+      reconcile:
+        description: 'Internal: re-dispatched by verify-live (do not set by hand)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 concurrency:
   group: firebase-deploy
@@ -262,6 +273,15 @@ jobs:
           # would silently publish content that is not in the repo. Failing
           # instead keeps docs/ the single source of truth for what is live.
           node scripts/apply-partials.js --check
+
+      # Stamp the commit this hosting deploy ships as /version.json (runner-
+      # local, gitignored — never committed). The verify-live job below reads
+      # it back from production to prove the deploy LANDED and that the live
+      # site is not behind main (cancelled / skipped deploys). Public on
+      # purpose: a commit SHA of this public repo + the run id, nothing else.
+      - name: Stamp /version.json with the deployed commit
+        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        run: node scripts/verify-live-deploy.js stamp docs/version.json
 
       # Stamp the Sentry release tag with the deploy SHA so every deploy
       # groups its errors under a fresh release in Sentry instead of a
@@ -1334,3 +1354,48 @@ jobs:
             echo ""
             echo "Next: run \`./scripts/verify-deploy.sh\` against the live URLs to confirm the smoke tests pass."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─────────────────────────────────────────────────────────
+  # verify-live (2026-10-04) — does production serve main?
+  #
+  # Reads /version.json (stamped by the deploy job above) from the live site:
+  #   1. this run's hosting deploy LANDED (live sha == this sha, or newer);
+  #   2. live is not behind main on any deploy path. main moving only under
+  #      scripts/** or documentation/** (which this workflow's `paths:` skips)
+  #      is "nothing to deploy" — success, not drift;
+  #   3. on real drift with no other deploy run queued/running, re-dispatch
+  #      this workflow ONCE with reconcile=true. A reconcile run that still
+  #      finds drift fails loudly instead — it never loops.
+  # Runs only after a SUCCESSFUL deploy: a failed deploy is already red, and a
+  # manually cancelled one was cancelled on purpose. Concurrency-cancelled
+  # PENDING runs never start at all — the surviving run deploys the newest
+  # commit, and this job is what proves it did.
+  # Decision logic: scripts/verify-live-deploy.js (decide(), unit-tested in
+  # tests/deploy-verify-2026-10-04.test.js). Runbook:
+  # documentation/runbooks/DEPLOY-VERIFICATION.md.
+  # ─────────────────────────────────────────────────────────
+  verify-live:
+    name: Verify live site matches main
+    needs: [check, deploy]
+    if: ${{ needs.check.outputs.configured == 'true' && needs.deploy.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write   # gh workflow run (the one re-dispatch) + gh run list
+    steps:
+      - name: Checkout (full history — the live sha must be diffable)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Compare live /version.json to main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECONCILE: ${{ github.event.inputs.reconcile || 'false' }}
+          EXPECT_LANDED: ${{ (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') && 'true' || 'false' }}
+          LIVE_URL: https://nobigdealwithjoedeal.com
+        run: node scripts/verify-live-deploy.js verify

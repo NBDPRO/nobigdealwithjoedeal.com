@@ -44,12 +44,12 @@ async function dismissToasts(page) {
   }
 }
 const readLead = (page, id) => safeEvaluate(page, async (leadId) => {
-  const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+  const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
   const s = await fs.getDocFromServer(fs.doc(window.db || window._db, 'leads', leadId));
   return s.exists() ? s.data() : null;
 }, id);
 const readOrders = (page, id) => safeEvaluate(page, async (leadId) => {
-  const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+  const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
   const snap = await fs.getDocsFromServer(fs.collection(window.db || window._db, 'leads', leadId, 'jobs', 'j1', 'orders'));
   return snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
 }, id);
@@ -74,7 +74,7 @@ test.describe.serial('phone production flow at 390px, installed app @shard2', ()
     return safeEvaluate(page, async ({ f, tag }) => {
       const id = await window._saveLead(Object.assign({ e2eTestData: true, e2eRun: tag }, f));
       if (id) return id;
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const snap = await fs.getDocs(fs.query(fs.collection(window.db, 'leads'), fs.where('userId', '==', window._user.uid), fs.where('lastName', '==', f.lastName)));
       return snap.docs.length ? snap.docs[0].id : null;
     }, { f: fields, tag: run });
@@ -131,7 +131,7 @@ test.describe.serial('phone production flow at 390px, installed app @shard2', ()
     testInfo.setTimeout(120_000);
     if (!context) return;
     await safeEvaluate(page, async ({ leads, names }) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       for (const id of leads) {
         try { const s = await fs.getDocs(fs.collection(db, 'leads', id, 'jobs', 'j1', 'orders')); for (const d of s.docs) await fs.deleteDoc(d.ref); } catch (_) {}

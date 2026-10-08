@@ -265,6 +265,31 @@ function viewOnlyRefusal(decoded) {
   return { status: 403, body: { error: VIEW_ONLY_MESSAGE, code: 'view-only' } };
 }
 
+// ═════════════════════════════════════════════════════════════
+// billingPortalRefusal — who may open the company's Stripe billing portal
+// (createCustomerPortalSession). The portal changes or cancels the
+// COMPANY's plan and payment method, so it is the owner's or a
+// company_admin's (or a platform admin's) — not any member's (R3 review,
+// Jo 2026-10-06; it used to refuse only a viewer).
+//
+// `decoded` is the Bearer token; `ownerId` is companies/{companyId}.ownerId
+// (null when unknown — the caller reads it only if the claims alone don't
+// already allow). A solo owner carries no companyId claim (or their own
+// uid) and no subordinate role. Returns null, or { status: 403, body }.
+// ═════════════════════════════════════════════════════════════
+const BILLING_OWNER_ONLY_MESSAGE = 'Only the company owner or an admin can manage billing';
+
+function billingPortalRefusal(decoded, ownerId) {
+  const d = decoded || {};
+  const uid = d.uid || '';
+  const role = typeof d.role === 'string' ? d.role.trim().toLowerCase() : '';
+  if (uid && (role === 'admin' || role === 'company_admin')) return null;
+  if (uid && ownerId && ownerId === uid) return null;
+  const { SUBORDINATE_ROLES } = require('./handlers/_shared');
+  if (uid && (!d.companyId || d.companyId === uid) && !SUBORDINATE_ROLES.has(role)) return null;
+  return { status: 403, body: { error: BILLING_OWNER_ONLY_MESSAGE, code: 'billing-owner-only' } };
+}
+
 module.exports = {
   callableRateLimit,
   requirePaidSubscription,
@@ -275,4 +300,5 @@ module.exports = {
   isAnonymousToken,
   assertNotViewer,
   viewOnlyRefusal,
+  billingPortalRefusal,
 };

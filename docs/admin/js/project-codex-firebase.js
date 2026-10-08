@@ -1,5 +1,5 @@
-  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-  import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+  import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
+  import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
   const app = initializeApp({
     apiKey: "AIzaSyDTrotINzl2YjdGbH25BpC-FPv8i_fXNvg",
     authDomain: "nobigdeal-pro.firebaseapp.com",

@@ -126,7 +126,7 @@
         if (!window._db) return [];
 
         const { collection, getDocs, query, where, orderBy } = await import(
-          'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+          '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
         );
 
         const q = query(
@@ -157,7 +157,7 @@
         }
 
         const { collection, doc, setDoc, serverTimestamp } = await import(
-          'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+          '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
         );
 
         const reportId = `report_${Date.now()}`;
@@ -207,7 +207,7 @@
         if (!window._db) return false;
 
         const { collection, doc, deleteDoc } = await import(
-          'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+          '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
         );
 
         await deleteDoc(doc(window._db, REPORTS_COLLECTION, reportId));
@@ -230,7 +230,7 @@
       if (!reportId) return;
       try {
         if (!window._functions || !window._httpsCallable) {
-          const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+          const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
           window._functions = window._functions || mod.getFunctions();
           window._httpsCallable = window._httpsCallable || mod.httpsCallable;
         }
@@ -2489,6 +2489,15 @@
       // queries userId-only, which would drop a teammate's photos from the
       // report. The cache is synchronous, lead-keyed, and filled from both
       // the userId and companyId scopes at dashboard boot.
+      // 2026-10-04: the cache now fills on demand (js/photo-cache.js), so
+      // wait for this lead's photos once instead of reporting "none".
+      const _pc = window.NBDPhotoCache;
+      if (state.leadId && _pc && typeof _pc.ensure === 'function' && !_pc.isLoaded(state.leadId) && state._photosTriedFor !== state.leadId) {
+        state._photosTriedFor = state.leadId; // one attempt — a failed read must not loop
+        grid.textContent = 'Loading photos…';
+        _pc.ensure([state.leadId]).then(() => this._loadPhotosForSelection(container, state));
+        return;
+      }
       const pool = (window._photoCache && window._photoCache[state.leadId]) || [];
 
       if (!pool.length) {
@@ -2798,7 +2807,7 @@
      */
     async _tryServerRender(state) {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = mod.getFunctions();
         window._httpsCallable = mod.httpsCallable;
       }
@@ -3120,7 +3129,7 @@
         if (!window._db) return;
 
         const { doc, getDoc } = await import(
-          'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+          '/assets/vendor/firebase/10.12.2/firebase-firestore.js'
         );
 
         const reportDoc = await getDoc(doc(window._db, REPORTS_COLLECTION, reportId));

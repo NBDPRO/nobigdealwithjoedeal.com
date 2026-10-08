@@ -249,7 +249,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
     // Read the saved doc back via Firestore SDK to lock in companyId
     // + customerId stamping (Rock 3 PR 2 contract).
     const dbCheck = await page.evaluate(async (n) => {
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       // The leads read rule is isOwner(resource.data.userId) — a query
       // must carry the userId filter or Firestore can't prove it complies
@@ -310,7 +310,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
       } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
       // _saveLead returns null on the geocoded path (it does its own
       // loadLeads refresh), so re-fetch by lastName to grab the id.
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       // userId filter keeps the query provable under the leads read rule
       // (isOwner(resource.data.userId)) — see the save-lead test.
@@ -333,7 +333,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
     // Capture stageStartedAt BEFORE the move so we can assert it
     // updates rather than just being equal-by-coincidence.
     const beforeMove = await page.evaluate(async (id) => {
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const snap = await fsMod.getDoc(fsMod.doc(db, 'leads', id));
       const d = snap.data();
@@ -360,7 +360,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
     // subcollection. The userId filter keeps the query provable under
     // the notes read rule (isOwner(resource.data.userId)).
     const afterMove = await page.evaluate(async (id) => {
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const leadSnap = await fsMod.getDoc(fsMod.doc(db, 'leads', id));
       const lead = leadSnap.data();
@@ -423,7 +423,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
         try { return await window._saveEstimate(payload); }
         catch (e) {
           if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e;
-          const fsMod2 = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+          const fsMod2 = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
           const db2 = window.db || window._db;
           const uid2 = (window._auth || window.auth).currentUser.uid;
           const snap2 = await fsMod2.getDocs(fsMod2.query(
@@ -443,7 +443,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
         grandTotal: r.total, deposit: dep,
         e2eTestData: true,
       });
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const snap = await fsMod.getDoc(fsMod.doc(db, 'estimates', id));
       return { id, browserTotal: r.total, browserDeposit: dep, doc: snap.data() };
@@ -514,7 +514,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
         try { return await window._saveEstimate(payload); }
         catch (e) {
           if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e;
-          const fsMod2 = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+          const fsMod2 = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
           const db2 = window.db || window._db;
           const uid2 = (window._auth || window.auth).currentUser.uid;
           const snap2 = await fsMod2.getDocs(fsMod2.query(
@@ -528,7 +528,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
         }
       }
       // A real lead of the signed-in user for the invoice to bind to.
-      const fsLead = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsLead = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const dbLead = window.db || window._db;
       const uidLead = (window._auth || window.auth).currentUser.uid;
       const tokLead = await (window._auth || window.auth).currentUser.getIdTokenResult();
@@ -545,7 +545,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
       est.leadId = leadRef.id;
       const estimateId = await saveEstimateTolerant(est);
       const invoiceId = await window.InvoicePipeline.createInvoiceFromEstimate(estimateId);
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       // Tag the invoice for the cleanupE2ETestData callable — the pipeline
       // writes a fixed shape with no room for test flags. Owner update is
@@ -621,7 +621,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
       // review) a photo may only name a lead the writer can reach, so a
       // made-up leadId is refused at create (PERMISSION_DENIED) — same fix
       // as the invoice journey above.
-      const fsLead = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsLead = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const dbLead = window.db || window._db;
       const uidLead = (window._auth || window.auth).currentUser.uid;
       const tokLead = await (window._auth || window.auth).currentUser.getIdTokenResult();
@@ -639,7 +639,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
       const photo = await window.PhotoEngine.uploadFromFile(
         leadId, blob, ['before'], '[E2E] photo journey ' + args.stamp);
 
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       // Tag for the cleanup callable (the upload writes a fixed doc shape).
       // NOTE: cleanup deletes the Firestore doc; the Storage originals under
@@ -687,7 +687,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
       const file = new File([blob], 'e2e_dash.jpg', { type: 'image/jpeg' });
 
       // A real lead (#2220 photo lead binding — see the leg above).
-      const fsLead = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsLead = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const dbLead = window.db || window._db;
       const uidLead = (window._auth || window.auth).currentUser.uid;
       const tokLead = await (window._auth || window.auth).currentUser.getIdTokenResult();
@@ -706,7 +706,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
       // doc to tag it for cleanup + read back its persisted shape.
       // Two equality filters (leadId + userId) → merge join, no
       // composite index needed.
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const snap = await fsMod.getDocs(fsMod.query(
         fsMod.collection(db, 'photos'),
@@ -807,7 +807,7 @@ test.describe.serial('Authenticated destructive flows @shard2', () => {
         e2eTestData: true
       });
       } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const uid = (window._auth || window.auth).currentUser.uid;
       const snap = await fsMod.getDocs(fsMod.query(
@@ -851,7 +851,7 @@ test.describe.serial('Authenticated destructive flows @shard2', () => {
     const deadline = Date.now() + 20_000;
     while (Date.now() < deadline) {
       docs = await page.evaluate(async (id) => {
-        const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const db = window.db || window._db;
         // The emulator under serial-suite load intermittently reports
         // 'client is offline' — treat any read error as "not yet" and let
@@ -904,7 +904,7 @@ test.describe.serial('Authenticated destructive flows @shard2', () => {
     // cascade-delete with the lead). Owner write allowed via the parent-get
     // rule. Emulator runs don't need it — state evaporates.
     await page.evaluate(async (args) => {
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       await fsMod.updateDoc(fsMod.doc(db, 'leads', args.leadId, 'documents', args.docId), { e2eTestData: true });
     }, { leadId, docId: meta.id });
@@ -970,7 +970,7 @@ test.describe.serial('Authenticated destructive flows @shard2', () => {
     const deadline = Date.now() + 20_000;
     while (Date.now() < deadline) {
       out = await page.evaluate(async (id) => {
-        const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const db = window.db || window._db;
         const uid = (window._auth || window.auth).currentUser.uid;
         const knockSnap = await fsMod.getDoc(fsMod.doc(db, 'knocks', id));
@@ -1048,7 +1048,7 @@ test.describe.serial('Authenticated destructive flows @shard2', () => {
     // the invoice journey). NOTE: the cleanup callable currently sweeps only
     // leads/estimates, so the [E2E] prefix keeps any stragglers obvious.
     await page.evaluate(async (args) => {
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       await fsMod.updateDoc(fsMod.doc(db, 'knocks', args.knockId), { e2eTestData: true });
       await fsMod.updateDoc(fsMod.doc(db, 'leads', args.leadId), { e2eTestData: true });
@@ -1114,7 +1114,7 @@ test.describe.serial('Authenticated destructive flows @shard2', () => {
       });
       } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
       if (!leadId) {
-        const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const db = window.db || window._db;
         const uid = (window._auth || window.auth).currentUser.uid;
         const snap = await fsMod.getDocs(fsMod.query(
@@ -1137,7 +1137,7 @@ test.describe.serial('Authenticated destructive flows @shard2', () => {
     // by a UTC conversion (customer portal + smart calendar + docgen all
     // read it as yyyy-mm-dd).
     const persisted = await safeEvaluate(page, async (id) => {
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const snap = await fsMod.getDoc(fsMod.doc(db, 'leads', id));
       const d = snap.data() || {};
@@ -1207,7 +1207,7 @@ test.describe.serial('Authenticated destructive flows @shard2', () => {
       const supplierMat = '[E2E] Supply Co ' + args.stamp;
       const supplierMi = '[E2E] Mileage ' + args.stamp;
 
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const dbEarly = window.db || window._db;
       const uidEarly = (window._auth || window.auth).currentUser.uid;
       // Rapid back-to-back addDocs trip the emulator's commit-retry bug
@@ -1362,7 +1362,7 @@ test.describe.serial('Authenticated destructive flows @shard2', () => {
         e2eTestData: true
       });
       } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       // userId filter keeps the query provable under the leads read rule
       // (isOwner(resource.data.userId)) — see the save-lead journey.

@@ -391,6 +391,36 @@
     return !!est && ((est.priceMode === 'per-sq') || (est.prices != null));
   }
 
+  // ── Who may "Save to estimate" (review R6-2-1, 2026-10-07) ─────────
+  // Every builder (V2, the V3 wizard on top of it, Classic, Job Templates)
+  // saves its lines on est.rows, and every surface that prints or bills the
+  // job reads rows: the e-sign contract and estimate link (buildDisplayRows),
+  // the CRM invoice and the deposit / final drafts (buildRowItems), Stripe's
+  // pay-link check, the portal. Save used to write est.lineItems and re-total
+  // grandTotal, leaving rows alone: a $10,700 estimate plus a $1,000 line
+  // became $11,775 over $10,775 of printed lines, Stripe refused the link,
+  // and the next builder save put it back to $10,700.
+  // Writing rows from here is not safe either: each builder rebuilds rows
+  // from its own inputs (catalog codes, measurements, tier rates), so a
+  // pre-flight row would be dropped or undone on the next reopen, and the
+  // cost split, O&P, upgrades and deposit plan beside it would go stale.
+  // So a builder estimate is changed in its builder. Save stays for the
+  // estimates whose lines really are lineItems: a logged (amount-only)
+  // estimate and legacy docs.
+  var SAVE_BLOCK_BUILDER = 'This estimate was made in the estimate builder. Change its lines there, so the contract, invoice and payment link all get the new price. To change only this document, keep using Override.';
+  // Jo, 2026-10-07: a signed estimate stays editable, but the signed price is
+  // what the homeowner is billed. This side door re-prices the estimate the
+  // bills read, so it stays shut once the homeowner has signed.
+  var SAVE_BLOCK_SIGNED = 'The homeowner signed this estimate, so its price stays what they signed. To change only this document, keep using Override.';
+  function isBuilderEstimate(est) {
+    return !!est && Array.isArray(est.rows) && est.rows.length > 0;
+  }
+  function saveToEstimateBlock(est) {
+    if (isBuilderEstimate(est)) return SAVE_BLOCK_BUILDER;
+    if (est && est.signatureStatus === 'signed') return SAVE_BLOCK_SIGNED;
+    return '';
+  }
+
   // The estimate's tax rate as the invoice field shows it: 0.07 → 7. A per-SQ
   // estimate's one customer line IS the tier price with tax inside it, so 0.
   function invoiceTaxRatePct(est) {
@@ -1896,6 +1926,7 @@
       '.dpf-line-items-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--green,#2ECC8A);padding:3px 8px;background:rgba(46,204,138,.1);border:1px solid rgba(46,204,138,.3);border-radius:3px;}',
       '.dpf-line-items-badge.override{color:var(--purple,#9B6DFF);background:rgba(155,109,255,.1);border-color:rgba(155,109,255,.3);}',
       '.dpf-line-items-btns{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;}',
+      '.dpf-li-hint{flex-basis:100%;font-size:11px;line-height:1.4;color:var(--m,#6B7280);}',
       '.dpf-mini-btn{background:var(--s2,#181C22);border:1px solid var(--br,rgba(255,255,255,.09));color:var(--t,#E8EAF0);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:5px 9px;border-radius:5px;cursor:pointer;transition:all .15s;}',
       '.dpf-mini-btn:hover{border-color:var(--orange,#BD5728);color:var(--orange,#BD5728);}',
       '.dpf-mini-btn.danger:hover{border-color:var(--red,#E05252);color:var(--red,#E05252);}',
@@ -2171,7 +2202,11 @@
       : '<button type="button" class="dpf-mini-btn danger" data-li-revert="' + esc(field.key) + '">Revert to estimate</button>';
 
     var addBtn = readonly ? '' : '<button type="button" class="dpf-mini-btn" data-li-add="' + esc(field.key) + '">+ Add item</button>';
-    var saveBtn = readonly ? '' : '<button type="button" class="dpf-mini-btn" data-li-save-est="' + esc(field.key) + '">Save to estimate</button>';
+    // A builder or signed estimate gets the reason instead of the button.
+    var saveBlock = readonly ? '' : saveToEstimateBlock(state.estimate || pickPreflightEstimate());
+    var saveBtn = readonly ? ''
+      : saveBlock ? '<span class="dpf-li-hint" data-li-save-blocked="' + esc(field.key) + '">' + esc(saveBlock) + '</span>'
+      : '<button type="button" class="dpf-mini-btn" data-li-save-est="' + esc(field.key) + '">Save to estimate</button>';
 
     var rowsHTML = items.map(function (it, idx) {
       var qty = parseFloat(it.qty || 0);
@@ -2833,12 +2868,50 @@
   }
 
   /**
+   * A re-totalled PRIMARY estimate moves the lead's jobValue (review R6-2-7,
+   * 2026-10-07): the kanban, Home, Numbers and crm_summary read jobValue, not
+   * the estimate. Same rules as window._saveEstimate's edit branch (R2-2-3):
+   * only the lead's primary estimate, never a $0, only when it changed, and
+   * best-effort — the estimate is already saved, so a lead-write failure
+   * warns instead of failing the Save.
+   */
+  async function restampPrimaryJobValue(est, newTotal) {
+    var lead = window._currentLead || window._leadDoc || null;
+    var leadId = (est && est.leadId) || state.customerId || window._customerId || null;
+    var newVal = Number(newTotal);
+    if (!lead || !leadId || !est || String(lead.primaryEstimateId || '') !== String(est.id)) return;
+    if (!isFinite(newVal) || newVal <= 0 || newVal === Number(lead.jobValue)) return;
+    try {
+      await window.updateDoc(window.doc(window.db, 'leads', leadId), {
+        jobValue: newVal,
+        lastEstimateAt: window.serverTimestamp ? window.serverTimestamp() : new Date()
+      });
+      lead.jobValue = newVal;
+    } catch (err) {
+      console.warn('[DocPreflight] lead jobValue re-stamp failed', err);
+    }
+  }
+
+  /**
    * Save the current line-items state back onto the underlying estimate document.
    */
   async function saveLineItemsToEstimate(fieldKey) {
+    // These lines came from the SIGNED price (review R6-2-2): saving them back
+    // would overwrite the rep's unsigned revision with the signed scope.
+    if (state.signedBill) {
+      toast('These lines are the signed price. Change the estimate in the builder, then have the homeowner re-sign.', 'error');
+      return;
+    }
     var est = pickPreflightEstimate();
     if (!est || !est.id) {
       toast('No estimate found to update.', 'error');
+      return;
+    }
+    // A builder estimate (rows) or a signed one is not re-priced from here —
+    // see saveToEstimateBlock. Nothing is written.
+    var blocked = saveToEstimateBlock(est);
+    if (blocked) {
+      toast(blocked, 'error');
       return;
     }
     if (!window.db || !window.doc || !window.updateDoc) {
@@ -2897,6 +2970,7 @@
         est.grandTotal = estUpdate.grandTotal;
         est.minJobApplied = estUpdate.minJobApplied;
         if (estUpdate.minJobCharge != null) est.minJobCharge = estUpdate.minJobCharge;
+        await restampPrimaryJobValue(est, estUpdate.grandTotal);
       }
       toast('Line items saved to estimate.', 'success');
     } catch (err) {
@@ -2929,6 +3003,17 @@
     // Hydrate context
     var lead = window._leadDoc || {};
     var estimate = pickPreflightEstimate() || null;
+    // A bill (invoice / receipt) charges the SIGNED price until the homeowner
+    // re-signs, however the estimate was edited since (review R6-2-2, Jo
+    // 2026-10-07 — customer-estimate-rows.js signedView). Every other document
+    // (a contract for the re-sign, a proposal) reads the estimate as saved.
+    var signedBill = false;
+    var _sp = window.NBDCustomerEstimateRows;
+    if (estimate && (type === 'invoice' || type === 'receipt') && _sp && typeof _sp.hasUnsignedChanges === 'function'
+        && _sp.hasUnsignedChanges(estimate)) {
+      estimate = _sp.signedView(estimate);
+      signedBill = true;
+    }
     var photos = window._allPhotos || [];
     var overrides = (lead.docOverrides && lead.docOverrides[type]) || {};
 
@@ -2999,6 +3084,7 @@
     state.softAck = false;
     state.softIssues = [];
     state.estimate = estimate;
+    state.signedBill = signedBill;
     state.legalNotes = collectLegalNotes();
 
     // Seed signers from the template's defaultSigners (declared on the
@@ -3458,7 +3544,8 @@
     _resolveFieldValue: resolveFieldValue,
     _applyDocEdits: applyDocEdits,
     _hydrateDerivedFields: hydrateDerivedFields,
-    _saveLineItemsToEstimate: saveLineItemsToEstimate
+    _saveLineItemsToEstimate: saveLineItemsToEstimate,
+    _renderLineItems: renderLineItems
   };
 
 })();

@@ -1,0 +1,81 @@
+# Authed-emulator Playwright specs, run by `npm run test:e2e:authed:emu`
+# (tests/e2e/fixtures/run-authed-specs.js) — ONE SPEC PER LINE so parallel
+# PRs that each add a spec merge cleanly instead of conflicting on one line.
+#
+# Every spec here must carry a CI shard tag (@shard1 / @shard2 / @audit /
+# @stranger / @gauntlet / @engines) in a describe/test title, or no CI shard
+# selects it. Every tests/e2e/*.spec.js must be listed here, run by another
+# script/workflow, or sit in UNWIRED_SPECS (scripts/run-test-manifest.js)
+# with a dated reason — `node scripts/run-test-manifest.js --check` enforces both.
+
+pro-authed.spec.js
+crm-handoff-ui.spec.js
+dashboard-actions-audit.spec.js
+stranger.spec.js
+gauntlet-lifecycle.spec.js
+d2d-engine.spec.js
+estimate-engine.spec.js
+boot-weight.spec.js
+tenant-filename-prefix.spec.js
+google-signin-popup.spec.js
+phone-fit.spec.js
+phone-estimate-funnel.spec.js
+phone-chrome.spec.js
+phone-customer.spec.js
+phone-pipeline.spec.js
+phone-dashnav.spec.js
+phone-views.spec.js
+phone-estbuilder.spec.js
+phone-v3-wizard.spec.js
+phone-estdata.spec.js
+phone-one-at-a-time.spec.js
+phone-game-card.spec.js
+phone-invoice-pay.spec.js
+phone-portal.spec.js
+phone-signing.spec.js
+phone-draw-baseline.spec.js
+phone-draw-money.spec.js
+phone-draw-seam.spec.js
+phone-draw-crosshair.spec.js
+yard-signs-edit.spec.js
+jobs-cards.spec.js
+pipeline-value-per-job.spec.js
+portal-other-jobs.spec.js
+customer-jobs.spec.js
+invoice-job-id.spec.js
+invoice-reminder.spec.js
+winback.spec.js
+my-skin.spec.js
+kanban-visibility.spec.js
+call-center-card.spec.js
+call-center-view.spec.js
+sort-customers.spec.js
+phone-no-next-step.spec.js
+phone-deposit-draft.spec.js
+phone-close-flow.spec.js
+roof-rep.spec.js
+estimate-send.spec.js
+phone-ux-batch-2026-10-03.spec.js
+phone-stage-flow.spec.js
+portal-progress-steps.spec.js
+phone-today.spec.js
+phone-voice-memo.spec.js
+phone-bots-api.spec.js
+phone-production-flow.spec.js
+phone-field-photos.spec.js
+phone-esign-estimate.spec.js
+phone-brief-me.spec.js
+phone-oaks-intake.spec.js
+social-studio.spec.js
+reel-studio.spec.js
+phone-numbers.spec.js
+doc-template-library.spec.js
+contract-cancel-forms.spec.js
+phone-client-errors.spec.js
+phone-deal-packet.spec.js
+phone-tenant-setup.spec.js
+phone-inperson-sign.spec.js
+phone-record-payment.spec.js
+phone-offline-safety.spec.js
+phone-inspect-no-clip.spec.js
+phone-catchup.spec.js

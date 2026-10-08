@@ -7,9 +7,9 @@
  * raw error messages and JSON.stringify output that occasionally contain
  * angle brackets — self-XSS only, but clean is clean.
  */
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, collection, getDocs, query, where, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
+import { getFirestore, collection, getDocs, query, where, orderBy } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 import { connectEmulatorsIfLocal } from '../nbd-emulator-connect.js'; // Audit #3: localhost-only, no-op in prod
 
 const results = document.getElementById('results');

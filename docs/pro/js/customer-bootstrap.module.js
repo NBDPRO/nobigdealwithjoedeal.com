@@ -1,10 +1,10 @@
 
 let toggleCustomerPhotoReorder, _lightboxIndex, _lightboxSource; // module-local (globals Tranche 1 — was window.*)
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider, CustomProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, collection, getDocs, getDoc, doc, query, orderBy, where, updateDoc, deleteDoc, serverTimestamp, addDoc, arrayUnion, arrayRemove, limit, runTransaction, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getStorage, ref, uploadBytesResumable, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+import { initializeApp } from "/assets/vendor/firebase/10.12.2/firebase-app.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, CustomProvider } from "/assets/vendor/firebase/10.12.2/firebase-app-check.js";
+import { getAuth, onAuthStateChanged } from "/assets/vendor/firebase/10.12.2/firebase-auth.js";
+import { getFirestore, collection, getDocs, getDoc, doc, query, orderBy, where, updateDoc, deleteDoc, serverTimestamp, addDoc, arrayUnion, arrayRemove, limit, runTransaction, setDoc, writeBatch } from "/assets/vendor/firebase/10.12.2/firebase-firestore.js";
+import { getStorage, ref, uploadBytesResumable, uploadBytes, getDownloadURL } from "/assets/vendor/firebase/10.12.2/firebase-storage.js";
 import { connectEmulatorsIfLocal, isLocalEmulatorEnv, emulatorAppCheckFakeToken } from "./nbd-emulator-connect.js"; // Audit #3: localhost-only, no-op in prod
 // The canonical stage config. This page used to advance stages with a private
 // hardcoded copy of the pipeline ladder and none of the kanban's bookkeeping;
@@ -822,10 +822,34 @@ async function loadCustomerData(id) {
       };
     }
     // Header SMS booking button
+    // R6-3-2 (2026-10-07): the link is an <a href="sms:…"> with the booking
+    // text written in, so a tap used to open Messages with no STOP / Do Not
+    // Text / texting-hours check. Now the tap waits for the server's "ok to
+    // text?" (phone-share.js checkText → phoneTextAction) and only then opens
+    // Messages; a "no" — or a check that can't run — says why and opens
+    // nothing. Wired once; reads the lead at TAP time.
     const smsBooking = document.getElementById('smsBookingLink');
-    if (smsBooking) {
-      smsBooking.addEventListener('click', () => {
-        logCommunication(id, 'sms', 'Sent booking link via SMS');
+    if (smsBooking && !smsBooking.dataset.nbdTextCheck) {
+      smsBooking.dataset.nbdTextCheck = '1';
+      smsBooking.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        const href = smsBooking.getAttribute('href') || '';
+        if (!/^sms:\d/.test(href)) return;
+        const cur = window._currentLead || lead;
+        const leadId = window._customerId || id;
+        const PS = window.NBDPhoneShare;
+        let chk = null;
+        try {
+          chk = (PS && typeof PS.checkText === 'function') ? await PS.checkText({ phone: cur.phone, leadId }) : null;
+        } catch (_) { chk = null; }
+        if (!chk || chk.ok !== true) {
+          if (typeof window.showToast === 'function') {
+            window.showToast((chk && chk.reason) || 'Couldn’t check whether this customer can be texted — nothing was sent. Reload and try again.', 'error');
+          }
+          return;
+        }
+        logCommunication(leadId, 'sms', 'Sent booking link via SMS');
+        window.location.href = href;
       });
     }
     // Contact section: NO communication logging, deliberately.
@@ -2206,7 +2230,7 @@ window.shareEstimateViewLink = async function(estId) {
     // (already used by W118 portal flow + W144 supplements).
     try {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = mod.getFunctions();
         window._httpsCallable = mod.httpsCallable;
       }
@@ -4388,7 +4412,7 @@ async function _renderEmailUnsubState(lead, leadId) {
     btn.disabled = true;
     try {
       if (!window._functions || !window._httpsCallable) {
-        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = mod.getFunctions();
         window._httpsCallable = mod.httpsCallable;
       }

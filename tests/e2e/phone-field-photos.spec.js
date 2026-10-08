@@ -83,7 +83,7 @@ async function forceStandalone(page) {
 async function seedLead(page, extra) {
   return safeEvaluate(page, async (x) => {
     const stamp = Date.now();
-    const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db || window._db;
     const uid = (window._auth || window.auth).currentUser.uid;
     const companyId = (window._userClaims && window._userClaims.companyId) || uid;
@@ -111,7 +111,7 @@ async function seedLead(page, extra) {
 
 async function photosFor(page, leadId) {
   return safeEvaluate(page, async (id) => {
-    const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db || window._db;
     const uid = (window._auth || window.auth).currentUser.uid;
     const snap = await fsMod.getDocs(fsMod.query(fsMod.collection(db, 'photos'), fsMod.where('leadId', '==', id), fsMod.where('userId', '==', uid)));
@@ -231,7 +231,7 @@ test.describe('phone field photos: burst capture + daylight editor @shard2', () 
     await signIn(page);
     const leadId = await seedLead(page, { stage: 'inspected', lat: LAT, lng: LNG });
     const photoIds = await safeEvaluate(page, async (id) => {
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const uid = (window._auth || window.auth).currentUser.uid;
       const out = [];
@@ -282,7 +282,7 @@ test.describe('phone field photos: burst capture + daylight editor @shard2', () 
     await page.locator('.nbd-editor-overlay .nbd-phase-tab[data-phase="After"]').tap();
     await page.locator('.nbd-editor-overlay [data-act="save-tags"]').evaluate((b) => b.click());
     await expect.poll(async () => safeEvaluate(page, async (pid) => {
-      const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const d = (await fsMod.getDoc(fsMod.doc(window.db || window._db, 'photos', pid))).data() || {};
       return d.phase + '/' + (Array.isArray(d.annotations) ? 'ann' : 'none');
     }, photoIds[0]), { timeout: 30_000 }).toBe('After/ann');

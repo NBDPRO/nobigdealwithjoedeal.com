@@ -334,7 +334,7 @@
   async function syncDealToFirestore(deal) {
     if (!window._db || !window._user) return false;
     try {
-      const { setDoc, updateDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const { setDoc, updateDoc, doc } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const uid = window._user.uid;
       // Checked AFTER the import await, with nothing awaited between it and
       // the write: that await is the window the race lived in.
@@ -410,7 +410,7 @@
     const uid = window._user.uid;
     const confirmedBeforeRead = _dealRoomsForCurrentUser().filter(d => _isConfirmedBy(d, uid)).map(d => d.id);
     try {
-      const { getDocs, query, collection, where } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const { getDocs, query, collection, where } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const snap = await getDocs(query(
         collection(window._db, DEAL_COLLECTION),
         where('userId', '==', uid)
@@ -608,7 +608,7 @@
       _dealDeletesInFlight.add(dealId);
       let kept = false;
       try {
-        const { deleteDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const { deleteDoc, doc } = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         await deleteDoc(doc(window._db, DEAL_COLLECTION, dealId));
       } catch (e) {
         if (onServer || !e || e.code !== 'permission-denied') {
@@ -1143,7 +1143,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       band: _band ? { aprLo: _band.aprLo, aprHi: _band.aprHi, months: _band.defaultTermYears * 12, lender: _band.lender } : null,
     }).replace(/</g, '\\u003c')
   }</script>
-<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=4"><\/script>
+<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=5"><\/script>
 </body></html>`;
   }
 
@@ -1183,7 +1183,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
   async function uploadDealPage(deal, html) {
     if (!window._storage || !window._user) return null;
     try {
-      const { ref, uploadString, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+      const { ref, uploadString, getDownloadURL } = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js');
       const storageRef = ref(window._storage, `deal_rooms/${window._user.uid}/${deal.id}.html`);
       await uploadString(storageRef, html, 'raw', { contentType: 'text/html' });
       const downloadUrl = await getDownloadURL(storageRef);
@@ -1438,7 +1438,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     // emulator run that skipped it would mint tokens against PRODUCTION.
     if (!window._httpsCallable || !window._functions) {
       try {
-        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         try {
           const emu = await import('./nbd-emulator-connect.js');

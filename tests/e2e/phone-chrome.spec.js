@@ -100,7 +100,7 @@ async function seedLead(page, stamp, run) {
           e2eRun: tag,
         });
       } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db || window._db;
       const uid = (window._auth || window.auth).currentUser.uid;
       const snap = await fs.getDocs(fs.query(fs.collection(db, 'leads'),
@@ -329,7 +329,7 @@ function holdStorageUploads(page, { fail = [], holdAt = 1 } = {}) {
 // way the page scopes its own photo queries (leadId + the rep's uid).
 async function photoDocCount(page, leadId) {
   return safeEvaluate(page, async (id) => {
-    const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db || window._db;
     const uid = (window._auth || window.auth).currentUser.uid;
     const snap = await fs.getDocs(fs.query(fs.collection(db, 'photos'),

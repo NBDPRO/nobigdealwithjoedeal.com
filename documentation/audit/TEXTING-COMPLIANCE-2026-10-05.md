@@ -33,6 +33,30 @@ Ask Joe, close board, portal links) goes through sendSMS.
 
 ## Still open (not in Jo's list)
 
+**Update 2026-10-07 (review round 6, `fix/r6-texting-trio`):** three more
+gaps closed. Tests: `tests/r6-texting-trio-2026-10-07.test.js`.
+
+- **R6-3-3, AI reply sent twice.** `onAiDraftApproved` now claims the send on
+  the draft before Twilio is called. Only a definite Twilio refusal (HTTP 4xx)
+  is `failed`. Any other error is looked up at Twilio by number and text. If
+  Twilio has it, the draft is `sent`; if not, the draft is `send_uncertain`.
+  The panel shows "check before re-sending" and never re-queues it by itself.
+  Only the rep can put it back (`send_uncertain → pending | dismissed` in
+  `firestore.rules`).
+- **R6-3-5, START lifting another company's STOP.** Each STOP now records
+  which sender it was told to (`stopLine`). "They replied STOP" is that
+  company's own Do Not Text entry (`owner_phone`), not the global register. A
+  START to NBD's number lifts only that number's STOPs, plus NBD's own phone
+  STOP (`sms-optout.js` `liftStopOnLine`). Older entries it can't attribute
+  are kept and flagged (`startSeenAt`).
+- **R6-3-6, no hours on the no-customer check.** `phoneTextAction`'s `number`
+  path now applies 8am–9pm, Eastern when there is no location (the rule
+  below). Only `crew` skips hours.
+- **New open item:** an `owner_phone` STOP has no lift path yet. The CRM can't
+  remove a stop_reply entry, and a START to NBD's number no longer lifts
+  another company's entry. If a homeowner tells company A "you can text me
+  again", A can't record it today.
+
 - **Per-company A2P registration.** That is being designed separately. Until it
   exists, non-NBD companies cannot text at all.
 - The STOP / HELP TwiML replies still say "NBD Pro" with Joe's number for every
@@ -51,3 +75,43 @@ Ask Joe, close board, portal links) goes through sendSMS.
 all drive the real handlers through `tests/lib/sms-compliance-world.js`.
 Firestore rules sections 53 (`sms_dnc`) and 54 (`sms_settings`) cover client
 read / create / update / delete.
+
+## Update 2026-10-07 — review round 6 (R6-3-1, R6-3-2)
+
+**Correction to "Paths covered" above:** not every browser sender went through
+sendSMS. Several opened Messages from Jo's own phone with the text written in
+and no check at all. That was R6-3-2, now fixed. The two fixes:
+
+- **R6-3-1, a STOP inside a longer reply.** "Not interested. Stop.", "No thanks
+  stop" and "I no longer want texts from you" are now opt-outs. The rule: a
+  STOP-family word that is its own clause, the first word, the last word after
+  courtesy words, or within three words of a refusal. A STOP word the
+  classifier can't read safely ("thanks but stop") gets a new answer,
+  `possible_stop`. It is not an opt-out, but incomingSMS writes no AI draft for
+  it and gives the rep a high-priority bell and a flagged note. The NBD text
+  line flags its note, bell and inbox item the same way. "Can you stop by
+  tomorrow" and "I'll stop at the store" are still ordinary messages.
+- **R6-3-2, pre-filled texts from the phone.** Seven hand-offs now ask the
+  server first (`NBDPhoneShare.checkText` → `phoneTextAction`: STOP, Do Not
+  Text, consent, the texting switch, 8am–9pm homeowner time):
+  - Text Portal
+  - the dashboard portal-link share
+  - Text Booking Link
+  - the V2 estimate share box (its 💬 Text link and its automatic hand-off)
+  - Care Plan "Text it"
+  - the kanban booking text (`sendBookingSMS`)
+  - `sendFollowUpSMS` and `CustomerPortal.shareSMS` (nothing calls these two today)
+
+  A "no", or a check that can't run, shows the reason and opens nothing.
+- **Still unchecked, lower risk.** About a dozen blank "💬 Text" links open
+  Messages to the customer with no text written in. The rep types the message.
+  They are in call-center-view, claim-core, close-board (rep card),
+  crm-list-view, customer-estimate-hub, customer-quick-action-bar,
+  dashboard-actions, dashboard-widgets, followup-deck, no-next-step and
+  today-home.
+- The `sms:` fallbacks in `portal-link-helpers.js` and the D2D tracker run only
+  when NBDComms is missing.
+- The Pending-texts hand-off in `sms-outbox.js` is R6-3-4, which is still open.
+
+Tests: `tests/r6-texting-2026-10-07.test.js`, plus the R6 sections added to
+`close-flow-2026-10-03` (V2 share box) and `twilio-line-2026-10-06`.

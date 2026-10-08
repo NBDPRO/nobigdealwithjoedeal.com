@@ -451,6 +451,13 @@
         "headers": [
           { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
         ]
+      },
+      {
+        "_comment": "Self-hosted Firebase JS SDK (2026-10-04, scripts/vendor-firebase-sdk.js). The path carries the SDK version, so a file at a given URL never changes — cache it like gstatic did instead of revalidating ~7 modules on every page load (the **/*.js rule above says max-age=0).",
+        "source": "/assets/vendor/firebase/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
       }
     ]
   },

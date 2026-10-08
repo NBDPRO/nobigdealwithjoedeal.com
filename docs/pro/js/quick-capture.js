@@ -369,7 +369,7 @@
 
   async function _summarize(blob) {
     if (!window._functions || !window._httpsCallable) {
-      const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._functions = mod.getFunctions();
       window._httpsCallable = mod.httpsCallable;
     }
@@ -544,7 +544,7 @@
         updateDoc: window.updateDoc,
       };
     }
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     return {
       db: window.db || mod.getFirestore(),
       collection: mod.collection,

@@ -358,9 +358,12 @@ async function flagPaidNotClosed(deps, invoiceId, inv) {
   const leadRef = deps.db.collection('leads').doc(String(inv.leadId));
   const ls = await leadRef.get();
   if (!ls.exists) return null;
-  // Another tenant's invoice naming this lead files nothing here (2026-10-05).
-  if (!PIF.invoiceInLeadTenant(inv, ls.data())) {
-    logger.warn('[moneyPaper] paid-not-closed skipped — invoice tenant is not the lead tenant', { invoiceId, leadId: inv.leadId });
+  // Never file a task on another company's lead. Both checks must pass:
+  // R3-6 (2026-10-06, the stricter one — a missing tenant on either side is
+  // not "same") and the 2026-10-05 security review's PIF check.
+  if (!require('./payment-timeline').invoiceLeadSameTenant(inv, ls.data() || {})
+      || !PIF.invoiceInLeadTenant(inv, ls.data())) {
+    logger.warn('[moneyPaper] paid-not-closed skipped — invoice and lead are in different companies', { invoiceId, leadId: inv.leadId });
     return null;
   }
   const et = P.etParts(deps.now());               // { y, md: 'MMDD' } — the task wants 'YYYY-MM-DD'

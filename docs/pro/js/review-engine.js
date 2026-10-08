@@ -444,7 +444,9 @@
         // Tenant key so the server trigger scopes redemption by company: a code
         // minted by any teammate credits when the referred lead closes on any
         // teammate's / the owner's book. Falls back to uid for a solo tenant.
-        companyId: lead.companyId || window._user.uid,
+        // The rules pin it to the writer's companyId CLAIM (R3-5), so the
+        // claim wins over a legacy lead's own field.
+        companyId: (window._userClaims && window._userClaims.companyId) || lead.companyId || window._user.uid,
         createdAt: window.serverTimestamp(),
         referredLeads: [],
         rewardsPaid: 0,
