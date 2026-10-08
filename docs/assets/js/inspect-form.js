@@ -49,6 +49,48 @@
     };
   }
 
+  // QR kicker (CRO #7, 2026-10-06): one true-by-construction line for the
+  // printed pieces that carry a utm_source. Everyone else sees nothing.
+  var KICKERS = {
+    'yard-sign': 'Saw my sign on your street?',
+    'banner-neighbor': 'Saw my sign on your street?',
+    'hanger': 'Got my door hanger?',
+    'card': 'Thanks for keeping my card.'
+  };
+  function showKicker(utms) {
+    var src = utms.utm_source || '';
+    var line = Object.prototype.hasOwnProperty.call(KICKERS, src) ? KICKERS[src] : '';
+    var el = document.getElementById('insKicker');
+    if (!el || !line) return;
+    el.textContent = line;
+    el.hidden = false;
+  }
+
+  // ?ref=CODE (CRO #8): normalised exactly like the server
+  // (public-lead-intake-spec.js / lead-bridge: upper-case, A-Z 0-9 and "-",
+  // max 32). The code rides on the submit, so skipping the optional details
+  // step can't lose it.
+  function readRef() {
+    var params;
+    try { params = new URLSearchParams(window.location.search); }
+    catch (e) { return ''; }
+    var code = String(params.get('ref') || '').toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    return code.length > 0 && code.length <= 32 ? code : '';
+  }
+  function applyRef(code) {
+    if (!code) return;
+    var input = document.getElementById('insRefCode');
+    if (!input) return;
+    input.value = code;
+    var strong = document.getElementById('insRefNoteCode');
+    if (strong) strong.textContent = code;
+    var note = document.getElementById('insRefNote');
+    if (note) note.hidden = false;
+    // Already sent with the request: don't ask for it again on the thank-you screen.
+    var wrap = document.getElementById('insRefWrap');
+    if (wrap) wrap.hidden = true;
+  }
+
   function stampHiddenFields(utms) {
     Object.keys(utms).forEach(function (k) {
       var el = document.getElementById(k);
@@ -63,6 +105,7 @@
       // The intake block's own inputs (scheduling radios) are read by
       // NBDIntake.read, not posted by name.
       if (k === 'photos' || /^ins[A-Z]/.test(k)) return;
+      if (k === 'referralCode' && !v) return;
       out[k] = typeof v === 'string' ? v.trim() : v;
     });
     out.source = '/inspect';
@@ -220,6 +263,8 @@
   function onReady() {
     var utms = readUtms();
     stampHiddenFields(utms);
+    showKicker(utms);
+    applyRef(readRef());
 
     var form = document.getElementById('inspectForm');
     if (!form) return;
