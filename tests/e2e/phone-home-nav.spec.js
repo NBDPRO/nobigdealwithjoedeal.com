@@ -87,7 +87,16 @@ test.describe('phone: Home leads with people who need you; field tools pinned; o
       await expect(page.locator('#todayPlan .tp-title')).toHaveText(/things? today|Nothing/, { timeout: 30_000 });
       await safeEvaluate(page, () => window.scrollTo(0, 0));
       const nav = await boxOf(page, '#mobile-nav');
-      const fold = nav ? nav.y : 844;
+      // A NEW tenant's "Get set up" card (setup-checklist.js) sits above
+      // everything on Home until setup is done; the platform tenant (Jo)
+      // never sees it. Measure Home's own first screen: below that card.
+      const setupCard = await safeEvaluate(page, () => {
+        const sc = document.getElementById('nbdSetupChecklist');
+        if (!sc) return 0;
+        const n = sc.nextElementSibling;
+        return Math.round(n ? n.getBoundingClientRect().top - sc.getBoundingClientRect().top : sc.getBoundingClientRect().height);
+      });
+      const fold = (nav ? nav.y : 844) + setupCard;
       const c = await chip.boundingBox();
       expect(c.y + c.height, 'the needs-you chip is above the bottom nav on the first screen').toBeLessThanOrEqual(fold);
       expect(Math.round(c.height), 'the chip is thumb-sized').toBeGreaterThanOrEqual(44);

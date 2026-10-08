@@ -896,9 +896,12 @@
            list of what is on Jo's plate — appointments, calls owed, promised
            follow-ups, money to collect, stalled leads. Boot view and phone Home tab. -->
       <section id="todayPlan" class="tp" aria-label="Today" hidden></section>
+      <!-- Roof Rep game card: off by default — a rep who turned it on in
+           Settings chose to see it, so it stays out of the fold below. -->
+      <div id="homeGameCard" class="mb-md" hidden></div>
 
       <!-- More on Home (2026-10-08, phone audit #6): on a phone everything
-           below the Today list folds behind one "More on Home" tap — the
+           else below the Today list folds behind one "More on Home" tap — the
            widgets, the full No-next-step list (Today already carries its
            one-line "Swipe through" row) and the header's extra links. A
            CSS-only disclosure (checkbox + label, today-home.css): no script,
@@ -915,7 +918,6 @@
           <!-- No next step (js/no-next-step.js): open leads with no follow-up and
                no open task, oldest first, one-tap rows. Hidden when empty. -->
           <section id="homeNoNextStep" class="nns-card mb-md" aria-label="Leads with no next step" hidden></section>
-          <div id="homeGameCard" class="mb-md" hidden></div>
           <!-- Estimate follow-ups (js/estimate-followups.js) are a section of the
                Today list above (#todayPlan, "Estimates to follow up") since
                2026-10-03 — one list, one row per lead. Nothing sends by itself. -->
