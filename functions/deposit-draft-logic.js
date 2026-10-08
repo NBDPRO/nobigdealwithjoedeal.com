@@ -33,6 +33,7 @@ const PIF = require('./paid-in-full');
 const J = require('./ky-insurance-law');
 const IFE = require('./invoice-from-estimate');
 const CER = require('./customer-estimate-rows');
+const DAT = require('./deal-accepted-tier');
 
 const DRAFT_EVENTS = ['contract_signed', 'deal_accepted'];
 const AUTO_DRAFT_KIND = 'deposit_on_sign';
@@ -105,6 +106,61 @@ function _recordedAcceptance(est) {
   return { acceptedTier: est.acceptedTier, acceptedPrice: est.acceptedPrice };
 }
 
+/**
+ * A homeowner's tier pick on a LINE-ITEM estimate the rep hasn't resolved
+ * (review R6-2-3, Jo 2026-10-07) → { tier, price, current, rebuildable }, or
+ * null. A line-item estimate's rows are priced at the rep's tier, so neither
+ * the rep's total nor the accepted price can be billed until the rep taps
+ * "Use it" (which rebuilds the rows at the pick — deal-accepted-tier.js
+ * applyHomeownerPick — and runs this event again) or "Keep". The pick is the
+ * deal's (deal_accepted), else the one recorded on the estimate. A
+ * tier-priced estimate (per-SQ / prices{}) is never pending: its acceptance
+ * prices it outright.
+ */
+function acceptancePending(est, deal) {
+  if (!est || DAT.isTierPriced(est)) return null;
+  if (est.acceptedTierApplied === true || est.acceptedTierDismissed === true) return null;
+  const chosen = String(est.selectedTier || est.tier || '').toLowerCase();
+  if (!chosen) return null;
+  const fromDeal = deal && deal.acceptedTier && Number(deal.acceptedPrice) > 0;
+  const tier = String((fromDeal ? deal.acceptedTier : est.acceptedTier) || '').toLowerCase();
+  const price = Number(fromDeal ? deal.acceptedPrice : est.acceptedPrice);
+  if (!tier || tier === chosen || DAT.TIERS.indexOf(tier) === -1) return null;
+  return { tier, price: price > 0 ? price : null, current: chosen, rebuildable: !!DAT.tierBuild(est, tier) };
+}
+
+const TIER_LABEL = { economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' };
+/**
+ * "Homeowner picked <tier> — apply it" (the prompt on the customer and on
+ * Home's Today list). Its id is deal-accepted-tier.js applyTaskId, so "Use it"
+ * closes it.
+ */
+function applyTierTask(estimateId, pick, todayYmd) {
+  const p = pick || {};
+  const label = TIER_LABEL[p.tier] || String(p.tier || '');
+  const cur = TIER_LABEL[p.current] || String(p.current || '');
+  const price = Number(p.price) > 0 ? ' (' + DR.fmtCents(Math.round(Number(p.price) * 100)) + ')' : '';
+  const how = p.rebuildable
+    ? 'Open the customer and tap "Use ' + label + '" on the estimate: it is rebuilt at ' + label + ', then the deposit invoice is drafted if one is due at signing.'
+    : 'This estimate has no ' + label + ' line prices saved. Open it in the estimate builder, switch to ' + label + ' and save, then send a new deal page. No deposit invoice is drafted until then.';
+  const title = '🤝 Homeowner picked ' + label + ' — apply it';
+  return {
+    id: DAT.applyTaskId(estimateId),
+    doc: {
+      text: title,
+      title,
+      notes: 'The homeowner accepted ' + label + price + ' in the deal room. The estimate is still ' + (cur || 'another package') + '. '
+        + how + ' Nothing has been sent.',
+      source: 'accepted_tier',
+      estimateId: String(estimateId || ''),
+      actionId: 'apply_accepted_tier',
+      actionKind: 'action',
+      dueDate: String(todayYmd || ''),
+      done: false,
+    },
+  };
+}
+
 function _sameTenant(est, lead) {
   if (!est || !lead) return false;
   if (est.leadId && est.leadId !== lead.id) return false;
@@ -147,6 +203,10 @@ function decideDepositDraft(ctx) {
   const est0 = ctx.est;
   if (!est0 || _isDeleted(est0)) return { action: 'skip', reason: 'no_estimate' };
   if (!_sameTenant(est0, lead)) return { action: 'skip', reason: 'estimate_other_tenant' };
+  // A homeowner's other-tier pick on a line-item estimate waits for the rep
+  // (R6-2-3): neither price is billable until "Use it" rebuilds the rows.
+  const pick = acceptancePending(est0, ctx.deal || null);
+  if (pick) return { action: 'skip', reason: 'accepted_tier_pending', pick };
   // The deal's acceptance, else one recorded on the estimate (R2-2-1).
   // A SIGNED estimate bills its signed price (review R6-2-2, Jo 2026-10-07):
   // the job spine stamps it just before this runs (signed-price.js), already
@@ -312,6 +372,10 @@ function decideFinalDraft(ctx) {
   if (!owner) return { action: 'skip', reason: 'no_owner' };
 
   const estRaw = (ctx.est && !_isDeleted(ctx.est) && _sameTenant(ctx.est, lead)) ? ctx.est : null;
+  // The homeowner's other-tier pick on a line-item estimate is still
+  // unresolved (R6-2-3): the final bill waits for it like the deposit does.
+  const pending = estRaw ? acceptancePending(estRaw, null) : null;
+  if (pending) return { action: 'skip', reason: 'accepted_tier_pending', jobId: jobIdFor(estRaw, lead), pick: pending };
   // The homeowner's accepted tier (review R2-2-1, 2026-10-06): the signing-day
   // draft bills deal.acceptedPrice, so the final bills the same price.
   // deal-accepted-tier.js now writes it onto a tier-priced estimate; an
@@ -418,6 +482,9 @@ function finalTask(jobId, decision, todayYmd) {
       + '. Nothing has been sent — open it, check it, and tap Send.';
   } else if (d.action === 'use_existing') {
     notes = 'The job is installed. Open its invoice and send the balance — nothing has been sent.';
+  } else if (d.reason === 'accepted_tier_pending') {
+    notes = 'The job is installed, but the package the homeowner picked in the deal room is not applied to the estimate yet. '
+      + 'Apply it (or keep yours) on the customer page, then make the final invoice. Nothing has been sent.';
   } else {
     notes = 'The job is installed and there is no estimate to bill from. Open the customer and tap Record payment (or make the invoice) — nothing has been sent.';
   }
@@ -441,6 +508,6 @@ function finalTask(jobId, decision, todayYmd) {
 module.exports = {
   DRAFT_EVENTS, AUTO_DRAFT_KIND, COLLECT_DEPOSIT_TASK_ID,
   jobIdFor, draftInvoiceId, reviewTaskId, isDepositDraft, estimateIdFor, noDepositReason,
-  decideDepositDraft, reviewTask,
+  decideDepositDraft, reviewTask, acceptancePending, applyTierTask,
   FINAL_AUTO_DRAFT_KIND, finalDraftInvoiceId, finalTaskId, decideFinalDraft, finalTask,
 };
