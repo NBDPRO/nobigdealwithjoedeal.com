@@ -200,7 +200,26 @@
     return out;
   }
 
-  const api = { detectFields, CAPTIONS, SIZES, _itemBox: itemBox, _isRuledText: isRuledText };
+  /**
+   * Does an uploaded contract already carry the FTC Notice of Cancellation
+   * forms (16 CFR 429.1(b): two completed copies)? (review R4 D8, 2026-10-08)
+   * pageItems: one pdf.js getTextContent().items array per page. True when
+   * the form's own words — "NOTICE OF CANCELLATION" and "I hereby cancel this
+   * transaction" — each appear at least twice. A contract that only MENTIONS
+   * the notice ("see the attached Notice of Cancellation") does not count.
+   * The rep's checkbox has the last word either way (a scanned PDF has no
+   * text layer).
+   */
+  function hasCancelForms(pageItems) {
+    const text = (pageItems || []).map((items) => (items || [])
+      .map((it) => (it && typeof it.str === 'string') ? it.str : '').join(' ')).join(' ')
+      .replace(/\s+/g, ' ');
+    const heads = (text.match(/notice\s+of\s+cancell?ation/gi) || []).length;
+    const lines = (text.match(/i\s+hereby\s+cancel\s+this\s+transaction/gi) || []).length;
+    return heads >= 2 && lines >= 2;
+  }
+
+  const api = { detectFields, hasCancelForms, CAPTIONS, SIZES, _itemBox: itemBox, _isRuledText: isRuledText };
   if (typeof module === 'object' && module.exports) module.exports = api;
   root.NBDEsignAutodetect = api;
 })(typeof window !== 'undefined' ? window : globalThis);

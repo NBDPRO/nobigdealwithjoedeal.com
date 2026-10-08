@@ -748,11 +748,26 @@ exports.submitSignature = onRequest(
     // carries content the integrity gate above has already proven matches it.
     // The record carries the Notice of Right to Cancel re-rendered from the
     // copy we served and dated today, the signing day (2026-10-04).
+    // 2026-10-08 (review R4 D9): tried twice; cancelBy is ALWAYS counted from
+    // the signing, never read back from a packet that kept an older date, and
+    // a record whose packet could not be re-dated (or stored) is flagged
+    // (cancelPacketStale) on the document and the lead for the rep.
     const signedAtNow = new Date();
     let recordHtml = record;
-    try { recordHtml = CW.finalizeSignedPacket(originalHtml, record, signedAtNow); }
-    catch (e) { logger.warn('[submitSignature] cancel packet re-date failed', { msg: e.message }); }
-    const cancelBy = KyLaw.hasCancelPacket(recordHtml) ? CW.cancelByFor(recordHtml, signedAtNow) : '';
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        recordHtml = CW.finalizeSignedPacket(originalHtml, record, signedAtNow);
+        if (!KyLaw.signingCancelBy(recordHtml, signedAtNow).stale) break;
+        throw new Error('the re-dated notice does not carry the signing date');
+      } catch (e) {
+        logger.warn('[submitSignature] cancel packet re-date failed (attempt ' + attempt + ' of 2)', { msg: e.message });
+      }
+    }
+    const hasPacket = KyLaw.hasCancelPacket(originalHtml) || KyLaw.hasCancelPacket(recordHtml);
+    const cxl = hasPacket ? KyLaw.signingCancelBy(recordHtml, signedAtNow) : null;
+    // The served contract carried the packet but the record lost it → stale too.
+    if (cxl && !KyLaw.hasCancelPacket(recordHtml)) cxl.stale = true;
+    const cancelBy = cxl ? cxl.cancelBy : '';
     let archivePath = null;
     try {
       if (originalHtml != null) {
@@ -766,12 +781,19 @@ exports.submitSignature = onRequest(
       archivePath = null;
       logger.warn('[submitSignature] original archive failed', { msg: e.message });
     }
-    try {
-      const file = getStorage().bucket().file(info.htmlPath);
-      await file.save(Buffer.from(recordHtml, 'utf8'), { contentType: 'text/html', resumable: false });
-    } catch (e) {
-      logger.warn('[submitSignature] signed html upload failed', { msg: e.message });
+    let recordSaved = false;
+    for (let attempt = 1; attempt <= 2 && !recordSaved; attempt++) {
+      try {
+        const file = getStorage().bucket().file(info.htmlPath);
+        await file.save(Buffer.from(recordHtml, 'utf8'), { contentType: 'text/html', resumable: false });
+        recordSaved = true;
+      } catch (e) {
+        logger.warn('[submitSignature] signed html upload failed (attempt ' + attempt + ' of 2)', { msg: e.message });
+      }
     }
+    // The stored copy still holds the contract as generated (its old date).
+    if (cxl && !recordSaved) cxl.stale = true;
+    if (cxl && cxl.stale) logger.error('[submitSignature] cancel packet NOT re-dated — flagged for a new Notice of Cancellation', { docId: info.docId });
     try {
       await db.doc(`leads/${info.leadId}/documents/${info.docId}`).set({
         status: 'signed',
@@ -787,10 +809,10 @@ exports.submitSignature = onRequest(
           ? require('crypto').createHash('sha256').update(originalHtml, 'utf8').digest('hex')
           : null,
         signedSha256: require('crypto').createHash('sha256').update(recordHtml, 'utf8').digest('hex'),
-        ...(cancelBy ? { cancelBy } : {}),
+        ...(cancelBy ? Object.assign({ cancelBy }, CW.staleRecordPatch(cxl)) : {}),
       }, { merge: true });
     } catch (e) { logger.warn('[submitSignature] doc meta stamp failed', { msg: e.message }); }
-    if (cancelBy) await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid });
+    if (cancelBy) await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid }, CW.staleLeadPatch(cxl, 'remote_sign'));
     // Job spine (2026-10-03): a remotely signed CONTRACT moves the job, the
     // way an in-person signing already stamps it. Best-effort — the signature
     // is recorded; a failure here only leaves the card where it was.

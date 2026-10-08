@@ -897,24 +897,25 @@ module.exports = exports;
 // Re-date the accepted deal page's Notice of Right to Cancel to the signing
 // day, store it back (the page IS the signed record), and stamp cancelBy on
 // the deal + the lead. Never throws; returns the cancelBy written ('' if none).
+// 2026-10-08 (review R4 D9): the re-date is tried twice; cancelBy is ALWAYS
+// counted from the signing (never read back from a packet that may still carry
+// the generation date), and a re-date that failed flags the deal + the lead
+// (cancelPacketStale) so the rep sees it — the acceptance itself stands.
 async function recordDealCancelWindow(db, info, when) {
-  let cancelBy = '';
-  let html = '';
+  let rec = KyLaw.signingCancelBy('', when);
   if (info.htmlPath) {
-    try {
-      const file = getStorage().bucket().file(info.htmlPath);
-      const [buf] = await file.download();
-      html = buf.toString('utf8');
-      if (KyLaw.hasCancelPacket(html)) {
-        html = KyLaw.restampCancelPacket(html, when);
-        await file.save(Buffer.from(html, 'utf8'), { contentType: 'text/html', resumable: false });
-      }
-    } catch (e) { logger.warn('[submitDealAcceptance] cancel packet re-date failed', { msg: e && e.message }); }
+    const file = getStorage().bucket().file(info.htmlPath);
+    rec = await CW.redateStoredPacket({
+      read: async () => { const [buf] = await file.download(); return buf.toString('utf8'); },
+      write: (html) => file.save(Buffer.from(html, 'utf8'), { contentType: 'text/html', resumable: false }),
+      when, logger, label: '[submitDealAcceptance]',
+    });
   }
-  cancelBy = CW.cancelByFor(html, when);
-  try { await db.doc(`deal_rooms/${info.dealId}`).update({ cancelBy }); }
+  const cancelBy = rec.cancelBy;
+  try { await db.doc(`deal_rooms/${info.dealId}`).update(Object.assign({ cancelBy }, CW.staleRecordPatch(rec))); }
   catch (e) { logger.warn('[submitDealAcceptance] deal cancelBy stamp failed', { msg: e && e.message }); }
-  await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid, companyId: info.companyId });
+  await CW.stampLeadCancelBy(db, info.leadId, cancelBy, logger, { ownerUid: info.ownerUid, companyId: info.companyId },
+    CW.staleLeadPatch(rec, 'deal_room'));
   return cancelBy;
 }
 

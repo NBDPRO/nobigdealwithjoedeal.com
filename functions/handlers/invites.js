@@ -706,6 +706,11 @@ exports.assignSeats = onCall(
     let activated = 0, benched = 0;
     for (const m of claimed) {
       const md = m.data() || {};
+      // Never the caller's own row (2026-10-08, #2318 review): a company_admin
+      // cannot re-enable (or bench) themselves here. Re-enabling a suspended
+      // admin is someone else's call; requireTeamAdmin already refuses a
+      // disabled caller, this is the second lock.
+      if (md.uid === uid) continue;
       const shouldBeActive = wantActive.has(m.id);
       if (shouldBeActive && md.status !== 'active') {
         try {
