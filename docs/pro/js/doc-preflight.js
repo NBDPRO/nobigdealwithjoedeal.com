@@ -584,8 +584,17 @@
           return (_st === 'OH' || _st === 'KY') ? _st : '';
         } catch (e) { return ''; }
       case 'contractDate':
-        // The signed contract's date when the CRM has one, else today.
-        return toDateInput(lead.contractSignedAt || lead.contractFiledAt) || toDateInput(new Date());
+        // The Notice of Right to Cancel for the contract being signed NOW:
+        // today. Never the lead's old contractSignedAt / contractFiledAt —
+        // those belong to an earlier contract, and a notice dated from them
+        // tells the homeowner the wrong last day to cancel (review R4 D8,
+        // 2026-10-08). The one exception: a signing whose notice could not
+        // be re-dated (lead.cancelPacketStale) — the replacement notice is
+        // dated that signing day (cancelPacketSignedOn).
+        if (lead.cancelPacketStale === true && /^\d{4}-\d{2}-\d{2}$/.test(String(lead.cancelPacketSignedOn || ''))) {
+          return String(lead.cancelPacketSignedOn);
+        }
+        return toDateInput(new Date());
       case 'signedContractDate':
         // The change order's "Original Contract Date": only a date the CRM
         // actually holds — never today, which would misstate the contract.
