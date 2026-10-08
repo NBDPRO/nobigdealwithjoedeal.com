@@ -33,3 +33,9 @@
 .qcx-c94a3b8-fs13px-p14px.qcx-c94a3b8-fs13px-p14px.qcx-c94a3b8-fs13px-p14px { color: #94a3b8; font-size: 13px; padding: 14px; text-align: center; }
 .qcx-w600.qcx-w600.qcx-w600 { font-weight: 600; }
 .qcx-c94a3b8-fs12px-mt2px.qcx-c94a3b8-fs12px-mt2px.qcx-c94a3b8-fs12px-mt2px { color: #94a3b8; font-size: 12px; margin-top: 2px; }
+
+/* "Save to <customer>" on a customer page (2026-10-08, phone audit 2026-10-07 #4):
+   the customer Jo is on is the one-tap default; the picker lists them first. */
+.qc-here-btn.qc-here-btn.qc-here-btn.qc-here-btn { width: 100%; min-height: 48px; margin-bottom: 8px; font-size: 15px; font-weight: 700; }
+.nbd-qc-lead-btn.qc-lead-here { border-color: var(--orange, #A14A22) !important; min-height: 44px; }
+.qc-here-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--orange, #e8720c); border: 1px solid currentColor; }

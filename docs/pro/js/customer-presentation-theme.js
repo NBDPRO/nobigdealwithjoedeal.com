@@ -20,7 +20,9 @@
       // accessible name is the static aria-label; aria-pressed carries state.
       btn.innerHTML = isOn()
         ? '<span aria-hidden="true">✓</span><span class="back-btn-label">Presentation On</span>'
-        : '<span aria-hidden="true">🎤</span><span class="back-btn-label">Presentation</span>';
+        // A screen, not a mic (phone audit 2026-10-07 #4): the 🎤 here read
+        // as voice notes, which live in Quick Capture.
+        : '<span aria-hidden="true">🖥️</span><span class="back-btn-label">Presentation</span>';
     }
     window.togglePresentationMode = function () {
       var html = document.documentElement;

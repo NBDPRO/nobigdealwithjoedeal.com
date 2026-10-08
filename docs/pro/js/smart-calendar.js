@@ -546,7 +546,7 @@ let _NBD_SC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     const valueBadge = _renderValueBadge(a._leadValue);
     const outcomeFlag = _apptNeedsOutcome(a) ? '<span class="sc-outcome-chip">Needs an outcome</span>' : '';
     const leadLink = a._leadId
-      ? `<button data-sc-action="openCardDetail" data-sc-id="${_esc(a._leadId)}" style="background:none;border:none;color:var(--orange);font-size:11px;cursor:pointer;padding:0;text-decoration:underline;">Open lead →</button>`
+      ? `<button type="button" class="sc-lead-open" data-sc-action="openCardDetail" data-sc-id="${_esc(a._leadId)}">Open lead →</button>`
       : '';
     return `
       <div data-sc-start="${_toMs(a.startTime)}" style="display:grid;grid-template-columns:88px 1fr auto;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--s2);border:1px solid var(--br);border-radius:7px;">

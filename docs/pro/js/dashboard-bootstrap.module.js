@@ -125,9 +125,13 @@
   // banner can pinpoint where init died if a downstream import throws.
   window.__nbdMark && window.__nbdMark('m2:stagesImport');
 
-  // Legacy compat — default to insurance pipeline view
-  const _currentViewKey = localStorage.getItem('nbd_kanban_view') || 'insurance';
-  const _currentViewStages = KANBAN_VIEWS[_currentViewKey]?.stages || VIEW_INSURANCE;
+  // A device with no saved choice opens the CRM on ALL ('simple'), not
+  // Insurance (phone audit 2026-10-07 #10: a fresh phone showed 2 of 14
+  // leads). A saved choice — nbd_kanban_view, kept across sign-out and
+  // synced by prefs-sync.js — still wins.
+  const DEFAULT_KANBAN_VIEW = 'simple';
+  const _currentViewKey = localStorage.getItem('nbd_kanban_view') || DEFAULT_KANBAN_VIEW;
+  const _currentViewStages = KANBAN_VIEWS[_currentViewKey]?.stages || VIEW_SIMPLE;
 
   // Legacy STAGES array — now derived from current view's stage labels
   const STAGES = _currentViewStages.map(k => STAGE_META[k]?.label || k);
@@ -221,7 +225,7 @@
         .filter(k => !(resolved.stageMeta[k] && resolved.stageMeta[k].hidden))
         .map(k => ({ value: k, label: (resolved.stageMeta[k] || {}).label || k }));
     };
-    const vk = window._currentViewKey || 'insurance';
+    const vk = window._currentViewKey || DEFAULT_KANBAN_VIEW;
     const vs = (resolved.views[vk] && resolved.views[vk].stages) || [];
     window._stageKeys = vs;
     window.STAGES = vs.map(k => (resolved.stageMeta[k] || {}).label || k);
@@ -2173,7 +2177,7 @@
     // Seed demo data first if this is the demo account, then load normally
     if(typeof maybeSeedDemoData==='function') await maybeSeedDemoData(user).catch(()=>{});
     // Build dynamic kanban columns before loading leads
-    const savedView = localStorage.getItem('nbd_kanban_view') || 'insurance';
+    const savedView = localStorage.getItem('nbd_kanban_view') || DEFAULT_KANBAN_VIEW;
     if (typeof window.buildKanbanColumns === 'function') {
       window.buildKanbanColumns(savedView);
       // Sync view switcher button active state
@@ -2214,7 +2218,7 @@
         const _board = document.getElementById('kanbanBoard');
         if (_board && !_board.querySelector('.kanban-col') &&
             typeof window.buildKanbanColumns === 'function') {
-          try { window.buildKanbanColumns(window._currentViewKey || 'insurance'); }
+          try { window.buildKanbanColumns(window._currentViewKey || DEFAULT_KANBAN_VIEW); }
           catch (e) { console.warn('[render-retry] buildKanbanColumns threw:', e.message); }
         }
         // window._leads may be undefined if loadLeads catch-path never
@@ -3248,7 +3252,7 @@
       const _board = document.getElementById('kanbanBoard');
       if (_board && !_board.querySelector('.kanban-col') &&
           typeof window.buildKanbanColumns === 'function') {
-        try { window.buildKanbanColumns(window._currentViewKey || 'insurance'); }
+        try { window.buildKanbanColumns(window._currentViewKey || DEFAULT_KANBAN_VIEW); }
         catch (e) { console.warn('[loadLeads] buildKanbanColumns threw:', e.message); }
       }
       const leads = Array.isArray(window._leads) ? window._leads : [];
