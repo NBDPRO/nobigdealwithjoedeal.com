@@ -54,6 +54,65 @@
     return '';
   }
 
+  // ── After signing (homeowner money audit 2026-10-07) ─────────────
+  // Pure string builders, lifted and run by
+  // tests/portal-after-signing-2026-10-07.test.js. Every value is escaped.
+
+  // The server's job status ({ key, label, tone }) as the Status pill. null →
+  // '' (not signed: the signature pill decides).
+  function jobStatusPill(js) {
+    if (!js || typeof js !== 'object' || !js.label) return '';
+    const tone = js.tone === 'green' ? ' pill-green' : (js.tone === 'orange' ? ' pill-orange' : '');
+    return '<span class="pill' + tone + '" data-job-status="' + esc(js.key || '') + '">' + esc(js.label) + '</span>';
+  }
+
+  // The Balance card's pay line (review R6-2-6): Pay Now only with a link the
+  // server says charges what is due now; a sent link that no longer fits
+  // (the spent deposit link) → "on its way"; no link ever sent → ask the rep.
+  function balancePayActionHtml(b) {
+    const url = b && safeUrl(b.stripePaymentLink);
+    if (url) return '<a class="btn portal-pay-btn" href="' + esc(url) + '" target="_blank" rel="noopener">Pay Now →</a>';
+    if (b && b.linkPending) return '<p class="portal-pay-wait" data-link-pending>Your balance link is on its way. Your rep will send it, or reply to any message from them to ask for it.</p>';
+    return '<p class="portal-pay-wait">Ask your rep for a payment link to pay online.</p>';
+  }
+
+  // One step list for the bar, the "N of M done" count and "See all M steps"
+  // (audit M2): a skipped step (no warranty paperwork on a repair) is not
+  // shown, so nothing counts it in one place and not the other.
+  function _visibleProgressSteps(steps) {
+    return (Array.isArray(steps) ? steps : []).filter(function (s) { return s && s.state !== 'skipped'; });
+  }
+
+  function paidSoFarCents(paid) {
+    const n = paid && Number(paid.totalPaidCents);
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+  }
+
+  function fmtCents(c) {
+    const n = Math.round(Number(c) || 0);
+    return '$' + (n / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // "Payments" card (audit M3): each payment's date, amount and method, and
+  // the total paid. '' when nothing has been paid.
+  function paymentsCardHtml(paid) {
+    const list = paid && Array.isArray(paid.payments) ? paid.payments : [];
+    if (!list.length) return '';
+    const rows = list.map(function (p) {
+      const when = _milestoneDateLabel(p && p.date) || '';
+      return '<li class="paid-row">' +
+          '<div class="paid-info"><div class="paid-amount">' + esc(fmtCents(p && p.amountCents)) + '</div>' +
+          '<div class="paid-meta">' + esc([when, p && p.method].filter(Boolean).join(' · ')) + '</div></div>' +
+          (p && p.invoiceNumber ? '<div class="paid-ref">' + esc('Invoice ' + p.invoiceNumber) + '</div>' : '') +
+        '</li>';
+    }).join('');
+    return '<div class="card" data-portal-payments>' +
+        '<div class="card-label">✓ Payments</div>' +
+        '<div class="card-title">' + esc(fmtCents(paidSoFarCents(paid))) + ' paid</div>' +
+        '<ul class="paid-list">' + rows + '</ul>' +
+      '</div>';
+  }
+
   function getToken() {
     try {
       const p = new URLSearchParams(location.search);
@@ -777,8 +836,11 @@
       const p = view.progress;
       const copy = p.copy || {};
       const idx = p.currentIndex >= 0 ? p.currentIndex : 0;
-      const steps = _progressSteps(p.milestones, idx);
-      const total = typeof p.total === 'number' ? p.total : steps.length;
+      // One step list for the bar, the count and "See all N steps" (audit M2,
+      // 2026-10-07: "7 of 8 done" sat beside "See all 9 steps" because a
+      // skipped Warranty step was listed but not counted).
+      const steps = _visibleProgressSteps(_progressSteps(p.milestones, idx));
+      const total = steps.length;
       const doneCount = typeof p.doneCount === 'number' ? p.doneCount : idx;
       const blurb = _progressBlurb(p.currentBlurb, p.scheduledDate);
       const countText = copy.doneCount ? _fillCopy(copy.doneCount, { done: doneCount, total: total }) : '';
@@ -868,7 +930,7 @@
           otherHtml +
           nextHtml +
           '<details class="progress-all">' +
-            '<summary>' + esc(_fillCopy(copy.showAll || '', { total: steps.length })) + '</summary>' +
+            '<summary>' + esc(_fillCopy(copy.showAll || '', { total: total })) + '</summary>' +
             list +
           '</details>' +
         '</div>'
@@ -888,7 +950,10 @@
       // Audit batch 7: the homeowner is looking at the estimate.
       // Capture as estimate_view; resourceId = estimate doc id.
       if (e.id) _emitAuditEvent('estimate_view', e.id);
-      const sig = signaturePill(e.signatureStatus || 'none');
+      // The job's own status once it is signed by any path (deal room,
+      // e-sign, a contract that moved the job — audit M1): never "Sent to
+      // you" after signing. Not signed → the signature pill as before.
+      const sig = jobStatusPill(e.jobStatus) || signaturePill(e.signatureStatus || 'none');
       const hasTotal = e.grandTotal != null && !isNaN(Number(e.grandTotal));
       const signedHref = safeUrl(e.signedDocumentUrl);
       // Audit batch 7 gap fix: id lets wireDocumentLinks() below bind a
@@ -914,9 +979,11 @@
               // stamped by the rep's builder and validated server-side
               // (functions/deposit-plan-view.js) — the same words the quote,
               // contract and invoice print. Absent on older estimates.
+              // Once money has landed the line says what was PAID, not the
+              // stale "Due at signing" (audit M3); the terms sentence stays.
               ((e.depositPlan && e.depositPlan.summary)
-                ? '<div class="kv-key" style="margin-top:12px;">' + esc(e.depositPlan.label || 'Due at signing') + '</div>' +
-                  '<div class="kv-val" data-portal-deposit><strong>' + esc(e.depositPlan.valueText || '') + '</strong></div>' +
+                ? '<div class="kv-key" style="margin-top:12px;">' + esc(paidSoFarCents(view.paid) > 0 ? 'Paid so far' : (e.depositPlan.label || 'Due at signing')) + '</div>' +
+                  '<div class="kv-val" data-portal-deposit><strong>' + esc(paidSoFarCents(view.paid) > 0 ? fmtCents(paidSoFarCents(view.paid)) : (e.depositPlan.valueText || '')) + '</strong></div>' +
                   '<div class="kv-val" style="margin-top:4px;color:var(--muted);font-size:13px;line-height:1.5;">' + esc(e.depositPlan.summary) + '</div>'
                 : '') +
               // The itemized scope. /pro/estimate-view.html is a complete,
@@ -1052,9 +1119,9 @@
       const amount = (view.balance.amountCents / 100).toLocaleString(undefined, {
         style: 'currency', currency: 'USD'
       });
-      const payAction = view.balance.stripePaymentLink
-        ? '<a class="btn" style="margin-top:12px;" href="' + esc(safeUrl(view.balance.stripePaymentLink)) + '" target="_blank" rel="noopener">Pay Now →</a>'
-        : '<p style="color:var(--muted);margin:12px 0 0;">Ask your rep for a payment link to pay online.</p>';
+      // R6-2-6: a link that no longer charges what is due now (the spent
+      // deposit link) is never offered — "on its way" instead.
+      const payAction = balancePayActionHtml(view.balance);
       // Bank payment (ACH) is on the same Stripe page as the card — say so,
       // only beside a real link. Zelle: the company's Zelle pair from the
       // server (null while the Kentucky hold applies, or none set).
@@ -1081,6 +1148,10 @@
         '</div>'
       );
     }
+
+    // ── Payments (audit M3, 2026-10-07): what was paid, when and how ──
+    const paidHtml = paymentsCardHtml(view.paid);
+    if (paidHtml) parts.push(paidHtml);
 
     // ── Booking embed ──
     // The rep's calendar can carry more than one visit type (see
