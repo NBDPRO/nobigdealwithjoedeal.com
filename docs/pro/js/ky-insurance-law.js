@@ -110,7 +110,8 @@
     payLinkHeld:
       'Online payment link withheld: Kentucky insurance job (KRS 367.626). Record the date the carrier\'s written coverage ' +
       'decision arrived on the lead (Claim section → "Carrier decision"); the link can be created 5 business days ' +
-      'later. Emergency tarp or repair invoices can be marked Emergency and billed now (KRS 367.626(3)).',
+      'later, and never before the homeowner\'s 3-business-day right to cancel the contract has ended. Emergency tarp ' +
+      'or repair invoices can be marked Emergency and billed now (KRS 367.626(3)).',
     aobRetired:
       'The Assignment of Benefits and the Direction to Pay have been retired. Contracts carry a plain payment clause; ' +
       'nothing moves any of the homeowner\'s policy rights to you.',
@@ -446,24 +447,64 @@
     return today != null && today > end;
   }
   /**
-   * payLinkHold(lead, invoice, now, tz) → { held, releaseDate }
+   * The last day of the homeowner's 3-business-day right to cancel recorded
+   * for this lead (UTC-midnight ms), or null when no signing is on record.
+   * lead.cancelBy is what a signing in the app stamps; contractSignedAt is a
+   * second source (a hand-entered signing, or a stamp that failed). When both
+   * exist the LATER one wins — it can only hold the money longer.
+   */
+  function _leadCancelByDay(l, tz) {
+    if (!l) return null;
+    var a = _isoToDay(l.cancelBy);
+    var signed = l.contractSignedAt;
+    if (signed && typeof signed === 'object' && typeof signed.toDate === 'function') {
+      try { signed = signed.toDate(); } catch (_) { signed = null; }
+    }
+    var b = (signed != null && signed !== '') ? cancelByDay(signed, tz) : null;
+    if (a == null) return b;
+    if (b == null) return a;
+    return Math.max(a, b);
+  }
+  /**
+   * payLinkHold(lead, invoice, now, tz) → { held, releaseDate, cancelBy }
    * The online payment link for an invoice is HELD when the job is a Kentucky
    * insurance job (classified from the lead; an invoice's kyInsuranceHold
-   * flag can only add the hold) and the window after the carrier's written
-   * decision (lead.carrierDecisionAt) has not run. An invoice marked
-   * emergencyServices (KRS 367.626(3)) is never held.
+   * flag can only add the hold) until the LATER of:
+   *   - the window after the carrier's written decision (lead.carrierDecisionAt,
+   *     5 Kentucky business days, KRS 367.626), and
+   *   - the homeowner's 3-business-day right to cancel the contract
+   *     (lead.cancelBy / contractSignedAt, 16 CFR 429) has ended.
+   * Jo, 2026-10-08 ("play it safer than sorry"): a decision recorded more than
+   * 5 business days before the signing used to release the link INSIDE the
+   * cancel window. releaseDate is the first day money may be asked for ('' when
+   * the decision date is not recorded yet). An invoice marked
+   * emergencyServices (KRS 367.626(3)) is never held. Cash jobs are never held.
    */
   function payLinkHold(lead, invoice, now, tz) {
     var inv = invoice || {};
-    if (inv.emergencyServices === true) return { held: false, releaseDate: '' };
+    if (inv.emergencyServices === true) return { held: false, releaseDate: '', cancelBy: '' };
     var l = lead || null;
     var ky = !!(l && classify({
       address: l.address || '', zip: l.zip || '', state: l.state || '', jobType: l.jobType,
       claimNumber: l.claimNumber, insuranceCarrier: l.insuranceCarrier, insCarrier: l.insCarrier
     }).kyInsurance);
-    if (!ky && inv.kyInsuranceHold !== true) return { held: false, releaseDate: '' };
+    if (!ky && inv.kyInsuranceHold !== true) return { held: false, releaseDate: '', cancelBy: '' };
     var decision = l ? l.carrierDecisionAt : null;
-    return { held: !kyPaymentsReleased(decision, now, tz), releaseDate: kyReleaseDateText(decision, tz) };
+    var at = now == null ? new Date() : now;
+    var cxlDay = _leadCancelByDay(l, tz);
+    var cancelOpen = false;
+    if (cxlDay != null) {
+      var today = toUtcDay(at, tz);
+      cancelOpen = today == null || today <= cxlDay;
+    }
+    var decisionEnd = kyWindowEnd(decision, tz);
+    var releaseDate = '';
+    if (decisionEnd != null) releaseDate = formatDay(Math.max(decisionEnd, cxlDay == null ? decisionEnd : cxlDay) + 86400000);
+    return {
+      held: !kyPaymentsReleased(decision, at, tz) || cancelOpen,
+      releaseDate: releaseDate,
+      cancelBy: cxlDay == null ? '' : isoDay(cxlDay)
+    };
   }
 
   /**
@@ -860,6 +901,33 @@
     var b = /data-nbd-cancel-by="(\d{4}-\d{2}-\d{2})"/.exec(m[0]);
     return b ? b[1] : '';
   }
+  /**
+   * signingCancelBy(html, when, tz) → { cancelBy, signedOn, stale }
+   * What to RECORD for a contract signed at `when` (2026-10-08, review R4 D9):
+   *   cancelBy  ALWAYS the 3rd business day after the signing day, counted in
+   *             the packet's own zone when `html` carries a packet (else `tz`,
+   *             else America/New_York) — never read back from a packet, which
+   *             may still carry the date the contract was generated.
+   *   signedOn  the signing day ("YYYY-MM-DD") in that zone.
+   *   stale     `html` carries a packet that is NOT dated the signing day (the
+   *             re-date failed): the homeowner's paper is wrong, and the rep
+   *             must give them a new Notice of Cancellation.
+   * No packet → stale false.
+   */
+  function signingCancelBy(html, when, tz) {
+    var blocks = _str(html).match(PACKET_RE) || [];
+    var opts = blocks.length ? _packetOpts(blocks[0]) : null;
+    var zone = (opts && _validZone(opts.timeZone)) ? opts.timeZone : (_validZone(tz) ? tz : DEFAULT_TIME_ZONE);
+    var at = (when == null || when === '') ? new Date() : when;
+    var want = cancelBy(at, zone);
+    var day = toUtcDay(at, zone);
+    var stale = false;
+    for (var i = 0; i < blocks.length; i++) {
+      var b = /data-nbd-cancel-by="([^"]*)"/.exec(blocks[i]);
+      if (!b || b[1] !== want || (blocks[i].match(/data-nbd-noc="ftc"/g) || []).length !== 2) stale = true;
+    }
+    return { cancelBy: want, signedOn: day == null ? '' : isoDay(day), stale: stale };
+  }
   /** The HTML with every packet removed (for comparing a signed copy to its original). */
   function stripCancelPacket(html) {
     return _str(html).replace(PACKET_RE, '');
@@ -951,6 +1019,7 @@
     kyPaymentsReleased: kyPaymentsReleased,
     kyReleaseDateText: kyReleaseDateText,
     payLinkHold: payLinkHold,
+    signingCancelBy: signingCancelBy,
     invoiceOverdue: invoiceOverdue,
     payUrlOf: payUrlOf,
     payUrlUnlessHeld: payUrlUnlessHeld,
