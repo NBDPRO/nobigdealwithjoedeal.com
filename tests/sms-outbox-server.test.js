@@ -211,6 +211,8 @@ function makeWorld(opts) {
           events.push('claim:' + ref.path);
         },
         set: (ref, data) => { docs.set(ref.path, resolveTs(data)); },
+        // onAiDraftApproved's send claim on the draft (R6-3-3).
+        update: (ref, data) => { docs.set(ref.path, Object.assign({}, docs.get(ref.path) || {}, resolveTs(data))); },
       };
       return fn(tx);
     },
@@ -1453,6 +1455,7 @@ const logRow = (over) => Object.assign({
   {
     const ctx = load({});
     const approved = { status: 'approved', customerPhone: PHONE_TYPED, draftText: 'Sure, tomorrow works.', userId: UID, companyId: 'co-1', approvedBy: UID };
+    ctx.w.docs.set('leads/lead-1/ai_drafts/d1', Object.assign({}, approved)); // the send claim reads it (R6-3-3)
     await ctx.exported.onAiDraftApproved.__handler({
       params: { leadId: 'lead-1', draftId: 'd1' },
       data: { before: { data: () => ({ status: 'pending' }) }, after: { data: () => approved } },

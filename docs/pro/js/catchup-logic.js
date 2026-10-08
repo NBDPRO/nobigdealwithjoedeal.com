@@ -178,8 +178,15 @@
    * No figure on file, several open invoices, or money already on the invoice
    * → { ok: false, reason } and the card offers Record payment instead.
    */
-  function paidInFullPlan(target) {
+  function paidInFullPlan(target, opts) {
     var t = target || {};
+    // Money already recorded for this customer (a Stripe deposit the ledger
+    // booked after the deck loaded, a check on another device): "paid in
+    // full" would add the whole total on top of it (R6-2-8, the reverse
+    // order). The deck only asks when nothing is collected; the write
+    // re-checks, fresh.
+    var o = opts || {};
+    if (Number(o.collectedCents) > 0) return { ok: false, reason: 'already_collected' };
     if (t.kind === 'existing') {
       var live = t.invoices || [];
       if (live.length !== 1) return { ok: false, reason: 'several_invoices' };
@@ -201,6 +208,44 @@
     return { ok: false, reason: 'no_target' };
   }
   var PLAN_BASIS_LABELS = { invoice: 'the open invoice', estimate: 'the estimate', jobValue: 'the job value on file' };
+
+  function c100(v) { return Math.round((parseFloat(v) || 0) * 100); }
+  /**
+   * Cents already recorded on a customer's invoices (any job): per invoice the
+   * larger of amountPaid and its payments[] sum. Deleted / void invoices do
+   * not count. The fresh re-check behind paidInFullPlan's already_collected.
+   */
+  function collectedCentsOf(invoices) {
+    return (invoices || []).reduce(function (s, inv) {
+      if (!inv || inv.deleted === true || inv.deletedAt) return s;
+      var st = String(inv.status || '').toLowerCase();
+      if (st === 'void' || st === 'voided' || st === 'cancelled' || st === 'canceled') return s;
+      var ledger = (Array.isArray(inv.payments) ? inv.payments : []).reduce(function (t, p) { var a = c100(p && p.amount); return t + (a > 0 ? a : 0); }, 0);
+      return s + Math.max(ledger, Math.max(0, c100(inv.amountPaid)));
+    }, 0);
+  }
+
+  /**
+   * Undo of a catch-up payment, refused when the invoice has taken Stripe
+   * money since (R6-2-8): the ledger may have replaced part of the catch-up
+   * entry with a real payment, and restoring / deleting the invoice would
+   * wipe that payment out. current = the invoice as it is now (null = gone);
+   * entry = the log entry. → '' (ok) or the reason to show.
+   */
+  function paymentUndoBlocked(current, entry) {
+    if (!current || !entry) return '';
+    var stripeKeys = function (inv) {
+      var out = {};
+      (Array.isArray(inv && inv.payments) ? inv.payments : []).forEach(function (p) {
+        if (p && (p.stripeRef || p.paymentIntentId || p.source === 'stripe_ledger')) out[p.stripeRef || p.paymentIntentId || 'stripe'] = 1;
+      });
+      return out;
+    };
+    var now = stripeKeys(current);
+    var then = entry.created ? {} : stripeKeys(entry.restore || {});
+    var added = Object.keys(now).some(function (k) { return !then[k]; });
+    return added ? 'A Stripe payment was recorded on this invoice since — undo would erase it. Fix the invoice itself instead.' : '';
+  }
 
   var PAID_STAGES = ['final_payment', 'deductible_collected', 'install_complete', 'final_photos', 'closed'];
   /**
@@ -317,6 +362,7 @@
     paidInFullPlan: paidInFullPlan, defaultPaymentYmd: defaultPaymentYmd, suggestCloseYmd: suggestCloseYmd,
     dateFromYmd: dateFromYmd, ymdOf: ymdOf,
     leadUndoPatch: leadUndoPatch, pick: pick, paymentUndoFrom: paymentUndoFrom, changedInvoiceId: changedInvoiceId,
+    collectedCentsOf: collectedCentsOf, paymentUndoBlocked: paymentUndoBlocked,
     pushLog: pushLog, lastEntry: lastEntry, popLog: popLog
   };
   if (root) root.NBDCatchUpLogic = api;
