@@ -106,4 +106,84 @@ function tokenMatchesLead(tok, lead) {
   return true;
 }
 
-module.exports = { canManageLead, portalTenant, recordInPortalTenant, tokenMatchesLead };
+// ─────────────────────────────────────────────────────────────────────────
+// 2026-10-08 (review R3 item 3) — ONE token check for every homeowner-portal
+// endpoint.
+//
+// Only getHomeownerPortalView checked the whole link: expiry, the replay cap
+// (uses >= maxUses) and the lead match (tokenMatchesLead). Six others —
+// getPortalDocumentHtml, uploadHomeownerPhoto, requestCallback,
+// reportWarrantyClaim, submitCustomerRating, sendPortalMessage — checked
+// expiry alone, so a used-up link, or an old tenant's link to a lead id that
+// another tenant has since re-created, kept opening documents and writing
+// photos, tasks, claims, ratings and messages. Each endpoint wrote its own
+// copy of the check; these two functions are now the only copy.
+// ─────────────────────────────────────────────────────────────────────────
+
+const DEAD_LINK = { status: 410, code: 'expired', error: 'This link has expired. Contact your rep for a new one.' };
+
+/**
+ * Token-only half (no lead read needed — lets an endpoint refuse a dead link
+ * before it spends reads). Revocation moves expiresAt into the past AND stamps
+ * revokedAt; either alone refuses.
+ *
+ * @param {object|null} tok   portal_tokens/{token} data (null = no such doc)
+ * @param {number}      nowMs
+ * @returns {null|{status:number, code:string, error:string}} null = allowed
+ */
+function portalTokenRefusal(tok, nowMs) {
+  if (!tok || typeof tok.leadId !== 'string' || !tok.leadId || tok.leadId.includes('/')) {
+    return { status: 404, code: 'unknown_link', error: 'Invalid link' };
+  }
+  const exp = tok.expiresAt && typeof tok.expiresAt.toMillis === 'function' ? tok.expiresAt.toMillis() : null;
+  if (tok.revokedAt || (exp !== null && exp < nowMs)) return Object.assign({}, DEAD_LINK);
+  if (typeof tok.maxUses === 'number' && (Number(tok.uses) || 0) >= tok.maxUses) {
+    return { status: 429, code: 'too_many_opens', error: 'This link has been opened too many times. Ask your rep for a fresh one.' };
+  }
+  return null;
+}
+
+/**
+ * The full check: the token half, then the lead it names must exist and be
+ * held by the tenant the token was minted for (tokenMatchesLead).
+ *
+ * @param {object|null} tok
+ * @param {object|null} lead  leads/{tok.leadId} data (null = no such doc)
+ * @param {number}      nowMs
+ * @returns {null|{status:number, code:string, error:string}}
+ */
+function portalLinkRefusal(tok, lead, nowMs) {
+  const t = portalTokenRefusal(tok, nowMs);
+  if (t) return t;
+  if (!lead || !tokenMatchesLead(tok, lead)) {
+    return { status: 404, code: 'project_missing', error: 'Project not found' };
+  }
+  return null;
+}
+
+/**
+ * Does this getHomeownerPortalView request spend one of the link's uses?
+ *
+ * The page polls every 30s while the tab is in front, and a poll used to be
+ * free on the client's say-so (`poll: true`) — which also skipped the cap
+ * check, so a used-up link stayed readable forever by polling, and any caller
+ * could read without ever spending a use. Now every request is cap-checked,
+ * and a poll is free only inside a session: within POLL_SESSION_MS of the
+ * last counted open (tok.lastOpenAt). A tab left open overnight, or a
+ * `poll: true` sent with no recent open, spends one use and starts a new
+ * session. So an open tab costs at most one use per 12 hours (polls inside a
+ * session stay free, as before), and polling alone can no longer read a link
+ * without spending its budget.
+ */
+const POLL_SESSION_MS = 12 * 60 * 60 * 1000;
+function viewCountsAsOpen(tok, isPoll, nowMs) {
+  if (!isPoll) return true;
+  const t = tok && tok.lastOpenAt;
+  const last = t && typeof t.toMillis === 'function' ? t.toMillis() : null;
+  return last === null || nowMs - last > POLL_SESSION_MS || last > nowMs + 60_000;
+}
+
+module.exports = {
+  canManageLead, portalTenant, recordInPortalTenant, tokenMatchesLead,
+  portalTokenRefusal, portalLinkRefusal, viewCountsAsOpen, POLL_SESSION_MS,
+};
