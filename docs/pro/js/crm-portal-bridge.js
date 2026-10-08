@@ -821,7 +821,25 @@ window._repBookingUrl = function () {
   return 'https://cal.com/nobigdeal/roof-inspection';
 };
 
-window.sendBookingSMS = function(leadId, phone, firstName) {
+// R6-3-2 (2026-10-07): the server's "ok to text?" (phone-share.js checkText →
+// phoneTextAction: STOP register, Do Not Text list, consent, texting switch,
+// 8am–9pm homeowner time) before Messages opens with a text written in. A
+// "no" — or a check that can't run — is shown to the rep with the reason, and
+// nothing opens. → Promise<boolean>.
+async function _okToTextFromPhone(leadId, phone) {
+  const PS = window.NBDPhoneShare;
+  let chk = null;
+  try {
+    chk = (PS && typeof PS.checkText === 'function') ? await PS.checkText({ phone, leadId }) : null;
+  } catch (_) { chk = null; }
+  if (chk && chk.ok === true) return true;
+  if (typeof showToast === 'function') {
+    showToast((chk && chk.reason) || 'Couldn’t check whether this customer can be texted — nothing was sent. Reload and try again.', 'error');
+  }
+  return false;
+}
+
+window.sendBookingSMS = async function(leadId, phone, firstName) {
   const bookingUrl = window._repBookingUrl();
   // _repBookingUrl now returns '' for a tenant with no calendar configured
   // (it used to hand back the platform owner's). Sending "Pick a time here: "
@@ -839,12 +857,13 @@ window.sendBookingSMS = function(leadId, phone, firstName) {
   const _b = (window._brand && window._brand()) || {};
   const signOff = _b.smsSignOff || ((!_b.legalName || _b.legalName === 'No Big Deal Home Solutions') ? 'Joe from No Big Deal Roofing' : _b.legalName);
   const body = encodeURIComponent(`Hey${firstName ? ' ' + firstName : ''}, this is ${signOff}! I'd love to set up a free roof inspection at your convenience. Pick a time that works for you here: ${bookingUrl}`);
+  if (!(await _okToTextFromPhone(leadId, phone))) return;
   window.open(`sms:${cleanPhone}?body=${body}`, '_self');
 };
 
 // ── Follow-Up SMS Reminder ─────────────────────
 // Quick SMS from notification or follow-up alert
-window.sendFollowUpSMS = function(leadId) {
+window.sendFollowUpSMS = async function(leadId) {
   const lead = (window._leads || []).find(l => l.id === leadId);
   if (!lead || !lead.phone) {
     if (typeof showToast === 'function') showToast('No phone number on file for this lead', 'error');
@@ -866,6 +885,7 @@ window.sendFollowUpSMS = function(leadId) {
   const body = encodeURIComponent(
     `Hi${firstName ? ' ' + firstName : ''}${intro}. Just following up on your project — wanted to check in and see if you have any questions.${bookingLine}`
   );
+  if (!(await _okToTextFromPhone(leadId, lead.phone))) return;
   window.open(`sms:${cleanPhone}?body=${body}`, '_self');
 };
 

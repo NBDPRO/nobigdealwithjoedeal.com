@@ -224,6 +224,11 @@ function smsNoteText(kind, body) {
   }
   if (kind === 'start') return '💬 Replied ' + cleanBody(body, 20).trim().toUpperCase() + ' to the NBD text line — texting is back ON for this number.';
   if (kind === 'help') return '💬 Replied HELP to the NBD text line (Twilio sent the standard help reply).';
+  // R6-3-1: not an opt-out (nothing recorded) — a person decides.
+  if (kind === 'possible_stop') {
+    return '⚠️ May be asking to stop texting — read this before anyone texts back; if they meant stop, mark the number Do Not Text. '
+      + 'Text from customer: ' + cleanBody(body);
+  }
   return '💬 Text from customer: ' + cleanBody(body);
 }
 
@@ -243,9 +248,9 @@ function leadNote({ leadId, userId, kind, body, messageSid, ts }) {
 }
 
 /** Agent inbox item for a text no customer matches. Last 4 digits ONLY. */
-function unknownTextInboxItem({ ownerUid, from, body, messageSid, ts }) {
+function unknownTextInboxItem({ ownerUid, from, body, messageSid, ts, possibleStop }) {
   const l4 = last4(from) || '????';
-  return {
+  const item = {
     companyId: ownerUid,
     bot: 'NBD text line',
     botId: 'twilio_line',
@@ -261,20 +266,27 @@ function unknownTextInboxItem({ ownerUid, from, body, messageSid, ts }) {
     source: 'twilio_line',
     createdAt: ts,
   };
+  if (possibleStop) {
+    item.title = '⚠️ Text from an unknown number — may be asking to stop';
+    item.possibleStop = true;
+  }
+  return item;
 }
 
-function bellForText({ ownerUid, userId, lead, leadId, body, from, ts }) {
+function bellForText({ ownerUid, userId, lead, leadId, body, from, ts, possibleStop }) {
   if (leadId) {
     const who = lead ? (((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || 'a customer') : 'a customer';
     return {
-      userId: userId || ownerUid, companyId: ownerUid, type: 'incoming_sms', priority: 'high', leadId,
-      title: '💬 Text from ' + who, message: cleanBody(body, PREVIEW_CAP),
+      userId: userId || ownerUid, companyId: ownerUid,
+      type: possibleStop ? 'sms_possible_stop' : 'incoming_sms', priority: 'high', leadId,
+      title: possibleStop ? '⚠️ ' + who + ' may be asking you to stop texting' : '💬 Text from ' + who,
+      message: cleanBody(body, PREVIEW_CAP),
       read: false, dismissed: false, createdAt: ts,
     };
   }
   return {
     userId: ownerUid, companyId: ownerUid, type: 'agent_inbox', priority: 'normal', leadId: null,
-    title: '💬 Text from an unknown number',
+    title: possibleStop ? '⚠️ Text from an unknown number — may be asking to stop' : '💬 Text from an unknown number',
     message: 'From a number ending in ' + (last4(from) || '????') + ' — it is in your Agent inbox.',
     read: false, dismissed: false, createdAt: ts,
   };

@@ -505,13 +505,28 @@ window._sharePortalLink = async function (leadId) {
   const lead = (window._leads || []).find(l => l.id === leadId);
   if (!lead) { if (typeof showToast==='function') showToast('Lead not found','error'); return; }
   try {
+    // R6-3-2 (2026-10-07): the server's "ok to text?" (phone-share.js
+    // checkText → phoneTextAction: STOP register, Do Not Text list, consent,
+    // texting switch, 8am–9pm homeowner time) is asked BEFORE Messages opens
+    // with the link written in. Started now so it runs while the link mints.
+    const PS = window.NBDPhoneShare;
+    const textCheck = lead.phone
+      ? ((PS && typeof PS.checkText === 'function')
+        ? PS.checkText({ phone: lead.phone, leadId })
+        : Promise.resolve({ ok: false, reason: 'Couldn’t check whether this customer can be texted — reload the page and try again.' }))
+      : null;
     const url = await window._mintPortalUrl(leadId);
     // Try clipboard first — falls back to prompt() if denied.
     try { await navigator.clipboard.writeText(url); } catch(e) {}
     if (typeof showToast==='function') showToast('Portal link copied to clipboard', 'success');
     // Offer SMS shortcut if phone on file.
     let usedChannel = 'copy';
-    if (lead.phone) {
+    const chk = textCheck ? await textCheck : null;
+    if (lead.phone && (!chk || chk.ok !== true)) {
+      // Blocked: say why. The link is on the clipboard; no text was opened.
+      const why = (chk && chk.reason) || 'Couldn’t check whether this customer can be texted — nothing was sent.';
+      if (typeof showToast==='function') showToast(why + ' The portal link is copied — no text was opened.', 'error');
+    } else if (lead.phone) {
       const cleanPhone = String(lead.phone).replace(/\D/g, '');
       const first = lead.firstName || lead.fname || '';
       const body = encodeURIComponent(
