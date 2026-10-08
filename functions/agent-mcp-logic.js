@@ -96,7 +96,7 @@ const TOOLS = {
     inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 1, maximum: 730, description: 'Only jobs finished in the last N days (default 120)' }, limit: { type: 'integer', minimum: 1, maximum: MAX_LIST } }, additionalProperties: false },
   },
   lead_sources: {
-    description: 'Where customers came from over the last N days (default 90): leads per source (Door Knock, Storm Canvass, Referral, Website, Google, Thumbtack…), how many are won / lost / still open, win rate, and marketing spend per source with cost per lead where expenses are tagged. Counts only — no customer names.',
+    description: 'Where customers came from over the last N days (default 90): leads per source (Door Knock, Storm Canvass, Referral, Website, Google, Thumbtack…), how many are won (a signed contract, in production or finished) / lost / still open, win rate, and marketing spend per source with cost per lead where expenses are tagged. Counts only — no customer names.',
     inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 7, maximum: 730 } }, additionalProperties: false },
   },
   job_profit: {
@@ -536,8 +536,10 @@ function leadSources(leads, expenses, nowMs, days) {
     const t = ms(l.createdAt) || ms(l.updatedAt);
     if (!t || t < cut) return;
     const r = row(String(l.source || '').trim() || 'Unknown'); r.leads++;
-    const role = roleOf(l);
-    if (role === 'won') r.won++; else if (role === 'lost') r.lost++; else r.open++;
+    // Won = THE sale test (stage-roles.js isSale: won, in production or
+    // Contract Signed), the same set as the CRM's lead-source table — the won
+    // role alone counted a signed contract as open.
+    if (_SRK.isSale(l)) r.won++; else if (roleOf(l) === 'lost') r.lost++; else r.open++;
   });
   (expenses || []).forEach((e) => {
     if (!e || !e.marketingSource || e.deleted === true) return;
@@ -554,21 +556,48 @@ function leadSources(leads, expenses, nowMs, days) {
   return { days: d, sources: out, note: 'win_rate = won ÷ decided (won + lost). Spend counts expenses tagged with a marketing source.' };
 }
 const DIRECT = 'direct';
-function jobProfit(leads, invoices, expenses, nowMs, args, tz) {
+// jobsByLead (optional, { leadId: [jobs] }): the finished jobs are JOB
+// records (jobs-logic.js jobRecords — the rule every other money surface
+// uses), so a repeat customer whose card moved on to a signed second job
+// still shows the finished first job (review R6-2-10). An invoice or expense
+// that names its job (jobId) lands on that job; one that names none is the
+// customer's and lands on one finished job of theirs (the card's own job when
+// it is finished, else the latest), so nothing is counted twice.
+function jobProfit(leads, invoices, expenses, nowMs, args, tz, jobsByLead) {
   const a = args || {};
   const cut = nowMs - (Math.min(Math.max(Math.floor(Number(a.days)) || 180, 7), 730)) * 86400000;
+  const recs = jobRecords(activeLeads(leads), jobsByLead);
+  const jobOf = (r) => r._jobId || r.activeJobId || null;
+  const known = {};
+  recs.forEach((r) => { const j = jobOf(r); if (j) known[r.id + '/' + j] = 1; });
   const got = {}, cost = {};
+  const add = (map, leadId, jobId, cents) => {
+    const k = (jobId && known[leadId + '/' + jobId]) ? leadId + '/' + jobId : leadId;
+    map[k] = (map[k] || 0) + cents;
+  };
   (invoices || []).forEach((inv) => {
     if (!inv || !inv.leadId || inv.deleted === true || inv.e2eTestData) return;
-    paymentsOf(inv).forEach((p) => { got[inv.leadId] = (got[inv.leadId] || 0) + Math.round(p.amount * 100); });
+    paymentsOf(inv).forEach((p) => add(got, inv.leadId, inv.jobId, Math.round(p.amount * 100)));
   });
   (expenses || []).forEach((e) => {
     if (!e || !e.leadId || e.deleted === true || e.costType !== DIRECT) return;
-    cost[e.leadId] = (cost[e.leadId] || 0) + (Number(e.amountCents) || 0) + (Number(e.taxCents) || 0);
+    add(cost, e.leadId, e.jobId, (Number(e.amountCents) || 0) + (Number(e.taxCents) || 0));
   });
-  const jobs = activeLeads(leads).filter((l) => roleOf(l) === 'won' && completedMs(l) >= cut).map((l) => {
-    const c = got[l.id] || 0, k = cost[l.id] || 0;
-    return { lead_id: l.id, name: minimalLead(l).name, finished: nyDay(completedMs(l), tz),
+  // A non-card job's finish date is its own (stage start / close), not the
+  // customer's latest edit.
+  const finishedMs = (r) => (r._jobId ? (ms(r.stageStartedAt) || ms(r.closedAt) || completedMs(r)) : completedMs(r));
+  const done = recs.filter((r) => roleOf(r) === 'won' && finishedMs(r) >= cut);
+  const home = {};
+  done.forEach((r) => {
+    const h = home[r.id];
+    if (!h || (h._jobId && (!r._jobId || finishedMs(r) > finishedMs(h)))) home[r.id] = r;
+  });
+  const jobs = done.map((r) => {
+    const j = jobOf(r), own = j ? r.id + '/' + j : null;
+    const shared = home[r.id] === r;
+    const c = (own ? got[own] || 0 : 0) + (shared ? got[r.id] || 0 : 0);
+    const k = (own ? cost[own] || 0 : 0) + (shared ? cost[r.id] || 0 : 0);
+    return { lead_id: r.id, job_id: j, name: minimalLead(r).name, finished: nyDay(finishedMs(r), tz),
       collected: c / 100, direct_costs: k / 100, profit: (c - k) / 100, margin_pct: c > 0 ? Math.round((c - k) / c * 100) : null,
       costs_logged: k > 0 };
   }).sort((x, y) => String(y.finished).localeCompare(String(x.finished))).slice(0, clampLimit(a.limit));

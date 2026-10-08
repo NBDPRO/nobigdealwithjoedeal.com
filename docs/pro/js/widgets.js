@@ -83,6 +83,16 @@ function _inPlay(l) {
   if (r === 'won' || r === 'lost' || r === 'job') return false;
   return !(typeof window.isJobStage === 'function' && window.isJobStage(_normStage(l)));
 }
+// A sale (booked): THE shared test, numbers-logic.js isSale — won, in
+// production, or Contract Signed. Without that module (a failed script load)
+// the same rule by hand.
+function _wgIsSale(l) {
+  const N = window.NBDNumbers;
+  if (N && typeof N.isSale === 'function') return N.isSale(l);
+  const r = _roleOf(l);
+  if (r === 'lost') return false;
+  return r === 'won' || r === 'job' || _normStage(l) === 'contract_signed';
+}
 // Display label for a lead's stage — never the raw key ("estimate_submitted").
 function _stageText(l) {
   const k = _normStage(l);
@@ -537,9 +547,11 @@ const WIDGETS = [
         const owner = l.userId || '(unknown)';
         if (!byRep[owner]) byRep[owner] = { name: '', rev: 0, deals: 0 };
         if (!byRep[owner].name && l.repName) byRep[owner].name = l.repName;
-        const role = l._stageRole
-          || (typeof window.stageRole === 'function' ? window.stageRole(l._stageKey || l.stage) : '');
-        if (role === 'won' || role === 'job') {
+        // Booked = THE sale test (numbers-logic.js isSale): won, in
+        // production, or Contract Signed — the same set as Home, Analytics,
+        // the kanban and crm_summary. Won/job roles alone left every signed
+        // contract out (review R6-2-11).
+        if (_wgIsSale(l)) {
           byRep[owner].deals++;
           byRep[owner].rev += _wgMoney(l.jobValue);
         }

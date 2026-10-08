@@ -121,7 +121,9 @@ ok('the customer page loads jobs-store.js, then customer-jobs.js (stage 2b)', /j
     ok('the KPI row, analytics, Home pipeline + leaderboard tiles, the leaderboard and the rep report use it',
       /var recs = _jobRecs\(leads\);/.test(read('analytics-kpi.js')) && (read('widgets.js').match(/NBDJobs\.recordsFor\(window\._leads/g) || []).length === 2
       && /NBDJobs\.recordsFor\(leads\)/.test(read('dashboard-api.js')) && /NBDJobs\.recordsFor\(leads\)/.test(read('rep-report-generator.js')));
-    ok('expenses-based margin stays per CUSTOMER (never counts one customer\'s costs per job)', /var wonCustomers = leads\.filter/.test(read('analytics-kpi.js')) && /wonCustomers\.forEach\(function \(l\) \{\s*var rev/.test(read('analytics-kpi.js')));
+    // Since review R6-2-12 (2026-10-07) the won JOBS are pooled per customer
+    // (the Money dashboard's rule) — behaviour: tests/dashboards-agree-r6-2026-10-07.test.js.
+    ok('expenses-based margin pools costs per CUSTOMER (never counts one customer\'s costs per job)', /var wonJobs = _jobRecs\(leads\)\.filter/.test(read('analytics-kpi.js')) && /wonOrder\.forEach\(function \(id\) \{\s*var dc = directByJob\[id\] \|\| 0;/.test(read('analytics-kpi.js')));
     ok('the money tiles repaint once the jobs have loaded', /window\.NBDJobs\.load\(\)[\s\S]{0,700}window\.renderKPIRow\(\)[\s\S]{0,200}window\.renderWidgetHome\(\)/.test(read('dashboard-bootstrap.module.js')));
   }
 

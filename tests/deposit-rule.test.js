@@ -286,9 +286,16 @@ const portalBlockM = PORTAL_SRC.match(/\n(\s*)\(\(e\.depositPlan && e\.depositPl
 const portalBlock = (() => {
   if (!portalBlockM) return null;
   const expr = portalBlockM[0].trim().replace(/ \+$/, '');
-  const ctx = { esc };
+  // 2026-10-07: once money has landed the line reads "Paid so far" from
+  // view.paid (portal-after-signing-2026-10-07.test.js runs that); here
+  // nothing is paid, so it is the deposit rule's own words.
+  const helpers = ['paidSoFarCents', 'fmtCents'].map((n) => {
+    const m = PORTAL_SRC.match(new RegExp('\\n  function ' + n + '\\([\\s\\S]*?\\n  \\}\\n'));
+    return m ? m[0] : '';
+  }).join('\n');
+  const ctx = { esc, view: { paid: null } };
   vm.createContext(ctx);
-  vm.runInContext('this.__card = function (e) { return ' + expr + '; };', ctx);
+  vm.runInContext(helpers + '\nthis.__card = function (e) { return ' + expr + '; };', ctx);
   return ctx.__card;
 })();
 

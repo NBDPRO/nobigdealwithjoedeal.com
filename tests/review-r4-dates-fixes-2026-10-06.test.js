@@ -338,7 +338,7 @@ console.log('R4-6-12 — bot tool dates in the company zone');
     !/toISOString\(\)\.slice\(0,\s*10\)/.test(src('functions/agent-mcp-logic.js')) && !/toISOString\(\)\.slice\(0,\s*10\)/.test(src('functions/agent-mcp.js')));
   const h = src('functions/agent-mcp.js');
   ok('handlers pass the key zone (estimates, post_job, job_profit, list_leads, overdue, lead_detail)',
-    /L\.estimatesStatus\([^;]*?Date\.now\(\),\s*tz\)/.test(h) && /L\.postJob\([^;]*?Date\.now\(\),\s*args,\s*tz\)/.test(h) && /L\.jobProfit\([^;]*?Date\.now\(\),\s*args,\s*tz\)/.test(h)
+    /L\.estimatesStatus\([^;]*?Date\.now\(\),\s*tz\)/.test(h) && /L\.postJob\([^;]*?Date\.now\(\),\s*args,\s*tz\)/.test(h) && /L\.jobProfit\([^;]*?Date\.now\(\),\s*args,\s*tz(?:,\s*jobsByLead)?\)/.test(h)
     && /L\.listLeadsPage\([^;]*?Date\.now\(\),\s*company,\s*tz\)/.test(h) && /L\.overdueFollowups\([^;]*?args\.limit,\s*tz\)/.test(h) && /L\.minimalLead\(lead,\s*tz\)/.test(h));
 }
 

@@ -665,19 +665,34 @@
       if (ed && ed.getMonth() === thisMonth && ed.getFullYear() === thisYear) expMonthCents += c;
       var sup = (e.supplier || '').trim() || 'Unknown';
       supplierCents[sup] = (supplierCents[sup] || 0) + c;
-      if (direct && e.leadId) directByJob[e.leadId] = (directByJob[e.leadId] || 0) + c;
+      // Job cost is tax-INCLUDED (amount + tax — you paid the tax to the
+      // supplier), the Money dashboard's and expenses.js's rule, so the two
+      // margins agree (review R6-2-12).
+      if (direct && e.leadId) directByJob[e.leadId] = (directByJob[e.leadId] || 0) + c + (parseInt(e.taxCents, 10) || 0);
     });
     // Won-job gross margin (jobValue basis). ONLY count jobs that have logged
     // direct costs — including uncosted jobs (revenue, $0 cost) would inflate
     // the margin and lie. The sub-label shows "N of M costed" for honesty.
     var wonRev = 0, wonDirect = 0, costedJobs = 0;
-    // Per CUSTOMER, not per job: expenses are keyed by leadId, so a per-job
-    // record would count one customer's costs once for each of their jobs.
-    var wonCustomers = leads.filter(function (l) { return _isWon(l); });
-    wonCustomers.forEach(function (l) {
-      var rev = _kpiMoney(l.jobValue);
-      var dc = (directByJob[l.id] || 0) / 100;
-      if (rev > 0 && dc > 0) { wonRev += rev; wonDirect += dc; costedJobs += 1; }
+    // Every won JOB (jobs-store.js recordsFor — a repeat customer's finished
+    // first job counts even after the card moved on to the second), pooled
+    // per CUSTOMER against that customer's direct costs (expenses are keyed
+    // by leadId, so each cost is counted once). The SAME pooling as the Money
+    // dashboard's computePnL — the two pages used to print different margins
+    // for the same costs (review R6-2-12). Won = finished work: a signed or
+    // in-production job's costs are not all in yet, so it would inflate the
+    // margin.
+    var wonJobs = _jobRecs(leads).filter(function (l) { return l && !l.deleted && _isWon(l); });
+    var revByLead = {}, wonOrder = [];
+    wonJobs.forEach(function (l) {
+      var revC = Math.round(_kpiMoney(l.jobValue) * 100);
+      if (!(revC > 0)) return;
+      if (revByLead[l.id] == null) { revByLead[l.id] = { c: 0, n: 0 }; wonOrder.push(l.id); }
+      revByLead[l.id].c += revC; revByLead[l.id].n += 1;
+    });
+    wonOrder.forEach(function (id) {
+      var dc = directByJob[id] || 0;
+      if (dc > 0) { wonRev += revByLead[id].c / 100; wonDirect += dc / 100; costedJobs += revByLead[id].n; }
     });
     var expGrossMargin = wonRev > 0 ? Math.round(((wonRev - wonDirect) / wonRev) * 100) : null;
     var supplierLeaderboard = Object.keys(supplierCents).map(function (k) {
@@ -693,7 +708,7 @@
       expMonthDollars: expMonthCents / 100,
       expGrossMargin: expGrossMargin,
       expCostedJobs: costedJobs,
-      expWonJobs: wonCustomers.length,
+      expWonJobs: wonJobs.length,
       expSupplierLeaderboard: supplierLeaderboard,
       unpaidAmount: unpaidAmount,
       pipelineValue: pipelineValue,
