@@ -156,7 +156,7 @@
     // the owner-only data reads (numbers-data.js) are eager on the page; this
     // is just the view.
     weekreview: [
-      'js/week-review.js?v=2'
+      'js/week-review.js?v=3'
     ],
     // Catch up my numbers (2026-10-04, #/catchup): the deck rules, then the
     // view. numbers-logic / numbers-data / the lost-reason picker and

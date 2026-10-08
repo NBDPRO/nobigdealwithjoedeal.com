@@ -86,9 +86,14 @@
     const leads = window._leads || [];
     const inv = _data.invs;
     const owedCents = R ? inv.reduce((s, i) => s + Math.round(R.owedDollarsOf(i) * 100), 0) : null;
+    // Every JOB (jobs-store.js recordsFor) for the booked figures and the
+    // source table — a repeat customer's second sale counts (review R6-2-13).
+    const J = window.NBDJobs;
+    const jobRecords = J && typeof J.recordsFor === 'function' ? J.recordsFor(leads) : null;
     _review = N().weeklyReview({
       nowMs: _data.now,
       leads,
+      jobRecords,
       labelFn: stageLabel,
       spend: _data.spend,
       collectedBetween: R ? (a, b) => R.collectedBetween(inv, a, b) : null,
