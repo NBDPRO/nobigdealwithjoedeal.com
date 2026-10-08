@@ -91,6 +91,7 @@ function makeWorld(opts) {
   let optOutReads = 0;
 
   const docRef = (p) => ({
+    path: p,
     get: async () => {
       if (p.startsWith('sms_opt_outs/')) {
         events.push('optout-read');
@@ -136,6 +137,11 @@ function makeWorld(opts) {
     collection: (name) => Object.assign(query(name, []), {
       add: async (row) => { if (name === 'sms_log') smsLog.push(row); return { id: 'x' }; },
       doc: (id) => docRef(name + '/' + id),
+    }),
+    // onAiDraftApproved claims the send on the draft before Twilio (R6-3-3).
+    runTransaction: async (fn) => fn({
+      get: (ref) => ref.get(),
+      update: (ref, data) => { events.push('claim:' + ref.path); docs[ref.path] = Object.assign({}, docs[ref.path] || {}, data); },
     }),
   };
 
@@ -511,6 +517,8 @@ const OPTED_OUT = { [OPT_DOC]: { phone: '+18595550134', keyword: 'STOP' } };
       status: 'approved', draftText: text || 'Thanks Sam — we can come Tuesday.',
       customerPhone: PHONE_TYPED, userId: 'rep-1', companyId: 'co-1', approvedBy: 'rep-1',
     };
+    // The draft doc as the trigger sees it (the send claim reads it — R6-3-3).
+    world.docs[DRAFT_DOC] = Object.assign({}, after);
     await exported.onAiDraftApproved.__handler({
       data: { before: { data: () => before }, after: { data: () => after } },
       params: { leadId: 'lead-1', draftId: 'draft-1' },
@@ -551,8 +559,9 @@ const OPTED_OUT = { [OPT_DOC]: { phone: '+18595550134', keyword: 'STOP' } };
       w.logs.error.some((a) => a[0] === 'optout_record_error' && a[1] && a[1].fn === 'onAiDraftApproved'));
   }
   {
-    // Control: only 21610 means "opted out".
-    const err = Object.assign(new Error('Twilio down'), { code: 20500 });
+    // Control: only 21610 means "opted out". (A definite refusal, HTTP 400:
+    // since R6-3-3 an error with no Twilio answer is send_uncertain instead.)
+    const err = Object.assign(new Error('Invalid To number'), { code: 21211, status: 400 });
     const { exported, world: w } = load({ twilioError: err });
     await approveDraft(exported);
     ok('AI draft: a non-21610 Twilio error writes nothing to the register',
