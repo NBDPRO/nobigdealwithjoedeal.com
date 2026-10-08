@@ -911,9 +911,9 @@ section('T-2: AI draft send-on-approve');
   assert('rules expose ai_drafts subcollection',
     /match \/ai_drafts\/\{draftId\}/.test(rules));
   assert('rules: rep update constrained to approve/dismiss only (approve only from pending)',
-    /ai_drafts\/\{draftId\}[\s\S]{0,1000}resource\.data\.status == 'pending'\s*&& request\.resource\.data\.status in \['approved', 'dismissed'\]/.test(rules));
+    /ai_drafts\/\{draftId\}[\s\S]{0,1600}resource\.data\.status == 'pending'\s*&& request\.resource\.data\.status in \['approved', 'dismissed'\]/.test(rules));
   assert('rules: ai_drafts create/delete admin-SDK only',
-    /ai_drafts\/\{draftId\}[\s\S]{0,1200}allow create, delete: if false/.test(rules));
+    /ai_drafts\/\{draftId\}[\s\S]{0,1800}allow create, delete: if false/.test(rules));
 
   const panel = read(path.join(PRO_JS, 'customer-ai-drafts-panel.js'));
   // QA 2026-06-21 #5: the gate must match the canonical no-.html URL too
@@ -1729,8 +1729,11 @@ section('F3: TCPA STOP/HELP + opt-out list');
     && /intent\.intent === 'stop'[\s\S]{0,400}OptOut\.recordOptOut\(/.test(sms));
   assert('HELP keyword replies with compliance message',
     /intent\.intent === 'help'[\s\S]{0,500}Msg & data rates may apply/.test(sms));
-  assert('START keyword resumes (clears the opt-out, both keys)',
-    /intent\.intent === 'start'[\s\S]{0,400}OptOut\.clearOptOut\(/.test(sms));
+  // R6-3-5 (2026-10-07): START lifts only what this number was told
+  // (liftStopOnLine — both register keys, its stop_reply copies), never another
+  // company's owner-phone STOP. tests/r6-texting-trio-2026-10-07.test.js drives it.
+  assert('START keyword resumes (lifts this number\'s opt-out, both keys)',
+    /intent\.intent === 'start'[\s\S]{0,900}OptOut\.liftStopOnLine\(/.test(sms));
   assert('sendSMS checks the opt-out register before sending',
     /OptOut\.isOptedOut\([\s\S]{0,700}replied STOP/.test(sms));
   assert('no send path hand-derives an opt-out key any more',

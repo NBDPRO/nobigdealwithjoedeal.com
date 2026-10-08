@@ -126,7 +126,7 @@
     // ExpenseConfig dependency), so it's a single-module bundle.
     money: [
       'js/stripe-ledger-ui-logic.js?v=1',
-      'js/stripe-ledger-panel.js?v=2',
+      'js/stripe-ledger-panel.js?v=3',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
       'js/invoice-reminder.js?v=7',
       'js/money-dashboard.js?v=10'
@@ -162,9 +162,9 @@
     // view. numbers-logic / numbers-data / the lost-reason picker and
     // invoice-pipeline.js (Record payment) are eager on the dashboard.
     catchup: [
-      'js/catchup-logic.js?v=1',
+      'js/catchup-logic.js?v=2',
       'css/catchup.css?v=1',
-      'js/catchup.js?v=1'
+      'js/catchup.js?v=2'
     ],
     decision: [
       'css/decision-engine-view.css?v=2',
@@ -272,7 +272,7 @@
       'js/estimate-finalization.js?v=10',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=30',
+      'js/estimate-v2-ui.js?v=31',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=5',
