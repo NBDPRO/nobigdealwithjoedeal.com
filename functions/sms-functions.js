@@ -2425,13 +2425,12 @@ exports.onAiDraftApproved = onDocumentUpdated(
     //      "check before re-sending" and never re-queues by itself;
     //   4. once Twilio returned a SID the draft is marked 'sent' FIRST; the
     //      note / sms_log / lead writes after it cannot undo that.
+    const fromPhone = TWILIO_PHONE_NUMBER.value();
     let client;
     let formattedTo;
-    let fromPhone;
     try {
       client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
       formattedTo = formatPhoneNumber(to);
-      fromPhone = TWILIO_PHONE_NUMBER.value();
     } catch (e) {
       await fail('twilio_error', e && e.message); return; // nothing was requested
     }
