@@ -220,6 +220,11 @@ function knownTierPrices(est) {
   const chosen = String(est.selectedTier || est.tier || '').toLowerCase();
   const total = CER.estimateValue(est);
   if (TIERS.indexOf(chosen) !== -1 && total > 0 && CER.tierApplies(est) !== false) out[chosen] = Math.round(total * 100) / 100;
+  // A line-item estimate's stored per-tier builds (review R6-2-3,
+  // deal-accepted-tier.js): the builder priced those tiers at this version,
+  // so a page offering a different price for one is stale too.
+  const offer = require('./deal-accepted-tier').offerableTierPrices(est);
+  if (offer) Object.keys(offer).forEach((t) => { if (out[t] == null) out[t] = offer[t]; });
   return out;
 }
 
