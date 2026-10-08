@@ -4174,6 +4174,131 @@
     };
   }
 
+  // The saved rows for an estimate (classic row shape + the B-8 split). Shared
+  // by _buildSavePayload and _tierBuildsFor, so a tier's stored build carries
+  // rows exactly as a save at that tier would write them. PURE on (estimate,
+  // state): `state` is the builder state passed in (it shadows the module's,
+  // as in _buildSavePayload) — its scope holds the per-line overrides.
+  function _savedRowsOf(estimate, state) {
+    const num = (v) => (v != null && isFinite(Number(v)) ? Number(v) : null);
+    return (estimate.lines || []).map(line => {
+      const mk = (num(estimate.materialMarkupPct) != null ? num(estimate.materialMarkupPct) : 0.25);
+      const matT = Number(line.materialTotal) || 0;
+      const labT = Number(line.laborTotal) || 0;
+      const retailTotal = Math.round(((line.retailTotal != null)
+        ? Number(line.retailTotal)
+        : ((matT === 0 && labT === 0)
+            ? (Number(line.lineTotal) || 0)              // pass-through: face value
+            : matT * (1 + mk) + labT)) * 100) / 100;
+      const retailPerUnit = (line.retailPerUnit != null)
+        ? Number(line.retailPerUnit)
+        : (Number(line.materialCostPerUnit) || 0) * (1 + mk) + (Number(line.laborCostPerUnit) || 0);
+      // An upgrade row keeps its tag (stage 2, 2026-09-25) so the next
+      // reopen restores it as an upgrade, not as an unknown catalog code.
+      return Object.assign({
+      code:   line.code,
+      desc:   line.name,
+      qty:    (line.quantity || 0).toFixed(2) + (line.unit || ''),
+      rate:   '$' + retailPerUnit.toFixed(2),
+      total:  retailTotal,
+      retailTotal: retailTotal,
+      // B-8 reconstruction fields:
+      quantity:            num(line.quantity),
+      unit:                line.unit || '',
+      category:            line.category || '',
+      materialTotal:       num(line.materialTotal),
+      laborTotal:          num(line.laborTotal),
+      materialCostPerUnit: num(line.materialCostPerUnit),
+      laborCostPerUnit:    num(line.laborCostPerUnit),
+      unitPrice:           num(line.unitPrice),
+      // Persist a manual per-line qty override so reopen doesn't wipe it (the
+      // override lives in state.scope[].overrides.qty; without this the saved
+      // qty re-resolves from measurements on the first post-reopen edit).
+      qtyOverride:         ((state.scope || []).find(s => s.code === line.code)?.overrides?.qty ?? null),
+      // Per-line rep note — annotation printed under the line on documents.
+      note:                ((state.scope || []).find(s => s.code === line.code)?.overrides?.note ?? null),
+      }, _upgradeTagsOf(line), _memberDiscountTagOf(line));
+    });
+  }
+
+  // Per-tier rows for a LINE-ITEM estimate (review R6-2-3 / R6-2-4, Jo
+  // 2026-10-07). A line-item estimate's rows are priced at the rep's tier, so
+  // a homeowner who accepts another tier in the deal room can only be billed
+  // that tier if the rows can be REBUILT at it. At save, each other tier the
+  // deal room could offer (triTierTotals — the same numbers the cards show) is
+  // built here by the same engine and stored as estimates/{id}.tierRows:
+  //   { v: 1, basis: { tier, totalCents, rowsKey }, tiers: { <tier>: build } }
+  // The server reads them (functions/deal-accepted-tier.js tier-build block):
+  // the deal room offers only the built tiers, and the customer page's "Use
+  // it" rebuilds from one. basis ties the builds to THIS save: any later edit
+  // of the rows or total leaves them stale. Not stored (null) for per-SQ
+  // (prices{} already prices every tier), insurance (one package), a scope
+  // that prices the same at every tier, or a tier the shingle lock forbids
+  // for this scope (Beyond = TAMKO HailGuard only; Economy never a 3-tab).
+  function _tierRowsKey(rows) {
+    return (Array.isArray(rows) ? rows : []).map(function (r) {
+      var v = r && (r.retailTotal != null ? r.retailTotal : r.total);
+      return String((r && r.code) || '') + ':' + Math.round(Number(v || 0) * 100);
+    }).join('|');
+  }
+  // Is this the live builder state? (_buildSavePayload is pure on its state
+  // argument; the tier builds re-price the LIVE builder, so a test seam's
+  // detached state gets none.)
+  function _isLiveState(st) { return st === state; }
+  function _tierBuildsFor(estimate) {
+    if (!estimate) return null;
+    if (estimate.priceMode === 'per-sq') return null;
+    if (estimate.prices && Object.keys(estimate.prices).some((k) => Number(estimate.prices[k]) > 0)) return null;
+    if (state.jobMode === 'insurance') return null;
+    const cur = String(estimate.tier || state.tier || '').toLowerCase();
+    if (!cur || !(Number(estimate.total) > 0)) return null;
+    const offered = triTierTotals(estimate);
+    if (typeof offered[cur] !== 'number') return null;
+    const others = _v2Tiers().filter((t) => t !== cur && typeof offered[t] === 'number' && offered[t] > 0);
+    if (!others.length) return null;
+    const num = (v) => (v != null && isFinite(Number(v)) ? Number(v) : null);
+    const cfg = window.NBD_ESTIMATE_CONFIG;
+    const scopeItems = _v2ScopeItems();
+    const tiers = {};
+    const orig = state.tier;
+    try {
+      others.forEach((t) => {
+        if (cfg && typeof cfg.checkTierShingles === 'function' && !cfg.checkTierShingles(t, scopeItems).ok) return;
+        state.tier = t;
+        const e = getCurrentEstimate();
+        if (!e || Math.round(Number(e.total) * 100) !== Math.round(Number(offered[t]) * 100)) return;
+        const rows = _savedRowsOf(e, state);
+        if (!rows.length) return;
+        tiers[t] = {
+          rows,
+          grandTotal:        e.total,
+          subtotal:          e.subtotal,
+          tax:               e.tax,
+          taxRate:           e.taxRate,
+          minJobApplied:     !!e.minJobApplied,
+          materialMarkupPct: num(e.materialMarkupPct),
+          retailBeforeOHP:   num(e.retailBeforeOHP),
+          overhead:          num(e.overhead),
+          overheadPct:       num(e.overheadPct),
+          profit:            num(e.profit),
+          profitPct:         num(e.profitPct),
+          materialCost:      num(e.materialCost),
+          laborCost:         num(e.laborCost),
+          internal:          e.internal || null,
+          memberDiscount:    e.memberDiscount ? Object.assign({}, e.memberDiscount) : null,
+        };
+      });
+    } finally {
+      state.tier = orig;
+    }
+    if (!Object.keys(tiers).length) return null;
+    return {
+      v: 1,
+      basis: { tier: cur, totalCents: Math.round(Number(estimate.total) * 100), rowsKey: _tierRowsKey(_savedRowsOf(estimate, state)) },
+      tiers,
+    };
+  }
+
   // ─── Firestore save payload (extracted so it can be unit-tested) ───
   // Matches the classic builder's data shape so the estimates list + customer
   // timeline pick up V2 estimates. PURE: depends only on (estimate, state).
@@ -4273,44 +4398,7 @@
       // these verbatim). Writing the raw cost basis here leaked the margin to
       // the homeowner/adjuster (money-math sweep 2026-07-18); the cost lives
       // only in the *CostPerUnit/*Total split fields below.
-      rows: (estimate.lines || []).map(line => {
-        const mk = (num(estimate.materialMarkupPct) != null ? num(estimate.materialMarkupPct) : 0.25);
-        const matT = Number(line.materialTotal) || 0;
-        const labT = Number(line.laborTotal) || 0;
-        const retailTotal = Math.round(((line.retailTotal != null)
-          ? Number(line.retailTotal)
-          : ((matT === 0 && labT === 0)
-              ? (Number(line.lineTotal) || 0)              // pass-through: face value
-              : matT * (1 + mk) + labT)) * 100) / 100;
-        const retailPerUnit = (line.retailPerUnit != null)
-          ? Number(line.retailPerUnit)
-          : (Number(line.materialCostPerUnit) || 0) * (1 + mk) + (Number(line.laborCostPerUnit) || 0);
-        // An upgrade row keeps its tag (stage 2, 2026-09-25) so the next
-        // reopen restores it as an upgrade, not as an unknown catalog code.
-        return Object.assign({
-        code:   line.code,
-        desc:   line.name,
-        qty:    (line.quantity || 0).toFixed(2) + (line.unit || ''),
-        rate:   '$' + retailPerUnit.toFixed(2),
-        total:  retailTotal,
-        retailTotal: retailTotal,
-        // B-8 reconstruction fields:
-        quantity:            num(line.quantity),
-        unit:                line.unit || '',
-        category:            line.category || '',
-        materialTotal:       num(line.materialTotal),
-        laborTotal:          num(line.laborTotal),
-        materialCostPerUnit: num(line.materialCostPerUnit),
-        laborCostPerUnit:    num(line.laborCostPerUnit),
-        unitPrice:           num(line.unitPrice),
-        // Persist a manual per-line qty override so reopen doesn't wipe it (the
-        // override lives in state.scope[].overrides.qty; without this the saved
-        // qty re-resolves from measurements on the first post-reopen edit).
-        qtyOverride:         ((state.scope || []).find(s => s.code === line.code)?.overrides?.qty ?? null),
-        // Per-line rep note — annotation printed under the line on documents.
-        note:                ((state.scope || []).find(s => s.code === line.code)?.overrides?.note ?? null),
-        }, _upgradeTagsOf(line), _memberDiscountTagOf(line));
-      }),
+      rows: _savedRowsOf(estimate, state),
       // Totals — grandTotal is the canonical customer total: the selected
       // per-SQ tier price for per-SQ estimates, the scope total for line-item.
       grandTotal:       estimate.total,
@@ -4324,6 +4412,10 @@
       prices:           estimate.prices || null,            // {good,better,best} per-SQ tier prices (classic shape, close-board.js reads this)
       selectedTier:     estimate.tier || state.tier,
       priceMode:        estimate.priceMode || state.mode,   // 'per-sq' | 'line-item' — tells consumers which model set grandTotal
+      // The other tiers' rows, so the deal room may offer them and "Use it"
+      // can rebuild at one (R6-2-3 / R6-2-4). Always written: null clears a
+      // stale set, because the edit save merges top-level keys.
+      tierRows:         _isLiveState(state) ? _tierBuildsFor(estimate) : null,
       internalLineItemTotal: (estimate.internalLineItemTotal != null ? estimate.internalLineItemTotal : null), // cost basis for per-SQ estimates
       // Deposit (2026-09-25): deposit-rule.js's answer on the saved total.
       // `deposit` stays numeric for legacy readers; `depositPlan` is the
@@ -5464,15 +5556,21 @@
   //       like any homeowner link — no e-mail needed.
   // ═════════════════════════════════════════════════════════
 
-  // Tier prices for the deal: the per-SQ map when there is one; a cash
-  // line-item estimate compares tiers like the presentation does; an
-  // insurance estimate offers only the package it was priced on.
+  // Tier prices for the deal: the per-SQ map when there is one; an insurance
+  // estimate offers only the package it was priced on; a cash line-item
+  // estimate offers its own tier plus each tier whose rows were built for the
+  // save (_tierBuildsFor — R6-2-3, Jo 2026-10-07: a tier the estimate can't be
+  // rebuilt at is never offered; the server refuses it too).
   function _dealPricesFor(estimate) {
     if (!estimate) return null;
     let src;
     if (estimate.prices && Object.keys(estimate.prices).some((k) => Number(estimate.prices[k]) > 0)) src = estimate.prices;
     else if (state.jobMode === 'insurance') src = { [state.tier]: estimate.total };
-    else src = triTierTotals(estimate);
+    else {
+      src = { [String(estimate.tier || state.tier)]: estimate.total };
+      const builds = _tierBuildsFor(estimate);
+      if (builds) Object.keys(builds.tiers).forEach((t) => { src[t] = builds.tiers[t].grandTotal; });
+    }
     const out = {};
     _v2Tiers().forEach((t) => { const v = Number(src && src[t]); if (v > 0) out[t] = v; });
     return Object.keys(out).length ? out : null;
@@ -5877,6 +5975,7 @@
       kySigningBlocked: _kySigningBlocked,
       applyKySigningGate: _applyKySigningGate,
       dealPricesFor: _dealPricesFor,
+      tierBuildsFor: _tierBuildsFor,
       sendForSignature: sendForSignature,
       sendToHomeowner: sendToHomeowner,
       signOnThisPhone: signOnThisPhone,

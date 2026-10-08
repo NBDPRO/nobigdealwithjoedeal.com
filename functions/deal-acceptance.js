@@ -204,6 +204,7 @@ exports.createDealAcceptToken = onCall(
     // stage), so it must be the deal owner's lead (or their company's). A
     // lead that no longer exists is dropped, never carried.
     let leadId = null;
+    let leadPrimaryEstimateId = null;
     if (deal.leadId != null && deal.leadId !== '') {
       if (typeof deal.leadId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(deal.leadId)) {
         throw new HttpsError('failed-precondition', 'This deal is linked to an invalid lead.');
@@ -214,6 +215,7 @@ exports.createDealAcceptToken = onCall(
           throw new HttpsError('permission-denied', 'This deal is linked to a lead you do not own.');
         }
         leadId = deal.leadId;
+        leadPrimaryEstimateId = (leadSnap.data() || {}).primaryEstimateId || null;
       }
     }
 
@@ -243,6 +245,29 @@ exports.createDealAcceptToken = onCall(
           estimateFingerprint = require('./customer-estimate-rows').pricedFingerprint(est);
         }
       } catch (e) { logger.warn('[createDealAcceptToken] estimate read failed', { msg: e && e.message }); }
+    }
+
+    // Only the packages the estimate can be REBUILT at are offered (review
+    // R6-2-3, Jo 2026-10-07): a line-item estimate's rows are priced at the
+    // rep's tier, so it offers that tier plus the tiers the builder stored
+    // rows for (deal-accepted-tier.js offerableTierPrices); any other package
+    // is snapshotted at 0, which submitDealAcceptance refuses as unpriced.
+    // The estimate is the one the acceptance will land on — the deal's, else
+    // the lead's primary (deal-accepted-tier.js applyAcceptedTier) — and only
+    // the deal owner's. A read failure leaves the prices as they are: the
+    // acceptance re-checks inside its transaction (tierOffered).
+    {
+      const okEst = (v) => typeof v === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(v);
+      const offerEstId = okEst(deal.estimateId) ? deal.estimateId : (okEst(leadPrimaryEstimateId) ? leadPrimaryEstimateId : null);
+      if (offerEstId) {
+        try {
+          const os = await db.doc(`estimates/${offerEstId}`).get();
+          const oe = os.exists ? (os.data() || {}) : null;
+          if (oe && oe.deleted !== true && oe.userId === deal.userId) {
+            Object.assign(tierPrices, require('./deal-accepted-tier').dealTierPrices(tierPrices, oe));
+          }
+        } catch (e) { logger.warn('[createDealAcceptToken] offerable-tier read failed', { msg: e && e.message }); }
+      }
     }
 
     const now = Date.now();
@@ -528,6 +553,16 @@ exports.submitDealAcceptance = onRequest(
         if (!(price > 0)) {
           const e = new Error('unpriced'); e._http = 400; e._msg = 'That package isn’t priced on this deal. Choose another or ask your rep.'; throw e;
         }
+        // A package the estimate can't be rebuilt at is refused (review
+        // R6-2-3, Jo 2026-10-07): a line-item estimate takes only its own tier
+        // and the tiers it stored rows for — whatever the page offered (a link
+        // minted before this rule, or a hand-made deal's typed prices).
+        const offerEst = await acceptanceEstimate(db, tx, t, dealRoomSnap.data() || {});
+        if (offerEst && !require('./deal-accepted-tier').tierOffered(offerEst, tier)) {
+          const e = new Error('not_offered'); e._http = 400;
+          e._msg = 'That package isn’t available on this estimate. Choose the package your estimate shows, or ask your rep for an updated page.';
+          throw e;
+        }
         // A STALE price is refused (review R6-2-5) — staleDealPrice below.
         const accepted = await staleDealPrice(db, tx, t, dealRoomSnap.data() || {}, tier, price, confirmPrice);
         const acceptedPrice = accepted.price;
@@ -626,6 +661,26 @@ exports.submitDealAcceptance = onRequest(
  * signed-price.js checkDealPrice has the rule.
  * → { ok: true, price, changedFrom? }; throws the 409 otherwise.
  */
+/**
+ * Inside submitDealAcceptance's transaction (reads only): the estimate this
+ * acceptance will land on — the token's / deal's estimate, else the lead's
+ * primary (deal-accepted-tier.js applyAcceptedTier picks the same one) — when
+ * it is the deal owner's; else null (nothing to check the package against).
+ */
+async function acceptanceEstimate(db, tx, t, room) {
+  const okId = (v) => typeof v === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(v);
+  let estId = okId(t.estimateId) ? t.estimateId : (okId(room.estimateId) ? room.estimateId : null);
+  if (!estId && okId(t.leadId)) {
+    const ls = await tx.get(db.doc(`leads/${t.leadId}`));
+    const pid = ls.exists ? (ls.data() || {}).primaryEstimateId : null;
+    if (okId(pid)) estId = pid;
+  }
+  if (!estId) return null;
+  const es = await tx.get(db.doc(`estimates/${estId}`));
+  const est = es.exists ? (es.data() || {}) : null;
+  return (est && est.deleted !== true && est.userId === t.ownerUid) ? est : null;
+}
+
 async function staleDealPrice(db, tx, t, room, tier, price, confirmPrice) {
   const okId = (v) => typeof v === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(v);
   const estId = okId(t.estimateId) ? t.estimateId : (okId(room.estimateId) ? room.estimateId : null);
@@ -858,5 +913,43 @@ exports.dealRoomReadPing = onRequest(
     // update() never recreates a removed deal room (same rule as getDealRoom).
     await db.doc(`deal_rooms/${tok.dealId}`).update({ readSeconds: FieldValue.increment(seconds) }).catch(() => {});
     res.status(204).end();
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════
+// useAcceptedTier — the customer page's "Use it" (review R6-2-4, Jo 2026-10-07)
+// ═══════════════════════════════════════════════════════════════
+// The homeowner accepted another package in the deal room; the rep adopts it.
+// The server re-reads the estimate and rebuilds it at the pick
+// (deal-accepted-tier.js applyHomeownerPick: a line-item estimate from its
+// stored per-tier rows, or refused 'needs-builder'), then runs the deal
+// acceptance through the job spine again so the signed price is stamped and
+// the deposit draft is made on the new price. Owner / company admin /
+// manager of the estimate only; a viewer is refused. Never sends anything.
+exports.useAcceptedTier = onCall(
+  {
+    region: 'us-central1',
+    cors: CORS_ORIGINS,
+    enforceAppCheck: true,
+    timeoutSeconds: 30,
+    memory: '256MiB',
+  },
+  async (request) => {
+    const uid = request.auth && request.auth.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'Sign in required');
+    assertNotViewer(request.auth.token);
+    await callableRateLimit(request, 'useAcceptedTier', 20, 60_000);
+    const d = request.data || {};
+    const estimateId = typeof d.estimateId === 'string' ? d.estimateId : '';
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(estimateId)) throw new HttpsError('invalid-argument', 'A valid estimateId is required');
+    const out = await require('./deal-accepted-tier').applyHomeownerPick(getFirestore(), { uid, token: request.auth.token || {}, estimateId }, {
+      logger,
+      recordJobEvent: require('./job-spine').recordJobEvent,
+    });
+    if (out.reason === 'not-allowed') throw new HttpsError('permission-denied', 'Not your estimate');
+    if (out.reason === 'error') throw new HttpsError('internal', 'Could not apply the package. Try again.');
+    // 'needs-builder' / 'price-moved' / 'nothing-pending' are answers, not
+    // errors: the chip tells the rep what to do instead.
+    return { ok: out.ok === true, reason: out.reason, price: out.price != null ? out.price : null };
   }
 );

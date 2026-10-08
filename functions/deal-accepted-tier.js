@@ -108,6 +108,94 @@ function depositCollected(invoices, estimateId) {
 }
 // ── end retier block ──
 
+// ── tier-build block: byte-identical in functions/deal-accepted-tier.js and
+//    docs/pro/js/accepted-tier-chip.js (tests/line-item-tiers-r6-2026-10-07 holds them equal) ──
+/**
+ * A LINE-ITEM estimate's other tiers (review R6-2-3 / R6-2-4, Jo 2026-10-07).
+ * Its saved rows are priced at the rep's tier, so another tier's price can't
+ * be dropped onto it: the rows, tax and rounding would no longer add up. The
+ * V2 builder therefore stores, at save, each other tier it could offer, built
+ * by the same engine (estimate-v2-ui.js _tierBuildsFor):
+ *   est.tierRows = { v: 1,
+ *     basis: { tier, totalCents, rowsKey },   // the estimate they were built beside
+ *     tiers: { <tier>: { rows, grandTotal, subtotal, tax, taxRate, ... } } }
+ * A build counts only while the estimate is still the one it was built beside
+ * (same tier, same total, same rows): any later edit (the invoice pre-flight's
+ * Save to estimate, a re-tier) leaves the builds stale and unusable. The deal
+ * room offers only the estimate's own tier plus its usable builds, and "Use
+ * it" rebuilds from a build or refuses.
+ */
+function isTierPriced(est) {
+  return !!est && (est.priceMode === 'per-sq' || (est.prices != null && typeof est.prices === 'object'));
+}
+
+/** The rows' identity for a build's basis: code + retail cents, in order. */
+function rowsKey(rows) {
+  return (Array.isArray(rows) ? rows : []).map(function (r) {
+    var v = r && (r.retailTotal != null ? r.retailTotal : r.total);
+    return String((r && r.code) || '') + ':' + Math.round(Number(v || 0) * 100);
+  }).join('|');
+}
+
+/** The stored build for `tier`, or null (not line-item, none stored, stale, or the current tier). */
+function tierBuild(est, tier) {
+  if (!est || isTierPriced(est)) return null;
+  var tr = est.tierRows;
+  if (!tr || typeof tr !== 'object' || tr.v !== 1 || !tr.basis || !tr.tiers || typeof tr.tiers !== 'object') return null;
+  var chosen = String(est.selectedTier || est.tier || '').toLowerCase();
+  var b = tr.basis;
+  if (!chosen || String(b.tier || '').toLowerCase() !== chosen) return null;
+  if (Math.round(Number(est.grandTotal) * 100) !== Number(b.totalCents)) return null;
+  if (rowsKey(est.rows) !== String(b.rowsKey || '')) return null;
+  var t = String(tier || '').toLowerCase();
+  if (!t || t === chosen || !Object.prototype.hasOwnProperty.call(tr.tiers, t)) return null;
+  var build = tr.tiers[t];
+  if (!build || typeof build !== 'object' || !Array.isArray(build.rows) || !build.rows.length) return null;
+  if (!(Number(build.grandTotal) > 0)) return null;
+  return build;
+}
+
+/**
+ * The packages a homeowner may accept on this estimate → { tier: dollars },
+ * or null when this estimate doesn't restrict them (tier-priced: every tier
+ * in prices{} is priced; no tier chosen: nothing to rebuild beside).
+ * Line-item: the estimate's own tier at its total, plus each usable build.
+ */
+function offerableTierPrices(est) {
+  if (!est || isTierPriced(est)) return null;
+  var chosen = String(est.selectedTier || est.tier || '').toLowerCase();
+  var total = Number(est.grandTotal);
+  if (!chosen || !(total > 0)) return null;
+  var out = {};
+  var order = ['economy', 'good', 'better', 'best', 'beyond'];
+  order.forEach(function (t) {
+    if (t === chosen) { out[t] = Math.round(total * 100) / 100; return; }
+    var b = tierBuild(est, t);
+    if (b) out[t] = Math.round(Number(b.grandTotal) * 100) / 100;
+  });
+  return out;
+}
+// ── end tier-build block ──
+
+/**
+ * The accept link's tier prices (createDealAcceptToken) with every package
+ * the estimate can't rebuild set to 0, so submitDealAcceptance refuses it as
+ * unpriced. A tier-priced estimate, or none, leaves them as they were.
+ */
+function dealTierPrices(tierPrices, est) {
+  const out = Object.assign({}, tierPrices || {});
+  const offer = offerableTierPrices(est);
+  if (!offer) return out;
+  Object.keys(out).forEach((t) => { if (!Object.prototype.hasOwnProperty.call(offer, t)) out[t] = 0; });
+  return out;
+}
+
+/** May the homeowner accept `tier` on this estimate? (no estimate / unrestricted → yes) */
+function tierOffered(est, tier) {
+  const offer = offerableTierPrices(est);
+  return !offer || Object.prototype.hasOwnProperty.call(offer, String(tier || '').toLowerCase());
+}
+
 /**
  * Pure decision. o.depositCollected (money already taken on the estimate)
  * keeps the deposit; o.depositRule overrides deposit-rule.js (tests).
@@ -220,4 +308,170 @@ async function applyAcceptedTier(db, info, tier, price, deps) {
   }
 }
 
-module.exports = { planAcceptedTier, applyAcceptedTier, retierFields, depositCollected, TIERS };
+// ═══════════════════════════════════════════════════════════════
+// "Use it" — the rep adopts the homeowner's pick (review R6-2-4, Jo 2026-10-07)
+// ═══════════════════════════════════════════════════════════════
+
+// The priced fields a V2 build carries (estimate-v2-ui.js _tierBuildsFor):
+// what _buildSavePayload writes for the money, at that tier.
+const TIER_BUILD_FIELDS = ['rows', 'grandTotal', 'subtotal', 'tax', 'taxRate', 'minJobApplied', 'materialMarkupPct',
+  'retailBeforeOHP', 'overhead', 'overheadPct', 'profit', 'profitPct', 'materialCost', 'laborCost', 'internal', 'memberDiscount'];
+
+/**
+ * The writes for "Use it". Pure.
+ *   o = { lead, estimate, estimateId, depositCollected?, depositRule?, now? }
+ * → { reason, estimate: updates|null, lead: updates|null, price? }
+ *   reason: 'applied' | 'nothing-pending' | 'needs-builder' | 'price-moved' | 'no-price' | 'no-estimate'
+ * A line-item estimate is rebuilt from its stored build for the picked tier —
+ * rows, subtotal, tax (with its Rounding / Minimum gap), O&P, jobValue — and
+ * the deposit re-run through deposit-rule.js on the new total (a Kentucky
+ * insurance job stays $0 at signing). No usable build → 'needs-builder' and
+ * nothing is written: the rep re-prices it in the builder. The build must
+ * still price the tier at what the homeowner accepted ('price-moved'
+ * otherwise). A tier-priced estimate re-tiers its totals as before.
+ */
+function planUseAcceptedTier(o) {
+  const { lead, estimate: est, estimateId, now } = o || {};
+  const l = lead || {};
+  if (!est || est.deleted === true) return { reason: 'no-estimate', estimate: null, lead: null };
+  const tier = String(est.acceptedTier || '').toLowerCase();
+  const chosen = String(est.selectedTier || est.tier || '').toLowerCase();
+  if (!TIERS.includes(tier) || est.acceptedTierApplied === true || est.acceptedTierDismissed === true || tier === chosen) {
+    return { reason: 'nothing-pending', estimate: null, lead: null };
+  }
+  const R = o.depositRule || DR;
+  const kept = o.depositCollected === true;
+  let fields;
+  if (isTierPriced(est)) {
+    const fromMap = est.prices && Number(est.prices[tier]);
+    const price = fromMap > 0 ? fromMap : Number(est.acceptedPrice);
+    if (!(price > 0)) return { reason: 'no-price', estimate: null, lead: null };
+    fields = retierFields(est, price, { lead: l, depositRule: R, depositCollected: kept });
+  } else {
+    const build = tierBuild(est, tier);
+    if (!build) return { reason: 'needs-builder', estimate: null, lead: null };
+    if (Math.round(Number(build.grandTotal) * 100) !== Math.round(Number(est.acceptedPrice) * 100)) {
+      return { reason: 'price-moved', estimate: null, lead: null, price: Number(build.grandTotal) };
+    }
+    fields = {};
+    TIER_BUILD_FIELDS.forEach((k) => { fields[k] = build[k] === undefined ? null : build[k]; });
+    if (est.taxAmount != null) fields.taxAmount = fields.tax;
+    if (est.total != null) fields.total = fields.grandTotal;
+    const totalCents = Math.round(Number(build.grandTotal) * 100);
+    if (kept || !R) {
+      fields.acceptedTierDepositKept = true;
+    } else {
+      const plan = R.fromEstimate(Object.assign({}, est, fields), { totalCents, lead: l });
+      fields.deposit = plan.depositCents / 100;
+      fields.depositPlan = R.toStored(plan);
+      fields.acceptedTierDepositKept = false;
+    }
+    // The builds described the rows just replaced.
+    fields.tierRows = null;
+  }
+  const estUpd = Object.assign({ tier, selectedTier: tier, acceptedTierApplied: true, acceptedTierReplaced: chosen || null }, fields);
+  if (now != null) estUpd.acceptedTierAppliedAt = now;
+  const p = Math.round(Number(estUpd.grandTotal) * 100) / 100;
+  const isPrimary = !l.primaryEstimateId || l.primaryEstimateId === estimateId;
+  return { reason: 'applied', estimate: estUpd, lead: (isPrimary && p > 0) ? { jobValue: p } : null, price: p };
+}
+
+const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+const COMPANY_EDITORS = ['company_admin', 'manager'];
+
+/** May this signed-in user change this estimate? Owner, platform admin, or a company admin / manager of its company. */
+function _mayApply(uid, token, est, lead) {
+  const t = token || {};
+  if (!uid) return false;
+  if (t.role === 'viewer') return false;
+  if (t.role === 'admin') return true;
+  if (est.userId === uid) return true;
+  const co = typeof t.companyId === 'string' && t.companyId ? t.companyId : '';
+  if (!co || !(COMPANY_EDITORS.indexOf(t.role || '') !== -1 || t.owner === true)) return false;
+  return String(est.companyId || '') === co || String((lead && lead.companyId) || '') === co;
+}
+
+/** The "apply it" task id the deposit draft files (deposit-draft-logic.js applyTierTask). */
+function applyTaskId(estimateId) { return 'apply-accepted-tier-' + String(estimateId || '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80); }
+
+/**
+ * The server side of the chip's "Use it" (deal-acceptance.js useAcceptedTier).
+ * One transaction: re-read the estimate, its lead and the lead's invoices,
+ * plan (planUseAcceptedTier), write the estimate + lead, close the "apply it"
+ * task. Then — the acceptance now IS the estimate — the job spine runs the
+ * deal acceptance again (deal_<id>): the signed price is stamped
+ * (signed-price.js) and the deposit draft is made on the new price
+ * (deposit-draft.js), exactly as for a per-SQ acceptance. Never throws.
+ * @param db   Firestore (admin)
+ * @param args { uid, token, estimateId }
+ * @param deps { now, recordJobEvent, logger }
+ * @returns {Promise<{ ok: boolean, reason: string, price?: number, spine?: object }>}
+ */
+async function applyHomeownerPick(db, args, deps) {
+  const d = deps || {};
+  const a = args || {};
+  const estimateId = typeof a.estimateId === 'string' ? a.estimateId : '';
+  if (!db || !ID_RE.test(estimateId)) return { ok: false, reason: 'bad-request' };
+  const nowFn = d.now || (() => new Date());
+  let out;
+  try {
+    out = await db.runTransaction(async (tx) => {
+      const estRef = db.doc('estimates/' + estimateId);
+      const es = await tx.get(estRef);
+      const est = es.exists ? (es.data() || {}) : null;
+      if (!est || est.deleted === true) return { ok: false, reason: 'no-estimate' };
+      const leadId = ID_RE.test(String(est.leadId || '')) ? String(est.leadId) : null;
+      let lead = null;
+      const leadRef = leadId ? db.doc('leads/' + leadId) : null;
+      if (leadRef) { const ls = await tx.get(leadRef); lead = ls.exists ? (ls.data() || {}) : null; }
+      if (!_mayApply(a.uid, a.token, est, lead)) return { ok: false, reason: 'not-allowed' };
+      let invoices = [];
+      if (leadId) {
+        const q = await tx.get(db.collection('invoices').where('leadId', '==', leadId));
+        invoices = PIF.invoicesForLead((q && q.docs ? q.docs : []).map((x) => x.data()), lead, leadId, null);
+      }
+      const taskRef = leadRef ? db.doc('leads/' + leadId + '/tasks/' + applyTaskId(estimateId)) : null;
+      const ts = taskRef ? await tx.get(taskRef) : null;
+      const at = nowFn();
+      const plan = planUseAcceptedTier({ lead, estimate: est, estimateId, now: at, depositCollected: depositCollected(invoices, estimateId) });
+      if (plan.reason !== 'applied') return { ok: false, reason: plan.reason, price: plan.price };
+      tx.update(estRef, Object.assign({}, plan.estimate, { updatedAt: at }));
+      if (plan.lead && leadRef && lead) tx.update(leadRef, Object.assign({}, plan.lead, { updatedAt: at }));
+      if (ts && ts.exists) tx.update(taskRef, { done: true, completedAt: at, completedBy: 'system: use accepted tier' });
+      return {
+        ok: true, reason: 'applied', price: plan.price, leadId,
+        dealId: ID_RE.test(String(est.acceptedDealId || '')) ? String(est.acceptedDealId) : null,
+        tier: plan.estimate.tier, ownerUid: (lead && lead.userId) || est.userId || null, companyId: (lead && lead.companyId) || null,
+      };
+    });
+  } catch (e) {
+    if (d.logger) d.logger.warn('[deal-accepted-tier] use-it failed', { estimateId, msg: e && e.message });
+    return { ok: false, reason: 'error' };
+  }
+  if (!out.ok) return out;
+  // The signature already happened (the deal room acceptance); re-running its
+  // event stamps the signed price and drafts the deposit now that the
+  // estimate carries the accepted tier. Idempotent (the spine's marker and
+  // the draft's deterministic id); a failure leaves the estimate applied.
+  let spine = null;
+  if (out.leadId && out.dealId) {
+    try {
+      const rec = d.recordJobEvent || require('./job-spine').recordJobEvent;
+      spine = await rec(db, {
+        leadId: out.leadId, companyId: out.companyId, ownerUid: out.ownerUid, event: 'deal_accepted', sourceId: 'deal_' + out.dealId,
+        actor: 'accepted tier applied',
+        meta: { dealId: out.dealId, tier: out.tier, detail: String(out.tier || '').toUpperCase() + ' package applied to the estimate' },
+      }, d.spineDeps);
+    } catch (e) {
+      spine = { error: String((e && e.message) || e) };
+    }
+  }
+  if (d.logger) d.logger.info('[deal-accepted-tier] use-it applied', { estimateId, tier: out.tier, dealId: out.dealId });
+  return { ok: true, reason: 'applied', price: out.price, spine };
+}
+
+module.exports = {
+  planAcceptedTier, applyAcceptedTier, retierFields, depositCollected, TIERS,
+  isTierPriced, rowsKey, tierBuild, offerableTierPrices, dealTierPrices, tierOffered,
+  planUseAcceptedTier, applyHomeownerPick, applyTaskId, TIER_BUILD_FIELDS,
+};
