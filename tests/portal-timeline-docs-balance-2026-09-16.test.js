@@ -195,7 +195,7 @@ group('Balance card: server never mints a payment link, only reads one', () => {
     assert('the pay link is only accepted when it is already an https URL',
       // 2026-10-06 (R2-2-6): the https test lives in invoice-charge.js
       // portalBalanceCard, which the card is built from.
-      /InvoiceCharge\.portalBalanceCard\(_unpaidInvoice, _payUrl\)/.test(buildBlock)
+      /InvoiceCharge\.portalBalanceCard\(_unpaidInvoice, _payUrl, _kyHold\)/.test(buildBlock)
       && /\/\^https:\\\/\\\/\/i\.test\(String\(payUrl/.test(fs.readFileSync(path.join(__dirname, '..', 'functions', 'invoice-charge.js'), 'utf8'))
       && /KyLaw\.payUrlUnlessHeld\(lead, _unpaidInvoice,/.test(buildBlock), buildBlock);
   }

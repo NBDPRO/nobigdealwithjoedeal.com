@@ -993,7 +993,10 @@ exports.getHomeownerPortalView = onRequest(
     // unmet, else the balance — invoice-charge.js, the same rule
     // createStripePaymentLink charges — and Pay Now only when the link
     // charges exactly that (portalBalanceCard).
-    const _dueCard = _unpaidInvoice ? InvoiceCharge.portalBalanceCard(_unpaidInvoice, _payUrl) : null;
+    // While the Kentucky hold applies nothing is due, and the card says what
+    // happens next instead of "Balance due" (money audit H2, 2026-10-07).
+    const _kyHold = _unpaidInvoice ? KyLaw.payLinkHold(lead, _unpaidInvoice, Date.now(), kyTz) : null;
+    const _dueCard = _unpaidInvoice ? InvoiceCharge.portalBalanceCard(_unpaidInvoice, _payUrl, _kyHold) : null;
     const _balance = _dueCard ? {
       ..._dueCard,
       // "Pay by bank (ACH) — lower fees" shows only beside a real link (the
@@ -1003,7 +1006,8 @@ exports.getHomeownerPortalView = onRequest(
       // (functions/stripe.js), so only its customers are told about it.
       payByBank: !!_dueCard.stripePaymentLink && require('./zelle-contact').isNbdCompany(tenantKey ? String(tenantKey) : ''),
       // Zelle is a way to pay, so it obeys the same Kentucky hold as the link.
-      zelle: (typeof zelleBrand === 'undefined' || KyLaw.payLinkHold(lead, _unpaidInvoice, Date.now(), kyTz).held) ? null
+      // An invoice waiting on the carrier's numbers asks for nothing either.
+      zelle: (typeof zelleBrand === 'undefined' || (_kyHold && _kyHold.held) || !(_dueCard.amountCents > 0)) ? null
         : (require('./zelle-contact').zelleContactOf(zelleBrand, tenantKey ? String(tenantKey) : '').text || null),
     } : null;
     // The tracker's "Pay your invoice" link is this SAME already-sent link —
