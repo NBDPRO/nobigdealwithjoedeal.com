@@ -165,6 +165,21 @@ async function reactivateLapsedSeats(db, companyId, plan, purchasedSeats) {
   for (const m of paused) {
     if (restored >= cap) break; // over the new plan's seat cap — leave paused
     const md = m.data() || {};
+    // A member who asked to be erased and was SUSPENDED (2026-10-08) is never
+    // brought back by a re-checkout, even if a lapse pause raced the
+    // suspension and left 'lapse' on the row. Only the owner or an admin
+    // turns them back on (deactivateUser reactivate clears the outcome).
+    try {
+      const er = await db.doc(`account_erasures/${md.uid}`).get();
+      if (er.exists && (er.data() || {}).outcome === 'suspended') {
+        logger.info('lapse.skip_self_suspended', { companyId, member: m.id });
+        continue;
+      }
+    } catch (e) {
+      // Can't tell: leave them paused (fail closed), the owner can re-enable.
+      logger.warn('lapse.erasure_check_failed', { companyId, member: m.id, err: e.message });
+      continue;
+    }
     try {
       await getAuth().updateUser(md.uid, { disabled: false });
       await m.ref.set({

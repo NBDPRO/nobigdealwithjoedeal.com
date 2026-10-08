@@ -431,8 +431,19 @@ window._gdprExport = async function () {
 
 window._gdprRequestErasure = async function () {
   if (!window._user) { if (typeof showToast==='function') showToast('Sign in first','error'); return; }
-  const warning =
-    'PERMANENTLY DELETE YOUR ACCOUNT?\n\n' +
+  // A team member (companyId claim pointing at someone else's company) is
+  // SUSPENDED, not erased: the server keeps the company's records and their
+  // info, and only the owner or an admin can turn them back on (2026-10-08,
+  // functions/integrations/erasure-scope.js). Say so before they ask.
+  const claims = window._userClaims || {};
+  const isTeamMember = !!(claims.companyId && claims.companyId !== window._user.uid);
+  const warning = isTeamMember
+    ? 'CLOSE YOUR ACCOUNT?\n\n' +
+      'You are on a team, so your account will be SUSPENDED, not deleted: your access ends and you can no longer sign in. ' +
+      'Company records (leads, estimates, photos, invoices) stay with your company, along with your account information. ' +
+      'Only your company owner or an admin can turn the account back on.\n\n' +
+      'We will email you a confirmation link. Nothing changes until you click it within 24 hours.'
+    : 'PERMANENTLY DELETE YOUR ACCOUNT?\n\n' +
     'This will delete every lead, estimate, photo, pin, task, note, and profile record you own. ' +
     'Your account will be disabled. This CANNOT be undone.\n\n' +
     'We will email you a confirmation link. The deletion only completes when you click it ' +
@@ -444,8 +455,11 @@ window._gdprRequestErasure = async function () {
   try {
     const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
     const fn = mod.httpsCallable(mod.getFunctions(), 'requestAccountErasure');
-    await fn({});
-    if (typeof showToast==='function') showToast('Confirmation email sent. Click the link within 24h to complete deletion.', 'success');
+    const r = await fn({});
+    const suspend = !!(r && r.data && r.data.mode === 'member');
+    if (typeof showToast==='function') showToast(suspend
+      ? 'Confirmation email sent. Click the link within 24h to suspend your account.'
+      : 'Confirmation email sent. Click the link within 24h to complete deletion.', 'success');
   } catch (e) {
     console.error('gdpr erasure request failed', e);
     if (typeof showToast==='function') showToast(e.message || 'Request failed', 'error');
