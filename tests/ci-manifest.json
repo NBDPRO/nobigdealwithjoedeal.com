@@ -374,6 +374,7 @@
     "homeowner-honesty-schema-reviews-2026-10-06.test.js",
     "seo-audit-fixes-2026-10-06.test.js",
     "seo-hub-vs-town-2026-10-06.test.js",
+    "seo-gsc-titles-2026-10-07.test.js",
     "town-rr-pages-overlap-2026-10-06.test.js",
     "deal-acceptance-atomicity.test.js",
     "refer-form-errors-visible-2026-09-28.test.js",
