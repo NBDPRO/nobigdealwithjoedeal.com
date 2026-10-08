@@ -492,6 +492,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   const PAYMENT_REF_MAX = 80;
   const PAYMENT_NOTE_MAX = 500;
   const PROOF_NAME_MAX = 120;
+  // Same string as functions/stripe-ledger-logic.js CATCHUP_BASIS.
+  const PAYMENT_BASIS_CATCHUP = 'catchup_paid_in_full';
 
   function isManualPaymentMethod(m) {
     return PAYMENT_METHODS.some(x => x.key === m);
@@ -610,6 +612,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         ? input.paymentId : newPaymentId(recordedAt.getTime()),
     };
     if (isPayer(input.payer)) entry.payer = input.payer;
+    // "Catch up my numbers" → "Paid in full? Yes" (catchup.js): a balancing
+    // entry for the whole job total, not one itemised payment. The Stripe
+    // ledger replaces part of it when a real Stripe payment for the job turns
+    // up later, instead of counting both (R6-2-8,
+    // functions/stripe-ledger-logic.js planCatchUpAbsorb). Only this value.
+    if (input.basis === PAYMENT_BASIS_CATCHUP) entry.basis = PAYMENT_BASIS_CATCHUP;
     const reference = _cleanText(input.reference, PAYMENT_REF_MAX);
     const note = _cleanText(input.note, PAYMENT_NOTE_MAX);
     if (reference) entry.reference = reference;
@@ -2364,6 +2372,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         proofStoragePath: details.proofStoragePath,
         proofName: details.proofName,
         payer: details.payer,
+        basis: details.basis,
         paymentId: details.paymentId,
         recordedBy: (window._auth && window._auth.currentUser && window._auth.currentUser.uid)
           || (window._user && window._user.uid) || '',
@@ -3671,7 +3680,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       throw new Error('The invoice for this job is already paid in full — record extra money on the invoice itself.');
     }
     await markPaid(invoiceId, o.amount, o.method, {
-      at: o.at, reference: o.reference, payer: o.payer,
+      at: o.at, reference: o.reference, payer: o.payer, basis: o.basis,
     });
     return invoiceId;
   }
@@ -3907,6 +3916,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     paymentProofPath,
     proofFileCheck,
     buildManualPaymentEntry,
+    PAYMENT_BASIS_CATCHUP,
     applyPaymentToInvoice,
     paymentKey,
     findPaymentIndex,

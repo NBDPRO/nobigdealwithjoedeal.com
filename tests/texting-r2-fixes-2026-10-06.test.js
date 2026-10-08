@@ -410,19 +410,22 @@ async function callPhone(token, data, docs, wopts) {
     let r = await callPhone(REP, { action: 'stop', leadId: 'lead-1' }, base);
     const reg = r.w && r.w.store.get('sms_opt_outs/' + KEY);
     const dnc = r.w && r.w.store.get('sms_dnc/co-1__' + KEY);
-    ok('records the STOP register under the canonical key, like an inbound STOP', r.out && r.out.ok === true && !!reg && reg.keyword === 'STOP' && reg.match === 'owner_reported' && reg.reportedBy === 'rep-1',
-      JSON.stringify(r.err ? r.err.message : reg));
-    ok('…and the company\'s Do Not Text list (source stop_reply — only their START lifts it)', !!dnc && dnc.source === 'stop_reply');
+    // R6-3-5 (2026-10-07): the STOP was told to THIS company's owner's phone, so
+    // it is this company's STOP — its own list, marked owner_phone — and NOT the
+    // global register (NBD's number's list, which a START to that number clears).
+    ok('records the STOP on the company\'s own Do Not Text list (stop_reply, owner_phone), not the global register', r.out && r.out.ok === true && !reg
+      && !!dnc && dnc.source === 'stop_reply' && dnc.stopLine === 'owner_phone' && dnc.stopCompanyId === 'co-1' && dnc.addedBy === 'rep-1',
+      JSON.stringify(r.err ? r.err.message : { reg, dnc }));
     const after = await callPhone(REP, { action: 'check', leadId: 'lead-1', phone: PHONE }, Object.fromEntries(r.w.store));
     ok('…after which the check refuses this customer', after.out && after.out.ok === false && after.out.code === 'opted_out');
     r = await callPhone(REP, { action: 'stop', leadId: 'lead-1', phone: '(513) 555-0100' }, base);
-    ok('a number that is not the customer\'s (no lead phone, no log row) → refused, nothing recorded', r.err && r.err.code === 'failed-precondition' && !r.w.store.has('sms_opt_outs/5135550100'));
+    ok('a number that is not the customer\'s (no lead phone, no log row) → refused, nothing recorded', r.err && r.err.code === 'failed-precondition' && !r.w.store.has('sms_dnc/co-1__5135550100'));
     r = await callPhone(REP, { action: 'stop', leadId: 'lead-1', logId: 'log-1' }, Object.assign({}, base, { 'sms_log/log-1': { leadId: 'lead-1', uid: 'rep-1', companyId: 'co-1', to: '+15135550100', toDigits: '5135550100' } }));
-    ok('from a Comm Log row: the number that row was sent to', r.out && r.out.ok === true && r.w.store.has('sms_opt_outs/5135550100'));
+    ok('from a Comm Log row: the number that row was sent to', r.out && r.out.ok === true && r.w.store.has('sms_dnc/co-1__5135550100'));
     r = await callPhone(REP, { action: 'stop', leadId: 'lead-1', logId: 'log-1' }, Object.assign({}, base, { 'sms_log/log-1': { leadId: 'lead-9', uid: 'x', companyId: 'co-2', to: '+15135550100' } }));
-    ok('another customer\'s / company\'s log row → refused', r.err && r.err.code === 'not-found' && !r.w.store.has('sms_opt_outs/5135550100'));
+    ok('another customer\'s / company\'s log row → refused', r.err && r.err.code === 'not-found' && !r.w.store.has('sms_dnc/co-1__5135550100'));
     r = await callPhone(REP, { action: 'stop', leadId: 'lead-1' }, { 'leads/lead-1': Object.assign({}, LEAD, { companyId: 'co-2', userId: 'x' }) });
-    ok('another company\'s lead → refused', r.err && r.err.code === 'not-found' && !r.w.store.has('sms_opt_outs/' + KEY));
+    ok('another company\'s lead → refused', r.err && r.err.code === 'not-found' && ![...r.w.store.keys()].some((k) => k.startsWith('sms_dnc/')));
     r = await callPhone({ uid: 'v-1', companyId: 'co-1', role: 'viewer' }, { action: 'stop', leadId: 'lead-1' }, base);
     ok('a viewer cannot', r.err && r.err.code === 'permission-denied');
     r = await callPhone(REP, { action: 'sent', leadId: 'lead-1', phone: PHONE, body: 'Hi Sam', source: 'deal_link' }, base);
@@ -440,6 +443,7 @@ async function callPhone(token, data, docs, wopts) {
     const w = W.makeWorld({ docs: { 'leads/lead-1': LEAD, 'sms_settings/co-1': { registered: true } } });
     const mod = W.load(w, 'sms-functions.js');
     const after = { status: 'approved', draftText: 'Thanks Sam, Tuesday works.', customerPhone: PHONE, userId: 'rep-1', companyId: 'co-1', approvedBy: 'rep-1' };
+    w.store.set('leads/lead-1/ai_drafts/draft-1', Object.assign({}, after)); // the send claim reads it (R6-3-3)
     const fire = (beforeStatus) => mod.onAiDraftApproved.__handler({
       data: { before: { data: () => ({ status: beforeStatus }) }, after: { data: () => after } },
       params: { leadId: 'lead-1', draftId: 'draft-1' },
@@ -468,7 +472,7 @@ async function callPhone(token, data, docs, wopts) {
     const drafts = blockAt(rules, 'match /ai_drafts/{draftId} {');
     ok('rules: approved only from pending; failed may go back to pending (emulator: firestore-rules.test.js §57)',
       !!drafts && /resource\.data\.status == 'pending'\s*&& request\.resource\.data\.status in \['approved', 'dismissed'\]/.test(drafts)
-        && /resource\.data\.status == 'failed'\s*&& request\.resource\.data\.status in \['pending', 'dismissed'\]/.test(drafts));
+        && /resource\.data\.status in \['failed', 'send_uncertain'\]\s*&& request\.resource\.data\.status in \['pending', 'dismissed'\]/.test(drafts));
   }
 
   // ═══ S. the helpers can fail ═══════════════════════════════════════════

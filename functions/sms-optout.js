@@ -67,6 +67,32 @@ const COLLECTION = 'sms_opt_outs';
  */
 const DNC_COLLECTION = 'sms_dnc';
 
+/**
+ * WHO WAS TOLD STOP (review R6-3-5, 2026-10-07). A START re-subscribes the
+ * homeowner to the sender they texted START to (CTIA) — never to a different
+ * company that was told STOP somewhere else. So every stop_reply entry says
+ * which sender received the STOP:
+ *
+ *   'twilio'       NBD's Twilio number (incomingSMS / twilio-line.js). The
+ *                  number is shared by every tenant's sends, so its STOP goes
+ *                  in the global register and is copied to every company
+ *                  holding the number; a START to the same number lifts it.
+ *   'owner_phone'  "They replied STOP" — the STOP reached a company owner's
+ *                  OWN phone (phone-text-check.js `stop`). It is that
+ *                  company's STOP only (stopCompanyId), never the register;
+ *                  a START to NBD's number lifts it only when that company is
+ *                  NBD (the number's owner, liftStopOnLine lineCompanyId).
+ *
+ * Entries written before this have no stopLine; liftStopOnLine reads the
+ * CRM note / the register to tell them apart, and keeps (and flags) any it
+ * cannot attribute.
+ */
+const STOP_LINE_TWILIO = 'twilio';
+const STOP_LINE_OWNER_PHONE = 'owner_phone';
+// phone-text-check.js's note on the reporting company's own entry, which is
+// how a pre-R6-3-5 owner-reported entry is recognised.
+const OWNER_STOP_NOTE = 'They replied STOP (recorded from the CRM)';
+
 function cleanTenant(c) {
   const v = typeof c === 'string' ? c.trim() : '';
   return (!v || v.indexOf('/') !== -1 || v.length > 128) ? '' : v;
@@ -215,7 +241,12 @@ async function lookupOptOut(db, phone, tenants) {
   // so it has no legacy records).
   for (const companyId of tenants) {
     const dnc = await db.doc(DNC_COLLECTION + '/' + companyId + '__' + key).get();
-    if (dnc.exists) return { optedOut: true, key, viaLegacyKey: false, source: 'dnc', companyId };
+    if (dnc.exists) {
+      // dncSource: 'stop_reply' = the homeowner's own STOP (a caller may say
+      // "they replied STOP" rather than "on your Do Not Text list").
+      const dncSource = ((dnc.data() || {}).source) === 'stop_reply' ? 'stop_reply' : 'manual';
+      return { optedOut: true, key, viaLegacyKey: false, source: 'dnc', companyId, dncSource };
+    }
   }
 
   return { optedOut: false, key, viaLegacyKey: false, source: null };
@@ -276,13 +307,34 @@ async function addDnc(db, entry, serverTimestamp) {
     addedAt: serverTimestamp ? serverTimestamp() : new Date(),
     addedBy: e.byUid || null,
   };
+  // Which sender the STOP was given to (R6-3-5) — only on a stop_reply entry.
+  const ownerStop = doc.source === 'stop_reply' && e.stopLine === STOP_LINE_OWNER_PHONE;
+  if (doc.source === 'stop_reply') {
+    doc.stopLine = ownerStop ? STOP_LINE_OWNER_PHONE : STOP_LINE_TWILIO;
+    if (ownerStop) doc.stopCompanyId = cleanTenant(e.stopCompanyId) || doc.companyId;
+  }
   if (e.note) doc.note = String(e.note).slice(0, 200);
+  const ref = db.doc(DNC_COLLECTION + '/' + id);
   try {
-    await db.doc(DNC_COLLECTION + '/' + id).create(doc);
+    await ref.create(doc);
     return { id, created: true };
   } catch (err) {
-    if (isAlreadyExists(err)) return { id, created: false };
-    throw err;
+    if (!isAlreadyExists(err)) throw err;
+    // A STOP told to this company's own phone outranks whatever entry is
+    // there already (a manual add, or a copy of a business-line STOP that a
+    // START on that line would lift): it becomes the company's own STOP, which
+    // only the company's own sender can lift. Date and adder are kept.
+    if (ownerStop) {
+      const cur = await ref.get();
+      const x = cur.exists ? (cur.data() || {}) : {};
+      if (!(x.source === 'stop_reply' && x.stopLine === STOP_LINE_OWNER_PHONE)) {
+        const up = { source: 'stop_reply', stopLine: STOP_LINE_OWNER_PHONE, stopCompanyId: doc.stopCompanyId };
+        if (doc.note) up.note = doc.note;
+        await ref.update(up);
+        return { id, created: false, upgraded: true };
+      }
+    }
+    return { id, created: false };
   }
 }
 
@@ -321,9 +373,10 @@ async function listDnc(db, companyId, limit) {
 }
 
 /**
- * START / UNSTOP: the homeowner's own STOP-reply entries go with the register
- * record. Manual entries stay — a company that decided not to text a number
- * keeps that decision.
+ * Every stop_reply entry for a number, for every company. NOT what an inbound
+ * START uses any more: that is liftStopOnLine (R6-3-5), which keeps another
+ * company's owner-phone STOP. Manual entries stay — a company that decided
+ * not to text a number keeps that decision.
  * @returns {Promise<number>} entries removed
  */
 async function clearStopReplyDnc(db, phone) {
@@ -355,7 +408,7 @@ async function copyStopToTenantLists(db, phone, opts) {
     const snap = await db.collection('leads').where('phoneDigits', '==', key).limit(10).get();
     const tenants = [...new Set(snap.docs.map((d) => TextingGate.tenantKeyOfRecord(d.data() || {})).filter(Boolean))];
     await Promise.all(tenants.map((companyId) => addDnc(db, {
-      companyId, phone, source: 'stop_reply',
+      companyId, phone, source: 'stop_reply', stopLine: STOP_LINE_TWILIO,
     }, o.serverTimestamp).catch(fail)));
     return tenants;
   } catch (e) {
@@ -364,9 +417,102 @@ async function copyStopToTenantLists(db, phone, opts) {
   }
 }
 
+/**
+ * START / UNSTOP to NBD's Twilio number (incomingSMS, twilio-line.js) —
+ * review R6-3-5, 2026-10-07. Lifts only what THAT number was told:
+ *
+ *   - the register docs, both key shapes (the clearOptOut set): the number's
+ *     own STOP list;
+ *   - stop_reply Do Not Text entries from its STOPs (stopLine 'twilio');
+ *   - an 'owner_phone' entry only when its company is the number's owner
+ *     (opts.lineCompanyId — NBD), since that is the same sender.
+ *
+ * Never lifted: a company's manual entries, and another company's
+ * owner_phone STOP — company A's "They replied STOP" stays when the homeowner
+ * texts START to NBD's number. A pre-R6-3-5 entry it cannot attribute is
+ * KEPT, not guessed at, and flagged: `startSeenAt` / `startSeenLine` on the
+ * doc and its path in `kept` (the callers log it).
+ *
+ * A pre-R6-3-5 owner-reported REGISTER doc (match 'owner_reported') was one
+ * company's STOP written into the global register. It moves to that
+ * company's own list (owner_phone) and leaves the register: the reporting
+ * company is still held, the number's other companies no longer are. With no
+ * usable reportedCompanyId it is kept and flagged.
+ *
+ * Throws on a Firestore error (the callers catch and log; a START that does
+ * not land leaves the homeowner suppressed, never texted).
+ *
+ * @param {{line?: string, lineCompanyId?: string, serverTimestamp?: Function}} [opts]
+ * @returns {Promise<{cleared: string[], kept: string[]}>} doc paths
+ */
+async function liftStopOnLine(db, phone, opts) {
+  const o = opts || {};
+  const line = String(o.line || STOP_LINE_TWILIO).slice(0, 40);
+  const lineCo = cleanTenant(o.lineCompanyId);
+  const key = optOutKey(phone);
+  const out = { cleared: [], kept: [] };
+  if (!key) return out;
+  const flag = () => ({ startSeenAt: o.serverTimestamp ? o.serverTimestamp() : new Date(), startSeenLine: line });
+  const keep = async (ref) => {
+    out.kept.push(ref.path);
+    // The flag is a note on the record; failing to write it changes nothing.
+    await ref.update(flag()).catch(() => {});
+  };
+  const clear = async (ref) => { await ref.delete(); out.cleared.push(ref.path); };
+
+  // 1. The register.
+  const regKeys = [key, '1' + key, legacyOptOutKey(phone)].filter((k, i, a) => k && a.indexOf(k) === i);
+  let ownerRegister = false;
+  for (const k of regKeys) {
+    const ref = db.doc(COLLECTION + '/' + k);
+    const snap = await ref.get();
+    if (!snap.exists) continue;
+    const r = snap.data() || {};
+    if (r.match !== 'owner_reported') { await clear(ref); continue; }
+    ownerRegister = true;
+    const co = cleanTenant(r.reportedCompanyId);
+    if (!co) { await keep(ref); continue; }
+    if (co !== lineCo) {
+      // Keep the reporting company held — on its own list — before the
+      // register doc goes.
+      await addDnc(db, {
+        companyId: co, phone, source: 'stop_reply', stopLine: STOP_LINE_OWNER_PHONE, stopCompanyId: co,
+        byUid: r.reportedBy || null, note: OWNER_STOP_NOTE,
+      }, o.serverTimestamp);
+    }
+    await clear(ref);
+  }
+
+  // 2. The Do Not Text entries for the number.
+  const snap = await db.collection(DNC_COLLECTION).where('key', '==', key).limit(50).get();
+  for (const d of snap.docs) {
+    const x = d.data() || {};
+    if (x.source !== 'stop_reply') continue; // a company's own decision stays
+    let stopLine = x.stopLine;
+    let stopCo = cleanTenant(x.stopCompanyId);
+    if (!stopLine) {
+      // Written before R6-3-5.
+      if (x.note === OWNER_STOP_NOTE) { stopLine = STOP_LINE_OWNER_PHONE; stopCo = cleanTenant(x.companyId); }
+      else if (ownerRegister) { await keep(d.ref); continue; } // a copy of an owner report, or of a line STOP: can't tell
+      else stopLine = STOP_LINE_TWILIO;
+    }
+    if (stopLine === STOP_LINE_OWNER_PHONE) {
+      if (lineCo && stopCo === lineCo) await clear(d.ref);
+      else await keep(d.ref);
+      continue;
+    }
+    await clear(d.ref);
+  }
+  return out;
+}
+
 module.exports = {
   COLLECTION,
   DNC_COLLECTION,
+  STOP_LINE_TWILIO,
+  STOP_LINE_OWNER_PHONE,
+  OWNER_STOP_NOTE,
+  liftStopOnLine,
   READ_TIMEOUT_MS,
   dncDocId,
   addDnc,
