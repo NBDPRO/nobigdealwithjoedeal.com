@@ -46,6 +46,8 @@
     openQuickKnock: state.openQuickKnock,
     closeQuickKnock: state.closeQuickKnock,
     selectDispo: state.selectDispo,
+    // One-tap outcome row on the knock sheet (2026-10-08).
+    quickOutcome: state.quickOutcome,
     submitKnock: state.handleSubmitKnock,
     // Address-accuracy actions (data-d2d-action triggers in the knock modal)
     verifyKnockAddress: state.verifyKnockAddress,
