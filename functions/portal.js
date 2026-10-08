@@ -58,6 +58,7 @@ const { reencodePhoto } = require('./photo-reencode');
 // stay identical). NEVER emit est.rows raw — pre-sweep V2 rows carry the
 // contractor's COST basis.
 const { buildDisplayRows, buildDocLineItems, tierApplies } = require('./customer-estimate-rows');
+const { portalPriced } = require('./signed-price');
 // Pay link (stripePaymentLink OR stripeHostedUrl) + the Kentucky hold in one
 // call: the homeowner never sees a link the KRS 367.626 window still holds.
 const KyLaw = require('./ky-insurance-law');
@@ -772,6 +773,12 @@ exports.getHomeownerPortalView = onRequest(
       return tb - ta;
     });
     const latest = estimates.find(isSharedEstimate) || null;
+    // The card's money is the SIGNED price once there is one (review R6-2-2,
+    // Jo 2026-10-07): a rep's later edit is not what the homeowner signed or
+    // is billed, so "✓ Signed" never sits beside a re-priced total
+    // (signed-price.js portalPriced; a revision out for a new signature shows
+    // the revision — that is what they are being asked to sign).
+    const latestPriced = latest ? portalPriced(latest) : null;
 
     // REDACTION: only non-sensitive fields reach the homeowner.
     // No claim details, no internal notes, no rep commission, no
@@ -1086,7 +1093,7 @@ exports.getHomeownerPortalView = onRequest(
       estimate: latest ? {
         id:              latest.id,
         builder:         latest.builder || 'classic',
-        grandTotal:      latest.grandTotal || latest.total || null,
+        grandTotal:      latestPriced.grandTotal || latestPriced.total || null,
         // V2 estimate builder persists only the tier KEY (good/better/best),
         // not tierName, so the portal's tier-label line was dropped for all V2
         // estimates. Derive the label from the key when tierName is absent.
@@ -1102,9 +1109,9 @@ exports.getHomeownerPortalView = onRequest(
         // so this line told gutter and repair customers they bought
         // "Preferred". tierApplies() is the shared rule (it also covers
         // template estimates saved before the fix — see its comment).
-        tierName:        tierApplies(latest)
-          ? (latest.tierName
-            || ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' }[latest.tier])
+        tierName:        tierApplies(latestPriced)
+          ? (latestPriced.tierName
+            || ({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' }[latestPriced.tier])
             || null)
           : null,
         signatureStatus: latest.signatureStatus || 'none',
@@ -1117,7 +1124,7 @@ exports.getHomeownerPortalView = onRequest(
         // What is due at signing, in the rule's own words (deposit-rule.js via
         // the saved stamp, 2026-09-25) — the same sentence the homeowner's
         // quote, contract and invoice print. null when absent or stale.
-        depositPlan: safeDepositPlan(latest),
+        depositPlan: safeDepositPlan(latestPriced),
         createdAt: latest.createdAt?.toDate?.()?.toISOString() || null
       } : null,
       bookingUrl: rep.calcomUsername

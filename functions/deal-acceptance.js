@@ -228,6 +228,23 @@ exports.createDealAcceptToken = onCall(
     const tierPrices = {};
     VALID_TIERS.forEach((t) => { tierPrices[t] = Number(tiers[t] && tiers[t].price) || 0; });
 
+    // The version of the estimate this link is issued at (review R6-2-5, Jo
+    // 2026-10-07): a re-save after this moves the fingerprint, and
+    // submitDealAcceptance refuses the old price (signed-price.js
+    // checkDealPrice). Only the deal owner's own estimate counts.
+    let estimateId = null;
+    let estimateFingerprint = null;
+    if (typeof deal.estimateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(deal.estimateId)) {
+      try {
+        const es = await db.doc(`estimates/${deal.estimateId}`).get();
+        const est = es.exists ? (es.data() || {}) : null;
+        if (est && est.deleted !== true && est.userId === deal.userId) {
+          estimateId = deal.estimateId;
+          estimateFingerprint = require('./customer-estimate-rows').pricedFingerprint(est);
+        }
+      } catch (e) { logger.warn('[createDealAcceptToken] estimate read failed', { msg: e && e.message }); }
+    }
+
     const now = Date.now();
     // Link life is a company setting since 2026-10-03
     // (companyProfile/{tenant}.salesLinks.dealLinkDays, 1–90, default still
@@ -249,6 +266,8 @@ exports.createDealAcceptToken = onCall(
       customerName: String(deal.customerName || '').slice(0, 120),
       htmlPath,
       tierPrices,
+      estimateId,
+      estimateFingerprint,
       status: 'pending',
       mintedBy: uid,
       mintedAt: FieldValue.serverTimestamp(),
@@ -422,6 +441,9 @@ exports.submitDealAcceptance = onRequest(
     // wire (defends a future renderer against a stored-XSS payload here).
     const financing = Number.isFinite(Number(b.financing)) ? Number(b.financing) : null;
     const scheduledDate = typeof b.scheduledDate === 'string' ? b.scheduledDate.slice(0, 40) : '';
+    // The CURRENT price the homeowner confirmed after a stale-price refusal
+    // (R6-2-5) — a number or null; the server compares it with its own.
+    const confirmPrice = (b.confirmPrice != null && Number.isFinite(Number(b.confirmPrice))) ? Number(b.confirmPrice) : null;
 
     // Charset-validate the token BEFORE it becomes a Firestore doc-path segment
     // — a '/' would otherwise make db.doc() throw an uncaught 500. Mirrors
@@ -506,13 +528,17 @@ exports.submitDealAcceptance = onRequest(
         if (!(price > 0)) {
           const e = new Error('unpriced'); e._http = 400; e._msg = 'That package isn’t priced on this deal. Choose another or ask your rep.'; throw e;
         }
+        // A STALE price is refused (review R6-2-5) — staleDealPrice below.
+        const accepted = await staleDealPrice(db, tx, t, dealRoomSnap.data() || {}, tier, price, confirmPrice);
+        const acceptedPrice = accepted.price;
+        if (accepted.changedFrom != null) evidence.priceChangedFrom = accepted.changedFrom;
         tx.update(tokRef, { status: 'accepted', acceptedAt: FieldValue.serverTimestamp() });
         // update(), not set(merge) — the existence check above means this must
         // modify an existing doc, never create one.
         tx.update(dealRoomRef, {
           status: 'accepted',
           acceptedTier: tier,
-          acceptedPrice: price,
+          acceptedPrice,
           acceptedFinancing: financing,
           acceptedSignature: signature,
           scheduledInstallDate: scheduledDate || null,
@@ -522,11 +548,11 @@ exports.submitDealAcceptance = onRequest(
         });
         return {
           dealId: t.dealId, ownerUid: t.ownerUid, companyId: t.companyId || null, leadId: t.leadId || null,
-          customerName: t.customerName || '', price, htmlPath: t.htmlPath || null,
+          customerName: t.customerName || '', price: acceptedPrice, htmlPath: t.htmlPath || null,
         };
       });
     } catch (err) {
-      if (err && err._http) { res.status(err._http).json({ error: err._msg }); return; }
+      if (err && err._http) { res.status(err._http).json(err._json || { error: err._msg }); return; }
       logger.error('[submitDealAcceptance] burn+record txn failed', { msg: err.message });
       res.status(500).json({ error: 'Could not record your acceptance. Try again.' }); return;
     }
@@ -585,6 +611,50 @@ exports.submitDealAcceptance = onRequest(
     res.status(200).json({ ok: true });
   }
 );
+
+// ═══════════════════════════════════════════════════════════════
+// A stale deal-room price (review R6-2-5, Jo 2026-10-07).
+// ═══════════════════════════════════════════════════════════════
+/**
+ * Inside submitDealAcceptance's transaction (reads only): may the homeowner
+ * accept `tier` at the page's `price`? Refused when the estimate was re-saved
+ * after this link was issued (the token's estimateFingerprint moved) or the
+ * page's price for this package is no longer the estimate's — the homeowner
+ * is answered (409 price_changed) with the CURRENT price and can accept only
+ * that one, confirmed (deal-room.js re-asks). Legacy links (no fingerprint)
+ * still get the price comparison, via the deal's own estimate.
+ * signed-price.js checkDealPrice has the rule.
+ * → { ok: true, price, changedFrom? }; throws the 409 otherwise.
+ */
+async function staleDealPrice(db, tx, t, room, tier, price, confirmPrice) {
+  const okId = (v) => typeof v === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(v);
+  const estId = okId(t.estimateId) ? t.estimateId : (okId(room.estimateId) ? room.estimateId : null);
+  if (!estId) return { ok: true, price };
+  const es = await tx.get(db.doc(`estimates/${estId}`));
+  const est = es.exists ? (es.data() || {}) : null;
+  if (!est || est.userId !== t.ownerUid) return { ok: true, price };
+  const accepted = require('./signed-price').checkDealPrice({ est, tier, offeredPrice: price, issuedFingerprint: t.estimateFingerprint || null, confirmPrice });
+  if (accepted.ok) return accepted;
+  // What is due at signing at the new price — deposit-rule.js on the
+  // estimate's inputs and the lead (a Kentucky insurance job stays $0).
+  let depositDue = null;
+  if (accepted.tierPrice != null) {
+    let lead = null;
+    if (okId(t.leadId)) { const ls = await tx.get(db.doc(`leads/${t.leadId}`)); lead = ls.exists ? (ls.data() || {}) : null; }
+    try {
+      const f = require('./deal-accepted-tier').retierFields(est, accepted.tierPrice, { lead, depositRule: require('./deposit-rule') });
+      depositDue = Number.isFinite(Number(f.deposit)) ? Number(f.deposit) : null;
+    } catch (_) { depositDue = null; }
+  }
+  const e = new Error('price_changed'); e._http = 409;
+  e._msg = accepted.tierPrice != null
+    ? 'Your rep updated this estimate after this page was made. This package is now $'
+      + Number(accepted.tierPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      + '. Review the new price, then tap Accept again to agree to it.'
+    : 'Your rep updated this estimate after this page was made, and this package needs an updated page. Please ask your rep for the new link.';
+  e._json = { error: e._msg, code: 'price_changed', tier, tierPrice: accepted.tierPrice, currentPrices: accepted.currentPrices, depositDue };
+  throw e;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Deal packet photos (2026-10-04). See deal-packet-logic.js for the rules.
