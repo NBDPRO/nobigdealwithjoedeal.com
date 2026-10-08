@@ -47,6 +47,10 @@
   function uid() { return (w._user && w._user.uid) || null; }
   function isViewer() { return ((w._userClaims || {}).role || '') === 'viewer'; }
   function custUrl(id) { return '/pro/customer.html?id=' + encodeURIComponent(id); }
+  // A viewer gets the plain customer link: they cannot record a payment.
+  function payUrl(id, invoiceId) {
+    return isViewer() ? custUrl(id) : custUrl(id) + '&pay=' + encodeURIComponent(invoiceId || '1');
+  }
   function tel(d) { return d ? 'tel:+1' + d : ''; }
   function fmtPhone(d) { return d && d.length === 10 ? '(' + d.slice(0, 3) + ') ' + d.slice(3, 6) + '-' + d.slice(6) : (d || ''); }
 
@@ -197,8 +201,11 @@
       // Money figures carry .ui-money (the --font-money face, tabular).
       var money = '<span class="ui-money">' + esc(P.fmtCents(r.cents)) + '</span>';
       if (r.kind === 'deposit') return row(r.key, esc(r.name), 'Draft deposit ' + money + ' · not sent', link(r.leadId ? custUrl(r.leadId) : '', 'Review', 'tp-go') + (r.leadId ? '' : btn('goto', 'money', 'Review', 'tp-go')));
+      // One tap to the Record payment sheet for THIS invoice (phone audit
+      // 2026-10-07 #2: "Open" landed at the top of the customer page, ~12
+      // screens above Record payment). customer-pay-link.js opens it.
       return row(r.key, esc(r.name), money + ' owed' + (r.overdue ? ' · <b class="tp-hot">past due</b>' : '') + (r.number ? ' · #' + esc(r.number) : ''),
-        link(tel(r.phone), 'Call') + (r.leadId ? link(custUrl(r.leadId), 'Open', 'tp-go') : btn('goto', 'money', 'Open', 'tp-go')));
+        link(tel(r.phone), 'Call') + (r.leadId ? link(payUrl(r.leadId, r.invoiceId), ro ? 'Open' : '💵 Record payment', 'tp-go') : btn('goto', 'money', 'Open', 'tp-go')));
     });
     var s = p.stalled.map(function (r) {
       var late = r.daysLate > 0 ? r.daysLate + (r.daysLate === 1 ? ' day' : ' days') + ' past follow-up' : 'follow-up due today';

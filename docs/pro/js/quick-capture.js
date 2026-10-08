@@ -402,6 +402,7 @@
     const amounts = Array.isArray(summary.amounts) ? summary.amounts : [];
     const dates = Array.isArray(summary.dates) ? summary.dates : [];
     const category = summary.category || 'other';
+    const here = currentCustomer();
 
     function listChip(label, items) {
       if (!items.length) return '';
@@ -434,14 +435,19 @@
 
       '</div>' +
 
-      // Routing actions
+      // Routing actions. On a customer page the customer Jo is standing on
+      // is the one-tap default (phone audit 2026-10-07 #4: he had to pick
+      // the lead he was already on); any other lead stays one tap further.
+      (here
+        ? '<button type="button" id="nbd-qc-act-here" class="qcx-p11px-bgorange-cfff qc-here-btn">Save to ' + escHtml(here.name) + '</button>'
+        : '') +
       '<div class="qcx-dgrid-gtc1fr1fr-gap8px">' +
-        '<button type="button" id="nbd-qc-act-save" class="qcx-p11px-bgorange-cfff">Save capture</button>' +
-        '<button type="button" id="nbd-qc-act-link" class="qcx-p11px-bg1a2540-cinherit">Save & link to lead</button>' +
+        '<button type="button" id="nbd-qc-act-save" class="' + (here ? 'qcx-p11px-bg1a2540-cinherit' : 'qcx-p11px-bgorange-cfff') + '">Save capture</button>' +
+        '<button type="button" id="nbd-qc-act-link" class="qcx-p11px-bg1a2540-cinherit">' + (here ? 'Link to another lead' : 'Save & link to lead') + '</button>' +
       '</div>' +
       (actionItems.length
         ? '<button type="button" id="nbd-qc-act-tasks" class="qcx-wd100-p11px-bg1a2540">' +
-          '+ Make ' + actionItems.length + ' task' + (actionItems.length === 1 ? '' : 's') + ' on a lead</button>'
+          '+ Make ' + actionItems.length + ' task' + (actionItems.length === 1 ? '' : 's') + (here ? ' for ' + escHtml(here.name) : ' on a lead') + '</button>'
         : '') +
       '<button type="button" id="nbd-qc-act-discard" class="qcx-wd100-p9px-bgtranspar">Discard</button>' +
 
@@ -455,9 +461,35 @@
 
     document.getElementById('nbd-qc-act-save').addEventListener('click', () => _saveCapture(null));
     document.getElementById('nbd-qc-act-link').addEventListener('click', () => _showLeadPicker('save'));
+    const hereBtn = document.getElementById('nbd-qc-act-here');
+    if (hereBtn && here) hereBtn.addEventListener('click', () => _saveCapture(here.id));
     const tasksBtn = document.getElementById('nbd-qc-act-tasks');
-    if (tasksBtn) tasksBtn.addEventListener('click', () => _showLeadPicker('tasks'));
+    if (tasksBtn) tasksBtn.addEventListener('click', () => (here ? _saveTasksToLead(here.id) : _showLeadPicker('tasks')));
     document.getElementById('nbd-qc-act-discard').addEventListener('click', close);
+  }
+
+  // ─── The customer page's own customer ───────────────────────────
+  // customer.html sets window._customerId and window._leadDoc; the
+  // dashboard sets neither (its lead drawer is not "standing on" a lead).
+  function leadName(l) {
+    return (((l && l.firstName) || '') + ' ' + ((l && l.lastName) || '')).trim() || (l && l.name) || '';
+  }
+  function currentCustomer() {
+    const id = window._customerId;
+    if (!id || typeof id !== 'string') return null;
+    const doc = (window._leadDoc && (!window._leadDoc.id || window._leadDoc.id === id)) ? window._leadDoc
+      : (Array.isArray(window._leads) ? window._leads.find(l => l && l.id === id) : null);
+    return { id: id, name: leadName(doc) || 'this customer', address: (doc && doc.address) || '' };
+  }
+  // Picker rows: the current customer first (once), then the rest; a search
+  // filters both. Pure (tests/phone-quick-wins-2026-10-08.test.js).
+  function pickerLeads(leads, current, filterText) {
+    const q = String(filterText || '').toLowerCase().trim();
+    const match = (l) => !q || leadName(l).toLowerCase().includes(q) || String(l.address || '').toLowerCase().includes(q);
+    const rest = (Array.isArray(leads) ? leads : []).filter(l => l && l.id && (!current || l.id !== current.id));
+    const out = [];
+    if (current && match(current)) out.push(Object.assign({}, current, { firstName: current.name, lastName: '', current: true }));
+    return out.concat(rest.filter(match).slice(0, 30));
   }
 
   // ─── Lead picker (for save-to-lead and make-tasks) ──────────────
@@ -466,6 +498,7 @@
     // dashboard.html / customer.html. If it's not loaded yet, show
     // a search-by-name fallback instead.
     const leads = Array.isArray(window._leads) ? window._leads : [];
+    const here = currentCustomer();
     const resultEl = document.getElementById('nbd-qc-result');
     if (!resultEl) return;
 
@@ -498,24 +531,18 @@
     searchEl.focus();
 
     function render(filterText) {
-      const q = String(filterText || '').toLowerCase().trim();
-      const matched = q
-        ? leads.filter(l => {
-            const n = ((l.firstName || '') + ' ' + (l.lastName || '')).trim().toLowerCase();
-            const addr = (l.address || '').toLowerCase();
-            return n.includes(q) || addr.includes(q);
-          }).slice(0, 30)
-        : leads.slice(0, 30);
+      const matched = pickerLeads(leads, here, filterText);
       if (matched.length === 0) {
         listEl.innerHTML = '<div class="qcx-c94a3b8-fs13px-p14px">No leads match. Try a different search.</div>';
         return;
       }
       listEl.innerHTML = matched.map(l => {
-        const name = ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || '(no name)';
+        const name = leadName(l) || '(no name)';
         const addr = l.address || '';
-        return '<button type="button" class="nbd-qc-lead-btn" data-lead-id="' + escHtml(l.id) + '" ' +
+        return '<button type="button" class="nbd-qc-lead-btn' + (l.current ? ' qc-lead-here' : '') + '" data-lead-id="' + escHtml(l.id) + '" ' +
+          (l.current ? 'aria-current="true" ' : '') +
           'style="padding:10px 12px;text-align:left;background:#0f1729;border:1px solid #2a3344;border-radius:6px;color:inherit;cursor:pointer;font-size:13px;">' +
-          '<div class="qcx-w600">' + escHtml(name) + '</div>' +
+          '<div class="qcx-w600">' + escHtml(name) + (l.current ? ' <span class="qc-here-tag">This customer</span>' : '') + '</div>' +
           '<div class="qcx-c94a3b8-fs12px-mt2px">' + escHtml(addr) + '</div>' +
           '</button>';
       }).join('');
@@ -700,6 +727,9 @@
     open,
     close,
     attachFloatingButton,
+    // Pure, for tests (2026-10-08): who "this customer" is, and picker order.
+    currentCustomer,
+    pickerLeads,
   };
 
   if (document.readyState === 'loading') {

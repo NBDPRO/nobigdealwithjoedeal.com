@@ -52,3 +52,21 @@
 .sc-outcome-title { font-size: 13px; font-weight: 600; color: var(--t); overflow-wrap: anywhere; }
 .sc-outcome-when { font-size: 11px; color: var(--m); }
 .sc-outcome-open { background: none; border: none; color: var(--orange); font-size: 12px; cursor: pointer; padding: 6px 0; text-decoration: underline; white-space: nowrap; min-height: 32px; }
+
+/* Schedule tap targets (2026-10-08, phone audit 2026-10-07 #8): "← Back to CRM"
+   and "Open lead →" were 12px tall, "Show all open leads" a 13px box, the
+   lead names 19px, the inputs / Save / share buttons 31-38px. 44px on a phone. */
+.sched-back { display: inline-flex; align-items: center; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: .08em; color: var(--orange); cursor: pointer; }
+.sc-lead-open { background: none; border: none; padding: 0; color: var(--orange); font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; white-space: nowrap; }
+.sched-inline-link { color: var(--orange); text-decoration: underline; }
+@media (max-width: 768px) {
+  #view-schedule .sched-back { min-height: 44px; padding-right: 12px; }
+  #view-schedule .sc-outcome-open { min-height: 44px; }
+  #view-schedule .sc-lead-open { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; font-size: 13px; }
+  #view-schedule .sched-inline-link { display: inline-flex; align-items: center; min-height: 44px; }
+  #view-schedule .btn, #view-schedule .sp-save, #view-schedule .sp-clear { min-height: 44px; }
+  #view-schedule input.ui-input, #view-schedule .sp-search, #view-schedule .sp-in input { min-height: 44px; }
+  #view-schedule .sp-toggle { min-height: 44px; font-size: 13px; padding-right: 8px; cursor: pointer; }
+  #view-schedule .sp-toggle input { width: 22px; height: 22px; margin: 0; flex: none; }
+  #view-schedule .sp-name { display: inline-flex; align-items: center; min-height: 44px; }
+}

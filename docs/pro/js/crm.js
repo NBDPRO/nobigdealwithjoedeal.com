@@ -182,7 +182,9 @@ if (document.readyState === 'loading') {
     try {
       saved = (typeof localStorage !== 'undefined') ? localStorage.getItem('nbd_kanban_view') : null;
     } catch (_) { saved = null; }
-    const tries = [saved, window._currentViewKey, 'insurance'].filter(Boolean);
+    // No saved choice → ALL ('simple'), the same default as
+    // dashboard-bootstrap.module.js (phone audit 2026-10-07 #10).
+    const tries = [saved, window._currentViewKey, 'simple', 'insurance'].filter(Boolean);
     for (const view of tries) {
       try { window.buildKanbanColumns(view); } catch (e) {
         console.warn('[eager-kanban-init] view', view, 'threw:', e && e.message);

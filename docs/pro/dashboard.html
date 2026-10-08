@@ -53,7 +53,7 @@
 <!-- W151: mobile polish sweep — touch-target floors, customer
      page stacking, sticky jump nav, hover-on-touch suppression,
      iOS zoom-on-focus prevention, standalone safe-area padding. -->
-<link rel="stylesheet" href="/pro/css/mobile-polish.css?v=4">
+<link rel="stylesheet" href="/pro/css/mobile-polish.css?v=5">
 <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
@@ -62,7 +62,7 @@
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=9" as="script">
-<link rel="preload" href="js/crm.js?v=35" as="script">
+<link rel="preload" href="js/crm.js?v=36" as="script">
 <link rel="preload" href="js/maps.js?v=12" as="script">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -142,7 +142,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=40"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=41"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -150,7 +150,7 @@
 <link rel="stylesheet" href="css/dashboard-app.css?v=12">
 <link rel="stylesheet" href="css/ui-primitives.css?v=13">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
-<link rel="stylesheet" href="css/invoice-pipeline.css?v=4">
+<link rel="stylesheet" href="css/invoice-pipeline.css?v=5">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
 <link rel="stylesheet" href="css/close-board.css?v=2">
 <link rel="stylesheet" href="css/tenant-ready.css?v=1">
@@ -169,7 +169,7 @@
 <link rel="stylesheet" href="css/admin-manager-view.css?v=1">
 <link rel="stylesheet" href="css/claim-core-view.css?v=1">
 <link rel="stylesheet" href="css/lead-snooze-view.css?v=1">
-<link rel="stylesheet" href="css/quick-capture-view.css?v=1">
+<link rel="stylesheet" href="css/quick-capture-view.css?v=2">
 <link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
 <link rel="stylesheet" href="css/dashboard-widgets-view.css?v=1">
 <link rel="stylesheet" href="css/estimate-preview-view.css?v=1">
@@ -215,7 +215,7 @@
 <!-- Nav + print CSS — extracted to css/dashboard-nav.css (Rock 4 Phase 2e). -->
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
 <link rel="stylesheet" href="css/dashboard-bootstrap-view.css?v=1">
-<link rel="stylesheet" href="css/google-calendar.css?v=7">
+<link rel="stylesheet" href="css/google-calendar.css?v=8">
 <link rel="stylesheet" href="css/production.css?v=1">
 <link rel="stylesheet" href="css/ask-joe-actions.css?v=1">
 <link rel="stylesheet" href="css/game-card.css?v=2">
@@ -2021,13 +2021,13 @@
       <div class="crm-hdr-viewrow">
         <!-- VIEW switcher inline (replaces the old VIEW: row) -->
         <div class="crm-hdr-views" id="kanbanViewSwitcher" role="tablist" aria-label="Pipeline view">
-          <button class="kview-btn active" data-view="insurance" data-action="kanbanView" data-target="insurance">Ins<span class="kview-count" id="kview-count-insurance"></span></button>
+          <button class="kview-btn" data-view="insurance" data-action="kanbanView" data-target="insurance">Ins<span class="kview-count" id="kview-count-insurance"></span></button>
           <button class="kview-btn" data-view="cash" data-action="kanbanView" data-target="cash">Cash<span class="kview-count" id="kview-count-cash"></span></button>
           <button class="kview-btn" data-view="finance" data-action="kanbanView" data-target="finance">Fin<span class="kview-count" id="kview-count-finance"></span></button>
           <button class="kview-btn" data-view="warranty" data-action="kanbanView" data-target="warranty" title="Warranty / callback pipeline">War<span class="kview-count" id="kview-count-warranty"></span></button>
           <button class="kview-btn" data-view="service" data-action="kanbanView" data-target="service" title="Service / small repair pipeline">Svc<span class="kview-count" id="kview-count-service"></span></button>
           <button class="kview-btn" data-view="jobs" data-action="kanbanView" data-target="jobs">Jobs<span class="kview-count" id="kview-count-jobs"></span></button>
-          <button class="kview-btn" data-view="simple" data-action="kanbanView" data-target="simple">All<span class="kview-count" id="kview-count-simple"></span></button>
+          <button class="kview-btn active" data-view="simple" data-action="kanbanView" data-target="simple">All<span class="kview-count" id="kview-count-simple"></span></button>
         </div>
         <!-- Board/List toggle (2026-07-06, Jo's call: lean triage list).
              Right-aligned in the view row; mode persists per device
@@ -5114,7 +5114,7 @@
       <div class="page-hdr">
         <div>
           <div class="row-tight">
-            <span style="font-size:10px;color:var(--orange);cursor:pointer;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;font-weight:600;" data-action="goTo" data-target="crm">← Back to CRM</span>
+            <span class="sched-back" role="link" tabindex="0" data-action="goTo" data-target="crm">← Back to CRM</span>
           </div>
           <div class="page-title">Schedule</div>
           <div class="page-sub">Book inspections and appointments with Cal.com</div>
@@ -5223,7 +5223,7 @@
               <button class="btn btn-orange" style="width:100%;padding:10px;font-size:12px;" data-action="call" data-fn="saveCalSettings">Save</button>
             </div>
           </div>
-          <div style="font-size:11px;color:var(--m);margin-top:8px;">Don't have Cal.com? <a href="https://cal.com/signup" target="_blank" rel="noopener noreferrer" style="color:var(--orange);text-decoration:underline;">Sign up free</a> — unlimited bookings, zero cost.</div>
+          <div style="font-size:11px;color:var(--m);margin-top:8px;">Don't have Cal.com? <a href="https://cal.com/signup" target="_blank" rel="noopener noreferrer" class="sched-inline-link">Sign up free</a> — unlimited bookings, zero cost.</div>
         </div>
       </div>
 
@@ -6953,7 +6953,7 @@
 <script defer src="js/triage-deck.js?v=2"></script>
 <script defer src="js/followup-deck.js?v=2"></script>
 <script defer src="js/sort-customers.js?v=2"></script>
-<script defer src="js/crm.js?v=35"></script>
+<script defer src="js/crm.js?v=36"></script>
 <script defer src="js/crm-list-view.js?v=9"></script>
 <script defer src="js/tasks.js?v=8"></script>
 <script defer src="js/storm-time.js?v=1"></script>
@@ -7018,7 +7018,9 @@
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=16"></script>
-<script defer src="js/today-home.js?v=3"></script>
+<script defer src="js/today-home.js?v=4"></script>
+<!-- Sheets above the iPhone keyboard (2026-10-08). -->
+<script defer src="js/keyboard-viewport.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=3"></script>
 <script defer src="js/ui.js?v=10"></script>
@@ -7061,7 +7063,7 @@
      refs with window._leads for jobValue + lat/lng, and renders a
      timeline with conflict and tight-travel warnings. Must load after
      maps.js because it uses window.hav() (haversine distance). -->
-<script defer src="js/smart-calendar.js?v=5"></script>
+<script defer src="js/smart-calendar.js?v=6"></script>
 <script defer src="js/calendar-feed-ui.js?v=2"></script>
 <script defer src="js/google-calendar-ui.js?v=7"></script>
 <script defer src="js/d2d-storm-layer.js?v=2"></script>
@@ -7189,7 +7191,7 @@
 <!-- W128: NBD Whisper — dictate-anywhere with AI cleanup -->
 <script defer src="js/nbd-whisper.js?v=3"></script>
 <!-- W130: NBD Quick Capture — voice scratchpad with summarize + save-to-lead routing -->
-<script defer src="js/quick-capture.js?v=4"></script>
+<script defer src="js/quick-capture.js?v=5"></script>
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->
 <script defer src="js/quick-capture-inbox.js?v=4"></script>
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->

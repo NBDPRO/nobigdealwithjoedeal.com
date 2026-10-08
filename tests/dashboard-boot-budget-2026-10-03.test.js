@@ -33,6 +33,10 @@ const CEILING = {
 // "no photos" (page-scoped-helper rule). Kept as its own line so the other PRs that raise
 // localScripts on the line above merge without a conflict.
 CEILING.localScripts += 1;
+// +1 local tag, deliberate (2026-10-08, phone quick wins): js/keyboard-viewport.js (2.9 KB).
+// It keeps every open sheet above the iPhone keyboard (Record payment's Save sat under
+// it); it must be listening before the first sheet opens, so it cannot be lazy.
+CEILING.localScripts += 1;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {

@@ -40,7 +40,7 @@
 <link rel="manifest" href="/pro/manifest.json">
 <link rel="modulepreload" href="js/stage-write.js">
 <!-- W151: mobile polish sweep -->
-<link rel="stylesheet" href="/pro/css/mobile-polish.css?v=4">
+<link rel="stylesheet" href="/pro/css/mobile-polish.css?v=5">
 <title>Customer Details — NBD Pro</title>
 <meta name="robots" content="noindex, nofollow">
 <script defer src="js/console-quiet.js?v=1"></script>
@@ -183,7 +183,7 @@ header {
   white-space:nowrap; flex-shrink:0;
 }
 .back-btn:hover { background:var(--s3); border-color:var(--orange); }
-/* The long half of each header label. ≤480px keeps "← Back" and the 🎤 /
+/* The long half of each header label. ≤480px keeps "← Back" and the 🖥️ /
    ✓ icon: at 360 the logo (108px) + the ONLINE pill (63px) left 165px for
    two buttons that need ~280px at full length. Both keep their full
    accessible name via aria-label. */
@@ -845,6 +845,22 @@ body.nbd-photo-reorder .nbd-photo-item.drop-after {
   max-height:90vh; max-height:90dvh; overflow-y:auto;
   -webkit-overflow-scrolling:touch;
   padding:24px;
+}
+/* The other card name: sheets built by shared modules (the invoice sheets —
+   Record payment / Mark Paid / Send / Pay link — confirms, expenses,
+   claims) use the dashboard's <div class="modal-bg"><div
+   class="modal">. .modal was styled only in dashboard-app.css, which this
+   page doesn't load, so on a customer page those cards had no background and
+   no padding: the page showed through the labels, unreadable in sun (phone
+   audit 2026-10-07 #2). Same card as .modal-content. */
+.modal-bg > .modal {
+  position:relative; box-sizing:border-box;
+  background:var(--s); color:var(--t); border:1px solid var(--br); border-radius:12px;
+  max-width:500px; width:100%;
+  max-height:90vh; max-height:90dvh; overflow-y:auto;
+  -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+  padding:20px;
+  box-shadow:0 24px 80px rgba(0,0,0,.5);
 }
 .modal-header {
   display:flex; justify-content:space-between; align-items:center;
@@ -1555,7 +1571,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <link rel="stylesheet" href="css/ui-primitives.css?v=13">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" href="css/customer-header.css?v=1">
-<link rel="stylesheet" href="css/invoice-pipeline.css?v=4">
+<link rel="stylesheet" href="css/invoice-pipeline.css?v=5">
 <link rel="stylesheet" href="css/supplement.css?v=1">
 <link rel="stylesheet" href="css/customer-bootstrap.css?v=1">
 <link rel="stylesheet" href="css/customer-tasks.css?v=2">
@@ -1569,7 +1585,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <link rel="stylesheet" href="css/claim-core-view.css?v=1">
 <link rel="stylesheet" href="css/insurance-claim-view.css?v=1">
 <link rel="stylesheet" href="css/lead-snooze-view.css?v=1">
-<link rel="stylesheet" href="css/quick-capture-view.css?v=1">
+<link rel="stylesheet" href="css/quick-capture-view.css?v=2">
 <link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=1">
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
@@ -1578,7 +1594,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <link rel="stylesheet" href="css/photo-editor.css?v=6">
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
 <link rel="stylesheet" href="css/phone-calls.css?v=10">
-<link rel="stylesheet" href="css/google-calendar.css?v=5">
+<link rel="stylesheet" href="css/google-calendar.css?v=8">
 <link rel="stylesheet" href="css/production.css?v=1">
 <link rel="stylesheet" href="css/stage-gate-sheet.css?v=1">
 <link rel="stylesheet" href="css/pwa-install-nudge.css?v=1">
@@ -1599,13 +1615,16 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
        leaking through. Toggle persists per-session so a rep who flips
        it on for a walkthrough stays in light mode through tab switches. -->
   <button id="presentationModeBtn" class="back-btn" data-action="togglePresentationMode" title="Switch to light brand view for in-person walkthroughs" aria-label="Presentation mode" aria-pressed="false" style="margin-right:8px;">
-    <span aria-hidden="true">🎤</span><span class="back-btn-label">Presentation</span>
+    <span aria-hidden="true">🖥️</span><span class="back-btn-label">Presentation</span>
   </button>
   <a href="/pro/dashboard" class="back-btn" aria-label="Back to Dashboard">
     <span>← Back<span class="back-btn-label"> to Dashboard</span></span>
   </a>
 </header>
-<script defer src="js/customer-presentation-theme.js?v=3"></script>
+<script defer src="js/customer-presentation-theme.js?v=4"></script>
+<!-- Sheets above the iPhone keyboard + Home's "Record payment" link (2026-10-08). -->
+<script defer src="js/keyboard-viewport.js?v=1"></script>
+<script defer src="js/customer-pay-link.js?v=1"></script>
 
 <div class="container" role="main">
   <!-- FIRST in the container, above the customer header (2026-10-03).
@@ -3133,7 +3152,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="/pro/js/claude-proxy.js?v=5"></script>
 <script defer src="/pro/js/nbd-whisper.js?v=3"></script>
 <!-- W130: NBD Quick Capture — voice scratchpad with summarize + save-to-lead routing -->
-<script defer src="/pro/js/quick-capture.js?v=4"></script>
+<script defer src="/pro/js/quick-capture.js?v=5"></script>
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->
 <script defer src="/pro/js/quick-capture-inbox.js?v=4"></script>
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->

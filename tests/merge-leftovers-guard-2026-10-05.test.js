@@ -74,8 +74,8 @@ const KNOWN = {
     ],
   },
   crossPageV: {
-    'KNOWN BUG R1-10-3 (reported 2026-10-05): the same file carries a different ?v on dashboard.html and customer.html (google-calendar.css 7 vs 5 after a5a1f4eb changed it; customer-checklist.js 2 vs 3; icons.js 4 vs none; theme-system.css 10 vs none) — expected one ?v per file across both pages': [
-      '/pro/css/google-calendar.css',
+    // google-calendar.css FIXED 2026-10-08 (phone quick wins): ?v=8 on both pages.
+    'KNOWN BUG R1-10-3 (reported 2026-10-05): the same file carries a different ?v on dashboard.html and customer.html (customer-checklist.js 2 vs 3; icons.js 4 vs none; theme-system.css 10 vs none) — expected one ?v per file across both pages': [
       '/pro/js/customer-checklist.js',
       '/pro/js/icons.js',
       '/pro/css/theme-system.css',

@@ -114,4 +114,20 @@
 .ipx-send-receipt.ipx-send-receipt.ipx-send-receipt, .tl-send-receipt.tl-send-receipt.tl-send-receipt { min-height: 44px; }
 .tl-send-receipt.tl-send-receipt.tl-send-receipt { margin-top: 6px; }
 .ipx-rp-note.ipx-rp-note.ipx-rp-note { margin: -4px 0 12px; line-height: 1.4; }
+/* Save payment is THE action (phone audit 2026-10-07 #2). On the customer
+   page .btn-green has no rule (it lives in dashboard-app.css), so Save
+   rendered navy, the same as Cancel. Solid green with dark text on both
+   pages, and sticky to the bottom of the sheet's own scroll so it stays on
+   screen while the amount field has the keyboard up (keyboard-viewport.js
+   shrinks the sheet to the visible area). Inert when everything fits. */
+.ipx-btn-save.ipx-btn-save.ipx-btn-save.ipx-btn-save.btn-green {
+  background: var(--green, #2ECC8A); border-color: var(--green, #2ECC8A); color: #06210f;
+  position: sticky; bottom: 0; z-index: 2;
+  box-shadow: 0 10px 0 0 var(--s, #1A3057), 0 -8px 0 0 var(--s, #1A3057);
+}
+/* …and a field scrolled into view (focus, the keyboard opening) stops above
+   that sticky Save instead of under it. */
+.modal:has(> .ipx-btn-save.btn-green) { scroll-padding-bottom: 76px; }
+.ipx-btn-save.ipx-btn-save.ipx-btn-save.ipx-btn-save.btn-green:hover { filter: brightness(1.08); }
+.ipx-btn-save.ipx-btn-save.ipx-btn-save.ipx-btn-save.btn-green:disabled { opacity: .6; }
 .invoice-paynote.invoice-paynote { font-size: 11px; line-height: 1.35; color: var(--m); margin-top: 4px; max-width: 180px; }
