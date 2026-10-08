@@ -254,7 +254,15 @@ const WANT_SALES = 10, WANT_BOOKED = 99500;
     const win = {};
     win.window = win;
     const docStub = { getElementById: () => ({ style: {}, textContent: '', innerHTML: '' }), querySelectorAll: () => [], documentElement: { style: {} } };
-    const sb = { window: win, document: docStub, console, Date, Math, JSON, Object, Promise,
+    // The page's clock is frozen at today's local noon, so "an hour ago" and
+    // "a minute ago" stay inside today whatever time the suite runs (before
+    // 01:00 they used to land on yesterday and the 'day' check failed).
+    const NOON = new Date(NOW).setHours(12, 0, 0, 0);
+    class NoonDate extends Date {
+      constructor(...a) { super(...(a.length ? a : [NOON])); }
+      static now() { return NOON; }
+    }
+    const sb = { window: win, document: docStub, console, Date: NoonDate, Math, JSON, Object, Promise,
       initializeApp: () => ({}), getAuth: () => ({}), onAuthStateChanged: () => {}, getFirestore: () => ({}),
       collection() {}, collectionGroup() {}, getDocs: async () => ({ docs: [] }), query() {}, where() {}, __out: null };
     vm.createContext(sb);
@@ -272,8 +280,8 @@ const WANT_SALES = 10, WANT_BOOKED = 99500;
       all.totalDeals === WANT_SALES, String(all.totalDeals));
     // This month: only sales dated this month. B (closed 40 days ago, edited 3 days ago)
     // and H (closed 3 days ago, edited yesterday) must be judged by their close dates.
-    const editedOldWin = { id: 'W', userId: 'u1', stage: 'closed', jobValue: 7000, closedAt: d(60), updatedAt: NOW - 60000, createdAt: d(90) };
-    const signedThisWeek = { id: 'S', userId: 'u1', stage: 'contract_signed', jobValue: 5000, closedAt: NOW - 3600000, updatedAt: NOW - 3600000, createdAt: d(5) };
+    const editedOldWin = { id: 'W', userId: 'u1', stage: 'closed', jobValue: 7000, closedAt: NOON - 60 * DAY, updatedAt: NOON - 60000, createdAt: NOON - 90 * DAY };
+    const signedThisWeek = { id: 'S', userId: 'u1', stage: 'contract_signed', jobValue: 5000, closedAt: NOON - 3600000, updatedAt: NOON - 3600000, createdAt: NOON - 5 * DAY };
     LB.setRaw({ leads: [editedOldWin, signedThisWeek], knocks: [], invoices: [], jobsByLead: {} });
     LB.setPeriod('day');
     const day = LB.computeMetrics();

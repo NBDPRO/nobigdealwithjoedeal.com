@@ -181,12 +181,29 @@ group('Every state is renderable and useful', () => {
    6. The contract with the backend
    ══════════════════════════════════════════════════════════════════ */
 group('Backend codes and client cases agree', () => {
-  // Scope to getHomeownerPortalView — the other six portal endpoints still
-  // carry the bare guard, deliberately, and are a separate slice.
+  // Scope to getHomeownerPortalView. Since 2026-10-08 (review R3 item 3) its
+  // link refusals (unknown link / expired / replay cap / lead mismatch) come
+  // from the ONE shared check in functions/portal-authz.js, which the six
+  // homeowner action endpoints now use too — so the codes are the view's own
+  // literals PLUS whatever that real check returns, driven below.
   const start = PORTAL_FN.indexOf('exports.getHomeownerPortalView');
-  const after = PORTAL_FN.indexOf('exports.uploadHomeownerPhoto');
+  const after = PORTAL_FN.indexOf('exports.getPortalDocumentHtml');
   assert('both endpoint boundaries were found', start > 0 && after > start);
   const body = PORTAL_FN.slice(start, after);
+  const AUTHZ = require(path.join(ROOT, 'functions/portal-authz.js'));
+  const NOW = Date.now();
+  const ts = (ms) => ({ toMillis: () => ms });
+  const live = { leadId: 'L1', ownerUid: 'r', companyId: 'coA', expiresAt: ts(NOW + 86400e3), uses: 0, maxUses: 100 };
+  const refusals = {
+    unknown: AUTHZ.portalTokenRefusal(null, NOW),
+    expired: AUTHZ.portalTokenRefusal(Object.assign({}, live, { expiresAt: ts(NOW - 1) }), NOW),
+    cap: AUTHZ.portalTokenRefusal(Object.assign({}, live, { uses: 100 }), NOW),
+    otherTenant: AUTHZ.portalLinkRefusal(live, { companyId: 'coB' }, NOW),
+    noLead: AUTHZ.portalLinkRefusal(live, null, NOW),
+  };
+  assert('the view routes its link refusals through the shared check (token half, then lead half)',
+    /portalTokenRefusal\(tok, Date\.now\(\)\)[\s\S]{0,120}res\.status\(tokRefusal\.status\)\.json\(\{ error: tokRefusal\.error, code: tokRefusal\.code \}\)/.test(body)
+      && /portalLinkRefusal\(tok, lead, Date\.now\(\)\)[\s\S]{0,120}res\.status\(linkRefusal\.status\)\.json\(\{ error: linkRefusal\.error, code: linkRefusal\.code \}\)/.test(body));
 
   // Digits belong in the character class. Written as [a-z_]+ this silently
   // failed to match a code like 'project_missing_v2' at all, so a break-test
@@ -195,6 +212,7 @@ group('Backend codes and client cases agree', () => {
   // vacuously. Caught by checking WHICH assertion reddened.
   const emitted = [...new Set(
     [...body.matchAll(/code:\s*'([a-z0-9_]+)'/g)].map((m) => m[1])
+      .concat(Object.values(refusals).map((r) => r && r.code).filter(Boolean))
   )].sort();
 
   assert('the endpoint emits a code on every error it returns',
@@ -215,8 +233,13 @@ group('Backend codes and client cases agree', () => {
   assert('the truncated-token guard still answers 400',
     /res\.status\(400\)\.json\(\{ error: 'Invalid token', code: 'bad_token' \}\)/.test(body));
   assert('the replay cap still answers 429',
-    /res\.status\(429\)[\s\S]{0,120}code: 'too_many_opens'/.test(body));
-  assert('expiry still answers 410', /res\.status\(410\)[\s\S]{0,140}code: 'expired'/.test(body));
+    !!refusals.cap && refusals.cap.status === 429 && refusals.cap.code === 'too_many_opens', JSON.stringify(refusals.cap));
+  assert('expiry still answers 410',
+    !!refusals.expired && refusals.expired.status === 410 && refusals.expired.code === 'expired', JSON.stringify(refusals.expired));
+  assert('an unknown link still answers 404 unknown_link, a lead mismatch 404 project_missing',
+    refusals.unknown.status === 404 && refusals.unknown.code === 'unknown_link'
+      && refusals.otherTenant.status === 404 && refusals.otherTenant.code === 'project_missing'
+      && refusals.noLead.status === 404 && refusals.noLead.code === 'project_missing');
 });
 
 /* ══════════════════════════════════════════════════════════════════

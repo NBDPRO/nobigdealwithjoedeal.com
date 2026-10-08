@@ -181,9 +181,13 @@ function packetComplete(html) {
   ok('doc viewer: the signed copy is re-dated to the signing day BEFORE it is kept / printed / stored',
     /restampCancelPacket\(reply\.html, new Date\(\)\)/.test(fin));
   const genSrc = read('docs/pro/js/document-generator.js');
-  const opf = genSrc.slice(genSrc.indexOf('onPersistFinalized: async'), genSrc.indexOf('onPersistFinalized: async') + 4000);
-  ok('in-person signing records cancelBy on the document AND the lead, from the signed packet',
-    /packetCancelBy\(signedHtml\)/.test(opf) && /cancelBy: _cancelBy/.test(opf) && /'leads', _leadIdEarly\), \{ cancelBy: _cancelBy \}/.test(opf));
+  const opf = genSrc.slice(genSrc.indexOf('onPersistFinalized: async'), genSrc.indexOf('onPersistFinalized: async') + 7000);
+  // 2026-10-08: counted from the SIGNING (signingCancelBy), never read back
+  // from a packet that kept its generation date — behaviour-tested in
+  // tests/cancel-paper-ky-hold-2026-10-08.test.js A3.
+  ok('in-person signing records cancelBy on the document AND the lead, counted from the signing',
+    /signingCancelBy\(_next, _signedAt\)/.test(opf) && /cancelBy: _cancelBy/.test(opf) && /\{ cancelBy: _cancelBy \}/.test(opf) &&
+    /'leads', _leadIdEarly\), _leadPatch\)/.test(opf));
 
   // ════════════════════════════════════════════════════════════════════
   section('C2. the deal page — "Sign on this phone" and the homeowner link');

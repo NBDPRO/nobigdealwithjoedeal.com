@@ -656,6 +656,15 @@ exports.activateInvitedRep = onCall(
       // Update the member doc: invited → active
       const memberRef = db.doc(`companies/${companyId}/members/${email.toLowerCase()}`);
       const memberSnap = await memberRef.get();
+      // A DEACTIVATED member (owner-disabled, seat-benched, lapse-paused, or
+      // suspended at their own erasure request) is never flipped back to
+      // active from here: an ID token outlives the Auth disable by up to an
+      // hour, and this is self-serve. Only the owner or an admin re-enables
+      // (deactivateUser reactivate / assignSeats), or a re-checkout restores a
+      // lapse pause (2026-10-08, member-erasure suspend).
+      if (memberSnap.exists && (memberSnap.data() || {}).status === 'deactivated') {
+        return { activated: false, reason: 'deactivated' };
+      }
       if (memberSnap.exists) {
         await memberRef.update({
           status: 'active',

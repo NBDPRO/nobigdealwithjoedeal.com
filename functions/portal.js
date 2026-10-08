@@ -68,7 +68,10 @@ const { safeDepositPlan } = require('./deposit-plan-view');
 // Single authority check for portal-link mint/revoke: platform admin, owning
 // rep, or a company_admin of the lead's tenant. Pure module — decision is
 // unit-tested there, not here.
-const { canManageLead, portalTenant, recordInPortalTenant, tokenMatchesLead } = require('./portal-authz');
+const {
+  canManageLead, portalTenant, recordInPortalTenant, tokenMatchesLead,
+  portalTokenRefusal, portalLinkRefusal, viewCountsAsOpen,
+} = require('./portal-authz');
 // The lead's arrival window (2026-09-29) — byte-identical copy of
 // docs/pro/js/schedule-window.js; see scheduleWindowFor() below.
 const ScheduleWindow = require('./schedule-window');
@@ -557,6 +560,42 @@ async function _refreshHomeownerPhotoUrls(docs, nowMs, ownerUid, leadId) {
   return fresh;
 }
 
+// 2026-10-08 (review R3 item 3): the homeowner action endpoints below used to
+// check only expiry. Both readers apply the ONE full link check
+// (portal-authz.js portalTokenRefusal + portalLinkRefusal): expiry,
+// revocation, the replay cap and the lead match.
+//
+// Plain read. Returns { tok, lead } or { refusal }.
+async function _readPortalLink(db, token) {
+  const tokSnap = await db.doc(`portal_tokens/${token}`).get();
+  const tok = tokSnap.exists ? tokSnap.data() : null;
+  const tokRefusal = portalTokenRefusal(tok, Date.now());
+  if (tokRefusal) return { refusal: tokRefusal };
+  const leadSnap = await db.doc(`leads/${tok.leadId}`).get();
+  const lead = leadSnap.exists ? (leadSnap.data() || {}) : null;
+  const refusal = portalLinkRefusal(tok, lead, Date.now());
+  return refusal ? { refusal } : { tok, lead };
+}
+
+// Inside a quota-reservation transaction (upload / callback / message): the
+// same check on transactional reads, thrown as the { _http, _msg } error those
+// handlers already map to a response (plus _code). Returns the token data.
+async function _txReadPortalLink(tx, db, tokRef) {
+  const snap = await tx.get(tokRef);
+  const tok = snap.exists ? snap.data() : null;
+  let refusal = portalTokenRefusal(tok, Date.now());
+  if (!refusal) {
+    const leadSnap = await tx.get(db.doc(`leads/${tok.leadId}`));
+    refusal = portalLinkRefusal(tok, leadSnap.exists ? (leadSnap.data() || {}) : null, Date.now());
+  }
+  if (refusal) {
+    const e = new Error(refusal.code);
+    e._http = refusal.status; e._msg = refusal.error; e._code = refusal.code;
+    throw e;
+  }
+  return tok;
+}
+
 exports.getHomeownerPortalView = onRequest(
   {
     region: 'us-central1',
@@ -609,26 +648,27 @@ exports.getHomeownerPortalView = onRequest(
       return;
     }
     // The live poller (portal.js, every 30s while the tab is foreground) hits
-    // this same endpoint. A poll is a continuation of an existing open, NOT a
-    // new "use" — counting it against maxUses would brick the portal in ~50min
-    // of an open tab (QA finding). Polls therefore skip both the cap check and
-    // the use-increment; only genuine opens deplete the replay budget.
+    // this same endpoint. A poll inside a session is a continuation of an
+    // open, NOT a new "use" — counting every poll would brick the portal in
+    // ~50min of an open tab (QA finding). But a poll is still a request on
+    // the link: since 2026-10-08 it is cap-checked like any other (a used-up
+    // or revoked link stops answering polls too), and a poll with no counted
+    // open in the last 12h spends one use (viewCountsAsOpen, portal-authz.js)
+    // so `poll: true` is no longer a free pass around the replay cap.
     const isPoll = !!(req.body && req.body.poll);
 
     const db = getFirestore();
     const tokRef = db.doc(`portal_tokens/${token}`);
     const tokSnap = await tokRef.get();
-    if (!tokSnap.exists) { res.status(404).json({ error: 'Invalid link', code: 'unknown_link' }); return; }
-    const tok = tokSnap.data();
-
-    if (tok.expiresAt && tok.expiresAt.toMillis && tok.expiresAt.toMillis() < Date.now()) {
-      res.status(410).json({ error: 'This link has expired. Contact your rep for a new one.', code: 'expired' });
+    const tok = tokSnap.exists ? tokSnap.data() : null;
+    // Codes this answers (the page keys its copy off them): unknown_link 404,
+    // expired 410, too_many_opens 429 — see portalTokenRefusal.
+    const tokRefusal = portalTokenRefusal(tok, Date.now());
+    if (tokRefusal) {
+      res.status(tokRefusal.status).json({ error: tokRefusal.error, code: tokRefusal.code });
       return;
     }
-    if (!isPoll && typeof tok.maxUses === 'number' && (tok.uses || 0) >= tok.maxUses) {
-      res.status(429).json({ error: 'This link has been opened too many times.', code: 'too_many_opens' });
-      return;
-    }
+    const countsAsOpen = viewCountsAsOpen(tok, isPoll, Date.now());
 
     // Load lead, rep, latest estimate, and any photos the rep has
     // explicitly shared with the homeowner. Photos are gated by
@@ -680,8 +720,9 @@ exports.getHomeownerPortalView = onRequest(
     // tenant after a hard delete. The old tenant's link must not open the new
     // lead, and the estimates / e-sign envelopes / invoices below, found by
     // leadId alone, must be this tenant's. See portal-authz.js.
-    if (!tokenMatchesLead(tok, lead)) {
-      res.status(404).json({ error: 'Project not found', code: 'project_missing' });
+    const linkRefusal = portalLinkRefusal(tok, lead, Date.now());
+    if (linkRefusal) {
+      res.status(linkRefusal.status).json({ error: linkRefusal.error, code: linkRefusal.code });
       return;
     }
     const tenant = portalTenant(tok, lead);
@@ -1232,16 +1273,17 @@ exports.getHomeownerPortalView = onRequest(
       },
     };
 
-    // Bump use counter on a real OPEN only (fire-and-forget; don't fail the
-    // response). Polls just refresh lastSeenAt so they don't burn the replay
-    // budget (QA finding — see isPoll above).
+    // Bump use counter on a counted open only (fire-and-forget; don't fail
+    // the response). Polls inside a session just refresh lastSeenAt so they
+    // don't burn the replay budget (QA finding — see isPoll above); a poll
+    // outside one counts (countsAsOpen) and starts a new session.
     // R4-10 (2026-10-06): collected and awaited (briefly) before the
     // response below — after it, Cloud Run throttles the CPU and these writes
     // (and the view alert) could be lost.
     const pendingWrites = [];
-    pendingWrites.push(tokRef.update(isPoll
+    pendingWrites.push(tokRef.update(!countsAsOpen
       ? { lastSeenAt: FieldValue.serverTimestamp() }
-      : { uses: FieldValue.increment(1), lastSeenAt: FieldValue.serverTimestamp() }
+      : { uses: FieldValue.increment(1), lastOpenAt: FieldValue.serverTimestamp(), lastSeenAt: FieldValue.serverTimestamp() }
     ).catch(() => {}));
 
     // 2026-09-16 (view-tracking fix): this open-tracking write existed
@@ -1321,13 +1363,10 @@ exports.getPortalDocumentHtml = onRequest(
 
     const db = getFirestore();
     try {
-      const tokSnap = await db.doc(`portal_tokens/${token}`).get();
-      if (!tokSnap.exists) { res.status(404).json({ error: 'Invalid link' }); return; }
-      const tok = tokSnap.data();
-      if (tok.expiresAt && tok.expiresAt.toMillis && tok.expiresAt.toMillis() < Date.now()) {
-        res.status(410).json({ error: 'This link has expired' });
-        return;
-      }
+      // The full link check — was expiry-only (review R3 item 3).
+      const link = await _readPortalLink(db, token);
+      if (link.refusal) { res.status(link.refusal.status).json({ error: link.refusal.error, code: link.refusal.code }); return; }
+      const tok = link.tok;
 
       const docSnap = await db.doc(`leads/${tok.leadId}/documents/${docId}`).get();
       if (!docSnap.exists) { res.status(404).json({ error: 'Document not found' }); return; }
@@ -1484,14 +1523,8 @@ exports.uploadHomeownerPhoto = onRequest(
     let reservation;
     try {
       reservation = await db.runTransaction(async (tx) => {
-        const snap = await tx.get(tokRef);
-        if (!snap.exists) {
-          const e = new Error('not-found'); e._http = 404; e._msg = 'Invalid link'; throw e;
-        }
-        const data = snap.data();
-        if (data.expiresAt && data.expiresAt.toMillis && data.expiresAt.toMillis() < Date.now()) {
-          const e = new Error('expired'); e._http = 410; e._msg = 'This link has expired.'; throw e;
-        }
+        // Full link check (review R3 item 3) — was expiry-only.
+        const data = await _txReadPortalLink(tx, db, tokRef);
         const cur = (data.uploadsByDay && data.uploadsByDay[todayKey]) || 0;
         if (cur >= 10) {
           const e = new Error('quota'); e._http = 429; e._msg = 'Daily upload limit reached (10). Try again tomorrow.'; throw e;
@@ -1504,7 +1537,7 @@ exports.uploadHomeownerPhoto = onRequest(
       });
     } catch (err) {
       if (err && err._http) {
-        res.status(err._http).json({ error: err._msg });
+        res.status(err._http).json(err._code ? { error: err._msg, code: err._code } : { error: err._msg });
         return;
       }
       logger.error('[uploadHomeownerPhoto] reservation failed', { msg: err.message });
@@ -1697,14 +1730,8 @@ exports.requestCallback = onRequest(
     let tok;
     try {
       tok = await db.runTransaction(async (tx) => {
-        const snap = await tx.get(tokRef);
-        if (!snap.exists) {
-          const e = new Error('not-found'); e._http = 404; e._msg = 'Invalid link'; throw e;
-        }
-        const data = snap.data();
-        if (data.expiresAt && data.expiresAt.toMillis && data.expiresAt.toMillis() < Date.now()) {
-          const e = new Error('expired'); e._http = 410; e._msg = 'This link has expired.'; throw e;
-        }
+        // Full link check (review R3 item 3) — was expiry-only.
+        const data = await _txReadPortalLink(tx, db, tokRef);
         const cur = (data.callbacksByDay && data.callbacksByDay[todayKey]) || 0;
         if (cur >= 3) {
           const e = new Error('quota'); e._http = 429; e._msg = 'You\'ve sent a few requests already today — your rep will be in touch.'; throw e;
@@ -1717,7 +1744,7 @@ exports.requestCallback = onRequest(
       });
     } catch (err) {
       if (err && err._http) {
-        res.status(err._http).json({ error: err._msg });
+        res.status(err._http).json(err._code ? { error: err._msg, code: err._code } : { error: err._msg });
         return;
       }
       logger.error('[requestCallback] reservation failed', { msg: err.message });
@@ -1911,16 +1938,12 @@ exports.reportWarrantyClaim = onRequest(
     }
 
     const db = getFirestore();
-    const tokRef = db.doc(`portal_tokens/${token}`);
     let tok;
     try {
-      const snap = await tokRef.get();
-      if (!snap.exists) { res.status(404).json({ error: 'Invalid link' }); return; }
-      const data = snap.data();
-      if (data.expiresAt && data.expiresAt.toMillis && data.expiresAt.toMillis() < Date.now()) {
-        res.status(410).json({ error: 'This link has expired.' });
-        return;
-      }
+      // Full link check (review R3 item 3) — was expiry-only.
+      const link = await _readPortalLink(db, token);
+      if (link.refusal) { res.status(link.refusal.status).json({ error: link.refusal.error, code: link.refusal.code }); return; }
+      const data = link.tok;
       tok = { ownerUid: data.ownerUid, leadId: data.leadId };
     } catch (err) {
       logger.error('[reportWarrantyClaim] token lookup failed', { msg: err.message });
@@ -2064,12 +2087,12 @@ exports.submitCustomerRating = onRequest(
     const db = getFirestore();
     const tokRef = db.doc(`portal_tokens/${token}`);
     const tokSnap = await tokRef.get();
-    if (!tokSnap.exists) { res.status(404).json({ error: 'Invalid link' }); return; }
-    const tok = tokSnap.data();
-    if (tok.expiresAt && tok.expiresAt.toMillis && tok.expiresAt.toMillis() < Date.now()) {
-      res.status(410).json({ error: 'This link has expired.' });
-      return;
-    }
+    const tok = tokSnap.exists ? tokSnap.data() : null;
+    // Token half of the full link check here (review R3 item 3 — was
+    // expiry-only); the lead half runs inside the transaction below, on the
+    // lead it reads.
+    const tokRefusal = portalTokenRefusal(tok, Date.now());
+    if (tokRefusal) { res.status(tokRefusal.status).json({ error: tokRefusal.error, code: tokRefusal.code }); return; }
 
     const leadRef = db.doc(`leads/${tok.leadId}`);
     // The paid-in-full gate needs the lead's invoices. Read outside the
@@ -2093,8 +2116,9 @@ exports.submitCustomerRating = onRequest(
     try {
       await db.runTransaction(async (tx) => {
         const leadSnap = await tx.get(leadRef);
-        if (!leadSnap.exists) {
-          const e = new Error('not-found'); e._http = 404; e._msg = 'Lead not found'; throw e;
+        const refusal = portalLinkRefusal(tok, leadSnap.exists ? (leadSnap.data() || {}) : null, Date.now());
+        if (refusal) {
+          const e = new Error(refusal.code); e._http = refusal.status; e._msg = refusal.error; e._code = refusal.code; throw e;
         }
         const lead = leadSnap.data();
         if (typeof lead.customerRating === 'number' && lead.customerRating > 0) {
@@ -2119,7 +2143,7 @@ exports.submitCustomerRating = onRequest(
       });
     } catch (err) {
       if (err && err._http) {
-        res.status(err._http).json({ error: err._msg });
+        res.status(err._http).json(err._code ? { error: err._msg, code: err._code } : { error: err._msg });
         return;
       }
       logger.error('[submitCustomerRating] write-once transaction failed', { msg: err.message });
@@ -2276,14 +2300,8 @@ exports.sendPortalMessage = onRequest(
     let tok;
     try {
       tok = await db.runTransaction(async (tx) => {
-        const snap = await tx.get(tokRef);
-        if (!snap.exists) {
-          const e = new Error('not-found'); e._http = 404; e._msg = 'Invalid link'; throw e;
-        }
-        const data = snap.data();
-        if (data.expiresAt && data.expiresAt.toMillis && data.expiresAt.toMillis() < Date.now()) {
-          const e = new Error('expired'); e._http = 410; e._msg = 'This link has expired.'; throw e;
-        }
+        // Full link check (review R3 item 3) — was expiry-only.
+        const data = await _txReadPortalLink(tx, db, tokRef);
         const cur = (data.messagesByDay && data.messagesByDay[todayKey]) || 0;
         if (cur >= 30) {
           const e = new Error('quota'); e._http = 429; e._msg = 'Daily message limit reached (30). Try again tomorrow or call your rep directly.'; throw e;
@@ -2296,7 +2314,7 @@ exports.sendPortalMessage = onRequest(
       });
     } catch (err) {
       if (err && err._http) {
-        res.status(err._http).json({ error: err._msg });
+        res.status(err._http).json(err._code ? { error: err._msg, code: err._code } : { error: err._msg });
         return;
       }
       logger.error('[sendPortalMessage] reservation failed', { msg: err.message });
@@ -2480,22 +2498,11 @@ exports.getPortalMessages = onRequest(
     }
 
     const db = getFirestore();
-    const tokRef = db.doc(`portal_tokens/${token}`);
-    const tokSnap = await tokRef.get();
-    if (!tokSnap.exists) { res.status(404).json({ error: 'Invalid link' }); return; }
-    const tok = tokSnap.data();
-    if (tok.expiresAt && tok.expiresAt.toMillis && tok.expiresAt.toMillis() < Date.now()) {
-      res.status(410).json({ error: 'This link has expired.' });
-      return;
-    }
-    // Phase-2.3: enforce the replay cap on reads too. getHomeownerPortalView
-    // checks maxUses but the read endpoints didn't — a leaked-but-unexpired
-    // token could otherwise re-read the thread until expiry. (The write
-    // endpoints are already bounded by per-day quotas / write-once.)
-    if (typeof tok.maxUses === 'number' && (tok.uses || 0) >= tok.maxUses) {
-      res.status(429).json({ error: 'This link has been opened too many times.' });
-      return;
-    }
+    // Phase-2.3 enforced the replay cap on this read; since 2026-10-08 it is
+    // the shared full link check (expiry, revocation, cap, lead match).
+    const link = await _readPortalLink(db, token);
+    if (link.refusal) { res.status(link.refusal.status).json({ error: link.refusal.error, code: link.refusal.code }); return; }
+    const tok = link.tok;
 
     try {
       const snap = await db.collection(`leads/${tok.leadId}/portal_messages`)
@@ -2586,18 +2593,11 @@ exports.getEstimateForView = onRequest(
     const db = getFirestore();
     const tokRef = db.doc(`portal_tokens/${token}`);
     const tokSnap = await tokRef.get();
-    if (!tokSnap.exists) { res.status(404).json({ error: 'Invalid link' }); return; }
-    const tok = tokSnap.data();
-    if (tok.expiresAt && tok.expiresAt.toMillis && tok.expiresAt.toMillis() < Date.now()) {
-      res.status(410).json({ error: 'This link has expired.' });
-      return;
-    }
-    // Phase-2.3: enforce the replay cap on reads too (match
-    // getHomeownerPortalView) — bounds a leaked-but-unexpired token.
-    if (typeof tok.maxUses === 'number' && (tok.uses || 0) >= tok.maxUses) {
-      res.status(429).json({ error: 'This link has been opened too many times.' });
-      return;
-    }
+    const tok = tokSnap.exists ? tokSnap.data() : null;
+    // Phase-2.3 cap on reads too; since 2026-10-08 the shared token check
+    // (portal-authz.js). The lead + tenant half follows, on the estimate.
+    const tokRefusal = portalTokenRefusal(tok, Date.now());
+    if (tokRefusal) { res.status(tokRefusal.status).json({ error: tokRefusal.error, code: tokRefusal.code }); return; }
 
     const estRef = db.doc(`estimates/${estimateId}`);
     const [estSnap, tokLeadSnap] = await Promise.all([estRef.get(), db.doc(`leads/${tok.leadId}`).get()]);

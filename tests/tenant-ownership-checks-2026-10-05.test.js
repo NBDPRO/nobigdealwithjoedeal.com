@@ -323,11 +323,11 @@ function body(src, name) {
   {
     const strip = (f) => stripComments(fs.readFileSync(fnPath(f), 'utf8'));
     ok('deal accept passes the owner to stampLeadCancelBy',
-      /CW\.stampLeadCancelBy\(db, info\.leadId, cancelBy, logger, \{ ownerUid: info\.ownerUid, companyId: info\.companyId \}\)/.test(strip('deal-acceptance.js')));
+      /CW\.stampLeadCancelBy\(db, info\.leadId, cancelBy, logger, \{ ownerUid: info\.ownerUid, companyId: info\.companyId \}[,)]/.test(strip('deal-acceptance.js')));
     ok('e-sign envelope passes the owner',
-      /CW\.stampLeadCancelBy\(db, env\.leadId, cancelBy, logger, \{ ownerUid: env\.ownerUid, companyId: env\.companyId \}\)/.test(strip('esign-envelope.js')));
+      /CW\.stampLeadCancelBy\(db, env\.leadId, cancelBy, logger, \{ ownerUid: env\.ownerUid, companyId: env\.companyId \}[,)]/.test(strip('esign-envelope.js')));
     ok('remote signing passes the owner',
-      /CW\.stampLeadCancelBy\(db, info\.leadId, cancelBy, logger, \{ ownerUid: info\.ownerUid \}\)/.test(strip('remote-signing.js')));
+      /CW\.stampLeadCancelBy\(db, info\.leadId, cancelBy, logger, \{ ownerUid: info\.ownerUid \}[,)]/.test(strip('remote-signing.js')));
     const sub = body(strip('deal-acceptance.js'), 'exports.submitDealAcceptance');
     ok('submitDealAcceptance carries the token\'s companyId into info (spine + cancelBy)', /ownerUid: t\.ownerUid, companyId: t\.companyId \|\| null/.test(sub));
   }
