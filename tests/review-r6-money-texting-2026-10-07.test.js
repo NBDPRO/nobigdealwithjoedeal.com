@@ -11,11 +11,17 @@
  *            company switch, caps, double sends, every send path).
  *
  * Review rule (Jo): find, verify, PIN and report — do NOT fix. Every bug here
- * is real on origin/main 332e635e and is pinned as `KNOWN BUG R6-<area>-<n>`:
- * the assertion holds TODAY's wrong behaviour exactly, so the suite is green,
- * and the PR that fixes a bug must flip its pin (to `FIXED (was KNOWN BUG …)`
- * with the correct behaviour) — with Jo's OK. The report with evidence,
- * effect and suggested fix: nbd-content/review-r6-2026-10-07.md.
+ * was real on origin/main 332e635e and was pinned as `KNOWN BUG R6-<area>-<n>`:
+ * the assertion holds the wrong behaviour exactly, so the suite is green.
+ * The report with evidence, effect and suggested fix:
+ * nbd-content/review-r6-2026-10-07.md.
+ *
+ * Close-out (2026-10-07, after the fix PRs merged): a pin whose fix merged is
+ * now `FIXED R6-<area>-<n> (#PR)` — the SAME scenario and dollar example,
+ * asserting the fixed behaviour; each was break-tested (the pre-fix file put
+ * back → red). A pin is DROPPED where the fix PR's own test drives the same
+ * scenario through the real path (noted at the pin's old place). Pins whose
+ * fix has not merged stay `KNOWN BUG`, unchanged.
  *
  * Most of these bugs are INTERACTIONS between fixes that are each correct on
  * their own (e.g. #2198's re-total on "Save to estimate" × V2's rows shape ×
@@ -165,27 +171,41 @@ function preflightEnv(est) {
     env.pf._state.values = { lineItems: edited };
     env.pf._state.estimate = est;
     await env.pf._saveLineItemsToEstimate('lineItems');
-    const upd = (env.writes[0] && env.writes[0].upd) || {};
-    ok('R6-2-1 context: Save re-totals the estimate by the quote rule (#2198): $11,000 + $770 tax → $11,775',
-      c(upd.grandTotal) === 1177500 && c(upd.subtotal) === 1100000 && c(upd.tax) === 77000, JSON.stringify({ g: upd.grandTotal, s: upd.subtotal, t: upd.tax }));
-    const est2 = Object.assign({}, est, upd);
-    const contract = CER.buildDisplayRows(est2);
-    const inv = invoiceOf(est2);
+    const contract = CER.buildDisplayRows(est);
+    const inv = invoiceOf(est);
     const linesPlusTax = sumCents(inv.items) + c(inv.tax);
-    ok('KNOWN BUG R6-2-1 (reported 2026-10-07): "Save to estimate" on a V2 estimate writes lineItems but leaves rows, and every rows reader '
-      + 'ignores the edit — the e-sign contract / estimate link print $10,775 of lines (no upgrade) under "Contract price $11,775", '
-      + 'and the CRM invoice / deposit + final drafts carry $10,775 of lines + tax against a $11,775 total, so createStripePaymentLink '
-      + 'refuses the pay link. Expected one set of lines that foots to the price on every surface',
-      !('rows' in upd) && Array.isArray(upd.lineItems) && upd.lineItems.length === 3
-        && sumCents(contract) === 1077500 && c(est2.grandTotal) === 1177500
-        && !contract.some((r) => /upgrade/i.test(r.desc))
-        && linesPlusTax === 1077500 && c(inv.total) === 1177500,
-      JSON.stringify({ rowsWritten: 'rows' in upd, contract: sumCents(contract), price: est2.grandTotal, invoiceLinesPlusTax: linesPlusTax, invoiceTotal: inv.total }));
-    // R6-2-7 (sibling path of R2-2-3): the re-total never reaches lead.jobValue.
-    ok('KNOWN BUG R6-2-7 (reported 2026-10-07), Save half: the re-totalled estimate ($11,775) is the lead\'s primary, but Save writes '
-      + 'ONLY the estimate — lead.jobValue stays $10,700 on the kanban, Home KPIs, Numbers and crm_summary (the R2-2-3 re-stamp lives '
-      + 'only in _saveEstimate). Expected jobValue to follow a re-totalled primary estimate',
-      env.writes.length === 1 && env.writes[0].ref.col === 'estimates', JSON.stringify(env.writes.map((w) => w.ref)));
+    // #2295 chose the "disable" fix: a builder (rows) estimate is not
+    // re-priced from the pre-flight; the rep changes it in the builder.
+    ok('FIXED R6-2-1 (#2295; was KNOWN BUG 2026-10-07): "Save to estimate" on a V2 (rows) estimate writes NOTHING — no lineItems, no '
+      + 're-total to $11,775 — so the e-sign contract, estimate link and CRM invoice keep one set of lines that foots to the $10,700 price '
+      + '(was: $10,775 of lines under "Contract price $11,775" and a refused pay link)',
+      env.writes.length === 0 && !('lineItems' in est) && c(est.grandTotal) === 1070000
+        && sumCents(contract) === 1070000 && !contract.some((r) => /upgrade/i.test(r.desc))
+        && linesPlusTax === 1070000 && c(inv.total) === 1070000,
+      JSON.stringify({ writes: env.writes, contract: sumCents(contract), price: est.grandTotal, invoiceLinesPlusTax: linesPlusTax, invoiceTotal: inv.total }));
+  }
+  {
+    // R6-2-7, Save half (sibling path of R2-2-3). A LOGGED estimate (lineItems,
+    // no rows) is still re-priced by Save: the same $10,700 job, the same
+    // $1,000 upgrade → $11,000 + $770 tax, nearest $25 → $11,775.
+    const est = { id: 'ELOG', userId: 'u', leadId: 'L', lineItems: [
+      { description: 'Shingles', quantity: 1, unit: 'ea', unitPrice: 8000, amount: 8000 },
+      { description: 'Labor', quantity: 1, unit: 'ea', unitPrice: 2000, amount: 2000 },
+    ], subtotal: 10000, tax: 700, taxRate: 0.07, grandTotal: 10700, minJobApplied: false, mode: 'cash', addr: OH, createdAt: 1 };
+    const env = preflightEnv(est);
+    const ctx = { lead: {}, estimate: est, photos: [], overrides: {}, depositDropped: [] };
+    const lines = env.pf._resolveFieldValue({ key: 'lineItems', source: 'estimate.lineItems' }, ctx);
+    const edited = JSON.parse(JSON.stringify(lines || [])).filter((l) => l.code !== 'TAX');
+    edited.push({ description: 'Ridge vent upgrade', qty: 1, unit: 'ea', rate: 1000, total: 1000 });
+    env.pf._state.values = { lineItems: edited };
+    env.pf._state.estimate = est;
+    await env.pf._saveLineItemsToEstimate('lineItems');
+    const estW = env.writes.find((w) => w.ref.col === 'estimates');
+    const leadW = env.writes.find((w) => w.ref.col === 'leads');
+    ok('FIXED R6-2-7, Save half (#2295; was KNOWN BUG 2026-10-07): the re-totalled primary estimate ($11,775) re-stamps lead.jobValue '
+      + '($10,700 → $11,775) on leads/L, so the kanban, Home KPIs, Numbers and crm_summary follow (was: Save wrote ONLY the estimate)',
+      !!estW && c(estW.upd.grandTotal) === 1177500 && !!leadW && leadW.ref.id === 'L' && c(leadW.upd.jobValue) === 1177500,
+      JSON.stringify(env.writes.map((w) => [w.ref.col, w.ref.id, w.upd.grandTotal, w.upd.jobValue])));
   }
   {
     // R6-2-7, logged-estimate editor half (dashboard-widgets.js).
@@ -198,36 +218,34 @@ function preflightEnv(est) {
       !!body && !/jobValue/.test(body) && !/['"]leads['"]/.test(body));
   }
 
-  // R6-2-2 ─ a SIGNED estimate can be re-saved at a new price
+  // R6-2-2 ─ a SIGNED estimate re-saved at a new price
+  // Jo's rule (2026-10-07, #2299): a signed estimate stays editable, but the
+  // SIGNED price wins on every bill until the homeowner re-signs. The signing
+  // stamps estimates/{id}.signedPrice (signed-price.js planSignedStamp, run
+  // by the job spine before the deposit draft reads the estimate).
   {
-    const src = stripComments(rd('docs/pro/js/dashboard-bootstrap.module.js'));
-    const fn = blockAt(src, 'window._saveEstimate = async (data) => {');
-    const editBranch = fn ? blockAt(fn, 'if (editId) {') : null;
-    ok('R6-2-2 anchor: window._saveEstimate and its edit branch are found; the edit branch updates the estimate and re-stamps jobValue (R2-2-3)',
-      !!editBranch && /updateDoc\(doc\(db,\s*'estimates',\s*editId\)/.test(editBranch) && /jobValue:\s*newVal/.test(editBranch));
-    const v2 = stripComments(rd('docs/pro/js/estimate-v2-ui.js'));
-    ok('KNOWN BUG R6-2-2 (reported 2026-10-07), save half: nothing refuses (or turns into a change order) a re-save of an estimate whose '
-      + 'contract is signed (signatureStatus "signed") — the edit branch and the V2 builder never read signatureStatus — so after a $14,500 '
-      + 'signature a reopened estimate saved at $16,200 moves jobValue, the portal card ("✓ Signed" beside $16,200) and the estimate link, '
-      + 'while the locked signed contract says $14,500. Expected a signed estimate to be locked (or revised only through a change order)',
-      !!editBranch && !/signatureStatus/.test(editBranch) && !/signatureStatus/.test(v2));
-    // …and the install-day final draft bills the revision, crediting the
-    // whole-job signing invoice as a "deposit".
+    const SP = F('signed-price.js');
     const lead = { userId: 'u', primaryEstimateId: 'E', address: OH, state: 'OH', activeJobId: 'J1' };
     const est1 = { userId: 'u', leadId: 'L', grandTotal: 14500, subtotal: 14500, tax: 0, taxRate: 0, mode: 'cash', jobId: 'J1', addr: OH, createdAt: 1,
       rows: [{ desc: 'Roof', qty: '1', retailTotal: 14500, total: 14500 }] };
-    const dd = DDL.decideDepositDraft({ leadId: 'L', event: 'contract_signed', lead, est: est1, estimateId: 'E', existingInvoices: [] });
+    const stamp = SP.planSignedStamp({ leadId: 'L', lead, est: est1, estimateId: 'E', event: 'contract_signed', sourceId: 'doc_1', nowMs: 1 });
+    const signed = Object.assign({}, est1, { signatureStatus: 'signed', signedPrice: stamp.signedPrice });
+    const dd = DDL.decideDepositDraft({ leadId: 'L', event: 'contract_signed', lead, est: signed, estimateId: 'E', existingInvoices: [] });
     const signing = Object.assign({ id: dd.invoiceId }, dd.invoice, { status: 'partial', amountPaid: 7250, balanceDue: 7250, depositPaid: true, createdAt: 2 });
-    const est2 = Object.assign({}, est1, { grandTotal: 16200, subtotal: 16200,
+    // The rep reopens the signed estimate and saves it at $16,200.
+    const est2 = Object.assign({}, signed, { grandTotal: 16200, subtotal: 16200,
       rows: est1.rows.concat([{ desc: 'Upgrade', qty: '1', retailTotal: 1700, total: 1700 }]) });
     const fd = DDL.decideFinalDraft({ leadId: 'L', lead, est: est2, estimateId: 'E', invoices: [signing] });
-    const credit = fd.invoice && fd.invoice.items.find((i) => i.credit === true);
-    ok('KNOWN BUG R6-2-2 (reported 2026-10-07), billing half: after the post-signature edit the install-day final draft bills $1,700 more '
-      + '(total owed $16,200 against a $14,500 signature) and prints the $14,500 signing invoice as "Less deposit invoiced −$14,500" although '
-      + 'its deposit was $7,250. Expected the signed price to stand until a change order is signed',
-      dd.action === 'create' && dd.invoice.total === 14500 && dd.invoice.depositAmount === 7250
-        && fd.action === 'create' && c(fd.invoice.total) === 170000 && !!credit && /^Less deposit invoiced/.test(credit.description) && c(credit.total) === -1450000,
-      JSON.stringify({ dd: dd.action, fd: fd.action, total: fd.invoice && fd.invoice.total, credit: credit && [credit.description, credit.total] }));
+    const extra = fd.action === 'create' && fd.invoice ? c(fd.invoice.total) : 0;
+    ok('R6-2-2 context: signing stamps the $14,500 price and the signing-day draft bills $14,500 with $7,250 due',
+      stamp.action === 'stamp' && stamp.signedPrice.totalCents === 1450000 && dd.action === 'create' && c(dd.invoice.total) === 1450000 && c(dd.invoice.depositAmount) === 725000,
+      JSON.stringify({ stamp: stamp.action, dd: dd.action, total: dd.invoice && dd.invoice.total }));
+    ok('FIXED R6-2-2 (#2299; was KNOWN BUG 2026-10-07): after the $14,500 signature the estimate re-saved at $16,200 is flagged as '
+      + 'unsigned changes, the portal card keeps "✓ Signed" beside $14,500, and the install-day final draft bills nothing extra — the '
+      + 'signing invoice already bills the whole signed $14,500 (was: +$1,700 and "Less deposit invoiced −$14,500")',
+      CER.hasUnsignedChanges(est2) === true && CER.signedTotalCents(est2) === 1450000
+        && SP.portalPriced(est2).grandTotal === 14500 && extra === 0,
+      JSON.stringify({ unsigned: CER.hasUnsignedChanges(est2), portal: SP.portalPriced(est2).grandTotal, fd: fd.action, reason: fd.reason, total: fd.invoice && fd.invoice.total }));
   }
 
   // R6-2-3 ─ a LINE-ITEM estimate accepted at another tier in the deal room
@@ -270,27 +288,12 @@ function preflightEnv(est) {
       JSON.stringify({ contract: sumCents(contract), inv: sumCents(inv.items) + c(inv.tax), total: inv.total }));
   }
 
-  // R6-2-5 ─ a stale deal room overrides a re-saved estimate
-  {
-    // The deal went out at Preferred $12,000. The rep then re-saved the
-    // per-SQ estimate at $13,000 without re-sending; the homeowner accepts
-    // Preferred on the old link (deal_rooms tierPrices snapshot $12,000).
-    const est = { userId: 'u', leadId: 'L', priceMode: 'per-sq', prices: { good: 11500, better: 13000, best: 16000 }, tier: 'better', selectedTier: 'better',
-      grandTotal: 13000, subtotal: 12093.02, tax: 906.98, taxRate: 0.075, mode: 'cash', jobId: 'J1', addr: OH };
-    const lead = { userId: 'u', primaryEstimateId: 'E', jobValue: 13000, address: OH, state: 'OH' };
-    const plan = DAT.planAcceptedTier({ lead, estimate: est, estimateId: 'E', leadId: 'L', ownerUid: 'u', tier: 'better', price: 12000, dealId: 'D', now: 1 });
-    const src = stripComments(rd('docs/pro/js/dashboard-bootstrap.module.js'));
-    const fn = blockAt(src, 'window._saveEstimate = async (data) => {');
-    const editBranch = fn ? blockAt(fn, 'if (editId) {') : null;
-    ok('R6-2-5 anchor: _saveEstimate\'s edit branch is found', !!editBranch);
-    ok('KNOWN BUG R6-2-5 (reported 2026-10-07; which price wins needs Jo): re-saving an estimate never refreshes its open deal room '
-      + '(only "Send to homeowner" calls CloseBoard.createFromEstimate), so the homeowner\'s link keeps the old $12,000 while the estimate, '
-      + 'jobValue and portal say $13,000 — and accepting the same tier at the stale price "applies" it, rewriting the revised estimate, '
-      + 'prices{} and jobValue back to $12,000. Expected the deal page to follow a re-save (or a stale acceptance to stop for the rep)',
-      !!editBranch && !/CloseBoard|deal_rooms|createFromEstimate/.test(editBranch)
-        && plan.reason === 'applied' && plan.estimate.grandTotal === 12000 && plan.estimate.prices.better === 12000 && plan.lead.jobValue === 12000,
-      JSON.stringify({ reason: plan.reason, grand: plan.estimate && plan.estimate.grandTotal, jv: plan.lead && plan.lead.jobValue }));
-  }
+  // R6-2-5 ─ a stale deal room overrode a re-saved estimate. DROPPED (fixed by
+  // #2299): tests/signed-price-r6-2026-10-07.test.js section F runs the same
+  // scenario (deal out at Preferred $12,000, estimate re-saved at $13,000)
+  // through the real createDealAcceptToken + submitDealAcceptance and checks
+  // the stale acceptance is refused (409 price_changed, $13,000 offered) and
+  // nothing is rewritten back to $12,000.
 
   // R6-2-6 ─ after an online deposit, the portal's Pay Now is the spent deposit link
   {
@@ -327,38 +330,13 @@ function preflightEnv(est) {
   console.log('\nArea 2 — dashboards');
 
   // R6-2-8 ─ catch-up "Paid in full?" + a Stripe payment assigned later
-  {
-    const IP = require(path.join(DG_DIR, 'invoice-pipeline.js'));
-    const CL = require(path.join(DG_DIR, 'catchup-logic.js'));
-    const SL = F('stripe-ledger-logic.js');
-    const DAY = 86400000, NOW = Date.parse('2026-10-07T16:00:00Z');
-    // A $12,000 job whose $6,000 card deposit sits unmatched in the Stripe
-    // ledger's review queue, so the lead shows $0 collected and the deck asks.
-    const est = { id: 'estI', leadId: 'I', grandTotal: 12000, subtotal: 12000, tax: 0, taxRate: 0, rows: [{ description: 'Roof', qty: 1, unitPrice: 12000, total: 12000 }] };
-    const t = IP.recordPaymentTarget({ lead: { id: 'I', activeJobId: 'j1', jobValue: 12000 }, invoices: [], estimate: est, estimateId: 'estI', totalsOpts: { estimateValue: CER.estimateValue } });
-    const plan = CL.paidInFullPlan(t);
-    const inv0 = { id: 'iI', leadId: 'I', jobId: 'j1', status: 'draft', total: 12000, amountPaid: 0, balanceDue: 12000, payments: [] };
-    const ap = IP.applyPaymentToInvoice(inv0, { amount: plan.cents / 100, at: new Date(NOW - 2 * DAY), method: 'check' });
-    const invI = Object.assign({}, inv0, ap.patch);
-    // Jo then assigns the Stripe deposit (paid 30 days ago) to the customer.
-    const mv = { key: 'ch_dep', amountCents: 600000, atMs: NOW - 30 * DAY, method: 'card' };
-    const dup = SL.findManualDuplicate([invI], mv);
-    const pick = SL.pickInvoice([invI], { amountCents: 600000 });
-    const mirror = SL.mirrorInvoice({ object: 'charge', id: 'ch_dep', amount: 600000, amount_captured: 600000, created: Math.floor((NOW - 30 * DAY) / 1000) }, { id: 'I' }, 'u1', NOW, null);
-    const credit = SL.planCredit(mirror, mv);
-    const mirrored = Object.assign({}, mirror, { payments: [credit.payment], amountPaid: credit.amountPaid, balanceDue: credit.balanceDue, status: credit.status });
-    const win = { addEventListener() {} }; win.window = win;
-    const sb = { window: win, console: { log() {}, warn() {}, error() {} }, Date, Math, JSON, Object };
-    vm.createContext(sb);
-    vm.runInContext(rd('docs/pro/js/collected-revenue.js'), sb, { filename: 'collected-revenue.js' });
-    const byLead = win.NBDRevenue.collectedByLead([invI, mirrored], null, null);
-    ok('R6-2-8 context: the deck offers "Paid in full?" for the estimate total ($12,000) and records it as one payment',
-      plan.ok === true && plan.cents === 1200000 && invI.status === 'paid' && c(invI.amountPaid) === 1200000);
-    ok('KNOWN BUG R6-2-8 (reported 2026-10-07): assigning the Stripe deposit afterwards finds no duplicate (amounts differ) and no open '
-      + 'invoice, so it mirrors a NEW invoice — the $12,000 job reads $18,000 collected on Home, Numbers, the digest and collected_revenue. '
-      + 'Expected the assignment to stop (or "Paid in full?" to wait) while the job is already paid in full',
-      dup === null && pick && pick.invoiceId === null && byLead.I === 18000, JSON.stringify({ dup, pick, byLead }));
-  }
+  // counted the deposit twice. DROPPED (fixed by #2296): the old pin
+  // hand-built the payment and called the ledger helpers itself, so it could
+  // not see the fix (it stayed green on #2296). The real path is in
+  // tests/catchup-stripe-double-count-2026-10-07.test.js section 1: catchup.js
+  // paidInFull records $12,000, then functions/stripe-ledger.js assign books
+  // the $6,000 deposit, and collected reads $12,000 (not $18,000) on Home /
+  // Numbers and the agent's collected_revenue.
 
   // R6-2-9 ─ "Paid in full?" on an insurance job with an approved supplement
   {
@@ -466,30 +444,20 @@ function preflightEnv(est) {
     const got = misses.map((m) => SI.classifyInbound(m).intent);
     ok('R6-3-1 context: the bare keyword and the listed phrases still opt out ("Stop!", "Stop contacting me")',
       SI.classifyInbound('Stop!').intent === 'stop' && SI.classifyInbound('Stop contacting me').intent === 'stop');
-    ok('KNOWN BUG R6-3-1 (reported 2026-10-07): "Not interested. Stop.", "No thanks stop", "stop sending these" and "I no longer want texts '
-      + 'from you" are NOT opt-outs — incomingSMS records nothing and writes an AI reply draft a rep can send. Expected a final / standalone '
-      + 'STOP word and "stop sending…" / "no longer want…" to revoke consent',
-      got.every((g) => g === null), JSON.stringify(got));
+    ok('FIXED R6-3-1 (#2298; was KNOWN BUG 2026-10-07): "Not interested. Stop.", "No thanks stop", "stop sending these" and "I no longer '
+      + 'want texts from you" are opt-outs (was: null — incomingSMS recorded nothing and drafted an AI reply)',
+      got.every((g) => g === 'stop'), JSON.stringify(got));
+    ok('R6-3-1 control: "can you stop by Tuesday" is still an ordinary customer message, not an opt-out',
+      SI.classifyInbound('can you stop by Tuesday').intent === null, JSON.stringify(SI.classifyInbound('can you stop by Tuesday')));
   }
 
-  // R6-3-2 ─ pre-filled customer texts that never ask "may I text?"
-  {
-    const sites = [
-      ['docs/pro/js/customer-gallery-share.js', /`sms:\$\{phone\}\?body=/],
-      ['docs/pro/js/dashboard-api.js', /window\.open\('sms:' \+ cleanPhone/],
-      ['docs/pro/js/customer-bootstrap.module.js', /smsBtn\.href = `sms:\$\{cleanPhone\}\?body=/],
-      ['docs/pro/js/estimate-v2-ui.js', /const sms = _smsHref\(s\.phone, s\.text\);/],
-      ['docs/pro/js/care-plan-crm.js', /smsHref\(o\.phone, text\)/],
-    ];
-    const found = sites.map(([f, re]) => [f, re.test(stripComments(rd(f)))]);
-    ok('R6-3-2 anchor: each of the five customer sms: hand-offs is found', found.every((x) => x[1]), JSON.stringify(found));
-    const unchecked = sites.filter(([f]) => !/NBDPhoneShare|checkText|phoneTextAction/.test(stripComments(rd(f))));
-    ok('KNOWN BUG R6-3-2 (reported 2026-10-07; R2-3-2 only partly fixed): the Text Portal button, the portal-link share, Text Booking Link, '
-      + 'the V2 estimate share box (incl. its automatic Messages hand-off) and the Care Plan "Text it" open Messages pre-filled without the '
-      + 'server check #2246 added to NBDPhoneShare — a customer who replied STOP, is on the Do Not Text list, or it is 11pm for, still gets '
-      + 'the link. Expected every customer hand-off to go through NBDPhoneShare.share / checkText',
-      unchecked.length === 5, JSON.stringify(unchecked.map((x) => x[0])));
-  }
+  // R6-3-2 ─ pre-filled customer texts that never asked "may I text?".
+  // DROPPED (fixed by #2298): the old pin was a source scan. The five
+  // hand-offs now run for real in tests/r6-texting-2026-10-07.test.js C1–C4
+  // (Text Portal, portal-link share, Text Booking Link, Care Plan "Text it":
+  // STOP / Do Not Text / hours → Messages not opened; check unavailable →
+  // blocked) and tests/close-flow-2026-10-03.test.js section D (the V2
+  // estimate share box, incl. its automatic hand-off).
 
   // R6-3-3 ─ an approved AI reply whose send outcome is unknown is sent again
   {
@@ -507,13 +475,13 @@ function preflightEnv(est) {
     w.opts.twilioError = null;
     await h(ev());
     const panel = stripComments(rd('docs/pro/js/customer-ai-drafts-panel.js'));
-    const failedBranch = blockAt(panel, "} else if (st === 'failed') {");
-    ok('KNOWN BUG R6-3-3 (reported 2026-10-07): an error whose outcome is unknown (a dropped connection after Twilio took the message, or a '
-      + 'failed note write after it was sent) marks the draft failed / twilio_error; the panel says "Did NOT send" and puts it back to '
-      + 'pending, so the rep re-approves and the homeowner gets the reply twice. Expected an "unknown — check before re-sending" state and no auto-revert',
-      first.status === 'failed' && first.failureReason === 'twilio_error' && w.twilioCalls.length === 2
-        && !!failedBranch && /updateDoc\(ref, \{ status: 'pending' \}\)/.test(failedBranch),
-      JSON.stringify({ first: [first.status, first.failureReason], twilio: w.twilioCalls.length }));
+    const uncertainBranch = blockAt(panel, "} else if (st === 'send_uncertain') {");
+    ok('FIXED R6-3-3 (#2300; was KNOWN BUG 2026-10-07): a dropped connection mid-send (ECONNRESET) marks the draft send_uncertain, not '
+      + 'failed / twilio_error; the same approval event again sends nothing more (ONE Twilio call, was 2), and the panel\'s send_uncertain '
+      + 'branch never reverts the draft to pending',
+      first.status === 'send_uncertain' && first.failureReason !== 'twilio_error' && w.twilioCalls.length === 1
+        && !!uncertainBranch && !/status: 'pending'/.test(uncertainBranch),
+      JSON.stringify({ first: [first.status, first.failureReason], twilio: w.twilioCalls.length, branch: !!uncertainBranch }));
     // Still open from round 2: no per-recipient daily cap on AI replies.
     const w2 = W.makeWorld({ clockMs: NOON_ET, docs: { 'leads/L1': { userId: NBD, companyId: NBD, phone: '8595550134', state: 'KY' } } });
     const m2 = W.load(w2, 'sms-functions.js');
@@ -561,11 +529,10 @@ function preflightEnv(est) {
     await W.invoke(s.incomingSMS.__handler, { body: { From: '+18595550134', Body: 'START', MessageSid: 'SMx1' }, headers: { 'x-twilio-signature': 'sig' } });
     m = W.load(w, 'phone-text-check.js');
     const after = await handle(m, tokA, { action: 'check', phone: '8595550134', leadId: 'LA' });
-    ok('KNOWN BUG R6-3-5 (reported 2026-10-07): company A records "They replied STOP" (the reply reached the owner\'s own phone); the '
-      + 'homeowner later texts START to NBD\'s shared Twilio number, and company A may text them again — START clears every company\'s '
-      + 'STOP-sourced entry. Expected START on one line to lift only the opt-outs that line received',
-      rec && rec.ok === true && before && before.ok === false && before.code === 'opted_out' && after && after.ok === true,
-      JSON.stringify({ rec, before: before && before.code, after: after && after.ok }));
+    ok('FIXED R6-3-5 (#2300; was KNOWN BUG 2026-10-07): company A records "They replied STOP" (the reply reached the owner\'s own phone); '
+      + 'a later START to NBD\'s shared Twilio number does NOT lift it — company A is still refused (was: ok to text again)',
+      rec && rec.ok === true && before && before.ok === false && before.code === 'opted_out' && after && after.ok === false,
+      JSON.stringify({ rec, before: before && before.code, after: after && [after.ok, after.code] }));
   }
 
   // R6-3-6 ─ the no-customer check path skips texting hours
@@ -575,11 +542,10 @@ function preflightEnv(est) {
     const m = W.load(w, 'phone-text-check.js');
     const withLead = await handle(m, token, { action: 'check', phone: '8595550134', leadId: 'L1', recipient: 'homeowner' });
     const numberOnly = await handle(m, token, { action: 'check', phone: '8595550134', recipient: 'number' });
-    ok('KNOWN BUG R6-3-6 (reported 2026-10-07): at 11:30pm Eastern the check refuses the homeowner when the lead is passed (quiet_hours) '
-      + 'but allows the same number through the no-customer path, which homeowner sends use (close-board deals with no lead, the '
-      + 'nbd-comms Messages fallback). Expected the default 8am–9pm Eastern window unless the recipient is crew',
-      withLead && withLead.ok === false && withLead.code === 'quiet_hours' && numberOnly && numberOnly.ok === true,
-      JSON.stringify({ withLead: withLead && withLead.code, numberOnly: numberOnly && numberOnly.ok }));
+    ok('FIXED R6-3-6 (#2300; was KNOWN BUG 2026-10-07): at 11:30pm Eastern the check refuses the homeowner both with the lead and through '
+      + 'the no-customer path (quiet_hours — the default 8am–9pm Eastern window; was: allowed without the lead)',
+      withLead && withLead.ok === false && withLead.code === 'quiet_hours' && numberOnly && numberOnly.ok === false && numberOnly.code === 'quiet_hours',
+      JSON.stringify({ withLead: withLead && withLead.code, numberOnly: numberOnly && [numberOnly.ok, numberOnly.code] }));
   }
 
   // R6-3-8 ─ storm alerts de-duplicate per sign-up, not per phone
@@ -636,9 +602,6 @@ function preflightEnv(est) {
   ok('S: the stripper keeps a URL inside a string literal', /https:\/\/x\.test/.test(stripComments("const u = 'https://x.test'; // c")));
   ok('S: braceBlock scopes to the matching brace', braceBlock('f() { a { b } c } d', 0) === '{ a { b } c }');
   {
-    const planted = 'window._saveEstimate = async (data) => { if (editId) { await updateDoc(doc(db,\'estimates\',editId)); if (data.signatureStatus === \'signed\') return; } }';
-    const eb = blockAt(blockAt(planted, 'window._saveEstimate = async (data) => {'), 'if (editId) {');
-    ok('S: R6-2-2 detector sees a planted signatureStatus guard in the edit branch', /signatureStatus/.test(eb));
     const commented = 'function _openLoggedEstimateEditor(est) { const patch = { grandTotal: dollars }; // TODO jobValue\n }';
     ok('S: R6-2-7 detector ignores jobValue that is only in a comment', !/jobValue/.test(blockAt(stripComments(commented), 'function _openLoggedEstimateEditor(est) {')));
   }
