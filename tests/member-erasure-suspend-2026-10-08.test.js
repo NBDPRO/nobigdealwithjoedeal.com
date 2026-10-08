@@ -592,6 +592,23 @@ const audits = (db) => [...db.store.entries()].filter(([k]) => /^audit_log\//.te
     ok('control: a solo owner still sees the permanent-delete warning', /PERMANENTLY DELETE/.test(solo));
   }
 
+  // ═════════════════════════════════════════════════════════════════════
+  console.log("N. a former owner (company id == their uid) is suspended without touching the company's billing");
+  {
+    const seed = {
+      'companies/fo': { ownerId: 'newo' },
+      'companies/fo/members/fo@x.test': { uid: 'fo', email: 'fo@x.test', status: 'active', role: 'company_admin' },
+      'subscriptions/fo': { stripeCustomerId: 'cus_co', stripeSubscriptionId: 'sub_co', status: 'active', plan: 'growth' },
+      'account_erasures/fo': pending(),
+      'leads/F1': { userId: 'fo', companyId: 'fo' },
+    };
+    const users = { fo: { email: 'fo@x.test', customClaims: { companyId: 'fo', role: 'company_admin' } }, newo: { email: 'n@x.test', customClaims: { companyId: 'fo', role: 'company_admin' } } };
+    const R = complianceRig(seed, users);
+    const res = await R.post('fo');
+    ok('former owner: suspended (200), company subscription doc untouched, lead kept', res.code === 200 && res.body.suspended === true
+      && R.db.store.g('subscriptions/fo').stripeSubscriptionId === 'sub_co' && R.db.store.has('leads/F1') && users.fo.disabled === true, res.code + ' ' + JSON.stringify(res.body));
+  }
+
   console.log('');
   console.log(failed ? 'FAILED — ' + passed + ' passed, ' + failed + ' failed' : 'PASSED — ' + passed + ' assertions');
   process.exit(failed ? 1 : 0);

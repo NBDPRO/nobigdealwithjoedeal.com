@@ -46,7 +46,9 @@ const SUSPEND_MESSAGE = 'Your account is suspended. Because you are on a team, t
   + 'You can no longer sign in. Only your company owner or an admin can turn the account back on.';
 const OWNER_WITH_TEAM_MESSAGE = 'You own a company that still has other team members, so your '
   + 'account cannot be deleted from here: deleting it would delete the customers your team works '
-  + 'from. Remove your team members first, or contact support. Nothing has been deleted.';
+  + 'from. Hand the company to another admin first (Team screen, "Make owner"): after that you are '
+  + 'a team member and closing your account suspends it instead. Or remove your team members, or '
+  + 'contact support. Nothing has been deleted.';
 
 function cleanId(v) {
   return typeof v === 'string' && v && v.indexOf('/') === -1 ? v : null;

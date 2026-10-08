@@ -685,7 +685,12 @@ exports.confirmAccountErasure = onRequest(
     // nothing left in the app that could find it. Cancel every live sub, or
     // refuse and delete NOTHING. Runs before `confirmed` is set, so a refused
     // request can simply be retried with the same link.
-    const billing = await cancelBillingForErasure({ db, uid, getStripe, logger });
+    // A member whose uid IS the company id (a former owner who handed the
+    // company to someone else) has subscriptions/{uid} as the COMPANY's
+    // billing doc: suspending them must not cancel the company's plan.
+    const billing = (scope.mode === 'member' && scope.companyId === uid)
+      ? { ok: true, cancelled: [], reason: 'company_billing_kept' }
+      : await cancelBillingForErasure({ db, uid, getStripe, logger });
     if (!billing.ok) {
       logger.error('confirmAccountErasure: refused, billing not cancelled', { uid, reason: billing.reason });
       res.status(409).json({ error: BILLING_REFUSAL, code: 'billing_not_cancelled' });
