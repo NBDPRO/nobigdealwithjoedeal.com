@@ -611,9 +611,15 @@ window.loadProjectTimeline = async function(leadId) {
 // window._db, ScriptLoader dedupes) and return its API once `fnName` exists.
 async function _nbdInvoicePipeline(fnName) {
   if (!window._db && window.db) window._db = window.db;
+  // Same for auth (2026-10-07, found by the sample account): the module's
+  // getAuthToken() reads window._auth, which this page never set (only the
+  // photo engine aliased it, and only once it had loaded), so a pay-link
+  // mint from this page threw "Not authenticated": "Send balance" went out
+  // without its pay link and "Create Payment Link" failed.
+  if (!window._auth && window.auth) window._auth = window.auth;
   if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
     if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-    await window.ScriptLoader.load('js/invoice-pipeline.js?v=18');
+    await window.ScriptLoader.load('js/invoice-pipeline.js?v=23');
   }
   if (!(window.InvoicePipeline && typeof window.InvoicePipeline[fnName] === 'function')) {
     throw new Error('InvoicePipeline.' + fnName + ' missing after load');
@@ -643,6 +649,27 @@ window.NBDCustomerInvoices = {
       if (typeof window.showToast === 'function') window.showToast('Could not open the payment form. Reload and try again.', 'error');
     }
   },
+  // "Send receipt" (2026-10-04): ONE tap sends that payment's drafted
+  // receipt — email with leadId + invoiceId (the #2120 recipient binding),
+  // or the share sheet with no email on file. Recording a payment never
+  // emails anyone; this tap is the only way a receipt goes out.
+  sendReceipt: async function (invoiceId, key) {
+    if (!invoiceId || !key) return;
+    try {
+      const IP = await _nbdInvoicePipeline('sendReceiptUI');
+      const sent = await IP.sendReceiptUI(invoiceId, key);
+      if (sent) {
+        const leadId = window._customerId;
+        const reloadInv = window.loadInvoices;
+        const reloadTl = window.loadTimeline;
+        if (typeof reloadInv === 'function' && leadId) await reloadInv(leadId);
+        if (typeof reloadTl === 'function' && leadId && window._currentLead) await reloadTl(leadId, window._currentLead);
+      }
+    } catch (err) {
+      console.error('[invoices] sendReceipt failed', err);
+      if (typeof window.showToast === 'function') window.showToast('Could not send the receipt. Reload and try again.', 'error');
+    }
+  },
   // "Send balance" on a part-paid invoice: the existing send sheet (email /
   // text / portal) — one tap to choose, nothing goes out on its own.
   sendBalance: async function (invoiceId) {
@@ -664,11 +691,12 @@ window.NBDCustomerInvoices = {
   review: async function (invoiceId) {
     if (!invoiceId) return;
     try {
-      // Same lazy load as markPaid below (window._db alias + ScriptLoader).
+      // Same lazy load as markPaid below (window._db / _auth alias + ScriptLoader).
       if (!window._db && window.db) window._db = window.db;
+      if (!window._auth && window.auth) window._auth = window.auth;
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) throw new Error('ScriptLoader unavailable');
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=18');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=23');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.showInvoiceDetailModal === 'function')) {
         throw new Error('InvoicePipeline.showInvoiceDetailModal missing after load');
@@ -689,12 +717,14 @@ window.NBDCustomerInvoices = {
       // "Firestore (v9) not initialized" the moment Mark Paid is tapped.
       // Alias the same instance rather than editing the module: it is the
       // identical object on the dashboard, so nothing there changes.
+      // window._auth likewise (the pay-link re-mint after a payment needs it).
       if (!window._db && window.db) window._db = window.db;
+      if (!window._auth && window.auth) window._auth = window.auth;
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.markPaidUI === 'function')) {
         if (!(window.ScriptLoader && typeof window.ScriptLoader.load === 'function')) {
           throw new Error('ScriptLoader unavailable');
         }
-        await window.ScriptLoader.load('js/invoice-pipeline.js?v=18');
+        await window.ScriptLoader.load('js/invoice-pipeline.js?v=23');
       }
       if (!(window.InvoicePipeline && typeof window.InvoicePipeline.markPaidUI === 'function')) {
         throw new Error('InvoicePipeline.markPaidUI missing after load');
@@ -799,6 +829,31 @@ window.loadInvoices = async function(leadId) {
     // on a signed contract), void, cancelled or deleted.
     let totalOwed = 0;
     const isDepositDraft = (inv) => !!(inv && inv.status === 'draft' && inv.autoDraft && inv.autoDraft.kind === 'deposit_on_sign');
+    // Receipts (2026-10-04): every payment has a DRAFT receipt until the rep
+    // taps Send receipt — nothing is emailed when money is recorded. Same
+    // rules as invoice-pipeline.js receiptStateOf / receiptKeyOf (that file
+    // is lazy-loaded here, so the two small rules are inlined).
+    const _payIdOf = (p) => String((p && (p.paymentId || p.paymentIntentId || p.stripeRef)) || '');
+    const receiptBtns = (inv) => {
+      const pays = Array.isArray(inv.payments) ? inv.payments : [];
+      const drafts = [];
+      pays.forEach((p, i) => {
+        if (!p || !(Number(p.amount) > 0) || p.achStatus === 'failed' || p.reverted === true) return;
+        if (p.receipt && p.receipt.status === 'sent') return;
+        drafts.push({ key: _payIdOf(p) || ('idx:' + i), amount: Number(p.amount) });
+      });
+      return drafts.map((r) => '<button type="button" class="doc-btn ipx-send-receipt" data-send-receipt'
+        + ' data-action="NBDCustomerInvoices.sendReceipt" data-arg="' + esc(inv.id) + '" data-arg2="' + esc(r.key) + '"'
+        + ' title="Email this payment\'s receipt to the customer">Send receipt'
+        + (drafts.length > 1 ? ' ($' + r.amount.toLocaleString('en-US', { minimumFractionDigits: 2 }) + ')' : '') + '</button>').join('');
+    };
+    // A bank payment (ACH) in flight: shown, never counted as paid.
+    const achPendingHtml = (inv) => {
+      const p = inv && inv.achPending;
+      if (!p || !(Number(p.amountCents) > 0)) return '';
+      return '<div class="invoice-paynote" data-ach-pending>Bank payment $' + (Number(p.amountCents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })
+        + ' processing — not paid until it clears</div>';
+    };
     const _J = window.NBDJurisdiction;
     const _payLead = (window._currentLead && typeof window._currentLead === 'object'
       && (!window._customerId || window._customerId === leadId)) ? window._currentLead : null;
@@ -828,7 +883,7 @@ window.loadInvoices = async function(leadId) {
       // the Kentucky insurance hold applies (KRS 367.626). FAIL CLOSED: no
       // jurisdiction module or no lead on the page → no Pay button.
       const safePayUrl = (_J && typeof _J.payUrlUnlessHeld === 'function' && _payLead)
-        ? (_J.payUrlUnlessHeld(_payLead, inv, new Date()) || null) : null;
+        ? (_J.payUrlUnlessHeld(_payLead, inv, new Date(), _J.resolveTimeZone(typeof window._legal === 'function' ? window._legal() : (window._companyProfile || {}))) || null) : null;
       // Invoices are stamped `createdAt`; fall back to a legacy `date` if any
       // old doc carried one. Guard against an unparseable value so a single bad
       // row can't render "Invalid Date".
@@ -853,7 +908,10 @@ window.loadInvoices = async function(leadId) {
             ` : ''}
             ${safeStatus !== 'paid' && safePayUrl ? `
               <a href="${esc(safePayUrl)}" target="_blank" rel="noopener noreferrer" class="doc-btn">Pay</a>
+              ${(typeof window._isNbdPlatformTenant === 'function' && window._isNbdPlatformTenant() === true) ? '<div class="invoice-paynote" data-pay-by-bank>Pay by bank (ACH) — lower fees</div>' : ''}
             ` : ''}
+            ${achPendingHtml(inv)}
+            ${receiptBtns(inv)}
             ${safeStatus !== 'paid' ? `
               <button type="button" class="doc-btn" data-action="NBDCustomerInvoices.markPaid" data-arg="${esc(inv.id)}"
                       title="Record a check or cash payment">Mark Paid</button>
@@ -1645,11 +1703,15 @@ async function loadCommunicationLog(leadId) {
       const smsText = data.body || data.message || '';
       comms.push({
         type: 'sms',
+        id: doc.id,
         date: data.date?.toDate ? data.date.toDate() : new Date(data.date),
         subject: smsText || 'Text Message',
         preview: smsText.substring(0, 100),
         status: data.status || 'sent',
         fromUid: data.uid || null,
+        // An outbound text: a STOP reply to it may have landed on the
+        // sender's own phone (review R2-3-1) — offer "They replied STOP".
+        outbound: (data.status || 'sent') !== 'received',
       });
     });
 
@@ -1687,6 +1749,7 @@ async function loadCommunicationLog(leadId) {
           </div>
           <div class="comm-subject">${esc(comm.subject)}</div>
           ${comm.preview ? `<div class="comm-preview">${esc(comm.preview)}${comm.preview.length > 100 ? '...' : ''}</div>` : ''}
+          ${comm.type === 'sms' && comm.outbound && comm.id ? `<button type="button" class="btn btn-ghost btn-sm comm-stop" data-comm-stop="${esc(comm.id)}" data-comm-lead="${esc(leadId)}">They replied STOP</button>` : ''}
         </div>
       `;
     });
@@ -1698,6 +1761,31 @@ async function loadCommunicationLog(leadId) {
     document.getElementById('communicationLog').innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Failed to load messages</div>';
   }
 }
+
+// "They replied STOP" on an outbound text in the Communication Log (review
+// R2-3-1, Jo 2026-10-06). A homeowner's STOP to a text sent from the owner's
+// own phone lands on that phone, where the CRM never sees it. One tap records
+// it exactly like an inbound STOP (the STOP register + Do Not Text lists),
+// server-side: phoneTextAction 'stop' via phone-share.js (loaded on this page).
+document.addEventListener('click', async function (ev) {
+  const btn = ev.target && ev.target.closest ? ev.target.closest('[data-comm-stop]') : null;
+  if (!btn) return;
+  ev.preventDefault();
+  if (window.NBDRole && typeof window.NBDRole.guard === 'function' && !window.NBDRole.guard()) return;
+  const PS = window.NBDPhoneShare;
+  if (!PS || typeof PS.reportStop !== 'function') { if (window.showToast) window.showToast('Still loading — try again in a moment', 'error'); return; }
+  const ask = window.nbdConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
+  if (!(await ask('Record that this customer replied STOP? Nobody at your company will be able to text this number again (they can text START to resume).'))) return;
+  btn.disabled = true;
+  const r = await PS.reportStop({ leadId: btn.getAttribute('data-comm-lead'), logId: btn.getAttribute('data-comm-stop') });
+  if (r && r.ok) {
+    btn.textContent = 'STOP recorded';
+    if (window.showToast) window.showToast('Recorded — this customer won’t be texted again', 'success');
+  } else {
+    btn.disabled = false;
+    if (window.showToast) window.showToast('Could not record it: ' + ((r && r.reason) || 'error'), 'error');
+  }
+});
 
 // ── Photo Quick Actions (Edit Tags, Delete, Phase) ──────
 window._quickEditPhotoId = null;
@@ -1990,7 +2078,13 @@ function getCustomerDocData() {
   const afterPhotos = photos.filter(p => (p.phase||'').toLowerCase() === 'after');
   const duringPhotos = photos.filter(p => (p.phase||'').toLowerCase() === 'during');
   const name = ((lead.firstName||'') + ' ' + (lead.lastName||'')).trim();
-  const jobVal = lead.jobValue || (est ? est.grandTotal : 0);
+  // The estimate's total wins over lead.jobValue, which can lag a re-saved
+  // estimate (review R2-2-4 / R4); lead.jobValue only when it has no price.
+  const _rows = window.NBDCustomerEstimateRows;
+  const _estVal = !est ? 0 : (_rows && typeof _rows.estimateValue === 'function')
+    ? _rows.estimateValue(est)
+    : (Number(est.grandTotal || est.total || est.amount) || 0);
+  const jobVal = _estVal > 0 ? _estVal : (lead.jobValue || 0);
 
   return {
     // Customer info

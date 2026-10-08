@@ -26,6 +26,7 @@
 
 // The ONE invoice due-date rule (deposit-rule.js INVOICE_DUE_DAYS).
 const DR = require('./deposit-rule');
+const LAP = require('./lead-artifact-paths');
 
 const CODES = { invoice: 'NBD-500', receipt: 'NBD-510' };
 
@@ -85,6 +86,30 @@ function decide(after, opts) {
   return out;
 }
 
+// The Storage object a plate photo names: path, else storagePath, else (legacy
+// url-only docs) the object inside its download url. '' when none.
+function plateObjectPath(p) {
+  if (!p) return '';
+  return p.path || p.storagePath || LAP.storagePathFromUrl(p.url) || '';
+}
+
+// The photos plateFor may use for `lead` (2026-10-06). Photo docs are
+// client-written and their object is signed with the admin SDK, so a photo
+// counts only when it is the lead's tenant's (same owner, or same companyId)
+// AND names a photo-shaped object (photos/{uid}/ or this lead's
+// homeowner-uploads/{uid}/{leadId}/). A url that is not a Storage object is
+// dropped (Chromium would fetch it). plateFor then checks the uid in the path
+// against the photo's owner or company (photoObjectAllowed) before signing.
+function platePhotosForLead(lead, photos) {
+  const l = lead || {};
+  return (photos || []).filter((p) => {
+    if (!p) return false;
+    const sameTenant = (typeof p.userId === 'string' && p.userId && p.userId === l.userId)
+      || (typeof l.companyId === 'string' && l.companyId && p.companyId === l.companyId);
+    return sameTenant && !!LAP.photoObjectUid(plateObjectPath(p), p);
+  });
+}
+
 // P4 (Jo, 2026-09-30): the cover photo, else the newest After photo, else none.
 function pickPlatePhoto(lead, photos) {
   const list = (photos || []).filter((p) => p && !p.deleted && (p.path || p.storagePath || p.url));
@@ -100,6 +125,24 @@ function pickPlatePhoto(lead, photos) {
 
 function fmtDate(ms) {
   return new Date(ms).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+// The invoice's STORED due date (the one Stripe and the CRM show) as text in
+// Eastern; '' when there is none or it is unreadable. A bare "YYYY-MM-DD"
+// is a calendar date and prints as written.
+function storedDueText(v) {
+  if (v == null || v === '') return '';
+  if (typeof v === 'string') {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.trim());
+    if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', year: 'numeric' });
+  }
+  let t;
+  if (typeof v.toMillis === 'function') t = v.toMillis();
+  else if (typeof v.toDate === 'function') t = v.toDate().getTime();
+  else if (v instanceof Date) t = v.getTime();
+  else if (typeof v === 'object' && typeof v.seconds === 'number') t = v.seconds * 1000;
+  else t = new Date(v).getTime();
+  return Number.isFinite(t) ? fmtDate(t) : '';
 }
 
 function preparedFor(inv, lead) {
@@ -133,7 +176,9 @@ function invoicePayload(inv, lead, id, nowMs, plate) {
   const tax = inv.tax != null ? (Number(inv.tax) || 0) : Math.max(0, Math.round((total - subtotal) * 100) / 100);
   const paid = Number(inv.amountPaid) || 0;
   const balanceDue = Math.max(0, Math.round((total - paid) * 100) / 100);
-  const due = fmtDate(DR.invoiceDueDateMs(nowMs));
+  // The stored due date; the 7-day rule only when the invoice has none
+  // (review round 4 R4-6-5: the PDF printed render time + 7).
+  const due = storedDueText(inv.dueDate) || fmtDate(DR.invoiceDueDateMs(nowMs));
   return {
     docNumber: id,
     coverTagline: 'Invoice for<br>your project.',
@@ -212,6 +257,20 @@ function pdfPathFor(ownerUid, leadId, id) {
   return 'documents/' + ownerUid + '/' + leadId + '/' + id + '.pdf';
 }
 
+// The Storage object metadata a filed PDF is saved with. `signed: 'true'` in
+// the custom metadata is the storage.rules lock (storedObjectIsSigned): a
+// filed invoice/receipt is a record, so no client may overwrite or delete it
+// (R3-4, 2026-10-06 — an owner could overwrite one with text/html behind a
+// live /report/<token> link). Admin-SDK writes are unaffected.
+// tests/storage-rules.test.js seeds its object from THIS function.
+function filedPdfMetadata(kind, id, invoiceId) {
+  return {
+    contentType: 'application/pdf',
+    cacheControl: 'private, max-age=31536000',
+    metadata: { docCode: CODES[kind], instanceId: id, invoiceId, signed: 'true' },
+  };
+}
+
 // ── "Paid but not closed" (2026-10-03 data audit) ────────────────────────
 // Three owner-tenant invoices were paid in full while their lead sat on an
 // open stage: a Zelle/check payoff recorded with Mark Paid only advances a
@@ -250,4 +309,4 @@ function paidNotClosedTaskId(invoiceId) {
   return 'paid-not-closed-' + String(invoiceId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80);
 }
 
-module.exports = { CODES, etParts, instanceId, decide, pickPlatePhoto, invoicePayload, receiptPayload, documentRow, pdfPathFor, lastPayment, toCents, paidNotClosedTask, paidNotClosedTaskId };
+module.exports = { CODES, etParts, instanceId, decide, pickPlatePhoto, platePhotosForLead, plateObjectPath, invoicePayload, receiptPayload, documentRow, pdfPathFor, filedPdfMetadata, lastPayment, toCents, paidNotClosedTask, paidNotClosedTaskId };

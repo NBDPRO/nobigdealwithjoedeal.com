@@ -334,7 +334,7 @@ function loadSync(o) {
         Image: undefined,
         document: { createElement: () => ({ width: 0, height: 0, getContext: () => ({ drawImage() {} }), toBlob(cb, type) { cb(new Blob([new Uint8Array(1200)], { type })); } }) },
       }));
-      vm.runInContext(body.replace("await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js')", '({ ref: (_s, p) => ({ path: p }), getDownloadURL: async (r) => "https://x/" + r.path })'), ctx, { filename: 'd2d-core-lifted.js' });
+      vm.runInContext(body.replace("await import('/assets/vendor/firebase/10.12.2/firebase-storage.js')", '({ ref: (_s, p) => ({ path: p }), getDownloadURL: async (r) => "https://x/" + r.path })'), ctx, { filename: 'd2d-core-lifted.js' });
       return { ctx, state, ls, sent, updates, uploads, toasts, rows, removed, win };
     }
 

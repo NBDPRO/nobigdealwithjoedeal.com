@@ -35,6 +35,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const P = require('./money-paper-logic');
+const LAP = require('./lead-artifact-paths');
 const SPINE = require('./job-spine-logic');
 const stageRoles = require('./stage-roles');
 const PIF = require('./paid-in-full');
@@ -87,7 +88,15 @@ async function plateFor(db, bucket, lead, leadId) {
   try {
     const snap = await db.collection('photos').where('leadId', '==', leadId).limit(200).get();
     const photos = snap.docs.map((d) => Object.assign({ id: d.id }, d.data()));
-    const p = P.pickPlatePhoto(lead, photos);
+    // Only this lead's tenant's photos, each naming an object in its owner's
+    // or a company member's folder: photo docs are client-written, and the
+    // path below is signed with the admin SDK (2026-10-06).
+    const memo = new Map();
+    const candidates = [];
+    for (const c of P.platePhotosForLead(lead, photos)) {
+      if (await LAP.photoObjectAllowed(db, P.plateObjectPath(c), c, memo)) candidates.push(c);
+    }
+    const p = P.pickPlatePhoto(lead, candidates);
     if (!p) return null;
     const path = p.path || p.storagePath;
     let url = null;
@@ -150,6 +159,9 @@ async function fileOne(deps, invRef, invoiceId, kind) {
     const ls = await db.collection('leads').doc(leadId).get();
     const lead = ls.exists ? ls.data() : null;
     if (!lead) throw new Error('lead ' + leadId + ' not found');
+    // An invoice naming another tenant's lead must not file paper (with that
+    // customer's name and address on it) onto that lead (2026-10-05).
+    if (!PIF.invoiceInLeadTenant(inv, lead)) throw new Error('invoice tenant is not the lead tenant — refusing to file');
     const plate = await plateFor(db, bucket, lead, leadId);
     const payload = kind === 'invoice'
       ? P.invoicePayload(inv, lead, c.id, nowMs, plate)
@@ -161,9 +173,11 @@ async function fileOne(deps, invRef, invoiceId, kind) {
     const pdf = await render(kind, payload, inv.companyId || OWNER);
     const ownerUid = String(lead.userId || inv.userId || OWNER);
     const pdfPath = P.pdfPathFor(ownerUid, leadId, c.id);
+    // filedPdfMetadata stamps signed: 'true' — the storage.rules lock, so no
+    // client overwrites or deletes a filed record (R3-4, 2026-10-06).
     await bucket.file(pdfPath).save(pdf, {
       resumable: false,
-      metadata: { contentType: 'application/pdf', cacheControl: 'private, max-age=31536000', metadata: { docCode: P.CODES[kind], instanceId: c.id, invoiceId } },
+      metadata: P.filedPdfMetadata(kind, c.id, invoiceId),
     });
     await db.collection('leads').doc(leadId).collection('documents').doc(c.id).set(Object.assign(
       P.documentRow(kind, c.id, inv, pdfPath, pdf.length),
@@ -312,14 +326,29 @@ async function spineOnInvoice(deps, invoiceId, before, after) {
   const last = P.lastPayment(after);
   const method = last && last.method ? String(last.method) : '';
   const out = {};
+  // R4-12 (2026-10-06): recordJobEvent never throws; it answers
+  // reason:'error'. That used to be a quiet warning, so a paid deposit could
+  // leave the card on the old stage for good. Retry in place (the event is
+  // idempotent per invoice: a repeat is a 'duplicate'), then log at error
+  // level; the trigger wrapper fails the run so the error-rate alert sees it.
+  const ATTEMPTS = 3;
   for (const event of events) {
-    out[event] = await record(deps.db, {
-      leadId: String(after.leadId), companyId: after.companyId || null, event,
-      sourceId: String(invoiceId),
-      actor: method === 'stripe' ? 'online payment (Stripe)' : (method ? 'payment recorded (' + method + ')' : 'payment recorded'),
-      at: deps.now(),
-      meta: { invoiceId: String(invoiceId), method, detail: 'invoice ' + String(invoiceId) },
-    });
+    let r = null;
+    for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+      r = await record(deps.db, {
+        leadId: String(after.leadId), companyId: after.companyId || null, event,
+        sourceId: String(invoiceId),
+        actor: method === 'stripe' ? 'online payment (Stripe)' : (method ? 'payment recorded (' + method + ')' : 'payment recorded'),
+        at: deps.now(),
+        meta: { invoiceId: String(invoiceId), method, detail: 'invoice ' + String(invoiceId) },
+      });
+      if (!(r && r.reason === 'error')) break;
+      if (attempt < ATTEMPTS) await new Promise((ok) => setTimeout(ok, (deps.retryDelayMs != null ? deps.retryDelayMs : 250) * attempt));
+    }
+    if (r && r.reason === 'error') {
+      logger.error('[moneyPaper] job-spine stage move FAILED after retries', { invoiceId, leadId: after.leadId, event, err: r.error });
+    }
+    out[event] = r;
   }
   return out;
 }
@@ -329,6 +358,14 @@ async function flagPaidNotClosed(deps, invoiceId, inv) {
   const leadRef = deps.db.collection('leads').doc(String(inv.leadId));
   const ls = await leadRef.get();
   if (!ls.exists) return null;
+  // Never file a task on another company's lead. Both checks must pass:
+  // R3-6 (2026-10-06, the stricter one — a missing tenant on either side is
+  // not "same") and the 2026-10-05 security review's PIF check.
+  if (!require('./payment-timeline').invoiceLeadSameTenant(inv, ls.data() || {})
+      || !PIF.invoiceInLeadTenant(inv, ls.data())) {
+    logger.warn('[moneyPaper] paid-not-closed skipped — invoice and lead are in different companies', { invoiceId, leadId: inv.leadId });
+    return null;
+  }
   const et = P.etParts(deps.now());               // { y, md: 'MMDD' } — the task wants 'YYYY-MM-DD'
   const today = et.y + '-' + et.md.slice(0, 2) + '-' + et.md.slice(2);
   const task = P.paidNotClosedTask(ls.data(), inv, invoiceId, today, stageRoles);
@@ -398,10 +435,19 @@ exports.moneyPaperOnInvoice = onDocumentWritten(
     const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
     if (!after) return;
     const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
-    await handle(event.params.invoiceId, after, {
+    const out = await handle(event.params.invoiceId, after, {
       db: getFirestore(), bucket: getStorage().bucket(), render: realRender, stripe: stripeClient, now: () => Date.now(),
     }, before);
+    // Everything else in handle has run. A spine move that still failed
+    // fails the run (no trigger retry: the paper work is not re-run).
+    const failedSpine = spineFailures(out);
+    if (failedSpine.length) throw new Error('moneyPaperOnInvoice: job-spine move failed for ' + failedSpine.join(', ') + ' on invoice ' + event.params.invoiceId);
   }
 );
 
-exports._internal = { handle, payQr, markJobPaid, flagPaidNotClosed, settlesJob, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };
+function spineFailures(out) {
+  const s = out && out.spine;
+  return s ? Object.keys(s).filter((k) => s[k] && s[k].reason === 'error') : [];
+}
+
+exports._internal = { handle, spineOnInvoice, spineFailures, payQr, plateFor, markJobPaid, flagPaidNotClosed, settlesJob, transitions, claim, fileOne, markOutOfBand, retriable, OWNER, MAX_ATTEMPTS, STALE_MS };

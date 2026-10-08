@@ -45,11 +45,20 @@ console.log('\n2. the generic email sender needs a verified address');
 
 console.log('\n3. Cal.com bookings match the organizer email before the self-set username');
 {
+  // R5-8-1 (2026-10-06): the decision moved into calcom-logic.resolveCalcomRep;
+  // these used to pin the old short-circuit shape in calcom.js. Behaviour in
+  // depth: tests/calcom-rep-routing-2026-10-06.test.js.
   const src = code('functions/integrations/calcom.js');
+  const CL = require(path.join(ROOT, 'functions', 'integrations', 'calcom-logic.js'));
   const byEmail = src.indexOf('getAuth().getUserByEmail(organizerEmail)');
   const byUser = src.indexOf("where('calcomUsername', '==', organizerUsername)");
-  ok('email first, username only as the fallback', byEmail > 0 && byUser > byEmail && /if \(!repUid && organizerUsername\)/.test(src));
-  ok('a username claimed by more than one account assigns nobody', /\.limit\(2\)\.get\(\);\s*if \(q\.size === 1\)/.test(src));
+  const decide = src.indexOf('CL.resolveCalcomRep(');
+  ok('both lookups feed resolveCalcomRep, and an email account with a company beats any username',
+    byEmail > 0 && byUser > byEmail && decide > byUser
+    && CL.resolveCalcomRep({ emailAccount: { uid: 'v', companyId: 'vc' }, usernameClaimants: [{ uid: 'a', companyId: 'ac' }] }).repUid === 'v');
+  ok('a username claimed by more than one account assigns nobody',
+    /\.limit\(2\)\.get\(\)/.test(src)
+    && CL.resolveCalcomRep({ usernameClaimants: [{ uid: 'v', companyId: 'vc' }, { uid: 'a', companyId: 'ac' }] }).repUid === null);
 }
 
 console.log('\n4. the public AI endpoints have a whole-endpoint daily cap');

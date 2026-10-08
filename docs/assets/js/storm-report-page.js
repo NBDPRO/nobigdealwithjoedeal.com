@@ -180,7 +180,9 @@
     box.hidden = !n;
   }
   function stat(v, l) { return '<div class="sr-stat"><b>' + v + '</b><span>' + l + '</span></div>'; }
-  function fmtDate(s) { try { return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch (e) { return '—'; } }
+  // IEM report times are UTC with no zone suffix: the Eastern date via the
+  // one storm-time reader (/pro/js/storm-time.js), never the browser's parse.
+  function fmtDate(s) { var ST = window.NBDStormTime; return (ST && ST.dateTextEt(s)) || '—'; }
 
   /* ── Leaflet map (OSM tiles — reliable, not Brave-blocked) ── */
   function initMap() {

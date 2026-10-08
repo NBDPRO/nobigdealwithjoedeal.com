@@ -51,7 +51,7 @@ async function dismissToasts(page) {
   }
 }
 const readLead = (page, id) => safeEvaluate(page, async (leadId) => {
-  const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+  const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
   const s = await fs.getDocFromServer(fs.doc(window.db || window._db, 'leads', leadId));
   return s.exists() ? s.data() : null;
 }, id);
@@ -68,7 +68,7 @@ test.describe.serial('phone stage flow at 390px, installed app @shard2', () => {
       window.__e2eSeeding = (async () => {
         const id = await window._saveLead(Object.assign({ e2eTestData: true, e2eRun: tag }, f));
         if (id) return id;
-        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const snap = await fs.getDocs(fs.query(fs.collection(window.db, 'leads'), fs.where('userId', '==', window._user.uid), fs.where('lastName', '==', f.lastName)));
         return snap.docs.length ? snap.docs[0].id : null;
       })();
@@ -231,7 +231,7 @@ test.describe.serial('phone stage flow at 390px, installed app @shard2', () => {
       stage: 'supplement_approved', jobType: 'insurance', insCarrier: 'State Farm', claimNumber: 'CLM-' + stamp });
     expect(id).toBeTruthy();
     await safeEvaluate(page, async ({ leadId, tag }) => {
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = window.db;
       const uid = window._user.uid;
       const ref = await fs.addDoc(fs.collection(db, 'estimates'), {
@@ -299,7 +299,7 @@ test.describe.serial('phone stage flow at 390px, installed app @shard2', () => {
     let out = null;
     await expect.poll(async () => {
       out = await safeEvaluate(page, async ({ h, tag }) => {
-        const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const db = window.db || window._db;
         const uid = window._user.uid;
         const snap = await fs.getDocs(fs.query(fs.collection(db, 'leads'), fs.where('userId', '==', uid), fs.where('firstName', '==', '[E2E]')));

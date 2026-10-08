@@ -85,6 +85,8 @@
     'NBDLeadAI.askReview',
     // record a payment (may create the job's invoice) / send a balance (2026-10-03)
     'NBDCustomerInvoices.recordPayment', 'NBDCustomerInvoices.sendBalance',
+    // email a payment's drafted receipt to the customer (2026-10-04)
+    'NBDCustomerInvoices.sendReceipt',
   ];
   // dashboard.html: <el data-action="call" data-fn="fnName">.
   var WRITE_FNS = [
@@ -144,6 +146,8 @@
     // 📎 Attach proof both write the invoice's payments[] ledger (and upload to
     // Storage, which refuses a viewer). 📎 View stays: reading.
     '[data-ip-action="markPaid"]', '[data-ip-action="attachProof"]',
+    // ✉️ Send receipt emails the customer and writes payments[] (2026-10-04).
+    '[data-ip-action="sendReceipt"]',
     // Kanban card "+" (no tasks yet = "Add a task"). A card WITH tasks keeps
     // its count badge; its click is refused by tasks.js openTaskModal's guard.
     '.kc-task-badge.empty',

@@ -1,0 +1,27 @@
+{
+  "displayName": "NBD Pro — Firestore query needs a missing index (FAILED_PRECONDITION)",
+  "documentation": {
+    "content": "A Cloud Function ran a Firestore query that needs a composite (or collection-group single-field) index that firestore.indexes.json does not define. Firestore rejects it with FAILED_PRECONDITION ('The query requires an index. You can create it here: …').\n\nThe emulator NEVER enforces indexes, so this passes every unit test, emulator suite and E2E shard and fails only in production — usually inside a try/catch that turns it into an empty list (callWatch, 2026-10-02).\n\nFix:\n  1. Open the log entry; the message carries the console link with the exact index.\n  2. Add that index to firestore.indexes.json (scope COLLECTION vs COLLECTION_GROUP matters).\n  3. Run node scripts/check-firestore-indexes.js — if it did not flag this query, extend the scanner or tests/firestore-index-coverage-2026-10-04.test.js so the next one is caught before merge.\n  4. Merge; the deploy's 'Deploy Firestore indexes' step builds it (minutes for small collections).\n\nAlso fires during the build window right after an index is added — expected, and stops once the index is READY.\n\nRunbook: documentation/runbooks/FIRESTORE-INDEX-COVERAGE.md. Written 2026-10-04, NOT YET CREATED in Cloud Monitoring.",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "enabled": true,
+  "conditions": [
+    {
+      "displayName": "Firestore FAILED_PRECONDITION: query requires an index (any function; notifies at most hourly)",
+      "conditionMatchedLog": {
+        "filter": "resource.type=\"cloud_run_revision\" AND severity>=WARNING AND (\"FAILED_PRECONDITION\" OR \"failed-precondition\") AND \"requires an index\""
+      }
+    }
+  ],
+  "alertStrategy": {
+    "notificationRateLimit": {
+      "period": "3600s"
+    },
+    "autoClose": "86400s"
+  },
+  "notificationChannels": [
+    "projects/nobigdeal-pro/notificationChannels/11974029248665804510",
+    "projects/nobigdeal-pro/notificationChannels/7729093229259591605"
+  ]
+}

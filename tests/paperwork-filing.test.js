@@ -116,7 +116,7 @@ console.log('\ndocument-generator.js — onPersistFinalized auto-derivation (sou
 console.log('\nwarranty-cert.js — warrantyCertFiledAt auto-derivation');
 {
   const src = fs.readFileSync(path.join(PRO_JS, 'warranty-cert.js'), 'utf8');
-  const fn = src.slice(src.indexOf('async function _persistWarrantyToLead'), src.indexOf('async function _persistWarrantyToLead') + 1200);
+  const fn = src.slice(src.indexOf('async function _persistWarrantyToLead'), src.indexOf('async function _persistWarrantyToLead') + 1600);
   ok('stamps warrantyCertFiledAt as a real ISO timestamp', /warrantyCertFiledAt:\s*new Date\(\)\.toISOString\(\)/.test(fn));
   ok('alongside the existing warranty:{...} write, not a second updateDoc call',
     (fn.match(/window\.updateDoc\(/g) || []).length === 1);

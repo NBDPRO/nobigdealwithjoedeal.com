@@ -176,7 +176,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -192,7 +192,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -249,6 +249,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -271,6 +272,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -308,8 +310,8 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -598,7 +600,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
     <h2 class="sec-title">The Miamisburg Work <span>I've Actually Done</span></h2>
     <div class="storm-section">
       <p style="margin-bottom:14px">Both of my Miamisburg jobs started as wind claims. Here is what they looked like from the inside:</p>
-      <p style="margin-bottom:12px"><strong>Lifted and missing shingles</strong>: High wind peeled shingles back and exposed the underlayment. I documented it for the insurance claim, the full replacement was approved, and the roof was finished within two weeks. Documentation is what gets a claim approved; I photograph everything before anyone argues about it.</p>
+      <p style="margin-bottom:12px"><strong>Lifted and missing shingles</strong>: High wind peeled shingles back and exposed the underlayment. I documented it for the insurance claim, the full replacement was approved, and the roof was finished within two weeks. I photograph everything, so you have clear photos and an itemized estimate to share with your insurer.</p>
       <p style="margin-bottom:12px"><strong>Three generations of decking</strong>: Strip a brick ranch here and you can find the whole history of the house: original plank boards, a stretch of older plywood, then new sheathing where it was needed. Open rafter bays, landscaping tarped, materials staged. That is what the middle of a storm job actually looks like.</p>
       <p style="margin-bottom:12px"><strong>What that means for your quote</strong>: Older homes can hide mixed decking. I tell you up front how bad decking is handled and priced, so nothing gets invented halfway through the tear-off.</p>
       <p>If the wind got to your roof, I will document it and write the estimate. You file the claim, and I meet the adjuster on the roof.</p>

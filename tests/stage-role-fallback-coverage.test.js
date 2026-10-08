@@ -86,13 +86,14 @@ console.log('\nfunctions/weekly-digest.js');
 {
   const src = read('functions/weekly-digest.js');
   ok('requires stage-roles.js', /require\(['"]\.\/stage-roles['"]\)/.test(src));
-  ok('defines a hardcoded-fast-path + role-fallback won check',
-    /function _isWonLead\(l\)/.test(src) && /stageRoles\.roleFor\(l\) === stageRoles\.ROLE\.WON/.test(src));
+  // 2026-10-06: won = the shared sale test (stage-roles.js isSale, itself
+  // persisted-stageRole first) — a signed contract is booked (Jo).
+  ok('defines a role-aware won check (the shared sale test)',
+    /function _isWonLead\(l\)\s*\{\s*return stageRoles\.isSale\(l\);\s*\}/.test(src));
   ok('defines a hardcoded-fast-path + role-fallback lost check',
     /function _isLostLead\(l\)/.test(src) && /stageRoles\.roleFor\(l\) === stageRoles\.ROLE\.LOST/.test(src));
-  ok('defines a hardcoded-fast-path + role-fallback terminal check',
-    /function _isTerminalLead\(l\)/.test(src)
-    && /role === stageRoles\.ROLE\.WON \|\| role === stageRoles\.ROLE\.LOST/.test(src));
+  ok('defines a role-aware terminal check (booked or lost)',
+    /function _isTerminalLead\(l\)\s*\{\s*return stageRoles\.isSale\(l\) \|\| _isLostLead\(l\);\s*\}/.test(src));
   ok('the weekly won/lost counts use the fallback-aware helpers (not the raw Sets directly)',
     /touchedThisWeek\.filter\(_isWonLead\)/.test(src) && /touchedThisWeek\.filter\(_isLostLead\)/.test(src));
   ok('the active-pipeline-value scan uses the fallback-aware terminal check',

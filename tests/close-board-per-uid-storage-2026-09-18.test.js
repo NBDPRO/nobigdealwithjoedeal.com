@@ -54,7 +54,7 @@ const IMPORT_RE = /\bimport\(/g;
 const CB_IMPORTS = (CB_RAW.match(IMPORT_RE) || []).length;
 // Dynamic import() cannot run inside a vm context; route it to a stub.
 const CB_SRC = CB_RAW.replace(IMPORT_RE, '__testImport(');
-const FIRESTORE_URL = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+const FIRESTORE_URL = '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 
 const LEGACY = 'nbd_deal_rooms';
 const keyOf = (uid) => 'nbd_deal_rooms:' + uid;

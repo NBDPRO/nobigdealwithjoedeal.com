@@ -30,7 +30,7 @@
           // Self-provision the functions SDK globals (billing-gate pattern) —
           // they're set lazily and may not exist at click time.
           if (!(window._functions && window._httpsCallable)) {
-            var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+            var mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
             window._functions = window._functions || mod.getFunctions();
             window._httpsCallable = window._httpsCallable || mod.httpsCallable;
           }
@@ -392,7 +392,7 @@
       // ── Member row actions (delegated; no inline handlers under strict CSP) ──
       async function _teamCallable(name, payload) {
         if (!(window._functions && window._httpsCallable)) {
-          var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+          var mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
           window._functions = window._functions || mod.getFunctions();
           window._httpsCallable = window._httpsCallable || mod.httpsCallable;
         }
@@ -408,7 +408,7 @@
           cancel:  'Cancel the invite for ' + email + '?',
           disable: 'Disable ' + email + '? Their login stops working until re-enabled. Their leads stay.',
           enable:  'Re-enable ' + email + '?',
-          remove:  'Remove ' + email + ' from the team? Their access is revoked; their leads stay.'
+          remove:  'Remove ' + email + ' from the team? Their access is revoked, their bot keys and calendar link stop working, and their customers move to the company owner.'
         };
         var ask = window.nbdConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
         if (!(await ask(confirms[action] || 'Proceed?'))) return;

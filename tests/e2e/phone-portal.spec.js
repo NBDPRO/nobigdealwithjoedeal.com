@@ -572,7 +572,7 @@ test.describe('phone portal: the rep preview @shard2 @phoneportal', () => {
         await window._saveLead({ firstName: '[E2E] Portal', lastName: String(s), address: `${String(s).slice(-3)} Preview Ln, Loveland, OH`,
           phone: '513' + String(s).slice(-7), email: `e2e-portal-${s}@nbd.test`, stage: 'new', e2eTestData: true });
       } catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
-      const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const uid = (window._auth || window.auth).currentUser.uid;
       const snap = await fs.getDocs(fs.query(fs.collection(window.db || window._db, 'leads'),
         fs.where('userId', '==', uid), fs.where('lastName', '==', String(s)), fs.where('e2eTestData', '==', true)));

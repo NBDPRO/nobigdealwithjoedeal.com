@@ -144,7 +144,7 @@
     const claims = w._userClaims || {};
     const uid = w._user && w._user.uid;
     if (!uid) return byLead;
-    const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const mod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const staff = ['company_admin', 'manager', 'viewer', 'admin'].includes(claims.role || '') && !!claims.companyId;
     const q = staff
       ? w.query(mod.collectionGroup(w.db, 'jobs'), w.where('companyId', '==', claims.companyId))

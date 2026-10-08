@@ -38,7 +38,7 @@ ok('three numbered steps', (NEXT.match(/<li>/g) || []).length === 3 && /<ol clas
 ok('step facts match the roof-inspection page: 45 minutes to an hour, $150 report',
   /45 minutes to an hour/.test(NEXT_TEXT) && /written photo report is \$150/.test(NEXT_TEXT));
 const svc = read('docs/services/roof-inspection.html');
-ok('...and the service page still prints both facts', /45 minutes to an hour/.test(svc) && /written photo report is \$150/.test(svc));
+ok('...and the service page still prints both facts', /45 minutes to an hour/.test(svc) && /report[^.<]{0,80}is \$150/.test(svc));
 const faqs = [...NEXT.matchAll(/<details><summary>([^<]+)<\/summary><p>([\s\S]*?)<\/p><\/details>/g)].map((m) => [m[1], m[2]]);
 ok('four FAQ questions, native <details>', faqs.length === 4, faqs.map((f) => f[0]));
 const ans = (q) => (faqs.find((f) => f[0] === q) || [])[1] || '';

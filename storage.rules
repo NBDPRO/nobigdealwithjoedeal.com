@@ -15,8 +15,31 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    function isAuth() { return request.auth != null; }
-    function isOwner(uid) { return isAuth() && request.auth.uid == uid; }
+    // R3-7 (review round 3, 2026-10-06): an Anonymous-provider token is NOT a
+    // signed-in user. Anonymous sign-in was never used by any page and is now
+    // off in the Firebase console, but an account made before that can keep
+    // refreshing its ID token, and every rule below built on isAuth() let it
+    // upload under its own uid prefix (firestore.rules has the same lock).
+    // .get() on both levels: a token without the firebase map (the rules
+    // emulator's default) must not throw (NEW-5).
+    function isAuth() {
+      return request.auth != null
+        && request.auth.token.get('firebase', {}).get('sign_in_provider', '') != 'anonymous';
+    }
+    // 2026-10-06 (Jo): a REMOVED team member's files move to the company
+    // owner (functions/member-storage-move.js). removeMember sets the
+    // offboardLock claim with the claim strip, and while it is set the member
+    // owns nothing here: no read, write or delete under their own uid, so the
+    // old folder is locked for the whole move. The move clears the claim when
+    // every company file has gone; what is left is their own pre-company data.
+    // A token claim, not a Firestore lookup: zero cost per request, and no
+    // cross-service rule that would deny everyone if its IAM grant were
+    // missing. .get() because most tokens have no such claim (active users are
+    // unaffected).
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid
+        && request.auth.token.get('offboardLock', false) != true;
+    }
     function isAdmin() { return isAuth() && request.auth.token.role == 'admin'; }
 
     // 2026-09-25 (Jo's decision B): the 'viewer' role is READ-ONLY on tenant

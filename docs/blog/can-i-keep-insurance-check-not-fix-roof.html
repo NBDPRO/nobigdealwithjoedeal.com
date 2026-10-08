@@ -455,7 +455,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -471,7 +471,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -528,6 +528,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -550,6 +551,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -587,8 +589,8 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -770,7 +772,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 
     <h2>What is recoverable depreciation, and do I lose it?</h2>
     <p>This is the part most people miss. If your policy pays replacement cost (RCV), the insurance company usually doesn't pay it all at once. The first check is the actual cash value — the cost of the work, minus depreciation for the age and wear of your roof, minus your deductible. The depreciation they took out is held back.</p>
-    <p>That holdback is called <strong>recoverable depreciation</strong>, and the word "recoverable" comes with a condition: you get it after the work is done and you send proof, usually the final invoice. No completed work, no second check. Most replacement-cost policies also put a deadline on it, so read the loss settlement section of yours to see how long you have.</p>
+    <p>That holdback is called <strong>recoverable depreciation</strong>, and it comes with a condition: you get it after the work is done and you send proof, usually the final invoice. No completed work, no second check. Most replacement-cost policies also put a deadline on it, so read the loss settlement section of yours to see how long you have.</p>
     <p>So when someone says "I'll just keep the check," what they're usually keeping is the first check only. On an older roof the depreciation can be a big share of the claim, and that share only exists if the roof gets fixed. If you're on an actual cash value policy, there's no holdback to lose — but that first check is also all you'll ever see.</p>
     <p>Not sure which kind of policy you have? I break down ACV and RCV in <a href="/blog/does-homeowner-insurance-cover-hail-damage-ohio">Does Homeowner Insurance Cover Hail Damage in Ohio?</a></p>
 
@@ -795,7 +797,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
     <h2>So what would I tell you to do?</h2>
     <p>I'll tell you straight whether the repair is worth doing. If the roof has real damage — bruised or fractured shingles, lifted tabs, anything that's going to let water in — my advice is to fix it, because the next storm or the next leak will cost you more than the money you kept. If what got hit is something you can live with, like a dented downspout, I'll tell you that too, and you can sort out that part with your agent and your lender.</p>
     <p>What I won't do is help anyone make the paperwork say something it shouldn't. That protects you as much as it protects me.</p>
-    <p>If nobody has been up on your roof yet, start with a <a href="/services/roof-inspection">free roof inspection</a> — you keep the photos either way. If the damage is real, here's <a href="/services/hail-damage-insurance-claim">what I do on a hail damage claim</a> and <a href="/blog/what-to-expect-roof-insurance-adjuster-visit">what to expect when the adjuster comes out</a>. And whatever you decide, every job I do comes with <a href="/the-pledge">The Pledge</a>: as long as I'm in business and you own the home, call me about anything I worked on and I'll come look, no charge to diagnose.</p>
+    <p>If nobody has been up on your roof yet, start with a <a href="/inspect">free roof inspection</a> — you keep the photos either way. If the damage is real, here's <a href="/services/hail-damage-insurance-claim">what I do on a hail damage claim</a> and <a href="/blog/what-to-expect-roof-insurance-adjuster-visit">what to expect when the adjuster comes out</a>. And whatever you decide, every job I do comes with <a href="/the-pledge">The Pledge</a>: as long as I'm in business and you own the home, call me about anything I worked on and I'll come look, no charge to diagnose.</p>
 
     <h2 id="faq">Straight Answers</h2>
     <h3>Can I keep the insurance check and not fix my roof?</h3>

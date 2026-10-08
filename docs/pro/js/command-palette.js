@@ -114,7 +114,7 @@
             ])
             : Promise.resolve(false);
           purge
-            .then(() => import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js'))
+            .then(() => import('/assets/vendor/firebase/10.12.2/firebase-auth.js'))
             .then((m) => m.signOut(window.auth))
             .then(() => { window.location.href = '/pro/login.html'; })
             .catch((e) => {

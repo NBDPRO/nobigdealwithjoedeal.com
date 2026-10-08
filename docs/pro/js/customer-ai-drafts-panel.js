@@ -125,8 +125,22 @@
         window.where('userId', '==', uid),
         window.where('status', '==', 'pending')));
     }
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const out = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Review R6-3-3 (2026-10-07): replies whose send outcome is unknown stay
+    // on the card list (with "check before re-sending"), so the rep sees them
+    // after a reload too. Two equality filters — no composite needed. A
+    // failure here only hides those cards; the pending list still shows.
+    try {
+      const unsure = await window.getDocs(window.query(col,
+        window.where('userId', '==', uid),
+        window.where('status', '==', 'send_uncertain')));
+      unsure.docs.forEach(d => out.push({ id: d.id, ...d.data() }));
+    } catch (_) {}
+    return out;
   }
+
+  const UNCERTAIN_MSG = '⚠️ Send outcome unknown — this reply may already have reached the homeowner. '
+    + 'Check their text thread before sending it again. It will not be re-sent by itself.';
 
   // Friendly label for the persona that produced a draft (T-4). Falls back
   // to the rep's identity name, then nothing, for pre-T-4 drafts.
@@ -154,6 +168,13 @@
 
   // ─── Render ──────────────────────────────────────────────────────
   function cardHtml(draft) {
+    // A send_uncertain draft can't be approved (firestore.rules); its main
+    // button re-queues it to pending, after the rep has checked the thread.
+    const unsure = draft.status === 'send_uncertain';
+    const mainAction = unsure ? 'requeue' : 'approve';
+    const mainLabel = unsure ? '↩ Not received — back to drafts' : '✅ Approve &amp; Send';
+    const statusLine = unsure ? UNCERTAIN_MSG
+      : (draft.heldReason === 'quiet_hours' ? '⏸ ' + (draft.heldMessage || 'Held: outside texting hours in the homeowner\'s time zone.') : '');
     const incoming = String(draft.incomingBody || '').trim();
     const draftText = String(draft.draftText || '');
     const when = relTime(draft.generatedAt);
@@ -187,11 +208,11 @@
                  border:1px solid var(--br,#2a3344); border-radius:8px;
                  padding:9px 11px; font:inherit; font-size:13px; line-height:1.5;">${escapeHtml(draftText)}</textarea>
         <div style="display:flex; align-items:center; gap:8px; margin-top:11px;">
-          <button type="button" data-aidp-action="approve" class="aidp-btn"
+          <button type="button" data-aidp-action="${mainAction}" class="aidp-btn"
             style="display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:7px;
                    background:#6366f1; color:#fff; border:1px solid #6366f1;
                    font:inherit; font-size:12px; font-weight:700; cursor:pointer;
-                   -webkit-tap-highlight-color:transparent;">✅ Approve &amp; Send</button>
+                   -webkit-tap-highlight-color:transparent;">${mainLabel}</button>
           <button type="button" data-aidp-action="dismiss" class="aidp-btn"
             title="Discard this draft (won't be sent)"
             style="margin-left:auto; padding:9px 12px; border-radius:7px;
@@ -200,7 +221,7 @@
                    -webkit-tap-highlight-color:transparent;">✕ Dismiss</button>
         </div>
         <div class="aidp-status" role="status" aria-live="polite"
-          style="font-size:11px; color:var(--m,#9aa3b2); margin-top:8px; min-height:14px;">${draft.heldReason === 'quiet_hours' ? '⏸ ' + escapeHtml(draft.heldMessage || 'Held: outside texting hours in the homeowner\'s time zone.') : ''}</div>
+          style="font-size:11px; color:var(--m,#9aa3b2); margin-top:8px; min-height:14px;">${escapeHtml(statusLine)}</div>
       </div>`;
   }
 
@@ -270,12 +291,44 @@
       return;
     }
 
+    if (action === 'requeue') {
+      // send_uncertain → pending, ONLY on the rep's tap after they checked
+      // the thread (R6-3-3). It is not sent here: the card comes back as a
+      // normal draft and still needs Approve & Send.
+      setBusy(true); setStatus('Putting it back in your drafts…');
+      try {
+        await window.updateDoc(ref, { status: 'pending' });
+        if (window.showToast) window.showToast('Back in your drafts — approve it to send', 'info');
+        await update();
+      } catch (e) {
+        setBusy(false); setStatus('Could not put it back — try again.');
+      }
+      return;
+    }
+
     if (action === 'approve') {
       const ta = card.querySelector('.aidp-text');
       const edited = (ta ? ta.value : '').trim();
       if (!edited) { setStatus('Add some text before sending.'); if (ta) ta.focus(); return; }
       const original = card.getAttribute('data-aidp-original') || '';
       setBusy(true);
+      // Review R2-3-3 (2026-10-06): the list is a one-time getDocs, so this
+      // card can be stale — another tab or device may have sent it already.
+      // Approve only a draft that is STILL pending (the rules and the trigger
+      // refuse anything else too; this tells the rep why).
+      try {
+        const cur = window.getDoc ? await window.getDoc(ref) : null;
+        const st = cur && cur.exists() ? ((cur.data() || {}).status || '') : (cur ? 'gone' : 'pending');
+        if (st !== 'pending') {
+          setBusy(false);
+          setStatus(st === 'sent' ? 'Already sent — this reply went out from another tab or device.' : 'This draft was already handled (' + st + ').');
+          if (window.showToast) window.showToast(st === 'sent' ? 'That reply was already sent — not sending it again' : 'That draft was already handled', 'info');
+          return;
+        }
+      } catch (e) {
+        setBusy(false); setStatus('Could not check this draft — try again.');
+        return;
+      }
       setStatus(card.getAttribute('data-aidp-portal') === '1'
         ? 'Approving — posting to the portal thread…'
         : 'Approving — sending from the business line…');
@@ -339,6 +392,17 @@
           setBusy(false);
           setStatus('⏸ ' + (d.heldMessage || 'Not sent: it is outside texting hours in the homeowner\'s time zone.'));
           if (window.showToast) window.showToast('AI reply held: outside texting hours', 'warning');
+        } else if (st === 'send_uncertain') {
+          // Review R6-3-3: Twilio may have taken it (the connection dropped
+          // mid-send). NOT reverted to pending — re-approving could text the
+          // homeowner twice. The rep checks the thread; the card's button
+          // re-queues it only on their tap.
+          settled = true;
+          setBusy(false);
+          setStatus(UNCERTAIN_MSG);
+          const mainBtn = card.querySelector('[data-aidp-action="approve"]');
+          if (mainBtn) { mainBtn.setAttribute('data-aidp-action', 'requeue'); mainBtn.textContent = '↩ Not received — back to drafts'; }
+          if (window.showToast) window.showToast('AI reply: send outcome unknown — check the thread before re-sending', 'warning');
         } else if (st === 'failed') {
           settled = true;
           setBusy(false);
@@ -348,7 +412,9 @@
             ? ' — Twilio/A2P may need setup (Settings or Twilio console).'
             : '';
           setStatus('⚠️ Did NOT send (' + reason + ')' + a2pHint + ' — edit and try again.');
-          // Revert to pending so the rep can re-approve after editing.
+          // Revert to pending so the rep can re-approve after editing. Safe:
+          // since R6-3-3 'failed' means Twilio REFUSED it (nothing went out);
+          // an unknown outcome is 'send_uncertain' above and is not reverted.
           try { await window.updateDoc(ref, { status: 'pending' }); } catch (_) {}
           if (window.showToast) window.showToast('AI reply did NOT send: ' + reason, 'error');
         }

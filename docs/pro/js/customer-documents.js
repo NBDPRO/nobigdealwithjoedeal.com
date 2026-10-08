@@ -399,7 +399,7 @@
         b.addEventListener('click', async function () {
           var w = window.open('', '_blank'); // open now — a popup opened after an await is blocked
           try {
-            var st = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+            var st = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js');
             var blob = await st.getBlob(st.ref(window.storage, b.getAttribute('data-esign-open')));
             var url = URL.createObjectURL(blob);
             if (w) w.location.href = url; else window.open(url, '_blank');
@@ -493,7 +493,7 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Opening…'; }
     try {
       if (!window._functions || !window._httpsCallable) {
-        var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        var mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -537,7 +537,7 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Opening…'; }
     try {
       if (!window._functions || !window._httpsCallable) {
-        var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        var mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -582,7 +582,7 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Linking…'; }
     try {
       if (!window._functions || !window._httpsCallable) {
-        var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+        var mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
         window._functions = window._functions || mod.getFunctions();
         window._httpsCallable = window._httpsCallable || mod.httpsCallable;
       }
@@ -675,7 +675,7 @@
 
   async function _docCallable(name, data) {
     if (!window._functions || !window._httpsCallable) {
-      var mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      var mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._functions = window._functions || mod.getFunctions();
       try {
         var emu = await import('./nbd-emulator-connect.js');
@@ -735,9 +735,11 @@
 
   async function _shareReview(docId, pend, btn) {
     var lead = window._currentLead || {};
+    // leadId: the server's "ok to text?" check + the Comm Log row (R2-3-2).
     var res = await window.NBDPhoneShare.share({
       text: pend.text, phone: lead.phone, email: lead.email,
-      subject: 'Your roof estimate', title: 'Roof estimate', noRetry: !!pend.retried
+      subject: 'Your roof estimate', title: 'Roof estimate', noRetry: !!pend.retried,
+      leadId: lead.id || window._customerId, source: 'estimate_review'
     });
     if (res.needsTap) {
       _reviewPending[docId] = { text: pend.text, link: pend.link, retried: true };
@@ -764,6 +766,8 @@
     var label = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = 'Getting link…'; }
     try {
+      var cur = window._currentLead || {};
+      if (cur.phone && typeof window.NBDPhoneShare.precheck === 'function') window.NBDPhoneShare.precheck({ phone: cur.phone, leadId: cur.id || window._customerId });
       var link = await _docCallable('createEstimateReviewLink', { leadId: window._customerId, documentId: docId });
       if (!link.shareUrl || !/^https:\/\//.test(link.shareUrl)) throw new Error('No link came back');
       if (btn) { btn.disabled = false; btn.textContent = label; }

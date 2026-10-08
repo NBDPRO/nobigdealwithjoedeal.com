@@ -54,7 +54,7 @@
       "name": "How often does Florence, KY get significant hail?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "NOAA's Storm Events Database has 4 reports of hail an inch or larger within about 4 miles of Florence from 2019 through June 2026, each on a different day — the largest 1.75 inches near Burlington on June 18, 2021, the most recent 1-inch hail near Erlanger on April 30, 2025. One inch is the threshold that triggers full replacement claims under most Kentucky policies, and an inspection tells you whether your roof took any of it."
+        "text": "NOAA's Storm Events Database has 4 reports of hail an inch or larger within about 4 miles of Florence from 2019 through June 2026, each on a different day — the largest 1.75 inches near Burlington on June 18, 2021, the most recent 1-inch hail near Erlanger on April 30, 2025. Hail around one inch and up is where shingle damage gets common, and an inspection tells you whether your roof took any of it."
       }
     },
     {
@@ -194,7 +194,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -210,7 +210,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -267,6 +267,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -289,6 +290,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -326,8 +328,8 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -487,7 +489,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div class="combo-hero-content">
     <div class="combo-badge">📍 Serving Florence, KY — Boone County</div>
     <h1>Hail Damage Roof Inspection<br>in <span>Florence, KY</span></h1>
-    <p>NOAA logged <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=954924" target="_blank" rel="noopener">1.75-inch hail near Burlington on June 18, 2021</a> and 1.25-inch hail near Union on April 14, 2025, both within about 4 miles of Florence — well past the 1-inch threshold for full replacement under most policies. I document the damage with impact density measurements that align with what Kentucky insurance adjusters need — free inspection, no pressure.</p>
+    <p>NOAA logged <a href="https://www.ncdc.noaa.gov/stormevents/eventdetails.jsp?id=954924" target="_blank" rel="noopener">1.75-inch hail near Burlington on June 18, 2021</a> and 1.25-inch hail near Union on April 14, 2025, both within about 4 miles of Florence — both bigger than the roughly 1-inch size where shingle damage gets common. I document the damage with impact density measurements, so you have clear photos and an itemized estimate to share with your insurer — free inspection, no pressure.</p>
     <div class="hero-btns svc-cta"><a href="/inspect" class="btn-primary">Book a free inspection</a></div>
     <p class="svc-alt">Leak right now? <a href="tel:+18594207382">Call Joe — (859) 420-7382</a></p>
   </div>
@@ -539,7 +541,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <div class="inc-item"><span class="inc-check">✓</span> Complete documentation package for Kentucky insurance adjuster</div>
       <div class="inc-item"><span class="inc-check">✓</span> Damage documentation for your Kentucky insurance claim</div>
       <div class="inc-item"><span class="inc-check">✓</span> Adjuster meeting — I meet them at your Florence property</div>
-      <div class="inc-item"><span class="inc-check">✓</span> Supplement documentation if initial adjuster scope is underpaid</div>
+      <div class="inc-item"><span class="inc-check">✓</span> Supplement (my updated estimate) if the adjuster's scope misses damage</div>
       <div class="inc-item"><span class="inc-check">✓</span> Full repair or replacement with materials matched to original spec</div>
       <div class="inc-item"><span class="inc-check">✓</span> NBD Lifetime Pledge on all installed work</div>
     </div>
@@ -557,7 +559,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       </div>
       <div class="faq-item">
         <div class="faq-q">How often does Florence, KY get significant hail? <span class="faq-arrow">▸</span></div>
-        <div class="faq-a">NOAA's Storm Events Database has 4 reports of hail an inch or larger within about 4 miles of Florence from 2019 through June 2026, each on a different day — the largest 1.75 inches near Burlington on June 18, 2021, the most recent 1-inch hail near Erlanger on April 30, 2025. One inch is the threshold that triggers full replacement claims under most Kentucky policies, and an inspection tells you whether your roof took any of it.</div>
+        <div class="faq-a">NOAA's Storm Events Database has 4 reports of hail an inch or larger within about 4 miles of Florence from 2019 through June 2026, each on a different day — the largest 1.75 inches near Burlington on June 18, 2021, the most recent 1-inch hail near Erlanger on April 30, 2025. Hail around one inch and up is where shingle damage gets common, and an inspection tells you whether your roof took any of it.</div>
       </div>
       <div class="faq-item">
         <div class="faq-q">Does Kentucky homeowners insurance cover hail damage in Florence the same as Ohio? <span class="faq-arrow">▸</span></div>

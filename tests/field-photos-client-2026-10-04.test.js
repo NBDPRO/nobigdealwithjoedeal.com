@@ -81,7 +81,8 @@ function loadEngine(over) {
   over = over || {};
   let src = read('docs/pro/js/photo-engine.js');
   const before = src.length;
-  src = src.replace(/await import\(\s*'https:\/\/www\.gstatic\.com\/firebasejs\/[^']+\/firebase-(\w+)\.js'\s*\)/g, "await __fb('$1')");
+  // Vendored SDK (#2155: /assets/vendor/firebase/<ver>/) or the old gstatic URL.
+  src = src.replace(/await import\(\s*'(?:https:\/\/www\.gstatic\.com\/firebasejs|\/assets\/vendor\/firebase)\/[^']+\/firebase-(\w+)\.js'\s*\)/g, "await __fb('$1')");
   if (src.length === before) throw new Error('import shim matched nothing');
 
   const net = { online: true };

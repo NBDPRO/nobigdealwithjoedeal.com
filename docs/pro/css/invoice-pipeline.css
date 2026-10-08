@@ -107,3 +107,11 @@
 /* The panel's "Record payment" button and a part-paid row's "Send balance". */
 .ipx-rp-open.ipx-rp-open.ipx-rp-open { min-height: 44px; width: 100%; justify-content: center; margin: 0 0 12px; font-weight: 700; }
 .ipx-send-balance.ipx-send-balance.ipx-send-balance { min-height: 44px; }
+/* Receipts + bank payments (2026-10-04): the one-tap "Send receipt" on the
+   customer page's invoice row and timeline line, the Record payment sheet's
+   "receipt is drafted" note, "Pay by bank (ACH) — lower fees" and an ACH in
+   flight. Phone-first: 44px targets. */
+.ipx-send-receipt.ipx-send-receipt.ipx-send-receipt, .tl-send-receipt.tl-send-receipt.tl-send-receipt { min-height: 44px; }
+.tl-send-receipt.tl-send-receipt.tl-send-receipt { margin-top: 6px; }
+.ipx-rp-note.ipx-rp-note.ipx-rp-note { margin: -4px 0 12px; line-height: 1.4; }
+.invoice-paynote.invoice-paynote { font-size: 11px; line-height: 1.35; color: var(--m); margin-top: 4px; max-width: 180px; }

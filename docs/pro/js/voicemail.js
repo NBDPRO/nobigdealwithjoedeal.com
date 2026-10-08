@@ -54,7 +54,7 @@ let _NBD_VM_DELEGATE; // module-local (globals Tranche 1 — was window.*)
   }
   async function getCallable(name) {
     if (!window._functions || !window._httpsCallable) {
-      const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._functions = mod.getFunctions();
       window._httpsCallable = mod.httpsCallable;
     }
@@ -266,7 +266,11 @@ let _NBD_VM_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     let res;
     try {
       const fn = await getCallable('dictate');
-      const todayLocal = new Date().toISOString().slice(0, 10);
+      // The rep's LOCAL date (as quick-capture sends it) — the UTC date made
+      // "call back tomorrow" resolve a day late after 8pm ET.
+      const todayLocal = new Date().toLocaleDateString('en-CA', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+      });
       const r = await fn({
         audioBase64,
         mimeType: blob.type || 'audio/webm',

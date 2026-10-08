@@ -140,10 +140,18 @@ ok('the #reviews summary row exists', !!reviewsBlock);
 ok('star row carries data-nbd-gr-stars', !!reviewsBlock && /data-nbd-gr-stars/.test(reviewsBlock));
 ok('score carries data-nbd-gr-rating', !!reviewsBlock && /data-nbd-gr-rating/.test(reviewsBlock));
 ok('count carries data-nbd-gr-total', !!reviewsBlock && /data-nbd-gr-total/.test(reviewsBlock));
-ok('the static fallback still names a rating and a count (a blank fallback is worse than a stale one)',
-  !!reviewsBlock && /data-nbd-gr-rating[^>]*>\s*\d\.\d\s*</.test(reviewsBlock)
-  && /data-nbd-gr-total[^>]*>\s*\d+\s*</.test(reviewsBlock),
-  'the hooks must ship with real text inside them, not empty spans');
+ok('the static fallback still names a rating (a blank rating is worse than a stale one)',
+  !!reviewsBlock && /data-nbd-gr-rating[^>]*>\s*\d\.\d\s*</.test(reviewsBlock),
+  'the rating hook must ship with real text inside it, not an empty span');
+// 2026-10-06: the COUNT is the exception. A hard-coded "29" went stale the day
+// the next review landed, and it is what a visitor saw whenever the fetch
+// failed. The count now ships EMPTY inside a hidden wrapper the widget reveals
+// only with a live count, so a failure reads "5.0 on Google" with no number.
+ok('the count hook ships EMPTY (no hard-coded review count to go stale)',
+  !!reviewsBlock && /data-nbd-gr-total>\s*</.test(reviewsBlock)
+  && !/data-nbd-gr-total[^>]*>\s*\d/.test(reviewsBlock));
+ok('...inside a data-nbd-gr-total-wrap that ships hidden',
+  !!reviewsBlock && /<span data-nbd-gr-total-wrap hidden>[^<]*<span data-nbd-gr-total><\/span>[^<]*<\/span>/.test(reviewsBlock));
 ok('the page still loads the widget that fills them',
   /google-reviews-widget\.js/.test(INDEX_SRC));
 
@@ -155,17 +163,20 @@ section('hydration — a real payload rewrites every hook');
   const total = makeEl();
   const count = makeEl();
   const starsEl = makeEl();
+  const wrap = makeEl();
+  wrap.hidden = true;
   rating.textContent = '5.0';
-  total.textContent = '29';
   starsEl.innerHTML = '★★★★★';
 
   const doc = makeDoc({
     'data-nbd-gr-rating': [rating],
     'data-nbd-gr-total': [total],
+    'data-nbd-gr-total-wrap': [wrap],
     'data-nbd-gr-count': [count],
     'data-nbd-gr-stars': [starsEl],
   });
   makeHydrate(doc)({ rating: 4.7, total: 31 });
+  ok('a live count reveals the hidden count phrase', wrap.hidden === false);
 
   ok('rating hook shows the live score to one decimal', rating.textContent === '4.7');
   ok('total hook shows the live count alone (page owns the wording)', total.textContent === '31');
@@ -207,6 +218,8 @@ for (const [label, payload] of [
   const total = makeEl();
   const count = makeEl();
   const starsEl = makeEl();
+  const wrap = makeEl();
+  wrap.hidden = true;
   rating.textContent = '5.0';
   total.textContent = '29';
   count.textContent = '29 Google reviews';
@@ -215,10 +228,12 @@ for (const [label, payload] of [
   const doc = makeDoc({
     'data-nbd-gr-rating': [rating],
     'data-nbd-gr-total': [total],
+    'data-nbd-gr-total-wrap': [wrap],
     'data-nbd-gr-count': [count],
     'data-nbd-gr-stars': [starsEl],
   });
   makeHydrate(doc)(payload);
+  ok(label + ' — the count phrase stays hidden (no count is shown at all)', wrap.hidden === true);
 
   ok(label + ' — static rating survives untouched', rating.textContent === '5.0');
   ok(label + ' — static count survives untouched', total.textContent === '29');

@@ -891,8 +891,10 @@ section('T-2: AI draft send-on-approve');
     /exports\.onAiDraftApproved\s*=\s*onDocumentUpdated/.test(src));
   assert('trigger bound to ai_drafts doc path',
     /document:\s*['"]leads\/\{leadId\}\/ai_drafts\/\{draftId\}['"]/.test(src));
+  // Review R2-3-3 (2026-10-06): skipping only before === 'approved' let a stale
+  // sent → approved write text the homeowner twice. Only pending → approved sends.
   assert('trigger fires only on pending->approved (idempotent)',
-    /before\.status === 'approved'[\s\S]{0,120}after\.status !== 'approved'/.test(src));
+    /before\.status !== 'pending'\) return;[\s\S]{0,120}after\.status !== 'approved'/.test(src));
   // 2026-09-04: the register is reached through functions/sms-optout.js now,
   // because this file used to write it under an 11-digit key and read it under
   // a 10-digit one. Same invariant, pinned at the new call.
@@ -908,10 +910,10 @@ section('T-2: AI draft send-on-approve');
   const rules = read(path.join(ROOT, 'firestore.rules'));
   assert('rules expose ai_drafts subcollection',
     /match \/ai_drafts\/\{draftId\}/.test(rules));
-  assert('rules: rep update constrained to approve/dismiss only',
-    /ai_drafts\/\{draftId\}[\s\S]{0,400}status in \['approved', 'dismissed'\]/.test(rules));
+  assert('rules: rep update constrained to approve/dismiss only (approve only from pending)',
+    /ai_drafts\/\{draftId\}[\s\S]{0,1600}resource\.data\.status == 'pending'\s*&& request\.resource\.data\.status in \['approved', 'dismissed'\]/.test(rules));
   assert('rules: ai_drafts create/delete admin-SDK only',
-    /ai_drafts\/\{draftId\}[\s\S]{0,500}allow create, delete: if false/.test(rules));
+    /ai_drafts\/\{draftId\}[\s\S]{0,1800}allow create, delete: if false/.test(rules));
 
   const panel = read(path.join(PRO_JS, 'customer-ai-drafts-panel.js'));
   // QA 2026-06-21 #5: the gate must match the canonical no-.html URL too
@@ -1727,8 +1729,11 @@ section('F3: TCPA STOP/HELP + opt-out list');
     && /intent\.intent === 'stop'[\s\S]{0,400}OptOut\.recordOptOut\(/.test(sms));
   assert('HELP keyword replies with compliance message',
     /intent\.intent === 'help'[\s\S]{0,500}Msg & data rates may apply/.test(sms));
-  assert('START keyword resumes (clears the opt-out, both keys)',
-    /intent\.intent === 'start'[\s\S]{0,400}OptOut\.clearOptOut\(/.test(sms));
+  // R6-3-5 (2026-10-07): START lifts only what this number was told
+  // (liftStopOnLine — both register keys, its stop_reply copies), never another
+  // company's owner-phone STOP. tests/r6-texting-trio-2026-10-07.test.js drives it.
+  assert('START keyword resumes (lifts this number\'s opt-out, both keys)',
+    /intent\.intent === 'start'[\s\S]{0,900}OptOut\.liftStopOnLine\(/.test(sms));
   assert('sendSMS checks the opt-out register before sending',
     /OptOut\.isOptedOut\([\s\S]{0,700}replied STOP/.test(sms));
   assert('no send path hand-derives an opt-out key any more',
@@ -1960,9 +1965,9 @@ section('C3a: Voice Intel client module — data layer');
   const src = read(path.join(ROOT, 'docs/pro/js/voice-intelligence.js'));
   // ES module — imports Firebase v10.12.2 modular SDK
   assert('C3a: module imports modular Firestore SDK (not compat)',
-    /from 'https:\/\/www\.gstatic\.com\/firebasejs\/10\.12\.2\/firebase-firestore\.js'/.test(src));
+    /from '\/assets\/vendor\/firebase\/[\d.]+\/firebase-firestore\.js'/.test(src));
   assert('C3a: module imports modular Storage SDK',
-    /from 'https:\/\/www\.gstatic\.com\/firebasejs\/10\.12\.2\/firebase-storage\.js'/.test(src));
+    /from '\/assets\/vendor\/firebase\/[\d.]+\/firebase-storage\.js'/.test(src));
 
   // Consent mode constants match the server-side rule + pipeline
   assert('C3a: CONSENT_MODES exports all three modes',

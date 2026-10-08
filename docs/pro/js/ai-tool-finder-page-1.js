@@ -45,7 +45,7 @@ const NBD_NAV_CONFIG = {
         if (window._auth || window.NBDAuth) break;
         await new Promise(r => setTimeout(r, 100));
       }
-      const { onAuthStateChanged, signOut } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
+      const { onAuthStateChanged, signOut } = await import('/assets/vendor/firebase/10.12.2/firebase-auth.js');
       const auth = window._auth;
       if (!auth) return;
       onAuthStateChanged(auth, user => {

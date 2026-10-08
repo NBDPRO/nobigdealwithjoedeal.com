@@ -114,11 +114,20 @@ group('The cache is really there when the report builder runs', () => {
     !!photosBundle && /photo-engine\.js/.test(photosBundle[1]));
   assert('dashboard.html loads dashboard-bootstrap.module.js',
     /dashboard-bootstrap\.module\.js/.test(DASH_HTML));
-  assert('dashboard boot fills window._photoCache keyed by leadId',
-    /window\._photoCache\[p\.leadId\]/.test(DASH_BOOT));
+  // 2026-10-04 (startup audit): the cache is no longer filled at boot — the
+  // every-photo boot read is gone; js/photo-cache.js (NBDPhotoCache) fills a
+  // lead's bag on demand, in the same two scopes, and the engine waits for it
+  // (tests/photo-cache-lazy-2026-10-04.test.js drives that behaviour).
+  const PHOTO_CACHE = read('docs/pro/js/photo-cache.js');
+  assert('dashboard.html loads photo-cache.js (the on-demand filler)',
+    /<script defer src="js\/photo-cache\.js\?v=\d+"><\/script>/.test(DASH_HTML));
+  assert('photo-cache.js fills window._photoCache keyed by leadId',
+    /mergeInto\(root\._photoCache, ids, res\.docs\)/.test(PHOTO_CACHE) && /byLead\[p\.leadId\]\.push\(p\)/.test(PHOTO_CACHE));
   assert('and fills it from the COMPANY scope too, not just the signed-in user',
-    /_pScopes\.push\(where\('companyId','==',_pClaims\.companyId\)\)/.test(DASH_BOOT),
+    /s\.push\(\['companyId', c\.companyId\]\)/.test(PHOTO_CACHE),
     'this is the team-visibility the async rename would have thrown away');
+  assert('the report engine asks NBDPhotoCache for the lead before reading the pool',
+    /_pc\.ensure\(\[state\.leadId\]\)/.test(ENGINE));
 });
 
 console.log('\n──────────────────────────────────────────────────');

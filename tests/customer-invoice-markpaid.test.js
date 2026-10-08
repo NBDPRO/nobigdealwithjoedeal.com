@@ -101,6 +101,19 @@ ok('the handler aliases window._db from window.db before calling',
 ok('the customer bootstrap does set window.db (the alias source exists)',
   /window\.db\s*=\s*db;/.test(customerBootstrap));
 
+// Same for auth (2026-10-07): getAuthToken() reads window._auth, which the
+// customer page never set, so every pay-link mint from it ("Send balance"'s
+// re-mint, "Create Payment Link") threw "Not authenticated". Every one of the
+// three lazy-load sites (the shared helper, review, markPaid) aliases it.
+// Behaviour: the vm section at the bottom of this file runs the real
+// invoice-pipeline.js through each site and mints a link.
+ok('invoice-pipeline getAuthToken() still reads window._auth',
+  /async function getAuthToken\(\) \{[\s\S]{0,200}window\._auth\?\.currentUser/.test(invoicePipeline));
+ok('the customer bootstrap still does NOT set window._auth', !/window\._auth\s*=/.test(customerBootstrap));
+ok('each lazy-load site aliases window._auth from window.auth (helper, review, markPaid)',
+  (tasksUi.match(/if \(!window\._auth && window\.auth\) window\._auth = window\.auth;/g) || []).length === 3,
+  'without it a pay-link mint from the customer page throws "Not authenticated"');
+
 // ── the target function is real and exported ────────────────────────────
 ok('markPaidUI is defined in invoice-pipeline', /async function markPaidUI\(invoiceId\)/.test(invoicePipeline));
 ok('markPaidUI is on the InvoicePipeline public API',
@@ -157,6 +170,169 @@ ok('renderInvoicePanel / renderInvoiceList are still called from nowhere',
   mountedIn.length === 0,
   'now mounted in ' + mountedIn.join(', ') + ' — reconcile it with this Mark Paid button so there are not two invoice UIs');
 
-console.log(`\n  ${passed} passed, ${failed} failed`);
-if (failed) { console.log('\n  failures:'); for (const f of fails) console.log('    - ' + f); process.exit(1); }
-process.exit(0);
+// ── BEHAVIOUR: a pay link minted from the customer page authenticates ───
+//
+// The regexes above pin the shape; this runs it. The customer page's own
+// lazy-load code (_nbdInvoicePipeline and window.NBDCustomerInvoices, cut
+// out of customer-tasks-ui.js by brace-matching) runs in a vm sandbox shaped
+// like customer.html after boot: window.db and window.auth set (as
+// customer-bootstrap.module.js:189 does), window._auth NOT set. The stub
+// ScriptLoader executes the REAL invoice-pipeline.js, and the real
+// generateStripePaymentLink() → callCloudFunction() → getAuthToken() path
+// mints a link against a stub fetch. Before 2026-10-07 every mint threw
+// "Not authenticated", so "Send balance" went out with no pay link.
+const vm = require('vm');
+
+// Brace-match one declaration out of a source file, skipping strings,
+// template literals and comments so a brace inside them cannot end it early.
+function extractBlock(src, anchor) {
+  const at = src.indexOf(anchor);
+  if (at < 0) throw new Error('anchor not found: ' + anchor);
+  let i = src.indexOf('{', at);
+  let depth = 0;
+  for (; i < src.length; i++) {
+    const c = src[i], n = src[i + 1];
+    if (c === '/' && n === '/') { i = src.indexOf('\n', i); continue; }
+    if (c === '/' && n === '*') { i = src.indexOf('*/', i) + 1; continue; }
+    if (c === '\'' || c === '"' || c === '`') {
+      for (i++; i < src.length && src[i] !== c; i++) if (src[i] === '\\') i++;
+      continue;
+    }
+    if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) return src.slice(at, i + 1);
+  }
+  throw new Error('unbalanced braces after: ' + anchor);
+}
+
+const helperSrc = extractBlock(tasksUi, 'async function _nbdInvoicePipeline(');
+const invoicesSrc = extractBlock(tasksUi, 'window.NBDCustomerInvoices = {') + ';';
+
+function customerPageSandbox(opts) {
+  opts = opts || {};
+  const log = { fetches: [], loads: [], toasts: [], errors: [], tokenCalls: 0 };
+  const authInstance = {
+    currentUser: opts.signedOut ? null : {
+      uid: 'rep-1',
+      getIdToken: async () => { log.tokenCalls++; return 'id-token-rep-1'; },
+    },
+  };
+  const ctx = {
+    console: { log() {}, warn() {}, info() {}, error: (...a) => log.errors.push(a.map(String).join(' ')) },
+    Promise, setTimeout, clearTimeout, Date, JSON, Math, URL, Error,
+  };
+  ctx.window = ctx;
+  // customer-bootstrap.module.js:188-190: window.db / window.auth only.
+  ctx.db = { __fake: 'firestore' };
+  ctx.auth = authInstance;
+  if (opts.preexistingAuth) ctx._auth = opts.preexistingAuth;
+  ctx._user = { uid: 'rep-1' };
+  ctx.doc = (db, coll, id) => ({ coll, id });
+  ctx.collection = () => ({});
+  ctx.getDoc = async () => ({
+    exists: () => true,
+    data: () => ({ accountId: 'acct_test', chargesEnabled: true, detailsSubmitted: true, livemode: true }),
+  });
+  ctx.updateDoc = async () => {};
+  ctx.fetch = async (url, init) => {
+    log.fetches.push({ url, authorization: init && init.headers && init.headers.Authorization });
+    return { ok: true, json: async () => ({ url: 'https://buy.stripe.com/test_link', paymentLinkId: 'plink_1' }) };
+  };
+  ctx.showToast = (msg) => log.toasts.push(msg);
+  let pipelineLoaded = false;
+  ctx.ScriptLoader = {
+    load: async (src) => {
+      log.loads.push(src);
+      if (pipelineLoaded) return;
+      pipelineLoaded = true;
+      vm.runInContext(invoicePipeline, ctx, { filename: 'invoice-pipeline.js' });
+      // The modal entry points need a DOM this sandbox does not have. Replace
+      // only those two on the public API; generateStripePaymentLink and the
+      // module-internal getAuthToken path stay the real code.
+      ctx.InvoicePipeline.showInvoiceDetailModal = async () => {};
+      ctx.InvoicePipeline.markPaidUI = async () => false;
+    },
+  };
+  vm.createContext(ctx);
+  vm.runInContext(helperSrc + '\nwindow._nbdInvoicePipeline = _nbdInvoicePipeline;\n' + invoicesSrc, ctx,
+    { filename: 'customer-tasks-ui.js (extract)' });
+  return { ctx, log, authInstance };
+}
+
+async function mintOutcome(ctx) {
+  try {
+    const r = await ctx.InvoicePipeline.generateStripePaymentLink('inv-1');
+    return { ok: true, url: r && r.url };
+  } catch (e) {
+    return { ok: false, message: String(e && e.message) };
+  }
+}
+
+(async () => {
+  console.log('\n  behaviour (vm: real invoice-pipeline.js, customer-page globals)\n');
+
+  // 1. The shared helper — the path "Send balance" (sendInvoiceUI) and
+  //    "Send receipt" take.
+  {
+    const { ctx, log, authInstance } = customerPageSandbox();
+    ok('sandbox starts like customer.html: window.auth set, window._auth unset',
+      ctx.auth === authInstance && ctx._auth === undefined);
+    await ctx._nbdInvoicePipeline('generateStripePaymentLink');
+    const out = await mintOutcome(ctx);
+    ok('after the shared lazy-load helper, a pay-link mint authenticates (no "Not authenticated")',
+      out.ok && out.url === 'https://buy.stripe.com/test_link',
+      'mint result: ' + JSON.stringify(out));
+    ok('…and the Cloud Function call carries the signed-in rep\'s ID token',
+      log.fetches.length === 1 && log.fetches[0].authorization === 'Bearer id-token-rep-1'
+        && /createStripePaymentLink$/.test(log.fetches[0].url),
+      'fetches: ' + JSON.stringify(log.fetches));
+    ok('the alias is the SAME auth instance (no second auth object)', ctx._auth === authInstance);
+  }
+
+  // 2. NBDCustomerInvoices.review — the draft-deposit "review & send" sheet.
+  {
+    const { ctx, log } = customerPageSandbox();
+    await ctx.NBDCustomerInvoices.review('inv-1');
+    const out = await mintOutcome(ctx);
+    ok('after NBDCustomerInvoices.review loads the pipeline, a pay-link mint authenticates',
+      out.ok && log.fetches.length === 1 && log.fetches[0].authorization === 'Bearer id-token-rep-1',
+      'mint result: ' + JSON.stringify(out) + ' toasts: ' + JSON.stringify(log.toasts));
+  }
+
+  // 3. NBDCustomerInvoices.markPaid — Mark Paid, whose follow-up re-mint
+  //    (balance left after a part payment) needs auth too.
+  {
+    const { ctx, log } = customerPageSandbox();
+    await ctx.NBDCustomerInvoices.markPaid('inv-1');
+    const out = await mintOutcome(ctx);
+    ok('after NBDCustomerInvoices.markPaid loads the pipeline, a pay-link mint authenticates',
+      out.ok && log.fetches.length === 1 && log.fetches[0].authorization === 'Bearer id-token-rep-1',
+      'mint result: ' + JSON.stringify(out) + ' toasts: ' + JSON.stringify(log.toasts));
+  }
+
+  // 4. Positive control: the harness CAN see "Not authenticated". With no
+  //    signed-in user the same path must still refuse — and never call out.
+  {
+    const { ctx, log } = customerPageSandbox({ signedOut: true });
+    await ctx._nbdInvoicePipeline('generateStripePaymentLink');
+    const out = await mintOutcome(ctx);
+    ok('control: signed out, the mint still refuses with "Not authenticated" and sends nothing',
+      !out.ok && /Not authenticated/.test(out.message) && log.fetches.length === 0,
+      'mint result: ' + JSON.stringify(out));
+  }
+
+  // 5. The alias never overwrites a page that already set window._auth
+  //    (the dashboard sets both names to one instance).
+  {
+    const existing = { currentUser: { getIdToken: async () => 'id-token-existing' } };
+    const { ctx, log } = customerPageSandbox({ preexistingAuth: existing });
+    await ctx._nbdInvoicePipeline('generateStripePaymentLink');
+    const out = await mintOutcome(ctx);
+    ok('an existing window._auth is left alone (the guard only fills a gap)',
+      ctx._auth === existing && out.ok && log.fetches[0].authorization === 'Bearer id-token-existing',
+      'mint result: ' + JSON.stringify(out));
+  }
+
+  console.log(`\n  ${passed} passed, ${failed} failed`);
+  if (failed) { console.log('\n  failures:'); for (const f of fails) console.log('    - ' + f); process.exit(1); }
+  process.exit(0);
+})().catch((e) => { console.error('  ✗ harness crashed:', e); process.exit(1); });

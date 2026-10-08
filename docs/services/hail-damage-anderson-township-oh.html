@@ -194,7 +194,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -210,7 +210,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -267,6 +267,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -289,6 +290,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -326,8 +328,8 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -487,7 +489,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div class="combo-hero-content">
     <div class="combo-badge">📍 Serving Anderson Township, OH</div>
     <h1>Hail Damage Roof Inspection<br>in <span>Anderson Township, OH</span></h1>
-    <p>Hail damage on Anderson Township's established homes presents specific documentation challenges — older shingle types, complex flashing at chimneys and dormers, and secondary structures that are often included in the same policy. I measure impact density, document everything thoroughly, and make sure your carrier pays the full scope of what was damaged.</p>
+    <p>Hail damage on Anderson Township's established homes presents specific documentation challenges — older shingle types, complex flashing at chimneys and dormers, and secondary structures that are often included in the same policy. I measure impact density and document everything thoroughly, so you have clear photos and an itemized estimate to share with your insurer.</p>
     <div class="hero-btns svc-cta"><a href="/inspect" class="btn-primary">Book a free inspection</a></div>
     <p class="svc-alt">Leak right now? <a href="tel:+18594207382">Call Joe — (859) 420-7382</a></p>
   </div>
@@ -538,7 +540,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <div class="inc-item"><span class="inc-check">✓</span> Flashing inspection at chimneys, dormers, skylights, and valleys</div>
       <div class="inc-item"><span class="inc-check">✓</span> Photo documentation and a line-item estimate for your claim</div>
       <div class="inc-item"><span class="inc-check">✓</span> Adjuster meeting — I meet them on-site</div>
-      <div class="inc-item"><span class="inc-check">✓</span> Supplement filing when initial estimate is undervalued</div>
+      <div class="inc-item"><span class="inc-check">✓</span> Supplement (my updated estimate) if the adjuster's scope misses damage</div>
       <div class="inc-item"><span class="inc-check">✓</span> Full repair or replacement — Ohio building code compliant</div>
     </div>
   </div>
@@ -550,7 +552,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
     <h2 class="sec-title">Hail Claims on Older <span>Anderson Township Homes</span></h2>
     <p style="font-size:.88rem;color:var(--gray);line-height:1.8;margin-bottom:16px">Insurance adjusters don't always distinguish between hail damage and age-related granule loss — and on older roofs, they sometimes use that ambiguity to reduce claim payouts. My documentation protocol is designed to address this specifically: I photograph impact patterns, compare undamaged areas on the same roof, and document the event-date correlation using local storm data.</p>
     <p style="font-size:.88rem;color:var(--gray);line-height:1.8;margin-bottom:16px">Anderson Township's larger properties also mean more square footage and more penetrations — chimneys, dormers, skylights — each of which represents a flashing point that is both more vulnerable to hail and more likely to be missed in a cursory adjuster inspection. I document all of them.</p>
-    <p style="font-size:.88rem;color:var(--gray);line-height:1.8">If a claim is initially undervalued, I supplement with additional documentation. Many Anderson Township claims that start low are successfully revised upward with the right paperwork.</p>
+    <p style="font-size:.88rem;color:var(--gray);line-height:1.8">If the adjuster's scope misses damage, I send a supplement (my updated estimate) with the photos to back it. You file and own the claim, and what it pays is up to your insurer.</p>
   </div>
 </section>
 

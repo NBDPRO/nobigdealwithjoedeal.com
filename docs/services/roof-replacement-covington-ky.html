@@ -203,7 +203,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -219,7 +219,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -276,6 +276,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -298,6 +299,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -335,8 +337,8 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -534,7 +536,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <p>Covington's pre-war and post-war housing stock is unlike anything else in the Greater Cincinnati area — flat and low-slope roofs are common on older rowhouses, and Kenton County permit requirements add a layer of scrutiny to structural roofing work that's less common on standard OH suburban replacements. I've worked Kentucky roofing permits and know how to navigate the process without delays. Whether your home has a fully pitched shingle roof or a mixed system with flat sections over additions and porches, the approach has to match the building — and I know the difference.</p>
     </div>
 
-    <p style="font-size:.88rem;color:var(--gray);line-height:1.7;margin-top:16px">A full roof replacement in Covington starts with a free inspection to determine what's actually going on — not just what's visible from the ground. I photograph the roof surface, inspect the decking for rot and structural issues, and give you a written scope before any work begins. If your replacement is insurance-related (storm, hail, or wind damage), I document the damage, meet your adjuster on site, and submit a supplement if the initial scope is undervalued.</p>
+    <p style="font-size:.88rem;color:var(--gray);line-height:1.7;margin-top:16px">A full roof replacement in Covington starts with a free inspection to determine what's actually going on — not just what's visible from the ground. I photograph the roof surface, inspect the decking for rot and structural issues, and give you a written scope before any work begins. If your replacement is insurance-related (storm, hail, or wind damage), I document the damage, meet your adjuster on site, and send a supplement (my updated estimate) if the adjuster's scope misses something.</p>
 
     <p style="font-size:.88rem;color:var(--gray);line-height:1.7;margin-top:12px">GAF Timberline or TAMKO impact-resistant shingles are the standard on pitched sections — impact-resistant, widely approved by Kentucky carriers, and available in color profiles that complement Covington's historic and post-war character neighborhoods. Flat sections are assessed for TPO or modified bitumen depending on slope and existing drainage configuration. Every job includes a full decking inspection, new synthetic underlayment, pipe boot replacement, and ridge cap — not cut-rate shortcuts.</p>
   </div>

@@ -46,6 +46,8 @@ const { spineAfterRemoteSign } = require('./job-spine');
 const KyLaw = require('./ky-insurance-law');
 const CW = require('./cancel-window');
 const { uidInLeadTenant } = require('./lead-artifact-paths');
+const ESL = require('./esign-logic');
+const { awaitBriefly } = require('./await-briefly');
 
 const CORS_ORIGINS = [
   'https://nobigdealwithjoedeal.com',
@@ -345,6 +347,9 @@ exports.createSignRequest = onCall(
     // A compromised rep session could otherwise mint tokens / send mail
     // in a loop. 20/min/uid is far above any real workflow.
     await callableRateLimit(request, 'createSignRequest', 20, 60_000);
+    // R3-11: and a daily cap, shared with the e-sign envelope sends — this
+    // mails from the platform domain and sign-up is open.
+    await callableRateLimit(request, 'signLinkEmailDaily', ESL.SIGN_EMAIL_DAILY_CAP, 86_400_000);
 
     const d = request.data || {};
     const leadId = typeof d.leadId === 'string' ? d.leadId : null;
@@ -363,6 +368,11 @@ exports.createSignRequest = onCall(
     const lead = leadSnap.data();
     const isAdmin = request.auth.token.role === 'admin';
     if (lead.userId !== uid && !isAdmin) throw new HttpsError('permission-denied', 'Not your lead');
+    // R3-11: the link goes only to an email on this lead's record (its email,
+    // or a saved alternate) — never to any address the caller types.
+    if (!ESL.recipientOnRecord(lead, signerEmail)) {
+      throw new HttpsError('failed-precondition', ESL.SIGN_EMAIL_NOT_ON_RECORD);
+    }
 
     // The document must already be persisted (the generator uploaded its
     // interactive HTML to Storage). We sign THAT doc, not arbitrary HTML.
@@ -545,19 +555,22 @@ exports.getSignDocument = onRequest(
     // they sign), not the day the rep generated the contract.
     try { html = KyLaw.restampCancelPacket(html, new Date()); } catch (_) { /* serve as stored */ }
 
-    // Fire-and-forget viewed stamp (does not gate the response).
-    db.doc(`doc_sign_tokens/${token}`).update({
+    // Viewed stamp. R4-10 (2026-10-06): awaited briefly before the response
+    // (awaitBriefly) so Cloud Run's post-response CPU throttle can't drop it.
+    const pendingWrites = [];
+    pendingWrites.push(db.doc(`doc_sign_tokens/${token}`).update({
       viewedAt: FieldValue.serverTimestamp(),
-    }).catch(() => {});
+    }).catch(() => {}));
     // 2026-10-03: this open used to be silent. Stamp lead.lastViewedAt and
     // send Jo the ONE estimate_viewed alert (throttled per lead per 6h across
     // portal / review link / deal room / here). Fire-and-forget; never throws.
     if (tok.leadId) {
-      EVA.recordEstimateView(db, {
+      pendingWrites.push(EVA.recordEstimateView(db, {
         leadId: String(tok.leadId), ownerUid: tok.ownerUid || null, source: 'remote_sign',
         customerName: tok.signerName || '', what: tok.docTypeName || 'the document',
-      }).catch(() => {});
+      }).catch(() => {}));
     }
+    await awaitBriefly(pendingWrites);
 
     // Only the minimum the sign page needs — no lead internals.
     res.status(200).json({

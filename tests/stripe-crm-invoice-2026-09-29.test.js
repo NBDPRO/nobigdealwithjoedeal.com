@@ -117,8 +117,12 @@ const names = (s) => s.calls.map((c) => c[0]);
     // 14 → 7 days on 2026-09-30 (Jo's live-CRM handoff #7).
     ok('a send_invoice invoice, due in 7 days, NOT auto-advanced (Stripe does not email it)', create.collection_method === 'send_invoice' && create.days_until_due === 7 && create.auto_advance === false);
     ok('tagged with the CRM invoice + lead + source for the ledger', create.metadata.invoiceId === 'CRM1' && create.metadata.leadId === 'L1' && create.metadata.source === 'crm');
-    ok('no payment_method_types → the account decides (ACH appears once activated)', !('payment_method_types' in create) && !create.payment_settings);
+    // Bank payments (ACH, Jo 2026-10-04): card + Link + us_bank_account asked
+    // for explicitly (ach-payments.js); the step-down when ACH is not switched
+    // on yet is pinned in tests/receipts-zelle-ach-2026-10-04.test.js.
+    ok('asks for card + Link + bank (ACH)', JSON.stringify(create.payment_settings && create.payment_settings.payment_method_types) === JSON.stringify(['card', 'link', 'us_bank_account']));
     ok('the Zelle / check footer is on it', /Zelle/.test(create.footer) && /check/.test(create.footer));
+    ok('Zelle → (859) 420-7382 or jd@ (never info@), and the ACH line', /Zelle to \(859\) 420-7382 or jd@nobigdealwithjoedeal\.com/.test(create.footer) && !/info@/.test(create.footer) && /Pay by bank \(ACH\)/.test(create.footer));
     ok('Stripe never sends it', !names(st).includes('invoices.sendInvoice'));
     const linkAt = ORDER.findIndex((e) => e.startsWith('db.update:invoices/CRM1:') && e.includes('stripeInvoiceId'));
     const finAt = ORDER.indexOf('stripe.finalize');
@@ -201,7 +205,7 @@ const names = (s) => s.calls.map((c) => c[0]);
       /if \(!connectState && isPlatformTenant\(decoded\) && process\.env\.NBD_CRM_STRIPE_INVOICES !== 'off'\)/.test(src));
     ok('it runs AFTER the Kentucky hold and the balance check',
       branch > src.indexOf('KY_CANCELLATION_WINDOW') && branch > src.indexOf('balanceDueCents < MIN_CENTS'));
-    ok('...and before a payment link would be minted', branch < src.indexOf('await stripe.paymentLinks.create({'));
+    ok('...and before a payment link would be minted', branch < src.indexOf('stripe.paymentLinks.create('));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
