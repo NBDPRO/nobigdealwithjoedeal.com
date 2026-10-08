@@ -38,6 +38,8 @@ const CRON_GATES = [
   { name: 'CALL_CENTER_SWEEP_ENABLED', polarity: 'enabled', file: 'call-center.js' },
   // Every-2-hours call check (8 AM-8 PM ET): new calls needing Jo + slow updates (bell + push).
   { name: 'CALL_WATCH_ENABLED', polarity: 'enabled', file: 'call-watch.js' },
+  // Missed-lead-alert re-send (every 10 min, email + push to Jo): ON unless killed.
+  { name: 'LEAD_ALERT_WATCHDOG_DISABLED', polarity: 'disabled', file: 'lead-alert-watchdog.js' },
   // Text Inbox ingest (SMS Backup & Restore → phone_texts): dry-run until Jo says go.
   { name: 'TEXT_INBOX_ENABLED', polarity: 'enabled', file: 'text-inbox.js' },
   // Text notes (AI per conversation-day): dry-run until texts flow and Jo says go.

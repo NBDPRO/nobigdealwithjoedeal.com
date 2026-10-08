@@ -362,6 +362,7 @@
     "calcom-rep-routing-2026-10-06.test.js",
     "lead-alert-calcom.test.js",
     "lead-alert-thumbtack.test.js",
+    "lead-alert-watchdog-2026-10-07.test.js",
     "forms-to-crm-2026-10-06.test.js",
     "favicon-contract.test.js",
     "lead-form-phone-contract.test.js",
