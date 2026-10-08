@@ -45,8 +45,8 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
   {
     const ids = [...FORM.matchAll(/<(?:input|textarea|select)\b[^>]*\bid="([^"]+)"/g)].map((m) => m[1]);
     ok('the form exists', FORM.length > 0);
-    ok('visible inputs are exactly name, address, phone, consent (+ hidden UTMs + honeypot)',
-      JSON.stringify(ids.filter((i) => !/^utm_/.test(i) && i !== 'f-nbd-hp')) === JSON.stringify(['f-name', 'f-address', 'f-phone', 'ins-consent']), ids);
+    ok('visible inputs are exactly name, address, phone, consent (+ hidden UTMs, ?ref code + honeypot)',
+      JSON.stringify(ids.filter((i) => !/^utm_/.test(i) && i !== 'f-nbd-hp' && i !== 'insRefCode')) === JSON.stringify(['f-name', 'f-address', 'f-phone', 'ins-consent']), ids);
     ok('name, address and phone stay required', ['f-name', 'f-address', 'f-phone'].every((id) => new RegExp('id="' + id + '"[^>]*required').test(FORM)));
     ok('the intake block on the form is the scheduling choice only', /<div data-nbd-intake="ins" data-extras="false" data-cal-hint="Pick your time on the next screen\."><\/div>/.test(FORM));
     ok('no email / story / referral / photo field on the form', !/f-email|f-story|f-referral|Photos/.test(FORM.replace(/<!--[\s\S]*?-->/g, '')));
@@ -57,7 +57,7 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     ok('the default thank-you headline is the same-day one (no "within 24 hours" there)', /<h3 id="insThanksTitle">Joe will reach out, usually the same day<\/h3>/.test(SUCCESS) && !/24 hours|within the hour/.test(SUCCESS));
     ok('Pick My Time is a plain link, hidden until a calendar choice', /<a class="ins-pick-time" id="insPickTime" href="https:\/\/cal\.com\/nobigdeal\/roof-inspection" target="_blank" rel="noopener" hidden>Pick My Time<\/a>/.test(SUCCESS) && /\.ins-pick-time\[hidden\]\{display:none\}/.test(HTML));
     ok('no inline handlers', !/\son[a-z]+=/i.test(FORM + SUCCESS));
-    ok('cache-busters bumped', /intake-extras\.js\?v=4/.test(HTML) && /inspect-form\.js\?v=4/.test(HTML));
+    ok('cache-busters bumped', /intake-extras\.js\?v=4/.test(HTML) && /inspect-form\.js\?v=[45]/.test(HTML));
   }
 
   console.log('\n2. intake-extras: the block splits in two, the popup is opt-out');
