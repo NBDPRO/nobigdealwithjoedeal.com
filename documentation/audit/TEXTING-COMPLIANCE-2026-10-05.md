@@ -75,3 +75,43 @@ gaps closed. Tests: `tests/r6-texting-trio-2026-10-07.test.js`.
 all drive the real handlers through `tests/lib/sms-compliance-world.js`.
 Firestore rules sections 53 (`sms_dnc`) and 54 (`sms_settings`) cover client
 read / create / update / delete.
+
+## Update 2026-10-07 — review round 6 (R6-3-1, R6-3-2)
+
+**Correction to "Paths covered" above:** not every browser sender went through
+sendSMS. Several opened Messages from Jo's own phone with the text written in
+and no check at all. That was R6-3-2, now fixed. The two fixes:
+
+- **R6-3-1, a STOP inside a longer reply.** "Not interested. Stop.", "No thanks
+  stop" and "I no longer want texts from you" are now opt-outs. The rule: a
+  STOP-family word that is its own clause, the first word, the last word after
+  courtesy words, or within three words of a refusal. A STOP word the
+  classifier can't read safely ("thanks but stop") gets a new answer,
+  `possible_stop`. It is not an opt-out, but incomingSMS writes no AI draft for
+  it and gives the rep a high-priority bell and a flagged note. The NBD text
+  line flags its note, bell and inbox item the same way. "Can you stop by
+  tomorrow" and "I'll stop at the store" are still ordinary messages.
+- **R6-3-2, pre-filled texts from the phone.** Seven hand-offs now ask the
+  server first (`NBDPhoneShare.checkText` → `phoneTextAction`: STOP, Do Not
+  Text, consent, the texting switch, 8am–9pm homeowner time):
+  - Text Portal
+  - the dashboard portal-link share
+  - Text Booking Link
+  - the V2 estimate share box (its 💬 Text link and its automatic hand-off)
+  - Care Plan "Text it"
+  - the kanban booking text (`sendBookingSMS`)
+  - `sendFollowUpSMS` and `CustomerPortal.shareSMS` (nothing calls these two today)
+
+  A "no", or a check that can't run, shows the reason and opens nothing.
+- **Still unchecked, lower risk.** About a dozen blank "💬 Text" links open
+  Messages to the customer with no text written in. The rep types the message.
+  They are in call-center-view, claim-core, close-board (rep card),
+  crm-list-view, customer-estimate-hub, customer-quick-action-bar,
+  dashboard-actions, dashboard-widgets, followup-deck, no-next-step and
+  today-home.
+- The `sms:` fallbacks in `portal-link-helpers.js` and the D2D tracker run only
+  when NBDComms is missing.
+- The Pending-texts hand-off in `sms-outbox.js` is R6-3-4, which is still open.
+
+Tests: `tests/r6-texting-2026-10-07.test.js`, plus the R6 sections added to
+`close-flow-2026-10-03` (V2 share box) and `twilio-line-2026-10-06`.
