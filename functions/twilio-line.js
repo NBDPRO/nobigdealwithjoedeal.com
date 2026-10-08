@@ -47,7 +47,8 @@
  * phrase this register is the ONLY record. A STOP is also copied to the Do
  * Not Text list of each company holding the number, and START / UNSTOP
  * clears both the register and those stop_reply entries (a company's own
- * manual entries stay) — sms-optout.js owns all of it.
+ * manual entries stay, and so does another company's owner-phone STOP —
+ * R6-3-5, liftStopOnLine) — sms-optout.js owns all of it.
  *
  * ── IDEMPOTENCY ──────────────────────────────────────────────────────
  * Twilio retries on a timeout or 5xx. Each inbound text claims
@@ -188,10 +189,16 @@ async function handleSms(req, res, deps) {
       onError: (e) => logger.error('[twilioLine] dnc_stop_reply_copy_failed', { sid, err: e && e.message }),
     });
   } else if (kind === 'start') {
-    await OptOut.clearOptOut(db, from);
-    // ...and the stop_reply Do Not Text entries (manual entries stay).
-    try { await OptOut.clearStopReplyDnc(db, from); }
-    catch (e) { logger.error('[twilioLine] dnc_stop_reply_clear_failed', { sid, err: e && e.message }); }
+    // R6-3-5: only what THIS number was told (its register record, the
+    // stop_reply copies of its STOPs, NBD's own owner-phone STOP). Another
+    // company's "They replied STOP" and manual entries stay; anything it
+    // can't attribute is kept and flagged.
+    try {
+      const lifted = await OptOut.liftStopOnLine(db, from, {
+        line: 'twilio_line', lineCompanyId: NBD_OWNER_UID, serverTimestamp: () => FieldValue.serverTimestamp(),
+      });
+      if (lifted.kept.length) logger.warn('[twilioLine] optout.start_kept_other_stops', { sid, kept: lifted.kept.length });
+    } catch (e) { logger.error('[twilioLine] optout_start_clear_failed', { sid, err: e && e.message }); }
   }
 
   const batch = db.batch();

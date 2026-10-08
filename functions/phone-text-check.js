@@ -28,7 +28,8 @@
  *           - texting hours in the HOMEOWNER's local time (sms-send-window.js)
  *         A crew text (recipient 'crew', no lead) checks the register, the
  *         Do Not Text list and the switch only — a sub is not a homeowner.
- *         'number' is the same for a text with no lead behind it.
+ *         'number' (a text with no lead behind it) checks the same lists AND
+ *         texting hours — with no location, Eastern (R6-3-6, 2026-10-07).
  *         ANY read error → { ok: false, code: 'unverified' }: the browser
  *         fails CLOSED ("couldn't check — call instead").
  *
@@ -38,11 +39,13 @@
  *
  *     stop  { leadId, logId? , phone? } → { ok: true, key }
  *         "They replied STOP": the homeowner's STOP landed on the owner's
- *         phone, where nothing could see it. Recorded EXACTLY like an inbound
- *         STOP — the global register (recordOptOut) and the Do Not Text list
- *         of every company holding the number (copyStopToTenantLists, plus
- *         the caller's own list directly, source 'stop_reply'). The number
- *         must be the lead's, or one this lead's sms_log row was sent to.
+ *         phone, where nothing could see it. Since R6-3-5 (2026-10-07) it is
+ *         recorded as THIS company's STOP: its own Do Not Text list (and the
+ *         lead's company's, if different), source 'stop_reply', stopLine
+ *         'owner_phone'. Not the global register: that is NBD's Twilio
+ *         number's list, and a START to that number used to lift this STOP
+ *         for the company that was told it. The number must be the lead's,
+ *         or one this lead's sms_log row was sent to.
  *
  * TODO (TWILIO_INBOUND_ENABLED, #2232): once the business line's inbound is
  * live, a STOP reply reaches the CRM by itself. Phone-sent texts should then
@@ -125,13 +128,22 @@ async function okToText(db, a) {
   }
   if (optOut.optedOut) {
     if (optOut.viaLegacyKey) logger.info('optout.legacy_key_hit', { fn: 'phoneTextAction', key: optOut.key });
-    return refusal(optOut.source === 'dnc' ? 'dnc' : 'opted_out');
+    // A stop_reply entry on the company's list is the homeowner's own STOP
+    // (R6-3-5 keeps a phone-reported STOP there), so say so.
+    return refusal(optOut.source === 'dnc' && optOut.dncSource !== 'stop_reply' ? 'dnc' : 'opted_out');
   }
   // The company's own OFF switch. Not `allowed`: `not_registered` is about
   // the shared business line's brand, and this text goes from a phone.
   if (!status || status.enabled === false) return refusal('switched_off');
-  if (lead) {
-    const w = SendWindow.checkRecipientWindow(a.nowMs, lead);
+  // Texting hours for every text that may reach a homeowner — with a lead,
+  // in the lead's time zone; with no lead behind it (recipient 'number': a
+  // close-board deal with no card, nbd-comms.js's Messages fallback), the
+  // documented no-location rule, Eastern (sms-send-window.js). Review R6-3-6
+  // (2026-10-07): the no-lead path used to skip hours, so 11:30pm Eastern was
+  // refused with the lead and allowed without it. Only a crew text (a sub,
+  // not a homeowner) skips them.
+  if (!a.crew) {
+    const w = SendWindow.checkRecipientWindow(a.nowMs, lead || {});
     if (!w.ok) return { ok: false, code: 'quiet_hours', reason: SendWindow.quietHoursMessage(w.window) };
   }
   return { ok: true, to: '+1' + key, key };
@@ -170,10 +182,12 @@ async function handle(request) {
 
   if (action === 'check') {
     // 'crew' (a sub) and 'number' (nbd-comms.js's Messages fallback for a
-    // text with no lead, e.g. a door knock): the number's lists only.
-    const crew = (data.recipient === 'crew' || data.recipient === 'number') && !data.leadId;
+    // text with no lead, e.g. a door knock): no lead to read. 'number' still
+    // gets texting hours (R6-3-6) — only 'crew' is not a homeowner.
+    const noLead = (data.recipient === 'crew' || data.recipient === 'number') && !data.leadId;
+    const crew = noLead && data.recipient === 'crew';
     let lead = null;
-    if (!crew) {
+    if (!noLead) {
       try { lead = await readLead(db, data.leadId); } catch (e) {
         logger.error('phone_text_lead_unreadable', { err: e && e.message });
         return refusal('unverified');
@@ -232,23 +246,25 @@ async function handle(request) {
       const mine = sent.docs.some((d) => { const r = d.data() || {}; return r.uid === caller.uid || (r.companyId && r.companyId === caller.tenant); });
       if (!mine) throw new HttpsError('failed-precondition', 'That number is not this customer\'s.');
     }
-    // Exactly what incomingSMS does with an inbound STOP: the register…
-    await OptOut.recordOptOut(db, phone, {
-      optedOutAt: FieldValue.serverTimestamp(),
-      keyword: 'STOP',
-      match: 'owner_reported',
-      reportedBy: caller.uid,
-      reportedCompanyId: caller.tenant,
-    });
-    // …and every holding company's Do Not Text list (best-effort, never throws),
-    // plus the caller's own list directly — a lead without phoneDigits would
-    // be missed by the lead scan.
-    await OptOut.copyStopToTenantLists(db, phone, {
-      serverTimestamp: () => FieldValue.serverTimestamp(),
-      onError: (e) => logger.warn('phone_text_stop_copy_failed', { err: e && e.message }),
-    });
-    await OptOut.addDnc(db, { companyId: caller.tenant, phone, source: 'stop_reply', byUid: caller.uid, note: 'They replied STOP (recorded from the CRM)' },
-      () => FieldValue.serverTimestamp()).catch((e) => logger.warn('phone_text_stop_dnc_failed', { err: e && e.message }));
+    // R6-3-5 (2026-10-07): this STOP was told to THIS company's owner's own
+    // phone, so it is this company's STOP — its own Do Not Text list, marked
+    // 'owner_phone' — not the global register (NBD's Twilio number's list,
+    // which a START to that number clears) and not other companies' lists.
+    // A START to NBD's number can no longer lift it (sms-optout.js
+    // liftStopOnLine). Not best-effort: if it can't be written the owner is
+    // told it failed (the callable throws), never that it was recorded.
+    const holders = [caller.tenant, TextingGate.tenantKeyOfRecord(lead)].filter((c, i, a) => c && a.indexOf(c) === i);
+    try {
+      for (const companyId of holders) {
+        await OptOut.addDnc(db, {
+          companyId, phone, source: 'stop_reply', stopLine: OptOut.STOP_LINE_OWNER_PHONE, stopCompanyId: companyId,
+          byUid: caller.uid, note: OptOut.OWNER_STOP_NOTE,
+        }, () => FieldValue.serverTimestamp());
+      }
+    } catch (e) {
+      logger.error('phone_text_stop_dnc_failed', { err: e && e.message });
+      throw new HttpsError('unavailable', 'Couldn\'t record the STOP — try again. Don\'t text this customer until it is recorded.');
+    }
     logger.info('phone_text_stop_recorded', { tenant: caller.tenant, leadId: lead.id });
     return { ok: true, key };
   }

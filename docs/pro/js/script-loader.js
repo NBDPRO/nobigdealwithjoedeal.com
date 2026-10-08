@@ -126,7 +126,7 @@
     // ExpenseConfig dependency), so it's a single-module bundle.
     money: [
       'js/stripe-ledger-ui-logic.js?v=1',
-      'js/stripe-ledger-panel.js?v=2',
+      'js/stripe-ledger-panel.js?v=3',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
       'js/invoice-reminder.js?v=7',
       'js/money-dashboard.js?v=10'
@@ -162,9 +162,9 @@
     // view. numbers-logic / numbers-data / the lost-reason picker and
     // invoice-pipeline.js (Record payment) are eager on the dashboard.
     catchup: [
-      'js/catchup-logic.js?v=1',
+      'js/catchup-logic.js?v=2',
       'css/catchup.css?v=1',
-      'js/catchup.js?v=1'
+      'js/catchup.js?v=2'
     ],
     decision: [
       'css/decision-engine-view.css?v=2',
