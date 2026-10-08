@@ -414,7 +414,7 @@ function storePage(dealId, html) { W.objects['deal_rooms/u1/' + dealId + '.html'
       payments: [{ amount: 500, method: 'cash', at: Timestamp.fromMillis(PAID1) }], createdAt: Timestamp.fromMillis(Date.now() - DAY) };
     const r2 = await openPortal(T2);
     const p2 = r2.body && r2.body.paid && r2.body.paid.payments;
-    ok('Pat\'s token: Pat\'s one receipt only — never Sam\'s', Array.isArray(p2) && p2.length === 1 && p2[0].receipt.invoiceNumber === 'NBD-PAT-1'
+    ok('Pat\'s token: Pat\'s one receipt only — never Sam\'s', Array.isArray(p2) && p2.length === 1 && (p2[0].receipt || {}).invoiceNumber === 'NBD-PAT-1'
       && JSON.stringify(r2.body).indexOf('NBD-2026-1007-0003') === -1, JSON.stringify(p2));
     // Another tenant's invoice written with Sam's lead id never becomes his receipt.
     W.docs['invoices/inv-x'] = { leadId: 'lead-1', userId: 'x9', companyId: 'x9', total: 999, status: 'paid', invoiceNumber: 'EVIL-1',
