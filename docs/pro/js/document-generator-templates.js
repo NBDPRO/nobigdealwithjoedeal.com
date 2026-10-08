@@ -2149,7 +2149,7 @@
 
       <p style="font-size:10px;color:#999;text-align:center;margin-top:20px;">
         This checklist is for reference only and does not constitute a professional inspection.
-        ${C.name} recommends a licensed contractor inspect any suspected damage. We provide free inspections with no obligation.</p>
+        ${C.name} recommends a qualified, insured roofer inspect any suspected damage. We provide free inspections with no obligation.</p>
     `);
   };
 
@@ -2438,7 +2438,7 @@
           ${hangerServices.map(s => `<div class="hanger-service"><div class="hanger-dot"></div>${esc(s)}</div>`).join('')}
 
           <div style="margin-top:16px;padding-top:12px;border-top:1px solid #eee;">
-            <div style="font-size:12px;color:#666;">Licensed | Insured | Warranty-Backed</div>
+            <div style="font-size:12px;color:#666;">${isNbdDoc() ? 'Fully Insured' : 'Insured'} | Warranty-Backed</div>
             ${affiliateRow()}
           </div>
         </div>
@@ -2462,7 +2462,7 @@
     // Footer region tagline. NBD keeps its exact 'Lexington, KY & Surrounding
     // Areas' literal (byte-identical). A non-NBD tenant drops the KY region: it
     // shows its OWN serviceArea only when it has actually overridden the NBD
-    // default, otherwise no region at all (just "Licensed & Insured").
+    // default, otherwise no region at all (just the insurance line).
     let _mb = null;
     try { _mb = (typeof window !== 'undefined' && window._brand) ? window._brand() : null; } catch (_) { _mb = null; }
     const _isNbd = !_mb || !_mb.legalName || _mb.legalName === 'No Big Deal Home Solutions';
@@ -2526,7 +2526,7 @@
         <div class="mailer-footer">
           ${affiliateRow()}
           <div style="font-size:12px;color:#666;">
-            ${C.name} | Licensed & Insured${mailerRegion}</div>
+            ${C.name} | ${_isNbd ? 'Fully Insured' : 'Insured'}${mailerRegion}</div>
         </div>
       </div>
     `);
