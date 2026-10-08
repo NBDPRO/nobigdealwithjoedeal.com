@@ -166,7 +166,7 @@ const reset = () => { const e = new Error('socket hang up'); e.code = 'ECONNRESE
     // A normal send: unchanged.
     const { w, h } = aiWorld();
     await h(approveEvent());
-    ok('a normal approval sends once and marks sent', w.twilioCalls.length === 1 && draftOf(w).status === 'sent' && draftOf(w).sendClaim.state === 'sent');
+    ok('a normal approval sends once and marks sent', w.twilioCalls.length === 1 && draftOf(w).status === 'sent' && (draftOf(w).sendClaim || {}).state === 'sent');
   }
 
   // ── The panel (vm-loaded): send_uncertain is shown, never reverted ──────
@@ -271,7 +271,8 @@ const reset = () => { const e = new Error('socket hang up'); e.code = 'ECONNRESE
     m = W.load(w, 'phone-text-check.js');
     const after = await handle(m, tokA, { action: 'check', phone: KEY, leadId: 'LA' });
     ok('…company A still may NOT text them (its STOP was told to A, not to NBD\'s number)', after && after.ok === false && after.code === 'opted_out', JSON.stringify(after));
-    ok('…A\'s entry is flagged: a START reached NBD\'s number (startSeenAt / startSeenLine)', !!w.store.get('sms_dnc/coA__' + KEY).startSeenAt && w.store.get('sms_dnc/coA__' + KEY).startSeenLine === 'incomingSMS');
+    const flagged = w.store.get('sms_dnc/coA__' + KEY) || {};
+    ok('…A\'s entry is flagged: a START reached NBD\'s number (startSeenAt / startSeenLine)', !!flagged.startSeenAt && flagged.startSeenLine === 'incomingSMS');
     const nbd = await handle(m, tokN, { action: 'check', phone: KEY, leadId: 'LN' });
     ok('…NBD (the number\'s owner, never told STOP) can text them', nbd && nbd.ok === true, JSON.stringify(nbd));
   }
