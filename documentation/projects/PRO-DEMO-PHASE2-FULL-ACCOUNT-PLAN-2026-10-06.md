@@ -1,5 +1,12 @@
 # Pro demo, phase 2: explore the whole sample account (plan only)
 
+> **Update 2026-10-07 (later): waves 1–4 ship together as #2294** (Jo: "good to go"). #2261, #2265 and #2281 close once it merges. Merging main surfaced three things the sample account has to keep up with. Read these before changing it:
+> - **Self-hosted SDK (#2155).** The CRM imports `/assets/vendor/firebase/<ver>/firebase-*.js` from our own origin. `demo-sw.js` must answer that path (`VENDOR_SDK_RE`). If it doesn't, the real SDK loads and only the CSP stands between the demo and Firestore. The export-parity scan in `tests/pro-demo-sdk-2026-10-06.test.js` reads the vendored URLs.
+> - **"Ok to text?" (#2246).** Phone texts call `phoneTextAction` first; the fake answers `check`. `NBDPhoneShare.share` is answered by `demo-mode.js`, because its `location.assign(sms:)` can't be wrapped. The Agent inbox text button has its `href` removed before the inbox opens it.
+> - **Ask Joe footnote:** "Sample answers … no AI model is called". It no longer shows the model name or "Change Key".
+>
+> A new CRM callable on a demo page has no canned answer, and it rejects with "not in the sample account". The zero-network walk is the net for that, so run it after every merge of main.
+
 > **Update 2026-10-07 — wave 4 built (draft PR stacked on wave 3, awaiting Jo).**
 >
 > **Invoices and payments.** Seed v4 adds seven invoices (paid, part paid, draft; Ohio cash and Kentucky insurance). Every deposit comes from the real `deposit-rule.js`; the seed builder fails if a Kentucky insurance invoice asks for anything at signing or takes a payment before the carrier's written decision plus the 5-business-day window (the real `ky-insurance-law.js`). Record Payment, Mark Paid and the payment timeline run unchanged on the fake store.
