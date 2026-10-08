@@ -493,7 +493,7 @@ const MTW = [39.087, -84.39];
     ok('cache-busters bumped (storm-integration v3+, loader v146+, widgets v10)',
       Number((/'js\/storm-integration\.js\?v=(\d+)'/.exec(read('docs/pro/js/script-loader.js')) || [])[1]) >= 3 &&
       loaderV('docs/pro/dashboard.html') && loaderV('docs/pro/customer.html') &&
-      /dashboard-widgets\.js\?v=10/.test(read('docs/pro/dashboard.html')));
+      Number((/dashboard-widgets\.js\?v=(\d+)/.exec(read('docs/pro/dashboard.html')) || [])[1]) >= 10);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

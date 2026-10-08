@@ -217,24 +217,42 @@
 
   /**
    * The lead-source table: one row per source.
-   * opts: { collectedByLead: { leadId: dollars }, spend, roleFn }
+   * opts: { collectedByLead: { leadId: dollars }, spend, roleFn, jobRecords }
    * Row: { source, leads, won, lost, winRate (null|0..1), bookedCents
    *        (PROJECTED), collectedCents, spendCents, costPerWonCents (null),
    *        bookedPerDollar (null) }. Sorted by collected, then booked.
+   * jobRecords (jobs-store.js recordsFor — one record per JOB): when given,
+   * won / lost / booked count every job, so a repeat customer's second sale
+   * is in the table (review R6-2-13); leads and collected stay per customer.
+   * A job with no source of its own takes its customer's source.
    */
   function sourceTable(leads, opts) {
     var o = opts || {};
     var paid = o.collectedByLead || {};
+    var recs = Array.isArray(o.jobRecords) ? o.jobRecords : null;
     var rows = {};
+    function rowOf(src) { return rows[src] || (rows[src] = { source: src, leads: 0, won: 0, lost: 0, bookedCents: 0, collectedCents: 0, spendCents: 0 }); }
+    function tally(r, rec) {
+      if (isSale(rec, o.roleFn)) { r.won++; r.bookedCents += bookedCents(rec); }
+      else if (isLostLead(rec, o.roleFn)) r.lost++;
+    }
+    var srcById = {};
     (leads || []).forEach(function (l) {
       if (!counts(l)) return;
       var src = normalizeSource(l.source);
-      var r = rows[src] || (rows[src] = { source: src, leads: 0, won: 0, lost: 0, bookedCents: 0, collectedCents: 0, spendCents: 0 });
+      if (l.id != null) srcById[l.id] = l.source;
+      var r = rowOf(src);
       r.leads++;
-      if (isSale(l, o.roleFn)) { r.won++; r.bookedCents += bookedCents(l); }
-      else if (isLostLead(l, o.roleFn)) r.lost++;
+      if (!recs) tally(r, l);
       if (l.id != null && paid[l.id]) r.collectedCents += dollarsToCents(paid[l.id]);
     });
+    if (recs) {
+      recs.forEach(function (rec) {
+        if (!counts(rec)) return;
+        var own = rec.source != null && String(rec.source).trim() !== '';
+        tally(rowOf(normalizeSource(own ? rec.source : srcById[rec.id])), rec);
+      });
+    }
     var sp = spendBySource(leads, o.spend);
     Object.keys(rows).forEach(function (src) { rows[src].spendCents = sp[spendKey(src)] || 0; });
     var list = Object.keys(rows).map(function (k) {
@@ -371,6 +389,24 @@
    * createdAt (imports and back-entered wins stamped both at once — within a
    * minute counts as equal).
    */
+  /**
+   * THE sales in a window, for every "deals" / "booked" count: records that
+   * pass isSale, dated by their SALE date (saleDateMs — closedAt, else the
+   * first move into a sale stage), never updatedAt, so editing an old win
+   * never counts it again (review R6-2-14). Pass job records (jobs-store.js
+   * recordsFor) so a repeat customer's second job is its own sale.
+   * startMs and endMs both null = all time (an undated sale counts there);
+   * otherwise an undated sale is in no window.
+   */
+  function salesBetween(records, startMs, endMs, roleFn) {
+    var allTime = startMs == null && endMs == null;
+    return (records || []).filter(function (l) {
+      if (!counts(l) || !isSale(l, roleFn)) return false;
+      if (allTime) return true;
+      var t = saleDateMs(l);
+      return !!t && (startMs == null || t >= startMs) && (endMs == null || t <= endMs);
+    });
+  }
   function needsCloseDate(lead, roleFn) {
     if (!counts(lead) || !isSale(lead, roleFn)) return false;
     var c = toMs(lead.closedAt), cr = toMs(lead.createdAt);
@@ -575,12 +611,16 @@
       cash = { collectedCents: dollarsToCents(c.total), payments: c.count || 0 };
     }
 
-    var wins = leads.filter(function (l) { var t = isSale(l, roleFn) ? saleDateMs(l) : 0; return t >= start && t <= now; });
+    // Booked this week and the source table count every JOB when the caller
+    // hands its job records (a repeat customer's second sale is a sale —
+    // review R6-2-13); the customer counts below stay on the leads.
+    var recs = Array.isArray(i.jobRecords) ? i.jobRecords.filter(counts) : null;
+    var wins = salesBetween(recs || leads, start, now, roleFn);
     var bookedWins = { count: wins.length, bookedCents: wins.reduce(function (s, l) { return s + bookedCents(l); }, 0), leads: wins };
 
     var newLeads = leads.filter(function (l) { var t = toMs(l.createdAt); return t >= start && t <= now; });
     var mlc = monthLeadCounts(i.leads || []);
-    var allTable = sourceTable(i.leads || [], { collectedByLead: i.collectedByLead, spend: i.spend, roleFn: roleFn });
+    var allTable = sourceTable(i.leads || [], { collectedByLead: i.collectedByLead, spend: i.spend, roleFn: roleFn, jobRecords: recs });
     var bySrc = {};
     newLeads.forEach(function (l) {
       var s = normalizeSource(l.source);
@@ -644,7 +684,7 @@
     normalizeSource: normalizeSource, PAID_SOURCES: PAID_SOURCES, spendKey: spendKey, isPaidSource: isPaidSource,
     leadCostOf: leadCostOf, monthLeadCounts: monthLeadCounts, spendBySource: spendBySource, sourceTable: sourceTable,
     missingLeadCost: missingLeadCost, parseSpendCsv: parseSpendCsv,
-    costsNeeded: costsNeeded, saleDateMs: saleDateMs, needsCloseDate: needsCloseDate,
+    costsNeeded: costsNeeded, saleDateMs: saleDateMs, salesBetween: salesBetween, needsCloseDate: needsCloseDate,
     LOST_REASONS: LOST_REASONS, lostReasonLabel: lostReasonLabel, lostReasonKeyOf: lostReasonKeyOf,
     validateLostReason: validateLostReason, lostReasonFields: lostReasonFields, lossesByReason: lossesByReason,
     TIERS: TIERS, TIER_LABELS: TIER_LABELS, soldTierOf: soldTierOf, packageMix: packageMix,

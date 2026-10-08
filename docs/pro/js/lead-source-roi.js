@@ -33,10 +33,17 @@
   // ────────────────────────────────────────────────────────────────────
   // Aggregation
   // ────────────────────────────────────────────────────────────────────
-  function computeMetrics(leads, collectedByLead, spend, marketingByKey) {
+  // Every JOB of these customers (jobs-store.js recordsFor): won / booked
+  // count a repeat customer's second sale too (review R6-2-13); leads and
+  // collected stay per customer. The leads as-is before jobs load.
+  function jobRecs(leads) {
+    const J = window.NBDJobs;
+    return J && typeof J.recordsFor === 'function' ? J.recordsFor(leads || []) : null;
+  }
+  function computeMetrics(leads, collectedByLead, spend, marketingByKey, jobRecords) {
     const Nn = N();
     if (!Nn) return { rows: [], totals: { total: 0, closed: 0, lost: 0, collectedRev: 0, conversionRate: null }, bestByRevenue: null, bestByConversion: null };
-    const t = Nn.sourceTable(leads || [], { collectedByLead: collectedByLead || {}, spend: spend || null });
+    const t = Nn.sourceTable(leads || [], { collectedByLead: collectedByLead || {}, spend: spend || null, jobRecords: jobRecords || null });
     const mk = marketingByKey || {};
     const adapt = (r) => {
       // Marketing expenses fill in only for a source with no spend at all.
@@ -133,7 +140,7 @@
       }).catch(function () { _spend = { months: {} }; _marketingByKey = {}; })
         .then(function () { _fetching = false; if (_targetId && document.getElementById(_targetId)) render(_targetId); });
     }
-    const m = computeMetrics(leads, _invs ? _R.collectedByLead(_invs, null, null) : {}, owner ? _spend : null, owner ? _marketingByKey : null);
+    const m = computeMetrics(leads, _invs ? _R.collectedByLead(_invs, null, null) : {}, owner ? _spend : null, owner ? _marketingByKey : null, jobRecs(leads));
 
     if (m.totals.total === 0) {
       el.innerHTML =
@@ -217,7 +224,7 @@
     render,
     compute: (spend) => {
       const R = window.NBDRevenue, invs = R ? R.cached() : null;
-      return computeMetrics(window._leads || [], invs ? R.collectedByLead(invs, null, null) : {}, spend || null, null);
+      return computeMetrics(window._leads || [], invs ? R.collectedByLead(invs, null, null) : {}, spend || null, null, jobRecs(window._leads || []));
     },
     computeMetrics,
     init(targetId) {
