@@ -169,12 +169,44 @@ function linesOf(inv) {
   });
 }
 
+/**
+ * The CRM invoice's footed rows (2026-10-07, ho-money audit H1): the same
+ * invoiceDisplayRows the emailed invoice prints — lines (no $0 lines),
+ * Subtotal, Tax, Rounding / Minimum job charge adjustment, then each
+ * "Less deposit …" credit — so the NBD-500 adds up to its total. It used to
+ * sum every item (the Rounding line and the negative credits included) into
+ * "Subtotal". null for a doc without CRM items or a total (a lineItems doc,
+ * a thin mirror row): those keep linesOf below.
+ */
+function footedInvoice(inv) {
+  if (Array.isArray(inv.lineItems) || !Array.isArray(inv.items) || !(Number(inv.total) > 0)) return null;
+  const rows = require('./invoice-from-estimate').invoiceDisplayRows(inv);
+  const one = (k) => rows.filter((r) => r.kind === k)[0] || null;
+  const adj = one('adjustment');
+  const r2 = (n) => Math.round(n * 100) / 100;
+  return {
+    lines: rows.filter((r) => r.kind === 'line').map((r) => ({
+      description: r.label, category: '', quantity: r.quantity, unit: 'ea', unitPrice: r.unitPrice, lineTotal: r.amount,
+    })),
+    subtotal: one('subtotal').amount,
+    tax: one('tax') ? one('tax').amount : 0,
+    rounding: adj ? adj.amount : 0,
+    roundingLabel: adj ? adj.label : '',
+    roundingSign: adj && adj.amount < 0 ? '−' : '',
+    roundingAbs: adj ? r2(Math.abs(adj.amount)) : 0,
+    credits: rows.filter((r) => r.kind === 'credit').map((r) => ({ label: r.label, amountAbs: r2(Math.abs(r.amount)) })),
+    total: one('total').amount,
+  };
+}
+
 /** Payload for print/templates/invoice.hbs. */
 function invoicePayload(inv, lead, id, nowMs, plate) {
-  const lines = linesOf(inv);
-  const subtotal = lines.reduce((s, l) => s + l.lineTotal, 0);
-  const total = Number(inv.total) || subtotal;
-  const tax = inv.tax != null ? (Number(inv.tax) || 0) : Math.max(0, Math.round((total - subtotal) * 100) / 100);
+  const footed = footedInvoice(inv);
+  const lines = footed ? footed.lines : linesOf(inv);
+  const subtotal = footed ? footed.subtotal : lines.reduce((s, l) => s + l.lineTotal, 0);
+  const total = footed ? footed.total : (Number(inv.total) || subtotal);
+  const tax = footed ? footed.tax
+    : (inv.tax != null ? (Number(inv.tax) || 0) : Math.max(0, Math.round((total - subtotal) * 100) / 100));
   const paid = Number(inv.amountPaid) || 0;
   const balanceDue = Math.max(0, Math.round((total - paid) * 100) / 100);
   // The stored due date; the 7-day rule only when the invoice has none
@@ -194,6 +226,14 @@ function invoicePayload(inv, lead, id, nowMs, plate) {
     summary: { headline: 'Invoice for your project.', body: inv.notes || null },
     invoice: { number: id, date: fmtDate(nowMs), dueDate: due, status: paid > 0 ? 'partial' : 'due' },
     lines, subtotal, tax, paymentsReceived: paid, total, balanceDue,
+    // Rounding row + deposit credits (invoice.hbs prints them between Tax
+    // and Total, so the PDF's rows add up to its Total).
+    rounding: footed ? footed.rounding : 0,
+    roundingLabel: footed ? footed.roundingLabel : '',
+    roundingSign: footed ? footed.roundingSign : '',
+    roundingAbs: footed ? footed.roundingAbs : 0,
+    credits: footed ? footed.credits : [],
+    showTotal: !!footed,
     notes: inv.notes || null,
     // The filed PDF prints the pay button + QR. On a Kentucky insurance job
     // still inside its hold (carrier decision + 5 business days, and the

@@ -133,8 +133,18 @@
    * $1 of the saved subtotal (the engine rounds each row, which leaves a cent
    * or two), so what is printed adds up to the price to the cent. Further
    * apart (an old doc whose lines never footed) it is measured from the
-   * subtotal, exactly like the invoice, so a real gap is never relabelled
-   * "Rounding".
+   * subtotal, so a real gap is never relabelled "Rounding".
+   *
+   * THE ROUNDING RULE (one rule, every homeowner surface; 2026-10-07): all in
+   * whole cents — tax = the saved tax rounded to the cent; base = the printed
+   * lines' cents when within 100¢ of the saved subtotal, else the subtotal's;
+   * adjustment = price − base − tax. The estimate link, the e-sign contract,
+   * the invoice (InvoicePipeline.invoiceTotalsFromEstimate and the server
+   * copy in functions/invoice-from-estimate.js) and the invoice email / PDF
+   * (invoiceDisplayRows) all call THIS function, so the estimate link's
+   * "Rounding −$4.96" is the invoice's "Rounding −$4.96" — they used to
+   * measure from the lines and from the subtotal and differ by a cent
+   * (ho-money audit H5). Pinned by tests/invoice-adds-up-2026-10-07.test.js.
    */
   function footingRows(est, printed) {
     const grand = estimateValue(est);
@@ -665,6 +675,7 @@
   const _api = {
     buildDocLineItems: buildDocLineItems,
     buildDisplayRows: buildDisplayRows,
+    footingRows: footingRows,
     numFrom: numFrom,
     moneyValue: moneyValue,
     estimateValue: estimateValue,
