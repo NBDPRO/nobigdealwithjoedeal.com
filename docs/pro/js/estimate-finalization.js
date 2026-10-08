@@ -546,14 +546,16 @@
       phone: '(859) 420-7382',
       email: 'JD@nobigdealwithjoedeal.com',
       address: '', // no public street address
-      license: 'OH / KY licensed'
+      // No licence claim (Jo, 2026-10-05): NBD has no OH/KY registration
+      // number behind it. Another company gets the neutral line.
+      license: 'Fully insured'
     } : {
       name: _b.name,
       tagline: _b.tagline || 'Roofing · Siding · Storm Restoration',
       phone: _b.phone,
       email: _b.email,
       address: _b.address,
-      license: 'Licensed & insured'
+      license: 'Insured'
     });
 
     const groups = groupByCategory(estimate.lines || []);

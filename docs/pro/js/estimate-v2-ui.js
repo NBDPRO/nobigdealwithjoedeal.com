@@ -2933,6 +2933,10 @@
     // Per-SQ still wins downstream: estimateWarranty() treats a per-SQ quote
     // as roofing with a real tier.
     if (state.jobType) Object.assign(estimate, JSON.parse(JSON.stringify(state.jobType)));
+    // The kind of work rides on the estimate too (2026-10-07, audit H4), so
+    // estimateWarranty() gives a repair the repair warranty in every document
+    // and the deal room, not roofing's tier sentence.
+    if (state.workKind === 'repair' || state.workKind === 'replacement') estimate.workKind = state.workKind;
     return _stampDeposit(estimate);
   }
 
@@ -5641,7 +5645,14 @@
       addr: c.address || '',
       depositPlan: _ov ? { override: _ov } : null,
     };
-    const dealEst = { id: estimateId, prices, packet, packetPhotoIds: packetPhotoIds(), scopeSummary: _scopeNames(estimate), depositBasis };
+    // The fields estimateWarranty() reads (2026-10-07, audit H4): the deal
+    // room prints a repair's or Job Template job's own warranty on its cards,
+    // never a roofing tier's. `prices` stays out — it would read as per-SQ.
+    const jobType = Object.assign({}, _jobTypeFieldsOf(estimate) || {}, {
+      workKind: estimate.workKind || state.workKind || null,
+      priceMode: estimate.priceMode || state.mode || null,
+    });
+    const dealEst = { id: estimateId, prices, packet, packetPhotoIds: packetPhotoIds(), scopeSummary: _scopeNames(estimate), depositBasis, jobType };
     try { deal = CB.createFromEstimate(dealEst, leadData); }
     catch (e) {
       console.error('[v2] deal create failed:', e);
