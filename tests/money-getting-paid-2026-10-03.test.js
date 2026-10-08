@@ -545,7 +545,7 @@ function browser(seed, extra) {
     ok('an unknown payer is dropped, not stored', !('payer' in IP.buildManualPaymentEntry({ amount: 5, method: 'cash', at: new Date(NOW), payer: '<b>' })));
     const live = { id: 'a', status: 'sent', total: 5000, jobId: 'j1' };
     ok('target: the job\'s live invoice when there is one', IP.recordPaymentTarget({ lead: { activeJobId: 'j1' }, invoices: [live] }).kind === 'existing');
-    ok('target: no invoice + an estimate → make it from the estimate', JSON.stringify(IP.recordPaymentTarget({ lead: {}, invoices: [], estimate: perSq(), estimateId: 'E1' })) === JSON.stringify({ kind: 'estimate', estimateId: 'E1', totalCents: 1500000, jobId: null }));
+    ok('target: no invoice + an estimate → make it from the estimate', JSON.stringify(IP.recordPaymentTarget({ lead: {}, invoices: [], estimate: perSq(), estimateId: 'E1' })) === JSON.stringify({ kind: 'estimate', estimateId: 'E1', totalCents: 1500000, supplementCents: 0, jobId: null }));
     ok('target: no invoice, no estimate → the rep confirms a total (jobValue only SUGGESTED)',
       JSON.stringify(IP.recordPaymentTarget({ lead: { jobValue: 8200 }, invoices: [] })) === JSON.stringify({ kind: 'jobValue', suggestedCents: 820000, jobId: null })
       && IP.recordPaymentTarget({ lead: {}, invoices: [] }).suggestedCents === 0);
