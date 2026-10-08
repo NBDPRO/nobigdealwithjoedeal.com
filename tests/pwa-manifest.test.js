@@ -163,7 +163,10 @@ console.log('\nSERVICE WORKER — one scriptURL across docs/pro');
   }
   ok('found the SW register() call sites (>= 3)', calls.length >= 3);
   // The offline/PWA worker: every registration must be the identical literal.
-  const pwa = calls.filter(c => /sw\.js/.test(c.arg) && !/messaging/.test(c.arg));
+  // [/'"]sw.js, not bare sw.js: the sample account's /pro/explore/demo-sw.js
+  // (Pro demo phase 2) is a separate worker and must fall to the sub-scope
+  // check below instead.
+  const pwa = calls.filter(c => /[\/'"]sw\.js/.test(c.arg) && !/messaging/.test(c.arg));
   ok('offline worker is registered from >= 3 pages (dashboard, customer/login, simple pages)', pwa.length >= 3);
   const urls = new Set(pwa.map(c => c.arg));
   ok('every offline-worker register() names the same scriptURL literal: ' + [...urls].join(' | '),

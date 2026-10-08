@@ -55,8 +55,8 @@ const OWNER_UID = 'owner-uid-test';
 const JOE_SMS = '+18594207382';
 const JOE_EMAILS = ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'];
 
-const rec = { emails: [], sms: [], outbox: [], updates: [], logs: [] };
-function resetRec() { rec.emails = []; rec.sms = []; rec.outbox = []; rec.updates = []; rec.logs = []; }
+const rec = { emails: [], sms: [], outbox: [], updates: [], logs: [], pushes: [] };
+function resetRec() { rec.pushes = []; rec.emails = []; rec.sms = []; rec.outbox = []; rec.updates = []; rec.logs = []; }
 
 const stubs = {
   'firebase-functions/v2/firestore': {
@@ -80,6 +80,8 @@ const stubs = {
     },
   },
   twilio: () => ({ messages: { create: async (p) => { rec.sms.push(p); return { sid: 'SM_test' }; } } }),
+  // 2026-10-07: every lead alert also pushes to the owner's devices.
+  './push-functions': { sendCustomNotification: async (uid, title, body, data) => { rec.pushes.push({ uid, title, body, data }); return { sent: 1, failed: 0, errors: [] }; } },
   'firebase-admin/firestore': {
     FieldValue: { serverTimestamp: () => '__ts__' },
     getFirestore: () => ({
@@ -209,7 +211,9 @@ const counts = () => ({ emails: rec.emails.length, sms: rec.sms.length, outbox: 
 
     ok('ledgered once to alert_outbox under collection "leads" with the CRM lead id',
       rec.outbox.length === 1 && rec.outbox[0].collection === 'leads' && rec.outbox[0].leadId === lead.id
-      && rec.outbox[0].emailStatus === 'sent' && rec.outbox[0].smsStatus === 'sent', rec.outbox);
+      && rec.outbox[0].emailStatus === 'sent' && rec.outbox[0].smsStatus === 'accepted'
+      // 2026-10-07: Twilio accepting a text is not delivery; the push is the working channel.
+      && rec.outbox[0].pushStatus === 'sent' && rec.pushes.length === 1 && rec.pushes[0].uid === OWNER_UID, rec.outbox);
     ok('no customer PII in any log line', !PII.some((p) => logText().includes(p)), rec.logs);
   }
 

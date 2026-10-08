@@ -27,7 +27,7 @@ section('Alert outbox ledger (2026-07-06, punch item 6)');
     && /collection\('alert_outbox'\)\.add\(/.test(la)
     && /companyId: \(d && d\.companyId\) \|\| null/.test(la));
   assert('alertJoe records per-channel outcomes into the ledger',
-    /const outcomes = \{ email: 'skipped:no-target', sms: 'skipped:no-target' \}/.test(la)
+    /const outcomes = \{ email: 'skipped:no-target', sms: 'skipped:no-target', push: 'skipped:no-target' \}/.test(la)
     && /await recordAlertOutbox\(collection, leadId, d, target, outcomes\)/.test(la));
   assert('outbox write is best-effort (never blocks the alert path)',
     /outbox write failed/.test(la));

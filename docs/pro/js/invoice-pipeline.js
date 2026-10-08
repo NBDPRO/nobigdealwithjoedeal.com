@@ -1775,6 +1775,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       const _depRule = window.NBDDepositRule || null;
       let depositPlan = null;
       let depositAmount = 0;
+      let depositSplit = null;
 
       // Resolve the customer's identity + contact ONCE so downstream send
       // (email/SMS), the paid-receipt, and the rendered "Bill To" actually have
@@ -1814,13 +1815,41 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         const jobs = jobId ? await _loadLeadJobs(db, est.leadId) : null;
         const plan = planJobInvoice(Math.round(Number(total) * 100), existing, jobId,
           { soleJob: soleJobOf(jobs, jobId), since: est.createdAt });
-        if (plan.action === 'open' && plan.invoiceId) return { invoiceId: plan.invoiceId, reused: true, reason: plan.reason };
+        if (plan.action === 'open' && plan.invoiceId) {
+          // An insurance invoice made before the carrier's numbers were on
+          // the claim bills nothing (awaitingCarrierNumbers). Opening it again
+          // once the rep has entered them fills in the deductible + first
+          // check (money audit H2, 2026-10-07); nothing paid on it yet.
+          const open = (existing || []).find(x => x && x.id === plan.invoiceId);
+          if (open && open.awaitingCarrierNumbers === true && _depRule && typeof _depRule.invoiceDeposit === 'function'
+              && !(Number(open.amountPaid) > 0)) {
+            const p2 = _depRule.fromEstimate(est, { totalCents: Math.round(Number(open.total) * 100), lead: lead || null });
+            const d2 = _depRule.invoiceDeposit(p2);
+            if (!d2.awaitingCarrierNumbers) {
+              await window.updateDoc(window.doc(db, 'invoices', plan.invoiceId), {
+                depositAmount: d2.depositCents / 100, awaitingCarrierNumbers: false, depositPaid: false,
+                depositTerms: p2.summary || '', depositRepNote: p2.repNote || '',
+                terms: _depRule.netTermsText() + (p2.summary ? ' ' + p2.summary : ''), updatedAt: new Date(),
+              });
+              return { invoiceId: plan.invoiceId, reused: true, reason: plan.reason, carrierNumbersFilled: true };
+            }
+          }
+          return { invoiceId: plan.invoiceId, reused: true, reason: plan.reason };
+        }
         if (plan.action === 'create') jobCredits = plan.credits;
       }
 
       if (_depRule && !jobCredits.length) {
         depositPlan = _depRule.fromEstimate(est, { totalCents: Math.round(Number(total) * 100), lead: lead || null });
-        depositAmount = depositPlan.depositCents / 100;
+        // What this invoice asks for before the balance: on an insurance job
+        // the deductible + the carrier's first check — a Kentucky job too,
+        // whose plan says $0 only because nothing is due AT SIGNING (the KY
+        // hold still decides when). Unknown carrier numbers → bill nothing.
+        // (money audit H2, 2026-10-07; deposit-rule.js invoiceDeposit)
+        depositSplit = (typeof _depRule.invoiceDeposit === 'function')
+          ? _depRule.invoiceDeposit(depositPlan)
+          : { depositCents: depositPlan.depositCents, awaitingCarrierNumbers: false, note: '' };
+        depositAmount = depositSplit.depositCents / 100;
       }
       // A FINAL invoice: the deposit was billed on the earlier invoice(s), so
       // no deposit here — each one is a "Less deposit …" line instead.
@@ -1877,7 +1906,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         // invoice then shows no deposit line at all), the old $2,500
         // placeholder. Shown in the invoice detail view, never on the
         // customer's invoice (buildInvoiceHtml does not read it).
-        depositRepNote: (depositPlan && depositPlan.repNote) ? depositPlan.repNote : '',
+        depositRepNote: (depositSplit && depositSplit.awaitingCarrierNumbers) ? depositSplit.note
+          : ((depositPlan && depositPlan.repNote) ? depositPlan.repNote : ''),
+        // Insurance job with no deductible (or a Kentucky job with no ACV) on
+        // the claim: the pay link, Stripe and the portal charge nothing until
+        // the rep enters them (invoice-charge.js chargeDueNow 'awaiting').
+        awaitingCarrierNumbers: !!(depositSplit && depositSplit.awaitingCarrierNumbers),
         // Kentucky insurance job (KRS 367.626; Jo, 2026-09-27): nothing may be
         // required before the insurer's written decision + the 5-business-day
         // window. The server (createStripePaymentLink) withholds the online

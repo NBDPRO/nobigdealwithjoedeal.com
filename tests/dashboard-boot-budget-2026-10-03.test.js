@@ -20,9 +20,9 @@ const path = require('path');
 
 const PRO = path.join(__dirname, '..', 'docs', 'pro');
 const CEILING = {
-  blockingScripts: 28,          // measured 28 (2026-10-03) — never grow
+  blockingScripts: 29,          // measured 28 (2026-10-03) — never grow. ONE deliberate raise 2026-10-06: demo-mode.js (Pro demo phase 2) must run before every other script so the sample account's guard + network tripwire exist first; on the real page it returns on line one (~9 KB)
   blockingBytes: 300 * 1024,    // measured 278 KB
-  localScripts: 195,            // measured 178; deliberate raises 2026-10-05: + client-error-reporter.js (#2140, must run at boot to catch boot errors) + the offline sync badge (#2145) = 193 [+1 on merge: both PRs' boot tags, measured]; 2026-10-06 + storm-time.js (review R4-6-1: the one UTC→Eastern storm-date reader dol-fill + the D2D storm layer need at boot, 1.9 KB) = 195
+  localScripts: 196,            // measured 178; deliberate raises 2026-10-05: + client-error-reporter.js (#2140, must run at boot to catch boot errors) + the offline sync badge (#2145) = 193 [+1 on merge: both PRs' boot tags, measured]; 2026-10-06 + storm-time.js (review R4-6-1: the one UTC→Eastern storm-date reader dol-fill + the D2D storm layer need at boot, 1.9 KB) = 195; +1 2026-10-07 demo-mode.js (Pro demo phase 2, #2294) = 196
   localBytes: 4.4 * 1024 * 1024, // measured 4.08 MB
   htmlBytes: 520 * 1024,        // measured 477 KB
 };
