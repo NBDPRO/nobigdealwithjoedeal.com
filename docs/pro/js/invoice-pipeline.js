@@ -3056,7 +3056,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             .sum.b td { font-weight: 700; }
             .sum.rule { border-top: 2px solid #BD5728; }
             .sum.big td { font-size: 16px; }
-            .duenow td { font-weight: 700; font-size: 16px; color: #BD5728; }
+            .duenow td { font-weight: 700; font-size: 16px; color: var(--orange,#BD5728); }
           </style>
         </head>
         <body>
