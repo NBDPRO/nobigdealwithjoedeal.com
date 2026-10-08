@@ -4,7 +4,7 @@
 //
 // What it does, for pages under /pro/explore/:
 //   1. Firebase SDK swap. A request for
-//      https://www.gstatic.com/firebasejs/<ver>/firebase-<name>.js, or for the
+//      the old CDN URL (www.gstatic.com, under firebasejs/<ver>/), or for the
 //      self-hosted copy /assets/vendor/firebase/<ver>/firebase-<name>.js
 //      (main vendored the SDK on 2026-10-04, #2155), is answered
 //      HERE with a one-line module that re-exports the same-origin fake,

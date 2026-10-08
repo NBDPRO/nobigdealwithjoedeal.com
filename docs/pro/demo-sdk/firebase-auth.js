@@ -129,7 +129,6 @@ export const signInWithPopup = async () => { throw notReal('Google sign-in'); };
 export async function signInWithRedirect() { throw notReal('Google sign-in'); }
 export async function getRedirectResult() { return null; }
 export async function signInWithCustomToken() { throw notReal('Signing in'); }
-export async function signInAnonymously() { throw notReal('Signing in'); }
 export async function sendPasswordResetEmail() { throw notReal('Password reset email'); }
 export async function sendEmailVerification() { throw notReal('Email verification'); }
 export async function sendSignInLinkToEmail() { throw notReal('Email sign-in links'); }

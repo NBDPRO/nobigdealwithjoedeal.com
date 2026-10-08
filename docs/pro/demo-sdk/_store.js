@@ -3,7 +3,7 @@
 //
 // One shared instance behind every fake SDK module in this folder. The fake
 // modules are reached through /pro/explore/demo-sw.js, which answers the CRM's
-// `https://www.gstatic.com/firebasejs/<ver>/firebase-*.js` imports with
+// `/assets/vendor/firebase/<ver>/firebase-*.js` imports (and the old CDN URL) with
 // `export * from "<origin>/pro/demo-sdk/firebase-*.js"`. Every version string
 // therefore lands on ONE copy of this file, so Timestamp instanceof checks and
 // the document map are shared by all of them.

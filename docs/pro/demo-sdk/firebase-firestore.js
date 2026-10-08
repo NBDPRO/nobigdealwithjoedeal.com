@@ -1,6 +1,6 @@
 // Fake firebase-firestore.js for the browser-only sample account (Pro demo
 // phase 2, wave 1). Same export names the CRM imports from
-// https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js, backed by
+// /assets/vendor/firebase/10.12.2/firebase-firestore.js, backed by
 // the in-memory store in _store.js. No network, ever.
 //
 // tests/pro-demo-sdk-2026-10-06.test.js compares this module's exports with

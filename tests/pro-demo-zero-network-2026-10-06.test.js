@@ -170,7 +170,7 @@ async function waitFor(page, fn, arg, ms) {
       if (!t) return { err: 'no #noteText' };
       t.value = 'Sample note from the zero-network walk';
       await window.saveNote();
-      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const F = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const s = await F.getDocs(F.query(F.collection(F.getFirestore(), 'notes'), F.where('leadId', '==', 'sample-lead-01')));
       return { n: s.docs.filter((d) => d.data().text === 'Sample note from the zero-network walk').length };
     });
@@ -178,7 +178,7 @@ async function waitFor(page, fn, arg, ms) {
 
     console.log('6. a send callable is honest');
     const call = await page.evaluate(async () => {
-      const m = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js');
+      const m = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       try { await m.httpsCallable(m.getFunctions(), 'sendEstimateEnvelope')({ leadId: 'sample-lead-01' }); return { sent: true }; }
       catch (e) { return { code: e.code, msg: e.message }; }
     });
@@ -274,7 +274,7 @@ async function waitFor(page, fn, arg, ms) {
     ok('retail job: the deposit shows (50% due at signing)', /50% deposit of \$[\d,]+ due at signing/.test(cash.deposit || ''), cash.deposit);
     const savedId = await page.evaluate(() => window.EstimateV2UI.save());
     const saved = await page.evaluate(async (id) => {
-      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const F = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const s = await F.getDoc(F.doc(F.getFirestore(), 'estimates', id));
       return s.exists() ? { leadId: s.data().leadId, tier: s.data().tier } : null;
     }, savedId);
@@ -396,7 +396,7 @@ async function waitFor(page, fn, arg, ms) {
     ok('…the page did not navigate to sms: (no Messages app)', page.url() === urlBefore, page.url());
     await page.locator('#nbd-send-preview [data-nbd-sp="close"]').click();
     const filed = await page.evaluate(async () => {
-      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const F = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = F.getFirestore();
       const it = (await F.getDoc(F.doc(db, 'agent_inbox', 'sample-inbox-01'))).data();
       const n = (await F.getDocs(F.query(F.collection(db, 'notes'), F.where('leadId', '==', 'sample-lead-01')))).docs.map((d) => d.data().text).filter((t) => /Nothing was sent/.test(t)).length;
@@ -414,7 +414,7 @@ async function waitFor(page, fn, arg, ms) {
     await page.locator('#aiOverlay [data-ai-act="approve"][data-ai-id="sample-inbox-03"]').click();
     const task = await page.evaluate(async () => {
       await new Promise((r) => setTimeout(r, 400));
-      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const F = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       return (await F.getDocs(F.collection(F.getFirestore(), 'leads', 'sample-lead-10', 'tasks'))).docs.map((d) => d.data()).filter((t) => t.source === 'agent_inbox').length;
     });
     ok('a bot reminder goes onto the customer as a task with one tap (Add to CRM)', task === 1, task);
@@ -477,7 +477,7 @@ async function waitFor(page, fn, arg, ms) {
     await waitFor(page, () => /COLLECTED VS SPENT/i.test((document.getElementById('view-money') || {}).innerText || ''), null, 20000);
     await page.waitForTimeout(800);
     const money = await page.evaluate(async () => {
-      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const F = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const year = new Date().getFullYear();
       const s = await F.getDocs(F.collection(F.getFirestore(), 'invoices'));
       let cents = 0;
@@ -495,7 +495,7 @@ async function waitFor(page, fn, arg, ms) {
       await page.waitForSelector('#nbd-inv-detail-host .invoice-detail', { timeout: 20000 });
       await page.waitForTimeout(1500); // the pay-link attempt runs after the detail opens
       const r = await page.evaluate(async (id) => {
-        const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+        const F = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
         const s = await F.getDocs(F.query(F.collection(F.getFirestore(), 'invoices'), F.where('leadId', '==', id)));
         const d = s.docs.map((x) => x.data()).sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis())[0];
         return { total: d.total, deposit: d.depositAmount, link: d.stripePaymentLink, ky: d.kyInsuranceHold, terms: d.terms, created: d.createdAt && typeof d.createdAt.toDate === 'function', detail: document.getElementById('nbd-inv-detail-host').innerText };
@@ -555,7 +555,7 @@ async function waitFor(page, fn, arg, ms) {
     await page.locator('#nbd-mp-save').click();
     await waitFor(page, () => /\bPAID\b/i.test(document.getElementById('invoiceList').innerText) && !/owed/.test(document.getElementById('invoiceList').innerText), null, 20000).catch(() => {});
     const paid21 = await page.evaluate(async () => {
-      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const F = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const db = F.getFirestore();
       const inv = (await F.getDoc(F.doc(db, 'invoices', 'sample-inv-01'))).data();
       const notes = (await F.getDocs(F.query(F.collection(db, 'notes'), F.where('leadId', '==', 'sample-lead-21')))).docs.map((d) => d.data()).filter((n) => n.type === 'payment');
@@ -583,7 +583,7 @@ async function waitFor(page, fn, arg, ms) {
     await page.locator('#nbd-send-preview [data-nbd-sp="close"]').click();
     await page.waitForTimeout(800);
     const benAfter = await page.evaluate(async () => {
-      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const F = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const inv = (await F.getDoc(F.doc(F.getFirestore(), 'invoices', 'sample-inv-03'))).data();
       return { status: inv.status, sms: (window.__NBD_DEMO__.endpointAnswers || []).filter((a) => a.fn === 'sendSMS' && a.refused).length };
     });
@@ -598,7 +598,7 @@ async function waitFor(page, fn, arg, ms) {
     await page.locator('#nbd-inv-detail-host [data-ip-action="createPayLink"]').click();
     await page.waitForTimeout(1500);
     const gAfter = await page.evaluate(async () => {
-      const F = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+      const F = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const inv = (await F.getDoc(F.doc(F.getFirestore(), 'invoices', 'sample-inv-07'))).data();
       return { link: inv.stripePaymentLink, held: (window.__NBD_DEMO__.endpointAnswers || []).some((a) => a.invoiceId === 'sample-inv-07' && a.held) };
     });
