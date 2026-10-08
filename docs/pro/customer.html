@@ -5,7 +5,7 @@
 <!-- Sample account (Pro demo phase 2, 2026-10-06): inert on this real page;
      under /pro/explore/ it arms the browser-only sample account. First and
      synchronous so its network tripwire is in place before any other script. -->
-<script src="/pro/js/demo-mode.js?v=3"></script>
+<script src="/pro/js/demo-mode.js?v=4"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2754,7 +2754,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      html2pdf (~1.1 MB combined) no longer load at boot — they fetch via the
      `pdfexport` bundle on the first PDF export (exportCustomer* handlers +
      NBDDocViewer.handlePdf, which already load-then-runs the bundle). -->
-<script defer src="js/script-loader.js?v=180"></script>
+<script defer src="js/script-loader.js?v=186"></script>
 <script defer src="js/icons.js"></script>
 <!-- Canonical modal driver — window.nbdModal owns open/close + Esc/backdrop
      for every .modal-bg on this page (batch-4 modal consolidation). Loaded
