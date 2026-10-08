@@ -5,7 +5,7 @@
 <!-- Sample account (Pro demo phase 2, 2026-10-06): inert on this real page;
      under /pro/explore/ it arms the browser-only sample account. First and
      synchronous so its network tripwire is in place before any other script. -->
-<script src="/pro/js/demo-mode.js?v=3"></script>
+<script src="/pro/js/demo-mode.js?v=4"></script>
 <!-- The ?legacy=1 rollback twin (dashboard.legacy.html + js/dashboard-legacy-redirect.js)
      was retired 2026-09-02: it had become byte-identical to this file and was being
      updated by every dashboard commit, so it provided no rollback and doubled the edit
@@ -123,7 +123,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=172"></script>
+<script src="js/script-loader.js?v=178"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -184,7 +184,7 @@
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=5" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
-<link rel="stylesheet" href="css/theme-bridge.css?v=3" id="nbd-theme-bridge-link">
+<link rel="stylesheet" href="css/theme-bridge.css?v=4" id="nbd-theme-bridge-link">
 <!-- Surface styles for Shape & Depth (Clay, Liquid Glass, Skeuo, Spatial). -->
 <link rel="stylesheet" href="css/shape-styles.css?v=1">
 
