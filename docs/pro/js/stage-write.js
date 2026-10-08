@@ -281,6 +281,33 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
 }
 
 /**
+ * Should a one-tap stage move stop and ask first? (2026-10-08, phone audit
+ * 2026-10-07 #10: every "→ Move to <next>" asked "Move customer to X?", two
+ * taps for one action, while a kanban drag never asked.)
+ *
+ * A normal move just moves; the caller offers a few seconds of Undo instead.
+ * Ask only when the move is one to think twice about:
+ *   - a warning applies — the 3-day cancellation window (NBDJurisdiction
+ *     workStartWarning) or any other caller-supplied warning text;
+ *   - the destination is destructive: Lost, Archived, Cancelled (by key or
+ *     by stage role), which close the job out.
+ * Pure: no DOM, no Firestore.
+ *
+ * @param {string} nextStage destination stage key
+ * @param {{warning?: string, role?: string}} [opts] warning text; the
+ *   destination's stage role when the caller knows it (window.stageRole)
+ * @returns {boolean}
+ */
+export function stageMoveNeedsConfirm(nextStage, opts) {
+  const o = opts || {};
+  if (o.warning && String(o.warning).trim()) return true;
+  const role = String(o.role || '').toLowerCase();
+  if (role === 'lost' || role === 'archived' || role === 'cancelled') return true;
+  const key = String(nextStage || '').toLowerCase();
+  return /(^|[_\s-])(lost|archived?|cancell?ed)($|[_\s-])/.test(key);
+}
+
+/**
  * When a lead moves ONTO install_complete, hand it to photo-report.js's
  * NBDAutoBeforeAfter (lazy `photos` bundle), which files the homeowner
  * Before & After report in Documents — or, with no After photo yet, waits

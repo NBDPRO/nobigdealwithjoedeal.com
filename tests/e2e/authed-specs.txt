@@ -80,3 +80,4 @@ phone-record-payment.spec.js
 phone-offline-safety.spec.js
 phone-inspect-no-clip.spec.js
 phone-catchup.spec.js
+phone-home-nav.spec.js

@@ -283,6 +283,7 @@
   "uploadCompanyLogo": "./tenant-ops",
   "uploadHomeownerPhoto": "./portal",
   "uploadPublicLeadPhoto": "./public-lead-photos",
+  "useAcceptedTier": "./deal-acceptance",
   "validateAccessCode": "./handlers/portal",
   "verifyCode": "./verify-functions",
   "visualizerImageGen": "./visualizer-image-gen",
