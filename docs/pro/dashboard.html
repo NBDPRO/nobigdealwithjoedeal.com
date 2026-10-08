@@ -2,6 +2,10 @@
 <!-- NBD-BUILD-20260410-DEPLOY-TEST-XYZ789 -->
 <html lang="en" data-theme="nbd-original">
 <head>
+<!-- Sample account (Pro demo phase 2, 2026-10-06): inert on this real page;
+     under /pro/explore/ it arms the browser-only sample account. First and
+     synchronous so its network tripwire is in place before any other script. -->
+<script src="/pro/js/demo-mode.js?v=3"></script>
 <!-- The ?legacy=1 rollback twin (dashboard.legacy.html + js/dashboard-legacy-redirect.js)
      was retired 2026-09-02: it had become byte-identical to this file and was being
      updated by every dashboard commit, so it provided no rollback and doubled the edit
@@ -119,7 +123,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=163"></script>
+<script src="js/script-loader.js?v=169"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in

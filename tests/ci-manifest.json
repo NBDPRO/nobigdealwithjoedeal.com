@@ -10,6 +10,8 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "pro-demo-sdk-2026-10-06.test.js",
+    "pro-demo-wave2-2026-10-06.test.js",
     "appcheck-config-per-page-2026-10-06.test.js",
     "google-signin-popup.test.js",
     "ci-concurrency.test.js",
@@ -1040,6 +1042,7 @@
     "lead-artifact-cleanup.integration.test.js",
     "lead-bridge.integration.test.js",
     "marketing-polish-contract.test.js",
+    "pro-demo-zero-network-2026-10-06.test.js",
     "public-intake.test.js",
     "referral-rewards.test.js",
     "smoke.test.js",
