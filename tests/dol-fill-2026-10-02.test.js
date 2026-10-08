@@ -27,6 +27,7 @@ function ok(label, cond, detail) {
 }
 const win = {}; win.window = win;
 const ctx = vm.createContext({ window: win, document: { readyState: 'complete', addEventListener() {} }, console, setTimeout, Date, Math, JSON, Number, String });
+vm.runInContext(read('docs/pro/js/storm-time.js'), ctx); // dashboard.html loads it first
 vm.runInContext(read('docs/pro/js/dol-fill.js'), ctx);
 const D = win.NBDDolFill;
 

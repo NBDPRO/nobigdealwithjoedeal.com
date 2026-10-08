@@ -238,7 +238,7 @@
   loadScript('/pro/demo-sdk/basemap.js?v=1', false);
   loadScript('/pro/demo-sdk/offline.js?v=1', true);
   // Wave 4.
-  loadScript('/pro/demo-sdk/endpoints.js?v=1', true);
+  loadScript('/pro/demo-sdk/endpoints.js?v=2', true);
   loadScript('/pro/demo-sdk/real-account.js?v=1', false);
 
   // Stripe test mode for the sample payout account (seed connectAccounts,
@@ -259,6 +259,33 @@
       }
     });
   } catch (_) { /* no share sheet to guard */ }
+
+  // Texts from the owner's phone (2026-10-07). Since main's #2246 every
+  // phone send goes through NBDPhoneShare.share(), which asks the server
+  // "ok to text?" and then either opens the share sheet (guarded above) or,
+  // for a "Text" button / a desktop, sends the page to an sms: / mailto:
+  // URL with location.assign(), which cannot be wrapped. So the whole
+  // share() is answered here: the "Nothing was sent" sheet with the message,
+  // and a cancel, which every caller already treats as "not sent".
+  var phoneShare;
+  function guardPhoneShare(api) {
+    if (!api || typeof api.share !== 'function' || api.share.__nbdDemo) return;
+    var sample = function (opts) {
+      var o = opts || {};
+      var text = typeof api.withLink === 'function' ? api.withLink(o.text, o.url) : String(o.text || '');
+      withEndpoints(function (ep) { return ep.previewShare({ title: o.title || o.subject || '', text: text, phone: o.phone || '', email: o.email || '' }); });
+      return Promise.resolve({ shared: false, via: null, cancelled: true, sample: true });
+    };
+    sample.__nbdDemo = true;
+    try { api.share = sample; } catch (_) { /* frozen: the sms: link would still be refused by the walk */ }
+  }
+  try {
+    Object.defineProperty(window, 'NBDPhoneShare', {
+      configurable: true, enumerable: true,
+      get: function () { return phoneShare; },
+      set: function (v) { phoneShare = v; guardPhoneShare(v); }
+    });
+  } catch (_) { /* cannot trap */ }
 
   // b. The visitor's position: the sample neighbourhood. The maps never ask
   //    the browser for the real location.
@@ -332,7 +359,14 @@
     var scheme = /^\s*(sms|mailto|tel):/i.exec(a.getAttribute('href') || '');
     if (scheme) {
       e.preventDefault();
-      if (a.getAttribute('data-ai-act') !== 'text') {
+      if (a.getAttribute('data-ai-act') === 'text') {
+        // Since main's R2-3-1 the inbox opens this link itself with
+        // location.assign() once its 'sent' step answers ok. Take the link
+        // off the button first, so there is nothing to open (the row is
+        // redrawn after the tap either way).
+        a.setAttribute('data-nbd-demo-href', a.getAttribute('href') || '');
+        a.removeAttribute('href');
+      } else {
         var kind = scheme[1].toLowerCase();
         notice(kind === 'tel' ? 'In your real account this calls the customer from your phone. The sample account never contacts anyone.'
           : 'In your real account this opens your ' + (kind === 'sms' ? 'Messages' : 'Mail') + ' app with the message ready for you to send yourself. The sample account never contacts anyone.');
@@ -400,6 +434,26 @@
     });
     var q = pending; pending = [];
     q.forEach(function (n) { notice(n[0], n[1]); });
+    sampleJoeFootnote();
+  }
+  // Ask Joe's footnote names the model and offers "Change Key" (it clears a
+  // stored API key). Neither is true here: no model is called and there is
+  // no key. Rewrite it in the view template (cloned when Ask Joe opens) and
+  // in any copy already on the page. Found by its clearJoeKey control, so
+  // the real page carries no demo markup.
+  function sampleJoeFootnote() {
+    var roots = [document];
+    var tpl = document.getElementById('tpl-view-joe');
+    if (tpl && tpl.content) roots.push(tpl.content);
+    roots.forEach(function (root) {
+      var keys = root.querySelectorAll('[data-fn="clearJoeKey"]');
+      for (var i = 0; i < keys.length; i++) {
+        var foot = keys[i].parentNode;
+        if (!foot || foot.getAttribute && foot.getAttribute('data-nbd-demo-foot')) continue;
+        foot.textContent = 'Joe AI · Sample answers from the sample account · no AI model is called';
+        if (foot.setAttribute) foot.setAttribute('data-nbd-demo-foot', '1');
+      }
+    });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountStrip);
   else mountStrip();

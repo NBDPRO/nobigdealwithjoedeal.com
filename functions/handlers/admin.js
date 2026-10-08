@@ -29,6 +29,7 @@ const {
   LEGACY_ACCESS_CODES,
   requireTeamAdmin,
   callerMayManageTarget,
+  protectedTargetRefusal,
   normalizeRole,
   normalizeEmail,
   isOwnerCaller,
@@ -37,6 +38,10 @@ const {
 // enforces the SAME plan→seat limit as createTeamInvite (single source of
 // truth; invites.js does not require admin.js, so this edge is one-way/safe).
 const { seatLimitForPlan, isInviteExpired } = require('./invites');
+// R3-1 (2026-10-06): what a removed / deactivated / demoted member loses.
+const { reassignMemberRecords, revokeMemberAccessTokens, roleChangeRevokesAccess } = require('../member-offboarding');
+// 2026-10-06 (Jo): a removed member's stored files move to the owner too.
+const { prepareMemberStorageMove, markRecordsReassigned, runMemberStorageMove, LOCK_CLAIM } = require('../member-storage-move');
 
 // ═══════════════════════════════════════════════════════════════
 // getAdminAnalytics — C3: ops dashboard numbers for the Team Manager.
@@ -593,7 +598,7 @@ exports.updateUserRole = onCall(
     memory: '256MiB'
   },
   async (request) => {
-    const { uid: callerUid, companyId, companyRef } = await requireTeamAdmin(request);
+    const { uid: callerUid, companyId, companyRef, isOwner: callerIsOwner } = await requireTeamAdmin(request);
     await callableRateLimit(request, 'updateUserRole', 30, 60_000);
 
     const targetUid = typeof request.data?.uid === 'string' ? request.data.uid : null;
@@ -630,8 +635,21 @@ exports.updateUserRole = onCall(
     // transferring ownership first.
     const companySnap = await companyRef.get();
     const ownerId = companySnap.exists ? companySnap.data().ownerId : null;
+    // R3-9: a company_admin may not re-role a platform admin or the owner.
+    const protectedMsg = protectedTargetRefusal({ targetUid: userRecord.uid, targetClaims: existingClaims, ownerId, callerIsOwner, isGlobalAdmin });
+    if (protectedMsg) throw new HttpsError('permission-denied', protectedMsg);
     if (ownerId && userRecord.uid === ownerId && role !== 'company_admin' && !isGlobalAdmin) {
       throw new HttpsError('failed-precondition', 'Cannot demote the company owner');
+    }
+
+    // R3-1: a viewer may not hold a bot key or a calendar feed link (neither
+    // can be minted by one), so a demotion to viewer turns theirs off, and so
+    // does any downgrade away from company_admin / manager (Jo 2026-10-06;
+    // roleChangeRevokesAccess). Before the claim change, so a failure leaves
+    // the role as it was for a retry.
+    if (roleChangeRevokesAccess(existingClaims.role, role)) {
+      await revokeMemberAccessTokens(getFirestore(), userRecord.uid,
+        role === 'viewer' ? 'role-viewer' : 'role-downgrade');
     }
 
     await getAuth().setCustomUserClaims(userRecord.uid, {
@@ -680,7 +698,7 @@ exports.deactivateUser = onCall(
     memory: '256MiB'
   },
   async (request) => {
-    const { uid: callerUid, companyId, companyRef } = await requireTeamAdmin(request);
+    const { uid: callerUid, companyId, companyRef, isOwner: callerIsOwner } = await requireTeamAdmin(request);
     await callableRateLimit(request, 'deactivateUser', 20, 60_000);
 
     const targetUid = typeof request.data?.uid === 'string' ? request.data.uid : null;
@@ -714,9 +732,21 @@ exports.deactivateUser = onCall(
     if (ownerId && userRecord.uid === ownerId) {
       throw new HttpsError('failed-precondition', 'Cannot deactivate the company owner');
     }
+    // R3-9: nor a platform admin, unless the caller is one.
+    const protectedMsg = protectedTargetRefusal({ targetUid: userRecord.uid, targetClaims: existingClaims, ownerId, callerIsOwner, isGlobalAdmin });
+    if (protectedMsg) throw new HttpsError('permission-denied', protectedMsg);
     // Don't let the caller lock themselves out.
     if (userRecord.uid === callerUid) {
       throw new HttpsError('failed-precondition', 'Cannot deactivate your own account');
+    }
+
+    // R3-1: turn off the member's bot keys and calendar feed links before the
+    // account is disabled (a failure throws with nothing changed yet). Records
+    // are NOT reassigned here: deactivation is reversible, and a disabled
+    // account cannot sign in. Reactivating does not bring the keys/links back;
+    // the member makes new ones.
+    if (!reactivate) {
+      await revokeMemberAccessTokens(getFirestore(), userRecord.uid, 'member-deactivated');
     }
 
     await getAuth().updateUser(userRecord.uid, { disabled: !reactivate });
@@ -766,16 +796,49 @@ exports.deactivateUser = onCall(
 //   - invited (no uid yet — never signed up): just delete the roster doc.
 //   - active/deactivated (has a uid): clear claims + revoke, then delete.
 // Guards mirror deactivateUser: not the owner, not yourself, same company.
+// R3-1: an active member's records are reassigned to the owner first, which
+// is why the timeout is 120s rather than 30s.
+//
+// offboardMember (R3-1, 2026-10-06): before the claims go, take back what the
+// claims never covered. Rules authorize company records on the owner field
+// (isOwner(userId)) with no tenant check, so a removed rep who signed back in
+// still owned every lead, estimate, photo... they had made. Those move to the
+// company owner (the caller when the company has no ownerId), and the rep's
+// bot keys + calendar feed links are revoked. Both run BEFORE the claim strip:
+// if either throws, the rep still carries this company's claim, so
+// callerMayManageTarget lets the admin retry. Why reassign rather than a
+// rules change: see functions/member-offboarding.js.
+//
+// Files (2026-10-06, Jo): Storage authorizes on the uid in the object path,
+// so the records moving was not enough: the ex-rep could still read and
+// delete photos/<rep>/..., documents/<rep>/... and the rest. The reassignment
+// now records every moved doc in the storage move's ledger (same batch), and
+// after the claim strip the move copies each company file to the owner's
+// folder, repoints the records and deletes the original
+// (functions/member-storage-move.js). The claim strip also sets the
+// offboardLock claim, which storage.rules honours, so the old folder is
+// locked for the whole move. One bounded slice runs here; the
+// resumeMemberStorageMoves cron finishes a large one.
+async function offboardMember(db, uid, toUid, companyId) {
+  const revoked = await revokeMemberAccessTokens(db, uid, 'member-removed');
+  const move = await prepareMemberStorageMove(db, { companyId, fromUid: uid, toUid });
+  const reassigned = await reassignMemberRecords(db, { fromUid: uid, toUid, companyId, ledger: move.ledger });
+  await markRecordsReassigned(move.ref);
+  logger.info('removeMember.offboarded', {
+    companyId, targetUid: uid, ...revoked, reassigned: reassigned.total, skipped: reassigned.skipped, storageMove: move.id,
+  });
+  return move.id;
+}
 exports.removeMember = onCall(
   {
     region: 'us-central1',
     cors: CORS_ORIGINS,
     enforceAppCheck: true,
-    timeoutSeconds: 30,
+    timeoutSeconds: 120,
     memory: '256MiB'
   },
   async (request) => {
-    const { uid: callerUid, companyId, companyRef } = await requireTeamAdmin(request);
+    const { uid: callerUid, companyId, companyRef, isOwner: callerIsOwner } = await requireTeamAdmin(request);
     await callableRateLimit(request, 'removeMember', 20, 60_000);
 
     const targetEmail = normalizeEmail(request.data && request.data.email);
@@ -810,6 +873,7 @@ exports.removeMember = onCall(
     // guard must gate the CLAIM MUTATION, not the roster-row delete: deleting
     // our own tenant's invite row harms no one.
     const isPendingInvite = member.status === 'invited' && !lookupUid;
+    let moveId = null;
 
     if (userRecord) {
       // Never remove the owner or yourself.
@@ -823,6 +887,10 @@ exports.removeMember = onCall(
       }
       const existingClaims = userRecord.customClaims || {};
       const isGlobalAdmin = request.auth.token.role === 'admin';
+      // R3-9: never strip a platform admin's claims unless the caller is one
+      // (a pending-invite cancel only drops our roster row — allowed).
+      const protectedMsg = protectedTargetRefusal({ targetUid: userRecord.uid, targetClaims: existingClaims, ownerId, callerIsOwner, isGlobalAdmin });
+      if (protectedMsg && !isPendingInvite) throw new HttpsError('permission-denied', protectedMsg);
       const managesTarget = callerMayManageTarget(existingClaims, companyId, isGlobalAdmin);
       if (!managesTarget && !isPendingInvite) {
         // Active/claimed member with foreign or absent claims: fail closed —
@@ -830,9 +898,10 @@ exports.removeMember = onCall(
         throw new HttpsError('permission-denied', 'User belongs to another company');
       }
       if (managesTarget) {
+        moveId = await offboardMember(db, userRecord.uid, ownerId || callerUid, companyId);
         // Strip companyId + role; PRESERVE everything else (plan/subscription/
         // billing claims the Stripe webhook maintains).
-        const stripped = { ...existingClaims };
+        const stripped = { ...existingClaims, [LOCK_CLAIM]: true };
         delete stripped.companyId;
         delete stripped.role;
         await getAuth().setCustomUserClaims(userRecord.uid, stripped);
@@ -844,7 +913,22 @@ exports.removeMember = onCall(
 
     await memberRef.delete();
     logger.info('removeMember', { companyId, targetEmail, hadAccount: !!userRecord });
-    return { success: true, removed: true, hadAccount: !!userRecord };
+
+    // The removal is done. Start the file move; whatever this slice does not
+    // finish, the cron does, so a failure here never fails the removal.
+    let filesMove = null;
+    if (moveId) {
+      try {
+        const { getStorage } = require('firebase-admin/storage');
+        filesMove = (await runMemberStorageMove(db, getStorage().bucket(), moveId, {
+          auth: getAuth(), logger, deadlineMs: 45_000,
+        })).status;
+      } catch (e) {
+        logger.warn('removeMember.storageMove deferred to cron', { moveId, msg: e && e.message });
+        filesMove = 'running';
+      }
+    }
+    return { success: true, removed: true, hadAccount: !!userRecord, filesMove };
   }
 );
 

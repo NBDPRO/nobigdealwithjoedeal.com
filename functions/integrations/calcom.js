@@ -98,42 +98,63 @@ exports.calcomWebhook = onRequest(
     const organizerUsername = (payload.organizer && payload.organizer.username) || null;
     const attendee = Array.isArray(payload.attendees) ? payload.attendees[0] : null;
 
-    // Resolve rep uid (+ their companyId, for the M-2 lead creation below)
-    // by username or email.
+    // Resolve rep uid (+ their companyId, for the M-2 lead creation below).
+    // Lookups here, the decision in CL.resolveCalcomRep (R5-8-1, 2026-10-06):
+    //   1. optional server-only system/calcomRouting doc (clients are denied
+    //      by firestore.rules), by event slug then organizer username;
+    //   2. the organizer's Auth EMAIL account, if it belongs to a company —
+    //      it beats any username (security checklist 2026-10-01: any user can
+    //      write their own users/{uid}.calcomUsername);
+    //   3. the ONE account carrying the username, only if it belongs to a
+    //      company (two claimants = nobody via the username);
+    //   4. a company-less email account (legacy fallback, companyId = uid).
+    // Before this, a company-less email account won outright, so a tenant
+    // whose Cal.com email is an old login lost every booking to it.
     const db = getFirestore();
-    let repUid = null;
-    let repCompanyId = null;
-    // The organizer's EMAIL first (security checklist 2026-10-01). Any user
-    // can write their own users/{uid}.calcomUsername, so matching on it first
-    // let one account claim another tenant's public Cal.com username and
-    // receive that tenant's bookings (name, email, phone) as its own leads.
-    // An Auth email is not self-assignable that way. The username is the
-    // fallback, and only when exactly ONE account carries it.
-    if (organizerEmail) {
-      try {
-        const u = await getAuth().getUserByEmail(organizerEmail);
-        repUid = u.uid;
-      } catch (e) { /* no matching user */ }
-    }
-    if (!repUid && organizerUsername) {
-      const q = await db.collection('users').where('calcomUsername', '==', organizerUsername).limit(2).get();
-      if (q.size === 1) {
-        repUid = q.docs[0].id;
-        repCompanyId = q.docs[0].data().companyId || null;
-      } else if (q.size > 1) {
-        logger.warn('[calcom] username claimed by more than one account; booking left unassigned', { bookingUid: payload.uid || null });
+    const ev = CL.extractEventType(payload);
+    const companyOfAccount = async (uid, claims, userData) => {
+      const data = userData !== undefined ? userData : await db.doc(`users/${uid}`).get().then((s) => (s.exists ? s.data() : null));
+      const coSnap = await db.doc(`companies/${uid}`).get();
+      return CL.accountCompanyId({ uid, claims, userData: data, companyData: coSnap.exists ? coSnap.data() : null });
+    };
+
+    let configured = null;
+    try {
+      const cfgSnap = await db.doc('system/calcomRouting').get();
+      const cfgCompanyId = cfgSnap.exists ? CL.pickConfiguredCompanyId(cfgSnap.data(), { eventSlug: ev.slug, organizerUsername }) : null;
+      if (cfgCompanyId) {
+        const coSnap = await db.doc(`companies/${cfgCompanyId}`).get();
+        const ownerId = coSnap.exists ? coSnap.data().ownerId : null;
+        if (typeof ownerId === 'string' && ownerId) configured = { uid: ownerId, companyId: cfgCompanyId };
+        else logger.warn('[calcom] routing config names a company with no owner; ignored', { companyId: cfgCompanyId });
       }
+    } catch (e) { logger.warn('[calcom] routing config read failed; using email/username', { err: e && e.message }); }
+
+    let emailAccount = null;
+    if (!configured && organizerEmail) {
+      let u = null;
+      try { u = await getAuth().getUserByEmail(organizerEmail); } catch (e) { /* no matching user */ }
+      if (u) emailAccount = { uid: u.uid, companyId: await companyOfAccount(u.uid, u.customClaims || null) };
     }
-    if (repUid && !repCompanyId) {
-      // Matched via Auth email (or the username lookup's doc had no
-      // companyId yet) — one more read. Solo-op convention (companyId ==
-      // uid; see handlers/auth.js) covers NBD; a multi-rep tenant's
-      // users/{uid}.companyId overrides it when present.
-      try {
-        const userSnap = await db.doc(`users/${repUid}`).get();
-        repCompanyId = (userSnap.exists && userSnap.data().companyId) || repUid;
-      } catch (e) { repCompanyId = repUid; }
+    let usernameClaimants = [];
+    if (!configured && organizerUsername) {
+      const q = await db.collection('users').where('calcomUsername', '==', organizerUsername).limit(2).get();
+      usernameClaimants = await Promise.all(q.docs.map(async (d) => {
+        let claims = null;
+        try { claims = (await getAuth().getUser(d.id)).customClaims || null; } catch (e) { /* no Auth record */ }
+        return { uid: d.id, companyId: await companyOfAccount(d.id, claims, d.data()) };
+      }));
     }
+
+    const route = CL.resolveCalcomRep({ configured, emailAccount, usernameClaimants });
+    const repUid = route.repUid;
+    const repCompanyId = route.repCompanyId;
+    if (route.conflict) {
+      logger.warn('[calcom] organizer email and username map to different companies; email wins', { bookingUid: payload.uid || null, repUid, reason: route.reason });
+    } else if (route.reason === 'username_ambiguous') {
+      logger.warn('[calcom] username claimed by more than one account; booking left unassigned', { bookingUid: payload.uid || null });
+    }
+    logger.info('[calcom] rep resolved', { bookingUid: payload.uid || null, repUid, reason: route.reason });
     if (!repUid) {
       // Return 200 so Cal.com doesn't retry-storm an unmappable booking, but
       // log loudly with the booking context so a missing/typo'd calcomUsername

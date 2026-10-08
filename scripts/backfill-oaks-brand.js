@@ -8,7 +8,19 @@
  *
  * ⚠ THIS WRITES TO PROD FIRESTORE. Jo runs this (Claude does not write prod).
  *   Auth: GOOGLE_APPLICATION_CREDENTIALS env var (same as functions/seed-demo.js).
- *   Run:  node scripts/backfill-oaks-brand.js
+ *
+ * SAFETY (same rails as the other prod backfills, 2026-10-07)
+ *   • Dry-run by default — reads the current doc and prints exactly what it
+ *     would write (target doc, merge mode, full payload) and which fields
+ *     change. Writes nothing.
+ *   • --apply requires --yes as well.
+ *   • One-shot guard (scripts/_migration-guard.js); --force overrides for a
+ *     deliberate re-run (e.g. after editing OAKS_BRAND).
+ *   tests/backfill-oaks-brand-dryrun-2026-10-07.test.js pins all three.
+ *
+ * RUN
+ *   node scripts/backfill-oaks-brand.js                 # dry-run
+ *   node scripts/backfill-oaks-brand.js --apply --yes   # actually write
  *
  * Tenant key note: `companyProfile/{companyId}`. Oaks users carry companyId
  * 'oaks' (companies/oaks). If Oaks's owner is a solo operator whose claim is
@@ -16,19 +28,15 @@
  */
 'use strict';
 
-const path = require('path');
-// firebase-admin lives in functions/node_modules (scripts/ has none), so a bare
-// require fails when run from the repo root. Resolve it from functions/.
-let req = require;
-try { require.resolve('firebase-admin'); }
-catch (_) { req = require('module').createRequire(path.join(__dirname, '..', 'functions', 'package.json')); }
+const { initAdmin, getFirestore } = require('./_admin');
+const { assertNotCompleted, recordCompletion } = require('./_migration-guard');
 
-const admin = req('firebase-admin');
-// firebase-admin v14 removed admin.apps / admin.firestore() from the default
-// export; getApps() and getFirestore() are the modular equivalents.
-const { getApps } = req('firebase-admin/app');
-const { getFirestore } = req('firebase-admin/firestore');
-if (!getApps().length) admin.initializeApp();
+const args = process.argv.slice(2);
+const APPLY = args.includes('--apply');
+const YES = args.includes('--yes');
+const FORCE = args.includes('--force');
+const MIGRATION = 'backfill-oaks-brand';
+const PROJECT = process.env.NBD_PROJECT || 'nobigdeal-pro';
 
 const OAKS_KEY = 'oaks';
 
@@ -81,10 +89,57 @@ const OAKS_BRAND = {
   }
 };
 
-(async () => {
+/** Leaf paths in `next` whose value differs from `cur` (what a merge changes). */
+function changedLeaves(cur, next, prefix) {
+  const out = [];
+  for (const k of Object.keys(next)) {
+    const p = prefix ? prefix + '.' + k : k;
+    const n = next[k];
+    const c = cur && typeof cur === 'object' ? cur[k] : undefined;
+    if (n && typeof n === 'object' && !Array.isArray(n)) out.push(...changedLeaves(c, n, p));
+    else if (JSON.stringify(c) !== JSON.stringify(n)) out.push({ path: p, from: c, to: n });
+  }
+  return out;
+}
+
+async function main() {
+  if (APPLY && !YES) {
+    console.error('Refusing to --apply without --yes. Re-run with: --apply --yes');
+    process.exit(2);
+    return;
+  }
+  initAdmin({ projectId: PROJECT });
   const db = getFirestore();
-  await db.collection('companyProfile').doc(OAKS_KEY).set(OAKS_BRAND, { merge: true });
-  console.log(`✅ Backfilled companyProfile/${OAKS_KEY}.brand (Oaks)`);
-  await db.terminate();
-  process.exit(0);
-})().catch((e) => { console.error('❌ backfill failed:', e); process.exit(1); });
+  await assertNotCompleted(MIGRATION, { apply: APPLY, force: FORCE });
+
+  const target = 'companyProfile/' + OAKS_KEY;
+  const ref = db.collection('companyProfile').doc(OAKS_KEY);
+  const snap = await ref.get();
+  const current = (snap.exists && snap.data()) || {};
+  const changes = changedLeaves(current, OAKS_BRAND, '');
+
+  console.log('Backfill Oaks brand');
+  console.log('  project : ' + PROJECT);
+  console.log('  mode    : ' + (APPLY ? 'APPLY (writing)' : 'DRY-RUN (no changes)'));
+  console.log('  target  : ' + target + (snap.exists ? '' : '  (doc does not exist yet — would be created)'));
+  console.log('  write   : set(<payload>, { merge: true })');
+  console.log('  payload :');
+  console.log(JSON.stringify(OAKS_BRAND, null, 2).replace(/^/gm, '    '));
+  console.log('\n  fields that change (' + changes.length + '):');
+  for (const c of changes) {
+    console.log('    ' + c.path + ': ' + JSON.stringify(c.from === undefined ? null : c.from) + ' → ' + JSON.stringify(c.to));
+  }
+
+  if (!APPLY) {
+    console.log('\nDRY-RUN — nothing written. Re-run with --apply --yes to write.');
+    return;
+  }
+
+  await ref.set(OAKS_BRAND, { merge: true });
+  console.log(`\n✅ Backfilled ${target}.brand (Oaks) — ${changes.length} field(s) changed`);
+  if (APPLY) await recordCompletion(MIGRATION, { changed: changes.length });
+}
+
+main()
+  .then(async () => { try { await getFirestore().terminate(); } catch (_) {} process.exit(0); })
+  .catch((e) => { console.error('❌ backfill failed:', e); process.exit(1); });

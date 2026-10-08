@@ -240,7 +240,7 @@
 
   async function cloudFs() {
     if (window.__NBD_FS__) return window.__NBD_FS__;
-    return import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    return import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
   }
   function cloudDb() { return window.db || window._db || null; }
 
@@ -867,7 +867,7 @@
               </div>
               <div>
                 <label class="ui-hint">Profit Margin %</label>
-                <input class="ui-input-sm" id="pm-labor-profit" type="number" step="1" value="${p?.labor?.profitMarginPct || laborDefaults().profitMarginPct}">
+                <input class="ui-input-sm" id="pm-labor-profit" type="number" step="1" value="${Number.isFinite(p?.labor?.profitMarginPct) ? p.labor.profitMarginPct : laborDefaults().profitMarginPct}">
               </div>
             </div>
           </div>
@@ -1017,14 +1017,16 @@
       if (costInput[t] !== null) product.pricing[t].cost = costInput[t];
     });
 
-    // Labor
+    // Labor. A 0% margin is a real choice; only a blank box takes the
+    // company default (review R4).
+    const profitIn = parseFloat(document.getElementById('pm-labor-profit').value);
     product.labor = {
       perUnit: parseFloat(document.getElementById('pm-labor-perunit').value) || 0,
       ratePerManHour: parseFloat(document.getElementById('pm-labor-rate').value) || 0,
       crewSize: parseInt(document.getElementById('pm-labor-crew').value) || 0,
       hoursPerUnit: parseFloat(document.getElementById('pm-labor-hours').value) || 0,
       overheadMultiplier: parseFloat(document.getElementById('pm-labor-overhead').value) || laborDefaults().overheadMultiplier,
-      profitMarginPct: parseFloat(document.getElementById('pm-labor-profit').value) || laborDefaults().profitMarginPct
+      profitMarginPct: Number.isFinite(profitIn) ? profitIn : laborDefaults().profitMarginPct
     };
 
     const wasEdit = !!editingProduct;

@@ -203,7 +203,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer src="/assets/js/clarity-loader.js"></script>
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -219,7 +219,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -276,6 +276,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -298,6 +299,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -335,8 +337,8 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -379,6 +381,9 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <!-- /nbd:partial schema-entity -->
 <link rel="stylesheet" href="/assets/css/nbd-nav.css">
 <link rel="stylesheet" href="/assets/css/service-revamp.css">
+<!-- nbd:updated-schema -->
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://nobigdealwithjoedeal.com/services/roof-replacement-erlanger-ky#webpage","url":"https://nobigdealwithjoedeal.com/services/roof-replacement-erlanger-ky","name":"Roof Replacement in Erlanger, KY","dateModified":"2026-10-06","isPartOf":{"@id":"https://nobigdealwithjoedeal.com/#website"},"about":{"@id":"https://nobigdealwithjoedeal.com/#org"}}</script>
+<!-- /nbd:updated-schema -->
 </head>
 <body><a class="nbd-skip" href="#main">Skip to content</a>
 
@@ -531,7 +536,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <p>Erlanger is one of Kenton County's densest suburbs — built primarily in the 1950s through 1980s with brick ranches and vinyl-sided homes that are now hitting their roof replacement cycle simultaneously. When a hail event hits Erlanger, it typically affects entire neighborhoods at once. I work the Greater Cincinnati metro including all of Kenton County under Kentucky building code.</p>
     </div>
 
-    <p style="font-size:.88rem;color:var(--gray);line-height:1.7;margin-top:16px">A complete roof replacement in Erlanger means more than just new shingles. I evaluate the full system — decking condition, ventilation, flashing, ice and water shield requirements under Kentucky code — before a single shingle goes down. When insurance is involved, I document everything in the format adjusters need so the scope doesn't get undervalued. Erlanger homeowners get the same thorough process regardless of roof size or claim complexity.</p>
+    <p style="font-size:.88rem;color:var(--gray);line-height:1.7;margin-top:16px">A complete roof replacement in Erlanger means more than just new shingles. I evaluate the full system — decking condition, ventilation, flashing, ice and water shield requirements under Kentucky code — before a single shingle goes down. When insurance is involved, I document everything in the format adjusters use, so the adjuster has a clear record of the damage. Erlanger homeowners get the same thorough process regardless of roof size or claim complexity.</p>
 
     <p style="font-size:.88rem;color:var(--gray);line-height:1.7;margin-top:12px">I'm a GAF® Certified™ Contractor, which means every full GAF system install is eligible for the manufacturer-backed GAF System Plus Limited Warranty — coverage uncertified contractors simply cannot offer. The NBD Lifetime Pledge means that if anything goes wrong with the installation, it's covered — period. That's not a pitch, it's a fact that comes with the certification.</p>
   </div>
@@ -622,6 +627,9 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   </div>
 </section>
 
+<!-- nbd:updated -->
+<div class="nbd-updated" style="max-width:1100px;margin:0 auto;padding:18px 20px 22px;text-align:center"><p style="margin:0;font-size:13px;line-height:1.5;color:#5b6472">Last updated <time datetime="2026-10-06">October 6, 2026</time></p></div>
+<!-- /nbd:updated -->
 </main>
 <!-- nbd:partial footer-standard crumb_service_href="/services/roof-replacement" crumb_service_name="Roof Replacement" crumb_city_href="/areas/erlanger-ky" crumb_city_name="Erlanger, KY" -->
 <footer>

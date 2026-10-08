@@ -127,6 +127,30 @@ const descOf = (html) => {
   return m ? oneLine(m[2]) : '';
 };
 
+/**
+ * Drop elements carrying a bare `hidden` attribute: a visitor never sees them
+ * until page JS reveals them, so they are not page text. Example: the review
+ * count phrase ships hidden with an empty count (data-nbd-gr-total-wrap,
+ * 2026-10-06) and is shown only once the live count arrives; without this the
+ * file would read "5.0 on Google · reviews". Same-tag nesting is matched.
+ */
+function dropHiddenElements(html) {
+  const open = /<([a-z][a-z0-9]*)\b[^>]*?\shidden(?=[\s>\/])[^>]*>/gi;
+  let out = html;
+  let m;
+  while ((m = open.exec(out))) {
+    const re = new RegExp('<(/?)' + m[1] + '\\b[^>]*>', 'gi');
+    re.lastIndex = m.index + m[0].length;
+    let depth = 1;
+    let t;
+    while (depth && (t = re.exec(out))) depth += t[1] ? -1 : 1;
+    if (depth) break; // unbalanced markup: leave the rest as it is
+    out = out.slice(0, m.index) + ' ' + out.slice(re.lastIndex);
+    open.lastIndex = m.index;
+  }
+  return out;
+}
+
 /** Readable text of an HTML page's <main>: markdown-ish headings and bullets. */
 function htmlToText(html) {
   let s = String(html);
@@ -141,6 +165,7 @@ function htmlToText(html) {
   // inside <main> on many pages) — drop the whole region, then any comment.
   s = s.replace(/<!--\s*nbd:partial\s+([\w-]+)[\s\S]*?-->[\s\S]*?<!--\s*\/nbd:partial\s+\1\s*-->/g, ' ');
   s = s.replace(/<!--[\s\S]*?-->/g, ' ');
+  s = dropHiddenElements(s);
   for (const tag of ['script', 'style', 'noscript', 'template', 'svg', 'nav', 'footer', 'form', 'button', 'select', 'textarea', 'iframe', 'video', 'audio', 'dialog']) {
     s = s.replace(new RegExp('<' + tag + '[\\s>][\\s\\S]*?</' + tag + '>', 'gi'), ' ');
   }

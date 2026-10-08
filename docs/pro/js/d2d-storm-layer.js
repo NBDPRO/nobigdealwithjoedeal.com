@@ -35,8 +35,10 @@
   }
 
   /** Age in days of a report date ('2025-06-14T21:30Z' etc.) at nowMs. */
+  // IEM times are UTC with no zone suffix: read through storm-time.js.
+  const _validMs = (v) => (window.NBDStormTime ? window.NBDStormTime.validMs(v) : 0) || NaN;
   function ageDays(date, nowMs) {
-    const t = Date.parse(String(date || '').replace(' ', 'T'));
+    const t = _validMs(date);
     return Number.isFinite(t) ? (nowMs - t) / 86400000 : Infinity;
   }
 
@@ -59,8 +61,7 @@
   }
 
   function label(ev) {
-    const d = Date.parse(String(ev.date || '').replace(' ', 'T'));
-    const when = Number.isFinite(d) ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    const when = window.NBDStormTime ? window.NBDStormTime.dateTextEt(ev.date) : '';
     const what = ev.type === 'hail' ? (ev.magnitude ? ev.magnitude + '" hail' : 'Hail')
       : ev.type === 'wind' ? (ev.magnitude ? ev.magnitude + ' mph wind' : 'Damaging wind') : 'Tornado';
     return what + (when ? ' · ' + when : '') + (ev.city ? ' · ' + ev.city : '');

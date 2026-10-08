@@ -77,7 +77,7 @@ async function forceStandalone(page) {
 async function seedLead(page, extra) {
   return safeEvaluate(page, async (x) => {
     const stamp = Date.now();
-    const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db || window._db;
     const uid = (window._auth || window.auth).currentUser.uid;
     const companyId = (window._userClaims && window._userClaims.companyId) || uid;
@@ -91,7 +91,16 @@ async function seedLead(page, extra) {
       userId: uid, companyId, createdAt: fsMod.serverTimestamp(),
     }, x || {});
     Object.keys(lead).forEach((k) => { if (lead[k] === null) delete lead[k]; });
-    const id = (await fsMod.addDoc(fsMod.collection(db, 'leads'), Object.assign({ meter: 'manual' }, lead))).id; // server lead meter (firestore.rules leadMeterOk, 2026-10-04)
+    // The id is picked here and the write is a setDoc, with ALREADY_EXISTS
+    // swallowed: under CI load the Firestore emulator lets the SDK retry a
+    // commit whose first attempt already landed and rejects the retry with
+    // ALREADY_EXISTS (fixtures/auth.js loginAs; merge-queue flake
+    // 2026-10-06). The write succeeded, and with the id known up front the
+    // seed doesn't need the rejected promise to tell it where the lead is.
+    const ref = fsMod.doc(fsMod.collection(db, 'leads'));
+    try { await fsMod.setDoc(ref, Object.assign({ meter: 'manual' }, lead)); } // server lead meter (firestore.rules leadMeterOk, 2026-10-04)
+    catch (e) { if (!/ALREADY_EXISTS/.test(String(e && e.message || e))) throw e; }
+    const id = ref.id;
     if (typeof window.loadLeads === 'function') await window.loadLeads();
     for (let i = 0; i < 75 && !(window._leads || []).some((l) => l.id === id); i++) {
       await new Promise((r) => setTimeout(r, 200));
@@ -134,7 +143,7 @@ async function loadRoof(page) {
 }
 async function estimatesFor(page, leadId) {
   return safeEvaluate(page, async (id) => {
-    const fsMod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const fsMod = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
     const db = window.db || window._db;
     const uid = (window._auth || window.auth).currentUser.uid;
     const snap = await fsMod.getDocs(fsMod.query(fsMod.collection(db, 'estimates'), fsMod.where('leadId', '==', id), fsMod.where('userId', '==', uid)));

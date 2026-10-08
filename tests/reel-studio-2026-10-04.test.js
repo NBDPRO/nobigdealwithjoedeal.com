@@ -637,7 +637,7 @@ function enable(db) { db.store.set('companies/co1/social_settings/config', { ena
   ok('Whisper reuse: transcribeGroqBuffer asks for word stamps only when told', /if \(words\) form\.append\('timestamp_granularities\[\]', 'word'\)/.test(read('functions/integrations/voice-intelligence.js')));
   const page = read('docs/pro/social.html');
   ok('page: Reels tab + panel, no inline scripts / handlers / styles', /data-tab="reels"/.test(page) && /data-panel="reels"/.test(page) && !/<script(?![^>]*\bsrc=)[^>]*>/.test(page) && !/\son[a-z]+=/i.test(page) && !/\sstyle=/.test(page));
-  ok('page: reel logic loaded; module cache-busted', /js\/reel-studio-logic\.js\?v=1/.test(page) && /js\/pages\/social-studio\.js\?v=3/.test(page));
+  ok('page: reel logic loaded; module cache-busted', /js\/reel-studio-logic\.js\?v=1/.test(page) && +((page.match(/js\/pages\/social-studio\.js\?v=(\d+)/) || [])[1] || 0) >= 3);
   const mod = read('docs/pro/js/pages/social-reels.js');
   ok('reels module: resumable upload to the server-minted path; no style= strings', /uploadBytesResumable\(sref\(storage, slot\.path\)/.test(mod) && !/style=/.test(mod));
   ok('upload checks on the page: type + 500 MB', RC.uploadProblem({ type: 'application/zip', size: 10 }) !== '' && RC.uploadProblem({ type: 'video/quicktime', size: 501 * 1024 * 1024 }) !== '' && RC.uploadProblem({ type: '', name: 'IMG_1.MOV', size: 10 }) === '' && RC.uploadProblem({ type: 'video/mp4', size: 10 }, 'ai_image') !== '');

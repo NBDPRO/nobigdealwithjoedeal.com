@@ -107,7 +107,7 @@ console.log('\nHOME HEADER');
   const html = read('docs/pro/dashboard.html');
   const t = html.indexOf('<template id="tpl-view-home">');
   const hdr = html.slice(t, html.indexOf('id="todayPlan"', t));
-  ok('the header actions sit in .home-hdr-acts with no inline style', /<div class="home-hdr-acts">/.test(hdr) && !/<div style="display:flex;gap:6px;">/.test(hdr));
+  ok('the header actions sit in .home-hdr-acts with no inline style', /<div class="home-hdr-acts(?: [\w-]+)*">/.test(hdr) && !/<div style="display:flex;gap:6px;">/.test(hdr));
   ok('exactly one primary (btn-orange) in the Home header', (hdr.match(/\bbtn-orange\b/g) || []).length === 1);
   ok('Customize steps down to the quiet tier with no inline style',
     /<button class="btn ui-btn-quiet"[^>]*data-target="NBDWidgets\.openPicker"/.test(hdr) && !/openPicker"[^>]*style=|style="[^"]*"[^>]*openPicker/.test(hdr));

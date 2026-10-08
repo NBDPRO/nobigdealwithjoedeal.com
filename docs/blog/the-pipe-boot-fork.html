@@ -312,7 +312,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 </style><link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/nbd-nav-base.css">
 <!-- nbd:partial schema-entity -->
-<!-- #org address: matches the GBP's verified (hidden) address — change both together if the GBP moves to the Goshen warehouse. -->
+<!-- #org address: the Google Business Profile is a SERVICE-AREA business with no published address ("No location; deliveries and home services only", checked 2026-10-06). So the schema carries locality + region only (Goshen, OH: the warehouse, Jo 2026-08-18), no streetAddress, no postalCode, and geo is the Goshen-area point. If the GBP ever publishes an address, GBP wins: change address and geo together. tests/schema-entity-address-2026-10-06.test.js pins this. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -328,7 +328,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
       "description": "Honest roofing, siding, gutter and storm damage repair serving Greater Cincinnati, Northern Kentucky, and the Lexington, KY area. Fully insured, locally owned. Call Joe directly.",
       "image": "https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg",
       "logo": "https://nobigdealwithjoedeal.com/assets/images/nbd-logo.png",
-      "address": {"@type": "PostalAddress", "addressLocality": "Campton", "addressRegion": "KY", "postalCode": "41301", "addressCountry": "US"},
+      "address": {"@type": "PostalAddress", "addressLocality": "Goshen", "addressRegion": "OH", "addressCountry": "US"},
       "geo": {"@type": "GeoCoordinates", "latitude": "39.2", "longitude": "-84.15"},
       "priceRange": "$$",
       "openingHoursSpecification": [
@@ -385,6 +385,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         {"@type": "City", "name": "Goshen", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Indian Hill", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Lebanon", "containedInPlace": {"@type": "State", "name": "Ohio"}},
+        {"@type": "City", "name": "Liberty Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Loveland", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Madeira", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Maineville", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -407,6 +408,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         {"@type": "City", "name": "Florence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Fort Mitchell", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Georgetown", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
+        {"@type": "City", "name": "Independence", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Lexington", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Newport", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
         {"@type": "City", "name": "Nicholasville", "containedInPlace": {"@type": "State", "name": "Kentucky"}},
@@ -444,8 +446,8 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
         "Roofing",
         "Commercial Roofing",
         "Insurance Restoration Roofing",
-        "Hail Damage Claims",
-        "Storm Damage Claims",
+        "Hail Damage Roof Inspection",
+        "Storm Damage Roof Repair",
         "Xactimate Estimating",
         "GAF Shingle Installation",
         "TAMKO Impact-Resistant Shingle Installation",
@@ -637,7 +639,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 
     <p>This matches the NBD service model perfectly. I'm coming back for the annual Elite inspection anyway. If I see any wear on a Roofivent gasket, I swap it on the spot. Customer never knows there was an issue. The product was designed with that maintenance philosophy in mind.</p>
 
-    <p>Lifetime functionality warranty. Polypropylene UV-stable body. Snow/ice slide-off design. Roof pitch 3:12 to 12:12. ITB performance-tested per EU standards. Cheaper than GAF Pivot ($60-100 vs $200) and cheaper than the GAF Pivot to maintain over 30 years.</p>
+    <p>Manufacturer functionality warranty. Polypropylene UV-stable body. Snow/ice slide-off design. Roof pitch 3:12 to 12:12. ITB performance-tested per EU standards. Cheaper than GAF Pivot ($60-100 vs $200) and cheaper than the GAF Pivot to maintain over 30 years.</p>
 
     <h2>Side-by-Side</h2>
 
@@ -670,7 +672,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
       <div class="compare-row">
         <div class="label">Manufacturer warranty</div>
         <div class="pivot">50 years</div>
-        <div class="roofivent">Lifetime functionality</div>
+        <div class="roofivent">Manufacturer functionality warranty</div>
       </div>
       <div class="compare-row">
         <div class="label">Genuine GAF system component</div>
@@ -693,7 +695,7 @@ footer .footer-bottom,footer .footer-bottom p,footer .footer-bottom a,footer .pr
 
     <h3>Standard tier → Roofivent.</h3>
 
-    <p>Standard customers tend to be more cost-conscious. The Roofivent at ~$60 a boot vs ~$200 for GAF Pivot is a real spread. <strong>And the lifetime warranty + serviceable design means they get genuine premium-level protection without paying for the no-maintenance-ever spec.</strong> Honest match.</p>
+    <p>Standard customers tend to be more cost-conscious. The Roofivent at ~$60 a boot vs ~$200 for GAF Pivot is a real spread. <strong>And the manufacturer warranty + serviceable design means they get genuine premium-level protection without paying for the no-maintenance-ever spec.</strong> Honest match.</p>
 
     <h3>Preferred &amp; Elite tier → GAF Pivot.</h3>
 

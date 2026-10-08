@@ -221,7 +221,10 @@ for (const f of fs.readdirSync(mediaDir)) {
   const nbdProfile = { brand: { legalName: 'No Big Deal Home Solutions' } };
   const wNbd = (() => { const w = docgenEnv(nbdProfile, true); w._userClaims = { companyId: w.NBDTenantRules.OWNER_UID }; return w; })();
   const nbdB = plain(wNbd.NBDDocGen.renderWarrantyBadge('better'));
-  ok('control: NBD\'s own contract still prints its Lifetime Workmanship ladder', /Preferred: Lifetime Workmanship \+ Enhanced Manufacturer/.test(nbdB) && /Lifetime workmanship warranty/.test(nbdB), nbdB);
+  // Since main's #2274 (2026-10-06) NBD's ladder is the NBD Pledge + written
+  // labor years by package — never "lifetime". The control still proves the
+  // NBD branch runs (its Pledge), which the tenant checks above must not.
+  ok('control: NBD\'s own contract still prints its own ladder (NBD Pledge + 10-Year Workmanship on Preferred)', /Preferred: NBD Pledge \+ 10-Year Workmanship/.test(nbdB) && !/lifetime warranty|Lifetime Workmanship/i.test(nbdB), nbdB);
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);

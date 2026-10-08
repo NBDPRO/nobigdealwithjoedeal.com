@@ -118,8 +118,10 @@ function publicState(data) {
 }
 
 // ── createConnectAccount ────────────────────────────────────────────────────
-// Owner / company_admin only: this creates a financial account in the tenant's
-// name. Idempotent — calling it twice returns the same account.
+// Owner only (R3-10, Jo 2026-10-06): this creates a financial account in the
+// tenant's name, so — like seat money — it is the owner's call, not any
+// company_admin's. Same for the onboarding and Express dashboard links below.
+// Idempotent — calling it twice returns the same account.
 exports.createConnectAccount = onCall(
   {
     region: 'us-central1',
@@ -130,7 +132,7 @@ exports.createConnectAccount = onCall(
     secrets: [STRIPE_SECRET_KEY],
   },
   async (request) => {
-    const { uid, companyId } = await requireTeamAdmin(request);
+    const { uid, companyId } = await requireTeamAdmin(request, null, { ownerOnly: true });
     await callableRateLimit(request, 'createConnectAccount', 10, 3_600_000);
 
     const db = getFirestore();
@@ -258,7 +260,7 @@ exports.createConnectOnboardingLink = onCall(
     secrets: [STRIPE_SECRET_KEY],
   },
   async (request) => {
-    const { companyId } = await requireTeamAdmin(request);
+    const { companyId } = await requireTeamAdmin(request, null, { ownerOnly: true });
     await callableRateLimit(request, 'createConnectOnboardingLink', 30, 3_600_000);
 
     const db = getFirestore();
@@ -356,7 +358,7 @@ exports.createConnectDashboardLink = onCall(
     secrets: [STRIPE_SECRET_KEY],
   },
   async (request) => {
-    const { companyId } = await requireTeamAdmin(request);
+    const { companyId } = await requireTeamAdmin(request, null, { ownerOnly: true });
     await callableRateLimit(request, 'createConnectDashboardLink', 30, 3_600_000);
 
     const db = getFirestore();

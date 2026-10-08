@@ -99,6 +99,22 @@ function newPayments(invoiceId, before, after) {
 }
 
 /**
+ * Is the invoice's lead in the invoice's own company? (R3-6, 2026-10-06.) The
+ * invoice create rule now checks leadId, but an invoice written before that
+ * (or by a path that skips rules) could name another company's lead, and the
+ * note below would land on that lead under its owner's name. A lead that
+ * carries companyId must match the invoice's; a legacy lead without one must
+ * belong to the invoice's writer or to the solo tenant it is keyed on. Pure.
+ */
+function invoiceLeadSameTenant(inv, lead) {
+  if (!inv || !lead) return false;
+  const invCo = inv.companyId || inv.createdBy || null;
+  if (lead.companyId) return !!invCo && lead.companyId === invCo;
+  const owner = lead.userId || null;
+  return !!owner && (owner === inv.createdBy || owner === inv.companyId);
+}
+
+/**
  * Write the timeline line for each new payment. Create-only; an existing
  * note (another path, a retry) is left alone.
  * @returns {Promise<{ written: number, existing: number, ids: string[] } | { skipped: string } | { error: string }>}
@@ -111,10 +127,14 @@ async function writePaymentTimeline(db, invoiceId, before, after, deps) {
     let FieldValue = deps && deps.FieldValue;
     if (!FieldValue) FieldValue = require('firebase-admin/firestore').FieldValue;
     let owner = after.createdBy || null;
-    try {
-      const ls = await db.collection('leads').doc(String(after.leadId)).get();
-      if (ls.exists && (ls.data() || {}).userId) owner = ls.data().userId;
-    } catch (_) { /* the invoice owner is the lead owner in every writer */ }
+    // A read failure throws to the catch below ({ error }) rather than
+    // writing onto a lead we could not check.
+    const ls = await db.collection('leads').doc(String(after.leadId)).get();
+    if (ls.exists) {
+      const lead = ls.data() || {};
+      if (!invoiceLeadSameTenant(after, lead)) return { skipped: 'lead_other_tenant' };
+      if (lead.userId) owner = lead.userId;
+    }
     let written = 0, existing = 0;
     const ids = [];
     for (const p of fresh) {
@@ -150,4 +170,5 @@ async function writePaymentTimeline(db, invoiceId, before, after, deps) {
 
 module.exports = {
   paymentIdOf, paymentTimelineNoteId, paymentTimelineText, noteIdFor, newPayments, writePaymentTimeline,
+  invoiceLeadSameTenant,
 };

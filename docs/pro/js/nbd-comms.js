@@ -225,7 +225,7 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     try {
       const ac = window.__NBD_APP_CHECK;
       if (ac) {
-        const mod = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js');
+        const mod = await import('/assets/vendor/firebase/10.12.2/firebase-app-check.js');
         if (mod && typeof mod.getToken === 'function') {
           const tok = await mod.getToken(ac, /* forceRefresh */ false);
           if (tok && tok.token) headers['X-Firebase-AppCheck'] = tok.token;
@@ -569,6 +569,15 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
           if (window.showToast) window.showToast('Sign in again to send texts.', 'error');
           return { success: false, mode: 'platform', error: 'not-authenticated' };
         }
+        // The 5-a-day per-recipient cap ("anti-harassment + TCPA defense",
+        // sendSMS / sendD2DSMS) is a REFUSAL, not a reason to open Messages
+        // with the 6th text filled in (review R2-3-4, Jo 2026-10-06). The
+        // per-rep daily budget still hands off below.
+        if (plat.status === 429 && plat.code === 'recipient_daily_cap') {
+          const msg = 'Daily limit reached for this customer — nothing was sent. Try again tomorrow, or call them.';
+          if (window.showToast) window.showToast(msg, 'error');
+          return { success: false, mode: 'platform', error: 'recipient_daily_cap', message: msg };
+        }
         if (plat.status === 429 && window.showToast) {
           window.showToast((plat.error || 'SMS limit reached') + ' — opening Messages instead.', 'warning');
         } else if (plat.error && window.showToast) {
@@ -588,6 +597,22 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
         }
       }
 
+      // Before the phone's Messages app opens, the same server "ok to text?"
+      // every phone send asks (review R2-3-2; phone-share.js checkText →
+      // phoneTextAction): STOP register + Do Not Text list, consent, the
+      // company switch, homeowner-time hours. A no — or a check that could
+      // not run — blocks the hand-off. Resolved at CALL time (script order).
+      const PS = window.NBDPhoneShare;
+      const chk = (PS && typeof PS.checkText === 'function')
+        ? await PS.checkText(leadId ? { phone: to, leadId } : { phone: to, recipient: 'number' })
+        : null;
+      if (!chk || chk.ok !== true) {
+        const msg = (chk && chk.reason)
+          || 'Couldn’t check whether this customer can be texted — nothing was sent. Call them instead.';
+        if (window.showToast) window.showToast(msg, 'error');
+        // mode 'platform' like every other refusal: nothing was opened.
+        return { success: false, mode: 'platform', error: (chk && chk.code) || 'unverified', message: msg };
+      }
       const link = 'sms:' + encodeURIComponent(to) + '?body=' + encodeURIComponent(body || '');
       _openHandoff(link);
       return { success: true, mode: 'sms' };

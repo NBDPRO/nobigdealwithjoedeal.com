@@ -110,7 +110,7 @@
     if (path in outlineCache) return outlineCache[path];
     outlineCache[path] = null;
     try {
-      const st = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js');
+      const st = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js');
       const storage = window._storage || window.storage;
       if (storage) outlineCache[path] = await st.getDownloadURL(st.ref(storage, path));
     } catch (_) { /* owner-only object; a teammate sees the numbers only */ }

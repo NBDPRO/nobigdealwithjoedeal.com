@@ -29,6 +29,7 @@
 'use strict';
 
 const DR = require('./deposit-rule');
+const PIF = require('./paid-in-full');
 const J = require('./ky-insurance-law');
 const IFE = require('./invoice-from-estimate');
 const CER = require('./customer-estimate-rows');
@@ -97,6 +98,13 @@ function _priceEstimate(est, deal) {
   });
 }
 
+/** An acceptance recorded on the estimate but never applied or dismissed → deal-shaped, else null. */
+function _recordedAcceptance(est) {
+  if (!est || !est.acceptedTier || !(Number(est.acceptedPrice) > 0)) return null;
+  if (est.acceptedTierApplied === true || est.acceptedTierDismissed === true) return null;
+  return { acceptedTier: est.acceptedTier, acceptedPrice: est.acceptedPrice };
+}
+
 function _sameTenant(est, lead) {
   if (!est || !lead) return false;
   if (est.leadId && est.leadId !== lead.id) return false;
@@ -139,7 +147,8 @@ function decideDepositDraft(ctx) {
   const est0 = ctx.est;
   if (!est0 || _isDeleted(est0)) return { action: 'skip', reason: 'no_estimate' };
   if (!_sameTenant(est0, lead)) return { action: 'skip', reason: 'estimate_other_tenant' };
-  const est = _priceEstimate(est0, ctx.deal || null);
+  // The deal's acceptance, else one recorded on the estimate (R2-2-1).
+  const est = _priceEstimate(est0, (ctx.deal && Number(ctx.deal.acceptedPrice) > 0) ? ctx.deal : _recordedAcceptance(est0));
 
   const jobId = jobIdFor(est, lead);
   const invoiceId = draftInvoiceId(ctx.leadId, jobId);
@@ -148,6 +157,10 @@ function decideDepositDraft(ctx) {
   // never a second one. Void / deleted invoices don't count.
   const existing = (Array.isArray(ctx.existingInvoices) ? ctx.existingInvoices : []).filter((inv) => {
     if (!inv || _isDeleted(inv)) return false;
+    // Another tenant's invoice naming this lead is not this job's invoice —
+    // it must not block (or stand in for) this tenant's deposit draft
+    // (paid-in-full.js invoiceInLeadTenant, 2026-10-05).
+    if (!PIF.invoiceInLeadTenant(inv, lead)) return false;
     const st = String(inv.status || '').toLowerCase();
     if (st === 'void' || st === 'voided' || st === 'cancelled' || st === 'canceled') return false;
     const ij = _validJobId(inv.jobId);
@@ -294,7 +307,14 @@ function decideFinalDraft(ctx) {
   const owner = lead.userId ? String(lead.userId) : '';
   if (!owner) return { action: 'skip', reason: 'no_owner' };
 
-  const est0 = (ctx.est && !_isDeleted(ctx.est) && _sameTenant(ctx.est, lead)) ? ctx.est : null;
+  const estRaw = (ctx.est && !_isDeleted(ctx.est) && _sameTenant(ctx.est, lead)) ? ctx.est : null;
+  // The homeowner's accepted tier (review R2-2-1, 2026-10-06): the signing-day
+  // draft bills deal.acceptedPrice, so the final bills the same price.
+  // deal-accepted-tier.js now writes it onto a tier-priced estimate; an
+  // estimate accepted before that only RECORDED it (acceptedTier /
+  // acceptedPrice beside the rep's tier) — price it here the same way,
+  // unless the rep tapped "Keep" on the customer page's chip.
+  const est0 = estRaw ? _priceEstimate(estRaw, _recordedAcceptance(estRaw)) : null;
   const jobId = jobIdFor(est0, lead);
   const invoices = Array.isArray(ctx.invoices) ? ctx.invoices : [];
   const jobOpts = { soleJob: IFE.soleJobOf(ctx.jobs, jobId), since: est0 ? est0.createdAt : null };

@@ -139,11 +139,15 @@ async function sendSMS(body) {
 export function previewShare(data) {
   const d = data || {};
   record('share', {});
+  // A text to a known number (NBDPhoneShare, demo-mode.js) names that number.
+  const phone = String(d.phone || '').trim();
   showSendPreview({
     kind: 'share',
-    would: 'open your phone’s share sheet with this message, for you to send from your own Messages or Mail',
-    channel: 'Share sheet (your own phone)',
-    to: ['Whoever you pick on your phone'],
+    would: phone
+      ? 'check the number against the STOP and Do Not Text lists, then open this text in your own Messages app for you to send from your phone'
+      : 'open your phone’s share sheet with this message, for you to send from your own Messages or Mail',
+    channel: phone ? 'Text message (from your own phone)' : 'Share sheet (your own phone)',
+    to: [phone || 'Whoever you pick on your phone'],
     from: 'Your own phone',
     subject: String(d.title || ''),
     message: String(d.text || d.url || '')

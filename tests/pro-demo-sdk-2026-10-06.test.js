@@ -102,7 +102,8 @@ ok('the entry page and the demo service worker are real files', fs.existsSync(pa
 
 // ── C. export parity ──────────────────────────────────────────────────────
 console.log('C. fake SDK export parity');
-const SDK_URL = /https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/(firebase-[a-z-]+)\.js|\$\{SDK\}\/(firebase-[a-z-]+)\.js/;
+// gstatic, the self-hosted copy (#2155, 2026-10-04), or a `${SDK}/…` template.
+const SDK_URL = /(?:https:\/\/www\.gstatic\.com\/firebasejs|\/assets\/vendor\/firebase)\/[\d.]+\/(firebase-[a-z-]+)\.js|\$\{SDK\}\/(firebase-[a-z-]+)\.js/;
 const imported = {}; // module -> Map(name -> file)
 const modulesSeen = new Map();
 function note(mod, name, file) {
@@ -180,6 +181,13 @@ const navIdx = fetchHandler.search(/if\s*\(\s*req\.mode\s*===\s*'navigate'\s*\)\
 const firstRespond = fetchHandler.indexOf('respondWith');
 ok('demo-sw.js returns on navigate BEFORE any respondWith (never intercepts navigations)', navIdx >= 0 && firstRespond > navIdx);
 ok('demo-sw.js never fetches the request it was handed (no pass-through of gstatic)', !/fetch\(\s*(req|event\.request)\s*[,)]/.test(sw));
+{
+  // Behaviour, not shape: load the worker's own regex and run it on paths.
+  const m = /const VENDOR_SDK_RE = \/(.*)\/;/.exec(swSrc);
+  let re = null; try { re = m && new RegExp(m[1]); } catch (_) { re = null; }
+  ok('demo-sw.js answers the self-hosted SDK path too (/assets/vendor/firebase/<ver>/firebase-<name>.js)',
+    !!re && re.test('/assets/vendor/firebase/10.12.2/firebase-firestore.js') && !re.test('/assets/vendor/other/x.js') && /VENDOR_SDK_RE\.exec\(url\.pathname\)/.test(sw));
+}
 ok('demo-sw.js answers the SDK with a same-origin re-export', /export \* from ' \+ JSON\.stringify\(self\.location\.origin \+ '\/pro\/demo-sdk\/'/.test(sw));
 ok('demo-sw.js blanks the production config scripts', /dashboard-appcheck-config\.js/.test(sw) && /dashboard-fcm-config\.js/.test(sw) && /sentry-config\.js/.test(sw));
 for (const page of ['dashboard', 'customer']) {
@@ -270,6 +278,12 @@ ok('demo-mode.js: wraps fetch, XHR, sendBeacon, WebSocket and EventSource', /win
   let cErr = null;
   try { await FN.httpsCallable(fns, 'sendEstimateEnvelope')({ to: 'x@example.com' }); } catch (e) { cErr = e; }
   ok('functions: a send/charge callable rejects with what it WOULD do, never a fake success', cErr && cErr.code === 'functions/failed-precondition' && /In your real account this would email the estimate/.test(cErr.message));
+  // main #2246/#2298: every phone text asks phoneTextAction 'check' first; an
+  // unknown-callable reject there blocked every "Text" / "Send to sub".
+  const ptc = await FN.httpsCallable(fns, 'phoneTextAction')({ action: 'check', phone: '8595550110', recipient: 'crew' });
+  ok('functions: phoneTextAction check says the sample customers can be texted (the text itself never leaves)', ptc.data && ptc.data.ok === true && ptc.data.sample === true);
+  ok('demo-mode.js answers NBDPhoneShare.share itself (a sms:/mailto: via location.assign cannot be wrapped)',
+    /Object\.defineProperty\(window, 'NBDPhoneShare'/.test(dm) && /api\.share = sample/.test(dm));
   let uErr = null;
   try { await FN.httpsCallable(fns, 'someBrandNewCallable')({}); } catch (e) { uErr = e; }
   ok('functions: an unknown callable rejects clearly instead of hanging', uErr && /not in the sample account/.test(uErr.message));

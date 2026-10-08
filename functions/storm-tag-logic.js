@@ -36,23 +36,8 @@ function toMs(v) {
 }
 
 // IEM `valid` is UTC, usually without a zone suffix ("2026-06-14T21:30:00").
-function validMs(valid) {
-  const s = String(valid || '').trim();
-  if (!s) return 0;
-  const withZone = /[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s.replace(' ', 'T') + 'Z';
-  const t = Date.parse(withZone);
-  return Number.isFinite(t) ? t : 0;
-}
-
-function ymdEt(ms) {
-  try {
-    const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(ms));
-    const g = (t) => (p.find((x) => x.type === t) || {}).value;
-    return g('year') + '-' + g('month') + '-' + g('day');
-  } catch (_) {
-    return new Date(ms).toISOString().slice(0, 10);
-  }
-}
+// One reader for the CRM, the storm page and Storm Watch: storm-time.js.
+const { validMs, ymdEt } = require('./storm-time');
 
 const isYmd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 function stormIdForYmd(ymd) { return isYmd(ymd) ? 'storm-' + ymd : null; }

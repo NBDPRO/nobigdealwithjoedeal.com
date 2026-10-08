@@ -72,7 +72,8 @@ function report() {
 }
 
 const FONT_HOST = /^https:\/\/fonts\.(googleapis|gstatic)\.com\//;
-const SDK_URL = /^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/firebase-[a-z-]+\.js$/;
+// gstatic or the self-hosted copy (#2155): the CRM now imports the latter.
+const SDK_URL = /^(?:https:\/\/www\.gstatic\.com\/firebasejs|https?:\/\/[^/]+\/assets\/vendor\/firebase)\/[\d.]+\/firebase-[a-z-]+\.js$/;
 const ALLOWED_MISSING = new Set(['/pro/nosw.txt']); // the SW kill-switch probe: a 404 HEAD is the normal answer
 
 async function waitFor(page, fn, arg, ms) {
@@ -429,6 +430,12 @@ async function waitFor(page, fn, arg, ms) {
     const joe = await page.evaluate(() => ({ text: document.getElementById('joeMessages').innerText, n: window.__NBD_DEMO__.joeAnswers || 0, demoProxy: !!(window.callClaude && window.callClaude.__nbdDemo) }));
     ok('Ask Joe answers the starter question from the sample data, labelled a sample answer', /active jobs/.test(joe.text) && (joe.text.match(/No AI model was called/g) || []).length >= 2, joe.text.slice(-600));
     ok('…and the Kentucky rule: nothing due at signing on an insurance job', /nothing is due at signing/i.test(joe.text) && !/NBD Pledge|lifetime/i.test(joe.text));
+    const foot = await page.evaluate(() => {
+      const v = document.getElementById('view-joe');
+      return { text: v ? v.innerText : '', key: !!(v && v.querySelector('[data-fn="clearJoeKey"]')) };
+    });
+    ok('Ask Joe\'s footnote names no model and offers no key change (it says sample answers)',
+      /Sample answers/.test(foot.text) && !/Claude|Haiku|Change Key/i.test(foot.text) && !foot.key, foot.text.slice(-300));
     ok('the sample AI proxy answered (the real claude-proxy.js was never loaded)', joe.n >= 2 && joe.demoProxy && !srv.log.some((e) => /\/js\/claude-proxy\.js$/.test(e.path)) && srv.log.some((e) => e.path === '/pro/demo-sdk/claude-proxy.js'), JSON.stringify({ n: joe.n, demoProxy: joe.demoProxy }));
     const offlineUsed = await page.evaluate(() => (window.__NBD_DEMO__.offlineAnswers || []).map((a) => a.url.replace(/\?.*$/, '')));
     ok('the maps\' weather / geocoder / storm-report reads were answered offline (the path was exercised)', offlineUsed.some((u) => /nominatim/.test(u)) && offlineUsed.some((u) => /api\.weather\.gov/.test(u)) && offlineUsed.some((u) => /storm-report/.test(u)), JSON.stringify([...new Set(offlineUsed)]));
@@ -626,6 +633,10 @@ async function waitFor(page, fn, arg, ms) {
     ok('the Firebase SDK URLs were requested (the swap was exercised, not skipped)', sdk.length >= 5, sdk.length);
     const sdkNet = sdk.filter((r) => !r.sw);
     ok('every Firebase SDK URL was answered by the demo service worker, never the network', sdkNet.length === 0, sdkNet.map((r) => r.url).join('\n'));
+    const vendorSeen = sdk.filter((r) => /\/assets\/vendor\/firebase\//.test(r.url));
+    ok('the self-hosted SDK path was requested and answered by the worker (the CRM\'s real imports)', vendorSeen.length >= 3 && vendorSeen.every((r) => r.sw), vendorSeen.length);
+    const vendorServed = srv.log.filter((e) => /^\/assets\/vendor\/firebase\//.test(e.path));
+    ok('the server never served the real Firebase SDK', vendorServed.length === 0, JSON.stringify(vendorServed.slice(0, 5)));
     const strayOff = seen.filter((r) => !r.url.startsWith(ORIGIN + '/') && !SDK_URL.test(r.url) && !FONT_HOST.test(r.url) && !/^(blob|data):/.test(r.url));
     ok('no other off-origin request was even attempted', strayOff.length === 0, strayOff.map((r) => r.method + ' ' + r.url).join('\n'));
     const badServer = srv.log.filter((e) => !(e.method === 'GET' || e.method === 'HEAD') || e.kind === 'function' || e.kind === 'write' || (e.kind === 'missing' && !ALLOWED_MISSING.has(e.path)));

@@ -658,7 +658,7 @@ Thank you for requesting an estimate for your project at {address}.
 
 Your estimate total: {estimateAmount}
 
-This includes all materials, labor, and our lifetime workmanship warranty. We offer Standard, Preferred, and Elite options to fit your budget.
+This includes all materials and labor, a written labor warranty of up to 20 years depending on the package, and the NBD Pledge: for as long as you own the home, we'll come back and make it right. We offer Standard, Preferred, and Elite options to fit your budget.
 
 I'd love to walk you through the options. When's a good time to chat?
 

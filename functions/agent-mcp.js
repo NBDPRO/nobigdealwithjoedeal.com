@@ -43,12 +43,16 @@ const crypto = require('crypto');
 const { onRequest, onCall, HttpsError } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 const { enforceRateLimit } = require('./integrations/upstash-ratelimit');
 const L = require('./agent-mcp-logic');
 const SW = require('./schedule-window');
 const OptOut = require('./sms-optout');
 const Suppress = require('./email-suppression');
 const TextingGate = require('./sms-texting-gate');
+const { keyCreatorAllowed } = require('./member-offboarding');
+const PhoneText = require('./phone-text-check');
+const Outbox = require('./sms-outbox-guard');
 
 // Whose Do Not Text list a draft text is checked against: the bot's company
 // and the lead's own tenant key (the same value for every lead the bot can
@@ -172,11 +176,11 @@ async function runTool(name, args, key) {
     const [leads, jobsByLead] = await Promise.all([companyLeads(company), companyJobsByLead(company)]);
     return L.toolText(Object.assign(L.summary(leads, today, jobsByLead), { today, timezone: tz }));
   }
-  if (name === 'overdue_followups') return L.toolText({ today, customers: L.overdueFollowups(await companyLeads(company), today, args.limit) });
+  if (name === 'overdue_followups') return L.toolText({ today, customers: L.overdueFollowups(await companyLeads(company), today, args.limit, tz) });
   if (name === 'list_leads') {
     // Paged (2026-10-06): customers + total + next_cursor; the cursor is
     // bound to THIS key's company and filters, so a cursor from elsewhere is refused.
-    const page = L.listLeadsPage(await companyLeads(company), args, Date.now(), company);
+    const page = L.listLeadsPage(await companyLeads(company), args, Date.now(), company, tz);
     return page.error ? L.toolErr(page.error) : L.toolText(page);
   }
 
@@ -189,9 +193,9 @@ async function runTool(name, args, key) {
       db().collection('leads').doc(lead.id).collection('tasks').where('done', '==', false).limit(20).get(),
     ]);
     const lastNotes = notes.docs.map((d) => d.data()).sort((x, y) => L.ms(y.createdAt) - L.ms(x.createdAt)).slice(0, 5)
-      .map((n) => ({ when: L.ms(n.createdAt) ? new Date(L.ms(n.createdAt)).toISOString().slice(0, 10) : null, text: String(n.text || '').slice(0, 400) }));
+      .map((n) => ({ when: L.ms(n.createdAt) ? L.dayInZone(L.ms(n.createdAt), tz) : null, text: String(n.text || '').slice(0, 400) }));
     const open = tasks.docs.map((d) => d.data()).map((t) => ({ due: t.dueDate || null, text: String(t.title || t.text || '').slice(0, 200) }));
-    return L.toolText(Object.assign(L.minimalLead(lead), { notes: lastNotes, open_reminders: open }));
+    return L.toolText(Object.assign(L.minimalLead(lead, tz), { notes: lastNotes, open_reminders: open }));
   }
 
   if (name === 'schedule') {
@@ -282,7 +286,7 @@ async function runTool(name, args, key) {
     const [leads, estimates, deals] = await Promise.all([
       companyLeads(company), companyDocs('estimates', company, ['companyId', 'userId']), companyDocs('deal_rooms', company, ['userId']),
     ]);
-    return L.toolText({ estimates: L.estimatesStatus(estimates, deals, leads, args, Date.now()),
+    return L.toolText({ estimates: L.estimatesStatus(estimates, deals, leads, args, Date.now(), tz),
       note: 'total_customer_facing is what the homeowner sees. Cost and margin are never shared here.' });
   }
 
@@ -300,7 +304,7 @@ async function runTool(name, args, key) {
 
   if (name === 'post_job') {
     const [leads, invoices] = await Promise.all([companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy'])]);
-    return L.toolText({ jobs: L.postJob(leads, invoices, Date.now(), args) });
+    return L.toolText({ jobs: L.postJob(leads, invoices, Date.now(), args, tz) });
   }
 
   if (name === 'lead_sources') {
@@ -312,7 +316,7 @@ async function runTool(name, args, key) {
     const [leads, invoices, expenses] = await Promise.all([
       companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy']), companyDocs('expenses', company, ['companyId', 'userId']),
     ]);
-    return L.toolText(L.jobProfit(leads, invoices, expenses, Date.now(), args));
+    return L.toolText(L.jobProfit(leads, invoices, expenses, Date.now(), args, tz));
   }
 
   if (name === 'storm_near_customers') {
@@ -431,6 +435,22 @@ async function authenticate(raw) {
   const snap = await db().collection('agent_keys').doc(id).get();
   const k = snap.exists ? snap.data() : null;
   if (!k || k.active !== true) return refuse();
+  // R3-1 (2026-10-06): the person who made the key must still be entitled to
+  // it, on every call: enabled, not a viewer, still in the key's company
+  // (removeMember strips the claim; deactivateUser disables the account). The
+  // platform admin's house keys and creator-less server keys are handled
+  // explicitly in keyCreatorAllowed. An Auth outage is a 503, not "revoked".
+  if (k.createdBy) {
+    let creator = null;
+    try { creator = await getAuth().getUser(String(k.createdBy)); }
+    catch (e) {
+      if (!(e && e.code === 'auth/user-not-found')) {
+        logger.warn('[crmMcp] creator check failed', { msg: e && e.message });
+        return { status: 503, body: L.rpcError(null, -32000, 'The CRM could not check this key right now. Try again shortly.') };
+      }
+    }
+    if (!keyCreatorAllowed(k, creator)) return refuse();
+  }
   let bot;
   if (k.customBotId) {
     // A company bot's key: the bot must still exist, be active and belong to
@@ -683,16 +703,25 @@ async function draftCheck(c, it) {
   if (!lead) return { ok: false, reason: 'That customer is no longer on your board.' };
   const name = L.minimalLead(lead).name;
   if (it.kind === 'draft_text') {
-    const optOut = await OptOut.isOptedOut(db(), lead.phone, { companyId: draftTenants(c.company, lead), timeoutMs: OptOut.READ_TIMEOUT_MS }).catch(() => null);
-    const gate = L.textGate(lead, optOut);
-    if (gate.error) return { ok: false, reason: gate.error, name };
-    return { ok: true, to: '+1' + OptOut.optOutKey(lead.phone), name, consentOnFile: gate.consentOnFile };
+    // The same "ok to text?" answer every phone send asks (phone-text-check.js):
+    // STOP register (both key shapes) + Do Not Text list, consent === false,
+    // the company's texting switch, texting hours in the homeowner's time.
+    const chk = await textCheck(c, lead);
+    if (!chk.ok) return { ok: false, reason: chk.reason, code: chk.code, name };
+    // TODO(TWILIO_INBOUND_ENABLED): when the business line's inbound is live,
+    // send drafts through it instead of the owner's phone (`businessLine`).
+    return { ok: true, to: chk.to, name, consentOnFile: lead.tcpaConsent === true, businessLine: chk.businessLine === true };
   }
   const sup = L.emailGate(lead, { suppressed: false }).error ? null
     : await Suppress.isSuppressed(db(), c.company, lead.email, { timeoutMs: Suppress.READ_TIMEOUT_MS }).catch(() => null);
   const gate = L.emailGate(lead, sup);
   if (gate.error) return { ok: false, reason: gate.error, name };
   return { ok: true, to: String(lead.email).trim(), name };
+}
+function textCheck(c, lead) {
+  return PhoneText.okToText(db(), {
+    phone: lead.phone, tenants: draftTenants(c.company, lead), switchTenant: c.company, lead, nowMs: Outbox.nowMs(),
+  }).then((r) => Object.assign(r, { businessLine: process.env.TWILIO_INBOUND_ENABLED === 'true' }));
 }
 async function draftAction(request) {
   const c = requireKeyAdmin(request);
@@ -714,6 +743,20 @@ async function draftAction(request) {
   const body = String(data.body == null ? it.text || '' : data.body).replace(/\r\n?/g, '\n').trim().slice(0, isText ? DRAFT_SMS_MAX : L.MAX_TEXT);
   const subject = isText ? '' : String(data.subject == null ? it.title || '' : data.subject).replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 200);
   if (!body) throw new HttpsError('invalid-argument', 'The message is empty.');
+  // Review R2-3-1: the EDITED text is checked again before anything is marked
+  // sent — and the client opens Messages / Mail only after this answers ok.
+  // An edit must not drop the company name or the STOP line, or add the
+  // claim wording the bot itself was refused; and the customer must still be
+  // textable right now (STOP / Do Not Text / consent / switch / hours).
+  const claim = L.claimWordingProblem(body) || (isText ? null : L.claimWordingProblem(subject));
+  if (claim) throw new HttpsError('failed-precondition', claim);
+  if (isText) {
+    const names = L.companyNames(await readDoc('companyProfile/' + c.company), c.isNbd);
+    const bad = L.editedTextProblem(body, names);
+    if (bad) throw new HttpsError('failed-precondition', bad);
+    const chk = await textCheck(c, lead);
+    if (!chk.ok) throw new HttpsError(chk.code === 'unverified' ? 'unavailable' : 'failed-precondition', chk.reason);
+  }
   // Claim the item first, so a double tap logs once.
   const claimed = await db().runTransaction(async (tx) => {
     const s = await tx.get(ref);

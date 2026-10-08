@@ -47,6 +47,17 @@ const CANNED = {
   // "Nothing was sent" sheet shows exactly what would have gone out, and the
   // item is filed with a note on the customer's card that says so.
   agentDraftAction: (p) => agentDraftAction(p || {}),
+  // 2026-10-07 (main #2246 / #2298): every text from the owner's phone now
+  // asks the server "ok to text?" first (STOP register, Do Not Text list,
+  // consent, texting hours). The sample customers are all reachable, so
+  // 'check' says yes; the text itself still never leaves (demo-mode.js stops
+  // the share sheet and sms: links, with "Nothing was sent"). 'sent' and
+  // 'stop' only log on the real server; nothing to log here.
+  phoneTextAction: (p) => {
+    const action = String((p && p.action) || '');
+    if (action === 'check') return { ok: true, sample: true };
+    return { ok: true, sample: true, logged: false };
+  },
   // Wave 3, door-knocking map: the server's Google / county-parcel address
   // check. The sample map's own addresses answer instead (offline.js), so
   // this adds nothing and never fails.

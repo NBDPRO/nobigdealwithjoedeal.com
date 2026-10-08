@@ -156,7 +156,7 @@ const _TASK_CACHE_RETRY_MS = 2500, _TASK_CACHE_MAX_RETRIES = 4;
 // card badges and No-next-step all read the _taskCache this one load fills.
 // If the collection-group read is refused (rules / index not deployed yet)
 // the per-lead read below takes over for the session.
-const _FS_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+const _FS_SDK = '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
 let _taskLoadMode = 'group';
 let _tasksLoaded = false;
 async function _loadAllTasksGroup() {

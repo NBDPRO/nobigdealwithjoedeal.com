@@ -69,6 +69,32 @@ const STORM_CONCERN_LABEL = {
   insurance: 'Already has damage — waiting on insurance',
 };
 
+// Free Roof "Which fits best?" values → the labels the form shows
+// (docs/free-roof/index.html #fr-category). Unknown values are shown raw.
+const FREE_ROOF_CATEGORY_LABEL = {
+  veteran:      'Veteran / Military Family',
+  widow:        'Widow / Single Parent',
+  fixed_income: 'Fixed Income / Disability',
+  denied_claim: 'Insurance Denied a Claim',
+  other:        'Other',
+};
+function freeRoofCategoryLabel(v) {
+  const s = String(v == null ? '' : v).trim();
+  return FREE_ROOF_CATEGORY_LABEL[s] || s;
+}
+
+// The /estimate ballpark the homeowner was SHOWN ("$12,000–$18,500"), or ''
+// when the stored pair is missing or not a sane range. The gateway already
+// bounds these; this re-checks so an old or hand-written doc can't render junk.
+function ballparkText(data) {
+  data = data || {};
+  if (data.ballparkMin == null || data.ballparkMax == null) return '';
+  const lo = Number(data.ballparkMin), hi = Number(data.ballparkMax);
+  if (!isFinite(lo) || !isFinite(hi) || lo < 0 || hi <= 0 || lo > hi) return '';
+  const f = (n) => '$' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return f(lo) + '–' + f(hi);
+}
+
 // Should this storm_alert_subscribers doc become a CRM lead? Only when the
 // homeowner deliberately flagged real damage (not the hail default).
 function shouldBridgeStorm(data) {
@@ -176,7 +202,11 @@ function mapPublicLeadToLead(args) {
     notesParts.push('Nominated by ' + data.nominatorName +
       (data.nominatorRelation ? ' (' + data.nominatorRelation + ')' : ''));
   }
+  // Contact form "Service Needed" (estimate leads show service in their own
+  // Instant Estimate line below, so it isn't repeated for them).
+  if (data.service && collection !== 'estimate_leads') notesParts.push('Service: ' + String(data.service));
   if (collection === 'free_roof_entries') notesParts.push('"One Free Roof" giveaway entry');
+  if (collection === 'free_roof_entries' && data.category) notesParts.push('Category: ' + freeRoofCategoryLabel(data.category));
   // Storm: surface the homeowner's damage concern so the rep sees WHY this
   // signup became a hot lead (only high-intent concerns reach the bridge).
   if (collection === 'storm_alert_subscribers') {
@@ -195,6 +225,11 @@ function mapPublicLeadToLead(args) {
     if (data.service) ctx.push(String(data.service) + (data.roofType ? ' (' + String(data.roofType) + ')' : ''));
     if (data.timeline) ctx.push('timeline: ' + String(data.timeline));
     if (ctx.length) notesParts.push('Instant Estimate — ' + ctx.join(' · '));
+    const shown = ballparkText(data);
+    if (shown) notesParts.push('Shown ' + shown + ' (the site\'s ballpark range)');
+    // Client-reported only: the browser says the OTP step passed. Nothing on
+    // the server checks it, so it is labelled as such and never relied on.
+    if (data.phoneVerified === true) notesParts.push('Phone verified by text code (reported by form)');
   }
 
   const doc = {
@@ -364,6 +399,9 @@ module.exports = {
   ESTIMATE_EVENT_TYPES,
   HIGH_INTENT_STORM_CONCERNS,
   STORM_CONCERN_LABEL,
+  FREE_ROOF_CATEGORY_LABEL,
+  freeRoofCategoryLabel,
+  ballparkText,
   shouldBridgeStorm,
   isFollowUpEvent,
   looksLikeUid,

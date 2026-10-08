@@ -16,11 +16,11 @@
  *
  * Nothing privileged is ever written by this page.
  */
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js';
-import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js';
+import { initializeApp } from '/assets/vendor/firebase/10.12.2/firebase-app.js';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from '/assets/vendor/firebase/10.12.2/firebase-app-check.js';
+import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, updateProfile } from '/assets/vendor/firebase/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp } from '/assets/vendor/firebase/10.12.2/firebase-firestore.js';
+import { getFunctions, httpsCallable } from '/assets/vendor/firebase/10.12.2/firebase-functions.js';
 import { connectEmulatorsIfLocal, emulatorAppCheckIfLocal } from '../nbd-emulator-connect.js'; // Audit #3: localhost-only, no-op in prod
 import { ensureProvisioned } from '../provisioning-retry.js'; // retry + pending-marker (first-run audit 2026-07-28)
 

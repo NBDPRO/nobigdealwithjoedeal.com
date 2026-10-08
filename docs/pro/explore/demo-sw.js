@@ -4,7 +4,9 @@
 //
 // What it does, for pages under /pro/explore/:
 //   1. Firebase SDK swap. A request for
-//      https://www.gstatic.com/firebasejs/<ver>/firebase-<name>.js is answered
+//      https://www.gstatic.com/firebasejs/<ver>/firebase-<name>.js, or for the
+//      self-hosted copy /assets/vendor/firebase/<ver>/firebase-<name>.js
+//      (main vendored the SDK on 2026-10-04, #2155), is answered
 //      HERE with a one-line module that re-exports the same-origin fake,
 //      /pro/demo-sdk/firebase-<name>.js. The real SDK is never downloaded, so
 //      no page can open a connection to Firestore, Auth, Functions or Storage.
@@ -26,9 +28,13 @@
 // Firebase Hosting, which rewrites /pro/explore/<page> to the real page file.
 'use strict';
 
-const VERSION = 'nbd-demo-sw-2026-10-06b';
+const VERSION = 'nbd-demo-sw-2026-10-07';
 const SCOPE_PATH = '/pro/explore/';
 const SDK_RE = /^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/(firebase-[a-z-]+)\.js$/;
+// The self-hosted SDK (scripts/vendor-firebase-sdk.js), matched on a
+// same-origin pathname. Without this the real SDK would load from our own
+// origin and only the CSP would stand between it and Firestore.
+const VENDOR_SDK_RE = /^\/assets\/vendor\/firebase\/[\d.]+\/(firebase-[a-z-]+)\.js$/;
 // The fakes that exist. A compat or unknown module is refused, loudly.
 const FAKES = new Set([
   'firebase-app', 'firebase-auth', 'firebase-firestore', 'firebase-functions',
@@ -82,7 +88,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   // 1. Firebase SDK → same-origin fake
-  const sdk = SDK_RE.exec(req.url);
+  const sdk = SDK_RE.exec(req.url) || (url.origin === self.location.origin ? VENDOR_SDK_RE.exec(url.pathname) : null);
   if (sdk) {
     const name = sdk[1];
     if (!FAKES.has(name)) {
