@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/esign.css?v=4">
-  <link rel="stylesheet" href="css/esign-setup.css?v=2">
+  <link rel="stylesheet" href="css/esign-setup.css?v=3">
 </head>
 <body>
   <header class="es-bar">
@@ -76,6 +76,13 @@
         <input type="text" id="suSignerName" class="es-input" placeholder="Signer name" autocomplete="off">
         <input type="email" id="suSignerEmail" class="es-input" placeholder="Signer email" autocomplete="off">
       </div>
+      <!-- 2026-10-08: a contract that already has the two Notice of Cancellation
+           forms gets no second set (with a different date) when it is signed.
+           Pre-ticked when the forms are found in the PDF's text. -->
+      <label class="su-cxl" for="suCancelForms">
+        <input type="checkbox" id="suCancelForms">
+        <span>This contract already includes the two Notice of Cancellation forms (don't add another set)</span>
+      </label>
       <button type="button" class="es-ghost su-void" id="suVoid" hidden>Void this link</button>
       <button type="button" class="es-ghost" id="suSave">Save draft</button>
       <button type="button" class="es-apply" id="suSend">Send for signature</button>
@@ -99,8 +106,8 @@
     </div>
   </div>
 
-  <script src="js/esign-autodetect.js?v=1" defer></script>
+  <script src="js/esign-autodetect.js?v=2" defer></script>
   <script src="/pro/js/dashboard-appcheck-config.js?v=1"></script>
-  <script type="module" src="js/esign-setup.js?v=3"></script>
+  <script type="module" src="js/esign-setup.js?v=4"></script>
 </body>
 </html>

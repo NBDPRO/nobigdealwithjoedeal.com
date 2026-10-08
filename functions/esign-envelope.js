@@ -262,7 +262,7 @@ exports.createEsignEnvelope = onCall(
     assertNotViewer(request.auth.token);
     await callableRateLimit(request, 'createEsignEnvelope', 30, 60_000);
 
-    const { leadId, envelopeId, sourcePath, title } = request.data || {};
+    const { leadId, envelopeId, sourcePath, title, cancelFormsIncluded } = request.data || {};
     if (typeof leadId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(leadId)) {
       throw new HttpsError('invalid-argument', 'Bad lead id');
     }
@@ -331,6 +331,11 @@ exports.createEsignEnvelope = onCall(
       pages,
       pageCount: pages.length,
       fields: [],
+      // The rep's own contract PDF already carries the two completed FTC
+      // Notice of Cancellation forms (esign-setup.js: detected in the PDF text
+      // or ticked by the rep) — submitEsignEnvelope then appends no second set
+      // with a different date (review R4 D8, 2026-10-08).
+      cancelFormsIncluded: cancelFormsIncluded === true,
       status: 'draft',
       createdAt: FieldValue.serverTimestamp(),
       audit: [{ event: 'created', at: Date.now(), by: uid }],
@@ -356,7 +361,7 @@ exports.saveEsignFields = onCall(
     assertNotViewer(request.auth.token); // decision B — see createEsignEnvelope
     await callableRateLimit(request, 'saveEsignFields', 120, 60_000);
 
-    const { envelopeId, fields, signerName, signerEmail, title, signers } = request.data || {};
+    const { envelopeId, fields, signerName, signerEmail, title, signers, cancelFormsIncluded } = request.data || {};
     const db = getFirestore();
     const { ref, env } = await loadOwnedEnvelope(db, envelopeId, uid);
 
@@ -393,6 +398,11 @@ exports.saveEsignFields = onCall(
       if (typeof signerEmail === 'string') patch.signerEmail = signerEmail.slice(0, 320);
     }
     if (typeof title === 'string' && title.trim()) patch.title = title.slice(0, 200);
+    // The rep's "this PDF already has the cancellation forms" box. Only on an
+    // uploaded document — an estimate envelope's forms are built by the server.
+    if (typeof cancelFormsIncluded === 'boolean' && !(Array.isArray(env.systemFields) && env.systemFields.length)) {
+      patch.cancelFormsIncluded = cancelFormsIncluded;
+    }
 
     await ref.set(patch, { merge: true });
     return { ok: true, fieldCount: patch.fields.length };
@@ -441,6 +451,7 @@ exports.getEsignEnvelopeForOwner = onCall(
       signerName: env.signerName || '',
       signerEmail: env.signerEmail || '',
       signers: ESL.normalizeSigners(env).map((s) => ({ id: s.id, name: s.name, email: s.email, status: s.status })),
+      cancelFormsIncluded: env.cancelFormsIncluded === true,
       pdf: buf.toString('base64'),
     };
   }
@@ -1146,20 +1157,35 @@ exports.submitEsignEnvelope = onRequest(
     // An estimate envelope's contract PDF already carries the FTC forms
     // (cancelFormsIncluded, #2166) — its own system fields date them — so it
     // is never given a second set (CW.envelopeNeedsCancelNotice).
+    // 2026-10-08 (review R4 D8/D9): tried twice; if the pages still cannot be
+    // appended the envelope and the lead are flagged (cancelPacketStale) and
+    // cancelBy is still recorded, counted from the signing. A contract the rep
+    // uploaded WITH its own forms (cancelFormsIncluded, set at upload) gets no
+    // second set, and its cancelBy is counted from the signing too.
     let noticeCancelBy = '';
+    let noticeTz;
+    let noticeFailed = false;
     if (CW.envelopeNeedsCancelNotice(env)) {
-      try {
-        const opts = await CW.loadPacketOpts(db, env.leadId);
-        const withNotice = await require('./cancel-notice-pdf').appendCancelNotice(signedBytes, Object.assign({ transactionDate: when }, opts));
-        signedBytes = withNotice.bytes;
-        noticeCancelBy = withNotice.cancelBy;
-      } catch (e) {
-        logger.error('[submitEsignEnvelope] cancellation notice NOT appended', { envelopeId: tok.envelopeId, err: e.message });
+      noticeFailed = true;
+      for (let attempt = 1; attempt <= 2 && noticeFailed; attempt++) {
+        try {
+          const opts = await CW.loadPacketOpts(db, env.leadId);
+          noticeTz = opts.timeZone;
+          const withNotice = await require('./cancel-notice-pdf').appendCancelNotice(signedBytes, Object.assign({ transactionDate: when }, opts));
+          signedBytes = withNotice.bytes;
+          noticeCancelBy = withNotice.cancelBy;
+          noticeFailed = false;
+        } catch (e) {
+          logger.error('[submitEsignEnvelope] cancellation notice NOT appended (attempt ' + attempt + ' of 2)', { envelopeId: tok.envelopeId, err: e.message });
+        }
       }
     }
     // The last day to cancel: the estimate PDF's own dated forms, else the
-    // appended notice's.
-    const cancelBy = sys.cancelBy || noticeCancelBy;
+    // appended notice's, else (a contract whose forms are the rep's own, or
+    // whose notice could not be appended) counted from the signing itself.
+    const fromSigning = CW.envelopeSigningCancelBy(env, new Date(when), noticeTz || env.timeZone);
+    const cancelBy = sys.cancelBy || noticeCancelBy || fromSigning.cancelBy;
+    const cxl = { cancelBy, signedOn: fromSigning.signedOn, stale: noticeFailed };
     const signedBuf = Buffer.from(signedBytes);
     let stored = false;
     try {
@@ -1204,14 +1230,14 @@ exports.submitEsignEnvelope = onRequest(
         // completed the envelope. Every signer's own record is in signers[].
         consent: { agreed: true, at: when, ip, ua },
         copiesDelivered: copies,
-        ...(cancelBy ? { cancelBy } : {}),
+        ...(cancelBy ? Object.assign({ cancelBy }, CW.staleRecordPatch(cxl)) : {}),
         remindNextAt: FieldValue.delete(),
         linkExpiresAt: FieldValue.delete(),
         currentSignerId: FieldValue.delete(),
         audit: FieldValue.arrayUnion({ event: 'signed', at: when, ip, ua, stored, signerId: (last && last.id) || signer.id }),
       }, { merge: true });
     } catch (e) { logger.error('[submitEsignEnvelope] envelope stamp failed', { err: e.message }); }
-    if (cancelBy) await CW.stampLeadCancelBy(db, env.leadId, cancelBy, logger, { ownerUid: env.ownerUid, companyId: env.companyId });
+    if (cancelBy) await CW.stampLeadCancelBy(db, env.leadId, cancelBy, logger, { ownerUid: env.ownerUid, companyId: env.companyId }, CW.staleLeadPatch(cxl, 'esign'));
 
     await IO.syncEstimate(db, tok.envelopeId, env, 'completed', {
       signerName: (signersAfter[0] && signersAfter[0].name) || null,

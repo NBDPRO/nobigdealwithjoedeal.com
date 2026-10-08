@@ -2406,10 +2406,31 @@ function _renderCancelWindowChip(lead) {
     open = !!(J && typeof J.cancelWindowOpen === 'function' && l.cancelBy &&
       J.cancelWindowOpen(l.cancelBy, new Date(), J.resolveTimeZone(window._legal ? window._legal() : window._companyProfile)));
   } catch (_) { open = false; }
+  _renderCancelPacketFlag(l, J);
   if (!open) { el.hidden = true; el.textContent = ''; return; }
   const day = J.cancelByText(l.cancelBy);
   el.textContent = 'Cancellation window ends ' + day;
   el.title = 'The homeowner can cancel this contract without penalty until midnight on ' + day + '.';
+  el.hidden = false;
+}
+// "Cancel forms need a new date" (2026-10-08, review R4 D9). A signing whose
+// Notice of Cancellation could not be re-dated to the signing day stamps
+// lead.cancelPacketStale (the server signing paths and document-generator.js).
+// The recorded cancelBy is still counted from the signing — but the paper the
+// homeowner holds is wrong until the rep gives them a new notice. Shown until
+// a Right to Cancel document is generated for this customer (that clears it).
+function _renderCancelPacketFlag(l, J) {
+  const el = document.getElementById('cancelPacketFlag');
+  if (!el) return;
+  if (!l || l.cancelPacketStale !== true) { el.hidden = true; el.textContent = ''; el.title = ''; return; }
+  let signed = '';
+  let last = '';
+  try { signed = (J && l.cancelPacketSignedOn) ? J.cancelByText(l.cancelPacketSignedOn) : ''; } catch (_) { signed = ''; }
+  try { last = (J && l.cancelBy) ? J.cancelByText(l.cancelBy) : ''; } catch (_) { last = ''; }
+  el.textContent = 'Cancel forms need a new date';
+  el.title = 'The signed contract\u2019s Notice of Cancellation could not be re-dated to the signing day' +
+    (signed ? ' (' + signed + ')' : '') + '. Generate a new Notice of Right to Cancel (Documents \u2192 Right to Cancel) and give it to the homeowner.' +
+    (last ? ' The last day to cancel is ' + last + ', counted from the signing.' : '');
   el.hidden = false;
 }
 window.NBDCancelWindow = { render: (lead) => _renderCancelWindowChip(lead) };

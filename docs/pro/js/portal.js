@@ -1096,7 +1096,10 @@
       const steps = held
         ? [
           'Your insurance company sends you its written decision on your claim.',
-          'Five business days after that decision' +
+          // 2026-10-08: the hold also waits out the 3-business-day right to
+          // cancel the contract (ky-insurance-law.js payLinkHold), and
+          // releaseDate is the later of the two.
+          'Five business days after that decision, and after your 3-business-day right to cancel this contract has ended' +
             (view.balance.releaseDate ? ' (on or after ' + esc(view.balance.releaseDate) + ')' : '') +
             ', your deductible and the first insurance check are due' + next + '.',
           'The rest is due when the job is finished.'

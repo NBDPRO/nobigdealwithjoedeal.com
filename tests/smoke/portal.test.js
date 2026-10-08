@@ -133,8 +133,16 @@ section('2026-09-25 (review of PR #1777): portal records scoped to the token\'s 
 
   // Wiring: each of the three leadId-only queries' results goes through it.
   const psrc = read(path.join(FUNCTIONS, 'portal.js'));
+  // 2026-10-08: the view's lead match now runs through the shared full link
+  // check (portalLinkRefusal → tokenMatchesLead); behaviour is driven in
+  // tests/portal-link-checks-2026-10-08.test.js.
+  const { portalLinkRefusal } = require(path.join(FUNCTIONS, 'portal-authz.js'));
+  const liveTok = Object.assign({ expiresAt: { toMillis: () => Date.now() + 86400e3 }, uses: 0, maxUses: 100 }, tok);
+  assert('the shared link check refuses another tenant\'s re-created lead (404)',
+    (portalLinkRefusal(liveTok, { userId: 'x', companyId: 'coB' }, Date.now()) || {}).status === 404
+      && portalLinkRefusal(liveTok, lead, Date.now()) === null);
   assert('portal view refuses a token of another tenant than the lead\'s',
-    /if \(!tokenMatchesLead\(tok, lead\)\) \{\s*res\.status\(404\)/.test(psrc));
+    /const linkRefusal = portalLinkRefusal\(tok, lead, Date\.now\(\)\);\s*if \(linkRefusal\) \{\s*res\.status\(linkRefusal\.status\)/.test(psrc));
   assert('portal view filters estimates by tenant',
     /estSnap\.docs\.map\([^\n]*\)\s*\.filter\(e => recordInPortalTenant\(e, \['userId'\], tenant\)\)/.test(psrc));
   assert('portal view filters e-sign envelopes by tenant',
