@@ -2548,7 +2548,10 @@ function _triggerFileInput() {
 }
 function _openInDashboardEstimate() {
   if (window._customerId) {
-    window.location.href = '/pro/dashboard?lead=' + window._customerId;
+    // from=customer (phone batch D, 2026-10-08): closing the builder brings
+    // Jo back to this customer instead of leaving him on the dashboard
+    // (dashboard-bootstrap.module.js → estimate-v3-wizard.js returnLead).
+    window.location.href = '/pro/dashboard?lead=' + encodeURIComponent(window._customerId) + '&from=customer';
   }
 }
 // 2026-09-17: same navigate-with-lead-context pattern as the estimate

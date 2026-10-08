@@ -274,10 +274,17 @@ test.describe('phone V3 wizard: installed iPhone app @shard2', () => {
       const bar = (await page.locator('#estV2Modal .v3-bar-val').textContent()) || '';
       expect(money(bar), 'the bar total is a real number').toBeGreaterThan(0);
       expect(bar.trim(), 'the bar shows the builder total').toBe(((await page.locator('#v2total').textContent()) || '').trim());
-      await tapNext(page);
+      // The preset loaded here answers Shingle & add-ons (2026-10-08, phone
+      // audit #5): Next skips it — straight to the claim on this insurance
+      // job — and the step stays one tap away for anyone who wants it.
+      await expect(page.locator('#estV2Modal .v3-next')).toHaveText(/^Insurance claim/);
+      await expect(page.locator('#estV2Modal [data-v3-act="looks-right"]')).toBeVisible();
+      await page.locator('#estV2Modal [data-v3-act="edit-scope"]').tap();
     });
-    await test.step('7 Shingle & add-ons', async () => {
+    await test.step('7 Shingle & add-ons — the preset is not asked again', async () => {
       await checkStep(page, titles[6], 7, total);
+      await expect(page.locator('#estV2Modal .v2-preset-btns'), 'preset row folded').toBeHidden();
+      await expect(page.locator('#estV2Modal .v3-preset-done')).toBeVisible();
       await tapNext(page);
     });
     await test.step('8 Insurance claim — the claim fields', async () => {

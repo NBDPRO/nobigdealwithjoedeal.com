@@ -110,6 +110,17 @@
     skipJob: false,
     more: false,       // Finish's "More" section open
     built: false,
+    // Phone batch D (2026-10-08, phone audit 2026-10-07 #5):
+    // presetPicked — a preset was loaded on the Package step this open, so
+    //   the Shingle & add-ons step (whose first question IS the preset) is
+    //   answered: Next skips it, and its preset row stays folded.
+    // showPresets — the rep asked to start over from a preset on that step.
+    // returnLead — opened from a customer page ("Build estimate"): closing
+    //   the builder goes back to that customer, not the dashboard.
+    presetPicked: false,
+    showPresets: false,
+    returnLead: null,
+    closing: 0,
   };
 
   const $ = (sel) => (ui.modal ? ui.modal.querySelector(sel) : null);
@@ -169,6 +180,8 @@
     const presets = modal.querySelector('.v2-preset-btns');
     const presetsWrap = presets && presets.closest('.v2-section-content');
     if (presetsWrap) presetsWrap.classList.add('v3-first');
+    const presetsRow = presets && rowOf(presets);
+    if (presetsRow) presetsRow.classList.add('v3-presets-row');
 
     STEPPERS.forEach((id) => {
       const input = document.getElementById(id);
@@ -239,7 +252,13 @@
         '<div class="v3-draw-msg" aria-live="polite"></div>' +
       '</div>' +
       '<div data-v3="package" class="v3-pkg"></div>' +
-      '<div data-v3="scope repairType" class="v3-review-hint">Start from a preset — you can add or remove any item after.</div>' +
+      '<div data-v3="scope repairType" class="v3-review-hint v3-preset-hint">Start from a preset — you can add or remove any item after.</div>' +
+      // The preset was already chosen on Package (phone batch D): say so
+      // instead of asking again; one tap reopens the presets.
+      '<div data-v3="scope" class="v3-preset-done">' +
+        '<span class="v3-review-hint">Preset loaded on Package — add or remove items below.</span>' +
+        '<button type="button" class="v3-link" data-v3-act="show-presets">Start over from a preset</button>' +
+      '</div>' +
       // Photos are taken in the driveway, mid-estimate: shoot or pick them
       // here instead of leaving for the customer page (the step used to be a
       // dead end on a new customer). Uploads go to the linked customer
@@ -279,6 +298,25 @@
 
     injectCss();
     modal.addEventListener('click', onClick);
+    // Back to the customer (phone batch D): the header's Close, tapped on a
+    // builder opened from a customer page, returns there once the modal has
+    // actually closed. Only that tap counts — "Draw it", presentation and
+    // the other internal hand-offs that close the modal stay on the dashboard.
+    modal.addEventListener('click', (ev) => {
+      const c = ev.target && ev.target.closest && ev.target.closest('.v2-close');
+      if (c && ui.returnLead) ui.closing = Date.now();
+    }, true);
+    try {
+      new MutationObserver(() => {
+        if (modal.classList.contains('open') || !ui.closing || !ui.returnLead) return;
+        const id = ui.returnLead;
+        const recent = Date.now() - ui.closing < 30000;
+        ui.closing = 0;
+        ui.returnLead = null;
+        // 600 ms: the builder's 400 ms draft autosave lands before we leave.
+        if (recent) setTimeout(() => { backToLead(id); }, 600);
+      }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+    } catch (_) { /* no observer: Close simply stays on the dashboard */ }
     modal.addEventListener('change', (ev) => {
       if (ev.target && ev.target.classList && ev.target.classList.contains('v3-photo-input')) addPhotos(ev.target);
     });
@@ -311,7 +349,10 @@
       if (input) input.click();
       return;
     }
-    if (act === 'draw-it') return drawIt();
+    if (act === 'draw-it') { ui.returnLead = null; return drawIt(); }
+    if (act === 'looks-right') return looksRight();
+    if (act === 'edit-scope') { ui.step = 'scope'; return paint(true); }
+    if (act === 'show-presets') { ui.showPresets = true; return paint(false); }
     if (act === 'jump-open') return openSheet();
     if (act === 'jump') { closeSheet(); ui.step = t.dataset.v3Val; return paint(true); }
     if (act === 'sheet-close') return closeSheet();
@@ -336,7 +377,8 @@
       // re-applies the tier's shingle lock).
       const btn = ui.modal.querySelector('.v2-preset-btns [data-arg="' + t.dataset.v3Val + '"]');
       if (btn) btn.click();
-      paintPackage();
+      if (ui.step === 'package' && scopeLoaded()) ui.presetPicked = true;
+      paint(false);
       return;
     }
     if (act === 'tier') {
@@ -421,12 +463,50 @@
   }
 
   function go(delta) {
-    const list = steps();
-    let i = list.indexOf(ui.step);
-    if (i === -1) i = 0;
-    const j = Math.min(list.length - 1, Math.max(0, i + delta));
-    ui.step = list[j];
+    ui.step = stepAfter(ui.step, delta);
     paint(true);
+  }
+
+  // The step Back / Next lands on. A step the open already answered is
+  // skipped going forward: Shingle & add-ons, once a preset was loaded on
+  // Package (its first question is that preset). Still one tap away in the
+  // step list at the top, and from Package's "Edit shingle & add-ons".
+  function answered(s) {
+    return s === 'scope' && ui.kind !== 'repair' && ui.presetPicked && scopeLoaded();
+  }
+  function stepAfter(from, delta) {
+    const list = steps();
+    let i = list.indexOf(from);
+    if (i === -1) i = 0;
+    let j = Math.min(list.length - 1, Math.max(0, i + delta));
+    while (delta > 0 && answered(list[j]) && j < list.length - 1) j++;
+    return list[j];
+  }
+  function scopeLoaded() {
+    const st = v2state();
+    return Array.isArray(st.scope) && st.scope.length > 0;
+  }
+
+  // "Looks right → Review" (Package, once the roof system is loaded and a
+  // package picked): straight to the next step that still needs the rep —
+  // the claim on an insurance job, else Review. Skips nothing that changes
+  // the price: the skipped steps keep what they already hold.
+  function looksRight() {
+    const list = steps();
+    ui.step = list.indexOf('insurance') !== -1 ? 'insurance' : 'review';
+    paint(true);
+  }
+
+  function leadFirstName(id) {
+    let l = null;
+    try { l = (Array.isArray(window._leads) && window._leads.find((x) => x && x.id === id)) || null; } catch (_) { l = null; }
+    const n = String((l && (l.firstName || l.name)) || '').trim().split(/\s+/)[0];
+    return n ? n.slice(0, 24) : '';
+  }
+  function backToLead(id) {
+    if (!id) return false;
+    window.location.href = '/pro/customer.html?id=' + encodeURIComponent(id);
+    return true;
   }
 
   function openSheet() {
@@ -493,7 +573,15 @@
     const next = $('.v3-next');
     if (next) {
       next.hidden = idx === list.length - 1;
-      next.textContent = (list[idx + 1] ? title(list[idx + 1]) : 'Next') + ' ›';
+      const to = idx < list.length - 1 ? stepAfter(ui.step, +1) : null;
+      next.textContent = (to ? title(to) : 'Next') + ' ›';
+    }
+    m.classList.toggle('v3-presets-done', ui.step === 'scope' && ui.presetPicked && scopeLoaded() && !ui.showPresets);
+    const close = m.querySelector('.v2-hdr .v2-close');
+    if (close) {
+      if (!close.dataset.v3Text) close.dataset.v3Text = close.textContent;
+      const who = ui.returnLead ? leadFirstName(ui.returnLead) : '';
+      close.textContent = ui.returnLead ? ('‹ Back to ' + (who || 'customer')) : close.dataset.v3Text;
     }
     paintChips();
     if (ui.step === 'package') paintPackage();
@@ -565,6 +653,14 @@
         : '') +
       (starter
         ? '<div class="v3-review-hint v3-pkg-starter" data-v3-starter-rates>These are starter prices. Set your own package prices in Settings → Estimates and every estimate uses them.</div>'
+        : '') +
+      // Roof system loaded + a package picked (phone batch D): the rest of
+      // the add-ons are answered — one tap to Review.
+      (!empty && st.tier
+        ? '<div class="v3-pkg-go">' +
+            '<button type="button" class="v3-big v3-looks-right" data-v3-act="looks-right">Looks right → Review</button>' +
+            '<button type="button" class="v3-link" data-v3-act="edit-scope">Edit shingle &amp; add-ons</button>' +
+          '</div>'
         : '') + tiers.map((t) =>
       '<button type="button" class="v3-tier' + (st.tier === t ? ' active' : '') + (t === 'beyond' ? ' beyond' : '') + '" data-v3-act="tier" data-v3-val="' + esc(t) + '" aria-pressed="' + (st.tier === t) + '">' +
         '<span class="v3-tier-top"><span class="v3-tier-name">' + esc(label(t)) + '</span>' +
@@ -644,6 +740,13 @@
     ui.inferKind = true;
     ui.skipJob = !opts.reopened;
     ui.more = false;
+    ui.presetPicked = false;
+    ui.showPresets = false;
+    ui.closing = 0;
+    // Set by dashboard-bootstrap.module.js for ?lead=ID&from=customer (the
+    // customer page's "Build estimate"); read once, for this open only.
+    ui.returnLead = (typeof window._nbdEstReturnLead === 'string' && window._nbdEstReturnLead) ? window._nbdEstReturnLead : null;
+    window._nbdEstReturnLead = null;
     ui.step = opts.reopened ? 'review' : 'job';
     closeSheet();
     paint(true);
@@ -735,6 +838,14 @@
       '#estV2Modal .v3-pkg-empty { font-size:14px; color:var(--t,#e8eaf0); margin-bottom:6px; }',
       '#estV2Modal .v3-pkg-empty .v3-kind-row { margin-top:8px; }',
       '#estV2Modal .v3-review-hint { font-size:13px; color:var(--m,#8b8e96); margin:0 0 10px; }',
+      // Phone batch D (2026-10-08): Package's one-tap finish and the folded presets.
+      '#estV2Modal .v3-pkg-go { display:flex; flex-direction:column; gap:6px; margin:0 0 12px; }',
+      '#estV2Modal .v3-looks-right { width:100%; border-color:var(--orange,#BD5728); background:color-mix(in srgb, var(--orange,#BD5728) 22%, transparent); }',
+      '#estV2Modal .v3-link { align-self:flex-start; min-height:44px; padding:0 2px; background:transparent; border:0; color:var(--t,#e8eaf0); text-decoration:underline; text-underline-offset:3px; font:inherit; font-size:14px; font-weight:700; cursor:pointer; }',
+      '#estV2Modal .v3-preset-done { display:none; }',
+      '#estV2Modal.v3-on.v3-presets-done .v3-preset-done.v3-cur { display:flex; flex-direction:column; gap:2px; margin:0 0 8px; }',
+      '#estV2Modal.v3-on:not(.v3-presets-done) .v3-preset-done { display:none !important; }',
+      '#estV2Modal.v3-on.v3-presets-done .v3-presets-row, #estV2Modal.v3-on.v3-presets-done .v3-preset-hint { display:none !important; }',
       '#estV2Modal .v3-sheet { position:absolute; inset:0; z-index:5; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; }',
       '#estV2Modal .v3-sheet[hidden] { display:none; }',
       '#estV2Modal .v3-sheet-card { width:100%; max-width:560px; margin:0 auto; max-height:80%; overflow-y:auto; background:var(--s,#111418); border-radius:16px 16px 0 0; padding:8px 16px calc(16px + env(safe-area-inset-bottom,0px)); }',
@@ -758,6 +869,6 @@
     onOpen,
     onRender,
     // Test seam.
-    _test: { steps, get ui() { return ui; }, inferKind, ROOF_STEPS, REPAIR_STEPS, TAGS, customerPrefilled, maybeSkipJob, paintPackage, TIER_NOTES },
+    _test: { steps, get ui() { return ui; }, inferKind, ROOF_STEPS, REPAIR_STEPS, TAGS, customerPrefilled, maybeSkipJob, paintPackage, TIER_NOTES, stepAfter, looksRight, backToLead, leadFirstName },
   };
 })();
