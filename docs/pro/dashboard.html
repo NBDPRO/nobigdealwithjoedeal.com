@@ -5,7 +5,7 @@
 <!-- Sample account (Pro demo phase 2, 2026-10-06): inert on this real page;
      under /pro/explore/ it arms the browser-only sample account. First and
      synchronous so its network tripwire is in place before any other script. -->
-<script src="/pro/js/demo-mode.js?v=3"></script>
+<script src="/pro/js/demo-mode.js?v=4"></script>
 <!-- The ?legacy=1 rollback twin (dashboard.legacy.html + js/dashboard-legacy-redirect.js)
      was retired 2026-09-02: it had become byte-identical to this file and was being
      updated by every dashboard commit, so it provided no rollback and doubled the edit
@@ -123,7 +123,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=170"></script>
+<script src="js/script-loader.js?v=183"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -184,7 +184,7 @@
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=5" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
-<link rel="stylesheet" href="css/theme-bridge.css?v=3" id="nbd-theme-bridge-link">
+<link rel="stylesheet" href="css/theme-bridge.css?v=4" id="nbd-theme-bridge-link">
 <!-- Surface styles for Shape & Depth (Clay, Liquid Glass, Skeuo, Spatial). -->
 <link rel="stylesheet" href="css/shape-styles.css?v=1">
 
@@ -6038,7 +6038,7 @@
      classic dashboard-actions.js mount/unmount wiring to call. -->
 <script type="module" src="js/voice-intel-dashboard-bridge.module.js?v=1"></script>
 <script defer src="js/estimate-preview.js?v=3"></script>
-<script defer src="js/dashboard-widgets.js?v=10"></script>
+<script defer src="js/dashboard-widgets.js?v=11"></script>
 <script defer src="js/dashboard-ui.js?v=13"></script>
 <script defer src="js/dashboard-actions.js?v=18"></script>
 <script defer src="js/dashboard-main.js?v=6"></script>
@@ -7014,10 +7014,10 @@
      spend + cost per lead, the required lost reason. numbers-logic.js is the
      pure rules; numbers-data.js the owner-only reads/writes; the picker is
      the required "Why was it lost?" sheet (crm-pipeline / crm-leads). -->
-<script defer src="js/numbers-logic.js?v=1"></script>
+<script defer src="js/numbers-logic.js?v=2"></script>
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
-<script defer src="js/widgets.js?v=15"></script>
+<script defer src="js/widgets.js?v=16"></script>
 <script defer src="js/today-home.js?v=3"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=3"></script>
@@ -7120,7 +7120,7 @@
      Blank buttons), and preloaded when the Docs view opens. Pre-flight reads
      window._leadDoc / _customerId / _customerEstimates / _allPhotos, which
      the dashboard stages just-in-time in _stageWindowStateForLead. -->
-<script defer src="js/analytics-kpi.js?v=11"></script>
+<script defer src="js/analytics-kpi.js?v=12"></script>
 <!-- T-3: AI texting analytics card (renders on the board/analytics view) -->
 <script defer src="js/ai-texting-stats-card.js?v=2"></script>
 <!-- idea #2 follow-up: adjuster-tactic board (renders on the board/analytics view) -->
@@ -7159,7 +7159,7 @@
      bundle (script-loader.js, 2026-08-07) — kicked at boot by dashboard-state.js
      when a saved theme exists, else with the Settings view / theme picker. -->
 <script defer src="js/prospects.js?v=5"></script>
-<script defer src="js/lead-source-roi.js?v=3"></script>
+<script defer src="js/lead-source-roi.js?v=4"></script>
 <!-- Reports: package mix, losses by reason, results per storm (2026-10-04). -->
 <script defer src="js/reports-numbers.js?v=1"></script>
 <script defer src="js/forecast-empirical.js?v=1"></script>

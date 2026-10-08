@@ -324,6 +324,18 @@ section.home-book{background:var(--navy);padding:var(--s6) 0;border-top:3px soli
 .hb-grid>*{min-width:0}
 .home-book .contact-form-card{padding:28px 20px}
 
+/* AREAS: one compact row of plain town links above the footer, so the town pages are a click from home */
+section.home-areas{background:var(--off-white);padding:var(--s5) 0;border-top:1px solid var(--light-gray)}
+section.home-areas h2.eyebrow{font-family:'Montserrat',sans-serif;font-size:.72rem!important;line-height:1.4!important;letter-spacing:.16em;color:var(--orange-dark);margin:0 0 var(--s2)}
+.ha-groups{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s3)}
+.ha-group{min-width:0}
+.ha-group h3{margin:0 0 4px;font-size:.78rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--navy-dark)}
+.ha-links{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:0 var(--s3)}
+.ha-links a{display:inline-flex;align-items:center;min-height:44px;color:var(--navy-dark);font-size:.9rem;font-weight:600;text-decoration:underline;text-decoration-color:rgba(18,34,61,.3);text-underline-offset:3px}
+.ha-links a:hover{color:var(--orange-dark);text-decoration-color:currentColor}
+.ha-all{display:inline-flex;align-items:center;min-height:var(--tap);margin-top:var(--s1);font-weight:700;font-size:.92rem;color:var(--orange-dark);text-decoration:none}
+.ha-all:hover{text-decoration:underline}
+
 /* motion: CSS only, and only for people who haven't asked for less */
 @media (prefers-reduced-motion:no-preference){
   .hx-hero h1,.hx-proof,.hx-cta{animation:fadeUp .6s ease both}
@@ -351,6 +363,7 @@ section.home-book{background:var(--navy);padding:var(--s6) 0;border-top:3px soli
   .hh-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:var(--s7);align-items:start}
   .hh-grid .hh-steps{margin-top:0}
   .hb-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--s7);align-items:start}
+  .ha-groups{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:var(--s6)}
 }
 
 /* STICKY PHONE BAR: Book is the filled button; Call / Text are the quick ones */
@@ -1044,6 +1057,44 @@ footer.foot a,.review-footer a{color:#bd5728!important}
           </form>
         </div>
       </div>
+  </div>
+</section>
+
+<!-- AREAS — a compact row of plain, crawlable links to the core town pages
+     (#2206 dropped the old areas grid; this keeps the town pages one click
+     from home without adding a second call to action). -->
+<section class="home-areas" id="areas" aria-labelledby="home-areas-h">
+  <div class="hx-wrap">
+    <h2 class="eyebrow" id="home-areas-h">Areas we serve</h2>
+    <div class="ha-groups">
+      <div class="ha-group">
+        <h3>Greater Cincinnati, OH</h3>
+        <ul class="ha-links">
+          <li><a href="/areas/cincinnati-oh">Cincinnati</a></li>
+          <li><a href="/areas/west-chester-oh">West Chester</a></li>
+          <li><a href="/areas/mason-oh">Mason</a></li>
+          <li><a href="/areas/loveland-oh">Loveland</a></li>
+          <li><a href="/areas/milford-oh">Milford</a></li>
+          <li><a href="/areas/batavia-oh">Batavia</a></li>
+          <li><a href="/areas/anderson-township-oh">Anderson Township</a></li>
+          <li><a href="/areas/blue-ash-oh">Blue Ash</a></li>
+          <li><a href="/areas/indian-hill-oh">Indian Hill</a></li>
+          <li><a href="/areas/montgomery-oh">Montgomery</a></li>
+          <li><a href="/areas/fairfield-oh">Fairfield</a></li>
+        </ul>
+      </div>
+      <div class="ha-group">
+        <h3>Northern Kentucky</h3>
+        <ul class="ha-links">
+          <li><a href="/areas/florence-ky">Florence</a></li>
+          <li><a href="/areas/covington-ky">Covington</a></li>
+          <li><a href="/areas/fort-mitchell-ky">Fort Mitchell</a></li>
+          <li><a href="/areas/erlanger-ky">Erlanger</a></li>
+          <li><a href="/areas/newport-ky">Newport</a></li>
+        </ul>
+      </div>
+    </div>
+    <a class="ha-all" href="/areas">All areas &rarr;</a>
   </div>
 </section>
 

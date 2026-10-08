@@ -148,7 +148,7 @@
 <div class="hero">
   <div class="hero-icon">🏆</div>
   <h1>The <span>Leaderboard</span></h1>
-  <p>Real numbers from your CRM. Doors knocked, deals closed, revenue earned.</p>
+  <p>Real numbers from your CRM. Doors knocked, deals booked, revenue collected.</p>
 </div>
 
 <!-- Period selector -->
@@ -162,7 +162,7 @@
 <!-- Category tabs -->
 <div class="tabs">
   <button class="tab-btn active" data-tab="doors">🚪 Doors Knocked</button>
-  <button class="tab-btn" data-tab="deals">🏆 Deals Closed</button>
+  <button class="tab-btn" data-tab="deals">🏆 Deals Booked</button>
   <button class="tab-btn" data-tab="revenue">💰 Revenue</button>
 </div>
 
@@ -170,7 +170,7 @@
 <div class="stat-summary" style="margin-top:16px;">
   <div class="stat-grid" id="summaryStats">
     <div class="stat-card"><div class="stat-val" id="sumKnocks">—</div><div class="stat-lbl">Doors</div></div>
-    <div class="stat-card"><div class="stat-val green" id="sumDeals">—</div><div class="stat-lbl">Deals Closed</div></div>
+    <div class="stat-card"><div class="stat-val green" id="sumDeals">—</div><div class="stat-lbl">Deals Booked</div></div>
     <div class="stat-card"><div class="stat-val blue" id="sumRevenue">—</div><div class="stat-lbl">Revenue</div></div>
     <div class="stat-card"><div class="stat-val" id="sumRate">—</div><div class="stat-lbl">Close Rate</div></div>
   </div>
@@ -196,8 +196,13 @@
   </div>
 </div>
 
+<!-- The shared sale test + job records (review R6-2-14): numbers-logic.js
+     (window.NBDNumbers.isSale / salesBetween) and jobs-store.js
+     (window.NBDJobs.records). Classic defer scripts run before the module. -->
+<script defer src="js/numbers-logic.js?v=2"></script>
+<script defer src="js/jobs-store.js?v=5"></script>
 <!-- Firebase -->
-<script type="module" src="js/pages/leaderboard.js?v=2"></script>
+<script type="module" src="js/pages/leaderboard.js?v=3"></script>
 
 </body>
 </html>

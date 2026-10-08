@@ -285,6 +285,46 @@ window.addEventListener('nbd:data-refreshed', (ev) => {
 // from that screen. The record is edited as what it is: an amount, a package,
 // notes. The amount is parsed to whole cents and stored back in the same
 // dollars shape the Log Estimate writer uses (amount + grandTotal mirrored).
+// PURE. The jobValue a lead should carry after its estimate `estAfter` was
+// re-priced, or null to leave the lead alone. Same rules as
+// window._saveEstimate's edit branch (R2-2-3) and the pre-flight Save
+// (R6-2-7): only the lead's PRIMARY estimate moves it, never to $0, only
+// when it changed. Signed price wins (Jo, 2026-10-07): an estimate with a
+// signed price books what the homeowner signed, not an unsigned re-price.
+function _loggedJobValueAfterEdit(lead, estAfter) {
+  if (!lead || !estAfter || !estAfter.id || String(lead.primaryEstimateId || '') !== String(estAfter.id)) return null;
+  const R = window.NBDCustomerEstimateRows;
+  const signedC = R && typeof R.signedTotalCents === 'function' ? R.signedTotalCents(estAfter) : null;
+  const val = signedC != null ? signedC / 100
+    : (R && typeof R.estimateValue === 'function' ? R.estimateValue(estAfter) : Number(estAfter.grandTotal));
+  if (!(Number.isFinite(val) && val > 0) || val === Number(lead.jobValue)) return null;
+  return val;
+}
+// Write that jobValue (best-effort: the estimate is already saved, so a
+// lead-write failure warns instead of failing the Save). The lead is read
+// fresh when getDoc is available, else from the loaded leads.
+async function _restampLoggedJobValue(est, patch) {
+  const leadId = est && est.leadId;
+  if (!leadId) return;
+  try {
+    let lead = null;
+    if (typeof window.getDoc === 'function') {
+      const snap = await window.getDoc(window.doc(window.db, 'leads', leadId));
+      lead = snap && snap.exists() ? snap.data() : null;
+    } else {
+      lead = (window._leads || []).find((l) => l && l.id === leadId) || null;
+    }
+    const val = _loggedJobValueAfterEdit(lead, Object.assign({}, est, patch));
+    if (val == null) return;
+    await window.updateDoc(window.doc(window.db, 'leads', leadId), {
+      jobValue: val,
+      lastEstimateAt: (typeof window.serverTimestamp === 'function') ? window.serverTimestamp() : new Date(),
+    });
+  } catch (err) {
+    console.warn('[logged estimate] lead jobValue re-stamp failed:', err);
+  }
+}
+
 function _openLoggedEstimateEditor(est) {
   const prev = document.getElementById('logged-est-editor');
   if (prev) prev.remove();
@@ -419,6 +459,10 @@ function _openLoggedEstimateEditor(est) {
     saveBtn.textContent = 'Saving…';
     try {
       await window.updateDoc(window.doc(window.db, 'estimates', est.id), patch);
+      // The lead's PRIMARY estimate re-priced here moves lead.jobValue — the
+      // kanban, Home, Numbers and crm_summary read jobValue, not the estimate
+      // (review R6-2-7; same rules as window._saveEstimate's edit branch).
+      await _restampLoggedJobValue(est, patch);
       close();
       showToast('✓ Estimate updated', 'success');
       if (typeof window.loadEstimates === 'function') {

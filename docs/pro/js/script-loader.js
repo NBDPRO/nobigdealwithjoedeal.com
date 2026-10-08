@@ -156,7 +156,7 @@
     // the owner-only data reads (numbers-data.js) are eager on the page; this
     // is just the view.
     weekreview: [
-      'js/week-review.js?v=2'
+      'js/week-review.js?v=3'
     ],
     // Catch up my numbers (2026-10-04, #/catchup): the deck rules, then the
     // view. numbers-logic / numbers-data / the lost-reason picker and
@@ -341,9 +341,9 @@
       // Pure knock→lead rules + the lead event writer the core's convert uses (2026-10-03).
       'js/d2d-knock-lead-logic.js?v=1',
       'js/lead-events.js?v=1',
-      'js/d2d-tracker-core-2026b.js?v=16',
-      'js/d2d-tracker-ui-2026b.js?v=10',
-      'js/d2d-tracker-2026b.js?v=4'
+      'js/d2d-tracker-core-2026b.js?v=17',
+      'js/d2d-tracker-ui-2026b.js?v=11',
+      'js/d2d-tracker-2026b.js?v=5'
     ],
     // PDF export libs (PR 2b2). jsPDF + html2pdf — ~1.1 MB combined (html2pdf
     // bundles html2canvas + its own jsPDF). The ONLY dashboard consumer is the

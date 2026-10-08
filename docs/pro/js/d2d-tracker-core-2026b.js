@@ -976,6 +976,16 @@
       tapLat: lat, tapLng: lng, nomRev, nomFwd, gpsWarn,
       google: callable && callable.google, regrid: callable && callable.regrid
     });
+    // No source had a house number, but the street is known (a GPS fix or a
+    // tap on a road): hand back the street so the knock sheet can fill it in
+    // and ask for just the door number (2026-10-08).
+    if (!res.address && nomRev) {
+      const zipLine = [nomRev.state, nomRev.zip].filter(Boolean).join(' ');
+      const street = nomRev.road
+        ? [nomRev.road, nomRev.city, zipLine].filter(Boolean).join(', ')
+        : String(nomRev.formatted || '').replace(/^\s*\d+[a-zA-Z]?\b[\s,]*/, '');
+      if (street) res.street = street;
+    }
     // Snap-to-parcel: if we got a county parcel polygon, draw it on the map so
     // the rep can see the pin sits on the right house, and hand the geometry
     // back for callers that want it.
@@ -2009,10 +2019,18 @@
     ]);
   }
 
-  async function submitKnock(data, fromSync) {
+  // Offline, the knock waits in the on-phone queue and this returns
+  // QUEUED_PREFIX + its clientTempId (2026-10-08, knock-sheet lane). It used to
+  // return null — the same value as a failed save — so the sheet stayed open
+  // after "Saved offline", and a second tap queued the same door twice.
+  // null still means "not saved" (queue full / write failed).
+  // opts.quiet: the caller shows its own confirmation (the one-tap undo bar).
+  const QUEUED_PREFIX = 'queued:';
+  async function submitKnock(data, fromSync, opts) {
+    opts = opts || {};
     if (!state.isOnline && !fromSync) {
-      enqueueOffline('submitKnock', data);
-      return null;
+      if (!data.clientTempId) data.clientTempId = String(Date.now());
+      return enqueueOffline('submitKnock', data) ? QUEUED_PREFIX + data.clientTempId : null;
     }
 
     try {
@@ -2133,7 +2151,7 @@
       await loadKnocks();
       if (window.D2D && typeof window.D2D.renderD2D === 'function') window.D2D.renderD2D();
       refreshMapMarkers();
-      window.showToast?.(`${DISPOSITIONS[disposition].icon} ${DISPOSITIONS[disposition].label} — ${data.address}`, 'success');
+      if (!opts.quiet) window.showToast?.(`${DISPOSITIONS[disposition].icon} ${DISPOSITIONS[disposition].label} — ${data.address}`, 'success');
 
       // ── Auto-convert hot dispositions into CRM leads ──
       // Appointment/Interested/Storm Damage/Insurance dispositions auto-create
@@ -2189,6 +2207,35 @@
     } catch (e) {
       console.error('deleteKnock failed:', e);
       window.showToast?.('Failed to delete knock', 'error');
+    }
+  }
+
+  // Undo for a knock saved a moment ago (the one-tap outcome's undo bar).
+  // No confirm — the rep just tapped Undo. `ref` is what submitKnock
+  // returned: a Firestore id, or QUEUED_PREFIX + clientTempId for a knock
+  // still waiting in the offline queue (dropped from the queue, never sent).
+  // Only offered for outcomes that don't create a CRM lead.
+  async function undoKnock(ref) {
+    ref = String(ref || '');
+    if (!ref) return false;
+    if (ref.indexOf(QUEUED_PREFIX) === 0) {
+      const tempId = ref.slice(QUEUED_PREFIX.length);
+      const before = state.offlineQueue.length;
+      state.offlineQueue = state.offlineQueue.filter((it) =>
+        !(it && it.action === 'submitKnock' && it.data && String(it.data.clientTempId) === tempId));
+      if (state.offlineQueue.length === before) return false;
+      saveOfflineQueue();
+      return true;
+    }
+    try {
+      await _withTimeout(window.deleteDoc(window.doc(window._db, 'knocks', ref)), 12000, 'deleteDoc(knocks)');
+      await loadKnocks();
+      if (window.D2D && typeof window.D2D.renderD2D === 'function') window.D2D.renderD2D();
+      refreshMapMarkers();
+      return true;
+    } catch (e) {
+      console.error('undoKnock failed:', e);
+      return false;
     }
   }
 
@@ -5149,6 +5196,8 @@
   state.toggleLayerPanel = () => _setLayerPanelOpen(!_layerPanelOpen);
   state.d2dSearchAddress = d2dSearchAddress;
   state.submitKnock = submitKnock;
+  state.undoKnock = undoKnock;
+  state.QUEUED_PREFIX = QUEUED_PREFIX;
   state.updateKnock = updateKnock;
   state.deleteKnock = deleteKnock;
   state.convertToLead = convertToLead;
