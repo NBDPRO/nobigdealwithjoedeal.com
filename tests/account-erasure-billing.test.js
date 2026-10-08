@@ -166,7 +166,9 @@ function fakeDb(docs, opts) {
       'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => (o.noKey ? '' : 'sk_test_fake') }) },
       './heartbeat': { onSchedule: (op, h) => ({ __handler: h }) },
       'firebase-admin/firestore': { getFirestore: () => db, Timestamp: { fromMillis: (ms) => ({ toMillis: () => ms }) }, FieldValue: { serverTimestamp: () => 'ts' } },
-      'firebase-admin/auth': { getAuth: () => ({ updateUser: async () => events.push('auth-disable'), revokeRefreshTokens: async () => {} }) },
+      // getUser: erasure now resolves who is asking first (2026-10-08 member
+      // suspend); u1 is a claimless solo account, so the erase path runs.
+      'firebase-admin/auth': { getAuth: () => ({ getUser: async (uid) => ({ uid, email: 'pat@example.test' }), updateUser: async () => events.push('auth-disable'), revokeRefreshTokens: async () => {} }) },
       'firebase-admin/storage': { getStorage: () => ({ bucket: () => ({ deleteFiles: async () => events.push('storage-delete') }) }) },
       './upstash-ratelimit': { httpRateLimit: async () => true, enforceRateLimit: async () => ({}) },
       stripe: StripeCtor,

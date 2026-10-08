@@ -174,7 +174,12 @@ section('D7: GDPR two-step erasure');
     // M-01: query shape is now split across lines in the
     // registry-driven loop; allow whitespace/newlines between tokens.
     /where\(\s*ownerField,\s*'==',\s*uid\s*\)[\s\S]{0,40}\.limit\(500\)/.test(src)
-    || /where\('userId',\s*'==',\s*uid\)[\s\S]{0,40}\.limit\(500\)/.test(src));
+    || /where\('userId',\s*'==',\s*uid\)[\s\S]{0,40}\.limit\(500\)/.test(src)
+    // 2026-10-08: the solo sweep pages through sweep() with a cursor (docs of
+    // another tenant are kept, so they still match the query); behaviour is
+    // pinned in tests/member-erasure-suspend-2026-10-08.test.js section C.
+    || (/sweep\(spec\.name, \(\) => db\.collection\(spec\.name\)\.where\(ownerField, '==', uid\)/.test(src)
+      && /q\.limit\(500\)\.get\(\)/.test(src)));
   assert('disables Auth account + revokes refresh tokens',
     /updateUser\(uid, \{ disabled: true \}\)[\s\S]{0,60}revokeRefreshTokens/.test(src));
   const rules = read(path.join(ROOT, 'firestore.rules'));

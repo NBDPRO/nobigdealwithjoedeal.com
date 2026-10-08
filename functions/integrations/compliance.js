@@ -30,6 +30,17 @@ const { FieldValue } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 const { defineSecret } = require('firebase-functions/params');
 const { cancelBillingForErasure, REFUSAL_MESSAGE: BILLING_REFUSAL } = require('./erasure-billing');
+// Jo 2026-10-08: a TEAM MEMBER's erasure suspends instead of deleting (their
+// records are the company's customers); see erasure-scope.js.
+const {
+  resolveErasureScope,
+  belongsToOtherTenant,
+  suspendMemberForErasure,
+  OUTCOME_NOTE: MEMBER_OUTCOME_NOTE,
+  SUSPEND_MESSAGE: MEMBER_SUSPEND_MESSAGE,
+  OWNER_WITH_TEAM_MESSAGE,
+} = require('./erasure-scope');
+const { revokeMemberAccessTokens } = require('../member-offboarding');
 
 // Stripe (2026-10-03): erasure cancels the user's subscription before it
 // deletes the only record of it. Redeclared per module like stripe.js /
@@ -407,14 +418,30 @@ exports.requestAccountErasure = onCall(
     try { await rl.enforceRateLimit('requestErasure:uid', uid, 3, 24 * 3_600_000); }
     catch (e) { if (e.rateLimited) throw new HttpsError('resource-exhausted', 'Too many erasure requests.'); throw e; }
 
+    const db = getFirestore();
+    // Who is asking decides what the confirmation email promises (the confirm
+    // step re-resolves; this is for honest copy and an early refusal).
+    let scope;
+    try {
+      scope = await resolveErasureScope({ db, auth: getAuth(), uid });
+    } catch (e) {
+      logger.error('requestAccountErasure: scope lookup failed', { uid, err: e.message });
+      throw new HttpsError('unavailable', 'Could not check your account. Please try again.');
+    }
+    if (scope.mode === 'owner_with_team') {
+      throw new HttpsError('failed-precondition', OWNER_WITH_TEAM_MESSAGE);
+    }
+    const isMember = scope.mode === 'member';
+
     const token = crypto.randomBytes(32).toString('hex');
     const hash  = crypto.createHash('sha256').update(token).digest('hex');
-    const db = getFirestore();
     await db.doc('account_erasures/' + uid).set({
       tokenHash: hash,
       requestedAt: FieldValue.serverTimestamp(),
       expiresAt: Timestamp.fromMillis(Date.now() + 24 * 3_600_000),
-      confirmed: false
+      confirmed: false,
+      mode: scope.mode,
+      companyId: scope.companyId,
     });
 
     // Email the link. The email-functions module is already wired
@@ -447,6 +474,11 @@ exports.requestAccountErasure = onCall(
         subject: 'Confirm account deletion — NBD Pro',
         bodyPlain:
           'You (or someone using your account) requested that your NBD Pro account be permanently deleted.\n\n' +
+          (isMember
+            ? 'You are on a team, so confirming SUSPENDS your account instead of deleting it: you can no longer sign in, '
+              + 'and the customer records you worked on stay with your company, along with your account information. '
+              + 'Only your company owner or an admin can turn the account back on.\n\n'
+            : '') +
           'To confirm, open this link within 24 hours:\n' +
           confirmUrl + '\n\n' +
           'If you did not make this request, you can ignore this email — your account will remain active.',
@@ -459,7 +491,7 @@ exports.requestAccountErasure = onCall(
       throw new HttpsError('unavailable', 'Could not send the confirmation email. Please try again.');
     }
 
-    return { success: true };
+    return { success: true, mode: scope.mode };
   }
 );
 
@@ -553,6 +585,10 @@ exports.confirmAccountErasure = onRequest(
         '<p>This cancels any active NBD Pro subscription (billing stops immediately) and removes your leads, estimates, photos, pins, tasks, documents, training sessions, profile, and subscription record. ' +
         'Your Auth account is disabled. This cannot be undone.</p>' +
         retainedHtml +
+        '<p><strong>On a team?</strong> If you work under another person\'s company, nothing is deleted: ' +
+        'your account is suspended instead. You can no longer sign in, the customer records you worked on stay ' +
+        'with your company along with your account information, and only your company owner or an admin can turn ' +
+        'the account back on.</p>' +
         '<p>If you did not request this, simply close this tab — nothing will happen.</p>' +
         '<form id="f"><button id="b" type="submit">Yes, delete my account</button>' +
         '<a class="cancel" href="/pro/dashboard.html">Cancel</a></form>' +
@@ -565,7 +601,7 @@ exports.confirmAccountErasure = onRequest(
         'f.addEventListener("submit",function(ev){ev.preventDefault();b.disabled=true;b.textContent="Deleting...";' +
         'fetch(window.location.pathname,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({uid:uid,token:token})})' +
         '.then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d}});})' +
-        '.then(function(x){if(x.ok){s.className="ok";s.textContent="Account deleted. You can close this tab."+retainedMsg;f.style.display="none";}' +
+        '.then(function(x){if(x.ok){s.className="ok";s.textContent=(x.d&&x.d.suspended)?(x.d.message||"Account suspended."):("Account deleted. You can close this tab."+retainedMsg);f.style.display="none";}' +
         'else{s.className="err";s.textContent=(x.d&&x.d.error)||"Deletion failed.";b.disabled=false;b.textContent="Yes, delete my account";}})' +
         '.catch(function(){s.className="err";s.textContent="Network error.";b.disabled=false;b.textContent="Yes, delete my account";});' +
         '});' +
@@ -624,6 +660,25 @@ exports.confirmAccountErasure = onRequest(
       res.status(410).json({ error: 'Link expired' }); return;
     }
 
+    // WHO is being erased, resolved now (not trusted from the request doc:
+    // membership can change in the 24h window). Jo 2026-10-08: a team
+    // member's records are the company's customers, so a member is SUSPENDED
+    // and nothing is deleted; an owner whose company still has members is
+    // refused; only a solo owner is erased. A lookup failure refuses with
+    // nothing changed: guessing 'solo' would be the delete-everything branch.
+    let scope;
+    try {
+      scope = await resolveErasureScope({ db, auth: getAuth(), uid });
+    } catch (e) {
+      logger.error('confirmAccountErasure: scope lookup failed, nothing changed', { uid, err: e && e.message });
+      res.status(503).json({ error: 'Could not check your account right now. Nothing has been changed; open the same link again to retry.', code: 'scope_unavailable' });
+      return;
+    }
+    if (scope.mode === 'owner_with_team') {
+      res.status(409).json({ error: OWNER_WITH_TEAM_MESSAGE, code: 'owner_has_team', teamSize: scope.teamSize });
+      return;
+    }
+
     // Billing FIRST (2026-10-03, legal-checklist audit). The cascade below
     // deletes subscriptions/{uid} — the only record of the Stripe ids — so a
     // subscription left running here would keep charging a deleted user with
@@ -648,6 +703,60 @@ exports.confirmAccountErasure = onRequest(
     await reqRef.update({
       lastAttemptAt: FieldValue.serverTimestamp()
     });
+
+    // ── TEAM MEMBER: suspend, delete nothing (Jo 2026-10-08) ──
+    // Their leads/estimates/invoices/photos... are the company's records and
+    // stay exactly where they are (company-scoped, authorship kept); so does
+    // their own profile and tracker data ("save all their info"). What goes
+    // is ACCESS: bot keys + calendar feeds revoked, roster row deactivated
+    // (reason 'self-erasure', which no self-serve or billing path restores),
+    // Auth disabled, sessions revoked. The companyId claim is kept on purpose
+    // so the owner or a company_admin can Re-enable them (deactivateUser
+    // reactivate gates on that claim, same tenant, owner/admin only).
+    if (scope.mode === 'member') {
+      let suspended;
+      try {
+        suspended = await suspendMemberForErasure({
+          db, auth: getAuth(), uid, scope,
+          revokeTokens: revokeMemberAccessTokens,
+          serverTimestamp: () => FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        const failure = { step: 'suspend', target: 'member', err: String((e && e.message) || e).slice(0, 300) };
+        logger.error('confirmAccountErasure: member suspension failed, request left retryable', { uid, err: e && e.message });
+        await reqRef.update({ confirmed: false, partial: true, mode: 'member', failures: [failure], lastFailedAt: FieldValue.serverTimestamp() });
+        res.status(500).json({
+          error: 'Your account could not be suspended yet. Nothing has been deleted: open the same link again to finish, or contact support.',
+          code: 'suspend_failed', partial: true,
+        });
+        return;
+      }
+      await reqRef.update({
+        confirmed: true,
+        partial: false,
+        failures: [],
+        confirmedAt: FieldValue.serverTimestamp(),
+        mode: 'member',
+        outcome: 'suspended',
+        outcomeNote: MEMBER_OUTCOME_NOTE,
+        companyId: scope.companyId,
+        deleted: false,
+      });
+      await db.collection('audit_log').add({
+        type: 'gdpr_erasure_member_suspended',
+        op: 'suspend',
+        ids: { uid, companyId: scope.companyId },
+        note: MEMBER_OUTCOME_NOTE,
+        retained: 'all',
+        revoked: { agentKeys: suspended.agentKeys || 0, calendarFeeds: suspended.calendarFeeds || 0 },
+        roster: suspended.roster || null,
+        stripeCancelled: billing.cancelled,
+        ts: FieldValue.serverTimestamp()
+      });
+      res.status(200).json({ success: true, suspended: true, retained: 'all', message: MEMBER_SUSPEND_MESSAGE });
+      return;
+    }
+
     const failures = [];
     const fail = (step, target, e) => {
       failures.push({ step, target, err: String((e && e.message) || e).slice(0, 300) });
@@ -673,30 +782,58 @@ exports.confirmAccountErasure = onRequest(
     //       feature_flags). `account_erasures/{uid}` intentionally
     //       NOT deleted — it's the audit trail for this operation.
 
+    // Solo only from here. Tenant guard (2026-10-08): a doc carrying this uid
+    // that belongs to ANOTHER company (its companyId, or the company of the
+    // lead it hangs off) is kept, not deleted. Counted on the audit row.
+    const ownCompany = scope.companyId;
+    const leadCompany = new Map();
+    const leadCompanyOf = async (leadId) => {
+      if (!leadCompany.has(leadId)) {
+        const s = await db.doc('leads/' + leadId).get();
+        leadCompany.set(leadId, s.exists ? ((s.data() || {}).companyId || null) : null);
+      }
+      return leadCompany.get(leadId);
+    };
+    const keptForeign = {};
+    const keep = (name) => { keptForeign[name] = (keptForeign[name] || 0) + 1; };
+    // Pages with a cursor, because kept docs still match the query.
+    async function sweep(name, makeQuery, deleteDocs) {
+      let last = null;
+      while (true) {
+        let q = makeQuery();
+        if (last) q = q.startAfter(last);
+        const snap = await q.limit(500).get();
+        if (snap.empty) break;
+        const mine = [];
+        for (const d of snap.docs) {
+          const path = d.ref && d.ref.path;
+          if (await belongsToOtherTenant(d.data(), path, ownCompany, leadCompanyOf)) keep(name);
+          else mine.push(d);
+        }
+        if (mine.length) await deleteDocs(mine);
+        last = snap.docs[snap.docs.length - 1];
+        if (snap.size < 500) break;
+      }
+    }
+
     // ── (1) flat-path collections ──
     for (const spec of FLAT_USER_COLLECTIONS) {
       const ownerField = spec.ownerField || 'userId';
       try {
-        while (true) {
-          const snap = await db.collection(spec.name)
-            .where(ownerField, '==', uid)
-            .limit(500)
-            .get();
-          if (snap.empty) break;
+        await sweep(spec.name, () => db.collection(spec.name).where(ownerField, '==', uid), async (docs) => {
           if (spec.recursive) {
             // Phase-2.1: recursiveDelete walks each doc + ALL its
             // subcollections. leads/{id}/{tasks,notes,documents,drawings,
             // portal_messages} don't all stamp userId, so a plain doc
             // delete (or the collectionGroup sweep below) would orphan
             // them — leaving homeowner project detail behind on erasure.
-            for (const d of snap.docs) await db.recursiveDelete(d.ref);
+            for (const d of docs) await db.recursiveDelete(d.ref);
           } else {
             const batch = db.batch();
-            snap.docs.forEach(d => batch.delete(d.ref));
+            docs.forEach(d => batch.delete(d.ref));
             await batch.commit();
           }
-          if (snap.size < 500) break;
-        }
+        });
       } catch (e) {
         fail('collection', spec.name, e);
       }
@@ -705,17 +842,11 @@ exports.confirmAccountErasure = onRequest(
     // ── (2) collectionGroup sweeps (subcollections with userId) ──
     for (const groupName of COLLECTION_GROUPS_WITH_USERID) {
       try {
-        while (true) {
-          const snap = await db.collectionGroup(groupName)
-            .where('userId', '==', uid)
-            .limit(500)
-            .get();
-          if (snap.empty) break;
+        await sweep(groupName, () => db.collectionGroup(groupName).where('userId', '==', uid), async (docs) => {
           const batch = db.batch();
-          snap.docs.forEach(d => batch.delete(d.ref));
+          docs.forEach(d => batch.delete(d.ref));
           await batch.commit();
-          if (snap.size < 500) break;
-        }
+        });
       } catch (e) {
         fail('collectionGroup', groupName, e);
       }
@@ -803,6 +934,7 @@ exports.confirmAccountErasure = onRequest(
         ids: { uid },
         failures,
         retained: ERASURE_RETAINED_PREFIXES,
+        keptOtherTenant: keptForeign,
         stripeCancelled: billing.cancelled,
         ts: FieldValue.serverTimestamp()
       });
@@ -821,7 +953,10 @@ exports.confirmAccountErasure = onRequest(
       confirmed: true,
       partial: false,
       failures: [],
-      confirmedAt: FieldValue.serverTimestamp()
+      confirmedAt: FieldValue.serverTimestamp(),
+      mode: 'solo',
+      outcome: 'erased',
+      keptOtherTenant: keptForeign,
     });
 
     await db.collection('audit_log').add({
@@ -829,6 +964,7 @@ exports.confirmAccountErasure = onRequest(
       op: 'delete',
       ids: { uid },
       retained: ERASURE_RETAINED_PREFIXES,
+      keptOtherTenant: keptForeign,
       stripeCancelled: billing.cancelled,
       ts: FieldValue.serverTimestamp()
     });
