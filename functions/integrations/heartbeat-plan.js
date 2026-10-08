@@ -75,6 +75,7 @@ const PLAN = {
   callCenterIngest:          { slug: 'calls-texts-ingest' },
   callCenterTranscribe:      { slug: 'calls-texts-ingest' },
   textInboxIngest:           { slug: 'calls-texts-ingest' },
+  leadAlertWatchdog:         { slug: 'calls-texts-ingest' }, // 2026-10-07: every 10 min; a /fail = a lead reached nobody even on the re-send
 
   runAbandonRecovery:        { slug: 'hourly-crons' },
   textInboxNotes:            { slug: 'hourly-crons' },

@@ -85,7 +85,10 @@ console.log("\n1. form-action 'self'");
   const all = [];
   rules.forEach((r) => (r.headers || []).forEach((h) => { if (CSP_KEYS.includes(h.key)) all.push([r.source || r.regex, h.key, h.value]); }));
   ok('positive control: firebase.json carries 10+ CSP headers', all.length >= 10, String(all.length));
-  const bad = all.filter(([, , v]) => JSON.stringify(parse(v)['form-action']) !== JSON.stringify(["'self'"]));
+  // The sample account (/pro/explore, Pro demo phase 2) is stricter on purpose:
+  // form-action 'none', since nothing there may post anywhere. Only those blocks.
+  const bad = all.filter(([src, , v]) => JSON.stringify(parse(v)['form-action']) !== JSON.stringify(["'self'"]) &&
+    !(/^\/pro\/explore(\/\*\*)?$/.test(String(src)) && JSON.stringify(parse(v)['form-action']) === JSON.stringify(["'none'"])));
   ok("every CSP and Report-Only policy has form-action 'self' (exactly)", bad.length === 0, bad.map((b) => b[0] + ' ' + b[1]).join(', '));
 
   // Every form the site ships must post same-origin, or the directive breaks it.

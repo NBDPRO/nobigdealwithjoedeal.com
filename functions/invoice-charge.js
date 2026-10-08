@@ -47,6 +47,10 @@ function chargeDueNow(inv, o) {
   const depMet = i.depositPaid === true || paidC >= depC;
   const depLeftC = split && !depMet ? Math.min(depC - paidC, balanceC) : 0;
   if (!(balanceC > 0)) return { kind: 'none', chargeCents: 0, balanceCents: 0, depositLeftCents: 0 };
+  // An insurance invoice made before the carrier's numbers were on the claim
+  // (deposit-rule.js invoiceDeposit, 2026-10-07): nothing is charged — not
+  // the whole job, which is what an invoice with no deposit used to charge.
+  if (i.awaitingCarrierNumbers === true) return { kind: 'awaiting', chargeCents: 0, balanceCents: balanceC, depositLeftCents: 0 };
   if (depLeftC > 0) return { kind: 'deposit', chargeCents: depLeftC, balanceCents: balanceC, depositLeftCents: depLeftC };
   return { kind: 'balance', chargeCents: balanceC, balanceCents: balanceC, depositLeftCents: 0 };
 }
@@ -58,11 +62,30 @@ function chargeDueNow(inv, o) {
  * link charges exactly what is due now: createStripePaymentLink stamps
  * stripeChargeCents on every mint; an unstamped link (minted before
  * 2026-10-06) charged total - amountPaid, so it fits only a plain balance.
- * @returns {{ amountCents, kind: 'deposit'|'balance', totalOwedCents, stripePaymentLink }}
+ *
+ * hold = ky-insurance-law.js payLinkHold(lead, inv) (2026-10-07, money audit
+ * H2). While a Kentucky insurance job is held, NOTHING is due: the card is
+ * kind 'held' with amountCents 0 and no link, and carries what comes next
+ * (nextCents — the deductible + first check, when the invoice knows it —
+ * and the release date) so the portal can say "nothing is due yet — here is
+ * what happens next" instead of "Balance due $13,250". An invoice waiting on
+ * the carrier's numbers is kind 'awaiting', also $0 and no link.
+ * @returns {{ amountCents, kind: 'deposit'|'balance'|'held'|'awaiting', totalOwedCents, stripePaymentLink,
+ *             nextCents?, releaseDate? }}
  */
-function portalBalanceCard(inv, payUrl) {
+function portalBalanceCard(inv, payUrl, hold) {
   const i = inv || {};
   const due = chargeDueNow(i);
+  if (hold && hold.held === true) {
+    return {
+      amountCents: 0, kind: 'held', totalOwedCents: 0, stripePaymentLink: null,
+      nextCents: due.kind === 'deposit' ? due.chargeCents : null,
+      releaseDate: String(hold.releaseDate || ''),
+    };
+  }
+  if (due.kind === 'awaiting') {
+    return { amountCents: 0, kind: 'awaiting', totalOwedCents: 0, stripePaymentLink: null };
+  }
   const stamped = i.stripeChargeCents != null && i.stripeChargeCents !== '' && Number.isFinite(Number(i.stripeChargeCents));
   const fits = stamped ? Math.round(Number(i.stripeChargeCents)) === due.chargeCents : due.kind === 'balance';
   const url = (fits && due.chargeCents > 0 && /^https:\/\//i.test(String(payUrl || ''))) ? String(payUrl) : null;
