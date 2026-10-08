@@ -86,7 +86,7 @@
     ],
     storm: [
       'js/storm-center.js?v=6',
-      'js/storm-integration.js?v=3',
+      'js/storm-integration.js?v=4',
       // SPC Day-1 outlook overlay (2026-09-05). Independent of the other two;
       // storm-center calls window.StormOutlook defensively if it is present.
       'js/storm-outlook.js?v=1'
@@ -98,7 +98,7 @@
       // Full packet / Paperwork only (2026-10-04) — also in the estimates
       // bundle; the loader runs it once.
       'js/deal-packet.js?v=1',
-      'js/close-board.js?v=14'
+      'js/close-board.js?v=16'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -194,7 +194,7 @@
       'js/nbd-logo-asset.js?v=3',
       'js/nbd-badge-assets.js?v=1',
       'js/document-generator.js?v=22',
-      'js/document-generator-templates.js?v=17',
+      'js/document-generator-templates.js?v=18',
       'js/document-generator-library.js?v=4', // 2026-10-04 template library; needs -templates' _tpl
       'js/doc-preflight.js?v=11',
       // Mobile job-detail Documents tab (dashboard-actions.js
@@ -269,10 +269,10 @@
       // Rock 2 PR 6: the estimates-list row actions (Firestore CRM ops, no
       // pricing math) split out of estimates.js.
       'js/estimate-crm-ops.js?v=3',
-      'js/estimate-finalization.js?v=10',
+      'js/estimate-finalization.js?v=11',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=33',
+      'js/estimate-v2-ui.js?v=34',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=5',
