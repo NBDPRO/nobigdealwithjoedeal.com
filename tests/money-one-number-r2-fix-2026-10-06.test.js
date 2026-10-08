@@ -352,7 +352,7 @@ function preflightDeposit(lead, estimate) {
     ok('portal: a held link ("" from payUrlUnlessHeld) is never offered', IC.portalBalanceCard(stampDep, '').stripePaymentLink === null);
     const portalSrc = stripComments(rd('functions/portal.js'));
     ok('functions/portal.js builds its Balance Due card from InvoiceCharge.portalBalanceCard (after the KY hold)',
-      /const _payUrl = _unpaidInvoice \? KyLaw\.payUrlUnlessHeld\(/.test(portalSrc) && /InvoiceCharge\.portalBalanceCard\(_unpaidInvoice, _payUrl\)/.test(portalSrc)
+      /const _payUrl = _unpaidInvoice \? KyLaw\.payUrlUnlessHeld\(/.test(portalSrc) && /InvoiceCharge\.portalBalanceCard\(_unpaidInvoice, _payUrl, _kyHold\)/.test(portalSrc)
         && !/amountCents:\s*Math\.round\(Number\(_unpaidInvoice\.balanceDue\)/.test(portalSrc));
     const pjs = stripComments(rd('docs/pro/js/portal.js'));
     ok('docs/pro/js/portal.js labels a deposit "Deposit Due"', /view\.balance\.kind === 'deposit'/.test(pjs) && /'Deposit Due'/.test(pjs));

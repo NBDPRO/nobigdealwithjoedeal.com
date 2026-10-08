@@ -54,6 +54,7 @@
     "tenant-path-locks-2026-10-05.test.js",
     "money-getting-paid-2026-10-03.test.js",
     "signed-price-r6-2026-10-07.test.js",
+    "ky-insurance-invoice-split-2026-10-07.test.js",
     "invoice-rounding-minjob-line-2026-10-05.test.js",
     "bulk-carrier-field-2026-09-28.test.js",
     "bulk-move-honest-count-2026-09-28.test.js",
