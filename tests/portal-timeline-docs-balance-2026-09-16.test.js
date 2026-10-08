@@ -170,7 +170,9 @@ if (labelSrc) {
    5. The balance card never renders a dead "Pay Now" button
    ══════════════════════════════════════════════════════════════════ */
 group('Balance card: no button at all without a real link', () => {
-  const block = liftBetween(PORTAL, "if (view.balance) {", "\n    }\n");
+  // 2026-10-07: a "nothing is due yet" card (KY hold / waiting on the
+  // carrier's numbers) renders first; the Balance/Deposit Due card follows.
+  const block = liftBetween(PORTAL, "if (view.balance && !_nothingDue) {", "\n    }\n");
   assert('found the balance-card render block', !!block);
   if (block) {
     assert('the Pay Now action is gated on view.balance.stripePaymentLink specifically',
@@ -195,7 +197,7 @@ group('Balance card: server never mints a payment link, only reads one', () => {
     assert('the pay link is only accepted when it is already an https URL',
       // 2026-10-06 (R2-2-6): the https test lives in invoice-charge.js
       // portalBalanceCard, which the card is built from.
-      /InvoiceCharge\.portalBalanceCard\(_unpaidInvoice, _payUrl\)/.test(buildBlock)
+      /InvoiceCharge\.portalBalanceCard\(_unpaidInvoice, _payUrl, _kyHold\)/.test(buildBlock)
       && /\/\^https:\\\/\\\/\/i\.test\(String\(payUrl/.test(fs.readFileSync(path.join(__dirname, '..', 'functions', 'invoice-charge.js'), 'utf8'))
       && /KyLaw\.payUrlUnlessHeld\(lead, _unpaidInvoice,/.test(buildBlock), buildBlock);
   }

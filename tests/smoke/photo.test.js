@@ -1188,8 +1188,12 @@ section('customer.html: perf — all <script src> defers, preconnect hints prese
   // HTML parsing until the script downloads + executes — that's the
   // 53-script TTI tax we just paid down.
   const scriptLines = customer.split('\n').filter(l => /<script[^>]*\ssrc=/.test(l));
+  // One deliberate exception (Pro demo phase 2, 2026-10-06): demo-mode.js is
+  // synchronous and first so its sample-account guard and network tripwire
+  // exist before any other script — on this real page it returns on line one.
   const blocking = scriptLines.filter(l =>
-    !/ defer[ >]/.test(l) && !/type="module"/.test(l) && !/ async[ >]/.test(l)
+    !/ defer[ >]/.test(l) && !/type="module"/.test(l) && !/ async[ >]/.test(l) &&
+    !/^<script src="\/pro\/js\/demo-mode\.js\?v=\d+"><\/script>\s*$/.test(l.trim())
   );
   assert('zero blocking <script src> tags remain in customer.html',
     blocking.length === 0,
