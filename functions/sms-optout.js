@@ -64,6 +64,22 @@ const COLLECTION = 'sms_opt_outs';
  * sender already calls isOptedOut, and isOptedOut now refuses to answer
  * (throws, which every caller treats as "do not send") unless it is told
  * whose list to check. Admin-SDK only (firestore.rules: no client access).
+ *
+ * LIFTED, NOT DELETED (Jo, 2026-10-07). When a homeowner who asked a company
+ * not to text them later says texting is OK, the owner or a company_admin
+ * lifts the company's OWN entry from the CRM with a required reason
+ * (liftDnc). The doc stays, marked
+ *     { lifted: true, liftedAt, liftedBy, liftedRole, liftReason }
+ * and every lift / reinstate is appended to `history` (the audit trail:
+ * who, when, why, what the entry was). A lifted entry blocks nothing. A new
+ * STOP or manual add on the same number reinstates it (addDnc).
+ *
+ * Liftable (liftEligibility): a 'manual' entry, or a 'stop_reply' entry the
+ * company recorded itself from its own phone (stopLine 'owner_phone' with
+ * stopCompanyId = this company; or, before R6-3-5, OWNER_STOP_NOTE). NEVER a
+ * STOP the homeowner texted to NBD's Twilio number (stopLine 'twilio', or an
+ * unattributed older stop_reply): the carrier holds that one too, and only
+ * their START reply lifts it (CTIA / TCPA).
  */
 const DNC_COLLECTION = 'sms_dnc';
 
@@ -241,7 +257,9 @@ async function lookupOptOut(db, phone, tenants) {
   // so it has no legacy records).
   for (const companyId of tenants) {
     const dnc = await db.doc(DNC_COLLECTION + '/' + companyId + '__' + key).get();
-    if (dnc.exists) {
+    // A lifted entry is history, not a block (liftDnc) — strictly `true`, so
+    // a malformed flag never un-blocks anyone.
+    if (dnc.exists && (dnc.data() || {}).lifted !== true) {
       // dncSource: 'stop_reply' = the homeowner's own STOP (a caller may say
       // "they replied STOP" rather than "on your Do Not Text list").
       const dncSource = ((dnc.data() || {}).source) === 'stop_reply' ? 'stop_reply' : 'manual';
@@ -320,6 +338,25 @@ async function addDnc(db, entry, serverTimestamp) {
     return { id, created: true };
   } catch (err) {
     if (!isAlreadyExists(err)) throw err;
+    // The entry is there but LIFTED (liftDnc): a new STOP or a new "don't
+    // text them" puts it back in force. The doc is rewritten as this new
+    // entry; its history (the earlier lift) is kept and the reinstatement
+    // appended. In a transaction, so a lift landing at the same moment can't
+    // leave the number un-blocked.
+    const reinstated = await db.runTransaction(async (tx) => {
+      const cur = await tx.get(ref);
+      const x = cur.exists ? (cur.data() || {}) : null;
+      if (!x || x.lifted !== true) return false;
+      tx.set(ref, Object.assign({}, doc, {
+        lifted: false,
+        history: appendHistory(x.history, {
+          action: 'reinstated', atMs: Date.now(), byUid: doc.addedBy,
+          source: doc.source, stopLine: doc.stopLine || null,
+        }),
+      }));
+      return true;
+    });
+    if (reinstated) return { id, created: false, reinstated: true };
     // A STOP told to this company's own phone outranks whatever entry is
     // there already (a manual add, or a copy of a business-line STOP that a
     // START on that line would lift): it becomes the company's own STOP, which
@@ -338,21 +375,82 @@ async function addDnc(db, entry, serverTimestamp) {
   }
 }
 
+const HISTORY_MAX = 50;
+/** history + one event, oldest dropped past HISTORY_MAX (a doc stays small). */
+function appendHistory(prev, ev) {
+  const list = Array.isArray(prev) ? prev.slice() : [];
+  list.push(ev);
+  return list.slice(-HISTORY_MAX);
+}
+
 /**
- * Take a number off a company's list. Only 'manual' entries come off this
- * way: a 'stop_reply' entry is the homeowner's own instruction and only their
- * START removes it (clearStopReplyDnc).
- * @returns {Promise<'removed'|'absent'|'stop_reply'>}
+ * May `companyId` lift this entry from the CRM? (Jo, 2026-10-07)
+ *
+ *   ok      a 'manual' entry, or a STOP the company recorded itself from its
+ *           own phone (owner_phone, stopCompanyId = companyId; pre-R6-3-5:
+ *           OWNER_STOP_NOTE with no stopLine).
+ *   reason  'stop_reply_line'  the homeowner texted STOP to NBD's Twilio
+ *                              number (or an older STOP nobody can attribute):
+ *                              only their START reply lifts it.
+ *           'other_company'    not this company's entry.
+ *           'lifted'           already lifted.
+ *
+ * @returns {{ok: boolean, reason: string|null}}
  */
-async function removeDnc(db, companyId, phone) {
-  const id = dncDocId(companyId, phone);
-  if (!id) return 'absent';
+function liftEligibility(entry, companyId) {
+  const x = entry || {};
+  const co = cleanTenant(companyId);
+  if (!co || cleanTenant(x.companyId) !== co) return { ok: false, reason: 'other_company' };
+  if (x.lifted === true) return { ok: false, reason: 'lifted' };
+  if (x.source !== 'stop_reply') return { ok: true, reason: null };
+  if (x.stopLine === STOP_LINE_OWNER_PHONE) {
+    return (cleanTenant(x.stopCompanyId) || co) === co
+      ? { ok: true, reason: null } : { ok: false, reason: 'other_company' };
+  }
+  if (!x.stopLine && x.note === OWNER_STOP_NOTE) return { ok: true, reason: null };
+  return { ok: false, reason: 'stop_reply_line' };
+}
+
+/**
+ * Lift a company's own Do Not Text entry: the homeowner said texting is OK
+ * again (Jo, 2026-10-07). The caller has already checked the role (owner /
+ * company_admin — sms-dnc.js). The entry is MARKED lifted, never deleted,
+ * with the reason, who and when, and the event appended to `history`.
+ *
+ * In a transaction: eligibility is decided on the doc as it is at write time,
+ * so a STOP that lands meanwhile is never overwritten by a lift.
+ *
+ * @param {{companyId: string, phone: string, byUid: string, role?: string,
+ *   reason: string, serverTimestamp?: Function}} args
+ * @returns {Promise<{result: 'lifted'|'absent'|'not_liftable', why?: string}>}
+ */
+async function liftDnc(db, args) {
+  const a = args || {};
+  const id = dncDocId(a.companyId, a.phone);
+  const reason = String(a.reason == null ? '' : a.reason).trim().slice(0, 300);
+  if (!id) return { result: 'absent' };
+  if (!reason) throw new Error('liftDnc needs a reason');
   const ref = db.doc(DNC_COLLECTION + '/' + id);
-  const snap = await ref.get();
-  if (!snap.exists) return 'absent';
-  if ((snap.data() || {}).source === 'stop_reply') return 'stop_reply';
-  await ref.delete();
-  return 'removed';
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return { result: 'absent' };
+    const x = snap.data() || {};
+    const elig = liftEligibility(x, a.companyId);
+    if (!elig.ok) return { result: 'not_liftable', why: elig.reason };
+    const role = String(a.role || '').slice(0, 40) || 'owner';
+    tx.update(ref, {
+      lifted: true,
+      liftedAt: a.serverTimestamp ? a.serverTimestamp() : new Date(),
+      liftedBy: a.byUid || null,
+      liftedRole: role,
+      liftReason: reason,
+      history: appendHistory(x.history, {
+        action: 'lifted', atMs: Date.now(), byUid: a.byUid || null, role, reason,
+        source: x.source || 'manual', stopLine: x.stopLine || null,
+      }),
+    });
+    return { result: 'lifted' };
+  });
 }
 
 /** A company's list, newest first. Bounded; single-field equality query. */
@@ -365,9 +463,18 @@ async function listDnc(db, companyId, limit) {
     : (v instanceof Date ? v.getTime() : (typeof v === 'number' ? v : 0));
   return snap.docs.map((d) => {
     const x = d.data() || {};
+    const elig = liftEligibility(x, co);
+    const lifted = x.lifted === true;
     return {
       key: x.key || '', phone: x.phone || '', source: x.source || 'manual',
       addedAtMs: ms(x.addedAt) || null, note: x.note || '',
+      // 'owner_phone' | 'twilio' | null — how the CRM words a STOP entry.
+      stopLine: x.stopLine || (x.source === 'stop_reply' && x.note === OWNER_STOP_NOTE ? STOP_LINE_OWNER_PHONE : null),
+      // Whether the owner / a company_admin may lift it, and if not, why.
+      liftable: elig.ok, liftBlock: elig.ok ? null : elig.reason,
+      lifted,
+      liftedAtMs: lifted ? (ms(x.liftedAt) || null) : null,
+      liftReason: lifted ? String(x.liftReason || '') : '',
     };
   }).sort((a, b) => (b.addedAtMs || 0) - (a.addedAtMs || 0));
 }
@@ -488,6 +595,9 @@ async function liftStopOnLine(db, phone, opts) {
   for (const d of snap.docs) {
     const x = d.data() || {};
     if (x.source !== 'stop_reply') continue; // a company's own decision stays
+    // Already lifted from the CRM (liftDnc): it blocks nothing, and deleting
+    // it would throw away its audit history.
+    if (x.lifted === true) continue;
     let stopLine = x.stopLine;
     let stopCo = cleanTenant(x.stopCompanyId);
     if (!stopLine) {
@@ -516,7 +626,8 @@ module.exports = {
   READ_TIMEOUT_MS,
   dncDocId,
   addDnc,
-  removeDnc,
+  liftDnc,
+  liftEligibility,
   listDnc,
   clearStopReplyDnc,
   copyStopToTenantLists,
