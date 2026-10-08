@@ -98,7 +98,7 @@
       // Full packet / Paperwork only (2026-10-04) — also in the estimates
       // bundle; the loader runs it once.
       'js/deal-packet.js?v=1',
-      'js/close-board.js?v=15'
+      'js/close-board.js?v=16'
     ],
     // Expenses & supplier-spend view — only loaded on the Expenses tab.
     // expense-config.js (the shared category/money source of truth) MUST load
@@ -196,7 +196,7 @@
       'js/document-generator.js?v=22',
       'js/document-generator-templates.js?v=18',
       'js/document-generator-library.js?v=4', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=10',
+      'js/doc-preflight.js?v=11',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the

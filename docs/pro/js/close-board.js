@@ -1185,7 +1185,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       band: _band ? { aprLo: _band.aprLo, aprHi: _band.aprHi, months: _band.defaultTermYears * 12, lender: _band.lender } : null,
     }).replace(/</g, '\\u003c')
   }</script>
-<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=4"><\/script>
+<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=5"><\/script>
 </body></html>`;
   }
 

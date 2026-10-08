@@ -77,6 +77,12 @@ function selectTier(tier) {
   const el = document.getElementById('tier-' + tier);
   if (el) el.classList.add('selected');
   updateFinancing();
+  // After a price-changed answer the button names the confirmed price — only
+  // for that package (showPriceChanged).
+  const sb = document.getElementById('submitBtn');
+  if (sb && confirmedBtnText != null) {
+    sb.textContent = (confirmed && confirmed.tier === tier) ? 'Accept at ' + formatCurrency(confirmed.price) : confirmedBtnText;
+  }
   checkReady();
 }
 
@@ -147,6 +153,57 @@ function clearSig() {
   checkReady();
 }
 
+// ── The price changed since this page was made (review R6-2-5, 2026-10-07) ──
+// submitDealAcceptance refuses an old price with 409 { code: 'price_changed',
+// tier, tierPrice, currentPrices, depositDue }. The homeowner sees the
+// CURRENT price here before anything is accepted; Accept then sends that
+// price back as confirmPrice and the server checks it against its own.
+let confirmed = null;
+let confirmedBtnText = null;
+function showPriceChanged(j) {
+  const btn = document.getElementById('submitBtn');
+  if (btn && confirmedBtnText == null) confirmedBtnText = btn.textContent;
+  let box = document.getElementById('dealPriceChanged');
+  if (!box && btn && btn.parentNode) {
+    box = document.createElement('div');
+    box.id = 'dealPriceChanged';
+    box.setAttribute('role', 'alert');
+    box.style.cssText = 'margin:14px auto 0;max-width:520px;padding:14px 16px;border-radius:10px;border:2px solid #BD5728;background:#fff7f2;color:#222;text-align:left;font-size:14px;line-height:1.5;';
+    btn.parentNode.insertBefore(box, btn);
+  }
+  const prices = (j && j.currentPrices) || {};
+  Object.keys(prices).forEach(function (t) { if (Number(prices[t]) > 0) CONFIG.prices[t] = Number(prices[t]); });
+  const has = j && j.tierPrice != null && Number(j.tierPrice) > 0;
+  if (box) {
+    box.textContent = '';
+    const head = document.createElement('strong');
+    head.textContent = 'This price was updated';
+    const p = document.createElement('p');
+    p.style.margin = '6px 0 0';
+    if (has) {
+      const due = (j.depositDue != null && Number(j.depositDue) > 0)
+        ? ' ' + formatCurrency(j.depositDue) + ' is due at signing.'
+        : (j.depositDue != null ? ' Nothing is due at signing.' : '');
+      p.textContent = 'Your rep changed this estimate after this page was made. The package you picked is now '
+        + formatCurrency(j.tierPrice) + '.' + due + ' Tap Accept again to agree to the new price, or call your rep with questions.';
+    } else {
+      p.textContent = (j && j.error) || 'Your rep changed this estimate after this page was made. Please ask your rep for the updated link.';
+    }
+    box.appendChild(head);
+    box.appendChild(p);
+  }
+  if (has) {
+    confirmed = { tier: j.tier, price: Number(j.tierPrice) };
+    updateFinancing();
+    if (btn) btn.textContent = 'Accept at ' + formatCurrency(j.tierPrice);
+    checkReady();
+  } else {
+    confirmed = null;
+    if (btn) btn.disabled = true;
+  }
+  if (box && box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 function readMeta(name) {
   const m = document.querySelector('meta[name="' + name + '"]');
   return m ? m.content : null;
@@ -169,11 +226,15 @@ async function submitDeal() {
     try {
       const r = await fetch(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: token, tier: selectedTier, financing: selectedFinance, signature: sigData, scheduledDate: schedDate, consent: !!(consentBox && consentBox.checked) })
+        body: JSON.stringify({ token: token, tier: selectedTier, financing: selectedFinance, signature: sigData, scheduledDate: schedDate, consent: !!(consentBox && consentBox.checked),
+          // Only after the server said the price changed AND the homeowner saw
+          // the new one (showPriceChanged) — for that package only.
+          confirmPrice: (confirmed && confirmed.tier === selectedTier) ? confirmed.price : null })
       });
       if (!r.ok) {
         const j = await r.json().catch(function () { return {}; });
         btn.disabled = false; btn.textContent = orig;
+        if (j && j.code === 'price_changed') { showPriceChanged(j); return; }
         alert((j && j.error) || 'Could not submit your acceptance. Please try again.');
         return;
       }

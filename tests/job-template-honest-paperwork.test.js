@@ -385,7 +385,10 @@ section('6. PORTAL — functions/portal.js tier label (lifted and run)');
   if (m && v) {
     const ctx = { tierApplies: SERVER_ROWS.tierApplies };
     vm.createContext(ctx);
-    vm.runInContext('this.__name = function (latest) { return (' + m[1] + '); };'
+    // Since review R6-2-2 (2026-10-07) the card reads the estimate's priced
+    // view (signed-price.js portalPriced) as `latestPriced` — the same doc
+    // when it carries no signed price, as here.
+    vm.runInContext('this.__name = function (latest) { var latestPriced = latest; return (' + m[1] + '); };'
       + 'this.__tier = function (est) { return (' + v[1] + '); };', ctx);
     const name = ctx.__name, tier = ctx.__tier;
     ok('new gutter template estimate → no tier name', name(payloadFor(['jt_gi_k5_seamless_full'])) === null);
