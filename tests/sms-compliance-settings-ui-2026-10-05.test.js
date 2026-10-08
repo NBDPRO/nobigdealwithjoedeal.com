@@ -13,9 +13,10 @@
  *      with defer; no inline handlers or style attributes (CSP + ratchet).
  *   B. an unregistered company sees "needs registration — coming soon" and
  *      no switch; NBD's owner sees the switch, a rep sees it disabled.
- *   C. the list: STOP-reply entries can never be removed from here, manual
- *      ones can (owner / company_admin only), a viewer gets no add form, and
- *      every value is escaped.
+ *   C. the list: STOP-reply entries texted to the line can never be lifted
+ *      from here, manual ones can (owner / company_admin only), a viewer gets
+ *      no add form, and every value is escaped. (Lift sheet + reason:
+ *      tests/sms-lift-stop-2026-10-07.test.js.)
  *   D. actions call the callable with the right payloads; a bad number never
  *      reaches it; turning texting off asks first.
  *
@@ -53,7 +54,7 @@ function load(opts) {
     getSettings: { allowed: true, reason: null, registered: true, enabled: true, needsRegistration: false },
     listDnc: { entries: [] },
     addDnc: { ok: true, created: true },
-    removeDnc: { ok: true, result: 'removed' },
+    liftDnc: { ok: true, result: 'lifted', stillBlocked: null },
     setEnabled: { ok: true, allowed: false },
   }, o.responses || {});
   const win = {
@@ -142,21 +143,21 @@ function target(attrs) {
     await h.win.NBDSmsCompliance.load(); await flush();
     const html = h.mount.innerHTML;
     ok('both numbers listed, formatted', /\(859\) 555-0134/.test(html) && /\(513\) 555-0123/.test(html));
-    ok('the STOP-reply entry says only their START lifts it — and has NO remove button',
-      /Replied STOP — only their START reply lifts it/.test(html) && !/data-scc-phone="8595550134"/.test(html));
-    ok('the manual entry has a remove button for the owner', /data-scc-action="remove" data-scc-phone="5135550123"/.test(html));
+    ok('the STOP-reply entry says only their START lifts it — and has NO lift button',
+      /Opted out by text — only their START reply lifts it/.test(html) && !/data-scc-phone="8595550134"/.test(html));
+    ok('the manual entry has a Lift button for the owner', /data-scc-action="lift" data-scc-phone="5135550123"/.test(html));
     ok('a note is escaped (no live markup from a typed note)', !/<img src=x/.test(html) && /&lt;img src=x/.test(html));
     ok('an add form for the owner', /id="sccPhone"/.test(html) && /data-scc-action="add"/.test(html));
   }
   {
     const h = load({ claims: { companyId: 'co-1', role: 'sales_rep' }, uid: 'rep', responses: { listDnc: { entries: ENTRIES } } });
     await h.win.NBDSmsCompliance.load(); await flush();
-    ok('a sales rep can add but sees no remove button', /data-scc-action="add"/.test(h.mount.innerHTML) && !/data-scc-action="remove"/.test(h.mount.innerHTML));
+    ok('a sales rep can add but sees no lift button', /data-scc-action="add"/.test(h.mount.innerHTML) && !/data-scc-action="lift"/.test(h.mount.innerHTML));
   }
   {
     const h = load({ claims: { companyId: 'co-1', role: 'viewer' }, uid: 'v', responses: { listDnc: { entries: ENTRIES } } });
     await h.win.NBDSmsCompliance.load(); await flush();
-    ok('a viewer sees the list but no add form and no remove', !/id="sccPhone"/.test(h.mount.innerHTML) && !/data-scc-action="remove"/.test(h.mount.innerHTML) && /\(859\) 555-0134/.test(h.mount.innerHTML));
+    ok('a viewer sees the list but no add form and no lift', !/id="sccPhone"/.test(h.mount.innerHTML) && !/data-scc-action="lift"/.test(h.mount.innerHTML) && /\(859\) 555-0134/.test(h.mount.innerHTML));
   }
 
   // ═══ D. actions ════════════════════════════════════════════════════════
@@ -173,11 +174,6 @@ function target(attrs) {
     const h = load({ claims: {}, uid: 'joe', phone: '555-0123' });
     await click(h, { 'data-scc-action': 'add' });
     ok('a number that is not 10 digits never reaches the callable', !h.calls.some((c) => c[1].action === 'addDnc') && h.toasts.some(([k]) => k === 'error'));
-  }
-  {
-    const h = load({ claims: {}, uid: 'joe' });
-    await click(h, { 'data-scc-action': 'remove', 'data-scc-phone': '5135550123' });
-    ok('Remove → { action: removeDnc, phone }', h.calls.some((c) => c[1].action === 'removeDnc' && c[1].phone === '5135550123'));
   }
   {
     const h = load({ claims: {}, uid: 'joe', confirm: false });
