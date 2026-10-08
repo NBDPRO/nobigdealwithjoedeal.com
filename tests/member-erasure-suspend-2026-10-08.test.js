@@ -184,6 +184,7 @@ const mkRes = () => ({ code: 200, body: null, setHeader() {}, status(c) { this.c
 function teamSeed(extra) {
   return Object.assign({
     'companies/co-a': { ownerId: 'owner', name: 'Acme Roofing' },
+    'subscriptions/co-a': { status: 'active', plan: 'enterprise' }, // uncapped seats for assignSeats
     'companies/co-a/members/rep@x.test': { uid: 'rep', email: 'rep@x.test', status: 'active', role: 'sales_rep' },
     'companies/co-a/members/admin2@x.test': { uid: 'admin2', email: 'admin2@x.test', status: 'active', role: 'company_admin' },
     'companies/co-b': { ownerId: 'ownerB', name: 'Other Co' },
@@ -431,6 +432,164 @@ const audits = (db) => [...db.store.entries()].filter(([k]) => /^audit_log\//.te
     const A = loadWith('handlers/auth.js', baseStubs(db, fakeAuth({}, []), []));
     const out = await A.run(() => A.mod.activateInvitedRep.__handler({ auth: { uid: 'n1', token: { companyId: 'co-a', role: 'sales_rep', email: 'new@x.test' } } }));
     ok('control: an invited rep still activates', out && out.activated === true && db.store.g('companies/co-a/members/new@x.test').status === 'active');
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('H. assignSeats: a suspended admin cannot re-enable themselves (#2318 review)');
+  function invitesRig(R) {
+    const stubs = Object.assign(baseStubs(R.db, fakeAuth(R.users, []), []), {
+      'firebase-functions/v2/firestore': { onDocumentCreated: (o, h) => ({ __handler: h }) },
+      resend: { Resend: function () { return {}; } },
+    });
+    return loadWith('handlers/invites.js', stubs);
+  }
+  async function assignAs(R, callerUid, emails) {
+    const I = invitesRig(R);
+    let out = null, err = null;
+    try {
+      out = await I.run(() => I.mod.assignSeats.__handler({
+        auth: { uid: callerUid, token: Object.assign({ email: R.users[callerUid].email }, R.users[callerUid].customClaims) },
+        data: { activeEmails: emails },
+      }));
+    } catch (e) { err = e; }
+    return { out, err };
+  }
+  {
+    const R = complianceRig(teamSeed({ 'account_erasures/admin2': pending() }), teamUsers());
+    await R.post('admin2');
+    const { err } = await assignAs(R, 'admin2', ['admin2@x.test', 'rep@x.test']);
+    const m = R.db.store.g('companies/co-a/members/admin2@x.test');
+    ok('suspended admin2 calling assignSeats with own email is refused', !!err && err.code === 'permission-denied', err ? err.code + ' ' + err.message : 'no error');
+    ok("...still disabled, roster reason still 'self-erasure'", R.users.admin2.disabled === true && m.status === 'deactivated' && m.deactivatedReason === 'self-erasure', JSON.stringify(m));
+  }
+  {
+    // Second lock: even an ENABLED admin cannot flip their own row (requireTeamAdmin passes here).
+    const R = complianceRig(teamSeed({
+      'companies/co-a/members/admin2@x.test': { uid: 'admin2', email: 'admin2@x.test', status: 'deactivated', role: 'company_admin', deactivatedReason: 'owner-removed' },
+    }), teamUsers());
+    const { err } = await assignAs(R, 'admin2', ['admin2@x.test']);
+    const m = R.db.store.g('companies/co-a/members/admin2@x.test');
+    ok("assignSeats never re-activates the caller's own row", !err && m.status === 'deactivated' && m.deactivatedReason === 'owner-removed', (err && err.message) + ' ' + JSON.stringify(m));
+  }
+  {
+    const R = complianceRig(teamSeed({ 'account_erasures/admin2': pending() }), teamUsers());
+    await R.post('admin2');
+    const { err } = await assignAs(R, 'owner', ['admin2@x.test', 'rep@x.test']);
+    const m = R.db.store.g('companies/co-a/members/admin2@x.test');
+    ok('control: the OWNER can re-enable admin2 through assignSeats', !err && R.users.admin2.disabled === false && m.status === 'active', err && err.message);
+  }
+  {
+    // requireTeamAdmin refuses any disabled caller, not only via assignSeats.
+    const R = complianceRig(teamSeed({ 'account_erasures/admin2': pending() }), teamUsers());
+    await R.post('admin2');
+    const A = loadWith('handlers/admin.js', baseStubs(R.db, fakeAuth(R.users, []), []));
+    let err = null;
+    try { await A.run(() => A.mod.deactivateUser.__handler({ auth: { uid: 'admin2', token: { companyId: 'co-a', role: 'company_admin' } }, data: { uid: 'admin2', reactivate: true } })); } catch (e) { err = e; }
+    ok('a suspended company_admin cannot call deactivateUser either (requireTeamAdmin checks Auth)', !!err && err.code === 'permission-denied' && /suspended/.test(err.message) && R.users.admin2.disabled === true, err && err.message);
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('I. owner-with-team detection covers invited-with-uid rows and claim holders without a row');
+  {
+    const seed = {
+      'companies/co-c': { ownerId: 'oc' }, 'account_erasures/oc': pending(), 'leads/C1': { userId: 'oc', companyId: 'co-c' },
+      // createTeamMember stamps claims and leaves the row 'invited' with a uid
+      'companies/co-c/members/m@x.test': { uid: 'mc', email: 'm@x.test', status: 'invited', role: 'sales_rep' },
+    };
+    const users = { oc: { email: 'oc@x.test', customClaims: { companyId: 'co-c', role: 'company_admin' } }, mc: { email: 'm@x.test', customClaims: { companyId: 'co-c', role: 'sales_rep' } } };
+    const R = complianceRig(seed, users);
+    const res = await R.post('oc');
+    ok("an 'invited' roster row with a uid counts: 409, nothing deleted", res.code === 409 && res.body.code === 'owner_has_team' && R.db.store.has('leads/C1') && !users.oc.disabled, res.code + ' ' + JSON.stringify(res.body));
+  }
+  {
+    const seed = {
+      'companies/co-d': { ownerId: 'od' }, 'account_erasures/od': pending(), 'leads/D1': { userId: 'od', companyId: 'co-d' },
+      'users/od': { companyId: 'co-d' }, 'users/md': { companyId: 'co-d' }, // a claim holder with no roster row
+    };
+    const users = { od: { email: 'od@x.test', customClaims: { companyId: 'co-d' } }, md: { email: 'md@x.test', customClaims: { companyId: 'co-d', role: 'sales_rep' } } };
+    const R = complianceRig(seed, users);
+    const res = await R.post('od');
+    ok('a member holding the claim with no roster row counts: 409, nothing deleted', res.code === 409 && R.db.store.has('leads/D1') && !users.od.disabled, res.code + ' ' + JSON.stringify(res.body));
+  }
+  {
+    // control: a REMOVED member keeps a stale profile companyId but no claim -> not a team
+    const seed = {
+      'companies/co-e': { ownerId: 'oe' }, 'account_erasures/oe': pending(), 'leads/E9': { userId: 'oe', companyId: 'co-e' },
+      'users/gone': { companyId: 'co-e' },
+    };
+    const users = { oe: { email: 'oe@x.test', customClaims: { companyId: 'co-e' } }, gone: { email: 'g@x.test', customClaims: { plan: 'pro' } } };
+    const R = complianceRig(seed, users);
+    const res = await R.post('oe');
+    ok('control: a removed member (stale profile, no claim) does not block a solo erasure', res.code === 200 && !R.db.store.has('leads/E9'), res.code + ' ' + JSON.stringify(res.body));
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('J. every roster row of the member is deactivated (email key AND uid)');
+  {
+    const R = complianceRig(teamSeed({
+      'account_erasures/rep': pending(),
+      'companies/co-a/members/old-rep@x.test': { uid: 'rep', email: 'old-rep@x.test', status: 'active', role: 'sales_rep' },
+    }), teamUsers());
+    await R.post('rep');
+    const a = R.db.store.g('companies/co-a/members/rep@x.test'), b = R.db.store.g('companies/co-a/members/old-rep@x.test');
+    ok('a second row keyed by an older email (same uid) is deactivated too', a.status === 'deactivated' && b.status === 'deactivated' && b.deactivatedReason === 'self-erasure', JSON.stringify(b));
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('K. a re-checkout (reactivateLapsedSeats) never restores a self-suspended member');
+  {
+    const R = complianceRig(teamSeed({ 'account_erasures/rep': pending() }), teamUsers());
+    await R.post('rep');
+    // the race: a lapse pause overwrote the reason after the suspension
+    await R.db.doc('companies/co-a/members/rep@x.test').set({ deactivatedReason: 'lapse' }, { merge: true });
+    await R.db.doc('companies/co-a/members/mgr@x.test').set({ uid: 'mgr', email: 'mgr@x.test', status: 'deactivated', deactivatedReason: 'lapse', role: 'manager' });
+    R.users.mgr.disabled = true;
+    const LE = loadWith('lapse-enforcement.js', Object.assign(baseStubs(R.db, fakeAuth(R.users, []), []), {
+      './integrations/heartbeat': { onSchedule: (o, h) => ({ __handler: h }) },
+    }));
+    await LE.run(() => LE.mod.reactivateLapsedSeats(R.db, 'co-a'));
+    ok('the self-suspended rep stays suspended', R.users.rep.disabled === true && R.db.store.g('companies/co-a/members/rep@x.test').status === 'deactivated');
+    ok('control: an ordinary lapse-paused member is restored', R.users.mgr.disabled === false && R.db.store.g('companies/co-a/members/mgr@x.test').status === 'active');
+  }
+  {
+    // after the owner re-enables them, the erasure request is closed out
+    const { R } = await reenableAs('owner');
+    ok("owner Re-enable marks the erasure request 'reactivated' (a later lapse restore treats them normally)",
+      R.db.store.g('account_erasures/rep').outcome === 'reactivated' && R.db.store.g('account_erasures/rep').reactivatedBy === 'owner');
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('L. Auth is disabled FIRST: a failed suspension fails closed');
+  {
+    const R = complianceRig(teamSeed({ 'account_erasures/rep': pending() }), teamUsers());
+    const realCollection = R.db.collection;
+    R.db.collection = (c) => { if (c === 'agent_keys') throw new Error('UNAVAILABLE (simulated)'); return realCollection(c); };
+    const res = await R.post('rep');
+    ok('500 suspend_failed, request left retryable', res.code === 500 && res.body.code === 'suspend_failed' && R.db.store.g('account_erasures/rep').confirmed === false, res.code + ' ' + JSON.stringify(res.body));
+    ok('...but the account is already disabled and sessions revoked', R.users.rep.disabled === true && R.events.includes('revokeRefresh:rep'));
+    ok('...and nothing was deleted', R.db.store.has('leads/L1'));
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('M. dashboard warning before the request (dashboard-api.js _gdprRequestErasure)');
+  {
+    const vm = require('vm');
+    const src = require('fs').readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'dashboard-api.js'), 'utf8').replace(/\r\n/g, '\n');
+    const start = src.indexOf('window._gdprRequestErasure = async function');
+    const end = src.indexOf('\n};', start);
+    const block = start >= 0 && end > start ? src.slice(start, end + 3) : '';
+    async function warningFor(claims) {
+      let seen = null;
+      const win = { _user: { uid: 'rep' }, _userClaims: claims, nbdConfirm: async (m) => { seen = m; return false; } };
+      const ctx = vm.createContext({ window: win, showToast() {}, console });
+      vm.runInContext(block, ctx);
+      await win._gdprRequestErasure();
+      return seen || '';
+    }
+    const member = await warningFor({ companyId: 'co-a', role: 'sales_rep' });
+    const solo = await warningFor({ companyId: 'rep' });
+    ok('a team member is told their access is SUSPENDED and company records stay', /SUSPENDED, not deleted/.test(member) && /stay with your company/.test(member) && !/PERMANENTLY DELETE/.test(member), member.slice(0, 120));
+    ok('control: a solo owner still sees the permanent-delete warning', /PERMANENTLY DELETE/.test(solo));
   }
 
   console.log('');

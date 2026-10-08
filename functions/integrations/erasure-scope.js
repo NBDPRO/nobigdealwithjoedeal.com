@@ -84,15 +84,34 @@ async function resolveErasureScope({ db, auth, uid }) {
   if (!isOwner) {
     return { mode: 'member', companyId, ownerId, email, role, teamSize: null };
   }
-  // An owner: does anyone else hold a place on this company? Pending invites
-  // (no uid) do not; claimed members, active or deactivated, do.
+  // An owner: does anyone else hold a place on this company? Any roster row
+  // with a uid counts, whatever its status: createTeamMember stamps claims on
+  // a row that still says 'invited', and a deactivated member is still on the
+  // team. Only a pending invite with no account (no uid) does not. Then a
+  // second net for a member holding the companyId with no roster row at all:
+  // their users/{uid} profile names the company (claimInvite /
+  // activateInvitedRep write it). A profile alone is not proof: removeMember
+  // strips the claim but leaves the profile's companyId behind, so each one is
+  // confirmed against the person's Auth claim before it counts.
   const roster = await db.collection('companies/' + companyId + '/members').get();
-  const others = (roster.docs || []).filter((d) => {
+  const others = new Set();
+  (roster.docs || []).forEach((d) => {
     const m = (d.data && d.data()) || {};
-    return typeof m.uid === 'string' && m.uid && m.uid !== uid
-      && (m.status === 'active' || m.status === 'deactivated');
+    if (typeof m.uid === 'string' && m.uid && m.uid !== uid) others.add(m.uid);
   });
-  if (others.length) return { mode: 'owner_with_team', companyId, ownerId, email, role, teamSize: others.length };
+  if (!others.size) {
+    const profiles = await db.collection('users').where('companyId', '==', companyId).limit(50).get();
+    for (const p of (profiles.docs || [])) {
+      if (!p.id || p.id === uid || others.has(p.id)) continue;
+      let r = null;
+      try { r = await auth.getUser(p.id); } catch (e) {
+        if (!(e && e.code === 'auth/user-not-found')) throw e;
+      }
+      const cc = r && r.customClaims && r.customClaims.companyId;
+      if (cc === companyId) { others.add(p.id); break; }
+    }
+  }
+  if (others.size) return { mode: 'owner_with_team', companyId, ownerId, email, role, teamSize: others.size };
   return { mode: 'solo', companyId, ownerId, email, role, teamSize: 0 };
 }
 
@@ -125,20 +144,24 @@ async function belongsToOtherTenant(data, docPath, ownCompany, leadCompanyOf) {
  */
 async function suspendMemberForErasure({ db, auth, uid, scope, revokeTokens, serverTimestamp }) {
   const ts = typeof serverTimestamp === 'function' ? serverTimestamp : () => new Date();
+
+  // Auth FIRST, so a run that fails part-way fails closed: the person is
+  // already locked out while the rest is retried with the same link.
+  await auth.updateUser(uid, { disabled: true });
+  await auth.revokeRefreshTokens(uid);
+
   const revoked = await revokeTokens(db, uid, 'member-self-erasure');
 
-  // Roster row: the email-keyed doc the team tab reads and Re-enable writes.
-  // Located by email, else by uid; created when missing so the owner can
-  // still see the person and turn them back on.
+  // Roster rows: every row on this company that is theirs, found by the
+  // email key the team tab reads AND by uid (a row keyed by an older email
+  // still carries the uid). The email row is created when missing so the
+  // owner can still see the person and turn them back on.
   const base = 'companies/' + scope.companyId + '/members';
-  let rosterRef = null;
-  if (scope.email) {
-    rosterRef = db.doc(base + '/' + scope.email);
-  } else {
-    const q = await db.collection(base).where('uid', '==', uid).limit(1).get();
-    if (!q.empty) rosterRef = q.docs[0].ref;
-  }
-  if (rosterRef) {
+  const refs = new Map();
+  if (scope.email) refs.set(base + '/' + scope.email, db.doc(base + '/' + scope.email));
+  const byUid = await db.collection(base).where('uid', '==', uid).get();
+  (byUid.docs || []).forEach((d) => refs.set(d.ref.path, d.ref));
+  for (const ref of refs.values()) {
     const patch = {
       uid,
       status: 'deactivated',
@@ -147,15 +170,15 @@ async function suspendMemberForErasure({ db, auth, uid, scope, revokeTokens, ser
       deactivatedBy: uid,
       deactivatedReason: SUSPEND_REASON,
     };
-    if (scope.email) patch.email = scope.email;
-    const cur = await rosterRef.get();
-    if (!cur.exists && scope.role) patch.role = scope.role;
-    await rosterRef.set(patch, { merge: true });
+    const cur = await ref.get();
+    if (!cur.exists) {
+      if (scope.email) patch.email = scope.email;
+      if (scope.role) patch.role = scope.role;
+    }
+    await ref.set(patch, { merge: true });
   }
-
-  await auth.updateUser(uid, { disabled: true });
-  await auth.revokeRefreshTokens(uid);
-  return Object.assign({}, revoked, { roster: rosterRef ? rosterRef.path : null });
+  const rosterPaths = [...refs.keys()];
+  return Object.assign({}, revoked, { roster: rosterPaths.length ? rosterPaths : null });
 }
 
 module.exports = {

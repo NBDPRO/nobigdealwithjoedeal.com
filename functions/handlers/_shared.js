@@ -237,6 +237,25 @@ function teamAdminDecision({ uid, claims, companyId, ownerId, companyExists, own
   return { allow: !!(isGlobalAdmin || isOwner || isCompanyAdmin), isOwner, isGlobalAdmin };
 }
 
+// Refuse a caller whose Auth account is disabled (or unreadable). Lazy-requires
+// firebase-admin/auth so modules that only use the pure helpers here load
+// without it.
+async function assertCallerAccountEnabled(uid) {
+  let rec;
+  try {
+    const { getAuth } = require('firebase-admin/auth');
+    rec = await getAuth().getUser(uid);
+  } catch (e) {
+    if (e && e.code === 'auth/user-not-found') {
+      throw new HttpsError('permission-denied', 'Owner or admin access required');
+    }
+    throw new HttpsError('unavailable', 'Could not verify your account. Please try again.');
+  }
+  if (!rec || rec.disabled === true) {
+    throw new HttpsError('permission-denied', 'This account is suspended. Ask your company owner or an admin to turn it back on.');
+  }
+}
+
 // Resolve the caller's company and confirm they can manage it.
 // Returns { uid, companyId, isOwner, isGlobalAdmin } or throws HttpsError.
 // opts.ownerOnly: refuse non-owner company_admins (money-path carve-out).
@@ -288,6 +307,15 @@ async function requireTeamAdmin(request, targetCompanyId = null, opts = null) {
     // Managers can list their team but not mutate — the caller gates mutations.
     throw new HttpsError('permission-denied', 'Owner or admin access required');
   }
+
+  // A DISABLED account is never a team admin (2026-10-08, #2318 review). An ID
+  // token outlives the Auth disable by up to an hour, and the claims above are
+  // read from that token, so a company_admin who was just suspended (their own
+  // erasure request, an owner's Disable, a lapse pause) could otherwise still
+  // drive every admin callable in that window, including assignSeats /
+  // deactivateUser re-enabling themselves. The Auth record is authoritative.
+  // Fail closed: an account we cannot read is not an admin either.
+  await assertCallerAccountEnabled(uid);
 
   return { uid, companyId, isOwner, isGlobalAdmin, companyRef };
 }

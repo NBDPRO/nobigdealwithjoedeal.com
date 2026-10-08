@@ -774,6 +774,21 @@ exports.deactivateUser = onCall(
       }, { merge: true });
     }
 
+    // A member suspended at their own erasure request is turned back on HERE:
+    // close out that request so a later lapse restore treats them as anyone
+    // else (lapse-enforcement.js skips outcome 'suspended').
+    if (reactivate) {
+      try {
+        const erRef = getFirestore().doc(`account_erasures/${userRecord.uid}`);
+        const er = await erRef.get();
+        if (er.exists && (er.data() || {}).outcome === 'suspended') {
+          await erRef.update({ outcome: 'reactivated', reactivatedAt: FieldValue.serverTimestamp(), reactivatedBy: callerUid });
+        }
+      } catch (e) {
+        logger.warn('deactivateUser: erasure outcome update failed', { targetUid: userRecord.uid, err: e.message });
+      }
+    }
+
     // Audit row (2026-10-08): this is also how an owner or company_admin turns
     // back on a member who suspended themselves through account erasure
     // (deactivatedReason 'self-erasure'), so who did it is written down.
