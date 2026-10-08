@@ -101,6 +101,32 @@
     })[key] || '';
   }
 
+  // The warranty a deal's package cards print (2026-10-07, audit H4). A $500
+  // shingle-patch repair printed the Preferred card's "10-year … transferable
+  // … GAF System Plus" sentence, because every card printed its TIER's roofing
+  // warranty whatever the job was. A repair (or a gutter or other Job Template
+  // job) carries its JOB TYPE's warranty instead, from
+  // NBDCustomerEstimateRows.estimateWarranty — the sentence the estimate and
+  // contract print: '' = the job carries none (an unticked repair), so the
+  // card prints no warranty line. null = roofing: the tier sentence above.
+  function dealWarrantyText(deal, key) {
+    if (deal && typeof deal.jobWarranty === 'string') return deal.jobWarranty;
+    return tierDisplayWarrantyText(key);
+  }
+  // estimateData.jobType → the job-type sentence, or null for roofing.
+  // Fails closed: with the rows helper missing, a repair or a non-roof Job
+  // Template job prints no warranty rather than a roofing tier's.
+  function _jobWarrantyOf(estimateData) {
+    const jt = estimateData && estimateData.jobType;
+    if (!jt || typeof jt !== 'object') return null;
+    const CER = window.NBDCustomerEstimateRows;
+    if (!CER || typeof CER.estimateWarranty !== 'function') {
+      return (jt.workKind === 'repair' || (jt.warrantyKind && jt.warrantyKind !== 'roof')) ? '' : null;
+    }
+    const w = CER.estimateWarranty(jt);
+    return (w && typeof w.text === 'string') ? w.text : null;
+  }
+
   // Per-tier card copy (2026-09-25). The cards promised scope no tier price
   // buys: Best was "Complete roof system with full deck replacement and
   // gutters", Better "adds ice & water shield, hip caps, pipe boots, partial
@@ -520,6 +546,9 @@
       // warranty on its card (tierDisplayWarrantyText). The field is kept
       // for an explicitly passed value only; nothing renders it.
       warranty: opts.warranty || '',
+      // The job type's warranty sentence (dealWarrantyText): a string for a
+      // repair or other Job Template job ('' = none), null for roofing.
+      jobWarranty: typeof opts.jobWarranty === 'string' ? opts.jobWarranty : null,
 
       // Insurance
       insuranceClaim: opts.insuranceClaim || false,
@@ -740,6 +769,7 @@
     // The deposit inputs (R2-2-5); a refresh keeps an older snapshot when the
     // caller passes none.
     const _depBasis = _depositBasisOf(estimateData);
+    const _jobWarranty = _jobWarrantyOf(estimateData);
     // Same estimate, still open → refresh that deal in place.
     const existing = findOpenDealForEstimate(estimateId);
     if (existing) {
@@ -752,6 +782,7 @@
         address: leadData?.address || existing.address || '',
         tiers,
         depositBasis: _depBasis || existing.depositBasis || null,
+        jobWarranty: _jobWarranty,
         insuranceClaim: _isIns,
         insuranceCarrier: _carrier,
         claimNumber: leadData?.claimNumber || '',
@@ -770,6 +801,7 @@
       packetPhotoIds: _packet.packetPhotoIds,
       scopeSummary: _scope,
       depositBasis: _depBasis,
+      jobWarranty: _jobWarranty,
       selectedProducts,
       insuranceClaim: _isIns,
       insuranceCarrier: _carrier,
@@ -806,6 +838,13 @@
           ? '<img src="' + esc(logo) + '" alt="' + esc(b.legalName) + '" style="max-height:48px;max-width:240px;display:inline-block;">'
           : esc(b.legalName)),
       accent,
+      // The insurance line on the trust row and the footer (2026-10-07). It
+      // claimed a licence for every company; NBD has no OH/KY registration
+      // number behind that word (Jo, 2026-10-05), so NBD says "Fully insured".
+      // Another company has no configured trust line to read, so it gets the
+      // neutral "Insured" and no licence claim made on its behalf.
+      insured: isNbd ? 'Fully insured' : 'Insured',
+      insuredTitle: isNbd ? 'Fully Insured' : 'Insured',
     };
   }
 
@@ -843,9 +882,12 @@
     const reviews = BRAND.isNbd
       ? '<a class="trust-link" href="https://nobigdealwithjoedeal.com/review" target="_blank" rel="noopener noreferrer">⭐ Read our Google reviews</a>'
       : '';
+    // A repair or other job-type deal whose job carries no workmanship
+    // warranty (an unticked repair) prints no warranty row at all.
+    const _noWarranty = deal.jobWarranty === '';
     const trust = '<div class="section-title">Why Homeowners Choose Us</div><div class="trust">' +
-      '<div class="trust-row">✓ Licensed &amp; insured</div>' +
-      '<div class="trust-row">✓ Every package above carries its own written warranty</div>' +
+      '<div class="trust-row">✓ ' + esc(BRAND.insured) + '</div>' +
+      (_noWarranty ? '' : '<div class="trust-row">✓ Every package above carries its own written warranty</div>') +
       '<div class="trust-row">✓ Questions? Call or text ' + esc(deal.repName || 'your rep') + ' any time</div>' +
       reviews + '</div>';
     return PHOTO_MARKER + scopeHtml + trust;
@@ -1083,7 +1125,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       <div class="tier-price">${fmtCurrency(_dt[t].price)}</div>
       ${_payFor[t] ? `<div class="tier-monthly">or est. ${_payFor[t]}/mo with financing*</div>` : ''}
       <div class="tier-desc">${esc(_dt[t].description || TIER_DESCRIPTIONS[t] || '')}</div>
-      <div class="tier-warranty">🛡️ ${esc(tierDisplayWarrantyText(t))}</div>
+      ${dealWarrantyText(deal, t) ? `<div class="tier-warranty">🛡️ ${esc(dealWarrantyText(deal, t))}</div>` : ''}
       ${depositLine(_dt[t].price)}
     </div>`).join('')}
   </div>
@@ -1122,7 +1164,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
   ${cxlPacket}
 
   <div class="footer">
-    <div>${BRAND.nameEsc} · Licensed & Insured</div>
+    <div>${BRAND.nameEsc} · ${esc(BRAND.insuredTitle)}</div>
     <div style="margin-top:4px;">This estimate is valid until ${fmtDate(deal.expiresAt)}</div>
   </div>
 </div>

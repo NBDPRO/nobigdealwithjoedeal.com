@@ -467,6 +467,8 @@
    *
    *   null — not a Job Template estimate (or per-SQ, or a pre-2026-09-25
    *          roofing one). The caller keeps its existing tier wording.
+   *          Exception: a non-template REPAIR (workKind 'repair') gets
+   *          { kind:'repair', years, text } like a repair template job.
    *   { kind:'roof', wordingTier, text:null } — roofing: print the caller's
    *          existing tier wording for `wordingTier`. A new roofing template
    *          estimate has no tier, so this is 'better', the value that flow
@@ -482,7 +484,20 @@
    *          did not exist). Screens use the flag to say why there is none.
    */
   function estimateWarranty(est) {
-    if (!est || isPerSqEstimate(est) || !isJobTemplateEstimate(est)) return null;
+    if (!est || isPerSqEstimate(est)) return null;
+    if (!isJobTemplateEstimate(est)) {
+      // A REPAIR built outside Job Templates (2026-10-07, audit H4): the V2
+      // repair presets, the V3 "Repair" choice and the rep's "This is repair
+      // work" button save workKind 'repair' with no sourceTemplates, so this
+      // returned null and every reader printed ROOFING's tier sentence — a
+      // $500 shingle patch promised a "10-year … transferable … GAF System
+      // Plus" warranty in the deal room. A repair carries the repair warranty:
+      // 1 year only when the rep ticked it (repairWarranty === true), else
+      // none. Any other non-template estimate keeps the caller's wording.
+      if (est.workKind !== 'repair') return null;
+      const ry = warrantyYears('repair', est.repairWarranty);
+      return { kind: 'repair', wordingTier: '', years: ry || null, text: ry ? ry + '-year workmanship warranty.' : '' };
+    }
     let kind = est.warrantyKind || null;
     let parts = est.warrantyParts;
     let legacy = false;
