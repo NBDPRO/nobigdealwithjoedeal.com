@@ -288,6 +288,7 @@
     "calendar-phase0-2026-09-29.test.js",
     "sms-optout-key.test.js",
     "sms-stop-intent-2026-10-05.test.js",
+    "r6-texting-2026-10-07.test.js",
     "sms-dnc-2026-10-05.test.js",
     "sms-consent-quiet-switch-2026-10-05.test.js",
     "texting-r2-fixes-2026-10-06.test.js",

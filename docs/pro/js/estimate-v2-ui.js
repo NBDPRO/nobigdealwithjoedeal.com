@@ -1504,8 +1504,10 @@
           _shareNative(false);
           break;
         case 'share-mark':
-          // A Text / Email link: the anchor opens Messages / Mail itself.
-          _markShared(arg === 'email' ? 'email' : 'sms');
+          // An Email link: the anchor opens Mail itself. A Text link waits
+          // for the server's "ok to text?" first (R6-3-2, _textShare).
+          if (arg === 'sms') { ev.preventDefault(); _textShare(); break; }
+          _markShared('email');
           break;
         case 'share-copy':
           _copyShareLink();
@@ -5699,6 +5701,34 @@
       '<div class="v2-share-url">' + _escAttr(s.url) + '</div>';
     box.hidden = false;
   }
+  // R6-3-2 (2026-10-07): Messages with the estimate link written in used to
+  // open with no STOP / Do Not Text / texting-hours check — from the 💬 Text
+  // link AND from the automatic hand-off after the link mints. Both now ask
+  // the server's "ok to text?" (phone-share.js checkText → phoneTextAction)
+  // first. → { ok:true } or { ok:false, reason } (reason already toasted).
+  async function _okToTextShare(s) {
+    const PS = (typeof window !== 'undefined') ? window.NBDPhoneShare : null;
+    const leadId = state.leadId || (state.customer && state.customer.leadId) || '';
+    let chk = null;
+    try {
+      chk = (PS && typeof PS.checkText === 'function') ? await PS.checkText({ phone: s.phone, leadId }) : null;
+    } catch (_) { chk = null; }
+    if (chk && chk.ok === true) return { ok: true };
+    const reason = (chk && chk.reason) || 'Couldn’t check whether this customer can be texted — nothing was sent. Reload and try again.';
+    if (window.showToast) window.showToast(reason + ' Use Email or Copy link instead.', 'error');
+    return { ok: false, reason };
+  }
+  async function _textShare() {
+    const s = _lastShare;
+    if (!s) return 'none';
+    const href = _smsHref(s.phone, s.text);
+    if (!href) return 'none';
+    const chk = await _okToTextShare(s);
+    if (!chk.ok) return 'blocked';
+    _markShared('sms');
+    try { window.location.href = href; } catch (_) {}
+    return 'sms';
+  }
   function _markShared(via) {
     if (!_lastShare) return;
     try { if (window.CloseBoard && typeof window.CloseBoard.markShared === 'function') window.CloseBoard.markShared(_lastShare.dealId, via); } catch (_) {}
@@ -5722,7 +5752,9 @@
       }
     }
     if (!auto) return 'none';
-    const href = _smsHref(s.phone, s.text) || _mailHref(s.email, s.text);
+    // A phone on file → Messages, but only after the "ok to text?" (R6-3-2).
+    if (_smsHref(s.phone, s.text)) return _textShare();
+    const href = _mailHref(s.email, s.text);
     if (!href) return 'none';
     _markShared(href.indexOf('sms:') === 0 ? 'sms' : 'email');
     try { window.location.href = href; } catch (_) {}
@@ -5849,6 +5881,8 @@
       sendToHomeowner: sendToHomeowner,
       signOnThisPhone: signOnThisPhone,
       lastShare: () => _lastShare,
+      // R6-3-2 (2026-10-07): the 💬 Text link's "ok to text?" gate.
+      _textShare: _textShare,
       // Deal packet (2026-10-04) — tests/deal-packet-2026-10-04.test.js.
       setPacket: setPacket,
       packetChoice: packetChoice,
