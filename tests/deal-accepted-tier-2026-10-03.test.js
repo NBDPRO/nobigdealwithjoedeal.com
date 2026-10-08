@@ -8,7 +8,11 @@
  *     lead's jobValue follows (when it is the primary estimate);
  *   - estimate WITH a tier → never overwritten; acceptedTier/acceptedPrice
  *     recorded beside it, and the customer page offers a one-tap
- *     "Homeowner picked X — use it?" (docs/pro/js/accepted-tier-chip.js).
+ *     "Homeowner picked X — apply it" (docs/pro/js/accepted-tier-chip.js).
+ *     Since 2026-10-07 (R6-2-3 / R6-2-4) "Use it" runs on the server
+ *     (planUseAcceptedTier / applyHomeownerPick) and a line-item estimate is
+ *     rebuilt from its stored per-tier rows or refused —
+ *     tests/line-item-tiers-r6-2026-10-07.test.js covers that path.
  * Drives the transaction with a fake Firestore.
  *
  * Run: node tests/deal-accepted-tier-2026-10-03.test.js
@@ -109,11 +113,14 @@ const info = (extra) => Object.assign({ dealId: 'D1', leadId: 'L1', ownerUid: 'u
         const est = Object.assign({ id: 'E1' }, e);
         const pick = C.pendingPick(l, [est]);
         ok('the chip offers "Homeowner picked Elite"', pick && pick.tier === 'best' && pick.price === 21450 && C.tierLabel(pick.tier) === 'Elite');
-        const w = C.usePatch(l, pick);
-        ok('"Use it" sets the estimate tier + total and the primary job value', w.estimate.tier === 'best' && w.estimate.selectedTier === 'best' && w.estimate.grandTotal === 21450 && w.lead && w.lead.jobValue === 21450);
-        ok('…once adopted, the chip goes away', C.pendingPick(l, [Object.assign({}, est, w.estimate)]) === null);
+        // R6-2-4 (2026-10-07): this line-item estimate stored no per-tier
+        // rows, so "Use it" can't rebuild it — the chip offers no Use button
+        // and the server refuses rather than swapping the total under the rows.
+        ok('…a line-item estimate with no stored per-tier rows is not rebuildable', pick && pick.rebuildable === false);
+        const w = T.planUseAcceptedTier({ lead: l, estimate: est, estimateId: 'E1' });
+        ok('…the server\'s "Use it" refuses it (needs-builder), writing nothing', w.reason === 'needs-builder' && w.estimate === null && w.lead === null, w.reason);
+        ok('…once adopted, the chip goes away', C.pendingPick(l, [Object.assign({}, est, { tier: 'best', selectedTier: 'best', acceptedTierApplied: true })]) === null);
         ok('…"Keep" dismisses it too', C.pendingPick(l, [Object.assign({}, est, { acceptedTierDismissed: true })]) === null);
-        ok('a non-primary estimate\'s "Use it" leaves the job value alone', C.usePatch({ primaryEstimateId: 'E9' }, pick).lead === null);
       }
     }
     // 3. same tier → recorded, no prompt
@@ -247,29 +254,26 @@ const info = (extra) => Object.assign({ dealId: 'D1', leadId: 'L1', ownerUid: 'u
       const r2 = await T.applyAcceptedTier(first.db, info(), 'best', 15000, { now: () => new Date('2026-10-04T10:00:00Z') });
       ok('accepting the same tier twice: second run is same-tier and every money field is unchanged', r2 === 'same-tier' && money(first.db.store['estimates/E1']) === snap1 && first.db.store['leads/L1'].jobValue === 15000, r2);
     }
-    // The customer page's "Use it" does the same recompute (same block).
-    if (C && C.usePatch) {
+    // The customer page's "Use it" (now the server's planUseAcceptedTier,
+    // 2026-10-07) does the same recompute on a tier-priced estimate.
+    if (T.planUseAcceptedTier) {
       const est = { id: 'E1', selectedTier: 'better', tier: 'better', grandTotal: 18000, subtotal: 16822.43, tax: 1177.57, taxRate: 0.07, deposit: 9000,
         acceptedTier: 'best', acceptedPrice: 21450, prices: { better: 18000, best: 21450 } };
       const lead = { primaryEstimateId: 'E1' };
-      const pick = C.pendingPick(lead, [est]);
-      const w = C.usePatch(lead, pick, { depositRule: DR });
+      ok('the chip marks a tier-priced pick rebuildable', !C || (C.pendingPick(lead, [est]) || {}).rebuildable === true);
+      const w = T.planUseAcceptedTier({ lead, estimate: est, estimateId: 'E1', depositRule: DR });
       // 21,450 × .07 / 1.07 = 1,403.2710 → $1,403.27; subtotal $20,046.73; 50% = $10,725 (a $25 step).
       ok('"Use it" recomputes too: total $21,450, subtotal $20,046.73, tax $1,403.27, deposit $10,725', w.estimate.grandTotal === 21450 && w.estimate.subtotal === 20046.73 && w.estimate.tax === 1403.27 && w.estimate.deposit === 10725 && w.estimate.depositPlan.totalCents === 2145000, JSON.stringify(w.estimate));
-      const kept = C.usePatch(lead, pick, { depositRule: DR, depositCollected: true });
+      const kept = T.planUseAcceptedTier({ lead, estimate: est, estimateId: 'E1', depositRule: DR, depositCollected: true });
       ok('…and keeps a deposit already collected', !('deposit' in kept.estimate) && !('depositPlan' in kept.estimate) && kept.estimate.acceptedTierDepositKept === true && kept.estimate.grandTotal === 21450);
-      const noRule = C.usePatch(lead, pick);
-      ok('…with no deposit rule loaded the deposit is kept and flagged, never guessed', !('deposit' in noRule.estimate) && noRule.estimate.acceptedTierDepositKept === true);
+      ok('a non-primary estimate\'s "Use it" leaves the job value alone', T.planUseAcceptedTier({ lead: { primaryEstimateId: 'E9' }, estimate: est, estimateId: 'E1', depositRule: DR }).lead === null);
     }
-    // The two copies of the retier block are the same code (indentation aside).
+    // The retier block lives on the server only since 2026-10-07: the chip's
+    // "Use it" calls useAcceptedTier and no longer re-prices in the browser.
     {
-      const blk = (rel) => {
-        const s = fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/\r\n/g, '\n');
-        const a = s.indexOf('// ── retier block'), b = s.indexOf('// ── end retier block ──');
-        return (a < 0 || b < 0) ? null : s.slice(a, b).split('\n').map((x) => x.replace(/^\s+/, '')).join('\n');
-      };
-      const sb = blk('functions/deal-accepted-tier.js'), cb = blk('docs/pro/js/accepted-tier-chip.js');
-      ok('the retier block is identical in functions/deal-accepted-tier.js and docs/pro/js/accepted-tier-chip.js', !!sb && sb.length > 500 && sb === cb);
+      const chip = fs.readFileSync(path.join(ROOT, 'docs/pro/js/accepted-tier-chip.js'), 'utf8');
+      const server = fs.readFileSync(path.join(ROOT, 'functions/deal-accepted-tier.js'), 'utf8');
+      ok('the retier block is the server\'s alone (the chip no longer re-prices)', server.indexOf('// ── retier block') >= 0 && chip.indexOf('// ── retier block') < 0);
     }
   }
 

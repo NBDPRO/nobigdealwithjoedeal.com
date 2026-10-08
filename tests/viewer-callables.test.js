@@ -364,6 +364,8 @@ const CASES = [
   // send-for-signature is the in-house sendEstimateEnvelope.
   { fn: 'sendEstimateEnvelope', file: 'esign-envelope.js', kind: 'call', data: { estimateId: 'est-1', signers: [{ name: 'Sam', email: 'sam@example.com' }] } },
   { fn: 'createDealAcceptToken', file: 'deal-acceptance.js', kind: 'call', data: { dealId: 'deal-123456' } },
+  // 2026-10-07 (R6-2-4): "Use it" on the homeowner's accepted tier rewrites the estimate.
+  { fn: 'useAcceptedTier', file: 'deal-acceptance.js', kind: 'call', data: { estimateId: 'est-1' } },
   { fn: 'createReportShareToken', file: 'report-sharing.js', kind: 'call', data: { reportId: 'report-123456' } },
   { fn: 'createEstimateReviewLink', file: 'estimate-send.js', kind: 'call', data: { leadId: 'lead-1', documentId: 'doc-1' } },
   { fn: 'recordEstimateShared', file: 'estimate-send.js', kind: 'call', data: { leadId: 'lead-1', documentId: 'doc-1', token: 'ABCDEFGHJKLMNPQRSTUV2345' } },
@@ -458,6 +460,8 @@ const VERDICTS = {
   createDealAcceptToken: 'refused', createEsignEnvelope: 'refused', createPortalToken: 'refused',
   createReportShareToken: 'refused', createSignRequest: 'refused', createTeamInvite: 'role-gated',
   recordInPersonSignature: 'refused',
+  // "Use it" on the homeowner's accepted tier (2026-10-07, R6-2-4): rebuilds the estimate.
+  useAcceptedTier: 'refused',
   // Send for review / Fresh link (2026-10-03, estimate-send.js): mint or revoke a homeowner link.
   createEstimateReviewLink: 'refused', recordEstimateShared: 'refused', freshEstimateLink: 'refused',
   // Job-day weather (production flow, 2026-10-04): owner-only via requireOwner, like the other Google-calendar callables.

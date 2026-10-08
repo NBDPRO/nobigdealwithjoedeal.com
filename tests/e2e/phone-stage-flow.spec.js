@@ -185,8 +185,10 @@ test.describe.serial('phone stage flow at 390px, installed app @shard2', () => {
     await dismissToasts(page);
     await page.locator(btn).scrollIntoViewIfNeeded();
     await page.locator(btn).tap();
-    // standalone-compat's DOM confirm (the installed app's confirm()).
-    await page.locator('.sa-btn-ok').tap({ timeout: 10_000 });
+    // A normal move no longer asks "Move customer to X?" (2026-10-08, phone
+    // audit #10: one tap, then Undo in the toast) — standalone-compat's DOM
+    // confirm must NOT appear; the gate sheet is the next thing on screen.
+    await expect(page.locator('.sa-btn-ok'), 'a normal move does not ask first').toHaveCount(0);
   }
 
   test('2. customer page: the permit gate opens the sheet; "No permit required" moves the job', async () => {

@@ -90,3 +90,31 @@ section.tp{padding-left:var(--ui-space-5) !important;padding-right:var(--ui-spac
   .home-hdr-acts{width:100%;}
   .home-hdr-acts > .btn{flex:1 1 0;width:auto;min-height:44px;justify-content:center;}
 }
+/* More on Home (dashboard.html, 2026-10-08 — phone audit 2026-10-07 #6: Home
+   was 5.5 phone screens and "people need you" sat 2.2 screens down). On a
+   phone the first screen is the needs-you strip, then the Today list; the
+   widgets, the long No-next-step list and the header's extra links fold
+   behind one "More on Home" tap. CSS-only disclosure: a visually hidden
+   checkbox + its label. Desktop: the toggle and the duplicated links hide,
+   the body always shows — the desktop Home is unchanged. */
+.home-more-chk{position:absolute;width:1px;height:1px;margin:0;padding:0;opacity:0;overflow:hidden;clip:rect(0 0 0 0);pointer-events:none;}
+.home-more-toggle{display:none;}
+.home-more-acts{display:none;}
+@media (max-width:768px){
+  .home-hdr-acts > .home-hdr-extra{display:none;}
+  .home-more{margin-bottom:var(--ui-space-5);}
+  .home-more-toggle{
+    display:flex;align-items:center;justify-content:center;gap:var(--ui-space-2);
+    width:100%;min-height:48px;padding:0 var(--ui-space-4);margin-bottom:var(--ui-space-3);
+    border-radius:var(--ui-radius-md);border:1px solid var(--ui-line-hair);
+    background:color-mix(in srgb, var(--t) 6%, transparent);color:var(--t);
+    font-size:var(--ui-fs-body-sm);font-weight:var(--ui-fw-bold);cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .home-more-toggle::after{content:"▾";font-size:14px;line-height:1;}
+  .home-more-chk:checked + .home-more-toggle::after{content:"▴";}
+  .home-more-chk:focus-visible + .home-more-toggle{outline:2px solid var(--orange);outline-offset:2px;}
+  .home-more-chk:not(:checked) ~ .home-more-body{display:none;}
+  .home-more-acts{display:flex;flex-wrap:wrap;gap:var(--ui-space-2);margin-bottom:var(--ui-space-4);}
+  .home-more-acts > .btn{flex:1 1 140px;min-height:44px;justify-content:center;}
+}
