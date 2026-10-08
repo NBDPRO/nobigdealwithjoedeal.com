@@ -336,18 +336,19 @@ function preflightEnv(est) {
   {
     const IP = require(path.join(DG_DIR, 'invoice-pipeline.js'));
     const CL = require(path.join(DG_DIR, 'catchup-logic.js'));
-    const t = IP.recordPaymentTarget({ lead: { id: 'C2', jobValue: 14000 }, invoices: [],
-      estimate: { id: 'estC', grandTotal: 14000, subtotal: 14000, tax: 0, taxRate: 0, mode: 'insurance', rows: [{ description: 'Roof', qty: 1, unitPrice: 14000, total: 14000 }] },
-      estimateId: 'estC', totalsOpts: { estimateValue: CER.estimateValue } });
+    const estC = { id: 'estC', grandTotal: 14000, subtotal: 14000, tax: 0, taxRate: 0, mode: 'insurance', rows: [{ description: 'Roof', qty: 1, unitPrice: 14000, total: 14000 }] };
+    const supplements = [{ id: 's1', parentEstimateId: 'estC', userId: 'u1', version: 1, status: 'approved', supplementTotal: 2000, reason: 'Ice & water shield' }];
+    const totalsOpts = { estimateValue: CER.estimateValue };
+    const t = IP.recordPaymentTarget({ lead: { id: 'C2', jobValue: 14000 }, invoices: [], estimate: estC, estimateId: 'estC', totalsOpts, supplements });
     const plan = CL.paidInFullPlan(t);
-    const ipSrc = stripComments(rd('docs/pro/js/invoice-pipeline.js'));
-    ok('R6-2-9 anchor: the invoice made from the estimate folds approved supplements into its total (applySupplementsToTotals)',
-      /const folded = applySupplementsToTotals\(\{ items, subtotal, tax, total \}, supplements\);/.test(ipSrc));
-    const rpt = blockAt(ipSrc, 'function recordPaymentTarget(ctx) {');
-    ok('KNOWN BUG R6-2-9 (reported 2026-10-07): "Paid in full?" records the estimate total BEFORE supplements ($14,000), while the invoice it '
-      + 'makes folds the approved $2,000 supplement in ($16,000) — the "paid in full" job then shows $2,000 owed in Collections. '
-      + 'Expected the payment to be the invoice\'s own total (open / make the invoice first)',
-      t.kind === 'estimate' && plan.ok === true && plan.cents === 1400000 && !!rpt && !/supplement/i.test(rpt), JSON.stringify(plan));
+    // The invoice "Paid in full?" then makes (createOrOpenJobInvoice) folds the
+    // approved supplement in: the real totals + applySupplementsToTotals.
+    const madeInvoice = IP.applySupplementsToTotals(IP.invoiceTotalsFromEstimate(estC, totalsOpts), supplements);
+    ok('R6-2-9 context: the invoice made from the estimate carries the approved $2,000 supplement ($16,000)',
+      c(madeInvoice.total) === 1600000, JSON.stringify(madeInvoice.total));
+    ok('FIXED R6-2-9 (#2304; was KNOWN BUG 2026-10-07): "Paid in full?" on the $14,000 insurance estimate with an approved $2,000 '
+      + 'supplement records $16,000 — the invoice\'s own total — so the paid job owes $0 (was: $14,000 recorded, $2,000 shown owed)',
+      t.kind === 'estimate' && plan.ok === true && plan.cents === 1600000 && plan.cents === c(madeInvoice.total), JSON.stringify({ t, plan }));
   }
 
   // R6-2-10 … R6-2-14 ─ the dashboards. DROPPED (fixed by #2311): each is
