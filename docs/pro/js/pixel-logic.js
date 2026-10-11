@@ -112,7 +112,7 @@
     var n = ((lead.firstName || '') + ' ' + (lead.lastName || '')).trim() || String(lead.name || '').trim();
     return n || String(lead.address || '').split(',')[0] || 'Customer';
   }
-  function valueOf(lead) {
+  function leadValue(lead) {
     var v = Number(lead && lead.jobValue);
     return isFinite(v) && v > 0 ? v : 0;
   }
@@ -128,7 +128,7 @@
       pct: hp.pct,
       tier: hp.tier,
       overdue: overdueDays(lead, now),
-      value: valueOf(lead),
+      value: leadValue(lead),
       lat: isFinite(Number(lead.lat)) && lead.lat !== '' && lead.lat != null ? Number(lead.lat) : null,
       lng: isFinite(Number(lead.lng)) && lead.lng !== '' && lead.lng != null ? Number(lead.lng) : null,
     };
@@ -178,7 +178,7 @@
       if (role === 'won' && sameMonth(toMs(l.stageStartedAt) || toMs(l.updatedAt), now)) { signed++; return; }
       if (!isOpenLead(l, env)) return;
       open++;
-      pipeline += valueOf(l);
+      pipeline += leadValue(l);
       if (overdueDays(l, now) > 0) overdue++;
       var hp = hpFor(l, now);
       if (hp.pct != null) { hpSum += hp.pct; hpN++; if (hp.pct >= 75) fullHp++; }
@@ -248,7 +248,7 @@
     COLD_DAYS: COLD_DAYS, DAY: DAY, THEME_BADGES: THEME_BADGES, HOUSE_ROWS: HOUSE_ROWS,
     toMs: toMs, normalizeMode: normalizeMode, anyOn: anyOn,
     isOpenLead: isOpenLead, lastTouchMs: lastTouchMs, daysUntouched: daysUntouched,
-    hpFor: hpFor, overdueDays: overdueDays, nameOf: nameOf, valueOf: valueOf,
+    hpFor: hpFor, overdueDays: overdueDays, nameOf: nameOf, valueOf: leadValue,
     describe: describe, partyOf: partyOf, trainerCard: trainerCard,
     spriteBoxShadow: spriteBoxShadow, typewriterSlice: typewriterSlice,
   };
