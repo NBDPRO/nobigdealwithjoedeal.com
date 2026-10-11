@@ -206,7 +206,7 @@
   <style>@keyframes nbd-load-bar{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}</style>
 </div>
 <script src="js/dashboard-loader-fadeout.js?v=1"></script>
-<script src="js/dashboard-ui-prefs-boot.js?v=7"></script>
+<script src="js/dashboard-ui-prefs-boot.js?v=8"></script>
 <!-- ═══════════════════════════════════════════════════════════════
      NBD PRO UNIVERSAL NAV BAR v1.0
      Drop this block into any NBD Pro tool page.
@@ -3586,6 +3586,13 @@
         <div class="panel mb-md" id="autoThemePanel">
           <div class="panel-hdr"><div><div class="panel-label">Appearance</div><div class="panel-title">Auto</div></div></div>
           <div class="panel-body" id="autoThemeBody"><p class="myskin-note">Loading Auto theme…</p></div>
+        </div>
+
+        <!-- Storm Mode (roadmap C2, OPT-IN, off by default). storm-mode.js fills
+             #stormModeBody. Drafts only: nothing is ever sent from here. -->
+        <div class="panel mb-md" id="stormModePanel">
+          <div class="panel-hdr"><div><div class="panel-label">Appearance</div><div class="panel-title">Storm Mode</div></div></div>
+          <div class="panel-body" id="stormModeBody"><p class="myskin-note">Loading Storm Mode…</p></div>
         </div>
 
         <!-- My Skin (2026-10-01): the user's own wallpaper, card texture, mascot

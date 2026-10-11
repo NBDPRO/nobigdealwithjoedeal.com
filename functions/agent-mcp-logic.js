@@ -905,6 +905,27 @@ function buildTextDraft(args, names) {
   return { body, reason };
 }
 
+/**
+ * Storm Mode (2026-10-11, roadmap C2): the ONE post-storm check-in the
+ * callable fileStormDrafts files, as a draft the owner sends. Fixed wording
+ * built here, never client text. Goes through buildTextDraft (company name +
+ * STOP line + length) and the Kentucky claim wording, and says nothing about
+ * claims, outcomes, deductibles or prices.
+ * @returns {{body:string, reason:string}|{error:string}}
+ */
+function buildStormCheckIn(lead, names, hazard) {
+  const first = clean(String((lead && lead.firstName) || ''), 40).replace(/[^A-Za-zÀ-ɏ' -]/g, '').trim();
+  const company = (names || []).filter(Boolean)[0] || '';
+  const what = hazard === 'wind' ? 'damaging wind' : 'hail';
+  const body = (first ? 'Hi ' + first + ', this is ' : 'Hi, this is ') + company + '. A severe storm warning for ' + what
+    + ' covered your area today. If you would like, we are happy to look over your roof and send you photos of what we find.';
+  const d = buildTextDraft({ body, reason: 'Storm Mode: a severe-weather warning covered this address. A check-in for after the storm passes.' }, names);
+  if (d.error) return d;
+  const wording = claimWordingProblem(d.body);
+  if (wording) return { error: wording };
+  return d;
+}
+
 /** May this customer get a text draft at all? Reads the stored facts only. */
 function textGate(lead, optOut) {
   const l = lead || {};
@@ -1144,6 +1165,6 @@ module.exports = {
   teamActivity, annotationsFor, WRITES,
   TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
   botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,
-  SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, editedTextProblem, buildTextDraft, textGate, buildEmailDraft, emailGate, buildSocialDraft,
+  SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, editedTextProblem, buildTextDraft, buildStormCheckIn, textGate, buildEmailDraft, emailGate, buildSocialDraft,
   planAllowsBots, accessDecision, validTimeZone, companyTimeZone, dayInZone, rulesReferenceFor, houseRuleLines, NEUTRAL_GUIDANCE,
 };

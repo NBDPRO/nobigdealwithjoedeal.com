@@ -567,7 +567,7 @@ window.NBD_THEME_ENGINE = true;
     const saved = localStorage.getItem('nbd_pro_theme') || localStorage.getItem('nbd-theme');
     // Auto theme (nbd_auto_theme=1) needs the engine at boot even for a
     // default-theme user: the scheduler lives in the theme bundle.
-    const autoOn = localStorage.getItem('nbd_auto_theme') === '1';
+    const autoOn = localStorage.getItem('nbd_auto_theme') === '1' || localStorage.getItem('nbd_storm_mode') === '1';
     if (((saved && saved !== 'default') || autoOn)
         && !document.querySelector('script[src*="theme-engine"]')
         && window.ScriptLoader && window.ScriptLoader.loadBundle) {

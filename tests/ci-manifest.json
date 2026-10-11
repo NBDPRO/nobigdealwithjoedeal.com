@@ -493,7 +493,9 @@
     "photo-cache-lazy-2026-10-04.test.js",
     "firebase-sdk-vendored-2026-10-04.test.js",
     "paid-in-full-supplements-r6-2026-10-07.test.js",
-    "auto-theme-rules.test.js"
+    "auto-theme-rules.test.js",
+    "storm-mode.test.js",
+    "storm-mode-drafts-2026-10-11.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

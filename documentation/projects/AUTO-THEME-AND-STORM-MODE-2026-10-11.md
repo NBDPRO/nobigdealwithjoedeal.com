@@ -72,6 +72,71 @@ and the locked-theme check each turns a named assertion red.
   differs from their saved one).
 - Job-site detection uses every lead with coordinates, not only open jobs.
 
-## C2 — Storm Mode
+## C2 — Storm Mode (opt-in)
 
-_Added in the Storm Mode PR._
+**Jo's decision:** a Settings toggle, OFF by default; it never changes the
+screen unless turned on. Settings > Appearance > **Storm Mode**.
+
+### Flow
+
+`docs/pro/js/storm-mode.js` (lazy theme bundle, after auto-theme.js), polling
+every 5 min while the tab is visible:
+
+1. **Service area** = the customers' own coordinates (leads with lat/lng; the
+   company profile's service area is free text, there is no ZIP list). Up to 4
+   quarter-degree grid-cell centres go to weather.gov `points` (cached) to get
+   county / forecast-zone codes + state; then one `alerts/active?area=<state>`
+   per state. No address or customer coordinate leaves the browser.
+2. **Qualifies:** WARNINGS only — Severe Thunderstorm, Tornado, High Wind,
+   Extreme Wind (status Actual, not Cancel, not expired). Watches/advisories do
+   not. Polygon warnings: point-in-polygon against customer coordinates.
+   Zone-only warnings (no polygon): UGC overlap with the anchors — banner and
+   theme, but **no recipient list**, so no drafts.
+3. **Active:** stash the theme, hold Auto theme, switch to Storm Season
+   (`apply(key,false)`, never saved), `body.storm-alert` (accent #FACC15,
+   `css/storm-mode.css`, loaded on demand), banner with Open Storm Watch /
+   Keep my theme / Dismiss. "Banner only" setting skips the theme + accent.
+4. **All-clear** = two consecutive *successful* empty polls (a failed poll is
+   never an all-clear). Theme restored (unless the user hand-picked one
+   mid-storm), Auto released.
+5. **Drafts** (only now, after the storm has passed, and only if the setting is
+   on): callable `fileStormDrafts` files one `draft_text` per customer who was
+   inside a warned polygon into `agent_inbox`. Pending event state survives a
+   reload for 24 h; ids are `storm_<event>_<lead>` + `create()` so a second
+   device/tab files nothing twice.
+
+### SMS rules — where each is enforced
+
+| Rule | Where |
+| --- | --- |
+| Nothing sends without a human Send | The callable never texts, never writes `sms_log`; the owner sends from their own phone through the Agent inbox (`agentDraftAction` 'sent') |
+| STOP register / company Do Not Text / declined consent / no phone | At filing (`L.textGate` + `OptOut.isOptedOut` — skipped, counted by reason, never named) **and again** at send |
+| Quiet hours 8am-9pm homeowner-local, texting switch | At send (`PhoneText.okToText` in 'sent'/'check'); a draft filed at 2am just waits |
+| Wording | Fixed server template (company name + STOP line via `buildTextDraft`, Kentucky claim-wording gate); the client sends ids + hazard only. No claim / outcome / price / insurance words |
+| A2P sender | N/A while drafts go from the owner's own phone; the `TWILIO_INBOUND_ENABLED` TODO in agent-mcp.js is where a business-line send would re-enter, behind the same checks |
+
+`fix/storm-messaging-safety` is merged (as #2114, squashed — the branch
+itself is not an ancestor): it guards the *server-side automatic* storm texts
+(storm-watch subscribers), a different path; Storm Mode adds no automatic
+sender.
+
+### Tests
+
+`tests/storm-mode.test.js` (alert qualification, polygon / anchor maths, state
+machine, glue in a vm sandbox with an injected clock and stubbed NWS: OFF means
+no theme / DOM / network effect) and
+`tests/storm-mode-drafts-2026-10-11.test.js` (fixed wording, skips by reason,
+idempotence, role gate, 40 cap). Break-tested on both sides. New callable
+registered in `function-map.json` and `viewer-callables.test.js`.
+
+### Not done / follow-ups
+
+- Needs a deploy of `functions/` for drafts to file (theme + banner work
+  without it; the draft call fails quietly and retries for 24 h).
+- Polls only while the CRM tab is open — by design ("only while the app is
+  open"); a storm that passes with the app closed is not detected afterwards.
+- The Auto panel's "Storm alert" rule is satisfied by Storm Mode's hold, not by
+  `setContext({storm})`; if a layout engine wants the same signal it should
+  listen for `body.storm-alert`.
+- Banner position is fixed top-centre; verify against the live header on iPhone
+  before relying on it in the field.
