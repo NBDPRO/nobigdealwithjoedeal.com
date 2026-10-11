@@ -128,3 +128,43 @@ CSS scoping/fallbacks, wiring. Break-tested (removing the guard's max() or the
 `@supports not` fallback reddens it). smoke 4417, shape-styles, theme-qa,
 css-token-resolution green; rendered in Chrome at 900 and 390 px (dark + light
 theme over a colourful backdrop).
+
+## A5 — live preview in the theme picker (idea #04)
+
+**What shipped.** `docs/pro/js/theme-preview.js` (rides the lazy `theme`
+bundle, after the engine). In Settings > Appearance the theme grid gets a
+preview panel above it: hovering (120 ms debounce), tabbing, arrow-keying
+(Left/Right/Up/Down/Home/End) or tapping a card renders a mini pipeline in that
+theme **inside the panel only** — `ThemeEngine.previewCSS(key)` is retargeted
+at `#te-theme-preview .tp-stage`, so nothing on the page changes and nothing
+is saved. The panel shows 4 resolved swatches, a contrast badge (text on cards,
+AAA/AA/large-only/low, with the current theme's ratio for comparison) and:
+
+| Button | Does |
+| --- | --- |
+| Apply | `ThemeEngine.apply(key, true)` (persisted, morphs from the button), adds to Recent |
+| Try for 10 min | `apply(key, false, {morph: true})` — NOT persisted; a 10-min timer (or Revert now, or a reload) restores the previous theme; switching themes elsewhere cancels it; locked themes refused |
+| Favorite | toggles `userSettings.themeFavorites` (max 24) |
+
+Recent (`userSettings.themeRecent`, max 8) records persisted switches only —
+the boot restore is ignored for the first 3 s. Both lists mirror to
+`localStorage` (`nbd_theme_favorites`, `nbd_theme_recent`) and hydrate from
+`userSettings` on load, like the other synced prefs.
+
+**Behaviour change.** With the panel loaded, clicking a card no longer applies
+the theme app-wide behind a confirm bar; it shows the panel (Apply is the
+commit, Try-for-10-min is the "see it on the real dashboard" path). The old
+whole-app preview + confirm bar is kept as the fallback when the module is not
+loaded. Locked cards are now previewable (Apply/Try disabled).
+
+**Engine additions** (additive): `ThemeEngine.contrastRatio(a, b)` and `muted`
+in `previewResolvedColors()`. Stale card title "155 Themes" -> "Themes".
+
+**Not done / noted.** The picker in the appearance side-panel (`npm-grid`,
+maps.js `NBD_THEMES`) is a separate legacy surface and was not touched. The
+spec's "preview on Pipeline / Estimate PDF / Phone" tabs are not built: one
+Pipeline composition ships.
+
+**Verification.** `tests/theme-preview-2026-10-11.test.js` (34 checks, the real
+module in a vm with a fake DOM + stub engine; break-tested: removing the
+`:root` retarget, the hover debounce and the locked gate each redden it).
