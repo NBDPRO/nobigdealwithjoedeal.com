@@ -89,3 +89,42 @@ defaults). `theme-qa` now covers 207 engine themes x 2 modes + 82 static themes,
 theme-art, theme-daylight/liveops green. Rendered in real Chrome at 1100 and 390
 px (dark: gameboy-dmg, tar-paper, shingle-crew, mecha-hangar; light:
 poke-center, chalk-line).
+
+## A4 — Surface style: Solid / Tinted / Glass (idea #02)
+
+**Correction to the roadmap.** "No glass-surface setting exists" was only half
+true: Settings > Appearance > Shape & Depth already has `glass`, `liquid`,
+`fluent` (Mica) and `spatial` presets with baked-in translucency
+(`shape-styles.css`). Surface style is the *orthogonal* axis the design doc
+asks for: how see-through the cards are, independent of corner/elevation
+character. The CSS is written at specificity 0,2,0 (`:where()` list) so those
+0,3,0 presets keep winning where they already paint their own surfaces; Surface
+style does its work under Sharp / Linework / Pressed / Soft / Elevated / Tonal /
+Clay / Skeuo.
+
+**Where it lives.** Comfort tab (the appearance picker), next to Density and
+Text size. `html[data-surface="tinted|glass"]` (absent = Solid = today's look),
+mirrored on `body.surface-tinted` / `body.surface-glass` for layout code (D4/D5
+glass layouts should key on these). `localStorage nbd_surface_style|blur|frost`,
+synced to `userSettings.surfaceStyle|surfaceBlur|surfaceFrost` and hydrated like
+`shapeStyle`. Stamped before first paint by `shape-preboot.js`, the same sync
+head script that stamps `data-shape`.
+
+**Readability guard.** `--glass-frost-eff` = max(user Frost dial, the smallest
+frost at which `--t` on `--s2` stays >= 4.5:1 over BOTH a black and a white
+backdrop). It is wallpaper-independent on purpose (so it needs no My Skin
+luminance pass and is safe before B-track lands); it re-runs on every
+`themechange` / `modechange`. When My Skin gains its per-image luminance, that
+value can tighten (never loosen) the guard.
+
+**Fallbacks.** No `backdrop-filter` -> Glass renders as Tinted;
+`prefers-contrast: more` -> opaque; blur only on the few big surfaces
+(w-card/stat-card/ui-card/panel/sidebar), pipeline cards and rows get
+translucency only.
+
+**Verification.** `tests/surface-style-2026-10-11.test.js` (33 checks): guard
+== engine contrast math for all 207 themes, setter behaviour in a stub DOM,
+CSS scoping/fallbacks, wiring. Break-tested (removing the guard's max() or the
+`@supports not` fallback reddens it). smoke 4417, shape-styles, theme-qa,
+css-token-resolution green; rendered in Chrome at 900 and 390 px (dark + light
+theme over a colourful backdrop).
