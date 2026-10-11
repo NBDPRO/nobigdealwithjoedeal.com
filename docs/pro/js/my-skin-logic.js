@@ -47,6 +47,11 @@
   var FITS = ['cover', 'contain', 'tile'];
   var POSITIONS = ['center', 'top', 'bottom', 'left', 'right'];
   var STORED_TYPES = /^image\/(webp|jpeg)$/;
+  var QUOTA_SOFT_BYTES = 300 * 1024 * 1024;   // warn and block new imports (Jo, 2026-10-11)
+  var STORED_RATIO_ESTIMATE = 0.7;            // stored/in for an import estimate (the 208-picture pack: ~85 MB in -> ~60 MB)
+  var THUMB_WIDTH = 256;
+  var IMPORT_EXT_RE = /\.(jpe?g|png|webp|gif|avif|heic|heif)$/;
+  var ZIP_LIMITS = { maxZipBytes: 500 * 1024 * 1024, maxEntries: 400, maxEntryBytes: 20 * 1024 * 1024, maxTotalBytes: 1536 * 1024 * 1024 };
 
   // The per-theme encode spec: webp first, jpeg where the browser can't.
   var THEME_IMAGE_SPEC = { label: 'Theme background', maxEdge: 2560, type: 'image/webp', quality: 0.82,
@@ -95,6 +100,7 @@
       avg: isHex(raw.avg) ? raw.avg.toLowerCase() : null,
       type: STORED_TYPES.test(raw.type || '') ? raw.type : 'image/webp',
       bytes: Math.max(0, Math.round(Number(raw.bytes) || 0)),
+      thumb: raw.thumb === true,   // a 256 px copy at <path>_t (bulk import, grid)
     };
   }
 
@@ -426,6 +432,125 @@
     return s;
   }
 
+  // The thumbnail object of a per-theme picture: <path>_t, only when it has one.
+  function trustedThumbPath(uid, img) {
+    if (!img || img.thumb !== true) return null;
+    var p = trustedImagePath(uid, img);
+    return p ? p + '_t' : null;
+  }
+
+  // How much of the soft quota the per-theme pictures use (distinct objects).
+  function usageBytes(cfg) {
+    var seen = {}, total = 0;
+    var themes = (cfg && cfg.themes) || {};
+    Object.keys(themes).forEach(function (t) {
+      themes[t].images.forEach(function (i) { if (!seen[i.path]) { seen[i.path] = 1; total += i.bytes || 0; } });
+    });
+    return total;
+  }
+  // Would adding incomingBytes (as stored) stay under the soft quota?
+  function quotaCheck(cfg, incomingBytes) {
+    var used = usageBytes(cfg), add = Math.max(0, Number(incomingBytes) || 0);
+    return { ok: used + add <= QUOTA_SOFT_BYTES, used: used, add: add, after: used + add, limit: QUOTA_SOFT_BYTES };
+  }
+
+  // ── bulk import: which file is for which theme ────────────────────────
+  // path: any 'folder/name.ext' (zip entry or webkitRelativePath).
+  // themeIds: the live theme ids (ThemeEngine.getAll() keys).
+  // ignoreNames: lower-case basenames (without extension) to skip, e.g. the
+  // 13 category ids (Jo's pack carries previews/<category>.jpg).
+  // Reference algorithm (spec, 195 of 195 matched on Jo's pack):
+  //   1. the lower-cased stem is an id          -> image 1
+  //   2. stem is <id>-<n>, n a number 1..6      -> image n
+  //   3. otherwise                              -> unmatched
+  // so ben-10.jpg is the id ben-10 (image 1), never "ben" #10, and
+  // duo-machine-red-2.jpg is duo-machine-red #2.
+  function matchImportName(path, themeIds, ignoreNames) {
+    var p = String(path || '').replace(/\\/g, '/');
+    var parts = p.split('/').filter(function (s) { return s !== ''; });
+    var lowerParts = parts.map(function (s) { return s.toLowerCase(); });
+    var base = lowerParts.length ? lowerParts[lowerParts.length - 1] : '';
+    if (!base) return { kind: 'ignored', reason: 'empty' };
+    if (lowerParts.some(function (s) { return s === '__macosx' || s === 'previews' || s === 'preview'; })) return { kind: 'ignored', reason: 'previews' };
+    if (base.charAt(0) === '.') return { kind: 'ignored', reason: 'hidden' };
+    if (/\.(csv|md|txt|json|ds_store)$/.test(base) || base === 'thumbs.db') return { kind: 'ignored', reason: 'manifest' };
+    var m = IMPORT_EXT_RE.exec(base);
+    if (!m) return { kind: 'ignored', reason: 'not-a-picture' };
+    var stem = base.slice(0, base.length - m[0].length);
+    var ign = ignoreNames || [];
+    if (ign.indexOf(stem) !== -1) return { kind: 'ignored', reason: 'category' };
+    var ids = themeIds || [];
+    if (ids.indexOf(stem) !== -1) return { kind: 'match', themeId: stem, index: 1 };
+    var s = /^(.+)-(\d{1,2})$/.exec(stem);
+    if (s) {
+      var n = Number(s[2]);
+      if (n >= 1 && n <= MAX_IMAGES_PER_THEME && ids.indexOf(s[1]) !== -1) return { kind: 'match', themeId: s[1], index: n };
+    }
+    return { kind: 'unmatched', stem: stem };
+  }
+
+  // Group matched files by theme, ordered by index; report collisions.
+  // entries: [{ path, size, ref }]. Returns { themes: { id: [{index, entry}] },
+  // unmatched: [entry], ignored: n, collisions: [entry] }.
+  function planImport(entries, themeIds, ignoreNames) {
+    var out = { themes: {}, unmatched: [], ignored: 0, collisions: [] };
+    (entries || []).forEach(function (e) {
+      var r = matchImportName(e.path, themeIds, ignoreNames);
+      if (r.kind === 'ignored') { out.ignored++; return; }
+      if (r.kind === 'unmatched') { out.unmatched.push(e); return; }
+      var list = out.themes[r.themeId] || (out.themes[r.themeId] = []);
+      if (list.some(function (x) { return x.index === r.index; })) { out.collisions.push(e); return; }
+      list.push({ index: r.index, entry: e });
+    });
+    Object.keys(out.themes).forEach(function (t) { out.themes[t].sort(function (a, b) { return a.index - b.index; }); });
+    return out;
+  }
+
+  // The central directory of a .zip, from its last bytes (u8 = the tail of the
+  // file, at least up to the start of the central directory) plus the file's
+  // total size. Never trusts a declared size beyond the limits. Zip64 and
+  // encrypted entries are refused.
+  function parseZipDirectory(u8, totalSize, limits) {
+    var lim = limits || ZIP_LIMITS;
+    var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    if (!(totalSize > 0)) return { error: 'That zip is empty.' };
+    if (totalSize > lim.maxZipBytes) return { error: 'That zip is over 500 MB. Split it or pick the folder instead.' };
+    var eocd = -1;
+    for (var i = u8.length - 22; i >= 0 && i >= u8.length - 22 - 65535; i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) return { error: 'That doesn’t look like a zip file.' };
+    var count = dv.getUint16(eocd + 10, true), cdSize = dv.getUint32(eocd + 12, true), cdOff = dv.getUint32(eocd + 16, true);
+    if (count === 0xffff || cdSize === 0xffffffff || cdOff === 0xffffffff) return { error: 'That zip uses a format this importer can’t open. Pick the folder instead.' };
+    if (count > lim.maxEntries) return { error: 'That zip has ' + count + ' files; the limit is ' + lim.maxEntries + '.' };
+    var tailStart = totalSize - u8.length;     // where u8 begins in the file
+    var cdRel = cdOff - tailStart;
+    if (cdRel < 0 || cdRel + cdSize > u8.length) return { error: 'tail-too-short', needFrom: cdOff, cdSize: cdSize };
+    var entries = [], p = cdRel, total = 0;
+    for (var n = 0; n < count; n++) {
+      if (p + 46 > u8.length || dv.getUint32(p, true) !== 0x02014b50) return { error: 'That zip looks damaged.' };
+      var flags = dv.getUint16(p + 8, true), method = dv.getUint16(p + 10, true);
+      var comp = dv.getUint32(p + 20, true), size = dv.getUint32(p + 24, true);
+      var nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true);
+      var off = dv.getUint32(p + 42, true);
+      if (p + 46 + nl > u8.length) return { error: 'That zip looks damaged.' };
+      var nameBytes = u8.subarray(p + 46, p + 46 + nl);
+      var name = '';
+      try { name = new TextDecoder('utf-8', { fatal: false }).decode(nameBytes); } catch (e) { name = ''; }
+      var isDir = name.charAt(name.length - 1) === '/';
+      var entry = { name: name, method: method, compSize: comp, size: size, offset: off, dir: isDir,
+        encrypted: (flags & 1) === 1, zip64: comp === 0xffffffff || size === 0xffffffff || off === 0xffffffff };
+      if (!isDir) {
+        total += size;
+        if (total > lim.maxTotalBytes) return { error: 'That zip expands past 1.5 GB. Pick the folder instead.' };
+        entry.tooBig = size > lim.maxEntryBytes;
+      }
+      entries.push(entry);
+      p += 46 + nl + xl + cl;
+    }
+    return { entries: entries, totalUncompressed: total };
+  }
+
   // Cheap signature of everything that decides what a theme paints.
   function themeSig(cfg) {
     var c = cfg || {};
@@ -445,7 +570,11 @@
     resolveBackground: resolveBackground, effectiveDim: effectiveDim, checkInput: checkInput,
     fitWithin: fitWithin, contrast: contrast, toHex: toHex, mixHex: mixHex, accentCheck: accentCheck,
     cssVars: cssVars, layerVars: layerVars, htmlClasses: htmlClasses, mintImageId: mintImageId, themeSig: themeSig,
+    QUOTA_SOFT_BYTES: QUOTA_SOFT_BYTES, STORED_RATIO_ESTIMATE: STORED_RATIO_ESTIMATE, THUMB_WIDTH: THUMB_WIDTH,
+    ZIP_LIMITS: ZIP_LIMITS, IMPORT_EXT_RE: IMPORT_EXT_RE,
+    trustedThumbPath: trustedThumbPath, usageBytes: usageBytes, quotaCheck: quotaCheck,
+    matchImportName: matchImportName, planImport: planImport, parseZipDirectory: parseZipDirectory,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDMySkinLogic = api;
-})(typeof window !== 'undefined' ? window : null);
+})(typeof window !== 'undefined' ? window : (typeof self !== 'undefined' ? self : null));
