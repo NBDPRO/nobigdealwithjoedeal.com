@@ -266,18 +266,23 @@
   }
 
   // THE seam. Every automatic switch goes through here. Theme Morph
-  // (lane "theme-polish") plugs in by replacing the body of `paint`.
-  function paint(key) {
+  // (roadmap A1, ThemeEngine.apply's third argument) animates it: morph:true
+  // because this is a user-facing switch even though save is false. An
+  // automatic switch has no click to grow from, so by default it is the
+  // engine's crossfade; a caller may pass opts.origin {x, y} for the circle.
+  // The engine applies inside the view transition callback, so the
+  // themechange arrives a frame later: `expected` covers it.
+  function paint(key, opts) {
     var E = engine();
     // save=false: Auto never overwrites the theme the user actually chose.
-    E.apply(key, false);
+    E.apply(key, false, { morph: true, origin: opts && opts.origin });
   }
   function applyTheme(key, opts) {
     var E = engine();
     if (!E || !themeUsable(key)) return false;
     if (E.getCurrent && E.getCurrent() === key) return true;
     expected = { key: key, until: clock() + 3000 };
-    try { paint(key); } catch (e) { expected = null; return false; }
+    try { paint(key, opts); } catch (e) { expected = null; return false; }
     return true;
   }
 
