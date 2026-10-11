@@ -23,7 +23,7 @@ const CEILING = {
   blockingScripts: 29,          // measured 28 (2026-10-03) — never grow. ONE deliberate raise 2026-10-06: demo-mode.js (Pro demo phase 2) must run before every other script so the sample account's guard + network tripwire exist first; on the real page it returns on line one (~9 KB)
   blockingBytes: 300 * 1024,    // measured 278 KB
   localScripts: 196,            // measured 178; deliberate raises 2026-10-05: + client-error-reporter.js (#2140, must run at boot to catch boot errors) + the offline sync badge (#2145) = 193 [+1 on merge: both PRs' boot tags, measured]; 2026-10-06 + storm-time.js (review R4-6-1: the one UTC→Eastern storm-date reader dol-fill + the D2D storm layer need at boot, 1.9 KB) = 195; +1 2026-10-07 demo-mode.js (Pro demo phase 2, #2294) = 196
-  localBytes: 4.55 * 1024 * 1024, // measured 4.08 MB; deliberate raise 2026-10-11: per-theme My Skin backgrounds (my-skin.js 17 -> 49 KB, my-skin-logic.js 7 -> 22 KB: two-layer painter, IndexedDB cache, per-theme panel; all deferred, so blockingBytes is unchanged)
+  localBytes: 4.6 * 1024 * 1024, // measured 4.08 MB; raised again 2026-10-11 (4.55 -> 4.6: slideshow rules, strip and settings in my-skin.js, +17 KB; the import module and worker are lazy and not counted). Earlier raise, same day: per-theme My Skin backgrounds (my-skin.js 17 -> 49 KB, my-skin-logic.js 7 -> 22 KB: two-layer painter, IndexedDB cache, per-theme panel; all deferred, so blockingBytes is unchanged)
   htmlBytes: 520 * 1024,        // measured 477 KB
 };
 // +1 local tag, deliberate (2026-10-05, #2155): js/photo-cache.js (window.NBDPhotoCache).

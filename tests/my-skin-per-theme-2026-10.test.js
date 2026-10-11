@@ -283,14 +283,14 @@ console.log('\n8. CSS, panel, wiring');
     'myskinThemeBlur', 'myskinThemeFit', 'myskinThemePixel', 'myskinThemeOverlay', 'myskinThemeOverride'];
   ok('the per-theme card has every control', ids.every((id) => P.includes('id="' + id + '"')), ids.filter((id) => !P.includes('id="' + id + '"')).join());
   ok('nine focal-point buttons, each labelled', (P.match(/data-myskin-pos="[^"]+"/g) || []).length === 9 && (P.match(/data-myskin-pos="[^"]+" aria-pressed="false" aria-label="[^"]+"/g) || []).length === 9);
-  ok('the per-theme picker accepts images only', /accept="image\/\*" data-myskin-theme-file/.test(P));
+  ok('the per-theme picker accepts images only', /accept="image\/\*" multiple data-myskin-theme-file/.test(P));
   ok('the thumbnail is masked from session recordings', /class="myskin-thumb" data-clarity-mask="true"/.test(P));
   ok('the privacy note is in the panel', /They stay private to you, just like your wallpaper/.test(P));
   ok('the card sits between the wallpaper and the texture slot',
     P.indexOf('data-myskin-slot="wallpaper"') < P.indexOf('id="myskinPerTheme"') && P.indexOf('id="myskinPerTheme"') < P.indexOf('data-myskin-slot="texture"'));
   ok('cache-busters bumped on both pages',
     ['docs/pro/dashboard.html', 'docs/pro/customer.html'].every((p) => { const h = read(p);
-      return /css\/my-skin\.css\?v=3/.test(h) && /js\/my-skin-logic\.js\?v=3/.test(h) && /js\/my-skin\.js\?v=5/.test(h); }));
+      return /css\/my-skin\.css\?v=4/.test(h) && /js\/my-skin-logic\.js\?v=4/.test(h) && /js\/my-skin\.js\?v=6/.test(h); }));
 
   const A = read('docs/pro/js/nbd-auth.js');
   ok('sign-out / account-switch purge calls NBDMySkin.purgeLocal (with an IndexedDB fallback)',

@@ -139,7 +139,9 @@
     if (!raw || typeof raw !== 'object') return null;
     var ref = raw.imageRef;
     if (typeof ref !== 'string' || !/^(_custom|[a-z0-9-]{1,40})\/[a-z0-9]{8,16}$/.test(ref)) return null;
-    var s = normStyle(raw); s.imageRef = ref; return s;
+    var s = normStyle(raw); s.imageRef = ref;
+    s.image = normImage(raw.image);   // snapshot of the picture (null for an older doc: the host entry is used)
+    return s;
   }
 
   // Whatever is stored (or missing) becomes a well-formed config. A schema-1
@@ -218,11 +220,14 @@
     Object.keys(themes).forEach(function (t) {
       themes[t].images.forEach(function (i) { out[i.path] = (out[i.path] || 0) + 1; });
     });
-    var a = cfg && cfg.allThemes && cfg.allThemes.imageRef;
-    if (a) {
-      var parts = a.split('/');
-      var host = themes[parts[0]];
-      var im = host && host.images.filter(function (i) { return i.id === parts[1]; })[0];
+    var all = cfg && cfg.allThemes;
+    if (all) {
+      var im = all.image;
+      if (!im) {
+        var parts = all.imageRef.split('/');
+        var host = themes[parts[0]];
+        im = host && host.images.filter(function (i) { return i.id === parts[1]; })[0];
+      }
       if (im) out[im.path] = (out[im.path] || 0) + 1;
     }
     return out;
@@ -255,7 +260,7 @@
       if (c.allThemes) {
         var parts = c.allThemes.imageRef.split('/');
         var host = c.themes[parts[0]];
-        var im = host && host.images.filter(function (i) { return i.id === parts[1]; })[0];
+        var im = (host && host.images.filter(function (i) { return i.id === parts[1]; })[0]) || c.allThemes.image;
         if (im) return out('all', c.allThemes, [im]);
       }
     }
@@ -551,6 +556,95 @@
     return { entries: entries, totalUncompressed: total };
   }
 
+  // ── slideshows ────────────────────────────────────────────────────────
+  var INTERVAL_MS = { '30s': 30000, '1m': 60000, '5m': 300000, '15m': 900000 };
+  var PHONE_MIN_MS = 60000;
+  var PRELOAD_LEAD_MS = 5000;
+
+  // How a resolved background should rotate right now. res: a
+  // resolveBackground() result; ctx: { reducedMotion, saveData, narrow,
+  // lowBattery }. The automatic adjustments always win over the user's
+  // settings, and say why (the panel shows the reason).
+  //   mode 'static': one picture; 'load': a new picture per load / theme
+  //   switch only; 'timed': rotates every ms.
+  function slideshowPlan(res, ctx) {
+    var c = ctx || {};
+    var n = res && res.images ? res.images.length : 0;
+    var fade = res && res.fadeMs != null ? res.fadeMs : FADE_DEFAULT;
+    var out = { mode: 'static', ms: 0, fadeMs: c.reducedMotion ? 0 : fade, reason: null };
+    if (n < 2) return out;
+    var iv = res.interval;
+    if (iv === 'off') return out;
+    if (c.lowBattery) { out.reason = 'low-battery'; return out; }
+    if (c.reducedMotion) { out.mode = 'load'; out.reason = 'reduced-motion'; return out; }
+    if (c.saveData) { out.mode = 'load'; out.reason = 'data-saver'; return out; }
+    if (iv === 'load') { out.mode = 'load'; return out; }
+    var ms = INTERVAL_MS[iv] || INTERVAL_MS['5m'];
+    if (c.narrow && ms < PHONE_MIN_MS) { ms = PHONE_MIN_MS; out.reason = 'phone-minimum'; }
+    out.mode = 'timed'; out.ms = ms;
+    return out;
+  }
+
+  // A shuffled order of 0..n-1 whose first element is never `last` (so the
+  // picture that ended one cycle does not start the next).
+  function makeBag(n, rnd, last) {
+    var r = typeof rnd === 'function' ? rnd : Math.random;
+    var a = [], i;
+    for (i = 0; i < n; i++) a.push(i);
+    for (i = n - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
+    if (n > 1 && a[0] === last) { var k = 1 + Math.floor(r() * (n - 1)); var tmp = a[0]; a[0] = a[k]; a[k] = tmp; }
+    return a;
+  }
+  // The next picture of a timed slideshow. state: { order, pos, cur } (cur -1
+  // before the first). In order: 0,1,2...; shuffled: a bag per cycle.
+  function nextSlide(state, n, shuffle, rnd) {
+    var s = { order: (state && state.order) || null, pos: (state && state.pos) || 0, cur: state && state.cur != null ? state.cur : -1 };
+    if (!(n > 1)) { s.cur = 0; return { idx: 0, state: s }; }
+    if (!shuffle) { s.cur = s.cur < 0 ? 0 : (s.cur + 1) % n; return { idx: s.cur, state: s }; }
+    if (!s.order || s.order.length !== n || s.pos >= n) { s.order = makeBag(n, rnd, s.cur); s.pos = 0; }
+    s.cur = s.order[s.pos]; s.pos++;
+    return { idx: s.cur, state: s };
+  }
+  // 'load' mode: the picture to show when the dashboard loads or the theme is
+  // switched to. prev = the index shown last in this session (or null).
+  function loadSlide(prev, n, shuffle, rnd) {
+    if (!(n > 1)) return 0;
+    var r = typeof rnd === 'function' ? rnd : Math.random;
+    if (prev == null || prev < 0) return shuffle ? Math.floor(r() * n) : 0;
+    if (!shuffle) return (prev + 1) % n;
+    var k = Math.floor(r() * (n - 1));
+    return k >= prev ? k + 1 : k;
+  }
+  // The timer survives a hidden tab: remaining time is kept and resumed.
+  function timerStart(ms, now) { return { dueAt: now + ms, remaining: ms, paused: false }; }
+  function timerHide(t, now) { return { dueAt: null, remaining: Math.max(0, t.dueAt - now), paused: true }; }
+  function timerShow(t, now) { return { dueAt: now + t.remaining, remaining: t.remaining, paused: false }; }
+  // When to fetch + decode the next picture: right away for 30 s, else 5 s early.
+  function preloadDelay(ms) { return ms <= 30000 ? 0 : Math.max(0, ms - PRELOAD_LEAD_MS); }
+
+  // Move one picture within an ordered list (drag, or the up/down keys).
+  function moveItem(list, from, to) {
+    var a = list.slice();
+    if (from < 0 || from >= a.length || to < 0 || to >= a.length || from === to) return a;
+    var it = a.splice(from, 1)[0];
+    a.splice(to, 0, it);
+    return a;
+  }
+  // Entries for themes that no longer exist (renamed or removed): kept, never
+  // painted, listed so they can be reassigned or deleted.
+  function orphanThemeIds(cfg, validIds) {
+    var ok = {}; (validIds || []).forEach(function (i) { ok[i] = 1; });
+    return Object.keys((cfg && cfg.themes) || {}).filter(function (id) { return id !== '_custom' && !ok[id]; });
+  }
+  // Themes in the same category as themeId that have no picture of their own.
+  function categoryCopyTargets(cfg, themeId, categoryOf) {
+    var cat = categoryOf[themeId];
+    if (!cat) return [];
+    return Object.keys(categoryOf).filter(function (id) {
+      return id !== themeId && categoryOf[id] === cat && !(cfg.themes[id] && cfg.themes[id].images.length);
+    });
+  }
+
   // Cheap signature of everything that decides what a theme paints.
   function themeSig(cfg) {
     var c = cfg || {};
@@ -574,6 +668,9 @@
     ZIP_LIMITS: ZIP_LIMITS, IMPORT_EXT_RE: IMPORT_EXT_RE,
     trustedThumbPath: trustedThumbPath, usageBytes: usageBytes, quotaCheck: quotaCheck,
     matchImportName: matchImportName, planImport: planImport, parseZipDirectory: parseZipDirectory,
+    INTERVAL_MS: INTERVAL_MS, PHONE_MIN_MS: PHONE_MIN_MS, slideshowPlan: slideshowPlan, makeBag: makeBag, nextSlide: nextSlide,
+    loadSlide: loadSlide, timerStart: timerStart, timerHide: timerHide, timerShow: timerShow, preloadDelay: preloadDelay,
+    moveItem: moveItem, orphanThemeIds: orphanThemeIds, categoryCopyTargets: categoryCopyTargets,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDMySkinLogic = api;

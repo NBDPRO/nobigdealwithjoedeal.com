@@ -154,9 +154,50 @@ bytes. The panel shows usage; a single upload to a new theme, the import's
 Start button and each file in the queue refuse past 300 MB with a message. This
 is UI-only; the hard 1 GB cap is a Cloud Function on Storage finalize (own PR).
 
+## Slice B3: slideshows, the strip, use for all, share, removed themes
+
+**Rules** (pure, `my-skin-logic.js`, unit-tested): `slideshowPlan` turns the
+user's interval into a mode (`static` / `load` / `timed`) and applies the
+automatic adjustments, which always win: reduced motion = load mode with no
+fade, Data Saver = load mode, phones (<= 600 px) = at least 1 min, low battery
+(< 20 %, not charging, only where `navigator.getBattery` exists) = paused. The
+panel says which one is active. `makeBag`/`nextSlide`: shuffle uses a bag per
+cycle and the last picture of a cycle never starts the next; in order starts
+with the user's first picture. `loadSlide` steps once per dashboard load or theme
+switch (position in `sessionStorage nbd_myskin_pos_<themeId>`, swept at sign-out).
+`timerHide/timerShow` keep the remaining time across a hidden tab.
+
+**Painter.** One page-wide timer, reset by every theme change. Only the next
+picture is fetched ahead (at interval - 5 s, or at once for 30 s). A hidden tab
+clears the timers and resumes with the time left. The editor being open on the
+theme being shown holds rotation. New fade = the resolved `fadeMs` (0 under
+reduced motion). Changing interval or order re-arms the timer without
+restarting the set.
+
+**Settings.** Global defaults (Slideshow defaults: interval, order, crossfade
+with Off / 0.4 / 0.8 / 1.5 s presets, "Reset all themes to my default") and a
+per-theme "Use my default slideshow settings" checkbox that reveals that
+theme's own controls (null = inherit).
+
+**Strip.** Up to 6 pictures per theme: "Add pictures" takes several at once
+(first replaces nothing, the rest append; past 6 the toast says so), reorder by
+dragging the handle (pointer events) or ArrowUp/ArrowDown on the focused item,
+up/down buttons, remove one (the last one clears the theme; objects are deleted
+only when nothing else references them).
+
+**Use for all themes** stores `allThemes` with a snapshot of the picture
+(`image`), so clearing the host theme never strands it or deletes the object.
+**Share with this category** copies the entry (same stored objects, no bytes)
+to every theme of the category with none. **Removed themes** (entries whose id
+the engine no longer has) are listed in the grid with Move to... and Delete
+(two-tap); they are never painted.
+
+Verified in a browser with a fake clock: in order 1,2,3,1,2; shuffle with no
+immediate repeat over 9 shows; hidden tab 2 min = no change, resumes with the
+time left; reduced motion no rotation; phone 30 s runs at 1 min; keyboard
+reorder writes the new order; cap at 6; use for all survives clearing the host.
+
 ## Open / next
 
 - Hard 1 GB cap Cloud Function: its own PR.
-- B3: slideshows (the `images[]` list, interval/shuffle/fade settings and the
-  per-theme fields are already normalised; B1 paints `images[0]`).
 - B4: company sets (spec section 18). B5: ambient accent.
