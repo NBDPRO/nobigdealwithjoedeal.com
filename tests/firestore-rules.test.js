@@ -1818,6 +1818,35 @@ async function run() {
   await x34('viewer reads a teammate lead task',          'allow', getDoc(doc(vx, 'leads/leadRX/tasks/s34-mx')));
   await x34('viewer reads its own estimate',              'allow', getDoc(doc(vx, 'estimates/s34-vx')));
 
+  // ── My Skin company background set: companies/{c}/skin/config (2026-10) ──
+  {
+    const cfgPath = 'companies/' + CO + '/skin/config';
+    const anon = env.unauthenticatedContext().firestore();
+    const adminCtx = env.authenticatedContext('adm34', { role: 'admin' }).firestore();
+    const themes = (n) => { const o = {}; for (let i = 0; i < n; i++) o['t' + i] = { images: [], mode: 'suggested' }; return o; };
+    await x34('skin/config create: company_admin of the company', 'allow', setDoc(doc(cax, cfgPath), { enabled: true, themes: {} }));
+    await x34('skin/config read: a viewer of the company (members see the set)', 'allow', getDoc(doc(vx, cfgPath)));
+    await x34('skin/config read: a sales_rep of the company', 'allow', getDoc(doc(rx, cfgPath)));
+    await x34('skin/config read: a member of ANOTHER company', 'deny', getDoc(doc(dx, cfgPath)));
+    await x34('skin/config read: signed out', 'deny', getDoc(doc(anon, cfgPath)));
+    await x34('skin/config read: platform admin (support)', 'allow', getDoc(doc(adminCtx, cfgPath)));
+    await x34('skin/config update: company_admin', 'allow', updateDoc(doc(cax, cfgPath), { allowHide: false }));
+    await x34('skin/config update: manager (not an admin)', 'deny', updateDoc(doc(mx, cfgPath), { allowHide: true }));
+    await x34('skin/config update: sales_rep', 'deny', updateDoc(doc(rx, cfgPath), { allowHide: true }));
+    await x34('skin/config update: viewer', 'deny', updateDoc(doc(vx, cfgPath), { allowHide: true }));
+    await x34('skin/config update: an admin of ANOTHER company', 'deny',
+      updateDoc(doc(env.authenticatedContext('cad34', { role: 'company_admin', companyId: 'co-other' }).firestore(), cfgPath), { allowHide: true }));
+    await x34('skin/config update: platform admin', 'allow', updateDoc(doc(adminCtx, cfgPath), { allowHide: true }));
+    await x34('skin/config: a client may not write usage', 'deny', updateDoc(doc(cax, cfgPath), { usage: { bytes: 1, count: 1 } }));
+    await x34('skin/config: nor usageUpdatedAt', 'deny', updateDoc(doc(cax, cfgPath), { usageUpdatedAt: 5 }));
+    await x34('skin/config: 220 theme entries', 'allow', setDoc(doc(cax, cfgPath), { enabled: true, themes: themes(220) }));
+    await x34('skin/config: 221 theme entries', 'deny', setDoc(doc(cax, cfgPath), { enabled: true, themes: themes(221) }));
+    await x34('skin/config delete: nobody (the company admin included)', 'deny', deleteDoc(doc(cax, cfgPath)));
+    await x34('skin/<other doc id>: refused', 'deny', setDoc(doc(cax, 'companies/' + CO + '/skin/other'), { enabled: true }));
+    await x34('skin/config create: the solo owner of a company of one', 'allow', setDoc(doc(sx, 'companies/sx34/skin/config'), { enabled: true }));
+    await x34('skin/config create: someone else\'s solo company', 'deny', setDoc(doc(sx, 'companies/not-sx34/skin/config'), { enabled: true }));
+  }
+
   console.log('  34: ' + s34Pass + ' viewer/role checks passed, ' + s34Fail.length + ' failed');
   if (s34Fail.length) {
     throw new Error('34 viewer read-only matrix: ' + s34Fail.length + ' check(s) went the wrong way:\n    '

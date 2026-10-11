@@ -180,7 +180,7 @@
 <link rel="stylesheet" href="css/widgets-home.css?v=1">
 <link rel="stylesheet" href="css/d2d-tracker.css?v=2">
 <link rel="stylesheet" href="css/storm-center.css?v=2">
-<link rel="stylesheet" href="css/my-skin.css?v=4">
+<link rel="stylesheet" href="css/my-skin.css?v=5">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=5" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
@@ -3606,9 +3606,21 @@
 
             <!-- Per-theme backgrounds (2026-10): each theme can have its own picture;
                  the wallpaper above stays as the fallback. Wired by my-skin.js. -->
+            <label class="myskin-row" for="myskinHidePictures"><span>Hide background pictures (comfort)</span><input type="checkbox" id="myskinHidePictures"></label>
+            <div class="myskin-company" id="myskinCompany" hidden>
+              <div class="myskin-slot-title">Your company's backgrounds</div>
+              <p class="myskin-note" id="myskinCoStatus"></p>
+              <label class="myskin-row" for="myskinCoShow"><span>Show my company's backgrounds</span><input type="checkbox" id="myskinCoShow"></label>
+              <p class="myskin-note" id="myskinCoLocked" hidden>Your company has turned this switch off for everyone.</p>
+            </div>
             <label class="myskin-row" for="myskinPerTheme"><span>Different background per theme</span><input type="checkbox" id="myskinPerTheme"></label>
             <div class="myskin-theme-card" id="myskinThemeCard" hidden>
               <div class="myskin-slot-title">Background for <span id="myskinThemeName">this theme</span></div>
+              <p class="myskin-note" id="myskinCoThemeNote" hidden></p>
+              <div class="myskin-actions">
+                <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-co-use hidden>Use my company's picture here</button>
+                <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-co-hide hidden>Hide the company picture for this theme</button>
+              </div>
               <div class="myskin-slot" data-myskin-theme-slot>
                 <div class="myskin-thumb" data-clarity-mask="true"><img class="myskin-thumb-img" alt="Your picture for this theme" hidden><span class="myskin-thumb-empty">None</span></div>
                 <div>
@@ -3684,6 +3696,10 @@
               </details>
               <div class="myskin-import" id="myskinImportRoot" hidden></div>
               <div class="myskin-grid-root" id="myskinGridRoot" hidden></div>
+            </div>
+            <div class="myskin-team" id="myskinTeam" hidden>
+              <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-open="team">Team backgrounds</button>
+              <div class="myskin-grid-root" id="myskinTeamRoot" hidden></div>
             </div>
 
             <div class="myskin-slot" data-myskin-slot="texture">
@@ -7128,8 +7144,8 @@
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=16"></script>
 <script defer src="js/today-home.js?v=3"></script>
-<script defer src="js/my-skin-logic.js?v=4"></script>
-<script defer src="js/my-skin.js?v=6"></script>
+<script defer src="js/my-skin-logic.js?v=5"></script>
+<script defer src="js/my-skin.js?v=7"></script>
 <script defer src="js/ui.js?v=10"></script>
 <script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>

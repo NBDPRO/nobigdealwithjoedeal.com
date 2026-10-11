@@ -38,6 +38,10 @@
   var THEME_ID_RE = /^(_custom|[a-z0-9-]{1,40})$/;
   var IMAGE_ID_RE = /^[a-z0-9]{8,16}$/;
   var IMAGE_PATH_RE = /^skins\/[^\/#\[\]*?]+\/themes\/(_custom|[a-z0-9-]{1,40})\/[a-z0-9]{8,16}$/;
+  // Company background sets (spec section 18): companies/{id}/skins/themes/{theme}/{image}
+  var COMPANY_PATH_RE = /^companies\/[A-Za-z0-9_-]{1,128}\/skins\/themes\/(_all|_custom|[a-z0-9-]{1,40})\/[a-z0-9]{8,16}$/;
+  var COMPANY_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+  var COMPANY_CAP_BYTES = 500 * 1024 * 1024;
   var MAX_IMAGES_PER_THEME = 6;
   var MAX_THEME_ENTRIES = 220;                    // the firestore.rules guard says the same
   var THEME_MAX_STORED_BYTES = 3 * 1024 * 1024;   // storage.rules cap after re-encode
@@ -88,11 +92,12 @@
     return 'center';
   }
 
-  function normImage(raw) {
+  function normImage(raw, company) {
     if (!raw || typeof raw !== 'object') return null;
     if (typeof raw.id !== 'string' || !IMAGE_ID_RE.test(raw.id)) return null;
-    // Shape only (no uid is known here): skins/<uid>/themes/<themeId>/<imageId>.
-    if (typeof raw.path !== 'string' || !IMAGE_PATH_RE.test(raw.path)) return null;
+    // Shape only (no uid is known here): skins/<uid>/themes/<themeId>/<imageId>
+    // (or, for a company set, companies/<id>/skins/themes/<themeId>/<imageId>).
+    if (typeof raw.path !== 'string' || !(company ? COMPANY_PATH_RE : IMAGE_PATH_RE).test(raw.path)) return null;
     return {
       id: raw.id, path: raw.path, v: Number(raw.v) || 0,
       w: Math.max(0, Math.round(Number(raw.w) || 0)), h: Math.max(0, Math.round(Number(raw.h) || 0)),
@@ -118,11 +123,11 @@
     };
   }
 
-  function normThemeSlot(raw) {
+  function normThemeSlot(raw, company) {
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.images)) return null;
     var imgs = [];
     for (var i = 0; i < raw.images.length && imgs.length < MAX_IMAGES_PER_THEME; i++) {
-      var im = normImage(raw.images[i]); if (im) imgs.push(im);
+      var im = normImage(raw.images[i], company); if (im) imgs.push(im);
     }
     if (!imgs.length) return null;
     var s = normStyle(raw);
@@ -131,6 +136,10 @@
     s.shuffle = typeof raw.shuffle === 'boolean' ? raw.shuffle : null;
     s.fadeMs = raw.fadeMs == null ? null : Math.round(clamp(raw.fadeMs, 0, FADE_MAX, FADE_DEFAULT));
     s.updatedAt = Number(raw.updatedAt) || 0;
+    if (company) {
+      s.mode = raw.mode === 'enforced' ? 'enforced' : 'suggested';
+      s.minDim = raw.minDim == null ? null : round2(clamp(raw.minDim, DIM_MIN, DIM_MAX, 0));
+    }
     return s;
   }
 
@@ -180,7 +189,64 @@
       },
       themes: themes,
       allThemes: normAll(r.allThemes),
+      // "Hide background pictures" (Comfort): nothing painted, enforced sets included.
+      hidePictures: r.hidePictures === true,
+      // The member's own switches for their company's sets.
+      company: normMemberCompany(r.company),
     };
+  }
+
+  function normMemberCompany(raw) {
+    var o = (raw && typeof raw === 'object') ? raw : {};
+    var hide = {};
+    var src = (o.hide && typeof o.hide === 'object') ? o.hide : {};
+    Object.keys(src).forEach(function (k) { if (src[k] === true && THEME_ID_RE.test(k)) hide[k] = true; });
+    return { show: o.show !== false, hide: hide };
+  }
+
+  // The company's set: companies/{id}/skin/config (admins write it; every
+  // member reads it). usage is written only by the Cloud Function.
+  function normalizeCompany(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    var sh = (raw.show && typeof raw.show === 'object') ? raw.show : {};
+    var themes = {}, n = 0;
+    var src = (raw.themes && typeof raw.themes === 'object') ? raw.themes : {};
+    Object.keys(src).forEach(function (id) {
+      if (n >= MAX_THEME_ENTRIES || !THEME_ID_RE.test(id)) return;
+      var s = normThemeSlot(src[id], true);
+      if (s) { themes[id] = s; n++; }
+    });
+    var ra = raw.rightsAttestation;
+    var us = (raw.usage && typeof raw.usage === 'object') ? raw.usage : {};
+    return {
+      schema: 1,
+      enabled: raw.enabled === true,
+      allowHide: raw.allowHide !== false,
+      show: {
+        interval: INTERVALS.indexOf(sh.interval) !== -1 ? sh.interval : INTERVAL_DEFAULT,
+        shuffle: sh.shuffle === true,
+        fadeMs: Math.round(clamp(sh.fadeMs, 0, FADE_MAX, FADE_DEFAULT)),
+      },
+      all: normThemeSlot(raw.all, true),
+      themes: themes,
+      rightsAttestation: (ra && typeof ra === 'object' && ra.text === 'v1') ? { by: String(ra.by || ''), at: Number(ra.at) || 0, text: 'v1' } : null,
+      usage: { bytes: Math.max(0, Number(us.bytes) || 0), count: Math.max(0, Math.round(Number(us.count) || 0)), rejectedAt: Number(us.rejectedAt) || 0 },
+      updatedBy: typeof raw.updatedBy === 'string' ? raw.updatedBy : '',
+    };
+  }
+
+  function companyStoragePath(companyId, themeId, imageId, thumb) {
+    if (typeof companyId !== 'string' || !COMPANY_ID_RE.test(companyId)) return null;
+    if (typeof themeId !== 'string' || !(themeId === '_all' || THEME_ID_RE.test(themeId))) return null;
+    if (typeof imageId !== 'string' || !IMAGE_ID_RE.test(imageId)) return null;
+    return 'companies/' + companyId + '/skins/themes/' + themeId + '/' + imageId + (thumb ? '_t' : '');
+  }
+  // A company picture is fetched only from the caller's own company folder.
+  function trustedCompanyImagePath(companyId, img) {
+    if (!img || typeof img.path !== 'string') return null;
+    var m = /^companies\/([^\/]+)\/skins\/themes\/(_all|_custom|[a-z0-9-]{1,40})\/([a-z0-9]{8,16})$/.exec(img.path);
+    if (!m) return null;
+    return companyStoragePath(companyId, m[2], m[3]) === img.path ? img.path : null;
   }
 
   // A slot's stored path must be the caller's own skins/{uid}/{slot}; a doc
@@ -268,6 +334,60 @@
     return out('none', plain, []);
   }
 
+  // What paints for theme T when the member's company has a set (spec 18.4).
+  //   1 company enforced for T          5 personal global wallpaper
+  //   2 company enforced for every      6 company suggested for T
+  //   3 personal set for T              7 company suggested for every theme
+  //   4 personal "use for all"          8 the theme's built-in art
+  // Enforced sets paint even when the member's own My Skin is off; suggested
+  // sets paint for members with no personal picture, including members who
+  // never set My Skin up, unless they turned company backgrounds off (only
+  // when the company allows it). "Hide background pictures" beats all of it.
+  // Returns resolveBackground()'s shape plus origin: 'company-enforced' |
+  // 'personal' | 'company-suggested' | 'builtin' and company:true for 1/2/6/7.
+  function resolveWithCompany(cfg, company, themeId) {
+    var c = (cfg && cfg.themes && cfg.show) ? cfg : normalize(cfg);
+    var co = company && company.themes ? company : normalizeCompany(company);
+    var personal = resolveBackground(c, themeId);
+    function built() { var p = personal; p.origin = 'builtin'; p.company = false; return p; }
+    if (c.hidePictures) { var n = resolveBackground({ enabled: false, perTheme: false, slots: {}, themes: {}, show: c.show, dim: c.dim }, themeId); n.origin = 'builtin'; n.company = false; return n; }
+    function fromSlot(slot, origin) {
+      var own = c.themes[themeId];   // a member can raise dim and blur on an enforced picture, never lower
+      var dim = slot.dim == null ? c.dim : slot.dim;
+      var blur = slot.blur || 0;
+      if (origin === 'company-enforced' && own) {
+        if (own.dim != null) dim = Math.max(dim, own.dim);
+        blur = Math.max(blur, own.blur || 0);
+      }
+      if (origin === 'company-enforced') dim = Math.max(dim, slot.minDim || 0);
+      return {
+        source: 'company', images: slot.images, origin: origin, company: true, locked: origin === 'company-enforced',
+        dim: dim, dimOverride: false, minDim: slot.minDim || 0, blur: blur,
+        position: slot.position || 'center', fit: slot.fit || 'cover', pixelated: slot.pixelated === true,
+        hideOverlay: slot.hideOverlay !== false,
+        interval: slot.interval || co.show.interval, shuffle: typeof slot.shuffle === 'boolean' ? slot.shuffle : co.show.shuffle,
+        fadeMs: slot.fadeMs == null ? co.show.fadeMs : slot.fadeMs,
+      };
+    }
+    var on = !!(co && co.enabled);
+    if (on) {
+      var t = themeId && co.themes[themeId];
+      if (t && t.mode === 'enforced') return fromSlot(t, 'company-enforced');
+      if (co.all && co.all.mode === 'enforced') return fromSlot(co.all, 'company-enforced');
+    }
+    if (personal.source !== 'none') { personal.origin = 'personal'; personal.company = false; return personal; }
+    if (on) {
+      var off = c.company.show === false && co.allowHide;
+      var hid = co.allowHide && themeId && c.company.hide[themeId] === true;
+      if (!off && !hid) {
+        var ts = themeId && co.themes[themeId];
+        if (ts) return fromSlot(ts, 'company-suggested');
+        if (co.all) return fromSlot(co.all, 'company-suggested');
+      }
+    }
+    return built();
+  }
+
   // Before decoding: is this a picture we'll accept?
   function checkInput(file) {
     if (!file) return { ok: false, reason: 'No file chosen.' };
@@ -351,6 +471,7 @@
         dim = round2(dim + 0.05); raised = true;
       }
     }
+    if (slot && slot.minDim) dim = Math.max(dim, slot.minDim);   // an enforced company set's floor, even over "I understand"
     var blur = Math.min(BLUR_MAX, Math.max(0, Math.round(Number(slot && slot.blur) || 0)));
     if (c.highContrast) { if (dim < 0.8) { dim = 0.8; raised = true; } if (blur < 4) blur = 4; }
     if (c.narrow && blur > 6) blur = 6;
@@ -660,6 +781,8 @@
     INTERVALS: INTERVALS, INTERVAL_DEFAULT: INTERVAL_DEFAULT, FITS: FITS, POSITIONS: POSITIONS,
     THEME_ID_RE: THEME_ID_RE, IMAGE_ID_RE: IMAGE_ID_RE,
     storagePath: storagePath, themeStoragePath: themeStoragePath, normalize: normalize, trustedPath: trustedPath,
+    normalizeCompany: normalizeCompany, companyStoragePath: companyStoragePath, trustedCompanyImagePath: trustedCompanyImagePath,
+    resolveWithCompany: resolveWithCompany, COMPANY_CAP_BYTES: COMPANY_CAP_BYTES,
     trustedThemePath: trustedThemePath, trustedImagePath: trustedImagePath, referencedPaths: referencedPaths,
     resolveBackground: resolveBackground, effectiveDim: effectiveDim, checkInput: checkInput,
     fitWithin: fitWithin, contrast: contrast, toHex: toHex, mixHex: mixHex, accentCheck: accentCheck,

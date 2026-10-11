@@ -244,4 +244,13 @@
 .myskin-show[hidden], .myskin-show-own[hidden] { display: none !important; }
 .myskin-defaults { margin: 12px 0; font-size: 13px; color: var(--t); }
 .myskin-defaults summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+/* Company background sets: the member's block and the admin's panel. */
+.myskin-company { margin: 8px 0; padding: 8px 0; border-top: 1px solid var(--br); }
+.myskin-company[hidden], .myskin-team[hidden], .myskin-team .myskin-grid-root[hidden] { display: none !important; }
+.myskin-team { margin-top: 12px; }
+.myskin-coset { border-top: 1px solid var(--br); padding: 8px 0; }
+.myskin-rights { align-items: flex-start; font-size: 12px; }
+.myskin-usage { display: grid; gap: 4px; margin: 8px 0; }
+.myskin-usage progress { width: 100%; height: 12px; accent-color: var(--orange); }
+.myskin-num { width: 64px; min-height: 44px; padding: 0 6px; border: 1px solid var(--br); border-radius: 8px; background: var(--s2); color: var(--t); }
 .myskin-accent input[type="color"] { width: 52px; height: 44px; padding: 2px; border: 1px solid var(--br); border-radius: 8px; background: var(--s2); }
