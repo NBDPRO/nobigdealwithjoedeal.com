@@ -1,3 +1,11 @@
+            // My Skin keys its per-theme backgrounds by theme id. The builder has no
+            // id of its own, so announce the reserved '_custom' key on apply and the
+            // real current theme on reset (detail shape matches ThemeEngine's event).
+            function nbdAnnounceCustomTheme(key) {
+              try {
+                document.dispatchEvent(new CustomEvent('themechange', { detail: key, bubbles: true, cancelable: false }));
+              } catch (e) {}
+            }
             function applyCustomTheme() {
               var R = document.documentElement.style;
               var v = function(id) { return document.getElementById(id)?.value || ''; };
@@ -14,6 +22,7 @@
               if (window.ThemeGX && window.ThemeGX.isEnabled()) {
                 window.ThemeGX.setAccent(v('tbAccent'));
               }
+              nbdAnnounceCustomTheme('_custom');
             }
             function saveCustomTheme() {
               var name = (document.getElementById('tbName')?.value || '').trim() || 'Custom Theme';
@@ -42,6 +51,7 @@
               document.getElementById('tbMuted').value = '#6B7280';
               document.getElementById('tbBorder').value = '#2a2d35';
               if (typeof showToast === 'function') showToast('Reset to default NBD theme', 'info');
+              nbdAnnounceCustomTheme((window.ThemeEngine && window.ThemeEngine.getCurrent && window.ThemeEngine.getCurrent()) || 'nbd-original');
             }
             // Load saved custom theme on boot
             (function() {
