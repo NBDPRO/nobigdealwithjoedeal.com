@@ -228,7 +228,7 @@
       '#te-theme-preview .tp-stage{--accent-fg:' + pickFg(res.accent) + ';}';
 
     var sw = [res.bg, res.surface, res.accent, res.text].map(function (c) {
-      return '<span style="background:' + esc(c) + '" title="' + esc(c) + '"></span>';
+      return '<span data-c="' + esc(c) + '" title="' + esc(c) + '"></span>';
     }).join('');
 
     p.innerHTML =
@@ -260,6 +260,10 @@
         '</div>' +
         '<div class="tp-lists" id="te-pv-lists"></div>' +
       '</div>';
+    // Swatch colours go through the CSSOM, not inline markup: the repo's
+    // inline-style ratchet counts attributes, and CSP-wise this is the cleaner path.
+    var spans = p.querySelectorAll ? p.querySelectorAll('.tp-sw span[data-c]') : [];
+    for (var i = 0; i < spans.length; i++) spans[i].style.background = spans[i].getAttribute('data-c');
     renderLists();
   }
 
