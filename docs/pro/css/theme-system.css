@@ -44,6 +44,29 @@
    card edged in its own colour with a hard offset shadow, a rainbow rule,
    confetti art. Opt-in; dark-native. Treatment at the end of this file. */
 :root[data-theme="maximal"] { --orange:#ffd23f;--ob:#ffe27a;--og:rgba(255,210,63,.18);--bg:#140a2e;--s:#1f1147;--s2:#2a1660;--s3:#34207a;--br:rgba(255,95,162,.45);--t:#fff7e8;--m:#d9c8ff;--blue:#5fc8ff;--green:#4dffb8;--purple:#c49bff;--red:#ff7a85;--gold:#ffd23f;--paper:#2a1660;--ink:#fff7e8;--rule:rgba(255,95,162,.3); }
+/* ══ New theme pack (2026-10-11, roadmap A3 / spec section 17) ══════════════
+   Twelve themes, all unlocked: gameboy-dmg, virtual-boy, ds-lite, pallet-town,
+   poke-center (light), mystery-dungeon, hoenn-tides, mecha-hangar,
+   saturday-morning, shingle-crew, chalk-line (light), tar-paper. --glow /
+   --glow2 are new OPTIONAL tokens (overlay / hover glow / My Skin veil tint):
+   every other theme falls back to the :where(:root) defaults just below, so
+   a rule reading var(--glow) always resolves. Mirrors ThemeEngine THEMES. */
+:where(:root) {
+  --glow: color-mix(in srgb, var(--orange, #BD5728) 30%, transparent);
+  --glow2: color-mix(in srgb, var(--orange, #BD5728) 14%, transparent);
+}
+:root[data-theme="gameboy-dmg"] { --orange:#9bbc0f;--ob:#b4d63a;--og:rgba(155,188,15,.16);--bg:#0f1a0f;--s:#16261a;--s2:#1f3524;--s3:#2b4630;--br:rgba(155,188,15,.14);--t:#e0f0c0;--m:#9fbf86;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--gold:#eab308;--paper:#1f3524;--ink:#e0f0c0;--rule:rgba(224,240,192,.09);--glow:rgba(155,188,15,.35);--glow2:rgba(48,98,48,.45); }
+:root[data-theme="virtual-boy"] { --orange:#ff2a2a;--ob:#ff5a5a;--og:rgba(255,42,42,.16);--bg:#050000;--s:#0d0102;--s2:#1a0306;--s3:#280509;--br:rgba(255,42,42,.14);--t:#ffd6d6;--m:#d48a8a;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--gold:#eab308;--paper:#1a0306;--ink:#ffd6d6;--rule:rgba(255,214,214,.09);--glow:rgba(255,42,42,.40);--glow2:rgba(120,0,0,.55); }
+:root[data-theme="ds-lite"] { --orange:#4fb3ff;--ob:#7cc6ff;--og:rgba(79,179,255,.16);--bg:#0c1220;--s:#121a2c;--s2:#1b2640;--s3:#253353;--br:rgba(79,179,255,.14);--t:#e6eefc;--m:#9fb0cc;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--gold:#eab308;--paper:#1b2640;--ink:#e6eefc;--rule:rgba(230,238,252,.09);--glow:rgba(79,179,255,.30);--glow2:rgba(192,200,214,.25); }
+:root[data-theme="pallet-town"] { --orange:#e84a3c;--ob:#ff6b5c;--og:rgba(232,74,60,.16);--bg:#0e1a12;--s:#142418;--s2:#1c3222;--s3:#26412d;--br:rgba(232,74,60,.14);--t:#eef6e8;--m:#a7bea2;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--gold:#eab308;--paper:#1c3222;--ink:#eef6e8;--rule:rgba(238,246,232,.09);--glow:rgba(232,74,60,.30);--glow2:rgba(120,200,80,.25); }
+:root[data-theme="poke-center"] { --orange:#d12929;--ob:#b82222;--og:rgba(214,45,45,.12);--bg:#f7f3f2;--s:#fffdfc;--s2:#ffffff;--s3:#f1e9e7;--br:rgba(214,45,45,.18);--t:#2a1d1d;--m:#6b5a58;--blue:#1d4ed8;--green:#15803d;--red:#b91c1c;--gold:#8a5a00;--paper:#ffffff;--ink:#2a1d1d;--rule:rgba(42,29,29,.08);--glow:rgba(214,45,45,.18);--glow2:rgba(255,170,170,.25); }
+:root[data-theme="mystery-dungeon"] { --orange:#f3a73b;--ob:#ffbf63;--og:rgba(243,167,59,.16);--bg:#140f1c;--s:#1b1426;--s2:#251c35;--s3:#302545;--br:rgba(243,167,59,.14);--t:#f4ecff;--m:#b1a3c6;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--gold:#eab308;--paper:#251c35;--ink:#f4ecff;--rule:rgba(244,236,255,.09);--glow:rgba(243,167,59,.32);--glow2:rgba(140,90,210,.30); }
+:root[data-theme="hoenn-tides"] { --orange:#2ec4b6;--ob:#5bd8cc;--og:rgba(46,196,182,.16);--bg:#061a20;--s:#0a242c;--s2:#10323c;--s3:#17414d;--br:rgba(46,196,182,.14);--t:#e2f7f5;--m:#93bdb9;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--gold:#eab308;--paper:#10323c;--ink:#e2f7f5;--rule:rgba(226,247,245,.09);--glow:rgba(46,196,182,.30);--glow2:rgba(255,209,102,.20); }
+:root[data-theme="mecha-hangar"] { --orange:#ffd23f;--ob:#ffe070;--og:rgba(255,210,63,.16);--bg:#0b0e14;--s:#11151d;--s2:#19202b;--s3:#222b39;--br:rgba(255,210,63,.14);--t:#e8edf5;--m:#9aa6b8;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--gold:#eab308;--paper:#19202b;--ink:#e8edf5;--rule:rgba(232,237,245,.09);--glow:rgba(255,210,63,.28);--glow2:rgba(230,57,70,.25); }
+:root[data-theme="saturday-morning"] { --orange:#ff8a1f;--ob:#ffa64d;--og:rgba(255,138,31,.16);--bg:#1a1033;--s:#221543;--s2:#2d1d57;--s3:#3a266d;--br:rgba(255,138,31,.14);--t:#fff3e6;--m:#c4b5e0;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--gold:#eab308;--paper:#2d1d57;--ink:#fff3e6;--rule:rgba(255,243,230,.09);--glow:rgba(255,138,31,.32);--glow2:rgba(0,200,255,.25); }
+:root[data-theme="shingle-crew"] { --orange:#ff7a1a;--ob:#ff9a4d;--og:rgba(255,122,26,.16);--bg:#121212;--s:#1a1a1b;--s2:#242426;--s3:#2f2f32;--br:rgba(255,122,26,.14);--t:#eeeeee;--m:#a6a6ab;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--gold:#eab308;--paper:#242426;--ink:#eeeeee;--rule:rgba(238,238,238,.09);--glow:rgba(255,122,26,.30);--glow2:rgba(90,90,96,.35); }
+:root[data-theme="chalk-line"] { --orange:#1d5fd1;--ob:#164ba8;--og:rgba(29,95,209,.12);--bg:#efe4cf;--s:#f7efdf;--s2:#fffaf0;--s3:#eadbc0;--br:rgba(29,95,209,.18);--t:#2b2216;--m:#6a5a42;--blue:#1d4ed8;--green:#15803d;--red:#b91c1c;--gold:#8a5a00;--paper:#fffaf0;--ink:#2b2216;--rule:rgba(43,34,22,.08);--glow:rgba(29,95,209,.18);--glow2:rgba(200,160,100,.25); }
+:root[data-theme="tar-paper"] { --orange:#e63946;--ob:#ff5c68;--og:rgba(230,57,70,.16);--bg:#0d0d0f;--s:#141417;--s2:#1d1d22;--s3:#27272d;--br:rgba(230,57,70,.14);--t:#ececf0;--m:#a0a0aa;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--gold:#eab308;--paper:#1d1d22;--ink:#ececf0;--rule:rgba(236,236,240,.09);--glow:rgba(230,57,70,.28);--glow2:rgba(255,255,255,.06); }
 :root[data-theme="lightsaber"] { --orange:#00e5ff;--ob:#40f0ff;--og:rgba(0,229,255,.35);--bg:#000508;--s:#000d14;--s2:#001820;--s3:#00222e;--br:rgba(0,229,255,.1);--t:#e0f8ff;--m:#60b8c8;--blue:#00e5ff;--green:#69f0ae;--purple:#ce93d8;--red:#ff5252;--gold:#ffff00;--paper:#001820;--ink:#e0f8ff;--rule:rgba(0,229,255,.12); }
 :root[data-theme="pokemon"] { --orange:#ffcc02;--ob:#ffe040;--og:rgba(255,204,2,.35);--bg:#12223D;--s:#16213e;--s2:#0f3460;--s3:#163480;--br:rgba(255,204,2,.1);--t:#f0f0ff;--m:#9090c8;--blue:#0a84ff;--green:#4caf50;--purple:#9c27b0;--red:#e53935;--gold:#ffcc02;--paper:#0f3460;--ink:#f0f0ff;--rule:rgba(255,204,2,.12); }
 :root[data-theme="mario"] { --orange:#e52222;--ob:#ff3333;--og:rgba(229,34,34,.3);--bg:#1a0800;--s:#2e1200;--s2:#421c00;--s3:#562600;--br:rgba(229,34,34,.1);--t:#fff8e0;--m:#b09060;--blue:#2196f3;--green:#4caf50;--purple:#9c27b0;--red:#e52222;--gold:#ffd600;--paper:#421c00;--ink:#fff8e0;--rule:rgba(229,34,34,.12); }
@@ -170,6 +193,18 @@
 :root[data-theme="liveops"]   { --accent-fg:#06102e; --accent-ring:rgba(0,0,0,.45);    }
 :root[data-theme="jobsite"]   { --accent-fg:#14171b; --accent-ring:rgba(0,0,0,.45);    }
 :root[data-theme="maximal"]   { --accent-fg:#140a2e; --accent-ring:rgba(0,0,0,.45);    }
+:root[data-theme="gameboy-dmg"]         { --accent-fg:#0f1a0f; --accent-ring:rgba(255,255,255,.30); }
+:root[data-theme="virtual-boy"]         { --accent-fg:#050000; --accent-ring:rgba(255,255,255,.30); }
+:root[data-theme="ds-lite"]             { --accent-fg:#0c1220; --accent-ring:rgba(255,255,255,.30); }
+:root[data-theme="pallet-town"]         { --accent-fg:#0e1a12; --accent-ring:rgba(255,255,255,.30); }
+:root[data-theme="poke-center"]         { --accent-fg:#ffffff; --accent-ring:rgba(0,0,0,.35); }
+:root[data-theme="mystery-dungeon"]     { --accent-fg:#140f1c; --accent-ring:rgba(255,255,255,.30); }
+:root[data-theme="hoenn-tides"]         { --accent-fg:#061a20; --accent-ring:rgba(255,255,255,.30); }
+:root[data-theme="mecha-hangar"]        { --accent-fg:#0b0e14; --accent-ring:rgba(255,255,255,.30); }
+:root[data-theme="saturday-morning"]    { --accent-fg:#1a1033; --accent-ring:rgba(255,255,255,.30); }
+:root[data-theme="shingle-crew"]        { --accent-fg:#121212; --accent-ring:rgba(255,255,255,.30); }
+:root[data-theme="chalk-line"]          { --accent-fg:#ffffff; --accent-ring:rgba(0,0,0,.35); }
+:root[data-theme="tar-paper"]           { --accent-fg:#0d0d0f; --accent-ring:rgba(255,255,255,.30); }
 :root[data-theme="matrix"]   { --accent-fg:#000300; --accent-ring:rgba(0,0,0,.55);     }
 :root[data-theme="underwater"]{ --accent-fg:#000c14; --accent-ring:rgba(0,0,0,.45);    }
 /* ══ Wave 5e (A.5) — second-pass theme contrast audit ══════════════
@@ -712,4 +747,49 @@
 }
 :root[data-theme="maximal"]:not([data-mode="light"]) .ui-seg.is-on {
   box-shadow: 3px 3px 0 #ff5fa2;
+}
+
+/* ══ New theme pack: card glow (2026-10-11) ═══════════════════════════════
+   Static (no animation): a cards-only hover lift in the theme's own --glow.
+   Scoped to the twelve new themes; all other themes are untouched. */
+:root:is(
+  [data-theme="gameboy-dmg"],
+  [data-theme="virtual-boy"],
+  [data-theme="ds-lite"],
+  [data-theme="pallet-town"],
+  [data-theme="poke-center"],
+  [data-theme="mystery-dungeon"],
+  [data-theme="hoenn-tides"],
+  [data-theme="mecha-hangar"],
+  [data-theme="saturday-morning"],
+  [data-theme="shingle-crew"],
+  [data-theme="chalk-line"],
+  [data-theme="tar-paper"]
+) :is(.w-card, .stat-card, .ui-card):hover {
+  box-shadow: 0 0 0 1px var(--br), 0 8px 24px -10px var(--glow);
+}
+
+/* ══ Theme Morph (roadmap A1 / idea #03) ═════════════════════════════════
+   ThemeEngine.apply() wraps a deliberate switch in document.startViewTransition
+   and grows the new theme as a circle from the clicked chip (clip-path is
+   animated from JS; the root pseudo-elements just must not run their own
+   fade or the circle would be double-blended). Reduce Motion / no View
+   Transitions: a 150ms colour crossfade via html.theme-fade instead. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+
+/* Doubled class beats the Reduce Motion blanket (:root[data-motion="reduce"] *
+   forces transition-duration ~0 with !important): a 150ms colour fade is the
+   documented reduced-motion fallback, not a movement. */
+html.theme-fade.theme-fade,
+html.theme-fade.theme-fade *,
+html.theme-fade.theme-fade *::before,
+html.theme-fade.theme-fade *::after {
+  transition: background-color 150ms linear, color 150ms linear, border-color 150ms linear,
+              fill 150ms linear, stroke 150ms linear, box-shadow 150ms linear !important;
 }
