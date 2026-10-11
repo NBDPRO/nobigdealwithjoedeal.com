@@ -368,6 +368,7 @@
     // init sequence; the hook is idempotent).
     theme: [
       'js/theme-engine.js?v=8',
+      'js/surface-style.js?v=1',
       'js/theme-overlays.js?v=3',
       'js/theme-sounds.js?v=1',
       'js/theme-achievements.js?v=1',

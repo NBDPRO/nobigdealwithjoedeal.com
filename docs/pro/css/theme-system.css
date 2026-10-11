@@ -818,6 +818,16 @@
   }
 }
 
+/* ══ Comfort tab: Surface style layout (2026-10-11) ═════════════════════════
+   Classes, not inline styles: the dashboard inline-style ratchet counts markup. */
+.npm-surf-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.npm-surf-title { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--m); }
+.npm-surf-row { display: flex; gap: 6px; }
+.npm-surf-sliders { display: none; margin-top: 10px; }
+.npm-surf-lbl { display: block; font-size: 11px; color: var(--m); margin-bottom: 8px; }
+.npm-surf-range { width: 100%; accent-color: var(--orange); }
+.npm-surf-note { font-size: 10px; color: var(--m); margin-top: 6px; line-height: 1.4; }
+
 /* ══ Theme Morph (roadmap A1 / idea #03) ═════════════════════════════════
    ThemeEngine.apply() wraps a deliberate switch in document.startViewTransition
    and grows the new theme as a circle from the clicked chip (clip-path is

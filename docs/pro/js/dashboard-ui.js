@@ -1841,6 +1841,14 @@ function nbdComfortSet(kind, value) {
       // dashboard-ui-prefs-boot.js and is reached through the call registry.
       const reg = window.__NBD_CALL_REGISTRY;
       if (reg && typeof reg.nbdSetSurface === 'function') reg.nbdSetSurface(value);
+      else if (window.ScriptLoader && window.ScriptLoader.loadBundle) {
+        // surface-style.js rides the lazy theme bundle; load it, then apply.
+        window.ScriptLoader.loadBundle('theme').then(function () {
+          const r2 = window.__NBD_CALL_REGISTRY;
+          if (r2 && typeof r2.nbdSetSurface === 'function') r2.nbdSetSurface(value);
+          nbdComfortRefresh();
+        });
+      }
     } else if (kind === 'size') {
       // 'medium' is the default — clear the attribute so we don't
       // carry stale values through theme changes.

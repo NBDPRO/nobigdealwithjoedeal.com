@@ -6383,24 +6383,24 @@
                readability guard raises Frost on its own until text clears 4.5:1.
                Shape & Depth presets that are already translucent keep their own look. -->
           <div>
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+            <div class="npm-surf-head">
               <span class="fs-14" aria-hidden="true">🪟</span>
-              <span style="font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--m);">Surface style</span>
+              <span class="npm-surf-title">Surface style</span>
             </div>
-            <div style="display:flex; gap:6px;">
+            <div class="npm-surf-row">
               <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="surface" data-value="solid" data-action="call" data-fn="nbdComfortSet" data-arg="surface" data-arg2="solid">Solid</button>
               <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="surface" data-value="tinted" data-action="call" data-fn="nbdComfortSet" data-arg="surface" data-arg2="tinted">Tinted</button>
               <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="surface" data-value="glass" data-action="call" data-fn="nbdComfortSet" data-arg="surface" data-arg2="glass">Glass</button>
             </div>
-            <div id="npm-surface-sliders" style="display:none; margin-top:10px;">
-              <label style="display:block; font-size:11px; color:var(--m); margin-bottom:8px;">Blur
-                <input type="range" id="npm-surface-blur" min="0" max="30" value="14" data-on-input="nbdSetSurfaceBlur" style="width:100%; accent-color:var(--orange);">
+            <div id="npm-surface-sliders" class="npm-surf-sliders">
+              <label class="npm-surf-lbl">Blur
+                <input type="range" id="npm-surface-blur" min="0" max="30" value="14" data-on-input="nbdSetSurfaceBlur" class="npm-surf-range">
               </label>
-              <label style="display:block; font-size:11px; color:var(--m);">Frost
-                <input type="range" id="npm-surface-frost" min="40" max="95" value="68" data-on-input="nbdSetSurfaceFrost" style="width:100%; accent-color:var(--orange);">
+              <label class="npm-surf-lbl">Frost
+                <input type="range" id="npm-surface-frost" min="40" max="95" value="68" data-on-input="nbdSetSurfaceFrost" class="npm-surf-range">
               </label>
             </div>
-            <div style="font-size:10px; color:var(--m); margin-top:6px; line-height:1.4;">Tinted mixes a hint of your accent into cards. Glass frosts them; text stays readable automatically.</div>
+            <div class="npm-surf-note">Tinted mixes a hint of your accent into cards. Glass frosts them; text stays readable automatically.</div>
           </div>
 
           <!-- Motion + Professional Mode toggles -->

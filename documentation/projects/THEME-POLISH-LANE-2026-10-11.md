@@ -128,3 +128,11 @@ CSS scoping/fallbacks, wiring. Break-tested (removing the guard's max() or the
 `@supports not` fallback reddens it). smoke 4417, shape-styles, theme-qa,
 css-token-resolution green; rendered in Chrome at 900 and 390 px (dark + light
 theme over a colourful backdrop).
+
+**A4 placement update.** The setter + guard live in `docs/pro/js/surface-style.js`
+in the lazy `theme` bundle, NOT in `dashboard-ui-prefs-boot.js`: the first cut
+pushed the render-blocking boot budget over its 300 KB ceiling (Unit suites
+caught it). The pre-paint stamp stays in `shape-preboot.js`;
+`dashboard-state.js` kicks the bundle for a saved Glass user; `nbdComfortSet`
+loads the bundle on demand. Comfort markup uses `.npm-surf-*` classes (the
+dashboard inline-style ratchet counts markup).
