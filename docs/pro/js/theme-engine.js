@@ -5610,6 +5610,131 @@
   }
 
   // ============================================================================
+  // THEME MORPH (2026-10-11, roadmap A1 / design idea #03)
+  // A deliberate theme switch (picker click, unlock, auto-theme, try-for-10-min)
+  // wipes the new theme across the screen as a circle growing from the thing the
+  // user just clicked, via document.startViewTransition. Where View Transitions
+  // are unsupported - or Reduce Motion is on (OS pref or the Comfort toggle,
+  // data-motion="reduce") - it falls back to a 150ms colour crossfade
+  // (html.theme-fade, theme-system.css). Boot/hydrate/restore paths
+  // (save === false) never animate: first paint must be instant.
+  // ============================================================================
+  const MORPH_CLICK_WINDOW_MS = 2000;
+  const FADE_MS = 150;
+  let lastClick = null;       // { x, y, t } - where the user last clicked/activated
+  let activeMorph = null;     // the in-flight ViewTransition, if any
+  let overlayPaused = false;  // true while WE have ThemeOverlays paused
+  let fadeTimer = null;
+
+  try {
+    document.addEventListener('click', function (e) {
+      try {
+        let x = e.clientX, y = e.clientY;
+        // Keyboard activation (Enter/Space on a focused chip) reports 0,0 -
+        // use the element's own centre so the circle still grows from it.
+        if ((!e.detail || (!x && !y)) && e.target && e.target.getBoundingClientRect) {
+          const r = e.target.getBoundingClientRect();
+          x = r.left + r.width / 2;
+          y = r.top + r.height / 2;
+        }
+        lastClick = { x: x, y: y, t: Date.now() };
+      } catch (_) {}
+    }, true);
+  } catch (_) {}
+
+  function motionReduced() {
+    try {
+      if (document.documentElement.getAttribute('data-motion') === 'reduce') return true;
+      return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    } catch (_) { return false; }
+  }
+
+  function cssToken(name, fallback) {
+    try {
+      const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      if (v) return v;
+    } catch (_) {}
+    return fallback;
+  }
+
+  // Read a CSS time token (e.g. --ui-dur-sheet: 300ms) as milliseconds.
+  function cssTimeMs(name, fallback) {
+    const v = cssToken(name, '');
+    if (/ms$/.test(v)) return parseFloat(v) || fallback;
+    if (/s$/.test(v)) return (parseFloat(v) * 1000) || fallback;
+    return fallback;
+  }
+
+  function pauseOverlays() {
+    const O = window.ThemeOverlays;
+    if (overlayPaused || !O || !O.enabled || !O.container) return;
+    try { O.destroy(); } catch (_) {}
+    O.enabled = false; // _applyNow's ThemeOverlays.apply() no-ops while paused
+    overlayPaused = true;
+  }
+
+  function resumeOverlays() {
+    const O = window.ThemeOverlays;
+    if (!overlayPaused) return;
+    overlayPaused = false;
+    if (!O) return;
+    O.enabled = true;
+    try {
+      const t = THEMES[currentTheme];
+      O.apply((t && t.overlay) || { type: 'none' });
+    } catch (_) {}
+  }
+
+  function fadeApply(engine, themeKey, save) {
+    const html = document.documentElement;
+    try {
+      html.classList.add('theme-fade');
+      clearTimeout(fadeTimer);
+      fadeTimer = setTimeout(function () { html.classList.remove('theme-fade'); }, FADE_MS + 60);
+    } catch (_) {}
+    return engine._applyNow(themeKey, save);
+  }
+
+  function morphApply(engine, themeKey, save, opts) {
+    const html = document.documentElement;
+    if (activeMorph) { try { activeMorph.skipTransition(); } catch (_) {} }
+    pauseOverlays();
+
+    let origin = opts && opts.origin;
+    if (!origin && lastClick && Date.now() - lastClick.t < MORPH_CLICK_WINDOW_MS) origin = lastClick;
+    const hasOrigin = !!(origin && isFinite(origin.x) && isFinite(origin.y));
+
+    let vt;
+    try {
+      vt = document.startViewTransition(function () { engine._applyNow(themeKey, save); });
+    } catch (_) {
+      resumeOverlays();
+      return engine._applyNow(themeKey, save);
+    }
+    activeMorph = vt;
+    const done = function () {
+      if (activeMorph !== vt) return; // a newer morph owns the overlays now
+      activeMorph = null;
+      resumeOverlays();
+    };
+    vt.finished.then(done, done);
+    vt.ready.then(function () {
+      if (!hasOrigin) return; // no click to grow from - leave the default crossfade
+      const x = origin.x, y = origin.y;
+      const r = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+      html.animate(
+        { clipPath: ['circle(0px at ' + x + 'px ' + y + 'px)', 'circle(' + Math.ceil(r) + 'px at ' + x + 'px ' + y + 'px)'] },
+        {
+          duration: cssTimeMs('--ui-dur-sheet', 300),
+          easing: cssToken('--ui-ease', 'cubic-bezier(.2, 0, 0, 1)'),
+          pseudoElement: '::view-transition-new(root)'
+        }
+      );
+    }).catch(function () {});
+    return themeKey;
+  }
+
+  // ============================================================================
   // PUBLIC API
   // ============================================================================
 
@@ -5671,7 +5796,32 @@
       setTimeout(poll, 250);
     },
 
-    apply(themeKey, save = true) {
+    // Public entry point. save===true (a deliberate switch) - or opts.morph
+    // === true for a caller that applies with save=false but IS a user-facing
+    // switch (e.g. the 10-minute trial) - animates; opts.morph === false and
+    // every boot/restore path (save===false) stay instant. opts.origin
+    // {x, y} overrides the last-click circle origin. The return value is the
+    // key that ends up applied, exactly as before (the morph only runs when
+    // the swap cannot be rejected by the locked-theme gate).
+    apply(themeKey, save = true, opts) {
+      try {
+        const o = opts || {};
+        const user = save !== false || o.morph === true;
+        const theme = THEMES[themeKey];
+        const gated = !!(theme && save && theme.locked && !this.isUnlocked(themeKey));
+        if (user && o.morph !== false && !gated && currentTheme && currentTheme !== themeKey &&
+            document.body && !document.hidden) {
+          if (typeof document.startViewTransition === 'function' && !motionReduced()) {
+            return morphApply(this, themeKey, save, o);
+          }
+          return fadeApply(this, themeKey, save);
+        }
+      } catch (_) { /* never let the animation layer block a theme change */ }
+      return this._applyNow(themeKey, save);
+    },
+
+    // The immediate, un-animated swap (the engine's original apply()).
+    _applyNow(themeKey, save = true) {
       const theme = THEMES[themeKey];
       if (!theme) {
         // CSS-only theme (defined in theme-system.css but not registered here).
