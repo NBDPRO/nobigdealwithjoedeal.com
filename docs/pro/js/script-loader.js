@@ -372,7 +372,9 @@
       'js/theme-overlays.js?v=3',
       'js/theme-sounds.js?v=1',
       'js/theme-achievements.js?v=1',
-      'js/theme-gx.js?v=2'
+      'js/theme-gx.js?v=2',
+      // Auto theme rules (roadmap C1). Last: reads window.ThemeEngine at call time.
+      'js/auto-theme.js?v=1'
     ],
     // Leaflet vendor stack (~225 KB, 2026-08-07) — was eager on every boot for
     // a Maps view most sessions never open. Order is load-bearing: plugins

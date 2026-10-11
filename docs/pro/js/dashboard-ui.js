@@ -2002,6 +2002,8 @@ function nbdAutoThemePreferredFor(side) {
 }
 
 function nbdAutoThemeApplyForNow() {
+  // The rule-based scheduler (auto-theme.js) owns switching once loaded.
+  if (window.NBDAutoTheme) { window.NBDAutoTheme.tick(); return; }
   if (!window.ThemeEngine) return;
   const isDay = nbdAutoThemeIsDay();
   const want = nbdAutoThemePreferredFor(isDay ? 'day' : 'night');
@@ -2011,11 +2013,13 @@ function nbdAutoThemeApplyForNow() {
 }
 
 function nbdAutoThemeStart() {
+  if (window.NBDAutoTheme) { window.NBDAutoTheme.setEnabled(true); return; }
   nbdAutoThemeStop();
   nbdAutoThemeApplyForNow();
   _nbdAutoThemeInterval = setInterval(nbdAutoThemeApplyForNow, 60_000);
 }
 function nbdAutoThemeStop() {
+  if (window.NBDAutoTheme) window.NBDAutoTheme.setEnabled(false);
   if (_nbdAutoThemeInterval) {
     clearInterval(_nbdAutoThemeInterval);
     _nbdAutoThemeInterval = null;
@@ -2031,6 +2035,8 @@ function nbdAutoThemeStop() {
 // remembered for the auto-theme day/night system. Listening for
 // both names so we work with any future dispatcher rename too.
 function _nbdRememberManualTheme(ev) {
+  // auto-theme.js treats a hand-picked theme as "pause until midnight" instead.
+  if (window.NBDAutoTheme) return;
   try {
     const themeKey = (ev && ev.detail && (ev.detail.themeKey || ev.detail)) ||
                      (window.ThemeEngine && window.ThemeEngine.getCurrent && window.ThemeEngine.getCurrent());
