@@ -152,6 +152,18 @@ console.log('\n   status marks (overdue / hail) mapped from real lead data');
   ok('a zero-percent outlook does not flag', WL.flagHail(members, () => ({ hailPct: 0 })) === 0);
 }
 
+console.log('\n   stage moves (E2b)');
+{
+  const keys = ['new', 'contacted', 'estimate', 'signed', 'lost'];
+  const role = (k) => (k === 'lost' ? 'lost' : k === 'signed' ? 'won' : 'active');
+  ok('middle stage: prev and next', JSON.stringify(WL.adjacentStages(keys, 'contacted', role)) === JSON.stringify({ prev: 'new', next: 'estimate' }));
+  ok('first stage has no prev', WL.adjacentStages(keys, 'new', role).prev === null);
+  ok('next never means Lost (last working stage has no next)', WL.adjacentStages(keys, 'signed', role).next === null);
+  ok('a lead already Lost cannot step back into a lost neighbour', WL.adjacentStages(keys, 'lost', role).next === null);
+  ok('unknown stage or no keys: no moves', WL.adjacentStages(keys, 'ghost', role).next === null && WL.adjacentStages(null, 'new', role).prev === null);
+  ok('moveOutcome: only a real change of stage counts', WL.moveOutcome('estimate', 'estimate') === 'moved' && WL.moveOutcome('estimate', 'contacted') === 'refused' && WL.moveOutcome('estimate', null) === 'refused');
+}
+
 console.log('\n   day and night');
 {
   ok('noon has no tint', WL.dayTint(12).a === 0 && WL.dayTint(12).name === 'DAY');
@@ -206,7 +218,8 @@ console.log('\n2. contracts');
   ok('no network from the town', !/\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource/.test(code));
   ok('never sends a message (no sms/email/send helpers)', !/\b(sendSms|sendText|sendEmail|sendMessage|mailto:|sms:)/i.test(code));
   ok('the only outbound link is tel: (a Call button the person taps)', /'tel:'/.test(code) && !/https?:\/\//.test(code));
-  ok('Draft text and Move stage are present but disabled in v1', /DRAFT TEXT', disabled: true/.test(code) && /MOVE STAGE', disabled: true/.test(code));
+  ok('Draft text stays disabled (agent_inbox is server-written only); Move stage runs through env.moveStage, never a direct write', /DRAFT TEXT', disabled: true/.test(code) && /env\.moveStage\(/.test(code) && !/moveCard/.test(code));
+  ok('stage moves ask in-game (no window.confirm) and verify the outcome from the lead', !/confirm\(/.test(code) && /moveOutcome\(/.test(code));
   ok('no innerHTML / document.write / eval', !/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function/.test(code));
   ok('no localStorage', !/localStorage|sessionStorage/.test(code));
   ok('Reduce Motion: wandering, bob, water shimmer, hail and typewriter all gated', (code.match(/reduce\(\)/g) || []).length >= 5);

@@ -424,6 +424,15 @@
       },
       leadById: leadById,
       openLead: openLead,
+      // E2b: the pipeline's own stage move; the caller verifies the outcome.
+      canWrite: function () { return (claims().role || '') !== 'viewer' && typeof w.moveCard === 'function'; },
+      stageKeys: function () { return Array.isArray(w._stageKeys) ? w._stageKeys : []; },
+      stageOf: function (id) {
+        var l = leadById(id);
+        if (!l) return null;
+        return l._stageKey || (typeof w.normalizeStage === 'function' ? w.normalizeStage(l.stage) : l.stage);
+      },
+      moveStage: function (id, key) { return typeof w.moveCard === 'function' ? w.moveCard(id, key) : Promise.reject(new Error('pipeline not loaded')); },
       reduceMotion: reducedMotion,
       seen: worldSeen,
       saveSeen: function (arr) { worldSeen = arr.slice(-400); return saveWorld({ seen: worldSeen }); },

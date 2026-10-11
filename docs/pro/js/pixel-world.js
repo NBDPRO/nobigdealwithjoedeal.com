@@ -468,9 +468,53 @@
       else opts.push({ label: 'CALL', disabled: true, note: '(no phone on file)' });
       opts.push({ label: 'OPEN LEAD', run: function () { exit(); env.openLead(m.id); } });
       opts.push({ label: 'DRAFT TEXT', disabled: true, note: '(next update)' });
-      opts.push({ label: 'MOVE STAGE', disabled: true, note: '(next update)' });
+      if (env.canWrite && env.canWrite()) opts.push({ label: 'MOVE STAGE', run: function () { moveFlow(m); } });
+      else opts.push({ label: 'MOVE STAGE', disabled: true, note: '(view-only)' });
       opts.push({ label: 'BYE', run: closeDialog });
       openDialog([WL.talkLines(m, stageText(m.stage)).join('\n')], opts);
+    }
+    // E2b: stage moves go through the CRM's own moveCard (env.moveStage), so
+    // every gate it has (role, lost reason, required fields, cancellation-window
+    // warning) still applies. The game asks YES/NO itself (never window.confirm)
+    // and offers UNDO. Drafts are not here: agent_inbox is server-written only.
+    function moveFlow(m) {
+      var adj = WL.adjacentStages(env.stageKeys(), m.stage, env.stageRole);
+      var opts = [];
+      if (adj.next) opts.push({ label: 'NEXT: ' + stageText(adj.next), run: function () { confirmMove(m, adj.next); } });
+      if (adj.prev) opts.push({ label: 'BACK: ' + stageText(adj.prev), run: function () { confirmMove(m, adj.prev); } });
+      opts.push({ label: 'CANCEL', run: function () { talkTo(m); } });
+      openDialog([adj.next || adj.prev ? 'Move ' + m.name + ' from ' + stageText(m.stage) + '?' : 'No stage to move to from here. Open the lead to change it.'], opts);
+    }
+    function confirmMove(m, target) {
+      openDialog(['Move ' + m.name + '\nfrom ' + stageText(m.stage) + '\nto ' + stageText(target) + '?'], [
+        { label: 'YES', run: function () { doMove(m, target); } },
+        { label: 'NO', run: function () { moveFlow(m); } },
+      ]);
+    }
+    function doMove(m, target) {
+      var before = m.stage;
+      openDialog(['Moving...'], []);
+      Promise.resolve().then(function () { return env.moveStage(m.id, target); }).catch(function () { /* judged by the lead below */ }).then(function () {
+        var out = WL.moveOutcome(target, env.stageOf(m.id));
+        sync();
+        if (out === 'moved') {
+          openDialog([m.name + ' is now in ' + stageText(target) + '.'], [
+            { label: 'UNDO', run: function () {
+              openDialog(['Moving back...'], []);
+              Promise.resolve().then(function () { return env.moveStage(m.id, before); }).catch(function () {}).then(function () {
+                sync();
+                openDialog([WL.moveOutcome(before, env.stageOf(m.id)) === 'moved' ? 'Moved back to ' + stageText(before) + '.' : 'Could not move back. Open the lead.'], [{ label: 'OK', run: closeDialog }]);
+              });
+            } },
+            { label: 'OK', run: closeDialog },
+          ]);
+        } else {
+          openDialog(['Not moved. The pipeline needs something first (a required field, a lost reason, or it is a teammate\'s lead). Open the lead to finish.'], [
+            { label: 'OPEN LEAD', run: function () { exit(); env.openLead(m.id); } },
+            { label: 'OK', run: closeDialog },
+          ]);
+        }
+      });
     }
     function talkById(id) {
       var m = (state.members || []).filter(function (x) { return x.id === id; })[0];

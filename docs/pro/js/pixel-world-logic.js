@@ -311,6 +311,31 @@
     return !!uid && (!c.companyId || c.companyId === uid) && role !== 'manager';
   }
 
+  // ── stage moves (E2b) ──────────────────────────────────────────────────
+  /**
+   * Same rule as the kanban's ◀ ▶ arrows (crm-pipeline.js): previous = the key
+   * before the current one; next = the next key that is not a lost stage
+   * (losing a lead is its own action, never "progress"). Unknown current
+   * stage = no moves.
+   */
+  function adjacentStages(stageKeys, current, roleOf) {
+    var keys = Array.isArray(stageKeys) ? stageKeys : [];
+    var i = keys.indexOf(current);
+    if (i < 0) return { prev: null, next: null };
+    var next = null;
+    for (var j = i + 1; j < keys.length; j++) {
+      var role = typeof roleOf === 'function' ? roleOf(keys[j]) : (keys[j] === 'lost' ? 'lost' : '');
+      if (role !== 'lost') { next = keys[j]; break; }
+    }
+    var prev = i > 0 ? keys[i - 1] : null;
+    if (prev !== null && typeof roleOf === 'function' && roleOf(prev) === 'lost') prev = null;
+    return { prev: prev, next: next };
+  }
+  /** moveCard answers nothing useful, so success = the lead really changed stage. */
+  function moveOutcome(targetKey, stageAfterKey) {
+    return targetKey && stageAfterKey === targetKey ? 'moved' : 'refused';
+  }
+
   // ── dialog text ────────────────────────────────────────────────────────
   /** Lines a townsperson says. Facts only; no promises, no claim talk. */
   function talkLines(m, stageText) {
@@ -331,6 +356,7 @@
     stepFrom: stepFrom, tryMove: tryMove, buildingAtDoor: buildingAtDoor, cameraFor: cameraFor,
     plazaTiles: plazaTiles, placePeople: placePeople, wanderStep: wanderStep, personFacing: personFacing,
     markFor: markFor, flagHail: flagHail, dayTint: dayTint, dexEntries: dexEntries, markSeen: markSeen,
+    adjacentStages: adjacentStages, moveOutcome: moveOutcome,
     gateOpen: gateOpen, worldEnabled: worldEnabled, canSetCompanyFlag: canSetCompanyFlag, talkLines: talkLines,
   };
 });

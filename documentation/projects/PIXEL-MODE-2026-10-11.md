@@ -158,3 +158,28 @@ closed jobs, per-region maps, seasonal events.
 **Pre-existing red noticed, not touched.** `pro-demo-zero-network` fails on
 `main` ("Money view labels revenue as collected money only"); reproduced on a
 clean `origin/main` worktree, so it is not this work.
+
+## E2b - Move stage from the town (drafts blocked, see below)
+
+- **MOVE STAGE** in the talk dialog is live for non-viewers when the
+  pipeline's `moveCard` exists. It offers the kanban arrows' two moves only:
+  NEXT (the next stage that is not Lost) and BACK (the previous one). Losing a
+  lead stays its own action on the lead card.
+- It goes through the CRM's own `window.moveCard` (via `env.moveStage` in
+  `pixel-mode-core.js`), so every existing gate still applies: role, the Lost
+  reason sheet, required-field gate, the cancellation-window warning.
+  `pixel-world.js` never calls `moveCard` or any Firestore write itself (test).
+- The game asks YES / NO inside its own dialog (never `window.confirm`, which
+  the installed PWA auto-answers), then judges the result from the lead's
+  stage afterwards, because `moveCard` returns nothing reliable on refusal.
+  A refusal says what usually blocks it and offers OPEN LEAD. A success offers
+  UNDO (moves back through the same path). HP refreshes, since a stage change
+  restarts the lead's clock.
+- Pure rules: `adjacentStages` / `moveOutcome` in `pixel-world-logic.js`
+  (tested, break-tested).
+- **DRAFT TEXT stays disabled, deliberately.** `agent_inbox` has
+  `allow create: if false` in `firestore.rules`; drafts are written only by
+  the server (`crmMcp` / `agent-mcp.js`). A client "draft into the inbox"
+  needs a new callable that runs the same consent / quiet-hours / STOP / claim
+  wording checks, plus rules and emulator tests. That is a functions change,
+  not a client slice, and nothing here may auto-send. Left for its own PR.
