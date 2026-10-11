@@ -121,6 +121,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 
 - [BIG_ROCKS](projects/BIG_ROCKS.md) — the standing priority list
 - [WEEKLY_CADENCE](projects/WEEKLY_CADENCE.md) — standing weekly checklist (see "Standing notes" above)
+- [THEME-POLISH-LANE-2026-10-11](projects/THEME-POLISH-LANE-2026-10-11.md) — CRM style integration Track A as built: Theme Morph (view-transition circle wipe + reduced-motion crossfade), then the 12 new themes, glass surface style and the live-preview picker
 - [KANBAN_CUSTOMER_MAP](projects/KANBAN_CUSTOMER_MAP.md)
 - [PRO-DEMO-PHASE2-FULL-ACCOUNT-PLAN-2026-10-06](projects/PRO-DEMO-PHASE2-FULL-ACCOUNT-PLAN-2026-10-06.md) — the NBD Pro demo, phase 2 (plan only): the real CRM pages run against a browser-only sample company by swapping the Firebase SDK for fake in-memory modules on a demo path, with a `connect-src 'self'` CSP as the zero-writes guarantee; waves, effort (~4–5 weeks), risks. Phase 1, the guided job story at /pro/sandbox, shipped with it.
 - [ROOF-CARE-PLAN-2026-10-05](projects/ROOF-CARE-PLAN-2026-10-05.md) — the Roof Care Plan made real ($199/yr or $19/mo through Stripe Checkout, no lock-in, cancel anytime): Jo's decisions, the data model (`careplans/*`, the server-only `leads.carePlan` mirror), both signup paths (the page + a CRM invite link Jo sends himself), its own Stripe webhook, the `CARE_PLAN_MODE` dark switch (ships `off`), the 3-PR plan, how to turn it on, Jo's real $19 test, and the risks (the unmanaged Cloudflare-Worker webhook also hears `checkout.session.completed`)
