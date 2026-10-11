@@ -290,7 +290,7 @@ console.log('\n8. CSS, panel, wiring');
     P.indexOf('data-myskin-slot="wallpaper"') < P.indexOf('id="myskinPerTheme"') && P.indexOf('id="myskinPerTheme"') < P.indexOf('data-myskin-slot="texture"'));
   ok('cache-busters bumped on both pages',
     ['docs/pro/dashboard.html', 'docs/pro/customer.html'].every((p) => { const h = read(p);
-      return /css\/my-skin\.css\?v=5/.test(h) && /js\/my-skin-logic\.js\?v=5/.test(h) && /js\/my-skin\.js\?v=7/.test(h); }));
+      return /css\/my-skin\.css\?v=6/.test(h) && /js\/my-skin-logic\.js\?v=6/.test(h) && /js\/my-skin\.js\?v=8/.test(h); }));
 
   const A = read('docs/pro/js/nbd-auth.js');
   ok('sign-out / account-switch purge calls NBDMySkin.purgeLocal (with an IndexedDB fallback)',

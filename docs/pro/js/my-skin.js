@@ -172,7 +172,7 @@
     var out = {
       enabled: cfg.enabled, dim: cfg.dim, texture: cfg.texture, accent: cfg.accent, side: cfg.side, slots: cfg.slots,
       schema: 2, perTheme: cfg.perTheme, show: cfg.show, allThemes: cfg.allThemes,
-      hidePictures: cfg.hidePictures, company: cfg.company,
+      hidePictures: cfg.hidePictures, company: cfg.company, ambient: cfg.ambient,
     };
     return window.setDoc(window.doc(window.db, 'userSettings', uid), { mySkin: out }, { merge: true })
       .catch(function () { toast('Couldn’t save My Skin. Check your connection.', 'error'); });
@@ -491,7 +491,7 @@
         }
       }
       var hex = function (n) { var h = Math.round(n / nAll).toString(16); return h.length < 2 ? '0' + h : h; };
-      return { lum: all / nAll, lumCenter: ctr / nCtr, avg: '#' + hex(r) + hex(g) + hex(b) };
+      return { lum: all / nAll, lumCenter: ctr / nCtr, avg: '#' + hex(r) + hex(g) + hex(b), accent: L().accentFromSample(d) };
     } catch (e) { return null; }
   }
 
@@ -610,7 +610,7 @@
     }).then(function () {
       var st = enc.stats || {};
       var image = { id: id, path: path, v: Date.now(), w: enc.w, h: enc.h, lum: st.lum != null ? st.lum : null,
-        lumCenter: st.lumCenter != null ? st.lumCenter : null, avg: st.avg || null, type: enc.blob.type, bytes: enc.blob.size,
+        lumCenter: st.lumCenter != null ? st.lumCenter : null, avg: st.avg || null, accent: st.accent || null, type: enc.blob.type, bytes: enc.blob.size,
         thumb: hasThumb };
       var prev = cfg.themes[themeId];
       var adding = mode === 'add' && !!prev;
@@ -807,10 +807,27 @@
     };
   }
 
+  // The accent of the picture on screen, tuned for this page; null when the
+  // picture has none, the theme is locked, or pictures are hidden.
+  function ambientAccent() {
+    if (!cfg || !layerPic || !layerPic.img || !layerPic.img.accent || cfg.hidePictures) return null;
+    if (!(cfg.ambient.follow || cfg.ambient.tint)) return null;
+    var key = activeKey(), slot = key && cfg.themes[key];
+    if (slot && slot.ambientLock) return null;
+    var t = L().tuneAccent(layerPic.img.accent, pageBg());
+    return t || null;
+  }
+  function tintAllowed(accent) {
+    try {
+      var cs = getComputedStyle(html());
+      return L().tintOk(L().toHex(cs.getPropertyValue('--s2')), accent, L().toHex(cs.getPropertyValue('--t')), 0.09);
+    } catch (e) { return false; }
+  }
+
   function paint() {
     var root = html();
     Array.prototype.slice.call(root.classList).forEach(function (c) { if (CLASS_RE.test(c)) root.classList.remove(c); });
-    ['--myskin-dim', '--myskin-texture-strength', '--myskin-wallpaper', '--myskin-texture', '--myskin-accent', '--myskin-accent-fg']
+    ['--myskin-dim', '--myskin-texture-strength', '--myskin-wallpaper', '--myskin-texture', '--myskin-accent', '--myskin-accent-fg', '--myskin-tint']
       .forEach(function (k) { root.style.removeProperty(k); });
     var mascot = document.getElementById('nbdMySkinMascot');
     if (!cfg) { if (mascot) mascot.remove(); return; }
@@ -822,15 +839,27 @@
       // personal texture and mascot follow the member's own switch, not the company's
       texture: !!urls.texture && cfg.enabled, mascot: !!urls.mascot && cfg.enabled,
     };
-    var acc = cfg.accent && cfg.enabled ? L().accentCheck(cfg.accent, pageBg()) : null;
-    var classes = L().htmlClasses(coPic ? Object.assign({}, cfg, { enabled: true }) : cfg, have, acc && acc.ok, {
+    // Accent: the user's own colour wins; otherwise (if they asked for it) the
+    // picture on screen lends its colour, tuned until it reads on this page.
+    var amb = ambientAccent();
+    var own = cfg.accent && cfg.enabled ? cfg.accent : null;
+    var useAcc = own || (amb && cfg.ambient.follow ? amb.accent : null);
+    var acc = useAcc ? L().accentCheck(useAcc, pageBg()) : null;
+    var paintCfg = Object.assign({}, cfg, { accent: useAcc });
+    if (coPic) paintCfg.enabled = true;
+    if (!own && useAcc) paintCfg.enabled = true;
+    var classes = L().htmlClasses(paintCfg, have, acc && acc.ok, {
       layers: layers, hideOverlay: !!(layerPic && layerPic.style && layerPic.style.hideOverlay),
     });
     if (!classes.length) { if (mascot) mascot.remove(); return; }
 
-    var vars = L().cssVars(cfg, urls, acc && acc.ok ? acc.fg : null);
+    var vars = L().cssVars(paintCfg, urls, acc && acc.ok ? acc.fg : null);
     Object.keys(vars).forEach(function (k) { root.style.setProperty(k, vars[k]); });
     classes.forEach(function (c) { root.classList.add(c); });
+    if (amb && cfg.ambient.tint && tintAllowed(amb.accent)) {
+      root.classList.add('my-skin', 'my-skin-tint');
+      root.style.setProperty('--myskin-tint', amb.accent);
+    } else { root.style.removeProperty('--myskin-tint'); }
 
     if (have.mascot) {
       if (!mascot) {
@@ -1337,6 +1366,10 @@
     renderShowDefaults();
     renderCompany();
     var hp = $('myskinHidePictures'); if (hp) hp.checked = !!cfg.hidePictures;
+    var af = $('myskinAmbFollow'); if (af) af.checked = !!cfg.ambient.follow;
+    var at = $('myskinAmbTint'); if (at) at.checked = !!cfg.ambient.tint;
+    var ak = cfg.themes[editKey()];
+    var al = $('myskinAmbLock'); if (al) { al.checked = !!(ak && ak.ambientLock); al.disabled = !ak; }
     var tools = $('myskinTools');
     var team = $('myskinTeam');
     if (team) team.hidden = !isCompanyAdmin();
@@ -1409,6 +1442,9 @@
     else if (t.id === 'myskinShowInterval') { cfg.show.interval = t.value; save(); showCurrent().then(renderPanel); }
     else if (t.id === 'myskinShowOrder') { cfg.show.shuffle = t.value === 'shuffle'; save(); showCurrent().then(renderPanel); }
     else if (t.id === 'myskinShowFade') save();
+    else if (t.id === 'myskinAmbFollow') { cfg.ambient.follow = !!t.checked; save(); paint(); renderPanel(); }
+    else if (t.id === 'myskinAmbTint') { cfg.ambient.tint = !!t.checked; save(); paint(); renderPanel(); }
+    else if (t.id === 'myskinAmbLock') { editTheme(function (s) { s.ambientLock = !!t.checked; }); paint(); }
     else if (t.id === 'myskinHidePictures') { cfg.hidePictures = !!t.checked; save(); showCurrent().then(renderPanel); }
     else if (t.id === 'myskinCoShow') {
       if (companyCfg && companyCfg.allowHide) { cfg.company.show = !!t.checked; save(); showCurrent().then(renderPanel); }
