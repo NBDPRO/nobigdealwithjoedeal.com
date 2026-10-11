@@ -1,7 +1,7 @@
 # My Skin: a background for every theme (2026-10-11)
 
 Living note for the "Per-theme backgrounds for My Skin" build (spec: the Drive
-doc of that name; plan: CRM-STYLE-INTEGRATION-ROADMAP-2026-10-11, PR #2322). Slices ship as separate PRs; each one appends its section.
+doc of that name; plan: [CRM-STYLE-INTEGRATION-ROADMAP-2026-10-11](CRM-STYLE-INTEGRATION-ROADMAP-2026-10-11.md)). Slices ship as separate PRs; each one appends its section.
 
 Privacy contract (unchanged and non-negotiable): the pictures are a user's own,
 live in `skins/{uid}/…` (owner-only, no admin read), are read with `getBlob()`
