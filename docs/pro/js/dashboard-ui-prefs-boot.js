@@ -433,6 +433,30 @@ document.addEventListener('DOMContentLoaded', function () {
   );
 });
 
+// ── Auto theme rules (userSettings/{uid}.autoTheme, roadmap C1) ──
+// The rules + on/off flag are durable account settings, not an nbd_ cache
+// key. The scheduler lives in the lazy theme bundle (auto-theme.js); load it
+// only when this account has Auto on (or it is already loaded), otherwise
+// just warm the local copy so Settings paints the saved rules instantly.
+document.addEventListener('DOMContentLoaded', function () {
+  _nbdHydratePrefFromFirestore(
+    'autoTheme',
+    function () { return null; },
+    function (remote) {
+      if (!remote || typeof remote !== 'object') return;
+      var go = function () { if (window.NBDAutoTheme) window.NBDAutoTheme.hydrate(remote); };
+      if (window.NBDAutoTheme) { go(); return; }
+      var flagOn = false;
+      try { flagOn = localStorage.getItem('nbd_auto_theme') === '1'; } catch (e) {}
+      if (remote.enabled === true || flagOn) {
+        if (window.ScriptLoader && window.ScriptLoader.loadBundle) window.ScriptLoader.loadBundle('theme').then(go);
+      } else {
+        try { localStorage.setItem('nbd_auto_theme_cfg', JSON.stringify(remote)); } catch (e) {}
+      }
+    }
+  );
+});
+
 // ── Comfort tab ternaries (boolean → enum string) ──
 // nbdComfortSet takes (key, value) where value is an enum string. The
 // inline handlers were `nbdComfortSet('motion', this.checked ? 'reduce' : 'normal')`

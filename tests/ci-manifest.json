@@ -470,6 +470,7 @@
     "customer-header-visual-2026-10-05.test.js",
     "close-board-visual-2026-10-05.test.js",
     "care-plan-crm-2026-10-05.test.js",
+    "pipeline-rich-cards-2026-10-11.test.js",
     "r4-silent-jobs-2026-10-06.test.js",
     "invoice-due-7-days-2026-10-05.test.js",
     "deposit-credit-ledger-mirror-2026-10-05.test.js",
@@ -498,7 +499,8 @@
     "firestore-index-coverage-2026-10-04.test.js",
     "photo-cache-lazy-2026-10-04.test.js",
     "firebase-sdk-vendored-2026-10-04.test.js",
-    "paid-in-full-supplements-r6-2026-10-07.test.js"
+    "paid-in-full-supplements-r6-2026-10-07.test.js",
+    "auto-theme-rules.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

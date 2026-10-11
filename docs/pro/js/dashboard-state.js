@@ -568,7 +568,10 @@ window.NBD_THEME_ENGINE = true;
     // A saved Glass surface also needs the bundle: surface-style.js runs the
     // readability guard (Solid/Tinted users load it with Settings/picker).
     const glass = localStorage.getItem('nbd_surface_style') === 'glass';
-    if (((saved && saved !== 'default') || glass)
+    // Auto theme (nbd_auto_theme=1) needs the engine at boot even for a
+    // default-theme user: the scheduler lives in the theme bundle.
+    const autoOn = localStorage.getItem('nbd_auto_theme') === '1';
+    if (((saved && saved !== 'default') || glass || autoOn)
         && !document.querySelector('script[src*="theme-engine"]')
         && window.ScriptLoader && window.ScriptLoader.loadBundle) {
       window.ScriptLoader.loadBundle('theme');
