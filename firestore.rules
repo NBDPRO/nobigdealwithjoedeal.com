@@ -2265,6 +2265,41 @@ service cloud.firestore {
         allow read, write: if socialManager();
       }
 
+      // ── LAYOUT DEFAULT / LOCK (2026-10-11, layout system D2) ──
+      // companies/{companyId}/settings/layout — { defaultLayout, defaultByDevice,
+      // allowed, locked, defaultWidgets }. The admin's starting layout for the
+      // team, which layouts members may pick, and whether the choice is theirs
+      // at all. Same readers as the sub roster (the whole tenant: the engine
+      // reads it at boot to resolve a layout); written by the solo owner or a
+      // company_admin of that company — not a manager, rep or viewer, not
+      // another tenant. Precedence lives client-side (layout-system.js
+      // resolve()): locked company layout > user choice > company default >
+      // Classic; a rule can't enforce a UI lock, it can only make sure nobody
+      // but an admin can set or lift one. Only the doc id `layout` exists.
+      function layoutDocOk() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['defaultLayout', 'defaultByDevice', 'allowed', 'locked', 'defaultWidgets', 'updatedAt', 'updatedBy'])
+          && (!('defaultLayout' in d) || d.defaultLayout == null
+              || (d.defaultLayout is string && d.defaultLayout.size() <= 32 && d.defaultLayout.matches('^[a-z][a-z0-9-]*$')))
+          && (!('defaultByDevice' in d) || (d.defaultByDevice is map
+              && d.defaultByDevice.keys().hasOnly(['phone', 'tablet', 'desktop'])))
+          && (!('allowed' in d) || d.allowed == null || (d.allowed is list && d.allowed.size() <= 40))
+          && (!('locked' in d) || d.locked is bool)
+          && (!('defaultWidgets' in d) || d.defaultWidgets is map)
+          && (!('updatedBy' in d) || d.updatedBy == request.auth.uid);
+      }
+      match /settings/layout {
+        allow read: if isAdmin()
+          || (isAuth() && request.auth.uid == companyId)
+          || (isAuth() && request.auth.token.get('companyId', '') == companyId);
+        allow create, update: if isAuth() && notViewer() && layoutDocOk()
+          && (request.auth.uid == companyId
+              || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
+        allow delete: if isAuth() && notViewer()
+          && (request.auth.uid == companyId
+              || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
+      }
+
       // ── SUB ROSTER (production flow, 2026-10-04) ──
       // The company's independent subcontractors: name, phone, trade,
       // insurance-certificate expiry, notes. Keyed under the TENANT key the

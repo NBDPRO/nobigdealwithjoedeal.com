@@ -3352,6 +3352,14 @@
           </div>
         </div>
 
+        <!-- Layouts (2026-10-11): how the CRM is arranged, independent of the theme.
+             js/layouts/picker.js fills #layoutsPanelBody the first time this tab
+             opens (layout-system.js lazy-loads it). Classic = today's CRM. -->
+        <div class="panel mb-md" id="layoutsPanel">
+          <div class="panel-hdr"><div><div class="panel-label">Appearance</div><div class="panel-title">Layouts</div></div></div>
+          <div class="panel-body" id="layoutsPanelBody"><div class="meta-12-mb14">Loading layouts…</div></div>
+        </div>
+
         <!-- Theme picker: filter buttons + flat grid -->
         <div class="panel mb-md">
           <div class="panel-hdr"><div><div class="panel-label">Theme Engine</div><div class="panel-title">155 Themes</div></div></div>

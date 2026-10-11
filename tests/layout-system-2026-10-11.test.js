@@ -281,9 +281,10 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms || 5));
   {
     const html = read('docs/pro/dashboard.html');
     const head = html.slice(0, html.indexOf('</head>'));
-    const tagCount = (html.match(/layout-system\.js/g) || []).length;
+    const tagCount = (html.match(/<script[^>]*layout-system\.js/g) || []).length;
+    const tagAt = html.search(/<script[^>]*layout-system\.js/);
     ok('layout-system.js is ONE deferred tag, after the head', tagCount === 1
-      && /<script defer src="js\/layout-system\.js/.test(html) && html.indexOf('js/layout-system.js') > head.length);
+      && /<script defer src="js\/layout-system\.js/.test(html) && tagAt > head.length);
     ok('no second preboot tag: the stamp rides in shape-preboot.js (blocking, in <head>, before the base styles)',
       !/layout-preboot/.test(html) && head.includes('js/shape-preboot.js')
       && head.indexOf('js/shape-preboot.js') < head.indexOf('css/dashboard-app.css')
