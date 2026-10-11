@@ -487,35 +487,35 @@
     var h = '';
     h += '<label class="myskin-row" for="autoThemeOn"><span>Switch themes automatically</span>' +
          '<input type="checkbox" id="autoThemeOn"' + (cfg.enabled ? ' checked' : '') + '></label>';
-    h += '<div id="autoThemeStatus" class="at-status" style="font-size:11px;color:var(--m);margin:6px 0 12px;" aria-live="polite">' + esc(statusLine()) + '</div>';
-    if (s.paused) h += '<button type="button" class="btn btn-ghost btn-sm" data-at-act="resume" style="margin-bottom:10px;">Resume Auto now</button>';
-    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px;">';
+    h += '<div id="autoThemeStatus" class="at-status" aria-live="polite">' + esc(statusLine()) + '</div>';
+    if (s.paused) h += '<button type="button" class="btn btn-ghost btn-sm" data-at-act="resume">Resume Auto now</button>';
+    h += '<div class="at-phases">';
     PHASES.forEach(function (p) {
-      h += '<label style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--m);">' + PHASE_LABEL[p] +
-           '<select class="btn btn-ghost btn-sm" data-at-pick="' + p + '" style="width:100%;margin-top:4px;text-transform:none;letter-spacing:0;">' +
+      h += '<label class="at-cap">' + PHASE_LABEL[p] +
+           '<select class="btn btn-ghost btn-sm" data-at-pick="' + p + '">' +
            themeOptions(cfg.picks[p], true, '(no change)') + '</select></label>';
     });
     h += '</div>';
-    h += '<div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--m);margin-bottom:6px;">Rules — top one that applies wins</div>';
+    h += '<div class="at-cap at-cap-rules">Rules — top one that applies wins</div>';
     cfg.order.forEach(function (id, i) {
       var on = cfg.off.indexOf(id) < 0;
       var themeField = '';
-      if (id === 'jobsite') themeField = '<select class="btn btn-ghost btn-sm" style="flex:1 1 150px;min-width:0;max-width:100%;box-sizing:border-box;text-transform:none;letter-spacing:0;" data-at-theme="jobSiteTheme">' + themeOptions(cfg.jobSiteTheme, true, '(no theme)') + '</select>';
-      else if (id === 'rain') themeField = '<select class="btn btn-ghost btn-sm" style="flex:1 1 150px;min-width:0;max-width:100%;box-sizing:border-box;text-transform:none;letter-spacing:0;" data-at-theme="rainTheme">' + themeOptions(cfg.rainTheme, true, '(no theme)') + '</select>';
-      else if (id === 'fallback') themeField = '<select class="btn btn-ghost btn-sm" style="flex:1 1 150px;min-width:0;max-width:100%;box-sizing:border-box;text-transform:none;letter-spacing:0;" data-at-theme="fallback">' + themeOptions(cfg.fallback, true, '(no change)') + '</select>';
-      else if (id === 'storm') themeField = '<span style="font-size:11px;color:var(--m);">uses Storm Season when Storm Mode (Settings) is on</span>';
-      h += '<div class="ui-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;">' +
+      if (id === 'jobsite') themeField = '<select class="btn btn-ghost btn-sm" data-at-theme="jobSiteTheme">' + themeOptions(cfg.jobSiteTheme, true, '(no theme)') + '</select>';
+      else if (id === 'rain') themeField = '<select class="btn btn-ghost btn-sm" data-at-theme="rainTheme">' + themeOptions(cfg.rainTheme, true, '(no theme)') + '</select>';
+      else if (id === 'fallback') themeField = '<select class="btn btn-ghost btn-sm" data-at-theme="fallback">' + themeOptions(cfg.fallback, true, '(no change)') + '</select>';
+      else if (id === 'storm') themeField = '<span class="at-note">uses Storm Season when Storm Mode (Settings) is on</span>';
+      h += '<div class="ui-row at-rule">' +
            '<input type="checkbox" data-at-rule="' + id + '"' + (on ? ' checked' : '') + ' aria-label="Use rule ' + esc(RULE_LABELS[id]) + '">' +
-           '<span style="flex:1 1 140px;font-size:12px;">' + (i + 1) + '. ' + esc(RULE_LABELS[id]) + '</span>' + themeField +
+           '<span class="at-rule-name">' + (i + 1) + '. ' + esc(RULE_LABELS[id]) + '</span>' + themeField +
            '<button type="button" class="btn btn-ghost btn-sm" data-at-move="up" data-at-id="' + id + '"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">&#9650;</button>' +
            '<button type="button" class="btn btn-ghost btn-sm" data-at-move="down" data-at-id="' + id + '"' + (i === cfg.order.length - 1 ? ' disabled' : '') + ' aria-label="Move down">&#9660;</button>' +
            '</div>';
     });
-    h += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
+    h += '<div class="at-actions">' +
          '<button type="button" class="btn btn-ghost btn-sm" data-at-act="locate">Use my location for sunrise &amp; sunset</button>' +
-         '<label style="font-size:12px;display:flex;gap:6px;align-items:center;"><input type="checkbox" id="autoThemeGps"' + (cfg.gps ? ' checked' : '') + '> Detect when I am at a customer\'s address</label>' +
+         '<label class="at-gps"><input type="checkbox" id="autoThemeGps"' + (cfg.gps ? ' checked' : '') + '> Detect when I am at a customer\'s address</label>' +
          '</div>';
-    h += '<div style="font-size:11px;color:var(--m);margin-top:8px;">' +
+    h += '<div class="at-help">' +
          (cfg.lat != null ? 'Using your saved location (rounded to about a mile). ' : 'Using Cincinnati until you set a location. ') +
          'Picking a theme yourself pauses Auto until midnight. Auto never switches while a window is open, and never changes the theme you saved.</div>';
     host.innerHTML = h;
@@ -607,7 +607,15 @@
   // Re-sync the panel (and the Comfort checkbox state) when the tab is shown.
   document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
 
+  function ensureCss() {
+    if (!document.head || typeof document.createElement !== 'function' || document.getElementById('autoThemeCss')) return;
+    var l = document.createElement('link');
+    l.id = 'autoThemeCss'; l.rel = 'stylesheet'; l.href = '/pro/css/auto-theme.css?v=1';
+    document.head.appendChild(l);
+  }
+
   function boot() {
+    ensureCss();
     loadCfg();
     lastKey = engine() && engine().getCurrent ? engine().getCurrent() : null;
     renderPanel();
