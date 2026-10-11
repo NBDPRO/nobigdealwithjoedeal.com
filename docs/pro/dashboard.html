@@ -58,7 +58,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=9" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=20" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=21" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=9" as="script">
@@ -159,6 +159,7 @@
 <link rel="stylesheet" href="css/yard-signs-view.css?v=1">
 <link rel="stylesheet" href="css/expenses.css?v=3">
 <link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
+<link rel="stylesheet" href="css/pipeline-rich-cards.css?v=1">
 <link rel="stylesheet" href="css/today-home.css?v=3">
 <link rel="stylesheet" href="css/templates-library-view.css?v=2">
 <link rel="stylesheet" href="css/data-import-view.css?v=2">
@@ -3260,6 +3261,7 @@
                 <button type="button" class="kdens-btn ui-seg" data-density="compact"  data-action="call" data-fn="setKanbanDensity" data-arg="compact" >Compact</button>
                 <button type="button" class="kdens-btn ui-seg" data-density="comfortable" data-action="call" data-fn="setKanbanDensity" data-arg="comfortable">Comfortable</button>
                 <button type="button" class="kdens-btn ui-seg" data-density="spacious" data-action="call" data-fn="setKanbanDensity" data-arg="spacious">Spacious</button>
+                <button type="button" class="kdens-btn ui-seg" data-density="rich" data-action="call" data-fn="setKanbanDensity" data-arg="rich" title="Roof photo, chips, aging bar and next step on each card">Rich</button>
               </div>
             </div>
 
@@ -3354,7 +3356,7 @@
 
         <!-- Theme picker: filter buttons + flat grid -->
         <div class="panel mb-md">
-          <div class="panel-hdr"><div><div class="panel-label">Theme Engine</div><div class="panel-title">155 Themes</div></div></div>
+          <div class="panel-hdr"><div><div class="panel-label">Theme Engine</div><div class="panel-title">Themes</div></div></div>
           <div class="panel-body">
             <!-- Category filter buttons -->
             <div id="te-cat-bar" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;"></div>
@@ -6395,6 +6397,31 @@
             <div style="font-size:10px; color:var(--m); margin-top:6px; line-height:1.4;">Scales every text element via root font-size. Easier on the eyes during long sessions.</div>
           </div>
 
+          <!-- Surface style (2026-10-11): Solid / Tinted / Glass. Glass frosts
+               cards, the sidebar and inputs so a wallpaper shows through; the
+               readability guard raises Frost on its own until text clears 4.5:1.
+               Shape & Depth presets that are already translucent keep their own look. -->
+          <div>
+            <div class="npm-surf-head">
+              <span class="fs-14" aria-hidden="true">🪟</span>
+              <span class="npm-surf-title">Surface style</span>
+            </div>
+            <div class="npm-surf-row">
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="surface" data-value="solid" data-action="call" data-fn="nbdComfortSet" data-arg="surface" data-arg2="solid">Solid</button>
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="surface" data-value="tinted" data-action="call" data-fn="nbdComfortSet" data-arg="surface" data-arg2="tinted">Tinted</button>
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="surface" data-value="glass" data-action="call" data-fn="nbdComfortSet" data-arg="surface" data-arg2="glass">Glass</button>
+            </div>
+            <div id="npm-surface-sliders" class="npm-surf-sliders">
+              <label class="npm-surf-lbl">Blur
+                <input type="range" id="npm-surface-blur" min="0" max="30" value="14" data-on-input="nbdSetSurfaceBlur" class="npm-surf-range">
+              </label>
+              <label class="npm-surf-lbl">Frost
+                <input type="range" id="npm-surface-frost" min="40" max="95" value="68" data-on-input="nbdSetSurfaceFrost" class="npm-surf-range">
+              </label>
+            </div>
+            <div class="npm-surf-note">Tinted mixes a hint of your accent into cards. Glass frosts them; text stays readable automatically.</div>
+          </div>
+
           <!-- Motion + Professional Mode toggles -->
           <div>
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
@@ -6985,7 +7012,9 @@
      replaces the unbounded every-photo read loadLeads used to do at boot. -->
 <script defer src="js/photo-cache.js?v=2"></script>
 <script defer src="js/jobs-store.js?v=5"></script>
-<script defer src="js/crm-pipeline.js?v=20"></script>
+<!-- Rich card density + board strip (2026-10-11, C5): read by crm-pipeline.js at render time. -->
+<script defer src="js/pipeline-rich-cards.js?v=1"></script>
+<script defer src="js/crm-pipeline.js?v=21"></script>
 <script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to

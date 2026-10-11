@@ -89,3 +89,89 @@ defaults). `theme-qa` now covers 207 engine themes x 2 modes + 82 static themes,
 theme-art, theme-daylight/liveops green. Rendered in real Chrome at 1100 and 390
 px (dark: gameboy-dmg, tar-paper, shingle-crew, mecha-hangar; light:
 poke-center, chalk-line).
+
+## A4 — Surface style: Solid / Tinted / Glass (idea #02)
+
+**Correction to the roadmap.** "No glass-surface setting exists" was only half
+true: Settings > Appearance > Shape & Depth already has `glass`, `liquid`,
+`fluent` (Mica) and `spatial` presets with baked-in translucency
+(`shape-styles.css`). Surface style is the *orthogonal* axis the design doc
+asks for: how see-through the cards are, independent of corner/elevation
+character. The CSS is written at specificity 0,2,0 (`:where()` list) so those
+0,3,0 presets keep winning where they already paint their own surfaces; Surface
+style does its work under Sharp / Linework / Pressed / Soft / Elevated / Tonal /
+Clay / Skeuo.
+
+**Where it lives.** Comfort tab (the appearance picker), next to Density and
+Text size. `html[data-surface="tinted|glass"]` (absent = Solid = today's look),
+mirrored on `body.surface-tinted` / `body.surface-glass` for layout code (D4/D5
+glass layouts should key on these). `localStorage nbd_surface_style|blur|frost`,
+synced to `userSettings.surfaceStyle|surfaceBlur|surfaceFrost` and hydrated like
+`shapeStyle`. Stamped before first paint by `shape-preboot.js`, the same sync
+head script that stamps `data-shape`.
+
+**Readability guard.** `--glass-frost-eff` = max(user Frost dial, the smallest
+frost at which `--t` on `--s2` stays >= 4.5:1 over BOTH a black and a white
+backdrop). It is wallpaper-independent on purpose (so it needs no My Skin
+luminance pass and is safe before B-track lands); it re-runs on every
+`themechange` / `modechange`. When My Skin gains its per-image luminance, that
+value can tighten (never loosen) the guard.
+
+**Fallbacks.** No `backdrop-filter` -> Glass renders as Tinted;
+`prefers-contrast: more` -> opaque; blur only on the few big surfaces
+(w-card/stat-card/ui-card/panel/sidebar), pipeline cards and rows get
+translucency only.
+
+**Verification.** `tests/surface-style-2026-10-11.test.js` (33 checks): guard
+== engine contrast math for all 207 themes, setter behaviour in a stub DOM,
+CSS scoping/fallbacks, wiring. Break-tested (removing the guard's max() or the
+`@supports not` fallback reddens it). smoke 4417, shape-styles, theme-qa,
+css-token-resolution green; rendered in Chrome at 900 and 390 px (dark + light
+theme over a colourful backdrop).
+
+## A5 — live preview in the theme picker (idea #04)
+
+**What shipped.** `docs/pro/js/theme-preview.js` (rides the lazy `theme`
+bundle, after the engine). In Settings > Appearance the theme grid gets a
+preview panel above it: hovering (120 ms debounce), tabbing, arrow-keying
+(Left/Right/Up/Down/Home/End) or tapping a card renders a mini pipeline in that
+theme **inside the panel only** — `ThemeEngine.previewCSS(key)` is retargeted
+at `#te-theme-preview .tp-stage`, so nothing on the page changes and nothing
+is saved. The panel shows 4 resolved swatches, a contrast badge (text on cards,
+AAA/AA/large-only/low, with the current theme's ratio for comparison) and:
+
+| Button | Does |
+| --- | --- |
+| Apply | `ThemeEngine.apply(key, true)` (persisted, morphs from the button), adds to Recent |
+| Try for 10 min | `apply(key, false, {morph: true})` — NOT persisted; a 10-min timer (or Revert now, or a reload) restores the previous theme; switching themes elsewhere cancels it; locked themes refused |
+| Favorite | toggles `userSettings.themeFavorites` (max 24) |
+
+Recent (`userSettings.themeRecent`, max 8) records persisted switches only —
+the boot restore is ignored for the first 3 s. Both lists mirror to
+`localStorage` (`nbd_theme_favorites`, `nbd_theme_recent`) and hydrate from
+`userSettings` on load, like the other synced prefs.
+
+**Behaviour change.** With the panel loaded, clicking a card no longer applies
+the theme app-wide behind a confirm bar; it shows the panel (Apply is the
+commit, Try-for-10-min is the "see it on the real dashboard" path). The old
+whole-app preview + confirm bar is kept as the fallback when the module is not
+loaded. Locked cards are now previewable (Apply/Try disabled).
+
+**Engine additions** (additive): `ThemeEngine.contrastRatio(a, b)` and `muted`
+in `previewResolvedColors()`. Stale card title "155 Themes" -> "Themes".
+
+**Not done / noted.** The picker in the appearance side-panel (`npm-grid`,
+maps.js `NBD_THEMES`) is a separate legacy surface and was not touched. The
+spec's "preview on Pipeline / Estimate PDF / Phone" tabs are not built: one
+Pipeline composition ships.
+
+**Verification.** `tests/theme-preview-2026-10-11.test.js` (34 checks, the real
+module in a vm with a fake DOM + stub engine; break-tested: removing the
+`:root` retarget, the hover debounce and the locked gate each redden it).
+**A4 placement update.** The setter + guard live in `docs/pro/js/surface-style.js`
+in the lazy `theme` bundle, NOT in `dashboard-ui-prefs-boot.js`: the first cut
+pushed the render-blocking boot budget over its 300 KB ceiling (Unit suites
+caught it). The pre-paint stamp stays in `shape-preboot.js`;
+`dashboard-state.js` kicks the bundle for a saved Glass user; `nbdComfortSet`
+loads the bundle on demand. Comfort markup uses `.npm-surf-*` classes (the
+dashboard inline-style ratchet counts markup).

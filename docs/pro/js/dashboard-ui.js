@@ -1742,7 +1742,9 @@ function loadSavedTheme() {
 
 // ── KANBAN DENSITY + HIERARCHY ─────────────────────────────────────────────
 function setKanbanDensity(d) {
-  if (!['compact', 'comfortable', 'spacious'].includes(d)) d = 'comfortable';
+  // 'rich' (2026-10-11, C5) is the fourth value: roof thumbnail, chips, aging
+  // heat bar and next step on each card (pipeline-rich-cards.js).
+  if (!['compact', 'comfortable', 'spacious', 'rich'].includes(d)) d = 'comfortable';
   // 'comfortable' is the CSS default; clear the attribute so we don't carry stale values.
   if (d === 'comfortable') document.documentElement.removeAttribute('data-density');
   else document.documentElement.setAttribute('data-density', d);
@@ -1754,6 +1756,8 @@ function setKanbanDensity(d) {
     b.setAttribute('aria-pressed', active ? 'true' : 'false');
   });
   _syncDensityToggleLabel(d);
+  // The board repaints when rich is entered or left (pipeline-rich-cards.js).
+  try { document.dispatchEvent(new CustomEvent('nbd:density-changed', { detail: { density: d } })); } catch (e) {}
 }
 
 // The Tools menu's Card density item names the current size in its own
@@ -1763,7 +1767,7 @@ function setKanbanDensity(d) {
 // 670-720, button 651-700), so the next tap hit the toast, which counts as
 // a tap outside the menu, and closed Tools instead of stepping. The label is
 // where the rep is already looking.
-const _DENSITY_NAMES = { compact: 'Compact', comfortable: 'Comfortable', spacious: 'Spacious' };
+const _DENSITY_NAMES = { compact: 'Compact', comfortable: 'Comfortable', spacious: 'Spacious', rich: 'Rich' };
 function _syncDensityToggleLabel(d) {
   const btn = document.getElementById('kanbanDensityToggleBtn');
   if (!btn) return;
@@ -1771,7 +1775,7 @@ function _syncDensityToggleLabel(d) {
     try { d = localStorage.getItem(KANBAN_DENSITY_KEY) || 'comfortable'; } catch (_) { d = 'comfortable'; }
     if (!_DENSITY_NAMES[d]) d = 'comfortable';
   }
-  const next = { compact: 'comfortable', comfortable: 'spacious', spacious: 'compact' }[d];
+  const next = { compact: 'comfortable', comfortable: 'spacious', spacious: 'compact', rich: 'compact' }[d];
   btn.title = 'Card density: ' + _DENSITY_NAMES[d] + ' — tap for ' + _DENSITY_NAMES[next];
   const lbl = btn.querySelector('.crm-hdr-btn-label');
   if (lbl) lbl.textContent = 'Card density: ' + _DENSITY_NAMES[d];
@@ -1783,6 +1787,8 @@ function _syncDensityToggleLabel(d) {
 // data-density attribute got cleared (Comfortable = no attribute).
 // setKanbanDensity updates the button's label + tooltip to the new size.
 const cycleKanbanDensity = function() {
+  // Rich is chosen from Settings or the board strip, not stepped into by this
+  // three-size tap; stepping out of Rich lands on Compact.
   const order = ['compact', 'comfortable', 'spacious'];
   let cur = 'comfortable';
   try { cur = localStorage.getItem(KANBAN_DENSITY_KEY) || 'comfortable'; } catch (_) {}
@@ -1836,6 +1842,19 @@ function nbdComfortSet(kind, value) {
       // Reuse the existing setKanbanDensity machinery so the deep-
       // settings density toggle stays in sync.
       if (typeof setKanbanDensity === 'function') setKanbanDensity(value);
+    } else if (kind === 'surface') {
+      // Solid / Tinted / Glass (2026-10-11): the setter lives in
+      // dashboard-ui-prefs-boot.js and is reached through the call registry.
+      const reg = window.__NBD_CALL_REGISTRY;
+      if (reg && typeof reg.nbdSetSurface === 'function') reg.nbdSetSurface(value);
+      else if (window.ScriptLoader && window.ScriptLoader.loadBundle) {
+        // surface-style.js rides the lazy theme bundle; load it, then apply.
+        window.ScriptLoader.loadBundle('theme').then(function () {
+          const r2 = window.__NBD_CALL_REGISTRY;
+          if (r2 && typeof r2.nbdSetSurface === 'function') r2.nbdSetSurface(value);
+          nbdComfortRefresh();
+        });
+      }
     } else if (kind === 'size') {
       // 'medium' is the default — clear the attribute so we don't
       // carry stale values through theme changes.
@@ -1916,6 +1935,7 @@ function nbdComfortRefresh() {
   const html = document.documentElement;
   const body = document.body;
   const density = html.getAttribute('data-density') || 'comfortable';
+  const surface = html.getAttribute('data-surface') || 'solid';
   const size = html.getAttribute('data-text-size') || 'medium';
   const motion = html.getAttribute('data-motion') === 'reduce';
   const proMode = body.classList.contains('professional-mode');
@@ -1925,6 +1945,7 @@ function nbdComfortRefresh() {
     const val = b.getAttribute('data-value');
     let active = false;
     if (kind === 'density') active = (val === density);
+    else if (kind === 'surface') active = (val === surface);
     else if (kind === 'size') active = (val === size);
     // Active look lives in ui-primitives.css (.ui-seg.is-on) so skins own it.
     b.classList.toggle('is-on', active);
@@ -1933,6 +1954,10 @@ function nbdComfortRefresh() {
 
   const motionEl = document.getElementById('npm-reduce-motion');
   if (motionEl) motionEl.checked = motion;
+  try {
+    const sreg = window.__NBD_CALL_REGISTRY;
+    if (sreg && typeof sreg.nbdSyncSurfaceUI === 'function') sreg.nbdSyncSurfaceUI();
+  } catch (_) {}
   const proEl = document.getElementById('npm-pro-mode');
   if (proEl) proEl.checked = proMode;
   // W106: reflect color-blind-safe state
