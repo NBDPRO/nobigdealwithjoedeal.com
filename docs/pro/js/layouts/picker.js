@@ -153,7 +153,7 @@
       h += '<p><button type="button" class="btn btn-ghost lp-btn" data-lp="clear" data-id="' + esc(state.device) + '">Use my company\'s default</button></p>';
     }
     h += '<label class="lp-chk lp-glove"><input type="checkbox" id="lpGlove"' + (u.glove ? ' checked' : '') + '> Glove mode — bigger buttons (64px instead of 56px)</label>';
-    h += '<p class="lp-note">More layouts are on the way: Focus Mode and Bento Board. Your theme and My Skin work with every layout.</p>';
+    h += '<p class="lp-note">More layouts are on the way, starting with Bento Board. Your theme and My Skin work with every layout.</p>';
     if (canAdmin()) h += adminHtml();
     var mount = mountEl();
     if (mount) mount.innerHTML = h;
