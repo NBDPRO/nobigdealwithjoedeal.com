@@ -1634,8 +1634,20 @@ service cloud.firestore {
       }
     }
 
+    // My Skin keeps one entry per theme under mySkin.themes (private
+    // per-theme backgrounds, my-skin.js). The live onSnapshot resends the
+    // whole doc on every change, so the map is bounded: the client writes at
+    // most one entry per theme and there are ~200 themes. A doc with no
+    // mySkin, or a mySkin without themes, is unaffected.
+    function mySkinThemesBounded(d) {
+      return !(d.get('mySkin', null) is map)
+        || !(d.mySkin.get('themes', null) is map)
+        || d.mySkin.themes.size() <= 220;
+    }
     match /userSettings/{uid} {
-      allow read, write: if isOwner(uid) || isAdmin();
+      allow read: if isOwner(uid) || isAdmin();
+      allow create, update: if (isOwner(uid) || isAdmin()) && mySkinThemesBounded(request.resource.data);
+      allow delete: if isOwner(uid) || isAdmin();
     }
 
     // ── COMPANY PROFILE ──────────────────────────────────
