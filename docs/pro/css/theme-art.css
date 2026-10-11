@@ -824,6 +824,46 @@
   background: transparent;
 }
 
+:root[data-theme="shingle-crew"] {
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='40' viewBox='0 0 96 40'%3E%3Cg fill='rgba(255,255,255,.035)'%3E%3Crect x='1' y='1' width='30' height='18' rx='1'/%3E%3Crect x='33' y='1' width='30' height='18' rx='1'/%3E%3Crect x='65' y='1' width='30' height='18' rx='1'/%3E%3Crect x='-15' y='21' width='30' height='18' rx='1'/%3E%3Crect x='17' y='21' width='30' height='18' rx='1'/%3E%3Crect x='49' y='21' width='30' height='18' rx='1'/%3E%3Crect x='81' y='21' width='30' height='18' rx='1'/%3E%3C/g%3E%3Cg fill='rgba(255,122,26,.06)'%3E%3Crect x='1' y='17' width='30' height='2'/%3E%3Crect x='65' y='17' width='30' height='2'/%3E%3Crect x='17' y='37' width='30' height='2'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 96px 40px;
+  background-attachment: fixed;
+}
+:root[data-theme="shingle-crew"] body {
+  background: transparent;
+}
+
+:root[data-theme="chalk-line"] {
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='120' viewBox='0 0 160 120'%3E%3Cpath d='M0 44H160' stroke='rgba(29,95,209,.16)' stroke-width='1.6'/%3E%3Cpath d='M92 0V120' stroke='rgba(29,95,209,.10)' stroke-width='1.2'/%3E%3Cg fill='rgba(29,95,209,.10)'%3E%3Ccircle cx='20' cy='40' r='1'/%3E%3Ccircle cx='51' cy='49' r='.9'/%3E%3Ccircle cx='130' cy='41' r='1.1'/%3E%3Ccircle cx='96' cy='80' r='.9'/%3E%3C/g%3E%3Cg stroke='rgba(43,34,22,.12)' stroke-width='1'%3E%3Cpath d='M0 119.5H160'/%3E%3Cpath d='M0 120v-5M8 120v-5M16 120v-5M24 120v-5M32 120v-5M40 120v-9M48 120v-5M56 120v-5M64 120v-5M72 120v-5M80 120v-9M88 120v-5M96 120v-5M104 120v-5M112 120v-5M120 120v-9M128 120v-5M136 120v-5M144 120v-5M152 120v-5'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 160px 120px;
+  background-attachment: fixed;
+}
+:root[data-theme="chalk-line"] body {
+  background: transparent;
+}
+
+:root[data-theme="tar-paper"] {
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60' viewBox='0 0 120 60'%3E%3Cpath d='M0 .5H120' stroke='rgba(230,57,70,.18)' stroke-width='1'/%3E%3Cpath d='M0 30.5H120' stroke='rgba(230,57,70,.09)' stroke-width='1' stroke-dasharray='6 4'/%3E%3Cg fill='rgba(255,255,255,.07)' stroke='rgba(255,255,255,.05)' stroke-width='.8'%3E%3Ccircle cx='10' cy='12' r='2.2'/%3E%3Ccircle cx='40' cy='12' r='2.2'/%3E%3Ccircle cx='70' cy='12' r='2.2'/%3E%3Ccircle cx='100' cy='12' r='2.2'/%3E%3Ccircle cx='25' cy='44' r='2.2'/%3E%3Ccircle cx='55' cy='44' r='2.2'/%3E%3Ccircle cx='85' cy='44' r='2.2'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 120px 60px;
+  background-attachment: fixed;
+}
+:root[data-theme="tar-paper"] body {
+  background: transparent;
+}
+
+:root[data-theme="mecha-hangar"] {
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='rgba(255,210,63,.10)'%3E%3Cpath d='M0 80l12-12h12L12 80z'/%3E%3Cpath d='M24 80l12-12h12L36 80z'/%3E%3Cpath d='M48 80l12-12h12L60 80z'/%3E%3Cpath d='M72 80l12-12h-4L68 80z'/%3E%3C/g%3E%3Cpath d='M0 67.5H80' stroke='rgba(255,210,63,.12)' stroke-width='1'/%3E%3Ccircle cx='40' cy='14' r='3.4' fill='rgba(255,210,63,.10)'/%3E%3Ccircle cx='40' cy='14' r='8' fill='none' stroke='rgba(255,210,63,.06)' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 80px 80px;
+  background-attachment: fixed;
+}
+:root[data-theme="mecha-hangar"] body {
+  background: transparent;
+}
+
 @media (prefers-contrast: more) {
   :root[data-theme="blueprint"],
   :root[data-theme="hard-hat"],
@@ -906,7 +946,11 @@
   :root[data-theme="fast-break"],
   :root[data-theme="knockout"],
   :root[data-theme="checkered-flag"],
-  :root[data-theme="trophy"] {
+  :root[data-theme="trophy"],
+  :root[data-theme="shingle-crew"],
+  :root[data-theme="chalk-line"],
+  :root[data-theme="tar-paper"],
+  :root[data-theme="mecha-hangar"] {
     background-image: none;
   }
 }
