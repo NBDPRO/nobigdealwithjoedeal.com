@@ -1,0 +1,133 @@
+/* layouts/field.css — L08 Field App (2026-10-11, D3).
+ * Scoped under html[data-layout="field"]. Theme tokens + --tap only, EXCEPT
+ * the camera screen, which is deliberately white-on-black and ignores the
+ * theme so a photo is never judged through a coloured tint.
+ *
+ * Sunlight mode (html.sun) overrides ONLY colour tokens and border widths;
+ * taking the class off brings the rep's theme straight back. It uses an #id
+ * in :not() purely to out-rank any theme/mode attribute selector. */
+
+html[data-layout="field"] { --fa-bw: 1px; }
+
+/* ── sunlight: pure black on white, heavy outlines ── */
+html.sun[data-layout="field"]:not(#fa-sun) {
+  --bg: #ffffff; --s: #ffffff; --s2: #ffffff; --s3: #f0f0f0;
+  --t: #000000; --m: #000000; --rule: #000000; --br: #000000;
+  --orange: #000000; --ob: #000000; --og: #e8e8e8; --accent-fg: #ffffff;
+  --fa-bw: 2.5px;
+}
+html.sun[data-layout="field"] .fa-root,
+html.sun[data-layout="field"] .fa-root * { text-shadow: none; }
+html.sun[data-layout="field"] .fa-now-name,
+html.sun[data-layout="field"] .fa-lead-name,
+html.sun[data-layout="field"] .lk-name,
+html.sun[data-layout="field"] .lk-act-lbl,
+html.sun[data-layout="field"] .fa-tile span,
+html.sun[data-layout="field"] .fa-big { font-weight: 900; }
+
+/* ── chrome: our nav replaces the app's phone nav ── */
+html[data-layout="field"] #mobile-nav { display: none !important; }
+
+html[data-layout="field"] .fa-root {
+  position: fixed; left: 0; right: 0; top: 0; z-index: 1800;
+  bottom: calc(var(--tap) + 13px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg); color: var(--t);
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+}
+html[data-layout="field"] .fa-root[hidden] { display: none; }
+html[data-layout="field"] .fa-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1900; }
+html[data-layout="field"][data-fa-screen="capture"] .fa-nav { display: none; }
+html[data-layout="field"][data-fa-screen="capture"] .fa-root { bottom: 0; z-index: 2000; background: #000; }
+
+html[data-layout="field"] .fa-scroll { padding: 12px 14px 28px; max-width: 640px; margin: 0 auto; box-sizing: border-box; }
+html[data-layout="field"] .lk-act,
+html[data-layout="field"] .lk-card,
+html[data-layout="field"] .lk-widget { border-width: var(--fa-bw); }
+html[data-layout="field"] .lk-nav-bottom { border-top-width: var(--fa-bw); }
+
+/* ── Today ── */
+html[data-layout="field"] .fa-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: var(--tap); }
+html[data-layout="field"] .fa-title { font-size: 20px; font-weight: 800; }
+html[data-layout="field"] .fa-sun,
+html[data-layout="field"] .fa-back {
+  min-height: var(--tap); padding: 0 16px; border-radius: 14px; font: inherit; font-weight: 800; font-size: 15px;
+  background: var(--s2); color: var(--t); border: var(--fa-bw) solid var(--rule); cursor: pointer;
+}
+html[data-layout="field"] .fa-strip { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 10px; }
+html[data-layout="field"] .fa-wx { font-size: 15px; color: var(--t); }
+html[data-layout="field"] .fa-storm { font-size: 14px; font-weight: 700; color: var(--orange); }
+html[data-layout="field"] .fa-prog { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--m); margin-bottom: 8px; }
+html[data-layout="field"] .fa-empty { padding: 28px 8px; text-align: center; color: var(--m); font-size: 16px; line-height: 1.5; }
+
+html[data-layout="field"] .fa-now {
+  background: var(--s); border: var(--fa-bw) solid var(--orange); border-radius: 20px; padding: 18px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+html[data-layout="field"] .fa-now-time { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--orange); }
+html[data-layout="field"] .fa-now-name { font-size: 30px; line-height: 1.1; font-weight: 800; overflow-wrap: anywhere; }
+html[data-layout="field"] .fa-now-addr { font-size: 17px; color: var(--m); overflow-wrap: anywhere; }
+html[data-layout="field"] .fa-now-why { font-size: 16px; line-height: 1.4; }
+html[data-layout="field"] .fa-do { display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 999px; background: var(--og); color: var(--orange); font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+html[data-layout="field"] .fa-actions-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+html[data-layout="field"] .fa-big {
+  flex: 1 1 140px; min-height: var(--tap); padding: 0 16px; border-radius: 16px; font: inherit; font-size: 16px; font-weight: 800;
+  background: var(--orange); color: var(--accent-fg, #fff); border: var(--fa-bw) solid var(--orange); cursor: pointer;
+}
+html[data-layout="field"] .fa-big.fa-ghost { background: var(--s2); color: var(--t); border-color: var(--rule); }
+html[data-layout="field"] .fa-h { margin: 18px 0 8px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--m); }
+html[data-layout="field"] .fa-list { display: flex; flex-direction: column; gap: 8px; }
+html[data-layout="field"] .fa-rowbtn { display: block; width: 100%; padding: 0; margin: 0; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+
+/* ── Lead (big thumb) ── */
+html[data-layout="field"] .fa-lead-name { font-size: clamp(30px, 9vw, 58px); line-height: 1.05; font-weight: 800; margin: 10px 0 6px; overflow-wrap: anywhere; }
+html[data-layout="field"] .fa-pick-title { font-size: 28px; }
+html[data-layout="field"] .fa-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 16px 0; }
+html[data-layout="field"] .fa-tile {
+  min-height: max(86px, calc(var(--tap) + 30px)); border-radius: 18px; background: var(--s); color: var(--t);
+  border: var(--fa-bw) solid var(--rule); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  font: inherit; font-size: 15px; font-weight: 800; text-decoration: none; cursor: pointer;
+}
+html[data-layout="field"] .fa-tile .lk-ic { width: 30px; height: 30px; }
+html[data-layout="field"] .fa-tile.fa-off { opacity: .45; cursor: not-allowed; }
+html[data-layout="field"] .fa-check { list-style: none; margin: 0; padding: 0; }
+html[data-layout="field"] .fa-check li { border-bottom: 1px solid var(--rule); }
+html[data-layout="field"] .fa-check label { display: flex; gap: 12px; align-items: center; min-height: var(--tap); font-size: 16px; }
+html[data-layout="field"] .fa-check input { width: 26px; height: 26px; accent-color: var(--orange); flex: none; }
+html[data-layout="field"] .fa-onsite { margin: 18px 0; padding: 16px; border: var(--fa-bw) solid var(--orange); border-radius: 16px; font-size: 17px; font-weight: 800; text-align: center; }
+html[data-layout="field"] .fa-link { color: var(--orange); font-weight: 700; }
+
+/* slide to confirm */
+html[data-layout="field"] .fa-slide {
+  position: relative; margin: 20px 0; height: calc(var(--tap) + 10px); border-radius: 999px; background: var(--s2);
+  border: var(--fa-bw) solid var(--rule); touch-action: pan-y; user-select: none; -webkit-user-select: none; overflow: hidden;
+}
+html[data-layout="field"] .fa-knob {
+  position: absolute; left: 4px; top: 4px; bottom: 4px; width: calc(var(--tap) + 2px); border-radius: 999px;
+  background: var(--orange); color: var(--accent-fg, #fff); display: flex; align-items: center; justify-content: center;
+  font-size: 26px; font-weight: 900; touch-action: none; cursor: grab;
+}
+html[data-layout="field"] .fa-slide-lbl { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding-left: calc(var(--tap) + 10px); font-weight: 800; font-size: 16px; pointer-events: none; }
+
+/* ── Capture: white on black, theme ignored on purpose ── */
+html[data-layout="field"] .fa-cam { position: fixed; inset: 0; background: #000; color: #fff; overflow: hidden; }
+html[data-layout="field"] .fa-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+html[data-layout="field"] .fa-sq { position: absolute; left: 50%; top: 42%; width: min(78vw, 60vh); height: min(78vw, 60vh); transform: translate(-50%, -50%); pointer-events: none; }
+html[data-layout="field"] .fa-sq-box { fill: none; stroke: #fff; stroke-width: 1.4; }
+html[data-layout="field"] .fa-sq-grid line { stroke: rgba(255, 255, 255, .45); stroke-width: .5; }
+html[data-layout="field"] .fa-cam-top { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 10px; padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; background: linear-gradient(#000a, #0000); }
+html[data-layout="field"] .fa-cam-btn { width: var(--tap); height: var(--tap); border-radius: 50%; border: 2px solid #fff; background: #0008; color: #fff; font-size: 30px; line-height: 1; cursor: pointer; }
+html[data-layout="field"] .fa-cam-title { flex: 1; min-width: 0; font-weight: 800; font-size: 17px; }
+html[data-layout="field"] .fa-cam-title small { display: block; font-weight: 600; font-size: 12px; opacity: .85; }
+html[data-layout="field"] .fa-cam-q { font-size: 12px; font-weight: 800; padding: 6px 10px; border-radius: 999px; background: #0008; border: 1px solid #fff6; }
+html[data-layout="field"] .fa-cam-err { position: absolute; left: 12px; right: 12px; top: 30%; padding: 16px; border-radius: 16px; background: #000c; border: 2px solid #fff; font-size: 16px; font-weight: 700; text-align: center; }
+html[data-layout="field"] .fa-cam-err .fa-big { background: #fff; color: #000; border-color: #fff; margin-top: 12px; width: 100%; }
+html[data-layout="field"] .fa-cam-bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 12px calc(14px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(#0000, #000d 28%); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+html[data-layout="field"] .fa-chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+html[data-layout="field"] .fa-chip { min-height: var(--tap); padding: 0 16px; border-radius: 999px; border: 2px solid #fff; background: #0008; color: #fff; font: inherit; font-size: 16px; font-weight: 800; cursor: pointer; }
+html[data-layout="field"] .fa-chip-on { background: #fff; color: #000; }
+html[data-layout="field"] .fa-count { display: flex; align-items: center; gap: 18px; }
+html[data-layout="field"] .fa-cnt { width: calc(var(--tap) + 12px); height: calc(var(--tap) + 12px); border-radius: 50%; border: 2px solid #fff; background: #0008; color: #fff; font-size: 36px; font-weight: 800; line-height: 1; cursor: pointer; }
+html[data-layout="field"] .fa-count-n { min-width: 70px; text-align: center; font-size: 52px; font-weight: 900; font-variant-numeric: tabular-nums; }
+html[data-layout="field"] .fa-count-line { font-size: 13px; font-weight: 700; text-align: center; opacity: .95; }
+html[data-layout="field"] .fa-shutter { width: 76px; height: 76px; border-radius: 50%; border: 5px solid #fff; background: #fff3; cursor: pointer; box-shadow: inset 0 0 0 4px #000; }
+html[data-layout="field"] .fa-shutter:active { background: #fff; }
