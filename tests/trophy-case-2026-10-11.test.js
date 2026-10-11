@@ -115,6 +115,7 @@ console.log('TROPHY CASE — pure');
     /Almost there: 3 more inspections to Road Warrior/.test(P.nudgeFor({ themeKey: 'road-warrior', name: 'Road Warrior', current: 97, target: 100, progress: 0.97 }))
     && P.nudgeFor({ themeKey: 'road-warrior', name: 'Road Warrior', current: 10, target: 100, progress: 0.1 }) === ''
     && P.nudgeFor({ themeKey: 'gold-rush', name: 'Gold Rush', progress: 1, unlocked: true }) === ''
+    && P.nudgeFor({ themeKey: 'gold-rush', name: 'Gold Rush', current: 8, target: 10, progress: 0.8, unlocked: true }) === ''
     && P.nudgeFor({ themeKey: 'night-owl', name: 'Night Owl', current: 6, target: 10, progress: 0.6 }) !== '');
   const rows = [
     { name: 'A', progress: 0.2 }, { name: 'B', progress: 1, unlocked: true }, { name: 'C', progress: 0.9 }, { name: 'D', progress: 0.2 },
