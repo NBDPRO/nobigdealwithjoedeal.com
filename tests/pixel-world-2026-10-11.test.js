@@ -218,7 +218,7 @@ console.log('\n2. contracts');
   ok('no network from the town', !/\bfetch\(|XMLHttpRequest|sendBeacon|WebSocket|EventSource/.test(code));
   ok('never sends a message (no sms/email/send helpers)', !/\b(sendSms|sendText|sendEmail|sendMessage|mailto:|sms:)/i.test(code));
   ok('the only outbound link is tel: (a Call button the person taps)', /'tel:'/.test(code) && !/https?:\/\//.test(code));
-  ok('Draft text stays disabled (agent_inbox is server-written only); Move stage runs through env.moveStage, never a direct write', /DRAFT TEXT', disabled: true/.test(code) && /env\.moveStage\(/.test(code) && !/moveCard/.test(code));
+  ok('Draft text goes through the server (env.fileDraft, E2c; agent_inbox is server-written only); Move stage runs through env.moveStage, never a direct write', /env\.fileDraft\(/.test(code) && /env\.moveStage\(/.test(code) && !/moveCard/.test(code) && !/agent_inbox/.test(code));
   ok('stage moves ask in-game (no window.confirm) and verify the outcome from the lead', !/confirm\(/.test(code) && /moveOutcome\(/.test(code));
   ok('no innerHTML / document.write / eval', !/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function/.test(code));
   ok('no localStorage', !/localStorage|sessionStorage/.test(code));

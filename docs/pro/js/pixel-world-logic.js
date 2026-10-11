@@ -336,6 +336,39 @@
     return targetKey && stageAfterKey === targetKey ? 'moved' : 'refused';
   }
 
+  // ── E2c: DRAFT TEXT ────────────────────────────────────────────────────
+  // The SERVER owns the wording (functions/pixel-draft-logic.js). The game only
+  // knows the template KEYS and the button labels; the callable
+  // fileLeadTextDraft takes a key, never words. tests pin the keys to the server's.
+  var DRAFT_TEMPLATES = [
+    { key: 'followup', label: 'FOLLOW UP' },
+    { key: 'estimate_check_in', label: 'ESTIMATE CHECK-IN' },
+    { key: 'appointment_reminder', label: 'APPOINTMENT REMINDER' },
+    { key: 'thanks_after_job', label: 'THANKS AFTER JOB' },
+  ];
+  /**
+   * What the dialog says once fileLeadTextDraft answers (res) or fails (err).
+   * Honest by construction: every branch says nothing was texted, and none
+   * says "sent". status: 'filed' | 'already' | 'refused' | 'error'.
+   */
+  function draftOutcome(res, err) {
+    var tail = ' Nothing was texted.';
+    if (err) {
+      var code = String((err && err.code) || '').replace(/^functions\//, '');
+      if (code === 'permission-denied') return { status: 'refused', lines: ['NOT ALLOWED.', 'Your role cannot draft texts.' + tail] };
+      if (code === 'resource-exhausted') return { status: 'refused', lines: ['NOT ALLOWED.', 'Too many drafts this hour. Try again later.' + tail] };
+      return { status: 'error', lines: ['COULD NOT FILE.', 'Check your connection and try again.' + tail] };
+    }
+    var s = res && res.status;
+    if (s === 'filed') return { status: 'filed', lines: ['DRAFT FILED.', 'It waits in the Agent inbox for the owner or an admin to send.' + tail] };
+    if (s === 'already_filed') return { status: 'already', lines: ['ALREADY FILED.', 'Today\'s draft is already in the Agent inbox. Nothing new was filed.' + tail] };
+    if (s === 'not_allowed') {
+      var why = String((res && res.message) || '').replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+      return { status: 'refused', lines: ['NOT ALLOWED.', (why || 'This customer cannot be texted.') + tail] };
+    }
+    return { status: 'error', lines: ['COULD NOT FILE.', 'The answer did not make sense.' + tail] };
+  }
+
   // ── dialog text ────────────────────────────────────────────────────────
   /** Lines a townsperson says. Facts only; no promises, no claim talk. */
   function talkLines(m, stageText) {
@@ -356,7 +389,7 @@
     stepFrom: stepFrom, tryMove: tryMove, buildingAtDoor: buildingAtDoor, cameraFor: cameraFor,
     plazaTiles: plazaTiles, placePeople: placePeople, wanderStep: wanderStep, personFacing: personFacing,
     markFor: markFor, flagHail: flagHail, dayTint: dayTint, dexEntries: dexEntries, markSeen: markSeen,
-    adjacentStages: adjacentStages, moveOutcome: moveOutcome,
+    adjacentStages: adjacentStages, moveOutcome: moveOutcome, DRAFT_TEMPLATES: DRAFT_TEMPLATES, draftOutcome: draftOutcome,
     gateOpen: gateOpen, worldEnabled: worldEnabled, canSetCompanyFlag: canSetCompanyFlag, talkLines: talkLines,
   };
 });
