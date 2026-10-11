@@ -16,7 +16,7 @@
      in <head> before theme-system.css. ThemeEngine.init() takes over later. -->
 <script src="js/theme-mode-preboot.js?v=1"></script>
 <script src="js/material-preboot.js?v=1"></script>
-<script src="js/shape-preboot.js?v=1"></script>
+<script src="js/shape-preboot.js?v=2"></script>
 <!-- Stamp <html data-theme="..."> from the saved theme (canonical nbd_pro_theme,
      legacy nbd-theme fallback) BEFORE first paint, so the dashboard doesn't flash
      the hardcoded default before the deferred ThemeEngine boots (audit F-2). Must
@@ -194,6 +194,9 @@
 </style>
   <meta property="og:url" content="https://nobigdealwithjoedeal.com/pro/dashboard">
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
+<!-- Layout system (2026-10-11): the --tap token. The pre-paint layout stamp lives in
+     js/shape-preboot.js (one blocking tag); Classic = no attribute, no extra sheet. -->
+<link rel="stylesheet" href="css/layout-system.css?v=1">
 </head>
 <body>
 <!-- NBD Pro loading spinner — shown until DOMContentLoaded fires,
@@ -7062,6 +7065,7 @@
 <script defer src="js/today-home.js?v=3"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=3"></script>
+<script defer src="js/layout-system.js?v=1"></script>
 <script defer src="js/ui.js?v=10"></script>
 <script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>

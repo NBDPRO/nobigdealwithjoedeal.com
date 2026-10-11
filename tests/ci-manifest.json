@@ -10,6 +10,7 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "layout-system-2026-10-11.test.js",
     "pro-demo-sdk-2026-10-06.test.js",
     "pro-demo-wave2-2026-10-06.test.js",
     "appcheck-config-per-page-2026-10-06.test.js",
@@ -472,6 +473,8 @@
     "r2-money-lines-jobvalue-2026-10-06.test.js",
     "r2-money-parse-multijob-2026-10-06.test.js",
     "contract-signed-is-booked-2026-10-06.test.js",
+    "storm-mode.test.js",
+    "storm-mode-drafts-2026-10-11.test.js",
     "no-personal-data-in-repo-2026-10-06.test.js",
     "system-plus-standard-and-up-2026-10-05.test.js",
     "member-offboarding-2026-10-06.test.js",
@@ -495,9 +498,7 @@
     "photo-cache-lazy-2026-10-04.test.js",
     "firebase-sdk-vendored-2026-10-04.test.js",
     "paid-in-full-supplements-r6-2026-10-07.test.js",
-    "auto-theme-rules.test.js",
-    "storm-mode.test.js",
-    "storm-mode-drafts-2026-10-11.test.js"
+    "auto-theme-rules.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
