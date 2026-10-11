@@ -1,0 +1,10 @@
+/* layout-system.css — tokens shared by every CRM layout (2026-10-11).
+ *
+ * Layouts read ONLY theme tokens plus these. --tap is the minimum touch-target
+ * size: 56px by default (the Field App's big-thumb buttons), 64px in glove
+ * mode (userSettings.layout.glove -> <html data-tap="glove">, stamped by
+ * layout-engine.js / layout-preboot.js). Classic ignores it, so defining it
+ * changes nothing for anyone who hasn't picked a layout.
+ */
+:root { --tap: 56px; }
+:root[data-tap="glove"] { --tap: 64px; }
