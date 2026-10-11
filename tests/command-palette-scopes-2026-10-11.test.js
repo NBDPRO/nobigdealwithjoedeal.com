@@ -59,6 +59,7 @@ console.log('\nPALETTE 2.0 — safe math');
   ok('"sq ft" as two words is sqft', text('100 sq ft in sq') === '1 sq', text('100 sq ft in sq'));
   ok('brackets then a unit', text('(32.4 + 8) sq x $485') === '$19,594', text('(32.4 + 8) sq x $485'));
   ok('money is held in cents: $19.99 x 3', text('$19.99 * 3') === '$59.97' && text('$0.1 + $0.2') === '$0.30', text('$0.1 + $0.2'));
+  ok('cents are kept as floats and rounded once: $0.005 x 1000 = $5 (not $10)', text('$0.005 * 1000') === '$5', text('$0.005 * 1000'));
   ok('percent: add, subtract, of', text('$15,000 + 10%') === '$16,500' && text('$15000 - 15%') === '$12,750' && text('200 * 15%') === '30');
   ok('k suffix and thousands commas', text('$15k + $1,250') === '$16,250');
   ok('powers and plain numbers', text('2 ^ 10') === '1,024' && text('1/3') === '0.3333');
@@ -81,7 +82,7 @@ console.log('\nPALETTE 2.0 — plain-scope math detection');
 {
   const L = P.looksLikeMath;
   ok('a calculation is detected', L('32.4 sq x $485') && L('$15,000 * 1.1') && L('2400 sqft / 100'));
-  ok('phone numbers are not', !L('513-555-0100') && !L('(513) 555-0100') && !L('5135550100') && !L('513 555 0100'));
+  ok('phone numbers are not, even with an extension', !L('513-555-0100 x12') && !L('(513) 555-0100 ext 4') && !L('513-555-0100') && !L('(513) 555-0100') && !L('5135550100') && !L('513 555 0100'));
   ok('words and house numbers are not', !L('maya') && !L('214 sample ridge') && !L('4106'));
 }
 

@@ -149,7 +149,7 @@
       var isUsd = false;
       if (t.t === 'usd') { isUsd = true; t = take(); }
       if (t && t.t === 'num') {
-        var out = isUsd ? val(Math.round(t.v * 100), { usd: 1, sq: 0, sqft: 0, lf: 0 }) : val(t.v);
+        var out = isUsd ? val(t.v * 100, { usd: 1, sq: 0, sqft: 0, lf: 0 }) : val(t.v);
         var nx = peek();
         // "$485/sq" and "$485 per sq": a rate binds tighter than the x before it
         if (isUsd && nx && nx.t === '/' && toks[pos + 1] && toks[pos + 1].t === 'unit') {
@@ -300,7 +300,7 @@
   function looksLikeMath(raw) {
     var s = String(raw || '').trim();
     if (!/^[\d$(.]/.test(s)) return false;
-    if (/^\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}$/.test(s)) return false;     // a phone number
+    if (/^\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}(\s*(x|ext\.?)\s*\d+)?$/i.test(s)) return false;     // a phone number (with an extension)
     return /[$*×]|\bx\b|\b(sq|sqft|lf|squares?)\b/i.test(s) && /\d/.test(s);
   }
 
