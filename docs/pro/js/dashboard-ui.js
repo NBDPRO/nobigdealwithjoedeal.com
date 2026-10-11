@@ -1775,7 +1775,7 @@ function _syncDensityToggleLabel(d) {
     try { d = localStorage.getItem(KANBAN_DENSITY_KEY) || 'comfortable'; } catch (_) { d = 'comfortable'; }
     if (!_DENSITY_NAMES[d]) d = 'comfortable';
   }
-  const next = { compact: 'comfortable', comfortable: 'spacious', spacious: 'rich', rich: 'compact' }[d];
+  const next = { compact: 'comfortable', comfortable: 'spacious', spacious: 'compact', rich: 'compact' }[d];
   btn.title = 'Card density: ' + _DENSITY_NAMES[d] + ' — tap for ' + _DENSITY_NAMES[next];
   const lbl = btn.querySelector('.crm-hdr-btn-label');
   if (lbl) lbl.textContent = 'Card density: ' + _DENSITY_NAMES[d];
@@ -1787,7 +1787,9 @@ function _syncDensityToggleLabel(d) {
 // data-density attribute got cleared (Comfortable = no attribute).
 // setKanbanDensity updates the button's label + tooltip to the new size.
 const cycleKanbanDensity = function() {
-  const order = ['compact', 'comfortable', 'spacious', 'rich'];
+  // Rich is chosen from Settings or the board strip, not stepped into by this
+  // three-size tap; stepping out of Rich lands on Compact.
+  const order = ['compact', 'comfortable', 'spacious'];
   let cur = 'comfortable';
   try { cur = localStorage.getItem(KANBAN_DENSITY_KEY) || 'comfortable'; } catch (_) {}
   if (!order.includes(cur)) cur = 'comfortable';

@@ -146,7 +146,7 @@ console.log('\nRICH CARDS — wording + wiring');
   const ui = read('docs/pro/js/dashboard-ui.js');
   ok('setKanbanDensity accepts rich', /\['compact', 'comfortable', 'spacious', 'rich'\]\.includes\(d\)/.test(ui));
   ok('...and announces the change for the board', /nbd:density-changed/.test(ui));
-  ok('the density cycle includes rich', /order = \['compact', 'comfortable', 'spacious', 'rich'\]/.test(ui));
+  ok('the Tools tap keeps its three sizes and leaves Rich to Compact', /order = \['compact', 'comfortable', 'spacious'\];/.test(ui) && /spacious: 'compact', rich: 'compact'/.test(ui));
   const pipe = read('docs/pro/js/crm-pipeline.js');
   ok('buildCard asks the module for the block', /NBDPipelineRich\.blockFor\(l,/.test(pipe) && /\$\{richBlock\}/.test(pipe));
   ok('renderLeads hands the module the cards for the strip', /NBDPipelineRich\.afterRender\(list\)/.test(pipe));

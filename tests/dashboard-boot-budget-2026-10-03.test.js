@@ -36,9 +36,10 @@ CEILING.localScripts += 1;
 // +1 local tag, deliberate (2026-10-11, C5): js/pipeline-rich-cards.js (window.NBDPipelineRich).
 // crm-pipeline.js buildCard reads it synchronously when the board is in the rich density, and
 // renderLeads paints the board strip through it — lazy-loading would paint the first board
-// without the strip. 15 KB, defer, no boot-time reads. Own line so parallel PRs raising the
+// without the strip. Defer, no boot-time reads. Own line so parallel PRs raising the
 // ceiling above merge without a conflict.
 CEILING.localScripts += 1;
+CEILING.localBytes += 30 * 1024;   // pipeline-rich-cards.js = 26.5 KB (LF), + ~1 KB of hooks in crm-pipeline.js / dashboard-ui.js
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
