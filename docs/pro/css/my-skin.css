@@ -101,6 +101,7 @@
 
 /* ── Settings > Appearance > My Skin panel ─────────────────────────────── */
 .myskin-note { font-size: 12px; color: var(--m); margin: 0 0 14px; line-height: 1.45; }
+.myskin-subhead { margin-top: 14px; }
 .myskin-row {
   display: flex;
   align-items: center;

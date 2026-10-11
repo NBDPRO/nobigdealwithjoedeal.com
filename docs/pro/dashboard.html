@@ -16,7 +16,7 @@
      in <head> before theme-system.css. ThemeEngine.init() takes over later. -->
 <script src="js/theme-mode-preboot.js?v=1"></script>
 <script src="js/material-preboot.js?v=1"></script>
-<script src="js/shape-preboot.js?v=1"></script>
+<script src="js/shape-preboot.js?v=2"></script>
 <!-- Stamp <html data-theme="..."> from the saved theme (canonical nbd_pro_theme,
      legacy nbd-theme fallback) BEFORE first paint, so the dashboard doesn't flash
      the hardcoded default before the deferred ThemeEngine boots (audit F-2). Must
@@ -194,6 +194,9 @@
 </style>
   <meta property="og:url" content="https://nobigdealwithjoedeal.com/pro/dashboard">
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
+<!-- Layout system (2026-10-11): the --tap token. The pre-paint layout stamp lives in
+     js/shape-preboot.js (one blocking tag); Classic = no attribute, no extra sheet. -->
+<link rel="stylesheet" href="css/layout-system.css?v=1">
 </head>
 <body>
 <!-- NBD Pro loading spinner — shown until DOMContentLoaded fires,
@@ -3657,7 +3660,7 @@
             <label class="myskin-row" for="pxSkin"><span>Pixel Mode skin</span><input type="checkbox" id="pxSkin"></label>
             <label class="myskin-row" for="pxScanlines"><span>Scanlines</span><input type="checkbox" id="pxScanlines"></label>
             <label class="myskin-row" for="pxDialog"><span>Dialog-box notifications (works with any theme)</span><input type="checkbox" id="pxDialog"></label>
-            <div class="panel-label" style="margin-top:14px;">Pixel World (beta)</div>
+            <div class="panel-label myskin-subhead">Pixel World (beta)</div>
             <p class="myskin-note">A walkable town where every building is a part of the CRM and your open leads are the townspeople. Read-only: it shows your real leads and never sends a message or changes one. Off until you turn it on.</p>
             <label class="myskin-row" for="pxWorldUser"><span>Turn on Pixel World for me</span><input type="checkbox" id="pxWorldUser"></label>
             <label class="myskin-row" for="pxWorldCompany" id="pxWorldCompanyRow" hidden><span>Turn on for my whole company</span><input type="checkbox" id="pxWorldCompany"></label>
@@ -7070,6 +7073,7 @@
 <script defer src="js/today-home.js?v=3"></script>
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=3"></script>
+<script defer src="js/layout-system.js?v=1"></script>
 <script defer src="js/pixel-mode.js?v=1"></script>
 <script defer src="js/ui.js?v=10"></script>
 <script defer src="js/demo.js?v=5"></script>
