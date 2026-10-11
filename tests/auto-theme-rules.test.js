@@ -129,8 +129,8 @@ function harness(opts) {
     get: (k) => (k === 'ghost' ? null : { name: k }),
     isUnlocked: (k) => k !== 'locked-one',
     getAll: () => ({}),
-    apply(k, save) {
-      applied.push({ key: k, save });
+    apply(k, save, o) {
+      applied.push({ key: k, save, opts: o });
       current = k;
       document.dispatchEvent({ type: 'themechange', detail: k });
     },
@@ -171,6 +171,7 @@ console.log('\nAUTO THEME — scheduler glue (injected clock)');
   h.A.setEnabled(true);
   ok('enabling applies the day theme once', h.applied.length === 1 && h.applied[0].key === 'paper');
   ok("automatic switches never save (the user's own theme stays saved)", h.applied.every((a) => a.save === false));
+  ok('automatic switches ask the engine for the Theme Morph (user-facing, unsaved)', h.applied.every((a) => a.opts && a.opts.morph === true));
   ok('the Comfort flag key is written', h.store.nbd_auto_theme === '1');
   h.A.tick();
   ok('a second tick with nothing changed does not re-apply', h.applied.length === 1);

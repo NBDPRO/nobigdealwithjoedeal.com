@@ -46,9 +46,12 @@ self-heal re-apply the saved theme) are not counted as hand-picks.
 
 ### Seams for other lanes
 
-- `NBDAutoTheme.applyTheme(key)` / internal `paint(key)` — **the single place
-  to swap in Theme Morph** (`startViewTransition`) when lane "theme-polish"
-  lands; nothing else calls `ThemeEngine.apply` for automatic switches.
+- `NBDAutoTheme.applyTheme(key)` / internal `paint(key)` — the single place an
+  automatic switch happens. Theme Morph (A1, #2324) had already merged: it calls
+  `ThemeEngine.apply(key, false, {morph:true, origin})`, so automatic switches
+  crossfade (no click to grow from) and Storm Mode grows the circle from the
+  banner. The themechange arrives a frame later, which is why a switch we
+  caused is matched by an expected-key window, not a sync flag.
 - `NBDAutoTheme.registerRule(id, label, fn(ctx, cfg, phase) -> themeKey|null)`
   and the `nbd:auto-theme` document event `{theme, rule, phase}` — the layout
   context switch (idea L02 / Field App) plugs the same rule list in here.
