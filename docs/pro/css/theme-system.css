@@ -713,3 +713,28 @@
 :root[data-theme="maximal"]:not([data-mode="light"]) .ui-seg.is-on {
   box-shadow: 3px 3px 0 #ff5fa2;
 }
+
+/* ══ Theme Morph (roadmap A1 / idea #03) ═════════════════════════════════
+   ThemeEngine.apply() wraps a deliberate switch in document.startViewTransition
+   and grows the new theme as a circle from the clicked chip (clip-path is
+   animated from JS; the root pseudo-elements just must not run their own
+   fade or the circle would be double-blended). Reduce Motion / no View
+   Transitions: a 150ms colour crossfade via html.theme-fade instead. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+
+/* Doubled class beats the Reduce Motion blanket (:root[data-motion="reduce"] *
+   forces transition-duration ~0 with !important): a 150ms colour fade is the
+   documented reduced-motion fallback, not a movement. */
+html.theme-fade.theme-fade,
+html.theme-fade.theme-fade *,
+html.theme-fade.theme-fade *::before,
+html.theme-fade.theme-fade *::after {
+  transition: background-color 150ms linear, color 150ms linear, border-color 150ms linear,
+              fill 150ms linear, stroke 150ms linear, box-shadow 150ms linear !important;
+}
