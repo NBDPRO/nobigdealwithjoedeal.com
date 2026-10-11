@@ -58,7 +58,7 @@
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
 <link rel="preload" href="js/crm-leads.js?v=9" as="script">
-<link rel="preload" href="js/crm-pipeline.js?v=20" as="script">
+<link rel="preload" href="js/crm-pipeline.js?v=21" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=6" as="script">
 <link rel="preload" href="js/crm-portal-bridge.js?v=9" as="script">
@@ -159,6 +159,7 @@
 <link rel="stylesheet" href="css/yard-signs-view.css?v=1">
 <link rel="stylesheet" href="css/expenses.css?v=3">
 <link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
+<link rel="stylesheet" href="css/pipeline-rich-cards.css?v=1">
 <link rel="stylesheet" href="css/today-home.css?v=3">
 <link rel="stylesheet" href="css/templates-library-view.css?v=2">
 <link rel="stylesheet" href="css/data-import-view.css?v=2">
@@ -2022,7 +2023,7 @@
             </button>
             <!-- Sweep R3 (C): card-density quick toggle. data-menu-stay
                  (2026-09-25): it cycles in place, so Tools stays open. -->
-            <button class="crm-icon-btn" id="kanbanDensityToggleBtn" data-action="call" data-fn="cycleKanbanDensity" data-menu-stay title="Card density (cycles Compact → Comfortable → Spacious)">
+            <button class="crm-icon-btn" id="kanbanDensityToggleBtn" data-action="call" data-fn="cycleKanbanDensity" data-menu-stay title="Card density (cycles Compact → Comfortable → Spacious → Rich)">
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h14M3 10h14M3 15h14"/></svg>
               <span class="crm-hdr-btn-label">Card density</span>
             </button>
@@ -3257,6 +3258,7 @@
                 <button type="button" class="kdens-btn ui-seg" data-density="compact"  data-action="call" data-fn="setKanbanDensity" data-arg="compact" >Compact</button>
                 <button type="button" class="kdens-btn ui-seg" data-density="comfortable" data-action="call" data-fn="setKanbanDensity" data-arg="comfortable">Comfortable</button>
                 <button type="button" class="kdens-btn ui-seg" data-density="spacious" data-action="call" data-fn="setKanbanDensity" data-arg="spacious">Spacious</button>
+                <button type="button" class="kdens-btn ui-seg" data-density="rich" data-action="call" data-fn="setKanbanDensity" data-arg="rich" title="Roof photo, chips, aging bar and next step on each card">Rich</button>
               </div>
             </div>
 
@@ -6968,7 +6970,9 @@
      replaces the unbounded every-photo read loadLeads used to do at boot. -->
 <script defer src="js/photo-cache.js?v=2"></script>
 <script defer src="js/jobs-store.js?v=5"></script>
-<script defer src="js/crm-pipeline.js?v=20"></script>
+<!-- Rich card density + board strip (2026-10-11, C5): read by crm-pipeline.js at render time. -->
+<script defer src="js/pipeline-rich-cards.js?v=1"></script>
+<script defer src="js/crm-pipeline.js?v=21"></script>
 <script defer src="js/crm-snooze.js?v=6"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
      push token via getToken({vapidKey}), and persists it to

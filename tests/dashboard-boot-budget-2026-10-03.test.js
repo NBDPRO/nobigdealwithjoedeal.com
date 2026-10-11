@@ -33,6 +33,12 @@ const CEILING = {
 // "no photos" (page-scoped-helper rule). Kept as its own line so the other PRs that raise
 // localScripts on the line above merge without a conflict.
 CEILING.localScripts += 1;
+// +1 local tag, deliberate (2026-10-11, C5): js/pipeline-rich-cards.js (window.NBDPipelineRich).
+// crm-pipeline.js buildCard reads it synchronously when the board is in the rich density, and
+// renderLeads paints the board strip through it — lazy-loading would paint the first board
+// without the strip. 15 KB, defer, no boot-time reads. Own line so parallel PRs raising the
+// ceiling above merge without a conflict.
+CEILING.localScripts += 1;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
