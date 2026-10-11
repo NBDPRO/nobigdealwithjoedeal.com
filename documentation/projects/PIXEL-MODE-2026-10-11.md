@@ -17,7 +17,8 @@ and a **Trainer Card**.
 | Piece | Where | Notes |
 | --- | --- | --- |
 | Pure rules | `docs/pro/js/pixel-logic.js` (`window.NBDPixelLogic`) | HP, overdue, open lead, party order, trainer card, box-shadow sprite, typewriter. Shared with Pixel World (E2). |
-| Skin + wiring | `docs/pro/js/pixel-mode.js` (`window.NBDPixelMode`) | The only boot tag. Reads `userSettings/{uid}.pixelMode`, stops if everything is off. |
+| Boot loader | `docs/pro/js/pixel-mode.js` | The only boot tag (~3 KB). One settings read; fetches the core only when skin/dialog is on or the Settings card scrolls into view. Leaves a `__stub` on `window.NBDPixelMode`. |
+| Skin + wiring | `docs/pro/js/pixel-mode-core.js` (`window.NBDPixelMode`) | Lazy. Skin classes, Party/Trainer Card, dialog toasts, settings panel, `userSettings` read/write. |
 | Stylesheet | `docs/pro/css/pixel-mode.css` | Lazy: injected only when something is on. Tokens only, every selector under `body.skin-pixel` / `.px-*` / `.toast.px-dialog`. |
 | Settings card | `dashboard.html` `#pixelModePanel` | Settings > Appearance, under My Skin. Three switches: skin, scanlines, dialog notifications. |
 | Home host | `dashboard.html` `#homePixelParty` | Hidden unless the skin is on. |
@@ -60,8 +61,12 @@ message once, not letter by letter. Reduce Motion (OS setting **or** the app's
   sprites, names or music.
 - Fonts come from the already-allowed `fonts.googleapis.com` / `fonts.gstatic.com`
   (CSP `style-src` / `font-src`), requested only when something is on.
-- Boot budget: +1 deferred tag, ceiling raised by one with the reason on the
-  line (`tests/dashboard-boot-budget-2026-10-03.test.js`).
+- Boot budget: +1 deferred tag (the ~3 KB loader), ceiling raised by one with
+  the reason on the line (`tests/dashboard-boot-budget-2026-10-03.test.js`). The
+  first version shipped the whole 18 KB as the boot tag and CI's byte ceiling
+  (4.4 MB of LF bytes; `main` sat 9 KB under it) went red - hence the loader/core
+  split. Note the test measures LF bytes on Linux; on a Windows CRLF checkout it
+  reads ~4% higher and fails locally even on `main`.
 
 **Known limits / next.**
 - No pre-paint cache: the skin applies when the settings snapshot lands, so a
@@ -83,7 +88,7 @@ copied — the town's art is drawn here from small string patterns).
 | Rules | `docs/pro/js/pixel-world-logic.js` (`NBDPixelWorldLogic`) | Map, collision, camera, deterministic placement, wander limits, hail flags, day/night tint, Lead Dex, gates, on/off switch. Pure, tested. |
 | Game | `docs/pro/js/pixel-world.js` (`NBDPixelWorldGame.start(env)`) | Canvas renderer + HTML frame. Read-only: no Firestore write API, no network. |
 | Frame | `docs/pro/css/pixel-world.css` | HUD chips, dialog, panels, touch D-pad. Theme tokens only. |
-| Launcher | `pixel-mode.js` (`NBDPixelWorld`-style `NBDPixelMode.open/close/world`) | Switch check, lazy assets, company flag read, layout-registry seam. |
+| Launcher | `pixel-mode-core.js` (`NBDPixelMode.open/close/world`) + the `pixel-mode.js` boot loader | Switch check, lazy assets, company flag read; the loader owns the layout-registry seam. |
 | Tests | `tests/pixel-world-2026-10-11.test.js` | 82 checks incl. map connectivity, collision, placement, contracts. Break-tested. |
 
 **Switch (default OFF).** On when the person opted in
@@ -98,11 +103,13 @@ person opens it.
 **Entry points.** Settings > Appearance > Pixel Mode > "Open Pixel World", the
 "ENTER TOWN" button on the Home Party card (skin on), and
 `NBDPixelMode.open()`. The layout registry (lane "layouts") had not merged when
-this was built, so there is a **seam**, not a registration: `pixel-mode.js`
-exposes `layoutEntry` (`id: 'pixel'`, `mount/unmount/load/enabled`) and calls
-`window.LayoutRegistry.register(layoutEntry)` if that object exists at boot or
-when `nbd:layout-registry-ready` fires. When the registry lands, confirm its
-`register` shape and delete the guard if it differs.
+this was built, so there is a **seam**, not a hard registration: the
+`pixel-mode.js` boot loader calls `window.LayoutRegistry.register({ id: 'pixel',
+name, version, surfaces, tier, flag, enabled, load, mount, unmount })` if that
+object exists at boot or when `nbd:layout-registry-ready` fires (inside a
+try/catch, so a different `register` shape just leaves the Settings entry
+point). The entry is thin: `load/mount/unmount` fetch the core on demand.
+When the registry lands, confirm its `register` shape and the id/flag names.
 
 **What the town shows (all real, all read-only).**
 - Townspeople = the user's open leads, most-at-risk first (cap 40 on the map,

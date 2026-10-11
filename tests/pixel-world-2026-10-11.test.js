@@ -9,7 +9,7 @@
  *      no message send), lazy (not referenced by dashboard.html), original
  *      (no third-party game names), safe (no innerHTML), and its stylesheet
  *      uses tokens and honours both Reduce Motion switches
- *   3. pixel-mode.js launcher: switch parity with the logic module
+ *   3. pixel-mode-core.js launcher: switch parity with the logic module; the boot loader's layout seam
  *
  * Run: node tests/pixel-world-2026-10-11.test.js
  */
@@ -30,7 +30,7 @@ function ok(name, cond, detail) {
 
 const PL = require(path.join(ROOT, 'docs/pro/js/pixel-logic.js'));
 const WL = require(path.join(ROOT, 'docs/pro/js/pixel-world-logic.js'));
-const MODE = require(path.join(ROOT, 'docs/pro/js/pixel-mode.js'));
+const MODE = require(path.join(ROOT, 'docs/pro/js/pixel-mode-core.js'));
 
 console.log('\n1. pixel-world-logic');
 {
@@ -220,7 +220,7 @@ console.log('\n2. contracts');
 
   const html = read('docs/pro/dashboard.html').replace(/<!--[\s\S]*?-->/g, '');
   ok('lazy: the dashboard references neither the game, its logic nor its CSS', !/pixel-world(-logic)?\.(js|css)/.test(html));
-  const mode = read('docs/pro/js/pixel-mode.js');
+  const mode = read('docs/pro/js/pixel-mode-core.js');
   ok('lazy: the launcher fetches the game only inside openWorld → worldAssets', /function worldAssets\(\)/.test(mode) && (mode.match(/WORLD_JS_URL/g) || []).length === 2);
   ok('the launcher checks the switch before it loads anything', /if \(!worldEnabled\(\)\) \{[\s\S]{0,200}return null;/.test(mode));
 
@@ -241,6 +241,14 @@ console.log('\n3. launcher parity');
     users.every((u) => cos.every((c) => MODE.worldOn(u, c) === WL.worldEnabled(u ? { pixelWorld: u } : undefined, c))));
   const claims = [{}, { role: 'viewer' }, { role: 'manager', companyId: 'c' }, { role: 'company_admin', companyId: 'c' }, { role: 'admin' }, { role: 'sales_rep', companyId: 'c' }, { companyId: 'u1' }];
   ok('canSetCompany agrees with the logic module', claims.every((c) => ['u1', 'u2', null].every((u) => MODE.canSetCompany(c, u) === WL.canSetCompanyFlag(c, u))));
+}
+
+{
+  const loader = stripJs(read('docs/pro/js/pixel-mode.js'));
+  ok('boot loader exposes open() and fetches the core for it (no game code at boot)', /open: function \(\) \{ return viaCore\('open'\)/.test(loader) && !/pixel-world/.test(loader));
+  ok('layout seam: registers layout "pixel" with the registry only if it exists, and is thin (load/mount/unmount via the core)',
+    /window|w\.LayoutRegistry/.test(loader) && /id: 'pixel'/.test(loader) && /R\.register\(\{/.test(loader) && /mount: function \(\) \{ return viaCore\('open'\)/.test(loader) && /unmount: function \(\) \{ return viaCore\('close'\)/.test(loader));
+  ok('the core no longer registers a layout (the loader owns it, so there is no double registration)', !/LayoutRegistry/.test(stripJs(read('docs/pro/js/pixel-mode-core.js'))));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
