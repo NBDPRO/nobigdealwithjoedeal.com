@@ -445,7 +445,13 @@
         try {
           var plan = R.fromEstimate({ mode: insurance ? 'insurance' : '', claim: { deductible: d.deductible } },
             { totalCents: c, address: d.address || '', jurisdiction: jur || null, lead: d.lead || window._leadDoc || null });
-          if (plan && plan.totalCents > 0) due = plan.label + ': ' + plan.valueText;
+          if (plan && plan.totalCents > 0) {
+            due = plan.label + ': ' + plan.valueText;
+            // Ohio ORC 4722.04 (2026-10-11): say what follows the capped deposit.
+            if (plan.ohio && plan.ohio.reduced === true && plan.ohio.milestoneCents > 0) {
+              due += ', then ' + R.fmtCents(plan.ohio.milestoneCents) + ' when your materials are delivered or work begins';
+            }
+          }
         } catch (_) { due = ''; }
       }
       return '<div class="lib-tier' + (t === quoted ? ' lib-quoted' : '') + '" data-tier="' + esc(t) + '">' +

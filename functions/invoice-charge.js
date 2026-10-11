@@ -16,6 +16,19 @@
  * A deposit equal to or above the total is no split (the whole invoice is
  * the deposit) — the balance is charged, as before.
  *
+ * OHIO ORC 4722.04 (2026-10-11): an invoice stamped ohioHold === true (the
+ * deposit rule capped the signing deposit at 10%) charges ONLY the signing
+ * deposit until the rep releases the next payment (milestoneReleased === true
+ * — "materials delivered / work begins"):
+ *   - deposit met, not released  → kind 'scheduled': $0 due, no link, the
+ *     portal says what is next (nextCents);
+ *   - released, milestoneAmount unmet → kind 'milestone': the rest of
+ *     deposit + milestone;
+ *   - then the balance as before.
+ * Without this the pay link would charge the whole 90% the moment the 10%
+ * landed — taking far more than 10% before work begins is what the statute
+ * forbids. Counsel question: whether delivery counts as "performance begins".
+ *
  * Callers: functions/stripe.js createStripePaymentLink (the amount Stripe
  * charges — the server is the source of truth) and functions/portal.js (the
  * homeowner portal's Balance Due card shows the same number). The Kentucky
@@ -52,6 +65,18 @@ function chargeDueNow(inv, o) {
   // the whole job, which is what an invoice with no deposit used to charge.
   if (i.awaitingCarrierNumbers === true) return { kind: 'awaiting', chargeCents: 0, balanceCents: balanceC, depositLeftCents: 0 };
   if (depLeftC > 0) return { kind: 'deposit', chargeCents: depLeftC, balanceCents: balanceC, depositLeftCents: depLeftC };
+  if (i.ohioHold === true && depC > 0) {
+    const msC = Math.max(0, _c(i.milestoneAmount));
+    if (i.milestoneReleased !== true) {
+      return { kind: 'scheduled', chargeCents: 0, balanceCents: balanceC, depositLeftCents: 0,
+        nextCents: msC > 0 ? Math.min(msC, balanceC) : null };
+    }
+    const msTarget = Math.min(totalC, depC + msC);
+    if (msC > 0 && paidC < msTarget) {
+      const left = Math.min(msTarget - paidC, balanceC);
+      return { kind: 'milestone', chargeCents: left, balanceCents: balanceC, depositLeftCents: 0 };
+    }
+  }
   return { kind: 'balance', chargeCents: balanceC, balanceCents: balanceC, depositLeftCents: 0 };
 }
 
@@ -87,7 +112,7 @@ function chargeDueNow(inv, o) {
  * paid yet.
  * When a link was sent but no longer fits, linkPending is true: the page
  * says "Your balance link is on its way" instead of offering the spent one.
- * @returns {{ amountCents, kind: 'deposit'|'balance'|'held'|'awaiting', totalOwedCents,
+ * @returns {{ amountCents, kind: 'deposit'|'balance'|'held'|'awaiting'|'scheduled', totalOwedCents,
  *             stripePaymentLink: string|null, linkPending?: boolean,
  *             nextCents?, releaseDate? }}
  */
@@ -103,6 +128,11 @@ function portalBalanceCard(inv, payUrl, hold) {
   }
   if (due.kind === 'awaiting') {
     return { amountCents: 0, kind: 'awaiting', totalOwedCents: 0, stripePaymentLink: null, linkPending: false };
+  }
+  // Ohio hold: signing deposit paid, the next payment not released yet.
+  if (due.kind === 'scheduled') {
+    return { amountCents: 0, kind: 'scheduled', totalOwedCents: 0, stripePaymentLink: null, linkPending: false,
+      nextCents: due.nextCents != null ? due.nextCents : null };
   }
   const num = (v) => v != null && v !== '' && Number.isFinite(Number(v));
   const paidC = Math.max(0, _c(i.amountPaid));

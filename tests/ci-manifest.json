@@ -435,6 +435,7 @@
     "upgrade-price-settings.test.js",
     "upgrades-builder-card.test.js",
     "deposit-rule.test.js",
+    "ohio-4722-deposit-cap-2026-10-11.test.js",
     "role-gate.test.js",
     "collection-group-paths.test.js",
     "indexnow-ping.test.js",
