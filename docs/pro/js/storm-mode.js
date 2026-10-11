@@ -603,7 +603,7 @@
     h += '<label class="myskin-row" for="stormModeOn"><span>Turn on Storm Mode</span><input type="checkbox" id="stormModeOn"' + (cfg.enabled ? ' checked' : '') + '></label>';
     h += '<label class="myskin-row" for="stormModeKeep"><span>Banner only, never change my theme</span><input type="checkbox" id="stormModeKeep"' + (cfg.keepTheme ? ' checked' : '') + (cfg.enabled ? '' : ' disabled') + '></label>';
     h += '<label class="myskin-row" for="stormModeDrafts"><span>Prepare check-in drafts after the storm</span><input type="checkbox" id="stormModeDrafts"' + (cfg.drafts ? ' checked' : '') + (cfg.enabled ? '' : ' disabled') + '></label>';
-    h += '<div style="margin-top:10px;"><button type="button" class="btn btn-ghost btn-sm" data-sm-act="preview"' + (cfg.enabled ? '' : ' disabled') + '>See what it looks like (30 seconds)</button></div>';
+    h += '<div class="myskin-actions"><button type="button" class="btn btn-ghost btn-sm" data-sm-act="preview"' + (cfg.enabled ? '' : ' disabled') + '>See what it looks like (30 seconds)</button></div>';
     host.innerHTML = h;
   }
 
