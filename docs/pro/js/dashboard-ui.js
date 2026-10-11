@@ -2027,6 +2027,8 @@ function _nbdRememberManualTheme(ev) {
     const themeKey = (ev && ev.detail && (ev.detail.themeKey || ev.detail)) ||
                      (window.ThemeEngine && window.ThemeEngine.getCurrent && window.ThemeEngine.getCurrent());
     if (!themeKey || typeof themeKey !== 'string') return;
+    // '_custom' (Custom Builder) and other reserved '_' keys are not themes.
+    if (themeKey.charAt(0) === '_') return;
     if (localStorage.getItem('nbd_auto_theme') !== '1') return;
     const side = nbdAutoThemeIsDay() ? 'day' : 'night';
     localStorage.setItem('nbd_auto_theme_' + side, themeKey);
