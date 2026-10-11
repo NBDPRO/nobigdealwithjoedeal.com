@@ -370,7 +370,8 @@
       'js/theme-engine.js?v=7',
       'js/theme-overlays.js?v=3',
       'js/theme-sounds.js?v=1',
-      'js/theme-achievements.js?v=1',
+      'js/theme-achievements.js?v=2',
+      'js/trophy-case.js?v=1',
       'js/theme-gx.js?v=2'
     ],
     // Leaflet vendor stack (~225 KB, 2026-08-07) — was eager on every boot for
