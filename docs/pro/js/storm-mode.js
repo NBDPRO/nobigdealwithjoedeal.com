@@ -360,12 +360,15 @@
     if (!E) return false;
     expectedKey = key;
     var A = window.NBDAutoTheme;
+    // Theme Morph (roadmap A1): the warning has no click to grow from, so the
+    // circle opens from the top-centre, where the banner appears.
+    var origin = { x: Math.round((window.innerWidth || 0) / 2), y: 0 };
     try {
       if (A && A.applyTheme) {
         // applyTheme refuses a locked / unknown theme and de-dupes.
-        if (!A.applyTheme(key, { source: 'storm-mode' })) { expectedKey = null; return false; }
+        if (!A.applyTheme(key, { source: 'storm-mode', origin: origin })) { expectedKey = null; return false; }
       } else {
-        E.apply(key, false);
+        E.apply(key, false, { morph: true, origin: origin });
       }
     } catch (e) { expectedKey = null; return false; }
     return true;
