@@ -168,3 +168,10 @@ Pipeline composition ships.
 **Verification.** `tests/theme-preview-2026-10-11.test.js` (34 checks, the real
 module in a vm with a fake DOM + stub engine; break-tested: removing the
 `:root` retarget, the hover debounce and the locked gate each redden it).
+**A4 placement update.** The setter + guard live in `docs/pro/js/surface-style.js`
+in the lazy `theme` bundle, NOT in `dashboard-ui-prefs-boot.js`: the first cut
+pushed the render-blocking boot budget over its 300 KB ceiling (Unit suites
+caught it). The pre-paint stamp stays in `shape-preboot.js`;
+`dashboard-state.js` kicks the bundle for a saved Glass user; `nbdComfortSet`
+loads the bundle on demand. Comfort markup uses `.npm-surf-*` classes (the
+dashboard inline-style ratchet counts markup).

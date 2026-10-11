@@ -57,7 +57,7 @@ console.log('\nUI PRIMITIVES — the markup');
 {
   const tags = (cls) => html.match(new RegExp('<[a-z]+[^>]*class="[^"]*\\b' + cls + '\\b[^"]*"[^>]*>', 'g')) || [];
   const seg = [...tags('kdens-btn'), ...tags('cview-default-btn'), ...tags('npm-comfort-btn')];
-  ok('12 segmented picker buttons found (card density, default view, comfort density, text size: 3 each)', seg.length === 12, 'found ' + seg.length);
+  ok('15 segmented picker buttons found (card density, default view, comfort density, surface style, text size: 3 each)', seg.length === 15, 'found ' + seg.length);
   ok('every picker button uses .ui-seg', seg.every((t) => /\bui-seg\b/.test(t)));
   ok('no picker button carries an inline style', seg.every((t) => !/\sstyle=/.test(t)),
     'move it into .ui-seg (or a modifier class) in ui-primitives.css');

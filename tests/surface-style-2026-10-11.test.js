@@ -32,7 +32,7 @@ function ok(name, cond, detail) {
   else { failed++; fails.push(name); console.log('  ✗ ' + name + (detail ? '\n      ' + detail : '')); }
 }
 
-const BOOT = read('docs/pro/js/dashboard-ui-prefs-boot.js');
+const BOOT = read('docs/pro/js/surface-style.js'); // the lazy module that owns the setter + guard
 const ENGINE = read('docs/pro/js/theme-engine.js');
 const CSS = read('docs/pro/css/theme-system.css');
 const HTML = read('docs/pro/dashboard.html');
@@ -102,8 +102,8 @@ ok('a typical dark theme needs a bounded frost, not a see-through pane being for
   opaque.length < names.length / 4, opaque.length + ' of ' + names.length + ' themes resolve to fully opaque');
 
 console.log('\n2. setter / guard behaviour (stub DOM)');
-const secStart = BOOT.indexOf('// ── Surface style: Solid / Tinted / Glass');
-const secEnd = BOOT.indexOf('// ── Comfort tab ternaries');
+const secStart = BOOT.indexOf('// Surface style: Solid / Tinted / Glass');
+const secEnd = BOOT.indexOf('window.__NBD_CALL_REGISTRY = window.__NBD_CALL_REGISTRY ||');
 const sec = BOOT.slice(secStart, secEnd);
 function mk(opts) {
   opts = opts || {};
@@ -120,13 +120,14 @@ function mk(opts) {
     document: {
       documentElement: html,
       body: { classList: { toggle: (c, on) => { if (on) bodyCls.add(c); else bodyCls.delete(c); } } },
+      readyState: 'complete',
       getElementById: () => null,
       addEventListener: (t, fn) => { (docL[t] = docL[t] || []).push(fn); }
     },
     getComputedStyle: () => ({ getPropertyValue: (n) => tok[n] || '' }),
     localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: (k) => { delete store[k]; } },
     window: { _user: { uid: 'u1' }, db: {}, doc: (...a) => a.join('/'), setDoc: (r, d) => { sync.push(d); return Promise.resolve(); } },
-    _nbdToast: (m) => toasts.push(m),
+    _toast: (m) => toasts.push(m),
     _nbdHydratePrefFromFirestore: () => {}
   };
   vm.runInNewContext(sec + '\nthis.__s = { nbdSetSurface, nbdSetSurfaceBlur, nbdSetSurfaceFrost, nbdSurfaceGuard };', sb);
@@ -207,6 +208,11 @@ ok('sliders wired to registered handlers', /id="npm-surface-blur"[^>]*data-on-in
 ok('handlers registered in __NBD_CALL_REGISTRY', ['nbdSetSurface', 'nbdSetSurfaceBlur', 'nbdSetSurfaceFrost', 'nbdSyncSurfaceUI'].every((n) => new RegExp(`\\b${n}: ${n}\\b`).test(BOOT)));
 ok('nbdComfortSet routes kind "surface" and nbdComfortRefresh highlights the active button',
   /kind === 'surface'[\s\S]{0,260}nbdSetSurface/.test(UI) && /else if \(kind === 'surface'\) active = \(val === surface\)/.test(UI));
+const SL = read('docs/pro/js/script-loader.js');
+const bundle = SL.slice(SL.indexOf('theme: ['), SL.indexOf(']', SL.indexOf('theme: [')));
+ok('surface-style.js rides the lazy theme bundle after the engine (keeps the blocking boot budget flat)', bundle.indexOf('surface-style.js') > bundle.indexOf('theme-engine.js') && bundle.indexOf('theme-engine.js') >= 0);
+ok('a saved Glass user kicks the theme bundle at boot so the guard runs', /nbd_surface_style'\) === 'glass'/.test(read('docs/pro/js/dashboard-state.js')));
+ok('nbdComfortSet loads the bundle when the module has not arrived yet', /loadBundle\('theme'\)\.then\(function \(\) \{[\s\S]{0,200}nbdSetSurface/.test(UI));
 const keyBoot = (BOOT.match(/NBD_SURFACE_KEY = '([a-z_]+)'/) || [])[1];
 ok('pre-paint stamp reads the same storage keys the setter writes',
   keyBoot === 'nbd_surface_style' && PREBOOT.includes("'" + keyBoot + "'") && PREBOOT.includes("'nbd_surface_blur'") && PREBOOT.includes("'nbd_surface_frost'") && BOOT.includes("'nbd_surface_blur'") && BOOT.includes("'nbd_surface_frost'"));

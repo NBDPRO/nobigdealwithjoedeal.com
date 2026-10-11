@@ -565,7 +565,10 @@ window.NBD_THEME_ENGINE = true;
 (function () {
   try {
     const saved = localStorage.getItem('nbd_pro_theme') || localStorage.getItem('nbd-theme');
-    if (saved && saved !== 'default'
+    // A saved Glass surface also needs the bundle: surface-style.js runs the
+    // readability guard (Solid/Tinted users load it with Settings/picker).
+    const glass = localStorage.getItem('nbd_surface_style') === 'glass';
+    if (((saved && saved !== 'default') || glass)
         && !document.querySelector('script[src*="theme-engine"]')
         && window.ScriptLoader && window.ScriptLoader.loadBundle) {
       window.ScriptLoader.loadBundle('theme');

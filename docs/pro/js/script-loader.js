@@ -369,6 +369,7 @@
     theme: [
       'js/theme-engine.js?v=9',
       'js/theme-preview.js?v=1',
+      'js/surface-style.js?v=1',
       'js/theme-overlays.js?v=3',
       'js/theme-sounds.js?v=1',
       'js/theme-achievements.js?v=1',
