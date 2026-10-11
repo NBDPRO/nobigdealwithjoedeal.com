@@ -40,6 +40,13 @@ CEILING.localScripts += 1;
 // ceiling above merge without a conflict.
 CEILING.localScripts += 1;
 CEILING.localBytes += 30 * 1024;   // pipeline-rich-cards.js = 26.5 KB (LF), + ~1 KB of hooks in crm-pipeline.js / dashboard-ui.js
+// +1 local tag / +24 KB, deliberate (2026-10-11, layout system D0): js/layout-system.js — the
+// layout registry + LayoutEngine in ONE deferred file (the preboot half rides inside the existing
+// blocking shape-preboot.js, so blockingScripts does not move). It must be on every dashboard
+// load: even a Classic rep needs the company default / lock read and the layoutchange event.
+// Per-layout code and CSS (Field App, Focus, ...) load lazily only for the active layout.
+CEILING.localScripts += 1;
+CEILING.localBytes += 24 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
