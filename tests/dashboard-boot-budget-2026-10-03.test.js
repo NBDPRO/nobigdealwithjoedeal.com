@@ -33,12 +33,6 @@ const CEILING = {
 // "no photos" (page-scoped-helper rule). Kept as its own line so the other PRs that raise
 // localScripts on the line above merge without a conflict.
 CEILING.localScripts += 1;
-// +1 local tag, deliberate (2026-10-11, CRM style integration E1): js/pixel-mode.js (Pixel Mode loader, ~3 KB).
-// Deferred; on boot it reads one settings doc and stops. The skin/Party/dialog code (pixel-mode-core.js), its CSS, the
-// fonts and the logic module are fetched only when the person turned something on or the Settings card scrolls into
-// view, and Pixel World (E2) is lazy-loaded from the core, so this is the only boot tag. (An earlier version shipped the
-// whole 18 KB inline and pushed true LF bytes past the localBytes ceiling; the loader split is why it does not.)
-CEILING.localScripts += 1;
 // +1 local tag / +24 KB, deliberate (2026-10-11, layout system D0): js/layout-system.js — the
 // layout registry + LayoutEngine in ONE deferred file (the preboot half rides inside the existing
 // blocking shape-preboot.js, so blockingScripts does not move). It must be on every dashboard
@@ -46,6 +40,12 @@ CEILING.localScripts += 1;
 // Per-layout code and CSS (Field App, Focus, ...) load lazily only for the active layout.
 CEILING.localScripts += 1;
 CEILING.localBytes += 24 * 1024;
+// +1 local tag, deliberate (2026-10-11, CRM style integration E1): js/pixel-mode.js (Pixel Mode loader, ~3 KB).
+// Deferred; on boot it reads one settings doc and stops. The skin/Party/dialog code (pixel-mode-core.js), its CSS, the
+// fonts and the logic module are fetched only when the person turned something on or the Settings card scrolls into
+// view, and Pixel World (E2) is lazy-loaded from the core, so this is the only boot tag. (An earlier version shipped the
+// whole 18 KB inline and pushed true LF bytes past the localBytes ceiling; the loader split is why it does not.)
+CEILING.localScripts += 1;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
