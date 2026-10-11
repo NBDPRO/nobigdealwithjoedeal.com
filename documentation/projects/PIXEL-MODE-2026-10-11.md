@@ -17,7 +17,8 @@ and a **Trainer Card**.
 | Piece | Where | Notes |
 | --- | --- | --- |
 | Pure rules | `docs/pro/js/pixel-logic.js` (`window.NBDPixelLogic`) | HP, overdue, open lead, party order, trainer card, box-shadow sprite, typewriter. Shared with Pixel World (E2). |
-| Skin + wiring | `docs/pro/js/pixel-mode.js` (`window.NBDPixelMode`) | The only boot tag. Reads `userSettings/{uid}.pixelMode`, stops if everything is off. |
+| Boot loader | `docs/pro/js/pixel-mode.js` | The only boot tag (~3 KB). One settings read; fetches the core only when skin/dialog is on or the Settings card scrolls into view. Leaves a `__stub` on `window.NBDPixelMode`. |
+| Skin + wiring | `docs/pro/js/pixel-mode-core.js` (`window.NBDPixelMode`) | Lazy. Skin classes, Party/Trainer Card, dialog toasts, settings panel, `userSettings` read/write. |
 | Stylesheet | `docs/pro/css/pixel-mode.css` | Lazy: injected only when something is on. Tokens only, every selector under `body.skin-pixel` / `.px-*` / `.toast.px-dialog`. |
 | Settings card | `dashboard.html` `#pixelModePanel` | Settings > Appearance, under My Skin. Three switches: skin, scanlines, dialog notifications. |
 | Home host | `dashboard.html` `#homePixelParty` | Hidden unless the skin is on. |
@@ -60,8 +61,12 @@ message once, not letter by letter. Reduce Motion (OS setting **or** the app's
   sprites, names or music.
 - Fonts come from the already-allowed `fonts.googleapis.com` / `fonts.gstatic.com`
   (CSP `style-src` / `font-src`), requested only when something is on.
-- Boot budget: +1 deferred tag, ceiling raised by one with the reason on the
-  line (`tests/dashboard-boot-budget-2026-10-03.test.js`).
+- Boot budget: +1 deferred tag (the ~3 KB loader), ceiling raised by one with
+  the reason on the line (`tests/dashboard-boot-budget-2026-10-03.test.js`). The
+  first version shipped the whole 18 KB as the boot tag and CI's byte ceiling
+  (4.4 MB of LF bytes; `main` sat 9 KB under it) went red - hence the loader/core
+  split. Note the test measures LF bytes on Linux; on a Windows CRLF checkout it
+  reads ~4% higher and fails locally even on `main`.
 
 **Known limits / next.**
 - No pre-paint cache: the skin applies when the settings snapshot lands, so a

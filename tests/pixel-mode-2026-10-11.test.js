@@ -5,7 +5,7 @@
  *   1. pixel-logic.js: settings normalisation, HP (days before cold), the
  *      overdue follow-up rule, open-lead filtering, party ordering, trainer
  *      card + badges, box-shadow sprite, typewriter
- *   2. pixel-mode.js: its inline normalize agrees with the logic module;
+ *   2. pixel-mode-core.js: its inline normalize agrees with the logic module;
  *      settings live on userSettings (not localStorage); no innerHTML; the
  *      lead name is only ever set through textContent
  *   3. pixel-mode.css: only theme tokens (no colour literals except black
@@ -32,7 +32,8 @@ function ok(name, cond, detail) {
 }
 
 const L = require(path.join(ROOT, 'docs/pro/js/pixel-logic.js'));
-const M = require(path.join(ROOT, 'docs/pro/js/pixel-mode.js'));
+const M = require(path.join(ROOT, 'docs/pro/js/pixel-mode-core.js'));
+const LOADER = require(path.join(ROOT, 'docs/pro/js/pixel-mode.js'));
 
 const DAY = 86400000;
 const NOW = new Date(2026, 9, 11, 12, 0, 0).getTime();   // Oct 11 2026, local noon
@@ -110,12 +111,12 @@ console.log('\n1. pixel-logic');
     L.typewriterSlice('hello', 0, 10) === '' && L.typewriterSlice('hello', 200, 10) === 'he' && L.typewriterSlice('hello', 10000, 10) === 'hello');
 }
 
-console.log('\n2. pixel-mode.js');
+console.log('\n2. pixel-mode-core.js');
 {
   const raws = [undefined, null, {}, { skin: true }, { skin: 'true', dialog: true }, { scanlines: true, dialog: 1 }];
   ok('inline normalize agrees with NBDPixelLogic.normalizeMode for every shape',
     raws.every((r) => JSON.stringify(M.normalize(r)) === JSON.stringify(L.normalizeMode(r))));
-  const src = read('docs/pro/js/pixel-mode.js');
+  const src = read('docs/pro/js/pixel-mode-core.js');
   const code = stripJs(src);
   ok('settings persist on userSettings/{uid}.pixelMode', /'userSettings'/.test(code) && /pixelMode:\s*cfg/.test(code));
   ok('no localStorage (nbd_ keys are wiped at every sign-out)', !/localStorage|sessionStorage/.test(code));
@@ -123,6 +124,7 @@ console.log('\n2. pixel-mode.js');
   ok('the lead name goes in via textContent', /who\.textContent\s*=\s*name/.test(code));
   ok('Reduce Motion honoured (OS + app switch) before any typewriter', /prefers-reduced-motion: reduce/.test(code) && /data-motion/.test(code) && /reducedMotion\(\)\s*\|\|/.test(code));
   ok('stylesheet and fonts only fetched once something is on', /if \(any\) ensureAssets\(\)/.test(code));
+  ok('the core steps aside for the loader stub and replaces it once loaded', /NBDPixelMode\.__stub\)\) return/.test(code) && /w\.NBDPixelMode = \{/.test(code));
   ok('no network beyond the font CSS + own assets (nothing is sent anywhere)', !/\bfetch\(|XMLHttpRequest|sendBeacon/.test(code));
 }
 
@@ -154,6 +156,21 @@ console.log('\n3. pixel-mode.css');
     && /html\[data-motion="reduce"\] \.px-hp > i\s*\{\s*transition:\s*none/.test(css));
   ok('Press Start 2P + VT323 named', /Press Start 2P/.test(css) && /VT323/.test(css));
   ok('focus stays visible on the skinned controls', /body\.skin-pixel \.btn:focus-visible/.test(css));
+}
+
+console.log('\n   boot loader (pixel-mode.js) — the only tag on the dashboard');
+{
+  const raw = read('docs/pro/js/pixel-mode.js');
+  const code = stripJs(raw);
+  const shapes = [undefined, null, {}, { skin: true }, { dialog: true }, { scanlines: true }, { skin: 'true' }, { dialog: 1 }, { skin: false, dialog: false }];
+  ok('loader wakes the core exactly when the logic module says skin or dialog is on',
+    shapes.every((r) => LOADER.wantsCore(r) === L.anyOn(L.normalizeMode(r)) || (r && r.scanlines === true && LOADER.wantsCore(r) === false)));
+  ok('scanlines alone never wake the core (they need the skin)', LOADER.wantsCore({ scanlines: true }) === false);
+  ok('loader stays tiny so it cannot eat the boot budget (< 5 KB)', Buffer.byteLength(raw) < 5 * 1024, String(Buffer.byteLength(raw)));
+  ok('loader reads, never writes', !/setDoc|updateDoc|addDoc|localStorage/.test(code));
+  ok('loader fetches only its own core, on demand', /pixel-mode-core\.js/.test(code) && !/fonts\.googleapis|pixel-mode\.css|pixel-logic/.test(code));
+  ok('loader wakes on settings or the card scrolling into view', /wantsCore\(data\.pixelMode\)/.test(code) && /IntersectionObserver/.test(code));
+  ok('loader leaves a __stub the core can replace', /__stub: true/.test(code));
 }
 
 console.log('\n4. dashboard.html');
