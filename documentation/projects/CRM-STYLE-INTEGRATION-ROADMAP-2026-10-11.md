@@ -1,6 +1,6 @@
 # CRM style, theme and layout integration roadmap — 2026-10-11
 
-**Status:** plan for Jo's sign-off. Nothing here is built yet. Jo's ask (2026-10-11):
+**Status:** approved by Jo 2026-10-11 (decisions below); build in progress. Jo's ask (2026-10-11):
 integrate **all** of Grok's CRM design work. This note turns three Drive docs
 into one ordered build plan, so each slice can be a small PR instead of one
 unreviewable mega-branch.
@@ -130,25 +130,32 @@ with C2.
 - Shared checkout: each slice in its own short-path worktree
   (`C:\Users\jonat\nbd-wt-<name>`); explicit file lists on commit.
 
-## Decisions needed from Jo
+## Decisions (Jo, 2026-10-11) — all answered
 
-1. **Order / lanes:** OK with the recommended order above? How many parallel
-   lanes do you want running?
-2. **New themes (§17):** which of the 12 ship to everyone vs Pro-only?
-   (Names are already decided: keep full Pokémon-flavored names.)
-3. **Storm Mode default:** auto-switch **opt-in** (recommended — it changes the
-   whole screen mid-task) or on by default?
-4. **Slideshow quotas (§16 Q3):** soft 300 MB / hard 1 GB per user and a
-   server-side 6-image cap? Company cap flat 500 MB (Q14)?
-5. **Spec open questions with proposed defaults:** doc size stays in
-   `userSettings` until 300 KB (Q4); admin visibility of theme ids is fine
-   (Q5); one `_custom` slot (Q7); picture hides animated overlay by default
-   (Q8); phones downscale, no `_m` copy (Q9); no "Random with picture" in v1
-   (Q10); `dragon-ball-super` and `legend` stay locked (Q11); enforced company
-   set covers backgrounds only, not theme lock (Q13); add a company-backgrounds
-   clause to Terms (Q15). Say "defaults" or call out the ones you want changed.
-6. **Pixel World scope:** build v1 as read-only CRM data only, behind a flag,
-   in its own track — or park it until the other 19 slices land?
+1. **Order and lanes:** approved as written. Tracks A, B, C, D run as parallel
+   lanes; each slice is its own worktree + PR.
+2. **New themes:** all 12 ship to everyone, today (none Pro-only).
+3. **Storm Mode:** **opt-in** — a Settings toggle, off by default. It never
+   switches the screen unless the user turned it on.
+4. **Quota rules (Jo delegated; set here):**
+   - Max **6 images per theme**, enforced client-side and by a Firestore
+     rule (`mySkin.themes.size() <= 220`); each stored image <= 3 MB after
+     re-encode (`THEME_MAX_STORED_BYTES`), webp 0.82 / jpeg 0.86 fallback.
+   - Per-user **soft 300 MB** (warn + block new imports in the UI) and **hard
+     1 GB** (server-side check in a Cloud Function on Storage finalize —
+     Storage rules cannot count objects). Soft limit ships with B2; the hard
+     cap ships with the same PR as the finalize function.
+   - Company sets: flat **500 MB** per company for v1; revisit by plan tier
+     when there are paying tenants. Company images count against the
+     company, never the admin's personal quota.
+5. **Spec open questions:** the proposed defaults (doc size stays in
+   `userSettings` until 300 KB; admin-visible theme ids OK; one `_custom`
+   slot; picture hides the animated overlay by default; phones downscale, no
+   `_m` copy; no "Random with picture" in v1; `dragon-ball-super` and
+   `legend` stay locked; enforced company set covers backgrounds only;
+   Terms get a company-backgrounds clause).
+6. **Pixel World:** built in the same effort — Track E runs alongside, v1
+   read-only on real CRM data behind a feature flag, then write actions.
 
 ## Not in scope / non-goals
 
