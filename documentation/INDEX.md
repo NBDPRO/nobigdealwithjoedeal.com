@@ -121,6 +121,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 
 - [BIG_ROCKS](projects/BIG_ROCKS.md) — the standing priority list
 - [WEEKLY_CADENCE](projects/WEEKLY_CADENCE.md) — standing weekly checklist (see "Standing notes" above)
+- [THEME-POLISH-LANE-2026-10-11](projects/THEME-POLISH-LANE-2026-10-11.md) — CRM style integration Track A as built: Theme Morph (view-transition circle wipe + reduced-motion crossfade), then the 12 new themes, glass surface style and the live-preview picker
 - [KANBAN_CUSTOMER_MAP](projects/KANBAN_CUSTOMER_MAP.md)
 - [CRM-STYLE-C3-TROPHY-CASE-2026-10-11](projects/CRM-STYLE-C3-TROPHY-CASE-2026-10-11.md) — achievement unlock toasts (themeunlock event, CSS-only confetti, Reduce Motion + theme-sounds aware) and the Trophy Case drawer with live progress and almost-there nudges for the 10 locked themes
 - [CRM-LAYOUTS-LANE-2026-10-11](projects/CRM-LAYOUTS-LANE-2026-10-11.md) — Track D of the CRM style integration (Grok's "custom layouts" doc): the layout registry + engine, the one precedence rule (locked company layout > user > company default > Classic), the pre-paint cache, the `--tap` token, and the slice log for the picker, Field App, Focus and Bento. Read before adding a layout
