@@ -33,6 +33,10 @@ const CEILING = {
 // "no photos" (page-scoped-helper rule). Kept as its own line so the other PRs that raise
 // localScripts on the line above merge without a conflict.
 CEILING.localScripts += 1;
+// +1 local tag, deliberate (2026-10-11, CRM style integration E1): js/pixel-mode.js (Pixel Mode skin + dialog notifications).
+// Deferred; on boot it reads one settings doc and stops. Its CSS, fonts and logic module are fetched only when the
+// person turned something on, and Pixel World (E2) is lazy-loaded from the same file, so this is the only boot tag.
+CEILING.localScripts += 1;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
