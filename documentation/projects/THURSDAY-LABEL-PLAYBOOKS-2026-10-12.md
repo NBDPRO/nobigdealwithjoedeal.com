@@ -93,7 +93,7 @@ When Away is on and the owner has approved the wording for *this* trip, `thursda
 | --- | --- |
 | Collection | `companies/{companyId}/thursday_handled/{digits10}`; the lookup reads it by exact doc id under the NBD company only |
 | Rules | owner / company_admin / manager write; viewer read-only; **sales_rep neither reads nor writes** (a phone number is a teammate's call); other tenant none; shape locked (hasOnly, id == digits, companyId == path, updatedBy == writer, createdAtMs frozen). `tests/firestore-rules.thursday-handled.test.js` (47 checks, each deny paired with an allow control, break-tested) is wired into ci.yml and the deploy gate |
-| Lookup reads | label, handled doc, `away_private`, `away_mode` in parallel, 1.2 s budget (the Bland snippet allows 2.5 s). Any failure or timeout = the lookup answers exactly as before |
+| Lookup reads | label, handled doc, `away_private`, `away_mode`: four doc gets started **beside** the lead queries (so the lookup costs the slower of the two, not the sum), 900 ms budget (the Bland snippet aborts at 2.5 s). Any failure or timeout = the lookup answers exactly as before, with a warning in the log |
 | Tenant isolation | another company's label or handled doc for the same digits is never read (integration test) |
 | Disclosure | `label_kind` is a coarse enum; no name, note, address or lead data beyond what the lookup already returned |
 | Sendable surface | none. No send function, no `fetch`, no `sms:` / `mailto:` in the new client file (a test pins it); the only write is the setting doc and the existing `thursdayCallAction mark_reviewed` |
@@ -179,7 +179,7 @@ Purely additive: it replaces nothing and does not touch OPENING, REMEMBERING CAL
 3. In the Bland builder: paste 9a into Initialization and save; append 9b to the agent node prompt; publish to **staging** (not production).
 4. One test call from Jo's phone to a number he labeled sub, then one from a number labeled personal and one from a spam-labeled number. Read `pathway_logs` (`Tool Call Unmatched`, variable names) with the existing read-only scratch analyzers.
 5. `node scripts/thursday-agent-lookup.js --promote --yes`. Rollback: `--rollback=<previous semver> --yes`.
-6. Set `feature_flags/_default.thursdayLabelPlaybooks=true` to show the Today / Call Center surfaces.
+6. Set `feature_flags/_default.thursdayLabelPlaybooks=true` to show the Today / Call Center surfaces, then do the standing **phone-scale pass** on the installed iPhone app (Today recap row, the Label-sheet toggle, the Block list) before relying on it.
 7. Hand over one number first (his own test line) and watch a day of recaps.
 
 Rollback is the reverse: client flag off (surfaces vanish), prompt back to the previous version, then the env flag.
@@ -191,7 +191,7 @@ Rollback is the reverse: client flag off (surfaces vanish), prompt back to the p
 - `docs/pro/js/thursday-handled-logic.js` (pure tiers, uncertainty, block list), `thursday-handled.js` (data + Today / sheet / Call Center), `css/thursday-handled.css`. Loaded lazily by `contact-labels.js` only when the client flag is on, so `script-loader.js` grows by **zero bytes** (cache-busters bumped in place, same length).
 - Hooks (guarded, three lines each): `today-home.js`, `call-center-view.js` (two flagged filters + a panel + `setFilter`), `contact-labels.js` (sheet row + the lazy loader).
 - `firestore.rules` - `thursday_handled`.
-- Tests: `thursday-playbooks-2026-10-12.test.js` (125 checks), `thursday-label-playbooks.integration.test.js` (37, real handler on the emulator), `firestore-rules.thursday-handled.test.js` (47).
+- Tests: `thursday-playbooks-2026-10-12.test.js` (139 checks, incl. a vm run of the DOM file with hostile caller names), `thursday-label-playbooks.integration.test.js` (42, real handler on the emulator, incl. a 6 s label read that must not cost the greeting), `firestore-rules.thursday-handled.test.js` (47).
 
 ## 11. Decisions for Jo
 
@@ -208,6 +208,22 @@ Rollback is the reverse: client flag off (surfaces vanish), prompt back to the p
 | 9 | Away wording to personal numbers (no name) but never to spam | Confirm |
 | 10 | Client flag in `feature_flags/_default` (platform admin) - or per-tenant later | Fine for now (NBD is the only Thursday tenant) |
 | 11 | Switch-on order (section 9c): flag, staging test calls from your phone, promote, then show the UI | Confirm; I will not touch Bland without your explicit go |
+
+## Update 2026-10-12 (evening) - security review of the build
+
+The nbd-security-reviewer pass on the stage-2 diff found no blockers. What changed because of it (all in PR #2393):
+
+| Finding | Outcome |
+| --- | --- |
+| S1 the 1.2 s playbook read ran *after* the lead queries and could have used the caller's 2.5 s greeting window | The four reads start beside the lead queries; budget cut to 900 ms; an integration test stubs a 6 s label read and requires the greeting ("Lee") and < 2 s |
+| S2 the backup-name scrub was case-sensitive on name parts (McDonald / SAM slipped) | Parts match whole-word in any case. A name part that is also an everyday word the approved wording uses (`will`, `may`, `mark`) is skipped for the part check only (the whole name and the email are still caught), so "Jo will call you back" survives a backup called Will. Known limit: a backup called "Mark" is caught only by full name / email |
+| S3 a failed read answers the pre-playbook way, so a personal number on a lead could be greeted by name | Accepted: it is exactly today's behaviour, and the failure is now logged (`over budget` / `context unavailable`) |
+| N1 the click handler trusted any `data-th-act` | Number-keyed actions (toggle, reclaim, unblock) act only on a real 10-digit number |
+| N3 a stale tab re-creating an existing handled doc was denied (createdAtMs is frozen) with a misleading toast | The existing doc's createdAtMs is read and kept |
+| N4 a newline in the approved away text reached the prompt variable | Collapsed to one line |
+| N2 "Mark all reviewed" fires one callable per call | Left: bounded by the 3-day window and 40 calls |
+
+Also: the client loader re-checks the `thursdayLabelPlaybooks` flag up to six times (2.5 s apart) because the flags read needs the signed-in user and can land after `contact-labels.js`; `NBDFlags` caches the read, so a flag that is simply off costs nothing.
 
 ## 12. Not in this change
 
