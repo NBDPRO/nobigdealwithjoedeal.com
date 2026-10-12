@@ -101,6 +101,9 @@ test.describe('contract signed in person carries the 3-day cancellation forms at
     // ── Generate the contract ──
     const tile = page.locator('#docTemplateGrid [data-action="generateCustomerDoc"][data-doc-type="contract"]');
     await expect(tile).toHaveCount(1);
+    // The 22 tiles start folded behind "Documents" on a phone (2026-10-08).
+    const fold = page.locator('#docTemplatesFold');
+    if (await fold.count() && !(await fold.evaluate((d) => d.open))) await fold.locator('summary').click();
     await tile.scrollIntoViewIfNeeded();
     await tile.click();
     const modal = page.locator('#docPreflightModal');

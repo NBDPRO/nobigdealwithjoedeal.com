@@ -169,7 +169,8 @@ function makeEl(tag, props) {
   return el;
 }
 
-function runModule(width) {
+function runModule(width, opts) {
+  opts = opts || {};
   const bar = makeEl('div');
   bar._classes.add('quick-actions');
   const kids = [
@@ -189,7 +190,10 @@ function runModule(width) {
   const document = {
     readyState: 'complete',
     querySelector: (s) => (s === '.quick-actions' ? bar : null),
-    getElementById: (id) => { reindex(); return byId[id] || null; },
+    getElementById: (id) => {
+      if (id === 'roofActionRow') return opts.withRow ? makeEl('nav', { id }) : null;
+      reindex(); return byId[id] || null;
+    },
     createElement: (t) => makeEl(t),
     addEventListener() {},
   };
@@ -241,6 +245,23 @@ group('Behaviour on a 390px phone', () => {
   assert('label flips to Fewer', !!more() && more().textContent === 'Fewer');
   window.toggleQuickActions();
   assert('toggle collapses again', bar.getAttribute('data-qa-collapsed') === '1');
+});
+
+/* 2026-10-08: the roof-day action row (#roofActionRow) sits directly above
+ * this bar and carries Call (it taps #callLink). On a phone the bar's Call is
+ * then a duplicate and Email is the leftover contact action, so both step
+ * into More — Email stays one tap away there. Without the row the old
+ * primary set stands (the group above). */
+group('Behaviour on a 390px phone with the roof-day row on the page', () => {
+  const { bar, kids } = runModule(390, { withRow: true });
+  const k = (id) => kids.filter((x) => x.id === id)[0];
+  const more = bar.children.filter((c) => c.id === 'qaMoreBtn')[0];
+  assert('Call and Email step down into More (the row carries Call)',
+    k('callLink')._classes.has('qa-more') && k('emailLink')._classes.has('qa-more'));
+  assert('Text booking link and Move stage stay on screen',
+    !k('smsBookingLink')._classes.has('qa-more') && !k('stageProgressBtn')._classes.has('qa-more'));
+  assert('More counts them: 3 secondaries + Call + Email',
+    !!more && more.textContent === 'More (5)', more ? 'got "' + more.textContent + '"' : 'no More button');
 });
 
 group('Behaviour on desktop', () => {

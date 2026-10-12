@@ -161,14 +161,42 @@ async function runWatchdog(deps) {
   return out;
 }
 
+/** Bell entry + push to the owner (internal; never a customer). */
+async function notifyOwner(db, title, body) {
+  const clickUrl = '/pro/dashboard.html#/calls';
+  await db.collection('notifications').add({
+    userId: LA.NBD_OWNER_UID, type: 'call_watch', title, message: body, priority: 'high',
+    clickUrl, read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
+  });
+  try {
+    await require('./push-functions').sendCustomNotification(LA.NBD_OWNER_UID, title, String(body).slice(0, 180), { type: 'call_watch', clickUrl, notificationId: 'pipeline-deadman-' + Date.now() });
+  } catch (e) { logger.warn('[pipelineDeadMan] push failed', { err: e && e.message }); }
+}
+
 exports.leadAlertWatchdog = onSchedule(
   { schedule: 'every 10 minutes', timeZone: 'America/New_York', timeoutSeconds: 120, memory: '256MiB', maxInstances: 1, secrets: LA.SECRETS },
   async () => {
+    const db = getFirestore();
+    const nowMs = Date.now();
+    // The watcher of the watcher (pipeline-deadman.js, 2026-10-12): this job
+    // runs every 10 min around the clock, so it is the independent check that
+    // callWatch and the copy/transcribe jobs have not stopped. Own try: it
+    // can never stop the lead re-sends below.
+    let dm = null;
+    try {
+      dm = await require('./pipeline-deadman').run({ db, nowMs, live: !watchdogDisabled(), env: process.env, notify: (title, body) => notifyOwner(db, title, body) });
+      if (dm.problems.length) logger.warn('[pipelineDeadMan]', dm);
+    } catch (e) { logger.warn('[pipelineDeadMan] check skipped', { err: e && e.message }); }
     const r = await runWatchdog({
-      db: getFirestore(), nowMs: Date.now(), live: !watchdogDisabled(),
+      db, nowMs, live: !watchdogDisabled(),
       alert: LA.alertJoe, twilio: twilioMessage,
     });
     logger.info('[leadAlertWatchdog]', r);
+    if (dm && dm.problems.length) {
+      // Fail the run so the heartbeat pings /fail and Healthchecks.io emails
+      // Jo, a path that works even when push and Firestore alerts are what broke.
+      throw new Error('pipelineDeadMan: ' + dm.problems.join(', '));
+    }
     if (r.unresolved > 0) {
       // A lead reached nobody even on the re-send: fail the run so the
       // heartbeat pings /fail (a watchdog that can't reach Joe must not look healthy).

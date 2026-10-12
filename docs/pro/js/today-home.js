@@ -98,7 +98,9 @@
     var HA = w.NBDHomeAttention;
     var groups = [];
     if (HA && typeof HA.groupNeeds === 'function' && Array.isArray(HA.lastRows)) {
-      try { groups = HA.groupNeeds(HA.lastRows, now); } catch (_) { groups = []; }
+      // Labels (2026-10-12): home-attention.js loaded them with the rows; a
+      // personal / spam / quiet number is already off these groups.
+      try { groups = HA.groupNeeds(HA.lastRows, now, HA.lastLabels || null); } catch (_) { groups = []; }
     }
     var R = w.NBDRevenue;
     var fresh = R && typeof R.cached === 'function' ? R.cached() : null;
@@ -118,7 +120,11 @@
     if (EF && typeof EF.computeFollowups === 'function') {
       try { estRows = EF.computeFollowups(leads, now).rows || []; } catch (_) { estRows = []; }
     }
-    return P.buildTodayPlan({
+    var hiddenCalls = 0;
+    if (HA && typeof HA.hiddenPeople === 'function' && Array.isArray(HA.lastRows)) {
+      try { hiddenCalls = HA.hiddenPeople(HA.lastRows, now, HA.lastLabels || null); } catch (_) { hiddenCalls = 0; }
+    }
+    var plan_ = P.buildTodayPlan({
       now: now, leads: leads, tasksByLead: w._taskCache || {},
       appointments: appts.rows, jobs: jobsOf(leads),
       callGroups: groups,
@@ -134,6 +140,8 @@
       handled: handled,
       env: { stageRole: w.stageRole },
     });
+    plan_.hiddenCalls = hiddenCalls;
+    return plan_;
   }
 
   // ── paint ────────────────────────────────────────────────────────────
@@ -169,7 +177,15 @@
     var c = p.calls.map(function (r) {
       var why = [r.urgent ? '<b class="tp-hot">urgent</b>' : '', r.missed ? 'missed call' : '', r.text && !r.missed ? 'texts' : '', r.count > 1 ? r.count + ' open' : ''].filter(Boolean).join(' · ');
       var sub = why + (r.summary ? (why ? ' · ' : '') + esc(r.summary) : '');
-      var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + (ro ? '' : btn('handled', r.key, '✓ Handled', 'tp-go'));
+      // Per-number label (2026-10-12): a chip when one is set, and a 🏷 Label
+      // button for anyone who may write labels (not a viewer, not a rep).
+      var LB = w.NBDContactLabels;
+      var lab = LB && r.phone ? LB.get(r.phone) : null;
+      var LG = w.NBDContactLabelsLogic;
+      var chip = lab && LG ? LG.chipFor(lab) : null;
+      if (chip) sub += (sub ? ' · ' : '') + '<span class="cl-chip cl-chip-' + chip.tone + '" title="' + esc(chip.title) + '">🏷 ' + esc(chip.text) + '</span>';
+      var canLabel = !ro && r.phone && (((w._userClaims || {}).role || '') !== 'sales_rep');
+      var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + (canLabel ? btn('label', r.key, '🏷 Label') : '') + (ro ? '' : btn('handled', r.key, '✓ Handled', 'tp-go'));
       return row(r.key, esc(r.name || fmtPhone(r.phone) || 'Unknown caller'), sub, acts);
     });
     var pr = p.promised.map(function (r) {
@@ -214,6 +230,7 @@
       section('money', 'Money to collect', m) + section('stalled', 'Stalled leads', s, deck);
     return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc(P.headline(p.total)) + '</div>' +
       (storm ? '<div class="tp-storm">' + esc(storm) + '</div>' : '') + '</div>' +
+      (p.hiddenCalls > 0 ? '<div class="tp-sub tp-hidden">' + p.hiddenCalls + (p.hiddenCalls === 1 ? ' person' : ' people') + ' hidden by labels · <button type="button" class="tp-more tp-hd-btn" data-tp-act="goto" data-tp-key="calls">See them in the Call Center</button></div>' : '') +
       (body || '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>');
   }
 
@@ -313,14 +330,33 @@
       return;
     }
     if (isViewer()) return;
+    if (a === 'label') { openLabel(key); return; }
     act(a, key).catch(function (e) { console.warn('[today] action failed', e); });
   });
 
-  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups'].forEach(function (n) { w.addEventListener(n, schedule); });
+  // 🏷 Label: the sheet lives in the lazy 'contactlabels' bundle.
+  function openLabel(key) {
+    var r = findRow(key);
+    if (!r || !r.phone) return;
+    var lead = r.leadId ? (w._leads || []).filter(function (l) { return l && l.id === r.leadId; })[0] : null;
+    var leadName = lead ? (((lead.firstName || '') + ' ' + (lead.lastName || '')).trim()) : '';
+    var open = function () {
+      if (w.NBDContactLabels) w.NBDContactLabels.openSheet({ digits: r.phone, name: r.name, leadName: leadName });
+      else toast("Couldn't open labels — try again in a moment", 'error');
+    };
+    if (w.NBDContactLabels) { open(); return; }
+    if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') w.ScriptLoader.loadBundle('contactlabels').then(open, open);
+    else open();
+  }
+
+  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups', 'nbd:labels-changed'].forEach(function (n) { w.addEventListener(n, schedule); });
   w.addEventListener('hashchange', function () {
     if (/^#?\/?(home)?$/.test(location.hash || '')) { loadAppointments(false); setTimeout(render, 200); }
   });
   function boot() {
+    // Away mode (js/away-mode.js): status line / hand-back card / backup cover list
+    // on Home. A lazy bundle, so it adds no boot <script> tag; best-effort.
+    try { if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') w.ScriptLoader.loadBundle('away'); } catch (_) { /* optional surface */ }
     // Home is a <template> mounted on navigation: paint when #todayPlan appears.
     try {
       new MutationObserver(function () {
