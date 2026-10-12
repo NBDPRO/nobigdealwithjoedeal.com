@@ -1987,6 +1987,41 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
+    // ── AWAY MODE + BACKUP PERSON (never-forget lane, 2026-10-12) ──────────
+    // Design + security model: documentation/projects/AWAY-MODE-BACKUP-2026-10-12.md.
+    // Every write is the Admin SDK's (the manageAway callable and the
+    // awayModeTick) — no client may name a backup, fake consent or approve
+    // customer wording, so there is NO client write path here.
+    //
+    //   away_mode/{companyId}     status only (away window, backup first name +
+    //                             state, "wording approved", pending hand-back
+    //                             count). No phone, email or customer data, so
+    //                             any member of the company may read it — the
+    //                             Today status line needs it. Viewers too.
+    //   away_private/{companyId}  config incl. an external backup's contact and
+    //                             the wording draft: never client-readable;
+    //                             manageAway returns it to the owner only.
+    //   away_windows/{id}         per-window ledger naming customers + numbers
+    //                             (id = companyId__windowId). Owner or the
+    //                             company's company_admin only. The BACKUP gets
+    //                             no read here: they are served a minimal packet
+    //                             by manageAway backupList.
+    match /away_mode/{companyId} {
+      allow read: if isAdmin()
+        || (isAuth() && companyId == request.auth.uid)
+        || (isAuth() && request.auth.token.get('companyId', '') == companyId);
+      allow write: if false;
+    }
+    match /away_private/{companyId} {
+      allow read, write: if false;
+    }
+    match /away_windows/{windowKey} {
+      allow read: if isAdmin()
+        || (isAuth() && notViewer() && resource.data.companyId == request.auth.uid)
+        || (isCompanyAdmin() && resource.data.companyId == myCompanyId());
+      allow write: if false;
+    }
+
     match /productLibrary/{companyId} {
       allow read: if isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
       allow write: if isAdmin()

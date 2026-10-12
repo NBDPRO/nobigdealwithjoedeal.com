@@ -1,0 +1,41 @@
+/* away-mode.css — the Away status line, the "While you were away" card and the
+   backup's cover list on Home (js/away-mode.js, never-forget lane 2026-10-12).
+   Reuses the Today card's tokens; colour only from theme tokens. */
+#awayStatus{display:block;margin-bottom:var(--ui-space-4);}
+#awayStatus[hidden]{display:none;}
+.away-line{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--ui-space-2) var(--ui-space-3);
+  padding:var(--ui-space-3) var(--ui-space-4);margin-bottom:var(--ui-space-3);
+  border:1px solid var(--ui-line-hair);border-radius:var(--ui-radius-md);
+  background:color-mix(in srgb, var(--blue, var(--t)) 12%, var(--s2));
+  color:var(--t);font-size:var(--ui-fs-body-sm);font-weight:var(--ui-fw-bold);
+}
+.away-line.away-warn{background:color-mix(in srgb, var(--orange) 16%, var(--s2));}
+.away-line.away-bad{background:color-mix(in srgb, var(--red) 16%, var(--s2));border-color:color-mix(in srgb, var(--red) 40%, transparent);}
+.away-text{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;}
+.away-btn{
+  display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding:0 var(--ui-space-4);
+  border:1px solid transparent;border-radius:var(--ui-radius-md);
+  background:color-mix(in srgb, var(--t) 9%, transparent);color:var(--t);
+  font:inherit;font-size:var(--ui-fs-body-sm);font-weight:var(--ui-fw-bold);text-decoration:none;cursor:pointer;
+}
+.away-btn:hover{background:color-mix(in srgb, var(--t) 15%, transparent);}
+.away-btn[disabled]{opacity:.55;cursor:default;}
+.away-go{background:color-mix(in srgb, var(--orange) 22%, transparent);}
+.away-card{
+  padding:var(--ui-space-4) var(--ui-space-5) var(--ui-space-3);margin-bottom:var(--ui-space-3);
+  background:var(--s2);border:1px solid var(--ui-line-hair);border-radius:var(--ui-radius-lg);
+  box-shadow:var(--elevation-card, var(--ui-elev-1));
+}
+.away-card-title{font-size:var(--ui-fs-body);font-weight:var(--ui-fw-heavy);color:var(--t);}
+.away-card-hd{margin-bottom:var(--ui-space-2);}
+.away-sub{font-size:var(--ui-fs-body-sm);color:var(--m);margin-top:2px;overflow-wrap:anywhere;}
+.away-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ui-space-2) var(--ui-space-3);padding:var(--ui-space-3) 0;border-top:1px solid var(--ui-line-hair);}
+.away-main{flex:1 1 200px;min-width:0;}
+.away-name{font-size:15px;font-weight:var(--ui-fw-bold);color:var(--t);overflow-wrap:anywhere;}
+.away-acts{display:flex;flex-wrap:wrap;gap:var(--ui-space-2);}
+.away-note{flex:1 1 100%;min-height:44px;padding:0 var(--ui-space-3);border:1px solid var(--ui-line-hair);border-radius:var(--ui-radius-md);background:var(--s1, transparent);color:var(--t);font:inherit;}
+.away-chip{display:inline-block;padding:0 6px;border-radius:var(--ui-radius-xs);background:color-mix(in srgb, var(--t) 10%, transparent);font-size:var(--ui-fs-label);font-weight:var(--ui-fw-bold);line-height:18px;}
+.away-hot{background:color-mix(in srgb, var(--red) 15%, transparent);color:color-mix(in srgb, var(--red) 35%, var(--t));}
+.away-wording{width:100%;box-sizing:border-box;padding:10px;}
+.away-foot{display:flex;justify-content:flex-end;padding-top:var(--ui-space-3);border-top:1px solid var(--ui-line-hair);}

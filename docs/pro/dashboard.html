@@ -123,7 +123,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=196"></script>
+<script src="js/script-loader.js?v=197"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -161,6 +161,7 @@
 <link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
 <link rel="stylesheet" href="css/pipeline-rich-cards.css?v=1">
 <link rel="stylesheet" href="css/today-home.css?v=3">
+<link rel="stylesheet" href="css/away-mode.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=2">
 <link rel="stylesheet" href="css/data-import-view.css?v=2">
 <link rel="stylesheet" href="css/templates-library-view.css?v=1">
@@ -890,6 +891,10 @@
           <button class="btn btn-orange" data-action="newEstimate">＋ New Estimate</button>
         </div>
       </div>
+      <!-- Away status (js/away-mode.js, never-forget lane 2026-10-12): "Away until
+           Thu - backup: Sam", the "While you were away" hand-back card, and the
+           backup person's cover list. Empty and hidden when away mode is off. -->
+      <div id="awayStatus" class="away-status" hidden></div>
       <!-- Needs-you strip (js/home-attention.js): phone calls that need you
            (counted in PEOPLE, the Call Center's rule), Stripe payments to
            assign, yard signs to pick up, review asks. Hidden when all are zero.
@@ -4927,6 +4932,8 @@
           <button class="btn btn-ghost fs-11" data-action="call" data-fn="_testNotif">🧪 Test Notification</button>
         </div>
         <div id="notif-save-msg" style="display:none;margin-top:10px;font-size:11px;color:#4caf82;">✓ Notification preferences saved</div>
+        <!-- Away mode + backup person (js/away-mode-settings.js; owner / company_admin only) -->
+        <div id="awayModeMount" class="mt-14"></div>
       </div><!-- /stab-panel-notifications -->
 
       <!-- ══ TAB: AI TEXTING (per-rep persona — rendered by ai-texting-persona.js) ══ -->
