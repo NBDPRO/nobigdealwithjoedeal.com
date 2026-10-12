@@ -121,6 +121,15 @@ Thursday webhook. So:
 | Skip transcription / notes for it (saves Groq quota, honours privacy) | **Yes, later** — the ingest can read the registry. Phase 3 |
 | Auto-reply / auto-text | **No** — and not wanted: no customer-facing send is ever triggered by a label |
 
+**Jo's answer (2026-10-12): "keep surfacing it on Today so I decide."** So
+"keep screening this number" means exactly one thing: the CRM keeps showing
+that number's calls on Today and in the Call Center and **Jo decides each
+time**. It does not mean Thursday answers it, and no carrier forwarding,
+auto-reply or auto-text is involved. This is the **default meaning of the
+per-number policy** (`surface`). Screening stays **inbound-only** and never
+sends. "Let Thursday handle it" and "block" are recorded below as later-phase
+options, **not built, not offered in the sheet** (see §9, deferred).
+
 So "continue screening" = policy `surface`; "tag contractor/sub/customer/
 personal" = kind. The sheet asks the two questions in that order and
 pre-picks the policy from the kind, so one tap is usually enough.
@@ -299,7 +308,15 @@ logs, fixtures (555 only), notes or the repo.
 5. **Personal and the recording:** should a `personal`-labeled number also stop
    the call being transcribed/stored at all (phase 3), the way the AI's
    personal verdict deletes audio today?
-6. **Block list:** the CRM can only *list* numbers to block on the phone. Is a
-   "numbers to block" list useful, or skip it?
-7. **Thursday for `sub`/`supplier`/`personal`:** OK to change her script for
-   those callers (phase 4), or keep her identical for everyone?
+6. **Block list (deferred, not built):** the CRM can only *list* numbers to
+   block on the phone. Is a "numbers to block" list useful, or skip it?
+7. **Thursday for `sub`/`supplier`/`personal` (deferred, not built):** OK to
+   change her script for those callers (phase 4), or keep her identical for
+   everyone?
+8. **"Let Thursday handle this number" (deferred, not built):** would be a
+   carrier forwarding rule Jo sets on the phone, which the CRM cannot do. The
+   CRM's part would only be to quiet that number's rows. Not offered until you
+   ask for it.
+
+**Answered:** screening means "keep surfacing it on Today so I decide"
+(Jo, 2026-10-12) — now the default meaning of `surface`.
