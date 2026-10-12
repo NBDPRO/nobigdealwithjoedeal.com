@@ -1,0 +1,58 @@
+/* contact-labels.css — the Label sheet, undo bar and label chips
+   (js/contact-labels.js, lazy bundle 'contactlabels', 2026-10-12).
+   Colour only from theme tokens; thumb-sized targets (>= 44px); the sheet
+   rises from the bottom on a phone and centres on desktop. */
+.cl-overlay{position:fixed;inset:0;z-index:var(--z-overlay, 10000);display:flex;align-items:flex-end;justify-content:center;}
+.cl-back{position:absolute;inset:0;background:rgba(0,0,0,.7);}
+.cl-sheet{
+  position:relative;width:100%;max-width:520px;max-height:88vh;overflow:auto;
+  padding:var(--ui-space-5) var(--ui-space-5) calc(var(--ui-space-5) + env(safe-area-inset-bottom, 0px));
+  background:var(--s);color:var(--t);
+  border:1px solid var(--br);
+  border-radius:var(--ui-radius-lg) var(--ui-radius-lg) 0 0;
+  box-shadow:var(--elevation-modal, none);
+  outline:none;
+}
+@media (min-width:640px){
+  .cl-overlay{align-items:center;}
+  .cl-sheet{border-radius:var(--ui-radius-lg);}
+}
+.cl-title{font-size:var(--ui-fs-heading, 18px);font-weight:var(--ui-fw-heavy);line-height:var(--ui-lh-heading);}
+.cl-who{margin-top:2px;font-size:var(--ui-fs-body-sm);color:var(--m);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.cl-hint{margin-top:var(--ui-space-3);padding:var(--ui-space-2) var(--ui-space-3);border-radius:var(--ui-radius-md);background:color-mix(in srgb, var(--t) 7%, transparent);font-size:var(--ui-fs-body-sm);line-height:var(--ui-lh-body-sm);}
+.cl-sec{margin:var(--ui-space-4) 0 var(--ui-space-2);font-size:var(--ui-fs-label);font-weight:var(--ui-fw-bold);text-transform:uppercase;letter-spacing:var(--ui-ls-label);color:var(--m);}
+.cl-kinds,.cl-pols{display:flex;flex-wrap:wrap;gap:var(--ui-space-2);}
+.cl-kind,.cl-pol{
+  min-height:44px;padding:0 var(--ui-space-4);
+  border-radius:var(--ui-radius-md);border:1px solid var(--ui-line-hair);
+  background:color-mix(in srgb, var(--t) 7%, transparent);color:var(--t);
+  font:inherit;font-size:var(--ui-fs-body-sm);font-weight:var(--ui-fw-bold);cursor:pointer;
+}
+.cl-kind:hover,.cl-pol:hover{background:color-mix(in srgb, var(--t) 12%, transparent);}
+.cl-kind.is-on,.cl-pol.is-on{background:color-mix(in srgb, var(--orange) 22%, transparent);border-color:color-mix(in srgb, var(--orange) 75%, transparent);}
+.cl-kind:focus-visible,.cl-pol:focus-visible,.cl-link:focus-visible,.cl-undo-btn:focus-visible{outline:2px solid var(--orange);outline-offset:2px;}
+.cl-more{border-style:dashed;color:var(--m);}
+.cl-note{margin-top:var(--ui-space-3);font-size:var(--ui-fs-caption);line-height:var(--ui-lh-body-sm);color:var(--m);}
+.cl-foot{display:flex;align-items:center;justify-content:space-between;margin-top:var(--ui-space-3);}
+.cl-link{min-height:44px;padding:0 var(--ui-space-2);background:transparent;border:0;color:color-mix(in srgb, var(--orange) 35%, var(--t));font:inherit;font-size:var(--ui-fs-body-sm);font-weight:var(--ui-fw-bold);cursor:pointer;}
+.cl-link:hover{text-decoration:underline;text-underline-offset:3px;}
+/* Undo bar: stays 9 s (a 2.6 s toast vanishes before a rep in the field reads it). */
+.cl-undo{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--ui-space-5) + env(safe-area-inset-bottom, 0px));
+  z-index:var(--z-toast, 10002);
+  display:flex;align-items:center;gap:var(--ui-space-3);
+  max-width:min(92vw, 460px);padding:var(--ui-space-2) var(--ui-space-3) var(--ui-space-2) var(--ui-space-4);
+  background:var(--s);color:var(--t);border:1px solid var(--br);
+  border-radius:var(--ui-radius-lg);box-shadow:var(--elevation-modal, none);
+  font-size:var(--ui-fs-body-sm);
+}
+.cl-undo[hidden]{display:none;}
+.cl-undo-btn{min-height:44px;padding:0 var(--ui-space-3);background:transparent;border:0;color:color-mix(in srgb, var(--orange) 35%, var(--t));font:inherit;font-weight:var(--ui-fw-heavy);cursor:pointer;}
+/* The chip on a Today row and a Call Center card. */
+.cl-chip{display:inline-block;padding:0 6px;border-radius:var(--ui-radius-xs);background:color-mix(in srgb, var(--t) 10%, transparent);color:var(--t);font-size:var(--ui-fs-label);font-weight:var(--ui-fw-bold);line-height:18px;letter-spacing:.04em;}
+.cl-chip-quiet{background:color-mix(in srgb, var(--orange) 14%, transparent);}
+.cl-chip-hidden{background:transparent;border:1px dashed color-mix(in srgb, var(--t) 45%, transparent);color:var(--m);}
+@media (prefers-reduced-motion:no-preference){
+  .cl-sheet{animation:ui-enter var(--ui-dur-enter) var(--ui-ease-enter) both;}
+}
