@@ -1088,12 +1088,21 @@
     // or an insurance invoice still waiting on the carrier's numbers (kind
     // 'awaiting'). The server sends $0 and no link; this says what happens
     // next instead of a "Balance Due" with nothing to press.
-    const _nothingDue = view.balance && (view.balance.kind === 'held' || view.balance.kind === 'awaiting');
+    // Ohio ORC 4722.04 (2026-10-11): kind 'scheduled' — the signing deposit is
+    // paid and the next payment is due when materials are delivered / work begins.
+    const _nothingDue = view.balance && (view.balance.kind === 'held' || view.balance.kind === 'awaiting' || view.balance.kind === 'scheduled');
     if (_nothingDue) {
       const _usd = (c) => (Number(c) / 100).toLocaleString(undefined, { style: 'currency', currency: 'USD' });
       const held = view.balance.kind === 'held';
+      const scheduled = view.balance.kind === 'scheduled';
       const next = Number(view.balance.nextCents) > 0 ? ' (' + esc(_usd(view.balance.nextCents)) + ')' : '';
-      const steps = held
+      const steps = scheduled
+        ? [
+          'Your deposit has been received — thank you.',
+          'Your next payment' + next + ' is due when your materials are delivered or work begins. We will send you the link then.',
+          'The rest is due when the job is finished.'
+        ]
+        : held
         ? [
           'Your insurance company sends you its written decision on your claim.',
           // 2026-10-08: the hold also waits out the 3-business-day right to
@@ -1110,7 +1119,7 @@
           'The rest is due when the job is finished.'
         ];
       parts.push(
-        '<div class="card" data-portal-nothing-due="' + (held ? 'held' : 'awaiting') + '">' +
+        '<div class="card" data-portal-nothing-due="' + (held ? 'held' : (scheduled ? 'scheduled' : 'awaiting')) + '">' +
           '<div class="card-label">💳 Payments</div>' +
           '<div class="card-title">Nothing is due yet</div>' +
           '<p class="progress-schedule-note">Here’s what happens next:</p>' +

@@ -11,6 +11,7 @@
   ],
   "node": [
     "layout-system-2026-10-11.test.js",
+    "layout-kit-2026-10-11.test.js",
     "pro-demo-sdk-2026-10-06.test.js",
     "pro-demo-wave2-2026-10-06.test.js",
     "appcheck-config-per-page-2026-10-06.test.js",
@@ -439,6 +440,7 @@
     "upgrade-price-settings.test.js",
     "upgrades-builder-card.test.js",
     "deposit-rule.test.js",
+    "ohio-4722-deposit-cap-2026-10-11.test.js",
     "role-gate.test.js",
     "collection-group-paths.test.js",
     "indexnow-ping.test.js",
@@ -468,6 +470,7 @@
     "today-home-visual-2026-10-05.test.js",
     "phone-home-nav-2026-10-08.test.js",
     "pipeline-cards-visual-2026-10-05.test.js",
+    "command-palette-scopes-2026-10-11.test.js",
     "customer-header-visual-2026-10-05.test.js",
     "close-board-visual-2026-10-05.test.js",
     "care-plan-crm-2026-10-05.test.js",
@@ -499,7 +502,8 @@
     "firestore-index-coverage-2026-10-04.test.js",
     "photo-cache-lazy-2026-10-04.test.js",
     "firebase-sdk-vendored-2026-10-04.test.js",
-    "paid-in-full-supplements-r6-2026-10-07.test.js"
+    "paid-in-full-supplements-r6-2026-10-07.test.js",
+    "auto-theme-rules.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

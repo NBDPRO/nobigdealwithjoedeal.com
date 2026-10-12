@@ -45,6 +45,35 @@
  * that passes NO location (legacy / unit callers) gets the rule as before.
  * Ohio and cash jobs are unchanged.
  *
+ * OHIO HOME-CONSTRUCTION DOWN-PAYMENT CAP (Jo, 2026-10-11; ORC 4722.04 —
+ * documentation/audit/GROK-SITE-AUDIT-OHIO-4722-2026-10-11.md and
+ * documentation/projects/OHIO-4722-DEPOSIT-CAP-2026-10-11.md): on an OHIO
+ * property (the PROPERTY address state, never the company's home state) whose
+ * contract price is at or above OH_CAP_MIN_CENTS ($25,000), the amount taken
+ * before performance begins is capped at OH_CAP_PCT (10%) of the contract
+ * price. The statute defines the covered contract as one "exceeding" $25,000
+ * (4722.01(C)) but 4722.02(A) says "equals or exceeds"; we err to the safe
+ * side and treat >= $25,000.00 as covered. Legal routes, all config-driven:
+ *   1. the 10% cap itself (cash: min(rule deposit, 10%));
+ *   2. special-order allowance: up to OH_SPECIAL_ORDER_PCT (75%) of the
+ *      amount of special-order, non-returnable items (input.specialOrder,
+ *      dollars, the item's price on the estimate) may be collected on top;
+ *   3. milestone schedule: after the signing deposit, payment 2 is due when
+ *      the materials are delivered / work begins (OH_MILESTONE_PCT of the
+ *      contract, 10/40/50 by default), the balance on completion. COUNSEL
+ *      QUESTION: whether delivery counts as "performance begins" — payment 2
+ *      is worded as due on delivery/start, never at signing;
+ *   4. construction-loan jobs (input.constructionLoan === true): not capped
+ *      (4722.04 lets loan payments be accepted);
+ *   5. insurance jobs: the deductible stays the signing deposit; if it would
+ *      exceed the cap it is capped and the rest of the deductible, with the
+ *      ACV payment, moves to the milestone — the deductible is still always
+ *      collected. Kentucky logic is untouched (the KY hold runs first).
+ * Unknown property state on a job at or above the threshold: no cap, but the
+ * plan carries stateWarning (repNote) so the rep sees the check was not made.
+ * Cost-plus contracts are deliberately NOT modelled (not recommended without
+ * counsel).
+ *
  * Persisted plans (toStored) carry display strings and cents only — never a
  * cost figure — so the homeowner portal can print exactly what the rep's
  * paperwork printed without running this file server-side.
@@ -55,8 +84,16 @@
   var DEFAULTS = Object.freeze({
     CASH_NO_DEPOSIT_UNDER_CENTS: 200000, // cash under $2,000.00 → no deposit
     CASH_DEPOSIT_PCT: 50,                // cash $2,000.00 and up → 50% at signing
-    CASH_DEPOSIT_ROUND_TO_CENTS: 2500    // the percentage deposit rounds to the nearest $25 (the grand-total step)
+    CASH_DEPOSIT_ROUND_TO_CENTS: 2500,   // the percentage deposit rounds to the nearest $25 (the grand-total step)
+    // Ohio ORC 4722.04 (2026-10-11) — see the header. All overridable.
+    OH_CAP_ENABLED: 1,                   // 0 switches the Ohio cap off (counsel says otherwise)
+    OH_CAP_MIN_CENTS: 2500000,           // contract price at or above $25,000.00 is covered (safe side)
+    OH_CAP_PCT: 10,                      // most that may be taken at signing, % of contract price
+    OH_SPECIAL_ORDER_PCT: 75,            // of a special-order, non-returnable item, on top of the cap
+    OH_MILESTONE_ENABLED: 1,             // payment 2 due when materials are delivered / work begins
+    OH_MILESTONE_PCT: 40                 // payment 2, % of contract price (10 / 40 / 50 by default)
   });
+  var OH_MILESTONE_DUE = 'When your materials are delivered or work begins';
 
   var ACV_WORDS = 'insurance ACV payment (your carrier’s first check)';
   var KY_DUE = 'After your insurer’s written coverage decision and the 5-business-day cancellation window';
@@ -197,6 +234,14 @@
     });
     if (out.CASH_DEPOSIT_PCT > 100) out.CASH_DEPOSIT_PCT = DEFAULTS.CASH_DEPOSIT_PCT;
     if (!out.CASH_DEPOSIT_ROUND_TO_CENTS) out.CASH_DEPOSIT_ROUND_TO_CENTS = 1;
+    // Ohio cap: bad percentages fall back per field; the two scheduled
+    // payments can never sum past the whole contract.
+    if (out.OH_CAP_PCT > 100) out.OH_CAP_PCT = DEFAULTS.OH_CAP_PCT;
+    if (out.OH_SPECIAL_ORDER_PCT > 100) out.OH_SPECIAL_ORDER_PCT = DEFAULTS.OH_SPECIAL_ORDER_PCT;
+    if (out.OH_MILESTONE_PCT > 100) out.OH_MILESTONE_PCT = DEFAULTS.OH_MILESTONE_PCT;
+    if (out.OH_CAP_PCT + out.OH_MILESTONE_PCT > 100) out.OH_MILESTONE_PCT = Math.max(0, 100 - out.OH_CAP_PCT);
+    out.OH_CAP_ENABLED = out.OH_CAP_ENABLED ? 1 : 0;
+    out.OH_MILESTONE_ENABLED = out.OH_MILESTONE_ENABLED ? 1 : 0;
     return out;
   }
 
@@ -393,7 +438,7 @@
    *       hold even in cash mode (the contract's isInsurance test), and its
    *       address / zip / state fill in a location the caller left blank.
    */
-  function compute(input) {
+  function _computeBase(input) {
     input = input || {};
     var c = config(input.config);
     var totalCents = (input.totalCents != null) ? _int(input.totalCents) : toCents(input.total);
@@ -474,6 +519,181 @@
           (raised ? '; raised to the deductible, which is never reduced' : '') + '.') });
   }
 
+  // ── Ohio ORC 4722.04 down-payment cap ────────────────────────────────────
+  // The PROPERTY's state: ky-insurance-law.js classify() when loaded (same
+  // reader the Kentucky hold uses), else a minimal reader of an explicit
+  // state field or ", OH 45xxx" so a page that forgot to load it still caps.
+  function _propertyState(input) {
+    var l = (input.lead && typeof input.lead === 'object') ? input.lead : {};
+    var ctx = {
+      address: input.address || l.address || l.propertyAddress || '',
+      zip: input.zip || l.zip || l.zipCode || '',
+      state: input.state || l.state || ''
+    };
+    var J = _jurisdictionApi();
+    if (J && typeof J.classify === 'function') return J.classify(ctx).state || '';
+    var st = String(ctx.state || '').trim().toUpperCase();
+    var text = String(ctx.address || '') + ' ' + String(ctx.zip || '');
+    if (st === 'KY' || st === 'KENTUCKY' || /\b(KY|Kentucky)\b[,.\s]*\d{5}/.test(text)) return 'KY';
+    if (st === 'OH' || st === 'OHIO') return 'OH';
+    if (/(?:,\s*|\s)(OH|Ohio)\.?,?\s+\d{5}/.test(text) || /,\s*OH\.?\s*$/.test(text)) return 'OH';
+    return '';
+  }
+
+  function _truthy(v) { return v === true || v === 'true' || v === 1 || v === '1' || v === 'yes'; }
+
+  // { covered, state, unknown, loanExempt } for a job of totalCents.
+  function _ohioCoverage(input, totalCents, c) {
+    var out = { covered: false, state: '', unknown: false, loanExempt: false };
+    if (!c.OH_CAP_ENABLED || !(totalCents > 0) || totalCents < c.OH_CAP_MIN_CENTS) return out;
+    var st = _propertyState(input);
+    out.state = st;
+    if (!st) { out.unknown = true; return out; }
+    if (st !== 'OH') return out;
+    if (_truthy(input.constructionLoan)) { out.loanExempt = true; return out; }
+    out.covered = true;
+    return out;
+  }
+
+  function _floorStep(cents, step) {
+    var st = step > 0 ? step : 1;
+    return Math.floor(cents / st) * st;
+  }
+
+  var OH_WHY = 'Ohio home-construction contract of $25,000 or more (ORC 4722.04): no more than the cap may be taken before work begins.';
+
+  function _ohioAdjust(plan, input) {
+    if (!plan || !(plan.totalCents > 0) || plan.kyHold) return plan;
+    var c = config(input.config);
+    var total = plan.totalCents;
+    var cov = _ohioCoverage(input, total, c);
+    var join = function (a, b) { return a ? (a + ' ' + b) : b; };
+
+    if (cov.unknown) {
+      plan.stateWarning = 'Property state not readable — the Ohio ' + c.OH_CAP_PCT + '% down-payment limit (ORC 4722.04) could not be checked on this ' +
+        fmtCents(total) + ' job. Enter the property address with its state' +
+        (plan.depositCents > Math.floor(total * c.OH_CAP_PCT / 100) ? ' (this deposit is above ' + c.OH_CAP_PCT + '%)' : '') + '.';
+      plan.repNote = join(plan.repNote, plan.stateWarning);
+      return plan;
+    }
+    if (cov.loanExempt) {
+      plan.ohio = { applies: false, loan: true, state: 'OH', capPct: c.OH_CAP_PCT };
+      plan.repNote = join(plan.repNote, 'Construction-loan job: the Ohio ' + c.OH_CAP_PCT + '% down-payment cap is not applied (ORC 4722.04 accepts loan payments).');
+      return plan;
+    }
+    if (!cov.covered) return plan;
+
+    var insurance = plan.mode === 'insurance';
+    var step = _int(input.roundToCents) || c.CASH_DEPOSIT_ROUND_TO_CENTS;
+    var cap10 = _clamp(_floorStep(Math.floor(total * c.OH_CAP_PCT / 100), step), total);
+    var soIn = toCents(input.specialOrderCents != null ? input.specialOrderCents / 100 : input.specialOrder);
+    var soAmt = (soIn != null && soIn > 0) ? Math.min(soIn, total) : 0;
+    var soAllow = soAmt > 0 ? Math.floor(soAmt * c.OH_SPECIAL_ORDER_PCT / 100) : 0;
+    var capTotal = Math.min(total, cap10 + soAllow);
+
+    var info = { applies: true, state: 'OH', capPct: c.OH_CAP_PCT, capCents: cap10, specialOrderCents: soAmt,
+      specialOrderPct: c.OH_SPECIAL_ORDER_PCT, specialOrderAllowanceCents: soAllow, limitCents: capTotal,
+      ruleDepositCents: plan.depositCents, reduced: false, milestoneCents: 0 };
+
+    if (insurance && plan.needsDeductible) {
+      plan.ohio = info;
+      plan.repNote = join(plan.repNote, 'Ohio job of $25,000 or more: once the deductible is entered, no more than ' + fmtCents(capTotal) +
+        ' (' + c.OH_CAP_PCT + '%) will be due at signing (ORC 4722.04).');
+      return plan;
+    }
+
+    var preWork = plan.depositCents;                      // what the rule wanted before work begins
+    var wanted;                                           // what it wanted AT SIGNING
+    if (insurance && !plan.override && plan.deductibleCents != null) wanted = Math.min(plan.deductibleCents, total);
+    else wanted = preWork;
+    if (preWork <= capTotal) { plan.ohio = info; return plan; }   // already within the limit
+
+    var signing = Math.min(wanted, capTotal);
+    var later = 0;
+    if (c.OH_MILESTONE_ENABLED) {
+      later = preWork - signing;
+      if (!insurance) {
+        var target = Math.min(total, _pctDeposit(total, c.OH_CAP_PCT + c.OH_MILESTONE_PCT, step));
+        later = Math.max(0, Math.min(later, target - signing));
+      }
+      later = Math.max(0, Math.min(later, total - signing));
+    }
+    var bal = total - signing - later;
+    var rows = [];
+    var due2 = OH_MILESTONE_DUE;
+    var money = fmtCents;
+    var pctShown = c.OH_CAP_PCT;
+    var summary;
+
+    if (!insurance) {
+      rows.push(_row('deposit', pctShown + '% deposit', 'At signing', Math.min(signing, cap10)));
+      if (signing > cap10) rows.push(_row('special-order', 'Special-order materials (' + c.OH_SPECIAL_ORDER_PCT + '% of ' + money(soAmt) + ')', 'At signing', signing - cap10));
+      if (later > 0) rows.push(_row('milestone', 'Second payment', due2, later));
+      if (bal > 0) rows.push(_row('balance', 'Balance', 'On completion', bal));
+      summary = pctShown + '% deposit of ' + money(Math.min(signing, cap10)) + ' due at signing' +
+        (signing > cap10 ? ', plus ' + money(signing - cap10) + ' for your special-order materials' : '') +
+        (later > 0 ? '; ' + money(later) + ' due ' + due2.charAt(0).toLowerCase() + due2.slice(1) : '') +
+        (bal > 0 ? '; balance of ' + money(bal) + ' due on completion.' : '.');
+    } else {
+      var ded = plan.deductibleCents;
+      var acvPart = (plan.acvCheckCents != null && plan.acvCheckCents > 0 && ded != null)
+        ? Math.max(0, Math.min(total, ded + plan.acvCheckCents) - ded) : 0;
+      var dedSigning = Math.min(signing, ded != null ? Math.min(ded, total) : signing);
+      var dedLeft = (ded != null) ? Math.max(0, Math.min(ded, total) - dedSigning) : 0;
+      rows.push(_row('deductible', dedLeft > 0 ? 'Your deductible (first part)' : 'Your deductible', 'At signing', dedSigning));
+      if (signing > dedSigning) rows.push(_row('deposit-extra', 'Deposit toward the job', 'At signing', signing - dedSigning));
+      var laterLeft = later;
+      if (dedLeft > 0 && laterLeft > 0) {
+        var d2 = Math.min(dedLeft, laterLeft);
+        rows.push(_row('deductible2', 'Rest of your deductible', due2, d2));
+        laterLeft -= d2;
+      }
+      if (acvPart > 0 && laterLeft > 0) {
+        var a2 = Math.min(acvPart, laterLeft);
+        rows.push(_row('acv', 'Insurance ACV payment (your carrier’s first check)', due2, a2));
+        laterLeft -= a2;
+      }
+      if (laterLeft > 0) rows.push(_row('milestone', 'Second payment', due2, laterLeft));
+      if (bal > 0) rows.push(_row('balance', 'Balance', 'On completion', bal));
+      summary = 'Due at signing: ' + money(signing) + (ded != null && signing >= Math.min(ded, total) ? ' (your deductible)' :
+        ' (' + c.OH_CAP_PCT + '% of the contract price' + (ded != null ? ', toward your ' + money(ded) + ' deductible' : '') + ')') +
+        (later > 0 ? '; ' + money(later) + ' due ' + due2.charAt(0).toLowerCase() + due2.slice(1) +
+          (dedLeft > 0 ? ' (the rest of your deductible' + (acvPart > 0 ? ' and your insurance ACV payment' : '') + ')' : ' (your insurance ACV payment)') : '') +
+        (bal > 0 ? '; balance of ' + money(bal) + ' due on completion.' : '.');
+    }
+
+    info.reduced = true; info.milestoneCents = later; info.signingCents = signing;
+    var why = OH_WHY + ' Rule would have asked ' + money(preWork) + ' before work begins; ' + money(signing) + ' is due at signing' +
+      (later > 0 ? ' and ' + money(later) + ' ' + due2.charAt(0).toLowerCase() + due2.slice(1) : '') + '.' +
+      (insurance && plan.deductibleCents != null && plan.deductibleCents > signing ? ' The deductible is still collected in full — never waived or reduced.' : '') +
+      (soAllow > 0 ? ' Includes ' + money(soAllow) + ' (' + c.OH_SPECIAL_ORDER_PCT + '% of ' + money(soAmt) + ') for special-order materials.' : '') +
+      (c.OH_MILESTONE_ENABLED ? '' : ' The milestone payment is switched off, so the rest is due on completion.');
+    var out = _plan({
+      rule: plan.rule, kind: plan.override ? 'override' : 'ohio-cap', mode: plan.mode, totalCents: total, depositCents: signing,
+      deductibleCents: plan.deductibleCents, acvValueCents: plan.acvValueCents, acvCheckCents: plan.acvCheckCents,
+      label: 'Due at signing', valueText: money(signing),
+      summary: summary,
+      terms: (insurance ? 'Your deductible at signing' : pctShown + '% deposit at signing') +
+        (later > 0 ? '; the next payment ' + due2.charAt(0).toLowerCase() + due2.slice(1) : '') + '; the balance on completion.',
+      rows: rows, override: plan.override,
+      repNote: join(plan.repNote, why)
+    });
+    out.ohio = info;
+    return out;
+  }
+
+  /**
+   * compute(input) → plan. See _computeBase for the inputs; the Ohio cap adds
+   *   input.specialOrder | input.specialOrderCents   special-order,
+   *       non-returnable items' amount on the estimate (dollars | cents)
+   *   input.constructionLoan                         true → cap not applied
+   * and reads the property state from input.address / zip / state / lead.
+   */
+  function compute(input) {
+    input = input || {};
+    return _ohioAdjust(_computeBase(input), input);
+  }
+
   function _first() {
     for (var i = 0; i < arguments.length; i++) {
       var v = arguments[i];
@@ -545,6 +765,10 @@
       zip: opts.zip || lead.zip || '',
       state: opts.state || lead.state || '',
       jurisdiction: opts.jurisdiction || null,
+      // Ohio ORC 4722.04 inputs (2026-10-11): the estimate's own special-order
+      // amount (dollars) and its construction-loan flag; a caller can override.
+      specialOrder: _first(opts.specialOrder, est.specialOrderAmount, est.specialOrder),
+      constructionLoan: (opts.constructionLoan != null) ? opts.constructionLoan : (est.constructionLoan === true),
       // The lead's insurance signals (claim number, carrier, jobType) decide
       // the Kentucky hold too, not just the estimate's mode (2026-10-03).
       lead: opts.lead || null
@@ -584,6 +808,11 @@
       override: plan.override ? {
         pct: plan.override.pct == null ? null : plan.override.pct,
         amountCents: plan.override.amountCents == null ? null : plan.override.amountCents
+      } : null,
+      // Ohio ORC 4722.04 cap (2026-10-11): cents + the milestone, nothing rep-facing.
+      ohio: (plan.ohio && plan.ohio.applies) ? {
+        capPct: plan.ohio.capPct, limitCents: plan.ohio.limitCents, reduced: plan.ohio.reduced === true,
+        milestoneCents: plan.ohio.milestoneCents || 0, specialOrderCents: plan.ohio.specialOrderCents || 0
       } : null
     };
   }
@@ -611,19 +840,22 @@
   var AWAITING_NOTE = 'Waiting on the carrier’s numbers — enter the deductible and the ACV on the estimate, then tap ' +
     'Create Invoice again. Nothing is billed until then.';
   function invoiceDeposit(plan) {
-    var none = { depositCents: 0, awaitingCarrierNumbers: false, note: '' };
+    var none = { depositCents: 0, milestoneCents: 0, awaitingCarrierNumbers: false, note: '' };
     if (!plan || !(plan.totalCents > 0)) return none;
     var total = plan.totalCents;
     var insurance = plan.mode === 'insurance' || plan.kyHold === true;
-    if (!insurance) return { depositCents: plan.depositCents, awaitingCarrierNumbers: false, note: '' };
+    // Ohio cap (2026-10-11): the invoice asks for the SIGNING deposit; the
+    // milestone payment is held until the rep releases it (invoice-charge.js).
+    var ms = (plan.ohio && plan.ohio.applies && plan.ohio.reduced) ? (plan.ohio.milestoneCents || 0) : 0;
+    if (!insurance) return { depositCents: plan.depositCents, milestoneCents: ms, awaitingCarrierNumbers: false, note: '' };
     if (plan.needsDeductible || plan.deductibleCents == null) {
-      return { depositCents: 0, awaitingCarrierNumbers: true, note: AWAITING_NOTE };
+      return { depositCents: 0, milestoneCents: 0, awaitingCarrierNumbers: true, note: AWAITING_NOTE };
     }
-    if (!plan.kyHold) return { depositCents: plan.depositCents, awaitingCarrierNumbers: false, note: '' };
+    if (!plan.kyHold) return { depositCents: plan.depositCents, milestoneCents: ms, awaitingCarrierNumbers: false, note: '' };
     var ded = plan.deductibleCents;
-    if (ded >= total) return { depositCents: total, awaitingCarrierNumbers: false, note: '' };
-    if (plan.acvCheckCents == null) return { depositCents: 0, awaitingCarrierNumbers: true, note: AWAITING_NOTE };
-    return { depositCents: Math.min(total, ded + plan.acvCheckCents), awaitingCarrierNumbers: false, note: '' };
+    if (ded >= total) return { depositCents: total, milestoneCents: 0, awaitingCarrierNumbers: false, note: '' };
+    if (plan.acvCheckCents == null) return { depositCents: 0, milestoneCents: 0, awaitingCarrierNumbers: true, note: AWAITING_NOTE };
+    return { depositCents: Math.min(total, ded + plan.acvCheckCents), milestoneCents: 0, awaitingCarrierNumbers: false, note: '' };
   }
 
   // Generic statement of the rule for boilerplate that knows no job (company
@@ -639,7 +871,13 @@
         ? 'Cash jobs under ' + under + ': no deposit — payment in full on completion. ' +
           'Cash jobs of ' + under + ' or more: ' + c.CASH_DEPOSIT_PCT + '% deposit at contract signing, balance on completion. '
         : 'Cash jobs: ' + c.CASH_DEPOSIT_PCT + '% deposit at contract signing, balance on completion. ');
-    return cash +
+    var ohio = (c.OH_CAP_ENABLED && c.CASH_DEPOSIT_PCT > c.OH_CAP_PCT)
+      ? 'Ohio jobs of ' + fmtCents(c.OH_CAP_MIN_CENTS) + ' or more: the deposit at signing is limited to ' + c.OH_CAP_PCT +
+        '% of the contract price' + (c.OH_SPECIAL_ORDER_PCT > 0 ? ' (plus up to ' + c.OH_SPECIAL_ORDER_PCT + '% of any special-order, non-returnable materials)' : '') +
+        (c.OH_MILESTONE_ENABLED && c.OH_MILESTONE_PCT > 0 ? '; a second payment of ' + c.OH_MILESTONE_PCT + '% is due when materials are delivered or work begins' : '') +
+        '; the balance is due on completion. '
+      : '';
+    return cash + ohio +
       'Insurance claims: the homeowner’s deductible is due at signing and the insurance ACV payment (the carrier’s first check) ' +
       'is due as soon as the carrier releases it; the balance is due on completion. ' +
       'Kentucky insurance claims: nothing is due at signing; the deductible and the ACV payment are due after the insurer’s ' +
