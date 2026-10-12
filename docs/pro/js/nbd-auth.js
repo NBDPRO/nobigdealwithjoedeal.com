@@ -817,6 +817,9 @@ export const NBDAuth = {
         // saw Classic flash on every sign-in. layout-engine.js re-resolves for
         // the signed-in uid and corrects it if another account left it behind.
         'nbd_layout_resolved',
+        // Field App sunlight mode (js/layouts/field.js): a device preference
+        // — the phone is in the sun, not the account — so a sign-out keeps it.
+        'nbd_field_sun',
       ]);
       const drop = [];
       for (let i = 0; i < localStorage.length; i++) {
