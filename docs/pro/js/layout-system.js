@@ -119,10 +119,25 @@
       glove: r.glove === true,
     };
   }
-  // companies/{companyId}/settings/layout
+  // companies/{companyId}/settings/layout. `defaultWidgets` is the admin's
+  // starting arrangement per layout, { <layoutId>: [ ...opaque tiles ] } (the
+  // Bento board's new-hire default lives at defaultWidgets.bento). Bounded the
+  // way firestore.rules bounds it: <= 8 layouts, each a list of <= 24 tiles.
+  function cleanDefaultWidgets(raw) {
+    var out = {};
+    if (!raw || typeof raw !== 'object') return out;
+    Object.keys(raw).slice(0, 8).forEach(function (k) {
+      if (!isId(k) || !Array.isArray(raw[k]) || raw[k].length > 24) return;
+      var json;
+      try { json = JSON.stringify(raw[k]); } catch (e) { return; }
+      if (json && json.length <= 4000) out[k] = raw[k];
+    });
+    return out;
+  }
   function normalizeCompany(raw) {
     var r = raw && typeof raw === 'object' ? raw : {};
     return {
+      defaultWidgets: cleanDefaultWidgets(r.defaultWidgets),
       defaultLayout: isId(r.defaultLayout) ? r.defaultLayout : null,
       defaultByDevice: cleanByDevice(r.defaultByDevice),
       allowed: Array.isArray(r.allowed) ? r.allowed.filter(isId).slice(0, 40) : null,
@@ -194,6 +209,17 @@
     supports: { wallpaper: false, glass: false, sunlight: true },
   });
 
+  // L06 Crew Calendar (2026-10-12). Every screen; the week grid scrolls sideways
+  // on a phone, where it opens on the Day view.
+  register({
+    id: 'crew', name: 'Crew Calendar', version: 1,
+    blurb: 'Crews as lanes on a week timeline: drag jobs between days and crews, rain days hatched.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/crew.js', css: 'css/layouts/crew.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: false, sunlight: false },
+  });
+
   // L03 Focus Mode (D4). Every screen: it is a queue, not a place. Also the
   // layout a rep can drop into for a calling block.
   register({
@@ -203,6 +229,53 @@
     script: 'js/layouts/focus.js', css: 'css/layouts/focus.css',
     needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
     supports: { wallpaper: true, glass: true, sunlight: false },
+  });
+
+  // L01 Bento Board (D5). A rearrangeable grid of widget tiles on Home, every
+  // screen (a phone gets two columns). Wraps the CRM's existing widget modules;
+  // its script, stylesheet and the shared kit load only while it is active.
+  register({
+    id: 'bento', name: 'Bento Board', version: 1,
+    blurb: 'Home as a board of tiles you arrange: revenue collected, pipeline, today, hail, tasks, map.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/bento.js', css: 'css/layouts/bento.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: true, sunlight: false },
+  });
+
+  // L02 Mission Control (M2). A storm / canvass war room over Home. Every screen
+  // (the panels stack under the map on a phone). Its assets - the shared kit, the
+  // MapView component, the pure logic and the screen - load only while it is the
+  // active layout, so Classic pays nothing.
+  register({
+    id: 'mission', name: 'Mission Control', version: 1,
+    blurb: 'A storm war room: live map with the hail swath, who is in the path, and canvass turfs.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/mission.js', css: 'css/layouts/mission.css',
+    needs: {
+      script: ['js/layouts/kit.js', 'js/layouts/mapview.js', 'js/layouts/mission-logic.js', 'js/layouts/routeplan.js'],
+      css: ['css/layouts/kit.css', 'css/layouts/mapview.css'],
+    },
+    supports: { wallpaper: false, glass: false, sunlight: false },
+  });
+
+  // L04 Island Dock: floating pill + dock over glass islands. Lazy, like the rest.
+  register({
+    id: 'island', name: 'Island Dock', blurb: 'No sidebar: a floating nav pill, a bottom dock, and glass islands over your wallpaper.',
+    script: 'js/layouts/island.js', css: 'css/layouts/island.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: true },
+  });
+
+  // L05 Triage Inbox (D6): one keyboard-driven list | thread | facts. Every
+  // surface (it folds to one pane at a time on a phone).
+  register({
+    id: 'inbox', name: 'Triage Inbox', version: 1,
+    blurb: 'Texts, calls, new leads and nudges in one list, with a reply-by timer.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/inbox.js', css: 'css/layouts/inbox.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: false, sunlight: false },
   });
 
   var api = {
@@ -539,12 +612,14 @@
       defaultByDevice: 'defaultByDevice' in p ? p.defaultByDevice : company.defaultByDevice,
       allowed: 'allowed' in p ? p.allowed : company.allowed,
       locked: 'locked' in p ? p.locked : company.locked,
+      defaultWidgets: 'defaultWidgets' in p ? p.defaultWidgets : company.defaultWidgets,
     });
     return companyKey().then(function (key) {
       if (!key || !uid || !window.db || !window.doc || !window.setDoc) return { saved: false };
       var data = { locked: next.locked, defaultByDevice: next.defaultByDevice, updatedBy: uid, updatedAt: new Date().toISOString() };
       if (next.defaultLayout) data.defaultLayout = next.defaultLayout;
       if (next.allowed) data.allowed = next.allowed;
+      if (Object.keys(next.defaultWidgets).length) data.defaultWidgets = next.defaultWidgets;
       return Promise.resolve(window.setDoc(window.doc(window.db, 'companies', key, 'settings', 'layout'), data))
         .then(function () {
           company = next;

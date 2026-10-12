@@ -12,12 +12,12 @@
  * surfaces the four highest-frequency actions:
  *   - Call (tel: link with normalized digits)
  *   - SMS  (sms: link)
- *   - Email (mailto: link)
+ *   - Note (window.openNotesModal) — was Email until 2026-10-08
  *   - New task (window.openTaskModal — already exposed)
  *
  * Each button hides automatically when the lead doesn't have the
- * relevant data — a phoneless lead won't show Call/SMS, an
- * emailless lead won't show Email. Task is always available.
+ * relevant data — a phoneless lead won't show Call/SMS. Note and Task
+ * are always available.
  *
  * Activates only on /pro/customer.html and only at viewport widths
  * ≤640px so desktop users don't lose page real estate. Listens for
@@ -59,12 +59,11 @@
   function buildBar() {
     const lead = window._currentLead || {};
     const phone = digitsOnly(lead.phone);
-    const email = (lead.email || '').trim();
 
-    // Skip render entirely when there's no actionable contact info AND
-    // openTaskModal isn't available — nothing to show. (Task button is
-    // always shown when openTaskModal exists.)
-    if (!phone && !email && typeof window.openTaskModal !== 'function') return null;
+    // Skip render entirely when there's no phone AND neither sheet is
+    // available — nothing to show. (Note / Task show whenever their sheet
+    // function exists.)
+    if (!phone && typeof window.openTaskModal !== 'function' && typeof window.openNotesModal !== 'function') return null;
 
     const bar = document.createElement('div');
     bar.id = 'nbd-quick-action-bar';
@@ -126,7 +125,7 @@
         }
         #nbd-quick-action-bar .qab-btn.qab-call .qab-icon { color:var(--green); }
         #nbd-quick-action-bar .qab-btn.qab-sms  .qab-icon { color:var(--blue); }
-        #nbd-quick-action-bar .qab-btn.qab-email .qab-icon { color:var(--purple); }
+        #nbd-quick-action-bar .qab-btn.qab-note .qab-icon { color:var(--purple); }
         #nbd-quick-action-bar .qab-btn.qab-task .qab-icon { color:var(--gold); }
         /* The bar pushes pinned page content up; we add bottom
            padding to <main> equivalent via body so floating share
@@ -193,15 +192,20 @@
           <span class="qab-icon">💬</span><span>Text</span>
         </a>`);
     }
-    if (email) {
+    // NOTE replaced EMAIL here (2026-10-08, phone audit item 4). On a roof Jo
+    // writes notes many times a day and emails from the truck, so the thumb
+    // slot goes to the note sheet (openNotesModal — the same sheet as the
+    // Notes panel's "Open larger editor"). Email is still one tap away: the
+    // header's Email sits in its "More" list.
+    if (typeof window.openNotesModal === 'function') {
       buttons.push(`
-        <a class="qab-btn qab-email" href="mailto:${escapeAttr(email)}" aria-label="Email ${escapeAttr(email)}">
-          <span class="qab-icon">✉️</span><span>Email</span>
-        </a>`);
+        <button class="qab-btn qab-note" type="button" data-qab="note" aria-label="Add a note">
+          <span class="qab-icon">📝</span><span>Note</span>
+        </button>`);
     }
     if (typeof window.openTaskModal === 'function') {
       buttons.push(`
-        <button class="qab-btn qab-task" type="button" aria-label="Add task">
+        <button class="qab-btn qab-task" type="button" data-qab="task" aria-label="Add task">
           <span class="qab-icon">✓</span><span>Task</span>
         </button>`);
     }
@@ -254,12 +258,14 @@
       }
     }, true); // capture — fire before anything that might stopPropagation
 
-    const taskBtn = bar.querySelector('.qab-task');
-    if (taskBtn) {
-      taskBtn.addEventListener('click', () => {
-        try { window.openTaskModal(); } catch (e) { console.warn('[qab]', e); }
-      });
-    }
+    // Note / Task: one delegated listener on the bar, resolved at tap time.
+    bar.addEventListener('click', (e) => {
+      const b = e.target && e.target.closest && e.target.closest('[data-qab]');
+      if (!b || !bar.contains(b)) return;
+      const fn = { note: window.openNotesModal, task: window.openTaskModal }[b.getAttribute('data-qab')];
+      if (typeof fn !== 'function') return;
+      try { fn(); } catch (err) { console.warn('[qab]', err); }
+    });
 
     return bar;
   }

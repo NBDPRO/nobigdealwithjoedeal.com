@@ -67,6 +67,14 @@ function world(docs) {
   // The REAL role check, not the world's stub: the matrix below is what the
   // deployed callable does.
   delete w.stubs['./handlers/_shared'];
+  // requireTeamAdmin now also reads the caller's Auth record
+  // (assertCallerAccountEnabled, #2318): every caller here is an enabled
+  // account. The gate itself stays real; only the Auth lookup is faked.
+  const auth = w.stubs['firebase-admin/auth'];
+  const baseGetAuth = auth.getAuth;
+  auth.getAuth = () => Object.assign(baseGetAuth(), {
+    getUser: async (uid) => ({ uid, disabled: false }),
+  });
   return w;
 }
 async function call(token, data, docs, w0) {

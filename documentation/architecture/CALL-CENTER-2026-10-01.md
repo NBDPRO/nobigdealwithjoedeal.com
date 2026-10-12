@@ -1,5 +1,12 @@
 # Call Center: Cube ACR recordings into the CRM (2026-10-01)
 
+> **Update 2026-10-12 (reliability audit).** This note predates `callWatch`
+> (2026-10-02) and the 2026-10-03 "people, not calls" rule. Two things worth
+> knowing before trusting the rest: callWatch's "every 2 hours" tells each
+> person **once** (new items since the last check; it never re-pushes), and
+> the push result was not checked. Full hop-by-hop map, failure modes and the
+> fixes: [NEVER-FORGET-RELIABILITY-AUDIT-2026-10-12](../audit/NEVER-FORGET-RELIABILITY-AUDIT-2026-10-12.md).
+
 **What Jo asked for:**
 - the phone's call recordings go into the CRM automatically, on a timer;
 - they get transcribed and AI-sorted;

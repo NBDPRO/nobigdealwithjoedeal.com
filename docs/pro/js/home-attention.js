@@ -91,13 +91,71 @@
    *   - a MISSED call counts for customers and saved contacts too (it used
    *     to count only from unknown numbers), until Jo reaches them.
    */
+  // 2026-10-12 — per-number labels (contact-labels-logic.js; documentation/
+  // projects/CONTACT-ROUTING-TREE-2026-10-12.md). ctx.labels = { digits10:
+  // { kind, policy } } (or a Map). An explicit label beats the AI's callType
+  // and bucket: policy 'hide' never counts, 'quiet' counts only through a
+  // promise Jo made (what sub / supplier always did), 'surface' = as before.
+  // Absent / unknown labels change nothing, so every caller that passes no
+  // labels (callWatch's mirror, old tests) behaves exactly as it did.
+  function labelOf(ctx, c) {
+    const L = ctx && ctx.labels;
+    if (!L || !c) return null;
+    const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
+    if (d.length !== 10) return null;
+    return (typeof L.get === 'function' ? L.get(d) : L[d]) || null;
+  }
+  const BURST_N = 3, BURST_MS = DAY;
+  /**
+   * Hidden numbers that should come back ONCE: a call since the label was
+   * applied / last acknowledged that is filed on a customer ('lead'), or 3+
+   * inbound calls in the last 24 h ('burst'). Returns [{ digits, reason,
+   * calls, base }] — base (max of ackAtMs, updatedAtMs) makes the id of a
+   * once-only alert. Handled / done / personal / spam calls never trigger it.
+   */
+  function resurfacedNumbers(rows, labels, now) {
+    const out = [];
+    if (!labels) return out;
+    const t = now == null ? Date.now() : now;
+    const by = new Map();
+    (rows || []).forEach((c) => {
+      if (!c || c.channel === 'text' || c.handledAtMs || c.taskDone === true || c.status === 'personal' || c.callType === 'spam') return;
+      const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
+      if (d.length !== 10) return;
+      const lb = typeof labels.get === 'function' ? labels.get(d) : labels[d];
+      if (!lb || lb.policy !== 'hide') return;
+      const base = Math.max(toMs(lb.ackAtMs), toMs(lb.updatedAtMs));
+      if ((toMs(c.startedAtMs) || 0) <= base) return;
+      if (!by.has(d)) by.set(d, { digits: d, base, calls: [] });
+      by.get(d).calls.push(c);
+    });
+    by.forEach((v) => {
+      const recent = v.calls.filter((c) => c.direction !== 'outbound' && (toMs(c.startedAtMs) || 0) >= t - BURST_MS);
+      const onLead = v.calls.some((c) => c.leadId);
+      const reason = onLead ? 'lead' : (recent.length >= BURST_N ? 'burst' : '');
+      if (reason) out.push({ digits: v.digits, reason, calls: v.calls, base: v.base });
+    });
+    return out;
+  }
   function callNeedsYou(c, now, ctx) {
     const t = now == null ? Date.now() : now;
     if (!c || c.handledAtMs || c.status === 'personal') return false;
     if (c.callType === 'spam' || c.taskDone === true) return false;
     if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) return false;
     const promised = (c.promises || []).some((p) => p && p.who === 'jo');
-    if (c.callType === 'sub' || c.callType === 'supplier') return promised;
+    const lb = labelOf(ctx, c);
+    const pol = lb && (lb.policy === 'hide' || lb.policy === 'quiet' || lb.policy === 'surface') ? lb.policy : '';
+    // Jo, 2026-10-12: "a promise ALWAYS surfaces" — hide / quiet drop missed
+    // and unknown-number noise, never a commitment Jo made on the call (his
+    // promise, or a follow-up date that has come). A HIDDEN number's urgent
+    // call also breaks through (an urgent flag is a real emergency until Jo
+    // says otherwise); a quiet number's does not (sub / supplier rule).
+    const dueFu = !!(c.followUpDate && c.followUpDate <= etYmd(t));
+    // (A number Jo labeled SPAM never breaks through on urgency: robocalls
+    // claim to be urgent. A personal number can — a family emergency.)
+    if (pol === 'hide') return promised || dueFu || (c.urgent === true && lb.kind !== 'spam');
+    if (pol === 'quiet') return promised || dueFu;
+    if (!pol && (c.callType === 'sub' || c.callType === 'supplier')) return promised;
     if (c.urgent === true) return true;
     if (promised) return true;
     if (c.followUpDate && c.followUpDate <= etYmd(t)) return true;
@@ -106,11 +164,13 @@
       return reached <= (toMs(c.startedAtMs) || 0);
     }
     if (c.leadId) return false;
-    if (c.bucket === 'insurance') return true;
+    // A number Jo labeled an adjuster is an insurance call even when the
+    // phone contact carries no carrier name.
+    if (c.bucket === 'insurance' || (lb && lb.kind === 'insurance')) return true;
     if (c.bucket === 'unknown') return c.status !== 'short';
     return false;
   }
-  function callsNeedingYou(rows, now) { const ctx = reachIndex(rows); return (rows || []).filter((c) => callNeedsYou(c, now, ctx)).length; }
+  function callsNeedingYou(rows, now, labels) { const ctx = reachIndex(rows); if (labels) ctx.labels = labels; return (rows || []).filter((c) => callNeedsYou(c, now, ctx)).length; }
 
   // Who a call / text day is with: the customer it is filed on, else the
   // number. Jo, 2026-10-02: "group them by customer" — 78 open calls were
@@ -124,13 +184,26 @@
     return d ? 'num:' + d : 'id:' + (c.id || '');
   }
   /** Open calls grouped by caller, newest caller first; calls newest first. */
-  function groupNeeds(rows, now) {
+  function groupNeeds(rows, now, labels) {
     const by = new Map();
     const ctx = reachIndex(rows);
+    if (labels) ctx.labels = labels;
     (rows || []).filter((c) => callNeedsYou(c, now, ctx)).forEach((c) => {
       const k = callerKey(c);
       if (!by.has(k)) by.set(k, { key: k, calls: [] });
       by.get(k).calls.push(c);
+    });
+    // Safety valve (Jo, 2026-10-12): a HIDDEN number that matches a customer
+    // or rings 3+ times in 24 h comes back once, as a row of its own; "Keep
+    // hidden" (label ackAtMs) or ✓ Handled quiets it until it happens again.
+    resurfacedNumbers(rows, labels, now).forEach((v) => {
+      v.calls.forEach((c) => {
+        const k = callerKey(c);
+        if (!by.has(k)) by.set(k, { key: k, calls: [] });
+        const g = by.get(k);
+        if (!g.calls.some((x) => x.id === c.id)) g.calls.push(c);
+        g.resurfaced = v.reason; g.resurfacedDigits = v.digits;
+      });
     });
     const groups = Array.from(by.values());
     groups.forEach((g) => {
@@ -139,20 +212,27 @@
     });
     return groups.sort((a, b) => b.latestMs - a.latestMs);
   }
-  function callersNeedingYou(rows, now) { return groupNeeds(rows, now).length; }
+  function callersNeedingYou(rows, now, labels) { return groupNeeds(rows, now, labels).length; }
+  /** People a label took OFF the list: who needed you by the old rule and no longer do. */
+  function hiddenPeople(rows, now, labels) {
+    if (!labels) return 0;
+    const shown = new Set(groupNeeds(rows, now, labels).map((g) => g.key));
+    return groupNeeds(rows, now).filter((g) => !shown.has(g.key)).length;
+  }
 
   function stripHtml(counts) {
     const c = counts || {};
     const items = [];
     if (c.stripe > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="money">💳 ' + c.stripe + ' Stripe payment' + (c.stripe === 1 ? '' : 's') + ' need' + (c.stripe === 1 ? 's' : '') + ' a customer</button>');
     if (c.signs > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="signs">🪧 ' + c.signs + ' yard sign' + (c.signs === 1 ? '' : 's') + ' to pick up</button>');
-    if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
+    if (c.callsFailed) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Could not check your calls just now' + (c.calls > 0 ? ' — ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you so far' : ' — this is NOT an all-clear') + '. Tap to open the Call Center</button>');
+    else if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
     // Review asks, one at a time (review-deck.js opens the deck on data-review-deck).
     if (c.reviews > 0) items.push('<button type="button" class="ha-item" data-review-deck="1">⭐ ' + c.reviews + ' review ask' + (c.reviews === 1 ? '' : 's') + ' waiting</button>');
     return items.join('');
   }
 
-  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, reachIndex, isMissedCall };
+  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root || !root.document) return;
   root.NBDHomeAttention = api;
@@ -191,16 +271,28 @@
     // called AND texted is one person.
     const callRows = [];
     if (u && w.orderBy && w.limit) {
+      // A failed read must NOT render as "nobody needs you" (2026-10-12 audit
+      // R5): a missing index, a rules / App Check denial or being offline all
+      // land here, and an empty list is exactly what a healthy quiet day looks
+      // like. callsFailed turns the strip into a visible warning instead.
       jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.orderBy('startedAtMs', 'desc'), w.limit(200)))
-        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data()))); }).catch(() => {}));
+        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data()))); }).catch(() => { out.callsFailed = true; }));
       jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_text_days'), w.where('userId', '==', u), w.orderBy('startedAtMs', 'desc'), w.limit(100)))
-        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: 'text:' + d.id }, d.data()))); }).catch(() => {}));
+        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: 'text:' + d.id }, d.data()))); }).catch(() => { out.callsFailed = true; }));
     }
     await Promise.all(jobs);
-    out.calls = callersNeedingYou(callRows, Date.now());
+    // Per-number labels (2026-10-12): a lazy bundle, read after the calls so
+    // it never delays the strip; any failure = no labels = the old rule.
+    let labels = null;
+    try {
+      if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') await w.ScriptLoader.loadBundle('contactlabels');
+      if (w.NBDContactLabels) labels = await w.NBDContactLabels.load(false);
+    } catch (_) { labels = null; }
+    out.calls = callersNeedingYou(callRows, Date.now(), labels);
+    out.hidden = hiddenPeople(callRows, Date.now(), labels);
     // Today (today-home.js) lists these same people from these same rows —
     // shared, not re-read (2026-10-03).
-    api.lastRows = callRows; api.lastCounts = out;
+    api.lastRows = callRows; api.lastCounts = out; api.lastLabels = labels;
     try { w.dispatchEvent(new CustomEvent('nbd:attention-loaded')); } catch (_) { /* old browser */ }
     return out;
   }
@@ -217,6 +309,22 @@
     } finally { _busy = false; }
   }
 
+  // The 'contactlabels' lazy bundle is registered HERE, not in script-loader.js:
+  // that file is a blocking script and its budget has ~300 B of headroom
+  // (dashboard-boot-budget). today-home.js and call-center-view.js load it by
+  // name; this deferred file always runs first.
+  if (w.ScriptLoader && w.ScriptLoader.bundles && !w.ScriptLoader.bundles.contactlabels) {
+    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=1', 'js/contact-labels-logic.js?v=3', 'js/contact-labels.js?v=2'];
+  }
+  // A label changed (optimistic apply, undo or rollback): recount from the
+  // rows already held — no Firestore read — and repaint the strip.
+  w.addEventListener('nbd:labels-changed', () => {
+    const el = document.getElementById('homeAttention');
+    if (!api.lastRows || !api.lastCounts) return;
+    api.lastCounts.calls = callersNeedingYou(api.lastRows, Date.now(), api.lastLabels);
+    api.lastCounts.hidden = hiddenPeople(api.lastRows, Date.now(), api.lastLabels);
+    if (el) { const html = stripHtml(api.lastCounts); el.innerHTML = html; el.hidden = !html; }
+  });
   w.addEventListener('nbd:data-refreshed', () => { render(false); });
   w.addEventListener('hashchange', () => { if (/^#?\/?(home|dash)?$/.test(location.hash || '')) setTimeout(() => render(false), 300); });
   const boot = () => setTimeout(() => render(true), 1500);

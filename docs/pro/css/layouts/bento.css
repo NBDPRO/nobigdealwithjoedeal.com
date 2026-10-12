@@ -1,0 +1,173 @@
+/* layouts/bento.css — L01 Bento Board (2026-10-12, D5).
+ * Scoped under html[data-layout="bento"]; theme tokens + --tap only (no
+ * literal colours), no inline styles anywhere (position classes at the end).
+ * The board replaces the classic widget grid on Home; Classic is untouched.
+ * Glass only behind a My Skin wallpaper or Surface style: Glass, solid
+ * otherwise, so a tile is never see-through over nothing. */
+
+html[data-layout="bento"] #view-home .home-more,
+html[data-layout="bento"] #view-home .page-hdr [data-target="NBDWidgets.openPicker"] { display: none; }
+
+html[data-layout="bento"] .bn-root { margin: 0 0 24px; }
+
+/* ── bar + drawer ── */
+html[data-layout="bento"] .bn-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+html[data-layout="bento"] .bn-heading { margin: 0 auto 0 0; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--m); }
+html[data-layout="bento"] .bn-btn {
+  min-height: 40px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--rule);
+  background: var(--s2); color: var(--t); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+html[data-layout="bento"] .bn-btn-primary { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); }
+html[data-layout="bento"] .bn-btn:focus-visible,
+html[data-layout="bento"] .bn-tbtn:focus-visible,
+html[data-layout="bento"] .bn-add:focus-visible,
+html[data-layout="bento"] .bn-open:focus-visible,
+html[data-layout="bento"] .bn-go:focus-visible,
+html[data-layout="bento"] .bn-cell:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+html[data-layout="bento"] .bn-drawer { margin: 0 0 12px; padding: 12px; border: 1px solid var(--rule); border-radius: 16px; background: var(--s); }
+html[data-layout="bento"] .bn-drawer[hidden] { display: none; }
+html[data-layout="bento"] .bn-drawer-title { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--m); margin-bottom: 8px; }
+html[data-layout="bento"] .bn-drawer-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+html[data-layout="bento"] .bn-add {
+  width: 100%; min-height: 56px; text-align: left; padding: 8px 12px; border-radius: 12px; border: 1px dashed var(--rule);
+  background: var(--s2); color: var(--t); font: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 2px;
+}
+html[data-layout="bento"] .bn-add-t { font-weight: 800; font-size: 14px; }
+html[data-layout="bento"] .bn-add-d { font-size: 12px; color: var(--m); }
+html[data-layout="bento"] .bn-empty { padding: 28px 12px; text-align: center; color: var(--m); border: 1px dashed var(--rule); border-radius: 16px; margin-bottom: 12px; }
+html[data-layout="bento"] .bn-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── the grid: 4 columns; a phone gets 2, in reading order ── */
+html[data-layout="bento"] .bn-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 160px; gap: 12px;
+}
+html[data-layout="bento"] .bn-cell { position: relative; min-width: 0; min-height: 0; }
+html[data-layout="bento"] .bn-cell > .lk-widget { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+html[data-layout="bento"] .bn-cell .lk-w-hdr { flex: none; padding-right: 36px; }
+html[data-layout="bento"] .bn-cell .lk-w-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+html[data-layout="bento"] .bn-body { min-height: 0; }
+html[data-layout="bento"] .bn-open {
+  position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--m); font: inherit; font-size: 18px; cursor: pointer;
+}
+html[data-layout="bento"] .bn-open:hover { color: var(--orange); }
+
+/* ── native tile bits ── */
+html[data-layout="bento"] .bn-big { font-size: 32px; line-height: 1; font-weight: 900; color: var(--orange); font-variant-numeric: tabular-nums; }
+html[data-layout="bento"] .bn-sub { font-size: 13px; color: var(--m); margin-top: 4px; }
+html[data-layout="bento"] .bn-note { font-size: 13px; color: var(--m); padding: 4px 0; }
+html[data-layout="bento"] .bn-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+html[data-layout="bento"] .bn-li { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+html[data-layout="bento"] .bn-link { color: var(--t); font-weight: 700; text-decoration: none; overflow-wrap: anywhere; }
+html[data-layout="bento"] .bn-chip { flex: none; padding: 1px 8px; border-radius: 999px; background: var(--og); color: var(--orange); font-size: 12px; font-weight: 800; }
+html[data-layout="bento"] .bn-go {
+  margin-top: 10px; min-height: 40px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--rule);
+  background: var(--s2); color: var(--t); font: inherit; font-weight: 700; cursor: pointer;
+}
+
+/* ── glass: only over a wallpaper / Surface style: Glass ── */
+html[data-layout="bento"].my-skin-wallpaper .bn-cell > .lk-widget,
+html[data-layout="bento"][data-surface="glass"] .bn-cell > .lk-widget {
+  background: color-mix(in srgb, var(--s) var(--glass-frost-eff, 72%), transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.35);
+  backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.35);
+}
+@media (prefers-contrast: more) {
+  html[data-layout="bento"].my-skin-wallpaper .bn-cell > .lk-widget,
+  html[data-layout="bento"][data-surface="glass"] .bn-cell > .lk-widget { background: var(--s); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+/* ── edit mode ── */
+html[data-layout="bento"] .bn-tools { display: none; }
+html[data-layout="bento"] .bn-editing .bn-cell > .lk-widget { outline: 2px dashed var(--rule); outline-offset: -2px; }
+html[data-layout="bento"] .bn-editing .bn-body,
+html[data-layout="bento"] .bn-editing .bn-open { pointer-events: none; }
+html[data-layout="bento"] .bn-editing .bn-open { visibility: hidden; }
+html[data-layout="bento"] .bn-editing .bn-tools {
+  position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 6px; border-radius: 16px; box-sizing: border-box;
+  background: color-mix(in srgb, var(--s) 82%, transparent);
+}
+html[data-layout="bento"] .bn-tools-name { font-size: 12px; font-weight: 800; color: var(--t); text-align: center; line-height: 1.1; }
+html[data-layout="bento"] .bn-tgrp { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+html[data-layout="bento"] .bn-tbtn {
+  min-width: 36px; min-height: 40px; padding: 0 4px; border-radius: 10px; border: 1px solid var(--rule);
+  background: var(--s2); color: var(--t); font: inherit; font-size: 14px; font-weight: 800; cursor: pointer;
+}
+html[data-layout="bento"] .bn-tbtn[disabled] { opacity: .35; cursor: not-allowed; }
+html[data-layout="bento"] .bn-t-remove { color: var(--orange); }
+html[data-layout="bento"] .bn-dragging { z-index: 5; opacity: .88; }
+@media (hover: hover) and (min-width: 769px) {
+  html[data-layout="bento"] .bn-editing .bn-cell { cursor: grab; touch-action: none; }
+  html[data-layout="bento"] .bn-editing .bn-dragging { cursor: grabbing; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-layout="bento"] .bn-dragging { transition: opacity .12s ease; }
+}
+
+/* ── position classes: column start / row start / width / height ── */
+html[data-layout="bento"] .bn-c1 { grid-column-start: 1; }
+html[data-layout="bento"] .bn-c2 { grid-column-start: 2; }
+html[data-layout="bento"] .bn-c3 { grid-column-start: 3; }
+html[data-layout="bento"] .bn-c4 { grid-column-start: 4; }
+html[data-layout="bento"] .bn-w1 { grid-column-end: span 1; }
+html[data-layout="bento"] .bn-w2 { grid-column-end: span 2; }
+html[data-layout="bento"] .bn-w3 { grid-column-end: span 3; }
+html[data-layout="bento"] .bn-w4 { grid-column-end: span 4; }
+html[data-layout="bento"] .bn-h1 { grid-row-end: span 1; }
+html[data-layout="bento"] .bn-h2 { grid-row-end: span 2; }
+html[data-layout="bento"] .bn-h3 { grid-row-end: span 3; }
+html[data-layout="bento"] .bn-r1 { grid-row-start: 1; }
+html[data-layout="bento"] .bn-r2 { grid-row-start: 2; }
+html[data-layout="bento"] .bn-r3 { grid-row-start: 3; }
+html[data-layout="bento"] .bn-r4 { grid-row-start: 4; }
+html[data-layout="bento"] .bn-r5 { grid-row-start: 5; }
+html[data-layout="bento"] .bn-r6 { grid-row-start: 6; }
+html[data-layout="bento"] .bn-r7 { grid-row-start: 7; }
+html[data-layout="bento"] .bn-r8 { grid-row-start: 8; }
+html[data-layout="bento"] .bn-r9 { grid-row-start: 9; }
+html[data-layout="bento"] .bn-r10 { grid-row-start: 10; }
+html[data-layout="bento"] .bn-r11 { grid-row-start: 11; }
+html[data-layout="bento"] .bn-r12 { grid-row-start: 12; }
+html[data-layout="bento"] .bn-r13 { grid-row-start: 13; }
+html[data-layout="bento"] .bn-r14 { grid-row-start: 14; }
+html[data-layout="bento"] .bn-r15 { grid-row-start: 15; }
+html[data-layout="bento"] .bn-r16 { grid-row-start: 16; }
+html[data-layout="bento"] .bn-r17 { grid-row-start: 17; }
+html[data-layout="bento"] .bn-r18 { grid-row-start: 18; }
+html[data-layout="bento"] .bn-r19 { grid-row-start: 19; }
+html[data-layout="bento"] .bn-r20 { grid-row-start: 20; }
+html[data-layout="bento"] .bn-r21 { grid-row-start: 21; }
+html[data-layout="bento"] .bn-r22 { grid-row-start: 22; }
+html[data-layout="bento"] .bn-r23 { grid-row-start: 23; }
+html[data-layout="bento"] .bn-r24 { grid-row-start: 24; }
+html[data-layout="bento"] .bn-r25 { grid-row-start: 25; }
+html[data-layout="bento"] .bn-r26 { grid-row-start: 26; }
+html[data-layout="bento"] .bn-r27 { grid-row-start: 27; }
+html[data-layout="bento"] .bn-r28 { grid-row-start: 28; }
+html[data-layout="bento"] .bn-r29 { grid-row-start: 29; }
+html[data-layout="bento"] .bn-r30 { grid-row-start: 30; }
+html[data-layout="bento"] .bn-r31 { grid-row-start: 31; }
+html[data-layout="bento"] .bn-r32 { grid-row-start: 32; }
+html[data-layout="bento"] .bn-r33 { grid-row-start: 33; }
+html[data-layout="bento"] .bn-r34 { grid-row-start: 34; }
+html[data-layout="bento"] .bn-r35 { grid-row-start: 35; }
+html[data-layout="bento"] .bn-r36 { grid-row-start: 36; }
+html[data-layout="bento"] .bn-r37 { grid-row-start: 37; }
+html[data-layout="bento"] .bn-r38 { grid-row-start: 38; }
+html[data-layout="bento"] .bn-r39 { grid-row-start: 39; }
+html[data-layout="bento"] .bn-r40 { grid-row-start: 40; }
+html[data-layout="bento"] .bn-r41 { grid-row-start: 41; }
+
+/* ── phone: two columns, reading order; left/right become earlier/later ──
+ * (after the position classes so these win on equal specificity) */
+@media (max-width: 768px) {
+  html[data-layout="bento"] .bn-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: row dense; grid-auto-rows: 176px; gap: 10px; }
+  html[data-layout="bento"] .bn-grid .bn-cell { grid-column-start: auto; grid-row-start: auto; grid-column-end: span 1; grid-row-end: span 1; }
+  html[data-layout="bento"] .bn-grid .bn-cell:is(.bn-w2, .bn-w3, .bn-w4) { grid-column-end: span 2; }
+  html[data-layout="bento"] .bn-grid .bn-cell.bn-h2 { grid-row-end: span 2; }
+  html[data-layout="bento"] .bn-grid .bn-cell.bn-h3 { grid-row-end: span 3; }
+  html[data-layout="bento"] .bn-t-left,
+  html[data-layout="bento"] .bn-t-right { display: none; }
+  html[data-layout="bento"] .bn-bar .bn-btn { flex: 1 1 auto; }
+}
