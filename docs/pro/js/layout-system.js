@@ -213,6 +213,17 @@
     supports: { wallpaper: true, glass: true },
   });
 
+  // L05 Triage Inbox (D6): one keyboard-driven list | thread | facts. Every
+  // surface (it folds to one pane at a time on a phone).
+  register({
+    id: 'inbox', name: 'Triage Inbox', version: 1,
+    blurb: 'Texts, calls, new leads and nudges in one list, with a reply-by timer.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/inbox.js', css: 'css/layouts/inbox.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: false, sunlight: false },
+  });
+
   var api = {
     SURFACES: SURFACES, FALLBACK: FALLBACK, ID_RE: ID_RE, MAX_STATE_JSON: MAX_STATE_JSON,
     register: register, get: get, list: list, forSurface: forSurface,
