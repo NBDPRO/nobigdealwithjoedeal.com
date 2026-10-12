@@ -510,7 +510,8 @@
       cfg.slots[slot] = { path: path, v: Date.now() };
       if (!cfg.enabled) cfg.enabled = true;   // the first picture turns it on
       setUrl(slot, blob);
-      return showCurrent().then(function () { save(); });
+      var saved = save();   // the write starts NOW (not after the paint), and "saved" waits for it, capped so offline never wedges the button
+      return showCurrent().then(function () { return Promise.race([saved, new Promise(function (r) { setTimeout(r, 5000); })]); });
     }).then(function () {
       toast(spec.label + ' saved. Only you see it.', 'success');
       return true;
@@ -537,7 +538,7 @@
         var p = {}; p['mySkin.slots.' + slot] = f.deleteField();
         return f.updateDoc(f.doc(window.db, 'userSettings', uid), p).catch(function () {});
       });
-    }).then(function () { return showCurrent(); }).then(function () { save(); })
+    }).then(function () { return showCurrent(); }).then(function () { return save(); })
       .catch(function () { toast('Couldn’t remove that picture. Try again.', 'error'); })
       .then(function () { busy[slot] = false; renderPanel(); });
   }

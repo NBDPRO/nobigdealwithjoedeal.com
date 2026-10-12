@@ -164,10 +164,17 @@ test.describe('phone: Send for review + estimate follow-ups @shard2', () => {
     await expect(row).toContainText('Not opened yet');
     await expect(page.locator('#todayPlan .ef-row[data-lead-id="' + leadA + '"]'), 'a just-sent estimate is not due yet').toHaveCount(0);
     const fu = row.locator('[data-ef-send]');
-    await fu.evaluate((el) => el.scrollIntoView({ block: 'center' }));
-    await page.waitForTimeout(400);
+    // Home keeps re-rendering while its data lands (leads, jobs, estimates), and a
+    // re-render can put the scroller back at the top AFTER we scrolled the row
+    // into view: the button then sits below the fold and elementFromPoint says
+    // null (measured 3 in 10, 2026-10-12: top 1216 of an 844px screen). Scroll
+    // and measure together until the row is under a thumb, instead of one scroll
+    // and a blind 400ms.
+    await expect.poll(async () => {
+      await fu.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      return (await hits(fu)).ok;
+    }, { timeout: 15_000, message: 'Follow up is tappable at 390' }).toBe(true);
     const fh = await hits(fu);
-    expect(fh.ok, 'Follow up is tappable at 390').toBe(true);
     expect(fh.docW, 'the card does not widen the page').toBeLessThanOrEqual(390);
     await fu.tap();
     // window.__shares starts empty on each page load (the init script).
