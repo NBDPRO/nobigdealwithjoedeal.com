@@ -28,6 +28,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const L = require('./call-center-logic');
+const CL = require('./contact-labels');
 
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const CONFIG = 'integrations/callCenter';
@@ -113,6 +114,9 @@ async function runIngest({ db, bucket, live, nowMs }) {
   const scan = L.foldersToScan(days, startCursor, floor);
 
   const index = L.buildPhoneIndex(await ownerLeads(db));
+  // Numbers Jo labeled personal AND confirmed "stop copying and transcribing"
+  // (contact-labels.js captureOff): listed so the cursor advances, never copied.
+  const labels = await CL.loadLabels(db, OWNER);
   const counts = { folders: scan.length, seen: 0, fresh: 0, stored: 0, skipped: 0, failed: 0, buckets: {} };
   let cursor = startCursor;
   let budget = MAX_FILES_PER_RUN;
@@ -147,6 +151,17 @@ async function runIngest({ db, bucket, live, nowMs }) {
       const match = L.matchLead(parsed.phoneDigits, index);
       const bucketName = L.classifyCall(parsed, match);
       counts.buckets[bucketName] = (counts.buckets[bucketName] || 0) + 1;
+      if (CL.captureOff(labels, parsed.phoneDigits)) {
+        // One metadata row (time, direction, number) so the Call Center still
+        // shows that it rang; no audio copy, no Groq, no notes, no transcript.
+        counts.labelSkipped = (counts.labelSkipped || 0) + 1;
+        if (live) {
+          await docRef.set(Object.assign(
+            L.buildCallDoc({ ownerUid: OWNER, file: f, parsed, match, bucket: bucketName, storedPath: null, nowMs, durationSec: null }),
+            { status: 'personal', audioRemoved: 'label', capturedByLabel: false, createdAt: FieldValue.serverTimestamp() }));
+        }
+        continue;
+      }
       if (!live) continue;
       if (budget <= 0) { finishedDay = false; break; }
       budget--;
@@ -452,6 +467,16 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
       .orderBy('startedAtMs', 'desc').limit(TRANSCRIBE_PER_RUN * 3).get();
     q.forEach((d) => candidates.push(Object.assign({}, d.data(), { id: d.id })));
   }
+  // A number labeled personal + "stop copying and transcribing" after its call
+  // was copied: never transcribe it. The stored audio is left exactly as it is
+  // (only the status moves, so the queue stops seeing it).
+  const labels = await CL.loadLabels(db, OWNER);
+  const kept = [];
+  for (const c of candidates) {
+    if (!CL.captureOff(labels, c.phoneDigits)) { kept.push(c); continue; }
+    if (live) await db.collection(COLLECTION).doc(c.id).set({ status: 'personal', labelCapture: 'off' }, { merge: true });
+  }
+  candidates = kept;
   const pick = L.pickToTranscribe(candidates, { live, allowIds, maxCount: TRANSCRIBE_PER_RUN, secLeft });
   const out = { state: allowIds.length ? 'test' : 'live', picked: pick.length, noted: 0, personal: 0, failed: 0, tasks: 0, audioSec: 0 };
   const d = deps();

@@ -341,7 +341,7 @@ service cloud.firestore {
     function contactLabelOk(companyId, digits) {
       let d = request.resource.data;
       return digits.matches('^[0-9]{10}$')
-        && d.keys().hasOnly(['digits', 'kind', 'policy', 'name', 'note', 'source', 'companyId', 'updatedBy', 'updatedAtMs', 'createdAtMs', 'ackAtMs'])
+        && d.keys().hasOnly(['digits', 'kind', 'policy', 'name', 'note', 'source', 'companyId', 'updatedBy', 'updatedAtMs', 'createdAtMs', 'ackAtMs', 'capture'])
         && d.keys().hasAll(['digits', 'kind', 'policy', 'companyId', 'updatedBy', 'updatedAtMs', 'createdAtMs'])
         && d.digits == digits
         && d.companyId == companyId
@@ -352,6 +352,7 @@ service cloud.firestore {
         && (!('note' in d) || (d.note is string && d.note.size() <= 200))
         && (!('source' in d) || d.source in ['manual', 'seed-tag', 'thursday', 'lead'])
         && (!('ackAtMs' in d) || d.ackAtMs is number)
+        && (!('capture' in d) || (d.capture == 'off' && d.kind == 'personal'))
         && d.updatedAtMs is number && d.createdAtMs is number;
     }
 

@@ -42,7 +42,7 @@
   var SOURCES = ['manual', 'seed-tag', 'thursday', 'lead'];
   var NAME_MAX = 80, NOTE_MAX = 200;
   // The only keys a label doc may carry (firestore.rules hasOnly mirrors it).
-  var DOC_KEYS = ['digits', 'kind', 'policy', 'name', 'note', 'source', 'companyId', 'updatedBy', 'updatedAtMs', 'createdAtMs', 'ackAtMs'];
+  var DOC_KEYS = ['digits', 'kind', 'policy', 'name', 'note', 'source', 'companyId', 'updatedBy', 'updatedAtMs', 'createdAtMs', 'ackAtMs', 'capture'];
 
   function digits10(v) {
     var d = String(v == null ? '' : v).replace(/\D/g, '');
@@ -77,6 +77,10 @@
     };
     // ackAtMs: Jo said "keep it hidden" after a hidden number came back (safety valve).
     if (Number(o.ackAtMs) > 0) doc.ackAtMs = Number(o.ackAtMs);
+    // capture 'off' (personal only): Jo confirmed "stop copying and
+    // transcribing future calls and texts from this number". Never inferred,
+    // never carried over to another kind.
+    if (o.capture === 'off' && o.kind === 'personal') doc.capture = 'off';
     return doc;
   }
 
@@ -93,6 +97,7 @@
         source: SOURCES.indexOf(data.source) !== -1 ? data.source : 'manual',
         updatedBy: data.updatedBy || '', updatedAtMs: Number(data.updatedAtMs) || 0,
         createdAtMs: Number(data.createdAtMs) || 0, ackAtMs: Number(data.ackAtMs) || 0,
+        capture: data.kind === 'personal' && data.capture === 'off' ? 'off' : '',
       };
     });
     return out;
@@ -126,7 +131,7 @@
     var p = policyOf(label);
     return {
       // A hidden number that still shows (a promise Jo made) says so.
-      text: (KIND_LABEL[label.kind] || 'Labeled') + (p === 'hide' ? ' · hidden number' : ''),
+      text: (KIND_LABEL[label.kind] || 'Labeled') + (p === 'hide' ? ' · hidden number' : '') + (label.capture === 'off' ? ' · not recorded' : ''),
       tone: p === 'hide' ? 'hidden' : p === 'quiet' ? 'quiet' : 'neutral',
       title: (KIND_LABEL[label.kind] || 'Labeled') + ' — ' + POLICY_LABEL[p],
     };
