@@ -102,10 +102,60 @@ all deferred, blocking bytes unchanged.
   mid-crossfade), real encode (3200x1800 -> 2560x1440 webp), dotted-path writes,
   clear, `purgeLocal`, and an iPhone-width pass (blur capped at 6, no overflow).
 
+## Slice B2: bulk import, thumbnails, the all-themes grid, the soft quota
+
+**Import** (`my-skin-import.js`, lazy: nothing loads until "Import a pack…" or
+"All theme backgrounds" is pressed). A folder (`webkitdirectory`) or a .zip.
+`NBDMySkinLogic.matchImportName` is the spec's reference algorithm: lower-cased
+stem is a theme id -> picture 1; `<id>-n` with n 1..6 -> picture n; ignores
+`previews/`, `__MACOSX`, dotfiles, csv/md and the 13 category names. Tested
+against every live id from `theme-engine.js` (ids only): `<id>.jpg`,
+`<id>-2..6`, folders, uppercase, `-7` refused, no false matches. A test also goes
+red on purpose if a new theme id ever collides with another id's slideshow slot.
+Review table: Replace / Add to slideshow / Skip per theme (themes that already
+have pictures default to Skip), Replace all / Add all / Skip all, unmatched list.
+Queue: 3 themes at once, each file re-encoded (worker, main thread fallback),
+uploaded with its 256 px thumbnail, theme entries committed 25 at a time in one
+merge; pause, cancel, retry failed, resume (finished file name+size kept in
+`sessionStorage nbd_myskin_import`, re-pick the pack), `beforeunload` warning.
+
+**Zip reading: no library.** The spec asked for a vendored fflate. Instead the
+module reads the zip central directory itself
+(`NBDMySkinLogic.parseZipDirectory`, unit-tested against zips built in-process)
+and inflates with the browser's `DecompressionStream('deflate-raw')` (Chrome 80+,
+Safari 16.4+, Firefox 113+; older browsers are told to use Folder). No download,
+no vendored code, no licence. Limits: 500 MB zip, 400 entries, 20 MB per
+picture, 1.5 GB expanded, Zip64 and encrypted entries refused, and an entry
+that inflates past its declared size is cut off (a header that lies about size
+cannot make a zip bomb).
+
+**Worker.** `my-skin-encode-worker.js` (OffscreenCanvas, same maths via
+`importScripts('my-skin-logic.js?v=3')`; the test pins that cache-buster to the
+pages'). `worker-src 'self' blob:` was already in the app CSP. A browser
+without OffscreenCanvas, or a format only the page can decode (HEIC on Safari),
+falls back to the main-thread encode. Measured in a browser: no long task over
+200 ms across an import.
+
+**Thumbnails.** `<imageId>_t`, 256 px webp q0.7, made for every new upload
+(single and bulk), flagged `thumb: true` on the entry, deleted with the picture.
+`storage.rules` imageId is now `^[a-z0-9]{8,16}(_t)?$` (still owner-only, lossy
+only, < 3 MB; emulator cases include a thumbnail read by another user / admin).
+Pictures uploaded in B1 have no thumbnail; the grid shows their swatch.
+
+**Grid** ("All theme backgrounds"): by category, swatch + lazy thumbnail
+(IntersectionObserver, 200 px), picture count, Locked tag, filters All / Has
+picture / Missing / Locked, search. Picking a card edits that theme **without
+applying it** (the card says "(not applied)"; Preview applies it through
+ThemeEngine). Hover prefetch in the theme picker (`#npm-grid [data-theme-key]`,
+set in maps.js): 150 ms debounce, 3 in flight, off on phones and Data Saver.
+
+**Soft quota** (Jo, 300 MB): `usageBytes` = distinct per-theme objects' stored
+bytes. The panel shows usage; a single upload to a new theme, the import's
+Start button and each file in the queue refuse past 300 MB with a message. This
+is UI-only; the hard 1 GB cap is a Cloud Function on Storage finalize (own PR).
+
 ## Open / next
 
-- B2: bulk import (zip/folder, fflate vendored), thumbnails (`_t` suffix needs a
-  rules change), preview grid, soft 300 MB UI cap.
 - Hard 1 GB cap Cloud Function: its own PR.
 - B3: slideshows (the `images[]` list, interval/shuffle/fade settings and the
   per-theme fields are already normalised; B1 paints `images[0]`).

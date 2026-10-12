@@ -177,9 +177,65 @@ clean `origin/main` worktree, so it is not this work.
   restarts the lead's clock.
 - Pure rules: `adjacentStages` / `moveOutcome` in `pixel-world-logic.js`
   (tested, break-tested).
-- **DRAFT TEXT stays disabled, deliberately.** `agent_inbox` has
+- **DRAFT TEXT stayed disabled in E2b, deliberately** (built in E2c below). `agent_inbox` has
   `allow create: if false` in `firestore.rules`; drafts are written only by
   the server (`crmMcp` / `agent-mcp.js`). A client "draft into the inbox"
   needs a new callable that runs the same consent / quiet-hours / STOP / claim
   wording checks, plus rules and emulator tests. That is a functions change,
   not a client slice, and nothing here may auto-send. Left for its own PR.
+
+## E2c - DRAFT TEXT through a server callable (2026-10-11)
+
+The blocker above is closed by a new callable, `fileLeadTextDraft`
+(`functions/pixel-draft.js`, pure half `functions/pixel-draft-logic.js`). It
+follows the shape of Storm Mode's `fileStormDrafts` (same inbox item,
+same `buildTextDraft` / `textGate` / `claimWordingProblem` helpers from
+`agent-mcp-logic.js`), with a per-lead role check instead of owner-only.
+
+**Guarantees (all proved in `tests/pixel-draft-2026-10-11.test.js`):**
+
+- **Never sends.** It files one `draft_text` (status pending, bot "Pixel
+  World") into the caller's company `agent_inbox` and writes no `sms_log`.
+  The owner sends from the Agent inbox; `agentDraftAction` `sent` re-checks
+  STOP / Do Not Text / consent / texting switch / texting hours (8am-9pm,
+  homeowner time) exactly as for bot and Storm Mode drafts.
+- **No client words.** Input is `{ leadId, template }`; `template` must be one
+  of `followup`, `estimate_check_in`, `appointment_reminder`,
+  `thanks_after_job` (own-property check, so `__proto__` fails). The body is
+  the template line plus first name and company name, then the STOP line.
+  Extra fields (body, phone, companyId) are ignored.
+- **Claim wording.** No template line can contain claim / insurance / adjuster
+  / coverage / deductible / advance / deposit / waive / rebate / assignment /
+  price words (a tested filter with positive controls), and every finished body
+  passes `claimWordingProblem`. This holds for every lead, not only Kentucky
+  insurance jobs, so there is no per-lead branch that could be missed.
+- **Who.** Signed-in company member. Refused: signed out, anonymous, viewer,
+  access-code member. A sales_rep only for a lead they own; owner,
+  company_admin, manager (and platform admin) for any lead of the company.
+  Only the owner and company_admin can see the Agent inbox, so the answer
+  tells a manager or rep the draft waits there for the owner or an admin.
+- **Tenancy.** The lead must be the caller's company's (companyId or userId),
+  not deleted, not test data. Anything else answers one `not_on_board`, so
+  another company's lead id reveals nothing.
+- **Skips (answered, never filed):** no textable phone, declined texting on
+  the form, STOP register, company Do Not Text list, register unreadable
+  (fails closed), company has no name on its profile, lead unreadable
+  (`unavailable`).
+- **Idempotent.** Item id `pxd_<template>_<lead>_<company-local day>` via
+  `create()`: a double click, second tab or teammate files once and the repeat
+  answers `already_filed`. 60 drafts an hour per uid (`resource-exhausted`).
+- **No PII** in the item beyond what every draft carries (lead id), in the
+  answer, or in logs (template key and outcome only).
+
+**Game side.** `pixel-world.js` shows DRAFT TEXT enabled for non-viewers with a
+phone; picking it opens a menu of the four templates (labels in
+`pixel-world-logic.js` `DRAFT_TEMPLATES`, parity-tested against the server's
+keys), calls `env.fileDraft(leadId, key)` (`pixel-mode-core.js` `callFn`, the
+same lazy Functions SDK plumbing as `agent-inbox.js`), and shows
+DRAFT FILED / ALREADY FILED / NOT ALLOWED + the server's reason / COULD NOT
+FILE. Every outcome says "Nothing was texted"; none says sent. The game still
+has no Firestore write, no network and no innerHTML (existing contract tests).
+
+**Deploy.** Functions need a deploy for the callable to exist; until then DRAFT
+TEXT answers COULD NOT FILE (the client fails soft). No rules change.
+`viewer-callables.test.js` classifies it `role-gated`.

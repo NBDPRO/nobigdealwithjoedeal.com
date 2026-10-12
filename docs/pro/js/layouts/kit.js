@@ -181,7 +181,7 @@
     else if (state === 'empty') body = '<div class="lk-w-state lk-w-empty">' + esc(x.emptyText || 'Nothing here yet') + '</div>';
     else body = String(x.body == null ? '' : x.body);   // already-escaped html from the layout
     return '<section class="lk-widget lk-w-' + size + ' lk-w-' + state + '" data-widget="' + esc(x.id || '') + '">' +
-      (x.title ? '<header class="lk-w-hdr"><h3 class="lk-w-title">' + esc(x.title) + '</h3>' + (x.aside ? '<span class="lk-w-aside">' + esc(x.aside) + '</span>' : '') + '</header>' : '') +
+      (x.title ? '<div class="lk-w-hdr"><h3 class="lk-w-title">' + esc(x.title) + '</h3>' + (x.aside ? '<span class="lk-w-aside">' + esc(x.aside) + '</span>' : '') + '</div>' : '') +
       '<div class="lk-w-body">' + body + '</div></section>';
   }
 

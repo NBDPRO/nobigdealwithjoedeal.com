@@ -181,7 +181,7 @@
 <link rel="stylesheet" href="css/widgets-home.css?v=1">
 <link rel="stylesheet" href="css/d2d-tracker.css?v=2">
 <link rel="stylesheet" href="css/storm-center.css?v=2">
-<link rel="stylesheet" href="css/my-skin.css?v=2">
+<link rel="stylesheet" href="css/my-skin.css?v=3">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=5" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
@@ -3646,6 +3646,7 @@
                   <div class="myskin-actions">
                     <label class="btn btn-ghost btn-sm myskin-btn myskin-pick">Choose picture<input type="file" class="myskin-file" accept="image/*" data-myskin-theme-file></label>
                     <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-theme-from-wallpaper hidden>Use my wallpaper here</button>
+                    <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-theme-preview hidden>Preview this theme</button>
                     <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-theme-clear disabled>Clear this theme</button>
                     <span class="myskin-status" aria-live="polite"></span>
                   </div>
@@ -3674,6 +3675,15 @@
                 <label class="myskin-row" for="myskinThemeOverlay"><span>Keep this theme's animation over my picture</span><input type="checkbox" id="myskinThemeOverlay"></label>
               </div>
               <p class="myskin-note">Each theme can have its own picture. They stay private to you, just like your wallpaper. Themes without one show your wallpaper.</p>
+            </div>
+            <div class="myskin-tools" id="myskinTools" hidden>
+              <div class="myskin-slot-help" id="myskinUsage" aria-live="polite"></div>
+              <div class="myskin-actions">
+                <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-open="import">Import a pack…</button>
+                <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-open="grid">All theme backgrounds</button>
+              </div>
+              <div class="myskin-import" id="myskinImportRoot" hidden></div>
+              <div class="myskin-grid-root" id="myskinGridRoot" hidden></div>
             </div>
 
             <div class="myskin-slot" data-myskin-slot="texture">
@@ -7164,8 +7174,8 @@
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=16"></script>
 <script defer src="js/today-home.js?v=3"></script>
-<script defer src="js/my-skin-logic.js?v=2"></script>
-<script defer src="js/my-skin.js?v=4"></script>
+<script defer src="js/my-skin-logic.js?v=3"></script>
+<script defer src="js/my-skin.js?v=5"></script>
 <script defer src="js/layout-system.js?v=1"></script>
 <script defer src="js/pixel-mode.js?v=1"></script>
 <script defer src="js/ui.js?v=10"></script>

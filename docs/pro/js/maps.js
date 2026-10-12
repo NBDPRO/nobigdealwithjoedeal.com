@@ -324,6 +324,7 @@ function nbdRenderThemes() {
       const txt = t.colors?.text || '#e2e8f0';
       const d = document.createElement('div');
       d.className = 'npm-bubble' + (isAct ? ' active' : '') + (isLocked ? ' locked' : '');
+      d.dataset.themeKey = key;   // My Skin warms this theme's picture on hover
       d.onclick = () => { if (!isLocked) { applyTheme(key); nbdPickerClose(); } else nbdToast('🔒 Locked — earn this theme'); };
       d.style.cssText = `background:${bg};border-color:${accent};box-shadow:inset 0 0 0 1px ${accent}33;opacity:${isLocked?'0.4':'1'};`;
       if (isAct) d.style.boxShadow = '0 0 0 2.5px #fff, 0 4px 22px rgba(0,0,0,0.6)';
