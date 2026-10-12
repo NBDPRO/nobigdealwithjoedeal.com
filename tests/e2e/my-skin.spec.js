@@ -120,7 +120,12 @@ test.describe.serial('My Skin @shard2', () => {
     await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
     await page.route(/cloudfunctions.net|.run.app/, (route) => route.abort());
     await loginAs(page, creds);
-    await safeWaitForFunction(page, () => !!(window._user && window._user.uid && window.NBDMySkin && window.NBDMySkin.state().cfg && window.ThemeEngine), null, { timeout: 30_000 });
+    await safeWaitForFunction(page, () => !!(window._user && window._user.uid && window.NBDMySkin && window.NBDMySkin.state().cfg), null, { timeout: 30_000 });
+    // theme-engine.js is a LAZY bundle (script-loader 'theme'), not a boot script: nothing
+    // loads it until the picker or a saved non-default theme asks. Load it the way the
+    // picker does (kanban-visibility.spec.js does the same), or ThemeEngine never appears.
+    await safeEvaluate(page, () => (window.ScriptLoader && window.ScriptLoader.loadBundle ? window.ScriptLoader.loadBundle('theme') : null));
+    await safeWaitForFunction(page, () => !!(window.ThemeEngine && window.ThemeEngine.apply), null, { timeout: 30_000 });
 
     // Per-theme on (the panel switch), then a picture for the current theme.
     await safeEvaluate(page, () => { window.goTo && window.goTo('settings'); });
@@ -187,5 +192,30 @@ test.describe.serial('My Skin @shard2', () => {
       try { await st.getBlob(st.ref(window.storage, p)); return false; } catch (e) { return /object-not-found/.test(e.code || ''); }
     }, img.path);
     expect(gone).toBe(true);
+  });
+
+  // A saved picture must outlive an immediate reload even when the settings
+  // write is slow (a busy CI emulator). upload() used to start the write only
+  // AFTER the paint finished and never waited for it, so a reload landing in
+  // that gap came back with no skin: the first test above failed that way on
+  // main, intermittently, from #2334 on. The write is slowed on purpose here so
+  // the order is pinned instead of left to the runner's speed.
+  test('a slow settings write: a reload right after an upload still brings the skin back', async ({ page }) => {
+    test.setTimeout(120_000);
+    const creds = requireTestUser();
+    await clearSkin(creds.email);
+    await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
+    await page.route(/cloudfunctions.net|.run.app/, (route) => route.abort());
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAs(page, creds);
+    await safeWaitForFunction(page, () => !!(window._user && window._user.uid && window.NBDMySkin && window.NBDMySkin.state().cfg), null, { timeout: 30_000 });
+    await safeEvaluate(page, () => {
+      const real = window.setDoc;
+      window.setDoc = function () { const a = arguments; return new Promise((r) => setTimeout(r, 2500)).then(() => real.apply(null, a)); };
+    });
+    expect(await makePicture(page, 'wallpaper', 600, 400, '#1b5e20')).toBe(true);
+    await page.reload();
+    await safeWaitForFunction(page, () => document.documentElement.classList.contains('my-skin-wallpaper'), null, { timeout: 20_000 });
+    await clearSkin(creds.email);
   });
 });

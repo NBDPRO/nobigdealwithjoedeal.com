@@ -32,6 +32,25 @@ function adb() {
   return getFirestore();
 }
 
+// The Now card is the FIRST stop on today's list, and an all-day booking (a lead
+// with a date-only scheduledDate) sorts before every timed appointment
+// (today-plan.js: sortMs null -> 0). This spec shares ONE rep with the whole
+// shard, and pro-authed.spec.js leaves a '[E2E] Sched' lead scheduled today
+// (field-app.spec.js runs after pro-authed.spec.js in the shard), so the Now card
+// showed that lead and not this spec's stop. Start from an empty day: the
+// product is right to put an all-day job first; the spec has to own its day.
+async function emptyToday(uid) {
+  const db = adb();
+  const { FieldValue } = require('firebase-admin/firestore');
+  const leads = await db.collection('leads').where('userId', '==', uid).get();
+  for (const d of leads.docs) {
+    const x = d.data();
+    if (x.e2eTestData === true && x.scheduledDate) await d.ref.update({ scheduledDate: FieldValue.delete() });
+  }
+  const appts = await db.collection('appointments').where('repUid', '==', uid).get();
+  for (const d of appts.docs) await d.ref.delete();
+}
+
 test.describe.serial('Field App @shard2', () => {
   test('today -> stop -> on site -> test-square capture (offline queue) -> sunlight', async ({ page, context }) => {
     test.setTimeout(240_000);
@@ -40,6 +59,8 @@ test.describe.serial('Field App @shard2', () => {
     await page.route(/cloudfunctions\.net|\.run\.app|api\.weather\.gov/, (route) => route.abort());
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => typeof window._saveLead === 'function' && !!window._user && window.LayoutEngine, null, { timeout: 30_000 });
+
+    await emptyToday(await safeEvaluate(page, () => window._user.uid));
 
     // a customer with a stop on today's calendar
     const s = Date.now();
