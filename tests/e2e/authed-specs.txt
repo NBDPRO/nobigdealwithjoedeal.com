@@ -77,6 +77,7 @@ phone-deal-packet.spec.js
 phone-tenant-setup.spec.js
 phone-inperson-sign.spec.js
 phone-record-payment.spec.js
+phone-customer-order.spec.js
 phone-offline-safety.spec.js
 phone-inspect-no-clip.spec.js
 phone-catchup.spec.js
