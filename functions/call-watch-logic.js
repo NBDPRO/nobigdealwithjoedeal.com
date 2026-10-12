@@ -142,6 +142,11 @@ function callerKey(c) {
 
 const who = (c) => String(c.contactName || c.from || (c.phoneDigits ? '…' + String(c.phoneDigits).slice(-4) : '') || 'Unknown caller').slice(0, 60);
 
+/** True when the row's follow-up date became due after the day of the last check (ET), and is due now. */
+function followUpCameDue(c, sinceMs, now) {
+  return !!(c && c.followUpDate && c.followUpDate <= etYmd(now) && c.followUpDate > etYmd(sinceMs));
+}
+
 /**
  * New items since `sinceMs` that need Jo. calls / textDays: phone_calls /
  * phone_text_days docs (with id); thursday: thursday_calls docs (with id).
@@ -154,17 +159,21 @@ function newNeeds(calls, textDays, thursday, sinceMs, now, labels) {
   (calls || []).forEach((c) => {
     if (!callNeedsYou(c, now, ctx)) return;
     const arrived = toMs(c.notedAtMs) || toMs(c.createdAtMs) || toMs(c.startedAtMs);
-    if (arrived <= sinceMs) return;
+    // A follow-up date that CAME DUE since the last check is news even though
+    // the call is old (audit R7, 2026-10-12): "call back Friday" is pushed on Friday.
+    const due = followUpCameDue(c, sinceMs, now);
+    if (arrived <= sinceMs && !due) return;
     const why = reasonFor(c, now, ctx);
     // Already told by the immediate urgent push (call-center.js pushUrgent).
-    if (why === 'urgent' && c.urgentPushedAtMs) return;
-    out.push({ id: 'call:' + c.id, key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) });
+    if (why === 'urgent' && c.urgentPushedAtMs && !due) return;
+    out.push({ id: 'call:' + c.id, tellId: arrived <= sinceMs ? 'call:' + c.id + '#due:' + c.followUpDate : undefined, key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) });
   });
   (textDays || []).forEach((c) => {
     if (!callNeedsYou(c, now, tctx)) return;
     const arrived = toMs(c.notedAtMs) || toMs(c.startedAtMs);
-    if (arrived <= sinceMs) return;
-    out.push({ id: 'text:' + c.id, key: callerKey(c), kind: 'text', who: who(c), why: reasonFor(c, now, tctx), at: toMs(c.startedAtMs) });
+    const due = followUpCameDue(c, sinceMs, now);
+    if (arrived <= sinceMs && !due) return;
+    out.push({ id: 'text:' + c.id, tellId: arrived <= sinceMs ? 'text:' + c.id + '#due:' + c.followUpDate : undefined, key: callerKey(c), kind: 'text', who: who(c), why: reasonFor(c, now, tctx), at: toMs(c.startedAtMs) });
   });
   // A hidden number that came back (matches a customer, or 3+ calls in 24 h):
   // told once per label baseline — "Keep hidden" moves the baseline.

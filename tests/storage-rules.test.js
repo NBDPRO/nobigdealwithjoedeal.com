@@ -645,6 +645,29 @@ async function run() {
     console.log('  R3-4 filed money-paper PDF: 4 storage checks passed');
   }
 
+  // ── Owner hand-off (2026-10-12): the uid key is not a role. A former owner
+  //    keeps companyId == their uid in their claims, so a demoted one must
+  //    not read as the "company of one" owner of the company's backgrounds. ──
+  {
+    const HP = 'companies/hoold/skins/themes/pokemon/lq3x9a1b2c';
+    const HP2 = 'companies/hoold/skins/themes/pokemon/lq3x9a1b2d';
+    const hoDemoted = env.authenticatedContext('hoold', { role: 'sales_rep', companyId: 'hoold' }).storage();
+    const hoManager = env.authenticatedContext('hoold', { role: 'manager', companyId: 'hoold' }).storage();
+    const hoViewer = env.authenticatedContext('hoold', { role: 'viewer', companyId: 'hoold' }).storage();
+    const hoAdmin = env.authenticatedContext('hoold', { role: 'company_admin', companyId: 'hoold' }).storage();
+    const hoNew = env.authenticatedContext('honew', { role: 'company_admin', companyId: 'hoold' }).storage();
+    const hoSoloAdmin = env.authenticatedContext('hosolo2', { role: 'company_admin', companyId: 'hosolo2' }).storage();
+    await assertSucceeds(uploadBytes(ref(hoNew, HP), buf(2048), { contentType: 'image/webp' }));            // the new owner pushes
+    await assertSucceeds(uploadBytes(ref(hoAdmin, HP2), buf(2048), { contentType: 'image/webp' }));         // the former owner, still a company_admin
+    await assertFails(uploadBytes(ref(hoDemoted, 'companies/hoold/skins/themes/pokemon/lq3x9a1b2e'), buf(2048), { contentType: 'image/webp' })); // demoted to rep
+    await assertFails(uploadBytes(ref(hoManager, 'companies/hoold/skins/themes/pokemon/lq3x9a1b2e'), buf(2048), { contentType: 'image/webp' })); // demoted to manager
+    await assertFails(uploadBytes(ref(hoViewer, 'companies/hoold/skins/themes/pokemon/lq3x9a1b2e'), buf(2048), { contentType: 'image/webp' })); // demoted to viewer
+    await assertFails(deleteObject(ref(hoDemoted, HP)));
+    await assertSucceeds(getBytes(ref(hoDemoted, HP)));                                                    // still reads as a member
+    await assertSucceeds(uploadBytes(ref(hoSoloAdmin, 'companies/hosolo2/skins/themes/pokemon/lq3x9a1b2c'), buf(2048), { contentType: 'image/webp' })); // control: a solo owner with the createCompany claims
+    console.log('  owner hand-off storage: 8 checks passed');
+  }
+
   console.log('✓ All storage rules tests passed');
   await env.cleanup();
 }

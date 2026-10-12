@@ -318,7 +318,14 @@ async function pushUrgent({ db, d, call, notes, leadName, nowMs }) {
   const msg = L.urgentPushText({ call, notes, leadName });
   const clickUrl = W.callCardUrl(call.id);
   try {
-    await d.push(OWNER, msg.title, msg.body, { type: 'call_watch', clickUrl, notificationId: 'call-urgent-' + call.id });
+    const pr = await d.push(OWNER, msg.title, msg.body, { type: 'call_watch', clickUrl, notificationId: 'call-urgent-' + call.id });
+    // sendPushNotification RESOLVES {sent:0} for "no device on file" and for
+    // "every token failed" (audit R2, 2026-10-12). That is not "told": leave
+    // urgentPushedAtMs unset so the next callWatch run tells Jo again.
+    if (pr && typeof pr === 'object' && pr.sent === 0) {
+      logger.warn('call_center_urgent_push_reached_nobody', { id: call.id, failed: pr.failed || 0 });
+      return false;
+    }
     await db.collection(COLLECTION).doc(call.id).set({ urgentPushedAtMs: nowMs }, { merge: true });
     await db.collection('notifications').add({
       userId: OWNER, type: 'call_watch', title: '📞 ' + msg.title, message: msg.body, priority: 'high',
@@ -986,7 +993,10 @@ exports.callPromisesList = onCall(
 // the call / text day it came from. home-attention.js callNeedsYou and
 // callWatch read it: a kept promise drops the person off "needs you".
 // Task ids are cube-<callId> (phone_calls) and sms-<dayId> (phone_text_days).
-// A deleted follow-up task counts as dealt with. Writes only when the value
+// A DELETED follow-up task is NOT "dealt with" (2026-10-12 audit: moveCallToLead
+// deletes the old task before re-pointing the call, and a lead delete removes
+// its tasks; both used to mark the promise kept). Deleting changes nothing; Jo
+// closes a call with Handled. Writes only when the value
 // changes; the task must sit on the call's own lead.
 // ═══════════════════════════════════════════════════════════════════════
 const { onDocumentWritten } = require('firebase-functions/v2/firestore');
@@ -999,7 +1009,8 @@ async function mirrorCallTask({ db, leadId, taskId, after }) {
   if (!snap.exists) return null;
   const call = snap.data() || {};
   if (call.leadId && call.leadId !== leadId) return null;
-  const done = !after || after.done === true;
+  if (!after) return { unchanged: true, taskDeleted: true };
+  const done = after.done === true;
   if (call.taskDone === done) return { unchanged: true };
   await ref.set({ taskDone: done }, { merge: true });
   return { id: m[2], done };

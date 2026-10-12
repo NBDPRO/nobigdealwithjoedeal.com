@@ -225,7 +225,8 @@
     const items = [];
     if (c.stripe > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="money">💳 ' + c.stripe + ' Stripe payment' + (c.stripe === 1 ? '' : 's') + ' need' + (c.stripe === 1 ? 's' : '') + ' a customer</button>');
     if (c.signs > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="signs">🪧 ' + c.signs + ' yard sign' + (c.signs === 1 ? '' : 's') + ' to pick up</button>');
-    if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
+    if (c.callsFailed) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Could not check your calls just now' + (c.calls > 0 ? ' — ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you so far' : ' — this is NOT an all-clear') + '. Tap to open the Call Center</button>');
+    else if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
     // Review asks, one at a time (review-deck.js opens the deck on data-review-deck).
     if (c.reviews > 0) items.push('<button type="button" class="ha-item" data-review-deck="1">⭐ ' + c.reviews + ' review ask' + (c.reviews === 1 ? '' : 's') + ' waiting</button>');
     return items.join('');
@@ -270,10 +271,14 @@
     // called AND texted is one person.
     const callRows = [];
     if (u && w.orderBy && w.limit) {
+      // A failed read must NOT render as "nobody needs you" (2026-10-12 audit
+      // R5): a missing index, a rules / App Check denial or being offline all
+      // land here, and an empty list is exactly what a healthy quiet day looks
+      // like. callsFailed turns the strip into a visible warning instead.
       jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.orderBy('startedAtMs', 'desc'), w.limit(200)))
-        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data()))); }).catch(() => {}));
+        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data()))); }).catch(() => { out.callsFailed = true; }));
       jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_text_days'), w.where('userId', '==', u), w.orderBy('startedAtMs', 'desc'), w.limit(100)))
-        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: 'text:' + d.id }, d.data()))); }).catch(() => {}));
+        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: 'text:' + d.id }, d.data()))); }).catch(() => { out.callsFailed = true; }));
     }
     await Promise.all(jobs);
     // Per-number labels (2026-10-12): a lazy bundle, read after the calls so
@@ -309,7 +314,7 @@
   // (dashboard-boot-budget). today-home.js and call-center-view.js load it by
   // name; this deferred file always runs first.
   if (w.ScriptLoader && w.ScriptLoader.bundles && !w.ScriptLoader.bundles.contactlabels) {
-    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=1', 'js/contact-labels-logic.js?v=4', 'js/contact-labels.js?v=3'];
+    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=1', 'js/contact-labels-logic.js?v=4', 'js/contact-labels.js?v=4'];
   }
   // A label changed (optimistic apply, undo or rollback): recount from the
   // rows already held — no Firestore read — and repaint the strip.

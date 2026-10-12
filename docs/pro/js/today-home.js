@@ -228,7 +228,9 @@
     var deck = (w.NBDFollowUpDeck && w.NBDTriageDeck && p.stalled.length > 1) ? '<button type="button" class="tp-more tp-hd-btn" data-tp-act="fudeck" data-tp-key="stalled">One at a time</button>' : '';
     var storm = P.stormLine(stormCache(), Date.now());
     var body = section('appts', 'Appointments', a) + section('calls', 'Calls owed', c) + section('promised', 'Promised follow-ups', pr) + section('estimates', 'Estimates to follow up', e) +
-      section('money', 'Money to collect', m) + section('stalled', 'Stalled leads', s, deck);
+      section('money', 'Money to collect', m) + section('stalled', 'Stalled leads', s, deck) +
+      // Thursday's calls + the daily "handled" recap (js/thursday-handled.js; '' until loaded, flag-gated).
+      (w.NBDThursdayHandled ? w.NBDThursdayHandled.todayHtml() : '');
     return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc(P.headline(p.total)) + '</div>' +
       (storm ? '<div class="tp-storm">' + esc(storm) + '</div>' : '') + '</div>' +
       (p.hiddenCalls > 0 ? '<div class="tp-sub tp-hidden">' + p.hiddenCalls + (p.hiddenCalls === 1 ? ' person' : ' people') + ' hidden by labels · <button type="button" class="tp-more tp-hd-btn" data-tp-act="goto" data-tp-key="calls">See them in the Call Center</button></div>' : '') +
@@ -357,11 +359,14 @@
     else open();
   }
 
-  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups', 'nbd:labels-changed'].forEach(function (n) { w.addEventListener(n, schedule); });
+  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups', 'nbd:labels-changed', 'nbd:thursday-handled-changed'].forEach(function (n) { w.addEventListener(n, schedule); });
   w.addEventListener('hashchange', function () {
     if (/^#?\/?(home)?$/.test(location.hash || '')) { loadAppointments(false); setTimeout(render, 200); }
   });
   function boot() {
+    // Away mode (js/away-mode.js): status line / hand-back card / backup cover list
+    // on Home. A lazy bundle, so it adds no boot <script> tag; best-effort.
+    try { if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') w.ScriptLoader.loadBundle('away'); } catch (_) { /* optional surface */ }
     // Home is a <template> mounted on navigation: paint when #todayPlan appears.
     try {
       new MutationObserver(function () {
