@@ -194,6 +194,17 @@
     supports: { wallpaper: false, glass: false, sunlight: true },
   });
 
+  // L06 Crew Calendar (2026-10-12). Every screen; the week grid scrolls sideways
+  // on a phone, where it opens on the Day view.
+  register({
+    id: 'crew', name: 'Crew Calendar', version: 1,
+    blurb: 'Crews as lanes on a week timeline: drag jobs between days and crews, rain days hatched.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/crew.js', css: 'css/layouts/crew.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: false, sunlight: false },
+  });
+
   // L03 Focus Mode (D4). Every screen: it is a queue, not a place. Also the
   // layout a rep can drop into for a calling block.
   register({

@@ -506,6 +506,12 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-xtenant-test 'node firestore-rules.cross-tenant.test.js'
+      # Per-number contact labels (2026-10-12): companies/{cid}/contact_labels.
+      # Own file so a parallel rules PR never conflicts with firestore-rules.test.js.
+      - name: Run contact-labels rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-labels-test 'node firestore-rules.contact-labels.test.js'
       # Communication Log producer→index→consumer contract (customer page).
       # Broke silently once (log permanently empty): producers wrote neither
       # leadId nor `date` while the consumer queried {leadId, uid, orderBy date}.
