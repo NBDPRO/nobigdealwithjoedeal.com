@@ -23,6 +23,8 @@ function weekDay(n) {
 }
 
 test.describe.serial('Crew Calendar @shard2', () => {
+  // TEMPORARY while a CI-only miss is diagnosed: fail once, fast, with the evidence in the log.
+  test.describe.configure({ retries: 0 });
   test('lanes -> drag -> keys -> tray -> drawer -> warn-not-block -> phone', async ({ page }) => {
     test.setTimeout(240_000);
     const creds = requireTestUser();
