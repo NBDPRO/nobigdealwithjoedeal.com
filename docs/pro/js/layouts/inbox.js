@@ -24,7 +24,7 @@
  * the phone's / computer's own Messages with the text written; the rep
  * presses Send there. This file builds no send path of its own.
  *
- * Reads are bounded (200 calls + 100 text days, 50 AI drafts, 30 thread rows)
+ * Reads are bounded (200 calls + 100 text days, 15 customers x 10 AI drafts, 30 thread rows)
  * and every feed reports its own failure: a failed read is a banner with a
  * Retry, never an empty list. "Nothing needs a reply" is shown only when every
  * feed answered.
@@ -337,7 +337,7 @@
   if (!K || !E) return;
   var esc = K.esc;
   var DAY_KEY = 'nbd_inbox_day';
-  var CALL_LIMIT = 200, TEXT_LIMIT = 100, DRAFT_LIMIT = 50, THREAD_LIMIT = 30;
+  var CALL_LIMIT = 200, TEXT_LIMIT = 100, DRAFT_LIMIT = 10, DRAFT_LEADS = 15, THREAD_LIMIT = 30;
   var rootEl = null, mounted = false, mo = null, timerId = null, unbind = [], clock = null;
   var S = { pane: 'inbox', folder: 'all', sel: '', mobile: 'list', menu: false };
   var feeds = {
@@ -398,21 +398,31 @@
       feeds.calls.state = 'error'; feeds.calls.err = codeOf(e);
     });
   }
+  // ai_drafts is readable only per lead (its rule is per-document and there is
+  // no collection-group rule, so a collectionGroup query is permission-denied).
+  // So: the customers who texted in the last 14 days, newest first, at most
+  // DRAFT_LEADS of them, each asked with the panel's own two-equality query.
   function loadDrafts() {
     feeds.drafts.state = 'loading';
     var u = uid();
     if (!u || !fbReady()) { feeds.drafts.state = 'error'; feeds.drafts.err = 'Not signed in yet.'; return Promise.resolve(); }
-    var cg = W.collectionGroup ? Promise.resolve(W.collectionGroup) : import('/assets/vendor/firebase/10.12.2/firebase-firestore.js').then(function (m) { return m.collectionGroup; });
-    return cg.then(function (group) {
-      return W.getDocs(W.query(group(W.db, 'ai_drafts'), W.where('userId', '==', u), W.orderBy('generatedAt', 'desc'), W.limit(DRAFT_LIMIT)));
-    }).then(function (snap) {
-      feeds.drafts.rows = snap.docs.map(function (d) {
-        var data = d.data() || {};
-        var parent = d.ref && d.ref.parent && d.ref.parent.parent;
-        return Object.assign({ id: d.id, leadId: data.leadId || (parent && parent.id) || '' }, data);
-      });
-      feeds.drafts.state = 'ok'; feeds.drafts.err = '';
-    }, function (e) { feeds.drafts.state = 'error'; feeds.drafts.err = codeOf(e); });
+    var cutoff = Date.now() - 14 * DAY;
+    var seen = {}, ids = [];
+    feeds.calls.rows.slice().sort(function (x, y) { return toMs(y.startedAtMs) - toMs(x.startedAtMs); }).forEach(function (r) {
+      if (r.channel !== 'text' || !r.leadId || toMs(r.startedAtMs) < cutoff || seen[r.leadId] || ids.length >= DRAFT_LEADS) return;
+      seen[r.leadId] = 1; ids.push(String(r.leadId));
+    });
+    var rows = [], failed = [];
+    var jobs = ids.map(function (id) {
+      return W.getDocs(W.query(W.collection(W.db, 'leads', id, 'ai_drafts'), W.where('userId', '==', u), W.where('status', '==', 'pending'), W.limit(DRAFT_LIMIT)))
+        .then(function (snap) { snap.docs.forEach(function (d) { rows.push(Object.assign({ id: d.id, leadId: id }, d.data())); }); },
+          function (e) { failed.push(codeOf(e)); });
+    });
+    return Promise.all(jobs).then(function () {
+      feeds.drafts.rows = rows;
+      if (failed.length) { feeds.drafts.state = 'error'; feeds.drafts.err = failed.length + ' of ' + ids.length + ' customers: ' + failed[0]; }
+      else { feeds.drafts.state = 'ok'; feeds.drafts.err = ''; }
+    });
   }
   function agentAllowed() {
     var c = claims();
@@ -431,7 +441,7 @@
   }
   function loadAll() {
     render();
-    return Promise.all([loadCalls(), loadDrafts(), loadAgent()]).then(function () { render(); });
+    return Promise.all([loadCalls().then(loadDrafts), loadAgent()]).then(function () { render(); });
   }
 
   // ── the list ─────────────────────────────────────────────────────────

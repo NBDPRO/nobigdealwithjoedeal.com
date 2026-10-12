@@ -88,8 +88,18 @@ test.describe.serial('Triage Inbox @shard2', () => {
     await expect(page.locator('.ib-legend')).toContainText('J');
     await expect(page.locator('.ib-legend')).toContainText('snooze');
 
+    // positive control for the seed: the same rows the thread reads are really there for this rep
+    const seeded = await safeEvaluate(page, async (a) => {
+      const snap = await window.getDocs(window.query(window.collection(window.db, 'sms_log'),
+        window.where('leadId', '==', a.leadId), window.where('uid', '==', window._user.uid), window.orderBy('date', 'desc'), window.limit(30)));
+      return { n: snap.size, claims: { role: (window._userClaims || {}).role || null, companyId: (window._userClaims || {}).companyId || null, owner: (window._userClaims || {}).owner === true } };
+    }, { leadId });
+    console.log('[inbox-e2e] sms_log rows visible to the rep: ' + JSON.stringify(seeded));
+    expect(seeded.n).toBe(2);
+
     // surfaces are solid (glass off) and the thread is the real sms_log history
     await row.click();
+    await expect(page.locator('.ib-banner')).toHaveCount(0);
     await expect(page.locator('.ib-bubble', { hasText: 'Can someone come out Friday morning?' })).toBeVisible({ timeout: 20_000 });
     const solid = await safeEvaluate(page, () => {
       const q = (s) => getComputedStyle(document.querySelector(s));

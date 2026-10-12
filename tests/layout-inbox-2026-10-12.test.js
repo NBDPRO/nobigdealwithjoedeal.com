@@ -179,6 +179,8 @@ console.log('\n7. reads: bounded, honest');
   ok('the empty message is only reachable when every feed answered (allFeedsOk)', /if \(!allFeedsOk\(\)\) return/.test(CODE) && /Nothing needs a reply/.test(CODE));
   ok('a missing shared "needs you" rule is an error, not an empty list', /needs-you rule not loaded/.test(CODE));
   ok('a failed thread read says so and offers retry', /Could not load this thread/.test(CODE) && /data-ib="retry"/.test(CODE));
+  ok('ai_drafts is read per lead (no collection-group rule exists: a collectionGroup read is permission-denied)', CODE.indexOf("W.collection(W.db, 'leads', id, 'ai_drafts')") !== -1 && CODE.indexOf('collectionGroup(') === -1 && CODE.indexOf("W.where('userId', '==', u)") !== -1);
+  ok('control: the rules really have no collection-group rule for ai_drafts', read('firestore.rules').indexOf('{path=**}/ai_drafts') === -1);
   ok('calls use the shared people grouping (groupNeeds), not a private rule', /HA\.groupNeeds/.test(CODE) && !/callNeedsYou/.test(CODE));
 }
 

@@ -26,7 +26,7 @@ is the same layout grouped by stage, reusing the kit `LeadCard` row.
 | New web leads | `window._leads` (already paged by `loadLeads`), stage `new`, created in the last 7 days, not snoozed | 30 min from creation |
 | Opened estimates / quiet estimates | `NBDEstimateFollowups.computeFollowups` | 24 h from the open; quiet ones are due at their d2 / d5 / d10 mark |
 | Nudges | `NBDToday.compute()`: promised / overdue tasks, stalled follow-ups | due date |
-| Drafts | `leads/*/ai_drafts` (collection group, own `userId`, 50 newest, pending only) and the Agent inbox's pending `draft_text` / `draft_email` (owner / company_admin only) | 2 h / 24 h |
+| Drafts | `leads/<id>/ai_drafts` (own `userId`, `status == pending`) for the customers who texted in the last 14 days (15 at most, 10 drafts each), and the Agent inbox's pending `draft_text` / `draft_email` (owner / company_admin only) | 2 h / 24 h |
 
 One row per **person** (`lead:<id>` or `num:<last 10 digits>`): a customer who
 called twice, texted and is also a new lead is one row with several reasons;
@@ -80,7 +80,13 @@ Each feed keeps its own `state` / `err`. Any failed feed raises a banner naming
 it with Try again; the "Nothing needs a reply" empty state is reachable only when
 every feed answered. A missing shared needs-you rule is an error, not an empty
 list (it would otherwise drop every call silently). A failed thread read says so
-and retries. Reads are bounded: 200 / 100 / 50 / 30 rows.
+and retries. Reads are bounded: 200 / 100 calls and text days, 15 customers x 10 drafts, 30 thread rows.
+
+**Found by the E2E, not by thinking:** a first version read `ai_drafts` as a
+collection group; the rules have no collection-group rule for it (the read rule is
+per-document, per lead), so the browser got `permission-denied`. The banner named
+the failed feed exactly as designed, which is why the draft read is now per
+customer, the way the customer-page panel does it.
 
 ## Surfaces
 
