@@ -112,10 +112,18 @@
     var doc = LG.buildDoc({
       digits: d, kind: o.kind, policy: o.policy, name: o.name != null ? o.name : (prev && prev.name), note: o.note != null ? o.note : (prev && prev.note),
       source: o.source, companyId: tenant(), uid: uid(), createdAtMs: prev && prev.createdAtMs,
+      ackAtMs: o.ackAtMs != null ? o.ackAtMs : (prev && prev.ackAtMs),
     });
     if (!doc) { toast("Couldn't label that number.", 'error'); return { ok: false }; }
     var ok = await persist(d, doc, prev);
     return { ok: ok, prev: prev };
+  }
+
+  /** "Keep hidden": a hidden number came back; quiet it until it happens again. */
+  async function ack(digits) {
+    var d = LG.digits10(digits), cur = d ? state.labels[d] : null;
+    if (!cur) return { ok: false };
+    return apply({ digits: d, kind: cur.kind, policy: cur.policy, ackAtMs: Date.now(), source: cur.source });
   }
 
   async function clear(digits) {
@@ -217,7 +225,7 @@
     });
   }
   async function persistRestore(d, prev) {
-    var doc = LG.buildDoc({ digits: d, kind: prev.kind, policy: prev.policy, name: prev.name, note: prev.note, source: prev.source, companyId: tenant(), uid: uid(), createdAtMs: prev.createdAtMs });
+    var doc = LG.buildDoc({ digits: d, kind: prev.kind, policy: prev.policy, name: prev.name, note: prev.note, source: prev.source, companyId: tenant(), uid: uid(), createdAtMs: prev.createdAtMs, ackAtMs: prev.ackAtMs });
     if (!doc) return { ok: false };
     var cur = state.labels[d] ? Object.assign({}, state.labels[d]) : null;
     return { ok: await persist(d, doc, cur) };
@@ -257,7 +265,7 @@
   });
 
   w.NBDContactLabels = {
-    load: load, current: function () { return state.labels; }, get: get, apply: apply, clear: clear,
+    load: load, current: function () { return state.labels; }, get: get, apply: apply, ack: ack, clear: clear,
     openSheet: openSheet, canWrite: canWrite, canRead: canRead,
   };
 })();

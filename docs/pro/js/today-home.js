@@ -183,9 +183,10 @@
       var lab = LB && r.phone ? LB.get(r.phone) : null;
       var LG = w.NBDContactLabelsLogic;
       var chip = lab && LG ? LG.chipFor(lab) : null;
+      if (r.resurfaced) sub += (sub ? ' · ' : '') + '<b class="tp-hot">' + (r.resurfaced === 'lead' ? 'hidden number matches a customer' : 'hidden number is calling a lot') + '</b>';
       if (chip) sub += (sub ? ' · ' : '') + '<span class="cl-chip cl-chip-' + chip.tone + '" title="' + esc(chip.title) + '">🏷 ' + esc(chip.text) + '</span>';
       var canLabel = !ro && r.phone && (((w._userClaims || {}).role || '') !== 'sales_rep');
-      var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + (canLabel ? btn('label', r.key, '🏷 Label') : '') + (ro ? '' : btn('handled', r.key, '✓ Handled', 'tp-go'));
+      var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + (canLabel && r.resurfaced ? btn('rehide', r.key, 'Keep hidden') : '') + (canLabel ? btn('label', r.key, '🏷 Label') : '') + (ro ? '' : btn('handled', r.key, '✓ Handled', 'tp-go'));
       return row(r.key, esc(r.name || fmtPhone(r.phone) || 'Unknown caller'), sub, acts);
     });
     var pr = p.promised.map(function (r) {
@@ -331,9 +332,16 @@
     }
     if (isViewer()) return;
     if (a === 'label') { openLabel(key); return; }
+    if (a === 'rehide') { rehide(key); return; }
     act(a, key).catch(function (e) { console.warn('[today] action failed', e); });
   });
 
+  // "Keep hidden": a hidden number came back; acknowledge it (label ackAtMs).
+  function rehide(key) {
+    var r = findRow(key);
+    if (!r || !r.phone || !w.NBDContactLabels) return;
+    w.NBDContactLabels.ack(r.phone);
+  }
   // 🏷 Label: the sheet lives in the lazy 'contactlabels' bundle.
   function openLabel(key) {
     var r = findRow(key);

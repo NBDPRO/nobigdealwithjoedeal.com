@@ -40,6 +40,26 @@ async function recentTexts(nowMs) {
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const watchEnabled = () => process.env.CALL_WATCH_ENABLED === 'true';
 
+/**
+ * The tenant's per-number labels (companies/{OWNER}/contact_labels), indexed
+ * by 10 digits. A failed read is NOT fatal and NOT silent: the watch runs
+ * with no labels (every call surfaces, the safe direction) and logs why.
+ */
+async function loadLabels(db) {
+  try {
+    const snap = await db.collection('companies').doc(OWNER).collection('contact_labels').get();
+    const out = {};
+    snap.docs.forEach((d) => {
+      const x = d.data() || {};
+      if (/^\d{10}$/.test(d.id) && x.kind) out[d.id] = { kind: x.kind, policy: x.policy || '', ackAtMs: W.toMs(x.ackAtMs), updatedAtMs: W.toMs(x.updatedAtMs) };
+    });
+    return out;
+  } catch (e) {
+    logger.warn('[callWatch] labels read failed — alerting without labels', { err: e && e.message });
+    return {};
+  }
+}
+
 /** Mirror done follow-up tasks onto open calls / text days (mutates the rows). */
 async function reconcileTaskDone({ db, calls, texts, nowMs, live }) {
   const open = [];
@@ -83,6 +103,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   const rows = (s) => s.docs.map((d) => Object.assign({ id: d.id }, d.data()));
   const thu = rows(thursday).filter((t) => (W.toMs(t.startedAt) || W.toMs(t.createdAt)) >= since14);
   const callRows = rows(calls), textRows = rows(texts);
+  const labels = await loadLabels(db);
 
   // A follow-up task ticked before onCallTaskWrite existed (or a missed
   // trigger) never reached the call: read the open ones' tasks and mirror
@@ -91,7 +112,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
 
   // Items already told (keeps a re-run or an overlapping check from repeating).
   const told = new Set(Array.isArray(st.toldIds) ? st.toldIds : []);
-  const needs = W.newNeeds(callRows, textRows, thu, sinceMs, nowMs).filter((n) => !told.has(n.tellId || n.id));
+  const needs = W.newNeeds(callRows, textRows, thu, sinceMs, nowMs, labels).filter((n) => !told.has(n.tellId || n.id));
   const gates = {
     ingest: process.env.CALL_CENTER_INGEST_ENABLED === 'true',
     transcribe: process.env.CALL_CENTER_TRANSCRIBE_ENABLED === 'true',
@@ -164,4 +185,4 @@ exports.callWatch = onSchedule(
   }
 );
 
-exports._internal = { runWatch, recentTexts, reconcileTaskDone };
+exports._internal = { runWatch, recentTexts, reconcileTaskDone, loadLabels };

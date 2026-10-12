@@ -105,6 +105,38 @@
     if (d.length !== 10) return null;
     return (typeof L.get === 'function' ? L.get(d) : L[d]) || null;
   }
+  const BURST_N = 3, BURST_MS = DAY;
+  /**
+   * Hidden numbers that should come back ONCE: a call since the label was
+   * applied / last acknowledged that is filed on a customer ('lead'), or 3+
+   * inbound calls in the last 24 h ('burst'). Returns [{ digits, reason,
+   * calls, base }] — base (max of ackAtMs, updatedAtMs) makes the id of a
+   * once-only alert. Handled / done / personal / spam calls never trigger it.
+   */
+  function resurfacedNumbers(rows, labels, now) {
+    const out = [];
+    if (!labels) return out;
+    const t = now == null ? Date.now() : now;
+    const by = new Map();
+    (rows || []).forEach((c) => {
+      if (!c || c.channel === 'text' || c.handledAtMs || c.taskDone === true || c.status === 'personal' || c.callType === 'spam') return;
+      const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
+      if (d.length !== 10) return;
+      const lb = typeof labels.get === 'function' ? labels.get(d) : labels[d];
+      if (!lb || lb.policy !== 'hide') return;
+      const base = Math.max(toMs(lb.ackAtMs), toMs(lb.updatedAtMs));
+      if ((toMs(c.startedAtMs) || 0) <= base) return;
+      if (!by.has(d)) by.set(d, { digits: d, base, calls: [] });
+      by.get(d).calls.push(c);
+    });
+    by.forEach((v) => {
+      const recent = v.calls.filter((c) => c.direction !== 'outbound' && (toMs(c.startedAtMs) || 0) >= t - BURST_MS);
+      const onLead = v.calls.some((c) => c.leadId);
+      const reason = onLead ? 'lead' : (recent.length >= BURST_N ? 'burst' : '');
+      if (reason) out.push({ digits: v.digits, reason, calls: v.calls, base: v.base });
+    });
+    return out;
+  }
   function callNeedsYou(c, now, ctx) {
     const t = now == null ? Date.now() : now;
     if (!c || c.handledAtMs || c.status === 'personal') return false;
@@ -161,6 +193,18 @@
       if (!by.has(k)) by.set(k, { key: k, calls: [] });
       by.get(k).calls.push(c);
     });
+    // Safety valve (Jo, 2026-10-12): a HIDDEN number that matches a customer
+    // or rings 3+ times in 24 h comes back once, as a row of its own; "Keep
+    // hidden" (label ackAtMs) or ✓ Handled quiets it until it happens again.
+    resurfacedNumbers(rows, labels, now).forEach((v) => {
+      v.calls.forEach((c) => {
+        const k = callerKey(c);
+        if (!by.has(k)) by.set(k, { key: k, calls: [] });
+        const g = by.get(k);
+        if (!g.calls.some((x) => x.id === c.id)) g.calls.push(c);
+        g.resurfaced = v.reason; g.resurfacedDigits = v.digits;
+      });
+    });
     const groups = Array.from(by.values());
     groups.forEach((g) => {
       g.calls.sort((a, b) => (toMs(b.startedAtMs) || 0) - (toMs(a.startedAtMs) || 0));
@@ -188,7 +232,7 @@
     return items.join('');
   }
 
-  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, hiddenPeople, reachIndex, isMissedCall };
+  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root || !root.document) return;
   root.NBDHomeAttention = api;
@@ -270,7 +314,7 @@
   // (dashboard-boot-budget). today-home.js and call-center-view.js load it by
   // name; this deferred file always runs first.
   if (w.ScriptLoader && w.ScriptLoader.bundles && !w.ScriptLoader.bundles.contactlabels) {
-    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=1', 'js/contact-labels-logic.js?v=2', 'js/contact-labels.js?v=1'];
+    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=1', 'js/contact-labels-logic.js?v=3', 'js/contact-labels.js?v=2'];
   }
   // A label changed (optimistic apply, undo or rollback): recount from the
   // rows already held — no Firestore read — and repaint the strip.
