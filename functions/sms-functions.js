@@ -241,16 +241,20 @@ async function recordCarrierOptOut(db, phone, fn) {
   }
 }
 
-// ── Offline outbox: queued sends (body.queued === true) ──────────────
-// docs/pro/js/sms-outbox.js replays a text the rep wrote while offline. The
+// ── Offline outbox: queued sends (sendQueuedSMS, or body.queued === true) ──
+// docs/pro/js/sms-outbox.js replays a text the rep wrote while offline, via
+// the sendQueuedSMS endpoint (see its export for why it is not sendSMS). The
 // response codes it acts on:
 //   200 { success, sid }                 sent
 //   200 { success, duplicate: true }     this clientMsgId already went out
 //   409 { code: 'held', reason }         not sent; waits for the rep in the
 //                                        Pending texts tray (Outbox.HOLD_REASONS)
+//   409 { code: 'not_claimed' }          (peek only) nothing of it reached Twilio
 //   503 { code: 'outbox_unverified' }    a check could not be read; not sent,
 //                                        stays queued (fails CLOSED, like the
 //                                        opt-out read)
+//   503 { code: 'outbox_throttled' }     the per-uid queued-gate budget is
+//                                        spent; not sent, stays queued
 // A queued text Twilio may or may not have taken (socket error, Twilio 5xx)
 // answers 409 held 'in_flight', not 502: its claim is kept, so no retry of it
 // can go out a second time.
@@ -356,26 +360,70 @@ async function queuedSendGate(db, decoded, reqBody, to) {
   if (!Outbox.isWithinSendWindow(now)) return { respond: heldResponse('quiet_hours') };
 
   // Stale — overridable only by the rep's explicit "Send now" (overrideStale).
-  if (!v.overrideStale && Outbox.isStale(v.queuedAt, now)) return { respond: heldResponse('stale') };
+  // On the server's clock (effectiveQueuedAt): a fast device clock must not
+  // make an old text look fresh.
+  if (!v.overrideStale && Outbox.isStale(v.effectiveQueuedAt, now)) return { respond: heldResponse('stale') };
 
-  // (c) Competing activity since queuedAt. One bounded, indexed query on the
-  // recipient's canonical key ({toDigits ASC, date DESC}, firestore.indexes.json)
-  // finds both directions: outbound rows are keyed by recipient, inbound
-  // ('received') rows by sender.
+  // (c) The lead, BEFORE any sms_log read. A lead the caller cannot open reads
+  // exactly like a deleted one (lead_gone), and answering that first means the
+  // activity scan below never runs for a lead that is not the caller's — the
+  // scan's answer is not an oracle about someone else's customer. lead_changed
+  // is kept and applied AFTER the activity check: "the homeowner texted since"
+  // is the reason the rep most needs to see, and both are overridable by the
+  // same "Send anyway", which must not skip a reply the rep was never shown.
+  let leadHold = null;
+  let lead = null;
+  if (leadId) {
+    try {
+      const snap = await withReadTimeout(db.collection('leads').doc(leadId).get(), 'lead read');
+      lead = snap && snap.exists ? (snap.data() || {}) : null;
+    } catch (e) {
+      logger.error('outbox_check_error', { stage: 'lead', err: e && e.message, code: e && e.code });
+      return { respond: unverifiedResponse() };
+    }
+    leadHold = Outbox.evaluateLead(lead, {
+      uid, companyId: decoded.companyId || null, role: decoded.role || '',
+      leadStageAtQueue: v.leadStageAtQueue,
+    });
+    // lead_gone is never overridable.
+    if (leadHold === 'lead_gone') return { respond: heldResponse('lead_gone') };
+  }
+
+  // (d) Competing activity since the text was written, IN THE CALLER'S
+  // TENANT (Outbox.activityScope): one bounded, indexed query on the
+  // recipient's canonical key plus the tenant field
+  // ({toDigits, companyId|uid, date DESC}, firestore.indexes.json) finds both
+  // directions — outbound rows are keyed by recipient, inbound ('received')
+  // rows by sender and stamped with the matched lead's tenant.
+  //   Plus, only for a lead that passed (c) AND whose own number this is:
+  // inbound rows incomingSMS could not route to any tenant (no lead matched,
+  // or the number matched leads in several tenants — uid null). The homeowner
+  // may well have been answering this rep.
   let activity = null;
   try {
-    const snap = await withReadTimeout(
-      db.collection('sms_log')
-        .where('toDigits', '==', toDigits)
-        .where('date', '>', new Date(Outbox.activitySince(v.queuedAt)))
-        .orderBy('date', 'desc')
-        .limit(Outbox.ACTIVITY_SCAN_LIMIT)
-        .get(),
-      'activity read');
-    const rows = snap.docs.map((d) => d.data());
+    const scope = Outbox.activityScope(decoded);
+    const since = new Date(Outbox.activitySince(v.effectiveQueuedAt));
+    const scan = (field, value) => db.collection('sms_log')
+      .where('toDigits', '==', toDigits)
+      .where(field, '==', value)
+      .where('date', '>', since)
+      .orderBy('date', 'desc')
+      .limit(Outbox.ACTIVITY_SCAN_LIMIT)
+      .get();
+    // (lead_gone already answered above: a lead here is the caller's.)
+    const unrouted = !!lead && Outbox.leadPhoneKey(lead) === toDigits;
+    const snaps = await withReadTimeout(Promise.all(
+      [scan(scope.field, scope.value)].concat(unrouted ? [scan('uid', null)] : [])), 'activity read');
+    const rows = [];
+    let truncated = false;
+    for (const s of snaps) {
+      const page = s.docs.map((d) => d.data());
+      if (page.length >= Outbox.ACTIVITY_SCAN_LIMIT) truncated = true;
+      rows.push(...page);
+    }
     activity = Outbox.evaluateActivityRows(rows, {
-      uid, queuedAt: v.queuedAt, clientMsgId: v.clientMsgId,
-      truncated: rows.length >= Outbox.ACTIVITY_SCAN_LIMIT,
+      uid, queuedAt: v.queuedAt, effectiveQueuedAt: v.effectiveQueuedAt, clientMsgId: v.clientMsgId,
+      truncated,
     });
   } catch (e) {
     logger.error('outbox_check_error', { stage: 'activity', err: e && e.message, code: e && e.code });
@@ -384,47 +432,93 @@ async function queuedSendGate(db, decoded, reqBody, to) {
   if (activity && !(v.overrideActivity && Outbox.isActivityOverridable(activity))) {
     return { respond: heldResponse(activity) };
   }
-
-  if (leadId) {
-    let lead;
-    try {
-      const snap = await withReadTimeout(db.collection('leads').doc(leadId).get(), 'lead read');
-      lead = snap && snap.exists ? (snap.data() || {}) : null;
-    } catch (e) {
-      logger.error('outbox_check_error', { stage: 'lead', err: e && e.message, code: e && e.code });
-      return { respond: unverifiedResponse() };
-    }
-    const leadHold = Outbox.evaluateLead(lead, {
-      uid, companyId: decoded.companyId || null, role: decoded.role || '',
-      leadStageAtQueue: v.leadStageAtQueue,
-    });
-    // lead_gone is never overridable; lead_changed is.
-    if (leadHold && !(v.overrideActivity && Outbox.isActivityOverridable(leadHold))) {
-      return { respond: heldResponse(leadHold) };
-    }
+  // lead_changed is overridable ("Send anyway").
+  if (leadHold && !(v.overrideActivity && Outbox.isActivityOverridable(leadHold))) {
+    return { respond: heldResponse(leadHold) };
   }
 
   return { ctx: { claimRef, clientMsgId: v.clientMsgId, queuedAt: v.queuedAt, toDigits, uid } };
+}
+
+/**
+ * A PEEK — "Check again" in the tray, and the flush's re-ask about a text
+ * whose last answer never arrived. Reads this id's claim (and the claims of
+ * the ids an edit replaces) and answers from them alone:
+ *   200 { success, duplicate: true } — it went out
+ *   409 held in_flight              — claimed / outcome unknown
+ *   409 held recent_outbound        — an edit whose original went out
+ *   409 { code: 'not_claimed' }     — nothing of it reached Twilio
+ * NEVER sends, so it runs before the opt-out register (a text that already
+ * went out before a STOP is still "duplicate", and its receipt still stamps
+ * the invoice) and needs no number or message. Fail-closed reads, like the
+ * rest of this path.
+ */
+async function queuedPeek(db, decoded, reqBody) {
+  const v = Outbox.validatePeekFields(reqBody);
+  if (!v.ok) return { status: 400, body: { error: v.error, code: 'bad_queued_request' } };
+  const uid = decoded.uid;
+  const claimRef = (id) => db.collection('sms_client_ids').doc(Outbox.claimDocId(uid, id));
+  let own;
+  let prior;
+  try {
+    own = await withReadTimeout(claimRef(v.clientMsgId).get(), 'idempotency read');
+    if (!(own && own.exists) && v.supersedes.length) {
+      prior = await withReadTimeout(Promise.all(v.supersedes.map((id) => claimRef(id).get()
+        .then((s) => (s && s.exists ? (s.data() || {}) : null)))), 'superseded read');
+    }
+  } catch (e) {
+    logger.error('outbox_check_error', { stage: 'peek', err: e && e.message, code: e && e.code });
+    return unverifiedResponse();
+  }
+  if (own && own.exists) return claimVerdict(own.data() || {});
+  const p = Outbox.supersededVerdict(prior || []);
+  if (p) return heldResponse(p);
+  return { status: 409, body: { error: 'This text has not been sent.', code: 'not_claimed' } };
+}
+
+/**
+ * The queued gate's own per-uid budget (Outbox.QUEUED_GATE_LIMIT), taken
+ * before any outbox read. Returns null to carry on, or a response.
+ */
+async function queuedGateLimit(decoded) {
+  try {
+    await enforceRateLimit('sendQueuedSMS:uid', decoded.uid, Outbox.QUEUED_GATE_LIMIT, Outbox.QUEUED_GATE_WINDOW_MS);
+    return null;
+  } catch (e) {
+    if (e && e.rateLimited) {
+      // 503, not 429: the client reads a 429 on a queued text as a handoff
+      // verdict ("the holds passed, only the limit did not"). This one comes
+      // BEFORE the holds. Nothing was sent; the text stays queued.
+      return {
+        status: 503,
+        body: { error: 'Too many queued-text checks — nothing was sent. It stays in Pending texts.', code: 'outbox_throttled' },
+      };
+    }
+    logger.error('outbox_check_error', { stage: 'gate_limit', err: e && e.message, code: e && e.code });
+    return unverifiedResponse();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
 // CLOUD FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
 
+// sendSMS and sendQueuedSMS: one handler, one configuration.
+const SEND_SMS_OPTS = Object.freeze({
+  cors: CORS_ORIGINS,
+  secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER],
+  maxInstances: 20,
+  concurrency: 40,
+  timeoutSeconds: 30,
+  memory: '256MiB'
+});
+
 /**
- * sendSMS — HTTP function (POST, authenticated)
- * Sends an SMS message to a phone number
+ * The send handler behind both endpoints.
+ * @param {boolean} queuedEndpoint  true for sendQueuedSMS: every request is a
+ *   queued (offline-outbox) send, whatever its body says, or a peek.
  */
-exports.sendSMS = onRequest(
-  {
-    cors: CORS_ORIGINS,
-    secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER],
-    maxInstances: 20,
-    concurrency: 40,
-    timeoutSeconds: 30,
-    memory: '256MiB'
-  },
-  async (req, res) => {
+async function handleSendSMS(req, res, queuedEndpoint) {
     if (req.method !== 'POST') {
       res.status(405).json({ error: 'Method not allowed' });
       return;
@@ -437,11 +531,21 @@ exports.sendSMS = onRequest(
       return;
     }
 
+    // "Check again" / the flush re-asking about a text whose answer was lost:
+    // claims only, never a send (queuedPeek). Metered like every queued request.
+    if (queuedEndpoint && req.body && req.body.peek === true) {
+      const limited = await queuedGateLimit(decoded);
+      const r = limited || await queuedPeek(getFirestore(), decoded, req.body);
+      res.status(r.status).json(r.body);
+      return;
+    }
+
     const { to, body, leadId } = req.body || {};
-    // A text replayed from the offline outbox (docs/pro/js/sms-outbox.js).
-    // Strictly `=== true`: live sends — everything that does not set it — take
-    // exactly the path they always did.
-    const queued = !!req.body && req.body.queued === true;
+    // A text replayed from the offline outbox (docs/pro/js/sms-outbox.js):
+    // everything sent to sendQueuedSMS, or `queued: true` here. Strictly
+    // `=== true`: live sends — everything that does not set it — take exactly
+    // the path they always did.
+    const queued = queuedEndpoint || (!!req.body && req.body.queued === true);
 
     // Validate input
     if (!to || !isValidPhoneNumber(to)) {
@@ -489,6 +593,11 @@ exports.sendSMS = onRequest(
     // come back as a 402/429. Live sends skip this block entirely.
     let queuedCtx = null;
     if (queued) {
+      const limited = await queuedGateLimit(decoded);
+      if (limited) {
+        res.status(limited.status).json(limited.body);
+        return;
+      }
       const gate = await queuedSendGate(getFirestore(), decoded, req.body, to);
       if (gate.respond) {
         res.status(gate.respond.status).json(gate.respond.body);
@@ -732,8 +841,31 @@ exports.sendSMS = onRequest(
       success: true,
       sid: message.sid
     });
-  }
-);
+}
+
+/**
+ * sendSMS — HTTP function (POST, authenticated)
+ * Sends an SMS message to a phone number (live sends; `queued: true` bodies
+ * are still honoured here, but the outbox posts to sendQueuedSMS).
+ */
+exports.sendSMS = onRequest({ ...SEND_SMS_OPTS }, (req, res) => handleSendSMS(req, res, false));
+
+/**
+ * sendQueuedSMS — HTTP function (POST, authenticated)
+ * The offline outbox's endpoint (docs/pro/js/nbd-comms.js sendQueued /
+ * peekQueued): every request is a queued send (the full queued gate in
+ * sms-outbox-guard.js) or a peek. Same handler as sendSMS.
+ *
+ * Why a separate endpoint and not just `queued: true` on sendSMS: Hosting
+ * deploys before Functions (.github/workflows/firebase-deploy.yml), a
+ * functions deploy can fail while Hosting stays live, and a hosting-only
+ * deploy or a functions rollback puts new pages in front of an old fleet.
+ * An old sendSMS ignores `queued` and would send every replay as a live text
+ * — no quiet hours, no staleness, no activity check, no idempotency claim.
+ * An old fleet has no sendQueuedSMS at all: the request fails (404 / CORS)
+ * and the outbox keeps the text queued until the new function is live.
+ */
+exports.sendQueuedSMS = onRequest({ ...SEND_SMS_OPTS }, (req, res) => handleSendSMS(req, res, true));
 
 /**
  * sendD2DSMS — HTTP function (POST, authenticated)
@@ -974,8 +1106,10 @@ exports.sendD2DSMS = onRequest(
         lastSmsSent: FieldValue.serverTimestamp()
       });
 
-      // Log to Firestore
-      await logSMSToFirestore(db, phoneNumber, body, decoded.uid, knockId, 'sent', message.sid);
+      // Log to Firestore. companyId: the offline outbox's activity check reads
+      // sms_log per tenant (sms-outbox-guard.js activityScope), so a D2D text
+      // must carry its sender's company to count as a competitor there.
+      await logSMSToFirestore(db, phoneNumber, body, decoded.uid, knockId, 'sent', message.sid, decoded.companyId || null);
 
       res.json({
         success: true,
@@ -1731,7 +1865,11 @@ exports.onAiDraftApproved = onDocumentUpdated(
         createdAt: FieldValue.serverTimestamp(),
       });
 
-      await logSMSToFirestore(db, to, body, after.approvedBy || after.userId || null, leadId, 'sent', message.sid);
+      // companyId (the draft's tenant, same fallback as the portal branch
+      // above): the offline outbox's per-tenant activity check must see an
+      // approved AI reply as a competing text.
+      await logSMSToFirestore(db, to, body, after.approvedBy || after.userId || null, leadId, 'sent', message.sid,
+        after.companyId || after.userId || null);
 
       await draftRef.update({
         status: 'sent',

@@ -82,6 +82,7 @@ function makeWorld(opts) {
   const logs = { error: [], warn: [], info: [] };
   const twilioCalls = [];
   const limited = new Set(opts.limited || []);
+  const limiterDown = new Set(opts.limiterDown || []);   // throws a non-rate-limit error
   let autoId = 0;
   const fail = Object.assign({}, opts.fail || {});   // stage → 'throw' | 'hang'
 
@@ -101,6 +102,9 @@ function makeWorld(opts) {
   function docRef(p) {
     return {
       path: p,
+      // Subcollections (incomingSMS's routed branch: leads/{id}/notes,
+      // users/{uid}/fcmTokens).
+      collection: (sub) => collectionRef(p + '/' + sub),
       get: async () => {
         if (p.startsWith('sms_opt_outs/')) {
           events.push('optout-read');
@@ -141,13 +145,18 @@ function makeWorld(opts) {
       limit: (n) => query(name, filters, order, n),
       get: async () => {
         if (name === 'sms_log') {
+          // Which tenant field the activity scan filtered on, for the
+          // tenant-scoping assertions ('activity-read:companyId=co-1').
+          const scope = filters.filter(([f]) => f !== 'toDigits' && f !== 'date').map(([f, , v]) => f + '=' + v).join(',');
           events.push('activity-read');
+          events.push('activity-read:' + scope);
           const f = maybeFail('activity'); if (f) return f;
         }
         const ms = (v) => (v instanceof Date ? v.getTime() : v);
         let rows = [];
+        const depth = name.split('/').length + 1;
         for (const [p, d] of docs) {
-          if (!p.startsWith(name + '/') || p.split('/').length !== 2) continue;
+          if (!p.startsWith(name + '/') || p.split('/').length !== depth) continue;
           if (filters.every(([f, op, v]) => {
             if (op === '==') return d[f] === v;
             if (op === '>') return typeof d[f] === 'number' && d[f] > ms(v);
@@ -164,9 +173,8 @@ function makeWorld(opts) {
     };
   }
 
-  const db = {
-    doc: docRef,
-    collection: (name) => Object.assign(query(name, [], null, null), {
+  function collectionRef(name) {
+    return Object.assign(query(name, [], null, null), {
       add: async (row) => {
         const id = 'auto' + (++autoId);
         docs.set(name + '/' + id, resolveTs(row));
@@ -174,7 +182,12 @@ function makeWorld(opts) {
         return { id };
       },
       doc: (id) => docRef(name + '/' + id),
-    }),
+    });
+  }
+
+  const db = {
+    doc: docRef,
+    collection: collectionRef,
     runTransaction: async (fn) => {
       events.push('claim-tx');
       const f = maybeFail('claim'); if (f) await f;
@@ -224,6 +237,7 @@ function makeWorld(opts) {
       },
       enforceRateLimit: async (ns) => {
         events.push('limit:' + ns);
+        if (limiterDown.has(ns)) throw new Error('simulated limiter outage (' + ns + ')');
         if (limited.has(ns)) throw rateLimitErr();
         return { count: 1 };
       },
@@ -312,6 +326,13 @@ async function send(ctx, body) {
     method: 'POST', headers: { authorization: 'Bearer t' }, body,
   });
 }
+// The outbox's own endpoint (what docs/pro/js/nbd-comms.js sendQueued and
+// peekQueued POST to).
+async function sendQ(ctx, body) {
+  return invoke(ctx.exported.sendQueuedSMS.__handler, {
+    method: 'POST', headers: { authorization: 'Bearer t' }, body,
+  });
+}
 
 async function scenario(opts, body) {
   const ctx = load(opts);
@@ -325,8 +346,10 @@ const noGates = (w) => GATES.every((g) => idx(w.events, g) === -1);
 const held = (res, reason) => res.statusCode === 409 && res.body && res.body.code === 'held' && res.body.reason === reason;
 const smsRows = (w) => [...w.docs.entries()].filter(([p]) => p.startsWith('sms_log/')).map(([, d]) => d);
 const claimPath = 'sms_client_ids/' + UID + '_' + CLIENT_ID;
+// Rows default to the caller's tenant (co-1): the activity scan only ever sees
+// its own tenant's rows (sms-outbox-guard.js activityScope).
 const logRow = (over) => Object.assign({
-  to: '+18595550134', toDigits: KEY, body: 'x', uid: 'rep-2', leadId: null,
+  to: '+18595550134', toDigits: KEY, body: 'x', uid: 'rep-2', leadId: null, companyId: 'co-1',
   date: NOON - MIN, sentAt: NOON - MIN, status: 'sent',
 }, over || {});
 
@@ -377,12 +400,13 @@ const logRow = (over) => Object.assign({
       res.statusCode === 200 && res.body && res.body.success === true && res.body.sid === 'SM-1', res.statusCode + ' ' + JSON.stringify(res.body));
     ok('exactly one Twilio call', w.twilioCalls.length === 1);
     const e = w.events;
-    ok('order: auth → opt-out → idempotency → activity → lead → per-IP → paid gate → limiters → claim → Twilio',
+    ok('order: auth → opt-out → queued-gate budget → idempotency → lead → activity → per-IP → paid gate → limiters → claim → Twilio',
       idx(e, 'auth') < idx(e, 'optout-read')
-      && idx(e, 'optout-read') < idx(e, 'idempotency-read')
-      && idx(e, 'idempotency-read') < idx(e, 'activity-read')
-      && idx(e, 'activity-read') < idx(e, 'lead-read')
-      && idx(e, 'lead-read') < idx(e, 'limit:sendSMS:ip')
+      && idx(e, 'optout-read') < idx(e, 'limit:sendQueuedSMS:uid')
+      && idx(e, 'limit:sendQueuedSMS:uid') < idx(e, 'idempotency-read')
+      && idx(e, 'idempotency-read') < idx(e, 'lead-read')
+      && idx(e, 'lead-read') < idx(e, 'activity-read')
+      && idx(e, 'activity-read') < idx(e, 'limit:sendSMS:ip')
       && idx(e, 'limit:sendSMS:to') < idx(e, 'claim-tx')
       && idx(e, 'claim:' + claimPath) < idx(e, 'twilio-create'), e.join(' > '));
     const claim = w.docs.get(claimPath) || {};
@@ -798,20 +822,34 @@ const logRow = (over) => Object.assign({
   }
 
   console.log('QUEUED — end to end: a real inbound webhook holds the queued reply');
+  const inboundReq = {
+    method: 'POST',
+    headers: { 'x-twilio-signature': 'sig' },
+    get: () => 'example.test',
+    originalUrl: '/incomingSMS',
+    body: { From: '+18595550134', Body: 'Actually can you come tomorrow instead?', MessageSid: 'SMin1' },
+  };
   {
-    const ctx = load({});
-    const inbound = await invoke(ctx.exported.incomingSMS.__handler, {
-      method: 'POST',
-      headers: { 'x-twilio-signature': 'sig' },
-      get: () => 'example.test',
-      originalUrl: '/incomingSMS',
-      body: { From: '+18595550134', Body: 'Actually can you come tomorrow instead?', MessageSid: 'SMin1' },
-    });
+    const ctx = load({ docs: { 'leads/lead-1': Object.assign({}, LEAD, { phone: PHONE_TYPED, phoneDigits: KEY }) } });
+    const inbound = await invoke(ctx.exported.incomingSMS.__handler, inboundReq);
     const recv = smsRows(ctx.w).find((r) => r.status === 'received') || {};
-    ok('incomingSMS logs the reply with toDigits = the sender\'s canonical key',
-      inbound.statusCode === 200 && recv.toDigits === KEY, inbound.statusCode + ' ' + JSON.stringify(recv));
-    const r = await send(ctx, queuedBody({ queuedAt: ctx.w.clock.now - 3 * MIN }));
+    ok('incomingSMS routes the reply to the tenant\'s lead: toDigits = the sender\'s key, companyId = that lead\'s',
+      inbound.statusCode === 200 && recv.toDigits === KEY && recv.companyId === 'co-1' && recv.uid === UID,
+      inbound.statusCode + ' ' + JSON.stringify(recv));
+    const r = await send(ctx, queuedBody({ leadId: 'lead-1', queuedAt: ctx.w.clock.now - 3 * MIN }));
     ok('a text queued before that reply is held recent_inbound, not sent',
+      held(r, 'recent_inbound') && ctx.w.twilioCalls.length === 0, JSON.stringify(r.body));
+  }
+  {
+    // No lead matched the sender: the reply is logged unrouted (uid null, no
+    // tenant). It counts only for the caller's OWN lead with this number.
+    const ctx = load({});
+    await invoke(ctx.exported.incomingSMS.__handler, inboundReq);
+    const recv = smsRows(ctx.w).find((r) => r.status === 'received') || {};
+    ok('(setup) an unmatched reply is logged with uid null and no companyId', recv.uid === null && recv.companyId === undefined, JSON.stringify(recv));
+    ctx.w.docs.set('leads/lead-1', Object.assign({}, LEAD, { phone: PHONE_TYPED, phoneDigits: KEY }));
+    const r = await send(ctx, queuedBody({ leadId: 'lead-1', queuedAt: ctx.w.clock.now - 3 * MIN }));
+    ok('…a queued text to the caller\'s own lead with that number is held recent_inbound (the reply may be to them)',
       held(r, 'recent_inbound') && ctx.w.twilioCalls.length === 0, JSON.stringify(r.body));
   }
 
@@ -885,8 +923,17 @@ const logRow = (over) => Object.assign({
       && w.twilioCalls.length === 0 && !w.events.includes('idempotency-read'), res.statusCode + ' ' + JSON.stringify(res.body));
   }
   {
-    const { res } = await scenario({}, queuedBody({ queuedAt: NOON + 4 * MIN }));
-    ok('queuedAt 4 minutes ahead (a fast device clock) is accepted', res.statusCode === 200, JSON.stringify(res.body));
+    const { res } = await scenario({}, queuedBody({ queuedAt: NOON + 4 * MIN, queuedAgeMs: MIN }));
+    ok('queuedAt 4 minutes ahead WITH queuedAgeMs (a fast device clock) is accepted', res.statusCode === 200, JSON.stringify(res.body));
+  }
+  {
+    const { res, w } = await scenario({}, queuedBody({ queuedAt: NOON + 2 * MIN }));
+    ok('WITHOUT queuedAgeMs a queuedAt may run at most the 60s lookback ahead: 2 minutes → 400',
+      res.statusCode === 400 && res.body.code === 'bad_queued_request' && w.twilioCalls.length === 0, JSON.stringify(res.body));
+  }
+  for (const [label, age] of [['queuedAgeMs as a string', '60000'], ['queuedAgeMs NaN-ish (an object)', { ms: 1 }]]) {
+    const { res } = await scenario({}, queuedBody({ queuedAgeMs: age }));
+    ok(label + ' → 400', res.statusCode === 400 && res.body.code === 'bad_queued_request', JSON.stringify(res.body));
   }
 
   // ═══ read failures fail CLOSED ═════════════════════════════════════════
@@ -905,6 +952,265 @@ const logRow = (over) => Object.assign({
     ok(stage + ' read HANGS → 503 inside the bound (no plain-text 500 at the function timeout)',
       !res.hung && res.statusCode === 503 && res.body && res.body.code === 'outbox_unverified' && w.twilioCalls.length === 0,
       res.hung ? 'hung' : res.statusCode);
+  }
+
+  // ═══ round 2: the outbox's own endpoint ════════════════════════════════
+  // Hosting deploys before Functions. A page with this code talking to an old
+  // sendSMS used to have every replay sent as a LIVE text (no quiet hours, no
+  // staleness, no activity, no claim). Replays now go to sendQueuedSMS, which
+  // an old fleet does not have; the client half of that (a 404 / status 0
+  // keeps the text queued) is in tests/sms-outbox-client.test.js.
+  console.log('R2 — sendQueuedSMS: the outbox\'s own endpoint, always queued');
+  const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+  {
+    const ctx = load({ now: ET_EDT(22, 30) });
+    const at = ctx.w.clock.now;
+    const r1 = await sendQ(ctx, { to: PHONE_TYPED, body: 'Hi', clientMsgId: CLIENT_ID, queuedAt: at - MIN, queuedAgeMs: MIN });
+    ok('sendQueuedSMS runs the queued gate with no queued flag in the body (22:30 → held quiet_hours, nothing sent)',
+      held(r1, 'quiet_hours') && ctx.w.twilioCalls.length === 0, r1.statusCode + ' ' + JSON.stringify(r1.body));
+    const r2 = await sendQ(ctx, { to: PHONE_TYPED, body: 'Hi', queued: false, clientMsgId: CLIENT_ID, queuedAt: at - MIN });
+    ok('…queued:false in the body cannot make it a live send', held(r2, 'quiet_hours') && ctx.w.twilioCalls.length === 0, JSON.stringify(r2.body));
+    const r3 = await sendQ(ctx, { to: PHONE_TYPED, body: 'Hi' });
+    ok('…no clientMsgId / queuedAt → 400, never a live send', r3.statusCode === 400 && r3.body.code === 'bad_queued_request' && ctx.w.twilioCalls.length === 0);
+  }
+  {
+    const ctx = load({ docs: { 'leads/lead-1': LEAD } });
+    const r = await sendQ(ctx, queuedBody({ queued: undefined, leadId: 'lead-1', leadStageAtQueue: 'inspection' }));
+    const row = smsRows(ctx.w)[0] || {};
+    ok('a clean queued text sends through sendQueuedSMS: 200, one Twilio call, a queued sms_log row',
+      r.statusCode === 200 && ctx.w.twilioCalls.length === 1 && row.queued === true && row.clientMsgId === CLIENT_ID, JSON.stringify(r.body));
+    const SRC = fs.readFileSync(MOD, 'utf8');
+    ok('sendQueuedSMS is a direct onRequest export (the deploy workflow greps ^exports.NAME = onRequest)',
+      /^exports\.sendQueuedSMS *= *onRequest\(/m.test(SRC));
+    ok('…with sendSMS\'s configuration (secrets, 256MiB, 30s, CORS)',
+      JSON.stringify(ctx.exported.sendQueuedSMS.__opts) === JSON.stringify(ctx.exported.sendSMS.__opts)
+      && ctx.exported.sendQueuedSMS.__opts.memory === '256MiB' && ctx.exported.sendQueuedSMS.__opts.secrets.length === 3);
+    ok('…and a row in functions/FUNCTIONS_INDEX.md', /\| `sendQueuedSMS` \| onRequest \|/.test(fs.readFileSync(path.join(FUNCTIONS, 'FUNCTIONS_INDEX.md'), 'utf8')));
+  }
+
+  // ═══ round 2: the peek ("Check again") ═════════════════════════════════
+  console.log('R2 — peek ("Check again"): reads claims, never sends');
+  const peekBody = (over) => Object.assign({ peek: true, clientMsgId: CLIENT_ID }, over || {});
+  {
+    const ctx = load({});
+    const r = await sendQ(ctx, peekBody());
+    ok('no claim → 409 { code: "not_claimed" }', r.statusCode === 409 && r.body.code === 'not_claimed', r.statusCode + ' ' + JSON.stringify(r.body));
+    ok('…it reads the claim only: no opt-out register, no activity, no lead, no send gate, no claim tx, no Twilio',
+      !ctx.w.events.some((e) => /^(optout-read|activity-read|lead-read|paid-gate|limit:sendSMS|claim-tx|twilio)/.test(e))
+      && ctx.w.twilioCalls.length === 0, ctx.w.events.join(' > '));
+    ok('…and it is metered (the queued-gate budget)', ctx.w.events.includes('limit:sendQueuedSMS:uid'));
+  }
+  {
+    const ctx = load({ docs: { [claimPath]: { status: 'sent', uid: UID, twilioSid: 'SM-7' }, ['sms_opt_outs/' + KEY]: { keyword: 'STOP' } } });
+    const r = await sendQ(ctx, peekBody());
+    ok('claim "sent" → 200 duplicate with its sid — even after a STOP since (it went BEFORE; the receipt must still stamp)',
+      r.statusCode === 200 && r.body.duplicate === true && r.body.sid === 'SM-7' && ctx.w.twilioCalls.length === 0, JSON.stringify(r.body));
+  }
+  for (const status of ['claimed', 'unknown']) {
+    const ctx = load({ docs: { [claimPath]: { status, uid: UID } } });
+    const r = await sendQ(ctx, peekBody());
+    ok('claim "' + status + '" → 409 held in_flight', held(r, 'in_flight') && ctx.w.twilioCalls.length === 0, JSON.stringify(r.body));
+  }
+  for (const [label, docs, expect] of [
+    ['an edit whose original went out ("sent")', { [claimPath]: { status: 'sent', uid: UID } }, 'recent_outbound'],
+    ['an edit whose original is still claimed', { [claimPath]: { status: 'claimed', uid: UID } }, 'in_flight'],
+    ['an edit whose original never reached Twilio', {}, 'not_claimed'],
+  ]) {
+    const ctx = load({ docs });
+    const r = await sendQ(ctx, peekBody({ clientMsgId: EDIT_ID, supersedes: [CLIENT_ID] }));
+    const got = r.body && (r.body.code === 'held' ? r.body.reason : r.body.code);
+    ok('peek of ' + label + ' → ' + expect, r.statusCode === 409 && got === expect && ctx.w.twilioCalls.length === 0, r.statusCode + ' ' + JSON.stringify(r.body));
+  }
+  for (const mode of ['throw', 'hang']) {
+    const ctx = load({ fail: { idempotency: mode }, readTimeoutMs: 40 });
+    const r = await sendQ(ctx, peekBody());
+    ok('peek read ' + (mode === 'throw' ? 'throws' : 'hangs') + ' → 503 outbox_unverified', !r.hung && r.statusCode === 503 && r.body.code === 'outbox_unverified', r.hung ? 'hung' : JSON.stringify(r.body));
+  }
+  {
+    const ctx = load({});
+    const r = await sendQ(ctx, peekBody({ clientMsgId: 'short' }));
+    ok('peek with a malformed clientMsgId → 400', r.statusCode === 400 && r.body.code === 'bad_queued_request' && !ctx.w.events.includes('idempotency-read'));
+    const live = await send(ctx, peekBody());
+    ok('a peek body on the LIVE endpoint is not a peek (no number → 400, no claim read)',
+      live.statusCode === 400 && !ctx.w.events.slice(-3).includes('idempotency-read'), JSON.stringify(live.body));
+  }
+  {
+    // The reviewer's P3: the first request is parked inside Twilio; its replay
+    // answers in_flight; Twilio then refuses the first one DEFINITELY (429),
+    // so its claim is released. 40 minutes later the rep taps "Check again" —
+    // consent to CHECK. It used to be a send with overrideStale, and it went.
+    const ctx = load({});
+    let release;
+    ctx.w.parkTwilio = [new Promise((r) => { release = r; })];
+    const first = sendQ(ctx, queuedBody());
+    await tick(20);
+    const replay = await sendQ(ctx, queuedBody());
+    ok('P3: a replay while the first request is inside Twilio → in_flight', held(replay, 'in_flight'), JSON.stringify(replay.body));
+    ctx.w.twilioError = Object.assign(new Error('Too Many Requests'), { code: 20429, status: 429 });
+    release();
+    const r1 = await first;
+    ok('P3: Twilio refuses the first one (HTTP 429, definite) → claim released, 502', r1.statusCode === 502 && !ctx.w.docs.has(claimPath), JSON.stringify(r1.body));
+    ctx.w.twilioError = null;
+    ctx.w.clock.now = NOON + 40 * MIN;
+    const calls = ctx.w.twilioCalls.length;
+    const check = await sendQ(ctx, peekBody());
+    ok('P3: "Check again" 40 min later is a peek → not_claimed, and NO Twilio call',
+      check.statusCode === 409 && check.body.code === 'not_claimed' && ctx.w.twilioCalls.length === calls, JSON.stringify(check.body) + ' calls ' + calls + '→' + ctx.w.twilioCalls.length);
+  }
+
+  // ═══ round 2: the queued gate is metered ═══════════════════════════════
+  console.log('R2 — the queued gate has its own per-uid budget (not a free query endpoint)');
+  {
+    const ctx = load({ limited: ['sendQueuedSMS:uid'] });
+    const r = await sendQ(ctx, queuedBody());
+    ok('budget spent → 503 outbox_throttled — never a 429 (the client reads 429 as a handoff verdict)',
+      r.statusCode === 503 && r.body.code === 'outbox_throttled', r.statusCode + ' ' + JSON.stringify(r.body));
+    ok('…before any outbox read, with nothing sent and no SMS budget burned',
+      !ctx.w.events.some((e) => /^(idempotency-read|activity-read|lead-read)/.test(e)) && ctx.w.twilioCalls.length === 0 && noGates(ctx.w), ctx.w.events.join(' > '));
+    ok('…but still AFTER the opt-out register (a STOP is a 403 first)', idx(ctx.w.events, 'optout-read') < idx(ctx.w.events, 'limit:sendQueuedSMS:uid'));
+    const p = await sendQ(ctx, peekBody());
+    ok('a peek on a spent budget → 503 outbox_throttled, no claim read', p.statusCode === 503 && p.body.code === 'outbox_throttled'
+      && ctx.w.events.filter((e) => e === 'idempotency-read').length === 0);
+  }
+  {
+    const ctx = load({ limiterDown: ['sendQueuedSMS:uid'] });
+    const r = await sendQ(ctx, queuedBody());
+    ok('the budget limiter itself fails → 503 outbox_unverified (fails closed, nothing sent)',
+      r.statusCode === 503 && r.body.code === 'outbox_unverified' && ctx.w.twilioCalls.length === 0, JSON.stringify(r.body));
+  }
+  {
+    const { w } = await scenario({}, { to: PHONE_TYPED, body: 'Hi Sam', leadId: 'lead-1' });
+    ok('a LIVE send never touches the queued-gate budget', !w.events.includes('limit:sendQueuedSMS:uid'));
+  }
+
+  // ═══ round 2: competing activity, scoped to the caller's tenant ════════
+  console.log('R2 — competing activity is read in the caller\'s tenant only');
+  const QT = NOON - 5 * MIN;
+  const tenantAct = async (rows, over, opts) => {
+    const docs = Object.assign({}, (opts && opts.docs) || {});
+    rows.forEach((r, i) => { docs['sms_log/t' + i] = r; });
+    return scenario(Object.assign({}, opts || {}, { docs }), queuedBody(Object.assign({ queuedAt: QT }, over || {})));
+  };
+  {
+    const { res, w } = await tenantAct([logRow({ uid: 'rep-9', companyId: 'co-9', date: QT + MIN })]);
+    ok('another TENANT texted the homeowner since → not this rep\'s competition: sends', res.statusCode === 200 && w.twilioCalls.length === 1, JSON.stringify(res.body));
+    ok('…the scan filtered on the caller\'s company claim', w.events.includes('activity-read:companyId=co-1'), w.events.join(' > '));
+  }
+  {
+    const { res } = await tenantAct([logRow({ uid: 'rep-9', companyId: 'co-9', status: 'received', date: QT + MIN })]);
+    ok('the homeowner replied to ANOTHER tenant → sends (no "texted you since" about a thread this rep cannot see)', res.statusCode === 200, JSON.stringify(res.body));
+  }
+  {
+    // The reviewer's oracle probe: a lead that does not exist, overrideStale,
+    // another tenant's activity since T.
+    const { res, w } = await tenantAct([logRow({ uid: 'rep-9', companyId: 'co-9', date: QT + MIN })], { leadId: 'no-such-lead', overrideStale: true });
+    ok('probe with a nonexistent lead → lead_gone, and the activity scan never runs (no answer about anyone\'s thread)',
+      held(res, 'lead_gone') && !w.events.includes('activity-read') && w.twilioCalls.length === 0, w.events.join(' > '));
+  }
+  {
+    const { res, w } = await tenantAct([logRow({ date: QT + MIN })], { leadId: 'lead-9' },
+      { docs: { 'leads/lead-9': { userId: 'someone', companyId: 'co-9', stage: 'x', phoneDigits: KEY } } });
+    ok('another tenant\'s lead → lead_gone BEFORE any sms_log read', held(res, 'lead_gone') && !w.events.includes('activity-read'), w.events.join(' > '));
+  }
+  {
+    const solo = { claims: { companyId: undefined } };
+    const a = await tenantAct([logRow({ uid: UID, companyId: undefined, date: QT + MIN })], {}, solo);
+    ok('solo rep (no company claim): the scan filters on their uid, and their own later live text competes',
+      held(a.res, 'recent_outbound') && a.w.events.includes('activity-read:uid=' + UID), a.w.events.join(' > '));
+    const b = await tenantAct([logRow({ uid: 'rep-2', companyId: undefined, date: QT + MIN })], {}, solo);
+    ok('…another solo rep\'s text to the same homeowner does not', b.res.statusCode === 200, JSON.stringify(b.res.body));
+    const c = await tenantAct([logRow({ uid: UID, companyId: UID, status: 'received', date: QT + MIN })], {}, solo);
+    ok('…a reply routed to their lead (uid = lead.userId) does', held(c.res, 'recent_inbound'), JSON.stringify(c.res.body));
+  }
+  {
+    const unrouted = logRow({ uid: null, companyId: undefined, status: 'received', date: QT + MIN });
+    const myLead = Object.assign({}, LEAD, { phoneDigits: KEY });
+    const a = await tenantAct([unrouted]);
+    ok('an UNROUTED reply (no tenant) with no lead on the queued text is not visible → sends',
+      a.res.statusCode === 200 && !a.w.events.includes('activity-read:uid=null'), a.w.events.join(' > '));
+    const b = await tenantAct([unrouted], { leadId: 'lead-1' }, { docs: { 'leads/lead-1': myLead } });
+    ok('…for the caller\'s own lead with this number → recent_inbound', held(b.res, 'recent_inbound') && b.w.events.includes('activity-read:uid=null'), JSON.stringify(b.res.body));
+    const c = await tenantAct([unrouted], { leadId: 'lead-1' }, { docs: { 'leads/lead-1': Object.assign({}, LEAD, { phoneDigits: '5135550000' }) } });
+    ok('…for a lead of theirs with a DIFFERENT number → not visible (no probing numbers through your own lead)',
+      c.res.statusCode === 200 && !c.w.events.includes('activity-read:uid=null'), c.w.events.join(' > '));
+    const d = await tenantAct([unrouted], { leadId: 'lead-1', leadStageAtQueue: 'inspection' },
+      { docs: { 'leads/lead-1': Object.assign({}, myLead, { stage: 'closed' }) } });
+    ok('…and for a lead that also changed stage → recent_inbound (the reply is the reason shown, not "lead changed")',
+      held(d.res, 'recent_inbound'), JSON.stringify(d.res.body));
+  }
+
+  // ═══ round 2: the device clock ═════════════════════════════════════════
+  console.log('R2 — the device clock is not trusted for time (queuedAgeMs)');
+  {
+    // P1: the phone runs 4 min fast; the rep wrote the text 3 min ago; the
+    // homeowner replied and a teammate texted AFTER that.
+    const written = NOON - 3 * MIN;
+    const rows = [logRow({ uid: null, status: 'received', date: written + 30 * 1000 }), logRow({ uid: 'rep-2', date: written + MIN })];
+    const a = await tenantAct(rows, { queuedAt: written + 4 * MIN, queuedAgeMs: 3 * MIN });
+    ok('P1: device 4 min fast, reply + teammate text after the rep wrote it → held recent_inbound (was: sent)',
+      held(a.res, 'recent_inbound') && a.w.twilioCalls.length === 0, JSON.stringify(a.res.body));
+    const ctl = await tenantAct(rows, { queuedAt: written, queuedAgeMs: 3 * MIN });
+    ok('…the same with an accurate clock (control) → held recent_inbound', held(ctl.res, 'recent_inbound'));
+  }
+  {
+    // P2: the phone runs 10 min fast; a 24-minute-old text, automatic flush.
+    const written = NOON - 24 * MIN;
+    const { res, w } = await scenario({}, queuedBody({ queuedAt: written + 10 * MIN, queuedAgeMs: 24 * MIN }));
+    ok('P2: device 10 min fast, 24-minute-old text, no override → held stale (was: sent)',
+      held(res, 'stale') && w.twilioCalls.length === 0, JSON.stringify(res.body));
+  }
+  {
+    const { res } = await scenario({}, queuedBody({ queuedAt: NOON - 2 * MIN + 10 * MIN, queuedAgeMs: 2 * MIN }));
+    ok('device 10 min fast, 2-minute-old text → sends (not a 400 "in the future")', res.statusCode === 200, JSON.stringify(res.body));
+  }
+  {
+    // A slow clock: the EARLIER estimate (queuedAt) wins — looks further back.
+    const written = NOON - 3 * MIN;
+    const { res } = await scenario({ docs: { 'sms_log/s0': logRow({ uid: 'rep-2', date: written - 5 * MIN }) } },
+      queuedBody({ queuedAt: written - 10 * MIN, queuedAgeMs: 3 * MIN }));
+    ok('device 10 min slow: the earlier of the two estimates is used (conservative — a text before it was written holds it)',
+      held(res, 'recent_outbound'), JSON.stringify(res.body));
+  }
+  {
+    const { res, w } = await scenario({}, queuedBody({ queuedAt: NOON + 4 * MIN, queuedAgeMs: MIN }));
+    const row = smsRows(w)[0] || {};
+    ok('the sms_log row and the claim keep the RAW device queuedAt (the own-earlier rule compares one device\'s clock with itself)',
+      res.statusCode === 200 && row.queuedAt === NOON + 4 * MIN && (w.docs.get(claimPath) || {}).queuedAt === NOON + 4 * MIN, JSON.stringify(row));
+  }
+  {
+    const Guard = require(GUARD);
+    ok('effectiveQueuedAt = min(queuedAt, now − queuedAgeMs); without an age it is queuedAt',
+      Guard.effectiveQueuedAt(NOON + 4 * MIN, 3 * MIN, NOON) === NOON - 3 * MIN
+      && Guard.effectiveQueuedAt(NOON - 20 * MIN, 3 * MIN, NOON) === NOON - 20 * MIN
+      && Guard.effectiveQueuedAt(NOON - 20 * MIN, undefined, NOON) === NOON - 20 * MIN);
+    ok('a bare queuedAt may run ahead by no more than the activity lookback (FUTURE_SKEW_MS ≤ ACTIVITY_SKEW_MS)',
+      Guard.FUTURE_SKEW_MS <= Guard.ACTIVITY_SKEW_MS);
+  }
+
+  // ═══ round 2: every outbound path stamps the tenant ════════════════════
+  console.log('R2 — every outbound sms_log writer stamps the tenant the scan reads');
+  {
+    const ctx = load({ docs: { 'knocks/k1': { userId: UID, companyId: 'co-1', phone: PHONE_TYPED, homeowner: 'Sam' } } });
+    const r = await invoke(ctx.exported.sendD2DSMS.__handler, {
+      method: 'POST', headers: { authorization: 'Bearer t' }, body: { knockId: 'k1', templateKey: 'follow_up' },
+    });
+    const row = smsRows(ctx.w)[0] || {};
+    ok('sendD2DSMS: its sms_log row carries the sender\'s companyId (a D2D text competes with a queued one)',
+      r.statusCode === 200 && row.companyId === 'co-1' && row.toDigits === KEY, r.statusCode + ' ' + JSON.stringify(row));
+  }
+  {
+    const ctx = load({});
+    const approved = { status: 'approved', customerPhone: PHONE_TYPED, draftText: 'Sure, tomorrow works.', userId: UID, companyId: 'co-1', approvedBy: UID };
+    await ctx.exported.onAiDraftApproved.__handler({
+      params: { leadId: 'lead-1', draftId: 'd1' },
+      data: { before: { data: () => ({ status: 'pending' }) }, after: { data: () => approved } },
+    });
+    const row = smsRows(ctx.w)[0] || {};
+    ok('onAiDraftApproved: the approved reply\'s sms_log row carries the draft\'s companyId',
+      row.companyId === 'co-1' && row.status === 'sent' && row.toDigits === KEY && ctx.w.twilioCalls.length === 1, JSON.stringify(row));
+    ctx.w.docs.set('leads/lead-1', LEAD);
+    const r = await sendQ(ctx, queuedBody({ leadId: 'lead-1', queuedAt: NOON - 3 * MIN, queuedAgeMs: 3 * MIN }));
+    ok('…so a text the rep queued before the AI reply went out is held recent_outbound', held(r, 'recent_outbound'), JSON.stringify(r.body));
   }
 
   // ═══ contracts shared with the client, rules, indexes ══════════════════
@@ -930,8 +1236,14 @@ const logRow = (over) => Object.assign({
   const userOwned = require(path.join(FUNCTIONS, 'integrations', 'user-owned.js'));
   const reg = (userOwned.FLAT_USER_COLLECTIONS || []).find((c) => c.name === 'sms_client_ids');
   ok('sms_client_ids is in the GDPR user-owned registry, keyed on uid', !!reg && reg.ownerField === 'uid', JSON.stringify(reg));
-  ok('firestore.indexes.json has the {toDigits ASC, date DESC} sms_log composite the activity query needs',
-    IDX.indexes.some((i) => i.collectionGroup === 'sms_log'
+  for (const field of ['companyId', 'uid']) {
+    ok('firestore.indexes.json has the {toDigits, ' + field + ', date DESC} sms_log composite the tenant-scoped activity query needs',
+      IDX.indexes.some((i) => i.collectionGroup === 'sms_log'
+        && JSON.stringify(i.fields) === JSON.stringify([
+          { fieldPath: 'toDigits', order: 'ASCENDING' }, { fieldPath: field, order: 'ASCENDING' }, { fieldPath: 'date', order: 'DESCENDING' }])));
+  }
+  ok('…and no longer the unscoped {toDigits, date} composite (nothing queries every tenant\'s rows by number)',
+    !IDX.indexes.some((i) => i.collectionGroup === 'sms_log'
       && JSON.stringify(i.fields) === JSON.stringify([
         { fieldPath: 'toDigits', order: 'ASCENDING' }, { fieldPath: 'date', order: 'DESCENDING' }])));
 

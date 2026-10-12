@@ -750,13 +750,20 @@ export const NBDAuth = {
   },
 
   /**
-   * Delete every queued text on this device (all accounts). Uses the outbox
-   * module when this page loaded it (it also clears the tray), otherwise
-   * deletes its database directly — a page that never loaded the outbox can
-   * still be holding one from an earlier page. Resolves true/false, never
-   * rejects, and gives up after 2s so a blocked delete cannot stall sign-out.
+   * Delete every queued text on this device (all accounts) — every phone
+   * number and message. Uses the outbox module when this page loaded it (it
+   * also clears the tray), otherwise opens its database directly — a page
+   * that never loaded the outbox can still be holding one from an earlier
+   * page. Either way RECEIPTS of texts that already went (ids only: no
+   * number, no message) are kept, so the same rep's invoice / deal / share is
+   * still stamped after they sign back in (sms-outbox.js purgeAll — the same
+   * rule, _isPiiFreeReceipt). Resolves true/false, never rejects, and gives
+   * up after 2s so a blocked purge cannot stall sign-out.
    */
   purgeSmsOutbox() {
+    const keep = (x) => !!x && typeof x.source === 'string' && !!x.source
+      && typeof x.sourceRef === 'string' && !!x.sourceRef
+      && (x.status === 'sent' || x.status === 'acking') && !x.to && !x.toDigits && !x.body;
     const work = new Promise((resolve) => {
       try {
         const ob = window.NBDSmsOutbox;
@@ -764,10 +771,34 @@ export const NBDAuth = {
           Promise.resolve(ob.purgeAll()).then((ok) => resolve(!!ok), () => resolve(false));
           return;
         }
-        if (!window.indexedDB || typeof window.indexedDB.deleteDatabase !== 'function') { resolve(true); return; }
-        const req = window.indexedDB.deleteDatabase('nbd-sms-outbox-db');
-        req.onsuccess = () => resolve(true);
-        req.onerror = () => resolve(false);
+        const idb = window.indexedDB;
+        if (!idb || typeof idb.open !== 'function') { resolve(true); return; }
+        let created = false;
+        const req = idb.open('nbd-sms-outbox-db', 1);
+        req.onupgradeneeded = (e) => {
+          // No outbox database on this device: nothing to purge. Abort the
+          // upgrade so looking does not leave an empty database behind.
+          created = true;
+          try { e.target.transaction.abort(); } catch (_) {}
+        };
+        req.onsuccess = () => {
+          const db = req.result;
+          const close = () => { try { db.close(); } catch (_) {} };
+          if (created || !db.objectStoreNames.contains('outbox')) { close(); resolve(true); return; }
+          let tx;
+          try { tx = db.transaction('outbox', 'readwrite'); } catch (_) { close(); resolve(false); return; }
+          const store = tx.objectStore('outbox');
+          const all = store.getAll();
+          all.onsuccess = () => {
+            (Array.isArray(all.result) ? all.result : []).forEach((x) => {
+              if (x && x.id != null && !keep(x)) store.delete(x.id);
+            });
+          };
+          tx.oncomplete = () => { close(); resolve(true); };
+          tx.onabort = () => { close(); resolve(false); };
+        };
+        // An aborted first-time open (nothing existed) lands here too.
+        req.onerror = () => resolve(created);
         req.onblocked = () => resolve(false);
       } catch (_) { resolve(false); }
     });

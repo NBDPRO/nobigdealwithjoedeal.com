@@ -616,11 +616,22 @@
       ]
     },
     {
-      "_comment": "Offline SMS outbox (functions/sms-functions.js queuedSendGate): where('toDigits','==',key).where('date','>',queuedAt-60s).orderBy('date','desc').limit(25) — did anyone text this number, or did the homeowner text back, since a queued text was written? toDigits is stamped on every sms_log row by logSMSToFirestore. Without this composite the query throws FAILED_PRECONDITION and every queued text answers 503 outbox_unverified (fails closed: nothing is sent, texts stay in Pending texts).",
+      "_comment": "Offline SMS outbox (functions/sms-functions.js queuedSendGate), company reps: where('toDigits','==',key).where('companyId','==',claim).where('date','>',writtenAt-60s).orderBy('date','desc').limit(25) — did anyone IN THIS TENANT text this number, or did the homeowner text back, since a queued text was written? Scoped to the caller's tenant (sms-outbox-guard.js activityScope) so another company's thread neither holds the text nor leaks through the answer. toDigits is stamped on every sms_log row by logSMSToFirestore. Without this composite the query throws FAILED_PRECONDITION and every queued text answers 503 outbox_unverified (fails closed: nothing is sent, texts stay in Pending texts).",
       "collectionGroup": "sms_log",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "toDigits", "order": "ASCENDING" },
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "_comment": "Offline SMS outbox (functions/sms-functions.js queuedSendGate): the same activity query keyed on uid — solo reps with no company claim (their sends carry uid, inbound rows routed to their leads carry uid = lead.userId), and uid == null for inbound texts incomingSMS could not route to a tenant (checked only for the caller's own lead with this number). Same fail-closed behaviour without it.",
+      "collectionGroup": "sms_log",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "toDigits", "order": "ASCENDING" },
+        { "fieldPath": "uid", "order": "ASCENDING" },
         { "fieldPath": "date", "order": "DESCENDING" }
       ]
     },

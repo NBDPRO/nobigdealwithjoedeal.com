@@ -23,16 +23,22 @@
  *   this file      flush() on 'online', on page load once auth is ready, and
  *                  on visibilitychange → visible. Oldest first, one recipient
  *                  at a time, in order per recipient. Stale (≥15 min) → held.
- *                  Identical text to the same number already pending →
- *                  the newer copy is discarded as 'duplicate' (recorded, not
- *                  silently deleted). Each text goes through the SAME sendSMS
- *                  endpoint via NBDComms.sendQueued with { queued: true,
- *                  clientMsgId, queuedAt, leadStageAtQueue }.
- *   sendSMS        opt-out first (403), then idempotency, quiet hours,
- *                  staleness, competing activity (409 held), then the paid
- *                  gate / limiters / Twilio.
+ *                  Identical text to the same number already pending → one
+ *                  copy is discarded as 'duplicate' (recorded, not silently
+ *                  deleted; see the collapse rules in _flushInner). Each text
+ *                  goes through NBDComms.sendQueued to the sendQueuedSMS
+ *                  endpoint — sendSMS's handler with `queued` forced on, and
+ *                  an endpoint an old deploy does not have, so a page ahead
+ *                  of its functions keeps the text queued instead of having
+ *                  it sent as a live text — with { clientMsgId, queuedAt,
+ *                  queuedAgeMs, leadStageAtQueue }.
+ *   sendQueuedSMS  opt-out first (403), then idempotency, quiet hours,
+ *                  staleness, the lead, competing activity in the rep's
+ *                  tenant (409 held), then the paid gate / limiters / Twilio.
  *   the tray       a "Pending texts (N)" pill → modal listing each held or
- *                  queued text with Send now / Send anyway / Edit / Discard.
+ *                  queued text with Send now / Send anyway / Edit / Discard,
+ *                  or — for a text that may already have gone — Check again
+ *                  (a peek that never sends) / Discard.
  *
  * A text queued after a LIVE attempt keeps that attempt's clientMsgId
  * (nbd-comms.js mints it before the fetch). If the attempt reached sendSMS
@@ -71,13 +77,16 @@
  * A record holds the recipient's phone number and the message until it is
  * sent (then removed, or reduced to a receipt with neither) or discarded.
  * Every record carries the uid that wrote it and every read filters on the
- * signed-in uid. The WHOLE store is purged on sign-out (nbd-auth.js
- * purgeAccountStorage/logout, the dashboard's _signOut, command-palette.js's
- * SDK fallback on customer.html) and on account switch (purgeAccountStorage's
- * uid-change path, plus this module's own boot check). As a backstop for any
- * other sign-out path, this module also purges itself when the page's auth
- * (window.auth) reports no user after a signed-in one. Same class of data as
- * the photo queue.
+ * signed-in uid. Every phone number and message is purged on sign-out
+ * (nbd-auth.js purgeAccountStorage/logout, the dashboard's _signOut,
+ * command-palette.js's SDK fallback on customer.html) and on account switch
+ * (purgeAccountStorage's uid-change path, plus this module's own boot check).
+ * As a backstop for any other sign-out path, this module also purges itself
+ * when the page's auth (window.auth) reports no user after a signed-in one.
+ * The one thing a sign-out keeps is a RECEIPT of a text that already went —
+ * ids only, no number, no message (purgeAll) — so the same rep's invoice /
+ * deal / share still gets stamped after they sign back in; an account switch
+ * drops those too. Same class of data as the photo queue.
  *
  * ── No IndexedDB (private mode, storage disabled) ────────────────────────
  * enqueue() rejects with reason 'unavailable' and nbd-comms.js falls back to
@@ -137,6 +146,12 @@
   // An edit remembers at most this many ids it replaces (server: MAX_SUPERSEDES).
   const MAX_SUPERSEDES = 5;
 
+  // A held text that may already be on the homeowner's phone (held
+  // 'in_flight', or a tap whose answer was lost) is re-asked by the automatic
+  // flush with a PEEK — never a send — at most this often, so flushes on
+  // every visibilitychange do not hammer the server with the same question.
+  const PEEK_EVERY_MS = 2 * 60 * 1000;
+
   const ACTIVE = { queued: 1, sending: 1, held: 1 };
 
   // Server answers the tray may turn into a device handoff on an explicit tap
@@ -159,6 +174,7 @@
     lead_changed: 'Lead changed',
     lead_gone: 'Lead was deleted',
     in_flight: 'May already have gone — check the conversation first',
+    not_sent: 'Not sent — the earlier try did not go out. Review it, then send',
     plan_required: 'Texting from the app needs a paid plan',
     rate_limited: 'Text limit reached — try later',
     provider_error: 'Text provider error — try again',
@@ -238,8 +254,8 @@
         const d = req.result;
         try {
           d.onclose = () => { if (_db === d) _forget(); };
-          // purgeAll() fallbacks and nbd-auth.js delete the whole database;
-          // an open connection that ignored versionchange would block that.
+          // A schema upgrade or a deleteDatabase from another page must not
+          // be blocked by a connection that ignored versionchange.
           d.onversionchange = () => { try { d.close(); } catch (_) {} if (_db === d) _forget(); };
         } catch (_) {}
         _db = d;
@@ -432,11 +448,36 @@
     }
   }
 
-  /** Delete EVERY record for EVERY user. Sign-out / account switch. */
+  /**
+   * A receipt that holds nothing personal: the phone number and the message
+   * were dropped when the text went (_recordSent), and what is left is ids.
+   * nbd-auth.js purgeSmsOutbox's bare-page path applies the same rule.
+   */
+  function _isPiiFreeReceipt(r) {
+    return _isReceipt(r) && (r.status === 'sent' || r.status === 'acking') && !r.to && !r.toDigits && !r.body;
+  }
+
+  /**
+   * Sign-out / account switch: delete every record for every user — every
+   * phone number and every message — EXCEPT receipts of texts that already
+   * went out. A receipt carries only ids ("invoice inv-9's text went"), and
+   * deleting one un-applied reopens the double text it exists to prevent: the
+   * invoice stays draft, the rep signs back in and sends it again. The same
+   * rep applies it on their next sign-in; another account never sees it
+   * (every read is uid-scoped, and _purgeOtherUsers drops it at their boot).
+   */
   async function purgeAll() {
     let ok = false;
     try {
-      ok = await _run('readwrite', (store, done) => { store.clear(); done(true); });
+      ok = await _run('readwrite', (store, done) => {
+        const r = store.getAll();
+        r.onsuccess = () => {
+          (Array.isArray(r.result) ? r.result : []).forEach((x) => {
+            if (x && x.id != null && !_isPiiFreeReceipt(x)) store.delete(x.id);
+          });
+          done(true);
+        };
+      });
     } catch (_) {
       ok = false;
     }
@@ -591,20 +632,29 @@
       }
     }
 
-    // Duplicate collapse — the same words to the same number twice:
-    //   - two QUEUED copies: the newer is discarded ('duplicate'), the oldest
-    //     goes on;
-    //   - a newer QUEUED copy of an older HELD one: the held copy is the one
-    //     retired. It is waiting for a tap, and it would otherwise sit ahead
-    //     of the new copy in this number's FIFO and stop it from ever going
-    //     on its own. Only a held copy that certainly did not go out (a
-    //     server verdict or the local stale rule said so, not 'in_flight');
-    //   - a copy that is 'sending', held 'in_flight', or whose last attempt
-    //     ended without an answer may already be on the homeowner's phone:
-    //     the newer queued copy is the one discarded.
-    // Either way the loser is recorded as 'discarded' (reason 'duplicate'),
-    // never silently deleted.
+    // Duplicate collapse — the same words to the same number twice. One copy
+    // goes on, the other is recorded as 'discarded' (reason 'duplicate'),
+    // never silently deleted. Which one is decided by what each copy may
+    // already have done:
+    //   - "certainly unsent": queued or held with no attempt left unanswered
+    //     (not 'sending', not held 'in_flight', not `uncertain`);
+    //   - "may have gone": everything else — it may be on the homeowner's
+    //     phone already, and only a replay under ITS OWN id can find that out
+    //     (the server's claim answers "duplicate") and carry its receipt.
+    // Rules, for an older copy and a newer QUEUED copy:
+    //   - older certainly unsent and HELD → the older is retired. It waits for
+    //     a tap and would otherwise sit ahead of the new copy in this
+    //     number's FIFO and stop it from ever going on its own;
+    //   - older certainly unsent, newer MAY HAVE GONE (a live attempt whose
+    //     answer was lost) → the older is retired, so the uncertain copy is
+    //     the one replayed: its id dedupes it and its receipt stamps the
+    //     invoice. Retiring the uncertain one instead replayed the older copy
+    //     under an id the server had never seen — a second text if the first
+    //     was still inside Twilio, and a lost receipt either way;
+    //   - otherwise (both certainly unsent, or the older may have gone) → the
+    //     newer is discarded and the older goes on.
     const firstByText = {};
+    const mayHaveGone = (x) => x.status === 'sending' || (x.status === 'held' && x.heldReason === 'in_flight') || !!x.uncertain;
     const discardAsDuplicate = async (loser, keepId, fromStatus) => {
       const dup = await _mutate(loser.id, uid, (cur) => (cur.status === fromStatus
         ? Object.assign(cur, { status: 'discarded', heldReason: 'duplicate', duplicateOf: keepId, discardedAt: _now() })
@@ -618,9 +668,9 @@
       const first = firstByText[key];
       if (!first) { firstByText[key] = r; continue; }
       if (r.status !== 'queued') continue;
-      const retireable = first.status === 'held' && first.heldReason !== 'in_flight' && !first.uncertain;
-      if (retireable) {
-        if (await discardAsDuplicate(first, r.id, 'held')) firstByText[key] = r;
+      const retireOlder = !mayHaveGone(first) && (first.status === 'held' || mayHaveGone(r));
+      if (retireOlder) {
+        if (await discardAsDuplicate(first, r.id, first.status)) firstByText[key] = r;
       } else {
         await discardAsDuplicate(r, first.id, 'queued');
       }
@@ -640,6 +690,19 @@
     outer:
     for (const key of order) {
       for (const r of byRecipient[key]) {
+        // Held, but it may already be on the homeowner's phone ('in_flight',
+        // or an explicit tap whose answer never came back): ask the server
+        // with a PEEK — never a send, never an override. "duplicate" applies
+        // it as sent (its receipt stamps the invoice) and lets the next text
+        // to this number go; "not_claimed" turns it into an ordinary hold
+        // that needs an explicit Send now. Otherwise it still blocks the queue.
+        if (_maybeGone(r)) {
+          if (_now() - (r.peekedAt || 0) < PEEK_EVERY_MS) break;
+          const peeked = await _peekOne(r, uid, summary);
+          if (peeked === 'stop-all') break outer;
+          if (peeked !== 'continue') break;
+          continue;
+        }
         if (r.status !== 'queued') break;           // held / sending ahead of it
         // Too old to send without the rep looking at it — decided HERE, with
         // no server call, only for a text that has never reached the server.
@@ -750,11 +813,75 @@
         // was — a flush's text stays queued, an explicit tap's stays held —
         // but remember that a network drop or a 5xx may have come AFTER the
         // server sent it, so nothing later treats it as certainly unsent.
+        // Not when no request can have left (offline pre-check, the ID token
+        // could not be minted) or the server's answer says nothing was sent
+        // (503 outbox_unverified / throttled, a 404 from a deploy without
+        // sendQueuedSMS): `neverSent`.
         const back = Object.assign({}, prev);
-        if (res.outcome === 'network' || res.outcome === 'retry') back.uncertain = true;
+        if ((res.outcome === 'network' || res.outcome === 'retry') && !res.neverSent) back.uncertain = true;
         await setStatus(back);
         summary.stoppedBy = res.outcome === 'auth' ? 'auth' : (res.outcome === 'retry' ? 'retry' : 'network');
         if (explicit) summary.lastMessage = res.message || null;
+        return 'stop-all';
+      }
+    }
+  }
+
+  /**
+   * A held text that may already be on the homeowner's phone: held
+   * 'in_flight' by the server, or held with `uncertain` (an explicit tap —
+   * Send now, Send anyway, Open in Messages — whose answer never came back).
+   * The tray shows it as "May already have gone" with Check again / Discard,
+   * and the flush re-asks the server about it with a peek.
+   */
+  function _maybeGone(r) {
+    return !!r && r.status === 'held' && (r.heldReason === 'in_flight' || !!r.uncertain);
+  }
+
+  /**
+   * Ask the server whether a held text went — NBDComms.peekQueued, which never
+   * sends — and record the answer. Returns 'continue' (it went: recorded as
+   * sent) | 'stop-recipient' | 'stop-all' (no answer).
+   */
+  async function _peekOne(r, uid, summary) {
+    let res;
+    try {
+      res = await window.NBDComms.peekQueued(r);
+    } catch (e) {
+      res = { outcome: 'network', message: e && e.message, neverSent: true };
+    }
+    res = res || { outcome: 'retry', neverSent: true };
+    summary.last = res;
+    const onHeld = (fn) => _mutate(r.id, uid, (cur) => (cur.status === 'held'
+      ? Object.assign(cur, fn(cur), { peekedAt: _now() }) : null)).catch(() => null);
+    switch (res.outcome) {
+      case 'duplicate': {
+        await _recordSent(r, uid, res, { from: 'held' });
+        summary.sent++;
+        return 'continue';
+      }
+      case 'held': {
+        // Still claimed / unknown ('in_flight'), or an edit whose original
+        // went ('recent_outbound' — Send anyway is the rep's call).
+        const reason = res.reason || 'in_flight';
+        await onHeld(() => ({ heldReason: reason, heldMessage: res.message || null, heldAt: _now(), uncertain: false }));
+        summary.peeked = reason;
+        return 'stop-recipient';
+      }
+      case 'not_claimed': {
+        // Nothing of it reached Twilio: it did not go. An in_flight hold
+        // becomes an ordinary one ('not_sent'); a tap whose answer was lost
+        // is back to the hold it answered. Either way it needs an explicit
+        // Send now — "Check again" was consent to check, not to send.
+        await onHeld((cur) => (cur.heldReason === 'in_flight'
+          ? { heldReason: 'not_sent', heldMessage: null, uncertain: false }
+          : { uncertain: false }));
+        summary.peeked = 'not_claimed';
+        return 'stop-recipient';
+      }
+      default: {
+        await onHeld(() => ({}));
+        summary.stoppedBy = res.outcome === 'auth' ? 'auth' : (res.outcome === 'retry' ? 'retry' : 'network');
         return 'stop-all';
       }
     }
@@ -767,23 +894,29 @@
   }
 
   /**
-   * A text went out (now, or on an earlier attempt whose answer was lost).
+   * A text went out (now, or on an earlier attempt whose answer was lost, or
+   * from the rep's own Messages app after "Open in Messages").
    * With a source + sourceRef it becomes a RECEIPT — phone number and message
    * dropped — that waits here until a handler registered with onSent() for
    * that source applies it; without one it is simply removed.
+   * opts: { from: the status it must still be in ('sending' by default —
+   *         'held' for a peek's "duplicate" and a handoff), via: 'platform' |
+   *         'handoff' }
    */
-  async function _recordSent(rec, uid, res) {
+  async function _recordSent(rec, uid, res, opts) {
+    const from = (opts && opts.from) || 'sending';
+    const via = (opts && opts.via) || 'platform';
     const sid = (res && res.sid) || null;
     const duplicate = !!(res && res.outcome === 'duplicate');
     if (_isReceipt(rec)) {
-      await _mutate(rec.id, uid, (cur) => (cur.status === 'sending'
+      await _mutate(rec.id, uid, (cur) => (cur.status === from
         ? Object.assign(cur, {
-          status: 'sent', sentAt: _now(), sid: sid, duplicate: duplicate,
+          status: 'sent', sentAt: _now(), sid: sid, duplicate: duplicate, via: via,
           to: '', toDigits: '', body: '', heldReason: null, heldMessage: null, overrides: {},
         })
         : null)).catch(() => null);
     } else {
-      await _mutate(rec.id, uid, (cur) => (cur.status === 'sending'
+      await _mutate(rec.id, uid, (cur) => (cur.status === from
         ? Object.assign(cur, { status: 'sent', sentAt: _now(), sid: sid }) : null)).catch(() => null);
       await _remove(rec.id, uid).catch(() => false);
     }
@@ -794,7 +927,7 @@
         detail: {
           id: rec.id, leadId: rec.leadId, knockId: rec.knockId,
           source: rec.source, sourceRef: rec.sourceRef,
-          sid: sid, duplicate: duplicate,
+          sid: sid, duplicate: duplicate, via: via,
         },
       }));
     } catch (_) {}
@@ -812,7 +945,10 @@
   /**
    * A caller that stamps something when its text goes out (invoice → sent,
    * deal → SENT, portal share) registers here. `handler(detail)` gets
-   * { id, source, sourceRef, leadId, knockId, sid, sentAt, duplicate } and
+   * { id, source, sourceRef, leadId, knockId, sid, sentAt, duplicate, via }
+   * (via: 'platform', or 'handoff' when the rep sent it from their own
+   * Messages app through the tray's "Open in Messages" — the same thing a
+   * live 402/429 handoff's mode 'sms' means to the caller) and
    * may return a promise. Resolving (with anything) applies the receipt and
    * deletes it; throwing / rejecting leaves it for the next drain (e.g. the
    * page's Firestore globals are not up yet). Receipts already waiting — from
@@ -863,6 +999,7 @@
           id: taken.id, source: taken.source, sourceRef: taken.sourceRef,
           leadId: taken.leadId || null, knockId: taken.knockId || null,
           sid: taken.sid || null, sentAt: taken.sentAt || null, duplicate: !!taken.duplicate,
+          via: taken.via || 'platform',
         }), ACK_TIMEOUT_MS);
         applied = true;
       } catch (e) {
@@ -912,6 +1049,10 @@
     const found = await _find(id).catch(() => ({ rec: null }));
     const rec = found.rec;
     if (!rec || !(rec.status === 'held' || rec.status === 'queued')) return { outcome: 'noop' };
+    // A text that may already have gone is never re-sent from a tap: the
+    // server claim that would have stopped it may have been released since.
+    // Ask instead (the tray offers only "Check again" for these).
+    if (_maybeGone(rec)) return checkAgain(id);
     if (!window.NBDComms || typeof window.NBDComms.sendQueued !== 'function') return { outcome: 'noop' };
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       _toast('Still offline — the text stays in Pending texts.', 'warning');
@@ -933,6 +1074,43 @@
         : 'Could not reach the server — the text stays in Pending texts.', 'warning');
     } else if (step === 'skipped') {
       _toast('That text is already being sent.', 'info');
+    }
+    _changed();
+    return { outcome: step, summary: summary };
+  }
+
+  /**
+   * "Check again" on a text that may already have gone (held 'in_flight', or
+   * a tap whose answer never came back). A PEEK: the server reads the claims
+   * and answers — it never sends, whatever it finds and however old the text
+   * is. The tap is consent to check, not to send: the rep was told to look at
+   * the conversation first, and may have texted from their own phone, which
+   * no server check can see.
+   *   went out       → recorded as sent (its receipt stamps the invoice)
+   *   still unknown  → stays "May already have gone"
+   *   did not go     → an ordinary hold that needs an explicit Send now
+   */
+  async function checkAgain(id) {
+    const found = await _find(id).catch(() => ({ rec: null }));
+    const rec = found.rec;
+    if (!rec || !_maybeGone(rec)) return { outcome: 'noop' };
+    if (!window.NBDComms || typeof window.NBDComms.peekQueued !== 'function') return { outcome: 'noop' };
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      _toast('Still offline — the text stays in Pending texts.', 'warning');
+      return { outcome: 'network' };
+    }
+    const summary = { sent: 0, held: 0, duplicates: 0, optedOut: 0, stoppedBy: null, last: null };
+    const step = await _peekOne(rec, found.uid, summary);
+    if (summary.sent) _toast('It went out — nothing more to send.', 'success');
+    else if (summary.peeked === 'in_flight') _toast('Still can\'t tell whether it went — check the conversation before sending it again.', 'warning');
+    else if (summary.peeked === 'not_claimed') _toast('It did not go out. Review it, then tap Send now.', 'info');
+    else if (summary.peeked) {
+      const after = await _find(id).catch(() => ({ rec: null }));
+      _toast('Not sent — ' + (after.rec ? _reasonText(after.rec) : 'held') + '.', 'warning');
+    } else if (summary.stoppedBy) {
+      _toast(summary.stoppedBy === 'auth'
+        ? 'Sign in again to check texts — it stays in Pending texts.'
+        : 'Could not reach the server — the text stays in Pending texts.', 'warning');
     }
     _changed();
     return { outcome: step, summary: summary };
@@ -968,6 +1146,9 @@
         r.onsuccess = () => {
           const cur = r.result;
           if (!cur || cur.uid !== uid || !(cur.status === 'held' || cur.status === 'queued')) { done(null); return; }
+          // Not a text that may already have gone: a new id for the same
+          // conversation is how a double text happens. "Check again" first.
+          if (_maybeGone(cur)) { done(null); return; }
           const next = Object.assign({}, cur, {
             id: newId, body: body, status: 'held', editedAt: _now(), updatedAt: _now(),
             supersedes: (Array.isArray(cur.supersedes) ? cur.supersedes : []).concat([cur.id]).slice(-MAX_SUPERSEDES),
@@ -995,19 +1176,24 @@
    * only after opt-out, quiet hours and the activity checks passed in the
    * same request. Any other answer is applied as usual (sent → done, held →
    * the new reason, opted out → discarded, no network → nothing changes).
-   * Removes the text from the outbox once handed off: it now lives in Messages.
+   * Once handed off the text leaves the queue: it now lives in Messages. A
+   * text with a source + sourceRef (an invoice, a deal, a portal share)
+   * leaves a RECEIPT (via 'handoff') instead of just vanishing, so its caller
+   * stamps it exactly as it stamps a live handoff (mode 'sms') — otherwise
+   * the invoice stayed draft after the homeowner had the text, and invited a
+   * second one.
    */
   async function openInMessages(id) {
     const found = await _find(id).catch(() => ({ rec: null }));
     const rec = found.rec;
-    if (!rec || rec.status !== 'held' || !HANDOFF_OK[rec.heldReason]) return false;
+    if (!rec || rec.status !== 'held' || !HANDOFF_OK[rec.heldReason] || _maybeGone(rec)) return false;
     if (!window.NBDComms || typeof window.NBDComms.sendQueued !== 'function') return false;
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       _toast('Still offline — the text stays in Pending texts.', 'warning');
       return false;
     }
     const summary = { sent: 0, held: 0, duplicates: 0, optedOut: 0, stoppedBy: null, last: null };
-    const step = await _sendOne(rec, found.uid, (cur) => cur.status === 'held' && !!HANDOFF_OK[cur.heldReason],
+    const step = await _sendOne(rec, found.uid, (cur) => cur.status === 'held' && !!HANDOFF_OK[cur.heldReason] && !_maybeGone(cur),
       { stale: true }, summary, true);
     const fresh = summary.last;
     if (step === 'skipped') { _toast('That text is already being sent.', 'info'); _changed(); return false; }
@@ -1038,7 +1224,12 @@
     } catch (_) {
       try { window.location.href = href; } catch (__) {}
     }
-    await _remove(rec.id, found.uid).catch(() => false);
+    if (_isReceipt(rec)) {
+      // (the fresh answer left it 'held' with the handoff reason)
+      await _recordSent(rec, found.uid, { outcome: 'handoff' }, { from: 'held', via: 'handoff' });
+    } else {
+      await _remove(rec.id, found.uid).catch(() => false);
+    }
     _toast('Opened in Messages — send it from there.', 'info');
     _changed();
     return true;
@@ -1069,6 +1260,9 @@
     if (r.status === 'discarded') return REASON_TEXT[r.heldReason] || 'Not sent';
     if (r.status === 'sending') return REASON_TEXT.sending;
     if (r.status === 'queued') return behind ? REASON_TEXT.queued_behind : REASON_TEXT.queued;
+    // A tap whose answer never came back: whatever it was held for before,
+    // it may be on the homeowner's phone now.
+    if (_maybeGone(r)) return REASON_TEXT.in_flight;
     return REASON_TEXT[r.heldReason] || REASON_TEXT.error;
   }
 
@@ -1224,11 +1418,13 @@
     if (r.status === 'discarded') return [['Dismiss', 'discard', 'btn-ghost']];
     if (r.status === 'queued') return [['Send now', 'send', 'btn-orange'], ['Discard', 'discard', 'btn-ghost']];
     const reason = r.heldReason;
+    // It may already be on the homeowner's phone — held 'in_flight', or a
+    // tap whose answer never came back (`uncertain`, whatever the old hold
+    // was). "Check again" PEEKS at THIS id (checkAgain: it never sends); no
+    // Send now, and no Edit — a new id for the same words is how a double
+    // text happens.
+    if (_maybeGone(r)) return [['Check again', 'check', 'btn-ghost'], ['Discard', 'discard', 'btn-ghost']];
     if (reason === 'lead_gone') return [['Discard', 'discard', 'btn-ghost']];
-    // It may already be on the homeowner's phone. "Check again" asks the
-    // server about THIS id (it answers "duplicate" once it knows it went);
-    // no Edit — a new id for the same words is how a double text happens.
-    if (reason === 'in_flight') return [['Check again', 'send', 'btn-ghost'], ['Discard', 'discard', 'btn-ghost']];
     if (ACTIVITY_HOLDS[reason]) {
       return [['Send anyway', 'send-anyway', 'btn-orange'], ['Edit', 'edit', 'btn-ghost'], ['Discard', 'discard', 'btn-ghost']];
     }
@@ -1343,6 +1539,7 @@
       Promise.resolve(p).catch(() => {}).then(() => { try { t.disabled = false; } catch (_) {} _scheduleRender(); });
     };
     if (action === 'send') busy(sendNow(id));
+    else if (action === 'check') busy(checkAgain(id));
     else if (action === 'send-anyway') busy(sendNow(id, { activity: true }));
     else if (action === 'discard') busy(discard(id));
     else if (action === 'handoff') busy(openInMessages(id));
@@ -1427,6 +1624,7 @@
     pendingCount: pendingCount,
     flush: flush,
     sendNow: sendNow,
+    checkAgain: checkAgain,
     discard: discard,
     editAndSend: editAndSend,
     openInMessages: openInMessages,

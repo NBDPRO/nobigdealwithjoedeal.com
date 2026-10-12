@@ -698,20 +698,105 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   // an invoice whose text went out stayed 'draft' and invited a re-send.)
   const INVOICE_SMS_SOURCE = 'invoice-sms';
 
+  // ── Money status around a send ─────────────────────────────────────────
+  // "Send to Customer" is offered on every invoice, paid ones included. The
+  // send lock ('sending') used to be released to 'draft' whatever the invoice
+  // was before, and a completed send wrote 'sent' over it: a PAID invoice
+  // re-sent by text came back draft/sent — out of leaderboard revenue, into
+  // AR, with "Mark Paid" offered again (a second payments entry, amountPaid
+  // double-counted). The lock now remembers the status it replaced
+  // (sendingPriorStatus) and everything that ends a send restores it; only a
+  // DRAFT becomes 'sent'.
+
+  /** What the invoice was before this send — a stale lock keeps ITS prior status. */
+  function _priorStatusOf(inv) {
+    const s = inv && inv.status;
+    if (s === 'sending') return (inv && inv.sendingPriorStatus) || 'draft';
+    return s || 'draft';
+  }
+
+  /** The write for "it went out": a draft becomes sent; paid / partial / overdue / void keep their status. */
+  function _sentPatch(inv, priorStatus, now) {
+    const patch = {
+      status: priorStatus === 'draft' ? 'sent' : priorStatus,
+      lastSentAt: now,
+      sendingAt: null,
+      sendingPriorStatus: null,
+      updatedAt: now,
+    };
+    if (priorStatus === 'draft' || !(inv && inv.sentAt)) patch.sentAt = now;
+    return patch;
+  }
+
+  /**
+   * Release the send lock back to the status it replaced — ONLY if the
+   * invoice still says 'sending'. A Stripe webhook or Mark Paid that landed in
+   * between wins. A transaction where the page has one (both CRM pages expose
+   * window.runTransaction), so the check and the write are one step; offline
+   * a transaction cannot run and nothing is written — the 2-minute stale-lock
+   * rule lets the next send through and markInvoiceSentAfterQueuedSms resolves
+   * a 'sending' invoice from its sendingPriorStatus.
+   */
+  function _releaseSendLock(db, invRef, priorStatus, extra) {
+    const restore = (cur) => Object.assign({
+      status: (cur && cur.sendingPriorStatus) || priorStatus || 'draft',
+      sendingAt: null,
+      sendingPriorStatus: null,
+      updatedAt: new Date(),
+    }, extra || {});
+    if (typeof window.runTransaction === 'function') {
+      return Promise.resolve(window.runTransaction(db, async (tx) => {
+        const snap = await tx.get(invRef);
+        if (!snap.exists()) return false;
+        const cur = snap.data() || {};
+        if (cur.status !== 'sending') return false;
+        tx.update(invRef, restore(cur));
+        return true;
+      }));
+    }
+    return (async () => {
+      const snap = await window.getDoc(invRef);
+      if (!snap.exists() || (snap.data() || {}).status !== 'sending') return false;
+      await window.updateDoc(invRef, restore(snap.data() || {}));
+      return true;
+    })();
+  }
+
+  /**
+   * The outbox sent (or the rep handed off from the tray) this invoice's
+   * queued text. A 'sending' lock is transparent here — what matters is what
+   * the invoice was: a draft becomes 'sent'; any other status is restored
+   * (and stamped lastSentAt) if the lock is still on, and otherwise left
+   * alone (paid, void, sent another way). Transactional where the page can,
+   * for the same reason as _releaseSendLock.
+   */
   async function markInvoiceSentAfterQueuedSms(invoiceId) {
     const db = getDb();
     const ref = window.doc(db, 'invoices', invoiceId);
+    const decide = (cur) => {
+      const now = new Date();
+      const locked = cur.status === 'sending';
+      const effective = locked ? (cur.sendingPriorStatus || 'draft') : cur.status;
+      if (effective === 'draft') return _sentPatch(cur, 'draft', now);
+      if (locked) return { status: effective, sendingAt: null, sendingPriorStatus: null, lastSentAt: now, updatedAt: now };
+      return null;
+    };
+    if (typeof window.runTransaction === 'function') {
+      return window.runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) return false;
+        const patch = decide(snap.data() || {});
+        if (!patch) return false;
+        tx.update(ref, patch);
+        return patch.status === 'sent';
+      });
+    }
     const snap = await window.getDoc(ref);
     if (!snap.exists()) return false;
-    const status = (snap.data() || {}).status;
-    // Paid, void, or already sent another way: leave it alone.
-    if (status !== 'draft' && status !== 'sending') return false;
-    await window.updateDoc(ref, {
-      status: 'sent',
-      sentAt: new Date(),
-      updatedAt: new Date()
-    });
-    return true;
+    const patch = decide(snap.data() || {});
+    if (!patch) return false;
+    await window.updateDoc(ref, patch);
+    return patch.status === 'sent';
   }
 
   // Resolves → the receipt is applied (or had nothing to do) and deleted;
@@ -741,6 +826,10 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    */
   async function sendInvoice(invoiceId, method) {
     const db = getDb();
+    // What the invoice was before this send (see _priorStatusOf): restored
+    // when the send ends without delivering, kept when it delivers anything
+    // but a draft.
+    let priorStatus = 'draft';
 
     try {
       const invRef = window.doc(db, 'invoices', invoiceId);
@@ -749,6 +838,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       if (!invSnap.exists()) throw new Error('Invoice not found');
 
       const invoice = invSnap.data();
+      priorStatus = _priorStatusOf(invoice);
 
       // ── Idempotency guard ──────────────────────────────────
       // Refuse to re-send an invoice that's already been sent. Without
@@ -788,6 +878,9 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         await window.updateDoc(invRef, {
           status: 'sending',
           sendingAt: new Date(),
+          // The status this lock replaces — every path that ends the send
+          // puts it back (a paid invoice must not come out 'draft').
+          sendingPriorStatus: priorStatus,
           updatedAt: new Date()
         });
       } catch (lockErr) {
@@ -841,16 +934,16 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             throw new Error((smsResult && (smsResult.message || smsResult.error)) || 'SMS send failed');
           }
           // Offline: the text is stored in the outbox, NOT sent. The invoice
-          // must not say 'sent' — release the lock back to draft and let the
-          // outbox receipt (_applyInvoiceSmsReceipt, via onSent) mark it sent
-          // when the text really goes. Not awaited: offline, a Firestore write does not resolve
-          // until the connection is back, and the lock self-expires anyway.
+          // must not say 'sent' — release the lock back to the status it
+          // replaced (never 'draft' over 'paid'), only if it is still locked,
+          // and let the outbox receipt (_applyInvoiceSmsReceipt, via onSent)
+          // mark it sent when the text really goes. Not awaited: offline a
+          // Firestore call does not resolve until the connection is back, and
+          // the lock self-expires anyway.
           if (smsResult.mode === 'queued') {
-            Promise.resolve(window.updateDoc(invRef, {
-              status: 'draft',
-              sendingAt: null,
-              updatedAt: new Date()
-            })).catch((e) => console.warn('sendInvoice queued-lock release failed:', e && e.message));
+            Promise.resolve()
+              .then(() => _releaseSendLock(db, invRef, priorStatus))
+              .catch((e) => console.warn('sendInvoice queued-lock release failed:', e && e.message));
             return { queued: true, id: smsResult.id || null };
           }
         } else {
@@ -868,40 +961,29 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             invoices: window.arrayUnion(invoiceId),
             updatedAt: new Date()
           });
-          batch.update(invRef, {
-            status: 'sent',
-            sentAt: new Date(),
-            updatedAt: new Date()
-          });
+          batch.update(invRef, _sentPatch(invoice, priorStatus, new Date()));
           await batch.commit();
           return;
         }
       }
 
       // Email/SMS branches (and portal-without-lead): mark invoice sent
-      // only after the outbound side-effect above resolved.
-      await window.updateDoc(invRef, {
-        status: 'sent',
-        sentAt: new Date(),
-        updatedAt: new Date()
-      });
+      // only after the outbound side-effect above resolved. A draft becomes
+      // 'sent'; a paid (partial, overdue, void) invoice keeps its status and
+      // only gets lastSentAt.
+      await window.updateDoc(invRef, _sentPatch(invoice, priorStatus, new Date()));
 
     } catch (error) {
       console.error('sendInvoice error:', error);
-      // Release the 'sending' lock on failure so the user can retry.
+      // Release the 'sending' lock on failure so the user can retry — back to
+      // the status it replaced, not 'draft', and only if it is still locked.
       // Don't blindly reset 'sent' status though — the idempotency
       // check at the top owns those branches.
       try {
         const invRef2 = window.doc(db, 'invoices', invoiceId);
-        const snap2 = await window.getDoc(invRef2);
-        if (snap2.exists() && snap2.data().status === 'sending') {
-          await window.updateDoc(invRef2, {
-            status: 'draft',
-            sendingAt: null,
-            lastSendError: (error && error.message) ? error.message.slice(0, 200) : 'unknown',
-            updatedAt: new Date()
-          });
-        }
+        await _releaseSendLock(db, invRef2, priorStatus, {
+          lastSendError: (error && error.message) ? error.message.slice(0, 200) : 'unknown',
+        });
       } catch (releaseErr) {
         console.warn('sendInvoice lock release failed:', releaseErr && releaseErr.message);
       }

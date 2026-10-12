@@ -69,6 +69,7 @@ If you add a new export, list it here so the next audit doesn't have to re-deriv
 | `reserveCompanyPrefix` | onCall | Pillar 1 — reserves the tenant's unique customer-ID doc prefix (handlers/provisioning.js, claims-scoped) |
 | `sendEmail` | onRequest | Generic Resend email send — ID-token verified + 60/hr/IP rate limit |
 | `sendSMS` | onRequest | Twilio SMS send — ID-token verified, paid-subscription gate, 30/hr/IP + 100/day/uid |
+| `sendQueuedSMS` | onRequest | Offline SMS outbox replay endpoint (added 2026-09-18, PR #1675) — the SAME handler as `sendSMS` with `queued` forced on: opt-out first, then a per-uid queued-gate budget (300/hr, 503 `outbox_throttled`), idempotency claim, quiet hours, staleness, tenant-scoped competing activity, lead checks, then sendSMS's gates. Also answers `{ peek: true }` from claims alone (never sends). Separate from `sendSMS` so an old fleet (hosting deployed before functions, a failed functions deploy, a rollback) has no endpoint to serve a replay with: 404 / CORS → the text stays queued |
 | `sendD2DSMS` | onRequest | Door-to-door SMS send — ID-token verified + rate limits |
 | `createCheckoutSession` | onRequest | Stripe Checkout session (ID-token verified) |
 | `createCustomerPortalSession` | onRequest | Stripe billing-portal session (ID-token verified) |

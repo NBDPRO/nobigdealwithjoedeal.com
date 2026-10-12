@@ -310,7 +310,7 @@ function loadPage(opts) {
       const body = JSON.parse(init.body);
       posts.push({ url, body });
       const respond = opts.respond || OK200;
-      const r = await respond(body, posts.length);
+      const r = await respond(body, posts.length, url);
       if (r instanceof Error) throw r;
       return r;
     },
@@ -577,10 +577,13 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
     h.fire('online');
     await h.ob.flush('join');      // single-flight: joins the run 'online' started
     const p = h.posts[0] || { body: {} };
-    ok('"online" flushes it: one POST to sendSMS', h.posts.length === 1 && /\/sendSMS$/.test(p.url), h.posts.length);
+    ok('"online" flushes it: one POST — to sendQueuedSMS, the outbox\'s own endpoint (never sendSMS)',
+      h.posts.length === 1 && /\/sendQueuedSMS$/.test(p.url), h.posts.length + ' ' + p.url);
     ok('…with queued:true, clientMsgId = record id, queuedAt = createdAt, leadStageAtQueue',
       p.body.queued === true && p.body.clientMsgId === q.id && typeof p.body.queuedAt === 'number'
       && p.body.leadStageAtQueue === 'estimate' && p.body.to === SMS.to && p.body.body === SMS.message, JSON.stringify(p.body));
+    ok('…and queuedAgeMs = this device\'s now − createdAt (the server places the moment on its own clock)',
+      typeof p.body.queuedAgeMs === 'number' && p.body.queuedAgeMs >= 0 && p.body.queuedAgeMs < 5000, String(p.body.queuedAgeMs));
     ok('…and no override flags (or supersedes) on an automatic flush of an unedited text',
       !('overrideStale' in p.body) && !('overrideActivity' in p.body) && !('supersedes' in p.body));
     const left = h.rows();
@@ -732,7 +735,9 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
     ['held in_flight (may be on their phone)', { status: 'held', heldReason: 'in_flight' }],
     ['held after an attempt with no answer (uncertain)', { status: 'held', heldReason: 'quiet_hours', uncertain: true }],
   ]) {
-    const h = loadPage({ online: false });
+    // (the flush PEEKS at the older copy — it may have gone — and the server
+    // still cannot tell: in_flight)
+    const h = loadPage({ online: false, respond: (b) => (b.peek ? jsonRes(409, { code: 'held', reason: 'in_flight', error: 'x' }) : OK200()) });
     await booted(h);
     const a = await h.ob.enqueue({ uid: 'rep-1', to: SMS.to, body: 'Same words', createdAt: Date.now() - 5 * MIN });
     const table = h.disk.dbs['nbd-sms-outbox-db'].stores.outbox;
@@ -741,8 +746,8 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
     h.window.navigator.onLine = true;
     await h.ob.flush('t');
     const byId = {}; h.rows().forEach((r) => { byId[r.id] = r; });
-    ok('older copy ' + label + ' → the NEWER queued copy is discarded, nothing sent',
-      h.posts.length === 0 && byId[b.id] && byId[b.id].status === 'discarded' && byId[b.id].duplicateOf === a.id
+    ok('older copy ' + label + ' → the NEWER queued copy is discarded, nothing sent (only a peek at the older one)',
+      h.posts.every((p) => p.body.peek === true && !('body' in p.body)) && byId[b.id] && byId[b.id].status === 'discarded' && byId[b.id].duplicateOf === a.id
       && byId[a.id] && byId[a.id].status === 'held', JSON.stringify(h.rows().map((r) => [r.id === a.id ? 'A' : 'B', r.status, r.heldReason])));
   }
 
@@ -949,8 +954,8 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
     ok('stale / quiet hours offer Send now (no activity override), Edit, Discard',
       acts('stale') === 'send,edit,discard' && acts('quiet_hours') === 'send,edit,discard');
     ok('lead_gone offers only Discard', acts('lead_gone') === 'discard');
-    ok('in_flight offers "Check again" (same id) and Discard — never Edit (a new id for the same words)',
-      acts('in_flight') === 'send,discard'
+    ok('in_flight offers "Check again" (a PEEK at the same id) and Discard — never Send now or Edit',
+      acts('in_flight') === 'check,discard'
       && I.actionsFor({ status: 'held', heldReason: 'in_flight' })[0][0] === 'Check again');
     ok('"Open in Messages" only after a 402 / 429 / provider_error',
       acts('plan_required').includes('handoff') && acts('rate_limited').includes('handoff') && acts('provider_error').includes('handoff')
@@ -992,11 +997,14 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
     ok('…sent → removed', h.rows().length === 0);
   }
   {
-    // Consent is per tap. "Send anyway" answered THAT hold; if its send never
-    // reached the server, a later plain "Send now" must not inherit it.
+    // Consent is per tap. "Send anyway" answered THAT hold; if its answer
+    // never came back, the text may have gone ("Check again" first), and once
+    // the server says it did not, a later plain "Send now" must not inherit
+    // the earlier activity consent.
     const answers = [
       jsonRes(409, { code: 'held', reason: 'recent_inbound', error: 'x' }),
       new TypeError('Failed to fetch'),
+      jsonRes(409, { code: 'not_claimed', error: 'x' }),
       jsonRes(409, { code: 'held', reason: 'recent_inbound', error: 'x' }),
     ];
     const h = loadPage({ online: false, respond: (b, n) => answers[n - 1] || OK200() });
@@ -1006,10 +1014,14 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
     await h.ob.flush('t');
     await h.ob.sendNow(rec.id, { activity: true });
     const mid = h.rows()[0] || {};
-    ok('a "Send anyway" that never reached the server leaves the text held as it was',
-      mid.status === 'held' && mid.heldReason === 'recent_inbound' && h.posts[1].body.overrideActivity === true, JSON.stringify(mid));
+    ok('a "Send anyway" whose answer never came back leaves the text held, marked may-have-gone',
+      mid.status === 'held' && mid.heldReason === 'recent_inbound' && mid.uncertain === true && h.posts[1].body.overrideActivity === true, JSON.stringify(mid));
+    await h.ob.checkAgain(rec.id);
+    const back = h.rows()[0] || {};
+    ok('…"Check again" peeks; not_claimed puts it back to the hold it answered (no longer uncertain)',
+      h.posts[2].body.peek === true && back.heldReason === 'recent_inbound' && back.uncertain === false, JSON.stringify(back));
     await h.ob.sendNow(rec.id);
-    const p = h.posts[2] || { body: {} };
+    const p = h.posts[3] || { body: {} };
     ok('…and a later plain "Send now" carries overrideStale only — not the earlier activity consent',
       p.body.overrideStale === true && !('overrideActivity' in p.body), JSON.stringify(p.body));
     ok('…so the server can still hold it for the new activity', (h.rows()[0] || {}).heldReason === 'recent_inbound');
@@ -1150,10 +1162,19 @@ const SMS = { to: '(859) 555-0134', message: 'Running 10 min late', leadId: 'lea
     const h2 = loadPage({ online: false, disk });
     await booted(h2);
     await h2.comms.sendSMS(SMS);
+    // …plus the receipt of an invoice text that already went (ids only).
+    const receipt = { id: 'rcpt-1', uid: 'rep-1', status: 'sent', source: 'invoice-sms', sourceRef: 'inv-9', to: '', toDigits: '', body: '', createdAt: Date.now() };
+    disk.dbs['nbd-sms-outbox-db'].stores.outbox.set(receipt.id, receipt);
     const bare = { indexedDB: makeIDB(disk) };      // a page that never loaded sms-outbox.js
     const ok2 = await make(bare).purgeSmsOutbox();
-    ok('…on a page without the outbox module it deletes the database directly',
-      ok2 === true && disk.deleted.includes('nbd-sms-outbox-db') && rowsOn(disk).length === 0);
+    const left = rowsOn(disk);
+    ok('…on a page without the outbox module it opens the database and deletes every text (number + message)',
+      ok2 === true && !left.some((r) => r.to || r.body), JSON.stringify(left));
+    ok('…but keeps the receipt of a text that already went (ids only) for the same rep\'s next sign-in',
+      left.length === 1 && left[0].id === 'rcpt-1', JSON.stringify(left));
+    const empty = newDisk();
+    const ok2b = await make({ indexedDB: makeIDB(empty) }).purgeSmsOutbox();
+    ok('…and on a device with no outbox database it succeeds without creating a store', ok2b === true && rowsOn(empty).length === 0);
     const hang = { NBDSmsOutbox: { purgeAll: () => new Promise(() => {}) } };
     // Watchdog: an unbounded purge must FAIL this assertion, not park the
     // suite on a promise that never settles.

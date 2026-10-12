@@ -14,12 +14,23 @@
  * reads through module.exports at call time so a test can pin the clock (the
  * same idiom tests use for OptOut.READ_TIMEOUT_MS).
  *
- * Order inside sendSMS for a queued send (functions/sms-functions.js):
+ * Queued texts are POSTed to their OWN endpoint, sendQueuedSMS (same handler
+ * as sendSMS, with `queued` forced on). A deploy that has not shipped this
+ * code has no such endpoint, so a new page talking to an old fleet gets a
+ * 404 / CORS failure and keeps the text queued — instead of an old sendSMS
+ * that ignores `queued` and sends it as a live text with none of the checks
+ * below (see functions/sms-functions.js exports.sendQueuedSMS).
+ *
+ * Order for a queued send (functions/sms-functions.js handleSendSMS):
  *   auth → 'to' validation → opt-out register (unchanged, still first)
+ *   → per-uid queued-gate limiter (503 outbox_throttled)
  *   → shape validation (400) → idempotency peek (200 duplicate / 409 in_flight)
  *   → superseded originals (an edit: 409 in_flight / recent_outbound)
- *   → quiet hours → stale → competing activity → lead → paid gate / limiters
- *   → transactional idempotency claim → Twilio.
+ *   → quiet hours → stale → lead gone (409 lead_gone, before any sms_log read)
+ *   → competing activity in the caller's tenant → lead changed
+ *   → paid gate / limiters → transactional idempotency claim → Twilio.
+ * A PEEK ({ peek: true }, validatePeekFields) stops after the claim reads and
+ * never reaches the opt-out register or Twilio.
  *
  * The claim is not only a queued-send thing: a LIVE send that carries a
  * clientMsgId (nbd-comms.js mints one before the attempt, and the outbox
@@ -42,11 +53,23 @@ const SEND_WINDOW = Object.freeze({
   endHour: 21,                            // 21:00 exclusive (20:59 sends, 21:00 holds)
 });
 
-// queuedAt sanity. A client clock can run a little fast, so "in the future"
-// allows a small skew before it is a 400; anything older than a week is not a
-// queued text any more, it is a stale device.
+// queuedAt is the DEVICE clock and sms_log.date is the SERVER clock. Looking
+// back this much further than the queue time means a text that went out just
+// after the rep queued theirs is not hidden by a little clock noise. The cost
+// is the occasional hold of a text the rep sent themselves in the minute
+// before they went offline — a hold is a tap, a missed competitor is a
+// double text to a homeowner.
+const ACTIVITY_SKEW_MS = 60 * 1000;
+
+// A queued text is anything younger than a week; older is a stale device.
 const MAX_QUEUE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const FUTURE_SKEW_MS = 5 * 60 * 1000;
+// How far in the future a bare queuedAt (no queuedAgeMs) may be before it is a
+// 400. Deliberately NOT larger than ACTIVITY_SKEW_MS: a device clock that ran
+// minutes fast used to be accepted here while the activity lookback covered
+// only 60s of it, so a homeowner reply in the gap never held the text. The
+// client sends queuedAgeMs (see effectiveQueuedAt), which makes the device's
+// clock offset irrelevant; this bound only matters without it.
+const FUTURE_SKEW_MS = ACTIVITY_SKEW_MS;
 
 // sms_client_ids claim docs carry `expireAt` = claim time + this, and a
 // Firestore TTL policy on that field (firestore.indexes.json fieldOverrides)
@@ -60,17 +83,18 @@ const CLAIM_TTL_MS = MAX_QUEUE_AGE_MS + 24 * 60 * 60 * 1000;
 // checked — an edit of an edit of an edit is already an odd day.
 const MAX_SUPERSEDES = 5;
 
-// queuedAt is the DEVICE clock and sms_log.date is the SERVER clock. Looking
-// back this much further than queuedAt means a clock that runs a minute fast
-// cannot hide a text that went out just after the rep queued theirs. The cost
-// is the occasional hold of a text the rep sent themselves in the minute
-// before they went offline — a hold is a tap, a missed competitor is a
-// double text to a homeowner.
-const ACTIVITY_SKEW_MS = 60 * 1000;
-
 // Bounded scan of sms_log for one recipient. Hitting the limit without finding
 // a competitor is treated as a competitor (see evaluateActivityRows).
 const ACTIVITY_SCAN_LIMIT = 25;
+
+// Queued requests (sends AND peeks) per uid per hour, counted before any
+// outbox read. The gate answers questions about a number's recent activity,
+// so it must not be a free, unmetered query endpoint. Its own bucket: a held
+// text must not burn the rep's SMS budget (sendSMS:uid / sendSMS:to), and the
+// refusal is a 503 'outbox_throttled' — never a 429, which the client would
+// read as a handoff verdict.
+const QUEUED_GATE_LIMIT = 300;
+const QUEUED_GATE_WINDOW_MS = 60 * 60 * 1000;
 
 // Upper bound on each read a queued send makes (idempotency, activity, lead).
 // Nothing hands a queued send off, but an unbounded read would run into the
@@ -142,8 +166,40 @@ function isWithinSendWindow(ms) {
 }
 
 /**
+ * When the text was really written, on the SERVER's clock.
+ *
+ * queuedAt is the device's Date.now() when the rep wrote the text; a phone
+ * whose clock runs ten minutes fast sends a queuedAt ten minutes late, and
+ * both the 15-minute rule and the "anything since?" lookback then start ten
+ * minutes too late. queuedAgeMs is the same device's Date.now() minus that
+ * createdAt at send time — a difference of two readings of one clock, so a
+ * constant offset cancels out — and `now - queuedAgeMs` places the moment on
+ * the server's clock. The EARLIER of the two is used: an older text is held
+ * sooner and looks further back, never the other way round.
+ *
+ * Only for the stale rule and the activity window. The own-earlier-queued
+ * rule compares RAW queuedAt values (one device, one clock, exact order — an
+ * edit's original must compare equal, not jitter by network latency).
+ */
+function effectiveQueuedAt(queuedAt, queuedAgeMs, now) {
+  if (typeof queuedAgeMs !== 'number' || !Number.isFinite(queuedAgeMs)) return queuedAt;
+  return Math.min(queuedAt, now - Math.max(0, queuedAgeMs));
+}
+
+/** The optional queuedAgeMs field: undefined when absent, NaN when malformed. */
+function readQueuedAge(b) {
+  if (b.queuedAgeMs == null) return undefined;
+  const v = b.queuedAgeMs;
+  // A device clock stepped backwards between queue and send reads as a small
+  // negative age: treat it as "just now" (the queuedAt side of the min still
+  // applies). Anything else that is not a finite number is refused.
+  return (typeof v === 'number' && Number.isFinite(v)) ? Math.max(0, v) : NaN;
+}
+
+/**
  * The extra fields a queued send must carry, validated. Returns
- * { ok: true, clientMsgId, queuedAt, leadStageAtQueue, overrideStale, overrideActivity }
+ * { ok: true, clientMsgId, queuedAt, queuedAgeMs, effectiveQueuedAt,
+ *   leadStageAtQueue, supersedes, overrideStale, overrideActivity }
  * or { ok: false, error }.
  */
 function validateQueuedFields(body, now) {
@@ -156,10 +212,19 @@ function validateQueuedFields(body, now) {
   if (typeof queuedAt !== 'number' || !Number.isFinite(queuedAt)) {
     return { ok: false, error: 'Queued text is missing queuedAt' };
   }
-  if (queuedAt > now + FUTURE_SKEW_MS) {
+  const queuedAgeMs = readQueuedAge(b);
+  if (Number.isNaN(queuedAgeMs)) {
+    return { ok: false, error: 'queuedAgeMs must be a number' };
+  }
+  // With queuedAgeMs the device clock's offset does not matter (see
+  // effectiveQueuedAt), so a fast clock is not a malformed request. Without
+  // it, queuedAt is all there is, and it may run at most ACTIVITY_SKEW_MS
+  // ahead — the lookback covers exactly that much.
+  if (queuedAgeMs === undefined && queuedAt > now + FUTURE_SKEW_MS) {
     return { ok: false, error: 'queuedAt is in the future' };
   }
-  if (queuedAt < now - MAX_QUEUE_AGE_MS) {
+  const effective = effectiveQueuedAt(queuedAt, queuedAgeMs, now);
+  if (effective < now - MAX_QUEUE_AGE_MS) {
     return { ok: false, error: 'queuedAt is more than 7 days old' };
   }
   let leadStageAtQueue = null;
@@ -169,26 +234,50 @@ function validateQueuedFields(body, now) {
     }
     leadStageAtQueue = b.leadStageAtQueue;
   }
-  // An edited text names the ids it replaces (the original, and any earlier
-  // edit). Each must be a well-formed id that is not this text's own.
-  let supersedes = [];
-  if (b.supersedes != null) {
-    if (!Array.isArray(b.supersedes) || b.supersedes.length > MAX_SUPERSEDES
-      || !b.supersedes.every((id) => typeof id === 'string' && CLIENT_MSG_ID_RE.test(id) && id !== clientMsgId)) {
-      return { ok: false, error: 'supersedes must be a short list of earlier clientMsgIds' };
-    }
-    supersedes = b.supersedes.filter((id, i, a) => a.indexOf(id) === i);
-  }
+  const sup = readSupersedes(b, clientMsgId);
+  if (!sup.ok) return sup;
   return {
     ok: true,
     clientMsgId,
     queuedAt,
+    queuedAgeMs: queuedAgeMs === undefined ? null : queuedAgeMs,
+    effectiveQueuedAt: effective,
     leadStageAtQueue,
-    supersedes,
+    supersedes: sup.supersedes,
     // Strict === true: a truthy string must not be an override.
     overrideStale: b.overrideStale === true,
     overrideActivity: b.overrideActivity === true,
   };
+}
+
+// An edited text names the ids it replaces (the original, and any earlier
+// edit). Each must be a well-formed id that is not this text's own.
+function readSupersedes(b, clientMsgId) {
+  if (b.supersedes == null) return { ok: true, supersedes: [] };
+  if (!Array.isArray(b.supersedes) || b.supersedes.length > MAX_SUPERSEDES
+    || !b.supersedes.every((id) => typeof id === 'string' && CLIENT_MSG_ID_RE.test(id) && id !== clientMsgId)) {
+    return { ok: false, error: 'supersedes must be a short list of earlier clientMsgIds' };
+  }
+  return { ok: true, supersedes: b.supersedes.filter((id, i, a) => a.indexOf(id) === i) };
+}
+
+/**
+ * A PEEK ({ peek: true }): "did this id — or one it replaces — reach Twilio?"
+ * The tray's "Check again" and the flush's re-ask about a text whose last
+ * answer was lost. A peek NEVER sends: it reads claims and answers duplicate /
+ * in_flight / recent_outbound, or 'not_claimed' (nothing of it reached
+ * Twilio), so it needs neither the number nor the message.
+ * Returns { ok: true, clientMsgId, supersedes } or { ok: false, error }.
+ */
+function validatePeekFields(body) {
+  const b = body || {};
+  const clientMsgId = typeof b.clientMsgId === 'string' ? b.clientMsgId : '';
+  if (!CLIENT_MSG_ID_RE.test(clientMsgId)) {
+    return { ok: false, error: 'Peek is missing a valid clientMsgId' };
+  }
+  const sup = readSupersedes(b, clientMsgId);
+  if (!sup.ok) return sup;
+  return { ok: true, clientMsgId, supersedes: sup.supersedes };
 }
 
 function isStale(queuedAt, now) {
@@ -198,6 +287,34 @@ function isStale(queuedAt, now) {
 /** Lower bound for the sms_log scan (server clock), see ACTIVITY_SKEW_MS. */
 function activitySince(queuedAt) {
   return queuedAt - ACTIVITY_SKEW_MS;
+}
+
+/**
+ * WHOSE sms_log rows the activity check may look at: the caller's tenant.
+ * sms_log holds every tenant's texts (one shared Twilio number), and the check
+ * used to scan them all by phone key — so another company's conversation with
+ * the same homeowner held this rep's text ("the homeowner texted since…"
+ * about a thread they cannot see), and the answer (recent_* vs lead_gone)
+ * told a caller whether ANYONE on the platform had texted a number since a
+ * chosen time.
+ *   company rep  → rows whose companyId is the caller's company claim
+ *                  (teammates' sends stamp it; inbound rows stamp the matched
+ *                  lead's companyId; the AI-draft path stamps the draft's)
+ *   solo rep     → rows whose uid is the caller (their own sends, and inbound
+ *                  rows routed to their leads, which carry uid = lead.userId)
+ * @returns {{ field: 'companyId'|'uid', value: string }}
+ */
+function activityScope(decoded) {
+  const d = decoded || {};
+  if (typeof d.companyId === 'string' && d.companyId) return { field: 'companyId', value: d.companyId };
+  return { field: 'uid', value: String(d.uid || '') };
+}
+
+/** The lead's canonical phone key: the stamped phoneDigits, else derived. */
+function leadPhoneKey(lead) {
+  if (!lead) return '';
+  if (typeof lead.phoneDigits === 'string' && lead.phoneDigits) return lead.phoneDigits;
+  return phoneDigits10(lead.phone || '');
 }
 
 /**
@@ -216,13 +333,17 @@ function activitySince(queuedAt) {
  *     Strictly: an EDIT keeps its original's queuedAt, so an original that
  *     already went out has the same queuedAt as the edit and must count.
  * Everything else — any other rep, any live send, the AI-draft path — is.
+ * (Within the caller's tenant: the rows are already scoped, activityScope.)
+ *
+ * ctx: { uid, queuedAt (raw device value — the own-earlier rule), clientMsgId,
+ *        effectiveQueuedAt (server-clock estimate — the window), truncated }
  *
  * @returns {'recent_inbound'|'recent_outbound'|null} inbound wins: a reply
  *          from the homeowner is the stronger reason to stop and read.
  */
 function evaluateActivityRows(rows, ctx) {
   const list = Array.isArray(rows) ? rows : [];
-  const since = activitySince(ctx.queuedAt);
+  const since = activitySince(typeof ctx.effectiveQueuedAt === 'number' ? ctx.effectiveQueuedAt : ctx.queuedAt);
   let outbound = false;
   let inbound = false;
   for (const r of list) {
@@ -334,6 +455,8 @@ module.exports = {
   MAX_SUPERSEDES,
   ACTIVITY_SKEW_MS,
   ACTIVITY_SCAN_LIMIT,
+  QUEUED_GATE_LIMIT,
+  QUEUED_GATE_WINDOW_MS,
   READ_TIMEOUT_MS,
   CLIENT_MSG_ID_RE,
   HOLD_REASONS,
@@ -342,9 +465,13 @@ module.exports = {
   toMillis,
   hourInSendZone,
   isWithinSendWindow,
+  effectiveQueuedAt,
   validateQueuedFields,
+  validatePeekFields,
   isStale,
   activitySince,
+  activityScope,
+  leadPhoneKey,
   evaluateActivityRows,
   evaluateLead,
   isActivityOverridable,
