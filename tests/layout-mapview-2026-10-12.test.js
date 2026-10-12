@@ -158,9 +158,10 @@ console.log('\n5. css contract');
   ok('every selector is under .nbd-mv or mv-prefixed', outside.length === 0, outside.map((m) => m[1].trim()).join(' | '));
   const hex = css.match(/#[0-9a-fA-F]{3,8}\b/g) || [];
   ok('no hard-coded colours except the white pin glyph', hex.every((h) => h.toLowerCase() === '#fff'), hex.join(','));
-  const swath = rules.filter((m) => /\.mv-swath--/.test(m[1])).map((m) => m[2]).join(' ');
+  const swath = rules.filter((m) => /\.mv-swath--(red|gold|warn)\b/.test(m[1])).map((m) => m[2]).join(' ');
   const vars = new Set(swath.match(/var\(--[a-z0-9-]+\)/g) || []);
   ok('swaths use ONLY --red / --gold', vars.size > 0 && [...vars].every((v) => v === 'var(--red)' || v === 'var(--gold)'), [...vars].join(','));
+  ok('a canvass turf is --orange (never a danger colour)', /\.mv-swath--turf\s*\{[^}]*var\(--orange\)/.test(css) && !/\.mv-swath--turf\s*\{[^}]*var\(--(red|gold)\)/.test(css));
   ok('route is --orange', /\.mv-route\s*\{[^}]*var\(--orange\)/.test(css));
   ok('land is --bg', /\.nbd-mv\s*\{[^}]*background:\s*var\(--bg\)/.test(css));
 }

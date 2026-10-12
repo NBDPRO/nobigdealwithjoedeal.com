@@ -48,11 +48,13 @@
 .mv-c-muted { --mv-c: var(--m); }
 .mv-dot { fill: var(--mv-c, var(--m)); fill-opacity: .8; stroke: var(--s); }
 
-/* hail swaths: only ever --red / --gold ('warn' = the in-between, --gold lighter) */
+/* hail swaths: only ever --red / --gold ('warn' = the in-between, --gold lighter); 'turf' is --orange */
 .mv-swath { stroke-linejoin: round; }
 .mv-swath--red { fill: var(--red); fill-opacity: .28; stroke: var(--red); }
 .mv-swath--gold { fill: var(--gold); fill-opacity: .26; stroke: var(--gold); }
 .mv-swath--warn { fill: var(--gold); fill-opacity: .14; stroke: var(--gold); stroke-dasharray: 6 5; }
+/* a crew's canvass turf: team colour, never a danger colour */
+.mv-swath--turf { fill: var(--orange); fill-opacity: .1; stroke: var(--orange); stroke-dasharray: 2 6; }
 
 /* routes */
 .mv-route { fill: none; stroke: var(--mv-c, var(--orange)); stroke-opacity: .95; stroke-linecap: round; stroke-linejoin: round; }

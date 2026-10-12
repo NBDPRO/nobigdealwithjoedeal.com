@@ -19,8 +19,9 @@
  *                               color:'orange'|'red'|'gold'|'green'|'blue'|'purple'|'muted',
  *                               num?, title?, selected?, size? }]
  *                            kind 'dot' = small circle (storm reports, door knocks)
- *   inst.setSwaths(swaths)   [{ id, rings:[[lat,lng],...], level:'warn'|'gold'|'red', title? }]
- *                            Hail danger is ALWAYS --red / --gold, in every theme.
+ *   inst.setSwaths(swaths)   [{ id, rings:[[lat,lng],...], level:'warn'|'gold'|'red'|'turf', title? }]
+ *                            Hail danger is ALWAYS --red / --gold, in every theme;
+ *                            'turf' (a crew's canvass area) is --orange, never danger-coloured.
  *   inst.setRoutes(routes)   [{ id, points:[[lat,lng],...], color?, dashed? }]   (--orange)
  *   inst.fit(pad?)           frame everything drawn
  *   inst.select(id)          highlight + pan to a pin
@@ -44,7 +45,7 @@
 
   var COLORS = ['orange', 'red', 'gold', 'green', 'blue', 'purple', 'muted'];
   var KINDS = ['job', 'lead', 'crew', 'stop', 'hail', 'dot'];
-  var LEVELS = ['warn', 'gold', 'red'];
+  var LEVELS = ['warn', 'gold', 'red', 'turf'];   // warn/gold/red = hail danger; turf = a team's area (--orange)
   var TILE_MODES = ['streets', 'sat', 'plain'];
 
   // ── pure ─────────────────────────────────────────────────────────────
