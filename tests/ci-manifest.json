@@ -33,6 +33,7 @@
     "portal-view-tracking-2026-09-16.test.js",
     "portal-doc-modal-a11y-2026-09-16.test.js",
     "portal-tenant-cta-contrast-2026-09-16.test.js",
+    "call-ladder-2026-10-12.test.js",
     "tier-pricing-premium-claim-2026-09-16.test.js",
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
     "reports-sent-definition-2026-09-28.test.js",
