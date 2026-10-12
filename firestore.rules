@@ -211,6 +211,34 @@ service cloud.firestore {
       return v == null || (v is string && v.size() <= 60);
     }
 
+    // 2026-09-29 (calendar hub Phase 0) — the arrival window and the adjuster
+    // meeting. These reach the .ics feed and (the window) the homeowner
+    // portal, both of which re-validate; this is the same shape-only bar as
+    // paperworkFieldsOk() so a garbage value never lands in the first place.
+    // '' is allowed wherever null is: the claim editor saves an empty input
+    // as ''. Date ORDER (end ≥ start) is the client's and the readers' job
+    // (schedule-window.js) — string dates compare, but a rule that rejected a
+    // mid-edit ordering would strand the whole lead save.
+    function _hmOk(f) {
+      let v = request.resource.data.get(f, null);
+      return v == null || v == ''
+        || (v is string && v.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'));
+    }
+    function _ymdOk(f) {
+      let v = request.resource.data.get(f, null);
+      return v == null || v == ''
+        || (v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'));
+    }
+    function scheduleWindowOk() {
+      let dur = request.resource.data.get('scheduledDurationMin', null);
+      return _hmOk('scheduledStart')
+          && _ymdOk('scheduledEndDate')
+          && _ymdOk('scheduledWeek')         // the Monday of a week-planned job (2026-09-29)
+          && (dur == null || (dur is int && dur >= 1 && dur <= 1440))
+          && _ymdOk('adjusterMeetingDate')
+          && _hmOk('adjusterMeetingStart');
+    }
+
     // 2026-09-15 (Warranty Claim lane) — shape validator for the claim
     // subdoc itself (leads/{leadId}/warrantyClaims/{claimId}), modeled on
     // stageWriteOk()'s enum-check style. status/reason are the only fields
@@ -358,6 +386,7 @@ service cloud.firestore {
           && stageWriteOk()
           && paperworkFieldsOk()
           && openClaimIdOk()
+          && scheduleWindowOk()
         );
       allow delete: if (isOwner(resource.data.userId) && notViewer())
         || isAdmin()
@@ -376,7 +405,9 @@ service cloud.firestore {
         // rollups. Client always stamps `claims.companyId || uid`.
         && (request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid));
+                && request.resource.data.companyId == request.auth.uid))
+        // The lead modal's Add Lead carries the window too (2026-09-29).
+        && scheduleWindowOk();
 
       // D3: flat-path subcollections — the measurementWebhook +
       // esignWebhook auto-append activity here via admin SDK. Rules
@@ -754,6 +785,34 @@ service cloud.firestore {
         && (!('taxCents' in d) || (d.taxCents is int && d.taxCents >= 0))
         && (!('costType' in d) || d.costType in ['direct', 'overhead']);
     }
+    // Yard signs (yard-signs.js, 2026-09-29): where each sign is, a photo,
+    // placed / pickup dates. The rep who placed it owns it; the company
+    // (admins, managers, viewers) can see them; a company_admin can also
+    // update one (pick up a rep's sign). Never hard-deleted from the client —
+    // a sign ends as status 'picked_up' or 'missing'. The daily pickup
+    // reminder (functions/yard-sign-reminder.js) reads them with the admin SDK.
+    match /yardSigns/{signId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin()
+        || (isCompanyReader()
+            && resource.data.get('companyId', '') != ''
+            && resource.data.get('companyId', '') == myCompanyId());
+      allow create: if isAuth()
+        && notViewer()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.companyId is string
+        && request.resource.data.companyId.size() > 0
+        && (request.resource.data.companyId == request.auth.token.get('companyId', '')
+            || (request.auth.token.get('companyId', '') == '' && request.resource.data.companyId == request.auth.uid))
+        && request.resource.data.status == 'out';
+      allow update: if (
+          (isOwner(resource.data.userId) && notViewer())
+          || (isCompanyAdmin() && resource.data.get('companyId', '') != '' && resource.data.get('companyId', '') == myCompanyId())
+          || isAdmin())
+        && didNotChange(['userId', 'companyId', 'createdAt'])
+        && request.resource.data.status in ['out', 'picked_up', 'missing'];
+      allow delete: if isAdmin();
+    }
+
     match /expenses/{expenseId} {
       allow read: if isOwner(resource.data.userId)
         || isAdmin()
@@ -1110,6 +1169,7 @@ service cloud.firestore {
       //   captures     quick-capture.js, quick-capture-inbox.js, talk-tank.js
       //   ds_meta      daily-success/ds-firebase-sync.js (streaks doc)
       //   ds_pages     daily-success/ds-firebase-sync.js
+      //   ds_workouts  daily-success/ds-firebase-sync.js (Workout Coach sessions)
       //   fcmTokens    push-registration.js
       //   preferences  mobile-nav-customizer.js
       //   settings     ai-texting-persona.js (aiPersona)
@@ -1118,7 +1178,7 @@ service cloud.firestore {
       // A NEW client-written subcollection must be added here or its writes
       // are denied; tests/firestore-rules.test.js section 35 pins the list.
       function userWritableSubcollection(name) {
-        return name in ['captures', 'ds_meta', 'ds_pages', 'fcmTokens', 'preferences', 'settings'];
+        return name in ['captures', 'ds_meta', 'ds_pages', 'ds_workouts', 'fcmTokens', 'preferences', 'settings'];
       }
       match /{subcol}/{docId} {
         allow read: if isOwner(uid) || isAdmin();
@@ -1349,6 +1409,19 @@ service cloud.firestore {
     match /catalogCosts/{companyId} {
       allow read: if isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
       // notViewer() on the uid branch: same orphan-doc reason as cpCanWrite().
+      allow write: if isAdmin()
+        || (companyId == request.auth.uid && notViewer())
+        || (isCompanyAdmin() && companyId == myCompanyId());
+    }
+
+    // The company's Product Library (product-library.js, 2026-09-29): its
+    // custom / edited / archived products and tombstones, WITHOUT costs (those
+    // stay in catalogCosts above). It lived only in per-device localStorage,
+    // which every sign-out purges. Jo: one company-wide library, the owner and
+    // company admins edit, everyone in the company reads. Identical access to
+    // catalogCosts on purpose — same tenant, same editors.
+    match /productLibrary/{companyId} {
+      allow read: if isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
       allow write: if isAdmin()
         || (companyId == request.auth.uid && notViewer())
         || (isCompanyAdmin() && companyId == myCompanyId());
@@ -1657,6 +1730,20 @@ service cloud.firestore {
     // owner + company_admin only (not manager), same split /leads already
     // makes — a manager manages the queue, only the creator or the tenant
     // owner destroys a billing record.
+    // Stripe ledger (2026-09-29): one row per Stripe money movement on the
+    // platform account (charge / refund / dispute / payout / invoice paid
+    // outside Stripe), matched to a CRM customer. Written ONLY by the admin
+    // SDK (functions/stripe-ledger.js); a review assignment goes through the
+    // assignStripeTransaction callable. Read: owner, same-company staff, admin.
+    match /stripeLedger/{rowId} {
+      allow read: if isOwner(resource.data.userId)
+        || isAdmin()
+        || (isCompanyStaff()
+            && resource.data.companyId != null
+            && resource.data.companyId == myCompanyId());
+      allow write: if false;
+    }
+
     match /invoices/{invoiceId} {
       allow read: if isOwner(resource.data.createdBy)
         || isAdmin()
@@ -1839,9 +1926,29 @@ service cloud.firestore {
     // to the caller on create (a rep can't plant a deal under another uid).
     // Without this rule the client write default-denied and deals never synced.
     // Read split from the writes 2026-09-25 so they can carry notViewer().
+    // A deal the homeowner accepted (or the rep signed / scheduled) is a signed
+    // record, locked like a signed contract (Jo, 2026-09-25): nobody deletes
+    // it, moves it back out of a closed status, or rewrites what was accepted.
+    // syncDealToFirestore pushes the rep's whole LOCAL copy, so a tab that
+    // hadn't re-read the server since a remote acceptance wrote status 'sent'
+    // back over 'accepted' (2026-09-28). Other fields (notes, install date)
+    // stay editable.
+    function dealIsClosed(d) {
+      return d.get('status', '') in ['accepted', 'signed', 'scheduled'];
+    }
+    function dealAcceptanceIntact() {
+      return !dealIsClosed(resource.data)
+        || (dealIsClosed(request.resource.data)
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'acceptedTier', 'acceptedPrice', 'acceptedFinancing',
+              'acceptedSignature', 'acceptedAt', 'acceptedVia']));
+    }
     match /deal_rooms/{dealId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow update, delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
+      allow update: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
+        && dealAcceptanceIntact();
+      allow delete: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
+        && !dealIsClosed(resource.data);
       allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid;
     }
 

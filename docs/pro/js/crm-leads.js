@@ -154,7 +154,9 @@ function _leadModalReset(){
   // EntityResolver.openQuickCreate) — reset it back to New on every dismiss.
   const st=document.getElementById('lStage'); if(st) st.value='new';
   // Clear insurance/finance/job fields
-  ['lClaimNumber','lCarrierDecisionAt','lEstimateAmount','lDeductible','lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lCrew'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  ['lClaimNumber','lCarrierDecisionAt','lEstimateAmount','lDeductible','lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lScheduledWeek','lCrew'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  // The arrival window rides with #lScheduledDate — back to "All day".
+  if (window.NBDScheduleWindowUI) window.NBDScheduleWindowUI.reset('l');
   ['lClaimFiledBy','lSupplementStatus','lLoanStatus'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
   // 2026-09-25: editLead fills these six (crm-portal-bridge.js) but no reset
   // ever cleared them, so dismissing an edit and tapping Add Lead opened the
@@ -197,7 +199,7 @@ const _leadModal = document.getElementById('leadModal');
 const _LEAD_TYPED_FIELDS = [
   'lFname','lLname','lAddr','lPhone','lEmail','lNotes','lJobValue','lLeadCost','lFollowUp',
   'lInsCarrier','lReferralCode','lClaimNumber','lPolicyNumber','lDateOfLoss','lCarrierDecisionAt','lEstimateAmount','lDeductible',
-  'lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lCrew'
+  'lScopeOfWork','lFinanceCompany','lLoanAmount','lPreQualLink','lScheduledDate','lScheduledWeek','lCrew'
 ];
 function _leadFormHasContent(){
   return _LEAD_TYPED_FIELDS.some(id => {
@@ -308,6 +310,21 @@ async function saveLead(){
     const el = document.getElementById(id);
     if (el && parseFloat(el.value) < 0) { showFormError(label + ' can’t be negative.', el); return; }
   }
+  // Arrival window (2026-09-29, schedule-window-ui.js): a repair with no start
+  // time or a last day before the first is refused here, not saved as a
+  // window the calendar feed and the portal then have to guess around.
+  const _schedWinUI = window.NBDScheduleWindowUI;
+  // Planned week (2026-09-29): a real day replaces it; with no day, a picked
+  // week is kept as its Monday. OMITTED when the input never loaded (a stale
+  // cached page), so a guessed null cannot wipe a plan set elsewhere.
+  const _swEl = document.getElementById('lScheduledWeek');
+  const _weekPatch = !_swEl ? {} : {
+    scheduledWeek: (document.getElementById('lScheduledDate')?.value)
+      ? null
+      : ((_swEl.value && window.NBDScheduleWindow && window.NBDScheduleWindow.mondayOf(_swEl.value)) || null),
+  };
+  const _schedWinErr = _schedWinUI ? _schedWinUI.validate('l') : null;
+  if (_schedWinErr) { showFormError(_schedWinErr, document.getElementById('lSchedStart')); return; }
 
   // Prevent double-submit
   if(saveBtn.disabled) return;
@@ -402,6 +419,12 @@ async function saveLead(){
       preQualLink: document.getElementById('lPreQualLink')?.value?.trim()||'',
       // Job fields
       scheduledDate: document.getElementById('lScheduledDate')?.value||'',
+      // scheduledStart / scheduledDurationMin / scheduledEndDate — null when
+      // "All day / no time" (which clears a window saved earlier). OMITTED
+      // entirely when the controls never loaded (a stale cached page), the
+      // same rule as `trades` above: a guessed null would wipe a real window.
+      ...(_schedWinUI ? _schedWinUI.read('l') : {}),
+      ..._weekPatch,
       crew: document.getElementById('lCrew')?.value?.trim()||'',
       // 2026-09-15 (Paperwork Filing) — gate fields for REQUIRED_FIELDS_BY_TYPE
       // (crm-stages.js). '' when unchecked, never false/0 — missingRequiredFields
@@ -441,7 +464,57 @@ async function saveLead(){
     // id right back on an edit, so a truthy return value alone can't
     // distinguish the two.
     const _wasNewLead = !_leadPayload.id;
+    // A stage CHANGE made here goes through stage-write.js commitStageChange —
+    // the same path as the kanban and the customer page. Until 2026-09-28 this
+    // form spread `stage` straight into updateDoc, so an edit-modal move never
+    // reset stageStartedAt (days-in-stage, the bottleneck widget and the
+    // server's dormant-lead nudge all read the lead's CREATION date), never
+    // appended stageHistory / the timeline note, skipped the email drip and
+    // the stage-entry task, and ignored the destination's required fields
+    // (an insurance lead jumped New → Closed with no warranty cert or COC).
+    // Unrelated edits to a lead that already sits on a stage with missing
+    // fields are never blocked: the gate runs only when the stage changes.
+    let _stageMove = null;
+    if (!_wasNewLead && _leadPayload.stage) {
+      const _existing = (window._leads || []).find(l => l && l.id === _leadPayload.id);
+      const _norm = (s) => (typeof window.normalizeStage === 'function' ? window.normalizeStage(s) : s);
+      if (_existing && _existing.stage && _norm(_existing.stage) !== _norm(_leadPayload.stage)) {
+        const _isLost = (_editStageRole || '') === 'lost';
+        if (!_isLost && typeof window.missingRequiredFields === 'function') {
+          const _missing = window.missingRequiredFields(Object.assign({}, _existing, _leadPayload)) || [];
+          if (_missing.length) {
+            const _lbl = (f) => (typeof window.requiredFieldLabel === 'function' ? window.requiredFieldLabel(f) : f);
+            showFormError('To move to this stage, fill in: ' + _missing.map(_lbl).join(', ') + '.');
+            return; // finally{} re-enables the Save button
+          }
+        }
+        _stageMove = { from: _existing.stage, to: _leadPayload.stage, isLost: _isLost };
+        delete _leadPayload.stage;
+        delete _leadPayload.stageRole;
+      }
+    }
     const _savedId = await window._saveLead(_leadPayload);
+    if (_savedId && _stageMove) {
+      try {
+        const { commitStageChange } = await import('./stage-write.js');
+        await commitStageChange(_savedId, _stageMove.to, _stageMove.from, {
+          isLostMove: _stageMove.isLost,
+          jobType: _leadPayload.jobType || null,
+          actorLabel: window._currentUser?.email,
+        });
+      } catch (stageErr) {
+        const m = stageErr && stageErr.message;
+        if (m !== 'STAGE_RACE_NOOP') {
+          console.warn('[saveLead] stage move failed:', m);
+          if (typeof showToast === 'function') {
+            showToast(m === 'STAGE_RACE_LOST'
+              ? 'Details saved — but someone else moved this lead’s stage first. Refresh to see it.'
+              : 'Details saved, but the stage change didn’t go through — try the move again.', 'warning');
+          }
+        }
+      }
+      if (typeof window.loadLeads === 'function') { try { window.loadLeads(); } catch (_) {} }
+    }
     // _saveLead returns null when it deliberately did NOT write: the Lite
     // lead cap, the billing gate's upgrade modal, or the rep choosing
     // cancel / "open the existing lead" on the dedup prompt. Each of

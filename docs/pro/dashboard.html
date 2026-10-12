@@ -44,11 +44,11 @@
 <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/pro/img/nbd-icon-192.png">
 <title>NBD Pro — Dashboard</title>
-<link rel="preload" href="js/crm-leads.js?v=3" as="script">
+<link rel="preload" href="js/crm-leads.js?v=5" as="script">
 <link rel="preload" href="js/crm-pipeline.js?v=5" as="script">
 <link rel="modulepreload" href="js/stage-write.js">
 <link rel="preload" href="js/crm-snooze.js?v=2" as="script">
-<link rel="preload" href="js/crm-portal-bridge.js?v=4" as="script">
+<link rel="preload" href="js/crm-portal-bridge.js?v=6" as="script">
 <link rel="preload" href="js/crm.js?v=34" as="script">
 <link rel="preload" href="js/maps.js?v=11" as="script">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -99,9 +99,12 @@
      stay BEFORE dashboard-bootstrap.module.js (deferred scripts and modules
      run in document order): it installs the accessors the bootstrap then
      assigns window._userClaims / window.addDoc through. -->
-<script defer src="js/role-gate.js?v=3"></script>
+<script defer src="js/role-gate.js?v=4"></script>
+<!-- 2026-09-29: the "Join team / Not now" prompt claimInvite now requires of
+     anyone who owns a company. Before the bootstrap, which calls it. -->
+<script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=12"></script>
+<script src="js/script-loader.js?v=14"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -120,7 +123,7 @@
 
 <!-- Centralized Auth Gate -->
 <script type="module" src="js/dashboard-auth-gate.module.js?v=2"></script>
-<script type="module" src="js/dashboard-bootstrap.module.js?v=18"></script>
+<script type="module" src="js/dashboard-bootstrap.module.js?v=19"></script>
 
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
@@ -157,6 +160,7 @@
      ═══════════════════════════════════════════════════════════════ -->
 <!-- Nav + print CSS — extracted to css/dashboard-nav.css (Rock 4 Phase 2e). -->
 <link rel="stylesheet" href="css/dashboard-nav.css?v=2">
+<link rel="stylesheet" href="css/google-calendar.css?v=2">
 <!-- Mobile job-detail Voice Intel tab (mirrors customer.html's #voiceIntelRoot). -->
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
 
@@ -711,6 +715,7 @@
   <div class="ni active" role="button" tabindex="0" data-action="goTo" data-target="home" id="nav-home"><span class="ni-icon">🏠</span>Home</div>
   <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="dash" id="nav-dash"><span class="ni-icon">📊</span>Dashboard</div>
   <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="crm"  id="nav-crm"><span class="ni-icon">👥</span>Pipeline <span class="nbadge" id="leadBadge">0</span><span class="health-indicator" id="crmHealthBadge" title="CRM connection status"></span></div>
+  <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="schedule" id="nav-schedule"><span class="ni-icon">🗓️</span>Schedule</div>
   <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="prospects" id="nav-prospects"><span class="ni-icon">👀</span>Prospects <span class="nbadge dn" id="prospectsNavBadge">0</span></div>
   <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="est"  id="nav-est"><span class="ni-icon">📋</span>Estimates</div>
 
@@ -747,6 +752,7 @@
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="expenses" id="nav-expenses"><span class="ni-icon">🧾</span>Expenses</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="money" id="nav-money"><span class="ni-icon">💵</span>Money</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="refrewards" id="nav-refrewards"><span class="ni-icon">🎁</span>Referrals</div>
+      <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="signs" id="nav-signs"><span class="ni-icon">🪧</span>Yard Signs</div>
       <div class="ni" role="button" tabindex="0" data-action="windowOpen" data-target="/pro/daily-success/" id="nav-daily"><span class="ni-icon">📅</span>Success Tracker</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="storm" id="nav-storm"><span class="ni-icon">⛈️</span>Storm Watch</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="closeboard" id="nav-closeboard"><span class="ni-icon">📋</span>Close Board</div>
@@ -806,6 +812,15 @@
           <button class="btn btn-orange" data-action="newEstimate">＋ New Estimate</button>
         </div>
       </div>
+      <!-- Needs-you strip (js/home-attention.js): Stripe payments to assign +
+           yard signs to pick up. Hidden when both are zero. -->
+      <div id="homeAttention" class="ha-strip mb-md" hidden></div>
+      <style>
+        .ha-strip{display:flex;flex-wrap:wrap;gap:8px;}
+        .ha-strip[hidden]{display:none;}
+        .ha-item{font:inherit;font-size:13px;font-weight:600;padding:9px 14px;border-radius:10px;border:1px solid var(--br);background:var(--s2,#1a1d23);color:var(--t);cursor:pointer;min-height:40px;}
+        .ha-item.ha-warn{border-color:var(--gold,#f59e0b);color:var(--gold,#f59e0b);}
+      </style>
       <div class="widget-grid" id="widgetGrid"></div>
     </div>
   </template>
@@ -871,7 +886,7 @@
               <div style="font-size:24px;font-weight:700;color:var(--gold);" id="weekEstimates">0</div>
             </div>
             <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:12px;cursor:pointer;transition:border-color .15s;" data-action="goTo" data-target="crm" class="hov-green">
-              <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Revenue Added</div>
+              <div style="font-size:10px;color:var(--m);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;" title="Job value of leads added this week — pipeline, not collected money">Pipeline Added</div>
               <div style="font-size:24px;font-weight:700;color:var(--green);" id="weekRevenue">$0</div>
             </div>
             <div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:12px;cursor:pointer;transition:border-color .15s;" data-action="goTo" data-target="crm" class="hov-purple">
@@ -886,7 +901,7 @@
         <div class="stat-card cp" data-action="goTo" data-target="crm"><div class="stat-icon si-b">👥</div><div><div class="stat-val" id="statLeads">0</div><div class="stat-lbl">Active Leads</div></div></div>
         <div class="stat-card cp" data-action="goTo" data-target="est"><div class="stat-icon si-p">📋</div><div><div class="stat-val" id="statEsts">0</div><div class="stat-lbl">Estimates</div></div></div>
         <div class="stat-card cp" data-action="goTo" data-target="crm"><div class="stat-icon si-g">💰</div><div><div class="stat-val" id="statVal" style="color:var(--green);font-size:18px;">$0</div><div class="stat-lbl">Pipeline Value</div></div></div>
-        <div class="stat-card cp" data-action="goTo" data-target="crm"><div class="stat-icon" style="color:var(--green);">🏆</div><div><div class="stat-val" id="statClosed" style="color:var(--green);font-size:18px;">$0</div><div class="stat-lbl">Closed Revenue</div></div></div>
+        <div class="stat-card cp" data-action="goTo" data-target="crm"><div class="stat-icon" style="color:var(--green);">🏆</div><div><div class="stat-val" id="statClosed" style="color:var(--green);font-size:18px;">$0</div><div class="stat-lbl" title="Job value of won jobs — booked, not collected (Money shows collected)">Booked Value</div></div></div>
       </div>
 
       <!-- WAVE 29: HOT LEADS WIDGET ─────────────────────────────────
@@ -2323,6 +2338,9 @@
   <!-- Referral Rewards: template-hydrated mount; referral-rewards-ui.js renders owed/paid $100 bonuses into .view-scroll on init. -->
   <div class="view" id="view-refrewards" data-view-template="tpl-view-refrewards"></div>
   <template id="tpl-view-refrewards"><div class="view-scroll" id="refrewardsScroll"></div></template>
+  <!-- Yard Signs: template-hydrated mount; yard-signs.js (lazy 'signs' bundle) renders the map + list into .view-scroll on init. -->
+  <div class="view" id="view-signs" data-view-template="tpl-view-signs"></div>
+  <template id="tpl-view-signs"><div class="view-scroll" id="signsScroll"></div></template>
   <template id="tpl-view-closeboard">
     <div class="view-scroll">
       <div class="page-hdr">
@@ -4181,7 +4199,7 @@
         </div>
       </div><!-- /stab-panel-team -->
 
-      <script src="js/dashboard-team-tab.js?v=3"></script>
+      <script src="js/dashboard-team-tab.js?v=4"></script>
 
       <!-- ══ TAB: ACCESS ══ -->
       <div class="stab-panel dn" id="stab-panel-access">
@@ -4885,6 +4903,13 @@
         </div>
       </div>
 
+      <!-- PLAN JOBS — js/schedule-planner.js. Jobs that need a date + the next
+           30 days, each row saved on its own (2026-09-29). -->
+      <div class="panel" id="schedPlanPanel" hidden>
+        <div class="panel-hdr"><div><div class="panel-label">Fill in your month</div><div class="panel-title">Plan Jobs</div></div></div>
+        <div class="panel-body" id="schedPlanBody"></div>
+      </div>
+
       <!-- BOOKING LINK SHARE -->
       <div class="panel">
         <div class="panel-hdr"><div><div class="panel-label">Your Booking Link</div><div class="panel-title">Share With Homeowners</div></div></div>
@@ -4919,6 +4944,14 @@
             <button type="button" class="btn btn-ghost" id="calFeedCopy" disabled style="font-size:11px;padding:7px 14px;">📋 Copy Link</button>
           </div>
         </div>
+      </div>
+
+      <!-- GOOGLE CALENDAR (calendar hub Phase 2) — the "NBD Jobs" calendar the
+           CRM keeps in your Google account. Owner / company admin only;
+           rendered by js/google-calendar-ui.js (listeners delegated by id). -->
+      <div class="panel" id="gcalPanel" hidden style="display:none;">
+        <div class="panel-hdr"><div><div class="panel-label">Your Calendar</div><div class="panel-title">Google Calendar</div></div></div>
+        <div class="panel-body" id="gcalBody"></div>
       </div>
 
       <!-- CAL.COM SETTINGS -->
@@ -5362,6 +5395,34 @@
         <div class="mfield"><label>Scheduled Date</label><input type="date" id="lScheduledDate"></div>
         <div class="mfield"><label>Crew</label><input type="text" id="lCrew" placeholder="Crew name or lead installer"></div>
       </div>
+      <!-- 2026-09-29 (calendar hub Phase 0): arrival window beside the date.
+           Wired by js/schedule-window-ui.js (delegated, no inline handlers);
+           "All day / no time" saves exactly what this form always saved. -->
+      <div data-schedwin="l" data-schedwin-date="lScheduledDate" data-schedwin-mode="allday" style="margin:0 0 10px;">
+        <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--m);margin-bottom:4px;">Arrival window</div>
+        <div role="group" aria-label="Arrival window" style="display:flex;flex-wrap:wrap;gap:6px;">
+          <button type="button" data-schedwin-preset="allday" aria-pressed="true" style="padding:6px 10px;min-height:32px;border:1px solid var(--orange,#BD5728);border-radius:999px;background:var(--orange,#BD5728);color:#fff;font-size:12px;cursor:pointer;">All day / no time</button>
+          <button type="button" data-schedwin-preset="project" aria-pressed="false" style="padding:6px 10px;min-height:32px;border:1px solid var(--br);border-radius:999px;background:transparent;color:var(--t);font-size:12px;cursor:pointer;">Full project</button>
+          <button type="button" data-schedwin-preset="repair" aria-pressed="false" style="padding:6px 10px;min-height:32px;border:1px solid var(--br);border-radius:999px;background:transparent;color:var(--t);font-size:12px;cursor:pointer;">Repair / inspection</button>
+        </div>
+        <div data-schedwin-fields hidden style="display:none;">
+          <div class="mrow" style="margin-top:8px;">
+            <div class="mfield"><label for="lSchedStart">Start time</label><input type="time" id="lSchedStart" step="300"></div>
+            <div class="mfield" data-schedwin-for="project" hidden style="display:none;"><label for="lSchedDays">Length</label>
+              <select id="lSchedDays"><option value="1">1 day</option><option value="2">2 days</option><option value="3">3 days</option></select>
+            </div>
+            <div class="mfield" data-schedwin-for="repair" hidden style="display:none;"><label for="lSchedDuration">Length</label>
+              <select id="lSchedDuration"><option value="">No set length</option><option value="30">30 min</option><option value="60">1 hour</option><option value="90">1½ hours</option><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option></select>
+            </div>
+          </div>
+        </div>
+        <div id="lSchedPreview" aria-live="polite" style="font-size:12px;color:var(--m);margin-top:4px;min-height:1em;"></div>
+      </div>
+      <!-- 2026-09-29: plan to a WEEK before the day is known (lead.scheduledWeek,
+           that week's Monday). Saved only while Scheduled Date is empty. -->
+      <div class="mrow">
+        <div class="mfield"><label for="lScheduledWeek">Week of (no day yet)</label><input type="date" id="lScheduledWeek" title="Any day that week — saves as the week"></div>
+      </div>
       <!-- 2026-09-15 (Paperwork Filing): gate REQUIRED_FIELDS_BY_TYPE's
            JOB_CREATED / MATERIALS_ORDERED / CLOSED checkpoints. Contract and
            Warranty Cert are auto-checked by document-generator.js /
@@ -5410,7 +5471,7 @@
     <div class="m-modal-bar">
       <button class="m-modal-bar-x" data-action="closeOpen" data-target="warrantyCertModal" aria-label="Close">✕</button>
       <div class="m-modal-bar-titles">
-        <span class="m-modal-bar-eyebrow">NBD Guarantee</span>
+        <span class="m-modal-bar-eyebrow" id="wcEyebrow">NBD Guarantee</span>
         <span class="m-modal-bar-title">Generate Warranty Certificate</span>
       </div>
       <span class="m-modal-bar-spacer" aria-hidden="true"></span>
@@ -5685,6 +5746,8 @@
      dashboard-actions.js because that file calls NBDUrl.customer(). -->
 <script defer src="js/nbd-url.js?v=1"></script>
 <script defer src="js/dashboard-state.js?v=6"></script>
+<!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
+<script defer src="js/team-names.js?v=1"></script>
 <script defer src="js/dashboard-api.js?v=4"></script>
 <!-- Durable offline photo queue. Loaded EAGERLY and ahead of the lazy
      `photos` bundle on purpose: photo-engine.js only arrives when the rep
@@ -5916,6 +5979,12 @@
   </div>
   <div class="mm-item" data-action="mobileNav" data-target="expenses" data-close-more>
     <span class="mm-item-icon">🧾</span>Expenses
+  </div>
+  <div class="mm-item" data-action="mobileNav" data-target="schedule" data-close-more>
+    <span class="mm-item-icon">🗓️</span>Schedule
+  </div>
+  <div class="mm-item" data-action="mobileNav" data-target="signs" data-close-more>
+    <span class="mm-item-icon">🪧</span>Yard Signs
   </div>
   <div class="mm-item" data-action="mobileNav" data-target="money" data-close-more>
     <span class="mm-item-icon">💵</span>Money
@@ -6579,7 +6648,12 @@
      All four split files run BEFORE the shim so the long sweep
      of window.* exports in the shim can reach functions defined
      in the split files via classic-script sibling-scope globals. -->
-<script defer src="js/crm-leads.js?v=3"></script>
+<!-- Arrival window on a lead (2026-09-29, calendar hub Phase 0): the pure
+     date math, then the lead-modal controls beside #lScheduledDate. Before
+     crm-leads.js (saveLead reads them) and smart-calendar.js. -->
+<script defer src="js/schedule-window.js?v=2"></script>
+<script defer src="js/schedule-window-ui.js?v=1"></script>
+<script defer src="js/crm-leads.js?v=5"></script>
 <script defer src="js/crm-pipeline.js?v=5"></script>
 <script defer src="js/crm-snooze.js?v=2"></script>
 <!-- FCM Web Push token registration — registers the messaging SW, mints a
@@ -6588,7 +6662,7 @@
      No-ops until window.__NBD_VAPID_KEY is set (dashboard-fcm-config.js). -->
 <script defer src="js/push-registration.js?v=3"></script>
 <script defer src="js/push-actions.js?v=1"></script>
-<script defer src="js/crm-portal-bridge.js?v=4"></script>
+<script defer src="js/crm-portal-bridge.js?v=6"></script>
 <script defer src="js/crm.js?v=34"></script>
 <script defer src="js/crm-list-view.js?v=7"></script>
 <script defer src="js/tasks.js?v=6"></script>
@@ -6624,9 +6698,12 @@
 <!-- W139: Hot-lead threshold-crossing alert -->
 <script defer src="js/lead-score-alert.js?v=2"></script>
 <script defer src="js/smart-followup-briefing.js?v=2"></script>
+<script defer src="js/home-attention.js?v=1"></script>
 <script defer src="js/hot-leads-widget.js?v=2"></script>
 <script defer src="js/almost-there-widget.js?v=2"></script>
 <script defer src="js/stale-shares-widget.js?v=2"></script>
+<!-- Revenue = collected payments only (Jo, 2026-09-28): shared paymentsOf + one cached invoice load for every revenue surface. -->
+<script defer src="js/collected-revenue.js?v=1"></script>
 <script defer src="js/widgets.js?v=9"></script>
 <script defer src="js/ui.js?v=7"></script>
 <script defer src="js/demo.js?v=4"></script>
@@ -6638,14 +6715,14 @@
 <script defer src="js/warranty-claim.js?v=3"></script>
 <!-- Insurance Details panel reuse (mobile Details tab) — ClaimPanel.render
      is container-agnostic; not loaded on this page before. -->
-<script defer src="js/claim-core.js?v=2"></script>
+<script defer src="js/claim-core.js?v=4"></script>
 <!-- Job Checklist panel reuse (mobile Details tab) — not loaded on this
      page before. -->
 <script defer src="js/customer-checklist.js?v=2"></script>
 <script defer src="js/nbd-input-guards.js?v=1"></script>
 <!-- LAZY: photo-engine loads via ScriptLoader's `photos` bundle (PR 2d). -->
 <script defer src="js/photo-ai.js?v=3"></script>
-<script defer src="js/invoice-pipeline.js?v=6"></script>
+<script defer src="js/invoice-pipeline.js?v=7"></script>
 <!-- LAZY: inspection-report-engine loads via the `photos` bundle (PR 2d). -->
 <!-- Step 4d (2026-05-16): maps.js split into three sibling modules
      loaded in order before the thin maps.js shim (maps-customers.js
@@ -6668,8 +6745,11 @@
      refs with window._leads for jobValue + lat/lng, and renders a
      timeline with conflict and tight-travel warnings. Must load after
      maps.js because it uses window.hav() (haversine distance). -->
-<script defer src="js/smart-calendar.js?v=2"></script>
+<script defer src="js/smart-calendar.js?v=3"></script>
 <script defer src="js/calendar-feed-ui.js?v=1"></script>
+<script defer src="js/google-calendar-ui.js?v=2"></script>
+<script defer src="js/schedule-planner-logic.js?v=1"></script>
+<script defer src="js/schedule-planner.js?v=1"></script>
 <!-- Voicemail pipeline — record OR upload a voicemail, route through
      the dictate callable in summarize mode, write a structured
      activity entry, and auto-create tasks from extracted action items.

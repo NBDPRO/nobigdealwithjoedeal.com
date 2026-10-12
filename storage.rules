@@ -231,6 +231,21 @@ service firebase.storage {
       allow read, write: if false;
     }
 
+    // ── YARD-SIGN PHOTOS ──────────────────────────────
+    // Path: yard-signs/{uid}/{ts}_{name} — a photo of each placed yard sign
+    // (yard-signs.js, 2026-09-29). Same owner posture and image limits as
+    // photos/; the Firestore doc (yardSigns/{id}) only holds photoPath.
+    match /yard-signs/{uid}/{allPaths=**} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if ownerWrites(uid)
+        && request.resource.size < 15 * 1024 * 1024
+        && isImage();
+      allow delete: if ownerWrites(uid) || isAdmin();
+    }
+    match /yard-signs/{file} {
+      allow read, write: if false;
+    }
+
     // ── SERVER-RENDERED PDFs ──────────────────────────
     // Path: pdf-renders/{uid}/{ts}-{filename}.pdf
     // Written ONLY by functions/render-pdf.js through the admin SDK, which

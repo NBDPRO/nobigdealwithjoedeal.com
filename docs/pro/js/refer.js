@@ -44,10 +44,16 @@
   }
   show(form);
 
+  // show() on every message: the clear at the top of each submit sets an INLINE
+  // display:none, which beats the .status.error { display:block } class — so
+  // until 2026-09-28 every error on this page (missing name, bad phone, daily
+  // limit, invalid link, network failure) was invisible and the friend just
+  // saw the button come back.
   function setStatus(msg, kind) {
     if (!msg) { hide(statusEl); statusEl.className = 'status'; return; }
     statusEl.textContent = msg;
     statusEl.className = 'status ' + (kind || '');
+    show(statusEl);
   }
 
   form.addEventListener('submit', async (ev) => {

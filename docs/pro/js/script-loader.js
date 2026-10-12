@@ -107,7 +107,10 @@
       // renderCostPanel('profitPanel') runs during the customer render, so it
       // cannot be lazy there. Same cache key on both pages.
       'js/profit-tracker.js?v=3',
-      'js/expenses.js?v=2'
+      'js/expenses.js?v=3',
+      // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
+      // renders when this has loaded.
+      'js/hd-import.js?v=1'
     ],
     // Money / P&L capstone — self-contained (reads doc fields directly, no
     // ExpenseConfig dependency), so it's a single-module bundle.
@@ -116,6 +119,12 @@
     ],
     repos: [
       'js/rep-os.js?v=2'
+    ],
+    // Yard-sign tracker (2026-09-29): placements, photos, pickup dates +
+    // reminders. Pure rules first so the view can use them at init.
+    signs: [
+      'js/yard-signs-logic.js?v=1',
+      'js/yard-signs.js?v=1'
     ],
     decision: [
       'js/decision-engine.js?v=2'
@@ -386,6 +395,7 @@
     closeboard:  ['closeboard'],
     expenses:    ['expenses'],
     money:       ['money'],
+    signs:       ['mapvendor', 'signs'],
     repos:       ['repos'],
     'talk-tank': ['talktank'],
     aitree:      ['decision'],

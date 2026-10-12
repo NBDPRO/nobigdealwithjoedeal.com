@@ -165,6 +165,42 @@
     return lead;
   }
 
+  // ─── Stage + customer-ID hygiene for one imported row ───────────
+  // (CRM sweep R13, 2026-09-28.) Pure apart from the window.normalizeStage /
+  // window.stageRole lookups; unit-tested by lifting it out of this file.
+  //
+  // STAGE: rows were written with the CSV's text verbatim ("Install Complete",
+  // "Won"). The board normalises at read time, but the SERVER classifies the
+  // raw string (functions/stage-roles.js roleFor): "Install Complete" is
+  // `active` there and `won` on the board, so a finished job imported this way
+  // was open work to the weekly digest and the dormant-lead nudge. Store the
+  // key the board shows and stamp stageRole beside it — the same contract as
+  // stage-write.js / the Edit Lead save. A label the board can't place lands
+  // in New (where the board already showed it); the original text is kept as
+  // importedStage so nothing is lost silently.
+  //
+  // CUSTOMER ID: a Customer ID column is honoured only when no existing lead
+  // already carries it — two leads with one ID make the public referral link
+  // for that customer ambiguous (functions/referrals.js refuses with 409). A
+  // kept ID also skips the mint: /leads customerId is write-once, so minting
+  // over it was denied after burning a counter number.
+  function prepareImportedLead(lead, existingLeads) {
+    const out = Object.assign({}, lead);
+    if (out.stage) {
+      const raw = String(out.stage).trim();
+      const key = typeof window.normalizeStage === 'function' ? window.normalizeStage(raw) : raw;
+      out.stage = key;
+      if (typeof window.stageRole === 'function') out.stageRole = window.stageRole(key);
+      if (key !== raw) out.importedStage = raw;
+    }
+    if (out.customerId) {
+      const cid = String(out.customerId).trim();
+      const taken = (existingLeads || []).some(l => l && l.customerId && String(l.customerId).trim() === cid);
+      if (taken || !cid) delete out.customerId;
+    }
+    return out;
+  }
+
   // ─── Modal UI ───────────────────────────────────────────────────
   let modalEl = null;
 
@@ -467,10 +503,11 @@
 
     for (let i = 0; i < dataRows.length; i++) {
       const row = dataRows[i];
-      const lead = buildLeadFromRow(row, mapping, headers);
+      const built = buildLeadFromRow(row, mapping, headers);
 
       // Skip rows where every mapped field is blank.
-      if (Object.keys(lead).length === 0) { skippedEmpty++; continue; }
+      if (Object.keys(built).length === 0) { skippedEmpty++; continue; }
+      const lead = prepareImportedLead(built, existingLeads);
 
       // Dedup against existing leads + already-imported leads (which
       // we accumulate locally so a CSV with internal duplicates also
@@ -518,7 +555,8 @@
         // failure logs and moves on, exactly like _saveLead's catch — the
         // lead itself is already saved.
         try {
-          if (window._companyProfileLoaded === true
+          if (!lead.customerId
+              && window._companyProfileLoaded === true
               && typeof window._custCounterId === 'function'
               && typeof window._custIdPrefix === 'function'
               && typeof window._formatCustomerId === 'function'

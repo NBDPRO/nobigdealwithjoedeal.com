@@ -30,6 +30,11 @@
   'use strict';
   if (typeof window === 'undefined') return;
 
+  function _todayLocal() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
   async function onStageChange(leadId, oldStage, newStage, jobType) {
     try {
       if (!leadId || !newStage) return;
@@ -77,7 +82,13 @@
         stageKey: newStage,
         actionId: action.id,
         actionKind: action.kind || '',
-        dueDate: '',
+        // Due TODAY (local day). An empty dueDate — what this wrote until
+        // 2026-09-28 — is skipped by Today's Tasks and the bell (both only
+        // surface dated tasks), so the "shows up without the rep looking at
+        // the board" promise above never held (CRM sweep R14). Local, not
+        // toISOString(): UTC made every date a day early in US evenings
+        // (the follow-up bug #1822 fixed).
+        dueDate: _todayLocal(),
         done: false,
         createdAt: window.serverTimestamp(),
       });

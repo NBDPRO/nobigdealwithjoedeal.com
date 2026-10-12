@@ -75,7 +75,14 @@
   // ────────────────────────────────────────────────────────────────────
   // Aggregation
   // ────────────────────────────────────────────────────────────────────
-  function computeMetrics(leads) {
+  // Revenue = money COLLECTED (Jo, 2026-09-28: "Revenue is always collected
+  // only"). collectedByLead is { leadId: dollars } from invoice payments
+  // (collected-revenue.js); a source's revenue is the cash its leads actually
+  // paid — deposits included, whatever stage the job is in. It used to be the
+  // jobValue of closed leads (booked, not banked), which is still kept as
+  // bookedRev for the Avg Deal column only.
+  function computeMetrics(leads, collectedByLead) {
+    const paid = collectedByLead || {};
     const buckets = {};
     let aggTotal = 0, aggClosed = 0, aggPipe = 0, aggRev = 0, aggLost = 0, aggLeadCost = 0;
 
@@ -101,7 +108,7 @@
       if (!buckets[source]) {
         buckets[source] = {
           source, total: 0, closed: 0, lost: 0,
-          pipeValue: 0, closedRev: 0, openCount: 0, leadCost: 0
+          pipeValue: 0, collectedRev: 0, bookedRev: 0, openCount: 0, leadCost: 0
         };
       }
       const b = buckets[source];
@@ -111,9 +118,11 @@
       // either way, and counting it only on closes would flatter every source.
       const acqCost = toNum(lead.leadCost);
       b.leadCost += acqCost; aggLeadCost += acqCost;
+      const cash = toNum(lead.id != null ? paid[lead.id] : 0);
+      b.collectedRev += cash; aggRev += cash;
       if (isClosed) {
         b.closed++; aggClosed++;
-        b.closedRev += value;  aggRev += value;
+        b.bookedRev += value;
       } else if (isLost) {
         b.lost++; aggLost++;
       } else {
@@ -122,15 +131,15 @@
       }
     }
 
-    // Compute derived metrics + sort by closed revenue desc
+    // Compute derived metrics + sort by collected revenue desc
     const rows = Object.values(buckets).map(b => ({
       ...b,
       conversionRate: b.total ? Math.round((b.closed / b.total) * 100) : 0,
       costPerLead:    b.total ? b.leadCost / b.total : 0,
       costPerClosed:  b.closed ? b.leadCost / b.closed : 0,
-      leadRoi:        b.leadCost > 0 ? Math.round((b.closedRev / b.leadCost) * 100) : null,
-      avgDealSize:    b.closed ? Math.round(b.closedRev / b.closed) : 0,
-    })).sort((a, b) => b.closedRev - a.closedRev);
+      leadRoi:        b.leadCost > 0 ? Math.round((b.collectedRev / b.leadCost) * 100) : null,
+      avgDealSize:    b.closed ? Math.round(b.bookedRev / b.closed) : 0,
+    })).sort((a, b) => b.collectedRev - a.collectedRev);
 
     return {
       rows,
@@ -139,7 +148,7 @@
         closed:    aggClosed,
         lost:      aggLost,
         pipeValue: aggPipe,
-        closedRev: aggRev,
+        collectedRev: aggRev,
         conversionRate: aggTotal ? Math.round((aggClosed / aggTotal) * 100) : 0,
         // Acquisition cost carried on the lead itself. Narrower and more honest
         // than the expenses join above: it is what THIS lead cost, not a
@@ -209,7 +218,9 @@
     const el = document.getElementById(targetId);
     if (!el) return;
     const leads = window._leads || [];
-    const m = computeMetrics(leads);
+    const _R = window.NBDRevenue, _invs = _R ? _R.cached() : null;
+    if (_R && !_invs) _R.loadInvoices().then(function () { if (_R.cached() && document.getElementById(targetId)) render(targetId); });
+    const m = computeMetrics(leads, _invs ? _R.collectedByLead(_invs, null, null) : {});
 
     // Pull marketing spend once, then re-render with the real ROI tiles.
     _marketingTargetId = targetId;
@@ -239,7 +250,7 @@
     let _attribRev = 0, _attribSpend = 0;
     m.rows.forEach(r => {
       const sp = _marketingBySource[normalizeSource(r.source).trim().toLowerCase()];
-      if (sp > 0) { _attribRev += r.closedRev; _attribSpend += sp; }
+      if (sp > 0) { _attribRev += r.collectedRev; _attribSpend += sp; }
     });
     const _marketingRoi = _attribSpend > 0 ? Math.round((_attribRev / _attribSpend) * 100) : null;
 
@@ -254,8 +265,8 @@
           <div class="lsroi-tot-val" style="color:var(--green);">${m.totals.closed}</div>
         </div>
         <div class="lsroi-tot">
-          <div class="lsroi-tot-label">Closed Revenue</div>
-          <div class="lsroi-tot-val" style="color:var(--green);">${fmtMoney(m.totals.closedRev)}</div>
+          <div class="lsroi-tot-label">Revenue <span style="opacity:.55;font-weight:normal;">(collected)</span></div>
+          <div class="lsroi-tot-val" style="color:var(--green);">${_invs ? fmtMoney(m.totals.collectedRev) : '…'}</div>
         </div>
         <div class="lsroi-tot">
           <div class="lsroi-tot-label">Open Pipeline</div>
@@ -291,13 +302,13 @@
     `;
 
     const callouts = [];
-    if (m.bestByRevenue && m.bestByRevenue.closedRev > 0) {
+    if (m.bestByRevenue && m.bestByRevenue.collectedRev > 0) {
       callouts.push(`
         <div class="lsroi-callout">
           <span class="lsroi-callout-icon">🏆</span>
           <div>
             <div class="lsroi-callout-label">Top revenue source</div>
-            <div class="lsroi-callout-value">${escHtml(m.bestByRevenue.source)} — ${fmtMoney(m.bestByRevenue.closedRev)}</div>
+            <div class="lsroi-callout-value">${escHtml(m.bestByRevenue.source)} — ${fmtMoney(m.bestByRevenue.collectedRev)} collected</div>
           </div>
         </div>
       `);
@@ -317,14 +328,14 @@
       ? `<div class="lsroi-callouts">${callouts.join('')}</div>`
       : '';
 
-    const maxRev = Math.max(...m.rows.map(r => r.closedRev), 1);
+    const maxRev = Math.max(...m.rows.map(r => r.collectedRev), 1);
     const tableRows = m.rows.map(r => {
-      const barPct = Math.round((r.closedRev / maxRev) * 100);
+      const barPct = Math.round((r.collectedRev / maxRev) * 100);
       // Per-source marketing ROI (when this source's name matches logged
-      // marketing spend). closedRev / spend.
+      // marketing spend). collected revenue / spend.
       const srcSpend = r.leadCost > 0 ? r.leadCost : (_marketingBySource[(r.source || '').trim().toLowerCase()] || 0);
       const srcRoiTag = srcSpend > 0
-        ? `<div style="font-size:10px;color:var(--m,#8892A4);">${fmtMoney(srcSpend)} spent · ROI ${Math.round((r.closedRev / srcSpend) * 100)}%</div>`
+        ? `<div style="font-size:10px;color:var(--m,#8892A4);">${fmtMoney(srcSpend)} spent · ROI ${Math.round((r.collectedRev / srcSpend) * 100)}%</div>`
         : '';
       return `
         <tr>
@@ -335,7 +346,7 @@
           <td class="lsroi-num lsroi-rate">${r.conversionRate}%</td>
           <td class="lsroi-num">${fmtMoney(r.pipeValue)}</td>
           <td class="lsroi-num lsroi-rev">
-            ${fmtMoney(r.closedRev)}
+            ${fmtMoney(r.collectedRev)}
             <div class="lsroi-bar"><div class="lsroi-bar-fill" style="width:${barPct}%;"></div></div>
           </td>
           <td class="lsroi-num">${fmtMoney(r.avgDealSize)}</td>
@@ -356,7 +367,7 @@
               <th>Lost</th>
               <th>Conv.</th>
               <th>Open Pipeline</th>
-              <th>Closed Rev</th>
+              <th>Collected</th>
               <th>Avg Deal</th>
             </tr>
           </thead>
@@ -371,7 +382,10 @@
   // ────────────────────────────────────────────────────────────────────
   const LeadSourceROI = {
     render,
-    compute: () => computeMetrics(window._leads || []),
+    compute: () => {
+      const R = window.NBDRevenue, invs = R ? R.cached() : null;
+      return computeMetrics(window._leads || [], invs ? R.collectedByLead(invs, null, null) : {});
+    },
     init(targetId) {
       this._targetId = targetId;
       render(targetId);

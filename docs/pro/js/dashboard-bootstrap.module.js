@@ -26,7 +26,7 @@
     SUB_TYPES, subTypeOptionsFor, subTypeLabel,
     TRADES, tradeLabel, tradesLabel,
     STAGE_ACTIONS, actionsForStage, preferredActionFor,
-    REQUIRED_FIELDS_BY_TYPE, requiredFieldsFor, missingRequiredFields,
+    REQUIRED_FIELDS_BY_TYPE, requiredFieldsFor, missingRequiredFields, requiredFieldLabel,
     CLAIM_STATUSES, CLAIM_STATUS_ACTIONS, preferredActionForClaim,
     REQUIRED_FIELDS_BY_CLAIM_STATUS, missingClaimFields,
     tagClass as _tagClass
@@ -36,6 +36,9 @@
   window.preferredActionFor = preferredActionFor;
   window.requiredFieldsFor = requiredFieldsFor;
   window.missingRequiredFields = missingRequiredFields;
+  // Human labels for missingRequiredFields keys — the Edit Lead form's stage
+  // gate (crm-leads.js saveLead) names the fields it needs.
+  window.requiredFieldLabel = requiredFieldLabel;
   // subTypeOptionsFor/subTypeLabel: registered in __NBD_CALL_REGISTRY at the
   // end of this file (Globals Tranche 3 T3-C, 2026-09-18) instead — this
   // comment block's "crm.js" framing was stale for these two specifically
@@ -626,6 +629,17 @@
   function _findLead(id) {
     if (!id || !Array.isArray(window._leads)) return null;
     return window._leads.find(l => l && l.id === id) || null;
+  }
+
+  // "Open this lead" deep link → the lead id, else null. Two shapes exist:
+  // ?tab=crm&lead=ID (notification bell, tasks.js) and ?tab=leads&leadId=ID
+  // (push notifications, firebase-messaging-sw.js). A bare ?lead=ID (no tab)
+  // stays the NEW-ESTIMATE deep link, and an ?est= link is never a lead open.
+  function leadDeepLinkId(params) {
+    if (!params || params.get('est')) return null;
+    const tab = params.get('tab');
+    if (tab !== 'crm' && tab !== 'leads') return null;
+    return params.get('lead') || params.get('leadId') || null;
   }
 
   function _logLeadActivity(leadId, actionId, label) {
@@ -1850,7 +1864,23 @@
             new Promise((_, rej) => setTimeout(() => rej(new Error('claimInvite timed out')), 8000)),
           ]);
           const out = (res && res.data) || {};
-          if (out.claimed) {
+          // An account that owns its own company must choose to join
+          // (claimInvite answers confirm_required; invite-join.js asks). Not
+          // awaited: the prompt waits on a person, and this await gates
+          // loadLeads. The flag stays unset, so a later load asks again unless
+          // the company was declined (remembered on userSettings, which
+          // survives sign-out).
+          if (out.reason === 'confirm_required') {
+            if (window.NBDInviteJoin) {
+              window.NBDInviteJoin.handle(out, (p) => fn(p), { fromBoot: true }).then(async (outcome) => {
+                if (outcome !== 'joined') return;
+                await user.getIdToken(true);
+                localStorage.setItem(_inviteCheckedKey, '1');
+                localStorage.setItem(_repActivatedKey, '1');
+                window.location.reload();
+              }).catch((e) => console.warn('Invite prompt failed:', e && e.message));
+            }
+          } else if (out.claimed) {
             // Claims changed → the whole tenant scope changed. Refresh the
             // token FIRST, then set the flags + reboot so every scoped query
             // re-runs under the team's companyId. Setting the flags before the
@@ -1873,7 +1903,7 @@
           const _createdMs = Date.parse((user.metadata && user.metadata.creationTime) || '') || 0;
           const _youngAccount = _createdMs && (Date.now() - _createdMs) < 14 * 24 * 3600 * 1000;
           if ((out.reason === 'no_invite' && _youngAccount) || out.reason === 'invite_expired'
-              || out.reason === 'ambiguous_invite') {
+              || out.reason === 'ambiguous_invite' || out.reason === 'confirm_required') {
             // leave the flag unset — re-check next load. invite_expired
             // stays non-terminal so a Re-send (fresh 30-day invite) is
             // picked up without any manual recovery step. ambiguous_invite
@@ -2206,6 +2236,13 @@
     // failure was masking the dead path.
 
     // Check for query params (edit=xxx or tasks=xxx from customer.html)
+    // Every branch below cleans the query off the URL with replaceState. It
+    // KEEPS location.hash: goTo() has just written '#/<view>', and the
+    // hashchange that write queued fires AFTER a synchronous replaceState —
+    // dropping the hash made dashboard-main.js's hashchange handler read ''
+    // and route to Home over the view the link asked for (?settings=billing,
+    // Stripe Connect's return URL, landed on Home; so did ?edit= / ?tasks= /
+    // ?templates= behind their modals). CRM sweep R13, 2026-09-28.
     const urlParams = new URLSearchParams(window.location.search);
     const editId = urlParams.get('edit');
     const tasksId = urlParams.get('tasks');
@@ -2230,7 +2267,7 @@
         } else if (typeof showToast === 'function') {
           showToast('Templates are still loading — try again in a moment', 'warning');
         }
-        window.history.replaceState({}, '', '/pro/dashboard.html');
+        window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
       }, 500);
     } else if (estParam && editId) {
       // ── REOPEN SAVED ESTIMATE from customer page ──
@@ -2269,15 +2306,49 @@
           }
         };
         await tryReopen(0);
-        window.history.replaceState({}, '', '/pro/dashboard.html');
+        window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
       })();
     } else if (editId && !estParam) {
       // ── EDIT LEAD in CRM ──
-      setTimeout(() => {
+      // Wait for the lead cache: editLead() looks the id up in window._leads,
+      // and at a fixed 500 ms it usually wasn't loaded yet — editLead fell
+      // through to a BLANK new-lead form, which saves a duplicate (R14,
+      // 2026-09-28; the customer page's "Open full editor" lands here).
+      window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
+      (async () => {
+        for (let i = 0; i < 40 && window._leadsLoaded !== true; i++) {
+          await new Promise(r => setTimeout(r, 250));
+        }
         goTo('crm');
-        editLead(editId);
-        window.history.replaceState({}, '', '/pro/dashboard.html');
-      }, 500);
+        if ((window._leads || []).some(l => l && l.id === editId)) {
+          editLead(editId);
+        } else {
+          window.location.href = '/pro/customer.html?id=' + encodeURIComponent(editId);
+        }
+      })();
+    } else if (leadDeepLinkId(urlParams)) {
+      // ── OPEN A LEAD: ?tab=crm&lead=ID (notification bell, tasks) and
+      //    ?tab=leads&leadId=ID (push notifications). CRM sweep R13,
+      //    2026-09-28: `tab` was never read, so the bell's links fell into
+      //    the NEW-ESTIMATE branch below — tapping "New referral" / "Document
+      //    signed" opened a blank estimate for that lead — and push's
+      //    `leadId` matched nothing and landed on Home. Waits for the lead
+      //    cache (the card modal reads window._leads); a lead not in this
+      //    rep's cache opens on its customer page instead of doing nothing.
+      const _openId = leadDeepLinkId(urlParams);
+      window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
+      (async () => {
+        for (let i = 0; i < 40 && window._leadsLoaded !== true; i++) {
+          await new Promise(r => setTimeout(r, 250));
+        }
+        goTo('crm');
+        const _hit = (window._leads || []).some(l => l && l.id === _openId);
+        if (_hit && typeof window.openCardDetailModal === 'function') {
+          window.openCardDetailModal(_openId);
+        } else {
+          window.location.href = '/pro/customer.html?id=' + encodeURIComponent(_openId);
+        }
+      })();
     } else if (estParam || leadParam) {
       // ── NEW ESTIMATE (optionally pre-filled from lead) ──
       (async () => {
@@ -2310,7 +2381,7 @@
             startNewEstimate();
           }
         }
-        window.history.replaceState({}, '', '/pro/dashboard.html');
+        window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
       })();
     } else if (tasksId) {
       // Wait for leads to load, then open task modal
@@ -2318,7 +2389,7 @@
         goTo('crm');
         openTaskModal(tasksId);
         // Clean URL
-        window.history.replaceState({}, '', '/pro/dashboard.html');
+        window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
       }, 500);
     } else if (urlParams.get('settings')) {
       // ── DEEP LINK: Settings → <tab> ──
@@ -2351,7 +2422,7 @@
       }
       if (SETTINGS_TABS.indexOf(wantTab) !== -1) {
         (async () => {
-          if (typeof goTo === 'function') goTo('settings');
+          if (typeof goTo === 'function') goTo('settings', { id: wantTab });
           // The settings view is LAZILY hydrated, so switchSettingsTab and the
           // panel may both be missing for a while. Poll instead of guessing a
           // delay — openSettingsTab()'s fixed 200ms is exactly that race.
@@ -2364,7 +2435,7 @@
               && document.getElementById('stab-panel-' + wantTab)) {
             window.switchSettingsTab(wantTab);
           }
-          window.history.replaceState({}, '', '/pro/dashboard.html');
+          window.history.replaceState({}, '', '/pro/dashboard.html' + window.location.hash);
         })();
       }
     }
@@ -3603,14 +3674,16 @@
                   await window._loadCompanyProfile();
                 }
                 if (window._companyProfileLoaded !== true
-                    || typeof window._custCounterId !== 'function'
-                    || typeof window._custIdPrefix !== 'function'
+                    || typeof window._custIdMint !== 'function'
                     || typeof window._formatCustomerId !== 'function') {
                   throw new Error('company profile not hydrated — customer-ID mint deferred');
                 }
                 const _cid = window._userClaims?.companyId || window._user?.uid;
-                const _ctrId = window._custCounterId(_cid);
-                const _pfx = window._custIdPrefix();
+                // Platform-identity veto (company-profile.js _custIdMint).
+                const _mint = window._custIdMint(_cid);
+                if (!_mint) throw new Error('tenant brand not set — customer-ID mint skipped (platform-identity veto)');
+                const _ctrId = _mint.counterId;
+                const _pfx = _mint.prefix;
                 const counterRef = doc(db, 'counters', _ctrId);
                 const custId = await runTransaction(db, async (tx) => {
                   const snap = await tx.get(counterRef);
@@ -3688,14 +3761,16 @@
             await window._loadCompanyProfile();
           }
           if (window._companyProfileLoaded !== true
-              || typeof window._custCounterId !== 'function'
-              || typeof window._custIdPrefix !== 'function'
+              || typeof window._custIdMint !== 'function'
               || typeof window._formatCustomerId !== 'function') {
             throw new Error('company profile not hydrated — customer-ID mint deferred');
           }
           const _cid = window._userClaims?.companyId || window._user?.uid;
-          const _ctrId = window._custCounterId(_cid);
-          const _pfx = window._custIdPrefix();
+          // Platform-identity veto (company-profile.js _custIdMint).
+          const _mint = window._custIdMint(_cid);
+          if (!_mint) throw new Error('tenant brand not set — customer-ID mint skipped (platform-identity veto)');
+          const _ctrId = _mint.counterId;
+          const _pfx = _mint.prefix;
           const counterRef = doc(db, 'counters', _ctrId);
           const custId = await runTransaction(db, async (tx) => {
             const snap = await tx.get(counterRef);

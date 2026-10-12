@@ -913,8 +913,11 @@ function buildCard(l){
   const prevLabel = prevS && window.STAGE_META?.[prevS]?.label || prevS || '';
   const nextLabel = nextS && window.STAGE_META?.[nextS]?.label || nextS || '';
 
-  // Task badge
-  const tasks = window._taskCache?.[l.id] || [];
+  // Task badge. Add-Event entries (type:'event', customer page) share the
+  // tasks subcollection but are dated appointments, not to-dos — counting
+  // them left a card at "☑ 0/2" forever for one real task + one meeting
+  // (CRM sweep R14, 2026-09-28). The customer page already excludes them.
+  const tasks = (window._taskCache?.[l.id] || []).filter(t => t && t.type !== 'event');
   const totalT = tasks.length;
   const doneT  = tasks.filter(t=>t.done).length;
   
@@ -1984,6 +1987,27 @@ async function moveCard(id, newStage, opts){
     // lostReason is either a string or null (skip)
   }
 
+  // ─── Required-field gate ───
+  // Runs BEFORE the warranty guard (CRM sweep R14, 2026-09-28): that guard
+  // WRITES (files a claim / resolves one) — resolving a claim and then being
+  // refused here (Closed needs warranty cert + COC dates) left the lead in
+  // Warranty Claim with no open claim behind it. Check first, write after.
+  // Block stage advancement when the destination stage has required fields
+  // missing on the lead (e.g., can't move to claim_filed without claimNumber).
+  // Skip for moves to 'lost' — reps need to dispose of dead leads regardless.
+  // The check uses missingRequiredFields against a hypothetical lead at the
+  // new stage so we evaluate the destination's requirements, not the current.
+  // The helper opens the lead modal with an in-place banner listing what's
+  // missing + click-to-jump anchors; see _openLeadModalWithMissingFieldsBanner
+  // above for the UX rationale (banner-instead-of-flash-toast).
+  if (!isLostMove && typeof window.missingRequiredFields === 'function') {
+    const missing = window.missingRequiredFields({ ...lead, stage: newStage });
+    if (missing.length > 0) {
+      _openLeadModalWithMissingFieldsBanner(lead, newStage, missing);
+      return;
+    }
+  }
+
   // ─── Warranty-claim guard ───
   // 2026-09-15 (Warranty Claim lane). Two directions, both must run BEFORE
   // the lead.stage write below (same contract as the lost-reason prompt):
@@ -2033,22 +2057,6 @@ async function moveCard(id, newStage, opts){
     }
   }
 
-  // ─── Required-field gate ───
-  // Block stage advancement when the destination stage has required fields
-  // missing on the lead (e.g., can't move to claim_filed without claimNumber).
-  // Skip for moves to 'lost' — reps need to dispose of dead leads regardless.
-  // The check uses missingRequiredFields against a hypothetical lead at the
-  // new stage so we evaluate the destination's requirements, not the current.
-  // The helper opens the lead modal with an in-place banner listing what's
-  // missing + click-to-jump anchors; see _openLeadModalWithMissingFieldsBanner
-  // above for the UX rationale (banner-instead-of-flash-toast).
-  if (!isLostMove && typeof window.missingRequiredFields === 'function') {
-    const missing = window.missingRequiredFields({ ...lead, stage: newStage });
-    if (missing.length > 0) {
-      _openLeadModalWithMissingFieldsBanner(lead, newStage, missing);
-      return;
-    }
-  }
 
   lead._pending = true;
 
@@ -2108,7 +2116,13 @@ async function moveCard(id, newStage, opts){
         if (card) card.classList.remove('k-card-sync-success');
       } catch (_) { /* fall back to next nbd:data-refreshed cycle */ }
     }, 1000);
-    
+    // true ONLY when the move committed. Every refusal above (teammate's
+    // lead, prospect not promoted, lost/warranty prompt cancelled, required
+    // fields missing) and every failure below returns undefined — bulk move
+    // counts on this: it used to count "no throw" as moved and toasted
+    // "Moved 2 lead(s)" for two leads the required-field gate had refused.
+    return true;
+
   } catch(e){
     console.error('moveCard error',e);
 
@@ -2122,7 +2136,7 @@ async function moveCard(id, newStage, opts){
       lead._syncing = false;
       delete lead._pending;
       try { await loadLeads(); } catch(_) {}
-      return;
+      return true; // already at the destination — the move's outcome holds
     }
     // STAGE_RACE_LOST: another tab moved this card to a DIFFERENT
     // stage. Don't override their move — restore from Firestore so

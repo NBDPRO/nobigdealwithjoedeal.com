@@ -941,9 +941,8 @@ async function renderRecentPhotoFeed() {
     groups.get(k).push(photo);
   }
 
-  const escAttr = s => String(s || '').replace(/"/g, '&quot;');
-  const escText = s => String(s || '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const escText = s => String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const escAttr = escText;
 
   let html = '';
   for (const [date, photos] of groups) {

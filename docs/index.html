@@ -122,12 +122,15 @@ nav{background:var(--navy-dark);padding:0 40px;display:flex;align-items:center;j
 .wc-phone-icon svg.ico{width:26px;height:26px}
 .hs-trust-item .icon svg.ico{width:18px;height:18px}
 .btn-ghost:hover{border-color:white;background:rgba(255,255,255,.08)}
+#homeowner-wall .btn-ghost,#reviews .btn-ghost{color:var(--navy-dark);border-color:rgba(18,34,61,.35)}
+#homeowner-wall .btn-ghost:hover,#reviews .btn-ghost:hover{border-color:var(--navy-dark);background:rgba(18,34,61,.06)}
 .btn-cal{background:white;color:var(--navy-dark);padding:14px 32px;border-radius:8px;font-weight:800;font-size:.85rem;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;transition:all .25s;border:2px solid white;display:inline-flex;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.2)}
 .btn-cal:hover{background:#BD5728;color:white;border-color:var(--orange-light);transform:translateY(-2px);box-shadow:0 8px 24px rgba(189,87,40,.4)}
 section{padding:80px 40px}
 .section-inner{max-width:1200px;margin:0 auto}
 .section-header{text-align:center;margin-bottom:56px}
 .eyebrow{display:inline-flex;align-items:center;gap:10px;color:var(--orange);font-size:.72rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;margin-bottom:12px}
+#services .eyebrow,#free-tools-band .eyebrow,#faq .eyebrow,#areas .eyebrow{color:var(--orange-dark)}
 .eyebrow::before{content:'';width:7px;height:7px;background:var(--orange);border-radius:50%;box-shadow:0 0 10px rgba(189,87,40,.6);flex-shrink:0}
 .sec-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(2rem,3.5vw,3rem);color:var(--navy-dark);letter-spacing:.03em;line-height:1.05;margin-bottom:16px}
 .sec-title span{color:#BD5728}
@@ -151,6 +154,23 @@ section{padding:80px 40px}
 .hero-trust{display:flex;align-items:center;gap:20px;animation:fadeUp .6s ease .45s both}
 .hero-trust-item{display:flex;align-items:center;gap:7px;font-size:.72rem;color:rgba(255,255,255,.55);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
 .hero-trust-dot{width:5px;height:5px;border-radius:50%;background:var(--orange);opacity:.5}
+/* Desktop only (two-column hero, >1024px), 2026-09-29 QA audit: the tall
+   right-hand card vertically centered the left column, pushing "Call Joe"
+   below the fold at 1280x720. Top-align the columns, trim the top padding,
+   and show the call button + calendar link right under the tagline. Visual
+   order only (flex `order`); the markup order — and the stacked mobile
+   layout — are unchanged. */
+@media(min-width:1025px){
+  .hero-content{align-items:start;padding-top:44px}
+  .hero-left{display:flex;flex-direction:column;align-items:flex-start}
+  .hero-left>.hero-badge{order:1}
+  .hero-left>h1{order:2}
+  .hero-left>.hero-tagline{order:3}
+  .hero-left>.hero-btns{order:4;margin-bottom:12px}
+  .hero-left>.hero-link-secondary{order:5;margin-bottom:28px}
+  .hero-left>p{order:6}
+  .hero-left>.hero-trust{order:7}
+}
 @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 
 /* WARRANTY CARD in hero */
@@ -211,14 +231,14 @@ a.trust-item:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
 .compare-section::before{content:'';position:absolute;top:0;right:0;bottom:0;left:0;background:repeating-linear-gradient(-45deg,transparent,transparent 35px,rgba(189,87,40,.03) 35px,rgba(189,87,40,.03) 36px)}
 .compare-table{display:grid;grid-template-columns:1fr auto 1fr;gap:0;max-width:900px;margin:0 auto;position:relative;z-index:1;background:rgba(255,255,255,.04);border-radius:14px;overflow:hidden;border:1px solid rgba(189,87,40,.2)}
 .compare-col-header{padding:20px 24px;font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:.06em;border-bottom:1px solid rgba(255,255,255,.08)}
-.compare-col-header.them{color:rgba(255,255,255,.5);background:rgba(255,255,255,.03)}
-.compare-col-header.us{color:var(--orange);background:rgba(189,87,40,.08)}
-.compare-divider-hdr{padding:20px 16px;font-family:'Bebas Neue',sans-serif;font-size:.9rem;color:rgba(255,255,255,.55);text-align:center;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.2)}
+.compare-col-header.them{color:rgba(255,255,255,.7);background:rgba(255,255,255,.03)}
+.compare-col-header.us{color:var(--orange-light);background:rgba(189,87,40,.08)}
+.compare-divider-hdr{padding:20px 16px;font-family:'Bebas Neue',sans-serif;font-size:.9rem;color:rgba(255,255,255,.7);text-align:center;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.2)}
 .compare-row{display:contents}
 .compare-cell{padding:14px 24px;font-size:.82rem;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:flex-start;gap:10px}
-.compare-cell.them{color:rgba(255,255,255,.45);background:rgba(255,255,255,.02)}
+.compare-cell.them{color:rgba(255,255,255,.65);background:rgba(255,255,255,.02)}
 .compare-cell.us{color:rgba(255,255,255,.82);background:rgba(189,87,40,.05)}
-.compare-cell.divider{padding:14px 16px;text-align:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:.75rem;color:rgba(255,255,255,.5);border-bottom:1px solid rgba(255,255,255,.05);background:rgba(0,0,0,.15)}
+.compare-cell.divider{padding:14px 16px;text-align:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:.75rem;color:rgba(255,255,255,.65);border-bottom:1px solid rgba(255,255,255,.05);background:rgba(0,0,0,.15)}
 .compare-cta{text-align:center;margin-top:48px;position:relative;z-index:1}
 .compare-cta p{color:rgba(255,255,255,.5);margin-bottom:20px;font-size:.92rem}
 
@@ -233,10 +253,10 @@ a.trust-item:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
 .about-ph p{color:rgba(255,255,255,.4);font-size:.85rem}
 .about-badge{position:absolute;bottom:-20px;right:-20px;background:#BD5728;color:white;border-radius:12px;padding:20px 24px;text-align:center;box-shadow:0 8px 32px rgba(189,87,40,.4)}
 .about-badge .big-num{font-family:'Bebas Neue',sans-serif;font-size:2.5rem;letter-spacing:.05em;line-height:1;display:block}
-.about-badge small{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.85}
+.about-badge small{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
 .about-content p{color:var(--gray);line-height:1.75;margin-bottom:18px;font-size:.93rem}
 .about-results{background:var(--navy);border-radius:12px;padding:28px 32px;margin:28px 0}
-.about-results-lbl{font-size:.65rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--orange);margin-bottom:18px}
+.about-results-lbl{font-size:.65rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--orange-light);margin-bottom:18px}
 .about-result{display:flex;align-items:flex-start;gap:16px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.07)}
 .about-result:last-child{border-bottom:none;padding-bottom:0}
 .about-result-num{font-family:'Bebas Neue',sans-serif;font-size:2rem;color:var(--orange-light);line-height:1;min-width:60px}
@@ -286,9 +306,9 @@ a.trust-item:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
 .cm-icon{width:42px;height:42px;background:var(--orange);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
 .cm-text{min-width:0;flex:1}
 .cm-text strong{display:block;font-size:.9rem;font-weight:700;color:white;letter-spacing:.02em;overflow-wrap:anywhere}
-.cm-text span{font-size:.72rem;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em}
+.cm-text span{font-size:.72rem;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.08em}
 .contact-process{margin-top:36px;padding-top:28px;border-top:1px solid rgba(255,255,255,.09)}
-.contact-process .eyebrow-small{font-size:.72rem;font-weight:700;letter-spacing:.14em;color:var(--orange);text-transform:uppercase;margin-bottom:16px}
+.contact-process .eyebrow-small{font-size:.72rem;font-weight:700;letter-spacing:.14em;color:var(--orange-light);text-transform:uppercase;margin-bottom:16px}
 .contact-steps{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:20px}
 .contact-steps li{display:flex;gap:16px;align-items:flex-start}
 .contact-steps .step-num{font-family:'Bebas Neue',sans-serif;font-size:1.9rem;font-weight:400;color:var(--orange);line-height:1;min-width:3rem;letter-spacing:.02em}
@@ -314,7 +334,7 @@ a.trust-item:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
 .form-group textarea{resize:vertical;min-height:100px}
 .form-submit{width:100%;padding:15px;background:#BD5728;color:white;font-family:'Montserrat',sans-serif;font-size:.9rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border:none;border-radius:6px;cursor:pointer;transition:all .25s;margin-top:4px}
 .form-submit:hover{background:var(--orange-light);transform:translateY(-2px);box-shadow:0 6px 20px rgba(189,87,40,.4)}
-.form-note{font-size:.7rem;color:#a0aec0;text-align:center;margin-top:8px}
+.form-note{font-size:.7rem;color:var(--gray);text-align:center;margin-top:8px}
 .form-success{display:none;text-align:center;padding:30px 0}
 .form-success-icon{width:64px;height:64px;border-radius:50%;background:rgba(189,87,40,.1);border:3px solid var(--orange);display:flex;align-items:center;justify-content:center;font-size:1.8rem;margin:0 auto 16px}
 .form-success h3{font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:.04em;color:var(--navy-dark);margin-bottom:8px}
@@ -983,7 +1003,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 .nbd-system::before{content:'';position:absolute;top:-100px;right:-100px;width:380px;height:380px;background:radial-gradient(circle,rgba(189,87,40,.15),transparent 70%);pointer-events:none}
 .nbd-system-inner{max-width:1200px;margin:0 auto;position:relative;z-index:1}
 .nbd-system-head{text-align:center;max-width:780px;margin:0 auto 44px}
-.nbd-system-eyebrow{display:inline-flex;align-items:center;gap:8px;color:#bd5728;font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
+.nbd-system-eyebrow{display:inline-flex;align-items:center;gap:8px;color:#dd875f;font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
 .nbd-system-eyebrow .dot{width:6px;height:6px;background:#bd5728;border-radius:50%;box-shadow:0 0 10px rgba(189,87,40,.6)}
 .nbd-system h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(2rem,4.5vw,3.2rem);letter-spacing:1px;line-height:1.05;margin-bottom:14px;color:#fff}
 .nbd-system h2 span{color:#BD5728}
@@ -991,19 +1011,19 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 .nbd-system-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:24px;align-items:stretch}
 .nbd-tier-card{background:rgba(255,255,255,.05);border:1px solid rgba(189,87,40,.4);border-left:6px solid #bd5728;border-radius:14px;padding:32px 36px;display:flex;flex-direction:column;justify-content:space-between;text-decoration:none;color:#fff;transition:all .2s}
 .nbd-tier-card:hover{background:rgba(189,87,40,.08);transform:translateY(-2px);box-shadow:0 16px 48px rgba(0,0,0,.3)}
-.nbd-tier-card .label{font-size:.7rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#bd5728;margin-bottom:10px}
+.nbd-tier-card .label{font-size:.7rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#dd875f;margin-bottom:10px}
 .nbd-tier-card h3{font-family:'Bebas Neue',sans-serif;font-size:clamp(1.6rem,2.5vw,2.2rem);letter-spacing:.04em;line-height:1.1;margin-bottom:14px;color:#fff}
 .nbd-tier-card .tier-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
 .nbd-tier-pill{background:rgba(255,255,255,.1);color:#fff;font-size:.72rem;font-weight:700;letter-spacing:.06em;padding:5px 11px;border-radius:100px;border:1px solid rgba(255,255,255,.2)}
 .nbd-tier-pill.featured{background:#BD5728;border-color:#BD5728}
 .nbd-tier-card p{font-size:.92rem;line-height:1.6;color:rgba(255,255,255,.82);margin-bottom:18px}
-.nbd-tier-cta{display:inline-flex;align-items:center;gap:6px;color:#bd5728;font-weight:800;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase}
+.nbd-tier-cta{display:inline-flex;align-items:center;gap:6px;color:#dd875f;font-weight:800;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase}
 .nbd-components-col{display:flex;flex-direction:column;gap:12px}
 .nbd-component{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:18px 20px;text-decoration:none;color:#fff;transition:all .2s;display:flex;align-items:flex-start;gap:14px;flex:1}
 .nbd-component:hover{background:rgba(189,87,40,.08);border-color:rgba(189,87,40,.4);transform:translateX(2px)}
-.nbd-comp-num{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:#bd5728;line-height:1;flex-shrink:0;width:32px}
+.nbd-comp-num{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:#dd875f;line-height:1;flex-shrink:0;width:32px}
 .nbd-comp-body h4{font-family:'Bebas Neue',sans-serif;font-size:1.05rem;color:#fff;letter-spacing:.04em;margin-bottom:4px;display:flex;align-items:center;gap:8px}
-.nbd-comp-body h4 .arrow{color:#bd5728;font-size:.9rem;opacity:.6;transition:transform .2s}
+.nbd-comp-body h4 .arrow{color:#dd875f;font-size:.9rem;opacity:1;transition:transform .2s}
 .nbd-component:hover .arrow{transform:translateX(3px);opacity:1}
 .nbd-comp-body p{font-size:.78rem;color:rgba(255,255,255,.7);line-height:1.5;margin:0}
 @media(max-width:900px){.nbd-system-grid{grid-template-columns:1fr;gap:16px}.nbd-tier-card{padding:24px 22px}}
@@ -1078,7 +1098,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 .storm-sub{font-size:1rem;color:#4a4a4a;line-height:1.65}
 .storm-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:30px}
 .storm-card{background:#fff;border:1px solid #ece4d8;border-top:3px solid #bd5728;border-radius:12px;padding:22px 18px;text-align:left;display:flex;flex-direction:column;gap:8px;box-shadow:0 4px 14px rgba(18,34,61,.05)}
-.storm-card .stage{font-size:.66rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#9a8a72}
+.storm-card .stage{font-size:.66rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--gray)}
 .storm-card .nm{font-family:'Bebas Neue',sans-serif;font-size:1.5rem;letter-spacing:.03em;color:#12223d;line-height:1}
 .storm-card .badge{align-self:flex-start;font-size:.64rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#a14a22;background:rgba(189,87,40,.1);border:1px solid rgba(189,87,40,.25);padding:3px 8px;border-radius:100px}
 .storm-card p{font-size:.82rem;color:#4a4a4a;line-height:1.55;margin:0}
@@ -1272,7 +1292,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
       <a href="/storm-check" style="display:inline-block;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:14px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.92rem">Is It Worth a Claim? <span style="display:block;font-weight:400;font-size:.76rem;color:var(--gray-sub);margin-top:2px">Storm damage claim check</span></a>
       <a href="/visualizer" style="display:inline-block;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:14px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.92rem">Roof Visualizer <span style="display:block;font-weight:400;font-size:.76rem;color:var(--gray-sub);margin-top:2px">See colors on your own photo</span></a>
     </div>
-    <p class="reveal" style="margin-top:22px"><a href="/free-tools" style="color:var(--orange);font-weight:700;font-size:.9rem;text-decoration:none;border-bottom:1px solid rgba(189,87,40,.4);padding-bottom:1px">See all 7 free tools →</a></p>
+    <p class="reveal" style="margin-top:22px"><a href="/free-tools" style="color:var(--orange-dark);font-weight:700;font-size:.9rem;text-decoration:none;border-bottom:1px solid rgba(189,87,40,.4);padding-bottom:1px">See all 7 free tools →</a></p>
   </div>
 </section>
 
@@ -1434,7 +1454,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
       <a href="/areas/clarksville-oh" class="area-tag" style="text-decoration:none;color:inherit;">Clarksville, OH</a>
     </div>
     <div class="areas-ky-label reveal" style="text-align:center;margin:18px 0 10px;">
-      <span style="font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--orange);background:rgba(189,87,40,.1);padding:5px 18px;border-radius:100px;border:1px solid rgba(189,87,40,.25);">Also Serving Kentucky — NKY &amp; the Bluegrass</span>
+      <span style="font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--orange-dark);background:rgba(189,87,40,.1);padding:5px 18px;border-radius:100px;border:1px solid rgba(189,87,40,.25);">Also Serving Kentucky — NKY &amp; the Bluegrass</span>
     </div>
     <div class="areas-grid reveal" data-ky="true" style="max-width:600px;margin:0 auto;">
       <a href="/areas/florence-ky" class="area-tag" style="text-decoration:none;color:inherit;">Florence, KY</a>
@@ -1580,21 +1600,21 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         <a href="https://www.americanoperator.com/" target="_blank" rel="noopener" style="display:inline-block;font-size:.7rem;font-weight:800;color:#dd875f;text-decoration:none;letter-spacing:.04em;border-bottom:1px solid rgba(189,87,40,.4);padding-bottom:1px">Certified by American Operator →</a>
       </div>
 
-      <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:20px 20px 18px;text-align:center">
+      <div style="background:rgba(0,0,0,.12);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:20px 20px 18px;text-align:center">
         <div style="background:white;border-radius:6px;padding:10px;margin:0 auto 12px;width:96px;height:96px;display:flex;align-items:center;justify-content:center"><picture class="nbd-pic"><source type="image/webp" srcset="/assets/partners/united-restore-80w.webp 1x, /assets/partners/united-restore-160w.webp 2x, /assets/partners/united-restore-240w.webp 3x"><img src="/assets/partners/united-restore.png" alt="United Restore — insurance restoration partner" width="80" height="80" loading="lazy" style="max-width:100%;height:auto;object-fit:contain;display:block"></picture></div>
         <p style="font-size:.62rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#dd875f;margin-bottom:6px">Insurance Restoration</p>
         <p style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:white;letter-spacing:.04em;margin-bottom:4px">United Restore</p>
         <p style="font-size:.74rem;color:rgba(255,255,255,.6);line-height:1.5">Water, fire &amp; smoke mitigation partner</p>
       </div>
 
-      <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:20px 20px 18px;text-align:center">
+      <div style="background:rgba(0,0,0,.12);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:20px 20px 18px;text-align:center">
         <div style="background:white;border-radius:6px;padding:10px;margin:0 auto 12px;width:96px;height:96px;display:flex;align-items:center;justify-content:center"><img src="/assets/partners/acorn-finance.png" alt="Acorn Finance — homeowner financing marketplace partner" width="80" height="75" loading="lazy" style="max-width:100%;height:auto;object-fit:contain;display:block"></div>
         <p style="font-size:.62rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#dd875f;margin-bottom:6px">Homeowner Financing</p>
         <p style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:white;letter-spacing:.04em;margin-bottom:4px">Acorn Finance</p>
         <p style="font-size:.74rem;color:rgba(255,255,255,.6);line-height:1.5">Lending marketplace partner</p>
       </div>
 
-      <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:20px 20px 18px;text-align:center">
+      <div style="background:rgba(0,0,0,.12);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:20px 20px 18px;text-align:center">
         <div style="background:white;border-radius:6px;padding:18px 10px;margin:0 auto 12px;width:96px;height:96px;display:flex;align-items:center;justify-content:center"><img src="/assets/partners/james-hardie.svg" alt="James Hardie — fiber cement siding manufacturer" width="76" height="76" loading="lazy" style="max-width:100%;height:auto;object-fit:contain;display:block"></div>
         <p style="font-size:.62rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#dd875f;margin-bottom:6px">Siding Alliance</p>
         <p style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:white;letter-spacing:.04em;margin-bottom:4px">James Hardie</p>
@@ -1639,7 +1659,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
       <div class="faq-item"><div class="faq-q">Are you licensed, insured, and certified?</div><div class="faq-a"><p>Yes — No Big Deal is licensed and insured, and we're factory-certified by the biggest names in roofing: <strong>GAF</strong> (GAF Certified) and <strong>TAMKO</strong> (Pro Gold). Those certifications unlock the strongest manufacturer warranties available — and you can verify each one directly with the manufacturer. On siding, I'm a member of the <strong>James Hardie Alliance</strong>. And as of 2026, No Big Deal is certified <strong>Locally Owned &amp; Operated</strong> by American Operator — one local owner, not a franchise.</p></div></div>
       <div class="faq-item"><div class="faq-q">What actually happens when I call?</div><div class="faq-a"><p>You get Joe — not a call center, not a salesperson reading a script. Tell him what's going on and he'll give you a straight answer, usually the same day. If you need an inspection, he'll set one up. No pressure, no obligation, no runaround — that's kind of the whole point.</p></div></div>
     </div>
-    <p class="faq-footnote reveal">Still have a question? Call Joe directly at <a href="tel:+18594207382" style="color:var(--orange);font-weight:700">(859) 420-7382</a> — he answers.</p>
+    <p class="faq-footnote reveal">Still have a question? Call Joe directly at <a href="tel:+18594207382" style="color:var(--orange-dark);font-weight:700">(859) 420-7382</a> — he answers.</p>
   </div>
 </section>
 <script type="application/ld+json">
@@ -1665,9 +1685,9 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     <h2 class="sec-title reveal">Pick a Time <span>on My Calendar.</span></h2>
     <p class="sec-desc reveal" style="max-width:660px;margin-left:auto;margin-right:auto">Real availability, straight off my phone. Pick what matches where you actually are &mdash; a quick question is a phone call, an adjuster showing up is a whole morning.</p>
     <div class="reveal" style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:26px">
-      <a href="https://cal.com/nobigdeal/roof-inspection" target="_blank" rel="noopener noreferrer" style="display:block;text-align:left;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:16px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.95rem;max-width:320px">Free Roof Inspection<span style="display:block;font-weight:400;font-size:.78rem;color:var(--gray-sub);margin-top:4px;line-height:1.5">I get on your roof, check everything, and tell you straight whether you need work.</span><span style="display:inline-block;font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--orange);background:rgba(189,87,40,.1);border-radius:100px;padding:3px 9px;margin-top:8px">30 min &middot; At your home</span></a>
-      <a href="https://cal.com/nobigdeal/roof-question-call" target="_blank" rel="noopener noreferrer" style="display:block;text-align:left;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:16px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.95rem;max-width:320px">15-Minute Question Call<span style="display:block;font-weight:400;font-size:.78rem;color:var(--gray-sub);margin-top:4px;line-height:1.5">Got a quote you want a second set of eyes on? I'll call you. No pitch.</span><span style="display:inline-block;font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--orange);background:rgba(189,87,40,.1);border-radius:100px;padding:3px 9px;margin-top:8px">15 min &middot; Phone</span></a>
-      <a href="https://cal.com/nobigdeal/adjuster-meeting" target="_blank" rel="noopener noreferrer" style="display:block;text-align:left;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:16px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.95rem;max-width:320px">Insurance Adjuster Meeting<span style="display:block;font-weight:400;font-size:.78rem;color:var(--gray-sub);margin-top:4px;line-height:1.5">Your adjuster is coming out &mdash; I'll be there to walk the roof with them.</span><span style="display:inline-block;font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--orange);background:rgba(189,87,40,.1);border-radius:100px;padding:3px 9px;margin-top:8px">60 min &middot; At your home</span></a>
+      <a href="https://cal.com/nobigdeal/roof-inspection" target="_blank" rel="noopener noreferrer" style="display:block;text-align:left;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:16px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.95rem;max-width:320px">Free Roof Inspection<span style="display:block;font-weight:400;font-size:.78rem;color:var(--gray-sub);margin-top:4px;line-height:1.5">I get on your roof, check everything, and tell you straight whether you need work.</span><span style="display:inline-block;font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--orange-dark);background:rgba(189,87,40,.1);border-radius:100px;padding:3px 9px;margin-top:8px">30 min &middot; At your home</span></a>
+      <a href="https://cal.com/nobigdeal/roof-question-call" target="_blank" rel="noopener noreferrer" style="display:block;text-align:left;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:16px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.95rem;max-width:320px">15-Minute Question Call<span style="display:block;font-weight:400;font-size:.78rem;color:var(--gray-sub);margin-top:4px;line-height:1.5">Got a quote you want a second set of eyes on? I'll call you. No pitch.</span><span style="display:inline-block;font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--orange-dark);background:rgba(189,87,40,.1);border-radius:100px;padding:3px 9px;margin-top:8px">15 min &middot; Phone</span></a>
+      <a href="https://cal.com/nobigdeal/adjuster-meeting" target="_blank" rel="noopener noreferrer" style="display:block;text-align:left;background:var(--white);border:1px solid var(--light-gray);border-left:3px solid var(--orange);border-radius:10px;padding:16px 20px;text-decoration:none;color:var(--navy);font-weight:700;font-size:.95rem;max-width:320px">Insurance Adjuster Meeting<span style="display:block;font-weight:400;font-size:.78rem;color:var(--gray-sub);margin-top:4px;line-height:1.5">Your adjuster is coming out &mdash; I'll be there to walk the roof with them.</span><span style="display:inline-block;font-size:.66rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--orange-dark);background:rgba(189,87,40,.1);border-radius:100px;padding:3px 9px;margin-top:8px">60 min &middot; At your home</span></a>
     </div>
     <p class="reveal" style="margin-top:22px"><a href="/book" style="color:var(--orange);font-weight:700;font-size:.9rem;text-decoration:none;border-bottom:1px solid rgba(189,87,40,.4);padding-bottom:1px">See all 6 appointment types &rarr;</a></p>
   </div>
@@ -1677,7 +1697,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   <div class="section-inner">
     <div class="contact-grid">
       <div class="contact-left reveal">
-        <div class="eyebrow" style="color:rgba(255,255,255,.45)">Get in Touch</div>
+        <div class="eyebrow" style="color:rgba(255,255,255,.7)">Get in Touch</div>
         <h2>Call Joe. <span>He Answers.</span></h2>
         <p>No pressure. No obligation. No callback from someone you've never met. Tell Joe what's going on and he'll give you a straight answer — usually same day.</p>
         <div class="contact-methods">
@@ -1710,7 +1730,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
               <span class="step-num">02</span>
               <div>
                 <strong>I'll call or text you back.</strong>
-                <p>From (859) 420-7382 — same number you'd use to reach me directly.</p>
+                <p>From <a href="tel:+18594207382" style="color:inherit;font-weight:700;text-decoration:underline;text-underline-offset:3px">(859) 420-7382</a> — same number you'd use to reach me directly.</p>
               </div>
             </li>
             <li>
@@ -1800,13 +1820,13 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         <div class="hs-card">
           <h3>Our Services</h3>
           <ul class="hs-links">
-            <li><a href="/the-pledge" style="color:#dd875f;font-weight:800;">The Lifetime Pledge</a></li>
-            <li><a href="/services/the-nbd-guarantee" style="color:#dd875f;font-weight:800;">The NBD Guarantee</a></li>
-<li><a href="/services/lumanail" style="color:#dd875f;font-weight:800;">LumaNail™ Upgrade</a></li>
-<li><a href="/services/the-nbd-build" style="color:#dd875f;font-weight:800;">The NBD Build</a></li>
-<li><a href="/services/roofivent" style="color:#dd875f;font-weight:800;">Roofivent Products</a></li>
-<li><a href="/services/gaf-pivot-boot" style="color:#dd875f;font-weight:800;">GAF Pivot Boot</a></li>
-<li><a href="/services/gaf-timberline" style="color:#dd875f;font-weight:800;">GAF Timberline Lineup</a></li>
+            <li><a href="/the-pledge" style="color:var(--orange-dark);font-weight:800;">The Lifetime Pledge</a></li>
+            <li><a href="/services/the-nbd-guarantee" style="color:var(--orange-dark);font-weight:800;">The NBD Guarantee</a></li>
+<li><a href="/services/lumanail" style="color:var(--orange-dark);font-weight:800;">LumaNail™ Upgrade</a></li>
+<li><a href="/services/the-nbd-build" style="color:var(--orange-dark);font-weight:800;">The NBD Build</a></li>
+<li><a href="/services/roofivent" style="color:var(--orange-dark);font-weight:800;">Roofivent Products</a></li>
+<li><a href="/services/gaf-pivot-boot" style="color:var(--orange-dark);font-weight:800;">GAF Pivot Boot</a></li>
+<li><a href="/services/gaf-timberline" style="color:var(--orange-dark);font-weight:800;">GAF Timberline Lineup</a></li>
 <li><a href="/services/roof-replacement">Roof Replacement</a></li>
             <li><a href="/services/roof-repair">Roof Repair</a></li>
             <li><a href="/services/commercial-roofing">Commercial Roofing</a></li>
@@ -1990,7 +2010,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     </div>
 
     <div class="footer-bottom">
-      <div class="footer-copy">© 2026 No Big Deal Home Solutions. All rights reserved. <span style="opacity:.4">·</span> <a href="/privacy" data-nbd-privacy="1" style="color:inherit;text-decoration:none">Privacy</a> <span style="opacity:.4">·</span> <a href="/free-roof" data-nbd-freeroof-footer="v1" style="color:inherit;text-decoration:none">Free Roof Program</a> <span class="nbd-social" data-nbd-social="v1">
+      <div class="footer-copy">© 2026 No Big Deal Home Solutions. All rights reserved. <span aria-hidden="true" style="opacity:.4">·</span> <a href="/privacy" data-nbd-privacy="1" style="color:inherit;text-decoration:none">Privacy</a> <span aria-hidden="true" style="opacity:.4">·</span> <a href="/free-roof" data-nbd-freeroof-footer="v1" style="color:inherit;text-decoration:none">Free Roof Program</a> <span class="nbd-social" data-nbd-social="v1">
   <a class="s-fb" href="https://www.facebook.com/people/No-Big-Deal-Home-Solutions/61577416645584/" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 22v-8h2.6l.4-3H13V9.1c0-.9.2-1.5 1.4-1.5H16V5c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.5-4 4.1V11H7v3h2.6v8H13z"/></svg></a>
   <a class="s-ig" href="https://www.instagram.com/nbdhomesolutions" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1.1" fill="currentColor" stroke="none"/></svg></a>
   <a class="s-gg" href="https://share.google/dHlqknguidMfhTFS9" target="_blank" rel="noopener" aria-label="Google Business Profile"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.6 12.23c0-.68-.06-1.34-.17-1.98H12v3.75h5.4a4.62 4.62 0 0 1-2 3.03v2.52h3.24c1.9-1.74 3-4.3 3-7.32zM12 22c2.7 0 4.97-.9 6.63-2.44l-3.24-2.52c-.9.6-2.05.96-3.39.96-2.61 0-4.82-1.76-5.6-4.13H3.05v2.6A10 10 0 0 0 12 22zm-5.6-7.13A6 6 0 0 1 6.08 12c0-.99.17-1.95.44-2.87V6.53H3.05A10 10 0 0 0 2 12c0 1.6.39 3.14 1.05 4.47l3.35-2.6zM12 5.88c1.47 0 2.8.5 3.84 1.5l2.88-2.88A10 10 0 0 0 12 2 10 10 0 0 0 3.05 7.53l3.35 2.6C7.18 7.63 9.39 5.88 12 5.88z"/></svg></a>

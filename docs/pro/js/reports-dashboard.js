@@ -54,6 +54,7 @@
     if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (_) { return 0; } }
     if (typeof v.seconds === 'number') return v.seconds * 1000;
     if (v instanceof Date) return v.getTime();
+    if (typeof v === 'string') { const t = Date.parse(v); return isNaN(t) ? 0 : t; }
     return 0;
   }
 
@@ -87,6 +88,13 @@
     };
   }
 
+  // When an estimate reached the homeowner: the earliest stamp that proves it.
+  // 0 = never sent (a draft) — never createdAt.
+  function _sentMs(e) {
+    const ms = [e.sentAt, e.sharedAt, e.viewedAt, e.signedAt].map(_toMillis).filter(Boolean);
+    return ms.length ? Math.min.apply(null, ms) : 0;
+  }
+
   // ─── Compute metrics for a window ────────────────────────────
   function _computeWindow(start, end) {
     const leads = Array.isArray(window._leads) ? window._leads : [];
@@ -95,11 +103,27 @@
     const inWindow = (ms) => ms >= start && ms <= end;
 
     const leadsInWindow = leads.filter(l => inWindow(_toMillis(l.createdAt)));
-    const estsInWindow = ests.filter(e => inWindow(_toMillis(e.sentAt) || _toMillis(e.createdAt)));
+    // ONE definition of "sent" for the whole panel: the earliest of sentAt /
+    // sharedAt / viewedAt / signedAt — a view or a signature proves it went out.
+    // Before 2026-09-28 the close-rate denominator fell back to createdAt (an
+    // unsent DRAFT counted as "sent") while the funnel required sentAt, which the
+    // homeowner share-link flow never stamps (it writes sharedAt): the emulator
+    // showed "0 / 3 sent" beside a funnel reading Estimate sent 0 → Viewed 1.
+    const estsInWindow = ests.filter(e => { const m = _sentMs(e); return !!m && inWindow(m); });
     const signedInWindow = ests.filter(e => inWindow(_toMillis(e.signedAt)));
 
-    const revenue = signedInWindow.reduce((sum, e) => sum + (Number(e.grandTotal || e.total) || 0), 0);
-    const avgTicket = signedInWindow.length ? revenue / signedInWindow.length : 0;
+    // Revenue = money COLLECTED in the window (Jo, 2026-09-28: "Revenue is
+    // always collected only") — invoice payments by payment date, from the
+    // shared NBDRevenue cache (null until the first load lands → "…").
+    // Signed-estimate value is a promise: kept as signedValue, and Avg ticket
+    // stays the average SIGNED job (a size-of-deal measure, not revenue).
+    const R = window.NBDRevenue;
+    const invs = R ? R.cached() : null;
+    const collected = invs ? R.collectedBetween(invs, start, end) : null;
+    const revenue = collected ? collected.total : null;
+    const paymentCount = collected ? collected.count : 0;
+    const signedValue = signedInWindow.reduce((sum, e) => sum + (Number(e.grandTotal || e.total) || 0), 0);
+    const avgTicket = signedInWindow.length ? signedValue / signedInWindow.length : 0;
     // Close rate must be a SUBSET of its denominator or it can exceed 100%:
     // signedInWindow filters on signedAt while estsInWindow filters on sentAt,
     // so an estimate sent before the period but signed inside it landed in the
@@ -113,32 +137,51 @@
 
     // Conversion funnel — uses lead.stage progression for in-window leads
     // plus their estimate state. Five stages of interest.
-    const funnel = {
-      leads: leadsInWindow.length,
-      inspected: leadsInWindow.filter(l => {
-        const sk = String(l._stageKey || l.stage || '').toLowerCase();
-        return sk && sk !== 'new' && sk !== 'contacted';
-      }).length,
-      estimateSent: 0,
-      estimateViewed: 0,
-      signed: 0,
-    };
-    // Match estimates back to leads in window
-    const leadIds = new Set(leadsInWindow.map(l => l.id));
+    //
+    // It counts LEADS, each at the furthest step it reached by the window's
+    // end, so every row is a subset of the one above it (2026-09-29). It used
+    // to count ESTIMATES (three estimates on one lead = 3 "sent", more than
+    // the leads row) and only an e-signed estimate made a lead "Signed" — a
+    // rep with three won jobs signed on paper read "Signed 0" beside a Lead
+    // Source table saying 3 closed. A lead in a job or won stage IS signed
+    // (stage roles, custom-pipeline aware); a lost lead counts only as far as
+    // its estimates got — never as "inspected" just for having been lost.
+    const byLead = {};
     ests.forEach(e => {
-      if (!leadIds.has(e.leadId)) return;
-      const sentMs = _toMillis(e.sentAt);
-      if (sentMs && sentMs >= start && sentMs <= end) funnel.estimateSent++;
-      // Use inWindow (both bounds) not `>= start` — a bare lower bound let
-      // views/signings AFTER a custom range's end leak into the funnel.
-      if (e.viewedAt && inWindow(_toMillis(e.viewedAt))) funnel.estimateViewed++;
-      if (e.signedAt && inWindow(_toMillis(e.signedAt))) funnel.signed++;
+      if (!e || !e.leadId || e.deleted) return;
+      const b = byLead[e.leadId] || (byLead[e.leadId] = { sent: false, viewed: false, signed: false });
+      const sentMs = _sentMs(e);
+      if (sentMs && sentMs <= end) b.sent = true;
+      const v = _toMillis(e.viewedAt);
+      if (v && v <= end) b.viewed = true;
+      const s = _toMillis(e.signedAt);
+      if (s && s <= end) b.signed = true;
+    });
+    const roleOf = (l) => String(l._stageRole
+      || (typeof window.stageRole === 'function' ? window.stageRole(l._stageKey || l.stage) : '')
+      || (String(l._stageKey || l.stage || '').toLowerCase() === 'closed' ? 'won' : ''));
+    const funnel = { leads: leadsInWindow.length, inspected: 0, estimateSent: 0, estimateViewed: 0, signed: 0 };
+    leadsInWindow.forEach(l => {
+      const e = byLead[l.id] || {};
+      const role = roleOf(l);
+      const sk = String(l._stageKey || l.stage || '').toLowerCase();
+      const level = (e.signed || role === 'job' || role === 'won') ? 4
+        : e.viewed ? 3
+        : e.sent ? 2
+        : (sk && sk !== 'new' && sk !== 'contacted' && role !== 'lost' && sk !== 'lost') ? 1
+        : 0;
+      if (level >= 1) funnel.inspected++;
+      if (level >= 2) funnel.estimateSent++;
+      if (level >= 3) funnel.estimateViewed++;
+      if (level >= 4) funnel.signed++;
     });
 
     return {
       leadCount: leadsInWindow.length,
       estimateCount: estsInWindow.length,
       signedCount: signedInWindow.length,
+      signedValue,
+      paymentCount,
       revenue,
       avgTicket,
       closeRate,
@@ -170,6 +213,9 @@
     const period = _readPeriod();
     const range = _periodRange(period);
     const cur = _computeWindow(range.currentStart, range.currentEnd);
+    if (cur.revenue === null && window.NBDRevenue) {
+      window.NBDRevenue.loadInvoices().then(function () { if (window.NBDRevenue.cached()) render(); });
+    }
     const prev = _computeWindow(range.prevStart, range.prevEnd);
 
     const periodTabs = PERIODS.map(p =>
@@ -219,7 +265,9 @@
       '</div>' +
 
       '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;">' +
-        tile('Revenue',     _money(cur.revenue),       _delta(cur.revenue, prev.revenue),       cur.signedCount + ' signed') +
+        tile('Revenue',     cur.revenue === null ? '…' : _money(cur.revenue),
+             cur.revenue === null ? '' : _delta(cur.revenue, prev.revenue || 0),
+             'collected · ' + cur.paymentCount + ' payment' + (cur.paymentCount === 1 ? '' : 's') + (cur.signedCount ? ' · ' + _money(cur.signedValue) + ' signed' : '')) +
         tile('Avg ticket',  _money(cur.avgTicket),     _delta(cur.avgTicket, prev.avgTicket),   prev.avgTicket ? 'was ' + _money(prev.avgTicket) : '') +
         tile('Leads added', String(cur.leadCount),     _delta(cur.leadCount, prev.leadCount),   prev.leadCount + ' previous') +
         tile('Close rate',  Math.round(cur.closeRate * 100) + '%', _delta(cur.closeRate, prev.closeRate), cur.signedCount + ' / ' + cur.estimateCount + ' sent') +

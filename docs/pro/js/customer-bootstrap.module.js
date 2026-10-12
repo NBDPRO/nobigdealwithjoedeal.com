@@ -1,11 +1,11 @@
 
 let toggleCustomerPhotoReorder, _lightboxIndex, _lightboxSource; // module-local (globals Tranche 1 — was window.*)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, CustomProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, collection, getDocs, getDoc, doc, query, orderBy, where, updateDoc, deleteDoc, serverTimestamp, addDoc, arrayUnion, arrayRemove, limit, runTransaction, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref, uploadBytesResumable, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { connectEmulatorsIfLocal } from "./nbd-emulator-connect.js"; // Audit #3: localhost-only, no-op in prod
+import { connectEmulatorsIfLocal, isLocalEmulatorEnv, emulatorAppCheckFakeToken } from "./nbd-emulator-connect.js"; // Audit #3: localhost-only, no-op in prod
 // The canonical stage config. This page used to advance stages with a private
 // hardcoded copy of the pipeline ladder and none of the kanban's bookkeeping;
 // see progressStage below for what that cost. stageOptionsForType/
@@ -115,7 +115,21 @@ const app = initializeApp(firebaseConfig);
 // production without it. Mirrors dashboard-bootstrap.module.js. The site key
 // is set by the classic js/dashboard-appcheck-config.js script in <head>.
 const __APP_CHECK_KEY = (window.__NBD_APP_CHECK_KEY || '').trim();
-if (__APP_CHECK_KEY && !window.__NBD_APP_CHECK_INITIALIZED) {
+if (isLocalEmulatorEnv() && !window.__NBD_APP_CHECK_INITIALIZED) {
+  // Emulator rig only (no-op in production) — mirrors dashboard-bootstrap.
+  // reCAPTCHA can't mint tokens off the registered origin, so on localhost
+  // every enforced callable from this page (replyToPortalMessage, …) failed
+  // "Unauthenticated" and those flows couldn't be QA'd (CRM sweep R14).
+  try {
+    window.__NBD_APP_CHECK = initializeAppCheck(app, {
+      provider: new CustomProvider({ getToken: async () => emulatorAppCheckFakeToken() }),
+      isTokenAutoRefreshEnabled: false
+    });
+    window.__NBD_APP_CHECK_INITIALIZED = true;
+  } catch (e) {
+    console.warn('[customer] App Check emulator shim init failed:', e);
+  }
+} else if (__APP_CHECK_KEY && !window.__NBD_APP_CHECK_INITIALIZED) {
   try {
     // Expose instance so NBDComms / claude-proxy can attach App Check headers.
     window.__NBD_APP_CHECK = initializeAppCheck(app, {
@@ -2267,33 +2281,6 @@ window.progressStage = async function() {
   const ok = await ask(`Move customer to "${label}" stage?`);
   if (!ok) return;
 
-  // ─── Warranty-claim guard ───
-  // 2026-09-15 (Warranty Claim lane). Same two-directional guard as
-  // crm-pipeline.js's moveCard() — this page's OWN write path
-  // (progressStage) shares the same commitStageChange() call below, so it
-  // needs the identical gate or a customer-page move could open/leave a
-  // claim un-tracked. See moveCard()'s own comment for the full rationale;
-  // canceling either prompt cancels the whole move.
-  if (nextStage === 'warranty_claim' && current !== 'warranty_claim') {
-    if (!(window.WarrantyClaim && typeof window.WarrantyClaim.promptIntake === 'function')) {
-      if (window.showToast) window.showToast('Warranty claim tool not loaded — reload and try again', 'warning');
-      return;
-    }
-    let opened;
-    try { opened = await window.WarrantyClaim.promptIntake(lead); }
-    catch (e) { if (window.showToast) window.showToast('Could not open the claim: ' + e.message, 'error'); return; }
-    if (!opened) return;
-  } else if (current === 'warranty_claim' && nextStage !== 'warranty_claim' && lead.openWarrantyClaimId) {
-    if (!(window.WarrantyClaim && typeof window.WarrantyClaim.promptResolution === 'function')) {
-      if (window.showToast) window.showToast('Warranty claim tool not loaded — reload and try again', 'warning');
-      return;
-    }
-    let resolved;
-    try { resolved = await window.WarrantyClaim.promptResolution(lead); }
-    catch (e) { if (window.showToast) window.showToast('Could not resolve the claim: ' + e.message, 'error'); return; }
-    if (!resolved) return;
-  }
-
   // Pre-flight: surface common failure causes immediately rather than
   // letting the writer fail silently. The original implementation
   // swallowed errors via patched alert() (also a 4s toast in PWA),
@@ -2319,12 +2306,45 @@ window.progressStage = async function() {
           message: `Can't move to "${label}" yet — missing: ${missing.map(_requiredFieldLabel).join(', ')}.`,
           type: 'error',
           duration: 8000,
-          undoAction: () => { window.location.href = '/pro/dashboard?lead=' + window._customerId; },
+          // ?edit=, not ?lead= — a bare ?lead= is the NEW-ESTIMATE deep link, so
+          // "Open full editor" opened a blank Estimate Builder (R14, 2026-09-28).
+          undoAction: () => { window.location.href = '/pro/dashboard?edit=' + encodeURIComponent(window._customerId); },
           undoText: 'Open full editor',
         });
       }
       return;
     }
+  }
+
+  // ─── Warranty-claim guard ───
+  // Runs AFTER the required-field gate above (CRM sweep R14, 2026-09-28):
+  // this guard WRITES (files or resolves a claim), and resolving a claim then
+  // being refused by the gate left the lead in Warranty Claim with no open
+  // claim behind it. Check first, write after — same order as moveCard.
+  // 2026-09-15 (Warranty Claim lane). Same two-directional guard as
+  // crm-pipeline.js's moveCard() — this page's OWN write path
+  // (progressStage) shares the same commitStageChange() call below, so it
+  // needs the identical gate or a customer-page move could open/leave a
+  // claim un-tracked. See moveCard()'s own comment for the full rationale;
+  // canceling either prompt cancels the whole move.
+  if (nextStage === 'warranty_claim' && current !== 'warranty_claim') {
+    if (!(window.WarrantyClaim && typeof window.WarrantyClaim.promptIntake === 'function')) {
+      if (window.showToast) window.showToast('Warranty claim tool not loaded — reload and try again', 'warning');
+      return;
+    }
+    let opened;
+    try { opened = await window.WarrantyClaim.promptIntake(lead); }
+    catch (e) { if (window.showToast) window.showToast('Could not open the claim: ' + e.message, 'error'); return; }
+    if (!opened) return;
+  } else if (current === 'warranty_claim' && nextStage !== 'warranty_claim' && lead.openWarrantyClaimId) {
+    if (!(window.WarrantyClaim && typeof window.WarrantyClaim.promptResolution === 'function')) {
+      if (window.showToast) window.showToast('Warranty claim tool not loaded — reload and try again', 'warning');
+      return;
+    }
+    let resolved;
+    try { resolved = await window.WarrantyClaim.promptResolution(lead); }
+    catch (e) { if (window.showToast) window.showToast('Could not resolve the claim: ' + e.message, 'error'); return; }
+    if (!resolved) return;
   }
 
   const btnEl = document.getElementById('stageProgressBtn');

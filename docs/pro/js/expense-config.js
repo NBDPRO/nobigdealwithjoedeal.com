@@ -60,6 +60,11 @@
     { key: 'software',          label: 'Software & Subscriptions', costType: COST_TYPE.OVERHEAD, scheduleCHint: 'Other Expenses (L27a)' },
     { key: 'phone_internet',    label: 'Phone & Internet',     costType: COST_TYPE.OVERHEAD, scheduleCHint: 'Utilities (L25)' },
     { key: 'office_supplies',   label: 'Office & Supplies',    costType: COST_TYPE.OVERHEAD, scheduleCHint: 'Office Expense (L18)' },
+    // Tools that outlive one job (drills, ladders, saws) — overhead, not a
+    // single job's cost. Home Depot imports suggest it for tool-department
+    // receipts and "TOOLS" job names (hd-import.js, 2026-09-29). Big-ticket
+    // items may need depreciating — the accountant decides via the export.
+    { key: 'tools_small_equipment', label: 'Tools & Small Equipment', costType: COST_TYPE.OVERHEAD, scheduleCHint: 'Supplies (L22) / Depreciation (L13)' },
     { key: 'professional_admin',label: 'Professional & Admin', costType: COST_TYPE.OVERHEAD, scheduleCHint: 'Legal & Professional (L17)' },
     // Mileage: a vehicle deduction (miles x IRS rate). costType overhead — it's
     // a business-vehicle cost, not a single job's COGS. amountCents is computed

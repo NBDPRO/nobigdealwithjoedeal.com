@@ -722,13 +722,13 @@ async function fetchPropertyIntelModal(geo, addr) {
   }
 
   resultEl.innerHTML = `
-    <div class="mir-owner">${intel.ownerName||'Unknown Owner'}${intel.isLLC?'&nbsp;<span style="font-size:9px;color:#4A9EFF;font-weight:700;">LLC</span>':''}</div>
+    <div class="mir-owner">${_piEsc(intel.ownerName||'Unknown Owner')}${intel.isLLC?'&nbsp;<span style="font-size:9px;color:#4A9EFF;font-weight:700;">LLC</span>':''}</div>
     <div class="mir-grid">
-      ${yr ? `<div class="mir-item">Built <span>${yr}</span></div>` : ''}
-      ${roofAge !== null ? `<div class="mir-item">Roof <span style="color:${roofColor};">${roofAge} yrs</span></div>` : ''}
+      ${yr ? `<div class="mir-item">Built <span>${_piEsc(yr)}</span></div>` : ''}
+      ${roofAge !== null ? `<div class="mir-item">Roof <span style="color:${roofColor};">${_piEsc(roofAge)} yrs</span></div>` : ''}
       ${intel.marketValue ? `<div class="mir-item">Value <span>$${parseInt(intel.marketValue).toLocaleString()}</span></div>` : ''}
-      ${intel.propertyType ? `<div class="mir-item">Type <span>${intel.propertyType}</span></div>` : ''}
-      ${intel.bedrooms ? `<div class="mir-item">Beds <span>${intel.bedrooms}</span></div>` : ''}
+      ${intel.propertyType ? `<div class="mir-item">Type <span>${_piEsc(intel.propertyType)}</span></div>` : ''}
+      ${intel.bedrooms ? `<div class="mir-item">Beds <span>${_piEsc(intel.bedrooms)}</span></div>` : ''}
       ${intel.homestead ? `<div class="mir-item">Homestead <span style="color:#2ECC8A;">Yes</span></div>` : ''}
     </div>
     <div style="font-size:10px;color:var(--m);margin-top:5px;">✓ Owner name and notes pre-filled below</div>`;

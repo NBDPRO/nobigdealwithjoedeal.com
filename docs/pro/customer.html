@@ -57,7 +57,7 @@
      hides write controls for a viewer and makes a refused write say so. Must
      stay BEFORE customer-bootstrap.module.js: it installs the accessors the
      bootstrap then assigns window._userClaims / window.addDoc through. -->
-<script defer src="js/role-gate.js?v=3"></script>
+<script defer src="js/role-gate.js?v=4"></script>
 <script defer src="js/standalone-compat.js"></script>
 <!-- The ONE vocabulary for /photos.damageType (window.NBD_PHOTO_DAMAGE).
      Four surfaces wrote this field in four spellings until 2026-09-08, so
@@ -190,6 +190,10 @@ header {
 .meta-item {
   display:flex; align-items:center; gap:6px;
   font-size:13px; color:var(--m);
+  /* The stage item carries up to six chips (stage, days in stage, copied,
+     viewed, hot, score): unwrapped it ran 351px inside a 309px row and the
+     whole page scrolled sideways on a 375px phone (2026-09-29). */
+  flex-wrap:wrap; min-width:0; max-width:100%;
 }
 .stage-badge {
   padding:4px 12px; background:var(--s2); border:1px solid var(--br);
@@ -1462,6 +1466,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
   <meta property="og:url" content="https://nobigdealwithjoedeal.com/pro/customer">
 <link rel="stylesheet" href="css/photo-editor.css?v=4">
 <link rel="stylesheet" href="css/voice-intelligence.css?v=4">
+<link rel="stylesheet" href="css/google-calendar.css?v=1">
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
 </head>
 <body>
@@ -2193,6 +2198,14 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
             </div>
           </div>
 
+          <!-- STRIPE PAYMENTS (2026-09-29) — every Stripe movement the ledger
+               matched to this customer. Filled by stripe-ledger-customer.js;
+               stays hidden for roles the rules refuse and when there is none. -->
+          <div class="panel" id="stripePaymentsPanel" hidden>
+            <div class="panel-title" id="stripePaymentsTitle">Stripe Payments</div>
+            <div id="stripePaymentsList"></div>
+          </div>
+
           <!-- REPORTS -->
           <div class="panel">
             <div class="panel-title">Inspection Reports</div>
@@ -2554,7 +2567,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      html2pdf (~1.1 MB combined) no longer load at boot — they fetch via the
      `pdfexport` bundle on the first PDF export (exportCustomer* handlers +
      NBDDocViewer.handlePdf, which already load-then-runs the bundle). -->
-<script defer src="js/script-loader.js?v=12"></script>
+<script defer src="js/script-loader.js?v=14"></script>
 <script defer src="js/icons.js"></script>
 <!-- Canonical modal driver — window.nbdModal owns open/close + Esc/backdrop
      for every .modal-bg on this page (batch-4 modal consolidation). Loaded
@@ -2580,7 +2593,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script type="module" src="js/customer-bootstrap.module.js?v=8"></script>
 
 
-<script defer src="js/customer-tasks-ui.js?v=7"></script>
+<script defer src="js/customer-tasks-ui.js?v=8"></script>
 <script defer src="js/nbd-comms.js?v=3"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
 <script defer src="js/stage-checklist.js?v=1"></script>
@@ -2598,6 +2611,12 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/customer-signed-doc-upload.js?v=3"></script>
 <script defer src="js/customer-portal.js?v=4"></script>
 <script defer src="js/clipboard-fix.js?v=2"></script>
+<!-- Stripe ledger (2026-09-29): pure display rules, then the Stripe Payments
+     section; the rules also draw the "From Stripe" chip in the invoice list. -->
+<script defer src="js/stripe-ledger-ui-logic.js?v=1"></script>
+<script defer src="js/yard-signs-logic.js?v=1"></script>
+<script defer src="js/customer-yard-sign-chip.js?v=1"></script>
+<script defer src="js/stripe-ledger-customer.js?v=1"></script>
 <!-- PR 2b3: html2pdf is LAZY — NBDDocViewer.handlePdf loads the `pdfexport`
      ScriptLoader bundle on demand (~1.1 MB off the customer-page boot path). -->
 
@@ -2631,8 +2650,11 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- Claim unification: canonical claim view + Claim Details panel/editor.
      MUST load before insurance-claim.js — advanceClaimStage syncs the
      coarse claimStatus via window.ClaimCore.claimStatusFromStage. -->
-<script defer src="js/claim-core.js?v=3"></script>
-<script defer src="js/insurance-claim.js?v=5"></script>
+<!-- Arrival-window / meeting date math (2026-09-29), pure. Before claim-core.js
+     (the Adjuster Meeting cell) and insurance-claim.js, which format with it. -->
+<script defer src="js/schedule-window.js?v=2"></script>
+<script defer src="js/claim-core.js?v=4"></script>
+<script defer src="js/insurance-claim.js?v=6"></script>
 <script defer src="js/offline-manager.js?v=6"></script>
 <script defer src="js/customer-dnd-upload.js?v=3"></script>
 <script defer src="js/customer-quick-action-bar.js?v=3"></script>
@@ -2801,6 +2823,47 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
         <label for="editScope" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Scope of Work</label>
         <textarea id="editScope" rows="3" aria-label="Scope of work" style="width:100%;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:14px;box-sizing:border-box;resize:vertical;font-family:inherit;" placeholder="e.g. Full tear-off and replacement, 30-yr architectural shingle, 6 squares"></textarea>
       </div>
+      <!-- 2026-09-29 (calendar hub Phase 0): the install day and its arrival
+           window. Until now this modal had no Scheduled Date at all — a rep
+           had to leave for the dashboard's card editor to set one. Wired by
+           js/schedule-window-ui.js (delegated, no inline handlers); "All day /
+           no time" saves only the date, exactly as the dashboard always has. -->
+      <div>
+        <label for="editScheduledDate" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Scheduled Date</label>
+        <input id="editScheduledDate" type="date" style="width:100%;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:14px;box-sizing:border-box;" />
+        <div data-schedwin="edit" data-schedwin-date="editScheduledDate" data-schedwin-mode="allday" style="margin-top:8px;">
+          <div role="group" aria-label="Arrival window" style="display:flex;flex-wrap:wrap;gap:6px;">
+            <button type="button" data-schedwin-preset="allday" aria-pressed="true" style="padding:6px 10px;min-height:36px;border:1px solid var(--orange,#BD5728);border-radius:999px;background:var(--orange,#BD5728);color:#fff;font-size:12px;cursor:pointer;">All day / no time</button>
+            <button type="button" data-schedwin-preset="project" aria-pressed="false" style="padding:6px 10px;min-height:36px;border:1px solid var(--br);border-radius:999px;background:transparent;color:var(--t);font-size:12px;cursor:pointer;">Full project</button>
+            <button type="button" data-schedwin-preset="repair" aria-pressed="false" style="padding:6px 10px;min-height:36px;border:1px solid var(--br);border-radius:999px;background:transparent;color:var(--t);font-size:12px;cursor:pointer;">Repair / inspection</button>
+          </div>
+          <div data-schedwin-fields hidden style="display:none;">
+            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;">
+              <div style="flex:1;min-width:120px;">
+                <label for="editSchedStart" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Start time</label>
+                <input id="editSchedStart" type="time" step="300" style="width:100%;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:14px;box-sizing:border-box;" />
+              </div>
+              <div data-schedwin-for="project" hidden style="display:none;flex:1;min-width:120px;">
+                <label for="editSchedDays" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Length</label>
+                <select id="editSchedDays" style="width:100%;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:14px;box-sizing:border-box;"><option value="1">1 day</option><option value="2">2 days</option><option value="3">3 days</option></select>
+              </div>
+              <div data-schedwin-for="repair" hidden style="display:none;flex:1;min-width:120px;">
+                <label for="editSchedDuration" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Length</label>
+                <select id="editSchedDuration" style="width:100%;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:14px;box-sizing:border-box;"><option value="">No set length</option><option value="30">30 min</option><option value="60">1 hour</option><option value="90">1½ hours</option><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option></select>
+              </div>
+            </div>
+          </div>
+          <div id="editSchedPreview" aria-live="polite" style="font-size:12px;color:var(--m);margin-top:6px;min-height:1em;"></div>
+        </div>
+      </div>
+      <!-- 2026-09-29: plan to a WEEK before the day is known. Saved as
+           lead.scheduledWeek (that week's Monday) only while Scheduled Date
+           is empty; a date replaces it. customer-edit-modal.js. -->
+      <div>
+        <label for="editScheduledWeek" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Week of <span style="text-transform:none;letter-spacing:0;font-weight:500;">(if no exact day yet)</span></label>
+        <input id="editScheduledWeek" type="date" style="width:100%;padding:10px 12px;background:var(--s);border:1px solid var(--br);border-radius:8px;color:var(--t);font-size:14px;box-sizing:border-box;" />
+        <div style="font-size:12px;color:var(--m);margin-top:4px;">Pick any day that week. The homeowner sees "the week of…" until you set a Scheduled Date.</div>
+      </div>
       <div>
         <label for="editJobValue" style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--m);margin-bottom:4px;">Job Value</label>
         <!-- type="number" is load-bearing, not cosmetic: as a free text
@@ -2819,7 +2882,13 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
   </div>
 </div>
 
-<script defer src="js/customer-edit-modal.js?v=3"></script>
+<!-- Arrival-window controls above (2026-09-29; the date math,
+     schedule-window.js, loads before claim-core.js). Before
+     customer-edit-modal.js, which fills and reads them. -->
+<script defer src="js/schedule-window-ui.js?v=1"></script>
+<!-- Double-booking warning under the schedule picker (Google Calendar free/busy). -->
+<script defer src="js/google-calendar-ui.js?v=1"></script>
+<script defer src="js/customer-edit-modal.js?v=5"></script>
 
 <!-- ═══════════════════════════════════════════════════════════════
      Voice Intelligence mount (C4)

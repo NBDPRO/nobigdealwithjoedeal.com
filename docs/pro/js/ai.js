@@ -111,6 +111,8 @@ function buildJoeContext() {
     activeLeads: active.length,
     pipelineValue: pipeVal,
     closedRevenue: closedRev,
+    // Revenue = COLLECTED (Jo, 2026-09-28); null until invoices have loaded.
+    collectedRevenue: (function () { var R = window.NBDRevenue, inv = R && R.cached(); return inv ? R.collectedBetween(inv, null, null).total : null; })(),
     overdueCount: overdue.length,
     stageBreakdown: stageStr,
     topLeads: topLeads || 'none yet',
@@ -130,7 +132,9 @@ CURRENT MEMBER CONTEXT (live from their pipeline):
 - Company: ${ctx.company}
 - Total leads: ${ctx.totalLeads} | Active: ${ctx.activeLeads}
 - Pipeline value: $${ctx.pipelineValue.toLocaleString()}
-- Closed revenue: $${ctx.closedRevenue.toLocaleString()}
+- Closed jobs, booked value (NOT collected money): $${ctx.closedRevenue.toLocaleString()}
+- Revenue collected (actual payments received, all time): ${ctx.collectedRevenue == null ? 'not loaded' : '$' + ctx.collectedRevenue.toLocaleString()}
+  (When the member asks about revenue, use COLLECTED money; booked value is projected.)
 - Overdue follow-ups: ${ctx.overdueCount}
 - Stage breakdown: ${ctx.stageBreakdown}
 - Top leads by value: ${ctx.topLeads}

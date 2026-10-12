@@ -146,7 +146,7 @@
     try { sessionStorage.setItem(STRUCK_KEY, JSON.stringify(Array.from(set)).slice(0, 5000)); } catch (_) {}
   }
   function digits(p) { return String(p || '').replace(/\D/g, ''); }
-  function esc(s) { return String(s == null ? '' : s).replace(/[<>&]/g, function (c) { return c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&amp;'; }); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function money(n) { return n >= 1000 ? '$' + Math.round(n / 1000) + 'K' : '$' + Math.round(n); }
 
   function stackEl() {

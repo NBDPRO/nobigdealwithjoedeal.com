@@ -66,7 +66,7 @@
   // HELPERS
   // ============================================================================
 
-  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  function esc(s) { return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function fmtDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }); }
   function fmtTime(d) { if (!d) return '—'; return new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
   function todayKey() { return new Date().toISOString().split('T')[0]; }

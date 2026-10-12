@@ -124,6 +124,10 @@ function saveCmdRecent(item) {
 }
 
 // Render results
+function _cmdEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function renderCmdResults(results) {
   const container = document.getElementById('cmdResults');
   if (results.length === 0) {
@@ -149,14 +153,17 @@ function renderCmdResults(results) {
     grouped[group].forEach((item, idx) => {
       const globalIdx = results.indexOf(item);
       const selected = globalIdx === cmdSelectedIndex ? 'selected' : '';
+      // Every field is escaped: a lead's name/address/phone come from the
+      // PUBLIC contact form (lead bridge), and saved recents replay them from
+      // localStorage on every open (security audit 2026-09-29).
       html += `
         <div class="cmd-item ${selected}" data-ui-action="cmdExecuteItem" data-ui-id="${globalIdx}" data-ui-hover-idx="${globalIdx}">
-          <div class="cmd-item-icon">${item.icon}</div>
+          <div class="cmd-item-icon">${_cmdEsc(item.icon)}</div>
           <div class="cmd-item-content">
-            <div class="cmd-item-title">${item.title}</div>
-            <div class="cmd-item-meta">${item.meta || ''}</div>
+            <div class="cmd-item-title">${_cmdEsc(item.title)}</div>
+            <div class="cmd-item-meta">${_cmdEsc(item.meta || '')}</div>
           </div>
-          ${item.badge ? `<div class="cmd-item-badge">${item.badge}</div>` : ''}
+          ${item.badge ? `<div class="cmd-item-badge">${_cmdEsc(item.badge)}</div>` : ''}
         </div>
       `;
     });

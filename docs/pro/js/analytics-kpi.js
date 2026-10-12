@@ -243,6 +243,14 @@
     if (!container) return;
 
     var k = computeKPIs();
+    // Revenue This Month = money COLLECTED this month (Jo, 2026-09-28:
+    // "Revenue is always collected only"). k.monthlyRevenue is the jobValue of
+    // leads that CLOSED this month — booked, not banked — so it no longer
+    // fills this card. Shared invoice cache; '…' until the first load lands.
+    var _R = window.NBDRevenue, _invs = _R ? _R.cached() : null;
+    if (_R && !_invs) _R.loadInvoices().then(function () { if (_R.cached() && document.getElementById('kpiRow')) renderKPIRow(); });
+    var _now = new Date();
+    var _collectedMonth = _invs ? _R.collectedBetween(_invs, new Date(_now.getFullYear(), _now.getMonth(), 1).getTime(), _now.getTime()).total : null;
 
     // Every card routes somewhere (data-ak-action="goTo" + data-ak-target,
     // dispatched by the delegate at the bottom of this file). These cards
@@ -261,9 +269,9 @@
         '<div class="kpi-card kpi-green" data-ak-action="goTo" data-ak-target="money" role="button" title="Open Money dashboard" style="cursor:pointer;">' +
           '<div class="kpi-icon">📈</div>' +
           '<div class="kpi-data">' +
-            '<div class="kpi-value">$' + formatNum(k.monthlyRevenue) + '</div>' +
+            '<div class="kpi-value">' + (_collectedMonth == null ? '…' : '$' + formatNum(_collectedMonth)) + '</div>' +
             '<div class="kpi-label">Revenue This Month</div>' +
-            '<div class="kpi-sub">' + k.closedThisMonthCount + ' closed</div>' +
+            '<div class="kpi-sub">Collected · ' + k.closedThisMonthCount + ' closed ($' + formatNum(k.monthlyRevenue) + ' booked)</div>' +
           '</div>' +
         '</div>' +
         '<div class="kpi-card" data-ak-action="goTo" data-ak-target="board" role="button" title="Open analytics" style="cursor:pointer;">' +
@@ -509,12 +517,20 @@
       var ud = toJSDate(l.stageStartedAt || l.updatedAt);
       if (ud) {
         var mk = monthKey(ud);
-        if (monthlyTrend[mk]) {
-          monthlyTrend[mk].closed++;
-          monthlyTrend[mk].revenue += parseFloat(l.jobValue) || 0;
-        }
+        if (monthlyTrend[mk]) monthlyTrend[mk].closed++;
       }
     });
+    // Revenue bars = money COLLECTED in each month (payment date), not the
+    // closed jobs' jobValue (Jo, 2026-09-28: revenue is collected only).
+    invoices.forEach(function (inv) {
+      paymentsOf(inv).forEach(function (p) {
+        var pd = toJSDate(p.at);
+        if (!pd) return;
+        var mk = monthKey(pd);
+        if (monthlyTrend[mk]) monthlyTrend[mk].revenue += parseFloat(p.amount) || 0;
+      });
+    });
+    Object.keys(monthlyTrend).forEach(function (k) { monthlyTrend[k].revenue = Math.round(monthlyTrend[k].revenue * 100) / 100; });
 
     // ── D2D efficiency ──
     var totalKnocks = knocks.length;
@@ -1025,7 +1041,11 @@
       // revenue lands in an explicit 'Unattributed' bucket (keeps the leaderboard
       // total equal to the headline). Solo owner: own == whole company.
       let knocks = Array.isArray(window._knocks) ? window._knocks : [];
-      const canReadTeam = c.role === 'admin' || c.role === 'manager' || window._role === 'admin';
+      // company_admin (the tenant owner) too: the /knocks rule is isCompanyStaff
+      // (company_admin OR manager). Excluding it left an owner's board built
+      // from their OWN knocks only — teammates' D2D revenue fell into
+      // "Unattributed" (CRM sweep R14, 2026-09-28).
+      const canReadTeam = c.role === 'admin' || c.role === 'company_admin' || c.role === 'manager' || window._role === 'admin';
       if (canReadTeam && c.companyId && window._db && window.getDocs && window.collection && window.query && window.where) {
         try {
           const snap = await window.getDocs(window.query(window.collection(window._db, 'knocks'), window.where('companyId', '==', c.companyId)));
@@ -1053,11 +1073,32 @@
       });
       const uniqDoors = doorSet.size, convos = convoSet.size, appts = apptSet.size, converted = convertedSet.size, won = wonD2D.length;
 
+      // One row per REP (the knock's owner uid), named from the company
+      // roster. Keying by the free-text repName split one person into
+      // "Casey ZZ_QA" (knocks that carried a name) and "You" (knocks that
+      // didn't), and credited a teammate's unnamed knocks to the viewer
+      // (CRM sweep R14, 2026-09-28). A won lead whose knock isn't loaded is
+      // credited to the lead's owner; only a lead with neither is Unattributed.
+      if (window.NBDTeamNames) { try { await window.NBDTeamNames.load(); } catch (_) {} }
       const byRep = {};
-      const bump = (r) => byRep[r] || (byRep[r] = { knocks: 0, appts: 0, converted: 0, revenue: 0 });
-      knocks.forEach(k => { const s = bump(k.repName || 'You'); s.knocks++; if (k.disposition === 'appointment') s.appts++; if (k.convertedToLead) s.converted++; });
-      wonD2D.forEach(l => { const k = knockById[l.d2dKnockId]; bump((k && k.repName) || 'Unattributed').revenue += Number(l.jobValue) || 0; });
-      const reps = Object.keys(byRep).map(name => Object.assign({ name }, byRep[name])).sort((a, b) => b.revenue - a.revenue || b.appts - a.appts);
+      const _repKey = (uid, repName) => uid ? 'u:' + uid : (repName ? 'n:' + repName : 'unattributed');
+      const bump = (key, uid, repName) => byRep[key] || (byRep[key] = { uid: uid || null, repName: repName || '', knocks: 0, appts: 0, converted: 0, revenue: 0 });
+      knocks.forEach(k => {
+        const key = _repKey(k.userId, k.repName);
+        const s = bump(key, k.userId, k.repName);
+        if (!s.repName && k.repName) s.repName = k.repName;
+        s.knocks++; if (k.disposition === 'appointment') s.appts++; if (k.convertedToLead) s.converted++;
+      });
+      wonD2D.forEach(l => {
+        const k = knockById[l.d2dKnockId];
+        const uid = (k && k.userId) || l.userId || null;
+        const nm = (k && k.repName) || '';
+        bump(_repKey(uid, nm), uid, nm).revenue += Number(l.jobValue) || 0;
+      });
+      const _me = window._user && window._user.uid;
+      const _nameOf = (r) => (window.NBDTeamNames && r.uid && window.NBDTeamNames.nameFor(r.uid))
+        || r.repName || (r.uid && r.uid === _me ? 'You' : (r.uid ? 'Teammate' : 'Unattributed'));
+      const reps = Object.keys(byRep).map(key => Object.assign({ name: _nameOf(byRep[key]) }, byRep[key])).sort((a, b) => b.revenue - a.revenue || b.appts - a.appts);
 
       const fmt$ = (n) => '$' + Math.round(n).toLocaleString();
       const clampPct = (n, d) => d > 0 ? Math.min(100, Math.round(n / d * 100)) : 0;
@@ -1080,7 +1121,7 @@
               '<div class="ak-card blue"><div class="ak-lbl">Doors Knocked</div><div class="ak-val">' + uniqDoors.toLocaleString() + '</div><div class="ak-sub">' + convos.toLocaleString() + ' conversations</div></div>' +
               '<div class="ak-card cyan"><div class="ak-lbl">Appointments</div><div class="ak-val">' + appts.toLocaleString() + '</div><div class="ak-sub">' + clampPct(appts, uniqDoors) + '% of doors</div></div>' +
               '<div class="ak-card orange"><div class="ak-lbl">D2D Leads Won</div><div class="ak-val">' + won.toLocaleString() + '</div><div class="ak-sub">' + converted.toLocaleString() + ' doors converted</div></div>' +
-              '<div class="ak-card green"><div class="ak-lbl">D2D Revenue</div><div class="ak-val">' + fmt$(d2dRevenue) + '</div><div class="ak-sub">' + (won > 0 ? fmt$(d2dRevenue / won) + ' avg' : 'from door knocks') + '</div></div>' +
+              '<div class="ak-card green"><div class="ak-lbl">D2D Booked</div><div class="ak-val">' + fmt$(d2dRevenue) + '</div><div class="ak-sub">' + (won > 0 ? 'projected · ' + fmt$(d2dRevenue / won) + ' avg won job' : 'projected · won door-knock jobs') + '</div></div>' +
             '</div>' +
             '<div style="font-weight:700;font-size:12px;color:var(--m);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px;">Conversion Funnel</div>' +
             funnel.map(f => {

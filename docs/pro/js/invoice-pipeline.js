@@ -117,6 +117,46 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   }
 
   /**
+   * The deposit / paid / balance rows under an invoice's Total — ONE source
+   * for the in-app detail view and the emailed invoice. Pure; unit-tested.
+   *
+   * Pre-payment convention (2026-09-14): "Balance Due" is what is owed AFTER
+   * the deposit (total − deposit), so Deposit due + Balance Due = total.
+   * That identity now holds after every payment too: outstanding =
+   * total − amountPaid; the unpaid part of the deposit shows as "Deposit
+   * due"; Balance Due is the rest. Before this, a check SMALLER than the
+   * deposit changed nothing on screen (Balance Due was total − deposit until
+   * depositPaid flipped) and no row showed money received — a rep recorded
+   * $3,000 and the invoice looked untouched. A no-deposit invoice with a
+   * partial payment rendered no balance block at all.
+   *
+   * @returns {Array<{label:string, amount:number, strong?:boolean}>}
+   */
+  function paymentSummaryRows(inv) {
+    const i = inv || {};
+    const cents = (v) => Math.round((Number(v) || 0) * 100);
+    const totalC = cents(i.total);
+    const depC = cents(i.depositAmount);
+    const paidC = Math.max(0, cents(i.amountPaid));
+    const hasDep = depC > 0 && depC < totalC;
+    const depMet = !!i.depositPaid || paidC >= depC;
+    if (!hasDep && paidC === 0) return [];
+    const outstandingC = paidC > 0 || i.depositPaid
+      ? (i.balanceDue != null && Number.isFinite(Number(i.balanceDue)) ? cents(i.balanceDue) : Math.max(0, totalC - paidC))
+      : totalC;
+    const depLeftC = hasDep && !depMet ? depC - paidC : 0;
+    const rows = [];
+    if (hasDep) {
+      rows.push(depMet
+        ? { label: 'Deposit (paid)', amount: depC / 100 }
+        : { label: paidC > 0 ? 'Deposit due (remaining)' : 'Deposit due', amount: depLeftC / 100 });
+    }
+    if (paidC > 0) rows.push({ label: 'Paid to date', amount: paidC / 100 });
+    rows.push({ label: 'Balance Due', amount: Math.max(0, outstandingC - depLeftC) / 100, strong: true });
+    return rows;
+  }
+
+  /**
    * HTML-escape for the list/panel renderers. renderInvoiceDetail and the
    * email builder define their own local _esc; this serves the others
    * (renderInvoicePanel / renderInvoiceList) which had none in scope.
@@ -1210,6 +1250,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       // final invoice on a Closed job dragged it BACK to Contract Signed —
       // out of won revenue and onto the board as an active contract.
       let _advance = false;
+      let _advFrom = null, _advJobType = null;
       if (newBalanceDue === 0 && invoice.leadId) {
         let _lead = (window._leads || []).find(l => l && l.id === invoice.leadId) || null;
         if (!_lead) {
@@ -1219,22 +1260,27 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         const _role = (_lead && _lead._stageRole) || (typeof window.stageRole === 'function' ? window.stageRole(_k) : null);
         const _isJob = typeof window.isJobStage === 'function' ? window.isJobStage(_k) : false;
         _advance = _k !== 'contract_signed' && !_isJob && (_role === 'new' || _role === 'active');
+        _advFrom = (_lead && _lead.stage) || null;
+        _advJobType = (_lead && _lead.jobType) || null;
       }
       if (_advance) {
-        await window.updateDoc(window.doc(db, 'leads', invoice.leadId), {
-          stage: 'contract_signed',
-          // Stamp stageRole alongside stage, same as every other stage-mutation
-          // path (#981's persisted-stageRole-wins contract — the server's
-          // functions/stage-roles.js roleFor() prefers this over deriving from
-          // the raw key). 'contract_signed' resolves to role 'active' either
-          // way, so this write is consequence-neutral TODAY — but an unstamped
-          // write silently violates the invariant every other stage change
-          // upholds, and would go live-wrong the moment this stage's
-          // classification ever changes. window.stageRole (not a frozen ES
-          // import) so a tenant-customized role map is honored.
-          ...(window.stageRole ? { stageRole: window.stageRole('contract_signed') } : {}),
-          updatedAt: new Date()
-        });
+        // Through stage-write.js's commitStageChange, like every other stage
+        // move (CRM sweep R14, 2026-09-28). This was a plain updateDoc: no
+        // stageStartedAt (days-in-stage, bottleneck, the dormant-lead nudge
+        // kept counting from the OLD stage), no stageHistory, no timeline
+        // note, no stage-entry task / drip — emulator: a paid-off lead sat in
+        // Contract Signed with an empty history. commitStageChange also stamps
+        // stageRole and is race-guarded. The payment is already recorded, so
+        // a failed advance warns instead of failing the payment.
+        try {
+          const { commitStageChange } = await import('./stage-write.js');
+          await commitStageChange(invoice.leadId, 'contract_signed', _advFrom, { jobType: _advJobType });
+        } catch (advErr) {
+          const m = advErr && advErr.message;
+          if (m !== 'STAGE_RACE_NOOP' && m !== 'STAGE_RACE_LOST') {
+            console.warn('markPaid: stage advance to Contract Signed failed', m);
+          }
+        }
       }
 
       // Send receipt
@@ -1456,16 +1502,15 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
                 <span>Total:</span>
                 <span>${formatCurrency(inv.total)}</span>
               </div>
-              ${(Number(inv.depositAmount) > 0 && Number(inv.depositAmount) < Number(inv.total)) ? `
-              <div style="display:flex;justify-content:space-between;padding:8px;border-top:1px solid var(--br);font-size:12px;">
-                <span>Deposit ${inv.depositPaid ? '(paid)' : 'due'}:</span>
-                <span>${formatCurrency(inv.depositAmount)}</span>
-              </div>
+              ${paymentSummaryRows(inv).map((r, idx) => r.strong ? `
               <div style="display:flex;justify-content:space-between;padding:8px;font-size:13px;font-weight:700;color:var(--orange);">
-                <span>Balance Due:</span>
-                <span>${formatCurrency(inv.depositPaid ? inv.balanceDue : (Number(inv.total) - Number(inv.depositAmount)))}</span>
-              </div>
-              ` : ''}
+                <span>${_esc(r.label)}:</span>
+                <span>${formatCurrency(r.amount)}</span>
+              </div>` : `
+              <div style="display:flex;justify-content:space-between;padding:8px;${idx === 0 ? 'border-top:1px solid var(--br);' : ''}font-size:12px;">
+                <span>${_esc(r.label)}:</span>
+                <span>${formatCurrency(r.amount)}</span>
+              </div>`).join('')}
               ${inv.depositRepNote ? `
               <div data-ip-deposit-note style="padding:8px;border-top:1px solid var(--br);font-size:11px;line-height:1.4;color:var(--orange);font-weight:600;">
                 ${_esc(inv.depositRepNote)}
@@ -1672,16 +1717,15 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
                      balanceDue correctly reflects total minus amountPaid and
                      is safe to show as-is. Stored AR semantics are unchanged;
                      only what's displayed here. -->
-                ${(Number(invoice.depositAmount) > 0 && Number(invoice.depositAmount) < Number(invoice.total)) ? `
+                ${paymentSummaryRows(invoice).map((r) => r.strong ? `
                 <tr>
-                  <td colspan="3" style="text-align: right; padding: 10px;">Deposit ${invoice.depositPaid ? '(paid)' : 'due'}:</td>
-                  <td style="text-align: right; padding: 10px;">${formatCurrency(invoice.depositAmount)}</td>
-                </tr>
+                  <td colspan="3" style="text-align: right; padding: 10px; font-weight: 700; color:var(--orange,#BD5728);">${_esc(r.label)}:</td>
+                  <td style="text-align: right; padding: 10px; font-weight: 700; color:var(--orange,#BD5728);">${formatCurrency(r.amount)}</td>
+                </tr>` : `
                 <tr>
-                  <td colspan="3" style="text-align: right; padding: 10px; font-weight: 700; color:var(--orange,#BD5728);">Balance Due:</td>
-                  <td style="text-align: right; padding: 10px; font-weight: 700; color:var(--orange,#BD5728);">${formatCurrency(invoice.depositPaid ? invoice.balanceDue : (Number(invoice.total) - Number(invoice.depositAmount)))}</td>
-                </tr>
-                ` : ''}
+                  <td colspan="3" style="text-align: right; padding: 10px;">${_esc(r.label)}:</td>
+                  <td style="text-align: right; padding: 10px;">${formatCurrency(r.amount)}</td>
+                </tr>`).join('')}
               </tbody>
             </table>
             <p><strong>Payment Terms:</strong> ${_esc(invoice.terms)}</p>
@@ -2037,7 +2081,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     // buildInvoiceHtml takes a plain invoice object and formatCurrency is a
     // local pure function — no DOM/Firestore dependency either, exported the
     // same way for the deposit/balance display regression test.
-    buildInvoiceHtml
+    buildInvoiceHtml,
+    paymentSummaryRows
   };
 
   if (typeof window !== 'undefined') {

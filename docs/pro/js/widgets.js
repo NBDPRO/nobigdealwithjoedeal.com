@@ -220,7 +220,18 @@ const WIDGETS = [
         const d = closedDate(l);
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
       });
-      const rev = thisMonth.reduce((s,l) => s + parseFloat(l.jobValue || l.estValue || l.value || 0), 0);
+      // Revenue = money COLLECTED this month (invoice payments by the date each
+      // arrived) — Jo, 2026-09-28: "Revenue is always collected only." This
+      // tile used to sum the jobValue of leads that CLOSED this month (booked,
+      // not banked). `thisMonth` above is kept for the won-count sub-line only.
+      const R = window.NBDRevenue;
+      const invs = R ? R.cached() : null;
+      if (R && !invs) {
+        R.loadInvoices().then(() => { if (!R.cached()) return; const w = WIDGETS.find(x => x.id === 'revenue-month'); if (w && document.contains(el)) w.render(el); });
+      }
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      const rev = invs ? R.collectedBetween(invs, monthStart, now.getTime()).total : 0;
+      const revText = invs ? ('$' + (rev >= 1000 ? (rev/1000).toFixed(1)+'k' : rev.toFixed(0))) : '…';
       // nbd_ localStorage is wiped on every sign-out, so the goal also lives on
       // userSettings/{uid}.monthlyGoal (the notification-settings pattern:
       // local cache for the instant paint, Firestore as the source of truth).
@@ -245,8 +256,8 @@ const WIDGETS = [
       // text gives the user a way to customize without us having to
       // build a whole settings panel.
       el.innerHTML = `
-        <div class="w-big-num" style="color:var(--green);">$${rev >= 1000 ? (rev/1000).toFixed(1)+'k' : rev.toFixed(0)}</div>
-        <div class="w-sub">Revenue This Month</div>
+        <div class="w-big-num" style="color:var(--green);">${revText}</div>
+        <div class="w-sub">Revenue This Month <span style="opacity:.7">· collected</span>${thisMonth.length ? ' <span style="opacity:.7">· ' + thisMonth.length + ' closed</span>' : ''}</div>
         <div class="w-bar-track"><div class="w-bar-fill" style="width:${pct}%"></div></div>
         <div class="w-goal-edit" data-w-stop="1" title="Click to change your monthly goal" style="font-size:9px;color:var(--m);text-align:right;margin-top:3px;cursor:pointer;user-select:none;">${pct.toFixed(0)}% of $${(goal/1000).toFixed(0)}k goal ✎</div>`;
       const goalEl = el.querySelector('.w-goal-edit');
@@ -366,28 +377,38 @@ const WIDGETS = [
 
   {id:'storm-alerts', name:'Storm Alerts', icon:'⛈️', cat:'Operations', size:'sm',
     render(el){
-      el.innerHTML = `<div class="w-empty" style="font-size:11px;">
-        <div style="font-size:20px;margin-bottom:6px;">🛡️</div>
-        No active alerts in your area.<br>
-        <span style="font-size:9px;color:var(--m);">Checks NWS alerts API</span>
-      </div>`;
-      // Attempt to fetch NWS alerts
-      fetch('https://api.weather.gov/alerts/active?area=OH&severity=Severe,Extreme&limit=3')
-        .then(r => r.json()).then(data => {
-          if(data.features && data.features.length) {
-            el.innerHTML = data.features.slice(0,3).map(f => `
-              <div style="padding:6px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:5px;margin-bottom:4px;font-size:10px;">
-                <div style="font-weight:700;color:var(--red);">${f.properties.event}</div>
-                <div style="color:var(--m);margin-top:2px;">${(f.properties.headline||'').substring(0,80)}</div>
-              </div>`).join('');
-          }
-        }).catch(() => {});
+      // Shows what Storm Center last found for THIS rep's area (it localizes
+      // to their county). This used to query area=OH for every tenant and
+      // print "No active alerts in your area" for everyone outside Ohio,
+      // and it put NWS text into innerHTML unescaped (2026-09-29).
+      let cached = null;
+      try {
+        const raw = JSON.parse(localStorage.getItem('nbd_storm_alerts_cache') || 'null');
+        if (raw && Array.isArray(raw.data) && Date.now() - raw.ts < 60 * 60 * 1000) cached = raw.data;
+      } catch (e) { cached = null; }
+      if (cached && cached.length) {
+        el.innerHTML = cached.slice(0,3).map(a => `
+          <div style="padding:6px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:5px;margin-bottom:4px;font-size:10px;">
+            <div style="font-weight:700;color:var(--red);">${esc(a.event || 'Weather alert')}</div>
+            <div style="color:var(--m);margin-top:2px;">${esc(String(a.headline || '').substring(0,80))}</div>
+          </div>`).join('');
+      } else {
+        el.innerHTML = `<div class="w-empty" style="font-size:11px;">
+          <div style="font-size:20px;margin-bottom:6px;">🛡️</div>
+          ${cached ? 'No active alerts in your area.' : 'Check alerts for your area.'}<br>
+          <button class="w-mini-btn" data-w-goto="storm" style="margin-top:6px;">Open Storm Center →</button>
+        </div>`;
+      }
     }},
 
   {id:'today-schedule', name:"Today's Schedule", icon:'📅', cat:'Operations', size:'md',
     render(el){
-      const calSettings = JSON.parse(localStorage.getItem('nbd_cal_settings') || '{}');
-      if(!calSettings.username) {
+      // users/{uid}.calcomUsername is the real setting (it survives sign-out,
+      // which wipes the legacy nbd_cal_settings cache) — same order as
+      // dashboard-ui.js loadCalSettings.
+      let calUser = (window._currentRep && window._currentRep.calcomUsername) || '';
+      if (!calUser) { try { calUser = (JSON.parse(localStorage.getItem('nbd_cal_settings') || '{}') || {}).username || ''; } catch (e) { calUser = ''; } }
+      if(!calUser) {
         el.innerHTML = '<div class="w-empty"><div style="font-size:20px;margin-bottom:6px;">📅</div>Connect Cal.com in Settings to see today\'s appointments</div>';
         return;
       }
@@ -396,13 +417,12 @@ const WIDGETS = [
           <span style="font-size:11px;font-weight:700;color:var(--t);">Today</span>
           <button class="w-mini-btn" data-w-goto="schedule">Open Calendar →</button>
         </div>
-        <div class="w-empty" style="font-size:11px;">Cal.com appointments will appear here with future webhook integration.</div>`;
+        <div class="w-empty" style="font-size:11px;">Your Cal.com bookings and today's events are on your Schedule.</div>`;
     }},
 
   {id:'task-checklist', name:'Task Checklist', icon:'✅', cat:'Operations', size:'md',
     render(el){
-      let tasks = JSON.parse(localStorage.getItem('nbd_home_tasks') || '[]');
-      if(!tasks.length) tasks = [{t:'Follow up on yesterday\'s leads',d:false},{t:'Send 3 estimates',d:false},{t:'Update pipeline stages',d:false},{t:'Check storm reports',d:false}];
+      const tasks = _getHomeTasks();
       el.innerHTML = `<div id="w-tasks">` + tasks.map((t,i) => `
         <label class="w-task-row">
           <input type="checkbox" ${t.d?'checked':''} data-w-change="toggleTask" data-w-idx="${i}">
@@ -446,6 +466,28 @@ const WIDGETS = [
   // never has data is just a permanently broken tile. If a supplier feed (or a
   // read of the tenant's own Product Library pricing) ever lands, re-add it
   // then — pointed at that source. Until then, no widget beats a lying one.
+
+  // Yard signs out in the field — how many, and how many are due back.
+  // Reads the same yardSigns docs the Yard Signs view writes; the pickup
+  // math is NBDYardSignLogic's when that bundle is loaded, else a plain
+  // dueAt <= now count (the widget must not pull the Leaflet bundle).
+  {id:'yard-signs', name:'Yard Signs', icon:'🪧', cat:'Operations', size:'sm',
+    async render(el){
+      el.innerHTML = '<div class="w-empty">Loading…</div>';
+      try {
+        const uid = window._user && window._user.uid;
+        if (!uid || !window.db || !window.getDocs) { el.innerHTML = '<div class="w-empty">Sign in to see signs</div>'; return; }
+        const snap = await window.getDocs(window.query(window.collection(window.db, 'yardSigns'),
+          window.where('userId', '==', uid), window.where('status', '==', 'out')));
+        const now = Date.now();
+        let out = 0, due = 0;
+        snap.forEach(d => { out++; const v = d.data(); const t = v.dueAt && v.dueAt.toMillis ? v.dueAt.toMillis() : Number(v.dueAt) || 0;
+          if (t && t <= now + 86400000) due++; });
+        el.innerHTML = '<div class="w-big-num">' + out + '</div><div class="w-sub">' + (out === 1 ? 'sign' : 'signs') + ' out'
+          + (due ? ' · <strong>' + due + ' due for pickup</strong>' : '') + '</div>';
+      } catch (e) { el.innerHTML = '<div class="w-empty">Could not load signs</div>'; }
+    }
+  },
 
   {id:'team-leaderboard', name:'Team Leaderboard', icon:'🥇', cat:'Operations', size:'sm',
     render(el){
@@ -658,7 +700,7 @@ const WIDGETS = [
         const pct = (count/total*100).toFixed(0);
         return `<div style="margin-bottom:6px;">
           <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px;">
-            <span style="color:var(--t);font-weight:600;">${name}</span>
+            <span style="color:var(--t);font-weight:600;">${esc(name)}</span>
             <span style="color:var(--m);">${count} (${pct}%)</span>
           </div>
           <div class="w-bar-track"><div class="w-bar-fill" style="width:${pct}%;background:${colors[i%colors.length]};"></div></div>
@@ -704,7 +746,7 @@ const WIDGETS = [
       if(!entries.length) { el.innerHTML = '<div class="w-empty">No source data yet</div>'; return; }
       el.innerHTML = entries.map(([s,c]) => `
         <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--br);font-size:11px;">
-          <span style="color:var(--t);font-weight:600;">${s}</span>
+          <span style="color:var(--t);font-weight:600;">${esc(s)}</span>
           <span style="color:var(--orange);font-weight:700;">${c}</span>
         </div>`).join('');
     }},
@@ -803,6 +845,115 @@ async function _thuSetHidden(hidden) {
   if (!uid || !window.setDoc) return;
   try { await window.setDoc(window.doc(window.db, 'userSettings', uid), { hideThursdayWidget: hidden }, { merge: true }); }
   catch (e) { console.warn('[thursday] could not save widget preference', e && e.code); }
+}
+
+// ── Home layout + Task Checklist survive sign-out (2026-09-29) ──
+// Both lived only in `nbd_home_widgets` / `nbd_home_tasks`, and
+// NBDAuth.purgeAccountStorage() deletes every nbd_ key on every sign-out:
+// a rep's arranged Home and their checklist reset at each logout and never
+// reached their phone. They now live on userSettings/{uid} (owner read/write
+// in firestore.rules — no rules change); localStorage is this device's cache.
+// First load with no cloud copy lifts this device's copy up once.
+const HOME_TASKS_KEY = 'nbd_home_tasks';
+let _homeCloudLoaded = false;
+let _homeCloudPending = false;
+
+function _cleanWidgetIds(v) {
+  if (!Array.isArray(v)) return null;
+  const ids = v.filter(x => typeof x === 'string' && x.length <= 60 && WIDGETS.some(w => w.id === x)).slice(0, 60);
+  return ids.length ? ids : null;
+}
+function _cleanTasks(v) {
+  if (!Array.isArray(v)) return null;
+  return v.filter(x => x && typeof x.t === 'string').slice(0, 100)
+    .map(x => ({ t: String(x.t).slice(0, 200), d: x.d === true }));
+}
+function _readLocal(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } }
+function _writeLocal(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* quota — cloud still has it */ } }
+
+async function _homeCloudSave(patch) {
+  const uid = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+  if (!uid || !window.db || !window.setDoc || !window.doc) return false;
+  try { await window.setDoc(window.doc(window.db, 'userSettings', uid), patch, { merge: true }); return true; }
+  catch (e) { console.warn('[home] could not save to your account', e && e.code); return false; }
+}
+
+async function _homeHydrate() {
+  if (_homeCloudLoaded || _homeCloudPending) return;
+  const uid = window.auth && window.auth.currentUser && window.auth.currentUser.uid;
+  if (!uid || !window.db || !window.getDoc || !window.doc) return; // retry on the next Home render
+  _homeCloudPending = true;
+  let data = null;
+  try {
+    const snap = await (window.nbdRetryOffline || (f => f()))(() => window.getDoc(window.doc(window.db, 'userSettings', uid)));
+    data = snap.exists() ? (snap.data() || {}) : {};
+  } catch (e) {
+    _homeCloudPending = false;
+    return; // a FAILED read never uploads — try again on the next render
+  }
+  _homeCloudPending = false;
+  _homeCloudLoaded = true;
+  const cloudIds = _cleanWidgetIds(data.homeWidgets);
+  const cloudTasks = _cleanTasks(data.homeTasks);
+  const up = {};
+  let changed = false;
+  if (cloudIds) {
+    if (JSON.stringify(cloudIds) !== JSON.stringify(_readLocal(STORAGE_KEY))) { _writeLocal(STORAGE_KEY, cloudIds); changed = true; }
+  } else {
+    const localIds = _cleanWidgetIds(_readLocal(STORAGE_KEY));
+    if (localIds) up.homeWidgets = localIds;
+  }
+  if (cloudTasks) {
+    if (JSON.stringify(cloudTasks) !== JSON.stringify(_readLocal(HOME_TASKS_KEY))) { _writeLocal(HOME_TASKS_KEY, cloudTasks); changed = true; }
+  } else {
+    const localTasks = _cleanTasks(_readLocal(HOME_TASKS_KEY));
+    if (localTasks && localTasks.length) up.homeTasks = localTasks;
+  }
+  // Daily Success settings ride on the same doc (ds-firebase-sync.js writes
+  // them from the program page). The North Star / Daily Floors / Golden Goose
+  // widgets read nbd_ds_config, which sign-out wipes — restore it here so they
+  // don't sit on placeholders until the program page is opened.
+  const dsKeys = [['nbd_user_config', 'dsConfig'], ['nbd_gt', 'dsGoalTargets']];
+  for (const [key, field] of dsKeys) {
+    const cv = data[field];
+    const cloudAt = Number(data[field + 'At']) || 0;
+    const localVal = _readLocal(key);
+    const localAt = Number(localStorage.getItem(key + '_at')) || 0;
+    if (cv && typeof cv === 'object' && (localVal == null || cloudAt > localAt)) {
+      if (JSON.stringify(cv) !== JSON.stringify(localVal)) {
+        _writeLocal(key, cv);
+        try { localStorage.setItem(key + '_at', String(cloudAt || Date.now())); } catch (e) {}
+        if (key === 'nbd_user_config') {
+          // Same shape as ds-sync-logic.js widgetCfgFrom / app.js syncToWidgetKeys.
+          const ns = cv.northStar || {};
+          _writeLocal('nbd_ds_config', {
+            northStar: ns.target || ns.category || '',
+            northStarDeadline: ns.deadline || '',
+            floors: (cv.floors || []).map(f => ({ label: f.label, target: parseFloat(f.targetValue) || 1, unit: f.unit || '' })),
+            goldenGoose: cv.goose || '',
+          });
+        }
+        changed = true;
+      }
+    } else if (localVal && typeof localVal === 'object' && (!cv || localAt > cloudAt)) {
+      // First backup of settings that only ever lived on this device.
+      up[field] = localVal;
+      up[field + 'At'] = localAt || Date.now();
+    }
+  }
+  if (Object.keys(up).length) _homeCloudSave(up);
+  if (changed) renderWidgetHome();
+}
+
+function _getHomeTasks() {
+  const t = _cleanTasks(_readLocal(HOME_TASKS_KEY));
+  if (t && t.length) return t;
+  return [{t:'Follow up on yesterday\'s leads',d:false},{t:'Send 3 estimates',d:false},{t:'Update pipeline stages',d:false},{t:'Check storm reports',d:false}];
+}
+function _saveHomeTasks(tasks) {
+  const clean = _cleanTasks(tasks) || [];
+  _writeLocal(HOME_TASKS_KEY, clean);
+  _homeCloudSave({ homeTasks: clean });
 }
 
 async function _thuFetch() {
@@ -997,7 +1148,9 @@ function getActiveWidgets() {
 }
 
 function saveActiveWidgets(ids) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+  _writeLocal(STORAGE_KEY, ids);
+  const clean = _cleanWidgetIds(ids);
+  if (clean) _homeCloudSave({ homeWidgets: clean });
 }
 
 
@@ -1006,6 +1159,7 @@ function renderWidgetHome() {
   const grid = document.getElementById('widgetGrid');
   if(!grid) return;
   if (_thuGateState === null) { _thuGateState = { enabled: false, hidden: false, pending: true }; _thuResolveGate(); }
+  if (!_homeCloudLoaded) _homeHydrate();
 
   const activeIds = getActiveWidgets();
   grid.innerHTML = '';
@@ -1031,7 +1185,7 @@ function renderWidgetHome() {
       // 'material-watch' dropped with the widget itself (see above). This map
       // is keyed by widget id, so a stale entry is harmless — removed anyway so
       // the next reader doesn't go looking for a widget that isn't there.
-      'today-schedule': 'schedule'
+      'today-schedule': 'schedule', 'yard-signs': 'signs'
     };
     const card = document.createElement('div');
     card.className = 'w-card w-' + w.size;
@@ -1160,19 +1314,18 @@ function resetDefaults() {
 
 // ── WIDGET INTERACTION HELPERS (global) ─────────────────────────
 _wToggleTask = function(idx, done) {
-  let tasks = JSON.parse(localStorage.getItem('nbd_home_tasks') || '[]');
-  if(!tasks.length) tasks = [{t:'Follow up on yesterday\'s leads',d:false},{t:'Send 3 estimates',d:false},{t:'Update pipeline stages',d:false},{t:'Check storm reports',d:false}];
-  if(tasks[idx]) tasks[idx].d = done;
-  localStorage.setItem('nbd_home_tasks', JSON.stringify(tasks));
+  const tasks = _getHomeTasks();
+  if(tasks[idx]) tasks[idx].d = !!done;
+  _saveHomeTasks(tasks);
   renderWidgetHome();
 };
 
 _wAddTask = function() {
   const input = document.getElementById('w-task-input');
   if(!input || !input.value.trim()) return;
-  let tasks = JSON.parse(localStorage.getItem('nbd_home_tasks') || '[]');
+  const tasks = _cleanTasks(_readLocal(HOME_TASKS_KEY)) || [];
   tasks.push({t: input.value.trim(), d: false});
-  localStorage.setItem('nbd_home_tasks', JSON.stringify(tasks));
+  _saveHomeTasks(tasks);
   renderWidgetHome();
 };
 
@@ -1253,6 +1406,12 @@ window.NBDWidgets = {
   removeWidget,
   resetDefaults,
   getActive: getActiveWidgets,
+  // Test hooks (tests/home-widgets-survive-signout-2026-09-29.test.js).
+  _home: {
+    hydrate: _homeHydrate, getTasks: _getHomeTasks, saveTasks: _saveHomeTasks,
+    saveActive: saveActiveWidgets, toggleTask: (i, d) => _wToggleTask(i, d),
+    loaded: () => _homeCloudLoaded,
+  },
 };
 
 // Home first paints on DOMContentLoaded, before auth, with window._leads

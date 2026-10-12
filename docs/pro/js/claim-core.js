@@ -103,6 +103,10 @@
       supplementStatus: lead.supplementStatus || '',
       scopeOfWork: lead.scopeOfWork || '',
       adjuster:        { name: lead.adjusterName || '',     phone: lead.adjusterPhone || '',     email: lead.adjusterEmail || '' },
+      // The adjuster's inspection (2026-09-29): 'YYYY-MM-DD' + optional 'HH:MM'
+      // America/New_York, same shape as scheduledDate/scheduledStart. Feeds the
+      // Schedule view (smart-calendar.js) and the .ics feed.
+      adjusterMeeting: { date: lead.adjusterMeetingDate || '', start: lead.adjusterMeetingStart || '' },
       claimHandler:    { name: lead.claimHandlerName || '', phone: lead.claimHandlerPhone || '', email: lead.claimHandlerEmail || '' },
       mortgageCompany: { name: lead.mortgageCompanyName || '', phone: lead.mortgageCompanyPhone || '', email: '' }
     };
@@ -122,6 +126,16 @@
     return (n == null || isNaN(n)) ? '—' : '$' + Number(n).toLocaleString();
   }
   function dt(s) { return s ? esc(s) : '—'; }
+
+  // "Tue, Oct 6 · 10:00 am" via schedule-window.js when it is loaded (both
+  // pages load it); the raw values otherwise. Returned ESCAPED — the date and
+  // time are rep-typed fields on the lead doc.
+  function meetingLabel(m) {
+    if (!m || !m.date) return '';
+    var W = window.NBDScheduleWindow;
+    var t = W && W.formatWindow ? W.formatWindow({ scheduledDate: m.date, scheduledStart: m.start || null }) : '';
+    return esc(t || (m.date + (m.start ? ' ' + m.start : '')));
+  }
 
   function factCell(label, value) {
     return '<div class="info-item"><div class="info-label">' + esc(label) + '</div>' +
@@ -186,6 +200,7 @@
         factCell('Approved Amount', money(c.approvedAmount)) +
         factCell('Supplement Status', dt(c.supplementStatus)) +
         factCell('Scope of Work', dt(c.scopeOfWork)) +
+        factCell('Adjuster Meeting', meetingLabel(c.adjusterMeeting) || '—') +
       '</div>' +
       '<div style="margin-top:14px;">' +
         contactRow('Adjuster', c.adjuster, 'adjuster') +
@@ -277,6 +292,8 @@
         row(field('Name', 'clmAdjName', 'text', c.adjuster.name, 'Mike Johnson'),
             field('Phone', 'clmAdjPhone', 'tel', c.adjuster.phone, '(513) 555-0100')) +
         row(field('Email', 'clmAdjEmail', 'email', c.adjuster.email, 'adjuster@carrier.com')) +
+        row(field('Meeting Date', 'clmAdjMeetDate', 'date', c.adjusterMeeting.date, ''),
+            field('Meeting Time', 'clmAdjMeetStart', 'time', c.adjusterMeeting.start, '')) +
         section('Claim Handler', 'handler') +
         row(field('Name', 'clmHandlerName', 'text', c.claimHandler.name, ''),
             field('Phone', 'clmHandlerPhone', 'tel', c.claimHandler.phone, '')) +
@@ -319,6 +336,20 @@
     if (btn) { btn.disabled = true; btn.textContent = 'SAVING…'; }
     var val = function (id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; };
     var numOrNull = function (id) { var v = val(id); return v === '' ? null : (Number(v) || 0); };
+    // Adjuster meeting: a real date, and a time only with a date. A time input
+    // hands back 'HH:MM' (some browsers 'HH:MM:SS' — trimmed to the minute).
+    var meetDate = val('clmAdjMeetDate');
+    var meetStart = val('clmAdjMeetStart').slice(0, 5);
+    var W = window.NBDScheduleWindow;
+    var meetErr = (meetDate && W && W.parseYmd && !W.parseYmd(meetDate)) ? 'The adjuster meeting date is not a real date.'
+      : (meetStart && !/^([01]\d|2[0-3]):[0-5]\d$/.test(meetStart)) ? 'The adjuster meeting time must look like 10:00.'
+      : (meetStart && !meetDate) ? 'Pick the adjuster meeting day for that time.'
+      : '';
+    if (meetErr) {
+      if (typeof window.showToast === 'function') window.showToast(meetErr, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'SAVE CLAIM'; }
+      return;
+    }
     try {
       var updates = {
         claimNumber: val('clmNumber'),
@@ -338,6 +369,8 @@
         adjusterName: val('clmAdjName'),
         adjusterPhone: val('clmAdjPhone'),
         adjusterEmail: val('clmAdjEmail'),
+        adjusterMeetingDate: meetDate,
+        adjusterMeetingStart: meetStart,
         claimHandlerName: val('clmHandlerName'),
         claimHandlerPhone: val('clmHandlerPhone'),
         claimHandlerEmail: val('clmHandlerEmail'),

@@ -437,11 +437,18 @@
 
       // Count won deals from window._leads
       if (window._leads && Array.isArray(window._leads)) {
-        const wonLeads = window._leads.filter(l =>
-          l.stage === 'won' || l.stage === 'completed'
-        );
+        // Semantic role (crm-stages, custom-pipeline aware): the literal
+        // 'won' / 'completed' stage keys this used are not ones the CRM
+        // writes, so no deal ever counted.
+        const _role = (l) => l._stageRole || (typeof window.stageRole === 'function'
+          ? (function () { try { return window.stageRole(l._stageKey || l.stage); } catch (_) { return null; } })() : null);
+        const wonLeads = window._leads.filter(l => !l.deleted && _role(l) === 'won');
         stats.wonDeals = wonLeads.length;
-        stats.revenueGenerated = wonLeads.reduce((sum, l) => sum + (l.jobValue || 0), 0);
+        // "$100K in revenue" = money COLLECTED (Jo, 2026-09-28: revenue is
+        // collected only) — all-time invoice payments, not won jobValue.
+        const _R = window.NBDRevenue, _invs = _R ? _R.cached() : null;
+        if (_R && !_invs) _R.loadInvoices();
+        stats.revenueGenerated = _invs ? _R.collectedBetween(_invs, null, null).total : 0;
 
         stats.inspectionsCompleted = window._leads.filter(l => {
           const stages = ['inspected', 'estimate-sent', 'negotiating', 'won', 'completed'];

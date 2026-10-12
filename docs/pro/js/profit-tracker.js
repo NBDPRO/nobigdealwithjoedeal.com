@@ -232,12 +232,19 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     const expFed = !!(expenses && expenses.length);
     const pl = expFed ? computeJobPLWithExpenses(lead, expenses) : computeJobPL(lead);
     const marginColor = pl.grossMargin >= 40 ? 'var(--green,#16a34a)' : pl.grossMargin >= 25 ? 'var(--gold,#eab308)' : 'var(--red,#dc2626)';
+    // No direct cost entered = the margin is UNKNOWN, not 100% (2026-09-29).
+    // With every box blank the panel read "100% margin · $9.8K gross profit ·
+    // $980 total cost" — a perfect margin nobody supplied, beside a total that
+    // was only the overhead percentage. Same rule as the Product Library's
+    // "Cost not set".
+    const costsSet = expFed || (pl.materialCost + pl.laborCost + pl.miscCosts) > 0;
+    const escT = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     el.innerHTML = `
       <div style="background:var(--s,#12223D);border:1px solid var(--br,rgba(255,255,255,.08));border-radius:12px;padding:20px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <h4 style="margin:0;font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:var(--t,#fff);">💲 Job Costs & Profit</h4>
-          ${pl.revenue > 0 ? `<span style="background:color-mix(in srgb, ${marginColor} 13%, transparent);color:${marginColor};padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700;">${pl.grossMargin}% margin</span>` : ''}
+          ${pl.revenue > 0 && costsSet ? `<span style="background:color-mix(in srgb, ${marginColor} 13%, transparent);color:${marginColor};padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700;">${pl.grossMargin}% margin</span>` : ''}
         </div>
         ${expFed ? `<div style="font-size:10px;color:var(--green,#16a34a);margin:-10px 0 14px;">✓ Margin reflects ${expenses.length} logged expense${expenses.length > 1 ? 's' : ''} — $${formatPT(pl.materialCost + pl.laborCost + pl.miscCosts)} direct cost from the Expenses ledger.</div>` : ''}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
@@ -264,15 +271,16 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
         </div>
         <div style="margin-bottom:16px;">
           <label style="font-size:11px;color:var(--m,#9ca3af);text-transform:uppercase;letter-spacing:.05em;">Cost Notes</label>
-          <textarea id="ptNotes" rows="2" style="width:100%;padding:10px;background:var(--s2,rgba(255,255,255,.04));border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;color:var(--t,#fff);font-size:13px;margin-top:4px;resize:vertical;box-sizing:border-box;">${lead.costNotes || ''}</textarea>
+          <textarea id="ptNotes" rows="2" style="width:100%;padding:10px;background:var(--s2,rgba(255,255,255,.04));border:1px solid var(--br,rgba(255,255,255,.1));border-radius:8px;color:var(--t,#fff);font-size:13px;margin-top:4px;resize:vertical;box-sizing:border-box;">${escT(lead.costNotes)}</textarea>
         </div>
 
-        ${pl.revenue > 0 ? `
+        ${pl.revenue > 0 && !costsSet ? '<div style="color:var(--m,#9ca3af);font-size:12px;text-align:center;padding:12px;">Costs not set — enter material, labor or misc cost (or log expenses on this job) to see the margin.</div>' : ''}
+        ${pl.revenue > 0 && costsSet ? `
         <div style="background:var(--s2,rgba(255,255,255,.03));border-radius:8px;padding:14px;margin-bottom:16px;">
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;">
             <div>
               <div style="font-size:18px;font-weight:800;color:var(--green,#16a34a);">$${formatPT(pl.grossProfit)}</div>
-              <div style="font-size:10px;color:var(--m,#9ca3af);">GROSS PROFIT</div>
+              <div style="font-size:10px;color:var(--m,#9ca3af);">GROSS PROFIT <span style="opacity:.75;">(before overhead)</span></div>
             </div>
             <div>
               <div style="font-size:18px;font-weight:800;color:${marginColor};">${pl.grossMargin}%</div>
@@ -280,10 +288,11 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
             </div>
             <div>
               <div style="font-size:18px;font-weight:800;color:var(--orange,#BD5728);">$${formatPT(pl.totalCost)}</div>
-              <div style="font-size:10px;color:var(--m,#9ca3af);">TOTAL COST</div>
+              <div style="font-size:10px;color:var(--m,#9ca3af);">TOTAL COST <span style="opacity:.75;">(incl. ${escT(overheadPctFrom(lead.overheadPct))}% overhead)</span></div>
             </div>
           </div>
-        </div>` : '<div style="color:var(--m,#9ca3af);font-size:12px;text-align:center;padding:12px;">Set a Job Value on this lead to see margin calculations</div>'}
+        </div>` : ''}
+        ${pl.revenue > 0 ? '' : '<div style="color:var(--m,#9ca3af);font-size:12px;text-align:center;padding:12px;">Set a Job Value on this lead to see margin calculations</div>'}
 
         <button type="button" class="btn btn-orange" data-pt-action="save" data-pt-id="${leadId}"
           style="width:100%;justify-content:center;">

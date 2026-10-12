@@ -71,6 +71,11 @@ messaging.onBackgroundMessage((payload) => {
     case 'followUpDue':
       notificationOptions.tag = 'follow-up-due';
       break;
+    case 'yardSignPickup':
+      // Stays until tapped — the homeowner only texts if Jo is late.
+      notificationOptions.tag = 'yard-sign-pickup';
+      notificationOptions.requireInteraction = true;
+      break;
     case 'claimUpdate':
       notificationOptions.tag = 'claim-update';
       break;
@@ -204,6 +209,9 @@ function getClickUrl(data = {}) {
     
     case 'd2dStreak':
       return `${baseUrl}dashboard.html?tab=d2d`;
+
+    case 'yardSignPickup':
+      return `${baseUrl}dashboard.html#/signs`;
     
     default:
       return `${baseUrl}dashboard.html`;

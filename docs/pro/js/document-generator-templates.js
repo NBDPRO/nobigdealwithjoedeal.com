@@ -288,10 +288,12 @@
   }
 
   function footer(extra) {
+    // Every caller passes plain text; some carry record fields (a claim # the
+    // phone-intake AI copies from a caller) — escaped (security audit 2026-09-29).
     return `<div class="footer">
-      <span class="footer-brand">${C.name}</span>
-      <span>${[C.phone, C.email, C.website].filter(Boolean).join(' &middot; ')}</span>
-      <span>${extra || C.tagline || ''}</span>
+      <span class="footer-brand">${esc(C.name)}</span>
+      <span>${[C.phone, C.email, C.website].filter(Boolean).map(esc).join(' &middot; ')}</span>
+      <span>${esc(extra || C.tagline || '')}</span>
     </div>`;
   }
 
@@ -430,7 +432,8 @@
     return html + '</div>';
   }
 
-  function esc(s) { return (s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  // & and quotes too — used in alt="…" (security audit 2026-09-29).
+  function esc(s) { return String(s||'').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function money(n) { return '$' + (parseFloat(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
   // Partner identity + value props resolve through the shared company-profile
