@@ -63,12 +63,22 @@
       // Lazy assets, paths relative to /pro/. Only the ACTIVE layout loads.
       script: typeof raw.script === 'string' && /^js\/layouts\/[a-z0-9-]+\.js$/.test(raw.script) ? raw.script : null,
       css: typeof raw.css === 'string' && /^css\/layouts\/[a-z0-9-]+\.css$/.test(raw.css) ? raw.css : null,
+      // Shared building blocks (js/layouts/kit.js + css/layouts/kit.css) this
+      // layout needs BEFORE its own script runs. Loaded once, shared, kept.
+      needs: {
+        script: pathList(raw.needs && raw.needs.script, /^js\/layouts\/[a-z0-9-]+\.js$/),
+        css: pathList(raw.needs && raw.needs.css, /^css\/layouts\/[a-z0-9-]+\.css$/),
+      },
       supports: {
         wallpaper: supports.wallpaper !== false,
         glass: supports.glass === true,
         sunlight: supports.sunlight === true,
       },
     };
+  }
+
+  function pathList(v, re) {
+    return (Array.isArray(v) ? v : []).filter(function (p) { return typeof p === 'string' && re.test(p); }).slice(0, 6);
   }
 
   function register(raw) {
@@ -263,19 +273,46 @@
       document.head.appendChild(link);
     });
   }
-  function loadScript(def) {
-    if (!def || !def.script || impls[def.id]) return Promise.resolve();
-    var src = '/pro/' + def.script;
+  var scriptOnce = {};   // path -> promise (fallback dedupe when ScriptLoader is absent)
+  function loadScriptPath(p) {
+    var src = '/pro/' + p;
     if (window.ScriptLoader && typeof window.ScriptLoader.load === 'function') {
       return window.ScriptLoader.load(src).catch(function () {});
     }
-    return new Promise(function (resolve) {
+    if (scriptOnce[p]) return scriptOnce[p];
+    scriptOnce[p] = new Promise(function (resolve) {
       var s = document.createElement('script');
       s.src = src; s.defer = true;
       s.onload = function () { resolve(); };
       s.onerror = function () { resolve(); };
       document.head.appendChild(s);
     });
+    return scriptOnce[p];
+  }
+  // needs.script load in order, then the layout's own script.
+  function loadScript(def) {
+    if (!def) return Promise.resolve();
+    var list = ((def.needs && def.needs.script) || []).slice();
+    if (def.script && !impls[def.id]) list.push(def.script);
+    return list.reduce(function (p, path) { return p.then(function () { return loadScriptPath(path); }); }, Promise.resolve());
+  }
+  // needs.css: one <link> per path for the page's life (shared between layouts).
+  var needsCss = {};
+  function loadNeedsCss(def) {
+    var list = (def && def.needs && def.needs.css) || [];
+    return Promise.all(list.map(function (p) {
+      if (needsCss[p]) return needsCss[p];
+      needsCss[p] = new Promise(function (resolve) {
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.setAttribute('data-layout-needs', p);
+        link.href = '/pro/' + p;
+        link.addEventListener('load', function () { resolve(); }, { once: true });
+        link.addEventListener('error', function () { resolve(); }, { once: true });
+        document.head.appendChild(link);
+      });
+      return needsCss[p];
+    }));
   }
   function implement(id, impl) {
     if (!R.isId(id) || !impl || typeof impl !== 'object') return;
@@ -316,7 +353,7 @@
     var def = R.get(id) || R.get(R.FALLBACK);
     var seq = ++applySeq;
     var surf = surface();
-    return Promise.all([loadCss(def), loadScript(def)]).then(function () {
+    return Promise.all([loadCss(def), loadNeedsCss(def), loadScript(def)]).then(function () {
       if (seq !== applySeq) return current.id;
       var previous = current.id;
       if (previous === def.id && mounted === def.id) {
