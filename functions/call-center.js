@@ -304,7 +304,14 @@ async function pushUrgent({ db, d, call, notes, leadName, nowMs }) {
   const msg = L.urgentPushText({ call, notes, leadName });
   const clickUrl = W.callCardUrl(call.id);
   try {
-    await d.push(OWNER, msg.title, msg.body, { type: 'call_watch', clickUrl, notificationId: 'call-urgent-' + call.id });
+    const pr = await d.push(OWNER, msg.title, msg.body, { type: 'call_watch', clickUrl, notificationId: 'call-urgent-' + call.id });
+    // sendPushNotification RESOLVES {sent:0} for "no device on file" and for
+    // "every token failed" (audit R2, 2026-10-12). That is not "told": leave
+    // urgentPushedAtMs unset so the next callWatch run tells Jo again.
+    if (pr && typeof pr === 'object' && pr.sent === 0) {
+      logger.warn('call_center_urgent_push_reached_nobody', { id: call.id, failed: pr.failed || 0 });
+      return false;
+    }
     await db.collection(COLLECTION).doc(call.id).set({ urgentPushedAtMs: nowMs }, { merge: true });
     await db.collection('notifications').add({
       userId: OWNER, type: 'call_watch', title: '📞 ' + msg.title, message: msg.body, priority: 'high',
