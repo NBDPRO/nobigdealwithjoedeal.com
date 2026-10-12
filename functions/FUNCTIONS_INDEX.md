@@ -358,9 +358,9 @@ Exported for unit tests or internal reuse; they carry no `__endpoint` and Fireba
 - `gustForAddressDay` / `gustsForTopStormDays` — plain async helpers (integrations/asos-gust.js, pure rules in asos-gust-logic.js, stations in data/asos-stations.json): nearest ASOS station's max measured gust for a local day from IEM, cached in `public_cache/gust_{STATION}_{YYYYMMDD}`; used by `stormReport`, `stormReportEmail`, `attachStormProof`; not Cloud Functions. (2026-10-06)
 - `lookupHail` — plain async hail-history helper (integrations/hail.js) shared by `getHailHistory` + `attachStormProof` (handlers/storm-proof.js); not a Cloud Function. (2026-08-06 correction: previously said "storm briefing", but storm-briefing.js never imports it.)
 - Voice-intelligence internals: `_VoiceError`, `_analyzeTranscript`, `_checkBudget`, `_checkVerbalConsent`, `_getCompanyContext`, `_incrementVoiceUsage`, `_parseAudioPath`, `_processRecording`, `_transcribeAudio`
-- Push-notification helpers (plain async functions): `sendTeamNotification`, `sendStreakNotification`, `sendCustomNotification`
+- Push-notification helpers (plain async functions): `sendTeamNotification`, `sendStreakNotification`, `sendCustomNotification`, `sendPushNotification`, `getUserFCMTokens`
 - Slack helper: `postSlack`
-- **Dead keys**: `sendPushNotification` and `getUserFCMTokens` are exported from push-functions.js as `undefined` (its `module.exports` references `exports.sendPushNotification` / `exports.getUserFCMTokens`, which are never assigned). Harmless to deploy, but they should be removed from the export map.
+- `sendPushNotification` / `getUserFCMTokens` — plain async helpers in push-functions.js (no `__endpoint`, not Cloud Functions). **Corrected 2026-10-12:** these two keys used to export `undefined` (the `module.exports` map read `exports.sendPushNotification` / `exports.getUserFCMTokens`, which were never assigned); they now export the real module-local functions, pinned by `tests/push-helper-exports.test.js`.
 
 ---
 

@@ -1,0 +1,61 @@
+/* layouts/mapview.css — styles for js/layouts/mapview.js (2026-10-12, M1).
+ * Theme tokens only. Hail danger (swaths, hail pins) is ALWAYS --red / --gold so
+ * it reads the same in every theme; routes are --orange. Every class is
+ * mv-prefixed and lives under .nbd-mv, so nothing here can touch the Classic map.
+ * Leaflet's own stylesheet comes with the `mapvendor` bundle. */
+
+.nbd-mv { position: relative; width: 100%; height: 100%; min-height: 240px; background: var(--bg); isolation: isolate; font: inherit; }
+.nbd-mv .mv-probe { position: absolute; width: 0; height: 0; overflow: hidden; visibility: hidden; background: var(--bg); }
+.nbd-mv.leaflet-container { background: var(--bg); color: var(--t); outline: none; }
+
+/* Recolour the street tiles to the theme. The tile pane blends into --bg:
+ * a light theme multiplies the tiles onto the land colour; a dark theme
+ * inverts them first and screens them on, so roads and land both pick up the
+ * theme's tint. Satellite imagery is left alone (it is a photograph). */
+.nbd-mv[data-mv-tiles="streets"].mv-light .leaflet-tile-pane { filter: saturate(.55) contrast(.95); mix-blend-mode: multiply; }
+.nbd-mv[data-mv-tiles="streets"].mv-dark .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) saturate(.4) brightness(.7) contrast(.95); mix-blend-mode: screen; }
+.nbd-mv[data-mv-tiles="plain"] { background-image: linear-gradient(var(--rule) 1px, transparent 1px), linear-gradient(90deg, var(--rule) 1px, transparent 1px); background-size: 48px 48px; }
+
+/* controls follow the theme */
+.nbd-mv .leaflet-bar a { background: var(--s); color: var(--t); border-color: var(--rule); }
+.nbd-mv .leaflet-bar a:hover { background: var(--s2); }
+.nbd-mv .leaflet-control-attribution { background: color-mix(in srgb, var(--s) 80%, transparent); color: var(--m); }
+.nbd-mv .leaflet-control-attribution a { color: var(--m); }
+.nbd-mv .leaflet-tooltip { background: var(--s); color: var(--t); border: 1px solid var(--rule); box-shadow: none; }
+.nbd-mv .leaflet-popup-content-wrapper, .nbd-mv .leaflet-popup-tip { background: var(--s); color: var(--t); border: 1px solid var(--rule); }
+
+/* pins */
+.mv-pin-wrap { background: none; border: 0; }
+.mv-pin {
+  display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--mv-c, var(--m)); color: #fff; border: 2px solid var(--s);
+  font-weight: 800; font-size: 13px; line-height: 1; box-shadow: 0 1px 4px rgba(0, 0, 0, .45);
+}
+.mv-pin b { font-weight: 800; }
+.mv-pin--stop { width: 30px; height: 30px; font-size: 14px; }
+.mv-pin--lead { border-radius: 8px; }
+.mv-pin--crew { border-radius: 8px; transform: rotate(45deg); }
+.mv-pin--crew b { transform: rotate(-45deg); }
+.mv-pin--hail { background: var(--mv-c, var(--gold)); }
+.mv-pin--sel { outline: 3px solid var(--t); outline-offset: 2px; }
+.mv-c-orange { --mv-c: var(--orange); }
+.mv-c-red { --mv-c: var(--red); }
+.mv-c-gold { --mv-c: var(--gold); }
+.mv-c-green { --mv-c: var(--green); }
+.mv-c-blue { --mv-c: var(--blue); }
+.mv-c-purple { --mv-c: var(--purple); }
+.mv-c-muted { --mv-c: var(--m); }
+.mv-dot { fill: var(--mv-c, var(--m)); fill-opacity: .8; stroke: var(--s); }
+
+/* hail swaths: only ever --red / --gold ('warn' = the in-between, --gold lighter); 'turf' is --orange */
+.mv-swath { stroke-linejoin: round; }
+.mv-swath--red { fill: var(--red); fill-opacity: .28; stroke: var(--red); }
+.mv-swath--gold { fill: var(--gold); fill-opacity: .26; stroke: var(--gold); }
+.mv-swath--warn { fill: var(--gold); fill-opacity: .14; stroke: var(--gold); stroke-dasharray: 6 5; }
+/* a crew's canvass turf: team colour, never a danger colour */
+.mv-swath--turf { fill: var(--orange); fill-opacity: .1; stroke: var(--orange); stroke-dasharray: 2 6; }
+
+/* routes */
+.mv-route { fill: none; stroke: var(--mv-c, var(--orange)); stroke-opacity: .95; stroke-linecap: round; stroke-linejoin: round; }
+.mv-route--dashed { stroke-dasharray: 2 9; }

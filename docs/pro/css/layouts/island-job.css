@@ -1,0 +1,45 @@
+/* layouts/island-job.css — Island Dock on the job view (customer.html), 2026-10-12.
+ * Loaded by js/layouts/island-job.js only when the rep's layout is Island Dock.
+ * Scoped under html[data-island-job]. Theme tokens only. */
+
+html[data-island-job] { --ij-r: 24px; }
+
+/* the hero image of the house */
+html[data-island-job] #coverHero {
+  height: clamp(220px, 40vh, 400px) !important;
+  border-radius: var(--ij-r) !important;
+  border: 1px solid color-mix(in srgb, #ffffff 14%, var(--br)) !important;
+  box-shadow: 0 14px 38px color-mix(in srgb, #000000 28%, transparent);
+  margin-bottom: 0 !important;
+}
+/* the name card floats over the lower edge of the picture */
+html[data-island-job].ij-has-hero .customer-header { margin-top: -56px; position: relative; z-index: 2; }
+html[data-island-job] .customer-header {
+  border-radius: var(--ij-r);
+  background: color-mix(in srgb, var(--s) 84%, transparent);
+  border-color: color-mix(in srgb, #ffffff 14%, var(--br));
+  box-shadow: 0 10px 30px color-mix(in srgb, #000000 20%, transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.25);
+  backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.25);
+  margin-left: 10px; margin-right: 10px;
+}
+/* panels become islands */
+html[data-island-job] .panel {
+  border-radius: var(--ij-r);
+  background-color: color-mix(in srgb, var(--s2) 82%, transparent);
+  border-color: color-mix(in srgb, #ffffff 14%, var(--br));
+  box-shadow: 0 10px 30px color-mix(in srgb, #000000 18%, transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.2);
+  backdrop-filter: blur(var(--glass-blur, 14px)) saturate(1.2);
+}
+@media (max-width: 768px) {
+  html[data-island-job] #coverHero { height: clamp(200px, 34vh, 300px) !important; }
+  html[data-island-job].ij-has-hero .customer-header { margin-top: -40px; margin-left: 6px; margin-right: 6px; }
+}
+@media (prefers-contrast: more) {
+  html[data-island-job] .customer-header,
+  html[data-island-job] .panel {
+    background-color: var(--s2); border-color: var(--t);
+    -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+  }
+}

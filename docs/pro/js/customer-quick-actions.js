@@ -45,9 +45,16 @@
   // standing in the driveway, not a trip to More.
   var PRIMARY_IDS = ['callLink', 'smsBookingLink', 'emailLink', 'stageProgressBtn', 'bookingKindSelect', 'briefMeBtn'];
   var PRIMARY_ACTIONS = ['progressStage'];
+  /* 2026-10-08: the roof-day action row (#roofActionRow, directly above this
+   * bar) carries Call — it taps #callLink — so on a phone the bar's own Call
+   * is a duplicate and Email is the one contact action left over. Both step
+   * down into More; Email stays one tap away there. Only when the row is on
+   * the page, so a page without it keeps the old primary set. */
+  var ROW_COVERED_IDS = ['callLink', 'emailLink'];
 
   function isPrimary(el) {
     if (!el || el.nodeType !== 1) return false;
+    if (el.id && ROW_COVERED_IDS.indexOf(el.id) !== -1 && document.getElementById('roofActionRow')) return false;
     if (el.id && PRIMARY_IDS.indexOf(el.id) !== -1) return true;
     var a = el.getAttribute && el.getAttribute('data-action');
     return !!a && PRIMARY_ACTIONS.indexOf(a) !== -1;
