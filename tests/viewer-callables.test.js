@@ -477,6 +477,11 @@ const VERDICTS = {
   // viewer / member itself; remove goes through requireTeamAdmin. Proven in
   // tests/sms-dnc-2026-10-05.test.js section D.
   manageSmsCompliance: 'already',
+  // Away mode + backup person (2026-10-12, away-mode.js): the owner actions go through
+  // requireTeamAdmin (owner / company_admin only); the backup's two actions refuse a
+  // viewer / member and then require the caller to BE the verified backup. Proven in
+  // tests/away-mode-2026-10-12.test.js sections K and L.
+  manageAway: 'role-gated',
   // "Ok to text from my phone?" + phone-send log + "They replied STOP"
   // (phone-text-check.js, 2026-10-06): refuses viewer / member itself before
   // any read. Proven in tests/texting-r2-fixes-2026-10-06.test.js.

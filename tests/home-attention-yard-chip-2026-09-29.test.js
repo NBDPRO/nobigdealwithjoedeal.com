@@ -133,7 +133,7 @@ console.log('\n4. wiring');
   ok('a sub / supplier counts ONLY through a promise', !need({ callType: 'sub', urgent: true }) && !need({ callType: 'supplier', followUpDate: '2026-09-30' })
     && !need({ leadId: null, bucket: 'unknown', callType: 'supplier' }) && need(Object.assign({ callType: 'sub' }, promise)) && need(Object.assign({ callType: 'supplier', leadId: null, bucket: 'contact' }, promise)));
   const haSrc = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'home-attention.js'), 'utf8');
-  ok('Home counts days of texts by the same rule', /collection\(w\.db, 'phone_text_days'\), w\.where\('userId', '==', u\), w\.orderBy\('startedAtMs', 'desc'\), w\.limit\(100\)/.test(haSrc) && /out\.calls = callersNeedingYou\(callRows, Date\.now\(\)\)/.test(haSrc) && (haSrc.match(/callRows\.push/g) || []).length === 2);
+  ok('Home counts days of texts by the same rule', /collection\(w\.db, 'phone_text_days'\), w\.where\('userId', '==', u\), w\.orderBy\('startedAtMs', 'desc'\), w\.limit\(100\)/.test(haSrc) && /out\.calls = callersNeedingYou\(callRows, Date\.now\(\)(, labels)?\)/.test(haSrc) && (haSrc.match(/callRows\.push/g) || []).length === 2);
   ok('Home reads only the owner\'s own calls, newest 200', /collection\(w\.db, 'phone_calls'\), w\.where\('userId', '==', u\), w\.orderBy\('startedAtMs', 'desc'\), w\.limit\(200\)/.test(haSrc));
 }
 
