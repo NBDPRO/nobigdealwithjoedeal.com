@@ -10,6 +10,7 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "away-mode-2026-10-12.test.js",
     "layout-mapview-2026-10-12.test.js",
     "layout-system-2026-10-11.test.js",
     "layout-kit-2026-10-11.test.js",

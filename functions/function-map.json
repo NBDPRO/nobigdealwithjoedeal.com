@@ -180,6 +180,8 @@
   "phoneTextAction": "./phone-text-check",
   "previewAiPersona": "./handlers/ai-texting-preview",
   "promiseCleanup": "./promise-cleanup",
+  "manageAway": "./away-mode",
+  "awayModeTick": "./away-mode",
   "provisionE2ETestUser": "./handlers/auth",
   "publicFunnelAI": "./handlers/ai",
   "publicRoofMeasure": "./integrations/public-measure",
