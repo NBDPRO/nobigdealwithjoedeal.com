@@ -150,10 +150,12 @@ console.log('C. Today plan');
 // ── D. wiring + drift ─────────────────────────────────────────────────
 console.log('D. wiring');
 {
-  const sl = read('docs/pro/js/script-loader.js');
-  const m = /contactlabels:\s*\[([\s\S]*?)\]/.exec(sl);
-  ok('script-loader has a contactlabels bundle with css + logic + data/sheet', !!m && /contact-labels\.css/.test(m[1]) && /contact-labels-logic\.js/.test(m[1]) && /contact-labels\.js/.test(m[1]));
-  ok('logic loads BEFORE the data module in the bundle', !!m && m[1].indexOf('contact-labels-logic.js') < m[1].indexOf("contact-labels.js"));
+  // The bundle is registered at runtime by home-attention.js (deferred), NOT in
+  // script-loader.js: that is a BLOCKING script with ~300 B of budget left.
+  const m = /bundles\.contactlabels = \[([^\]]*)\]/.exec(read('docs/pro/js/home-attention.js'));
+  ok('home-attention registers a contactlabels bundle with css + logic + data/sheet', !!m && /contact-labels\.css/.test(m[1]) && /contact-labels-logic\.js/.test(m[1]) && /contact-labels\.js/.test(m[1]));
+  ok('logic loads BEFORE the data module in the bundle', !!m && m[1].indexOf('contact-labels-logic.js') < m[1].indexOf('contact-labels.js'));
+  ok('script-loader.js (a blocking script) carries no label code', !/contact-?labels/i.test(read('docs/pro/js/script-loader.js')));
   const dash = read('docs/pro/dashboard.html');
   ok('NO boot bytes: dashboard.html never loads the label files', !/contact-labels/.test(dash));
   ok('control: dashboard.html still loads home-attention.js (the grep can see tags)', /home-attention\.js\?v=/.test(dash));

@@ -456,15 +456,6 @@
     callcenter: [
       'js/call-center-view.js?v=13'
     ],
-    // Per-number contact labels (2026-10-12): the registry read, the Label
-    // sheet and the chips. Loaded by home-attention.js after boot (so labels
-    // hide a personal / spam number from "needs you") and by the Call Center
-    // and Today's Label button. No boot bytes.
-    contactlabels: [
-      'css/contact-labels.css?v=1',
-      'js/contact-labels-logic.js?v=1',
-      'js/contact-labels.js?v=1'
-    ],
     // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
     // Rules editor (Settings → Estimates) and the logo upload / company export
     // buttons (Company Profile, Access). Their markup only exists inside the
