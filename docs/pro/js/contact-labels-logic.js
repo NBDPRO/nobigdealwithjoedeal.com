@@ -125,7 +125,7 @@
     if (!label) return null;
     var p = policyOf(label);
     return {
-      // A hidden number that still shows (a promise Jo made) says so.
+      // A hidden number that still shows (a promise or an urgent call) says so.
       text: (KIND_LABEL[label.kind] || 'Labeled') + (p === 'hide' ? ' · hidden number' : ''),
       tone: p === 'hide' ? 'hidden' : p === 'quiet' ? 'quiet' : 'neutral',
       title: (KIND_LABEL[label.kind] || 'Labeled') + ' — ' + POLICY_LABEL[p],

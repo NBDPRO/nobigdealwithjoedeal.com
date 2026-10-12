@@ -69,7 +69,11 @@ function callNeedsYou(c, now, ctx) {
   const promised = (c.promises || []).some((p) => p && p.who === 'jo');
   const lb = labelOf(ctx, c);
   const pol = labelPolicy(lb);
-  if (pol === 'hide' || pol === 'quiet') return promised || !!(c.followUpDate && c.followUpDate <= etYmd(t));
+  const dueFu = !!(c.followUpDate && c.followUpDate <= etYmd(t));
+  // hide: a promise, a due callback or an urgent call from a non-spam number
+  // breaks through (mirror of home-attention.js); quiet: promise / callback only.
+  if (pol === 'hide') return promised || dueFu || (c.urgent === true && lb.kind !== 'spam');
+  if (pol === 'quiet') return promised || dueFu;
   if (!pol && (c.callType === 'sub' || c.callType === 'supplier')) return promised;
   if (c.urgent === true) return true;
   if (promised) return true;
@@ -118,8 +122,10 @@ function resurfacedNumbers(rows, labels, now) {
 /** Why a call / text day needs Jo, in a few words. */
 function reasonFor(c, now, ctx) {
   const promised = (c.promises || []).some((p) => p && p.who === 'jo');
-  const pol = labelPolicy(labelOf(ctx, c));
-  if (c.urgent === true && c.callType !== 'sub' && c.callType !== 'supplier' && pol !== 'hide' && pol !== 'quiet') return 'urgent';
+  const lb = labelOf(ctx, c);
+  const pol = labelPolicy(lb);
+  const urgentOk = pol === 'quiet' ? false : (pol === 'hide' ? !!(lb && lb.kind !== 'spam') : true);
+  if (c.urgent === true && c.callType !== 'sub' && c.callType !== 'supplier' && urgentOk) return 'urgent';
   if (promised) return 'you promised something';
   if (c.followUpDate && c.followUpDate <= etYmd(now)) return 'follow-up due';
   if (isMissedCall(c)) return 'missed call';
