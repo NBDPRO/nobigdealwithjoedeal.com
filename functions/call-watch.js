@@ -40,6 +40,26 @@ async function recentTexts(nowMs) {
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const watchEnabled = () => process.env.CALL_WATCH_ENABLED === 'true';
 
+/**
+ * The tenant's per-number labels (companies/{OWNER}/contact_labels), indexed
+ * by 10 digits. A failed read is NOT fatal and NOT silent: the watch runs
+ * with no labels (every call surfaces, the safe direction) and logs why.
+ */
+async function loadLabels(db) {
+  try {
+    const snap = await db.collection('companies').doc(OWNER).collection('contact_labels').get();
+    const out = {};
+    snap.docs.forEach((d) => {
+      const x = d.data() || {};
+      if (/^\d{10}$/.test(d.id) && x.kind) out[d.id] = { kind: x.kind, policy: x.policy || '', ackAtMs: W.toMs(x.ackAtMs), updatedAtMs: W.toMs(x.updatedAtMs) };
+    });
+    return out;
+  } catch (e) {
+    logger.warn('[callWatch] labels read failed — alerting without labels', { err: e && e.message });
+    return {};
+  }
+}
+
 /** Mirror done follow-up tasks onto open calls / text days (mutates the rows). */
 async function reconcileTaskDone({ db, calls, texts, nowMs, live }) {
   const open = [];
@@ -87,6 +107,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   const rows = (s) => s.docs.map((d) => Object.assign({ id: d.id }, d.data()));
   const thu = rows(thursday).filter((t) => (W.toMs(t.startedAt) || W.toMs(t.createdAt)) >= since14);
   const callRows = rows(calls), textRows = rows(texts);
+  const labels = await loadLabels(db);
 
   // A follow-up task ticked before onCallTaskWrite existed (or a missed
   // trigger) never reached the call: read the open ones' tasks and mirror
@@ -95,7 +116,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
 
   // Items already told (keeps a re-run or an overlapping check from repeating).
   const told = new Set(Array.isArray(st.toldIds) ? st.toldIds : []);
-  const needs = W.newNeeds(callRows, textRows, thu, sinceMs, nowMs).filter((n) => !told.has(n.tellId || n.id));
+  const needs = W.newNeeds(callRows, textRows, thu, sinceMs, nowMs, labels).filter((n) => !told.has(n.tellId || n.id));
   const gates = {
     ingest: process.env.CALL_CENTER_INGEST_ENABLED === 'true',
     transcribe: process.env.CALL_CENTER_TRANSCRIBE_ENABLED === 'true',
@@ -108,11 +129,8 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
     catch (e) { logger.warn('[callWatch] text delivery check skipped', { err: e && e.message }); }
   }
   const tell = W.problemsToTell(problems, st.problemsToldAt, nowMs);
-  // The 20:00 run closes the day with the "nothing fell through" ledger.
-  const ledgerDue = W.etYmd(nowMs) !== st.ledgerYmd && Number(new Date(nowMs).toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false })) === 20;
-  const ledger = ledgerDue ? W.dailyLedger(callRows, textRows, nowMs, { lastPush: st.lastPush, problems: problems.map((p) => p.key) }) : null;
   // Items told before and still open come round again (audit R1), short ladder.
-  const retells = W.ladderRetells(callRows, textRows, st.ladder, nowMs);
+  const retells = W.ladderRetells(callRows, textRows, st.ladder, nowMs, labels);
   const alert = W.alertFor(needs.concat(retells), tell, nowMs);
   const counts = { needs: needs.length, retold: retells.length, problems: problems.length, told: tell.length, tasksMirrored: mirror };
 
@@ -131,14 +149,6 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   }
 
   let pushRes = null;
-  if (ledger) {
-    await db.collection('notifications').add({
-      userId: OWNER, type: 'call_watch', title: ledger.title, message: ledger.message, priority: ledger.priority,
-      clickUrl: '/pro/dashboard.html#/calls', read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
-    });
-    try { await db.doc('integrations/dailyLedger').set(Object.assign({ atMs: nowMs }, ledger, { title: undefined, message: undefined }), { merge: false }); }
-    catch (e) { logger.warn('[callWatch] ledger doc skipped', { err: e && e.message }); }
-  }
   const problemsToldAt = {};
   problems.forEach((p) => { problemsToldAt[p.key] = (tell.some((t) => t.key === p.key) ? nowMs : W.toMs((st.problemsToldAt || {})[p.key])) || nowMs; });
   const toldIds = needs.map((n) => n.tellId || n.id).concat([...told]).slice(0, 400);
@@ -159,8 +169,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   const pushUnreached = !!(alert && pushRes && typeof pushRes === 'object' && pushRes.sent === 0);
   await stateRef.set({
     lastCheckAtMs: nowMs, lastResult: counts, problems: problems.map((p) => p.key), problemsToldAt, toldIds,
-    ledgerYmd: ledger ? ledger.ymd : (st.ledgerYmd || null),
-    ladder: W.nextLadder(callRows, textRows, st.ladder, needs.map((n) => n.id), retells, !pushUnreached, nowMs),
+    ladder: W.nextLadder(callRows, textRows, st.ladder, needs.map((n) => n.id), retells, !pushUnreached, nowMs, labels),
     lastPush: alert ? { atMs: nowMs, sent: pushRes && pushRes.sent != null ? Number(pushRes.sent) : null, failed: pushRes && pushRes.failed != null ? Number(pushRes.failed) : null } : (st.lastPush || null),
   }, { merge: false });
   if (pushUnreached) throw new Error('callWatch: the alert reached 0 devices (no push token on file, or every token failed) — only the in-app bell was written');
@@ -185,4 +194,4 @@ exports.callWatch = onSchedule(
   }
 );
 
-exports._internal = { runWatch, recentTexts, reconcileTaskDone };
+exports._internal = { runWatch, recentTexts, reconcileTaskDone, loadLabels };

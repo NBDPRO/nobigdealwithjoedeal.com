@@ -1074,11 +1074,11 @@ exports.createCustomerPortalSession = onRequest(
       // Owner / company_admin / platform admin only (R3 review, Jo
       // 2026-10-06): the portal changes or cancels the company's plan. The
       // company doc is read only when the claims alone don't already allow.
-      let portalRefusal = billingPortalRefusal(decoded, null);
-      if (portalRefusal) {
-        const companySnap = await db.doc(`companies/${billingKey}`).get();
-        portalRefusal = billingPortalRefusal(decoded, companySnap.exists ? (companySnap.data() || {}).ownerId || null : null);
-      }
+      // The company doc is always read (2026-10-08): the solo-owner branch
+      // must see ownerId, or a removed former owner (company keyed by their
+      // uid, handed off to someone else) would pass on claims alone.
+      const companySnap = await db.doc(`companies/${billingKey}`).get();
+      const portalRefusal = billingPortalRefusal(decoded, companySnap.exists ? (companySnap.data() || {}).ownerId || null : null);
       if (portalRefusal) { res.status(portalRefusal.status).json(portalRefusal.body); return; }
       const subscriptionSnap = await db.doc(`subscriptions/${billingKey}`).get();
 

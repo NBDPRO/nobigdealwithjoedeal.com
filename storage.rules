@@ -62,7 +62,10 @@ service firebase.storage {
     // member being offboarded gets nothing (offboardLock), the same as isOwner.
     function notLocked() { return request.auth.token.get('offboardLock', false) != true; }
     function isSoloCompany(companyId) {
-      return companyId == request.auth.uid && request.auth.token.get('companyId', request.auth.uid) == request.auth.uid;
+      // A lower role is never the solo owner (owner hand-off, 2026-10-12: a
+      // former owner demoted to rep keeps companyId == their uid in claims).
+      return companyId == request.auth.uid && request.auth.token.get('companyId', request.auth.uid) == request.auth.uid
+        && !(request.auth.token.get('role', '') in ['member', 'manager', 'sales_rep', 'viewer']);
     }
     function isCompanyMember(companyId) {
       return isAuth() && notLocked()

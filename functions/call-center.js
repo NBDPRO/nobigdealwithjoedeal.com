@@ -28,6 +28,8 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const L = require('./call-center-logic');
+const PR = require('./promise-logic');
+const CL = require('./contact-labels');
 
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const CONFIG = 'integrations/callCenter';
@@ -113,6 +115,9 @@ async function runIngest({ db, bucket, live, nowMs }) {
   const scan = L.foldersToScan(days, startCursor, floor);
 
   const index = L.buildPhoneIndex(await ownerLeads(db));
+  // Numbers Jo labeled personal AND confirmed "stop copying and transcribing"
+  // (contact-labels.js captureOff): listed so the cursor advances, never copied.
+  const labels = await CL.loadLabels(db, OWNER);
   const counts = { folders: scan.length, seen: 0, fresh: 0, stored: 0, skipped: 0, failed: 0, buckets: {} };
   let cursor = startCursor;
   let budget = MAX_FILES_PER_RUN;
@@ -147,6 +152,17 @@ async function runIngest({ db, bucket, live, nowMs }) {
       const match = L.matchLead(parsed.phoneDigits, index);
       const bucketName = L.classifyCall(parsed, match);
       counts.buckets[bucketName] = (counts.buckets[bucketName] || 0) + 1;
+      if (CL.captureOff(labels, parsed.phoneDigits)) {
+        // One metadata row (time, direction, number) so the Call Center still
+        // shows that it rang; no audio copy, no Groq, no notes, no transcript.
+        counts.labelSkipped = (counts.labelSkipped || 0) + 1;
+        if (live) {
+          await docRef.set(Object.assign(
+            L.buildCallDoc({ ownerUid: OWNER, file: f, parsed, match, bucket: bucketName, storedPath: null, nowMs, durationSec: null }),
+            { status: 'personal', audioRemoved: 'label', capturedByLabel: false, createdAt: FieldValue.serverTimestamp() }));
+        }
+        continue;
+      }
       if (!live) continue;
       if (budget <= 0) { finishedDay = false; break; }
       budget--;
@@ -296,11 +312,38 @@ async function applyLeadContact({ db, leadId, lead, call, notes, todayYmd, nowMs
  * hours as callWatch (CALL_WATCH_ENABLED, 8 AM-8 PM ET) — outside them the
  * next callWatch run tells Jo instead. INTERNAL: never a customer.
  */
+/** One number's label (companies/{OWNER}/contact_labels/{digits}) as { digits: label }; {} when none / unreadable (the safe direction: it surfaces). */
+async function labelFor(db, phoneDigits) {
+  const dg = String(phoneDigits || '').replace(/D/g, '').slice(-10);
+  if (dg.length !== 10) return {};
+  try {
+    const s = await db.collection('companies').doc(OWNER).collection('contact_labels').doc(dg).get();
+    const x = s && s.exists ? (s.data() || {}) : null;
+    return x && x.kind ? { [dg]: { kind: x.kind, policy: x.policy || '' } } : {};
+  } catch (e) {
+    logger.warn('call_center_urgent_label_read_failed', { err: e && e.message });
+    return {};
+  }
+}
+
 async function pushUrgent({ db, d, call, notes, leadName, nowMs }) {
   if (process.env.CALL_WATCH_ENABLED !== 'true' || typeof d.push !== 'function') return false;
   const W = require('./call-watch-logic');
   if (!W.inWatchHours(nowMs)) return false;
+  // The SAME label rule callWatch and Home use (call-watch-logic callNeedsYou /
+  // reasonFor, mirror of contact-labels-logic): a hidden PERSONAL number's urgent
+  // call breaks through (tagged), a spam number's "urgent" does not, a quiet
+  // number needs a promise / due callback. Not 'urgent' here -> callWatch decides.
+  const labels = await labelFor(db, call.phoneDigits);
+  const row = Object.assign({}, call, { urgent: true, promises: notes && notes.promises, followUpDate: notes && notes.followUpDate, callType: (notes && notes.callType) || call.callType });
+  const ctx = { labels };
+  if (!W.callNeedsYou(row, nowMs, ctx) || W.reasonFor(row, nowMs, ctx) !== 'urgent') return false;
+  const lb = W.labelOf(ctx, row);
   const msg = L.urgentPushText({ call, notes, leadName });
+  if (lb && lb.policy === 'hide') {
+    const kindName = { personal: 'Personal', other: 'Other', recruiter: 'Job seeker' }[lb.kind] || String(lb.kind).charAt(0).toUpperCase() + String(lb.kind).slice(1);
+    msg.body = String(msg.body || '').slice(0, 160) + ' (' + kindName + ' · hidden number)';
+  }
   const clickUrl = W.callCardUrl(call.id);
   try {
     const pr = await d.push(OWNER, msg.title, msg.body, { type: 'call_watch', clickUrl, notificationId: 'call-urgent-' + call.id });
@@ -459,6 +502,16 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
       .orderBy('startedAtMs', 'desc').limit(TRANSCRIBE_PER_RUN * 3).get();
     q.forEach((d) => candidates.push(Object.assign({}, d.data(), { id: d.id })));
   }
+  // A number labeled personal + "stop copying and transcribing" after its call
+  // was copied: never transcribe it. The stored audio is left exactly as it is
+  // (only the status moves, so the queue stops seeing it).
+  const labels = await CL.loadLabels(db, OWNER);
+  const kept = [];
+  for (const c of candidates) {
+    if (!CL.captureOff(labels, c.phoneDigits)) { kept.push(c); continue; }
+    if (live) await db.collection(COLLECTION).doc(c.id).set({ status: 'personal', labelCapture: 'off' }, { merge: true });
+  }
+  candidates = kept;
   const pick = L.pickToTranscribe(candidates, { live, allowIds, maxCount: TRANSCRIBE_PER_RUN, secLeft });
   const out = { state: allowIds.length ? 'test' : 'live', picked: pick.length, noted: 0, personal: 0, failed: 0, tasks: 0, audioSec: 0 };
   const d = deps();
@@ -892,6 +945,82 @@ async function callAction({ db, auth, data, nowMs }) {
     }
     await ref.set({ snoozeUntilYmd: null }, { merge: true });
     return { ok: true, on: 'call' };
+  }
+  // Promise capture (2026-10-12; documentation/projects/PROMISE-CAPTURE-2026-10-12.md).
+  // Handling a call asks what Jo owes: one chip (Call back / Send estimate /
+  // Text by 5pm / Order materials / Check on permit / Waiting on them) and a
+  // date become a dated task on the customer (promise-<callId>, so a double
+  // tap writes once and choosing again from the call edits it). The call is
+  // marked handled and its generic cube-/sms- follow-up task is retired as
+  // superseded, so the person is not owed twice. A call filed on no customer
+  // has no lead to hang a task on: the promise rides on the call doc
+  // (promise{} + followUpDate, the rule needs-you already reads) and the call
+  // stays unhandled. "Nothing owed" is the plain 'handled' action.
+  if (action === 'promise') {
+    const today = etToday(nowMs);
+    const kind = String((data && data.kind) || '');
+    const built = PR.buildTask({
+      kind, dueYmd: data && data.dueYmd ? String(data.dueYmd) : '', why: data && data.why, todayYmd: today,
+      uid: auth.uid, source: isText ? 'text' : 'call', sourceCallId: id,
+      waitingOn: data && data.waitingOn, waitingDays: data && data.waitingDays,
+    });
+    if (built.error) throw new HttpsError('invalid-argument', built.error);
+    if (call.leadId) {
+      const leadId = String(call.leadId);
+      const ls = await db.doc('leads/' + leadId).get();
+      const lead = ls.exists ? ls.data() : null;
+      if (!lead || lead.deleted === true) throw new HttpsError('not-found', 'Customer not found.');
+      if (!leadInCallTenant(lead, call)) throw new HttpsError('permission-denied', 'That customer is not in your company.');
+      const taskId = 'promise-' + id;
+      const taskRef = db.doc('leads/' + leadId + '/tasks/' + taskId);
+      const prev = await taskRef.get();
+      const old = prev.exists ? (prev.data() || {}) : null;
+      const doc = Object.assign({}, built, {
+        leadId, userId: lead.userId || call.userId || OWNER,
+        title: built.text, createdBy: 'Promise capture', phoneCallId: id, updatedAt: FieldValue.serverTimestamp(),
+      });
+      if (lead.companyId || call.companyId) doc.companyId = lead.companyId || call.companyId;
+      if (old && old.kind === 'promise') {
+        // Editing the same promise: keep its history, never reset a miss count.
+        ['missCount', 'rescheduleCount', 'madeYmd', 'madeBy', 'nudgeCount', 'waitingSince'].forEach((k) => { if (old[k] !== undefined && old[k] !== null) doc[k] = old[k]; });
+        if (doc.promiseKind === 'waiting' && old.promiseKind !== 'waiting') doc.waitingSince = built.waitingSince;
+        doc.done = false; doc.completedAt = null; doc.outcome = null;
+      } else {
+        doc.madeAt = FieldValue.serverTimestamp();
+        doc.createdAt = FieldValue.serverTimestamp();
+      }
+      await taskRef.set(doc, { merge: true });
+      const genericRef = db.doc('leads/' + leadId + '/tasks/' + (isText ? 'sms-' : 'cube-') + id);
+      const g = await genericRef.get();
+      if (g.exists && (g.data() || {}).done !== true) {
+        await genericRef.set({ done: true, completedAt: FieldValue.serverTimestamp(), supersededBy: taskId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      }
+      await ref.set({ handledAtMs: nowMs, handledBy: auth.uid, promiseTaskId: taskId, promiseKind: kind }, { merge: true });
+      return { ok: true, on: 'task', taskId, dueDate: built.dueDate };
+    }
+    if (kind === 'waiting') throw new HttpsError('failed-precondition', 'File this call on a customer first - waiting needs a customer.');
+    const prevPromise = call.promise && call.promise.kind === 'promise' ? call.promise : null;
+    const promise = Object.assign({}, built);
+    if (prevPromise) ['missCount', 'rescheduleCount', 'madeYmd', 'madeBy'].forEach((k) => { if (prevPromise[k] != null) promise[k] = prevPromise[k]; });
+    const patch = { promise, promiseKind: kind, followUpDate: built.dueDate, handledAtMs: null };
+    if (built.dueDate > today) { patch.snoozeUntilYmd = built.dueDate; patch.snoozedBy = auth.uid; } else patch.snoozeUntilYmd = null;
+    await ref.set(patch, { merge: true });
+    return { ok: true, on: 'call', dueDate: built.dueDate };
+  }
+  // Moving a promise that rides on a call (no customer): a new date, and a
+  // miss counted when it was already past due. Task promises move on the task.
+  if (action === 'promiseMove') {
+    const p = call.promise && call.promise.kind === 'promise' ? call.promise : null;
+    if (!p) throw new HttpsError('failed-precondition', 'This call has no promise to move.');
+    const today = etToday(nowMs);
+    const to = String((data && data.dueYmd) || '');
+    const bad = PR.moveProblem(p, to, today);
+    if (bad) throw new HttpsError('invalid-argument', bad);
+    const next = Object.assign({}, p, PR.movePatch(p, to, today));
+    const patch = { promise: next, followUpDate: to, snoozeUntilYmd: to > today ? to : null };
+    if (to > today) patch.snoozedBy = auth.uid;
+    await ref.set(patch, { merge: true });
+    return { ok: true, on: 'call', dueDate: to, missCount: next.missCount };
   }
   // Texts are matched to customers by the text ingest itself; only Handled applies.
   if (isText) throw new HttpsError('invalid-argument', 'Only Handled applies to texts.');

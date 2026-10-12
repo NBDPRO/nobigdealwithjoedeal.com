@@ -56,7 +56,8 @@ console.log('A. registry rules');
     && LG.buildDoc({ digits: '5550142222', kind: 'sub', companyId: 'co-a' }) === null);
   const long = LG.buildDoc(Object.assign({ digits: '5550142222', kind: 'sub', name: 'n'.repeat(200), note: 'x'.repeat(500) }, ownerOpts));
   ok('buildDoc: name capped at 80, note at 200', long.name.length === 80 && long.note.length === 200);
-  ok('buildDoc carries ONLY the keys the rules allow', Object.keys(d).sort().join() === LG.DOC_KEYS.slice().sort().join());
+  ok('buildDoc carries ONLY the keys the rules allow (ackAtMs only when set)', Object.keys(d).sort().join() === LG.DOC_KEYS.filter((k) => k !== 'ackAtMs' && k !== 'capture').sort().join()
+    && LG.buildDoc(Object.assign({ digits: '5550142222', kind: 'spam', ackAtMs: 5 }, ownerOpts)).ackAtMs === 5);
 
   const idx = LG.indexLabels([
     { id: '5550142222', data: { kind: 'sub', policy: 'hide' } },
@@ -113,6 +114,9 @@ const L = (kind, policy) => ({ '5550142222': { kind, policy: policy || LG.defaul
   ok('quiet: an urgent call does NOT break through (the sub / supplier rule stands)', HA.callNeedsYou(call({ urgent: true }), NOW, { labels: L('sub') }) === false);
   ok('hide drops a missed call (noise)', HA.callNeedsYou(call({ status: 'short' }), NOW, { labels: L('personal') }) === false
     && HA.callNeedsYou(call({ status: 'short' }), NOW, { labels: {} }) === true);
+  ok('hide does NOT swallow a follow-up date that has come; a future one waits', HA.callNeedsYou(call({ followUpDate: '2026-10-12' }), NOW, { labels: L('personal') }) === true
+    && HA.callNeedsYou(call({ followUpDate: '2026-10-20' }), NOW, { labels: L('personal') }) === false);
+  ok('hide still drops a promise THEY made', HA.callNeedsYou(call({ promises: [{ who: 'them', text: 'x' }] }), NOW, { labels: L('personal') }) === false);
   ok('quiet: an urgent unknown call does NOT count', HA.callNeedsYou(call({ urgent: true }), NOW, { labels: L('sub') }) === false);
   ok('quiet: a promise Jo made DOES count (the old sub/supplier rule)', HA.callNeedsYou(call({ promises: [{ who: 'jo', text: 'send the quote' }] }), NOW, { labels: L('sub') }) === true);
   ok('quiet: a promise THEY made does not', HA.callNeedsYou(call({ promises: [{ who: 'them', text: 'text me' }] }), NOW, { labels: L('sub') }) === false);
@@ -142,8 +146,30 @@ const L = (kind, policy) => ({ '5550142222': { kind, policy: policy || LG.defaul
   ok('hiddenPeople counts people, not calls', HA.hiddenPeople(rows, NOW, lab) === 1 && HA.hiddenPeople(rows, NOW, null) === 0 && HA.hiddenPeople(rows, NOW, {}) === 0);
   ok('a hidden number on a lead keeps the lead commitment (one person) and drops its missed-call noise',
     HA.groupNeeds([call({ id: 'l1', leadId: 'L1', promises: [{ who: 'jo', text: 'x' }] })], NOW, { '5550142222': { kind: 'personal', policy: 'hide' } }).length === 1
-    && HA.groupNeeds([call({ id: 'l2', leadId: 'L1', status: 'short' })], NOW, { '5550142222': { kind: 'personal', policy: 'hide' } }).length === 0
+    && HA.groupNeeds([call({ id: 'l2', leadId: 'L1', status: 'short' })], NOW, { '5550142222': { kind: 'personal', policy: 'hide', updatedAtMs: NOW } }).length === 0
     && HA.groupNeeds([call({ id: 'l2', leadId: 'L1', status: 'short' })], NOW).length === 1);
+}
+
+// ── B2. the safety valve ──────────────────────────────────────────────
+console.log('B2. a hidden number that matches a customer or calls a lot comes back once');
+{
+  const lab = (extra) => ({ '5550142222': Object.assign({ kind: 'spam', policy: 'hide', updatedAtMs: NOW - 6 * 3600000 }, extra || {}) });
+  const burst = [1, 2, 3].map((i) => call({ id: 'b' + i, startedAtMs: NOW - i * 20 * MIN }));
+  const gB = HA.groupNeeds(burst, NOW, lab());
+  ok('control: the same three calls are NOT resurfaced without a hide label', HA.groupNeeds(burst, NOW, null).every((g) => !g.resurfaced));
+  ok('3 inbound calls in 24h after the label: one person, resurfaced "burst"', gB.length === 1 && gB[0].resurfaced === 'burst' && gB[0].calls.length === 3);
+  ok('2 calls are not a burst', HA.groupNeeds(burst.slice(0, 2), NOW, lab()).length === 0);
+  ok('calls from BEFORE the label was applied do not count', HA.groupNeeds(burst, NOW, lab({ updatedAtMs: NOW - 5 * MIN })).length === 0);
+  ok('"Keep hidden" (ackAtMs) quiets it: the burst before the ack is not counted again', HA.groupNeeds(burst, NOW, lab({ ackAtMs: NOW - 5 * MIN })).length === 0);
+  ok('...and a NEW burst after the ack comes back',
+    HA.groupNeeds(burst.concat([4, 5, 6].map((i) => call({ id: 'n' + i, startedAtMs: NOW - i * MIN }))), NOW, lab({ ackAtMs: NOW - 10 * MIN })).length === 1);
+  ok('outbound calls (Jo ringing them) are not a burst', HA.groupNeeds(burst.map((c) => Object.assign({}, c, { direction: 'outbound' })), NOW, lab()).length === 0);
+  ok('a handled call never triggers it', HA.groupNeeds(burst.map((c) => Object.assign({}, c, { handledAtMs: NOW })), NOW, lab()).length === 0);
+  const onLead = [call({ id: 'ld', leadId: 'L9', startedAtMs: NOW - 30 * MIN })];
+  const gL = HA.groupNeeds(onLead, NOW, lab());
+  ok('a hidden number filed on a customer resurfaces ("lead")', gL.length === 1 && gL[0].resurfaced === 'lead' && gL[0].key === 'lead:L9');
+  ok('a quiet (not hide) number never resurfaces', HA.groupNeeds(burst, NOW, { '5550142222': { kind: 'sub', policy: 'quiet', updatedAtMs: NOW - 6 * 3600000 } }).length === 0);
+  ok('hiddenPeople does not count a resurfaced person as hidden', HA.hiddenPeople(burst, NOW, lab()) === 0);
 }
 
 // ── C. Today ──────────────────────────────────────────────────────────
@@ -183,6 +209,8 @@ console.log('D. wiring');
   ok('Today groups calls WITH the loaded labels (not the bare rule)', /HA\.groupNeeds\(HA\.lastRows, now, HA\.lastLabels \|\| null\)/.test(th));
   ok('home-attention counts the strip with the labels too', /callersNeedingYou\(callRows, Date\.now\(\), labels\)/.test(ha));
   const cc = read('docs/pro/js/call-center-view.js');
+  ok('Today shows the resurfaced row with a Keep hidden button wired to ack; the plan carries the reason',
+    /btn\('rehide', r\.key, 'Keep hidden'\)/.test(th) && /w\.NBDContactLabels\.ack\(r\.phone\)/.test(th) && /resurfaced: g\.resurfaced \|\| ''/.test(read('docs/pro/js/today-plan.js')));
   ok('Call Center: Labeled filter, chip and Label button exist', /\['labeled', 'Labeled'/.test(cc) && /function labelChip/.test(cc) && /data-cc="label"/.test(cc));
   ok('Call Center groups and tests "needs attention" with the labels', /HA\.groupNeeds\(rows, Date\.now\(\), labelsNow\(\)\)/.test(cc) && /reach\.ctx\.labels = lb/.test(cc));
   ok('no inline handlers or styles in the new files', ['docs/pro/js/contact-labels.js', 'docs/pro/js/contact-labels-logic.js'].every((f) => !/\son[a-z]+=|style="/.test(read(f))));

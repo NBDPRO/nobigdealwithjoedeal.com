@@ -89,6 +89,31 @@ html[data-layout="mission"] .mc-tl { display: flex; align-items: center; gap: 12
 html[data-layout="mission"] .mc-scrub { flex: 1 1 160px; min-width: 120px; accent-color: var(--orange); }
 html[data-layout="mission"] .mc-tl-label { font-size: 13px; color: var(--m); }
 
+/* day route (M3) */
+html[data-layout="mission"] .mc-seg { display: flex; gap: 6px; margin-bottom: 8px; }
+html[data-layout="mission"] .mc-seg .mc-btn { flex: 1 1 0; }
+html[data-layout="mission"] .mc-stops { list-style: none; margin: 0; padding: 0; }
+html[data-layout="mission"] .mc-stop {
+  display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; box-sizing: border-box;
+  min-height: var(--tap); padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--rule); border-radius: 12px;
+  background: var(--s2); color: var(--t); font: inherit; cursor: pointer;
+}
+html[data-layout="mission"] .mc-num {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--orange); color: var(--accent-fg, #fff); font-weight: 800; font-size: 13px;
+}
+html[data-layout="mission"] .mc-stop-main { display: flex; flex-direction: column; min-width: 0; }
+html[data-layout="mission"] .mc-drive { font-size: 12px; color: var(--m); margin-top: 2px; }
+html[data-layout="mission"] .mc-layers { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+html[data-layout="mission"] .mc-layer {
+  min-height: 40px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--rule); background: var(--s2); color: var(--t);
+  font: inherit; font-weight: 700; font-size: 13px; cursor: pointer;
+}
+html[data-layout="mission"] .mc-layer-on { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); }
+html[data-layout="mission"] .mc-layer-off { opacity: .5; cursor: not-allowed; }
+html[data-layout="mission"] .mc-draft { font-size: 15px; padding: 8px 10px; border: 1px dashed var(--rule); border-radius: 8px; background: var(--bg); }
+html[data-layout="mission"] .mc-open-sms { display: inline-flex; align-items: center; text-decoration: none; }
+
 /* phones and narrow windows: map on top, panels stack under it */
 @media (max-width: 900px) {
   html[data-layout="mission"] .mc-body { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 46vh) auto auto; overflow-y: auto; }

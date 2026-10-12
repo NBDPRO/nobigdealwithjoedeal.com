@@ -8,6 +8,12 @@
  *   Canvass   the warned area cut into turfs with door counts, and the
  *             door-knock script
  *
+ * A fourth screen, "Day route" (design idea #11, M3), shows today's stops as a
+ * numbered route on the same map: order by appointment time or the shortest
+ * route (nearest neighbour + 2-opt, client side), ESTIMATED drive times (no
+ * routing API), stage-coloured pins, a layers bar, and an "On my way" text that
+ * is DRAFTED for the rep to send from their own composer. See routeplan.js.
+ *
  * Built from what the CRM already has:
  *   warnings   NBDStormMode.observeWarnings() — the same NWS plumbing Storm Mode
  *              uses (api.weather.gov only). Works with Storm Mode OFF: choosing
@@ -34,8 +40,8 @@
   'use strict';
   if (!root || !root.document) return;
   var W = root, doc = root.document;
-  var K = W.NBDLayoutKit, E = W.LayoutEngine, MV = W.NBDMapView, ML = W.NBDMissionLogic;
-  if (!K || !E || !MV || !ML) return;
+  var K = W.NBDLayoutKit, E = W.LayoutEngine, MV = W.NBDMapView, ML = W.NBDMissionLogic, RP = W.NBDRoutePlan;
+  if (!K || !E || !MV || !ML || !RP) return;
   var esc = K.esc;
 
   var POLL_MS = 2 * 60 * 1000;
@@ -53,6 +59,7 @@
       reports: [], reportState: 'loading', win: { start: null, end: null, items: [] }, cursor: null, playing: false,
       turfN: 3, reps: {}, sheet: false,
       knocks: [], knockState: 'idle',
+      route: { mode: 'time', layers: { jobs: false, leads: false, swaths: true, roofage: false }, extra: [], sel: null, peek: null, omw: null },
     };
   }
 
@@ -182,12 +189,22 @@
     MV.create(el, { center: c ? [c.lat, c.lng] : undefined, zoom: 10, tiles: 'streets' }).then(function (inst) {
       if (!inst || !mounted || seq !== mapSeq) { if (inst) inst.destroy(); return; }
       map = inst;
-      inst.on('pinclick', function (d) { if (d.pin && d.pin.id && d.pin.id.indexOf('L:') === 0) selectLead(d.pin.id.slice(2)); });
+      inst.on('pinclick', function (d) {
+        var id = d.pin && d.pin.id;
+        if (!id) return;
+        if (S.tab === 'route') {
+          if (id.indexOf('S:') === 0) { S.route.sel = id.slice(2); S.route.peek = null; S.route.omw = null; render(); }
+          else if (id.indexOf('L:') === 0) { S.route.peek = id.slice(2); S.route.sel = null; S.route.omw = null; render(); }
+          return;
+        }
+        if (id.indexOf('L:') === 0) selectLead(id.slice(2));
+      });
       drawMap(true);
     });
   }
   function drawMap(fit) {
     if (!map) return;
+    if (S.tab === 'route') { drawRoute(fit); return; }
     var path = inPath(), pathById = {};
     path.forEach(function (p) { pathById[p.leadId] = p; });
     var pins = [];
@@ -220,6 +237,230 @@
     if (S.sel) map.select('L:' + S.sel);
   }
 
+  // ── day route (M3) ───────────────────────────────────────────────────
+  function firstName(n) { return String(n || '').trim().split(/\s+/)[0] || ''; }
+  function signOff() {
+    var b = null;
+    try { b = typeof W._brand === 'function' ? W._brand() : null; } catch (e) {}
+    return String((b && (b.smsSignOff || b.legalName)) || companyName() || '').slice(0, 60);
+  }
+  function stopFromLead(l, extra) {
+    var pt = ML.leadPoint(l);
+    var x = extra || {};
+    return {
+      key: x.key || ('l:' + l.id), leadId: String(l.id), name: K.leadName(l), address: String(l.address || ''),
+      phone: String(l.phone || l.phoneDigits || ''), timeLabel: x.timeLabel || '', ms: x.ms == null ? null : x.ms, type: x.type || '',
+      stage: String(l._stageKey || l.stage || ''), lat: pt ? pt.lat : null, lng: pt ? pt.lng : null, added: !!x.added,
+    };
+  }
+  /** Today's appointments (the Today view's own rows) + leads the rep added, deduped by lead. */
+  function routeStops() {
+    var p = plan(), rows = (p && p.appointments) || [], out = [], seen = {};
+    rows.forEach(function (a) {
+      var l = a.leadId ? leadById(a.leadId) : null;
+      var id = a.leadId ? String(a.leadId) : String(a.key || out.length);
+      if (seen[id]) return;
+      seen[id] = 1;
+      var base = l ? stopFromLead(l, { key: 'a:' + id, timeLabel: a.timeLabel, ms: a.sortMs, type: a.type }) : {
+        key: 'a:' + id, leadId: a.leadId ? String(a.leadId) : '', name: String(a.name || 'Customer'), address: String(a.address || ''),
+        phone: String(a.phone || ''), timeLabel: String(a.timeLabel || ''), ms: a.sortMs == null ? null : Number(a.sortMs), type: String(a.type || ''), stage: '', lat: null, lng: null,
+      };
+      if (a.name) base.name = String(a.name);
+      if (a.address) base.address = String(a.address);
+      if (a.phone) base.phone = String(a.phone);
+      out.push(base);
+    });
+    S.route.extra.forEach(function (id) {
+      if (seen[id]) return;
+      var l = leadById(id);
+      if (!l) return;
+      seen[id] = 1;
+      out.push(stopFromLead(l, { key: 'x:' + id, added: true }));
+    });
+    out.sort(function (a, b) { return (a.ms == null ? Infinity : a.ms) - (b.ms == null ? Infinity : b.ms); });
+    return out;
+  }
+  /** Order, legs and totals. mode 'time' keeps appointment order; 'short' = NN + 2-opt from the first stop. */
+  function routeModel() {
+    var all = routeStops();
+    var located = all.filter(function (s) { return s.lat != null; });
+    var unlocated = all.filter(function (s) { return s.lat == null; });
+    var pts = located.map(function (s) { return { lat: s.lat, lng: s.lng }; });
+    var ident = located.map(function (s, i) { return i; });
+    var byTime = RP.totals(ident, pts);
+    var order = ident, opt = null;
+    if (S.route.mode === 'short' && located.length > 2) {
+      opt = RP.optimize(pts, 0);
+      order = opt.order;
+    }
+    var t = order === ident ? byTime : RP.totals(order, pts);
+    var ordered = order.map(function (i) { return located[i]; });
+    var tight = RP.conflicts(ordered, t.legs);
+    return {
+      stops: ordered, unlocated: unlocated, legs: t.legs, roadMi: t.roadMi, min: t.min,
+      byTime: byTime, savedMin: Math.max(0, byTime.min - t.min), savedMi: Math.max(0, Math.round((byTime.roadMi - t.roadMi) * 10) / 10),
+      tight: tight, reordered: order.some(function (v, i) { return v !== i; }),
+    };
+  }
+  function stopByKey(key) {
+    var all = routeStops();
+    for (var i = 0; i < all.length; i++) if (all[i].key === key) return all[i];
+    return null;
+  }
+  function legInto(key, model) {
+    for (var i = 0; i < model.stops.length; i++) if (model.stops[i].key === key) return i > 0 ? model.legs[i - 1] : null;
+    return null;
+  }
+  function routeLeft() {
+    var m = routeModel();
+    var h = '<h2 class="mc-h">Day route</h2>';
+    h += '<div class="mc-seg" role="group" aria-label="Route order">' +
+      '<button type="button" class="mc-btn' + (S.route.mode === 'time' ? ' mc-tab-on' : '') + '" data-mc="mode" data-m="time">By time</button>' +
+      '<button type="button" class="mc-btn' + (S.route.mode === 'short' ? ' mc-tab-on' : '') + '" data-mc="mode" data-m="short">Shortest</button></div>';
+    if (!m.stops.length && !m.unlocated.length) {
+      return h + '<p class="mc-note">No appointments on today\'s schedule. Add a customer from the map and they join the route.</p>';
+    }
+    h += '<p class="mc-note"><strong>' + m.stops.length + ' stop' + (m.stops.length === 1 ? '' : 's') + '</strong>' +
+      (m.stops.length > 1 ? ' · about ' + m.min + ' min driving · ' + m.roadMi + ' mi (est.)' : '') + '</p>';
+    if (S.route.mode === 'short' && m.stops.length > 2) {
+      h += '<p class="mc-note">' + (m.savedMin > 0 ? 'Saves about ' + m.savedMin + ' min and ' + m.savedMi + ' mi against appointment order.' : 'Appointment order is already the shortest.') +
+        (m.reordered ? ' <span class="mc-chip mc-chip-warn">Order differs from appointment times</span>' : '') + '</p>';
+    }
+    h += '<ol class="mc-stops">';
+    m.stops.forEach(function (s, i) {
+      var leg = i > 0 ? m.legs[i - 1] : null;
+      var isTight = m.tight.some(function (c) { return c.index === i; });
+      h += '<li><button type="button" class="mc-stop' + (S.route.sel === s.key ? ' mc-row-on' : '') + '" data-mc="stop" data-key="' + esc(s.key) + '">' +
+        '<span class="mc-num">' + (i + 1) + '</span><span class="mc-stop-main"><span class="mc-row-name">' + esc(s.name) + '</span>' +
+        '<span class="mc-row-sub">' + esc([s.timeLabel, String(s.address).split(',')[0]].filter(Boolean).join(' · ')) + '</span>' +
+        (leg ? '<span class="mc-drive">' + leg.min + ' min · ' + leg.roadMi + ' mi (est.)' + (isTight ? ' <span class="mc-chip mc-chip-warn">Tight</span>' : '') + '</span>' : '<span class="mc-drive">Start</span>') +
+        '</span></button></li>';
+    });
+    h += '</ol>';
+    if (m.unlocated.length) {
+      h += '<h3 class="mc-h2">No map location</h3><ul class="mc-list">' + m.unlocated.map(function (s) {
+        return '<li class="mc-note">' + esc(s.name) + (s.timeLabel ? ' · ' + esc(s.timeLabel) : '') + '</li>';
+      }).join('') + '</ul>';
+    }
+    if (m.stops.length > 1) h += '<p class="mc-fine">Drive time is an estimate: straight-line miles x 1.3 at 28 mph. "Tight" assumes ' + RP.ON_SITE_MIN + ' minutes on site.</p>';
+    return h;
+  }
+  function stopDetail(s, model) {
+    if (!s) return '';
+    var leg = legInto(s.key, model);
+    var item = K.fromLead({ id: s.leadId, firstName: '', lastName: '', name: s.name, address: s.address, phone: s.phone, _stageKey: s.stage });
+    item.name = s.name; item.address = s.address; item.phone = s.phone;
+    var st = RP.stageGroup(s.stage);
+    var h = '<div class="mc-block"><div class="mc-cust-name">' + esc(s.name) + '</div><div class="mc-cust-addr">' + esc(s.address) + '</div>' +
+      '<p class="mc-line">' + esc((s.timeLabel ? s.timeLabel + ' · ' : '') + (s.type ? s.type + ' · ' : '') + st.label) + '</p>' +
+      (leg ? '<p class="mc-line">About ' + leg.min + ' min from the previous stop (est.)</p>' : '') + '</div>';
+    h += K.actionBar(item, ['call', 'navigate', 'open'], { size: 'lg' });
+    h += '<button type="button" class="mc-btn mc-btn-primary" data-mc="omw" data-key="' + esc(s.key) + '">On my way</button>';
+    var d = S.route.omw && S.route.omw.key === s.key ? S.route.omw : null;
+    if (d) {
+      if (d.error) h += '<p class="mc-note">' + esc(d.error) + '</p>';
+      else {
+        h += '<div class="mc-sheet"><div class="mc-label">Draft text</div><p class="mc-line mc-draft">' + esc(d.text) + '</p>' +
+          '<div class="mc-sheet-act"><a class="mc-btn mc-open-sms" href="' + esc(d.href) + '">Open in Messages</a></div>' +
+          '<p class="mc-fine">This is a draft. Nothing is sent until you press Send in Messages.</p></div>';
+      }
+    }
+    return h;
+  }
+  function routeRight() {
+    var m = routeModel();
+    var L = S.route.layers;
+    function chip(id, label, on, off, why) {
+      if (off) return '<button type="button" class="mc-layer mc-layer-off" disabled aria-disabled="true" title="' + esc(why) + '">' + esc(label) + '</button>';
+      return '<button type="button" class="mc-layer' + (on ? ' mc-layer-on' : '') + '" data-mc="layer" data-l="' + id + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + esc(label) + '</button>';
+    }
+    var h = '<h2 class="mc-h">Layers</h2><div class="mc-layers" role="group" aria-label="Map layers">' +
+      chip('jobs', 'Jobs', L.jobs) + chip('leads', 'Leads', L.leads) + chip('swaths', 'Hail swaths', L.swaths) +
+      chip('crews', 'Crews', false, true, 'No live crew locations are collected yet') + chip('roofage', 'Roof age', L.roofage) + '</div>';
+    h += '<p class="mc-fine">Crews: live truck positions are not in the CRM\'s data yet, so this layer is off rather than invented.</p>';
+    if (L.roofage) h += '<p class="mc-fine">Roof age: purple 20+ years, blue 10-19, green under 10 (from the roof age on the lead).</p>';
+    var sel = S.route.sel ? stopByKey(S.route.sel) : null;
+    if (sel) h += '<h2 class="mc-h">Stop</h2>' + stopDetail(sel, m);
+    var pk = S.route.peek && !sel ? leadById(S.route.peek) : null;
+    if (pk) {
+      var st = stopFromLead(pk, { key: 'x:' + pk.id, added: true });
+      h += '<h2 class="mc-h">Customer</h2><div class="mc-block"><div class="mc-cust-name">' + esc(st.name) + '</div><div class="mc-cust-addr">' + esc(st.address) + '</div>' +
+        '<p class="mc-line">' + esc(RP.stageGroup(st.stage).label) + '</p></div>' +
+        '<button type="button" class="mc-btn mc-btn-primary" data-mc="addstop" data-id="' + esc(pk.id) + '">Add to today\'s route</button>';
+    }
+    return h;
+  }
+  function drawRoute(fit) {
+    var m = routeModel();
+    var L = S.route.layers;
+    var pins = [], onRoute = {};
+    m.stops.forEach(function (s, i) {
+      onRoute[s.leadId] = 1;
+      pins.push({ id: 'S:' + s.key, lat: s.lat, lng: s.lng, kind: 'stop', color: RP.stageGroup(s.stage).color, num: i + 1, title: s.name, selected: S.route.sel === s.key });
+    });
+    var cap = 0;
+    leads().forEach(function (l) {
+      if (cap >= MAX_PINS || onRoute[String(l.id)]) return;
+      var pt = ML.leadPoint(l);
+      if (!pt) return;
+      var g = RP.stageGroup(l._stageKey || l.stage);
+      var show = false, color = g.color, kind = 'lead';
+      if (L.roofage) {
+        var b = RP.roofAgeBucket(l.roofAge);
+        if (b) { show = true; color = b.color; kind = 'dot'; }
+      }
+      if (!show && L.jobs && g.group === 'job') { show = true; kind = 'job'; }
+      if (!show && L.leads && g.group !== 'job' && g.group !== 'closed') { show = true; kind = 'lead'; }
+      if (!show) return;
+      cap++;
+      pins.push({ id: 'L:' + l.id, lat: pt.lat, lng: pt.lng, kind: kind, color: color, size: kind === 'dot' ? 6 : undefined, title: K.leadName(l) });
+    });
+    if (map) {
+      map.setPins(pins);
+      map.setSwaths(L.swaths ? S.warnings.map(function (w, i) {
+        return { id: 'W:' + i, rings: w.rings, level: w.hailIn > 0 ? MV.levelForHail(w.hailIn) : 'warn', title: w.event + (w.hailIn ? ' · hail up to ' + fmtIn(w.hailIn) : '') };
+      }) : []);
+      map.setRoutes(m.stops.length > 1 ? [{ id: 'route', points: m.stops.map(function (s) { return [s.lat, s.lng]; }), color: 'orange' }] : []);
+      if (fit) map.fit(70);
+    }
+  }
+  // The Today view's appointment read ignores a forced refresh while another is
+  // in flight (and caches for 10 minutes), so a rep who opens the route right
+  // after boot can see an empty day. Ask again a few times while it is empty.
+  function routeKick(n) {
+    if (!mounted || S.tab !== 'route') return;
+    try { if (W.NBDToday && typeof W.NBDToday.refreshAppointments === 'function') W.NBDToday.refreshAppointments(); } catch (e) {}
+    if (n >= 5) return;
+    setTimeout(function () {
+      if (!mounted || S.tab !== 'route') return;
+      var p = plan();
+      if (!p || !(p.appointments || []).length) routeKick(n + 1);
+      else render();
+    }, 3000);
+  }
+  function onMyWay(key) {
+    var s = stopByKey(key);
+    if (!s) return;
+    var model = routeModel();
+    var leg = legInto(key, model);
+    var text = RP.onMyWayText({ first: firstName(s.name), minutes: leg ? leg.min : null, signOff: signOff() });
+    var href = RP.smsHref(s.phone, text);
+    function fail(msg) { S.route.omw = { key: key, error: msg }; render(); }
+    if (!href) { fail('No phone number on file for this customer, so there is nothing to text.'); return; }
+    var PS = W.NBDPhoneShare;
+    var check = PS && typeof PS.checkText === 'function'
+      ? Promise.resolve(PS.checkText({ phone: s.phone, leadId: s.leadId })).catch(function () { return null; })
+      : Promise.resolve(null);
+    check.then(function (chk) {
+      if (!mounted) return;
+      if (chk && chk.ok === true) { S.route.omw = { key: key, text: text, href: href }; render(); return; }
+      // the same server check every other text button runs (STOP list, Do Not
+      // Text, consent, texting switch, 8am-9pm): a "no", or a check that cannot
+      // run, shows the reason and no draft opens.
+      fail((chk && chk.reason) || 'Could not check whether this customer can be texted right now. Nothing was drafted.');
+    });
+  }
+
   // ── render ───────────────────────────────────────────────────────────
   function statusChip() {
     if (S.warnState === 'loading') return '<span class="mc-chip">Checking the sky...</span>';
@@ -229,7 +470,7 @@
     return '<span class="mc-chip">No active warning over your customers</span>';
   }
   function topBar() {
-    var tabs = [['watch', 'Watch'], ['customer', 'Customer'], ['canvass', 'Canvass']].map(function (t) {
+    var tabs = [['watch', 'Watch'], ['customer', 'Customer'], ['canvass', 'Canvass'], ['route', 'Day route']].map(function (t) {
       return '<button type="button" class="mc-tab' + (S.tab === t[0] ? ' mc-tab-on' : '') + '" data-mc="tab" data-to="' + t[0] + '"' + (S.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</button>';
     }).join('');
     return '<div class="mc-top"><div class="mc-title">Mission Control</div><nav class="mc-tabs" aria-label="Mission Control screens">' + tabs + '</nav>' +
@@ -367,6 +608,7 @@
     slot('top', topBar());
     if (S.tab === 'customer') { slot('left', customerPanel()); slot('right', pathList()); }
     else if (S.tab === 'canvass') { slot('left', canvassPanel()); slot('right', scriptPanel()); }
+    else if (S.tab === 'route') { slot('left', routeLeft()); slot('right', routeRight()); }
     else { slot('left', alertRail()); slot('right', pathList()); }
     slot('tl', timeline());
     drawMap(false);
@@ -405,7 +647,19 @@
     if (!t || !rootEl.contains(t)) return;
     var a = t.getAttribute('data-mc');
     ev.preventDefault();
-    if (a === 'tab') { S.tab = t.getAttribute('data-to') || 'watch'; if (S.tab === 'canvass') loadKnocks(); render(); if (map) drawMap(S.tab === 'canvass'); return; }
+    if (a === 'tab') {
+      S.tab = t.getAttribute('data-to') || 'watch';
+      if (S.tab === 'canvass') loadKnocks();
+      if (S.tab === 'route') routeKick(0);
+      render();
+      if (map) drawMap(S.tab === 'canvass' || S.tab === 'route');
+      return;
+    }
+    if (a === 'mode') { S.route.mode = t.getAttribute('data-m') === 'short' ? 'short' : 'time'; render(); return; }
+    if (a === 'layer') { var lid = t.getAttribute('data-l'); if (S.route.layers.hasOwnProperty(lid)) { S.route.layers[lid] = !S.route.layers[lid]; render(); } return; }
+    if (a === 'stop') { S.route.sel = t.getAttribute('data-key'); S.route.peek = null; S.route.omw = null; render(); var sp = stopByKey(S.route.sel); if (map && sp && sp.lat != null) map.select('S:' + sp.key); return; }
+    if (a === 'addstop') { var aid = t.getAttribute('data-id'); if (aid && S.route.extra.indexOf(aid) === -1) S.route.extra.push(aid); S.route.peek = null; render(); return; }
+    if (a === 'omw') { onMyWay(t.getAttribute('data-key')); return; }
     if (a === 'pick') { selectLead(t.getAttribute('data-id')); return; }
     if (a === 'refresh') { loadWarnings(); loadReports(); toast('Refreshing the storm feed', 'info'); return; }
     if (a === 'back') { switchBack(); return; }

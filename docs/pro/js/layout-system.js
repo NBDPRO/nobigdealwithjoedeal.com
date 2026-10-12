@@ -119,10 +119,25 @@
       glove: r.glove === true,
     };
   }
-  // companies/{companyId}/settings/layout
+  // companies/{companyId}/settings/layout. `defaultWidgets` is the admin's
+  // starting arrangement per layout, { <layoutId>: [ ...opaque tiles ] } (the
+  // Bento board's new-hire default lives at defaultWidgets.bento). Bounded the
+  // way firestore.rules bounds it: <= 8 layouts, each a list of <= 24 tiles.
+  function cleanDefaultWidgets(raw) {
+    var out = {};
+    if (!raw || typeof raw !== 'object') return out;
+    Object.keys(raw).slice(0, 8).forEach(function (k) {
+      if (!isId(k) || !Array.isArray(raw[k]) || raw[k].length > 24) return;
+      var json;
+      try { json = JSON.stringify(raw[k]); } catch (e) { return; }
+      if (json && json.length <= 4000) out[k] = raw[k];
+    });
+    return out;
+  }
   function normalizeCompany(raw) {
     var r = raw && typeof raw === 'object' ? raw : {};
     return {
+      defaultWidgets: cleanDefaultWidgets(r.defaultWidgets),
       defaultLayout: isId(r.defaultLayout) ? r.defaultLayout : null,
       defaultByDevice: cleanByDevice(r.defaultByDevice),
       allowed: Array.isArray(r.allowed) ? r.allowed.filter(isId).slice(0, 40) : null,
@@ -216,6 +231,18 @@
     supports: { wallpaper: true, glass: true, sunlight: false },
   });
 
+  // L01 Bento Board (D5). A rearrangeable grid of widget tiles on Home, every
+  // screen (a phone gets two columns). Wraps the CRM's existing widget modules;
+  // its script, stylesheet and the shared kit load only while it is active.
+  register({
+    id: 'bento', name: 'Bento Board', version: 1,
+    blurb: 'Home as a board of tiles you arrange: revenue collected, pipeline, today, hail, tasks, map.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/bento.js', css: 'css/layouts/bento.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: true, sunlight: false },
+  });
+
   // L02 Mission Control (M2). A storm / canvass war room over Home. Every screen
   // (the panels stack under the map on a phone). Its assets - the shared kit, the
   // MapView component, the pure logic and the screen - load only while it is the
@@ -226,7 +253,7 @@
     surfaces: SURFACES, tier: 'free',
     script: 'js/layouts/mission.js', css: 'css/layouts/mission.css',
     needs: {
-      script: ['js/layouts/kit.js', 'js/layouts/mapview.js', 'js/layouts/mission-logic.js'],
+      script: ['js/layouts/kit.js', 'js/layouts/mapview.js', 'js/layouts/mission-logic.js', 'js/layouts/routeplan.js'],
       css: ['css/layouts/kit.css', 'css/layouts/mapview.css'],
     },
     supports: { wallpaper: false, glass: false, sunlight: false },
@@ -585,12 +612,14 @@
       defaultByDevice: 'defaultByDevice' in p ? p.defaultByDevice : company.defaultByDevice,
       allowed: 'allowed' in p ? p.allowed : company.allowed,
       locked: 'locked' in p ? p.locked : company.locked,
+      defaultWidgets: 'defaultWidgets' in p ? p.defaultWidgets : company.defaultWidgets,
     });
     return companyKey().then(function (key) {
       if (!key || !uid || !window.db || !window.doc || !window.setDoc) return { saved: false };
       var data = { locked: next.locked, defaultByDevice: next.defaultByDevice, updatedBy: uid, updatedAt: new Date().toISOString() };
       if (next.defaultLayout) data.defaultLayout = next.defaultLayout;
       if (next.allowed) data.allowed = next.allowed;
+      if (Object.keys(next.defaultWidgets).length) data.defaultWidgets = next.defaultWidgets;
       return Promise.resolve(window.setDoc(window.doc(window.db, 'companies', key, 'settings', 'layout'), data))
         .then(function () {
           company = next;

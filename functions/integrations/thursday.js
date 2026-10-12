@@ -48,6 +48,8 @@ const { SECRETS, getSecret, hasSecret, secretValue, secretOr } = require('./_sha
 const { enforceRateLimit, clientIp } = require('./upstash-ratelimit');
 const { resendRejected, resendErrorMessage } = require('../resend-guard');
 const T = require('./thursday-logic');
+const PB = require('./thursday-playbooks');
+const AWAY = require('../away-mode-logic');
 const { createLeadWithCustomerId, isAlreadyExists } = require('../customer-id-mint');
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
@@ -586,6 +588,61 @@ exports.thursdayCallProcess = onDocumentWritten(
 
 // ── Live caller lookup ──────────────────────────────────────────────────────
 
+// Per-label playbooks (2026-10-12) are DARK: nothing below runs and the lookup
+// response keeps its exact old shape unless THURSDAY_LABEL_PLAYBOOKS_ENABLED is
+// the literal string 'true' (registered in cron-gates.js). Design + the prompt
+// diff Jo reviews: documentation/projects/THURSDAY-LABEL-PLAYBOOKS-2026-10-12.md.
+const playbooksEnabled = () => process.env.THURSDAY_LABEL_PLAYBOOKS_ENABLED === 'true';
+const PLAYBOOK_READ_BUDGET_MS = 900;    // the Bland init snippet gives the whole lookup 2.5 s; the reads run beside the lead queries
+
+// Four small reads in parallel (label, handled setting, away config + status),
+// started BESIDE the lead queries so the whole lookup costs max(), not the sum
+// (security review S1: the Bland snippet aborts at 2.5 s, and a sequential
+// 1.2 s here could have cost a caller the "Is this Pat?" greeting). Any failure
+// or a slow read = null, and the greeting proceeds exactly as it did before
+// playbooks existed. Never rejects.
+async function loadPlaybookInputs(companyId, digits) {
+  const reads = (async () => {
+    const co = 'companies/' + companyId;
+    const [lab, hand, priv, st] = await Promise.all([
+      db().doc(co + '/contact_labels/' + digits).get(),
+      db().doc(co + '/thursday_handled/' + digits).get(),
+      db().doc('away_private/' + companyId).get(),
+      db().doc('away_mode/' + companyId).get(),
+    ]);
+    const labelData = lab.exists ? lab.data() || {} : null;
+    const cfg = priv.exists ? priv.data() || {} : {};
+    const status = st.exists ? st.data() || {} : {};
+    const awayContext = AWAY.thursdayAwayContext(cfg, status.away, Date.now());
+    const bk = AWAY.normalizeConfig(cfg).backup || {};
+    return {
+      label: labelData ? { kind: labelData.kind, policy: labelData.policy } : null,
+      handled: hand.exists,
+      awayContext,
+      backup: {
+        name: (status.backup && status.backup.name) || (bk.external && bk.external.name) || '',
+        email: bk.memberEmail || '',
+        phone: (bk.external && bk.external.phone) || '',
+      },
+    };
+  })();
+  let timer;
+  const budget = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      logger.warn('thursdayCallerLookup: playbook reads over budget, answering without a playbook', { ms: PLAYBOOK_READ_BUDGET_MS });
+      resolve(null);
+    }, PLAYBOOK_READ_BUDGET_MS);
+  });
+  try {
+    return await Promise.race([reads, budget]);
+  } catch (e) {
+    logger.warn('thursdayCallerLookup: playbook context unavailable', { err: e && e.message });
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 exports.thursdayCallerLookup = onRequest(
   {
     region: REGION,
@@ -611,6 +668,8 @@ exports.thursdayCallerLookup = onRequest(
     const from = T.str(body.from || body.phone_number || body.caller || '', 32);
     const digits = String(from).replace(/\D/g, '').replace(/^1/, '').slice(-10);
     if (digits.length !== 10) { res.status(200).json(unknown); return; }
+    // Flag on: the playbook reads start now and run beside the lead queries.
+    const inputsP = playbooksEnabled() ? loadPlaybookInputs(T.NBD_OWNER_UID, digits) : null;
     try {
       const col = db().collection('leads').where('companyId', '==', T.NBD_OWNER_UID);
       const [byMain, byAlt] = await Promise.all([
@@ -618,8 +677,17 @@ exports.thursdayCallerLookup = onRequest(
         col.where('altPhoneDigits', '==', digits).select(...LEAD_MATCH_FIELDS).limit(5).get(),
       ]);
       const leads = byMain.docs.concat(byAlt.docs).map((d) => Object.assign({ id: d.id }, d.data()));
-      const out = T.buildLookupResponse({ companyId: T.NBD_OWNER_UID, from: digits, leads });
-      logger.info('thursdayCallerLookup', { last4: digits.slice(-4), known: out.known, candidates: leads.length });
+      const base = T.buildLookupResponse({ companyId: T.NBD_OWNER_UID, from: digits, leads });
+      let out = base;
+      let playbook = null;
+      if (inputsP) {
+        const inputs = await inputsP;
+        if (inputs) {
+          const resolved = PB.resolvePlaybook(Object.assign({ enabled: true, from: digits, leadKnown: base.known === true }, inputs));
+          if (resolved) { out = PB.widenLookupResponse(base, resolved); playbook = resolved.playbook; }
+        }
+      }
+      logger.info('thursdayCallerLookup', { last4: digits.slice(-4), known: out.known, candidates: leads.length, playbook });
       res.status(200).json(out);
     } catch (e) {
       logger.error('thursdayCallerLookup failed', { err: e && e.message });
