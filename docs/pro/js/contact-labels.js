@@ -270,15 +270,23 @@
   // toggle, the Today recap row and the block list live in two lazy files that
   // load only when the `thursdayLabelPlaybooks` flag is on. Registered here (not
   // in script-loader.js, whose blocking bytes are at their ceiling). Best-effort.
+  // The flags read can land after this file (it needs the signed-in user), so a
+  // flag that is not on yet is re-checked a few times; NBDFlags caches the read.
   try {
     var F = w.NBDFlags;
     if (F && typeof F.load === 'function' && w.ScriptLoader && typeof w.ScriptLoader.load === 'function') {
-      Promise.resolve(F.load()).then(function () {
-        if (!F.enabled('thursdayLabelPlaybooks')) return null;
-        return w.ScriptLoader.load('css/thursday-handled.css?v=1')
-          .then(function () { return w.ScriptLoader.load('js/thursday-handled-logic.js?v=1'); })
-          .then(function () { return w.ScriptLoader.load('js/thursday-handled.js?v=1'); });
-      }).catch(function () { /* optional surface */ });
+      var thTry = function (n) {
+        Promise.resolve(F.load()).then(function () {
+          if (F.enabled('thursdayLabelPlaybooks')) {
+            return w.ScriptLoader.load('css/thursday-handled.css?v=1')
+              .then(function () { return w.ScriptLoader.load('js/thursday-handled-logic.js?v=1'); })
+              .then(function () { return w.ScriptLoader.load('js/thursday-handled.js?v=1'); });
+          }
+          if (n < 6) setTimeout(function () { thTry(n + 1); }, 2500);
+          return null;
+        }).catch(function () { /* optional surface */ });
+      };
+      thTry(0);
     }
   } catch (_) { /* optional surface */ }
 
