@@ -779,6 +779,10 @@ module.exports = {
   sendTeamNotification: exports.sendTeamNotification,
   sendStreakNotification: exports.sendStreakNotification,
   sendCustomNotification: exports.sendCustomNotification,
-  sendPushNotification: exports.sendPushNotification,
-  getUserFCMTokens: exports.getUserFCMTokens
+  // Module-local helpers, NOT `exports.X` — those were never assigned, so
+  // these keys used to export `undefined` (tests/push-helper-exports.test.js).
+  // index.js Object.assign()s this map, but a plain function carries no
+  // __endpoint and Firebase deploy ignores it.
+  sendPushNotification,
+  getUserFCMTokens
 };

@@ -281,9 +281,9 @@ Exported for unit tests or internal reuse; they carry no `__endpoint` and Fireba
 - `lookupHail` — plain async hail-history helper (integrations/hail.js) shared by `getHailHistory` + `attachStormProof` (handlers/storm-proof.js); not a Cloud Function. (2026-08-06 correction: previously said "storm briefing", but storm-briefing.js never imports it.)
 - Swath helpers `fetchSwathHail` / `querySwathProperty` / `verifySwathSignature` / `_test` — module exports of integrations/swath.js consumed by hail.js, parcel.js, and tests/smoke/swath-signature.test.js. Deliberately NOT mounted on index.js (it mounts the three Swath Cloud Functions selectively).
 - Voice-intelligence internals: `_VoiceError`, `_analyzeTranscript`, `_checkBudget`, `_checkVerbalConsent`, `_getCompanyContext`, `_incrementVoiceUsage`, `_parseAudioPath`, `_processRecording`, `_transcribeAudio`
-- Push-notification helpers (plain async functions): `sendTeamNotification`, `sendStreakNotification`, `sendCustomNotification`
+- Push-notification helpers (plain async functions): `sendTeamNotification`, `sendStreakNotification`, `sendCustomNotification`, `sendPushNotification`, `getUserFCMTokens`
 - Slack helper: `postSlack`
-- **Dead keys**: `sendPushNotification` and `getUserFCMTokens` are exported from push-functions.js as `undefined` (its `module.exports` references `exports.sendPushNotification` / `exports.getUserFCMTokens`, which are never assigned). Harmless to deploy, but they should be removed from the export map.
+- **Fixed 2026-10-02**: `sendPushNotification` and `getUserFCMTokens` used to export as `undefined` (the map referenced never-assigned `exports.X`); they now export the module-local functions. Guarded by tests/push-helper-exports.test.js.
 
 ---
 
