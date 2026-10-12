@@ -279,6 +279,7 @@
     "money-font-2026-10-05.test.js",
     "pixel-mode-2026-10-11.test.js",
     "pixel-world-2026-10-11.test.js",
+    "pixel-draft-2026-10-11.test.js",
     "inline-style-ratchet-2026-10-01.test.js",
     "voicemail-error-visible-2026-10-03.test.js",
     "game-xp-2026-10-03.test.js",
