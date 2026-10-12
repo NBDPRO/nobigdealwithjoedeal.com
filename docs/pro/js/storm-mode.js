@@ -94,10 +94,15 @@
       if (p.messageType && p.messageType === 'Cancel') return;
       var exp = Date.parse(p.expires || p.ends || '');
       if (isFinite(exp) && exp <= nowMs) return;
+      var par = p.parameters || {};
+      var hailIn = par.maxHailSize && par.maxHailSize[0] != null ? Number(par.maxHailSize[0]) : 0;
       out.push({
         id: String(p.id || f.id || ''),
         event: p.event,
         hazard: hazardOf(p),
+        hailIn: isFinite(hailIn) && hailIn > 0 ? hailIn : 0,
+        headline: String(p.headline || '').slice(0, 200),
+        expires: p.expires || p.ends || null,
         rings: ringsOf(f.geometry),
         ugc: ((p.geocode && p.geocode.UGC) || []).map(String)
       });
@@ -202,7 +207,26 @@
     return out;
   }
 
+  // Layout context switch (L02 Mission Control). Pure: should the banner OFFER a
+  // one-tap switch to the Mission Control layout? It is only ever an offer — the
+  // layout never changes without the rep's tap — and it is withheld when the
+  // company has locked the layout, when the admin's allow-list hides it, when
+  // the layout cannot show on this screen, or when it is already showing.
+  //   in: { storm:{active,dismissed}, enabled, hasLayout, surfaces:[], surface, company:{locked,allowed}, current }
+  function missionOffer(i) {
+    var x = i || {};
+    if (!x.enabled || !x.storm || !x.storm.active || x.storm.dismissed) return false;
+    if (!x.hasLayout) return false;
+    if (!Array.isArray(x.surfaces) || x.surfaces.indexOf(x.surface) === -1) return false;
+    var c = x.company || {};
+    if (c.locked === true) return false;
+    if (Array.isArray(c.allowed) && c.allowed.indexOf('mission') === -1) return false;
+    if (x.current === 'mission') return false;
+    return true;
+  }
+
   var core = {
+    missionOffer: missionOffer,
     QUALIFYING: QUALIFYING, pointInRing: pointInRing, ringsOf: ringsOf, hazardOf: hazardOf,
     parseAlerts: parseAlerts, customersInside: customersInside, serviceAnchors: serviceAnchors,
     eventKeyOf: eventKeyOf, step: step, chunk: chunk,
@@ -318,6 +342,8 @@
     });
   }
 
+  var lastWarnings = [];      // qualifying alerts overlapping the service area, last successful poll
+
   // -> Promise<null | {matches}>  (null = unknown, NOT all-clear)
   function observe() {
     var L = leads();
@@ -329,18 +355,23 @@
       return Promise.all(z.states.map(function (st) {
         return getJson(NWS + '/alerts/active?status=actual&message_type=alert&area=' + encodeURIComponent(st));
       })).then(function (collections) {
-        var seen = {}, matches = [];
+        var seen = {}, matches = [], kept = [];
         collections.forEach(function (json) {
           parseAlerts(json, now).forEach(function (a) {
             if (seen[a.id]) return;
             seen[a.id] = 1;
             if (a.rings.length) {
               var inside = customersInside(a, L);
-              if (inside.length) matches.push({ id: a.id, hazard: a.hazard, leadIds: inside });
+              if (inside.length) { matches.push({ id: a.id, hazard: a.hazard, leadIds: inside }); kept.push({ alert: a, leadIds: inside }); }
             } else if (a.ugc.some(function (c) { return z.ugc.indexOf(c) >= 0; })) {
               matches.push({ id: a.id, hazard: a.hazard, leadIds: [] });   // zone-wide: banner only, no drafts
+              kept.push({ alert: a, leadIds: [] });
             }
           });
+        });
+        lastWarnings = kept.map(function (k) {
+          return { id: k.alert.id, event: k.alert.event, hazard: k.alert.hazard, hailIn: k.alert.hailIn, headline: k.alert.headline,
+            expires: k.alert.expires, rings: k.alert.rings, leadIds: k.leadIds };
         });
         return { matches: matches };
       });
@@ -440,21 +471,44 @@
       var dis = document.createElement('button'); dis.type = 'button';
       dis.className = 'storm-mode-btn'; dis.textContent = 'Dismiss';
       dis.setAttribute('data-sm-dismiss', '1');
-      banner.appendChild(msg); banner.appendChild(open); banner.appendChild(keep); banner.appendChild(dis);
+      var mc = document.createElement('button'); mc.type = 'button';
+      mc.className = 'storm-mode-btn'; mc.textContent = 'Mission Control';
+      mc.setAttribute('data-sm-mission', '1'); mc.hidden = true;
+      banner.appendChild(msg); banner.appendChild(open); banner.appendChild(mc); banner.appendChild(keep); banner.appendChild(dis);
       document.body.appendChild(banner);
     }
     banner.querySelector('.storm-mode-msg').textContent = (previewOn ? 'PREVIEW: ' : '') + bannerText(st);
     var keepBtn = banner.querySelector('[data-sm-keep]');
     if (keepBtn) keepBtn.hidden = !themed || overridden;
+    var mcBtn = banner.querySelector('[data-sm-mission]');
+    if (mcBtn) mcBtn.hidden = !missionOfferNow(st);
     banner.hidden = false;
+  }
+
+  function missionOfferNow(st) {
+    var E = window.LayoutEngine, R = window.LayoutRegistry;
+    if (!E || !R || previewOn) return false;
+    var def = R.get('mission');
+    var p = E.prefs ? E.prefs() : { company: {} };
+    return missionOffer({
+      storm: st, enabled: loadCfg().enabled, hasLayout: !!def, surfaces: def ? def.surfaces : [],
+      surface: E.surface(), company: p.company || {}, current: E.current().id
+    });
   }
   function hideBanner() { if (banner) banner.hidden = true; }
 
   function onClick(ev) {
-    var t = ev.target && ev.target.closest ? ev.target.closest('[data-sm-keep],[data-sm-dismiss],[data-sm-act]') : null;
+    var t = ev.target && ev.target.closest ? ev.target.closest('[data-sm-keep],[data-sm-dismiss],[data-sm-act],[data-sm-mission]') : null;
     if (!t) return;
     var st = loadState();
-    if (t.hasAttribute('data-sm-keep')) {
+    if (t.hasAttribute('data-sm-mission')) {
+      // The rep's own tap. Not saved as a preference; "Switch back" (in the
+      // layout's top bar) and all-clear both return to their resolved layout.
+      if (missionOfferNow(st) && window.LayoutEngine) {
+        window.LayoutEngine.apply('mission', { source: 'storm' });
+        t.hidden = true;
+      }
+    } else if (t.hasAttribute('data-sm-keep')) {
       releaseTheme(true);
       st.keptTheme = true;
       saveState();
@@ -510,6 +564,13 @@
       } else if (a === 'all-clear') {
         releaseTheme(true);
         hideBanner();
+        try {
+          var LE = window.LayoutEngine;
+          if (LE && LE.current().id === 'mission' && LE.current().source === 'storm') {
+            LE.refresh();
+            if (typeof window.showToast === 'function') window.showToast('Storm cleared. Back to your layout.', 'info');
+          }
+        } catch (e) {}
       } else if (a === 'file-drafts') {
         fileDrafts();
       }
@@ -624,6 +685,15 @@
     setEnabled: setEnabled, hydrate: hydrate, update: update,
     getConfig: function () { return JSON.parse(JSON.stringify(loadCfg())); },
     getState: function () { return JSON.parse(JSON.stringify(loadState())); },
+    // Read-only view for the Mission Control layout: the qualifying warnings that
+    // overlap the service area as of the last successful poll. observeWarnings()
+    // polls NOW without touching state, theme, banner or drafts (works with Storm
+    // Mode OFF — the rep chose a layout that shows the sky). Resolves null when
+    // the poll failed (unknown, never "clear").
+    getWarnings: function () { return JSON.parse(JSON.stringify(lastWarnings)); },
+    observeWarnings: function () {
+      return observe().then(function (obs) { return obs === null || obs === undefined ? null : JSON.parse(JSON.stringify(lastWarnings)); });
+    },
     isEnabled: function () { return loadCfg().enabled; },
     _setClock: function (fn) { clock = fn; },
     _observeWith: function (fn) { observe = fn; },

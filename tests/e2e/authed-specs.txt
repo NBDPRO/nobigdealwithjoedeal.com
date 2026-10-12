@@ -87,3 +87,4 @@ layouts.spec.js
 layout-island.spec.js
 field-app.spec.js
 focus-mode.spec.js
+mission-control.spec.js
