@@ -82,8 +82,8 @@ phone-offline-safety.spec.js
 phone-inspect-no-clip.spec.js
 phone-catchup.spec.js
 phone-home-nav.spec.js
+inbox-layout.spec.js
 layouts.spec.js
 layout-island.spec.js
 field-app.spec.js
 focus-mode.spec.js
-inbox-layout.spec.js

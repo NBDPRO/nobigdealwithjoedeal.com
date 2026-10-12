@@ -205,6 +205,14 @@
     supports: { wallpaper: true, glass: true, sunlight: false },
   });
 
+  // L04 Island Dock: floating pill + dock over glass islands. Lazy, like the rest.
+  register({
+    id: 'island', name: 'Island Dock', blurb: 'No sidebar: a floating nav pill, a bottom dock, and glass islands over your wallpaper.',
+    script: 'js/layouts/island.js', css: 'css/layouts/island.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: true },
+  });
+
   // L05 Triage Inbox (D6): one keyboard-driven list | thread | facts. Every
   // surface (it folds to one pane at a time on a phone).
   register({
@@ -214,14 +222,6 @@
     script: 'js/layouts/inbox.js', css: 'css/layouts/inbox.css',
     needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
     supports: { wallpaper: true, glass: false, sunlight: false },
-  });
-
-  // L04 Island Dock: floating pill + dock over glass islands. Lazy, like the rest.
-  register({
-    id: 'island', name: 'Island Dock', blurb: 'No sidebar: a floating nav pill, a bottom dock, and glass islands over your wallpaper.',
-    script: 'js/layouts/island.js', css: 'css/layouts/island.css',
-    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
-    supports: { wallpaper: true, glass: true },
   });
 
   var api = {
