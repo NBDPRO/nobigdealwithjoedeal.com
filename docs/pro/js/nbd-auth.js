@@ -812,6 +812,11 @@ export const NBDAuth = {
         // size counter stays with the queue, or the next boot's loss check
         // would read a kept queue against a wiped count.
         'nbd_d2d_sync_queue', 'nbd_d2d_queue_last_known_size',
+        // Which layout this device resolved (layout-preboot.js reads it before
+        // first paint). A device UI preference, no account data — wiped, a rep
+        // saw Classic flash on every sign-in. layout-engine.js re-resolves for
+        // the signed-in uid and corrects it if another account left it behind.
+        'nbd_layout_resolved',
       ]);
       const drop = [];
       for (let i = 0; i < localStorage.length; i++) {
