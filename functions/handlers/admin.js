@@ -781,6 +781,129 @@ exports.deactivateUser = onCall(
   }
 );
 
+// ── transferCompanyOwnership (owner hand-off, Jo 2026-10-08) ─────────────
+// The OWNER hands the company to an existing, active company_admin of the
+// same company. companies/{id}.ownerId moves to them; the former owner stays
+// on the team as a company_admin (roster row created), so from then on their
+// own account erasure follows the member path (suspend, delete nothing). The
+// company keeps its id (often the former owner's uid): firestore.rules
+// ownsTenantByUid() stops the uid-keyed branch granting the former owner
+// anything once the company doc names someone else.
+//
+// Who may call: only the current owner (companies/{id}.ownerId === caller),
+// with an enabled Auth account. Not a company_admin, not a platform admin
+// acting for someone (they can use the console), not a solo owner with no
+// company doc (nobody to hand to).
+// Who may receive: same company (companyId claim), role company_admin, Auth
+// enabled, roster row 'active' with their uid. Never the caller.
+// Billing (subscriptions/{companyId}) stays with the company; the Stripe
+// customer and card on file do not change.
+const HANDOFF_TARGET_ROLE = 'company_admin';
+exports.transferCompanyOwnership = onCall(
+  {
+    region: 'us-central1',
+    cors: CORS_ORIGINS,
+    enforceAppCheck: true,
+    timeoutSeconds: 60,
+    memory: '256MiB'
+  },
+  async (request) => {
+    const { uid: callerUid, companyId, companyRef } = await requireTeamAdmin(request);
+    await callableRateLimit(request, 'transferCompanyOwnership', 5, 3_600_000);
+
+    const db = getFirestore();
+    const coSnap = await companyRef.get();
+    const ownerId = coSnap.exists ? ((coSnap.data() || {}).ownerId || null) : null;
+    if (!coSnap.exists || !ownerId || ownerId !== callerUid) {
+      throw new HttpsError('permission-denied', 'Only the company owner can hand the company to someone else');
+    }
+
+    let callerRec;
+    try { callerRec = await getAuth().getUser(callerUid); } catch (e) {
+      throw new HttpsError('unavailable', 'Could not verify your account. Please try again.');
+    }
+    if (callerRec.disabled === true) {
+      throw new HttpsError('permission-denied', 'This account is suspended');
+    }
+
+    const targetUid = typeof request.data?.uid === 'string' ? request.data.uid : null;
+    const targetEmailIn = normalizeEmail(request.data && request.data.email);
+    if (!targetUid && !targetEmailIn) throw new HttpsError('invalid-argument', 'Target uid or email required');
+    let target;
+    try {
+      target = targetUid ? await getAuth().getUser(targetUid) : await getAuth().getUserByEmail(targetEmailIn);
+    } catch (e) {
+      throw new HttpsError('not-found', 'User not found');
+    }
+    if (target.uid === callerUid) throw new HttpsError('failed-precondition', 'You already own this company');
+    const tClaims = target.customClaims || {};
+    if (tClaims.companyId !== companyId) throw new HttpsError('permission-denied', 'User belongs to another company');
+    if (tClaims.role !== HANDOFF_TARGET_ROLE) {
+      throw new HttpsError('failed-precondition', 'Only an admin of your company can become its owner. Make them an admin first.');
+    }
+    if (target.disabled === true) throw new HttpsError('failed-precondition', 'That account is disabled. Re-enable it first.');
+    const targetEmail = String(target.email || targetEmailIn || '').trim().toLowerCase();
+    if (!targetEmail) throw new HttpsError('failed-precondition', 'That account has no email on file');
+
+    const callerEmail = String(callerRec.email || '').trim().toLowerCase();
+    if (!callerEmail) throw new HttpsError('failed-precondition', 'Your account has no email on file');
+
+    // The former owner keeps working as a company_admin. Claims first: if this
+    // fails nothing else has changed (and company_admin of their own company
+    // is a no-op for a caller who already holds it).
+    const callerClaims = callerRec.customClaims || {};
+    await getAuth().setCustomUserClaims(callerUid, { ...callerClaims, companyId, role: HANDOFF_TARGET_ROLE });
+
+    const targetRow = db.doc(`companies/${companyId}/members/${targetEmail}`);
+    const callerRow = db.doc(`companies/${companyId}/members/${callerEmail}`);
+    await db.runTransaction(async (tx) => {
+      const co = await tx.get(companyRef);
+      const row = await tx.get(targetRow);
+      if (!co.exists || (co.data() || {}).ownerId !== callerUid) {
+        throw new HttpsError('aborted', 'Ownership changed while this was running. Reload and try again.');
+      }
+      const r = row.exists ? (row.data() || {}) : null;
+      if (!r || r.status !== 'active' || r.uid !== target.uid) {
+        throw new HttpsError('failed-precondition', 'Only an active team member can become the owner');
+      }
+      tx.update(companyRef, {
+        ownerId: target.uid,
+        previousOwnerId: callerUid,
+        ownershipTransferredAt: FieldValue.serverTimestamp(),
+        ownershipTransferredBy: callerUid,
+      });
+      // The owner holds no roster row (it is not a seat); the former owner
+      // now does. Seat count is unchanged: one row out, one row in.
+      tx.delete(targetRow);
+      tx.set(callerRow, {
+        uid: callerUid,
+        email: callerEmail,
+        role: HANDOFF_TARGET_ROLE,
+        status: 'active',
+        active: true,
+        activatedAt: FieldValue.serverTimestamp(),
+        activatedVia: 'owner-handoff',
+      }, { merge: true });
+      tx.set(db.doc(`users/${target.uid}`), { companyId, role: HANDOFF_TARGET_ROLE }, { merge: true });
+      tx.set(db.doc(`users/${callerUid}`), { companyId, role: HANDOFF_TARGET_ROLE }, { merge: true });
+    });
+
+    // The new owner's claim already says company_admin of this company; keep
+    // it explicit so a stale role can never ride along.
+    await getAuth().setCustomUserClaims(target.uid, { ...tClaims, companyId, role: HANDOFF_TARGET_ROLE });
+
+    await db.collection('audit_log').add({
+      type: 'company_ownership_transferred',
+      op: 'transfer',
+      ids: { companyId, from: callerUid, to: target.uid },
+      by: callerUid,
+      ts: FieldValue.serverTimestamp(),
+    });
+    logger.info('transferCompanyOwnership', { companyId, from: callerUid, to: target.uid });
+    return { success: true, companyId, ownerId: target.uid, previousOwnerId: callerUid };
+  }
+);
+
 // ── removeMember ─────────────────────────────────────────────
 // Fully removes a team member: STRIPS their companyId/role claims
 // (merge-preserving billing), revokes their refresh tokens, and deletes

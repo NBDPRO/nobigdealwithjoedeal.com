@@ -1,0 +1,721 @@
+[36m[1mi  emulators:[22m[39m Starting emulators: firestore
+[36m[1mi  firestore:[22m[39m Firestore Emulator logging to [1mfirestore-debug.log[22m
+[32m[1m+  firestore:[22m[39m Firestore Emulator was started in standard edition.
+[32m[1m+  firestore:[22m[39m Firestore Emulator UI websocket is running on 9151.
+[36m[1mi [22m[39m Running script: [1mnode ./zz-hoff-xtenant.js[22m
+[2026-10-08T06:11:04.271Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68451c error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L625:24 for 'update' @ L625, false for 'update' @ L3052, false for 'update' @ L625, false for 'update' @ L3052
+[2026-10-08T06:11:04.307Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68451d error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L664:24 for 'delete' @ L664, false for 'delete' @ L3052, false for 'delete' @ L664, false for 'delete' @ L3052
+[2026-10-08T06:11:04.678Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684523 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L625:24 for 'update' @ L625, false for 'update' @ L3052, false for 'update' @ L625, false for 'update' @ L3052
+[2026-10-08T06:11:04.707Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684524 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L625:24 for 'update' @ L625, false for 'update' @ L3052, false for 'update' @ L625, false for 'update' @ L3052
+[2026-10-08T06:11:04.731Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684525 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L625:24 for 'update' @ L625, false for 'update' @ L3052, false for 'update' @ L625, false for 'update' @ L3052
+[2026-10-08T06:11:04.749Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684526 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L664:24 for 'delete' @ L664, false for 'delete' @ L3052, false for 'delete' @ L664, false for 'delete' @ L3052
+[2026-10-08T06:11:04.781Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684527 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L664:24 for 'delete' @ L664, false for 'delete' @ L3052, false for 'delete' @ L664, false for 'delete' @ L3052
+[2026-10-08T06:11:04.987Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684528 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L891:26 for 'delete' @ L891, false for 'delete' @ L3052, false for 'delete' @ L891, false for 'delete' @ L3052
+[2026-10-08T06:11:05.010Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684529 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L891:26 for 'delete' @ L891, false for 'delete' @ L3052, false for 'delete' @ L891, false for 'delete' @ L3052
+[2026-10-08T06:11:05.032Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68452a error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L891:26 for 'delete' @ L891, false for 'delete' @ L3052, false for 'delete' @ L891, false for 'delete' @ L3052
+[2026-10-08T06:11:05.055Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68452b error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L891:26 for 'delete' @ L891, false for 'delete' @ L3052, false for 'delete' @ L891, false for 'delete' @ L3052
+[2026-10-08T06:11:05.096Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68452c error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'delete' @ L891, false for 'delete' @ L3052
+[2026-10-08T06:11:05.170Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68452e error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L891:26 for 'delete' @ L891, false for 'delete' @ L3052, false for 'delete' @ L891, false for 'delete' @ L3052
+[2026-10-08T06:11:05.267Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684530 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'delete' @ L891, false for 'delete' @ L3052
+[2026-10-08T06:11:05.289Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684531 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L918:26 for 'delete' @ L918, false for 'delete' @ L3052, false for 'delete' @ L918, false for 'delete' @ L3052
+[2026-10-08T06:11:05.308Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684532 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L918:26 for 'delete' @ L918, false for 'delete' @ L3052, false for 'delete' @ L918, false for 'delete' @ L3052
+[2026-10-08T06:11:05.328Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684533 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L918:26 for 'delete' @ L918, false for 'delete' @ L3052, false for 'delete' @ L918, false for 'delete' @ L3052
+[2026-10-08T06:11:05.358Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684534 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L918:26 for 'delete' @ L918, false for 'delete' @ L3052, false for 'delete' @ L918, false for 'delete' @ L3052
+[2026-10-08T06:11:05.383Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684535 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'delete' @ L918, false for 'delete' @ L3052
+[2026-10-08T06:11:05.416Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684536 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L918:26 for 'delete' @ L918, false for 'delete' @ L3052, false for 'delete' @ L918, false for 'delete' @ L3052
+[2026-10-08T06:11:05.447Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684537 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'delete' @ L918, false for 'delete' @ L3052
+[2026-10-08T06:11:05.577Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684538 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1013:26 for 'update' @ L1013, false for 'update' @ L3052, false for 'update' @ L1013, false for 'update' @ L3052
+[2026-10-08T06:11:05.625Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68452d error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1013:26 for 'update' @ L1013, false for 'update' @ L3052, false for 'update' @ L1013, false for 'update' @ L3052
+[2026-10-08T06:11:05.643Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68453a error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1021, false for 'create' @ L3052, evaluation error at L1013:26 for 'update' @ L1013, false for 'update' @ L3052, false for 'create' @ L1021, false for 'create' @ L3052
+[2026-10-08T06:11:05.727Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68453c error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1034:25 for 'create' @ L1034, false for 'create' @ L3052, evaluation error at L1034:25 for 'update' @ L1034, false for 'update' @ L3052, false for 'update' @ L1034, false for 'update' @ L3052
+[2026-10-08T06:11:06.024Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68453b error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1683, false for 'create' @ L3052, false for 'update' @ L1690, false for 'update' @ L3052
+[2026-10-08T06:11:06.040Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68453d error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1683, false for 'create' @ L3052, false for 'update' @ L1690, false for 'update' @ L3052
+[2026-10-08T06:11:06.091Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68453e error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1683, false for 'create' @ L3052, false for 'update' @ L1690, false for 'update' @ L3052
+[2026-10-08T06:11:06.109Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68453f error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1683, false for 'create' @ L3052, false for 'update' @ L1690, false for 'update' @ L3052
+[2026-10-08T06:11:06.356Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684543 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1830, false for 'create' @ L3052, evaluation error at L1831:24 for 'update' @ L1831, false for 'update' @ L3052, false for 'update' @ L1831, false for 'update' @ L3052
+[2026-10-08T06:11:06.431Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684544 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1830, false for 'create' @ L3052, false for 'update' @ L1831, false for 'update' @ L3052
+[2026-10-08T06:11:06.478Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684545 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1830, false for 'create' @ L3052, false for 'update' @ L1831, false for 'update' @ L3052
+[2026-10-08T06:11:06.494Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684546 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1830, false for 'create' @ L3052, false for 'update' @ L1831, false for 'update' @ L3052
+[2026-10-08T06:11:06.709Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68454b error. Code: 7 Message: 7 PERMISSION_DENIED: 
+Property role is undefined on object. for 'create' @ L1830, false for 'create' @ L3052, Property role is undefined on object. for 'update' @ L1831, false for 'update' @ L3052, Property role is undefined on object. for 'create' @ L1830, false for 'create' @ L3052
+[2026-10-08T06:11:06.780Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68454c error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1714, false for 'create' @ L3052, false for 'update' @ L1714, false for 'update' @ L3052
+[2026-10-08T06:11:06.797Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68454d error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1714, false for 'create' @ L3052, false for 'update' @ L1714, false for 'update' @ L3052
+[2026-10-08T06:11:06.812Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68454e error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'delete' @ L1714, false for 'delete' @ L3052
+[2026-10-08T06:11:06.830Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68454f error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1683, false for 'create' @ L3052, evaluation error at L1690:24 for 'update' @ L1690, false for 'update' @ L3052, false for 'create' @ L1683, false for 'create' @ L3052
+[2026-10-08T06:11:06.867Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68452f error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1683:24 for 'create' @ L1683, false for 'create' @ L3052, evaluation error at L1690:24 for 'update' @ L1690, false for 'update' @ L3052, false for 'update' @ L1690, false for 'update' @ L3052
+[2026-10-08T06:11:06.887Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684551 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1683:24 for 'create' @ L1683, false for 'create' @ L3052, evaluation error at L1690:24 for 'update' @ L1690, false for 'update' @ L3052, false for 'update' @ L1690, false for 'update' @ L3052
+[2026-10-08T06:11:06.924Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684553 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1771, false for 'create' @ L3052, false for 'update' @ L1771, false for 'update' @ L3052
+[2026-10-08T06:11:06.940Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684554 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'update' @ L1583, false for 'update' @ L3052
+[2026-10-08T06:11:06.953Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684555 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1728, false for 'create' @ L3052, false for 'update' @ L1728, false for 'update' @ L3052
+[2026-10-08T06:11:07.089Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684557 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1580, false for 'create' @ L3052, evaluation error at L1583:24 for 'update' @ L1583, false for 'update' @ L3052, false for 'create' @ L1580, false for 'create' @ L3052
+[2026-10-08T06:11:07.105Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684558 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1580, false for 'create' @ L3052, evaluation error at L1583:24 for 'update' @ L1583, false for 'update' @ L3052, false for 'create' @ L1580, false for 'create' @ L3052
+[2026-10-08T06:11:07.163Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68455a error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1583:24 for 'update' @ L1583, false for 'update' @ L3052, false for 'update' @ L1583, false for 'update' @ L3052
+[2026-10-08T06:11:07.192Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68455b error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1580:24 for 'create' @ L1580, false for 'create' @ L3052, evaluation error at L1583:24 for 'update' @ L1583, false for 'update' @ L3052, false for 'update' @ L1583, false for 'update' @ L3052
+[2026-10-08T06:11:07.205Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68455c error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1583:24 for 'update' @ L1583, false for 'update' @ L3052, false for 'update' @ L1583, false for 'update' @ L3052
+[2026-10-08T06:11:07.255Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68455e error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1583:24 for 'update' @ L1583, false for 'update' @ L3052, false for 'update' @ L1583, false for 'update' @ L3052
+[2026-10-08T06:11:07.279Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68455f error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1583:24 for 'update' @ L1583, false for 'update' @ L3052, false for 'update' @ L1583, false for 'update' @ L3052
+[2026-10-08T06:11:07.313Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684561 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1349, false for 'create' @ L3052, evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'create' @ L1349, false for 'create' @ L3052
+[2026-10-08T06:11:07.345Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684562 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'update' @ L1338, false for 'update' @ L3052
+[2026-10-08T06:11:07.359Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684563 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'update' @ L1338, false for 'update' @ L3052
+[2026-10-08T06:11:07.375Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684564 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'update' @ L1338, false for 'update' @ L3052
+[2026-10-08T06:11:07.391Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684565 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'update' @ L1338, false for 'update' @ L3052
+[2026-10-08T06:11:07.491Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684566 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1349, false for 'create' @ L3052, evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'create' @ L1349, false for 'create' @ L3052
+[2026-10-08T06:11:07.511Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684568 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1349, false for 'create' @ L3052, evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'create' @ L1349, false for 'create' @ L3052
+[2026-10-08T06:11:07.532Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684569 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1349, false for 'create' @ L3052, evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'create' @ L1349, false for 'create' @ L3052
+[2026-10-08T06:11:07.566Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68456a error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1349, false for 'create' @ L3052, evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'create' @ L1349, false for 'create' @ L3052
+[2026-10-08T06:11:07.587Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68456b error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1349, false for 'create' @ L3052, evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'create' @ L1349, false for 'create' @ L3052
+[2026-10-08T06:11:07.605Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68456c error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1349, false for 'create' @ L3052, evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'create' @ L1349, false for 'create' @ L3052
+[2026-10-08T06:11:07.629Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68456d error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1349, false for 'create' @ L3052, evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'create' @ L1349, false for 'create' @ L3052
+[2026-10-08T06:11:07.659Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68456e error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1349, false for 'create' @ L3052, evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'create' @ L1349, false for 'create' @ L3052
+[2026-10-08T06:11:07.735Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68456f error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'update' @ L1338, false for 'update' @ L3052
+[2026-10-08T06:11:07.747Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684570 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'update' @ L1338, false for 'update' @ L3052
+[2026-10-08T06:11:07.776Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684571 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1349:24 for 'create' @ L1349, false for 'create' @ L3052, evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'update' @ L1338, false for 'update' @ L3052
+[2026-10-08T06:11:07.807Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684572 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L670, false for 'create' @ L3052, evaluation error at L625:24 for 'update' @ L625, false for 'update' @ L3052, false for 'create' @ L670, false for 'create' @ L3052
+[2026-10-08T06:11:07.837Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684573 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L670, false for 'create' @ L3052, evaluation error at L625:24 for 'update' @ L625, false for 'update' @ L3052, false for 'create' @ L670, false for 'create' @ L3052
+[2026-10-08T06:11:07.876Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684575 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+Property companyId is undefined on object. for 'create' @ L670, false for 'create' @ L3052, evaluation error at L625:24 for 'update' @ L625, false for 'update' @ L3052, Property companyId is undefined on object. for 'create' @ L670, false for 'create' @ L3052
+[2026-10-08T06:11:07.898Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684576 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L2022, false for 'create' @ L3052, evaluation error at L2029:24 for 'update' @ L2029, false for 'update' @ L3052, false for 'create' @ L2022, false for 'create' @ L3052
+[2026-10-08T06:11:07.929Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684577 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L2059, false for 'create' @ L3052, evaluation error at L2066:24 for 'update' @ L2066, false for 'update' @ L3052, false for 'create' @ L2059, false for 'create' @ L3052
+[2026-10-08T06:11:07.943Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684578 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L2297, false for 'create' @ L3052, evaluation error at L2303:24 for 'update' @ L2303, false for 'update' @ L3052, false for 'create' @ L2297, false for 'create' @ L3052
+[2026-10-08T06:11:07.959Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684579 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L2040, false for 'create' @ L3052, evaluation error at L2047:24 for 'update' @ L2047, false for 'update' @ L3052, false for 'create' @ L2040, false for 'create' @ L3052
+[2026-10-08T06:11:07.980Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68457a error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2029:24 for 'update' @ L2029, false for 'update' @ L3052, false for 'update' @ L2029, false for 'update' @ L3052
+[2026-10-08T06:11:08.013Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68457b error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'update' @ L1338, false for 'update' @ L3052
+[2026-10-08T06:11:08.029Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68457c error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2066:24 for 'update' @ L2066, false for 'update' @ L3052, false for 'update' @ L2066, false for 'update' @ L3052
+[2026-10-08T06:11:08.057Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68457d error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2303:24 for 'update' @ L2303, false for 'update' @ L3052, false for 'update' @ L2303, false for 'update' @ L3052
+[2026-10-08T06:11:08.089Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68457e error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2029:24 for 'update' @ L2029, false for 'update' @ L3052, false for 'update' @ L2029, false for 'update' @ L3052
+[2026-10-08T06:11:08.122Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68457f error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1338:24 for 'update' @ L1338, false for 'update' @ L3052, false for 'update' @ L1338, false for 'update' @ L3052
+[2026-10-08T06:11:08.163Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684580 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L625:24 for 'update' @ L625, false for 'update' @ L3052, false for 'update' @ L625, false for 'update' @ L3052
+[2026-10-08T06:11:08.175Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684581 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L625:24 for 'update' @ L625, false for 'update' @ L3052, false for 'update' @ L625, false for 'update' @ L3052
+[2026-10-08T06:11:08.201Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684582 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1564:24 for 'create' @ L1564, false for 'create' @ L3052, evaluation error at L1549:24 for 'update' @ L1549, false for 'update' @ L3052, false for 'create' @ L1564, false for 'create' @ L3052
+[2026-10-08T06:11:08.212Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684574 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+Property role is undefined on object. for 'create' @ L1564, false for 'create' @ L3052, evaluation error at L1549:24 for 'update' @ L1549, false for 'update' @ L3052, Property role is undefined on object. for 'create' @ L1564, false for 'create' @ L3052
+[2026-10-08T06:11:08.376Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684586 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L670, false for 'create' @ L3052, false for 'update' @ L625, false for 'update' @ L3052
+[2026-10-08T06:11:08.391Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684587 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L754, false for 'create' @ L3052, false for 'update' @ L758, false for 'update' @ L3052
+[2026-10-08T06:11:08.400Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684588 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'update' @ L885, false for 'update' @ L3052
+[2026-10-08T06:11:08.421Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684589 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'delete' @ L891, false for 'delete' @ L3052
+[2026-10-08T06:11:08.490Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68458b error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L754:26 for 'create' @ L754, false for 'create' @ L3052, evaluation error at L758:26 for 'update' @ L758, false for 'update' @ L3052, false for 'create' @ L754, false for 'create' @ L3052
+[2026-10-08T06:11:08.499Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684550 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L891:26 for 'delete' @ L891, false for 'delete' @ L3052, false for 'delete' @ L891, false for 'delete' @ L3052
+[2026-10-08T06:11:08.932Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684583 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'update' @ L2963, false for 'update' @ L3052
+[2026-10-08T06:11:08.940Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684552 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L2963, false for 'create' @ L3052, false for 'update' @ L2963, false for 'update' @ L3052
+[2026-10-08T06:11:08.949Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68458d error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'delete' @ L2963, false for 'delete' @ L3052
+[2026-10-08T06:11:09.012Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68458e error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L2997, false for 'create' @ L3052, false for 'update' @ L2997, false for 'update' @ L3052
+[2026-10-08T06:11:09.166Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684590 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'update' @ L2972, false for 'update' @ L3052
+[2026-10-08T06:11:09.181Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684591 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L2972, false for 'create' @ L3052, false for 'update' @ L2972, false for 'update' @ L3052
+[2026-10-08T06:11:09.350Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684593 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'update' @ L2980, false for 'update' @ L3052
+[2026-10-08T06:11:09.359Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684594 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L2980, false for 'create' @ L3052, false for 'update' @ L2980, false for 'update' @ L3052
+[2026-10-08T06:11:09.509Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684596 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L2404, false for 'create' @ L3052, false for 'update' @ L2404, false for 'update' @ L3052
+[2026-10-08T06:11:09.521Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684597 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'update' @ L2404, false for 'update' @ L3052
+[2026-10-08T06:11:09.532Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684598 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'update' @ L2404, false for 'update' @ L3052
+[2026-10-08T06:11:09.570Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684599 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L670, false for 'create' @ L3052, evaluation error at L625:24 for 'update' @ L625, false for 'update' @ L3052, false for 'create' @ L670, false for 'create' @ L3052
+[2026-10-08T06:11:09.594Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68459a error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L625:24 for 'update' @ L625, false for 'update' @ L3052, false for 'update' @ L625, false for 'update' @ L3052
+[2026-10-08T06:11:09.608Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68459b error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L625:24 for 'update' @ L625, false for 'update' @ L3052, false for 'update' @ L625, false for 'update' @ L3052
+[2026-10-08T06:11:09.621Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684584 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L625:24 for 'update' @ L625, false for 'update' @ L3052, false for 'update' @ L625, false for 'update' @ L3052
+[2026-10-08T06:11:09.753Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68459d error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'update' @ L2988, false for 'update' @ L3052
+[2026-10-08T06:11:09.762Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a68459e error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L2988, false for 'create' @ L3052, false for 'update' @ L2988, false for 'update' @ L3052
+[2026-10-08T06:11:11.826Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845a4 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+Property role is undefined on object. for 'update' @ L625, false for 'update' @ L3052, Property role is undefined on object. for 'update' @ L625, false for 'update' @ L3052
+[2026-10-08T06:11:11.834Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845a5 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L664:24 for 'delete' @ L664, false for 'delete' @ L3052, Property role is undefined on object. for 'delete' @ L664, false for 'delete' @ L3052
+[2026-10-08T06:11:12.033Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845a9 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L2139, false for 'create' @ L3052, false for 'update' @ L2144, false for 'update' @ L3052
+[2026-10-08T06:11:12.048Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845aa error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L670, false for 'create' @ L3052, false for 'update' @ L625, false for 'update' @ L3052
+[2026-10-08T06:11:12.063Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845ab error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1580, false for 'create' @ L3052, false for 'update' @ L1583, false for 'update' @ L3052
+[2026-10-08T06:11:12.095Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845ac error. Code: 7 Message: 7 PERMISSION_DENIED: 
+false for 'create' @ L1463, false for 'create' @ L3052, false for 'update' @ L1460, false for 'update' @ L3052
+[2026-10-08T06:11:12.473Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845a0 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1460:24 for 'update' @ L1460, false for 'update' @ L3052, false for 'update' @ L1460, false for 'update' @ L3052
+[2026-10-08T06:11:12.485Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845b1 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1460:24 for 'update' @ L1460, false for 'update' @ L3052, false for 'update' @ L1460, false for 'update' @ L3052
+[2026-10-08T06:11:12.500Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845b2 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1460:24 for 'update' @ L1460, false for 'update' @ L3052, false for 'update' @ L1460, false for 'update' @ L3052
+[2026-10-08T06:11:12.514Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845b3 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1460:24 for 'update' @ L1460, false for 'update' @ L3052, false for 'update' @ L1460, false for 'update' @ L3052
+[2026-10-08T06:11:12.553Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845b4 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1451:24 for 'update' @ L1451, false for 'update' @ L3052, false for 'update' @ L1451, false for 'update' @ L3052
+[2026-10-08T06:11:12.564Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845b5 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1451:24 for 'update' @ L1451, false for 'update' @ L3052, false for 'update' @ L1451, false for 'update' @ L3052
+[2026-10-08T06:11:12.572Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845b6 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1451:24 for 'update' @ L1451, false for 'update' @ L3052, false for 'update' @ L1451, false for 'update' @ L3052
+[2026-10-08T06:11:12.583Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845b7 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1451:24 for 'update' @ L1451, false for 'update' @ L3052, false for 'update' @ L1451, false for 'update' @ L3052
+[2026-10-08T06:11:12.634Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845b8 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1471:24 for 'update' @ L1471, false for 'update' @ L3052, false for 'update' @ L1471, false for 'update' @ L3052
+[2026-10-08T06:11:12.654Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845b9 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1471:24 for 'update' @ L1471, false for 'update' @ L3052, false for 'update' @ L1471, false for 'update' @ L3052
+[2026-10-08T06:11:12.667Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845ba error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1471:24 for 'update' @ L1471, false for 'update' @ L3052, false for 'update' @ L1471, false for 'update' @ L3052
+[2026-10-08T06:11:12.687Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845bb error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1471:24 for 'update' @ L1471, false for 'update' @ L3052, false for 'update' @ L1471, false for 'update' @ L3052
+[2026-10-08T06:11:12.724Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845bc error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2508:24 for 'update' @ L2508, false for 'update' @ L3052, false for 'update' @ L2508, false for 'update' @ L3052
+[2026-10-08T06:11:12.734Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845bd error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2508:24 for 'update' @ L2508, false for 'update' @ L3052, false for 'update' @ L2508, false for 'update' @ L3052
+[2026-10-08T06:11:12.744Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845be error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2508:24 for 'update' @ L2508, false for 'update' @ L3052, false for 'update' @ L2508, false for 'update' @ L3052
+[2026-10-08T06:11:12.755Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845bf error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2508:24 for 'update' @ L2508, false for 'update' @ L3052, false for 'update' @ L2508, false for 'update' @ L3052
+[2026-10-08T06:11:12.801Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845c0 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2545:24 for 'update' @ L2545, false for 'update' @ L3052, false for 'update' @ L2545, false for 'update' @ L3052
+[2026-10-08T06:11:12.822Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845c1 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2545:24 for 'update' @ L2545, false for 'update' @ L3052, false for 'update' @ L2545, false for 'update' @ L3052
+[2026-10-08T06:11:12.834Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845c2 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2545:24 for 'update' @ L2545, false for 'update' @ L3052, false for 'update' @ L2545, false for 'update' @ L3052
+[2026-10-08T06:11:12.852Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845c3 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2545:24 for 'update' @ L2545, false for 'update' @ L3052, false for 'update' @ L2545, false for 'update' @ L3052
+[2026-10-08T06:11:12.885Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845c4 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2479:24 for 'update' @ L2479, false for 'update' @ L3052, false for 'update' @ L2479, false for 'update' @ L3052
+[2026-10-08T06:11:12.897Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845c5 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2479:24 for 'update' @ L2479, false for 'update' @ L3052, false for 'update' @ L2479, false for 'update' @ L3052
+[2026-10-08T06:11:12.908Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845c6 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2479:24 for 'update' @ L2479, false for 'update' @ L3052, false for 'update' @ L2479, false for 'update' @ L3052
+[2026-10-08T06:11:12.917Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845c7 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2479:24 for 'update' @ L2479, false for 'update' @ L3052, false for 'update' @ L2479, false for 'update' @ L3052
+[2026-10-08T06:11:12.947Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845c8 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2677:24 for 'update' @ L2677, false for 'update' @ L3052, false for 'update' @ L2677, false for 'update' @ L3052
+[2026-10-08T06:11:12.959Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845c9 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2677:24 for 'update' @ L2677, false for 'update' @ L3052, false for 'update' @ L2677, false for 'update' @ L3052
+[2026-10-08T06:11:12.967Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845ca error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2677:24 for 'update' @ L2677, false for 'update' @ L3052, false for 'update' @ L2677, false for 'update' @ L3052
+[2026-10-08T06:11:12.977Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845cb error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2677:24 for 'update' @ L2677, false for 'update' @ L3052, false for 'update' @ L2677, false for 'update' @ L3052
+[2026-10-08T06:11:13.009Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845cc error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2002:24 for 'update' @ L2002, false for 'update' @ L3052, false for 'update' @ L2002, false for 'update' @ L3052
+[2026-10-08T06:11:13.022Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845cd error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2002:24 for 'update' @ L2002, false for 'update' @ L3052, false for 'update' @ L2002, false for 'update' @ L3052
+[2026-10-08T06:11:13.033Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845ce error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2002:24 for 'update' @ L2002, false for 'update' @ L3052, false for 'update' @ L2002, false for 'update' @ L3052
+[2026-10-08T06:11:13.055Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845cf error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2002:24 for 'update' @ L2002, false for 'update' @ L3052, false for 'update' @ L2002, false for 'update' @ L3052
+[2026-10-08T06:11:13.083Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845d0 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2075:24 for 'update' @ L2075, false for 'update' @ L3052, false for 'update' @ L2075, false for 'update' @ L3052
+[2026-10-08T06:11:13.100Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845d1 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2075:24 for 'update' @ L2075, false for 'update' @ L3052, false for 'update' @ L2075, false for 'update' @ L3052
+[2026-10-08T06:11:13.117Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845d2 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2075:24 for 'update' @ L2075, false for 'update' @ L3052, false for 'update' @ L2075, false for 'update' @ L3052
+[2026-10-08T06:11:13.134Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845d3 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2075:24 for 'update' @ L2075, false for 'update' @ L3052, false for 'update' @ L2075, false for 'update' @ L3052
+[2026-10-08T06:11:13.166Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845d4 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2102:24 for 'update' @ L2102, false for 'update' @ L3052, false for 'update' @ L2102, false for 'update' @ L3052
+[2026-10-08T06:11:13.182Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845d5 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2102:24 for 'update' @ L2102, false for 'update' @ L3052, false for 'update' @ L2102, false for 'update' @ L3052
+[2026-10-08T06:11:13.194Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845d6 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2102:24 for 'update' @ L2102, false for 'update' @ L3052, false for 'update' @ L2102, false for 'update' @ L3052
+[2026-10-08T06:11:13.211Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845d7 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L2102:24 for 'update' @ L2102, false for 'update' @ L3052, false for 'update' @ L2102, false for 'update' @ L3052
+[2026-10-08T06:11:13.249Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845d8 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1549:24 for 'update' @ L1549, false for 'update' @ L3052, false for 'update' @ L1549, false for 'update' @ L3052
+[2026-10-08T06:11:13.275Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845d9 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1549:24 for 'update' @ L1549, false for 'update' @ L3052, false for 'update' @ L1549, false for 'update' @ L3052
+[2026-10-08T06:11:13.288Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845da error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1549:24 for 'update' @ L1549, false for 'update' @ L3052, false for 'update' @ L1549, false for 'update' @ L3052
+[2026-10-08T06:11:13.301Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a6845db error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1549:24 for 'update' @ L1549, false for 'update' @ L3052, false for 'update' @ L1549, false for 'update' @ L3052
+[2026-10-08T06:11:13.403Z]  @firebase/firestore: Firestore (12.18.0): GrpcConnection RPC 'Write' stream 0x7a684542 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L1460:24 for 'update' @ L1460, false for 'update' @ L3052, Property role is undefined on object. for 'update' @ L1460, false for 'update' @ L3052
+
+──────── CROSS-TENANT ISOLATION MATRIX ────────
+  ✓ [DENY ] leads: B reads A lead                          correctly denied
+  ✓ [DENY ] leads: B updates A lead                        correctly denied
+  ✓ [DENY ] leads: B deletes A lead                        correctly denied
+  ✓ [ALLOW] leads: same-tenant MANAGER reads A lead        correctly allowed
+  ✓ [DENY ] leads: same-tenant sales_rep peer still denied correctly denied
+  ✓ [DENY ] leads: cross-tenant MANAGER still denied       correctly denied
+  ✓ [DENY ] leads: cross-tenant company_admin still denied correctly denied
+  ✓ [DENY ] leads: claim-less user still denied            correctly denied
+  ✓ [ALLOW] leads: same-tenant manager CAN update (edit rights) correctly allowed
+  ✓ [DENY ] leads: manager cannot REASSIGN ownership       correctly denied
+  ✓ [DENY ] leads: manager cannot RE-TENANT a lead         correctly denied
+  ✓ [DENY ] leads: cross-tenant manager cannot update      correctly denied
+  ✓ [DENY ] leads: same-tenant MANAGER cannot delete       correctly denied
+  ✓ [DENY ] leads: cross-tenant company_admin cannot delete correctly denied
+  ✓ [ALLOW] lead documents: same-tenant manager reads      correctly allowed
+  ✓ [DENY ] ai_drafts: same-tenant manager still denied    correctly denied
+  ✓ [DENY ] estimates: B reads A estimate                  correctly denied
+  ✓ [DENY ] photos: B reads A photo                        correctly denied
+  ✓ [DENY ] subscriptions: B reads A subscription          correctly denied
+  ✓ [DENY ] users: B reads A user profile                  correctly denied
+  ✓ [DENY ] recordings: B reads A call transcript          correctly denied
+  ✓ [DENY ] lead documents: B reads A contract             correctly denied
+  ✓ [DENY ] lead documents: B deletes A row                correctly denied
+  ✓ [DENY ] lead documents: cross-tenant MANAGER cannot delete correctly denied
+  ✓ [DENY ] lead documents: cross-tenant company_admin cannot delete correctly denied
+  ✓ [DENY ] lead documents: same-tenant sales_rep peer cannot delete correctly denied
+  ✓ [DENY ] lead documents: signed-out cannot delete       correctly denied
+  ✓ [ALLOW] lead documents: owner CAN delete (2026-09-25 fix) correctly allowed
+  ✓ [DENY ] lead documents: same-tenant MANAGER cannot hard-delete correctly denied
+  ✓ [ALLOW] lead documents: same-tenant company_admin CAN delete correctly allowed
+  ✓ [DENY ] lead documents: same-tenant viewer cannot delete correctly denied
+  ✓ [DENY ] warrantyClaims: B deletes A row                correctly denied
+  ✓ [DENY ] warrantyClaims: cross-tenant MANAGER cannot delete correctly denied
+  ✓ [DENY ] warrantyClaims: cross-tenant company_admin cannot delete correctly denied
+  ✓ [DENY ] warrantyClaims: same-tenant sales_rep peer cannot delete correctly denied
+  ✓ [DENY ] warrantyClaims: signed-out cannot delete       correctly denied
+  ✓ [ALLOW] warrantyClaims: owner CAN delete (2026-09-25 fix) correctly allowed
+  ✓ [DENY ] warrantyClaims: same-tenant MANAGER cannot hard-delete correctly denied
+  ✓ [ALLOW] warrantyClaims: same-tenant company_admin CAN delete correctly allowed
+  ✓ [DENY ] warrantyClaims: same-tenant viewer cannot delete correctly denied
+  ✓ [DENY ] measurements: B reads A measurement            correctly denied
+  ✓ [ALLOW] measurements: same-tenant peer dave reads A measurement (fix) correctly allowed
+  ✓ [DENY ] measurements: legacy (no companyId) peer dave still denied correctly denied
+  ✓ [DENY ] ai_drafts: B reads A draft                     correctly denied
+  ✓ [DENY ] ai_drafts: B approves A draft                  correctly denied
+  ✓ [ALLOW] ai_drafts: A owner reads own draft             correctly allowed
+  ✓ [DENY ] ai_drafts: rep cannot forge sent               correctly denied
+  ✓ [DENY ] ai_drafts: rep cannot create a draft           correctly denied
+  ✓ [ALLOW] ai_drafts: A owner approves own draft          correctly allowed
+  ✓ [DENY ] signatures: B reads A saved sig                correctly denied
+  ✓ [DENY ] signatures: B writes A saved sig               correctly denied
+  ✓ [ALLOW] signatures: A owner reads own sig              correctly allowed
+  ✓ [ALLOW] signatures: A owner writes own sig             correctly allowed
+  ✓ [DENY ] leaderboard: B(co-b) reads A(co-a)             correctly denied
+  ✓ [ALLOW] leaderboard: peer dave(co-a) reads A           correctly allowed
+  ✓ [DENY ] reps: B(co-b) reads A(co-a) rep                correctly denied
+  ✓ [ALLOW] reps: peer dave(co-a) reads A rep              correctly allowed
+  ✓ [DENY ] knocks: B(co-b) reads A(co-a) knock            correctly denied
+  ✓ [DENY ] territories: B(co-b) reads A(co-a)             correctly denied
+  ✓ [DENY ] recordings: B-mgr(co-b) reads A rec            correctly denied
+  ✓ [ALLOW] recordings: A-mgr eve(co-a) reads A            correctly allowed
+  ✓ [DENY ] training_sessions: B(co-b) reads A             correctly denied
+  ✓ [ALLOW] companyProfile: A rep READS own config         correctly allowed
+  ✓ [DENY ] companyProfile: A sales_rep DENIED write       correctly denied
+  ✓ [DENY ] companyProfile: A manager DENIED write         correctly denied
+  ✓ [ALLOW] companyProfile: A company_admin WRITES own     correctly allowed
+  ✓ [DENY ] companyProfile: B(co-b) READS co-a config      correctly denied
+  ✓ [DENY ] companyProfile: B(co-b) OVERWRITES co-a config correctly denied
+  ✓ [DENY ] companyProfile: B co_admin cross-tenant DENIED correctly denied
+  ✓ [DENY ] companyProfile: claimless READS co-a config    correctly denied
+  ✓ [DENY ] companyProfile: anon READS co-a config         correctly denied
+  ✓ [ALLOW] companyProfile: solo op READS own (uid key)    correctly allowed
+  ✓ [ALLOW] companyProfile: solo op WRITES own (uid key)   correctly allowed
+  ✓ [DENY ] companyProfile: B reads solo op config         correctly denied
+  ✓ [DENY ] counters: overwrite own to garbage DENIED      correctly denied
+  ✓ [ALLOW] counters: legit +1 on OWN counter ALLOWED      correctly allowed
+  ✓ [ALLOW] counters: read OWN counter ALLOWED (mint txn)  correctly allowed
+  ✓ [DENY ] counters: B reads A counter DENIED             correctly denied
+  ✓ [DENY ] counters: B advances A counter DENIED          correctly denied
+  ✓ [DENY ] counters: B reads NBD shared counter DENIED    correctly denied
+  ✓ [DENY ] counters: B advances NBD shared counter DENIED correctly denied
+  ✓ [DENY ] counters: B creates an arbitrary counter DENIED correctly denied
+  ✓ [ALLOW] counters: solo (no claim) creates own uid counter ALLOWED correctly allowed
+  ✓ [ALLOW] counters: A peer advances A counter ALLOWED    correctly allowed
+  ✓ [ALLOW] counters: NBD owner reads shared customerIds ALLOWED correctly allowed
+  ✓ [ALLOW] counters: NBD owner +1 shared customerIds ALLOWED correctly allowed
+  ✓ [ALLOW] counters: NBD teammate +1 shared customerIds ALLOWED correctly allowed
+  ✓ [ALLOW] counters: mixed-case solo uid uses its lower-cased id ALLOWED correctly allowed
+  ✓ [DENY ] counters: …and not the mixed-case spelling (DENIED) correctly denied
+  ✓ [ALLOW] docPrefixes: authed reads a reservation        correctly allowed
+  ✓ [DENY ] docPrefixes: anon cannot read                  correctly denied
+  ✓ [DENY ] docPrefixes: client cannot CLAIM a free prefix correctly denied
+  ✓ [DENY ] docPrefixes: client cannot STEAL a taken prefix correctly denied
+  ✓ [DENY ] docPrefixes: client cannot DELETE a reservation correctly denied
+  ✓ [DENY ] companyProfile: cannot SET docPrefix on create correctly denied
+  ✓ [ALLOW] companyProfile: CAN create WITHOUT a prefix    correctly allowed
+  ✓ [DENY ] companyProfile: cannot CHANGE own docPrefix    correctly denied
+  ✓ [DENY ] companyProfile: cannot CHANGE own seal         correctly denied
+  ✓ [ALLOW] companyProfile: CAN edit brand (prefix preserved) correctly allowed
+  ✓ [DENY ] leaderboard: rep self-writes own stats         correctly denied
+  ✓ [DENY ] users: rep changes own companyId claim-doc     correctly denied
+  ✓ [DENY ] subscriptions: rep self-upgrades plan          correctly denied
+  ✓ [DENY ] company_admin(co-b) reads co-a leaderboard     correctly denied
+  ✓ [DENY ] R3-2: user cannot CREATE own users doc with e2eTestAccount:true correctly denied
+  ✓ [DENY ] R3-2: user cannot CREATE own users doc with provisionedBy correctly denied
+  ✓ [ALLOW] R3-2 control: user CREATES own users doc with plain profile fields correctly allowed
+  ✓ [DENY ] R3-2: user cannot UPDATE own users doc to e2eTestAccount:true correctly denied
+  ✓ [DENY ] R3-2: user cannot setDoc-merge e2eTestAccount onto own users doc correctly denied
+  ✓ [DENY ] R3-2: seeded user (alice) cannot UPDATE to e2eTestAccount:true correctly denied
+  ✓ [ALLOW] R3-2 control: user UPDATES own profile fields  correctly allowed
+  ✓ [DENY ] R3-2: the E2E account cannot clear its own flag correctly denied
+  ✓ [DENY ] R3-2: the E2E account cannot rewrite its provisioning stamp correctly denied
+  ✓ [ALLOW] R3-2 control: the E2E account still UPDATES its other fields correctly allowed
+  ✓ [DENY ] R3-3: client cannot CREATE a source:'homeowner' photo correctly denied
+  ✓ [ALLOW] R3-3 control: client CREATES an ordinary photo correctly allowed
+  ✓ [DENY ] R3-3: photo UPDATE cannot set source:'homeowner' + a path correctly denied
+  ✓ [DENY ] R3-3: photo UPDATE cannot add a path alone     correctly denied
+  ✓ [DENY ] R3-3: homeowner photo UPDATE cannot re-point path at another tenant's object correctly denied
+  ✓ [DENY ] R3-3: homeowner photo UPDATE cannot change source correctly denied
+  ✓ [ALLOW] R3-3 control: owner still toggles share / edits a homeowner photo correctly allowed
+  ✓ [ALLOW] R3-3 control: owner annotates over a rep photo (url + storagePath change) correctly allowed
+  ✓ [DENY ] D3: CREATE with storagePath of another tenant's object correctly denied
+  ✓ [DENY ] D3: CREATE with storagePath under another uid's photos/ correctly denied
+  ✓ [DENY ] D3: CREATE with storagePath under a uid that merely starts with mine correctly denied
+  ✓ [DENY ] D3: CREATE with storagePath climbing out via .. correctly denied
+  ✓ [DENY ] D3: CREATE with an empty path segment (photos/bob//...) correctly denied
+  ✓ [DENY ] D3: CREATE with a foreign thumbStoragePath     correctly denied
+  ✓ [DENY ] D3: CREATE with a foreign path (non-homeowner photo) correctly denied
+  ✓ [DENY ] D3: CREATE with a non-string storagePath       correctly denied
+  ✓ [ALLOW] D3 control: CREATE with own storagePath + thumbStoragePath (photo-engine shape) correctly allowed
+  ✓ [ALLOW] D3 control: CREATE with own flat storagePath (customer-page shape) correctly allowed
+  ✓ [ALLOW] D3 control: CREATE with no path fields (url-only legacy shape) correctly allowed
+  ✓ [ALLOW] D3 control: CREATE with storagePath null       correctly allowed
+  ✓ [DENY ] D3: UPDATE re-points storagePath at another tenant's object correctly denied
+  ✓ [DENY ] D3: UPDATE re-points thumbStoragePath at another uid's photo correctly denied
+  ✓ [DENY ] D3: UPDATE via setDoc-merge re-points storagePath correctly denied
+  ✓ [ALLOW] D3 control: UPDATE other fields on a legacy off-prefix photo (path unchanged) correctly allowed
+  ✓ [ALLOW] D3 control: annotation save-over moves storagePath to own prefix correctly allowed
+  ✓ [DENY ] leads create: foreign companyId (co-a)         correctly denied
+  ✓ [ALLOW] leads create: own claim companyId (co-b)       correctly allowed
+  ✓ [DENY ] leads create: own uid as companyId (claim-carrier — rollup evasion) correctly denied
+  ✓ [ALLOW] leads create: solo (no claim) pins own uid     correctly allowed
+  ✓ [DENY ] leads create: missing companyId (required)     correctly denied
+  ✓ [DENY ] knocks create: foreign companyId (co-a)        correctly denied
+  ✓ [ALLOW] knocks create: own companyId (co-b)            correctly allowed
+  ✓ [ALLOW] knocks create: companyId omitted (degrades)    correctly allowed
+  ✓ [DENY ] territories create: foreign companyId          correctly denied
+  ✓ [DENY ] training_sessions create: foreign companyId    correctly denied
+  ✓ [DENY ] reps create: foreign companyId                 correctly denied
+  ✓ [ALLOW] reps create: own companyId (co-b)              correctly allowed
+  ✓ [ALLOW] knocks: bob seeds own-tenant knock (setup)     correctly allowed
+  ✓ [DENY ] knocks: RE-TENANT own doc into co-a via update correctly denied
+  ✓ [ALLOW] photos: bob seeds own-tenant photo (setup)     correctly allowed
+  ✓ [DENY ] photos: RE-TENANT own doc into co-a via update correctly denied
+  ✓ [ALLOW] territories: bob seeds own-tenant zone (setup) correctly allowed
+  ✓ [DENY ] territories: RE-TENANT own doc into co-a       correctly denied
+  ✓ [ALLOW] training_sessions: bob seeds own doc (setup)   correctly allowed
+  ✓ [DENY ] training_sessions: RE-TENANT own doc into co-a correctly denied
+  ✓ [ALLOW] knocks: owner CAN still edit a normal field    correctly allowed
+  ✓ [ALLOW] photos: owner CAN still edit a normal field    correctly allowed
+  ✓ [ALLOW] territories: owner CAN still rename            correctly allowed
+  ✓ [ALLOW] knocks: bob seeds a reassign target (setup)    correctly allowed
+  ✓ [DENY ] knocks: cannot REASSIGN userId on own doc      correctly denied
+  ✓ [ALLOW] photos: bob seeds a reassign target (setup)    correctly allowed
+  ✓ [DENY ] photos: cannot REASSIGN userId on own doc      correctly denied
+  ✓ [ALLOW] knocks: owner CAN still delete own doc         correctly allowed
+  ✓ [ALLOW] leads: bob creates own lead without customerId correctly allowed
+  ✓ [ALLOW] leads: client CAN stamp customerId when absent correctly allowed
+  ✓ [ALLOW] leads: normal edits still work once stamped    correctly allowed
+  ✓ [DENY ] leads: cannot REPOINT customerId once set      correctly denied
+  ✓ [DENY ] leads: cannot clear customerId to re-stamp it  correctly denied
+  ✓ [ALLOW] leads: re-writing the identical customerId is ok correctly allowed
+  ✓ [DENY ] notes: cross-tenant user writes note on A lead correctly denied
+  ✓ [DENY ] notes: claim-less user writes note on A lead   correctly denied
+  ✓ [ALLOW] notes: lead OWNER can write on own lead        correctly allowed
+  ✓ [ALLOW] notes: same-tenant manager can write on A lead correctly allowed
+  ✓ [ALLOW] knocks: same-tenant company_admin reads team knock correctly allowed
+  ✓ [ALLOW] knocks: same-tenant manager still reads        correctly allowed
+  ✓ [DENY ] knocks: cross-tenant company_admin still denied correctly denied
+  ✓ [ALLOW] training_sessions: same-tenant co_admin reads  correctly allowed
+  ✓ [DENY ] training_sessions: cross-tenant co_admin denied correctly denied
+  ✓ [ALLOW] recordings: same-tenant co_admin reads team recording correctly allowed
+  ✓ [DENY ] recordings: cross-tenant co_admin denied       correctly denied
+  ✓ [DENY ] viewer: creates a lead                         correctly denied
+  ✓ [DENY ] viewer-owner: adds a task on own lead          correctly denied
+  ✓ [DENY ] viewer-owner: edits a contract row             correctly denied
+  ✓ [DENY ] viewer-owner: deletes a contract row           correctly denied
+  ✓ [ALLOW] viewer: reads a teammate lead (unchanged)      correctly allowed
+  ✓ [ALLOW] viewer-owner: reads own contract row           correctly allowed
+  ✓ [ALLOW] same-tenant manager: task on viewer lead       correctly allowed
+  ✓ [DENY ] cross-tenant manager: task on viewer lead      correctly denied
+  ✓ [DENY ] cross-tenant co_admin: deletes viewer row      correctly denied
+  ✓ [ALLOW] same-tenant co_admin: deletes viewer row       correctly allowed
+  ✓ [ALLOW] thursday_calls: owner reads own call           correctly allowed
+  ✓ [ALLOW] thursday_calls: same-tenant manager reads      correctly allowed
+  ✓ [ALLOW] thursday_calls: same-tenant viewer reads       correctly allowed
+  ✓ [DENY ] thursday_calls: same-tenant sales_rep denied   correctly denied
+  ✓ [DENY ] thursday_calls: B reads A call                 correctly denied
+  ✓ [DENY ] thursday_calls: B manager reads A call         correctly denied
+  ✓ [DENY ] thursday_calls: no-claim user reads A call     correctly denied
+  ✓ [DENY ] thursday_calls: anon reads A call              correctly denied
+  ✓ [ALLOW] thursday_calls: solo owner userId query        correctly allowed
+  ✓ [ALLOW] thursday_calls: manager companyId query        correctly allowed
+  ✓ [DENY ] thursday_calls: B manager queries co-a         correctly denied
+  ✓ [DENY ] thursday_calls: sales_rep queries co-a         correctly denied
+  ✓ [DENY ] thursday_calls: owner cannot edit a call       correctly denied
+  ✓ [DENY ] thursday_calls: co_admin cannot create a call  correctly denied
+  ✓ [DENY ] thursday_calls: owner cannot delete a call     correctly denied
+  ✓ [ALLOW] thursday_config: solo owner reads own          correctly allowed
+  ✓ [ALLOW] thursday_config: same-tenant manager reads     correctly allowed
+  ✓ [DENY ] thursday_config: B reads co-a                  correctly denied
+  ✓ [DENY ] thursday_config: co_admin cannot write         correctly denied
+  ✓ [ALLOW] phone_calls: owner reads own call              correctly allowed
+  ✓ [ALLOW] phone_calls: same-tenant manager reads         correctly allowed
+  ✓ [DENY ] phone_calls: same-tenant sales_rep denied      correctly denied
+  ✓ [DENY ] phone_calls: B reads A call                    correctly denied
+  ✓ [DENY ] phone_calls: anon reads A call                 correctly denied
+  ✓ [ALLOW] phone_calls: manager companyId query           correctly allowed
+  ✓ [DENY ] phone_calls: B manager queries co-a            correctly denied
+  ✓ [DENY ] phone_calls: owner cannot edit a call          correctly denied
+  ✓ [DENY ] phone_calls: owner cannot create a call        correctly denied
+  ✓ [ALLOW] phone_texts: owner reads own text              correctly allowed
+  ✓ [ALLOW] phone_texts: same-tenant manager reads         correctly allowed
+  ✓ [DENY ] phone_texts: same-tenant sales_rep denied      correctly denied
+  ✓ [DENY ] phone_texts: B reads A text                    correctly denied
+  ✓ [DENY ] phone_texts: anon reads A text                 correctly denied
+  ✓ [ALLOW] phone_texts: manager companyId query           correctly allowed
+  ✓ [DENY ] phone_texts: B manager queries co-a            correctly denied
+  ✓ [DENY ] phone_texts: owner cannot edit a text          correctly denied
+  ✓ [DENY ] phone_texts: owner cannot create a text        correctly denied
+  ✓ [ALLOW] careplans: owner reads own membership          correctly allowed
+  ✓ [ALLOW] careplans: same-tenant manager reads           correctly allowed
+  ✓ [ALLOW] careplans: manager companyId query             correctly allowed
+  ✓ [DENY ] careplans: same-tenant sales_rep denied        correctly denied
+  ✓ [DENY ] careplans: B reads A membership                correctly denied
+  ✓ [DENY ] careplans: B manager queries co-a              correctly denied
+  ✓ [DENY ] careplans: anon reads A membership             correctly denied
+  ✓ [DENY ] careplans: owner cannot CREATE a membership    correctly denied
+  ✓ [DENY ] careplans: owner cannot UPDATE a membership    correctly denied
+  ✓ [DENY ] careplans: company_admin cannot UPDATE         correctly denied
+  ✓ [DENY ] careplan_events: owner cannot read             correctly denied
+  ✓ [DENY ] careplan_config: company_admin cannot read     correctly denied
+  ✓ [ALLOW] lead CREATE without carePlan (control)         correctly allowed
+  ✓ [DENY ] lead CREATE carrying carePlan denied           correctly denied
+  ✓ [ALLOW] lead UPDATE other field keeps carePlan (control) correctly allowed
+  ✓ [DENY ] lead UPDATE carePlan by owner denied           correctly denied
+  ✓ [DENY ] lead UPDATE adds carePlan to a non-member denied correctly denied
+  ✓ [DENY ] lead UPDATE carePlan by same-tenant manager denied correctly denied
+  ✓ [ALLOW] phone_text_days: owner reads own               correctly allowed
+  ✓ [ALLOW] phone_text_days: same-tenant manager reads     correctly allowed
+  ✓ [DENY ] phone_text_days: same-tenant sales_rep denied  correctly denied
+  ✓ [DENY ] phone_text_days: B reads A                     correctly denied
+  ✓ [DENY ] phone_text_days: owner cannot edit             correctly denied
+  ✓ [DENY ] phone_text_days: owner cannot create           correctly denied
+  ✓ [ALLOW] Z: owner hard-deletes their lead               correctly allowed
+  ✓ [DENY ] Z: before a re-create, B cannot read its notes correctly denied
+  ✓ [DENY ] Z: before a re-create, B cannot read its top-level notes correctly denied
+  ✓ [SWEPT] Z: the sweep removed every row                 8 rows
+  ✓ [SWEPT] Z: the /notes step removed the top-level note  1 doc
+  ✓ [ALLOW] Z: B can still create leads/leadGone as their own correctly allowed
+  ✓ [EMPTY] Z: B re-created it; reads none of A's notes    nothing of the deleted lead
+  ✓ [EMPTY] Z: B re-created it; reads none of A's tasks    nothing of the deleted lead
+  ✓ [EMPTY] Z: B re-created it; reads none of A's activity nothing of the deleted lead
+  ✓ [EMPTY] Z: B re-created it; reads none of A's drawings nothing of the deleted lead
+  ✓ [EMPTY] Z: B re-created it; reads none of A's signatures nothing of the deleted lead
+  ✓ [EMPTY] Z: B re-created it; reads none of A's documents nothing of the deleted lead
+  ✓ [EMPTY] Z: B re-created it; reads none of A's warrantyClaims nothing of the deleted lead
+  ✓ [EMPTY] Z: B re-created it; reads none of A's portal_messages nothing of the deleted lead
+  ✓ [EMPTY] Z: B re-created it; reads none of A's top-level notes nothing of the deleted lead
+  ✓ [ALLOW] OFFBOARD control: rep reads own company lead while still a member correctly allowed
+  ✓ [SWEPT] OFFBOARD: removeMember sweep moved lead + estimate + photo {"leads":1,"estimates":1,"photos":1}
+  ✓ [DENY ] OFFBOARD: removed rep cannot READ former company lead correctly denied
+  ✓ [DENY ] OFFBOARD: removed rep cannot UPDATE former company lead correctly denied
+  ✓ [DENY ] OFFBOARD: removed rep cannot DELETE former company lead correctly denied
+  ✓ [DENY ] OFFBOARD: removed rep cannot READ former company estimate correctly denied
+  ✓ [DENY ] OFFBOARD: removed rep cannot READ former company photo correctly denied
+  ✓ [LIST ] OFFBOARD: removed rep's own userId query lists only their solo-era lead offSolo
+  ✓ [ALLOW] OFFBOARD control: removed rep still reads their own solo-era lead correctly allowed
+  ✓ [ALLOW] OFFBOARD control: owner READS the reassigned lead correctly allowed
+  ✓ [ALLOW] OFFBOARD control: owner UPDATES the reassigned lead correctly allowed
+  ✓ [ALLOW] OFFBOARD control: owner READS the reassigned photo correctly allowed
+  ✓ [ALLOW] OFFBOARD control: owner DELETES the reassigned lead correctly allowed
+  ✓ [ALLOW] OFFBOARD control: solo owner still READS own lead correctly allowed
+  ✓ [ALLOW] OFFBOARD control: solo owner still UPDATES own lead correctly allowed
+  ✓ [DENY ] R3-7: anonymous account cannot read docPrefixes (tenant owner uids) correctly denied
+  ✓ [DENY ] R3-7: anonymous account cannot create companies/{own uid} correctly denied
+  ✓ [DENY ] R3-7: anonymous account cannot create a solo lead correctly denied
+  ✓ [DENY ] R3-7: anonymous account cannot create its own users/{uid} doc correctly denied
+  ✓ [DENY ] R3-7: anonymous account cannot read a doc it owns correctly denied
+  ✓ [DENY ] R3-7: anonymous account cannot create a task   correctly denied
+  ✓ [ALLOW] R3-7 control: password-provider account still reads docPrefixes correctly allowed
+  ✓ [ALLOW] R3-7 control: custom-token account (access-code login) still reads docPrefixes correctly allowed
+  ✓ [ALLOW] R3-7 control: password-provider solo owner still creates companies/{own uid} correctly allowed
+  ✓ [DENY ] R3-12: tasks owner cannot re-gift userId to another tenant's user correctly denied
+  ✓ [DENY ] R3-12: tasks owner cannot re-tenant companyId  correctly denied
+  ✓ [DENY ] R3-12: tasks owner cannot clear userId         correctly denied
+  ✓ [DENY ] R3-12: tasks legacy doc: companyId first stamp cannot name another tenant correctly denied
+  ✓ [ALLOW] R3-12 control: tasks owner still edits content correctly allowed
+  ✓ [ALLOW] R3-12 control: tasks owner may resend the same userId/companyId correctly allowed
+  ✓ [ALLOW] R3-12 control: tasks legacy doc: owner stamps their own companyId once correctly allowed
+  ✓ [DENY ] R3-12: drawings owner cannot re-gift userId to another tenant's user correctly denied
+  ✓ [DENY ] R3-12: drawings owner cannot re-tenant companyId correctly denied
+  ✓ [DENY ] R3-12: drawings owner cannot clear userId      correctly denied
+  ✓ [DENY ] R3-12: drawings legacy doc: companyId first stamp cannot name another tenant correctly denied
+  ✓ [ALLOW] R3-12 control: drawings owner still edits content correctly allowed
+  ✓ [ALLOW] R3-12 control: drawings owner may resend the same userId/companyId correctly allowed
+  ✓ [ALLOW] R3-12 control: drawings legacy doc: owner stamps their own companyId once correctly allowed
+  ✓ [DENY ] R3-12: communications owner cannot re-gift userId to another tenant's user correctly denied
+  ✓ [DENY ] R3-12: communications owner cannot re-tenant companyId correctly denied
+  ✓ [DENY ] R3-12: communications owner cannot clear userId correctly denied
+  ✓ [DENY ] R3-12: communications legacy doc: companyId first stamp cannot name another tenant correctly denied
+  ✓ [ALLOW] R3-12 control: communications owner still edits content correctly allowed
+  ✓ [ALLOW] R3-12 control: communications owner may resend the same userId/companyId correctly allowed
+  ✓ [ALLOW] R3-12 control: communications legacy doc: owner stamps their own companyId once correctly allowed
+  ✓ [DENY ] R3-12: lead_documents owner cannot re-gift userId to another tenant's user correctly denied
+  ✓ [DENY ] R3-12: lead_documents owner cannot re-tenant companyId correctly denied
+  ✓ [DENY ] R3-12: lead_documents owner cannot clear userId correctly denied
+  ✓ [DENY ] R3-12: lead_documents legacy doc: companyId first stamp cannot name another tenant correctly denied
+  ✓ [ALLOW] R3-12 control: lead_documents owner still edits content correctly allowed
+  ✓ [ALLOW] R3-12 control: lead_documents owner may resend the same userId/companyId correctly allowed
+  ✓ [ALLOW] R3-12 control: lead_documents legacy doc: owner stamps their own companyId once correctly allowed
+  ✓ [DENY ] R3-12: review_requests owner cannot re-gift userId to another tenant's user correctly denied
+  ✓ [DENY ] R3-12: review_requests owner cannot re-tenant companyId correctly denied
+  ✓ [DENY ] R3-12: review_requests owner cannot clear userId correctly denied
+  ✓ [DENY ] R3-12: review_requests legacy doc: companyId first stamp cannot name another tenant correctly denied
+  ✓ [ALLOW] R3-12 control: review_requests owner still edits content correctly allowed
+  ✓ [ALLOW] R3-12 control: review_requests owner may resend the same userId/companyId correctly allowed
+  ✓ [ALLOW] R3-12 control: review_requests legacy doc: owner stamps their own companyId once correctly allowed
+  ✓ [DENY ] R3-12: drip_queue owner cannot re-gift userId to another tenant's user correctly denied
+  ✓ [DENY ] R3-12: drip_queue owner cannot re-tenant companyId correctly denied
+  ✓ [DENY ] R3-12: drip_queue owner cannot clear userId    correctly denied
+  ✓ [DENY ] R3-12: drip_queue legacy doc: companyId first stamp cannot name another tenant correctly denied
+  ✓ [ALLOW] R3-12 control: drip_queue owner still edits content correctly allowed
+  ✓ [ALLOW] R3-12 control: drip_queue owner may resend the same userId/companyId correctly allowed
+  ✓ [ALLOW] R3-12 control: drip_queue legacy doc: owner stamps their own companyId once correctly allowed
+  ✓ [DENY ] R3-12: deal_rooms owner cannot re-gift userId to another tenant's user correctly denied
+  ✓ [DENY ] R3-12: deal_rooms owner cannot re-tenant companyId correctly denied
+  ✓ [DENY ] R3-12: deal_rooms owner cannot clear userId    correctly denied
+  ✓ [DENY ] R3-12: deal_rooms legacy doc: companyId first stamp cannot name another tenant correctly denied
+  ✓ [ALLOW] R3-12 control: deal_rooms owner still edits content correctly allowed
+  ✓ [ALLOW] R3-12 control: deal_rooms owner may resend the same userId/companyId correctly allowed
+  ✓ [ALLOW] R3-12 control: deal_rooms legacy doc: owner stamps their own companyId once correctly allowed
+  ✓ [DENY ] R3-12: dailyTracker owner cannot re-gift userId to another tenant's user correctly denied
+  ✓ [DENY ] R3-12: dailyTracker owner cannot re-tenant companyId correctly denied
+  ✓ [DENY ] R3-12: dailyTracker owner cannot clear userId  correctly denied
+  ✓ [DENY ] R3-12: dailyTracker legacy doc: companyId first stamp cannot name another tenant correctly denied
+  ✓ [ALLOW] R3-12 control: dailyTracker owner still edits content correctly allowed
+  ✓ [ALLOW] R3-12 control: dailyTracker owner may resend the same userId/companyId correctly allowed
+  ✓ [ALLOW] R3-12 control: dailyTracker legacy doc: owner stamps their own companyId once correctly allowed
+  ✓ [DENY ] R3-12: products owner cannot re-gift userId to another tenant's user correctly denied
+  ✓ [DENY ] R3-12: products owner cannot re-tenant companyId correctly denied
+  ✓ [DENY ] R3-12: products owner cannot clear userId      correctly denied
+  ✓ [DENY ] R3-12: products legacy doc: companyId first stamp cannot name another tenant correctly denied
+  ✓ [ALLOW] R3-12 control: products owner still edits content correctly allowed
+  ✓ [ALLOW] R3-12 control: products owner may resend the same userId/companyId correctly allowed
+  ✓ [ALLOW] R3-12 control: products legacy doc: owner stamps their own companyId once correctly allowed
+  ✓ [DENY ] R3-12: templates owner cannot re-gift userId to another tenant's user correctly denied
+  ✓ [DENY ] R3-12: templates owner cannot re-tenant companyId correctly denied
+  ✓ [DENY ] R3-12: templates owner cannot clear userId     correctly denied
+  ✓ [DENY ] R3-12: templates legacy doc: companyId first stamp cannot name another tenant correctly denied
+  ✓ [ALLOW] R3-12 control: templates owner still edits content correctly allowed
+  ✓ [ALLOW] R3-12 control: templates owner may resend the same userId/companyId correctly allowed
+  ✓ [ALLOW] R3-12 control: templates legacy doc: owner stamps their own companyId once correctly allowed
+  ✓ [DENY ] R3-12: notes owner cannot re-gift userId to another tenant's user correctly denied
+  ✓ [DENY ] R3-12: notes owner cannot re-tenant companyId  correctly denied
+  ✓ [DENY ] R3-12: notes owner cannot clear userId         correctly denied
+  ✓ [DENY ] R3-12: notes legacy doc: companyId first stamp cannot name another tenant correctly denied
+  ✓ [ALLOW] R3-12 control: notes owner still edits content correctly allowed
+  ✓ [ALLOW] R3-12 control: notes owner may resend the same userId/companyId correctly allowed
+  ✓ [ALLOW] R3-12 control: notes legacy doc: owner stamps their own companyId once correctly allowed
+  ✓ [ALLOW] R3-12 control: solo operator stamps companyId = own uid once correctly allowed
+  ✓ [DENY ] R3-12: solo operator cannot stamp another tenant as companyId correctly denied
+✗✗ [DENY ] HANDOFF: removed former owner cannot READ companyProfile >>> WAS ALLOWED (cross-tenant hole)
+✗✗ [DENY ] HANDOFF: removed former owner cannot WRITE companyProfile >>> WAS ALLOWED (cross-tenant hole)
+✗✗ [DENY ] HANDOFF: removed former owner cannot READ catalogCosts (cost data) >>> WAS ALLOWED (cross-tenant hole)
+✗✗ [DENY ] HANDOFF: removed former owner cannot WRITE priceBook >>> WAS ALLOWED (cross-tenant hole)
+✗✗ [DENY ] HANDOFF: removed former owner cannot READ owner_numbers >>> WAS ALLOWED (cross-tenant hole)
+✗✗ [DENY ] HANDOFF: removed former owner cannot READ the roster >>> WAS ALLOWED (cross-tenant hole)
+✗✗ [DENY ] HANDOFF: removed former owner cannot READ the agent inbox >>> WAS ALLOWED (cross-tenant hole)
+✗✗ [DENY ] HANDOFF: former owner (company_admin) cannot READ owner-only owner_numbers >>> WAS ALLOWED (cross-tenant hole)
+  ✓ [ALLOW] HANDOFF control: former owner (company_admin) still reads companyProfile correctly allowed
+✗✗ [DENY ] HANDOFF: former owner demoted to rep cannot WRITE catalogCosts >>> WAS ALLOWED (cross-tenant hole)
+✗✗ [DENY ] HANDOFF: former owner demoted to rep cannot WRITE companyProfile >>> WAS ALLOWED (cross-tenant hole)
+  ✓ [ALLOW] HANDOFF control: new owner reads owner_numbers correctly allowed
+  ✓ [ALLOW] HANDOFF control: new owner writes catalogCosts correctly allowed
+  ✓ [ALLOW] HANDOFF control: solo owner with a company doc naming them reads owner_numbers correctly allowed
+  ✓ [ALLOW] HANDOFF control: solo owner with a company doc writes catalogCosts correctly allowed
+  ✓ [ALLOW] HANDOFF control: solo owner with NO company doc writes catalogCosts correctly allowed
+────────────────────────────────────────────────
+378 passed, 10 failed, 0 warn-known-gap (of 388)
+
+FAILS above marked "WAS ALLOWED" are live cross-tenant holes in firestore.rules.
+[33m[1m! [22m[39m Script exited unsuccessfully (code 1)
+[36m[1mi  emulators:[22m[39m Shutting down emulators.
+[36m[1mi  firestore:[22m[39m Stopping Firestore Emulator
+[33m[1m! [22m[39m Firestore Emulator has exited upon receiving signal: SIGINT
+[36m[1mi  hub:[22m[39m Stopping emulator hub
+[36m[1mi  logging:[22m[39m Stopping Logging Emulator
+
+[1m[31mError:[39m[22m Script "[1mnode ./zz-hoff-xtenant.js[22m" exited with code 1

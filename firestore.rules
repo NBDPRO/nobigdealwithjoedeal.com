@@ -47,6 +47,21 @@ service cloud.firestore {
       return request.auth.token.companyId;
     }
 
+    // The uid-keyed tenant convention: a solo owner's company id IS their uid,
+    // so "companyId == request.auth.uid" has long meant "this is my company".
+    // That stops being true after an owner hand-off (transferCompanyOwnership,
+    // 2026-10-08): the company keeps its id, the company doc names a new
+    // ownerId, and the former owner must hold access only through their
+    // claims, like any member (and lose it all when removed). So the uid branch
+    // now also requires that no company doc says otherwise. A solo owner with
+    // no company doc, or one whose doc names them (or names nobody), is
+    // unaffected.
+    function ownsTenantByUid(cid) {
+      return isAuth() && request.auth.uid == cid
+        && (!exists(/databases/$(database)/documents/companies/$(cid))
+            || get(/databases/$(database)/documents/companies/$(cid)).data.get('ownerId', request.auth.uid) == request.auth.uid);
+    }
+
     function sameCompanyAsResource() {
       // CRITICAL: require BOTH sides to be non-null. A token without a
       // companyId claim would otherwise pass this check against any
@@ -1664,7 +1679,7 @@ service cloud.firestore {
       // Scope: key by companyId claim, or by uid for solo operators
       // (companyId == uid convention).
       function cpScoped() {
-        return isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
+        return isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId));
       }
       // Writers: platform admin, the solo owner (doc keyed by their uid), or a
       // company_admin acting inside their own tenant. isCompanyAdmin() implies a
@@ -1674,7 +1689,7 @@ service cloud.firestore {
       // that branch let them write was an orphan companyProfile/{their uid}.
       function cpCanWrite() {
         return isAdmin()
-          || (companyId == request.auth.uid && notViewer())
+          || (ownsTenantByUid(companyId) && notViewer())
           || (isCompanyAdmin() && companyId == myCompanyId());
       }
       allow read: if cpScoped();
@@ -1743,7 +1758,7 @@ service cloud.firestore {
     // safe; writing is the hazard.
     match /connectAccounts/{companyId} {
       allow read: if isAdmin()
-        || (isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid));
+        || (isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId)));
       allow write: if false;
     }
     // Reverse index acct_… → companyId, used only by the webhook to resolve a
@@ -1896,10 +1911,10 @@ service cloud.firestore {
     // buy price for "Masonry water repellent" — and it is a behaviour change
     // from the per-device drift that preceded it.
     match /catalogCosts/{companyId} {
-      allow read: if isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
+      allow read: if isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId));
       // notViewer() on the uid branch: same orphan-doc reason as cpCanWrite().
       allow write: if isAdmin()
-        || (companyId == request.auth.uid && notViewer())
+        || (ownsTenantByUid(companyId) && notViewer())
         || (isCompanyAdmin() && companyId == myCompanyId());
     }
 
@@ -1915,9 +1930,9 @@ service cloud.firestore {
     // owner / company_admin write split as catalogCosts — a sales_rep reads
     // it (the materials list shows last-paid prices) but cannot rewrite it.
     match /priceBook/{companyId} {
-      allow read: if isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
+      allow read: if isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId));
       allow write: if isAdmin()
-        || (companyId == request.auth.uid && notViewer())
+        || (ownsTenantByUid(companyId) && notViewer())
         || (isCompanyAdmin() && companyId == myCompanyId());
     }
 
@@ -1941,10 +1956,10 @@ service cloud.firestore {
 
     match /agent_inbox/{itemId} {
       allow read: if isAdmin()
-        || (resource.data.companyId == request.auth.uid && notViewer())
+        || (ownsTenantByUid(resource.data.companyId) && notViewer())
         || (isCompanyAdmin() && resource.data.companyId == myCompanyId());
       allow update: if (isAdmin()
-          || (resource.data.companyId == request.auth.uid && notViewer())
+          || (ownsTenantByUid(resource.data.companyId) && notViewer())
           || (isCompanyAdmin() && resource.data.companyId == myCompanyId()))
         && resource.data.status == 'pending'
         && request.resource.data.status in ['approved', 'dismissed']
@@ -1954,9 +1969,9 @@ service cloud.firestore {
     }
 
     match /productLibrary/{companyId} {
-      allow read: if isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
+      allow read: if isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId));
       allow write: if isAdmin()
-        || (companyId == request.auth.uid && notViewer())
+        || (ownsTenantByUid(companyId) && notViewer())
         || (isCompanyAdmin() && companyId == myCompanyId());
     }
 
@@ -2161,7 +2176,7 @@ service cloud.firestore {
         // grant was DEAD CODE — member docs are keyed by EMAIL, so a uid
         // never matches; the claim grant also covers reading your own row.
         allow read: if isAdmin()
-          || (isAuth() && request.auth.uid == companyId)
+          || ownsTenantByUid(companyId)
           || (isAuth() && get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid)
           || (isAuth() && request.auth.token.companyId == companyId);
         // CREATE/UPDATE/DELETE are all server-mediated now — clients never
@@ -2187,11 +2202,11 @@ service cloud.firestore {
       // server-written; a client can never create or edit one.
       match /owner_numbers/{docId} {
         allow read: if isAdmin()
-          || (isAuth() && request.auth.uid == companyId)
+          || ownsTenantByUid(companyId)
           || (isAuth() && get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid);
         allow create, update: if isAdmin()
           || (isAuth() && notViewer() && !docId.matches('referral_clicks_.*')
-              && (request.auth.uid == companyId
+              && (ownsTenantByUid(companyId)
                   || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid));
         allow delete: if isAdmin();
       }
@@ -2211,7 +2226,7 @@ service cloud.firestore {
       // publisher holds ('publishing') is untouchable.
       function socialManager() {
         return isAdmin()
-          || (companyId == request.auth.uid && notViewer())
+          || (ownsTenantByUid(companyId) && notViewer())
           || (isCompanyAdmin() && companyId == myCompanyId());
       }
       function socialContentChanged() {
@@ -2275,14 +2290,14 @@ service cloud.firestore {
       // past job names.
       match /subs/{subId} {
         allow read: if isAdmin()
-          || (isAuth() && request.auth.uid == companyId)
+          || ownsTenantByUid(companyId)
           || (isAuth() && request.auth.token.get('companyId', '') == companyId);
         allow create, update: if isAuth() && notViewer()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
           && subWriteOk();
         allow delete: if isAuth() && notViewer()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
       }
     }
@@ -2991,7 +3006,7 @@ service cloud.firestore {
     // Written only by scripts/thursday-config.js; the CRM reads it to decide
     // whether to show the Thursday inbox widget.
     match /thursday_config/{companyId} {
-      allow read: if isAuth() && (request.auth.uid == companyId
+      allow read: if isAuth() && (ownsTenantByUid(companyId)
         || isAdmin()
         || (isCompanyReader() && myCompanyId() == companyId));
       allow write: if false;

@@ -104,6 +104,15 @@ exports.claimInvite = onCall(
 
     const db = getFirestore();
 
+    // A former owner who handed the company off (transferCompanyOwnership,
+    // 2026-10-08) still carries companyId == their uid, so the guard above
+    // misses them; they are a member of that company like any other.
+    if (token.companyId && token.companyId === uid) {
+      const own = await db.doc(`companies/${uid}`).get();
+      const oid = own.exists ? (own.data() || {}).ownerId : null;
+      if (oid && oid !== uid) return { claimed: false, reason: 'already_member' };
+    }
+
     // Find the pending invite BEFORE the verified-email wall so an
     // unverified user with no invite gets the cheap terminal 'no_invite'
     // (the dashboard hook stops retrying) instead of an endless

@@ -898,6 +898,57 @@ async function run() {
       updateDoc(doc(solo, 'tasks/r312soloOther'), { companyId: 'co-a' }));
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // HANDOFF — owner hand-off (transferCompanyOwnership, 2026-10-08). The
+  // company keeps its id (here the former owner's uid, 'hoold'); the company
+  // doc names the new owner. The uid-keyed branch (ownsTenantByUid) must stop
+  // granting the former owner anything: as a company_admin they keep what
+  // any company_admin has, minus the owner-only rows; once removed (claims
+  // stripped) they lose the tenant entirely. Solo owners are unaffected.
+  // ═══════════════════════════════════════════════════════════
+  {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'companies/hoold'), { ownerId: 'honew', name: 'Handed-off Roofing', previousOwnerId: 'hoold' });
+      await setDoc(doc(db, 'companyProfile/hoold'), { legalName: 'Handed-off Roofing LLC' });
+      await setDoc(doc(db, 'catalogCosts/hoold'), { items: { shingle: 9000 } });
+      await setDoc(doc(db, 'priceBook/hoold'), { skus: {} });
+      await setDoc(doc(db, 'companies/hoold/owner_numbers/lead_spend'), { google: 120000 });
+      await setDoc(doc(db, 'companies/hoold/members/rep@x.test'), { uid: 'horep', status: 'active' });
+      await setDoc(doc(db, 'agent_inbox/hoItem'), { companyId: 'hoold', status: 'pending', text: 'x' });
+      await setDoc(doc(db, 'companies/hosolo'), { ownerId: 'hosolo', name: 'Solo with doc' });
+      await setDoc(doc(db, 'companies/hosolo/owner_numbers/lead_spend'), { google: 1 });
+      await setDoc(doc(db, 'catalogCosts/hosolo'), { items: {} });
+      await setDoc(doc(db, 'catalogCosts/solo1'), { items: {} });
+    });
+    const exRemoved = env.authenticatedContext('hoold', {}).firestore();                                           // former owner, removed (claims stripped)
+    const exAdmin   = env.authenticatedContext('hoold', { role: 'company_admin', companyId: 'hoold' }).firestore(); // former owner, still on the team
+    const exDemoted = env.authenticatedContext('hoold', { role: 'sales_rep', companyId: 'hoold' }).firestore();     // former owner, demoted to rep
+    const newOwner  = env.authenticatedContext('honew', { role: 'company_admin', companyId: 'hoold' }).firestore();
+    const soloDoc   = env.authenticatedContext('hosolo', {}).firestore();
+
+    // Removed former owner: nothing of the company through the uid key.
+    await check('HANDOFF: removed former owner cannot READ companyProfile',  'deny', getDoc(doc(exRemoved, 'companyProfile/hoold')));
+    await check('HANDOFF: removed former owner cannot WRITE companyProfile', 'deny', setDoc(doc(exRemoved, 'companyProfile/hoold'), { legalName: 'mine now' }, { merge: true }));
+    await check('HANDOFF: removed former owner cannot READ catalogCosts (cost data)', 'deny', getDoc(doc(exRemoved, 'catalogCosts/hoold')));
+    await check('HANDOFF: removed former owner cannot WRITE priceBook', 'deny', setDoc(doc(exRemoved, 'priceBook/hoold'), { skus: { x: 1 } }));
+    await check('HANDOFF: removed former owner cannot READ owner_numbers', 'deny', getDoc(doc(exRemoved, 'companies/hoold/owner_numbers/lead_spend')));
+    await check('HANDOFF: removed former owner cannot READ the roster', 'deny', getDoc(doc(exRemoved, 'companies/hoold/members/rep@x.test')));
+    await check('HANDOFF: removed former owner cannot READ the agent inbox', 'deny', getDoc(doc(exRemoved, 'agent_inbox/hoItem')));
+    // Former owner still on the team as company_admin: admin powers, not owner-only rows.
+    await check('HANDOFF: former owner (company_admin) cannot READ owner-only owner_numbers', 'deny', getDoc(doc(exAdmin, 'companies/hoold/owner_numbers/lead_spend')));
+    await check('HANDOFF control: former owner (company_admin) still reads companyProfile', 'allow', getDoc(doc(exAdmin, 'companyProfile/hoold')));
+    // Demoted to rep: the uid key no longer makes them an editor.
+    await check('HANDOFF: former owner demoted to rep cannot WRITE catalogCosts', 'deny', setDoc(doc(exDemoted, 'catalogCosts/hoold'), { items: { x: 1 } }));
+    await check('HANDOFF: former owner demoted to rep cannot WRITE companyProfile', 'deny', setDoc(doc(exDemoted, 'companyProfile/hoold'), { legalName: 'x' }, { merge: true }));
+    // New owner + solo controls.
+    await check('HANDOFF control: new owner reads owner_numbers', 'allow', getDoc(doc(newOwner, 'companies/hoold/owner_numbers/lead_spend')));
+    await check('HANDOFF control: new owner writes catalogCosts', 'allow', setDoc(doc(newOwner, 'catalogCosts/hoold'), { items: { shingle: 9100 } }));
+    await check('HANDOFF control: solo owner with a company doc naming them reads owner_numbers', 'allow', getDoc(doc(soloDoc, 'companies/hosolo/owner_numbers/lead_spend')));
+    await check('HANDOFF control: solo owner with a company doc writes catalogCosts', 'allow', setDoc(doc(soloDoc, 'catalogCosts/hosolo'), { items: { a: 1 } }));
+    await check('HANDOFF control: solo owner with NO company doc writes catalogCosts', 'allow', setDoc(doc(solo, 'catalogCosts/solo1'), { items: { a: 1 } }));
+  }
+
   // ── Summary ────────────────────────────────────────────────
   const pass = results.filter(r => r.outcome === 'PASS').length;
   const fail = results.filter(r => r.outcome === 'FAIL').length;

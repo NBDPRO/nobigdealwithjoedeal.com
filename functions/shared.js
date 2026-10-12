@@ -286,7 +286,12 @@ function billingPortalRefusal(decoded, ownerId) {
   if (uid && (role === 'admin' || role === 'company_admin')) return null;
   if (uid && ownerId && ownerId === uid) return null;
   const { SUBORDINATE_ROLES } = require('./handlers/_shared');
-  if (uid && (!d.companyId || d.companyId === uid) && !SUBORDINATE_ROLES.has(role)) return null;
+  // The solo-owner branch (company keyed by their uid) no longer applies once
+  // the company doc names a different owner: a former owner who handed the
+  // company off (transferCompanyOwnership, 2026-10-08) and was later removed
+  // must not reach the company's billing through the uid key.
+  if (uid && (!d.companyId || d.companyId === uid) && !SUBORDINATE_ROLES.has(role)
+      && (!ownerId || ownerId === uid)) return null;
   return { status: 403, body: { error: BILLING_OWNER_ONLY_MESSAGE, code: 'billing-owner-only' } };
 }
 
