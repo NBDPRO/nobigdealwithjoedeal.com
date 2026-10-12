@@ -70,6 +70,9 @@ async function seed(page) {
 async function openTile(page, type) {
   const tile = page.locator('#docTemplateGrid [data-action="generateCustomerDoc"][data-doc-type="' + type + '"]');
   await expect(tile).toHaveCount(1);
+  // On a phone the 22 tiles start folded behind "Documents" (2026-10-08).
+  const fold = page.locator('#docTemplatesFold');
+  if (await fold.count() && !(await fold.evaluate((d) => d.open))) await fold.locator('summary').click();
   await tile.scrollIntoViewIfNeeded();
   const box = await tile.boundingBox();
   expect(box && box.x >= 0 && box.x + box.width <= 390, type + ' tile fits a 390px screen').toBeTruthy();
