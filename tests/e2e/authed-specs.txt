@@ -83,6 +83,7 @@ inbox-layout.spec.js
 phone-inspect-no-clip.spec.js
 phone-catchup.spec.js
 phone-home-nav.spec.js
+crew-calendar.spec.js
 layouts.spec.js
 layout-island.spec.js
 field-app.spec.js
