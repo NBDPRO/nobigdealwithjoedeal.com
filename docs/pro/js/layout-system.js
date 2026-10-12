@@ -205,12 +205,39 @@
     supports: { wallpaper: true, glass: true, sunlight: false },
   });
 
+  // L02 Mission Control (M2). A storm / canvass war room over Home. Every screen
+  // (the panels stack under the map on a phone). Its assets - the shared kit, the
+  // MapView component, the pure logic and the screen - load only while it is the
+  // active layout, so Classic pays nothing.
+  register({
+    id: 'mission', name: 'Mission Control', version: 1,
+    blurb: 'A storm war room: live map with the hail swath, who is in the path, and canvass turfs.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/mission.js', css: 'css/layouts/mission.css',
+    needs: {
+      script: ['js/layouts/kit.js', 'js/layouts/mapview.js', 'js/layouts/mission-logic.js'],
+      css: ['css/layouts/kit.css', 'css/layouts/mapview.css'],
+    },
+    supports: { wallpaper: false, glass: false, sunlight: false },
+  });
+
   // L04 Island Dock: floating pill + dock over glass islands. Lazy, like the rest.
   register({
     id: 'island', name: 'Island Dock', blurb: 'No sidebar: a floating nav pill, a bottom dock, and glass islands over your wallpaper.',
     script: 'js/layouts/island.js', css: 'css/layouts/island.css',
     needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
     supports: { wallpaper: true, glass: true },
+  });
+
+  // L05 Triage Inbox (D6): one keyboard-driven list | thread | facts. Every
+  // surface (it folds to one pane at a time on a phone).
+  register({
+    id: 'inbox', name: 'Triage Inbox', version: 1,
+    blurb: 'Texts, calls, new leads and nudges in one list, with a reply-by timer.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/inbox.js', css: 'css/layouts/inbox.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: false, sunlight: false },
   });
 
   var api = {

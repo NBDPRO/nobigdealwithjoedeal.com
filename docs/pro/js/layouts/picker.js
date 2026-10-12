@@ -41,6 +41,7 @@
     classic: '<rect x="2" y="2" width="14" height="56" rx="2" class="a"/><rect x="20" y="2" width="78" height="10" rx="2" class="b"/><rect x="20" y="16" width="24" height="18" rx="2" class="b"/><rect x="48" y="16" width="24" height="18" rx="2" class="b"/><rect x="76" y="16" width="22" height="18" rx="2" class="b"/><rect x="20" y="38" width="78" height="20" rx="2" class="b"/>',
     field: '<rect x="30" y="2" width="40" height="50" rx="5" class="b"/><rect x="34" y="8" width="32" height="12" rx="2" class="a"/><rect x="34" y="24" width="32" height="6" rx="2" class="c"/><rect x="34" y="33" width="32" height="6" rx="2" class="c"/><rect x="30" y="52" width="40" height="6" rx="2" class="b"/><circle cx="50" cy="52" r="6" class="a"/>',
     focus: '<rect x="14" y="4" width="72" height="52" rx="6" class="b"/><rect x="24" y="12" width="52" height="8" rx="2" class="a"/><rect x="24" y="26" width="52" height="5" rx="2" class="c"/><rect x="24" y="36" width="24" height="12" rx="3" class="a"/><rect x="52" y="36" width="24" height="12" rx="3" class="c"/>',
+    mission: '<rect x="2" y="2" width="22" height="56" rx="3" class="b"/><rect x="28" y="2" width="44" height="56" rx="3" class="c"/><rect x="34" y="14" width="30" height="8" rx="2" class="a"/><rect x="40" y="30" width="24" height="8" rx="2" class="a"/><rect x="76" y="2" width="22" height="56" rx="3" class="b"/>',
     bento: '<rect x="2" y="2" width="46" height="26" rx="3" class="b"/><rect x="52" y="2" width="22" height="26" rx="3" class="a"/><rect x="78" y="2" width="20" height="12" rx="3" class="b"/><rect x="78" y="16" width="20" height="12" rx="3" class="b"/><rect x="2" y="32" width="30" height="26" rx="3" class="b"/><rect x="36" y="32" width="62" height="26" rx="3" class="b"/>',
     generic: '<rect x="2" y="2" width="96" height="12" rx="2" class="a"/><rect x="2" y="18" width="46" height="40" rx="3" class="b"/><rect x="52" y="18" width="46" height="40" rx="3" class="b"/>',
   };
@@ -49,6 +50,7 @@
     classic: 'The CRM exactly as you know it. Nothing changes.',
     field: 'Built for the driveway and the roof: today\'s stops, big buttons, a camera that is always one thumb away, and a sunlight mode.',
     focus: 'One lead at a time, ranked, with a plain line on why now and four big actions.',
+    mission: 'A storm war room: the map with the hail swath, who is in its path, and canvass turfs.',
     bento: 'A dashboard of tiles you arrange yourself.',
   };
 
