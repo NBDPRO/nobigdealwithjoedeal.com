@@ -769,6 +769,65 @@
   box-shadow: 0 0 0 1px var(--br), 0 8px 24px -10px var(--glow);
 }
 
+/* ══ Surface style: Solid / Tinted / Glass (2026-10-11, roadmap A4) ═══════════
+   Comfort > Surface style. <html data-surface="tinted|glass"> (stamped before
+   paint by shape-preboot.js; body.surface-tinted / body.surface-glass mirror it
+   for layout code). Absent attribute = Solid = today's exact look.
+   --glass-blur / --glass-frost are the two user dials; --glass-frost-eff is the
+   readability guard's result (JS raises it until text clears 4.5:1 over the
+   worst backdrop). Specificity is deliberately low (:where list, 0,2,0): the
+   Shape & Depth presets (liquid / spatial / fluent / glass) are 0,3,0 and keep
+   winning where they already paint their own translucent surfaces. */
+:where(:root) {
+  --glass-blur: 14px;
+  --glass-frost: 68%;
+  --glass-frost-eff: var(--glass-frost); /* readability guard overrides inline (JS) */
+}
+:root[data-surface="tinted"] :where(.w-card, .stat-card, .ui-card, .ui-panel, .panel, .k-card, .cl-card, .ui-tile, .sidebar) {
+  background-color: color-mix(in srgb, var(--orange) 7%, var(--s2));
+  border-color: color-mix(in srgb, var(--orange) 24%, var(--br));
+}
+:root[data-surface="glass"] :where(.w-card, .stat-card, .ui-card, .ui-panel, .panel, .k-card, .cl-card, .ui-tile, .sidebar) {
+  background-color: color-mix(in srgb, var(--s2) var(--glass-frost-eff), transparent);
+  border-color: color-mix(in srgb, #ffffff 16%, var(--br));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 18%, transparent);
+}
+:root[data-surface="glass"] :where(.ui-input, .ui-field, .ui-field-sm) {
+  background-color: color-mix(in srgb, var(--s) var(--glass-frost-eff), transparent);
+}
+/* Blur only where there are few of them (pipeline cards, rows: translucency only). */
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  :root[data-surface="glass"] :where(.w-card, .stat-card, .ui-card, .ui-panel, .panel, .sidebar) {
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  }
+}
+/* No backdrop-filter: Glass degrades to Tinted (an opaque-enough pane, never a
+   see-through one with nothing blurred behind it). */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  :root[data-surface="glass"] :where(.w-card, .stat-card, .ui-card, .ui-panel, .panel, .k-card, .cl-card, .ui-tile, .sidebar) {
+    background-color: color-mix(in srgb, var(--orange) 7%, var(--s2));
+    box-shadow: none;
+  }
+}
+@media (prefers-contrast: more) {
+  :root[data-surface="glass"] :where(.w-card, .stat-card, .ui-card, .ui-panel, .panel, .k-card, .cl-card, .ui-tile, .sidebar, .ui-input, .ui-field, .ui-field-sm) {
+    background-color: var(--s2);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ══ Comfort tab: Surface style layout (2026-10-11) ═════════════════════════
+   Classes, not inline styles: the dashboard inline-style ratchet counts markup. */
+.npm-surf-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.npm-surf-title { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--m); }
+.npm-surf-row { display: flex; gap: 6px; }
+.npm-surf-sliders { display: none; margin-top: 10px; }
+.npm-surf-lbl { display: block; font-size: 11px; color: var(--m); margin-bottom: 8px; }
+.npm-surf-range { width: 100%; accent-color: var(--orange); }
+.npm-surf-note { font-size: 10px; color: var(--m); margin-top: 6px; line-height: 1.4; }
+
 /* ══ Theme Morph (roadmap A1 / idea #03) ═════════════════════════════════
    ThemeEngine.apply() wraps a deliberate switch in document.startViewTransition
    and grows the new theme as a circle from the clicked chip (clip-path is
