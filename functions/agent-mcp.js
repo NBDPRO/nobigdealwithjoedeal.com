@@ -779,8 +779,60 @@ async function draftAction(request) {
   return { ok: true };
 }
 
+// ── Storm Mode check-in drafts (2026-10-11, roadmap C2) ──────────────────────
+// Storm Mode (docs/pro/js/storm-mode.js, opt-in) sees an NWS warning over the
+// customers' addresses and, once it has passed, asks for ONE draft per
+// customer who was inside the warned area. Drafts only — nothing is texted
+// from here: the owner sends from the Agent inbox, whose 'sent' step re-checks
+// STOP / Do Not Text / consent / the texting switch / texting hours in the
+// homeowner's time. The text is built here from a fixed template (the client
+// sends lead ids and a hazard word, never wording). Item ids are
+// storm_<event>_<lead> and written with create(), so a second call, a second
+// tab or a second device files nothing twice.
+const STORM_DRAFTS_MAX = 40;
+async function stormDrafts(request) {
+  const c = requireKeyAdmin(request);
+  const data = request.data || {};
+  const eventKey = cleanId(data.eventKey, /[^A-Za-z0-9]/g).slice(0, 40);
+  const hazard = data.hazard === 'wind' ? 'wind' : 'hail';
+  const seen = {};
+  const ids = (Array.isArray(data.leadIds) ? data.leadIds : []).map((id) => cleanId(id, /[^A-Za-z0-9_-]/g)).filter((id) => {
+    if (!id || seen[id]) return false;
+    seen[id] = true; return true;
+  }).slice(0, STORM_DRAFTS_MAX);
+  if (eventKey.length < 6) throw new HttpsError('invalid-argument', 'eventKey is required.');
+  if (!ids.length) throw new HttpsError('invalid-argument', 'leadIds is required.');
+  const names = L.companyNames(await readDoc('companyProfile/' + c.company), c.isNbd);
+  const skipped = {};
+  const skip = (why) => { skipped[why] = (skipped[why] || 0) + 1; };
+  let filed = 0;
+  for (const id of ids) {
+    const lead = await readDoc('leads/' + id);
+    if (!lead || lead.deleted === true || lead.e2eTestData || (lead.companyId !== c.company && lead.userId !== c.company)) { skip('not_on_board'); continue; }
+    const built = L.buildStormCheckIn(lead, names, hazard);
+    if (built.error) { skip('text_refused'); continue; }
+    const optOut = await OptOut.isOptedOut(db(), lead.phone, { companyId: draftTenants(c.company, lead), timeoutMs: OptOut.READ_TIMEOUT_MS }).catch(() => null);
+    const gate = L.textGate(lead, optOut);
+    if (gate.error) { skip('cannot_text'); continue; }
+    try {
+      await db().doc('agent_inbox/storm_' + eventKey + '_' + id).create({
+        companyId: c.company, bot: 'Storm Mode', botId: 'storm-mode', status: 'pending', verified: false,
+        createdAt: FieldValue.serverTimestamp(), keyId: 'storm-mode',
+        kind: 'draft_text', leadId: id, title: '', text: built.body, reason: built.reason,
+        consentOnFile: gate.consentOnFile, dueDate: null, stormEvent: eventKey,
+      });
+      filed++;
+    } catch (e) {
+      if (e && (e.code === 6 || /already exists/i.test(String(e.message)))) skip('already_filed');
+      else { logger.warn('[stormDrafts] write failed', { msg: e && e.message }); skip('write_failed'); }
+    }
+  }
+  return { ok: true, filed, skipped };
+}
+
 const CALL_OPTS = { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, timeoutSeconds: 20, memory: '256MiB' };
 exports.agentDraftAction = onCall(CALL_OPTS, draftAction);
+exports.fileStormDrafts = onCall(Object.assign({}, CALL_OPTS, { timeoutSeconds: 60 }), stormDrafts);
 exports.createAgentKey = onCall(CALL_OPTS, createKey);
 exports.listAgentKeys = onCall(CALL_OPTS, listKeys);
 exports.revokeAgentKey = onCall(CALL_OPTS, revokeKey);
@@ -790,5 +842,5 @@ exports.saveAgentSettings = onCall(CALL_OPTS, saveSettings);
 
 exports._internal = {
   handleRpc, runTool, sha256, contextFor, authenticate, handleHttp, bellNotice,
-  createKey, listKeys, revokeKey, saveBot, deleteBot, saveSettings, callerOf, NBD_OWNER_UID, draftAction, draftCheck, fileItem,
+  createKey, listKeys, revokeKey, saveBot, deleteBot, saveSettings, callerOf, NBD_OWNER_UID, draftAction, draftCheck, fileItem, stormDrafts,
 };

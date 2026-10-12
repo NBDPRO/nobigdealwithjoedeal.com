@@ -1,0 +1,78 @@
+/* layouts/focus.css — L03 Focus Mode (2026-10-11, D4).
+ * Scoped under html[data-layout="focus"]. Theme tokens + --tap only. With a
+ * My Skin wallpaper the card goes glass (color-mix over the picture); without
+ * one it is a solid surface, so it never looks empty or unreadable. */
+
+html[data-layout="focus"] .fo-root {
+  position: fixed; inset: 0; z-index: 1800; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  background: var(--bg); color: var(--t);
+}
+html[data-layout="focus"] .fo-root[hidden] { display: none; }
+html[data-layout="focus"].my-skin-wallpaper .fo-root { background: transparent; }
+html[data-layout="focus"] .fo-wrap { max-width: 920px; margin: 0 auto; padding: 14px 16px 40px; box-sizing: border-box; min-height: 100%; display: flex; flex-direction: column; }
+
+html[data-layout="focus"] .fo-top { display: flex; gap: 8px; align-items: center; }
+html[data-layout="focus"] .fo-pill {
+  min-height: var(--tap); padding: 0 18px; border-radius: 999px; border: 1px solid var(--rule); background: var(--s2); color: var(--t);
+  font: inherit; font-size: 15px; font-weight: 800; cursor: pointer;
+}
+html[data-layout="focus"] .fo-menu { margin-left: auto; }
+html[data-layout="focus"] .fo-sheet {
+  align-self: flex-end; margin-top: 8px; min-width: 200px; background: var(--s); border: 1px solid var(--rule); border-radius: 14px; padding: 6px;
+  display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0, 0, 0, .3);
+}
+html[data-layout="focus"] .fo-sheet button { min-height: var(--tap); text-align: left; padding: 0 14px; border: 0; background: none; color: var(--t); font: inherit; font-weight: 700; font-size: 16px; border-radius: 10px; cursor: pointer; }
+html[data-layout="focus"] .fo-sheet button:hover { background: var(--og); }
+
+html[data-layout="focus"] .fo-hero { text-align: center; margin: 9vh 0 16px; }
+html[data-layout="focus"] .fo-big { font-size: clamp(72px, 18vw, 140px); line-height: 1; font-weight: 900; color: var(--orange); font-variant-numeric: tabular-nums; }
+html[data-layout="focus"] .fo-sub { font-size: 20px; font-weight: 700; color: var(--t); }
+html[data-layout="focus"] .fo-lines { list-style: none; margin: 8px auto 24px; padding: 0; text-align: center; color: var(--m); font-size: 16px; line-height: 1.8; }
+html[data-layout="focus"] .fo-note { text-align: center; color: var(--m); font-size: 14px; }
+html[data-layout="focus"] .fo-empty { text-align: center; color: var(--m); padding: 14vh 0; font-size: 17px; }
+html[data-layout="focus"] .fo-start {
+  align-self: center; min-height: calc(var(--tap) + 8px); padding: 0 28px; border-radius: 18px; border: 0;
+  background: var(--orange); color: var(--accent-fg, #fff); font: inherit; font-size: 18px; font-weight: 800; cursor: pointer;
+  box-shadow: 0 0 22px var(--og);
+}
+
+html[data-layout="focus"] .fo-count { text-align: center; margin: 14px 0 8px; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--m); }
+html[data-layout="focus"] .fo-stage { display: flex; align-items: stretch; gap: 10px; }
+html[data-layout="focus"] .fo-peek {
+  flex: 0 0 56px; border: 0; border-radius: 16px; background: var(--s2); color: var(--m); opacity: .55; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font: inherit; font-size: 12px; font-weight: 700;
+}
+html[data-layout="focus"] .fo-peek span { writing-mode: vertical-rl; text-orientation: mixed; white-space: nowrap; overflow: hidden; max-height: 160px; }
+html[data-layout="focus"] .fo-peek[disabled] { visibility: hidden; }
+html[data-layout="focus"] .fo-card {
+  flex: 1 1 auto; min-width: 0; padding: 22px 22px 18px; border-radius: 24px; border: 1px solid var(--rule);
+  background: var(--s); display: flex; flex-direction: column; gap: 14px;
+}
+html[data-layout="focus"].my-skin-wallpaper .fo-card {
+  background: color-mix(in srgb, var(--s) 80%, transparent);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+html[data-layout="focus"] .fo-name { margin: 0; font-size: clamp(30px, 6vw, 48px); line-height: 1.08; font-weight: 800; overflow-wrap: anywhere; }
+html[data-layout="focus"] .fo-why { margin: 0; font-size: 19px; line-height: 1.35; }
+html[data-layout="focus"] .fo-why-k { display: inline-block; margin-right: 8px; padding: 2px 10px; border-radius: 999px; background: var(--og); color: var(--orange); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; vertical-align: 2px; }
+html[data-layout="focus"] .fo-facts { list-style: none; margin: 0; padding: 0; color: var(--m); font-size: 15px; display: flex; flex-direction: column; gap: 3px; }
+html[data-layout="focus"] .fo-draft { background: var(--s2); border: 1px dashed var(--rule); border-radius: 14px; padding: 12px 14px; }
+html[data-layout="focus"] .fo-draft-k { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--m); margin-bottom: 4px; }
+html[data-layout="focus"] .fo-draft p { margin: 0; font-size: 16px; line-height: 1.4; }
+html[data-layout="focus"] .fo-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+html[data-layout="focus"] .fo-act {
+  min-height: calc(var(--tap) + 10px); border-radius: 18px; border: 1px solid var(--rule); background: var(--s2); color: var(--t);
+  display: flex; align-items: center; justify-content: center; gap: 10px; font: inherit; font-size: 18px; font-weight: 800; text-decoration: none; cursor: pointer;
+}
+html[data-layout="focus"] .fo-act[disabled] { opacity: .45; cursor: not-allowed; }
+html[data-layout="focus"] .fo-act-primary { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); box-shadow: 0 0 20px var(--og); }
+html[data-layout="focus"] .fo-act kbd { font: inherit; font-size: 11px; font-weight: 800; opacity: .7; border: 1px solid currentColor; border-radius: 6px; padding: 0 5px; }
+html[data-layout="focus"] .fo-open { font-size: 14px; font-weight: 700; color: var(--orange); }
+html[data-layout="focus"] .fo-keys { text-align: center; color: var(--m); font-size: 12px; margin: 16px 0 0; }
+
+@media (max-width: 768px) {
+  html[data-layout="focus"] .fo-peek { display: none; }
+  html[data-layout="focus"] .fo-keys { display: none; }
+  html[data-layout="focus"] .fo-hero { margin-top: 5vh; }
+  html[data-layout="focus"] #mobile-nav { display: none !important; }
+}
