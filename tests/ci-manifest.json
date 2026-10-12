@@ -11,6 +11,7 @@
   ],
   "node": [
     "layout-system-2026-10-11.test.js",
+    "layout-kit-2026-10-11.test.js",
     "pro-demo-sdk-2026-10-06.test.js",
     "pro-demo-wave2-2026-10-06.test.js",
     "appcheck-config-per-page-2026-10-06.test.js",
@@ -274,6 +275,7 @@
     "ui-primitives-2026-10-01.test.js",
     "ui-foundation-2026-10-05.test.js",
     "money-font-2026-10-05.test.js",
+    "pixel-mode-2026-10-11.test.js",
     "inline-style-ratchet-2026-10-01.test.js",
     "voicemail-error-visible-2026-10-03.test.js",
     "game-xp-2026-10-03.test.js",
@@ -437,6 +439,7 @@
     "upgrade-price-settings.test.js",
     "upgrades-builder-card.test.js",
     "deposit-rule.test.js",
+    "ohio-4722-deposit-cap-2026-10-11.test.js",
     "role-gate.test.js",
     "collection-group-paths.test.js",
     "indexnow-ping.test.js",
@@ -466,11 +469,15 @@
     "today-home-visual-2026-10-05.test.js",
     "phone-home-nav-2026-10-08.test.js",
     "pipeline-cards-visual-2026-10-05.test.js",
+    "trophy-case-2026-10-11.test.js",
+    "command-palette-scopes-2026-10-11.test.js",
     "customer-header-visual-2026-10-05.test.js",
     "close-board-visual-2026-10-05.test.js",
     "care-plan-crm-2026-10-05.test.js",
+    "pipeline-rich-cards-2026-10-11.test.js",
     "r4-silent-jobs-2026-10-06.test.js",
     "invoice-due-7-days-2026-10-05.test.js",
+    "skin-quota-2026-10-11.test.js",
     "deposit-credit-ledger-mirror-2026-10-05.test.js",
     "r2-money-lines-jobvalue-2026-10-06.test.js",
     "r2-money-parse-multijob-2026-10-06.test.js",
@@ -497,7 +504,8 @@
     "firestore-index-coverage-2026-10-04.test.js",
     "photo-cache-lazy-2026-10-04.test.js",
     "firebase-sdk-vendored-2026-10-04.test.js",
-    "paid-in-full-supplements-r6-2026-10-07.test.js"
+    "paid-in-full-supplements-r6-2026-10-07.test.js",
+    "auto-theme-rules.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

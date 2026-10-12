@@ -214,7 +214,39 @@ const CASES = [
     rows: [['Your deductible', 'At signing', 'Per your policy'],
       ['Insurance ACV payment (your carrier’s first check)', 'When your carrier releases it', 'Set by your carrier'],
       ['Balance', 'On completion', 'Remainder of $12,000']] },
+  // ── Ohio ORC 4722.04 (Jo, 2026-10-11): property in Ohio + contract at or
+  // above $25,000 → 10% at signing, the next payment when materials are
+  // delivered / work begins, the balance on completion. The address the doc
+  // carries is OH_ADDR; every surface below must print the same stages.
+  { name: 'Ohio cash $27,432.18 (10% cap, $25 step down)', mode: 'cash', total: 27432.18, ohio: true,
+    dep: 272500, bal: 2470718, label: 'Due at signing', value: '$2,725',
+    cb: ['Due at signing', '$2,725'],
+    summary: '10% deposit of $2,725 due at signing; $11,000 due when your materials are delivered or work begins; balance of $13,707.18 due on completion.',
+    rows: [['10% deposit', 'At signing', '$2,725'], ['Second payment', 'When your materials are delivered or work begins', '$11,000'],
+      ['Balance', 'On completion', '$13,707.18']] },
+  { name: 'Ohio cash $25,000.00 (boundary is covered)', mode: 'cash', total: 25000, ohio: true,
+    dep: 250000, bal: 2250000, label: 'Due at signing', value: '$2,500',
+    cb: ['Due at signing', '$2,500'],
+    summary: '10% deposit of $2,500 due at signing; $10,000 due when your materials are delivered or work begins; balance of $12,500 due on completion.',
+    rows: [['10% deposit', 'At signing', '$2,500'], ['Second payment', 'When your materials are delivered or work begins', '$10,000'],
+      ['Balance', 'On completion', '$12,500']] },
+  { name: 'Ohio cash $30,000 + $4,000 special-order materials', mode: 'cash', total: 30000, ohio: true, specialOrder: 4000,
+    dep: 600000, bal: 2400000, label: 'Due at signing', value: '$6,000',
+    cb: ['Due at signing', '$6,000'],
+    summary: '10% deposit of $3,000 due at signing, plus $3,000 for your special-order materials; $9,000 due when your materials are delivered or work begins; balance of $15,000 due on completion.',
+    rows: [['10% deposit', 'At signing', '$3,000'], ['Special-order materials (75% of $4,000)', 'At signing', '$3,000'],
+      ['Second payment', 'When your materials are delivered or work begins', '$9,000'], ['Balance', 'On completion', '$15,000']] },
+  { name: 'Ohio insurance $30,000, $5,000 deductible capped at 10%', mode: 'insurance', total: 30000, deductible: 5000, acv: 24000, ohio: true,
+    dep: 300000, bal: 2700000, label: 'Due at signing', value: '$3,000',
+    cb: ['Due at signing', '$3,000'],
+    cbTerms: 'Your deductible at signing; the next payment when your materials are delivered or work begins; the balance on completion.',
+    summary: 'Due at signing: $3,000 (10% of the contract price, toward your $5,000 deductible); $21,000 due when your materials are delivered or work begins (the rest of your deductible and your insurance ACV payment); balance of $6,000 due on completion.',
+    rows: [['Your deductible (first part)', 'At signing', '$3,000'],
+      ['Rest of your deductible', 'When your materials are delivered or work begins', '$2,000'],
+      ['Insurance ACV payment (your carrier’s first check)', 'When your materials are delivered or work begins', '$19,000'],
+      ['Balance', 'On completion', '$6,000']] },
 ];
+const OH_ADDR = '1 Elm St, Cincinnati, OH 45202';
 
 // A saved V2 doc (post-sweep shape: retail rows + the O&P ladder inputs) for
 // a case. One retail line at the full price, no tax, so the saved grandTotal
@@ -235,6 +267,8 @@ function savedDocFor(c, id) {
     grandTotal: c.total, subtotal: c.total, tax: 0, taxRate: 0,
     materialMarkupPct: 0.25, retailBeforeOHP: c.total, overhead: 0, overheadPct: 0, profit: 0, profitPct: 0,
     materialCost: 0, laborCost: 0, internal: { margin: 0, marginPct: 0 },
+    // Ohio ORC 4722.04 input the V2 builder saves with the estimate (2026-10-11).
+    specialOrderAmount: c.specialOrder || null,
     // Deliberately STALE: the old engine's 50/50 answer. Nothing may print it.
     deposit: Math.round(c.total * 0.5 / 25) * 25,
   };
@@ -409,7 +443,7 @@ function pfDoc(total, mode, claim, extra) {
 
 // The Close Board deal page (the real close-board.js; its Firestore import()
 // is routed to a stub the way the close-board suites do it).
-function closeBoardPage(price, mode, deductible) {
+function closeBoardPage(price, mode, deductible, ohio) {
   const raw = read('docs/pro/js/close-board.js').replace(/\bimport\(/g, '__testImport(');
   const mk = () => ({ _h: '', get innerHTML() { return this._h; }, set innerHTML(v) { this._h = String(v); },
     get textContent() { return this._h; },
@@ -433,8 +467,10 @@ function closeBoardPage(price, mode, deductible) {
   vm.createContext(sb);
   vm.runInContext(read('docs/pro/js/deposit-rule.js'), sb, { filename: 'deposit-rule.js' });
   vm.runInContext(raw, sb, { filename: 'close-board.js' });
-  const deal = sb.CloseBoard.createFromEstimate({ prices: { good: price, better: price, best: price } },
-    { name: 'Jane Smith', address: '1 Elm St', insuranceCarrier: mode === 'insurance' ? 'State Farm' : '', deductible: deductible || 0 });
+  const estData = { prices: { good: price, better: price, best: price } };
+  if (ohio && ohio.specialOrder) estData.depositBasis = { mode: mode, specialOrderAmount: ohio.specialOrder, addr: ohio.address };
+  const deal = sb.CloseBoard.createFromEstimate(estData,
+    { name: 'Jane Smith', address: ohio ? ohio.address : '1 Elm St', insuranceCarrier: mode === 'insurance' ? 'State Farm' : '', deductible: deductible || 0 });
   return sb.CloseBoard.generatePageHTML(deal) || '';
 }
 
@@ -482,7 +518,10 @@ function closeBoardPage(price, mode, deductible) {
     const totalC = Math.round(c.total * 100);
 
     // A. RULE
-    const plan = R.compute({ total: c.total, mode: c.mode, deductible: c.deductible, acv: c.acv });
+    const planIn = { total: c.total, mode: c.mode, deductible: c.deductible, acv: c.acv };
+    if (c.ohio) planIn.address = OH_ADDR;
+    if (c.specialOrder) planIn.specialOrder = c.specialOrder;
+    const plan = R.compute(planIn);
     ok(tag + 'A rule: deposit ' + c.dep + '¢, balance ' + c.bal + '¢', plan.depositCents === c.dep && plan.balanceCents === c.bal,
       plan.depositCents + ' / ' + plan.balanceCents);
     ok(tag + 'A rule: deposit + balance === total exactly', plan.depositCents + plan.balanceCents === totalC);
@@ -588,7 +627,7 @@ function closeBoardPage(price, mode, deductible) {
     }
 
     // I. CLOSE BOARD — every tier card at this price says the same.
-    const cb = closeBoardPage(c.total, c.mode, c.deductible);
+    const cb = closeBoardPage(c.total, c.mode, c.deductible, c.ohio ? { address: OH_ADDR, specialOrder: c.specialOrder || 0 } : null);
     const cbLines = cb.match(/<div class="tier-deposit">[^\n]*?<\/div>/g) || [];
     const cbWant = (c.cb || [c.label, c.value]).join(': ');
     ok(tag + 'I close board: each tier card prints "' + cbWant + '"',
@@ -606,7 +645,10 @@ function closeBoardPage(price, mode, deductible) {
       !!jt && cents(jt.deposit) === jtPlan.depositCents && !!jt.depositPlan && jt.depositPlan.summary === jtPlan.summary);
 
     // K. ENGINE adapter (classic calcDeposit delegates here).
-    const eng = ENGINE.calcDeposit(c.total, c.mode, { deductible: c.deductible, acv: c.acv });
+    const engOpts = { deductible: c.deductible, acv: c.acv };
+    if (c.ohio) engOpts.address = OH_ADDR;
+    if (c.specialOrder) engOpts.specialOrder = c.specialOrder;
+    const eng = ENGINE.calcDeposit(c.total, c.mode, engOpts);
     ok(tag + 'K engine calcDeposit: amount/remainder', cents(eng.amount) === c.dep && cents(eng.remainder) === c.bal, eng.amount + ' / ' + eng.remainder);
 
     // Legal copy guard — every insurance string.
@@ -697,6 +739,20 @@ function closeBoardPage(price, mode, deductible) {
     ok('pre-flight: the same figure saved with no basis (before this fix) gives way to the rule', unbased === '0.00', unbased);
     ok('…and is named for the rep\'s note, not dropped silently', dropped.length === 1 && dropped[0].value === '400.00' && dropped[0].label === 'Deposit Amount',
       JSON.stringify(dropped));
+    // Ohio ORC 4722.04 (2026-10-11): the payment agreement's Payment 1 is the
+    // capped signing amount and Payment 2 the delivery / start payment.
+    const f1 = { key: 'payment1Amount', source: 'computed.depositPayment1' }, f2 = { key: 'payment2Amount', source: 'computed.depositPayment2' };
+    const ohCash = { lead: {}, estimate: { grandTotal: 30000, mode: 'cash', addr: OH_ADDR } };
+    ok('pre-flight Ohio cash $30,000: Payment 1 $3,000.00, Payment 2 $12,000.00 (due on delivery / start)',
+      PF._resolveFieldValue(f1, ohCash) === '3000.00' && PF._resolveFieldValue(f2, ohCash) === '12000.00',
+      PF._resolveFieldValue(f1, ohCash) + ' / ' + PF._resolveFieldValue(f2, ohCash));
+    const ohIns = { lead: {}, estimate: { grandTotal: 30000, mode: 'insurance', addr: OH_ADDR, claim: { deductible: 5000, acv: 24000 } } };
+    ok('pre-flight Ohio insurance: Payment 1 is the capped $3,000.00, Payment 2 the rest of the deductible + ACV ($21,000.00)',
+      PF._resolveFieldValue(f1, ohIns) === '3000.00' && PF._resolveFieldValue(f2, ohIns) === '21000.00',
+      PF._resolveFieldValue(f1, ohIns) + ' / ' + PF._resolveFieldValue(f2, ohIns));
+    const ohInsSmall = { lead: {}, estimate: { grandTotal: 12000, mode: 'insurance', addr: OH_ADDR, claim: { deductible: 1000, acv: 9000 } } };
+    ok('pre-flight Ohio insurance under $25,000: unchanged (Payment 1 the deductible, Payment 2 the $8,000 ACV check)',
+      PF._resolveFieldValue(f1, ohInsSmall) === '1000.00' && PF._resolveFieldValue(f2, ohInsSmall) === '8000.00');
   }
 
   // ══════════════════════════════════════════════════════════════════

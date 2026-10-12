@@ -1,0 +1,108 @@
+/* pipeline-rich-cards.css — the Pipeline board's rich card style + board strip
+   (CRM style integration C5, 2026-10-11). Paints from the theme tokens only
+   (--s/--s2/--s3/--br/--t/--m/--orange/--green/--gold/--red/--blue/--purple),
+   so every theme reskins it; text is always --t or --m over a tinted plate, so
+   contrast tracks the theme's own text/surface pair. Selectors stay at
+   (0,2,0)-(0,3,0): a theme's :root[data-theme=...] rules still win. */
+
+/* ── board strip ─────────────────────────────────────────────────── */
+.kr-strip {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 8px 12px; padding: 0 16px 8px;
+}
+body.crm-list-mode .kr-strip { display: none; }
+.kr-stats { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.kr-stat {
+  display: inline-flex; align-items: baseline; gap: 6px; min-height: 32px;
+  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--br);
+  background: var(--s2); color: var(--t); font: inherit; font-size: 12px; cursor: pointer;
+}
+.kr-stat.kr-stat-static { cursor: default; }
+.kr-stat.is-on { border-color: var(--orange); }
+.kr-stat-k { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--m); }
+.kr-stat-v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.kr-stat-n { font-size: 10px; color: var(--m); }
+.kr-stat-cold.is-on { background: color-mix(in srgb, var(--red) 14%, var(--s2)); border-color: var(--red); }
+.kr-switch { display: inline-flex; gap: 4px; flex: 0 0 auto; }
+.kr-switch .kr-sw.ui-seg { flex: 0 0 auto; min-height: 32px; padding: 4px 10px; }
+
+/* ── the rich card block (only rendered in data-density="rich") ──── */
+.kr-block { display: flex; flex-direction: column; gap: 6px; margin: 0 0 8px; min-width: 0; }
+.kr-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.kr-thumb {
+  flex: 0 0 46px; width: 46px; height: 46px; border-radius: 8px; overflow: hidden;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--s3); border: 1px solid var(--br); color: var(--m);
+}
+.kr-thumb svg { width: 22px; height: 22px; }
+.kr-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.kr-id { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
+.kr-chips { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.kr-chip {
+  font-size: 10px; font-weight: 700; letter-spacing: .04em; line-height: 1.5;
+  padding: 1px 7px; border-radius: 999px; border: 1px solid var(--br);
+  background: var(--s3); color: var(--t); white-space: nowrap;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.kr-chip-insurance { background: color-mix(in srgb, var(--blue, var(--orange)) 16%, var(--s3)); border-color: color-mix(in srgb, var(--blue, var(--orange)) 50%, transparent); }
+.kr-chip-retail    { background: color-mix(in srgb, var(--green) 16%, var(--s3)); border-color: color-mix(in srgb, var(--green) 50%, transparent); }
+.kr-chip-warranty  { background: color-mix(in srgb, var(--purple, var(--orange)) 16%, var(--s3)); border-color: color-mix(in srgb, var(--purple, var(--orange)) 50%, transparent); }
+.kr-chip-hail      { background: color-mix(in srgb, var(--gold) 18%, var(--s3)); border-color: color-mix(in srgb, var(--gold) 55%, transparent); }
+.kr-sq { font-size: 11px; font-weight: 700; color: var(--m); font-variant-numeric: tabular-nums; }
+
+.kr-av {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 800; letter-spacing: .02em; color: var(--t);
+  border: 1px solid var(--br); background: var(--s3);
+}
+.kr-av-0 { background: color-mix(in srgb, var(--orange) 28%, var(--s3)); }
+.kr-av-1 { background: color-mix(in srgb, var(--blue, var(--orange)) 28%, var(--s3)); }
+.kr-av-2 { background: color-mix(in srgb, var(--green) 28%, var(--s3)); }
+.kr-av-3 { background: color-mix(in srgb, var(--purple, var(--orange)) 28%, var(--s3)); }
+.kr-av-4 { background: color-mix(in srgb, var(--gold) 28%, var(--s3)); }
+.kr-av-5 { background: color-mix(in srgb, var(--red) 24%, var(--s3)); }
+
+/* aging heat bar: 10 segments, filled up to days / target */
+.kr-heat { display: flex; align-items: center; gap: 8px; }
+.kr-heat-bar { flex: 1 1 auto; display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; }
+.kr-heat-bar i { display: block; height: 5px; border-radius: 2px; background: color-mix(in srgb, var(--m) 28%, transparent); }
+.kr-heat-ok   .kr-heat-bar i.on { background: var(--green); }
+.kr-heat-warn .kr-heat-bar i.on { background: var(--gold); }
+.kr-heat-late .kr-heat-bar i.on { background: var(--red); }
+.kr-heat-txt { font-size: 10px; font-weight: 700; color: var(--m); font-variant-numeric: tabular-nums; min-width: 24px; text-align: right; }
+.kr-heat-late .kr-heat-txt { color: var(--t); }
+
+.kr-next { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--t); min-width: 0; }
+.kr-next-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.kr-next-none .kr-next-txt { color: var(--m); font-style: italic; }
+.kr-due { flex: 0 0 auto; font-size: 10px; font-weight: 700; color: var(--m); white-space: nowrap; }
+.kr-due-over, .kr-due-today { color: var(--t); }
+.kr-due-over::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 50%; background: var(--red); }
+.kr-due-today::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 50%; background: var(--gold); }
+
+/* Photo style: the roof photo is a banner across the card */
+:root[data-density="rich"][data-rich-style="photo"] .kr-photo .kr-top { flex-wrap: wrap; }
+:root[data-density="rich"][data-rich-style="photo"] .kr-photo .kr-thumb {
+  flex: 1 0 100%; width: 100%; height: 108px; border-radius: 8px;
+}
+:root[data-density="rich"][data-rich-style="photo"] .kr-photo .kr-thumb svg { width: 32px; height: 32px; }
+:root[data-density="rich"][data-rich-style="photo"] .kr-photo .kr-id { flex: 1 1 0; }
+
+/* rich cards trade the email line for the block above */
+:root[data-density="rich"] .k-card .kc-email-line { display: none; }
+
+@media (max-width: 640px) {
+  .kr-strip { padding: 0 10px 8px; }
+  /* phone columns are ~180px wide: a smaller thumbnail + avatar keep the chip row on one line */
+  .kr-thumb { flex-basis: 38px; width: 38px; height: 38px; }
+  .kr-av { width: 22px; height: 22px; font-size: 9px; }
+  .kr-top { gap: 6px; }
+  .kr-chip { padding: 1px 5px; font-size: 9px; letter-spacing: 0; }
+  .kr-stat-n { display: none; }
+  .kr-switch { width: 100%; }
+  .kr-switch .kr-sw.ui-seg { flex: 1 1 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kr-stat, .kr-sw { transition: none; }
+}
