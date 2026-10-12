@@ -28,6 +28,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 const { getStorage } = require('firebase-admin/storage');
 const L = require('./call-center-logic');
+const PR = require('./promise-logic');
 const CL = require('./contact-labels');
 
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
@@ -917,6 +918,82 @@ async function callAction({ db, auth, data, nowMs }) {
     }
     await ref.set({ snoozeUntilYmd: null }, { merge: true });
     return { ok: true, on: 'call' };
+  }
+  // Promise capture (2026-10-12; documentation/projects/PROMISE-CAPTURE-2026-10-12.md).
+  // Handling a call asks what Jo owes: one chip (Call back / Send estimate /
+  // Text by 5pm / Order materials / Check on permit / Waiting on them) and a
+  // date become a dated task on the customer (promise-<callId>, so a double
+  // tap writes once and choosing again from the call edits it). The call is
+  // marked handled and its generic cube-/sms- follow-up task is retired as
+  // superseded, so the person is not owed twice. A call filed on no customer
+  // has no lead to hang a task on: the promise rides on the call doc
+  // (promise{} + followUpDate, the rule needs-you already reads) and the call
+  // stays unhandled. "Nothing owed" is the plain 'handled' action.
+  if (action === 'promise') {
+    const today = etToday(nowMs);
+    const kind = String((data && data.kind) || '');
+    const built = PR.buildTask({
+      kind, dueYmd: data && data.dueYmd ? String(data.dueYmd) : '', why: data && data.why, todayYmd: today,
+      uid: auth.uid, source: isText ? 'text' : 'call', sourceCallId: id,
+      waitingOn: data && data.waitingOn, waitingDays: data && data.waitingDays,
+    });
+    if (built.error) throw new HttpsError('invalid-argument', built.error);
+    if (call.leadId) {
+      const leadId = String(call.leadId);
+      const ls = await db.doc('leads/' + leadId).get();
+      const lead = ls.exists ? ls.data() : null;
+      if (!lead || lead.deleted === true) throw new HttpsError('not-found', 'Customer not found.');
+      if (!leadInCallTenant(lead, call)) throw new HttpsError('permission-denied', 'That customer is not in your company.');
+      const taskId = 'promise-' + id;
+      const taskRef = db.doc('leads/' + leadId + '/tasks/' + taskId);
+      const prev = await taskRef.get();
+      const old = prev.exists ? (prev.data() || {}) : null;
+      const doc = Object.assign({}, built, {
+        leadId, userId: lead.userId || call.userId || OWNER,
+        title: built.text, createdBy: 'Promise capture', phoneCallId: id, updatedAt: FieldValue.serverTimestamp(),
+      });
+      if (lead.companyId || call.companyId) doc.companyId = lead.companyId || call.companyId;
+      if (old && old.kind === 'promise') {
+        // Editing the same promise: keep its history, never reset a miss count.
+        ['missCount', 'rescheduleCount', 'madeYmd', 'madeBy', 'nudgeCount', 'waitingSince'].forEach((k) => { if (old[k] !== undefined && old[k] !== null) doc[k] = old[k]; });
+        if (doc.promiseKind === 'waiting' && old.promiseKind !== 'waiting') doc.waitingSince = built.waitingSince;
+        doc.done = false; doc.completedAt = null; doc.outcome = null;
+      } else {
+        doc.madeAt = FieldValue.serverTimestamp();
+        doc.createdAt = FieldValue.serverTimestamp();
+      }
+      await taskRef.set(doc, { merge: true });
+      const genericRef = db.doc('leads/' + leadId + '/tasks/' + (isText ? 'sms-' : 'cube-') + id);
+      const g = await genericRef.get();
+      if (g.exists && (g.data() || {}).done !== true) {
+        await genericRef.set({ done: true, completedAt: FieldValue.serverTimestamp(), supersededBy: taskId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      }
+      await ref.set({ handledAtMs: nowMs, handledBy: auth.uid, promiseTaskId: taskId, promiseKind: kind }, { merge: true });
+      return { ok: true, on: 'task', taskId, dueDate: built.dueDate };
+    }
+    if (kind === 'waiting') throw new HttpsError('failed-precondition', 'File this call on a customer first - waiting needs a customer.');
+    const prevPromise = call.promise && call.promise.kind === 'promise' ? call.promise : null;
+    const promise = Object.assign({}, built);
+    if (prevPromise) ['missCount', 'rescheduleCount', 'madeYmd', 'madeBy'].forEach((k) => { if (prevPromise[k] != null) promise[k] = prevPromise[k]; });
+    const patch = { promise, promiseKind: kind, followUpDate: built.dueDate, handledAtMs: null };
+    if (built.dueDate > today) { patch.snoozeUntilYmd = built.dueDate; patch.snoozedBy = auth.uid; } else patch.snoozeUntilYmd = null;
+    await ref.set(patch, { merge: true });
+    return { ok: true, on: 'call', dueDate: built.dueDate };
+  }
+  // Moving a promise that rides on a call (no customer): a new date, and a
+  // miss counted when it was already past due. Task promises move on the task.
+  if (action === 'promiseMove') {
+    const p = call.promise && call.promise.kind === 'promise' ? call.promise : null;
+    if (!p) throw new HttpsError('failed-precondition', 'This call has no promise to move.');
+    const today = etToday(nowMs);
+    const to = String((data && data.dueYmd) || '');
+    const bad = PR.moveProblem(p, to, today);
+    if (bad) throw new HttpsError('invalid-argument', bad);
+    const next = Object.assign({}, p, PR.movePatch(p, to, today));
+    const patch = { promise: next, followUpDate: to, snoozeUntilYmd: to > today ? to : null };
+    if (to > today) patch.snoozedBy = auth.uid;
+    await ref.set(patch, { merge: true });
+    return { ok: true, on: 'call', dueDate: to, missCount: next.missCount };
   }
   // Texts are matched to customers by the text ingest itself; only Handled applies.
   if (isText) throw new HttpsError('invalid-argument', 'Only Handled applies to texts.');

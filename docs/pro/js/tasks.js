@@ -380,7 +380,7 @@ function renderTaskList(all){
   el.innerHTML=[...undone,...tasks.filter(t=>t.done)].map(t=>{
     const due=t.dueDate?new Date(t.dueDate+'T23:59:59'):null;
     const ov=due&&due<now&&!t.done;
-    return `<div class="task-item ${t.done?'done':''} ${ov?'overdue':''}" id="titem-${_escTask(t.id)}"><input type="checkbox" class="task-cb" ${t.done?'checked':''} data-tk-action="checkTask" data-tk-id="${_escTask(t.id)}"><span class="task-text">${_escTask(t.text)}</span>${t.dueDate?`<span class="task-due ${ov?'overdue':''}">${_taskDueLabel(t.dueDate)}</span>`:''}<button class="task-del" data-tk-action="removeTask" data-tk-id="${_escTask(t.id)}" title="Delete">×</button></div>`;
+    return `<div class="task-item ${t.done?'done':''} ${ov?'overdue':''}" id="titem-${_escTask(t.id)}"><input type="checkbox" class="task-cb" ${t.done?'checked':''} data-tk-action="checkTask" data-tk-id="${_escTask(t.id)}"><span class="task-text">${_escTask(t.text)}</span>${t.kind==='promise'&&!t.done?`<span class="task-due">${t.promiseKind==='waiting'?'Waiting':'Promise'}${t.missCount>0?' · missed '+(Number(t.missCount)||0):''}</span>`:''}${t.dueDate?`<span class="task-due ${ov?'overdue':''}">${_taskDueLabel(t.dueDate)}</span>`:''}<button class="task-del" data-tk-action="removeTask" data-tk-id="${_escTask(t.id)}" title="Delete">×</button></div>`;
   }).join('')+events.slice().sort((a,b)=>String(a.eventAt||'').localeCompare(String(b.eventAt||''))).map(t=>{
     const at=t.eventAt?new Date(t.eventAt):null;
     const when=at&&!isNaN(at)?at.toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
@@ -456,7 +456,7 @@ async function checkTask(taskId,done){
   }
   setTimeout(async()=>{const rows=await _loadTasks(leadId);if(_taskModalLeadId!==leadId)return;renderTaskList(rows);},400);
 }
-async function removeTask(taskId){if(!_taskModalLeadId)return;const _t=(window._taskCache&&window._taskCache[_taskModalLeadId]||[]).find(t=>t.id===taskId);const _label=_t&&_t.text?'"'+_t.text+'"':'this task';const _ask=window.nbdConfirm||((m)=>Promise.resolve(window.confirm(m)));if(!(await _ask('Delete '+_label+'? This cannot be undone.')))return;
+async function removeTask(taskId){if(!_taskModalLeadId)return;const _t=(window._taskCache&&window._taskCache[_taskModalLeadId]||[]).find(t=>t.id===taskId);if(_t&&_t.kind==='promise'&&_t.done!==true){if(typeof showToast==='function')showToast("A promise can't be deleted. Mark it kept, or give it a new date.",'info');return;}const _label=_t&&_t.text?'"'+_t.text+'"':'this task';const _ask=window.nbdConfirm||((m)=>Promise.resolve(window.confirm(m)));if(!(await _ask('Delete '+_label+'? This cannot be undone.')))return;
   // A delete that never reached Firestore used to look identical to one that
   // did: the list re-rendered with the row still sitting there and no word why.
   // Leave the row alone (it IS the truth) and name the failure.
