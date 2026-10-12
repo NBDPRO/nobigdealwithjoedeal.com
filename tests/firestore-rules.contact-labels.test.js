@@ -128,8 +128,28 @@ async function run() {
   await check('capture off on a PERSONAL label accepted (stop copying future calls)', 'allow', shaped({ kind: 'personal', policy: 'hide', capture: 'off' }, '5550149017'));
   await check('capture off on a non-personal kind denied', 'deny', shaped({ kind: 'spam', policy: 'hide', capture: 'off' }, '5550149018'));
   await check('capture value other than off denied', 'deny', shaped({ kind: 'personal', policy: 'hide', capture: 'on' }, '5550149019'));
+  await check('source pattern accepted (a suggestion from repeated calls)', 'allow', shaped({ source: 'pattern' }, '5550149020'));
   await check('unknown source denied', 'deny', shaped({ source: 'bot' }, '5550149013'));
   await check('missing kind denied', 'deny', setDoc(ref(carol, '5550149014'), (() => { const l = label({ digits: '5550149014' }); delete l.kind; return l; })()));
+
+  // ── contact_suggestions (remembered Not-this dismissals)
+  const sref = (db, d, co) => doc(db, 'companies/' + (co || 'co-a') + '/contact_suggestions/' + (d || D));
+  const sdoc = (over) => Object.assign({ digits: D, dismissed: [{ kind: 'sub', atMs: 1 }], companyId: 'co-a', updatedBy: 'carol', updatedAtMs: 1760000000000 }, over || {});
+  await check('suggestions: company_admin writes a dismissal', 'allow', setDoc(sref(carol), sdoc()));
+  await check('suggestions: solo owner writes', 'allow', setDoc(sref(owner), sdoc({ updatedBy: 'co-a' })));
+  await check('suggestions: viewer reads', 'allow', getDoc(sref(vic)));
+  await check('suggestions: viewer CANNOT write', 'deny', setDoc(sref(vic), sdoc({ updatedBy: 'vic' })));
+  await check('suggestions: sales_rep CANNOT read', 'deny', getDoc(sref(alice)));
+  await check('suggestions: sales_rep CANNOT write', 'deny', setDoc(sref(alice), sdoc({ updatedBy: 'alice' })));
+  await check('suggestions: other tenant CANNOT read', 'deny', getDoc(sref(bobCA)));
+  await check('suggestions: other tenant CANNOT write', 'deny', setDoc(sref(bobCA), sdoc({ updatedBy: 'bobca' })));
+  await check('suggestions: more than 12 entries denied', 'deny', setDoc(sref(carol, '5550149030'), sdoc({ digits: '5550149030', dismissed: Array.from({ length: 13 }, (_, i) => ({ kind: 'sub', atMs: i })) })));
+  await check('suggestions: exactly 12 accepted (control)', 'allow', setDoc(sref(carol, '5550149031'), sdoc({ digits: '5550149031', dismissed: Array.from({ length: 12 }, (_, i) => ({ kind: 'sub', atMs: i })) })));
+  await check('suggestions: dismissed must be a list', 'deny', setDoc(sref(carol, '5550149032'), sdoc({ digits: '5550149032', dismissed: 'sub' })));
+  await check('suggestions: an extra key denied', 'deny', setDoc(sref(carol, '5550149033'), sdoc({ digits: '5550149033', kind: 'sub' })));
+  await check('suggestions: companyId must be the path company', 'deny', setDoc(sref(carol, '5550149034'), sdoc({ digits: '5550149034', companyId: 'co-b' })));
+  await check('suggestions: updatedBy must be the writer', 'deny', setDoc(sref(carol, '5550149035'), sdoc({ digits: '5550149035', updatedBy: 'x' })));
+  await check('suggestions: digits must match the doc id', 'deny', setDoc(sref(carol, '5550149036'), sdoc({ digits: '5550149037' })));
 
   // ── update invariants + delete ─────────────────────────────
   await check('createdAtMs frozen on update (changed = denied)', 'deny', setDoc(ref(carol), label({ createdAtMs: 1 })));

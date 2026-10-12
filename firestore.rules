@@ -365,7 +365,7 @@ service cloud.firestore {
         && d.policy in ['surface', 'quiet', 'hide']
         && (!('name' in d) || (d.name is string && d.name.size() <= 80))
         && (!('note' in d) || (d.note is string && d.note.size() <= 200))
-        && (!('source' in d) || d.source in ['manual', 'seed-tag', 'thursday', 'lead'])
+        && (!('source' in d) || d.source in ['manual', 'seed-tag', 'thursday', 'lead', 'pattern'])
         && (!('ackAtMs' in d) || d.ackAtMs is number)
         && (!('capture' in d) || (d.capture == 'off' && d.kind == 'personal'))
         && d.updatedAtMs is number && d.createdAtMs is number;
@@ -387,6 +387,23 @@ service cloud.firestore {
         && d.updatedBy == request.auth.uid
         && (!('note' in d) || (d.note is string && d.note.size() <= 200))
         && d.updatedAtMs is number && d.createdAtMs is number;
+    }
+
+    // 2026-10-12 — remembered "Not this" dismissals of label suggestions
+    // (companies/{companyId}/contact_suggestions/{digits10}). Shape only: id =
+    // the 10 digits, a bounded list (<= 12) of { kind, atMs } — the kinds are
+    // checked client-side; the rules bound the list and the keys, so the worst
+    // a bad client writes is its own tenant's dismiss list.
+    function contactSuggestionOk(companyId, digits) {
+      let d = request.resource.data;
+      return digits.matches('^[0-9]{10}$')
+        && d.keys().hasOnly(['digits', 'dismissed', 'companyId', 'updatedBy', 'updatedAtMs'])
+        && d.keys().hasAll(['digits', 'dismissed', 'companyId', 'updatedBy', 'updatedAtMs'])
+        && d.digits == digits
+        && d.companyId == companyId
+        && d.updatedBy == request.auth.uid
+        && d.dismissed is list && d.dismissed.size() <= 12
+        && d.updatedAtMs is number;
     }
 
     function stageWriteOk() {
@@ -2461,6 +2478,19 @@ service cloud.firestore {
       // teammates' numbers. Write: the solo owner or company_admin / manager,
       // never a viewer (decision B). Delete = the same writers (undo of a
       // first label, "Remove label").
+      match /contact_suggestions/{digits} {
+        allow read: if isAdmin()
+          || (isAuth() && request.auth.uid == companyId)
+          || (isCompanyReader() && request.auth.token.get('companyId', '') == companyId);
+        allow create, update: if isAuth() && notViewer()
+          && (request.auth.uid == companyId
+              || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
+          && contactSuggestionOk(companyId, digits);
+        allow delete: if isAuth() && notViewer()
+          && (request.auth.uid == companyId
+              || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId));
+      }
+
       match /contact_labels/{digits} {
         allow read: if isAdmin()
           || (isAuth() && request.auth.uid == companyId)

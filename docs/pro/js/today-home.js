@@ -292,6 +292,11 @@
       for (var wd = 1; wd <= 14; wd++) opts += '<option value="' + wd + '"' + (wd === NP.waitingDays() ? ' selected' : '') + '>' + wd + '</option>';
       wdays = '<label class="tp-wait-step">after <select data-tp-wdays aria-label="Show waiting items after this many days">' + opts + '</select> days</label>';
     }
+    // Label suggestions (phase 2b): at most 3, Accept / Not this, nothing hides on one tap.
+    var CS = w.NBDContactSuggest;
+    var sugList = [];
+    try { sugList = !ro && CS && typeof CS.forToday === 'function' ? CS.forToday() : []; } catch (_) { sugList = []; }
+    var sugHtml = sugList.length ? '<div class="tp-sec tp-sugs" data-tp-sec="suggestions">' + sugList.map(function (s) { return CS.chipHtml(s); }).join('') + '</div>' : '';
     var body = section('appts', 'Appointments', a) + section('promises', 'Promises', pm) + section('calls', 'Calls owed', c) + section('promised', 'Promised follow-ups', pr) + section('estimates', 'Estimates to follow up', e) +
       section('money', 'Money to collect', m) + section('waiting', 'Waiting on them', wt, wdays) + section('stalled', 'Stalled leads', s, deck) +
       // Thursday's calls + the daily "handled" recap (js/thursday-handled.js; '' until loaded, flag-gated).
@@ -302,7 +307,7 @@
     return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc(P.headline(p.total)) + '</div>' +
       (storm ? '<div class="tp-storm">' + esc(storm) + '</div>' : '') + '</div>' +
       (p.hiddenCalls > 0 ? '<div class="tp-sub tp-hidden">' + p.hiddenCalls + (p.hiddenCalls === 1 ? ' person' : ' people') + ' hidden by labels · <button type="button" class="tp-more tp-hd-btn" data-tp-act="goto" data-tp-key="calls">See them in the Call Center</button></div>' : '') +
-      (body || '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>') + quiet;
+      sugHtml + (body || '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>') + quiet;
   }
 
   var _t = 0;
@@ -493,7 +498,7 @@
     else open();
   }
 
-  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups', 'nbd:labels-changed', 'nbd:thursday-handled-changed'].forEach(function (n) { w.addEventListener(n, schedule); });
+  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups', 'nbd:labels-changed', 'nbd:thursday-handled-changed', 'nbd:suggestions-changed'].forEach(function (n) { w.addEventListener(n, schedule); });
   w.addEventListener('hashchange', function () {
     if (/^#?\/?(home)?$/.test(location.hash || '')) { loadAppointments(false); setTimeout(render, 200); }
   });

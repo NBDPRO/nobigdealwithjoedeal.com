@@ -339,8 +339,8 @@ function finishC() {
   ok('call-center-view.js: both new filters are flag-gated (4th element is the gate)', /\['thandled', 'Thursday-handled'[^\n]*thEnabled\],/.test(cc) && /\['blocklist', 'Block list'[^\n]*thEnabled\],/.test(cc));
   ok('call-center-view.js: every FILTERS read goes through filtersNow() except the default', (cc.match(/FILTERS\.(map|forEach)\(/g) || []).length === 0);
   const html = read('docs/pro/dashboard.html');
-  ok('dashboard.html: today-home.js cache-buster bumped (the hook only ships if browsers refetch)', /js\/today-home\.js\?v=6"/.test(html));
-  ok('script-loader.js: call-center-view cache-buster bumped', /call-center-view\.js\?v=14'/.test(loader));
+  ok('dashboard.html: today-home.js cache-buster bumped (the hook only ships if browsers refetch)', /js\/today-home\.js\?v=([6-9]|\d\d)"/.test(html));
+  ok('script-loader.js: call-center-view cache-buster bumped', /call-center-view\.js\?v=(1[4-9]|[2-9]\d)'/.test(loader));
   ok('home-attention.js: contact-labels.js cache-buster bumped', /contact-labels\.js\?v=([3-9]|\d\d)'/.test(read('docs/pro/js/home-attention.js')));
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join('; ')); process.exit(1); }

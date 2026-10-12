@@ -131,6 +131,12 @@
       if (window.NBDContactLabels) await window.NBDContactLabels.load(true);
     } catch (_) { /* no labels = the old rule */ }
   }
+  /** One suggestion line on a card (contact-suggest.js), '' when none. */
+  function suggestRow(c) {
+    var CS = window.NBDContactSuggest;
+    if (!CS || isViewer() || !c || c.channel === 'text') return '';
+    try { var s = CS.forNumber(c.phoneDigits, state.calls); return s ? CS.chipHtml(s) : ''; } catch (_) { return ''; }
+  }
   function reachCtx() {
     var HA = window.NBDHomeAttention;
     if (!HA || typeof HA.reachIndex !== 'function') return null;
@@ -318,7 +324,7 @@
       (c.summary ? '<div class="pc-summary">' + esc(c.summary) + '</div>' : '') + promises +
       (c.followUpDate ? '<div class="pc-meta pc-follow">Follow up ' + esc(c.followUpDate) + '</div>' : '') +
       (status ? '<div class="pc-meta">' + esc(status) + '</div>' : '') +
-      fileRow(c) +
+      fileRow(c) + suggestRow(c) +
       '<div class="pc-actions">' + actions + '</div>' +
       '<div class="cc-attach" data-cc-attach="' + esc(c.id) + '" hidden></div>' +
       '<div class="pc-audio" data-cc-audio="' + esc(c.id) + '"></div>' +
@@ -1101,8 +1107,11 @@
   });
   // A label was applied, undone or rolled back: the chips and the
   // needs-attention grouping both read it.
-  if (typeof window.addEventListener === 'function') window.addEventListener('nbd:labels-changed', function () { labelsVer++; if (state.loaded) render(); });
-  if (typeof window.addEventListener === 'function') window.addEventListener('nbd:thursday-handled-changed', function () { if (state.loaded) render(); });
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('nbd:labels-changed', function () { labelsVer++; if (state.loaded) render(); });
+    window.addEventListener('nbd:thursday-handled-changed', function () { if (state.loaded) render(); });
+    window.addEventListener('nbd:suggestions-changed', function () { if (state.loaded) render(); });
+  }
   document.addEventListener('input', function (e) {
     if (e.target && e.target.id === 'ccSearch') { state.q = e.target.value || ''; render(); }
   });
