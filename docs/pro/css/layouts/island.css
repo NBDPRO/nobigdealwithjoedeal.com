@@ -1,0 +1,242 @@
+/* layouts/island.css — L04 Island Dock (2026-10-12).
+ * Every rule is scoped under html[data-layout="island"] (the preboot writes
+ * this sheet before the base styles, so the attribute is what wins). Theme
+ * tokens + --tap only: --s --s2 --bg --t --m --orange --og --br --rule, the
+ * Surface-style dials --glass-blur / --glass-frost, and --glow2 / --myskin-*.
+ *
+ * Islands are frosted panes. Over a My Skin wallpaper (:root.my-skin-wallpaper)
+ * they show it through; with no wallpaper the page gets a soft radial --glow2
+ * wash on --bg so the glass still has something to be glass over.
+ * prefers-contrast: more drops the glass (opaque panes, no blur); Reduce Motion
+ * (data-motion="reduce" or the OS setting) drops every transition.
+ */
+
+html[data-layout="island"] {
+  --isl-r: 22px;
+  --isl-frost: 82%;      /* islands */
+  --isl-bar-frost: 85%;  /* pill + dock */
+  --isl-blur: var(--glass-blur, 14px);
+  --isl-gap: 14px;
+  --isl-bar-h: calc(var(--tap) - 8px);   /* 48px; 56px in glove mode */
+}
+
+/* ── backdrop: no wallpaper -> a soft --glow2 wash on --bg ── */
+html[data-layout="island"]:not(.my-skin-wallpaper) body {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(120% 60% at 15% -10%, var(--glow2, transparent), transparent 62%),
+    radial-gradient(90% 55% at 105% 105%, var(--glow2, transparent), transparent 58%);
+  background-attachment: fixed;
+}
+
+/* ── chrome: no sidebar, no bottom tab bar ── */
+html[data-layout="island"] .sidebar,
+html[data-layout="island"] #mobile-nav { display: none !important; }
+html[data-layout="island"] .breadcrumb-container { display: none; }
+
+/* ── the pill (top) ── */
+html[data-layout="island"] .isl-pill {
+  flex: none; position: relative; z-index: 20;
+  display: flex; justify-content: center;
+  padding: 10px 12px 0; box-sizing: border-box;
+}
+html[data-layout="island"] .isl-pill-in,
+html[data-layout="island"] .isl-dock-in {
+  display: flex; align-items: stretch; gap: 4px; padding: 6px; box-sizing: border-box;
+  max-width: 100%;
+  background: color-mix(in srgb, var(--s) var(--isl-bar-frost), transparent);
+  border: 1px solid color-mix(in srgb, #ffffff 14%, var(--br));
+  border-radius: 999px;
+  box-shadow: 0 10px 28px color-mix(in srgb, #000000 24%, transparent),
+              inset 0 1px 0 color-mix(in srgb, #ffffff 16%, transparent);
+  -webkit-backdrop-filter: blur(var(--isl-blur)) saturate(1.3);
+  backdrop-filter: blur(var(--isl-blur)) saturate(1.3);
+}
+html[data-layout="island"] .isl-item {
+  flex: 1 0 auto; min-width: 0; min-height: var(--isl-bar-h); padding: 0 14px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 0; border-radius: 999px; background: transparent; color: var(--m);
+  font: inherit; font-size: 14px; font-weight: 700; white-space: nowrap; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* a theme's glow rule paints [aria-current="page"] with an inset bar; the pill tints instead */
+  box-shadow: none; text-shadow: none;
+  transition: background-color .15s, color .15s, transform .1s;
+}
+html[data-layout="island"] .isl-item:active { transform: scale(.96); }
+html[data-layout="island"] .isl-item:focus-visible { outline: 2px solid var(--orange); outline-offset: 1px; }
+html[data-layout="island"] .isl-item:hover { color: var(--t); }
+html[data-layout="island"] .isl-item .lk-ic { width: 20px; height: 20px; }
+html[data-layout="island"] .isl-lbl { overflow: hidden; text-overflow: ellipsis; }
+/* active item: tinted with --og */
+html[data-layout="island"] .isl-item.isl-active { background: var(--og); color: var(--orange); }
+
+/* ── the dock (bottom) ── */
+html[data-layout="island"] .isl-dock {
+  position: fixed; left: 0; right: 0; z-index: 1500;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex; justify-content: center; padding: 0 12px; box-sizing: border-box;
+  pointer-events: none;
+}
+html[data-layout="island"] .isl-dock-in { pointer-events: auto; }
+html[data-layout="island"] .isl-dock .isl-item { flex: 0 0 auto; padding: 0 18px; }
+html[data-layout="island"] .isl-dock .isl-primary { background: var(--orange); color: var(--accent-fg, #fff); }
+html[data-layout="island"] .isl-dock .isl-primary:hover { color: var(--accent-fg, #fff); filter: brightness(1.06); }
+html[data-layout="island"] .isl-dock .isl-on { background: var(--og); color: var(--orange); }
+
+/* ── More: the sidebar's own entries in a floating sheet ── */
+html[data-layout="island"] .isl-more {
+  position: fixed; z-index: 1600; left: 50%; transform: translateX(-50%);
+  width: min(520px, calc(100vw - 24px)); max-height: 70vh; overflow-y: auto; box-sizing: border-box;
+  padding: 10px; border-radius: var(--isl-r);
+  background: color-mix(in srgb, var(--s) var(--isl-bar-frost), transparent);
+  border: 1px solid color-mix(in srgb, #ffffff 14%, var(--br));
+  box-shadow: 0 18px 44px color-mix(in srgb, #000000 32%, transparent);
+  -webkit-backdrop-filter: blur(var(--isl-blur)) saturate(1.3);
+  backdrop-filter: blur(var(--isl-blur)) saturate(1.3);
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px;
+}
+html[data-layout="island"] .isl-more[hidden] { display: none; }
+html[data-layout="island"] .isl-more-h {
+  grid-column: 1 / -1; padding: 8px 10px 2px; font-size: 11px; font-weight: 800;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--m);
+}
+html[data-layout="island"] .isl-more-item {
+  display: flex; align-items: center; gap: 8px; min-height: var(--isl-bar-h); padding: 0 12px;
+  border-radius: 14px; color: var(--t); font-size: 14px; font-weight: 600; text-decoration: none;
+  cursor: pointer; background: transparent; border: 0;
+}
+html[data-layout="island"] .isl-more-item:hover { background: var(--og); }
+html[data-layout="island"] .isl-more-item:focus-visible { outline: 2px solid var(--orange); outline-offset: -2px; }
+html[data-layout="island"] .isl-more-item .ni-icon { flex: none; }
+
+/* ── content: room for the dock, islands for panels ── */
+html[data-layout="island"] .view-scroll { padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)) !important; }
+html[data-layout="island"] #kanbanBoard { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important; }
+
+html[data-layout="island"] :where(.w-card, .stat-card, .ui-card, .ui-panel, .panel, .cl-card, .ui-tile, .tp, .nns-card, .lk-widget, .isl-isle) {
+  background-color: color-mix(in srgb, var(--s2) var(--isl-frost), transparent);
+  border: 1px solid color-mix(in srgb, #ffffff 14%, var(--br));
+  border-radius: var(--isl-r);
+  box-shadow: 0 10px 30px color-mix(in srgb, #000000 20%, transparent),
+              inset 0 1px 0 color-mix(in srgb, #ffffff 14%, transparent);
+  -webkit-backdrop-filter: blur(var(--isl-blur)) saturate(1.25);
+  backdrop-filter: blur(var(--isl-blur)) saturate(1.25);
+}
+/* stage lanes are islands too (the cards inside keep their own surface) */
+html[data-layout="island"] .kanban-col {
+  background-color: color-mix(in srgb, var(--s2) var(--isl-frost), transparent);
+  border-color: color-mix(in srgb, #ffffff 14%, var(--br));
+  border-radius: var(--isl-r);
+  box-shadow: 0 10px 30px color-mix(in srgb, #000000 20%, transparent);
+  -webkit-backdrop-filter: blur(var(--isl-blur)) saturate(1.25);
+  backdrop-filter: blur(var(--isl-blur)) saturate(1.25);
+}
+
+/* ── Home: the giant "in play" headline + the timeline ── */
+html[data-layout="island"] .isl-home { display: flex; flex-direction: column; gap: var(--isl-gap); margin: 0 0 var(--isl-gap); }
+html[data-layout="island"] .isl-isle { padding: 18px 20px; box-sizing: border-box; min-width: 0; }
+html[data-layout="island"] .isl-hero { padding: 22px 24px; }
+html[data-layout="island"] .isl-hero-k {
+  font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--orange);
+}
+html[data-layout="island"] .isl-hero-num {
+  margin-top: 6px; font-size: clamp(44px, 11vw, 92px); font-weight: 900; line-height: 1;
+  letter-spacing: -.02em; color: var(--t); overflow-wrap: anywhere;
+}
+html[data-layout="island"] .isl-hero-num.isl-skel { color: var(--m); font-size: clamp(28px, 6vw, 44px); }
+html[data-layout="island"] .isl-hero-sub { margin-top: 8px; font-size: 14px; color: var(--m); }
+html[data-layout="island"] .isl-tl-wrap { padding: 4px 8px 8px; }
+/* the widget inside the island: no second pane */
+html[data-layout="island"] .isl-isle .lk-widget {
+  background: transparent; border: 0; box-shadow: none; padding: 10px;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html[data-layout="island"] .isl-tl { list-style: none; margin: 0; padding: 0 0 0 22px; position: relative; display: flex; flex-direction: column; gap: 8px; }
+html[data-layout="island"] .isl-tl::before {
+  content: ''; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 2px; border-radius: 2px; background: var(--rule);
+}
+html[data-layout="island"] .isl-tl-item { position: relative; }
+html[data-layout="island"] .isl-tl-dot {
+  position: absolute; left: -22px; top: 50%; width: 14px; height: 14px; margin-top: -7px; box-sizing: border-box;
+  border-radius: 50%; background: var(--s); border: 2px solid var(--m);
+}
+html[data-layout="island"] .isl-tl-past { opacity: .6; }
+html[data-layout="island"] .isl-tl-past .isl-tl-dot { background: var(--m); }
+html[data-layout="island"] .isl-tl-now .isl-tl-dot,
+html[data-layout="island"] .isl-tl-next .isl-tl-dot { background: var(--orange); border-color: var(--orange); }
+html[data-layout="island"] .isl-tl-now .isl-tl-dot { box-shadow: 0 0 0 4px var(--og); }
+html[data-layout="island"] .isl-tl .lk-card { background: color-mix(in srgb, var(--s) 62%, transparent); border-radius: 16px; }
+html[data-layout="island"] .isl-tl .lk-card.isl-has-thumb {
+  background-image:
+    linear-gradient(90deg, color-mix(in srgb, var(--s) 94%, transparent) 52%, color-mix(in srgb, var(--s) 30%, transparent)),
+    var(--isl-thumb);
+  background-size: cover, cover; background-position: center, center right;
+}
+
+/* ── Pipeline: swipeable stage lanes ── */
+html[data-layout="island"] .isl-lanes {
+  display: flex; gap: 6px; overflow-x: auto; padding: 10px 14px 4px; box-sizing: border-box;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+html[data-layout="island"] .isl-lanes::-webkit-scrollbar { display: none; }
+html[data-layout="island"] .isl-lane {
+  flex: none; min-height: 40px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 13px; font-weight: 700;
+  color: var(--m); cursor: pointer; white-space: nowrap;
+  background: color-mix(in srgb, var(--s) var(--isl-bar-frost), transparent);
+  border: 1px solid color-mix(in srgb, #ffffff 12%, var(--br));
+}
+html[data-layout="island"] .isl-lane.isl-lane-on { background: var(--og); color: var(--orange); border-color: var(--orange); }
+html[data-layout="island"] .isl-lane-n { font-weight: 900; }
+html[data-layout="island"] #kanbanBoard {
+  scroll-snap-type: x proximity; scroll-padding-inline: 14px; padding-inline: 14px !important; gap: 12px !important;
+}
+html[data-layout="island"] .kanban-col { scroll-snap-align: start; }
+@media (pointer: coarse), (max-width: 768px) {
+  html[data-layout="island"] #kanbanBoard { scroll-snap-type: x mandatory; }
+}
+@media (min-width: 769px) {
+  html[data-layout="island"] .kanban-col { min-width: 300px !important; max-width: 340px !important; }
+}
+/* phone: one lane at a time, with the next one peeking */
+@media (max-width: 768px) {
+  html[data-layout="island"] .kanban-col { min-width: calc(100vw - 56px) !important; max-width: calc(100vw - 56px) !important; }
+  html[data-layout="island"] .isl-item { flex: 1 1 0; padding: 0 8px; gap: 4px; flex-direction: column; font-size: 10.5px; min-height: 52px; }
+  html[data-layout="island"] .isl-pill-in { width: 100%; gap: 2px; }
+  html[data-layout="island"] .isl-pill-in .isl-item { flex: 1 1 0; }
+  html[data-layout="island"] .isl-dock .isl-item { flex-direction: row; font-size: 14px; padding: 0 14px; min-height: var(--isl-bar-h); }
+  html[data-layout="island"] .isl-more { grid-template-columns: 1fr; }
+  html[data-layout="island"] .isl-hero { padding: 18px; }
+}
+
+/* ── Reduce Motion ── */
+:root[data-motion="reduce"][data-layout="island"] .isl-item,
+:root[data-motion="reduce"][data-layout="island"] .isl-lane { transition: none; }
+:root[data-motion="reduce"][data-layout="island"] .isl-item:active { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-layout="island"] .isl-item,
+  html[data-layout="island"] .isl-lane { transition: none; }
+  html[data-layout="island"] .isl-item:active { transform: none; }
+}
+
+/* ── no backdrop-filter: opaque-enough panes, never see-through ones ── */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  html[data-layout="island"] { --isl-frost: 94%; --isl-bar-frost: 96%; }
+}
+
+/* ── prefers-contrast: more -> drop the glass ── */
+@media (prefers-contrast: more) {
+  html[data-layout="island"] .isl-pill-in,
+  html[data-layout="island"] .isl-dock-in,
+  html[data-layout="island"] .isl-more,
+  html[data-layout="island"] .isl-lane {
+    background: var(--s); border-color: var(--t);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  html[data-layout="island"] :where(.w-card, .stat-card, .ui-card, .ui-panel, .panel, .cl-card, .ui-tile, .tp, .nns-card, .lk-widget, .isl-isle),
+  html[data-layout="island"] .kanban-col {
+    background-color: var(--s2); border-color: var(--t);
+    -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+  }
+  html[data-layout="island"] .isl-item.isl-active,
+  html[data-layout="island"] .isl-dock .isl-on { outline: 2px solid var(--orange); }
+}

@@ -205,6 +205,14 @@
     supports: { wallpaper: true, glass: true, sunlight: false },
   });
 
+  // L04 Island Dock: floating pill + dock over glass islands. Lazy, like the rest.
+  register({
+    id: 'island', name: 'Island Dock', blurb: 'No sidebar: a floating nav pill, a bottom dock, and glass islands over your wallpaper.',
+    script: 'js/layouts/island.js', css: 'css/layouts/island.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: true },
+  });
+
   var api = {
     SURFACES: SURFACES, FALLBACK: FALLBACK, ID_RE: ID_RE, MAX_STATE_JSON: MAX_STATE_JSON,
     register: register, get: get, list: list, forSurface: forSurface,
