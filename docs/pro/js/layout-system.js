@@ -205,6 +205,17 @@
     supports: { wallpaper: true, glass: true, sunlight: false },
   });
 
+  // L06 Crew Calendar (2026-10-12). Every screen; the week grid scrolls sideways
+  // on a phone, where it opens on the Day view.
+  register({
+    id: 'crew', name: 'Crew Calendar', version: 1,
+    blurb: 'Crews as lanes on a week timeline: drag jobs between days and crews, rain days hatched.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/crew.js', css: 'css/layouts/crew.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: false, sunlight: false },
+  });
+
   var api = {
     SURFACES: SURFACES, FALLBACK: FALLBACK, ID_RE: ID_RE, MAX_STATE_JSON: MAX_STATE_JSON,
     register: register, get: get, list: list, forSurface: forSurface,
