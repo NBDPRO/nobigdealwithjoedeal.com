@@ -113,8 +113,16 @@
     const promised = (c.promises || []).some((p) => p && p.who === 'jo');
     const lb = labelOf(ctx, c);
     const pol = lb && (lb.policy === 'hide' || lb.policy === 'quiet' || lb.policy === 'surface') ? lb.policy : '';
-    if (pol === 'hide') return false;
-    if (pol === 'quiet') return promised;
+    // Jo, 2026-10-12: "a promise ALWAYS surfaces" — hide / quiet drop missed
+    // and unknown-number noise, never a commitment Jo made on the call (his
+    // promise, or a follow-up date that has come). A HIDDEN number's urgent
+    // call also breaks through (an urgent flag is a real emergency until Jo
+    // says otherwise); a quiet number's does not (sub / supplier rule).
+    const dueFu = !!(c.followUpDate && c.followUpDate <= etYmd(t));
+    // (A number Jo labeled SPAM never breaks through on urgency: robocalls
+    // claim to be urgent. A personal number can — a family emergency.)
+    if (pol === 'hide') return promised || dueFu || (c.urgent === true && lb.kind !== 'spam');
+    if (pol === 'quiet') return promised || dueFu;
     if (!pol && (c.callType === 'sub' || c.callType === 'supplier')) return promised;
     if (c.urgent === true) return true;
     if (promised) return true;
@@ -257,7 +265,7 @@
   // (dashboard-boot-budget). today-home.js and call-center-view.js load it by
   // name; this deferred file always runs first.
   if (w.ScriptLoader && w.ScriptLoader.bundles && !w.ScriptLoader.bundles.contactlabels) {
-    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=1', 'js/contact-labels-logic.js?v=1', 'js/contact-labels.js?v=1'];
+    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=1', 'js/contact-labels-logic.js?v=2', 'js/contact-labels.js?v=1'];
   }
   // A label changed (optimistic apply, undo or rollback): recount from the
   // rows already held — no Firestore read — and repaint the strip.
