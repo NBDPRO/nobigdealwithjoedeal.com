@@ -172,6 +172,8 @@
   var FILTERS = [
     ['attention', 'Needs attention', needsAttention],
     ['all', 'All', function () { return true; }],
+    // Promises of Jo's past the 45-day window: one review list, never a silent drop (2026-10-12).
+    ['oldpromises', 'Old promises', function (c) { var HA = window.NBDHomeAttention; return !!(HA && HA.isOldPromise && HA.isOldPromise(c, Date.now())); }],
     ['customer', 'Customers', function (c) { return !!c.leadId; }],
     ['insurance', 'Insurance', function (c) { return c.bucket === 'insurance' || c.callType === 'insurance'; }],
     ['contact', 'Contacts', function (c) { return !c.leadId && c.bucket === 'contact'; }],
