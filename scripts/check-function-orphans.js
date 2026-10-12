@@ -163,7 +163,7 @@ function readDeployed() {
       '--project', PROJECT,
       '--regions', REGION,
       '--format', 'json',
-    ], { encoding: 'utf8', timeout: 180000, shell: win });
+    ], { encoding: 'utf8', timeout: 180000, shell: win, maxBuffer: 256 * 1024 * 1024 });
     const rows = JSON.parse(out || '[]');
     return rows
       .map((f) => String(f.name || '').split('/').pop())
