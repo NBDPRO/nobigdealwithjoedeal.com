@@ -334,4 +334,7 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms || 5));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
+  // All assertions are done. The engine's boot poll (up to 120 x 500 ms, D2) would otherwise keep
+  // the process alive for the full minute and hit the manifest runner's 60 s per-suite cap.
+  process.exit(0);
 })();
