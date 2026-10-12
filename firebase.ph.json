@@ -1,0 +1,1095 @@
+{
+  "hosting": {
+    "public": "docs",
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "dev/**",
+      "deploy/**",
+      "**/*.md",
+      "**/CREDIT.txt"
+    ],
+    "redirects": [
+      {
+        "_comment": "Pro landing de-duplication (2026-08-18): docs/pro/landing.html and docs/pro/index.html were byte-identical (same md5) — one page on two URLs, BOTH listed in sitemap-pro.xml, while landing.html's own rel=canonical already pointed at /pro. The sitemap was therefore advertising a 0.9-priority URL that disowned itself. index.html is the survivor because /pro is the canonical everything already references; landing.html is deleted and folded in here so the ~78 external/internal inbound links keep resolving. Trailing * catches both the .html and cleanUrls extensionless forms, same as the Oaks cutover below. Filed unfixed in audit/DESIGNER-AUDIT-VERIFICATION-2026-08-15.md line 48.",
+        "source": "/pro/landing",
+        "destination": "/pro",
+        "type": 301
+      },
+      {
+        "source": "/pro/landing*",
+        "destination": "/pro",
+        "type": 301
+      },
+      {
+        "_comment": "Legacy dashboard twin retired (2026-09-02): docs/pro/dashboard.legacy.html was the Rock 4 ?legacy=1 rollback snapshot, but it had become byte-identical to dashboard.html and was refreshed by every dashboard commit — no rollback value, double the edit surface, and it lacked the no-store header its twin gets. Deleted along with js/dashboard-legacy-redirect.js; bookmarks and the retired ?legacy=1 path land on the live dashboard. Trailing * catches the .html and extensionless forms, same as /pro/landing above.",
+        "source": "/pro/dashboard.legacy",
+        "destination": "/pro/dashboard",
+        "type": 301
+      },
+      {
+        "source": "/pro/dashboard.legacy*",
+        "destination": "/pro/dashboard",
+        "type": 301
+      },
+      {
+        "_comment": "QR-stable yard sign link. /yardsign is printed on physical yard signs with a QR code; this redirect points scanners to the current GBP listing. 302 (not 301) on purpose: the destination is meant to be swappable without re-printing signs, and 301 would let browsers cache an old target. To repoint: change `destination` below and redeploy.",
+        "source": "/yardsign",
+        "destination": "https://g.page/r/CXzIjLwvtRPdEBM",
+        "type": 302
+      },
+      {
+        "_comment": "QR-stable 'leave a review' link for print tracking pieces (card-back, sticker). Lands directly on the Google review form so scanners can rate without an extra tap. Same 302-not-301 rationale as /yardsign: destination must stay swappable. UTM query strings (utm_source/medium/campaign) pass through to the destination automatically, so we can see in Google's referrer + any downstream tooling which printed piece drove the scan. We deliberately use /r (not /review) because /review is the canonical reviews landing page (live Google Reviews widget + schema.org aggregateRating). Don't merge them.",
+        "source": "/r",
+        "destination": "https://g.page/r/CXzIjLwvtRPdEBM/review",
+        "type": 302
+      },
+      {
+        "_comment": "Missing hub pages. 16 location-variant hail-damage pages and 16 storm-damage pages link to /services/hail-damage and /services/storm-damage-insurance-claim respectively (parent breadcrumbs). Neither URL has a backing HTML file; both 404'd. The canonical insurance-claim landing is /services/hail-damage-insurance-claim (exists). The canonical storm-damage landing is /services/storm-damage (exists). Use 301 because these URLs are semantically permanent aliases — search engines should fold the link equity into the canonical URLs.",
+        "source": "/services/hail-damage",
+        "destination": "/services/hail-damage-insurance-claim",
+        "type": 301
+      },
+      {
+        "source": "/services/storm-damage-insurance-claim",
+        "destination": "/services/storm-damage",
+        "type": 301
+      },
+      {
+        "_comment": "Hail keyword consolidation (2026-08-02). Five cities shipped BOTH /services/hail-damage-<city>-oh and /services/hail-damage-insurance-claim-<city>-oh with ~97% identical bodies, both self-canonical, and the generic page's own <title> already claiming the claim keyword — so the pair split one site's authority across two competing URLs. The other 21 hail cities have no such twin. The claim pages' genuinely unique content (4 FAQs each, the local claim-market facts, the claim-scope bullets, the claim-funnel blog links) was merged into the generic page first by scripts/merge-hail-claim-content.js; these 301s fold the accrued equity in behind it. NOTE the non-city hub /services/hail-damage-insurance-claim is a real page and must NOT be redirected — every source below carries a -<city>-oh suffix. Trailing * catches BOTH the extensionless form and the legacy .html form: with the file deleted, cleanUrls no longer 301s /<page>.html to /<page> (it only normalises URLs whose file exists), so without the star an old external backlink ending in .html would 404 and its equity would be lost — which is the exact thing this consolidation exists to preserve. Same pattern as the Oaks cutover above.",
+        "source": "/services/hail-damage-insurance-claim-batavia-oh*",
+        "destination": "/services/hail-damage-batavia-oh",
+        "type": 301
+      },
+      {
+        "source": "/services/hail-damage-insurance-claim-cincinnati-oh*",
+        "destination": "/services/hail-damage-cincinnati-oh",
+        "type": 301
+      },
+      {
+        "source": "/services/hail-damage-insurance-claim-loveland-oh*",
+        "destination": "/services/hail-damage-loveland-oh",
+        "type": 301
+      },
+      {
+        "source": "/services/hail-damage-insurance-claim-mason-oh*",
+        "destination": "/services/hail-damage-mason-oh",
+        "type": 301
+      },
+      {
+        "source": "/services/hail-damage-insurance-claim-west-chester-oh*",
+        "destination": "/services/hail-damage-west-chester-oh",
+        "type": 301
+      },
+      {
+        "_comment": "/free-guide is a CONTRACTOR lead magnet (not homeowner-facing). Relocated to the SaaS/contractor surface at /sites/free-guide. 301 so any printed/ad/QR links to the old /free-guide fold their equity into the new location.",
+        "source": "/free-guide",
+        "destination": "/sites/free-guide",
+        "type": 301
+      },
+      {
+        "_comment": "/financing (root) was a client-side meta-refresh stub to the canonical /services/financing. Replaced with a proper server 301 (better SEO, no redirect flash); the stub file was removed.",
+        "source": "/financing",
+        "destination": "/services/financing",
+        "type": 301
+      },
+      {
+        "_comment": "TAMKO page renamed (2026-09-27, Jo's call): \"Storm Series\" was a name we invented — TAMKO has no product line or page by that name — so /services/tamko-storm-series became /services/tamko-impact-resistant-shingles (Titan XT, StormFighter FLEX, HailGuard + Heritage). The old page was a DIRECTORY index, so every form it was reachable at is listed: extensionless, .html, trailing slash, /index and /index.html. With the directory gone cleanUrls no longer normalises any of them, so a missing form would 404 an old backlink. tests/tamko-page-rename.test.js pins these.",
+        "source": "/services/tamko-storm-series",
+        "destination": "/services/tamko-impact-resistant-shingles",
+        "type": 301
+      },
+      {
+        "source": "/services/tamko-storm-series.html",
+        "destination": "/services/tamko-impact-resistant-shingles",
+        "type": 301
+      },
+      {
+        "source": "/services/tamko-storm-series/",
+        "destination": "/services/tamko-impact-resistant-shingles",
+        "type": 301
+      },
+      {
+        "source": "/services/tamko-storm-series/index",
+        "destination": "/services/tamko-impact-resistant-shingles",
+        "type": 301
+      },
+      {
+        "source": "/services/tamko-storm-series/index.html",
+        "destination": "/services/tamko-impact-resistant-shingles",
+        "type": 301
+      },
+      {
+        "_comment": "/pro/codex was a client-side meta-refresh stub to the AI Selection Codex at /pro/ai-tool-finder — the last http-equiv=refresh in docs/. Same treatment as /financing above: a proper server 301, and the stub file removed. Internal links and the nav pageMaps now point straight at the target.",
+        "source": "/pro/codex",
+        "destination": "/pro/ai-tool-finder",
+        "type": 301
+      },
+      {
+        "_comment": "Demo merge (2026-10-06, Jo): the long /pro/demo tool tour and the old drag-the-pipeline sandbox were replaced by ONE guided job story at /pro/sandbox (storm to paid, sample data, browser-only). demo.html is deleted; these 301s keep every old link, bookmark and in-app Demo nav entry landing on the new demo. Trailing * catches the .html and cleanUrls forms.",
+        "source": "/pro/demo",
+        "destination": "/pro/sandbox",
+        "type": 301
+      },
+      {
+        "source": "/pro/demo*",
+        "destination": "/pro/sandbox",
+        "type": 301
+      },
+      {
+        "_comment": "Oaks microsite homepage base fix (2026-08-19). The site is a PORTABLE hand-off deliverable, so every path inside it is relative — that is what lets the same folder serve from /sites/oaks here AND from the domain root on Scott own host. Relative paths collide with cleanUrls on exactly one page: with trailingSlash:false a directory index is served at the SLASHLESS url /sites/oaks, so the browser resolves that page relative links against /sites/ and every one of them 404s. Interior pages are unaffected (/sites/oaks/about keeps the /sites/oaks/ base). FIRST ATTEMPT SHIPPED A REDIRECT LOOP: /sites/oaks -> /sites/oaks/index looks right, but cleanUrls canonicalises the index segment of a directory index straight back off again, so Hosting answered /sites/oaks/index with a 301 to /sites/oaks and the homepage ping-ponged until the browser gave up. Verified live, not modelled. The working shape is a redirect to a url that is NOT a directory-index alias, served by a REWRITE — a rewrite does not change the address bar, so the browser base stays /sites/oaks/ and every relative link resolves. /sites/oaks/home is a preview-only url; Scott own host serves index.html at his domain root and needs none of this.",
+        "source": "/sites/oaks",
+        "destination": "/sites/oaks/home",
+        "type": 301
+      },
+      {
+        "_comment": "THIRD instance of the same relative-path trap, found by an adversarial pass over live production. trailingSlash:false normalises the slash off a real file or directory index, which is why /sites/oaks/about/ correctly 301s to /sites/oaks/about — but the homepage is served by a REWRITE, and a rewrite source matches the trailing-slash form too AND bypasses that normalisation. So /sites/oaks/home/ answered 200 with the full homepage while every relative asset resolved one directory too deep and 404'd: no stylesheet, no script, 11 of 11 images broken. Redirects are evaluated before rewrites, so this entry takes the url back to the canonical form before the rewrite can see it.",
+        "source": "/sites/oaks/home/",
+        "destination": "/sites/oaks/home",
+        "type": 301
+      },
+      {
+        "_comment": "Oaks placeholder retired (Jo, 2026-08-19). /sites/t/oaks used to render the universal tenant template from companyProfile — a ONE-page, 96-word stub with emoji service icons, an empty 'Where we work' section (serviceArea was ''), and the wrong accent colour. The real Oaks site is the hand-authored 11-page build at /sites/oaks, so the tenant URL now forwards to it and the stub no longer renders for this tenant. Done as a REDIRECT rather than by moving the 11 pages under /sites/t/oaks on purpose: /sites/t/ is the UNIVERSAL multi-tenant template (one template, N tenants, rendered from Firestore), and dropping per-tenant hand-authored files into it would fork that design at its first real use and re-create exactly what the 2026-07-04 Pillar 5 decision retired. companies/oaks keeps status:'active' — that flag also drives tenant tagging, and the redirect fires ahead of the /sites/t/** rewrite anyway, so the template is simply never reached for oaks. Enumerated (not /sites/t/oaks*) so a future tenant id that merely starts with 'oaks' is unaffected.",
+        "source": "/sites/t/oaks",
+        "destination": "/sites/oaks",
+        "type": 301
+      },
+      {
+        "source": "/sites/t/oaks/**",
+        "destination": "/sites/oaks",
+        "type": 301
+      },
+      {
+        "source": "/sites/oaks/services",
+        "destination": "/sites/oaks/services/roof-replacement",
+        "type": 301
+      },
+      {
+        "_comment": "/pro/privacy was a live 404 (2026-09-13 Grok CRM audit) — the pricing-footer Privacy link and every other Pro page always pointed at the homeowner policy at /privacy.html -> /privacy instead, so nothing was actually broken for a visitor, but the bare URL 404'd if anyone typed or linked it directly. Redirect it to the same policy /pro/terms.html already incorporates by reference as the SaaS Service's privacy policy, now with an NBD Pro software section added (see docs/privacy.html). Not a rewrite: the destination page's own canonical + JSON-LD assume the /privacy URL, and a rewrite would serve that content at a second URL with no canonical pointing back.",
+        "source": "/pro/privacy",
+        "destination": "/privacy",
+        "type": 301
+      },
+      {
+        "source": "/pro/privacy.html",
+        "destination": "/privacy",
+        "type": 301
+      },
+      {
+        "_comment": "Duplicate /our-work case studies merged (2026-09-27, Jo's call): the same job had been published twice under two slugs — the yellow vinyl siding job as both Newport KY and Cincinnati, the brick hip-roof tear-off as both a tear-off and a \"duplex\" card, and the Sycamore Township and West Liberty jobs split into install-day + finished cards that each showed the full price. The retired slug's distinct photos were folded into the kept page and build-projects.mjs deleted the retired page, so these 301s keep old inbound links (GBP posts, the URLs Google already has from the sitemap) landing on the one surviving case study. Each slug gets an extensionless AND a .html entry (the /pro/privacy pattern) rather than a trailing *, so a future slug that merely starts with a retired one can never be swallowed. Guarded by tests/ourwork-retired-slugs.test.js.",
+        "source": "/our-work/cincinnati-oh-siding-repair-2026",
+        "destination": "/our-work/newport-ky-siding-top-course-2026",
+        "type": 301
+      },
+      {
+        "source": "/our-work/cincinnati-oh-siding-repair-2026.html",
+        "destination": "/our-work/newport-ky-siding-top-course-2026",
+        "type": 301
+      },
+      {
+        "source": "/our-work/brick-duplex-designer-reroof-2026",
+        "destination": "/our-work/cincinnati-oh-full-tearoff-reroof-2026",
+        "type": 301
+      },
+      {
+        "source": "/our-work/brick-duplex-designer-reroof-2026.html",
+        "destination": "/our-work/cincinnati-oh-full-tearoff-reroof-2026",
+        "type": 301
+      },
+      {
+        "source": "/our-work/brick-underlayment-install",
+        "destination": "/our-work/multi-section-complex-roof",
+        "type": 301
+      },
+      {
+        "source": "/our-work/brick-underlayment-install.html",
+        "destination": "/our-work/multi-section-complex-roof",
+        "type": 301
+      },
+      {
+        "source": "/our-work/apartment-complex-complete",
+        "destination": "/our-work/apartment-complex-tearoff",
+        "type": 301
+      },
+      {
+        "source": "/our-work/apartment-complex-complete.html",
+        "destination": "/our-work/apartment-complex-tearoff",
+        "type": 301
+      }
+    ],
+    "rewrites": [
+      {
+        "_comment": "Pro demo phase 2 (2026-10-06): the browser-only sample account. The REAL page files are served under /pro/explore/ so /pro/explore/demo-sw.js (scope /pro/explore/) can answer their Firebase SDK imports with the in-browser fake in docs/pro/demo-sdk/. One copy of each page; nothing touches the live database. Rewrites only fire when no file matches, and docs/pro/explore/ holds no dashboard/customer file. Plan: documentation/projects/PRO-DEMO-PHASE2-FULL-ACCOUNT-PLAN-2026-10-06.md",
+        "source": "/pro/explore/dashboard",
+        "destination": "/pro/dashboard.html"
+      },
+      {
+        "source": "/pro/explore/customer",
+        "destination": "/pro/customer.html"
+      },
+      {
+        "_comment": "Pillar 5 phase 1: universal tenant microsite. /sites/t/<companyId-or-slug> serves the one static template (rewrites only fire when no real file matches, so site.js/site.css still serve directly); /api/site-config is the whitelisted server-side companyProfile read behind it.",
+        "source": "/api/site-config",
+        "function": {
+          "functionId": "getPublicSiteConfig",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/social-media",
+        "function": {
+          "functionId": "socialMedia",
+          "region": "us-central1"
+        }
+      },
+      {
+        "_comment": "Serves the Oaks homepage at a url whose base directory is /sites/oaks/. A rewrite (not a redirect) on purpose: it leaves the address bar alone, which is the entire point — the relative links in index.html must resolve against /sites/oaks/. See the /sites/oaks redirect above for the loop this replaced.",
+        "source": "/sites/oaks/home",
+        "destination": "/sites/oaks/index.html"
+      },
+      {
+        "_comment": "A mistyped or stale url anywhere under /sites/oaks/ used to render the NBD-branded 404 — the one cross-brand surface reachable from a client's url space. This serves Oaks' own 404 instead. It MUST sit after the /sites/oaks/home rewrite above (first matching rewrite wins) and it only fires when no real file matches, so the 11 pages and every asset are untouched. Known tradeoff: Hosting rewrites always answer 200, so this is a soft-404. Acceptable here because the whole path is noindexed and robots-disallowed while the site is staged; on Scott's own host the same file is picked up automatically as a real 404 by Netlify, Cloudflare Pages, GitHub Pages, Vercel and Apache ErrorDocument.",
+        "source": "/sites/oaks/**",
+        "destination": "/sites/oaks/404.html"
+      },
+      {
+        "source": "/sites/t/**",
+        "destination": "/sites/t/index.html"
+      },
+      {
+        "source": "/tools",
+        "destination": "/tools/index.html"
+      },
+      {
+        "source": "/privacy",
+        "destination": "/privacy.html"
+      },
+      {
+        "source": "/pro/account-erasure",
+        "function": {
+          "functionId": "confirmAccountErasure",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/cspReport",
+        "function": {
+          "functionId": "cspReport",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/client-error",
+        "function": {
+          "functionId": "clientError",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/google-reviews",
+        "function": {
+          "functionId": "getGoogleReviews",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/storm-report",
+        "function": {
+          "functionId": "stormReport",
+          "region": "us-central1"
+        }
+      },
+      {
+        "_comment": "Server-rendered preview for portal share links. The function reads the token off req.path, validates it, and renders an HTML page with og: meta so messaging apps show a real preview card. See functions/share-ssr.js.",
+        "source": "/share/**",
+        "function": {
+          "functionId": "shareSSR",
+          "region": "us-central1"
+        }
+      },
+      {
+        "_comment": "Deal packet photos (2026-10-04). /deal/<token>/photo/<n> streams one inspection photo of a FULL packet, re-encoded server-side (EXIF/GPS stripped) and token-checked on every load, so it dies with the deal link. MUST sit before /deal/** (first matching rewrite wins). See functions/deal-packet-logic.js.",
+        "source": "/deal/*/photo/*",
+        "function": {
+          "functionId": "getDealPhoto",
+          "region": "us-central1"
+        }
+      },
+      {
+        "_comment": "Close Board deal acceptance (1a). /deal/<token> serves the interactive deal-room HTML FIRST-PARTY so the homeowner's ACCEPT POST to /api/deal-accept is same-origin (a raw Storage URL would CORS-block it). Token-authed, no login. See functions/deal-acceptance.js.",
+        "source": "/deal/**",
+        "function": {
+          "functionId": "getDealRoom",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/deal-accept",
+        "function": {
+          "functionId": "submitDealAcceptance",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/mcp",
+        "function": {
+          "functionId": "crmMcp",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/deal-read",
+        "function": {
+          "functionId": "dealRoomReadPing",
+          "region": "us-central1"
+        }
+      },
+      {
+        "_comment": "NBD's Twilio line (2026-10-06, functions/twilio-line.js). Twilio posts here once the number's Messaging + Voice webhooks are pointed at these URLs (runbook documentation/runbooks/TWILIO-LINE-GO-LIVE.md). Every request is X-Twilio-Signature verified; DARK until TWILIO_INBOUND_ENABLED=true (fixed TwiML, nothing written). Exact sources, no wildcard.",
+        "source": "/api/twilio/sms",
+        "function": {
+          "functionId": "twilioSmsWebhook",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/twilio/sms-status",
+        "function": {
+          "functionId": "twilioSmsStatus",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/twilio/voice",
+        "function": {
+          "functionId": "twilioVoiceWebhook",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/twilio/voice-status",
+        "function": {
+          "functionId": "twilioVoiceDialStatus",
+          "region": "us-central1"
+        }
+      },
+      {
+        "_comment": "Inspection report sharing. /report/<token> serves a saved inspection report HTML first-party, token-authed, no login. See functions/report-sharing.js.",
+        "source": "/report/**",
+        "function": {
+          "functionId": "getSharedReport",
+          "region": "us-central1"
+        }
+      },
+      {
+        "_comment": "Read-only per-rep calendar feed. /calendar/<token>.ics serves text/calendar so the iPhone Calendar app can subscribe; token-authed, no login, one active token per rep (minting rotates). The .ics suffix is what makes iOS treat it as a calendar. See functions/calendar-feed.js.",
+        "source": "/calendar/**",
+        "function": {
+          "functionId": "getCalendarFeed",
+          "region": "us-central1"
+        }
+      },
+      {
+        "_comment": "Email unsubscribe (CAN-SPAM). /unsubscribe/<token> is the footer link AND the RFC 8058 List-Unsubscribe one-click URL on every commercial email. GET renders a confirm page with no side effect (link scanners prefetch GET); POST records the per-tenant suppression. Token-authed, no login. See functions/email-unsubscribe.js.",
+        "source": "/unsubscribe/**",
+        "function": {
+          "functionId": "emailUnsubscribe",
+          "region": "us-central1"
+        }
+      },
+      {
+        "_comment": "Resend bounce/spam-complaint webhook, folded into the same per-tenant suppression register (sources 'bounce' and 'complaint'). Signed with Svix/standard-webhooks; DARK until the owner adds this endpoint in the Resend dashboard (events email.bounced + email.complained) and sets RESEND_WEBHOOK_SECRET — unconfigured it answers 503 before parsing anything. Served through Hosting so the site's security headers apply. See functions/resend-webhook.js.",
+        "source": "/hooks/resend",
+        "function": {
+          "functionId": "resendWebhook",
+          "region": "us-central1"
+        }
+      },
+      {
+        "_comment": "Tenant logos (2026-10-04, tenant-ready). /tenant-logo/<companyId>/<sha>.png serves an EXIF-stripped, re-encoded logo uploaded through uploadCompanyLogo, streamed from Storage by the server — so a company's logo has a public first-party URL and never a Storage ?token= link. See functions/tenant-ops.js.",
+        "source": "/tenant-logo/**",
+        "function": {
+          "functionId": "tenantLogo",
+          "region": "us-central1"
+        }
+      }
+    ],
+    "headers": [
+      {
+        "_comment": "Source is '**' not '**/*.html' because cleanUrls:true rewrites incoming /pro/foo.html requests to /pro/foo BEFORE header matching runs. With **/*.html only the JS/CSS rule matched anything; HTML responses got HSTS only. '**' applies these headers to every response. CSP/X-Frame are no-ops on non-HTML responses (browsers ignore), so the over-application is safe; Cache-Control is overridden per-path below for js/css and dashboard/customer/etc.",
+        "source": "**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=300"
+          },
+          {
+            "key": "X-Frame-Options",
+            "value": "DENY"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(self), microphone=(self), geolocation=(self), interest-cohort=()"
+          },
+          {
+            "key": "Strict-Transport-Security",
+            "value": "max-age=63072000; includeSubDomains; preload"
+          },
+          {
+            "key": "Cross-Origin-Opener-Policy",
+            "value": "same-origin"
+          },
+          {
+            "key": "Cross-Origin-Resource-Policy",
+            "value": "same-origin"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app https://storage.googleapis.com/nobigdeal-pro.firebasestorage.app/ https://maps.googleapis.com https://maps.gstatic.com https://api.weather.gov https://*.tile.openstreetmap.org https://mt0.google.com https://mt1.google.com https://mt2.google.com https://mt3.google.com https://mesonet.agron.iastate.edu https://server.arcgisonline.com https://*.arcgisonline.com https://wayback.maptiles.arcgis.com https://kygisserver.ky.gov https://*.clarity.ms https://c.bing.com https://basemap.nationalmap.gov; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://www.clarity.ms https://scripts.clarity.ms; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://www.clarity.ms https://scripts.clarity.ms; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://api.weather.gov https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://nominatim.openstreetmap.org https://www.gstatic.com https://fonts.gstatic.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://mesonet.agron.iastate.edu https://www.spc.noaa.gov https://*.clarity.ms https://c.bing.com; frame-src 'self' https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://js.stripe.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://cal.com https://*.cal.com; worker-src 'self' blob:; media-src 'self' blob:;"
+          },
+          {
+            "key": "Content-Security-Policy-Report-Only",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app https://storage.googleapis.com/nobigdeal-pro.firebasestorage.app/ https://maps.googleapis.com https://maps.gstatic.com https://api.weather.gov https://*.tile.openstreetmap.org https://mt0.google.com https://mt1.google.com https://mt2.google.com https://mt3.google.com https://mesonet.agron.iastate.edu https://server.arcgisonline.com https://*.arcgisonline.com https://wayback.maptiles.arcgis.com https://kygisserver.ky.gov https://*.clarity.ms https://c.bing.com https://basemap.nationalmap.gov; font-src 'self' https://fonts.gstatic.com; style-src 'self' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://www.clarity.ms https://scripts.clarity.ms; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://www.clarity.ms https://scripts.clarity.ms; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://api.weather.gov https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://nominatim.openstreetmap.org https://www.gstatic.com https://fonts.gstatic.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://mesonet.agron.iastate.edu https://www.spc.noaa.gov https://*.clarity.ms https://c.bing.com; frame-src 'self' https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://js.stripe.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://cal.com https://*.cal.com; worker-src 'self' blob:; media-src 'self' blob:; report-uri /cspReport; report-to csp-endpoint;"
+          },
+          {
+            "key": "Report-To",
+            "value": "{\"group\":\"csp-endpoint\",\"max_age\":10886400,\"endpoints\":[{\"url\":\"/cspReport\"}]}"
+          }
+        ]
+      },
+      {
+        "_comment": "No-Clarity CSP for the non-public surfaces (2026-10-05, Jo-approved). The '**' policy admits Microsoft Clarity (www/scripts/*.clarity.ms + c.bing.com) for the public marketing pages only; docs/assets/js/clarity-loader.js and scripts/add-clarity-tag.js never load it under /pro, /admin, /dev or /sites, so the CSP no longer admits it there either (the CRM shows customer data and must never be session-recorded). These two rules are the '**' policies with the Clarity hosts removed and nothing else changed (tests/csp-hardening-2026-10-05.test.js is the drift guard). Two sources because '/x/**' does not match the bare '/x'. Placed right after '**' so last-match-wins lets them override it, while every per-page CSP below (/pro/login, /pro/portal, /admin, ...) still overrides them.",
+        "source": "/@(pro|admin|dev|sites)",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app https://storage.googleapis.com/nobigdeal-pro.firebasestorage.app/ https://maps.googleapis.com https://maps.gstatic.com https://api.weather.gov https://*.tile.openstreetmap.org https://mt0.google.com https://mt1.google.com https://mt2.google.com https://mt3.google.com https://mesonet.agron.iastate.edu https://server.arcgisonline.com https://*.arcgisonline.com https://wayback.maptiles.arcgis.com https://kygisserver.ky.gov https://basemap.nationalmap.gov; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://api.weather.gov https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://nominatim.openstreetmap.org https://www.gstatic.com https://fonts.gstatic.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://mesonet.agron.iastate.edu https://www.spc.noaa.gov; frame-src 'self' https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://js.stripe.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://cal.com https://*.cal.com; worker-src 'self' blob:; media-src 'self' blob:;"
+          },
+          {
+            "key": "Content-Security-Policy-Report-Only",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app https://storage.googleapis.com/nobigdeal-pro.firebasestorage.app/ https://maps.googleapis.com https://maps.gstatic.com https://api.weather.gov https://*.tile.openstreetmap.org https://mt0.google.com https://mt1.google.com https://mt2.google.com https://mt3.google.com https://mesonet.agron.iastate.edu https://server.arcgisonline.com https://*.arcgisonline.com https://wayback.maptiles.arcgis.com https://kygisserver.ky.gov https://basemap.nationalmap.gov; font-src 'self' https://fonts.gstatic.com; style-src 'self' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://api.weather.gov https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://nominatim.openstreetmap.org https://www.gstatic.com https://fonts.gstatic.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://mesonet.agron.iastate.edu https://www.spc.noaa.gov; frame-src 'self' https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://js.stripe.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://cal.com https://*.cal.com; worker-src 'self' blob:; media-src 'self' blob:; report-uri /cspReport; report-to csp-endpoint;"
+          }
+        ]
+      },
+      {
+        "source": "/@(pro|admin|dev|sites)/**",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app https://storage.googleapis.com/nobigdeal-pro.firebasestorage.app/ https://maps.googleapis.com https://maps.gstatic.com https://api.weather.gov https://*.tile.openstreetmap.org https://mt0.google.com https://mt1.google.com https://mt2.google.com https://mt3.google.com https://mesonet.agron.iastate.edu https://server.arcgisonline.com https://*.arcgisonline.com https://wayback.maptiles.arcgis.com https://kygisserver.ky.gov https://basemap.nationalmap.gov; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://api.weather.gov https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://nominatim.openstreetmap.org https://www.gstatic.com https://fonts.gstatic.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://mesonet.agron.iastate.edu https://www.spc.noaa.gov; frame-src 'self' https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://js.stripe.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://cal.com https://*.cal.com; worker-src 'self' blob:; media-src 'self' blob:;"
+          },
+          {
+            "key": "Content-Security-Policy-Report-Only",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app https://storage.googleapis.com/nobigdeal-pro.firebasestorage.app/ https://maps.googleapis.com https://maps.gstatic.com https://api.weather.gov https://*.tile.openstreetmap.org https://mt0.google.com https://mt1.google.com https://mt2.google.com https://mt3.google.com https://mesonet.agron.iastate.edu https://server.arcgisonline.com https://*.arcgisonline.com https://wayback.maptiles.arcgis.com https://kygisserver.ky.gov https://basemap.nationalmap.gov; font-src 'self' https://fonts.gstatic.com; style-src 'self' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://api.weather.gov https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://nominatim.openstreetmap.org https://www.gstatic.com https://fonts.gstatic.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://mesonet.agron.iastate.edu https://www.spc.noaa.gov; frame-src 'self' https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://js.stripe.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://cal.com https://*.cal.com; worker-src 'self' blob:; media-src 'self' blob:; report-uri /cspReport; report-to csp-endpoint;"
+          }
+        ]
+      },
+      {
+        "_comment": "Wave 127 P0: JS/CSS must-revalidate on every request via ETag. Previously max-age=300 meant the browser HTTP cache served stale assets for 5 minutes after each deploy — even with the W124 network-first Service Worker, the SW's fetch() would hit browser HTTP cache and get stale code. Symptom: 'every other reload stuck on loading' because each load's background HTTP-cache update set up the NEXT load to work, then a deploy could break it again. max-age=0 + must-revalidate makes the browser send If-None-Match (ETag) on every request. 99% of the time the file is unchanged and the server returns 304 Not Modified (~5KB total, ~50ms). When it does change (deploy), the user gets fresh content immediately. Third-party libraries (Leaflet, Font Awesome, jsPDF, ApexCharts, Chart.js) are vendored same-origin under /assets/vendor/ and version-pinned by their directory path, so they fall under this same JS/CSS revalidation rule. ORDERING FIX 2026-07: this rule originally sat BEFORE '**', and since header matching is last-match-wins per key, '**' max-age=300 silently overrode it — the Wave-127 fix never actually shipped. It now sits after '**' so it applies as intended; the /assets/{css,js} rules at the END of this array still override it for public marketing assets (24h), and the sw.js rules below still pin service workers to no-cache.",
+        "source": "**/*.@(js|css)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=0, must-revalidate"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          }
+        ]
+      },
+      {
+        "_comment": "Sources below use canonical (no-.html) form because cleanUrls:true rewrites incoming /foo.html requests to /foo BEFORE header matching. Sources of the form '/path.html' never match; canonical '/path' matches both forms. Last-match wins for headers (verified prod: /admin/login → no-store from /admin/** rule), so these path-specific rules correctly override the '**' default above.",
+        "source": "/sw.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "_comment": "Homeowner web-app manifest (2026-09-27). Served as application/manifest+json explicitly rather than trusting the host's extension map. Placed AFTER the ** rule so last-match-wins keeps this Content-Type; the ** rule's security headers still apply. documentation/audit/FAVICON-NORMALIZATION-2026-09-13.md (update 2026-09-27)",
+        "source": "/manifest.webmanifest",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/manifest+json"
+          }
+        ]
+      },
+      {
+        "_comment": "Public brand assets (logo, illustrations) must be embeddable cross-origin. The Universal Doc Viewer (docs/pro/js/nbd-doc-viewer.js) renders generated PDFs inside <iframe srcdoc> *without* `allow-same-origin` — that gives the iframe a `null` origin, and the global Cross-Origin-Resource-Policy: same-origin above refuses to serve these images into it, leaving every generated document with a broken-image placeholder where the company logo should be. These are public marketing assets — letting them embed cross-origin is safe (CORP only governs *embedding*; it does not grant script-level read access). Targeted at /assets/images/** specifically so unrelated assets keep the stricter default. Placed AFTER the ** rule so last-match-wins lets this one stick.",
+        "source": "/assets/images/**",
+        "headers": [
+          {
+            "key": "Cross-Origin-Resource-Policy",
+            "value": "cross-origin"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=2592000"
+          }
+        ]
+      },
+      {
+        "_comment": "The signature pad script must be loadable cross-origin for the same reason as the images above. document-generator.js _injectSignatureAssets bakes <script src=\"<origin>/pro/js/signature-widget.js\"> into every document that carries signers, and both places a document is signed show it in an <iframe srcdoc> sandboxed WITHOUT allow-same-origin: /pro/sign.html (the homeowner's remote-signing link) and the rep's in-person signing in the doc viewer. That frame has an opaque origin, so the global Cross-Origin-Resource-Policy: same-origin makes Chrome refuse the script (net::ERR_BLOCKED_BY_RESPONSE.NotSameOrigin): no pad initialises, no Clear/Undo, and the signing page cannot finalise. Found 2026-09-25 by the Linux hosting emulator in CI (phone-signing.spec.js); the Windows emulator sends no firebase.json headers at all, so it passed locally. The file is a public static script, so cross-origin embedding exposes nothing. Exact path, not /pro/js/**, so every other script keeps the stricter default. Placed AFTER the ** rule so last-match-wins lets it stick; tests/smoke/photo.test.js resolves the effective header.",
+        "source": "/pro/js/signature-widget.js",
+        "headers": [
+          {
+            "key": "Cross-Origin-Resource-Policy",
+            "value": "cross-origin"
+          }
+        ]
+      },
+      {
+        "_comment": "Wave 127 P0: the actual Service Worker lives at /pro/sw.js (registered with scope /pro/), but the rule above only matches /sw.js. Result: prod was serving the SW with the default max-age=300 — meaning Cloudflare + browser cached the SW for 5 minutes, blocking SW updates from reaching users for that window. Previous deploys' SW updates (W124, etc.) were stuck in cache. This rule fixes the SW path explicitly. The SW itself MUST never be cached for any meaningful duration — its job is to detect updates, and if the update-detection path is cached, every fix to the SW takes 5+ minutes to propagate per CDN edge.",
+        "source": "/pro/sw.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "_comment": "Same no-cache rule for the FCM messaging Service Worker (registered by push-registration.js at scope /pro/firebase-cloud-messaging-push-scope). A SW must never sit in cache — the default max-age=300 would block update-detection for 5 min per edge, exactly the Wave 127 P0 issue fixed for /pro/sw.js above.",
+        "source": "/pro/firebase-messaging-sw.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/pro/dashboard",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/pro/vault",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "_comment": "RESOLVED 2026-07-02 (was FIXME(csp)): customer.html's 11 inline <script> blocks (~6.5k lines, incl. the critical Firebase-init module) were extracted to docs/pro/js/customer-*.js (mirror of the #398 dashboard work), verified byte-for-byte with zero CSP refusals under the strict '**' policy and zero inline on*= handlers. The unsafe-inline script-src override is therefore gone; the page now rides the global CSP. Only the no-store Cache-Control stays (lead PII page).",
+        "source": "/pro/customer",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/pro/daily-success",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/pro/login",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/pro/register",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/admin",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0, must-revalidate"
+          },
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "source": "/admin/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0, must-revalidate"
+          },
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "_comment": "The internal ops hub at /tools (2026-08-02). It is already gated client-side — the page ships style=\"visibility:hidden\" on <html> and its module script runs NBDAuth.init, which replaces the location with /pro/login.html for a signed-out visitor (verified live). What that cannot do is stop the raw HTML being fetched, and the HTML enumerates 12 /pro/* destinations. Jo's call is to accept that residual and keep the bookmark working. This header replaces the robots.txt 'Disallow: /tools/' line, which never matched the served URL (cleanUrls serves /tools; RFC 9309 prefix matching does not treat /tools/ as covering /tools) and which prevented crawlers from ever seeing the page's own noindex meta. Same rationale as /pro/blog and the /pro app pages above.",
+        "source": "/tools",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "source": "/tools/**",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "_comment": "getPublicSiteConfig is an Oaks/tenant-branded content surface on the homeowner domain, and it sat outside every protection applied to the pages it feeds: no X-Robots-Tag and no robots.txt coverage. It returns each published tenant name, phone, address and branding as JSON. Same noindex convention as its sibling surfaces. Applies to every tenant, not just Oaks. Found by an adversarial sweep of the live site, 2026-08-19.",
+        "source": "/api/site-config",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "_comment": "The /sites index (2026-08-02): a B2B 'Contractor Websites by NBD' offering page sitting on the HOMEOWNER domain. It was the one /sites page with no noindex of any kind — fully crawlable, yet with zero inbound links from anywhere on the site and a (513) 555-0100 placeholder phone. Jo's call: hold it back until the offering is deliberately launched. Same convention as its siblings and /pro/blog — X-Robots-Tag is authoritative and the page stays OUT of robots.txt so crawlers can SEE the noindex instead of leaving a URL-only listing. Drop this rule and the <meta name=robots> in docs/sites/index.html together at launch.",
+        "source": "/sites",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "_comment": "/sites/free-guide — the CONTRACTOR lead magnet (2026-09-13). Every sibling noindexed surface (/sites, /sites/oaks, /sites/t, /sites/template, /tools, /pro/blog) carries this header in addition to its <meta name=robots>; this page had the meta only, and the `/sites` rule above is an exact match that does not cover it. Same convention: the header is authoritative and the page stays OUT of robots.txt so crawlers can see the noindex. Its chrome was also switched from the homeowner nav/drawer/footer to contractor links the same day (documentation/audit/GROKBOT-BRIEF-VERIFICATION-2026-09-13.md).",
+        "source": "/sites/free-guide",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "_comment": "Oaks microsite (rebuilt 2026-08-19, Jo). /sites/oaks is a hand-authored 11-page mirror of Scott's retired site, built as a portable hand-off deliverable he hosts himself, and is now the ONLY Oaks site: the eight /sites/oaks* → /sites/t/oaks 301s from the 2026-07-04 Pillar 5 cutover were removed (redirects outrank static files, so leaving them would have shadowed every rebuilt page), and /sites/t/oaks now 301s the other way — the one-page tenant stub is retired for this tenant. logo-orange.svg still serves from this same directory, so companyProfile/oaks brand.logoUrl and generated documents are unaffected. KEEP this noindex until the site launches on its own domain: it is an unlaunched client site sitting on the HOMEOWNER domain, and indexing it here would compete with his own domain for the same Goshen keywords. AT LAUNCH, three things drop together and none of them works alone: these two X-Robots-Tag rules, the <meta name=robots> in all 11 pages, AND the 'Disallow: /sites/oaks/' + '/sites/oaks.html' lines in docs/robots.txt — that Disallow currently stops crawlers even fetching the pages, so on its own the noindex would never be seen (the failure mode this repo has hit repeatedly; see the /pro/blog and /tools comments below).",
+        "source": "/sites/oaks",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "source": "/sites/oaks/**",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "source": "/sites/template",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "source": "/sites/t",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "source": "/sites/t/**",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "_comment": "NBD PRO blog (contractor-facing, /pro/blog/*) is walled off from the No Big Deal HOMEOWNER brand: it's shared word-of-mouth / direct link, not an SEO play, so a homeowner searching the brand never surfaces contractor content. X-Robots-Tag noindex is the authoritative signal (pages stay reachable by direct link; deliberately NOT robots.txt-Disallowed so crawlers can SEE the noindex rather than leaving a URL-only listing). The posts also carry a <meta robots noindex>. Separate from the homeowner blog at /blog/*.",
+        "source": "/pro/blog",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "source": "/pro/blog/**",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "_comment": "Private /pro APP pages (2026-07-16): robots.txt's old Disallow lines used the .html forms, which NEVER match under cleanUrls (the served canonical URL is extensionless, and RFC 9309 prefix-matching means 'Disallow: /pro/dashboard.html' does not cover '/pro/dashboard') — so the CRM app shells were crawlable AND indexable, polluting brand search results. Same fix rationale as /pro/blog above: X-Robots-Tag noindex is the authoritative signal, and the pages deliberately stay OUT of robots.txt so crawlers can SEE the noindex instead of leaving a URL-only listing. Enumerated (not /pro/**) because /pro, /pro/pricing, /pro/how-to and /pro/terms are the public B2B pages in sitemap-pro.xml and must stay indexable. (/pro/landing was a byte-identical duplicate of /pro and was folded into it with a 301 on 2026-08-18.) /pro/sandbox left this list on 2026-10-06: it is now the public guided demo (sample data, no app shell) and is listed in sitemap-pro.xml; /pro/demo 301s to it (and stays listed here, so the redirect response itself is noindex).",
+        "source": "/pro/@(roof-rep|dashboard|vault|codex|analytics|leaderboard|demo|diagnostic|daily-success|stripe-success|ask-joe|ai-tree|ai-tool-finder|project-codex|understand|customer|estimate-view|photo-review|portal|onboarding|refer|sign|esign|esign-setup|login|register)",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "source": "/pro/daily-success/**",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "_comment": "Per-page CSP tightening for auth/credential pages. Re-keyed 2026-07-16 from the dead .html sources (cleanUrls strips .html before header matching, so /pro/login.html NEVER matched and these pages silently rode the broad global CSP). Relative to the original 2026-05 drafts, login/register add the Sentry hosts (login.html + register.html load sentry-init.js, which injects the browser SDK from browser.sentry-cdn.com and reports to *.ingest.sentry.io) and register adds the reCAPTCHA v3 hosts (dashboard-appcheck-config.js App Check site key — SDK loads www.google.com/recaptcha + www.gstatic.com, frames www.google.com). — COOP override + App Check hosts (2026-09-22): /pro/login now has 'Continue with Google' (docs/pro/js/pages/login.js — SIGN-IN ONLY: a Google identity with no users/{uid} is signed back out and sent to /pro/register, never provisioned here). Same fault and fix as /pro/register below: the global '**' rule's Cross-Origin-Opener-Policy: same-origin puts the cross-origin Firebase auth popup (nobigdeal-pro.firebaseapp.com/__/auth/handler) in a new browsing-context group, so every Google sign-in would end in auth/popup-closed-by-user. same-origin-allow-popups keeps this page isolated from cross-origin OPENERS but lets the popups IT opens keep their opener. It rides this per-path CSP block, the LAST block matching /pro/login and after '**', so last-match-wins applies per key (same placement as register's; the Cache-Control-only /pro/login block earlier in this array is untouched). The CSP also gains register's reCAPTCHA hosts (www.google.com, www.recaptcha.net in script-src/script-src-elem/connect-src/frame-src): login.js now initialises App Check to warm the token signInWithPopup awaits before window.open (js/dashboard-appcheck-config.js key). Every other page stays same-origin. tests/google-signin-popup.test.js discovers every page that reaches a popup-auth call, computes its effective headers, and fails if this override goes missing, moves before '**', or spreads.",
+        "source": "/pro/login",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' https://www.gstatic.com https://apis.google.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://www.google.com https://www.recaptcha.net; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://www.google.com https://www.recaptcha.net; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://www.google.com https://www.recaptcha.net; frame-src https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net; worker-src 'self' blob:;"
+          },
+          {
+            "key": "Cross-Origin-Opener-Policy",
+            "value": "same-origin-allow-popups"
+          }
+        ]
+      },
+      {
+        "_comment": "COOP override (2026-09-18): /pro/register is the one page whose JS calls signInWithPopup ('Continue with Google', docs/pro/js/pages/register.js). The global '**' rule's Cross-Origin-Opener-Policy: same-origin puts the cross-origin Firebase auth popup (nobigdeal-pro.firebaseapp.com/__/auth/handler) in a new browsing-context group, so the popup's window.opener is null, the page sees popup.closed===true at once, and every Google sign-in ends in auth/popup-closed-by-user ('Sign-in cancelled.'). same-origin-allow-popups keeps this page isolated from cross-origin OPENERS but lets the popups IT opens keep their opener. It rides this existing per-path block, which sits after '**' so last-match-wins applies (live-verified: this block's CSP is the one served). Every other page stays same-origin. tests/google-signin-popup.test.js computes the effective headers for every page that loads a popup-auth call and fails if this override goes missing, moves before '**', or spreads.",
+        "source": "/pro/register",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' https://www.gstatic.com https://apis.google.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://www.google.com https://www.recaptcha.net; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://www.google.com https://www.recaptcha.net; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://www.google.com https://www.recaptcha.net; frame-src https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net; worker-src 'self' blob:;"
+          },
+          {
+            "key": "Cross-Origin-Opener-Policy",
+            "value": "same-origin-allow-popups"
+          }
+        ]
+      },
+      {
+        "source": "/pro/stripe-success",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.google.com https://www.recaptcha.net; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.google.com https://www.recaptcha.net; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://api.stripe.com https://www.google.com https://www.recaptcha.net; frame-src https://js.stripe.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net; worker-src 'self' blob:;"
+          }
+        ]
+      },
+      {
+        "source": "/pro/leaderboard",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net; frame-src https://*.firebaseapp.com; worker-src 'self' blob:;"
+          }
+        ]
+      },
+      {
+        "source": "/pro/ask-joe",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://www.google.com https://www.recaptcha.net; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://www.google.com https://www.recaptcha.net; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://www.google.com https://www.recaptcha.net; frame-src https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net; worker-src 'self' blob:;"
+          }
+        ]
+      },
+      {
+        "source": "/pro/diagnostic",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com; worker-src 'self' blob:;"
+          }
+        ]
+      },
+      {
+        "source": "/admin",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com; worker-src 'self' blob:;"
+          }
+        ]
+      },
+      {
+        "source": "/admin/login",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com; worker-src 'self' blob:;"
+          }
+        ]
+      },
+      {
+        "source": "/admin/analytics",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob: https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com; frame-src https://*.firebaseapp.com; worker-src 'self' blob:;"
+          }
+        ]
+      },
+      {
+        "_comment": "AI TOOLS iframe embedding — dashboard.html embeds these 4 pages as same-origin iframes (see <template id=\"tpl-view-aitree\">, etc. in dashboard.html). The global ** rule sets X-Frame-Options: DENY + CSP frame-ancestors 'none' which blocks ALL framing — every AI TOOLS tab in the dashboard renders as 'refused to display in a frame'. These per-route overrides relax framing to same-origin only (X-Frame-Options: SAMEORIGIN + frame-ancestors 'self') so the dashboard can embed them while still blocking cross-origin clickjacking. Canonical paths (no .html) — cleanUrls strips .html before header matching per the line-50 comment. (2026-07-16: the once-dead .html-keyed CSP rules were re-keyed to canonical paths or, for ai-tree/understand/analytics, deleted in favor of these framing rules.)",
+        "source": "/pro/ai-tree",
+        "headers": [
+          {
+            "key": "X-Frame-Options",
+            "value": "SAMEORIGIN"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app https://storage.googleapis.com/nobigdeal-pro.firebasestorage.app/ https://maps.googleapis.com https://maps.gstatic.com https://api.weather.gov https://*.tile.openstreetmap.org https://mt0.google.com https://mt1.google.com https://mt2.google.com https://mt3.google.com https://mesonet.agron.iastate.edu https://server.arcgisonline.com https://*.arcgisonline.com; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://api.weather.gov https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://nominatim.openstreetmap.org https://www.gstatic.com https://fonts.gstatic.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; frame-src 'self' https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://js.stripe.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://cal.com https://*.cal.com; worker-src 'self' blob:;"
+          }
+        ]
+      },
+      {
+        "source": "/pro/understand",
+        "headers": [
+          {
+            "key": "X-Frame-Options",
+            "value": "SAMEORIGIN"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app https://storage.googleapis.com/nobigdeal-pro.firebasestorage.app/ https://maps.googleapis.com https://maps.gstatic.com https://api.weather.gov https://*.tile.openstreetmap.org https://mt0.google.com https://mt1.google.com https://mt2.google.com https://mt3.google.com https://mesonet.agron.iastate.edu https://server.arcgisonline.com https://*.arcgisonline.com; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://api.weather.gov https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://nominatim.openstreetmap.org https://www.gstatic.com https://fonts.gstatic.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; frame-src 'self' https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://js.stripe.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://cal.com https://*.cal.com; worker-src 'self' blob:;"
+          }
+        ]
+      },
+      {
+        "source": "/pro/project-codex",
+        "headers": [
+          {
+            "key": "X-Frame-Options",
+            "value": "SAMEORIGIN"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app https://storage.googleapis.com/nobigdeal-pro.firebasestorage.app/ https://maps.googleapis.com https://maps.gstatic.com https://api.weather.gov https://*.tile.openstreetmap.org https://mt0.google.com https://mt1.google.com https://mt2.google.com https://mt3.google.com https://mesonet.agron.iastate.edu https://server.arcgisonline.com https://*.arcgisonline.com; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://api.weather.gov https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://nominatim.openstreetmap.org https://www.gstatic.com https://fonts.gstatic.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; frame-src 'self' https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://js.stripe.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://cal.com https://*.cal.com; worker-src 'self' blob:;"
+          }
+        ]
+      },
+      {
+        "source": "/pro/analytics",
+        "headers": [
+          {
+            "key": "X-Frame-Options",
+            "value": "SAMEORIGIN"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app https://storage.googleapis.com/nobigdeal-pro.firebasestorage.app/ https://maps.googleapis.com https://maps.gstatic.com https://api.weather.gov https://*.tile.openstreetmap.org https://mt0.google.com https://mt1.google.com https://mt2.google.com https://mt3.google.com https://mesonet.agron.iastate.edu https://server.arcgisonline.com https://*.arcgisonline.com; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://api.weather.gov https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://nominatim.openstreetmap.org https://www.gstatic.com https://fonts.gstatic.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; frame-src 'self' https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://js.stripe.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://cal.com https://*.cal.com; worker-src 'self' blob:;"
+          }
+        ]
+      },
+      {
+        "_comment": "PORTAL iframe embedding — the CRM's \"Portal preview\" modal (docs/pro/js/portal-link-helpers.js _openPreviewModal) embeds the homeowner portal as a same-origin iframe so a rep can check what the homeowner will see before texting the link. Reached from eleven surfaces (kanban context menu, activity feed, global search, notification bell, hot-leads / almost-there / stale-shares widgets, smart-followup briefing, dashboard bootstrap, customer-gallery-share). Without this override /pro/portal inherits the global ** rule's X-Frame-Options: DENY + frame-ancestors 'none' and the embed is refused in every browser — which is what it did from the Wave 56 modal's first day until 2026-09-08, while the modal's own fallback copy blamed the visitor's privacy shields. Same shape as the AI TOOLS block above: same-origin only, cross-origin clickjacking still blocked. The CSP value is the GLOBAL rule's policy with frame-ancestors flipped to 'self' and nothing else changed — NOT a copy of the AI TOOLS policy, whose img-src/connect-src lists are narrower and would silently drop the portal's imagery hosts. tests/portal-preview-framing.test.js asserts that equality, so tightening the global policy without updating this one fails the build. Report-Only is overridden too: leaving it at 'none' contradicts the enforced policy on every embed (see /pro/ai-tree, which still does).",
+        "source": "/pro/portal",
+        "headers": [
+          {
+            "key": "X-Frame-Options",
+            "value": "SAMEORIGIN"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app https://storage.googleapis.com/nobigdeal-pro.firebasestorage.app/ https://maps.googleapis.com https://maps.gstatic.com https://api.weather.gov https://*.tile.openstreetmap.org https://mt0.google.com https://mt1.google.com https://mt2.google.com https://mt3.google.com https://mesonet.agron.iastate.edu https://server.arcgisonline.com https://*.arcgisonline.com https://wayback.maptiles.arcgis.com https://kygisserver.ky.gov https://basemap.nationalmap.gov; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://api.weather.gov https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://nominatim.openstreetmap.org https://www.gstatic.com https://fonts.gstatic.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://mesonet.agron.iastate.edu https://www.spc.noaa.gov; frame-src 'self' https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://js.stripe.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://cal.com https://*.cal.com; worker-src 'self' blob:; media-src 'self' blob:;"
+          },
+          {
+            "key": "Content-Security-Policy-Report-Only",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com https://firebasestorage.googleapis.com/v0/b/nobigdeal-pro.firebasestorage.app/ https://nobigdeal-pro.firebasestorage.app https://storage.googleapis.com/nobigdeal-pro.firebasestorage.app/ https://maps.googleapis.com https://maps.gstatic.com https://api.weather.gov https://*.tile.openstreetmap.org https://mt0.google.com https://mt1.google.com https://mt2.google.com https://mt3.google.com https://mesonet.agron.iastate.edu https://server.arcgisonline.com https://*.arcgisonline.com https://wayback.maptiles.arcgis.com https://kygisserver.ky.gov https://basemap.nationalmap.gov; font-src 'self' https://fonts.gstatic.com; style-src 'self' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com https://apis.google.com https://js.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://browser.sentry-cdn.com https://*.sentry-cdn.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://api.stripe.com https://www.google-analytics.com https://api.weather.gov https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://nominatim.openstreetmap.org https://www.gstatic.com https://fonts.gstatic.com https://browser.sentry-cdn.com https://*.sentry-cdn.com https://mesonet.agron.iastate.edu https://www.spc.noaa.gov; frame-src 'self' https://firebasestorage.googleapis.com https://*.firebasestorage.app https://storage.googleapis.com https://js.stripe.com https://*.firebaseapp.com https://www.google.com https://www.recaptcha.net https://challenges.cloudflare.com https://cal.com https://*.cal.com; worker-src 'self' blob:; media-src 'self' blob:; report-uri /cspReport; report-to csp-endpoint;"
+          }
+        ]
+      },
+      {
+        "_comment": "SEO-hardening 2026-07 (F2): longer browser/CDN caching for PUBLIC marketing assets. Placed at the END of this array because header matching is last-match-wins per key (see line-71 comment) — the '**' rule above otherwise pins everything to max-age=300. Scoped to /assets/{css,js,fonts} only: /pro/js (CRM app code) keeps the 300s default on purpose, and /assets/vendor is shared with the pro app so it is deliberately NOT touched. 86400 (24h) rather than a 1-year immutable cache because asset filenames are NOT content-hashed (the /assets/js/inline/* names no longer match their content hashes) and there is no build step to stamp ?v= versions — a long immutable cache without cache-busting would strand users on stale code after a deploy. Tradeoff: an edit to a css/js file here can take up to 24h to reach repeat visitors; if that ever bites, append a ?v=N query string to the changed file's references and redeploy.",
+        "source": "/assets/css/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400"
+          }
+        ]
+      },
+      {
+        "source": "/assets/js/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400"
+          }
+        ]
+      },
+      {
+        "_comment": "Self-hosted woff2 files are stable binaries (a family change would ship under a new filename), so 1yr immutable is safe — the URL changes when the content does (Jul 2026 remediation; was 30d). Rename-on-change is repo convention, not build-enforced: git history shows zero in-place font edits ever, but if you must alter a font binary, ship it under a NEW filename and update nbd-fonts.css — immutable means browsers will never revalidate the old URL. NOTE: the same remediation package proposed 1yr immutable for /assets/js/inline/** too, but per the F2 comment above those filenames are NOT re-hashed on edit (4053149b2f.js alone was edited in place 4× recently, and adding a blog post edits c00f1acac9.js in place), so an immutable year there would strand repeat visitors on stale code — inline JS deliberately stays on the 24h /assets/js/** rule.",
+        "source": "/assets/fonts/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "_comment": "Self-hosted Firebase JS SDK (2026-10-04, scripts/vendor-firebase-sdk.js). The path carries the SDK version, so a file at a given URL never changes — cache it like gstatic did instead of revalidating ~7 modules on every page load (the **/*.js rule above says max-age=0).",
+        "source": "/assets/vendor/firebase/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "_comment": "Pro demo phase 2 (2026-10-06): the sample account's network guarantee. LAST in this list on purpose (last match wins, see the /sw.js comment above), so it overrides the /pro/** policy for everything under /pro/explore. connect-src 'self' ONLY: no firestore.googleapis.com, identitytoolkit, securetoken, *.cloudfunctions.net, Stripe, Twilio or Sentry host, so even a page that somehow loaded the real Firebase SDK could not reach the live database. frame-src has no firebaseapp.com (no auth iframe). No report-uri/report-to: CSP reports POST to /cspReport, a Cloud Function, and the demo calls no functions. Report-Only carries the same policy so the /pro/** report-only block (which does report) is replaced, not kept. www.gstatic.com stays in script-src only because the demo service worker answers those SDK URLs with the same-origin fake; the browser checks CSP before the worker sees the request. Guarded by tests/pro-demo-sdk-2026-10-06.test.js; zero-network walk in tests/pro-demo-zero-network-2026-10-06.test.js.",
+        "source": "/pro/explore",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self'; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'"
+          },
+          {
+            "key": "Content-Security-Policy-Report-Only",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self'; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0, must-revalidate"
+          },
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      },
+      {
+        "source": "/pro/explore/**",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self'; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'"
+          },
+          {
+            "key": "Content-Security-Policy-Report-Only",
+            "value": "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' https://www.gstatic.com; script-src-attr 'none'; script-src-elem 'self' https://www.gstatic.com; connect-src 'self'; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "no-store, max-age=0, must-revalidate"
+          },
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "seed-demo.js",
+        "find-secrets.js",
+        "migrate-companyprofile-per-tenant.js",
+        "migrate-companyid-backfill.js",
+        "migrate-docprefixes.js",
+        "verify-functions-company-enhancement.js"
+      ]
+    }
+  ],
+  "_comment_emulators": "Local QA / test-only emulator suite (Audit #3). Read ONLY by `firebase emulators:*`; zero effect on production hosting or deploys. Hosts pinned to 127.0.0.1 because this container's IPv6 loopback (::1) is unsupported (EAFNOSUPPORT) and otherwise spams port-check warnings. singleProjectMode keeps every emulated service under one project id so seed scripts and the client SDK agree on tenancy.",
+  "emulators": {
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 9499
+    },
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8480,
+      "websocketPort": 9550
+    },
+    "storage": {
+      "host": "127.0.0.1",
+      "port": 9599
+    },
+    "hosting": {
+      "host": "127.0.0.1",
+      "port": 5500
+    },
+    "hub": {
+      "host": "127.0.0.1",
+      "port": 4800
+    },
+    "logging": {
+      "host": "127.0.0.1",
+      "port": 4900
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
+  }
+}

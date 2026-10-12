@@ -15,8 +15,6 @@
  *      from=customer; dashboard-bootstrap hands the wizard the lead id only
  *      for that link; the wizard reads it once per open and returns only on
  *      the header Close (not on "Draw it"), after the draft autosave.
- *   D. lighter open: a NEW estimate for a lead waits for the lead cache, not
- *      the estimates list, before opening the builder.
  *   E. pricing untouched: nothing here touches the engine, tiers, deposit,
  *      KY rules or the signed price (the V3 file never writes state.scope,
  *      state.tier or prices).
@@ -102,7 +100,7 @@ console.log('C. back to the lead');
   const boot = read('docs/pro/js/dashboard-bootstrap.module.js');
   const b = boot.slice(boot.indexOf('} else if (estParam || leadParam) {'), boot.indexOf('} else if (tasksId) {'));
   ok('the dashboard hands the wizard the lead only for a new estimate from the customer page',
-    /const _newForLead = !!leadParam && !estParam;/.test(b) && /if \(_newForLead && urlParams\.get\('from'\) === 'customer'\) window\._nbdEstReturnLead = leadParam;/.test(b));
+    /if \(leadParam && !estParam && urlParams\.get\('from'\) === 'customer'\) window\._nbdEstReturnLead = leadParam;/.test(b));
   const onOpen = v3src.slice(v3src.indexOf('function onOpen('), v3src.indexOf('function onRender('));
   ok('the wizard reads it once per open and clears it', /ui\.returnLead = \(typeof window\._nbdEstReturnLead === 'string'/.test(onOpen) && /window\._nbdEstReturnLead = null;/.test(onOpen));
   ok('only the header Close arms the return', /ev\.target\.closest\('\.v2-close'\);\s*\n\s*if \(c && ui\.returnLead\) ui\.closing = Date\.now\(\);/.test(v3src));
@@ -119,17 +117,6 @@ console.log('C. back to the lead');
   ok('the header Close reads "‹ Back to <name>" while a return is armed', /close\.textContent = ui\.returnLead \? \('‹ Back to ' \+ \(who \|\| 'customer'\)\) : close\.dataset\.v3Text;/.test(v3src));
 }
 
-console.log('D. lighter open');
-{
-  const boot = read('docs/pro/js/dashboard-bootstrap.module.js');
-  const b = boot.slice(boot.indexOf('} else if (estParam || leadParam) {'), boot.indexOf('} else if (tasksId) {'));
-  const nf = b.slice(b.indexOf('if (_newForLead) {'), b.indexOf('} else {', b.indexOf('if (_newForLead) {')));
-  ok('a new estimate for a lead starts the list load without awaiting it first',
-    /const _list = \(async \(\) => \{ try \{ await loadEstimates\(\); \}/.test(nf) && !/^\s*try \{ await loadEstimates\(\); \}/m.test(nf));
-  ok('…and waits for the lead cache instead (prefill reads window._leads)', /window\._leadsLoaded !== true/.test(nf));
-  ok('…falling back to the list only when the lead is not in the cache', /if \(!\(window\._leads \|\| \[\]\)\.some\(l => l && l\.id === leadParam\)\) await _list;/.test(nf));
-  ok('a reopen (?est=) still loads the list first', /\} else \{\n\s*try \{ await loadEstimates\(\); \}/.test(b));
-}
 
 console.log('E. pricing untouched');
 {

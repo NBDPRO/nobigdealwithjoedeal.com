@@ -113,12 +113,12 @@ export async function connectEmulatorsIfLocal(svc = {}) {
   try {
     if (auth && !_connected.auth.has(auth)) {
       const { connectAuthEmulator } = await import(`${SDK}/firebase-auth.js`);
-      connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+      connectAuthEmulator(auth, 'http://127.0.0.1:9499', { disableWarnings: true });
       _connected.auth.add(auth);
     }
     if (db && !_connected.db.has(db)) {
       const { connectFirestoreEmulator } = await import(`${SDK}/firebase-firestore.js`);
-      connectFirestoreEmulator(db, '127.0.0.1', 8080);
+      connectFirestoreEmulator(db, '127.0.0.1', 8480);
       _connected.db.add(db);
     }
     if (functions && !_connected.fn.has(functions)) {
@@ -128,7 +128,7 @@ export async function connectEmulatorsIfLocal(svc = {}) {
     }
     if (storage && !_connected.st.has(storage)) {
       const { connectStorageEmulator } = await import(`${SDK}/firebase-storage.js`);
-      connectStorageEmulator(storage, '127.0.0.1', 9199);
+      connectStorageEmulator(storage, '127.0.0.1', 9599);
       _connected.st.add(storage);
     }
     // The app's DEFAULT functions instance too. ~20 call sites do a bare

@@ -2406,26 +2406,13 @@
       })();
     } else if (estParam || leadParam) {
       // ── NEW ESTIMATE (optionally pre-filled from lead) ──
-      // Phone batch D (2026-10-08, phone audit 2026-10-07 #5): a NEW estimate
-      // for a lead doesn't need the estimates list before the builder opens
-      // (the modal covers it) — it needs the LEAD, which prefillFromLead
-      // reads from window._leads (without it the Customer step can't skip).
-      // So that path waits for the lead cache and loads the list alongside
-      // instead of first. A reopen (?est=) still needs the list.
-      // from=customer: the customer page's "Build estimate" — the builder's
-      // Close goes back to that customer (estimate-v3-wizard.js returnLead).
-      const _newForLead = !!leadParam && !estParam;
-      if (_newForLead && urlParams.get('from') === 'customer') window._nbdEstReturnLead = leadParam;
+      // from=customer (phone batch D, 2026-10-08, phone audit 2026-10-07 #5):
+      // the customer page's "Build estimate" — the builder's Close goes back
+      // to that customer (estimate-v3-wizard.js returnLead), for a NEW
+      // estimate for that lead only.
+      if (leadParam && !estParam && urlParams.get('from') === 'customer') window._nbdEstReturnLead = leadParam;
       (async () => {
-        if (_newForLead) {
-          const _list = (async () => { try { await loadEstimates(); } catch(e) { console.warn('loadEstimates failed:', e); } })();
-          for (let i = 0; i < 40 && window._leadsLoaded !== true; i++) {
-            await new Promise(r => setTimeout(r, 100));
-          }
-          if (!(window._leads || []).some(l => l && l.id === leadParam)) await _list;
-        } else {
-          try { await loadEstimates(); } catch(e) { console.warn('loadEstimates failed:', e); }
-        }
+        try { await loadEstimates(); } catch(e) { console.warn('loadEstimates failed:', e); }
         goTo('est');
         if (estParam && !editId) {
           // Reopen estimate by ID (direct link, no lead context)
