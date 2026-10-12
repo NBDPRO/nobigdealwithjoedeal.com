@@ -22,6 +22,13 @@
   --myskin-texture: none;
   --myskin-accent: #bd5728;
   --myskin-accent-fg: #ffffff;
+  /* per-layer values (per-theme backgrounds); each .myskin-layer sets its own */
+  --myskin-blur: 0px;
+  --myskin-pos: center;
+  --myskin-fit: cover;
+  --myskin-repeat: no-repeat;
+  --myskin-render: auto;
+  --myskin-fade: 0ms;
 }
 
 /* Wallpaper: a fixed layer behind the app, veiled by the theme's page colour. */
@@ -41,6 +48,32 @@
 :root.my-skin-wallpaper body {
   background: transparent !important;
 }
+/* Per-theme backgrounds: the picture lives on two fixed layers (#nbdSkinA /
+ * #nbdSkinB, made by my-skin.js) so a theme switch can paint the new picture
+ * on the hidden one and swap after decode(): the old picture is never
+ * uncovered. Replaces the ::before wallpaper above while my-skin-layers is on.
+ * The veil uses the live theme --bg, so it recolours in the same frame as the
+ * theme. Blur grows the layer (inset) so its soft edge stays off screen. */
+:root.my-skin-layers::before { content: none; }
+:root.my-skin-layers { background-color: var(--bg); }
+.myskin-layer {
+  position: fixed;
+  inset: calc(var(--myskin-blur) * -2);
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--bg) var(--myskin-dim), transparent), color-mix(in srgb, var(--bg) var(--myskin-dim), transparent)),
+    var(--myskin-wallpaper);
+  background-size: cover, var(--myskin-fit);
+  background-repeat: no-repeat, var(--myskin-repeat);
+  background-position: center, var(--myskin-pos);
+  image-rendering: var(--myskin-render);
+  filter: blur(var(--myskin-blur));
+}
+/* A picture replaces the theme's animated overlay unless the user keeps it. */
+:root.my-skin-hide-overlay #te-overlay { display: none !important; }
+
 /* Chrome turns to frosted glass so the wallpaper reads through it. */
 :root.my-skin-wallpaper header,
 :root.my-skin-wallpaper .sidebar,
@@ -147,4 +180,17 @@
 .myskin-range output { font-size: 12px; color: var(--m); }
 .myskin-select { min-height: 44px; }
 .myskin-accent { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--t); }
+.myskin-theme-card { border-top: 1px solid var(--br); padding: 12px 0 4px; }
+.myskin-theme-card [hidden] { display: none !important; }
+.myskin-theme-card .myskin-slot { border-top: 0; }
+.myskin-theme-card .myskin-slot-title { margin-bottom: 4px; }
+.myskin-theme-card .myskin-note { margin: 8px 0 0; }
+.myskin-pos { display: grid; grid-template-columns: repeat(3, 44px); gap: 4px; margin: 4px 0 12px; }
+.myskin-pos button {
+  width: 44px; height: 44px; padding: 0;
+  border: 1px solid var(--br); border-radius: 8px; background: var(--s2);
+  color: var(--t); font-size: 16px; line-height: 1; cursor: pointer;
+}
+.myskin-pos button[aria-pressed="true"] { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); }
+.myskin-pos-label { font-size: 13px; color: var(--t); margin-top: 8px; }
 .myskin-accent input[type="color"] { width: 52px; height: 44px; padding: 2px; border: 1px solid var(--br); border-radius: 8px; background: var(--s2); }

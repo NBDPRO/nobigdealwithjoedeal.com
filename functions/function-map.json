@@ -238,6 +238,8 @@
   "setupGoogleCalendar": "./google-calendar",
   "shareSSR": "./share-ssr",
   "signImageUrl": "./handlers/photo",
+  "skinQuotaDeleted": "./skin-quota",
+  "skinQuotaFinalize": "./skin-quota",
   "slack_onAdminGrantAttempt": "./integrations/slack",
   "slack_onLeadWon": "./integrations/slack",
   "slack_onStormAlert": "./integrations/slack",

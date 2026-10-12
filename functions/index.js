@@ -1004,6 +1004,14 @@ exports.reelRenderWorker = reelStudio.reelRenderWorker;
 exports.reelIngestUpload = reelStudio.reelIngestUpload;
 exports.reelCleanup = reelStudio.reelCleanup;
 
+// My Skin storage caps (2026-10-11, Jo): Storage Security Rules cannot sum
+// objects, so a finalize trigger enforces a person's 1 GB (skins/{uid}/**) and
+// a company's 500 MB (companies/{id}/skins/**) and keeps the company's
+// skin/config.usage current. functions/skin-quota.js.
+const skinQuota = require('./skin-quota');
+exports.skinQuotaFinalize = skinQuota.skinQuotaFinalize;
+exports.skinQuotaDeleted = skinQuota.skinQuotaDeleted;
+
 // Photo-vision classifier (Phase 3 of the photo system rebuild).
 // Single-photo Claude Vision call with $10/lead + $50/uid-month caps
 // and sha256(url) cache. Surfaces suggestions in photo.aiSuggestion

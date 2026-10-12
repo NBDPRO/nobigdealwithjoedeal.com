@@ -1,6 +1,4 @@
-            // My Skin keys its per-theme backgrounds by theme id. The builder has no
-            // id of its own, so announce the reserved '_custom' key on apply and the
-            // real current theme on reset (detail shape matches ThemeEngine's event).
+            // My Skin keys backgrounds by theme id: announce '_custom' (reset: the real id).
             function nbdAnnounceCustomTheme(key) {
               try {
                 document.dispatchEvent(new CustomEvent('themechange', { detail: key, bubbles: true, cancelable: false }));
@@ -22,6 +20,7 @@
               if (window.ThemeGX && window.ThemeGX.isEnabled()) {
                 window.ThemeGX.setAccent(v('tbAccent'));
               }
+              document.documentElement.setAttribute('data-custom-theme', '1');
               nbdAnnounceCustomTheme('_custom');
             }
             function saveCustomTheme() {
@@ -43,6 +42,7 @@
               var R = document.documentElement.style;
               ['--orange','--bg','--s','--s2','--s3','--t','--m','--br'].forEach(function(v) { R.removeProperty(v); });
               document.body.style.background = '';
+              document.documentElement.removeAttribute('data-custom-theme');
               // Reset picker values
               document.getElementById('tbAccent').value = '#BD5728';
               document.getElementById('tbBg').value = '#0A0C0F';
