@@ -13,6 +13,129 @@ Phase 1 = the label registry, the Label sheet on Today call rows, label-aware
 designed so phase 1's data model carries it, and built later. Examples in this
 note use fictional numbers (555) only — the repo is public.
 
+## Update 2026-10-12 (evening) — Jo's answers and the phase 2 plan
+
+Jo answered the decisions in §9. Where this section and an earlier section
+disagree, **this section wins** (§2's `hide` row and §9 are corrected in place).
+
+| # | Question | Jo's answer | What it changes |
+| --- | --- | --- | --- |
+| 1 | Kinds | **Keep all 11.** Labels are free. | Registry unchanged. |
+| 2 | contractor vs sub, recruiter | **Stay distinct; recruiter stays.** | Registry unchanged. |
+| 3 | Does `hide` swallow a promise? | **No — a promise ALWAYS surfaces.** `hide` drops noise (urgent, missed, unknown-number); a promise / task / callback Jo created from that call still shows, tagged "hidden number". Safety valve: a hidden number that matches a lead, or calls 3+ times in 24 h, resurfaces **once** ("hidden number is calling a lot"); Jo can re-hide. | Built in **phase 2a (PR #2375)**; reverses phase 1's "hide beats a promise". |
+| 4 | Reps | **No read, no write** (NBD has no salespeople; call privacy). Deferred: a read-only chip on calls matched to a rep's OWN leads, no write. | Rules unchanged; the deferred chip is listed under 2b below. |
+| 5 | Seed suggestions | **Yes, one- or two-tap confirm, everywhere sensible.** Sources: contact tags, Thursday caller types, lead match, repeated-call patterns. Chip = Accept / Not this (per-number dismiss, remembered). **Never auto-apply a kind that hides.** | Phase 2b. |
+| 6 | `personal` stops transcription/storage | **Yes**, behind the label, with a clear confirm and a note of what already-stored data is untouched. | Phase 2c. |
+| 7 | Deferred options | **Yes to all, and further:** Thursday scripts per label; "let Thursday handle this number" (opt-in, per number, visible Thursday-handled list and a recap row so nothing is invisible); block-list view. | Phase 2d / 3. |
+
+Superseded text: §2's table says `hide` "never counts, promise or not" and
+§9 #2 asks that question — both are now answered the other way. The `quiet`
+policy gets the same promise rule (it already counted promises); both also let
+a due follow-up date through (a callback Jo set up).
+
+**Open interpretation (asked in PR #2375):** a surfaced promise from a hidden
+number counts as a person who needs Jo on every surface (Today total, Home
+strip, Call Center badge), so one rule gives one number everywhere. If Jo meant
+"show it on Today but keep it out of the strip/badge count", that is a
+one-line change in `groupNeeds`.
+
+### Phase 2 slices (one PR each; 2a first)
+
+| Slice | Scope | Key design points | Status |
+| --- | --- | --- | --- |
+| **2a** callWatch + promise-wins + valve | Server alert reads `companies/{owner}/contact_labels`; same rule as Home (a test runs both on an 84-cell matrix); resurfaced row + **Keep hidden** (`ackAtMs`); Thursday items from a hidden/quiet number stay out; a labels read failure = alert WITHOUT labels | Resurfaced alert id = `hidden:<digits>:<baseline>` so it fires once per baseline; baseline = `max(ackAtMs, updatedAtMs)`; only inbound calls count toward the burst | PR #2375 |
+| **2b** suggestion engine | `suggestKind(number, evidence)` pure, shared client/server; a chip on Today + Call Center rows: "Looks like a Sub — Accept / Not this" | below | next |
+| **2c** `personal` stops transcription/storage | Ingest and the notes pass read the registry; a `personal`-labeled number's new calls are copied nowhere and transcribed never | below | after 2b |
+| **2d** Thursday per label | `thursdayCallerLookup` returns `label_kind`; a playbook per kind; opt-in "Thursday handles this number" + recap | below | after 2c; needs Jo's prompt approval |
+
+**2b — suggestion engine.** Evidence → candidate kind, each with a plain-words
+reason shown on the chip:
+
+| Evidence | Suggests |
+| --- | --- |
+| Cube ACR contact tag "NBD Sub" / "NBD Vendor" / "NBD Referral" / "NBD Customer" | sub / supplier / referral / customer |
+| Thursday `caller_type` on that number: supplier_sub / adjuster / job_seeker / spam | supplier (or sub) / insurance / recruiter / spam |
+| A lead carries the number | customer ("On customer Pat — label as Customer?") |
+| 3+ calls in 14 days from an unlabeled unknown number, none answered or noted | "Unknown number calling a lot — label it?" (no kind preselected) |
+| The AI `callType` of the last 2 noted calls agree (sub / supplier / insurance / spam) | that kind |
+
+Rules: a suggestion **never applies itself**, and a suggested kind whose
+default policy is `hide` (personal, spam) is shown **without a preselected
+policy** and needs the explicit tap. Accept = one tap (kind + its default
+policy, with the same undo bar as the sheet); "Not this" = a per-number
+dismiss, remembered. Dismissals live in
+`companies/{cid}/contact_suggestions/{digits}` (`{dismissed: [{kind, atMs}],
+updatedBy}`; same rules shape as `contact_labels`: viewer read-only, rep none)
+so they survive devices and sign-out. A dismissed (number, kind) is not
+re-suggested unless new evidence of a *different* kind appears. At most one
+chip per row, and at most 5 suggestion chips on Today at a time (a "More
+suggestions" link opens a Call Center filter) so the list never becomes a
+labeling to-do list. Deferred in the same family: a read-only chip on a rep's
+own-lead calls (no write; the chip comes from the lead match, not the
+registry, so rep rules stay closed).
+
+**2c — `personal` stops transcription and storage.**
+
+- Enforcement is **in the ingest**, not the UI: the Call Center ingest and the
+  text ingest read the registry once per run (the same `loadLabels` callWatch
+  uses). For a `personal`-labeled number they still list the Drive file (so the
+  cursor advances and a re-run is a no-op) but write the call doc as
+  `status: 'personal'`, `storagePath: null`, `audioRemoved: 'label'` — **no
+  copy to Cloud Storage, no Groq call, no notes.** Texts: no notes.
+- **Confirm text in the sheet** (shown only when `personal` is chosen):
+  "Future calls and texts from this number will not be copied or transcribed.
+  Calls already in the CRM stay as they are — remove them from the Call
+  Center if you want them gone."
+- **Already-stored data is untouched** — no delete, no re-write. A separate,
+  explicit "Delete the N stored calls from this number" is its own second tap
+  with its own count; it is not part of applying the label.
+- Un-labeling (or changing the kind) stops the skip for **new** calls only;
+  nothing is back-filled. Original recordings stay in Jo's own Drive either
+  way.
+- Failure mode: a registry read failure **fails toward not skipping** (copy and
+  transcribe as today) — losing a customer call is worse than transcribing a
+  personal one — and logs a warning.
+- The AI's `personal` verdict stays per-call and unchanged.
+
+**2d — Thursday per label and "let Thursday handle this number".**
+
+- *Honest limit, unchanged:* the CRM cannot change carrier forwarding, so
+  "Thursday handles this number" cannot make the phone ring Thursday by
+  itself. What the CRM does: (1) marks the number `handledBy: 'thursday'`
+  (opt-in, per number, a field on the label doc); (2) tells Thursday on lookup
+  to run the playbook for that kind; (3) quiets that number's rows on Today;
+  (4) **never makes it invisible** — a visible "Thursday handles" list (Call
+  Center filter) and a daily recap row on Today ("Thursday handled 3 calls
+  from numbers you handed her — summaries"), one tap to the list. A handled
+  call with a promise, an urgent flag or a callback request still surfaces as
+  its own item (promise-wins applies to Thursday too). Sending that caller to
+  her is a handset/carrier step, so the sheet carries a how-to line for it.
+- *Playbook per label* (Thursday's tools bind only through the node's
+  `data.tools`, owned by the agent — a Bland pathway edit Jo approves; read
+  `pathway_logs` after): the lookup response gains `label_kind` and Thursday's
+  greeting and intake branch on it:
+
+| label_kind | Thursday does | Never |
+| --- | --- | --- |
+| customer / prospect | the existing lookup greeting + intake | quote a price |
+| sub / contractor | "Is this about a job?" — take a message: who, which job | run the new-lead script |
+| supplier | take the delivery / order message | commit a time for Jo |
+| insurance (adjuster) | claim number, adjuster name, callback number; neutral wording | promise anything about the claim (Kentucky rule) |
+| referral | thank-you intake, who they referred | discuss payment |
+| personal | short and warm, "I'll tell him you called" | run intake |
+| spam | end politely | engage |
+| recruiter | the existing job-seeker answer | discuss pay |
+
+- *Disclosure:* `label_kind` is a coarse enum; a spoofed caller ID learns at
+  most the kind of person the number is, and for `personal` / `spam` no first
+  name. A label read failure = the greeting proceeds exactly as today.
+- *Block-list view:* a Call Center filter "Block on your phone" listing
+  `spam`-labeled numbers with a **Copy list** button and the two-line handset
+  steps. The CRM never blocks and never reports; it only lists.
+- The reliability of the whole chain (calls, 2-hour reminders, Thursday,
+  automations) is being audited by a separate agent; this note owns only the
+  labels / suggestions / per-label Thursday side.
+
 ## 1. What exists today (inventory, verified on main 8ce45701)
 
 There is **no per-number label registry.** Eight separate classifications
@@ -98,7 +221,7 @@ promise Jo made on a call.
 | --- | --- | --- | --- |
 | `surface` | normal rules (`callNeedsYou`) | listed, chip | the default for an unlabeled number |
 | `quiet` | counts **only** if Jo promised something | listed, chip | "log it, don't nag me" |
-| `hide` | **never** counts, promise or not | only under the "Hidden" filter and in All, chip | personal, spam |
+| `hide` | drops urgent / missed / unknown-number noise; **a promise Jo made still surfaces** (2026-10-12) | only under the "Hidden" filter and in All, chip | personal, spam |
 
 Precedence: explicit label **>** lead match **>** AI `callType` / `bucket` /
 tags. (A number on a lead is a customer *unless Jo explicitly labels it
@@ -288,6 +411,8 @@ logs, fixtures (555 only), notes or the repo.
 | 4 | Thursday consumption (§6), `quiet` downgrades in `decideRoute`, Bland prompt change | Jo approves the prompt; pathway_logs read |
 
 ## 9. Decisions for Jo
+
+**All answered 2026-10-12 — see the update section at the top. Kept below as the record of what was asked.**
 
 0. **Start small?** Research on call tools says a solo operator should begin
    with ~7 labels and one on/off policy. The build keeps all 11 kinds in the
