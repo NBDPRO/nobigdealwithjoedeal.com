@@ -40,6 +40,7 @@
     "pipeline-deadman-2026-10-12.test.js",
     "care-plan-page-2026-10-05.test.js",
     "oaks-own-intake-2026-10-04.test.js",
+    "followup-date-retell-2026-10-12.test.js",
     "estimate-funnel-unblock-2026-10-03.test.js",
     "inspect-short-form-2026-10-06.test.js",
     "inspect-cro-draft-2026-10-06.test.js",
