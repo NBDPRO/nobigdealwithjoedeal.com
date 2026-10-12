@@ -977,7 +977,7 @@ async function mirrorCallTask({ db, leadId, taskId, after }) {
   if (!snap.exists) return null;
   const call = snap.data() || {};
   if (call.leadId && call.leadId !== leadId) return null;
-  if (!after) return { unchanged: true, deleted: true };
+  if (!after) return { unchanged: true, taskDeleted: true };
   const done = after.done === true;
   if (call.taskDone === done) return { unchanged: true };
   await ref.set({ taskDone: done }, { merge: true });
