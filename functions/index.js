@@ -461,6 +461,8 @@ exports.saveAgentSettings = agentMcp.saveAgentSettings;
 // Agent inbox drafts (2026-10-06): the owner sends a bot draft from their own
 // phone / mail app; this re-checks the Do-Not-Text / unsubscribe lists and logs it.
 exports.agentDraftAction = agentMcp.agentDraftAction;
+// Storm Mode (2026-10-11): post-storm check-in DRAFTS into the Agent inbox, nothing sent.
+exports.fileStormDrafts = agentMcp.fileStormDrafts;
 
 // Inspection report sharing: no-login homeowner view of a saved report
 // (report_share_tokens + /report/<token>). View-only, reusable token model;

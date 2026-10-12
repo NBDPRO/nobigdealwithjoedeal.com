@@ -457,6 +457,29 @@ document.addEventListener('DOMContentLoaded', function () {
   );
 });
 
+// ── Storm Mode (userSettings/{uid}.stormMode, roadmap C2) — OPT-IN ──
+// Same shape as autoTheme above. A company that never turned it on never
+// loads storm-mode.js at all (the bundle is only kicked for enabled === true
+// or the device flag); the local copy is just warmed for Settings.
+document.addEventListener('DOMContentLoaded', function () {
+  _nbdHydratePrefFromFirestore(
+    'stormMode',
+    function () { return null; },
+    function (remote) {
+      if (!remote || typeof remote !== 'object') return;
+      var go = function () { if (window.NBDStormMode) window.NBDStormMode.hydrate(remote); };
+      if (window.NBDStormMode) { go(); return; }
+      var flagOn = false;
+      try { flagOn = localStorage.getItem('nbd_storm_mode') === '1'; } catch (e) {}
+      if (remote.enabled === true || flagOn) {
+        if (window.ScriptLoader && window.ScriptLoader.loadBundle) window.ScriptLoader.loadBundle('theme').then(go);
+      } else {
+        try { localStorage.setItem('nbd_storm_mode_cfg', JSON.stringify(remote)); } catch (e) {}
+      }
+    }
+  );
+});
+
 // ── Comfort tab ternaries (boolean → enum string) ──
 // nbdComfortSet takes (key, value) where value is an enum string. The
 // inline handlers were `nbdComfortSet('motion', this.checked ? 'reduce' : 'normal')`
