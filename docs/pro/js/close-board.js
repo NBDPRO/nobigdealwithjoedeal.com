@@ -711,6 +711,9 @@
       addr: String(src.addr || src.address || ''),
       depositPlan: ov ? { override: { pct: _num(ov.pct), amountCents: _num(ov.amountCents) } } : null,
       depositPctOverride: _num(src.depositPctOverride != null ? src.depositPctOverride : src.depositOverridePct),
+      // Ohio ORC 4722.04 inputs (2026-10-11), read back by fromEstimate.
+      specialOrderAmount: _num(src.specialOrderAmount),
+      constructionLoan: src.constructionLoan === true,
     };
     const any = basis.mode || basis.claim.deductible != null || basis.claim.acv != null || basis.depositPlan || basis.depositPctOverride != null;
     return any ? basis : null;
@@ -953,7 +956,12 @@
       : null;
     const depositLine = (price) => {
       const p = _tierPlan(price);
-      return p ? `<div class="tier-deposit">${esc(p.label)}: <strong>${esc(p.valueText)}</strong></div>` : '';
+      if (!p) return '';
+      // Ohio ORC 4722.04 (2026-10-11): when the cap held the deposit down, the
+      // next payment is stated beside it, never left to a balance surprise.
+      const _next = (p.ohio && p.ohio.reduced && p.ohio.milestoneCents > 0)
+        ? `<div class="tier-deposit-next">Then ${esc(_depRule.fmtCents(p.ohio.milestoneCents))} when your materials are delivered or work begins</div>` : '';
+      return `<div class="tier-deposit">${esc(p.label)}: <strong>${esc(p.valueText)}</strong></div>${_next}`;
     };
     const _insPlan = ['better', 'good', 'best', 'economy', 'beyond'].map(t => _dt[t] && _tierPlan(_dt[t].price)).find(Boolean) || null;
 
