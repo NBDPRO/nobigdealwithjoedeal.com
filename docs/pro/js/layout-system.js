@@ -194,17 +194,6 @@
     supports: { wallpaper: false, glass: false, sunlight: true },
   });
 
-  // L03 Focus Mode (D4). Every screen: it is a queue, not a place. Also the
-  // layout a rep can drop into for a calling block.
-  register({
-    id: 'focus', name: 'Focus Mode', version: 1,
-    blurb: 'One lead at a time, already ranked, with a plain reason it is next.',
-    surfaces: SURFACES, tier: 'free',
-    script: 'js/layouts/focus.js', css: 'css/layouts/focus.css',
-    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
-    supports: { wallpaper: true, glass: true, sunlight: false },
-  });
-
   // L06 Crew Calendar (2026-10-12). Every screen; the week grid scrolls sideways
   // on a phone, where it opens on the Day view.
   register({
@@ -214,6 +203,17 @@
     script: 'js/layouts/crew.js', css: 'css/layouts/crew.css',
     needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
     supports: { wallpaper: true, glass: false, sunlight: false },
+  });
+
+  // L03 Focus Mode (D4). Every screen: it is a queue, not a place. Also the
+  // layout a rep can drop into for a calling block.
+  register({
+    id: 'focus', name: 'Focus Mode', version: 1,
+    blurb: 'One lead at a time, already ranked, with a plain reason it is next.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/focus.js', css: 'css/layouts/focus.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: true, sunlight: false },
   });
 
   // L04 Island Dock: floating pill + dock over glass islands. Lazy, like the rest.
