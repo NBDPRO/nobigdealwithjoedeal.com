@@ -1828,6 +1828,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             if (!d2.awaitingCarrierNumbers) {
               await window.updateDoc(window.doc(db, 'invoices', plan.invoiceId), {
                 depositAmount: d2.depositCents / 100, awaitingCarrierNumbers: false, depositPaid: false,
+                ohioHold: !!(p2.ohio && p2.ohio.reduced === true),
+                milestoneAmount: d2.milestoneCents > 0 ? d2.milestoneCents / 100 : 0, milestoneReleased: false,
                 depositTerms: p2.summary || '', depositRepNote: p2.repNote || '',
                 terms: _depRule.netTermsText() + (p2.summary ? ' ' + p2.summary : ''), updatedAt: new Date(),
               });
@@ -1912,6 +1914,13 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         // the claim: the pay link, Stripe and the portal charge nothing until
         // the rep enters them (invoice-charge.js chargeDueNow 'awaiting').
         awaitingCarrierNumbers: !!(depositSplit && depositSplit.awaitingCarrierNumbers),
+        // Ohio ORC 4722.04 (2026-10-11): the deposit rule held the signing
+        // deposit to 10%; the pay link charges only that until the rep taps
+        // "Materials delivered / work begun" (releaseMilestone). The next
+        // payment is milestoneAmount (dollars).
+        ohioHold: !!(depositPlan && depositPlan.ohio && depositPlan.ohio.reduced === true),
+        milestoneAmount: (depositSplit && depositSplit.milestoneCents > 0) ? depositSplit.milestoneCents / 100 : 0,
+        milestoneReleased: false,
         // Kentucky insurance job (KRS 367.626; Jo, 2026-09-27): nothing may be
         // required before the insurer's written decision + the 5-business-day
         // window. The server (createStripePaymentLink) withholds the online
@@ -2114,7 +2123,12 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       && toCents(Math.max(0, Number(inv.balanceDue) || 0)) > 0;
   }
   /** "Send balance" is offered on a part-paid invoice (the same send flow, one tap). */
-  function canSendBalance(inv) { return isPartPaid(inv); }
+  // Ohio ORC 4722.04 (2026-10-11): while the next payment is held (deposit in,
+  // materials not yet delivered / work not begun) there is no balance to send.
+  function canSendBalance(inv) {
+    if (inv && inv.ohioHold === true && inv.milestoneReleased !== true) return false;
+    return isPartPaid(inv);
+  }
 
   /** What the invoice was before this send — a stale lock keeps ITS prior status. */
   function _priorStatusOf(inv) {
@@ -2877,6 +2891,13 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
               <div data-ip-deposit-note class="ipx-note-row">
                 ${_esc(inv.depositRepNote)}
               </div>` : ''}
+              ${inv.ohioHold === true ? `
+              <div data-ip-ohio-hold class="ipx-note-row">
+                ${inv.milestoneReleased === true
+                  ? 'Ohio payment schedule: the next payment has been released.'
+                  : 'Ohio payment schedule: the online link charges only the deposit until you release the next payment' +
+                    (Number(inv.milestoneAmount) > 0 ? ' (' + _esc(formatCurrency(inv.milestoneAmount)) + ')' : '') + ' when materials are delivered or work begins.'}
+              </div>` : ''}
             </div>
           </div>
 
@@ -2890,6 +2911,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
               : `<button type="button" class="btn btn-orange" data-ip-action="sendInvoice" data-ip-id="${_escJs(invoiceId)}">Send to Customer</button>`}
             ${inv.status !== 'paid' ? `<button type="button" class="btn btn-green" data-ip-action="markPaid" data-ip-id="${_escJs(invoiceId)}">Record Payment (Check/Zelle/Cash)</button>` : ''}
             ${_payUrl ? `<button type="button" class="btn btn-ghost" data-ip-action="copyStripeLink" data-ip-id="${_esc(_payUrl)}">Copy Payment Link</button>` : ''}
+            ${(inv.ohioHold === true && inv.milestoneReleased !== true && inv.status !== 'paid') ? `<button type="button" class="btn btn-ghost" data-ip-action="releaseMilestone" data-ip-id="${_escJs(invoiceId)}">Materials delivered / work begun — release next payment</button>` : ''}
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold) ? `<button type="button" class="btn btn-ghost" data-ip-action="createPayLink" data-ip-id="${_escJs(invoiceId)}">Create Payment Link</button>` : ''}
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold && !inv.emergencyServices) ? `<button type="button" class="btn btn-ghost" data-ip-action="markEmergency" data-ip-id="${_escJs(invoiceId)}">Emergency tarp / repair invoice</button>` : ''}
           </div>
@@ -3297,6 +3319,22 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     } catch (e) {
       if (typeof showToast === 'function') showToast(String((e && e.message) || 'Payment link could not be created'), e && e.code === 'KY_CANCELLATION_WINDOW' ? 'info' : 'error');
     }
+    try { showInvoiceDetailModal(invoiceId); } catch (_) { /* modal refresh is best-effort */ }
+  }
+  /**
+   * Ohio ORC 4722.04 (2026-10-11): release the next payment once the
+   * materials are delivered / work has begun. The rep's attestation, recorded;
+   * invoice-charge.js then charges the milestone (and the balance after it).
+   */
+  async function releaseMilestoneUI(invoiceId) {
+    const _ask = window.nbdConfirm
+      || ((m) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(m) : false));
+    const ok = await _ask('Release the next payment on this invoice? Only do this once the materials have been delivered or work has begun on the property.');
+    if (!ok) return;
+    await window.updateDoc(window.doc(getDb(), 'invoices', invoiceId), {
+      milestoneReleased: true, milestoneReleasedAt: new Date(), updatedAt: new Date()
+    });
+    if (typeof showToast === 'function') showToast('Next payment released', 'success');
     try { showInvoiceDetailModal(invoiceId); } catch (_) { /* modal refresh is best-effort */ }
   }
   async function markEmergencyUI(invoiceId) {
@@ -4145,6 +4183,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     showInvoiceDetailModal,
     createPayLinkUI,
     markEmergencyUI,
+    releaseMilestoneUI,
     // Pure helpers, exported for unit tests
     // (tests/invoice-pipeline.test.js) — no DOM/Firestore dependency.
     invoiceTotalsFromEstimate,
@@ -4234,6 +4273,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         }
         case 'createPayLink':   if (typeof IP.createPayLinkUI === 'function') IP.createPayLinkUI(id); break;
         case 'markEmergency':   if (typeof IP.markEmergencyUI === 'function') IP.markEmergencyUI(id); break;
+        case 'releaseMilestone': if (typeof IP.releaseMilestoneUI === 'function') IP.releaseMilestoneUI(id); break;
         case 'print':           window.print(); break;
         // "Connect Stripe" on an invoice (2026-10-04): Settings → Billing,
         // where the Stripe Connect card lives.

@@ -62,6 +62,7 @@
     ['#v2valleyMetalLf', 'scope items'], ['#v2guttersLf', 'scope items'],
     ['#v2search', 'scope items'], ['#v2cats', 'scope items'], ['#v2items', 'scope items'],
     ['#v2scopeList', 'scope items review'],
+    ['#v2ohioTerms', 'review'],
     ['.v2-total-card', 'review'],
     ['.v2-export-btns', 'review finish', 'more'],
     ['#v2claimCarrier', 'insurance'], ['#v2claimNumber', 'insurance'], ['#v2claimAdjuster', 'insurance'],
