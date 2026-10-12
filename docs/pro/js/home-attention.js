@@ -91,13 +91,31 @@
    *   - a MISSED call counts for customers and saved contacts too (it used
    *     to count only from unknown numbers), until Jo reaches them.
    */
+  // 2026-10-12 — per-number labels (contact-labels-logic.js; documentation/
+  // projects/CONTACT-ROUTING-TREE-2026-10-12.md). ctx.labels = { digits10:
+  // { kind, policy } } (or a Map). An explicit label beats the AI's callType
+  // and bucket: policy 'hide' never counts, 'quiet' counts only through a
+  // promise Jo made (what sub / supplier always did), 'surface' = as before.
+  // Absent / unknown labels change nothing, so every caller that passes no
+  // labels (callWatch's mirror, old tests) behaves exactly as it did.
+  function labelOf(ctx, c) {
+    const L = ctx && ctx.labels;
+    if (!L || !c) return null;
+    const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
+    if (d.length !== 10) return null;
+    return (typeof L.get === 'function' ? L.get(d) : L[d]) || null;
+  }
   function callNeedsYou(c, now, ctx) {
     const t = now == null ? Date.now() : now;
     if (!c || c.handledAtMs || c.status === 'personal') return false;
     if (c.callType === 'spam' || c.taskDone === true) return false;
     if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) return false;
     const promised = (c.promises || []).some((p) => p && p.who === 'jo');
-    if (c.callType === 'sub' || c.callType === 'supplier') return promised;
+    const lb = labelOf(ctx, c);
+    const pol = lb && (lb.policy === 'hide' || lb.policy === 'quiet' || lb.policy === 'surface') ? lb.policy : '';
+    if (pol === 'hide') return false;
+    if (pol === 'quiet') return promised;
+    if (!pol && (c.callType === 'sub' || c.callType === 'supplier')) return promised;
     if (c.urgent === true) return true;
     if (promised) return true;
     if (c.followUpDate && c.followUpDate <= etYmd(t)) return true;
@@ -106,11 +124,13 @@
       return reached <= (toMs(c.startedAtMs) || 0);
     }
     if (c.leadId) return false;
-    if (c.bucket === 'insurance') return true;
+    // A number Jo labeled an adjuster is an insurance call even when the
+    // phone contact carries no carrier name.
+    if (c.bucket === 'insurance' || (lb && lb.kind === 'insurance')) return true;
     if (c.bucket === 'unknown') return c.status !== 'short';
     return false;
   }
-  function callsNeedingYou(rows, now) { const ctx = reachIndex(rows); return (rows || []).filter((c) => callNeedsYou(c, now, ctx)).length; }
+  function callsNeedingYou(rows, now, labels) { const ctx = reachIndex(rows); if (labels) ctx.labels = labels; return (rows || []).filter((c) => callNeedsYou(c, now, ctx)).length; }
 
   // Who a call / text day is with: the customer it is filed on, else the
   // number. Jo, 2026-10-02: "group them by customer" — 78 open calls were
@@ -124,9 +144,10 @@
     return d ? 'num:' + d : 'id:' + (c.id || '');
   }
   /** Open calls grouped by caller, newest caller first; calls newest first. */
-  function groupNeeds(rows, now) {
+  function groupNeeds(rows, now, labels) {
     const by = new Map();
     const ctx = reachIndex(rows);
+    if (labels) ctx.labels = labels;
     (rows || []).filter((c) => callNeedsYou(c, now, ctx)).forEach((c) => {
       const k = callerKey(c);
       if (!by.has(k)) by.set(k, { key: k, calls: [] });
@@ -139,7 +160,13 @@
     });
     return groups.sort((a, b) => b.latestMs - a.latestMs);
   }
-  function callersNeedingYou(rows, now) { return groupNeeds(rows, now).length; }
+  function callersNeedingYou(rows, now, labels) { return groupNeeds(rows, now, labels).length; }
+  /** People a label took OFF the list: who needed you by the old rule and no longer do. */
+  function hiddenPeople(rows, now, labels) {
+    if (!labels) return 0;
+    const shown = new Set(groupNeeds(rows, now, labels).map((g) => g.key));
+    return groupNeeds(rows, now).filter((g) => !shown.has(g.key)).length;
+  }
 
   function stripHtml(counts) {
     const c = counts || {};
@@ -152,7 +179,7 @@
     return items.join('');
   }
 
-  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, reachIndex, isMissedCall };
+  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, hiddenPeople, reachIndex, isMissedCall };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root || !root.document) return;
   root.NBDHomeAttention = api;
@@ -197,10 +224,18 @@
         .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: 'text:' + d.id }, d.data()))); }).catch(() => {}));
     }
     await Promise.all(jobs);
-    out.calls = callersNeedingYou(callRows, Date.now());
+    // Per-number labels (2026-10-12): a lazy bundle, read after the calls so
+    // it never delays the strip; any failure = no labels = the old rule.
+    let labels = null;
+    try {
+      if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') await w.ScriptLoader.loadBundle('contactlabels');
+      if (w.NBDContactLabels) labels = await w.NBDContactLabels.load(false);
+    } catch (_) { labels = null; }
+    out.calls = callersNeedingYou(callRows, Date.now(), labels);
+    out.hidden = hiddenPeople(callRows, Date.now(), labels);
     // Today (today-home.js) lists these same people from these same rows —
     // shared, not re-read (2026-10-03).
-    api.lastRows = callRows; api.lastCounts = out;
+    api.lastRows = callRows; api.lastCounts = out; api.lastLabels = labels;
     try { w.dispatchEvent(new CustomEvent('nbd:attention-loaded')); } catch (_) { /* old browser */ }
     return out;
   }
@@ -217,6 +252,15 @@
     } finally { _busy = false; }
   }
 
+  // A label changed (optimistic apply, undo or rollback): recount from the
+  // rows already held — no Firestore read — and repaint the strip.
+  w.addEventListener('nbd:labels-changed', () => {
+    const el = document.getElementById('homeAttention');
+    if (!api.lastRows || !api.lastCounts) return;
+    api.lastCounts.calls = callersNeedingYou(api.lastRows, Date.now(), api.lastLabels);
+    api.lastCounts.hidden = hiddenPeople(api.lastRows, Date.now(), api.lastLabels);
+    if (el) { const html = stripHtml(api.lastCounts); el.innerHTML = html; el.hidden = !html; }
+  });
   w.addEventListener('nbd:data-refreshed', () => { render(false); });
   w.addEventListener('hashchange', () => { if (/^#?\/?(home|dash)?$/.test(location.hash || '')) setTimeout(() => render(false), 300); });
   const boot = () => setTimeout(() => render(true), 1500);

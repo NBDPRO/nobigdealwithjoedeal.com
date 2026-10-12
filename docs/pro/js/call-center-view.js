@@ -111,11 +111,34 @@
   // strip so the two never disagree. The fallback is only for a page without it.
   // Who Jo has reached since a missed call (home-attention.js reachIndex),
   // rebuilt whenever the call list is reloaded.
-  var reach = { rows: null, ctx: null };
+  var reach = { rows: null, ctx: null, ver: -1 };
+  // Per-number labels (2026-10-12; contact-labels.js, lazy bundle): a label
+  // can take a number off "needs attention", and every card shows its chip.
+  var labelsVer = 0;
+  function labelsNow() { return window.NBDContactLabels ? window.NBDContactLabels.current() : null; }
+  function labelFor(c) { return window.NBDContactLabels && c ? window.NBDContactLabels.get(c.phoneDigits) : null; }
+  function labelChip(c) {
+    var lab = labelFor(c), LG = window.NBDContactLabelsLogic, ch = lab && LG ? LG.chipFor(lab) : null;
+    return ch ? '<span class="cl-chip cl-chip-' + esc(ch.tone) + '" title="' + esc(ch.title) + '">🏷 ' + esc(ch.text) + '</span>' : '';
+  }
+  function labelBtn(c) {
+    if (isViewer() || claims().role === 'sales_rep' || !digits10(c && c.phoneDigits)) return '';
+    return '<button type="button" class="btn btn-ghost pc-play" data-cc="label" data-id="' + esc(c.id) + '">🏷 ' + (labelFor(c) ? 'Relabel' : 'Label') + '</button>';
+  }
+  async function ensureLabels() {
+    try {
+      if (window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function') await window.ScriptLoader.loadBundle('contactlabels');
+      if (window.NBDContactLabels) await window.NBDContactLabels.load(true);
+    } catch (_) { /* no labels = the old rule */ }
+  }
   function reachCtx() {
     var HA = window.NBDHomeAttention;
     if (!HA || typeof HA.reachIndex !== 'function') return null;
-    if (reach.rows !== state.calls) { reach.rows = state.calls; reach.ctx = HA.reachIndex(state.calls); }
+    if (reach.rows !== state.calls || reach.ver !== labelsVer) {
+      reach.rows = state.calls; reach.ver = labelsVer; reach.ctx = HA.reachIndex(state.calls);
+      var lb = labelsNow();
+      if (lb) reach.ctx.labels = lb;
+    }
     return reach.ctx;
   }
   function needsAttention(c) {
@@ -130,7 +153,7 @@
   // the same grouping Home and callWatch count). The fallback mirrors it.
   function groupNeeds(rows) {
     var HA = window.NBDHomeAttention;
-    if (HA && typeof HA.groupNeeds === 'function') return HA.groupNeeds(rows, Date.now());
+    if (HA && typeof HA.groupNeeds === 'function') return HA.groupNeeds(rows, Date.now(), labelsNow());
     var by = {}, order = [];
     rows.filter(needsAttention).forEach(function (c) {
       var k = c.leadId ? 'lead:' + c.leadId : (c.phoneDigits ? 'num:' + String(c.phoneDigits).slice(-10) : 'id:' + c.id);
@@ -149,6 +172,9 @@
     ['unknown', 'Unknown', function (c) { return !c.leadId && c.bucket === 'unknown' && c.channel !== 'text'; }],
     // A day of texts with one person (phone_text_days, AI-noted; 2026-10-02).
     ['texts', 'Texts', function (c) { return c.channel === 'text'; }],
+    // Every number Jo labeled, including the ones a label keeps off Today
+    // (2026-10-12) — so a hidden person is never lost.
+    ['labeled', 'Labeled', function (c) { return !!labelFor(c); }],
   ];
 
   async function fetchCalls() {
@@ -189,7 +215,8 @@
     var q = state.q.trim().toLowerCase();
     if (!q) return true;
     var digits = q.replace(/\D/g, '');
-    var hay = [c.contactName, leadName(L[c.leadId]), c.summary, c.transcript, (c.promises || []).map(function (p) { return p.text; }).join(' ')].join(' ').toLowerCase();
+    var lab = labelFor(c);
+    var hay = [c.contactName, leadName(L[c.leadId]), lab ? lab.kind + ' ' + (lab.name || '') : '', c.summary, c.transcript, (c.promises || []).map(function (p) { return p.text; }).join(' ')].join(' ').toLowerCase();
     return hay.indexOf(q) !== -1 || (digits.length >= 3 && String(c.phoneDigits || '').indexOf(digits) !== -1);
   }
 
@@ -219,14 +246,14 @@
     var who = c.contactName || leadName(lead) || fmtPhone(c.phoneDigits) || 'Unknown number';
     var when = c.startedAtMs ? new Date(c.startedAtMs).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
     var chips = chip('💬 ' + (c.messageCount || 0) + ' text' + (c.messageCount === 1 ? '' : 's')) + (lead ? chip('Customer', 'cc-chip-customer') : '') +
-      (c.urgent ? chip('Urgent', 'cc-chip-urgent') : '') + (c.handledAtMs ? chip('Handled', 'cc-chip-done') : '') + (c.status === 'personal' ? chip('Personal', '') : '');
+      (c.urgent ? chip('Urgent', 'cc-chip-urgent') : '') + (c.handledAtMs ? chip('Handled', 'cc-chip-done') : '') + (c.status === 'personal' ? chip('Personal', '') : '') + labelChip(c);
     var promises = (c.promises || []).length ? '<ul class="pc-promises">' + c.promises.map(function (p) {
       return '<li class="pc-promise pc-promise-' + (p.who === 'jo' ? 'jo' : 'them') + '"><span class="pc-promise-who">' + (p.who === 'jo' ? 'You' : 'They') + '</span> ' +
         esc(p.text) + (p.due ? ' <span class="pc-meta">by ' + esc(p.due) + '</span>' : '') + '</li>';
     }).join('') + '</ul>' : '';
     var actions = reachButtons(c, lead);
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
-    if (!isViewer()) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>';
+    if (!isViewer()) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>' + labelBtn(c);
     return '<div class="panel pc-card cc-card cc-text' + (c.handledAtMs ? ' is-handled' : '') + '" data-call-id="' + esc(c.id) + '">' +
       '<div class="pc-head"><div class="pc-who">' + esc(who) + (c.contactName && c.phoneDigits ? ' <span class="pc-meta">' + esc(fmtPhone(c.phoneDigits)) + '</span>' : '') + '</div>' +
       '<div class="pc-meta">' + esc(when) + '</div></div>' +
@@ -249,7 +276,7 @@
       (c.urgent ? chip('Urgent', 'cc-chip-urgent') : '') +
       (c.handledAtMs ? chip('Handled', 'cc-chip-done') : '') +
       (c.status === 'personal' ? chip('Personal', '') : '') +
-      ((c.alternateLeadIds || []).length ? chip('Number on ' + (c.alternateLeadIds.length + 1) + ' customers', 'cc-chip-warn') : '');
+      ((c.alternateLeadIds || []).length ? chip('Number on ' + (c.alternateLeadIds.length + 1) + ' customers', 'cc-chip-warn') : '') + labelChip(c);
     var status = c.status === 'noted' || c.status === 'personal' ? '' :
       c.status === 'too_large' ? 'Too long to transcribe automatically.' : c.status === 'short' ? 'Short call (under 15 seconds), not transcribed.' :
       (c.transcribeAttempts ? 'Transcription failed; it will retry.' : 'Notes appear here once it is transcribed.');
@@ -262,7 +289,7 @@
     if (c.storagePath) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="play" data-id="' + esc(c.id) + '">▶ Play</button>';
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
     if (!isViewer()) {
-      actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>';
+      actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>' + labelBtn(c);
       if (c.status === 'personal') {
         actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="notpersonal" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>It wasn\'t personal</button>';
       }
@@ -300,7 +327,7 @@
     var busy = ids.some(function (id) { return state.busy[id]; });
     var bucketLabel = lead ? 'Customer' : ({ insurance: 'Insurance', contact: 'Contact', unknown: 'Unknown number' }[latest.bucket] || '');
     var chips = chip(g.calls.length + ' open') + (bucketLabel ? chip(bucketLabel, 'cc-chip-' + esc(lead ? 'customer' : latest.bucket)) : '') +
-      (g.calls.some(function (c) { return c.urgent; }) ? chip('Urgent', 'cc-chip-urgent') : '');
+      (g.calls.some(function (c) { return c.urgent; }) ? chip('Urgent', 'cc-chip-urgent') : '') + labelChip(latest);
     var items = g.calls.map(function (c) {
       var when = c.startedAtMs ? new Date(c.startedAtMs).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
       var kind = c.channel === 'text' ? '💬 ' + (c.messageCount || 0) + ' text' + (c.messageCount === 1 ? '' : 's')
@@ -324,7 +351,7 @@
     var withTarget = g.calls.filter(function (c) { return fileTarget(c); })[0] || anchor;
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(latest.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
     if (!isViewer()) {
-      actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="handledgroup" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '"' + (busy ? ' disabled' : '') + '>✓ Handled (all ' + g.calls.length + ')</button>';
+      actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="handledgroup" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '"' + (busy ? ' disabled' : '') + '>✓ Handled (all ' + g.calls.length + ')</button>' + labelBtn(latest);
       if (!latest.leadId && anchor) {
         actions += (leadForNumber(anchor.phoneDigits) || taggedNotInCrm(anchor) ? '' : '<button type="button" class="btn btn-ghost pc-play" data-cc="newlead" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(anchor.id) + '"' + (busy ? ' disabled' : '') + '>+ New lead</button>') +
           '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(anchor.id) + '">Attach to customer…</button>';
@@ -1001,7 +1028,9 @@
     }
     state.loading = true; state.error = '';
     render();
-    state.calls = await fetchCalls();
+    // Labels load beside the calls; either failing leaves the old rule.
+    var got = await Promise.all([fetchCalls(), ensureLabels()]);
+    state.calls = got[0];
     state.loading = false; state.loaded = true;
     render();
   }
@@ -1014,6 +1043,13 @@
     else if (a === 'play') play(id);
     else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);
     else if (a === 'handledgroup') actMany(idsOf(b), 'handled');
+    else if (a === 'label') {
+      var lc = byId(id);
+      if (lc && window.NBDContactLabels) {
+        var ll = lc.leadId ? leadsById()[lc.leadId] : null;
+        window.NBDContactLabels.openSheet({ digits: lc.phoneDigits, name: lc.contactName || leadName(ll), leadName: leadName(ll) });
+      }
+    }
     else if (a === 'deck') openDeck();
     else if (a === 'promises') openPromiseDeck();
     else if (a === 'attachopen') openAttach(id);
@@ -1029,6 +1065,9 @@
     else if (a === 'tagconfirm') tagConfirm();
     else if (a === 'tagcancel') { state.tag = null; render(); }
   });
+  // A label was applied, undone or rolled back: the chips and the
+  // needs-attention grouping both read it.
+  window.addEventListener('nbd:labels-changed', function () { labelsVer++; if (state.loaded) render(); });
   document.addEventListener('input', function (e) {
     if (e.target && e.target.id === 'ccSearch') { state.q = e.target.value || ''; render(); }
   });
