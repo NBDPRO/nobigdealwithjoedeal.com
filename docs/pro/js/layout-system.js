@@ -194,6 +194,17 @@
     supports: { wallpaper: false, glass: false, sunlight: true },
   });
 
+  // L06 Crew Calendar (2026-10-12). Every screen; the week grid scrolls sideways
+  // on a phone, where it opens on the Day view.
+  register({
+    id: 'crew', name: 'Crew Calendar', version: 1,
+    blurb: 'Crews as lanes on a week timeline: drag jobs between days and crews, rain days hatched.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/crew.js', css: 'css/layouts/crew.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: false, sunlight: false },
+  });
+
   // L03 Focus Mode (D4). Every screen: it is a queue, not a place. Also the
   // layout a rep can drop into for a calling block.
   register({
@@ -203,6 +214,41 @@
     script: 'js/layouts/focus.js', css: 'css/layouts/focus.css',
     needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
     supports: { wallpaper: true, glass: true, sunlight: false },
+  });
+
+  // L02 Mission Control (M2). A storm / canvass war room over Home. Every screen
+  // (the panels stack under the map on a phone). Its assets - the shared kit, the
+  // MapView component, the pure logic and the screen - load only while it is the
+  // active layout, so Classic pays nothing.
+  register({
+    id: 'mission', name: 'Mission Control', version: 1,
+    blurb: 'A storm war room: live map with the hail swath, who is in the path, and canvass turfs.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/mission.js', css: 'css/layouts/mission.css',
+    needs: {
+      script: ['js/layouts/kit.js', 'js/layouts/mapview.js', 'js/layouts/mission-logic.js'],
+      css: ['css/layouts/kit.css', 'css/layouts/mapview.css'],
+    },
+    supports: { wallpaper: false, glass: false, sunlight: false },
+  });
+
+  // L04 Island Dock: floating pill + dock over glass islands. Lazy, like the rest.
+  register({
+    id: 'island', name: 'Island Dock', blurb: 'No sidebar: a floating nav pill, a bottom dock, and glass islands over your wallpaper.',
+    script: 'js/layouts/island.js', css: 'css/layouts/island.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: true },
+  });
+
+  // L05 Triage Inbox (D6): one keyboard-driven list | thread | facts. Every
+  // surface (it folds to one pane at a time on a phone).
+  register({
+    id: 'inbox', name: 'Triage Inbox', version: 1,
+    blurb: 'Texts, calls, new leads and nudges in one list, with a reply-by timer.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/inbox.js', css: 'css/layouts/inbox.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: true, glass: false, sunlight: false },
   });
 
   var api = {
