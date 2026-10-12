@@ -1067,7 +1067,7 @@
   });
   // A label was applied, undone or rolled back: the chips and the
   // needs-attention grouping both read it.
-  window.addEventListener('nbd:labels-changed', function () { labelsVer++; if (state.loaded) render(); });
+  if (typeof window.addEventListener === 'function') window.addEventListener('nbd:labels-changed', function () { labelsVer++; if (state.loaded) render(); });
   document.addEventListener('input', function (e) {
     if (e.target && e.target.id === 'ccSearch') { state.q = e.target.value || ''; render(); }
   });
