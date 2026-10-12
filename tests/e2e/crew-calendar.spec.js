@@ -100,6 +100,20 @@ test.describe.serial('Crew Calendar @shard2', () => {
 
     // drag Placed (Wed-Thu, Alpha) to Friday in Bravo's lane: day + crew move, length and start stay
     const fri = weekDay(4);
+    // diagnostics for a CI-only miss: every toast, console line and pointer event
+    const consoleLines = [];
+    page.on('console', (m) => { if (consoleLines.length < 40 && /warn|error/.test(m.type())) consoleLines.push(m.type() + ': ' + m.text().slice(0, 200)); });
+    await safeEvaluate(page, () => {
+      window.__crewDbg = [];
+      const log = (s) => { if (window.__crewDbg.length < 60) window.__crewDbg.push(s); };
+      const st = window.showToast;
+      if (typeof st === 'function') window.showToast = function (m) { log('toast:' + (typeof m === 'string' ? m : JSON.stringify(m && m.message))); return st.apply(this, arguments); };
+      ['pointerdown', 'pointerup', 'pointercancel'].forEach((t) => document.addEventListener(t, (e) => {
+        const top = document.elementsFromPoint(e.clientX, e.clientY).slice(0, 3).map((x) => x.className || x.tagName).join(' > ');
+        log(t + ' ' + e.pointerType + ' btn' + e.button + ' @' + Math.round(e.clientX) + ',' + Math.round(e.clientY) + ' target=' + ((e.target && e.target.className) || e.target.tagName) + ' top=' + top);
+      }, true));
+      new MutationObserver(() => log('crew root replaced/removed? present=' + !!document.getElementById('nbdCrewRoot'))).observe(document.body, { childList: true });
+    });
     await drag(placed.first(), cell('sub:' + ids.bravo, fri));
     try {
       await expect.poll(async () => (await fresh(ids.placed)).scheduledDate, { timeout: 15_000 }).toBe(fri);
@@ -113,8 +127,9 @@ test.describe.serial('Crew Calendar @shard2', () => {
         toasts: Array.from(document.querySelectorAll('#toastContainer .toast')).map((t) => t.innerText),
         activeView: (document.querySelector('.view.active') || {}).id || null,
         blocks: Array.from(document.querySelectorAll('.cw-block')).map((b) => b.className + ' | ' + b.innerText.replace(/s+/g, ' ')),
+        events: window.__crewDbg,
       }));
-      throw new Error('drag did not move the job: ' + JSON.stringify(dbg) + ' :: ' + e.message);
+      throw new Error('drag did not move the job: ' + JSON.stringify(dbg) + ' :: console ' + JSON.stringify(consoleLines) + ' :: ' + e.message);
     }
     const moved = await fresh(ids.placed);
     expect(moved.subId).toBe(ids.bravo);
