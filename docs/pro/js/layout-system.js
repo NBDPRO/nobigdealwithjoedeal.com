@@ -503,12 +503,81 @@
     return refresh().then(function (id) { return wrote.then(function (ok) { return { id: id, saved: ok }; }); });
   }
 
+  // Company default / lock (owner or company_admin; firestore.rules is the
+  // real gate). Full replace of companies/{key}/settings/layout so a cleared
+  // default or a lifted allow-list really goes away. Same normaliser the read
+  // path uses, so what is written is exactly what resolve() will see.
+  // patch: { defaultLayout, defaultByDevice, allowed (null = all), locked }
+  function saveCompany(patch) {
+    var p = patch || {};
+    var next = R.normalizeCompany({
+      defaultLayout: 'defaultLayout' in p ? p.defaultLayout : company.defaultLayout,
+      defaultByDevice: 'defaultByDevice' in p ? p.defaultByDevice : company.defaultByDevice,
+      allowed: 'allowed' in p ? p.allowed : company.allowed,
+      locked: 'locked' in p ? p.locked : company.locked,
+    });
+    return companyKey().then(function (key) {
+      if (!key || !uid || !window.db || !window.doc || !window.setDoc) return { saved: false };
+      var data = { locked: next.locked, defaultByDevice: next.defaultByDevice, updatedBy: uid, updatedAt: new Date().toISOString() };
+      if (next.defaultLayout) data.defaultLayout = next.defaultLayout;
+      if (next.allowed) data.allowed = next.allowed;
+      return Promise.resolve(window.setDoc(window.doc(window.db, 'companies', key, 'settings', 'layout'), data))
+        .then(function () {
+          company = next;
+          writePrefsCache();
+          return refresh().then(function () { return { saved: true }; });
+        }, function (err) {
+          console.warn('[layout] company layout save failed:', err && err.message);
+          return { saved: false };
+        });
+    });
+  }
+
+  // The picker (js/layouts/picker.js + css) loads the first time the Settings >
+  // Appearance tab is actually open, so a Classic rep never pays for it.
+  // Settings is a <template> the dashboard mounts on navigation, so the panel
+  // may not exist at boot: wait for it, then for its tab to be the open one.
+  var pickerLoaded = false;
+  function watchPicker() {
+    if (typeof MutationObserver !== 'function') return;
+    function load() {
+      if (pickerLoaded) return;
+      pickerLoaded = true;
+      loadNeedsCss({ needs: { css: ['css/layouts/picker.css'] } });
+      loadScriptPath('js/layouts/picker.js');
+    }
+    function attach(panel) {
+      // switchSettingsTab() shows a panel with style.display (the 'dn' class
+      // stays on it), so look at what is actually displayed.
+      var check = function () {
+        if (pickerLoaded) return;
+        var shown = false;
+        try { shown = getComputedStyle(panel).display !== 'none'; } catch (e) { shown = panel.style.display === 'block'; }
+        if (shown) load();
+      };
+      new MutationObserver(check).observe(panel, { attributes: true, attributeFilter: ['class', 'style'] });
+      check();
+    }
+    var panel = document.getElementById('stab-panel-appearance');
+    if (panel) { attach(panel); return; }
+    var wait = new MutationObserver(function () {
+      var p = document.getElementById('stab-panel-appearance');
+      if (!p) return;
+      wait.disconnect();
+      attach(p);
+    });
+    wait.observe(document.body || document.documentElement, { childList: true, subtree: true });
+  }
+
   // ── boot ─────────────────────────────────────────────────────────────
   function boot() {
+    watchPicker();
     var tries = 0;
     (function poll() {
       if (dbReady()) { hydrate().catch(function (e) { console.warn('[layout] hydrate failed:', e && e.message); }); return; }
-      if (++tries <= 40) setTimeout(poll, 500);   // ~20s for auth + Firestore to come up
+      // auth + Firestore can take a while on a cold phone / slow link: poll
+      // for a full minute (cheap: four property reads every half second).
+      if (++tries <= 120) setTimeout(poll, 500);
     })();
     // Rotating a tablet or resizing across the phone breakpoint re-resolves.
     // Debounced; only acts when the SURFACE actually changed.
@@ -524,7 +593,7 @@
   }
 
   window.LayoutEngine = {
-    apply: apply, refresh: refresh, implement: implement, saveUser: saveUser,
+    apply: apply, refresh: refresh, implement: implement, saveUser: saveUser, saveCompany: saveCompany,
     surface: surface, resolve: resolveNow, hydrate: hydrate,
     current: function () { return { id: current.id, source: current.source, surface: current.surface }; },
     prefs: function () { return { user: user, company: company, hydrated: hydrated, uid: uid }; },
