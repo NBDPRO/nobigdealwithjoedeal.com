@@ -835,14 +835,17 @@ async function stormDrafts(request) {
 }
 
 const CALL_OPTS = { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, timeoutSeconds: 20, memory: '256MiB' };
-exports.agentDraftAction = onCall(CALL_OPTS, draftAction);
-exports.fileStormDrafts = onCall(Object.assign({}, CALL_OPTS, { timeoutSeconds: 60 }), stormDrafts);
-exports.createAgentKey = onCall(CALL_OPTS, createKey);
-exports.listAgentKeys = onCall(CALL_OPTS, listKeys);
-exports.revokeAgentKey = onCall(CALL_OPTS, revokeKey);
-exports.saveAgentBot = onCall(CALL_OPTS, saveBot);
-exports.deleteAgentBot = onCall(CALL_OPTS, deleteBot);
-exports.saveAgentSettings = onCall(CALL_OPTS, saveSettings);
+// Every callable below is refused for a claim-less former owner whose uid is
+// another owner's company id (tenant-guard.js, owner hand-off 2026-10-12).
+const { wrapCallable: ghostGuarded } = require('./tenant-guard');
+exports.agentDraftAction = onCall(CALL_OPTS, ghostGuarded(draftAction));
+exports.fileStormDrafts = onCall(Object.assign({}, CALL_OPTS, { timeoutSeconds: 60 }), ghostGuarded(stormDrafts));
+exports.createAgentKey = onCall(CALL_OPTS, ghostGuarded(createKey));
+exports.listAgentKeys = onCall(CALL_OPTS, ghostGuarded(listKeys));
+exports.revokeAgentKey = onCall(CALL_OPTS, ghostGuarded(revokeKey));
+exports.saveAgentBot = onCall(CALL_OPTS, ghostGuarded(saveBot));
+exports.deleteAgentBot = onCall(CALL_OPTS, ghostGuarded(deleteBot));
+exports.saveAgentSettings = onCall(CALL_OPTS, ghostGuarded(saveSettings));
 
 exports._internal = {
   handleRpc, runTool, sha256, contextFor, authenticate, handleHttp, bellNotice,

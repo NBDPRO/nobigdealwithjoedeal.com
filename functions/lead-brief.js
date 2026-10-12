@@ -164,7 +164,10 @@ async function briefCallable({ db, auth, data, nowMs, callModel, log = logger })
 
 exports.leadBrief = onCall(
   { region: 'us-central1', enforceAppCheck: true, secrets: [ANTHROPIC_API_KEY], memory: '512MiB', timeoutSeconds: 60, maxInstances: 10 },
-  (request) => briefCallable({ db: getFirestore(), auth: request.auth, data: request.data, nowMs: Date.now() })
+  async (request) => {
+    await require('./tenant-guard').assertNotGhost(request);
+    return briefCallable({ db: getFirestore(), auth: request.auth, data: request.data, nowMs: Date.now() });
+  }
 );
 
 exports.getBrief = getBrief;

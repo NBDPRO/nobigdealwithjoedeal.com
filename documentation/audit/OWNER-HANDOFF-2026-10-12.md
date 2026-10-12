@@ -30,14 +30,19 @@ enforced, CORS list, 60 s, 5 per hour per caller):
 3. The target must be an **active, enabled `company_admin` of the same company**
    with a roster row in the same state; one generic refusal covers every
    "not eligible" shape so an owner cannot use it as an account oracle.
-4. Refused while `connectAccounts/{id}.accountId` exists (payouts, below).
+4. Refused while `connectAccounts/{id}` exists with an account id OR any status other
+   than `failed` (a setup in flight has no account id yet), checked again inside
+   the transaction (payouts, below).
 5. Caller claims are merged first (a `company_admin` claim on a still-owner is a
    no-op), then ONE transaction re-checks the owner and the roster row and moves
    `ownerId` (+ `previousOwnerId`, `ownershipTransferredAt/By`), swaps the two
    roster rows (seat count unchanged), mirrors `users/{uid}`, and writes the
    audit row (ids only) in the same transaction. A race that moved `ownerId`
    aborts with no roster change.
-6. Replay: the former owner repeating the same call gets `replayed: true` and
+6. After commit, the former owner's bot keys and calendar links are switched off
+   (best effort, counts logged); target claims are NOT re-written from the
+   pre-check read, so a racing removal cannot have them restored.
+7. Replay: the former owner repeating the same call gets `replayed: true` and
    changes nothing; naming a different target is refused.
 
 ## What does NOT move: Stripe and money
@@ -133,11 +138,30 @@ reddens.
   files moved to the new owner. They need a new account to use NBD Pro again.
   The one way back in is a platform admin re-enabling the account by hand; the
   rules still treat it as a stranger, but the 31 `claims.companyId || uid`
-  function fallbacks do not, so that re-enable should be paired with giving them
-  a real company.
+  function fallbacks are now stopped at the entry points by `tenant-guard.js`
+  (a claim-less account whose uid is another owner's company id is refused).
 - **Stale token window:** their current ID token keeps its old claims for up to
   an hour (the dashboard refreshes its own on success). Owner-only gates read
   Firestore, so they lose those at once.
+
+## Security review follow-up (reviewer findings, all verified by tests)
+
+An independent read-only review (nbd-security-reviewer) could not run code, so each finding was reproduced or disproved here.
+
+| Finding | Sev | Status | Fix and proof |
+| --- | --- | --- | --- |
+| OPEN-1 `social-studio.js` treated `companyId == uid` as owner for any role (publishes company photos publicly) | High | CLOSED | uid branch refuses manager/sales_rep/member; Social callables guarded; break C1, C5 |
+| OPEN-2 `claims.companyId || uid` fallback at ~20 sites for a claim-less former owner | High | CLOSED at the entry points | new `functions/tenant-guard.js`: a claim-less token whose uid is another owner's company id is refused in `callableRateLimit`, `requireAuth` (all onRequest, incl. Stripe checkout/portal/payment link, AI), email/SMS `verifyAuth`, agent-mcp, pixel-draft, lead-brief, social-studio; breaks C2-C7. One cached read per 30 s, claim-less tokens only, fails open on a read error |
+| OPEN-3 removeMember: disable could fail after the claim strip and the retry was refused | High | CLOSED | disable first; a former owner is provably the company's by uid so a retry finishes; breaks C8, C9 |
+| OPEN-4 hand-off racing a removal re-asserted stale claims | Med-High | CLOSED | no claim re-write; removeMember takes the roster row off `active` before stripping, the transaction re-reads the row; breaks C10 plus the interleave test |
+| OPEN-5 payout setup in flight (`creating`, no accountId) | Med | CLOSED | predicate = account id or any status but `failed`, re-read in the transaction; breaks C11, C12 |
+| OPEN-6 demoted former owner keeps write access to everything they authored | Med | **needs Jo** | not changed: reassigning the whole book (and Storage files) at hand-off is a product call. Default today: to take the history, Remove them (that reassigns records and files and turns the login off) rather than demote |
+| OPEN-7 bot keys / calendar feeds survive hand-off | Med | CLOSED | revoked at hand-off; break C13 |
+| OPEN-8 billing payer, dunning and trial mail stay on the former owner; their erasure keeps the plan alive on their card | Med | **needs Jo / counsel** | not built. Removing a former owner now reports `billingOnFormerOwner` and the dashboard says so (break C14). Rerouting Stripe mail to the new owner and changing the customer email needs a decision on who owns the payment relationship |
+
+The reviewer's "reactivateUser refuse a target whose uid == companyId" is covered: re-enable needs `callerMayManageTarget` (claims) and a removed former owner has none, and the login is disabled.
+
+Also verified by me (not covered by the reviewer): `storage.rules` (role gate, tests), `invites.js` claimInvite / createTeamInvite / ensure-company branches, `public-site.js` slug-ensure (create only when the doc is missing), `calcom-logic.js:258` (`ownerId`-based, follows the new owner), `referral-rewards.js:87` (a former owner's referral still counts for the company: intended), `measurement.js:338` (owner-authored reuse, no tenant grant), `photo.js:144` (company_admin signs via `users/{uid}.companyId`, which the hand-off writes), `member-offboarding.js:222` (feed allowed only while claims point at the company; revoked on removal).
 
 ## Known gaps (not fixed here)
 
@@ -152,9 +176,11 @@ reddens.
 ## Tests
 
 - `tests/owner-handoff-2026-10-12.test.js` (functions, real handlers, real
-  `requireTeamAdmin`, in-memory Firestore/Auth): 92 checks.
-- `tests/firestore-rules.cross-tenant.test.js` HANDOFF block: 49 checks, 34
-  of them new (421 total), emulator.
+  `requireTeamAdmin`, in-memory Firestore/Auth): 128 checks.
+- `tests/firestore-rules.cross-tenant.test.js` HANDOFF block: 70 checks, 55
+  of them new (442 total), emulator, including UPDATE and DELETE attempts by a
+  removed or demoted former owner on members, owner_numbers, settings/layout,
+  skin, subs and social_posts, each with an allow control.
 - `tests/storage-rules.test.js` owner hand-off block: 8 checks, emulator.
 - Run: `env -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u http_proxy npx firebase-tools emulators:exec --only firestore --project nbd-xtenant-test 'node firestore-rules.cross-tenant.test.js'`
   from `tests/` (use another port if a parallel session holds 8080).

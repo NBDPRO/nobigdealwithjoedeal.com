@@ -165,6 +165,6 @@ async function fileLeadTextDraft(request) {
 
 exports.fileLeadTextDraft = onCall(
   { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, timeoutSeconds: 20, memory: '256MiB' },
-  fileLeadTextDraft
+  require('./tenant-guard').wrapCallable(fileLeadTextDraft)
 );
 exports._internal = { fileLeadTextDraft, callerOf, MESSAGES };

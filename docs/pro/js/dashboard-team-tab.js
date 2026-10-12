@@ -423,7 +423,7 @@
           disable: 'Disable ' + email + '? Their login stops working until re-enabled. Their leads stay.',
           enable:  'Re-enable ' + email + '?',
           remove:  'Remove ' + email + ' from the team? Their access is revoked, their bot keys and calendar link stop working, and their customers move to the company owner.',
-          makeowner: 'Make ' + email + ' the owner of this company? They get full owner control: team, billing settings and publishing. You stay on the team as an admin, and only they can hand it back. Billing does not move: the card on file keeps paying until they change it in Settings, Billing. Nothing is charged by this change.'
+          makeowner: 'Make ' + email + ' the owner of this company? They get full owner control: team, billing settings and publishing. You stay on the team as an admin, and only they can hand it back. Billing does not move: the card on file keeps paying until they change it in Settings, Billing. Nothing is charged by this change. Bot keys and calendar links you made are switched off, and if online payments are connected to your payout account the hand-off is refused.'
         };
         // The former owner is the one member whose login is the company id: the
         // server turns that login off when they are removed, so say so first.
@@ -434,6 +434,7 @@
         if (!(await ask(confirms[action] || 'Proceed?'))) return;
         if (btn) { btn.disabled = true; btn.textContent = '…'; }
         var handedOff = false;
+        var extraNote = '';
         try {
           if (action === 'makeowner') {
             // transferCompanyOwnership (server): owner-only, same company, the
@@ -455,12 +456,15 @@
             // and revokes their tokens before deleting the roster doc — a bare
             // client deleteDoc left a removed user with live tenant access
             // (Firestore authorizes by claim, not roster membership).
-            await _teamCallable('removeMember', { email: email });
+            var rmRes = await _teamCallable('removeMember', { email: email });
+            if (rmRes && rmRes.data && rmRes.data.billingOnFormerOwner) {
+              extraNote = ' Billing is still on their card: change it in Settings, Billing.';
+            }
           } else {
             await _teamCallable('deactivateUser', { email: email, reactivate: action === 'enable' });
           }
           if (typeof showToast === 'function') {
-            showToast(handedOff ? ('✓ ' + _nbdEscHtml(email) + ' is now the owner. You stay on the team as an admin.') : '✓ Done', 'success');
+            showToast(handedOff ? ('✓ ' + _nbdEscHtml(email) + ' is now the owner. You stay on the team as an admin.') : ('✓ Done.' + extraNote), 'success');
           }
         } catch (e) {
           console.warn('team action failed:', e);

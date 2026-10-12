@@ -928,6 +928,8 @@ async function run() {
       await setDoc(doc(db, 'counters/customerIds_hoold'), { next: 5 });
       await setDoc(doc(db, 'counters/customerIds_hosolo'), { next: 5 });
       await setDoc(doc(db, 'companies/solo1/skin/config'), { themes: {} });
+      await setDoc(doc(db, 'companies/hoold/social_posts/sp1'), { status: 'draft', caption: 'Roof done', platform: 'facebook' });
+      await setDoc(doc(db, 'companies/hoold/social_posts/sp2'), { status: 'draft', caption: 'Roof done 2', platform: 'facebook' });
       await setDoc(doc(db, 'companies/hoprev'), { ownerId: 'hoprevnew', name: 'Prev', previousOwnerId: 'hoprevold' });
     });
     const exRemoved = env.authenticatedContext('hoold', {}).firestore();                                           // former owner, removed (claims stripped)
@@ -991,6 +993,29 @@ async function run() {
     await check('HANDOFF: removed former owner cannot READ the company customer-id counter', 'deny', getDoc(doc(exRemoved, 'counters/customerIds_hoold')));
     await check('HANDOFF control: new owner reads the company customer-id counter', 'allow', getDoc(doc(newOwner, 'counters/customerIds_hoold')));
     await check('HANDOFF control: solo owner reads their own customer-id counter', 'allow', getDoc(doc(soloDoc, 'counters/customerIds_hosolo')));
+
+    // ── UPDATE and DELETE attempts on the uid-keyed branches (review follow-up) ──
+    await check('HANDOFF: removed former owner cannot UPDATE owner_numbers', 'deny', updateDoc(doc(exRemoved, 'companies/hoold/owner_numbers/lead_spend'), { google: 1 }));
+    await check('HANDOFF: removed former owner cannot DELETE owner_numbers', 'deny', deleteDoc(doc(exRemoved, 'companies/hoold/owner_numbers/lead_spend')));
+    await check('HANDOFF: former owner (company_admin) cannot UPDATE owner-only owner_numbers', 'deny', updateDoc(doc(exAdmin, 'companies/hoold/owner_numbers/lead_spend'), { google: 1 }));
+    await check('HANDOFF control: new owner UPDATES owner_numbers', 'allow', setDoc(doc(newOwner, 'companies/hoold/owner_numbers/lead_spend'), { google: 130000 }));
+    await check('HANDOFF: removed former owner cannot UPDATE a roster row', 'deny', updateDoc(doc(exRemoved, 'companies/hoold/members/rep@x.test'), { role: 'company_admin' }));
+    await check('HANDOFF: removed former owner cannot DELETE a roster row', 'deny', deleteDoc(doc(exRemoved, 'companies/hoold/members/rep@x.test')));
+    await check('HANDOFF: former owner (company_admin) cannot WRITE a roster row from the client', 'deny', updateDoc(doc(exAdmin, 'companies/hoold/members/rep@x.test'), { role: 'company_admin' }));
+    await check('HANDOFF: removed former owner cannot READ social posts', 'deny', getDoc(doc(exRemoved, 'companies/hoold/social_posts/sp1')));
+    await check('HANDOFF: removed former owner cannot UPDATE a social post', 'deny', updateDoc(doc(exRemoved, 'companies/hoold/social_posts/sp1'), { caption: 'hijack' }));
+    await check('HANDOFF: former owner demoted to rep cannot UPDATE a social post', 'deny', updateDoc(doc(exDemoted, 'companies/hoold/social_posts/sp1'), { caption: 'hijack' }));
+    await check('HANDOFF: removed former owner cannot DELETE a social post', 'deny', deleteDoc(doc(exRemoved, 'companies/hoold/social_posts/sp1')));
+    await check('HANDOFF: former owner demoted to rep cannot DELETE a social post', 'deny', deleteDoc(doc(exDemoted, 'companies/hoold/social_posts/sp1')));
+    await check('HANDOFF control: former owner (company_admin) reads social posts', 'allow', getDoc(doc(exAdmin, 'companies/hoold/social_posts/sp1')));
+    await check('HANDOFF control: new owner deletes a social post', 'allow', deleteDoc(doc(newOwner, 'companies/hoold/social_posts/sp2')));
+    await check('HANDOFF: removed former owner cannot DELETE settings/layout', 'deny', deleteDoc(doc(exRemoved, 'companies/hoold/settings/layout')));
+    await check('HANDOFF: former owner demoted to rep cannot DELETE settings/layout', 'deny', deleteDoc(doc(exDemoted, 'companies/hoold/settings/layout')));
+    await check('HANDOFF: removed former owner cannot DELETE the skin config', 'deny', deleteDoc(doc(exRemoved, 'companies/hoold/skin/config')));
+    await check('HANDOFF: removed former owner cannot DELETE a sub', 'deny', deleteDoc(doc(exRemoved, 'companies/hoold/subs/sub1')));
+    await check('HANDOFF: former owner demoted to rep cannot DELETE a sub', 'deny', deleteDoc(doc(exDemoted, 'companies/hoold/subs/sub1')));
+    await check('HANDOFF control: former owner (company_admin) deletes a sub', 'allow', deleteDoc(doc(exAdmin, 'companies/hoold/subs/sub4')));
+    await check('HANDOFF: removed former owner cannot UPDATE a sub', 'deny', updateDoc(doc(exRemoved, 'companies/hoold/subs/sub1'), { name: 'Renamed' }));
 
     // ── the company doc itself ──
     await check('HANDOFF: former owner (company_admin) cannot take ownerId back', 'deny', updateDoc(doc(exAdmin, 'companies/hoold'), { ownerId: 'hoold' }));

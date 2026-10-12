@@ -151,7 +151,10 @@ function fakeAuth(users, events, hooks) {
       if (hooks && hooks.onClaims) hooks.onClaims(uid, c);
     },
     async revokeRefreshTokens(uid) { events.push('revokeRefresh:' + uid); },
-    async updateUser(uid, u) { events.push('updateUser:' + uid + ':' + JSON.stringify(u)); Object.assign(users[uid], u); },
+    async updateUser(uid, u) {
+      if (hooks && hooks.updateUserFail && hooks.updateUserFail()) throw new Error('auth backend unavailable');
+      events.push('updateUser:' + uid + ':' + JSON.stringify(u)); Object.assign(users[uid], u);
+    },
   };
 }
 
@@ -436,7 +439,7 @@ const REFUSAL = 'That person is not an active admin on your team. Make them an a
   {
     const src = require('fs').readFileSync(path.join(FN, 'handlers', 'admin.js'), 'utf8');
     const a = src.indexOf('exports.transferCompanyOwnership');
-    const b = src.indexOf('exports.removeMember');
+    const b = src.indexOf('async function beginMemberRemoval');
     const body = src.slice(a, b).replace(/\/\/[^\n]*/g, '');
     ok('the callable never touches Stripe or the subscription doc',
       !/getStripe|require\(['"]stripe|stripe\.(customers|subscriptions|accounts|paymentMethods)|subscriptions\//i.test(body));
@@ -567,6 +570,142 @@ const REFUSAL = 'That person is not an active admin on your team. Make them an a
     ok('billing portal: same with companyId claim == uid and no role: REFUSED', !!billingPortalRefusal({ uid: 'ow1', companyId: 'ow1' }, 'adm1'));
     ok('billing portal: former owner still company_admin: allowed (any company_admin may, existing decision)', billingPortalRefusal({ uid: 'ow1', companyId: 'ow1', role: 'company_admin' }, 'adm1') === null);
     ok('billing portal: demoted former owner: REFUSED', !!billingPortalRefusal({ uid: 'ow1', companyId: 'ow1', role: 'sales_rep' }, 'adm1'));
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('I. review findings OPEN-1..8 (2026-10-12)');
+  const TG = require(path.join(FN, 'tenant-guard.js'));
+  {
+    // OPEN-2: the guard itself
+    const db = fakeDb(seed({ 'companies/ow1': { ownerId: 'adm1', previousOwnerId: 'ow1' }, 'companies/soloDoc': { ownerId: 'soloDoc' } }));
+    TG._resetCache();
+    ok('guard: claim-less token, company doc names someone else: GHOST', await TG.isGhost('ow1', {}, db) === true);
+    TG._resetCache();
+    ok('guard: with a companyId claim: not a ghost (a member)', await TG.isGhost('ow1', { companyId: 'ow1', role: 'company_admin' }, db) === false);
+    TG._resetCache();
+    ok('guard: solo owner with no company doc: not a ghost', await TG.isGhost('solo9', {}, db) === false);
+    TG._resetCache();
+    ok('guard: solo owner whose company doc names them: not a ghost', await TG.isGhost('soloDoc', {}, db) === false);
+    TG._resetCache();
+    ok('guard: a platform admin is never a ghost', await TG.isGhost('ow1', { role: 'admin' }, db) === false);
+    TG._resetCache();
+    let e = null;
+    try { await TG.assertNotGhost({ auth: { uid: 'ow1', token: {} } }, db); } catch (x) { e = x; }
+    ok('assertNotGhost refuses with permission-denied', !!e && e.code === 'permission-denied');
+    const refusal = await TG.ghostRefusal({ uid: 'ow1' }, db);
+    ok('ghostRefusal (onRequest shape) answers 403', !!refusal && refusal.status === 403);
+    TG._resetCache();
+    const throwing = { collection: () => ({ doc: () => ({ get: async () => { throw new Error('boom'); } }) }) };
+    ok('a Firestore read failure fails OPEN (a solo owner is not locked out by an outage)', await TG.isGhost('ow1', {}, throwing) === false);
+    TG._resetCache();
+  }
+  {
+    // wiring: the shared choke point and the callables named in the review
+    const R = rig({ 'companies/ow1': { ownerId: 'adm1', previousOwnerId: 'ow1' } });
+    TG._resetCache();
+    const S = loadWith('shared.js', baseStubs(R.db, fakeAuth(R.users, [])));
+    let e = null;
+    try { await S.run(() => S.mod.callableRateLimit({ auth: { uid: 'ow1', token: {} } }, 'x', 5, 1000)); } catch (x) { e = x; }
+    ok('callableRateLimit (the shared callable gate) refuses a ghost', !!e && e.code === 'permission-denied', e && e.code);
+    TG._resetCache();
+    let e2 = null;
+    try { await S.run(() => S.mod.callableRateLimit({ auth: { uid: 'ow1', token: { companyId: 'ow1', role: 'company_admin' } } }, 'x', 5, 1000)); } catch (x) { e2 = x; }
+    ok('...and passes the same account once it carries its claims (control)', !e2, e2 && e2.message);
+    TG._resetCache();
+    for (const [file, names] of [['agent-mcp.js', ['createAgentKey', 'listAgentKeys', 'revokeAgentKey', 'saveAgentBot']], ['pixel-draft.js', ['fileLeadTextDraft']], ['social-studio.js', ['socialEligibleJobs', 'socialDraftFromJob', 'socialApprovePost', 'socialPlanWeeks']]]) {
+      const M = loadWith(file, baseStubs(R.db, fakeAuth(R.users, [])));
+      for (const n of names) {
+        TG._resetCache();
+        let err = null;
+        try { await M.run(() => M.mod[n].__handler({ auth: { uid: 'ow1', token: {} }, data: { leadId: 'L1', template: 'x', botId: 'dana', postId: 'p' } })); } catch (x) { err = x; }
+        ok(file + ' ' + n + ': a claim-less former owner is refused', !!err && err.code === 'permission-denied' && /no longer belongs/.test(err.message), err ? err.code + ' ' + err.message : 'ran');
+      }
+    }
+    TG._resetCache();
+    const M2 = loadWith('lead-brief.js', baseStubs(R.db, fakeAuth(R.users, [])));
+    let e3 = null;
+    try { await M2.run(() => M2.mod.leadBrief.__handler({ auth: { uid: 'ow1', token: {} }, data: {} })); } catch (x) { e3 = x; }
+    ok('lead-brief leadBrief: refused', !!e3 && e3.code === 'permission-denied', e3 && e3.code);
+    TG._resetCache();
+  }
+  {
+    // OPEN-1: social-studio treats company===uid as owner, never for a lower role
+    const SS = require(path.join(FN, 'social-studio.js'))._test.requireSocialManager;
+    const t = (claims) => { try { return SS({ auth: { uid: 'ow1', token: claims } }, (x) => x.role === 'admin'); } catch (x) { return x; } };
+    ok('social: demoted former owner (sales_rep, companyId == uid) is refused', t({ companyId: 'ow1', role: 'sales_rep' }).code === 'permission-denied');
+    ok('social: demoted to manager is refused', t({ companyId: 'ow1', role: 'manager' }).code === 'permission-denied');
+    ok('social: former owner still company_admin is allowed', t({ companyId: 'ow1', role: 'company_admin' }).companyId === 'ow1');
+    ok('social: a solo owner (no role) is allowed', t({}).companyId === 'ow1');
+  }
+  {
+    // OPEN-3: disable BEFORE the claim strip; a retry finishes the job
+    let failOnce = true;
+    const R = rig(null, null, { updateUserFail: () => { if (failOnce) { failOnce = false; return true; } return false; } });
+    await R.call('transferCompanyOwnership', 'ow1', { email: 'adm1@x.test', confirm: true });
+    const first = await R.call('removeMember', 'adm1', { email: 'ow1@x.test' });
+    ok('disable fails: the removal errors and NOTHING was stripped (claims intact, login not half-removed)',
+      !!first.err && R.users.ow1.customClaims.companyId === 'ow1' && R.users.ow1.disabled !== true && R.db.store.get('leads/L1').userId === 'ow1', first.err ? first.err.message : 'no error');
+    const second = await R.call('removeMember', 'adm1', { email: 'ow1@x.test' });
+    ok('the retry completes: disabled, claims stripped, records moved', !second.err && second.out.signInDisabled === true && R.users.ow1.disabled === true
+      && !('companyId' in R.users.ow1.customClaims) && R.db.store.get('leads/L1').userId === 'adm1', second.err && second.err.message);
+  }
+  {
+    // ...and a removal that already stripped the claims but never disabled (the old order)
+    const R = rig();
+    await R.call('transferCompanyOwnership', 'ow1', { email: 'adm1@x.test', confirm: true });
+    R.users.ow1.customClaims = { plan: 'team' }; // stripped, still enabled
+    const out = await R.call('removeMember', 'adm1', { email: 'ow1@x.test' });
+    ok('a stripped-but-enabled former owner can still be removed (retry path): login turned off', !out.err && R.users.ow1.disabled === true, out.err && out.err.message);
+    const rep = rig();
+    const nobody = await rep.call('removeMember', 'ow1', { email: 'adm2@x.test' });
+    ok('(control) an ordinary admin is removed without touching the login', !nobody.err && !rep.users.adm2.disabled && nobody.out.billingOnFormerOwner === false);
+  }
+  {
+    // OPEN-8: removal says when billing is still the former owner's
+    const R = rig();
+    await R.call('transferCompanyOwnership', 'ow1', { email: 'adm1@x.test', confirm: true });
+    const out = await R.call('removeMember', 'adm1', { email: 'ow1@x.test' });
+    ok('removing a former owner reports that the Stripe customer is still theirs', !out.err && out.out.billingOnFormerOwner === true, out.err && out.err.message);
+  }
+  {
+    // OPEN-4: a removal racing the hand-off (row flipped + claims stripped between the read and the transaction)
+    const R = rig(null, null, { onClaims: (uid) => {
+      if (uid === 'ow1') {
+        R.db.store.set('companies/ow1/members/adm1@x.test', Object.assign({}, R.db.store.get('companies/ow1/members/adm1@x.test'), { status: 'removing' }));
+        R.users.adm1.customClaims = { plan: 'x' };
+      }
+    } });
+    const { err } = await R.call('transferCompanyOwnership', 'ow1', { email: 'adm1@x.test', confirm: true });
+    ok('target being removed mid-flight: hand-off fails, ownerId unchanged', !!err && err.code === 'failed-precondition' && R.db.store.get('companies/ow1').ownerId === 'ow1', err && err.code);
+    ok('...and the target claims are NOT restored from the stale read', !('companyId' in R.users.adm1.customClaims) && R.users.adm1.customClaims.plan === 'x', JSON.stringify(R.users.adm1.customClaims));
+    // removeMember takes the roster row off active before it strips claims
+    const R2 = rig();
+    await R2.call('removeMember', 'ow1', { email: 'rep1@x.test' });
+    const flip = R2.db.log.indexOf('set:companies/ow1/members/rep1@x.test');
+    ok('removeMember wrote the roster row (status removing) before the delete', flip >= 0 && flip < R2.db.log.indexOf('delete:companies/ow1/members/rep1@x.test'), R2.db.log.join(' '));
+  }
+  {
+    // OPEN-5: payout setup in flight (no accountId yet) blocks, before and during
+    const R = rig({ 'connectAccounts/ow1': { status: 'creating', claimedAtMs: 1 } });
+    const before = snapshot(R.db);
+    const { err } = await R.call('transferCompanyOwnership', 'ow1', { email: 'adm1@x.test', confirm: true });
+    ok('connectAccounts status creating (no accountId): refused, nothing changed', !!err && err.code === 'failed-precondition' && snapshot(R.db) === before, err && err.message);
+    const R2 = rig(null, null, { onClaims: (uid) => { if (uid === 'ow1') R2.db.store.set('connectAccounts/ow1', { status: 'creating', claimedAtMs: 1 }); } });
+    const r2 = await R2.call('transferCompanyOwnership', 'ow1', { email: 'adm1@x.test', confirm: true });
+    ok('a payout setup that starts after the pre-check is caught inside the transaction', !!r2.err && r2.err.code === 'failed-precondition' && R2.db.store.get('companies/ow1').ownerId === 'ow1', r2.err && r2.err.message);
+  }
+  {
+    // OPEN-7: the former owner's bot keys and calendar links are switched off
+    const R = rig({
+      'agent_keys/kOwn': { createdBy: 'ow1', companyId: 'ow1', active: true },
+      'agent_keys/kRep': { createdBy: 'rep1', companyId: 'ow1', active: true },
+      'calendar_feed_tokens/fOwn': { uid: 'ow1', companyId: 'ow1', status: 'active' },
+      'calendar_feed_tokens/fRep': { uid: 'rep1', companyId: 'ow1', status: 'active' },
+    });
+    const { err } = await R.call('transferCompanyOwnership', 'ow1', { email: 'adm1@x.test', confirm: true });
+    const s = R.db.store;
+    ok("the former owner's bot key and calendar feed are revoked", !err && s.get('agent_keys/kOwn').active === false && s.get('calendar_feed_tokens/fOwn').status === 'revoked', err && err.message);
+    ok("a teammate's key and feed are untouched", s.get('agent_keys/kRep').active === true && s.get('calendar_feed_tokens/fRep').status === 'active');
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

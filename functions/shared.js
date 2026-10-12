@@ -87,6 +87,9 @@ async function callableRateLimit(request, name, limit, windowMs) {
   if (isAnonymousToken(request.auth.token)) {
     throw new (HttpsError())('permission-denied', ANONYMOUS_MESSAGE);
   }
+  // Owner hand-off (2026-10-12): a claim-less token whose uid is another
+  // owner's company id must not fall back to the uid key (tenant-guard.js).
+  await require('./tenant-guard').assertNotGhost(request);
   try {
     await enforceRateLimit('callable:' + name + ':uid', uid, limit, windowMs);
   } catch (e) {
@@ -203,6 +206,9 @@ async function requireAuth(req, { adminOnly = false } = {}) {
   if (adminOnly && decoded.role !== 'admin') {
     return { error: { status: 403, body: { error: 'Admin access required' } } };
   }
+  // Owner hand-off (2026-10-12): see tenant-guard.js.
+  const ghost = await require('./tenant-guard').ghostRefusal(decoded);
+  if (ghost) return { error: ghost };
   return { decoded };
 }
 
