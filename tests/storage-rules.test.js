@@ -491,6 +491,39 @@ async function run() {
   await assertSucceeds(deleteObject(ref(alice, 'skins/alice/mascot')));
   console.log('  my-skin: 19 storage checks passed');
 
+  // ── My Skin per-theme backgrounds (2026-10): skins/{uid}/themes/{themeId}/{imageId} ──
+  const T = 'skins/alice/themes/pokemon/lq3x9a1b2c';
+  const lockedAlice = env.authenticatedContext('alice', { role: 'sales_rep', companyId: 'co-a', offboardLock: true }).storage();
+  await assertSucceeds(uploadBytes(ref(alice, T), buf(2048), { contentType: 'image/webp' }));
+  await assertSucceeds(uploadBytes(ref(alice, 'skins/alice/themes/ben-10/lq3x9a1b2d'), buf(2048), { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(alice, 'skins/alice/themes/_custom/lq3x9a1b2e'), buf(2048), { contentType: 'image/webp' })); // Custom Builder slot
+  await assertSucceeds(uploadBytes(ref(alice, T), buf(3 * 1024 * 1024 - 1024), { contentType: 'image/webp' }));                    // ~3 MB, under the cap
+  await assertSucceeds(getBytes(ref(alice, T)));                                                                                   // owner reads (positive control)
+  await assertFails(getBytes(ref(bob, T)));                                                                                        // another signed-in user
+  await assertFails(getBytes(ref(admin, T)));                                                                                      // platform admin
+  await assertFails(getBytes(ref(anon, T)));                                                                                       // signed out
+  await assertFails(getBytes(ref(lockedAlice, T)));                                                                                // offboardLock
+  await assertFails(uploadBytes(ref(bob, 'skins/alice/themes/pokemon/lq3x9a1b2f'), buf(2048), { contentType: 'image/webp' }));      // write to someone else's
+  await assertFails(uploadBytes(ref(admin, 'skins/alice/themes/pokemon/lq3x9a1b2f'), buf(2048), { contentType: 'image/webp' }));
+  await assertFails(uploadBytes(ref(anon, 'skins/alice/themes/pokemon/lq3x9a1b2f'), buf(2048), { contentType: 'image/webp' }));
+  await assertFails(uploadBytes(ref(lockedAlice, 'skins/alice/themes/pokemon/lq3x9a1b2f'), buf(2048), { contentType: 'image/webp' }));
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2g'), buf(3 * 1024 * 1024 + 1), { contentType: 'image/webp' })); // over 3 MB
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2g'), buf(2048), { contentType: 'image/png' }));     // lossless / not re-encoded
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2g'), buf(2048), { contentType: 'image/svg+xml' })); // script-capable
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2g'), buf(2048)));                                  // no content type
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/Pokemon/lq3x9a1b2g'), buf(2048), { contentType: 'image/webp' }));    // bad themeId (case)
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/-_x/lq3x9a1b2g'), buf(2048), { contentType: 'image/webp' }));        // bad themeId (chars)
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/short'), buf(2048), { contentType: 'image/webp' }));         // imageId too short
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/LQ3X9A1B2G'), buf(2048), { contentType: 'image/webp' }));    // imageId uppercase
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2g_t'), buf(2048), { contentType: 'image/webp' })); // thumbnail suffix not allowed yet
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/x/lq3x9a1b2g'), buf(2048), { contentType: 'image/webp' })); // too deep
+  await assertSucceeds(uploadBytes(ref(alice, 'skins/alice/wallpaper'), buf(2048), { contentType: 'image/jpeg' }));                 // existing slots unchanged
+  await assertFails(deleteObject(ref(bob, T)));
+  await assertFails(deleteObject(ref(admin, T)));
+  await assertFails(deleteObject(ref(anon, T)));
+  await assertSucceeds(deleteObject(ref(alice, T)));
+  console.log('  my-skin per-theme: 28 storage checks passed');
+
   // ── Reel Studio (2026-10-04): reel-uploads/{companyId}/{uid}/{mediaId} —
   // create-only by the uploader, owner or company_admin of THAT company,
   // video/image only, never readable / deletable by a client. ──

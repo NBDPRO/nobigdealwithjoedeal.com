@@ -1778,6 +1778,12 @@ async function run() {
     await x34('users/{uid}/' + s + ': viewer (self)',     'allow', setDoc(doc(vx, 'users/vx/' + s), { v: 1 }));
   }
   await x34('userSettings/{uid}: viewer (self)',          'allow', setDoc(doc(vx, 'userSettings/vx'), { theme: 'dark' }));
+  // My Skin per-theme map is bounded (the live snapshot resends the whole doc).
+  const skinThemes = (n) => { const o = {}; for (let i = 0; i < n; i++) o['t' + i] = { images: [] }; return o; };
+  await x34('userSettings mySkin.themes 220 entries: self', 'allow', setDoc(doc(vx, 'userSettings/vx'), { mySkin: { themes: skinThemes(220) } }));
+  await x34('userSettings mySkin.themes 221 entries: self', 'deny',  setDoc(doc(vx, 'userSettings/vx'), { mySkin: { themes: skinThemes(221) } }));
+  await x34('userSettings mySkin without themes: self',     'allow', setDoc(doc(vx, 'userSettings/vx'), { mySkin: { enabled: true } }));
+  await x34('userSettings delete: self',                    'allow', deleteDoc(doc(vx, 'userSettings/vx')));
   await x34('notifications create: viewer (self)',        'allow', setDoc(doc(vx, 'notifications/s34-new-vx'), { userId: 'vx', read: false }));
   await x34('notifications update: viewer (mark read)',   'allow', updateDoc(doc(vx, 'notifications/s34-vx'), { read: true }));
   await x34('notifications delete: viewer (dismiss)',     'allow', deleteDoc(doc(vx, 'notifications/s34-vx')));

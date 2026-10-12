@@ -29,7 +29,7 @@ function harness(current) {
   const style = { set: {}, setProperty(k, v) { this.set[k] = v; }, removeProperty(k) { delete this.set[k]; } };
   const el = (id) => inputs[id] || (inputs[id] = { value: '#123456' });
   const document = {
-    documentElement: { style },
+    documentElement: { style, setAttribute() {}, removeAttribute() {} },
     body: { style: { background: '' } },
     getElementById: el,
     dispatchEvent(ev) { events.push(ev); return true; }
