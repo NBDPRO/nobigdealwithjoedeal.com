@@ -34,12 +34,29 @@ What shipped differs from the design sketch in these places.
   is shown as "A caller"; bidi-override and zero-width characters are stripped.
 - **Expiry never depends on the item query.** If the open-items read fails at
   hand-back time, every touched item is returned to the owner as still open.
-- **Owner-only (decision 8, Jo 2026-10-12; review finding F4).** Naming the
-  backup, reading the config and approving/saving the away wording go through
-  `requireTeamAdmin(..., { ownerOnly: true })`: a company_admin is refused. F4
-  was: "a rogue or compromised company_admin could name themselves backup and
-  approve what Thursday says". A company_admin may still switch Away on/off,
-  mark "I'm back" and review the hand-back.
+- **Owner-only (decision 8, Jo 2026-10-12; review finding F4).** Reading the
+  config, naming the backup, **switching Away ON**, and saving/approving the away
+  wording go through `requireTeamAdmin(..., { ownerOnly: true })`: a
+  company_admin is refused. F4 was: "a company_admin could name themselves backup
+  and approve what Thursday says"; the re-review added that a company_admin could
+  also *start* a trip and make the owner's approved text go live, so setAway-ON
+  is owner-only too. A company_admin keeps `imBack` (and setAway-OFF) and
+  `reviewed`. The Settings panel is hidden for non-owners on the client (the
+  Home status line and the I'm-back button stay).
+- **Approval is bound to who starts the trip.** An approval made while Away is
+  off is bound to no end time; a new window started by anyone other than the
+  approver clears it (the draft is kept), so it can never go live for a trip the
+  approver did not start. The owner approving then switching Away on keeps it
+  ("approve once").
+- **No lost updates on the private config.** Each action writes only the fields
+  it owns with `merge: true` (save: timings / backup / schedule; wording
+  actions: `playbook`; hand-back / new-window: the approval fields), so a
+  concurrent save, approval or hand-back cannot revert another.
+- **Rate limit.** `manageAway` is limited to 120 calls / min / uid
+  (`callableRateLimit`).
+- **`away_windows` stays readable by a company_admin** (the ledger names callers
+  and numbers; a company_admin already reads every lead): consistent with the
+  design note. Writes stay Admin-SDK only.
 - **Confirmed defaults (Jo 2026-10-12).** A viewer cannot be a backup. The
   backup sees a call-back number. The backup's "done" is advisory and never
   marks a call handled. The wording never names the backup to callers (it says

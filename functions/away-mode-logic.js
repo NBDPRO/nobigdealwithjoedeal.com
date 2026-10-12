@@ -45,7 +45,9 @@ const TOUCH_LABEL = Object.freeze({
 });
 // Owner-only (not company_admin): these grant another person visibility of
 // customers, or set what callers are told (Jo, 2026-10-12; review finding F4).
-const OWNER_ONLY_ACTIONS = Object.freeze(['get', 'save', 'playbookDraft', 'playbookSave', 'playbookApprove']);
+// setAway is owner-only when it turns Away ON (it can make approved wording go live);
+// turning it OFF (imBack) stays open to a company_admin.
+const OWNER_ONLY_ACTIONS = Object.freeze(['get', 'save', 'setAway', 'playbookDraft', 'playbookSave', 'playbookApprove']);
 const TZ = 'America/New_York';
 const QUIET_START_HOUR = 21;   // 21:00 ET ...
 const QUIET_END_HOUR = 8;      // ... to 08:00 ET (matches SEND_WINDOW in sms-outbox-guard.js)

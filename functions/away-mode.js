@@ -33,6 +33,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
 const L = require('./away-mode-logic');
+const { callableRateLimit } = require('./shared');
 const W = require('./call-watch-logic');
 const { requireTeamAdmin, CORS_ORIGINS } = require('./handlers/_shared');
 
@@ -150,7 +151,8 @@ async function doHandBack(db, cid, { nowMs, endedBy, openKeys, backupName }) {
   // The approved wording is for THIS trip (it can name a date): clear it, keep
   // the draft, so the next Away needs a fresh one-tap approval.
   if (priv.playbook.approvedHash) {
-    await privRef.set(Object.assign({}, priv, { companyId: cid, updatedAtMs: nowMs, playbook: Object.assign({}, priv.playbook, { approved: '', approvedHash: '', approvedAtMs: 0, approvedBy: '', approvedForUntilMs: 0 }) }), { merge: false });
+    // only the approval fields, merged: never rewrite a doc the owner may be saving
+    await privRef.set({ companyId: cid, updatedAtMs: nowMs, playbook: { approved: '', approvedHash: '', approvedAtMs: 0, approvedBy: '', approvedForUntilMs: 0 } }, { merge: true });
   }
   const pending = hb.rows.length || hb.summary.touched ? { windowId: wid, openCount: hb.rows.length, atMs: nowMs } : null;
   await db.doc(COL_STATUS + '/' + cid).set(Object.assign(
@@ -380,7 +382,7 @@ async function handleManageAway(request, deps) {
   // companyId). deps.requireAdmin is a test seam; production never passes it.
   // Naming the backup and approving the wording are OWNER-ONLY (a company_admin
   // may still switch Away on/off and review the hand-back).
-  const ownerOnly = L.OWNER_ONLY_ACTIONS.includes(action);
+  const ownerOnly = L.OWNER_ONLY_ACTIONS.includes(action) && !(action === 'setAway' && data.on !== true);
   const caller = await ((deps && deps.requireAdmin) || requireTeamAdmin)(request, null, ownerOnly ? { ownerOnly: true } : null);
   const cid = caller.companyId;
   const privRef = db.doc(COL_PRIVATE + '/' + cid);
@@ -438,7 +440,12 @@ async function handleManageAway(request, deps) {
     }
     if (v.config.backup.external) v.config.backup.external.consentBy = caller.uid;
     const next = Object.assign({}, v.config, { playbook: cur.playbook });
-    await privRef.set(Object.assign({ companyId: cid, updatedAtMs: nowMs, updatedBy: caller.uid }, next), { merge: false });
+    // only the fields save owns, merged (a concurrent wording approval survives)
+    await privRef.set({
+      companyId: cid, updatedAtMs: nowMs, updatedBy: caller.uid,
+      ackWindowMin: next.ackWindowMin, awayWindowMin: next.awayWindowMin, backup: next.backup,
+      schedule: next.schedule, nameBackupToCallers: false,
+    }, { merge: true });
     const st = await refreshStatus(next);
     logger.info('away_save', { companyId: cid, backup: next.backup.memberEmail ? 'member' : (next.backup.external ? 'external' : 'none') });
     return { ok: true, status: st, config: publicConfig(next) };
@@ -456,9 +463,15 @@ async function handleManageAway(request, deps) {
     }
     const already = st && st.away && st.away.on;
     // A changed end time makes any wording approved against the old one stale.
-    if (already && priv.playbook.approvedHash && priv.playbook.approvedForUntilMs && priv.playbook.approvedForUntilMs !== (until || 0)) {
+    // A NEW window never inherits wording its starter did not approve: an approval
+    // made while Away was off (bound to no end time) goes live only when the
+    // approver themselves starts the trip.
+    const stale = priv.playbook.approvedHash && (already
+      ? (priv.playbook.approvedForUntilMs && priv.playbook.approvedForUntilMs !== (until || 0))
+      : priv.playbook.approvedBy !== caller.uid);
+    if (stale) {
       priv.playbook = Object.assign({}, priv.playbook, { approved: '', approvedHash: '', approvedAtMs: 0, approvedBy: '', approvedForUntilMs: 0 });
-      await privRef.set(Object.assign({ companyId: cid, updatedAtMs: nowMs, updatedBy: caller.uid }, priv), { merge: false });
+      await privRef.set({ companyId: cid, updatedAtMs: nowMs, playbook: { approved: '', approvedHash: '', approvedAtMs: 0, approvedBy: '', approvedForUntilMs: 0 } }, { merge: true });
     }
     const away = already
       ? { on: true, startMs: st.away.startMs, untilMs: until || null, windowId: st.away.windowId }
@@ -525,7 +538,8 @@ async function handleManageAway(request, deps) {
       pb.approvedForUntilMs = st && st.away && st.away.on && st.away.untilMs ? Number(st.away.untilMs) : 0;
     }
     const next = Object.assign({}, priv, { playbook: pb });
-    await privRef.set(Object.assign({ companyId: cid, updatedAtMs: nowMs, updatedBy: caller.uid }, next), { merge: false });
+    // only the playbook, merged (a concurrent backup save survives)
+    await privRef.set({ companyId: cid, updatedAtMs: nowMs, updatedBy: caller.uid, playbook: pb }, { merge: true });
     const out = await refreshStatus(next);
     return { ok: true, status: out, config: publicConfig(next) };
   }
@@ -535,7 +549,11 @@ async function handleManageAway(request, deps) {
 
 exports.manageAway = onCall(
   { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, timeoutSeconds: 30, memory: '256MiB' },
-  (request) => handleManageAway(request)
+  async (request) => {
+    // 120 / min / uid (the Today list refreshes ~1/min; a real user never nears it)
+    await callableRateLimit(request, 'manageAway', 120, 60_000);
+    return handleManageAway(request);
+  }
 );
 
 const tickEnabled = () => process.env.AWAY_MODE_ENABLED === 'true';

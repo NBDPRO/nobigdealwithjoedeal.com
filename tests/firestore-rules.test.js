@@ -3068,6 +3068,10 @@ async function run() {
   await x62('away_windows: another company cannot', 'deny', getDoc(doc(oth62, 'away_windows/co-62__w1')));
   await x62('away_windows: company_admin of another company cannot read mine', 'deny', getDoc(doc(adm62, 'away_windows/co-62b__w1')));
   await x62('away_windows: signed-out cannot', 'deny', getDoc(doc(anon62, 'away_windows/co-62__w1')));
+  await x62('cross-tenant company_admin cannot update the status doc', 'deny', updateDoc(doc(oth62, 'away_mode/co-62'), { backupState: 'ok' }));
+  await x62('cross-tenant company_admin cannot read the ledger', 'deny', getDoc(doc(oth62, 'away_windows/co-62__w1')));
+  await x62('cross-tenant company_admin cannot write the ledger', 'deny', setDoc(doc(oth62, 'away_windows/co-62__w1'), { reviewedAtMs: 1 }, { merge: true }));
+  await x62('cross-tenant company_admin cannot read the private config', 'deny', getDoc(doc(oth62, 'away_private/co-62')));
   await x62('away_windows: owner cannot write (touches are server-recorded)', 'deny', updateDoc(doc(own62, 'away_windows/co-62__w1'), { reviewedAtMs: 1 }));
   await x62('away_windows: the backup cannot write a touch directly', 'deny', setDoc(doc(bak62, 'away_windows/co-62__w1'), { items: {} }, { merge: true }));
   console.log('  62: ' + s62Pass + ' away-mode checks passed, ' + s62Fail.length + ' failed');

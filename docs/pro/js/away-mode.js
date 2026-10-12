@@ -37,7 +37,9 @@
   function uid() { return (w._user && w._user.uid) || null; }
   function claims() { return w._userClaims || {}; }
   function role() { return String(claims().role || '').toLowerCase(); }
-  /** Owner or company_admin: the people manageAway lets act as the owner. */
+  /** Owner or company_admin: may see the I'm-back button and the hand-back card
+   *  (imBack / reviewed are open to a company_admin). The Settings panel is
+   *  stricter: owner only (away-mode-settings.js). */
   function isOwnerish() {
     var r = role(), c = claims();
     if (r === 'company_admin' || r === 'admin') return true;

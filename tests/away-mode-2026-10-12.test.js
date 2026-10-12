@@ -253,6 +253,24 @@ const resolve = (o) => L.resolveBackupNotifications(Object.assign({ config: cfg(
     }
     return { store, doc: ref, collection: col };
   }
+  // Stub the Admin SDK BEFORE away-mode.js (and handlers/_shared.js) load, so the
+  // REAL requireTeamAdmin runs in section R: its company read and its
+  // disabled-account check go to these stubs.
+  const STUB = { db: null, disabled: new Set() };
+  {
+    const Module = require('module');
+    const origLoad = Module._load;
+    Module._load = function (request, parent, isMain) {
+      const mod = origLoad.apply(this, arguments);
+      if (request === 'firebase-admin/firestore') {
+        return Object.assign({}, mod, { getFirestore: () => STUB.db });
+      }
+      if (request === 'firebase-admin/auth') {
+        return Object.assign({}, mod, { getAuth: () => ({ getUser: async (uid) => ({ uid, disabled: STUB.disabled.has(uid), displayName: '' }) }) });
+      }
+      return mod;
+    };
+  }
   const A = require(path.join(ROOT, 'functions/away-mode.js'));
   const I = A._internal;
   const member = (o) => Object.assign({ status: 'active', uid: 'u-sam', role: 'sales_rep', email: 'sam@x.com', displayName: 'Sam R' }, o || {});
@@ -446,7 +464,7 @@ const resolve = (o) => L.resolveBackupNotifications(Object.assign({ config: cfg(
     ok('real decision: a company_admin passes the normal gate', teamAdminDecision(ca).allow === true);
     ok('real decision: a company_admin FAILS the ownerOnly gate', teamAdminDecision(Object.assign({}, ca, { ownerOnly: true })).allow === false);
     ok('real decision: the owner passes the ownerOnly gate', teamAdminDecision({ uid: 'own', claims: {}, companyId: 'own', ownerId: 'own', companyExists: true, ownerOnly: true }).allow === true);
-    ok('the owner-only action list is exactly get / save / playbook*', L.OWNER_ONLY_ACTIONS.slice().sort().join() === 'get,playbookApprove,playbookDraft,playbookSave,save');
+    ok('the owner-only action list is exactly get / save / playbook*', L.OWNER_ONLY_ACTIONS.slice().sort().join() === 'get,playbookApprove,playbookDraft,playbookSave,save,setAway');
     // Drive the callable through a gate that mimics requireTeamAdmin honoring ownerOnly.
     const dbO = fakeDb({ 'companies/own/members/sam@x.com': member() });
     const gate = async (req, target, opts) => {
@@ -459,11 +477,99 @@ const resolve = (o) => L.resolveBackupNotifications(Object.assign({ config: cfg(
     }
     const sv = await run('own', { action: 'save', backup: { kind: 'member', memberEmail: 'sam@x.com' } });
     ok('the owner can name the backup', sv.ok === true);
-    const on = await run('adm', { action: 'setAway', on: true, untilMs: NOW + D });
-    ok('a company_admin can still switch Away on', on.ok === true && on.status.away.on === true);
-    ok('...and mark themselves back / review', (await run('adm', { action: 'imBack' })).ok === true && (await run('adm', { action: 'reviewed' })).ok === true);
+    await rejects('company_admin cannot switch Away ON (owner-only)', run('adm', { action: 'setAway', on: true, untilMs: NOW + D }), /permission-denied|Owner or admin/);
+    const on = await run('own', { action: 'setAway', on: true, untilMs: NOW + D });
+    ok('the owner switches Away on', on.ok === true && on.status.away.on === true);
+    ok('a company_admin can still mark "I\'m back", review, and use setAway OFF', (await run('adm', { action: 'setAway', on: false })).ok === true && (await run('adm', { action: 'imBack' })).ok === true && (await run('adm', { action: 'reviewed' })).ok === true);
     const src = read('functions/away-mode.js').replace(/\/\*[\s\S]*?\*\//g, '');
     ok('source: the gate passes { ownerOnly: true } for the owner-only list', /OWNER_ONLY_ACTIONS\.includes\(action\)/.test(src) && /\{ ownerOnly: true \}/.test(src));
+  }
+
+  console.log('R. real requireTeamAdmin, and an approval never goes live for a trip its approver did not start');
+  {
+    const db = fakeDb({
+      'companies/own': { ownerId: 'own', name: 'NBD' },
+      'companies/own/members/sam@x.com': member(),
+    });
+    STUB.db = db;
+    const as = (uid, token, data) => I.handleManageAway({ auth: { uid, token }, data }, { db, nowMs: NOW, loadItems: items([]) });   // NO requireAdmin seam
+    const adm = { role: 'company_admin', companyId: 'own' };
+    for (const data of [{ action: 'get' }, { action: 'save', backup: { kind: 'member', memberEmail: 'sam@x.com' } }, { action: 'playbookDraft' }, { action: 'playbookSave', text: 'Hi' }, { action: 'playbookApprove', hash: 'x' }, { action: 'setAway', on: true, untilMs: NOW + D }]) {
+      await rejects('REAL gate: company_admin refused on ' + data.action + (data.on ? ' (on)' : ''), as('adm', adm, data), /permission-denied|Owner or admin/);
+    }
+    ok('REAL gate: the owner passes get', (await as('own', {}, { action: 'get' })).ok === true);
+    ok('REAL gate: a company_admin may still say "I\'m back" and review', (await as('adm', adm, { action: 'imBack' })).ok === true && (await as('adm', adm, { action: 'reviewed' })).ok === true);
+    await rejects('REAL gate: a sales_rep is refused everything owner-ish', as('rep', { role: 'sales_rep', companyId: 'own' }, { action: 'imBack' }), /permission-denied|Owner or admin/);
+    const xo = await as('x', { role: 'company_admin', companyId: 'other' }, { action: 'imBack' });
+    ok('REAL gate: another company\'s company_admin only ever acts on THEIR company (sees nothing of ours)', xo.ok === true && xo.status === null);
+    STUB.disabled.add('own');
+    await rejects('REAL gate: a disabled owner account is refused', as('own', {}, { action: 'get' }), /permission-denied|Owner or admin/);
+    STUB.disabled.delete('own');
+
+    // The approval made while Away is OFF (bound to no end time) must not go live when
+    // someone else starts the trip. The gate seam below ignores ownerOnly on purpose
+    // (defence in depth: this is the handler-level rule, not the gate).
+    const db2 = fakeDb({ 'companies/own/members/sam@x.com': member() });
+    const open = async (req) => ({ uid: req.auth.uid, companyId: 'own' });
+    const go = (uid, data) => I.handleManageAway({ auth: { uid, token: {} }, data }, { db: db2, nowMs: NOW, requireAdmin: open, loadItems: items([]) });
+    const dr = await go('own', { action: 'playbookDraft' });
+    await go('own', { action: 'playbookSave', text: dr.draft });
+    await go('own', { action: 'playbookApprove', hash: dr.hash });
+    ok('owner approved with Away off (bound to 0)', db2.store.get('away_private/own').playbook.approvedHash === dr.hash && db2.store.get('away_private/own').playbook.approvedForUntilMs === 0);
+    await go('adm', { action: 'setAway', on: true, untilMs: NOW + D });
+    ok('someone else starting the trip clears the approval', db2.store.get('away_private/own').playbook.approvedHash === '');
+    ok('...and Thursday gets nothing', L.thursdayAwayContext(db2.store.get('away_private/own'), db2.store.get('away_mode/own').away, NOW) === null);
+    ok('...while the draft is kept', db2.store.get('away_private/own').playbook.draft === dr.draft);
+    const db3 = fakeDb({ 'companies/own/members/sam@x.com': member() });
+    const go3 = (uid, data) => I.handleManageAway({ auth: { uid, token: {} }, data }, { db: db3, nowMs: NOW, requireAdmin: open, loadItems: items([]) });
+    const dr3 = await go3('own', { action: 'playbookDraft' });
+    await go3('own', { action: 'playbookSave', text: dr3.draft });
+    await go3('own', { action: 'playbookApprove', hash: dr3.hash });
+    await go3('own', { action: 'setAway', on: true, untilMs: NOW + D });
+    ok('the approver starting their own trip keeps the approval (approve once)', L.thursdayAwayContext(db3.store.get('away_private/own'), db3.store.get('away_mode/own').away, NOW) !== null);
+
+    // lost-update: actions write only the fields they own
+    const db4 = fakeDb({ 'companies/own/members/sam@x.com': member(), 'away_private/own': { companyId: 'own', ackWindowMin: 90, backup: { memberEmail: 'sam@x.com' }, playbook: { draft: 'D', approved: 'D', approvedHash: L.hashText('D'), approvedAtMs: 1, approvedBy: 'own', approvedForUntilMs: 0 } } });
+    const go4 = (uid, data) => I.handleManageAway({ auth: { uid, token: {} }, data }, { db: db4, nowMs: NOW, requireAdmin: open, loadItems: items([]) });
+    await go4('own', { action: 'save', ackWindowMin: 45, backup: { kind: 'member', memberEmail: 'sam@x.com' } });
+    ok('save leaves the approved wording alone', db4.store.get('away_private/own').playbook.approvedHash === L.hashText('D') && db4.store.get('away_private/own').ackWindowMin === 45);
+    await go4('own', { action: 'playbookSave', text: 'D' });
+    ok('re-saving identical wording keeps its approval and does not touch the backup/ack settings', db4.store.get('away_private/own').playbook.approvedHash === L.hashText('D') && db4.store.get('away_private/own').backup.memberEmail === 'sam@x.com' && db4.store.get('away_private/own').ackWindowMin === 45);
+    await go4('own', { action: 'setAway', on: true, untilMs: NOW + D });
+    await go4('own', { action: 'imBack' });
+    ok('hand-back clears only the approval fields (backup and timings survive)', db4.store.get('away_private/own').playbook.approvedHash === '' && db4.store.get('away_private/own').ackWindowMin === 45 && db4.store.get('away_private/own').backup.memberEmail === 'sam@x.com' && db4.store.get('away_private/own').playbook.draft === 'D');
+    // True lost-update checks: a concurrent write lands right AFTER the action reads away_private.
+    const racy = (dbx, p, mutate, nth) => {
+      const orig = dbx.doc;
+      let fired = false, seen = 0;
+      dbx.doc = (q) => {
+        const r = orig(q);
+        if (q !== p) return r;
+        const g = r.get;
+        r.get = async () => { const s = await g(); const frozen = s.data(); if (!fired && ++seen >= (nth || 1)) { fired = true; mutate(); } return Object.assign({}, s, { data: () => frozen }); };   // the snapshot is what was read, not what is stored later
+        return r;
+      };
+    };
+    const base5 = () => ({ 'companies/own/members/sam@x.com': member(), 'companies/own/members/kim@x.com': member({ uid: 'u-kim', email: 'kim@x.com' }),
+      'away_private/own': { companyId: 'own', ackWindowMin: 90, backup: { memberEmail: 'sam@x.com' }, playbook: { draft: 'D', approved: 'D', approvedHash: L.hashText('D'), approvedAtMs: 1, approvedBy: 'own', approvedForUntilMs: 0 } } });
+    const goR = (dbx, data) => I.handleManageAway({ auth: { uid: 'own', token: {} }, data }, { db: dbx, nowMs: NOW, requireAdmin: open, loadItems: items([]) });
+    // save races an approval
+    const d5 = fakeDb(base5());
+    racy(d5, 'away_private/own', () => { d5.store.get('away_private/own').playbook.approvedHash = 'NEW-APPROVAL'; });
+    await goR(d5, { action: 'save', ackWindowMin: 60, backup: { kind: 'member', memberEmail: 'sam@x.com' } });
+    ok('lost-update: a save does not revert an approval that landed during it', d5.store.get('away_private/own').playbook.approvedHash === 'NEW-APPROVAL' && d5.store.get('away_private/own').ackWindowMin === 60);
+    // hand-back races a save
+    const d6 = fakeDb(Object.assign(base5(), { 'away_mode/own': { companyId: 'own', active: true, away: { on: true, startMs: NOW - H, untilMs: NOW + D, windowId: 'w1' }, backup: { kind: 'member', name: 'Sam', uid: 'u-sam' }, backupState: 'ok' }, 'away_windows/own__w1': { companyId: 'own', status: 'active', items: {} } }));
+    racy(d6, 'away_private/own', () => { d6.store.get('away_private/own').ackWindowMin = 200; d6.store.get('away_private/own').backup.memberEmail = 'kim@x.com'; }, 2);   // fires after doHandBack's own read (the 2nd)
+    await goR(d6, { action: 'imBack' });
+    ok('lost-update: a hand-back does not revert a backup/timing save that landed during it', d6.store.get('away_private/own').ackWindowMin === 200 && d6.store.get('away_private/own').backup.memberEmail === 'kim@x.com' && d6.store.get('away_private/own').playbook.approvedHash === '');
+    // wording approve races a backup change
+    const d7 = fakeDb(base5());
+    d7.store.get('away_private/own').playbook = { draft: 'D', approved: '', approvedHash: '', approvedAtMs: 0, approvedBy: '', approvedForUntilMs: 0 };
+    racy(d7, 'away_private/own', () => { d7.store.get('away_private/own').backup.memberEmail = 'kim@x.com'; });
+    await goR(d7, { action: 'playbookApprove', hash: L.hashText('D') });
+    ok('lost-update: approving wording does not revert a backup change that landed during it', d7.store.get('away_private/own').backup.memberEmail === 'kim@x.com' && d7.store.get('away_private/own').playbook.approvedHash === L.hashText('D'));
+    ok('source: manageAway is rate limited', /callableRateLimit\(request, 'manageAway'/.test(read('functions/away-mode.js')));
   }
 
   console.log('P. review findings (2026-10-12 security review)');
@@ -575,6 +681,27 @@ const resolve = (o) => L.resolveBackupNotifications(Object.assign({ config: cfg(
     ok('the backup sees a cover list with call + touch buttons and no I\'m back', /Covering: 1 person needs a call-back/.test(el.innerHTML) && /tel:\+18595550147/.test(el.innerHTML) && /data-away-touch="called"/.test(el.innerHTML) && !/data-away-act="back"/.test(el.innerHTML));
     C._paint({ status: docs[0] });
     ok('a teammate who is not the backup sees the line only', /backup: Sam/.test(el.innerHTML) && !/data-away-act/.test(el.innerHTML));
+    // Settings panel is owner-only on the client too (mirrors the server gate)
+    {
+      const mount = { innerHTML: 'sentinel' };
+      const sb2 = {
+        console, setTimeout: () => 0, setInterval: () => 0, clearInterval() {}, Date, Math, JSON, Promise, Object,
+        document: { readyState: 'complete', addEventListener() {}, getElementById: (id) => (id === 'awayModeMount' ? mount : null), getElementById2() {} },
+        _user: { uid: 'adm' }, _userClaims: { role: 'company_admin', companyId: 'own' }, switchSettingsTab() {},
+      };
+      sb2.window = sb2; vm.createContext(sb2); vm.runInContext(read('docs/pro/js/away-mode-settings.js'), sb2);
+      sb2.NBDAwaySettings.render();
+      ok('settings panel: a company_admin sees nothing (get would be refused)', mount.innerHTML === '');
+      sb2._user = { uid: 'own' }; sb2._userClaims = { role: 'company_admin', companyId: 'own' };
+      sb2.NBDAwaySettings._set({ status: {}, config: { backup: {}, playbook: {} }, members: [], defaults: {} });
+      ok('settings panel: the company-keyed owner sees it', /Away mode/.test(mount.innerHTML));
+      mount.innerHTML = 'sentinel'; sb2._user = { uid: 'solo' }; sb2._userClaims = {};
+      sb2.NBDAwaySettings._set({ status: {}, config: { backup: {}, playbook: {} }, members: [], defaults: {} });
+      ok('settings panel: a solo owner (no claims) sees it', /Away mode/.test(mount.innerHTML));
+      mount.innerHTML = 'sentinel'; sb2._user = { uid: 'vw' }; sb2._userClaims = { role: 'viewer', companyId: 'own' };
+      sb2.NBDAwaySettings._set({ status: {}, config: {}, members: [] });
+      ok('settings panel: a viewer / manager / rep sees nothing', mount.innerHTML === '');
+    }
     C._paint({ status: { away: { on: false } } });
     ok('away off and nothing pending → empty and hidden', el.innerHTML === '' && el.hidden === true);
   }

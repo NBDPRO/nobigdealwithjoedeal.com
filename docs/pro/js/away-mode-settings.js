@@ -21,10 +21,14 @@
   var toast = function (m, k) { if (typeof window.showToast === 'function') window.showToast(m, k || 'info'); };
   function claims() { return window._userClaims || {}; }
   function uid() { return (window._user && window._user.uid) || null; }
+  // OWNER only (mirrors manageAway: get / save / setAway-on / playbook* refuse a
+  // company_admin). The company-keyed owner has companyId === their own uid; a
+  // solo owner has no companyId claim and no role.
   function isOwnerish() {
     var r = String(claims().role || '').toLowerCase(), c = claims();
-    if (r === 'company_admin' || r === 'admin') return true;
-    return !r && (!c.companyId || c.companyId === uid());
+    if (!uid()) return false;
+    if (c.companyId) return c.companyId === uid() && r !== 'viewer';
+    return !r;
   }
   function call(payload) {
     if (window.NBDAway && typeof window.NBDAway.callable === 'function') return window.NBDAway.callable(payload);
