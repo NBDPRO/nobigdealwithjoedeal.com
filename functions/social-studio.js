@@ -74,7 +74,9 @@ function requireSocialManager(request, isPlatformAdmin) {
   const role = String(t.role || '');
   if ((isPlatformAdmin || ((x) => x.role === 'admin'))(t)) return { uid: a.uid, companyId };
   if (role === 'viewer') throw new HttpsError('permission-denied', 'Social Studio is for the owner or a company admin.');
-  if (companyId === a.uid) return { uid: a.uid, companyId };
+  // companyId === uid is the solo owner, never a lower role: a former owner
+  // who was handed off and demoted keeps companyId == their uid in claims.
+  if (companyId === a.uid && !['manager', 'sales_rep', 'member'].includes(role)) return { uid: a.uid, companyId };
   if (role === 'company_admin') return { uid: a.uid, companyId };
   throw new HttpsError('permission-denied', 'Social Studio is for the owner or a company admin.');
 }
@@ -211,11 +213,13 @@ async function eligibleJobs(db, ctx, limit) {
 const callOpts = { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true };
 
 exports.socialEligibleJobs = onCall(Object.assign({}, callOpts, { timeoutSeconds: 60 }), async (request) => {
+  await require('./tenant-guard').assertNotGhost(request);
   const ctx = requireSocialManager(request, (t) => t.role === 'admin');
   return { jobs: await eligibleJobs(getFirestore(), ctx, 40) };
 });
 
 exports.socialDraftFromJob = onCall(Object.assign({}, callOpts, { timeoutSeconds: 180, memory: '1GiB' }), async (request) => {
+  await require('./tenant-guard').assertNotGhost(request);
   const ctx = requireSocialManager(request, (t) => t.role === 'admin');
   const data = request.data || {};
   const db = getFirestore();
@@ -227,6 +231,7 @@ exports.socialDraftFromJob = onCall(Object.assign({}, callOpts, { timeoutSeconds
 });
 
 exports.socialPlanWeeks = onCall(Object.assign({}, callOpts, { timeoutSeconds: 300, memory: '1GiB' }), async (request) => {
+  await require('./tenant-guard').assertNotGhost(request);
   const ctx = requireSocialManager(request, (t) => t.role === 'admin');
   const data = request.data || {};
   const db = getFirestore();
@@ -273,6 +278,7 @@ exports.socialPlanWeeks = onCall(Object.assign({}, callOpts, { timeoutSeconds: 3
 });
 
 exports.socialApprovePost = onCall(Object.assign({}, callOpts, { timeoutSeconds: 30 }), async (request) => {
+  await require('./tenant-guard').assertNotGhost(request);
   const ctx = requireSocialManager(request, (t) => t.role === 'admin');
   const data = request.data || {};
   if (typeof data.postId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(data.postId)) throw new HttpsError('invalid-argument', 'Missing post.');

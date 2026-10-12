@@ -811,6 +811,210 @@ exports.deactivateUser = onCall(
   }
 );
 
+// ── transferCompanyOwnership (owner hand-off, Jo 2026-10-08) ─────────────
+// The OWNER hands the company to an existing, active company_admin of the
+// same company. companies/{id}.ownerId moves to them; the former owner stays
+// on the team as a company_admin (roster row created), so from then on their
+// own account erasure follows the member path (suspend, delete nothing). The
+// company keeps its id (often the former owner's uid): firestore.rules
+// ownsTenantByUid() stops the uid-keyed branches granting the former owner
+// anything once the company doc names someone else.
+//
+// Who may call: only the current owner (companies/{id}.ownerId === caller),
+// with an enabled Auth account (requireTeamAdmin re-reads the Auth record).
+// Not a company_admin, not a platform admin, not the platform owner's own
+// company (its id is wired into NBD-only keys across the system), not a solo
+// owner with no company doc (nobody to hand to). The tenant comes from the
+// caller's own claims; the request names only the target.
+// Who may receive: same company (companyId claim), role company_admin, Auth
+// enabled, roster row 'active' with their uid. Never the caller.
+// Explicit: the request must carry { confirm: true } (the dashboard sends it
+// only after its consequences dialog), so a stale or scripted client cannot
+// hand a company off by accident.
+//
+// Money does NOT move (and nothing is charged):
+//   - subscriptions/{companyId} is keyed by the company id, which does not
+//     change; no Stripe API is called. The card on file keeps paying until the
+//     new owner changes it in Billing.
+//   - A connected Stripe payout account (connectAccounts/{companyId}) is held
+//     under the former owner's identity and bank, so the hand-off is REFUSED
+//     while one exists: payouts must never change hands as a side effect.
+//
+// Ordering is chosen so every failure leaves a safe state: the caller's claims
+// are written first (a company_admin claim on a still-owner is harmless), then
+// one transaction moves ownerId + roster rows + audit atomically, then the
+// target's claims are re-asserted (they already held them).
+const HANDOFF_TARGET_ROLE = 'company_admin';
+const HANDOFF_PLATFORM_COMPANY = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+const HANDOFF_TARGET_REFUSAL = 'That person is not an active admin on your team. Make them an admin first.';
+const HANDOFF_PAYOUT_REFUSAL = 'Online payments are connected to your Stripe payout account, which cannot be handed off here yet. Contact support to move payouts first.';
+// ANY connect doc that is not an explicitly failed attempt blocks: a setup in
+// flight (status 'creating', no accountId yet) would otherwise bind the old
+// owner's Express account to the new owner's company.
+function handoffConnectBlocks(d) {
+  if (!d) return false;
+  if (d.accountId) return true;
+  return !!d.status && d.status !== 'failed';
+}
+exports.transferCompanyOwnership = onCall(
+  {
+    region: 'us-central1',
+    cors: CORS_ORIGINS,
+    enforceAppCheck: true,
+    timeoutSeconds: 60,
+    memory: '256MiB'
+  },
+  async (request) => {
+    const { uid: callerUid, companyId, companyRef, isGlobalAdmin } = await requireTeamAdmin(request);
+    await callableRateLimit(request, 'transferCompanyOwnership', 5, 3_600_000);
+
+    const token = request.auth.token || {};
+    if (isGlobalAdmin || isOwnerCaller(token) || companyId === HANDOFF_PLATFORM_COMPANY) {
+      throw new HttpsError('permission-denied', 'This company cannot be handed off from the dashboard');
+    }
+    if (!request.data || request.data.confirm !== true) {
+      throw new HttpsError('failed-precondition', 'Confirm the hand-off to continue');
+    }
+
+    const db = getFirestore();
+    const coSnap = await companyRef.get();
+    const co = coSnap.exists ? (coSnap.data() || {}) : null;
+    if (!co || !co.ownerId) {
+      throw new HttpsError('permission-denied', 'Only the company owner can hand the company to someone else');
+    }
+    // A former owner replaying a hand-off that already went through gets the
+    // success again (see the idempotent return below); anyone else who is not
+    // the owner is refused.
+    const isReplayCandidate = co.ownerId !== callerUid && co.previousOwnerId === callerUid;
+    if (co.ownerId !== callerUid && !isReplayCandidate) {
+      throw new HttpsError('permission-denied', 'Only the company owner can hand the company to someone else');
+    }
+
+    let callerRec;
+    try { callerRec = await getAuth().getUser(callerUid); } catch (e) {
+      throw new HttpsError('unavailable', 'Could not verify your account. Please try again.');
+    }
+    if (callerRec.disabled === true) {
+      throw new HttpsError('permission-denied', 'This account is suspended');
+    }
+
+    const targetUidIn = typeof request.data.uid === 'string' ? request.data.uid.trim() : '';
+    const targetEmailIn = normalizeEmail(request.data.email);
+    if (!targetUidIn && !targetEmailIn) throw new HttpsError('invalid-argument', 'Target uid or email required');
+    let target;
+    try {
+      target = targetUidIn ? await getAuth().getUser(targetUidIn) : await getAuth().getUserByEmail(targetEmailIn);
+    } catch (e) {
+      if (e && e.code && e.code !== 'auth/user-not-found' && e.code !== 'auth/invalid-uid') {
+        throw new HttpsError('unavailable', 'Could not look that person up. Please try again.');
+      }
+      throw new HttpsError('failed-precondition', HANDOFF_TARGET_REFUSAL);
+    }
+    if (target.uid === callerUid) throw new HttpsError('failed-precondition', 'You already own this company');
+
+    if (isReplayCandidate) {
+      if (co.ownerId === target.uid) {
+        return { success: true, replayed: true, companyId, ownerId: target.uid, previousOwnerId: callerUid };
+      }
+      throw new HttpsError('permission-denied', 'Only the company owner can hand the company to someone else');
+    }
+
+    const tClaims = target.customClaims || {};
+    // One generic refusal for every "not eligible" shape (another company, a
+    // lower role, a platform admin, a disabled or unknown account): the
+    // answer must not tell an owner which emails hold accounts elsewhere.
+    if (tClaims.companyId !== companyId || tClaims.role !== HANDOFF_TARGET_ROLE || target.disabled === true) {
+      throw new HttpsError('failed-precondition', HANDOFF_TARGET_REFUSAL);
+    }
+    const targetEmail = String(target.email || '').trim().toLowerCase();
+    const callerEmail = String(callerRec.email || '').trim().toLowerCase();
+    if (!targetEmail || !callerEmail) {
+      throw new HttpsError('failed-precondition', 'Both accounts need an email address on file');
+    }
+
+    // Payouts never change hands as a side effect (see header).
+    const connectSnap = await db.doc(`connectAccounts/${companyId}`).get();
+    if (connectSnap.exists && handoffConnectBlocks(connectSnap.data() || {})) {
+      throw new HttpsError('failed-precondition', HANDOFF_PAYOUT_REFUSAL);
+    }
+
+    // The former owner keeps working as a company_admin. Claims first: if a
+    // later step fails the caller is still the owner (and a company_admin
+    // claim on an owner is a no-op). Merge, never replace.
+    const callerClaims = callerRec.customClaims || {};
+    await getAuth().setCustomUserClaims(callerUid, { ...callerClaims, companyId, role: HANDOFF_TARGET_ROLE });
+
+    const targetRow = db.doc(`companies/${companyId}/members/${targetEmail}`);
+    const callerRow = db.doc(`companies/${companyId}/members/${callerEmail}`);
+    const connectRef = db.doc(`connectAccounts/${companyId}`);
+    await db.runTransaction(async (tx) => {
+      const cur = await tx.get(companyRef);
+      const row = await tx.get(targetRow);
+      // Re-read inside the transaction: a payout setup started after the
+      // pre-check above is a hand-off blocker too.
+      const cn = await tx.get(connectRef);
+      if (cn.exists && handoffConnectBlocks(cn.data() || {})) {
+        throw new HttpsError('failed-precondition', HANDOFF_PAYOUT_REFUSAL);
+      }
+      if (!cur.exists || (cur.data() || {}).ownerId !== callerUid) {
+        throw new HttpsError('aborted', 'Ownership changed while this was running. Reload and try again.');
+      }
+      const r = row.exists ? (row.data() || {}) : null;
+      if (!r || r.status !== 'active' || r.uid !== target.uid
+          || String(r.role || '').toLowerCase() !== HANDOFF_TARGET_ROLE) {
+        throw new HttpsError('failed-precondition', HANDOFF_TARGET_REFUSAL);
+      }
+      tx.update(companyRef, {
+        ownerId: target.uid,
+        previousOwnerId: callerUid,
+        ownershipTransferredAt: FieldValue.serverTimestamp(),
+        ownershipTransferredBy: callerUid,
+      });
+      // The owner holds no roster row (it is not a seat); the former owner
+      // now does. Seat count is unchanged: one row out, one row in.
+      tx.delete(targetRow);
+      tx.set(callerRow, {
+        uid: callerUid,
+        email: callerEmail,
+        role: HANDOFF_TARGET_ROLE,
+        status: 'active',
+        active: true,
+        activatedAt: FieldValue.serverTimestamp(),
+        activatedVia: 'owner-handoff',
+      }, { merge: true });
+      tx.set(db.doc(`users/${target.uid}`), { companyId, role: HANDOFF_TARGET_ROLE }, { merge: true });
+      tx.set(db.doc(`users/${callerUid}`), { companyId, role: HANDOFF_TARGET_ROLE }, { merge: true });
+      // Audit row inside the same transaction: no transfer without a record.
+      // Ids only, no names, emails or phone numbers.
+      tx.set(db.collection('audit_log').doc(), {
+        type: 'company_ownership_transferred',
+        op: 'transfer',
+        ids: { companyId, from: callerUid, to: target.uid },
+        by: callerUid,
+        ts: FieldValue.serverTimestamp(),
+      });
+    });
+
+    // The new owner already holds company_admin of this company (checked
+    // above and again through the roster row inside the transaction). The
+    // claims are deliberately NOT re-written from the pre-check read: a stale
+    // write here could restore claims a racing removeMember had just stripped.
+
+    // Keys and calendar links the former owner made were made with owner reach:
+    // switch them off (the new owner remakes what they need). Best effort, the
+    // transfer is committed; the counts are logged, ids only.
+    try {
+      const { revokeMemberAccessTokens: revoke } = require('../member-offboarding');
+      const r = await revoke(db, callerUid, 'owner-handoff');
+      logger.info('transferCompanyOwnership: former owner keys revoked', { companyId, ...r });
+    } catch (e) {
+      logger.warn('transferCompanyOwnership: key revoke failed', { companyId, err: e && e.message });
+    }
+    logger.info('transferCompanyOwnership', { companyId, from: callerUid, to: target.uid });
+    return { success: true, companyId, ownerId: target.uid, previousOwnerId: callerUid };
+  }
+);
+
 // ── removeMember ─────────────────────────────────────────────
 // Fully removes a team member: STRIPS their companyId/role claims
 // (merge-preserving billing), revokes their refresh tokens, and deletes
@@ -859,6 +1063,27 @@ async function offboardMember(db, uid, toUid, companyId) {
   });
   return move.id;
 }
+// What removeMember does BEFORE any record, file or claim changes.
+//  - The roster row leaves 'active' first, so a hand-off racing this removal
+//    cannot pick the target (its transaction re-reads the row).
+//  - A FORMER OWNER's login goes OFF before the claim strip: an enabled,
+//    claim-less account would read as the company owner through every
+//    `claims.companyId || uid` fallback. Disabling first means a failure here
+//    changes nothing, and a failure later leaves the account disabled.
+async function beginMemberRemoval(st, db, memberRef, member, userRecord, companyId, formerOwner) {
+  if (member && member.status === 'active') {
+    await memberRef.set({ status: 'removing', active: false, removingAt: FieldValue.serverTimestamp() }, { merge: true });
+  }
+  if (formerOwner) {
+    await getAuth().updateUser(userRecord.uid, { disabled: true });
+    st.signInDisabled = true;
+    try {
+      const sub = await db.doc(`subscriptions/${companyId}`).get();
+      const sd = sub.exists ? (sub.data() || {}) : {};
+      st.billingOnFormerOwner = !!(sd.stripeCustomerId || sd.stripeSubscriptionId);
+    } catch (_) { /* informational only */ }
+  }
+}
 exports.removeMember = onCall(
   {
     region: 'us-central1',
@@ -904,6 +1129,7 @@ exports.removeMember = onCall(
     // our own tenant's invite row harms no one.
     const isPendingInvite = member.status === 'invited' && !lookupUid;
     let moveId = null;
+    const st = { signInDisabled: false, billingOnFormerOwner: false };
 
     if (userRecord) {
       // Never remove the owner or yourself.
@@ -921,16 +1147,21 @@ exports.removeMember = onCall(
       // (a pending-invite cancel only drops our roster row — allowed).
       const protectedMsg = protectedTargetRefusal({ targetUid: userRecord.uid, targetClaims: existingClaims, ownerId, callerIsOwner, isGlobalAdmin });
       if (protectedMsg && !isPendingInvite) throw new HttpsError('permission-denied', protectedMsg);
-      const managesTarget = callerMayManageTarget(existingClaims, companyId, isGlobalAdmin);
+      // A FORMER OWNER's uid is the company id, so they are provably this
+      // company's even once their claims are gone: that is what lets a retry
+      // finish a removal that stopped between the claim strip and the disable.
+      const formerOwner = !!ownerId && ownerId !== userRecord.uid && userRecord.uid === companyId;
+      const managesTarget = callerMayManageTarget(existingClaims, companyId, isGlobalAdmin) || formerOwner;
       if (!managesTarget && !isPendingInvite) {
         // Active/claimed member with foreign or absent claims: fail closed —
         // only touch a user actually scoped to THIS company.
         throw new HttpsError('permission-denied', 'User belongs to another company');
       }
+      // Below: row off 'active' + former-owner login off, records move, then
+      // companyId + role are stripped (billing claims are PRESERVED).
       if (managesTarget) {
+        await beginMemberRemoval(st, db, memberRef, member, userRecord, companyId, formerOwner);
         moveId = await offboardMember(db, userRecord.uid, ownerId || callerUid, companyId);
-        // Strip companyId + role; PRESERVE everything else (plan/subscription/
-        // billing claims the Stripe webhook maintains).
         const stripped = { ...existingClaims, [LOCK_CLAIM]: true };
         delete stripped.companyId;
         delete stripped.role;
@@ -958,7 +1189,7 @@ exports.removeMember = onCall(
         filesMove = 'running';
       }
     }
-    return { success: true, removed: true, hadAccount: !!userRecord, filesMove };
+    return { success: true, removed: true, hadAccount: !!userRecord, filesMove, signInDisabled: st.signInDisabled, billingOnFormerOwner: st.billingOnFormerOwner };
   }
 );
 

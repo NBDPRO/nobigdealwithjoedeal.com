@@ -110,6 +110,7 @@ function loadShared({ verifyIdToken } = {}) {
   const stubs = {
     './integrations/upstash-ratelimit': { enforceRateLimit: async (ns, key) => { rl.push(ns + '|' + key); } },
     'firebase-functions/v2/https': { HttpsError },
+    './tenant-guard': { assertNotGhost: async () => {}, ghostRefusal: async () => null },
     'firebase-admin/auth': { getAuth: () => ({ verifyIdToken: verifyIdToken || (async () => ({ uid: 'u1' })) }) },
   };
   const req = (id) => {
