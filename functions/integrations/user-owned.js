@@ -245,9 +245,10 @@ const STORAGE_PREFIXES = [
   // (integrations/thursday.js saveRecording). Admin-SDK write, streamed to the
   // CRM by getThursdayRecording; callers' voices erase with the account.
   'calls',
-  // skins/{uid}/{wallpaper,texture,mascot} — the user's own "My Skin"
-  // pictures (my-skin.js, 2026-10-01). Owner-only, personal; export and
-  // erase with the account like everything else they uploaded.
+  // skins/{uid}/{wallpaper,texture,mascot} and skins/{uid}/themes/{themeId}/
+  // {imageId} — the user's own "My Skin" pictures (my-skin.js, 2026-10-01;
+  // per-theme backgrounds 2026-10). Owner-only, personal; the whole prefix
+  // exports and erases with the account like everything else they uploaded.
   'skins',
 ];
 

@@ -1,0 +1,208 @@
+/* pixel-world.css — the frame around the Pixel World canvas (2026-10-11).
+ *
+ * Loaded lazily by js/pixel-mode.js the first time Pixel World opens. The
+ * town itself is drawn on a canvas in js/pixel-world.js; this file styles
+ * only the HTML around it (HUD chips, dialog box, panels, menu, touch D-pad),
+ * and uses live theme tokens only, so it re-colours with every theme.
+ *
+ * Motion: the only transitions are on the HP fill; both Reduce Motion
+ * switches (OS and html[data-motion="reduce"]) remove them.
+ */
+html.pxw-open, html.pxw-open body { overflow: hidden; }
+.pxw [hidden] { display: none !important; }
+
+.pxw {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal, 10050);
+  background: var(--bg);
+  color: var(--t);
+  font-family: 'VT323', ui-monospace, 'Courier New', monospace;
+  font-size: 20px;
+  outline: none;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.pxw-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* chips + buttons share one frame: a hard 3px box with a drop shadow. */
+.pxw-chip, .pxw-btn, .pxw-key, .pxw-opt, .pxw-row, .pxw-dialog, .pxw-panel {
+  background: var(--s);
+  color: var(--t);
+  border: 3px solid var(--t);
+  box-shadow: inset 0 0 0 2px var(--s), inset 0 0 0 4px var(--orange), 0 4px 0 rgba(0, 0, 0, .4);
+  border-radius: 0;
+}
+
+.pxw-hud {
+  position: absolute;
+  left: max(10px, env(safe-area-inset-left));
+  top: max(10px, env(safe-area-inset-top));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: calc(100% - 150px);
+  pointer-events: none;
+}
+.pxw-chip {
+  font-family: 'Press Start 2P', ui-monospace, monospace;
+  font-size: 9px;
+  line-height: 1.4;
+  padding: 8px 10px;
+}
+.pxw-hailchip { border-color: var(--red); color: var(--red); }
+
+.pxw-top {
+  position: absolute;
+  right: max(10px, env(safe-area-inset-right));
+  top: max(10px, env(safe-area-inset-top));
+  display: flex;
+  gap: 8px;
+}
+.pxw-btn {
+  font-family: 'Press Start 2P', ui-monospace, monospace;
+  font-size: 9px;
+  padding: 10px 12px;
+  min-height: 40px;
+  cursor: pointer;
+}
+.pxw-btn:hover, .pxw-btn:focus-visible,
+.pxw-opt:hover, .pxw-opt:focus-visible,
+.pxw-row:hover, .pxw-row:focus-visible { border-color: var(--orange); color: var(--orange); outline: none; }
+.pxw-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* dialog box along the bottom, like a handheld game */
+.pxw-dialog {
+  /* Centered with margins, not transform: dashboard-app.css strips every
+     transform from :hover ancestors on touch screens, which moved this box
+     out from under the finger between pointerup and click. */
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  bottom: calc(max(14px, env(safe-area-inset-bottom)) + 4px);
+  width: min(760px, calc(100% - 24px));
+  padding: 14px 18px;
+  z-index: 3;
+}
+.pxw-dtext { font-size: 26px; line-height: 1.25; min-height: 66px; white-space: pre-wrap; }
+.pxw-dopts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.pxw-opt {
+  font-family: 'Press Start 2P', ui-monospace, monospace;
+  font-size: 9px;
+  padding: 10px 12px;
+  min-height: 40px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.pxw-opt:not(:disabled)::before { content: '▶ '; font-size: 8px; margin-right: 4px; color: var(--orange); }
+.pxw-opt:disabled { opacity: .55; cursor: not-allowed; }
+.pxw-optnote { font-family: 'VT323', ui-monospace, monospace; font-size: 16px; color: var(--m); margin-left: 6px; }
+
+/* area / menu panel */
+.pxw-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 56px;
+  bottom: 56px;
+  margin: auto;
+  height: fit-content;
+  width: min(620px, calc(100% - 24px));
+  max-height: calc(100% - 112px);
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  z-index: 4;
+}
+.pxw-ptitle { font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 12px; color: var(--orange); margin: 0 0 10px; line-height: 1.5; }
+.pxw-pbody { overflow-y: auto; flex: 1; min-height: 0; -webkit-overflow-scrolling: touch; touch-action: pan-y; padding-right: 4px; }
+.pxw-popts { margin-top: 10px; display: flex; gap: 8px; }
+.pxw-note { margin: 0 0 8px; font-size: 20px; color: var(--t); line-height: 1.25; }
+.pxw-sub { font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 9px; color: var(--m); margin: 14px 0 6px; font-weight: 400; }
+.pxw-line { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 2px dotted var(--rule); }
+.pxw-k { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pxw-v { color: var(--m); white-space: nowrap; }
+.pxw-earned .pxw-v { color: var(--green); }
+.pxw-locked, .pxw-locked .pxw-v { color: var(--m); }
+.pxw-warn { color: var(--gold); }
+
+/* a lead row: name, meta, HP bar */
+.pxw-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  align-items: center;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  text-align: left;
+  font-family: 'VT323', ui-monospace, monospace;
+  font-size: 20px;
+  min-height: 44px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px var(--s), 0 3px 0 rgba(0, 0, 0, .35);
+}
+.pxw-menurow { font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 10px; grid-template-columns: 1fr; }
+.pxw-rname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pxw-rmeta { color: var(--m); font-size: 17px; white-space: nowrap; }
+.pxw-hp { grid-column: 1 / 3; height: 8px; background: var(--bg); border: 2px solid var(--m); box-sizing: border-box; display: block; }
+.pxw-hp > i { display: block; height: 100%; width: 0; background: var(--green); transition: width .4s steps(8); }
+.pxw-hp.tier-warn > i { background: var(--gold); }
+.pxw-hp.tier-cold > i { background: var(--red); }
+.pxw-hp.tier-unknown > i { background: var(--m); }
+html[data-motion="reduce"] .pxw-hp > i { transition: none; }
+@media (prefers-reduced-motion: reduce) { .pxw-hp > i { transition: none; } }
+
+/* touch D-pad: shown on touch / narrow screens, always reachable by thumb */
+.pxw-dpad { display: none; }
+@media (pointer: coarse), (max-width: 760px) {
+  .pxw-dpad {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    position: absolute;
+    left: max(14px, env(safe-area-inset-left));
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(14px, env(safe-area-inset-bottom));
+    z-index: 2;
+    pointer-events: none;
+  }
+  .pxw-dir {
+    display: grid;
+    grid-template-columns: repeat(3, 56px);
+    grid-template-rows: repeat(3, 56px);
+    gap: 4px;
+    pointer-events: auto;
+  }
+  .pxw-dir [data-pxw-dir="up"] { grid-column: 2; grid-row: 1; }
+  .pxw-dir [data-pxw-dir="left"] { grid-column: 1; grid-row: 2; }
+  .pxw-dir [data-pxw-dir="right"] { grid-column: 3; grid-row: 2; }
+  .pxw-dir [data-pxw-dir="down"] { grid-column: 2; grid-row: 3; }
+  .pxw-act { display: flex; gap: 10px; align-items: flex-end; pointer-events: auto; }
+  .pxw-key {
+    font-family: 'Press Start 2P', ui-monospace, monospace;
+    font-size: 14px;
+    min-width: 56px;
+    min-height: 56px;
+    opacity: .92;
+    touch-action: none;
+  }
+  .pxw-keya, .pxw-keyb { border-radius: 50%; min-width: 64px; min-height: 64px; }
+  .pxw-keya { color: var(--orange); }
+  /* keep the dialog above the pad */
+  .pxw-dialog { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 190px); }
+  .pxw-dtext { font-size: 22px; min-height: 54px; }
+  .pxw-panel { top: 56px; bottom: 214px; max-height: calc(100% - 270px); }
+}
