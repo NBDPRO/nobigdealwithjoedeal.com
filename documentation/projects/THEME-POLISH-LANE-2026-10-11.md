@@ -50,3 +50,42 @@ circle clip-path mid-transition at 1280 and 390 px, 150 ms fade class under
 **Files.** `docs/pro/js/theme-engine.js` (wrapper + helpers, `script-loader.js`
 cache-bust `?v=8`), `docs/pro/css/theme-system.css` (view-transition pseudo
 rules + `html.theme-fade`).
+
+## A3 — the twelve new themes (spec section 17)
+
+**What shipped.** `gameboy-dmg`, `virtual-boy`, `ds-lite`, `pallet-town`,
+`poke-center` (light), `mystery-dungeon`, `hoenn-tides`, `mecha-hangar`,
+`saturday-morning`, `shingle-crew`, `chalk-line` (light), `tar-paper` —
+registered in `ThemeEngine` THEMES (after `maximal`), each with a
+`:root[data-theme]` token line and an `--accent-fg` line in `theme-system.css`.
+All unlocked for everyone (Jo 2026-10-11: none Pro-only, none locked), so the
+picker shows them in their categories with no further wiring: the Settings
+picker reads the registry.
+
+**Deliberate deviations from the spec text.**
+- `poke-center` accent `#d62d2d` -> `#d12929` (spec claimed >= 4.5:1 on `--bg`;
+  measured 4.46). `shingle-crew` muted `#a3a3a8` -> `#a6a6ab` (6.17 -> 6.39 on
+  `--s2`, spec floor 6.2). Everything else is the spec's palette verbatim.
+- Light themes (`poke-center`, `chalk-line`) use darker semantic
+  green/red/gold/blue than the spec's shared `#22c55e`... set, which fail as text
+  on a white card.
+- `--glow` / `--glow2` ship as optional tokens with `:where(:root)` defaults
+  derived from the accent (zero specificity, so the 195 older themes resolve and
+  a theme's own line wins). One consumer: a static cards-only hover glow scoped
+  to the twelve new themes.
+- No `live-themes.json` exists in the repo (it is a Grok-side artifact the spec
+  checked against); the registry is the live list.
+
+**Art.** Original tiles only, via `scripts/build-theme-art.mjs`: `shingle-crew`,
+`chalk-line`, `tar-paper`, `mecha-hangar`. The seven franchise-named themes stay
+colour-only (consistent with the existing "no art for real products" rule); real
+sprites belong in a user's private My Skin.
+
+**Verification.** `tests/theme-pack-2026-10-11.test.js` (68 checks: registry,
+CSS<->engine mirror, spec contrast floors measured with the shipping math,
+`:where` defaults, art scope; break-tested by locking one theme and removing the
+defaults). `theme-qa` now covers 207 engine themes x 2 modes + 82 static themes,
+3025 checks green; crm-theme-contract, theme-contrast, css-token-resolution,
+theme-art, theme-daylight/liveops green. Rendered in real Chrome at 1100 and 390
+px (dark: gameboy-dmg, tar-paper, shingle-crew, mecha-hangar; light:
+poke-center, chalk-line).

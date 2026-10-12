@@ -1,0 +1,15 @@
+/* Settings > Appearance > Auto (roadmap C1). Loaded by auto-theme.js. */
+#autoThemeBody .at-status { font-size: 11px; color: var(--m); margin: 6px 0 12px; }
+#autoThemeBody [data-at-act="resume"] { margin-bottom: 10px; }
+#autoThemeBody .at-phases { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 12px; }
+#autoThemeBody .at-cap { display: block; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--m); }
+#autoThemeBody .at-cap-rules { letter-spacing: .1em; margin-bottom: 6px; }
+#autoThemeBody select { text-transform: none; letter-spacing: 0; min-width: 0; max-width: 100%; box-sizing: border-box; }
+#autoThemeBody .at-phases select { width: 100%; margin-top: 4px; }
+#autoThemeBody .at-rule { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 0; }
+#autoThemeBody .at-rule select { flex: 1 1 150px; }
+#autoThemeBody .at-rule-name { flex: 1 1 140px; font-size: 12px; }
+#autoThemeBody .at-note { font-size: 11px; color: var(--m); }
+#autoThemeBody .at-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+#autoThemeBody .at-gps { font-size: 12px; display: flex; gap: 6px; align-items: center; }
+#autoThemeBody .at-help { font-size: 11px; color: var(--m); margin-top: 8px; }

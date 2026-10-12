@@ -275,6 +275,36 @@ export const TILES = {
   'knockout': { size: [80, 60], svg: svg(80, 60, `<g stroke='rgba(220,38,38,.10)' stroke-width='2'><path d='M0 15H80M0 30H80M0 45H80'/></g>`) },
   'checkered-flag': { size: [40, 40], svg: svg(40, 40, `<path d='M0 0H20V20H0ZM20 20H40V40H20Z' fill='rgba(245,245,245,.045)'/>`) },
   'trophy': { size: [80, 80], svg: svg(80, 80, `<path d='M40 18l3.5 7.4 8 .9-6 5.5 1.7 7.9-7.2-4.1-7.2 4.1 1.7-7.9-6-5.5 8-.9z' fill='rgba(212,160,87,.10)'/>`) },
+
+  // ── New theme pack (2026-10-11): original construction-yard art. Themes named
+  // after real products/franchises (gameboy-dmg, virtual-boy, ds-lite, pallet-town,
+  // poke-center, mystery-dungeon, hoenn-tides) stay colour-only; a user can put
+  // licensed art behind them with My Skin. ───────────────────────────────────
+  // Architectural shingle courses: staggered tabs, each lit faintly on top.
+  'shingle-crew': { size: [96, 40], svg: svg(96, 40,
+    `<g fill='rgba(255,255,255,.035)'>` +
+    `<rect x='1' y='1' width='30' height='18' rx='1'/><rect x='33' y='1' width='30' height='18' rx='1'/><rect x='65' y='1' width='30' height='18' rx='1'/>` +
+    `<rect x='-15' y='21' width='30' height='18' rx='1'/><rect x='17' y='21' width='30' height='18' rx='1'/><rect x='49' y='21' width='30' height='18' rx='1'/><rect x='81' y='21' width='30' height='18' rx='1'/></g>` +
+    `<g fill='rgba(255,122,26,.06)'><rect x='1' y='17' width='30' height='2'/><rect x='65' y='17' width='30' height='2'/><rect x='17' y='37' width='30' height='2'/></g>`) },
+
+  // Snapped chalk lines with a tape-measure rule along the foot of the tile.
+  'chalk-line': { size: [160, 120], svg: svg(160, 120,
+    `<path d='M0 44H160' stroke='rgba(29,95,209,.16)' stroke-width='1.6'/>` +
+    `<path d='M92 0V120' stroke='rgba(29,95,209,.10)' stroke-width='1.2'/>` +
+    `<g fill='rgba(29,95,209,.10)'><circle cx='20' cy='40' r='1'/><circle cx='51' cy='49' r='.9'/><circle cx='130' cy='41' r='1.1'/><circle cx='96' cy='80' r='.9'/></g>` +
+    `<g stroke='rgba(43,34,22,.12)' stroke-width='1'><path d='M0 119.5H160'/><path d='M0 120v-5M8 120v-5M16 120v-5M24 120v-5M32 120v-5M40 120v-9M48 120v-5M56 120v-5M64 120v-5M72 120v-5M80 120v-9M88 120v-5M96 120v-5M104 120v-5M112 120v-5M120 120v-9M128 120v-5M136 120v-5M144 120v-5M152 120v-5'/></g>`) },
+
+  // Synthetic underlayment: printed red overlap lines and rows of cap nails.
+  'tar-paper': { size: [120, 60], svg: svg(120, 60,
+    `<path d='M0 .5H120' stroke='rgba(230,57,70,.18)' stroke-width='1'/>` +
+    `<path d='M0 30.5H120' stroke='rgba(230,57,70,.09)' stroke-width='1' stroke-dasharray='6 4'/>` +
+    `<g fill='rgba(255,255,255,.07)' stroke='rgba(255,255,255,.05)' stroke-width='.8'><circle cx='10' cy='12' r='2.2'/><circle cx='40' cy='12' r='2.2'/><circle cx='70' cy='12' r='2.2'/><circle cx='100' cy='12' r='2.2'/><circle cx='25' cy='44' r='2.2'/><circle cx='55' cy='44' r='2.2'/><circle cx='85' cy='44' r='2.2'/></g>`) },
+
+  // Hazard striping along the foot of a gantry bay, one work light above it.
+  'mecha-hangar': { size: [80, 80], svg: svg(80, 80,
+    `<g fill='rgba(255,210,63,.10)'><path d='M0 80l12-12h12L12 80z'/><path d='M24 80l12-12h12L36 80z'/><path d='M48 80l12-12h12L60 80z'/><path d='M72 80l12-12h-4L68 80z'/></g>` +
+    `<path d='M0 67.5H80' stroke='rgba(255,210,63,.12)' stroke-width='1'/>` +
+    `<circle cx='40' cy='14' r='3.4' fill='rgba(255,210,63,.10)'/><circle cx='40' cy='14' r='8' fill='none' stroke='rgba(255,210,63,.06)' stroke-width='1'/>`) },
 };
 
 export function buildCss() {
