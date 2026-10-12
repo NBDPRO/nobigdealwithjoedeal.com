@@ -2364,6 +2364,9 @@ service cloud.firestore {
       // resolve()): locked company layout > user choice > company default >
       // Classic; a rule can't enforce a UI lock, it can only make sure nobody
       // but an admin can set or lift one. Only the doc id `layout` exists.
+      // defaultWidgets (D5, 2026-10-12) holds a layout's starting arrangement,
+      // { bento: [ {widgetId,x,y,w,h}, ... ] } = the Bento Board new hires get;
+      // bounded to 8 layouts and 24 tiles so a settings doc stays small.
       function layoutDocOk() {
         let d = request.resource.data;
         return d.keys().hasOnly(['defaultLayout', 'defaultByDevice', 'allowed', 'locked', 'defaultWidgets', 'updatedAt', 'updatedBy'])
@@ -2373,7 +2376,9 @@ service cloud.firestore {
               && d.defaultByDevice.keys().hasOnly(['phone', 'tablet', 'desktop'])))
           && (!('allowed' in d) || d.allowed == null || (d.allowed is list && d.allowed.size() <= 40))
           && (!('locked' in d) || d.locked is bool)
-          && (!('defaultWidgets' in d) || d.defaultWidgets is map)
+          && (!('defaultWidgets' in d) || (d.defaultWidgets is map && d.defaultWidgets.size() <= 8
+              && (!('bento' in d.defaultWidgets)
+                  || (d.defaultWidgets.bento is list && d.defaultWidgets.bento.size() <= 24))))
           && (!('updatedBy' in d) || d.updatedBy == request.auth.uid);
       }
       match /settings/layout {
