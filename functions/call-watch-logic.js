@@ -209,6 +209,70 @@ function smsProblems(messages, now) {
   }];
 }
 
+/**
+ * The re-tell ladder (2026-10-12 audit R1 / ack-timeout lead). callWatch used
+ * to tell each person ONCE; an unhandled urgent call or a promise Jo made was
+ * never mentioned again until the morning email. Now an item that is still
+ * open and high-value is told again on the next runs, then the morning brief
+ * takes over. Deliberately SHORT (solo operator): original push, two
+ * re-tells (the last one sticky), then the 07:15 brief / sweep.
+ *   open   = callNeedsYou() still true: not handled, not task-done, not spam
+ *   resolved / snoozed with a date -> drops out of the ladder (never nags)
+ *   high-value = urgent, a promise Jo made, a due follow-up, an insurance line
+ */
+const LADDER_GAP_MS = 100 * 60000;   // runs are 2 h apart; never twice in one run
+const LADDER_MAX = 3;                // tells including the first
+const HIGH_WHY = /^(urgent|you promised something|follow-up due|insurance line)/;
+function ladderCandidates(callRows, textRows, now) {
+  const out = [];
+  const ctx = reachIndex(callRows);
+  const today = etYmd(now);
+  const add = (c, prefix, useCtx) => {
+    if (!callNeedsYou(c, now, useCtx ? ctx : undefined)) return;
+    const why = reasonFor(c, now);
+    if (!HIGH_WHY.test(why)) return;
+    // Snoozed with a date: on the call (no task) or by moving its task.
+    if (c.snoozeUntilYmd && String(c.snoozeUntilYmd) > today) return;
+    if (c.taskDueYmd && String(c.taskDueYmd) > today) return;
+    out.push({ id: prefix + c.id, key: callerKey(c), kind: prefix === 'text:' ? 'text' : 'call', who: who(c), why, at: toMs(c.startedAtMs), seedAt: toMs(c.urgentPushedAtMs) });
+  };
+  (callRows || []).forEach((c) => add(c, 'call:', true));
+  (textRows || []).forEach((c) => add(c, 'text:', false));
+  return out;
+}
+/** Items to tell AGAIN now: told before (ladder, or the immediate urgent push), still open, rungs left. */
+function ladderRetells(callRows, textRows, ladder, now) {
+  const L = ladder || {};
+  const out = [];
+  ladderCandidates(callRows, textRows, now).forEach((x) => {
+    const prev = L[x.id] || (x.seedAt ? { n: 1, at: x.seedAt } : null);
+    if (!prev || !(Number(prev.n) >= 0)) return;
+    if (Number(prev.n) >= LADDER_MAX) return;
+    if (now - (toMs(prev.at) || 0) < LADDER_GAP_MS) return;
+    out.push(Object.assign({}, x, { rung: Number(prev.n) + 1, why: x.why + ' — still open (reminder ' + Number(prev.n) + ')' }));
+  });
+  return out;
+}
+/**
+ * The ladder state to persist. newIds = ids newly told this run, retells =
+ * ladderRetells() output, reached = the push reached a device (false → the
+ * rung does not count, so the next run tries it again). Only items still open
+ * are kept, so a handled / snoozed item leaves the map by itself.
+ */
+function nextLadder(callRows, textRows, ladder, newIds, retells, reached, now) {
+  const L = ladder || {};
+  const fresh = new Set(newIds || []);
+  const re = new Map((retells || []).map((r) => [r.id, r]));
+  const next = {};
+  ladderCandidates(callRows, textRows, now).forEach((x) => {
+    const prev = L[x.id] || (x.seedAt ? { n: 1, at: x.seedAt } : null);
+    if (re.has(x.id)) next[x.id] = reached ? { n: re.get(x.id).rung, at: now } : prev;
+    else if (fresh.has(x.id)) next[x.id] = reached ? { n: 1, at: now } : { n: 0, at: 0 };
+    else if (prev) next[x.id] = prev;
+  });
+  return next;
+}
+
 /** The one alert (bell + push). null when there is nothing to say. */
 function alertFor(needs, problems, now) {
   const items = needs || [], pr = problems || [];
@@ -251,6 +315,6 @@ function inWatchHours(now) {
 
 module.exports = {
   CALL_WINDOW, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
-  SMS_REPEAT_MS, smsProblems, deliveryBySid,
+  SMS_REPEAT_MS, smsProblems, deliveryBySid, LADDER_GAP_MS, LADDER_MAX, ladderCandidates, ladderRetells, nextLadder,
   toMs, etYmd, callNeedsYou, callerKey, reasonFor, reachIndex, isMissedCall, callCardUrl, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
 };

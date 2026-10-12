@@ -51,7 +51,11 @@ async function reconcileTaskDone({ db, calls, texts, nowMs, live }) {
     const part = open.slice(i, i + 100);
     const snaps = await db.getAll(...part.map((o) => db.doc('leads/' + o.row.leadId + '/tasks/' + o.task)));
     for (let j = 0; j < part.length; j++) {
-      if (!(snaps[j].exists && (snaps[j].data() || {}).done === true)) continue;
+      // A snooze moves the task's due date; remember it so the re-tell ladder
+      // never nags about an item Jo parked with a date.
+      const t = snaps[j].exists ? (snaps[j].data() || {}) : null;
+      if (t && t.dueDate) part[j].row.taskDueYmd = t.dueDate;
+      if (!(t && t.done === true)) continue;
       part[j].row.taskDone = true;
       n++;
       if (live) await db.collection(part[j].col).doc(part[j].row.id).set({ taskDone: true }, { merge: true });
@@ -104,8 +108,10 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
     catch (e) { logger.warn('[callWatch] text delivery check skipped', { err: e && e.message }); }
   }
   const tell = W.problemsToTell(problems, st.problemsToldAt, nowMs);
-  const alert = W.alertFor(needs, tell, nowMs);
-  const counts = { needs: needs.length, problems: problems.length, told: tell.length, tasksMirrored: mirror };
+  // Items told before and still open come round again (audit R1), short ladder.
+  const retells = W.ladderRetells(callRows, textRows, st.ladder, nowMs);
+  const alert = W.alertFor(needs.concat(retells), tell, nowMs);
+  const counts = { needs: needs.length, retold: retells.length, problems: problems.length, told: tell.length, tasksMirrored: mirror };
 
   if (!live) return Object.assign({ state: 'dry_run', alert: alert ? alert.title : null }, counts);
 
@@ -130,7 +136,9 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
       userId: OWNER, type: 'call_watch', title: alert.title, message: alert.message, priority: alert.priority,
       clickUrl: alert.clickUrl, read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
     });
-    try { pushRes = await push(OWNER, alert.title.replace(/^📞 /, ''), alert.push, { type: 'call_watch', clickUrl: alert.clickUrl }); }
+    // The last rung is sticky (requireInteraction) so it stays on the lock screen.
+    const sticky = retells.some((r) => r.rung >= W.LADDER_MAX);
+    try { pushRes = await push(OWNER, alert.title.replace(/^📞 /, ''), alert.push, Object.assign({ type: 'call_watch', clickUrl: alert.clickUrl }, sticky ? { requireInteraction: 'true' } : {})); }
     catch (e) { logger.warn('[callWatch] push failed', { err: e && e.message }); pushRes = { sent: 0, failed: 0, errors: [String(e && e.message)] }; }
   }
   // Audit R2: the push RESOLVES {sent:0} when no phone is registered or every
@@ -140,6 +148,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   const pushUnreached = !!(alert && pushRes && typeof pushRes === 'object' && pushRes.sent === 0);
   await stateRef.set({
     lastCheckAtMs: nowMs, lastResult: counts, problems: problems.map((p) => p.key), problemsToldAt, toldIds,
+    ladder: W.nextLadder(callRows, textRows, st.ladder, needs.map((n) => n.id), retells, !pushUnreached, nowMs),
     lastPush: alert ? { atMs: nowMs, sent: pushRes && pushRes.sent != null ? Number(pushRes.sent) : null, failed: pushRes && pushRes.failed != null ? Number(pushRes.failed) : null } : (st.lastPush || null),
   }, { merge: false });
   if (pushUnreached) throw new Error('callWatch: the alert reached 0 devices (no push token on file, or every token failed) — only the in-app bell was written');
