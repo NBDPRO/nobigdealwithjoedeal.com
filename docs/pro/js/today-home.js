@@ -100,6 +100,23 @@
     if (HA && typeof HA.groupNeeds === 'function' && Array.isArray(HA.lastRows)) {
       try { groups = HA.groupNeeds(HA.lastRows, now); } catch (_) { groups = []; }
     }
+    // A promise Jo made on a call is Jo's word: a label that hides the number
+    // (contact labels, 'hide') must never swallow it. Any open, unhandled call
+    // carrying one that the needs-you rule dropped comes back as its own group.
+    if (HA && Array.isArray(HA.lastRows)) {
+      var have = {};
+      groups.forEach(function (g) { (g.calls || []).forEach(function (c) { have[c.id] = true; }); });
+      HA.lastRows.forEach(function (c) {
+        if (!c || have[c.id] || c.handledAtMs || c.taskDone === true || c.status === 'personal') return;
+        var p = c.promise;
+        if (!p || p.kind !== 'promise' || p.done === true) return;
+        var key = typeof HA.callerKey === 'function' ? HA.callerKey(c) : 'id:' + c.id;
+        var g = groups.filter(function (x) { return x.key === key; })[0];
+        if (!g) { g = { key: key, calls: [], latestMs: 0 }; groups.push(g); }
+        g.calls.push(c);
+        have[c.id] = true;
+      });
+    }
     var R = w.NBDRevenue;
     var fresh = R && typeof R.cached === 'function' ? R.cached() : null;
     if (fresh) { inv.rows = fresh; inv.at = Date.now(); }

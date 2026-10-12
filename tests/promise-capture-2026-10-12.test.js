@@ -295,6 +295,8 @@ const TODAY = '2026-10-12';
   const cust = read('docs/pro/customer.html'), tasks = read('docs/pro/js/tasks.js'), cc = read('docs/pro/js/call-center-view.js'), cb = read('functions/call-center.js');
   ok('Today: the Promises section sits above Calls owed; Waiting on them has its own group', home.indexOf("section('promises', 'Promises', pm)") !== -1 && home.indexOf("section('promises'") < home.indexOf("section('calls'") && /section\('waiting', 'Waiting on them', wt, wdays\)/.test(home));
   ok('Today: a promise row has Kept it and Move, and NO Handled / dismiss', /pbtn\('pkept'/.test(home) && /pbtn\('pmove'/.test(home) && !/pm = [\s\S]{0,1800}btn\('handled'/.test(home));
+  ok('hide never swallows a promise: groups the needs-you rule dropped come back when the call carries an open promise',
+    /never swallow it[\s\S]{0,900}p\.kind !== 'promise' \|\| p\.done === true\) return;[\s\S]{0,400}g\.calls\.push\(c\)/.test(home));
   ok('Today: a call promise row swaps Handled for Kept it / Move', /r\.promise \? kept :/.test(home));
   ok('Today: Handled on a call row opens the sheet (forced next action)', /if \(a === 'handled'\) \{ handleViaSheet\(key\)/.test(home));
   ok('Today: waiting actions are Nudge / Still waiting / Mark dead', /pbtn\('pnudge'/.test(home) && /pbtn\('pstill'/.test(home) && /pbtn\('pdead'/.test(home));
