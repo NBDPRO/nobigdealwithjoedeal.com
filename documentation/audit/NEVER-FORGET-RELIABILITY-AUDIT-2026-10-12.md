@@ -149,11 +149,44 @@ decision from Jo, not code.
 
 ## 6. Built from this audit (Stage 2)
 
+PR #2372: pipeline dead-man (R3/R4). Further PRs are listed in the session report.
+
 Three independent PRs, each with a test that was reverted-to-fail first.
 Links are in the PR list at the top of the session handoff / this branch's PR
 body. They address R3 + R4 (pipeline dead-man), R2 (push delivery truth) and
 R5 (Home read failure). R1, R6, R7 are the recommended next tranche; they
 need Jo's wording decisions (how loud, how often).
+
+## 6b. Leads from an outside pass, checked against our code
+
+A Grok research pass proposed eight patterns. Verified against the tree
+(treated as leads, not facts):
+
+| Lead | Verdict in our code | Where it lands |
+|---|---|---|
+| **Ack-timeout re-trigger** ("got it" must not silence forever) | **True.** `handled` sets `handledAtMs` once and nothing ever clears it except Jo's manual `unhandled` (`call-center.js:847-850`); a call-level "Handled" also beats a stated Jo-promise (`home-attention.js:99`). The alert side is worse: a *push* is never tracked as seen at all (R1, R2, R16). Resolve (task done) and acknowledge (told) are the same bit. | Escalation ladder (this lane): an item stays "open" until handled/done/snoozed-with-date; an unresolved urgent/promise is re-told on a short ladder. Handled stays Jo's explicit resolve. |
+| Forced next action on promise capture | Our capture is the model's `promises[]` only (R9). | Lane `feat/promise-capture` (not duplicated here). |
+| Delivery-receipt loop on outbound texts | Delivery verdicts exist for *alerts* (`smsDelivery`, `callWatch.deliveryBySid`) but nothing re-surfaces an undelivered *customer* text on Today. Twilio is trial / no A2P, so every customer text is currently undelivered. | Backlog item 3; depends on A2P (Jo). |
+| Overdue items rescheduled not deleted, "missed N times" | Snooze moves the date and keeps `snoozedFromDue` (good); no counter. Deleted lead task = "kept" (R15) is the dangerous inverse. | Small follow-up: stop treating a deleted task as kept. |
+| Digest that is itself an item until reviewed | Sweep/brief emails are fire-and-forget. | Backlog item 5. |
+| Backup person, auto hand-back | Not present. | Lane `feat/away-mode-backup`. |
+| Voice/photo promise stamp | Not present. | Lane `feat/promise-capture`. |
+| "Waiting on them" badge + nudge | Not present. | Lane `feat/promise-capture`. |
+
+Trap list kept: no multi-level routing for a solo operator (the ladder is
+push, second push, email, morning brief — four rungs, no more); nothing
+auto-archives (overdue items resurface, they are never dropped); push is
+never trusted alone (R2: a second channel or a digest always follows).
+
+### Helper interfaces other lanes can call
+
+- `functions/call-watch-logic.js`: `callNeedsYou(c, now, ctx)`, `callerKey(c)`,
+  `newNeeds(...)`, `alertFor(needs, problems, now)` — pure, no I/O.
+- `functions/pipeline-deadman.js`: `deadManProblems({watch, cc, now, gates})`
+  → `[{key, text, repeatMs}]`; `run({db, nowMs, live, env, notify})`.
+  Status lands on `integrations/pipelineHealth` (read it for a health panel).
+- `functions/push-functions.js`: `sendCustomNotification(uid, title, body, data)`
+  returns `{sent, failed, errors}` — **callers must read `sent`** (R2).
 
 ## 7. Questions for Jo
 
