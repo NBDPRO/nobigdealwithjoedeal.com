@@ -275,6 +275,11 @@ function decideDepositDraft(ctx) {
     supplementTotal: 0,
     depositAmount,
     depositPaid: false,
+    // Ohio ORC 4722.04 (2026-10-11): see invoice-charge.js — only the signing
+    // deposit is chargeable until the rep releases the next payment.
+    ohioHold: !!(plan.ohio && plan.ohio.reduced === true),
+    milestoneAmount: (plan.ohio && plan.ohio.reduced === true && plan.ohio.milestoneCents > 0) ? plan.ohio.milestoneCents / 100 : 0,
+    milestoneReleased: false,
     amountPaid: 0,
     balanceDue: t.total,
     stripeInvoiceId: null,
