@@ -181,6 +181,19 @@
     supports: { wallpaper: true, glass: true, sunlight: false },
   });
 
+  // L08 Field App (D3). Phone and tablet only: it is a shell for the driveway
+  // and the roof, so it is never picked for a desktop window (a rep can still
+  // PREVIEW it from the picker). Its script, stylesheet and the shared kit load
+  // only while it is the active layout.
+  register({
+    id: 'field', name: 'Field App', version: 1,
+    blurb: 'Today\'s stops, big-thumb buttons, a test-square camera and a sunlight mode.',
+    surfaces: ['phone', 'tablet'], tier: 'free',
+    script: 'js/layouts/field.js', css: 'css/layouts/field.css',
+    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    supports: { wallpaper: false, glass: false, sunlight: true },
+  });
+
   var api = {
     SURFACES: SURFACES, FALLBACK: FALLBACK, ID_RE: ID_RE, MAX_STATE_JSON: MAX_STATE_JSON,
     register: register, get: get, list: list, forSurface: forSurface,

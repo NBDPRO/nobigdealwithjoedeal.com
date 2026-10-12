@@ -9,8 +9,12 @@
  *   - townspeople are the user's open leads, most-at-risk first. A red "!"
  *     means the lead's own follow-up date is past; the small bar over a head
  *     is its HP (days before it goes cold).
- *   - talking to one shows facts and Call / Open lead. Draft text and Move
- *     stage are shown but disabled: v1 is READ-ONLY on real CRM data.
+ *   - talking to one shows facts and Call / Open lead / Draft text / Move
+ *     stage. Move stage runs through the CRM's own moveCard (E2b). Draft text
+ *     (E2c) asks the SERVER to file one template draft into the Agent inbox
+ *     (env.fileDraft -> callable fileLeadTextDraft); the game sends a template
+ *     key, never words, and says FILED / ALREADY FILED / NOT ALLOWED. Nothing
+ *     is ever texted from here.
  *   - Lead Dex, day/night tint from the real local clock, and a hail event
  *     when today's SPC outlook puts a lead's address in a hail-risk area.
  *
@@ -434,7 +438,7 @@
           'Red "!" over a head: that lead\'s follow-up date has passed.',
           'The bar over a head is HP: days before the lead goes cold.',
           'Esc / B: back. MENU: Party, Lead Dex, Trophies.',
-          'This is a read-only view of your real leads. Nothing here sends a message or changes a lead.',
+          'Move stage uses the CRM\'s own rules. Draft text only files a draft in your Agent inbox. Nothing is texted from here.',
         ].forEach(function (t) { host.appendChild(el('p', 'pxw-note', t)); });
       });
     }
@@ -467,8 +471,12 @@
       if (phone.length >= 7) opts.push({ label: 'CALL', href: 'tel:' + phone });
       else opts.push({ label: 'CALL', disabled: true, note: '(no phone on file)' });
       opts.push({ label: 'OPEN LEAD', run: function () { exit(); env.openLead(m.id); } });
-      opts.push({ label: 'DRAFT TEXT', disabled: true, note: '(next update)' });
-      if (env.canWrite && env.canWrite()) opts.push({ label: 'MOVE STAGE', run: function () { moveFlow(m); } });
+      var writer = !!(env.canWrite && env.canWrite());
+      if (!writer) opts.push({ label: 'DRAFT TEXT', disabled: true, note: '(view-only)' });
+      else if (phone.length < 7) opts.push({ label: 'DRAFT TEXT', disabled: true, note: '(no phone on file)' });
+      else if (typeof env.fileDraft !== 'function') opts.push({ label: 'DRAFT TEXT', disabled: true, note: '(unavailable)' });
+      else opts.push({ label: 'DRAFT TEXT', run: function () { draftFlow(m); } });
+      if (writer) opts.push({ label: 'MOVE STAGE', run: function () { moveFlow(m); } });
       else opts.push({ label: 'MOVE STAGE', disabled: true, note: '(view-only)' });
       opts.push({ label: 'BYE', run: closeDialog });
       openDialog([WL.talkLines(m, stageText(m.stage)).join('\n')], opts);
@@ -476,7 +484,7 @@
     // E2b: stage moves go through the CRM's own moveCard (env.moveStage), so
     // every gate it has (role, lost reason, required fields, cancellation-window
     // warning) still applies. The game asks YES/NO itself (never window.confirm)
-    // and offers UNDO. Drafts are not here: agent_inbox is server-written only.
+    // and offers UNDO.
     function moveFlow(m) {
       var adj = WL.adjacentStages(env.stageKeys(), m.stage, env.stageRole);
       var opts = [];
@@ -514,6 +522,28 @@
             { label: 'OK', run: closeDialog },
           ]);
         }
+      });
+    }
+    // E2c: DRAFT TEXT. The game picks a template KEY and asks the server to
+    // file the draft (agent_inbox is create:false for clients). The server
+    // checks role, tenant, STOP / Do Not Text / consent, wording and
+    // idempotency, and the owner sends from the Agent inbox, where Send
+    // re-checks texting hours. This code only reports what the server said.
+    function draftFlow(m) {
+      var opts = WL.DRAFT_TEMPLATES.map(function (t) { return { label: t.label, run: function () { doDraft(m, t); } }; });
+      opts.push({ label: 'CANCEL', run: function () { talkTo(m); } });
+      openDialog(['Which text should ' + m.name + ' get? It is only saved as a draft. You send it from the Agent inbox.'], opts);
+    }
+    function doDraft(m, t) {
+      openDialog(['Filing the draft...'], []);
+      Promise.resolve().then(function () { return env.fileDraft(m.id, t.key); }).then(
+        function (res) { return WL.draftOutcome(res, null); },
+        function (err) { return WL.draftOutcome(null, err); }
+      ).then(function (out) {
+        openDialog([out.lines.join('\n')], [
+          { label: 'OK', run: function () { talkTo(m); } },
+          { label: 'OPEN LEAD', run: function () { exit(); env.openLead(m.id); } },
+        ]);
       });
     }
     function talkById(id) {

@@ -393,12 +393,13 @@ service firebase.storage {
     // owner-only read AND write (no admin, no team), shown only via
     // getBlob() blob: URLs, never a token download URL. themeId is a live
     // theme id or the reserved _custom (Custom Builder); imageId is
-    // client-minted. Lossy webp/jpeg only (the canvas output), under 3MB.
+    // client-minted, with an optional _t suffix for the 256 px grid thumbnail
+    // (bulk import, 2026-10). Lossy webp/jpeg only (the canvas output), < 3MB.
     match /skins/{uid}/themes/{themeId}/{imageId} {
       allow read: if isOwner(uid);
       allow create, update: if isOwner(uid)
         && themeId.matches('^(_custom|[a-z0-9-]{1,40})$')
-        && imageId.matches('^[a-z0-9]{8,16}$')
+        && imageId.matches('^[a-z0-9]{8,16}(_t)?$')
         && request.resource.size < 3 * 1024 * 1024
         && request.resource.contentType != null
         && request.resource.contentType.matches('image/(webp|jpeg)');
