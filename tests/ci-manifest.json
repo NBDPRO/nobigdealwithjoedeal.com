@@ -37,6 +37,7 @@
     "tier-pricing-premium-claim-2026-09-16.test.js",
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
     "reports-sent-definition-2026-09-28.test.js",
+    "daily-ledger-2026-10-12.test.js",
     "intake-forms-2026-09-30.test.js",
     "call-push-delivery-truth-2026-10-12.test.js",
     "inspect-hero-grid-no-clip-2026-10-06.test.js",

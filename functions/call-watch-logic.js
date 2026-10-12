@@ -356,6 +356,43 @@ function nextLadder(callRows, textRows, ladder, newIds, retells, reached, now, l
   return next;
 }
 
+/**
+ * The end-of-day "nothing fell through" ledger (2026-10-12 audit, section 4).
+ * Written once a day by the 20:00 callWatch run as a bell entry that stays
+ * unread until Jo taps it: a digest that arrives and is ignored shows as an
+ * unread item instead of vanishing. Pure; rows are the 14-day windows
+ * callWatch already loaded.
+ */
+const LEDGER_OLD_MS = 3 * DAY;
+function dailyLedger(callRows, textRows, now, extra) {
+  const ex = extra || {};
+  const today = etYmd(now);
+  const calls = (callRows || []).filter((c) => c && c.channel !== 'text');
+  const todays = calls.filter((c) => etYmd(toMs(c.startedAtMs)) === today);
+  const noted = todays.filter((c) => c.status === 'noted' || c.status === 'personal').length;
+  const waiting = calls.filter((c) => c.status === 'stored' && toMs(c.startedAtMs) >= now - CALL_WINDOW).length;
+  const ctx = reachIndex(callRows);
+  const people = new Map();
+  (callRows || []).forEach((c) => { if (callNeedsYou(c, now, ctx)) { const k = callerKey(c); const at = toMs(c.startedAtMs); if (!people.has(k) || at < people.get(k)) people.set(k, at); } });
+  (textRows || []).forEach((c) => { if (callNeedsYou(c, now)) { const k = callerKey(c); const at = toMs(c.startedAtMs); if (!people.has(k) || at < people.get(k)) people.set(k, at); } });
+  const open = people.size;
+  const oldOpen = Array.from(people.values()).filter((at) => at && now - at > LEDGER_OLD_MS).length;
+  const anomalies = [];
+  if (!todays.length) anomalies.push('No calls were recorded today. A quiet phone looks exactly like a recorder that stopped.');
+  if (waiting > 0) anomalies.push(waiting + ' recording' + (waiting === 1 ? '' : 's') + ' still waiting for a transcript.');
+  if (oldOpen > 0) anomalies.push(oldOpen + ' ' + (oldOpen === 1 ? 'person has' : 'people have') + ' been waiting on you more than 3 days.');
+  if (ex.lastPush && ex.lastPush.sent === 0) anomalies.push('The last alert reached 0 phones. Check that notifications are on for the CRM app.');
+  if (ex.problems && ex.problems.length) anomalies.push('Pipeline: ' + ex.problems.slice(0, 2).join(' / '));
+  const clear = open === 0 && !anomalies.length;
+  const head = todays.length + ' call' + (todays.length === 1 ? '' : 's') + ' today, ' + noted + ' noted · ' + open + (open === 1 ? ' person' : ' people') + ' still need' + (open === 1 ? 's' : '') + ' you';
+  return {
+    ymd: today, calls: todays.length, noted, waiting, open, oldOpen, anomalies, clear,
+    title: clear ? '🗒 Day check: nothing fell through' : '🗒 Day check: ' + open + (open === 1 ? ' person' : ' people') + ' still open' + (anomalies.length ? ' · ' + anomalies.length + ' warning' + (anomalies.length === 1 ? '' : 's') : ''),
+    message: [head].concat(anomalies.map((a) => '⚠ ' + a)).concat(['Tap to open the Call Center, then mark this reviewed.']).join('\n').slice(0, 900),
+    priority: anomalies.length ? 'high' : 'normal',
+  };
+}
+
 /** The one alert (bell + push). null when there is nothing to say. */
 function alertFor(needs, problems, now) {
   const items = needs || [], pr = problems || [];
@@ -398,6 +435,6 @@ function inWatchHours(now) {
 
 module.exports = {
   CALL_WINDOW, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
-  SMS_REPEAT_MS, smsProblems, deliveryBySid, LADDER_GAP_MS, LADDER_MAX, ladderCandidates, ladderRetells, nextLadder,
+  SMS_REPEAT_MS, smsProblems, deliveryBySid, dailyLedger, LADDER_GAP_MS, LADDER_MAX, ladderCandidates, ladderRetells, nextLadder,
   toMs, etYmd, callNeedsYou, labelOf, resurfacedNumbers, callerKey, reasonFor, reachIndex, isMissedCall, callCardUrl, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
 };
