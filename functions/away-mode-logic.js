@@ -64,11 +64,12 @@ function intIn(v, lo, hi, dflt) {
 }
 /** Control chars and newlines out, collapsed, capped. Never trust a note. */
 function cleanLine(s, max) {
-  return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+  // also: zero-width + bidi override/isolate characters (a spoofed lock-screen line)
+  return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f\u2028\u2029\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 const digits10 = (s) => String(s || '').replace(/\D/g, '').slice(-10);
 const validPhone10 = (s) => digits10(s).length === 10 && String(s || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '').length === 10;
-const validEmail = (s) => /^[^\s@<>"']{1,64}@[^\s@<>"']{1,190}\.[A-Za-z]{2,}$/.test(String(s || '').trim()) && String(s).length <= 254;
+const validEmail = (s) => /^[^\s@<>"'\/\\]{1,64}@[^\s@<>"'\/\\]{1,190}\.[A-Za-z]{2,}$/.test(String(s || '').trim()) && String(s).length <= 254;
 
 function etParts(ms) {
   const f = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: 'numeric', weekday: 'short', hourCycle: 'h23' });
@@ -131,6 +132,7 @@ function normalizeConfig(raw) {
       approvedHash: cleanLine(pb.approvedHash, 64),
       approvedAtMs: toMs(pb.approvedAtMs),
       approvedBy: cleanLine(pb.approvedBy, 128),
+      approvedForUntilMs: toMs(pb.approvedForUntilMs),
     },
   };
 }
@@ -242,6 +244,8 @@ function shortName(s) {
   const t = cleanLine(s, 60);
   if (!t) return 'Someone';
   if (/^[\d\s().+\-…]+$/.test(t)) return t;
+  // a URL / email / handle is not a name: never put one on a lock screen
+  if (/[\/@:\\]|\.[a-z]{2,}\b/i.test(t)) return 'A caller';
   const w = t.split(' ').filter(Boolean);
   if (w.length < 2) return w[0];
   const last = w[w.length - 1];
@@ -486,6 +490,8 @@ function thursdayAwayContext(cfg, away, now) {
   const pb = c.playbook;
   if (!pb.approved || !pb.approvedHash || !pb.approvedAtMs) return null;
   if (hashText(pb.approved) !== pb.approvedHash) return null;
+  // Approved against a specific end time: a different end time is a different trip.
+  if (pb.approvedForUntilMs && pb.approvedForUntilMs !== toMs(away && away.untilMs)) return null;
   return { active: true, text: pb.approved, untilYmd: win.endMs ? etYmd(win.endMs) : null };
 }
 

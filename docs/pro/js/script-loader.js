@@ -476,6 +476,13 @@
     // it once the company profile lands, only for a non-platform tenant.
     setup: [
       'js/setup-checklist.js?v=1'
+    ],
+    // Away mode (never-forget lane, 2026-10-12): the Home status line, the
+    // "While you were away" card and the backup person's cover list. Kicked by
+    // today-home.js at Home boot, so it costs no boot <script> tag (the
+    // dashboard-boot-budget ratchet is at its ceiling).
+    away: [
+      'js/away-mode.js?v=1'
     ]
   };
 

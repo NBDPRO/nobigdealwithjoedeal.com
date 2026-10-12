@@ -321,6 +321,9 @@
     if (/^#?\/?(home)?$/.test(location.hash || '')) { loadAppointments(false); setTimeout(render, 200); }
   });
   function boot() {
+    // Away mode (js/away-mode.js): status line / hand-back card / backup cover list
+    // on Home. A lazy bundle, so it adds no boot <script> tag; best-effort.
+    try { if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') w.ScriptLoader.loadBundle('away'); } catch (_) { /* optional surface */ }
     // Home is a <template> mounted on navigation: paint when #todayPlan appears.
     try {
       new MutationObserver(function () {

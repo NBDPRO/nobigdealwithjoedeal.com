@@ -405,6 +405,108 @@ const resolve = (o) => L.resolveBackupNotifications(Object.assign({ config: cfg(
     ok('one tenant failing is counted and does not block the others', r.errors === 1 && r.notified === 1);
   }
 
+  console.log('M2. the tick never undoes what landed while it ran');
+  {
+    const mk2 = () => fakeDb({
+      'companies/own/members/sam@x.com': member(),
+      'away_private/own': { companyId: 'own', backup: { memberEmail: 'sam@x.com' } },
+      'away_mode/own': { companyId: 'own', active: true, backupState: 'ok', backup: { kind: 'member', name: 'Sam R', uid: 'u-sam' }, away: { on: true, startMs: NOW - 3 * H, untilMs: NOW + D, windowId: 'w1' }, lastTickAtMs: 0 },
+      'away_windows/own__w1': { companyId: 'own', windowId: 'w1', status: 'active', startMs: NOW - 3 * H, items: { 'num:8595550147': { key: 'num:8595550147', who: 'Maria Santos', phone10: '8595550147', why: 'urgent', urgent: true, atMs: NOW - H, open: true, notifiedCount: 1, lastNotifiedMs: NOW - 30 * MIN, touches: [], assignee: 'backup' } } },
+    });
+    const one = [{ key: 'num:8595550147', kind: 'person', who: 'Maria Santos', why: 'urgent', urgent: true, atMs: NOW - H, phone10: '8595550147' }];
+    // Jo taps "I'm back" while the tick is loading this tenant's items.
+    const dbA = mk2();
+    await I.runAwayTick({ db: dbA, nowMs: NOW, live: true, deliver: async () => ({ sent: 1 }), loadItems: async () => {
+      await dbA.doc('away_windows/own__w1').set({ status: 'handed_back', handBack: { rows: [] } }, { merge: true });
+      await dbA.doc('away_mode/own').set({ away: { on: false } }, { merge: true });
+      return one;
+    } });
+    ok('"I\'m back" during a tick: the window is not resurrected', dbA.store.get('away_windows/own__w1').status === 'handed_back');
+    ok('"I\'m back" during a tick: away stays off', dbA.store.get('away_mode/own').away.on === false);
+    // The backup records a touch while the tick is loading.
+    const dbB = mk2();
+    dbB.store.get('away_windows/own__w1').items['num:8595550147'].notifiedCount = 0;   // due now, so deliver() runs mid-tick
+    await I.runAwayTick({ db: dbB, nowMs: NOW, live: true, loadItems: async () => one, deliver: async () => {
+      const cur = dbB.store.get('away_windows/own__w1');
+      cur.items['num:8595550147'].touches = [{ action: 'called', note: 'left a voicemail', atMs: NOW - MIN, byUid: 'u-sam' }];
+      cur.items['num:8595550147'].assignee = 'backup';
+      return { sent: 1 };
+    } });
+    ok('a touch recorded during a tick is kept', dbB.store.get('away_windows/own__w1').items['num:8595550147'].touches.length === 1);
+    // reviewed never takes a client window id
+    const dbC = fakeDb({ 'away_mode/own': { companyId: 'own', active: true, away: { on: false }, pendingReview: null } });
+    await I.handleManageAway({ auth: { uid: 'own', token: {} }, data: { action: 'reviewed', windowId: 'x/items/y' } }, { db: dbC, nowMs: NOW, requireAdmin: asOwner(), loadItems: items([]) });
+    ok('reviewed ignores a client-supplied window id', ![...dbC.store.keys()].some((k) => k.startsWith('away_windows/')));
+  }
+
+  console.log('P. review findings (2026-10-12 security review)');
+  {
+    const seedTenant = (extra, ledgerItems, away) => fakeDb(Object.assign({
+      'companies/own/members/sam@x.com': member(),
+      'away_private/own': { companyId: 'own', backup: { memberEmail: 'sam@x.com' } },
+      'away_mode/own': { companyId: 'own', active: true, backupState: 'ok', backup: { kind: 'member', name: 'Sam R', uid: 'u-sam' }, away: away === undefined ? { on: true, startMs: NOW - 3 * H, untilMs: NOW + D, windowId: 'w1' } : away, lastTickAtMs: 0 },
+      'away_windows/own__w1': { companyId: 'own', windowId: 'w1', status: 'active', startMs: NOW - 3 * H, items: ledgerItems || {} },
+    }, extra || {}));
+    const quiet = async () => [];
+    // F1: a pruned row really leaves the stored doc
+    const old = {}; for (let i = 0; i < 5; i++) old['num:859555010' + i] = { key: 'num:859555010' + i, who: 'Old ' + i, open: true, notifiedCount: 1, lastNotifiedMs: NOW - 9 * D, routedAtMs: NOW - 9 * D, touches: [] };
+    old['num:keep'] = { key: 'num:keep', who: 'Kept', open: true, notifiedCount: 1, lastNotifiedMs: NOW - 9 * D, routedAtMs: NOW - 9 * D, touches: [{ action: 'called', note: 'x', atMs: NOW - 8 * D }] };
+    const dP = seedTenant(null, old);
+    await I.runAwayTick({ db: dP, nowMs: NOW, live: true, deliver: async () => ({ sent: 1 }), loadItems: quiet });
+    const ks = Object.keys(dP.store.get('away_windows/own__w1').items);
+    ok('F1: closed, untouched rows older than 7 days are really removed from the stored ledger', ks.join() === 'num:keep', ks.join());
+    // F1: hard cap
+    const big = {}; for (let i = 0; i < 340; i++) big['num:' + String(1000000000 + i)] = { key: 'x' + i, who: 'P', open: false, notifiedCount: 1, lastNotifiedMs: NOW - D, routedAtMs: NOW - D + i, touches: [] };
+    const dCap = seedTenant(null, big);
+    await I.runAwayTick({ db: dCap, nowMs: NOW, live: true, deliver: async () => ({ sent: 1 }), loadItems: quiet });
+    ok('F1: the ledger is capped at 300 entries', Object.keys(dCap.store.get('away_windows/own__w1').items).length === 300);
+    // F2: longest-unserved first, and a budget that stops early
+    const order = [];
+    const dMany = fakeDb({});
+    for (let i = 0; i < 6; i++) dMany.store.set('away_mode/t' + i, { companyId: 't' + i, active: true, away: { on: false }, lastTickAtMs: 1000 - i });
+    await I.runAwayTick({ db: dMany, nowMs: NOW, live: false, deliver: async () => ({ sent: 1 }), loadItems: async (db, cid) => { order.push(cid); return []; } });
+    ok('F2: tenants are served longest-since-served first', order.join() === 't5,t4,t3,t2,t1,t0', order.join());
+    const rb = await I.runAwayTick({ db: dMany, nowMs: NOW, live: false, deliver: async () => ({ sent: 1 }), loadItems: quiet, budgetMs: -1 });
+    ok('F2: an exhausted budget defers the rest instead of running into the timeout', rb.deferred === 6 && rb.tenants === 0);
+    // F3: approval belongs to one trip
+    const ap = (o) => ({ playbook: Object.assign({ draft: 'Hello', approved: 'Hello', approvedHash: L.hashText('Hello'), approvedAtMs: NOW - H, approvedBy: 'own', approvedForUntilMs: 0 }, o || {}) });
+    const win = { on: true, startMs: NOW - H, untilMs: NOW + D };
+    ok('F3: approved with no end time bound → used', L.thursdayAwayContext(ap(), win, NOW) !== null);
+    ok('F3: approved against another end time → null', L.thursdayAwayContext(ap({ approvedForUntilMs: NOW + 5 * D }), win, NOW) === null);
+    ok('F3: approved against this end time → used', L.thursdayAwayContext(ap({ approvedForUntilMs: NOW + D }), win, NOW) !== null);
+    const dApp = seedTenant({ 'away_private/own': { companyId: 'own', backup: { memberEmail: 'sam@x.com' }, playbook: { draft: 'Hi there', approved: 'Hi there', approvedHash: L.hashText('Hi there'), approvedAtMs: NOW - H, approvedBy: 'own', approvedForUntilMs: NOW + D } } },
+      { 'num:1': { key: 'num:1', who: 'A B', open: true, notifiedCount: 1, touches: [{ action: 'called', atMs: NOW }] } });
+    await I.runAwayTick({ db: dApp, nowMs: NOW, live: false, deliver: async () => ({ sent: 1 }), loadItems: async () => [], budgetMs: 60000 });
+    const dEnd = seedTenant({ 'away_private/own': dApp.store.get('away_private/own') }, { 'num:1': { key: 'num:1', who: 'A B', open: true, notifiedCount: 1, touches: [{ action: 'called', atMs: NOW }] } }, { on: true, startMs: NOW - 2 * D, untilMs: NOW - MIN, windowId: 'w1' });
+    await I.runAwayTick({ db: dEnd, nowMs: NOW, live: false, deliver: async () => ({ sent: 1 }), loadItems: async () => [{ key: 'num:1' }] });
+    ok('F3: hand-back clears the approval but keeps the draft', dEnd.store.get('away_private/own').playbook.approvedHash === '' && dEnd.store.get('away_private/own').playbook.draft === 'Hi there' && dEnd.store.get('away_mode/own').playbookApproved === false);
+    const dChg = seedTenant({ 'away_private/own': dApp.store.get('away_private/own'), 'companies/own/members/sam@x.com': member() });
+    await I.handleManageAway({ auth: { uid: 'own', token: {} }, data: { action: 'setAway', on: true, untilMs: NOW + 3 * D } }, { db: dChg, nowMs: NOW, requireAdmin: asOwner(), loadItems: items([]) });
+    ok('F3: changing the end time clears wording approved against the old one', dChg.store.get('away_private/own').playbook.approvedHash === '');
+    // F5: a caller-controlled string never reaches a lock screen as a link or spoof
+    ok('F5: a URL-looking caller name is replaced', L.shortName('evil.example/pay-now-1800') === 'A caller' && L.shortName('pay@evil.co') === 'A caller' && L.shortName('http://x.co') === 'A caller');
+    ok('F5: bidi override + zero-width characters are removed', L.cleanLine('Maria\u202e Santos\u200b', 60) === 'Maria Santos');
+    const spoof = L.resolveBackupNotifications({ config: cfg(), items: [item({ who: 'evil.example/pay-now' })], now: NOW, notified: {}, backup: BK, away: null, ownerName: 'Joe' });
+    ok('F5: the push shows "A caller", not the link', spoof.notify[0].title === 'A caller needs a call-back' && !/evil/.test(spoof.notify[0].body));
+    ok('F5: ordinary names are unchanged', L.shortName('Maria Santos') === 'Maria S.' && L.shortName('St. Louis Roofing') === 'St. R.');
+    // F7: an expired window is handed back even if the item query fails
+    const dQ = seedTenant(null, { 'num:1': { key: 'num:1', who: 'Maria Santos', phone10: '8595550147', why: 'x', open: true, notifiedCount: 1, touches: [{ action: 'called', note: 'vm', atMs: NOW - H }] } }, { on: true, startMs: NOW - 2 * D, untilMs: NOW - MIN, windowId: 'w1' });
+    const rq = await I.runAwayTick({ db: dQ, nowMs: NOW, live: false, deliver: async () => ({ sent: 1 }), loadItems: async () => { throw new Error('index missing'); }, log: { warn() {}, info() {} } });
+    ok('F7: item query failing does not stop the hand-back (touched items come back as open)', rq.handedBack === 1 && rq.errors === 0 && dQ.store.get('away_mode/own').away.on === false && dQ.store.get('away_windows/own__w1').handBack.rows.length === 1);
+    // F8: a member email is a document id, not a path
+    ok('F8: slashes and backslashes are refused in a backup email', !L.validateSave({ backup: { kind: 'member', memberEmail: 'a/b@x.com' } }).ok && !L.validateSave({ backup: { kind: 'member', memberEmail: 'a@x.com/y.co' } }).ok && L.validateSave({ backup: { kind: 'member', memberEmail: 'sam.r+crew@x.com' } }).ok);
+    // __proto__ / dotted keys cannot be touched (positive control: a real key works)
+    const dK = fakeDb({
+      'companies/own/members/sam@x.com': member(),
+      'away_private/own': { companyId: 'own', backup: { memberEmail: 'sam@x.com' } },
+      'away_mode/own': { companyId: 'own', active: true, away: { on: true, startMs: NOW - H, untilMs: NOW + D, windowId: 'w9' } },
+      'away_windows/own__w9': { companyId: 'own', items: { 'num:1': { key: 'num:1', who: 'M S', open: true, notifiedCount: 1, touches: [] } } },
+    });
+    const asSam = (key) => I.handleManageAway({ auth: { uid: 'u-sam', token: { role: 'sales_rep', companyId: 'own' } }, data: { action: 'backupAct', key, touch: 'called' } }, { db: dK, nowMs: NOW, requireAdmin: deny });
+    for (const k of ['__proto__', 'constructor', 'toString', 'a.b', 'num:1.touches']) await rejects('backupAct key ' + JSON.stringify(k) + ' is refused', asSam(k), /not-found|not on your list/);
+    ok('positive control: the real key is accepted', (await asSam('num:1')).ok === true);
+  }
+
   console.log('N. client mirror (docs/pro/js/away-mode.js)');
   {
     const src = read('docs/pro/js/away-mode.js');
@@ -476,7 +578,9 @@ const resolve = (o) => L.resolveBackupNotifications(Object.assign({ config: cfg(
       ok(f + ': no inline handlers, no eval', !/\son[a-z]+\s*=\s*["']/.test(s.replace(/data-away-[a-z-]+="[^"]*"/g, '')) && !/\beval\(|new Function\(/.test(s));
     }
     const dash = read('docs/pro/dashboard.html');
-    ok('dashboard: mount + deferred script + stylesheet present', /id="awayStatus"/.test(dash) && /<script defer src="js\/away-mode\.js\?v=1"><\/script>/.test(dash) && /css\/away-mode\.css/.test(dash) && /id="awayModeMount"/.test(dash));
+    ok('dashboard: mount + stylesheet present, NO new boot script tag (boot-budget ratchet)', /id="awayStatus"/.test(dash) && /css\/away-mode\.css/.test(dash) && /id="awayModeMount"/.test(dash) && !/js\/away-mode/.test(dash.replace(/<!--[\s\S]*?-->/g, '')));
+    ok('away-mode.js is a lazy bundle kicked from Home (today-home.js)', /away:\s*\[\s*'js\/away-mode\.js\?v=1'\s*\]/.test(read('docs/pro/js/script-loader.js')) && /loadBundle\('away'\)/.test(read('docs/pro/js/today-home.js')));
+    ok('script-loader + today-home cache-busters were bumped for the edit', /script-loader\.js\?v=19[7-9]|script-loader\.js\?v=[2-9]\d\d/.test(dash) && /today-home\.js\?v=([4-9]|\d\d)/.test(dash));
     ok('settings script loads with the Settings bundle', /js\/away-mode-settings\.js\?v=1/.test(read('docs/pro/js/script-loader.js')));
   }
 

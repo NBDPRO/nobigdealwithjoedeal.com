@@ -93,7 +93,7 @@
       '<div class="panel-hdr"><div><div class="panel-label">What callers hear</div><div class="panel-title">Away wording ' + approvedChip + '</div></div></div>' +
       '<div class="panel-body">' +
       '<div class="meta-10 mb-md">Thursday uses this only while away mode is on, and only after you approve this exact text. Editing it clears the approval. It never promises who will call or when unless you write it here. Texting back to callers stays off until your number is registered.</div>' +
-      '<textarea id="awayWording" class="ui-input-lg" style="width:100%;box-sizing:border-box;padding:10px;" rows="5" maxlength="800" aria-label="Away wording">' + esc(pb.draft || '') + '</textarea>' +
+      '<textarea id="awayWording" class="ui-input-lg away-wording" rows="5" maxlength="800" aria-label="Away wording">' + esc(pb.draft || '') + '</textarea>' +
       '<div class="fwgap-8 mt-8">' +
       '<button type="button" class="btn btn-ghost" data-away-set="draft">Write me a draft</button>' +
       '<button type="button" class="btn btn-ghost" data-away-set="saveWording">Save wording</button>' +

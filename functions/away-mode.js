@@ -45,6 +45,8 @@ const DAY = 86400000;
 // delivery waits on A2P registration (design note, section 8.2).
 const ALLOW_EXTERNAL = false;
 const FAILED_ATTEMPTS_BEFORE_UNREACHABLE = L.DEFAULTS.maxFailedAttempts;
+const MAX_LEDGER_ITEMS = 300;        // one ledger doc stays far under the 1 MiB limit
+const TICK_BUDGET_MS = 90 * 1000;    // the function has 120 s; stop early and resume next run
 
 const ledgerId = (cid, windowId) => cid + '__' + (windowId || 'standing');
 const newWindowId = (now) => 'w' + Math.floor(now).toString(36);
@@ -138,19 +140,25 @@ async function doHandBack(db, cid, { nowMs, endedBy, openKeys, backupName }) {
   const lRef = db.doc(COL_WINDOWS + '/' + ledgerId(cid, wid));
   const led = (await lRef.get()).data() || { items: {} };
   if (led.status === 'handed_back') return { handedBack: false, reason: 'already' };
-  const hb = L.handBack(led, openKeys, nowMs, backupName);
+  const hb = L.handBack(led, openKeys || new Set(Object.keys(led.items || {})), nowMs, backupName);
   await lRef.set({
     companyId: cid, windowId: wid, status: 'handed_back', endMs: nowMs, endedBy,
     items: hb.items, handBack: Object.assign({}, hb.summary, { rows: hb.rows }), reviewedAtMs: 0,
   }, { merge: true });
-  const priv = L.normalizeConfig((await db.doc(COL_PRIVATE + '/' + cid).get()).data());
+  const privRef = db.doc(COL_PRIVATE + '/' + cid);
+  const priv = L.normalizeConfig((await privRef.get()).data());
+  // The approved wording is for THIS trip (it can name a date): clear it, keep
+  // the draft, so the next Away needs a fresh one-tap approval.
+  if (priv.playbook.approvedHash) {
+    await privRef.set(Object.assign({}, priv, { companyId: cid, updatedAtMs: nowMs, playbook: Object.assign({}, priv.playbook, { approved: '', approvedHash: '', approvedAtMs: 0, approvedBy: '', approvedForUntilMs: 0 }) }), { merge: false });
+  }
   const pending = hb.rows.length || hb.summary.touched ? { windowId: wid, openCount: hb.rows.length, atMs: nowMs } : null;
   await db.doc(COL_STATUS + '/' + cid).set(Object.assign(
     L.statusDoc({
       away: null, now: nowMs, lastTickAtMs: st.lastTickAtMs, ownerName: st.ownerName,
       configuredBackup: st.backup ? st.backup.kind : null, configuredBackupName: st.backup ? st.backup.name : '',
       backup: st.backupState === 'ok' || st.backupState === 'unreachable' ? { ok: true, kind: st.backup && st.backup.kind, uid: st.backup && st.backup.uid, name: st.backup && st.backup.name } : null,
-      playbookApproved: !!(priv.playbook.approvedHash),
+      playbookApproved: false,
       pendingReview: pending,
     }),
     // stays in the tick's query only while there is a backup to route to or a
@@ -164,18 +172,30 @@ async function doHandBack(db, cid, { nowMs, endedBy, openKeys, backupName }) {
  * One run. deps: { db, nowMs, live, deliver(uid,title,body,data) → {sent},
  * loadItems? (tests) }. Returns counters. Never throws for one tenant's fault.
  */
-async function runAwayTick({ db, nowMs, live, deliver, loadItems = loadOpenItems, log = logger }) {
-  const out = { tenants: 0, notified: 0, failed: 0, handedBack: 0, unavailable: 0, errors: 0 };
+async function runAwayTick({ db, nowMs, live, deliver, loadItems = loadOpenItems, log = logger, budgetMs = TICK_BUDGET_MS }) {
+  const out = { tenants: 0, notified: 0, failed: 0, handedBack: 0, unavailable: 0, errors: 0, deferred: 0 };
   const snap = await db.collection(COL_STATUS).where('active', '==', true).get();
-  for (const d of snap.docs) {
+  // Longest-since-served first, so a flood of junk tenants cannot starve a real one;
+  // stop before the function's own timeout and pick up where we left off next run.
+  const docs = snap.docs.slice().sort((a, b) => (Number((a.data() || {}).lastTickAtMs) || 0) - (Number((b.data() || {}).lastTickAtMs) || 0));
+  const t0 = Date.now();
+  for (let n = 0; n < docs.length; n++) {
+    if (Date.now() - t0 > budgetMs) { out.deferred = docs.length - n; break; }
+    const d = docs[n];
     const cid = d.id;
     out.tenants++;
     try {
       const st = d.data() || {};
       const priv = L.normalizeConfig((await db.doc(COL_PRIVATE + '/' + cid).get()).data());
       const win = L.awayWindowState(st.away, nowMs);
-      const items = await loadItems(db, cid, nowMs);
-      const openKeys = new Set(items.map((i) => i.key));
+      // An expired window is handed back even when the item query fails (then
+      // every touched item is treated as still open: the conservative side).
+      let items = null;
+      try { items = await loadItems(db, cid, nowMs); } catch (e) {
+        if (win.state !== 'expired') throw e;
+        log.warn('[awayTick] items unavailable at hand-back', { cid, err: e && e.message });
+      }
+      const openKeys = items ? new Set(items.map((i) => i.key)) : null;
       let backup = null, configured = null, configuredName = '';
       if (priv.backup.memberEmail) {
         configured = 'member';
@@ -257,12 +277,38 @@ async function runAwayTick({ db, nowMs, live, deliver, loadItems = loadOpenItems
         const e = entries[k];
         if (!e.open && !(e.touches || []).length && nowMs - (e.lastNotifiedMs || e.routedAtMs || 0) > 7 * DAY) delete entries[k];
       });
+      // Hard cap: oldest closed + untouched rows go first.
+      const keys = Object.keys(entries);
+      if (keys.length > MAX_LEDGER_ITEMS) {
+        keys.filter((k) => entries[k].open === false && !(entries[k].touches || []).length)
+          .sort((a, b) => (entries[a].routedAtMs || 0) - (entries[b].routedAtMs || 0))
+          .slice(0, keys.length - MAX_LEDGER_ITEMS).forEach((k) => { delete entries[k]; });
+      }
       if (live) {
-        await lRef.set({ companyId: cid, windowId: wid, status: 'active', startMs: led.startMs || nowMs, items: entries, lastTickAtMs: nowMs }, { merge: true });
+        // Re-read just before writing: a backup's touch, or Jo's "I'm back", can
+        // land while this tenant's items were loading. Never roll a touch back,
+        // never resurrect a window that was handed back meanwhile.
+        const fresh = (await lRef.get()).data() || null;
+        if (fresh && fresh.items) {
+          Object.keys(entries).forEach((k) => {
+            const f = fresh.items[k];
+            if (f && Array.isArray(f.touches) && f.touches.length > (entries[k].touches || []).length) {
+              entries[k].touches = f.touches;
+              entries[k].assignee = f.assignee || entries[k].assignee;
+            }
+          });
+        }
+        const ledgerWrite = { companyId: cid, windowId: wid, items: entries, lastTickAtMs: nowMs };
+        if (!fresh) { ledgerWrite.status = 'active'; ledgerWrite.startMs = nowMs; }
+        // merge:false on the WHOLE doc (read just above): a merge would keep the
+        // keys we pruned, and the doc would creep toward the 1 MiB limit.
+        if (!fresh || fresh.status !== 'handed_back') await lRef.set(Object.assign({}, fresh || {}, ledgerWrite), { merge: false });
         const priorState = st.backupState;
         const nextState = !configured ? 'none' : (!backup || !backup.ok || (backup.kind === 'external' && !ALLOW_EXTERNAL)) ? 'unavailable' : (unreachable ? 'unreachable' : 'ok');
         if (nextState !== priorState || !st.lastTickAtMs || nowMs - st.lastTickAtMs > 5 * MIN) {
-          await db.doc(COL_STATUS + '/' + cid).set(Object.assign({}, st, { backupState: nextState, lastTickAtMs: nowMs, updatedAtMs: nowMs }), { merge: false });
+          // Only the tick's own fields, merged: a whole-doc write here could undo an
+          // "I'm back" or a Settings save that landed while the tick ran.
+          await db.doc(COL_STATUS + '/' + cid).set({ backupState: nextState, lastTickAtMs: nowMs, updatedAtMs: nowMs }, { merge: true });
         }
       }
     } catch (e) {
@@ -406,6 +452,11 @@ async function handleManageAway(request, deps) {
       if (until > nowMs + L.LIMITS.maxAwayDays * DAY) throw new HttpsError('invalid-argument', 'Away can run at most ' + L.LIMITS.maxAwayDays + ' days at a time.');
     }
     const already = st && st.away && st.away.on;
+    // A changed end time makes any wording approved against the old one stale.
+    if (already && priv.playbook.approvedHash && priv.playbook.approvedForUntilMs && priv.playbook.approvedForUntilMs !== (until || 0)) {
+      priv.playbook = Object.assign({}, priv.playbook, { approved: '', approvedHash: '', approvedAtMs: 0, approvedBy: '', approvedForUntilMs: 0 });
+      await privRef.set(Object.assign({ companyId: cid, updatedAtMs: nowMs, updatedBy: caller.uid }, priv), { merge: false });
+    }
     const away = already
       ? { on: true, startMs: st.away.startMs, untilMs: until || null, windowId: st.away.windowId }
       : { on: true, startMs: nowMs, untilMs: until || null, windowId: newWindowId(nowMs) };
@@ -435,8 +486,9 @@ async function handleManageAway(request, deps) {
 
   if (action === 'reviewed') {
     const st = await status();
-    const wid = (st && st.pendingReview && st.pendingReview.windowId) || (typeof data.windowId === 'string' ? data.windowId : '');
-    if (!wid) return { ok: true };
+    // Only the window the status doc names (never a client-supplied id).
+    const wid = (st && st.pendingReview && st.pendingReview.windowId) || '';
+    if (!/^w[0-9a-z]{1,20}$/.test(wid)) return { ok: true };
     await db.doc(COL_WINDOWS + '/' + ledgerId(cid, wid)).set({ reviewedAtMs: nowMs, reviewedBy: caller.uid }, { merge: true });
     const priv = await loadPriv();
     const out = await refreshStatus(priv, { clearPending: true });
@@ -466,6 +518,8 @@ async function handleManageAway(request, deps) {
         throw new HttpsError('failed-precondition', 'The wording changed — review it and approve again.');
       }
       pb.approved = pb.draft; pb.approvedHash = L.hashText(pb.draft); pb.approvedAtMs = nowMs; pb.approvedBy = caller.uid;
+      // Bound to the end time it was approved against (0 = Away was off).
+      pb.approvedForUntilMs = st && st.away && st.away.on && st.away.untilMs ? Number(st.away.untilMs) : 0;
     }
     const next = Object.assign({}, priv, { playbook: pb });
     await privRef.set(Object.assign({ companyId: cid, updatedAtMs: nowMs, updatedBy: caller.uid }, next), { merge: false });
