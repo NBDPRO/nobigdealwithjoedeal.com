@@ -708,6 +708,143 @@ const REFUSAL = 'That person is not an active admin on your team. Make them an a
     ok("a teammate's key and feed are untouched", s.get('agent_keys/kRep').active === true && s.get('calendar_feed_tokens/fRep').status === 'active');
   }
 
+  // ── I. the Team tab client half (js/dashboard-team-owner.js, lazy) ──────
+  // dashboard-team-tab.js is a render-blocking script held to a byte ceiling,
+  // so the hand-off UI lives in a lazily loaded file. Real source of both,
+  // minimal DOM stand-ins; the callables are recorded, never executed.
+  {
+    const fs = require('fs');
+    const vm = require('vm');
+    const TAB = fs.readFileSync(path.join(ROOT, 'docs/pro/js/dashboard-team-tab.js'), 'utf8');
+    const OWN = fs.readFileSync(path.join(ROOT, 'docs/pro/js/dashboard-team-owner.js'), 'utf8');
+    const attrOf = (tag, k) => { const m = new RegExp(k + '="([^"]*)"').exec(tag); return m ? m[1] : null; };
+    function client(o) {
+      const calls = { callable: [], confirms: [], toasts: [], loads: [], reloads: 0 };
+      const parent = { appended: [], appendChild(b) { this.appended.push(b); b.parentNode = this; } };
+      let btns = null, lastHtml = null;
+      const list = {
+        id: 'teamMembersList', _html: '',
+        set innerHTML(v) { this._html = v; },
+        get innerHTML() { return this._html; },
+        addEventListener() {}, parentNode: null,
+        querySelectorAll(sel) {
+          if (lastHtml !== this._html) {
+            lastHtml = this._html;
+            btns = (this._html.match(/<button\b[^>]*>/g) || []).map((t) => ({
+              attrs: { 'data-team-action': attrOf(t, 'data-team-action'), 'data-email': attrOf(t, 'data-email'), 'data-former-owner': attrOf(t, 'data-former-owner') },
+              parentNode: parent,
+              getAttribute(k) { return this.attrs[k] == null ? null : this.attrs[k]; },
+              setAttribute(k, v) { this.attrs[k] = String(v); },
+            }));
+          }
+          const want = /data-team-action="([^"]+)"/.exec(sel);
+          return btns.concat(parent.appended).filter((b) => want && b.attrs['data-team-action'] === want[1]);
+        },
+      };
+      const document = {
+        readyState: 'complete',
+        getElementById: (id) => (id === 'teamMembersList' ? list : null),
+        addEventListener() {},
+        createElement: () => ({ attrs: {}, className: '', textContent: '', parentNode: null,
+          getAttribute(k) { return this.attrs[k] == null ? null : this.attrs[k]; },
+          setAttribute(k, v) { this.attrs[k] = String(v); } }),
+      };
+      const win = {
+        document, console: { log() {}, warn() {}, error() {} },
+        setTimeout, clearTimeout, Promise, Date,
+        _user: { uid: o.uid, email: o.uid + '@x.test', getIdTokenResult: async () => ({ claims: { role: 'company_admin' } }) },
+        _userClaims: o.claims || {},
+        db: {}, collection: () => ({}), doc: (_d, c, id) => ({ c, id }),
+        getDoc: async () => ({ exists: () => o.ownerId !== undefined, data: () => ({ ownerId: o.ownerId }) }),
+        getDocs: async () => ({ empty: false, docs: o.roster.map((m) => ({ id: m.email, data: () => m })) }),
+        _functions: {},
+        _httpsCallable: (_f, name) => async (payload) => { calls.callable.push({ name, payload }); return { data: o.removeData || {} }; },
+        nbdConfirm: async (m) => { calls.confirms.push(m); return o.confirm !== false; },
+        showToast: (m, t) => calls.toasts.push({ m: String(m), t }),
+      };
+      win.window = win;
+      if (!o.noLoader) {
+        win.ScriptLoader = { load: async (src) => { calls.loads.push(src); vm.runInContext(OWN, ctx, { filename: 'dashboard-team-owner.js' }); } };
+      }
+      const ctx = vm.createContext(win);
+      vm.runInContext(TAB, ctx, { filename: 'dashboard-team-tab.js' });
+      return { win, calls, list, parent };
+    }
+    const roster = [
+      { email: 'adm1@x.test', role: 'company_admin', status: 'active', uid: 'adm1' },
+      { email: 'rep1@x.test', role: 'sales_rep', status: 'active', uid: 'rep1' },
+      { email: 'pend@x.test', role: 'company_admin', status: 'invited' },
+      { email: 'noUid@x.test', role: 'company_admin', status: 'active' },
+      { email: 'benched@x.test', role: 'company_admin', status: 'deactivated', uid: 'adm9' },
+      { email: 'former@x.test', role: 'company_admin', status: 'deactivated', uid: 'ow1' },
+    ];
+    const made = (c) => c.parent.appended.map((b) => b.attrs['data-email']);
+    const flagged = (c) => c.list.querySelectorAll('button[data-team-action="remove"]').filter((b) => b.attrs['data-former-owner'] === '1').map((b) => b.attrs['data-email']);
+
+    console.log('\nI. Team tab client half (lazy dashboard-team-owner.js)');
+    {
+      const c = client({ uid: 'ow1', ownerId: 'ow1', roster });
+      await c.win.loadTeamMembers();
+      ok('the hand-off code loads lazily through ScriptLoader (versioned src)', c.calls.loads.length === 1 && /^js\/dashboard-team-owner\.js\?v=\d+$/.test(c.calls.loads[0]), JSON.stringify(c.calls.loads));
+      ok('the owner sees Make owner on an ACTIVE claimed company_admin only', JSON.stringify(made(c)) === '["adm1@x.test"]', JSON.stringify(made(c)));
+      const mk = c.parent.appended[0];
+      ok('the button rides the existing data-team-action delegate (no inline handler)',
+        mk && mk.attrs['data-team-action'] === 'makeowner' && mk.className === 'team-makeowner-btn' && Object.keys(mk.attrs).every((k) => !/^on/i.test(k)));
+      ok('the new file touches no innerHTML and no on* attribute', !/innerHTML/.test(OWN.replace(/\/\*[\s\S]*?\*\//g, '')) && !/setAttribute\('on/i.test(OWN));
+    }
+    {
+      const c = client({ uid: 'adm1', claims: { companyId: 'ow1', role: 'company_admin' }, ownerId: 'ow1', roster });
+      await c.win.loadTeamMembers();
+      ok('an admin (not the owner) is offered no Make owner', made(c).length === 0, JSON.stringify(made(c)));
+    }
+    {
+      const c = client({ uid: 'ow1', claims: { companyId: 'ow1', role: 'company_admin' }, ownerId: 'adm1', roster });
+      await c.win.loadTeamMembers();
+      ok('after the hand-off the FORMER owner (login == company id) is not shown the owner controls', made(c).length === 0, JSON.stringify(made(c)));
+    }
+    {
+      const c = client({ uid: 'adm1', claims: { companyId: 'ow1', role: 'company_admin' }, ownerId: 'adm1', roster });
+      await c.win.loadTeamMembers();
+      ok('the NEW owner (uid != company id) is offered Make owner (hand it back) on the other admins', JSON.stringify(made(c)) === '["adm1@x.test"]', JSON.stringify(made(c)));
+      ok("only the former owner's Remove is flagged data-former-owner", JSON.stringify(flagged(c)) === '["former@x.test"]', JSON.stringify(flagged(c)));
+    }
+    {
+      const c = client({ uid: 'ow1', ownerId: 'ow1', roster });
+      await c.win.loadTeamMembers();
+      await c.win.handleTeamAction('makeowner', 'adm1@x.test', c.parent.appended[0]);
+      const t = c.calls.callable.filter((x) => x.name === 'transferCompanyOwnership');
+      ok('Make owner calls transferCompanyOwnership with the email and confirm:true, after the dialog',
+        t.length === 1 && t[0].payload.email === 'adm1@x.test' && t[0].payload.confirm === true && c.calls.confirms.length === 1, JSON.stringify(c.calls.callable));
+      ok('it calls nothing else (never deactivateUser / removeMember)', c.calls.callable.every((x) => x.name === 'transferCompanyOwnership'));
+      ok('the dialog states the facts: billing stays, only they can hand it back', /Billing does not move/.test(c.calls.confirms[0]) && /only they can hand it back/.test(c.calls.confirms[0]));
+      ok('success toast says they are the owner and the caller stays an admin', c.calls.toasts.some((x) => x.t === 'success' && /is now the owner/.test(x.m) && /admin/.test(x.m)));
+      ok('the session pulls the demoted claims', c.win._userClaims.role === 'company_admin');
+    }
+    {
+      const c = client({ uid: 'ow1', ownerId: 'ow1', roster, confirm: false });
+      await c.win.loadTeamMembers();
+      await c.win.handleTeamAction('makeowner', 'adm1@x.test', c.parent.appended[0]);
+      ok('declining the dialog changes nothing', c.calls.callable.length === 0);
+    }
+    {
+      const c = client({ uid: 'ow1', ownerId: 'ow1', roster, noLoader: true });
+      await c.win.loadTeamMembers();
+      await c.win.handleTeamAction('makeowner', 'adm1@x.test', null);
+      ok('FAIL-CLOSED: if the lazy file is missing, makeowner does nothing (it never falls through to deactivateUser)', c.calls.callable.length === 0 && c.calls.confirms.length === 0);
+    }
+    {
+      const c = client({ uid: 'adm1', claims: { companyId: 'ow1', role: 'company_admin' }, ownerId: 'adm1', roster, removeData: { billingOnFormerOwner: true } });
+      await c.win.loadTeamMembers();
+      const fb = c.list.querySelectorAll('button[data-team-action="remove"]').find((b) => b.attrs['data-email'] === 'former@x.test');
+      await c.win.handleTeamAction('remove', 'former@x.test', fb);
+      ok('removing the former owner asks with the login-off wording', /former owner/.test(c.calls.confirms[0]) && /turned off for good/.test(c.calls.confirms[0]), c.calls.confirms[0]);
+      ok('the toast carries the billing-is-still-on-their-card note', c.calls.toasts.some((x) => /Billing is still on their card/.test(x.m)), JSON.stringify(c.calls.toasts));
+      const ben = c.list.querySelectorAll('button[data-team-action="remove"]').find((b) => b.attrs['data-email'] === 'benched@x.test');
+      await c.win.handleTeamAction('remove', 'benched@x.test', ben);
+      ok('(control) an ordinary removed member gets the standard wording', !/former owner/.test(c.calls.confirms[1]) && /move to the company owner/.test(c.calls.confirms[1]), c.calls.confirms[1]);
+    }
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
