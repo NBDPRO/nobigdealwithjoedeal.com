@@ -454,7 +454,7 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-view.js?v=14'
+      'js/call-center-view.js?v=15'
     ],
     // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
     // Rules editor (Settings → Estimates) and the logo upload / company export
@@ -468,13 +468,21 @@
     tenantsettings: [
       'js/tenant-rules-settings.js?v=1',
       'js/tenant-account-ui.js?v=2',
-      'js/sms-compliance-settings.js?v=1'
+      'js/sms-compliance-settings.js?v=2',
+      'js/away-mode-settings.js?v=1'
     ],
     // New-owner setup checklist on Home (2026-10-05, #2152 boot budget).
     // Never needed by NBD's own company: dashboard-bootstrap.module.js loads
     // it once the company profile lands, only for a non-platform tenant.
     setup: [
       'js/setup-checklist.js?v=1'
+    ],
+    // Away mode (never-forget lane, 2026-10-12): the Home status line, the
+    // "While you were away" card and the backup person's cover list. Kicked by
+    // today-home.js at Home boot, so it costs no boot <script> tag (the
+    // dashboard-boot-budget ratchet is at its ceiling).
+    away: [
+      'js/away-mode.js?v=1'
     ]
   };
 

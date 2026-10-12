@@ -261,8 +261,8 @@ console.log('\nLANDING (2026-10-04) — every /pro section claim is tied to the 
   }
   // Today (#2137) — the six sections Home renders
   tie('02 Today lists the sections today-home.js renders (appointments … estimates)', /appointments, calls you owe, promised follow-ups, estimates to follow up, money to collect and stalled leads/,
-    'docs/pro/js/today-home.js', "section('appts', 'Appointments', a) + section('calls', 'Calls owed', c) + section('promised', 'Promised follow-ups', pr) + section('estimates', 'Estimates to follow up', e)");
-  tie('02 Today: money to collect + stalled leads sections', /money to collect and stalled leads/, 'docs/pro/js/today-home.js', "section('money', 'Money to collect', m) + section('stalled', 'Stalled leads', s, deck)");
+    'docs/pro/js/today-home.js', "section('calls', 'Calls owed', c) + section('promised', 'Promised follow-ups', pr) + section('estimates', 'Estimates to follow up', e)");
+  tie('02 Today: money to collect + stalled leads sections', /money to collect and stalled leads/, 'docs/pro/js/today-home.js', "section('money', 'Money to collect', m) + section('waiting', 'Waiting on them', wt, wdays) + section('stalled', 'Stalled leads', s, deck)");
   // E-sign (#2166) + cancel forms (#2149)
   tie('03 every in-app contract carries the right-to-cancel notice + forms', /Notice of Right to Cancel and two Notice of Cancellation forms/, 'functions/cancel-notice-pdf.js', ".text('NOTICE OF CANCELLATION'");
   tie('03 up to 4 signers', /Up to 4 signers/, 'functions/esign-logic.js', 'const MAX_SIGNERS = 4;');

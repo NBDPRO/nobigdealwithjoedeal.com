@@ -142,6 +142,11 @@ function callerKey(c) {
 
 const who = (c) => String(c.contactName || c.from || (c.phoneDigits ? '…' + String(c.phoneDigits).slice(-4) : '') || 'Unknown caller').slice(0, 60);
 
+/** True when the row's follow-up date became due after the day of the last check (ET), and is due now. */
+function followUpCameDue(c, sinceMs, now) {
+  return !!(c && c.followUpDate && c.followUpDate <= etYmd(now) && c.followUpDate > etYmd(sinceMs));
+}
+
 /**
  * New items since `sinceMs` that need Jo. calls / textDays: phone_calls /
  * phone_text_days docs (with id); thursday: thursday_calls docs (with id).
@@ -154,17 +159,21 @@ function newNeeds(calls, textDays, thursday, sinceMs, now, labels) {
   (calls || []).forEach((c) => {
     if (!callNeedsYou(c, now, ctx)) return;
     const arrived = toMs(c.notedAtMs) || toMs(c.createdAtMs) || toMs(c.startedAtMs);
-    if (arrived <= sinceMs) return;
+    // A follow-up date that CAME DUE since the last check is news even though
+    // the call is old (audit R7, 2026-10-12): "call back Friday" is pushed on Friday.
+    const due = followUpCameDue(c, sinceMs, now);
+    if (arrived <= sinceMs && !due) return;
     const why = reasonFor(c, now, ctx);
     // Already told by the immediate urgent push (call-center.js pushUrgent).
-    if (why === 'urgent' && c.urgentPushedAtMs) return;
-    out.push({ id: 'call:' + c.id, key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) });
+    if (why === 'urgent' && c.urgentPushedAtMs && !due) return;
+    out.push({ id: 'call:' + c.id, tellId: arrived <= sinceMs ? 'call:' + c.id + '#due:' + c.followUpDate : undefined, key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) });
   });
   (textDays || []).forEach((c) => {
     if (!callNeedsYou(c, now, tctx)) return;
     const arrived = toMs(c.notedAtMs) || toMs(c.startedAtMs);
-    if (arrived <= sinceMs) return;
-    out.push({ id: 'text:' + c.id, key: callerKey(c), kind: 'text', who: who(c), why: reasonFor(c, now, tctx), at: toMs(c.startedAtMs) });
+    const due = followUpCameDue(c, sinceMs, now);
+    if (arrived <= sinceMs && !due) return;
+    out.push({ id: 'text:' + c.id, tellId: arrived <= sinceMs ? 'text:' + c.id + '#due:' + c.followUpDate : undefined, key: callerKey(c), kind: 'text', who: who(c), why: reasonFor(c, now, tctx), at: toMs(c.startedAtMs) });
   });
   // A hidden number that came back (matches a customer, or 3+ calls in 24 h):
   // told once per label baseline — "Keep hidden" moves the baseline.
@@ -280,6 +289,73 @@ function smsProblems(messages, now) {
   }];
 }
 
+/**
+ * The re-tell ladder (2026-10-12 audit R1 / ack-timeout lead). callWatch used
+ * to tell each person ONCE; an unhandled urgent call or a promise Jo made was
+ * never mentioned again until the morning email. Now an item that is still
+ * open and high-value is told again on the next runs, then the morning brief
+ * takes over. Deliberately SHORT (solo operator): original push, two
+ * re-tells (the last one sticky), then the 07:15 brief / sweep.
+ *   open   = callNeedsYou() still true: not handled, not task-done, not spam
+ *   resolved / snoozed with a date -> drops out of the ladder (never nags)
+ *   high-value = urgent, a promise Jo made, a due follow-up, an insurance line
+ */
+const LADDER_GAP_MS = 100 * 60000;   // runs are 2 h apart; never twice in one run
+const LADDER_MAX = 3;                // tells including the first
+const HIGH_WHY = /^(urgent|you promised something|follow-up due|insurance line)/;
+function ladderCandidates(callRows, textRows, now, labels) {
+  const out = [];
+  const ctx = reachIndex(callRows);
+  if (labels) ctx.labels = labels;
+  const tctx = labels ? { labels } : undefined;
+  const today = etYmd(now);
+  const add = (c, prefix, useCtx) => {
+    const cx = useCtx ? ctx : tctx;
+    if (!callNeedsYou(c, now, cx)) return;
+    const why = reasonFor(c, now, cx);
+    if (!HIGH_WHY.test(why)) return;
+    // Snoozed with a date: on the call (no task) or by moving its task.
+    if (c.snoozeUntilYmd && String(c.snoozeUntilYmd) > today) return;
+    if (c.taskDueYmd && String(c.taskDueYmd) > today) return;
+    out.push({ id: prefix + c.id, key: callerKey(c), kind: prefix === 'text:' ? 'text' : 'call', who: who(c), why, at: toMs(c.startedAtMs), seedAt: toMs(c.urgentPushedAtMs) });
+  };
+  (callRows || []).forEach((c) => add(c, 'call:', true));
+  (textRows || []).forEach((c) => add(c, 'text:', false));
+  return out;
+}
+/** Items to tell AGAIN now: told before (ladder, or the immediate urgent push), still open, rungs left. */
+function ladderRetells(callRows, textRows, ladder, now, labels) {
+  const L = ladder || {};
+  const out = [];
+  ladderCandidates(callRows, textRows, now, labels).forEach((x) => {
+    const prev = L[x.id] || (x.seedAt ? { n: 1, at: x.seedAt } : null);
+    if (!prev || !(Number(prev.n) >= 0)) return;
+    if (Number(prev.n) >= LADDER_MAX) return;
+    if (now - (toMs(prev.at) || 0) < LADDER_GAP_MS) return;
+    out.push(Object.assign({}, x, { rung: Number(prev.n) + 1, why: x.why + ' — still open (reminder ' + Number(prev.n) + ')' }));
+  });
+  return out;
+}
+/**
+ * The ladder state to persist. newIds = ids newly told this run, retells =
+ * ladderRetells() output, reached = the push reached a device (false → the
+ * rung does not count, so the next run tries it again). Only items still open
+ * are kept, so a handled / snoozed item leaves the map by itself.
+ */
+function nextLadder(callRows, textRows, ladder, newIds, retells, reached, now, labels) {
+  const L = ladder || {};
+  const fresh = new Set(newIds || []);
+  const re = new Map((retells || []).map((r) => [r.id, r]));
+  const next = {};
+  ladderCandidates(callRows, textRows, now, labels).forEach((x) => {
+    const prev = L[x.id] || (x.seedAt ? { n: 1, at: x.seedAt } : null);
+    if (re.has(x.id)) next[x.id] = reached ? { n: re.get(x.id).rung, at: now } : prev;
+    else if (fresh.has(x.id)) next[x.id] = reached ? { n: 1, at: now } : { n: 0, at: 0 };
+    else if (prev) next[x.id] = prev;
+  });
+  return next;
+}
+
 /** The one alert (bell + push). null when there is nothing to say. */
 function alertFor(needs, problems, now) {
   const items = needs || [], pr = problems || [];
@@ -322,6 +398,6 @@ function inWatchHours(now) {
 
 module.exports = {
   CALL_WINDOW, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
-  SMS_REPEAT_MS, smsProblems, deliveryBySid,
+  SMS_REPEAT_MS, smsProblems, deliveryBySid, LADDER_GAP_MS, LADDER_MAX, ladderCandidates, ladderRetells, nextLadder,
   toMs, etYmd, callNeedsYou, labelOf, resurfacedNumbers, callerKey, reasonFor, reachIndex, isMissedCall, callCardUrl, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
 };

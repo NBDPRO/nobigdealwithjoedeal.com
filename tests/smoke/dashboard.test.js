@@ -5485,9 +5485,10 @@ section('Customer-surface sweep — blockers caught in review (regression pins)'
   //    portal link, composes a fixed body and POSTs to Twilio with no preview —
   //    an irreversible customer-facing send behind a button labelled "Text".
   const qab = read(path.join(PRO_JS, 'customer-quick-action-bar.js'));
-  assert('quick-action bar Text/Email open the OS composer, never auto-send',
-    /href="sms:\$\{escapeAttr\(phone\)\}"/.test(qab) &&
-    /href="mailto:\$\{escapeAttr\(email\)\}"/.test(qab));
+  // (Email left the bar for Note on 2026-10-08; tests/qab-comm-log.test.js
+  // drives the Note button. Email stays reachable in the header's More.)
+  assert('quick-action bar Text opens the OS composer, never auto-sends',
+    /href="sms:\$\{escapeAttr\(phone\)\}"/.test(qab));
   assert('quick-action bar does not call the auto-sending portal helpers',
     !/(smsForLead|emailForLead)/.test(decomment(qab)));
 }

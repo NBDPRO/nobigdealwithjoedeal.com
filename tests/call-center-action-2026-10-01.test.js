@@ -182,7 +182,10 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
   await mirrorCallTask({ db, leadId: 'L1', taskId: 'cube-cube_AAAAA1', after: { done: false } });
   ok('un-ticking puts the call back on "needs you"', db.docs.get(COLLECTION + '/cube_AAAAA1').taskDone === false);
   await mirrorCallTask({ db, leadId: 'L1', taskId: 'cube-cube_AAAAA1', after: null });
-  ok('deleting the follow-up task counts as dealt with', db.docs.get(COLLECTION + '/cube_AAAAA1').taskDone === true);
+  ok('deleting the follow-up task does NOT count as dealt with (audit 2026-10-12): the call stays open', db.docs.get(COLLECTION + '/cube_AAAAA1').taskDone === false);
+  await mirrorCallTask({ db, leadId: 'L1', taskId: 'cube-cube_AAAAA1', after: { done: true } });
+  await mirrorCallTask({ db, leadId: 'L1', taskId: 'cube-cube_AAAAA1', after: null });
+  ok('...and deleting a task already ticked leaves it ticked (no un-tick either)', db.docs.get(COLLECTION + '/cube_AAAAA1').taskDone === true);
   db.docs.set('phone_text_days/txt_5135550100_20261001', { userId: OWN, leadId: 'L1', status: 'noted' });
   await mirrorCallTask({ db, leadId: 'L1', taskId: 'sms-txt_5135550100_20261001', after: { done: true } });
   ok('a texted promise\'s task (sms-…) marks the text day', db.docs.get('phone_text_days/txt_5135550100_20261001').taskDone === true);

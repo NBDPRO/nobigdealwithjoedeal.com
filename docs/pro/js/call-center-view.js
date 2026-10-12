@@ -181,7 +181,13 @@
     // Every number Jo labeled, including the ones a label keeps off Today
     // (2026-10-12) — so a hidden person is never lost.
     ['labeled', 'Labeled', function (c) { return !!labelFor(c); }],
+    // Thursday label playbooks (2026-10-12; js/thursday-handled.js, flag-gated):
+    // numbers Jo handed to Thursday, and the spam list he can copy to his phone.
+    ['thandled', 'Thursday-handled', function (c) { var T = window.NBDThursdayHandled; return !!(T && T.isHandled(c.phoneDigits)); }, thEnabled],
+    ['blocklist', 'Block list', function (c) { var T = window.NBDThursdayHandled; return !!(T && T.isBlocked(c.phoneDigits)); }, thEnabled],
   ];
+  function thEnabled() { var T = window.NBDThursdayHandled; return !!(T && T.enabled()); }
+  function filtersNow() { return FILTERS.filter(function (f) { return !f[3] || f[3](); }); }
 
   async function fetchCalls() {
     var rows = await fetchFrom('phone_calls', 'call');
@@ -259,7 +265,8 @@
     }).join('') + '</ul>' : '';
     var actions = reachButtons(c, lead);
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
-    if (!isViewer()) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>' + labelBtn(c);
+    if (!isViewer()) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>' + labelBtn(c) +
+      (c.handledAtMs ? '' : '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-id="' + esc(c.id) + '">📌 Promise</button>');
     return '<div class="panel pc-card cc-card cc-text' + (c.handledAtMs ? ' is-handled' : '') + '" data-call-id="' + esc(c.id) + '">' +
       '<div class="pc-head"><div class="pc-who">' + esc(who) + (c.contactName && c.phoneDigits ? ' <span class="pc-meta">' + esc(fmtPhone(c.phoneDigits)) + '</span>' : '') + '</div>' +
       '<div class="pc-meta">' + esc(when) + '</div></div>' +
@@ -296,6 +303,8 @@
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
     if (!isViewer()) {
       actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>' + labelBtn(c);
+      // Promise capture (2026-10-12): what did you promise? A dated task, never forgotten.
+      if (!c.handledAtMs && c.status !== 'personal') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-id="' + esc(c.id) + '">📌 Promise</button>';
       if (c.status === 'personal') {
         actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="notpersonal" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>It wasn\'t personal</button>';
       }
@@ -357,7 +366,8 @@
     var withTarget = g.calls.filter(function (c) { return fileTarget(c); })[0] || anchor;
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(latest.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
     if (!isViewer()) {
-      actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="handledgroup" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '"' + (busy ? ' disabled' : '') + '>✓ Handled (all ' + g.calls.length + ')</button>' + labelBtn(latest);
+      actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="handledgroup" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '"' + (busy ? ' disabled' : '') + '>✓ Handled (all ' + g.calls.length + ')</button>' +
+        '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '">📌 Promise</button>' + labelBtn(latest);
       if (!latest.leadId && anchor) {
         actions += (leadForNumber(anchor.phoneDigits) || taggedNotInCrm(anchor) ? '' : '<button type="button" class="btn btn-ghost pc-play" data-cc="newlead" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(anchor.id) + '"' + (busy ? ' disabled' : '') + '>+ New lead</button>') +
           '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(anchor.id) + '">Attach to customer…</button>';
@@ -380,12 +390,12 @@
     if (!el) return;
     var L = leadsById();
     var counts = {};
-    FILTERS.forEach(function (f) { counts[f[0]] = state.calls.filter(f[2]).length; });
+    filtersNow().forEach(function (f) { counts[f[0]] = state.calls.filter(f[2]).length; });
     // Needs attention counts PEOPLE (Jo, 2026-10-02), like Home and the alert.
     counts.attention = groupNeeds(state.calls).length;
     var badge = document.getElementById('callsNavBadge');
     if (badge) { badge.textContent = counts.attention ? String(counts.attention) : ''; badge.classList.toggle('dn', !counts.attention); }
-    var active = FILTERS.filter(function (f) { return f[0] === state.filter; })[0] || FILTERS[0];
+    var active = filtersNow().filter(function (f) { return f[0] === state.filter; })[0] || FILTERS[0];
     var rows = state.calls.filter(active[2]).filter(function (c) { return matchesSearch(c, L); });
     var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title">📞 Call Center</h1>' +
       '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p>' +
@@ -395,7 +405,7 @@
       (promises.loaded && !promises.denied && !isViewer() ? ' <button type="button" class="btn btn-ghost pc-play cc-deck-btn" data-cc="tagmatch">Match my tagged contacts</button>' : '') +
       '</div>' + tagPanel() +
       '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
-      '<div class="cc-filters" role="tablist">' + FILTERS.map(function (f) {
+      '<div class="cc-filters" role="tablist">' + filtersNow().map(function (f) {
         return '<button type="button" role="tab" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
           esc(f[1]) + ' <span class="cc-count">' + counts[f[0]] + '</span></button>';
       }).join('') + '</div></div>';
@@ -414,7 +424,9 @@
     else body = rows.slice(0, 150).map(function (c) { return renderCall(c, L); }).join('') +
       (rows.length > 150 ? '<div class="cc-empty">Showing the newest 150. Search to narrow it down.</div>' : '');
     var hadFocus = document.activeElement && document.activeElement.id === 'ccSearch';
-    el.innerHTML = '<div class="cc-wrap">' + head + '<div class="cc-list">' + body + '</div></div>';
+    // The Thursday-handled / Block list panels list NUMBERS (a number with no call yet still shows).
+    var thPanel = (state.filter === 'thandled' || state.filter === 'blocklist') && window.NBDThursdayHandled ? window.NBDThursdayHandled.panelHtml(state.filter) : '';
+    el.innerHTML = '<div class="cc-wrap">' + head + thPanel + '<div class="cc-list">' + body + '</div></div>';
     focusedCard();
     if (hadFocus) { var s = document.getElementById('ccSearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
   }
@@ -1041,6 +1053,25 @@
     render();
   }
 
+  // Promise capture (2026-10-12): the lazy 'promise' bundle owns the sheet.
+  // A promise from a customer's call is a dated task and the call is handled;
+  // a call on no customer keeps its promise on the call and stays open.
+  async function openPromise(ids, id) {
+    if (isViewer()) return;
+    var c = byId(id) || {};
+    var lead = c.leadId ? leadsById()[c.leadId] : null;
+    var mine = (c.promises || []).filter(function (p) { return p && p.who === 'jo'; }).map(function (p) { return p.text; });
+    try {
+      if (!window.NBDPromise && window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function') await window.ScriptLoader.loadBundle('promise');
+    } catch (_) { /* reported below */ }
+    if (!window.NBDPromise) { status(id, "Couldn't load the promise tools - try again in a moment."); return; }
+    window.NBDPromise.openSheet({
+      mode: 'promise', name: c.contactName || leadName(lead) || fmtPhone(c.phoneDigits) || '', leadId: c.leadId || '', lead: lead,
+      callIds: ids.slice(), summary: c.summary || '', why: mine[0] || '',
+      onDone: function () { load(); },
+    });
+  }
+
   document.addEventListener('click', function (e) {
     var b = e.target && e.target.closest ? e.target.closest('[data-cc]') : null;
     if (!b || !b.closest('#view-calls')) return;
@@ -1049,6 +1080,7 @@
     else if (a === 'play') play(id);
     else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);
     else if (a === 'handledgroup') actMany(idsOf(b), 'handled');
+    else if (a === 'promise') openPromise(idsOf(b).length ? idsOf(b) : [id], id);
     else if (a === 'label') {
       var lc = byId(id);
       if (lc && window.NBDContactLabels) {
@@ -1075,6 +1107,7 @@
   // needs-attention grouping both read it.
   if (typeof window.addEventListener === 'function') {
     window.addEventListener('nbd:labels-changed', function () { labelsVer++; if (state.loaded) render(); });
+    window.addEventListener('nbd:thursday-handled-changed', function () { if (state.loaded) render(); });
     window.addEventListener('nbd:suggestions-changed', function () { if (state.loaded) render(); });
   }
   document.addEventListener('input', function (e) {
@@ -1094,5 +1127,6 @@
     _focusTarget: focusTarget,
     _telOf: telOf,
     focusCall: focusCall,
+    setFilter: function (f) { state.filter = f; state.focusId = null; render(); },
   };
 })();

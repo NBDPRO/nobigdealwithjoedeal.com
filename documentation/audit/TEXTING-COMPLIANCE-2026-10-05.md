@@ -22,6 +22,10 @@ list: anyone but a viewer can add a number, and the owner or a company_admin can
 remove a manual entry. A STOP-reply entry can never be removed from the CRM; only
 the homeowner's START reply lifts it. Server side, all of this goes through the
 callable `manageSmsCompliance` (`functions/sms-dnc.js`).
+*(Updated 2026-10-07: "remove" is now **Lift** with a required reason, and the
+entry is kept as history. A STOP the company recorded from its own phone can be
+lifted too. A STOP texted to NBD's number still can't. See the "Closed
+2026-10-07" note under Still open.)*
 
 ## Paths covered
 
@@ -56,6 +60,31 @@ gaps closed. Tests: `tests/r6-texting-trio-2026-10-07.test.js`.
   remove a stop_reply entry, and a START to NBD's number no longer lifts
   another company's entry. If a homeowner tells company A "you can text me
   again", A can't record it today.
+  - **Closed 2026-10-07 (`feat/sms-lift-manual-stop`, Jo said yes):** the
+    owner or a company_admin can now **Lift** one of their company's own
+    entries in Settings → AI Texting → Do Not Text. Liftable: a manual add, or
+    a STOP the company recorded from its own phone (`owner_phone`, or an older
+    entry with the CRM's "They replied STOP" note). A short sheet asks for a
+    **required reason** ("Homeowner said on 10/8 call texts are fine"). The
+    entry is **marked lifted, never deleted** (`lifted`, `liftedAt`,
+    `liftedBy`, `liftedRole`, `liftReason`). Each lift and reinstatement is
+    appended to the entry's `history`, which is the audit record. A lifted
+    entry blocks nothing; a new STOP or "don't text" on that number puts it
+    back in force.
+  - **Stays locked:** a STOP the homeowner texted to NBD's number
+    (`stopLine: 'twilio'`, or an older one nobody can attribute) shows "Opted
+    out by text — only their START reply lifts it" and the server refuses to
+    lift it. Other companies' entries are never touched.
+  - **Server-enforced:** `manageSmsCompliance` `liftDnc` runs
+    `requireTeamAdmin`, so reps, managers and viewers are refused. The old
+    `removeDnc` name now does the same lift and needs a reason, so nothing
+    deletes an entry any more. `sms_dnc` stays admin-SDK only in the rules.
+  - If the number is also in the global register (a STOP to NBD's number),
+    the lift answers `stillBlocked` and the page says only their START lifts
+    that.
+  - Tests: `tests/sms-lift-stop-2026-10-07.test.js` (role matrix through the
+    real `requireTeamAdmin`, eligibility, audit record, other companies,
+    reinstatement, the page's sheet and escaping).
 
 - **Per-company A2P registration.** That is being designed separately. Until it
   exists, non-NBD companies cannot text at all.
