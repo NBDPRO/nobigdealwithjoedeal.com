@@ -452,6 +452,7 @@
   var rootEl = null, mounted = false, mo = null, unbind = [], timer = null;
   var S = { view: 'week', monday: null, day: null, menu: false, open: null, notice: null, busyHtml: '', seq: 0 };
   var D = null;                       // the drag in flight
+  var pendingPaint = false;
   var DATA = { subs: [], rain: {}, orders: [] };
   var saving = {};
   var suppressClick = false;
@@ -652,7 +653,10 @@
   }
 
   function render() {
-    if (!rootEl || (D && D.active)) return;
+    if (!rootEl) return;
+    // A press is in flight (even before it moves): a repaint now would detach the
+    // element that holds the pointer and the drag would silently die. Repaint on release.
+    if (D && Date.now() - D.t < 8000) { pendingPaint = true; return; }
     // never re-paint under someone typing in the drawer
     var ae = doc.activeElement;
     if (S.open && ae && ae.closest && ae.closest('.cw-drawer') && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
@@ -758,7 +762,7 @@
     var c0 = cellAt(ev.clientX, ev.clientY);
     var off = 0;
     if (r && c0) { off = daysBetween(r.start, c0.getAttribute('data-date')) || 0; off = Math.max(0, Math.min(r.days - 1, off)); }
-    D = { id: id, el: el, x: ev.clientX, y: ev.clientY, pid: ev.pointerId, active: false, off: off, hot: null, kind: el.getAttribute('data-cw-drag') };
+    D = { t: Date.now(), id: id, el: el, x: ev.clientX, y: ev.clientY, pid: ev.pointerId, active: false, off: off, hot: null, kind: el.getAttribute('data-cw-drag') };
     try { el.setPointerCapture(ev.pointerId); } catch (e) {}
   }
   function onPointerMove(ev) {
@@ -780,6 +784,7 @@
     if (d.hot) d.hot.classList.remove('cw-drop');
     rootEl.classList.remove('cw-dragging');
     d.el.classList.remove('cw-lift');
+    if (pendingPaint) { pendingPaint = false; if (!d.active) render(); }
     if (!d.active) return;
     suppressClick = true;
     setTimeout(function () { suppressClick = false; }, 0);

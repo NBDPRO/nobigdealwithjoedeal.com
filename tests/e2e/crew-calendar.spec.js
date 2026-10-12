@@ -33,20 +33,24 @@ test.describe.serial('Crew Calendar @shard2', () => {
     await safeWaitForFunction(page, () => typeof window._saveLead === 'function' && !!window._user && !!window.LayoutEngine && !!window.NBDProduction, null, { timeout: 30_000 });
 
     const s = Date.now();
-    // two crews on the roster (production.js saveSub -> companies/{tenant}/subs)
-    await safeEvaluate(page, async (a) => {
-      await window.NBDProduction.saveSub({ name: 'ZZCW Alpha ' + a.s, trade: 'Roofing' });
-      await window.NBDProduction.saveSub({ name: 'ZZCW Bravo ' + a.s, trade: 'Roofing' });
+    // two crews on the roster: the doc production.js saveSub writes
+    // (companies/{tenant}/subs). Written directly so a retry cannot hang on a reload.
+    const subIds = await safeEvaluate(page, async (a) => {
+      const t = (window._userClaims || {}).companyId || window._user.uid;
+      const col = window.collection(window.db, 'companies', t, 'subs');
+      const mk = async (name) => (await window.addDoc(col, { name, phone: '', email: '', trade: 'Roofing', insuranceExpiry: null, notes: '', active: true,
+        createdAt: window.serverTimestamp(), updatedAt: window.serverTimestamp() })).id;
+      return { alpha: await mk('ZZCW Alpha ' + a.s), bravo: await mk('ZZCW Bravo ' + a.s) };
     }, { s });
     const wed = weekDay(2);
     const thu = weekDay(3);
+    // unique phone + address per run: a retry must not trip the duplicate-lead prompt
     await safeEvaluate(page, async (a) => {
-      const subs = window.NBDProduction.subs();
-      const alpha = subs.find((x) => x.name === 'ZZCW Alpha ' + a.s);
-      await window._saveLead({ firstName: 'ZZCW', lastName: 'Placed' + a.s, address: '5 Crew Ln, Mason, OH 45040', phone: '5135550188', stage: 'contract_signed',
-        scheduledDate: a.wed, scheduledEndDate: a.thu, scheduledStart: '07:00', subId: alpha.id, crew: alpha.name, permitNotRequired: true });
-      await window._saveLead({ firstName: 'ZZCW', lastName: 'Tray' + a.s, address: '6 Crew Ln, Mason, OH 45040', phone: '5135550189', stage: 'contract_signed', permitNotRequired: true });
-    }, { s, wed, thu });
+      const tail = String(a.s).slice(-6);
+      await window._saveLead({ firstName: 'ZZCW', lastName: 'Placed' + a.s, address: tail + ' Crew Ln, Mason, OH 45040', phone: '513' + tail + '1', stage: 'contract_signed',
+        scheduledDate: a.wed, scheduledEndDate: a.thu, scheduledStart: '07:00', subId: a.alpha, crew: 'ZZCW Alpha ' + a.s, permitNotRequired: true });
+      await window._saveLead({ firstName: 'ZZCW', lastName: 'Tray' + a.s, address: tail + ' Tray Ln, Mason, OH 45040', phone: '513' + tail + '2', stage: 'contract_signed', permitNotRequired: true });
+    }, { s, wed, thu, alpha: subIds.alpha });
     await safeEvaluate(page, () => window.LayoutEngine.saveUser({ id: 'crew', device: 'desktop' }));
     await page.reload();
     await safeWaitForFunction(page, () => document.documentElement.getAttribute('data-layout') === 'crew' && !!document.getElementById('nbdCrewRoot'), null, { timeout: 40_000 });
@@ -62,14 +66,13 @@ test.describe.serial('Crew Calendar @shard2', () => {
 
     const ids = await safeEvaluate(page, (a) => {
       const l = (window._leads || []);
-      const sub = window.NBDProduction.subs();
       return {
         placed: l.find((x) => x.lastName === 'Placed' + a.s).id,
         tray: l.find((x) => x.lastName === 'Tray' + a.s).id,
-        alpha: sub.find((x) => x.name === 'ZZCW Alpha ' + a.s).id,
-        bravo: sub.find((x) => x.name === 'ZZCW Bravo ' + a.s).id,
+        alpha: a.alpha,
+        bravo: a.bravo,
       };
-    }, { s });
+    }, { s, alpha: subIds.alpha, bravo: subIds.bravo });
     const fresh = (id) => safeEvaluate(page, async (i) => {
       const snap = await window.getDoc(window.doc(window.db, 'leads', i));
       const d = snap.data();
