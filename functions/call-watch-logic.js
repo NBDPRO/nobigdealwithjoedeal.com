@@ -48,13 +48,33 @@ function reachIndex(rows) {
   });
   return { reachedAt: m };
 }
+// Per-number labels (2026-10-12; docs/pro/js/contact-labels-logic.js, rules in
+// home-attention.js). ctx.labels = { digits10: { kind, policy, ackAtMs,
+// updatedAtMs } }. hide / quiet drop urgent, missed and unknown-number noise;
+// a promise Jo made (or a follow-up date that has come) ALWAYS surfaces.
+function labelOf(ctx, c) {
+  const L = ctx && ctx.labels;
+  if (!L || !c) return null;
+  const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
+  if (d.length !== 10) return null;
+  return (typeof L.get === 'function' ? L.get(d) : L[d]) || null;
+}
+const labelPolicy = (lb) => (lb && (lb.policy === 'hide' || lb.policy === 'quiet' || lb.policy === 'surface') ? lb.policy : '');
+
 function callNeedsYou(c, now, ctx) {
   const t = now == null ? Date.now() : now;
   if (!c || c.handledAtMs || c.status === 'personal') return false;
   if (c.callType === 'spam' || c.taskDone === true) return false;
   if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) return false;
   const promised = (c.promises || []).some((p) => p && p.who === 'jo');
-  if (c.callType === 'sub' || c.callType === 'supplier') return promised;
+  const lb = labelOf(ctx, c);
+  const pol = labelPolicy(lb);
+  const dueFu = !!(c.followUpDate && c.followUpDate <= etYmd(t));
+  // hide: a promise, a due callback or an urgent call from a non-spam number
+  // breaks through (mirror of home-attention.js); quiet: promise / callback only.
+  if (pol === 'hide') return promised || dueFu || (c.urgent === true && lb.kind !== 'spam');
+  if (pol === 'quiet') return promised || dueFu;
+  if (!pol && (c.callType === 'sub' || c.callType === 'supplier')) return promised;
   if (c.urgent === true) return true;
   if (promised) return true;
   if (c.followUpDate && c.followUpDate <= etYmd(t)) return true;
@@ -63,15 +83,49 @@ function callNeedsYou(c, now, ctx) {
     return reached <= (toMs(c.startedAtMs) || 0);
   }
   if (c.leadId) return false;
-  if (c.bucket === 'insurance') return true;
+  if (c.bucket === 'insurance' || (lb && lb.kind === 'insurance')) return true;
   if (c.bucket === 'unknown') return c.status !== 'short';
   return false;
 }
 
+const BURST_N = 3, BURST_MS = DAY;
+/**
+ * Mirror of home-attention.js resurfacedNumbers: a HIDDEN number that is
+ * filed on a customer, or rings 3+ times in 24 h, after the label was applied
+ * / last acknowledged ("Keep hidden" = ackAtMs). Once per baseline.
+ */
+function resurfacedNumbers(rows, labels, now) {
+  const out = [];
+  if (!labels) return out;
+  const t = now == null ? Date.now() : now;
+  const by = new Map();
+  (rows || []).forEach((c) => {
+    if (!c || c.channel === 'text' || c.handledAtMs || c.taskDone === true || c.status === 'personal' || c.callType === 'spam') return;
+    const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
+    if (d.length !== 10) return;
+    const lb = typeof labels.get === 'function' ? labels.get(d) : labels[d];
+    if (!lb || lb.policy !== 'hide') return;
+    const base = Math.max(toMs(lb.ackAtMs), toMs(lb.updatedAtMs));
+    if ((toMs(c.startedAtMs) || 0) <= base) return;
+    if (!by.has(d)) by.set(d, { digits: d, base, calls: [] });
+    by.get(d).calls.push(c);
+  });
+  by.forEach((v) => {
+    const recent = v.calls.filter((c) => c.direction !== 'outbound' && (toMs(c.startedAtMs) || 0) >= t - BURST_MS);
+    const onLead = v.calls.some((c) => c.leadId);
+    const reason = onLead ? 'lead' : (recent.length >= BURST_N ? 'burst' : '');
+    if (reason) out.push({ digits: v.digits, reason, calls: v.calls, base: v.base });
+  });
+  return out;
+}
+
 /** Why a call / text day needs Jo, in a few words. */
-function reasonFor(c, now) {
+function reasonFor(c, now, ctx) {
   const promised = (c.promises || []).some((p) => p && p.who === 'jo');
-  if (c.urgent === true && c.callType !== 'sub' && c.callType !== 'supplier') return 'urgent';
+  const lb = labelOf(ctx, c);
+  const pol = labelPolicy(lb);
+  const urgentOk = pol === 'quiet' ? false : (pol === 'hide' ? !!(lb && lb.kind !== 'spam') : true);
+  if (c.urgent === true && c.callType !== 'sub' && c.callType !== 'supplier' && urgentOk) return 'urgent';
   if (promised) return 'you promised something';
   if (c.followUpDate && c.followUpDate <= etYmd(now)) return 'follow-up due';
   if (isMissedCall(c)) return 'missed call';
@@ -97,9 +151,11 @@ function followUpCameDue(c, sinceMs, now) {
  * New items since `sinceMs` that need Jo. calls / textDays: phone_calls /
  * phone_text_days docs (with id); thursday: thursday_calls docs (with id).
  */
-function newNeeds(calls, textDays, thursday, sinceMs, now) {
+function newNeeds(calls, textDays, thursday, sinceMs, now, labels) {
   const out = [];
   const ctx = reachIndex(calls);
+  if (labels) ctx.labels = labels;
+  const tctx = labels ? { labels } : null;
   (calls || []).forEach((c) => {
     if (!callNeedsYou(c, now, ctx)) return;
     const arrived = toMs(c.notedAtMs) || toMs(c.createdAtMs) || toMs(c.startedAtMs);
@@ -107,23 +163,38 @@ function newNeeds(calls, textDays, thursday, sinceMs, now) {
     // the call is old (audit R7, 2026-10-12): "call back Friday" is pushed on Friday.
     const due = followUpCameDue(c, sinceMs, now);
     if (arrived <= sinceMs && !due) return;
-    const why = reasonFor(c, now);
+    const why = reasonFor(c, now, ctx);
     // Already told by the immediate urgent push (call-center.js pushUrgent).
     if (why === 'urgent' && c.urgentPushedAtMs && !due) return;
     out.push({ id: 'call:' + c.id, tellId: arrived <= sinceMs ? 'call:' + c.id + '#due:' + c.followUpDate : undefined, key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) });
   });
   (textDays || []).forEach((c) => {
-    if (!callNeedsYou(c, now)) return;
+    if (!callNeedsYou(c, now, tctx)) return;
     const arrived = toMs(c.notedAtMs) || toMs(c.startedAtMs);
     const due = followUpCameDue(c, sinceMs, now);
     if (arrived <= sinceMs && !due) return;
-    out.push({ id: 'text:' + c.id, tellId: arrived <= sinceMs ? 'text:' + c.id + '#due:' + c.followUpDate : undefined, key: callerKey(c), kind: 'text', who: who(c), why: reasonFor(c, now), at: toMs(c.startedAtMs) });
+    out.push({ id: 'text:' + c.id, tellId: arrived <= sinceMs ? 'text:' + c.id + '#due:' + c.followUpDate : undefined, key: callerKey(c), kind: 'text', who: who(c), why: reasonFor(c, now, tctx), at: toMs(c.startedAtMs) });
+  });
+  // A hidden number that came back (matches a customer, or 3+ calls in 24 h):
+  // told once per label baseline — "Keep hidden" moves the baseline.
+  resurfacedNumbers(calls, labels, now).forEach((v) => {
+    const latest = v.calls.slice().sort((a, b) => (toMs(b.startedAtMs) || 0) - (toMs(a.startedAtMs) || 0))[0];
+    const at = toMs(latest.startedAtMs);
+    if (at <= sinceMs) return;
+    out.push({
+      id: 'hidden:' + v.digits + ':' + v.base, key: callerKey(latest), kind: 'call', who: who(latest),
+      why: v.reason === 'lead' ? 'a hidden number matches a customer' : 'a hidden number is calling a lot', at,
+    });
   });
   (thursday || []).forEach((t) => {
     if (!t || t.reviewed === true || t.status !== 'processed') return;
     const arrived = toMs(t.processedAt) || toMs(t.startedAt);
     if (arrived <= sinceMs || arrived < now - CALL_WINDOW) return;
     const td = String(t.from || '').replace(/\D/g, '').slice(-10);
+    // Thursday took a call from a number Jo hid / quieted: a promise would
+    // be on a phone call, not here, so it stays out of the alert.
+    const tl = labels && td ? (typeof labels.get === 'function' ? labels.get(td) : labels[td]) : null;
+    if (tl && (tl.policy === 'hide' || tl.policy === 'quiet')) return;
     out.push({ id: 'thursday:' + t.id, key: td ? 'num:' + td : 'thursday:' + t.id, kind: 'thursday', who: String(t.from || 'Caller').slice(0, 60), why: t.urgent ? 'urgent (Thursday took it)' : 'Thursday took it — not reviewed', at: toMs(t.startedAt) });
   });
   return out.sort((a, b) => (b.at || 0) - (a.at || 0));
@@ -232,13 +303,16 @@ function smsProblems(messages, now) {
 const LADDER_GAP_MS = 100 * 60000;   // runs are 2 h apart; never twice in one run
 const LADDER_MAX = 3;                // tells including the first
 const HIGH_WHY = /^(urgent|you promised something|follow-up due|insurance line)/;
-function ladderCandidates(callRows, textRows, now) {
+function ladderCandidates(callRows, textRows, now, labels) {
   const out = [];
   const ctx = reachIndex(callRows);
+  if (labels) ctx.labels = labels;
+  const tctx = labels ? { labels } : undefined;
   const today = etYmd(now);
   const add = (c, prefix, useCtx) => {
-    if (!callNeedsYou(c, now, useCtx ? ctx : undefined)) return;
-    const why = reasonFor(c, now);
+    const cx = useCtx ? ctx : tctx;
+    if (!callNeedsYou(c, now, cx)) return;
+    const why = reasonFor(c, now, cx);
     if (!HIGH_WHY.test(why)) return;
     // Snoozed with a date: on the call (no task) or by moving its task.
     if (c.snoozeUntilYmd && String(c.snoozeUntilYmd) > today) return;
@@ -250,10 +324,10 @@ function ladderCandidates(callRows, textRows, now) {
   return out;
 }
 /** Items to tell AGAIN now: told before (ladder, or the immediate urgent push), still open, rungs left. */
-function ladderRetells(callRows, textRows, ladder, now) {
+function ladderRetells(callRows, textRows, ladder, now, labels) {
   const L = ladder || {};
   const out = [];
-  ladderCandidates(callRows, textRows, now).forEach((x) => {
+  ladderCandidates(callRows, textRows, now, labels).forEach((x) => {
     const prev = L[x.id] || (x.seedAt ? { n: 1, at: x.seedAt } : null);
     if (!prev || !(Number(prev.n) >= 0)) return;
     if (Number(prev.n) >= LADDER_MAX) return;
@@ -268,12 +342,12 @@ function ladderRetells(callRows, textRows, ladder, now) {
  * rung does not count, so the next run tries it again). Only items still open
  * are kept, so a handled / snoozed item leaves the map by itself.
  */
-function nextLadder(callRows, textRows, ladder, newIds, retells, reached, now) {
+function nextLadder(callRows, textRows, ladder, newIds, retells, reached, now, labels) {
   const L = ladder || {};
   const fresh = new Set(newIds || []);
   const re = new Map((retells || []).map((r) => [r.id, r]));
   const next = {};
-  ladderCandidates(callRows, textRows, now).forEach((x) => {
+  ladderCandidates(callRows, textRows, now, labels).forEach((x) => {
     const prev = L[x.id] || (x.seedAt ? { n: 1, at: x.seedAt } : null);
     if (re.has(x.id)) next[x.id] = reached ? { n: re.get(x.id).rung, at: now } : prev;
     else if (fresh.has(x.id)) next[x.id] = reached ? { n: 1, at: now } : { n: 0, at: 0 };
@@ -325,5 +399,5 @@ function inWatchHours(now) {
 module.exports = {
   CALL_WINDOW, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
   SMS_REPEAT_MS, smsProblems, deliveryBySid, LADDER_GAP_MS, LADDER_MAX, ladderCandidates, ladderRetells, nextLadder,
-  toMs, etYmd, callNeedsYou, callerKey, reasonFor, reachIndex, isMissedCall, callCardUrl, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
+  toMs, etYmd, callNeedsYou, labelOf, resurfacedNumbers, callerKey, reasonFor, reachIndex, isMissedCall, callCardUrl, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
 };

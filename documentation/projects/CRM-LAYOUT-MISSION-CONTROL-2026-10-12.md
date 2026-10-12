@@ -156,10 +156,59 @@ desktop with light / dark flips and the swath still `--red`, customer panel,
 canvass draft, Switch back; iPhone 390 stacked layout + tap targets + no sideways
 scroll; the banner offer, no silent switch, and a company lock removing the offer.
 
+## M3 — #11 Job map: crew day route
+
+A fourth Mission Control screen, **Day route** (`mission.js` + pure
+`js/layouts/routeplan.js`), so the same lazy bundle serves the war room and the
+daily plan. It is not mounted in Classic's Maps view (that page is the
+satellite pin map with its own state; reshaping it is a separate, riskier
+change). Surfacing it outside this layout is the follow-up.
+
+| Piece | How |
+| --- | --- |
+| Stops | today's appointments (the Today view's own rows, joined to the lead for coordinates) plus any lead the rep adds from the map; stops with no coordinates are listed under "No map location", never silently dropped |
+| Order | **By time** (default: appointments are promises) or **Shortest**: nearest neighbour from the first stop, then 2-opt on the open path with the first stop fixed. Shortest says what it saves against appointment order and flags "Order differs from appointment times" |
+| Drive time | an estimate: straight-line miles x 1.3 at 28 mph, labelled "(est.)" everywhere. No routing API exists in the CRM and none was added |
+| Tight hops | both ends timed and drive > gap minus 45 min on site (the assumption is printed) |
+| Pins | numbered stop pins coloured by stage group (job green, insurance purple, estimate out orange, lead blue, closed muted; never red or gold, those are hail) |
+| Layers bar | Jobs, Leads, Hail swaths (the warning polygons), Roof age (lead roofAge buckets: 20+ purple, 10-19 blue, under 10 green); **Crews is disabled with the reason** because no live truck positions exist in the data |
+| On my way | tap -> the same server text check every other text button runs (`NBDPhoneShare.checkText`: STOP list, Do Not Text, consent, texting switch, 8am-9pm) -> only if it says yes, a DRAFT text shows with an "Open in Messages" `sms:` link and "Nothing is sent until you press Send". A "no" or a check that cannot run shows the reason and no draft opens. It does not navigate by itself |
+
+Decisions and findings:
+
+- **"On my way" is client-drafted, not a new `fileLeadTextDraft` template.**
+  That callable takes template keys the server owns (followup, estimate
+  check-in, appointment reminder, thanks) and needs a `functions/` deploy for any
+  new one; an on-the-road ETA text is the rep's own message from their own
+  phone, the same shape as Focus Mode's Text. Adding an `on_my_way` template
+  server-side would let it land in the Agent inbox instead; not needed for a text
+  the rep sends from the road.
+- Today's appointment read (`today-home.js loadAppointments`) drops a forced
+  refresh while another is in flight and caches for 10 minutes, so a route opened
+  right after boot could show an empty day (a flaky first E2E run found it). The
+  route retries a few times while it is empty. The underlying 10-minute cache
+  also means an appointment created elsewhere can take that long to show on Home.
+- Not built: live crew trucks (no source), distance from the rep's GPS to the
+  first stop (no GPS permission prompt from a layout), a real routing API.
+
+### Tests
+
+`tests/layout-routeplan-2026-10-12.test.js` (35): drive-time maths, the
+permutation / first-stop / never-longer-than-NN properties over 300 random days,
+within 15% of brute force on 7-stop days, an untangled zig-zag, conflicts, stage
+colours never red/gold, roof-age buckets (0 is a new roof, junk is unknown), the
+draft wording through the claim-wording filter, and source guards that the text
+is gated on `checkText` and never navigates. Break-tested with 9 mutations; 8
+redden a named assertion, one (letting 2-opt start at index 0) is an equivalent
+mutant (the triangle inequality means it can never "improve" there).
+`tests/e2e/mission-control.spec.js` gains the day-route test (appointments seeded
+through the emulator, route pinned to known coordinates, by time vs shortest,
+layers, Crews disabled, blocked-then-allowed On my way).
+
 ## Slice log
 
 | Slice | Status | PR |
 | --- | --- | --- |
 | M1 MapView | built | #2356 |
-| M2 L02 Mission Control | built, stacked on M1 | see PR list |
-| M3 #11 job map: crew day route | not started | |
+| M2 L02 Mission Control | built, stacked on M1 | #2360 |
+| M3 #11 job map: crew day route | built, stacked on M2 | see PR list |

@@ -47,6 +47,21 @@ service cloud.firestore {
       return request.auth.token.companyId;
     }
 
+    // The uid-keyed tenant convention: a solo owner's company id IS their uid,
+    // so "companyId == request.auth.uid" has long meant "this is my company".
+    // That stops being true after an owner hand-off (transferCompanyOwnership,
+    // 2026-10-08): the company keeps its id, the company doc names a new
+    // ownerId, and the former owner must hold access only through their
+    // claims, like any member (and lose it all when removed). So the uid branch
+    // now also requires that no company doc says otherwise. A solo owner with
+    // no company doc, or one whose doc names them (or names nobody), is
+    // unaffected.
+    function ownsTenantByUid(cid) {
+      return isAuth() && request.auth.uid == cid
+        && (!exists(/databases/$(database)/documents/companies/$(cid))
+            || get(/databases/$(database)/documents/companies/$(cid)).data.get('ownerId', request.auth.uid) == request.auth.uid);
+    }
+
     function sameCompanyAsResource() {
       // CRITICAL: require BOTH sides to be non-null. A token without a
       // companyId claim would otherwise pass this check against any
@@ -154,7 +169,7 @@ service cloud.firestore {
             || (request.auth.token.get('companyId', '') != ''
                 && request.resource.data.get('companyId', '') == request.auth.token.get('companyId', ''))
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.get('companyId', '') == request.auth.uid));
+                && ownsTenantByUid(request.resource.data.get('companyId', ''))));
     }
 
     // Referral money fields are written ONLY by the onReferralLeadWrite trigger
@@ -341,7 +356,7 @@ service cloud.firestore {
     function contactLabelOk(companyId, digits) {
       let d = request.resource.data;
       return digits.matches('^[0-9]{10}$')
-        && d.keys().hasOnly(['digits', 'kind', 'policy', 'name', 'note', 'source', 'companyId', 'updatedBy', 'updatedAtMs', 'createdAtMs'])
+        && d.keys().hasOnly(['digits', 'kind', 'policy', 'name', 'note', 'source', 'companyId', 'updatedBy', 'updatedAtMs', 'createdAtMs', 'ackAtMs'])
         && d.keys().hasAll(['digits', 'kind', 'policy', 'companyId', 'updatedBy', 'updatedAtMs', 'createdAtMs'])
         && d.digits == digits
         && d.companyId == companyId
@@ -351,6 +366,25 @@ service cloud.firestore {
         && (!('name' in d) || (d.name is string && d.name.size() <= 80))
         && (!('note' in d) || (d.note is string && d.note.size() <= 200))
         && (!('source' in d) || d.source in ['manual', 'seed-tag', 'thursday', 'lead'])
+        && (!('ackAtMs' in d) || d.ackAtMs is number)
+        && d.updatedAtMs is number && d.createdAtMs is number;
+    }
+
+    // 2026-10-12 - "let Thursday handle this number" (companies/{companyId}/
+    // thursday_handled/{digits10}; documentation/projects/THURSDAY-LABEL-
+    // PLAYBOOKS-2026-10-12.md). The doc's EXISTENCE is the setting: no mode, no
+    // flag, nothing sendable. Shape only: doc id = the 10 digits, the doc says the
+    // same, the doc names its own company and the writer, a bounded note, and NO
+    // other key may ride along.
+    function thursdayHandledOk(companyId, digits) {
+      let d = request.resource.data;
+      return digits.matches('^[0-9]{10}$')
+        && d.keys().hasOnly(['digits', 'companyId', 'updatedBy', 'updatedAtMs', 'createdAtMs', 'note'])
+        && d.keys().hasAll(['digits', 'companyId', 'updatedBy', 'updatedAtMs', 'createdAtMs'])
+        && d.digits == digits
+        && d.companyId == companyId
+        && d.updatedBy == request.auth.uid
+        && (!('note' in d) || (d.note is string && d.note.size() <= 200))
         && d.updatedAtMs is number && d.createdAtMs is number;
     }
 
@@ -547,7 +581,7 @@ service cloud.firestore {
       let u = d.get('userId', null);
       let c = d.get('companyId', null);
       return (u == null || u == lead.get('userId', '') || u == request.auth.uid)
-        && (c == null || c == lead.get('companyId', '') || c == request.auth.uid
+        && (c == null || c == lead.get('companyId', '') || ownsTenantByUid(c)
             || c == request.auth.token.get('companyId', ''));
     }
 
@@ -700,7 +734,7 @@ service cloud.firestore {
         // rollups. Client always stamps `claims.companyId || uid`.
         && (request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid))
+                && ownsTenantByUid(request.resource.data.companyId)))
         // The lead modal's Add Lead carries the window too (2026-09-29).
         && scheduleWindowOk()
         // Server-owned referral fields never arrive on a create, and a
@@ -1098,7 +1132,7 @@ service cloud.firestore {
         && (request.resource.data.get('companyId', '') == ''
             || request.resource.data.companyId == request.auth.token.get('companyId', '')
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid))
+                && ownsTenantByUid(request.resource.data.companyId)))
         && !('signedPrice' in request.resource.data);
       // signedPrice (review R6-2-2, Jo 2026-10-07) is the price the homeowner
       // SIGNED, which every bill charges until they re-sign. Only the server
@@ -1194,7 +1228,7 @@ service cloud.firestore {
         && request.resource.data.companyId is string
         && request.resource.data.companyId.size() > 0
         && (request.resource.data.companyId == request.auth.token.get('companyId', '')
-            || (request.auth.token.get('companyId', '') == '' && request.resource.data.companyId == request.auth.uid))
+            || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(request.resource.data.companyId)))
         && request.resource.data.status == 'out';
       allow update: if (
           (isOwner(resource.data.userId) && notViewer())
@@ -1227,7 +1261,7 @@ service cloud.firestore {
         && request.resource.data.companyId is string
         && request.resource.data.companyId.size() > 0
         && (request.resource.data.companyId == request.auth.token.get('companyId', '')
-            || (request.auth.token.get('companyId', '') == '' && request.resource.data.companyId == request.auth.uid))
+            || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(request.resource.data.companyId)))
         && validExpenseMoney();
       // notViewer() reads the role with .get('role','') NOT `.role != 'viewer'`
       // — reading an ABSENT claim key with != THROWS in rules (solo operators
@@ -1255,7 +1289,7 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.companyId is string && request.resource.data.companyId.size() > 0
         && (request.resource.data.companyId == request.auth.token.get('companyId', '')
-            || (request.auth.token.get('companyId', '') == '' && request.resource.data.companyId == request.auth.uid))
+            || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(request.resource.data.companyId)))
         && validExpenseMoney();
       allow update: if (isOwner(resource.data.userId) && notViewer()
             && didNotChange(['userId', 'companyId', 'createdAt', 'createdBy'])
@@ -1282,7 +1316,7 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.companyId is string && request.resource.data.companyId.size() > 0
         && (request.resource.data.companyId == myCompanyId()
-            || (request.auth.token.get('companyId', '') == '' && request.resource.data.companyId == request.auth.uid))
+            || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(request.resource.data.companyId)))
         && request.resource.data.keys().hasOnly(['userId', 'companyId', 'displayName', 'legalName',
              'taxClassification', 'is1099Eligible', 'w9Status', 'contact', 'createdAt', 'createdBy', 'updatedAt']);
       allow update: if (isOwner(resource.data.userId) && notViewer()
@@ -1376,7 +1410,7 @@ service cloud.firestore {
         && (request.resource.data.get('companyId', '') == ''
             || request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid))
+                && ownsTenantByUid(request.resource.data.companyId)))
         && (noLeadId(request.resource.data.get('leadId', null))
             || leadReachable(request.resource.data.leadId));
     }
@@ -1428,7 +1462,7 @@ service cloud.firestore {
         && request.resource.data.companyId.size() > 0
         && (request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid));
+                && ownsTenantByUid(request.resource.data.companyId)));
     }
 
     // ── TERRITORY ZONES (drawn canvassing areas, optionally rep-assigned) ──
@@ -1452,7 +1486,7 @@ service cloud.firestore {
         && request.resource.data.companyId.size() > 0
         && (request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid));
+                && ownsTenantByUid(request.resource.data.companyId)));
     }
 
     // ── UNLINKED DRAWINGS (draw tool, no matching lead) ──
@@ -1698,7 +1732,7 @@ service cloud.firestore {
       // Scope: key by companyId claim, or by uid for solo operators
       // (companyId == uid convention).
       function cpScoped() {
-        return isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
+        return isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId));
       }
       // Writers: platform admin, the solo owner (doc keyed by their uid), or a
       // company_admin acting inside their own tenant. isCompanyAdmin() implies a
@@ -1708,7 +1742,7 @@ service cloud.firestore {
       // that branch let them write was an orphan companyProfile/{their uid}.
       function cpCanWrite() {
         return isAdmin()
-          || (companyId == request.auth.uid && notViewer())
+          || (ownsTenantByUid(companyId) && notViewer())
           || (isCompanyAdmin() && companyId == myCompanyId());
       }
       allow read: if cpScoped();
@@ -1777,7 +1811,7 @@ service cloud.firestore {
     // safe; writing is the hazard.
     match /connectAccounts/{companyId} {
       allow read: if isAdmin()
-        || (isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid));
+        || (isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId)));
       allow write: if false;
     }
     // Reverse index acct_… → companyId, used only by the webhook to resolve a
@@ -1849,7 +1883,7 @@ service cloud.firestore {
     function myTenantKey() {
       return request.auth.token.get('companyId', '') != ''
         ? request.auth.token.get('companyId', '')
-        : request.auth.uid;
+        : (ownsTenantByUid(request.auth.uid) ? request.auth.uid : '');
     }
     function counterIsMine(counterId) {
       return isAuth()
@@ -1930,10 +1964,10 @@ service cloud.firestore {
     // buy price for "Masonry water repellent" — and it is a behaviour change
     // from the per-device drift that preceded it.
     match /catalogCosts/{companyId} {
-      allow read: if isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
+      allow read: if isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId));
       // notViewer() on the uid branch: same orphan-doc reason as cpCanWrite().
       allow write: if isAdmin()
-        || (companyId == request.auth.uid && notViewer())
+        || (ownsTenantByUid(companyId) && notViewer())
         || (isCompanyAdmin() && companyId == myCompanyId());
     }
 
@@ -1949,9 +1983,9 @@ service cloud.firestore {
     // owner / company_admin write split as catalogCosts — a sales_rep reads
     // it (the materials list shows last-paid prices) but cannot rewrite it.
     match /priceBook/{companyId} {
-      allow read: if isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
+      allow read: if isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId));
       allow write: if isAdmin()
-        || (companyId == request.auth.uid && notViewer())
+        || (ownsTenantByUid(companyId) && notViewer())
         || (isCompanyAdmin() && companyId == myCompanyId());
     }
 
@@ -1975,10 +2009,10 @@ service cloud.firestore {
 
     match /agent_inbox/{itemId} {
       allow read: if isAdmin()
-        || (resource.data.companyId == request.auth.uid && notViewer())
+        || (ownsTenantByUid(resource.data.companyId) && notViewer())
         || (isCompanyAdmin() && resource.data.companyId == myCompanyId());
       allow update: if (isAdmin()
-          || (resource.data.companyId == request.auth.uid && notViewer())
+          || (ownsTenantByUid(resource.data.companyId) && notViewer())
           || (isCompanyAdmin() && resource.data.companyId == myCompanyId()))
         && resource.data.status == 'pending'
         && request.resource.data.status in ['approved', 'dismissed']
@@ -2023,9 +2057,9 @@ service cloud.firestore {
     }
 
     match /productLibrary/{companyId} {
-      allow read: if isAuth() && (companyId == myCompanyId() || companyId == request.auth.uid);
+      allow read: if isAuth() && (companyId == myCompanyId() || ownsTenantByUid(companyId));
       allow write: if isAdmin()
-        || (companyId == request.auth.uid && notViewer())
+        || (ownsTenantByUid(companyId) && notViewer())
         || (isCompanyAdmin() && companyId == myCompanyId());
     }
 
@@ -2092,7 +2126,7 @@ service cloud.firestore {
         && (!('companyId' in request.resource.data)
             || request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid));
+                && ownsTenantByUid(request.resource.data.companyId)));
       // Provenance frozen on update — see /photos above. Without this an
       // owner re-stamps their own knock into a victim tenant's live D2D map.
       allow update: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
@@ -2112,7 +2146,7 @@ service cloud.firestore {
         && (!('companyId' in request.resource.data)
             || request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid));
+                && ownsTenantByUid(request.resource.data.companyId)));
       allow update: if (isOwner(repId) && didNotChange(['role','isAdmin','companyId']))
         || isAdmin();
       allow delete: if isAdmin();
@@ -2129,7 +2163,7 @@ service cloud.firestore {
         && (!('companyId' in request.resource.data)
             || request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid));
+                && ownsTenantByUid(request.resource.data.companyId)));
       // Provenance frozen on update — see /photos above. A territory
       // re-stamped into a victim tenant draws a polygon on their live map.
       allow update: if ((isOwner(resource.data.userId) && notViewer()) || isAdmin())
@@ -2209,10 +2243,16 @@ service cloud.firestore {
         && companyId == request.auth.uid
         && request.resource.data.ownerId == request.auth.uid
         && (!('plan' in request.resource.data) || request.resource.data.plan == 'free')
-        && !request.resource.data.keys().hasAny(['status', 'sitePublished', 'sitePublishedAt']);
+        && !request.resource.data.keys().hasAny(['status', 'sitePublished', 'sitePublishedAt',
+                                                 'previousOwnerId', 'ownershipTransferredAt', 'ownershipTransferredBy']);
       allow update: if ((isAuth() && notViewer() && resource.data.ownerId == request.auth.uid)
-            && didNotChange(['plan', 'ownerId', 'status', 'sitePublished', 'sitePublishedAt'])) || isAdmin();
-      allow delete: if (isAuth() && notViewer() && resource.data.ownerId == request.auth.uid) || isAdmin();
+            && didNotChange(['plan', 'ownerId', 'status', 'sitePublished', 'sitePublishedAt',
+                             'previousOwnerId', 'ownershipTransferredAt', 'ownershipTransferredBy'])) || isAdmin();
+      // A company that has been handed off (transferCompanyOwnership) is not
+      // client-deletable: with the doc gone, ownsTenantByUid() would see "no
+      // company doc" and hand the uid-keyed tenant back to the former owner.
+      allow delete: if (isAuth() && notViewer() && resource.data.ownerId == request.auth.uid
+                        && !('previousOwnerId' in resource.data)) || isAdmin();
 
       // Members subcollection is writable only by the company owner or admin.
       // QA 2026-06-21 #10: the live app queries /companies/{_user.uid}/members,
@@ -2229,11 +2269,11 @@ service cloud.firestore {
       // client write may not touch them. The per-theme map is bounded like a
       // member's own (220). A viewer never writes.
       match /skin/{docId} {
-        allow read: if isAdmin() || (isAuth() && (myCompanyId() == companyId || companyId == request.auth.uid));
+        allow read: if isAdmin() || (isAuth() && (myCompanyId() == companyId || ownsTenantByUid(companyId)));
         allow create, update: if docId == 'config' && notViewer()
           && (isAdmin()
               || (isCompanyAdmin() && myCompanyId() == companyId)
-              || companyId == request.auth.uid)
+              || ownsTenantByUid(companyId))
           && !request.resource.data.diff(resource == null ? {} : resource.data).affectedKeys().hasAny(['usage', 'usageUpdatedAt'])
           && request.resource.data.get('themes', {}).size() <= 220;
         allow delete: if false;
@@ -2248,7 +2288,7 @@ service cloud.firestore {
         // grant was DEAD CODE — member docs are keyed by EMAIL, so a uid
         // never matches; the claim grant also covers reading your own row.
         allow read: if isAdmin()
-          || (isAuth() && request.auth.uid == companyId)
+          || ownsTenantByUid(companyId)
           || (isAuth() && get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid)
           || (isAuth() && request.auth.token.companyId == companyId);
         // CREATE/UPDATE/DELETE are all server-mediated now — clients never
@@ -2274,11 +2314,11 @@ service cloud.firestore {
       // server-written; a client can never create or edit one.
       match /owner_numbers/{docId} {
         allow read: if isAdmin()
-          || (isAuth() && request.auth.uid == companyId)
+          || ownsTenantByUid(companyId)
           || (isAuth() && get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid);
         allow create, update: if isAdmin()
           || (isAuth() && notViewer() && !docId.matches('referral_clicks_.*')
-              && (request.auth.uid == companyId
+              && (ownsTenantByUid(companyId)
                   || get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid));
         allow delete: if isAdmin();
       }
@@ -2298,7 +2338,7 @@ service cloud.firestore {
       // publisher holds ('publishing') is untouchable.
       function socialManager() {
         return isAdmin()
-          || (companyId == request.auth.uid && notViewer())
+          || (ownsTenantByUid(companyId) && notViewer())
           || (isCompanyAdmin() && companyId == myCompanyId());
       }
       function socialContentChanged() {
@@ -2363,6 +2403,9 @@ service cloud.firestore {
       // resolve()): locked company layout > user choice > company default >
       // Classic; a rule can't enforce a UI lock, it can only make sure nobody
       // but an admin can set or lift one. Only the doc id `layout` exists.
+      // defaultWidgets (D5, 2026-10-12) holds a layout's starting arrangement,
+      // { bento: [ {widgetId,x,y,w,h}, ... ] } = the Bento Board new hires get;
+      // bounded to 8 layouts and 24 tiles so a settings doc stays small.
       function layoutDocOk() {
         let d = request.resource.data;
         return d.keys().hasOnly(['defaultLayout', 'defaultByDevice', 'allowed', 'locked', 'defaultWidgets', 'updatedAt', 'updatedBy'])
@@ -2372,18 +2415,20 @@ service cloud.firestore {
               && d.defaultByDevice.keys().hasOnly(['phone', 'tablet', 'desktop'])))
           && (!('allowed' in d) || d.allowed == null || (d.allowed is list && d.allowed.size() <= 40))
           && (!('locked' in d) || d.locked is bool)
-          && (!('defaultWidgets' in d) || d.defaultWidgets is map)
+          && (!('defaultWidgets' in d) || (d.defaultWidgets is map && d.defaultWidgets.size() <= 8
+              && (!('bento' in d.defaultWidgets)
+                  || (d.defaultWidgets.bento is list && d.defaultWidgets.bento.size() <= 24))))
           && (!('updatedBy' in d) || d.updatedBy == request.auth.uid);
       }
       match /settings/layout {
         allow read: if isAdmin()
-          || (isAuth() && request.auth.uid == companyId)
+          || ownsTenantByUid(companyId)
           || (isAuth() && request.auth.token.get('companyId', '') == companyId);
         allow create, update: if isAuth() && notViewer() && layoutDocOk()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
         allow delete: if isAuth() && notViewer()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
       }
 
@@ -2397,14 +2442,14 @@ service cloud.firestore {
       // past job names.
       match /subs/{subId} {
         allow read: if isAdmin()
-          || (isAuth() && request.auth.uid == companyId)
+          || ownsTenantByUid(companyId)
           || (isAuth() && request.auth.token.get('companyId', '') == companyId);
         allow create, update: if isAuth() && notViewer()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
           && subWriteOk();
         allow delete: if isAuth() && notViewer()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
       }
 
@@ -2432,6 +2477,29 @@ service cloud.firestore {
           && (request.auth.uid == companyId
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId));
       }
+
+      // "Let Thursday handle this number" (2026-10-12): the setting per number.
+      // Same audience as contact_labels: owner / company_admin / manager write,
+      // a viewer reads, a sales_rep neither reads nor writes (numbers are
+      // teammates' calls). The doc only changes what Thursday is TOLD and what
+      // Today shows; it never sends and never touches carrier forwarding.
+      match /thursday_handled/{digits} {
+        allow read: if isAdmin()
+          || (isAuth() && request.auth.uid == companyId)
+          || (isCompanyReader() && request.auth.token.get('companyId', '') == companyId);
+        allow create: if isAuth() && notViewer()
+          && (request.auth.uid == companyId
+              || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
+          && thursdayHandledOk(companyId, digits);
+        allow update: if isAuth() && notViewer()
+          && (request.auth.uid == companyId
+              || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
+          && thursdayHandledOk(companyId, digits)
+          && request.resource.data.createdAtMs == resource.data.createdAtMs;
+        allow delete: if isAuth() && notViewer()
+          && (request.auth.uid == companyId
+              || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId));
+      }
     }
 
     // ── TRAINING SESSIONS ────────────────────────────
@@ -2445,7 +2513,7 @@ service cloud.firestore {
         && (!('companyId' in request.resource.data)
             || request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid));
+                && ownsTenantByUid(request.resource.data.companyId)));
       // Provenance frozen on update — see /photos above.
       allow update: if (isOwner(resource.data.userId) || isAdmin())
         && didNotChange(['userId', 'companyId']);
@@ -2581,7 +2649,7 @@ service cloud.firestore {
         && request.resource.data.companyId.size() > 0
         && (request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid))
+                && ownsTenantByUid(request.resource.data.companyId)))
         // 2026-10-05 (security review): an invoice that names a lead must
         // name one the writer may reach (leadReachable) — the money-paper
         // trigger files PDFs onto, and drafts tasks under, the invoice's
@@ -2677,7 +2745,7 @@ service cloud.firestore {
         && request.resource.data.get('companyId', null) is string
         && (request.resource.data.companyId == request.auth.token.get('companyId', '')
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid))
+                && ownsTenantByUid(request.resource.data.companyId)))
         && referralLeadOk(request.resource.data);
       allow update: if isAdmin()
         || (isOwner(resource.data.userId) && notViewer()
@@ -2716,7 +2784,7 @@ service cloud.firestore {
         && request.resource.data.companyId.size() > 0
         && (request.resource.data.companyId == myCompanyId()
             || (request.auth.token.get('companyId', '') == ''
-                && request.resource.data.companyId == request.auth.uid));
+                && ownsTenantByUid(request.resource.data.companyId)));
       allow update: if isAdmin();
       // Owners must be able to delete their own saved reports — the My
       // Reports list exposes a delete button to every owner, and admin-only
@@ -2986,7 +3054,7 @@ service cloud.firestore {
       function supMember() {
         return isAuth() && supTenant() != ''
           && (supTenant() == request.auth.token.get('companyId', '')
-              || supTenant() == request.auth.uid);
+              || ownsTenantByUid(supTenant()));
       }
       allow get: if supMember()
         && (resource == null || resource.data.companyId == supTenant());
@@ -3138,7 +3206,7 @@ service cloud.firestore {
     // Written only by scripts/thursday-config.js; the CRM reads it to decide
     // whether to show the Thursday inbox widget.
     match /thursday_config/{companyId} {
-      allow read: if isAuth() && (request.auth.uid == companyId
+      allow read: if isAuth() && (ownsTenantByUid(companyId)
         || isAdmin()
         || (isCompanyReader() && myCompanyId() == companyId));
       allow write: if false;

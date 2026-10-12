@@ -112,10 +112,18 @@
     var doc = LG.buildDoc({
       digits: d, kind: o.kind, policy: o.policy, name: o.name != null ? o.name : (prev && prev.name), note: o.note != null ? o.note : (prev && prev.note),
       source: o.source, companyId: tenant(), uid: uid(), createdAtMs: prev && prev.createdAtMs,
+      ackAtMs: o.ackAtMs != null ? o.ackAtMs : (prev && prev.ackAtMs),
     });
     if (!doc) { toast("Couldn't label that number.", 'error'); return { ok: false }; }
     var ok = await persist(d, doc, prev);
     return { ok: ok, prev: prev };
+  }
+
+  /** "Keep hidden": a hidden number came back; quiet it until it happens again. */
+  async function ack(digits) {
+    var d = LG.digits10(digits), cur = d ? state.labels[d] : null;
+    if (!cur) return { ok: false };
+    return apply({ digits: d, kind: cur.kind, policy: cur.policy, ackAtMs: Date.now(), source: cur.source });
   }
 
   async function clear(digits) {
@@ -181,6 +189,8 @@
       '<div class="cl-pols">' + pols + '</div>' +
       '<div class="cl-note">' + (pol ? '' : 'Tap what it is and the usual choice for it is applied. ') +
       'This only decides what shows on Today. It never blocks a call or sends anything.</div>' +
+      // Thursday-handled toggle (js/thursday-handled.js; '' until that lazy file is loaded and the flag is on).
+      (w.NBDThursdayHandled ? w.NBDThursdayHandled.sheetHtml(s.digits) : '') +
       '<div class="cl-foot">' + (cur ? '<button type="button" class="cl-link" data-cl="remove">Remove label</button>' : '<span></span>') +
       '<button type="button" class="cl-link" data-cl="close">Cancel</button></div>';
   }
@@ -217,7 +227,7 @@
     });
   }
   async function persistRestore(d, prev) {
-    var doc = LG.buildDoc({ digits: d, kind: prev.kind, policy: prev.policy, name: prev.name, note: prev.note, source: prev.source, companyId: tenant(), uid: uid(), createdAtMs: prev.createdAtMs });
+    var doc = LG.buildDoc({ digits: d, kind: prev.kind, policy: prev.policy, name: prev.name, note: prev.note, source: prev.source, companyId: tenant(), uid: uid(), createdAtMs: prev.createdAtMs, ackAtMs: prev.ackAtMs });
     if (!doc) return { ok: false };
     var cur = state.labels[d] ? Object.assign({}, state.labels[d]) : null;
     return { ok: await persist(d, doc, cur) };
@@ -256,8 +266,32 @@
     if (ev.key === 'Escape' && state.sheet) { ev.stopPropagation(); closeSheet(); }
   });
 
+  // Thursday label playbooks (2026-10-12): the "let Thursday handle this number"
+  // toggle, the Today recap row and the block list live in two lazy files that
+  // load only when the `thursdayLabelPlaybooks` flag is on. Registered here (not
+  // in script-loader.js, whose blocking bytes are at their ceiling). Best-effort.
+  // The flags read can land after this file (it needs the signed-in user), so a
+  // flag that is not on yet is re-checked a few times; NBDFlags caches the read.
+  try {
+    var F = w.NBDFlags;
+    if (F && typeof F.load === 'function' && w.ScriptLoader && typeof w.ScriptLoader.load === 'function') {
+      var thTry = function (n) {
+        Promise.resolve(F.load()).then(function () {
+          if (F.enabled('thursdayLabelPlaybooks')) {
+            return w.ScriptLoader.load('css/thursday-handled.css?v=1')
+              .then(function () { return w.ScriptLoader.load('js/thursday-handled-logic.js?v=1'); })
+              .then(function () { return w.ScriptLoader.load('js/thursday-handled.js?v=1'); });
+          }
+          if (n < 6) setTimeout(function () { thTry(n + 1); }, 2500);
+          return null;
+        }).catch(function () { /* optional surface */ });
+      };
+      thTry(0);
+    }
+  } catch (_) { /* optional surface */ }
+
   w.NBDContactLabels = {
-    load: load, current: function () { return state.labels; }, get: get, apply: apply, clear: clear,
+    load: load, current: function () { return state.labels; }, get: get, apply: apply, ack: ack, clear: clear,
     openSheet: openSheet, canWrite: canWrite, canRead: canRead,
   };
 })();

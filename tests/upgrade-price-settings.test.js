@@ -789,6 +789,9 @@ test('owner, company admin and platform admin edit; team roles read', () => {
   eq(S.canEdit({ role: 'sales_rep', companyId: 'co1' }, 'u3'), false, 'sales rep');
   eq(S.canEdit({ role: 'viewer', companyId: 'co1' }, 'u4'), false, 'viewer');
   eq(S.canEdit({ role: 'company_admin', companyId: 'co1' }, null), false, 'signed out');
+  // Owner hand-off (2026-10-12): both parties are company_admin under the same companyId.
+  eq(S.canEdit({ role: 'company_admin', companyId: 'u1' }, 'u1'), true, 'former owner (login is the company id, now company_admin)');
+  eq(S.canEdit({ role: 'company_admin', companyId: 'u1' }, 'adm9'), true, 'new owner (admin under the former owner company id)');
 });
 
 test('the gate matches firestore.rules cpCanWrite, not a guess', () => {
@@ -798,7 +801,17 @@ test('the gate matches firestore.rules cpCanWrite, not a guess', () => {
   const body = m[1].replace(/\s+/g, ' ').trim();
   // 2026-09-25: the solo branch gained notViewer() (Jo's decision B); canEdit
   // mirrors it with an explicit viewer refusal (the 'viewer' case above).
-  eq(body, 'isAdmin() || (companyId == request.auth.uid && notViewer()) || (isCompanyAdmin() && companyId == myCompanyId())', 'rule body (update canEdit if this changes)');
+  // 2026-10-12 (owner hand-off): the solo branch is ownsTenantByUid(companyId),
+  // i.e. uid == companyId AND the company doc's ownerId (when the doc exists)
+  // is that uid. A former owner (login is still the company id, ownerId moved)
+  // therefore edits through the isCompanyAdmin() branch their demotion claim
+  // grants, exactly as the new owner (an admin under the same companyId) does.
+  eq(body, 'isAdmin() || (ownsTenantByUid(companyId) && notViewer()) || (isCompanyAdmin() && companyId == myCompanyId())', 'rule body (update canEdit if this changes)');
+  const h = /function ownsTenantByUid\(cid\) \{\s*return ([\s\S]*?);\s*\}/.exec(rules);
+  truthy(h, 'ownsTenantByUid not found in firestore.rules');
+  const hb = h[1].replace(/\s+/g, ' ').trim();
+  truthy(/request\.auth\.uid == cid/.test(hb) && /\.data\.get\('ownerId', request\.auth\.uid\) == request\.auth\.uid/.test(hb),
+    'ownsTenantByUid must keep both halves: uid == company id AND ownerId == uid (canEdit mirrors only the uid half; the ownerId half can only deny)');
 });
 
 // The async tests (section 3's tenant checks) run last, one at a time: each

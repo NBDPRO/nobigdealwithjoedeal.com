@@ -81,7 +81,9 @@ function callerOf(request) {
   const company = (typeof token.companyId === 'string' && token.companyId) || uid;
   // The owner (company id == own uid) and company_admin / manager may work any
   // company lead; everyone else (sales_rep, an unknown role) only their own.
-  const staff = company === uid || STAFF_ROLES.has(role);
+  // A former owner (company id == their uid, owner hand-off 2026-10-12) who was
+  // demoted to sales_rep is not the owner any more: role wins over the uid key.
+  const staff = (company === uid && role !== 'sales_rep') || STAFF_ROLES.has(role);
   return { uid, company, staff, isNbd: company === NBD_OWNER_UID || uid === NBD_OWNER_UID };
 }
 
@@ -163,6 +165,6 @@ async function fileLeadTextDraft(request) {
 
 exports.fileLeadTextDraft = onCall(
   { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, timeoutSeconds: 20, memory: '256MiB' },
-  fileLeadTextDraft
+  require('./tenant-guard').wrapCallable(fileLeadTextDraft)
 );
 exports._internal = { fileLeadTextDraft, callerOf, MESSAGES };

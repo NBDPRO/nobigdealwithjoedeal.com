@@ -183,9 +183,10 @@
       var lab = LB && r.phone ? LB.get(r.phone) : null;
       var LG = w.NBDContactLabelsLogic;
       var chip = lab && LG ? LG.chipFor(lab) : null;
+      if (r.resurfaced) sub += (sub ? ' · ' : '') + '<b class="tp-hot">' + (r.resurfaced === 'lead' ? 'hidden number matches a customer' : 'hidden number is calling a lot') + '</b>';
       if (chip) sub += (sub ? ' · ' : '') + '<span class="cl-chip cl-chip-' + chip.tone + '" title="' + esc(chip.title) + '">🏷 ' + esc(chip.text) + '</span>';
       var canLabel = !ro && r.phone && (((w._userClaims || {}).role || '') !== 'sales_rep');
-      var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + (canLabel ? btn('label', r.key, '🏷 Label') : '') + (ro ? '' : btn('handled', r.key, '✓ Handled', 'tp-go'));
+      var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + (canLabel && r.resurfaced ? btn('rehide', r.key, 'Keep hidden') : '') + (canLabel ? btn('label', r.key, '🏷 Label') : '') + (ro ? '' : btn('handled', r.key, '✓ Handled', 'tp-go'));
       return row(r.key, esc(r.name || fmtPhone(r.phone) || 'Unknown caller'), sub, acts);
     });
     var pr = p.promised.map(function (r) {
@@ -227,7 +228,9 @@
     var deck = (w.NBDFollowUpDeck && w.NBDTriageDeck && p.stalled.length > 1) ? '<button type="button" class="tp-more tp-hd-btn" data-tp-act="fudeck" data-tp-key="stalled">One at a time</button>' : '';
     var storm = P.stormLine(stormCache(), Date.now());
     var body = section('appts', 'Appointments', a) + section('calls', 'Calls owed', c) + section('promised', 'Promised follow-ups', pr) + section('estimates', 'Estimates to follow up', e) +
-      section('money', 'Money to collect', m) + section('stalled', 'Stalled leads', s, deck);
+      section('money', 'Money to collect', m) + section('stalled', 'Stalled leads', s, deck) +
+      // Thursday's calls + the daily "handled" recap (js/thursday-handled.js; '' until loaded, flag-gated).
+      (w.NBDThursdayHandled ? w.NBDThursdayHandled.todayHtml() : '');
     return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc(P.headline(p.total)) + '</div>' +
       (storm ? '<div class="tp-storm">' + esc(storm) + '</div>' : '') + '</div>' +
       (p.hiddenCalls > 0 ? '<div class="tp-sub tp-hidden">' + p.hiddenCalls + (p.hiddenCalls === 1 ? ' person' : ' people') + ' hidden by labels · <button type="button" class="tp-more tp-hd-btn" data-tp-act="goto" data-tp-key="calls">See them in the Call Center</button></div>' : '') +
@@ -331,9 +334,16 @@
     }
     if (isViewer()) return;
     if (a === 'label') { openLabel(key); return; }
+    if (a === 'rehide') { rehide(key); return; }
     act(a, key).catch(function (e) { console.warn('[today] action failed', e); });
   });
 
+  // "Keep hidden": a hidden number came back; acknowledge it (label ackAtMs).
+  function rehide(key) {
+    var r = findRow(key);
+    if (!r || !r.phone || !w.NBDContactLabels) return;
+    w.NBDContactLabels.ack(r.phone);
+  }
   // 🏷 Label: the sheet lives in the lazy 'contactlabels' bundle.
   function openLabel(key) {
     var r = findRow(key);
@@ -349,7 +359,7 @@
     else open();
   }
 
-  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups', 'nbd:labels-changed'].forEach(function (n) { w.addEventListener(n, schedule); });
+  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups', 'nbd:labels-changed', 'nbd:thursday-handled-changed'].forEach(function (n) { w.addEventListener(n, schedule); });
   w.addEventListener('hashchange', function () {
     if (/^#?\/?(home)?$/.test(location.hash || '')) { loadAppointments(false); setTimeout(render, 200); }
   });

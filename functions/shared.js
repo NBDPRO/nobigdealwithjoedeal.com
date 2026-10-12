@@ -87,6 +87,9 @@ async function callableRateLimit(request, name, limit, windowMs) {
   if (isAnonymousToken(request.auth.token)) {
     throw new (HttpsError())('permission-denied', ANONYMOUS_MESSAGE);
   }
+  // Owner hand-off (2026-10-12): a claim-less token whose uid is another
+  // owner's company id must not fall back to the uid key (tenant-guard.js).
+  await require('./tenant-guard').assertNotGhost(request);
   try {
     await enforceRateLimit('callable:' + name + ':uid', uid, limit, windowMs);
   } catch (e) {
@@ -203,6 +206,9 @@ async function requireAuth(req, { adminOnly = false } = {}) {
   if (adminOnly && decoded.role !== 'admin') {
     return { error: { status: 403, body: { error: 'Admin access required' } } };
   }
+  // Owner hand-off (2026-10-12): see tenant-guard.js.
+  const ghost = await require('./tenant-guard').ghostRefusal(decoded);
+  if (ghost) return { error: ghost };
   return { decoded };
 }
 
@@ -286,7 +292,12 @@ function billingPortalRefusal(decoded, ownerId) {
   if (uid && (role === 'admin' || role === 'company_admin')) return null;
   if (uid && ownerId && ownerId === uid) return null;
   const { SUBORDINATE_ROLES } = require('./handlers/_shared');
-  if (uid && (!d.companyId || d.companyId === uid) && !SUBORDINATE_ROLES.has(role)) return null;
+  // The solo-owner branch (company keyed by their uid) no longer applies once
+  // the company doc names a different owner: a former owner who handed the
+  // company off (transferCompanyOwnership, 2026-10-08) and was later removed
+  // must not reach the company's billing through the uid key.
+  if (uid && (!d.companyId || d.companyId === uid) && !SUBORDINATE_ROLES.has(role)
+      && (!ownerId || ownerId === uid)) return null;
   return { status: 403, body: { error: BILLING_OWNER_ONLY_MESSAGE, code: 'billing-owner-only' } };
 }
 

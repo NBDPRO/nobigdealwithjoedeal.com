@@ -175,7 +175,13 @@
     // Every number Jo labeled, including the ones a label keeps off Today
     // (2026-10-12) — so a hidden person is never lost.
     ['labeled', 'Labeled', function (c) { return !!labelFor(c); }],
+    // Thursday label playbooks (2026-10-12; js/thursday-handled.js, flag-gated):
+    // numbers Jo handed to Thursday, and the spam list he can copy to his phone.
+    ['thandled', 'Thursday-handled', function (c) { var T = window.NBDThursdayHandled; return !!(T && T.isHandled(c.phoneDigits)); }, thEnabled],
+    ['blocklist', 'Block list', function (c) { var T = window.NBDThursdayHandled; return !!(T && T.isBlocked(c.phoneDigits)); }, thEnabled],
   ];
+  function thEnabled() { var T = window.NBDThursdayHandled; return !!(T && T.enabled()); }
+  function filtersNow() { return FILTERS.filter(function (f) { return !f[3] || f[3](); }); }
 
   async function fetchCalls() {
     var rows = await fetchFrom('phone_calls', 'call');
@@ -374,12 +380,12 @@
     if (!el) return;
     var L = leadsById();
     var counts = {};
-    FILTERS.forEach(function (f) { counts[f[0]] = state.calls.filter(f[2]).length; });
+    filtersNow().forEach(function (f) { counts[f[0]] = state.calls.filter(f[2]).length; });
     // Needs attention counts PEOPLE (Jo, 2026-10-02), like Home and the alert.
     counts.attention = groupNeeds(state.calls).length;
     var badge = document.getElementById('callsNavBadge');
     if (badge) { badge.textContent = counts.attention ? String(counts.attention) : ''; badge.classList.toggle('dn', !counts.attention); }
-    var active = FILTERS.filter(function (f) { return f[0] === state.filter; })[0] || FILTERS[0];
+    var active = filtersNow().filter(function (f) { return f[0] === state.filter; })[0] || FILTERS[0];
     var rows = state.calls.filter(active[2]).filter(function (c) { return matchesSearch(c, L); });
     var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title">📞 Call Center</h1>' +
       '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p>' +
@@ -389,7 +395,7 @@
       (promises.loaded && !promises.denied && !isViewer() ? ' <button type="button" class="btn btn-ghost pc-play cc-deck-btn" data-cc="tagmatch">Match my tagged contacts</button>' : '') +
       '</div>' + tagPanel() +
       '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
-      '<div class="cc-filters" role="tablist">' + FILTERS.map(function (f) {
+      '<div class="cc-filters" role="tablist">' + filtersNow().map(function (f) {
         return '<button type="button" role="tab" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
           esc(f[1]) + ' <span class="cc-count">' + counts[f[0]] + '</span></button>';
       }).join('') + '</div></div>';
@@ -408,7 +414,9 @@
     else body = rows.slice(0, 150).map(function (c) { return renderCall(c, L); }).join('') +
       (rows.length > 150 ? '<div class="cc-empty">Showing the newest 150. Search to narrow it down.</div>' : '');
     var hadFocus = document.activeElement && document.activeElement.id === 'ccSearch';
-    el.innerHTML = '<div class="cc-wrap">' + head + '<div class="cc-list">' + body + '</div></div>';
+    // The Thursday-handled / Block list panels list NUMBERS (a number with no call yet still shows).
+    var thPanel = (state.filter === 'thandled' || state.filter === 'blocklist') && window.NBDThursdayHandled ? window.NBDThursdayHandled.panelHtml(state.filter) : '';
+    el.innerHTML = '<div class="cc-wrap">' + head + thPanel + '<div class="cc-list">' + body + '</div></div>';
     focusedCard();
     if (hadFocus) { var s = document.getElementById('ccSearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }
   }
@@ -1068,6 +1076,7 @@
   // A label was applied, undone or rolled back: the chips and the
   // needs-attention grouping both read it.
   if (typeof window.addEventListener === 'function') window.addEventListener('nbd:labels-changed', function () { labelsVer++; if (state.loaded) render(); });
+  if (typeof window.addEventListener === 'function') window.addEventListener('nbd:thursday-handled-changed', function () { if (state.loaded) render(); });
   document.addEventListener('input', function (e) {
     if (e.target && e.target.id === 'ccSearch') { state.q = e.target.value || ''; render(); }
   });
@@ -1085,5 +1094,6 @@
     _focusTarget: focusTarget,
     _telOf: telOf,
     focusCall: focusCall,
+    setFilter: function (f) { state.filter = f; state.focusId = null; render(); },
   };
 })();

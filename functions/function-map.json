@@ -280,6 +280,7 @@
   "thursdayWebhook": "./integrations/thursday",
   "trackUsage": "./billing",
   "transcribeVoiceMemo": "./integrations/voice-memo",
+  "transferCompanyOwnership": "./handlers/admin",
   "twilioSmsStatus": "./twilio-line",
   "twilioSmsWebhook": "./twilio-line",
   "twilioVoiceDialStatus": "./twilio-line",
