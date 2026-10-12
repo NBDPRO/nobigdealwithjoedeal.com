@@ -122,6 +122,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 
 - [BIG_ROCKS](projects/BIG_ROCKS.md) — the standing priority list
 - [WEEKLY_CADENCE](projects/WEEKLY_CADENCE.md) — standing weekly checklist (see "Standing notes" above)
+- [AWAY-MODE-BACKUP-2026-10-12](projects/AWAY-MODE-BACKUP-2026-10-12.md) — design for the backup person + Away mode + auto hand-back (never-forget lane): data model (away_mode / away_private / away_windows, Admin-SDK-write only), the pure resolver rules (ack window, away strictness, quiet hours, delivery truth), what the backup can and cannot see, Thursday and auto-reply gates, integration points for the reliability lane, deferred list and seven decisions for Jo
 - [THEME-POLISH-LANE-2026-10-11](projects/THEME-POLISH-LANE-2026-10-11.md) — CRM style integration Track A as built: Theme Morph (view-transition circle wipe + reduced-motion crossfade), then the 12 new themes, glass surface style and the live-preview picker
 - [OHIO-4722-DEPOSIT-CAP-2026-10-11](projects/OHIO-4722-DEPOSIT-CAP-2026-10-11.md) — the Ohio ORC 4722.04 down-payment cap built into the one deposit rule: 10% at signing on an Ohio property of $25,000 or more, special-order 75% allowance, 10/40/50 milestone held on the invoice until released, construction-loan flag, KY untouched; every surface, break-tests, and the counsel questions (counsel should confirm)
 - [KANBAN_CUSTOMER_MAP](projects/KANBAN_CUSTOMER_MAP.md)
