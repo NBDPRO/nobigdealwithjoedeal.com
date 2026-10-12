@@ -4,15 +4,23 @@
  *
  *   manageSmsCompliance (onCall, App Check enforced) — { action, ... }
  *
- *     listDnc                 → { entries: [{ key, phone, source, addedAtMs, note }] }
+ *     listDnc                 → { entries: [{ key, phone, source, addedAtMs, note,
+ *                                  stopLine, liftable, liftBlock, lifted,
+ *                                  liftedAtMs, liftReason }] }
  *         Any member of the company (a viewer may read the list).
  *     addDnc    { phone, note? } → { ok, created }
  *         Any member except a viewer / access-code member: "they asked us not
- *         to text them" is something a rep has to be able to record.
- *     removeDnc { phone }       → { ok, result: 'removed'|'absent'|'stop_reply' }
- *         Owner or company_admin only (requireTeamAdmin). A 'stop_reply'
- *         entry never comes off this way: it is the homeowner's own STOP, and
- *         only their START reply lifts it.
+ *         to text them" is something a rep has to be able to record. Re-adding
+ *         a lifted number puts it back in force.
+ *     liftDnc   { phone, reason } → { ok, result: 'lifted'|'absent'|'not_liftable',
+ *                                     why?, stillBlocked? }
+ *         Owner or company_admin only (requireTeamAdmin), reason required
+ *         (Jo, 2026-10-07): the homeowner said texting is OK again. The entry
+ *         is marked lifted with who / when / why and kept, never deleted
+ *         (sms-optout.js liftDnc). Only the company's OWN entries lift: a
+ *         manual add, or a STOP it recorded from its own phone. A STOP the
+ *         homeowner texted to NBD's number never lifts here — only their
+ *         START reply does. `removeDnc` is the old name for this action.
  *
  *     getSettings             → { allowed, reason, registered, enabled, needsRegistration }
  *         Any member. The company's texting master switch.
@@ -88,13 +96,35 @@ async function handleManageSmsCompliance(request) {
     return { ok: true, created: r.created };
   }
 
-  if (action === 'removeDnc') {
-    // Owner or company_admin of the caller's own company.
-    await requireTeamAdmin(request);
+  // 'removeDnc' is the pre-2026-10-07 name. It no longer deletes anything:
+  // an entry is LIFTED with a reason and its history kept (Jo, 2026-10-07),
+  // so an old cached page's Remove (no reason) is refused, not obeyed.
+  if (action === 'liftDnc' || action === 'removeDnc') {
+    // Owner or company_admin of the caller's own company — server-enforced;
+    // a rep or viewer is refused here whatever the page shows.
+    const admin = await requireTeamAdmin(request);
     const phone = phoneArg(data);
-    const result = await OptOut.removeDnc(db, caller.companyId, phone);
-    logger.info('sms_dnc_remove', { companyId: caller.companyId, result });
-    return { ok: result !== 'stop_reply', result };
+    const reason = typeof data.reason === 'string' ? data.reason.trim() : '';
+    if (!reason) {
+      throw new HttpsError('invalid-argument', 'Add a reason: what the homeowner said, and when (reload the page if you see no reason box).');
+    }
+    if (reason.length > 300) throw new HttpsError('invalid-argument', 'Keep the reason under 300 characters');
+    const role = admin && admin.isOwner ? 'owner' : (caller.role || 'owner');
+    const r = await OptOut.liftDnc(db, {
+      companyId: caller.companyId, phone, byUid: caller.uid, role, reason,
+      serverTimestamp: () => FieldValue.serverTimestamp(),
+    });
+    logger.info('sms_dnc_lift', { companyId: caller.companyId, result: r.result, why: r.why || null, role });
+    if (r.result !== 'lifted') return { ok: false, result: r.result, why: r.why || null };
+    // Lifting this company's entry does not lift a STOP the homeowner texted
+    // to NBD's number (the global register): say so rather than imply the
+    // number is textable.
+    let stillBlocked = null;
+    try {
+      const after = await OptOut.isOptedOut(db, phone, { companyId: caller.companyId });
+      if (after.optedOut) stillBlocked = after.source === 'register' ? 'stop_reply_line' : (after.source || 'unknown');
+    } catch (_) { stillBlocked = 'unknown'; }
+    return { ok: true, result: 'lifted', stillBlocked };
   }
 
   // ── The master switch (sms-texting-gate.js) ──
