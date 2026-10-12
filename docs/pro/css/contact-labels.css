@@ -56,3 +56,13 @@
 @media (prefers-reduced-motion:no-preference){
   .cl-sheet{animation:ui-enter var(--ui-dur-enter) var(--ui-ease-enter) both;}
 }
+/* Suggestion rows (contact-suggest.js): "Looks like a Sub - why  [Accept] [Not this]". */
+.cl-sug{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--ui-space-2) var(--ui-space-3);margin:var(--ui-space-2) 0;padding:var(--ui-space-2) var(--ui-space-3);border-radius:var(--ui-radius-md);border:1px dashed color-mix(in srgb, var(--t) 28%, transparent);background:color-mix(in srgb, var(--t) 5%, transparent);}
+.cl-sug-text{flex:1 1 200px;min-width:0;font-size:var(--ui-fs-body-sm);line-height:var(--ui-lh-body-sm);color:var(--t);overflow-wrap:anywhere;}
+.cl-sug-why{color:var(--m);}
+.cl-sug-acts{display:flex;gap:var(--ui-space-2);}
+.cl-sug-btn{min-height:44px;min-width:44px;padding:0 var(--ui-space-3);border-radius:var(--ui-radius-md);border:1px solid var(--ui-line-hair);background:transparent;color:var(--t);font:inherit;font-size:var(--ui-fs-body-sm);font-weight:var(--ui-fw-bold);cursor:pointer;}
+.cl-sug-btn:hover{background:color-mix(in srgb, var(--t) 10%, transparent);}
+.cl-sug-go{background:color-mix(in srgb, var(--orange) 22%, transparent);border-color:color-mix(in srgb, var(--orange) 75%, transparent);}
+.cl-sug-btn:focus-visible{outline:2px solid var(--orange);outline-offset:2px;}
+.tp-sugs{padding-top:var(--ui-space-2);}

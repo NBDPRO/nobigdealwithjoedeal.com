@@ -39,7 +39,7 @@
     customer: 'surface', prospect: 'surface', contractor: 'quiet', sub: 'quiet', supplier: 'quiet',
     insurance: 'surface', referral: 'surface', personal: 'hide', spam: 'hide', recruiter: 'quiet', other: 'surface',
   };
-  var SOURCES = ['manual', 'seed-tag', 'thursday', 'lead'];
+  var SOURCES = ['manual', 'seed-tag', 'thursday', 'lead', 'pattern'];
   var NAME_MAX = 80, NOTE_MAX = 200;
   // The only keys a label doc may carry (firestore.rules hasOnly mirrors it).
   var DOC_KEYS = ['digits', 'kind', 'policy', 'name', 'note', 'source', 'companyId', 'updatedBy', 'updatedAtMs', 'createdAtMs', 'ackAtMs', 'capture'];
