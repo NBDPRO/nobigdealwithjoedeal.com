@@ -481,6 +481,9 @@ const VERDICTS = {
   // (phone-text-check.js, 2026-10-06): refuses viewer / member itself before
   // any read. Proven in tests/texting-r2-fixes-2026-10-06.test.js.
   phoneTextAction: 'already',
+  // Pixel World DRAFT TEXT (2026-10-11): assertNotViewer + viewer / member refused,
+  // a sales_rep only for a lead they own (functions/pixel-draft.js).
+  fileLeadTextDraft: 'role-gated',
   notifyNewLead: 'public', previewAiPersona: 'refused', provisionE2ETestUser: 'role-gated',
   registerDeviceFingerprint: 'self', removeMember: 'role-gated', renderPdf: 'refused',
   replyToPortalMessage: 'refused', requestAccountErasure: 'self', requestMeasurement: 'refused',
@@ -500,6 +503,8 @@ const VERDICTS = {
   saveAgentBot: 'role-gated', deleteAgentBot: 'role-gated', saveAgentSettings: 'role-gated',
   // Agent inbox drafts (2026-10-06): requireKeyAdmin, same as the bot settings.
   agentDraftAction: 'role-gated',
+  // Storm Mode check-in drafts (2026-10-11): requireKeyAdmin, same as agentDraftAction.
+  fileStormDrafts: 'role-gated',
   voidEsignEnvelope: 'refused',
   // Thursday (Bland receptionist, #1783/#1787, classified when #1780 landed
   // 2026-09-27): the recording stream reads only; the inbox action refuses

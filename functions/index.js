@@ -440,6 +440,11 @@ exports.createEstimateReviewLink = estimateSend.createEstimateReviewLink;
 exports.recordEstimateShared = estimateSend.recordEstimateShared;
 exports.freshEstimateLink = estimateSend.freshEstimateLink;
 
+// Pixel World DRAFT TEXT (2026-10-11): ONE template text draft for ONE lead into
+// the Agent inbox, server-built wording, never sent. See functions/pixel-draft.js.
+const pixelDraft = require('./pixel-draft');
+exports.fileLeadTextDraft = pixelDraft.fileLeadTextDraft;
+
 // NBD CRM connection for the Grok Bot team (2026-10-02): MCP at /api/mcp with
 // per-bot keys; bots read minimized CRM data and FILE notes / reminders /
 // reports into the Agent inbox. See functions/agent-mcp.js.
@@ -456,6 +461,8 @@ exports.saveAgentSettings = agentMcp.saveAgentSettings;
 // Agent inbox drafts (2026-10-06): the owner sends a bot draft from their own
 // phone / mail app; this re-checks the Do-Not-Text / unsubscribe lists and logs it.
 exports.agentDraftAction = agentMcp.agentDraftAction;
+// Storm Mode (2026-10-11): post-storm check-in DRAFTS into the Agent inbox, nothing sent.
+exports.fileStormDrafts = agentMcp.fileStormDrafts;
 
 // Inspection report sharing: no-login homeowner view of a saved report
 // (report_share_tokens + /report/<token>). View-only, reusable token model;

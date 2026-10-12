@@ -29,6 +29,7 @@
   --myskin-repeat: no-repeat;
   --myskin-render: auto;
   --myskin-fade: 0ms;
+  --myskin-tint: #bd5728;
 }
 
 /* Wallpaper: a fixed layer behind the app, veiled by the theme's page colour. */
@@ -103,6 +104,15 @@
   --orange: var(--myskin-accent) !important;
   --ob: var(--myskin-accent) !important;
   --accent-fg: var(--myskin-accent-fg) !important;
+}
+
+/* Ambient accent, "tint cards": a faint wash of the picture's colour over the
+ * card surface. my-skin.js adds the class only after the readability check
+ * (NBDMySkinLogic.tintOk) passes for this theme's --s2 and --t. The texture
+ * rule above is !important and wins where both are on. */
+:root.my-skin-tint :is(.w-card, .stat-card, .ui-card, .ui-panel, .panel, .k-card, .cl-card) {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--myskin-tint) 9%, transparent), color-mix(in srgb, var(--myskin-tint) 9%, transparent));
 }
 
 /* Mascot: decoration only (aria-hidden, no pointer events), above the page
@@ -193,4 +203,65 @@
 }
 .myskin-pos button[aria-pressed="true"] { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); }
 .myskin-pos-label { font-size: 13px; color: var(--t); margin-top: 8px; }
+/* Bulk import + the all-themes grid (my-skin-import.js, lazy). */
+.myskin-tools { border-top: 1px solid var(--br); padding: 12px 0 4px; }
+.myskin-tools [hidden], .myskin-import[hidden], .myskin-grid-root[hidden] { display: none !important; }
+.myskin-import, .myskin-grid-root { margin-top: 12px; padding: 12px; border: 1px solid var(--br); border-radius: 10px; background: var(--s3); }
+.myskin-warn { font-size: 12px; color: var(--t); background: color-mix(in srgb, var(--orange) 18%, transparent); border: 1px solid var(--orange); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+.myskin-import-sum { font-size: 13px; color: var(--t); margin: 8px 0; }
+.myskin-table-wrap { max-height: 320px; overflow: auto; margin: 8px 0; border: 1px solid var(--br); border-radius: 8px; }
+.myskin-table { width: 100%; border-collapse: collapse; font-size: 12px; color: var(--t); }
+.myskin-table th, .myskin-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--br); }
+.myskin-table th { position: sticky; top: 0; background: var(--s2); }
+.myskin-unmatched { margin: 8px 0; font-size: 12px; color: var(--m); }
+.myskin-unmatched ul { margin: 6px 0; padding-left: 18px; max-height: 160px; overflow: auto; }
+.myskin-progress progress { width: 100%; height: 14px; accent-color: var(--orange); }
+.myskin-progress [data-imp-text] { font-size: 12px; color: var(--m); margin: 6px 0; }
+.myskin-fails { margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: var(--t); }
+.myskin-grid-head { display: grid; gap: 8px; }
+.myskin-gsearch { min-height: 44px; padding: 0 10px; border: 1px solid var(--br); border-radius: 8px; background: var(--s2); color: var(--t); font-size: 14px; }
+.myskin-grid-list { max-height: 480px; overflow: auto; margin-top: 8px; }
+.myskin-gcat { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--m); margin: 14px 0 6px; }
+.myskin-gcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.myskin-gcard {
+  display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 6px;
+  min-height: 44px; border: 1px solid var(--br); border-radius: 10px; background: var(--s2); color: var(--t); cursor: pointer;
+}
+.myskin-gcard:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.myskin-gthumbbox { position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; border-radius: 6px; overflow: hidden; }
+.myskin-gswatch { position: absolute; inset: 0; border: 2px solid transparent; border-radius: 6px; }
+.myskin-gthumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.myskin-gname { font-size: 12px; font-weight: 700; line-height: 1.2; }
+.myskin-orphan { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--br); }
+.myskin-gmeta { font-size: 11px; color: var(--m); }
+/* Slideshow: the strip of a theme's pictures + the settings. */
+.myskin-strip { list-style: none; margin: 8px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.myskin-strip:empty { display: none; }
+.myskin-strip-item {
+  display: grid; grid-template-columns: 64px 24px minmax(0, 1fr) auto auto auto auto; align-items: center; gap: 6px;
+  min-height: 44px; padding: 4px 6px; border: 1px solid var(--br); border-radius: 8px; background: var(--s2);
+}
+.myskin-strip-item:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.myskin-strip-item.is-drag { opacity: .6; border-color: var(--orange); }
+.myskin-strip-img { width: 64px; height: 40px; object-fit: cover; border-radius: 6px; background: var(--s3); }
+.myskin-strip-num { font-size: 12px; color: var(--m); text-align: center; }
+.myskin-strip-btn {
+  width: 44px; height: 44px; padding: 0; border: 1px solid var(--br); border-radius: 8px;
+  background: var(--s3); color: var(--t); font-size: 16px; line-height: 1; cursor: pointer;
+}
+.myskin-strip-btn:disabled { opacity: .4; cursor: default; }
+.myskin-strip-handle { cursor: grab; touch-action: none; grid-column: 4; }
+.myskin-show { margin: 8px 0; }
+.myskin-show[hidden], .myskin-show-own[hidden] { display: none !important; }
+.myskin-defaults { margin: 12px 0; font-size: 13px; color: var(--t); }
+.myskin-defaults summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+/* Company background sets: the member's block and the admin's panel. */
+.myskin-company { margin: 8px 0; padding: 8px 0; border-top: 1px solid var(--br); }
+.myskin-company[hidden], .myskin-team[hidden], .myskin-team .myskin-grid-root[hidden] { display: none !important; }
+.myskin-team { margin-top: 12px; }
+.myskin-coset { border-top: 1px solid var(--br); padding: 8px 0; }
+.myskin-rights { align-items: flex-start; font-size: 12px; }
+.myskin-usage { display: grid; gap: 4px; margin: 8px 0; }
+.myskin-usage progress { width: 100%; height: 12px; accent-color: var(--orange); }
+.myskin-num { width: 64px; min-height: 44px; padding: 0 6px; border: 1px solid var(--br); border-radius: 8px; background: var(--s2); color: var(--t); }
 .myskin-accent input[type="color"] { width: 52px; height: 44px; padding: 2px; border: 1px solid var(--br); border-radius: 8px; background: var(--s2); }

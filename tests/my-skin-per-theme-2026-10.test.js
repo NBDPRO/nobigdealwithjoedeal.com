@@ -212,9 +212,9 @@ console.log('\n6. rules');
   const b = m ? strip(m[1]) : '';
   ok('skins/{uid}/themes/{themeId}/{imageId} block exists', !!m);
   ok('read is the owner only (no admin, no team, no company)', /allow read:\s*if isOwner\(uid\);/.test(b) && !/isAdmin|companyId|role/.test(b));
-  ok('write: owner, themeId and imageId shape, <3MB, webp/jpeg only, null-safe content type',
+  ok('write: owner, themeId and imageId shape (optional _t thumbnail), <3MB, webp/jpeg only, null-safe content type',
     /allow create, update: if isOwner\(uid\)/.test(b) && /themeId\.matches\('\^\(_custom\|\[a-z0-9-\]\{1,40\}\)\$'\)/.test(b)
-    && /imageId\.matches\('\^\[a-z0-9\]\{8,16\}\$'\)/.test(b) && /size < 3 \* 1024 \* 1024/.test(b)
+    && /imageId\.matches\('\^\[a-z0-9\]\{8,16\}\(_t\)\?\$'\)/.test(b) && /size < 3 \* 1024 \* 1024/.test(b)
     && /contentType != null/.test(b) && /matches\('image\/\(webp\|jpeg\)'\)/.test(b) && !/png|svg|gif/.test(b));
   ok('delete is the owner only', /allow delete:\s*if isOwner\(uid\);/.test(b));
   ok('the per-theme block sits before the default deny', R.indexOf('match /skins/{uid}/themes/') < R.indexOf('// ── DEFAULT DENY'));
@@ -240,7 +240,7 @@ console.log('\n7. my-skin.js per-theme contract');
   ok('pictures are read with getBlob and shown through blob: URLs', /st\.getBlob\(st\.ref\(window\.storage, path\)\)/.test(J) && /URL\.createObjectURL\(blob\)/.test(J));
   ok('only trustedImagePath() results are fetched', /L\(\)\.trustedImagePath\(uid, img\)/.test(J) && /if \(!path\) return Promise\.reject/.test(J));
   ok('every upload goes through the canvas re-encode first (EXIF/GPS dropped)',
-    /function reencode\(file, spec\) \{ return encode\(file, spec, false\)/.test(J) && /return encode\(file, spec, true\)\.then/.test(J) && /createElement\('canvas'\)/.test(J));
+    /function reencode\(file, spec\) \{ return encode\(file, spec, false, false\)/.test(J) && /return encode\(file, spec, true, true\)\.then/.test(J) && /createElement\('canvas'\)/.test(J));
   ok('uploads only to themeStoragePath(uid, themeId, minted id)', /var path = L\(\)\.themeStoragePath\(uid, themeId, id\)/.test(J) && /L\(\)\.mintImageId\(\)/.test(J));
   ok('the encoded blob is what is uploaded (lossy webp/jpeg content type)', /uploadBytes\(st\.ref\(window\.storage, path\), r\.blob,\s*\{ contentType: r\.blob\.type/.test(J));
   ok('a single theme is written by dotted field path (never the whole map)',
@@ -283,14 +283,14 @@ console.log('\n8. CSS, panel, wiring');
     'myskinThemeBlur', 'myskinThemeFit', 'myskinThemePixel', 'myskinThemeOverlay', 'myskinThemeOverride'];
   ok('the per-theme card has every control', ids.every((id) => P.includes('id="' + id + '"')), ids.filter((id) => !P.includes('id="' + id + '"')).join());
   ok('nine focal-point buttons, each labelled', (P.match(/data-myskin-pos="[^"]+"/g) || []).length === 9 && (P.match(/data-myskin-pos="[^"]+" aria-pressed="false" aria-label="[^"]+"/g) || []).length === 9);
-  ok('the per-theme picker accepts images only', /accept="image\/\*" data-myskin-theme-file/.test(P));
+  ok('the per-theme picker accepts images only', /accept="image\/\*" multiple data-myskin-theme-file/.test(P));
   ok('the thumbnail is masked from session recordings', /class="myskin-thumb" data-clarity-mask="true"/.test(P));
   ok('the privacy note is in the panel', /They stay private to you, just like your wallpaper/.test(P));
   ok('the card sits between the wallpaper and the texture slot',
     P.indexOf('data-myskin-slot="wallpaper"') < P.indexOf('id="myskinPerTheme"') && P.indexOf('id="myskinPerTheme"') < P.indexOf('data-myskin-slot="texture"'));
   ok('cache-busters bumped on both pages',
     ['docs/pro/dashboard.html', 'docs/pro/customer.html'].every((p) => { const h = read(p);
-      return /css\/my-skin\.css\?v=2/.test(h) && /js\/my-skin-logic\.js\?v=2/.test(h) && /js\/my-skin\.js\?v=4/.test(h); }));
+      return /css\/my-skin\.css\?v=6/.test(h) && /js\/my-skin-logic\.js\?v=6/.test(h) && /js\/my-skin\.js\?v=8/.test(h); }));
 
   const A = read('docs/pro/js/nbd-auth.js');
   ok('sign-out / account-switch purge calls NBDMySkin.purgeLocal (with an IndexedDB fallback)',

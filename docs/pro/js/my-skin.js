@@ -48,6 +48,20 @@
   var layerPic = null;     // what the layers show: { source, key, url, style, eff, img }
   var fetchingAll = null;  // promise of the in-flight global-slot fetch
   var clearArmed = null;   // themeId whose "Clear" button is waiting for a second tap
+  var editTarget = null;   // a theme picked in the grid: the card edits it without applying it
+  var panelThumb = { key: null, url: null, pending: null };
+  // Slideshow: one timer for the whole page (a theme switch resets it).
+  var slide = { sig: '', idx: 0, state: null, upcoming: null, t: null, timer: null, pre: null, plan: null };
+  var stripUrls = {};      // path@v -> blob: URL of a strip thumbnail
+  var stripSig = '';
+  var armed = {};          // two-tap buttons: 'clear' | 'all' | 'copy' -> themeId they wait on
+  var batteryLow = false;
+  var batchQuiet = false;  // several pictures at once: one toast at the end
+  // Company background sets (spec section 18).
+  var companyCfg = null;   // normalized companies/{id}/skin/config, or null
+  var companyId = null;
+  var companySig = '';
+  var previewMember = false;   // an admin previewing what members see (personal skin ignored)
 
   var toast = function (m, t) { if (typeof window.showToast === 'function') window.showToast(m, t || 'info'); };
   var sdk = function () { return import(STORAGE_SDK); };
@@ -100,6 +114,7 @@
   function load() {
     if (uid && window._user.uid !== uid) purgeMemory();   // a different account on this page: nothing carries over
     uid = window._user.uid;
+    watchCompany();
     var ref = window.doc(window.db, 'userSettings', uid);
     if (typeof window.onSnapshot !== 'function') return readWithRetry(ref, 0).then(apply);
     return new Promise(function (resolve) {
@@ -121,6 +136,34 @@
     });
   }
 
+  // The company's set: one doc, one listener. A member of a company reads
+  // companies/{id}/skin/config; the solo owner reads companies/{uid}/....
+  function claims() { try { return window._userClaims || {}; } catch (e) { return {}; } }
+  function isCompanyAdmin() {
+    var c = claims();
+    return c.role === 'company_admin' || !c.companyId || c.companyId === uid;
+  }
+  function watchCompany() {
+    var c = claims();
+    var id = c.companyId || uid;
+    if (!id || id === companyId) return;
+    companyId = id;
+    var ref = window.doc(window.db, 'companies', id, 'skin', 'config');
+    var take = function (snap) {
+      var ex = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap.exists);
+      var next = ex ? L().normalizeCompany(snap.data()) : null;
+      var sig = JSON.stringify(next);
+      if (sig === companySig) return;
+      companySig = sig; companyCfg = next;
+      if (window.NBDMySkinCompany && window.NBDMySkinCompany.refresh) window.NBDMySkinCompany.refresh();
+      if (cfg) showCurrent().then(renderPanel);
+    };
+    try {
+      if (typeof window.onSnapshot === 'function') window.onSnapshot(ref, take, function () { /* no set, or not allowed: no noise */ });
+      else window.getDoc(ref).then(take, function () {});
+    } catch (e) {}
+  }
+
   // Global fields: setDoc merge keeps the keys it doesn't list (a per-theme
   // entry written by another device, or by an older client, survives).
   function save() {
@@ -129,6 +172,7 @@
     var out = {
       enabled: cfg.enabled, dim: cfg.dim, texture: cfg.texture, accent: cfg.accent, side: cfg.side, slots: cfg.slots,
       schema: 2, perTheme: cfg.perTheme, show: cfg.show, allThemes: cfg.allThemes,
+      hidePictures: cfg.hidePictures, company: cfg.company, ambient: cfg.ambient,
     };
     return window.setDoc(window.doc(window.db, 'userSettings', uid), { mySkin: out }, { merge: true })
       .catch(function () { toast('Couldn’t save My Skin. Check your connection.', 'error'); });
@@ -179,6 +223,7 @@
 
   function imgKey(img) {
     var parts = String(img.path).split('/');
+    if (parts[0] === 'companies') return uid + '|co|' + parts[1] + '|' + parts[4] + '|' + img.id + '|' + img.v;
     return uid + '|' + parts[3] + '|' + img.id + '|' + img.v;
   }
   function memPut(key, blob, w, h) {
@@ -278,6 +323,9 @@
   // Everything held on this device for this page: layers, blob URLs, the
   // pictures in memory. (Disk is wiped by purgeLocal, at sign-out.)
   function purgeMemory() {
+    stopSlides();
+    Object.keys(stripUrls).forEach(function (k) { try { URL.revokeObjectURL(stripUrls[k]); } catch (x) {} });
+    stripUrls = {}; stripSig = '';
     dropLayers();
     layerPic = null;
     mem.forEach(function (e) { try { URL.revokeObjectURL(e.url); } catch (x) {} });
@@ -288,6 +336,7 @@
   // layers and the IndexedDB copy, so the next person on this browser sees
   // nothing of the last one's pictures.
   function purgeLocal() {
+    companyCfg = null; companyId = null; companySig = ''; previewMember = false;
     try { purgeMemory(); } catch (e) {}
     try { cfg = null; paint(); } catch (e) {}
     try {
@@ -332,7 +381,8 @@
     var hit = memTouch(key);
     if (hit) return Promise.resolve({ url: hit.url, key: key });
     if (inflight[key]) return inflight[key];
-    var path = L().trustedImagePath(uid, img);
+    var path = String(img.path).indexOf('companies/') === 0
+      ? L().trustedCompanyImagePath(companyId, img) : L().trustedImagePath(uid, img);
     if (!path) return Promise.reject(new Error('untrusted'));
     var p = idbGet(key).then(function (rec) {
       if (rec && rec.blob) return rec.blob;
@@ -363,9 +413,10 @@
   }
 
   // Decode, scale to the spec's long edge, re-encode. Drops EXIF and caps
-  // size. Resolves { blob, w, h, srcW, srcH, stats } (stats: upload-time
-  // luminance for the readability guard, only when asked for).
-  function encode(file, spec, wantStats) {
+  // size. Resolves { blob, w, h, srcW, srcH, stats, thumb } (stats: upload-time
+  // luminance for the readability guard; thumb: a 256 px copy for the grid;
+  // each only when asked for).
+  function encode(file, spec, wantStats, wantThumb) {
     var decode = (typeof createImageBitmap === 'function')
       ? createImageBitmap(file).catch(function () { return viaImg(file); })
       : viaImg(file);
@@ -395,11 +446,23 @@
       }).then(function (o) {
         if (img.close) { try { img.close(); } catch (e) {} }
         if (!o.blob || o.blob.size >= maxBytes) throw new Error('too-big');
-        return { blob: o.blob, w: o.w, h: o.h, srcW: sw, srcH: sh, stats: wantStats ? sampleStats(o.canvas) : null };
+        var res = { blob: o.blob, w: o.w, h: o.h, srcW: sw, srcH: sh, stats: wantStats ? sampleStats(o.canvas) : null, thumb: null };
+        if (!wantThumb) return res;
+        return thumbOf(o.canvas).then(function (t) { res.thumb = t; return res; }, function () { return res; });
       });
     });
   }
-  function reencode(file, spec) { return encode(file, spec, false).then(function (r) { return r.blob; }); }
+  function reencode(file, spec) { return encode(file, spec, false, false).then(function (r) { return r.blob; }); }
+  // A THUMB_WIDTH-wide lossy copy (the grid shows these, not the full picture).
+  function thumbOf(canvas) {
+    var tw = Math.min(L().THUMB_WIDTH, canvas.width), th = Math.max(1, Math.round(canvas.height * tw / canvas.width));
+    var c = document.createElement('canvas'); c.width = tw; c.height = th;
+    c.getContext('2d').drawImage(canvas, 0, 0, tw, th);
+    return new Promise(function (res) { c.toBlob(res, 'image/webp', 0.7); }).then(function (b) {
+      if (b && b.type === 'image/webp') return b;
+      return new Promise(function (res) { c.toBlob(res, 'image/jpeg', 0.78); });
+    });
+  }
   function viaImg(file) {
     return new Promise(function (res, rej) {
       var u = URL.createObjectURL(file); var im = new Image();
@@ -428,7 +491,7 @@
         }
       }
       var hex = function (n) { var h = Math.round(n / nAll).toString(16); return h.length < 2 ? '0' + h : h; };
-      return { lum: all / nAll, lumCenter: ctr / nCtr, avg: '#' + hex(r) + hex(g) + hex(b) };
+      return { lum: all / nAll, lumCenter: ctr / nCtr, avg: '#' + hex(r) + hex(g) + hex(b), accent: L().accentFromSample(d) };
     } catch (e) { return null; }
   }
 
@@ -494,11 +557,14 @@
     });
     if (!gone.length) return Promise.resolve();
     return sdk().then(function (st) {
-      return Promise.all(gone.map(function (i) {
+      var jobs = [];
+      gone.forEach(function (i) {
         var p = L().trustedImagePath(uid, i);
-        if (!p) return null;
-        return st.deleteObject(st.ref(window.storage, p)).catch(function () {});
-      }));
+        if (!p) return;
+        jobs.push(st.deleteObject(st.ref(window.storage, p)).catch(function () {}));
+        if (i.thumb) jobs.push(st.deleteObject(st.ref(window.storage, p + '_t')).catch(function () {}));
+      });
+      return Promise.all(jobs);
     }).catch(function () {});
   }
 
@@ -507,32 +573,49 @@
     return (longEdge > 0 && longEdge <= 640) || /sprite|pixel/i.test(String(file && file.name || ''));
   }
 
-  function uploadThemeImage(themeId, file) {
+  // mode 'add': append to the theme's slideshow (up to 6); default: replace.
+  function uploadThemeImage(themeId, file, mode) {
     var key = 't:' + themeId;
     if (!cfg || !uid || !L().THEME_ID_RE.test(themeId) || busy[key]) return Promise.resolve(false);
+    if (mode === 'add' && cfg.themes[themeId] && cfg.themes[themeId].images.length >= L().MAX_IMAGES_PER_THEME) {
+      toast('Up to ' + L().MAX_IMAGES_PER_THEME + ' pictures per theme.', 'warning');
+      return Promise.resolve(false);
+    }
     var chk = L().checkInput(file);
     if (!chk.ok) { toast(chk.reason, 'warning'); return Promise.resolve(false); }
+    if (!cfg.themes[themeId] && !L().quotaCheck(cfg, 0).ok) {
+      toast('Your background pictures are using 300 MB. Clear some themes first.', 'warning');
+      return Promise.resolve(false);
+    }
     busy[key] = true; renderPanel();
     var spec = L().THEME_IMAGE_SPEC;
     var id = L().mintImageId();
     var path = L().themeStoragePath(uid, themeId, id);
     var enc = null;
     var turnedOn = !cfg.enabled;
-    return encode(file, spec, true).then(function (r) {
+    var hasThumb = false;
+    return encode(file, spec, true, true).then(function (r) {
       enc = r;
       return sdk().then(function (st) {
         var meta = { w: String(r.w), h: String(r.h) };
         if (r.stats) meta.lum = r.stats.lum.toFixed(3);
         return st.uploadBytes(st.ref(window.storage, path), r.blob,
-          { contentType: r.blob.type, cacheControl: 'private, max-age=0', customMetadata: meta });
+          { contentType: r.blob.type, cacheControl: 'private, max-age=0', customMetadata: meta }).then(function () {
+          if (!r.thumb) return null;
+          // The grid's copy is a nicety: a failed thumbnail never fails the picture.
+          return st.uploadBytes(st.ref(window.storage, path + '_t'), r.thumb,
+            { contentType: r.thumb.type, cacheControl: 'private, max-age=0' }).then(function () { hasThumb = true; }, function () {});
+        });
       });
     }).then(function () {
       var st = enc.stats || {};
       var image = { id: id, path: path, v: Date.now(), w: enc.w, h: enc.h, lum: st.lum != null ? st.lum : null,
-        lumCenter: st.lumCenter != null ? st.lumCenter : null, avg: st.avg || null, type: enc.blob.type, bytes: enc.blob.size };
+        lumCenter: st.lumCenter != null ? st.lumCenter : null, avg: st.avg || null, accent: st.accent || null, type: enc.blob.type, bytes: enc.blob.size,
+        thumb: hasThumb };
       var prev = cfg.themes[themeId];
-      var oldImages = prev ? prev.images.slice() : [];
-      var raw = prev ? Object.assign({}, prev, { images: [image], updatedAt: Date.now() })
+      var adding = mode === 'add' && !!prev;
+      var oldImages = prev && !adding ? prev.images.slice() : [];
+      var raw = prev ? Object.assign({}, prev, { images: adding ? prev.images.concat([image]) : [image], updatedAt: Date.now() })
         : { images: [image], pixelated: defaultPixelated(file, enc), updatedAt: Date.now() };
       var tmp = {}; tmp[themeId] = raw;
       var slot = L().normalize({ themes: tmp }).themes[themeId];
@@ -547,7 +630,7 @@
         return showCurrent();
       }).then(function () { return deleteUnreferenced(oldImages); });
     }).then(function () {
-      toast('Background saved for this theme. Only you see it.', 'success');
+      if (!batchQuiet) toast('Background saved for this theme. Only you see it.', 'success');
       return true;
     }).catch(function (e) {
       toast(e && e.message === 'decode' ? 'Couldn’t open that picture. Try a JPG or PNG.'
@@ -555,6 +638,105 @@
         : 'Upload failed. Check your connection and try again.', 'error');
       return false;
     }).then(function (r) { busy[key] = false; renderPanel(); return r; });
+  }
+
+  // Several pictures at once: the first replaces (a theme with none: becomes
+  // picture 1), the rest are appended, never past 6.
+  function addThemeImages(themeId, files) {
+    var list = Array.prototype.slice.call(files || []);
+    var have = cfg && cfg.themes[themeId] ? cfg.themes[themeId].images.length : 0;
+    var room = L().MAX_IMAGES_PER_THEME - have;
+    if (room <= 0) { toast('Up to ' + L().MAX_IMAGES_PER_THEME + ' pictures per theme.', 'warning'); return Promise.resolve(false); }
+    if (list.length > room) toast('Up to ' + L().MAX_IMAGES_PER_THEME + ' pictures per theme. Added the first ' + room + '.', 'warning');
+    list = list.slice(0, room);
+    var chain = Promise.resolve(true), okN = 0;
+    batchQuiet = true;
+    list.forEach(function (f) { chain = chain.then(function () { return uploadThemeImage(themeId, f, 'add').then(function (r) { if (r) okN++; return r; }); }); });
+    return chain.then(function (r) {
+      batchQuiet = false;
+      if (okN) toast(okN === 1 ? 'Background saved for this theme. Only you see it.' : okN + ' pictures saved for this theme. Only you see them.', 'success');
+      return r;
+    }, function (e) { batchQuiet = false; throw e; });
+  }
+
+  // Take one picture out of a theme's slideshow (the last one clears the theme).
+  function removeThemeImage(themeId, imageId) {
+    var slot = cfg && cfg.themes[themeId];
+    if (!slot) return Promise.resolve();
+    var gone = slot.images.filter(function (i) { return i.id === imageId; });
+    if (!gone.length) return Promise.resolve();
+    if (slot.images.length === 1) return clearTheme(themeId);
+    slot.images = slot.images.filter(function (i) { return i.id !== imageId; });
+    slot.updatedAt = Date.now();
+    return writeTheme(themeId, slot).then(function () { return showCurrent(); })
+      .then(function () { return deleteUnreferenced(gone); })
+      .catch(function () { toast('Couldn’t remove that picture. Try again.', 'error'); })
+      .then(function () { renderPanel(); });
+  }
+
+  // "Use for all themes": this theme's first picture becomes the fallback for
+  // every theme that has none of its own. The entry keeps a snapshot of the
+  // picture, so clearing this theme later cannot strand it or delete the object.
+  function useForAll(themeId) {
+    var slot = cfg && cfg.themes[themeId];
+    if (!slot || !slot.images.length) return;
+    var im = slot.images[0];
+    cfg.allThemes = { imageRef: themeId + '/' + im.id, image: im, dim: slot.dim, dimOverride: slot.dimOverride, blur: slot.blur,
+      position: slot.position, fit: slot.fit, pixelated: slot.pixelated, hideOverlay: slot.hideOverlay };
+    cfg.allThemes = L().normalize({ allThemes: cfg.allThemes }).allThemes;
+    return save().then(function () { return showCurrent(); }).then(function () { toast('That picture now shows on every theme without its own.', 'success'); renderPanel(); });
+  }
+  function clearAll() {
+    var old = cfg && cfg.allThemes && cfg.allThemes.image;
+    if (!cfg || !cfg.allThemes) return Promise.resolve();
+    cfg.allThemes = null;
+    return save().then(function () { return showCurrent(); })
+      .then(function () { return old ? deleteUnreferenced([old]) : null; }).then(function () { renderPanel(); });
+  }
+
+  // Share this theme's pictures (the same stored objects, no bytes copied) with
+  // every theme in its category that has none.
+  function copyToCategory(themeId) {
+    var slot = cfg && cfg.themes[themeId];
+    var all = null;
+    try { all = window.ThemeEngine.getAll(); } catch (e) {}
+    if (!slot || !all) return Promise.resolve();
+    var cats = {}; Object.keys(all).forEach(function (id) { cats[id] = all[id].category; });
+    var targets = L().categoryCopyTargets(cfg, themeId, cats);
+    if (!targets.length) { toast('Every theme in this category already has a picture.', 'info'); return Promise.resolve(); }
+    var map = {};
+    targets.forEach(function (id) {
+      var c = JSON.parse(JSON.stringify(slot)); c.updatedAt = Date.now();
+      map[id] = c;
+    });
+    return commitThemes(map, []).then(function () { toast('Shared with ' + targets.length + ' more theme' + (targets.length === 1 ? '' : 's') + ' in this category.', 'success'); });
+  }
+
+  // A theme id that no longer exists: move its entry to another theme.
+  function reassignTheme(from, to) {
+    var slot = cfg && cfg.themes[from];
+    if (!slot || !to || to === from) return Promise.resolve(false);
+    if (cfg.themes[to]) { toast('That theme already has pictures. Clear it first.', 'warning'); return Promise.resolve(false); }
+    var c = JSON.parse(JSON.stringify(slot)); c.updatedAt = Date.now();
+    var m = {}; m[to] = c;
+    return commitThemes(m, []).then(function () {
+      delete cfg.themes[from];
+      return writeTheme(from, null);   // the objects are now referenced by the new entry
+    }).then(function () { renderPanel(); return true; }).catch(function () { toast('Couldn’t move that. Try again.', 'error'); return false; });
+  }
+
+  // Set every theme back to the user's own slideshow defaults.
+  function resetShowOverrides() {
+    var map = {}, n = 0;
+    Object.keys(cfg.themes).forEach(function (id) {
+      var s = cfg.themes[id];
+      if (s.interval != null || s.shuffle != null || s.fadeMs != null) {
+        var c = JSON.parse(JSON.stringify(s)); c.interval = null; c.shuffle = null; c.fadeMs = null; c.updatedAt = Date.now();
+        map[id] = c; n++;
+      }
+    });
+    if (!n) return Promise.resolve();
+    return commitThemes(map, []).then(function () { toast('Every theme now uses your slideshow defaults.', 'success'); });
   }
 
   function clearTheme(themeId) {
@@ -601,6 +783,8 @@
   // The key backgrounds are looked up by: the Custom Builder's reserved
   // '_custom' while its colours are on, otherwise the engine's theme id.
   function attr(n) { try { return html().getAttribute(n); } catch (e) { return null; } }
+  // The theme the card edits: the one picked in the grid, else the applied one.
+  function editKey() { return editTarget || activeKey(); }
   function activeKey() {
     if (attr('data-custom-theme') === '1') return '_custom';
     if (themeKey) return themeKey;
@@ -623,28 +807,59 @@
     };
   }
 
+  // The accent of the picture on screen, tuned for this page; null when the
+  // picture has none, the theme is locked, or pictures are hidden.
+  function ambientAccent() {
+    if (!cfg || !layerPic || !layerPic.img || !layerPic.img.accent || cfg.hidePictures) return null;
+    if (!(cfg.ambient.follow || cfg.ambient.tint)) return null;
+    var key = activeKey(), slot = key && cfg.themes[key];
+    if (slot && slot.ambientLock) return null;
+    var t = L().tuneAccent(layerPic.img.accent, pageBg());
+    return t || null;
+  }
+  function tintAllowed(accent) {
+    try {
+      var cs = getComputedStyle(html());
+      return L().tintOk(L().toHex(cs.getPropertyValue('--s2')), accent, L().toHex(cs.getPropertyValue('--t')), 0.09);
+    } catch (e) { return false; }
+  }
+
   function paint() {
     var root = html();
     Array.prototype.slice.call(root.classList).forEach(function (c) { if (CLASS_RE.test(c)) root.classList.remove(c); });
-    ['--myskin-dim', '--myskin-texture-strength', '--myskin-wallpaper', '--myskin-texture', '--myskin-accent', '--myskin-accent-fg']
+    ['--myskin-dim', '--myskin-texture-strength', '--myskin-wallpaper', '--myskin-texture', '--myskin-accent', '--myskin-accent-fg', '--myskin-tint']
       .forEach(function (k) { root.style.removeProperty(k); });
     var mascot = document.getElementById('nbdMySkinMascot');
     if (!cfg) { if (mascot) mascot.remove(); return; }
 
-    var layers = !!cfg.perTheme;
+    var coPic = !!(layerPic && layerPic.style && layerPic.style.company);
+    var layers = !!cfg.perTheme || coPic;
     var have = {
-      wallpaper: layers ? !!layerPic : !!urls.wallpaper,
-      texture: !!urls.texture, mascot: !!urls.mascot,
+      wallpaper: layers ? !!layerPic : (!!urls.wallpaper && !cfg.hidePictures),
+      // personal texture and mascot follow the member's own switch, not the company's
+      texture: !!urls.texture && cfg.enabled, mascot: !!urls.mascot && cfg.enabled,
     };
-    var acc = cfg.accent ? L().accentCheck(cfg.accent, pageBg()) : null;
-    var classes = L().htmlClasses(cfg, have, acc && acc.ok, {
+    // Accent: the user's own colour wins; otherwise (if they asked for it) the
+    // picture on screen lends its colour, tuned until it reads on this page.
+    var amb = ambientAccent();
+    var own = cfg.accent && cfg.enabled ? cfg.accent : null;
+    var useAcc = own || (amb && cfg.ambient.follow ? amb.accent : null);
+    var acc = useAcc ? L().accentCheck(useAcc, pageBg()) : null;
+    var paintCfg = Object.assign({}, cfg, { accent: useAcc });
+    if (coPic) paintCfg.enabled = true;
+    if (!own && useAcc) paintCfg.enabled = true;
+    var classes = L().htmlClasses(paintCfg, have, acc && acc.ok, {
       layers: layers, hideOverlay: !!(layerPic && layerPic.style && layerPic.style.hideOverlay),
     });
     if (!classes.length) { if (mascot) mascot.remove(); return; }
 
-    var vars = L().cssVars(cfg, urls, acc && acc.ok ? acc.fg : null);
+    var vars = L().cssVars(paintCfg, urls, acc && acc.ok ? acc.fg : null);
     Object.keys(vars).forEach(function (k) { root.style.setProperty(k, vars[k]); });
     classes.forEach(function (c) { root.classList.add(c); });
+    if (amb && cfg.ambient.tint && tintAllowed(amb.accent)) {
+      root.classList.add('my-skin', 'my-skin-tint');
+      root.style.setProperty('--myskin-tint', amb.accent);
+    } else { root.style.removeProperty('--myskin-tint'); }
 
     if (have.mascot) {
       if (!mascot) {
@@ -715,7 +930,7 @@
   // drags and light/dark flips, no swap.
   function restyle() {
     if (!cfg || !layerPic || cur < 0 || !els[cur]) return;
-    var r = L().resolveBackground(cfg, activeKey());
+    var r = resolveFor(activeKey());
     if (r.source === 'none') return;
     var eff = L().effectiveDim(r, layerPic.img, guardCtx());
     layerPic.style = r; layerPic.eff = eff;
@@ -723,29 +938,135 @@
     html().classList.toggle('my-skin-hide-overlay', !!r.hideOverlay);
   }
 
+  // What paints for a theme: personal only, or personal + the company's set.
+  function companyActive() { return !!(companyCfg && companyCfg.enabled); }
+  function resolveFor(key) {
+    if (companyActive()) return L().resolveWithCompany(previewMember ? L().normalize({}) : cfg, companyCfg, key);
+    return L().resolveBackground(cfg, key);
+  }
+
+  // Put a decoded picture on screen (the same picture again only restyles).
+  function commitPic(rr, img, url, ck) {
+    var same = layerPic && layerPic.key === ck && cur >= 0;
+    var eff = L().effectiveDim(rr, img, guardCtx());
+    Object.keys(pinned).forEach(function (k) { delete pinned[k]; });
+    if (ck) pinned[ck] = true;
+    layerPic = { source: rr.source, key: ck, url: url, style: rr, eff: eff, img: img };
+    if (same) setVars(els[cur], L().layerVars(rr, eff, url, 0));
+    else swapIn(url, rr, eff, slide.plan ? slide.plan.fadeMs : rr.fadeMs);
+    paint();
+  }
+
+  // ── slideshow ─────────────────────────────────────────────────────────
+  function slideCtx() {
+    return { reducedMotion: reduced(), narrow: mq('(max-width: 600px)'), lowBattery: batteryLow,
+      saveData: !!(navigator.connection && navigator.connection.saveData) };
+  }
+  function posKey(k) { return 'nbd_myskin_pos_' + k; }
+  function readPos(k) {
+    try { var v = window.sessionStorage.getItem(posKey(k)); return v == null ? null : Number(v); } catch (e) { return null; }
+  }
+  function writePos(k, i) { try { window.sessionStorage.setItem(posKey(k), String(i)); } catch (e) {} }
+  function clearSlideTimers() { clearTimeout(slide.timer); clearTimeout(slide.pre); slide.timer = null; slide.pre = null; }
+  function stopSlides() { clearSlideTimers(); slide.sig = ''; slide.plan = null; slide.t = null; slide.upcoming = null; }
+
+  // Which picture of the set to show now. The same set seen again (a settings
+  // snapshot, a repaint) keeps what is on screen; a theme switch or a changed
+  // set starts over (load mode steps on from the last one shown this session).
+  function pickSlide(key, r) {
+    var plan = L().slideshowPlan(r, slideCtx());
+    var n = r.images.length;
+    var sig = key + '|' + r.source + '|' + r.images.map(function (i) { return i.id; }).join(',');
+    if (slide.sig === sig && layerPic && (layerPic.source === 'theme' || layerPic.source === 'all' || layerPic.source === 'company')) {
+      slide.plan = plan;
+      return { idx: Math.min(slide.idx, n - 1), plan: plan, keep: true };
+    }
+    var idx = 0, state = { order: null, pos: 0, cur: -1 };
+    if (n > 1 && plan.mode === 'load') { idx = L().loadSlide(readPos(key), n, r.shuffle); writePos(key, idx); }
+    else if (n > 1 && plan.mode === 'timed') { var ns = L().nextSlide(state, n, r.shuffle); idx = ns.idx; state = ns.state; }
+    slide.sig = sig; slide.idx = idx; slide.state = state; slide.plan = plan; slide.upcoming = null;
+    return { idx: idx, plan: plan, keep: false };
+  }
+  function currentSet() {
+    if (!cfg || !(cfg.perTheme || companyActive())) return null;
+    var r = resolveFor(activeKey());
+    return (r.source === 'theme' || r.source === 'all' || r.source === 'company') ? r : null;
+  }
+  function armSlides(r, plan, keep) {
+    slide.plan = plan;
+    if (plan.mode !== 'timed') { clearSlideTimers(); slide.t = null; slide.armed = ''; return; }
+    var want = plan.ms + '|' + r.shuffle;
+    if (keep && (slide.timer || (slide.t && slide.t.paused)) && slide.armed === want) return;   // already counting down for this
+    slide.armed = want;
+    slide.upcoming = L().nextSlide(slide.state, r.images.length, r.shuffle);
+    startSlideTimer(plan.ms);
+  }
+  function startSlideTimer(ms) {
+    clearSlideTimers();
+    if (document.hidden) { slide.t = { dueAt: null, remaining: ms, paused: true }; return; }
+    slide.t = L().timerStart(ms, Date.now());
+    slide.timer = setTimeout(advanceSlide, ms);
+    slide.pre = setTimeout(preloadUpcoming, L().preloadDelay(ms));
+  }
+  // Only the NEXT picture is ever fetched ahead.
+  function preloadUpcoming() {
+    var r = currentSet();
+    if (!r || !slide.upcoming) return;
+    var im = r.images[slide.upcoming.idx];
+    if (!im) return;
+    pinned[imgKey(im)] = true;
+    acquire(im).then(function (h) { return decodeUrl(h.url); }, function () {});
+  }
+  function panelOpenOn(key) {
+    var p = $('myskinPanel');
+    return !!(p && p.offsetParent !== null && editKey() === key);
+  }
+  function advanceSlide() {
+    slide.timer = null;
+    var r = currentSet();
+    if (!r || !layerPic || !slide.upcoming || !slide.plan || slide.plan.mode !== 'timed') return;
+    var key = activeKey();
+    if (panelOpenOn(key)) { startSlideTimer(slide.plan.ms); return; }   // the editor is open on this theme: hold
+    var seq = switchSeq, up = slide.upcoming, im = r.images[up.idx];
+    if (!im) { startSlideTimer(slide.plan.ms); return; }
+    acquire(im).then(function (h) {
+      return decodeUrl(h.url).then(function () { return h; });
+    }).then(function (h) {
+      if (seq !== switchSeq) return;
+      slide.idx = up.idx; slide.state = up.state;
+      commitPic(r, im, h.url, h.key);
+      slide.upcoming = L().nextSlide(slide.state, r.images.length, r.shuffle);
+      startSlideTimer(slide.plan.ms);
+    }).catch(function () { if (seq === switchSeq && slide.plan) startSlideTimer(slide.plan.ms); });
+  }
+  // A hidden tab stops the clock and keeps the time that was left.
+  function onVisibility() {
+    if (!slide.t || !slide.plan || slide.plan.mode !== 'timed') return;
+    if (document.hidden) {
+      clearSlideTimers();
+      if (!slide.t.paused) slide.t = L().timerHide(slide.t, Date.now());
+    } else if (slide.t.paused) {
+      slide.t = L().timerShow(slide.t, Date.now());
+      slide.timer = setTimeout(advanceSlide, slide.t.remaining);
+      slide.pre = setTimeout(preloadUpcoming, L().preloadDelay(slide.t.remaining));
+    }
+  }
+
   // Work out what paints for the current theme and put it on screen.
   function showCurrent() {
     var seq = ++switchSeq;
     if (!cfg) return Promise.resolve();
-    if (!cfg.perTheme) {
+    if (!cfg.perTheme && !companyActive()) {
       dropLayers(); layerPic = null; paint();
       return Promise.resolve();
     }
     var key = activeKey();
-    var r = L().resolveBackground(cfg, key);
+    var r = resolveFor(key);
 
-    function none() { fadeOutLayers(); layerPic = null; paint(); }
-    function commit(rr, img, url, ck) {
-      var same = layerPic && layerPic.key === ck && cur >= 0;
-      var eff = L().effectiveDim(rr, img, guardCtx());
-      Object.keys(pinned).forEach(function (k) { delete pinned[k]; });
-      if (ck) pinned[ck] = true;
-      layerPic = { source: rr.source, key: ck, url: url, style: rr, eff: eff, img: img };
-      if (same) setVars(els[cur], L().layerVars(rr, eff, url, 0));
-      else swapIn(url, rr, eff, rr.fadeMs);
-      paint();
-    }
+    function none() { stopSlides(); fadeOutLayers(); layerPic = null; paint(); }
+    var commit = commitPic;
     function global() {
+      stopSlides();
       return (fetchingAll || Promise.resolve()).then(function () {
         if (seq !== switchSeq) return;
         if (!urls.wallpaper) { none(); return; }
@@ -756,12 +1077,14 @@
 
     if (r.source === 'none') { none(); return Promise.resolve(); }
     if (r.source === 'global') return global();
-    var img = r.images[0];
+    var pick = pickSlide(key, r);
+    var img = r.images[pick.idx];
     return acquire(img).then(function (h) {
       return decodeUrl(h.url).then(function () { return h; });
     }).then(function (h) {
       if (seq !== switchSeq) return;   // a newer theme switch won
       commit(r, img, h.url, h.key);
+      armSlides(r, pick.plan, pick.keep);
     }).catch(function () {
       // Removed elsewhere or offline with nothing cached: fall back quietly
       // to the global wallpaper, then the theme's built-in look.
@@ -775,6 +1098,8 @@
     var d = e && e.detail;
     var k = typeof d === 'string' ? d : (d && d.themeKey) || null;
     if (k) themeKey = k;
+    if (editTarget && editTarget === k) editTarget = null;
+    armed = {};
     if (!cfg) return;
     showCurrent().then(renderPanel);
   }
@@ -802,11 +1127,23 @@
     if (!card) return;
     card.hidden = !cfg.perTheme;
     if (!cfg.perTheme) return;
-    var key = activeKey();
+    var key = editKey();
+    var isActive = key === activeKey();
     var slot = key && cfg.themes[key];
-    var name = $('myskinThemeName'); if (name) name.textContent = themeLabel(key);
+    var name = $('myskinThemeName'); if (name) name.textContent = themeLabel(key) + (isActive ? '' : ' (not applied)');
     var row = card.querySelector('[data-myskin-theme-slot]');
-    var shown = layerPic && layerPic.source === 'theme' ? layerPic.url : null;
+    var shown = isActive && layerPic && layerPic.source === 'theme' ? layerPic.url : null;
+    if (!shown && slot && !isActive) {
+      var im0 = slot.images[0], tk = imgKey(im0);
+      if (panelThumb.key === tk && panelThumb.url) shown = panelThumb.url;
+      else if (panelThumb.pending !== tk) {
+        panelThumb.pending = tk;
+        acquire(im0).then(function (h) { panelThumb = { key: tk, url: h.url, pending: null }; renderPanel(); },
+          function () { panelThumb.pending = null; });
+      }
+    }
+    var prev = card.querySelector('[data-myskin-theme-preview]');
+    if (prev) prev.hidden = isActive || !key;
     if (row) {
       var img = row.querySelector('.myskin-thumb-img');
       var empty = row.querySelector('.myskin-thumb-empty');
@@ -822,6 +1159,7 @@
     if (status) {
       var src = layerPic ? layerPic.source : (cfg.enabled ? 'builtin' : 'off');
       status.textContent = !cfg.enabled ? 'My Skin is off.'
+        : !isActive ? (slot ? 'Not applied. Preview it to see it on the page.' : 'No picture for this theme yet.')
         : src === 'theme' ? 'Showing: this theme’s picture.'
         : src === 'all' ? 'Showing: your picture for all themes.'
         : src === 'global' ? 'Showing: your global wallpaper.'
@@ -831,6 +1169,14 @@
     if (fromWp) fromWp.hidden = !(!slot && urls.wallpaper);
     var ctl = card.querySelector('.myskin-theme-controls');
     if (ctl) ctl.hidden = !slot;
+    renderStrip(key, slot);
+    renderShow(card, key, slot);
+    var allBtn = card.querySelector('[data-myskin-use-all]');
+    if (allBtn) { allBtn.hidden = !slot; allBtn.textContent = armed.all === key ? 'Tap again to use it everywhere' : 'Use for all themes'; }
+    var catBtn = card.querySelector('[data-myskin-copy-cat]');
+    if (catBtn) { catBtn.hidden = !slot; catBtn.textContent = armed.copy === key ? 'Tap again to share it' : 'Share with this category'; }
+    var allClr = card.querySelector('[data-myskin-all-clear]');
+    if (allClr) allClr.hidden = !cfg.allThemes;
     if (!slot) return;
     var effNow = layerPic && layerPic.source === 'theme' ? layerPic.eff : null;
     var useGlobal = $('myskinThemeDimGlobal'); if (useGlobal) useGlobal.checked = slot.dim == null;
@@ -855,6 +1201,140 @@
         : effNow && effNow.raised ? 'Raised to ' + Math.round(effNow.dim * 100) + '% so text stays readable on this picture.' : '';
     }
     if (over) { over.checked = !!slot.dimOverride; over.closest('label').hidden = !raised; }
+  }
+
+  var SHOW_NOTES = {
+    'reduced-motion': 'Paused: reduced motion is on. A new picture shows each time you load or switch to this theme.',
+    'data-saver': 'Paused: Data Saver is on. A new picture shows each time you load or switch to this theme.',
+    'low-battery': 'Paused: your battery is low.',
+    'phone-minimum': 'On phones the picture changes at most once a minute.',
+  };
+  function fadeLabel(ms) { return ms <= 0 ? 'Off' : (ms / 1000).toFixed(1) + ' s'; }
+
+  // The strip of a theme's pictures (up to 6): thumbnail, position, up/down
+  // (also ArrowUp/ArrowDown on the focused item), a drag handle and remove.
+  function stripThumb(im, el) {
+    var key = im.path + '@' + im.v;
+    if (stripUrls[key]) { el.src = stripUrls[key]; return; }
+    var tp = L().trustedThumbPath(uid, im);
+    if (!tp) {   // a picture from before thumbnails: the cached full picture
+      acquire(im).then(function (h) { if (el.isConnected) el.src = h.url; }, function () {});
+      return;
+    }
+    sdk().then(function (st) { return st.getBlob(st.ref(window.storage, tp)); }).then(function (b) {
+      if (!stripUrls[key]) stripUrls[key] = URL.createObjectURL(b);
+      if (el.isConnected) el.src = stripUrls[key];
+    }, function () {});
+  }
+  function renderStrip(key, slot) {
+    var ol = $('myskinStrip');
+    if (!ol) return;
+    var sig = key + '|' + (slot ? slot.images.map(function (i) { return i.id + (i.thumb ? 't' : ''); }).join(',') : '');
+    if (sig === stripSig) return;
+    stripSig = sig;
+    while (ol.firstChild) ol.removeChild(ol.firstChild);
+    if (!slot) return;
+    var n = slot.images.length;
+    slot.images.forEach(function (im, i) {
+      var li = document.createElement('li');
+      li.className = 'myskin-strip-item'; li.tabIndex = 0;
+      li.setAttribute('data-myskin-strip-i', String(i));
+      li.setAttribute('aria-label', 'Background ' + (i + 1) + ' of ' + n + ' for ' + themeLabel(key) + '. Arrow up and down move it.');
+      var img = document.createElement('img');
+      img.className = 'myskin-strip-img'; img.alt = ''; img.setAttribute('data-clarity-mask', 'true');
+      li.appendChild(img);
+      var num = document.createElement('span'); num.className = 'myskin-strip-num'; num.textContent = String(i + 1);
+      li.appendChild(num);
+      function btn(cls, label, text, attrs) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'myskin-strip-btn ' + cls; b.textContent = text; b.setAttribute('aria-label', label);
+        Object.keys(attrs || {}).forEach(function (k) { b.setAttribute(k, attrs[k]); });
+        return b;
+      }
+      var handle = btn('myskin-strip-handle', 'Drag to reorder', '\u2261', { 'data-myskin-handle': '' });
+      li.appendChild(handle);
+      var up = btn('', 'Move earlier', '\u2191', { 'data-myskin-strip-up': String(i) }); up.disabled = i === 0;
+      var dn = btn('', 'Move later', '\u2193', { 'data-myskin-strip-down': String(i) }); dn.disabled = i === n - 1;
+      var del = btn('', 'Remove this picture', '\u2715', { 'data-myskin-strip-del': im.id });
+      li.appendChild(up); li.appendChild(dn); li.appendChild(del);
+      ol.appendChild(li);
+      stripThumb(im, img);
+    });
+  }
+
+  function renderShow(card, key, slot) {
+    var sh = card.querySelector('.myskin-show');
+    if (!sh) return;
+    var multi = !!(slot && slot.images.length >= 2);
+    sh.hidden = !multi;
+    if (!multi) return;
+    var own = slot.interval != null || slot.shuffle != null || slot.fadeMs != null;
+    var r = L().resolveBackground(cfg, key);
+    var def = $('myskinThemeShowDefault'); if (def) def.checked = !own;
+    var oc = card.querySelector('.myskin-show-own'); if (oc) oc.hidden = !own;
+    var iv = $('myskinThemeInterval'); if (iv) iv.value = r.interval;
+    var od = $('myskinThemeOrder'); if (od) od.value = r.shuffle ? 'shuffle' : 'order';
+    var fd = $('myskinThemeFade'); if (fd && document.activeElement !== fd) fd.value = String(Math.round(r.fadeMs / 100));
+    var fo = $('myskinThemeFadeOut'); if (fo) fo.textContent = fadeLabel(r.fadeMs);
+    var note = $('myskinShowNote');
+    if (note) {
+      var plan = L().slideshowPlan(r, slideCtx());
+      var text = plan.reason ? SHOW_NOTES[plan.reason] : '';
+      if (!text && plan.mode === 'timed' && key === activeKey() && panelOpenOn(key)) text = 'Paused while this panel is open.';
+      note.textContent = text || '';
+      note.hidden = !text;
+    }
+  }
+
+  // What the company set means for this member, and the switches they have.
+  function coSlotFor(key) {
+    if (!companyActive() || !key) return null;
+    return companyCfg.themes[key] || companyCfg.all || null;
+  }
+  function renderCompany() {
+    var box = $('myskinCompany');
+    if (box) {
+      var on = companyActive() && !isCompanyAdminOnly();
+      box.hidden = !on;
+      if (on) {
+        var n = Object.keys(companyCfg.themes).length + (companyCfg.all ? 1 : 0);
+        var enf = Object.keys(companyCfg.themes).filter(function (k) { return companyCfg.themes[k].mode === 'enforced'; }).length
+          + (companyCfg.all && companyCfg.all.mode === 'enforced' ? 1 : 0);
+        var st = $('myskinCoStatus');
+        if (st) st.textContent = 'Your company set backgrounds for ' + (companyCfg.all ? 'every theme' : n + (n === 1 ? ' theme' : ' themes'))
+          + (enf ? ' (' + enf + ' set by your company and locked)' : '') + '.';
+        var sh = $('myskinCoShow');
+        if (sh) { sh.checked = cfg.company.show !== false; sh.disabled = !companyCfg.allowHide; }
+        var lk = $('myskinCoLocked'); if (lk) lk.hidden = companyCfg.allowHide;
+      }
+    }
+    var card = $('myskinThemeCard');
+    var note = $('myskinCoThemeNote');
+    if (!card || !note) return;
+    var key = editKey(), slot = coSlotFor(key);
+    var use = card.querySelector('[data-myskin-co-use]'), hide = card.querySelector('[data-myskin-co-hide]');
+    if (!slot || !cfg.perTheme) { note.hidden = true; if (use) use.hidden = true; if (hide) hide.hidden = true; return; }
+    var enforced = slot.mode === 'enforced';
+    note.hidden = false;
+    note.textContent = enforced ? 'Set by your company. You can raise the dim and blur, not lower the dim below ' + Math.round((slot.minDim || 0) * 100) + '%.'
+      : 'Your company suggests a background for this theme.';
+    var own = !!(cfg.themes[key] && cfg.themes[key].images.length);
+    if (use) use.hidden = enforced || !own;
+    if (hide) { hide.hidden = enforced || !companyCfg.allowHide; hide.textContent = cfg.company.hide[key] ? 'Show the company picture again' : 'Hide the company picture for this theme'; }
+    var lock = enforced;
+    ['[data-myskin-theme-file]', '[data-myskin-theme-clear]', '#myskinThemeFit', '#myskinThemePixel', '#myskinThemeOverlay', '#myskinThemeDimGlobal', '#myskinThemeShowDefault']
+      .forEach(function (sel) { var e = card.querySelector(sel); if (e) e.disabled = lock || (sel === '[data-myskin-theme-clear]' && !cfg.themes[key]); });
+    var dm = $('myskinThemeDim'); if (dm) dm.min = lock ? String(Math.round((slot.minDim || 0) * 100)) : '0';
+  }
+  // A solo owner with no team is both admin and member; the member block adds
+  // nothing for someone who is only managing their own set.
+  function isCompanyAdminOnly() { return false; }
+
+  function renderShowDefaults() {
+    var iv = $('myskinShowInterval'); if (iv) iv.value = cfg.show.interval;
+    var od = $('myskinShowOrder'); if (od) od.value = cfg.show.shuffle ? 'shuffle' : 'order';
+    var fd = $('myskinShowFade'); if (fd && document.activeElement !== fd) fd.value = String(Math.round(cfg.show.fadeMs / 100));
+    var fo = $('myskinShowFadeOut'); if (fo) fo.textContent = fadeLabel(cfg.show.fadeMs);
   }
 
   function renderPanel() {
@@ -883,11 +1363,30 @@
       var st = row.querySelector('.myskin-status'); if (st) st.textContent = busy[s] ? 'Working…' : '';
     });
     renderThemeCard();
+    renderShowDefaults();
+    renderCompany();
+    var hp = $('myskinHidePictures'); if (hp) hp.checked = !!cfg.hidePictures;
+    var af = $('myskinAmbFollow'); if (af) af.checked = !!cfg.ambient.follow;
+    var at = $('myskinAmbTint'); if (at) at.checked = !!cfg.ambient.tint;
+    var ak = cfg.themes[editKey()];
+    var al = $('myskinAmbLock'); if (al) { al.checked = !!(ak && ak.ambientLock); al.disabled = !ak; }
+    var tools = $('myskinTools');
+    var team = $('myskinTeam');
+    if (team) team.hidden = !isCompanyAdmin();
+    if (tools) {
+      tools.hidden = !cfg.perTheme;
+      var use = $('myskinUsage');
+      if (use) {
+        var q = L().quotaCheck(cfg, 0);
+        use.textContent = 'Your theme pictures use ' + Math.round(q.used / 1048576) + ' MB of ' + Math.round(q.limit / 1048576) + ' MB.'
+          + (q.used >= q.limit ? ' New pictures are paused until you clear some.' : '');
+      }
+    }
   }
 
   // Edit the current theme's entry in memory, repaint it, save it by field.
-  function editTheme(fn) {
-    var key = activeKey();
+  function editTheme(fn, reshow) {
+    var key = editKey();
     var slot = key && cfg && cfg.themes[key];
     if (!slot) return;
     fn(slot);
@@ -895,6 +1394,7 @@
     var raw = {}; raw[key] = slot;
     cfg.themes[key] = L().normalize({ themes: raw }).themes[key] || slot;
     restyle(); renderPanel();
+    if (reshow) showCurrent().then(renderPanel);
     writeThemeSoon(key);
   }
 
@@ -906,9 +1406,13 @@
       showCurrent().then(renderPanel); save();
     }
     else if (t.matches && t.matches('[data-myskin-theme-file]')) {
-      var tf = t.files && t.files[0]; var key = activeKey();
+      var tfs = t.files ? Array.prototype.slice.call(t.files) : []; var key = editKey();
       t.value = '';
-      if (tf && key) uploadThemeImage(key, tf);
+      if (tfs.length && key) {
+        // a theme with no picture yet: the first file becomes picture 1
+        if (tfs.length === 1 && !(cfg.themes[key] && cfg.themes[key].images.length)) uploadThemeImage(key, tfs[0]);
+        else addThemeImages(key, tfs);
+      }
     }
     else if (t.matches && t.matches('[data-myskin-file]')) {
       var f = t.files && t.files[0]; var slot = t.getAttribute('data-myskin-file');
@@ -927,27 +1431,214 @@
     else if (t.id === 'myskinThemePixel') editTheme(function (s) { s.pixelated = !!t.checked; });
     else if (t.id === 'myskinThemeOverlay') editTheme(function (s) { s.hideOverlay = t.checked ? false : null; });
     else if (t.id === 'myskinThemeOverride') editTheme(function (s) { s.dimOverride = !!t.checked; });
+    else if (t.id === 'myskinThemeShowDefault') {
+      editTheme(function (s) {
+        if (t.checked) { s.interval = null; s.shuffle = null; s.fadeMs = null; }
+        else { s.interval = cfg.show.interval; s.shuffle = cfg.show.shuffle; s.fadeMs = cfg.show.fadeMs; }
+      }, true);
+    }
+    else if (t.id === 'myskinThemeInterval') editTheme(function (s) { s.interval = t.value; }, true);
+    else if (t.id === 'myskinThemeOrder') editTheme(function (s) { s.shuffle = t.value === 'shuffle'; }, true);
+    else if (t.id === 'myskinShowInterval') { cfg.show.interval = t.value; save(); showCurrent().then(renderPanel); }
+    else if (t.id === 'myskinShowOrder') { cfg.show.shuffle = t.value === 'shuffle'; save(); showCurrent().then(renderPanel); }
+    else if (t.id === 'myskinShowFade') save();
+    else if (t.id === 'myskinAmbFollow') { cfg.ambient.follow = !!t.checked; save(); paint(); renderPanel(); }
+    else if (t.id === 'myskinAmbTint') { cfg.ambient.tint = !!t.checked; save(); paint(); renderPanel(); }
+    else if (t.id === 'myskinAmbLock') { editTheme(function (s) { s.ambientLock = !!t.checked; }); paint(); }
+    else if (t.id === 'myskinHidePictures') { cfg.hidePictures = !!t.checked; save(); showCurrent().then(renderPanel); }
+    else if (t.id === 'myskinCoShow') {
+      if (companyCfg && companyCfg.allowHide) { cfg.company.show = !!t.checked; save(); showCurrent().then(renderPanel); }
+      else renderPanel();
+    }
   }
+  // A destructive-ish button: the first tap arms it (the label changes), a
+  // second tap within 4 seconds does it.
+  function twoTap(kind, key, run) {
+    if (!key) return;
+    if (armed[kind] === key) { armed[kind] = null; run(); return; }
+    armed[kind] = key; renderPanel();
+    setTimeout(function () { if (armed[kind] === key) { armed[kind] = null; renderPanel(); } }, 4000);
+  }
+  function moveImage(from, to) {
+    editTheme(function (s) { s.images = L().moveItem(s.images, from, to); }, true);
+    stripSig = ''; renderPanel();
+    var li = document.querySelector('#myskinStrip [data-myskin-strip-i="' + to + '"]');
+    if (li && li.focus) li.focus();
+  }
+  function onKey(e) {
+    if (!cfg || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    var li = e.target && e.target.closest && e.target.closest('[data-myskin-strip-i]');
+    if (!li || e.target !== li) return;
+    var i = Number(li.getAttribute('data-myskin-strip-i'));
+    e.preventDefault();
+    moveImage(i, e.key === 'ArrowUp' ? i - 1 : i + 1);
+  }
+  // Drag by the handle: the drop position is where the pointer is released.
+  var drag = null;
+  function onPointerDown(e) {
+    var hnd = e.target && e.target.closest && e.target.closest('[data-myskin-handle]');
+    if (!hnd || !cfg) return;
+    var li = hnd.closest('[data-myskin-strip-i]');
+    if (!li) return;
+    drag = { from: Number(li.getAttribute('data-myskin-strip-i')), li: li };
+    li.classList.add('is-drag');
+    document.addEventListener('pointerup', onPointerUp, { once: true });
+    document.addEventListener('pointercancel', onPointerUp, { once: true });
+    e.preventDefault();
+  }
+  function onPointerUp(e) {
+    if (!drag) return;
+    var d = drag; drag = null;
+    d.li.classList.remove('is-drag');
+    var items = Array.prototype.slice.call(document.querySelectorAll('#myskinStrip [data-myskin-strip-i]'));
+    var above = 0;
+    items.forEach(function (it) {
+      if (it === d.li) return;
+      var r = it.getBoundingClientRect();
+      if (r.top + r.height / 2 < e.clientY) above++;
+    });
+    if (e.type === 'pointerup' && above !== d.from) moveImage(d.from, above);
+  }
+
   function onInput(e) {
     var t = e.target; if (!t || !cfg) return;
     if (t.id === 'myskinDim') { cfg = L().normalize(Object.assign({}, cfg, { dim: Number(t.value) / 100 })); restyle(); paint(); renderPanel(); saveSoon(); }
     if (t.id === 'myskinTexture') { cfg = L().normalize(Object.assign({}, cfg, { texture: Number(t.value) / 100 })); paint(); renderPanel(); saveSoon(); }
     if (t.id === 'myskinThemeDim') editTheme(function (s) { s.dim = Number(t.value) / 100; });
     if (t.id === 'myskinThemeBlur') editTheme(function (s) { s.blur = Number(t.value); });
+    if (t.id === 'myskinThemeFade') editTheme(function (s) { s.fadeMs = Math.round(Number(t.value)) * 100; });
+    if (t.id === 'myskinShowFade') { cfg.show.fadeMs = Math.round(Number(t.value)) * 100; renderPanel(); saveSoon(); }
   }
   function onClick(e) {
-    var b = e.target && e.target.closest && e.target.closest('[data-myskin-remove],#myskinAccentReset,[data-myskin-pos],[data-myskin-theme-clear],[data-myskin-theme-from-wallpaper]');
+    var b = e.target && e.target.closest && e.target.closest('[data-myskin-remove],#myskinAccentReset,[data-myskin-pos],[data-myskin-theme-clear],[data-myskin-theme-from-wallpaper],[data-myskin-open],[data-myskin-theme-preview],[data-myskin-strip-del],[data-myskin-strip-up],[data-myskin-strip-down],[data-myskin-use-all],[data-myskin-copy-cat],[data-myskin-all-clear],[data-myskin-fade-preset],#myskinShowReset,[data-myskin-co-hide],[data-myskin-co-use]');
     if (!b || !cfg) return;
+    if (b.hasAttribute('data-myskin-open')) { openTool(b.getAttribute('data-myskin-open')); return; }
+    var ek = editKey();
+    if (b.hasAttribute('data-myskin-strip-del')) { if (ek) removeThemeImage(ek, b.getAttribute('data-myskin-strip-del')); return; }
+    if (b.hasAttribute('data-myskin-strip-up')) { var ui = Number(b.getAttribute('data-myskin-strip-up')); moveImage(ui, ui - 1); return; }
+    if (b.hasAttribute('data-myskin-strip-down')) { var di = Number(b.getAttribute('data-myskin-strip-down')); moveImage(di, di + 1); return; }
+    if (b.hasAttribute('data-myskin-co-hide')) {
+      if (ek && companyCfg && companyCfg.allowHide) { cfg.company.hide[ek] = !cfg.company.hide[ek]; save(); showCurrent().then(renderPanel); }
+      return;
+    }
+    if (b.hasAttribute('data-myskin-co-use')) { if (ek) clearTheme(ek); return; }
+    if (b.hasAttribute('data-myskin-use-all')) { twoTap('all', ek, function () { useForAll(ek); }); return; }
+    if (b.hasAttribute('data-myskin-copy-cat')) { twoTap('copy', ek, function () { copyToCategory(ek); }); return; }
+    if (b.hasAttribute('data-myskin-all-clear')) { clearAll(); return; }
+    if (b.hasAttribute('data-myskin-fade-preset')) {
+      cfg.show.fadeMs = Math.round(Number(b.getAttribute('data-myskin-fade-preset')) / 100) * 100;
+      renderPanel(); save(); return;
+    }
+    if (b.id === 'myskinShowReset') { resetShowOverrides(); return; }
+    if (b.hasAttribute('data-myskin-theme-preview')) {
+      var pk = editKey();
+      try { if (pk && window.ThemeEngine && window.ThemeEngine.apply) window.ThemeEngine.apply(pk, false); } catch (x) {}
+      return;
+    }
     if (b.id === 'myskinAccentReset') { cfg.accent = null; paint(); save(); renderPanel(); return; }
     if (b.hasAttribute('data-myskin-pos')) { var pv = b.getAttribute('data-myskin-pos'); editTheme(function (s) { s.position = pv; }); return; }
     if (b.hasAttribute('data-myskin-theme-clear')) {
-      var key = activeKey();
+      var key = editKey();
       if (clearArmed === key) { clearArmed = null; clearTheme(key); }
       else { clearArmed = key; renderPanel(); setTimeout(function () { if (clearArmed === key) { clearArmed = null; renderPanel(); } }, 4000); }
       return;
     }
-    if (b.hasAttribute('data-myskin-theme-from-wallpaper')) { var k2 = activeKey(); if (k2) wallpaperToTheme(k2); return; }
+    if (b.hasAttribute('data-myskin-theme-from-wallpaper')) { var k2 = editKey(); if (k2) wallpaperToTheme(k2); return; }
     remove(b.getAttribute('data-myskin-remove'));
+  }
+
+  // Bulk import and the all-themes grid live in a lazy module (the zip reader,
+  // the review table, the upload queue): nothing loads until it is asked for.
+  function loadImportModule() {
+    if (window.NBDMySkinImport) return Promise.resolve(window.NBDMySkinImport);
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = '/pro/js/my-skin-import.js?v=1'; s.async = true;
+      s.onload = function () { window.NBDMySkinImport ? resolve(window.NBDMySkinImport) : reject(new Error('missing')); };
+      s.onerror = function () { reject(new Error('load')); };
+      document.head.appendChild(s);
+    });
+  }
+  function loadTeamModule() {
+    if (window.NBDMySkinCompany) return Promise.resolve(window.NBDMySkinCompany);
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = '/pro/js/my-skin-company.js?v=1'; s.async = true;
+      s.onload = function () { window.NBDMySkinCompany ? resolve(window.NBDMySkinCompany) : reject(new Error('missing')); };
+      s.onerror = function () { reject(new Error('load')); };
+      document.head.appendChild(s);
+    });
+  }
+  function openTeam() {
+    var root = $('myskinTeamRoot');
+    if (!root || !cfg || !isCompanyAdmin()) return;
+    loadTeamModule().then(function (m) { m.open(root, internals()); })
+      .catch(function () { toast('Couldn’t open that. Check your connection and try again.', 'error'); });
+  }
+  function openTool(kind) {
+    if (kind === 'team') { openTeam(); return; }
+    var root = $(kind === 'grid' ? 'myskinGridRoot' : 'myskinImportRoot');
+    if (!root || !cfg) return;
+    loadImportModule().then(function (m) { m.open(kind, root, internals()); })
+      .catch(function () { toast('Couldn’t open that. Check your connection and try again.', 'error'); });
+  }
+
+  // Write several theme entries in one merge (a bulk import's batch of 25),
+  // update the local config first so the panel and painter are right at once,
+  // then delete the objects nothing refers to any more.
+  function commitThemes(map, oldImages) {
+    var turnedOn = !cfg.enabled;
+    var out = {};
+    Object.keys(map).forEach(function (id) {
+      var tmp = {}; tmp[id] = map[id];
+      var s = L().normalize({ themes: tmp }).themes[id];
+      if (s) { cfg.themes[id] = s; out[id] = JSON.parse(JSON.stringify(s)); }
+    });
+    if (!Object.keys(out).length) return Promise.resolve();
+    if (!cfg.enabled) cfg.enabled = true;
+    localEditAt = Date.now();
+    return fsdk().then(function (f) {
+      return f.setDoc(f.doc(window.db, 'userSettings', uid), { mySkin: { schema: 2, themes: out } }, { merge: true });
+    }).then(function () {
+      if (turnedOn) save();
+      return showCurrent();
+    }).then(function () { return deleteUnreferenced(oldImages || []); }).then(renderPanel);
+  }
+
+  function internals() {
+    return {
+      L: L(), cfg: function () { return cfg; }, uid: function () { return uid; },
+      encode: encode, sdk: sdk, acquire: acquire, imgKey: imgKey, toast: toast,
+      commitThemes: commitThemes, themeLabel: themeLabel, activeKey: activeKey,
+      edit: function (themeId) {
+        editTarget = themeId; clearArmed = null; renderPanel();
+        var c = $('myskinThemeCard'); if (c && c.scrollIntoView) { try { c.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
+      },
+      busy: function (id) { return !!busy['t:' + id]; },
+      clearTheme: clearTheme, reassign: reassignTheme,
+      fsdk: fsdk, companyId: function () { return companyId; }, company: function () { return companyCfg; },
+      setPreviewAsMember: function (b) { previewMember = !!b; showCurrent().then(renderPanel); },
+    };
+  }
+
+  // Warm the picker's hovered theme: its picture is a local read by the time
+  // it is clicked. Debounced, at most 3 at once, never on phones or Data Saver.
+  var prefTimer = null, prefInflight = 0;
+  function onHover(e) {
+    var el = e.target && e.target.closest && e.target.closest('#npm-grid [data-theme-key]');
+    if (!el || !cfg || !cfg.perTheme || !cfg.enabled || !uid) return;
+    if (mq('(max-width: 600px)') || (navigator.connection && navigator.connection.saveData)) return;
+    var k = el.getAttribute('data-theme-key');
+    clearTimeout(prefTimer);
+    prefTimer = setTimeout(function () {
+      var r = L().resolveBackground(cfg, k);
+      if (r.source !== 'theme' && r.source !== 'all') return;
+      var im = r.images[0];
+      if (mem.has(imgKey(im)) || prefInflight >= 3) return;
+      prefInflight++;
+      var done = function () { prefInflight--; };
+      acquire(im).then(done, done);
+    }, 150);
   }
 
   // The Appearance tab can be mounted after boot: fill the panel whenever a
@@ -971,6 +1662,19 @@
     document.addEventListener('click', onClick);
     document.addEventListener('themechange', onTheme);
     document.addEventListener('modechange', onMode);
+    document.addEventListener('pointerover', onHover);
+    document.addEventListener('focusin', onHover);
+    document.addEventListener('visibilitychange', onVisibility);
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointerDown);
+    try {
+      if (navigator.getBattery) navigator.getBattery().then(function (b) {
+        var set = function () { batteryLow = !b.charging && b.level < 0.2; };
+        set(); b.addEventListener('levelchange', set); b.addEventListener('chargingchange', set);
+      }, function () {});
+      var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+      if (rm && rm.addEventListener) rm.addEventListener('change', function () { if (cfg) showCurrent().then(renderPanel); });
+    } catch (e) {}
     watchPanel();
     var p = $('myskinPanel'); if (p) p.setAttribute('data-myskin-ready', '');
   }
@@ -989,7 +1693,11 @@
     repaint: function () { return showCurrent(); },
     upload: function (slot, file) { return upload(slot, file); },
     remove: function (slot) { return remove(slot); },
-    uploadTheme: function (themeId, file) { return uploadThemeImage(themeId, file); },
+    uploadTheme: function (themeId, file, mode) { return uploadThemeImage(themeId, file, mode); },
+    addThemeImages: function (themeId, files) { return addThemeImages(themeId, files); },
+    removeThemeImage: function (themeId, imageId) { return removeThemeImage(themeId, imageId); },
+    useForAll: function (themeId) { return useForAll(themeId); },
+    copyToCategory: function (themeId) { return copyToCategory(themeId); },
     clearTheme: function (themeId) { return clearTheme(themeId); },
     purgeLocal: purgeLocal,
   };

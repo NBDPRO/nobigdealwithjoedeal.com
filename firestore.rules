@@ -2164,6 +2164,24 @@ service cloud.firestore {
       // missing doc denies), so loadTeamMembers/invite were PERMISSION_DENIED.
       // Allow the company-keyed-by-uid owner directly — they can only ever reach
       // the members subcollection under their OWN uid, so this is tenant-safe.
+      // My Skin company background set (2026-10, spec section 18):
+      // companies/{companyId}/skin/config is the ONE doc members listen to.
+      // Members of the company read it; the company admin (or the solo owner
+      // of a company of one, or the platform admin) writes it. usage and
+      // usageUpdatedAt belong to functions/skin-quota.js (admin SDK) and a
+      // client write may not touch them. The per-theme map is bounded like a
+      // member's own (220). A viewer never writes.
+      match /skin/{docId} {
+        allow read: if isAdmin() || (isAuth() && (myCompanyId() == companyId || companyId == request.auth.uid));
+        allow create, update: if docId == 'config' && notViewer()
+          && (isAdmin()
+              || (isCompanyAdmin() && myCompanyId() == companyId)
+              || companyId == request.auth.uid)
+          && !request.resource.data.diff(resource == null ? {} : resource.data).affectedKeys().hasAny(['usage', 'usageUpdatedAt'])
+          && request.resource.data.get('themes', {}).size() <= 220;
+        allow delete: if false;
+      }
+
       match /members/{memberId} {
         // Same-company claim read (4th grant): the Team tab resolves its
         // tenant key from claims.companyId precisely so non-owner
