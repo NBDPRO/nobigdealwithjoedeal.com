@@ -34,6 +34,7 @@ async function clearSkin(email) {
   await getFirestore().doc('userSettings/' + uid).set({ mySkin: FieldValue.delete() }, { merge: true });
   const bucket = require('firebase-admin/storage').getStorage().bucket('nobigdeal-pro.firebasestorage.app');
   for (const slot of ['wallpaper', 'texture', 'mascot']) await bucket.file('skins/' + uid + '/' + slot).delete().catch(() => {});
+  await bucket.deleteFiles({ prefix: 'skins/' + uid + '/themes/' }).catch(() => {});
 }
 
 test.describe.serial('My Skin @shard2', () => {
@@ -107,5 +108,84 @@ test.describe.serial('My Skin @shard2', () => {
     }, uid);
     expect(gone).toBe(true);
     expect(await safeEvaluate(page, () => Object.keys(window.NBDMySkin.state().cfg.slots).length)).toBe(0);
+  });
+
+  // Per-theme backgrounds (2026-10): a picture for one theme, painted on the
+  // two-layer painter, swapped on a theme change, restored after a reload,
+  // and its object gone after Clear. Real rules, real SDK, real encode.
+  test('a picture per theme: upload, switch themes, reload, clear', async ({ page }) => {
+    test.setTimeout(150_000);
+    const creds = requireTestUser();
+    await clearSkin(creds.email);
+    await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });
+    await page.route(/cloudfunctions.net|.run.app/, (route) => route.abort());
+    await loginAs(page, creds);
+    await safeWaitForFunction(page, () => !!(window._user && window._user.uid && window.NBDMySkin && window.NBDMySkin.state().cfg && window.ThemeEngine), null, { timeout: 30_000 });
+
+    // Per-theme on (the panel switch), then a picture for the current theme.
+    await safeEvaluate(page, () => { window.goTo && window.goTo('settings'); });
+    await page.locator('#stab-appearance').waitFor({ state: 'visible', timeout: 15_000 });
+    await page.locator('#stab-appearance').click();
+    await page.locator('#myskinPerTheme').check();
+    await expect(page.locator('#myskinThemeCard')).toBeVisible({ timeout: 15_000 });
+    await safeEvaluate(page, () => window.ThemeEngine.apply('pokemon', true));
+    const up = await page.evaluate(async () => {
+      const c = document.createElement('canvas'); c.width = 3000; c.height = 2000;
+      const x = c.getContext('2d'); x.fillStyle = '#8e24aa'; x.fillRect(0, 0, 3000, 2000);
+      x.fillStyle = '#ffffff'; x.fillRect(750, 500, 1500, 1000);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+      return window.NBDMySkin.uploadTheme('pokemon', new File([blob], 'pic.png', { type: 'image/png' }));
+    });
+    expect(up).toBe(true);
+
+    const s = await safeEvaluate(page, () => {
+      const st = window.NBDMySkin.state();
+      const h = document.documentElement;
+      return {
+        uid: st.uid, theme: st.theme, shown: st.shown, perTheme: st.cfg.perTheme,
+        entry: st.cfg.themes.pokemon, classes: Array.from(h.classList).filter((c) => /^my-skin/.test(c)).sort().join(' '),
+        layers: ['nbdSkinA', 'nbdSkinB'].map((id) => { const e = document.getElementById(id); return e ? e.style.getPropertyValue('--myskin-wallpaper') : null; }),
+      };
+    });
+    expect(s.perTheme).toBe(true);
+    expect(s.shown.source).toBe('theme');
+    expect(s.classes).toContain('my-skin-layers');
+    expect(s.layers.some((v) => v && v.indexOf('blob:') !== -1)).toBe(true);
+    expect(s.entry.images.length).toBe(1);
+    const img = s.entry.images[0];
+    expect(img.path).toBe('skins/' + s.uid + '/themes/pokemon/' + img.id);
+    expect(img.w).toBe(2560);
+
+    // What reached Storage: lossy, capped, under the rule's 3 MB.
+    const stored = await safeEvaluate(page, async (p) => {
+      const st = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js');
+      const md = await st.getMetadata(st.ref(window.storage, p));
+      const bmp = await createImageBitmap(await st.getBlob(st.ref(window.storage, p)));
+      return { type: md.contentType, size: md.size, w: bmp.width, h: bmp.height };
+    }, img.path);
+    expect(['image/webp', 'image/jpeg']).toContain(stored.type);
+    expect(stored.w).toBe(2560);
+    expect(stored.size).toBeLessThan(3 * 1024 * 1024);
+
+    // A theme with nothing of its own and no wallpaper: nothing personal.
+    await safeEvaluate(page, () => window.ThemeEngine.apply('nbd-original', false));
+    await safeWaitForFunction(page, () => !window.NBDMySkin.state().shown, null, { timeout: 10_000 });
+    expect(await safeEvaluate(page, () => document.documentElement.classList.contains('my-skin-layers'))).toBe(false);
+    await safeEvaluate(page, () => window.ThemeEngine.apply('pokemon', true));
+    await safeWaitForFunction(page, () => { const s = window.NBDMySkin.state().shown; return !!s && s.source === 'theme'; }, null, { timeout: 10_000 });
+
+    // Reload: the entry comes back from userSettings and the picture from storage / cache.
+    await page.reload();
+    await safeWaitForFunction(page, () => { const s = window.NBDMySkin && window.NBDMySkin.state().shown; return !!s && s.source === 'theme'; }, null, { timeout: 30_000 });
+    expect(await safeEvaluate(page, () => document.documentElement.classList.contains('my-skin-layers'))).toBe(true);
+
+    // Clear: entry and object are gone.
+    await safeEvaluate(page, async () => { await window.NBDMySkin.clearTheme('pokemon'); });
+    expect(await safeEvaluate(page, () => !!window.NBDMySkin.state().cfg.themes.pokemon)).toBe(false);
+    const gone = await safeEvaluate(page, async (p) => {
+      const st = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js');
+      try { await st.getBlob(st.ref(window.storage, p)); return false; } catch (e) { return /object-not-found/.test(e.code || ''); }
+    }, img.path);
+    expect(gone).toBe(true);
   });
 });

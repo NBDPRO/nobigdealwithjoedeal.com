@@ -828,6 +828,11 @@ export const NBDAuth = {
       }
       drop.forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
     } catch (_) { /* best-effort; never block on a storage error */ }
+    // My Skin's private pictures (memory + IndexedDB): gone on sign-out/switch.
+    try {
+      if (window.NBDMySkin) window.NBDMySkin.purgeLocal();
+      else window.indexedDB.deleteDatabase('nbd-myskin');
+    } catch (_) {}
     // The offline SMS outbox holds homeowner phone numbers and message text
     // in IndexedDB until they are sent (docs/pro/js/sms-outbox.js). Same
     // shared-device rule as the keys above: gone on sign-out and on account

@@ -1,0 +1,218 @@
+/* pixel-mode.css — Pixel Mode skin + dialog-box notifications (2026-10-11).
+ *
+ * Loaded lazily by js/pixel-mode.js, only for a user who turned Pixel Mode or
+ * dialog notifications on, so it costs nothing at boot for everyone else.
+ *
+ * It is a SKIN layered over whatever theme is active, not a theme: it never
+ * sets a colour of its own. Every colour below is a live theme token
+ * (--bg --s --s2 --br --orange --t --m --green --gold --red), so it re-colours
+ * with all themes. Two things it does set: borders become stepped pixel
+ * frames, and type becomes Press Start 2P (headings) over VT323 (body).
+ *
+ * All art is original: the house sprite is a box-shadow string drawn in
+ * js/pixel-logic.js. No image files, no third-party sprites.
+ *
+ * Motion: nothing here animates unless motion is allowed. The OS setting
+ * (prefers-reduced-motion) and the app's own Reduce motion
+ * (html[data-motion="reduce"]) both turn the blink/typewriter cursor off.
+ */
+
+/* ── skin ───────────────────────────────────────────────────────────────── */
+body.skin-pixel {
+  --px-w: 3px;
+  --px-head: 'Press Start 2P', ui-monospace, 'Courier New', monospace;
+  --px-body: 'VT323', ui-monospace, 'Courier New', monospace;
+  --px-frame: var(--orange);
+  --px-edge: color-mix(in srgb, var(--t) 28%, transparent);
+  --px-shade: rgba(0, 0, 0, .38);
+  font-family: var(--px-body);
+  -webkit-font-smoothing: none;
+  letter-spacing: .02em;
+}
+body.skin-pixel :is(input, select, textarea, button) { font-family: var(--px-body); }
+
+/* Headings and labels: the chunky face, kept small (it is a wide font). */
+body.skin-pixel :is(h1, h2, h3, h4, .panel-title, .panel-label, .nav-section-header, .px-h) {
+  font-family: var(--px-head);
+  letter-spacing: 0;
+  line-height: 1.5;
+  text-transform: none;
+}
+body.skin-pixel :is(h1) { font-size: 16px; }
+body.skin-pixel :is(h2, h3, .panel-title) { font-size: 12px; }
+body.skin-pixel :is(h4, .panel-label, .nav-section-header) { font-size: 9px; }
+
+/* Stepped pixel frame: four hard shadows leave notched corners, no radius. */
+body.skin-pixel :is(.panel, .card, .btn, .toast, .px-card, input:not([type=checkbox]):not([type=radio]):not([type=range]), select, textarea) {
+  border-radius: 0 !important;
+  border-color: transparent !important;
+  box-shadow:
+    calc(var(--px-w) * -1) 0 0 0 var(--px-frame),
+    var(--px-w) 0 0 0 var(--px-frame),
+    0 calc(var(--px-w) * -1) 0 0 var(--px-frame),
+    0 var(--px-w) 0 0 var(--px-frame),
+    0 calc(var(--px-w) * 2) 0 0 var(--px-shade) !important;
+}
+body.skin-pixel .btn-ghost,
+body.skin-pixel :is(input, select, textarea) {
+  --px-frame: var(--px-edge);
+}
+body.skin-pixel .btn:hover { --px-frame: var(--ob, var(--orange)); }
+body.skin-pixel .btn:active { transform: translateY(2px); }
+body.skin-pixel .btn:focus-visible,
+body.skin-pixel :is(input, select, textarea):focus-visible {
+  outline: var(--px-w) dashed var(--gold);
+  outline-offset: 4px;
+}
+
+/* ▶ cursor on the nav row you point at, and on the one you are on. */
+body.skin-pixel .ni::before {
+  content: '▶';
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  margin-top: -5px;
+  font-family: var(--px-head);
+  font-size: 7px;
+  color: var(--orange);
+  opacity: 0;
+}
+body.skin-pixel .ni:hover::before,
+body.skin-pixel .ni:focus-visible::before,
+body.skin-pixel .ni.active::before { opacity: 1; }
+body.skin-pixel .ni { border-radius: 0; }
+
+/* Optional scanlines: a static overlay, never intercepts the pointer. */
+body.skin-pixel.px-scanlines::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0) 2px, rgba(0, 0, 0, .12) 2px, rgba(0, 0, 0, .12) 3px);
+}
+@media (prefers-contrast: more) {
+  body.skin-pixel.px-scanlines::after { display: none; }
+}
+
+/* ── Party + Trainer Card (Home) ────────────────────────────────────────── */
+.px-card {
+  background: var(--s);
+  color: var(--t);
+  padding: 14px 16px;
+  margin: 0 0 16px;
+  border: var(--px-w, 3px) solid var(--orange);
+}
+body.skin-pixel .px-card { border-width: 0; }
+.px-card[hidden] { display: none; }
+.px-card-hdr { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; }
+.px-card-hdr .px-h { margin: 0; font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 11px; color: var(--orange); }
+.px-card-hdr .px-sub { margin-left: auto; font-family: 'VT323', ui-monospace, monospace; font-size: 16px; color: var(--m); }
+
+.px-enter { margin-left: 8px; font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 9px; padding: 8px 10px; cursor: pointer; }
+
+.px-party-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.px-mon {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 6px 8px;
+  background: var(--s2);
+  cursor: pointer;
+  font-family: 'VT323', ui-monospace, monospace;
+  font-size: 18px;
+  position: relative;
+}
+.px-mon:hover, .px-mon:focus-visible { outline: 3px solid var(--orange); outline-offset: 0; }
+.px-mon-name { font-size: 19px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.px-mon-meta { color: var(--m); font-size: 16px; text-align: right; white-space: nowrap; }
+.px-mon-warn { color: var(--gold); }
+.px-mon-warn::before { content: '! '; font-family: 'Press Start 2P', monospace; font-size: 9px; }
+.px-hp { grid-column: 2 / 4; height: 10px; background: var(--bg); border: 2px solid var(--px-edge, var(--m)); box-sizing: border-box; display: flex; align-items: stretch; }
+.px-hp > i { display: block; height: 100%; width: 0; background: var(--green); transition: width .4s steps(8); }
+.px-hp.tier-warn > i { background: var(--gold); }
+.px-hp.tier-cold > i { background: var(--red); }
+.px-hp.tier-unknown > i { background: var(--m); }
+html[data-motion="reduce"] .px-hp > i { transition: none; }
+@media (prefers-reduced-motion: reduce) { .px-hp > i { transition: none; } }
+
+/* The house: a 4px square whose box-shadow is the whole sprite (11 x 10 cells). */
+.px-house { width: 4px; height: 4px; display: block; }
+
+.px-trainer { display: grid; gap: 10px; }
+.px-trainer-top { display: flex; align-items: center; gap: 12px; }
+.px-trainer-lv { font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 10px; color: var(--gold); }
+.px-trainer-name { font-family: 'VT323', ui-monospace, monospace; font-size: 22px; }
+.px-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.px-stat { background: var(--s2); padding: 6px 8px; }
+.px-stat b { display: block; font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 11px; font-weight: 400; color: var(--t); margin-top: 4px; }
+.px-stat span { font-family: 'VT323', ui-monospace, monospace; font-size: 16px; color: var(--m); }
+.px-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.px-badge { font-family: 'VT323', ui-monospace, monospace; font-size: 16px; padding: 2px 8px; background: var(--s2); border: 2px solid var(--gold); color: var(--t); }
+.px-badge::before { content: '★ '; color: var(--gold); }
+.px-empty { font-family: 'VT323', ui-monospace, monospace; font-size: 18px; color: var(--m); }
+
+/* ── dialog-box notifications (work on any theme, with or without skin) ── */
+.toast.px-dialog {
+  position: relative;
+  min-width: min(420px, calc(100vw - 32px));
+  max-width: min(520px, calc(100vw - 32px));
+  background: var(--s);
+  color: var(--t);
+  border-radius: 0;
+  border: 4px solid var(--t);
+  box-shadow: inset 0 0 0 3px var(--s), inset 0 0 0 5px var(--orange), 0 5px 0 rgba(0, 0, 0, .4);
+  padding: 14px 18px 18px;
+  font-family: 'VT323', ui-monospace, 'Courier New', monospace;
+}
+.toast.px-dialog .toast-message,
+.toast.px-dialog .px-type { color: var(--t); font-family: 'VT323', ui-monospace, 'Courier New', monospace; font-size: 22px; line-height: 1.25; }
+.toast.px-dialog .toast-icon { display: none; }
+.toast.px-dialog .px-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.toast.px-dialog::after {
+  content: '▼';
+  position: absolute;
+  right: 14px;
+  bottom: 6px;
+  font-size: 14px;
+  color: var(--orange);
+  animation: pxBlink 1s steps(2, jump-none) infinite;
+}
+@keyframes pxBlink { 0% { opacity: 1; } 100% { opacity: 0; } }
+html[data-motion="reduce"] .toast.px-dialog::after { animation: none; }
+@media (prefers-reduced-motion: reduce) { .toast.px-dialog::after { animation: none; } }
+
+/* "A wild LEAD appeared!" prompt: BOOK IT / TEXT LATER. */
+.px-wild {
+  position: fixed;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  bottom: 24px;
+  z-index: var(--z-toast, 10002);
+  width: min(560px, calc(100vw - 24px));
+  background: var(--s);
+  color: var(--t);
+  border: 4px solid var(--t);
+  box-shadow: inset 0 0 0 3px var(--s), inset 0 0 0 5px var(--orange), 0 6px 0 rgba(0, 0, 0, .4);
+  padding: 16px 20px;
+  display: grid;
+  gap: 12px;
+  font-family: 'VT323', ui-monospace, monospace;
+  font-size: 22px;
+}
+.px-wild .px-wild-title { font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 11px; color: var(--orange); line-height: 1.6; }
+.px-wild-opts { display: flex; gap: 10px; flex-wrap: wrap; }
+.px-wild-opts button {
+  font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 10px;
+  background: var(--s2); color: var(--t); border: 3px solid var(--t); padding: 10px 12px; cursor: pointer; min-height: 44px;
+}
+.px-wild-opts button:hover, .px-wild-opts button:focus-visible { border-color: var(--orange); color: var(--orange); outline: none; }
+.px-wild-opts button::before { content: '▶ '; font-size: 8px; }
+
+@media (max-width: 480px) {
+  .px-mon { grid-template-columns: 36px 1fr; }
+  .px-mon-meta { grid-column: 2; text-align: left; }
+  .px-hp { grid-column: 1 / 3; }
+}

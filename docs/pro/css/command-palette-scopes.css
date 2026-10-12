@@ -1,0 +1,42 @@
+/* command-palette-scopes.css — Command palette 2.0 rows, scope hints and the
+   pinned-lead chip (CRM style integration C4, 2026-10-11). Theme tokens only
+   (--s3/--br/--t/--m/--orange/--og), so every theme reskins it. Injected by
+   js/command-palette-scopes.js the first time the palette opens. */
+
+.cmdx-bar {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  padding: 8px 14px; border-bottom: 1px solid var(--br);
+}
+.cmdx-hint, .cmdx-chip {
+  min-height: 28px; padding: 3px 9px; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: 11px; color: var(--m);
+  background: var(--s3); border: 1px solid var(--br);
+}
+.cmdx-hint b { color: var(--t); font-weight: 800; margin-right: 2px; }
+.cmdx-hint:hover { border-color: var(--orange); color: var(--t); }
+.cmdx-chip { color: var(--t); font-weight: 700; border-color: var(--orange); background: var(--og); }
+
+.cmdx-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  border-radius: 6px; cursor: pointer; font-size: 14px;
+}
+.cmdx-ico { flex: 0 0 22px; width: 22px; text-align: center; font-size: 16px; }
+.cmdx-main { flex: 1 1 auto; min-width: 0; }
+.cmdx-label { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmdx-sub { font-size: 11px; color: var(--m); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmdx-tag {
+  font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 999px; border: 1px solid var(--br); color: var(--m); vertical-align: middle;
+}
+.cmdx-sws { flex: 0 0 auto; display: inline-flex; gap: 3px; }
+.cmdx-sw {
+  display: inline-block; width: 16px; height: 16px; border-radius: 4px;
+  background: var(--cmdx-sw, transparent); border: 1px solid var(--br);
+}
+.cmdx-big { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cmdx-math .cmdx-label { white-space: normal; }
+.cmdx-err .cmdx-label { font-size: 13px; font-weight: 600; color: var(--m); }
+
+@media (max-width: 640px) {
+  .cmdx-bar { padding: 6px 10px; }
+}

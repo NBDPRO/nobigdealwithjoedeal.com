@@ -187,6 +187,12 @@
     // for. Unset, the paperwork says the deductible is due without a number
     // and the builder warns the rep.
     claim: { carrier: '', number: '', adjuster: '', dateOfLoss: '', deductible: null, acv: null, recoverableDepreciation: null, policyNumber: '' },
+    // Ohio ORC 4722.04 payment-terms inputs (2026-10-11, deposit-rule.js):
+    // the special-order, non-returnable materials amount (dollars, as priced on
+    // this estimate; null = none) and the construction-loan flag (the cap is
+    // not applied). Saved with the estimate; the rule reads them from here.
+    specialOrderAmount: null,
+    constructionLoan: false,
     searchFilter: '',
     categoryFilter: 'all',
     // Per-job minimum-charge floor. null means "use engine default"
@@ -235,6 +241,7 @@
     mode: state.mode, tier: state.tier, jobMode: state.jobMode, county: state.county,
     measurements: state.measurements, scope: state.scope, photos: state.photos,
     customer: state.customer, claim: state.claim, passThru: state.passThru,
+    specialOrderAmount: state.specialOrderAmount, constructionLoan: state.constructionLoan,
     minJobCharge: state.minJobCharge, jobType: state.jobType, workKind: state.workKind,
     upgrades: state.upgrades, upgradeLog: state.upgradeLog,
   });
@@ -1244,6 +1251,19 @@
             <div class="nbd-empty" style="padding:24px 8px;"><div class="ne-icon">🧾</div><div class="ne-msg">No items selected yet</div><div class="ne-sub">Pick from the catalog or load a preset.</div></div>
           </div>
 
+          <!-- Ohio ORC 4722.04 payment terms (2026-10-11, deposit-rule.js): on an
+               Ohio job of $25,000 or more only 10% may be taken before work
+               begins, plus 75% of any special-order, non-returnable item. Both
+               inputs are optional and show up in the deposit line below. -->
+          <div class="v2-field" id="v2ohioTerms">
+            <label for="v2specialOrder">Special-order materials ($) &mdash; non-returnable items on this estimate</label>
+            <input type="number" id="v2specialOrder" data-state="specialOrderAmount" placeholder="Blank = none" min="0" step="0.01" inputmode="decimal">
+            <label class="v2-field inline v2-check" for="v2constructionLoan">
+              <span>Construction-loan job (lender pays; Ohio 10% limit not applied)</span>
+              <input type="checkbox" id="v2constructionLoan" data-state="constructionLoan">
+            </label>
+          </div>
+
           <div class="v2-total-card">
             <div class="v2-total-lbl">Grand Total</div>
             <div class="v2-total-val" id="v2total">$0</div>
@@ -1636,6 +1656,19 @@
         const key = el.dataset.state;
         // Only the keys we explicitly support — defense against a
         // future field that accidentally writes to e.g. state.scope.
+        if (key === 'specialOrderAmount') {
+          const n = Number(el.value);
+          state.specialOrderAmount = (el.value !== '' && isFinite(n) && n > 0) ? n : null;
+          renderDepositLine();
+          saveDraftDebounced();
+          return;
+        }
+        if (key === 'constructionLoan') {
+          state.constructionLoan = el.checked === true;
+          renderDepositLine();
+          saveDraftDebounced();
+          return;
+        }
         if (key === 'county') {
           state.county = el.value;
           state._reopenedClean = false;   // 3B: county (tax) change → re-resolve
@@ -2960,6 +2993,10 @@
       // Kentucky hold (2026-09-27): the job's address decides; an insurance
       // quote with no readable state is held, like the contract (fail closed).
       address: (state.customer && state.customer.address) || '',
+      // Ohio ORC 4722.04 (2026-10-11): the special-order amount and the
+      // construction-loan flag the rep entered on this estimate.
+      specialOrder: state.specialOrderAmount,
+      constructionLoan: state.constructionLoan === true,
       // The linked lead's claim number / carrier / jobType make it an
       // insurance job for the KY hold even when priced in cash or per-square
       // mode — the same test that puts the KY notices on the contract
@@ -3676,6 +3713,8 @@
       // An edited Job Template estimate restored from this draft must still
       // print its job type's warranty, not roofing's (2026-09-25).
       jobType: state.jobType,
+      specialOrderAmount: state.specialOrderAmount,
+      constructionLoan: state.constructionLoan,
       workKind: state.workKind,
       // …and still carry the homeowner's upgrades (stage 2, 2026-09-25).
       upgrades: state.upgrades,
@@ -4434,6 +4473,10 @@
           depositPlan: (plan && R) ? R.toStored(plan) : null,
         };
       })(),
+      // Ohio ORC 4722.04 inputs (2026-10-11) — deposit-rule.js fromEstimate
+      // re-reads these off the saved doc (invoice, contract, portal, deal).
+      specialOrderAmount: (state.specialOrderAmount > 0) ? Number(state.specialOrderAmount) : null,
+      constructionLoan:   state.constructionLoan === true,
       materialCost:     estimate.materialCost,
       laborCost:        estimate.laborCost,
       subtotal:         estimate.subtotal,
@@ -4655,6 +4698,8 @@
         }
       : { carrier: '', number: '', adjuster: '', dateOfLoss: '', deductible: null, acv: null, recoverableDepreciation: null, policyNumber: '' };
     state.estimateName = doc.name || '';
+    state.specialOrderAmount = (Number(doc.specialOrderAmount) > 0) ? Number(doc.specialOrderAmount) : null;
+    state.constructionLoan = doc.constructionLoan === true;
     state.leadId = doc.leadId || null;
     // Photo embeds: restore the saved selection + refresh the pick-from
     // grid for the linked lead.
@@ -5277,6 +5322,12 @@
       const el = document.getElementById(k === 'acv' ? 'v2claimAcv' : 'v2claimDeductible');
       if (el && !(state.claim && state.claim[k] != null)) el.value = '';
     });
+    // Ohio payment-terms inputs (2026-10-11): a previous estimate's special-
+    // order amount / loan flag must not linger in the controls.
+    const soEl = document.getElementById('v2specialOrder');
+    if (soEl) soEl.value = (state.specialOrderAmount > 0) ? state.specialOrderAmount : '';
+    const loanEl = document.getElementById('v2constructionLoan');
+    if (loanEl) loanEl.checked = state.constructionLoan === true;
     // Tier — buttons, not an input. Toggle .active class.
     const tier = state.tier || 'better';
     _v2Tiers().forEach(t => {
@@ -5742,6 +5793,10 @@
       claim: { deductible: cl.deductible, acv: cl.acv },
       addr: c.address || '',
       depositPlan: _ov ? { override: _ov } : null,
+      // Ohio ORC 4722.04 inputs (2026-10-11): the deal page's tier deposits
+      // must apply the same special-order / construction-loan the estimate did.
+      specialOrderAmount: (state.specialOrderAmount > 0) ? Number(state.specialOrderAmount) : null,
+      constructionLoan: state.constructionLoan === true,
     };
     // The fields estimateWarranty() reads (2026-10-07, audit H4): the deal
     // room prints a repair's or Job Template job's own warranty on its cards,
