@@ -1,0 +1,79 @@
+/* layouts/kit.css — styles for js/layouts/kit.js (2026-10-11, D1).
+ * Theme tokens + --tap only; every class is lk-prefixed and only exists inside
+ * a layout-owned container, so nothing here can touch Classic. */
+
+.lk-ic { flex: none; width: 24px; height: 24px; }
+
+/* ── ActionBar ── */
+.lk-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.lk-act {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: var(--tap); min-width: var(--tap); padding: 0 16px; box-sizing: border-box;
+  border: 1px solid var(--rule); border-radius: 14px;
+  background: var(--s2); color: var(--t);
+  font: inherit; font-weight: 700; font-size: 15px; line-height: 1.1;
+  text-decoration: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.lk-act:active { transform: scale(.97); }
+.lk-act-primary { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); }
+.lk-act-off, .lk-act:disabled { opacity: .45; cursor: not-allowed; }
+.lk-actions-lg .lk-act { flex: 1 1 0; flex-direction: column; gap: 4px; padding: 10px 8px; }
+.lk-actions-sm .lk-act { padding: 0 12px; font-size: 13px; }
+.lk-actions-sm .lk-act-lbl { white-space: nowrap; }
+
+/* ── LeadCard ── */
+.lk-card {
+  display: flex; flex-direction: column; gap: 8px; box-sizing: border-box;
+  background: var(--s); color: var(--t);
+  border: 1px solid var(--rule); border-radius: 16px; padding: 14px;
+}
+.lk-card-current { border-color: var(--orange); box-shadow: 0 0 0 1px var(--orange) inset; }
+.lk-card-done { opacity: .6; }
+.lk-time { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--orange); }
+.lk-name { font-weight: 800; font-size: 17px; line-height: 1.2; overflow-wrap: anywhere; }
+.lk-addr { font-size: 14px; color: var(--m); overflow-wrap: anywhere; }
+.lk-why { font-size: 14px; color: var(--t); }
+.lk-phone { font-size: 15px; font-weight: 700; color: var(--m); }
+.lk-badge {
+  display: inline-block; vertical-align: middle; padding: 2px 8px; border-radius: 999px;
+  background: var(--og); color: var(--orange); font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+}
+.lk-card-row { flex-direction: row; align-items: center; padding: 10px 12px; gap: 12px; min-height: var(--tap); }
+.lk-card-row .lk-time { flex: none; min-width: 64px; }
+.lk-card-row .lk-main { flex: 1 1 auto; min-width: 0; }
+.lk-open { flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: var(--tap); min-height: var(--tap); color: var(--m); }
+.lk-card-hero { padding: 20px; gap: 14px; }
+.lk-card-hero .lk-name { font-size: 28px; }
+.lk-card-hero .lk-addr { font-size: 16px; }
+.lk-card-hero .lk-why { font-size: 17px; }
+
+/* ── Widget ── */
+.lk-widget { background: var(--s); color: var(--t); border: 1px solid var(--rule); border-radius: 16px; padding: 14px; box-sizing: border-box; min-width: 0; }
+.lk-w-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.lk-w-title { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--m); }
+.lk-w-aside { font-size: 12px; color: var(--m); }
+.lk-w-state { color: var(--m); font-size: 14px; padding: 6px 0; }
+.lk-w-2x1, .lk-w-2x2 { grid-column: span 2; }
+.lk-w-3x1 { grid-column: span 3; }
+.lk-w-4x1, .lk-w-4x2 { grid-column: span 4; }
+.lk-w-2x2, .lk-w-4x2 { grid-row: span 2; }
+
+/* ── Nav: bottom tab bar with an optional raised centre button ── */
+.lk-nav-bottom {
+  display: flex; align-items: stretch; justify-content: space-around; gap: 2px;
+  background: var(--s); border-top: 1px solid var(--rule);
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
+}
+.lk-nav-item {
+  flex: 1 1 0; min-height: var(--tap); border: 0; background: transparent; color: var(--m);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.lk-nav-active { color: var(--orange); }
+.lk-nav-raised {
+  flex: 0 0 auto; align-self: flex-start; margin-top: -22px;
+  min-width: calc(var(--tap) + 8px); min-height: calc(var(--tap) + 8px); border-radius: 50%;
+  background: var(--orange); color: var(--accent-fg, #fff);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .35); border: 3px solid var(--s);
+}
+.lk-nav-raised .lk-nav-lbl { display: none; }

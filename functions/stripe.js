@@ -1502,6 +1502,13 @@ exports.createStripePaymentLink = onRequest(
         res.status(400).json({ error: 'Waiting on the carrier’s numbers — enter the deductible and the ACV on the estimate, then tap Create Invoice again. Nothing was charged.' });
         return;
       }
+      // Ohio ORC 4722.04 (2026-10-11): the signing deposit is in and the next
+      // payment is not released (materials delivered / work begins).
+      if (due.kind === 'scheduled') {
+        logger.info('payment_link_refused_ohio_scheduled', { invoiceId, uid: decoded.uid });
+        res.status(400).json({ error: 'The next payment on this invoice is not due yet — it is released when the materials are delivered or work begins. Nothing was charged.' });
+        return;
+      }
       if (balanceDueCents < MIN_CENTS) {
         res.status(400).json({ error: 'This invoice is already paid in full — nothing to charge.' });
         return;
@@ -1519,6 +1526,18 @@ exports.createStripePaymentLink = onRequest(
                   // A Kentucky insurance job owes nothing at signing (KRS 367.626).
                   ? `Your deductible and the first insurance check; balance of $${((due.balanceCents - balanceDueCents) / 100).toFixed(2)} due on completion`
                   : `Deposit due at signing; balance of $${((due.balanceCents - balanceDueCents) / 100).toFixed(2)} due later`),
+            },
+            unit_amount: balanceDueCents,
+          },
+          quantity: 1,
+        }];
+      } else if (due.kind === 'milestone') {
+        chargeLineItems = [{
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `Payment due when work begins — Invoice ${invoiceId}`,
+              description: `Second payment, due as materials are delivered or work begins; balance of $${((due.balanceCents - balanceDueCents) / 100).toFixed(2)} due on completion`,
             },
             unit_amount: balanceDueCents,
           },
