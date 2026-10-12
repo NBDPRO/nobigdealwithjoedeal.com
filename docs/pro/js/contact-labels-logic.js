@@ -42,7 +42,7 @@
   var SOURCES = ['manual', 'seed-tag', 'thursday', 'lead'];
   var NAME_MAX = 80, NOTE_MAX = 200;
   // The only keys a label doc may carry (firestore.rules hasOnly mirrors it).
-  var DOC_KEYS = ['digits', 'kind', 'policy', 'name', 'note', 'source', 'companyId', 'updatedBy', 'updatedAtMs', 'createdAtMs'];
+  var DOC_KEYS = ['digits', 'kind', 'policy', 'name', 'note', 'source', 'companyId', 'updatedBy', 'updatedAtMs', 'createdAtMs', 'ackAtMs'];
 
   function digits10(v) {
     var d = String(v == null ? '' : v).replace(/\D/g, '');
@@ -63,7 +63,7 @@
     var d = digits10(o.digits);
     if (!d || !isKind(o.kind) || !o.companyId || !o.uid) return null;
     var now = Number(o.nowMs) || Date.now();
-    return {
+    var doc = {
       digits: d,
       kind: o.kind,
       policy: isPolicy(o.policy) ? o.policy : defaultPolicy(o.kind),
@@ -75,6 +75,9 @@
       updatedAtMs: now,
       createdAtMs: Number(o.createdAtMs) || now,
     };
+    // ackAtMs: Jo said "keep it hidden" after a hidden number came back (safety valve).
+    if (Number(o.ackAtMs) > 0) doc.ackAtMs = Number(o.ackAtMs);
+    return doc;
   }
 
   /** Firestore docs [{id, data}] → { digits10: label }; malformed docs are dropped. */
@@ -89,6 +92,7 @@
         name: clip(data.name, NAME_MAX), note: clip(data.note, NOTE_MAX),
         source: SOURCES.indexOf(data.source) !== -1 ? data.source : 'manual',
         updatedBy: data.updatedBy || '', updatedAtMs: Number(data.updatedAtMs) || 0,
+        createdAtMs: Number(data.createdAtMs) || 0, ackAtMs: Number(data.ackAtMs) || 0,
       };
     });
     return out;
@@ -121,7 +125,8 @@
     if (!label) return null;
     var p = policyOf(label);
     return {
-      text: KIND_LABEL[label.kind] || 'Labeled',
+      // A hidden number that still shows (a promise Jo made) says so.
+      text: (KIND_LABEL[label.kind] || 'Labeled') + (p === 'hide' ? ' · hidden number' : ''),
       tone: p === 'hide' ? 'hidden' : p === 'quiet' ? 'quiet' : 'neutral',
       title: (KIND_LABEL[label.kind] || 'Labeled') + ' — ' + POLICY_LABEL[p],
     };
