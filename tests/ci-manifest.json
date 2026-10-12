@@ -43,6 +43,7 @@
     "inspect-cro-light-2026-10-06.test.js",
     "home-calls-read-failure-2026-10-12.test.js",
     "pipeline-deadman-2026-10-12.test.js",
+    "push-urgent-label-rule-2026-10-12.test.js",
     "care-plan-page-2026-10-05.test.js",
     "oaks-own-intake-2026-10-04.test.js",
     "followup-date-retell-2026-10-12.test.js",
