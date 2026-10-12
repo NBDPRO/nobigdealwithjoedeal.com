@@ -30,6 +30,15 @@ first paint — it cannot block parsing or first paint.
 No behavior changed: no tag moved, no load order changed. The measurement now
 matches what the browser does.
 
+**Caveat — "not blocking" is not "free on every load".** Template scripts are
+not parser- or render-blocking, but the Settings template (~130 KB of its own
+scripts) hydrates *during boot* on deep links: `#/settings`,
+`?settings=billing&connect=return`, `?est=`, `?lead=`, and command-palette /
+agent-bots `goTo('settings')`. On those loads it delays window `load`. The
+default Today route never pays it. The test keeps this visible: a
+"template-deferred" console line, its own ceiling (9 scripts / 136 KB), and
+the set pinned by file name so a new template script is a conscious edit.
+
 ## Ranked list (LF bytes, document order index in brackets)
 
 Parser-blocking at boot (counts against the ceiling):
@@ -83,8 +92,16 @@ Inside a `<template>` (reported separately by the test now, still counted in
 - Ceilings **lowered**, none raised: `blockingBytes` 300 KB → 192 KB
   (measured 170 KB, ~22 KB real headroom), `blockingScripts` 29 → 22
   (measured 20). `localScripts` / `localBytes` / `htmlBytes` untouched.
-- Two new positive controls (template exclusion incl. nesting; the real page
-  exercises it) so the exclusion cannot silently go vacuous.
+- HTML is read with a small tokenizer (skips comments, raw-text bodies and
+  quoted attribute values; defer/async are attribute *names*; single-quoted
+  and unquoted `src` are seen) instead of regexes over the raw string. The
+  earlier regex depth counter was vacuous: one stray `<template>` string in an
+  attribute swallowed every later script and the test stayed green.
+- New guards: template depth must be 0 at EOF, the template-script set equals
+  the pinned 9 files, and template-deferred has its own ceiling.
+- Positive controls for each hole: `<template>` in an attribute / inline
+  script, `data-async-note` / `id="async-loader"` / `?mode=defer`,
+  single-quoted + unquoted src, `<!--` in an attribute, unclosed template.
 
 ## Real boot-path wins still available (not done here — each changes order)
 
