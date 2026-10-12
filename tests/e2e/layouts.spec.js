@@ -38,6 +38,13 @@ async function resetSettings(email) {
 }
 
 test.describe.serial('Layouts @shard2', () => {
+  // A failure half-way (after the company lock is saved) must not leave the
+  // lock on the shared test rep: every later spec in the shard would run
+  // under a locked 'ztest' layout and fail for a reason that is not theirs.
+  test.afterEach(async () => {
+    await resetSettings(requireTestUser().email).catch(() => {});
+  });
+
   test('classic by default; try, keep, reload, revert; glove; company lock', async ({ page }) => {
     test.setTimeout(180_000);
     const creds = requireTestUser();
@@ -121,6 +128,12 @@ test.describe.serial('Layouts @shard2', () => {
     // ── company lock through the real picker and the real rules ──
     await page.locator('.lp-card[data-layout-id="classic"] [data-lp="use"]').click();   // the user picks Classic...
     await safeWaitForFunction(page, () => document.documentElement.getAttribute('data-layout') === 'classic', null, { timeout: 10_000 });
+    // data-layout flips the moment the choice is APPLIED; the picker then repaints
+    // its whole panel when the save lands (state.busy -> false). Edit the admin
+    // form before that and the repaint puts the <select> back to "Classic (no
+    // default)" under the Save click, so the lock never reaches ztest. Wait for
+    // the repaint, not a timer.
+    await safeWaitForFunction(page, () => !!(window.NBDLayoutPicker && window.NBDLayoutPicker._state && window.NBDLayoutPicker._state.busy === false), null, { timeout: 15_000 });
     await page.locator('.lp-admin summary').click();
     await page.locator('#lpCompanyDefault').selectOption('ztest');
     await page.locator('#lpCompanyLock').check();
