@@ -51,8 +51,35 @@ another layout.
   `fromCache` misses and, when a read *fails*, keeps the cached company lock
   rather than dropping it.
 
+## Shared components (D1)
+
+`docs/pro/js/layouts/kit.js` + `css/layouts/kit.css` (`window.NBDLayoutKit`),
+loaded lazily and only by a layout that lists them in `needs`:
+
+```js
+LayoutRegistry.register({ id: 'field', script: 'js/layouts/field.js', css: 'css/layouts/field.css',
+  needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] } });
+```
+
+| Component | What it is |
+| --- | --- |
+| `card(item, {density})` | LeadCard as `row` / `card` / `hero`; one normalised item from `fromLead(lead, {why, timeLabel, badge})` |
+| `actionBar(item, ids, opts)` | Call / Text / Navigate / Open are plain `tel:` `sms:` maps and customer links; Snooze / Photo / Done are `data-lk-act` buttons. An action with nothing to link to renders **disabled**, not a dead anchor |
+| `widget({title, size, state, body})` | size contract `1x1`..`4x2`, loading / empty / ok states |
+| `nav('bottom', items, active)` | bottom tab bar; an item with `raised: true` is the camera button |
+| `bind(root, handlers, lookup)` | ONE delegated click listener; handler > `LeadSnooze.prompt` > bubbling `nbd:layout-action` event |
+
+Everything returns an escaped HTML string. Nothing sends anything: Call and
+Text open the phone's own dialer / composer and the rep presses Send there.
+
+**Finding (verified 2026-10-11):** Grok's layouts doc says to wire ActionBar
+"once to customer-quick-actions.js". That file exists but is the customer-page
+header's collapse-to-"More" helper, not an action API; there is nothing to wire
+to. The ActionBar defines the actions once instead, from the same primitives.
+
 ## Slice log
 
 | Slice | Status | PR |
 | --- | --- | --- |
-| D0 layout foundation | built, in review | see PR list |
+| D0 layout foundation | built, in review | #2328 |
+| D1 shared components | built, stacked on D0 | see PR list |
