@@ -203,6 +203,7 @@
   "referralLinkOpened": "./referral-clicks",
   "registerDeviceFingerprint": "./integrations/device-alert",
   "removeMember": "./handlers/admin",
+  "transferCompanyOwnership": "./handlers/admin",
   "renderPdf": "./render-pdf",
   "replyToPortalMessage": "./portal",
   "reportWarrantyClaim": "./portal",

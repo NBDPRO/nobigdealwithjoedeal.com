@@ -190,7 +190,8 @@ Verified by the smoke test "every admin function in FUNCTIONS_INDEX has a role/a
 | `createTeamInvite` | onCall | `requireTeamAdmin` | Pillar 4 — server-side invite create so plan seat limits hold |
 | `updateUserRole` | onCall | `requireTeamAdmin` | Team management |
 | `deactivateUser` | onCall | `requireTeamAdmin` | Team management |
-| `removeMember` | onCall | `requireTeamAdmin` + `callerMayManageTarget` | Removes roster doc AND strips companyId/role claims + revokes tokens (fixes claim-persistence hole of client-side delete) |
+| `removeMember` | onCall | `requireTeamAdmin` + `callerMayManageTarget` | Removes roster doc AND strips companyId/role claims + revokes tokens (fixes claim-persistence hole of client-side delete). Removing a FORMER OWNER (uid == company id) also disables their login: the uid-key fallbacks would otherwise read an enabled claim-less account as the owner |
+| `transferCompanyOwnership` | onCall | `requireTeamAdmin` + `companies/{id}.ownerId === caller` (not a platform admin; not the platform company) | Owner hand-off (Jo 2026-10-08): moves `companies/{id}.ownerId` to an ACTIVE same-company company_admin, the former owner stays on as company_admin with a roster row. Needs `{ confirm: true }`; refused while a Stripe Connect payout account exists; touches no Stripe object, charges nothing; audit row in the same transaction; 5/hour. See documentation/audit/OWNER-HANDOFF-2026-10-12.md |
 | `listTeamMembers` | onCall | `requireTeamAdmin` | Team management |
 | `assignSeats` | onCall | `requireTeamAdmin` | Pillar 4 — seat assignment across the roster (handlers/invites.js) |
 | `setCompanySeatCount` | onCall | `requireTeamAdmin` (**ownerOnly** — non-owner company_admins refused) | Buys/sets the paid seat count via Stripe; seat money is the bill-payer's call alone (handlers/seats.js) |

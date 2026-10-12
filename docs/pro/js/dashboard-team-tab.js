@@ -67,6 +67,16 @@
         // member (their uid != companyId). Mirrors company-profile.js's resolver.
         var tenantKey = (window._userClaims && window._userClaims.companyId) || window._user.uid;
         var isOwnerViewer = tenantKey === window._user.uid;
+        // Owner hand-off (2026-10-08): the company keeps its id after the owner
+        // hands it to an admin, so "tenant key == my uid" no longer proves
+        // ownership. The company doc's ownerId decides when it is readable.
+        try {
+          if (window.getDoc && window.doc) {
+            var coSnap = await window.getDoc(window.doc(window.db, 'companies', tenantKey));
+            var coOwner = coSnap && coSnap.exists() ? ((coSnap.data() || {}).ownerId || null) : null;
+            if (coOwner) isOwnerViewer = coOwner === window._user.uid;
+          }
+        } catch (_) { /* keep the uid fallback */ }
         // Owner card: present the viewer AS owner only when they actually are one;
         // otherwise label generically so a member isn't mispresented as Owner.
         var nameEl = document.getElementById('teamOwnerName');
@@ -116,9 +126,13 @@
               actions = '<button style="' + btnBase + '" data-team-action="cancel" data-email="' + _nbdEscHtml(email) + '">Cancel invite</button>';
             } else if (status === 'active') {
               actions = '<button style="' + btnBase + '" data-team-action="disable" data-email="' + _nbdEscHtml(email) + '">Disable</button>';
+              // Owner hand-off: only the owner sees it, only on an active admin.
+              if (isOwnerViewer && m.role === 'company_admin' && m.uid) {
+                actions += '<button class="team-makeowner-btn" data-team-action="makeowner" data-email="' + _nbdEscHtml(email) + '">Make owner</button>';
+              }
             } else {
               actions = '<button style="' + btnBase + '" data-team-action="enable" data-email="' + _nbdEscHtml(email) + '">Re-enable</button>'
-                + '<button style="' + btnBase + 'margin-left:6px;color:var(--red,#e05252);border-color:var(--red,#e05252);" data-team-action="remove" data-email="' + _nbdEscHtml(email) + '">Remove</button>';
+                + '<button style="' + btnBase + 'margin-left:6px;color:var(--red,#e05252);border-color:var(--red,#e05252);" data-team-action="remove" data-email="' + _nbdEscHtml(email) + '"' + (m.uid && m.uid === tenantKey ? ' data-former-owner="1"' : '') + '>Remove</button>';
             }
             return '<div style="padding:12px;background:var(--s2);border:1px solid var(--br);border-radius:7px;margin-bottom:6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'
               + '<div style="width:36px;height:36px;border-radius:18px;background:var(--s3);color:var(--m);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">' + _nbdEscHtml((m.email||'?')[0].toUpperCase()) + '</div>'
@@ -408,13 +422,35 @@
           cancel:  'Cancel the invite for ' + email + '?',
           disable: 'Disable ' + email + '? Their login stops working until re-enabled. Their leads stay.',
           enable:  'Re-enable ' + email + '?',
-          remove:  'Remove ' + email + ' from the team? Their access is revoked, their bot keys and calendar link stop working, and their customers move to the company owner.'
+          remove:  'Remove ' + email + ' from the team? Their access is revoked, their bot keys and calendar link stop working, and their customers move to the company owner.',
+          makeowner: 'Make ' + email + ' the owner of this company? They get full owner control: team, billing settings and publishing. You stay on the team as an admin, and only they can hand it back. Billing does not move: the card on file keeps paying until they change it in Settings, Billing. Nothing is charged by this change.'
         };
+        // The former owner is the one member whose login is the company id: the
+        // server turns that login off when they are removed, so say so first.
+        if (action === 'remove' && btn && btn.getAttribute('data-former-owner') === '1') {
+          confirms.remove = 'Remove ' + email + '? They are the former owner of this company. Their login for this account is turned off for good, their bot keys and calendar link stop working, and their customers and files move to you.';
+        }
         var ask = window.nbdConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
         if (!(await ask(confirms[action] || 'Proceed?'))) return;
         if (btn) { btn.disabled = true; btn.textContent = '…'; }
+        var handedOff = false;
         try {
-          if (action === 'cancel' || action === 'remove') {
+          if (action === 'makeowner') {
+            // transferCompanyOwnership (server): owner-only, same company, the
+            // target must be an active, enabled company_admin. Audited.
+            // { confirm: true } is sent only after the dialog above; the server
+            // refuses a hand-off without it.
+            await _teamCallable('transferCompanyOwnership', { email: email, confirm: true });
+            handedOff = true;
+            // The caller's own claims changed (owner -> admin): pull the new token
+            // so this session stops presenting owner controls.
+            try {
+              if (window._user) {
+                var tr = await window._user.getIdTokenResult(true);
+                window._userClaims = (tr && tr.claims) || window._userClaims;
+              }
+            } catch (_) { /* the next token refresh picks it up */ }
+          } else if (action === 'cancel' || action === 'remove') {
             // removeMember (server) strips the member's companyId/role claims
             // and revokes their tokens before deleting the roster doc — a bare
             // client deleteDoc left a removed user with live tenant access
@@ -423,7 +459,9 @@
           } else {
             await _teamCallable('deactivateUser', { email: email, reactivate: action === 'enable' });
           }
-          if (typeof showToast === 'function') showToast('✓ Done', 'success');
+          if (typeof showToast === 'function') {
+            showToast(handedOff ? ('✓ ' + _nbdEscHtml(email) + ' is now the owner. You stay on the team as an admin.') : '✓ Done', 'success');
+          }
         } catch (e) {
           console.warn('team action failed:', e);
           if (typeof showToast === 'function') showToast('Failed: ' + _nbdEscHtml(e.message || 'unknown error'), 'error');

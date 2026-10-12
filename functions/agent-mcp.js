@@ -511,7 +511,11 @@ function callerOf(request) {
   const c = request.auth.token || {};
   const uid = request.auth.uid;
   const company = c.companyId || uid;
-  const ok = c.role === 'admin' || c.role === 'company_admin' || company === uid;
+  // company === uid is the solo owner. A former owner (owner hand-off
+  // 2026-10-12) demoted to a lower role keeps companyId == uid in their claims
+  // but is not the owner, so a lower role refuses the uid key.
+  const lowerRole = c.role === 'manager' || c.role === 'sales_rep' || c.role === 'viewer' || c.role === 'member';
+  const ok = c.role === 'admin' || c.role === 'company_admin' || (company === uid && !lowerRole);
   const isAdmin = ok && c.role !== 'viewer' && c.role !== 'sales_rep';
   return { uid, company, isAdmin, platformAdmin: c.role === 'admin', isNbd: company === NBD_OWNER_UID || uid === NBD_OWNER_UID };
 }

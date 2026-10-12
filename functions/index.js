@@ -144,6 +144,7 @@ exports.createTeamMember           = adminHandlers.createTeamMember;
 exports.updateUserRole             = adminHandlers.updateUserRole;
 exports.deactivateUser             = adminHandlers.deactivateUser;
 exports.removeMember               = adminHandlers.removeMember;
+exports.transferCompanyOwnership   = adminHandlers.transferCompanyOwnership;
 exports.listTeamMembers            = adminHandlers.listTeamMembers;
 
 // T-3: per-rep AI texting analytics (collectionGroup scan over ai_drafts).
