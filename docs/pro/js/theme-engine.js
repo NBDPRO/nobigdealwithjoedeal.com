@@ -684,6 +684,408 @@
       specialClass: null
     },
 
+    // NEW THEME PACK (2026-10-11, roadmap A3 / spec section 17): 12 themes, all
+    // unlocked for everyone. Colours mirror the :root[data-theme] token lines in
+    // theme-system.css (incl. --glow/--glow2). outerBg pins --bg; bg->--s,
+    // surface->--s2, surface2->--s3. Pixel-art defaults for My Skin are a
+    // My Skin concern, not set here.
+    'gameboy-dmg': {
+      name: 'Game Boy DMG',
+      category: 'popculture',
+      locked: false,
+      unlockCondition: null,
+      mode: 'dark',
+      colors: {
+        outerBg: '#0f1a0f',
+        bg: '#16261a',
+        surface: '#1f3524',
+        surface2: '#2b4630',
+        text: '#e0f0c0',
+        muted: '#9fbf86',
+        border: 'rgba(155,188,15,.14)',
+        accent: '#9bbc0f',
+        accentBg: 'rgba(155,188,15,.16)',
+        accentHover: '#b4d63a',
+        green: '#22c55e',
+        red: '#ef4444',
+        gold: '#eab308',
+        blue: '#3b82f6',
+        paper: '#1f3524',
+        rule: 'rgba(224,240,192,.09)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '12px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: null,
+      specialClass: null
+    },
+    'virtual-boy': {
+      name: 'Virtual Boy',
+      category: 'scifi',
+      locked: false,
+      unlockCondition: null,
+      mode: 'dark',
+      colors: {
+        outerBg: '#050000',
+        bg: '#0d0102',
+        surface: '#1a0306',
+        surface2: '#280509',
+        text: '#ffd6d6',
+        muted: '#d48a8a',
+        border: 'rgba(255,42,42,.14)',
+        accent: '#ff2a2a',
+        accentBg: 'rgba(255,42,42,.16)',
+        accentHover: '#ff5a5a',
+        green: '#22c55e',
+        red: '#ef4444',
+        gold: '#eab308',
+        blue: '#3b82f6',
+        paper: '#1a0306',
+        rule: 'rgba(255,214,214,.09)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '12px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: null,
+      specialClass: null
+    },
+    'ds-lite': {
+      name: 'DS Lite',
+      category: 'scifi',
+      locked: false,
+      unlockCondition: null,
+      mode: 'dark',
+      colors: {
+        outerBg: '#0c1220',
+        bg: '#121a2c',
+        surface: '#1b2640',
+        surface2: '#253353',
+        text: '#e6eefc',
+        muted: '#9fb0cc',
+        border: 'rgba(79,179,255,.14)',
+        accent: '#4fb3ff',
+        accentBg: 'rgba(79,179,255,.16)',
+        accentHover: '#7cc6ff',
+        green: '#22c55e',
+        red: '#ef4444',
+        gold: '#eab308',
+        blue: '#3b82f6',
+        paper: '#1b2640',
+        rule: 'rgba(230,238,252,.09)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '12px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: null,
+      specialClass: null
+    },
+    'pallet-town': {
+      name: 'Pallet Town',
+      category: 'popculture',
+      locked: false,
+      unlockCondition: null,
+      mode: 'dark',
+      colors: {
+        outerBg: '#0e1a12',
+        bg: '#142418',
+        surface: '#1c3222',
+        surface2: '#26412d',
+        text: '#eef6e8',
+        muted: '#a7bea2',
+        border: 'rgba(232,74,60,.14)',
+        accent: '#e84a3c',
+        accentBg: 'rgba(232,74,60,.16)',
+        accentHover: '#ff6b5c',
+        green: '#22c55e',
+        red: '#ef4444',
+        gold: '#eab308',
+        blue: '#3b82f6',
+        paper: '#1c3222',
+        rule: 'rgba(238,246,232,.09)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '12px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: null,
+      specialClass: null
+    },
+    'poke-center': {
+      name: 'Poké Center',
+      category: 'popculture',
+      locked: false,
+      unlockCondition: null,
+      mode: 'light',
+      colors: {
+        outerBg: '#f7f3f2',
+        bg: '#fffdfc',
+        surface: '#ffffff',
+        surface2: '#f1e9e7',
+        text: '#2a1d1d',
+        muted: '#6b5a58',
+        border: 'rgba(214,45,45,.18)',
+        accent: '#d12929',
+        accentBg: 'rgba(214,45,45,.12)',
+        accentHover: '#b82222',
+        green: '#15803d',
+        red: '#b91c1c',
+        gold: '#8a5a00',
+        blue: '#1d4ed8',
+        paper: '#ffffff',
+        rule: 'rgba(42,29,29,.08)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '12px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: null,
+      specialClass: 'light-theme'
+    },
+    'mystery-dungeon': {
+      name: 'Mystery Dungeon',
+      category: 'anime',
+      locked: false,
+      unlockCondition: null,
+      mode: 'dark',
+      colors: {
+        outerBg: '#140f1c',
+        bg: '#1b1426',
+        surface: '#251c35',
+        surface2: '#302545',
+        text: '#f4ecff',
+        muted: '#b1a3c6',
+        border: 'rgba(243,167,59,.14)',
+        accent: '#f3a73b',
+        accentBg: 'rgba(243,167,59,.16)',
+        accentHover: '#ffbf63',
+        green: '#22c55e',
+        red: '#ef4444',
+        gold: '#eab308',
+        blue: '#3b82f6',
+        paper: '#251c35',
+        rule: 'rgba(244,236,255,.09)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '12px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: null,
+      specialClass: null
+    },
+    'hoenn-tides': {
+      name: 'Hoenn Tides',
+      category: 'nature',
+      locked: false,
+      unlockCondition: null,
+      mode: 'dark',
+      colors: {
+        outerBg: '#061a20',
+        bg: '#0a242c',
+        surface: '#10323c',
+        surface2: '#17414d',
+        text: '#e2f7f5',
+        muted: '#93bdb9',
+        border: 'rgba(46,196,182,.14)',
+        accent: '#2ec4b6',
+        accentBg: 'rgba(46,196,182,.16)',
+        accentHover: '#5bd8cc',
+        green: '#22c55e',
+        red: '#ef4444',
+        gold: '#eab308',
+        blue: '#3b82f6',
+        paper: '#10323c',
+        rule: 'rgba(226,247,245,.09)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '12px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: null,
+      specialClass: null
+    },
+    'mecha-hangar': {
+      name: 'Mecha Hangar',
+      category: 'anime',
+      locked: false,
+      unlockCondition: null,
+      mode: 'dark',
+      colors: {
+        outerBg: '#0b0e14',
+        bg: '#11151d',
+        surface: '#19202b',
+        surface2: '#222b39',
+        text: '#e8edf5',
+        muted: '#9aa6b8',
+        border: 'rgba(255,210,63,.14)',
+        accent: '#ffd23f',
+        accentBg: 'rgba(255,210,63,.16)',
+        accentHover: '#ffe070',
+        green: '#22c55e',
+        red: '#ef4444',
+        gold: '#eab308',
+        blue: '#3b82f6',
+        paper: '#19202b',
+        rule: 'rgba(232,237,245,.09)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '12px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: null,
+      specialClass: null
+    },
+    'saturday-morning': {
+      name: 'Saturday Morning',
+      category: 'cartoon',
+      locked: false,
+      unlockCondition: null,
+      mode: 'dark',
+      colors: {
+        outerBg: '#1a1033',
+        bg: '#221543',
+        surface: '#2d1d57',
+        surface2: '#3a266d',
+        text: '#fff3e6',
+        muted: '#c4b5e0',
+        border: 'rgba(255,138,31,.14)',
+        accent: '#ff8a1f',
+        accentBg: 'rgba(255,138,31,.16)',
+        accentHover: '#ffa64d',
+        green: '#22c55e',
+        red: '#ef4444',
+        gold: '#eab308',
+        blue: '#3b82f6',
+        paper: '#2d1d57',
+        rule: 'rgba(255,243,230,.09)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '12px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: null,
+      specialClass: null
+    },
+    'shingle-crew': {
+      name: 'Shingle Crew',
+      category: 'construction',
+      locked: false,
+      unlockCondition: null,
+      mode: 'dark',
+      colors: {
+        outerBg: '#121212',
+        bg: '#1a1a1b',
+        surface: '#242426',
+        surface2: '#2f2f32',
+        text: '#eeeeee',
+        muted: '#a6a6ab',
+        border: 'rgba(255,122,26,.14)',
+        accent: '#ff7a1a',
+        accentBg: 'rgba(255,122,26,.16)',
+        accentHover: '#ff9a4d',
+        green: '#22c55e',
+        red: '#ef4444',
+        gold: '#eab308',
+        blue: '#3b82f6',
+        paper: '#242426',
+        rule: 'rgba(238,238,238,.09)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '12px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: null,
+      specialClass: null
+    },
+    'chalk-line': {
+      name: 'Chalk Line',
+      category: 'construction',
+      locked: false,
+      unlockCondition: null,
+      mode: 'light',
+      colors: {
+        outerBg: '#efe4cf',
+        bg: '#f7efdf',
+        surface: '#fffaf0',
+        surface2: '#eadbc0',
+        text: '#2b2216',
+        muted: '#6a5a42',
+        border: 'rgba(29,95,209,.18)',
+        accent: '#1d5fd1',
+        accentBg: 'rgba(29,95,209,.12)',
+        accentHover: '#164ba8',
+        green: '#15803d',
+        red: '#b91c1c',
+        gold: '#8a5a00',
+        blue: '#1d4ed8',
+        paper: '#fffaf0',
+        rule: 'rgba(43,34,22,.08)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '12px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: null,
+      specialClass: 'light-theme'
+    },
+    'tar-paper': {
+      name: 'Tar Paper',
+      category: 'construction',
+      locked: false,
+      unlockCondition: null,
+      mode: 'dark',
+      colors: {
+        outerBg: '#0d0d0f',
+        bg: '#141417',
+        surface: '#1d1d22',
+        surface2: '#27272d',
+        text: '#ececf0',
+        muted: '#a0a0aa',
+        border: 'rgba(230,57,70,.14)',
+        accent: '#e63946',
+        accentBg: 'rgba(230,57,70,.16)',
+        accentHover: '#ff5c68',
+        green: '#22c55e',
+        red: '#ef4444',
+        gold: '#eab308',
+        blue: '#3b82f6',
+        paper: '#1d1d22',
+        rule: 'rgba(236,236,240,.09)'
+      },
+      overlay: { type: 'none' },
+      font: { heading: null, body: null },
+      cursor: null,
+      borderRadius: '12px',
+      borderStyle: 'solid',
+      transition: '0.2s ease',
+      cardEffect: null,
+      specialClass: null
+    },
+
     // DUO (2026-10-01): two-colour palettes from Jo's idea screenshots
     // (IMG_4999–5005). One strong accent on one ground, nothing else.
     'duo-machine-red': {
@@ -5610,6 +6012,131 @@
   }
 
   // ============================================================================
+  // THEME MORPH (2026-10-11, roadmap A1 / design idea #03)
+  // A deliberate theme switch (picker click, unlock, auto-theme, try-for-10-min)
+  // wipes the new theme across the screen as a circle growing from the thing the
+  // user just clicked, via document.startViewTransition. Where View Transitions
+  // are unsupported - or Reduce Motion is on (OS pref or the Comfort toggle,
+  // data-motion="reduce") - it falls back to a 150ms colour crossfade
+  // (html.theme-fade, theme-system.css). Boot/hydrate/restore paths
+  // (save === false) never animate: first paint must be instant.
+  // ============================================================================
+  const MORPH_CLICK_WINDOW_MS = 2000;
+  const FADE_MS = 150;
+  let lastClick = null;       // { x, y, t } - where the user last clicked/activated
+  let activeMorph = null;     // the in-flight ViewTransition, if any
+  let overlayPaused = false;  // true while WE have ThemeOverlays paused
+  let fadeTimer = null;
+
+  try {
+    document.addEventListener('click', function (e) {
+      try {
+        let x = e.clientX, y = e.clientY;
+        // Keyboard activation (Enter/Space on a focused chip) reports 0,0 -
+        // use the element's own centre so the circle still grows from it.
+        if ((!e.detail || (!x && !y)) && e.target && e.target.getBoundingClientRect) {
+          const r = e.target.getBoundingClientRect();
+          x = r.left + r.width / 2;
+          y = r.top + r.height / 2;
+        }
+        lastClick = { x: x, y: y, t: Date.now() };
+      } catch (_) {}
+    }, true);
+  } catch (_) {}
+
+  function motionReduced() {
+    try {
+      if (document.documentElement.getAttribute('data-motion') === 'reduce') return true;
+      return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    } catch (_) { return false; }
+  }
+
+  function cssToken(name, fallback) {
+    try {
+      const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      if (v) return v;
+    } catch (_) {}
+    return fallback;
+  }
+
+  // Read a CSS time token (e.g. --ui-dur-sheet: 300ms) as milliseconds.
+  function cssTimeMs(name, fallback) {
+    const v = cssToken(name, '');
+    if (/ms$/.test(v)) return parseFloat(v) || fallback;
+    if (/s$/.test(v)) return (parseFloat(v) * 1000) || fallback;
+    return fallback;
+  }
+
+  function pauseOverlays() {
+    const O = window.ThemeOverlays;
+    if (overlayPaused || !O || !O.enabled || !O.container) return;
+    try { O.destroy(); } catch (_) {}
+    O.enabled = false; // _applyNow's ThemeOverlays.apply() no-ops while paused
+    overlayPaused = true;
+  }
+
+  function resumeOverlays() {
+    const O = window.ThemeOverlays;
+    if (!overlayPaused) return;
+    overlayPaused = false;
+    if (!O) return;
+    O.enabled = true;
+    try {
+      const t = THEMES[currentTheme];
+      O.apply((t && t.overlay) || { type: 'none' });
+    } catch (_) {}
+  }
+
+  function fadeApply(engine, themeKey, save) {
+    const html = document.documentElement;
+    try {
+      html.classList.add('theme-fade');
+      clearTimeout(fadeTimer);
+      fadeTimer = setTimeout(function () { html.classList.remove('theme-fade'); }, FADE_MS + 60);
+    } catch (_) {}
+    return engine._applyNow(themeKey, save);
+  }
+
+  function morphApply(engine, themeKey, save, opts) {
+    const html = document.documentElement;
+    if (activeMorph) { try { activeMorph.skipTransition(); } catch (_) {} }
+    pauseOverlays();
+
+    let origin = opts && opts.origin;
+    if (!origin && lastClick && Date.now() - lastClick.t < MORPH_CLICK_WINDOW_MS) origin = lastClick;
+    const hasOrigin = !!(origin && isFinite(origin.x) && isFinite(origin.y));
+
+    let vt;
+    try {
+      vt = document.startViewTransition(function () { engine._applyNow(themeKey, save); });
+    } catch (_) {
+      resumeOverlays();
+      return engine._applyNow(themeKey, save);
+    }
+    activeMorph = vt;
+    const done = function () {
+      if (activeMorph !== vt) return; // a newer morph owns the overlays now
+      activeMorph = null;
+      resumeOverlays();
+    };
+    vt.finished.then(done, done);
+    vt.ready.then(function () {
+      if (!hasOrigin) return; // no click to grow from - leave the default crossfade
+      const x = origin.x, y = origin.y;
+      const r = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+      html.animate(
+        { clipPath: ['circle(0px at ' + x + 'px ' + y + 'px)', 'circle(' + Math.ceil(r) + 'px at ' + x + 'px ' + y + 'px)'] },
+        {
+          duration: cssTimeMs('--ui-dur-sheet', 300),
+          easing: cssToken('--ui-ease', 'cubic-bezier(.2, 0, 0, 1)'),
+          pseudoElement: '::view-transition-new(root)'
+        }
+      );
+    }).catch(function () {});
+    return themeKey;
+  }
+
+  // ============================================================================
   // PUBLIC API
   // ============================================================================
 
@@ -5671,7 +6198,32 @@
       setTimeout(poll, 250);
     },
 
-    apply(themeKey, save = true) {
+    // Public entry point. save===true (a deliberate switch) - or opts.morph
+    // === true for a caller that applies with save=false but IS a user-facing
+    // switch (e.g. the 10-minute trial) - animates; opts.morph === false and
+    // every boot/restore path (save===false) stay instant. opts.origin
+    // {x, y} overrides the last-click circle origin. The return value is the
+    // key that ends up applied, exactly as before (the morph only runs when
+    // the swap cannot be rejected by the locked-theme gate).
+    apply(themeKey, save = true, opts) {
+      try {
+        const o = opts || {};
+        const user = save !== false || o.morph === true;
+        const theme = THEMES[themeKey];
+        const gated = !!(theme && save && theme.locked && !this.isUnlocked(themeKey));
+        if (user && o.morph !== false && !gated && currentTheme && currentTheme !== themeKey &&
+            document.body && !document.hidden) {
+          if (typeof document.startViewTransition === 'function' && !motionReduced()) {
+            return morphApply(this, themeKey, save, o);
+          }
+          return fadeApply(this, themeKey, save);
+        }
+      } catch (_) { /* never let the animation layer block a theme change */ }
+      return this._applyNow(themeKey, save);
+    },
+
+    // The immediate, un-animated swap (the engine's original apply()).
+    _applyNow(themeKey, save = true) {
       const theme = THEMES[themeKey];
       if (!theme) {
         // CSS-only theme (defined in theme-system.css but not registered here).
