@@ -30,9 +30,10 @@ async function seed(page, tag) {
   const uid = await safeEvaluate(page, () => window._user.uid);
   const companyId = await safeEvaluate(page, () => (window._userClaims || {}).companyId || null);
   const s = Date.now();
+  const name = 'ZZIB' + tag + String(s).slice(-5);
   const leadId = await safeEvaluate(page, (a) => window._saveLead({
-    firstName: 'ZZIB' + a.tag, lastName: 'Reply' + a.s, address: '9 Inbox Ln, Mason, OH 45040', phone: '5135550188', stage: 'new',
-  }), { tag, s });
+    firstName: a.name, lastName: 'Reply' + a.s, address: '9 Inbox Ln, Mason, OH 45040', phone: '5135550188', stage: 'new',
+  }), { name, s });
   expect(leadId).toBeTruthy();
   const db = adb();
   const { Timestamp } = require('firebase-admin/firestore');
@@ -48,7 +49,7 @@ async function seed(page, tag) {
   await db.collection('sms_log').add({
     uid, companyId, leadId, date: t(12), sentAt: t(12), body: 'Can someone come out Friday morning?', direction: 'inbound', status: 'received', e2eTestData: true,
   });
-  return { leadId, s, uid };
+  return { leadId, s, uid, name };
 }
 
 async function chooseInbox(page, device) {
@@ -74,14 +75,14 @@ test.describe.serial('Triage Inbox @shard2', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => typeof window._saveLead === 'function' && !!window._user && !!window.LayoutEngine, null, { timeout: 30_000 });
-    const { leadId } = await seed(page, 'D');
+    const { leadId, name } = await seed(page, 'D');
     await chooseInbox(page, 'desktop');
     await setTheme(page, 'daylight');
 
     // the person needing a reply is in the list, once, with a timer chip
-    const row = page.locator('.ib-row', { hasText: 'ZZIBD' }).first();
+    const row = page.locator('.ib-row', { hasText: name }).first();
     await row.waitFor({ state: 'visible', timeout: 60_000 });
-    expect(await page.locator('.ib-row', { hasText: 'ZZIBD' }).count()).toBe(1);
+    expect(await page.locator('.ib-row', { hasText: name }).count()).toBe(1);
     await expect(row.locator('[data-ib-timer]')).toBeVisible();
     expect(await row.locator('[data-ib-timer]').getAttribute('class')).toMatch(/ib-timer-(red|gold|green)/);
     // visible shortcut legend
@@ -124,6 +125,15 @@ test.describe.serial('Triage Inbox @shard2', () => {
     await page.keyboard.press('Escape');
     await expect(ta).not.toBeFocused();
 
+    // E is Done here. The dashboard's own global E (New Estimate) must NOT also fire: the page stays on Home.
+    // (The server is unreachable, so Done fails loudly and nothing is marked handled.)
+    await page.locator('.ib-thread-head').click();
+    await page.keyboard.press('e');
+    await expect(page.getByText(/Could not save that/).first()).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(800);
+    expect(await safeEvaluate(page, () => (document.querySelector('.view.active') || {}).id)).toBe('view-home');
+    await expect(page.locator('.ib-row', { hasText: name })).toHaveCount(1);
+
     // Send is gated by the server's consent check (unreachable here): refused, nothing handed to Messages
     const urlBefore = page.url();
     await page.locator('[data-ib="send"]').click();
@@ -149,14 +159,14 @@ test.describe.serial('Triage Inbox @shard2', () => {
     await safeEvaluate(page, () => { window.NBDHomeAttention = window.__ibHA; });
     await page.locator('[data-ib="reload"]').click();
     await expect(page.locator('.ib-banner')).toHaveCount(0, { timeout: 20_000 });
-    await expect(page.locator('.ib-row', { hasText: 'ZZIBD' })).toHaveCount(1);
+    await expect(page.locator('.ib-row', { hasText: name })).toHaveCount(1);
 
     // pipeline: the same three panes, grouped by stage
     await page.locator('[data-ib="pane"][data-pane="pipeline"]').click();
     await expect(page.locator('.ib-stage').first()).toBeVisible();
-    const lead = page.locator('.ib-row-lead', { hasText: 'ZZIBD' }).first();
+    const lead = page.locator('.ib-row-lead', { hasText: name }).first();
     await lead.click();
-    await expect(page.locator('.ib-title')).toContainText('ZZIBD');
+    await expect(page.locator('.ib-title')).toContainText(name);
     await expect(page.locator('.ib-side')).toContainText('Stage');
     expect(leadId).toBeTruthy();
   });
@@ -169,11 +179,11 @@ test.describe.serial('Triage Inbox @shard2', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await loginAs(page, creds);
     await safeWaitForFunction(page, () => typeof window._saveLead === 'function' && !!window._user && !!window.LayoutEngine, null, { timeout: 30_000 });
-    await seed(page, 'P');
+    const seededP = await seed(page, 'P');
     await chooseInbox(page, 'phone');
     await setTheme(page, 'midnight');
 
-    const row = page.locator('.ib-row', { hasText: 'ZZIBP' }).first();
+    const row = page.locator('.ib-row', { hasText: seededP.name }).first();
     await row.waitFor({ state: 'visible', timeout: 60_000 });
     // list pane only
     await expect(page.locator('.ib-thread')).toBeHidden();

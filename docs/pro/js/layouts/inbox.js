@@ -29,7 +29,8 @@
  * Retry, never an empty list. "Nothing needs a reply" is shown only when every
  * feed answered.
  *
- * Keys (ignored while typing, with a modifier, or while a dialog is open):
+ * Keys (ignored while typing, with a modifier, or while a dialog is open; handled
+ * keys stop here so the dashboard's global E = New Estimate does not also fire):
  *   J / K move   R reply   E done   S snooze   Esc back
  *
  * Pure part (NBDInboxLogic) is require()-able for tests.
@@ -824,6 +825,13 @@
     var tag = el && el.tagName;
     return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!(el && el.isContentEditable);
   }
+  // The dashboard marks its modals aria-modal="true" in the markup whether or
+  // not they are open, so that attribute is no signal; nbdModal.anyOpen() is.
+  function dialogOpen() {
+    if (doc.getElementById('nbd-snooze-overlay')) return true;
+    try { if (W.nbdModal && typeof W.nbdModal.anyOpen === 'function' && W.nbdModal.anyOpen()) return true; } catch (e) {}
+    return false;
+  }
   function onKey(ev) {
     if (!rootEl || rootEl.hidden) return;
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
@@ -832,12 +840,17 @@
       if (k === 'escape' && ev.target.id === 'ibComposer') { ev.target.blur(); ev.preventDefault(); }
       return;
     }
-    if (doc.getElementById('nbd-snooze-overlay') || doc.querySelector('[aria-modal="true"]')) return;
-    if (k === 'j') { move(1); ev.preventDefault(); }
-    else if (k === 'k') { move(-1); ev.preventDefault(); }
-    else if (k === 'r') { if (selectedItem()) { ev.preventDefault(); focusComposer(); } }
-    else if (k === 'e') { if (selectedItem()) { ev.preventDefault(); doDone(); } }
-    else if (k === 's') { if (selectedItem()) { ev.preventDefault(); doSnooze(); } }
+    if (dialogOpen()) return;
+    // Captured, and stopped when handled: the dashboard's own global hotkeys
+    // (dashboard-bootstrap.module.js: E = New Estimate, N = New Lead) are
+    // bubble-phase listeners on document, so without this E here would ALSO
+    // open a new estimate.
+    var own = function () { ev.preventDefault(); ev.stopPropagation(); };
+    if (k === 'j') { own(); move(1); }
+    else if (k === 'k') { own(); move(-1); }
+    else if (k === 'r') { if (selectedItem()) { own(); focusComposer(); } }
+    else if (k === 'e') { if (selectedItem()) { own(); doDone(); } }
+    else if (k === 's') { if (selectedItem()) { own(); doSnooze(); } }
     else if (k === 'escape') { if (S.mobile === 'thread') { S.mobile = 'list'; render(); } else if (S.menu) { S.menu = false; render(); } }
   }
 
@@ -852,14 +865,14 @@
     doc.body.appendChild(rootEl);
     rootEl.addEventListener('click', onClick);
     rootEl.addEventListener('input', onInput);
-    doc.addEventListener('keydown', onKey);
+    doc.addEventListener('keydown', onKey, true);
     W.NBDInbox = { reload: function () { return loadAll(); } };
     unbind.push(K.bind(rootEl, { done: function () { doDone(); }, snooze: function () { doSnooze(); } }, lookup));
     var refresh = function () { render(); };
     var events = ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:estimate-followups'];
     events.forEach(function (n) { W.addEventListener(n, refresh); });
     unbind.push(function () {
-      doc.removeEventListener('keydown', onKey);
+      doc.removeEventListener('keydown', onKey, true);
       events.forEach(function (n) { W.removeEventListener(n, refresh); });
     });
     try {
