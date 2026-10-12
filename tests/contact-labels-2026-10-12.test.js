@@ -94,15 +94,29 @@ const L = (kind, policy) => ({ '5550142222': { kind, policy: policy || LG.defaul
   ok('control: an unknown number with a note counts with NO labels', HA.callNeedsYou(unk, NOW, null) === true);
   ok('control: ... and with an empty label map (nothing changes)', HA.callNeedsYou(unk, NOW, { labels: {} }) === true);
   ok('hide: the same call no longer counts', HA.callNeedsYou(unk, NOW, { labels: L('personal') }) === false);
-  ok('hide beats urgent', HA.callNeedsYou(call({ urgent: true }), NOW, { labels: L('spam') }) === false
+  // REGRESSION (reliability audit + Jo, 2026-10-12): hide was evaluated before
+  // urgent and promise, so a hidden number swallowed an urgent call and a
+  // commitment. A promise ALWAYS surfaces; a hidden number's urgent call breaks
+  // through; each is paired with the no-label control and tagged in the UI.
+  const hiddenCtx = { labels: L('personal') };
+  ok('hidden number + URGENT call: still needs you (breaks through)', HA.callNeedsYou(call({ urgent: true }), NOW, hiddenCtx) === true
     && HA.callNeedsYou(call({ urgent: true }), NOW, null) === true);
-  // Jo, 2026-10-12: a promise ALWAYS surfaces; hide only drops the noise.
-  ok('hide does NOT swallow a promise Jo made', HA.callNeedsYou(call({ promises: [{ who: 'jo', text: 'call back' }] }), NOW, { labels: L('personal') }) === true);
+  ok('hidden number + a promise Jo made: still needs you', HA.callNeedsYou(call({ promises: [{ who: 'jo', text: 'call back' }] }), NOW, hiddenCtx) === true
+    && HA.callNeedsYou(call({ promises: [{ who: 'jo', text: 'call back' }] }), NOW, null) === true);
+  ok('hidden number + urgent + promise together: surfaces once, as one person', HA.groupNeeds([call({ id: 'ua', urgent: true }), call({ id: 'ub', promises: [{ who: 'jo', text: 'x' }] })], NOW, { '5550142222': { kind: 'personal', policy: 'hide', updatedAtMs: NOW } }).length === 1);
+  ok('hidden number WITHOUT urgency or a promise: still hidden (the label does its job)', HA.callNeedsYou(call({}), NOW, hiddenCtx) === false
+    && HA.callNeedsYou(call({}), NOW, null) === true);
+  ok('the surfaced row is tagged "hidden number" (chip text)', LG.chipFor({ kind: 'personal', policy: 'hide' }).text === 'Personal · hidden number'
+    && LG.chipFor({ kind: 'sub', policy: 'quiet' }).text === 'Sub');
+  ok('spam-labeled number: an urgent flag does NOT break through (robocalls say urgent), a promise still does',
+    HA.callNeedsYou(call({ urgent: true }), NOW, { labels: L('spam') }) === false
+    && HA.callNeedsYou(call({ promises: [{ who: 'jo', text: 'x' }] }), NOW, { labels: L('spam') }) === true);
+  ok('quiet: an urgent call does NOT break through (the sub / supplier rule stands)', HA.callNeedsYou(call({ urgent: true }), NOW, { labels: L('sub') }) === false);
+  ok('hide drops a missed call (noise)', HA.callNeedsYou(call({ status: 'short' }), NOW, { labels: L('personal') }) === false
+    && HA.callNeedsYou(call({ status: 'short' }), NOW, { labels: {} }) === true);
   ok('hide does NOT swallow a follow-up date that has come; a future one waits', HA.callNeedsYou(call({ followUpDate: '2026-10-12' }), NOW, { labels: L('personal') }) === true
     && HA.callNeedsYou(call({ followUpDate: '2026-10-20' }), NOW, { labels: L('personal') }) === false);
   ok('hide still drops a promise THEY made', HA.callNeedsYou(call({ promises: [{ who: 'them', text: 'x' }] }), NOW, { labels: L('personal') }) === false);
-  ok('hide beats a missed call', HA.callNeedsYou(call({ status: 'short' }), NOW, { labels: L('personal') }) === false
-    && HA.callNeedsYou(call({ status: 'short' }), NOW, { labels: {} }) === true);
   ok('quiet: an urgent unknown call does NOT count', HA.callNeedsYou(call({ urgent: true }), NOW, { labels: L('sub') }) === false);
   ok('quiet: a promise Jo made DOES count (the old sub/supplier rule)', HA.callNeedsYou(call({ promises: [{ who: 'jo', text: 'send the quote' }] }), NOW, { labels: L('sub') }) === true);
   ok('quiet: a promise THEY made does not', HA.callNeedsYou(call({ promises: [{ who: 'them', text: 'text me' }] }), NOW, { labels: L('sub') }) === false);
@@ -130,9 +144,10 @@ const L = (kind, policy) => ({ '5550142222': { kind, policy: policy || LG.defaul
     && HA.groupNeeds(rows, NOW, lab)[0].key === 'num:5550143333');
   ok('callsNeedingYou takes labels', HA.callsNeedingYou(rows, NOW, lab) === 1 && HA.callsNeedingYou(rows, NOW) === 3);
   ok('hiddenPeople counts people, not calls', HA.hiddenPeople(rows, NOW, lab) === 1 && HA.hiddenPeople(rows, NOW, null) === 0 && HA.hiddenPeople(rows, NOW, {}) === 0);
-  ok('a hidden number on a lead keeps the lead commitment and drops its noise',
-    HA.groupNeeds([call({ id: 'l1', leadId: 'L1', promises: [{ who: 'jo', text: 'x' }] })], NOW, { '5550142222': { kind: 'personal', policy: 'hide', updatedAtMs: NOW } }).length === 1
-    && HA.groupNeeds([call({ id: 'l2', leadId: 'L1', urgent: true })], NOW, { '5550142222': { kind: 'personal', policy: 'hide', updatedAtMs: NOW } }).filter((g) => !g.resurfaced).length === 0);
+  ok('a hidden number on a lead keeps the lead commitment (one person) and drops its missed-call noise',
+    HA.groupNeeds([call({ id: 'l1', leadId: 'L1', promises: [{ who: 'jo', text: 'x' }] })], NOW, { '5550142222': { kind: 'personal', policy: 'hide' } }).length === 1
+    && HA.groupNeeds([call({ id: 'l2', leadId: 'L1', status: 'short' })], NOW, { '5550142222': { kind: 'personal', policy: 'hide', updatedAtMs: NOW } }).length === 0
+    && HA.groupNeeds([call({ id: 'l2', leadId: 'L1', status: 'short' })], NOW).length === 1);
 }
 
 // ── B2. the safety valve ──────────────────────────────────────────────

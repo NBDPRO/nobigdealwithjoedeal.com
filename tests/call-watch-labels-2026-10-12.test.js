@@ -66,16 +66,17 @@ const lab = (kind, policy, extra) => ({ [N]: Object.assign({ kind, policy, updat
   const since = NOW - 2 * H;
   const noisy = call({ id: 'n1', urgent: true, notedAtMs: NOW - 30 * MIN });
   ok('control: an urgent unknown call alerts with no labels', W.newNeeds([noisy], [], [], since, NOW).map((n) => n.id).join() === 'call:n1');
-  ok('hide: the same call does NOT alert', W.newNeeds([noisy], [], [], since, NOW, lab('personal', 'hide')).length === 0);
+  ok('hide + spam kind: the same urgent call does NOT alert (robocalls claim urgency)', W.newNeeds([noisy], [], [], since, NOW, lab('spam', 'hide')).length === 0);
+  ok('hide + personal kind: an urgent call breaks through, saying urgent', W.newNeeds([noisy], [], [], since, NOW, lab('personal', 'hide')).map((n) => n.why).join() === 'urgent');
   ok('quiet: the same call does NOT alert', W.newNeeds([noisy], [], [], since, NOW, lab('sub', 'quiet')).length === 0);
   const promised = call({ id: 'n2', promises: [{ who: 'jo', text: 'call him Friday' }], notedAtMs: NOW - 30 * MIN });
   const pn = W.newNeeds([promised], [], [], since, NOW, lab('personal', 'hide'));
   ok('hide: a promise Jo made ALWAYS alerts, saying why', pn.length === 1 && pn[0].why === 'you promised something', JSON.stringify(pn));
   const both = call({ id: 'n3', urgent: true, promises: [{ who: 'jo', text: 'x' }], notedAtMs: NOW - 30 * MIN });
-  ok('hide + urgent + promise reads "you promised something", not "urgent"', W.newNeeds([both], [], [], since, NOW, lab('personal', 'hide'))[0].why === 'you promised something'
+  ok('spam + urgent + promise reads "you promised something", not "urgent"', W.newNeeds([both], [], [], since, NOW, lab('spam', 'hide'))[0].why === 'you promised something'
     && W.newNeeds([both], [], [], since, NOW)[0].why === 'urgent');
   const tx = [{ id: 't1', phoneDigits: N, urgent: true, startedAtMs: NOW - H, notedAtMs: NOW - 10 * MIN, contactName: 'X' }];
-  ok('a day of texts follows the same label (control: alerts without)', W.newNeeds([], tx, [], since, NOW).length === 1 && W.newNeeds([], tx, [], since, NOW, lab('spam', 'hide')).length === 0);
+  ok('a day of texts follows the same label (control: alerts without)', W.newNeeds([], tx, [], since, NOW).length === 1 && W.newNeeds([], tx, [], since, NOW, lab('spam', 'hide')).length === 0 && W.newNeeds([], tx, [], since, NOW, lab('sub', 'quiet')).length === 0);
 
   const bn = W.newNeeds(burst, [], [], since, NOW, lab('spam', 'hide', { updatedAtMs: NOW - 6 * H }));
   ok('a hidden number calling 3 times in 24h alerts once, saying so', bn.length === 1 && /^hidden:5550142222:/.test(bn[0].id) && bn[0].why === 'a hidden number is calling a lot', JSON.stringify(bn));
