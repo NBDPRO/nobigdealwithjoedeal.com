@@ -16,8 +16,9 @@
  *            skin should follow the person.
  *
  * Loaded by pixel-mode.js (the one boot tag) only when the settings say the
- * skin or dialog notifications are on, or the Settings card is in view. The
- * stylesheet, the fonts and the logic module are fetched once something is on.
+ * skin or dialog notifications are on, the Settings card is in view, or
+ * Pixel World is opened. The stylesheet, the fonts and the logic module are
+ * fetched once something is on; the town itself only when it is opened.
  *
  * Reads the CRM only (window._leads, ThemeEngine.isUnlocked). Writes nothing
  * but the person's own pixelMode preference. Nothing here sends anything.
@@ -36,7 +37,20 @@
     var r = raw && typeof raw === 'object' ? raw : {};
     return { skin: r.skin === true, scanlines: r.scanlines === true, dialog: r.dialog === true };
   }
-  if (typeof module !== 'undefined' && module.exports) { module.exports = { normalize: normalize }; }
+  // Pixel World switch. Default OFF; the person's own opt-in OR the company's
+  // switch (companyProfile/{id}.pixelWorld.enabled), literal true only.
+  function worldOn(userWorld, companyWorld) {
+    return !!((userWorld && userWorld.enabled === true) || (companyWorld && companyWorld.enabled === true));
+  }
+  // Who may flip the company switch: the owner (company id == uid) and company_admin.
+  function canSetCompany(claims, uid) {
+    var c = claims || {};
+    var role = c.role || '';
+    if (role === 'viewer' || role === 'manager') return false;
+    if (role === 'company_admin' || role === 'admin') return true;
+    return !!uid && (!c.companyId || c.companyId === uid);
+  }
+  if (typeof module !== 'undefined' && module.exports) { module.exports = { normalize: normalize, worldOn: worldOn, canSetCompany: canSetCompany }; }
   if (!w || !doc || (w.NBDPixelMode && !w.NBDPixelMode.__stub)) return;   // pixel-mode.js leaves a __stub
 
   var CSS_URL = '/pro/css/pixel-mode.css?v=1';
@@ -51,6 +65,19 @@
   var toastObserver = null;
   var homeTimer = null;
   var wildEl = null;
+
+  // Pixel World (E2): lazy. Nothing below runs until someone opens it.
+  var WORLD_LOGIC_URL = '/pro/js/pixel-world-logic.js?v=1';
+  var WORLD_JS_URL = '/pro/js/pixel-world.js?v=1';
+  var WORLD_CSS_URL = '/pro/css/pixel-world.css?v=1';
+  var OUTLOOK_URL = '/pro/js/storm-outlook.js?v=1';
+  var worldUser = { enabled: false };        // userSettings.pixelWorld (enabled flag)
+  var worldSeen = [];                        // userSettings.pixelWorld.seen (Lead Dex)
+  var worldCompany = null;                   // companyProfile/{id}.pixelWorld, read lazily
+  var worldCompanyAsked = false;
+  var worldGame = null;                      // the running game handle
+  var worldOpening = false;
+  var scriptPromises = {};
 
   var toast = function (m, t) { if (typeof w.showToast === 'function') w.showToast(m, t || 'info'); };
   var $ = function (id) { return doc.getElementById(id); };
@@ -96,7 +123,7 @@
     uid = w._user.uid;
     var ref = w.doc(w.db, 'userSettings', uid);
     if (typeof w.onSnapshot !== 'function') {
-      return w.getDoc(ref).then(function (s) { cfg = normalize(dataOf(s).pixelMode); apply(); });
+      return w.getDoc(ref).then(function (s) { var d = dataOf(s); cfg = normalize(d.pixelMode); readWorld(d); apply(); });
     }
     return new Promise(function (resolve) {
       var settled = false;
@@ -110,11 +137,17 @@
         if (snap.metadata && snap.metadata.fromCache && !data.pixelMode) return;
         if (Date.now() - localEditAt < 3000) { done(); return; }
         cfg = normalize(data.pixelMode);
+        readWorld(data);
         apply();
         done();
       }, done);
       setTimeout(done, 15000);
     });
+  }
+  function readWorld(data) {
+    var p = data && data.pixelWorld;
+    worldUser = { enabled: !!(p && p.enabled === true) };
+    worldSeen = p && Array.isArray(p.seen) ? p.seen.filter(function (x) { return typeof x === 'string'; }).slice(-400) : [];
   }
   function save() {
     localEditAt = Date.now();
@@ -279,6 +312,12 @@
     var ph = el('div', 'px-card-hdr');
     ph.appendChild(el('h3', 'px-h', 'PARTY'));
     ph.appendChild(el('span', 'px-sub', 'HP = days before a lead goes cold (' + L.COLD_DAYS + ')'));
+    if (worldEnabled()) {
+      var enter = el('button', 'btn btn-ghost px-enter', 'ENTER TOWN');
+      enter.type = 'button';
+      enter.setAttribute('data-px-open-world', '');
+      ph.appendChild(enter);
+    }
     p.appendChild(ph);
     var ul = el('ul', 'px-party-list');
     if (!party.length) ul.appendChild(el('li', 'px-empty', 'No open leads in your party.'));
@@ -318,6 +357,116 @@
     if (id) w.location.href = '/pro/customer.html?id=' + encodeURIComponent(id);
   }
 
+  // ── Pixel World: switch, lazy assets, launch ─────────────────────────
+  function claims() { return w._userClaims || {}; }
+  function companyId() { return claims().companyId || uid; }
+  function loadScript(url) {
+    if (scriptPromises[url]) return scriptPromises[url];
+    scriptPromises[url] = new Promise(function (resolve, reject) {
+      var s = doc.createElement('script');
+      s.src = url; s.async = true;
+      s.onload = function () { resolve(); };
+      s.onerror = function () { delete scriptPromises[url]; reject(new Error('failed to load ' + url)); };
+      doc.head.appendChild(s);
+    });
+    return scriptPromises[url];
+  }
+  function readCompanyFlag() {
+    if (worldCompanyAsked || !ready()) return Promise.resolve(worldCompany);
+    worldCompanyAsked = true;
+    return w.getDoc(w.doc(w.db, 'companyProfile', companyId())).then(function (s) {
+      var d = dataOf(s);
+      worldCompany = d.pixelWorld && typeof d.pixelWorld === 'object' ? { enabled: d.pixelWorld.enabled === true } : null;
+      return worldCompany;
+    }).catch(function () { worldCompanyAsked = false; return worldCompany; });
+  }
+  function worldEnabled() { return worldOn(worldUser, worldCompany); }
+  function worldAssets() {
+    ensureAssets();
+    if (!doc.querySelector('link[href="' + WORLD_CSS_URL + '"]')) {
+      var l = doc.createElement('link'); l.rel = 'stylesheet'; l.href = WORLD_CSS_URL;
+      doc.head.appendChild(l);
+    }
+    return withLogic().then(function () { return loadScript(WORLD_LOGIC_URL); }).then(function () { return loadScript(WORLD_JS_URL); });
+  }
+  function leadById(id) {
+    var list = Array.isArray(w._leads) ? w._leads : [];
+    for (var i = 0; i < list.length; i++) if (list[i] && list[i].id === id) return list[i];
+    return null;
+  }
+  function firstName() {
+    var n = (w._user && (w._user.displayName || '')) || (w._userSettings && w._userSettings.displayName) || '';
+    return String(n).trim().split(' ')[0] || '';
+  }
+  function saveWorld(patch) {
+    if (!uid) return Promise.resolve();
+    localEditAt = Date.now();
+    return w.setDoc(w.doc(w.db, 'userSettings', uid), { pixelWorld: patch }, { merge: true })
+      .catch(function () { toast('Couldn’t save that. Check your connection.', 'error'); });
+  }
+  function worldEnv() {
+    return {
+      leads: function () { return Array.isArray(w._leads) ? w._leads : []; },
+      stageRole: function (k) { return typeof w.stageRole === 'function' ? w.stageRole(k) : null; },
+      normalizeStage: function (k) { return typeof w.normalizeStage === 'function' ? w.normalizeStage(k) : k; },
+      stageLabel: function (k) { try { return typeof w.stageLabel === 'function' ? w.stageLabel(k) : k; } catch (e) { return k; } },
+      isUnlocked: function (k) {
+        try { return !!(w.ThemeEngine && typeof w.ThemeEngine.isUnlocked === 'function' && w.ThemeEngine.isUnlocked(k)); } catch (e) { return false; }
+      },
+      summarizeAt: function (lat, lng) {
+        try { return w.StormOutlook && typeof w.StormOutlook.summarizeAt === 'function' ? w.StormOutlook.summarizeAt(lat, lng) : null; } catch (e) { return null; }
+      },
+      hasOutlook: function () {
+        try {
+          var st = w.StormOutlook && w.StormOutlook.getState && w.StormOutlook.getState();
+          return !!(st && ((st.cat && st.cat.length) || (st.hail && st.hail.length)));
+        } catch (e) { return false; }
+      },
+      leadById: leadById,
+      openLead: openLead,
+      // E2b: the pipeline's own stage move; the caller verifies the outcome.
+      canWrite: function () { return (claims().role || '') !== 'viewer' && typeof w.moveCard === 'function'; },
+      stageKeys: function () { return Array.isArray(w._stageKeys) ? w._stageKeys : []; },
+      stageOf: function (id) {
+        var l = leadById(id);
+        if (!l) return null;
+        return l._stageKey || (typeof w.normalizeStage === 'function' ? w.normalizeStage(l.stage) : l.stage);
+      },
+      moveStage: function (id, key) { return typeof w.moveCard === 'function' ? w.moveCard(id, key) : Promise.reject(new Error('pipeline not loaded')); },
+      reduceMotion: reducedMotion,
+      seen: worldSeen,
+      saveSeen: function (arr) { worldSeen = arr.slice(-400); return saveWorld({ seen: worldSeen }); },
+      officeName: function () { var n = firstName(); return n ? n.toUpperCase().slice(0, 14) + "'S OFFICE" : 'OFFICE'; },
+      onExit: function () { worldGame = null; },
+    };
+  }
+  function openWorld() {
+    if (worldGame || worldOpening) return Promise.resolve();
+    if (!uid) { toast('Sign in to open Pixel World.', 'warning'); return Promise.resolve(); }
+    worldOpening = true;
+    return readCompanyFlag().then(function () {
+      if (!worldEnabled()) {
+        toast('Pixel World is off. Turn it on in Settings > Appearance > Pixel Mode.', 'info');
+        return null;
+      }
+      return worldAssets().then(function () {
+        if (!w.NBDPixelWorldGame || typeof w.NBDPixelWorldGame.start !== 'function') throw new Error('pixel world did not load');
+        worldGame = w.NBDPixelWorldGame.start(worldEnv());
+        // SPC outlook powers the hail event. Best effort, never blocks the town.
+        var kick = function () {
+          if (w.StormOutlook && typeof w.StormOutlook.load === 'function') {
+            return w.StormOutlook.load().then(function () { if (worldGame && worldGame.refresh) worldGame.refresh(); });
+          }
+        };
+        (w.StormOutlook ? Promise.resolve() : loadScript(OUTLOOK_URL)).then(kick).catch(function () { /* no outlook: no hail event */ });
+        return worldGame;
+      });
+    }).catch(function (e) {
+      toast('Pixel World could not load. ' + ((e && e.message) || ''), 'error');
+    }).then(function (g) { worldOpening = false; return g; });
+  }
+  function closeWorld() { if (worldGame && worldGame.exit) worldGame.exit(); worldGame = null; return Promise.resolve(); }
+
   // ── settings panel ───────────────────────────────────────────────────
   function renderPanel() {
     var panel = $('pixelModePanel');
@@ -329,10 +478,32 @@
     });
     var sc = $('pxScanlines');
     if (sc) sc.disabled = !cfg.skin;
+    var wu = $('pxWorldUser'); if (wu) wu.checked = !!worldUser.enabled;
+    var wrow = $('pxWorldCompanyRow');
+    if (wrow) wrow.hidden = !canSetCompany(claims(), uid);
+    var wc = $('pxWorldCompany'); if (wc) wc.checked = !!(worldCompany && worldCompany.enabled);
+    var ob = $('pxOpenWorld'); if (ob) ob.hidden = !worldEnabled();
+    if (!worldCompanyAsked && uid && ready()) readCompanyFlag().then(function () { renderPanel(); });
   }
   function onChange(e) {
     var t = e.target;
     if (!t || !t.id) return;
+    if (t.id === 'pxWorldUser') {
+      if (!uid) { t.checked = !t.checked; return; }
+      worldUser = { enabled: !!t.checked };
+      saveWorld({ enabled: worldUser.enabled });
+      renderPanel(); renderHome();
+      return;
+    }
+    if (t.id === 'pxWorldCompany') {
+      if (!uid || !canSetCompany(claims(), uid)) { t.checked = !t.checked; return; }
+      var on = !!t.checked;
+      localEditAt = Date.now();
+      w.setDoc(w.doc(w.db, 'companyProfile', companyId()), { pixelWorld: { enabled: on } }, { merge: true })
+        .then(function () { worldCompany = { enabled: on }; renderPanel(); renderHome(); })
+        .catch(function () { t.checked = !on; toast('Couldn’t change the company setting. Only the owner or a company admin can.', 'error'); });
+      return;
+    }
     var map = { pxSkin: 'skin', pxScanlines: 'scanlines', pxDialog: 'dialog' };
     if (!map[t.id]) return;
     if (!uid) { t.checked = !t.checked; toast('Sign in to change Pixel Mode.', 'warning'); return; }
@@ -353,7 +524,7 @@
       if (which === 'book') openLead(id);
       return;
     }
-    if (tgt.closest('[data-px-open-world]') && w.NBDPixelWorld && typeof w.NBDPixelWorld.open === 'function') w.NBDPixelWorld.open();
+    if (tgt.closest('[data-px-open-world]')) { openWorld(); }
   }
   function onKey(e) {
     if (e.key === 'Escape' && wildEl) { closeWild(); return; }
@@ -398,6 +569,10 @@
     state: function () { return { uid: uid, cfg: Object.assign({}, cfg) }; },
     repaint: apply,
     wildLead: wildLead,
+    open: openWorld,
+    world: function () { return worldGame; },
+    close: closeWorld,
+    worldEnabled: worldEnabled,
     set: function (patch) { cfg = normalize(Object.assign({}, cfg, patch)); apply(); return save(); },
   };
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', boot); else boot();

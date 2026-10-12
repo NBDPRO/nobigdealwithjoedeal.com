@@ -75,3 +75,111 @@ message once, not letter by letter. Reduce Motion (OS setting **or** the app's
 - The skin restyles the shared shell (panels, buttons, inputs, nav, toasts).
   Individual feature pages with heavy inline styles will only partly follow —
   the "L, every screen" part of the idea is intentionally not attempted here.
+
+## E2 — Pixel World v1 (read-only town)
+
+Playable v1 is built from scratch against the roadmap's L07 spec and Jo's
+two Drive prototypes (`07-pixel-world.html` v1/v2: layout, area names and the
+"no game assets" rule were taken from the concept; none of its code or art was
+copied — the town's art is drawn here from small string patterns).
+
+| Piece | Where | Notes |
+| --- | --- | --- |
+| Rules | `docs/pro/js/pixel-world-logic.js` (`NBDPixelWorldLogic`) | Map, collision, camera, deterministic placement, wander limits, hail flags, day/night tint, Lead Dex, gates, on/off switch. Pure, tested. |
+| Game | `docs/pro/js/pixel-world.js` (`NBDPixelWorldGame.start(env)`) | Canvas renderer + HTML frame. Read-only: no Firestore write API, no network. |
+| Frame | `docs/pro/css/pixel-world.css` | HUD chips, dialog, panels, touch D-pad. Theme tokens only. |
+| Launcher | `pixel-mode-core.js` (`NBDPixelMode.open/close/world`) + the `pixel-mode.js` boot loader | Switch check, lazy assets, company flag read; the loader owns the layout-registry seam. |
+| Tests | `tests/pixel-world-2026-10-11.test.js` | 82 checks incl. map connectivity, collision, placement, contracts. Break-tested. |
+
+**Switch (default OFF).** On when the person opted in
+(`userSettings/{uid}.pixelWorld.enabled === true`) **or** the company turned it
+on (`companyProfile/{companyId}.pixelWorld.enabled === true`; `companyId` is the
+`companyId` claim, or the uid for a solo owner). The company switch is writable
+by the owner and `company_admin` only (that is the existing `companyProfile`
+rule: owner + company_admin write, tenant members read); the Settings row is
+hidden for everyone else. Nothing is downloaded until the switch is on AND the
+person opens it.
+
+**Entry points.** Settings > Appearance > Pixel Mode > "Open Pixel World", the
+"ENTER TOWN" button on the Home Party card (skin on), and
+`NBDPixelMode.open()`. The layout registry (lane "layouts") had not merged when
+this was built, so there is a **seam**, not a hard registration: the
+`pixel-mode.js` boot loader calls `window.LayoutRegistry.register({ id: 'pixel',
+name, version, surfaces, tier, flag, enabled, load, mount, unmount })` if that
+object exists at boot or when `nbd:layout-registry-ready` fires (inside a
+try/catch, so a different `register` shape just leaves the Settings entry
+point). The entry is thin: `load/mount/unmount` fetch the core on demand.
+When the registry lands, confirm its `register` shape and the id/flag names.
+
+**What the town shows (all real, all read-only).**
+- Townspeople = the user's open leads, most-at-risk first (cap 40 on the map,
+  the Leads Hall list shows up to 60). Red "!" = the lead's own `followUp` is
+  before today; the bar over a head is HP (days before cold, 14).
+- Leads Hall: the list. Estimate Workshop: estimate-stage leads + stage counts.
+  Storm Watch Tower: leads whose coordinates fall in today's SPC hail-risk
+  polygons (`StormOutlook.summarizeAt`; loaded lazily; "roof not verified").
+  Bank: **projected** pipeline + signed this month (never called revenue).
+  Trophy Hall: trainer card + the nine achievement themes with live
+  `ThemeEngine.isUnlocked`. Office: overdue / about-to-go-cold.
+- Achievement gates plug into `ThemeEngine.isUnlocked`: **Gold Vault**
+  (Bank, needs Gold Rush) and **Summit Radar** (Tower, needs Road Warrior).
+  Gates fail closed. `ThemeEngine.unlock` is not called by the game.
+- Lead Dex numbers every lead oldest-first: SIGNED (won stage), MET (talked to),
+  ??? (unmet, name hidden). "Met" is the only state the game stores
+  (`userSettings/{uid}.pixelWorld.seen`, newest 400).
+- Day/night tint from the real local clock; hail rain overlay only while an
+  outlook polygon actually covers a lead.
+- Talk dialog: facts, then CALL (a `tel:` link the person taps), OPEN LEAD.
+  **DRAFT TEXT and MOVE STAGE are visible but disabled in v1.**
+
+**Reduce Motion** (OS or `html[data-motion=reduce]`): townspeople stand still,
+no "!" bob, no water shimmer, no hail particles, no typewriter. Walking (the
+player's own input) is unchanged.
+
+**Controls.** Arrow keys / WASD, Space / Enter / A, Esc / B, M. Touch D-pad +
+A/B on `(pointer: coarse)` or width <= 760px. The Leads Hall panel is the
+keyboard/screen-reader route to every lead (the canvas itself is `aria-hidden`;
+dialog text goes to a polite live region).
+
+**Bug found and fixed while verifying on a phone-sized touch device.**
+`dashboard-app.css` has `@media (hover: none) { *:hover:not([style*="transform"]) { transform: none !important } }`,
+which strips `transform` from every ancestor of a tapped element. A dialog
+centred with `translateX(-50%)` jumped 183px sideways between `pointerup` and
+`click`, so the tap landed on the canvas and nothing happened. Overlays in
+`pixel-world.css` and `pixel-mode.css` now centre with `left/right:0; margin:auto`
+(a test forbids `translate(-50%` in both files). Worth knowing for any future
+overlay on `dashboard.html`.
+
+**Not in v1 (next).** Write actions through existing modules (stage move with
+the existing no-confirm rules, drafts into the drafts inbox — drafts only,
+never auto-send), crew members on real routes, follow-ups as quests, XP from
+closed jobs, per-region maps, seasonal events.
+
+**Pre-existing red noticed, not touched.** `pro-demo-zero-network` fails on
+`main` ("Money view labels revenue as collected money only"); reproduced on a
+clean `origin/main` worktree, so it is not this work.
+
+## E2b - Move stage from the town (drafts blocked, see below)
+
+- **MOVE STAGE** in the talk dialog is live for non-viewers when the
+  pipeline's `moveCard` exists. It offers the kanban arrows' two moves only:
+  NEXT (the next stage that is not Lost) and BACK (the previous one). Losing a
+  lead stays its own action on the lead card.
+- It goes through the CRM's own `window.moveCard` (via `env.moveStage` in
+  `pixel-mode-core.js`), so every existing gate still applies: role, the Lost
+  reason sheet, required-field gate, the cancellation-window warning.
+  `pixel-world.js` never calls `moveCard` or any Firestore write itself (test).
+- The game asks YES / NO inside its own dialog (never `window.confirm`, which
+  the installed PWA auto-answers), then judges the result from the lead's
+  stage afterwards, because `moveCard` returns nothing reliable on refusal.
+  A refusal says what usually blocks it and offers OPEN LEAD. A success offers
+  UNDO (moves back through the same path). HP refreshes, since a stage change
+  restarts the lead's clock.
+- Pure rules: `adjacentStages` / `moveOutcome` in `pixel-world-logic.js`
+  (tested, break-tested).
+- **DRAFT TEXT stays disabled, deliberately.** `agent_inbox` has
+  `allow create: if false` in `firestore.rules`; drafts are written only by
+  the server (`crmMcp` / `agent-mcp.js`). A client "draft into the inbox"
+  needs a new callable that runs the same consent / quiet-hours / STOP / claim
+  wording checks, plus rules and emulator tests. That is a functions change,
+  not a client slice, and nothing here may auto-send. Left for its own PR.

@@ -1778,6 +1778,12 @@ async function run() {
     await x34('users/{uid}/' + s + ': viewer (self)',     'allow', setDoc(doc(vx, 'users/vx/' + s), { v: 1 }));
   }
   await x34('userSettings/{uid}: viewer (self)',          'allow', setDoc(doc(vx, 'userSettings/vx'), { theme: 'dark' }));
+  // My Skin per-theme map is bounded (the live snapshot resends the whole doc).
+  const skinThemes = (n) => { const o = {}; for (let i = 0; i < n; i++) o['t' + i] = { images: [] }; return o; };
+  await x34('userSettings mySkin.themes 220 entries: self', 'allow', setDoc(doc(vx, 'userSettings/vx'), { mySkin: { themes: skinThemes(220) } }));
+  await x34('userSettings mySkin.themes 221 entries: self', 'deny',  setDoc(doc(vx, 'userSettings/vx'), { mySkin: { themes: skinThemes(221) } }));
+  await x34('userSettings mySkin without themes: self',     'allow', setDoc(doc(vx, 'userSettings/vx'), { mySkin: { enabled: true } }));
+  await x34('userSettings delete: self',                    'allow', deleteDoc(doc(vx, 'userSettings/vx')));
   await x34('notifications create: viewer (self)',        'allow', setDoc(doc(vx, 'notifications/s34-new-vx'), { userId: 'vx', read: false }));
   await x34('notifications update: viewer (mark read)',   'allow', updateDoc(doc(vx, 'notifications/s34-vx'), { read: true }));
   await x34('notifications delete: viewer (dismiss)',     'allow', deleteDoc(doc(vx, 'notifications/s34-vx')));
@@ -2923,6 +2929,63 @@ async function run() {
   console.log('  60: ' + s60Pass + ' signed-price checks passed, ' + s60Fail.length + ' failed');
   if (s60Fail.length) {
     throw new Error('60 estimates.signedPrice: ' + s60Fail.length + ' check(s) went the wrong way:\n    ' + s60Fail.join('\n    '));
+  }
+
+  // ─── 61. companies/{id}/settings/layout — the admin's layout default / lock (2026-10-11, D2) ───
+  // Read by the whole tenant (the engine resolves a layout at boot); written
+  // by the solo owner or a company_admin of that company ONLY. Positive
+  // control on every write path, negative on every other role / tenant, plus
+  // the shape checks (unknown keys, non-bool lock, junk default id, someone
+  // else's updatedBy) and "no other doc id under settings".
+  const s61Fail = []; let s61Pass = 0;
+  async function x61(label, want, promise) {
+    try { await (want === 'allow' ? assertSucceeds(promise) : assertFails(promise)); s61Pass++; }
+    catch (e) { s61Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const solo61  = env.authenticatedContext('solo61', {}).firestore();
+  const adm61   = env.authenticatedContext('adm61', { role: 'company_admin', companyId: 'co-61' }).firestore();
+  const adm61x  = env.authenticatedContext('adm61x', { role: 'company_admin', companyId: 'co-61-other' }).firestore();
+  const mgr61   = env.authenticatedContext('mgr61', { role: 'manager', companyId: 'co-61' }).firestore();
+  const rep61   = env.authenticatedContext('rep61', { role: 'sales_rep', companyId: 'co-61' }).firestore();
+  const view61  = env.authenticatedContext('view61', { role: 'viewer', companyId: 'co-61' }).firestore();
+  const own61   = env.authenticatedContext('co-61', { role: 'company_admin', companyId: 'co-61' }).firestore();
+  const anon61  = env.unauthenticatedContext().firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'companies/solo61/settings/layout'), { defaultLayout: 'focus', locked: false });
+    await setDoc(doc(d, 'companies/co-61/settings/layout'), { defaultLayout: 'focus', defaultByDevice: { phone: 'field' }, allowed: ['classic', 'focus', 'field'], locked: true });
+  });
+  const L61 = { defaultLayout: 'bento', defaultByDevice: { phone: 'field' }, allowed: ['classic', 'bento', 'field'], locked: false };
+  await x61('solo owner reads their own layout settings', 'allow', getDoc(doc(solo61, 'companies/solo61/settings/layout')));
+  await x61('solo owner writes their layout default', 'allow', setDoc(doc(solo61, 'companies/solo61/settings/layout'), L61));
+  await x61('solo owner locks it (locked: true)', 'allow', setDoc(doc(solo61, 'companies/solo61/settings/layout'), Object.assign({}, L61, { locked: true, updatedBy: 'solo61', updatedAt: '2026-10-11T00:00:00Z' })));
+  await x61('solo owner can delete the setting (back to no company default)', 'allow', deleteDoc(doc(solo61, 'companies/solo61/settings/layout')));
+  await x61('company_admin writes their company default', 'allow', setDoc(doc(adm61, 'companies/co-61/settings/layout'), L61));
+  await x61('the company-keyed owner (uid == companyId) writes it', 'allow', setDoc(doc(own61, 'companies/co-61/settings/layout'), L61));
+  await x61('company_admin of ANOTHER company cannot write it', 'deny', setDoc(doc(adm61x, 'companies/co-61/settings/layout'), L61));
+  await x61('...nor read it', 'deny', getDoc(doc(adm61x, 'companies/co-61/settings/layout')));
+  await x61('manager reads (members see the lock)', 'allow', getDoc(doc(mgr61, 'companies/co-61/settings/layout')));
+  await x61('sales_rep reads it', 'allow', getDoc(doc(rep61, 'companies/co-61/settings/layout')));
+  await x61('viewer reads it', 'allow', getDoc(doc(view61, 'companies/co-61/settings/layout')));
+  await x61('manager cannot write it', 'deny', setDoc(doc(mgr61, 'companies/co-61/settings/layout'), L61));
+  await x61('sales_rep cannot lift the lock', 'deny', setDoc(doc(rep61, 'companies/co-61/settings/layout'), { locked: false }));
+  await x61('sales_rep cannot update one field either', 'deny', updateDoc(doc(rep61, 'companies/co-61/settings/layout'), { locked: false }));
+  await x61('viewer cannot write it', 'deny', setDoc(doc(view61, 'companies/co-61/settings/layout'), L61));
+  await x61('sales_rep cannot delete it', 'deny', deleteDoc(doc(rep61, 'companies/co-61/settings/layout')));
+  await x61('another solo tenant cannot read it', 'deny', getDoc(doc(solo61, 'companies/co-61/settings/layout')));
+  await x61('another solo tenant cannot write someone else\'s', 'deny', setDoc(doc(solo61, 'companies/co-61/settings/layout'), L61));
+  await x61('signed-out reads nothing', 'deny', getDoc(doc(anon61, 'companies/co-61/settings/layout')));
+  await x61('an unknown key is refused', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { admins: ['x'] })));
+  await x61('locked must be a boolean', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { locked: 'yes' })));
+  await x61('a junk default layout id is refused', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { defaultLayout: '../../x' })));
+  await x61('an over-long default layout id is refused', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { defaultLayout: 'a'.repeat(40) })));
+  await x61('defaultByDevice with a surface that does not exist is refused', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { defaultByDevice: { watch: 'field' } })));
+  await x61('allowed over the cap is refused', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { allowed: new Array(41).fill('classic') })));
+  await x61('updatedBy must be the writer', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { updatedBy: 'someone-else' })));
+  await x61('no other doc id under settings', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/other'), { locked: true }));
+  console.log('  61: ' + s61Pass + ' layout-setting checks passed, ' + s61Fail.length + ' failed');
+  if (s61Fail.length) {
+    throw new Error('61 companies/settings/layout: ' + s61Fail.length + ' check(s) went the wrong way:\n    ' + s61Fail.join('\n    '));
   }
 
   console.log('✓ All firestore rules tests passed');

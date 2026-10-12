@@ -76,6 +76,17 @@
       );
     }
 
+    // indexedDB.databases() is missing on older Safari: name My Skin's private
+    // picture cache (nbd-myskin) directly so a reset always drops it.
+    if (window.indexedDB && !indexedDB.databases) {
+      jobs.push(new Promise(function (res) {
+        try {
+          var r = indexedDB.deleteDatabase('nbd-myskin');
+          r.onsuccess = r.onerror = r.onblocked = res;
+        } catch (_) { res(); }
+      }));
+    }
+
     Promise.all(jobs).then(done, done);
   } catch (_) {
     location.replace('/pro/login.html');
