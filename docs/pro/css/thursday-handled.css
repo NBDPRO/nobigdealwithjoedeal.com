@@ -1,0 +1,10 @@
+/* thursday-handled.css — Thursday-handled recap row, Label-sheet toggle and the
+   Call Center panels (js/thursday-handled.js, 2026-10-12). Lazy; loaded with the
+   script only when the `thursdayLabelPlaybooks` flag is on. Theme tokens only. */
+.th-recap-note{margin:2px 0 var(--ui-space-2);color:var(--m);font-size:var(--ui-fs-caption);line-height:var(--ui-lh-body-sm);}
+.th-foot{margin-top:var(--ui-space-3);color:var(--m);font-size:var(--ui-fs-body-sm);}
+.th-sheet{display:flex;flex-direction:column;gap:var(--ui-space-2);}
+.th-sheet .cl-pol{align-self:flex-start;}
+.th-panel{margin:var(--ui-space-3) 0;padding:var(--ui-space-4);border:1px solid var(--br);border-radius:var(--ui-radius-lg);background:var(--s);}
+.th-panel-hd{font-size:var(--ui-fs-heading, 18px);font-weight:var(--ui-fw-heavy);line-height:var(--ui-lh-heading);margin-bottom:var(--ui-space-2);}
+.th-panel .tp-btn{min-height:44px;}
