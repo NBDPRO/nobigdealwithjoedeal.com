@@ -156,4 +156,6 @@ html[data-layout="inbox"] .ib-legend kbd {
   html[data-layout="inbox"] .ib-legend { display: none; }
   html[data-layout="inbox"] .ib-row { min-height: var(--tap); }
   html[data-layout="inbox"] .ib-msg { max-width: 90%; }
+  /* the app bottom nav sits above this overlay and ate taps on the lowest rows; Menu in the rail is the way out */
+  html[data-layout="inbox"] #mobile-nav { display: none !important; }
 }

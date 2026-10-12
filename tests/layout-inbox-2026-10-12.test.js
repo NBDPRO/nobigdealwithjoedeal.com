@@ -221,6 +221,7 @@ console.log('\n9. registry + css');
   ok('control: that check would catch a glass rule on the list', blur.concat(['html[data-layout="inbox"] .ib-list { backdrop-filter: blur(4px)']).some((r) => !/\.my-skin-wallpaper \.ib-rail/.test(r.split('{')[0])));
   ok('timer chips use the red / gold / green tokens', /var\(--red/.test(css) && /var\(--gold/.test(css) && /var\(--green/.test(css));
   ok('no hard-coded colours outside token fallbacks', !/#[0-9a-f]{3,8}\b/i.test(css.replace(/var\(--[a-z-]+,\s*#[0-9a-f]{3,8}\)/gi, '')));
+  ok('on a phone the app bottom nav is hidden (it covered the lowest rows; the E2E caught it)', /@media \(max-width: 768px\)[^]*html\[data-layout="inbox"\] #mobile-nav \{ display: none !important; \}/.test(css));
   ok('sizes come from --tap', (css.match(/var\(--tap\)/g) || []).length >= 3);
 }
 
