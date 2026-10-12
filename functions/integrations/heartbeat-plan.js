@@ -82,6 +82,7 @@ const PLAN = {
 
   callWatch:                 { slug: 'call-followups' },
   callCenterSweep:           { slug: 'call-followups' },
+  awayModeTick:              { slug: 'call-followups' }, // away-mode lane: every 15 min; give it its own check for an independent dead-man
 
   firestoreBackupRetention:  { slug: 'daily-retention' },
   auditLogRetentionCron:     { slug: 'daily-retention' },
