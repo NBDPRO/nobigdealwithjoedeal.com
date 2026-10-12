@@ -385,6 +385,26 @@ service firebase.storage {
       allow delete: if isOwner(uid);
     }
 
+    // Per-theme backgrounds (2026-10): skins/{uid}/themes/{themeId}/{imageId}
+    // One object per picture of a theme's background (a theme can hold up to
+    // 6; Storage rules can't count objects, so the cap is enforced in the
+    // client and in my-skin-logic normalize, and the whole-account total by a
+    // Cloud Function on finalize). Same privacy contract as the slots above:
+    // owner-only read AND write (no admin, no team), shown only via
+    // getBlob() blob: URLs, never a token download URL. themeId is a live
+    // theme id or the reserved _custom (Custom Builder); imageId is
+    // client-minted. Lossy webp/jpeg only (the canvas output), under 3MB.
+    match /skins/{uid}/themes/{themeId}/{imageId} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && themeId.matches('^(_custom|[a-z0-9-]{1,40})$')
+        && imageId.matches('^[a-z0-9]{8,16}$')
+        && request.resource.size < 3 * 1024 * 1024
+        && request.resource.contentType != null
+        && request.resource.contentType.matches('image/(webp|jpeg)');
+      allow delete: if isOwner(uid);
+    }
+
     // ── REEL STUDIO UPLOADS (2026-10-04) ──────────────
     // Path: reel-uploads/{companyId}/{uid}/{mediaId}
     // Phone clips, photos and AI-made graphics for Reel Studio. The page

@@ -811,6 +811,11 @@ function renderLeads(leads, filtered){
   // Surface the leads that were kept off the board because their stage is
   // hidden — otherwise their count + $ silently vanish from the pipeline.
   renderHiddenStageChip(_hiddenStageLeads);
+  // Board strip (Open / Weighted / Going cold + card style switch) and, in rich
+  // density, the roof thumbnails + rep names — pipeline-rich-cards.js.
+  if (window.NBDPipelineRich && typeof window.NBDPipelineRich.afterRender === 'function') {
+    try { window.NBDPipelineRich.afterRender(list); } catch (e) { console.warn('[pipeline-rich] after-render failed', e); }
+  }
   // "N customers have no job type — Sort them" (sort-customers.js).
   if (window.NBDSortCustomers && typeof window.NBDSortCustomers.refresh === 'function') {
     try { window.NBDSortCustomers.refresh(); } catch (e) { console.warn('[sort-customers] banner failed', e); }
@@ -1549,10 +1554,20 @@ function buildCard(l){
     ? `<span class="kc-tag cpx-bgrgba1946-cc2410c-borc2410c" title="This lead has an open warranty claim">🛟 Open Claim</span>`
     : '';
 
+  // Rich density (2026-10-11, C5): roof thumbnail, squares, type + hail chips,
+  // aging heat bar, next step + due, rep avatar — pipeline-rich-cards.js.
+  // '' in every other density, so the three classic sizes are unchanged.
+  let richBlock = '';
+  if (window.NBDPipelineRich && typeof window.NBDPipelineRich.blockFor === 'function') {
+    try { richBlock = window.NBDPipelineRich.blockFor(l, { stageKey: _sk, terminal: isTerminal, photos: orderedPhotos }); }
+    catch (_) { richBlock = ''; }
+  }
+
   let html = `<div class="k-card nbd-kc-main ${stageAgingClass}" draggable="true" data-id="${safeId}"${jobAttr} data-action="card-click">
     <div class="k-card-checkbox nbd-kc-stop" data-action="toggle-select" data-id="${safeId}">
       <span class="k-card-checkbox-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="cpx-wd11px-hei11px-vermiddle"><path d="M4 10.5l4 4 8-9"/></svg></span>
     </div>
+    ${richBlock}
     <!-- R6: value gets its own row.
          History: R4 moved value out of the left cluster and into the
          right cluster alongside the est/photo count chips, on the

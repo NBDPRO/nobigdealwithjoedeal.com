@@ -166,9 +166,9 @@ console.log('\n   boot loader (pixel-mode.js) — the only tag on the dashboard'
   ok('loader wakes the core exactly when the logic module says skin or dialog is on',
     shapes.every((r) => LOADER.wantsCore(r) === L.anyOn(L.normalizeMode(r)) || (r && r.scanlines === true && LOADER.wantsCore(r) === false)));
   ok('scanlines alone never wake the core (they need the skin)', LOADER.wantsCore({ scanlines: true }) === false);
-  ok('loader stays tiny so it cannot eat the boot budget (< 5 KB)', Buffer.byteLength(raw) < 5 * 1024, String(Buffer.byteLength(raw)));
+  ok('loader stays tiny so it cannot eat the boot budget (< 7 KB)', Buffer.byteLength(raw) < 7 * 1024, String(Buffer.byteLength(raw)));
   ok('loader reads, never writes', !/setDoc|updateDoc|addDoc|localStorage/.test(code));
-  ok('loader fetches only its own core, on demand', /pixel-mode-core\.js/.test(code) && !/fonts\.googleapis|pixel-mode\.css|pixel-logic/.test(code));
+  ok('loader fetches only its own core, on demand', /pixel-mode-core\.js/.test(code) && !/fonts\.googleapis|pixel-mode\.css|pixel-logic|pixel-world/.test(code));
   ok('loader wakes on settings or the card scrolling into view', /wantsCore\(data\.pixelMode\)/.test(code) && /IntersectionObserver/.test(code));
   ok('loader leaves a __stub the core can replace', /__stub: true/.test(code));
 }

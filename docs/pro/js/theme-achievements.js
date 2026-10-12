@@ -221,10 +221,20 @@
         }).catch(err => console.warn('Failed to save unlock:', err));
       }
 
-      // Show unlock toast
+      // Announce the unlock. trophy-case.js (C3, 2026-10-11) listens for this
+      // and shows the console-style toast; with it loaded the old banner below
+      // stays quiet (one toast per unlock, never two).
       const achievement = ACHIEVEMENTS.find(a => a.themeKey === achievementKey);
       if (achievement) {
-        this._showUnlockToast(achievement);
+        try {
+          document.dispatchEvent(new CustomEvent('themeunlock', { detail: {
+            themeKey: achievement.themeKey, name: achievement.name,
+            icon: achievement.icon, description: achievement.description
+          } }));
+        } catch (_) { /* a listener must never block the unlock */ }
+        if (!(window.NBDTrophyCase && window.NBDTrophyCase.handlesToasts)) {
+          this._showUnlockToast(achievement);
+        }
       }
     },
 
@@ -295,6 +305,7 @@
           <div class="achievement-header">
             <h2>Achievement Themes</h2>
             <p class="unlock-count">${unlockedCount} of ${ACHIEVEMENTS.length} Unlocked</p>
+            ${window.NBDTrophyCase ? '<button type="button" class="try-theme-btn" data-tc-open="1">Open Trophy Case</button>' : ''}
           </div>
           <div class="achievement-grid">
       `;
