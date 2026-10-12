@@ -325,7 +325,7 @@ function publicConfig(priv) {
   return {
     ackWindowMin: priv.ackWindowMin, awayWindowMin: priv.awayWindowMin,
     backup: { memberEmail: b.memberEmail || null, external: b.external ? { name: b.external.name, phone: b.external.phone, email: b.external.email, consentAtMs: b.external.consentAtMs } : null },
-    schedule: priv.schedule, nameBackupToCallers: priv.nameBackupToCallers,
+    schedule: priv.schedule, 
     playbook: { draft: priv.playbook.draft, approved: !!priv.playbook.approvedHash, approvedAtMs: priv.playbook.approvedAtMs, hash: L.hashText(priv.playbook.draft || '') },
   };
 }
@@ -378,7 +378,10 @@ async function handleManageAway(request, deps) {
   // Owner / company_admin of the caller's OWN company only (requireTeamAdmin
   // also refuses a disabled account and a subordinate role without a
   // companyId). deps.requireAdmin is a test seam; production never passes it.
-  const caller = await ((deps && deps.requireAdmin) || requireTeamAdmin)(request);
+  // Naming the backup and approving the wording are OWNER-ONLY (a company_admin
+  // may still switch Away on/off and review the hand-back).
+  const ownerOnly = L.OWNER_ONLY_ACTIONS.includes(action);
+  const caller = await ((deps && deps.requireAdmin) || requireTeamAdmin)(request, null, ownerOnly ? { ownerOnly: true } : null);
   const cid = caller.companyId;
   const privRef = db.doc(COL_PRIVATE + '/' + cid);
   const loadPriv = async () => L.normalizeConfig((await privRef.get()).data());
@@ -502,7 +505,7 @@ async function handleManageAway(request, deps) {
       const company = ((await db.doc('companies/' + cid).get()).data() || {}).name;
       const draft = L.playbookDraft({
         companyName: company, ownerName: await ownerFirstName(cid), untilMs: st && st.away && st.away.untilMs,
-        nameBackup: priv.nameBackupToCallers, backupName: st && st.backup && st.backup.name,
+
       });
       return { ok: true, draft, hash: L.hashText(draft) };
     }

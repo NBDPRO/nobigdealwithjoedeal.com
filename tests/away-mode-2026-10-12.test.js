@@ -188,9 +188,9 @@ const resolve = (o) => L.resolveBackupNotifications(Object.assign({ config: cfg(
 
   console.log('J. customer wording — draft is never used, approval is bound to the text');
   {
-    const draft = L.playbookDraft({ companyName: 'No Big Deal Home Solutions', ownerName: 'Joe Deal', untilMs: Date.parse('2026-10-16T22:00:00Z'), nameBackup: false, backupName: 'Sam' });
+    const draft = L.playbookDraft({ companyName: 'No Big Deal Home Solutions', ownerName: 'Joe Deal', untilMs: Date.parse('2026-10-16T22:00:00Z'), backupName: 'Sam' });
     ok('draft names the date and does not name the backup unless asked', /Friday, October 16/.test(draft) && !/Sam/.test(draft));
-    ok('draft names the backup only when the owner ticked it', /Sam is covering/.test(L.playbookDraft({ ownerName: 'Joe', nameBackup: true, backupName: 'Sam R' })));
+    ok('draft NEVER names the backup, even when asked (callers hear the owner is away)', !/Sam/.test(L.playbookDraft({ ownerName: 'Joe', nameBackup: true, backupName: 'Sam R' })) && cfg({ nameBackupToCallers: true }).nameBackupToCallers === false && L.validateSave({ nameBackupToCallers: true }).config.nameBackupToCallers === false);
     ok('draft makes no outcome / claim promise', !/guarantee|approved|insurance|claim|free|cover(ed)? by/i.test(draft));
     const away = { on: true, startMs: NOW - H, untilMs: NOW + D };
     ok('no approved text → null (the draft is never used)', L.thursdayAwayContext({ playbook: { draft } }, away, NOW) === null);
@@ -439,6 +439,33 @@ const resolve = (o) => L.resolveBackupNotifications(Object.assign({ config: cfg(
     ok('reviewed ignores a client-supplied window id', ![...dbC.store.keys()].some((k) => k.startsWith('away_windows/')));
   }
 
+  console.log('Q. owner-only: naming the backup and approving wording (finding F4, Jo 2026-10-12)');
+  {
+    const { teamAdminDecision } = require(path.join(ROOT, 'functions/handlers/_shared.js'));
+    const ca = { uid: 'adm', claims: { role: 'company_admin', companyId: 'own' }, companyId: 'own', ownerId: 'own', companyExists: true };
+    ok('real decision: a company_admin passes the normal gate', teamAdminDecision(ca).allow === true);
+    ok('real decision: a company_admin FAILS the ownerOnly gate', teamAdminDecision(Object.assign({}, ca, { ownerOnly: true })).allow === false);
+    ok('real decision: the owner passes the ownerOnly gate', teamAdminDecision({ uid: 'own', claims: {}, companyId: 'own', ownerId: 'own', companyExists: true, ownerOnly: true }).allow === true);
+    ok('the owner-only action list is exactly get / save / playbook*', L.OWNER_ONLY_ACTIONS.slice().sort().join() === 'get,playbookApprove,playbookDraft,playbookSave,save');
+    // Drive the callable through a gate that mimics requireTeamAdmin honoring ownerOnly.
+    const dbO = fakeDb({ 'companies/own/members/sam@x.com': member() });
+    const gate = async (req, target, opts) => {
+      if (req.auth.uid === 'adm' && opts && opts.ownerOnly) { const e = new Error('Owner or admin access required'); e.code = 'permission-denied'; throw e; }
+      return { uid: req.auth.uid, companyId: 'own' };
+    };
+    const run = (uid, data) => I.handleManageAway({ auth: { uid, token: {} }, data }, { db: dbO, nowMs: NOW, requireAdmin: gate, loadItems: items([]) });
+    for (const data of [{ action: 'save', backup: { kind: 'member', memberEmail: 'sam@x.com' } }, { action: 'playbookDraft' }, { action: 'playbookSave', text: 'Hi' }, { action: 'playbookApprove', hash: 'x' }, { action: 'get' }]) {
+      await rejects('company_admin cannot ' + data.action, run('adm', data), /permission-denied|Owner or admin/);
+    }
+    const sv = await run('own', { action: 'save', backup: { kind: 'member', memberEmail: 'sam@x.com' } });
+    ok('the owner can name the backup', sv.ok === true);
+    const on = await run('adm', { action: 'setAway', on: true, untilMs: NOW + D });
+    ok('a company_admin can still switch Away on', on.ok === true && on.status.away.on === true);
+    ok('...and mark themselves back / review', (await run('adm', { action: 'imBack' })).ok === true && (await run('adm', { action: 'reviewed' })).ok === true);
+    const src = read('functions/away-mode.js').replace(/\/\*[\s\S]*?\*\//g, '');
+    ok('source: the gate passes { ownerOnly: true } for the owner-only list', /OWNER_ONLY_ACTIONS\.includes\(action\)/.test(src) && /\{ ownerOnly: true \}/.test(src));
+  }
+
   console.log('P. review findings (2026-10-12 security review)');
   {
     const seedTenant = (extra, ledgerItems, away) => fakeDb(Object.assign({
@@ -557,7 +584,7 @@ const resolve = (o) => L.resolveBackupNotifications(Object.assign({ config: cfg(
     const server = read('functions/away-mode.js'), logic = read('functions/away-mode-logic.js');
     const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
     const sc = code(server);
-    ok('owner actions go through requireTeamAdmin', /requireTeamAdmin/.test(sc) && /await \(\(deps && deps\.requireAdmin\) \|\| requireTeamAdmin\)\(request\)/.test(sc));
+    ok('owner actions go through requireTeamAdmin', /requireTeamAdmin/.test(sc) && /await \(\(deps && deps\.requireAdmin\) \|\| requireTeamAdmin\)\(request, null,/.test(sc));
     ok('the callable takes no companyId argument (tenant comes from the token)', !/data\.companyId|data\.cid|request\.data\.company/.test(sc));
     ok('the callable enforces App Check', /enforceAppCheck: true/.test(sc));
     ok('away-mode.js never writes a lead, call, task or customer doc', !/collection\('(leads|phone_calls|phone_text_days|tasks|customers)'\)\s*\.(doc|add)|doc\('(leads|phone_calls|phone_text_days)\//.test(sc));

@@ -43,6 +43,9 @@ const TOUCH_ACTIONS = Object.freeze(['took', 'called', 'cant_reach', 'note', 'do
 const TOUCH_LABEL = Object.freeze({
   took: "I'm on it", called: 'Called', cant_reach: "Couldn't reach", note: 'Note', done: 'Says done',
 });
+// Owner-only (not company_admin): these grant another person visibility of
+// customers, or set what callers are told (Jo, 2026-10-12; review finding F4).
+const OWNER_ONLY_ACTIONS = Object.freeze(['get', 'save', 'playbookDraft', 'playbookSave', 'playbookApprove']);
 const TZ = 'America/New_York';
 const QUIET_START_HOUR = 21;   // 21:00 ET ...
 const QUIET_END_HOUR = 8;      // ... to 08:00 ET (matches SEND_WINDOW in sms-outbox-guard.js)
@@ -125,7 +128,7 @@ function normalizeConfig(raw) {
       } : null,
     },
     schedule: { unavailable: cleanSchedule(r.schedule && r.schedule.unavailable) },
-    nameBackupToCallers: r.nameBackupToCallers === true,
+    nameBackupToCallers: false,   // never: callers hear that the owner is away, not who covers (Jo, 2026-10-12)
     playbook: {
       draft: cleanMultiline(pb.draft, LIMITS.playbookMax),
       approved: cleanMultiline(pb.approved, LIMITS.playbookMax),
@@ -182,7 +185,6 @@ function validateSave(input, now) {
     } else return { ok: false, error: 'Unknown backup type.' };
   }
   if (i.schedule !== undefined) out.schedule = { unavailable: cleanSchedule(i.schedule && i.schedule.unavailable) };
-  if (i.nameBackupToCallers !== undefined) out.nameBackupToCallers = i.nameBackupToCallers === true;
   return { ok: true, config: out };
 }
 
@@ -471,7 +473,7 @@ function playbookDraft(args) {
   const when = until ? 'until ' + new Date(until).toLocaleDateString('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric' }) : 'for a few days';
   const co = cleanLine(a.companyName, 60) || 'No Big Deal Home Solutions';
   const owner = firstName(a.ownerName) || 'the owner';
-  const cover = a.nameBackup && firstName(a.backupName) ? ' ' + firstName(a.backupName) + ' is covering the phones and will follow up.' : '';
+  const cover = '';   // the wording never names who covers (Jo, 2026-10-12)
   return cleanMultiline(
     'Thanks for calling ' + co + '. ' + owner + ' is out of the office ' + when + '.' + cover +
     ' I can take your name, number and what you need, and ' + owner + ' will call you back as soon as he is back.' +
@@ -518,7 +520,7 @@ function autoReplyAllowed(a) {
 }
 
 module.exports = {
-  DEFAULTS, LIMITS, TOUCH_ACTIONS, TOUCH_LABEL, QUIET_START_HOUR, QUIET_END_HOUR,
+  DEFAULTS, LIMITS, OWNER_ONLY_ACTIONS, TOUCH_ACTIONS, TOUCH_LABEL, QUIET_START_HOUR, QUIET_END_HOUR,
   toMs, cleanLine, digits10, validPhone10, validEmail, inQuietHours, etYmd, fmtUntil,
   normalizeConfig, validateSave, verifyBackup, externalBackup,
   awayWindowState, isInUnavailableWindow, shortName, firstName,

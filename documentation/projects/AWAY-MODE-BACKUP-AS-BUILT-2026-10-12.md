@@ -34,17 +34,18 @@ What shipped differs from the design sketch in these places.
   is shown as "A caller"; bidi-override and zero-width characters are stripped.
 - **Expiry never depends on the item query.** If the open-items read fails at
   hand-back time, every touched item is returned to the owner as still open.
-- **Who may designate a backup.** `requireTeamAdmin` (owner or a company_admin
-  of the company). The review flagged that a company_admin can also approve
-  Thursday's wording; making these owner-only is one option (`ownerOnly: true`)
-  and is **decision 8 below**.
-
-## Decision 8 (new, added to the design note's seven)
-
-Should naming the backup and approving the away wording be **owner only**
-(today: owner or company_admin)? A company_admin already reads every lead and
-number, so the backup push adds no new data; the wording approval is the one new
-capability. Default kept as-is until Jo says.
+- **Owner-only (decision 8, Jo 2026-10-12; review finding F4).** Naming the
+  backup, reading the config and approving/saving the away wording go through
+  `requireTeamAdmin(..., { ownerOnly: true })`: a company_admin is refused. F4
+  was: "a rogue or compromised company_admin could name themselves backup and
+  approve what Thursday says". A company_admin may still switch Away on/off,
+  mark "I'm back" and review the hand-back.
+- **Confirmed defaults (Jo 2026-10-12).** A viewer cannot be a backup. The
+  backup sees a call-back number. The backup's "done" is advisory and never
+  marks a call handled. The wording never names the backup to callers (it says
+  the owner is away); `nameBackupToCallers` is forced false. 21-day cap;
+  quiet hours 21:00-08:00 ET with urgent exempt for a staff push; timings
+  120 / 30 / 240 min stay (tunable per company in Settings).
 
 ## Turning it on
 
