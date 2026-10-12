@@ -22,7 +22,7 @@ disagree, **this section wins** (§2's `hide` row and §9 are corrected in place
 | --- | --- | --- | --- |
 | 1 | Kinds | **Keep all 11.** Labels are free. | Registry unchanged. |
 | 2 | contractor vs sub, recruiter | **Stay distinct; recruiter stays.** | Registry unchanged. |
-| 3 | Does `hide` swallow a promise? | **No — a promise ALWAYS surfaces.** `hide` drops noise (urgent, missed, unknown-number); a promise / task / callback Jo created from that call still shows, tagged "hidden number". Safety valve: a hidden number that matches a lead, or calls 3+ times in 24 h, resurfaces **once** ("hidden number is calling a lot"); Jo can re-hide. | Built in **phase 2a (PR #2375)**; reverses phase 1's "hide beats a promise". |
+| 3 | Does `hide` swallow a promise? | **No — a promise ALWAYS surfaces.** `hide` drops noise (missed, unknown-number); a promise / task / callback Jo created from that call still shows, tagged "hidden number". **Urgent breakthrough (reliability audit, 2026-10-12):** a hidden *personal* number's urgent call also still shows; a *spam*-labeled number's does not (robocalls claim urgency); `quiet` stays promise / due-callback only. Safety valve: a hidden number that matches a lead, or calls 3+ times in 24 h, resurfaces **once** ("hidden number is calling a lot"); Jo can re-hide. | Built in **phase 2a (PR #2375)**; reverses phase 1's "hide beats a promise". |
 | 4 | Reps | **No read, no write** (NBD has no salespeople; call privacy). Deferred: a read-only chip on calls matched to a rep's OWN leads, no write. | Rules unchanged; the deferred chip is listed under 2b below. |
 | 5 | Seed suggestions | **Yes, one- or two-tap confirm, everywhere sensible.** Sources: contact tags, Thursday caller types, lead match, repeated-call patterns. Chip = Accept / Not this (per-number dismiss, remembered). **Never auto-apply a kind that hides.** | Phase 2b. |
 | 6 | `personal` stops transcription/storage | **Yes**, behind the label, with a clear confirm and a note of what already-stored data is untouched. | Phase 2c. |
@@ -221,7 +221,7 @@ promise Jo made on a call.
 | --- | --- | --- | --- |
 | `surface` | normal rules (`callNeedsYou`) | listed, chip | the default for an unlabeled number |
 | `quiet` | counts **only** if Jo promised something | listed, chip | "log it, don't nag me" |
-| `hide` | drops urgent / missed / unknown-number noise; **a promise Jo made still surfaces** (2026-10-12) | only under the "Hidden" filter and in All, chip | personal, spam |
+| `hide` | drops missed / unknown-number noise; **a promise Jo made, a due callback and (non-spam) an urgent call still surface** (2026-10-12) | only under the "Hidden" filter and in All, chip | personal, spam |
 
 Precedence: explicit label **>** lead match **>** AI `callType` / `bucket` /
 tags. (A number on a lead is a customer *unless Jo explicitly labels it
