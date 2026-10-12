@@ -226,7 +226,7 @@
     surfaces: SURFACES, tier: 'free',
     script: 'js/layouts/mission.js', css: 'css/layouts/mission.css',
     needs: {
-      script: ['js/layouts/kit.js', 'js/layouts/mapview.js', 'js/layouts/mission-logic.js'],
+      script: ['js/layouts/kit.js', 'js/layouts/mapview.js', 'js/layouts/mission-logic.js', 'js/layouts/routeplan.js'],
       css: ['css/layouts/kit.css', 'css/layouts/mapview.css'],
     },
     supports: { wallpaper: false, glass: false, sunlight: false },
