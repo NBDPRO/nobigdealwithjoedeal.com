@@ -121,6 +121,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
     } catch (e) { logger.warn('[callWatch] outbox delivery stamp skipped', { err: e && e.message }); }
   }
 
+  let pushRes = null;
   const problemsToldAt = {};
   problems.forEach((p) => { problemsToldAt[p.key] = (tell.some((t) => t.key === p.key) ? nowMs : W.toMs((st.problemsToldAt || {})[p.key])) || nowMs; });
   const toldIds = needs.map((n) => n.id).concat([...told]).slice(0, 400);
@@ -129,10 +130,19 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
       userId: OWNER, type: 'call_watch', title: alert.title, message: alert.message, priority: alert.priority,
       clickUrl: alert.clickUrl, read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
     });
-    try { await push(OWNER, alert.title.replace(/^📞 /, ''), alert.push, { type: 'call_watch', clickUrl: alert.clickUrl }); }
-    catch (e) { logger.warn('[callWatch] push failed', { err: e && e.message }); }
+    try { pushRes = await push(OWNER, alert.title.replace(/^📞 /, ''), alert.push, { type: 'call_watch', clickUrl: alert.clickUrl }); }
+    catch (e) { logger.warn('[callWatch] push failed', { err: e && e.message }); pushRes = { sent: 0, failed: 0, errors: [String(e && e.message)] }; }
   }
-  await stateRef.set({ lastCheckAtMs: nowMs, lastResult: counts, problems: problems.map((p) => p.key), problemsToldAt, toldIds }, { merge: false });
+  // Audit R2: the push RESOLVES {sent:0} when no phone is registered or every
+  // token failed. Record it, and fail the run after the state is written so
+  // the heartbeat pings /fail (Healthchecks emails Jo): the bell is the only
+  // thing that told him.
+  const pushUnreached = !!(alert && pushRes && typeof pushRes === 'object' && pushRes.sent === 0);
+  await stateRef.set({
+    lastCheckAtMs: nowMs, lastResult: counts, problems: problems.map((p) => p.key), problemsToldAt, toldIds,
+    lastPush: alert ? { atMs: nowMs, sent: pushRes && pushRes.sent != null ? Number(pushRes.sent) : null, failed: pushRes && pushRes.failed != null ? Number(pushRes.failed) : null } : (st.lastPush || null),
+  }, { merge: false });
+  if (pushUnreached) throw new Error('callWatch: the alert reached 0 devices (no push token on file, or every token failed) — only the in-app bell was written');
   return Object.assign({ state: alert ? 'alerted' : 'quiet' }, counts);
 }
 
