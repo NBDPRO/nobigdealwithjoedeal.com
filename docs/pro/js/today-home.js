@@ -218,9 +218,10 @@
       var lab = LB && r.phone ? LB.get(r.phone) : null;
       var LG = w.NBDContactLabelsLogic;
       var chip = lab && LG ? LG.chipFor(lab) : null;
+      if (r.resurfaced) sub += (sub ? ' · ' : '') + '<b class="tp-hot">' + (r.resurfaced === 'lead' ? 'hidden number matches a customer' : 'hidden number is calling a lot') + '</b>';
       if (chip) sub += (sub ? ' · ' : '') + '<span class="cl-chip cl-chip-' + chip.tone + '" title="' + esc(chip.title) + '">🏷 ' + esc(chip.text) + '</span>';
       var canLabel = !ro && r.phone && (((w._userClaims || {}).role || '') !== 'sales_rep');
-      var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + (canLabel ? btn('label', r.key, '🏷 Label') : '') + (r.promise ? kept : (ro ? '' : btn('handled', r.key, '✓ Handled', 'tp-go')));
+      var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + (canLabel && r.resurfaced ? btn('rehide', r.key, 'Keep hidden') : '') + (canLabel ? btn('label', r.key, '🏷 Label') : '') + (r.promise ? kept : (ro ? '' : btn('handled', r.key, '✓ Handled', 'tp-go')));
       return row(r.key, esc(r.name || fmtPhone(r.phone) || 'Unknown caller'), sub, acts);
     });
     // Promises (2026-10-12): each one listed with its why and its miss count;
@@ -292,7 +293,9 @@
       wdays = '<label class="tp-wait-step">after <select data-tp-wdays aria-label="Show waiting items after this many days">' + opts + '</select> days</label>';
     }
     var body = section('appts', 'Appointments', a) + section('promises', 'Promises', pm) + section('calls', 'Calls owed', c) + section('promised', 'Promised follow-ups', pr) + section('estimates', 'Estimates to follow up', e) +
-      section('money', 'Money to collect', m) + section('waiting', 'Waiting on them', wt, wdays) + section('stalled', 'Stalled leads', s, deck);
+      section('money', 'Money to collect', m) + section('waiting', 'Waiting on them', wt, wdays) + section('stalled', 'Stalled leads', s, deck) +
+      // Thursday's calls + the daily "handled" recap (js/thursday-handled.js; '' until loaded, flag-gated).
+      (w.NBDThursdayHandled ? w.NBDThursdayHandled.todayHtml() : '');
     // No item has been waited out yet: say how many are quietly waiting, and keep
     // the threshold reachable (otherwise the stepper would only exist once it is too late).
     var quiet = !wt.length && pend ? '<div class="tp-sub tp-waitquiet">' + pend + (pend === 1 ? ' item' : ' items') + ' waiting on others, not due for a nudge yet' + (wdays ? ' · ' + wdays : '') + '</div>' : '';
@@ -400,6 +403,7 @@
     if (isViewer()) return;
     if (/^(pkept|pmove|pdead|pstill|pnudge|ckept|cmove)$/.test(a)) { promiseAct(a, key, t.getAttribute('data-tp-id') || ''); return; }
     if (a === 'label') { openLabel(key); return; }
+    if (a === 'rehide') { rehide(key); return; }
     // Handling a call asks what Jo owes (the promise sheet); Nothing owed is the old Handled.
     if (a === 'handled') { handleViaSheet(key); return; }
     act(a, key).catch(function (e) { console.warn('[today] action failed', e); });
@@ -468,6 +472,12 @@
     w.NBDPromise.setWaitingDays(s.value).then(function () { schedule(); });
   });
 
+  // "Keep hidden": a hidden number came back; acknowledge it (label ackAtMs).
+  function rehide(key) {
+    var r = findRow(key);
+    if (!r || !r.phone || !w.NBDContactLabels) return;
+    w.NBDContactLabels.ack(r.phone);
+  }
   // 🏷 Label: the sheet lives in the lazy 'contactlabels' bundle.
   function openLabel(key) {
     var r = findRow(key);
@@ -483,7 +493,7 @@
     else open();
   }
 
-  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups', 'nbd:labels-changed'].forEach(function (n) { w.addEventListener(n, schedule); });
+  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups', 'nbd:labels-changed', 'nbd:thursday-handled-changed'].forEach(function (n) { w.addEventListener(n, schedule); });
   w.addEventListener('hashchange', function () {
     if (/^#?\/?(home)?$/.test(location.hash || '')) { loadAppointments(false); setTimeout(render, 200); }
   });

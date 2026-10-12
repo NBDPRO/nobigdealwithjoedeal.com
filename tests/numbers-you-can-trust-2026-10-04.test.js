@@ -193,7 +193,7 @@ const ago = (d) => NOW - d * DAY;
     ok('a manager is not the owner → no spend read/write', win.NBDNumbersData.isOwner() === false && (await win.NBDNumbersData.loadSpend()) === null);
     const rules = read('firestore.rules');
     const blk = rules.slice(rules.indexOf('match /owner_numbers/{docId}'), rules.indexOf('match /owner_numbers/{docId}') + 900);
-    ok('rules: owner_numbers readable by the owner only (uid == companyId or ownerId)', /allow read: if isAdmin\(\)\s*\|\| \(isAuth\(\) && request\.auth\.uid == companyId\)/.test(blk) && /ownerId == request\.auth\.uid/.test(blk));
+    ok('rules: owner_numbers readable by the owner only (uid == companyId or ownerId)', /allow read: if isAdmin\(\)\s*\|\|\s*(?:ownsTenantByUid\(companyId\)|\(isAuth\(\) && request\.auth\.uid == companyId\))/.test(blk) && /ownerId == request\.auth\.uid/.test(blk));
     ok('rules: clients can never write referral_clicks_*', /!docId\.matches\('referral_clicks_\.\*'\)/.test(blk));
   });
 

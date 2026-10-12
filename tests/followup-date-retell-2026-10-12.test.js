@@ -51,7 +51,9 @@ const call = { id: 'c1', contactName: 'Bob', leadId: 'L1', followUpDate: '2026-1
   const r1 = await runWatch({ db, nowMs: FRI_8AM, live: true, push });
   ok('Friday 8 AM: the already-told call is pushed again because its date came due', r1.state === 'alerted' && pushes.length === 1 && /follow-up due/.test(pushes[0][2]), JSON.stringify(r1));
   const r2 = await runWatch({ db, nowMs: FRI_8AM + 2 * H, live: true, push });
-  ok('10 AM: not repeated', r2.state === 'quiet' && pushes.length === 1, JSON.stringify(r2));
+  // With the re-tell ladder (feat/call-ladder) the open follow-up is told again 2 h
+  // later as a 'still open' reminder; what must NOT happen is a second 'due' tell.
+  ok('10 AM: not told as a new due item again (only the ladder reminder, if any)', r2.needs === 0 && (r2.state === 'quiet' ? pushes.length === 1 : (r2.retold === 1 && /still open/.test(pushes[1][2]))), JSON.stringify(r2));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);

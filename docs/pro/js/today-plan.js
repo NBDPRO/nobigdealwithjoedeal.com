@@ -480,6 +480,8 @@
         urgent: open.some(function (c) { return c.urgent === true; }),
         missed: open.some(function (c) { return c.channel !== 'text' && c.status === 'short' && c.direction === 'inbound'; }),
         text: open.some(function (c) { return c.channel === 'text' || /^text:/.test(String(c.id || '')); }),
+        // A hidden number that came back (home-attention.js resurfacedNumbers).
+        resurfaced: g.resurfaced || '',
         summary: String(latest.summary || '').slice(0, 140),
         latestMs: toMs(latest.startedAtMs) || 0,
         // What Jo said he would do (the AI's note), to pre-fill the promise sheet's why.

@@ -11,9 +11,13 @@
  *                    coming soon" and no switch: the server refuses every
  *                    text from it until registration exists.
  *   Do Not Text      the company's internal list (sms_dnc). Anyone but a
- *                    viewer adds a number; owner / company_admin remove a
- *                    manual entry. A homeowner's STOP reply shows here too
- *                    and can't be removed — only their START reply lifts it.
+ *                    viewer adds a number. Owner / company_admin LIFT one of
+ *                    the company's own entries (a manual add, or a STOP it
+ *                    recorded from its own phone) when the homeowner says
+ *                    texting is OK again: a sheet asks for the reason, and
+ *                    the entry stays as history (Jo, 2026-10-07). A STOP the
+ *                    homeowner texted to the texting line shows here too and
+ *                    can't be lifted — only their START reply lifts it.
  *
  * Renders into #smsComplianceMount when the 'ai-texting' Settings tab opens
  * (switchSettingsTab is wrapped, the ai-texting-persona.js /
@@ -91,19 +95,58 @@
     </div>`;
   }
 
+  /**
+   * May this entry be lifted from here? The server decides (liftDnc refuses
+   * anything else); `liftable` is its answer in listDnc. A list from a server
+   * older than that field: only a manual entry.
+   */
+  function liftableEntry(e) {
+    if (!e || e.lifted) return false;
+    if (typeof e.liftable === 'boolean') return e.liftable;
+    return e.source !== 'stop_reply';
+  }
+
+  /** What the row says about where the entry came from. */
+  function entryLabel(e) {
+    if (e.lifted) {
+      const on = e.liftedAtMs ? ' ' + new Date(e.liftedAtMs).toLocaleDateString() : '';
+      return 'Texting OK again — lifted' + on + (e.liftReason ? ' · ' + e.liftReason : '');
+    }
+    if (e.source === 'stop_reply') {
+      if (liftableEntry(e)) return 'Replied STOP to your phone (recorded by your team)';
+      return 'Opted out by text — only their START reply lifts it';
+    }
+    return 'Added by your team' + (e.note ? ' · ' + e.note : '');
+  }
+
+  function liftSheetHtml(e) {
+    const p = prettyPhone(e);
+    return `<div class="card-7 mb-12" role="group" aria-label="Lift ${esc(p)}">
+        <div class="body-13 mb-12">Lift ${esc(p)}? Only do this when the homeowner told you texting is OK again.</div>
+        <label class="meta-10" for="sccLiftReason">Reason (required) — what they said, and when</label>
+        <textarea id="sccLiftReason" class="ui-input-lg mb-12" rows="3" maxlength="300" placeholder="Homeowner said on the 10/8 call texts are fine"></textarea>
+        <div class="meta-10 mb-12">Saved with your name and today's date. The entry stays on the list as history.</div>
+        <div class="fwgap-8">
+          <button type="button" class="btn btn-orange" data-scc-action="lift-confirm" data-scc-phone="${esc(e.key)}">Lift</button>
+          <button type="button" class="btn btn-ghost" data-scc-action="lift-cancel">Cancel</button>
+        </div>
+      </div>`;
+  }
+
   function listHtml(entries) {
     const admin = isAdmin();
+    const liftKey = _state && _state.liftKey;
     const rows = (entries || []).map((e) => {
-      const stop = e.source === 'stop_reply';
-      const label = stop ? 'Replied STOP — only their START reply lifts it' : ('Added by your team' + (e.note ? ' · ' + e.note : ''));
       const when = e.addedAtMs ? new Date(e.addedAtMs).toLocaleDateString() : '';
-      return `<div class="row-card mb-12">
+      const canLift = admin && liftableEntry(e);
+      const row = `<div class="row-card mb-12">
         <div>
           <div class="body-13">${esc(prettyPhone(e))}</div>
-          <div class="meta-10">${esc(label)}${when ? ' · ' + esc(when) : ''}</div>
+          <div class="meta-10">${esc(entryLabel(e))}${when && !e.lifted ? ' · ' + esc(when) : ''}</div>
         </div>
-        ${!stop && admin ? `<button type="button" class="btn btn-ghost" data-scc-action="remove" data-scc-phone="${esc(e.key)}" aria-label="Take ${esc(prettyPhone(e))} off the Do Not Text list">Remove</button>` : ''}
+        ${canLift ? `<button type="button" class="btn btn-ghost" data-scc-action="lift" data-scc-phone="${esc(e.key)}" aria-label="Lift ${esc(prettyPhone(e))} — they said texting is OK">Lift</button>` : ''}
       </div>`;
+      return row + (canLift && liftKey && liftKey === e.key ? liftSheetHtml(e) : '');
     }).join('');
     const add = isViewOnly() ? '' : `<div class="fwgap-8 mb-md">
         <input type="tel" id="sccPhone" class="ui-input-lg" placeholder="Phone number" autocomplete="off" aria-label="Phone number to add to the Do Not Text list">
@@ -170,16 +213,41 @@
       } catch (e) { toast((e && e.message) || 'Could not add', 'error'); t.disabled = false; }
       return;
     }
-    if (action === 'remove') {
+    if (action === 'lift') {
+      if (!_state) return;
+      _state.liftKey = t.getAttribute('data-scc-phone') || null;
+      render();
+      const box = document.getElementById('sccLiftReason');
+      if (box && typeof box.focus === 'function') box.focus();
+      return;
+    }
+    if (action === 'lift-cancel') {
+      if (_state) { _state.liftKey = null; render(); }
+      return;
+    }
+    if (action === 'lift-confirm') {
       const phone = t.getAttribute('data-scc-phone') || '';
-      if (!(await ask('Take this number off the Do Not Text list? Your team will be able to text it again.'))) return;
+      const box = document.getElementById('sccLiftReason');
+      const reason = String((box && box.value) || '').trim();
+      if (!reason) {
+        toast('Add a reason: what the homeowner said, and when', 'error');
+        if (box && typeof box.focus === 'function') box.focus();
+        return;
+      }
       t.disabled = true;
       try {
-        const r = await callable({ action: 'removeDnc', phone });
-        if (r && r.result === 'stop_reply') toast('That homeowner replied STOP — only their START reply can lift it.', 'error');
-        else toast('Removed from the Do Not Text list', 'success');
+        const r = await callable({ action: 'liftDnc', phone, reason });
+        if (r && r.result === 'lifted') {
+          if (r.stillBlocked === 'stop_reply_line') toast('Lifted for your company — but they also texted STOP to the texting line, and only their START reply lifts that.', 'error');
+          else toast('Lifted — your team can text this number again', 'success');
+        } else if (r && r.why === 'stop_reply_line') {
+          toast('They opted out by text — only their START reply can lift it.', 'error');
+        } else {
+          toast('Nothing to lift — the list changed. It has been refreshed.', 'error');
+        }
+        if (_state) _state.liftKey = null;
         await load();
-      } catch (e) { toast((e && e.message) || 'Could not remove', 'error'); t.disabled = false; }
+      } catch (e) { toast((e && e.message) || 'Could not lift', 'error'); t.disabled = false; }
     }
   }
 

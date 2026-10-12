@@ -85,6 +85,7 @@ phone-catchup.spec.js
 phone-home-nav.spec.js
 crew-calendar.spec.js
 layouts.spec.js
+bento-board.spec.js
 layout-island.spec.js
 field-app.spec.js
 focus-mode.spec.js

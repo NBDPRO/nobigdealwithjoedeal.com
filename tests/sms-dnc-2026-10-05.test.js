@@ -17,8 +17,8 @@
  *      storm-text guard both storm crons use.
  *   C. source contract: every isOptedOut call in functions/ (comments
  *      stripped) passes a companyId.
- *   D. manageSmsCompliance: list / add / remove, who may do which, and a
- *      STOP-reply entry can never be removed from the CRM.
+ *   D. manageSmsCompliance: list / add / lift (was remove), who may do
+ *      which, and a STOP-reply entry can never be lifted from the CRM.
  *   E. firestore.rules keeps sms_dnc admin-SDK only.
  *
  * Run: node tests/sms-dnc-2026-10-05.test.js
@@ -230,16 +230,27 @@ function seed(extra) { return Object.assign({}, OPEN, extra || {}); }
     const r = await call(REP, { action: 'removeDnc', phone: PHONE }, DNC_CO1);
     ok('a sales rep cannot remove (permission-denied, entry kept)', r.err && r.err.code === 'permission-denied' && r.w.store.has('sms_dnc/co-1__' + KEY));
   }
+  // 2026-10-07 (Jo): an entry is LIFTED with a reason and kept, never deleted.
+  // 'removeDnc' is the old name — without a reason (an old cached page) it is
+  // refused; with one it lifts. tests/sms-lift-stop-2026-10-07.test.js has
+  // the full matrix.
   {
     const r = await call(ADMIN, { action: 'removeDnc', phone: PHONE }, DNC_CO1);
-    ok('a company_admin removes a manual entry', r.out && r.out.result === 'removed' && !r.w.store.has('sms_dnc/co-1__' + KEY), JSON.stringify(r.err ? r.err.message : r.out));
+    ok('removeDnc with no reason is refused (invalid-argument) and deletes nothing', r.err && r.err.code === 'invalid-argument'
+      && r.w.store.has('sms_dnc/co-1__' + KEY) && r.w.store.get('sms_dnc/co-1__' + KEY).lifted !== true, JSON.stringify(r.err ? r.err.message : r.out));
   }
   {
-    const r = await call(ADMIN, { action: 'removeDnc', phone: PHONE }, {
+    const r = await call(ADMIN, { action: 'removeDnc', phone: PHONE, reason: 'Said on the phone texts are fine' }, DNC_CO1);
+    ok('a company_admin lifts a manual entry (kept, marked lifted)', r.out && r.out.result === 'lifted'
+      && r.w.store.has('sms_dnc/co-1__' + KEY) && r.w.store.get('sms_dnc/co-1__' + KEY).lifted === true, JSON.stringify(r.err ? r.err.message : r.out));
+  }
+  {
+    const r = await call(ADMIN, { action: 'removeDnc', phone: PHONE, reason: 'x' }, {
       ['sms_dnc/co-1__' + KEY]: { companyId: 'co-1', key: KEY, source: 'stop_reply' },
     });
-    ok('a STOP-reply entry is NEVER removed from the CRM (only the homeowner\'s START lifts it)',
-      r.out && r.out.ok === false && r.out.result === 'stop_reply' && r.w.store.has('sms_dnc/co-1__' + KEY), JSON.stringify(r.err ? r.err.message : r.out));
+    ok('a STOP-reply entry is NEVER lifted from the CRM (only the homeowner\'s START lifts it)',
+      r.out && r.out.ok === false && r.out.why === 'stop_reply_line' && r.w.store.has('sms_dnc/co-1__' + KEY)
+      && r.w.store.get('sms_dnc/co-1__' + KEY).lifted !== true, JSON.stringify(r.err ? r.err.message : r.out));
   }
   {
     const r = await call(REP, { action: 'addDnc', phone: PHONE }, {
