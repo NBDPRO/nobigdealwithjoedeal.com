@@ -181,7 +181,7 @@
 <link rel="stylesheet" href="css/widgets-home.css?v=1">
 <link rel="stylesheet" href="css/d2d-tracker.css?v=2">
 <link rel="stylesheet" href="css/storm-center.css?v=2">
-<link rel="stylesheet" href="css/my-skin.css?v=3">
+<link rel="stylesheet" href="css/my-skin.css?v=4">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=5" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
@@ -3637,7 +3637,7 @@
                 <div>
                   <div class="myskin-slot-help" id="myskinThemeStatus" aria-live="polite"></div>
                   <div class="myskin-actions">
-                    <label class="btn btn-ghost btn-sm myskin-btn myskin-pick">Choose picture<input type="file" class="myskin-file" accept="image/*" data-myskin-theme-file></label>
+                    <label class="btn btn-ghost btn-sm myskin-btn myskin-pick">Add pictures<input type="file" class="myskin-file" accept="image/*" multiple data-myskin-theme-file></label>
                     <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-theme-from-wallpaper hidden>Use my wallpaper here</button>
                     <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-theme-preview hidden>Preview this theme</button>
                     <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-theme-clear disabled>Clear this theme</button>
@@ -3645,7 +3645,18 @@
                   </div>
                 </div>
               </div>
+              <ol class="myskin-strip" id="myskinStrip" aria-label="Pictures for this theme"></ol>
               <div class="myskin-theme-controls" hidden>
+                <div class="myskin-show" hidden>
+                  <div class="myskin-slot-title">Slideshow</div>
+                  <label class="myskin-row" for="myskinThemeShowDefault"><span>Use my default slideshow settings</span><input type="checkbox" id="myskinThemeShowDefault" checked></label>
+                  <div class="myskin-show-own" hidden>
+                    <label class="myskin-row" for="myskinThemeInterval"><span>Change picture</span><select id="myskinThemeInterval" class="btn btn-ghost btn-sm myskin-select"><option value="load">Each load</option><option value="30s">Every 30 sec</option><option value="1m">Every 1 min</option><option value="5m">Every 5 min</option><option value="15m">Every 15 min</option><option value="off">Never (first picture only)</option></select></label>
+                    <label class="myskin-row" for="myskinThemeOrder"><span>Order</span><select id="myskinThemeOrder" class="btn btn-ghost btn-sm myskin-select"><option value="order">In order</option><option value="shuffle">Shuffle</option></select></label>
+                    <label class="myskin-range" for="myskinThemeFade"><span>Crossfade</span><output id="myskinThemeFadeOut" for="myskinThemeFade">0.8 s</output><input type="range" id="myskinThemeFade" min="0" max="30" step="1" value="8"></label>
+                  </div>
+                  <p class="myskin-note" id="myskinShowNote" aria-live="polite" hidden></p>
+                </div>
                 <label class="myskin-row" for="myskinThemeDimGlobal"><span>Use my wallpaper dim here</span><input type="checkbox" id="myskinThemeDimGlobal"></label>
                 <label class="myskin-range" for="myskinThemeDim"><span>Dim for this theme</span><output id="myskinThemeDimOut" for="myskinThemeDim">55%</output><input type="range" id="myskinThemeDim" min="0" max="85" step="1" value="55"></label>
                 <p class="myskin-note" id="myskinThemeDimNote" aria-live="polite" hidden></p>
@@ -3666,6 +3677,11 @@
                 <label class="myskin-row" for="myskinThemeFit"><span>Fit</span><select id="myskinThemeFit" class="btn btn-ghost btn-sm myskin-select"><option value="cover">Fill the screen</option><option value="contain">Show the whole picture</option><option value="tile">Tile</option></select></label>
                 <label class="myskin-row" for="myskinThemePixel"><span>Pixel art (keep it crisp)</span><input type="checkbox" id="myskinThemePixel"></label>
                 <label class="myskin-row" for="myskinThemeOverlay"><span>Keep this theme's animation over my picture</span><input type="checkbox" id="myskinThemeOverlay"></label>
+                <div class="myskin-actions">
+                  <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-use-all>Use for all themes</button>
+                  <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-copy-cat>Share with this category</button>
+                  <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-all-clear hidden>Stop using a picture for all themes</button>
+                </div>
               </div>
               <p class="myskin-note">Each theme can have its own picture. They stay private to you, just like your wallpaper. Themes without one show your wallpaper.</p>
             </div>
@@ -3675,6 +3691,20 @@
                 <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-open="import">Import a pack…</button>
                 <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-open="grid">All theme backgrounds</button>
               </div>
+              <details class="myskin-defaults">
+                <summary>Slideshow defaults</summary>
+                <p class="myskin-note">Used by every theme that has two or more pictures, unless that theme has its own settings.</p>
+                <label class="myskin-row" for="myskinShowInterval"><span>Change picture</span><select id="myskinShowInterval" class="btn btn-ghost btn-sm myskin-select"><option value="load">Each load</option><option value="30s">Every 30 sec</option><option value="1m">Every 1 min</option><option value="5m">Every 5 min</option><option value="15m">Every 15 min</option><option value="off">Never (first picture only)</option></select></label>
+                <label class="myskin-row" for="myskinShowOrder"><span>Order</span><select id="myskinShowOrder" class="btn btn-ghost btn-sm myskin-select"><option value="order">In order</option><option value="shuffle">Shuffle</option></select></label>
+                <label class="myskin-range" for="myskinShowFade"><span>Crossfade</span><output id="myskinShowFadeOut" for="myskinShowFade">0.8 s</output><input type="range" id="myskinShowFade" min="0" max="30" step="1" value="8"></label>
+                <div class="myskin-actions">
+                  <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-fade-preset="0">Off</button>
+                  <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-fade-preset="400">0.4 s</button>
+                  <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-fade-preset="800">0.8 s</button>
+                  <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-fade-preset="1500">1.5 s</button>
+                </div>
+                <div class="myskin-actions"><button type="button" class="btn btn-ghost btn-sm myskin-btn" id="myskinShowReset">Reset all themes to my default</button></div>
+              </details>
               <div class="myskin-import" id="myskinImportRoot" hidden></div>
               <div class="myskin-grid-root" id="myskinGridRoot" hidden></div>
             </div>
@@ -7167,8 +7197,8 @@
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=16"></script>
 <script defer src="js/today-home.js?v=3"></script>
-<script defer src="js/my-skin-logic.js?v=3"></script>
-<script defer src="js/my-skin.js?v=5"></script>
+<script defer src="js/my-skin-logic.js?v=4"></script>
+<script defer src="js/my-skin.js?v=6"></script>
 <script defer src="js/layout-system.js?v=1"></script>
 <script defer src="js/pixel-mode.js?v=1"></script>
 <script defer src="js/ui.js?v=10"></script>

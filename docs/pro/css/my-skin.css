@@ -222,5 +222,27 @@
 .myskin-gswatch { position: absolute; inset: 0; border: 2px solid transparent; border-radius: 6px; }
 .myskin-gthumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .myskin-gname { font-size: 12px; font-weight: 700; line-height: 1.2; }
+.myskin-orphan { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--br); }
 .myskin-gmeta { font-size: 11px; color: var(--m); }
+/* Slideshow: the strip of a theme's pictures + the settings. */
+.myskin-strip { list-style: none; margin: 8px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.myskin-strip:empty { display: none; }
+.myskin-strip-item {
+  display: grid; grid-template-columns: 64px 24px minmax(0, 1fr) auto auto auto auto; align-items: center; gap: 6px;
+  min-height: 44px; padding: 4px 6px; border: 1px solid var(--br); border-radius: 8px; background: var(--s2);
+}
+.myskin-strip-item:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.myskin-strip-item.is-drag { opacity: .6; border-color: var(--orange); }
+.myskin-strip-img { width: 64px; height: 40px; object-fit: cover; border-radius: 6px; background: var(--s3); }
+.myskin-strip-num { font-size: 12px; color: var(--m); text-align: center; }
+.myskin-strip-btn {
+  width: 44px; height: 44px; padding: 0; border: 1px solid var(--br); border-radius: 8px;
+  background: var(--s3); color: var(--t); font-size: 16px; line-height: 1; cursor: pointer;
+}
+.myskin-strip-btn:disabled { opacity: .4; cursor: default; }
+.myskin-strip-handle { cursor: grab; touch-action: none; grid-column: 4; }
+.myskin-show { margin: 8px 0; }
+.myskin-show[hidden], .myskin-show-own[hidden] { display: none !important; }
+.myskin-defaults { margin: 12px 0; font-size: 13px; color: var(--t); }
+.myskin-defaults summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
 .myskin-accent input[type="color"] { width: 52px; height: 44px; padding: 2px; border: 1px solid var(--br); border-radius: 8px; background: var(--s2); }
