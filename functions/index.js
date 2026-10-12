@@ -857,6 +857,11 @@ exports.leadBrief = require('./lead-brief').leadBrief;
 // DRY-RUN unless PROMISE_CLEANUP_ENABLED=true.
 exports.promiseCleanup = require('./promise-cleanup').promiseCleanup;
 
+// Away mode + backup person (never-forget lane, 2026-10-12): manageAway callable
+// + the 15-min awayModeTick (AWAY_MODE_ENABLED gates the notifying).
+exports.manageAway = require('./away-mode').manageAway;
+exports.awayModeTick = require('./away-mode').awayModeTick;
+
 // ═══════════════════════════════════════════════════════════════
 // CALL CENTER — Cube ACR recordings (Drive) → phone_calls, every 30 min
 // ═══════════════════════════════════════════════════════════════
