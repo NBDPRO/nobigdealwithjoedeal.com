@@ -33,6 +33,12 @@ const WATCH_GRACE_MS = 30 * MIN;
 /** The 30-minute copy / transcribe jobs: four missed runs (callWatch's own check is 75 min). */
 const JOB_STALE_MS = 2 * HOUR;
 const REPEAT_MS = 6 * HOUR;
+/**
+ * The phone stopped uploading (Cube ACR killed, Drive sync off, phone dead):
+ * ingest runs "healthy" and finds nothing. Jo's phone makes calls most days, so
+ * no new recording row in this long is a canary, not a quiet week.
+ */
+const SILENT_RECORDINGS_MS = 36 * HOUR;
 const ET = 'America/New_York';
 
 function etHm(ms) {
@@ -62,7 +68,7 @@ function expectedWatchSlotMs(now, graceMs) {
  * null), gates = { watch, ingest, transcribe } — which jobs are switched on in
  * this deployment. Returns [{ key, text, repeatMs }].
  */
-function deadManProblems({ watch, cc, now, gates }) {
+function deadManProblems({ watch, cc, now, gates, newestCallMs }) {
   const g = gates || {};
   const out = [];
   if (g.watch) {
@@ -83,6 +89,10 @@ function deadManProblems({ watch, cc, now, gates }) {
       if (!last || now - last > JOB_STALE_MS) {
         out.push({ key: 'ingest_not_running', repeatMs: REPEAT_MS, text: 'Call recordings have not been copied from Drive since ' + (last ? Math.round((now - last) / MIN) + ' min ago' : 'ever') + ' (runs every 30 min).' });
       }
+    }
+    // newestCallMs: undefined = could not be read (say nothing); 0 = no calls at all.
+    if (g.ingest && typeof newestCallMs === 'number' && newestCallMs > 0 && now - newestCallMs > SILENT_RECORDINGS_MS) {
+      out.push({ key: 'no_new_recordings', repeatMs: REPEAT_MS, text: 'No new call recording has arrived in ' + Math.round((now - newestCallMs) / HOUR) + ' h. The copy job is running, so check that Cube ACR is still recording and uploading to Drive on the phone.' });
     }
     if (g.transcribe) {
       const last = W.toMs(c.lastTranscribeAtMs);
@@ -122,7 +132,13 @@ async function run(deps) {
   } catch (e) {
     return { state: 'read_failed', error: String(e && e.message || e).slice(0, 200), problems: ['deadman_read_failed'], told: [] };
   }
-  const problems = deadManProblems({ watch, cc, now: nowMs, gates });
+  let newestCallMs;
+  try {
+    const owner = (deps.env || process.env).NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+    const q = await db.collection('phone_calls').where('userId', '==', owner).orderBy('startedAtMs', 'desc').limit(1).get();
+    newestCallMs = q.docs.length ? (W.toMs((q.docs[0].data() || {}).startedAtMs) || 0) : 0;
+  } catch (_) { newestCallMs = undefined; }
+  const problems = deadManProblems({ watch, cc, now: nowMs, gates, newestCallMs });
   const tell = W.problemsToTell(problems, health.problemsToldAt, nowMs);
   const out = { state: problems.length ? 'problem' : 'ok', problems: problems.map((p) => p.key), told: [] };
   if (!live) return Object.assign(out, { state: out.state + '_dry_run' });
@@ -146,4 +162,4 @@ async function run(deps) {
   return out;
 }
 
-module.exports = { run, deadManProblems, expectedWatchSlotMs, gatesFromEnv, WATCH_GRACE_MS, JOB_STALE_MS, REPEAT_MS };
+module.exports = { run, deadManProblems, expectedWatchSlotMs, gatesFromEnv, WATCH_GRACE_MS, JOB_STALE_MS, REPEAT_MS, SILENT_RECORDINGS_MS };
