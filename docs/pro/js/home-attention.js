@@ -65,6 +65,9 @@
   }
 
   const CALL_WINDOW = 14 * DAY;
+  const PROMISE_WINDOW = 45 * DAY;
+  /** A promise Jo made that nothing has marked kept (promise-cleanup stamps keptAtMs). */
+  const openJoPromise = (c) => (c.promises || []).some((p) => p && p.who === 'jo' && !p.keptAtMs);
   const etYmd = (ms) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
   // A missed call: they rang, it was under 15 s (Cube ACR keeps no real audio).
   const isMissedCall = (c) => !!c && c.channel !== 'text' && c.status === 'short' && c.direction === 'inbound';
@@ -141,7 +144,13 @@
     const t = now == null ? Date.now() : now;
     if (!c || c.handledAtMs || c.status === 'personal') return false;
     if (c.callType === 'spam' || c.taskDone === true) return false;
-    if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) return false;
+    // Jo, 2026-10-12: a promise he made stays on the list past the 14-day
+    // window, up to 45 days, then rolls into ONE "old promises" review row
+    // (oldPromiseCount) instead of silently dropping off.
+    if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) {
+      if ((toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW) return false;
+      return openJoPromise(c);
+    }
     const promised = (c.promises || []).some((p) => p && p.who === 'jo');
     const lb = labelOf(ctx, c);
     const pol = lb && (lb.policy === 'hide' || lb.policy === 'quiet' || lb.policy === 'surface') ? lb.policy : '';
@@ -212,6 +221,20 @@
     });
     return groups.sort((a, b) => b.latestMs - a.latestMs);
   }
+  /**
+   * Calls past the 45-day promise window that still carry an open promise of
+   * Jo's: ONE review row, never a silent drop. Not counted in "people need you".
+   */
+  function isOldPromise(c, now) {
+    const t = now == null ? Date.now() : now;
+    if (!c || c.handledAtMs || c.status === 'personal' || c.callType === 'spam' || c.taskDone === true || c.channel === 'text') return false;
+    return (toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW && openJoPromise(c);
+  }
+  function oldPromiseCount(rows, now) {
+    const people = new Set();
+    (rows || []).forEach((c) => { if (isOldPromise(c, now)) people.add(callerKey(c)); });
+    return people.size;
+  }
   function callersNeedingYou(rows, now, labels) { return groupNeeds(rows, now, labels).length; }
   /** People a label took OFF the list: who needed you by the old rule and no longer do. */
   function hiddenPeople(rows, now, labels) {
@@ -228,11 +251,12 @@
     if (c.callsFailed) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Could not check your calls just now' + (c.calls > 0 ? ' — ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you so far' : ' — this is NOT an all-clear') + '. Tap to open the Call Center</button>');
     else if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
     // Review asks, one at a time (review-deck.js opens the deck on data-review-deck).
+    if (c.oldPromises > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="calls">🗂 ' + c.oldPromises + (c.oldPromises === 1 ? ' old promise' : ' old promises') + ' to review</button>');
     if (c.reviews > 0) items.push('<button type="button" class="ha-item" data-review-deck="1">⭐ ' + c.reviews + ' review ask' + (c.reviews === 1 ? '' : 's') + ' waiting</button>');
     return items.join('');
   }
 
-  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
+  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, oldPromiseCount, isOldPromise, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root || !root.document) return;
   root.NBDHomeAttention = api;
@@ -290,6 +314,7 @@
     } catch (_) { labels = null; }
     out.calls = callersNeedingYou(callRows, Date.now(), labels);
     out.hidden = hiddenPeople(callRows, Date.now(), labels);
+    out.oldPromises = oldPromiseCount(callRows, Date.now());
     // Today (today-home.js) lists these same people from these same rows —
     // shared, not re-read (2026-10-03).
     api.lastRows = callRows; api.lastCounts = out; api.lastLabels = labels;

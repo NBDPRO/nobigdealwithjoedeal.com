@@ -21,6 +21,7 @@
 const DAY = 86400000;
 const HOUR = 3600000;
 const CALL_WINDOW = 14 * DAY;
+const PROMISE_WINDOW = 45 * DAY; // Jo, 2026-10-12: an open promise of his stays 'needs you' to 45 days
 const STALE_RUN_MS = 75 * 60000;        // the 30-min jobs: two missed runs + slack
 const STALE_TEXT_NOTES_MS = 150 * 60000; // the 60-min text notes job
 const TRANSCRIPT_WAIT_MS = 6 * HOUR;
@@ -65,7 +66,12 @@ function callNeedsYou(c, now, ctx) {
   const t = now == null ? Date.now() : now;
   if (!c || c.handledAtMs || c.status === 'personal') return false;
   if (c.callType === 'spam' || c.taskDone === true) return false;
-  if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) return false;
+  // Mirror of home-attention.js: a promise Jo made outlives the 14-day window
+  // up to 45 days (then Home's single "old promises" row takes it).
+  if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) {
+    if ((toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW) return false;
+    return (c.promises || []).some((p) => p && p.who === 'jo' && !p.keptAtMs);
+  }
   const promised = (c.promises || []).some((p) => p && p.who === 'jo');
   const lb = labelOf(ctx, c);
   const pol = labelPolicy(lb);

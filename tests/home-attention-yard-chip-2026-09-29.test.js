@@ -103,7 +103,15 @@ console.log('\n4. wiring');
   ok('a saved contact with no customer and no promise → not (the 223-call backlog)', !need({ leadId: null, bucket: 'contact' }));
   ok('…but with a promise Jo made → needs you', need({ leadId: null, bucket: 'contact', promises: [{ who: 'jo', text: 'x' }] }));
   ok('handled or personal → never', !need({ handledAtMs: NOW, urgent: true }) && !need({ status: 'personal', urgent: true }));
-  ok('older than 14 days → never (backlog)', !need({ startedAtMs: NOW - 15 * D, urgent: true, promises: [{ who: 'jo', text: 'x' }] }) && need({ startedAtMs: NOW - 13 * D, promises: [{ who: 'jo', text: 'x' }] }));
+  // 2026-10-12 (Jo): an open promise of his outlives the 14-day window to 45 days
+  // (then the single "old promises" review row); anything else is still 14 days.
+  ok('older than 14 days → never for urgent / unknown (backlog); an open Jo promise lasts to 45 days',
+    !need({ startedAtMs: NOW - 15 * D, urgent: true })
+    && need({ startedAtMs: NOW - 15 * D, promises: [{ who: 'jo', text: 'x' }] })
+    && need({ startedAtMs: NOW - 44 * D, promises: [{ who: 'jo', text: 'x' }] })
+    && !need({ startedAtMs: NOW - 46 * D, promises: [{ who: 'jo', text: 'x' }] })
+    && !need({ startedAtMs: NOW - 20 * D, promises: [{ who: 'jo', text: 'x', keptAtMs: NOW - D }] })
+    && need({ startedAtMs: NOW - 13 * D, promises: [{ who: 'jo', text: 'x' }] }));
   ok('count helper', HA.callsNeedingYou([call({ urgent: true }), call({}), call({ leadId: null, bucket: 'unknown' })], NOW) === 2);
   // Counts PEOPLE since 2026-10-02 (Jo: "group them by customer").
   ok('strip shows the calls item, singular and plural, to the Call Center', /data-target="calls">📞 1 person needs you</.test(HA.stripHtml({ calls: 1 })) && /📞 49 people need you/.test(HA.stripHtml({ calls: 49 })) && HA.stripHtml({ calls: 0 }) === '');
