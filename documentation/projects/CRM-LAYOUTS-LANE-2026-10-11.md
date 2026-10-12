@@ -77,9 +77,38 @@ Text open the phone's own dialer / composer and the rep presses Send there.
 header's collapse-to-"More" helper, not an action API; there is nothing to wire
 to. The ActionBar defines the actions once instead, from the same primitives.
 
+## Layout picker and company lock (D2)
+
+Settings > Appearance > **Layouts** panel (`#layoutsPanel` in dashboard.html;
+`js/layouts/picker.js` + `css/layouts/picker.css` load lazily the first time the
+Appearance tab is actually displayed, so a Classic rep never pays for them).
+
+- **Device toggle** (Computer / Tablet / Phone): choices are stored per device
+  in `userSettings.layout.byDevice`. A cleared override is written as `null`.
+- **Try it (30s)**: previews on this screen without saving; a bottom bar offers
+  Keep or Revert and reverts by itself when the time is up.
+- **Glove mode** flips `--tap` to 64px (`userSettings.layout.glove`).
+- **Company default / lock** (owner or company_admin; `details` block in the
+  panel): a default per device, which layouts the team may pick, and Lock.
+  Stored at `companies/{companyId}/settings/layout`. Rules: the tenant reads;
+  the solo owner or a company_admin of that company writes; manager / rep /
+  viewer / another tenant cannot; shape-checked; no other doc id under
+  `settings`. Section 61 of `tests/firestore-rules.test.js` (27 checks, with
+  the negative controls; break-tested by letting a manager write).
+- A **locked** layout wins over the user's choice, and the picker says so and
+  disables Use / Try it. A lock whose pick cannot show on this screen resolves
+  to Classic, not to the user's choice.
+- The Settings view is a `<template>` hydrated on navigation and shows a panel
+  with `style.display` (the `dn` class stays on it) — the lazy loader looks at
+  computed display, not the class. Found the hard way in the E2E.
+- E2E: `tests/e2e/layouts.spec.js` (@shard2): Classic + `--tap`, picker, try /
+  revert / keep, reload brings the layout back before the app's scripts run,
+  glove, and a company lock through the real picker and rules.
+
 ## Slice log
 
 | Slice | Status | PR |
 | --- | --- | --- |
 | D0 layout foundation | built, in review | #2328 |
-| D1 shared components | built, stacked on D0 | see PR list |
+| D1 shared components | built, stacked on D0 | #2331 |
+| D2 picker + company default/lock | built, stacked on D1 | see PR list |

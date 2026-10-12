@@ -3357,6 +3357,14 @@
           </div>
         </div>
 
+        <!-- Layouts (2026-10-11): how the CRM is arranged, independent of the theme.
+             js/layouts/picker.js fills #layoutsPanelBody the first time this tab
+             opens (layout-system.js lazy-loads it). Classic = today's CRM. -->
+        <div class="panel mb-md" id="layoutsPanel">
+          <div class="panel-hdr"><div><div class="panel-label">Appearance</div><div class="panel-title">Layouts</div></div></div>
+          <div class="panel-body" id="layoutsPanelBody"><div class="meta-12-mb14">Loading layouts…</div></div>
+        </div>
+
         <!-- Theme picker: filter buttons + flat grid -->
         <div class="panel mb-md">
           <div class="panel-hdr"><div><div class="panel-label">Theme Engine</div><div class="panel-title">155 Themes</div></div></div>
@@ -3751,6 +3759,11 @@
             <label class="myskin-row" for="pxSkin"><span>Pixel Mode skin</span><input type="checkbox" id="pxSkin"></label>
             <label class="myskin-row" for="pxScanlines"><span>Scanlines</span><input type="checkbox" id="pxScanlines"></label>
             <label class="myskin-row" for="pxDialog"><span>Dialog-box notifications (works with any theme)</span><input type="checkbox" id="pxDialog"></label>
+            <div class="panel-label myskin-subhead">Pixel World (beta)</div>
+            <p class="myskin-note">A walkable town where every building is a part of the CRM and your open leads are the townspeople. Read-only: it shows your real leads and never sends a message or changes one. Off until you turn it on.</p>
+            <label class="myskin-row" for="pxWorldUser"><span>Turn on Pixel World for me</span><input type="checkbox" id="pxWorldUser"></label>
+            <label class="myskin-row" for="pxWorldCompany" id="pxWorldCompanyRow" hidden><span>Turn on for my whole company</span><input type="checkbox" id="pxWorldCompany"></label>
+            <button type="button" class="btn btn-ghost btn-sm" id="pxOpenWorld" data-px-open-world hidden>Open Pixel World</button>
           </div>
         </div>
 
@@ -6487,6 +6500,31 @@
               <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall ui-seg-text-lg" data-comfort="size" data-value="large" data-action="call" data-fn="nbdComfortSet" data-arg="size" data-arg2="large">A · Large</button>
             </div>
             <div style="font-size:10px; color:var(--m); margin-top:6px; line-height:1.4;">Scales every text element via root font-size. Easier on the eyes during long sessions.</div>
+          </div>
+
+          <!-- Surface style (2026-10-11): Solid / Tinted / Glass. Glass frosts
+               cards, the sidebar and inputs so a wallpaper shows through; the
+               readability guard raises Frost on its own until text clears 4.5:1.
+               Shape & Depth presets that are already translucent keep their own look. -->
+          <div>
+            <div class="npm-surf-head">
+              <span class="fs-14" aria-hidden="true">🪟</span>
+              <span class="npm-surf-title">Surface style</span>
+            </div>
+            <div class="npm-surf-row">
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="surface" data-value="solid" data-action="call" data-fn="nbdComfortSet" data-arg="surface" data-arg2="solid">Solid</button>
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="surface" data-value="tinted" data-action="call" data-fn="nbdComfortSet" data-arg="surface" data-arg2="tinted">Tinted</button>
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="surface" data-value="glass" data-action="call" data-fn="nbdComfortSet" data-arg="surface" data-arg2="glass">Glass</button>
+            </div>
+            <div id="npm-surface-sliders" class="npm-surf-sliders">
+              <label class="npm-surf-lbl">Blur
+                <input type="range" id="npm-surface-blur" min="0" max="30" value="14" data-on-input="nbdSetSurfaceBlur" class="npm-surf-range">
+              </label>
+              <label class="npm-surf-lbl">Frost
+                <input type="range" id="npm-surface-frost" min="40" max="95" value="68" data-on-input="nbdSetSurfaceFrost" class="npm-surf-range">
+              </label>
+            </div>
+            <div class="npm-surf-note">Tinted mixes a hint of your accent into cards. Glass frosts them; text stays readable automatically.</div>
           </div>
 
           <!-- Motion + Professional Mode toggles -->

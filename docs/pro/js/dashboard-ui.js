@@ -1842,6 +1842,19 @@ function nbdComfortSet(kind, value) {
       // Reuse the existing setKanbanDensity machinery so the deep-
       // settings density toggle stays in sync.
       if (typeof setKanbanDensity === 'function') setKanbanDensity(value);
+    } else if (kind === 'surface') {
+      // Solid / Tinted / Glass (2026-10-11): the setter lives in
+      // dashboard-ui-prefs-boot.js and is reached through the call registry.
+      const reg = window.__NBD_CALL_REGISTRY;
+      if (reg && typeof reg.nbdSetSurface === 'function') reg.nbdSetSurface(value);
+      else if (window.ScriptLoader && window.ScriptLoader.loadBundle) {
+        // surface-style.js rides the lazy theme bundle; load it, then apply.
+        window.ScriptLoader.loadBundle('theme').then(function () {
+          const r2 = window.__NBD_CALL_REGISTRY;
+          if (r2 && typeof r2.nbdSetSurface === 'function') r2.nbdSetSurface(value);
+          nbdComfortRefresh();
+        });
+      }
     } else if (kind === 'size') {
       // 'medium' is the default — clear the attribute so we don't
       // carry stale values through theme changes.
@@ -1922,6 +1935,7 @@ function nbdComfortRefresh() {
   const html = document.documentElement;
   const body = document.body;
   const density = html.getAttribute('data-density') || 'comfortable';
+  const surface = html.getAttribute('data-surface') || 'solid';
   const size = html.getAttribute('data-text-size') || 'medium';
   const motion = html.getAttribute('data-motion') === 'reduce';
   const proMode = body.classList.contains('professional-mode');
@@ -1931,6 +1945,7 @@ function nbdComfortRefresh() {
     const val = b.getAttribute('data-value');
     let active = false;
     if (kind === 'density') active = (val === density);
+    else if (kind === 'surface') active = (val === surface);
     else if (kind === 'size') active = (val === size);
     // Active look lives in ui-primitives.css (.ui-seg.is-on) so skins own it.
     b.classList.toggle('is-on', active);
@@ -1939,6 +1954,10 @@ function nbdComfortRefresh() {
 
   const motionEl = document.getElementById('npm-reduce-motion');
   if (motionEl) motionEl.checked = motion;
+  try {
+    const sreg = window.__NBD_CALL_REGISTRY;
+    if (sreg && typeof sreg.nbdSyncSurfaceUI === 'function') sreg.nbdSyncSurfaceUI();
+  } catch (_) {}
   const proEl = document.getElementById('npm-pro-mode');
   if (proEl) proEl.checked = proMode;
   // W106: reflect color-blind-safe state
