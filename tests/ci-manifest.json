@@ -10,8 +10,10 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "layout-mapview-2026-10-12.test.js",
     "layout-system-2026-10-11.test.js",
     "layout-kit-2026-10-11.test.js",
+    "layout-island-2026-10-12.test.js",
     "layout-field-2026-10-11.test.js",
     "layout-focus-2026-10-11.test.js",
     "pro-demo-sdk-2026-10-06.test.js",
@@ -179,6 +181,7 @@
     "project-price-context.test.js",
     "pdf-render-retention.test.js",
     "prefix-reservation.test.js",
+    "push-helper-exports.test.js",
     "push-lead-call-phone.test.js",
     "push-notification-actions.test.js",
     "client-dead-calls-2026-10-03.test.js",
