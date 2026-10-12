@@ -33,6 +33,13 @@ const CEILING = {
 // "no photos" (page-scoped-helper rule). Kept as its own line so the other PRs that raise
 // localScripts on the line above merge without a conflict.
 CEILING.localScripts += 1;
+// +1 local tag, deliberate (2026-10-11, C5): js/pipeline-rich-cards.js (window.NBDPipelineRich).
+// crm-pipeline.js buildCard reads it synchronously when the board is in the rich density, and
+// renderLeads paints the board strip through it — lazy-loading would paint the first board
+// without the strip. Defer, no boot-time reads. Own line so parallel PRs raising the
+// ceiling above merge without a conflict.
+CEILING.localScripts += 1;
+CEILING.localBytes += 30 * 1024;   // pipeline-rich-cards.js = 26.5 KB (LF), + ~1 KB of hooks in crm-pipeline.js / dashboard-ui.js
 // +1 local tag / +24 KB, deliberate (2026-10-11, layout system D0): js/layout-system.js — the
 // layout registry + LayoutEngine in ONE deferred file (the preboot half rides inside the existing
 // blocking shape-preboot.js, so blockingScripts does not move). It must be on every dashboard
