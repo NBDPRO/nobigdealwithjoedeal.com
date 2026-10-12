@@ -82,6 +82,7 @@ test.describe.serial('Triage Inbox @shard2', () => {
     // the person needing a reply is in the list, once, with a timer chip
     const row = page.locator('.ib-row', { hasText: name }).first();
     await row.waitFor({ state: 'visible', timeout: 60_000 });
+    await page.locator('#nbd-loader').waitFor({ state: 'hidden', timeout: 30_000 }).catch(() => {});
     expect(await page.locator('.ib-row', { hasText: name }).count()).toBe(1);
     await expect(row.locator('[data-ib-timer]')).toBeVisible();
     expect(await row.locator('[data-ib-timer]').getAttribute('class')).toMatch(/ib-timer-(red|gold|green)/);
@@ -147,7 +148,8 @@ test.describe.serial('Triage Inbox @shard2', () => {
     await page.keyboard.press('k');
     await expect(page.locator('.ib-row.is-on')).toHaveCount(1);
 
-    // facts + quick actions
+    // facts + quick actions (the rep is shared with other specs: pick OUR person again)
+    await page.locator('.ib-row', { hasText: name }).click();
     await expect(page.locator('.ib-side')).toContainText('(513) 555-0188');
     await expect(page.locator('.ib-side [data-lk-link="call"]')).toHaveAttribute('href', 'tel:+15135550188');
     expect(await page.locator('.ib-side [data-lk-link="text"]').count()).toBe(0);
@@ -185,6 +187,7 @@ test.describe.serial('Triage Inbox @shard2', () => {
 
     const row = page.locator('.ib-row', { hasText: seededP.name }).first();
     await row.waitFor({ state: 'visible', timeout: 60_000 });
+    await page.locator('#nbd-loader').waitFor({ state: 'hidden', timeout: 30_000 }).catch(() => {});
     // list pane only
     await expect(page.locator('.ib-thread')).toBeHidden();
     await row.click();

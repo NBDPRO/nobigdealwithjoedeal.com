@@ -198,6 +198,7 @@ console.log('\n8. keys');
   ok('J K R E S are all wired', ["'j'", "'k'", "'r'", "'e'", "'s'"].every((k) => body.indexOf('k === ' + k) !== -1));
   ok('typing guard covers input / textarea / select / contenteditable', /INPUT/.test(CODE) && /TEXTAREA/.test(CODE) && /SELECT/.test(CODE) && /isContentEditable/.test(CODE));
   ok('the legend is rendered with the keys', /<kbd>J<\/kbd><kbd>K<\/kbd> move/.test(CODE) && /<kbd>R<\/kbd> reply/.test(CODE) && /<kbd>E<\/kbd> done/.test(CODE) && /<kbd>S<\/kbd> snooze/.test(CODE));
+  ok('an unchanged render leaves the DOM alone (a refresh event must not eat a click)', CODE.indexOf('if (html === lastHtml) return;') !== -1 && CODE.indexOf('rootEl.innerHTML = html;') !== -1 && CODE.indexOf('if (html === lastHtml) return;') < CODE.indexOf('rootEl.innerHTML = html;'));
   ok('no inline handlers or inline styles are built', !/\son[a-z]+=|\sstyle=/.test(CODE));
 }
 

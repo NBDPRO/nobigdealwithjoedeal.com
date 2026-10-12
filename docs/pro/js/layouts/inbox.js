@@ -350,6 +350,7 @@
   var composer = {};                // person key -> typed text (kept while you move around)
   var sending = {};
   var itemsCache = [];
+  var lastHtml = '';
 
   function ls(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function ymd() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
@@ -690,12 +691,22 @@
     var head = S.pane === 'inbox'
       ? '<div class="ib-headline"><b>' + items.length + '</b> ' + (items.length === 1 ? 'person needs' : 'people need') + ' a reply</div>'
       : '<div class="ib-headline"><b>' + leads().length + '</b> leads on your pipeline</div>';
-    rootEl.innerHTML = '<div class="ib-wrap">' + railHtml(counts) +
+    var html = '<div class="ib-wrap">' + railHtml(counts) +
       '<section class="ib-list" aria-label="' + (S.pane === 'inbox' ? 'Inbox' : 'Pipeline by stage') + '">' + head + bannerHtml() + '<div class="ib-scroll">' + listHtml() + '</div></section>' +
       '<section class="ib-thread" aria-label="Thread">' + threadHtml(it) + '</section>' +
       '<aside class="ib-side" aria-label="Customer facts">' + factsHtml(it) + '</aside>' +
       legendHtml() + '</div>';
     rootEl.hidden = !homeActive();
+    // Same markup as last time (a refresh event with nothing new, a minute tick
+    // with no chip change): leave the DOM alone. Replacing it under a press
+    // loses the click, and a scroll position / caret with it.
+    if (html === lastHtml) return;
+    lastHtml = html;
+    var scrollEl = rootEl.querySelector('.ib-scroll');
+    var keepScroll = scrollEl ? scrollEl.scrollTop : 0;
+    rootEl.innerHTML = html;
+    var scrollNew = rootEl.querySelector('.ib-scroll');
+    if (scrollNew && keepScroll) scrollNew.scrollTop = keepScroll;
     if (typed) {
       var ta = doc.getElementById('ibComposer');
       if (ta && ta.getAttribute('data-key') === typed.key) { ta.focus(); try { ta.setSelectionRange(typed.start, typed.end); } catch (e) {} }
@@ -900,6 +911,7 @@
     if (mo) { mo.disconnect(); mo = null; }
     if (rootEl && rootEl.parentNode) rootEl.parentNode.removeChild(rootEl);
     rootEl = null;
+    lastHtml = '';
     S.pane = 'inbox'; S.folder = 'all'; S.sel = ''; S.mobile = 'list'; S.menu = false;
   }
 
