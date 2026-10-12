@@ -192,13 +192,10 @@
     pinLayer = L.layerGroup().addTo(map);
     swathLayer = L.layerGroup().addTo(map);
     routeLayer = L.layerGroup().addTo(map);
-    // swaths under routes under pins
-    if (map.createPane) {
-      try {
-        map.createPane('mvSwath').style.zIndex = 410;
-        map.createPane('mvRoute').style.zIndex = 420;
-      } catch (e) {}
-    }
+    // Layering is the default overlay pane's DOM order (swaths are added before
+    // routes) under the marker pane. Custom panes were tried and dropped: a
+    // Leaflet renderer created for a custom pane sized itself to 0 px and
+    // clipped every polygon away.
 
     function applyTiles() {
       if (tileLayer) { try { map.removeLayer(tileLayer); } catch (e) {} tileLayer = null; }
@@ -248,7 +245,7 @@
       (list || []).forEach(function (raw) {
         var s = normalizeSwath(raw);
         if (!s) return;
-        var poly = L.polygon(s.rings, { pane: 'mvSwath', className: 'mv-swath mv-swath--' + s.level, weight: 2 });
+        var poly = L.polygon(s.rings, { className: 'mv-swath mv-swath--' + s.level, weight: 2 });
         if (s.title && poly.bindTooltip) poly.bindTooltip(s.title, { sticky: true });
         poly.on('click', function () { emit('swathclick', { swath: s }); });
         poly.addTo(swathLayer);
@@ -261,7 +258,7 @@
       (list || []).forEach(function (raw) {
         var r = normalizeRoute(raw);
         if (!r) return;
-        L.polyline(r.points, { pane: 'mvRoute', className: 'mv-route mv-c-' + r.color + (r.dashed ? ' mv-route--dashed' : ''), weight: 4 }).addTo(routeLayer);
+        L.polyline(r.points, { className: 'mv-route mv-c-' + r.color + (r.dashed ? ' mv-route--dashed' : ''), weight: 4 }).addTo(routeLayer);
       });
       collect();
     }
@@ -300,7 +297,17 @@
     map.on('click', function (ev) { emit('mapclick', { lat: ev.latlng.lat, lng: ev.latlng.lng }); });
     applyTiles();
     retheme();
-    if (win.addEventListener) { themeHandler = function () { retheme(); }; doc.addEventListener('themechange', themeHandler); }
+    if (win.addEventListener) {
+      // The engine fires `themechange` as it applies, and a Theme Morph can land
+      // the new tokens a frame (or ~400 ms of view transition) later, so read
+      // again shortly after: the last read is the one that sticks.
+      themeHandler = function () {
+        retheme();
+        if (typeof win.setTimeout === 'function') [60, 250, 650].forEach(function (ms) { win.setTimeout(retheme, ms); });
+      };
+      doc.addEventListener('themechange', themeHandler);
+      doc.addEventListener('modechange', themeHandler);   // light/dark preference flips without a theme change
+    }
     if (typeof win.ResizeObserver === 'function') {
       ro = new win.ResizeObserver(function () { try { map.invalidateSize(); } catch (e) {} });
       ro.observe(el);
@@ -315,7 +322,7 @@
       invalidate: function () { try { map.invalidateSize(); } catch (e) {} },
       destroy: function () {
         dead = true;
-        if (themeHandler) doc.removeEventListener('themechange', themeHandler);
+        if (themeHandler) { doc.removeEventListener('themechange', themeHandler); doc.removeEventListener('modechange', themeHandler); }
         if (ro) { try { ro.disconnect(); } catch (e) {} }
         try { map.remove(); } catch (e) {}
         el.classList.remove('nbd-mv', 'mv-dark', 'mv-light');
