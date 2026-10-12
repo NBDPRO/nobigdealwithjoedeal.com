@@ -515,14 +515,26 @@ async function run() {
   await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/-_x/lq3x9a1b2g'), buf(2048), { contentType: 'image/webp' }));        // bad themeId (chars)
   await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/short'), buf(2048), { contentType: 'image/webp' }));         // imageId too short
   await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/LQ3X9A1B2G'), buf(2048), { contentType: 'image/webp' }));    // imageId uppercase
-  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2g_t'), buf(2048), { contentType: 'image/webp' })); // thumbnail suffix not allowed yet
+  await assertSucceeds(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2h'), buf(2048), { contentType: 'image/webp' }));
+  await assertSucceeds(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2h_t'), buf(2048), { contentType: 'image/webp' })); // the 256 px thumbnail
+  await assertSucceeds(getBytes(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2h_t')));
+  await assertFails(getBytes(ref(bob, 'skins/alice/themes/pokemon/lq3x9a1b2h_t')));                                               // thumbnails are owner-only too
+  await assertFails(getBytes(ref(admin, 'skins/alice/themes/pokemon/lq3x9a1b2h_t')));
+  await assertFails(uploadBytes(ref(bob, 'skins/alice/themes/pokemon/lq3x9a1b2i_t'), buf(2048), { contentType: 'image/webp' }));
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2i_t'), buf(2048), { contentType: 'image/png' }));   // a thumbnail is lossy too
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2i_t'), buf(3 * 1024 * 1024 + 1), { contentType: 'image/webp' }));
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2i_x'), buf(2048), { contentType: 'image/webp' }));   // only _t
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2i_t_t'), buf(2048), { contentType: 'image/webp' }));
+  await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/_t'), buf(2048), { contentType: 'image/webp' }));            // suffix alone is not an id
+  await assertSucceeds(deleteObject(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2h_t')));
+  await assertSucceeds(deleteObject(ref(alice, 'skins/alice/themes/pokemon/lq3x9a1b2h')));
   await assertFails(uploadBytes(ref(alice, 'skins/alice/themes/pokemon/x/lq3x9a1b2g'), buf(2048), { contentType: 'image/webp' })); // too deep
   await assertSucceeds(uploadBytes(ref(alice, 'skins/alice/wallpaper'), buf(2048), { contentType: 'image/jpeg' }));                 // existing slots unchanged
   await assertFails(deleteObject(ref(bob, T)));
   await assertFails(deleteObject(ref(admin, T)));
   await assertFails(deleteObject(ref(anon, T)));
   await assertSucceeds(deleteObject(ref(alice, T)));
-  console.log('  my-skin per-theme: 28 storage checks passed');
+  console.log('  my-skin per-theme: 38 storage checks passed');
 
   // ── Reel Studio (2026-10-04): reel-uploads/{companyId}/{uid}/{mediaId} —
   // create-only by the uploader, owner or company_admin of THAT company,

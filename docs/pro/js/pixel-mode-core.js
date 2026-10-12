@@ -389,6 +389,15 @@
     }
     return withLogic().then(function () { return loadScript(WORLD_LOGIC_URL); }).then(function () { return loadScript(WORLD_JS_URL); });
   }
+  // Same callable plumbing as agent-inbox.js (lazy Functions SDK).
+  function callFn(name, payload) {
+    var ready = w._httpsCallable ? Promise.resolve() :
+      import('/assets/vendor/firebase/10.12.2/firebase-functions.js').then(function (m) { w._httpsCallable = m.httpsCallable; });
+    return ready.then(function () {
+      if (!w._functions) throw new Error('Functions SDK unavailable');
+      return w._httpsCallable(w._functions, name)(payload || {});
+    }).then(function (res) { return res && res.data; });
+  }
   function leadById(id) {
     var list = Array.isArray(w._leads) ? w._leads : [];
     for (var i = 0; i < list.length; i++) if (list[i] && list[i].id === id) return list[i];
@@ -433,6 +442,8 @@
         return l._stageKey || (typeof w.normalizeStage === 'function' ? w.normalizeStage(l.stage) : l.stage);
       },
       moveStage: function (id, key) { return typeof w.moveCard === 'function' ? w.moveCard(id, key) : Promise.reject(new Error('pipeline not loaded')); },
+      // E2c: the server files the draft (agent_inbox is create:false for clients).
+      fileDraft: function (id, key) { return callFn('fileLeadTextDraft', { leadId: id, template: key }); },
       reduceMotion: reducedMotion,
       seen: worldSeen,
       saveSeen: function (arr) { worldSeen = arr.slice(-400); return saveWorld({ seen: worldSeen }); },

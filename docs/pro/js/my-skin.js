@@ -48,6 +48,8 @@
   var layerPic = null;     // what the layers show: { source, key, url, style, eff, img }
   var fetchingAll = null;  // promise of the in-flight global-slot fetch
   var clearArmed = null;   // themeId whose "Clear" button is waiting for a second tap
+  var editTarget = null;   // a theme picked in the grid: the card edits it without applying it
+  var panelThumb = { key: null, url: null, pending: null };
 
   var toast = function (m, t) { if (typeof window.showToast === 'function') window.showToast(m, t || 'info'); };
   var sdk = function () { return import(STORAGE_SDK); };
@@ -363,9 +365,10 @@
   }
 
   // Decode, scale to the spec's long edge, re-encode. Drops EXIF and caps
-  // size. Resolves { blob, w, h, srcW, srcH, stats } (stats: upload-time
-  // luminance for the readability guard, only when asked for).
-  function encode(file, spec, wantStats) {
+  // size. Resolves { blob, w, h, srcW, srcH, stats, thumb } (stats: upload-time
+  // luminance for the readability guard; thumb: a 256 px copy for the grid;
+  // each only when asked for).
+  function encode(file, spec, wantStats, wantThumb) {
     var decode = (typeof createImageBitmap === 'function')
       ? createImageBitmap(file).catch(function () { return viaImg(file); })
       : viaImg(file);
@@ -395,11 +398,23 @@
       }).then(function (o) {
         if (img.close) { try { img.close(); } catch (e) {} }
         if (!o.blob || o.blob.size >= maxBytes) throw new Error('too-big');
-        return { blob: o.blob, w: o.w, h: o.h, srcW: sw, srcH: sh, stats: wantStats ? sampleStats(o.canvas) : null };
+        var res = { blob: o.blob, w: o.w, h: o.h, srcW: sw, srcH: sh, stats: wantStats ? sampleStats(o.canvas) : null, thumb: null };
+        if (!wantThumb) return res;
+        return thumbOf(o.canvas).then(function (t) { res.thumb = t; return res; }, function () { return res; });
       });
     });
   }
-  function reencode(file, spec) { return encode(file, spec, false).then(function (r) { return r.blob; }); }
+  function reencode(file, spec) { return encode(file, spec, false, false).then(function (r) { return r.blob; }); }
+  // A THUMB_WIDTH-wide lossy copy (the grid shows these, not the full picture).
+  function thumbOf(canvas) {
+    var tw = Math.min(L().THUMB_WIDTH, canvas.width), th = Math.max(1, Math.round(canvas.height * tw / canvas.width));
+    var c = document.createElement('canvas'); c.width = tw; c.height = th;
+    c.getContext('2d').drawImage(canvas, 0, 0, tw, th);
+    return new Promise(function (res) { c.toBlob(res, 'image/webp', 0.7); }).then(function (b) {
+      if (b && b.type === 'image/webp') return b;
+      return new Promise(function (res) { c.toBlob(res, 'image/jpeg', 0.78); });
+    });
+  }
   function viaImg(file) {
     return new Promise(function (res, rej) {
       var u = URL.createObjectURL(file); var im = new Image();
@@ -494,11 +509,14 @@
     });
     if (!gone.length) return Promise.resolve();
     return sdk().then(function (st) {
-      return Promise.all(gone.map(function (i) {
+      var jobs = [];
+      gone.forEach(function (i) {
         var p = L().trustedImagePath(uid, i);
-        if (!p) return null;
-        return st.deleteObject(st.ref(window.storage, p)).catch(function () {});
-      }));
+        if (!p) return;
+        jobs.push(st.deleteObject(st.ref(window.storage, p)).catch(function () {}));
+        if (i.thumb) jobs.push(st.deleteObject(st.ref(window.storage, p + '_t')).catch(function () {}));
+      });
+      return Promise.all(jobs);
     }).catch(function () {});
   }
 
@@ -512,24 +530,35 @@
     if (!cfg || !uid || !L().THEME_ID_RE.test(themeId) || busy[key]) return Promise.resolve(false);
     var chk = L().checkInput(file);
     if (!chk.ok) { toast(chk.reason, 'warning'); return Promise.resolve(false); }
+    if (!cfg.themes[themeId] && !L().quotaCheck(cfg, 0).ok) {
+      toast('Your background pictures are using 300 MB. Clear some themes first.', 'warning');
+      return Promise.resolve(false);
+    }
     busy[key] = true; renderPanel();
     var spec = L().THEME_IMAGE_SPEC;
     var id = L().mintImageId();
     var path = L().themeStoragePath(uid, themeId, id);
     var enc = null;
     var turnedOn = !cfg.enabled;
-    return encode(file, spec, true).then(function (r) {
+    var hasThumb = false;
+    return encode(file, spec, true, true).then(function (r) {
       enc = r;
       return sdk().then(function (st) {
         var meta = { w: String(r.w), h: String(r.h) };
         if (r.stats) meta.lum = r.stats.lum.toFixed(3);
         return st.uploadBytes(st.ref(window.storage, path), r.blob,
-          { contentType: r.blob.type, cacheControl: 'private, max-age=0', customMetadata: meta });
+          { contentType: r.blob.type, cacheControl: 'private, max-age=0', customMetadata: meta }).then(function () {
+          if (!r.thumb) return null;
+          // The grid's copy is a nicety: a failed thumbnail never fails the picture.
+          return st.uploadBytes(st.ref(window.storage, path + '_t'), r.thumb,
+            { contentType: r.thumb.type, cacheControl: 'private, max-age=0' }).then(function () { hasThumb = true; }, function () {});
+        });
       });
     }).then(function () {
       var st = enc.stats || {};
       var image = { id: id, path: path, v: Date.now(), w: enc.w, h: enc.h, lum: st.lum != null ? st.lum : null,
-        lumCenter: st.lumCenter != null ? st.lumCenter : null, avg: st.avg || null, type: enc.blob.type, bytes: enc.blob.size };
+        lumCenter: st.lumCenter != null ? st.lumCenter : null, avg: st.avg || null, type: enc.blob.type, bytes: enc.blob.size,
+        thumb: hasThumb };
       var prev = cfg.themes[themeId];
       var oldImages = prev ? prev.images.slice() : [];
       var raw = prev ? Object.assign({}, prev, { images: [image], updatedAt: Date.now() })
@@ -601,6 +630,8 @@
   // The key backgrounds are looked up by: the Custom Builder's reserved
   // '_custom' while its colours are on, otherwise the engine's theme id.
   function attr(n) { try { return html().getAttribute(n); } catch (e) { return null; } }
+  // The theme the card edits: the one picked in the grid, else the applied one.
+  function editKey() { return editTarget || activeKey(); }
   function activeKey() {
     if (attr('data-custom-theme') === '1') return '_custom';
     if (themeKey) return themeKey;
@@ -775,6 +806,7 @@
     var d = e && e.detail;
     var k = typeof d === 'string' ? d : (d && d.themeKey) || null;
     if (k) themeKey = k;
+    if (editTarget && editTarget === k) editTarget = null;
     if (!cfg) return;
     showCurrent().then(renderPanel);
   }
@@ -802,11 +834,23 @@
     if (!card) return;
     card.hidden = !cfg.perTheme;
     if (!cfg.perTheme) return;
-    var key = activeKey();
+    var key = editKey();
+    var isActive = key === activeKey();
     var slot = key && cfg.themes[key];
-    var name = $('myskinThemeName'); if (name) name.textContent = themeLabel(key);
+    var name = $('myskinThemeName'); if (name) name.textContent = themeLabel(key) + (isActive ? '' : ' (not applied)');
     var row = card.querySelector('[data-myskin-theme-slot]');
-    var shown = layerPic && layerPic.source === 'theme' ? layerPic.url : null;
+    var shown = isActive && layerPic && layerPic.source === 'theme' ? layerPic.url : null;
+    if (!shown && slot && !isActive) {
+      var im0 = slot.images[0], tk = imgKey(im0);
+      if (panelThumb.key === tk && panelThumb.url) shown = panelThumb.url;
+      else if (panelThumb.pending !== tk) {
+        panelThumb.pending = tk;
+        acquire(im0).then(function (h) { panelThumb = { key: tk, url: h.url, pending: null }; renderPanel(); },
+          function () { panelThumb.pending = null; });
+      }
+    }
+    var prev = card.querySelector('[data-myskin-theme-preview]');
+    if (prev) prev.hidden = isActive || !key;
     if (row) {
       var img = row.querySelector('.myskin-thumb-img');
       var empty = row.querySelector('.myskin-thumb-empty');
@@ -822,6 +866,7 @@
     if (status) {
       var src = layerPic ? layerPic.source : (cfg.enabled ? 'builtin' : 'off');
       status.textContent = !cfg.enabled ? 'My Skin is off.'
+        : !isActive ? (slot ? 'Not applied. Preview it to see it on the page.' : 'No picture for this theme yet.')
         : src === 'theme' ? 'Showing: this theme’s picture.'
         : src === 'all' ? 'Showing: your picture for all themes.'
         : src === 'global' ? 'Showing: your global wallpaper.'
@@ -883,11 +928,21 @@
       var st = row.querySelector('.myskin-status'); if (st) st.textContent = busy[s] ? 'Working…' : '';
     });
     renderThemeCard();
+    var tools = $('myskinTools');
+    if (tools) {
+      tools.hidden = !cfg.perTheme;
+      var use = $('myskinUsage');
+      if (use) {
+        var q = L().quotaCheck(cfg, 0);
+        use.textContent = 'Your theme pictures use ' + Math.round(q.used / 1048576) + ' MB of ' + Math.round(q.limit / 1048576) + ' MB.'
+          + (q.used >= q.limit ? ' New pictures are paused until you clear some.' : '');
+      }
+    }
   }
 
   // Edit the current theme's entry in memory, repaint it, save it by field.
   function editTheme(fn) {
-    var key = activeKey();
+    var key = editKey();
     var slot = key && cfg && cfg.themes[key];
     if (!slot) return;
     fn(slot);
@@ -906,7 +961,7 @@
       showCurrent().then(renderPanel); save();
     }
     else if (t.matches && t.matches('[data-myskin-theme-file]')) {
-      var tf = t.files && t.files[0]; var key = activeKey();
+      var tf = t.files && t.files[0]; var key = editKey();
       t.value = '';
       if (tf && key) uploadThemeImage(key, tf);
     }
@@ -936,18 +991,98 @@
     if (t.id === 'myskinThemeBlur') editTheme(function (s) { s.blur = Number(t.value); });
   }
   function onClick(e) {
-    var b = e.target && e.target.closest && e.target.closest('[data-myskin-remove],#myskinAccentReset,[data-myskin-pos],[data-myskin-theme-clear],[data-myskin-theme-from-wallpaper]');
+    var b = e.target && e.target.closest && e.target.closest('[data-myskin-remove],#myskinAccentReset,[data-myskin-pos],[data-myskin-theme-clear],[data-myskin-theme-from-wallpaper],[data-myskin-open],[data-myskin-theme-preview]');
     if (!b || !cfg) return;
+    if (b.hasAttribute('data-myskin-open')) { openTool(b.getAttribute('data-myskin-open')); return; }
+    if (b.hasAttribute('data-myskin-theme-preview')) {
+      var pk = editKey();
+      try { if (pk && window.ThemeEngine && window.ThemeEngine.apply) window.ThemeEngine.apply(pk, false); } catch (x) {}
+      return;
+    }
     if (b.id === 'myskinAccentReset') { cfg.accent = null; paint(); save(); renderPanel(); return; }
     if (b.hasAttribute('data-myskin-pos')) { var pv = b.getAttribute('data-myskin-pos'); editTheme(function (s) { s.position = pv; }); return; }
     if (b.hasAttribute('data-myskin-theme-clear')) {
-      var key = activeKey();
+      var key = editKey();
       if (clearArmed === key) { clearArmed = null; clearTheme(key); }
       else { clearArmed = key; renderPanel(); setTimeout(function () { if (clearArmed === key) { clearArmed = null; renderPanel(); } }, 4000); }
       return;
     }
-    if (b.hasAttribute('data-myskin-theme-from-wallpaper')) { var k2 = activeKey(); if (k2) wallpaperToTheme(k2); return; }
+    if (b.hasAttribute('data-myskin-theme-from-wallpaper')) { var k2 = editKey(); if (k2) wallpaperToTheme(k2); return; }
     remove(b.getAttribute('data-myskin-remove'));
+  }
+
+  // Bulk import and the all-themes grid live in a lazy module (the zip reader,
+  // the review table, the upload queue): nothing loads until it is asked for.
+  function loadImportModule() {
+    if (window.NBDMySkinImport) return Promise.resolve(window.NBDMySkinImport);
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = '/pro/js/my-skin-import.js?v=1'; s.async = true;
+      s.onload = function () { window.NBDMySkinImport ? resolve(window.NBDMySkinImport) : reject(new Error('missing')); };
+      s.onerror = function () { reject(new Error('load')); };
+      document.head.appendChild(s);
+    });
+  }
+  function openTool(kind) {
+    var root = $(kind === 'grid' ? 'myskinGridRoot' : 'myskinImportRoot');
+    if (!root || !cfg) return;
+    loadImportModule().then(function (m) { m.open(kind, root, internals()); })
+      .catch(function () { toast('Couldn’t open that. Check your connection and try again.', 'error'); });
+  }
+
+  // Write several theme entries in one merge (a bulk import's batch of 25),
+  // update the local config first so the panel and painter are right at once,
+  // then delete the objects nothing refers to any more.
+  function commitThemes(map, oldImages) {
+    var turnedOn = !cfg.enabled;
+    var out = {};
+    Object.keys(map).forEach(function (id) {
+      var tmp = {}; tmp[id] = map[id];
+      var s = L().normalize({ themes: tmp }).themes[id];
+      if (s) { cfg.themes[id] = s; out[id] = JSON.parse(JSON.stringify(s)); }
+    });
+    if (!Object.keys(out).length) return Promise.resolve();
+    if (!cfg.enabled) cfg.enabled = true;
+    localEditAt = Date.now();
+    return fsdk().then(function (f) {
+      return f.setDoc(f.doc(window.db, 'userSettings', uid), { mySkin: { schema: 2, themes: out } }, { merge: true });
+    }).then(function () {
+      if (turnedOn) save();
+      return showCurrent();
+    }).then(function () { return deleteUnreferenced(oldImages || []); }).then(renderPanel);
+  }
+
+  function internals() {
+    return {
+      L: L(), cfg: function () { return cfg; }, uid: function () { return uid; },
+      encode: encode, sdk: sdk, acquire: acquire, imgKey: imgKey, toast: toast,
+      commitThemes: commitThemes, themeLabel: themeLabel, activeKey: activeKey,
+      edit: function (themeId) {
+        editTarget = themeId; clearArmed = null; renderPanel();
+        var c = $('myskinThemeCard'); if (c && c.scrollIntoView) { try { c.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
+      },
+      busy: function (id) { return !!busy['t:' + id]; },
+    };
+  }
+
+  // Warm the picker's hovered theme: its picture is a local read by the time
+  // it is clicked. Debounced, at most 3 at once, never on phones or Data Saver.
+  var prefTimer = null, prefInflight = 0;
+  function onHover(e) {
+    var el = e.target && e.target.closest && e.target.closest('#npm-grid [data-theme-key]');
+    if (!el || !cfg || !cfg.perTheme || !cfg.enabled || !uid) return;
+    if (mq('(max-width: 600px)') || (navigator.connection && navigator.connection.saveData)) return;
+    var k = el.getAttribute('data-theme-key');
+    clearTimeout(prefTimer);
+    prefTimer = setTimeout(function () {
+      var r = L().resolveBackground(cfg, k);
+      if (r.source !== 'theme' && r.source !== 'all') return;
+      var im = r.images[0];
+      if (mem.has(imgKey(im)) || prefInflight >= 3) return;
+      prefInflight++;
+      var done = function () { prefInflight--; };
+      acquire(im).then(done, done);
+    }, 150);
   }
 
   // The Appearance tab can be mounted after boot: fill the panel whenever a
@@ -971,6 +1106,8 @@
     document.addEventListener('click', onClick);
     document.addEventListener('themechange', onTheme);
     document.addEventListener('modechange', onMode);
+    document.addEventListener('pointerover', onHover);
+    document.addEventListener('focusin', onHover);
     watchPanel();
     var p = $('myskinPanel'); if (p) p.setAttribute('data-myskin-ready', '');
   }
