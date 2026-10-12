@@ -560,6 +560,7 @@ jobs:
           npm ci --silent || npm install --silent --no-audit --no-fund
           npx firebase-tools emulators:exec --only firestore --project nbd-rules-test 'node firestore-rules.test.js'
           npx firebase-tools emulators:exec --only firestore --project nbd-xtenant-test 'node firestore-rules.cross-tenant.test.js'
+          npx firebase-tools emulators:exec --only firestore --project nbd-labels-test 'node firestore-rules.contact-labels.test.js'
           npx firebase-tools emulators:exec --only firestore --project nbd-commlog-test 'node communication-log-contract.test.js'
           npx firebase-tools emulators:exec --only storage --project nbd-storage-test 'node storage-rules.test.js'
 

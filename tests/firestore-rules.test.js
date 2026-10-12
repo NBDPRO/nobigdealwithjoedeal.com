@@ -3029,6 +3029,68 @@ async function run() {
     throw new Error('61 companies/settings/layout: ' + s61Fail.length + ' check(s) went the wrong way:\n    ' + s61Fail.join('\n    '));
   }
 
+  // ─── 62. away_mode / away_private / away_windows (never-forget lane, 2026-10-12) ───
+  // Admin-SDK-write only. away_mode (status, no PII) is readable by the whole
+  // company incl. viewers + the owner; away_private (external backup contact,
+  // wording draft) by nobody; away_windows (names + numbers) only by the owner
+  // or the company's company_admin, never the backup / a rep / a viewer.
+  const s62Fail = []; let s62Pass = 0;
+  async function x62(label, want, promise) {
+    try { await (want === 'allow' ? assertSucceeds(promise) : assertFails(promise)); s62Pass++; }
+    catch (e) { s62Fail.push(label + ' (wanted ' + want + ')'); }
+  }
+  const own62  = env.authenticatedContext('co-62', {}).firestore();                                   // solo owner (uid == companyId, no claims)
+  const ownC62 = env.authenticatedContext('co-62b', { role: 'company_admin', companyId: 'co-62b' }).firestore();
+  const adm62  = env.authenticatedContext('adm62', { role: 'company_admin', companyId: 'co-62' }).firestore();
+  const mgr62  = env.authenticatedContext('mgr62', { role: 'manager', companyId: 'co-62' }).firestore();
+  const bak62  = env.authenticatedContext('bak62', { role: 'sales_rep', companyId: 'co-62' }).firestore(); // the backup person
+  const vw62   = env.authenticatedContext('vw62', { role: 'viewer', companyId: 'co-62' }).firestore();
+  const oth62  = env.authenticatedContext('oth62', { role: 'company_admin', companyId: 'co-62-other' }).firestore();
+  const anon62 = env.unauthenticatedContext().firestore();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'away_mode/co-62'), { companyId: 'co-62', away: { on: true, untilMs: 1 }, backup: { kind: 'member', name: 'Sam' }, backupState: 'ok', active: true });
+    await setDoc(doc(d, 'away_private/co-62'), { companyId: 'co-62', backup: { external: { phone: '8595550100' } }, playbook: { draft: 'x' } });
+    await setDoc(doc(d, 'away_windows/co-62__w1'), { companyId: 'co-62', status: 'active', items: { 'num:8595550100': { who: 'Maria S.', phone10: '8595550100' } } });
+    await setDoc(doc(d, 'away_windows/co-62b__w1'), { companyId: 'co-62b', status: 'active', items: {} });
+  });
+  await x62('solo owner reads their status doc', 'allow', getDoc(doc(own62, 'away_mode/co-62')));
+  await x62('company_admin reads it', 'allow', getDoc(doc(adm62, 'away_mode/co-62')));
+  await x62('manager reads it (status line)', 'allow', getDoc(doc(mgr62, 'away_mode/co-62')));
+  await x62('the backup (a rep) reads it', 'allow', getDoc(doc(bak62, 'away_mode/co-62')));
+  await x62('a viewer reads it', 'allow', getDoc(doc(vw62, 'away_mode/co-62')));
+  await x62('another company cannot read it', 'deny', getDoc(doc(oth62, 'away_mode/co-62')));
+  await x62('signed-out reads nothing', 'deny', getDoc(doc(anon62, 'away_mode/co-62')));
+  await x62('platform admin reads it', 'allow', getDoc(doc(admin, 'away_mode/co-62')));
+  await x62('owner cannot write the status doc (server-only)', 'deny', setDoc(doc(own62, 'away_mode/co-62'), { away: { on: false } }));
+  await x62('company_admin cannot write it either', 'deny', updateDoc(doc(adm62, 'away_mode/co-62'), { backupState: 'ok' }));
+  await x62('a rep cannot name themselves backup', 'deny', setDoc(doc(bak62, 'away_mode/co-62'), { backup: { kind: 'member', name: 'Me' } }));
+  await x62('a rep cannot create a status doc for a company', 'deny', setDoc(doc(bak62, 'away_mode/co-62-new'), { away: { on: true } }));
+  await x62('nobody deletes it from the client', 'deny', deleteDoc(doc(own62, 'away_mode/co-62')));
+  await x62('away_private: owner cannot read (callable only)', 'deny', getDoc(doc(own62, 'away_private/co-62')));
+  await x62('away_private: company_admin cannot read', 'deny', getDoc(doc(adm62, 'away_private/co-62')));
+  await x62('away_private: the backup cannot read', 'deny', getDoc(doc(bak62, 'away_private/co-62')));
+  await x62('away_private: owner cannot write (forged consent / approval)', 'deny', setDoc(doc(own62, 'away_private/co-62'), { playbook: { approvedHash: 'x' } }));
+  await x62('away_windows: solo owner reads the ledger', 'allow', getDoc(doc(own62, 'away_windows/co-62__w1')));
+  await x62('away_windows: company_admin of that company reads it', 'allow', getDoc(doc(adm62, 'away_windows/co-62__w1')));
+  await x62('away_windows: company-keyed owner with a role claim reads its own', 'allow', getDoc(doc(ownC62, 'away_windows/co-62b__w1')));
+  await x62('away_windows: the BACKUP cannot read the ledger', 'deny', getDoc(doc(bak62, 'away_windows/co-62__w1')));
+  await x62('away_windows: a manager cannot', 'deny', getDoc(doc(mgr62, 'away_windows/co-62__w1')));
+  await x62('away_windows: a viewer cannot', 'deny', getDoc(doc(vw62, 'away_windows/co-62__w1')));
+  await x62('away_windows: another company cannot', 'deny', getDoc(doc(oth62, 'away_windows/co-62__w1')));
+  await x62('away_windows: company_admin of another company cannot read mine', 'deny', getDoc(doc(adm62, 'away_windows/co-62b__w1')));
+  await x62('away_windows: signed-out cannot', 'deny', getDoc(doc(anon62, 'away_windows/co-62__w1')));
+  await x62('cross-tenant company_admin cannot update the status doc', 'deny', updateDoc(doc(oth62, 'away_mode/co-62'), { backupState: 'ok' }));
+  await x62('cross-tenant company_admin cannot read the ledger', 'deny', getDoc(doc(oth62, 'away_windows/co-62__w1')));
+  await x62('cross-tenant company_admin cannot write the ledger', 'deny', setDoc(doc(oth62, 'away_windows/co-62__w1'), { reviewedAtMs: 1 }, { merge: true }));
+  await x62('cross-tenant company_admin cannot read the private config', 'deny', getDoc(doc(oth62, 'away_private/co-62')));
+  await x62('away_windows: owner cannot write (touches are server-recorded)', 'deny', updateDoc(doc(own62, 'away_windows/co-62__w1'), { reviewedAtMs: 1 }));
+  await x62('away_windows: the backup cannot write a touch directly', 'deny', setDoc(doc(bak62, 'away_windows/co-62__w1'), { items: {} }, { merge: true }));
+  console.log('  62: ' + s62Pass + ' away-mode checks passed, ' + s62Fail.length + ' failed');
+  if (s62Fail.length) {
+    throw new Error('62 away_mode/away_private/away_windows: ' + s62Fail.length + ' check(s) went the wrong way:\n    ' + s62Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }

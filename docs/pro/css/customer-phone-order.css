@@ -1,0 +1,159 @@
+/* customer-phone-order.css — the customer page, ordered for a phone on a roof
+   (2026-10-08, phone audit item 1). Pairs with js/customer-phone-order.js.
+
+   At 390x844 the page was 15 phone screens; Note sat 4.9 screens down,
+   Build Estimate 4.7 and Record payment 12.3. This sheet:
+     1. styles the roof-day action row (#roofActionRow) — every width;
+     2. reorders the header and Overview by daily use — phone only (≤900px,
+        the width where Overview is already one column), by CSS `order`, so
+        the markup (and desktop) keep their order;
+     3. styles the folds (<details class="cpo-fold">) — closed on a phone by
+        the module, open everywhere else;
+     4. lifts every tap target on the page to 44px at phone width (≤640px).
+   Colour from theme tokens only; no new hex in rules except the two
+   checkbox glyphs, which are SVG data (a CSS var can't reach inside one). */
+
+/* ── 1. Roof-day action row ─────────────────────────────────────────── */
+.cpo-row {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin: 4px 0 0;
+}
+/* /assets/css/nbd-mobile.css (a marketing sheet this page links) pads every
+   <nav> 16px sideways with !important; this row sits flush with the header. */
+#roofActionRow { padding: 0 !important; }
+.cpo-act {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 40px; padding: 8px 14px;
+  border: 1px solid var(--ui-line-divider, var(--br)); border-radius: var(--ui-radius-md, 8px);
+  background: color-mix(in srgb, var(--t) 6%, transparent);
+  color: var(--t); font: inherit; font-size: 13px; font-weight: 700; letter-spacing: .02em;
+  text-decoration: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.cpo-act:hover { background: color-mix(in srgb, var(--t) 11%, transparent); border-color: var(--ui-line-strong, var(--br)); }
+.cpo-act[hidden] { display: none !important; }
+.cpo-ico { width: 16px; height: 16px; flex: 0 0 auto; color: color-mix(in srgb, var(--orange) 55%, var(--t)); }
+
+@media (max-width: 900px) {
+  /* Three across, two down, in the header at scroll 0. */
+  .cpo-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 2px 0 6px; }
+  .cpo-act { flex-direction: column; gap: 4px; min-height: 58px; padding: 8px 4px; font-size: 13px; }
+  .cpo-ico { width: 20px; height: 20px; }
+}
+
+/* ── 2. Phone order ─────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  /* Header: who → where → the six actions → stage/brief/More → the AI
+     suggestion (it injects itself before .quick-actions; ordered after). */
+  .customer-header { display: flex; flex-direction: column; }
+  .customer-header > * { order: 9; }
+  .customer-header > .customer-name { order: 1; }
+  .customer-header > .customer-meta { order: 2; }
+  .customer-header > #roofActionRow { order: 3; }
+  .customer-header > .quick-actions { order: 4; }
+  .customer-header > #smartFollowupPanel { order: 5; }
+
+  /* Overview: both columns' panels in one list, by daily use. Anything a
+     module injects later (no rule below) lands at the end, never the top. */
+  .cpo-overview { display: flex; flex-direction: column; gap: 0; }
+  .cpo-overview > div { display: contents; }
+  .cpo-overview > div > * { order: 50; }
+  .cpo-overview #numbersPanel,
+  .cpo-overview #warrantyClaimPanel { order: 1; }
+  .cpo-overview .cpo-money[data-owed="1"] { order: 2; }
+  .cpo-overview .cpo-notes { order: 3; }
+  .cpo-overview .cpo-tasks { order: 4; }
+  .cpo-overview #insurancePanel,
+  .cpo-overview #insuranceClaimWorkflow,
+  .cpo-overview #financePanel { order: 5; }
+  .cpo-overview .cpo-estimates { order: 6; }
+  .cpo-overview .cpo-money { order: 7; }
+  .cpo-overview .cpo-stripe { order: 8; }
+  .cpo-overview .cpo-photos { order: 9; }
+  .cpo-overview #productionPanel,
+  .cpo-overview #jobsPanel { order: 10; }
+  .cpo-overview .cpo-files { order: 11; }
+  .cpo-overview .cpo-info { order: 12; }
+  .cpo-overview #checklistPanel { order: 13; }
+  .cpo-overview #profitPanel { order: 14; }
+}
+
+/* ── 3. Folds ───────────────────────────────────────────────────────── */
+.cpo-fold > .cpo-fold-sum {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px;
+  min-height: 44px; margin: -6px 0 6px; cursor: pointer; list-style: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.cpo-fold > .cpo-fold-sum::-webkit-details-marker { display: none; }
+.cpo-fold > .cpo-fold-sum::marker { content: ''; }
+.cpo-fold > .cpo-fold-sum::after {
+  content: ''; flex: 0 0 auto; margin-left: auto; width: 8px; height: 8px;
+  border-right: 2px solid var(--m); border-bottom: 2px solid var(--m);
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform var(--ui-dur-hover, .12s) var(--ui-ease, ease);
+}
+.cpo-fold[open] > .cpo-fold-sum::after { transform: translateY(2px) rotate(-135deg); }
+.cpo-fold > .cpo-fold-sum .panel-title { margin: 0 !important; }
+.cpo-fold > .cpo-fold-sum-head > .panel-head { flex: 1 1 0; min-width: 0; margin-bottom: 0 !important; }
+.cpo-fold:not([open]) > .cpo-fold-sum { margin-bottom: -6px; }
+.cpo-fold-hint { flex: 1 1 100%; font-size: 12px; color: var(--m); }
+.cpo-fold[open] .cpo-fold-hint { display: none; }
+.cpo-fold-count {
+  background: color-mix(in srgb, var(--t) 9%, transparent); color: var(--t);
+  font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.cpo-fold-count:empty { display: none; }
+/* The summary carries the title now; the old in-body copy stays in the
+   markup (its row also holds the panel's note) but is not shown twice. */
+.cpo-fold-dup { display: none !important; }
+
+/* ── 4. Tap targets: 44px at phone width ────────────────────────────── */
+@media (max-width: 640px) {
+  /* Page header and jump nav. The nav trades its own padding for taller
+     chips, so the pinned bar stays 48px (scroll-padding-top is built on it). */
+  header .back-btn, #presentationModeBtn {
+    min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .jump-nav { padding-top: 2px !important; padding-bottom: 2px !important; }
+  .jump-nav a { min-height: 44px; display: inline-flex; align-items: center; padding-top: 0 !important; padding-bottom: 0 !important; }
+
+  /* Every button-like control inside the page body. Photo-tile badges are
+     left alone: they sit on a 90px thumbnail, and the tile is the target. */
+  .container :is(button, .btn, a.btn, [role="button"], select,
+                 input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"])):not(.nbd-photo-badge) {
+    min-height: 44px;
+  }
+  .container :is(button, .btn, [role="button"]):not(.nbd-photo-badge) { min-width: 44px; }
+  .container :is(.tl-pill, .photo-filter-btn, #nbdPhotoSelectToggle, .csf-btn, #leadScoreChip, #emailUnsubMarkBtn) {
+    min-height: 44px !important; display: inline-flex !important; align-items: center; justify-content: center;
+  }
+  .container :is(#esignSetupLink, #prReviewBtn, .quick-contact-btn, #checklistPanel a, .ipx-rp-open) {
+    min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+  }
+  /* Same size for the small-button variants the markup sizes inline. */
+  .container :is(.ui-btn-sm, .panel-head-actions .btn, .cpo-files .btn, #quickNoteSend, [data-action="openNotesModal"], #repMsgSend) {
+    min-height: 44px !important;
+  }
+  /* The pinned photo bulk bar holds three rows of now-44px controls; tighter
+     gaps keep it ≤160px so it doesn't bury the grid (phone-customer.spec). */
+  .nbd-photo-bulk-bar.active { gap: 6px !important; padding-top: 5px !important; padding-bottom: 5px !important; }
+
+  /* Checklist rows: the whole row is the label, so the row is the target. */
+  #checklistPanel label { min-height: 44px; }
+
+  /* Task checkboxes in Timeline & Tasks stand alone (no label). The control
+     itself grows to 44x44 and draws its 22px box as an SVG, so the row looks
+     the same while the thumb gets the whole square. Negative margins keep
+     the row's line height. */
+  .cbx-check.cbx-check {
+    -webkit-appearance: none; appearance: none;
+    width: 44px; height: 44px; min-width: 44px; margin: -12px -10px -12px -12px; flex: 0 0 auto;
+    border: 0; border-radius: 8px; cursor: pointer;
+    background: transparent no-repeat center / 22px 22px
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Crect x='1' y='1' width='20' height='20' rx='5' fill='none' stroke='%2394a3b8' stroke-width='2'/%3E%3C/svg%3E");
+  }
+  .cbx-check.cbx-check:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Crect x='1' y='1' width='20' height='20' rx='5' fill='%23BD5728' stroke='%23BD5728' stroke-width='2'/%3E%3Cpath d='M6 11.5l3.2 3.2L16 8' fill='none' stroke='%23ffffff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+  .cbx-check.cbx-check:focus-visible { outline: 2px solid var(--ui-focus, var(--orange)); outline-offset: -6px; }
+}

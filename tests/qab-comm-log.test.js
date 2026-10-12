@@ -76,6 +76,17 @@ function parseAnchors(html, parent) {
     a.closest = (sel) => (sel === 'a[href]' ? a : null);
     out.push(a);
   }
+  // Note / Task are <button data-qab="…"> (2026-10-08): resolved by a
+  // delegated listener, so a tap is "closest('[data-qab]') → this button".
+  const reB = /<button\s+class="([^"]*)"\s+type="button"\s+data-qab="([^"]*)"/g;
+  while ((m = reB.exec(html))) {
+    const b = makeEl('button');
+    b.attrs.class = m[1];
+    b.attrs['data-qab'] = m[2];
+    b.parentElement = parent;
+    b.closest = (sel) => (sel === '[data-qab]' ? b : null);
+    out.push(b);
+  }
   return out;
 }
 
@@ -87,13 +98,15 @@ function run({ withLogger = true, loggerOn = 'registry', lead = { id: 'L1', firs
   const head = makeEl('head');
   const body = makeEl('body');
   const logged = [];
+  const opened = [];
 
   const win = {
     innerWidth: 390,                       // mobile — the bar only renders ≤640
     location: { pathname: '/pro/customer' },
     _currentLead: lead,
     _customerId: lead.id,
-    openTaskModal() {},
+    openTaskModal() { opened.push('task'); },
+    openNotesModal() { opened.push('note'); },
     addEventListener() {},
     // init() schedules a re-render; run callbacks inline so the bar exists
     // by the time runInContext returns.
@@ -124,7 +137,7 @@ function run({ withLogger = true, loggerOn = 'registry', lead = { id: 'L1', firs
   // appended to body.
   const bar = body.children.find((c) => c.attrs && c.attrs.id === undefined && c._listeners.length)
     || body.children[body.children.length - 1];
-  return { win, bar, logged, body };
+  return { win, bar, logged, body, opened };
 }
 
 // ── 1. The bar renders and installs a capture-phase click listener ────
@@ -138,7 +151,8 @@ function run({ withLogger = true, loggerOn = 'registry', lead = { id: 'L1', firs
 }
 
 // ── 2. Each protocol logs with the right type ─────────────────────────
-for (const [proto, type] of [['tel:', 'call'], ['sms:', 'sms'], ['mailto:', 'email']]) {
+// (Email left the bar for Note on 2026-10-08 — see group 6.)
+for (const [proto, type] of [['tel:', 'call'], ['sms:', 'sms']]) {
   const { bar, logged } = run();
   const anchor = bar.children.find((a) => (a.attrs.href || '').startsWith(proto));
   if (!anchor) { ok(`${proto} anchor exists`, false); continue; }
@@ -157,8 +171,6 @@ for (const [proto, type] of [['tel:', 'call'], ['sms:', 'sms'], ['mailto:', 'ema
   const hrefs = bar.children.map((a) => a.attrs.href || '');
   ok('Text is an sms: anchor, not a Twilio send',
     hrefs.some((h) => h.startsWith('sms:')));
-  ok('Email is a mailto: anchor',
-    hrefs.some((h) => h.startsWith('mailto:')));
   ok('module never reaches for the auto-sending portal helpers',
     !/PortalLinkHelpers\.(smsForLead|emailForLead)\s*\(/.test(QAB),
     'smsForLead POSTs to Twilio with no preview — never wire it behind a button labelled "Text"');
@@ -189,6 +201,32 @@ for (const [proto, type] of [['tel:', 'call'], ['sms:', 'sms'], ['mailto:', 'ema
   ok('source reads logCommunication off __NBD_CALL_REGISTRY, never window',
     /_nbdReg\.logCommunication\(leadId, type, label\)/.test(QAB)
     && !/window\.logCommunication\b/.test(QAB));
+}
+
+// ── 6. NOTE took EMAIL's slot (2026-10-08, phone audit item 4) ────────
+// On a roof Jo writes notes many times a day; email waits for the truck
+// (it stays in the header's More list). The thumb slot opens the note sheet
+// — the same openNotesModal the Notes panel's "Open larger editor" calls.
+{
+  const { bar, opened } = run();
+  const kinds = bar.children.map((c) => c.attrs['data-qab'] || (c.attrs.href || '').replace(/:.*/, ':'));
+  ok('bar order is Call · Text · Note · Task', JSON.stringify(kinds) === JSON.stringify(['tel:', 'sms:', 'note', 'task']), JSON.stringify(kinds));
+  ok('no mailto: anchor in the bar any more', !bar.children.some((c) => (c.attrs.href || '').startsWith('mailto:')));
+  const note = bar.children.find((c) => c.attrs['data-qab'] === 'note');
+  const delegated = bar._listeners.filter((l) => l.type === 'click' && !l.capture);
+  delegated.forEach((l) => l.fn({ target: note }));
+  ok('tapping Note opens the note sheet (openNotesModal), and nothing else',
+    !!note && JSON.stringify(opened) === JSON.stringify(['note']), JSON.stringify(opened));
+  const task = bar.children.find((c) => c.attrs['data-qab'] === 'task');
+  opened.length = 0;
+  delegated.forEach((l) => l.fn({ target: task }));
+  ok('tapping Task still opens the task sheet', JSON.stringify(opened) === JSON.stringify(['task']), JSON.stringify(opened));
+}
+{
+  // A lead with no phone and no email still gets Note + Task.
+  const { bar } = run({ lead: { id: 'L2', firstName: 'Nope' } });
+  const kinds = (bar && bar.children || []).map((c) => c.attrs['data-qab']);
+  ok('a phoneless lead still gets Note and Task', JSON.stringify(kinds) === JSON.stringify(['note', 'task']), JSON.stringify(kinds));
 }
 
 console.log('\n──────────────────────────────');

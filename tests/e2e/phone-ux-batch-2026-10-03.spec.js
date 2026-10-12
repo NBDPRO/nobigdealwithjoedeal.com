@@ -466,6 +466,8 @@ test.describe('installed iPhone app — tap targets and safe areas @shard2', () 
   test('9 · doc-template ⓘ previews are 44x44 and scroll clear of the quick bar', async () => {
     await onCustomer();
     await safeWaitForFunction(page, () => document.querySelectorAll('.dt-preview-btn').length > 0, { timeout: 15_000 });
+    // The tiles start folded behind "Documents" on a phone (2026-10-08).
+    await safeEvaluate(page, () => { const f = document.getElementById('docTemplatesFold'); if (f) f.open = true; });
     await forceStandalone(page);
     await dropToasts(page);
     const r = await hits(page, '.dt-preview-btn', { reveal: true, max: 6 });

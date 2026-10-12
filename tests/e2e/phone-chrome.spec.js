@@ -642,6 +642,12 @@ test.describe.serial('customer page chrome on a phone @audit', () => {
       await page.setViewportSize({ width, height: 860 });
       await clearToasts(page);
       const r = await safeEvaluate(page, () => {
+        // Voice Intel folds on a phone (2026-10-08); a real error follows a
+        // tap inside the OPEN panel, and customer-phone-order.js re-opens it
+        // if a toast lands while folded. This toast is planted synchronously,
+        // so open the fold the way the rep's tap would have.
+        const vf = document.getElementById('voiceFold');
+        if (vf) vf.open = true;
         const t = document.createElement('div');
         t.className = 'nbd-voice-toast nbd-voice-toast-err';
         t.textContent = 'Upload failed: network error while sending the recording';
@@ -929,7 +935,19 @@ test.describe.serial('customer page chrome on a phone @audit', () => {
       const tp = await hitReport(page, toggle);
       expect(tp.length, `Toggle Panel is rendered at ${width}px`).toBe(1);
       expect(covered(tp), `Toggle Panel after swiping the top bar at ${width}px`).toEqual([]);
-      await page.locator('.nbd-editor-overlay [data-act="toggle-panel"]').tap();
+      // Chrome's gesture layer sometimes drops the FIRST synthetic tap that
+      // follows the CDP swipe above: pointerdown/touchstart/pointerup/touchend
+      // all reach the button, nothing calls preventDefault, and no click is
+      // made. Whether it happens depends only on the page's length UNDER the
+      // fixed editor (2026-10-08: reproduced by appending a 400px spacer, gone
+      // with 150px) — so it is the harness, not the button. A thumb taps
+      // again; so does this. A toggle that never opens still fails.
+      const toggleBtn = page.locator('.nbd-editor-overlay [data-act="toggle-panel"]');
+      await toggleBtn.tap();
+      if (!(await page.locator('#nbd-panel.open').count())) {
+        await page.waitForTimeout(400);
+        if (!(await page.locator('#nbd-panel.open').count())) await toggleBtn.tap();
+      }
       await expect(page.locator('#nbd-panel.open')).toHaveCount(1);
       await page.locator('.nbd-editor-overlay [data-act="back"]').tap();
       await expect(page.locator('.nbd-editor-overlay')).toHaveCount(0, { timeout: 5_000 });

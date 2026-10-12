@@ -888,6 +888,9 @@ module.exports = {
   sendTeamNotification: exports.sendTeamNotification,
   sendStreakNotification: exports.sendStreakNotification,
   sendCustomNotification: exports.sendCustomNotification,
-  sendPushNotification: exports.sendPushNotification,
-  getUserFCMTokens: exports.getUserFCMTokens
+  // Module-local helpers (declared with `async function`, never assigned to
+  // `exports.*`): reference the bindings directly. `exports.sendPushNotification`
+  // is undefined, which silently exported two dead keys until 2026-10-12.
+  sendPushNotification,
+  getUserFCMTokens
 };

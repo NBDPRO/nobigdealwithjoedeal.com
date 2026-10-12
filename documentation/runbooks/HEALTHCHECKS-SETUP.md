@@ -82,7 +82,7 @@ table drifts from it.
 | `social-publisher` | socialPublisher, resumeMemberStorageMoves | 5 minutes | 30 minutes | scheduled Social Studio posts go out (#2162); removed-member storage-move resume (#2271) |
 | `calls-texts-ingest` | callCenterIngest, callCenterTranscribe, textInboxIngest, leadAlertWatchdog | 30 minutes | 1 hour | call recordings, transcripts, texts in; the missed-lead-alert re-send (every 10 min — a /fail means a lead reached Jo by no channel, even on the re-send) |
 | `hourly-crons` | runAbandonRecovery, textInboxNotes | 1 hour | 2 hours | abandoned-estimate recovery + text notes |
-| `call-followups` | callWatch, callCenterSweep | 12 hours | 1 hour | call watch (2h, 08-20 ET) + promise sweep (07:15/15:15 ET) |
+| `call-followups` | callWatch, callCenterSweep, awayModeTick | 12 hours | 1 hour | call watch (2h, 08-20 ET) + promise sweep (07:15/15:15 ET) + away-mode backup tick (15 min) |
 | `daily-retention` | firestoreBackupRetention, auditLogRetentionCron, recordingRetentionCron, pdfRenderRetention, promiseCleanup, reelCleanup | 1 day | 6 hours | cleanup / retention jobs (incl. promise cleanup, Reel cleanup) |
 | `daily-customer-touches` | dailyLeadDigest, morningBrief, onFollowUpDue, onYardSignPickupDue, anniversaryAutoTouch, reviewRequestNudge, onAfterInstallDay, esignReminderSweep, invoiceOverdueSweep | 1 day | 6 hours | morning digests + nudges to Jo; e-sign reminders to signers (10:00 ET); invoice overdue sweep (08:15 ET) |
 | `daily-syncs` | syncGbpReviews, googleCalendarReconcile, hailMatchCron | 1 day | 6 hours | GBP reviews, Google Calendar reconcile, hail match |

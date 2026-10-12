@@ -132,3 +132,12 @@ nothing there needed a change; no legal claim was added to any public page.
 - Releasing the next payment is a rep tap; nothing auto-releases from the job
   spine's `materials_delivered` stage.
 - The contract template does not yet print the 4722.02(A) contents list.
+
+## Update 2026-10-12 — what the research found (statute text re-fetched)
+
+Re-checked against codes.ohio.gov §4722.01 / .02 / .04 on 2026-10-12, after a Grok research pass:
+
+- **No interpretive guidance exists** that Grok (or this session) could find — no Ohio AG opinion, court decision or agency guidance — on the four open points: whether materials delivery means the supplier's "performance … begins"; whether a special-order item's "total cost" is price or cost; whether an insurance ACV payment is a "down payment"; what qualifies as cost-plus beyond the statutory definition. The statute is silent. These stay **counsel questions**; do not treat the milestone or special-order routes as settled.
+- **Cost-plus definition (verified, §4722.01(A)):** "a contract entered into between an owner and a home construction service supplier under which payment to the supplier is based on the cost of a product plus the supplier's rate for labor to install the product plus an agreed percentage of profit or a stipulated fee." Cost-plus contracts are exempt from §4722.02(A)–(B) and §4722.04. NBD's per-square retail tiers are **not** priced that way, so this PR does not use the exemption. It is a structuring option for counsel if Jo wants a larger up-front payment on line-item jobs; it would change how those estimates are written and shown to the owner, so it is a business and legal decision, not a code switch.
+- **Threshold wording:** §4722.01(C) defines the covered contract as "for an amount exceeding" $25,000 while §4722.02(A) says "equals or exceeds"; the rule errs safe and treats $25,000.00 as covered.
+- **Grok corrections:** its claim that §4722 was amended by "HB 50 effective ~Sept 2024" is unconfirmed (the page lists HB 383, 2012, as latest legislation).
