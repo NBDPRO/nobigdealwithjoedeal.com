@@ -170,12 +170,18 @@ test.describe('phone record payment: a won job with no invoice @shard2', () => {
     }, leadId), { timeout: 20_000 }).toBe(3000);
 
     // One timeline line for the payment, at the payment's own id.
-    const note = await safeEvaluate(page, async ({ leadId, invId, pid }) => {
+    // Read it the way every boot read must be: a getDocs on a page that has just
+    // loaded can be answered from the (still empty) local cache before the
+    // connection is up, so one read can say 0 for a note the server has (2 of 3
+    // runs locally, 2026-10-12). Poll for the server's copy.
+    const readNote = () => safeEvaluate(page, async ({ leadId }) => {
       const fs = await import('/assets/vendor/firebase/10.12.2/firebase-firestore.js');
       const snap = await fs.getDocs(fs.query(fs.collection(window.db, 'notes'), fs.where('leadId', '==', leadId)));
       const pay = snap.docs.filter((d) => (d.data() || {}).type === 'payment');
       return { n: pay.length, id: pay[0] && pay[0].id, text: pay[0] && pay[0].data().text };
-    }, { leadId, invId: inv[0].id, pid: inv[0].paymentId });
+    }, { leadId });
+    await expect.poll(async () => (await readNote()).n, { timeout: 20_000, message: 'the payment timeline line is on the server' }).toBe(1);
+    const note = await readNote();
     expect(note.n).toBe(1);
     expect(note.id).toBe('pay-' + inv[0].id + '-' + inv[0].paymentId);
     expect(note.text).toContain('Payment received: $3,000.00 by Zelle');
