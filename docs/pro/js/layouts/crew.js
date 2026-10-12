@@ -453,6 +453,7 @@
   var S = { view: 'week', monday: null, day: null, menu: false, open: null, notice: null, busyHtml: '', seq: 0 };
   var D = null;                       // the drag in flight
   var pendingPaint = false;
+  var lastHtml = '';
   var DATA = { subs: [], rain: {}, orders: [] };
   var saving = {};
   var suppressClick = false;
@@ -664,8 +665,13 @@
     if (!S.day) S.day = todayYmd();
     var body = S.view === 'week' ? weekHtml() : dayHtml();
     var focusLead = doc.activeElement && doc.activeElement.getAttribute && rootEl.contains(doc.activeElement) ? doc.activeElement.getAttribute('data-lead') : null;
-    rootEl.innerHTML = '<div class="cw-wrap' + (canWrite() ? '' : ' cw-ro') + '">' + topBar() + body + '</div>' + drawerHtml();
+    var html = '<div class="cw-wrap' + (canWrite() ? '' : ' cw-ro') + '">' + topBar() + body + '</div>' + drawerHtml();
     rootEl.hidden = !homeActive();
+    // A repaint that would change nothing is skipped: data callbacks fire in
+    // bursts, and swapping identical nodes only costs focus, hover and drags.
+    if (html === lastHtml) return;
+    lastHtml = html;
+    rootEl.innerHTML = html;
     if (focusLead && !S.open) {
       var again = rootEl.querySelector('[data-lead="' + (W.CSS && CSS.escape ? CSS.escape(focusLead) : focusLead) + '"]');
       if (again && again.focus) { try { again.focus({ preventScroll: true }); } catch (e) { again.focus(); } }
@@ -953,6 +959,7 @@
     if (mo) { mo.disconnect(); mo = null; }
     if (rootEl && rootEl.parentNode) rootEl.parentNode.removeChild(rootEl);
     rootEl = null;
+    lastHtml = '';
     D = null;
     S.open = null; S.menu = false; S.notice = null; S.busyHtml = '';
   }

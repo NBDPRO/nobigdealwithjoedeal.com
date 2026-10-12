@@ -47,9 +47,11 @@ test.describe.serial('Crew Calendar @shard2', () => {
     // unique phone + address per run: a retry must not trip the duplicate-lead prompt
     await safeEvaluate(page, async (a) => {
       const tail = String(a.s).slice(-6);
-      await window._saveLead({ firstName: 'ZZCW' + tail, lastName: 'Placed' + a.s, address: tail + ' Crew Ln, Mason, OH 45040', phone: '513' + tail + '1', stage: 'contract_signed',
+      // the SDK can replay a create (ALREADY_EXISTS): the lead is there, which is all this needs
+      const save = async (d) => { try { return await window._saveLead(d); } catch (e) { if (!/ALREADY_EXISTS|already exists/i.test(String((e && e.message) || e))) throw e; } };
+      await save({ firstName: 'ZZCW' + tail, lastName: 'Placed' + a.s, address: tail + ' Crew Ln, Mason, OH 45040', phone: '513' + tail + '1', stage: 'contract_signed',
         scheduledDate: a.wed, scheduledEndDate: a.thu, scheduledStart: '07:00', subId: a.alpha, crew: 'ZZCW Alpha ' + a.s, permitNotRequired: true });
-      await window._saveLead({ firstName: 'ZZCX' + tail, lastName: 'Tray' + a.s, address: tail + ' Tray Ln, Mason, OH 45040', phone: '513' + tail + '2', stage: 'contract_signed', permitNotRequired: true });
+      await save({ firstName: 'ZZCX' + tail, lastName: 'Tray' + a.s, address: tail + ' Tray Ln, Mason, OH 45040', phone: '513' + tail + '2', stage: 'contract_signed', permitNotRequired: true });
     }, { s, wed, thu, alpha: subIds.alpha });
     await safeEvaluate(page, () => window.LayoutEngine.saveUser({ id: 'crew', device: 'desktop' }));
     await page.reload();
@@ -82,7 +84,9 @@ test.describe.serial('Crew Calendar @shard2', () => {
     async function drag(from, to) {
       await expect(from.first()).toBeVisible({ timeout: 15_000 });
       await expect(to).toBeVisible({ timeout: 15_000 });
-      const a = await from.first().boundingBox();
+      // a repaint can detach the handle between resolve and measure: re-resolve until it measures
+      let a = null;
+      await expect.poll(async () => { a = await from.first().boundingBox(); return a !== null; }, { timeout: 10_000 }).toBe(true);
       const b = await to.boundingBox();
       // grab near the left edge, so a multi-day block is held by its FIRST day
       const gx = a.x + Math.min(30, a.width / 2);
