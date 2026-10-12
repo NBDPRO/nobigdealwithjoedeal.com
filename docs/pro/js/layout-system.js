@@ -205,6 +205,22 @@
     supports: { wallpaper: true, glass: true, sunlight: false },
   });
 
+  // L02 Mission Control (M2). A storm / canvass war room over Home. Every screen
+  // (the panels stack under the map on a phone). Its assets - the shared kit, the
+  // MapView component, the pure logic and the screen - load only while it is the
+  // active layout, so Classic pays nothing.
+  register({
+    id: 'mission', name: 'Mission Control', version: 1,
+    blurb: 'A storm war room: live map with the hail swath, who is in the path, and canvass turfs.',
+    surfaces: SURFACES, tier: 'free',
+    script: 'js/layouts/mission.js', css: 'css/layouts/mission.css',
+    needs: {
+      script: ['js/layouts/kit.js', 'js/layouts/mapview.js', 'js/layouts/mission-logic.js'],
+      css: ['css/layouts/kit.css', 'css/layouts/mapview.css'],
+    },
+    supports: { wallpaper: false, glass: false, sunlight: false },
+  });
+
   var api = {
     SURFACES: SURFACES, FALLBACK: FALLBACK, ID_RE: ID_RE, MAX_STATE_JSON: MAX_STATE_JSON,
     register: register, get: get, list: list, forSurface: forSurface,

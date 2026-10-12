@@ -303,7 +303,65 @@
     return { lat: la[m], lng: ln[m], n: la.length };
   }
 
+  /**
+   * Convex hull (monotone chain) of [{lat,lng}] points, as a closed-less
+   * [[lat,lng]] ring, pushed outward a little so a tight cluster has area.
+   * Fewer than 3 distinct points -> a small box around them. Used only when no
+   * warning polygon is active but there are recent hail reports to cut turfs from.
+   */
+  function hullOf(points) {
+    var pts = (points || []).map(function (p) { return [num(p.lat), num(p.lng)]; })
+      .filter(function (p) { return validPoint(p[0], p[1]); })
+      .sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; })
+      .filter(function (p, i, arr) { return i === 0 || p[0] !== arr[i - 1][0] || p[1] !== arr[i - 1][1]; });
+    if (!pts.length) return null;
+    var PAD = 0.004;
+    if (pts.length < 3) {
+      var c = pts[0];
+      return [[c[0] - PAD, c[1] - PAD], [c[0] - PAD, c[1] + PAD], [c[0] + PAD, c[1] + PAD], [c[0] + PAD, c[1] - PAD]];
+    }
+    function cross(o, a, b) { return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); }
+    var lower = [], upper = [], i;
+    for (i = 0; i < pts.length; i++) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], pts[i]) <= 0) lower.pop(); lower.push(pts[i]); }
+    for (i = pts.length - 1; i >= 0; i--) { while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], pts[i]) <= 0) upper.pop(); upper.push(pts[i]); }
+    lower.pop(); upper.pop();
+    var hull = lower.concat(upper);
+    if (hull.length < 3) return hullOf(pts.slice(0, 1));   // collinear: a box around the first point
+    var cy = 0, cx = 0; hull.forEach(function (h) { cy += h[0]; cx += h[1]; }); cy /= hull.length; cx /= hull.length;
+    return hull.map(function (h) {
+      var dy = h[0] - cy, dx = h[1] - cx, len = Math.sqrt(dy * dy + dx * dx) || 1;
+      return [h[0] + dy / len * PAD / 2, h[1] + dx / len * PAD / 2];
+    });
+  }
+
+  var STAGE_NEXT = {
+    'new': 'Call to book an inspection',
+    contacted: 'Book the inspection',
+    inspected: 'Send the estimate',
+  };
+  /**
+   * The one "next action" line for a lead, from today's plan rows (the same
+   * rows the Today view and Focus Mode rank) and, failing that, the stage.
+   * plan: { appointments, promised, calls, estimates, stalled } (NBDToday.compute()).
+   */
+  function nextActionText(leadId, stageKey, plan) {
+    var id = String(leadId == null ? '' : leadId), p = plan || {};
+    function find(list) { for (var i = 0; i < (list || []).length; i++) if (list[i] && String(list[i].leadId) === id) return list[i]; return null; }
+    var r = find(p.appointments);
+    if (r) return 'Appointment ' + (r.timeLabel || 'today');
+    r = find(p.promised);
+    if (r) { var t = (r.promises && r.promises[0]) || (r.tasks && r.tasks[0] && (r.tasks[0].text || r.tasks[0].title)); return t ? 'You promised: ' + String(t).slice(0, 90) : 'A task is due'; }
+    r = find(p.calls);
+    if (r) return r.missed ? 'Return their missed call' : 'They are waiting on a call back';
+    r = find(p.estimates);
+    if (r) return r.opened ? 'They opened the estimate. Check in' : 'Check in on the estimate';
+    r = find(p.stalled);
+    if (r) return r.daysLate > 0 ? 'Follow-up was due ' + r.daysLate + ' day' + (r.daysLate === 1 ? '' : 's') + ' ago' : 'Follow-up is due today';
+    return STAGE_NEXT[stageKey] || 'Open the file and pick the next step';
+  }
+
   var api = {
+    hullOf: hullOf, nextActionText: nextActionText,
     HOT: HOT, haversineMi: haversineMi, pointInRing: pointInRing, inAnyRing: inAnyRing, parseMs: parseMs,
     customersInPath: customersInPath, hailAtPoint: hailAtPoint,
     clipBand: clipBand, ringAreaSqMi: ringAreaSqMi, splitTurfs: splitTurfs, knockStats: knockStats,
