@@ -372,7 +372,8 @@
       'js/surface-style.js?v=1',
       'js/theme-overlays.js?v=3',
       'js/theme-sounds.js?v=1',
-      'js/theme-achievements.js?v=1',
+      'js/theme-achievements.js?v=2',
+      'js/trophy-case.js?v=1',
       'js/theme-gx.js?v=2',
       // Auto theme rules (roadmap C1). Last: reads window.ThemeEngine at call time.
       'js/auto-theme.js?v=1'
