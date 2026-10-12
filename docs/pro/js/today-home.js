@@ -227,12 +227,17 @@
     }
     var deck = (w.NBDFollowUpDeck && w.NBDTriageDeck && p.stalled.length > 1) ? '<button type="button" class="tp-more tp-hd-btn" data-tp-act="fudeck" data-tp-key="stalled">One at a time</button>' : '';
     var storm = P.stormLine(stormCache(), Date.now());
+    // Label suggestions (phase 2b): at most 3, Accept / Not this, nothing hides on one tap.
+    var CS = w.NBDContactSuggest;
+    var sugList = [];
+    try { sugList = !ro && CS && typeof CS.forToday === 'function' ? CS.forToday() : []; } catch (_) { sugList = []; }
+    var sugHtml = sugList.length ? '<div class="tp-sec tp-sugs" data-tp-sec="suggestions">' + sugList.map(function (s) { return CS.chipHtml(s); }).join('') + '</div>' : '';
     var body = section('appts', 'Appointments', a) + section('calls', 'Calls owed', c) + section('promised', 'Promised follow-ups', pr) + section('estimates', 'Estimates to follow up', e) +
       section('money', 'Money to collect', m) + section('stalled', 'Stalled leads', s, deck);
     return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc(P.headline(p.total)) + '</div>' +
       (storm ? '<div class="tp-storm">' + esc(storm) + '</div>' : '') + '</div>' +
       (p.hiddenCalls > 0 ? '<div class="tp-sub tp-hidden">' + p.hiddenCalls + (p.hiddenCalls === 1 ? ' person' : ' people') + ' hidden by labels · <button type="button" class="tp-more tp-hd-btn" data-tp-act="goto" data-tp-key="calls">See them in the Call Center</button></div>' : '') +
-      (body || '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>');
+      sugHtml + (body || '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>');
   }
 
   var _t = 0;
@@ -357,7 +362,7 @@
     else open();
   }
 
-  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups', 'nbd:labels-changed'].forEach(function (n) { w.addEventListener(n, schedule); });
+  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups', 'nbd:labels-changed', 'nbd:suggestions-changed'].forEach(function (n) { w.addEventListener(n, schedule); });
   w.addEventListener('hashchange', function () {
     if (/^#?\/?(home)?$/.test(location.hash || '')) { loadAppointments(false); setTimeout(render, 200); }
   });

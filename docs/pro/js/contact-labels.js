@@ -127,6 +127,20 @@
     return apply({ digits: d, kind: cur.kind, policy: cur.policy, ackAtMs: Date.now(), source: cur.source, capture: cur.capture });
   }
 
+  /** apply + the undo bar (used by a one-tap suggestion Accept). */
+  async function applyWithUndo(o) {
+    var d = LG.digits10(o && o.digits);
+    var before = d ? get(d) : null;
+    before = before ? Object.assign({}, before) : null;
+    var r = await apply(o);
+    if (!r.ok) return r;
+    var now = get(d);
+    showUndo('Labeled ' + LG.KIND_LABEL[o.kind] + ' \u00b7 ' + LG.POLICY_LABEL[LG.policyOf(now)], function () {
+      return before ? persistRestore(d, before) : clear(d);
+    });
+    return r;
+  }
+
   async function clear(digits) {
     if (!canWrite()) return { ok: false };
     var d = LG.digits10(digits);
@@ -173,7 +187,8 @@
   }
   function paintSheet(s) {
     var cur = get(s.digits);
-    var more = s.more || (cur && LG.PRIMARY_KINDS.indexOf(cur.kind) === -1);
+    var curKind = cur ? cur.kind : s.pending;
+    var more = s.more || (curKind && LG.PRIMARY_KINDS.indexOf(curKind) === -1);
     var extra = LG.KINDS.filter(function (k) { return LG.PRIMARY_KINDS.indexOf(k) === -1; });
     var pol = s.policy || (cur ? LG.policyOf(cur) : '');
     var pols = LG.POLICIES.map(function (p) {
@@ -184,8 +199,8 @@
       '<div class="cl-who">' + (s.name ? esc(s.name) + ' · ' : '') + esc(fmtPhone(s.digits)) + '</div></div>' +
       (s.leadName ? '<div class="cl-hint">On customer <b>' + esc(s.leadName) + '</b>. A label only changes what surfaces — the customer stays as it is.</div>' : '') +
       '<div class="cl-sec">What is it?</div>' +
-      '<div class="cl-kinds">' + LG.PRIMARY_KINDS.map(function (k) { return kindButton(k, cur && cur.kind); }).join('') +
-      (more ? extra.map(function (k) { return kindButton(k, cur && cur.kind); }).join('') : '<button type="button" class="cl-kind cl-more" data-cl="more">More…</button>') + '</div>' +
+      '<div class="cl-kinds">' + LG.PRIMARY_KINDS.map(function (k) { return kindButton(k, curKind); }).join('') +
+      (more ? extra.map(function (k) { return kindButton(k, curKind); }).join('') : '<button type="button" class="cl-kind cl-more" data-cl="more">More…</button>') + '</div>' +
       '<div class="cl-sec">What should the CRM do with its calls?</div>' +
       '<div class="cl-pols">' + pols + '</div>' +
       '<div class="cl-note">' + (pol ? '' : 'Tap what it is and the usual choice for it is applied. ') +
@@ -208,7 +223,7 @@
     doc.body.appendChild(wrap);
     state.opener = doc.activeElement || null;
     state.sheet = wrap;
-    var s = { el: wrap.querySelector('.cl-sheet'), digits: d, name: o.name || (cur && cur.name) || '', leadName: o.leadName || '', policy: '', more: false };
+    var s = { el: wrap.querySelector('.cl-sheet'), digits: d, name: o.name || (cur && cur.name) || '', leadName: o.leadName || '', policy: '', more: false, pending: LG.isKind(o.pending) ? o.pending : '', source: LG.SOURCES.indexOf(o.source) !== -1 ? o.source : 'manual' };
     wrap.__s = s;
     paintSheet(s);
     var first = s.el.querySelector('.cl-kind.is-on') || s.el.querySelector('.cl-kind');
@@ -236,7 +251,7 @@
     if (capture === undefined && before && before.kind === kind) capture = before.capture || '';
     // A first pick of Personal asks about capture before writing anything.
     if (kind === 'personal' && capture === undefined && !(before && before.kind === 'personal')) { confirmPersonal(s); return; }
-    var r = await apply({ digits: s.digits, kind: kind, policy: s.policy || undefined, name: s.name, source: 'manual', capture: capture });
+    var r = await apply({ digits: s.digits, kind: kind, policy: s.policy || undefined, name: s.name, source: s.source || 'manual', capture: capture });
     closeSheet();
     if (!r.ok) return;
     var now = get(s.digits);
@@ -271,6 +286,8 @@
       var p = t.getAttribute('data-policy');
       var cur = get(s.digits);
       if (cur) { s.policy = p; chooseKind(s, cur.kind); return; }
+      // Opened from a suggestion that hides: the kind is picked, the policy is Jo's tap.
+      if (s.pending) { s.policy = p; chooseKind(s, s.pending); return; }
       s.policy = s.policy === p ? '' : p; paintSheet(s);
       return;
     }
@@ -287,7 +304,7 @@
   });
 
   w.NBDContactLabels = {
-    load: load, current: function () { return state.labels; }, get: get, apply: apply, ack: ack, clear: clear,
+    load: load, current: function () { return state.labels; }, get: get, apply: apply, applyWithUndo: applyWithUndo, ack: ack, clear: clear,
     openSheet: openSheet, canWrite: canWrite, canRead: canRead,
   };
 })();
