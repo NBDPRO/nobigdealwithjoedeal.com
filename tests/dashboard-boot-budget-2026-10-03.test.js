@@ -5,7 +5,14 @@
  *
  * Counts every LOCAL <script src> in docs/pro/dashboard.html (lazy
  * ScriptLoader bundles aren't in the HTML, so they don't count — that's the
- * point of lazy-loading). Blocking = no defer, no async, not a module.
+ * point of lazy-loading). Blocking = no defer, no async, not a module, and
+ * NOT inside a <template>: view templates (tpl-view-settings, ...) are inert
+ * markup until _hydrateViewTemplate swaps their <script>s into the live view
+ * (an async=false dynamic insert after first paint), so they never block boot.
+ * They still count toward localScripts / localBytes, and are reported
+ * separately as "template-deferred" so the weight stays visible.
+ * Sizes are measured LF-only (CR bytes dropped) so a CRLF checkout and CI's LF
+ * checkout agree to the byte.
  *
  * The blocking-script ceiling is strict: a new feature must load deferred or
  * lazily. The byte ceilings have a little headroom so ordinary work isn't
@@ -20,8 +27,12 @@ const path = require('path');
 
 const PRO = path.join(__dirname, '..', 'docs', 'pro');
 const CEILING = {
-  blockingScripts: 29,          // measured 28 (2026-10-03) — never grow. ONE deliberate raise 2026-10-06: demo-mode.js (Pro demo phase 2) must run before every other script so the sample account's guard + network tripwire exist first; on the real page it returns on line one (~9 KB)
-  blockingBytes: 300 * 1024,    // measured 278 KB
+  blockingScripts: 22,          // measured 28 (2026-10-03) — never grow. ONE deliberate raise 2026-10-06: demo-mode.js (Pro demo phase 2) must run before every other script so the sample account's guard + network tripwire exist first; on the real page it returns on line one (~9 KB)
+  // 2026-10-12 (boot-weight lane): measured 170 KB LF once the 133 KB of <template>-inert
+  // Settings/Draw/Estimate tab scripts stopped being counted as blocking (they were never
+  // render-blocking; see measure()). Ceiling LOWERED 300 -> 192 KB so the gate still bites: ~22 KB
+  // of real headroom, not 133 KB of slack. Was 300 KB measured 278 KB on 2026-10-03.
+  blockingBytes: 192 * 1024,
   localScripts: 196,            // measured 178; deliberate raises 2026-10-05: + client-error-reporter.js (#2140, must run at boot to catch boot errors) + the offline sync badge (#2145) = 193 [+1 on merge: both PRs' boot tags, measured]; 2026-10-06 + storm-time.js (review R4-6-1: the one UTC→Eastern storm-date reader dol-fill + the D2D storm layer need at boot, 1.9 KB) = 195; +1 2026-10-07 demo-mode.js (Pro demo phase 2, #2294) = 196
   localBytes: 4.6 * 1024 * 1024, // (union of two deliberate raises, both 2026-10-11: 4.4 + 0.05 + 0.15 MB.) deliberate raise 2026-10-11 (Ohio ORC 4722.04 cap: deposit-rule.js + the builder / invoice / deal-room / pre-flight wiring ~19 KB; LF bytes 4497 -> 4516 KB against the old 4506 KB) ALSO: deliberate raise 2026-10-11: per-theme My Skin backgrounds (my-skin.js 17 -> 49 KB, my-skin-logic.js 7 -> 22 KB: two-layer painter, IndexedDB cache, per-theme panel; all deferred, so blockingBytes is unchanged)
   htmlBytes: 520 * 1024,        // measured 477 KB
@@ -60,19 +71,30 @@ function ok(name, cond, detail) {
   else { failed++; fails.push(name); console.log('  ✗ ' + name + (detail ? '\n      ' + detail : '')); }
 }
 
+// Size with CR bytes dropped, so CRLF-checkout numbers equal CI's LF numbers.
+function lfSize(file) {
+  const b = fs.readFileSync(file);
+  let n = 0;
+  for (let i = 0; i < b.length; i++) if (b[i] !== 13) n++;
+  return n;
+}
 function measure(html, root) {
-  const out = { htmlBytes: Buffer.byteLength(html), localScripts: 0, localBytes: 0, blockingScripts: 0, blockingBytes: 0, missing: [] };
+  const out = { htmlBytes: Buffer.byteLength(html.replace(/\r/g, '')), localScripts: 0, localBytes: 0, blockingScripts: 0, blockingBytes: 0, templateBlockingScripts: 0, templateBlockingBytes: 0, missing: [] };
   const noComments = html.replace(/<!--[\s\S]*?-->/g, '');
-  for (const m of noComments.matchAll(/<script\b([^>]*)>/gi)) {
+  let tplDepth = 0;
+  for (const m of noComments.matchAll(/<template\b[^>]*>|<\/template\s*>|<script\b([^>]*)>/gi)) {
+    if (/^<template/i.test(m[0])) { tplDepth++; continue; }
+    if (/^<\/template/i.test(m[0])) { tplDepth = Math.max(0, tplDepth - 1); continue; }
     const attrs = m[1];
     const src = (attrs.match(/\bsrc\s*=\s*"([^"]+)"/i) || [])[1];
     if (!src || /^(https?:)?\/\//i.test(src)) continue;
     const file = path.join(root, src.split('?')[0].replace(/^\/pro\//, ''));
     if (!fs.existsSync(file)) { out.missing.push(src); continue; }
-    const n = fs.statSync(file).size;
+    const n = lfSize(file);
     out.localScripts++; out.localBytes += n;
     const blocking = !/\b(defer|async)\b/i.test(attrs) && !/\btype\s*=\s*"module"/i.test(attrs);
-    if (blocking) { out.blockingScripts++; out.blockingBytes += n; }
+    if (blocking && tplDepth > 0) { out.templateBlockingScripts++; out.templateBlockingBytes += n; }
+    else if (blocking) { out.blockingScripts++; out.blockingBytes += n; }
   }
   return out;
 }
@@ -83,6 +105,7 @@ const kb = (n) => Math.round(n / 1024) + ' KB';
 ok('every local script tag resolves to a file', m.missing.length === 0, m.missing.join(', '));
 ok('blocking scripts: ' + m.blockingScripts + ' ≤ ' + CEILING.blockingScripts + ' (new code loads deferred or lazily)', m.blockingScripts <= CEILING.blockingScripts);
 ok('blocking bytes: ' + kb(m.blockingBytes) + ' ≤ ' + kb(CEILING.blockingBytes), m.blockingBytes <= CEILING.blockingBytes);
+console.log('  · template-deferred (not blocking, hydrate with their view): ' + m.templateBlockingScripts + ' scripts, ' + kb(m.templateBlockingBytes));
 ok('local script tags: ' + m.localScripts + ' ≤ ' + CEILING.localScripts, m.localScripts <= CEILING.localScripts);
 ok('local script bytes: ' + kb(m.localBytes) + ' ≤ ' + kb(CEILING.localBytes), m.localBytes <= CEILING.localBytes);
 ok('dashboard.html: ' + kb(m.htmlBytes) + ' ≤ ' + kb(CEILING.htmlBytes), m.htmlBytes <= CEILING.htmlBytes);
@@ -93,6 +116,10 @@ ok('control: counts local tags, skips CDN + commented-out tags, splits blocking 
   ctl.blockingScripts === 0 && ctl.missing.length === 3 && ctl.localScripts === 0);
 const real = measure('<script src="dashboard-boot-budget-2026-10-03.test.js"></script><script defer src="dashboard-boot-budget-2026-10-03.test.js"></script>', __dirname);
 ok('control: a blocking tag and a deferred tag are told apart', real.localScripts === 2 && real.blockingScripts === 1);
+const tplCtl = measure('<script src="dashboard-boot-budget-2026-10-03.test.js"></script><template id="a"><div><template><script src="dashboard-boot-budget-2026-10-03.test.js"></script></template><script src="dashboard-boot-budget-2026-10-03.test.js"></script></div></template><script src="dashboard-boot-budget-2026-10-03.test.js"></script>', __dirname);
+ok('control: <template>-contained blocking tags (nested too) are not boot-blocking, but still count as local scripts; tags after the template block again',
+  tplCtl.localScripts === 4 && tplCtl.blockingScripts === 2 && tplCtl.templateBlockingScripts === 2 && tplCtl.blockingBytes === tplCtl.templateBlockingBytes);
+ok('control: the real page really has template-deferred scripts (the exclusion is exercised)', m.templateBlockingScripts >= 5);
 
 // ── BOOT READS (2026-10-04) ────────────────────────────────────────────────
 // Bytes are half the boot cost; Firestore reads are the other half. The boot
