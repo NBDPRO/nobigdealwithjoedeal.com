@@ -304,8 +304,8 @@ const TODAY = '2026-10-12';
   ok('Nudge only ever hands off to the phone composer (NBDPhoneShare), never a send call', /NBDPhoneShare\.share\(opts\)/.test(ui) && !/phoneTextAction|sendSms|sendEmail|fetch\(/.test(ui));
   ok('Nudge is recorded only after "shared"', /if \(res && res\.shared\) \{[\s\S]{0,200}nudgePatch/.test(ui));
   ok('a failed write rolls the cached task back (never shown as saved)', /Object\.assign\(t, prev\);[\s\S]{0,120}changed\(\);\s*return false;/.test(ui));
-  ok('the bundle: css + logic before ui, in the lazy loader (no eager boot bytes)', /promise: \[\s*'css\/promise\.css\?v=1',\s*'js\/promise-logic\.js\?v=1',\s*'js\/promise-ui\.js\?v=1'\s*\]/.test(loader)
-    && !/promise-(logic|ui)\.js/.test(read('docs/pro/dashboard.html')));
+  ok('the bundle: css + logic before ui, in the lazy loader (no eager boot bytes)', /bundles\.promise = \['css\/promise\.css\?v=1', 'js\/promise-logic\.js\?v=1', 'js\/promise-ui\.js\?v=1'\]/.test(home)
+    && !/promise: \[/.test(loader) &&!/promise-(logic|ui)\.js/.test(read('docs/pro/dashboard.html')));
   ok('customer page: a Promise button + the sheet scripts', /data-promise-open/.test(cust) && /js\/promise-logic\.js/.test(cust) && /js\/promise-ui\.js/.test(cust) && /css\/promise\.css/.test(cust));
   ok('an open promise cannot be deleted from the task list', /_t\.kind==='promise'&&_t\.done!==true\)\{[^}]*can't be deleted/.test(tasks));
   ok('Call Center: a Promise button on single and group cards', (cc.match(/data-cc=\\?"promise\\?"/g) || []).length >= 3 && /a === 'promise'\) openPromise/.test(cc));

@@ -11,7 +11,7 @@
   background:var(--s);color:var(--t);
   border:1px solid var(--br);
   border-radius:var(--ui-radius-lg) var(--ui-radius-lg) 0 0;
-  box-shadow:var(--elevation-modal, none);
+  box-shadow:0 20px 46px rgba(0,0,0,.4);
   outline:none;
 }
 @media (min-width:640px){

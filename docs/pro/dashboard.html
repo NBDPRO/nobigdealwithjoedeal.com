@@ -161,6 +161,7 @@
 <link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
 <link rel="stylesheet" href="css/pipeline-rich-cards.css?v=1">
 <link rel="stylesheet" href="css/today-home.css?v=3">
+<link rel="stylesheet" href="css/away-mode.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=2">
 <link rel="stylesheet" href="css/data-import-view.css?v=2">
 <link rel="stylesheet" href="css/templates-library-view.css?v=1">
@@ -890,6 +891,10 @@
           <button class="btn btn-orange" data-action="newEstimate">＋ New Estimate</button>
         </div>
       </div>
+      <!-- Away status (js/away-mode.js, never-forget lane 2026-10-12): "Away until
+           Thu - backup: Sam", the "While you were away" hand-back card, and the
+           backup person's cover list. Empty and hidden when away mode is off. -->
+      <div id="awayStatus" class="away-status" hidden></div>
       <!-- Needs-you strip (js/home-attention.js): phone calls that need you
            (counted in PEOPLE, the Call Center's rule), Stripe payments to
            assign, yard signs to pick up, review asks. Hidden when all are zero.
@@ -4927,6 +4932,8 @@
           <button class="btn btn-ghost fs-11" data-action="call" data-fn="_testNotif">🧪 Test Notification</button>
         </div>
         <div id="notif-save-msg" style="display:none;margin-top:10px;font-size:11px;color:#4caf82;">✓ Notification preferences saved</div>
+        <!-- Away mode + backup person (js/away-mode-settings.js; owner / company_admin only) -->
+        <div id="awayModeMount" class="mt-14"></div>
       </div><!-- /stab-panel-notifications -->
 
       <!-- ══ TAB: AI TEXTING (per-rep persona — rendered by ai-texting-persona.js) ══ -->
@@ -7201,7 +7208,7 @@
 <!-- W139: Hot-lead threshold-crossing alert -->
 <script defer src="js/lead-score-alert.js?v=3"></script>
 <script defer src="js/smart-followup-briefing.js?v=2"></script>
-<script defer src="js/home-attention.js?v=9"></script>
+<script defer src="js/home-attention.js?v=11"></script>
 <!-- Send from Jo's own phone (share sheet / Messages) + the estimate follow-up
      cadence and its Home card (2026-10-03). phone-share.js first: close-board.js
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
@@ -7222,7 +7229,7 @@
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=16"></script>
-<script defer src="js/today-home.js?v=5"></script>
+<script defer src="js/today-home.js?v=6"></script>
 <script defer src="js/my-skin-logic.js?v=6"></script>
 <script defer src="js/my-skin.js?v=9"></script>
 <script defer src="js/layout-system.js?v=1"></script>
