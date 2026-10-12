@@ -41,6 +41,8 @@ service firebase.storage {
         && request.auth.token.get('offboardLock', false) != true;
     }
     function isAdmin() { return isAuth() && request.auth.token.role == 'admin'; }
+    // A company admin writes through this; a viewer never does (decision B).
+    function ownerWritesOrAdmin() { return isAdmin() || request.auth.token.get('role', '') != 'viewer'; }
 
     // 2026-09-25 (Jo's decision B): the 'viewer' role is READ-ONLY on tenant
     // data. Every path below is keyed by the uploader's uid, so a viewer could
@@ -52,6 +54,24 @@ service firebase.storage {
     // rule as notViewer() in firestore.rules. Reads are unchanged.
     function ownerWrites(uid) {
       return isOwner(uid) && request.auth.token.get('role', '') != 'viewer';
+    }
+
+    // Company background sets (2026-10, My Skin spec section 18): members of
+    // a company read its set; only that company's admin (or the solo owner of a
+    // company of one) writes it. A token claim, never a Firestore lookup. A
+    // member being offboarded gets nothing (offboardLock), the same as isOwner.
+    function notLocked() { return request.auth.token.get('offboardLock', false) != true; }
+    function isSoloCompany(companyId) {
+      return companyId == request.auth.uid && request.auth.token.get('companyId', request.auth.uid) == request.auth.uid;
+    }
+    function isCompanyMember(companyId) {
+      return isAuth() && notLocked()
+        && (request.auth.token.get('companyId', '') == companyId || isSoloCompany(companyId));
+    }
+    function isCompanyAdminOf(companyId) {
+      return isAuth() && notLocked()
+        && ((request.auth.token.get('companyId', '') == companyId && request.auth.token.get('role', '') == 'company_admin')
+            || isSoloCompany(companyId));
     }
 
     // Safe content-type helpers — handle the case where a malicious
@@ -404,6 +424,24 @@ service firebase.storage {
         && request.resource.contentType != null
         && request.resource.contentType.matches('image/(webp|jpeg)');
       allow delete: if isOwner(uid);
+    }
+
+    // Company background sets (2026-10): companies/{companyId}/skins/themes/
+    // {themeId}/{imageId}[_t]. Readable by that company's members (getBlob()
+    // under these rules, never a token URL), writable only by its admin; the
+    // 500 MB total is enforced by functions/skin-quota.js on finalize, the
+    // 220-entry bound by firestore.rules on skin/config. themeId is a live
+    // theme id, _custom, or the reserved _all (one set for every theme).
+    match /companies/{companyId}/skins/themes/{themeId}/{imageId} {
+      allow read: if isCompanyMember(companyId) || isAdmin();
+      allow create, update: if (isCompanyAdminOf(companyId) || isAdmin())
+        && ownerWritesOrAdmin()
+        && themeId.matches('^(_all|_custom|[a-z0-9-]{1,40})$')
+        && imageId.matches('^[a-z0-9]{8,16}(_t)?$')
+        && request.resource.size < 3 * 1024 * 1024
+        && request.resource.contentType != null
+        && request.resource.contentType.matches('image/(webp|jpeg)');
+      allow delete: if isCompanyAdminOf(companyId) || isAdmin();
     }
 
     // ── REEL STUDIO UPLOADS (2026-10-04) ──────────────

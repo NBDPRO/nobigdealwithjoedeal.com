@@ -536,6 +536,46 @@ async function run() {
   await assertSucceeds(deleteObject(ref(alice, T)));
   console.log('  my-skin per-theme: 38 storage checks passed');
 
+  // ── My Skin company background sets: companies/{c}/skins/themes/{theme}/{image} ──
+  const cadm1 = env.authenticatedContext('csk-admin', { role: 'company_admin', companyId: 'co-skin' }).storage();
+  const crep = env.authenticatedContext('csk-rep', { role: 'sales_rep', companyId: 'co-skin' }).storage();
+  const cview = env.authenticatedContext('csk-view', { role: 'viewer', companyId: 'co-skin' }).storage();
+  const cother = env.authenticatedContext('csk-other', { role: 'company_admin', companyId: 'co-else' }).storage();
+  const csolo = env.authenticatedContext('csk-solo', {}).storage();
+  const clocked = env.authenticatedContext('csk-lock', { role: 'sales_rep', companyId: 'co-skin', offboardLock: true }).storage();
+  const CP = 'companies/co-skin/skins/themes/pokemon/lq3x9a1b2c';
+  await assertSucceeds(uploadBytes(ref(cadm1, CP), buf(2048), { contentType: 'image/webp' }));
+  await assertSucceeds(uploadBytes(ref(cadm1, CP + '_t'), buf(2048), { contentType: 'image/webp' }));
+  await assertSucceeds(uploadBytes(ref(cadm1, 'companies/co-skin/skins/themes/_all/lq3x9a1b2d'), buf(2048), { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(admin, 'companies/co-skin/skins/themes/mario/lq3x9a1b2e'), buf(2048), { contentType: 'image/webp' })); // platform admin (support)
+  await assertSucceeds(uploadBytes(ref(csolo, 'companies/csk-solo/skins/themes/pokemon/lq3x9a1b2c'), buf(2048), { contentType: 'image/webp' })); // a company of one
+  await assertSucceeds(getBytes(ref(cadm1, CP)));
+  await assertSucceeds(getBytes(ref(crep, CP)));                                                          // members read
+  await assertSucceeds(getBytes(ref(cview, CP)));                                                         // including a viewer
+  await assertSucceeds(getBytes(ref(admin, CP)));                                                         // platform admin (support)
+  await assertFails(getBytes(ref(cother, CP)));                                                           // another company's admin
+  await assertFails(getBytes(ref(anon, CP)));
+  await assertFails(getBytes(ref(clocked, CP)));                                                          // offboardLock: nothing, at once
+  await assertFails(uploadBytes(ref(crep, 'companies/co-skin/skins/themes/pokemon/lq3x9a1b2f'), buf(2048), { contentType: 'image/webp' })); // a rep may not push
+  await assertFails(uploadBytes(ref(cview, 'companies/co-skin/skins/themes/pokemon/lq3x9a1b2f'), buf(2048), { contentType: 'image/webp' }));
+  await assertFails(uploadBytes(ref(cother, 'companies/co-skin/skins/themes/pokemon/lq3x9a1b2f'), buf(2048), { contentType: 'image/webp' }));
+  await assertFails(uploadBytes(ref(anon, 'companies/co-skin/skins/themes/pokemon/lq3x9a1b2f'), buf(2048), { contentType: 'image/webp' }));
+  await assertFails(uploadBytes(ref(clocked, 'companies/co-skin/skins/themes/pokemon/lq3x9a1b2f'), buf(2048), { contentType: 'image/webp' }));
+  await assertFails(uploadBytes(ref(cadm1, 'companies/co-skin/skins/themes/pokemon/lq3x9a1b2f'), buf(3 * 1024 * 1024 + 1), { contentType: 'image/webp' })); // > 3 MB
+  await assertFails(uploadBytes(ref(cadm1, 'companies/co-skin/skins/themes/pokemon/lq3x9a1b2f'), buf(2048), { contentType: 'image/png' }));
+  await assertFails(uploadBytes(ref(cadm1, 'companies/co-skin/skins/themes/pokemon/lq3x9a1b2f'), buf(2048), { contentType: 'image/svg+xml' }));
+  await assertFails(uploadBytes(ref(cadm1, 'companies/co-skin/skins/themes/pokemon/lq3x9a1b2f'), buf(2048)));
+  await assertFails(uploadBytes(ref(cadm1, 'companies/co-skin/skins/themes/Bad_Theme/lq3x9a1b2f'), buf(2048), { contentType: 'image/webp' }));
+  await assertFails(uploadBytes(ref(cadm1, 'companies/co-skin/skins/themes/_other/lq3x9a1b2f'), buf(2048), { contentType: 'image/webp' }));
+  await assertFails(uploadBytes(ref(cadm1, 'companies/co-skin/skins/themes/pokemon/x'), buf(2048), { contentType: 'image/webp' }));
+  await assertFails(uploadBytes(ref(cadm1, 'companies/co-skin/skins/wallpaper'), buf(2048), { contentType: 'image/webp' }));      // no such slot
+  await assertFails(deleteObject(ref(crep, CP)));
+  await assertFails(deleteObject(ref(cother, CP)));
+  await assertFails(deleteObject(ref(anon, CP)));
+  await assertSucceeds(deleteObject(ref(cadm1, CP + '_t')));
+  await assertSucceeds(deleteObject(ref(cadm1, CP)));
+  console.log('  my-skin company sets: 30 storage checks passed');
+
   // ── Reel Studio (2026-10-04): reel-uploads/{companyId}/{uid}/{mediaId} —
   // create-only by the uploader, owner or company_admin of THAT company,
   // video/image only, never readable / deletable by a client. ──

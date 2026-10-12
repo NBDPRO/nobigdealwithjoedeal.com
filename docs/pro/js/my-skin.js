@@ -57,6 +57,11 @@
   var armed = {};          // two-tap buttons: 'clear' | 'all' | 'copy' -> themeId they wait on
   var batteryLow = false;
   var batchQuiet = false;  // several pictures at once: one toast at the end
+  // Company background sets (spec section 18).
+  var companyCfg = null;   // normalized companies/{id}/skin/config, or null
+  var companyId = null;
+  var companySig = '';
+  var previewMember = false;   // an admin previewing what members see (personal skin ignored)
 
   var toast = function (m, t) { if (typeof window.showToast === 'function') window.showToast(m, t || 'info'); };
   var sdk = function () { return import(STORAGE_SDK); };
@@ -109,6 +114,7 @@
   function load() {
     if (uid && window._user.uid !== uid) purgeMemory();   // a different account on this page: nothing carries over
     uid = window._user.uid;
+    watchCompany();
     var ref = window.doc(window.db, 'userSettings', uid);
     if (typeof window.onSnapshot !== 'function') return readWithRetry(ref, 0).then(apply);
     return new Promise(function (resolve) {
@@ -130,6 +136,34 @@
     });
   }
 
+  // The company's set: one doc, one listener. A member of a company reads
+  // companies/{id}/skin/config; the solo owner reads companies/{uid}/....
+  function claims() { try { return window._userClaims || {}; } catch (e) { return {}; } }
+  function isCompanyAdmin() {
+    var c = claims();
+    return c.role === 'company_admin' || !c.companyId || c.companyId === uid;
+  }
+  function watchCompany() {
+    var c = claims();
+    var id = c.companyId || uid;
+    if (!id || id === companyId) return;
+    companyId = id;
+    var ref = window.doc(window.db, 'companies', id, 'skin', 'config');
+    var take = function (snap) {
+      var ex = snap && (typeof snap.exists === 'function' ? snap.exists() : !!snap.exists);
+      var next = ex ? L().normalizeCompany(snap.data()) : null;
+      var sig = JSON.stringify(next);
+      if (sig === companySig) return;
+      companySig = sig; companyCfg = next;
+      if (window.NBDMySkinCompany && window.NBDMySkinCompany.refresh) window.NBDMySkinCompany.refresh();
+      if (cfg) showCurrent().then(renderPanel);
+    };
+    try {
+      if (typeof window.onSnapshot === 'function') window.onSnapshot(ref, take, function () { /* no set, or not allowed: no noise */ });
+      else window.getDoc(ref).then(take, function () {});
+    } catch (e) {}
+  }
+
   // Global fields: setDoc merge keeps the keys it doesn't list (a per-theme
   // entry written by another device, or by an older client, survives).
   function save() {
@@ -138,6 +172,7 @@
     var out = {
       enabled: cfg.enabled, dim: cfg.dim, texture: cfg.texture, accent: cfg.accent, side: cfg.side, slots: cfg.slots,
       schema: 2, perTheme: cfg.perTheme, show: cfg.show, allThemes: cfg.allThemes,
+      hidePictures: cfg.hidePictures, company: cfg.company,
     };
     return window.setDoc(window.doc(window.db, 'userSettings', uid), { mySkin: out }, { merge: true })
       .catch(function () { toast('Couldn’t save My Skin. Check your connection.', 'error'); });
@@ -188,6 +223,7 @@
 
   function imgKey(img) {
     var parts = String(img.path).split('/');
+    if (parts[0] === 'companies') return uid + '|co|' + parts[1] + '|' + parts[4] + '|' + img.id + '|' + img.v;
     return uid + '|' + parts[3] + '|' + img.id + '|' + img.v;
   }
   function memPut(key, blob, w, h) {
@@ -300,6 +336,7 @@
   // layers and the IndexedDB copy, so the next person on this browser sees
   // nothing of the last one's pictures.
   function purgeLocal() {
+    companyCfg = null; companyId = null; companySig = ''; previewMember = false;
     try { purgeMemory(); } catch (e) {}
     try { cfg = null; paint(); } catch (e) {}
     try {
@@ -344,7 +381,8 @@
     var hit = memTouch(key);
     if (hit) return Promise.resolve({ url: hit.url, key: key });
     if (inflight[key]) return inflight[key];
-    var path = L().trustedImagePath(uid, img);
+    var path = String(img.path).indexOf('companies/') === 0
+      ? L().trustedCompanyImagePath(companyId, img) : L().trustedImagePath(uid, img);
     if (!path) return Promise.reject(new Error('untrusted'));
     var p = idbGet(key).then(function (rec) {
       if (rec && rec.blob) return rec.blob;
@@ -777,13 +815,15 @@
     var mascot = document.getElementById('nbdMySkinMascot');
     if (!cfg) { if (mascot) mascot.remove(); return; }
 
-    var layers = !!cfg.perTheme;
+    var coPic = !!(layerPic && layerPic.style && layerPic.style.company);
+    var layers = !!cfg.perTheme || coPic;
     var have = {
-      wallpaper: layers ? !!layerPic : !!urls.wallpaper,
-      texture: !!urls.texture, mascot: !!urls.mascot,
+      wallpaper: layers ? !!layerPic : (!!urls.wallpaper && !cfg.hidePictures),
+      // personal texture and mascot follow the member's own switch, not the company's
+      texture: !!urls.texture && cfg.enabled, mascot: !!urls.mascot && cfg.enabled,
     };
-    var acc = cfg.accent ? L().accentCheck(cfg.accent, pageBg()) : null;
-    var classes = L().htmlClasses(cfg, have, acc && acc.ok, {
+    var acc = cfg.accent && cfg.enabled ? L().accentCheck(cfg.accent, pageBg()) : null;
+    var classes = L().htmlClasses(coPic ? Object.assign({}, cfg, { enabled: true }) : cfg, have, acc && acc.ok, {
       layers: layers, hideOverlay: !!(layerPic && layerPic.style && layerPic.style.hideOverlay),
     });
     if (!classes.length) { if (mascot) mascot.remove(); return; }
@@ -861,12 +901,19 @@
   // drags and light/dark flips, no swap.
   function restyle() {
     if (!cfg || !layerPic || cur < 0 || !els[cur]) return;
-    var r = L().resolveBackground(cfg, activeKey());
+    var r = resolveFor(activeKey());
     if (r.source === 'none') return;
     var eff = L().effectiveDim(r, layerPic.img, guardCtx());
     layerPic.style = r; layerPic.eff = eff;
     setVars(els[cur], L().layerVars(r, eff, layerPic.url, 0));
     html().classList.toggle('my-skin-hide-overlay', !!r.hideOverlay);
+  }
+
+  // What paints for a theme: personal only, or personal + the company's set.
+  function companyActive() { return !!(companyCfg && companyCfg.enabled); }
+  function resolveFor(key) {
+    if (companyActive()) return L().resolveWithCompany(previewMember ? L().normalize({}) : cfg, companyCfg, key);
+    return L().resolveBackground(cfg, key);
   }
 
   // Put a decoded picture on screen (the same picture again only restyles).
@@ -901,7 +948,7 @@
     var plan = L().slideshowPlan(r, slideCtx());
     var n = r.images.length;
     var sig = key + '|' + r.source + '|' + r.images.map(function (i) { return i.id; }).join(',');
-    if (slide.sig === sig && layerPic && (layerPic.source === 'theme' || layerPic.source === 'all')) {
+    if (slide.sig === sig && layerPic && (layerPic.source === 'theme' || layerPic.source === 'all' || layerPic.source === 'company')) {
       slide.plan = plan;
       return { idx: Math.min(slide.idx, n - 1), plan: plan, keep: true };
     }
@@ -912,9 +959,9 @@
     return { idx: idx, plan: plan, keep: false };
   }
   function currentSet() {
-    if (!cfg || !cfg.perTheme) return null;
-    var r = L().resolveBackground(cfg, activeKey());
-    return (r.source === 'theme' || r.source === 'all') ? r : null;
+    if (!cfg || !(cfg.perTheme || companyActive())) return null;
+    var r = resolveFor(activeKey());
+    return (r.source === 'theme' || r.source === 'all' || r.source === 'company') ? r : null;
   }
   function armSlides(r, plan, keep) {
     slide.plan = plan;
@@ -980,12 +1027,12 @@
   function showCurrent() {
     var seq = ++switchSeq;
     if (!cfg) return Promise.resolve();
-    if (!cfg.perTheme) {
+    if (!cfg.perTheme && !companyActive()) {
       dropLayers(); layerPic = null; paint();
       return Promise.resolve();
     }
     var key = activeKey();
-    var r = L().resolveBackground(cfg, key);
+    var r = resolveFor(key);
 
     function none() { stopSlides(); fadeOutLayers(); layerPic = null; paint(); }
     var commit = commitPic;
@@ -1210,6 +1257,50 @@
     }
   }
 
+  // What the company set means for this member, and the switches they have.
+  function coSlotFor(key) {
+    if (!companyActive() || !key) return null;
+    return companyCfg.themes[key] || companyCfg.all || null;
+  }
+  function renderCompany() {
+    var box = $('myskinCompany');
+    if (box) {
+      var on = companyActive() && !isCompanyAdminOnly();
+      box.hidden = !on;
+      if (on) {
+        var n = Object.keys(companyCfg.themes).length + (companyCfg.all ? 1 : 0);
+        var enf = Object.keys(companyCfg.themes).filter(function (k) { return companyCfg.themes[k].mode === 'enforced'; }).length
+          + (companyCfg.all && companyCfg.all.mode === 'enforced' ? 1 : 0);
+        var st = $('myskinCoStatus');
+        if (st) st.textContent = 'Your company set backgrounds for ' + (companyCfg.all ? 'every theme' : n + (n === 1 ? ' theme' : ' themes'))
+          + (enf ? ' (' + enf + ' set by your company and locked)' : '') + '.';
+        var sh = $('myskinCoShow');
+        if (sh) { sh.checked = cfg.company.show !== false; sh.disabled = !companyCfg.allowHide; }
+        var lk = $('myskinCoLocked'); if (lk) lk.hidden = companyCfg.allowHide;
+      }
+    }
+    var card = $('myskinThemeCard');
+    var note = $('myskinCoThemeNote');
+    if (!card || !note) return;
+    var key = editKey(), slot = coSlotFor(key);
+    var use = card.querySelector('[data-myskin-co-use]'), hide = card.querySelector('[data-myskin-co-hide]');
+    if (!slot || !cfg.perTheme) { note.hidden = true; if (use) use.hidden = true; if (hide) hide.hidden = true; return; }
+    var enforced = slot.mode === 'enforced';
+    note.hidden = false;
+    note.textContent = enforced ? 'Set by your company. You can raise the dim and blur, not lower the dim below ' + Math.round((slot.minDim || 0) * 100) + '%.'
+      : 'Your company suggests a background for this theme.';
+    var own = !!(cfg.themes[key] && cfg.themes[key].images.length);
+    if (use) use.hidden = enforced || !own;
+    if (hide) { hide.hidden = enforced || !companyCfg.allowHide; hide.textContent = cfg.company.hide[key] ? 'Show the company picture again' : 'Hide the company picture for this theme'; }
+    var lock = enforced;
+    ['[data-myskin-theme-file]', '[data-myskin-theme-clear]', '#myskinThemeFit', '#myskinThemePixel', '#myskinThemeOverlay', '#myskinThemeDimGlobal', '#myskinThemeShowDefault']
+      .forEach(function (sel) { var e = card.querySelector(sel); if (e) e.disabled = lock || (sel === '[data-myskin-theme-clear]' && !cfg.themes[key]); });
+    var dm = $('myskinThemeDim'); if (dm) dm.min = lock ? String(Math.round((slot.minDim || 0) * 100)) : '0';
+  }
+  // A solo owner with no team is both admin and member; the member block adds
+  // nothing for someone who is only managing their own set.
+  function isCompanyAdminOnly() { return false; }
+
   function renderShowDefaults() {
     var iv = $('myskinShowInterval'); if (iv) iv.value = cfg.show.interval;
     var od = $('myskinShowOrder'); if (od) od.value = cfg.show.shuffle ? 'shuffle' : 'order';
@@ -1244,7 +1335,11 @@
     });
     renderThemeCard();
     renderShowDefaults();
+    renderCompany();
+    var hp = $('myskinHidePictures'); if (hp) hp.checked = !!cfg.hidePictures;
     var tools = $('myskinTools');
+    var team = $('myskinTeam');
+    if (team) team.hidden = !isCompanyAdmin();
     if (tools) {
       tools.hidden = !cfg.perTheme;
       var use = $('myskinUsage');
@@ -1314,6 +1409,11 @@
     else if (t.id === 'myskinShowInterval') { cfg.show.interval = t.value; save(); showCurrent().then(renderPanel); }
     else if (t.id === 'myskinShowOrder') { cfg.show.shuffle = t.value === 'shuffle'; save(); showCurrent().then(renderPanel); }
     else if (t.id === 'myskinShowFade') save();
+    else if (t.id === 'myskinHidePictures') { cfg.hidePictures = !!t.checked; save(); showCurrent().then(renderPanel); }
+    else if (t.id === 'myskinCoShow') {
+      if (companyCfg && companyCfg.allowHide) { cfg.company.show = !!t.checked; save(); showCurrent().then(renderPanel); }
+      else renderPanel();
+    }
   }
   // A destructive-ish button: the first tap arms it (the label changes), a
   // second tap within 4 seconds does it.
@@ -1374,13 +1474,18 @@
     if (t.id === 'myskinShowFade') { cfg.show.fadeMs = Math.round(Number(t.value)) * 100; renderPanel(); saveSoon(); }
   }
   function onClick(e) {
-    var b = e.target && e.target.closest && e.target.closest('[data-myskin-remove],#myskinAccentReset,[data-myskin-pos],[data-myskin-theme-clear],[data-myskin-theme-from-wallpaper],[data-myskin-open],[data-myskin-theme-preview],[data-myskin-strip-del],[data-myskin-strip-up],[data-myskin-strip-down],[data-myskin-use-all],[data-myskin-copy-cat],[data-myskin-all-clear],[data-myskin-fade-preset],#myskinShowReset');
+    var b = e.target && e.target.closest && e.target.closest('[data-myskin-remove],#myskinAccentReset,[data-myskin-pos],[data-myskin-theme-clear],[data-myskin-theme-from-wallpaper],[data-myskin-open],[data-myskin-theme-preview],[data-myskin-strip-del],[data-myskin-strip-up],[data-myskin-strip-down],[data-myskin-use-all],[data-myskin-copy-cat],[data-myskin-all-clear],[data-myskin-fade-preset],#myskinShowReset,[data-myskin-co-hide],[data-myskin-co-use]');
     if (!b || !cfg) return;
     if (b.hasAttribute('data-myskin-open')) { openTool(b.getAttribute('data-myskin-open')); return; }
     var ek = editKey();
     if (b.hasAttribute('data-myskin-strip-del')) { if (ek) removeThemeImage(ek, b.getAttribute('data-myskin-strip-del')); return; }
     if (b.hasAttribute('data-myskin-strip-up')) { var ui = Number(b.getAttribute('data-myskin-strip-up')); moveImage(ui, ui - 1); return; }
     if (b.hasAttribute('data-myskin-strip-down')) { var di = Number(b.getAttribute('data-myskin-strip-down')); moveImage(di, di + 1); return; }
+    if (b.hasAttribute('data-myskin-co-hide')) {
+      if (ek && companyCfg && companyCfg.allowHide) { cfg.company.hide[ek] = !cfg.company.hide[ek]; save(); showCurrent().then(renderPanel); }
+      return;
+    }
+    if (b.hasAttribute('data-myskin-co-use')) { if (ek) clearTheme(ek); return; }
     if (b.hasAttribute('data-myskin-use-all')) { twoTap('all', ek, function () { useForAll(ek); }); return; }
     if (b.hasAttribute('data-myskin-copy-cat')) { twoTap('copy', ek, function () { copyToCategory(ek); }); return; }
     if (b.hasAttribute('data-myskin-all-clear')) { clearAll(); return; }
@@ -1418,7 +1523,24 @@
       document.head.appendChild(s);
     });
   }
+  function loadTeamModule() {
+    if (window.NBDMySkinCompany) return Promise.resolve(window.NBDMySkinCompany);
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = '/pro/js/my-skin-company.js?v=1'; s.async = true;
+      s.onload = function () { window.NBDMySkinCompany ? resolve(window.NBDMySkinCompany) : reject(new Error('missing')); };
+      s.onerror = function () { reject(new Error('load')); };
+      document.head.appendChild(s);
+    });
+  }
+  function openTeam() {
+    var root = $('myskinTeamRoot');
+    if (!root || !cfg || !isCompanyAdmin()) return;
+    loadTeamModule().then(function (m) { m.open(root, internals()); })
+      .catch(function () { toast('Couldn’t open that. Check your connection and try again.', 'error'); });
+  }
   function openTool(kind) {
+    if (kind === 'team') { openTeam(); return; }
     var root = $(kind === 'grid' ? 'myskinGridRoot' : 'myskinImportRoot');
     if (!root || !cfg) return;
     loadImportModule().then(function (m) { m.open(kind, root, internals()); })
@@ -1458,6 +1580,8 @@
       },
       busy: function (id) { return !!busy['t:' + id]; },
       clearTheme: clearTheme, reassign: reassignTheme,
+      fsdk: fsdk, companyId: function () { return companyId; }, company: function () { return companyCfg; },
+      setPreviewAsMember: function (b) { previewMember = !!b; showCurrent().then(renderPanel); },
     };
   }
 

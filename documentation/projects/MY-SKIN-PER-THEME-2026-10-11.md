@@ -197,7 +197,71 @@ immediate repeat over 9 shows; hidden tab 2 min = no change, resumes with the
 time left; reduced motion no rotation; phone 30 s runs at 1 min; keyboard
 reorder writes the new order; cap at 6; use for all survives clearing the host.
 
+## Slice B4: company background sets (spec section 18)
+
+**What it is.** A company admin pushes a set of backgrounds, per theme or one
+for every theme, as **suggested** (a member can override or hide it) or
+**enforced** (a member cannot, apart from raising dim and blur). Personal skins
+stay private; company pictures are private bucket objects too, read by members
+with `getBlob()`, never public, never in the repo.
+
+**Data.** Storage `companies/{id}/skins/themes/{themeId|_all}/{imageId}[_t]`
+(webp/jpeg, < 3 MB; readable by that company's members and platform admin;
+writable by its company_admin, or the solo owner of a company of one).
+Firestore `companies/{id}/skin/config` (one doc, one listener): `enabled`,
+`allowHide`, `show`, `all`, `themes`, `rightsAttestation`, `usage`. The rules refuse
+a client write to `usage`/`usageUpdatedAt` (the Cloud Function writes them) and
+bound `themes` at 220. Members gain `mySkin.company { show, hide }` and
+`mySkin.hidePictures` ("Hide background pictures", beats everything including an
+enforced set: accessibility wins).
+
+**Precedence** (`resolveWithCompany`, 8 steps, one unit test per step): company
+enforced for the theme; enforced for every theme; personal set; personal "use
+for all"; personal global wallpaper; company suggested for the theme; suggested
+for every theme; built-in art. Enforced paints even when the member's My Skin is
+off; suggested paints for members who never set My Skin up. A member can raise
+dim and blur on an enforced picture, never lower the dim below the company's
+`minDim` (or the company dim, or the readability floor).
+
+**Member panel.** "Your company's backgrounds" (status, "Show my company's
+backgrounds" when `allowHide`), per theme a note ("Set by your company" or
+"Your company suggests a background"), Use the company's picture, Hide for this
+theme; an enforced theme disables picking, clearing and fit.
+
+**Admin panel** (`my-skin-company.js`, lazy, company_admin or solo owner only):
+master switch, "let people turn them off", preview as a team member, the rights
+tick (required before any upload), usage bar, add pictures (up to 6 per theme,
+or "Every theme"), mode and minimum dim per set, remove a picture or a set.
+
+**Caps.** 6 per theme and < 3 MB (rules), 220 entries (rule), 500 MB per
+company (the Storage trigger in #2343 deletes the object that crosses it and
+records `usage.rejectedAt`; the panel also refuses before uploading).
+
+**Offboarding / erasure.** A removed member's claims are stripped and
+`offboardLock` set, so company reads fail at once; their personal skin is
+untouched (`skins` is in `NOT_MOVED_PREFIXES`). Company sets live under
+`companies/{id}/`, so they stay when an admin leaves.
+
+**Not done in this slice (follow-ups).** Bulk import into a company set (the
+personal import module is not yet target-aware); a "set by your company" toast
+on the member's next load; company-deletion sweep and data export of
+`companies/{c}/skins/` and `skin/config` (needs the deletion-sweep owner);
+the Comfort-tab placement of "Hide background pictures" (it sits in the My Skin
+panel for now).
+
+### Proposed Terms / Acceptable Use clause (text only; not a legal edit)
+
+> **Company backgrounds.** If you are an administrator and you upload pictures
+> to your company's backgrounds, you confirm that your company owns them or has
+> permission to use them and to show them to everyone on your team. NBD Pro
+> stores them privately for your company and does not review them. Do not
+> upload customer photos, personal information, or material you do not have the
+> right to use. You are responsible for what you upload; we may remove content
+> that breaks these terms or the law.
+
+Needs counsel's eye before it goes on the Terms page (spec open question 15).
+
 ## Open / next
 
-- Hard 1 GB cap Cloud Function: its own PR.
-- B4: company sets (spec section 18). B5: ambient accent.
+- Storage caps (1 GB per person, 500 MB per company): PR #2343.
+- B5: ambient accent.
