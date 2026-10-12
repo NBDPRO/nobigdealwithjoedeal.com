@@ -5872,7 +5872,8 @@
       bg: colors.bg,
       surface: colors.surface,
       accent: colors.accent,
-      text: colors.text
+      text: colors.text,
+      muted: colors.muted
     };
   }
 
@@ -6410,6 +6411,13 @@
           window._themeUnlocks = new Set(Array.isArray(arr) ? arr : []);
         }
       } catch (e) {}
+    },
+
+    // WCAG contrast ratio (1..21) of two colours (hex or rgb()). Exposed so
+    // pickers (theme-preview.js) badge a theme with the SAME math the engine
+    // tunes accents with, rather than a second implementation.
+    contrastRatio(a, b) {
+      return contrastRatio(a, b);
     },
 
     previewCSS(themeKey) {

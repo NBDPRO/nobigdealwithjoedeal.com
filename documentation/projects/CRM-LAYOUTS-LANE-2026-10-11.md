@@ -105,10 +105,45 @@ Appearance tab is actually displayed, so a Classic rep never pays for them).
   revert / keep, reload brings the layout back before the app's scripts run,
   glove, and a company lock through the real picker and rules.
 
+## Field App (D3) — L08
+
+`js/layouts/field.js` + `css/layouts/field.css`, registered in layout-system.js for
+**phone and tablet only** (never resolved for a desktop window; the picker can
+still preview it). Needs the D1 kit. It is a shell over what the CRM already
+has — not a copy:
+
+| Screen | Built from |
+| --- | --- |
+| Today | `NBDToday.compute()` appointments (today-home.js, #2137); weather from `api.weather.gov` (CSP-allowed, keyless, cached an hour); the storm cache line (`NBDTodayPlan.stormLine`) as the hail check. A big **Now** card with Navigate / Call / Photo, "Up next" rows, and "Done · next" |
+| Lead | name, a plain "Why you are here" line from the visit type, four tiles (Test square / Call / Text / Voice note via `NBDQuickCapture`), a 3-item checklist (per account, per day), and a **slide-to-confirm** "I'm on site" that needs >= 90% travel; it writes a `leads/{id}/activity` note (`type 'note'`, `source 'rep'`, `channel 'field-app'`, lat/lng/accuracy) |
+| Capture | `getUserMedia` camera, a 10x10 test-square overlay, slope chips (S W N E Ridge Soft metals), +/- counter with `navigator.vibrate`, and shots through the **existing** durable queue: `PhotoEngine.enqueueForRetry` + `flushUploadQueue` (the 'photos' ScriptLoader bundle is loaded when the camera opens — `photo-engine.js` is not an eager tag). Offline shows "No signal · N queued" |
+| Sunlight | `html.sun`: black on white, 2.5px outlines; only colour custom properties + `--fa-bw`; id-boosted selector so no theme/mode selector out-ranks it; device preference `nbd_field_sun` (in the sign-out KEEP set) |
+
+Decisions and gotchas worth keeping:
+
+- **Kentucky wording.** The counter reads "N hits counted in this square ·
+  example guide: 8 (your carrier sets the real number)". The photo description
+  is "Test square, S: 3 hits counted in 10 ft x 10 ft". Nothing says we handle
+  or negotiate a claim or predicts an outcome; `tests/layout-field-2026-10-11.test.js`
+  runs every string through `claim-wording-filter.js` (with a control that it can fail).
+- **Nothing is sent.** Call and Text are `tel:` / `sms:` links; the only
+  network call of its own is the weather forecast.
+- **No `<header>` elements in layouts** — `dashboard-app.css` styles every
+  `header` as the app's dark top bar (it painted an unreadable band on Today).
+- Not built (and why): the geofence auto-switch to sunlight and the phone light
+  sensor (optional in Grok's spec; a geofence needs background GPS, which a PWA
+  does not get), route distance / "home by" (no data source), the gate code (no
+  such lead field today). The Map tab opens the existing D2D map.
+- E2E: `tests/e2e/field-app.spec.js` at 390px with a fake camera: Now card
+  links, 56px tap targets, short slide stamps nothing / full slide writes the
+  note, offline shot is held then drains into a `photos` doc tagged
+  `test_square`, sunlight tokens and persistence.
+
 ## Slice log
 
 | Slice | Status | PR |
 | --- | --- | --- |
 | D0 layout foundation | built, in review | #2328 |
 | D1 shared components | built, stacked on D0 | #2331 |
-| D2 picker + company default/lock | built, stacked on D1 | see PR list |
+| D2 picker + company default/lock | built, stacked on D1 | #2344 |
+| D3 Field App (L08) + sunlight | built, stacked on D2 | see PR list |
