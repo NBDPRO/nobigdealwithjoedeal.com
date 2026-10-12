@@ -91,7 +91,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
 
   // Items already told (keeps a re-run or an overlapping check from repeating).
   const told = new Set(Array.isArray(st.toldIds) ? st.toldIds : []);
-  const needs = W.newNeeds(callRows, textRows, thu, sinceMs, nowMs).filter((n) => !told.has(n.id));
+  const needs = W.newNeeds(callRows, textRows, thu, sinceMs, nowMs).filter((n) => !told.has(n.tellId || n.id));
   const gates = {
     ingest: process.env.CALL_CENTER_INGEST_ENABLED === 'true',
     transcribe: process.env.CALL_CENTER_TRANSCRIBE_ENABLED === 'true',
@@ -123,7 +123,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
 
   const problemsToldAt = {};
   problems.forEach((p) => { problemsToldAt[p.key] = (tell.some((t) => t.key === p.key) ? nowMs : W.toMs((st.problemsToldAt || {})[p.key])) || nowMs; });
-  const toldIds = needs.map((n) => n.id).concat([...told]).slice(0, 400);
+  const toldIds = needs.map((n) => n.tellId || n.id).concat([...told]).slice(0, 400);
   if (alert) {
     await db.collection('notifications').add({
       userId: OWNER, type: 'call_watch', title: alert.title, message: alert.message, priority: alert.priority,
