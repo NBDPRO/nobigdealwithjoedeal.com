@@ -47,9 +47,9 @@ test.describe.serial('Crew Calendar @shard2', () => {
     // unique phone + address per run: a retry must not trip the duplicate-lead prompt
     await safeEvaluate(page, async (a) => {
       const tail = String(a.s).slice(-6);
-      await window._saveLead({ firstName: 'ZZCW', lastName: 'Placed' + a.s, address: tail + ' Crew Ln, Mason, OH 45040', phone: '513' + tail + '1', stage: 'contract_signed',
+      await window._saveLead({ firstName: 'ZZCW' + tail, lastName: 'Placed' + a.s, address: tail + ' Crew Ln, Mason, OH 45040', phone: '513' + tail + '1', stage: 'contract_signed',
         scheduledDate: a.wed, scheduledEndDate: a.thu, scheduledStart: '07:00', subId: a.alpha, crew: 'ZZCW Alpha ' + a.s, permitNotRequired: true });
-      await window._saveLead({ firstName: 'ZZCW', lastName: 'Tray' + a.s, address: tail + ' Tray Ln, Mason, OH 45040', phone: '513' + tail + '2', stage: 'contract_signed', permitNotRequired: true });
+      await window._saveLead({ firstName: 'ZZCX' + tail, lastName: 'Tray' + a.s, address: tail + ' Tray Ln, Mason, OH 45040', phone: '513' + tail + '2', stage: 'contract_signed', permitNotRequired: true });
     }, { s, wed, thu, alpha: subIds.alpha });
     await safeEvaluate(page, () => window.LayoutEngine.saveUser({ id: 'crew', device: 'desktop' }));
     await page.reload();
@@ -97,7 +97,21 @@ test.describe.serial('Crew Calendar @shard2', () => {
     // drag Placed (Wed-Thu, Alpha) to Friday in Bravo's lane: day + crew move, length and start stay
     const fri = weekDay(4);
     await drag(placed.first(), cell('sub:' + ids.bravo, fri));
-    await expect.poll(async () => (await fresh(ids.placed)).scheduledDate, { timeout: 15_000 }).toBe(fri);
+    try {
+      await expect.poll(async () => (await fresh(ids.placed)).scheduledDate, { timeout: 15_000 }).toBe(fri);
+    } catch (e) {
+      // CI-only failure once: say what the page thought, so the log is enough.
+      const dbg = await safeEvaluate(page, () => ({
+        readOnly: !!document.querySelector('.cw-ro'),
+        rootHidden: !!(document.getElementById('nbdCrewRoot') || {}).hidden,
+        role: (window._userClaims || {}).role || null,
+        notice: (document.querySelector('.cw-notice') || {}).innerText || null,
+        toasts: Array.from(document.querySelectorAll('#toastContainer .toast')).map((t) => t.innerText),
+        activeView: (document.querySelector('.view.active') || {}).id || null,
+        blocks: Array.from(document.querySelectorAll('.cw-block')).map((b) => b.className + ' | ' + b.innerText.replace(/s+/g, ' ')),
+      }));
+      throw new Error('drag did not move the job: ' + JSON.stringify(dbg) + ' :: ' + e.message);
+    }
     const moved = await fresh(ids.placed);
     expect(moved.subId).toBe(ids.bravo);
     expect(moved.scheduledEndDate).toBe(weekDay(5));       // still two days

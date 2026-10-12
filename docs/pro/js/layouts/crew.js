@@ -744,6 +744,12 @@
     for (var i = 0; i < els.length; i++) {
       if (els[i].classList && els[i].classList.contains('cw-cell')) return els[i];
     }
+    // geometry fallback: the cell whose box holds the point
+    var all = rootEl ? rootEl.querySelectorAll('.cw-cell') : [];
+    for (var j = 0; j < all.length; j++) {
+      var r = all[j].getBoundingClientRect();
+      if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) return all[j];
+    }
     return null;
   }
   function setHot(el) {
