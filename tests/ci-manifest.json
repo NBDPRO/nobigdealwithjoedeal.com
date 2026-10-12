@@ -11,6 +11,7 @@
   ],
   "node": [
     "layout-system-2026-10-11.test.js",
+    "layout-bento-2026-10-12.test.js",
     "layout-kit-2026-10-11.test.js",
     "layout-field-2026-10-11.test.js",
     "layout-focus-2026-10-11.test.js",
