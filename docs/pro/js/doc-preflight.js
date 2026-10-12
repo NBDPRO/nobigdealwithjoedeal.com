@@ -230,12 +230,23 @@
         // is Payment 2, due when the carrier releases it, not "today" — and
         // blank when nobody has entered the deductible, so the rep must.
         if (plan.mode === 'insurance') {
-          return plan.deductibleCents != null ? dollars(Math.min(plan.deductibleCents, plan.totalCents)) : '';
+          if (plan.deductibleCents == null) return '';
+          var _ded = Math.min(plan.deductibleCents, plan.totalCents);
+          // Ohio ORC 4722.04 (2026-10-11): a capped deductible is the signing
+          // deposit; the rest of it moves to Payment 2.
+          if (plan.ohio && plan.ohio.reduced === true) _ded = Math.min(_ded, plan.depositCents);
+          return dollars(_ded);
         }
         return dollars(plan.depositCents);
       case 'computed.depositPayment2':
-        var acv = (plan.rows || []).filter(function (r) { return r && r.key === 'acv' && r.amountCents != null; })[0];
-        return acv ? dollars(acv.amountCents) : '';
+        // The insurance ACV check; on an Ohio job the deposit cap held down
+        // (ORC 4722.04, 2026-10-11) also the rest of the deductible, or a
+        // cash job's second payment — due when materials are delivered / work
+        // begins, never at signing.
+        var _p2 = (plan.rows || []).filter(function (r) {
+          return r && r.amountCents != null && (r.key === 'acv' || r.key === 'milestone' || r.key === 'deductible2');
+        }).reduce(function (a, r) { return a + r.amountCents; }, 0);
+        return _p2 > 0 ? dollars(_p2) : '';
     }
     return '';
   }
@@ -1732,7 +1743,7 @@
               source: 'computed.todayISO', persist: PERSIST.DOCUMENT },
             { key: 'payment2Amount', label: 'Payment 2 Amount', type: 'currency',
               source: 'computed.depositPayment2', persist: PERSIST.DOCUMENT,
-              help: 'Insurance: the ACV check, due when the carrier releases it (leave the date blank). The balance prints as the final payment.' },
+              help: 'Insurance: the ACV check, due when the carrier releases it (leave the date blank). On an Ohio job of $25,000 or more: the payment due when materials are delivered or work begins. The balance prints as the final payment.' },
             { key: 'payment2Date', label: 'Payment 2 Date', type: 'date',
               source: 'literal:', persist: PERSIST.DOCUMENT },
             { key: 'paymentTerms', label: 'Terms', type: 'textarea', rows: 2,
