@@ -296,11 +296,38 @@ async function applyLeadContact({ db, leadId, lead, call, notes, todayYmd, nowMs
  * hours as callWatch (CALL_WATCH_ENABLED, 8 AM-8 PM ET) — outside them the
  * next callWatch run tells Jo instead. INTERNAL: never a customer.
  */
+/** One number's label (companies/{OWNER}/contact_labels/{digits}) as { digits: label }; {} when none / unreadable (the safe direction: it surfaces). */
+async function labelFor(db, phoneDigits) {
+  const dg = String(phoneDigits || '').replace(/D/g, '').slice(-10);
+  if (dg.length !== 10) return {};
+  try {
+    const s = await db.collection('companies').doc(OWNER).collection('contact_labels').doc(dg).get();
+    const x = s && s.exists ? (s.data() || {}) : null;
+    return x && x.kind ? { [dg]: { kind: x.kind, policy: x.policy || '' } } : {};
+  } catch (e) {
+    logger.warn('call_center_urgent_label_read_failed', { err: e && e.message });
+    return {};
+  }
+}
+
 async function pushUrgent({ db, d, call, notes, leadName, nowMs }) {
   if (process.env.CALL_WATCH_ENABLED !== 'true' || typeof d.push !== 'function') return false;
   const W = require('./call-watch-logic');
   if (!W.inWatchHours(nowMs)) return false;
+  // The SAME label rule callWatch and Home use (call-watch-logic callNeedsYou /
+  // reasonFor, mirror of contact-labels-logic): a hidden PERSONAL number's urgent
+  // call breaks through (tagged), a spam number's "urgent" does not, a quiet
+  // number needs a promise / due callback. Not 'urgent' here -> callWatch decides.
+  const labels = await labelFor(db, call.phoneDigits);
+  const row = Object.assign({}, call, { urgent: true, promises: notes && notes.promises, followUpDate: notes && notes.followUpDate, callType: (notes && notes.callType) || call.callType });
+  const ctx = { labels };
+  if (!W.callNeedsYou(row, nowMs, ctx) || W.reasonFor(row, nowMs, ctx) !== 'urgent') return false;
+  const lb = W.labelOf(ctx, row);
   const msg = L.urgentPushText({ call, notes, leadName });
+  if (lb && lb.policy === 'hide') {
+    const kindName = { personal: 'Personal', other: 'Other', recruiter: 'Job seeker' }[lb.kind] || String(lb.kind).charAt(0).toUpperCase() + String(lb.kind).slice(1);
+    msg.body = String(msg.body || '').slice(0, 160) + ' (' + kindName + ' · hidden number)';
+  }
   const clickUrl = W.callCardUrl(call.id);
   try {
     const pr = await d.push(OWNER, msg.title, msg.body, { type: 'call_watch', clickUrl, notificationId: 'call-urgent-' + call.id });

@@ -31,7 +31,7 @@ const H = 3600000, MIN = 60000;
     process: { env: { CALL_WATCH_ENABLED: 'true' } },
     require: (m) => { if (m === './call-watch-logic') return require(path.join(ROOT, 'functions/call-watch-logic.js')); throw new Error('unexpected require ' + m); },
     L: { urgentPushText: () => ({ title: 'Urgent call — Maria', body: 'leak' }) },
-    OWNER: 'owner1', COLLECTION: 'phone_calls',
+    OWNER: 'owner1', COLLECTION: 'phone_calls', labelFor: async () => ({}),
     FieldValue: { serverTimestamp: () => 'TS' },
     logger: { warn: (...a) => warns.push(a), info() {} },
     Promise, Object, String, Number,
@@ -40,7 +40,7 @@ const H = 3600000, MIN = 60000;
   vm.runInContext(src.slice(start, end) + '\nglobalThis.pushUrgent = pushUrgent;', sandbox);
   const db = { collection: (c) => ({ doc: (id) => ({ set: async (v) => { stamped.push([c, id, v]); } }), add: async (v) => { bells.push(v); } }) };
   const NOON = Date.parse('2026-10-01T16:00:00Z');
-  const call = { id: 'cube_x' };
+  const call = { id: 'cube_x', startedAtMs: NOON - 60000 };
   let r = await sandbox.pushUrgent({ db, d: { push: async () => ({ sent: 0, failed: 0, errors: [] }) }, call, notes: {}, leadName: '', nowMs: NOON });
   ok('push reached 0 devices -> not told: no stamp, returns false', r === false && stamped.length === 0, JSON.stringify(stamped));
   ok('...and no pretend bell entry either (callWatch writes it when it tells)', bells.length === 0);
