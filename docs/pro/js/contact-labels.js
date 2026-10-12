@@ -113,6 +113,7 @@
       digits: d, kind: o.kind, policy: o.policy, name: o.name != null ? o.name : (prev && prev.name), note: o.note != null ? o.note : (prev && prev.note),
       source: o.source, companyId: tenant(), uid: uid(), createdAtMs: prev && prev.createdAtMs,
       ackAtMs: o.ackAtMs != null ? o.ackAtMs : (prev && prev.ackAtMs),
+      capture: o.capture,
     });
     if (!doc) { toast("Couldn't label that number.", 'error'); return { ok: false }; }
     var ok = await persist(d, doc, prev);
@@ -123,7 +124,7 @@
   async function ack(digits) {
     var d = LG.digits10(digits), cur = d ? state.labels[d] : null;
     if (!cur) return { ok: false };
-    return apply({ digits: d, kind: cur.kind, policy: cur.policy, ackAtMs: Date.now(), source: cur.source });
+    return apply({ digits: d, kind: cur.kind, policy: cur.policy, ackAtMs: Date.now(), source: cur.source, capture: cur.capture });
   }
 
   async function clear(digits) {
@@ -216,9 +217,28 @@
     if (first) first.focus(); else s.el.focus();
   }
 
-  async function chooseKind(s, kind) {
+  // Personal: ask before anything stops being recorded (2026-10-12, Jo). The
+  // sheet repaints as a two-button confirm; nothing is written until a tap.
+  function confirmPersonal(s) {
+    s.el.innerHTML =
+      '<div class="cl-hd"><div class="cl-title">Personal number</div>' +
+      '<div class="cl-who">' + (s.name ? esc(s.name) + ' · ' : '') + esc(fmtPhone(s.digits)) + '</div></div>' +
+      '<div class="cl-hint">Hiding keeps its calls off Today (a promise you make still shows). You can also stop the CRM from <b>copying and transcribing</b> its future calls and texts.</div>' +
+      '<div class="cl-note">If you stop it: new calls and texts from this number are not copied, transcribed or read. A one-line record (time and direction) is still kept so the Call Center shows it rang. <b>Calls and texts already in the CRM stay exactly as they are</b> — remove them from the Call Center yourself if you want them gone. Your original recordings stay in your own Drive.</div>' +
+      '<div class="cl-kinds"><button type="button" class="cl-pol" data-cl="personal-hide">Hide only</button>' +
+      '<button type="button" class="cl-pol is-on" data-cl="personal-stop">Hide + stop copying future calls</button></div>' +
+      '<div class="cl-foot"><span></span><button type="button" class="cl-link" data-cl="close">Cancel</button></div>';
+    var b = s.el.querySelector('[data-cl="personal-stop"]');
+    if (b) b.focus();
+  }
+
+  async function chooseKind(s, kind, capture) {
     var before = get(s.digits);
-    var r = await apply({ digits: s.digits, kind: kind, policy: s.policy || undefined, name: s.name, source: 'manual' });
+    // Same kind again (a policy tap): keep what Jo already confirmed.
+    if (capture === undefined && before && before.kind === kind) capture = before.capture || '';
+    // A first pick of Personal asks about capture before writing anything.
+    if (kind === 'personal' && capture === undefined && !(before && before.kind === 'personal')) { confirmPersonal(s); return; }
+    var r = await apply({ digits: s.digits, kind: kind, policy: s.policy || undefined, name: s.name, source: 'manual', capture: capture });
     closeSheet();
     if (!r.ok) return;
     var now = get(s.digits);
@@ -227,7 +247,7 @@
     });
   }
   async function persistRestore(d, prev) {
-    var doc = LG.buildDoc({ digits: d, kind: prev.kind, policy: prev.policy, name: prev.name, note: prev.note, source: prev.source, companyId: tenant(), uid: uid(), createdAtMs: prev.createdAtMs, ackAtMs: prev.ackAtMs });
+    var doc = LG.buildDoc({ digits: d, kind: prev.kind, policy: prev.policy, name: prev.name, note: prev.note, source: prev.source, companyId: tenant(), uid: uid(), createdAtMs: prev.createdAtMs, ackAtMs: prev.ackAtMs, capture: prev.capture });
     if (!doc) return { ok: false };
     var cur = state.labels[d] ? Object.assign({}, state.labels[d]) : null;
     return { ok: await persist(d, doc, cur) };
@@ -246,6 +266,8 @@
     if (a === 'close') { closeSheet(); return; }
     if (!s) return;
     if (a === 'more') { s.more = true; paintSheet(s); return; }
+    if (a === 'personal-hide') { chooseKind(s, 'personal', ''); return; }
+    if (a === 'personal-stop') { chooseKind(s, 'personal', 'off'); return; }
     if (a === 'kind') { chooseKind(s, t.getAttribute('data-kind')); return; }
     if (a === 'policy') {
       var p = t.getAttribute('data-policy');

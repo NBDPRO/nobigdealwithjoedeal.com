@@ -56,7 +56,7 @@ console.log('A. registry rules');
     && LG.buildDoc({ digits: '5550142222', kind: 'sub', companyId: 'co-a' }) === null);
   const long = LG.buildDoc(Object.assign({ digits: '5550142222', kind: 'sub', name: 'n'.repeat(200), note: 'x'.repeat(500) }, ownerOpts));
   ok('buildDoc: name capped at 80, note at 200', long.name.length === 80 && long.note.length === 200);
-  ok('buildDoc carries ONLY the keys the rules allow (ackAtMs only when set)', Object.keys(d).sort().join() === LG.DOC_KEYS.filter((k) => k !== 'ackAtMs').sort().join()
+  ok('buildDoc carries ONLY the keys the rules allow (ackAtMs only when set)', Object.keys(d).sort().join() === LG.DOC_KEYS.filter((k) => k !== 'ackAtMs' && k !== 'capture').sort().join()
     && LG.buildDoc(Object.assign({ digits: '5550142222', kind: 'spam', ackAtMs: 5 }, ownerOpts)).ackAtMs === 5);
 
   const idx = LG.indexLabels([

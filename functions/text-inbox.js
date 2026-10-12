@@ -29,6 +29,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const T = require('./text-inbox-logic');
 const CC = require('./call-center-logic');
+const CL = require('./contact-labels');
 
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const CONFIG = 'integrations/textInbox';
@@ -103,7 +104,9 @@ async function runTextIngest({ db, live, nowMs }) {
   const since = T.sinceFor(cfg.cursorMs || null, nowMs);
   const { messages, skipped } = T.parseSmsBackup(await downloadText(newest.id), { sinceMs: since });
   const index = CC.buildPhoneIndex(await ownerLeads(db));
-  const counts = { parsed: messages.length, fresh: 0, stored: 0, buckets: {}, skippedShortCodes: skipped.shortCode, skippedOther: skipped.otherType + skipped.noNumber };
+  // personal + "stop copying" (2026-10-12): not even the message body is kept.
+  const labels = await CL.loadLabels(db, OWNER);
+  const counts = { parsed: messages.length, fresh: 0, stored: 0, buckets: {}, labelSkipped: 0, skippedShortCodes: skipped.shortCode, skippedOther: skipped.otherType + skipped.noNumber };
 
   let cursor = cfg.cursorMs || 0;
   for (let i = 0; i < messages.length; i += BATCH) {
@@ -116,6 +119,7 @@ async function runTextIngest({ db, live, nowMs }) {
     chunk.forEach((m, k) => {
       cursor = Math.max(cursor, m.dateMs);
       if (have.has(refs[k].id)) return;
+      if (CL.captureOff(labels, m.phoneDigits)) { counts.labelSkipped++; return; }
       counts.fresh++;
       const match = CC.matchLead(m.phoneDigits, index);
       const bucket = CC.classifyCall({ contactLabel: m.contactName, savedContact: !!m.contactName }, match);

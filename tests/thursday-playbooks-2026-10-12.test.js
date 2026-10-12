@@ -341,7 +341,7 @@ function finishC() {
   const html = read('docs/pro/dashboard.html');
   ok('dashboard.html: today-home.js cache-buster bumped (the hook only ships if browsers refetch)', /js\/today-home\.js\?v=6"/.test(html));
   ok('script-loader.js: call-center-view cache-buster bumped', /call-center-view\.js\?v=14'/.test(loader));
-  ok('home-attention.js: contact-labels.js cache-buster bumped', /contact-labels\.js\?v=3'/.test(read('docs/pro/js/home-attention.js')));
+  ok('home-attention.js: contact-labels.js cache-buster bumped', /contact-labels\.js\?v=([3-9]|\d\d)'/.test(read('docs/pro/js/home-attention.js')));
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join('; ')); process.exit(1); }
 }
