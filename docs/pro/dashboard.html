@@ -181,7 +181,7 @@
 <link rel="stylesheet" href="css/widgets-home.css?v=1">
 <link rel="stylesheet" href="css/d2d-tracker.css?v=2">
 <link rel="stylesheet" href="css/storm-center.css?v=2">
-<link rel="stylesheet" href="css/my-skin.css?v=1">
+<link rel="stylesheet" href="css/my-skin.css?v=2">
 <!-- Kanban force CSS — extracted to css/kanban-force.css (Rock 4 Phase 2c). -->
 <link rel="stylesheet" href="css/kanban-force.css?v=5" id="kanban-force-css-link">
 <!-- v5→DS theme bridge — extracted to css/theme-bridge.css (Rock 4 Phase 2d). -->
@@ -3357,6 +3357,14 @@
           </div>
         </div>
 
+        <!-- Layouts (2026-10-11): how the CRM is arranged, independent of the theme.
+             js/layouts/picker.js fills #layoutsPanelBody the first time this tab
+             opens (layout-system.js lazy-loads it). Classic = today's CRM. -->
+        <div class="panel mb-md" id="layoutsPanel">
+          <div class="panel-hdr"><div><div class="panel-label">Appearance</div><div class="panel-title">Layouts</div></div></div>
+          <div class="panel-body" id="layoutsPanelBody"><div class="meta-12-mb14">Loading layouts…</div></div>
+        </div>
+
         <!-- Theme picker: filter buttons + flat grid -->
         <div class="panel mb-md">
           <div class="panel-hdr"><div><div class="panel-label">Theme Engine</div><div class="panel-title">155 Themes</div></div></div>
@@ -3619,6 +3627,48 @@
               </div>
             </div>
 
+            <!-- Per-theme backgrounds (2026-10): each theme can have its own picture;
+                 the wallpaper above stays as the fallback. Wired by my-skin.js. -->
+            <label class="myskin-row" for="myskinPerTheme"><span>Different background per theme</span><input type="checkbox" id="myskinPerTheme"></label>
+            <div class="myskin-theme-card" id="myskinThemeCard" hidden>
+              <div class="myskin-slot-title">Background for <span id="myskinThemeName">this theme</span></div>
+              <div class="myskin-slot" data-myskin-theme-slot>
+                <div class="myskin-thumb" data-clarity-mask="true"><img class="myskin-thumb-img" alt="Your picture for this theme" hidden><span class="myskin-thumb-empty">None</span></div>
+                <div>
+                  <div class="myskin-slot-help" id="myskinThemeStatus" aria-live="polite"></div>
+                  <div class="myskin-actions">
+                    <label class="btn btn-ghost btn-sm myskin-btn myskin-pick">Choose picture<input type="file" class="myskin-file" accept="image/*" data-myskin-theme-file></label>
+                    <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-theme-from-wallpaper hidden>Use my wallpaper here</button>
+                    <button type="button" class="btn btn-ghost btn-sm myskin-btn" data-myskin-theme-clear disabled>Clear this theme</button>
+                    <span class="myskin-status" aria-live="polite"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="myskin-theme-controls" hidden>
+                <label class="myskin-row" for="myskinThemeDimGlobal"><span>Use my wallpaper dim here</span><input type="checkbox" id="myskinThemeDimGlobal"></label>
+                <label class="myskin-range" for="myskinThemeDim"><span>Dim for this theme</span><output id="myskinThemeDimOut" for="myskinThemeDim">55%</output><input type="range" id="myskinThemeDim" min="0" max="85" step="1" value="55"></label>
+                <p class="myskin-note" id="myskinThemeDimNote" aria-live="polite" hidden></p>
+                <label class="myskin-row" hidden><span>Use my dim setting anyway</span><input type="checkbox" id="myskinThemeOverride"></label>
+                <label class="myskin-range" for="myskinThemeBlur"><span>Blur</span><output id="myskinThemeBlurOut" for="myskinThemeBlur">0 px</output><input type="range" id="myskinThemeBlur" min="0" max="12" step="1" value="0"></label>
+                <div class="myskin-pos-label" id="myskinThemePosLabel">Focus</div>
+                <div class="myskin-pos" role="group" aria-labelledby="myskinThemePosLabel">
+                <button type="button" data-myskin-pos="0% 0%" aria-pressed="false" aria-label="Top left">&#9679;</button>
+                <button type="button" data-myskin-pos="50% 0%" aria-pressed="false" aria-label="Top">&#9679;</button>
+                <button type="button" data-myskin-pos="100% 0%" aria-pressed="false" aria-label="Top right">&#9679;</button>
+                <button type="button" data-myskin-pos="0% 50%" aria-pressed="false" aria-label="Left">&#9679;</button>
+                <button type="button" data-myskin-pos="50% 50%" aria-pressed="false" aria-label="Center">&#9679;</button>
+                <button type="button" data-myskin-pos="100% 50%" aria-pressed="false" aria-label="Right">&#9679;</button>
+                <button type="button" data-myskin-pos="0% 100%" aria-pressed="false" aria-label="Bottom left">&#9679;</button>
+                <button type="button" data-myskin-pos="50% 100%" aria-pressed="false" aria-label="Bottom">&#9679;</button>
+                <button type="button" data-myskin-pos="100% 100%" aria-pressed="false" aria-label="Bottom right">&#9679;</button>
+                </div>
+                <label class="myskin-row" for="myskinThemeFit"><span>Fit</span><select id="myskinThemeFit" class="btn btn-ghost btn-sm myskin-select"><option value="cover">Fill the screen</option><option value="contain">Show the whole picture</option><option value="tile">Tile</option></select></label>
+                <label class="myskin-row" for="myskinThemePixel"><span>Pixel art (keep it crisp)</span><input type="checkbox" id="myskinThemePixel"></label>
+                <label class="myskin-row" for="myskinThemeOverlay"><span>Keep this theme's animation over my picture</span><input type="checkbox" id="myskinThemeOverlay"></label>
+              </div>
+              <p class="myskin-note">Each theme can have its own picture. They stay private to you, just like your wallpaper. Themes without one show your wallpaper.</p>
+            </div>
+
             <div class="myskin-slot" data-myskin-slot="texture">
               <div class="myskin-thumb"><img class="myskin-thumb-img" alt="Your card texture" hidden><span class="myskin-thumb-empty">None</span></div>
               <div>
@@ -3669,6 +3719,11 @@
             <label class="myskin-row" for="pxSkin"><span>Pixel Mode skin</span><input type="checkbox" id="pxSkin"></label>
             <label class="myskin-row" for="pxScanlines"><span>Scanlines</span><input type="checkbox" id="pxScanlines"></label>
             <label class="myskin-row" for="pxDialog"><span>Dialog-box notifications (works with any theme)</span><input type="checkbox" id="pxDialog"></label>
+            <div class="panel-label myskin-subhead">Pixel World (beta)</div>
+            <p class="myskin-note">A walkable town where every building is a part of the CRM and your open leads are the townspeople. Read-only: it shows your real leads and never sends a message or changes one. Off until you turn it on.</p>
+            <label class="myskin-row" for="pxWorldUser"><span>Turn on Pixel World for me</span><input type="checkbox" id="pxWorldUser"></label>
+            <label class="myskin-row" for="pxWorldCompany" id="pxWorldCompanyRow" hidden><span>Turn on for my whole company</span><input type="checkbox" id="pxWorldCompany"></label>
+            <button type="button" class="btn btn-ghost btn-sm" id="pxOpenWorld" data-px-open-world hidden>Open Pixel World</button>
           </div>
         </div>
 
@@ -6407,6 +6462,31 @@
             <div style="font-size:10px; color:var(--m); margin-top:6px; line-height:1.4;">Scales every text element via root font-size. Easier on the eyes during long sessions.</div>
           </div>
 
+          <!-- Surface style (2026-10-11): Solid / Tinted / Glass. Glass frosts
+               cards, the sidebar and inputs so a wallpaper shows through; the
+               readability guard raises Frost on its own until text clears 4.5:1.
+               Shape & Depth presets that are already translucent keep their own look. -->
+          <div>
+            <div class="npm-surf-head">
+              <span class="fs-14" aria-hidden="true">🪟</span>
+              <span class="npm-surf-title">Surface style</span>
+            </div>
+            <div class="npm-surf-row">
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="surface" data-value="solid" data-action="call" data-fn="nbdComfortSet" data-arg="surface" data-arg2="solid">Solid</button>
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="surface" data-value="tinted" data-action="call" data-fn="nbdComfortSet" data-arg="surface" data-arg2="tinted">Tinted</button>
+              <button type="button" class="npm-comfort-btn ui-seg ui-seg-tall" data-comfort="surface" data-value="glass" data-action="call" data-fn="nbdComfortSet" data-arg="surface" data-arg2="glass">Glass</button>
+            </div>
+            <div id="npm-surface-sliders" class="npm-surf-sliders">
+              <label class="npm-surf-lbl">Blur
+                <input type="range" id="npm-surface-blur" min="0" max="30" value="14" data-on-input="nbdSetSurfaceBlur" class="npm-surf-range">
+              </label>
+              <label class="npm-surf-lbl">Frost
+                <input type="range" id="npm-surface-frost" min="40" max="95" value="68" data-on-input="nbdSetSurfaceFrost" class="npm-surf-range">
+              </label>
+            </div>
+            <div class="npm-surf-note">Tinted mixes a hint of your accent into cards. Glass frosts them; text stays readable automatically.</div>
+          </div>
+
           <!-- Motion + Professional Mode toggles -->
           <div>
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
@@ -7077,8 +7157,8 @@
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=16"></script>
 <script defer src="js/today-home.js?v=3"></script>
-<script defer src="js/my-skin-logic.js?v=1"></script>
-<script defer src="js/my-skin.js?v=3"></script>
+<script defer src="js/my-skin-logic.js?v=2"></script>
+<script defer src="js/my-skin.js?v=4"></script>
 <script defer src="js/layout-system.js?v=1"></script>
 <script defer src="js/pixel-mode.js?v=1"></script>
 <script defer src="js/ui.js?v=10"></script>

@@ -71,7 +71,7 @@ body.skin-pixel .ni::before {
   position: absolute;
   left: 3px;
   top: 50%;
-  transform: translateY(-50%);
+  margin-top: -5px;
   font-family: var(--px-head);
   font-size: 7px;
   color: var(--orange);
@@ -108,6 +108,8 @@ body.skin-pixel .px-card { border-width: 0; }
 .px-card-hdr { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; }
 .px-card-hdr .px-h { margin: 0; font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 11px; color: var(--orange); }
 .px-card-hdr .px-sub { margin-left: auto; font-family: 'VT323', ui-monospace, monospace; font-size: 16px; color: var(--m); }
+
+.px-enter { margin-left: 8px; font-family: 'Press Start 2P', ui-monospace, monospace; font-size: 9px; padding: 8px 10px; cursor: pointer; }
 
 .px-party-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .px-mon {
@@ -184,9 +186,10 @@ html[data-motion="reduce"] .toast.px-dialog::after { animation: none; }
 /* "A wild LEAD appeared!" prompt: BOOK IT / TEXT LATER. */
 .px-wild {
   position: fixed;
-  left: 50%;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
   bottom: 24px;
-  transform: translateX(-50%);
   z-index: var(--z-toast, 10002);
   width: min(560px, calc(100vw - 24px));
   background: var(--s);
