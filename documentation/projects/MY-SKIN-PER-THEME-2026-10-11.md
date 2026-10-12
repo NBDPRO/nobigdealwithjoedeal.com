@@ -261,7 +261,32 @@ panel for now).
 
 Needs counsel's eye before it goes on the Terms page (spec open question 15).
 
+## Slice B5: ambient accent (design idea 01)
+
+**What.** The UI accent can follow the picture on screen, and cards can take a
+faint wash of its colour. Both are **off by default** and per user; a third
+switch locks the accent for one theme.
+
+**How.** At upload the same 32x32 sample that gives the luminance stats also
+yields `accentFromSample` (the most vivid hue bucket, weighted by saturation and
+mid lightness, nudged to a usable saturation/lightness; a grey picture has none).
+Stored as `images[].accent` (single upload, import, company panel; the worker
+too). At paint time `tuneAccent` runs it through `accentCheck` against the
+page's `--bg` (3:1 as a control, 4.5:1 for its label) and moves lightness away
+from the page a step at a time, keeping the hue, or refuses it. It rides the
+existing `--myskin-accent` -> `--orange` path, so a slideshow shifts the accent
+with every crossfade (paint runs on each commit). `tintOk` allows the 9 % card
+tint only if body text keeps 4.5:1 on the result for this theme's `--s2`/`--t`.
+
+**Precedence.** The user's own accent colour always wins; a locked theme or
+"Hide background pictures" lends nothing; a company picture lends its accent
+only if the admin's upload stored one.
+
+**Switches.** `mySkin.ambient { follow, tint }` (global) and `themes[id].ambientLock`.
+The tint rule is `:root.my-skin-tint`-gated; where the card texture is on, the
+texture's `!important` rule wins.
+
 ## Open / next
 
 - Storage caps (1 GB per person, 500 MB per company): PR #2343.
-- B5: ambient accent.
+- Nothing left from the plan except the follow-ups listed under B4.

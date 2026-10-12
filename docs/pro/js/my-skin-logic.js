@@ -103,6 +103,7 @@
       w: Math.max(0, Math.round(Number(raw.w) || 0)), h: Math.max(0, Math.round(Number(raw.h) || 0)),
       lum: unit(raw.lum), lumCenter: unit(raw.lumCenter),
       avg: isHex(raw.avg) ? raw.avg.toLowerCase() : null,
+      accent: isHex(raw.accent) ? raw.accent.toLowerCase() : null,   // the picture's own colour (ambient accent)
       type: STORED_TYPES.test(raw.type || '') ? raw.type : 'image/webp',
       bytes: Math.max(0, Math.round(Number(raw.bytes) || 0)),
       thumb: raw.thumb === true,   // a 256 px copy at <path>_t (bulk import, grid)
@@ -120,6 +121,7 @@
       fit: FITS.indexOf(o.fit) === -1 ? 'cover' : o.fit,
       pixelated: o.pixelated === true,
       hideOverlay: typeof o.hideOverlay === 'boolean' ? o.hideOverlay : null,   // null = default (a picture hides the animation)
+      ambientLock: o.ambientLock === true,   // "Lock for this theme": the accent does not follow this theme's picture
     };
   }
 
@@ -189,6 +191,8 @@
       },
       themes: themes,
       allThemes: normAll(r.allThemes),
+      // Ambient accent: the UI accent follows the picture / tints cards (both off by default).
+      ambient: { follow: !!(r.ambient && r.ambient.follow === true), tint: !!(r.ambient && r.ambient.tint === true) },
       // "Hide background pictures" (Comfort): nothing painted, enforced sets included.
       hidePictures: r.hidePictures === true,
       // The member's own switches for their company's sets.
@@ -386,6 +390,71 @@
       }
     }
     return built();
+  }
+
+  // ── ambient accent (design idea 01) ───────────────────────────────────
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, h = 0, s = 0, d = mx - mn;
+    if (d > 0) {
+      s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      h = mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? ((b - r) / d + 2) : ((r - g) / d + 4);
+      h /= 6;
+    }
+    return [h, s, l];
+  }
+  function hslToHex(h, s, l) {
+    function f(n) {
+      var k = (n + h * 12) % 12, a = s * Math.min(l, 1 - l);
+      var v = l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
+      var x = Math.round(v * 255).toString(16); return x.length < 2 ? '0' + x : x;
+    }
+    return '#' + f(0) + f(8) + f(4);
+  }
+  // The picture's most vivid colour, from a 32x32 RGBA sample (Uint8ClampedArray
+  // or array). Pixels are weighted by saturation and mid lightness into 12 hue
+  // buckets; the heaviest bucket's mean becomes the accent, nudged to a usable
+  // saturation and lightness. A grey picture returns null (no accent to follow).
+  function accentFromSample(data) {
+    if (!data || !data.length) return null;
+    var B = 12, w = [], sr = [], sg = [], sb = [], i;
+    for (i = 0; i < B; i++) { w.push(0); sr.push(0); sg.push(0); sb.push(0); }
+    for (i = 0; i + 3 < data.length; i += 4) {
+      var hsl = rgbToHsl(data[i], data[i + 1], data[i + 2]);
+      var weight = hsl[1] * (1 - Math.abs(2 * hsl[2] - 1));
+      if (weight < 0.08) continue;
+      var k = Math.min(B - 1, Math.floor(hsl[0] * B));
+      w[k] += weight; sr[k] += data[i] * weight; sg[k] += data[i + 1] * weight; sb[k] += data[i + 2] * weight;
+    }
+    var best = -1, bw = 0;
+    for (i = 0; i < B; i++) if (w[i] > bw) { bw = w[i]; best = i; }
+    if (best < 0 || bw < 1) return null;
+    var m = rgbToHsl(sr[best] / w[best], sg[best] / w[best], sb[best] / w[best]);
+    return hslToHex(m[0], Math.max(0.55, Math.min(0.9, m[1])), Math.max(0.42, Math.min(0.62, m[2])));
+  }
+  // Make an accent readable on the page (accentCheck: 3:1 as a control, 4.5:1
+  // for its label) by moving lightness away from the page colour, a step at a
+  // time. null when no lightness works.
+  function tuneAccent(accent, pageBg) {
+    if (!isHex(accent) || !isHex(pageBg)) return null;
+    var first = accentCheck(accent, pageBg);
+    if (first.ok) return { accent: accent.toLowerCase(), fg: first.fg, tuned: false };
+    var hsl = rgbToHsl(parseInt(accent.slice(1, 3), 16), parseInt(accent.slice(3, 5), 16), parseInt(accent.slice(5, 7), 16));
+    var darkPage = lum(pageBg) < 0.4;
+    for (var step = 1; step <= 14; step++) {
+      var l = Math.max(0.12, Math.min(0.88, hsl[2] + (darkPage ? 1 : -1) * step * 0.04));
+      var cand = hslToHex(hsl[0], hsl[1], l);
+      var c = accentCheck(cand, pageBg);
+      if (c.ok) return { accent: cand, fg: c.fg, tuned: true };
+    }
+    return null;
+  }
+  // Card tint is a faint wash of the accent (default 9%) over the surface; it
+  // is allowed only if body text keeps 4.5:1 on the result.
+  function tintOk(surface, accent, text, pct) {
+    if (!isHex(surface) || !isHex(accent) || !isHex(text)) return false;
+    var share = pct == null ? 0.09 : pct;
+    return contrast(text, mixHex(surface, accent, 1 - share)) >= 4.5;
   }
 
   // Before decoding: is this a picture we'll accept?
@@ -786,6 +855,7 @@
     trustedThemePath: trustedThemePath, trustedImagePath: trustedImagePath, referencedPaths: referencedPaths,
     resolveBackground: resolveBackground, effectiveDim: effectiveDim, checkInput: checkInput,
     fitWithin: fitWithin, contrast: contrast, toHex: toHex, mixHex: mixHex, accentCheck: accentCheck,
+    accentFromSample: accentFromSample, tuneAccent: tuneAccent, tintOk: tintOk, rgbToHsl: rgbToHsl, hslToHex: hslToHex,
     cssVars: cssVars, layerVars: layerVars, htmlClasses: htmlClasses, mintImageId: mintImageId, themeSig: themeSig,
     QUOTA_SOFT_BYTES: QUOTA_SOFT_BYTES, STORED_RATIO_ESTIMATE: STORED_RATIO_ESTIMATE, THUMB_WIDTH: THUMB_WIDTH,
     ZIP_LIMITS: ZIP_LIMITS, IMPORT_EXT_RE: IMPORT_EXT_RE,

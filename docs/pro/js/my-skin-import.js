@@ -288,7 +288,7 @@
           var st = enc.stats || {};
           return {
             image: { id: id, path: path, v: Date.now(), w: enc.w, h: enc.h, lum: st.lum != null ? st.lum : null,
-              lumCenter: st.lumCenter != null ? st.lumCenter : null, avg: st.avg || null, type: enc.blob.type, bytes: enc.blob.size, thumb: hasThumb },
+              lumCenter: st.lumCenter != null ? st.lumCenter : null, avg: st.avg || null, accent: st.accent || null, type: enc.blob.type, bytes: enc.blob.size, thumb: hasThumb },
             pixelated: (Math.max(enc.srcW || 0, enc.srcH || 0) > 0 && Math.max(enc.srcW, enc.srcH) <= 640) || /sprite|pixel/i.test(baseName(entry.path)),
           };
         });

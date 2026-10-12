@@ -115,7 +115,7 @@
             var s = enc.stats || {};
             pix = pix || Math.max(enc.srcW || 0, enc.srcH || 0) <= 640;
             added.push({ id: id, path: path, v: Date.now(), w: enc.w, h: enc.h, lum: s.lum != null ? s.lum : null,
-              lumCenter: s.lumCenter != null ? s.lumCenter : null, avg: s.avg || null, type: enc.blob.type, bytes: enc.blob.size, thumb: hasThumb });
+              lumCenter: s.lumCenter != null ? s.lumCenter : null, avg: s.avg || null, accent: s.accent || null, type: enc.blob.type, bytes: enc.blob.size, thumb: hasThumb });
           });
         }).catch(function (e) {
           fail(e && e.message === 'too-big' ? 'That picture is too detailed to store.' : e && e.message === 'decode' ? 'Couldn’t open that picture.' : 'Upload failed. Check your connection.');

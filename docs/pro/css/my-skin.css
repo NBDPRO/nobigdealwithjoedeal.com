@@ -29,6 +29,7 @@
   --myskin-repeat: no-repeat;
   --myskin-render: auto;
   --myskin-fade: 0ms;
+  --myskin-tint: #bd5728;
 }
 
 /* Wallpaper: a fixed layer behind the app, veiled by the theme's page colour. */
@@ -103,6 +104,15 @@
   --orange: var(--myskin-accent) !important;
   --ob: var(--myskin-accent) !important;
   --accent-fg: var(--myskin-accent-fg) !important;
+}
+
+/* Ambient accent, "tint cards": a faint wash of the picture's colour over the
+ * card surface. my-skin.js adds the class only after the readability check
+ * (NBDMySkinLogic.tintOk) passes for this theme's --s2 and --t. The texture
+ * rule above is !important and wins where both are on. */
+:root.my-skin-tint :is(.w-card, .stat-card, .ui-card, .ui-panel, .panel, .k-card, .cl-card) {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--myskin-tint) 9%, transparent), color-mix(in srgb, var(--myskin-tint) 9%, transparent));
 }
 
 /* Mascot: decoration only (aria-hidden, no pointer events), above the page
