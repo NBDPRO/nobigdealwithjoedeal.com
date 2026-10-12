@@ -12,7 +12,7 @@
  * decode (HEIC off Safari) answers "decode" and the caller retries there.
  */
 'use strict';
-importScripts('my-skin-logic.js?v=3');
+importScripts('my-skin-logic.js?v=6');
 var L = self.NBDMySkinLogic;
 var LIN = null;
 
@@ -32,7 +32,7 @@ function stats(canvas) {
       }
     }
     var hex = function (n) { var h = Math.round(n / nAll).toString(16); return h.length < 2 ? '0' + h : h; };
-    return { lum: all / nAll, lumCenter: ctr / nCtr, avg: '#' + hex(r) + hex(g) + hex(b) };
+    return { lum: all / nAll, lumCenter: ctr / nCtr, avg: '#' + hex(r) + hex(g) + hex(b), accent: L.accentFromSample(d) };
   } catch (e) { return null; }
 }
 

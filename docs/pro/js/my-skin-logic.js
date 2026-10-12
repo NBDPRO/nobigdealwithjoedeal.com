@@ -38,6 +38,10 @@
   var THEME_ID_RE = /^(_custom|[a-z0-9-]{1,40})$/;
   var IMAGE_ID_RE = /^[a-z0-9]{8,16}$/;
   var IMAGE_PATH_RE = /^skins\/[^\/#\[\]*?]+\/themes\/(_custom|[a-z0-9-]{1,40})\/[a-z0-9]{8,16}$/;
+  // Company background sets (spec section 18): companies/{id}/skins/themes/{theme}/{image}
+  var COMPANY_PATH_RE = /^companies\/[A-Za-z0-9_-]{1,128}\/skins\/themes\/(_all|_custom|[a-z0-9-]{1,40})\/[a-z0-9]{8,16}$/;
+  var COMPANY_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+  var COMPANY_CAP_BYTES = 500 * 1024 * 1024;
   var MAX_IMAGES_PER_THEME = 6;
   var MAX_THEME_ENTRIES = 220;                    // the firestore.rules guard says the same
   var THEME_MAX_STORED_BYTES = 3 * 1024 * 1024;   // storage.rules cap after re-encode
@@ -88,16 +92,18 @@
     return 'center';
   }
 
-  function normImage(raw) {
+  function normImage(raw, company) {
     if (!raw || typeof raw !== 'object') return null;
     if (typeof raw.id !== 'string' || !IMAGE_ID_RE.test(raw.id)) return null;
-    // Shape only (no uid is known here): skins/<uid>/themes/<themeId>/<imageId>.
-    if (typeof raw.path !== 'string' || !IMAGE_PATH_RE.test(raw.path)) return null;
+    // Shape only (no uid is known here): skins/<uid>/themes/<themeId>/<imageId>
+    // (or, for a company set, companies/<id>/skins/themes/<themeId>/<imageId>).
+    if (typeof raw.path !== 'string' || !(company ? COMPANY_PATH_RE : IMAGE_PATH_RE).test(raw.path)) return null;
     return {
       id: raw.id, path: raw.path, v: Number(raw.v) || 0,
       w: Math.max(0, Math.round(Number(raw.w) || 0)), h: Math.max(0, Math.round(Number(raw.h) || 0)),
       lum: unit(raw.lum), lumCenter: unit(raw.lumCenter),
       avg: isHex(raw.avg) ? raw.avg.toLowerCase() : null,
+      accent: isHex(raw.accent) ? raw.accent.toLowerCase() : null,   // the picture's own colour (ambient accent)
       type: STORED_TYPES.test(raw.type || '') ? raw.type : 'image/webp',
       bytes: Math.max(0, Math.round(Number(raw.bytes) || 0)),
       thumb: raw.thumb === true,   // a 256 px copy at <path>_t (bulk import, grid)
@@ -115,14 +121,15 @@
       fit: FITS.indexOf(o.fit) === -1 ? 'cover' : o.fit,
       pixelated: o.pixelated === true,
       hideOverlay: typeof o.hideOverlay === 'boolean' ? o.hideOverlay : null,   // null = default (a picture hides the animation)
+      ambientLock: o.ambientLock === true,   // "Lock for this theme": the accent does not follow this theme's picture
     };
   }
 
-  function normThemeSlot(raw) {
+  function normThemeSlot(raw, company) {
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.images)) return null;
     var imgs = [];
     for (var i = 0; i < raw.images.length && imgs.length < MAX_IMAGES_PER_THEME; i++) {
-      var im = normImage(raw.images[i]); if (im) imgs.push(im);
+      var im = normImage(raw.images[i], company); if (im) imgs.push(im);
     }
     if (!imgs.length) return null;
     var s = normStyle(raw);
@@ -131,6 +138,10 @@
     s.shuffle = typeof raw.shuffle === 'boolean' ? raw.shuffle : null;
     s.fadeMs = raw.fadeMs == null ? null : Math.round(clamp(raw.fadeMs, 0, FADE_MAX, FADE_DEFAULT));
     s.updatedAt = Number(raw.updatedAt) || 0;
+    if (company) {
+      s.mode = raw.mode === 'enforced' ? 'enforced' : 'suggested';
+      s.minDim = raw.minDim == null ? null : round2(clamp(raw.minDim, DIM_MIN, DIM_MAX, 0));
+    }
     return s;
   }
 
@@ -139,7 +150,9 @@
     if (!raw || typeof raw !== 'object') return null;
     var ref = raw.imageRef;
     if (typeof ref !== 'string' || !/^(_custom|[a-z0-9-]{1,40})\/[a-z0-9]{8,16}$/.test(ref)) return null;
-    var s = normStyle(raw); s.imageRef = ref; return s;
+    var s = normStyle(raw); s.imageRef = ref;
+    s.image = normImage(raw.image);   // snapshot of the picture (null for an older doc: the host entry is used)
+    return s;
   }
 
   // Whatever is stored (or missing) becomes a well-formed config. A schema-1
@@ -178,7 +191,66 @@
       },
       themes: themes,
       allThemes: normAll(r.allThemes),
+      // Ambient accent: the UI accent follows the picture / tints cards (both off by default).
+      ambient: { follow: !!(r.ambient && r.ambient.follow === true), tint: !!(r.ambient && r.ambient.tint === true) },
+      // "Hide background pictures" (Comfort): nothing painted, enforced sets included.
+      hidePictures: r.hidePictures === true,
+      // The member's own switches for their company's sets.
+      company: normMemberCompany(r.company),
     };
+  }
+
+  function normMemberCompany(raw) {
+    var o = (raw && typeof raw === 'object') ? raw : {};
+    var hide = {};
+    var src = (o.hide && typeof o.hide === 'object') ? o.hide : {};
+    Object.keys(src).forEach(function (k) { if (src[k] === true && THEME_ID_RE.test(k)) hide[k] = true; });
+    return { show: o.show !== false, hide: hide };
+  }
+
+  // The company's set: companies/{id}/skin/config (admins write it; every
+  // member reads it). usage is written only by the Cloud Function.
+  function normalizeCompany(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    var sh = (raw.show && typeof raw.show === 'object') ? raw.show : {};
+    var themes = {}, n = 0;
+    var src = (raw.themes && typeof raw.themes === 'object') ? raw.themes : {};
+    Object.keys(src).forEach(function (id) {
+      if (n >= MAX_THEME_ENTRIES || !THEME_ID_RE.test(id)) return;
+      var s = normThemeSlot(src[id], true);
+      if (s) { themes[id] = s; n++; }
+    });
+    var ra = raw.rightsAttestation;
+    var us = (raw.usage && typeof raw.usage === 'object') ? raw.usage : {};
+    return {
+      schema: 1,
+      enabled: raw.enabled === true,
+      allowHide: raw.allowHide !== false,
+      show: {
+        interval: INTERVALS.indexOf(sh.interval) !== -1 ? sh.interval : INTERVAL_DEFAULT,
+        shuffle: sh.shuffle === true,
+        fadeMs: Math.round(clamp(sh.fadeMs, 0, FADE_MAX, FADE_DEFAULT)),
+      },
+      all: normThemeSlot(raw.all, true),
+      themes: themes,
+      rightsAttestation: (ra && typeof ra === 'object' && ra.text === 'v1') ? { by: String(ra.by || ''), at: Number(ra.at) || 0, text: 'v1' } : null,
+      usage: { bytes: Math.max(0, Number(us.bytes) || 0), count: Math.max(0, Math.round(Number(us.count) || 0)), rejectedAt: Number(us.rejectedAt) || 0 },
+      updatedBy: typeof raw.updatedBy === 'string' ? raw.updatedBy : '',
+    };
+  }
+
+  function companyStoragePath(companyId, themeId, imageId, thumb) {
+    if (typeof companyId !== 'string' || !COMPANY_ID_RE.test(companyId)) return null;
+    if (typeof themeId !== 'string' || !(themeId === '_all' || THEME_ID_RE.test(themeId))) return null;
+    if (typeof imageId !== 'string' || !IMAGE_ID_RE.test(imageId)) return null;
+    return 'companies/' + companyId + '/skins/themes/' + themeId + '/' + imageId + (thumb ? '_t' : '');
+  }
+  // A company picture is fetched only from the caller's own company folder.
+  function trustedCompanyImagePath(companyId, img) {
+    if (!img || typeof img.path !== 'string') return null;
+    var m = /^companies\/([^\/]+)\/skins\/themes\/(_all|_custom|[a-z0-9-]{1,40})\/([a-z0-9]{8,16})$/.exec(img.path);
+    if (!m) return null;
+    return companyStoragePath(companyId, m[2], m[3]) === img.path ? img.path : null;
   }
 
   // A slot's stored path must be the caller's own skins/{uid}/{slot}; a doc
@@ -218,11 +290,14 @@
     Object.keys(themes).forEach(function (t) {
       themes[t].images.forEach(function (i) { out[i.path] = (out[i.path] || 0) + 1; });
     });
-    var a = cfg && cfg.allThemes && cfg.allThemes.imageRef;
-    if (a) {
-      var parts = a.split('/');
-      var host = themes[parts[0]];
-      var im = host && host.images.filter(function (i) { return i.id === parts[1]; })[0];
+    var all = cfg && cfg.allThemes;
+    if (all) {
+      var im = all.image;
+      if (!im) {
+        var parts = all.imageRef.split('/');
+        var host = themes[parts[0]];
+        im = host && host.images.filter(function (i) { return i.id === parts[1]; })[0];
+      }
       if (im) out[im.path] = (out[im.path] || 0) + 1;
     }
     return out;
@@ -255,12 +330,131 @@
       if (c.allThemes) {
         var parts = c.allThemes.imageRef.split('/');
         var host = c.themes[parts[0]];
-        var im = host && host.images.filter(function (i) { return i.id === parts[1]; })[0];
+        var im = (host && host.images.filter(function (i) { return i.id === parts[1]; })[0]) || c.allThemes.image;
         if (im) return out('all', c.allThemes, [im]);
       }
     }
     if (c.slots.wallpaper) return out('global', plain, []);
     return out('none', plain, []);
+  }
+
+  // What paints for theme T when the member's company has a set (spec 18.4).
+  //   1 company enforced for T          5 personal global wallpaper
+  //   2 company enforced for every      6 company suggested for T
+  //   3 personal set for T              7 company suggested for every theme
+  //   4 personal "use for all"          8 the theme's built-in art
+  // Enforced sets paint even when the member's own My Skin is off; suggested
+  // sets paint for members with no personal picture, including members who
+  // never set My Skin up, unless they turned company backgrounds off (only
+  // when the company allows it). "Hide background pictures" beats all of it.
+  // Returns resolveBackground()'s shape plus origin: 'company-enforced' |
+  // 'personal' | 'company-suggested' | 'builtin' and company:true for 1/2/6/7.
+  function resolveWithCompany(cfg, company, themeId) {
+    var c = (cfg && cfg.themes && cfg.show) ? cfg : normalize(cfg);
+    var co = company && company.themes ? company : normalizeCompany(company);
+    var personal = resolveBackground(c, themeId);
+    function built() { var p = personal; p.origin = 'builtin'; p.company = false; return p; }
+    if (c.hidePictures) { var n = resolveBackground({ enabled: false, perTheme: false, slots: {}, themes: {}, show: c.show, dim: c.dim }, themeId); n.origin = 'builtin'; n.company = false; return n; }
+    function fromSlot(slot, origin) {
+      var own = c.themes[themeId];   // a member can raise dim and blur on an enforced picture, never lower
+      var dim = slot.dim == null ? c.dim : slot.dim;
+      var blur = slot.blur || 0;
+      if (origin === 'company-enforced' && own) {
+        if (own.dim != null) dim = Math.max(dim, own.dim);
+        blur = Math.max(blur, own.blur || 0);
+      }
+      if (origin === 'company-enforced') dim = Math.max(dim, slot.minDim || 0);
+      return {
+        source: 'company', images: slot.images, origin: origin, company: true, locked: origin === 'company-enforced',
+        dim: dim, dimOverride: false, minDim: slot.minDim || 0, blur: blur,
+        position: slot.position || 'center', fit: slot.fit || 'cover', pixelated: slot.pixelated === true,
+        hideOverlay: slot.hideOverlay !== false,
+        interval: slot.interval || co.show.interval, shuffle: typeof slot.shuffle === 'boolean' ? slot.shuffle : co.show.shuffle,
+        fadeMs: slot.fadeMs == null ? co.show.fadeMs : slot.fadeMs,
+      };
+    }
+    var on = !!(co && co.enabled);
+    if (on) {
+      var t = themeId && co.themes[themeId];
+      if (t && t.mode === 'enforced') return fromSlot(t, 'company-enforced');
+      if (co.all && co.all.mode === 'enforced') return fromSlot(co.all, 'company-enforced');
+    }
+    if (personal.source !== 'none') { personal.origin = 'personal'; personal.company = false; return personal; }
+    if (on) {
+      var off = c.company.show === false && co.allowHide;
+      var hid = co.allowHide && themeId && c.company.hide[themeId] === true;
+      if (!off && !hid) {
+        var ts = themeId && co.themes[themeId];
+        if (ts) return fromSlot(ts, 'company-suggested');
+        if (co.all) return fromSlot(co.all, 'company-suggested');
+      }
+    }
+    return built();
+  }
+
+  // ── ambient accent (design idea 01) ───────────────────────────────────
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, h = 0, s = 0, d = mx - mn;
+    if (d > 0) {
+      s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      h = mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? ((b - r) / d + 2) : ((r - g) / d + 4);
+      h /= 6;
+    }
+    return [h, s, l];
+  }
+  function hslToHex(h, s, l) {
+    function f(n) {
+      var k = (n + h * 12) % 12, a = s * Math.min(l, 1 - l);
+      var v = l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
+      var x = Math.round(v * 255).toString(16); return x.length < 2 ? '0' + x : x;
+    }
+    return '#' + f(0) + f(8) + f(4);
+  }
+  // The picture's most vivid colour, from a 32x32 RGBA sample (Uint8ClampedArray
+  // or array). Pixels are weighted by saturation and mid lightness into 12 hue
+  // buckets; the heaviest bucket's mean becomes the accent, nudged to a usable
+  // saturation and lightness. A grey picture returns null (no accent to follow).
+  function accentFromSample(data) {
+    if (!data || !data.length) return null;
+    var B = 12, w = [], sr = [], sg = [], sb = [], i;
+    for (i = 0; i < B; i++) { w.push(0); sr.push(0); sg.push(0); sb.push(0); }
+    for (i = 0; i + 3 < data.length; i += 4) {
+      var hsl = rgbToHsl(data[i], data[i + 1], data[i + 2]);
+      var weight = hsl[1] * (1 - Math.abs(2 * hsl[2] - 1));
+      if (weight < 0.08) continue;
+      var k = Math.min(B - 1, Math.floor(hsl[0] * B));
+      w[k] += weight; sr[k] += data[i] * weight; sg[k] += data[i + 1] * weight; sb[k] += data[i + 2] * weight;
+    }
+    var best = -1, bw = 0;
+    for (i = 0; i < B; i++) if (w[i] > bw) { bw = w[i]; best = i; }
+    if (best < 0 || bw < 1) return null;
+    var m = rgbToHsl(sr[best] / w[best], sg[best] / w[best], sb[best] / w[best]);
+    return hslToHex(m[0], Math.max(0.55, Math.min(0.9, m[1])), Math.max(0.42, Math.min(0.62, m[2])));
+  }
+  // Make an accent readable on the page (accentCheck: 3:1 as a control, 4.5:1
+  // for its label) by moving lightness away from the page colour, a step at a
+  // time. null when no lightness works.
+  function tuneAccent(accent, pageBg) {
+    if (!isHex(accent) || !isHex(pageBg)) return null;
+    var first = accentCheck(accent, pageBg);
+    if (first.ok) return { accent: accent.toLowerCase(), fg: first.fg, tuned: false };
+    var hsl = rgbToHsl(parseInt(accent.slice(1, 3), 16), parseInt(accent.slice(3, 5), 16), parseInt(accent.slice(5, 7), 16));
+    var darkPage = lum(pageBg) < 0.4;
+    for (var step = 1; step <= 14; step++) {
+      var l = Math.max(0.12, Math.min(0.88, hsl[2] + (darkPage ? 1 : -1) * step * 0.04));
+      var cand = hslToHex(hsl[0], hsl[1], l);
+      var c = accentCheck(cand, pageBg);
+      if (c.ok) return { accent: cand, fg: c.fg, tuned: true };
+    }
+    return null;
+  }
+  // Card tint is a faint wash of the accent (default 9%) over the surface; it
+  // is allowed only if body text keeps 4.5:1 on the result.
+  function tintOk(surface, accent, text, pct) {
+    if (!isHex(surface) || !isHex(accent) || !isHex(text)) return false;
+    var share = pct == null ? 0.09 : pct;
+    return contrast(text, mixHex(surface, accent, 1 - share)) >= 4.5;
   }
 
   // Before decoding: is this a picture we'll accept?
@@ -346,6 +540,7 @@
         dim = round2(dim + 0.05); raised = true;
       }
     }
+    if (slot && slot.minDim) dim = Math.max(dim, slot.minDim);   // an enforced company set's floor, even over "I understand"
     var blur = Math.min(BLUR_MAX, Math.max(0, Math.round(Number(slot && slot.blur) || 0)));
     if (c.highContrast) { if (dim < 0.8) { dim = 0.8; raised = true; } if (blur < 4) blur = 4; }
     if (c.narrow && blur > 6) blur = 6;
@@ -551,6 +746,95 @@
     return { entries: entries, totalUncompressed: total };
   }
 
+  // ── slideshows ────────────────────────────────────────────────────────
+  var INTERVAL_MS = { '30s': 30000, '1m': 60000, '5m': 300000, '15m': 900000 };
+  var PHONE_MIN_MS = 60000;
+  var PRELOAD_LEAD_MS = 5000;
+
+  // How a resolved background should rotate right now. res: a
+  // resolveBackground() result; ctx: { reducedMotion, saveData, narrow,
+  // lowBattery }. The automatic adjustments always win over the user's
+  // settings, and say why (the panel shows the reason).
+  //   mode 'static': one picture; 'load': a new picture per load / theme
+  //   switch only; 'timed': rotates every ms.
+  function slideshowPlan(res, ctx) {
+    var c = ctx || {};
+    var n = res && res.images ? res.images.length : 0;
+    var fade = res && res.fadeMs != null ? res.fadeMs : FADE_DEFAULT;
+    var out = { mode: 'static', ms: 0, fadeMs: c.reducedMotion ? 0 : fade, reason: null };
+    if (n < 2) return out;
+    var iv = res.interval;
+    if (iv === 'off') return out;
+    if (c.lowBattery) { out.reason = 'low-battery'; return out; }
+    if (c.reducedMotion) { out.mode = 'load'; out.reason = 'reduced-motion'; return out; }
+    if (c.saveData) { out.mode = 'load'; out.reason = 'data-saver'; return out; }
+    if (iv === 'load') { out.mode = 'load'; return out; }
+    var ms = INTERVAL_MS[iv] || INTERVAL_MS['5m'];
+    if (c.narrow && ms < PHONE_MIN_MS) { ms = PHONE_MIN_MS; out.reason = 'phone-minimum'; }
+    out.mode = 'timed'; out.ms = ms;
+    return out;
+  }
+
+  // A shuffled order of 0..n-1 whose first element is never `last` (so the
+  // picture that ended one cycle does not start the next).
+  function makeBag(n, rnd, last) {
+    var r = typeof rnd === 'function' ? rnd : Math.random;
+    var a = [], i;
+    for (i = 0; i < n; i++) a.push(i);
+    for (i = n - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
+    if (n > 1 && a[0] === last) { var k = 1 + Math.floor(r() * (n - 1)); var tmp = a[0]; a[0] = a[k]; a[k] = tmp; }
+    return a;
+  }
+  // The next picture of a timed slideshow. state: { order, pos, cur } (cur -1
+  // before the first). In order: 0,1,2...; shuffled: a bag per cycle.
+  function nextSlide(state, n, shuffle, rnd) {
+    var s = { order: (state && state.order) || null, pos: (state && state.pos) || 0, cur: state && state.cur != null ? state.cur : -1 };
+    if (!(n > 1)) { s.cur = 0; return { idx: 0, state: s }; }
+    if (!shuffle) { s.cur = s.cur < 0 ? 0 : (s.cur + 1) % n; return { idx: s.cur, state: s }; }
+    if (!s.order || s.order.length !== n || s.pos >= n) { s.order = makeBag(n, rnd, s.cur); s.pos = 0; }
+    s.cur = s.order[s.pos]; s.pos++;
+    return { idx: s.cur, state: s };
+  }
+  // 'load' mode: the picture to show when the dashboard loads or the theme is
+  // switched to. prev = the index shown last in this session (or null).
+  function loadSlide(prev, n, shuffle, rnd) {
+    if (!(n > 1)) return 0;
+    var r = typeof rnd === 'function' ? rnd : Math.random;
+    if (prev == null || prev < 0) return shuffle ? Math.floor(r() * n) : 0;
+    if (!shuffle) return (prev + 1) % n;
+    var k = Math.floor(r() * (n - 1));
+    return k >= prev ? k + 1 : k;
+  }
+  // The timer survives a hidden tab: remaining time is kept and resumed.
+  function timerStart(ms, now) { return { dueAt: now + ms, remaining: ms, paused: false }; }
+  function timerHide(t, now) { return { dueAt: null, remaining: Math.max(0, t.dueAt - now), paused: true }; }
+  function timerShow(t, now) { return { dueAt: now + t.remaining, remaining: t.remaining, paused: false }; }
+  // When to fetch + decode the next picture: right away for 30 s, else 5 s early.
+  function preloadDelay(ms) { return ms <= 30000 ? 0 : Math.max(0, ms - PRELOAD_LEAD_MS); }
+
+  // Move one picture within an ordered list (drag, or the up/down keys).
+  function moveItem(list, from, to) {
+    var a = list.slice();
+    if (from < 0 || from >= a.length || to < 0 || to >= a.length || from === to) return a;
+    var it = a.splice(from, 1)[0];
+    a.splice(to, 0, it);
+    return a;
+  }
+  // Entries for themes that no longer exist (renamed or removed): kept, never
+  // painted, listed so they can be reassigned or deleted.
+  function orphanThemeIds(cfg, validIds) {
+    var ok = {}; (validIds || []).forEach(function (i) { ok[i] = 1; });
+    return Object.keys((cfg && cfg.themes) || {}).filter(function (id) { return id !== '_custom' && !ok[id]; });
+  }
+  // Themes in the same category as themeId that have no picture of their own.
+  function categoryCopyTargets(cfg, themeId, categoryOf) {
+    var cat = categoryOf[themeId];
+    if (!cat) return [];
+    return Object.keys(categoryOf).filter(function (id) {
+      return id !== themeId && categoryOf[id] === cat && !(cfg.themes[id] && cfg.themes[id].images.length);
+    });
+  }
+
   // Cheap signature of everything that decides what a theme paints.
   function themeSig(cfg) {
     var c = cfg || {};
@@ -566,14 +850,20 @@
     INTERVALS: INTERVALS, INTERVAL_DEFAULT: INTERVAL_DEFAULT, FITS: FITS, POSITIONS: POSITIONS,
     THEME_ID_RE: THEME_ID_RE, IMAGE_ID_RE: IMAGE_ID_RE,
     storagePath: storagePath, themeStoragePath: themeStoragePath, normalize: normalize, trustedPath: trustedPath,
+    normalizeCompany: normalizeCompany, companyStoragePath: companyStoragePath, trustedCompanyImagePath: trustedCompanyImagePath,
+    resolveWithCompany: resolveWithCompany, COMPANY_CAP_BYTES: COMPANY_CAP_BYTES,
     trustedThemePath: trustedThemePath, trustedImagePath: trustedImagePath, referencedPaths: referencedPaths,
     resolveBackground: resolveBackground, effectiveDim: effectiveDim, checkInput: checkInput,
     fitWithin: fitWithin, contrast: contrast, toHex: toHex, mixHex: mixHex, accentCheck: accentCheck,
+    accentFromSample: accentFromSample, tuneAccent: tuneAccent, tintOk: tintOk, rgbToHsl: rgbToHsl, hslToHex: hslToHex,
     cssVars: cssVars, layerVars: layerVars, htmlClasses: htmlClasses, mintImageId: mintImageId, themeSig: themeSig,
     QUOTA_SOFT_BYTES: QUOTA_SOFT_BYTES, STORED_RATIO_ESTIMATE: STORED_RATIO_ESTIMATE, THUMB_WIDTH: THUMB_WIDTH,
     ZIP_LIMITS: ZIP_LIMITS, IMPORT_EXT_RE: IMPORT_EXT_RE,
     trustedThumbPath: trustedThumbPath, usageBytes: usageBytes, quotaCheck: quotaCheck,
     matchImportName: matchImportName, planImport: planImport, parseZipDirectory: parseZipDirectory,
+    INTERVAL_MS: INTERVAL_MS, PHONE_MIN_MS: PHONE_MIN_MS, slideshowPlan: slideshowPlan, makeBag: makeBag, nextSlide: nextSlide,
+    loadSlide: loadSlide, timerStart: timerStart, timerHide: timerHide, timerShow: timerShow, preloadDelay: preloadDelay,
+    moveItem: moveItem, orphanThemeIds: orphanThemeIds, categoryCopyTargets: categoryCopyTargets,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDMySkinLogic = api;

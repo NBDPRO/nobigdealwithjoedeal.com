@@ -937,7 +937,7 @@ function switchSettingsTab(tab) {
           const surface = resolved?.surface || t.colors?.surface || '#16213e';
           const txt = resolved?.text || t.colors?.text || '#e2e8f0';
           const muted = t.colors?.muted || '#6b7280';
-          return `<div ${isLocked ? "" : `data-ui-action="previewTheme" data-ui-id="${key}"`} style="background:${bg};border:2px solid ${isActive ? accent : 'rgba(255,255,255,.06)'};border-radius:8px;padding:8px;cursor:${isLocked?'not-allowed':'pointer'};transition:all .15s;position:relative;opacity:${isLocked?'0.45':'1'};">
+          return `<div ${isLocked ? "" : `data-ui-action="previewTheme" data-ui-id="${key}"`} data-te-key="${key}" tabindex="0" role="button" aria-label="${t.name} theme${isLocked ? ' (locked)' : ''}" style="background:${bg};border:2px solid ${isActive ? accent : 'rgba(255,255,255,.06)'};border-radius:8px;padding:8px;cursor:${isLocked?'not-allowed':'pointer'};transition:all .15s;position:relative;opacity:${isLocked?'0.45':'1'};">
             <div style="display:flex;gap:3px;margin-bottom:4px;">
               <span style="width:10px;height:10px;border-radius:50%;background:${accent};"></span>
               <span style="width:10px;height:10px;border-radius:50%;background:${surface};"></span>
@@ -964,6 +964,9 @@ function switchSettingsTab(tab) {
       // Initial render: show all
       window._teRenderSettingsGrid('all');
       teGrid.dataset.loaded = '1';
+      // Live-preview panel (A5): mounts above the grid; idempotent, and the
+      // module also self-mounts when it loads after this point.
+      if (window.NBDThemePreview && typeof window.NBDThemePreview.mount === 'function') window.NBDThemePreview.mount();
 
       // Init achievements + builder
       if (window.ThemeAchievements?.renderAchievementPanel) window.ThemeAchievements.renderAchievementPanel('te-achievements-panel');
@@ -1093,6 +1096,14 @@ window.nbdSyncModeToggle = function() {
 
 // Theme preview system — click previews, confirm bar to apply or revert
 window._tePreviewTheme = function(key) {
+  // A5 (2026-10-11): with the live-preview panel loaded, a click only shows
+  // the theme in the panel (nothing outside it changes; Apply / Try for 10
+  // min are explicit buttons there). The whole-app preview + confirm bar
+  // below stays as the fallback when the panel module is not loaded.
+  if (window.NBDThemePreview && typeof window.NBDThemePreview.show === 'function' && document.getElementById('te-theme-grid')) {
+    window.NBDThemePreview.show(key);
+    return;
+  }
   const TE = window.ThemeEngine;
   const prev = window._teOriginalTheme || (TE ? TE.getCurrent() : (document.documentElement.getAttribute('data-theme') || 'nbd-original'));
   if (!window._teOriginalTheme) window._teOriginalTheme = prev;

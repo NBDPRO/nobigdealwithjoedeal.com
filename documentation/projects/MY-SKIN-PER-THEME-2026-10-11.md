@@ -154,9 +154,139 @@ bytes. The panel shows usage; a single upload to a new theme, the import's
 Start button and each file in the queue refuse past 300 MB with a message. This
 is UI-only; the hard 1 GB cap is a Cloud Function on Storage finalize (own PR).
 
+## Slice B3: slideshows, the strip, use for all, share, removed themes
+
+**Rules** (pure, `my-skin-logic.js`, unit-tested): `slideshowPlan` turns the
+user's interval into a mode (`static` / `load` / `timed`) and applies the
+automatic adjustments, which always win: reduced motion = load mode with no
+fade, Data Saver = load mode, phones (<= 600 px) = at least 1 min, low battery
+(< 20 %, not charging, only where `navigator.getBattery` exists) = paused. The
+panel says which one is active. `makeBag`/`nextSlide`: shuffle uses a bag per
+cycle and the last picture of a cycle never starts the next; in order starts
+with the user's first picture. `loadSlide` steps once per dashboard load or theme
+switch (position in `sessionStorage nbd_myskin_pos_<themeId>`, swept at sign-out).
+`timerHide/timerShow` keep the remaining time across a hidden tab.
+
+**Painter.** One page-wide timer, reset by every theme change. Only the next
+picture is fetched ahead (at interval - 5 s, or at once for 30 s). A hidden tab
+clears the timers and resumes with the time left. The editor being open on the
+theme being shown holds rotation. New fade = the resolved `fadeMs` (0 under
+reduced motion). Changing interval or order re-arms the timer without
+restarting the set.
+
+**Settings.** Global defaults (Slideshow defaults: interval, order, crossfade
+with Off / 0.4 / 0.8 / 1.5 s presets, "Reset all themes to my default") and a
+per-theme "Use my default slideshow settings" checkbox that reveals that
+theme's own controls (null = inherit).
+
+**Strip.** Up to 6 pictures per theme: "Add pictures" takes several at once
+(first replaces nothing, the rest append; past 6 the toast says so), reorder by
+dragging the handle (pointer events) or ArrowUp/ArrowDown on the focused item,
+up/down buttons, remove one (the last one clears the theme; objects are deleted
+only when nothing else references them).
+
+**Use for all themes** stores `allThemes` with a snapshot of the picture
+(`image`), so clearing the host theme never strands it or deletes the object.
+**Share with this category** copies the entry (same stored objects, no bytes)
+to every theme of the category with none. **Removed themes** (entries whose id
+the engine no longer has) are listed in the grid with Move to... and Delete
+(two-tap); they are never painted.
+
+Verified in a browser with a fake clock: in order 1,2,3,1,2; shuffle with no
+immediate repeat over 9 shows; hidden tab 2 min = no change, resumes with the
+time left; reduced motion no rotation; phone 30 s runs at 1 min; keyboard
+reorder writes the new order; cap at 6; use for all survives clearing the host.
+
+## Slice B4: company background sets (spec section 18)
+
+**What it is.** A company admin pushes a set of backgrounds, per theme or one
+for every theme, as **suggested** (a member can override or hide it) or
+**enforced** (a member cannot, apart from raising dim and blur). Personal skins
+stay private; company pictures are private bucket objects too, read by members
+with `getBlob()`, never public, never in the repo.
+
+**Data.** Storage `companies/{id}/skins/themes/{themeId|_all}/{imageId}[_t]`
+(webp/jpeg, < 3 MB; readable by that company's members and platform admin;
+writable by its company_admin, or the solo owner of a company of one).
+Firestore `companies/{id}/skin/config` (one doc, one listener): `enabled`,
+`allowHide`, `show`, `all`, `themes`, `rightsAttestation`, `usage`. The rules refuse
+a client write to `usage`/`usageUpdatedAt` (the Cloud Function writes them) and
+bound `themes` at 220. Members gain `mySkin.company { show, hide }` and
+`mySkin.hidePictures` ("Hide background pictures", beats everything including an
+enforced set: accessibility wins).
+
+**Precedence** (`resolveWithCompany`, 8 steps, one unit test per step): company
+enforced for the theme; enforced for every theme; personal set; personal "use
+for all"; personal global wallpaper; company suggested for the theme; suggested
+for every theme; built-in art. Enforced paints even when the member's My Skin is
+off; suggested paints for members who never set My Skin up. A member can raise
+dim and blur on an enforced picture, never lower the dim below the company's
+`minDim` (or the company dim, or the readability floor).
+
+**Member panel.** "Your company's backgrounds" (status, "Show my company's
+backgrounds" when `allowHide`), per theme a note ("Set by your company" or
+"Your company suggests a background"), Use the company's picture, Hide for this
+theme; an enforced theme disables picking, clearing and fit.
+
+**Admin panel** (`my-skin-company.js`, lazy, company_admin or solo owner only):
+master switch, "let people turn them off", preview as a team member, the rights
+tick (required before any upload), usage bar, add pictures (up to 6 per theme,
+or "Every theme"), mode and minimum dim per set, remove a picture or a set.
+
+**Caps.** 6 per theme and < 3 MB (rules), 220 entries (rule), 500 MB per
+company (the Storage trigger in #2343 deletes the object that crosses it and
+records `usage.rejectedAt`; the panel also refuses before uploading).
+
+**Offboarding / erasure.** A removed member's claims are stripped and
+`offboardLock` set, so company reads fail at once; their personal skin is
+untouched (`skins` is in `NOT_MOVED_PREFIXES`). Company sets live under
+`companies/{id}/`, so they stay when an admin leaves.
+
+**Not done in this slice (follow-ups).** Bulk import into a company set (the
+personal import module is not yet target-aware); a "set by your company" toast
+on the member's next load; company-deletion sweep and data export of
+`companies/{c}/skins/` and `skin/config` (needs the deletion-sweep owner);
+the Comfort-tab placement of "Hide background pictures" (it sits in the My Skin
+panel for now).
+
+### Proposed Terms / Acceptable Use clause (text only; not a legal edit)
+
+> **Company backgrounds.** If you are an administrator and you upload pictures
+> to your company's backgrounds, you confirm that your company owns them or has
+> permission to use them and to show them to everyone on your team. NBD Pro
+> stores them privately for your company and does not review them. Do not
+> upload customer photos, personal information, or material you do not have the
+> right to use. You are responsible for what you upload; we may remove content
+> that breaks these terms or the law.
+
+Needs counsel's eye before it goes on the Terms page (spec open question 15).
+
+## Slice B5: ambient accent (design idea 01)
+
+**What.** The UI accent can follow the picture on screen, and cards can take a
+faint wash of its colour. Both are **off by default** and per user; a third
+switch locks the accent for one theme.
+
+**How.** At upload the same 32x32 sample that gives the luminance stats also
+yields `accentFromSample` (the most vivid hue bucket, weighted by saturation and
+mid lightness, nudged to a usable saturation/lightness; a grey picture has none).
+Stored as `images[].accent` (single upload, import, company panel; the worker
+too). At paint time `tuneAccent` runs it through `accentCheck` against the
+page's `--bg` (3:1 as a control, 4.5:1 for its label) and moves lightness away
+from the page a step at a time, keeping the hue, or refuses it. It rides the
+existing `--myskin-accent` -> `--orange` path, so a slideshow shifts the accent
+with every crossfade (paint runs on each commit). `tintOk` allows the 9 % card
+tint only if body text keeps 4.5:1 on the result for this theme's `--s2`/`--t`.
+
+**Precedence.** The user's own accent colour always wins; a locked theme or
+"Hide background pictures" lends nothing; a company picture lends its accent
+only if the admin's upload stored one.
+
+**Switches.** `mySkin.ambient { follow, tint }` (global) and `themes[id].ambientLock`.
+The tint rule is `:root.my-skin-tint`-gated; where the card texture is on, the
+texture's `!important` rule wins.
+
 ## Open / next
 
-- Hard 1 GB cap Cloud Function: its own PR.
-- B3: slideshows (the `images[]` list, interval/shuffle/fade settings and the
-  per-theme fields are already normalised; B1 paints `images[0]`).
-- B4: company sets (spec section 18). B5: ambient accent.
+- Storage caps (1 GB per person, 500 MB per company): PR #2343.
+- Nothing left from the plan except the follow-ups listed under B4.

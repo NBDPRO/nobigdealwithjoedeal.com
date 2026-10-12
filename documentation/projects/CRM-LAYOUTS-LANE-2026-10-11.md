@@ -139,6 +139,31 @@ Decisions and gotchas worth keeping:
   note, offline shot is held then drains into a `photos` doc tagged
   `test_square`, sunlight tokens and persistence.
 
+## Focus Mode (D4) — L03
+
+`js/layouts/focus.js` + `css/layouts/focus.css`, every surface. The pure half
+(`NBDFocusLogic`: `buildQueue`, `whyNow`, `draftFor`) is require()-able and
+unit-tested; the screen half is an overlay on Home like the Field App.
+
+- **Queue** = `NBDToday.compute()` rows (appointments, promised, calls, estimates,
+  stalled follow-ups) ranked by a rule table; a person appears once. Order:
+  appointment within 3h > you promised > overdue task > urgent call > missed
+  call > texted you > task due today > opened estimate > follow-up (most late
+  first) > quiet estimate > later appointments.
+- **Why now** is the same rule table's wording (no AI). **Drafted text** is by
+  rule, short, no insurance / claim / price / outcome words (tested against
+  `claim-wording-filter.js`); Text is an `sms:` link with the draft, the rep
+  presses Send in the composer.
+- **Done · Next** completes a promised row's tasks through `NBDTasks.setDone` (what
+  Today's Done does). Every other row is only SET ASIDE on this device for the day
+  and the button says **Next**, and the wrap-up says it was not changed in the CRM.
+  (today-home.js's own `act` needs its painted `last` plan, which exists only when
+  Home is mounted, so it is not reusable from an overlay.)
+- Keys: arrows move, C call, T text, S snooze, D next. Ignored inside inputs.
+- Glass card only behind the My Skin wallpaper class; solid surface otherwise.
+- E2E `tests/e2e/focus-mode.spec.js`: queue number, why-now, draft, 56px targets,
+  set-aside leaves the lead's follow-up untouched, menu leads to the pipeline.
+
 ## Slice log
 
 | Slice | Status | PR |
@@ -146,4 +171,5 @@ Decisions and gotchas worth keeping:
 | D0 layout foundation | built, in review | #2328 |
 | D1 shared components | built, stacked on D0 | #2331 |
 | D2 picker + company default/lock | built, stacked on D1 | #2344 |
-| D3 Field App (L08) + sunlight | built, stacked on D2 | see PR list |
+| D3 Field App (L08) + sunlight | built, stacked on D2 | #2349 |
+| D4 Focus Mode (L03) | built, stacked on D3 | see PR list |

@@ -367,7 +367,8 @@
     // loadBundle() calls window._nbdInitThemeStack (dashboard-ui.js owns the
     // init sequence; the hook is idempotent).
     theme: [
-      'js/theme-engine.js?v=8',
+      'js/theme-engine.js?v=9',
+      'js/theme-preview.js?v=1',
       'js/surface-style.js?v=1',
       'js/theme-overlays.js?v=3',
       'js/theme-sounds.js?v=1',
@@ -375,7 +376,9 @@
       'js/trophy-case.js?v=1',
       'js/theme-gx.js?v=2',
       // Auto theme rules (roadmap C1). Last: reads window.ThemeEngine at call time.
-      'js/auto-theme.js?v=1'
+      'js/auto-theme.js?v=1',
+      // Storm Mode (roadmap C2, opt-in). After auto-theme.js: it holds that scheduler.
+      'js/storm-mode.js?v=1'
     ],
     // Leaflet vendor stack (~225 KB, 2026-08-07) — was eager on every boot for
     // a Maps view most sessions never open. Order is load-bearing: plugins

@@ -78,6 +78,7 @@
   "exportMyData": "./integrations/compliance",
   "extractReceiptData": "./receipt-vision",
   "fileLeadTextDraft": "./pixel-draft",
+  "fileStormDrafts": "./agent-mcp",
   "finalInvoiceOnInstall": "./install-final-invoice",
   "firestoreBackupRetention": "./firestore-backup",
   "freshEstimateLink": "./estimate-send",

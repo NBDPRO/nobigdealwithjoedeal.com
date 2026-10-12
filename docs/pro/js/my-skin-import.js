@@ -288,7 +288,7 @@
           var st = enc.stats || {};
           return {
             image: { id: id, path: path, v: Date.now(), w: enc.w, h: enc.h, lum: st.lum != null ? st.lum : null,
-              lumCenter: st.lumCenter != null ? st.lumCenter : null, avg: st.avg || null, type: enc.blob.type, bytes: enc.blob.size, thumb: hasThumb },
+              lumCenter: st.lumCenter != null ? st.lumCenter : null, avg: st.avg || null, accent: st.accent || null, type: enc.blob.type, bytes: enc.blob.size, thumb: hasThumb },
             pixelated: (Math.max(enc.srcW || 0, enc.srcH || 0) > 0 && Math.max(enc.srcW, enc.srcH) <= 640) || /sprite|pixel/i.test(baseName(entry.path)),
           };
         });
@@ -566,7 +566,22 @@
         });
         list.appendChild(h('section', null, [h('h4', { class: 'myskin-gcat', text: cat.label + ' (' + ids.length + ')' }), grid]));
       });
-      if (!shown) list.appendChild(h('p', { class: 'myskin-note', text: 'No themes match.' }));
+      // Entries for themes that no longer exist: kept, never painted.
+      var orphans = L.orphanThemeIds(c, themeIds());
+      if (orphans.length && filter === 'all' && !query) {
+        var sec = h('section', { class: 'myskin-orphans' }, [h('h4', { class: 'myskin-gcat', text: 'Removed themes (' + orphans.length + ')' })]);
+        orphans.forEach(function (id) {
+          var sel = h('select', { class: 'myskin-select', 'data-orphan-to': id, 'aria-label': 'Move ' + id + ' to' }, [h('option', { value: '', text: 'Move to…' })]);
+          Object.keys(all).forEach(function (tid) { if (!(c.themes[tid] && c.themes[tid].images.length)) sel.appendChild(h('option', { value: tid, text: all[tid].name })); });
+          sec.appendChild(h('div', { class: 'myskin-orphan' }, [
+            h('span', { class: 'myskin-gname', text: id + ' (' + c.themes[id].images.length + (c.themes[id].images.length === 1 ? ' picture)' : ' pictures)') }),
+            sel,
+            h('button', { type: 'button', class: 'btn btn-ghost btn-sm myskin-btn', 'data-orphan-delete': id, text: 'Delete' }),
+          ]));
+        });
+        list.appendChild(sec);
+      }
+      if (!shown && !orphans.length) list.appendChild(h('p', { class: 'myskin-note', text: 'No themes match.' }));
     }
     function buildHead() {
       clear(head);
@@ -595,6 +610,10 @@
     root.__myskinWired = true;
     root.addEventListener('change', function (e) {
       var t = e.target;
+      if (t.hasAttribute && t.hasAttribute('data-orphan-to') && t.value) {
+        I.reassign(t.getAttribute('data-orphan-to'), t.value).then(function () { if (root.__grid) root.__grid.refresh(); });
+        return;
+      }
       if (t.hasAttribute && t.hasAttribute('data-imp-pick')) {
         var files = t.files; var kind = t.getAttribute('data-imp-pick');
         onPicked(root, kind, files);
@@ -608,8 +627,14 @@
       if (e.target.hasAttribute && e.target.hasAttribute('data-grid-search') && root.__grid) root.__grid.search(e.target.value);
     });
     root.addEventListener('click', function (e) {
-      var b = e.target.closest && e.target.closest('[data-imp],[data-grid-filter],[data-theme-id]');
+      var b = e.target.closest && e.target.closest('[data-imp],[data-grid-filter],[data-theme-id],[data-orphan-delete]');
       if (!b) return;
+      if (b.hasAttribute('data-orphan-delete')) {
+        var oid = b.getAttribute('data-orphan-delete');
+        if (b.getAttribute('data-armed') !== '1') { b.setAttribute('data-armed', '1'); b.textContent = 'Tap again to delete'; return; }
+        I.clearTheme(oid).then(function () { if (root.__grid) root.__grid.refresh(); });
+        return;
+      }
       if (b.hasAttribute('data-grid-filter')) { root.__grid && root.__grid.filter(b.getAttribute('data-grid-filter')); return; }
       if (b.hasAttribute('data-theme-id')) { I.edit(b.getAttribute('data-theme-id')); return; }
       var act = b.getAttribute('data-imp');

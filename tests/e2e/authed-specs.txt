@@ -83,3 +83,4 @@ phone-catchup.spec.js
 phone-home-nav.spec.js
 layouts.spec.js
 field-app.spec.js
+focus-mode.spec.js
