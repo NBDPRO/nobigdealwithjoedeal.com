@@ -25,6 +25,7 @@
     "pipeline-health-panel-2026-10-12.test.js",
     "portal-timeline-docs-balance-2026-09-16.test.js",
     "portal-photo-self-announce-2026-09-16.test.js",
+    "pipeline-canary-2026-10-12.test.js",
     "portal-view-tracking-2026-09-16.test.js",
     "portal-doc-modal-a11y-2026-09-16.test.js",
     "portal-tenant-cta-contrast-2026-09-16.test.js",

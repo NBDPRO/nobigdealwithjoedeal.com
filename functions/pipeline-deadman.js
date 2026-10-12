@@ -139,6 +139,18 @@ async function run(deps) {
     newestCallMs = q.docs.length ? (W.toMs((q.docs[0].data() || {}).startedAtMs) || 0) : 0;
   } catch (_) { newestCallMs = undefined; }
   const problems = deadManProblems({ watch, cc, now: nowMs, gates, newestCallMs });
+  // The daily self-test (pipeline-canary.js): opt-in via deps.canary, once per
+  // ET day after 03:00, live runs only. Its verdict rides on integrations/pipelineHealth.
+  let canary = health.canary || null;
+  const todayYmd = W.etYmd(nowMs);
+  const etHour = Number(new Date(nowMs).toLocaleString('en-US', { timeZone: ET, hour: 'numeric', hour12: false })) % 24;
+  if (live && typeof deps.canary === 'function' && etHour >= 3 && (!canary || canary.ymd !== todayYmd)) {
+    try { canary = Object.assign({ ymd: todayYmd, atMs: nowMs }, await deps.canary({ db, nowMs })); }
+    catch (e) { canary = { ymd: todayYmd, atMs: nowMs, ok: false, failed: ['self-test crashed: ' + String(e && e.message || e).slice(0, 120)] }; }
+  }
+  if (canary && canary.ok === false) {
+    problems.push({ key: 'canary_failed', repeatMs: REPEAT_MS, text: 'The daily self-test failed: ' + (canary.failed || []).slice(0, 2).join('; ') + '. Home or the 2-hour check may be reading nothing.' });
+  }
   const tell = W.problemsToTell(problems, health.problemsToldAt, nowMs);
   const out = { state: problems.length ? 'problem' : 'ok', problems: problems.map((p) => p.key), told: [] };
   if (!live) return Object.assign(out, { state: out.state + '_dry_run' });
@@ -155,7 +167,7 @@ async function run(deps) {
   });
   try {
     await db.doc('integrations/pipelineHealth').set({
-      checkedAtMs: nowMs, problems: out.problems, problemsToldAt,
+      checkedAtMs: nowMs, problems: out.problems, problemsToldAt, canary: canary || null,
       texts: problems.map((p) => p.text).slice(0, 5),
     }, { merge: false });
   } catch (_) { /* bookkeeping only */ }

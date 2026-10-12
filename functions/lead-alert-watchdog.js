@@ -184,7 +184,7 @@ exports.leadAlertWatchdog = onSchedule(
     // can never stop the lead re-sends below.
     let dm = null;
     try {
-      dm = await require('./pipeline-deadman').run({ db, nowMs, live: !watchdogDisabled(), env: process.env, notify: (title, body) => notifyOwner(db, title, body) });
+      dm = await require('./pipeline-deadman').run({ db, nowMs, live: !watchdogDisabled(), env: process.env, canary: require('./pipeline-canary').run, notify: (title, body) => notifyOwner(db, title, body) });
       if (dm.problems.length) logger.warn('[pipelineDeadMan]', dm);
     } catch (e) { logger.warn('[pipelineDeadMan] check skipped', { err: e && e.message }); }
     const r = await runWatchdog({

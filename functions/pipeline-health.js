@@ -72,6 +72,12 @@ function healthRows(i) {
     detail: ledger ? ledger.ymd + ': ' + (ledger.open || 0) + ' open, ' + ((ledger.anomalies || []).length) + ' warning(s)' : 'not written yet',
   });
 
+  const cn = health.canary || null;
+  rows.push({
+    key: 'canary', label: 'Daily self-test (queries + needs-you rule)', status: !cn ? 'warn' : (cn.ok ? 'ok' : 'bad'),
+    detail: !cn ? 'has not run yet' : (cn.ok ? cn.ymd + ': ' + (cn.checks || 0) + ' checks passed' : (cn.failed || []).join('; ')),
+  });
+
   const probs = Array.isArray(health.problems) ? health.problems : [];
   rows.push({
     key: 'deadman', label: 'Safety net (dead-man)', status: probs.length ? 'bad' : 'ok',
