@@ -16,6 +16,13 @@
  *   window.NBDCommand.close()
  *   window.NBDCommand.registerAction({ id, label, icon, run, keywords, group })
  *   window.NBDCommand.unregisterAction(id)
+ *   window.NBDCommand.registerLeadAction({ id, label, icon, keywords, when(lead), run(lead) })
+ *
+ * Palette 2.0 (2026-10-11, C4): scope prefixes (@ people, # jobs, > actions,
+ * t: themes, = math), actions for a pinned lead, theme rows with a live
+ * preview and usage-count ranking live in command-palette-scopes.js
+ * (window.NBDCommandX), injected the first time the palette opens so no
+ * boot script is added. Without it the palette behaves exactly as before.
  *
  * Other modules can drop their own commands via registerAction —
  * e.g. Whisper can register "Start dictation" as a palette entry,
@@ -183,6 +190,34 @@
     } catch (_) {}
   }
 
+  // ─── Palette 2.0 layer (loaded on first open) ───────────────────
+  const SCOPES_SRC = '/pro/js/command-palette-scopes.js?v=1';
+  let _scopesLoading = false;
+  const _pendingLeadActions = [];
+  function _X() { return window.NBDCommandX || null; }
+  function _ensureScopes() {
+    if (_X() || _scopesLoading) return;
+    _scopesLoading = true;
+    const s = document.createElement('script');
+    s.src = SCOPES_SRC;
+    s.async = true;
+    s.onload = () => {
+      const x = _X();
+      if (!x) return;
+      _pendingLeadActions.splice(0).forEach((a) => x.registerLeadAction(a));
+      const wrap = document.getElementById(MODAL_ID);
+      if (wrap) {
+        x.onOpen();
+        x.decorate(wrap);
+        const input = wrap.querySelector('#nbd-cmd-input');
+        _renderResults(input ? input.value : '');
+      }
+    };
+    s.onerror = () => { _scopesLoading = false; };
+    document.head.appendChild(s);
+  }
+  function _usageBoost(id) { const x = _X(); return x ? x.usageBoost(id) : 0; }
+
   // ─── Fuzzy match (simple) ───────────────────────────────────────
   // Score: prefix-match wins, then substring, then word-start.
   // 0 means no match. Higher = better.
@@ -215,8 +250,8 @@
     return arr;
   }
 
-  function _buildLeadResults(query) {
-    const leads = Array.isArray(window._leads) ? window._leads : [];
+  function _buildLeadResults(query, pool) {
+    const leads = Array.isArray(pool) ? pool : (Array.isArray(window._leads) ? window._leads : []);
     if (leads.length === 0) return [];
     const q = (query || '').trim();
     // W138: when NBDLeadScore is loaded, sort the empty-query lead
@@ -348,7 +383,34 @@
     };
   }
 
+  // Scope prefixes, pinned-lead actions and `=` math are answered by the
+  // palette-2.0 layer when it is loaded; everything else is the classic list,
+  // plus that layer's math / theme extras.
   function _computeResults(query) {
+    const x = _X();
+    if (x) {
+      try {
+        const scoped = x.compute(query, {
+          buildLeadResults: _buildLeadResults,
+          score: _score,
+          allActions: _allActions,
+          rerender: () => {
+            const i = document.getElementById('nbd-cmd-input');
+            _renderResults(i ? i.value : '');
+          },
+        });
+        if (scoped) return scoped;
+      } catch (e) { console.warn('[NBDCommand] scopes failed, using the classic list:', e); }
+    }
+    const base = _computeBase(query);
+    if (x) {
+      try { return x.augment(base, query, {}); }
+      catch (e) { console.warn('[NBDCommand] augment failed:', e); }
+    }
+    return base;
+  }
+
+  function _computeBase(query) {
     const q = (query || '').trim();
     const recents = _readRecents();
     const all = _allActions();
@@ -358,7 +420,7 @@
     const scoredActions = [];
     for (const a of all) {
       const s = _score(q, a.label, a.keywords);
-      if (s > 0) scoredActions.push({ ...a, score: s });
+      if (s > 0) scoredActions.push({ ...a, score: s + _usageBoost(a.id) });
     }
     // If no query, surface recents at the top.
     if (!q) {
@@ -366,11 +428,19 @@
         .map(id => byId.get(id))
         .filter(Boolean)
         .map(a => ({ ...a, group: 'Recent', score: 1000 }));
+      // "Most used" (palette 2.0): the actions this device runs most, after recents.
+      const x = _X();
+      const usedIds = x ? x.topUsed(4, recents) : [];
+      const usedItems = usedIds
+        .map(id => byId.get(id))
+        .filter(Boolean)
+        .map(a => ({ ...a, group: 'Most used', score: 900 }));
+      const shown = new Set([...recents, ...usedItems.map(a => a.id)]);
       const otherActions = scoredActions
-        .filter(a => !recents.includes(a.id))
+        .filter(a => !shown.has(a.id))
         .slice(0, 8);
       const leads = _buildLeadResults('');
-      return [...recentItems, ...otherActions, ...leads];
+      return [...recentItems, ...usedItems, ...otherActions, ...leads];
     }
 
     scoredActions.sort((a, b) => b.score - a.score);
@@ -398,9 +468,11 @@
   // ─── Modal lifecycle ────────────────────────────────────────────
   function open() {
     if (document.getElementById(MODAL_ID)) return;
+    _ensureScopes();
     const wrap = _buildModal();
     document.body.appendChild(wrap);
     _selectedIndex = 0;
+    if (_X()) { _X().onOpen(); _X().decorate(wrap); }
     _renderResults('');
     const input = wrap.querySelector('#nbd-cmd-input');
     if (input) {
@@ -412,6 +484,7 @@
   function close() {
     const wrap = document.getElementById(MODAL_ID);
     if (wrap) wrap.remove();
+    if (_X()) _X().onClose();   // drops any theme preview
     _currentResults = [];
     _selectedIndex = 0;
   }
@@ -461,6 +534,16 @@
   }
 
   function _onKeydown(e) {
+    const x = _X();
+    if (x && (e.key === 'Tab' || e.key === 'Backspace')) {
+      const input = document.getElementById('nbd-cmd-input');
+      if (input && x.onKey(e, {
+        results: _currentResults,
+        index: _selectedIndex,
+        input,
+        rerender: (v) => { _selectedIndex = 0; _renderResults(v); },
+      })) return;
+    }
     if (e.key === 'Escape') {
       e.preventDefault();
       close();
@@ -511,6 +594,7 @@
       html.push(_renderItem(item, idx));
     });
     list.innerHTML = html.join('');
+    if (_X()) _X().afterRender(list);
     _highlightSelected();
 
     // Wire up clicks on each row.
@@ -530,6 +614,7 @@
   }
 
   function _renderItem(item, idx) {
+    if (item.xrow && _X()) return _X().rowHtml(item, idx);   // theme / math / note rows
     // Lead rows render as job cards (stage dot, type tag, $, thumbnail,
     // assignee) — action/navigation rows keep the compact icon layout.
     const c = item.card;
@@ -577,6 +662,7 @@
   function _highlightSelected() {
     const list = document.getElementById('nbd-cmd-results');
     if (!list) return;
+    if (_X()) _X().onSelect(_currentResults[_selectedIndex] || null);
     const rows = Array.from(list.querySelectorAll('.nbd-cmd-row'));
     rows.forEach((r, i) => {
       if (i === _selectedIndex) {
@@ -595,11 +681,14 @@
   function _execute(item) {
     if (!item) return;
     _bumpRecent(item.id);
+    const x = _X();
+    if (x && item.id && !/^(math|themes):/.test(String(item.id))) x.bump(item.id);
+    const pinned = x ? x.contextLead() : null;
     close();
     // Defer execution so the modal closes cleanly (focus returns
     // before the run() handler does anything that might reopen UI).
     setTimeout(() => {
-      try { item.run && item.run(); }
+      try { item.run && item.run(pinned || undefined); }
       catch (e) { console.warn('[NBDCommand] action failed:', e); }
     }, 0);
   }
@@ -652,6 +741,12 @@
     close,
     registerAction,
     unregisterAction,
+    // Actions that act on the pinned lead: run(lead). Queued until the
+    // palette-2.0 layer has loaded.
+    registerLeadAction: function (a) {
+      const x = _X();
+      if (x) x.registerLeadAction(a); else _pendingLeadActions.push(a);
+    },
   };
 
   if (document.readyState === 'loading') {

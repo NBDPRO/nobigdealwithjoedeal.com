@@ -23,7 +23,7 @@ const CEILING = {
   blockingScripts: 29,          // measured 28 (2026-10-03) — never grow. ONE deliberate raise 2026-10-06: demo-mode.js (Pro demo phase 2) must run before every other script so the sample account's guard + network tripwire exist first; on the real page it returns on line one (~9 KB)
   blockingBytes: 300 * 1024,    // measured 278 KB
   localScripts: 196,            // measured 178; deliberate raises 2026-10-05: + client-error-reporter.js (#2140, must run at boot to catch boot errors) + the offline sync badge (#2145) = 193 [+1 on merge: both PRs' boot tags, measured]; 2026-10-06 + storm-time.js (review R4-6-1: the one UTC→Eastern storm-date reader dol-fill + the D2D storm layer need at boot, 1.9 KB) = 195; +1 2026-10-07 demo-mode.js (Pro demo phase 2, #2294) = 196
-  localBytes: 4.4 * 1024 * 1024, // measured 4.08 MB
+  localBytes: 4.45 * 1024 * 1024, // measured 4.08 MB; deliberate raise 2026-10-11 (Ohio ORC 4722.04 cap: deposit-rule.js + the builder / invoice / deal-room / pre-flight wiring ~19 KB; LF bytes 4497 -> 4516 KB against the old 4506 KB)
   htmlBytes: 520 * 1024,        // measured 477 KB
 };
 // +1 local tag, deliberate (2026-10-05, #2155): js/photo-cache.js (window.NBDPhotoCache).
@@ -47,6 +47,12 @@ CEILING.localBytes += 30 * 1024;   // pipeline-rich-cards.js = 26.5 KB (LF), + ~
 // Per-layout code and CSS (Field App, Focus, ...) load lazily only for the active layout.
 CEILING.localScripts += 1;
 CEILING.localBytes += 24 * 1024;
+// +1 local tag, deliberate (2026-10-11, CRM style integration E1): js/pixel-mode.js (Pixel Mode loader, ~3 KB).
+// Deferred; on boot it reads one settings doc and stops. The skin/Party/dialog code (pixel-mode-core.js), its CSS, the
+// fonts and the logic module are fetched only when the person turned something on or the Settings card scrolls into
+// view, and Pixel World (E2) is lazy-loaded from the core, so this is the only boot tag. (An earlier version shipped the
+// whole 18 KB inline and pushed true LF bytes past the localBytes ceiling; the loader split is why it does not.)
+CEILING.localScripts += 1;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {

@@ -903,6 +903,9 @@
       <!-- Roof Rep game card: off by default — a rep who turned it on in
            Settings chose to see it, so it stays out of the fold below. -->
       <div id="homeGameCard" class="mb-md" hidden></div>
+      <!-- Pixel Mode Party + Trainer Card (js/pixel-mode.js). Empty and hidden unless
+           the person turned the Pixel Mode skin on in Settings > Appearance. -->
+      <section id="homePixelParty" class="px-home mb-md" aria-label="Pixel Mode party" hidden></section>
 
       <!-- More on Home (2026-10-08, phone audit #6): on a phone everything
            else below the Today list folds behind one "More on Home" tap — the
@@ -3652,6 +3655,20 @@
               <button type="button" class="btn btn-ghost btn-sm myskin-btn" id="myskinAccentReset">Use theme accent</button>
               <span class="myskin-status" id="myskinAccentNote" aria-live="polite">Using the theme's accent.</span>
             </div>
+          </div>
+        </div>
+
+        <!-- Pixel Mode (2026-10-11): a GBA/DS-style skin that sits on top of any
+             theme, plus a dialog-box notification style that works on its own.
+             Saved on userSettings/{uid}.pixelMode; js/pixel-mode.js wires this
+             panel with delegated listeners and loads its CSS only when on. -->
+        <div class="panel mb-md" id="pixelModePanel">
+          <div class="panel-hdr"><div><div class="panel-label">Appearance</div><div class="panel-title">Pixel Mode</div></div></div>
+          <div class="panel-body">
+            <p class="myskin-note">Redraws the CRM like a handheld game menu: stepped pixel frames, a retro type face, and your leads as a Party with an HP bar showing how many days are left before each one goes cold. Works on top of any color theme. Nothing is sent to anyone.</p>
+            <label class="myskin-row" for="pxSkin"><span>Pixel Mode skin</span><input type="checkbox" id="pxSkin"></label>
+            <label class="myskin-row" for="pxScanlines"><span>Scanlines</span><input type="checkbox" id="pxScanlines"></label>
+            <label class="myskin-row" for="pxDialog"><span>Dialog-box notifications (works with any theme)</span><input type="checkbox" id="pxDialog"></label>
           </div>
         </div>
 
@@ -7088,6 +7105,7 @@
 <script defer src="js/my-skin-logic.js?v=1"></script>
 <script defer src="js/my-skin.js?v=3"></script>
 <script defer src="js/layout-system.js?v=1"></script>
+<script defer src="js/pixel-mode.js?v=1"></script>
 <script defer src="js/ui.js?v=10"></script>
 <script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>
