@@ -517,6 +517,8 @@ const VERDICTS = {
   // "Match my tagged contacts": owner or platform admin only (call-center.js
   // taggedMatch), proven in tests/call-center-action-2026-10-01.test.js.
   callTaggedMatch: 'role-gated',
+  // Pipeline health snapshot: owner or platform admin only (pipeline-health.js handle).
+  callPipelineHealth: 'role-gated',
   // Optional game card: read-only, the caller's OWN records only (game.js).
   getGameCard: 'self',
   // Tenant-ready (2026-10-04, tenant-ops.js): the admin Tenants list is

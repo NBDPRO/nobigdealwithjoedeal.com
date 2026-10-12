@@ -889,6 +889,9 @@ exports.callPromisesList = require('./call-center').callPromisesList;
 // "Match my tagged contacts": preview calls to "NBD Customer" phone contacts
 // on no lead, then file only the rows the owner confirms (owner/admin only).
 exports.callTaggedMatch = require('./call-center').callTaggedMatch;
+// "Is the never-forget chain alive" snapshot for the Call Center (owner/admin
+// only; integrations/* is not client-readable). pipeline-health.js, 2026-10-12.
+exports.callPipelineHealth = require('./pipeline-health').callPipelineHealth;
 // Optional game card (2026-10-03): level, XP and this week vs last week,
 // derived on request from the caller's own records — nothing stored.
 exports.getGameCard = require('./game').getGameCard;
