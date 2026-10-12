@@ -53,6 +53,16 @@ const T0 = Date.parse('2026-10-02T14:00:00Z'); // 10 AM ET
   L = W.nextLadder(c, [], {}, ['call:u'], [], false, T0);
   ok('unreached first tell -> n:0, retried next run', L['call:u'].n === 0 && W.ladderRetells(c, [], L, T0 + 2 * H).some((r) => r.id === 'call:u'));
 
+  console.log('D2. labels (contact labels, 2026-10-12): the ladder follows the same rule as the first tell');
+  const num = { phoneDigits: '8595550177' };
+  const lab = (kind, policy) => ({ '8595550177': { kind, policy } });
+  const ids = (rows, l) => W.ladderCandidates(rows, [], T0, l).map((x) => x.id).join();
+  ok('no label: urgent is a candidate', ids([Object.assign({}, urgent, num, { id: 'lb' })], null) === 'call:lb');
+  ok('hidden SPAM number: urgent does NOT climb the ladder', ids([Object.assign({}, urgent, num, { id: 'lb' })], lab('spam', 'hide')) === '');
+  ok('hidden PERSONAL number: urgent still breaks through', ids([Object.assign({}, urgent, num, { id: 'lb' })], lab('personal', 'hide')) === 'call:lb');
+  ok('quiet number: urgent alone does not, a Jo promise does', ids([Object.assign({}, urgent, num, { id: 'lb' })], lab('sub', 'quiet')) === '' && ids([Object.assign({}, promise, num, { id: 'lp' })], lab('sub', 'quiet')) === 'call:lp');
+  ok('hidden spam number with a promise from Jo still surfaces', ids([Object.assign({}, promise, num, { id: 'lp' })], lab('spam', 'hide')) === 'call:lp');
+
   console.log('E. through runWatch (fake Firestore)');
   process.env.CALL_CENTER_INGEST_ENABLED = 'false'; process.env.CALL_CENTER_TRANSCRIBE_ENABLED = 'false';
   const { runWatch } = require(path.join(ROOT, 'functions/call-watch.js'))._internal;

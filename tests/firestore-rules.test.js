@@ -3011,6 +3011,18 @@ async function run() {
   await x61('defaultByDevice with a surface that does not exist is refused', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { defaultByDevice: { watch: 'field' } })));
   await x61('allowed over the cap is refused', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { allowed: new Array(41).fill('classic') })));
   await x61('updatedBy must be the writer', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { updatedBy: 'someone-else' })));
+  // D5 Bento: the company default board lives at defaultWidgets.bento
+  const BENTO61 = [{ widgetId: 'revenue', x: 0, y: 0, w: 1, h: 1 }, { widgetId: 'pipeline', x: 1, y: 0, w: 2, h: 1 }];
+  await x61('company_admin writes a default Bento board', 'allow', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { defaultWidgets: { bento: BENTO61 } })));
+  await x61('solo owner writes a default Bento board', 'allow', setDoc(doc(solo61, 'companies/solo61/settings/layout'), Object.assign({}, L61, { defaultWidgets: { bento: BENTO61 } })));
+  await x61('a rep cannot set the default board', 'deny', setDoc(doc(rep61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { defaultWidgets: { bento: BENTO61 } })));
+  await x61('a manager cannot set the default board', 'deny', setDoc(doc(mgr61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { defaultWidgets: { bento: BENTO61 } })));
+  await x61('another company admin cannot set the default board', 'deny', setDoc(doc(adm61x, 'companies/co-61/settings/layout'), Object.assign({}, L61, { defaultWidgets: { bento: BENTO61 } })));
+  await x61('a board of 24 tiles is accepted (the cap itself)', 'allow', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { defaultWidgets: { bento: new Array(24).fill(BENTO61[0]) } })));
+  await x61('a board of 25 tiles is refused', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { defaultWidgets: { bento: new Array(25).fill(BENTO61[0]) } })));
+  await x61('a board that is not a list is refused', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { defaultWidgets: { bento: 'all of them' } })));
+  await x61('defaultWidgets that is not a map is refused', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { defaultWidgets: BENTO61 })));
+  await x61('defaultWidgets with more than 8 layouts is refused', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/layout'), Object.assign({}, L61, { defaultWidgets: { a: [], b: [], c: [], d: [], e: [], f: [], g: [], h: [], i: [] } })));
   await x61('no other doc id under settings', 'deny', setDoc(doc(adm61, 'companies/co-61/settings/other'), { locked: true }));
   console.log('  61: ' + s61Pass + ' layout-setting checks passed, ' + s61Fail.length + ' failed');
   if (s61Fail.length) {

@@ -490,7 +490,7 @@ const VERDICTS = {
   // a sales_rep only for a lead they own (functions/pixel-draft.js).
   fileLeadTextDraft: 'role-gated',
   notifyNewLead: 'public', previewAiPersona: 'refused', provisionE2ETestUser: 'role-gated',
-  registerDeviceFingerprint: 'self', removeMember: 'role-gated', renderPdf: 'refused',
+  registerDeviceFingerprint: 'self', removeMember: 'role-gated', transferCompanyOwnership: 'role-gated', renderPdf: 'refused',
   replyToPortalMessage: 'refused', requestAccountErasure: 'self', requestMeasurement: 'refused',
   reserveCompanyPrefix: 'self', resolveAddress: 'refused', reverifyCompanyKnocks: 'role-gated',
   revokeMySessions: 'self', revokePortalToken: 'refused', rotateAccessCodes: 'role-gated',

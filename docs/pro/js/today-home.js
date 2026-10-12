@@ -102,6 +102,23 @@
       // personal / spam / quiet number is already off these groups.
       try { groups = HA.groupNeeds(HA.lastRows, now, HA.lastLabels || null); } catch (_) { groups = []; }
     }
+    // A promise Jo made on a call is Jo's word: a label that hides the number
+    // (contact labels, 'hide') must never swallow it. Any open, unhandled call
+    // carrying one that the needs-you rule dropped comes back as its own group.
+    if (HA && Array.isArray(HA.lastRows)) {
+      var have = {};
+      groups.forEach(function (g) { (g.calls || []).forEach(function (c) { have[c.id] = true; }); });
+      HA.lastRows.forEach(function (c) {
+        if (!c || have[c.id] || c.handledAtMs || c.taskDone === true || c.status === 'personal') return;
+        var p = c.promise;
+        if (!p || p.kind !== 'promise' || p.done === true) return;
+        var key = typeof HA.callerKey === 'function' ? HA.callerKey(c) : 'id:' + c.id;
+        var g = groups.filter(function (x) { return x.key === key; })[0];
+        if (!g) { g = { key: key, calls: [], latestMs: 0 }; groups.push(g); }
+        g.calls.push(c);
+        have[c.id] = true;
+      });
+    }
     var R = w.NBDRevenue;
     var fresh = R && typeof R.cached === 'function' ? R.cached() : null;
     if (fresh) { inv.rows = fresh; inv.at = Date.now(); }
@@ -139,6 +156,14 @@
       isSnoozed: w.LeadSnooze && typeof w.LeadSnooze.isSnoozed === 'function' ? w.LeadSnooze.isSnoozed : null,
       handled: handled,
       env: { stageRole: w.stageRole },
+      // Promise capture (2026-10-12): the waiting threshold and, when contact
+      // labels are loaded, whether a promised number is one Jo hid.
+      waitingDays: w.NBDPromise ? w.NBDPromise.waitingDays() : undefined,
+      isHiddenNumber: function (d) {
+        var LB = w.NBDContactLabels;
+        var l = LB && typeof LB.get === 'function' ? LB.get(d) : null;
+        return !!(l && l.policy === 'hide');
+      },
     });
     plan_.hiddenCalls = hiddenCalls;
     return plan_;
@@ -147,6 +172,10 @@
   // ── paint ────────────────────────────────────────────────────────────
   function btn(act, key, label, extra) {
     return '<button type="button" class="tp-btn' + (extra ? ' ' + extra : '') + '" data-tp-act="' + act + '" data-tp-key="' + esc(key) + '">' + label + '</button>';
+  }
+  // A button that names one task (a promise / waiting item) inside its row.
+  function pbtn(act, key, id, label, extra) {
+    return '<button type="button" class="tp-btn' + (extra ? ' ' + extra : '') + '" data-tp-act="' + act + '" data-tp-key="' + esc(key) + '" data-tp-id="' + esc(id) + '">' + label + '</button>';
   }
   function link(href, label, cls, newTab) {
     if (!href) return '';
@@ -177,16 +206,45 @@
     var c = p.calls.map(function (r) {
       var why = [r.urgent ? '<b class="tp-hot">urgent</b>' : '', r.missed ? 'missed call' : '', r.text && !r.missed ? 'texts' : '', r.count > 1 ? r.count + ' open' : ''].filter(Boolean).join(' · ');
       var sub = why + (r.summary ? (why ? ' · ' : '') + esc(r.summary) : '');
+      var kept = '';
+      if (r.promise) {
+        sub += (sub ? ' · ' : '') + 'Promised: ' + esc(r.promise.text) + (r.promise.missLabel ? ' <span class="tp-miss' + (r.promise.hot ? ' is-hot' : '') + '">' + esc(r.promise.missLabel) + '</span>' : '');
+        // A promise cannot be dismissed: it is kept, or it gets a new date.
+        kept = ro ? '' : pbtn('ckept', r.key, r.promise.callId, '✓ Kept it', 'tp-go') + pbtn('cmove', r.key, r.promise.callId, 'Move');
+      }
       // Per-number label (2026-10-12): a chip when one is set, and a 🏷 Label
       // button for anyone who may write labels (not a viewer, not a rep).
       var LB = w.NBDContactLabels;
       var lab = LB && r.phone ? LB.get(r.phone) : null;
       var LG = w.NBDContactLabelsLogic;
       var chip = lab && LG ? LG.chipFor(lab) : null;
+      if (r.resurfaced) sub += (sub ? ' · ' : '') + '<b class="tp-hot">' + (r.resurfaced === 'lead' ? 'hidden number matches a customer' : 'hidden number is calling a lot') + '</b>';
       if (chip) sub += (sub ? ' · ' : '') + '<span class="cl-chip cl-chip-' + chip.tone + '" title="' + esc(chip.title) + '">🏷 ' + esc(chip.text) + '</span>';
       var canLabel = !ro && r.phone && (((w._userClaims || {}).role || '') !== 'sales_rep');
-      var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + (canLabel ? btn('label', r.key, '🏷 Label') : '') + (ro ? '' : btn('handled', r.key, '✓ Handled', 'tp-go'));
+      var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + (canLabel && r.resurfaced ? btn('rehide', r.key, 'Keep hidden') : '') + (canLabel ? btn('label', r.key, '🏷 Label') : '') + (r.promise ? kept : (ro ? '' : btn('handled', r.key, '✓ Handled', 'tp-go')));
       return row(r.key, esc(r.name || fmtPhone(r.phone) || 'Unknown caller'), sub, acts);
+    });
+    // Promises (2026-10-12): each one listed with its why and its miss count;
+    // the only exits are Kept it and a new date (Move).
+    var pm = (p.promises || []).map(function (r) {
+      var lines = r.promiseTasks.map(function (t) {
+        var miss = t.missLabel ? ' <span class="tp-miss' + (t.hot ? ' is-hot' : '') + '">' + esc(t.missLabel) + '</span>' : '';
+        var late = t.overdue ? '<b class="tp-hot">overdue</b> ' : '';
+        var b = ro ? '' : '<div class="tp-prom-btns">' + pbtn('pkept', r.key, t.id, '✓ Kept it', 'tp-go') + pbtn('pmove', r.key, t.id, 'Move') + '</div>';
+        return '<div class="tp-prom-line"><div class="tp-prom-text">' + late + esc(t.text) + miss + '</div>' + b + '</div>';
+      }).join('');
+      var tag = r.hiddenNumber ? ' <span class="tp-tag" title="You labeled this number hidden. Your promise still shows.">number hidden</span>' : '';
+      var more = r.tasks.length ? '<div class="tp-sub">' + r.tasks.slice(0, 2).map(function (t) { return esc(t.text || t.title || 'Task'); }).join(' · ') + '</div>' : '';
+      var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + link(custUrl(r.leadId), 'Open');
+      return '<div class="tp-row tp-promise" data-tp-row="' + esc(r.key) + '"><div class="tp-main"><div class="tp-name">' + esc(r.name) + tag + '</div><div class="tp-prom">' + lines + '</div>' + more + '</div><div class="tp-acts">' + acts + '</div></div>';
+    });
+    var wt = (p.waiting || []).map(function (r) {
+      var bits = ['Waiting on ' + esc(r.onLabel) + ' · ' + r.days + (r.days === 1 ? ' day' : ' days')];
+      if (r.why) bits.push(esc(r.why));
+      if (r.nudgeCount) bits.push('nudged ' + r.nudgeCount + (r.nudgeCount === 1 ? ' time' : ' times'));
+      if (r.missLabel) bits.push(esc(r.missLabel));
+      var acts = (ro ? '' : pbtn('pnudge', r.key, r.taskId, '✉ Nudge', 'tp-go') + pbtn('pstill', r.key, r.taskId, 'Still waiting') + pbtn('pdead', r.key, r.taskId, 'Mark dead')) + link(custUrl(r.leadId), 'Open');
+      return row(r.key, esc(r.name) + ' <span class="tp-tag">Waiting</span>', bits.join(' · '), acts);
     });
     var pr = p.promised.map(function (r) {
       var bits = r.tasks.map(function (t) { return esc(t.text || t.title || 'Task'); }).concat(r.promises.map(function (s) { return 'You said: ' + esc(s); }));
@@ -226,12 +284,25 @@
     }
     var deck = (w.NBDFollowUpDeck && w.NBDTriageDeck && p.stalled.length > 1) ? '<button type="button" class="tp-more tp-hd-btn" data-tp-act="fudeck" data-tp-key="stalled">One at a time</button>' : '';
     var storm = P.stormLine(stormCache(), Date.now());
-    var body = section('appts', 'Appointments', a) + section('calls', 'Calls owed', c) + section('promised', 'Promised follow-ups', pr) + section('estimates', 'Estimates to follow up', e) +
-      section('money', 'Money to collect', m) + section('stalled', 'Stalled leads', s, deck);
+    var NP = w.NBDPromise;
+    var wdays = '';
+    var pend = p.waitingPending || 0;
+    if ((wt.length || pend) && NP && !ro) {
+      var opts = '';
+      for (var wd = 1; wd <= 14; wd++) opts += '<option value="' + wd + '"' + (wd === NP.waitingDays() ? ' selected' : '') + '>' + wd + '</option>';
+      wdays = '<label class="tp-wait-step">after <select data-tp-wdays aria-label="Show waiting items after this many days">' + opts + '</select> days</label>';
+    }
+    var body = section('appts', 'Appointments', a) + section('promises', 'Promises', pm) + section('calls', 'Calls owed', c) + section('promised', 'Promised follow-ups', pr) + section('estimates', 'Estimates to follow up', e) +
+      section('money', 'Money to collect', m) + section('waiting', 'Waiting on them', wt, wdays) + section('stalled', 'Stalled leads', s, deck) +
+      // Thursday's calls + the daily "handled" recap (js/thursday-handled.js; '' until loaded, flag-gated).
+      (w.NBDThursdayHandled ? w.NBDThursdayHandled.todayHtml() : '');
+    // No item has been waited out yet: say how many are quietly waiting, and keep
+    // the threshold reachable (otherwise the stepper would only exist once it is too late).
+    var quiet = !wt.length && pend ? '<div class="tp-sub tp-waitquiet">' + pend + (pend === 1 ? ' item' : ' items') + ' waiting on others, not due for a nudge yet' + (wdays ? ' · ' + wdays : '') + '</div>' : '';
     return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc(P.headline(p.total)) + '</div>' +
       (storm ? '<div class="tp-storm">' + esc(storm) + '</div>' : '') + '</div>' +
       (p.hiddenCalls > 0 ? '<div class="tp-sub tp-hidden">' + p.hiddenCalls + (p.hiddenCalls === 1 ? ' person' : ' people') + ' hidden by labels · <button type="button" class="tp-more tp-hd-btn" data-tp-act="goto" data-tp-key="calls">See them in the Call Center</button></div>' : '') +
-      (body || '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>');
+      (body || '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>') + quiet;
   }
 
   var _t = 0;
@@ -265,7 +336,7 @@
   function findRow(key) {
     var p = last;
     if (!p) return null;
-    var lists = [p.calls, p.promised, p.money, p.stalled];
+    var lists = [p.calls, p.promises || [], p.promised, p.waiting || [], p.money, p.stalled];
     for (var i = 0; i < lists.length; i++) for (var j = 0; j < lists[i].length; j++) if (lists[i][j].key === key) return lists[i][j];
     return null;
   }
@@ -330,10 +401,83 @@
       return;
     }
     if (isViewer()) return;
+    if (/^(pkept|pmove|pdead|pstill|pnudge|ckept|cmove)$/.test(a)) { promiseAct(a, key, t.getAttribute('data-tp-id') || ''); return; }
     if (a === 'label') { openLabel(key); return; }
+    if (a === 'rehide') { rehide(key); return; }
+    // Handling a call asks what Jo owes (the promise sheet); Nothing owed is the old Handled.
+    if (a === 'handled') { handleViaSheet(key); return; }
     act(a, key).catch(function (e) { console.warn('[today] action failed', e); });
   });
 
+  // ── promises + waiting (2026-10-12; promise-ui.js, lazy bundle 'promise') ──
+  // The 'promise' lazy bundle is registered HERE, not in script-loader.js (a
+  // blocking script with no byte headroom: dashboard-boot-budget). This
+  // deferred file always runs before the Call Center / customer page load it.
+  if (w.ScriptLoader && w.ScriptLoader.bundles && !w.ScriptLoader.bundles.promise) {
+    w.ScriptLoader.bundles.promise = ['css/promise.css?v=1', 'js/promise-logic.js?v=1', 'js/promise-ui.js?v=1'];
+  }
+  var promiseLoad = null;
+  function ensurePromise() {
+    if (w.NBDPromise) return Promise.resolve(true);
+    if (!promiseLoad) {
+      promiseLoad = (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function')
+        ? w.ScriptLoader.loadBundle('promise').then(function () { schedule(); return !!w.NBDPromise; }, function () { promiseLoad = null; return false; })
+        : Promise.resolve(false);
+    }
+    return promiseLoad;
+  }
+  function leadOf(id) { return (w._leads || []).filter(function (l) { return l && l.id === id; })[0] || null; }
+  function taskOf(leadId, taskId) { return ((w._taskCache || {})[leadId] || []).filter(function (t) { return t && t.id === taskId; })[0] || null; }
+  async function handleViaSheet(key) {
+    var r = findRow(key);
+    if (!r) return;
+    var ok = await ensurePromise();
+    if (!ok || !w.NBDPromise) { act('handled', key).catch(function (e) { console.warn('[today] action failed', e); }); return; }
+    w.NBDPromise.openSheet({
+      mode: 'handle', name: r.name, leadId: r.leadId, lead: leadOf(r.leadId), callIds: r.callIds.slice(),
+      summary: r.summary, why: (r.said && r.said[0]) || '',
+      onDone: function () { handled.add(key); render(); },
+    });
+  }
+  async function promiseAct(a, key, id) {
+    var ok = await ensurePromise();
+    var NP = w.NBDPromise;
+    if (!ok || !NP) { toast("Couldn't load the promise tools - try again in a moment", 'error'); return; }
+    var r = findRow(key);
+    if (!r) return;
+    if (a === 'ckept') {
+      // A promise riding on a call (no customer on file): kept = the call is handled.
+      try { await callable('callCenterAction', { id: id, action: 'handled' }); handled.add(key); render(); if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); }
+      catch (e) { toast("Couldn't save that - check your connection and tap it again", 'error'); }
+      return;
+    }
+    if (a === 'cmove') {
+      NP.openSheet({ mode: 'move', name: r.name, moveText: r.promise ? r.promise.text : '', move: { type: 'call', callId: id }, onDone: function () { handled.delete(key); schedule(); if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); } });
+      return;
+    }
+    var task = taskOf(r.leadId, id);
+    if (!task) { toast("Couldn't find that promise - refresh and try again", 'error'); return; }
+    if (a === 'pmove') {
+      var pt = (r.promiseTasks || []).filter(function (p) { return p.id === id; })[0];
+      NP.openSheet({ mode: 'move', name: r.name, moveText: pt ? pt.text : '', move: { type: 'task', leadId: r.leadId, task: task }, onDone: schedule });
+      return;
+    }
+    var fn = { pkept: NP.keep, pdead: NP.dead, pstill: NP.stillWaiting }[a];
+    if (fn) { await fn(r.leadId, task); schedule(); return; }
+    if (a === 'pnudge') { await NP.nudge(r); schedule(); }
+  }
+  doc.addEventListener('change', function (ev) {
+    var s = ev.target && ev.target.closest ? ev.target.closest('[data-tp-wdays]') : null;
+    if (!s || !w.NBDPromise) return;
+    w.NBDPromise.setWaitingDays(s.value).then(function () { schedule(); });
+  });
+
+  // "Keep hidden": a hidden number came back; acknowledge it (label ackAtMs).
+  function rehide(key) {
+    var r = findRow(key);
+    if (!r || !r.phone || !w.NBDContactLabels) return;
+    w.NBDContactLabels.ack(r.phone);
+  }
   // 🏷 Label: the sheet lives in the lazy 'contactlabels' bundle.
   function openLabel(key) {
     var r = findRow(key);
@@ -349,11 +493,12 @@
     else open();
   }
 
-  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups', 'nbd:labels-changed'].forEach(function (n) { w.addEventListener(n, schedule); });
+  ['nbd:data-refreshed', 'nbd:attention-loaded', 'nbd:invoices-loaded', 'nbd:estimate-followups', 'nbd:labels-changed', 'nbd:thursday-handled-changed'].forEach(function (n) { w.addEventListener(n, schedule); });
   w.addEventListener('hashchange', function () {
     if (/^#?\/?(home)?$/.test(location.hash || '')) { loadAppointments(false); setTimeout(render, 200); }
   });
   function boot() {
+    ensurePromise();
     // Away mode (js/away-mode.js): status line / hand-back card / backup cover list
     // on Home. A lazy bundle, so it adds no boot <script> tag; best-effort.
     try { if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') w.ScriptLoader.loadBundle('away'); } catch (_) { /* optional surface */ }

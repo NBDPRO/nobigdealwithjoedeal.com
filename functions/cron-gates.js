@@ -41,6 +41,9 @@ const CRON_GATES = [
   // Away mode: the 15-min tick that tells the backup person (dry-run until Jo
   // says go). Ending an expired window is NOT behind this gate.
   { name: 'AWAY_MODE_ENABLED', polarity: 'enabled', file: 'away-mode.js' },
+  // Thursday per-label caller playbooks (2026-10-12): the caller lookup adds the
+  // playbook / label kind / handled / away wording. Not a cron. DARK until Jo says go.
+  { name: 'THURSDAY_LABEL_PLAYBOOKS_ENABLED', polarity: 'enabled', file: 'integrations/thursday.js' },
   // Missed-lead-alert re-send (every 10 min, email + push to Jo): ON unless killed.
   { name: 'LEAD_ALERT_WATCHDOG_DISABLED', polarity: 'disabled', file: 'lead-alert-watchdog.js' },
   // Text Inbox ingest (SMS Backup & Restore → phone_texts): dry-run until Jo says go.

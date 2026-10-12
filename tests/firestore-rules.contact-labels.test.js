@@ -123,6 +123,11 @@ async function run() {
   await check('name over 80 chars denied', 'deny', shaped({ name: 'x'.repeat(81) }, '5550149010'));
   await check('name at 80 chars accepted (control)', 'allow', shaped({ name: 'x'.repeat(80) }, '5550149011'));
   await check('note over 200 chars denied', 'deny', shaped({ note: 'y'.repeat(201) }, '5550149012'));
+  await check('ackAtMs (number) accepted — the "Keep hidden" stamp', 'allow', shaped({ ackAtMs: 1760000001000 }, '5550149015'));
+  await check('ackAtMs must be a number', 'deny', shaped({ ackAtMs: 'yesterday' }, '5550149016'));
+  await check('capture off on a PERSONAL label accepted (stop copying future calls)', 'allow', shaped({ kind: 'personal', policy: 'hide', capture: 'off' }, '5550149017'));
+  await check('capture off on a non-personal kind denied', 'deny', shaped({ kind: 'spam', policy: 'hide', capture: 'off' }, '5550149018'));
+  await check('capture value other than off denied', 'deny', shaped({ kind: 'personal', policy: 'hide', capture: 'on' }, '5550149019'));
   await check('unknown source denied', 'deny', shaped({ source: 'bot' }, '5550149013'));
   await check('missing kind denied', 'deny', setDoc(ref(carol, '5550149014'), (() => { const l = label({ digits: '5550149014' }); delete l.kind; return l; })()));
 
