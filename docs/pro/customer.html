@@ -1561,6 +1561,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 </style>
 <link rel="stylesheet" href="css/ui-primitives.css?v=13">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
+<link rel="stylesheet" href="css/promise.css?v=1">
 <link rel="stylesheet" href="css/customer-header.css?v=1">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=4">
 <link rel="stylesheet" href="css/supplement.css?v=1">
@@ -1873,6 +1874,9 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
           <div class="panel-head-actions" style="display:flex;gap:8px;">
             <button class="btn ui-btn-sm" data-action="openEventModal">
               📅 Add Event
+            </button>
+            <button class="btn ui-btn-sm" type="button" data-promise-open="" title="Log something you promised, with a date">
+              📌 Promise
             </button>
             <button class="btn btn-orange ui-btn-sm" data-action="openTaskModal">
               ✅ Add Task
@@ -2800,7 +2804,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
      html2pdf (~1.1 MB combined) no longer load at boot — they fetch via the
      `pdfexport` bundle on the first PDF export (exportCustomer* handlers +
      NBDDocViewer.handlePdf, which already load-then-runs the bundle). -->
-<script defer src="js/script-loader.js?v=196"></script>
+<script defer src="js/script-loader.js?v=197"></script>
 <script defer src="js/icons.js"></script>
 <!-- Canonical modal driver — window.nbdModal owns open/close + Esc/backdrop
      for every .modal-bg on this page (batch-4 modal consolidation). Loaded
@@ -2845,6 +2849,9 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/customer-numbers.js?v=1"></script>
 <script defer src="js/customer-tasks-ui.js?v=41"></script>
+<!-- Promise capture (2026-10-12): the Promise button below opens the sheet. -->
+<script defer src="js/promise-logic.js?v=1"></script>
+<script defer src="js/promise-ui.js?v=1"></script>
 <script defer src="js/nbd-comms.js?v=6"></script>
 <script defer src="js/sms-outbox.js?v=1"></script>
 <script defer src="js/stage-checklist.js?v=2"></script>

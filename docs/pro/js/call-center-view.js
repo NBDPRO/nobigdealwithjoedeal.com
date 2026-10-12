@@ -226,7 +226,8 @@
     }).join('') + '</ul>' : '';
     var actions = reachButtons(c, lead);
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
-    if (!isViewer()) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>';
+    if (!isViewer()) actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (state.busy[c.id] ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>' +
+      (c.handledAtMs ? '' : '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-id="' + esc(c.id) + '">📌 Promise</button>');
     return '<div class="panel pc-card cc-card cc-text' + (c.handledAtMs ? ' is-handled' : '') + '" data-call-id="' + esc(c.id) + '">' +
       '<div class="pc-head"><div class="pc-who">' + esc(who) + (c.contactName && c.phoneDigits ? ' <span class="pc-meta">' + esc(fmtPhone(c.phoneDigits)) + '</span>' : '') + '</div>' +
       '<div class="pc-meta">' + esc(when) + '</div></div>' +
@@ -263,6 +264,8 @@
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(c.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
     if (!isViewer()) {
       actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="' + (c.handledAtMs ? 'unhandled' : 'handled') + '" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>' + (c.handledAtMs ? 'Not handled' : '✓ Handled') + '</button>';
+      // Promise capture (2026-10-12): what did you promise? A dated task, never forgotten.
+      if (!c.handledAtMs && c.status !== 'personal') actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-id="' + esc(c.id) + '">📌 Promise</button>';
       if (c.status === 'personal') {
         actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="notpersonal" data-id="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>It wasn\'t personal</button>';
       }
@@ -324,7 +327,8 @@
     var withTarget = g.calls.filter(function (c) { return fileTarget(c); })[0] || anchor;
     if (lead) actions += '<a class="btn btn-ghost pc-play cc-link" href="/pro/customer.html?id=' + encodeURIComponent(latest.leadId) + '">Open ' + esc(leadName(lead)) + '</a>';
     if (!isViewer()) {
-      actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="handledgroup" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '"' + (busy ? ' disabled' : '') + '>✓ Handled (all ' + g.calls.length + ')</button>';
+      actions += '<button type="button" class="btn btn-ghost pc-play" data-cc="handledgroup" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '"' + (busy ? ' disabled' : '') + '>✓ Handled (all ' + g.calls.length + ')</button>' +
+        '<button type="button" class="btn btn-ghost pc-play" data-cc="promise" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(latest.id) + '">📌 Promise</button>';
       if (!latest.leadId && anchor) {
         actions += (leadForNumber(anchor.phoneDigits) || taggedNotInCrm(anchor) ? '' : '<button type="button" class="btn btn-ghost pc-play" data-cc="newlead" data-ids="' + esc(ids.join(',')) + '" data-id="' + esc(anchor.id) + '"' + (busy ? ' disabled' : '') + '>+ New lead</button>') +
           '<button type="button" class="btn btn-ghost pc-play" data-cc="attachopen" data-id="' + esc(anchor.id) + '">Attach to customer…</button>';
@@ -1006,6 +1010,25 @@
     render();
   }
 
+  // Promise capture (2026-10-12): the lazy 'promise' bundle owns the sheet.
+  // A promise from a customer's call is a dated task and the call is handled;
+  // a call on no customer keeps its promise on the call and stays open.
+  async function openPromise(ids, id) {
+    if (isViewer()) return;
+    var c = byId(id) || {};
+    var lead = c.leadId ? leadsById()[c.leadId] : null;
+    var mine = (c.promises || []).filter(function (p) { return p && p.who === 'jo'; }).map(function (p) { return p.text; });
+    try {
+      if (!window.NBDPromise && window.ScriptLoader && typeof window.ScriptLoader.loadBundle === 'function') await window.ScriptLoader.loadBundle('promise');
+    } catch (_) { /* reported below */ }
+    if (!window.NBDPromise) { status(id, "Couldn't load the promise tools - try again in a moment."); return; }
+    window.NBDPromise.openSheet({
+      mode: 'promise', name: c.contactName || leadName(lead) || fmtPhone(c.phoneDigits) || '', leadId: c.leadId || '', lead: lead,
+      callIds: ids.slice(), summary: c.summary || '', why: mine[0] || '',
+      onDone: function () { load(); },
+    });
+  }
+
   document.addEventListener('click', function (e) {
     var b = e.target && e.target.closest ? e.target.closest('[data-cc]') : null;
     if (!b || !b.closest('#view-calls')) return;
@@ -1014,6 +1037,7 @@
     else if (a === 'play') play(id);
     else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);
     else if (a === 'handledgroup') actMany(idsOf(b), 'handled');
+    else if (a === 'promise') openPromise(idsOf(b).length ? idsOf(b) : [id], id);
     else if (a === 'deck') openDeck();
     else if (a === 'promises') openPromiseDeck();
     else if (a === 'attachopen') openAttach(id);

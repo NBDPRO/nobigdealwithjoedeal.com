@@ -19,6 +19,10 @@
  *                    Center's own rule, passed in — never re-implemented);
  *   3. promised      CRM tasks due today or overdue MERGED with the calls
  *                    where Jo promised something, ONE row per lead;
+ *   2b. promises     (2026-10-12) a dated promise Jo made (promise-logic.js:
+ *                    Call back / Send estimate / Text by 5pm …) that is due
+ *                    or overdue — its own item above the calls, never behind
+ *                    a snooze or a label, with "missed N times";
  *   3b. estimates    estimates out 2 / 5 / 10+ days (estimate-followups.js
  *                    computeFollowups, #2136, passed in), one row per lead,
  *                    one-tap Follow up through the phone share sheet;
@@ -60,6 +64,16 @@
     if (deps && deps.SW) return deps.SW;
     if (root && root.NBDScheduleWindow) return root.NBDScheduleWindow;
     if (typeof require === 'function') { try { return require('./schedule-window.js'); } catch (_) { /* not in Node */ } }
+    return null;
+  }
+
+  // promise-logic.js (2026-10-12): promises + waiting items are tasks with a
+  // few extra fields; absent (an old cached page), they are plain tasks.
+  function PLlib(deps) {
+    if (deps && deps.PL === false) return null;   // tests: the page without the bundle
+    if (deps && deps.PL) return deps.PL;
+    if (root && root.NBDPromiseLogic) return root.NBDPromiseLogic;
+    if (typeof require === 'function') { try { return require('./promise-logic.js'); } catch (_) { /* not in Node */ } }
     return null;
   }
 
@@ -399,6 +413,22 @@
       var due = (o.tasksByLead[leadId] || []).filter(function (t) { return taskDue(t, now); });
       if (due.length) dueTasks[leadId] = due.sort(function (a, b) { return taskDueYmd(a).localeCompare(taskDueYmd(b)); });
     });
+    // Promises ignore snooze (a promise is Jo's word, not a to-do that can
+    // wait) and a waiting item is not owed until it ripens (below).
+    var todayLocal = ymdLocal(now);
+    var PL = PLlib(o);
+    if (PL) Object.keys(o.tasksByLead || {}).forEach(function (leadId) {
+      var lead = byId.get(String(leadId));
+      if (!lead) return;
+      var mine = (o.tasksByLead[leadId] || []);
+      var plain = mine.filter(function (t) { return !PL.isPromise(t); });
+      var snoozed = false;
+      if (typeof o.isSnoozed === 'function') { try { snoozed = !!o.isSnoozed(lead); } catch (_) { snoozed = false; } }
+      var due = plain.filter(function (t) { return !snoozed && taskDue(t, now); })
+        .concat(mine.filter(function (t) { return PL.isOwedNow(t, todayLocal); }));
+      if (due.length) dueTasks[leadId] = due.sort(function (a, b) { return taskDueYmd(a).localeCompare(taskDueYmd(b)); });
+      else delete dueTasks[leadId];
+    });
 
     // 2 + 3. Calls owed per person; a lead's calls join its promised row
     // when Jo promised something on one, or the lead has a task due.
@@ -411,7 +441,6 @@
       }
       return promisedByLead.get(leadId);
     }
-    var todayLocal = ymdLocal(now);
     (o.callGroups || []).forEach(function (g) {
       var first = (g.calls || [])[0];
       var leadId = first && first.leadId && byId.has(String(first.leadId)) ? String(first.leadId) : null;
@@ -453,19 +482,46 @@
         text: open.some(function (c) { return c.channel === 'text' || /^text:/.test(String(c.id || '')); }),
         summary: String(latest.summary || '').slice(0, 140),
         latestMs: toMs(latest.startedAtMs) || 0,
+        // What Jo said he would do (the AI's note), to pre-fill the promise sheet's why.
+        said: open.reduce(function (acc, c) { return acc.concat(joPromises(c).map(promiseText).filter(Boolean)); }, []).slice(0, 3),
+        // A promise riding on an unfiled call (callCenterAction 'promise').
+        promise: callPromise(PL, open, todayLocal),
       });
     });
     Object.keys(dueTasks).forEach(function (leadId) { promisedRow(leadId).tasks = dueTasks[leadId]; });
-    var promised = Array.from(promisedByLead.values()).map(function (r) {
+    var promisedAll = Array.from(promisedByLead.values()).map(function (r) {
       var firstDue = r.tasks.length ? taskDueYmd(r.tasks[0]) : '';
       r.dueYmd = firstDue;
       r.overdue = !!firstDue && firstDue < ymdLocal(now);
       return r;
     }).filter(function (r) { return keep(r.key); });
+    // 2b. A row with a promise task on it is a PROMISE row: its own section,
+    // each promise listed with its why and its miss count.
+    var promises = [];
+    var promised = [];
+    promisedAll.forEach(function (r) {
+      var ps = PL ? r.tasks.filter(function (t) { return PL.isPromise(t); }) : [];
+      if (!ps.length) { promised.push(r); return; }
+      r.promiseTasks = ps.map(function (t) { return promiseInfo(PL, t, todayLocal); });
+      r.tasks = r.tasks.filter(function (t) { return !PL.isPromise(t); });
+      r.missTotal = r.promiseTasks.reduce(function (n, p) { return n + p.missCount; }, 0);
+      r.hot = r.promiseTasks.some(function (p) { return p.hot; });
+      var lead = byId.get(r.leadId);
+      r.hiddenNumber = !!(typeof o.isHiddenNumber === 'function' && r.phone && safeBool(o.isHiddenNumber, r.phone));
+      r.email = String((lead && lead.email) || '');
+      promises.push(r);
+    });
+    promises.sort(function (a, b) {
+      var ao = a.promiseTasks.some(function (p) { return p.overdue; }), bo = b.promiseTasks.some(function (p) { return p.overdue; });
+      if (ao !== bo) return ao ? -1 : 1;
+      if (a.missTotal !== b.missTotal) return b.missTotal - a.missTotal;
+      return String(a.promiseTasks[0].dueYmd || '9').localeCompare(String(b.promiseTasks[0].dueYmd || '9')) || a.name.localeCompare(b.name);
+    });
     promised.sort(function (a, b) {
       if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
       return String(a.dueYmd || '9').localeCompare(String(b.dueYmd || '9')) || a.name.localeCompare(b.name);
     });
+    promises.forEach(function (r) { taken.add('lead:' + r.leadId); });
     promised.forEach(function (r) { taken.add('lead:' + r.leadId); });
     calls = calls.filter(function (r) { return keep(r.key); });
     calls.forEach(function (r) { taken.add(r.key); if (r.leadId) taken.add('lead:' + r.leadId); });
@@ -537,9 +593,67 @@
       return { key: 'fu:' + l.id, leadId: String(l.id), name: leadName(l), phone: digits10(l.phone || l.phoneDigits), daysLate: followUpDaysLate(l, now), followUp: l.followUp };
     }).sort(function (a, b) { return b.daysLate - a.daysLate || a.name.localeCompare(b.name); });
 
+    // Waiting on them (2026-10-12): not owed today, so NOT in total — they
+    // sit in their own group once they have been waited out (N days, default
+    // 3, userSettings). A promise has no waiting clock: it is due or it is not.
+    var waiting = [];
+    if (PL) Object.keys(o.tasksByLead || {}).forEach(function (leadId) {
+      var lead = byId.get(String(leadId));
+      if (!lead) return;
+      (o.tasksByLead[leadId] || []).forEach(function (t) {
+        if (!PL.isRipe(t, todayLocal, o.waitingDays)) return;
+        var key = 'wait:' + leadId + '/' + t.id;
+        if (!keep(key)) return;
+        var on = PL.isWaitingOn(t.waitingOn) ? t.waitingOn : 'customer';
+        waiting.push({
+          key: key, leadId: String(leadId), taskId: t.id, name: leadName(lead),
+          phone: digits10(lead.phone || lead.phoneDigits), email: String(lead.email || ''),
+          waitingOn: on, onLabel: PL.WAITING_ON[on],
+          days: PL.waitingDays(t, todayLocal), since: String(t.waitingSince || t.madeYmd || ''),
+          why: String(t.why || ''), nudgeCount: Number(t.nudgeCount) || 0, lastNudgedYmd: String(t.lastNudgedYmd || ''),
+          claimNumber: String(lead.claimNumber || ''), adjusterName: String(lead.adjusterName || ''),
+          adjusterPhone: digits10(lead.adjusterPhone),
+          missLabel: PL.missLabel(t),
+        });
+      });
+    });
+    waiting.sort(function (a, b) { return b.days - a.days || a.name.localeCompare(b.name) || a.key.localeCompare(b.key); });
+    // Open waiting items that have not ripened yet: counted so the page can say
+    // "2 more waiting" and offer the threshold stepper even when none is due.
+    var waitingPending = 0;
+    if (PL) Object.keys(o.tasksByLead || {}).forEach(function (leadId) {
+      if (!byId.has(String(leadId))) return;
+      (o.tasksByLead[leadId] || []).forEach(function (t) { if (PL.isWaiting(t) && PL.isOpen(t) && !PL.isRipe(t, todayLocal, o.waitingDays)) waitingPending++; });
+    });
+
     var nns = o.noNextStep && o.noNextStep.count > 0 ? { count: o.noNextStep.count } : null;
-    var total = appointments.length + calls.length + promised.length + estimates.length + money.length + stalled.length;
-    return { appointments: appointments, calls: calls, promised: promised, estimates: estimates, money: money, stalled: stalled, noNextStep: nns, total: total };
+    var total = appointments.length + calls.length + promises.length + promised.length + estimates.length + money.length + stalled.length;
+    return { appointments: appointments, calls: calls, promises: promises, promised: promised, waiting: waiting, waitingPending: waitingPending, estimates: estimates, money: money, stalled: stalled, noNextStep: nns, total: total };
+  }
+
+  function safeBool(fn, v) { try { return !!fn(v); } catch (_) { return false; } }
+  /** One promise task as a Today line item (plain data; today-home escapes). */
+  function promiseInfo(PL, t, todayYmd) {
+    var late = PL.daysLate(t, todayYmd);
+    return {
+      id: t.id, kind: t.promiseKind, text: PL.describe(t, todayYmd), why: String(t.why || ''),
+      dueYmd: PL.dueYmdOf(t), daysLate: late, overdue: late > 0,
+      missCount: Number(t.missCount) || 0, rescheduleCount: Number(t.rescheduleCount) || 0,
+      missLabel: PL.missLabel(t), hot: PL.missIsHot(t),
+    };
+  }
+  /** The promise a (group of) open call(s) carries on its own doc, if any. */
+  function callPromise(PL, open, todayYmd) {
+    if (!PL) return null;
+    for (var i = 0; i < open.length; i++) {
+      var p = open[i] && open[i].promise;
+      if (p && p.kind === 'promise' && PL.isKind(p.promiseKind) && p.done !== true) {
+        var info = promiseInfo(PL, p, todayYmd);
+        info.callId = actionId(open[i]);
+        return info;
+      }
+    }
+    return null;
   }
 
   /** "N things today" — the header line. */
