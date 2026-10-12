@@ -77,6 +77,21 @@ const et = (hhmm) => Date.parse('2026-10-02T' + hhmm + ':00-04:00');
   r = await D.run({ db: broken, nowMs: et('10:40'), live: true, env, notify });
   ok('a failed read is itself a problem, not silence', r.state === 'read_failed' && r.problems[0] === 'deadman_read_failed');
 
+  console.log('C2. the phone stopped uploading (ingest healthy, nothing new)');
+  const fresh = { watch: { lastCheckAtMs: et('10:00') + 5000 }, cc: { lastRunAtMs: et('10:20'), lastTranscribeAtMs: et('10:20') }, now: et('10:40'), gates: on };
+  ok('newest recording 40 h old -> no_new_recordings', D.deadManProblems(Object.assign({}, fresh, { newestCallMs: et('10:40') - 40 * H })).map((p) => p.key).join() === 'no_new_recordings');
+  ok('newest recording 5 h old -> fine', D.deadManProblems(Object.assign({}, fresh, { newestCallMs: et('10:40') - 5 * H })).length === 0);
+  ok('unreadable / never-any -> says nothing (not a false alarm)', D.deadManProblems(Object.assign({}, fresh, { newestCallMs: undefined })).length === 0 && D.deadManProblems(Object.assign({}, fresh, { newestCallMs: 0 })).length === 0);
+  function fakeDb2(newest) {
+    const docs = { 'integrations/callWatch': { lastCheckAtMs: et('10:00') + 1000 }, 'integrations/callCenter': { lastRunAtMs: et('10:20'), lastTranscribeAtMs: et('10:20') } };
+    const q = { where: () => q, orderBy: () => q, limit: () => q, get: async () => ({ docs: newest == null ? [] : [{ data: () => ({ startedAtMs: newest }) }] }) };
+    return { docs, doc: (p) => ({ get: async () => ({ exists: p in docs, data: () => docs[p] }), set: async (v) => { docs[p] = v; } }), collection: () => q };
+  }
+  r = await D.run({ db: fakeDb2(et('10:40') - 50 * H), nowMs: et('10:40'), live: true, env, notify: async () => {} });
+  ok('runner reads the newest phone_calls row and reports a silent phone', r.problems.join() === 'no_new_recordings', JSON.stringify(r));
+  r = await D.run({ db: fakeDb2(et('10:40') - 2 * H), nowMs: et('10:40'), live: true, env, notify: async () => {} });
+  ok('control: a recent recording -> all clear', r.problems.length === 0 && r.state === 'ok', JSON.stringify(r));
+
   console.log('D. wired into the 10-minute watchdog');
   const src = fs.readFileSync(path.join(ROOT, 'functions/lead-alert-watchdog.js'), 'utf8').replace(/\r\n/g, '\n');
   ok('leadAlertWatchdog runs the dead-man and fails the heartbeat on a problem',
