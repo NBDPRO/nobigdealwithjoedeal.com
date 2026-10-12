@@ -82,6 +82,7 @@
     "settings-deep-link-tab-2026-09-28.test.js",
     "tasks-load-from-cache-retry-2026-09-28.test.js",
     "tasks-one-query-2026-10-03.test.js",
+    "thursday-playbooks-2026-10-12.test.js",
     "today-plan-2026-10-03.test.js",
     "contact-labels-2026-10-12.test.js",
     "call-watch-labels-2026-10-12.test.js",
@@ -1081,7 +1082,8 @@
     "lead-lifecycle.test.js": "test:leadlifecycle",
     "portal-token.test.js": "test:portal",
     "rate-limit.test.js": "test:ratelimit",
-    "thursday-pipeline.integration.test.js": "test:thursday"
+    "thursday-pipeline.integration.test.js": "test:thursday",
+    "thursday-label-playbooks.integration.test.js": "test:thursdaypb"
   },
   "wired-individually": [
     "communication-log-contract.test.js",
@@ -1092,6 +1094,7 @@
     "esign-signer-flow.test.js",
     "esign-stamp.test.js",
     "firestore-rules.contact-labels.test.js",
+    "firestore-rules.thursday-handled.test.js",
     "firestore-rules.cross-tenant.test.js",
     "firestore-rules.test.js",
     "inline-html-scripts.test.js",
