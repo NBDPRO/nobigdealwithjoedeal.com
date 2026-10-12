@@ -179,6 +179,7 @@
     "project-price-context.test.js",
     "pdf-render-retention.test.js",
     "prefix-reservation.test.js",
+    "push-helper-exports.test.js",
     "push-lead-call-phone.test.js",
     "push-notification-actions.test.js",
     "client-dead-calls-2026-10-03.test.js",
