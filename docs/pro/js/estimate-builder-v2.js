@@ -597,6 +597,12 @@
     // The linked lead (2026-10-03): its claim number / carrier / jobType make
     // a Kentucky job an insurance job for the hold even in cash mode.
     if (o.lead && typeof o.lead === 'object') input.lead = o.lead;
+    // Ohio ORC 4722.04 (2026-10-11): property state / zip when the caller has
+    // them, the special-order amount (dollars) and the construction-loan flag.
+    if (o.state) input.state = o.state;
+    if (o.zip) input.zip = o.zip;
+    if (o.specialOrder != null && o.specialOrder !== '') input.specialOrder = o.specialOrder;
+    if (o.constructionLoan === true) input.constructionLoan = true;
     const plan = rule.compute(input);
     return { pct: plan.pct, amount: _fromCents(plan.depositCents), remainder: _fromCents(plan.balanceCents), plan };
   }
