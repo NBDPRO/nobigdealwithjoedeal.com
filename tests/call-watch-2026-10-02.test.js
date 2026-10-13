@@ -157,8 +157,12 @@ function ok(label, cond, detail) {
   const src = read('functions/call-watch.js');
   ok('every 2 hours, 8 AM-8 PM Eastern, heartbeat-wrapped', /schedule: '0 8-20\/2 \* \* \*', timeZone: 'America\/New_York'/.test(src) && /require\('\.\/integrations\/heartbeat'\)/.test(src));
   // It READS Twilio's delivery results (GET only, 2026-10-02) but never sends.
-  ok('alerts only Jo: a bell notification + push; never SMS or email', /collection\('notifications'\)\.add/.test(src) && /sendCustomNotification/.test(src)
-    && !/resend|sendSms|email_queue|alertJoe|messages\.create|method:\s*'POST'/i.test(src) && (src.match(/fetch\(/g) || []).length === 1 && /method: 'GET'/.test(src));
+  // 2026-10-12: the ladder's LAST rung also emails JO (his own users/{owner}.email, INTERNAL);
+  // it still never texts and never reaches a customer.
+  ok('alerts only Jo: a bell notification + push (+ his own inbox on the last rung); never SMS, never a customer',
+    /collection\('notifications'\)\.add/.test(src) && /sendCustomNotification/.test(src)
+    && !/sendSms|email_queue|alertJoe|messages\.create|method:\s*'POST'/i.test(src) && (src.match(/fetch\(/g) || []).length === 1 && /method: 'GET'/.test(src)
+    && /doc\('users\/' \+ OWNER\)/.test(src) && /INTERNAL/.test(src));
 
   console.log('E2. texts that did not deliver (0 of 23 arrived while the CRM said "sent")');
   const t = (status, code, ago, dir) => ({ status, error_code: code, direction: dir || 'outbound-api', date_sent: new Date(NOW - (ago || H)).toUTCString() });
@@ -181,7 +185,7 @@ function ok(label, cond, detail) {
   const hb = read('docs/pro/js/alert-health-banner.js');
   ok('the alert health banner counts an undelivered text and names A2P on 30034/21608',
     hb.includes('isFailed(d.smsStatus) || smsUndelivered(d)') && hb.includes(':30034$|:21608$') && hb.includes('not registered for business texting'));
-  ok('callWatch binds the Twilio secrets it reads', /secrets: \[TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN\]/.test(src) && /texts: recentTexts/.test(src));
+  ok('callWatch binds the Twilio secrets it reads', /secrets: \[TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, RESEND_API_KEY, EMAIL_FROM\]/.test(src) && /texts: recentTexts/.test(src));
   ok('a failure throws so the heartbeat reports /fail', /throw e; \/\/ let the heartbeat report \/fail/.test(src));
   ok('gated: CALL_WATCH_ENABLED (registered, on in prod)', /process\.env\.CALL_WATCH_ENABLED === 'true'/.test(src) && /CALL_WATCH_ENABLED/.test(read('functions/cron-gates.js')) && /^CALL_WATCH_ENABLED=true$/m.test(read('functions/.env.nobigdeal-pro')));
   ok('exported from index.js', /exports\.callWatch = require\('\.\/call-watch'\)\.callWatch;/.test(read('functions/index.js')));
