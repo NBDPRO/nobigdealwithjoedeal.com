@@ -41,9 +41,23 @@ function toMs(v) {
   if (v instanceof Date) return v.getTime();
   const t = Date.parse(v); return Number.isFinite(t) ? t : 0;
 }
-/** A promise Jo made that nothing has marked kept (promise-cleanup stamps keptAtMs). */
-const openJoPromise = (c) => !!c && (c.promises || []).some((p) => p && p.who === 'jo' && !p.keptAtMs);
 const etYmd = (ms) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+/**
+ * A promise riding on the call doc itself (callCenterAction 'promise' on a call
+ * filed on no customer: promise{kind:'promise', dueDate} + followUpDate, parked
+ * with snoozeUntilYmd until its date). It is open once its date has come
+ * (Today lists it from then; "Kept it" = Handled). QA 2026-10-13 H3: it was
+ * only visible through the 14-day follow-up-date branch, so past day 14 the
+ * ledger, the ladder and away mode lost it while Today still showed it.
+ */
+function ridingPromiseOpen(c, now) {
+  const p = c && c.promise;
+  if (!p || p.kind !== 'promise' || p.done === true || p.keptAtMs) return false;
+  const due = String(p.dueDate || c.followUpDate || '');
+  return !due || due <= etYmd(now == null ? Date.now() : now);
+}
+/** A promise Jo made that nothing has marked kept (promise-cleanup stamps keptAtMs). */
+const openJoPromise = (c, now) => !!c && ((c.promises || []).some((p) => p && p.who === 'jo' && !p.keptAtMs) || ridingPromiseOpen(c, now));
 
 /** Mirror of home-attention.js isMissedCall / reachIndex / callNeedsYou (kept in step by the test). */
 const isMissedCall = (c) => !!c && c.channel !== 'text' && c.status === 'short' && c.direction === 'inbound';
@@ -77,10 +91,10 @@ function callNeedsYou(c, now, ctx) {
   // up to 45 days (then Home's single "old promises" row takes it).
   if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) {
     if ((toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW) return false;
-    return openJoPromise(c);
+    return openJoPromise(c, t);
   }
   // A promise stamped kept (promise-cleanup) stops nagging at once, not at day 14.
-  const promised = openJoPromise(c);
+  const promised = openJoPromise(c, t);
   const lb = labelOf(ctx, c);
   const pol = labelPolicy(lb);
   const dueFu = !!(c.followUpDate && c.followUpDate <= etYmd(t));
@@ -103,6 +117,16 @@ function callNeedsYou(c, now, ctx) {
 }
 
 const BURST_N = 3, BURST_MS = DAY;
+// A label's ackAtMs / updatedAtMs is a client timestamp. firestore.rules caps it
+// at now + this skew; the server ignores anything beyond it (docs written before
+// the rule, or by the Admin SDK), so a huge value can never disable the
+// "hidden number came back" valve for good.
+const LABEL_FUTURE_SKEW_MS = DAY;
+const saneStampMs = (v, now) => {
+  const ms = toMs(v);
+  const t = now == null ? Date.now() : now;
+  return Number.isFinite(ms) && ms > 0 && ms <= t + LABEL_FUTURE_SKEW_MS ? ms : 0;
+};
 /**
  * Mirror of home-attention.js resurfacedNumbers: a HIDDEN number that is
  * filed on a customer, or rings 3+ times in 24 h, after the label was applied
@@ -119,7 +143,9 @@ function resurfacedNumbers(rows, labels, now) {
     if (d.length !== 10) return;
     const lb = typeof labels.get === 'function' ? labels.get(d) : labels[d];
     if (!lb || lb.policy !== 'hide') return;
-    const base = Math.max(toMs(lb.ackAtMs), toMs(lb.updatedAtMs));
+    // A label stamp in the far future (a bad client clock, a hostile write) must
+    // not park the number forever: ignore it (QA 2026-10-13).
+    const base = Math.max(saneStampMs(lb.ackAtMs, t), saneStampMs(lb.updatedAtMs, t));
     if ((toMs(c.startedAtMs) || 0) <= base) return;
     if (!by.has(d)) by.set(d, { digits: d, base, calls: [] });
     by.get(d).calls.push(c);
@@ -135,7 +161,7 @@ function resurfacedNumbers(rows, labels, now) {
 
 /** Why a call / text day needs Jo, in a few words. */
 function reasonFor(c, now, ctx) {
-  const promised = openJoPromise(c);
+  const promised = openJoPromise(c, now);
   const lb = labelOf(ctx, c);
   const pol = labelPolicy(lb);
   const urgentOk = pol === 'quiet' ? false : (pol === 'hide' ? !!(lb && lb.kind !== 'spam') : true);
@@ -158,13 +184,15 @@ function callerKey(c) {
  * Mirror of home-attention.js isOldPromise / oldPromiseCount: a CALL past the
  * 45-day window that still carries an open promise of Jo's is ONE review row
  * ("N old promises to review"), counted as PEOPLE, never a live "needs you".
- * Text days are not read (same as Home). Jo's own newer reply to the number
+ * Text days count too, as people (same as Home). Jo's own newer reply to the number
  * neither clears nor reopens it: the window anchors on the promise's own call.
  */
 function isOldPromise(c, now) {
   const t = now == null ? Date.now() : now;
-  if (!c || c.handledAtMs || c.status === 'personal' || c.callType === 'spam' || c.taskDone === true || c.channel === 'text') return false;
-  return (toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW && openJoPromise(c);
+  // A texted promise is a promise too (QA 2026-10-13: it appeared nowhere past
+  // 45 days); the same rows, the same PEOPLE count as Home.
+  if (!c || c.handledAtMs || c.status === 'personal' || c.callType === 'spam' || c.taskDone === true) return false;
+  return (toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW && openJoPromise(c, t);
 }
 function oldPromiseCount(rows, now) {
   const people = new Set();
@@ -177,6 +205,23 @@ const who = (c) => String(c.contactName || c.from || (c.phoneDigits ? '…' + St
 /** True when the row's follow-up date became due after the day of the last check (ET), and is due now. */
 function followUpCameDue(c, sinceMs, now) {
   return !!(c && c.followUpDate && c.followUpDate <= etYmd(now) && c.followUpDate > etYmd(sinceMs));
+}
+/**
+ * The date a SNOOZE ended, when it ended since the last check (QA 2026-10-13:
+ * a snoozed item was never told again - the ladder dropped it for the snooze
+ * and nothing re-armed it). Call-level (snoozeUntilYmd, an unfiled call) or
+ * task-level (the follow-up task's due date was moved: callWatch sets
+ * taskSnoozed + taskDueYmd from the task). '' when no snooze ended.
+ */
+function snoozeWakeYmd(c, sinceMs, now) {
+  if (!c) return '';
+  const today = etYmd(now), last = etYmd(sinceMs);
+  const ymds = [c.snoozeUntilYmd, c.taskSnoozed === true ? c.taskDueYmd : ''];
+  for (let i = 0; i < ymds.length; i++) {
+    const y = String(ymds[i] || '');
+    if (/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(y) && y <= today && y > last) return y;
+  }
+  return '';
 }
 
 /**
@@ -194,23 +239,25 @@ function newNeeds(calls, textDays, thursday, sinceMs, now, labels) {
     // A follow-up date that CAME DUE since the last check is news even though
     // the call is old (audit R7, 2026-10-12): "call back Friday" is pushed on Friday.
     const due = followUpCameDue(c, sinceMs, now);
-    if (arrived <= sinceMs && !due) return;
+    const wake = snoozeWakeYmd(c, sinceMs, now);
+    if (arrived <= sinceMs && !due && !wake) return;
     const why = reasonFor(c, now, ctx);
     // Already told by the immediate urgent push (call-center.js pushUrgent).
-    if (why === 'urgent' && c.urgentPushedAtMs && !due) return;
-    out.push({ id: 'call:' + c.id, tellId: arrived <= sinceMs ? 'call:' + c.id + '#due:' + c.followUpDate : undefined, key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) });
+    if (why === 'urgent' && c.urgentPushedAtMs && !due && !wake) return;
+    out.push({ id: 'call:' + c.id, tellId: arrived <= sinceMs ? 'call:' + c.id + (due ? '#due:' + c.followUpDate : '#wake:' + wake) : undefined, key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) });
   });
   (textDays || []).forEach((c) => {
     if (!callNeedsYou(c, now, tctx)) return;
     const arrived = toMs(c.notedAtMs) || toMs(c.startedAtMs);
     const due = followUpCameDue(c, sinceMs, now);
-    if (arrived <= sinceMs && !due) return;
+    const wake = snoozeWakeYmd(c, sinceMs, now);
+    if (arrived <= sinceMs && !due && !wake) return;
     // A text day is ONE doc per number per day that textInboxNotes re-writes
     // (same id, new notedAtMs / urgent / promises) whenever another text lands.
     // Keyed on the plain id, the 10:00 "who is this" tell swallowed the 15:00
     // "water through the ceiling" re-note (QA 2026-10-13): told once per REASON.
     const why = reasonFor(c, now, tctx);
-    out.push({ id: 'text:' + c.id, tellId: arrived <= sinceMs ? 'text:' + c.id + '#due:' + c.followUpDate : 'text:' + c.id + '#' + why, key: callerKey(c), kind: 'text', who: who(c), why, at: toMs(c.startedAtMs) });
+    out.push({ id: 'text:' + c.id, tellId: arrived <= sinceMs ? 'text:' + c.id + (due ? '#due:' + c.followUpDate : '#wake:' + wake) : 'text:' + c.id + '#' + why, key: callerKey(c), kind: 'text', who: who(c), why, at: toMs(c.startedAtMs) });
   });
   // A hidden number that came back (matches a customer, or 3+ calls in 24 h):
   // told once per label baseline — "Keep hidden" moves the baseline.
@@ -235,6 +282,32 @@ function newNeeds(calls, textDays, thursday, sinceMs, now, labels) {
     out.push({ id: 'thursday:' + t.id, key: td ? 'num:' + td : 'thursday:' + t.id, kind: 'thursday', who: String(t.from || 'Caller').slice(0, 60), why: t.urgent ? 'urgent (Thursday took it)' : 'Thursday took it — not reviewed', at: toMs(t.startedAt) });
   });
   return out.sort((a, b) => (b.at || 0) - (a.at || 0));
+}
+
+/**
+ * The Thursday calls inside the window, newest first (QA 2026-10-13: the old
+ * read was where(companyId).limit(300) with NO order, so once there were more
+ * than 300 the newest rows were the ones that vanished). Two reads on the
+ * deployed (companyId, startedAt DESC) index: the dated window, and the rare
+ * row whose startedAt is null (Bland sent no started_at; every writer stores
+ * the field, so null is the only "missing"). db is a Firestore handle; the
+ * caller owns the failure (it must NOT swallow it into "nothing").
+ */
+const THURSDAY_CAP = 300;
+async function readThursday(db, companyId, sinceMs) {
+  const base = () => db.collection('thursday_calls').where('companyId', '==', companyId);
+  const [dated, undated] = await Promise.all([
+    base().where('startedAt', '>=', new Date(sinceMs)).orderBy('startedAt', 'desc').limit(THURSDAY_CAP).get(),
+    base().where('startedAt', '==', null).limit(50).get(),
+  ]);
+  const seen = new Set();
+  const out = [];
+  dated.docs.concat(undated.docs).forEach((d) => {
+    if (seen.has(d.id)) return;
+    seen.add(d.id);
+    out.push(Object.assign({ id: d.id }, d.data()));
+  });
+  return out;
 }
 
 /**
@@ -433,7 +506,7 @@ function dailyLedger(callRows, textRows, now, extra) {
   // Home shows ONE "N old promises to review" chip for open promises past 45
   // days; the ledger must not call that day clear (QA 2026-10-13 H2). A read
   // that failed is a warning, never silence.
-  const oldPromises = oldPromiseCount((callRows || []).concat(ex.oldRows || []), now);
+  const oldPromises = oldPromiseCount((callRows || []).concat(textRows || [], ex.oldRows || []), now);
   if (oldPromises > 0) anomalies.push(oldPromises + ' old promise' + (oldPromises === 1 ? '' : 's') + ' to review (open promises past 45 days)' + (ex.oldCapped ? ' - only the newest older calls were checked' : '') + '.');
   if (ex.oldPromisesFailed) anomalies.push('Could not check for promises older than 45 days just now - this is not an all-clear.');
   if (ex.lastPush && ex.lastPush.sent === 0) anomalies.push('The last alert reached 0 phones. Check that notifications are on for the CRM app.');
@@ -511,7 +584,7 @@ function inWatchHours(now) {
 }
 
 module.exports = {
-  CALL_WINDOW, PROMISE_WINDOW, openJoPromise, isOldPromise, oldPromiseCount, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
+  CALL_WINDOW, PROMISE_WINDOW, openJoPromise, ridingPromiseOpen, snoozeWakeYmd, saneStampMs, LABEL_FUTURE_SKEW_MS, readThursday, THURSDAY_CAP, isOldPromise, oldPromiseCount, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
   SMS_REPEAT_MS, smsProblems, deliveryBySid, dailyLedger, ladderEmail, LADDER_GAP_MS, LADDER_MAX, ladderCandidates, ladderRetells, nextLadder,
   toMs, etYmd, callNeedsYou, labelOf, resurfacedNumbers, callerKey, reasonFor, reachIndex, isMissedCall, callCardUrl, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
 };

@@ -75,9 +75,15 @@
     var n = untyped().length;
     if (!n) { wrap.hidden = true; wrap.innerHTML = ''; return; }
     wrap.hidden = false;
+    // One slim line (2026-10-13, Jo: "CRM tab is getting a bit tight"): the
+    // sentence used to take two-three lines and push the board off the
+    // phone. The full explanation moved to the title/aria-label; both
+    // actions stay one tap away on the same row.
+    var why = n + ' customer' + (n === 1 ? ' has' : 's have') +
+      ' no job type, so they only show on All and Insurance.';
     wrap.innerHTML = '<div class="sc-banner" role="status">' +
-      '<span class="sc-banner-text"><strong>' + n + '</strong> customer' + (n === 1 ? ' has' : 's have') +
-      ' no job type, so they only show on <em>All</em> and Insurance.</span>' +
+      '<span class="sc-banner-text" title="' + why + '" aria-label="' + why + '"><strong>' + n + '</strong> ' +
+      (n === 1 ? 'needs' : 'need') + ' a job type</span>' +
       '<button type="button" class="sc-btn sc-btn-primary" data-sc="deck">One at a time</button>' +
       '<button type="button" class="sc-btn" data-sc="open">See the list</button></div>';
   }

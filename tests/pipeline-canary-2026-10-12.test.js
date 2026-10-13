@@ -60,11 +60,14 @@ function fakeDb(opts) {
   let db = fakeDb();
   db.store.set('phone_calls/real1', { userId: '1phDvAVXHSg82wDLegAbQFq14Ci1', urgent: true, startedAtMs: NOW - 1000, status: 'noted' });
   let r = await C.run({ db, nowMs: NOW });
-  ok('healthy read path: ok, 7 checks, nothing left behind', r.ok === true && r.checks === 7 && r.failed.length === 0 && ![...db.store.keys()].some((k) => /canary_/.test(k)), JSON.stringify(r));
+  ok('healthy read path: ok, 8 checks (incl. the Thursday window), nothing left behind', r.ok === true && r.checks === 8 && r.failed.length === 0 && ![...db.store.keys()].some((k) => /canary_/.test(k)), JSON.stringify(r));
   ok('never touches an owner row', db.store.has('phone_calls/real1') && db.store.size === 1);
   db = fakeDb({ failShape: 'phone_calls:userId+status+order' });
   r = await C.run({ db, nowMs: NOW });
   ok('a query that needs an index nobody deployed is caught and named', r.ok === false && r.failed.length === 1 && /status\+startedAtMs desc \(transcribe, sweep\)/.test(r.failed[0]) && /FAILED_PRECONDITION|9/.test(r.failed[0]), JSON.stringify(r));
+  db = fakeDb({ failShape: 'thursday_calls:companyId+range+order' });
+  r = await C.run({ db, nowMs: NOW });
+  ok('the Thursday window query (companyId + startedAt range) is exercised: a missing index is caught and named', r.ok === false && r.failed.length === 1 && /thursday_calls companyId\+startedAt/.test(r.failed[0]), JSON.stringify(r));
   db = fakeDb({ failShape: 'phone_calls:userId+order' });
   r = await C.run({ db, nowMs: NOW });
   ok('the Home query failing also fails the round trip (a failed read is not "no calls")', r.ok === false && r.failed.some((f) => /round trip failed/.test(f)) && r.failed.some((f) => /Home, Call Center/.test(f)));
@@ -87,7 +90,7 @@ function fakeDb(opts) {
   ok('first run of the day runs the canary and records the verdict', out.problems.length === 0 && d.docs['integrations/pipelineHealth'].canary.ok === true && d.docs['integrations/pipelineHealth'].canary.ymd === '2026-10-02');
   let calls = 0;
   await D.run({ db: d, nowMs: NOW + 10 * 60000, live: true, env, canary: async () => { calls++; return { ok: true, failed: [], checks: 1 }; }, notify: async () => {} });
-  ok('the same ET day it does not run again (verdict carried forward)', calls === 0 && d.docs['integrations/pipelineHealth'].canary.checks === 7);
+  ok('the same ET day it does not run again (verdict carried forward)', calls === 0 && d.docs['integrations/pipelineHealth'].canary.checks === 8);
   d = base();
   const bad = fakeDb({ failShape: 'phone_text_days:userId+order' });
   Object.assign(bad.docs, d.docs); d.store.forEach((v, k) => bad.store.set(k, v));

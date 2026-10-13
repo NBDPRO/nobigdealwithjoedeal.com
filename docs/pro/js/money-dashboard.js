@@ -604,6 +604,10 @@
 
     // Cash (this year)
     html += '<div class="mdx-caps12">Cash — ' + m.year + ' (collected vs spent)</div>';
+    // Always-visible rule label (2026-10-13): the month-close card carries the
+    // same words but is collapsed after the 10th, so the cash tiles said
+    // "Collected" with nothing telling you what counts. Revenue = collected only.
+    html += '<div class="mdx-m11-mb10">' + esc('Collected money only: payments received on the day they came in, refunds taken off. Signed, closed and pipeline work is not counted here.') + '</div>';
     html += grid([
       card('Collected', fmt(m.collectedCents), 'paid invoices', 'var(--green,#16a34a)'),
       card('Spent', fmt(m.spentCents), 'COGS + overhead', 'var(--orange,#BD5728)'),
