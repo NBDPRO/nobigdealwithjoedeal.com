@@ -106,7 +106,7 @@ restacked onto main, in CI — check `gh pr view 2388`). Held on purpose:
 9. **Not built:** voice-note / photo "promise stamp" from the roof; promise
    auto-capture from transcripts (suggestions lane); Waiting derived from
    claim state; external (non-member) backup delivery (A2P); writing the
-   hand-back note onto the lead timeline.
+   hand-back note onto the lead timeline. **Update 2026-10-13 (later):** the hand-back note is built, dark behind `AWAY_MODE_ENABLED`: [AWAY-MODE-HANDBACK-TIMELINE-2026-10-13](AWAY-MODE-HANDBACK-TIMELINE-2026-10-13.md).
 
 ## Gotchas learned this session (each cost a cycle)
 
