@@ -486,6 +486,8 @@ const VERDICTS = {
   // (phone-text-check.js, 2026-10-06): refuses viewer / member itself before
   // any read. Proven in tests/texting-r2-fixes-2026-10-06.test.js.
   phoneTextAction: 'already',
+  // 2026-10-13: assertNotViewer + owner / company_admin only; the page is token-authed.
+  alertRecipients: 'already', confirmAlertRecipient: 'public',
   // Pixel World DRAFT TEXT (2026-10-11): assertNotViewer + viewer / member refused,
   // a sales_rep only for a lead they own (functions/pixel-draft.js).
   fileLeadTextDraft: 'role-gated',

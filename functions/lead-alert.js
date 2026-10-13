@@ -56,6 +56,9 @@ const TextingGate = require('./sms-texting-gate');
 const SendWindow = require('./sms-send-window');
 const Outbox = require('./sms-outbox-guard');   // nowMs: the one clock seam the send paths share
 const CL = require('./integrations/calcom-logic');
+// Who an alert may go TO: the owner's verified Auth email / phone or an address
+// the owner confirmed — never a raw tenant-writable value (2026-10-13).
+const AR = require('./alert-recipients');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -114,9 +117,20 @@ async function resolveAlertTarget(companyId) {
       const b = (snap.data() || {}).brand || {};
       const c = b.contact || {};
       if (c.alertEmail || c.alertSms) {
+        // alertEmail / alertSms are tenant-writable, so they are only a
+        // REQUEST: the recipient is the owner's verified Auth email, an address
+        // the owner confirmed, or (for an unconfirmed custom value) the
+        // owner's Auth email. SMS goes to the owner's Auth phone only.
+        const rr = await AR.resolveTenantRecipients(companyId, c);
+        if (rr.ignoredEmail || rr.ignoredSms) {
+          logger.warn('leadAlert: tenant alert contact not verified — ignored', {
+            companyId: String(companyId), email: !!rr.ignoredEmail, sms: !!rr.ignoredSms,
+            fellBackToOwnerEmail: !!(rr.ignoredEmail && rr.emails.length),
+          });
+        }
         return {
-          emails: c.alertEmail ? [c.alertEmail] : null,
-          sms: c.alertSms || null,
+          emails: rr.emails.length ? rr.emails : null,
+          sms: rr.sms || null,
           // Configured tenant → its own name/seal, never NBD's. (b is the RAW
           // companyProfile.brand: b.displayName is undefined here, so the old
           // `b.seal || b.displayName || fallback.seal` fell through to 'NBD' for
@@ -415,12 +429,38 @@ async function alertJoe(collection, d, leadId, opts = {}) {
     }
   }
 
+  // Per-recipient daily cap, across tenants (2026-10-13): one destination
+  // address/number can only be paged so many times a day whoever asks. NBD's
+  // own constants are exempt (a tenant cannot write them). A capped alert still
+  // has its CRM lead, bell and push. A limiter outage fails open.
+  let toEmails = target.emails || null;
+  let toSms = target.sms || null;
+  if (capped) { toEmails = null; toSms = null; }
+  if (!target.isNbd && !capped) {
+    if (toEmails && toEmails.length) {
+      const r = await AR.capRecipients('email', toEmails);
+      toEmails = r.allowed;
+      if (r.capped.length) {
+        logger.warn('leadAlert: recipient daily cap reached — email skipped', { collection, leadId, capped: r.capped.length });
+        if (!toEmails.length) outcomes.email = 'skipped:recipient-capped';
+      }
+    }
+    if (toSms) {
+      const r = await AR.capRecipients('sms', [toSms]);
+      if (!r.allowed.length) {
+        toSms = null;
+        outcomes.sms = 'skipped:recipient-capped';
+        logger.warn('leadAlert: recipient daily cap reached — SMS skipped', { collection, leadId });
+      }
+    }
+  }
+
   // Text via Twilio (works once the number is A2P 10DLC approved). Skip when
   // the tenant configured no alert SMS — never fall back to Joe's cell.
-  if (target.sms && !opts.skipSms && !capped) try {
+  if (toSms && !opts.skipSms && !capped) try {
     const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
     const msg = await client.messages.create({
-      to: target.sms,
+      to: toSms,
       from: TWILIO_PHONE_NUMBER.value(),
       body: smsBody(label, source, s, target.seal, notice),
     });
@@ -436,13 +476,13 @@ async function alertJoe(collection, d, leadId, opts = {}) {
   }
 
   // Detailed email → the tenant's alert inbox(es). Skip when none configured.
-  if (target.emails && target.emails.length && !capped) try {
+  if (toEmails && toEmails.length && !capped) try {
     const resend = new Resend(RESEND_API_KEY.value());
     const from = secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com');
     // Email category: INTERNAL — the tenant's own new-lead alert inbox. Out of scope for the homeowner unsubscribe register (email-suppression.js SEND_PATHS).
     const resp = await resend.emails.send({
       from,
-      to: target.emails,
+      to: toEmails,
       subject: `🔔 New lead — ${label}${notice && notice.subject ? ` (${notice.subject})` : ''}${s.name && s.name[0] !== '(' ? `: ${s.name}` : ''}`,
       html: emailHtml(label, source, s, leadId, target.name, notice),
       reply_to: s.email || undefined,

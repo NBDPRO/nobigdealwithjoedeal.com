@@ -42,6 +42,11 @@ const { Resend } = require('resend');
 const { httpRateLimit, enforceRateLimit } = require('./integrations/upstash-ratelimit');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const Suppression = require('./email-suppression');
+const AR = require('./alert-recipients');
+// A visitor typed the address into a public form, so anyone can name anyone:
+// one destination is mailed at most this many recovery emails a day, across
+// every funnel record (2026-10-13). A limiter outage fails open.
+const FUNNEL_RECOVERY_RECIPIENT_DAILY_CAP = 3;
 
 // ───────────────────────────────────────────────────────────────
 // Config
@@ -433,6 +438,15 @@ exports.runAbandonRecovery = onSchedule(
         logger.warn('funnel_recovery_blocked_no_postal_address', { funnelId: doc.id });
         blockedNoAddress++;
         continue;
+      }
+
+      {
+        const capF = await AR.capRecipients('funnel', [data.email], { limit: FUNNEL_RECOVERY_RECIPIENT_DAILY_CAP });
+        if (!capF.allowed.length) {
+          logger.info('funnel_recovery_recipient_capped', { funnelId: doc.id });
+          skipped++;
+          continue;
+        }
       }
 
       // Claim the record BEFORE calling Resend. The eligibility gate above
