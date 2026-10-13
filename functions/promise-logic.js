@@ -24,7 +24,7 @@ const WAITING_ON = Object.freeze({ customer: 'the customer', adjuster: 'the adju
 const DEFAULT_WAITING_DAYS = 3;
 const MAX_AHEAD_DAYS = 120;
 const WHY_MAX = 140;
-const SOURCES = ['call', 'text', 'today', 'customer'];
+const SOURCES = ['call', 'text', 'today', 'customer', 'visit'];
 
 const has = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
 const pad2 = (n) => (n < 10 ? '0' : '') + n;

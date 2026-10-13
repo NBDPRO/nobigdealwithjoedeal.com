@@ -34,6 +34,7 @@ function ok(name, cond, detail) {
 }
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const tick = (n) => new Promise((r) => setTimeout(r, n || 0));
+const J = (x) => JSON.stringify(x);
 async function settle() { for (let i = 0; i < 6; i++) await tick(2); }
 
 // ── fakes ──────────────────────────────────────────────────────────────────
@@ -1002,10 +1003,169 @@ function uploaderStub(log, behaviour) {
     ok('while pending, 12 chunk rows are on disk, numerically ordered by key', rows.length === 12 && rows.every((c, i) => c.seq === i), rows.length + ' rows');
   }
 
+  // ── PR 2: attach goes through the server callable; the server's words reach the phone ──
+  console.log('\nVISIT RECORDER - PR 2 (server attach, suggestions, pipeline words)');
+  {
+    const calls = [];
+    const caller = (behave) => async (name, data) => { calls.push({ name, data: JSON.parse(JSON.stringify(data)) }); return behave ? behave(name, data) : { ok: true, leadId: data.leadId || null, tasksMade: 3 }; };
+    const uploaded = async (W, a) => {
+      a.R._setUploader(uploaderStub([]));
+      const r = await a.R.start({}); a.recorder().emit([1, 2, 3]); await a.R.stop(); await settle(); await settle();
+      return r;
+    };
+    // 1. an uploaded visit: the SERVER files it
+    {
+      const W = world(); const a = boot(W, { leads: [{ id: 'L1', name: 'Ann Reyes' }] });
+      const r = await uploaded(W, a);
+      const before = await a.R._getVisit(r.id);
+      a.R._setCaller(caller());
+      const att = await a.R.attach(r.id, 'L1');
+      await settle();
+      ok('control: the visit is uploaded and the server has its doc (so the callable is the right path)', before.status === 'uploaded' && before.docSynced !== false, J(before));
+      ok('attach on an uploaded visit calls attachVisitCapture {visitId, action:attach, leadId} exactly once', calls.length === 1 && calls[0].name === 'attachVisitCapture' && calls[0].data.action === 'attach' && calls[0].data.leadId === 'L1' && calls[0].data.visitId === r.id, J(calls));
+      ok('...and the phone\'s own row + doc carry the customer (the local write follows the server)', att.ok && (await a.R._getVisit(r.id)).leadId === 'L1' && (W.firestore.docs.get('users/u1/visit_captures/' + r.id) || {}).leadId === 'L1' && att.server && att.server.tasksMade === 3);
+      calls.length = 0;
+      const det = await a.R.attach(r.id, null);
+      ok('change customer / detach calls the server with action:detach', det.ok && calls.length === 1 && calls[0].data.action === 'detach' && !('leadId' in calls[0].data), J(calls));
+    }
+    // 2. the server says no: nothing is written locally
+    {
+      const W = world(); const a = boot(W, { leads: [{ id: 'L1', name: 'Ann Reyes' }] });
+      const r = await uploaded(W, a);
+      a.R._setCaller(caller(() => { throw Object.assign(new Error('That customer is marked do not record.'), { code: 'functions/failed-precondition' }); }));
+      const att = await a.R.attach(r.id, 'L1');
+      await settle();
+      ok('a server refusal is shown, the row stays unattached and nothing is mirrored', att.ok === false && /do not record/.test(att.message) && (await a.R._getVisit(r.id)).leadId === null && (W.firestore.docs.get('users/u1/visit_captures/' + r.id) || {}).leadId === null, J(att));
+      a.R._setCaller(caller(() => { throw Object.assign(new Error('no network'), { code: 'functions/unavailable' }); }));
+      const att2 = await a.R.attach(r.id, 'L1');
+      await settle();
+      ok('CONTROL: a network failure (not a refusal) falls back to the local attach, which the server trigger files later', att2.ok === true && (await a.R._getVisit(r.id)).leadId === 'L1' && (W.firestore.docs.get('users/u1/visit_captures/' + r.id) || {}).leadId === 'L1', J(att2));
+    }
+    // 3. not uploaded yet: the callable is NOT called (the doc is not on the server)
+    {
+      const W = world(); const a = boot(W, { leads: [{ id: 'L1', name: 'Ann Reyes' }], online: false });
+      a.R._setUploader(uploaderStub([], () => 'fail'));
+      const r = await a.R.start({}); a.recorder().emit([1]); await a.R.stop(); await settle();
+      a.R._setCaller(caller());
+      const att = await a.R.attach(r.id, 'L1');
+      ok('a visit still on the phone attaches locally and does NOT call the server', att.ok && !calls.some((c) => c.data.visitId === r.id) && (await a.R._getVisit(r.id)).leadId === 'L1', J(calls));
+    }
+    // 4. a visit another device uploaded (no local row): discard goes to the doc, attach goes to the server
+    {
+      const W = world(); const a = boot(W, { leads: [{ id: 'L1', name: 'Ann Reyes' }] });
+      a.R._setCaller(caller());
+      const d = await a.R.discard('vremote000000001');
+      ok('discarding a remote-only visit marks the SERVER doc discarded (the pipeline then deletes the audio)', d.ok && d.remote === true && (W.firestore.docs.get('users/u1/visit_captures/vremote000000001') || {}).status === 'discarded');
+      calls.length = 0;
+      const at = await a.R.attach('vremote000000002', 'L1');
+      ok('attaching a remote-only visit goes through the callable', at.ok && calls.length === 1 && calls[0].data.action === 'attach' && calls[0].data.visitId === 'vremote000000002', J(at) + J(calls));
+    }
+    // 5. the helpers the sheet uses
+    {
+      const W = world();
+      const a = boot(W, { getDoc: async (ref) => ({ exists: () => true, data: () => ({ pipelineStatus: 'ready', suggestions: [{ leadId: 'L9', name: 'Zed' }] }) }) });
+      calls.length = 0;
+      a.R._setCaller(caller((name, data) => (data.action === 'audioUrl' ? { ok: true, url: 'https://signed.example/a.m4a' } : { ok: true, state: 'ready' })));
+      const sd = await a.R.getServerDoc('vabcdefgh1');
+      ok('getServerDoc reads the server\'s doc (suggestions, state)', sd && sd.id === 'vabcdefgh1' && sd.suggestions[0].leadId === 'L9' && sd.pipelineStatus === 'ready');
+      const nt = await a.R.dismissSuggestions('vabcdefgh1');
+      const rn = await a.R.retryNotes('vabcdefgh1');
+      const au = await a.R.audioUrl('vabcdefgh1');
+      ok('Not these / Retry notes / Play call the matching actions', nt.ok && rn.ok && au.ok && au.url === 'https://signed.example/a.m4a' && calls.map((c) => c.data.action).join() === 'notThese,retryNotes,audioUrl', J(calls));
+    }
+    // 6. words and chips (pure)
+    {
+      const PB = (p, extra) => Logic.pipelineBadge(Object.assign({ status: 'uploaded', pipelineStatus: p }, extra || {}));
+      ok('pipeline words: an AI outage reads as pending notes, never as a failure of the recording', /notes pending/.test(PB('notes_pending').text) && !/fail|error/i.test(PB('notes_pending').text) && PB('notes_pending').tone === 'wait');
+      ok('pipeline words: ready / failed / skipped / quarantined each say what happened', PB('ready').tone === 'ok' && /audio is kept/.test(PB('failed', { pipelineNote: 'too_long' }).text) && /deleted/.test(PB('skipped', { skipReason: 'do_not_record' }).text) && /do not record/.test(PB('skipped', { skipReason: 'do_not_record' }).text) && /consent/.test(PB('quarantined_consent').text));
+      ok('NEG: a visit still on the phone has no server words', Logic.pipelineBadge({ status: 'stored', pipelineStatus: 'ready' }) === null && Logic.pipelineBadge(null) === null);
+      const leads = [{ id: 'A', name: 'Ann' }, { id: 'B', name: 'Bob' }, { id: 'C', name: 'Cy', doNotRecord: true }, { id: 'D', name: 'Di' }];
+      const srv = { suggestions: [{ leadId: 'B', name: 'Bob', evidence: 'said' }, { leadId: 'C', name: 'Cy', evidence: 'x' }, { leadId: 'A', name: 'Ann', evidence: 'cal' }], rejectedLeadIds: ['A'] };
+      const local = [{ leadId: 'B', name: 'Bob', kind: 'recent', evidence: 'recent' }, { leadId: 'D', name: 'Di', kind: 'recent', evidence: 'recent' }];
+      const m = Logic.mergeChips(srv, local, leads);
+      ok('chips: the server\'s first (with its evidence), one per customer, "not these" and do-not-record removed, local ones fill in', eq(m.map((c) => c.leadId), ['B', 'D']) && m[0].kind === 'server' && m[0].evidence === 'said', J(m));
+      ok('CONTROL: with nothing rejected and no flag, all of them show (max 3)', Logic.mergeChips({ suggestions: [{ leadId: 'A' }, { leadId: 'B' }, { leadId: 'D' }, { leadId: 'E' }] }, [], leads).length === 3);
+    }
+    // 7. the Today row (pure + DOM)
+    {
+      const T = require(path.join(ROOT, 'docs/pro/js/visit-unfiled-today.js'));
+      const DAY = 86400000; const NOW0 = 1760000000000;
+      const row = (id, ageH, extra) => Object.assign({ id, startedAtMs: NOW0 - ageH * 3600000, status: 'uploaded', leadId: null }, extra || {});
+      const s1 = T.summarize([row('a', 30), row('b', 49), row('c', 5), row('d', 25, { leadId: 'L1' }), row('e', 30, { status: 'discarded' }), row('f', 30, { pipelineStatus: 'skipped' }), row('g', 100, { status: 'recording' })], NOW0);
+      ok('Today row counts only unattached visits older than 24 h (a, b), not young / attached / discarded / skipped / still recording', s1.count === 2 && eq(s1.ids.sort(), ['a', 'b']), J(s1));
+      ok('CONTROL: exactly 24 h old is counted, 23 h is not', T.summarize([row('x', 24)], NOW0).count === 1 && T.summarize([row('x', 23)], NOW0).count === 0);
+      ok('a capped recording and its part 2 are ONE visit', T.summarize([row('p1', 30), row('p2', 29, { partOf: 'p1' })], NOW0).count === 1);
+      ok('CONTROL: two unrelated visits are two', T.summarize([row('p1', 30), row('p2', 29)], NOW0).count === 2);
+      ok('Keep hides until tomorrow, unless more have piled up since', T.keepHides({ until: NOW0 + 1000, count: 2 }, 2, NOW0) === true && T.keepHides({ until: NOW0 + 1000, count: 2 }, 3, NOW0) === false && T.keepHides({ until: NOW0 - 1, count: 2 }, 2, NOW0) === false && T.keepHides(null, 1, NOW0) === false);
+      ok('words: 1 unfiled visit / 3 unfiled visits', T.title(1) === '1 unfiled visit' && T.title(3) === '3 unfiled visits');
+    }
+    // 8. the Today row in a small fake DOM: the real file, the real event, ONE row after the header
+    {
+      class El {
+        constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.className = ''; this.textContent = ''; this.listeners = {}; this.parent = null; this.disabled = false; this.hidden = false; }
+        setAttribute(k, v) { this.attrs[k] = String(v); }
+        getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }
+        appendChild(c) { c.parent = this; this.children.push(c); return c; }
+        insertBefore(c, ref) { c.parent = this; const i = this.children.indexOf(ref); if (i < 0) this.children.push(c); else this.children.splice(i, 0, c); return c; }
+        get nextSibling() { if (!this.parent) return null; const i = this.parent.children.indexOf(this); return this.parent.children[i + 1] || null; }
+        addEventListener(t, fn) { (this.listeners[t] = this.listeners[t] || []).push(fn); }
+        click() { (this.listeners.click || []).forEach((fn) => fn({})); }
+        remove() { if (this.parent) this.parent.children = this.parent.children.filter((c) => c !== this); this.parent = null; }
+        walk(fn) { this.children.forEach((c) => { fn(c); c.walk(fn); }); }
+        querySelector(sel) { let hit = null; const cls = /^\.(.+)$/.exec(sel); this.walk((c) => { if (!hit && cls && (' ' + c.className + ' ').indexOf(' ' + cls[1] + ' ') >= 0) hit = c; }); return hit; }
+        texts() { const out = []; if (this.textContent) out.push(this.textContent); this.walk((c) => { if (c.textContent) out.push(c.textContent); }); return out; }
+      }
+      const host = new El('div'); host.attrs.id = 'todayPlan'; host.attrs['data-tp-state'] = 'ready';
+      const hd = new El('div'); hd.className = 'tp-hd'; host.appendChild(hd);
+      const other = new El('div'); other.className = 'tp-sec'; host.appendChild(other);
+      const NOW1 = 1760000000000;
+      const rows = [{ id: 'a', startedAtMs: NOW1 - 30 * 3600000, status: 'uploaded', leadId: null }, { id: 'b', startedAtMs: NOW1 - 50 * 3600000, status: 'uploaded', leadId: null }];
+      const discarded = []; const opened = [];
+      const ls = {};
+      const winListeners = {};
+      const sandbox = {
+        Date: class extends Date { static now() { return NOW1; } },
+        Promise, JSON, Math, Object, Array, Number, String,
+        document: { getElementById: (id) => (id === 'todayPlan' ? host : null), createElement: (t) => new El(t), querySelectorAll: (sel) => { const out = []; host.walk((c) => { if (c.attrs['data-vr-today']) out.push(c); }); return out; } },
+        localStorage: { getItem: (k) => (k in ls ? ls[k] : null), setItem: (k, v) => { ls[k] = String(v); } },
+        addEventListener: (t, fn) => { (winListeners[t] = winListeners[t] || []).push(fn); },
+        NBDVisitRecorder: { list: async () => rows, listRemote: async () => [], discard: async (id) => { discarded.push(id); rows.splice(rows.findIndex((r) => r.id === id), 1); return { ok: true }; }, refreshCounters() {} },
+        NBDVisitRecorderLauncher: { openUnfiled: () => { opened.push(1); } },
+      };
+      sandbox.window = sandbox;
+      const ctx = vm.createContext(sandbox);
+      vm.runInContext(fs.readFileSync(path.join(ROOT, 'docs/pro/js/visit-unfiled-today.js'), 'utf8'), ctx, { filename: 'visit-unfiled-today.js' });
+      await settle();
+      const secs = () => host.children.filter((c) => c.attrs['data-vr-today']);
+      ok('the row appears right after the Today header, once, saying how many', secs().length === 1 && host.children[1] === secs()[0] && secs()[0].texts().some((t) => t === '2 unfiled visits'), J(host.children.map((c) => c.className)));
+      (winListeners['nbd:today-rendered'] || []).forEach((fn) => fn({}));
+      await settle();
+      ok('a re-render of Today does not duplicate it', secs().length === 1);
+      const btn = (label) => { let b = null; secs()[0].walk((c) => { if (c.tag === 'button' && c.textContent.indexOf(label) === 0) b = c; }); return b; };
+      btn('Attach').click();
+      ok('Attach opens the Unfiled visits sheet', opened.length === 1);
+      btn('Discard').click();
+      ok('Discard needs a second tap and nothing is deleted on the first', discarded.length === 0 && /Tap again to delete 2/.test(btn('Tap again').textContent));
+      btn('Tap again').click();
+      await settle(); await settle();
+      ok('the second tap discards every visit it counted, and the row goes', eq(discarded.sort(), ['a', 'b']) && secs().length === 0, J(discarded));
+      rows.push({ id: 'c', startedAtMs: NOW1 - 40 * 3600000, status: 'uploaded', leadId: null });
+      await sandbox.NBDVisitUnfiledToday.paint();
+      ok('CONTROL: a new old visit brings the row back', secs().length === 1);
+      btn('Keep').click();
+      ok('Keep removes it now and remembers until tomorrow', secs().length === 0 && JSON.parse(ls.nbd_vr_today_keep).count === 1);
+      await sandbox.NBDVisitUnfiledToday.paint();
+      ok('...a repaint with the same count keeps it hidden', secs().length === 0);
+      rows.push({ id: 'd', startedAtMs: NOW1 - 41 * 3600000, status: 'uploaded', leadId: null });
+      await sandbox.NBDVisitUnfiledToday.paint();
+      ok('...and more piling up brings it back sooner', secs().length === 1 && secs()[0].texts().indexOf('2 unfiled visits') >= 0);
+    }
+  }
+
   // ── static: no innerHTML, no inline handlers, no inline styles in the new files ──
   console.log('\nVISIT RECORDER - source hygiene (strict CSP)');
   {
-    const files = ['visit-recorder-logic.js', 'visit-recorder.js', 'visit-recorder-ui.js', 'visit-recorder-launcher.js'];
+    const files = ['visit-recorder-logic.js', 'visit-recorder.js', 'visit-recorder-ui.js', 'visit-recorder-launcher.js', 'visit-unfiled-today.js'];
     const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     const BAD = {
       'innerHTML / outerHTML / insertAdjacentHTML / document.write': /\.(innerHTML|outerHTML)\s*=|insertAdjacentHTML\s*\(|document\.write\s*\(/,
