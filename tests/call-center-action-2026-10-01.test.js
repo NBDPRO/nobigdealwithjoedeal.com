@@ -193,6 +193,18 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
     (await mirrorCallTask({ db, leadId: 'L1', taskId: 'abc123', after: { done: true } })) === null
     && (await mirrorCallTask({ db, leadId: 'L2', taskId: 'cube-cube_AAAAA1', after: { done: false } })) === null && db.docs.get(COLLECTION + '/cube_AAAAA1').taskDone === true
     && (await mirrorCallTask({ db, leadId: 'L1', taskId: 'cube-cube_NOPE99', after: { done: true } })) === null && !db.docs.has(COLLECTION + '/cube_NOPE99'));
+  // QA 2026-10-13 (security review F2): an UNFILED text day / call must not be ticked by a task on a
+  // lead of ANOTHER tenant (task ids sms-txt_<digits>_<ymd> are guessable; the rules only check lead ownership).
+  db = fakeDb(seed());
+  db.docs.set('phone_text_days/txt_5135550177_20261001', { userId: OWN, companyId: 'co1', status: 'noted', leadId: null, startedAtMs: NOW });
+  db.docs.set('leads/ATT', { userId: 'attacker', companyId: 'co9', firstName: 'Mallory' });
+  mr = await mirrorCallTask({ db, leadId: 'ATT', taskId: 'sms-txt_5135550177_20261001', after: { done: true } });
+  ok('a foreign tenant\'s lead task cannot mark an unfiled text day kept', mr === null && db.docs.get('phone_text_days/txt_5135550177_20261001').taskDone === undefined, JSON.stringify(mr));
+  mr = await mirrorCallTask({ db, leadId: 'L1', taskId: 'sms-txt_5135550177_20261001', after: { done: true } });
+  ok('control: a task on the owner\'s own lead still marks the unfiled day (same tenant)', mr && mr.done === true && db.docs.get('phone_text_days/txt_5135550177_20261001').taskDone === true, JSON.stringify(mr));
+  db.docs.set('phone_text_days/txt_5135550178_20261001', { userId: OWN, companyId: 'co1', status: 'noted', startedAtMs: NOW });
+  mr = await mirrorCallTask({ db, leadId: 'GONE', taskId: 'sms-txt_5135550178_20261001', after: { done: true } });
+  ok('a task on a lead that does not exist marks nothing', mr === null && db.docs.get('phone_text_days/txt_5135550178_20261001').taskDone === undefined);
   const ccSrc = require('fs').readFileSync(path.join(__dirname, '..', 'functions', 'call-center.js'), 'utf8');
   ok('the trigger is a direct onDocumentWritten export on leads/{leadId}/tasks/{taskId} (CI-deployable) and index.js exports it',
     /^exports\.onCallTaskWrite = onDocumentWritten\(\s*\{ document: 'leads\/\{leadId\}\/tasks\/\{taskId\}'/m.test(ccSrc)

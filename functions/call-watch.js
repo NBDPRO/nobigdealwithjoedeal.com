@@ -34,7 +34,9 @@ async function recentTexts(nowMs) {
   if (!sid || !tok) return [];
   const since = new Date(nowMs - 86400000).toISOString().slice(0, 10);
   const url = 'https://api.twilio.com/2010-04-01/Accounts/' + encodeURIComponent(sid) + '/Messages.json?PageSize=200&DateSent%3E=' + since;
-  const res = await fetch(url, { method: 'GET', headers: { Authorization: 'Basic ' + Buffer.from(sid + ':' + tok).toString('base64') } });
+  // A hung Twilio GET must not eat the whole 120 s run before any alert is written
+  // (QA 2026-10-13); the caller catches the abort and carries on without the check.
+  const res = await fetch(url, { method: 'GET', headers: { Authorization: 'Basic ' + Buffer.from(sid + ':' + tok).toString('base64') }, signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error('twilio messages ' + res.status);
   const body = await res.json();
   return Array.isArray(body.messages) ? body.messages : [];

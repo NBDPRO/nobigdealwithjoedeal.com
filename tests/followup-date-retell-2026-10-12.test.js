@@ -55,6 +55,24 @@ const call = { id: 'c1', contactName: 'Bob', leadId: 'L1', followUpDate: '2026-1
   // later as a 'still open' reminder; what must NOT happen is a second 'due' tell.
   ok('10 AM: not told as a new due item again (only the ladder reminder, if any)', r2.needs === 0 && (r2.state === 'quiet' ? pushes.length === 1 : (r2.retold === 1 && /still open/.test(pushes[1][2]))), JSON.stringify(r2));
 
+  console.log('\nC. a re-noted TEXT DAY is told again when its reason escalates (QA 2026-10-13)');
+  // textInboxNotes re-writes the same day doc (same id) when another text lands:
+  // 10:00 "who is this" (unknown number) -> 15:00 "water through the ceiling" (urgent).
+  const TEN = Date.parse('2026-10-13T14:00:00Z'), THREE = Date.parse('2026-10-13T19:00:00Z'), FIVE = Date.parse('2026-10-13T21:00:00Z');
+  const day = { id: 'txt_5025551234_20261013', phoneDigits: '5025551234', channel: 'text', status: 'noted', direction: 'inbound', bucket: 'unknown', startedAtMs: TEN, notedAtMs: TEN, urgent: false, promises: [] };
+  const toldIds = new Set();
+  const runDay = (row, since, now) => W.newNeeds([], [row], [], since, now).filter((x) => !toldIds.has(x.tellId || x.id));
+  let t1 = runDay(day, TEN - 2 * H, TEN + 30 * 60000);
+  t1.forEach((x) => toldIds.add(x.tellId || x.id));
+  ok('10:00 text from an unknown number is told once', t1.length === 1 && /unknown number/.test(t1[0].why), JSON.stringify(t1));
+  let t2 = runDay(Object.assign({}, day, { startedAtMs: THREE - 600000, notedAtMs: THREE, urgent: false }), TEN + 30 * 60000, THREE + 30 * 60000);
+  ok('control: a second text with the SAME reason is not told again (no noise)', t2.length === 0, JSON.stringify(t2));
+  let t3 = runDay(Object.assign({}, day, { startedAtMs: THREE - 600000, notedAtMs: THREE, urgent: true }), TEN + 30 * 60000, THREE + 30 * 60000);
+  ok('15:00 the same day doc re-noted URGENT is told (it used to be swallowed by toldIds)', t3.length === 1 && t3[0].why === 'urgent', JSON.stringify(t3));
+  t3.forEach((x) => toldIds.add(x.tellId || x.id));
+  let t4 = runDay(Object.assign({}, day, { startedAtMs: FIVE - 600000, notedAtMs: FIVE, urgent: true }), THREE + 30 * 60000, FIVE + 30 * 60000);
+  ok('...and only once (a third text, still urgent, is not told again)', t4.length === 0);
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })();

@@ -185,6 +185,20 @@ function ok(label, cond, detail) {
   const hb = read('docs/pro/js/alert-health-banner.js');
   ok('the alert health banner counts an undelivered text and names A2P on 30034/21608',
     hb.includes('isFailed(d.smsStatus) || smsUndelivered(d)') && hb.includes(':30034$|:21608$') && hb.includes('not registered for business texting'));
+  {
+    // QA 2026-10-13: the Twilio delivery GET had no timeout; a hung socket ate the run before any alert.
+    const prevFetch = global.fetch, prevSid = process.env.TWILIO_ACCOUNT_SID, prevTok = process.env.TWILIO_AUTH_TOKEN;
+    let seen = null;
+    process.env.TWILIO_ACCOUNT_SID = 'ACtest'; process.env.TWILIO_AUTH_TOKEN = 'tok';
+    global.fetch = async (u, init) => { seen = init; return { ok: true, json: async () => ({ messages: [] }) }; };
+    try { await require(path.join(ROOT, 'functions', 'call-watch.js'))._internal.recentTexts(NOW); }
+    finally {
+      global.fetch = prevFetch;
+      if (prevSid === undefined) delete process.env.TWILIO_ACCOUNT_SID; else process.env.TWILIO_ACCOUNT_SID = prevSid;
+      if (prevTok === undefined) delete process.env.TWILIO_AUTH_TOKEN; else process.env.TWILIO_AUTH_TOKEN = prevTok;
+    }
+    ok('the Twilio delivery read carries an abort signal (a hung socket cannot eat the run)', !!(seen && seen.signal && typeof seen.signal.aborted === 'boolean'), JSON.stringify(seen && Object.keys(seen)));
+  }
   ok('callWatch binds the Twilio secrets it reads', /secrets: \[TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, RESEND_API_KEY, EMAIL_FROM\]/.test(src) && /texts: recentTexts/.test(src));
   ok('a failure throws so the heartbeat reports /fail', /throw e; \/\/ let the heartbeat report \/fail/.test(src));
   ok('gated: CALL_WATCH_ENABLED (registered, on in prod)', /process\.env\.CALL_WATCH_ENABLED === 'true'/.test(src) && /CALL_WATCH_ENABLED/.test(read('functions/cron-gates.js')) && /^CALL_WATCH_ENABLED=true$/m.test(read('functions/.env.nobigdeal-pro')));
