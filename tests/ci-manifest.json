@@ -287,6 +287,7 @@
     "text-inbox-logic-2026-10-01.test.js",
     "text-inbox-ingest-2026-10-01.test.js",
     "text-notes-2026-10-01.test.js",
+    "text-day-reopen-2026-10-13.test.js",
     "call-center-sweep-2026-10-01.test.js",
     "call-center-action-2026-10-01.test.js",
     "call-center-crm-update-2026-10-03.test.js",

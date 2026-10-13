@@ -220,6 +220,27 @@ function groupTextDays(texts, { nowMs, quietMs = QUIET_MS } = {}) {
   return out.sort((a, b) => b.lastAtMs - a.lastAtMs);
 }
 
+/**
+ * A text day Jo marked Handled re-opens when a NEW INBOUND text lands after the
+ * stamp (QA 2026-10-13 H1). runTextNotes re-writes the same day doc whenever
+ * its signature changes and used to merge over handledAtMs, so one handled
+ * morning swallowed every later text from that number the same day.
+ *
+ * Re-opens only on a text FROM THEM sent strictly after handledAtMs. Jo's own
+ * reply (outbound) and a text that predates the stamp (he had seen it) leave
+ * the day handled. Returns the patch to merge, or null. Whether the re-opened
+ * day then shows is still the shared rule's call (callNeedsYou / reasonFor on
+ * the new note): a filed customer saying "thanks" clears the stamp but does not
+ * reach the list.
+ */
+function reopenPatch(prev, day, nowMs) {
+  const handled = Number(prev && prev.handledAtMs) || 0;
+  if (!handled) return null;
+  const fresh = ((day && day.messages) || []).some((m) => m && m.direction === 'inbound' && Number(m.sentAtMs) > handled);
+  if (!fresh) return null;
+  return { handledAtMs: null, handledBy: null, reopenedAtMs: nowMs };
+}
+
 const TEXT_NOTES_SYSTEM = [
   'You read one day of text messages between Jo, who runs No Big Deal Home Solutions (a small roofing / gutters / siding contractor near Cincinnati), and one other person.',
   'Return ONE JSON object and nothing else:',
@@ -251,6 +272,7 @@ function buildTextNotesPrompt({ day, leadName }) {
 module.exports = {
   QUIET_MS,
   groupTextDays,
+  reopenPatch,
   TEXT_NOTES_SYSTEM,
   buildTextNotesPrompt,
   unescapeXml,

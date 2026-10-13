@@ -187,7 +187,7 @@ async function runTextNotes({ db, live, nowMs }) {
   const have = new Map();
   if (refs.length) (await db.getAll(...refs)).forEach((s) => { if (s.exists) have.set(s.id, s.data()); });
   const todo = days.filter((d) => !have.has(d.id) || have.get(d.id).sig !== d.sig).slice(0, NOTES_PER_RUN);
-  const out = { days: days.length, pending: todo.length, noted: 0, personal: 0, tasks: 0, failed: 0 };
+  const out = { days: days.length, pending: todo.length, noted: 0, personal: 0, tasks: 0, reopened: 0, failed: 0 };
   if (!live) return Object.assign({ state: 'dry_run' }, out);
 
   const notesFn = _notesFn || require('./call-center').claudeNotes;
@@ -202,14 +202,17 @@ async function runTextNotes({ db, live, nowMs }) {
       const notes = CC.sanitizeNotes(await notesFn({ system: T.TEXT_NOTES_SYSTEM, prompt: T.buildTextNotesPrompt({ day, leadName }), feature: 'text-notes' }));
       const personal = notes.callType === 'personal';
       if (personal) notes.summary = 'Personal texts.';
-      await db.collection(DAYS).doc(day.id).set({
+      // H1: a NEW inbound text after Jo hit Handled re-opens the day (his own reply does not).
+      const reopen = T.reopenPatch(have.get(day.id), day, nowMs);
+      if (reopen) out.reopened++;
+      await db.collection(DAYS).doc(day.id).set(Object.assign({
         userId: OWNER, companyId: OWNER, channel: 'text',
         status: personal ? 'personal' : 'noted',
         leadId: day.leadId, contactName: day.contactName, phoneDigits: day.phoneDigits, ymd: day.ymd,
         startedAtMs: day.lastAtMs, sig: day.sig, messageCount: day.messages.length,
         summary: notes.summary, callType: notes.callType, promises: notes.promises,
         followUpDate: notes.followUpDate, urgent: notes.urgent, notedAtMs: nowMs,
-      }, { merge: true });
+      }, reopen || {}), { merge: true });
       if (personal) { out.personal++; continue; }
       out.noted++;
       if (day.leadId) {
