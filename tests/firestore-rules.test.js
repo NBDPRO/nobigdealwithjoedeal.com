@@ -3091,6 +3091,41 @@ async function run() {
     throw new Error('62 away_mode/away_private/away_windows: ' + s62Fail.length + ' check(s) went the wrong way:\n    ' + s62Fail.join('\n    '));
   }
 
+  // ─── 63. lead-alert provenance (2026-10-13): a client cannot mint a lead
+  // that LOOKS like a webhook/bridge intake. functions/lead-alert.js pages the
+  // alert contacts (on NBD's Resend/Twilio senders) from these fields, and any
+  // signed-in tenant can set its own contacts, so a client-asserted
+  // publicLeadKind/webLead/calcomBookingId or a reserved calcom__ /
+  // thumbtack_leads__ doc id was an open relay. Server writes (admin SDK) are
+  // unaffected and not exercised here.
+  let s63Pass = 0; const s63Fail = [];
+  const x63 = async (label, want, p) => {
+    let got;
+    try { await (want === 'allow' ? assertSucceeds(p) : assertFails(p)); got = want; } catch (_) { got = want === 'allow' ? 'deny' : 'allow'; }
+    if (got === want) s63Pass++; else s63Fail.push(label + ' (wanted ' + want + ')');
+  };
+  const t63 = env.authenticatedContext('t63', { role: 'company_admin', companyId: 'co-63' }).firestore();
+  const base63 = { userId: 't63', companyId: 'co-63', name: 'ZZ_QA relay', meter: 'manual' };
+  await x63('control: a plain lead create in own tenant', 'allow', setDoc(doc(t63, 'leads/s63-plain'), base63));
+  await x63('control: a doc id that merely starts with calcom_ (single underscore)', 'allow', setDoc(doc(t63, 'leads/calcom_notes63'), base63));
+  await x63('control: customer-style extra fields still create', 'allow', setDoc(doc(t63, 'leads/s63-extra'), Object.assign({}, base63, { source: 'Door knock', needsPhone: false })));
+  await x63('webLead:true', 'deny', setDoc(doc(t63, 'leads/s63-a'), Object.assign({}, base63, { webLead: true })));
+  await x63('publicLeadKind calcom_booking', 'deny', setDoc(doc(t63, 'leads/s63-b'), Object.assign({}, base63, { publicLeadKind: 'calcom_booking' })));
+  await x63('full forged booking shape', 'deny', setDoc(doc(t63, 'leads/s63-c'), Object.assign({}, base63, { webLead: true, publicLeadKind: 'calcom_booking', calcomBookingId: 'bk1', calcomEventTitle: 'x' })));
+  await x63('calcomBookingId alone', 'deny', setDoc(doc(t63, 'leads/s63-d'), Object.assign({}, base63, { calcomBookingId: 'bk1' })));
+  await x63('publicLeadCollection/publicLeadId (thumbtack bridge shape)', 'deny', setDoc(doc(t63, 'leads/s63-e'), Object.assign({}, base63, { publicLeadKind: 'thumbtack', publicLeadCollection: 'thumbtack_leads', publicLeadId: 'r1' })));
+  await x63('backfilledBy', 'deny', setDoc(doc(t63, 'leads/s63-f'), Object.assign({}, base63, { backfilledBy: 'x' })));
+  await x63('reserved id calcom__<booking> with a plain body', 'deny', setDoc(doc(t63, 'leads/calcom__bk63'), base63));
+  await x63('reserved id thumbtack_leads__<raw> with a plain body', 'deny', setDoc(doc(t63, 'leads/thumbtack_leads__r63'), base63));
+  // An id the prefix regex's '.*' would not span (a newline) still cannot
+  // carry the claim: the provenance FIELDS are refused on their own.
+  await x63('forged booking shape at a newline-suffixed calcom__ id', 'deny', setDoc(doc(t63, 'leads/' + 'calcom__bk63nl' + String.fromCharCode(10)),
+    Object.assign({}, base63, { webLead: true, publicLeadKind: 'calcom_booking', calcomBookingId: 'bk63nl' + String.fromCharCode(10) })));
+  console.log('  63: ' + s63Pass + ' lead-alert provenance checks passed, ' + s63Fail.length + ' failed');
+  if (s63Fail.length) {
+    throw new Error('63 lead-alert provenance: ' + s63Fail.length + ' check(s) went the wrong way:\n    ' + s63Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }

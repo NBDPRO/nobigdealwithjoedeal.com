@@ -234,7 +234,13 @@ service cloud.firestore {
         'referrerLeadId', 'referralDocId', 'referralRewardOwedAt', 'referredBy',
         'referralCodeInvalid', 'referralRewardJobCount', 'referralRewardPaidAt',
         // Roof Care Plan mirror (functions/care-plan.js) — server-written only.
-        'carePlan'
+        'carePlan',
+        // Intake provenance (functions/integrations/calcom.js, lead-bridge.js,
+        // thumbtack.js — admin SDK). lead-alert.js decides whether to page
+        // someone from these, so a client must not be able to assert them
+        // (2026-10-13: lead-alert provenance hardening).
+        'publicLeadKind', 'publicLeadCollection', 'publicLeadId',
+        'webLead', 'calcomBookingId', 'backfilledBy'
       ]);
     }
     // A customerId whose leading segment is a RESERVED prefix
@@ -759,6 +765,9 @@ service cloud.firestore {
         // customerId (CSV import may carry one) cannot claim another
         // tenant's reserved prefix (security batch 2026-10-03).
         && leadCreateHasNoServerFields()
+        // Server-minted doc ids (calcom__<booking>, <collection>__<id>) belong
+        // to the webhook / bridge; a client may not squat one.
+        && !leadId.matches('^(calcom|thumbtack_leads)__.*')
         && customerIdTenantOk(request.resource.data.get('customerId', null), request.resource.data.companyId)
         // The first job is made by the server (jobs-mirror.js), never claimed
         // by the client.
