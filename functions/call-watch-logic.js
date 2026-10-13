@@ -334,7 +334,8 @@ function pipelineProblems(cc, ti, stored, thursday, now, gates) {
   const oldest = waiting.reduce((m, s) => Math.min(m, toMs(s.createdAtMs) || toMs(s.startedAtMs) || now), now);
   if (g.transcribe && waiting.length && now - oldest > TRANSCRIPT_WAIT_MS) {
     const capped = c.lastTranscribe && (c.lastTranscribe.state === 'cap' || c.lastTranscribe.rateLimited > 0);
-    p.push({ key: 'transcripts_behind', text: waiting.length + ' call(s) waiting for a transcript, oldest ' + Math.round((now - oldest) / HOUR) + ' h' + (capped ? ' (the daily transcription cap or rate limit is holding them).' : '.') });
+    const po = c.providerOutage && c.providerOutage.kind ? c.providerOutage : null;
+    p.push({ key: 'transcripts_behind', text: waiting.length + ' call(s) waiting for a transcript, oldest ' + Math.round((now - oldest) / HOUR) + ' h' + (po ? ' (' + String(po.reason || 'the AI provider is out') + ').' : (capped ? ' (the daily transcription cap or rate limit is holding them).' : '.')) });
   }
   if (g.textNotes && ti && !ti.paused) {
     const last = toMs(ti.lastRunAtMs);
