@@ -31,7 +31,9 @@
  * Per-user opt-out: users/{owner}.morningBriefEnabled === false.
  * Ships DRY-RUN by default: unless MORNING_BRIEF_ENABLED=true on the
  * morningBrief Cloud Run revision, the brief is built and logged, never sent.
- * Jo turns it on (it is deliberately absent from functions/.env.nobigdeal-pro).
+ * Live since Jo turned it on: MORNING_BRIEF_ENABLED=true and
+ * MORNING_BRIEF_ABSORB_ENABLED=true are in functions/.env.nobigdeal-pro
+ * (corrected 2026-10-13; this header used to say "deliberately absent").
  */
 
 'use strict';

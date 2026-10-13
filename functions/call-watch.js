@@ -126,7 +126,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
 
   // Items already told (keeps a re-run or an overlapping check from repeating).
   const told = new Set(Array.isArray(st.toldIds) ? st.toldIds : []);
-  const needs = W.newNeeds(callRows, textRows, thu, sinceMs, nowMs, labels).filter((n) => !told.has(n.tellId || n.id));
+  const needs = W.newNeeds(callRows, textRows, thu, sinceMs, nowMs, labels, told).filter((n) => !told.has(n.tellId || n.id));
   const gates = {
     ingest: process.env.CALL_CENTER_INGEST_ENABLED === 'true',
     transcribe: process.env.CALL_CENTER_TRANSCRIBE_ENABLED === 'true',
