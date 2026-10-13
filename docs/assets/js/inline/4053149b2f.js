@@ -213,6 +213,7 @@ function goToStep(step) {
   // Show target step
   const target = document.getElementById('step' + step);
   if (target) {
+    if (step === 5) _renderContactRecap();
     target.classList.add('active');
     currentStep = step;
     updateProgress(step);
@@ -221,8 +222,40 @@ function goToStep(step) {
   }
 }
 
+/* Contact + SMS consent are collected on step 1 (2026-10-13, Twilio A2P 30909:
+   the opt-in must be visible on first paint). Same field ids, same submit
+   path. The consent box is only READ here — never set, never defaulted — and
+   Continue does not tick it. Returns true when first name, a 10-digit phone
+   and the ticked consent box are all present; marks each missing one. */
+function _validateContact(focusFirst) {
+  const fn = document.getElementById('firstName');
+  const ph = document.getElementById('phoneNumber');
+  const cb = document.getElementById('tcpaConsent');
+  const checks = [
+    { el: fn, group: fn.parentElement, bad: !fn.value.trim() },
+    { el: ph, group: ph.parentElement.parentElement, bad: ph.value.replace(/\D/g, '').length !== 10 },
+    { el: cb, group: cb.parentElement.parentElement, bad: !cb.checked }
+  ];
+  let firstBad = null;
+  checks.forEach(function (c) {
+    c.group.classList.toggle('has-error', c.bad);
+    c.el.setAttribute('aria-invalid', c.bad ? 'true' : 'false');
+    if (c.bad && !firstBad) firstBad = c.el;
+  });
+  if (firstBad && focusFirst) firstBad.focus();
+  return !firstBad;
+}
+function _clearContactError(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const g = (id === 'phoneNumber' || id === 'tcpaConsent') ? el.parentElement.parentElement : el.parentElement;
+  g.classList.remove('has-error');
+  el.setAttribute('aria-invalid', 'false');
+}
+
 function validateStep(step) {
   if (step === 1) {
+    const contactOk = _validateContact(true);
     const inp = document.getElementById('addressInput');
     const addr = inp.value.trim();
     if (!addr || addr.length < 5) {
@@ -234,6 +267,7 @@ function validateStep(step) {
     }
     // "Use my address as typed" (no map match): continue on the words alone.
     if (funnelData.addressTyped && funnelData.addressTyped === addr) {
+      if (!contactOk) return false;
       funnelData.address = addr;
       funnelData.lat = null;
       funnelData.lon = null;
@@ -243,9 +277,12 @@ function validateStep(step) {
     // If user typed without picking from dropdown, attempt a single resolve
     // before allowing them to advance.
     if (!funnelData.addressFull) {
-      _resolveAddressInline(addr);
+      // Don't start the map lookup until the contact fields are right too —
+      // it would advance the wizard on its own once it resolved.
+      if (contactOk) _resolveAddressInline(addr);
       return false;
     }
+    if (!contactOk) return false;
     funnelData.address = addr;
     funnelData.lat = parseFloat(funnelData.addressFull.lat);
     funnelData.lon = parseFloat(funnelData.addressFull.lon);
@@ -255,6 +292,16 @@ function validateStep(step) {
     return funnelData.service && funnelData.timeline;
   }
   return true;
+}
+
+// Step 5 does not ask for the name/phone again — it says where the estimate
+// is going, so Back/Next never loses what was entered on step 1.
+function _renderContactRecap() {
+  const el = document.getElementById('contactRecap');
+  if (!el) return;
+  const fn = document.getElementById('firstName').value.trim();
+  const ph = document.getElementById('phoneNumber').value.trim();
+  el.textContent = (fn && ph) ? 'Sending to ' + fn + ' at ' + ph + '.' : '';
 }
 
 function _setAddressHint(msg) {
@@ -888,7 +935,7 @@ async function skipOtpAndRequestCall(btn) {
 
   if (!(fn && phoneDigits.length === 10 && _emailOk(email) && consent)) {
     status.className = 'otp-skip-status error';
-    status.textContent = 'Fill in your first name and phone above (and check the consent box) so Joe knows how to reach you.';
+    status.textContent = 'Go back to the first step and add your first name and phone (and check the consent box) so Joe knows how to reach you.';
     return;
   }
 
@@ -1058,6 +1105,13 @@ function checkSubmitReady() {
   document.getElementById(id).addEventListener('input', checkSubmitReady);
 });
 document.getElementById('tcpaConsent').addEventListener('change', checkSubmitReady);
+// Step-1 error marks clear as soon as the visitor fixes the field.
+['firstName', 'phoneNumber'].forEach(function (id) {
+  document.getElementById(id).addEventListener('input', function () { _clearContactError(id); });
+});
+document.getElementById('tcpaConsent').addEventListener('change', function () {
+  if (this.checked) _clearContactError('tcpaConsent');
+});
 
 // Abandoned funnel recovery — save partial state on email blur.
 // Fires at most once per unique email value per session.
@@ -1681,6 +1735,7 @@ function resetFunnel() {
   document.getElementById('phoneNumber').value = '';
   document.getElementById('emailAddress').value = '';
   document.getElementById('tcpaConsent').checked = false;
+  ['firstName', 'phoneNumber', 'tcpaConsent'].forEach(_clearContactError);
   document.getElementById('btnSendCode').textContent = 'Send Code';
   document.getElementById('btnSendCode').classList.remove('verified');
   document.getElementById('btnSendCode').disabled = false;

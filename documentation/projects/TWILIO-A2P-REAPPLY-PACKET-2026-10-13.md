@@ -17,6 +17,18 @@ no longer true (see below). The runbook is
 texting-law fixes are in
 [TEXTING-COMPLIANCE-2026-10-05](../audit/TEXTING-COMPLIANCE-2026-10-05.md).
 
+> **Update 2026-10-13 (item 12 / "Better, a small page PR" below): fixed on
+> branch `fix/estimate-sms-consent-visible` — true once that PR is merged.**
+> `/estimate` now shows the first-name and phone fields and the unchecked SMS
+> consent box (full disclosure, Privacy Policy · Terms beside it) on step 1,
+> on first paint, with no interaction. So `/estimate` can be listed as the
+> third URL in the message flow. One sentence in section 5's paste-ready text
+> is now out of date: "uses the same sentence with 'my estimate' on its
+> final step, after the visitor enters their address and mobile number" —
+> say "on the first screen, next to the address and mobile number" instead.
+> Details and evidence:
+> [ESTIMATE-SMS-CONSENT-FIRST-PAINT-2026-10-13](ESTIMATE-SMS-CONSENT-FIRST-PAINT-2026-10-13.md).
+
 ## 1. The one-paragraph answer
 
 The brand is **approved**, the account is **already upgraded to Full**, and

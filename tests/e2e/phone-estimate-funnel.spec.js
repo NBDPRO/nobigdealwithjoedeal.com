@@ -9,6 +9,10 @@
  * project → ballpark → first name + phone + consent → Submit → the results
  * screen's optional "help Joe prepare" answers — and checks what was POSTed.
  *
+ * 2026-10-13 (Twilio A2P 30909): the phone field and the SMS consent box now
+ * sit on step 1. The first assertions below run with NO interaction — they are
+ * what a campaign reviewer who opens /estimate sees on first paint.
+ *
  * EVERY network call off the local server is intercepted here. The page's
  * gateway URL is the PRODUCTION Cloud Functions host; an unintercepted submit
  * would file a real lead and page Jo (memory: an emulator submitPublicLead once
@@ -65,8 +69,37 @@ test.describe('phone estimate funnel — no text code @shard2', () => {
 
     await page.goto('/estimate');
 
-    // Step 1 — an address the map cannot match.
+    // First paint, no clicks: the opt-in is on screen, unchecked, with the
+    // disclosure and BOTH policy links beside it.
+    await expect(page.locator('#step1')).toHaveClass(/active/);
+    const consent = page.locator('#tcpaConsent');
+    await expect(page.locator('#phoneNumber')).toBeVisible();
+    await expect(consent).toBeVisible();
+    await expect(consent).not.toBeChecked();
+    const consentLabel = page.locator('label[for="tcpaConsent"]');
+    await expect(consentLabel).toBeVisible();
+    await expect(consentLabel).toContainText('Message frequency varies');
+    await expect(consentLabel).toContainText('Message & data rates may apply');
+    await expect(consentLabel).toContainText('Reply STOP to opt out, HELP for help');
+    await expect(consentLabel).toContainText('Consent is not a condition of purchase');
+    await expect(consentLabel.locator('a[href="/privacy#sms-terms"]')).toBeVisible();
+    await expect(consentLabel.locator('a[href="/terms"]')).toBeVisible();
+    const box = await consent.boundingBox();
+    const labelBox = await consentLabel.boundingBox();
+    expect(Math.max(box.height, labelBox.height), 'consent tap target >= 44px').toBeGreaterThanOrEqual(44);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), 'no sideways scroll on first paint').toBeLessThanOrEqual(0);
+
+    // Continue without consent is refused and does not tick the box for them.
     await page.locator('#addressInput').fill('12 Nowhere Rd, Mason OH');
+    await page.locator('#firstName').fill('Pat');
+    await page.locator('#phoneNumber').fill('5135550100');
+    await page.locator('#step1 [data-step="2"]').click();
+    await expect(page.locator('#step1')).toHaveClass(/active/);
+    await expect(consent).not.toBeChecked();
+    await expect(page.locator('#tcpaConsent-err')).toBeVisible();
+
+    // Step 1 — an address the map cannot match.
+    await consent.check();
     await page.locator('#step1 [data-step="2"]').click();
     const useTyped = page.locator('#btnUseTyped');
     await expect(useTyped).toBeVisible({ timeout: 10_000 });
@@ -83,16 +116,15 @@ test.describe('phone estimate funnel — no text code @shard2', () => {
     await page.locator('#step4 [data-step="5"]').click();
     await expect(page.locator('#step5')).toHaveClass(/active/);
 
-    // Step 5 — no code to wait for.
+    // Step 5 — no code to wait for, and nothing asked twice: the recap names
+    // who it is going to and Submit is already live (consent was given on step 1).
     await expect(page.locator('#btnSendCode')).toBeHidden();
     await expect(page.locator('#otpSkip')).toBeHidden();
     await expect(page.locator('#step5 .nbd-trust-line')).toContainText('on Google · Fully insured · Joe on every roof');
+    await expect(page.locator('#contactRecap')).toContainText('Pat');
+    await expect(page.locator('#contactRecap')).toContainText('(513) 555-0100');
+    await expect(page.locator('#step5 #phoneNumber')).toHaveCount(0);
     const submit = page.locator('#btnSubmit');
-    await expect(submit).toBeDisabled();
-    await page.locator('#firstName').fill('Pat');
-    await page.locator('#phoneNumber').fill('5135550100');
-    await expect(submit).toBeDisabled(); // consent still required
-    await page.locator('#tcpaConsent').check();
     await expect(submit).toBeEnabled();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow, 'no sideways scroll on the contact step at 390px').toBeLessThanOrEqual(0);
