@@ -129,6 +129,9 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
     catch (e) { logger.warn('[callWatch] text delivery check skipped', { err: e && e.message }); }
   }
   const tell = W.problemsToTell(problems, st.problemsToldAt, nowMs);
+  // The 20:00 run closes the day with the "nothing fell through" ledger.
+  const ledgerDue = W.etYmd(nowMs) !== st.ledgerYmd && Number(new Date(nowMs).toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false })) === 20;
+  const ledger = ledgerDue ? W.dailyLedger(callRows, textRows, nowMs, { lastPush: st.lastPush, problems: problems.map((p) => p.key) }) : null;
   // Items told before and still open come round again (audit R1), short ladder.
   const retells = W.ladderRetells(callRows, textRows, st.ladder, nowMs, labels);
   const alert = W.alertFor(needs.concat(retells), tell, nowMs);
@@ -149,6 +152,14 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   }
 
   let pushRes = null;
+  if (ledger) {
+    await db.collection('notifications').add({
+      userId: OWNER, type: 'call_watch', title: ledger.title, message: ledger.message, priority: ledger.priority,
+      clickUrl: '/pro/dashboard.html#/calls', read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
+    });
+    try { await db.doc('integrations/dailyLedger').set(Object.assign({ atMs: nowMs }, ledger, { title: undefined, message: undefined }), { merge: false }); }
+    catch (e) { logger.warn('[callWatch] ledger doc skipped', { err: e && e.message }); }
+  }
   const problemsToldAt = {};
   problems.forEach((p) => { problemsToldAt[p.key] = (tell.some((t) => t.key === p.key) ? nowMs : W.toMs((st.problemsToldAt || {})[p.key])) || nowMs; });
   const toldIds = needs.map((n) => n.tellId || n.id).concat([...told]).slice(0, 400);
@@ -169,6 +180,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   const pushUnreached = !!(alert && pushRes && typeof pushRes === 'object' && pushRes.sent === 0);
   await stateRef.set({
     lastCheckAtMs: nowMs, lastResult: counts, problems: problems.map((p) => p.key), problemsToldAt, toldIds,
+    ledgerYmd: ledger ? ledger.ymd : (st.ledgerYmd || null),
     ladder: W.nextLadder(callRows, textRows, st.ladder, needs.map((n) => n.id), retells, !pushUnreached, nowMs, labels),
     lastPush: alert ? { atMs: nowMs, sent: pushRes && pushRes.sent != null ? Number(pushRes.sent) : null, failed: pushRes && pushRes.failed != null ? Number(pushRes.failed) : null } : (st.lastPush || null),
   }, { merge: false });
