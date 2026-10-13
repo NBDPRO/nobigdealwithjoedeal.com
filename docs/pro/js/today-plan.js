@@ -517,7 +517,7 @@
       if (!open.length) return;
       var latest = open[0];
       var promised = open.some(function (c) { return joPromises(c).length > 0; });
-      if (leadId && (promised || dueTasks[leadId])) {
+      if (leadId && (it.viaPhone ? (dueTasks[leadId] || promisedByLead.has(leadId)) : (promised || dueTasks[leadId]))) {
         var r = promisedRow(leadId);
         open.forEach(function (c) {
           // A phone-matched call is acted on through its own rider button only: a
@@ -543,7 +543,14 @@
       r.dueYmd = firstDue;
       r.overdue = !!firstDue && firstDue < ymdLocal(now);
       return r;
-    }).filter(function (r) { return keep(r.key); });
+    }).filter(function (r) {
+      if (keep(r.key)) return true;
+      // The row was handled this session; an unfiled call riding in it is still open:
+      // it becomes a Calls-owed row of its own (never dropped with the host).
+      var left = (r.phoneCalls || []).filter(function (u) { return keep(u.key); });
+      if (left.length) { var head = left[0]; head.phoneCalls = left.slice(1); calls.push(head); }
+      return false;
+    });
     // 2b. A row with a promise task on it is a PROMISE row: its own section,
     // each promise listed with its why and its miss count.
     var promises = [];

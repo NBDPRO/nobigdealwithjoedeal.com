@@ -430,7 +430,12 @@
         api.lastCounts = counts;
         try { w.dispatchEvent(new CustomEvent('nbd:attention-loaded')); } catch (_) { /* old browser */ }
       }
-      const html = stripHtml(counts);
+      let html;
+      try { html = stripHtml(counts); } catch (e) {
+        // The paint itself threw: never leave the previous (possibly all-clear) strip up.
+        try { console.warn('[home-attention] strip paint failed:', e && (e.code || e.message)); } catch (_) { /* no console */ }
+        html = '<button type="button" class="ha-item ha-warn" data-ha-retry="1">⚠ Could not show your attention list — this is NOT an all-clear. Tap to try again</button>';
+      }
       el.innerHTML = html;
       el.hidden = !html;
     } finally {

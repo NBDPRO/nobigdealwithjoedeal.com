@@ -483,6 +483,51 @@ const isName = (n) => (q) => q.col.name === n;
   }
 
 
+  // ═══ E. coordinator pass 2 ══════════════════════════════════════════
+  console.log('\nE. promised-row riders, rider-only rows, hidden-count throw, strip paint throw');
+  {
+    const t = { id: 'plain', text: 'Send photos', dueDate: TODAY, done: false };
+    const g = groups([unfiled]);
+    const open = build({ callGroups: g, tasksByLead: { L1: [t] } });
+    ok('control: task + rider is one promised row with the rider inside', open.promised.length === 1 && open.promised[0].phoneCalls.length === 1 && open.total === 1);
+    const done = build({ callGroups: g, tasksByLead: { L1: [t] }, handled: new Set(['prom:L1']) });
+    ok('Done on the promised row (its key handled) keeps the still-open unfiled call as a Calls-owed row', done.promised.length === 0 && done.calls.length === 1 && done.calls[0].key === 'num:5135550111' && done.calls[0].callIds.join() === 'cube_U1' && done.total === 1, JSON.stringify({ p: done.promised.length, c: done.calls.length, total: done.total }));
+    const both = build({ callGroups: g, tasksByLead: { L1: [t] }, handled: new Set(['prom:L1', 'num:5135550111']) });
+    ok('control: host and rider both handled -> nothing', both.total === 0 && both.calls.length === 0);
+    // the same through a promise-task row
+    const pDone = build({ callGroups: g, tasksByLead: { L1: [promTask] }, handled: new Set(['prom:L1']) });
+    ok('same for a Promises row handled this session', pDone.promises.length === 0 && pDone.calls.length === 1 && pDone.total === 1);
+  }
+  {
+    // rider-only: a matched call carrying a promise of Jo's, no due task, no filed call.
+    const withPromise = call('cube_U4', { phoneDigits: '5135550111', bucket: 'unknown', promises: joP, summary: 'said he would ring back' });
+    const p = build({ callGroups: groups([withPromise]) });
+    ok('a promise-carrying matched call with no task and no filed call is a CALLS row (a live Handled), not a dead promised row', p.promised.length === 0 && p.calls.length === 1 && p.calls[0].callIds.join() === 'cube_U4' && p.total === 1, JSON.stringify({ promised: p.promised.length, calls: p.calls.length }));
+    const filedWithPromise = call('cube_F5', { leadId: 'L1', phoneDigits: '5135550111', bucket: 'customer', promises: joP });
+    const q = build({ callGroups: groups([filedWithPromise, withPromise]) });
+    ok('control: with a FILED promise call the rider joins that promised row', q.promised.length === 1 && q.calls.length === 0 && q.promised[0].callIds.join() === 'cube_F5' && q.promised[0].phoneCalls.length === 1 && q.total === 1, JSON.stringify({ promised: q.promised.length, calls: q.calls.length }));
+  }
+  {
+    const boom = await todayEnv({ ha: { groupNeeds: () => [], hiddenPeople: () => { throw new Error('hide bug'); }, lastRows: [], lastCounts: {}, callerKey: HA.callerKey } });
+    boom.win.NBDToday.render();
+    ok('a throwing hidden-people count is named on Today, not swallowed to 0', /people hidden by labels/.test(boom.els.todayPlan.innerHTML) && /NOT an all-clear/.test(boom.els.todayPlan.innerHTML), boom.els.todayPlan.innerHTML.slice(0, 300));
+    const fine = await todayEnv({ ha: { groupNeeds: () => [], hiddenPeople: () => 2, lastRows: [], lastCounts: {}, callerKey: HA.callerKey } });
+    fine.win.NBDToday.render();
+    ok('control: a working hidden count shows and raises no banner', /2 people hidden by labels/.test(fine.els.todayPlan.innerHTML) && !/NOT an all-clear/.test(fine.els.todayPlan.innerHTML));
+  }
+  {
+    // the strip paint throwing must not leave the previous strip up or reject render()
+    const poisoned = { valueOf() { throw new Error('paint bug'); } };
+    const env = sandbox(Object.assign({ _user: { uid: 'u1' }, _userClaims: {}, db: {}, _leads: [], NBDReviewDeck: { candidates: () => ({ length: poisoned }) } }, fakeFirestore({ phone_calls: [], phone_text_days: [], stripeLedger: [], yardSigns: [] })));
+    env.els.homeAttention = fakeEl('homeAttention');
+    env.els.homeAttention.innerHTML = '<button>old quiet strip</button>';
+    load(env, 'docs/pro/js/home-attention.js');
+    let threw = false;
+    try { await env.win.NBDHomeAttention.render(true); } catch (_) { threw = true; }
+    ok('a throw while PAINTING the strip is caught, shows NOT an all-clear with a retry, and replaces the old strip', !threw && /NOT an all-clear/.test(env.els.homeAttention.innerHTML) && /data-ha-retry/.test(env.els.homeAttention.innerHTML) && !/old quiet strip/.test(env.els.homeAttention.innerHTML), env.els.homeAttention.innerHTML);
+  }
+
+
   // ── the server rule is untouched: strip / Call Center still count by callerKey ──
   console.log('\nMirror: Home\'s callerKey / callNeedsYou still equal the server\'s');
   {

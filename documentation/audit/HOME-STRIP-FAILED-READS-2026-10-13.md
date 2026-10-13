@@ -88,6 +88,20 @@ number reads 2 on the strip and 1 on Today. Changing the strip means changing
 the server's `callerKey` and the 2-hourly push count together; that is a
 decision, not a client patch.
 
+## Second review pass
+
+- Done / Tomorrow on a promised or Promises row (its key handled) no longer
+  takes an open unfiled call with it: the call becomes a Calls-owed row.
+- A matched call joins a promised row only when a due task or a filed-call
+  promised row is really there; otherwise (a promise-carrying call and nothing
+  else) it is a Calls row with a live Handled, not a promised row with no task
+  and no call ids (a dead Done button).
+- A throwing hidden-people count is named on Today; a throw while painting the
+  strip shows NOT an all-clear + retry instead of leaving the old strip up.
+- Not changed: a rider's phone. A match is by the call's own 10 digits, so the
+  call's number and the customer's are equal by construction.
+- Tests: section E of the test file; each fix break-tested.
+
 ## Unverified
 
 - A real iPhone (installed app, daylight). Measured only: a Chromium page at

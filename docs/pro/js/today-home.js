@@ -176,7 +176,7 @@
     }
     var hiddenCalls = 0;
     if (HA && typeof HA.hiddenPeople === 'function' && Array.isArray(HA.lastRows)) {
-      try { hiddenCalls = HA.hiddenPeople(HA.lastRows, now, HA.lastLabels || null); } catch (_) { hiddenCalls = 0; }
+      try { hiddenCalls = HA.hiddenPeople(HA.lastRows, now, HA.lastLabels || null); } catch (_) { hiddenCalls = 0; computeFailed.push('people hidden by labels'); }
     }
     var plan_ = P.buildTodayPlan({
       now: now, leads: leads, tasksByLead: w._taskCache || {},
