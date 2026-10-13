@@ -275,6 +275,8 @@ console.log('F. wiring pins');
   ok('no inline handler attributes in the label UI', !/\son(click|change|input)=/i.test(ui));
   const sheet = read('docs/pro/js/contact-labels.js');
   ok('the personal confirm warns skipped texts cannot be brought back', /can.?t be brought back|cannot be brought back|not be brought back/i.test(sheet));
+  const tn = read('functions/text-inbox.js');
+  ok('text notes skip a capture-off day (and yield to a newer customer) before noting', /groupTextDays\(rows, \{ nowMs \}\)\.filter\(\(d\) => !CL\.captureOff\(labels, d\.phoneDigits, idx\.get\(d\.phoneDigits\)\)\)/.test(tn));
   ok('the sheet repaints an effect line for the current choice', /cl-effect/.test(sheet));
   ok('the hidden-by-labels line opens the Labeled list', /setFilter\('labeled'\)/.test(sheet));
   ok('Keep hidden (ack) offers an Undo', /showUndo\([^)]*Kept hidden|showUndo\('Kept/.test(sheet));
