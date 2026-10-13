@@ -173,7 +173,8 @@ async function main() {
   ok('the other phone she called from is remembered on HER lead', sLead.altPhoneDigits === '5135550142' && sLead.phoneDigits === '8595550101');
   ok('extraction called Claude with the transcript', fetchLog.some((u) => u.startsWith('https://api.anthropic.com/')));
   ok('recording failure recorded, not fatal', typeof s.recordingError === 'string');
-  ok('notifications attempted and recorded (email skipped w/o key)', s.notifyState && s.notifyState.email && /skipped/.test(s.notifyState.email.status));
+  // 'held:quiet-hours' is the same non-send outcome when the suite runs 21:00-08:00 ET (audit F8).
+  ok('notifications attempted and recorded (email skipped w/o key)', s.notifyState && s.notifyState.email && /skipped|held:quiet-hours/.test(s.notifyState.email.status));
 
   section('3. New caller → new NBD lead');
   const idN = callId('newbie');

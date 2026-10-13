@@ -18,6 +18,8 @@
  * repeats at most every 6 hours.
  */
 
+const PV = require('./ping-volume-logic');
+
 const DAY = 86400000;
 const HOUR = 3600000;
 const CALL_WINDOW = 14 * DAY;
@@ -322,6 +324,9 @@ function newNeeds(calls, textDays, thursday, sinceMs, now, labels, told) {
   });
   (thursday || []).forEach((t) => {
     if (!t || t.reviewed === true || t.status !== 'processed') return;
+    // Her own push already reached Jo's phone (audit F8): not told twice. A row
+    // whose own channels FAILED or were held for quiet hours is still told here.
+    if (PV.thursdayAlreadyPushed(t)) return;
     const arrived = toMs(t.processedAt) || toMs(t.startedAt);
     if (arrived <= sinceMs || arrived < now - CALL_WINDOW) return;
     const td = String(t.from || '').replace(/\D/g, '').slice(-10);

@@ -76,7 +76,8 @@ const call = { id: 'cube_u1', phoneDigits: '8595550177', startedAtMs: NOON - 600
 
   m = make({ kind: 'personal', policy: 'hide' }, { labelThrows: true });
   r = await m.sandbox.pushUrgent({ db: m.db, d: m.d, call, notes: { urgent: true, callType: 'lead', promises: [] }, leadName: '', nowMs: NOON });
-  ok('label read fails -> no labels -> pushes (the safe direction) and says why', r === true && m.pushes.length === 1 && m.warns.length === 1);
+  // (the fake has no where(): the person-card sibling read also fails and says so, hence the filter)
+  ok('label read fails -> no labels -> pushes (the safe direction) and says why', r === true && m.pushes.length === 1 && m.warns.filter((w) => /label_read_failed/.test(String(w[0]))).length === 1);
 
   // QA 2026-10-13: labelFor stripped a literal capital "D" (/D/g) instead of non-digits (/\D/g).
   // The fake below answers ONLY for the exact 10-digit doc id, so a mangled id finds no label and

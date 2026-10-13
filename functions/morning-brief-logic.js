@@ -549,6 +549,9 @@ function sectionsHtml(sec) {
       + (pr.length > SECTION_SHOW ? '<div class="sub">…and ' + (pr.length - SECTION_SHOW) + ' more on the Call Center&#39;s &quot;Said you&#39;d do&quot; list.</div>' : '')
       + '</div>');
   }
+  // Unlabelled numbers that keep calling are bell-only, never pushed (2026-10-13).
+  const ql = (s.quietLines || []).filter(Boolean);
+  if (ql.length) parts.push('<div class="section"><h2>Repeat unknown numbers</h2>' + ql.map((l) => '<div class="row">' + escapeHtml(l) + '</div>').join('') + '</div>');
   const ra = s.reviewAsks || [];
   if (ra.length) {
     parts.push('<div class="section"><h2>Ready for a review ask (' + ra.length + ')</h2>'
@@ -575,6 +578,8 @@ function sectionsText(sec) {
     for (const i of pr.slice(0, SECTION_SHOW)) { const p = promiseLine(i); out.push('  [' + p.label + '] ' + plain(p.who) + (p.due ? ' · ' + p.due : '') + ' — ' + truncate(p.what, 220) + (p.leadId ? '\n    ' + customerUrl(p.leadId) : '')); }
     out.push('');
   }
+  const ql = (s.quietLines || []).filter(Boolean);
+  if (ql.length) { out.push('REPEAT UNKNOWN NUMBERS'); ql.forEach((l) => out.push('  ' + plain(l))); out.push(''); }
   const ra = s.reviewAsks || [];
   if (ra.length) {
     out.push('READY FOR A REVIEW ASK (' + ra.length + ')');

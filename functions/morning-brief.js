@@ -182,12 +182,14 @@ async function gatherSections({ db, owner, nowMs, log }) {
   // list, one row per person (2026-10-13, audit F1). A failed read is flagged,
   // never an empty section.
   let promiseCheckFailed = false;
+  let quietLines = [];
   const [newLeads, promises, reviewAsks] = await Promise.all([
     soft('new-leads', () => require('./lead-digest').gatherDigestRows(db, nowMs)),
     soft('promises', async () => {
       try {
         const g = await require('./call-center').gatherSweepWithPromises({ db, nowMs });
         if (g.promiseCheckFailed) promiseCheckFailed = true;
+        quietLines = g.quietLines || [];
         return g.items;
       } catch (e) { promiseCheckFailed = true; throw e; }
     }),
@@ -195,7 +197,7 @@ async function gatherSections({ db, owner, nowMs, log }) {
     // run would have (it skips the owner while this absorbs it).
     soft('review-asks', async () => (await require('./review-request-nudge').nudgeUser(db, owner)).dueLeads),
   ]);
-  return { newLeads, promises, reviewAsks, promiseCheckFailed };
+  return { newLeads, promises, reviewAsks, promiseCheckFailed, quietLines };
 }
 
 /** "Brief me" one-liners for the day's appointment leads (cache → Haiku → fallback). */
@@ -306,6 +308,10 @@ async function runMorningBrief(deps) {
   if (resendRejected(response)) {
     log.error('morning_brief_send_rejected', { owner, err: resendErrorMessage(response) });
     return { status: 'rejected', items: brief.items.length };
+  }
+  // The 15:15 sweep skips an unchanged list (audit F7): record what this email listed.
+  if (sections && Array.isArray(sections.promises) && sections.promises.length && sections.promiseCheckFailed !== true) {
+    try { await require('./call-center').stampDigest(db, sections.promises, nowMs, 'brief'); } catch (e) { log.warn('morning_brief_digest_stamp_failed', { err: e && e.message }); }
   }
   log.info('morning_brief_sent', { owner, date: brief.today, items: brief.items.length, sections: brief.sectionCounts });
   return { status: 'sent', items: brief.items.length, emailed: true, sections: brief.sectionCounts };

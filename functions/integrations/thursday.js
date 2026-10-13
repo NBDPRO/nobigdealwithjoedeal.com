@@ -49,6 +49,7 @@ const { enforceRateLimit, clientIp } = require('./upstash-ratelimit');
 const { resendRejected, resendErrorMessage } = require('../resend-guard');
 const T = require('./thursday-logic');
 const PB = require('./thursday-playbooks');
+const PV = require('../ping-volume-logic'); // quiet-hours hold for her own channels (audit F8)
 const AWAY = require('../away-mode-logic');
 const { createLeadWithCustomerId, isAlreadyExists } = require('../customer-id-mint');
 
@@ -409,14 +410,20 @@ async function notifyAll(ref, data, ctx) {
   const sent = (data.notifyState || {});
   const results = {};
   const jobs = [];
+  // Quiet hours (audit F8, 2026-10-13): her own push / email / SMS keep the
+  // 21:00-08:00 ET rule callWatch and the urgent push already keep. A call
+  // flagged urgent (an active leak, a customer in danger: route.urgent) is
+  // never held. A held call is told by callWatch's first run of the morning
+  // (Thursday took it - not reviewed), so nothing is dropped.
+  const hold = PV.holdThursday(ctx.route, ctx.nowMs == null ? Date.now() : ctx.nowMs);
   if (ctx.route.notifyEmail && !(sent.email && sent.email.sentAt)) {
-    jobs.push(['email', () => sendEmail(ctx.cfg, T.buildEmail(ctx.bodyArgs))]);
+    jobs.push(['email', hold ? async () => 'held:quiet-hours' : () => sendEmail(ctx.cfg, T.buildEmail(ctx.bodyArgs))]);
   }
   if (ctx.route.notifyPush && ctx.cfg.pushEnabled && !(sent.push && sent.push.sentAt)) {
-    jobs.push(['push', () => sendPush(ctx.cfg, T.buildPush(ctx.bodyArgs), ctx.call.callId, ctx.route.urgent)]);
+    jobs.push(['push', hold ? async () => 'held:quiet-hours' : () => sendPush(ctx.cfg, T.buildPush(ctx.bodyArgs), ctx.call.callId, ctx.route.urgent)]);
   }
   if (ctx.route.notifySms && !(sent.sms && sent.sms.sentAt)) {
-    jobs.push(['sms', () => sendSms(ctx.cfg, T.buildSmsText(ctx.bodyArgs))]);
+    jobs.push(['sms', hold ? async () => 'held:quiet-hours' : () => sendSms(ctx.cfg, T.buildSmsText(ctx.bodyArgs))]);
   }
   await Promise.all(jobs.map(async ([ch, fn]) => {
     let status;
@@ -428,6 +435,8 @@ async function notifyAll(ref, data, ctx) {
   }));
   if (Object.keys(results).length) await ref.update(results);
 }
+
+exports._test = { notifyAll }; // test seam (tests/ping-volume-2026-10-13.test.js): the quiet-hours hold
 
 // ── Processing trigger ──────────────────────────────────────────────────────
 
