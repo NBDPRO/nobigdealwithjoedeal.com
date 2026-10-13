@@ -44,13 +44,14 @@ const RECIPIENT_DAILY_CAP = 100;              // email/SMS per destination per r
 const RECIPIENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const CONFIRM_REQUESTS_PER_OWNER_DAY = 5;     // confirmation mails one company may trigger per day
 const CONFIRM_REQUESTS_PER_ADDRESS_DAY = 2;   // ... and one destination may receive per day
+const CONFIRM_GLOBAL_DAILY_CAP = 300;          // confirmation mails platform-wide per rolling 24h
 const CONFIRM_TTL_MS = 48 * 60 * 60 * 1000;
 
 const CONFIRMED_COLLECTION = 'alertRecipients';       // {companyId} -> { confirmed: { <key>: {...} } }
 const TOKEN_COLLECTION = 'alertRecipientTokens';      // {sha256(token)} -> pending confirmation
 
 // Deliberately strict: one plain address. No display names, no lists.
-const EMAIL_RE = /^[A-Za-z0-9.!#$%&*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
+const EMAIL_RE = /^[A-Za-z0-9._+-]{1,64}@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
 
 function normEmail(v) {
   if (typeof v !== 'string') return '';
@@ -68,6 +69,20 @@ function normPhone(v) {
   if (digits.length === 10) return '+1' + digits;
   if (digits.length === 11 && digits[0] === '1') return '+' + digits;
   return '';
+}
+
+// One inbox, many spellings: lowercase, drop a +tag, and for Gmail fold the
+// dots and googlemail.com. Used for CAP keys only (never for matching a
+// confirmed address, which is exact).
+function canonicalInbox(email) {
+  const s = (normEmail(email) || String(email || '').toLowerCase()).trim();
+  const at = s.lastIndexOf('@');
+  if (at < 1) return s;
+  let local = s.slice(0, at).replace(/\+.*$/, '');
+  let domain = s.slice(at + 1);
+  if (domain === 'googlemail.com') domain = 'gmail.com';
+  if (domain === 'gmail.com') local = local.replace(/\./g, '');
+  return local + '@' + domain;
 }
 
 function addrKey(email) {
@@ -88,8 +103,12 @@ async function ownerUidFor(companyId, deps) {
     const snap = await _db(deps).collection('companies').doc(String(companyId)).get();
     const oid = snap && snap.exists ? ((snap.data() || {}).ownerId || '') : '';
     if (typeof oid === 'string' && oid) return oid;
-  } catch (_) { /* fall through to the uid-as-tenant key */ }
-  return String(companyId);
+    return String(companyId); // no company doc: a solo operator keyed by uid
+  } catch (_) {
+    // Fail CLOSED: after a hand-off companyId is the FORMER owner's uid, so a
+    // read error must not resolve their inbox. '' = no owner lookup this run.
+    return '';
+  }
 }
 
 // An owner's Auth identity. email is returned ONLY when Auth says verified.
@@ -98,7 +117,7 @@ async function authOwner(companyId, deps) {
     const u = (deps && deps.getAuthUser)
       ? await deps.getAuthUser(String(companyId))
       : await require('firebase-admin/auth').getAuth().getUser(String(companyId));
-    if (!u) return { email: '', phone: '' };
+    if (!u || u.disabled === true) return { email: '', phone: '' }; // lapsed / erased accounts keep emailVerified
     return {
       email: u.emailVerified === true ? normEmail(u.email || '') : '',
       phone: normPhone(u.phoneNumber || ''),
@@ -134,7 +153,8 @@ async function resolveTenantRecipients(companyId, contact, deps) {
   const c = contact && typeof contact === 'object' ? contact : {};
   const cfgEmail = normEmail(c.alertEmail);
   const cfgSms = normPhone(c.alertSms);
-  const owner = await authOwner(await ownerUidFor(companyId, deps), deps);
+  const ownerUid = await ownerUidFor(companyId, deps);
+  const owner = ownerUid ? await authOwner(ownerUid, deps) : { email: '', phone: '' };
   const out = { emails: [], sms: null, ownerEmail: owner.email, ignoredEmail: '', ignoredSms: '' };
 
   if (cfgEmail) {
@@ -174,8 +194,7 @@ async function capRecipients(kind, addresses, opts) {
   const capped = [];
   for (const a of (addresses || [])) {
     if (!a) continue;
-    // One inbox, many spellings: drop a +tag so user+1@ and user+2@ share a bucket.
-    const key = kind === 'sms' ? normPhone(a) || String(a) : (normEmail(a) || String(a).toLowerCase()).replace(/\+[^@]*@/, '@');
+    const key = kind === 'sms' ? normPhone(a) || String(a) : canonicalInbox(a);
     try {
       await enforce('alertRecipient:' + kind, key, limit, windowMs);
       allowed.push(a);
@@ -213,8 +232,8 @@ async function verifiedUserEmail(uid, storedEmail, deps) {
 
 module.exports = {
   RECIPIENT_DAILY_CAP, RECIPIENT_WINDOW_MS,
-  CONFIRM_REQUESTS_PER_OWNER_DAY, CONFIRM_REQUESTS_PER_ADDRESS_DAY, CONFIRM_TTL_MS,
+  CONFIRM_REQUESTS_PER_OWNER_DAY, CONFIRM_REQUESTS_PER_ADDRESS_DAY, CONFIRM_GLOBAL_DAILY_CAP, CONFIRM_TTL_MS,
   CONFIRMED_COLLECTION, TOKEN_COLLECTION,
-  normEmail, normPhone, addrKey, authOwner, ownerUidFor, confirmedKeys,
+  normEmail, normPhone, canonicalInbox, addrKey, authOwner, ownerUidFor, confirmedKeys,
   resolveTenantRecipients, capRecipients, verifiedUserEmail, cleanLabel,
 };

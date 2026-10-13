@@ -77,6 +77,7 @@ exports.alertRecipients = onCall(
     const claims = request.auth.token || {};
     const companyId = String(claims.companyId || uid);
     const ownerUid = await AR.ownerUidFor(companyId);
+    if (!ownerUid) throw new HttpsError('unavailable', 'Could not look up the company owner. Try again in a minute.');
     const isOwner = ownerUid === uid;
     if (!isOwner && claims.role !== 'company_admin') {
       throw new HttpsError('permission-denied', 'Only the owner or a company admin can manage alert contacts');
@@ -112,10 +113,15 @@ exports.alertRecipients = onCall(
     }
     try {
       await enforceRateLimit('alertConfirm:company', companyId, AR.CONFIRM_REQUESTS_PER_OWNER_DAY, AR.RECIPIENT_WINDOW_MS);
-      await enforceRateLimit('alertConfirm:address', contact.email, AR.CONFIRM_REQUESTS_PER_ADDRESS_DAY, AR.RECIPIENT_WINDOW_MS);
+      // Canonical inbox (+tag / Gmail dots folded) so spellings of one inbox
+      // share a bucket, plus a platform-wide daily ceiling.
+      await enforceRateLimit('alertConfirm:address', AR.canonicalInbox(contact.email), AR.CONFIRM_REQUESTS_PER_ADDRESS_DAY, AR.RECIPIENT_WINDOW_MS);
+      await enforceRateLimit('alertConfirm:global', 'all', AR.CONFIRM_GLOBAL_DAILY_CAP, AR.RECIPIENT_WINDOW_MS);
     } catch (e) {
       if (e && e.rateLimited) throw new HttpsError('resource-exhausted', 'Too many confirmation emails today. Try again tomorrow.');
-      logger.warn('alertRecipients: limiter unavailable — sending', { err: e && e.message });
+      // Fail CLOSED: a missed confirmation mail is cheap, a flood is not.
+      logger.warn('alertRecipients: limiter unavailable — not sending', { err: e && e.message });
+      throw new HttpsError('unavailable', 'Could not send the confirmation email right now. Try again in a few minutes.');
     }
 
     const token = mintToken();
@@ -133,10 +139,10 @@ exports.alertRecipients = onCall(
         subject: 'Confirm this address for new-lead alerts',
         // Email category: TRANSACTIONAL — a one-time confirmation the address's
         // own owner is asked to click. Carries no tenant-authored text.
-        text: `The NBD Pro account ${owner.email} asked to send new-lead alerts to this address.\n\n`
+        text: 'An NBD Pro account owner asked to send new-lead alerts to this address.\n\n'
           + `To allow it, open this link and press Confirm (valid 48 hours):\n${url}\n\n`
           + 'If you did not expect this, ignore this email. Nothing is sent to this address until it is confirmed.',
-        html: `<div style="font-family:Arial,sans-serif;max-width:520px;color:#12223d"><p>The NBD Pro account <strong>${esc(owner.email)}</strong> asked to send new-lead alerts to this address.</p>`
+        html: '<div style="font-family:Arial,sans-serif;max-width:520px;color:#12223d"><p>An NBD Pro account owner asked to send new-lead alerts to this address.</p>'
           + `<p><a href="${esc(url)}" style="background:#bd5728;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;display:inline-block">Review and confirm</a></p>`
           + '<p style="font-size:12px;color:#666">The link is valid for 48 hours. If you did not expect this, ignore this email. Nothing is sent to this address until it is confirmed.</p></div>',
       });

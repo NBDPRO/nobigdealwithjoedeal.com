@@ -44,6 +44,7 @@ const { logger } = require('firebase-functions/v2');
 const { FieldPath, getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 const { Resend } = require('resend');
+const AR = require('./alert-recipients');
 const stageRoles = require('./stage-roles');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -432,9 +433,15 @@ exports.anniversaryAutoTouch = onSchedule(
           continue;
         }
 
+        // 2026-10-13: users/{uid}.email is user-writable; send only to the
+        // verified Auth email, and cap a destination per day across tenants.
+        const toAddr = await AR.verifiedUserEmail(uid, user.email);
+        if (!toAddr) { skippedOptOut++; continue; }
+        const capAddr = await AR.capRecipients('digest', [toAddr]);
+        if (!capAddr.allowed.length) { skippedOptOut++; continue; }
         await resend.emails.send({
           from: fromAddress,
-          to: user.email,
+          to: toAddr,
           subject,
           html,
         });

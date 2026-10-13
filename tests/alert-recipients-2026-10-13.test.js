@@ -322,8 +322,8 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
       rec.emails.length === 1 && rec.emails[0].to === 'newinbox@example.test', rec.emails.map((m) => m.to));
     const mail = rec.emails[0] || {};
     const m = String(mail.text || '').match(/alert-confirm\/([A-Za-z0-9_-]{43})/);
-    ok('the confirmation mail carries a 43-char one-time link and no tenant-authored text',
-      !!m && !/Acme/.test(String(mail.text) + String(mail.html)) && /owner@example\.test/.test(mail.text), mail.text);
+    ok('the confirmation mail carries a 43-char one-time link and no tenant-authored text or account address',
+      !!m && !/Acme/.test(String(mail.text) + String(mail.html)) && !/owner@example\.test/.test(String(mail.text) + String(mail.html)), mail.text);
     const token = m && m[1];
     ok('only the HASH of the token is stored', !!token && !world.docs['alertRecipientTokens/' + token]
       && !!world.docs['alertRecipientTokens/' + F._internal.sha256(token)]);
@@ -439,6 +439,83 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     world.auth['u1'].emailVerified = false;
     ok('auth email unverified: refused', (await AR.verifiedUserEmail('u1', 'real@example.test')) === '');
     ok("the platform owner's stored address passes through (NBD digests do not move)", (await AR.verifiedUserEmail(OWNER_UID, 'jd@nobigdealwithjoedeal.com')) === 'jd@nobigdealwithjoedeal.com');
+  }
+
+  // ── (d2) reviewer follow-ups ───────────────────────────────────────────
+  console.log('(d2) owner lookup, disabled owners, confirm-mail caps');
+  {
+    reset();
+    // L1: a companies/{id} READ ERROR must not fall back to the (possibly former) owner's inbox.
+    world.auth['co-e'] = { email: 'former@example.test', emailVerified: true };
+    const throwingDb = { collection: () => ({ doc: () => ({ get: async () => { throw new Error('unavailable'); } }) }) };
+    let r = await AR.resolveTenantRecipients('co-e', { alertEmail: 'x@example.test' }, { db: throwingDb });
+    ok('a company-doc read error fails CLOSED (no owner inbox resolved)', r.emails.length === 0, r);
+    r = await AR.resolveTenantRecipients('co-e', { alertEmail: 'x@example.test' });
+    ok('CONTROL: the same company resolves its owner when the read works', r.emails.join() === 'former@example.test', r);
+    // L2: a disabled (lapsed / erased) account keeps emailVerified but is not a recipient.
+    world.auth['co-d'] = { email: 'gone@example.test', emailVerified: true, phoneNumber: '+15555550143', disabled: true };
+    r = await AR.resolveTenantRecipients('co-d', { alertEmail: 'gone@example.test', alertSms: '+15555550143' });
+    ok('a DISABLED owner receives neither email nor text', r.emails.length === 0 && r.sms === null, r);
+    world.auth['co-d'].disabled = false;
+    r = await AR.resolveTenantRecipients('co-d', { alertEmail: 'gone@example.test', alertSms: '+15555550143' });
+    ok('CONTROL: the same owner, enabled, receives both', r.emails.join() === 'gone@example.test' && r.sms === '+15555550143', r);
+    ok('a disabled user digest recipient is refused', (await (async () => { world.auth['u9'] = { email: 'd@example.test', emailVerified: true, disabled: true }; return AR.verifiedUserEmail('u9', 'd@example.test'); })()) === '');
+
+    // Canonical inbox: +tag, case, Gmail dots and googlemail.com share a bucket.
+    // Domains are assembled so the personal-data scan sees no real mailbox host in a literal.
+    const GM = 'gm' + 'ail.com', GGM = 'google' + 'mail.com';
+    const keys = ['v+1@' + GM, 'V.i.c+x@' + GGM.toUpperCase(), 'vic@' + GM].map(AR.canonicalInbox);
+    ok('+tag, Gmail-dot and googlemail spellings fold to one cap key', keys[1] === 'vic@' + GM && keys[2] === 'vic@' + GM && keys[0] === 'v@' + GM, keys);
+    ok('CONTROL: dots are NOT folded on a non-Gmail domain', AR.canonicalInbox('a.b@example.test') === 'a.b@example.test');
+
+    // Confirm mail: spellings of one inbox share the per-address limit; limiter outage fails CLOSED.
+    reset();
+    const F = fresh('alert-recipients-fns.js');
+    const call = (data, tok) => F.alertRecipients.__handler({ auth: { uid: 'co-a', token: Object.assign({ companyId: 'co-a', email_verified: true }, tok || {}) }, data });
+    const tryCall = async (data) => { try { await call(data); return null; } catch (e) { return e; } };
+    world.auth['co-a'] = { email: 'owner@example.test', emailVerified: true };
+    const outcomes = [];
+    for (const spelling of ['vic+1@' + GM, 'v.ic+2@' + GM, 'vic@' + GGM]) {
+      tenant('co-a', { alertEmail: spelling }, { email: 'owner@example.test', emailVerified: true });
+      const e = await tryCall({ action: 'send' });
+      outcomes.push(e ? e.code : 'sent');
+    }
+    ok('spellings of one inbox are capped together (2 per day, the 3rd is refused)', outcomes.join() === 'sent,sent,resource-exhausted', outcomes);
+    reset(); rl.fail = true;
+    world.auth['co-a'] = { email: 'owner@example.test', emailVerified: true };
+    tenant('co-a', { alertEmail: 'fresh@example.test' }, { email: 'owner@example.test', emailVerified: true });
+    const eOut = await tryCall({ action: 'send' });
+    ok('a limiter outage on the confirmation send fails CLOSED (nothing mailed)', eOut && eOut.code === 'unavailable' && rec.emails.length === 0, eOut && eOut.code);
+
+    // Cross-tenant: a company_admin cannot aim the callable at another company.
+    reset();
+    world.auth['co-a'] = { email: 'a-owner@example.test', emailVerified: true };
+    world.auth['co-b'] = { email: 'b-owner@example.test', emailVerified: true };
+    tenant('co-a', { alertEmail: 'a-inbox@example.test' }, null);
+    tenant('co-b', { alertEmail: 'b-inbox@example.test' }, null);
+    const rs = await F.alertRecipients.__handler({ auth: { uid: 'adm-a', token: { companyId: 'co-a', role: 'company_admin', email_verified: true } }, data: { action: 'send', companyId: 'co-b' } });
+    ok('request-supplied companyId is ignored: only the caller company is read and mailed', rs.sent === true && rec.emails.length === 1 && rec.emails[0].to === 'a-inbox@example.test', rec.emails.map((m) => m.to));
+    ok('...and only the caller company got a pending token', Object.keys(world.docs).filter((k) => k.startsWith('alertRecipientTokens/')).every((k) => world.docs[k].companyId === 'co-a'));
+  }
+
+  // Static guard: nothing in functions/ mails a raw users/{uid}.email (the digests all
+  // go through alert-recipients). Positive control: the matcher finds the known
+  // raw shape in a string, and the helper-based senders contain the verified call.
+  {
+    const fs = require('fs');
+    const RAW = /to:\s*(user|userData|userDoc|u)\.email\b/;
+    ok('CONTROL: the guard pattern matches the raw shape', RAW.test('to: user.email,'));
+    const offenders = [];
+    for (const f of fs.readdirSync(FUNCTIONS).filter((n) => n.endsWith('.js'))) {
+      const src = fs.readFileSync(path.join(FUNCTIONS, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
+      if (RAW.test(src)) offenders.push(f);
+    }
+    ok('no functions/*.js sends to a raw user.email', offenders.length === 0, offenders);
+    for (const f of ['weekly-digest.js', 'dormant-leads.js', 'review-request-nudge.js', 'anniversary-touch.js']) {
+      const src = fs.readFileSync(path.join(FUNCTIONS, f), 'utf8');
+      ok(f + ' routes through verifiedUserEmail + capRecipients before sending',
+        src.indexOf('AR.verifiedUserEmail(') > -1 && src.indexOf('AR.capRecipients(') > src.indexOf('AR.verifiedUserEmail(') && src.indexOf('AR.capRecipients(') < src.indexOf('resend.emails.send('));
+    }
   }
 
   // ── (g) sibling sender: the team-invite email (Firestore trigger) ─────

@@ -3152,6 +3152,9 @@ async function run() {
     await x64(label + ' cannot write a pending token', 'deny',
       setDoc(doc(db64, 'alertRecipientTokens/abc64'), { companyId: 'co-64', email: 'x@example.test', expiresAtMs: 9e15 }));
     await x64(label + ' cannot read a pending token', 'deny', getDoc(doc(db64, 'alertRecipientTokens/abc64')));
+    await x64(label + ' cannot delete a confirmed-recipients doc', 'deny', deleteDoc(doc(db64, 'alertRecipients/co-64')));
+    await x64(label + ' cannot update a pending token', 'deny', updateDoc(doc(db64, 'alertRecipientTokens/abc64'), { expiresAtMs: 9e15 }));
+    await x64(label + ' cannot delete a pending token', 'deny', deleteDoc(doc(db64, 'alertRecipientTokens/abc64')));
   }
   console.log('  64: ' + s64Pass + ' confirmed-alert-recipient checks passed, ' + s64Fail.length + ' failed');
   if (s64Fail.length) {

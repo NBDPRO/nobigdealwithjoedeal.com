@@ -83,6 +83,7 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 // domain, so who may receive it and how many go out are bounded server-side.
 const SHARE_EMAIL_CALLER_DAILY_CAP = 40;      // per signed-in caller per rolling day
 const SHARE_EMAIL_RECIPIENT_DAILY_CAP = 5;    // per destination address per rolling day, all tenants
+const SHARE_EMAIL_GLOBAL_DAILY_CAP = 1000;    // share emails platform-wide per rolling day (backstop)
 const SHARE_EMAIL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // Tenant-written text that reaches an email Subject or greeting (shared helper).
@@ -118,6 +119,11 @@ async function authorizeShareRecipient(db, { uid, token, target, subjectLeadEmai
   const limiter = enforce || require('./rate-limit').enforceRateLimit;
   try {
     await limiter('reportShareEmail:caller', String(uid), SHARE_EMAIL_CALLER_DAILY_CAP, SHARE_EMAIL_WINDOW_MS);
+  } catch (e) {
+    if (e && e.rateLimited) return { ok: false, reason: 'daily-limit' };
+  }
+  try {
+    await limiter('reportShareEmail:global', 'all', SHARE_EMAIL_GLOBAL_DAILY_CAP, SHARE_EMAIL_WINDOW_MS);
   } catch (e) {
     if (e && e.rateLimited) return { ok: false, reason: 'daily-limit' };
   }

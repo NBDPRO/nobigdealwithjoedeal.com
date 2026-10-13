@@ -37,7 +37,12 @@ bounded the volume and left the recipient unverified. Decision: Jo, "Option B",
    per company and per destination per day) and the token page
    `/alert-confirm/<token>` (`confirmAlertRecipient`; GET writes nothing, POST
    consumes the token; mirrors `/unsubscribe`). The confirmation mail carries
-   no tenant-authored text.
+   no tenant-authored text and no account address; its limits key on the
+   canonical inbox (`+tag`, Gmail dots and googlemail folded), add a
+   platform-wide daily ceiling, and fail CLOSED on a limiter error. The owner
+   is `companies/{id}.ownerId` (a company keeps its id across an owner
+   hand-off), a disabled (lapsed/erased) Auth account is never a recipient, and
+   an owner lookup error fails closed.
 5. **`createReportShareToken`**: the email is sent only when the caller's token
    has `email_verified`, and only to the caller's own verified email, the
    subject lead's address, or an address on a lead/customer record in the
@@ -46,7 +51,7 @@ bounded the volume and left the recipient unverified. Decision: Jo, "Option B",
    stripped of control/bidi/zero-width characters and length-bounded. The link
    is still minted; the response carries `emailBlocked` with the reason.
 6. **User-scoped digests** (`weekly-digest`, `dormant-leads`,
-   `review-request-nudge`): `users/{uid}.email` is user-writable, so these send
+   `review-request-nudge`, `anniversary-touch`): `users/{uid}.email` is user-writable, so these send
    only to the user's verified Auth email (the platform owner's stored address
    passes through; NBD's digests do not move) and honour the per-recipient cap.
 7. **`funnel-recovery`**: a visitor-typed address is mailed at most
@@ -74,7 +79,7 @@ bounded the volume and left the recipient unverified. Decision: Jo, "Option B",
 
 ## Proof
 
-`tests/alert-recipients-2026-10-13.test.js` (64 checks) executes the real
+`tests/alert-recipients-2026-10-13.test.js` (85 checks) executes the real
 modules with Resend/Twilio/push/Auth/Firestore stubbed at `Module._load`.
 Every absence assertion has a positive control (same fixture, one input
 changed, DOES send). Break tests (mutate the fix, confirm which assertion
@@ -89,9 +94,23 @@ caller cap or the recipient cap each redden exactly the matching share-link
 assertion; GET-confirms reddens "GET writes NOTHING"; token-not-consumed
 reddens "single-use"; any-member-may-send reddens the permission check;
 send-uses-request-email reddens "ONLY to the address on the company profile".
-`tests/firestore-rules.test.js` section 64: 16 checks (control allow + owner /
+`tests/firestore-rules.test.js` section 64: 25 checks (control allow + owner /
 company_admin / platform admin denied on both collections); opening the
 collection reddens exactly the nine alertRecipients checks.
+
+## Review follow-ups left open (design decisions)
+
+- A company_admin, not only the owner, can request a confirmation for the
+  configured alert address; the click is by whoever holds that mailbox. Owner
+  only, or owner notification + a revoke link, is a product call.
+- The share-link tenant-record rule (c) is satisfiable by a hostile tenant that
+  creates a lead with the victim's address; it is bounded by the caller,
+  per-recipient and platform-wide caps, and is the same residual
+  `createSignRequest` accepts.
+- Per-destination caps are shared across tenants, so one tenant can use up a
+  destination's daily share/invite budget.
+- Unverified-Auth-email senders with fixed copy (welcome, dunning, erasure
+  confirmation) are outside this policy.
 
 ## Not covered / follow-ups
 
