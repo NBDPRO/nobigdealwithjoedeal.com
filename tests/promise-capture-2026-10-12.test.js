@@ -302,7 +302,9 @@ const TODAY = '2026-10-12';
   ok('hide never swallows a promise: groups the needs-you rule dropped come back when the call carries an open promise',
     /never swallow it[\s\S]{0,900}p\.kind !== 'promise' \|\| p\.done === true\) return;[\s\S]{0,400}g\.calls\.push\(c\)/.test(home));
   ok('Today: a call promise row swaps Handled for Kept it / Move', /r\.promise \? kept :/.test(home));
-  ok('Today: Handled on a call row opens the sheet (forced next action)', /if \(a === 'handled'\) \{ handleViaSheet\(key\)/.test(home));
+  // UX walk 2026-10-13 H3: Handled is one tap with an Undo; the sheet is the
+  // secondary "I promised something".
+  ok('Today: "I promised something" on a call row opens the sheet', /if \(a === 'promised'\) \{ handleViaSheet\(key\)/.test(home));
   ok('Today: waiting actions are Nudge / Still waiting / Mark dead', /pbtn\('pnudge'/.test(home) && /pbtn\('pstill'/.test(home) && /pbtn\('pdead'/.test(home));
   ok('the sheet: Nothing owed only in handle mode, one close path, no inline handlers', /S\.mode === 'handle'\) h \+= chipBtn\('kind', 'none'/.test(ui) && !/\son[a-z]+=/i.test(ui.replace(/\/\/.*$/gm, '')) && !/<script/i.test(ui));
   ok('Nudge only ever hands off to the phone composer (NBDPhoneShare), never a send call', /NBDPhoneShare\.share\(opts\)/.test(ui) && !/phoneTextAction|sendSms|sendEmail|fetch\(/.test(ui));

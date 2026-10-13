@@ -268,15 +268,18 @@
   }
 
   function chipBtn(act, val, label, on, extra) {
-    return '<button type="button" class="pr-chip' + (on ? ' is-on' : '') + (extra ? ' ' + extra : '') + '" data-pr-act="' + act + '" data-pr-val="' + esc(val) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + esc(label) + '</button>';
+    return '<button type="button" class="pr-chip' + (on ? ' is-on' : '') + (extra ? ' ' + extra : '') + '" data-pr-act="' + act + '" data-pr-val="' + esc(val) + '" aria-pressed="' + (on ? 'true' : 'false') + '"' + (S && S.busy ? ' disabled' : '') + '>' + esc(label) + '</button>';
   }
 
   function stepKind() {
     var h = '<div class="pr-kinds">';
-    PL.KIND_KEYS.forEach(function (k) { h += chipBtn('kind', k, PL.KINDS[k].label, false); });
-    if (S.mode === 'handle') h += chipBtn('kind', 'none', 'Nothing owed', false, 'pr-none');
+    PL.KIND_KEYS.forEach(function (k) { h += chipBtn('kind', k, PL.KINDS[k].label, false, S.busy ? 'is-busy' : ''); });
+    if (S.mode === 'handle') h += chipBtn('kind', 'none', S.busy ? 'Saving\u2026' : 'Nothing owed', false, 'pr-none' + (S.busy ? ' is-busy' : ''));
     h += '</div>';
     if (S.mode === 'handle') h += '<div class="pr-note">Handling a call asks what you owe. Pick one, or Nothing owed.</div>';
+    // The error has to live on THIS step too: Nothing owed fails here, on the
+    // chips, not on the detail step (UX walk H3: #prErr existed only on step 2).
+    h += '<div class="pr-err" id="prErr" role="alert" aria-live="polite">' + esc(S.err || '') + '</div>';
     return h;
   }
   function stepDetail() {
@@ -340,6 +343,7 @@
     if (S) S.err = m || '';
     var e = doc.getElementById('prErr');
     if (e) e.textContent = m || '';
+    else if (S) paint();
   }
 
   function onInput(ev) {
@@ -382,7 +386,13 @@
         if (!(res && res.ok)) throw new Error('promise');
         mirrorSaved(res, { callId: primary, leadId: st.leadId || (st.lead && st.lead.id) || '', kind: st.kind, due: due, why: why, waitingOn: st.waitingOn });
         // The rest of that person's open calls are covered by this promise.
-        for (var i = 1; i < st.callIds.length; i++) { await callable('callCenterAction', { id: st.callIds[i], action: 'handled' }); markHandledLocal(st.callIds[i]); }
+        // (parallel and allSettled: one failing write must not stop the others,
+        // and the promise itself is already saved - say what did not close)
+        var rest = st.callIds.slice(1);
+        var restRes = await Promise.allSettled(rest.map(function (id) { return callable('callCenterAction', { id: id, action: 'handled' }); }));
+        var restBad = 0;
+        restRes.forEach(function (x, i) { if (x.status === 'fulfilled') markHandledLocal(rest[i]); else restBad++; });
+        if (restBad) toast('Promise saved, but ' + restBad + ' other call' + (restBad === 1 ? ' was' : 's were') + " not marked handled - they are still listed", 'error');
       } else {
         var built = PL.buildTask({
           kind: st.kind, dueYmd: due, why: why, todayYmd: today, uid: uid(), source: 'customer',
@@ -404,13 +414,25 @@
   }
 
   async function nothingOwed() {
-    if (!S || S.busy || !S.callIds.length) { close(); return; }
+    if (!S) return;
+    // A second tap while the writes are in flight does nothing: it used to close
+    // the sheet mid-save, leaving a later failure with nowhere to show.
+    if (S.busy) return;
+    if (!S.callIds.length) { close(); return; }
     var st = S;     // see save(): the sheet can be closed while this is in flight
-    st.busy = true;
-    try {
-      for (var i = 0; i < st.callIds.length; i++) { await callable('callCenterAction', { id: st.callIds[i], action: 'handled' }); markHandledLocal(st.callIds[i]); }
-    } catch (e) {
-      if (S === st) { st.busy = false; setErr(SAVE_FAIL); }
+    st.busy = true; st.err = '';
+    paint();
+    var ids = st.callIds.slice();
+    var res = await Promise.allSettled(ids.map(function (id) { return callable('callCenterAction', { id: id, action: 'handled' }); }));
+    var left = [];
+    res.forEach(function (x, i) { if (x.status === 'fulfilled') markHandledLocal(ids[i]); else left.push(ids[i]); });
+    if (left.length) {
+      // Retry asks only for what did not save.
+      st.callIds = left;
+      st.busy = false;
+      try { if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); } catch (_) { /* best effort */ }
+      if (S === st) { st.err = (ids.length - left.length) + ' of ' + ids.length + " saved - tap Nothing owed again for the rest. Check your connection."; paint(); }
+      else toast(SAVE_FAIL, 'error');
       return;
     }
     var done = st.onDone;
@@ -425,6 +447,7 @@
     var act = t.getAttribute('data-pr-act'), val = t.getAttribute('data-pr-val') || '';
     if (act === 'close') { close(); return; }
     if (act === 'back') { S.kind = ''; S.err = ''; paint(); return; }
+    if (S.busy && (act === 'kind' || act === 'who' || act === 'due' || act === 'back')) return;
     if (act === 'kind') {
       if (val === 'none') { nothingOwed(); return; }
       if (!PL.isKind(val)) return;

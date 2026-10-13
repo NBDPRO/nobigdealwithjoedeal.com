@@ -246,11 +246,11 @@
   function ucalls(r, ro) {
     return (r.phoneCalls || []).map(function (u) {
       var why = [u.urgent ? '<b class="tp-hot">urgent</b>' : '', u.missed ? 'missed call' : '', u.text && !u.missed ? 'texts' : '', u.count > 1 ? u.count + ' open' : ''].filter(Boolean).join(' · ');
-      var txt = 'Also an unfiled call from this number' + (why ? ' · ' + why : '') + (u.summary ? ' · ' + esc(u.summary) : '');
+      var txt = (u.stray ? 'Another call from them' : 'Also an unfiled call from this number') + (why ? ' · ' + why : '') + (u.summary ? ' · ' + esc(u.summary) : '');
       if (u.promise) txt += ' · Promised: ' + esc(u.promise.text);
       if (u.resurfaced) txt += ' · <b class="tp-hot">' + (u.resurfaced === 'lead' ? 'hidden number matches a customer' : 'hidden number is calling a lot') + '</b>';
       var canRehide = !ro && u.resurfaced && u.phone && (((w._userClaims || {}).role || '') !== 'sales_rep');
-      var acts = (canRehide ? btn('rehide', u.key, 'Keep hidden') : '') + (ro ? '' : (u.promise ? pbtn('ckept', u.key, u.promise.callId, '✓ Kept it', 'tp-go') + pbtn('cmove', u.key, u.promise.callId, 'Move') : btn('handled', u.key, '✓ Handled', 'tp-go')));
+      var acts = (canRehide ? btn('rehide', u.key, 'Keep hidden') : '') + (ro ? '' : (u.promise ? pbtn('ckept', u.key, u.promise.callId, '✓ Kept it', 'tp-go') + pbtn('cmove', u.key, u.promise.callId, 'Move') : btn('handled', u.key, '✓ Handled', 'tp-go') + btn('promised', u.key, 'I promised something')));
       return '<div class="tp-sub tp-ucall" data-tp-ucall="' + esc(u.key) + '">' + txt + (acts ? '<div class="tp-acts">' + acts + '</div>' : '') + '</div>';
     }).join('');
   }
@@ -281,7 +281,7 @@
       if (r.resurfaced) sub += (sub ? ' · ' : '') + '<b class="tp-hot">' + (r.resurfaced === 'lead' ? 'hidden number matches a customer' : 'hidden number is calling a lot') + '</b>';
       if (chip) sub += (sub ? ' · ' : '') + '<span class="cl-chip cl-chip-' + chip.tone + '" title="' + esc(chip.title) + '">🏷 ' + esc(chip.text) + '</span>';
       var canLabel = !ro && r.phone && (((w._userClaims || {}).role || '') !== 'sales_rep');
-      var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + (canLabel && r.resurfaced ? btn('rehide', r.key, 'Keep hidden') : '') + (canLabel ? btn('label', r.key, '🏷 Label') : '') + (r.promise ? kept : (ro ? '' : btn('handled', r.key, '✓ Handled', 'tp-go')));
+      var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + (canLabel && r.resurfaced ? btn('rehide', r.key, 'Keep hidden') : '') + (canLabel ? btn('label', r.key, '🏷 Label') : '') + (r.promise ? kept : (ro ? '' : btn('handled', r.key, '✓ Handled', 'tp-go') + btn('promised', r.key, 'I promised something')));
       return row(r.key, esc(r.name || fmtPhone(r.phone) || 'Unknown caller'), sub + ucalls(r, ro), acts);
     });
     // Promises (2026-10-12): each one listed with its why and its miss count;
@@ -316,7 +316,10 @@
     var pr = p.promised.map(function (r) {
       var bits = r.tasks.map(function (t) { return esc(t.text || t.title || 'Task'); }).concat(r.promises.map(function (s) { return 'You said: ' + esc(s); }));
       var when = r.overdue ? '<b class="tp-hot">overdue</b>' : (r.dueYmd ? 'due today' : 'promised');
-      var acts = (ro ? '' : btn('done', r.key, '✓ Done', 'tp-go') + btn('tomorrow', r.key, 'Tomorrow')) + link(custUrl(r.leadId), 'Open');
+      // Label by what it closes (UX walk M3): with another call riding in the
+      // row, Done must not read as "this person is done".
+      var doneLabel = (r.phoneCalls || []).length ? (r.tasks.length ? '✓ Task done' : '✓ Call handled') : '✓ Done';
+      var acts = (ro ? '' : btn('done', r.key, doneLabel, 'tp-go') + btn('tomorrow', r.key, 'Tomorrow')) + link(custUrl(r.leadId), 'Open');
       return row(r.key, esc(r.name), when + (bits.length ? ' · ' + bits.slice(0, 3).join(' · ') : '') + ucalls(r, ro), acts);
     });
     // Estimate follow-ups: the buttons are estimate-followups.js's own
@@ -461,9 +464,7 @@
     if (!r) return;
     var T = w.NBDTasks;
     var jobs = [];
-    if (kind === 'handled') {
-      r.callIds.forEach(function (id) { jobs.push(callable('callCenterAction', { id: id, action: 'handled' })); });
-    } else if (kind === 'done') {
+    if (kind === 'done') {
       r.tasks.forEach(function (t) { jobs.push(T.setDone(r.leadId, t.id).then(function (ok) { if (!ok) throw new Error('task'); })); });
       var withTask = new Set(r.tasks.map(function (t) { return t.id; }));
       r.callIds.forEach(function (id) {
@@ -492,7 +493,64 @@
       toast("Couldn't save that — check your connection and tap it again", 'error');
       return;
     }
-    if (kind === 'handled' || r.callIds && r.callIds.length) { try { if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); } catch (_) { /* strip refresh is best-effort */ } }
+    if (r.callIds && r.callIds.length) { try { if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); } catch (_) { /* strip refresh is best-effort */ } }
+  }
+
+  // ── Handled: one tap, an Undo, and a failure that is told (UX walk H3) ────
+  // Home's rows and the Call Center's own list are different objects for the
+  // same call; both are patched at once so the person leaves every list, and a
+  // failed write puts the call back.
+  function callObjs(id) {
+    var out = [], HAn = w.NBDHomeAttention, rows = (HAn && HAn.lastRows) || [];
+    for (var i = 0; i < rows.length; i++) if (rows[i] && (rows[i].id === id || rows[i].id === 'text:' + id)) out.push(rows[i]);
+    var cc = w.NBDCallCenter && w.NBDCallCenter._state && w.NBDCallCenter._state.calls;
+    if (cc) for (var j = 0; j < cc.length; j++) if (cc[j] && cc[j].id === id && out.indexOf(cc[j]) === -1) out.push(cc[j]);
+    return out;
+  }
+  function mirrorCall(id, at) { callObjs(id).forEach(function (c) { c.handledAtMs = at; }); }
+  function refreshStrip() { try { if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); } catch (_) { /* strip refresh is best-effort */ } }
+  var UNDO_MS = 6000;
+  function undoToast(message, fn) {
+    if (typeof w.showToast === 'function') w.showToast({ message: message, type: 'success', duration: UNDO_MS, undoAction: fn });
+  }
+  var handling = {};   // row key -> true while its writes are in flight (a double tap is ignored)
+  async function setCalls(ids, action) {
+    var res = await Promise.allSettled(ids.map(function (id) { return callable('callCenterAction', { id: id, action: action }); }));
+    var okIds = [], badIds = [];
+    ids.forEach(function (id, i) { (res[i].status === 'fulfilled' && res[i].value && res[i].value.ok !== false ? okIds : badIds).push(id); });
+    return { ok: okIds, bad: badIds };
+  }
+  async function handleNow(key) {
+    var r = findRow(key);
+    if (!r || !r.callIds || !r.callIds.length || handling[key]) return;
+    handling[key] = true;
+    var ids = r.callIds.slice();
+    var who = r.name || fmtPhone(r.phone) || 'this caller';
+    var at = Date.now();
+    markHandled(key);
+    ids.forEach(function (id) { mirrorCall(id, at); });
+    render();
+    var res;
+    try { res = await setCalls(ids, 'handled'); } finally { delete handling[key]; }
+    if (res.bad.length) {
+      res.bad.forEach(function (id) { mirrorCall(id, null); });
+      unmarkHandled(key);
+      render();
+      toast(ids.length > 1
+        ? 'Only ' + res.ok.length + ' of ' + ids.length + " calls saved - tap Handled again for the rest"
+        : "Couldn't save that - check your connection and tap it again", 'error');
+      refreshStrip();
+      return;
+    }
+    refreshStrip();
+    undoToast('Handled ' + who + (ids.length > 1 ? ' (' + ids.length + ' calls)' : ''), async function () {
+      var back = await setCalls(ids, 'unhandled');
+      back.ok.forEach(function (id) { mirrorCall(id, null); });
+      unmarkHandled(key);
+      render();
+      if (back.bad.length) toast("Couldn't undo that for " + back.bad.length + ' of ' + ids.length + ' - open the Call Center to reopen it', 'error');
+      refreshStrip();
+    });
   }
 
   doc.addEventListener('click', function (ev) {
@@ -531,8 +589,10 @@
     if (/^(pkept|pmove|pdead|pstill|pnudge|ckept|cmove)$/.test(a)) { promiseAct(a, key, t.getAttribute('data-tp-id') || ''); return; }
     if (a === 'label') { openLabel(key); return; }
     if (a === 'rehide') { rehide(key); return; }
-    // Handling a call asks what Jo owes (the promise sheet); Nothing owed is the old Handled.
-    if (a === 'handled') { handleViaSheet(key); return; }
+    // Handled is one tap with an Undo (UX walk H3); "I promised something" is
+    // the secondary: it opens the promise sheet.
+    if (a === 'handled') { handleNow(key).catch(function (e) { console.warn('[today] handled failed', e); }); return; }
+    if (a === 'promised') { handleViaSheet(key); return; }
     act(a, key).catch(function (e) { console.warn('[today] action failed', e); });
   });
 
@@ -541,7 +601,7 @@
   // blocking script with no byte headroom: dashboard-boot-budget). This
   // deferred file always runs before the Call Center / customer page load it.
   if (w.ScriptLoader && w.ScriptLoader.bundles && !w.ScriptLoader.bundles.promise) {
-    w.ScriptLoader.bundles.promise = ['css/promise.css?v=1', 'js/promise-logic.js?v=2', 'js/promise-ui.js?v=2'];
+    w.ScriptLoader.bundles.promise = ['css/promise.css?v=1', 'js/promise-logic.js?v=2', 'js/promise-ui.js?v=3'];
   }
   var promiseLoad = null;
   function ensurePromise() {
@@ -559,7 +619,7 @@
     var r = findRow(key);
     if (!r) return;
     var ok = await ensurePromise();
-    if (!ok || !w.NBDPromise) { act('handled', key).catch(function (e) { console.warn('[today] action failed', e); }); return; }
+    if (!ok || !w.NBDPromise) { toast("Couldn't load the promise tools - try again in a moment", 'error'); return; }
     w.NBDPromise.openSheet({
       mode: 'handle', name: r.name, leadId: r.leadId, lead: leadOf(r.leadId), callIds: r.callIds.slice(),
       summary: r.summary, why: (r.said && r.said[0]) || '',
