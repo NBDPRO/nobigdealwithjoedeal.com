@@ -63,9 +63,11 @@ function mkDb(S) {
     doc: (p) => pathDoc(p),
     getAll: async (...r) => Promise.all(r.map((x) => x.get())),
     collectionGroup(n) {
-      const x = { where: () => x, get: async () => {
+      const f = [];
+      const x = { where: (k, op, v) => { f.push([k, op, v]); (S.whereLog = S.whereLog || []).push([n, k, op, v]); return x; }, get: async () => {
         if (S.failTasks) throw new Error('simulated tasks outage');
         const docs = Object.keys(S.docs).map((p) => { const m = /^leads\/([^/]+)\/tasks\/([^/]+)$/.exec(p); return m && n === 'tasks' ? { p, leadId: m[1], id: m[2] } : null; }).filter(Boolean)
+          .filter((d) => f.every(([k, op, v]) => (op === '==' ? S.docs[d.p][k] === v : true)))
           .map((d) => ({ id: d.id, data: () => S.docs[d.p], ref: { parent: { parent: { id: d.leadId } } } }));
         return { docs, size: docs.length, forEach: (fn) => docs.forEach(fn) };
       } };
@@ -112,7 +114,8 @@ const newState = () => ({ docs: {}, cols: { phone_calls: [], phone_text_days: []
   // ═══ 3. dueItems / duePeople ═════════════════════════════════════════
   console.log('\n3. who is owed something');
   const leads = new Map([['L1', lead()], ['L2', lead({ firstName: 'Sam', lastName: 'Ray', phoneDigits: '5135550102' })], ['L3', lead({ firstName: 'Spam', lastName: 'Bot', phoneDigits: '5135550103' })],
-    ['L4', lead({ firstName: 'Del', deleted: true })], ['L5', lead({ firstName: 'Foreign', userId: 'someoneElse', companyId: 'someoneElse' })]]);
+    ['L4', lead({ firstName: 'Del', deleted: true })], ['L5', lead({ firstName: 'Foreign', userId: 'someoneElse', companyId: 'someoneElse' })],
+    ['L6', lead({ firstName: 'Rep', lastName: 'Owned', userId: 'aRepUid', companyId: OWNER, phoneDigits: '5135550106' })]]);
   const people = (tasks, o) => PCL.duePeople(tasks, leads, Object.assign({ now: NOW, owner: OWNER }, o || {}));
   ok('an owed promise (due today) is a person', people([task({})]).length === 1);
   ok('overdue is owed, and the row says how long', (() => { const p = people([task({ dueDate: '2026-10-01' })]); return p.length === 1 && p[0].overdue === true && p[0].dueYmd === '2026-10-01'; })());
@@ -198,7 +201,7 @@ const newState = () => ({ docs: {}, cols: { phone_calls: [], phone_text_days: []
   // ═══ 8. brief + sweep email carry the promise rows ═══════════════════
   console.log('\n8. brief and sweep email');
   {
-    const rows = PCL.mergeSweep([], people([task({ id: 'a' }), task({ id: 'b', promiseKind: 'estimate' })]));
+    const rows = PCL.mergeSweep([], people([task({ id: 'a' }), task({ id: 'b', promiseKind: 'estimate', text: 'Send estimate' })]));
     ok('one row per person, kind promise, both items listed', rows.length === 1 && rows[0].kind === 'promise' && rows[0].promises.length === 2);
     const host = [{ callId: 'cube_1', leadId: 'L1', kind: 'urgent', due: TODAY, promises: ['Send quote'], who: 'Pat Lee', startedAtMs: NOW - 1000, channel: 'call', summary: '' }];
     const merged = PCL.mergeSweep(host, people([task({})]));
@@ -298,6 +301,7 @@ const newState = () => ({ docs: {}, cols: { phone_calls: [], phone_text_days: []
       for (let i = 0; i < 4; i++) {
         await WATCH.runWatch({ db: mkDb(S), nowMs: NOW + i * 2 * 3600e3, live: true, push: async () => ({ sent: 0, failed: 1, errors: [] }), email: async (m) => { emails.push(m); } })
           .catch((e) => { errs.push(String(e && e.message)); });
+        if (i === 0) ok('the FIRST unreached run already mails (the promise push is what failed, no call alert exists)', emails.length === 1 && /^Your phone did not get the alert: 1 person/.test(emails[0].subject), emails.map((m) => m.subject));
       }
       ok('dead token: every run still fails loud for the heartbeat (the bell is the only thing that told him)', errs.length === 4 && errs.every((m) => /reached 0 devices/.test(m)), errs);
       const um = emails.filter((m) => /^Your phone did not get the alert/.test(m.subject));
@@ -317,6 +321,124 @@ const newState = () => ({ docs: {}, cols: { phone_calls: [], phone_text_days: []
       const g = await drive(S3, NOW);
       ok('control: the same data with a working read pushes', g.pushes.some((p) => p.data && p.data.type === 'promise_due') && g.r.promisesCheckFailed === false);
     }
+  }
+
+  // ═══ 13. vacuity-audit additions (2026-10-13) ═══════════════════════
+  console.log('\n13. audit additions: wiring, once-per-set, tenants, waiting-only');
+  {
+    const D5 = '2026-10-02';
+    // ledger at 20:00 with a failed read is a warning (the 08:00 run has no ledger)
+    const S = newState();
+    S.docs['users/' + OWNER] = { email: 'jo@example.invalid' };
+    S.docs['integrations/callCenter'] = { lastRunAtMs: NOW, lastTranscribeAtMs: NOW, lastRun: { failed: 0 }, lastTranscribe: { failed: 0 } };
+    S.failTasks = true;
+    const t20 = NOW + 12 * 3600e3;
+    await WATCH.runWatch({ db: mkDb(S), nowMs: t20, live: true, push: async () => ({ sent: 1 }), email: async () => {} });
+    const led = S.docs['integrations/dailyLedger'];
+    ok('20:00 run with a failed task read: the ledger doc carries the promise-tasks warning', !!led && (led.anomalies || []).some((a) => /promise tasks/.test(a)) && led.clear === false, led);
+    const S2 = newState();
+    S2.docs['users/' + OWNER] = S.docs['users/' + OWNER]; S2.docs['integrations/callCenter'] = S.docs['integrations/callCenter'];
+    await WATCH.runWatch({ db: mkDb(S2), nowMs: t20, live: true, push: async () => ({ sent: 1 }), email: async () => {} });
+    ok('control: same run, working read: no promise-tasks warning', !(S2.docs['integrations/dailyLedger'].anomalies || []).some((a) => /promise tasks/.test(a)));
+
+    // sweep email carries the failure through runSweep
+    const S3 = newState();
+    S3.docs['users/' + OWNER] = { email: 'jo@example.invalid' };
+    S3.failTasks = true;
+    const sent = [];
+    const rs = await CC.runSweep({ db: mkDb(S3), live: true, nowMs: NOW, slot: 'pm', absorbed: false, send: async (m) => { sent.push(m); } });
+    ok('runSweep with an unreadable task list still sends, and the email says NOT an all-clear', rs.state === 'sent' && sent.length === 1 && /NOT an all-clear/.test(sent[0].text), rs);
+    S3.failTasks = false;
+    const sent2 = [];
+    const rs2 = await CC.runSweep({ db: mkDb(S3), live: true, nowMs: NOW, slot: 'pm', absorbed: false, send: async (m) => { sent2.push(m); } });
+    ok('control: working read and nothing owed = no email', rs2.state === 'nothing' && sent2.length === 0, rs2);
+
+    // waiting-only person
+    const wp = people([task({ promiseKind: 'waiting', dueDate: TODAY, waitingSince: D5 })]);
+    const wx = PCL.ladderExtra(wp[0]);
+    ok('a waiting-only person is high-value (HIGH_WHY) so the ladder and the unreached email take them', W.HIGH_WHY.test(wx.why) && wp[0].waitingOnly === true && W.unreachedEmail([wx], NOW) !== null && W.ladderRetells([], [], { [wx.id]: { n: 1, at: NOW - 3 * 3600e3, sig: wx.sig } }, NOW, null, [wx]).length === 1, wx.why);
+
+    // ladderCandidates: task dated ahead, not snoozed -> not a candidate (control: due today is)
+    const uc = (o) => Object.assign({ id: 'cq', startedAtMs: NOW - 3600e3, urgent: true, status: 'noted', direction: 'inbound' }, o);
+    ok('ladder: an unsnoozed task dated ahead is not re-told yet (control: dated today is)', W.ladderCandidates([uc({ taskDueYmd: TOMORROW })], [], NOW, null).length === 0 && W.ladderCandidates([uc({ taskDueYmd: TODAY })], [], NOW, null).length === 1);
+
+    // parity matrix: parkedUntil server vs Home, including kind promise
+    {
+      let n = 0, bad = 0;
+      ['', 'x', YESTERDAY, TODAY, TOMORROW, '2026-10-20'].forEach((snooze) => ['', TOMORROW, YESTERDAY].forEach((td) => [true, false].forEach((ts) => ['promise', 'note', undefined].forEach((kind) => ['', 'x', TODAY, TOMORROW].forEach((dd) => [true, false].forEach((opt) => {
+        const c = { snoozeUntilYmd: snooze, taskDueYmd: td, taskSnoozed: ts, kind, dueDate: dd };
+        n++;
+        if (W.parkedUntil(c, NOW, { taskDue: opt }) !== HA.parkedUntil(c, NOW, { taskDue: opt })) bad++;
+      }))))));
+      ok('parkedUntil: server and Home agree on ' + n + ' combinations (kind promise included)', bad === 0, bad);
+    }
+
+    // tenant: a rep-owned lead in the company is listed
+    ok('tenant: a lead whose userId is a rep but companyId is the owner IS listed', people([task({ leadId: 'L6' })]).length === 1);
+
+    // signature: same task id, different date -> different sig
+    const sigOf = (t) => PCL.ladderExtra(people([t])[0]).sig;
+    ok('same task id with a different due date is a different signature', sigOf(task({ id: 'z', dueDate: TODAY })) !== sigOf(task({ id: 'z', dueDate: YESTERDAY })) && sigOf(task({ id: 'z', dueDate: TODAY })) === sigOf(task({ id: 'z', dueDate: TODAY })));
+
+    // one person under two ids = one email person
+    ok('two alert ids sharing one person key = one person in the email', W.unreachedEmail([{ id: 'call:a', key: 'lead:L1', who: 'Pat', why: 'urgent' }, { id: 'promise:L1', key: 'lead:L1', who: 'Pat', why: 'you promised something' }], NOW).people === 1);
+
+    // overdue promise at the ledger: waiting more than 3 days
+    ok('ledger: a promise overdue by 5 days is "waiting more than 3 days" (oldOpen 1; control: due today 0)', W.dailyLedger([], [], NOW, { promisePeople: people([task({ dueDate: D5 })]) }).oldOpen === 1 && W.dailyLedger([], [], NOW, { promisePeople: people([task({})]) }).oldOpen === 0);
+
+    // brief text carries the warning too
+    ok('brief TEXT (not only html) carries the failure warning', /WARNING/.test(MB.sectionsText({ promiseCheckFailed: true })) && !/WARNING/.test(MB.sectionsText({ promises: [] })));
+
+    // mergeSweep: the same text twice is listed once
+    ok('mergeSweep: two tasks with the same text list it once', PCL.mergeSweep([], people([task({ id: 'a', text: 'Call back' }), task({ id: 'b', text: 'Call back' })]))[0].promises.length === 1);
+
+    // path-derived lead id + the userId filter + foreign tenant rows
+    const S4 = newState();
+    S4.docs['leads/L1'] = lead();
+    S4.docs['leads/L1/tasks/promise-nolead'] = { kind: 'promise', promiseKind: 'callback', text: 'Call back', done: false, dueDate: TODAY, userId: OWNER };
+    S4.docs['leads/L2/tasks/promise-foreign'] = { kind: 'promise', promiseKind: 'callback', text: 'Their task', done: false, dueDate: TODAY, userId: 'otherTenant' };
+    S4.docs['leads/L2'] = lead({ firstName: 'Sam' });
+    const rd = await PC.readDuePromisePeople({ db: mkDb(S4), owner: OWNER, nowMs: NOW, labels: null });
+    ok('a task with no leadId field is placed by its path; another user\'s task is not read', rd.ok && rd.people.length === 1 && rd.people[0].leadId === 'L1', rd);
+    ok('the read filters on userId == owner (the where() args)', (S4.whereLog || []).some((w) => w[0] === 'tasks' && w[1] === 'userId' && w[2] === '==' && w[3] === OWNER));
+
+    // runWatch: one person already told, one fresh -> the push names only the fresh one
+    const S5 = newState();
+    S5.docs['users/' + OWNER] = { email: 'jo@example.invalid' };
+    S5.docs['integrations/callCenter'] = S.docs['integrations/callCenter'];
+    S5.docs['leads/L1'] = lead(); S5.docs['leads/L2'] = lead({ firstName: 'Sam', lastName: 'Ray', phoneDigits: '5135550102' });
+    S5.docs['leads/L1/tasks/promise-a'] = { kind: 'promise', promiseKind: 'callback', text: 'Call back', done: false, dueDate: TODAY, userId: OWNER, leadId: 'L1' };
+    const pushed = [];
+    const go = async (t) => WATCH.runWatch({ db: mkDb(S5), nowMs: t, live: true, push: async (u, title, body, data) => { pushed.push({ title, body, data }); return { sent: 1 }; }, email: async () => {} });
+    await go(NOW);
+    S5.docs['leads/L2/tasks/promise-b'] = { kind: 'promise', promiseKind: 'estimate', text: 'Send estimate', done: false, dueDate: TODAY, userId: OWNER, leadId: 'L2' };
+    await go(NOW + 5 * 60000);
+    const pp = pushed.filter((p) => p.data && p.data.type === 'promise_due');
+    ok('a person already told is not in the next promise push; the new one is', pp.length === 2 && pp[1].title === '1 promise due today' && /Sam/.test(pp[1].body) && !/Pat/.test(pp[1].body), pp.map((p) => p.body));
+
+    // a CHANGED due set mails again; an unchanged one does not
+    const S6 = newState();
+    S6.docs['users/' + OWNER] = { email: 'jo@example.invalid' };
+    S6.docs['integrations/callCenter'] = S.docs['integrations/callCenter'];
+    S6.docs['leads/L1'] = lead();
+    S6.docs['leads/L1/tasks/promise-a'] = { kind: 'promise', promiseKind: 'callback', text: 'Call back', done: false, dueDate: TODAY, userId: OWNER, leadId: 'L1' };
+    const mails = [];
+    const dead = async (t) => WATCH.runWatch({ db: mkDb(S6), nowMs: t, live: true, push: async () => ({ sent: 0, failed: 1, errors: [] }), email: async (m) => { mails.push(m); } }).catch(() => null);
+    await dead(NOW); await dead(NOW + 2 * 3600e3);
+    const before = mails.length;
+    S6.docs['leads/L1/tasks/promise-b'] = { kind: 'promise', promiseKind: 'estimate', text: 'Send estimate', done: false, dueDate: TODAY, userId: OWNER, leadId: 'L1' };
+    await dead(NOW + 4 * 3600e3);
+    ok('unreached: an unchanged set mails once; a CHANGED set of due tasks mails again', before === 1 && mails.length === 2, mails.map((m) => m.subject));
+
+    // rung-3 ladder email and the unreached email are not both sent for one person
+    const S7 = newState();
+    S7.docs['users/' + OWNER] = { email: 'jo@example.invalid' };
+    S7.docs['integrations/callCenter'] = S.docs['integrations/callCenter'];
+    S7.cols.phone_calls.push({ id: 'cube_r3', userId: OWNER, leadId: 'L1', contactName: 'Pat Lee', phoneDigits: '5135550101', status: 'noted', urgent: true, direction: 'inbound', startedAtMs: NOW - 5 * 3600e3, createdAtMs: NOW - 5 * 3600e3, notedAtMs: NOW - 5 * 3600e3 });
+    S7.docs['integrations/callWatch'] = { lastCheckAtMs: NOW - 2 * 3600e3, ladder: { 'call:cube_r3': { n: 2, at: NOW - 3 * 3600e3 } }, toldIds: ['call:cube_r3'] };
+    const m7 = [];
+    await WATCH.runWatch({ db: mkDb(S7), nowMs: NOW, live: true, push: async () => ({ sent: 0, failed: 1, errors: [] }), email: async (m) => { m7.push(m); } }).catch(() => null);
+    ok('rung 3 + dead push: ONE email for the person (the ladder\'s), not two', m7.length === 1 && /^Still open/.test(m7[0].subject), m7.map((m) => m.subject));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -111,7 +111,7 @@ function pushText(people) {
 function sweepItems(people) {
   return (people || []).map((p) => ({
     callId: 'promise:' + p.leadId, channel: 'call', leadId: p.leadId, who: p.who, startedAtMs: p.atMs, summary: '',
-    promises: p.items.map((i) => i.text), phoneDigits: '', hasTask: true, contactName: p.who, callType: '',
+    promises: Array.from(new Set(p.items.map((i) => i.text))), phoneDigits: '', hasTask: true, contactName: p.who, callType: '',
     kind: 'promise', due: p.dueYmd,
   }));
 }

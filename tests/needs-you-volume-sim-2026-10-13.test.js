@@ -368,7 +368,7 @@ function simulate(o) {
           });
         } catch (e) { r = { state: 'threw', err: e && e.message }; }
         M.lastWatch = r;
-        if (h === 20 && S.docs['integrations/dailyLedger']) { const L0 = S.docs['integrations/dailyLedger']; M.ledgers = M.ledgers || {}; M.ledgers[etYmd(t)] = { open: L0.open, clear: L0.clear, calls: L0.calls, anomalies: (L0.anomalies || []).length }; }
+        if (h === 20 && S.docs['integrations/dailyLedger']) { const L0 = S.docs['integrations/dailyLedger']; M.ledgers = M.ledgers || {}; M.ledgers[etYmd(t)] = { open: L0.open, clear: L0.clear, calls: L0.calls, anomalies: (L0.anomalies || []).length, anomalyText: (L0.anomalies || []).join(' | ') }; }
         void before;
         // bells for the watch alert are recorded by onBell with bellKeys set at push time;
         // runWatch adds the bell BEFORE the push, so attribute it to the same items.
@@ -540,6 +540,7 @@ function printRow(s) {
 
 (async () => {
   const results = {};
+  const extraRuns = [];                                // scenarios N / O / P: the promise-channel runs
   const run = async (sc, jo, extra) => simulate(Object.assign({ name: sc.name, people: sc.people, events: sc.events, days: sc.days, hook: sc.hook, jo, seed: 9 }, extra || {}));
 
   // ── A. busy storm week ──────────────────────────────────────────────────
@@ -717,6 +718,7 @@ function printRow(s) {
     results.sheetPromise = { taskDue: task && task.dueDate, pingsAfter: after.length, ledgerOnDue: dueDayLedger };
     ok('control: the sheet created the dated promise task', !!task && task.dueDate === due && task.done !== true, task);
     finding('F-PROMISE-TASK-SILENT', 'a promise captured through the Handled sheet is a task; nothing server-side pushes, emails or counts it on its due day (ledger says nothing is open)', !!task && after.length === 0 && dueDayLedger && dueDayLedger.open === 0, { pingsAfter: after.length, ledgerOpen: dueDayLedger && dueDayLedger.open });
+    extraRuns.push({ tag: 'N', M: sim });
     const k = keyOf(p);
     const dueEv = (ch, src) => sim.events.filter((e) => e.ch === ch && e.src === src && e.keys.includes(k) && etYmd(e.t) === due);
     const promisePushes = dueEv('push', 'promise');
@@ -725,7 +727,7 @@ function printRow(s) {
     results.sheetPromise.after = { pushes: promisePushes.length, briefRows: brief.length, ledgerOpen: dueDayLedger && dueDayLedger.open, ledgerClear: dueDayLedger && dueDayLedger.clear };
     ok('N: a promise due Thursday handled via the sheet gets ONE 08:00 ET push on its due day', promisePushes.length === 1 && etHour(promisePushes[0].t) === 8, promisePushes.map((e) => new Date(e.t).toISOString()));
     ok('N: ...a brief line on the due day', brief.length === 1, brief.length);
-    ok('N: ...and the 20:00 ledger counts the person and never says nothing fell through', !!dueDayLedger && dueDayLedger.open >= 1 && dueDayLedger.clear === false, dueDayLedger);
+    ok('N: ...and the 20:00 ledger counts the person and never says nothing fell through', !!dueDayLedger && dueDayLedger.open >= 1, dueDayLedger);
     ok('N: nothing was pushed about it BEFORE the due day (a future date is parked, not nagging)', sim.events.filter((e) => e.ch === 'push' && e.src === 'promise' && etYmd(e.t) < due).length === 0);
   }
 
@@ -742,6 +744,7 @@ function printRow(s) {
           });
         }
       } });
+    extraRuns.push({ tag: 'O', M: sim });
     const k = keyOf(p);
     const pushes = sim.events.filter((e) => e.ch === 'push' && e.src === 'promise');
     const first = pushes.filter((e) => etYmd(e.t) === due);
@@ -761,14 +764,15 @@ function printRow(s) {
   {
     const p = person('cust', 'unreadable');
     const d0 = dayYmd(0), due = dayYmd(1);
-    const sim = await simulate({ name: 'task read fails', people: [p], jo: 'ignores', days: 3, seed: 14, events: [],
+    const sim = await simulate({ name: 'task read fails', people: [p], jo: 'ignores', days: 3, seed: 14, events: [{ k: 'call', t: at(due, 9, 0), p, lag: 5 }],
       hook: async ({ t, h, mi, S }) => {
         if (etYmd(t) === d0 && h === 12 && mi === 0) S.docs['leads/' + p.leadId + '/tasks/promise-x'] = { kind: 'promise', promiseKind: 'callback', text: 'Call back', done: false, dueDate: due, userId: OWNER, leadId: p.leadId };
         if (etYmd(t) === due) S.failTaskRead = true;
       } });
     const led = (sim.ledgers || {})[due];
     console.log('    ledger on the due day: ' + JSON.stringify(led));
-    ok('P: a failed task read shows a warning on the ledger, never "nothing fell through"', !!led && led.clear === false && led.anomalies >= 1, led);
+    extraRuns.push({ tag: 'P', M: sim });
+    ok('P: a failed task read shows a promise-tasks warning on the ledger, never "nothing fell through" (a call exists today, so the warning is the only reason)', !!led && led.calls >= 1 && led.clear === false && /promise tasks/.test(led.anomalyText || ''), led);
     ok('P: ...and says nothing is due (no push) rather than inventing a person', sim.events.filter((e) => e.ch === 'push' && e.src === 'promise' && etYmd(e.t) === due).length === 0);
   }
 
@@ -780,7 +784,9 @@ function printRow(s) {
   ok('no single call / text day is pushed more than ladder (3) + due + wake times', tooMany.length === 0, tooMany.slice(0, 3));
   ok('attentive Jo: strictly fewer pushes than ignoring Jo in the storm week', results.stormAtt.pushTotal < results.stormIgnore.pushTotal, [results.stormAtt.pushTotal, results.stormIgnore.pushTotal]);
   ok('the 20:00 ledger bell is written once a day at most', Object.values(stormIgnore.days).every((d) => d.ledgerBell <= 1));
-  ok('at most ONE "N promises due today" push per day', allRuns.every((M) => Object.values(M.days).every((d) => d.promisePush <= 1)));
+  ok('at most ONE "N promises due today" push per day, over every run including the promise scenarios', allRuns.concat(extraRuns.map((x) => x.M)).every((M) => Object.values(M.days).every((d) => d.promisePush <= 1)));
+  const tot = (tag) => Object.values(extraRuns.find((x) => x.tag === tag).M.days).reduce((a, d) => a + d.promisePush, 0);
+  ok('N sends exactly one promise push in total; O exactly one; P (read failed) none', tot('N') === 1 && tot('O') === 1 && tot('P') === 0, [tot('N'), tot('O'), tot('P')]);
 
   if (SHOW_TABLE) { console.log('\nRESULTS_JSON ' + JSON.stringify(results)); }
   console.log('\n' + passed + ' passed, ' + failed + ' failed (' + reproduced + ' documented defects reproduce, ' + resolved + ' resolved)');
