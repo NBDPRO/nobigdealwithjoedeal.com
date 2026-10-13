@@ -178,9 +178,17 @@
     var n = daysBetween(since, todayYmd);
     return n > 0 ? n : 0;
   }
-  /** A waiting item that has been waited out: open, and >= n days since. */
+  /**
+   * A waiting item that has been waited out: open, and its "Nudge me on" date
+   * has come (QA 2026-10-13: it used to ripen on the clock alone, so a date Jo
+   * pushed out a week still showed after 3 days, and "Today" waited 3 days).
+   * An item with no valid date (legacy) falls back to >= n days since.
+   */
   function isRipe(t, todayYmd, n) {
-    return isWaiting(t) && isOpen(t) && waitingDays(t, todayYmd) >= clampWaitingDays(n);
+    if (!isWaiting(t) || !isOpen(t)) return false;
+    var due = dueYmdOf(t);
+    if (due) return due <= todayYmd;
+    return waitingDays(t, todayYmd) >= clampWaitingDays(n);
   }
 
   // ─── the only two exits, and moving it ───────────────────────────

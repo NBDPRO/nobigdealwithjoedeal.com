@@ -29,7 +29,10 @@
   var FUNCTIONS_SDK = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
   var STORAGE_SDK = '/assets/vendor/firebase/10.12.2/firebase-storage.js';
   var LIMIT = 300;
-  var state = { calls: [], filter: 'attention', q: '', loading: false, loaded: false, error: '', blobUrls: {}, busy: {} };
+  var PROMISE_WINDOW_MS = 45 * 86400000;   // = NBDHomeAttention.PROMISE_WINDOW
+  // readFailed: which reads came back as errors on the last load (QA 2026-10-13).
+  // A list built from a failed read is NOT "nothing needs you"; render says so.
+  var state = { calls: [], filter: 'attention', q: '', loading: false, loaded: false, error: '', readFailed: [], cappedBefore: 0, blobUrls: {}, busy: {} };
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -199,7 +202,13 @@
 
   async function fetchFrom(name, channel) {
     var db = window.db, uid = window._user && window._user.uid;
-    if (!db || !uid || !window.query) return [];
+    if (!db || !uid || !window.query) {
+      // The data layer never came up (load() gave up waiting): that is a read
+      // that did not happen, not "No calls yet".
+      state.readFailed.push('your ' + (channel === 'text' ? 'texts' : 'calls'));
+      if (channel === 'call') state.error = 'Could not load calls (not signed in yet).';
+      return [];
+    }
     var col = window.collection(db, name);
     var c = claims();
     var qs = [window.query(col, window.where('userId', '==', uid), window.orderBy('startedAtMs', 'desc'), window.limit(LIMIT))];
@@ -210,10 +219,20 @@
     for (var i = 0; i < qs.length; i++) {
       try {
         var snap = await window.getDocs(qs[i]);
-        snap.docs.forEach(function (d) { byId[d.id] = Object.assign({}, d.data(), { id: d.id, channel: channel }); });
+        var oldest = Infinity;
+        snap.docs.forEach(function (d) {
+          var row = Object.assign({}, d.data(), { id: d.id, channel: channel });
+          byId[d.id] = row;
+          if ((row.startedAtMs || 0) < oldest) oldest = row.startedAtMs || 0;
+        });
+        // The newest-N read hit its cap INSIDE the 45-day promise window: an
+        // open promise older than the oldest row loaded is not on this list.
+        if (snap.docs.length >= LIMIT && oldest > Date.now() - PROMISE_WINDOW_MS) state.cappedBefore = Math.max(state.cappedBefore, oldest);
       } catch (e) {
         console.warn('[call-center] read failed', name, e && e.code);
         if (i === 0 && channel === 'call') state.error = 'Could not load calls (' + ((e && e.code) || 'error') + ').';
+        var what = channel === 'text' ? 'texts' : 'calls';
+        state.readFailed.push(i === 0 ? 'your ' + what : "your team's " + what);
       }
     }
     return Object.keys(byId).map(function (k) { return byId[k]; })
@@ -387,6 +406,22 @@
       '</div>';
   }
 
+  // Reads that failed this load: never rendered as an empty / all-clear list.
+  function readProblems() {
+    var out = state.readFailed.slice();
+    if (promises.error) out.push("the 'said you'd do' list");
+    return out;
+  }
+  function readBanner() {
+    return '<div class="panel pc-card cc-health cc-health-bad cc-readfail" role="status">⚠ Could not load ' + esc(readProblems().join(', ')) +
+      ' just now. What you see may be missing people - this is NOT an all-clear. <button type="button" class="btn btn-ghost" data-cc="reload">Try again</button></div>';
+  }
+  function capBanner() {
+    var d = new Date(state.cappedBefore).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return '<div class="panel pc-card cc-health cc-health-warn cc-capnote" role="status">Showing only your newest ' + LIMIT + ' calls and texts (back to ' + esc(d) +
+      '). An open promise from before that is not on this list - Home counts it.</div>';
+  }
+
   function render() {
     var el = root();
     if (!el) return;
@@ -415,7 +450,7 @@
     if (!state.loaded) body = '<div class="cc-empty">Loading calls…</div>';
     else if (state.error && !state.calls.length) body = '<div class="cc-empty">' + esc(state.error) + '</div>';
     else if (!state.calls.length) body = '<div class="cc-empty">No calls yet. Recordings from your phone (Cube ACR) show up here within about 30 minutes of the call.</div>';
-    else if (!rows.length) body = '<div class="cc-empty">' + (state.filter === 'attention' && !state.q ? 'Nothing needs you. Every call is handled or filed.' : 'No calls match.') + '</div>';
+    else if (!rows.length) body = '<div class="cc-empty">' + (state.filter === 'attention' && !state.q ? (readProblems().length ? 'Nothing in what loaded needs you.' : 'Nothing needs you. Every call is handled or filed.') : 'No calls match.') + '</div>';
     else if (state.filter === 'attention') {
       // A person shows when any of their open calls matches the search.
       var hit = {};
@@ -425,6 +460,8 @@
     }
     else body = rows.slice(0, 150).map(function (c) { return renderCall(c, L); }).join('') +
       (rows.length > 150 ? '<div class="cc-empty">Showing the newest 150. Search to narrow it down.</div>' : '');
+    if (state.loaded && state.cappedBefore) body = capBanner() + body;
+    if (state.loaded && readProblems().length) body = readBanner() + body;
     var hadFocus = document.activeElement && document.activeElement.id === 'ccSearch';
     // The Thursday-handled / Block list panels list NUMBERS (a number with no call yet still shows).
     var thPanel = (state.filter === 'thandled' || state.filter === 'blocklist') && window.NBDThursdayHandled ? window.NBDThursdayHandled.panelHtml(state.filter) : '';
@@ -607,7 +644,7 @@
   // customer, mark the whole call handled. A call with no customer gets a
   // "file on a customer" picker on its card. Every action has an Undo.
   // The email links here: dashboard.html?open=promises[&item=<callId>]#calls.
-  var promises = { items: [], counts: null, loaded: false, denied: false, loading: false };
+  var promises = { items: [], counts: null, loaded: false, denied: false, loading: false, error: false };
 
   // The never-forget chain at a glance (2026-10-12 audit): owner / admin only,
   // read through callPipelineHealth (the integrations status docs are not client-readable).
@@ -653,8 +690,10 @@
       promises.items = (r && r.items) || [];
       promises.counts = (r && r.counts) || null;
       promises.loaded = true;
+      promises.error = false;
     } catch (e) {
       if (e && /permission-denied/.test(e.code || e.message || '')) promises.denied = true;
+      else promises.error = true;   // not "no promises": the banner says the list did not load
     }
     promises.loading = false;
     render();
@@ -1075,20 +1114,21 @@
   var bootWait = 0;
   function dataReady() { return !!(window.db && window._user && window._user.uid && window.query && window.getDocs); }
   async function load() {
-    if (state.loading) return;
+    if (state.loading) { state.again = true; return; }   // asked mid-load (a promise saved, Try again): run it after
     if (!dataReady() && bootWait < 120) {
       bootWait++;
       render();
       setTimeout(load, 250);
       return;
     }
-    state.loading = true; state.error = '';
+    state.loading = true; state.error = ''; state.readFailed = []; state.cappedBefore = 0;
     render();
     // Labels load beside the calls; either failing leaves the old rule.
     var got = await Promise.all([fetchCalls(), ensureLabels()]);
     state.calls = got[0];
     state.loading = false; state.loaded = true;
     render();
+    if (state.again) { state.again = false; load(); }
   }
 
   // Promise capture (2026-10-12): the lazy 'promise' bundle owns the sheet.
@@ -1126,6 +1166,7 @@
         window.NBDContactLabels.openSheet({ digits: lc.phoneDigits, name: lc.contactName || leadName(ll), leadName: leadName(ll) });
       }
     }
+    else if (a === 'reload') { loadPromises(); load(); }
     else if (a === 'deck') openDeck();
     else if (a === 'promises') openPromiseDeck();
     else if (a === 'attachopen') openAttach(id);
