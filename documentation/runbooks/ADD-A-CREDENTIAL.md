@@ -10,7 +10,8 @@ credential that is not a row there. Guard test:
 
 1. Confirm the credential with the issuer first (a listing page, a
    certificate, or an approval email). A hope is not a credential.
-2. Append an object to `credentials[]`. Required for an `active` row:
+2. **Check the manufacturer's public-representation rules before the row goes `active`.** Some programs bar a tier from advertising membership or using program-branded marketing (IKO's Advantage tier, held 2026-10-13; see the research note from PR #2439). If the rules are unclear, get it in writing from the territory rep, keep the row `pending`, and keep the program's branded name and logo out of the data file and `docs/` entirely.
+3. Append an object to `credentials[]`. Required for an `active` row:
    `id` (kebab-case, unique), `name`, `issuer`, `type`
    (`manufacturer` | `insurance` | `membership` | `supplier-material`),
    `status`, `summary` (one plain sentence on what it means for the customer,
@@ -20,9 +21,9 @@ credential that is not a row there. Guard test:
    Optional: `issuerShort`, `issuerUrl`, `contractorId`, `verifyUrl` (https),
    `since` (YYYY or YYYY-MM), `expires`, `badge` (repo-local `/assets/...png`
    plus `badgeAlt`), `warrantyVerified`.
-3. `node scripts/build-credentials.mjs`. Commit the data file and every
+4. `node scripts/build-credentials.mjs`. Commit the data file and every
    restamped page (no sitemap change: the URL already exists).
-4. `node tests/credentials-2026-10-13.test.js` and
+5. `node tests/credentials-2026-10-13.test.js` and
    `node scripts/build-credentials.mjs --check`.
 
 ## Rules the generator enforces

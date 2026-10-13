@@ -12,7 +12,7 @@
  *        claim, "Licensed" anywhere on a credential surface) - Jo's rule is
  *        "Fully insured";
  *     4. a warranty or rebate promise rides in on a row nobody verified (the
- *        IKO row is text-only until Jo supplies the fields).
+ *        IKO row is HELD as pending: IKO bars public representation).
  *
  * METHOD
  *   Rendering rules are proven on a FIXTURE: the generator is copied into a
@@ -123,6 +123,11 @@ refuses('a rebate string without warrantyVerified is refused', (d) => d.credenti
   ok('POSITIVE CONTROL: the same warranty string passes once warrantyVerified is true', f.run.status === 0, (f.run.stdout + f.run.stderr).trim());
 }
 refuses('an unknown field (a cost or margin key) is refused', (d) => d.credentials.push(baseRow({ materialCost: 1200 })), /unknown field "materialCost"/);
+refuses('a private 001... account ID in any field is refused', (d) => d.credentials.push(baseRow({ summary: 'x', issuerUrl: 'https://example.test', issuerShort: '0010000000AbCdEfGh' })), /private account ID/);
+{
+  const f = mirror((d) => d.credentials.push(baseRow({ issuerShort: '001-ok' })));
+  ok('POSITIVE CONTROL: a short 001-prefixed string is not mistaken for an account ID', f.run.status === 0, (f.run.stdout + f.run.stderr).trim());
+}
 refuses('a duplicate id is refused', (d) => d.credentials.push(baseRow({ id: 'gaf-certified', order: 950 })), /duplicate id/);
 refuses('a non-https verifyUrl is refused', (d) => d.credentials.push(baseRow({ verifyUrl: 'http://example.test/x' })), /verifyUrl must be an https URL/);
 refuses('a badge that does not exist is refused', (d) => d.credentials.push(baseRow({ badge: '/assets/gaf/nope.png', badgeAlt: 'x' })), /does not exist/);
@@ -204,14 +209,22 @@ ok('GAF card on the page shows the ID and links the verify URL with target=_blan
   && new RegExp('<a class="cred-verify" href="' + gaf.verifyUrl.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&') + '" target="_blank" rel="noopener">').test(cardsRegion));
 ok('GAF row is not labelled with a program tier GAF has not granted', !/master\s*elite|president|golden pledge/i.test(JSON.stringify(gaf)));
 
-// IKO: text-only until Jo supplies the fields
-const iko = rows.find((r) => r.id === 'iko-roofpro-advantage');
-ok('IKO row exists and is text-only: no badge, ID, verify URL, warranty or rebate field',
-  iko && !iko.badge && !iko.contractorId && !iko.verifyUrl && iko.warrantyVerified !== true);
-const ikoCard = (cardsRegion.match(/<article class="cred-card" id="iko-roofpro-advantage">[\s\S]*?<\/article>/) || [''])[0];
-ok('IKO card renders (control) with no image, no ID line and no verify link', ikoCard.length > 50 && !/<img/.test(ikoCard) && !/cred-id|cred-verify/.test(ikoCard));
-ok('IKO card carries no warranty / rebate wording', ikoCard.length > 50 && !/warrant|rebate/i.test(ikoCard));
-ok('IKO wording TODO is not rendered anywhere public', !/_todo|pending final confirmation/i.test(pageBody));
+// IKO: HELD. IKO bars public program representation for the Advantage tier
+// (research PR #2439), so the row is pending: never rendered, no asset shipped.
+const iko = rows.find((r) => /^iko/.test(r.id));
+ok('IKO row exists, is pending, and carries no badge, ID, verify URL or warranty field',
+  iko && iko.status === 'pending' && !iko.badge && !iko.contractorId && !iko.verifyUrl && iko.warrantyVerified !== true && iko.showInStrip === false);
+ok('no 001... account ID anywhere in the data file', !/(^|[^A-Za-z0-9])001[A-Za-z0-9]{15}([^A-Za-z0-9]|$)/.test(JSON.stringify(rows)));
+ok('no IKO logo asset is shipped under docs/', !fs.existsSync(path.join(DOCS, 'assets', 'iko')));
+ok('the IKO card is not rendered', iko && !cardsRegion.includes('id="' + iko.id + '"'));
+// The branded program word must appear in NO rendered output and NOT in the public data file while the row is held.
+{
+  const stripAll = surfaces['index.html strip'] + surfaces['about.html strip'];
+  const scope = { 'credentials.html': pageBody, strips: stripAll, 'credentials.json': read('docs/assets/data/credentials.json') };
+  for (const [n, t] of Object.entries(scope)) ok('ROOFPRO absent from ' + n + ' while the IKO row is pending', t.length > 0 && !/roofpro/i.test(t));
+  const f = mirror((d) => { d.credentials.forEach((c) => { c.showInStrip = false; }); d.credentials.push(baseRow({ id: 'zz-roofpro', name: 'ZZ ROOFPRO Advantage', claimWording: 'ZZ ROOFPRO contractor', showInStrip: true })); });
+  ok('POSITIVE CONTROL: the same word renders the moment a row with it is active', f.run.status === 0 && /ROOFPRO/.test(f.outPage) && /ROOFPRO/.test(f.outHome));
+}
 {
   // the rule itself: any rendered row that mentions warranty/rebate needs warrantyVerified
   const offenders = active.filter((r) => /warrant|rebate/i.test([r.name, r.summary, r.claimWording].join(' ')) && r.warrantyVerified !== true);
@@ -243,8 +256,7 @@ console.log('\nJSON-LD');
     && nodes.filter((n) => n.about && n.about['@id'] === 'https://nobigdealwithjoedeal.com/#org').length === 1);
   const gafNode = creds.find((n) => /GAF/.test(n.name));
   ok('GAF credential node carries identifier 1162011 and the verify url', gafNode && gafNode.identifier === '1162011' && gafNode.url === gaf.verifyUrl);
-  ok('IKO credential node has no identifier, url or warranty text',
-    (() => { const n = creds.find((x) => /IKO/.test(x.name)); return n && !n.identifier && !n.url && !/warrant|rebate/i.test(JSON.stringify(n)); })());
+  ok('no IKO credential node in the JSON-LD while held', !creds.some((x) => /IKO/.test(JSON.stringify(x))));
   const listed = (nodes.find((n) => n['@type'] === 'CollectionPage') || {}).mainEntity;
   ok('ItemList references exactly the credential nodes', listed && listed.itemListElement.every((e) => ids.includes(e.item['@id'])) && listed.itemListElement.length === creds.length);
 }

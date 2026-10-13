@@ -84,6 +84,9 @@ function load() {
   try { raw = JSON.parse(readFileSync(DATA, 'utf8')); } catch (e) { console.error(`FATAL: cannot parse credentials.json: ${e.message}`); process.exit(2); }
   if (!raw || !Array.isArray(raw.credentials)) { console.error('FATAL: credentials.json needs a credentials[] array'); process.exit(2); }
   const ids = new Set(), orders = new Set();
+  // CRM/Salesforce-style account IDs (001 + 15 chars) are private; refuse them in ANY string.
+  const scan = (v, at) => { if (typeof v === 'string') { if (/^001[A-Za-z0-9]{15}$/.test(v.trim())) fail(`${at}: looks like a private account ID (001...) - never publish it`); } else if (Array.isArray(v)) v.forEach((x, n) => scan(x, `${at}[${n}]`)); else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) scan(x, `${at}.${k}`); };
+  scan(raw, 'credentials.json');
   raw.credentials.forEach((c, i) => {
     const at = `credentials[${i}]${c && c.id ? ` (${c.id})` : ''}`;
     if (!c || typeof c !== 'object') return fail(`${at}: not an object`);

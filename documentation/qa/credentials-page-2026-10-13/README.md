@@ -4,8 +4,8 @@ Jo approved a dedicated credentials page. Shipped on `feat/credentials-page`.
 
 ## What exists
 
-- Data: `docs/assets/data/credentials.json` (4 active rows: GAF Certified,
-  TAMKO Pro Gold, IKO ROOFPRO Advantage, Fully insured). The repo's
+- Data: `docs/assets/data/credentials.json` (3 active rows: GAF Certified,
+  TAMKO Pro Gold, Fully insured; 1 pending IKO row). The repo's
   `**/*credentials*.json` secrets ignore needed a one-file exception in
   `.gitignore`.
 - Generator: `scripts/build-credentials.mjs` (`--check` is the drift gate;
@@ -30,13 +30,9 @@ No horizontal overflow on `/credentials`, `/` or `/about`; every link inside
 the new surfaces is >= 44 px tall; one H1 each. Screenshots (re-encoded PNG,
 no EXIF) are in this folder.
 
-## Open fields Jo owes (IKO)
+## IKO row: HELD (pending, not rendered)
 
-The IKO row is live and text-only. Not claimed until supplied: exact program /
-tier name (wording is marked pending), contractor ID and verify URL, which
-warranty tiers it unlocks (then set `warrantyVerified`), logo kit.
-Also: GAF "since" is the year only (2026); TAMKO's verify link is the generic
-contractor locator (ID 181382 is searchable there).
+IKO bars Advantage-tier members from representing the program publicly (research PR #2439). The row is `pending`: no card, strip chip, JSON-LD, logo asset or program name anywhere public, and the data file names it generically. Release needs written confirmation from the IKO territory rep. Also: GAF "since" is year-only; TAMKO verify is the generic locator.
 
 ## Choices worth knowing
 
