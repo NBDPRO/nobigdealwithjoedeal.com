@@ -133,7 +133,55 @@ async function writeStatus(db, cid, parts, nowMs) {
 }
 
 // ── hand-back ────────────────────────────────────────────────────────────
-async function doHandBack(db, cid, { nowMs, endedBy, openKeys, backupName }) {
+const TIMELINE_MAX_ROWS = 100;
+/**
+ * Write each hand-back row's one-liner onto the matching lead's timeline as
+ * leads/{leadId}/activity/away-{windowId}-{phone10} (type 'away_handback').
+ * Internal only: it never notifies and never touches a customer.
+ *   - a row with no phone, or a number on zero or more than one live lead
+ *     (a proxy / office line), is skipped: a note on the wrong customer is
+ *     worse than none;
+ *   - deterministic id + create-if-absent, so a repeat hand-back is a no-op;
+ *   - createdAt (server time) is the order field promise-cleanup / lead-brief
+ *     query by; startedAtMs is the one the customer timeline sorts by.
+ * Best effort: a failure is logged and never blocks the hand-back itself.
+ * Returns { written, skipped }.
+ */
+async function fileHandBackTimeline(db, cid, windowId, rows, nowMs, backupName, log = logger) {
+  const out = { written: 0, skipped: 0 };
+  const list = (Array.isArray(rows) ? rows : []).slice(0, TIMELINE_MAX_ROWS);
+  for (const r of list) {
+    try {
+      const phone = L.digits10(r && r.phone10);
+      if (!/^[0-9]{10}$/.test(phone) || !r.note) { out.skipped++; continue; }
+      const ids = new Set();
+      for (const f of ['userId', 'companyId']) {
+        const s = await db.collection('leads').where(f, '==', cid).where('phoneDigits', '==', phone).get();
+        s.forEach((d) => { if ((d.data() || {}).deleted !== true) ids.add(d.id); });
+      }
+      if (ids.size !== 1) { out.skipped++; continue; }
+      const leadId = Array.from(ids)[0];
+      const ref = db.doc('leads/' + leadId + '/activity/away-' + windowId + '-' + phone);
+      if ((await ref.get()).exists) { out.skipped++; continue; }
+      await ref.set({
+        userId: cid, companyId: cid, type: 'away_handback', source: 'away-mode',
+        label: 'While you were away' + (backupName ? ' · ' + L.cleanLine(backupName, 40) : ''),
+        summary: L.cleanLine(r.note, L.LIMITS.noteMax + 60),
+        backupSaysDone: r.backupSaysDone === true,
+        awayWindowId: windowId,
+        startedAtMs: nowMs,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      out.written++;
+    } catch (e) {
+      out.skipped++;
+      log.warn('[awayHandBack] timeline note failed', { cid, err: e && e.message });
+    }
+  }
+  return out;
+}
+
+async function doHandBack(db, cid, { nowMs, endedBy, openKeys, backupName, timeline }) {
   const stRef = db.doc(COL_STATUS + '/' + cid);
   const st = (await stRef.get()).data() || {};
   const wid = st.away && st.away.windowId;
@@ -146,6 +194,10 @@ async function doHandBack(db, cid, { nowMs, endedBy, openKeys, backupName }) {
     companyId: cid, windowId: wid, status: 'handed_back', endMs: nowMs, endedBy,
     items: hb.items, handBack: Object.assign({}, hb.summary, { rows: hb.rows }), reviewedAtMs: 0,
   }, { merge: true });
+  // The lead-timeline note rides the same switch as notifying (AWAY_MODE_ENABLED):
+  // dark means no new writes anywhere but the ledger and status docs.
+  let tl = null;
+  if (timeline) tl = await fileHandBackTimeline(db, cid, wid, hb.rows, nowMs, hb.summary.backupName);
   const privRef = db.doc(COL_PRIVATE + '/' + cid);
   const priv = L.normalizeConfig((await privRef.get()).data());
   // The approved wording is for THIS trip (it can name a date): clear it, keep
@@ -166,7 +218,7 @@ async function doHandBack(db, cid, { nowMs, endedBy, openKeys, backupName }) {
     // stays in the tick's query only while there is a backup to route to or a
     // hand-back waiting to be reviewed
     { companyId: cid, active: !!(st.backup || pending) }), { merge: false });
-  return { handedBack: true, rows: hb.rows.length, summary: hb.summary };
+  return { handedBack: true, rows: hb.rows.length, summary: hb.summary, timeline: tl };
 }
 
 // ── the tick ─────────────────────────────────────────────────────────────
@@ -212,7 +264,7 @@ async function runAwayTick({ db, nowMs, live, deliver, loadItems = loadOpenItems
       if (win.state === 'expired') {
         // Not gated by AWAY_MODE_ENABLED: ending a window is only a ledger +
         // status change, and an Away that never ends would be the worse bug.
-        const r = await doHandBack(db, cid, { nowMs, endedBy: 'expired', openKeys, backupName: configuredName });
+        const r = await doHandBack(db, cid, { nowMs, endedBy: 'expired', openKeys, backupName: configuredName, timeline: live });
         if (r.handedBack) out.handedBack++;
         continue;
       }
@@ -493,6 +545,7 @@ async function handleManageAway(request, deps) {
     const items = await (deps && deps.loadItems ? deps.loadItems(db, cid, nowMs) : loadOpenItems(db, cid, nowMs));
     const r = await doHandBack(db, cid, {
       nowMs, endedBy: caller.uid, openKeys: new Set(items.map((i) => i.key)),
+      timeline: deps && deps.timeline !== undefined ? !!deps.timeline : tickEnabled(),
       backupName: (st.backup && st.backup.name) || (priv.backup.external && priv.backup.external.name) || '',
     });
     const after = await status();
@@ -570,4 +623,4 @@ exports.awayModeTick = onSchedule(
   }
 );
 
-exports._internal = { handleManageAway, runAwayTick, loadOpenItems, doHandBack, ledgerId, ALLOW_EXTERNAL };
+exports._internal = { handleManageAway, runAwayTick, loadOpenItems, doHandBack, fileHandBackTimeline, ledgerId, ALLOW_EXTERNAL };

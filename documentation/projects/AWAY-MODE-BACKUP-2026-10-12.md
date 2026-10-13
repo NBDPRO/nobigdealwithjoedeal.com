@@ -218,7 +218,7 @@ customers is off until registration. All controls are plain buttons/inputs
 1. Wiring `thursdayAwayContext` into the Bland pathway node (agent-owned).
 2. External (non-member) backup *delivery* — data model and consent capture are
    in; sending waits on A2P registration.
-3. Writing the hand-back one-liner onto the lead's timeline (`activity`).
+3. Writing the hand-back one-liner onto the lead's timeline (`activity`). **Built 2026-10-13** (dark behind `AWAY_MODE_ENABLED`): see [AWAY-MODE-HANDBACK-TIMELINE-2026-10-13](AWAY-MODE-HANDBACK-TIMELINE-2026-10-13.md).
 4. Auto-reply sender (only the gate ships).
 5. Per-weekday recurring unavailable windows beyond a simple list of 7.
 6. Backup notified by email through Resend (needs the suppression/consent path).
