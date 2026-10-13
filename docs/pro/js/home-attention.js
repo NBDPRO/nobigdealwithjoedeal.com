@@ -64,6 +64,16 @@
     return (rows || []).filter((r) => r && r.needsReview === true && r.kind !== 'platform_subscription').length;
   }
 
+  /**
+   * A snapshot that is EMPTY and came from the local cache (the device is
+   * offline / the server never answered) says nothing about the server. A
+   * non-empty cached snapshot is real data; a server-confirmed empty one is a
+   * true "none". Snapshots without metadata (old fakes) count as confirmed.
+   */
+  function unconfirmedEmpty(snap) {
+    return !!(snap && snap.metadata && snap.metadata.fromCache === true && (!snap.docs || snap.docs.length === 0));
+  }
+
   const CALL_WINDOW = 14 * DAY;
   const PROMISE_WINDOW = 45 * DAY;
   // What Home READS (QA 2026-10-13): by DATE, the same 45-day window the server
@@ -275,6 +285,12 @@
   function stripHtml(counts) {
     const c = counts || {};
     const items = [];
+    // A read that failed is never the same as a zero: the item says so and the
+    // tap re-reads (data-ha-retry, delegated below), it does not navigate.
+    const retry = (msg) => '<button type="button" class="ha-item ha-warn" data-ha-retry="1">⚠ ' + msg + ' — this is NOT an all-clear. Tap to try again</button>';
+    if (c.stripeFailed) items.push(retry('Could not check Stripe payments just now'));
+    if (c.signsFailed) items.push(retry('Could not check your yard signs just now'));
+    if (c.reviewsFailed) items.push(retry('Could not check which review asks are waiting (your invoices did not load)'));
     if (c.stripe > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="money">💳 ' + c.stripe + ' Stripe payment' + (c.stripe === 1 ? '' : 's') + ' need' + (c.stripe === 1 ? 's' : '') + ' a customer</button>');
     if (c.signs > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="signs">🪧 ' + c.signs + ' yard sign' + (c.signs === 1 ? '' : 's') + ' to pick up</button>');
     if (c.callsCapped) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Showing only your newest ' + (c.callsCap || '') + ' calls — older ones in the last 45 days were not checked. Tap to open the Call Center</button>');
@@ -308,20 +324,35 @@
     // invoices — load the shared cache first (one query, reused).
     try {
       if (w.NBDReviewDeck) {
-        if (w.NBDRevenue && typeof w.NBDRevenue.loadInvoices === 'function') await w.NBDRevenue.loadInvoices().catch(() => null);
+        if (w.NBDRevenue && typeof w.NBDRevenue.loadInvoices === 'function') {
+          await w.NBDRevenue.loadInvoices().catch(() => null);
+          // loadInvoices never rejects: a failed query resolves [] and leaves
+          // cached() null (a real empty list is cached as []). "Paid in full"
+          // is judged from these invoices, so no invoices = review asks that
+          // may be missing, not "none waiting".
+          if (typeof w.NBDRevenue.cached === 'function' && !w.NBDRevenue.cached()) out.reviewsFailed = true;
+        }
         out.reviews = w.NBDReviewDeck.candidates(w._leads).length;
       }
-    } catch (_) { /* never block the strip */ }
+    } catch (_) { out.reviewsFailed = true; /* never block the strip - but say so */ }
     const tenant = tenantOf(c, u);
     const jobs = [];
     if (canSeeStripe(c, u) && tenant) {
       jobs.push(w.getDocs(w.query(w.collection(w.db, 'stripeLedger'), w.where('companyId', '==', tenant), w.where('needsReview', '==', true)))
-        .then((snap) => { out.stripe = reviewCount(snap.docs.map((d) => d.data())); }).catch(() => {}));
+        .then((snap) => {
+          // An empty answer served from the local cache (offline) is not "no
+          // payments need a customer": it is a read that never reached the server.
+          if (unconfirmedEmpty(snap)) { out.stripeFailed = true; return; }
+          out.stripe = reviewCount(snap.docs.map((d) => d.data()));
+        }).catch(() => { out.stripeFailed = true; }));
     }
     const staff = ['company_admin', 'manager', 'viewer', 'admin'].includes(c.role || '') && !!c.companyId;
     const col = w.collection(w.db, 'yardSigns');
     jobs.push(w.getDocs(staff ? w.query(col, w.where('companyId', '==', c.companyId)) : w.query(col, w.where('userId', '==', u)))
-      .then((snap) => { out.signs = signsDue(snap.docs.map((d) => d.data()), Date.now()); }).catch(() => {}));
+      .then((snap) => {
+        if (unconfirmedEmpty(snap)) { out.signsFailed = true; return; }
+        out.signs = signsDue(snap.docs.map((d) => d.data()), Date.now());
+      }).catch(() => { out.signsFailed = true; }));
     // Calls: the owner's own (phone_calls rules: owner always reads own).
     // Days of texts (phone_text_days) count by the same rule — a texted
     // promise is a promise — and pool with the calls, so a customer who
@@ -339,11 +370,13 @@
       const qWin = (name, cap) => w.getDocs(w.query(w.collection(w.db, name), w.where('userId', '==', u), w.where('startedAtMs', '>=', sinceWin), w.orderBy('startedAtMs', 'desc'), w.limit(cap)));
       jobs.push(qWin('phone_calls', READ.recentCalls)
         .then((snap) => {
+          if (unconfirmedEmpty(snap)) { out.callsFailed = true; return; }
           snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data())));
           if (snap.docs.length >= READ.recentCalls) { out.callsCapped = true; out.callsCap = READ.recentCalls; }
         }).catch(() => { out.callsFailed = true; }));
       jobs.push(qWin('phone_text_days', READ.recentTexts)
         .then((snap) => {
+          if (unconfirmedEmpty(snap)) { out.callsFailed = true; return; }
           snap.docs.forEach((d) => callRows.push(Object.assign({ id: 'text:' + d.id }, d.data())));
           if (snap.docs.length >= READ.recentTexts) { out.textsCapped = true; out.textsCap = READ.recentTexts; }
         }).catch(() => { out.callsFailed = true; }));
@@ -351,6 +384,7 @@
       // bounded read. A failed one is a warning (oldFailed), not "no old promises".
       jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.where('startedAtMs', '<', sinceWin), w.orderBy('startedAtMs', 'desc'), w.limit(READ.oldCalls)))
         .then((snap) => {
+          if (unconfirmedEmpty(snap)) { out.oldFailed = true; return; }
           snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data())));
           if (snap.docs.length >= READ.oldCalls) { out.oldCapped = true; out.oldCap = READ.oldCalls; }
         }).catch(() => { out.oldFailed = true; }));
@@ -387,7 +421,16 @@
     if (!force && Date.now() - _last < 60000) return;
     _busy = true; _last = Date.now();
     try {
-      const html = stripHtml(await count());
+      let counts;
+      try { counts = await count(); } catch (e) {
+        // count() itself threw (not one of its per-read catches): every source is
+        // unconfirmed. Say so; keep the rows already held.
+        try { console.warn('[home-attention] count failed:', e && (e.code || e.message)); } catch (_) { /* no console */ }
+        counts = { stripe: 0, signs: 0, calls: 0, reviews: 0, callsFailed: true, stripeFailed: true, signsFailed: true };
+        api.lastCounts = counts;
+        try { w.dispatchEvent(new CustomEvent('nbd:attention-loaded')); } catch (_) { /* old browser */ }
+      }
+      const html = stripHtml(counts);
       el.innerHTML = html;
       el.hidden = !html;
     } finally {
@@ -411,6 +454,12 @@
     api.lastCounts.calls = callersNeedingYou(api.lastRows, Date.now(), api.lastLabels);
     api.lastCounts.hidden = hiddenPeople(api.lastRows, Date.now(), api.lastLabels);
     if (el) { const html = stripHtml(api.lastCounts); el.innerHTML = html; el.hidden = !html; }
+  });
+  // "Tap to try again" on a failed Stripe / yard-sign / review-ask read (CSP:
+  // no inline handler - one delegate on the document).
+  document.addEventListener('click', (ev) => {
+    const t = ev.target && ev.target.closest ? ev.target.closest('[data-ha-retry]') : null;
+    if (t) render(true);
   });
   w.addEventListener('nbd:data-refreshed', () => { render(false); });
   w.addEventListener('hashchange', () => { if (/^#?\/?(home|dash)?$/.test(location.hash || '')) setTimeout(() => render(false), 300); });

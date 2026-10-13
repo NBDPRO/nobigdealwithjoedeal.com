@@ -105,3 +105,8 @@ secondary call failing after the primary promise saved reports total failure
 promise unstamped: `promises` comes back without `keptAtMs`,
 `handledAtMs` is cleared, `callNeedsYou` is true with reason "you promised
 something".
+
+## Update 2026-10-13 (later): two "not changed" items closed
+
+The Stripe / yard-sign reads that swallowed errors into `0`, and the filed-promise + unfiled-call double row, are fixed in 
+[HOME-STRIP-FAILED-READS-2026-10-13](HOME-STRIP-FAILED-READS-2026-10-13.md). The "Seen but not changed" and "Not fixed" bullets above describe the state before that PR.
