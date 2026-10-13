@@ -156,6 +156,38 @@ function fakeFirestore(data) {
     ok('control: a server-confirmed empty list is OK (cached as [])', t3.R.status() === 'ok' && Array.isArray(t3.R.cached()) && t3.R.cached().length === 0);
   }
 
+  {
+    // boot found by the emulator walk (3 of 6 boots): the loader was asked before db / the
+    // company claim existed. "Not askable yet" is checking, never a failure.
+    const fb = fakeFirestore({ invoices: [{ id: 'i1', companyId: 'co1', leadId: 'L1', status: 'sent', total: 100 }] });
+    const env = sandbox({ _user: { uid: 'u1' }, _userClaims: { role: 'company_admin', companyId: 'co1' } });   // no db / getDocs yet
+    load(env, 'docs/pro/js/collected-revenue.js');
+    const R = env.win.NBDRevenue;
+    await R.loadInvoices();
+    ok('asked before the database exists: "checking", not failed or unknown', R.status() === 'checking', R.status());
+    Object.assign(env.win, fb, { db: {} });
+    env.advance(3000);
+    env.runTimers(); await flush();
+    ok('...and the quiet re-ask loads it once the database is there', R.status() === 'ok' && (R.cached() || []).length === 1, R.status());
+  }
+  {
+    // the company claim arrives while the read is in flight: the answer is for the old scope
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    const fb = fakeFirestore({ invoices: [{ id: 'i1', companyId: 'co1', leadId: 'L1', status: 'sent', total: 100 }] });
+    const slow = Object.assign({}, fb, { getDocs: async (q) => { await gate; return fb.getDocs(q); } });
+    const env = sandbox(Object.assign({ _user: { uid: 'u1' }, _userClaims: {}, db: {} }, slow));
+    load(env, 'docs/pro/js/collected-revenue.js');
+    const R = env.win.NBDRevenue;
+    const p = R.loadInvoices();
+    env.win._userClaims = { role: 'company_admin', companyId: 'co1' };   // claims land mid-flight
+    release();
+    await p; await flush();
+    ok('scope changed mid-flight: "checking" (a quiet re-ask is queued), not failed or unknown', R.status() === 'checking' && env.timers.length >= 1, R.status() + ' timers=' + env.timers.length);
+    env.advance(3000); env.runTimers(); await flush();
+    ok('...and the re-ask answers for the new scope', R.status() === 'ok' && (R.cached() || []).length === 1, R.status());
+  }
+
   // ═══ H7: the strip and Today on a cold boot ═══════════════════════════════
   console.log('\nH7. cold boot: no false banner on the strip or on Today');
   const lead = { id: 'L1', firstName: 'Owed', lastName: 'Customer', phone: '5135550101', userId: 'u1' };
