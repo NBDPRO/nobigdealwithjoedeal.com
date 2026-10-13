@@ -404,6 +404,34 @@ async function behaviour() {
      /AbortSignal\.timeout\(/.test(server));
 }
 
+// ── 5b. Prod posture: an unset secret fails CLOSED (2026-10-13) ──
+// TURNSTILE_REQUIRED=true in the one tracked, project-scoped env file the
+// deploy reads. It is only safe while EVERY function that calls
+// verifyTurnstile binds TURNSTILE_SECRET: a caller without the binding would
+// read the secret as unset and 403 every submit. Walk the sources for
+// callers instead of trusting a list.
+{
+  const envSrc = read('functions/.env.nobigdeal-pro');
+  const live = envSrc.split(/\r?\n/).filter((l) => !/^\s*#/.test(l));
+  ok('prod env file sets TURNSTILE_REQUIRED=true (live line, not a comment)', live.some((l) => /^TURNSTILE_REQUIRED=true\s*$/.test(l)));
+  ok('no second, conflicting TURNSTILE_REQUIRED line', live.filter((l) => /^TURNSTILE_REQUIRED=/.test(l)).length === 1);
+  const callers = [];
+  (function walk(dir) {
+    fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
+      if (e.name === 'node_modules' || e.name.startsWith('.')) return;
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) return walk(p);
+      if (!/\.js$/.test(e.name)) return;
+      const src = stripJsComments(fs.readFileSync(p, 'utf8'));
+      if (/\bverifyTurnstile\(/.test(src) && !/integrations\/turnstile\.js$/.test(rel(p).replace(/\\/g, '/'))) callers.push({ file: rel(p), binds: /TURNSTILE_SECRET/.test(src) });
+    });
+  })(path.join(ROOT, 'functions'));
+  ok('positive control: the walk finds the two known callers', callers.some((c) => c.file === 'functions/care-plan.js') && callers.some((c) => c.file === 'functions/handlers/integrations.js'), JSON.stringify(callers));
+  ok('every verifyTurnstile caller binds TURNSTILE_SECRET (else the fail-closed flag would 403 it)', callers.length > 0 && callers.every((c) => c.binds), JSON.stringify(callers));
+  const runbook = read('documentation/runbooks/TURNSTILE-SETUP.md');
+  ok('runbook Emergency no longer says blanking the secret opens the gate', !/destroy or blank `TURNSTILE_SECRET` and redeploy; the\s+verifier returns to its unconfigured passthrough/.test(runbook) && /TURNSTILE_REQUIRED=false/.test(runbook));
+}
+
 // ── 6. Deployment-order warning stays where the human will look ──
 ok('sitekey stub carries the populate-key-BEFORE-secret deployment warning',
    /BEFORE TURNSTILE_SECRET/.test(stub));

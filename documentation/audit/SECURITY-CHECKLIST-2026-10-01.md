@@ -79,7 +79,12 @@ All 14 of its fix checks fail on the pre-fix code.
 
 ## Checked and deliberately not changed
 
-- **`TURNSTILE_REQUIRED=true`.** Production already enforces Turnstile: the
+- **`TURNSTILE_REQUIRED=true`.** *(Update 2026-10-13: now set in
+  `functions/.env.nobigdeal-pro`. The emulator worry below does not hold for CI:
+  every functions emulator job runs `--project demo-nbd-*`, and a project-scoped
+  dotenv loads only for its own project id. The flag is safe in prod because
+  `TURNSTILE_SECRET` is enabled and bound to both callers; see the Emergency
+  section of `documentation/runbooks/TURNSTILE-SETUP.md`.)* Production already enforces Turnstile: the
   `TURNSTILE_SECRET` version is enabled and bound to `submitPublicLead`.
   Setting the flag in `functions/.env.nobigdeal-pro` would also apply to the
   functions emulator, which has no secret, and would break
