@@ -915,6 +915,7 @@
   // promise tasks, follow-ups) and re-checks tenant + do-not-record on the
   // server. A seam, like the uploader: the tests swap it.
   var FUNCTIONS_SDK = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
+  var CALL_TIMEOUT_MS = 20000;
   var _caller = defaultCaller;
   function defaultCaller(name, data) {
     return Promise.resolve().then(function () {
@@ -929,7 +930,9 @@
     return /permission-denied|failed-precondition|invalid-argument|unauthenticated/.test(c);
   }
   function callServer(action, id, extra) {
-    return Promise.resolve(_caller('attachVisitCapture', Object.assign({ visitId: id, action: action }, extra || {})));
+    // A callable that never answers (no signal, a cold function) must not hold the sheet: the
+    // caller falls back to the local write, which the server trigger files later (idempotent).
+    return withTimeout(Promise.resolve(_caller('attachVisitCapture', Object.assign({ visitId: id, action: action }, extra || {}))), CALL_TIMEOUT_MS);
   }
   /** The server's view of one visit (suggestions, notes, pipeline state), or null. */
   function getServerDoc(id) {
