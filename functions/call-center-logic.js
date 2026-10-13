@@ -325,7 +325,9 @@ function classifyProviderError(err) {
   const status = isObj ? Number(err.status) || 0 : 0;
   let provider = isObj && err.provider ? String(err.provider) : '';
   if (!provider) provider = /^\s*anthropic\b|anthropic-not-configured/i.test(msg) ? 'anthropic' : (/groq/i.test(msg) ? 'groq' : 'ai');
-  const m = /^\s*anthropic (\d{3})\b/i.exec(msg);
+  // The stored string carries the status for Anthropic ("anthropic 400: ...")
+  // and, since Groq errors are stored as "Groq rejected: HTTP 503", for Groq.
+  const m = /^\s*anthropic (\d{3})\b/i.exec(msg) || /^\s*groq rejected: HTTP (\d{3})\b/i.exec(msg);
   const code = status || (m ? Number(m[1]) : 0);
   let kind = null;
   if (/credit balance is too low|insufficient[_ ]?(credit|funds|quota)|exceeded your (current )?quota|plans?\s*(&|and)\s*billing|payment required/i.test(msg) || code === 402) kind = 'credit';

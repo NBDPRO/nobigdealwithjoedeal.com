@@ -68,3 +68,14 @@ burning quota slots on provider failures; thursday `attempts` unused.
 2. Optional: approve running `node scripts/reopen-provider-outage-calls.js
    --project nobigdeal-pro` (dry-run first, then `--apply`) to clear the stale
    error text on those 14.
+
+## Review follow-ups (same PR)
+
+- A 5xx can be one poisoned file, not the provider: `TRANSIENT_MAX` (6)
+  consecutive overloaded/5xx failures of ONE call turn into a strike, so a
+  single bad call can never hold the line (credit/auth/429 never use that budget).
+- Only errors from the transcriber / the model classify as outages; a Storage
+  read failure is the call's own failure (strike, no "top up Anthropic" bell).
+- A number labeled personal with capture off also drops a saved transcript.
+- Stored Groq strings ("Groq rejected: HTTP 503") classify like live errors.
+- The daily bell/push dedupe no longer re-arms when the outage kind flips.

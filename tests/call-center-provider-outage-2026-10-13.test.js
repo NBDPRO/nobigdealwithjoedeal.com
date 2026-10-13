@@ -172,6 +172,32 @@ const doc = (db, id) => db.docs.get(COLLECTION + '/' + id);
   ok('after the fix + a top-up the stuck call is noted without any script', doc(db, 's1').status === 'noted');
   ok('NEG: a call that failed for its own reason stays dropped', doc(db, 's2').status === 'stored' && Number(doc(db, 's2').transcribeAttempts) === 3);
 
+  console.log('\n7b. One poisoned file can not hold the line forever (5xx)');
+  db = fakeDb({ [CONFIG]: {}, [COLLECTION + '/p1']: call('p1', { startedAtMs: NOW - 1000 }) });
+  stub(() => { const e = new Error('anthropic 500: internal'); e.status = 500; e.provider = 'anthropic'; throw e; });
+  for (let i = 0; i < 5; i++) await runTranscribe({ db, bucket, live: true, nowMs: NOW + i * 1800e3 });
+  ok('five 5xx in a row: still no strike, counted separately', !(Number(doc(db, 'p1').transcribeAttempts) > 0) && doc(db, 'p1').transientFails === 5, JSON.stringify(doc(db, 'p1')));
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 6 * 1800e3 });
+  ok('the sixth makes it the call\'s fault: one strike, line moves on', Number(doc(db, 'p1').transcribeAttempts) === 1);
+  db = fakeDb({ [CONFIG]: {}, [COLLECTION + '/q1']: call('q1', { startedAtMs: NOW - 1000, transientFails: 5 }) });
+  stub(() => { throw creditErr(); });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('NEG: credit outages never use the 5xx budget', !(Number(doc(db, 'q1').transcribeAttempts) > 0));
+
+  console.log('\n7c. Review fixes');
+  ok('stored Groq status string classifies', C('Groq rejected: HTTP 503').kind === 'overloaded' && C('Groq rejected: HTTP 401').kind === 'auth');
+  db = fakeDb({ [CONFIG]: {}, [COLLECTION + '/st']: call('st', {}) });
+  stub(() => GOOD());
+  const badBucket = { file: () => ({ download: async () => { const e = new Error('Storage forbidden'); e.status = 403; throw e; }, delete: async () => {} }) };
+  r = await runTranscribe({ db, bucket: badBucket, live: true, nowMs: NOW });
+  ok('a Storage 403 is the call\'s failure: strike, no outage, no "top up Anthropic" bell', Number(doc(db, 'st').transcribeAttempts) === 1 && !r.providerOutage && bells(db).length === 0, JSON.stringify(r));
+  db = fakeDb({ [CONFIG]: {}, [COLLECTION + '/k1']: call('k1', {}) });
+  stub(() => { throw creditErr(); });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  stub(() => { const e = new Error('anthropic 401: invalid x-api-key'); e.status = 401; e.provider = 'anthropic'; throw e; });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 1800e3 });
+  ok('credit -> key flip the same day: still ONE bell, no second push, bell not re-armed', bells(db).length === 1 && pushes.length === 0 && cc(db).providerOutage.kind === 'auth');
+
   console.log('\n8. Facts re-read: an outage is not a strike');
   db = fakeDb({
     [CONFIG]: {},
