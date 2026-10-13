@@ -143,8 +143,9 @@ console.log('\n4. wiring');
   const haSrc = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'home-attention.js'), 'utf8');
   // 2026-10-13: by DATE (the 45-day promise window, startedAtMs >= since) with a row cap only as a safety bound;
   // old promises have their own read (tests/never-forget-client-2026-10-13.test.js proves the behaviour).
-  ok('Home counts days of texts by the same rule', /qWin\('phone_text_days', READ\.recentTexts\)/.test(haSrc) && /w\.where\('startedAtMs', '>=', sinceWin\), w\.orderBy\('startedAtMs', 'desc'\), w\.limit\(cap\)/.test(haSrc) && /out\.calls = callersNeedingYou\(callRows, Date\.now\(\)(, labels)?\)/.test(haSrc) && (haSrc.match(/callRows\.push/g) || []).length === 3);
-  ok('Home reads only the owner\'s own calls, over the 45-day window', /w\.collection\(w\.db, name\), w\.where\('userId', '==', u\), w\.where\('startedAtMs', '>=', sinceWin\)/.test(haSrc) && /qWin\('phone_calls', READ\.recentCalls\)/.test(haSrc) && /const sinceWin = Date\.now\(\) - PROMISE_WINDOW;/.test(haSrc));
+  const haCode = haSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"])\/\/.*$/gm, '$1');   // comments never satisfy a shape check
+  ok('Home counts days of texts by the same rule', /qWin\(\s*'phone_text_days',\s*READ\.recentTexts\s*\)/.test(haCode) && /w\.where\('startedAtMs', '>=', sinceWin\),\s*w\.orderBy\('startedAtMs', 'desc'\),\s*w\.limit\(cap\)/.test(haCode) && /out\.calls = callersNeedingYou\(callRows, Date\.now\(\)(, labels)?\)/.test(haCode));
+  ok('Home reads only the owner\'s own calls, over the 45-day window', /w\.collection\(w\.db, name\),\s*w\.where\('userId', '==', u\),\s*w\.where\('startedAtMs', '>=', sinceWin\)/.test(haCode) && /qWin\(\s*'phone_calls',\s*READ\.recentCalls\s*\)/.test(haCode) && /const sinceWin = Date\.now\(\) - PROMISE_WINDOW;/.test(haCode));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

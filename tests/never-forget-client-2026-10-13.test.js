@@ -487,6 +487,154 @@ const joP = [{ who: 'jo', text: 'call back with the number' }];
     ok('a reload requested mid-load is run after it (was dropped)', n >= 2, 'phone_calls reads=' + n);
   }
 
+  // ═══ R2. pins the vacuous-test audit found missing ═══════════════════════
+  console.log('\nR2. every new branch has a check that can fail');
+  {
+    // texts: the same date bound + cap as calls, and the flag
+    const tcap = (await homeStrip({ phone_calls: [], phone_text_days: [] })).api.READ.recentTexts;
+    const days = [];
+    for (let i = 0; i < tcap + 4; i++) days.push({ id: 't' + i, userId: 'u1', startedAtMs: NOW - 3 * DAY - i * 1000, channel: 'text', callType: 'sub', phoneDigits: '5135556' + String(100 + i).slice(0, 3) });
+    days.push({ id: 'tOld', userId: 'u1', startedAtMs: NOW - 60 * DAY, channel: 'text', promises: joP, phoneDigits: '5135556999' });
+    days.push({ id: 'tMid', userId: 'u1', startedAtMs: NOW - 30 * DAY, channel: 'text', promises: joP, phoneDigits: '5135556998' });
+    const h = await homeStrip({ phone_calls: [], phone_text_days: days });
+    const tr = h.fb.reads.filter((r) => r.name === 'phone_text_days')[0];
+    ok('text days are read by date too (>= now - 45 d) with their own cap', !!tr && tr.cs.some((c) => c.f === 'startedAtMs' && c.op === '>=' && Math.abs(c.v - (NOW - 45 * DAY)) < 60000) && tr.cs.some((c) => c.t === 'l' && c.n === tcap), JSON.stringify(tr && tr.cs));
+    ok('a capped texts read says so', h.api.lastCounts.textsCapped === true && h.api.lastCounts.textsCap === tcap && /newest \d+ days of texts/.test(h.strip.innerHTML), h.strip.innerHTML.slice(0, 200));
+    // (the 30-day-old text promise is beyond the newest tcap rows here, so it is the capped warning - not an all-clear - that covers it)
+  }
+  {
+    // a hidden number's label stamp from the far future must not park it forever (server: saneStampMs)
+    const lab = { '5135550909': { kind: 'customer', policy: 'hide', ackAtMs: NOW + 400 * DAY, updatedAtMs: NOW - 10 * DAY } };
+    const back = call('back1', { startedAtMs: NOW - 3 * 3600e3, leadId: 'L1', phoneDigits: '5135550909' });
+    ok('a label ackAtMs 400 days in the future is ignored: the hidden number that matches a customer still comes back once', HA.resurfacedNumbers([back], lab, NOW).length === 1);
+    const sane = { '5135550909': { kind: 'customer', policy: 'hide', ackAtMs: NOW - 3600e3, updatedAtMs: NOW - 10 * DAY } };
+    ok('control: a normal acknowledgement after the call keeps it parked', HA.resurfacedNumbers([back], sane, NOW).length === 0);
+  }
+  {
+    // malformed due date falls back to the clock; ripe items are not "pending"
+    ok('a malformed dueDate is ignored (falls back to the N-day clock)', PL.isRipe(wt('a', d(-5), 'abc'), T, 3) && !PL.isRipe(wt('a', d(-1), 'abc'), T, 3) && PL.isRipe(wt('a', d(-5), ''), T, 3));
+    const q = bp([wt('w1', d(-5), d(-1))]);
+    ok('a ripe item is not counted as pending', q.waiting.length === 1 && q.waitingPending === 0);
+  }
+  {
+    // the promise sheet, driven: a promise MOVE on a call, a sibling call, the Call Center copy
+    const tap = (sheet, attrs) => sheet._l.click.forEach((fn) => fn({ target: { closest: () => ({ getAttribute: (k) => (k in attrs ? attrs[k] : null) }) } }));
+    const mk = (reply) => {
+      const rowsHome = [call('cube_M1', { phoneDigits: '5135550511', bucket: 'unknown', followUpDate: TODAY, promise: { kind: 'promise', promiseKind: 'callback', dueDate: PL.addDaysYmd(TODAY, -3), missCount: 0, rescheduleCount: 0, done: false } }),
+        call('cube_M2', { phoneDigits: '5135550511', bucket: 'unknown', startedAtMs: NOW - 7200e3 })];
+      const rowsCC = [Object.assign({}, rowsHome[0]), Object.assign({}, rowsHome[1])];
+      const env = sandbox({ _taskCache: {}, _leads: [], _userClaims: {}, _user: { uid: 'u1' }, showToast() {},
+        NBDHomeAttention: { lastRows: rowsHome, render() {} }, NBDCallCenter: { _state: { calls: rowsCC } },
+        _functions: {}, _httpsCallable: () => async () => ({ data: reply }) });
+      load(env, 'docs/pro/js/promise-logic.js');
+      load(env, 'docs/pro/js/promise-ui.js');
+      return { env, rowsHome, rowsCC };
+    };
+    // move an overdue riding promise: both copies get the new date and a miss
+    {
+      const m = mk({ ok: true, on: 'call', dueDate: PL.addDaysYmd(TODAY, 2) });
+      m.env.win.NBDPromise.openSheet({ mode: 'move', name: 'X', moveText: 'Call back', move: { type: 'call', callId: 'cube_M1' } });
+      const sh = m.env.els.prSheet;
+      tap(sh, { 'data-pr-act': 'due', 'data-pr-val': 'd3' });
+      tap(sh, { 'data-pr-act': 'save' });
+      await flush(); await flush();
+      const a = m.rowsHome[0], b = m.rowsCC[0];
+      ok('moving a riding promise patches Home\'s row: new date, a miss counted, parked until then', a.followUpDate === PL.addDaysYmd(TODAY, 3) && a.promise.dueDate === PL.addDaysYmd(TODAY, 3) && a.promise.missCount === 1 && a.snoozeUntilYmd === PL.addDaysYmd(TODAY, 3), JSON.stringify(a));
+      ok('...and the Call Center\'s own copy', b.promise.dueDate === a.promise.dueDate && b.followUpDate === a.followUpDate && b.snoozeUntilYmd === a.snoozeUntilYmd);
+    }
+    // saving on a customer's call with a sibling: both calls are handled locally, in both lists
+    {
+      const m = mk({ ok: true, on: 'task', taskId: 'promise-cube_M1', dueDate: TODAY });
+      m.rowsHome.forEach((r) => { r.leadId = 'LX'; }); m.rowsCC.forEach((r) => { r.leadId = 'LX'; });
+      m.env.win._leads = [{ id: 'LX', firstName: 'Xan', lastName: 'Cust' }];
+      m.env.win.NBDPromise.openSheet({ mode: 'handle', name: 'Xan', callIds: ['cube_M1', 'cube_M2'], leadId: 'LX', lead: m.env.win._leads[0] });
+      const sh = m.env.els.prSheet;
+      tap(sh, { 'data-pr-act': 'kind', 'data-pr-val': 'callback' });
+      tap(sh, { 'data-pr-act': 'save' });
+      await flush(); await flush(); await flush();
+      ok('the primary AND the sibling call are marked handled in Home\'s list', m.rowsHome.every((r) => r.handledAtMs > 0), JSON.stringify(m.rowsHome.map((r) => r.handledAtMs)));
+      ok('...and in the Call Center\'s list', m.rowsCC.every((r) => r.handledAtMs > 0));
+      ok('...so neither is "needs you" any more (the people count drops at once)', HA.callersNeedingYou(m.rowsHome, NOW) === 0 && HA.callersNeedingYou(m.rowsCC, NOW) === 0);
+    }
+    // an unfiled call: the promise rides on the call, and the Today row must stay visible (the handled set must not hide it)
+    {
+      const leadless = [call('cube_U1', { phoneDigits: '5135550599', bucket: 'unknown', status: 'noted', urgent: true })];
+      const ha = { lastRows: leadless, lastCounts: {}, groupNeeds: HA.groupNeeds, callerKey: HA.callerKey, hiddenPeople: HA.hiddenPeople, render() {} };
+      const env = sandbox({
+        _user: { uid: 'u1' }, _userClaims: {}, _leads: [], _leadsLoaded: true, _taskCache: {}, showToast() {},
+        NBDTasks: { loaded: () => true }, NBDTodayPlan: TP, NBDHomeAttention: ha,
+        _functions: {}, _httpsCallable: () => async () => ({ data: { ok: true, on: 'call', dueDate: TODAY } }),
+        ScriptLoader: { bundles: {}, loadBundle: async () => { load(env, 'docs/pro/js/promise-logic.js'); load(env, 'docs/pro/js/promise-ui.js'); } },
+      });
+      env.els.todayPlan = fakeEl('todayPlan');
+      load(env, 'docs/pro/js/today-home.js');
+      await flush(); await flush();
+      env.win.NBDToday.render();
+      const key = 'num:5135550599';
+      for (const fn of env.doc._l.click || []) await fn({ target: { closest: (sel) => (/data-tp-act/.test(sel) ? { getAttribute: (k) => ({ 'data-tp-act': 'handled', 'data-tp-key': key })[k] || null } : null) } });
+      await flush(); await flush();
+      const sh = env.els.prSheet;
+      tap(sh, { 'data-pr-act': 'kind', 'data-pr-val': 'callback' });
+      tap(sh, { 'data-pr-act': 'save' });
+      await flush(); await flush(); await flush();
+      env.win.NBDToday.render();
+      const html2 = env.els.todayPlan.innerHTML;
+      ok('an unfiled call keeps its row after the promise is saved on it (the key is not remembered as handled)', /data-tp-row="num:5135550599"/.test(html2) && /Promised: /.test(html2) && /data-tp-act="ckept"/.test(html2), html2.slice(0, 400));
+    }
+  }
+  {
+    // handlers: Call Center reload / Try again, Today retry, the said-you'd-do error + its recovery, the cap window, the read reset
+    const fb = fakeFirestore({ phone_calls: [], phone_text_days: [] });
+    let failTexts = true, failPromises = true, dataPromises = 0;
+    const gd = fb.getDocs;
+    const g = Object.assign({}, fb, { getDocs: async (q) => { if (failTexts && q.col.name === 'phone_text_days') throw Object.assign(new Error('x'), { code: 'unavailable' }); return gd(q); } });
+    const env = sandbox(Object.assign({ _user: { uid: 'u1' }, _userClaims: {}, db: {}, _leads: [], CSS: { escape: (x) => String(x) }, _functions: {},
+      _httpsCallable: (_f, name) => async () => {
+        if (name === 'callPromisesList') { dataPromises++; if (failPromises) throw Object.assign(new Error('unavailable'), { code: 'functions/unavailable' }); return { data: { items: [], counts: {} } }; }
+        return { data: { ok: true } };
+      } }, g));
+    const target = fakeEl('scroll');
+    env.doc.querySelector = (sel) => (sel === '#view-calls .view-scroll' ? target : null);
+    load(env, 'docs/pro/js/home-attention.js');
+    load(env, 'docs/pro/js/call-center-view.js');
+    const CC = env.win.NBDCallCenter;
+    CC.init();
+    await flush(); await flush(); await flush(); await flush();
+    ok('a failed said-you\'d-do list is named in the banner (not just absent)', /said you(&#39;|')d do/.test(target.innerHTML) && /NOT an all-clear/.test(target.innerHTML), target.innerHTML.slice(0, 300));
+    failTexts = false; failPromises = false;
+    const click = async (attrs) => { for (const fn of env.doc._l.click || []) await fn({ target: { closest: (sel) => (/data-cc/.test(sel) ? { getAttribute: (k) => (k in attrs ? attrs[k] : null), closest: (x) => (x === '#view-calls' ? {} : null) } : null) } }); await flush(); await flush(); await flush(); };
+    await click({ 'data-cc': 'reload' });
+    ok('Try again reloads (the banner is gone once the reads succeed - the failure list is reset each load)', !/NOT an all-clear/.test(target.innerHTML) && dataPromises >= 2, 'promise list calls=' + dataPromises + ' ' + target.innerHTML.slice(0, 200));
+  }
+  {
+    // the cap note only applies INSIDE the 45-day window
+    const spread = [];
+    for (let i = 0; i < 305; i++) spread.push(call('s' + i, { startedAtMs: NOW - (10 + i) * DAY, handledAtMs: NOW - DAY, phoneDigits: '5135557' + String(100 + i).slice(0, 3) }));
+    const c2 = await callCenter({ phone_calls: spread, phone_text_days: [] });
+    ok('300 rows spanning way past 45 days: no cap note (nothing inside the window is missing)', !/Showing only your newest/.test(c2.html()));
+  }
+  {
+    // Today: the headline, Try again on its banner
+    let rendered = 0;
+    const env = sandbox({
+      _user: { uid: 'u1' }, _userClaims: {}, _leads: [], _leadsLoaded: true, _taskCache: {},
+      NBDTasks: { loaded: () => true }, NBDTodayPlan: TP,
+      NBDHomeAttention: { groupNeeds: () => [], lastRows: [], lastCounts: { callsFailed: true }, callerKey: HA.callerKey, render() { rendered++; } },
+    });
+    env.els.todayPlan = fakeEl('todayPlan');
+    load(env, 'docs/pro/js/today-home.js');
+    env.win.NBDToday.render();
+    ok('a failed read does not read "Nothing due today"', /Can(&#39;|')t confirm your day/.test(env.els.todayPlan.innerHTML) && !/Nothing due today/.test(env.els.todayPlan.innerHTML));
+    for (const fn of env.doc._l.click || []) await fn({ target: { closest: (sel) => (/data-tp-act/.test(sel) ? { getAttribute: (k) => ({ 'data-tp-act': 'retry', 'data-tp-key': 'calls' })[k] || null } : null) } });
+    ok('Try again on the Today banner forces a fresh calls read', rendered === 1);
+  }
+  {
+    // cache-bust: the promise bundle's two files carry the SAME version everywhere they are loaded
+    const th = read('docs/pro/js/today-home.js'), cu = read('docs/pro/customer.html');
+    const bv = (src, file) => { const m = new RegExp(file.replace('.', '[.]') + '[?]v=([0-9]+)').exec(src); return m ? m[1] : null; };
+    ok('promise-logic.js / promise-ui.js are versioned identically in the lazy bundle and on the customer page', bv(th, 'promise-logic.js') && bv(th, 'promise-logic.js') === bv(cu, 'promise-logic.js') && bv(th, 'promise-ui.js') === bv(cu, 'promise-ui.js'), [bv(th, 'promise-logic.js'), bv(cu, 'promise-logic.js'), bv(th, 'promise-ui.js'), bv(cu, 'promise-ui.js')].join('/'));
+  }
+
   // ═══ M5 rule parity fuzz ════════════════════════════════════════════
   console.log('\nM5. Home mirror vs functions/call-watch-logic.js (seeded fuzz)');
   let seed = 20261013;
@@ -523,6 +671,9 @@ const joP = [{ who: 'jo', text: 'call back with the number' }];
         ]);
       }
     }
+    // a hidden number ringing 3+ times inside 24 h (the burst valve) and a customer with two old promises
+    if (rnd() < 0.3) { const dg = pick(nums); for (let b = 0; b < 3 + Math.floor(rnd() * 2); b++) set.push({ id: 'b' + trial + '_' + b, startedAtMs: NOW - (0.05 + b * 0.1) * DAY, phoneDigits: dg, channel: 'call', status: 'noted', direction: 'inbound', bucket: 'unknown', promises: [] }); }
+    if (rnd() < 0.3) { const L = pick(['L1', 'L2']); for (let b = 0; b < 2; b++) set.push({ id: 'o' + trial + '_' + b, startedAtMs: NOW - (50 + b * 10) * DAY, phoneDigits: pick(nums), leadId: L, channel: 'call', status: 'noted', direction: 'inbound', promises: joP }); }
     const labels = {};
     nums.forEach((dg) => { if (rnd() < 0.4) labels[dg] = { kind: pick(kinds), policy: pick(pols), ackAtMs: rnd() < 0.3 ? NOW - 2 * DAY : (hasSane && rnd() < 0.1 ? NOW + pick([2, 400]) * DAY : 0), updatedAtMs: hasSane && rnd() < 0.05 ? NOW + 30 * DAY : NOW - pick([1, 5, 30]) * DAY }; });
     const useLabels = rnd() < 0.8;
@@ -545,7 +696,26 @@ const joP = [{ who: 'jo', text: 'call back with the number' }];
   ok('oldPromiseCount: 0 differences', diffOld === 0, diffOld + ' differ');
   ok('both sides export the same shared-rule surface (a new rule function must land on both)', ['callNeedsYou', 'callerKey', 'reachIndex', 'resurfacedNumbers', 'isMissedCall', 'oldPromiseCount', 'isOldPromise']
     .every((k) => typeof W[k] === 'function' && typeof HA[k] === 'function'));
-  ok('the window constants agree', /const CALL_WINDOW = 14 \* DAY;/.test(read('docs/pro/js/home-attention.js')) && W.CALL_WINDOW === 14 * DAY && /const PROMISE_WINDOW = 45 \* DAY;/.test(read('docs/pro/js/home-attention.js')) && W.PROMISE_WINDOW === 45 * DAY);
+  ok('the window constants agree (exported values, not source text)', HA.CALL_WINDOW === W.CALL_WINDOW && HA.PROMISE_WINDOW === W.PROMISE_WINDOW && W.PROMISE_WINDOW === 45 * DAY);
+  console.log('  (fuzz arms from the server lane: rider promise ' + (hasRider ? 'ACTIVE' : 'inactive - not merged yet') + ', label stamp bounds ' + (hasSane ? 'ACTIVE' : 'inactive - not merged yet') + ')');
+  // people counts: Home's grouping vs the server's rule + key, over the same fuzz
+  {
+    let diffPeople = 0, sets = 0, seed2 = 777;
+    const r2 = () => { seed2 = (seed2 * 1664525 + 1013904223) % 4294967296; return seed2 / 4294967296; };
+    for (let trial = 0; trial < 300; trial++) {
+      const set = [];
+      for (let i = 0; i < 4 + Math.floor(r2() * 10); i++) {
+        set.push({ id: 'p' + trial + '_' + i, startedAtMs: NOW - [0.1, 1, 5, 12, 20, 40][Math.floor(r2() * 6)] * DAY, phoneDigits: nums[Math.floor(r2() * nums.length)],
+          leadId: r2() < 0.4 ? ['L1', 'L2', 'L3'][Math.floor(r2() * 3)] : null, status: ['noted', 'short'][Math.floor(r2() * 2)], direction: 'inbound', bucket: ['customer', 'unknown', 'insurance'][Math.floor(r2() * 3)],
+          urgent: r2() < 0.3, promises: r2() < 0.3 ? joP : [], handledAtMs: r2() < 0.2 ? NOW - DAY : 0 });
+      }
+      const ctx = W.reachIndex(set);
+      const want = new Set(set.filter((c) => W.callNeedsYou(c, NOW, ctx)).map(W.callerKey));
+      sets++;
+      if (HA.callersNeedingYou(set, NOW) !== want.size) diffPeople++;
+    }
+    ok('callersNeedingYou counts the same PEOPLE the server rule + key does (' + sets + ' sets)', diffPeople === 0, diffPeople + ' differ');
+  }
   // Fuzz sensitivity control: the harness must be able to see a one-line rule change.
   const mutated = read('docs/pro/js/home-attention.js').replace("if (c.urgent === true) return true;", "if (c.urgent === true && false) return true;");
   const mh = {}; vm.runInNewContext('var module={exports:{}};' + mutated + ';result=module.exports;', mh);
