@@ -1,5 +1,11 @@
 # NEXT_SESSION — 2026-10-12: CRM style / theme / layout roadmap landed
 
+> **Update 2026-10-13:** superseded by
+> [NEXT_SESSION-2026-10-13](NEXT_SESSION-2026-10-13.md). Everything under
+> "Open — needs Jo" item 5 (the five remaining layouts) shipped; item 6
+> (Storm Alerts caveat) shipped as #2355; the Grok follow-up was read and
+> verified. The ~120 worktrees noted below were cleaned to ~20.
+
 **Session of 2026-10-11 → 10-12.** Jo had Grok review the CRM and asked to
 "integrate them all". Claude turned Grok's three Drive docs into a plan
 ([CRM-STYLE-INTEGRATION-ROADMAP-2026-10-11](CRM-STYLE-INTEGRATION-ROADMAP-2026-10-11.md)),
