@@ -2321,7 +2321,7 @@
         <h2 style="margin:8px 0 0;font-size:18px;color:${A};font-weight:400;">Step-by-Step Process Guide</h2>
         <p style="margin:16px 0 0;font-size:14px;opacity:0.9;max-width:500px;margin-left:auto;margin-right:auto;">
           Filing an insurance claim can feel overwhelming. This guide walks you through every step
-          so you know exactly what to expect. We handle the hard parts — so it really is no big deal.</p>
+          so you know what to expect. Your insurance company decides your claim; we are here to inspect, document and estimate the repair.</p>
         ${insCarrier ? `<div style="margin:16px 0 0;font-size:13px;color:#fff;opacity:0.92;">
           Prepared for your claim with <strong>${insCarrier}</strong></div>` : ''}
       </div>
@@ -2350,7 +2350,7 @@
         <div class="section-title">Common Questions</div>
         <div class="faq-item">
           <div class="faq-q">Will filing a claim raise my insurance rates?</div>
-          <div class="faq-a">Storm damage claims are typically classified as "Acts of God" and generally do not result in rate increases. Your insurance exists for exactly this purpose.</div>
+          <div class="faq-a">Your insurance company and your policy decide that, and we cannot predict it. Your insurer or agent can tell you how a claim may affect your rates before you file.</div>
         </div>
         <div class="faq-item">
           <div class="faq-q">What is my deductible?</div>
@@ -2358,7 +2358,7 @@
         </div>
         <div class="faq-item">
           <div class="faq-q">How long does the process take?</div>
-          <div class="faq-a">Most claims are approved within 2–4 weeks. Once approved, we typically begin work within 1–2 weeks depending on crew and material availability.</div>
+          <div class="faq-a">How long a claim takes is up to your insurance company. Once you have its decision and have approved the scope of work, we typically begin within 1–2 weeks, depending on crew and material availability.</div>
         </div>
         <div class="faq-item">
           <div class="faq-q">What if the insurance estimate is too low?</div>
@@ -2538,15 +2538,6 @@
   DG.renderTestimonialSheet = function(data) {
     const d = Object.assign({}, data);
 
-    // Curated testimonials are the FALLBACK only — shown when the rep entered
-    // none of testimonial1/2/3 in the preflight modal.
-    const curated = [
-      { text:'They made the whole process feel like no big deal. From filing the claim to the final cleanup, everything was handled professionally and on time.', name:'Satisfied Homeowner', location:'Lexington, KY', project:'Roof Replacement', rating:5 },
-      { text:'The crew was on time, cleaned up everything, and the roof looks amazing. Best contractor experience I have ever had. Highly recommend.', name:'Satisfied Homeowner', location:'Georgetown, KY', project:'Roof & Gutters', rating:5 },
-      { text:'Joe and his team documented every bit of the storm damage and explained each step of the repair. We did not have to stress about a single thing. The new roof looks incredible.', name:'Satisfied Homeowner', location:'Nicholasville, KY', project:'Insurance Restoration', rating:5 },
-      { text:'Professional from start to finish. They showed up when they said they would, did exactly what they said they would do, and left the property cleaner than they found it.', name:'Satisfied Homeowner', location:'Versailles, KY', project:'Siding Replacement', rating:5 }
-    ];
-
     // Wire the rep-entered testimonials. Each preflight field is a free-text
     // "Customer quote + name" textarea, so the whole entry is the displayed
     // text; rating1/2/3 (default 5) drives the stars. Only non-blank entries
@@ -2558,26 +2549,22 @@
       { text: d.testimonial3, rating: clampRating(d.rating3) }
     ].filter(function(t) { return t.text && String(t.text).trim(); });
 
-    const useRep = repEntries.length > 0;
-    // The curated set is NBD's own (KY cities, "Joe"). A non-NBD tenant must
-    // NEVER fall back to it — show only rep-entered quotes, and hide the section
-    // when the rep entered none (never fabricate testimonials for another brand).
-    let _tb = null;
-    try { _tb = (typeof window !== 'undefined' && window._brand) ? window._brand() : null; } catch (_) { _tb = null; }
-    const _isNbd = !_tb || !_tb.legalName || _tb.legalName === 'No Big Deal Home Solutions';
-    const testimonials = useRep ? repEntries : (_isNbd ? curated : []);
+    // Only quotes the rep actually entered are ever shown. There is NO
+    // built-in fallback set: invented "Satisfied Homeowner" quotes are an FTC
+    // endorsement problem (and some described claim handling). With nothing
+    // entered the sheet prints a prompt for a real review instead.
+    const testimonials = repEntries;
     const hasTestimonials = testimonials.length > 0;
 
-    // Hero stats: with rep data, derive the average from the entries actually
-    // shown (don't fabricate a 5.0). Without rep data, the curated set is all
-    // 5-star, so 5.0 / 100% is accurate. (Empty → stats suppressed below.)
+    // Hero stats: derived from the entries actually shown (never a made-up
+    // 5.0). Empty -> stats suppressed below.
     const avgRating = hasTestimonials
       ? testimonials.reduce(function(s, t) { return s + (t.rating || 5); }, 0) / testimonials.length
       : 0;
     const avgDisplay = avgRating.toFixed(1);
-    const recommendPct = useRep
+    const recommendPct = hasTestimonials
       ? Math.round((testimonials.filter(function(t) { return (t.rating || 5) >= 4; }).length / testimonials.length) * 100)
-      : 100;
+      : 0;
 
     return page('Customer Testimonials', `
       <style>
@@ -2602,6 +2589,9 @@
         </div>` : ''}
       </div>
 
+      ${hasTestimonials ? '' : `<div class="test-card">
+        <div class="test-text">No customer reviews have been added to this sheet yet. Add a real quote from a customer who agreed to share it before printing.</div>
+      </div>`}
       ${testimonials.map(t => `<div class="test-card">
         <div class="test-quote">&ldquo;</div>
         <div class="test-stars">${'★'.repeat(t.rating || 5)}</div>
