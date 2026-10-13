@@ -41,9 +41,10 @@ function fakeDb(seed) {
     orderBy: () => query(name, filters, lim),
     limit: (n) => query(name, filters, n),
     get: async () => {
-      const rows = [...docs.entries()].filter(([k, v]) => k.startsWith(name + '/') && k.split('/').length === 2
-        && filters.every(([f, op, val]) => op === '==' && Object.prototype.hasOwnProperty.call(v, f) && v[f] === val)).slice(0, lim || 1e9)
-        .map(([k, v]) => ({ id: k.split('/')[1], ref: mk(k), exists: true, data: () => v }));
+      const depth = name.split('/').length + 1;
+      const rows = [...docs.entries()].filter(([k, v]) => k.startsWith(name + '/') && k.split('/').length === depth
+        && filters.every(([f, op, val]) => Object.prototype.hasOwnProperty.call(v, f) && (op === '==' ? v[f] === val : op === '>=' ? v[f] >= val : false))).slice(0, lim || 1e9)
+        .map(([k, v]) => ({ id: k.split('/')[depth - 1], ref: mk(k), exists: true, data: () => v }));
       return { docs: rows, size: rows.length, forEach: (fn) => rows.forEach(fn) };
     },
   });
@@ -89,6 +90,32 @@ const run = async (db, auth, data) => { try { return { r: await callAction({ db,
   ok('handled stamps the time and who', db.docs.get(COLLECTION + '/cube_AAAAA1').handledAtMs === NOW && db.docs.get(COLLECTION + '/cube_AAAAA1').handledBy === OWN);
   await run(db, owner, { id: 'cube_AAAAA1', action: 'unhandled' });
   ok('unhandled clears it', db.docs.get(COLLECTION + '/cube_AAAAA1').handledAtMs === null);
+
+  console.log('\n3b. clearing a person updates the away-mode hand-back row (2026-10-13)');
+  {
+    // Real loadOpenItems + callNeedsYou, in-memory Firestore. An urgent noted
+    // call from 8595550147 that Jo has not handled is on his list.
+    const AID = 'leads/LA/activity/away-w1-8595550147';
+    const sd = {
+      [COLLECTION + '/cube_AWAY01']: { userId: 'co1', companyId: 'co1', phoneDigits: '8595550147', status: 'noted', urgent: true, startedAtMs: NOW - 3600000, direction: 'inbound' },
+      'leads/LA': { userId: 'co1', companyId: 'co1', phoneDigits: '8595550147' },
+      [AID]: { type: 'away_handback', backupSaysDone: true, summary: 'Sam: Says done', startedAtMs: NOW - 7200000 },
+    };
+    const jo = { uid: 'co1', token: { name: 'Joe Deal' } };
+    const dA = fakeDb(sd);
+    await run(dA, jo, { id: 'cube_AWAY01', action: 'unhandled' });
+    ok('still on the list: the hand-back row is left as the backup\'s claim', dA.docs.get(AID).clearedAtMs === undefined);
+    await run(dA, jo, { id: 'cube_AWAY01', action: 'handled' });
+    ok('Handled stamps the hand-back row: when, who, by first name', dA.docs.get(AID).clearedAtMs === NOW && dA.docs.get(AID).clearedByUid === 'co1' && dA.docs.get(AID).clearedByName === 'Joe', JSON.stringify(dA.docs.get(AID)));
+    await run(dA, jo, { id: 'cube_AWAY01', action: 'unhandled' });
+    ok('Undo puts the claim back', dA.docs.get(AID).clearedAtMs === null);
+    // the clearing action itself must survive a broken settle
+    const dB = fakeDb(sd);
+    const realCol = dB.collection;
+    dB.collection = (n) => { if (n === 'leads') throw new Error('boom'); return realCol(n); };
+    const rb = await run(dB, jo, { id: 'cube_AWAY01', action: 'handled' });
+    ok('a failure in the hand-back update never fails Handled', !rb.e && dB.docs.get(COLLECTION + '/cube_AWAY01').handledAtMs === NOW);
+  }
 
   console.log('\n4. attach');
   db = fakeDb(seed());
