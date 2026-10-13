@@ -445,9 +445,61 @@
       }
       return promisedByLead.get(leadId);
     }
-    (o.callGroups || []).forEach(function (g) {
+    // One PERSON = one row (2026-10-13): a call with no customer filed on it
+    // (callerKey 'num:<digits>') from the number of exactly ONE live customer is
+    // that customer's call. Without this, a filed customer's promise AND an
+    // unfiled call from the same number were two rows in "N things today". The
+    // call is never hidden: it rides inside the person's row (phoneCalls) with
+    // its own Handled / Kept it button. The Home strip and Call Center keep the
+    // server's callerKey rule untouched (call-watch-logic.js is the one source).
+    var leadByDigits = new Map();
+    leads.forEach(function (l) {
+      [l.phone, l.phoneDigits].forEach(function (v) {
+        var d = digits10(v);
+        if (!d) return;
+        if (leadByDigits.has(d) && leadByDigits.get(d) !== l) leadByDigits.set(d, null);   // two customers share it: no guess
+        else if (!leadByDigits.has(d)) leadByDigits.set(d, l);
+      });
+    });
+    var callsByLead = new Map();
+    function mkCall(g, open, latest, leadId) {
+      var lead = leadId ? byId.get(leadId) : null;
+      return {
+        key: g.key || ('call:' + actionId(latest)), leadId: leadId,
+        name: (lead && leadName(lead)) || latest.contactName || latest.callerName || '',
+        phone: digits10((lead && (lead.phone || lead.phoneDigits)) || latest.phoneDigits),
+        callIds: open.map(actionId),
+        count: open.length,
+        urgent: open.some(function (c) { return c.urgent === true; }),
+        missed: open.some(function (c) { return c.channel !== 'text' && c.status === 'short' && c.direction === 'inbound'; }),
+        text: open.some(function (c) { return c.channel === 'text' || /^text:/.test(String(c.id || '')); }),
+        // A hidden number that came back (home-attention.js resurfacedNumbers).
+        resurfaced: g.resurfaced || '',
+        summary: String(latest.summary || '').slice(0, 140),
+        latestMs: toMs(latest.startedAtMs) || 0,
+        // What Jo said he would do (the AI's note), to pre-fill the promise sheet's why.
+        said: open.reduce(function (acc, c) { return acc.concat(joPromises(c).map(promiseText).filter(Boolean)); }, []).slice(0, 3),
+        // A promise riding on an unfiled call (callCenterAction 'promise').
+        promise: callPromise(PL, open, todayLocal),
+      };
+    }
+    var groupList = (o.callGroups || []).map(function (g, ord) {
       var first = (g.calls || [])[0];
       var leadId = first && first.leadId && byId.has(String(first.leadId)) ? String(first.leadId) : null;
+      var viaPhone = false;
+      // Only a call with NO customer id on it: one filed on a deleted / unknown
+      // lead keeps its own row (it is not "unfiled").
+      if (!leadId && first && !first.leadId) {
+        var hit = leadByDigits.get(digits10(first.phoneDigits));
+        if (hit) { leadId = String(hit.id); viaPhone = true; }
+      }
+      return { g: g, leadId: leadId, viaPhone: viaPhone, ord: ord };
+    });
+    // Filed groups first, so a phone match joins a row that already exists.
+    groupList.sort(function (x, y) { return (x.viaPhone ? 1 : 0) - (y.viaPhone ? 1 : 0) || x.ord - y.ord; });
+    groupList.forEach(function (it) {
+      var g = it.g, leadId = it.leadId;
+      if (it.viaPhone && !keep(g.key)) return;   // Jo handled this unfiled call this session
       var leadTasks = leadId ? ((o.tasksByLead || {})[leadId] || []) : [];
       var open = (g.calls || []).filter(function (c) {
         // Snoozed (callCenterAction 'snooze' with no task) → not today.
@@ -465,42 +517,40 @@
       if (!open.length) return;
       var latest = open[0];
       var promised = open.some(function (c) { return joPromises(c).length > 0; });
-      if (leadId && (promised || dueTasks[leadId])) {
+      if (leadId && (it.viaPhone ? (dueTasks[leadId] || promisedByLead.has(leadId)) : (promised || dueTasks[leadId]))) {
         var r = promisedRow(leadId);
         open.forEach(function (c) {
-          r.callIds.push(actionId(c));
+          // A phone-matched call is acted on through its own rider button only: a
+          // task's Done / Tomorrow must never quietly handle or snooze it.
+          if (!it.viaPhone) r.callIds.push(actionId(c));
           joPromises(c).forEach(function (p) { var s = promiseText(p); if (s) r.promises.push(s); });
         });
+        if (it.viaPhone) (r.phoneCalls = r.phoneCalls || []).push(mkCall(g, open, latest, leadId));
         return;
       }
-      var lead = leadId ? byId.get(leadId) : null;
-      var key = g.key || ('call:' + actionId(latest));
-      calls.push({
-        key: key, leadId: leadId,
-        name: (lead && leadName(lead)) || latest.contactName || latest.callerName || '',
-        phone: digits10((lead && (lead.phone || lead.phoneDigits)) || latest.phoneDigits),
-        callIds: open.map(actionId),
-        count: open.length,
-        urgent: open.some(function (c) { return c.urgent === true; }),
-        missed: open.some(function (c) { return c.channel !== 'text' && c.status === 'short' && c.direction === 'inbound'; }),
-        text: open.some(function (c) { return c.channel === 'text' || /^text:/.test(String(c.id || '')); }),
-        // A hidden number that came back (home-attention.js resurfacedNumbers).
-        resurfaced: g.resurfaced || '',
-        summary: String(latest.summary || '').slice(0, 140),
-        latestMs: toMs(latest.startedAtMs) || 0,
-        // What Jo said he would do (the AI's note), to pre-fill the promise sheet's why.
-        said: open.reduce(function (acc, c) { return acc.concat(joPromises(c).map(promiseText).filter(Boolean)); }, []).slice(0, 3),
-        // A promise riding on an unfiled call (callCenterAction 'promise').
-        promise: callPromise(PL, open, todayLocal),
-      });
+      var row = mkCall(g, open, latest, leadId);
+      var host = it.viaPhone ? callsByLead.get(leadId) : null;
+      if (host) { (host.phoneCalls = host.phoneCalls || []).push(row); return; }
+      row._ord = it.ord;
+      if (leadId) callsByLead.set(leadId, row);
+      calls.push(row);
     });
+    calls.sort(function (x, y) { return x._ord - y._ord; });
+    calls.forEach(function (r) { delete r._ord; });
     Object.keys(dueTasks).forEach(function (leadId) { promisedRow(leadId).tasks = dueTasks[leadId]; });
     var promisedAll = Array.from(promisedByLead.values()).map(function (r) {
       var firstDue = r.tasks.length ? taskDueYmd(r.tasks[0]) : '';
       r.dueYmd = firstDue;
       r.overdue = !!firstDue && firstDue < ymdLocal(now);
       return r;
-    }).filter(function (r) { return keep(r.key); });
+    }).filter(function (r) {
+      if (keep(r.key)) return true;
+      // The row was handled this session; an unfiled call riding in it is still open:
+      // it becomes a Calls-owed row of its own (never dropped with the host).
+      var left = (r.phoneCalls || []).filter(function (u) { return keep(u.key); });
+      if (left.length) { var head = left[0]; head.phoneCalls = left.slice(1); calls.push(head); }
+      return false;
+    });
     // 2b. A row with a promise task on it is a PROMISE row: its own section,
     // each promise listed with its why and its miss count.
     var promises = [];
@@ -529,7 +579,16 @@
     });
     promises.forEach(function (r) { taken.add('lead:' + r.leadId); });
     promised.forEach(function (r) { taken.add('lead:' + r.leadId); });
-    calls = calls.filter(function (r) { return keep(r.key); });
+    // Handling the host's own call hides only the host: an unfiled rider that is
+    // still open is promoted to be the row (never dropped with it).
+    calls = calls.map(function (r) {
+      var left = (r.phoneCalls || []).filter(function (u) { return keep(u.key); });
+      if (keep(r.key)) { r.phoneCalls = left; return r; }
+      if (!left.length) return null;
+      var head = left[0];
+      head.phoneCalls = left.slice(1);
+      return head;
+    }).filter(Boolean);
     calls.forEach(function (r) { taken.add(r.key); if (r.leadId) taken.add('lead:' + r.leadId); });
 
     // 3b. Estimates to follow up (#2136, estimate-followups.js
