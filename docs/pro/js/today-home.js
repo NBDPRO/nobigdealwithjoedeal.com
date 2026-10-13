@@ -37,9 +37,9 @@
   function markHandled(key) { handled.add(key); handledAt[key] = Date.now(); }
   function unmarkHandled(key) { handled.delete(key); delete handledAt[key]; }
   var expanded = {};            // section → show all
-  var appts = { rows: [], at: 0, day: '', busy: false };
+  var appts = { rows: [], at: 0, day: '', busy: false, failed: false };
   var last = null;              // last plan painted (tests + the Today's Schedule widget)
-  var inv = { rows: null, at: 0 };   // last invoice list (NBDRevenue drops its cache on every data refresh)
+  var inv = { rows: null, at: 0, failed: false, busy: false };   // last invoice list (NBDRevenue drops its cache on every data refresh)
 
   function plan() { return w.NBDTodayPlan || null; }
   function esc(s) {
@@ -74,13 +74,20 @@
       var col = w.collection(w.db, 'appointments');
       var byId = {};
       var lanes = ['repUid', 'userId'];
+      var failedLanes = 0;
       for (var i = 0; i < lanes.length; i++) {
         try {
           var snap = await w.getDocs(w.query(col, w.where(lanes[i], '==', u), w.where('startTime', '>=', start), w.where('startTime', '<=', end), w.orderBy('startTime', 'asc')));
+          // An empty snapshot served from the local cache never reached the server.
+          if (snap && snap.metadata && snap.metadata.fromCache === true && (!snap.docs || !snap.docs.length)) { failedLanes++; continue; }
           snap.docs.forEach(function (d) { byId[d.id] = Object.assign({ id: d.id }, d.data()); });
-        } catch (e) { console.warn('[today] appointments (' + lanes[i] + '):', e && (e.code || e.message)); }
+        } catch (e) { failedLanes++; console.warn('[today] appointments (' + lanes[i] + '):', e && (e.code || e.message)); }
       }
+      // A failed lane must not blank the schedule: keep what an earlier read
+      // found (same day) and SAY the list may be incomplete (appts.failed).
+      if (failedLanes && appts.day === day) appts.rows.forEach(function (r) { if (r && r.id && !byId[r.id]) byId[r.id] = r; });
       appts.rows = Object.keys(byId).map(function (k) { return byId[k]; });
+      appts.failed = failedLanes > 0;
       appts.day = day; appts.at = Date.now();
     } finally { appts.busy = false; }
     schedule();
@@ -104,10 +111,11 @@
     var now = Date.now();
     var HA = w.NBDHomeAttention;
     var groups = [];
+    var computeFailed = [];   // a rule that threw is named on Today, never a quiet empty
     if (HA && typeof HA.groupNeeds === 'function' && Array.isArray(HA.lastRows)) {
       // Labels (2026-10-12): home-attention.js loaded them with the rows; a
       // personal / spam / quiet number is already off these groups.
-      try { groups = HA.groupNeeds(HA.lastRows, now, HA.lastLabels || null); } catch (_) { groups = []; }
+      try { groups = HA.groupNeeds(HA.lastRows, now, HA.lastLabels || null); } catch (_) { groups = []; computeFailed.push('your calls list'); }
     }
     // A promise Jo made on a call is Jo's word: a label that hides the number
     // (contact labels, 'hide') must never swallow it. Any open, unhandled call
@@ -133,25 +141,42 @@
     });
     var R = w.NBDRevenue;
     var fresh = R && typeof R.cached === 'function' ? R.cached() : null;
-    if (fresh) { inv.rows = fresh; inv.at = Date.now(); }
-    else if (R && typeof R.loadInvoices === 'function' && Date.now() - inv.at > 600000) { inv.at = Date.now(); R.loadInvoices().then(schedule); }
+    if (fresh) { inv.rows = fresh; inv.at = Date.now(); inv.failed = false; }
+    else if (R && typeof R.loadInvoices === 'function' && Date.now() - inv.at > 600000) {
+      inv.at = Date.now();
+      // loadInvoices never rejects: a failed query resolves [] and leaves
+      // cached() null (a genuinely empty list is cached as []). Only AFTER the
+      // read settles with nothing cached AND nothing earlier to show is it
+      // "failed"; while it is in flight it is merely pending.
+      inv.busy = true;
+      var settle = function () {
+        inv.busy = false;
+        // Take the rows NOW: a data refresh right after this drops the shared cache.
+        var rows = typeof R.cached === 'function' ? R.cached() : null;
+        var ok = typeof R.cached === 'function' ? !!rows : true;
+        if (rows) { inv.rows = rows; inv.at = Date.now(); }
+        if (ok) inv.failed = false; else if (inv.rows === null) inv.failed = true;
+        schedule();
+      };
+      R.loadInvoices().then(settle, function () { inv.busy = false; if (inv.rows === null) inv.failed = true; schedule(); });
+    }
     var invoices = inv.rows || [];
     var IP = w.InvoicePipeline;
     var nns = null;
     if (w.NBDNoNextStep && typeof w.NBDNoNextStep.compute === 'function') {
       // The deck (no-next-step.js openDeck) swipes r.people — count what it opens.
-      try { var r = w.NBDNoNextStep.compute(); nns = isViewer() ? null : { count: ((r && r.people) || []).length }; } catch (_) { nns = null; }
+      try { var r = w.NBDNoNextStep.compute(); nns = isViewer() ? null : { count: ((r && r.people) || []).length }; } catch (_) { nns = null; computeFailed.push('leads with no next step'); }
     }
     var leads = w._leads || [];
     // Estimates to follow up (#2136): its own pure rule over the same leads.
     var EF = w.NBDEstimateFollowups;
     var estRows = [];
     if (EF && typeof EF.computeFollowups === 'function') {
-      try { estRows = EF.computeFollowups(leads, now).rows || []; } catch (_) { estRows = []; }
+      try { estRows = EF.computeFollowups(leads, now).rows || []; } catch (_) { estRows = []; computeFailed.push('estimate follow-ups'); }
     }
     var hiddenCalls = 0;
     if (HA && typeof HA.hiddenPeople === 'function' && Array.isArray(HA.lastRows)) {
-      try { hiddenCalls = HA.hiddenPeople(HA.lastRows, now, HA.lastLabels || null); } catch (_) { hiddenCalls = 0; }
+      try { hiddenCalls = HA.hiddenPeople(HA.lastRows, now, HA.lastLabels || null); } catch (_) { hiddenCalls = 0; computeFailed.push('people hidden by labels'); }
     }
     var plan_ = P.buildTodayPlan({
       now: now, leads: leads, tasksByLead: w._taskCache || {},
@@ -178,6 +203,7 @@
       },
     });
     plan_.hiddenCalls = hiddenCalls;
+    plan_.computeFailed = computeFailed;
     return plan_;
   }
 
@@ -205,6 +231,20 @@
     var more = rows.length > CAP && !all ? '<button type="button" class="tp-more" data-tp-act="more" data-tp-key="' + id + '">Show all ' + rows.length + '</button>' : '';
     return '<div class="tp-sec" data-tp-sec="' + id + '"><div class="tp-sec-hd"><span class="tp-sec-title">' + title + ' <span class="tp-count">' + rows.length + '</span></span>' + (extraHead || '') + '</div>' +
       shown.join('') + more + '</div>';
+  }
+  // An unfiled call from a customer's own number rides INSIDE that person's row
+  // (today-plan.js phoneCalls): one person is one row, and the call is still
+  // there with its own button - never hidden behind the promise.
+  function ucalls(r, ro) {
+    return (r.phoneCalls || []).map(function (u) {
+      var why = [u.urgent ? '<b class="tp-hot">urgent</b>' : '', u.missed ? 'missed call' : '', u.text && !u.missed ? 'texts' : '', u.count > 1 ? u.count + ' open' : ''].filter(Boolean).join(' · ');
+      var txt = 'Also an unfiled call from this number' + (why ? ' · ' + why : '') + (u.summary ? ' · ' + esc(u.summary) : '');
+      if (u.promise) txt += ' · Promised: ' + esc(u.promise.text);
+      if (u.resurfaced) txt += ' · <b class="tp-hot">' + (u.resurfaced === 'lead' ? 'hidden number matches a customer' : 'hidden number is calling a lot') + '</b>';
+      var canRehide = !ro && u.resurfaced && u.phone && (((w._userClaims || {}).role || '') !== 'sales_rep');
+      var acts = (canRehide ? btn('rehide', u.key, 'Keep hidden') : '') + (ro ? '' : (u.promise ? pbtn('ckept', u.key, u.promise.callId, '✓ Kept it', 'tp-go') + pbtn('cmove', u.key, u.promise.callId, 'Move') : btn('handled', u.key, '✓ Handled', 'tp-go')));
+      return '<div class="tp-sub tp-ucall" data-tp-ucall="' + esc(u.key) + '">' + txt + (acts ? '<div class="tp-acts">' + acts + '</div>' : '') + '</div>';
+    }).join('');
   }
   function html(p) {
     var P = plan();
@@ -234,7 +274,7 @@
       if (chip) sub += (sub ? ' · ' : '') + '<span class="cl-chip cl-chip-' + chip.tone + '" title="' + esc(chip.title) + '">🏷 ' + esc(chip.text) + '</span>';
       var canLabel = !ro && r.phone && (((w._userClaims || {}).role || '') !== 'sales_rep');
       var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + (canLabel && r.resurfaced ? btn('rehide', r.key, 'Keep hidden') : '') + (canLabel ? btn('label', r.key, '🏷 Label') : '') + (r.promise ? kept : (ro ? '' : btn('handled', r.key, '✓ Handled', 'tp-go')));
-      return row(r.key, esc(r.name || fmtPhone(r.phone) || 'Unknown caller'), sub, acts);
+      return row(r.key, esc(r.name || fmtPhone(r.phone) || 'Unknown caller'), sub + ucalls(r, ro), acts);
     });
     // Promises (2026-10-12): each one listed with its why and its miss count;
     // the only exits are Kept it and a new date (Move).
@@ -248,7 +288,7 @@
       var tag = r.hiddenNumber ? ' <span class="tp-tag" title="You labeled this number hidden. Your promise still shows.">number hidden</span>' : '';
       var more = r.tasks.length ? '<div class="tp-sub">' + r.tasks.slice(0, 2).map(function (t) { return esc(t.text || t.title || 'Task'); }).join(' · ') + '</div>' : '';
       var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + link(custUrl(r.leadId), 'Open');
-      return '<div class="tp-row tp-promise" data-tp-row="' + esc(r.key) + '"><div class="tp-main"><div class="tp-name">' + esc(r.name) + tag + '</div><div class="tp-prom">' + lines + '</div>' + more + '</div><div class="tp-acts">' + acts + '</div></div>';
+      return '<div class="tp-row tp-promise" data-tp-row="' + esc(r.key) + '"><div class="tp-main"><div class="tp-name">' + esc(r.name) + tag + '</div><div class="tp-prom">' + lines + '</div>' + more + ucalls(r, ro) + '</div><div class="tp-acts">' + acts + '</div></div>';
     });
     // Waiting on them (2026-10-13): ONE row per PERSON, the count says people.
     // Each item inside keeps its own Nudge / Still waiting / Mark dead (they
@@ -269,7 +309,7 @@
       var bits = r.tasks.map(function (t) { return esc(t.text || t.title || 'Task'); }).concat(r.promises.map(function (s) { return 'You said: ' + esc(s); }));
       var when = r.overdue ? '<b class="tp-hot">overdue</b>' : (r.dueYmd ? 'due today' : 'promised');
       var acts = (ro ? '' : btn('done', r.key, '✓ Done', 'tp-go') + btn('tomorrow', r.key, 'Tomorrow')) + link(custUrl(r.leadId), 'Open');
-      return row(r.key, esc(r.name), when + (bits.length ? ' · ' + bits.slice(0, 3).join(' · ') : ''), acts);
+      return row(r.key, esc(r.name), when + (bits.length ? ' · ' + bits.slice(0, 3).join(' · ') : '') + ucalls(r, ro), acts);
     });
     // Estimate follow-ups: the buttons are estimate-followups.js's own
     // (data-ef-send / data-ef-share-now) — its click delegate opens the share
@@ -340,12 +380,23 @@
     if (HAc && HAc.textsCapped) partial.push('only your newest ' + (HAc.textsCap || '') + ' days of texts were read');
     if (HAc && HAc.oldCapped) partial.push('older open promises may not be listed');
     if (HAc && HAc.oldFailed) partial.push('old promises could not be checked');
-    var failBanner = readFailed ? '<div class="tp-sub tp-readfail" role="status"><b class="tp-hot">could not check your calls</b> This list may be missing people. It is NOT an all-clear. <button type="button" class="tp-more tp-hd-btn" data-tp-act="retry" data-tp-key="calls">Try again</button></div>'
-      : (partial.length ? '<div class="tp-sub tp-readfail" role="status"><b class="tp-hot">partial list</b> ' + esc(partial.join('; ')) + '. Not an all-clear. <button type="button" class="tp-more tp-hd-btn" data-tp-act="goto" data-tp-key="calls">Open the Call Center</button></div>' : '');
-    return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc((readFailed || notChecked) && !p.total ? "Can't confirm your day yet" : P.headline(p.total)) + '</div>' +
+    var failBanner = readFailed ? '<div class="tp-sub tp-readfail" role="status"><b class="tp-hot">could not check your calls</b> This list may be missing people. It is NOT an all-clear. <button type="button" class="tp-btn" data-tp-act="retry" data-tp-key="calls">Try again</button></div>'
+      : (partial.length ? '<div class="tp-sub tp-readfail" role="status"><b class="tp-hot">partial list</b> ' + esc(partial.join('; ')) + '. Not an all-clear. <button type="button" class="tp-btn" data-tp-act="goto" data-tp-key="calls">Open the Call Center</button></div>' : '');
+    // Every OTHER read behind Today: a failure is named, never a quiet zero. A
+    // read still in flight is not on this list (it is pending, not failed).
+    var otherFail = [];
+    if (HAc && HAc.stripeFailed) otherFail.push('Stripe payments that need a customer');
+    if (appts.failed) otherFail.push("today's appointments");
+    if (inv.failed) otherFail.push('money owed (invoices)');
+    (p.computeFailed || []).forEach(function (n) { otherFail.push(n); });
+    // Still being read (in flight): unknown, not clear - and not a failure either.
+    var pendingOther = !!(appts.busy || inv.busy);
+    if (otherFail.length) failBanner += '<div class="tp-sub tp-readfail" role="status" data-tp-fail="reads"><b class="tp-hot">could not load</b> ' + esc(otherFail.join('; ')) + '. Those parts of your day may be missing - this is NOT an all-clear. <button type="button" class="tp-btn" data-tp-act="retry" data-tp-key="reads">Try again</button></div>';
+    var anyFail = readFailed || otherFail.length > 0;
+    return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc((anyFail || notChecked || pendingOther) && !p.total ? "Can't confirm your day yet" : P.headline(p.total)) + '</div>' +
       (storm ? '<div class="tp-storm">' + esc(storm) + '</div>' : '') + '</div>' + failBanner +
       (p.hiddenCalls > 0 ? '<div class="tp-sub tp-hidden">' + p.hiddenCalls + (p.hiddenCalls === 1 ? ' person' : ' people') + ' hidden by labels · <button type="button" class="tp-more tp-hd-btn" data-tp-act="goto" data-tp-key="calls">See them in the Call Center</button></div>' : '') +
-      sugHtml + (body || (readFailed ? '' : (notChecked ? '<div class="tp-empty">Checking your calls…</div>' : '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>'))) + quiet;
+      sugHtml + (body || (anyFail ? '' : (notChecked ? '<div class="tp-empty">Checking your calls…</div>' : (pendingOther ? '<div class="tp-empty">Checking your day…</div>' : '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>')))) + quiet;
   }
 
   var _t = 0;
@@ -381,6 +432,11 @@
     if (!p) return null;
     var lists = [p.calls, p.promises || [], p.promised, p.waiting || [], p.money, p.stalled];
     for (var i = 0; i < lists.length; i++) for (var j = 0; j < lists[i].length; j++) if (lists[i][j].key === key) return lists[i][j];
+    // An unfiled call riding inside a person's row (phoneCalls) acts as its own row.
+    for (var i2 = 0; i2 < lists.length; i2++) for (var j2 = 0; j2 < lists[i2].length; j2++) {
+      var pc = lists[i2][j2].phoneCalls || [];
+      for (var k = 0; k < pc.length; k++) if (pc[k].key === key) return pc[k];
+    }
     return null;
   }
   async function setFollowUp(leadId, ymd) {
@@ -437,7 +493,26 @@
     var a = t.getAttribute('data-tp-act'), key = t.getAttribute('data-tp-key') || '';
     if (a === 'more') { expanded[key] = true; render(); return; }
     if (a === 'goto') { if (typeof w.goTo === 'function') w.goTo(key); return; }
-    if (a === 'retry') { try { if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); } catch (_) { /* best effort */ } return; }
+    if (a === 'retry') {
+      try {
+        if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true);
+        // 'reads': also re-ask for the appointments / invoices that failed.
+        if (key === 'reads') {
+          if (appts.failed) loadAppointments(true);
+          if (inv.failed && w.NBDRevenue && typeof w.NBDRevenue.loadInvoices === 'function') {
+            inv.failed = false; inv.at = Date.now(); inv.busy = true;
+            w.NBDRevenue.loadInvoices({ force: true }).then(function () {
+              inv.busy = false;
+              var rows = typeof w.NBDRevenue.cached === 'function' ? w.NBDRevenue.cached() : null;
+              if (rows) { inv.rows = rows; inv.at = Date.now(); }
+              else if (inv.rows === null) inv.failed = true;
+              schedule();
+            }, function () { inv.busy = false; if (inv.rows === null) inv.failed = true; schedule(); });
+          }
+        }
+      } catch (_) { /* best effort */ }
+      return;
+    }
     if (a === 'fudeck') {
       var ids = new Set(((last && last.stalled) || []).map(function (r) { return r.leadId; }));
       var list = (w._leads || []).filter(function (l) { return l && ids.has(l.id); });

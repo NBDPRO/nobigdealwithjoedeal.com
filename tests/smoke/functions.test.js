@@ -1728,8 +1728,11 @@ section('F3: TCPA STOP/HELP + opt-out list');
   assert('STOP keyword records an opt-out',
     /StopIntent\.classifyInbound\(messageBody\)/.test(sms)
     && /intent\.intent === 'stop'[\s\S]{0,400}OptOut\.recordOptOut\(/.test(sms));
+  // 2026-10-13: the reply text lives in sms-keyword-replies.js (brand-named);
+  // tests/sms-keyword-replies-2026-10-13.test.js drives the real webhook.
   assert('HELP keyword replies with compliance message',
-    /intent\.intent === 'help'[\s\S]{0,500}Msg & data rates may apply/.test(sms));
+    /intent\.intent === 'help'[\s\S]{0,500}KeywordReplies\.helpReply\(/.test(sms)
+    && /Msg & data rates may apply/.test(read(path.join(FUNCTIONS, 'sms-keyword-replies.js'))));
   // R6-3-5 (2026-10-07): START lifts only what this number was told
   // (liftStopOnLine — both register keys, its stop_reply copies), never another
   // company's owner-phone STOP. tests/r6-texting-trio-2026-10-07.test.js drives it.

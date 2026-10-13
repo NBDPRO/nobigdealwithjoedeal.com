@@ -44,6 +44,7 @@ const OptOut = require('./sms-optout');
 // What an inbound text asks for (STOP / HELP / START, plus plain-English
 // revocations like "stop texting me"). Pure; the decision table is tested.
 const StopIntent = require('./sms-stop-intent');
+const KeywordReplies = require('./sms-keyword-replies');
 // Whose texting a send is (tenant key) — whose Do Not Text list applies —
 // and the per-company master switch every send path checks.
 const TextingGate = require('./sms-texting-gate');
@@ -1499,7 +1500,7 @@ exports.incomingSMS = onRequest(
     // secret isn't set the generateAIDraft() call no-ops cleanly per
     // its own contract, so listing it here is safe even before the
     // secret is configured in Firebase.
-    secrets: [TWILIO_AUTH_TOKEN, AI_ANTHROPIC_KEY],
+    secrets: [TWILIO_AUTH_TOKEN, AI_ANTHROPIC_KEY, TWILIO_PHONE_NUMBER],
     maxInstances: 10,
     timeoutSeconds: 30,
     memory: '256MiB'
@@ -1589,22 +1590,19 @@ exports.incomingSMS = onRequest(
         // enforces it). Best-effort and bounded: a failure here never undoes
         // the opt-out or delays the confirmation.
         await copyStopToTenantLists(db, fromPhone);
-        // TwiML reply confirming opt-out. Twilio sends this back.
+        // TwiML reply confirming opt-out. Twilio sends this back. It names
+        // the BUSINESS the homeowner texted (sms-keyword-replies.js), never
+        // the CRM product. Resolved AFTER the opt-out is recorded: a lookup
+        // failure falls back to NBD's name and never undoes the STOP.
+        const stopBrand = await KeywordReplies.resolveBrand(db, req.body.To, secretValue(TWILIO_PHONE_NUMBER) || '', logger);
         res.set('Content-Type', 'text/xml');
-        res.status(200).send(
-          '<?xml version="1.0" encoding="UTF-8"?><Response>' +
-          '<Message>You\'ve been unsubscribed from NBD Pro SMS. ' +
-          'Reply START to resume, HELP for help.</Message></Response>'
-        );
+        res.status(200).send(KeywordReplies.twiml(KeywordReplies.stopReply(stopBrand)));
         return;
       }
       if (phoneDigits && intent.intent === 'help') {
+        const helpBrand = await KeywordReplies.resolveBrand(db, req.body.To, secretValue(TWILIO_PHONE_NUMBER) || '', logger);
         res.set('Content-Type', 'text/xml');
-        res.status(200).send(
-          '<?xml version="1.0" encoding="UTF-8"?><Response>' +
-          '<Message>NBD Pro: Msg & data rates may apply. Reply STOP to ' +
-          'unsubscribe. Support: (859) 420-7382.</Message></Response>'
-        );
+        res.status(200).send(KeywordReplies.twiml(KeywordReplies.helpReply(helpBrand)));
         return;
       }
       if (phoneDigits && intent.intent === 'start') {
@@ -1630,12 +1628,9 @@ exports.incomingSMS = onRequest(
         } catch (e) {
           logger.error('optout_start_clear_failed', { fn: 'incomingSMS', err: e && e.message });
         }
+        const startBrand = await KeywordReplies.resolveBrand(db, req.body.To, secretValue(TWILIO_PHONE_NUMBER) || '', logger);
         res.set('Content-Type', 'text/xml');
-        res.status(200).send(
-          '<?xml version="1.0" encoding="UTF-8"?><Response>' +
-          '<Message>Welcome back to NBD Pro SMS. Reply STOP anytime to ' +
-          'unsubscribe.</Message></Response>'
-        );
+        res.status(200).send(KeywordReplies.twiml(KeywordReplies.startReply(startBrand)));
         return;
       }
 

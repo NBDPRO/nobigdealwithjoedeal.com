@@ -191,6 +191,12 @@
       : window.query(window.collection(db, 'invoices'), window.where('createdBy', '==', u));
     var p = window.getDocs(q).then(function (snap) {
       if (scopeKey() !== key) return _cache || []; // account switched mid-flight
+      // EMPTY and from the local cache (offline): the server never answered, so
+      // this is not "no invoices" - do not cache it as a real empty list.
+      if (snap.metadata && snap.metadata.fromCache === true && snap.docs.length === 0) {
+        _failedAt = Date.now();
+        return _cache || [];
+      }
       _cache = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
       _cacheKey = key;
       _failedAt = 0;
