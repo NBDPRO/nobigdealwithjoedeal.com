@@ -183,7 +183,7 @@
     error: 'Couldn\'t send',
     opted_out: 'Opted out',
     consent_declined: 'Consent declined — texting blocked unless they text first. Call or email instead',
-    consent_check_unverified: 'Couldn't check consent — try again, or call instead',
+    consent_check_unverified: 'Couldn\'t check consent — try again, or call instead',
     duplicate: 'Duplicate — the same text was already waiting',
   };
 

@@ -327,8 +327,9 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
     ok('a deleted lead does not block', del.allowed === true);
     // Another tenant's flood of leads for the same number must not push this
     // tenant's declined lead off a shared page (the query is tenant-scoped).
-    const flood = { 'leads/mine': LEAD() };
+    const flood = {};
     for (let i = 0; i < 40; i++) flood['leads/x' + i] = LEAD({ companyId: 'co-OTHER', userId: 'u' + i, tcpaConsent: true });
+    flood['leads/zz-mine'] = LEAD(); // inserted LAST: an unscoped limit(25) page would drop it
     const fl = await decide(flood, { lead: null, leadId: null });
     ok('40 other-tenant leads on the same number do not hide this tenant\'s declined lead', fl.allowed === false && fl.code === 'consent_declined', JSON.stringify(fl));
     const full = {};
@@ -572,6 +573,15 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
     ok('nbd-comms sends the text\'s source label to sendSMS', postAt > -1 && /source:\s*\(args/.test(comms.slice(postAt, postAt + 700)));
     ok('nbd-comms sends the source label on a queued replay', /payload\.source\s*=\s*rec\.source/.test(comms));
     ok('nbd-comms passes the source label to the device check', /checkText\([^)]*source:\s*args\.source/.test(comms));
+    const tray = fs.readFileSync(path.join(ROOT, 'docs/pro/js/sms-outbox.js'), 'utf8');
+    ok('the offline tray names both refusal reasons (not the generic "Couldn\'t send")',
+      /consent_declined:\s*'Consent declined/.test(tray) && /consent_check_unverified:\s*'Couldn/.test(tray));
+    const inboxSrc = fs.readFileSync(path.join(ROOT, 'docs/pro/js/layouts/inbox.js'), 'utf8');
+    const dashSrc = fs.readFileSync(path.join(ROOT, 'docs/pro/js/dashboard-actions.js'), 'utf8');
+    const tasksSrc = fs.readFileSync(path.join(ROOT, 'docs/pro/js/customer-tasks-ui.js'), 'utf8');
+    ok('Inbox, mobile card and Comm Log label a refused row and the Comm Log offers no STOP button for it',
+      /d\.refused === true/.test(inboxSrc) && /data\.refused === true/.test(dashSrc)
+      && /data\.refused === true \? 'not sent/.test(tasksSrc) && /!== 'received' && data\.refused !== true/.test(tasksSrc));
     const share = stripComments(fs.readFileSync(path.join(ROOT, 'docs/pro/js/phone-share.js'), 'utf8'));
     ok('phone-share forwards source to the check callable', /_call\('check'[\s\S]{0,400}src/.test(share));
     // Every reader of the STOP register is either wired to the decision or

@@ -18,8 +18,8 @@ this company inside **N = 7 days**.
 | Reply to the customer's own text | Allowed for 7 days from the newest qualifying inbound; each new inbound restarts it |
 | Campaign text (`source` review_request, referral_code, winback, ...) | Refused even with a fresh inbound |
 | Inbound that does not open the window | STOP, a plain-English stop, a *possible* STOP ("thanks but stop"), a bare HELP, anything before the lead existed, another tenant's thread, an outbound row, a group text |
-| Another form for the same number in the same tenant said YES | That is consent (`consent_on_other_record`) |
-| Number-level | Matched on normalised 10 digits inside the caller's tenant, so a request with no `leadId`, or a duplicate card, cannot sidestep it. Another tenant's decline is invisible |
+| A LATER yes for the same number in the same tenant | Counts only with the server's own `tcpaConsentAt` and only if newer than the newest decline (`consent_on_other_record`). An old yes followed by a newer no, or an unstamped `true` (hand-typed, imported, spoofed on a public form), is not evidence |
+| Number-level | Matched on normalised 10 digits inside the caller's tenant (the lead query is tenant-scoped, a full page is "unknown"), so a request with no `leadId`, a duplicate card, or a `crew` label cannot sidestep it. Another tenant's decline is invisible |
 | Unknown is not consent | A read error, or a full page of rows with no inbound among them, refuses with `consent_check_unverified` (503) |
 | Door-knock text | Exempt: the knock's own `smsConsent === true` is an express yes at the door |
 | Email | Untouched |
@@ -70,6 +70,28 @@ did not render; re-check by hand).
 
 `tests/sms-consent-declined-2026-10-13.test.js` keeps a ledger of every
 `messages.create` in `functions/`; a new sender fails the test until classified.
+
+## Review round (2026-10-13, silent-failure-hunter + vacuous-test-auditor + compliance reference)
+
+Fixed: tenant-scoped lead scan (an unscoped `limit(10)` could drop this
+tenant's declined lead); supersede is newer-and-stamped only; `incomingSMS`
+thread-start reads skip a refused row (a never-sent attempt could win a
+cross-tenant reply); refused texts are labelled "Not sent - consent declined" in
+the Inbox, mobile card and Comm Log and get no "They replied STOP" button; the
+offline tray names the reason; one refusal row per 10-minute burst; `crew` label
+no longer skips the check; follow-up labels (`estimate_followup`,
+`smart-followup-sms`, `d2d-followup-sms`) are campaigns. Tests now cover every
+label, the handler's source passthrough, full pages, uid-only and future-dated
+inbound; break-tests recorded in the PR.
+
+Known and left: a text typed in the owner's own phone cannot be stopped by any
+server (the device check only answers); an unlabelled device-path campaign text
+rides the window (counsel question: default unlabelled to "automated" for a
+declined number?); the inbound-text window is never closed by a "no thanks"
+reply that is not stop-worded; KY insurance-job claim wording is not checked by
+this gate (the bot-draft path has `CLAIM_PROMISE`, sendSMS and AI drafts do not
+- see kentucky-insurance-job-law); invoice reminders inside the window are
+treated as replies.
 
 ## UI
 
