@@ -197,3 +197,27 @@ adjuster template names only the claim number the lead already carries.
    unchanged. Want Handled forced through the sheet there too?
 4. Unfiled (unknown-number) calls: promise rides on the call and returns on
    its date. OK, or require filing on a customer first?
+
+## Update 2026-10-13 (lifecycle audit) - the "overdue push" does not exist
+
+The Deferred list above says a promise task "is a plain task with a
+`dueDate`, so the existing task-overdue path already reaches the bell and
+push". Checked against the code:
+
+- the task-overdue notice is a **client** bell doc written by
+  `docs/pro/js/tasks.js` while Today renders (the app has to be open), and
+  there is no server trigger that turns a `notifications` doc into a push;
+- no scheduled function reads `leads/*/tasks` due dates (the only
+  collection-group task readers are the calendar feed, the Google Calendar
+  mirror, the morning brief's *event* tasks and the game);
+- a call handled through the sheet is `handledAtMs`-closed, so callWatch, the
+  sweep, the brief, the 8 pm ledger and the away list all drop it.
+
+So a promise captured through the Handled sheet on a filed customer is
+**silent server-side on its due day**, and the ledger reads "0 open". Waiting
+items are the same. Reproduced in the volume simulation
+(`tests/needs-you-volume-sim-2026-10-13.test.js`, finding F-PROMISE-TASK-SILENT)
+and written up with options in
+[NEEDS-YOU-LIFECYCLE-AND-VOLUME-2026-10-13](../audit/NEEDS-YOU-LIFECYCLE-AND-VOLUME-2026-10-13.md)
+(F1, section 4.1). A promise riding on an *unfiled* call is not affected: the
+call stays open and callWatch tells it on its date.
