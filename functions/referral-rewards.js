@@ -72,7 +72,13 @@ function isClosed(stage) {
 // resolved from the persisted lead.stageRole. Built-in stages keep working via
 // the CLOSED_STAGES fallback below.
 const { isWon: _roleIsWon } = require('./stage-roles');
+const { isQuietBackfill: _isQuietBackfill } = require('./quiet-backfill');
 function projectClosed(lead) {
+  // A job marked "already completed" after the fact (schedule planner,
+  // 2026-10-13) sits at Install Done on a tap that Undo can take back — and a
+  // referral bonus owed to a third party cannot be taken back. It credits when
+  // the job moves PAST Install Done (the next write sees a later won stage).
+  if (lead && String(lead.stage || '') === 'install_complete' && _isQuietBackfill(lead)) return false;
   return _roleIsWon(lead) || isClosed(lead && lead.stage);
 }
 function fullName(lead) {
@@ -494,7 +500,7 @@ exports.onReferralJobWrite = onDocumentWritten(
   handleReferralJobWrite
 );
 
-exports._internal = { planJobCredit, creditJob, handleReferralJobWrite, handleReferralLeadWrite, referralOwnerInLeadCompany, REFERRAL_BONUS_USD };
+exports._internal = { projectClosed, planJobCredit, creditJob, handleReferralJobWrite, handleReferralLeadWrite, referralOwnerInLeadCompany, REFERRAL_BONUS_USD };
 
 exports.onReferralLeadWrite = onDocumentWritten(
   {

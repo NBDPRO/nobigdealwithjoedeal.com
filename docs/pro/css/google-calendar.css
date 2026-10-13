@@ -36,6 +36,14 @@
 .sp-stage-offer { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .sp-stage-chip { min-height: 44px; padding: 10px 16px; font: inherit; font-size: 14px; font-weight: 700; border-radius: 22px; border: none; background: var(--orange, #e8720c); color: #fff; cursor: pointer; }
 .sp-stage-no { min-height: 44px; padding: 10px 14px; font: inherit; font-size: 13px; border-radius: 22px; border: 1px solid var(--br); background: transparent; color: var(--m); cursor: pointer; }
+/* "Already completed" (2026-10-13): quiet backfill of a job that missed scheduling. 44px taps. */
+.sp-done-wrap { margin-top: 8px; }
+.sp-done-open { min-height: 44px; font-size: 13px; padding: 10px 14px; }
+.sp-done { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 8px; padding: 10px; border: 1px dashed var(--br); border-radius: 8px; background: var(--s); }
+.sp-done label { display: flex; flex-direction: column; font-size: 11px; color: var(--m); gap: 3px; }
+.sp-done input { font: inherit; font-size: 14px; min-height: 44px; padding: 4px 8px; border: 1px solid var(--br); border-radius: 6px; background: var(--s2); color: var(--t); }
+.sp-done-go, .sp-done-no { min-height: 44px; font-size: 13px; padding: 10px 16px; }
+.sp-done-note { flex: 1 1 100%; font-size: 11px; color: var(--m); }
 
 /* Busy time from Jo's own Google calendar on the Today timeline (smart-calendar.js). */
 .sc-busy { display: grid; grid-template-columns: auto 1fr; text-align: left; gap: 10px; align-items: center; padding: 8px 12px; margin: 4px 0; border: 1px dashed var(--br); border-radius: 7px; background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(127, 127, 127, .08) 6px 12px); }

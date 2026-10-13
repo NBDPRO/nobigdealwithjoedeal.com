@@ -27,9 +27,23 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const L = require('./job-spine-logic');
 
+/**
+ * The write that carries the quiet "already completed" flag (schedule
+ * planner backfill, 2026-10-13): completedBackfill is set by THIS write and
+ * was not on the lead before. A job marked finished after the fact must not
+ * draft a final invoice or file a "Send final invoice" task — it may have
+ * been billed and paid long ago, and a stray task is how a duplicate invoice
+ * reaches a homeowner. A later, ordinary entry to Install Done (flag already
+ * there, or cleared by Undo) is not quiet.
+ */
+function isQuietBackfillEntry(before, after) {
+  return !!(after && after.completedBackfill) && !(before && before.completedBackfill);
+}
+
 /** One lead write → the spine's 'installed' event, or nothing. Exported for tests. */
 async function onLeadWrite(db, leadId, before, after, deps) {
   if (!L.enteredStage(before, after, 'install_complete')) return { skipped: 'not_entered' };
+  if (isQuietBackfillEntry(before, after)) return { skipped: 'quiet_backfill' };
   const jobId = (after && typeof after.activeJobId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(after.activeJobId)) ? after.activeJobId : '';
   const record = (deps && deps.recordJobEvent) || require('./job-spine').recordJobEvent;
   try {
@@ -51,9 +65,10 @@ exports.finalInvoiceOnInstall = onDocumentUpdated(
     const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
     const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
     if (!L.enteredStage(before, after, 'install_complete')) return;
+    if (isQuietBackfillEntry(before, after)) { logger.info('[installFinal] quiet backfill — nothing drafted', { leadId: event.params.leadId }); return; }
     const out = await onLeadWrite(getFirestore(), event.params.leadId, before, after);
     logger.info('[installFinal] install complete', { leadId: event.params.leadId, finalDraft: out && out.finalDraft ? out.finalDraft.reason : null });
   }
 );
 
-exports._internal = { onLeadWrite };
+exports._internal = { onLeadWrite, isQuietBackfillEntry };

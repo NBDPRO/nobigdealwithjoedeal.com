@@ -524,6 +524,9 @@ function postJob(leads, invoices, nowMs, args, tz) {
         review_requested: l.reviewRequested === true || !!ms(l.reviewRequestedAt),
         warranty_tier: (l.warranty && (l.warranty.tierLabel || l.warranty.tier)) || null,
         anniversary_touch_sent: !!ms(l.anniversaryTouchedAt),
+        // Marked finished after the fact (schedule planner): Jo's rule is no
+        // review ask for these — do not suggest one.
+        quiet_backfill: !!l.completedBackfill,
       });
     });
 }

@@ -48,6 +48,9 @@
   /** When a job was finished: closedAt → completedAt → installCompletedAt → stageStartedAt. */
   function completedMs(job) {
     var j = job || {};
+    // "Already completed" backfill: completedAt IS the day it finished;
+    // closedAt is when the sale was keyed in, which can be weeks later.
+    if (j.completedBackfill && ms(j.completedAt)) return ms(j.completedAt);
     return ms(j.closedAt) || ms(j.completedAt) || ms(j.installCompletedAt) || ms(j.stageStartedAt);
   }
 

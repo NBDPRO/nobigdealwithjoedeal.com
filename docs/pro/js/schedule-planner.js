@@ -26,6 +26,15 @@
  * that is a forward move on the lead's own track (crewMoveOffer). The tap goes
  * through window.moveCard → stage-write.js commitStageChange, the same gates
  * and race guards as a kanban move. Saving the date alone never moves a stage.
+ * "Already completed" (2026-10-13, Jo: "say already completed on anything that
+ * missed scheduling and it forwards it to the next stage"): every Needs-a-date
+ * and Missed row (date passed, job never advanced) carries a button that asks
+ * for the day it finished (default today, never in the future) and moves the
+ * lead to Install Done through stage-write.js commitStageChange with
+ * opts.backfill — QUIET: completedAt is stamped with that day, the lead is
+ * flagged completedBackfill, and no drip / report / review ask fires. The
+ * toast keeps a one-tap Undo (undoBackfillCompletion) while nothing else has
+ * moved the lead. Shown only where completedOffer says it is a forward move.
  * Delegated listeners; every value into innerHTML is escaped.
  */
 (function () {
@@ -47,6 +56,7 @@
   const _warnSeq = {};          // lead id → the latest check, so a slow answer can't overwrite a newer one
   const _warnTimers = {};
   const _offer = {};            // lead id → offer "Move to Crew Scheduled?" (set by a date save)
+  const _done = {};             // lead id → { date } while the "Already completed" confirm is open
 
   function rowHtml(r, kind) {
     const v = _drafts[r.id] || P().inputsOf(r.lead);
@@ -54,6 +64,7 @@
     return '<div class="sp-row" data-id="' + id + '">' +
       '<div class="sp-who"><a href="/pro/customer.html?id=' + encodeURIComponent(r.id) + '" class="sp-name">' + esc(r.name) + '</a>' +
       '<div class="sp-sub">' + esc(stageLabel(r.stage)) + (r.address ? ' · ' + esc(r.address) : '') + '</div>' +
+      (r.missedOn ? '<div class="sp-week sp-week-late">⏰ Was set for ' + esc(weekLabel(r.missedOn)) + ' — it never moved on</div>' : '') +
       (r.week ? '<div class="sp-week' + (r.weekPassed ? ' sp-week-late' : '') + '">📆 ' + (r.weekPassed ? 'Was planned for the week of ' : 'Week of ') + esc(weekLabel(r.week)) + (r.weekPassed ? ' — needs a new plan' : ' — no day yet') + '</div>' : '') +
       '</div>' +
       '<div class="sp-in">' +
@@ -63,13 +74,14 @@
         '<label>Start<input type="time" class="sp-start" value="' + esc(v.start) + '"></label>' +
         '<label>Days<input type="number" class="sp-days" min="1" max="14" inputmode="numeric" value="' + esc(v.days) + '"></label>' +
         '<button type="button" class="btn btn-orange sp-save" data-sp-action="save">Save</button>' +
-        (kind === 'scheduled' ? '<button type="button" class="btn btn-ghost sp-clear" data-sp-action="clear" title="Remove the date">Clear</button>' : '') +
+        (kind === 'scheduled' || kind === 'missed' ? '<button type="button" class="btn btn-ghost sp-clear" data-sp-action="clear" title="Remove the date">Clear</button>' : '') +
       '</div>' +
       // Production flow (2026-10-04, production.js): the sub picker, the
       // weather.gov badge and the rain-day push.
       (window.NBDProduction && typeof window.NBDProduction.rowExtrasHtml === 'function' ? window.NBDProduction.rowExtrasHtml(Object.assign({}, r, { subDraft: _drafts[r.id] && _drafts[r.id].sub }), kind) : '') +
       '<div class="sp-conflict gcal-conflict" aria-live="polite">' + (_warn[r.id] || '') + '</div>' +
       '<div class="sp-msg" aria-live="polite"></div>' +
+      (kind !== 'scheduled' ? doneHtml(r) : '') +
       (_offer[r.id] ? '<div class="sp-stage-offer">' +
         '<button type="button" class="sp-stage-chip" data-sp-action="stage">Move to ' + esc(stageLabel('crew_scheduled')) + '?</button>' +
         '<button type="button" class="sp-stage-no" data-sp-action="stage-no">Not now</button></div>' : '') +
@@ -85,6 +97,153 @@
     if (!lead || !P() || typeof P().crewMoveOffer !== 'function') return false;
     const norm = typeof window.normalizeStage === 'function' ? (s) => { try { return window.normalizeStage(s); } catch (_) { return String(s || ''); } } : undefined;
     return P().crewMoveOffer(lead, trackOf(lead), { normalize: norm, roleOf: typeof window.stageRole === 'function' ? window.stageRole : undefined });
+  }
+
+  // ── Already completed ──────────────────────────────────────────────
+  function normFn() {
+    return typeof window.normalizeStage === 'function' ? (s) => { try { return window.normalizeStage(s); } catch (_) { return String(s || ''); } } : undefined;
+  }
+  function offerCompleted(lead) {
+    if (!lead || !P() || typeof P().completedOffer !== 'function') return false;
+    const claims = window._userClaims || {};
+    return P().completedOffer(lead, trackOf(lead), {
+      normalize: normFn(), roleOf: typeof window.stageRole === 'function' ? window.stageRole : undefined,
+      role: claims.role || '', uid: window._user && window._user.uid, companyId: claims.companyId || '',
+    });
+  }
+  const doneLabel = () => (window.STAGE_META && window.STAGE_META.install_complete && window.STAGE_META.install_complete.label) || 'Install Done';
+  function doneHtml(r) {
+    if (!offerCompleted(r.lead)) return '';
+    const st = _done[r.id];
+    if (!st) {
+      return '<div class="sp-done-wrap"><button type="button" class="btn btn-ghost sp-done-open" data-sp-action="done-open">✓ Already completed</button></div>';
+    }
+    const today = todayYmd();
+    return '<div class="sp-done" role="group" aria-label="Already completed">' +
+      '<label>Finished on<input type="date" class="sp-done-date" max="' + esc(today) + '" value="' + esc(st.date || today) + '"></label>' +
+      '<button type="button" class="btn btn-orange sp-done-go" data-sp-action="done-go">Confirm</button>' +
+      '<button type="button" class="btn btn-ghost sp-done-no" data-sp-action="done-no">Cancel</button>' +
+      '<div class="sp-done-note">Moves it to ' + esc(doneLabel()) + ' on that day. Quiet — no text, email or review ask goes out.</div>' +
+      '</div>';
+  }
+
+  // Local mirror of what the transaction just wrote, so the lists and the
+  // board agree before the next snapshot.
+  function applyCompletedLocal(lead, res, date) {
+    const p = String(date).split('-').map(Number);
+    const at = new Date(p[0], p[1] - 1, p[2], 12, 0, 0);
+    lead.stage = 'install_complete';
+    lead._stageKey = 'install_complete';
+    if (typeof window.stageRole === 'function') { lead._stageRole = window.stageRole('install_complete'); lead.stageRole = lead._stageRole; }
+    lead.completedAt = at;
+    lead.stageStartedAt = at;
+    lead.completedBackfill = { date, quiet: true, token: res && res.backfill && res.backfill.token };
+    if (!Array.isArray(lead.stageHistory)) lead.stageHistory = [];
+    if (res && res.historyEvent) lead.stageHistory.push(res.historyEvent);
+  }
+  function refreshBoard(id) {
+    try { if (typeof window.renderLeads === 'function') window.renderLeads(window._leads, window._filteredLeads); } catch (_) {}
+    try { if (typeof window.refreshCardDetailChips === 'function') window.refreshCardDetailChips(id); } catch (_) {}
+  }
+
+  async function markCompleted(id) {
+    const lead = (window._leads || []).find((l) => l && l.id === id);
+    const row = document.querySelector('.sp-row[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+    const msg = row && row.querySelector('.sp-msg');
+    const say = (t) => { if (msg) msg.textContent = t; };
+    if (!lead || _saving[id]) return;
+    const date = (_done[id] && _done[id].date) || todayYmd();
+    const issue = P().completionIssue(date, todayYmd());
+    if (issue) { say((P().COMPLETION_MESSAGES && P().COMPLETION_MESSAGES[issue]) || 'Check the date.'); return; }
+    // Re-judge at tap time: the lead may have moved on since the row drew.
+    if (!offerCompleted(lead)) {
+      delete _done[id];
+      toast('This job has already moved on — list refreshed.', 'info');
+      render();
+      return;
+    }
+    if (!window.doc || !window.db) { say('Not connected yet — try again in a moment.'); return; }
+    const track = trackOf(lead);
+    const skipped = P().skippedBetween(lead, track, { normalize: normFn() }).map(stageLabel);
+    let unchecked = [];
+    try {
+      if (typeof window.missingRequiredFields === 'function') {
+        unchecked = (window.missingRequiredFields(Object.assign({}, lead, { stage: 'install_complete' })) || [])
+          .map((f) => (typeof window.requiredFieldLabel === 'function' ? window.requiredFieldLabel(f) : f));
+      }
+    } catch (_) { unchecked = []; }
+    _saving[id] = true;
+    if (row) row.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+    say('Saving…');
+    let ok = false;
+    try {
+      const mod = await import('./stage-write.js');
+      const res = await mod.commitStageChange(id, 'install_complete', lead.stage || 'new', {
+        jobType: lead.jobType || null,
+        actorLabel: window._currentUser && window._currentUser.email,
+        backfill: { date, skipped, unchecked, today: todayYmd() },
+      });
+      applyCompletedLocal(lead, res, date);
+      delete _done[id];
+      delete _offer[id];
+      ok = true;
+      refreshBoard(id);
+      const snap = res && res.backfill;
+      if (typeof window.showToast === 'function') {
+        // Quiet means no final invoice is drafted for it either (a job marked
+        // finished after the fact may have been billed long ago).
+        window.showToast({ message: 'No final invoice was drafted for this one - create it from the customer page if one is owed.', type: 'info', duration: 9000 });
+        window.showToast({
+          message: 'Marked completed ✓ - now ' + doneLabel(), type: 'success', duration: 10000,
+          undoText: snap ? 'Undo' : undefined,
+          undoAction: snap ? () => { undoCompleted(id, snap); } : undefined,
+        });
+      }
+    } catch (e) {
+      const m = (e && e.message) || '';
+      if (m === 'STAGE_RACE_NOOP') {
+        delete _done[id];
+        toast('Already at ' + doneLabel() + ' — refreshing.', 'info');
+        try { if (typeof window.loadLeads === 'function') await window.loadLeads(); } catch (_) {}
+      } else if (m === 'STAGE_RACE_LOST') {
+        delete _done[id];
+        toast('Another tab moved this job — refreshed.', 'info');
+        try { if (typeof window.loadLeads === 'function') await window.loadLeads(); } catch (_) {}
+      } else if (m === 'BACKFILL_DATE_INVALID') {
+        say('Pick the day it finished — today or earlier.');
+      } else {
+        say('Could not save: ' + ((e && e.code) || m || 'unknown'));
+      }
+    } finally {
+      delete _saving[id];
+      if (ok || !document.querySelector('.sp-row[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]')) render();
+      else if (row) row.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+    }
+  }
+
+  async function undoCompleted(id, snap) {
+    const lead = (window._leads || []).find((l) => l && l.id === id);
+    try {
+      const mod = await import('./stage-write.js');
+      await mod.undoBackfillCompletion(id, snap);
+      if (lead) {
+        const prev = snap.prev || {};
+        lead.stage = prev.stage;
+        lead._stageKey = typeof window.normalizeStage === 'function' ? window.normalizeStage(prev.stage) : prev.stage;
+        lead.stageRole = prev.stageRole || undefined;
+        if (typeof window.stageRole === 'function') lead._stageRole = window.stageRole(prev.stage);
+        lead.stageStartedAt = prev.stageStartedAt || undefined;
+        lead.completedAt = null;
+        lead.completedBackfill = null;
+      }
+      refreshBoard(id);
+      toast('Undone - back to ' + stageLabel(snap.prev && snap.prev.stage), 'success');
+    } catch (e) {
+      const m = (e && e.message) || '';
+      toast(m === 'UNDO_STALE' ? 'Can’t undo — this job has changed since. Move it from the board.' : 'Could not undo: ' + ((e && e.code) || m || 'unknown'), 'error');
+    } finally {
+      render();
+    }
   }
 
   async function moveToCrew(id) {
@@ -118,7 +277,8 @@
     if (role() === 'viewer') { panel.hidden = true; return; }
     panel.hidden = false;
     const norm = typeof window.normalizeStage === 'function' ? (s) => { try { return window.normalizeStage(s); } catch (_) { return String(s || '').toLowerCase(); } } : undefined;
-    const { needs, scheduled } = P().rowsFor(window._leads || [], { today: todayYmd(), all: _all, q: _q, normalize: norm });
+    const { needs, scheduled, missed } = P().rowsFor(window._leads || [], { today: todayYmd(), all: _all, q: _q, normalize: norm });
+    const missedList = missed || [];
     host.innerHTML =
       '<div class="sp-tools">' +
         '<input type="search" id="spSearch" class="sp-search" placeholder="Search name, address or customer #" value="' + esc(_q) + '">' +
@@ -128,6 +288,11 @@
       (needs.length ? needs.slice(0, 60).map((r) => rowHtml(r, 'needs')).join('') +
         (needs.length > 60 ? '<div class="sp-note">Showing 60 — search to find the rest.</div>' : '')
         : '<div class="sp-note">' + (_all || _q ? 'Nothing matches.' : 'Every signed job has a date. Turn on "Show all open leads" to schedule an earlier-stage one.') + '</div>') +
+      (missedList.length
+        ? '<div class="sp-h">Missed — date passed <span class="sp-count">' + missedList.length + '</span></div>' +
+          missedList.slice(0, 60).map((r) => rowHtml(r, 'missed')).join('') +
+          (missedList.length > 60 ? '<div class="sp-note">Showing 60 — search to find the rest.</div>' : '')
+        : '') +
       '<div class="sp-h">Next 30 days <span class="sp-count">' + scheduled.length + '</span></div>' +
       (scheduled.length ? scheduled.map((r) => rowHtml(r, 'scheduled')).join('') : '<div class="sp-note">Nothing scheduled in the next 30 days yet.</div>');
   }
@@ -191,6 +356,9 @@
     const row = b.closest('.sp-row');
     if (!row) return;
     const act = b.dataset.spAction;
+    if (act === 'done-open') { _done[row.dataset.id] = { date: todayYmd() }; render(); return; }
+    if (act === 'done-no') { delete _done[row.dataset.id]; render(); return; }
+    if (act === 'done-go') { markCompleted(row.dataset.id); return; }
     if (act === 'stage') { moveToCrew(row.dataset.id); return; }
     if (act === 'stage-no') { delete _offer[row.dataset.id]; render(); return; }
     save(row, act === 'clear');
@@ -201,6 +369,10 @@
   function keepDraft(ev) {
     const row = ev.target && ev.target.closest && ev.target.closest('.sp-row');
     if (!row || !row.dataset.id) return;
+    if (ev.target.classList && ev.target.classList.contains('sp-done-date')) {
+      if (_done[row.dataset.id]) _done[row.dataset.id].date = ev.target.value;
+      return;
+    }
     _drafts[row.dataset.id] = {
       week: row.querySelector('.sp-week-in').value,
       date: row.querySelector('.sp-date').value,
@@ -267,5 +439,5 @@
   window.addEventListener('hashchange', maybeRender);
   window.addEventListener('nbd:data-refreshed', maybeRender);
 
-  window.NBDSchedulePlannerUI = { render, _checkBusy: checkBusy, _offerFor: offerFor };
+  window.NBDSchedulePlannerUI = { render, _checkBusy: checkBusy, _offerFor: offerFor, _offerCompleted: offerCompleted, _markCompleted: markCompleted };
 })();

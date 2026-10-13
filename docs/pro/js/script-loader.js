@@ -143,7 +143,7 @@
     // Past Customers win-back list (2026-10-01): pure rules + drafts first,
     // then the view. Nothing is sent without the rep tapping Send.
     winback: [
-      'js/winback-logic.js?v=1',
+      'js/winback-logic.js?v=2',
       'css/winback-view.css?v=1',
       'js/winback.js?v=2'
     ],
@@ -454,7 +454,7 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-view.js?v=18'
+      'js/call-center-view.js?v=19'
     ],
     // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
     // Rules editor (Settings → Estimates) and the logo upload / company export

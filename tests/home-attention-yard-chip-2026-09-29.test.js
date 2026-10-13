@@ -141,8 +141,11 @@ console.log('\n4. wiring');
   ok('a sub / supplier counts ONLY through a promise', !need({ callType: 'sub', urgent: true }) && !need({ callType: 'supplier', followUpDate: '2026-09-30' })
     && !need({ leadId: null, bucket: 'unknown', callType: 'supplier' }) && need(Object.assign({ callType: 'sub' }, promise)) && need(Object.assign({ callType: 'supplier', leadId: null, bucket: 'contact' }, promise)));
   const haSrc = fs.readFileSync(path.join(ROOT, 'docs', 'pro', 'js', 'home-attention.js'), 'utf8');
-  ok('Home counts days of texts by the same rule', /collection\(w\.db, 'phone_text_days'\), w\.where\('userId', '==', u\), w\.orderBy\('startedAtMs', 'desc'\), w\.limit\(100\)/.test(haSrc) && /out\.calls = callersNeedingYou\(callRows, Date\.now\(\)(, labels)?\)/.test(haSrc) && (haSrc.match(/callRows\.push/g) || []).length === 2);
-  ok('Home reads only the owner\'s own calls, newest 200', /collection\(w\.db, 'phone_calls'\), w\.where\('userId', '==', u\), w\.orderBy\('startedAtMs', 'desc'\), w\.limit\(200\)/.test(haSrc));
+  // 2026-10-13: by DATE (the 45-day promise window, startedAtMs >= since) with a row cap only as a safety bound;
+  // old promises have their own read (tests/never-forget-client-2026-10-13.test.js proves the behaviour).
+  const haCode = haSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"])\/\/.*$/gm, '$1');   // comments never satisfy a shape check
+  ok('Home counts days of texts by the same rule', /qWin\(\s*'phone_text_days',\s*READ\.recentTexts\s*\)/.test(haCode) && /w\.where\('startedAtMs', '>=', sinceWin\),\s*w\.orderBy\('startedAtMs', 'desc'\),\s*w\.limit\(cap\)/.test(haCode) && /out\.calls = callersNeedingYou\(callRows, Date\.now\(\)(, labels)?\)/.test(haCode));
+  ok('Home reads only the owner\'s own calls, over the 45-day window', /w\.collection\(w\.db, name\),\s*w\.where\('userId', '==', u\),\s*w\.where\('startedAtMs', '>=', sinceWin\)/.test(haCode) && /qWin\(\s*'phone_calls',\s*READ\.recentCalls\s*\)/.test(haCode) && /const sinceWin = Date\.now\(\) - PROMISE_WINDOW;/.test(haCode));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

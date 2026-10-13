@@ -43,6 +43,7 @@
     const me = uid === undefined ? (window._user && window._user.uid) : uid;
     return (leads || []).filter((l) => l && !l.deleted && !l.isProspect && (!l.userId || l.userId === me)
       && !l.reviewRequested && !l.reviewAskDeclined
+      && !l.completedBackfill   // quiet "already completed" backfill (2026-10-13): no review ask
       && paid(l, invoices) && paidAt(l, invoices) > t - WINDOW)
       .sort((a, b) => paidAt(b, invoices) - paidAt(a, invoices));
   }
