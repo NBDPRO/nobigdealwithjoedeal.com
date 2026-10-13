@@ -66,9 +66,18 @@
 
   const CALL_WINDOW = 14 * DAY;
   const PROMISE_WINDOW = 45 * DAY;
-  /** A promise Jo made that nothing has marked kept (promise-cleanup stamps keptAtMs). */
-  const openJoPromise = (c) => (c.promises || []).some((p) => p && p.who === 'jo' && !p.keptAtMs);
   const etYmd = (ms) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  // A promise riding on the call doc itself (callCenterAction 'promise' on an
+  // unfiled call): open once its date has come. Mirror of call-watch-logic.js
+  // ridingPromiseOpen (QA 2026-10-13 H3: invisible to the rule past day 14).
+  function ridingPromiseOpen(c, now) {
+    const p = c && c.promise;
+    if (!p || p.kind !== 'promise' || p.done === true || p.keptAtMs) return false;
+    const due = String(p.dueDate || c.followUpDate || '');
+    return !due || due <= etYmd(now == null ? Date.now() : now);
+  }
+  /** A promise Jo made that nothing has marked kept (promise-cleanup stamps keptAtMs). */
+  const openJoPromise = (c, now) => (c.promises || []).some((p) => p && p.who === 'jo' && !p.keptAtMs) || ridingPromiseOpen(c, now);
   // A missed call: they rang, it was under 15 s (Cube ACR keeps no real audio).
   const isMissedCall = (c) => !!c && c.channel !== 'text' && c.status === 'short' && c.direction === 'inbound';
   /**
@@ -149,10 +158,10 @@
     // (oldPromiseCount) instead of silently dropping off.
     if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) {
       if ((toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW) return false;
-      return openJoPromise(c);
+      return openJoPromise(c, t);
     }
     // A promise stamped kept stops counting at once (it used to nag to day 14).
-    const promised = openJoPromise(c);
+    const promised = openJoPromise(c, t);
     const lb = labelOf(ctx, c);
     const pol = lb && (lb.policy === 'hide' || lb.policy === 'quiet' || lb.policy === 'surface') ? lb.policy : '';
     // Jo, 2026-10-12: "a promise ALWAYS surfaces" — hide / quiet drop missed
@@ -228,8 +237,9 @@
    */
   function isOldPromise(c, now) {
     const t = now == null ? Date.now() : now;
-    if (!c || c.handledAtMs || c.status === 'personal' || c.callType === 'spam' || c.taskDone === true || c.channel === 'text') return false;
-    return (toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW && openJoPromise(c);
+    // A texted promise counts too (QA 2026-10-13: it appeared nowhere past 45 days).
+    if (!c || c.handledAtMs || c.status === 'personal' || c.callType === 'spam' || c.taskDone === true) return false;
+    return (toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW && openJoPromise(c, t);
   }
   function oldPromiseCount(rows, now) {
     const people = new Set();

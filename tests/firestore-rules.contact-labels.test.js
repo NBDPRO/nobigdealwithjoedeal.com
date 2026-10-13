@@ -151,6 +151,59 @@ async function run() {
   await check('suggestions: updatedBy must be the writer', 'deny', setDoc(sref(carol, '5550149035'), sdoc({ digits: '5550149035', updatedBy: 'x' })));
   await check('suggestions: digits must match the doc id', 'deny', setDoc(sref(carol, '5550149036'), sdoc({ digits: '5550149037' })));
 
+  // ── future stamps cannot park a hidden number (QA 2026-10-13 #8) ──────
+  const nowMs = Date.now();
+  await check('ackAtMs at "now" accepted (control: a real Keep hidden tap)', 'allow', shaped({ ackAtMs: nowMs }, '5550149040'));
+  await check('ackAtMs a year ahead denied', 'deny', shaped({ ackAtMs: nowMs + 365 * 86400000 }, '5550149041'));
+  await check('ackAtMs 9e15 denied (would disable the safety valve for good)', 'deny', shaped({ ackAtMs: 9e15 }, '5550149042'));
+  await check('ackAtMs negative denied', 'deny', shaped({ ackAtMs: -1 }, '5550149043'));
+  await check('ackAtMs inside the one-day clock skew accepted (control)', 'allow', shaped({ ackAtMs: nowMs + 3600000 }, '5550149044'));
+  await check('updatedAtMs a year ahead denied', 'deny', shaped({ updatedAtMs: nowMs + 365 * 86400000 }, '5550149045'));
+  await check('updatedAtMs at "now" accepted (control)', 'allow', shaped({ updatedAtMs: nowMs }, '5550149046'));
+
+  // ── a FORMER owner after an ownership hand-off (QA 2026-10-13 #9) ────
+  // companies/co-h names a new ownerId; the old owner's uid still equals the
+  // company id but must hold access only through claims (like any member).
+  await env.withSecurityRulesDisabled(async (c) => {
+    const f = c.firestore();
+    await setDoc(doc(f, 'companies/co-h'), { name: 'Handed Off Co', ownerId: 'newowner' });
+    await setDoc(doc(f, 'companies/co-h/contact_labels/' + D), label({ companyId: 'co-h' }, 'newowner'));
+    await setDoc(doc(f, 'companies/co-h/contact_suggestions/' + D), { digits: D, dismissed: [], companyId: 'co-h', updatedBy: 'newowner', updatedAtMs: 1760000000000 });
+    await setDoc(doc(f, 'companies/co-h/thursday_handled/' + D), { digits: D, companyId: 'co-h', updatedBy: 'newowner', updatedAtMs: 1760000000000, createdAtMs: 1760000000000 });
+    await setDoc(doc(f, 'away_mode/co-h'), { companyId: 'co-h', active: false });
+    await setDoc(doc(f, 'away_windows/co-h__w1'), { companyId: 'co-h', windowId: 'w1', items: {} });
+    await setDoc(doc(f, 'companies/co-k'), { name: 'Solo Co', ownerId: 'co-k' });
+    await setDoc(doc(f, 'companies/co-k/contact_labels/' + D), label({ companyId: 'co-k' }, 'co-k'));
+    await setDoc(doc(f, 'away_mode/co-k'), { companyId: 'co-k', active: false });
+    await setDoc(doc(f, 'away_windows/co-k__w1'), { companyId: 'co-k', windowId: 'w1', items: {} });
+  });
+  const formerOwner = ctx('co-h', {});                                    // uid == company id, no claims, no longer the owner
+  const newOwner = ctx('newowner', { role: 'company_admin', companyId: 'co-h' });
+  const soloK = ctx('co-k', {});                                          // control: the company doc names them
+  const hl = (db) => doc(db, 'companies/co-h/contact_labels/' + D);
+  const hs = (db) => doc(db, 'companies/co-h/contact_suggestions/' + D);
+  const ht = (db) => doc(db, 'companies/co-h/thursday_handled/' + D);
+  await check('control: the new owner (claims) reads the label', 'allow', getDoc(hl(newOwner)));
+  await check('control: the new owner updates the label', 'allow', setDoc(hl(newOwner), label({ companyId: 'co-h', policy: 'hide', updatedBy: 'newowner' })));
+  await check('control: a solo owner the company doc names still reads their label', 'allow', getDoc(doc(soloK, 'companies/co-k/contact_labels/' + D)));
+  await check('control: and writes one', 'allow', setDoc(doc(soloK, 'companies/co-k/contact_labels/5550149050'), label({ companyId: 'co-k', digits: '5550149050' }, 'co-k')));
+  await check('former owner CANNOT read a label', 'deny', getDoc(hl(formerOwner)));
+  await check('former owner CANNOT list labels', 'deny', getDocs(collection(formerOwner, 'companies/co-h/contact_labels')));
+  await check('former owner CANNOT update a label', 'deny', setDoc(hl(formerOwner), label({ companyId: 'co-h', policy: 'surface', updatedBy: 'co-h' })));
+  await check('former owner CANNOT create a label', 'deny', setDoc(doc(formerOwner, 'companies/co-h/contact_labels/5550149051'), label({ companyId: 'co-h', digits: '5550149051' }, 'co-h')));
+  await check('former owner CANNOT delete a label', 'deny', deleteDoc(hl(formerOwner)));
+  await check('former owner CANNOT read a suggestion dismissal', 'deny', getDoc(hs(formerOwner)));
+  await check('former owner CANNOT write a suggestion dismissal', 'deny', setDoc(hs(formerOwner), { digits: D, dismissed: [], companyId: 'co-h', updatedBy: 'co-h', updatedAtMs: 1760000000000 }));
+  await check('former owner CANNOT read thursday_handled', 'deny', getDoc(ht(formerOwner)));
+  await check('former owner CANNOT write thursday_handled', 'deny', setDoc(ht(formerOwner), { digits: D, companyId: 'co-h', updatedBy: 'co-h', updatedAtMs: 1760000000000, createdAtMs: 1760000000000 }));
+  await check('control: the new owner reads thursday_handled', 'allow', getDoc(ht(newOwner)));
+  await check('former owner CANNOT read the away status doc', 'deny', getDoc(doc(formerOwner, 'away_mode/co-h')));
+  await check('control: the new owner (claims) reads the away status doc', 'allow', getDoc(doc(newOwner, 'away_mode/co-h')));
+  await check('control: the named solo owner reads their away status doc', 'allow', getDoc(doc(soloK, 'away_mode/co-k')));
+  await check('former owner CANNOT read the away window ledger', 'deny', getDoc(doc(formerOwner, 'away_windows/co-h__w1')));
+  await check('control: the new company_admin reads the away window ledger', 'allow', getDoc(doc(newOwner, 'away_windows/co-h__w1')));
+  await check('control: the named solo owner reads their away window ledger', 'allow', getDoc(doc(soloK, 'away_windows/co-k__w1')));
+
   // ── update invariants + delete ─────────────────────────────
   await check('createdAtMs frozen on update (changed = denied)', 'deny', setDoc(ref(carol), label({ createdAtMs: 1 })));
   await check('update keeping createdAtMs accepted (control)', 'allow', setDoc(ref(carol), label({ policy: 'surface', kind: 'customer' })));
