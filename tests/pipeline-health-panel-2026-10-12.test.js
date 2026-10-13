@@ -22,7 +22,7 @@ const good = () => ({
   now: NOW, gates,
   watch: { lastCheckAtMs: NOW - 40 * MIN, lastPush: { sent: 1 } },
   cc: { lastRunAtMs: NOW - 10 * MIN, lastTranscribeAtMs: NOW - 10 * MIN },
-  health: { problems: [], checkedAtMs: NOW - 5 * MIN },
+  health: { problems: [], checkedAtMs: NOW - 5 * MIN, canary: { ok: true, ymd: '2026-10-02', checks: 7, failed: [] } },
   ledger: { ymd: '2026-10-01', clear: true, open: 0, anomalies: [] },
   newestCallMs: NOW - 2 * H, waiting: 0, tokens: 2,
 });
@@ -66,7 +66,7 @@ const row = (r, k) => r.rows.find((x) => x.key === k);
   try { await PH.handle({ auth: null, db: mkDb({}), nowMs: NOW }); } catch (e) { denied = e; }
   ok('signed out is refused', denied && denied.code === 'unauthenticated');
   const snap = await PH.handle({ auth: { uid: OWNER, token: {} }, db: mkDb({ 'integrations/callWatch': { lastCheckAtMs: NOW - 10 * MIN, lastPush: { sent: 1 } }, 'integrations/callCenter': { lastRunAtMs: NOW - 5 * MIN, lastTranscribeAtMs: NOW - 5 * MIN } }), nowMs: NOW });
-  ok('owner gets rows + overall', Array.isArray(snap.rows) && snap.rows.length === 8 && !!snap.overall && snap.atMs === NOW);
+  ok('owner gets rows + overall', Array.isArray(snap.rows) && snap.rows.length === 9 && !!snap.overall && snap.atMs === NOW);
 
   console.log('C. wiring');
   const idx = read('functions/index.js');
