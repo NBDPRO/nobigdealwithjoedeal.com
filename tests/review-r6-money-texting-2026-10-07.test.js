@@ -530,14 +530,14 @@ function preflightEnv(est) {
       JSON.stringify({ ext: ext && ext.ok, plain: plain && plain.code }));
   }
 
-  // R6-3-10 ─ STOP / HELP / START replies are NBD's for every company (still open from round 2)
+  // R6-3-10 ─ STOP / HELP / START replies name the business, not the CRM product.
+  // FIXED 2026-10-13 (Twilio A2P reapply packet row 14): the three replies are built by
+  // functions/sms-keyword-replies.js from the tenant that owns the number texted. Behaviour is
+  // pinned by tests/sms-keyword-replies-2026-10-13.test.js; this keeps the old literals gone.
   {
     const s = stripComments(rd('functions/sms-functions.js'));
-    ok('KNOWN BUG R6-3-10 (reported 2026-10-05 as still open, re-confirmed 2026-10-07): the STOP / HELP / START TwiML replies are '
-      + 'literals that say "NBD Pro" and give Joe\'s number, whichever company the homeowner was texting with. Expected the tenant\'s '
-      + 'name and support line',
-      /You\\'ve been unsubscribed from NBD Pro SMS\./.test(s) && /NBD Pro: Msg & data rates may apply\. Reply STOP to ' \+\s*'unsubscribe\. Support: \(859\) 420-7382\./.test(s)
-        && /Welcome back to NBD Pro SMS\./.test(s));
+    ok('R6-3-10 FIXED: the STOP / HELP / START TwiML replies no longer carry the "NBD Pro" literals and are built from the tenant brand',
+      !/NBD Pro(?: SMS|:)/.test(s) && /KeywordReplies\.stopReply\(/.test(s) && /KeywordReplies\.helpReply\(/.test(s) && /KeywordReplies\.startReply\(/.test(s));
   }
 
   // ════════════════════════════════════════════════════════════════════

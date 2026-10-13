@@ -144,23 +144,28 @@ Hey [name]! This is [rep name] from NBD Home Solutions. Great chatting today —
 - Age-gated content: **No**
 - Direct lending or loan arrangement: **No**
 
-**Keywords and replies.** Enter exactly what the code sends today, so the
-record matches reality (`functions/sms-functions.js`, inbound webhook):
+> **Update 2026-10-13:** the code now sends the brand-named strings below
+> (`functions/sms-keyword-replies.js`, answered by the `incomingSMS` webhook),
+> so the old "NBD Pro" strings in this table are gone. Source of truth:
+> [TWILIO-A2P-REAPPLY-PACKET-2026-10-13](../projects/TWILIO-A2P-REAPPLY-PACKET-2026-10-13.md)
+> section 5 and
+> [SMS-KEYWORD-REPLIES-BRAND-2026-10-13](../projects/SMS-KEYWORD-REPLIES-BRAND-2026-10-13.md).
+
+**Keywords and replies.** Enter exactly what the code sends, so the
+record matches reality:
 
 | Field | Enter |
 |---|---|
-| Opt-out keywords | `STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT` |
-| Opt-out reply | `You've been unsubscribed from NBD Pro SMS. Reply START to resume, HELP for help.` |
+| Opt-out keywords | `STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT, OPTOUT, REVOKE` |
+| Opt-out reply | `No Big Deal Home Solutions: You're unsubscribed and won't get any more texts from this number. Reply START to resubscribe.` |
 | Help keywords | `HELP, INFO` |
-| Help reply | `NBD Pro: Msg & data rates may apply. Reply STOP to unsubscribe. Support: (859) 420-7382.` |
+| Help reply | `No Big Deal Home Solutions: for help call (859) 420-7382 or email jd@nobigdealwithjoedeal.com. Msg & data rates may apply. Reply STOP to opt out.` |
 | Opt-in keywords | `START, UNSTOP` |
-| Opt-in reply | `Welcome back to NBD Pro SMS. Reply STOP anytime to unsubscribe.` |
+| Opt-in reply | `No Big Deal Home Solutions: You're subscribed to our texts. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to opt out.` |
 
-If the form insists the opt-in reply name the brand and say how to get
-help, use this instead:
-`No Big Deal Home Solutions: you're subscribed to texts about your request. Msg & data rates may apply. Reply HELP for help, STOP to opt out.`
-That version differs from what the code sends, so file the rename
-follow-up from item 3 above.
+(2026-10-13: the rename follow-up is done; the opt-in reply above is what
+the code sends and what to register. The older "If the form insists..."
+alternative is retired.)
 
 All five samples stay inside the Kentucky insurance-job rules: no "we
 handle your claim", no advance-payment offer. Sample 2's "documents damage
