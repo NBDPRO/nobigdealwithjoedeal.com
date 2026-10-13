@@ -10,6 +10,7 @@
  * alert), because losing a customer call is worse than keeping a personal one.
  */
 const { logger } = require('firebase-functions/v2');
+const W = require('./call-watch-logic');
 
 const toMs = (v) => {
   if (!v) return 0;
@@ -18,15 +19,21 @@ const toMs = (v) => {
   return 0;
 };
 
-/** { digits10: { kind, policy, capture, ackAtMs, updatedAtMs } } for one tenant. */
+/**
+ * { digits10: { kind, policy, capture, ackAtMs, updatedAtMs } } for one tenant.
+ * ackAtMs / updatedAtMs beyond now + 24 h are dropped to 0 (W.saneStampMs): a
+ * huge client stamp would otherwise park a hidden number for good (QA
+ * 2026-10-13; firestore.rules now refuses them too, this covers old docs).
+ */
 async function loadLabels(db, tenantUid) {
   try {
     const snap = await db.collection('companies').doc(tenantUid).collection('contact_labels').get();
     const out = {};
+    const now = Date.now();
     snap.docs.forEach((d) => {
       const x = d.data() || {};
       if (/^\d{10}$/.test(d.id) && x.kind) {
-        out[d.id] = { kind: x.kind, policy: x.policy || '', capture: x.capture || '', ackAtMs: toMs(x.ackAtMs), updatedAtMs: toMs(x.updatedAtMs) };
+        out[d.id] = { kind: x.kind, policy: x.policy || '', capture: x.capture || '', ackAtMs: W.saneStampMs(toMs(x.ackAtMs), now), updatedAtMs: W.saneStampMs(toMs(x.updatedAtMs), now) };
       }
     });
     return out;

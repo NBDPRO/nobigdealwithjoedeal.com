@@ -29,6 +29,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const T = require('./text-inbox-logic');
 const CC = require('./call-center-logic');
+const WL = require('./call-watch-logic');
 const CL = require('./contact-labels');
 
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
@@ -202,26 +203,60 @@ async function runTextNotes({ db, live, nowMs }) {
       const notes = CC.sanitizeNotes(await notesFn({ system: T.TEXT_NOTES_SYSTEM, prompt: T.buildTextNotesPrompt({ day, leadName }), feature: 'text-notes' }));
       const personal = notes.callType === 'personal';
       if (personal) notes.summary = 'Personal texts.';
-      // H1: a NEW inbound text after Jo hit Handled re-opens the day (his own reply does not).
-      const reopen = T.reopenPatch(have.get(day.id), day, nowMs);
+      // H1 / QA #10: a NEW inbound text after Jo closed the day (Handled, or the
+      // follow-up task ticked) re-opens it; his own reply does not. The task's
+      // completedAt is the tick time (best effort: unreadable = the old note's
+      // time, which errs toward reopening).
+      const prev = have.get(day.id);
+      let taskRef = null, task = null, taskDoneAtMs = 0;
+      if (prev && prev.taskDone === true && day.leadId) {
+        try {
+          taskRef = db.doc('leads/' + day.leadId + '/tasks/sms-' + day.id);
+          const ts = await taskRef.get();
+          task = ts.exists ? (ts.data() || {}) : null;
+          taskDoneAtMs = task && task.done === true ? WL.toMs(task.completedAt) : 0;
+        } catch (_) { task = null; }
+      }
+      const reopen = T.reopenPatch(prev, day, nowMs, taskDoneAtMs);
       if (reopen) out.reopened++;
-      await db.collection(DAYS).doc(day.id).set(Object.assign({
+      // QA #11: the model regenerates promises on every re-note; a kept marker
+      // (promise-cleanup's, or the day having been closed after the previous
+      // note) is carried through, so a "thanks" cannot resurrect a kept promise.
+      const closedAt = T.closedStampMs(prev, taskDoneAtMs);
+      const seenAll = !!(prev && closedAt && Number(prev.notedAtMs) > 0 && Number(prev.notedAtMs) <= closedAt);
+      notes.promises = T.carryKept(prev && prev.promises, notes.promises, seenAll ? closedAt : 0);
+      const dayDoc = Object.assign({
         userId: OWNER, companyId: OWNER, channel: 'text',
         status: personal ? 'personal' : 'noted',
         leadId: day.leadId, contactName: day.contactName, phoneDigits: day.phoneDigits, ymd: day.ymd,
         startedAtMs: day.lastAtMs, sig: day.sig, messageCount: day.messages.length,
         summary: notes.summary, callType: notes.callType, promises: notes.promises,
         followUpDate: notes.followUpDate, urgent: notes.urgent, notedAtMs: nowMs,
-      }, reopen || {}), { merge: true });
+      }, reopen || {});
+      await db.collection(DAYS).doc(day.id).set(dayDoc, { merge: true });
+      // Reopened by a text that needs Jo (urgent, an open promise, a due date):
+      // reopen the follow-up task too, or Today's task-done filter and
+      // callWatch's reconcile would hide the day again. A thanks leaves the
+      // done task alone (no resurrected to-do). A superseded task (promise
+      // capture retired it for a dated promise-<id> task) is never reopened.
+      if (reopen && reopen.taskDone === false && task && task.done === true && !task.supersededBy
+          && WL.callNeedsYou(Object.assign({ id: day.id }, prev, dayDoc), nowMs)) {
+        try {
+          await taskRef.set({ done: false, completedAt: null, reopenedAtMs: nowMs, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+          out.tasksReopened = (out.tasksReopened || 0) + 1;
+        } catch (e) { logger.warn('text_task_reopen_failed', { id: day.id, err: e && e.message }); }
+      }
       if (personal) { out.personal++; continue; }
       out.noted++;
       if (day.leadId) {
         const dayInfo = { id: day.id, contactName: day.contactName, messageCount: day.messages.length, startedAtMs: day.lastAtMs };
         await db.doc('leads/' + day.leadId + '/activity/sms-' + day.id).set(Object.assign(
           CC.buildTextDayActivity({ day: dayInfo, notes, ownerUid: OWNER }), { createdAt: FieldValue.serverTimestamp() }), { merge: true });
-        const task = CC.buildTextDayTask({ day: dayInfo, notes, leadId: day.leadId, ownerUid: OWNER, todayYmd: today, nowMs });
-        if (task) {
-          if (await createIfAbsent(db.doc('leads/' + day.leadId + '/tasks/sms-' + day.id), Object.assign(task, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
+        // Kept promises (carried above) do not make a NEW follow-up task.
+        const openNotes = Object.assign({}, notes, { promises: notes.promises.filter((p) => !(p && p.keptAtMs)) });
+        const newTask = CC.buildTextDayTask({ day: dayInfo, notes: openNotes, leadId: day.leadId, ownerUid: OWNER, todayYmd: today, nowMs });
+        if (newTask) {
+          if (await createIfAbsent(db.doc('leads/' + day.leadId + '/tasks/sms-' + day.id), Object.assign(newTask, { createdAt: FieldValue.serverTimestamp() }))) out.tasks++;
         }
       }
     } catch (e) {

@@ -36,6 +36,9 @@ async function run({ db, nowMs }) {
     ['phone_text_days userId+startedAtMs desc (Home)', () => q('phone_text_days').orderBy('startedAtMs', 'desc').limit(100).get()],
     ['phone_text_days userId+startedAtMs range (callWatch)', () => q('phone_text_days').where('startedAtMs', '>=', since).orderBy('startedAtMs', 'desc').get()],
     ['phone_text_days userId+status+startedAtMs desc (sweep)', () => q('phone_text_days').where('status', '==', 'noted').orderBy('startedAtMs', 'desc').limit(300).get()],
+    // The Thursday window callWatch and away mode read (companyId + startedAt
+    // range/order, plus the null-startedAt equality): the emulator never enforces indexes.
+    ['thursday_calls companyId+startedAt range + null (callWatch, away mode)', () => W.readThursday(db, CANARY_USER, since)],
   ];
   for (const [name, fn] of queries) {
     checks++;
