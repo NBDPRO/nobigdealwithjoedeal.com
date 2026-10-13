@@ -301,7 +301,7 @@ const newState = () => ({ docs: {}, cols: { phone_calls: [], phone_text_days: []
       }
       ok('dead token: every run still fails loud for the heartbeat (the bell is the only thing that told him)', errs.length === 4 && errs.every((m) => /reached 0 devices/.test(m)), errs);
       const um = emails.filter((m) => /^Your phone did not get the alert/.test(m.subject));
-      ok('4 failed runs over 6 h = exactly ONE "phone did not get it" email, naming the person (once per item)', um.length === 1 && /Pat Lee - you promised something/.test(um[0].text), emails.map((m) => m.subject));
+      ok('four unreached runs over 6 h = exactly ONE "phone did not get it" email, naming the person (once per item)', um.length === 1 && /Pat Lee - you promised something/.test(um[0].text), emails.map((m) => m.subject));
       ok('...and the state remembers it (idempotent across a restart)', Object.keys(S.docs['integrations/callWatch'].unreachedEmailed || {}).length === 1);
       const live = [];
       const S4 = mk();
