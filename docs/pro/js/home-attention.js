@@ -174,10 +174,29 @@
     });
     return out;
   }
+  /**
+   * Mirror of call-watch-logic.js parkedUntil - THE one "parked until a date"
+   * rule (2026-10-13): '' or the YYYY-MM-DD a snooze / moved task parks this
+   * row until. Home only ever sees the call row, so the server stamps
+   * snoozeUntilYmd on it for EVERY snooze (callCenterAction 'snooze').
+   */
+  const YMD_RE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+  function parkedUntil(c, now, opts) {
+    if (!c) return '';
+    const today = etYmd(now == null ? Date.now() : now);
+    const cand = [c.snoozeUntilYmd];
+    if (c.taskSnoozed === true || (opts && opts.taskDue === true)) cand.push(c.taskDueYmd);
+    if (c.kind === 'promise') cand.push(String(c.dueDate || '').slice(0, 10));
+    let until = '';
+    cand.forEach((y) => { const s = String(y || ''); if (YMD_RE.test(s) && s > today && s > until) until = s; });
+    return until;
+  }
   function callNeedsYou(c, now, ctx) {
     const t = now == null ? Date.now() : now;
     if (!c || c.handledAtMs || c.status === 'personal') return false;
     if (c.callType === 'spam' || c.taskDone === true) return false;
+    // Parked with a date: not open until that day arrives (mirror of the server).
+    if (parkedUntil(c, t)) return false;
     // Jo, 2026-10-12: a promise he made stays on the list past the 14-day
     // window, up to 45 days, then rolls into ONE "old promises" review row
     // (oldPromiseCount) instead of silently dropping off.
@@ -305,7 +324,7 @@
     return items.join('');
   }
 
-  const api = { READ, PROMISE_WINDOW, CALL_WINDOW, canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, oldPromiseCount, isOldPromise, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
+  const api = { READ, PROMISE_WINDOW, CALL_WINDOW, parkedUntil, canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, oldPromiseCount, isOldPromise, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root || !root.document) return;
   root.NBDHomeAttention = api;
