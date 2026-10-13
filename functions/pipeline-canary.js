@@ -27,7 +27,7 @@ const MIN = 60000;
 async function run({ db, nowMs }) {
   const failed = [];
   let checks = 0;
-  const since = nowMs - W.CALL_WINDOW;
+  const since = nowMs - W.PROMISE_WINDOW; // same range callWatch / away mode query
   const q = (col) => db.collection(col).where('userId', '==', CANARY_USER);
   const queries = [
     ['phone_calls userId+startedAtMs desc (Home, Call Center)', () => q('phone_calls').orderBy('startedAtMs', 'desc').limit(200).get()],

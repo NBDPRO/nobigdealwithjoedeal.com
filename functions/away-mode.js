@@ -61,9 +61,12 @@ const newWindowId = (now) => 'w' + Math.floor(now).toString(36);
  */
 async function loadOpenItems(db, companyId, nowMs) {
   const since14 = nowMs - W.CALL_WINDOW;
+  // Read the promise window (45 days), like callWatch: a promise Jo made is
+  // on Home to day 45, so the backup's cover list must carry it too.
+  const sinceWin = nowMs - W.PROMISE_WINDOW;
   const [calls, texts, thursday] = await Promise.all([
-    db.collection('phone_calls').where('userId', '==', companyId).where('startedAtMs', '>=', since14).orderBy('startedAtMs', 'desc').get(),
-    db.collection('phone_text_days').where('userId', '==', companyId).where('startedAtMs', '>=', since14).orderBy('startedAtMs', 'desc').get(),
+    db.collection('phone_calls').where('userId', '==', companyId).where('startedAtMs', '>=', sinceWin).orderBy('startedAtMs', 'desc').get(),
+    db.collection('phone_text_days').where('userId', '==', companyId).where('startedAtMs', '>=', sinceWin).orderBy('startedAtMs', 'desc').get(),
     db.collection('thursday_calls').where('companyId', '==', companyId).limit(300).get(),
   ]);
   const rows = (s) => s.docs.map((d) => Object.assign({ id: d.id }, d.data()));
