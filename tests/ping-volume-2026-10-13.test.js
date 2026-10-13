@@ -222,6 +222,68 @@ const TODAY = W.etYmd(T0);
   g = await go(nextday, T0 + 22 * H);
   ok('control: the next day it may (one per person per DAY)', g.emails.length === 1, g.emails.map((m) => m.subject));
 
+  console.log('6b. review fixes: held re-tells, orphaned folds, labels of the cap');
+  // A re-tell the person card folds does NOT climb a rung (it waits for room)
+  const cardFull = { 'lead:L8': { ymd: TODAY, n: 3, kinds: { promise: T0 - 4 * H }, firstAtMs: T0 - 5 * H } };
+  const cardRoom = { 'lead:L8': { ymd: TODAY, n: 1, kinds: { promise: T0 - 4 * H }, firstAtMs: T0 - 5 * H } };
+  const ladderN = { 'call:s1': { n: 1, at: T0 - 3 * H }, 'call:s2': { n: 1, at: T0 - 3 * H } };
+  d = mkDb([stuck('s1'), stuck('s2')], { 'integrations/callWatch': { lastCheckAtMs: T0 - 2 * H, ladder: ladderN, personPings: cardFull } });
+  g = await go(d, T0);
+  ok('card full: the rung-2 re-tell is NOT pushed, NOT belled again, and does not climb (it waits for room)',
+    g.pushes.length === 0 && d.bells.length === 0 && d.docs['integrations/callWatch'].ladder['call:s1'].n === 1 && d.docs['integrations/callWatch'].ladder['call:s2'].n === 1, { pushes: g.pushes.length, bells: d.bells.length, ladder: d.docs['integrations/callWatch'].ladder });
+  d = mkDb([stuck('s1'), stuck('s2')], { 'integrations/callWatch': { lastCheckAtMs: T0 - 2 * H, ladder: ladderN, personPings: cardRoom } });
+  g = await go(d, T0);
+  ok('control: the same re-tell with room on the card pushes (one push for the person) and climbs both calls in step',
+    g.pushes.length === 1 && /\+1 more call/.test(g.pushes[0].body) && d.docs['integrations/callWatch'].ladder['call:s1'].n === 2 && d.docs['integrations/callWatch'].ladder['call:s2'].n === 2, { pushes: g.pushes.map((x) => x.body), ladder: d.docs['integrations/callWatch'].ladder });
+  // a held re-tell of one call is carried by the person's push when another item pushes
+  const mixed = mkDb([stuck('s1'), stuck('s2'), row({ id: 'new1', leadId: 'L8', bucket: 'customer', contactName: 'Lee', urgent: true, startedAtMs: T0 - 20 * MIN, createdAtMs: T0 - 15 * MIN, notedAtMs: T0 - 15 * MIN })], { 'integrations/callWatch': { lastCheckAtMs: T0 - 2 * H, ladder: ladderN, personPings: cardFull } });
+  g = await go(mixed, T0);
+  ok('control: a NEW kind from the same person pushes even on a full card, and carries that person\'s re-tells (they climb)',
+    g.pushes.length === 1 && mixed.docs['integrations/callWatch'].ladder['call:s1'].n === 2, { pushes: g.pushes.map((x) => x.body), ladder: mixed.docs['integrations/callWatch'].ladder });
+
+  // a folded call whose carrier left the list is told as news (once)
+  const carrierOpen = { id: 'cA', leadId: 'L3', urgent: true, status: 'noted', urgentPushedAtMs: T0 - 2 * H, startedAtMs: T0 - 3 * H, notedAtMs: T0 - 3 * H, bucket: 'customer', phoneDigits: '5135550103' };
+  const folded = { id: 'cB', leadId: 'L3', urgent: true, status: 'noted', urgentPushedAtMs: T0 - 2 * H, urgentFoldedAtMs: T0 - 150 * MIN, urgentFoldedInto: 'cA', startedAtMs: T0 - 160 * MIN, notedAtMs: T0 - 150 * MIN, bucket: 'customer', phoneDigits: '5135550103' };
+  const callNeeds = (rows, told) => W.newNeeds(rows, [], [], T0 - 2 * H, T0, null, told || new Set()).filter((n) => n.kind === 'call');
+  ok('carrier handled: the folded call is told as news (its own id, once)', (() => { const n = callNeeds([Object.assign({}, carrierOpen, { handledAtMs: T0 - H }), folded]); return n.length === 1 && n[0].id === 'call:cB' && /#carrier$/.test(n[0].tellId); })());
+  ok('control: carrier still open: the folded call stays quiet (it rides the carrier\'s re-tell)', callNeeds([carrierOpen, folded]).length === 0);
+  ok('control: carrier snoozed to a later day counts as gone (told)', callNeeds([Object.assign({}, carrierOpen, { snoozeUntilYmd: '2026-10-09' }), folded]).length === 1);
+  ok('control: a call pushed on its own (never folded) is not re-told when another call of the person is handled', callNeeds([Object.assign({}, carrierOpen, { handledAtMs: T0 - H }), Object.assign({}, folded, { urgentFoldedAtMs: undefined, urgentFoldedInto: undefined })]).length === 0);
+  const toldSet = new Set(['call:cB#carrier']);   // runWatch filters needs by tellId against st.toldIds
+  ok('...and once told it is not told again (runWatch drops a need whose tellId is in toldIds)', callNeeds([Object.assign({}, carrierOpen, { handledAtMs: T0 - H }), folded]).filter((n) => !toldSet.has(n.tellId || n.id)).length === 0);
+
+  // a known customer's repeated missed call has no ladder: capped, not folded to nothing
+  const missedKnown = it('missed call', 'lead:L2', { id: 'call:m2' });
+  p = plan([missedKnown], { 'lead:L2': { ymd: TODAY, n: 1, kinds: { missed: T0 - 2 * H }, firstAtMs: T0 - 3 * H } });
+  ok('a second missed call from a known customer pushes while the card has room (it has no re-tell to carry it)', p.pushItems.length === 1);
+  p = plan([missedKnown], { 'lead:L2': { ymd: TODAY, n: 3, kinds: { missed: T0 - 2 * H }, firstAtMs: T0 - 5 * H } });
+  ok('control: ...and is capped at 3 pushes a day like everything else (bell, not push)', p.pushItems.length === 0 && p.alertItems.length === 1);
+
+  // lastPush: a bell-only run must not erase "the last push reached 0 phones"
+  d = mkDb([row({ id: 'low9', phoneDigits: '5135550909' })], { 'integrations/callWatch': { lastCheckAtMs: T0 - 2 * H, lastPush: { atMs: T0 - 4 * H, sent: 0, failed: 1 } } });
+  g = await go(d, T0);
+  ok('bell-only run keeps lastPush (sent 0) so the 20:00 ledger still warns the phone is dead', g.pushes.length === 0 && d.docs['integrations/callWatch'].lastPush.sent === 0, d.docs['integrations/callWatch'].lastPush);
+  d = mkDb([row({ id: 'real9', promises: [{ who: 'jo', text: 'send it' }] })], { 'integrations/callWatch': { lastCheckAtMs: T0 - 2 * H, lastPush: { atMs: T0 - 4 * H, sent: 0, failed: 1 } } });
+  g = await go(d, T0);
+  ok('control: a run that pushes (and reaches a phone) records the new result', d.docs['integrations/callWatch'].lastPush.sent === 1, d.docs['integrations/callWatch'].lastPush);
+
+  // only the numbers the bell actually names are "belled today"
+  const many = [];
+  for (let i = 0; i < 7; i++) many.push(row({ id: 'mn' + i, phoneDigits: '513555060' + i, startedAtMs: T0 - (10 + i) * MIN, createdAtMs: T0 - (9 + i) * MIN, notedAtMs: T0 - (9 + i) * MIN }));
+  d = mkDb(many);
+  g = await go(d, T0);
+  const belled = Object.keys(d.docs['integrations/callWatch'].personPings || {}).filter((k) => d.docs['integrations/callWatch'].personPings[k].lowBellYmd === TODAY);
+  ok('7 unknown numbers in one run: the bell names 5, so only those 5 are marked belled today', belled.length === 5 && g.pushes.length === 0, belled);
+
+  // Thursday hold needs callWatch live (else nothing would tell the held call)
+  {
+    const prevEnv = process.env.CALL_WATCH_ENABLED;
+    process.env.CALL_WATCH_ENABLED = 'false';
+    const u2 = await run(false, at(22, 30));
+    process.env.CALL_WATCH_ENABLED = prevEnv;
+    ok('callWatch off: a night Thursday call is NOT held (nothing would tell it in the morning)', ['email', 'push', 'sms'].every((ch) => u2['notifyState.' + ch] && !/^held:/.test(u2['notifyState.' + ch].status)), u2);
+  }
+
   // ── 7. pushUrgent folds a second urgent call of an open urgent person ─────
   console.log('7. pushUrgent: the person card');
   const pushNow = Date.parse('2026-10-07T17:00:00Z');                // 13:00 ET

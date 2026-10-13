@@ -26,6 +26,9 @@
 const DAY = 86400000;
 const PERSON_PUSH_DAY_MAX = 3;      // pushes about one person in an ET day (design: 3 pushes + 1 email)
 const LOW_RE = /^(missed call|unknown number)/;
+// Kinds the re-tell ladder carries (call-watch-logic HIGH_WHY): a folded repeat of one of
+// these is named by the next re-tell. Every other kind is capped, not folded.
+const LADDER_KINDS = new Set(['urgent', 'promise', 'due', 'insurance']);
 
 const etYmd = (ms) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 const etHour = (ms) => Number(new Date(ms).toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false })) % 24;
@@ -98,9 +101,10 @@ function personFacts(rows, nowMs, callerKey) {
  */
 function planPush({ items, pp, facts, nowMs, callerKey }) {
   const today = etYmd(nowMs);
-  const alertItems = [], pushItems = [], lowDropped = [];
+  const alertItems = [], pushItems = [], lowDropped = [], heldRetells = [];
   const seenKind = new Map();              // key -> Set(kind) pushed so far THIS run
   const runCount = new Map();              // key -> pushes decided this run (one per person)
+  const rest = [];                         // non-low items, decided in the second pass
   (items || []).forEach((x) => {
     const key = x.key || x.id;
     const f = (facts && facts.get(key)) || { handledSince: 0, urgentAt: [] };
@@ -112,7 +116,6 @@ function planPush({ items, pp, facts, nowMs, callerKey }) {
       alertItems.push(x);                // bell yes, push never
       return;
     }
-    alertItems.push(x);
     const imm = f.urgentAt.filter((t) => t > f.handledSince).length;
     const total = (Number(e.n) || 0) + imm;
     const kinds = Object.assign({}, e.kinds || {});
@@ -120,13 +123,33 @@ function planPush({ items, pp, facts, nowMs, callerKey }) {
     const thisRun = seenKind.get(key) || new Set();
     const isRetell = Number(x.rung) >= 2;
     const isFinal = Number(x.rung) >= 3;
+    const room = total + (runCount.get(key) || 0) < PERSON_PUSH_DAY_MAX;
     let push = false;
     if (!kinds[k] && !thisRun.has(k)) push = true;                       // a NEW kind of need: always
-    else if (isRetell && total + (runCount.get(key) || 0) < PERSON_PUSH_DAY_MAX) push = true;
+    else if (isRetell && room) push = true;
+    // A kind with NO ladder (a known customer's missed call, a hidden number back) has no
+    // later re-tell to carry a fold, so a repeat of it pushes while the card has room.
+    else if (!LADDER_KINDS.has(k) && room) push = true;
     else if (isFinal && e.stickyYmd !== today) push = true;              // the last, sticky rung once a day
     if (push) { pushItems.push(x); thisRun.add(k); seenKind.set(key, thisRun); runCount.set(key, Math.max(runCount.get(key) || 0, 1)); }
+    else rest.push(x);
   });
-  return { alertItems, pushItems, lowDropped };
+  // Second pass. A person who IS being pushed this run carries all their other items in
+  // the same push (the text says "+N more call"), so their ladder keeps in step. A
+  // folded NEW arrival still goes on the bell; a folded RE-TELL is not re-belled every
+  // run - it waits, un-climbed, until the card has room (call-watch.js carriedRetells).
+  const pushedKeys = new Set(pushItems.map((x) => x.key || x.id));
+  rest.forEach((x) => {
+    const key = x.key || x.id;
+    if (pushedKeys.has(key)) { pushItems.push(x); return; }
+    if (Number(x.rung) >= 2) { heldRetells.push(x); return; }
+    alertItems.push(x);
+  });
+  pushItems.forEach((x) => { if (alertItems.indexOf(x) < 0) alertItems.push(x); });
+  const ord = new Map((items || []).map((x, i) => [x, i]));
+  const byOrd = (p, q) => ord.get(p) - ord.get(q);
+  alertItems.sort(byOrd); pushItems.sort(byOrd);
+  return { alertItems, pushItems, lowDropped, heldRetells };
 }
 
 /**

@@ -372,7 +372,8 @@ async function pushUrgent({ db, d, call, notes, leadName, nowMs }) {
       await db.collection(COLLECTION).doc(call.id).set({ urgentPushedAtMs: sib.urgentPushedAtMs, urgentFoldedAtMs: nowMs, urgentFoldedInto: sib.id }, { merge: true });
     } catch (e) {
       logger.warn('call_center_urgent_fold_stamp_failed', { id: call.id, err: e && e.message });
-      // Unstamped: callWatch tells it as a new urgent call at the next run (never silent).
+      // Unstamped: callWatch sees it as a new urgent call at the next run and puts it on
+      // the bell; the person card may fold the PUSH (its carrier's re-tell names it).
     }
     return false;
   }

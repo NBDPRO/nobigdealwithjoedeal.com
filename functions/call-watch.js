@@ -333,21 +333,27 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
   const personPingsNext = PV.applyRun({
     pp: personPings, nowMs, facts,
     pushItems: pushedItems, pushReached: pushedItems.length > 0,
-    belledLowKeys: alert ? planA.alertItems.filter(PV.isLow).map((x) => x.key || x.id) : [],
+    belledLowKeys: alert ? Array.from(new Set(planA.alertItems.map((x) => x.key || x.id))).slice(0, 5)
+      .filter((k) => planA.alertItems.some((x) => (x.key || x.id) === k && PV.isLow(x))) : [],
     emailedKeys,
     stickyKeys: aReached ? planA.pushItems.filter((r) => r.rung >= W.LADDER_MAX).map((r) => r.key || r.id) : [],
   });
+  const pushedKeys = new Set((aReached || (alertBuzzes && pushUnreached) ? planA.pushItems : []).map((x) => x.key || x.id));
+  const carriedRetells = retells.filter((r) => pushedKeys.has(r.key || r.id) || emailedKeys.includes(r.key || r.id));
   await stateRef.set({
     lastCheckAtMs: nowMs, lastResult: counts, problems: problems.map((p) => p.key), problemsToldAt, toldIds, personPings: personPingsNext,
     ledgerYmd: ledger ? ledger.ymd : (st.ledgerYmd || null),
-    ladder: W.nextLadder(callRows, textRows, st.ladder, needs.map((n) => n.id), retells, !pushUnreached, nowMs, labels, promiseExtras,
+    // A re-tell the person card folded (no push named the person, no email went) does NOT
+    // climb a rung: it is tried again once the card has room (the next ET day at the
+    // latest), so the ladder never burns its rungs without telling anybody.
+    ladder: W.nextLadder(callRows, textRows, st.ladder, needs.map((n) => n.id), carriedRetells, !pushUnreached, nowMs, labels, promiseExtras,
       { ids: new Set(promiseFresh.map((x) => x.id)), reached: !promiseUnreached }),
     lastEmail: emailRes || (st.lastEmail || null),
     unreachedEmailed,
     lastUnreachedEmail: unreachedRes || (st.lastUnreachedEmail || null),
     lastPromisePush: promiseRes ? { atMs: nowMs, sent: promiseRes.sent != null ? Number(promiseRes.sent) : null, people: promiseFresh.length } : (st.lastPromisePush || null),
     promiseCheck: promiseRead.failed ? { failedAtMs: nowMs, error: promiseRead.error || '' } : { okAtMs: nowMs, due: promiseRead.people.length },
-    lastPush: alert ? { atMs: nowMs, sent: pushRes && pushRes.sent != null ? Number(pushRes.sent) : null, failed: pushRes && pushRes.failed != null ? Number(pushRes.failed) : null } : (st.lastPush || null),
+    lastPush: alertBuzzes ? { atMs: nowMs, sent: pushRes && pushRes.sent != null ? Number(pushRes.sent) : null, failed: pushRes && pushRes.failed != null ? Number(pushRes.failed) : null } : (st.lastPush || null),
   }, { merge: false });
   if (pushUnreached || promiseUnreached) throw new Error('callWatch: the alert reached 0 devices (no push token on file, or every token failed) — only the in-app bell was written');
   return Object.assign({ state: alert ? 'alerted' : 'quiet' }, counts);

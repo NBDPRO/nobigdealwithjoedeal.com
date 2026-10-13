@@ -17,7 +17,7 @@ this branch (promise channel included).
 
 | Scenario (Jo ignores everything = the ceiling) | Before | After |
 |---|---|---|
-| **Repeat caller**: one customer, 6 calls in a day (2 urgent, 2 promise, 2 missed) | day 0: **2** immediate urgent pushes; **7 pushes + 4 emails** for that one person (3 of them ladder emails) | day 0: **1** immediate urgent push; **3 pushes + 1 alert email** (the design: 3 + 1). Their brief and 15:15 digest emails are the same as before |
+| **Repeat caller**: one customer, 6 calls in a day (2 urgent, 2 promise, 2 missed) | day 0: **2** immediate urgent pushes; **7 pushes + 4 emails** for that one person (3 of them ladder emails) | day 0: **1** immediate urgent push; **3 pushes + 1 alert email** (the design: 3 + 1). Re-tells the card folded on day 0 wait and resume on day 1, so the person's busiest day is **4 pushes + 3 emails** (was 7 + 4); 8 pushes over the 4-day run (was 10); never 2 alert emails in a day (4 over the run before). Their brief and 15:15 digest emails are the same as before |
 | **Quiet week**: 6 calls + 2 texts a day, 1 promise, 1 urgent in the week | pushes/day max **6** (typ 5); **13 of 35** watch pushes were only about an unknown number / missed call; 36 pushes in the week | pushes/day max **5** (typ 3); **0 of 22** watch pushes are low-value-only; 23 pushes in the week. The 43 bells are unchanged: nothing is dropped from the bell |
 | **One unlabelled number hangs up every 20 min**, 3 days | **5 pushes in a day**, 15 in 3 days | **0 pushes**; the number is belled **once a day** (3 in 3 days); the next morning's brief carries ONE line ("(513) 555-0137 called 24 times in the last day (hung up each time) and is not labelled. Not pushed.") and it stays open on Home / the ledger |
 | **Same open promise**, never handled, 29 days listed | **57** emails (brief 06:45 + sweep 15:15, every day) | **29** (the brief once a day; the 15:15 sweep only when the list changed) |
@@ -48,7 +48,11 @@ number down, that is a different rule (a storm digest mode), not this one.
 - the card is **per ET day and per episode**: once Jo handles anything of that
   person, earlier pushes belong to a closed episode and a new call pushes at once;
 - a push that **reached 0 devices does not count** (the next run tries again);
-  stamps are written after the send.
+  stamps are written after the send;
+- a **re-tell the card folded does not climb a rung** and is not re-belled every run:
+  it waits, un-climbed, until the card has room (the next ET day at the latest), so
+  the ladder never spends its rungs without telling anybody. A kind with no ladder
+  (a known customer's missed call) is capped at the same 3 pushes, not folded.
 
 Kinds: `urgent`, `promise`, `due`, `insurance`, `missed` (a known customer),
 `low`, `thursday`, `hidden`. State: `integrations/callWatch.personPings` (callWatch
@@ -83,7 +87,7 @@ rows instead (it cannot share that document: callWatch rewrites it whole).
 
 ## Tests
 
-- `tests/ping-volume-2026-10-13.test.js` (74 checks, CI node bucket): kinds, the
+- `tests/ping-volume-2026-10-13.test.js` (88 checks, CI node bucket): kinds, the
   card (fold / new kind / re-tell / sticky once / immediate push counted / handled
   starts fresh), `applyRun` (an unreached push counts for nothing), digest
   signature, Thursday hold at 21:00 / 22:00 / 23:00 / 00:00 / 03:00 / 07:59 vs
@@ -94,7 +98,7 @@ rows instead (it cannot share that document: callWatch rewrites it whole).
   presence control** built from the same fixture with one field changed.
 - Harness scenarios B / C / D / H / I / J / Q + invariants (no watch run sends two
   pushes; nobody is pushed more than 5 times a day in any scenario).
-- Break-tested: 15 one-line mutations (low-value push-worthy, no fold, no new-kind
+- Break-tested: 22 one-line mutations, the last 7 after the review round (a held re-tell still climbing, a folded call never told when its carrier leaves, the Thursday hold ignoring the flag, a bell-only run overwriting lastPush, no-ladder kinds folded to nothing, every low number marked belled, a held re-tell re-belled every run) plus the first 15 (low-value push-worthy, no fold, no new-kind
   exemption, an unreached push counted, pushUrgent never folds, Thursday never held
   / emergency held too, sweep never deduped / stamp missing / brief stamp missing,
   callWatch repeats Thursday, no merge, no once-a-day email, low number belled every
@@ -104,6 +108,34 @@ rows instead (it cannot share that document: callWatch rewrites it whole).
   push is the first push), `push-urgent-label-rule` (the sibling read also warns),
   `thursday-pipeline.integration` (a night run may read `held:quiet-hours` where it
   read `skipped`).
+
+## Review round (silent-failure hunter, same day) - fixed before the PR
+
+| Finding | Fix |
+|---|---|
+| Re-tells the card suppressed still advanced their rung, so a call could reach rung 3 having told nobody | `carriedRetells`: only a re-tell whose person was named by a push that reached (or whose email went) climbs; the rest hold and are not re-belled |
+| A folded urgent call had no surface of its own if its carrier was handled / snoozed 20 minutes later (first re-tell up to 2 h on) | `newNeeds` `carrierGone`: told once as news (`#carrier`) the run after its carrier leaves the list |
+| Thursday's night hold assumed callWatch was live | held only when `CALL_WATCH_ENABLED === 'true'` |
+| A bell-only run overwrote `lastPush`, hiding "the last alert reached 0 phones" from the 20:00 ledger | `lastPush` is written only by a run that buzzed |
+| "Folded into the next re-tell" was untrue for kinds with no ladder (a known customer's missed call, a hidden number back) | those kinds are capped at 3 pushes a day, not folded to nothing |
+| `lowBellYmd` was set for numbers past the bell's 5-line cap | only the 5 the bell names are marked belled |
+| Comment on the fold-stamp failure said "never silent" while the push may fold | comment corrected (the bell is the surface) |
+
+Not changed, said here so nobody finds it later:
+
+- **A repeat-number summary rides only with another brief / sweep** (a day with no
+  promise and nothing else does not email just for a robocaller); the 20:00 ledger
+  counts the open number and Home keeps it. A list that is unchanged but whose
+  repeat count grew does not re-mail at 15:15 (the brief carries the new count next
+  morning). The "could not check repeated numbers" line is advisory and also rides
+  only with another section; the failed read is logged.
+- **A held Thursday call from a number Jo hid / quieted, or parked**, is told by
+  nothing in the morning (callWatch's Thursday block drops those by the same label
+  rule as before; her own push used to ignore labels). That matches the label's
+  meaning; say so if her night calls should break through a quiet label.
+- A Thursday call whose own push was delivered leaves no callWatch bell or ledger
+  line (by design: "not told twice"); a push nobody saw has no backup but her email
+  and the Thursday inbox.
 
 ## Left / decisions for Jo
 

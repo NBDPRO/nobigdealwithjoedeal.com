@@ -270,17 +270,27 @@ function newNeeds(calls, textDays, thursday, sinceMs, now, labels, told) {
   if (labels) ctx.labels = labels;
   const tctx = labels ? { labels } : null;
   const wasTold = (id) => !!told && typeof told.has === 'function' && told.has(id);
+  // A second urgent call was FOLDED into an open urgent call of the same person
+  // (call-center.js pushUrgent): told only through that carrier. When the carrier is
+  // handled / snoozed / gone the folded call is news again (told once, '#carrier').
+  const byId = new Map((calls || []).filter((r) => r && r.id).map((r) => [r.id, r]));
+  const carrierGone = (c) => {
+    if (!c.urgentFoldedAtMs || !c.urgentFoldedInto) return false;
+    const car = byId.get(c.urgentFoldedInto);
+    return !car || !callNeedsYou(car, now, ctx);
+  };
   (calls || []).forEach((c) => {
     if (!callNeedsYou(c, now, ctx)) return;
     const arrived = toMs(c.notedAtMs) || toMs(c.createdAtMs) || toMs(c.startedAtMs);
+    const orphan = carrierGone(c);
     // A follow-up date that CAME DUE since the last check is news even though
     // the call is old (audit R7, 2026-10-12): "call back Friday" is pushed on Friday.
     const due = followUpCameDue(c, sinceMs, now);
     const wake = snoozeWakeYmd(c, sinceMs, now);
-    if (arrived <= sinceMs && !due && !wake) return;
+    if (arrived <= sinceMs && !due && !wake && !orphan) return;
     const why = reasonFor(c, now, ctx);
     // Already told by the immediate urgent push (call-center.js pushUrgent).
-    if (why === 'urgent' && c.urgentPushedAtMs && !due && !wake) return;
+    if (why === 'urgent' && c.urgentPushedAtMs && !due && !wake && !orphan) return;
     // A call a run saw while its transcript was still pending ('stored', an
     // unknown number) is told as "unknown number" under its OWN id. Without that
     // the plain id was used up, and when the transcript made the call urgent
@@ -288,7 +298,7 @@ function newNeeds(calls, textDays, thursday, sinceMs, now, labels, told) {
     // never reached the re-tell ladder (audit 2026-10-13, volume simulation).
     const stored = c.status === 'stored';
     if (!stored && !due && !wake && wasTold('call:' + c.id + '#stored') && !HIGH_WHY.test(why)) return;
-    out.push({ id: 'call:' + c.id, tellId: arrived <= sinceMs ? 'call:' + c.id + (due ? '#due:' + c.followUpDate : '#wake:' + wake) : (stored ? 'call:' + c.id + '#stored' : undefined), key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) });
+    out.push({ id: 'call:' + c.id, tellId: arrived <= sinceMs ? 'call:' + c.id + (due ? '#due:' + c.followUpDate : (wake ? '#wake:' + wake : '#carrier')) : (orphan ? 'call:' + c.id + '#carrier' : (stored ? 'call:' + c.id + '#stored' : undefined)), key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) });
   });
   (textDays || []).forEach((c) => {
     if (!callNeedsYou(c, now, tctx)) return;

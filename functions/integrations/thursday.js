@@ -415,7 +415,8 @@ async function notifyAll(ref, data, ctx) {
   // flagged urgent (an active leak, a customer in danger: route.urgent) is
   // never held. A held call is told by callWatch's first run of the morning
   // (Thursday took it - not reviewed), so nothing is dropped.
-  const hold = PV.holdThursday(ctx.route, ctx.nowMs == null ? Date.now() : ctx.nowMs);
+  // Only while callWatch is live: with it off nothing would tell the held call.
+  const hold = process.env.CALL_WATCH_ENABLED === 'true' && PV.holdThursday(ctx.route, ctx.nowMs == null ? Date.now() : ctx.nowMs);
   if (ctx.route.notifyEmail && !(sent.email && sent.email.sentAt)) {
     jobs.push(['email', hold ? async () => 'held:quiet-hours' : () => sendEmail(ctx.cfg, T.buildEmail(ctx.bodyArgs))]);
   }
