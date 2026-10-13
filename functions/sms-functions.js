@@ -281,6 +281,26 @@ async function logSMSToFirestore(db, to, body, uid, leadId = null, status = 'sen
 }
 
 /**
+ * Was this number already refused (declined consent) in the last 10 minutes?
+ * One visible row per burst: a rep tapping Send five times, or an outbox
+ * retrying, must not fill the number's recent-activity page with refusals.
+ * Best-effort by design: on a read error the caller logs the row anyway.
+ */
+async function recentRefusalRow(db, to, tenantKey) {
+  try {
+    const key = OptOut.optOutKey(to);
+    if (!key || !tenantKey) return false;
+    const since = new Date(Outbox.nowMs() - 10 * 60 * 1000);
+    const snap = await db.collection('sms_log')
+      .where('toDigits', '==', key).where('companyId', '==', tenantKey)
+      .where('date', '>', since).orderBy('date', 'desc').limit(10).get();
+    return snap.docs.some((d) => (d.data() || {}).refused === true);
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * Verify Firebase ID token
  */
 async function verifyAuth(req) {
@@ -939,7 +959,8 @@ async function handleSendSMS(req, res, queuedEndpoint) {
       // A declined-consent refusal leaves a visible 'failed' row with its
       // reason code on the customer's Comm Log: never a silent drop, never
       // 'sent'. ('failed' is what the outbox activity check already ignores.)
-      if (compliance.consentRefusal && compliance.consentRefusal.code === ConsentDeclined.CODES.DECLINED) {
+      if (compliance.consentRefusal && compliance.consentRefusal.code === ConsentDeclined.CODES.DECLINED
+        && !(await recentRefusalRow(getFirestore(), to, TextingGate.tenantKeyOf(decoded)))) {
         await logSMSToFirestore(getFirestore(), to, body, decoded.uid, recip.leadId, 'failed', null,
           TextingGate.tenantKeyOf(decoded), {
             failureReason: ConsentDeclined.CODES.DECLINED, refused: true,
@@ -1775,7 +1796,9 @@ exports.incomingSMS = onRequest(
               .orderBy('date', 'desc')
               .limit(OUTBOUND_SCAN)
               .get();
-            const sentRows = out.docs.map(x => x.data()).filter(x => x && x.status !== 'received');
+            // A REFUSED text (declined consent, C-7) left a 'failed' row but
+            // never reached anyone: it must not "establish" a thread here.
+            const sentRows = out.docs.map(x => x.data()).filter(x => x && x.status !== 'received' && x.refused !== true);
             const sent = sentRows[0];
             c.lastOutboundAt = sent ? tsMillis(sent.date) : null;
             const oldest = sentRows.length ? sentRows[sentRows.length - 1] : null;

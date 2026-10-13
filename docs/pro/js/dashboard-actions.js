@@ -1627,7 +1627,7 @@ function _mountCommsLog() {
       });
       smsSnap.forEach((d) => {
         const data = d.data();
-        const smsText = data.body || data.message || '';
+        const smsText = (data.refused === true ? 'Not sent — consent declined: ' : '') + (data.body || data.message || '');
         comms.push({
           type: 'sms',
           date: data.date && data.date.toDate ? data.date.toDate() : new Date(data.date),

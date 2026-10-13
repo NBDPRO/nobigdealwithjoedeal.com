@@ -80,6 +80,9 @@ const CODES = Object.freeze({
  */
 const AUTOMATED_SOURCES = Object.freeze([
   'review_request', 'referral_code', 'winback', 'storm_alert', 'lead_ack', 'sequence', 'drip', 'campaign',
+  // Sales nudges the customer did not ask for (labels the CRM client really
+  // sends: estimate-followups.js, smart-followup.js, the D2D follow-up).
+  'estimate_followup', 'smart-followup-sms', 'd2d-followup-sms',
 ]);
 
 const SOURCE_RE = /^[a-z0-9_-]{1,40}$/;
@@ -225,24 +228,61 @@ function inTenant(lead, tenants) {
   return tenants.indexOf(lead.companyId) !== -1 || tenants.indexOf(lead.userId) !== -1;
 }
 
+/** Leads read per (tenant, field) before the page counts as "might be incomplete". */
+const LEAD_SCAN_LIMIT = 25;
+
 /**
  * Every lead of THIS tenant that carries this number: the one the caller
  * passed (when its number matches) plus a bounded lookup on the stamped
  * phoneDigits. Number-level on purpose: the decline belongs to the person's
  * number, so a request with no leadId, or a duplicate card, cannot sidestep it.
+ *
+ * The lookup is scoped to the tenant IN the query (companyId / userId), not
+ * filtered afterwards: an unscoped page shared with other tenants' leads for
+ * the same number could push this tenant's declined lead off it and read as
+ * "not declined". A full page is unknown, not clean.
  */
 async function leadsForNumber(db, key, tenants, passed, passedId) {
   const byId = new Map();
   if (passed && !passed.deleted && leadKey(passed) === key && inTenant(passed, tenants)) {
     byId.set(passedId || '(passed)', passed);
   }
-  const snap = await db.collection('leads').where('phoneDigits', '==', key).limit(10).get();
-  for (const d of snap.docs) {
-    const l = d.data() || {};
-    if (l.deleted === true || !inTenant(l, tenants)) continue;
-    byId.set(d.id, l);
+  const queries = [];
+  for (const t of tenants) {
+    for (const f of ['companyId', 'userId']) {
+      queries.push(db.collection('leads').where('phoneDigits', '==', key).where(f, '==', t).limit(LEAD_SCAN_LIMIT).get());
+    }
   }
-  return [...byId.values()];
+  const snaps = await Promise.all(queries);
+  let truncated = false;
+  for (const s of snaps) {
+    if (s.docs.length >= LEAD_SCAN_LIMIT) truncated = true;
+    for (const d of s.docs) {
+      const l = d.data() || {};
+      if (l.deleted === true || !inTenant(l, tenants)) continue;
+      byId.set(d.id, l);
+    }
+  }
+  return { leads: [...byId.values()], truncated };
+}
+
+/**
+ * Does a LATER, server-stamped yes supersede these declines? A yes counts only
+ * when it carries the server's own consent timestamp (tcpaConsentAt - stamped
+ * by submitPublicLead, never by the browser) and that timestamp is newer than
+ * the newest decline. An old yes followed by a newer no is the person's
+ * latest word being no; an unstamped true (hand-typed, imported, spoofed on
+ * a public form without a record) is not evidence.
+ */
+function supersedingYes(leads, declined) {
+  const declineAt = declined.map((l) => toMillis(l.createdAt));
+  if (declineAt.some((x) => x == null)) return false; // unknown decline time: never assume the yes is newer
+  const newestDecline = Math.max.apply(null, declineAt);
+  return leads.some((l) => {
+    if (l.tcpaConsent !== true) return false;
+    const at = toMillis(l.tcpaConsentAt);
+    return at != null && at > newestDecline;
+  });
 }
 
 /**
@@ -274,11 +314,16 @@ async function decide(db, a) {
 
   try {
     return await withDeadline((async () => {
-      const leads = await leadsForNumber(db, key, tenants, o.lead, o.leadId);
+      const found = await leadsForNumber(db, key, tenants, o.lead, o.leadId);
+      const leads = found.leads;
       const declined = leads.filter(isDeclined);
-      if (!declined.length) return { allowed: true, reason: 'not_declined' };
-      // They said yes on another form for the same number: that is consent.
-      if (leads.some((l) => l.tcpaConsent === true)) {
+      if (!declined.length) {
+        // A full page might hide a declined lead past it: unknown, not clean.
+        if (found.truncated) return refuse(CODES.UNVERIFIED);
+        return { allowed: true, reason: 'not_declined' };
+      }
+      // A LATER, server-stamped yes on another form for the same number is consent.
+      if (supersedingYes(leads, declined)) {
         return { allowed: true, reason: 'consent_on_other_record' };
       }
       // A campaign is never opened by an inbound.
@@ -318,6 +363,7 @@ module.exports = {
   READ_TIMEOUT_MS,
   CODES,
   AUTOMATED_SOURCES,
+  LEAD_SCAN_LIMIT,
   cleanSource,
   kindForSource,
   isDeclined,

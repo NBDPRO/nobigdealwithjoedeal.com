@@ -41,8 +41,9 @@
     const email = typeof lead.email === 'string' ? lead.email.trim() : '';
     return {
       title: 'Consent declined — texting blocked unless they text first',
-      detail: 'They left the texting box unchecked on their form. Texts to this number are refused until they text you; '
-        + 'then you can reply for ' + REPLY_WINDOW_DAYS + ' days. Review asks and other campaign texts stay blocked.',
+      detail: 'They left the texting box unchecked on their form. NBD rule: replies are allowed for '
+        + REPLY_WINDOW_DAYS + ' days after they text you; review asks and other campaign texts stay blocked. '
+        + 'This covers texts sent through the CRM and the phone check; a text typed in your own phone is not stopped.',
       callHref: phone.length >= 10 ? 'tel:' + phone : '',
       emailHref: /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(email) ? 'mailto:' + email : '',
     };

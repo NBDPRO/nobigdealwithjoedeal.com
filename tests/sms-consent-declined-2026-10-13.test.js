@@ -288,6 +288,14 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
     ok('a group text does not', grp.allowed === false);
     const other = await decide({ 'phone_texts/t1': Object.assign({}, owner['phone_texts/t1'], { companyId: 'co-OTHER' }) }, {});
     ok('another tenant\'s phone_texts row does not', other.allowed === false);
+    const pt = {};
+    for (let i = 0; i < 100; i++) pt['phone_texts/p' + i] = Object.assign({}, owner['phone_texts/t1'], { direction: 'outbound', sentAtMs: NOW - 1000 - i });
+    const ptFull = await decide(pt, {});
+    ok('a FULL page of outbound phone_texts with no inbound in it is unknown -> unverified', ptFull.allowed === false && ptFull.code === 'consent_check_unverified', JSON.stringify(ptFull));
+    const uidOnly = await decide({ 'sms_log/a': received({ companyId: undefined, uid: 'rep-1' }) }, {});
+    ok('an inbound row stamped with the solo rep uid (no companyId) opens the window', uidOnly.allowed === true, JSON.stringify(uidOnly));
+    const future = await decide({ 'sms_log/a': received({ date: ms(NOW + 3 * DAY) }) }, {});
+    ok('a future-dated inbound row does not open it (clock skew / bad write)', future.allowed === false, JSON.stringify(future));
   }
   {
     const r = await decide({ 'sms_log/a': received() }, { kind: 'automated' });
@@ -296,9 +304,18 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
     ok('control: the same inbound opens the window for a reply', ctl.allowed === true);
   }
   {
-    const sup = await decide({ 'leads/lead-2': LEAD({ tcpaConsent: true }) }, {});
-    ok('an explicit yes on another form (same tenant, same number) supersedes the decline', sup.allowed === true && sup.reason === 'consent_on_other_record', JSON.stringify(sup));
-    const otherTenant = await decide({ 'leads/lead-2': LEAD({ tcpaConsent: true, companyId: 'co-OTHER', userId: 'o' }) }, {});
+    const yes = (over) => LEAD(Object.assign({ tcpaConsent: true, tcpaConsentAt: ms(NOW - 1 * DAY), createdAt: ms(NOW - 1 * DAY) }, over || {}));
+    const sup = await decide({ 'leads/lead-2': yes() }, {});
+    ok('a LATER server-stamped yes on another form (same tenant, same number) supersedes the decline', sup.allowed === true && sup.reason === 'consent_on_other_record', JSON.stringify(sup));
+    const supAuto = await decide({ 'leads/lead-2': yes() }, { kind: 'automated' });
+    ok('...and, being express consent, it also opens campaign sends', supAuto.allowed === true);
+    const older = await decide({ 'leads/lead-2': yes({ tcpaConsentAt: ms(NOW - 200 * DAY) }) }, {});
+    ok('an OLD yes followed by a newer decline is NOT consent (the latest word is no)', older.allowed === false && older.code === 'consent_declined', JSON.stringify(older));
+    const unstamped = await decide({ 'leads/lead-2': yes({ tcpaConsentAt: undefined }) }, {});
+    ok('a yes with no server-stamped consent time (hand-typed / imported / spoofed) is not evidence', unstamped.allowed === false && unstamped.code === 'consent_declined', JSON.stringify(unstamped));
+    const noDeclineTime = await decide({ 'leads/lead-2': yes() }, { lead: LEAD({ createdAt: undefined }) });
+    ok('a decline with no known time is never assumed older than the yes', noDeclineTime.allowed === false);
+    const otherTenant = await decide({ 'leads/lead-2': yes({ companyId: 'co-OTHER', userId: 'o' }) }, {});
     ok('...but another company\'s yes is not ours', otherTenant.allowed === false && otherTenant.code === 'consent_declined');
   }
   {
@@ -308,6 +325,16 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
     ok('another tenant\'s declined lead is invisible (no cross-tenant oracle)', o.allowed === true && o.reason === 'not_declined');
     const del = await decide({ 'leads/lead-9': LEAD({ deleted: true }) }, { lead: null, leadId: null });
     ok('a deleted lead does not block', del.allowed === true);
+    // Another tenant's flood of leads for the same number must not push this
+    // tenant's declined lead off a shared page (the query is tenant-scoped).
+    const flood = { 'leads/mine': LEAD() };
+    for (let i = 0; i < 40; i++) flood['leads/x' + i] = LEAD({ companyId: 'co-OTHER', userId: 'u' + i, tcpaConsent: true });
+    const fl = await decide(flood, { lead: null, leadId: null });
+    ok('40 other-tenant leads on the same number do not hide this tenant\'s declined lead', fl.allowed === false && fl.code === 'consent_declined', JSON.stringify(fl));
+    const full = {};
+    for (let i = 0; i < 25; i++) full['leads/m' + i] = LEAD({ tcpaConsent: true, tcpaConsentAt: ms(NOW - DAY) });
+    const fp = await decide(full, { lead: null, leadId: null });
+    ok('a FULL page of this tenant\'s leads with no decline in it is unknown, not clean', fp.allowed === false && fp.code === 'consent_check_unverified', JSON.stringify(fp));
   }
   {
     const e1 = await decide({}, {}, { queryThrows: (name) => name === 'sms_log' });
@@ -329,13 +356,17 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
   // ═══ sendSMS (CRM manual send) ═════════════════════════════════════════
   console.log('sendSMS — live send through the real handler');
   {
-    const { res, w } = await sendSMS({ docs: { 'leads/lead-1': LEAD() } });
+    const { res, w, exported: expo } = await sendSMS({ docs: { 'leads/lead-1': LEAD() } });
     ok('declined, no inbound → 403 consent_declined', res.statusCode === 403 && res.body && res.body.code === 'consent_declined', res.statusCode + ' ' + JSON.stringify(res.body));
     ok('...Twilio never called', w.twilioCalls.length === 0);
     ok('...a visible failed row records the reason code on the Comm Log (not silent, not sent)',
       failedRows(w).length === 1 && failedRows(w)[0].failureReason === 'consent_declined' && failedRows(w)[0].leadId === 'lead-1' && sentRows(w).length === 0,
       JSON.stringify(w.m.rows('sms_log')));
     ok('...and the message names the alternative', /call or email/i.test(res.body.error || ''));
+    // A second tap in the same burst does not add a second row.
+    const again = await invoke(expo.sendSMS.__handler, { method: 'POST', headers: { authorization: 'Bearer t' }, body: { to: PHONE_TYPED, body: 'Hi again', leadId: 'lead-1' } });
+    ok('a repeat refusal inside 10 minutes adds no second row (the activity page is not filled)',
+      again.statusCode === 403 && failedRows(w).length === 1, again.statusCode + ' rows=' + failedRows(w).length);
   }
   {
     const { res, w } = await sendSMS({ docs: { 'leads/lead-1': LEAD({ tcpaConsent: true }) } });
@@ -349,6 +380,21 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
     const { res, w } = await sendSMS({ docs: { 'leads/lead-1': LEAD(), 'sms_log/in1': received() } },
       { to: PHONE_TYPED, body: 'Quick favor — a review?', leadId: 'lead-1', source: 'review_request' });
     ok('declined + inbound + a review-request source → still refused (campaign)', res.statusCode === 403 && res.body.code === 'consent_declined' && w.twilioCalls.length === 0, res.statusCode + ' ' + JSON.stringify(res.body));
+  }
+  {
+    const labels = CD().AUTOMATED_SOURCES;
+    const bad = [];
+    for (const src of labels) {
+      const { res, w } = await sendSMS({ docs: { 'leads/lead-1': LEAD(), 'sms_log/in1': received() } },
+        { to: PHONE_TYPED, body: 'Following up', leadId: 'lead-1', source: src });
+      if (!(res.statusCode === 403 && res.body.code === 'consent_declined' && w.twilioCalls.length === 0)) bad.push(src);
+    }
+    ok('EVERY campaign label (' + labels.length + ') is refused through sendSMS even with a fresh inbound', bad.length === 0, bad.join(','));
+    const real = ['review_request', 'referral_code', 'winback', 'estimate_followup', 'smart-followup-sms', 'd2d-followup-sms'];
+    ok('the labels the CRM client really sends for campaigns / nudges are on the list', real.every((s) => labels.includes(s)));
+    const reply = await sendSMS({ docs: { 'leads/lead-1': LEAD(), 'sms_log/in1': received() } },
+      { to: PHONE_TYPED, body: 'Tuesday works', leadId: 'lead-1', source: 'ask_joe' });
+    ok('control: a conversational label (ask_joe) with a fresh inbound sends', reply.res.statusCode === 200 && reply.w.twilioCalls.length === 1);
   }
   {
     const { res, w } = await sendSMS({ docs: { 'leads/lead-1': LEAD(), 'sms_log/in1': received() } },
@@ -445,8 +491,23 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
     ok('declined + the customer texted this week → the hand-off is allowed', r2.ok === true, JSON.stringify(r2));
     const a = await require(path.join(FUNCTIONS, 'phone-text-check.js')).okToText(c.world.m.db, Object.assign({}, base, { kind: 'automated' }));
     ok('...but a campaign label is still refused', a.ok === false && a.code === 'declined');
-    const crew = await require(path.join(FUNCTIONS, 'phone-text-check.js')).okToText(w.m.db, Object.assign({}, base, { crew: true, lead: null }));
-    ok('control: a crew text (a sub, not a homeowner) is not subject to it', crew.ok === true, JSON.stringify(crew));
+    const PTC2 = require(path.join(FUNCTIONS, 'phone-text-check.js'));
+    const crewSub = await PTC2.okToText(w.m.db, Object.assign({}, base, { phone: '(859) 555-0999', crew: true, lead: null }));
+    ok('control: a real sub\'s number (matches no declined lead) passes as crew', crewSub.ok === true, JSON.stringify(crewSub));
+    const crewLabel = await PTC2.okToText(w.m.db, Object.assign({}, base, { crew: true, lead: null }));
+    ok('a declined homeowner\'s number labelled "crew" is still refused (label cannot dodge it)', crewLabel.ok === false && crewLabel.code === 'declined', JSON.stringify(crewLabel));
+    const bad = load({ docs: { 'leads/lead-1': LEAD() }, hooks: { queryThrows: (n) => n === 'sms_log' } });
+    const un = await require(path.join(FUNCTIONS, 'phone-text-check.js')).okToText(bad.world.m.db, base);
+    ok('an unreadable inbound check on the device path answers unverified (not declined, not ok)', un.ok === false && un.code === 'unverified', JSON.stringify(un));
+    // The real callable handler: the client's source label reaches the decision.
+    const H = load({ docs: { 'leads/lead-1': LEAD(), 'sms_log/in1': received() } });
+    const handler = require(path.join(FUNCTIONS, 'phone-text-check.js'))._test.handle;
+    const call = (data) => handler({ auth: { uid: 'rep-1', token: { companyId: TENANT, role: 'owner' } }, data });
+    const plain = await call({ action: 'check', phone: PHONE_TYPED, leadId: 'lead-1', recipient: 'homeowner' });
+    const camp = await call({ action: 'check', phone: PHONE_TYPED, leadId: 'lead-1', recipient: 'homeowner', source: 'review_request' });
+    ok('phoneTextAction check: a reply label with a fresh inbound is ok', plain.ok === true, JSON.stringify(plain));
+    ok('phoneTextAction check: source "review_request" with the same inbound is refused declined', camp.ok === false && camp.code === 'declined', JSON.stringify(camp));
+    void H;
   }
 
   // ═══ Bridge: the decline must reach the CRM lead ═══════════════════════
@@ -459,7 +520,7 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
       target: { companyId: TENANT, userId: 'rep-1', isNbd: false }, nowIso: '2026-10-13T12:00:00Z',
     });
     let out;
-    try { out = map({ tcpaConsent: false }); } catch (e) { out = { error: e.message }; }
+    try { out = map({ tcpaConsent: false, tcpaConsentAt: 'T', tcpaConsentText: 'tcpa-v2-2026-10-05', tcpaConsentSource: '/inspect' }); } catch (e) { out = { error: e.message }; }
     const doc = (out && (out.lead || out.doc || out)) || {};
     ok('a form submitted with the box UNCHECKED carries tcpaConsent === false onto the lead', doc.tcpaConsent === false, JSON.stringify(doc).slice(0, 300));
     ok('...and invents no consent record for it', doc.tcpaConsentAt === undefined && doc.tcpaConsentText === undefined);
@@ -479,22 +540,40 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
       'verify-functions.js': { exempt: 'one-time verification code to the number the user is verifying; not a customer message' },
     };
     const files = fs.readdirSync(FUNCTIONS).filter((f) => f.endsWith('.js'));
-    const senders = [];
-    (function walk(dir, rel) {
+    // Comments only: a '//' inside a string (a URL) must not eat the rest of its line.
+    const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[\s;{}(),])\/\/.*$/gm, '$1');
+    const walkJs = (dir, rel, out) => {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
         if (e.name === 'node_modules' || e.name === 'tests') continue;
         const p = path.join(dir, e.name);
-        if (e.isDirectory()) walk(p, rel + e.name + '/');
-        else if (e.name.endsWith('.js') && /messages\.create\s*\(/.test(fs.readFileSync(p, 'utf8').replace(/\/\/.*$/gm, ''))) senders.push(rel + e.name);
+        if (e.isDirectory()) walkJs(p, rel + e.name + '/', out);
+        else if (e.name.endsWith('.js')) out.push(rel + e.name);
       }
-    })(FUNCTIONS, '');
+      return out;
+    };
+    const allFiles = walkJs(FUNCTIONS, '', []);
+    const senders = allFiles.filter((f) => /messages\s*\.\s*create\s*\(/.test(stripComments(fs.readFileSync(path.join(FUNCTIONS, f), 'utf8'))));
     ok('the Twilio senders found are exactly the ledger\'s (a NEW sender must be classified)',
       JSON.stringify(senders.sort()) === JSON.stringify(Object.keys(LEDGER).sort()), senders.join(','));
-    const sms = fs.readFileSync(path.join(FUNCTIONS, 'sms-functions.js'), 'utf8');
-    ok('complianceGate asks the declined-consent decision', /async function complianceGate[\s\S]*?ConsentDeclined\.decide\(/.test(sms));
-    ok('onAiDraftApproved asks it before Twilio', /exports\.onAiDraftApproved[\s\S]*?ConsentDeclined\.decide\([\s\S]*?messages\.create/.test(sms));
-    const ptc = fs.readFileSync(path.join(FUNCTIONS, 'phone-text-check.js'), 'utf8');
+    // Static backstops (behaviour is asserted above). Comments stripped and the
+    // function body sliced, so a comment token or a later function cannot satisfy them.
+    const sms = stripComments(fs.readFileSync(path.join(FUNCTIONS, 'sms-functions.js'), 'utf8'));
+    const gateBody = sms.slice(sms.indexOf('async function complianceGate'), sms.indexOf('// CLOUD FUNCTIONS'));
+    ok('complianceGate asks the declined-consent decision, inside its own body', /ConsentDeclined\.decide\(/.test(gateBody) && gateBody.length > 200);
+    const aiBody = sms.slice(sms.indexOf('exports.onAiDraftApproved'));
+    ok('onAiDraftApproved asks it BEFORE Twilio (by position)',
+      aiBody.indexOf('ConsentDeclined.decide(') > -1 && aiBody.indexOf('ConsentDeclined.decide(') < aiBody.indexOf('messages.create('));
+    const incoming = sms.slice(sms.indexOf('exports.incomingSMS'));
+    ok('incomingSMS thread-start reads skip a REFUSED row', /x\.refused !== true/.test(incoming));
+    const ptc = stripComments(fs.readFileSync(path.join(FUNCTIONS, 'phone-text-check.js'), 'utf8'));
     ok('the device hand-off check asks the same decision', /ConsentDeclined\.decide\(/.test(ptc) && !/tcpaConsent === false\) return refusal/.test(ptc));
+    const comms = stripComments(fs.readFileSync(path.join(ROOT, 'docs/pro/js/nbd-comms.js'), 'utf8'));
+    const postAt = comms.indexOf("_platformPost('sendSMS'");
+    ok('nbd-comms sends the text\'s source label to sendSMS', postAt > -1 && /source:\s*\(args/.test(comms.slice(postAt, postAt + 700)));
+    ok('nbd-comms sends the source label on a queued replay', /payload\.source\s*=\s*rec\.source/.test(comms));
+    ok('nbd-comms passes the source label to the device check', /checkText\([^)]*source:\s*args\.source/.test(comms));
+    const share = stripComments(fs.readFileSync(path.join(ROOT, 'docs/pro/js/phone-share.js'), 'utf8'));
+    ok('phone-share forwards source to the check callable', /_call\('check'[\s\S]{0,400}src/.test(share));
     // Every reader of the STOP register is either wired to the decision or
     // named here with the reason it does not need it.
     const REGISTER_READERS_EXEMPT = {
@@ -505,8 +584,8 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
       'storm-sms-guard.js': 'subscriber consent === true is its own positive gate',
       'email-suppression.js': 'comment only',
     };
-    const readers = files.filter((f) => /isOptedOut\(/.test(fs.readFileSync(path.join(FUNCTIONS, f), 'utf8')));
-    const wired = readers.filter((f) => /sms-consent-declined/.test(fs.readFileSync(path.join(FUNCTIONS, f), 'utf8')));
+    const readers = allFiles.filter((f) => /isOptedOut\(/.test(stripComments(fs.readFileSync(path.join(FUNCTIONS, f), 'utf8'))));
+    const wired = readers.filter((f) => /sms-consent-declined/.test(stripComments(fs.readFileSync(path.join(FUNCTIONS, f), 'utf8'))));
     const unaccounted = readers.filter((f) => !wired.includes(f) && !REGISTER_READERS_EXEMPT[f] && f !== 'sms-consent-declined.js' && f !== 'lead-alert.js');
     ok('no register reader is silently missing the declined-consent decision', unaccounted.length === 0, unaccounted.join(','));
   }
@@ -539,6 +618,8 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
     const el = B.render(doc, { tcpaConsent: false, phone: '(859) 555-0134', email: 'sam@example.test' });
     ok('renders an element with call/email anchors and NO text/sms control', !!el && /data-ncd="call"/.test(el.innerHTML) && /data-ncd="email"/.test(el.innerHTML) && !/sms:/i.test(el.innerHTML));
     ok('no inline handlers (strict CSP)', !/\son[a-z]+\s*=/i.test(el.innerHTML));
+    ok('the ONLY controls are the call and email anchors: no button, form or input',
+      !/<(button|form|input|textarea|select)\b/i.test(el.innerHTML) && (el.innerHTML.match(/<a\b/g) || []).length === 2);
     ok('44px tap targets', /min-height:44px/.test(ids['nbd-consent-declined-banner-style'].textContent));
     const hostile = B.buildModel({ tcpaConsent: false, phone: '859', email: '"><img src=x onerror=1>@x.test' });
     ok('a hostile email never becomes a mailto href', hostile.emailHref === '' && hostile.callHref === '');

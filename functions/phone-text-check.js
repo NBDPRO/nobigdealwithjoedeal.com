@@ -135,9 +135,12 @@ async function okToText(db, a) {
   // C-7 (audit 2026-10-13, option A): a number whose form DECLINED texting is
   // texted only inside the inbound-reply window (sms-consent-declined.js — the
   // same decision sendSMS and the approved-AI-reply trigger ask). After the
-  // STOP register on purpose: STOP always wins and reads as itself. A crew
-  // text (a sub) is not a homeowner. `a.kind` 'automated' = no inbound exemption.
-  if (!a.crew) {
+  // STOP register on purpose: STOP always wins and reads as itself.
+  // `a.kind` 'automated' = no inbound exemption. Asked for a crew text too:
+  // `recipient` is a client-supplied label, so a homeowner's number sent as
+  // 'crew' must not skip the decline. Number-level: a real sub's number
+  // matches no declined lead and passes.
+  {
     const cd = await ConsentDeclined.decide(db, {
       phone: a.phone, lead, leadId: lead && lead.id, tenants: a.tenants,
       kind: a.kind || 'reply', nowMs: a.nowMs, logger,
