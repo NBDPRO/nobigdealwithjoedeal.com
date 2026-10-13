@@ -118,6 +118,36 @@ S['A-center'] = async () => {
   await h.browser.close();
 };
 
+// Phone first screen: where does the first real section start (y in CSS px at
+// 390x844, standalone, scrolled to top)? The walk measured 886 before the fix.
+S['B-phone'] = async () => {
+  reseed();
+  const h = await open();
+  await h.page.evaluate(() => window.scrollTo(0, 0));
+  await h.page.waitForTimeout(500);
+  const m = await h.page.evaluate(() => {
+    const top = (el) => (el ? Math.round(el.getBoundingClientRect().top + window.scrollY) : null);
+    const secs = Array.from(document.querySelectorAll('#todayPlan [data-tp-sec]')).filter((s) => s.getAttribute('data-tp-sec') !== 'suggestions');
+    const first = secs[0];
+    const strip = document.getElementById('homeAttention');
+    const plan = document.getElementById('todayPlan');
+    const sug = document.querySelector('#todayPlan [data-tp-sec="suggestions"]');
+    return {
+      firstSection: first ? first.getAttribute('data-tp-sec') : null,
+      firstSectionY: top(first),
+      planTop: top(plan), planHeight: plan ? Math.round(plan.getBoundingClientRect().height) : null,
+      stripTop: top(strip), stripVisible: !!strip && !strip.hidden, stripText: strip ? strip.textContent.replace(/\s+/g, ' ').trim().slice(0, 200) : '',
+      suggestionsY: top(sug), suggestionCount: sug ? sug.children.length : 0,
+      docHeight: document.documentElement.scrollHeight,
+      welcome: !!document.querySelector('.home-welcome, .hw-welcome, [data-home-welcome], #homeWelcome'),
+    };
+  });
+  say(JSON.stringify(m));
+  await lib.shot(h.page, 'B-40-phone-first-screen');
+  check('first real section starts on the first screen (y < 844)', m.firstSectionY != null && m.firstSectionY < 844, 'y=' + m.firstSectionY);
+  await h.browser.close();
+};
+
 (async () => {
   const want = process.argv[2] || 'all';
   const names = want === 'all' ? Object.keys(S) : [want];
