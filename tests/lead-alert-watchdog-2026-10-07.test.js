@@ -355,6 +355,51 @@ const event = (doc, leadId) => ({ data: { data: () => doc }, params: { leadId } 
     ok('a Cal.com booking with no phone keeps its NO PHONE notice on the re-send', calls.length === 1 && n.subject === 'MISSED ALERT · NO PHONE' && /No phone on this booking/.test(n.email), n);
   }
 
+  // ── (C2) a failed re-send must not burn the claim (QA 2026-10-13) ─────
+  console.log('\n(C2) a re-send that failed is retried (bounded), and a throw does not abort the run');
+  {
+    await seed(); calls.length = 0;
+    const throwing = async (collection, data, leadId) => { calls.push({ collection, leadId }); if (leadId === 'never') throw new Error('resend 500'); return { email: 'sent', push: 'sent' }; };
+    let threw = null, r = null;
+    try { r = await WDI.runWatchdog({ db, nowMs: NOW, live: true, alert: throwing, twilio: null, ownerUid: OWNER_UID }); } catch (e) { threw = e; }
+    ok('an alert that THROWS is contained: the run finishes and the other lead is still re-sent', !threw && r && calls.some((c) => c.leadId === 'smsonly'), threw && threw.message);
+    ok('...and counted unresolved so the heartbeat still pings /fail', r && r.unresolved === 1 && r.resendReached === 1, r);
+    const claim = db.store.alert_outbox['watchdog__contact_leads__never'] || {};
+    ok('the claim records the failure and the attempt (resendReached:false, attempts:1)', claim.resendReached === false && claim.attempts === 1 && /resend 500/.test(String(claim.resendError || '')), claim);
+
+    calls.length = 0;
+    const good = async (collection, data, leadId) => { calls.push({ collection, leadId }); return { email: 'sent', push: 'sent' }; };
+    const early = await WDI.runWatchdog({ db, nowMs: NOW + 10 * MIN, live: true, alert: good, twilio: null, ownerUid: OWNER_UID });
+    ok('control: 10 minutes later is too soon to retry the failed lead', !calls.some((c) => c.leadId === 'never') && early.alreadyHandled >= 1, early);
+    const later = await WDI.runWatchdog({ db, nowMs: NOW + WDI.RETRY_GAP_MS + MIN, live: true, alert: good, twilio: null, ownerUid: OWNER_UID });
+    ok('after the retry gap the failed lead is re-sent again and now reaches Joe', calls.some((c) => c.leadId === 'never') && later.resendReached >= 1, later);
+    const fixed = db.store.alert_outbox['watchdog__contact_leads__never'] || {};
+    ok('the claim now says reached, with 2 attempts', fixed.resendReached === true && fixed.attempts === 2, fixed);
+    calls.length = 0;
+    await WDI.runWatchdog({ db, nowMs: NOW + 2 * WDI.RETRY_GAP_MS + 2 * MIN, live: true, alert: good, twilio: null, ownerUid: OWNER_UID });
+    ok('and once reached it is never re-sent again', !calls.some((c) => c.leadId === 'never'));
+  }
+  {
+    await seed(); calls.length = 0;
+    const never = async (collection, data, leadId) => { calls.push({ leadId }); return { email: 'failed:x', push: 'skipped:no-device' }; };
+    for (let i = 0; i < 6; i++) await WDI.runWatchdog({ db, nowMs: NOW + i * (WDI.RETRY_GAP_MS + MIN), live: true, alert: never, twilio: null, ownerUid: OWNER_UID });
+    const n = calls.filter((c) => c.leadId === 'never').length;
+    ok('retries are bounded (' + WDI.MAX_ATTEMPTS + ' attempts), not one per run forever', n === WDI.MAX_ATTEMPTS, n);
+    ok('the exhausted claim stays on file, still resendReached:false (visible, not silent)', db.store.alert_outbox['watchdog__contact_leads__never'].resendReached === false);
+  }
+  {
+    // The claim must already say "not reached" BEFORE the send, so a crash mid-send is retryable.
+    let seenBefore = null;
+    await seed();
+    await WDI.runWatchdog({ db, nowMs: NOW, live: true, alert: async (c, d, leadId) => { if (leadId === 'never') seenBefore = Object.assign({}, db.store.alert_outbox['watchdog__contact_leads__never']); return { email: 'sent' }; }, twilio: null, ownerUid: OWNER_UID });
+    ok('the claim is written resendReached:false with attempts:1 BEFORE the send', seenBefore && seenBefore.resendReached === false && seenBefore.attempts === 1, seenBefore);
+    await seed(); calls.length = 0;
+    await db.collection('alert_outbox').doc('watchdog__contact_leads__never').set({ kind: 'lead-alert-watchdog', resendReached: false, lastAttemptAtMs: NOW - 2 * WDI.RETRY_GAP_MS });
+    await WDI.runWatchdog({ db, nowMs: NOW, live: true, alert: async (c, d, leadId) => { calls.push({ leadId }); return { email: 'sent' }; }, twilio: null, ownerUid: OWNER_UID });
+    ok('a claim with no attempt count (not one of ours) is never retried', !calls.some((c) => c.leadId === 'never'));
+    await seed(); calls.length = 0;
+  }
+
   // ── (D) end to end through the real alertJoe ──────────────────────────
   console.log('\n(D) the re-send through the real alertJoe');
   {

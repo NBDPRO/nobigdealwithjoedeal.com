@@ -233,12 +233,78 @@ function groupTextDays(texts, { nowMs, quietMs = QUIET_MS } = {}) {
  * the new note): a filed customer saying "thanks" clears the stamp but does not
  * reach the list.
  */
-function reopenPatch(prev, day, nowMs) {
-  const handled = Number(prev && prev.handledAtMs) || 0;
-  if (!handled) return null;
-  const fresh = ((day && day.messages) || []).some((m) => m && m.direction === 'inbound' && Number(m.sentAtMs) > handled);
+function reopenPatch(prev, day, nowMs, taskDoneAtMs) {
+  const stamp = closedStampMs(prev, taskDoneAtMs);
+  if (!stamp) return null;
+  const fresh = ((day && day.messages) || []).some((m) => m && m.direction === 'inbound' && Number(m.sentAtMs) > stamp);
   if (!fresh) return null;
-  return { handledAtMs: null, handledBy: null, reopenedAtMs: nowMs };
+  // Same rule for BOTH ways a day is closed (QA 2026-10-13 #10): Handled, or
+  // its follow-up task ticked (taskDone). Clear what closed it; the caller
+  // reopens the task itself when the new note needs Jo.
+  const patch = { reopenedAtMs: nowMs };
+  if (Number(prev.handledAtMs) > 0) { patch.handledAtMs = null; patch.handledBy = null; }
+  if (prev.taskDone === true) patch.taskDone = false;
+  return patch;
+}
+
+/**
+ * When the day was closed: Handled's stamp, or the follow-up task's
+ * completedAt (taskDoneAtMs, read by the caller; falls back to the previous
+ * note's time, which is when the task was made, so a missing tick time errs
+ * toward reopening). The LATER of the two when both closed it: a text Jo saw
+ * before he ticked is not new. 0 = not closed.
+ */
+function closedStampMs(prev, taskDoneAtMs) {
+  if (!prev) return 0;
+  const handled = Number(prev.handledAtMs) || 0;
+  const task = prev.taskDone === true ? (Number(taskDoneAtMs) || Number(prev.notedAtMs) || 1) : 0;
+  return Math.max(handled, task);
+}
+
+const normPromise = (s) => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+function promiseWords(s) { return new Set(normPromise(s).split(' ').filter((w) => w.length > 2)); }
+/** 1 = same words; else Jaccard over words longer than 2 letters. */
+function promiseSimilarity(a, b) {
+  const na = normPromise(a), nb = normPromise(b);
+  if (!na || !nb) return 0;
+  if (na === nb) return 1;
+  const ta = promiseWords(a), tb = promiseWords(b);
+  if (!ta.size || !tb.size) return 0;
+  let inter = 0; ta.forEach((w) => { if (tb.has(w)) inter++; });
+  return inter / (ta.size + tb.size - inter);
+}
+const KEPT_MATCH = 0.6;
+/**
+ * Each re-note REGENERATES the day's promises from the model, so a kept marker
+ * (promise-cleanup's keptAtMs, or the day being closed) used to be lost and
+ * "you promised something" came back on the next "thanks" (QA 2026-10-13 #11).
+ * Carry it: a regenerated Jo promise that matches (same words, or >= 0.6 word
+ * overlap) a previous one inherits that one's kept fields; with closedAtMs > 0
+ * (the previous note predates the day being closed, so Jo had seen every
+ * promise on it) an unmarked match is kept at the closing time. A promise with
+ * no match is NEW and stays open. Each previous promise is used once.
+ */
+function carryKept(prevPromises, nextPromises, closedAtMs) {
+  const prev = Array.isArray(prevPromises) ? prevPromises : [];
+  const used = new Set();
+  return (Array.isArray(nextPromises) ? nextPromises : []).map((p) => {
+    if (!p || p.who !== 'jo' || p.keptAtMs) return p;
+    let best = -1, score = 0;
+    prev.forEach((o, i) => {
+      if (used.has(i) || !o || o.who !== 'jo' || !(o.keptAtMs || closedAtMs)) return;
+      const s = promiseSimilarity(o.text, p.text);
+      if (s >= KEPT_MATCH && s > score) { best = i; score = s; }
+    });
+    if (best < 0) return p;
+    used.add(best);
+    const o = prev[best];
+    if (o.keptAtMs) {
+      const k = { keptAtMs: o.keptAtMs, keptBy: o.keptBy || 'carried' };
+      if (o.keptEvidence) k.keptEvidence = o.keptEvidence;
+      return Object.assign({}, p, k);
+    }
+    return Object.assign({}, p, { keptAtMs: closedAtMs, keptBy: 'day-closed' });
+  });
 }
 
 const TEXT_NOTES_SYSTEM = [
@@ -273,6 +339,8 @@ module.exports = {
   QUIET_MS,
   groupTextDays,
   reopenPatch,
+  closedStampMs,
+  carryKept,
   TEXT_NOTES_SYSTEM,
   buildTextNotesPrompt,
   unescapeXml,

@@ -10,6 +10,17 @@ Adversarial audit of the never-forget chain on `main` after #2400: Today
 Items marked **lead** were found by reading and not reproduced — verify
 before building on them.
 
+> **Update 2026-10-13 (later):** the server-side open findings below were each
+> reproduced with a failing test and fixed or ruled on in
+> [NEVER-FORGET-SERVER-FINDINGS-2026-10-13](../../audit/NEVER-FORGET-SERVER-FINDINGS-2026-10-13.md):
+> H3, the snooze wake-up, the Thursday read, texted promises past 45 days,
+> away mode + labels, the watchdog claim, label `ackAtMs`, the former-owner
+> branch, task-closed text days and kept promises (fixed); the `handled` key
+> collision (verified, client fix pending); dead-man gaps (not reproduced).
+> H1 and H2 landed earlier (#2406, #2407). Still open: H4, "Home reads by row
+> cap", "Call Center hides failed reads", "Waiting items ripen without the
+> Nudge date" (S1 was taken by #2408; not re-checked here).
+
 ## Verified clean
 
 - **The two rule copies agree.** `callNeedsYou` in
