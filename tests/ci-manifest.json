@@ -39,6 +39,7 @@
     "tier-pricing-premium-claim-2026-09-16.test.js",
     "never-forget-client-2026-10-13.test.js",
     "home-strip-failed-reads-2026-10-13.test.js",
+    "today-ux-walk-2026-10-13.test.js",
     "deal-room-delete-no-resurrection-2026-09-16.test.js",
     "reports-sent-definition-2026-09-28.test.js",
     "daily-ledger-2026-10-12.test.js",
