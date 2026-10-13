@@ -38,6 +38,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const { effectivePlan } = require('./lead-cap-logic');
 
 // Named caps (one place to tune).
 const RECIPIENT_DAILY_CAP = 100;              // email/SMS per destination per rolling 24h, all tenants (per-tenant ceiling is 60)
@@ -46,9 +47,18 @@ const CONFIRM_REQUESTS_PER_OWNER_DAY = 5;     // confirmation mails one company 
 const CONFIRM_REQUESTS_PER_ADDRESS_DAY = 2;   // ... and one destination may receive per day
 const CONFIRM_GLOBAL_DAILY_CAP = 300;          // confirmation mails platform-wide per rolling 24h
 const CONFIRM_TTL_MS = 48 * 60 * 60 * 1000;
+const REVOKE_TTL_MS = 30 * 24 * 60 * 60 * 1000;   // the revoke link in the owner notice
+// One TENANT's share of a destination's daily budget (2026-10-13): equal to the
+// per-tenant alert ceiling (lead-alert.js TENANT_ALERT_DAILY_CAP) and inside the
+// all-tenant cap above, so one tenant can never use up a destination for everyone.
+const RECIPIENT_TENANT_DAILY_CAP = 60;
 
 const CONFIRMED_COLLECTION = 'alertRecipients';       // {companyId} -> { confirmed: { <key>: {...} } }
 const TOKEN_COLLECTION = 'alertRecipientTokens';      // {sha256(token)} -> pending confirmation
+
+// Paid plan names (functions/billing.js PLAN_LIMITS minus 'free'; a test pins
+// the two together). A non-NBD tenant on any other name is treated as unpaid.
+const KNOWN_PAID_PLANS = Object.freeze(['starter', 'foundation', 'team', 'growth', 'professional', 'enterprise']);
 
 // Deliberately strict: one plain address. No display names, no lists.
 const EMAIL_RE = /^[A-Za-z0-9._+-]{1,64}@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
@@ -89,6 +99,29 @@ function addrKey(email) {
   return crypto.createHash('sha256').update(normEmail(email) || String(email || '')).digest('hex').slice(0, 40);
 }
 
+// a***@example.test — for audit rows, which must not carry a raw address.
+function maskEmail(email) {
+  const s = normEmail(email);
+  if (!s) return '';
+  const at = s.lastIndexOf('@');
+  return s.slice(0, 1) + '***' + s.slice(at);
+}
+
+/**
+ * May a tenant's report-share link be EMAILED (from NBD's sender domain)? Only
+ * from a paid, non-trial tenant: an active (or past_due: card bounced, still a
+ * paying customer) subscription on a known paid plan, after the same
+ * access-code trial expiry the lead cap applies. Free, trialing, cancelled,
+ * unknown-plan and missing subscriptions are all NO. NBD's own tenant and the
+ * fail-closed read-error case are the caller's job. (Jo, 2026-10-13.)
+ */
+function planAllowsShareEmail(sub, nowMs) {
+  if (!sub || typeof sub !== 'object') return false;
+  const plan = effectivePlan(sub, nowMs == null ? Date.now() : nowMs);
+  if (KNOWN_PAID_PLANS.indexOf(plan) === -1) return false;
+  return sub.status === 'active' || sub.status === 'past_due';
+}
+
 function _db(deps) {
   if (deps && deps.db) return deps.db;
   return require('firebase-admin/firestore').getFirestore();
@@ -127,6 +160,24 @@ async function authOwner(companyId, deps) {
   }
 }
 
+// The confirmed entries ({ <addrKey>: { email, requestedBy, ... } }) for a company.
+async function confirmedEntries(companyId, deps) {
+  try {
+    const snap = await _db(deps).collection(CONFIRMED_COLLECTION).doc(String(companyId)).get();
+    const data = snap && snap.exists ? (snap.data() || {}) : {};
+    return data.confirmed && typeof data.confirmed === 'object' ? data.confirmed : {};
+  } catch (_) {
+    return {}; // fail closed
+  }
+}
+
+// A confirmed entry is honoured only while the person who requested it is STILL
+// the company's owner (a hand-off or a different owner voids it) and that owner
+// has a verified, enabled sign-in email (a lapsed / disabled owner voids it).
+function entryHonoured(entry, ownerUid, ownerEmailVerified) {
+  return !!(entry && ownerUid && ownerEmailVerified && String(entry.requestedBy || '') === String(ownerUid));
+}
+
 // Set of confirmed address keys for a company.
 async function confirmedKeys(companyId, deps) {
   try {
@@ -160,7 +211,7 @@ async function resolveTenantRecipients(companyId, contact, deps) {
   if (cfgEmail) {
     if (owner.email && cfgEmail === owner.email) {
       out.emails = [owner.email];
-    } else if ((await confirmedKeys(companyId, deps)).has(addrKey(cfgEmail))) {
+    } else if (entryHonoured((await confirmedEntries(companyId, deps))[addrKey(cfgEmail)], ownerUid, !!owner.email)) {
       out.emails = [cfgEmail];
     } else {
       out.ignoredEmail = cfgEmail;
@@ -183,20 +234,37 @@ async function resolveTenantRecipients(companyId, contact, deps) {
  *
  * @param {'email'|'sms'} kind
  * @param {string[]} addresses
- * @param {{limit?:number, windowMs?:number, limiter?:Function}} [opts]
+ * Optional second bucket: tenantKey + tenantLimit give each TENANT its own
+ * share of the destination's budget, checked FIRST so a tenant that is over its
+ * share is stopped without touching the all-tenant counter (one tenant cannot
+ * burn a destination for everyone). trusted:true keeps authenticated-origin
+ * alerts (Cal.com, Thumbtack) in their own buckets so an anonymous public-form
+ * flood cannot starve them.
+ *
+ * @param {{limit?:number, windowMs?:number, limiter?:Function,
+ *          tenantKey?:string, tenantLimit?:number, trusted?:boolean}} [opts]
  */
 async function capRecipients(kind, addresses, opts) {
   const o = opts || {};
   const limit = o.limit || RECIPIENT_DAILY_CAP;
   const windowMs = o.windowMs || RECIPIENT_WINDOW_MS;
   const enforce = o.limiter || require('./rate-limit').enforceRateLimit;
+  const ns = 'alertRecipient:' + kind + (o.trusted ? ':trusted' : '');
   const allowed = [];
   const capped = [];
   for (const a of (addresses || [])) {
     if (!a) continue;
     const key = kind === 'sms' ? normPhone(a) || String(a) : canonicalInbox(a);
+    if (o.tenantKey) {
+      try {
+        await enforce(ns + ':tenant', String(o.tenantKey) + '|' + key, o.tenantLimit || limit, windowMs);
+      } catch (e) {
+        if (e && e.rateLimited) { capped.push(a); continue; }
+        // limiter outage: fail OPEN, fall through to the destination cap
+      }
+    }
     try {
-      await enforce('alertRecipient:' + kind, key, limit, windowMs);
+      await enforce(ns, key, limit, windowMs);
       allowed.push(a);
     } catch (e) {
       if (e && e.rateLimited) capped.push(a);
@@ -233,7 +301,8 @@ async function verifiedUserEmail(uid, storedEmail, deps) {
 module.exports = {
   RECIPIENT_DAILY_CAP, RECIPIENT_WINDOW_MS,
   CONFIRM_REQUESTS_PER_OWNER_DAY, CONFIRM_REQUESTS_PER_ADDRESS_DAY, CONFIRM_GLOBAL_DAILY_CAP, CONFIRM_TTL_MS,
+  REVOKE_TTL_MS, RECIPIENT_TENANT_DAILY_CAP, KNOWN_PAID_PLANS, maskEmail, planAllowsShareEmail,
   CONFIRMED_COLLECTION, TOKEN_COLLECTION,
-  normEmail, normPhone, canonicalInbox, addrKey, authOwner, ownerUidFor, confirmedKeys,
+  normEmail, normPhone, canonicalInbox, addrKey, authOwner, ownerUidFor, confirmedKeys, confirmedEntries, entryHonoured,
   resolveTenantRecipients, capRecipients, verifiedUserEmail, cleanLabel,
 };

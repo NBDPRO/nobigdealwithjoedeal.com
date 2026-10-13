@@ -43,7 +43,7 @@ const OWNER_UID = 'nbd-owner-test';
 process.env.NBD_OWNER_UID = OWNER_UID;
 process.env.LEAD_ACK_SMS_ENABLED = 'false';
 
-const rec = { emails: [], sms: [], outbox: [], pushes: [], logs: [] };
+const rec = { emails: [], sms: [], outbox: [], pushes: [], logs: [], audit: [], resendFail: false };
 const world = {
   docs: {},        // 'collection/id' -> data
   leads: [],       // rows for leads where(...) queries
@@ -51,7 +51,7 @@ const world = {
 };
 const rl = { counts: {}, calls: [], fail: false };
 function reset() {
-  rec.emails = []; rec.sms = []; rec.outbox = []; rec.pushes = []; rec.logs = [];
+  rec.emails = []; rec.sms = []; rec.outbox = []; rec.pushes = []; rec.logs = []; rec.audit = []; rec.resendFail = false;
   world.docs = {}; world.leads = []; world.auth = {};
   rl.counts = {}; rl.calls = []; rl.fail = false;
 }
@@ -65,6 +65,7 @@ function docRef(p) {
       if (o && o.merge && world.docs[p]) world.docs[p] = deepMerge(world.docs[p], v); else world.docs[p] = v;
     },
     update: async (u) => { world.docs[p] = Object.assign({}, world.docs[p] || {}, u); },
+    create: async (v) => { if (world.docs[p] != null) { const e = new Error('ALREADY_EXISTS'); e.code = 6; throw e; } world.docs[p] = v; },
     delete: async () => { delete world.docs[p]; },
   };
 }
@@ -79,7 +80,8 @@ const fakeDb = {
   doc: docRef,
   collection: (name) => ({
     doc: (id) => docRef(name + '/' + id),
-    add: async (doc) => { if (name === 'alert_outbox') rec.outbox.push(doc); return { id: 'x' }; },
+    get: async () => ({ docs: Object.keys(world.docs).filter((k) => k.startsWith(name + '/') && k.split('/').length === 2).map((k) => ({ id: k.split('/')[1], data: () => world.docs[k] })) }),
+    add: async (doc) => { if (name === 'alert_outbox') rec.outbox.push(doc); if (name === 'audit_log') rec.audit.push(doc); return { id: 'x' }; },
     where: (f, op, v) => {
       const conds = [[f, v]];
       const q = {
@@ -106,7 +108,7 @@ const stubs = {
   'firebase-functions/v2/https': { onRequest: (o, h) => ({ __handler: h }), onCall: (o, h) => ({ __handler: h }), HttpsError },
   'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'test-' + n }) },
   'firebase-functions/v2': { logger: { info: (...a) => rec.logs.push(['info', a]), warn: (...a) => rec.logs.push(['warn', a]), error: (...a) => rec.logs.push(['error', a]) } },
-  resend: { Resend: class { constructor() { this.emails = { send: async (p) => { rec.emails.push(p); return { data: { id: 'em' }, error: null }; } }; } } },
+  resend: { Resend: class { constructor() { this.emails = { send: async (p) => { if (rec.resendFail) throw new Error('resend down'); rec.emails.push(p); return { data: { id: 'em' }, error: null }; } }; } } },
   twilio: () => ({ messages: { create: async (p) => { rec.sms.push(p); return { sid: 'SM_test' }; } } }),
   './push-functions': { sendCustomNotification: async (uid, title, body, data) => { rec.pushes.push({ uid, title, body, data }); return { sent: 1, failed: 0, errors: [] }; } },
   './rate-limit': {
@@ -124,6 +126,7 @@ const stubs = {
   './integrations/upstash-ratelimit': { httpRateLimit: async () => true },
   './integrations/_shared': { secretOr: (s, d) => d, secretValue: () => 'k' },
   './shared': { callableRateLimit: async () => {}, assertNotViewer: noop },
+  '../shared': { callableRateLimit: async () => {}, assertNotViewer: noop },
   './deal-install-date': { fillLeadInstallDate: async () => {} },
   'firebase-admin/firestore': {
     getFirestore: () => fakeDb,
@@ -148,7 +151,22 @@ require('../functions/sms-outbox-guard').nowMs = () => Date.parse('2026-10-05T16
 function fresh(file) {
   const p = path.join(FUNCTIONS, file);
   delete require.cache[require.resolve(p)];
-  return require(p);
+  const m = require(p);
+  if (file === 'alert-recipients-fns.js') {
+    // The Settings UI always sends the address it displayed (expectedEmail);
+    // tests that do not care about that rule get it filled from the profile.
+    const h = m.alertRecipients.__handler;
+    m.alertRecipients.__handler = (req) => {
+      const d = req.data || {};
+      if (d.action === 'send' && !('expectedEmail' in d)) {
+        const t = req.auth.token || {};
+        const prof = world.docs['companyProfile/' + (t.companyId || req.auth.uid)] || {};
+        d.expectedEmail = ((((prof.brand || {}).contact) || {}).alertEmail) || '';
+      }
+      return h(req);
+    };
+  }
+  return m;
 }
 
 const AR = fresh('alert-recipients.js');
@@ -176,7 +194,7 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     ok('unconfirmed custom address is ignored, falls back to the owner auth email',
       r.emails.join() === 'owner@example.test' && r.ignoredEmail === 'victim@example.test', r);
 
-    world.docs['alertRecipients/co-a'] = { confirmed: { [AR.addrKey('victim@example.test')]: { email: 'victim@example.test' } } };
+    world.docs['alertRecipients/co-a'] = { confirmed: { [AR.addrKey('victim@example.test')]: { email: 'victim@example.test', requestedBy: 'co-a' } } };
     r = await AR.resolveTenantRecipients('co-a', { alertEmail: 'victim@example.test' });
     ok('CONTROL: the same address, once confirmed, is honoured', r.emails.join() === 'victim@example.test' && !r.ignoredEmail, r);
     r = await AR.resolveTenantRecipients('co-a', { alertEmail: 'other@example.test' });
@@ -252,7 +270,7 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     // Positive controls: confirm the address and match the phone.
     reset();
     tenant('co-a', { alertEmail: 'victim@example.test', alertSms: '+15555550142' }, { email: 'owner@example.test', emailVerified: true, phoneNumber: '+15555550142' });
-    world.docs['alertRecipients/co-a'] = { confirmed: { [AR.addrKey('victim@example.test')]: { email: 'victim@example.test' } } };
+    world.docs['alertRecipients/co-a'] = { confirmed: { [AR.addrKey('victim@example.test')]: { email: 'victim@example.test', requestedBy: 'co-a' } } };
     await LA.alertJoe('contact_leads', lead(), 'l-2');
     const sentTo2 = rec.emails.map((e) => [].concat(e.to)).flat();
     ok('CONTROL: confirmed custom email DOES get the alert', sentTo2.join() === 'victim@example.test', sentTo2);
@@ -274,7 +292,7 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     // per-tenant ceiling, so only the per-DESTINATION cap can stop the total.
     for (const co of ['co-a', 'co-b']) {
       tenant(co, { alertEmail: 'shared@example.test' }, { email: co + '@example.test', emailVerified: true });
-      world.docs['alertRecipients/' + co] = { confirmed: { [AR.addrKey('shared@example.test')]: { email: 'shared@example.test' } } };
+      world.docs['alertRecipients/' + co] = { confirmed: { [AR.addrKey('shared@example.test')]: { email: 'shared@example.test', requestedBy: co } } };
     }
     const per = Math.ceil(CAP / 2) + 1;
     for (let i = 0; i < per; i++) await LA.alertJoe('contact_leads', lead({ companyId: 'co-a' }), 'a' + i);
@@ -311,8 +329,10 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     ok('status: custom address shows as unconfirmed + names the fallback', s.state === 'unconfirmed' && s.ownerEmail === 'owner@example.test', s);
     ok('status sends nothing', rec.emails.length === 0);
 
+    world.auth['co-a'].emailVerified = false;
     let e = await err(call({ action: 'send' }, { email_verified: false }));
-    ok('send refused when the caller email is not verified', e && e.code === 'failed-precondition' && rec.emails.length === 0, e && e.code);
+    ok('send refused when the caller email is not verified (token AND Auth record)', e && e.code === 'failed-precondition' && rec.emails.length === 0, e && e.code);
+    world.auth['co-a'].emailVerified = true;
 
     e = await err(F.alertRecipients.__handler({ auth: { uid: 'rep-1', token: { companyId: 'co-a', role: 'sales_rep', email_verified: true } }, data: { action: 'send' } }));
     ok('send refused for a non-owner, non-admin member', e && e.code === 'permission-denied' && rec.emails.length === 0, e && e.code);
@@ -376,6 +396,7 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
         { id: 'lead3', userId: 'zz', companyId: 'co-z', email: 'victim@example.test' },
       ];
       world.docs['companyProfile/co-a'] = { brand: { legalName: legal || 'Roof Pros' } };
+      world.docs['subscriptions/co-a'] = { plan: 'growth', status: 'active' };
     };
     const run = (mod, data, tok) => mod.createReportShareToken.__handler({
       auth: { uid: 'rep1', token: Object.assign({ companyId: 'co-a', email: 'rep@example.test', email_verified: true }, tok || {}) },
@@ -412,7 +433,7 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     seed();
     const results = [];
     for (let i = 0; i < 6; i++) results.push((await run(mod, { email: 'other.customer@example.test' })).emailed);
-    ok('per-recipient daily cap: the first 5 send, the 6th does not', results.join() === 'true,true,true,true,true,false', results);
+    ok('per-tenant-per-recipient daily cap: the first 3 send, the 4th does not', results.join() === 'true,true,true,false,false,false', results);
     // Fails open on limiter outage.
     seed(); rl.fail = true;
     r = await run(mod, { email: 'other.customer@example.test' });
@@ -487,13 +508,13 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     const eOut = await tryCall({ action: 'send' });
     ok('a limiter outage on the confirmation send fails CLOSED (nothing mailed)', eOut && eOut.code === 'unavailable' && rec.emails.length === 0, eOut && eOut.code);
 
-    // Cross-tenant: a company_admin cannot aim the callable at another company.
+    // Cross-tenant: the owner of one company cannot aim the callable at another company.
     reset();
     world.auth['co-a'] = { email: 'a-owner@example.test', emailVerified: true };
     world.auth['co-b'] = { email: 'b-owner@example.test', emailVerified: true };
     tenant('co-a', { alertEmail: 'a-inbox@example.test' }, null);
     tenant('co-b', { alertEmail: 'b-inbox@example.test' }, null);
-    const rs = await F.alertRecipients.__handler({ auth: { uid: 'adm-a', token: { companyId: 'co-a', role: 'company_admin', email_verified: true } }, data: { action: 'send', companyId: 'co-b' } });
+    const rs = await F.alertRecipients.__handler({ auth: { uid: 'co-a', token: { companyId: 'co-a', email_verified: true } }, data: { action: 'send', companyId: 'co-b' } });
     ok('request-supplied companyId is ignored: only the caller company is read and mailed', rs.sent === true && rec.emails.length === 1 && rec.emails[0].to === 'a-inbox@example.test', rec.emails.map((m) => m.to));
     ok('...and only the caller company got a pending token', Object.keys(world.docs).filter((k) => k.startsWith('alertRecipientTokens/')).every((k) => world.docs[k].companyId === 'co-a'));
   }
@@ -531,6 +552,530 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     ok('the invite Subject is built from the sanitised company name', /companyName = AR\.cleanLabel\(/.test(trig));
     ok('a per-recipient cap runs BEFORE the send', trig.indexOf("AR.capRecipients('invite'") > -1 && trig.indexOf("AR.capRecipients('invite'") < trig.indexOf('resend.emails.send('));
   }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // Round 2 (Jo, 2026-10-13): owner-only control, share-email plan gate, and
+  // the "tighten more" items. Every absence has a positive control.
+  // ═════════════════════════════════════════════════════════════════════
+  const res = () => { const r = { code: 200, headers: {}, body: '' }; r.set = (k, v) => { r.headers[k.toLowerCase()] = v; return r; }; r.status = (c) => { r.code = c; return r; }; r.send = (b) => { r.body = b; return r; }; return r; };
+  const caught = async (p) => { try { await p; return null; } catch (e) { return e; } };
+  const tokenOf = (mail, re) => { const m = String((mail || {}).text || '').match(re || /alert-confirm\/([A-Za-z0-9_-]{43})/); return m && m[1]; };
+
+  // ── (h) CALL 1: only the OWNER may request / confirm / revoke ─────────
+  console.log('(h) owner-only alert address control');
+  {
+    const FN = fresh('alert-recipients-fns.js');
+    const owner = (data) => FN.alertRecipients.__handler({ auth: { uid: 'co-a', token: { companyId: 'co-a', email_verified: true } }, data });
+    const admin = (data) => FN.alertRecipients.__handler({ auth: { uid: 'adm-1', token: { companyId: 'co-a', role: 'company_admin', email_verified: true } }, data });
+    const seed = () => {
+      reset();
+      tenant('co-a', { alertEmail: 'newinbox@example.test' }, { email: 'owner@example.test', emailVerified: true });
+    };
+
+    seed();
+    let e = await caught(admin({ action: 'send' }));
+    ok('company_admin cannot request a confirmation mail (server-enforced, "ask the owner")',
+      e && e.code === 'permission-denied' && /owner/i.test(e.message) && rec.emails.length === 0, e && [e.code, e.message]);
+    e = await caught(admin({ action: 'status' }));
+    ok('company_admin cannot read the alert-contact status either', e && e.code === 'permission-denied', e && e.code);
+    e = await caught(admin({ action: 'revoke' }));
+    ok('company_admin cannot revoke', e && e.code === 'permission-denied', e && e.code);
+    const s = await owner({ action: 'send' });
+    ok('CONTROL: the owner, same fixture, DOES get a confirmation mail', s.sent === true && rec.emails.length === 1, s);
+
+    // The click: refused unless the token was requested by the CURRENT owner.
+    seed();
+    const tokDoc = (requestedBy) => ({ companyId: 'co-a', email: 'newinbox@example.test', requestedBy, expiresAtMs: Date.now() + 1e6 });
+    const tA = 'C'.repeat(43), tB = 'D'.repeat(43);
+    world.docs['alertRecipientTokens/' + FN._internal.sha256(tA)] = tokDoc('adm-1');
+    world.docs['alertRecipientTokens/' + FN._internal.sha256(tB)] = tokDoc('co-a');
+    let r1 = res();
+    await FN._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + tA, headers: {} }, r1);
+    ok('a token that was requested by a non-owner confirms NOTHING', r1.code === 404 && !world.docs['alertRecipients/co-a'], r1.code);
+    r1 = res();
+    await FN._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + tB, headers: {} }, r1);
+    ok('CONTROL: the same token requested by the owner confirms', r1.code === 200 && !!world.docs['alertRecipients/co-a'], r1.code);
+
+    // Hand-off: a token requested by the FORMER owner dies.
+    seed();
+    world.docs['companies/co-a'] = { ownerId: 'new-owner' };
+    world.auth['new-owner'] = { email: 'current@example.test', emailVerified: true };
+    const tC = 'E'.repeat(43);
+    world.docs['alertRecipientTokens/' + FN._internal.sha256(tC)] = tokDoc('co-a');
+    r1 = res();
+    await FN._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + tC, headers: {} }, r1);
+    ok("a former owner's pending token confirms nothing after a hand-off", r1.code === 404 && !world.docs['alertRecipients/co-a'], r1.code);
+
+    // Confirming: notice to the OWNER'S verified address, audit entry, revoke link.
+    seed();
+    await owner({ action: 'send' });
+    const tok = tokenOf(rec.emails[0]);
+    rec.emails = [];
+    r1 = res();
+    await FN._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + tok, headers: {} }, r1);
+    ok('confirming records the address', r1.code === 200 && !!world.docs['alertRecipients/co-a']);
+    const notice = rec.emails[0] || {};
+    ok("the notice goes to the OWNER's verified sign-in address (not the new address)", rec.emails.length === 1 && notice.to === 'owner@example.test', rec.emails.map((m) => m.to));
+    const noticeBody = String(notice.text || '') + String(notice.html || '');
+    ok('the notice carries no tenant-authored text', !/Acme/.test(noticeBody) && !/Acme/.test(String(notice.subject)), notice.subject);
+    const revTok = tokenOf(notice);
+    ok('the notice carries a 43-char revoke link and the Settings path', !!revTok && revTok !== tok && /Settings/.test(noticeBody), noticeBody.slice(0, 200));
+    ok('an audit entry is written for the add, without the raw address',
+      rec.audit.length === 1 && /confirm/.test(String(rec.audit[0].kind)) && rec.audit[0].companyId === 'co-a'
+      && !/newinbox@example\.test/.test(JSON.stringify(rec.audit[0])), rec.audit);
+
+    // Revoke by link: GET writes nothing, POST removes, token single-use.
+    r1 = res();
+    await FN._internal.handleConfirm({ method: 'GET', path: '/alert-confirm/' + revTok, headers: {} }, r1);
+    let st = await AR.resolveTenantRecipients('co-a', { alertEmail: 'newinbox@example.test' });
+    ok('revoke link: GET shows a button and removes NOTHING', r1.code === 200 && /<form method="post">/.test(r1.body) && st.emails.join() === 'newinbox@example.test', st);
+    rec.emails = []; rec.audit = [];
+    r1 = res();
+    await FN._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + revTok, headers: {} }, r1);
+    st = await AR.resolveTenantRecipients('co-a', { alertEmail: 'newinbox@example.test' });
+    ok('revoke link: POST removes the address (alerts fall back to the owner email)', r1.code === 200 && st.emails.join() === 'owner@example.test' && !!st.ignoredEmail, st);
+    ok('revoke writes an audit entry and tells the owner', rec.audit.length === 1 && /revok/.test(String(rec.audit[0].kind)) && rec.emails.length === 1 && rec.emails[0].to === 'owner@example.test', [rec.audit, rec.emails.length]);
+    r1 = res();
+    await FN._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + revTok, headers: {} }, r1);
+    ok('the revoke token is single-use', r1.code === 404, r1.code);
+
+    // Settings-path revoke (callable), owner only.
+    seed();
+    world.docs['alertRecipients/co-a'] = { confirmed: { [AR.addrKey('newinbox@example.test')]: { email: 'newinbox@example.test', requestedBy: 'co-a' } } };
+    e = await caught(admin({ action: 'revoke' }));
+    ok('CONTROL for revoke: a confirmed address exists and the admin could not remove it',
+      e && e.code === 'permission-denied' && Object.keys(world.docs['alertRecipients/co-a'].confirmed).length === 1);
+    const rv = await owner({ action: 'revoke' });
+    ok('the owner can revoke from Settings', Object.keys((world.docs['alertRecipients/co-a'] || {}).confirmed || {}).length === 0 && rv.state === 'unconfirmed', rv);
+    ok('...which notifies the owner and audits', rec.audit.some((a) => /revok/.test(String(a.kind))) && rec.emails.some((m) => m.to === 'owner@example.test'), [rec.audit.length, rec.emails.length]);
+
+    // A new confirmation REPLACES the old one (one confirmed address at a time).
+    seed();
+    world.docs['alertRecipients/co-a'] = { confirmed: { [AR.addrKey('old@example.test')]: { email: 'old@example.test', requestedBy: 'co-a' } } };
+    await owner({ action: 'send' });
+    r1 = res();
+    await FN._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + tokenOf(rec.emails[0]), headers: {} }, r1);
+    const keys = Object.keys(world.docs['alertRecipients/co-a'].confirmed);
+    ok('confirming a new address replaces the previous confirmed one', keys.length === 1 && keys[0] === AR.addrKey('newinbox@example.test'), keys);
+    st = await AR.resolveTenantRecipients('co-a', { alertEmail: 'old@example.test' });
+    ok('...so the old address is no longer a recipient', !st.emails.includes('old@example.test'), st);
+
+    // The notice is mandatory: if it cannot be sent, nothing is confirmed.
+    seed();
+    await owner({ action: 'send' });
+    const tk = tokenOf(rec.emails[0]);
+    rec.resendFail = true;
+    r1 = res();
+    await FN._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + tk, headers: {} }, r1);
+    ok('notice send failure: the address is NOT confirmed (fail closed)', r1.code === 503 && !world.docs['alertRecipients/co-a'], r1.code);
+    rec.resendFail = false;
+    r1 = res();
+    await FN._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + tk, headers: {} }, r1);
+    ok('CONTROL: the same token confirms once the mail can be sent', r1.code === 200 && !!world.docs['alertRecipients/co-a'], r1.code);
+
+    // Owner's own email unverified at click time: refused.
+    seed();
+    await owner({ action: 'send' });
+    const tu = tokenOf(rec.emails[0]);
+    world.auth['co-a'].emailVerified = false;
+    r1 = res();
+    await FN._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + tu, headers: {} }, r1);
+    ok("an owner whose own email is unverified at click time confirms nothing", r1.code !== 200 && !world.docs['alertRecipients/co-a'], r1.code);
+  }
+
+  // ── (i) CALL 2: report-share email only from paid, non-trial tenants ──
+  console.log('(i) share-email plan gate');
+  {
+    const RS2 = fresh('report-sharing.js');
+    const base = () => {
+      reset();
+      world.docs['reports/report-123456'] = { userId: 'rep1', companyId: 'co-a', html: '<p>r</p>', type: 'inspection report', leadId: 'lead1', metadata: {} };
+      world.docs['leads/lead1'] = { userId: 'rep1', companyId: 'co-a', email: 'homeowner@example.test', firstName: 'Pat' };
+      world.leads = [{ id: 'lead1', userId: 'rep1', companyId: 'co-a', email: 'homeowner@example.test' }];
+      world.docs['companyProfile/co-a'] = { brand: { legalName: 'Roof Pros' } };
+    };
+    const run = (data, tok) => RS2.createReportShareToken.__handler({
+      auth: { uid: 'rep1', token: Object.assign({ companyId: 'co-a', email: 'rep@example.test', email_verified: true }, tok || {}) },
+      data: Object.assign({ reportId: 'report-123456' }, data),
+    });
+    const withSub = async (sub, tok) => { base(); if (sub) world.docs['subscriptions/co-a'] = sub; return run({ email: 'homeowner@example.test' }, tok); };
+
+    let r = await withSub({ plan: 'growth', status: 'active' });
+    ok('CONTROL: an active paid tenant emails the customer', r.emailed === true && rec.emails.length === 1, r);
+    r = await withSub(null);
+    ok('a tenant with no subscription (Free) gets the link but no email, reason "plan"',
+      r.emailed === false && rec.emails.length === 0 && r.emailBlocked === 'plan' && typeof r.token === 'string' && /\/report\//.test(r.shareUrl), r);
+    r = await withSub({ plan: 'free', status: 'active' });
+    ok('plan "free" is blocked even when status says active', r.emailed === false && r.emailBlocked === 'plan', r);
+    r = await withSub({ plan: 'growth', status: 'trialing' });
+    ok('a TRIALING subscription is blocked (Jo: free/trial tenants do not email)', r.emailed === false && r.emailBlocked === 'plan', r);
+    r = await withSub({ plan: 'growth', status: 'canceled' });
+    ok('a cancelled subscription is blocked', r.emailed === false && r.emailBlocked === 'plan', r);
+    r = await withSub({ plan: 'growth', status: 'active', source: 'access_code', trialEndsAt: { toMillis: () => Date.now() - 1000 } });
+    ok('an EXPIRED access-code trial is blocked (same effective-plan rule as the lead cap)', r.emailed === false && r.emailBlocked === 'plan', r);
+    r = await withSub({ plan: 'growth', status: 'active', source: 'access_code', trialEndsAt: { toMillis: () => Date.now() + 86400000 } });
+    ok('CONTROL: a live access-code grant (paid plan, not expired) emails', r.emailed === true, r);
+    r = await withSub({ plan: 'growth', status: 'past_due' });
+    ok('CONTROL: past_due (card bounced, still a paying customer) emails', r.emailed === true, r);
+
+    // Fail closed on a read error / unknown plan for a non-NBD tenant.
+    base();
+    const realDoc = fakeDb.doc;
+    fakeDb.doc = (p) => { if (p === 'subscriptions/co-a') return { get: async () => { throw new Error('unavailable'); } }; return realDoc(p); };
+    r = await run({ email: 'homeowner@example.test' });
+    fakeDb.doc = realDoc;
+    ok('a subscription read error fails CLOSED for a non-NBD tenant', r.emailed === false && r.emailBlocked === 'plan' && rec.emails.length === 0, r);
+    r = await withSub({ plan: 'mystery-tier', status: 'active' });
+    ok('an UNKNOWN plan name fails CLOSED for a non-NBD tenant', r.emailed === false && r.emailBlocked === 'plan', r);
+    const billing = require(path.join(FUNCTIONS, 'billing.js'))._test.PLAN_LIMITS;
+    const known = new Set(AR.KNOWN_PAID_PLANS || []);
+    ok('KNOWN_PAID_PLANS covers every paid plan in billing.js PLAN_LIMITS (drift guard)',
+      Object.keys(billing).filter((k) => k !== 'free').every((k) => known.has(k)) && known.size > 0, [...known]);
+
+    // NBD's own tenant is always allowed (no subscription doc needed).
+    reset();
+    world.docs['reports/report-nbd001'] = { userId: OWNER_UID, companyId: OWNER_UID, html: '<p>r</p>', type: 'inspection report', leadId: 'leadN', metadata: {} };
+    world.docs['leads/leadN'] = { userId: OWNER_UID, companyId: OWNER_UID, email: 'nbd.customer@example.test', firstName: 'Sam' };
+    world.leads = [{ id: 'leadN', userId: OWNER_UID, companyId: OWNER_UID, email: 'nbd.customer@example.test' }];
+    r = await RS2.createReportShareToken.__handler({
+      auth: { uid: OWNER_UID, token: { companyId: OWNER_UID, email: 'jd@example.test', email_verified: true } },
+      data: { reportId: 'report-nbd001' },
+    });
+    ok("NBD's own tenant emails with no subscription doc", r.emailed === true && rec.emails.length === 1, r);
+  }
+
+  // ── (j) createTeamInvite requires the caller's verified email ─────────
+  console.log('(j) createTeamInvite: verified caller email');
+  {
+    reset();
+    const INV = fresh('handlers/invites.js');
+    world.docs['subscriptions/co-a'] = { plan: 'growth', status: 'active' };
+    world.docs['companies/co-a'] = { ownerId: 'co-a', name: 'Acme' };
+    world.auth['co-a'] = { email: 'owner@example.test', emailVerified: true };
+    const inv = (tok) => INV.createTeamInvite.__handler({
+      auth: { uid: 'co-a', token: Object.assign({ companyId: 'co-a', email: 'owner@example.test', email_verified: true }, tok || {}) },
+      data: { email: 'rep@example.test', role: 'sales_rep' },
+    });
+    world.auth['co-a'].emailVerified = false;
+    let e = await caught(inv({ email_verified: false }));
+    world.auth['co-a'].emailVerified = true;
+    ok('an UNVERIFIED owner (token AND Auth record) cannot invite', e && e.code === 'failed-precondition' && /verify/i.test(e.message) && !world.docs['companies/co-a/members/rep@example.test'], e && [e.code, e.message]);
+    e = await caught(inv({ email_verified: false }));
+    ok('F8: a STALE token claim (false) with a verified Auth record still invites',
+      e === null && !!world.docs['companies/co-a/members/rep@example.test'], e && e.message);
+    delete world.docs['companies/co-a/members/rep@example.test'];
+    e = await caught(inv({}));
+    ok('CONTROL: the same owner, verified, creates the invite', e === null && !!world.docs['companies/co-a/members/rep@example.test'], e && e.message);
+    reset();
+    world.docs['companies/co-a'] = { ownerId: 'co-a', name: 'Acme' };
+    world.auth['co-a'] = { email: 'owner@example.test', emailVerified: true };
+    e = await caught(INV.createTeamInvite.__handler({
+      auth: { uid: 'plat', token: { role: 'admin', companyId: 'co-a', email: 'plat@example.test', email_verified: false } },
+      data: { email: 'rep2@example.test', role: 'sales_rep' },
+    }));
+    ok('CONTROL: a platform admin is not subject to the owner email gate', !(e && e.code === 'failed-precondition' && /verify/i.test(e.message)), e && e.message);
+  }
+
+  // ── (k) tenant text in e-sign / remote-signing Subject lines ──────────
+  console.log('(k) signing-email subjects are sanitised');
+  {
+    const EL = fresh('esign-logic.js');
+    const evil = 'Contract' + String.fromCharCode(0x202e) + '\r\nBcc: x@evil.test' + String.fromCharCode(0x200b) + ' ' + 'B'.repeat(300);
+    const m1 = EL.linkEmail({ title: evil, name: 'Pat', link: 'https://example.test/s/x' });
+    const m2 = EL.linkEmail({ title: evil, name: 'Pat', link: 'https://example.test/s/x', reminder: true });
+    const m3 = EL.signedCopyEmail({ title: evil, name: 'Pat' });
+    const BAD = new RegExp('[' + [[0, 0x1f], [0x7f, 0x9f], [0x200b, 0x200f], [0x2028, 0x202e], [0x2060, 0x206f], [0xfeff, 0xfeff]].map((r) => String.fromCharCode(r[0]) + '-' + String.fromCharCode(r[1])).join('') + ']');
+    ok('link email subject: control / bidi / zero-width stripped and bounded',
+      !BAD.test(m1.subject) && m1.subject.length < 130 && !BAD.test(m2.subject) && m2.subject.length < 130, [m1.subject.length, JSON.stringify(m1.subject.slice(0, 40))]);
+    ok('signed-copy subject: stripped and bounded', !BAD.test(m3.subject) && m3.subject.length < 130, m3.subject.length);
+    const ok1 = EL.linkEmail({ title: 'Roofing Contract', name: 'Pat', link: 'https://example.test/s/x' });
+    ok('CONTROL: an ordinary title is kept verbatim in the subject', ok1.subject === 'Please sign: Roofing Contract', ok1.subject);
+    ok('CONTROL: the body still names the title (HTML-escaped)', /Roofing Contract/.test(ok1.html));
+
+    const src = require('fs').readFileSync(path.join(FUNCTIONS, 'remote-signing.js'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
+    const idx = src.indexOf('subject:');
+    const line = src.slice(idx, src.indexOf('\n', idx));
+    ok('CONTROL: found the remote-signing Subject line', idx > -1 && /Please sign/.test(line), line);
+    ok('remote-signing Subject is built from cleanLabel (not the HTML-escaped name)', /ESL\.cleanLabel\(/.test(line) && !/\$\{docName\}/.test(line), line);
+  }
+
+  // ── (l) per-tenant bucket inside the shared per-destination cap ───────
+  console.log('(l) per-tenant share of a destination cap');
+  {
+    reset();
+    const seen = [];
+    const counts = {};
+    const limiter = async (ns, key, limit) => {
+      seen.push(ns + '|' + key);
+      const k = ns + '|' + key; counts[k] = (counts[k] || 0) + 1;
+      if (counts[k] > limit) { const e = new Error('rl'); e.rateLimited = true; throw e; }
+    };
+    const opts = (t) => ({ limit: 5, tenantKey: t, tenantLimit: 3, limiter });
+    const a = []; for (let i = 0; i < 5; i++) a.push((await AR.capRecipients('share', ['dest@example.test'], opts('co-a'))).allowed.length);
+    ok('one tenant stops at its tenant share (3), not the whole destination cap (5)', a.join() === '1,1,1,0,0', a);
+    const b = []; for (let i = 0; i < 3; i++) b.push((await AR.capRecipients('share', ['dest@example.test'], opts('co-b'))).allowed.length);
+    ok("...so another tenant still reaches the destination (2 left of the shared 5)", b.join() === '1,1,0', b);
+    ok("a tenant's over-share attempts do not consume the shared destination counter",
+      counts['alertRecipient:share|dest@example.test'] === 5 + 1, counts);
+    const c = (await AR.capRecipients('share', ['dest2@example.test'], { limit: 5, limiter })).allowed.length;
+    ok('CONTROL: with no tenantKey the cap behaves as before', c === 1);
+
+    // End to end through the share link: tenant A exhausts its 3, tenant B is unaffected.
+    const RS3 = fresh('report-sharing.js');
+    reset();
+    world.docs['reports/report-aaaaaa'] = { userId: 'repA', companyId: 'co-a', html: '<p>r</p>', type: 'inspection report', leadId: 'leadA', metadata: {} };
+    world.docs['reports/report-bbbbbb'] = { userId: 'repB', companyId: 'co-b', html: '<p>r</p>', type: 'inspection report', leadId: 'leadB', metadata: {} };
+    world.docs['leads/leadA'] = { userId: 'repA', companyId: 'co-a', email: 'shared.person@example.test', firstName: 'Pat' };
+    world.docs['leads/leadB'] = { userId: 'repB', companyId: 'co-b', email: 'shared.person@example.test', firstName: 'Pat' };
+    world.leads = [
+      { id: 'leadA', userId: 'repA', companyId: 'co-a', email: 'shared.person@example.test' },
+      { id: 'leadB', userId: 'repB', companyId: 'co-b', email: 'shared.person@example.test' },
+    ];
+    for (const co of ['co-a', 'co-b']) { world.docs['subscriptions/' + co] = { plan: 'growth', status: 'active' }; world.docs['companyProfile/' + co] = { brand: { legalName: 'Co ' + co } }; }
+    const go = (uid, co, rid) => RS3.createReportShareToken.__handler({ auth: { uid, token: { companyId: co, email: uid + '@example.test', email_verified: true } }, data: { reportId: rid } });
+    const outA = []; for (let i = 0; i < 4; i++) outA.push((await go('repA', 'co-a', 'report-aaaaaa')).emailed);
+    const rB = await go('repB', 'co-b', 'report-bbbbbb');
+    ok('tenant A is stopped at 3 sends to one address', outA.join() === 'true,true,true,false', outA);
+    ok("tenant B can still email the same address afterwards (A cannot burn B's budget)", rB.emailed === true, rB);
+  }
+
+  // ── (m) anonymous-origin alerts cannot starve trusted alerts ──────────
+  console.log('(m) public-form flood vs trusted alerts');
+  {
+    const seedT = () => { reset(); tenant('co-a', { alertEmail: 'owner@example.test' }, { email: 'owner@example.test', emailVerified: true }); };
+    seedT();
+    rl.counts['leadAlert:tenant|co-a'] = 60;
+    let o = await LA.alertJoe('contact_leads', lead(), 'pub-1');
+    const toOwner = () => rec.emails.filter((m) => [].concat(m.to).includes('owner@example.test')).length;
+    ok('a public-form alert over the tenant ceiling is skipped', o.email === 'skipped:rate-limited' && toOwner() === 0, o);
+    o = await LA.alertJoe('leads', lead({ source: 'Cal.com' }), 'trusted-1', { label: 'Booking', ack: false });
+    ok('CONTROL + the point: a trusted (Cal.com / Thumbtack) alert is NOT starved by the flood', o.email === 'sent' && toOwner() === 1, o);
+
+    seedT();
+    rl.counts['alertRecipient:email|owner@example.test'] = AR.RECIPIENT_DAILY_CAP;
+    o = await LA.alertJoe('contact_leads', lead(), 'pub-2');
+    ok("a flooded destination's public alert is skipped", o.email === 'skipped:recipient-capped', o);
+    o = await LA.alertJoe('leads', lead({ source: 'Cal.com' }), 'trusted-2', { label: 'Booking', ack: false });
+    ok('a trusted alert to the same flooded destination still goes (separate bucket)', o.email === 'sent', o);
+
+    // One IP cannot burn a tenant's ceiling.
+    seedT();
+    const IPCAP = LA.TENANT_ALERT_IP_DAILY_CAP || 10;
+    const sent = [];
+    for (let i = 0; i < IPCAP + 3; i++) sent.push((await LA.alertJoe('contact_leads', lead({ ip: '198.51.100.7' }), 'ip-' + i)).email);
+    ok('one source IP is limited to ' + IPCAP + ' alerts per tenant per day',
+      sent.filter((x) => x === 'sent').length === IPCAP && sent[IPCAP] === 'skipped:rate-limited', sent);
+    o = await LA.alertJoe('contact_leads', lead({ ip: '203.0.113.50' }), 'ip-other');
+    ok('CONTROL: a different IP is still alerted', o.email === 'sent', o);
+    ok('the over-IP attempts did not consume the tenant ceiling', rl.counts['leadAlert:tenant|co-a'] === IPCAP + 1, rl.counts['leadAlert:tenant|co-a']);
+    o = await LA.alertJoe('contact_leads', lead({ ip: undefined }), 'ip-none');
+    ok('CONTROL: a lead with no recorded IP is not IP-limited', o.email === 'sent', o);
+  }
+
+
+  // ═════════════════════════════════════════════════════════════════════
+  // Round 3 (reviewer findings F1-F9 + coordinator tests)
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('(n) F1: a confirmed address does not survive a hand-off or a lapse');
+  {
+    reset();
+    tenant('co-a', { alertEmail: 'victim@example.test' }, { email: 'a@example.test', emailVerified: true });
+    world.docs['alertRecipients/co-a'] = { confirmed: { [AR.addrKey('victim@example.test')]: { email: 'victim@example.test', requestedBy: 'co-a' } } };
+    let r = await AR.resolveTenantRecipients('co-a', { alertEmail: 'victim@example.test' });
+    ok('CONTROL: confirmed by the current owner, the address is honoured', r.emails.join() === 'victim@example.test', r);
+    world.docs['companies/co-a'] = { ownerId: 'bob' };
+    world.auth.bob = { email: 'bob@example.test', emailVerified: true };
+    r = await AR.resolveTenantRecipients('co-a', { alertEmail: 'victim@example.test' });
+    ok("after a hand-off the FORMER owner's confirmed address is not used (new owner's email is)",
+      r.emails.join() === 'bob@example.test' && r.ignoredEmail === 'victim@example.test', r);
+    const FNr = fresh('alert-recipients-fns.js');
+    const st = await FNr.alertRecipients.__handler({ auth: { uid: 'bob', token: { companyId: 'co-a', email_verified: true } }, data: { action: 'status' } });
+    ok('the new owner sees the address as unconfirmed (must re-confirm)', st.state === 'unconfirmed', st);
+    world.docs['companies/co-a'] = { ownerId: 'co-a' };
+    world.auth['co-a'].disabled = true;
+    r = await AR.resolveTenantRecipients('co-a', { alertEmail: 'victim@example.test' });
+    ok('a DISABLED (lapsed) owner: the confirmed address is not used and nothing is sent', r.emails.length === 0, r);
+    world.auth['co-a'].disabled = false;
+    world.docs['alertRecipients/co-a'] = { confirmed: { [AR.addrKey('victim@example.test')]: { email: 'victim@example.test' } } };
+    r = await AR.resolveTenantRecipients('co-a', { alertEmail: 'victim@example.test' });
+    ok('an entry with no requestedBy is not honoured (fail closed)', r.emails.join() === 'a@example.test', r);
+  }
+
+  console.log('(o) F2: send is bound to the address the screen displayed');
+  {
+    reset();
+    tenant('co-a', { alertEmail: 'b-swapped@example.test' }, { email: 'owner@example.test', emailVerified: true });
+    const FN2 = fresh('alert-recipients-fns.js');
+    const go = (data, tok) => FN2.alertRecipients.__handler({ auth: { uid: 'co-a', token: Object.assign({ companyId: 'co-a', email_verified: true }, tok || {}) }, data });
+    let e = await caught(go({ action: 'send', expectedEmail: 'a-displayed@example.test' }));
+    ok('profile address differs from the displayed one: refused, nothing mailed', e && e.code === 'failed-precondition' && rec.emails.length === 0, e && e.code);
+    e = await caught(go({ action: 'send', expectedEmail: '' }));
+    ok('no expectedEmail: refused', e && e.code === 'failed-precondition' && rec.emails.length === 0, e && e.code);
+    const s = await go({ action: 'send', expectedEmail: 'B-Swapped@example.test' });
+    ok('CONTROL: the displayed address (case-insensitive) is mailed', s.sent === true && rec.emails.length === 1 && rec.emails[0].to === 'b-swapped@example.test', s);
+    reset();
+    tenant('co-a', { alertEmail: 'x@example.test' }, { email: 'owner@example.test', emailVerified: true });
+    const s2 = await go({ action: 'send', expectedEmail: 'x@example.test' }, { email_verified: false });
+    ok('F8: a stale token claim with a verified Auth record can still send', s2.sent === true, s2);
+  }
+
+  console.log('(p) F3: claim first, notify second, roll back on notice failure');
+  {
+    reset();
+    tenant('co-a', { alertEmail: 'newinbox@example.test' }, { email: 'owner@example.test', emailVerified: true });
+    const FN3 = fresh('alert-recipients-fns.js');
+    await FN3.alertRecipients.__handler({ auth: { uid: 'co-a', token: { companyId: 'co-a', email_verified: true } }, data: { action: 'send' } });
+    const tok = tokenOf(rec.emails[0]);
+    const prev = { confirmed: { [AR.addrKey('old@example.test')]: { email: 'old@example.test', requestedBy: 'co-a' } } };
+    world.docs['alertRecipients/co-a'] = JSON.parse(JSON.stringify(prev));
+    rec.emails = [];
+    rec.resendFail = true;
+    let r1 = res();
+    await FN3._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + tok, headers: {} }, r1);
+    ok('notice failure: 503 and the PREVIOUS confirmed address is restored', r1.code === 503 && JSON.stringify(world.docs['alertRecipients/co-a']) === JSON.stringify(prev), world.docs['alertRecipients/co-a']);
+    ok('...no revoke token is left behind and the confirm token is usable again',
+      !Object.keys(world.docs).some((k) => k.startsWith('alertRecipientTokens/') && world.docs[k].kind === 'revoke')
+      && !!world.docs['alertRecipientTokens/' + FN3._internal.sha256(tok)]);
+    rec.resendFail = false;
+    rl.counts['alertNotice:company|co-a'] = 10;
+    r1 = res();
+    await FN3._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + tok, headers: {} }, r1);
+    ok('the owner notice is rate limited: over the daily limit the address is NOT confirmed', r1.code === 503 && rec.emails.length === 0
+      && JSON.stringify(world.docs['alertRecipients/co-a']) === JSON.stringify(prev), r1.code);
+    rl.counts = {};
+    r1 = res();
+    await FN3._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + tok, headers: {} }, r1);
+    ok('CONTROL: within the limit it confirms and sends exactly ONE notice', r1.code === 200 && rec.emails.length === 1
+      && Object.keys(world.docs['alertRecipients/co-a'].confirmed).join() === AR.addrKey('newinbox@example.test'), [r1.code, rec.emails.length]);
+    ok('the audit row exists for the confirmation', rec.audit.filter((a) => /confirmed/.test(a.kind)).length === 1);
+    // F9: a failing audit write is logged loudly, not swallowed silently.
+    reset();
+    tenant('co-a', { alertEmail: 'newinbox@example.test' }, { email: 'owner@example.test', emailVerified: true });
+    await FN3.alertRecipients.__handler({ auth: { uid: 'co-a', token: { companyId: 'co-a', email_verified: true } }, data: { action: 'send' } });
+    const tok2 = tokenOf(rec.emails[0]);
+    const realCol = fakeDb.collection;
+    fakeDb.collection = (n) => { const c = realCol(n); if (n === 'audit_log') c.add = async () => { throw new Error('audit down'); }; return c; };
+    r1 = res();
+    await FN3._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + tok2, headers: {} }, r1);
+    fakeDb.collection = realCol;
+    ok('F9: an audit write failure is logged as an error naming the gap',
+      rec.logs.some((l) => l[0] === 'error' && /AUDIT_MISSING|WITHOUT an audit/.test(JSON.stringify(l[1]))), rec.logs.filter((l) => l[0] === 'error').length);
+  }
+
+  console.log('(q) F7: revoke page when nothing was removed');
+  {
+    reset();
+    tenant('co-a', { alertEmail: 'newinbox@example.test' }, { email: 'owner@example.test', emailVerified: true });
+    const FN4 = fresh('alert-recipients-fns.js');
+    world.docs['alertRecipients/co-a'] = { confirmed: { [AR.addrKey('current@example.test')]: { email: 'current@example.test', requestedBy: 'co-a' } } };
+    const t = 'F'.repeat(43);
+    world.docs['alertRecipientTokens/' + FN4._internal.sha256(t)] = { kind: 'revoke', companyId: 'co-a', email: 'old@example.test', addrKey: AR.addrKey('old@example.test'), expiresAtMs: Date.now() + 1e6 };
+    const r1 = res();
+    await FN4._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + t, headers: {} }, r1);
+    ok('a stale revoke link says it was already replaced or removed, not "Removed"',
+      r1.code === 200 && /already replaced or removed/.test(r1.body) && !/<h1>Removed</.test(r1.body), r1.body.slice(0, 300));
+    ok('...and the CURRENT confirmed address is untouched', Object.keys(world.docs['alertRecipients/co-a'].confirmed).join() === AR.addrKey('current@example.test'));
+    // token kind confusion: a revoke token never confirms; a revoke token with no addrKey is inert.
+    const t2 = 'G'.repeat(43);
+    reset();
+    world.docs['alertRecipientTokens/' + FN4._internal.sha256(t2)] = { kind: 'revoke', companyId: 'co-a', email: 'evil@example.test', expiresAtMs: Date.now() + 1e6 };
+    const r2 = res();
+    await FN4._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + t2, headers: {} }, r2);
+    ok('a revoke-kind token can never CONFIRM an address', !world.docs['alertRecipients/co-a'], world.docs['alertRecipients/co-a']);
+  }
+
+  console.log('(r) cross-role owner-only matrix, stale claims, unreadable company');
+  {
+    const FN5 = fresh('alert-recipients-fns.js');
+    const as = (uid, tok, data) => FN5.alertRecipients.__handler({ auth: { uid, token: Object.assign({ companyId: 'co-a', email_verified: true }, tok) }, data: data || { action: 'status' } });
+    reset();
+    tenant('co-a', { alertEmail: 'x@example.test' }, { email: 'owner@example.test', emailVerified: true });
+    const roles = ['company_admin', 'manager', 'sales_rep', 'member', 'admin'];
+    const outs = [];
+    for (const role of roles) { const e = await caught(as('someone-' + role, { role })); outs.push(role + ':' + (e ? e.code : 'ALLOWED')); }
+    ok('every non-owner role is refused (incl. a platform admin acting inside the tenant)', outs.every((x) => /permission-denied$/.test(x)), outs);
+    const own = await as('co-a', {});
+    ok('CONTROL: the owner is allowed', own.state === 'unconfirmed', own);
+    world.docs['companies/co-a'] = { ownerId: 'bob' };
+    const e1 = await caught(as('co-a', { role: 'company_admin' }));
+    ok('a FORMER owner with stale claims is refused', e1 && e1.code === 'permission-denied', e1 && e1.code);
+    const e1b = await caught(as('co-a', {}));
+    ok('...even with no role claim at all', e1b && e1b.code === 'permission-denied', e1b && e1b.code);
+    world.docs['companies/co-a'] = { ownerId: 'co-a' };
+    const realCol = fakeDb.collection;
+    fakeDb.collection = (n) => { if (n === 'companies') return { doc: () => ({ get: async () => { throw new Error('unavailable'); } }) }; return realCol(n); };
+    const e2 = await caught(as('co-a', {}));
+    fakeDb.collection = realCol;
+    ok('an unreadable company doc fails CLOSED with "unavailable" (never falls back to the caller)', e2 && e2.code === 'unavailable', e2 && e2.code);
+  }
+
+  console.log('(s) caps are independent; NBD never enters cap code; cleanLabel char set');
+  {
+    const counts = {};
+    const lim = async (ns, key, limit) => { const k = ns + '|' + key; counts[k] = (counts[k] || 0) + 1; if (counts[k] > limit) { const e = new Error('rl'); e.rateLimited = true; throw e; } };
+    const mk = (kind, a) => AR.capRecipients(kind, [a], { limit: 1, limiter: lim });
+    await mk('invite', 'same@example.test');
+    const second = await mk('invite', 'same@example.test');
+    const share = await mk('reportShare', 'same@example.test');
+    ok('an exhausted invite budget does not touch the share budget for the same address', second.capped.length === 1 && share.allowed.length === 1, [second, share]);
+    const em = await mk('email', '+15555550123');
+    const sm = await mk('sms', '+15555550123');
+    ok('email and sms buckets are separate even for the same string', em.allowed.length === 1 && sm.allowed.length === 1);
+    const tt = (t) => AR.capRecipients('share', ['d@example.test'], { limit: 9, tenantKey: t, tenantLimit: 1, limiter: lim });
+    await tt('t1'); const t1b = await tt('t1'); const t2 = await tt('t2');
+    ok('tenant buckets are per tenant', t1b.capped.length === 1 && t2.allowed.length === 1);
+
+    reset();
+    await LA.alertJoe('contact_leads', lead({ companyId: undefined, ip: '203.0.113.77' }), 'nbd-ip');
+    await LA.alertJoe('contact_leads', lead({ companyId: OWNER_UID, ip: '203.0.113.77' }), 'nbd-uid');
+    ok('NBD leads (no tenant, and the NBD uid) never touch a tenant / recipient / IP bucket',
+      rl.calls.every(([ns]) => !/^(leadAlert|alertRecipient)/.test(ns)) && rec.emails.length > 0, rl.calls);
+
+    const cp = [[0, 0x1f], [0x7f, 0x9f], [0x200b, 0x200f], [0x2028, 0x202e], [0x2060, 0x206f], [0xfeff, 0xfeff]];
+    const hasCtl = (s) => { for (const ch of s) { const k = ch.charCodeAt(0); if (k <= 0x1f || (k >= 0x7f && k <= 0x9f)) return true; } return false; };
+    let allClean = true; let bad = null;
+    for (const [lo, hi] of cp) for (let c = lo; c <= hi; c++) {
+      const out = AR.cleanLabel('a' + String.fromCharCode(c) + 'b', 60);
+      if (hasCtl(out) || out.length !== 3 || out.charCodeAt(0) !== 97 || out.charCodeAt(2) !== 98) { allClean = false; bad = c; }
+      if (out.indexOf(String.fromCharCode(c)) > -1 && c > 0x20) { allClean = false; bad = c; }
+    }
+    ok('cleanLabel strips every control / bidi / zero-width code point and keeps the text either side', allClean, bad);
+    ok('cleanLabel collapses whitespace and bounds length', AR.cleanLabel('  a   b  ', 60) === 'a b' && AR.cleanLabel('x'.repeat(500), 40).length === 40);
+    ok('cleanLabel passes ordinary text and a non-Latin name through', AR.cleanLabel('Caf' + String.fromCharCode(0xe9) + ' & Sons', 60) === 'Caf' + String.fromCharCode(0xe9) + ' & Sons');
+  }
+
+  console.log('(t) F5 watchdog does not double-debit; F6 no IP bucket without an address; F4 paused-alerts bell');
+  {
+    const seedT = () => { reset(); tenant('co-a', { alertEmail: 'owner@example.test' }, { email: 'owner@example.test', emailVerified: true }); };
+    seedT();
+    const toOwner = () => rec.emails.filter((m) => [].concat(m.to).includes('owner@example.test')).length;
+    let o = await LA.alertJoe('contact_leads', lead({ ip: '198.51.100.9' }), 'wd-1', { watchdog: true, skipSms: true });
+    ok('a watchdog re-send still delivers', o.email === 'sent' && toOwner() === 1, o);
+    ok('...and debits NO bucket (its first attempt already did)', rl.calls.every(([ns]) => !/^(leadAlert|alertRecipient)/.test(ns)), rl.calls);
+    seedT();
+    await LA.alertJoe('contact_leads', lead({ ip: '198.51.100.9' }), 'wd-ctl');
+    ok('CONTROL: the same lead, first attempt, DOES debit the buckets', rl.calls.some(([ns]) => ns === 'leadAlert:tenant') && rl.calls.some(([ns]) => ns === 'leadAlert:tenantIp') && rl.calls.some(([ns]) => /^alertRecipient/.test(ns)), rl.calls.map((c) => c[0]));
+
+    for (const ip of ['unknown', '', '   ', 'UNKNOWN']) {
+      seedT();
+      o = await LA.alertJoe('contact_leads', lead({ ip }), 'noip');
+      ok('ip ' + JSON.stringify(ip) + ': no per-IP bucket, alert sent', o.email === 'sent' && rl.calls.every(([ns]) => ns !== 'leadAlert:tenantIp'), rl.calls.map((c) => c[0]));
+    }
+
+    seedT();
+    rl.counts['leadAlert:tenant|co-a'] = 60;
+    o = await LA.alertJoe('contact_leads', lead(), 'bell-1');
+    const bells = () => Object.keys(world.docs).filter((k) => k.startsWith('notifications/alertcap_co-a'));
+    ok('a capped alert leaves one in-app "alerts paused" item for the owner',
+      o.email === 'skipped:rate-limited' && bells().length === 1 && world.docs[bells()[0]].userId === 'co-a' && /paused/i.test(world.docs[bells()[0]].title), [o, bells()]);
+    await LA.alertJoe('contact_leads', lead(), 'bell-2');
+    ok('...at most one a day (deterministic id)', bells().length === 1, bells());
+    seedT();
+    await LA.alertJoe('contact_leads', lead(), 'bell-ctl');
+    ok('CONTROL: an uncapped alert leaves no such item', Object.keys(world.docs).filter((k) => k.startsWith('notifications/alertcap_')).length === 0);
+  }
+
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

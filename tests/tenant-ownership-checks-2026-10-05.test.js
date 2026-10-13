@@ -360,6 +360,8 @@ function body(src, name) {
     resetWorld({
       'reports/report-': { userId: 'u1', companyId: 'u1', html: '<p>r</p>', leadId: 'lead-victim', type: 'Roof Inspection' },
       'leads/lead-victim': { userId: 'victim', companyId: 'co-victim', email: 'victim@example.com', firstName: 'Vic' },
+      // A PAID tenant (2026-10-13: the share email is plan-gated), so the absence below is the ownership rule.
+      'subscriptions/u1': { plan: 'growth', status: 'active' },
     });
     const r = await call(SHARE.createReportShareToken, { reportId: 'report-' }, OWNER);
     ok('report naming another tenant\'s lead → link still minted', r.value && !!r.value.shareUrl, r.err && r.err.message);
@@ -370,6 +372,7 @@ function body(src, name) {
     resetWorld({
       'reports/report-': { userId: 'u1', companyId: 'u1', html: '<p>r</p>', leadId: 'lead-1', type: 'Roof Inspection' },
       'leads/lead-1': { userId: 'u1', companyId: 'u1', email: 'pat@example.com', firstName: 'Pat' },
+      'subscriptions/u1': { plan: 'growth', status: 'active' },
     });
     const r = await call(SHARE.createReportShareToken, { reportId: 'report-' }, OWNER);
     ok('own lead → emailed to that homeowner (unchanged)', W.sent.length === 1 && W.sent[0].to === 'pat@example.com' && r.value && r.value.emailed === true, r.err && r.err.message);
@@ -379,6 +382,7 @@ function body(src, name) {
     resetWorld({
       'reports/report-': { userId: 'u1', companyId: 'co-1', html: '<p>r</p>', leadId: 'lead-mate' },
       'leads/lead-mate': { userId: 'mate', companyId: 'co-1', email: 'mate-home@example.com' },
+      'subscriptions/co-1': { plan: 'growth', status: 'active' },
     });
     await call(SHARE.createReportShareToken, { reportId: 'report-' }, { uid: 'u1', companyId: 'co-1', email: 'u1@example.test', email_verified: true });
     ok('teammate\'s lead in the report\'s company → emailed', W.sent.length === 1 && W.sent[0].to === 'mate-home@example.com');

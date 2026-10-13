@@ -78,6 +78,13 @@ const SECRETS = [RESEND_API_KEY, EMAIL_FROM, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOK
 // own devices still get the push; only the email/SMS are skipped.
 const TENANT_ALERT_DAILY_CAP = 60;
 const TENANT_ALERT_WINDOW_MS = 24 * 60 * 60 * 1000;
+// One source IP may page a tenant this many times a day via the PUBLIC forms
+// (2026-10-13). submitPublicLead accepts any real tenant id from an anonymous
+// browser, so without this one box could use up the tenant's whole ceiling above
+// (and the destination cap) and starve the owner's real alerts. The lead, bell
+// and push are unaffected. Checked BEFORE the tenant ceiling so a flood from one
+// IP does not consume it.
+const TENANT_ALERT_IP_DAILY_CAP = 10;
 
 const ALERT_EMAILS = ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'];
 const ALERT_SMS = '+18594207382'; // Joe's cell — default when a lead has no tenant contact
@@ -393,6 +400,29 @@ async function pushLeadAlert(target, collection, d, leadId, label, s, notice) {
   }
 }
 
+// One in-app bell per tenant per day when its email/text alerts were paused by a
+// cap (2026-10-13). The ceiling can be reached by anonymous public-form traffic
+// (residual), so the owner must be able to see that alerts paused while leads
+// still arrive. Deterministic id + create() = at most one a day; best-effort.
+async function alertsPausedBell(target, companyId, trusted) {
+  try {
+    const uid = target && target.pushUid;
+    if (!uid) return;
+    const day = new Date(Outbox.nowMs()).toISOString().slice(0, 10);
+    await getFirestore().collection('notifications').doc(`alertcap_${companyId}_${trusted ? 't' : 'p'}_${day}`).create({
+      userId: String(uid), type: 'alerts_paused', priority: 'high',
+      title: 'Lead alerts paused today',
+      message: 'Email and text alerts hit the daily limit. New leads still arrive in your CRM and on your phone.',
+      clickUrl: '/pro/dashboard.html?tab=leads', read: false, dismissed: false,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  } catch (e) {
+    if (!(e && (e.code === 6 || /already exists/i.test(String(e.message || ''))))) {
+      logger.warn('leadAlert: alerts-paused bell failed', { err: e && e.message });
+    }
+  }
+}
+
 // opts (all optional): label — overrides KIND_LABEL[collection]; source —
 // overrides d.source in the header; notice — see emailHtml; ack:false — skip
 // both homeowner acks (the booking tool already confirmed to the homeowner);
@@ -413,16 +443,38 @@ async function alertJoe(collection, d, leadId, opts = {}) {
   // Tenant ceiling (NBD's own leads are never capped here). A limiter outage
   // fails OPEN: a dropped lead alert costs a customer, a missed cap costs one
   // more message.
+  // Origin (2026-10-13): collection 'leads' is only alerted for rows an
+  // authenticated webhook minted (Cal.com, Thumbtack bridge — see the id checks
+  // in planCalcom / isBridgedThumbtackLead). Everything else arrives from an
+  // anonymous public form. They get SEPARATE buckets so a public-form flood
+  // cannot starve a real booking alert.
+  const trusted = collection === 'leads';
+  // A watchdog re-send is the SAME lead's second attempt: its first attempt
+  // already debited every bucket, so it must not debit them again.
+  const debit = !opts.watchdog;
   let capped = false;
-  if (!target.isNbd && d.companyId && (target.sms || (target.emails && target.emails.length))) {
+  if (debit && !target.isNbd && d.companyId && (target.sms || (target.emails && target.emails.length))) {
     try {
-      await require('./rate-limit').enforceRateLimit('leadAlert:tenant', String(d.companyId), TENANT_ALERT_DAILY_CAP, TENANT_ALERT_WINDOW_MS);
+      const RL = require('./rate-limit');
+      // No usable source address (clientIp falls back to 'unknown') -> no IP
+      // bucket: all such leads would share one key and starve each other.
+      const ipOk = typeof d.ip === 'string' && d.ip.trim() !== '' && d.ip.trim().toLowerCase() !== 'unknown';
+      if (!trusted && ipOk) {
+        try {
+          await RL.enforceRateLimit('leadAlert:tenantIp', String(d.companyId) + '|' + RL.rateLimitIpKey(String(d.ip)), TENANT_ALERT_IP_DAILY_CAP, TENANT_ALERT_WINDOW_MS);
+        } catch (ipErr) {
+          if (ipErr && ipErr.rateLimited) throw ipErr;
+          logger.warn('leadAlert: per-IP cap check unavailable — continuing', { collection, leadId, err: ipErr && ipErr.message });
+        }
+      }
+      await RL.enforceRateLimit(trusted ? 'leadAlert:tenant:trusted' : 'leadAlert:tenant', String(d.companyId), TENANT_ALERT_DAILY_CAP, TENANT_ALERT_WINDOW_MS);
     } catch (e) {
       if (e && e.rateLimited) {
         capped = true;
         if (target.sms) outcomes.sms = 'skipped:rate-limited';
         if (target.emails && target.emails.length) outcomes.email = 'skipped:rate-limited';
         logger.warn('leadAlert: tenant daily alert cap reached — email/SMS skipped', { collection, leadId, companyId: String(d.companyId) });
+        await alertsPausedBell(target, d.companyId, trusted);
       } else {
         logger.warn('leadAlert: tenant cap check unavailable — sending', { collection, leadId, err: e && e.message });
       }
@@ -436,9 +488,9 @@ async function alertJoe(collection, d, leadId, opts = {}) {
   let toEmails = target.emails || null;
   let toSms = target.sms || null;
   if (capped) { toEmails = null; toSms = null; }
-  if (!target.isNbd && !capped) {
+  if (debit && !target.isNbd && !capped) {
     if (toEmails && toEmails.length) {
-      const r = await AR.capRecipients('email', toEmails);
+      const r = await AR.capRecipients('email', toEmails, { tenantKey: d.companyId, tenantLimit: AR.RECIPIENT_TENANT_DAILY_CAP, trusted });
       toEmails = r.allowed;
       if (r.capped.length) {
         logger.warn('leadAlert: recipient daily cap reached — email skipped', { collection, leadId, capped: r.capped.length });
@@ -446,7 +498,7 @@ async function alertJoe(collection, d, leadId, opts = {}) {
       }
     }
     if (toSms) {
-      const r = await AR.capRecipients('sms', [toSms]);
+      const r = await AR.capRecipients('sms', [toSms], { tenantKey: d.companyId, tenantLimit: AR.RECIPIENT_TENANT_DAILY_CAP, trusted });
       if (!r.allowed.length) {
         toSms = null;
         outcomes.sms = 'skipped:recipient-capped';
@@ -800,5 +852,5 @@ exports.leadAlertCalcom   = onDocumentCreated({ ...TRIGGER_OPTS, document: 'lead
 // Functions belong on the deployed export surface.
 Object.defineProperty(exports, '_internal', {
   enumerable: false,
-  value: { alertPlan, alertJoe, resolveAlertTarget, TENANT_ALERT_DAILY_CAP, SECRETS, NBD_OWNER_UID, ALERT_COLLECTIONS: Object.keys(KIND_LABEL) },
+  value: { alertPlan, alertJoe, resolveAlertTarget, TENANT_ALERT_DAILY_CAP, TENANT_ALERT_IP_DAILY_CAP, SECRETS, NBD_OWNER_UID, ALERT_COLLECTIONS: Object.keys(KIND_LABEL) },
 });

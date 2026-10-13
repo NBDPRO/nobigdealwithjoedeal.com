@@ -383,7 +383,8 @@ const NO_PHONE_SMS = 'NO PHONE — reply to the confirmation email';
     ok('alert number ' + (CAP + 1) + ' sends no email and no SMS', rec.emails.length === 0 && rec.sms.length === 0, { emails: rec.emails.length, sms: rec.sms.length });
     ok('...but the lead still gets its push and its ledger row', rec.pushes.length === 1 && rec.outbox.length === 1
       && rec.outbox[0].emailStatus === 'skipped:rate-limited' && rec.outbox[0].smsStatus === 'skipped:rate-limited', rec.outbox);
-    const tenantCalls = rl.calls.filter((c) => c[0] === 'leadAlert:tenant');
+    // 2026-10-13: a booking is a TRUSTED-origin alert, counted in its own bucket (a public-form flood cannot starve it).
+    const tenantCalls = rl.calls.filter((c) => c[0] === 'leadAlert:tenant:trusted');
     ok('the cap is keyed on the lead tenant', tenantCalls.length > 0 && tenantCalls.every((c) => c[1] === 'co-cap'), tenantCalls.slice(0, 2));
 
     // NBD's own leads are never capped; a limiter outage fails open.

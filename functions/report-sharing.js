@@ -83,6 +83,7 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 // domain, so who may receive it and how many go out are bounded server-side.
 const SHARE_EMAIL_CALLER_DAILY_CAP = 40;      // per signed-in caller per rolling day
 const SHARE_EMAIL_RECIPIENT_DAILY_CAP = 5;    // per destination address per rolling day, all tenants
+const SHARE_EMAIL_TENANT_RECIPIENT_DAILY_CAP = 3; // ... of which one TENANT may use this many
 const SHARE_EMAIL_GLOBAL_DAILY_CAP = 1000;    // share emails platform-wide per rolling day (backstop)
 const SHARE_EMAIL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -93,8 +94,26 @@ const cleanLabel = AR.cleanLabel;
 // caller's own VERIFIED email, (b) the subject lead's address, or (c) an address
 // on a lead/customer record in the caller's own tenant. Then the caller and
 // recipient daily caps. Returns { ok } or { ok:false, reason }.
-async function authorizeShareRecipient(db, { uid, token, target, subjectLeadEmail, companyId, enforce }) {
+// Plan gate (Jo, 2026-10-13): the email goes out on NBD's sender domain, so only a
+// PAID, non-trial tenant may use it. NBD's own tenant is always allowed; a
+// platform admin is exempt; any read error or unknown plan fails CLOSED. The
+// link is still minted, so a Free tenant can copy it and send it themselves.
+async function sharePlanAllows(db, billingKey, isAdmin) {
+  if (isAdmin) return true;
+  if (!billingKey) return false;
+  if (String(billingKey) === REPORT_NBD_OWNER_UID) return true;
+  try {
+    const snap = await db.doc(`subscriptions/${billingKey}`).get();
+    return AR.planAllowsShareEmail(snap && snap.exists ? snap.data() : null, Date.now());
+  } catch (e) {
+    logger.warn('[createReportShareToken] plan lookup failed — not emailing', { err: e && e.message });
+    return false;
+  }
+}
+
+async function authorizeShareRecipient(db, { uid, token, target, subjectLeadEmail, companyId, enforce, isAdmin }) {
   if (!token || token.email_verified !== true) return { ok: false, reason: 'verify-your-email' };
+  if (!(await sharePlanAllows(db, companyId, isAdmin))) return { ok: false, reason: 'plan' };
   const to = AR.normEmail(target);
   if (!to) return { ok: false, reason: 'invalid-recipient' };
   let allowed = to === AR.normEmail(token.email) || to === AR.normEmail(subjectLeadEmail);
@@ -127,7 +146,10 @@ async function authorizeShareRecipient(db, { uid, token, target, subjectLeadEmai
   } catch (e) {
     if (e && e.rateLimited) return { ok: false, reason: 'daily-limit' };
   }
-  const cap = await AR.capRecipients('reportShare', [to], { limit: SHARE_EMAIL_RECIPIENT_DAILY_CAP, windowMs: SHARE_EMAIL_WINDOW_MS });
+  const cap = await AR.capRecipients('reportShare', [to], {
+    limit: SHARE_EMAIL_RECIPIENT_DAILY_CAP, windowMs: SHARE_EMAIL_WINDOW_MS,
+    tenantKey: companyId || uid, tenantLimit: SHARE_EMAIL_TENANT_RECIPIENT_DAILY_CAP,
+  });
   if (!cap.allowed.length) return { ok: false, reason: 'recipient-daily-limit' };
   return { ok: true, to };
 }
@@ -482,7 +504,7 @@ exports.createReportShareToken = onCall(
     let emailBlocked = '';
     if (toEmail) {
       const gate = await authorizeShareRecipient(db, {
-        uid, token: request.auth.token, target: toEmail, subjectLeadEmail, companyId: subject.companyId,
+        uid, token: request.auth.token, target: toEmail, subjectLeadEmail, companyId: subject.companyId, isAdmin,
       });
       if (!gate.ok) { emailBlocked = gate.reason; toEmail = ''; }
       else toEmail = gate.to;

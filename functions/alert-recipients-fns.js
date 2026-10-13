@@ -4,21 +4,34 @@
  *
  * The cloud-function surface for functions/alert-recipients.js (the shared
  * recipient policy). A company's lead alerts go to the owner's verified Auth
- * email unless the owner confirms a different address:
+ * email unless the OWNER confirms a different address:
  *
- *   alertRecipients (onCall)       { action: 'status' | 'send' }
+ *   alertRecipients (onCall)       { action: 'status' | 'send' | 'revoke' }
+ *     OWNER ONLY (Jo, 2026-10-13): companies/{id}.ownerId. A company_admin or
+ *     any other member gets a clear "ask the owner" refusal, server-side — the
+ *     Settings button is also hidden for them, but that is only a courtesy.
  *     status — what the Settings screen shows: the verified Auth email the
  *              alerts fall back to, the configured contact email, and whether
  *              that contact is confirmed.
  *     send   — emails a one-time confirmation link to the company's CONFIGURED
  *              alert email (read server-side from companyProfile, never taken
- *              from the request). Owner / company_admin only; the caller's own
- *              email must be verified; capped per company and per destination.
+ *              from the request). The caller's own email must be verified;
+ *              capped per company and per destination.
+ *     revoke — removes the confirmed address (alerts fall back to the owner's
+ *              sign-in email), audits it, and tells the owner.
  *   confirmAlertRecipient (onRequest)  /alert-confirm/<token>
  *     GET renders a button and writes nothing (mail scanners prefetch GET);
- *     POST consumes the token and records the address in alertRecipients/{companyId}
- *     (firestore.rules: no client access). Token-authed, per-IP rate limited,
- *     no script on the page. Same shape as /unsubscribe (email-unsubscribe.js).
+ *     POST consumes the token. Two kinds of token share the page:
+ *       confirm — emailed to the CONFIGURED address. Honoured only while the
+ *                 person who requested it is still the company's owner. Before
+ *                 anything is recorded the OWNER is mailed a fixed-copy notice
+ *                 (the address, how to revoke); if that mail cannot be sent
+ *                 nothing is confirmed. The confirmation REPLACES any earlier
+ *                 confirmed address (one at a time) and is audited.
+ *       revoke  — carried by that notice to the owner's verified sign-in
+ *                 address; one press removes the address. Audited.
+ *     Token-authed, per-IP rate limited, no script on the page. Same shape as
+ *     /unsubscribe (email-unsubscribe.js).
  *
  * Nothing here is reachable by an unconfirmed address: a confirmation mail is
  * the only thing sent to it, and it carries no tenant-authored text.
@@ -41,6 +54,8 @@ const EMAIL_FROM = defineSecret('EMAIL_FROM');
 
 const CONFIRM_URL_BASE = 'https://nobigdealwithjoedeal.com/alert-confirm/';
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
+const ASK_OWNER = 'Only the account owner can change where lead alerts go. Ask the owner to do this from Settings.';
+const NOTICES_PER_COMPANY_DAY = 10;
 
 function esc(s) {
   return String(s == null ? '' : s)
@@ -58,6 +73,79 @@ async function contactEmailFor(db, companyId) {
     logger.warn('alertRecipients: profile read failed', { err: e && e.message });
     return { email: '', sms: '' };
   }
+}
+
+// The notice goes ONLY to the owner's verified sign-in address, with fixed
+// copy: the one tenant-influenced value is the address itself, which has passed
+// the strict single-address check and is HTML-escaped.
+async function sendOwnerNotice(kind, ownerEmail, address, revokeUrl) {
+  const { Resend } = require('resend');
+  const added = kind === 'added';
+  const text = added
+    ? `The address ${address} was just confirmed to receive new-lead alerts for your NBD Pro company.\n\n`
+      + 'If you did this, there is nothing more to do. If you did not, stop it now:\n'
+      + `${revokeUrl}\n\n`
+      + 'You can also remove it any time in Settings, Brand Identity, Contact. Lead alerts then go back to your sign-in email.'
+    : `The address ${address} no longer receives new-lead alerts for your NBD Pro company. Alerts go to your sign-in email.\n\n`
+      + 'If you did not do this, review who has access under Settings, Team.';
+  const html = '<div style="font-family:Arial,sans-serif;max-width:520px;color:#12223d">'
+    + (added
+      ? `<p>The address <strong>${esc(address)}</strong> was just confirmed to receive new-lead alerts for your NBD Pro company.</p>`
+        + '<p>If you did this, there is nothing more to do. If you did not, stop it now:</p>'
+        + `<p><a href="${esc(revokeUrl)}" style="background:#bd5728;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:700;display:inline-block">Remove this address</a></p>`
+        + '<p style="font-size:12px;color:#666">You can also remove it any time in Settings, Brand Identity, Contact. Lead alerts then go back to your sign-in email.</p>'
+      : `<p>The address <strong>${esc(address)}</strong> no longer receives new-lead alerts for your NBD Pro company. Alerts go to your sign-in email.</p>`
+        + '<p style="font-size:12px;color:#666">If you did not do this, review who has access under Settings, Team.</p>')
+    + '</div>';
+  const resp = await new Resend(RESEND_API_KEY.value()).emails.send({
+    from: secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com'),
+    to: ownerEmail,
+    subject: added ? 'A lead-alert address was confirmed on your NBD Pro account' : 'A lead-alert address was removed from your NBD Pro account',
+    // Email category: TRANSACTIONAL — a security notice to the account owner's own verified sign-in address.
+    text,
+    html,
+  });
+  if (resendRejected(resp)) throw new Error(resendErrorMessage(resp));
+}
+
+async function audit(db, entry) {
+  try {
+    await db.collection('audit_log').add(Object.assign({
+      path: 'alertRecipients/' + entry.companyId,
+      docId: String(entry.companyId),
+      ts: FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
+    }, entry));
+    return true;
+  } catch (e) {
+    // Loud on purpose: a confirm / revoke with no audit row is a security gap.
+    logger.info('ALERT_RECIPIENT_AUDIT_MISSING: audit_log write failed', { kind: entry.kind, companyId: String(entry.companyId), err: e && e.message });
+    return false;
+  }
+}
+
+// Remove the confirmed address. Returns the removed address ('' when none).
+async function revokeConfirmed(db, companyId, actorUid, via, ownerEmail) {
+  const ref = db.collection(AR.CONFIRMED_COLLECTION).doc(String(companyId));
+  let removed = '';
+  const snap = await ref.get();
+  const map = (snap.exists && snap.data() && snap.data().confirmed) || {};
+  for (const k of Object.keys(map)) { if (map[k] && map[k].email) removed = String(map[k].email); }
+  if (!snap.exists) return '';
+  await ref.delete();
+  await audit(db, {
+    kind: 'alert_recipient.revoked', companyId: String(companyId), actorUid: String(actorUid || ''), via,
+    emailMasked: AR.maskEmail(removed), addrKey: removed ? AR.addrKey(removed) : null,
+  });
+  if (ownerEmail && removed) {
+    try {
+      await enforceRateLimit('alertNotice:company', String(companyId), NOTICES_PER_COMPANY_DAY, AR.RECIPIENT_WINDOW_MS);
+      await sendOwnerNotice('removed', ownerEmail, removed, '');
+    } catch (e) {
+      logger.warn('alertRecipients: removal notice not sent', { companyId: String(companyId), err: e && e.message });
+    }
+  }
+  return removed;
 }
 
 exports.alertRecipients = onCall(
@@ -78,36 +166,52 @@ exports.alertRecipients = onCall(
     const companyId = String(claims.companyId || uid);
     const ownerUid = await AR.ownerUidFor(companyId);
     if (!ownerUid) throw new HttpsError('unavailable', 'Could not look up the company owner. Try again in a minute.');
-    const isOwner = ownerUid === uid;
-    if (!isOwner && claims.role !== 'company_admin') {
-      throw new HttpsError('permission-denied', 'Only the owner or a company admin can manage alert contacts');
-    }
+    // OWNER ONLY (Jo, 2026-10-13): not company_admin, not a platform admin.
+    if (ownerUid !== uid) throw new HttpsError('permission-denied', ASK_OWNER);
     const action = String((request.data || {}).action || 'status');
-    if (action !== 'status' && action !== 'send') throw new HttpsError('invalid-argument', 'Unknown action');
+    if (action !== 'status' && action !== 'send' && action !== 'revoke') throw new HttpsError('invalid-argument', 'Unknown action');
 
     const db = getFirestore();
     const owner = await AR.authOwner(ownerUid);
     const contact = await contactEmailFor(db, companyId);
-    const confirmed = contact.email ? (await AR.confirmedKeys(companyId)).has(AR.addrKey(contact.email)) : false;
-    let state = 'none';
-    if (contact.email) {
-      if (owner.email && contact.email === owner.email) state = 'owner';
-      else state = confirmed ? 'confirmed' : 'unconfirmed';
-    }
-    const status = {
-      state,
-      ownerEmail: owner.email || null,
-      contactEmail: contact.email || null,
-      smsConfigured: !!contact.sms,
-      smsMatchesOwnerPhone: !!(contact.sms && owner.phone && contact.sms === owner.phone),
+    const buildStatus = async () => {
+      const confirmed = contact.email
+        ? AR.entryHonoured((await AR.confirmedEntries(companyId))[AR.addrKey(contact.email)], ownerUid, !!owner.email)
+        : false;
+      let state = 'none';
+      if (contact.email) {
+        if (owner.email && contact.email === owner.email) state = 'owner';
+        else state = confirmed ? 'confirmed' : 'unconfirmed';
+      }
+      return {
+        state,
+        ownerEmail: owner.email || null,
+        contactEmail: contact.email || null,
+        smsConfigured: !!contact.sms,
+        smsMatchesOwnerPhone: !!(contact.sms && owner.phone && contact.sms === owner.phone),
+      };
     };
+    const status = await buildStatus();
     if (action === 'status') return status;
 
+    if (action === 'revoke') {
+      const removed = await revokeConfirmed(db, companyId, uid, 'settings', owner.email);
+      return Object.assign({ revoked: !!removed }, await buildStatus());
+    }
+
     // ── send a confirmation link ──
-    if (claims.email_verified !== true) {
+    // The token claim can lag a fresh verification by up to an hour; the caller
+    // IS the owner here, and authOwner only returns an email Auth says is verified.
+    if (claims.email_verified !== true && !owner.email) {
       throw new HttpsError('failed-precondition', 'Verify your own email address first, then try again');
     }
-    if (state !== 'unconfirmed') return Object.assign({ sent: false }, status);
+    // The UI sends the address it DISPLAYED; if the profile changed since (a
+    // company admin swapped it), refuse rather than mail a different address.
+    const expected = AR.normEmail((request.data || {}).expectedEmail);
+    if (!expected || expected !== contact.email) {
+      throw new HttpsError('failed-precondition', 'The alert address changed. Reload Settings and check the address, then try again.');
+    }
+    if (status.state !== 'unconfirmed') return Object.assign({ sent: false }, status);
     if (!owner.email) {
       throw new HttpsError('failed-precondition', 'The account owner\'s email is not verified yet');
     }
@@ -127,7 +231,7 @@ exports.alertRecipients = onCall(
     const token = mintToken();
     const ref = db.collection(AR.TOKEN_COLLECTION).doc(sha256(token));
     await ref.set({
-      companyId, email: contact.email, requestedBy: uid,
+      kind: 'confirm', companyId, email: contact.email, requestedBy: uid,
       createdAtMs: Date.now(), expiresAtMs: Date.now() + AR.CONFIRM_TTL_MS,
     });
     const url = CONFIRM_URL_BASE + token;
@@ -180,11 +284,52 @@ function send(res, status, html, method) {
 }
 
 const INVALID = renderPage('This link isn\'t valid',
-  '<p>This confirmation link is invalid, expired or already used. Ask the account owner to send a new one from Settings.</p>');
+  '<p>This link is invalid, expired or already used. Ask the account owner to send a new one from Settings.</p>');
 
 function tokenFromPath(p) {
   const m = String(p || '').match(/\/alert-confirm\/([A-Za-z0-9_-]+)\/?$/);
   return m ? m[1] : '';
+}
+
+// POST on a revoke token: remove the confirmed address (if it is still there).
+async function applyRevoke(db, ref, tok, method, res) {
+  const target = db.collection(AR.CONFIRMED_COLLECTION).doc(String(tok.companyId));
+  let removed = '';
+  try {
+    await db.runTransaction(async (tx) => {
+      const cur = await tx.get(ref);
+      if (!cur.exists) throw Object.assign(new Error('used'), { code: 'used' });
+      const t = await tx.get(target);
+      const map = (t.exists && t.data() && t.data().confirmed) || {};
+      if (t.exists && map[tok.addrKey]) { removed = String((map[tok.addrKey] || {}).email || tok.email || ''); tx.delete(target); }
+      tx.delete(ref);
+    });
+  } catch (e) {
+    if (e && e.code === 'used') return send(res, 404, INVALID, method);
+    logger.error('confirmAlertRecipient: revoke failed', { err: e && e.message });
+    return send(res, 503, renderPage('We couldn\'t save that', '<p>Please press the button again in a minute.</p>'), method);
+  }
+  if (removed) {
+    await audit(db, {
+      kind: 'alert_recipient.revoked', companyId: String(tok.companyId), actorUid: '', via: 'link',
+      emailMasked: AR.maskEmail(removed), addrKey: AR.addrKey(removed),
+    });
+    try {
+      const ownerUid = await AR.ownerUidFor(tok.companyId);
+      const owner = ownerUid ? await AR.authOwner(ownerUid) : { email: '' };
+      if (owner.email) await sendOwnerNotice('removed', owner.email, removed, '');
+    } catch (e) {
+      logger.warn('confirmAlertRecipient: removal notice not sent', { err: e && e.message });
+    }
+  }
+  logger.info('confirmAlertRecipient: revoked', { companyId: String(tok.companyId), removed: !!removed });
+  if (!removed) {
+    return send(res, 200, renderPage('Nothing to remove',
+      '<p>This address was already replaced or removed, so nothing changed.</p><p class="muted">You can close this page.</p>'), method);
+  }
+  return send(res, 200, renderPage('Removed',
+    '<p><strong>' + esc(tok.email) + '</strong> will no longer receive new-lead alerts. Alerts go to the account owner\'s sign-in email.</p>'
+    + '<p class="muted">You can close this page.</p>'), method);
 }
 
 async function handleConfirm(req, res) {
@@ -219,26 +364,87 @@ async function handleConfirm(req, res) {
     return send(res, 404, INVALID, method);
   }
 
+  // ── revoke link (carried by the owner notice) ──
+  if (tok.kind === 'revoke') {
+    if (method === 'POST') return applyRevoke(db, ref, tok, method, res);
+    return send(res, 200, renderPage('Stop lead alerts to this address?',
+      '<p>Stop sending new-lead alerts to <strong>' + esc(tok.email) + '</strong>? Alerts will go to the account owner\'s sign-in email.</p>'
+      + '<form method="post"><button type="submit">Remove this address</button></form>'), method);
+  }
+
+  // ── confirmation link (emailed to the configured address) ──
   if (method === 'POST') {
+    // Only the CURRENT owner's request is honoured: a demoted admin's or a
+    // former owner's pending link dies here, and the owner must still have a
+    // verified inbox to be told.
+    let ownerUid = '';
+    let owner = { email: '' };
+    try {
+      ownerUid = await AR.ownerUidFor(tok.companyId);
+      owner = ownerUid ? await AR.authOwner(ownerUid) : { email: '' };
+    } catch (_) { ownerUid = ''; }
+    if (!ownerUid) {
+      return send(res, 503, renderPage('Something went wrong', '<p>Please try the link again in a few minutes.</p>'), method);
+    }
+    if (String(tok.requestedBy || '') !== ownerUid) return send(res, 404, INVALID, method);
+    if (!owner.email) {
+      return send(res, 403, renderPage('Verify the account email first',
+        '<p>The account owner\'s sign-in email is not verified yet, so this address cannot be confirmed. Verify it, then ask for a new link.</p>'), method);
+    }
+
+    // Claim the token in a transaction FIRST (confirmed entry + revoke token),
+    // THEN tell the owner. If the notice cannot be sent (or is rate limited) the
+    // claim is rolled back - the previous confirmed address is restored and the
+    // token is made usable again - and nothing stays confirmed (fail closed).
+    // Exactly one notice is sent: a concurrent second POST loses the claim.
+    const revokeToken = mintToken();
+    const confirmedRef = db.collection(AR.CONFIRMED_COLLECTION).doc(String(tok.companyId));
+    const revokeRef = db.collection(AR.TOKEN_COLLECTION).doc(sha256(revokeToken));
+    let prevConfirmed = null;
     try {
       await db.runTransaction(async (tx) => {
         const cur = await tx.get(ref);
         if (!cur.exists) throw Object.assign(new Error('used'), { code: 'used' });
-        const target = db.collection(AR.CONFIRMED_COLLECTION).doc(String(tok.companyId));
-        tx.set(target, {
+        const prev = await tx.get(confirmedRef);
+        prevConfirmed = prev && prev.exists ? prev.data() : null;
+        const key = AR.addrKey(tok.email);
+        // Replaces any earlier confirmed address (no merge): one at a time.
+        tx.set(confirmedRef, {
           confirmed: {
-            [AR.addrKey(tok.email)]: {
-              email: tok.email, confirmedAtMs: Date.now(), requestedBy: String(tok.requestedBy || ''),
-            },
+            [key]: { email: tok.email, confirmedAtMs: Date.now(), requestedBy: String(tok.requestedBy || '') },
           },
           updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
+        });
+        tx.set(revokeRef, {
+          kind: 'revoke', companyId: String(tok.companyId), email: tok.email, addrKey: key,
+          createdAtMs: Date.now(), expiresAtMs: Date.now() + AR.REVOKE_TTL_MS,
+        });
         tx.delete(ref);
       });
     } catch (e) {
       if (e && e.code === 'used') return send(res, 404, INVALID, method);
       logger.error('confirmAlertRecipient: record failed', { err: e && e.message });
       return send(res, 503, renderPage('We couldn\'t save that', '<p>Please press the button again in a minute.</p>'), method);
+    }
+    try {
+      await enforceRateLimit('alertNotice:company', String(tok.companyId), NOTICES_PER_COMPANY_DAY, AR.RECIPIENT_WINDOW_MS);
+      await sendOwnerNotice('added', owner.email, tok.email, CONFIRM_URL_BASE + revokeToken);
+    } catch (e) {
+      logger.error('confirmAlertRecipient: owner notice failed — rolling back', { err: e && e.message });
+      try {
+        if (prevConfirmed) await confirmedRef.set(prevConfirmed); else await confirmedRef.delete();
+        await revokeRef.delete();
+        await ref.set(tok);
+      } catch (re) {
+        logger.error('ALERT_RECIPIENT_ROLLBACK_FAILED: confirmed entry may be live without an owner notice', { companyId: String(tok.companyId), err: re && re.message });
+      }
+      return send(res, 503, renderPage('We couldn\'t save that', '<p>Please press the button again in a minute.</p>'), method);
+    }
+    if (!(await audit(db, {
+      kind: 'alert_recipient.confirmed', companyId: String(tok.companyId), actorUid: String(tok.requestedBy || ''), via: 'link',
+      emailMasked: AR.maskEmail(tok.email), addrKey: AR.addrKey(tok.email),
+    }))) {
+      logger.error('confirmAlertRecipient: confirmed WITHOUT an audit row', { companyId: String(tok.companyId) });
     }
     logger.info('confirmAlertRecipient: confirmed', { companyId: String(tok.companyId) });
     return send(res, 200, renderPage('Confirmed',
@@ -255,7 +461,7 @@ async function handleConfirm(req, res) {
 
 // No enforceAppCheck on onRequest (tests/appcheck-onrequest-contract.test.js).
 exports.confirmAlertRecipient = onRequest(
-  { region: 'us-central1', maxInstances: 10, concurrency: 40, timeoutSeconds: 15, memory: '256MiB' },
+  { region: 'us-central1', maxInstances: 10, concurrency: 40, timeoutSeconds: 15, memory: '256MiB', secrets: [RESEND_API_KEY, EMAIL_FROM] },
   handleConfirm
 );
 

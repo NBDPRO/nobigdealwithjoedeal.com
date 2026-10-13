@@ -4208,7 +4208,7 @@
             <!-- 2026-10-13: lead alerts go only to your verified sign-in email or
                  an address you confirmed. Shown (by _cpAlertContactsWarning) while
                  the Email below is not one of those. Server: functions/alert-recipients.js -->
-            <div id="cp_alertConfirm" role="status" hidden class="cp-alert-warn"><span id="cp_alertConfirmMsg"></span> <button type="button" id="cp_alertConfirmBtn" class="btn btn-orange" data-action="call" data-fn="_sendAlertConfirm" hidden>Send confirmation email</button></div>
+            <div id="cp_alertConfirm" role="status" hidden class="cp-alert-warn"><span id="cp_alertConfirmMsg"></span> <button type="button" id="cp_alertConfirmBtn" class="btn btn-orange" data-action="call" data-fn="_sendAlertConfirm" hidden>Send confirmation email</button> <button type="button" id="cp_alertRevokeBtn" class="btn btn-ghost" data-action="call" data-fn="_revokeAlertConfirm" hidden>Remove confirmed address</button></div>
             <div class="sf-row">
               <div class="sf"><label>Phone</label>
                 <input type="text" id="cp_brand_phone" placeholder="(859) 420-7382"></div>

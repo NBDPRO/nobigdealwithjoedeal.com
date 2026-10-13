@@ -6266,14 +6266,14 @@
   // verified sign-in email — say so here instead of letting the field look live.
   // Text is set with textContent (never innerHTML); the addresses are
   // returned by the server and are not trusted as markup.
-  async function _alertRecipientsCall(action) {
+  async function _alertRecipientsCall(action, extra) {
     if (!(window._functions && window._httpsCallable)) {
       const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._functions = window._functions || mod.getFunctions();
       await connectEmulatorsIfLocal({ functions: window._functions }); // no-op in prod
       window._httpsCallable = window._httpsCallable || mod.httpsCallable;
     }
-    const res = await window._httpsCallable(window._functions, 'alertRecipients')({ action: action });
+    const res = await window._httpsCallable(window._functions, 'alertRecipients')(Object.assign({ action: action }, extra || {}));
     return (res && res.data) || {};
   }
   async function _cpRenderAlertConfirm(preset) {
@@ -6281,14 +6281,35 @@
     const msg = document.getElementById('cp_alertConfirmMsg');
     const btn = document.getElementById('cp_alertConfirmBtn');
     if (!box || !msg || !btn) return;
+    const rvk = document.getElementById('cp_alertRevokeBtn');
     let s = preset;
     if (!s) {
-      try { s = await _alertRecipientsCall('status'); } catch (_) { box.hidden = true; return; }
+      try { s = await _alertRecipientsCall('status'); } catch (e) {
+        // Only the account OWNER controls the alert address (server-enforced).
+        // A company admin / member sees a plain pointer instead of a dead button.
+        btn.hidden = true;
+        if (rvk) rvk.hidden = true;
+        if (e && e.code === 'functions/permission-denied') {
+          msg.textContent = 'Lead alerts go to the account owner\'s verified sign-in email unless the owner confirms another address. Ask the owner to manage this in Settings.';
+          box.hidden = false;
+        } else {
+          box.hidden = true;
+        }
+        return;
+      }
     }
+    if (rvk) rvk.hidden = true;
     if (s.state === 'unconfirmed') {
       msg.textContent = s.contactEmail + ' is unconfirmed — lead alerts are going to '
         + (s.ownerEmail || 'your sign-in email (verify it first)') + ' until you confirm it.';
+      // Send is bound to the address THIS screen displayed (server refuses a swap).
+      btn.dataset.email = s.contactEmail || '';
       btn.hidden = false;
+      box.hidden = false;
+    } else if (s.state === 'confirmed') {
+      msg.textContent = s.contactEmail + ' is confirmed and receives lead alerts. You can remove it at any time.';
+      btn.hidden = true;
+      if (rvk) rvk.hidden = false;
       box.hidden = false;
     } else {
       btn.hidden = true;
@@ -6304,7 +6325,7 @@
     const btn = document.getElementById('cp_alertConfirmBtn');
     if (btn) btn.disabled = true;
     try {
-      const s = await _alertRecipientsCall('send');
+      const s = await _alertRecipientsCall('send', { expectedEmail: (btn && btn.dataset.email) || '' });
       if (typeof showToast === 'function') {
         showToast(s.sent ? 'Confirmation email sent to ' + s.contactEmail : 'Nothing to confirm', 'success');
       }
@@ -6313,6 +6334,22 @@
       if (typeof showToast === 'function') showToast((e && e.message) || 'Could not send the confirmation email', 'error');
     } finally {
       if (btn) btn.disabled = false;
+    }
+  };
+
+  const _revokeAlertConfirm = async function () {
+    const rvk = document.getElementById('cp_alertRevokeBtn');
+    if (rvk) rvk.disabled = true;
+    try {
+      const s = await _alertRecipientsCall('revoke');
+      if (typeof showToast === 'function') {
+        showToast(s.revoked ? 'Removed. Lead alerts go to your sign-in email.' : 'Nothing to remove', 'success');
+      }
+      await _cpRenderAlertConfirm(s);
+    } catch (e) {
+      if (typeof showToast === 'function') showToast((e && e.message) || 'Could not remove the address', 'error');
+    } finally {
+      if (rvk) rvk.disabled = false;
     }
   };
 
@@ -6882,6 +6919,7 @@ Object.assign(window.__NBD_CALL_REGISTRY, {
   _saveSiteSlug: _saveSiteSlug,
   _publishSite: _publishSite,
   _sendAlertConfirm: _sendAlertConfirm,
+  _revokeAlertConfirm: _revokeAlertConfirm,
   _unpublishSite: _unpublishSite,
   _saveCompanyProfileSettings: _saveCompanyProfileSettings,
   _resetCompanyProfileSettings: _resetCompanyProfileSettings,
