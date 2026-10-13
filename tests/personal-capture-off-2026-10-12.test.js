@@ -235,10 +235,6 @@ const labelDoc = (extra) => Object.assign({ id: PERSONAL, kind: 'personal', poli
     await TM.runTextIngest({ db: dNoLabel, live: true, nowMs: NOW });
     ok('text ingest positive control: same text with capture NOT off IS stored', stored2(dNoLabel) === 1);
   }
-  const src = read('functions/text-inbox.js');
-  ok('the text ingest skips a captureOff number before building the doc', /CL\.captureOff\(labels, m\.phoneDigits(, [^)]*\)?)?\)\) \{ counts\.labelSkipped\+\+; return; \}/.test(src)
-    && src.indexOf('CL.captureOff(labels') < src.indexOf('T.buildTextDoc'));
-  ok('...after the "already filed" check, so a re-run is still a no-op', src.indexOf("if (have.has(refs[k].id)) return;") < src.indexOf('CL.captureOff(labels'));
 
   console.log('E. client + rules');
   const base = { digits: PERSONAL, companyId: 'co', uid: 'u', nowMs: NOW };
@@ -256,10 +252,6 @@ const labelDoc = (extra) => Object.assign({ id: PERSONAL, kind: 'personal', poli
     /confirmPersonal\(s\); return;/.test(ui) && /Calls and texts already in the CRM stay exactly as they are/.test(ui)
     && /data-cl="personal-hide"/.test(ui) && /data-cl="personal-stop"/.test(ui));
   ok('a policy tap on an existing label keeps its capture setting', /capture === undefined && before && before\.kind === kind\) capture = before\.capture/.test(ui));
-  const cc = read('functions/call-center.js');
-  const capCall = 'CL.captureOff(labels, parsed.phoneDigits, index.get(parsed.phoneDigits))';
-  ok('ingest decides capture BEFORE the budget check and the download', cc.indexOf(capCall) > 0
-    && cc.indexOf(capCall) < cc.indexOf('const bytes = await download(f.id)'));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

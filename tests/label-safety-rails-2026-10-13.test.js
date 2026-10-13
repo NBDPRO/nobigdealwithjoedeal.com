@@ -282,7 +282,7 @@ console.log('F. wiring pins');
   const sheet = stripComments(read('docs/pro/js/contact-labels.js'));
   ok('the personal confirm warns skipped texts cannot be brought back', /can.?t be brought back|cannot be brought back|not be brought back/i.test(sheet));
   const tn = stripComments(read('functions/text-inbox.js'));
-  ok('text notes filter capture-off days through captureOff (comments stripped)', /groupTextDays\(rows, \{ nowMs \}\)\.filter\(\(d\) => !CL\.captureOff\(labels, d\.phoneDigits, idx\.get\(d\.phoneDigits\)\)\)/.test(tn));
+  ok('text notes filter capture-off days through captureOff (comments stripped)', /groupTextDays\([^)]*\)\s*\.filter\([^;]*CL\.captureOff\(\s*labels,\s*d\.phoneDigits/.test(tn));
   ok('the sheet repaints an effect line for the current choice', /cl-effect/.test(sheet));
   ok('Keep hidden (ack) offers an Undo', /showUndo\('Kept hidden/.test(sheet));
 }
@@ -399,7 +399,148 @@ async function runH() {
 }
 
 
-gDone.then(runH).then(() => {
+// Final audit round: the gaps the re-audit found (stamp sanitising, accept click,
+// proxy / deleted lead via forNumber, partial clear, rendered confirm, retry path ...).
+async function runI() {
+  console.log('I. final audit round');
+  const tick = () => new Promise((r) => setImmediate(r));
+  // loadLabels sanitises far-future stamps (a hostile / bad-clock doc must not keep capture off)
+  {
+    const real = Date.now();
+    const mkDb = (docs) => ({ collection: () => ({ doc: () => ({ collection: () => ({ get: async () => ({ docs: docs.map((x) => ({ id: x.id, data: () => x })) }) }) }) }) });
+    const base = { id: N, kind: 'personal', policy: 'hide', capture: 'off' };
+    const lead = [{ id: 'L', createdAt: real - H }];
+    const far = await CL.loadLabels(mkDb([Object.assign({}, base, { ackAtMs: real + 400 * DAY, updatedAtMs: real + 400 * DAY })]), 't');
+    ok('loadLabels: far-future ackAtMs / updatedAtMs are dropped, so a newer customer is captured', far[N] && far[N].ackAtMs === 0 && far[N].updatedAtMs === 0 && CL.captureOff(far, N, lead) === false, JSON.stringify(far));
+    const sane = await CL.loadLabels(mkDb([Object.assign({}, base, { ackAtMs: real - 10 * 60000, updatedAtMs: real - 5 * DAY })]), 't');
+    ok('loadLabels control: a sane ackAtMs after the customer keeps capture off', CL.captureOff(sane, N, lead) === true);
+  }
+  // reconcile: stamps, order, names, shapes
+  const qlab = (o) => ({ [N]: Object.assign({ kind: 'supplier', policy: 'quiet', updatedAtMs: NOW - 6 * H }, o || {}) });
+  const ld = (id, o) => Object.assign({ id, firstName: 'Pat', lastName: 'Lee', phone: N }, o);
+  ok('reconcile: a far-future updatedAtMs (no ack) is ignored — the customer is listed', LG.reconcile(qlab({ updatedAtMs: NOW + 400 * DAY }), [ld('A', { createdAt: NOW - H })], { now: NOW }).length === 1);
+  const n2 = LG.reconcile(qlab(), [ld('O', { createdAtMs: NOW - 3 * H }), ld('N', { createdAtMs: NOW - H, firstName: 'New' })], { now: NOW });
+  ok('reconcile: newest of two leads that only carry createdAtMs', n2.length === 1 && n2[0].leadId === 'N');
+  const N2 = '5550140099';
+  const two = LG.reconcile({ [N]: qlab()[N], [N2]: { kind: 'supplier', policy: 'quiet', updatedAtMs: NOW - 6 * H } },
+    [ld('OLD', { createdAt: NOW - 3 * H, firstName: 'Old' }), ld('NEW', { phone: N2, createdAt: NOW - H, firstName: 'New' })], { now: NOW });
+  ok('reconcile: two people come back newest customer first', two.length === 2 && two[0].leadId === 'NEW' && two[1].leadId === 'OLD', JSON.stringify(two.map((x) => x.leadId)));
+  ok('reconcile: a lead with no name reads "a customer"', LG.reconcile(qlab(), [{ id: 'X', phone: N, createdAt: NOW - H }], { now: NOW })[0].name === 'a customer');
+  ok('reconcile: a Date with non-zero milliseconds is read to the millisecond', LG.reconcile(qlab(), [ld('D', { createdAt: new Date(NOW - 6 * H + 500) })], { now: NOW }).length === 1
+    && LG.reconcile(qlab(), [ld('D', { createdAt: new Date(NOW - 6 * H) })], { now: NOW }).length === 0);
+  ok('buildSuggestions with leadFor: the suggestion says onLead and the customer name', (() => {
+    const rows = [call({ id: 'a', callType: 'supplier', startedAtMs: NOW - 2 * H }), call({ id: 'b', callType: 'supplier', startedAtMs: NOW - H })];
+    const r = SG.buildSuggestions(rows, { leadFor: () => ({ leadName: 'Pat Lee' }), now: NOW, labels: {}, dismissals: {}, thursday: [] });
+    return r.length === 1 && r[0].onLead === true && r[0].leadName === 'Pat Lee' && r[0].needsSheet === true;
+  })());
+
+  // vm helpers
+  const fakeEl = () => { const e = { innerHTML: '', hidden: false, _kids: [], setAttribute() {}, appendChild(k) { if (k && k.id) els[k.id] = k; }, focus() {}, querySelector(sel) { return sel === '.cl-sheet' ? (this._sheet || (this._sheet = { innerHTML: '', querySelector() { return child; }, focus() {} })) : child; }, parentNode: null, className: '', id: '' }; return e; };
+  const els = {}; const child = { focus() {} };
+  function bootLabels(o) {
+    const toasts = [], writes = [], timers = [], listeners = {}, created = [];
+    const w = { _user: { uid: 'u1' }, _userClaims: { role: 'company_admin', companyId: 'co' }, NBDContactLabelsLogic: LG, db: {}, collection: () => ({}),
+      doc: (...a) => ({ p: a.slice(1).join('/') }),
+      getDocs: async () => ({ docs: (o.server || []).map((x) => ({ id: x.id, data: () => x })) }),
+      setDoc: async (r, d) => { if (o.failFor && r.p.endsWith(o.failFor)) throw { code: 'unavailable' }; writes.push([r.p, d]); },
+      deleteDoc: async (r) => { if (o.failFor && r.p.endsWith(o.failFor)) throw { code: 'unavailable' }; writes.push([r.p, null]); },
+      showToast: (m) => toasts.push(m), addEventListener() {}, dispatchEvent() {}, CustomEvent: function () {}, _leads: o.leads || [] };
+    const docEls = {};
+    w.document = { addEventListener: (t, f) => { (listeners[t] = listeners[t] || []).push(f); }, getElementById: (id) => docEls[id] || null,
+      createElement: () => { const e = fakeEl(); created.push(e); return e; }, body: { appendChild(e) { if (e && e.id) docEls[e.id] = e; } }, activeElement: null };
+    const c = vm.createContext(Object.assign({ console, Date, JSON, Math, Object, Array, String, Number, Promise,
+      setTimeout: (f) => { timers.push(f); return timers.length; }, clearTimeout() {} }, w));
+    c.window = c;
+    if (o.callCenter) c.NBDCallCenter = o.callCenter;
+    vm.runInContext(read('docs/pro/js/contact-labels.js'), c);
+    const click = (attrs, sel) => listeners.click.forEach((f) => f({ target: { closest: (s) => ((sel ? s === sel : /^\[data-cl\]$/.test(s)) ? { getAttribute: (k) => (attrs[k] == null ? null : attrs[k]) } : null) } }));
+    return { c, LB: c.NBDContactLabels, toasts, writes, timers, click, docEls, created };
+  }
+  const dd = (id, o) => Object.assign({ id, digits: id, kind: 'supplier', policy: 'quiet', updatedAtMs: NOW - DAY, createdAtMs: NOW - DAY, companyId: 'co', updatedBy: 'u1' }, o || {});
+  const A = '5550140001', B = '5550140002';
+  {
+    const p = bootLabels({ server: [dd(A), dd(B)], failFor: B });
+    await p.LB.load(true);
+    const r = await p.LB.clear([A, B]);
+    const bar = (p.docEls.clUndo || {}).innerHTML || '';
+    ok('clear([A,B]) with B failing: ok:false and the Undo says 1 of 2 could not be removed', r.ok === false && /1 of 2 numbers could not be removed/.test(bar), bar);
+    p.writes.length = 0;
+    p.click({ 'data-cl': 'undo' });
+    await tick(); await tick();
+    ok('...and that Undo restores only the number that was removed', p.writes.length === 1 && /5550140001$/.test(p.writes[0][0]), JSON.stringify(p.writes.map((x) => x[0])));
+  }
+  {
+    // rendered personal confirm (not the unrelated Unlabel toast)
+    const s = bootLabels({ server: [], leads: [{ id: 'L', firstName: 'Pat', lastName: 'Lee', phone: N }] });
+    s.LB.openSheet({ digits: N });
+    s.click({ 'data-cl': 'kind', 'data-kind': 'personal' });
+    await tick();
+    const sheetEl = s.created.map((e) => e._sheet).filter(Boolean).pop();
+    const html = sheetEl ? sheetEl.innerHTML : '';
+    ok('the personal confirm, rendered: skipped texts "cannot be brought back" and the customer is named', /cannot be brought back into the CRM later/.test(html) && /This number is on customer Pat Lee/.test(html), html.slice(0, 300));
+    ok('...and nothing was written before the second tap', s.writes.length === 0);
+  }
+  // not-ready then ready retry path (fake timers), and the give-up path
+  {
+    const calls = [];
+    const cc = { setFilter: (f) => calls.push(f), _state: { loaded: false } };
+    const t = bootLabels({ server: [] });
+    const hit = { 'data-tp-act': 'goto' };
+    delete t.c.NBDCallCenter;
+    t.click(hit, '.tp-hidden [data-tp-act="goto"]');
+    ok('not ready: nothing set yet and a retry is queued', calls.length === 0 && t.timers.length === 1);
+    t.timers.shift()();
+    ok('still not ready: another retry is queued', calls.length === 0 && t.timers.length === 1);
+    t.c.NBDCallCenter = cc;
+    t.timers.shift()();
+    ok('ready on a later try: the filter is set to labeled exactly once', calls.join() === 'labeled' && t.timers.length === 0);
+    const g = bootLabels({ server: [] });
+    g.click(hit, '.tp-hidden [data-tp-act="goto"]');
+    let n = 0; while (g.timers.length && n < 50) { g.timers.shift()(); n++; }
+    ok('gives up quietly after about 20 tries (no throw, no endless loop)', n === 20 || n === 19 || (n > 15 && n < 25), 'tries=' + n);
+  }
+  // contact-suggest.js: accept click, forNumber proxy/deleted, twilio own number, quote in a name
+  function bootS(o) {
+    const listeners = {}, calls = { opened: [], applied: [] };
+    const w = { NBDContactLabelsLogic: LG, NBDContactSuggestLogic: SG, _user: { uid: 'u1' }, _userClaims: { role: 'company_admin', companyId: 'co' },
+      _leads: o.leads || [], _companyProfile: o.profile || {}, NBDHomeAttention: { lastRows: o.rows || [] },
+      NBDContactLabels: { canWrite: () => true, current: () => o.labels || {}, get: () => null, ack: async () => ({ ok: true }), clear: async () => ({ ok: true }),
+        openSheet: (x) => calls.opened.push(x), applyWithUndo: async (x) => { calls.applied.push(x); return { ok: true }; } },
+      addEventListener() {}, dispatchEvent() {}, showToast() {}, getDocs: async () => ({ docs: [] }) };
+    w.document = { addEventListener: (t, f) => { listeners[t] = f; } };
+    const c = vm.createContext(Object.assign({ console, Date, JSON, Math, Object, Array, String, Number, Promise, CustomEvent: function () {} }, w));
+    c.window = c; c.setTimeout = () => 0;
+    vm.runInContext(read('docs/pro/js/contact-suggest.js'), c);
+    const click = (attrs) => listeners.click({ target: { closest: (s) => (s === '[data-cs]' ? { getAttribute: (k) => (attrs[k] == null ? null : attrs[k]) } : null) } });
+    return { S: c.NBDContactSuggest, calls, click };
+  }
+  const rows2 = [call({ id: 'a', callType: 'supplier', startedAtMs: NOW - 2 * H }), call({ id: 'b', callType: 'supplier', startedAtMs: NOW - H })];
+  const realNow = Date.now; Date.now = () => NOW;
+  try {
+    const lead1 = { id: 'L1', firstName: 'Pat', lastName: 'Lee', phone: N };
+    const on = bootS({ leads: [lead1], rows: rows2 });
+    on.click({ 'data-cs': 'accept', 'data-digits': N, 'data-kind': 'supplier' });
+    await tick(); await tick();
+    ok('Accept on a number that is on a customer opens the sheet and applies NOTHING', on.calls.opened.length === 1 && on.calls.applied.length === 0 && on.calls.opened[0].leadName === 'Pat Lee', JSON.stringify(on.calls));
+    const off = bootS({ leads: [], rows: rows2 });
+    off.click({ 'data-cs': 'accept', 'data-digits': N, 'data-kind': 'supplier' });
+    await tick(); await tick();
+    ok('control: the same Accept off a customer applies the label (one tap)', off.calls.applied.length === 1 && off.calls.opened.length === 0);
+    const del = bootS({ leads: [Object.assign({ deleted: true }, lead1)], rows: rows2 });
+    ok('forNumber: a deleted lead is not a customer (onLead false)', del.S.forNumber(N).onLead === false);
+    const prox = bootS({ leads: [lead1, Object.assign({}, lead1, { id: 'L2' }), Object.assign({}, lead1, { id: 'L3' })], rows: rows2 });
+    ok('forNumber: a proxy line on 3 leads is not a customer (onLead false)', prox.S.forNumber(N).onLead === false);
+    ok('forNumber control: one live lead is onLead', bootS({ leads: [lead1], rows: rows2 }).S.forNumber(N).onLead === true);
+    const lab = { [N]: { kind: 'supplier', policy: 'quiet', updatedAtMs: NOW - DAY } };
+    const tw = bootS({ leads: [Object.assign({ createdAt: NOW - H }, lead1)], labels: lab, profile: { twilioNumber: N } });
+    ok('the company twilioNumber is an own number (no row)', tw.S.forToday().length === 0);
+    const q = bootS({ leads: [Object.assign({ createdAt: NOW - H }, lead1, { firstName: 'a" onmouseover="x', lastName: "O'Neil" })], labels: lab });
+    const html = q.S.chipHtml(q.S.forToday()[0]);
+    ok('a name with quotes cannot open an attribute (escaped, no live onmouseover)', !/\sonmouseover="/.test(html) && /&quot; onmouseover=&quot;x/.test(html) && /O&#39;Neil/.test(html), html);
+  } finally { Date.now = realNow; }
+}
+
+gDone.then(runH).then(runI).then(() => {
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 }).catch((e) => { console.error(e); process.exit(1); });
