@@ -35,6 +35,7 @@ const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped
 const L = require('./away-mode-logic');
 const { callableRateLimit } = require('./shared');
 const W = require('./call-watch-logic');
+const CL = require('./contact-labels');
 const { requireTeamAdmin, CORS_ORIGINS } = require('./handlers/_shared');
 
 const COL_STATUS = 'away_mode';
@@ -64,14 +65,20 @@ async function loadOpenItems(db, companyId, nowMs) {
   // Read the promise window (45 days), like callWatch: a promise Jo made is
   // on Home to day 45, so the backup's cover list must carry it too.
   const sinceWin = nowMs - W.PROMISE_WINDOW;
-  const [calls, texts, thursday] = await Promise.all([
+  const [calls, texts, thursday, labels] = await Promise.all([
     db.collection('phone_calls').where('userId', '==', companyId).where('startedAtMs', '>=', sinceWin).orderBy('startedAtMs', 'desc').get(),
     db.collection('phone_text_days').where('userId', '==', companyId).where('startedAtMs', '>=', sinceWin).orderBy('startedAtMs', 'desc').get(),
-    db.collection('thursday_calls').where('companyId', '==', companyId).limit(300).get(),
+    W.readThursday(db, companyId, since14),
+    // The label rule (QA 2026-10-13): the cover list follows the same rule as
+    // Home / callWatch. A failed labels read returns {} (loadLabels logs it) =
+    // every row is judged without labels, i.e. nobody is hidden.
+    CL.loadLabels(db, companyId),
   ]);
   const rows = (s) => s.docs.map((d) => Object.assign({ id: d.id }, d.data()));
   const callRows = rows(calls), textRows = rows(texts);
   const ctx = W.reachIndex(callRows);
+  ctx.labels = labels;
+  const tctx = { labels };
   const by = new Map();
   const add = (key, at, why, who, phone10) => {
     const urgent = /urgent/.test(why);
@@ -84,17 +91,21 @@ async function loadOpenItems(db, companyId, nowMs) {
   const nameOf = (c) => c.contactName || c.from || (c.phoneDigits ? '…' + String(c.phoneDigits).slice(-4) : '') || 'Unknown caller';
   callRows.forEach((c) => {
     if (!W.callNeedsYou(c, nowMs, ctx)) return;
-    add(W.callerKey(c), W.toMs(c.startedAtMs), W.reasonFor(c, nowMs), nameOf(c), L.digits10(c.phoneDigits));
+    add(W.callerKey(c), W.toMs(c.startedAtMs), W.reasonFor(c, nowMs, ctx), nameOf(c), L.digits10(c.phoneDigits));
   });
   textRows.forEach((c) => {
-    if (!W.callNeedsYou(c, nowMs)) return;
-    add(W.callerKey(c), W.toMs(c.startedAtMs), W.reasonFor(c, nowMs), nameOf(c), L.digits10(c.phoneDigits));
+    if (!W.callNeedsYou(c, nowMs, tctx)) return;
+    add(W.callerKey(c), W.toMs(c.startedAtMs), W.reasonFor(c, nowMs, tctx), nameOf(c), L.digits10(c.phoneDigits));
   });
-  rows(thursday).forEach((t) => {
+  thursday.forEach((t) => {
     if (!t || t.reviewed === true || t.status !== 'processed') return;
     const at = W.toMs(t.startedAt) || W.toMs(t.processedAt);
     if (!at || at < nowMs - W.CALL_WINDOW) return;
     const d = L.digits10(t.from);
+    // Same as callWatch newNeeds: Thursday took a call from a number Jo hid or
+    // quieted, so it stays out of the cover list too.
+    const tl = d ? labels[d] : null;
+    if (tl && (tl.policy === 'hide' || tl.policy === 'quiet')) return;
     add(d ? 'num:' + d : 'thursday:' + t.id, at, t.urgent ? 'urgent (Thursday took it)' : 'Thursday took it', String(t.from || 'Caller'), d);
   });
   return Array.from(by.values());

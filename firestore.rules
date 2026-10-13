@@ -372,9 +372,13 @@ service cloud.firestore {
         && (!('name' in d) || (d.name is string && d.name.size() <= 80))
         && (!('note' in d) || (d.note is string && d.note.size() <= 200))
         && (!('source' in d) || d.source in ['manual', 'seed-tag', 'thursday', 'lead', 'pattern'])
-        && (!('ackAtMs' in d) || d.ackAtMs is number)
+        // A timestamp from the future (a bad clock, a hostile write) must not park
+        // a hidden number for good: ackAtMs / updatedAtMs are what "a hidden number
+        // came back" compares calls against (QA 2026-10-13). <= now + 1 day.
+        && (!('ackAtMs' in d) || (d.ackAtMs is number && d.ackAtMs >= 0 && d.ackAtMs <= request.time.toMillis() + 86400000))
         && (!('capture' in d) || (d.capture == 'off' && d.kind == 'personal'))
-        && d.updatedAtMs is number && d.createdAtMs is number;
+        && d.updatedAtMs is number && d.updatedAtMs >= 0 && d.updatedAtMs <= request.time.toMillis() + 86400000
+        && d.createdAtMs is number;
     }
 
     // 2026-10-12 - "let Thursday handle this number" (companies/{companyId}/
@@ -2069,7 +2073,7 @@ service cloud.firestore {
     //                             by manageAway backupList.
     match /away_mode/{companyId} {
       allow read: if isAdmin()
-        || (isAuth() && companyId == request.auth.uid)
+        || ownsTenantByUid(companyId)
         || (isAuth() && request.auth.token.get('companyId', '') == companyId);
       allow write: if false;
     }
@@ -2078,7 +2082,7 @@ service cloud.firestore {
     }
     match /away_windows/{windowKey} {
       allow read: if isAdmin()
-        || (isAuth() && notViewer() && resource.data.companyId == request.auth.uid)
+        || (isAuth() && notViewer() && ownsTenantByUid(resource.data.companyId))
         || (isCompanyAdmin() && resource.data.companyId == myCompanyId());
       allow write: if false;
     }
@@ -2487,34 +2491,38 @@ service cloud.firestore {
       // teammates' numbers. Write: the solo owner or company_admin / manager,
       // never a viewer (decision B). Delete = the same writers (undo of a
       // first label, "Remove label").
+      // The uid branch is ownsTenantByUid (QA 2026-10-13): after an owner
+      // hand-off (transferCompanyOwnership) the FORMER owner's uid still equals
+      // the company id but the company doc names a new ownerId; they hold access
+      // only through their claims, like any member.
       match /contact_suggestions/{digits} {
         allow read: if isAdmin()
-          || (isAuth() && request.auth.uid == companyId)
+          || ownsTenantByUid(companyId)
           || (isCompanyReader() && request.auth.token.get('companyId', '') == companyId);
         allow create, update: if isAuth() && notViewer()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
           && contactSuggestionOk(companyId, digits);
         allow delete: if isAuth() && notViewer()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId));
       }
 
       match /contact_labels/{digits} {
         allow read: if isAdmin()
-          || (isAuth() && request.auth.uid == companyId)
+          || ownsTenantByUid(companyId)
           || (isCompanyReader() && request.auth.token.get('companyId', '') == companyId);
         allow create: if isAuth() && notViewer()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
           && contactLabelOk(companyId, digits);
         allow update: if isAuth() && notViewer()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
           && contactLabelOk(companyId, digits)
           && request.resource.data.createdAtMs == resource.data.createdAtMs;
         allow delete: if isAuth() && notViewer()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId));
       }
 
@@ -2525,19 +2533,19 @@ service cloud.firestore {
       // Today shows; it never sends and never touches carrier forwarding.
       match /thursday_handled/{digits} {
         allow read: if isAdmin()
-          || (isAuth() && request.auth.uid == companyId)
+          || ownsTenantByUid(companyId)
           || (isCompanyReader() && request.auth.token.get('companyId', '') == companyId);
         allow create: if isAuth() && notViewer()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
           && thursdayHandledOk(companyId, digits);
         allow update: if isAuth() && notViewer()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
           && thursdayHandledOk(companyId, digits)
           && request.resource.data.createdAtMs == resource.data.createdAtMs;
         allow delete: if isAuth() && notViewer()
-          && (request.auth.uid == companyId
+          && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId));
       }
     }

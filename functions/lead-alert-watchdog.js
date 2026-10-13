@@ -39,6 +39,13 @@ const W = require('./call-watch-logic');
 const GRACE_MS = 10 * 60 * 1000;          // give the trigger (and its retries) time first
 const LOOKBACK_MS = 6 * 60 * 60 * 1000;   // older leads were judged by earlier runs
 const MAX_RESENDS_PER_RUN = 10;
+// A re-send that reached nobody (or threw) keeps its claim row but is retried:
+// at most MAX_ATTEMPTS tries, RETRY_GAP_MS apart, inside the lookback window
+// (QA 2026-10-13: the claim used to be taken first and never released, so one
+// Resend hiccup meant the lead was never tried again; a throw also aborted the
+// whole run). The claim row stays - it is the audit trail and the bound.
+const MAX_ATTEMPTS = 3;
+const RETRY_GAP_MS = 30 * 60 * 1000;
 // Every collection a lead-alert trigger listens on (lead-alert.js exports).
 const COLLECTIONS = ['contact_leads', 'estimate_leads', 'inspect_leads', 'free_roof_entries', 'storm_alert_subscribers', 'leads'];
 
@@ -98,7 +105,16 @@ async function runWatchdog(deps) {
       out.checked++;
 
       const claimRef = db.collection('alert_outbox').doc(claimId(collection, doc.id));
-      if ((await claimRef.get()).exists) { out.alreadyHandled++; continue; }
+      const claimSnap = await claimRef.get();
+      let retryOf = 0;   // attempts already made when this is a retry
+      if (claimSnap.exists) {
+        const c = claimSnap.data() || {};
+        // Only a claim that says "tried and did not reach" is retried. One with
+        // no verdict (an overlapping run, an older build) or a reached one blocks.
+        if (c.resendReached === false && Number(c.attempts) >= 1 && Number(c.attempts) < MAX_ATTEMPTS
+            && nowMs - (Number(c.lastAttemptAtMs) || 0) >= RETRY_GAP_MS) retryOf = Number(c.attempts);
+        else { out.alreadyHandled++; continue; }
+      }
 
       const rowSnap = await db.collection('alert_outbox').where('leadId', '==', doc.id).get();
       const rows = [];
@@ -121,7 +137,12 @@ async function runWatchdog(deps) {
         rows.push(row);
       }
 
-      if (reached(rows)) { out.reached++; continue; }
+      if (reached(rows)) {
+        out.reached++;
+        // The retry's own outbox row confirmed it: close the claim honestly.
+        if (retryOf && live) await claimRef.update({ resendReached: true }).catch(() => {});
+        continue;
+      }
       out.missed++;
       // Ids and counts only in logs — never the homeowner's details.
       logger.warn('[leadAlertWatchdog] lead not confirmed reached', { collection, leadId: doc.id, alertRows: rows.length });
@@ -129,14 +150,23 @@ async function runWatchdog(deps) {
       if (out.resent >= MAX_RESENDS_PER_RUN) { out.capped++; continue; }
 
       try {
-        await claimRef.create({
-          kind: 'lead-alert-watchdog',
-          collection,
-          leadId: doc.id,
-          companyId: data.companyId || null,
-          reason: rows.length ? 'not-delivered' : 'no-alert-recorded',
-          createdAt: FieldValue.serverTimestamp(),
-        });
+        if (retryOf) {
+          await claimRef.update({ attempts: retryOf + 1, lastAttemptAtMs: nowMs });
+        } else {
+          await claimRef.create({
+            kind: 'lead-alert-watchdog',
+            collection,
+            leadId: doc.id,
+            companyId: data.companyId || null,
+            reason: rows.length ? 'not-delivered' : 'no-alert-recorded',
+            // No verdict yet = false: if this run dies mid-send the next one may
+            // retry (bounded) instead of the lead being lost.
+            resendReached: false,
+            attempts: 1,
+            lastAttemptAtMs: nowMs,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+        }
       } catch (e) {
         // Already claimed (an overlapping run) — or alert_outbox is unwritable,
         // in which case re-sending would repeat every run. Either way, stop.
@@ -149,12 +179,20 @@ async function runWatchdog(deps) {
       const notice = own
         ? Object.assign({}, NOTICE, { email: NOTICE.email + ' ' + own.email, mailto: own.mailto || '', subject: NOTICE.subject + ' · ' + own.subject })
         : NOTICE;
-      const outcomes = await deps.alert(plan.collection, plan.data, doc.id, Object.assign({}, plan.opts, {
-        ack: false, skipSms: true, watchdog: true, notice,
-      })) || {};
-      const ok = outcomes.email === 'sent' || outcomes.push === 'sent';
+      let outcomes = {}, threw = '';
+      try {
+        outcomes = await deps.alert(plan.collection, plan.data, doc.id, Object.assign({}, plan.opts, {
+          ack: false, skipSms: true, watchdog: true, notice,
+        })) || {};
+      } catch (e) {
+        // One lead's send failing must not abort the leads behind it; it is
+        // unresolved (the run fails its heartbeat) and retried within the bound.
+        threw = String((e && e.message) || e).slice(0, 160);
+        logger.warn('[leadAlertWatchdog] re-send threw', { collection, leadId: doc.id, err: threw });
+      }
+      const ok = !threw && (outcomes.email === 'sent' || outcomes.push === 'sent');
       if (ok) out.resendReached++; else out.unresolved++;
-      await claimRef.update({ resendEmail: String(outcomes.email || ''), resendPush: String(outcomes.push || ''), resendReached: ok })
+      await claimRef.update({ resendEmail: String(outcomes.email || ''), resendPush: String(outcomes.push || ''), resendReached: ok, resendError: threw, lastAttemptAtMs: nowMs })
         .catch((e) => logger.warn('[leadAlertWatchdog] claim update skipped', { err: e && e.message }));
     }
   }
@@ -205,4 +243,4 @@ exports.leadAlertWatchdog = onSchedule(
   }
 );
 
-exports._internal = { runWatchdog, reached, isNbdLead, claimId, twilioMessage, COLLECTIONS, GRACE_MS, LOOKBACK_MS, MAX_RESENDS_PER_RUN, NOTICE };
+exports._internal = { runWatchdog, reached, isNbdLead, claimId, twilioMessage, COLLECTIONS, GRACE_MS, LOOKBACK_MS, MAX_RESENDS_PER_RUN, MAX_ATTEMPTS, RETRY_GAP_MS, NOTICE };

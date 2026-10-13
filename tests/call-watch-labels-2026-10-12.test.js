@@ -135,7 +135,12 @@ const lab = (kind, policy, extra) => ({ [N]: Object.assign({ kind, policy, updat
   ok('loadLabels: indexes by 10 digits, drops malformed ids and docs with no kind, keeps ack/updated stamps',
     Object.keys(loaded).join() === N && loaded[N].policy === 'quiet' && loaded[N].ackAtMs === 5 && loaded[N].updatedAtMs === 7, JSON.stringify(loaded));
   const src = require('fs').readFileSync(path.join(ROOT, 'functions/call-watch.js'), 'utf8');
-  ok('callWatch only READS labels (no write to contact_labels)', /collection\('contact_labels'\)\.get\(\)/.test(src) && !/contact_labels[^\n]*\.(set|update|add|delete)\(/.test(src));
+  // The read lives in the one shared loader (functions/contact-labels.js, which also clamps absurd stamps); callWatch must route through it.
+  const clSrc = require('fs').readFileSync(path.join(ROOT, 'functions/contact-labels.js'), 'utf8');
+  // Comments stripped first: a commented-out call must not satisfy the pin.
+  const noComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  ok('callWatch only READS labels (no write to contact_labels), through the shared loader',
+    /collection\('contact_labels'\)\.get\(\)/.test(noComments(clSrc)) && /CL\.loadLabels\(db, OWNER\)/.test(noComments(src)) && !/contact_labels[^\n]*\.(set|update|add|delete)\(/.test(noComments(src + clSrc)));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

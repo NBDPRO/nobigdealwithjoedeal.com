@@ -20,6 +20,7 @@ const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { defineSecret } = require('firebase-functions/params');
 const W = require('./call-watch-logic');
+const CL = require('./contact-labels');
 
 const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN = defineSecret('TWILIO_AUTH_TOKEN');
@@ -51,18 +52,9 @@ const watchEnabled = () => process.env.CALL_WATCH_ENABLED === 'true';
  * with no labels (every call surfaces, the safe direction) and logs why.
  */
 async function loadLabels(db) {
-  try {
-    const snap = await db.collection('companies').doc(OWNER).collection('contact_labels').get();
-    const out = {};
-    snap.docs.forEach((d) => {
-      const x = d.data() || {};
-      if (/^\d{10}$/.test(d.id) && x.kind) out[d.id] = { kind: x.kind, policy: x.policy || '', ackAtMs: W.toMs(x.ackAtMs), updatedAtMs: W.toMs(x.updatedAtMs) };
-    });
-    return out;
-  } catch (e) {
-    logger.warn('[callWatch] labels read failed — alerting without labels', { err: e && e.message });
-    return {};
-  }
+  // One loader for every server reader (it also drops absurd future ackAtMs /
+  // updatedAtMs stamps and logs a failed read, returning {} = surface everything).
+  return CL.loadLabels(db, OWNER);
 }
 
 /** Mirror done follow-up tasks onto open calls / text days (mutates the rows). */
@@ -80,7 +72,15 @@ async function reconcileTaskDone({ db, calls, texts, nowMs, live }) {
       // never nags about an item Jo parked with a date.
       const t = snaps[j].exists ? (snaps[j].data() || {}) : null;
       if (t && t.dueDate) part[j].row.taskDueYmd = t.dueDate;
+      // A task whose due date a snooze moved (call-center.js 'snooze'): the day
+      // that date arrives is told again (newNeeds snoozeWakeYmd).
+      if (t && t.snoozedFromDue) part[j].row.taskSnoozed = true;
       if (!(t && t.done === true)) continue;
+      // A text day REOPENED by a new inbound text after its task was ticked
+      // (textInboxNotes stamps reopenedAtMs): that old tick must not close it
+      // again. A fresh tick (completedAt after the reopen) does.
+      const reopened = W.toMs(part[j].row.reopenedAtMs);
+      if (reopened && W.toMs(t.completedAt) <= reopened) continue;
       part[j].row.taskDone = true;
       n++;
       if (live) await db.collection(part[j].col).doc(part[j].row.id).set({ taskDone: true }, { merge: true });
@@ -107,13 +107,15 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
   const [calls, texts, thursday, stored, cc, ti] = await Promise.all([
     db.collection('phone_calls').where('userId', '==', OWNER).where('startedAtMs', '>=', sinceWin).orderBy('startedAtMs', 'desc').get(),
     db.collection('phone_text_days').where('userId', '==', OWNER).where('startedAtMs', '>=', sinceWin).orderBy('startedAtMs', 'desc').get(),
-    db.collection('thursday_calls').where('companyId', '==', OWNER).limit(300).get(),
+    W.readThursday(db, OWNER, since14),
     db.collection('phone_calls').where('userId', '==', OWNER).where('status', '==', 'stored').limit(200).get(),
     db.doc('integrations/callCenter').get(),
     db.doc('integrations/textInbox').get(),
   ]);
   const rows = (s) => s.docs.map((d) => Object.assign({ id: d.id }, d.data()));
-  const thu = rows(thursday).filter((t) => (W.toMs(t.startedAt) || W.toMs(t.createdAt)) >= since14);
+  // thursday = rows already inside the 14-day window (W.readThursday; null
+  // startedAt rows fall back to createdAt here).
+  const thu = thursday.filter((t) => (W.toMs(t.startedAt) || W.toMs(t.createdAt)) >= since14);
   const callRows = rows(calls), textRows = rows(texts);
   const labels = await loadLabels(db);
 
@@ -145,11 +147,15 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
   const OLD_CAP = 300;
   let oldRows = [], oldPromisesFailed = false, oldCapped = false;
   if (ledgerDue) {
-    try {
-      const os = await db.collection('phone_calls').where('userId', '==', OWNER).where('startedAtMs', '<', sinceWin).orderBy('startedAtMs', 'desc').limit(OLD_CAP).get();
-      oldRows = rows(os).filter((c) => W.isOldPromise(c, nowMs));
-      oldCapped = os.docs.length >= OLD_CAP;
-    } catch (e) { oldPromisesFailed = true; logger.warn('[callWatch] old-promise read failed', { err: e && e.message }); }
+    // Calls AND text days (a texted promise past 45 days appeared nowhere, QA
+    // 2026-10-13): two reads, each its own failure, same index shape.
+    for (const col of ['phone_calls', 'phone_text_days']) {
+      try {
+        const os = await db.collection(col).where('userId', '==', OWNER).where('startedAtMs', '<', sinceWin).orderBy('startedAtMs', 'desc').limit(OLD_CAP).get();
+        oldRows = oldRows.concat(rows(os).filter((c) => W.isOldPromise(c, nowMs)));
+        if (os.docs.length >= OLD_CAP) oldCapped = true;
+      } catch (e) { oldPromisesFailed = true; logger.warn('[callWatch] old-promise read failed', { col, err: e && e.message }); }
+    }
   }
   const ledger = ledgerDue ? W.dailyLedger(callRows, textRows, nowMs, { lastPush: st.lastPush, problems: problems.map((p) => p.key), labels, oldRows, oldPromisesFailed, oldCapped }) : null;
   // Items told before and still open come round again (audit R1), short ladder.
