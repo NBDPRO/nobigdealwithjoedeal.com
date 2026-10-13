@@ -231,7 +231,8 @@ function mkReq(o) {
   return Object.assign({ method: 'POST', body: {}, path: '/', headers: h, ip: '203.0.113.9', get: (k) => h[String(k).toLowerCase()] }, o || {});
 }
 
-const OWNER = { uid: 'u1' };
+// email_verified: 2026-10-13 — createReportShareToken only emails for a caller whose own email is verified.
+const OWNER = { uid: 'u1', email: 'u1@example.test', email_verified: true };
 const CW = require(fnPath('cancel-window.js'));
 const SPINE_REAL = require(fnPath('job-spine.js'));
 
@@ -379,7 +380,7 @@ function body(src, name) {
       'reports/report-': { userId: 'u1', companyId: 'co-1', html: '<p>r</p>', leadId: 'lead-mate' },
       'leads/lead-mate': { userId: 'mate', companyId: 'co-1', email: 'mate-home@example.com' },
     });
-    await call(SHARE.createReportShareToken, { reportId: 'report-' }, { uid: 'u1', companyId: 'co-1' });
+    await call(SHARE.createReportShareToken, { reportId: 'report-' }, { uid: 'u1', companyId: 'co-1', email: 'u1@example.test', email_verified: true });
     ok('teammate\'s lead in the report\'s company → emailed', W.sent.length === 1 && W.sent[0].to === 'mate-home@example.com');
   }
 

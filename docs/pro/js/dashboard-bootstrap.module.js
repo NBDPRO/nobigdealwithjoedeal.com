@@ -6253,7 +6253,7 @@
     } catch (_) { isNbd = true; }
     const c = rawContact || {};
     el.hidden = isNbd || !!(c.alertEmail || c.alertSms);
-    if (!isNbd) _cpRenderAlertConfirm().catch(() => {});
+    if (!isNbd && typeof _cpRenderAlertConfirm === 'function') _cpRenderAlertConfirm().catch(() => {});
   }
 
   // 2026-10-13: a custom alert Email only receives alerts once its owner

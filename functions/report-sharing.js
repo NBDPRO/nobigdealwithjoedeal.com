@@ -85,13 +85,8 @@ const SHARE_EMAIL_CALLER_DAILY_CAP = 40;      // per signed-in caller per rollin
 const SHARE_EMAIL_RECIPIENT_DAILY_CAP = 5;    // per destination address per rolling day, all tenants
 const SHARE_EMAIL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-// Tenant-written text that reaches an email Subject or greeting: drop control
-// and bidi/zero-width characters, collapse whitespace, bound the length.
-function cleanLabel(s, max) {
-  return String(s == null ? '' : s)
-    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, ' ')
-    .replace(/\s+/g, ' ').trim().slice(0, max || 60);
-}
+// Tenant-written text that reaches an email Subject or greeting (shared helper).
+const cleanLabel = AR.cleanLabel;
 
 // May this caller's share link be emailed to `target`? Only to (a) the
 // caller's own VERIFIED email, (b) the subject lead's address, or (c) an address

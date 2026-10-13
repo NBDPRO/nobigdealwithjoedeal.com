@@ -58,3 +58,6 @@ send paths bind their recipient less tightly than this one. Those are larger
 design changes (a verification flow and a migration for existing tenants) and
 were reported to Jo in the session rather than detailed in this public file.
 The per-tenant ceiling above bounds the damage in the meantime.
+
+**Update 2026-10-13 (later):** the verification flow and the per-recipient cap
+are built — see [ALERT-RECIPIENTS-VERIFIED-2026-10-13](ALERT-RECIPIENTS-VERIFIED-2026-10-13.md).

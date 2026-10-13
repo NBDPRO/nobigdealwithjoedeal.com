@@ -174,6 +174,14 @@ async function capRecipients(kind, addresses, opts) {
   return { allowed, capped };
 }
 
+// Tenant-written text that reaches an email Subject or greeting: drop control
+// and bidi/zero-width characters, collapse whitespace, bound the length.
+function cleanLabel(s, max) {
+  return String(s == null ? '' : s)
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, ' ')
+    .replace(/\s+/g, ' ').trim().slice(0, max || 60);
+}
+
 /**
  * The one address a USER-scoped digest (weekly digest, dormant-lead nudge,
  * review nudge) may go to. users/{uid}.email is writable by that user, so it
@@ -195,5 +203,5 @@ module.exports = {
   CONFIRM_REQUESTS_PER_OWNER_DAY, CONFIRM_REQUESTS_PER_ADDRESS_DAY, CONFIRM_TTL_MS,
   CONFIRMED_COLLECTION, TOKEN_COLLECTION,
   normEmail, normPhone, addrKey, authOwner, confirmedKeys,
-  resolveTenantRecipients, capRecipients, verifiedUserEmail,
+  resolveTenantRecipients, capRecipients, verifiedUserEmail, cleanLabel,
 };

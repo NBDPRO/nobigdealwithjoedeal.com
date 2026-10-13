@@ -420,6 +420,20 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     ok("the platform owner's stored address passes through (NBD digests do not move)", (await AR.verifiedUserEmail(OWNER_UID, 'jd@nobigdealwithjoedeal.com')) === 'jd@nobigdealwithjoedeal.com');
   }
 
+  // ── (g) sibling sender: the team-invite email (Firestore trigger) ─────
+  console.log('(g) team-invite email: sanitised name + per-recipient cap');
+  {
+    const lbl = AR.cleanLabel('Acme\u202e\r\nBcc: x@evil.test\u200b ' + 'A'.repeat(200), 60);
+    ok('cleanLabel strips control/bidi/zero-width and bounds length', lbl.length <= 60 && !/[\u0000-\u001f\u200b-\u200f\u202a-\u202e]/.test(lbl), lbl);
+    ok('CONTROL: cleanLabel keeps an ordinary name', AR.cleanLabel('Roof Pros LLC', 60) === 'Roof Pros LLC');
+    const src = require('fs').readFileSync(path.join(FUNCTIONS, 'handlers', 'invites.js'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
+    const trig = src.slice(src.indexOf('exports.teamInviteEmail'));
+    ok('CONTROL: the trigger source was found and still sends', trig.length > 100 && /resend\.emails\.send\(/.test(trig));
+    ok('the invite Subject is built from the sanitised company name', /companyName = AR\.cleanLabel\(/.test(trig));
+    ok('a per-recipient cap runs BEFORE the send', trig.indexOf("AR.capRecipients('invite'") > -1 && trig.indexOf("AR.capRecipients('invite'") < trig.indexOf('resend.emails.send('));
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

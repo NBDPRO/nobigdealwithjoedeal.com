@@ -111,7 +111,8 @@ section('Review request nudge (post-win sweep, 2026-07-14)');
   // Rep-in-the-loop: the sweep must never email/SMS the homeowner —
   // the only Resend send goes to the rep's own user.email digest.
   assert('nudge emails only the rep digest, never the homeowner',
-    /to: user\.email,/.test(nudge)
+    /to: toAddr,/.test(nudge)
+    && /verifiedUserEmail\(uid, user\.email\)/.test(nudge)
     && !/to: lead\.email/.test(nudge)
     && /REVIEW_NUDGE_ENABLED/.test(nudge));
 

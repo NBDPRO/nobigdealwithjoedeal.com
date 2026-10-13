@@ -56,6 +56,10 @@ const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const { secretOr } = require('../integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('../resend-guard');
+const AR = require('../alert-recipients');
+// One destination is sent at most this many team invites a day, across every
+// company (2026-10-13). A limiter outage fails open.
+const INVITE_RECIPIENT_DAILY_CAP = 5;
 
 // Mirror of stripe.js/provisioning.js mergeCustomClaims — setCustomUserClaims
 // replaces the whole set, so read-merge-write to keep billing claims intact.
@@ -351,7 +355,9 @@ exports.teamInviteEmail = onDocumentCreated(
     let replyTo;
     try {
       const coSnap = await db.doc(`companies/${companyId}`).get();
-      if (coSnap.exists) companyName = (coSnap.data() || {}).name || '';
+      // The company name is tenant-written and lands in the Subject: strip
+      // control/bidi characters and bound it (2026-10-13).
+      if (coSnap.exists) companyName = AR.cleanLabel((coSnap.data() || {}).name || '', 60);
       // Reply-to the inviting owner so responses go to a human.
       const inviterUid = d.invitedBy || companyId;
       const inviter = await getAuth().getUser(String(inviterUid)).catch(() => null);
@@ -361,6 +367,8 @@ exports.teamInviteEmail = onDocumentCreated(
     const roleLabel = String(d.role || 'sales rep').replace(/_/g, ' ');
     let emailStatus;
     try {
+      const capInv = await AR.capRecipients('invite', [to], { limit: INVITE_RECIPIENT_DAILY_CAP });
+      if (!capInv.allowed.length) throw new Error('recipient-capped');
       const resend = new Resend(RESEND_API_KEY.value());
       const from = secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com');
       const response = await resend.emails.send({
