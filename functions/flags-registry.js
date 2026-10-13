@@ -160,11 +160,14 @@ function isSafeName(name) {
   return typeof name === 'string' && /^[A-Z][A-Z0-9_]{2,63}$/.test(name) && !SECRET_NAME_RE.test(name);
 }
 // A flag value is a short plain word ('true', 'off', 'live'). Anything else —
-// a long string, a URL, something with punctuation — is never echoed back.
+// a long string, a URL, something with punctuation or whitespace — is never
+// echoed back. The case is kept EXACTLY: the code compares literals
+// (=== 'true'), so 'TRUE' is OFF at runtime and must read as 'TRUE' here, not
+// be folded to a flattering 'true'.
 function safeValue(v) {
   if (v === undefined || v === null || v === '') return 'unset';
-  const s = String(v).trim();
-  if (/^[A-Za-z0-9_-]{1,16}$/.test(s)) return s.toLowerCase();
+  const s = String(v);
+  if (/^[A-Za-z0-9_-]{1,16}$/.test(s)) return s;
   return 'other';
 }
 
@@ -175,9 +178,9 @@ function stateFor(kind, raw) {
     case 'disabled': return v === 'true' ? 'PAUSED' : 'ON';
     case 'default-on': return v === 'false' ? 'PAUSED' : 'ON';
     case 'off-switch': return v === 'off' ? 'PAUSED' : 'ON';
-    case 'required': return v === 'true' ? 'ON' : 'OFF';
+    case 'required': return v.toLowerCase() === 'true' ? 'ON' : 'OFF';   // turnstile.js lower-cases first
     case 'one-on': return v === '1' ? 'ON' : 'OFF';
-    case 'mode': return v === 'live' ? 'ON' : (v === 'test' ? 'TEST' : 'OFF');
+    case 'mode': { const m = v.toLowerCase(); return m === 'live' ? 'ON' : (m === 'test' ? 'TEST' : 'OFF'); }   // carePlanMode() lower-cases
     default: return 'OFF';
   }
 }
@@ -216,4 +219,21 @@ function flagStatus(env, committed) {
   });
 }
 
-module.exports = { FLAGS, GROUPS, ENV_DOC, flagStatus, parseCommitted, isSafeName, safeValue, stateFor, SECRET_NAME_RE };
+/**
+ * The whole `flagStatus` payload, as one pure function so a test can plant
+ * secrets in `env` and scan what actually comes out (handlers/integrations.js
+ * only reads the env file and calls this).
+ */
+function buildResponse(env, committedText, extra) {
+  const committed = typeof committedText === 'string' ? parseCommitted(committedText) : null;
+  const x = extra || {};
+  return {
+    flags: flagStatus(env, committed),
+    groups: GROUPS.slice(),
+    committedAvailable: committed !== null,
+    revision: safeValue(x.revision) === 'other' ? null : (x.revision || null),
+    generatedAtMs: Number(x.nowMs) || Date.now(),
+  };
+}
+
+module.exports = { buildResponse, FLAGS, GROUPS, ENV_DOC, flagStatus, parseCommitted, isSafeName, safeValue, stateFor, SECRET_NAME_RE };

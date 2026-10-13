@@ -50,7 +50,7 @@ function boot(opts) {
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 const DATA = {
-  groups: ['Calls & texts', 'Money'],
+  groups: ['Money', 'Calls & texts'],
   committedAvailable: true,
   revision: 'flagstatus-00007',
   flags: [
@@ -68,7 +68,13 @@ const DATA = {
   {
     const t = boot({ claims: { role: 'admin' }, data: DATA });
     const html = t.win.NBDProdFlags.renderHtml({ data: DATA });
-    ok('groups render in the order the server sent them', html.indexOf('Calls &amp; texts') > -1 && html.indexOf('Calls &amp; texts') < html.indexOf('>Money<'));
+    ok('groups render in the order the server sent them (Money before Calls & texts)', html.indexOf('>Money<') > -1 && html.indexOf('>Money<') < html.indexOf('>Calls &amp; texts<'));
+    ok('one chip per flag, each with its own state class (ON green / OFF neutral / PAUSED orange)',
+      (html.match(/pf-chip/g) || []).length === 4 && /pf-chip pf-on">ON</.test(html) && /pf-chip pf-paused">PAUSED</.test(html)
+      && (html.match(/pf-chip pf-off">OFF</g) || []).length === 2);
+    ok('drift hint count equals the number of drift:true rows (not every row)', (html.match(/pf-drift">/g) || []).length === 2);
+    const withTest = t.win.NBDProdFlags.renderHtml({ data: { flags: [Object.assign({}, DATA.flags[0], { state: 'TEST', dark: true })], groups: ['Calls & texts'] } });
+    ok('TEST state renders its own chip and is counted, and no dark hint on a non-OFF flag', /pf-chip pf-test">TEST</.test(withTest) && /1 test/.test(withTest) && !/needs Jo/.test(withTest));
     ok('ON / OFF / PAUSED chips carry the state as text', />ON</.test(html) && />OFF</.test(html) && />PAUSED</.test(html));
     ok('a dark flag that is OFF shows the "needs Jo’s go" hint', /Dark — needs Jo’s go/.test(html));
     ok('the hint appears once (only AWAY_MODE is dark+OFF)', (html.match(/needs Jo/g) || []).length === 1);
@@ -89,6 +95,8 @@ const DATA = {
       { name: evil, group: 'G<script>', file: evil, meaning: evil, effective: evil, state: 'ON', committed: evil, drift: true, dark: true }] } });
     ok('server strings are escaped in every slot (no raw <img / <script)', !/<img|<script/i.test(html), html.slice(0, 200));
     ok('...and the escaped form IS present (the input really reached the template)', /&lt;img src=x onerror=alert\(1\)&gt;/.test(html));
+    const hostileState = t.win.NBDProdFlags.renderHtml({ data: { groups: ['G'], flags: [{ name: 'X', group: 'G', meaning: 'm', effective: 'true', state: '"><img src=x onerror=1>', dark: false }] } });
+    ok('an unexpected state string cannot inject markup or a class', !/<img/i.test(hostileState) && /pf-chip pf-off"/.test(hostileState));
     const err = t.win.NBDProdFlags.renderHtml({ error: evil });
     ok('an error message is escaped too', !/<img/i.test(err) && /&lt;img/.test(err));
   }
@@ -124,6 +132,35 @@ const DATA = {
     const t = boot({ claims, uid, data: DATA });
     t.win.NBDProdFlags.load(); await flush(); await flush();
     ok(label + ': calls flagStatus and renders the list', t.calls.join() === 'flagStatus' && /CALL_WATCH_ENABLED/.test(t.mount.innerHTML), JSON.stringify(t.calls));
+  }
+
+  // ── wiring: the Access tab loads it, Refresh reloads it ───────────────
+  {
+    const mount = { innerHTML: '' };
+    const calls = [];
+    let prevCalled = 0;
+    const win = {
+      _user: { uid: 'u1' }, _userClaims: { role: 'admin' }, _functions: {},
+      _httpsCallable: (f, name) => async () => { calls.push(name); return { data: DATA }; },
+      switchSettingsTab: function () { prevCalled++; },
+    };
+    const listeners = {};
+    const doc = { readyState: 'complete', getElementById: (id) => (id === 'prodFlagsMount' ? mount : (id === 'stab-panel-access' ? { style: { display: 'none' } } : null)),
+      addEventListener: (t, fn) => { listeners[t] = fn; } };
+    const sb = { window: win, document: doc, console, setInterval: () => 0, clearInterval: () => {}, Object, Array, String, Promise, Date };
+    win.window = win; win.document = doc;
+    vm.createContext(sb); vm.runInContext(SRC, sb);
+    win.switchSettingsTab('profile'); await flush(); await flush();
+    ok('opening another Settings tab does not call flagStatus', calls.length === 0 && prevCalled === 1);
+    win.switchSettingsTab('access'); await flush(); await flush();
+    ok('opening the Access tab calls flagStatus once and still runs the original tab switch', calls.join() === 'flagStatus' && prevCalled === 2 && /CALL_WATCH_ENABLED/.test(mount.innerHTML));
+    const btn = { getAttribute: (a) => (a === 'data-pf' ? 'reload' : null) };
+    listeners.click({ target: { closest: () => btn } });
+    await flush(); await flush();
+    ok('the Refresh button reloads (second callable call)', calls.length === 2, JSON.stringify(calls));
+    listeners.click({ target: { closest: () => null } });
+    await flush();
+    ok('a click elsewhere does nothing', calls.length === 2);
   }
 
   // ── source invariants ────────────────────────────────────────────────

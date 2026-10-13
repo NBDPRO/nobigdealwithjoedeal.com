@@ -149,19 +149,12 @@ exports.flagStatus = onCall(
       throw new HttpsError('permission-denied', 'Owner or admin access required');
     }
     const R = require('../flags-registry');
-    let committed = null;
+    let fileText = null;
     try {
       const project = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || 'nobigdeal-pro';
-      const text = require('fs').readFileSync(require('path').join(__dirname, '..', '.env.' + project), 'utf8');
-      committed = R.parseCommitted(text);
-    } catch (_) { committed = null; }   // file not in the deployed bundle — drift unknown, not an error
-    return {
-      flags: R.flagStatus(process.env, committed),
-      groups: R.GROUPS,
-      committedAvailable: committed !== null,
-      revision: process.env.K_REVISION || null,
-      generatedAtMs: Date.now(),
-    };
+      fileText = require('fs').readFileSync(require('path').join(__dirname, '..', '.env.' + project), 'utf8');
+    } catch (_) { fileText = null; }   // file not in the deployed bundle — drift unknown, not an error
+    return R.buildResponse(process.env, fileText, { revision: process.env.K_REVISION });
   }
 );
 

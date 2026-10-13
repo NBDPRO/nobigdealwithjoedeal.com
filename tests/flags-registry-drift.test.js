@@ -66,6 +66,9 @@ for (const f of files) {
   // kill switches: process.env.NBD_X === 'off' / !== 'off'
   const re2 = /process\.env\.([A-Z][A-Z0-9_]*)\s*[!=]==\s*'off'/g;
   while ((m = re2.exec(src))) note(m[1], f);
+  // bracket access: process.env['X_ENABLED']
+  const re3 = /process\.env\[\s*['"]([A-Z][A-Z0-9_]*_(?:ENABLED|DISABLED|REQUIRED|MODE))['"]\s*\]/g;
+  while ((m = re3.exec(src))) note(m[1], f);
 }
 
 console.log('\nFLAG REGISTRY — functions/flags-registry.js vs. the real code\n');
@@ -91,6 +94,26 @@ ok('every CRON_GATES gate has a registry row', CRON_GATES.every((g) => regNames.
   JSON.stringify(CRON_GATES.filter((g) => !regNames.has(g.name)).map((g) => g.name)));
 ok('registry kind for a gate IS the cron-gates polarity (no second hand copy)',
   CRON_GATES.every((g) => (FLAGS.find((f) => f.name === g.name) || {}).kind === g.polarity));
+
+// The polarity itself must match the literal the code compares against —
+// otherwise registry, cron-gates and health-digest are all wrong together
+// (ESTIMATE_EMAIL_ENABLED / LEAD_FOLLOWUP_ENABLED were: the code runs them
+// unless the value is the literal 'false').
+console.log('\nthe literal each flag is compared with in its own file');
+{
+  const ALL_SRC = files.map((p) => stripComments(fs.readFileSync(p, 'utf8'))).join('\n');
+  const LITERAL = { enabled: 'true', disabled: 'true', required: 'true', 'default-on': 'false', 'off-switch': 'off', 'one-on': '1' };
+  for (const f of FLAGS) {
+    if (!LITERAL[f.kind]) continue;
+    const src = ALL_SRC;   // the compare can live in a sibling module (SOCIAL_GBP_ENABLED: social-adapters.js)
+    const lits = new Set();
+    const re = new RegExp(f.name + "[^;\\n]{0,70}?[!=]==\\s*'([A-Za-z0-9]+)'", 'g');
+    let m;
+    while ((m = re.exec(src))) lits.add(m[1]);
+    ok(f.name + ' (' + f.kind + '): ' + f.file + ' compares it with \'' + LITERAL[f.kind] + '\'',
+      lits.has(LITERAL[f.kind]) && lits.size === 1, JSON.stringify([...lits]));
+  }
+}
 const nonGate = FLAGS.filter((f) => !gateNames.has(f.name)).map((f) => f.name).sort();
 ok('the non-gate flags are exactly CARE_PLAN_MODE, TURNSTILE_REQUIRED, the three NBD_* off-switches and the QA test-mode flag',
   JSON.stringify(nonGate) === JSON.stringify(['CARE_PLAN_MODE', 'NBD_CONNECT_ALLOW_TEST_MODE', 'NBD_CRM_STRIPE_INVOICES', 'NBD_INVOICE_OVERDUE', 'NBD_MONEY_PAPER', 'TURNSTILE_REQUIRED']),
@@ -106,9 +129,11 @@ for (const f of FLAGS) {
 }
 ok('no registry name looks like a secret (KEY/SECRET/TOKEN/PASSWORD)', FLAGS.every((f) => REG.isSafeName(f.name)));
 ok('every group in GROUPS is used by at least one flag', GROUPS.every((g) => FLAGS.some((f) => f.group === g)));
-ok('the ships-dark hints cover the flags Jo named',
-  ['AWAY_MODE_ENABLED', 'THURSDAY_LABEL_PLAYBOOKS_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED', 'TWILIO_INBOUND_ENABLED']
-    .every((n) => (FLAGS.find((f) => f.name === n) || {}).dark === true));
+ok('the ships-dark hints are exactly the flags that shipped dark awaiting Jo\'s go',
+  JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()) === JSON.stringify([
+    'AWAY_MODE_ENABLED', 'CARE_PLAN_MODE', 'SOCIAL_GBP_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED',
+    'THURSDAY_LABEL_PLAYBOOKS_ENABLED', 'TWILIO_INBOUND_ENABLED']),
+  JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()));
 
 // Every flag-shaped line in the committed env file must be registered.
 {
@@ -131,6 +156,15 @@ console.log('\nstateFor() — polarity per kind');
     S('default-on', 'unset') === 'ON' && S('default-on', 'false') === 'PAUSED' && S('default-on', 'true') === 'ON');
   ok('off-switch: ON unless the literal "off" (PAUSED)',
     S('off-switch', 'unset') === 'ON' && S('off-switch', 'off') === 'PAUSED' && S('off-switch', 'true') === 'ON');
+  ok('enabled: case is kept - "TRUE" is OFF at runtime and reads OFF here (no flattering fold to true)',
+    S('enabled', 'TRUE') === 'OFF' && REG.safeValue('TRUE') === 'TRUE' && REG.safeValue(' true') === 'other');
+  ok('default-on: only "false" pauses ("0", "off", "FALSE", "no" keep it running)',
+    ['0', 'off', 'FALSE', 'no'].every((v) => S('default-on', v) === 'ON'));
+  ok('off-switch: only "off" pauses ("false", "OFF", "0" keep it running)',
+    ['false', 'OFF', '0'].every((v) => S('off-switch', v) === 'ON'));
+  ok('required: "1" and "yes" are NOT required; "TRUE" is (turnstile.js lower-cases)',
+    S('required', '1') === 'OFF' && S('required', 'yes') === 'OFF' && S('required', 'TRUE') === 'ON');
+  ok('an unknown kind fails to OFF, never ON', S('nonsense', 'true') === 'OFF');
   ok('one-on: only the literal "1" is ON',
     S('one-on', '1') === 'ON' && S('one-on', 'true') === 'OFF' && S('one-on', 'unset') === 'OFF');
   ok('required: "true" is ON, anything else OFF',
@@ -157,6 +191,11 @@ console.log('\ncommitted vs running drift');
   const h = rows.find((r) => r.name === 'HEALTH_DIGEST_ENABLED');
   ok('committed true vs running false is flagged as drift', h.drift === true && h.committed === 'true' && h.effective === 'false');
   ok('matching values are not drift', rows.find((r) => r.name === 'CARE_PLAN_MODE').drift === false);
+  const ov = REG.flagStatus({ AWAY_MODE_ENABLED: 'true' }, committed).find((r) => r.name === 'AWAY_MODE_ENABLED');
+  ok('runtime set but absent from the deployed file (a gcloud --update-env-vars override) IS drift',
+    ov.drift === true && ov.committed === 'unset' && ov.effective === 'true');
+  const un = REG.flagStatus({ CARE_PLAN_MODE: 'off' }, REG.parseCommitted('CARE_PLAN_MODE=live')).find((r) => r.name === 'CARE_PLAN_MODE');
+  ok('file says live, runtime says off is drift', un.drift === true && un.committed === 'live' && un.effective === 'off');
   ok('a flag absent from the file and unset at runtime is not drift', rows.find((r) => r.name === 'AWAY_MODE_ENABLED').drift === false);
 }
 
@@ -172,20 +211,32 @@ console.log('\nsecret-leak guard');
     TWILIO_VOICE_FORWARD_TO: '+15555550100',
   };
   const leaks = (json) => [...SECRETS, 'ownerUidValue1234', '+15555550100'].filter((s) => json.includes(s));
-  const out = JSON.stringify(REG.flagStatus(env, REG.parseCommitted('AWAY_MODE_ENABLED=' + SECRETS[3] + '\nCALL_WATCH_ENABLED=true')));
+  const out = JSON.stringify(REG.buildResponse(env, 'AWAY_MODE_ENABLED=' + SECRETS[3] + '\nCALL_WATCH_ENABLED=true\nRESEND_API_KEY=' + SECRETS[1] + '\n', { revision: 'rev-1' }));
   ok('no secret value, no non-registry env name appears in the output', leaks(out).length === 0, JSON.stringify(leaks(out)));
   ok('output names are exactly registry names',
-    JSON.parse(out).every((r) => regNames.has(r.name)));
+    JSON.parse(out).flags.every((r) => regNames.has(r.name)));
   ok('a secret-shaped value on a registered flag is reduced to "other"',
     REG.flagStatus(env, null).find((r) => r.name === 'AWAY_MODE_ENABLED').effective === 'other');
   ok('CALL_WATCH_ENABLED=true still reads true (safeValue does not over-redact)',
     REG.flagStatus(env, null).find((r) => r.name === 'CALL_WATCH_ENABLED').effective === 'true');
 
-  // Poisoned registry row: a secret-named flag must be dropped, not returned.
-  FLAGS.push({ name: 'SOME_API_KEY', kind: 'enabled', group: GROUPS[0], file: 'x.js', meaning: 'x'.repeat(30), doc: 'x', dark: false });
-  const poisoned = JSON.stringify(REG.flagStatus({ SOME_API_KEY: 'true' }, null));
-  FLAGS.pop();
-  ok('a registry row whose name contains KEY is dropped at output time', !poisoned.includes('SOME_API_KEY'));
+  ok('the response has exactly the documented top-level keys (nothing env-shaped rides along)',
+    JSON.stringify(Object.keys(JSON.parse(out)).sort()) === JSON.stringify(['committedAvailable', 'flags', 'generatedAtMs', 'groups', 'revision']));
+  ok('every row has exactly the documented fields',
+    JSON.parse(out).flags.every((r) => JSON.stringify(Object.keys(r).sort()) ===
+      JSON.stringify(['committed', 'dark', 'doc', 'drift', 'effective', 'file', 'group', 'kind', 'meaning', 'name', 'state'])));
+  // short and punctuated secrets are reduced too
+  const shorties = ['a.b/c+d=e', 'sk-1234567890abcdefg', 'p@ss word', 'x'.repeat(40)];
+  const sh = JSON.stringify(REG.flagStatus({ AWAY_MODE_ENABLED: shorties[0], CALL_WATCH_ENABLED: shorties[1], HEALTH_DIGEST_ENABLED: shorties[2], MORNING_BRIEF_ENABLED: shorties[3] }, null));
+  ok('punctuated / spaced / long values never come back', shorties.every((s) => !sh.includes(s)));
+
+  // Poisoned registry rows: a secret-named flag must be dropped, not returned (one per word).
+  for (const bad of ['SOME_API_KEY', 'STRIPE_SECRET', 'GITHUB_TOKEN', 'DB_PASSWORD']) {
+    FLAGS.push({ name: bad, kind: 'enabled', group: GROUPS[0], file: 'x.js', meaning: 'x'.repeat(30), doc: 'x', dark: false });
+    const poisoned = JSON.stringify(REG.flagStatus({ [bad]: 'true' }, null));
+    FLAGS.pop();
+    ok('a registry row named ' + bad + ' is dropped at output time', !poisoned.includes(bad));
+  }
 
   // Positive control: the leak detector must catch a naive implementation.
   const naive = JSON.stringify({ env });
@@ -204,7 +255,7 @@ console.log('\nhandlers/integrations.js — flagStatus gate');
     /\['admin',\s*'company_admin'\]\.includes\(callerRole\)/.test(body) && /permission-denied/.test(body) && /NBD_OWNER_UID/.test(body));
   ok('enforces App Check like its sibling callables', /enforceAppCheck:\s*true/.test(body));
   ok('returns registry output only: no process.env spread, no raw env object in the return',
-    /R\.flagStatus\(process\.env,\s*committed\)/.test(body) && !/\.\.\.process\.env/.test(body) && !/return\s*\{[^}]*\benv\s*:/.test(body));
+    /return R\.buildResponse\(process\.env,\s*fileText,/.test(body) && !/\.\.\.process\.env/.test(body) && !/return\s*\{[^}]*\benv\s*:/.test(body));
   ok('is READ-ONLY: no Firestore / Storage / network write in the handler',
     !/\.(set|update|delete|add|create)\(|fetch\(|FieldValue/.test(body));
   const idx = fs.readFileSync(path.join(FN_DIR, 'index.js'), 'utf8');
@@ -217,7 +268,8 @@ console.log('\nhandlers/integrations.js — flagStatus gate');
 console.log('\nflagStatus callable — behaviour');
 const haveDeps = fs.existsSync(path.join(FN_DIR, 'node_modules', 'firebase-functions'));
 if (!haveDeps) {
-  console.log('  (skipped: functions/node_modules absent — static checks above still ran)');
+  if (process.env.CI) ok('functions/node_modules is installed in CI (the behaviour block must run there)', false);
+  else console.log('  (skipped: functions/node_modules absent — static checks above still ran)');
 } else {
   process.env.GCLOUD_PROJECT = process.env.GCLOUD_PROJECT || 'nobigdeal-pro';
   const realLog = console.log; console.log = () => {};
@@ -229,10 +281,27 @@ if (!haveDeps) {
     ok('no auth -> unauthenticated', (await code({})) === 'unauthenticated');
     ok('a rep -> permission-denied', (await code({ auth: { uid: 'u1', token: { role: 'rep' } } })) === 'permission-denied');
     ok('a viewer -> permission-denied', (await code({ auth: { uid: 'u1', token: { role: 'viewer' } } })) === 'permission-denied');
+    ok('a member, manager and "owner"-string role claim -> permission-denied (only admin / company_admin / owner uid pass)',
+      (await code({ auth: { uid: 'u1', token: { role: 'member' } } })) === 'permission-denied'
+      && (await code({ auth: { uid: 'u1', token: { role: 'manager' } } })) === 'permission-denied'
+      && (await code({ auth: { uid: 'u1', token: {} } })) === 'permission-denied');
     ok('company_admin -> ok', (await code({ auth: { uid: 'u1', token: { role: 'company_admin' } } })) === 'ok');
     const out = await run({ auth: { uid: 'u1', token: { role: 'admin' } } });
     ok('returns one row per registered flag plus groups', out.flags.length === FLAGS.length && Array.isArray(out.groups));
-    ok('reads the deployed env file (committed values present)', out.committedAvailable === true && out.flags.some((r) => r.committed !== null));
+    const envFile = REG.parseCommitted(fs.readFileSync(path.join(FN_DIR, '.env.nobigdeal-pro'), 'utf8'));
+    const hd = out.flags.find((r) => r.name === 'HEALTH_DIGEST_ENABLED');
+    ok('reads the deployed env file: committed value matches the file, and running-vs-file drift is computed',
+      out.committedAvailable === true && hd.committed === envFile.HEALTH_DIGEST_ENABLED && hd.committed === 'true'
+      && hd.drift === (hd.effective !== 'true'), JSON.stringify(hd));
+    // planted secrets in the real process env must not appear in the real handler output
+    const planted = { RESEND_API_KEY: 're_live_PLANTED_9f8e7d', TWILIO_AUTH_TOKEN: 'tw_PLANTED_token_1', MY_DB_PASSWORD: 'hunter2-PLANTED' };
+    Object.assign(process.env, planted);
+    const leaked = JSON.stringify(await run({ auth: { uid: 'u1', token: { role: 'admin' } } }));
+    for (const k of Object.keys(planted)) delete process.env[k];
+    ok('real handler output contains none of the secrets planted in process.env',
+      Object.values(planted).every((v) => !leaked.includes(v)) && !/PLANTED/.test(leaked));
+    ok('real handler output has exactly the documented top-level keys',
+      JSON.stringify(Object.keys(out).sort()) === JSON.stringify(['committedAvailable', 'flags', 'generatedAtMs', 'groups', 'revision']));
     const prev = process.env.NBD_OWNER_UID;
     process.env.NBD_OWNER_UID = 'jo-owner-uid';
     ok('the platform owner uid -> ok even with no role claim', (await code({ auth: { uid: 'jo-owner-uid', token: {} } })) === 'ok');
