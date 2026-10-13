@@ -80,9 +80,12 @@ All 14 of its fix checks fail on the pre-fix code.
 ## Checked and deliberately not changed
 
 - **`TURNSTILE_REQUIRED=true`.** *(Update 2026-10-13: now set in
-  `functions/.env.nobigdeal-pro`. The emulator worry below does not hold for CI:
-  every functions emulator job runs `--project demo-nbd-*`, and a project-scoped
-  dotenv loads only for its own project id. The flag is safe in prod because
+  `functions/.env.nobigdeal-pro`. The emulator worry below was right for the
+  authed E2E rig, which emulates `--project nobigdeal-pro` and so loads this file:
+  `tests/e2e/fixtures/ensure-emulator-env.js` now writes
+  `TURNSTILE_REQUIRED=false` into the emulator-only, never-deployed
+  `functions/.env.local` (loaded last). The other functions emulator jobs run
+  `--project demo-nbd-*` and never load it. The flag is safe in prod because
   `TURNSTILE_SECRET` is enabled and bound to both callers; see the Emergency
   section of `documentation/runbooks/TURNSTILE-SETUP.md`.)* Production already enforces Turnstile: the
   `TURNSTILE_SECRET` version is enabled and bound to `submitPublicLead`.

@@ -428,6 +428,38 @@ async function behaviour() {
   })(path.join(ROOT, 'functions'));
   ok('positive control: the walk finds the two known callers', callers.some((c) => c.file === 'functions/care-plan.js') && callers.some((c) => c.file === 'functions/handlers/integrations.js'), JSON.stringify(callers));
   ok('every verifyTurnstile caller binds TURNSTILE_SECRET (else the fail-closed flag would 403 it)', callers.length > 0 && callers.every((c) => c.binds), JSON.stringify(callers));
+  // The authed E2E rig emulates --project nobigdeal-pro, which loads the prod env
+  // file into the emulated functions (no secret there). The managed .env.local
+  // block must override the flag, and .env.local must never be deployable.
+  const rig = read('tests/e2e/fixtures/ensure-emulator-env.js');
+  const blockM = /const BLOCK = `([\s\S]*?)`;/.exec(rig);
+  ok('emulator rig writes TURNSTILE_REQUIRED=false into the managed .env.local block', !!blockM && /^TURNSTILE_REQUIRED=false$/m.test(blockM[1]));
+  const gi = read('.gitignore').split(/\r?\n/).map((l) => l.trim());
+  ok('.env.local is gitignored (never committed, never in a checkout that deploys)', gi.includes('.env.local'));
+  const fbc = JSON.parse(read('firebase.json'));
+  const fnIgnore = [].concat(fbc.functions || []).flatMap((f) => f.ignore || []);
+  ok('firebase.json functions config does not re-include .env.local', !fnIgnore.some((p) => /env\.local/.test(p)));
+  ok('CI runs the rig script before the authed emulator job', /node tests\/e2e\/fixtures\/ensure-emulator-env\.js/.test(read('.github/workflows/ci.yml')));
+  // Behavioural: firebase-tools' own loader, real prod file + the rig's block.
+  let ftEnv = null;
+  for (const base of [path.join(ROOT, 'functions', 'node_modules'), path.join(ROOT, 'tests', 'node_modules'), path.join(process.env.APPDATA || '', 'npm', 'node_modules')]) {
+    try { ftEnv = require(path.join(base, 'firebase-tools', 'lib', 'functions', 'env.js')); break; } catch (_) { /* next */ }
+  }
+  if (ftEnv) {
+    const os = require('os');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nbd-fenv-'));
+    try {
+      fs.writeFileSync(path.join(tmp, '.env.nobigdeal-pro'), envSrc);
+      // the template's ${BEGIN}/${END} placeholders become comment lines, as the rig writes them
+      fs.writeFileSync(path.join(tmp, '.env.local'), blockM[1].replace(/\$\{(BEGIN|END)\}/g, '# marker') + '\n');
+      const emu = ftEnv.loadUserEnvs({ projectId: 'nobigdeal-pro', functionsSource: tmp, projectDir: tmp, isEmulator: true });
+      const dep = ftEnv.loadUserEnvs({ projectId: 'nobigdeal-pro', functionsSource: tmp, projectDir: tmp, isEmulator: false });
+      ok('firebase-tools: emulating nobigdeal-pro -> TURNSTILE_REQUIRED=false (override wins)', emu.TURNSTILE_REQUIRED === 'false', String(emu.TURNSTILE_REQUIRED));
+      ok('firebase-tools: a deploy of nobigdeal-pro -> TURNSTILE_REQUIRED=true (.env.local not read)', dep.TURNSTILE_REQUIRED === 'true', String(dep.TURNSTILE_REQUIRED));
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  } else {
+    console.log('  ! firebase-tools not installed here: behavioural precedence check skipped (static guards above still ran)');
+  }
   const runbook = read('documentation/runbooks/TURNSTILE-SETUP.md');
   ok('runbook Emergency no longer says blanking the secret opens the gate', !/destroy or blank `TURNSTILE_SECRET` and redeploy; the\s+verifier returns to its unconfigured passthrough/.test(runbook) && /TURNSTILE_REQUIRED=false/.test(runbook));
 }
