@@ -382,6 +382,7 @@ Standalone reports: [phone-audit-2026-09-25](qa/phone-audit-2026-09-25.md) · [t
 
 Campaign folders (each has its own STATUS / BUG-LOG / CLEANUP):
 
+- [never-forget-2026-10-13](qa/never-forget-2026-10-13/FINDINGS.md) — adversarial sweep of Today/labels/promises/callWatch; 5 fixed, ranked open findings
 - [brand-sweep-2026-06-07](qa/brand-sweep-2026-06-07/STATUS.md)
 - [theme-sweep-2026-06-07](qa/theme-sweep-2026-06-07/BUG-LOG.md)
 - [live-qa-2026-06-07](qa/live-qa-2026-06-07/STATUS-MATRIX.md)

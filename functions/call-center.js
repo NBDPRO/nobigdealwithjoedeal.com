@@ -314,7 +314,7 @@ async function applyLeadContact({ db, leadId, lead, call, notes, todayYmd, nowMs
  */
 /** One number's label (companies/{OWNER}/contact_labels/{digits}) as { digits: label }; {} when none / unreadable (the safe direction: it surfaces). */
 async function labelFor(db, phoneDigits) {
-  const dg = String(phoneDigits || '').replace(/D/g, '').slice(-10);
+  const dg = String(phoneDigits || '').replace(/\D/g, '').slice(-10);
   if (dg.length !== 10) return {};
   try {
     const s = await db.collection('companies').doc(OWNER).collection('contact_labels').doc(dg).get();
@@ -1113,6 +1113,17 @@ async function mirrorCallTask({ db, leadId, taskId, after }) {
   if (!snap.exists) return null;
   const call = snap.data() || {};
   if (call.leadId && call.leadId !== leadId) return null;
+  // An UNFILED call / text day has no leadId to compare, and task ids are
+  // guessable (sms-txt_<10 digits>_<yyyymmdd>): without this, any signed-in
+  // user could tick a "task" on THEIR OWN lead and mark Jo's open text day
+  // kept (QA 2026-10-13). The task's lead must belong to the call's tenant.
+  if (!call.leadId) {
+    const ls = await db.collection('leads').doc(leadId).get();
+    const lead = ls && ls.exists ? (ls.data() || {}) : null;
+    const sameOwner = !!(lead && call.userId && lead.userId === call.userId);
+    const sameCompany = !!(lead && call.companyId && lead.companyId === call.companyId);
+    if (!sameOwner && !sameCompany) return null;
+  }
   if (!after) return { unchanged: true, taskDeleted: true };
   const done = after.done === true;
   if (call.taskDone === done) return { unchanged: true };

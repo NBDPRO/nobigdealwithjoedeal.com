@@ -41,6 +41,17 @@ const NOW = Date.parse('2026-10-02T00:05:00Z');
   l = W.dailyLedger([today({ id: 'pr', promises: [{ who: 'jo', text: 'x' }], phoneDigits: '8595550101' })], [], NOW, { labels: hidden });
   ok('...but a promise from Jo on a hidden number still counts', l.open === 1);
 
+  // QA 2026-10-13: Home's list adds hidden numbers that came back (resurfacedNumbers); the ledger did not.
+  const rez = (n) => Array.from({ length: n }, (_, i) => today({ id: 'rz' + i, phoneDigits: '8595550101', leadId: null, bucket: 'unknown', startedAtMs: NOW - (i + 1) * H }));
+  const H2 = require(path.join(ROOT, 'docs/pro/js/home-attention.js'));
+  const hiddenOld = { '8595550101': { kind: 'spam', policy: 'hide', updatedAtMs: NOW - 5 * D } };
+  l = W.dailyLedger(rez(3), [], NOW, { labels: hiddenOld });
+  ok('a hidden number ringing 3x in 24 h is an open person (Home counts it)', H2.callersNeedingYou(rez(3), NOW, hiddenOld) === 1 && l.open === 1 && !l.clear, JSON.stringify(l.title));
+  l = W.dailyLedger(rez(2), [], NOW, { labels: hiddenOld });
+  ok('control: two calls from the hidden number are NOT a burst -> not open (Home agrees)', H2.callersNeedingYou(rez(2), NOW, hiddenOld) === 0 && l.open === 0);
+  l = W.dailyLedger(rez(3), [], NOW, { labels: Object.assign({}, hiddenOld, { '8595550101': { kind: 'spam', policy: 'hide', updatedAtMs: NOW - 5 * D, ackAtMs: NOW - 10 * 60000 } }) });
+  ok('"Keep hidden" (ackAtMs after the calls) quiets it in the ledger too', l.open === 0);
+
   console.log('B. through runWatch');
   process.env.CALL_CENTER_INGEST_ENABLED = 'false'; process.env.CALL_CENTER_TRANSCRIBE_ENABLED = 'false';
   const { runWatch } = require(path.join(ROOT, 'functions/call-watch.js'))._internal;

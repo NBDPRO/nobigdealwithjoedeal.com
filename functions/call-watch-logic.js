@@ -179,7 +179,12 @@ function newNeeds(calls, textDays, thursday, sinceMs, now, labels) {
     const arrived = toMs(c.notedAtMs) || toMs(c.startedAtMs);
     const due = followUpCameDue(c, sinceMs, now);
     if (arrived <= sinceMs && !due) return;
-    out.push({ id: 'text:' + c.id, tellId: arrived <= sinceMs ? 'text:' + c.id + '#due:' + c.followUpDate : undefined, key: callerKey(c), kind: 'text', who: who(c), why: reasonFor(c, now, tctx), at: toMs(c.startedAtMs) });
+    // A text day is ONE doc per number per day that textInboxNotes re-writes
+    // (same id, new notedAtMs / urgent / promises) whenever another text lands.
+    // Keyed on the plain id, the 10:00 "who is this" tell swallowed the 15:00
+    // "water through the ceiling" re-note (QA 2026-10-13): told once per REASON.
+    const why = reasonFor(c, now, tctx);
+    out.push({ id: 'text:' + c.id, tellId: arrived <= sinceMs ? 'text:' + c.id + '#due:' + c.followUpDate : 'text:' + c.id + '#' + why, key: callerKey(c), kind: 'text', who: who(c), why, at: toMs(c.startedAtMs) });
   });
   // A hidden number that came back (matches a customer, or 3+ calls in 24 h):
   // told once per label baseline — "Keep hidden" moves the baseline.
@@ -385,6 +390,13 @@ function dailyLedger(callRows, textRows, now, extra) {
   const people = new Map();
   (callRows || []).forEach((c) => { if (callNeedsYou(c, now, ctx)) { const k = callerKey(c); const at = toMs(c.startedAtMs); if (!people.has(k) || at < people.get(k)) people.set(k, at); } });
   (textRows || []).forEach((c) => { if (callNeedsYou(c, now, tctx)) { const k = callerKey(c); const at = toMs(c.startedAtMs); if (!people.has(k) || at < people.get(k)) people.set(k, at); } });
+  // A HIDDEN number that came back (filed on a customer, or 3+ calls in 24 h)
+  // is a person on Home's list (groupNeeds adds it) and was told once by
+  // callWatch; counting people by callNeedsYou alone read "nothing fell
+  // through" while Home showed that person (QA 2026-10-13).
+  resurfacedNumbers(callRows, ex.labels, now).forEach((v) => {
+    v.calls.forEach((c) => { const k = callerKey(c); const at = toMs(c.startedAtMs); if (!people.has(k) || at < people.get(k)) people.set(k, at); });
+  });
   const open = people.size;
   const oldOpen = Array.from(people.values()).filter((at) => at && now - at > LEDGER_OLD_MS).length;
   const anomalies = [];

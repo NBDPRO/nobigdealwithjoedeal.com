@@ -78,6 +78,24 @@ const call = { id: 'cube_u1', phoneDigits: '8595550177', startedAtMs: NOON - 600
   r = await m.sandbox.pushUrgent({ db: m.db, d: m.d, call, notes: { urgent: true, callType: 'lead', promises: [] }, leadName: '', nowMs: NOON });
   ok('label read fails -> no labels -> pushes (the safe direction) and says why', r === true && m.pushes.length === 1 && m.warns.length === 1);
 
+  // QA 2026-10-13: labelFor stripped a literal capital "D" (/D/g) instead of non-digits (/\D/g).
+  // The fake below answers ONLY for the exact 10-digit doc id, so a mangled id finds no label and
+  // a hidden SPAM number's "urgent" would push (fail-open). Positive control: a different number.
+  {
+    const keyed = (labelDoc, wantId) => {
+      const m = make(labelDoc);
+      m.db.collection = () => ({ doc: () => ({ collection: () => ({ doc: (dg) => ({ get: async () => (dg === wantId ? { exists: true, data: () => labelDoc } : { exists: false }) }) }), set: async () => {} }), add: async () => {} });
+      return m;
+    };
+    const fmt = Object.assign({}, call, { phoneDigits: '+1 (859) 555-0177' });
+    let k = keyed({ kind: 'spam', policy: 'hide' }, '8595550177');
+    let rr = await k.sandbox.pushUrgent({ db: k.db, d: k.d, call: fmt, notes: { urgent: true, callType: 'lead', promises: [] }, leadName: '', nowMs: NOON });
+    ok('a formatted number still finds its SPAM label (id normalised with non-digit strip) -> no push', rr === false && k.pushes.length === 0);
+    k = keyed({ kind: 'spam', policy: 'hide' }, '8595550177');
+    rr = await k.sandbox.pushUrgent({ db: k.db, d: k.d, call: Object.assign({}, call, { phoneDigits: '5555550100' }), notes: { urgent: true, callType: 'lead', promises: [] }, leadName: '', nowMs: NOON });
+    ok('control: a different number has no label -> pushes (the keyed fake really discriminates)', rr === true && k.pushes.length === 1);
+  }
+
   ok('call-center.js reuses the shared rule (no private copy of it)', /W\.callNeedsYou\(row, nowMs, ctx\)/.test(src) && /W\.reasonFor\(row, nowMs, ctx\) !== 'urgent'/.test(src));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
