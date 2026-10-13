@@ -493,6 +493,13 @@
       var on = cur === key;
       return '<button type="button" class="kr-sw ui-seg' + (on ? ' is-on' : '') + '" data-kr-card="' + key + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + label + '</button>';
     }
+    // Phone: the three segments collapse to ONE cycle button so the stats and
+    // the card style share a row (CSS swaps which is visible, >640px keeps
+    // the segments). Same three states, same handlers.
+    var CYCLE = { '': 'compact', compact: 'rich', rich: 'photo', photo: 'compact' };
+    var NAMES = { '': 'Cards', compact: 'Compact', rich: 'Rich', photo: 'Photo' };
+    var nextKey = CYCLE[cur] || 'compact';
+    var cycleLabel = 'Card style: ' + NAMES[cur] + '. Tap for ' + NAMES[nextKey] + '.';
     el.innerHTML =
       '<div class="kr-stats">' +
         '<button type="button" class="kr-stat' + (!coldOn ? ' is-on' : '') + '" data-kr-act="open" title="Open deals on this board. Pipeline value is projected, not collected." aria-pressed="' + (!coldOn ? 'true' : 'false') + '">' +
@@ -503,7 +510,10 @@
           '<span class="kr-stat-k">Going cold</span><span class="kr-stat-v">' + s.coldCount + '</span></button>' +
       '</div>' +
       '<div class="kr-switch" role="group" aria-label="Card style">' +
-        sw('compact', 'Compact') + sw('rich', 'Rich') + sw('photo', 'Photo') + '</div>';
+        sw('compact', 'Compact') + sw('rich', 'Rich') + sw('photo', 'Photo') +
+        '<button type="button" class="kr-cycle ui-seg" data-kr-act="cycle" data-kr-next="' + nextKey + '" title="' + cycleLabel + '" aria-label="' + cycleLabel + '">' +
+          '<span class="kr-cyc-k">' + NAMES[cur] + '</span></button>' +
+      '</div>';
   }
 
   /** Fresh from the whole book (not the last paint), so a refresh while the filter is on still finds newly cold deals. */
@@ -548,6 +558,7 @@
       var key = t.getAttribute('data-kr-card');
       if (key) { ev.preventDefault(); setCardStyle(key); return; }
       var act = t.getAttribute('data-kr-act');
+      if (act === 'cycle') { ev.preventDefault(); setCardStyle(t.getAttribute('data-kr-next') || 'compact'); return; }
       var F = root.NBDLeadFilters;
       if (!F) return;
       if (act === 'cold') F.toggle(FILTER_COLD);

@@ -2977,6 +2977,9 @@ body[data-nbd-size="comfortable"] .crm-icon-btn { width: calc(32px * var(--nbd-s
 
 /* ═══ DAILY COMMAND CENTER WIDGET ═══ */
 .dt-widget{margin:0 0 16px;border:1px solid var(--br);border-radius:10px;background:var(--s);overflow:hidden;}
+/* An unpopulated widget slot is a 2px bordered box + 16px margin: 18px of dead
+   air between the Pipeline strip and the board (Jo, 2026-10-13: CRM too tight). */
+#dailyCommandCenter:empty{display:none;}
 .dt-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;cursor:pointer;transition:background .15s;gap:12px;}
 .dt-header:hover{background:var(--s2);}
 .dt-header-left{min-width:0;}
@@ -4413,7 +4416,7 @@ body {
      was a pre-existing responsive bug — the original wrap behavior
      never worked, it just looked-OK enough to ship). Same for
      `.crm-hdr-views{ overflow:hidden; display:inline-flex }`. */
-  .crm-header{padding:12px 14px 8px!important;flex-wrap:wrap!important;gap:8px!important;}
+  .crm-header{padding:8px 14px 4px!important;flex-wrap:wrap!important;gap:6px!important;}
   .crm-header > div:first-child{flex:1 1 100%!important;}
   .crm-header > div:last-child{flex-wrap:wrap;gap:6px;width:100%;}
   .crm-header input[type=text]{width:100%!important;flex:1;}
@@ -4503,6 +4506,18 @@ body {
     padding:8px 10px!important;
     min-height:44px!important;
   }
+  /* One row (2026-10-13, Jo: "CRM tab is getting a bit tight again"): with
+     three-digit counts (INS 188 · ALL 249) the seven tabs wrapped ALL onto a
+     second 44px row. Tighter padding + a smaller label/badge fit all seven
+     at 390 (measured: tests/e2e/phone-crm-header-compact-2026-10-13.spec.js,
+     counts forced to Jo's real book). A narrower phone still WRAPS (every
+     tab stays on screen and tappable; nothing scrolls out of sight). */
+  .crm-hdr-views .kview-btn{
+    padding:8px 5px!important;
+    font-size:11px!important;
+    letter-spacing:.02em;
+  }
+  .crm-hdr-views .kview-count{ margin-left:3px; padding:1px 4px; font-size:9px; }
   .crm-view-mode .kview-btn{ min-height:44px; }
   /* Actions row: its own row, left-aligned (margin-left:auto unused
      when row is full-width), buttons size to content */
