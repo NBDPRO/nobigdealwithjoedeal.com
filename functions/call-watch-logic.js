@@ -378,9 +378,13 @@ function dailyLedger(callRows, textRows, now, extra) {
   const noted = todays.filter((c) => c.status === 'noted' || c.status === 'personal').length;
   const waiting = calls.filter((c) => c.status === 'stored' && toMs(c.startedAtMs) >= now - CALL_WINDOW).length;
   const ctx = reachIndex(callRows);
+  // Per-number labels (2026-10-12): the ledger counts people by the same rule as
+  // Home / callWatch, so a hidden spam number is not an "open person".
+  if (ex.labels) ctx.labels = ex.labels;
+  const tctx = ex.labels ? { labels: ex.labels } : undefined;
   const people = new Map();
   (callRows || []).forEach((c) => { if (callNeedsYou(c, now, ctx)) { const k = callerKey(c); const at = toMs(c.startedAtMs); if (!people.has(k) || at < people.get(k)) people.set(k, at); } });
-  (textRows || []).forEach((c) => { if (callNeedsYou(c, now)) { const k = callerKey(c); const at = toMs(c.startedAtMs); if (!people.has(k) || at < people.get(k)) people.set(k, at); } });
+  (textRows || []).forEach((c) => { if (callNeedsYou(c, now, tctx)) { const k = callerKey(c); const at = toMs(c.startedAtMs); if (!people.has(k) || at < people.get(k)) people.set(k, at); } });
   const open = people.size;
   const oldOpen = Array.from(people.values()).filter((at) => at && now - at > LEDGER_OLD_MS).length;
   const anomalies = [];
