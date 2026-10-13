@@ -1953,6 +1953,15 @@ service cloud.firestore {
 
     // ── RATE LIMITS (admin-SDK only) ──────────────────
     match /rate_limits/{uid}        { allow read, write: if false; }
+
+    // ── CONFIRMED LEAD-ALERT RECIPIENTS (2026-10-13) ──
+    // alertRecipients/{companyId} -> { confirmed: { <addrKey>: {email, ...} } }
+    // is the server-side record that an owner confirmed a custom alert address
+    // by clicking the one-time link NBD emailed to it. A client must never be
+    // able to write it (that would let a tenant "confirm" any inbox) or read
+    // the pending tokens. Admin SDK only (functions/alert-recipients*.js).
+    match /alertRecipients/{companyId}      { allow read, write: if false; }
+    match /alertRecipientTokens/{tokenHash} { allow read, write: if false; }
     match /_rate_limits_ip/{docId}  { allow read, write: if false; }
 
     // ── PER-TENANT CATALOG COST BOOK ──────────────────
