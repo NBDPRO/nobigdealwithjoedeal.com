@@ -25,6 +25,7 @@ body.crm-list-mode .kr-strip { display: none; }
 .kr-stat-cold.is-on { background: color-mix(in srgb, var(--red) 14%, var(--s2)); border-color: var(--red); }
 .kr-switch { display: inline-flex; gap: 4px; flex: 0 0 auto; }
 .kr-switch .kr-sw.ui-seg { flex: 0 0 auto; min-height: 32px; padding: 4px 10px; }
+.kr-switch .kr-cycle { display: none; }   /* phone-only single cycle button, see the 640px block */
 
 /* ── the rich card block (only rendered in data-density="rich") ──── */
 .kr-block { display: flex; flex-direction: column; gap: 6px; margin: 0 0 8px; min-width: 0; }
@@ -100,8 +101,24 @@ body.crm-list-mode .kr-strip { display: none; }
   .kr-top { gap: 6px; }
   .kr-chip { padding: 1px 5px; font-size: 9px; letter-spacing: 0; }
   .kr-stat-n { display: none; }
-  .kr-switch { width: 100%; }
-  .kr-switch .kr-sw.ui-seg { flex: 1 1 0; }
+  /* ONE row on a phone (2026-10-13, Jo: "CRM tab is getting a bit tight
+     again"): Open / Weighted / Going cold on the left, the card style as a
+     single cycle button on the right (Compact > Rich > Photo > Compact).
+     The row is 44px tall; the 32px chips reach it with a ::after hit area
+     so the thumb target is still 44 without a chunkier pill (-7px = 6px of
+     padding + the 1px border the inset is measured inside). Wraps only
+     when a narrow phone cannot hold all four. */
+  .kr-strip { padding: 6px 10px; gap: 0 6px; flex-wrap: wrap; justify-content: space-between; }
+  .kr-stats { flex-wrap: nowrap; gap: 4px; flex: 0 1 auto; }
+  .kr-stat { position: relative; padding: 4px 7px; gap: 4px; white-space: nowrap; }
+  .kr-stat::after, .kr-cycle::after { content: ""; position: absolute; left: -1px; right: -1px; top: -7px; bottom: -7px; }
+  .kr-switch { width: auto; margin-left: auto; }
+  .kr-switch .kr-sw.ui-seg { display: none; }
+  .kr-switch .kr-cycle.ui-seg {
+    display: inline-flex; align-items: center; justify-content: center; position: relative;
+    flex: 0 0 auto; min-height: 32px; min-width: 44px; padding: 4px 10px;
+  }
+  .kr-cyc-k { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) {
   .kr-stat, .kr-sw { transition: none; }
