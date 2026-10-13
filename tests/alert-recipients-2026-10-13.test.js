@@ -51,7 +51,7 @@ const world = {
 };
 const rl = { counts: {}, calls: [], fail: false };
 function reset() {
-  rec.emails = []; rec.sms = []; rec.outbox = []; rec.pushes = []; rec.logs = []; rec.audit = []; rec.resendFail = false;
+  rec.emails = []; rec.sms = []; rec.outbox = []; rec.pushes = []; rec.logs = []; rec.audit = []; rec.resendFail = false; rec.onSend = null;
   world.docs = {}; world.leads = []; world.auth = {};
   rl.counts = {}; rl.calls = []; rl.fail = false;
 }
@@ -108,7 +108,7 @@ const stubs = {
   'firebase-functions/v2/https': { onRequest: (o, h) => ({ __handler: h }), onCall: (o, h) => ({ __handler: h }), HttpsError },
   'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'test-' + n }) },
   'firebase-functions/v2': { logger: { info: (...a) => rec.logs.push(['info', a]), warn: (...a) => rec.logs.push(['warn', a]), error: (...a) => rec.logs.push(['error', a]) } },
-  resend: { Resend: class { constructor() { this.emails = { send: async (p) => { if (rec.resendFail) throw new Error('resend down'); rec.emails.push(p); return { data: { id: 'em' }, error: null }; } }; } } },
+  resend: { Resend: class { constructor() { this.emails = { send: async (p) => { if (rec.onSend) await rec.onSend(p); if (rec.resendFail) throw new Error('resend down'); rec.emails.push(p); return { data: { id: 'em' }, error: null }; } }; } } },
   twilio: () => ({ messages: { create: async (p) => { rec.sms.push(p); return { sid: 'SM_test' }; } } }),
   './push-functions': { sendCustomNotification: async (uid, title, body, data) => { rec.pushes.push({ uid, title, body, data }); return { sent: 1, failed: 0, errors: [] }; } },
   './rate-limit': {
@@ -970,7 +970,7 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     const FN4 = fresh('alert-recipients-fns.js');
     world.docs['alertRecipients/co-a'] = { confirmed: { [AR.addrKey('current@example.test')]: { email: 'current@example.test', requestedBy: 'co-a' } } };
     const t = 'F'.repeat(43);
-    world.docs['alertRecipientTokens/' + FN4._internal.sha256(t)] = { kind: 'revoke', companyId: 'co-a', email: 'old@example.test', addrKey: AR.addrKey('old@example.test'), expiresAtMs: Date.now() + 1e6 };
+    world.docs['alertRecipientTokens/' + FN4._internal.sha256(t)] = { kind: 'revoke', companyId: 'co-a', email: 'old@example.test', addrKey: AR.addrKey('old@example.test'), ownerUid: 'co-a', expiresAtMs: Date.now() + 1e6 };
     const r1 = res();
     await FN4._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + t, headers: {} }, r1);
     ok('a stale revoke link says it was already replaced or removed, not "Removed"',
@@ -979,7 +979,7 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     // token kind confusion: a revoke token never confirms; a revoke token with no addrKey is inert.
     const t2 = 'G'.repeat(43);
     reset();
-    world.docs['alertRecipientTokens/' + FN4._internal.sha256(t2)] = { kind: 'revoke', companyId: 'co-a', email: 'evil@example.test', expiresAtMs: Date.now() + 1e6 };
+    world.docs['alertRecipientTokens/' + FN4._internal.sha256(t2)] = { kind: 'revoke', companyId: 'co-a', email: 'evil@example.test', ownerUid: 'co-a', expiresAtMs: Date.now() + 1e6 };
     const r2 = res();
     await FN4._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + t2, headers: {} }, r2);
     ok('a revoke-kind token can never CONFIRM an address', !world.docs['alertRecipients/co-a'], world.docs['alertRecipients/co-a']);
@@ -1074,6 +1074,207 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     seedT();
     await LA.alertJoe('contact_leads', lead(), 'bell-ctl');
     ok('CONTROL: an uncapped alert leaves no such item', Object.keys(world.docs).filter((k) => k.startsWith('notifications/alertcap_')).length === 0);
+  }
+
+
+  // ═════════════════════════════════════════════════════════════════════
+  // Round 3b (independent review: M1, L1, L2, L4, I1, M2)
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('(u) M1: the claim cannot clobber; nothing to roll back');
+  {
+    const FNu = fresh('alert-recipients-fns.js');
+    const sha = FNu._internal.sha256;
+    const TA = 'H'.repeat(43), TB = 'J'.repeat(43);
+    const seedU = () => {
+      reset();
+      tenant('co-a', { alertEmail: 'newinbox@example.test' }, { email: 'owner@example.test', emailVerified: true });
+      world.docs['alertRecipients/co-a'] = { confirmed: { [AR.addrKey('old@example.test')]: { email: 'old@example.test', requestedBy: 'co-a' } } };
+      for (const t of [TA, TB]) world.docs['alertRecipientTokens/' + sha(t)] = { kind: 'confirm', companyId: 'co-a', email: 'newinbox@example.test', requestedBy: 'co-a', expiresAtMs: Date.now() + 1e6 };
+    };
+    const post = (t) => { const r = res(); return FNu._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + t, headers: {} }, r).then(() => r); };
+    const prevSnapshot = () => JSON.stringify({ confirmed: { [AR.addrKey('old@example.test')]: { email: 'old@example.test', requestedBy: 'co-a' } } });
+    const revokeDocs = () => Object.keys(world.docs).filter((k) => k.startsWith('alertRecipientTokens/') && world.docs[k].kind === 'revoke');
+
+    // Two pending tokens, both notices fail, interleaved.
+    seedU();
+    rec.resendFail = true;
+    let inner = null;
+    rec.onSend = async () => { rec.onSend = null; inner = await post(TB); };
+    const rA = await post(TA);
+    ok('both concurrent claims fail closed (503) when the notice cannot be sent', rA.code === 503 && inner && inner.code === 503, [rA.code, inner && inner.code]);
+    ok('final state equals the prior confirmed entry (no clobber, nothing live)', JSON.stringify(world.docs['alertRecipients/co-a']) === prevSnapshot(), world.docs['alertRecipients/co-a']);
+    ok('no stray revoke token', revokeDocs().length === 0, revokeDocs());
+    ok('both confirm tokens are usable again (claims released)', [TA, TB].every((t) => world.docs['alertRecipientTokens/' + sha(t)] && !world.docs['alertRecipientTokens/' + sha(t)].claim));
+    rec.resendFail = false;
+    const okB = await post(TB);
+    ok('CONTROL: once mail works, a released token confirms', okB.code === 200 && Object.keys(world.docs['alertRecipients/co-a'].confirmed).join() === AR.addrKey('newinbox@example.test'), okB.code);
+
+    // The SAME token pressed twice during the notice window: one claim, one notice.
+    seedU();
+    let sends = 0; let second = null;
+    rec.onSend = async () => { rec.onSend = null; sends++; second = await post(TA); };
+    const first = await post(TA);
+    ok('a second press during the notice window is refused (busy) and the first completes', first.code === 200 && second && second.code === 409, [first.code, second && second.code]);
+    ok('exactly one notice was sent', rec.emails.length === 1, rec.emails.length);
+
+    // A revoke during the notice window is not resurrected / overridden.
+    seedU();
+    const FNr = fresh('alert-recipients-fns.js');
+    rec.onSend = async () => {
+      rec.onSend = null;
+      await FNr.alertRecipients.__handler({ auth: { uid: 'co-a', token: { companyId: 'co-a', email_verified: true } }, data: { action: 'revoke' } });
+    };
+    const rv = await post(TA);
+    const st = await AR.resolveTenantRecipients('co-a', { alertEmail: 'newinbox@example.test' });
+    ok('revoke during the window: the in-flight confirmation is cancelled, not applied', rv.code === 409 && !st.emails.includes('newinbox@example.test'), [rv.code, st.emails]);
+    ok('...and the revoked address is not resurrected', !st.emails.includes('old@example.test'), st.emails);
+    ok('...no revoke token was minted for the cancelled confirmation', revokeDocs().length === 0);
+
+    // The release write itself failing leaves nothing honoured.
+    seedU();
+    rec.resendFail = true;
+    const realRun = fakeDb.runTransaction;
+    let nTx = 0;
+    fakeDb.runTransaction = async (fn) => { nTx++; if (nTx === 2) throw new Error('release failed'); return realRun(fn); };
+    const rf = await post(TA);
+    fakeDb.runTransaction = realRun;
+    rec.resendFail = false;
+    const st2 = await AR.resolveTenantRecipients('co-a', { alertEmail: 'newinbox@example.test' });
+    ok('release write fails: still 503, nothing new honoured, previous entry intact',
+      rf.code === 503 && !st2.emails.includes('newinbox@example.test') && JSON.stringify(world.docs['alertRecipients/co-a']) === prevSnapshot(), [rf.code, st2.emails]);
+    world.docs['alertRecipientTokens/' + sha(TA)].claim.atMs = Date.now() - 10 * 60 * 1000;
+    const rAgain = await post(TA);
+    ok('...and the stuck claim frees itself after its TTL', rAgain.code === 200, rAgain.code);
+
+    // A claim taken over by another press (nonce changed) is neither released
+    // nor promoted by the first one.
+    seedU();
+    const takeOver = () => { world.docs['alertRecipientTokens/' + sha(TA)].claim = { nonce: 'someone-else', atMs: Date.now() }; };
+    rec.resendFail = true;
+    rec.onSend = async () => { rec.onSend = null; takeOver(); };
+    await post(TA);
+    ok('a late release does not clear a claim that is no longer its own', (world.docs['alertRecipientTokens/' + sha(TA)].claim || {}).nonce === 'someone-else');
+    seedU();
+    rec.resendFail = false;
+    rec.onSend = async () => { rec.onSend = null; takeOver(); };
+    const rTake = await post(TA);
+    ok('a promote whose claim was taken over confirms NOTHING', rTake.code === 404 && JSON.stringify(world.docs['alertRecipients/co-a']) === prevSnapshot(), rTake.code);
+
+    // L2: the owner flips between the first check and the claim transaction.
+    seedU();
+    const run2 = fakeDb.runTransaction;
+    let flipped = false;
+    fakeDb.runTransaction = async (fn) => { if (!flipped) { flipped = true; world.docs['companies/co-a'] = { ownerId: 'bob' }; world.auth.bob = { email: 'bob@example.test', emailVerified: true }; } return run2(fn); };
+    rec.emails = [];
+    const rl2 = await post(TA);
+    fakeDb.runTransaction = run2;
+    ok('L2: ownership changed inside the claim: 404, no notice, nothing written',
+      rl2.code === 404 && rec.emails.length === 0 && JSON.stringify(world.docs['alertRecipients/co-a']) === prevSnapshot() && !world.docs['alertRecipientTokens/' + sha(TA)].claim, rl2.code);
+  }
+
+  console.log('(v) L1: a revoke link does not outlive a hand-off');
+  {
+    const FNv = fresh('alert-recipients-fns.js');
+    const sha = FNv._internal.sha256;
+    const t = 'K'.repeat(43);
+    const seedV = () => {
+      reset();
+      tenant('co-a', { alertEmail: 'newinbox@example.test' }, { email: 'owner@example.test', emailVerified: true });
+      world.docs['alertRecipients/co-a'] = { confirmed: { [AR.addrKey('newinbox@example.test')]: { email: 'newinbox@example.test', requestedBy: 'co-a' } } };
+      world.docs['alertRecipientTokens/' + sha(t)] = { kind: 'revoke', companyId: 'co-a', email: 'newinbox@example.test', addrKey: AR.addrKey('newinbox@example.test'), ownerUid: 'co-a', expiresAtMs: Date.now() + 1e6 };
+    };
+    seedV();
+    let r1 = res();
+    await FNv._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + t, headers: {} }, r1);
+    ok('CONTROL: with the same owner the revoke link removes the address', r1.code === 200 && Object.keys(world.docs['alertRecipients/co-a'].confirmed).length === 0, r1.code);
+    seedV();
+    world.docs['companies/co-a'] = { ownerId: 'bob' };
+    r1 = res();
+    await FNv._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + t, headers: {} }, r1);
+    ok("after a hand-off the former owner's revoke link is dead (404) and removes nothing", r1.code === 404 && Object.keys(world.docs['alertRecipients/co-a'].confirmed).length === 1, r1.code);
+    r1 = res();
+    await FNv._internal.handleConfirm({ method: 'GET', path: '/alert-confirm/' + t, headers: {} }, r1);
+    ok('...and its GET page does not render', r1.code === 404, r1.code);
+    seedV();
+    delete world.docs['alertRecipientTokens/' + sha(t)].ownerUid;
+    r1 = res();
+    await FNv._internal.handleConfirm({ method: 'POST', path: '/alert-confirm/' + t, headers: {} }, r1);
+    ok('a revoke token with no ownerUid is refused', r1.code === 404, r1.code);
+  }
+
+  console.log('(w) L4: NBD tenant exempt from per-destination share/invite caps');
+  {
+    const RSn = fresh('report-sharing.js');
+    reset();
+    world.docs['reports/report-nbd001'] = { userId: OWNER_UID, companyId: OWNER_UID, html: '<p>r</p>', type: 'inspection report', leadId: 'leadN', metadata: {} };
+    world.docs['leads/leadN'] = { userId: OWNER_UID, companyId: OWNER_UID, email: 'nbd.customer@example.test', firstName: 'Sam' };
+    world.leads = [{ id: 'leadN', userId: OWNER_UID, companyId: OWNER_UID, email: 'nbd.customer@example.test' }];
+    const outs = [];
+    for (let i = 0; i < 6; i++) {
+      const r = await RSn.createReportShareToken.__handler({ auth: { uid: OWNER_UID, token: { companyId: OWNER_UID, email: 'jd@example.test', email_verified: true } }, data: { reportId: 'report-nbd001' } });
+      outs.push(r.emailed);
+    }
+    ok('NBD can email one customer more than 5 times a day', outs.every((x) => x === true), outs);
+
+    const INV = fresh('handlers/invites.js');
+    const fire = async (companyId, n) => {
+      reset();
+      world.docs['companies/' + companyId] = { name: 'Co' };
+      let sent = 0;
+      for (let i = 0; i < n; i++) {
+        const before = rec.emails.length;
+        await INV.teamInviteEmail.__handler({
+          data: { data: () => ({ status: 'invited', email: 'new.rep@example.test', role: 'sales_rep', invitedBy: companyId }), ref: { update: async () => {} } },
+          params: { companyId, memberId: 'new.rep@example.test' },
+        });
+        if (rec.emails.length > before) sent++;
+      }
+      return sent;
+    };
+    ok('NBD tenant: 6 invites to one address all go out', (await fire(OWNER_UID, 6)) === 6);
+    ok('CONTROL: another tenant is stopped at its share (3)', (await fire('co-inv', 6)) === 3);
+  }
+
+  console.log('(x) I1: a single-IP trip does not ring the owner bell');
+  {
+    reset();
+    tenant('co-a', { alertEmail: 'owner@example.test' }, { email: 'owner@example.test', emailVerified: true });
+    rl.counts['leadAlert:tenantIp|co-a|198.51.100.5'] = (LA.TENANT_ALERT_IP_DAILY_CAP || 10);
+    const o = await LA.alertJoe('contact_leads', lead({ ip: '198.51.100.5' }), 'ipbell');
+    ok('the over-IP alert is skipped', o.email === 'skipped:rate-limited', o);
+    ok('...but NO "alerts paused" bell is created', Object.keys(world.docs).filter((k) => k.startsWith('notifications/alertcap_')).length === 0);
+  }
+
+  console.log('(y) M2: legacy admin-seeded slug tenant keeps its configured contacts');
+  {
+    const UID28 = 'AbCdEfGhIjKlMnOpQrStUvWxYz12';
+    reset();
+    world.docs['companies/oaks'] = { name: 'Oaks' }; // admin-seeded, NO ownerId
+    let r = await AR.resolveTenantRecipients('oaks', { alertEmail: 'ops@oaks.test', alertSms: '+15555550188' });
+    ok('slug id + company doc with no ownerId: configured email and text are used', r.emails.join() === 'ops@oaks.test' && r.sms === '+15555550188', r);
+    reset();
+    world.docs['companies/' + UID28] = { name: 'Self signup' };
+    world.auth[UID28] = { email: 'owner@example.test', emailVerified: true };
+    r = await AR.resolveTenantRecipients(UID28, { alertEmail: 'unconfirmed@example.test' });
+    ok('CONTROL: a uid-shaped self-signup company with an unconfirmed email still falls back to the owner', r.emails.join() === 'owner@example.test' && r.ignoredEmail === 'unconfirmed@example.test', r);
+    reset();
+    world.docs['companies/oaks'] = { name: 'Oaks', ownerId: 'scott' };
+    world.auth.scott = { email: 'scott@example.test', emailVerified: true };
+    r = await AR.resolveTenantRecipients('oaks', { alertEmail: 'ops@oaks.test' });
+    ok('CONTROL: a slug company WITH an ownerId is not legacy (owner policy applies)', r.emails.join() === 'scott@example.test', r);
+    reset();
+    r = await AR.resolveTenantRecipients('ghost', { alertEmail: 'ops@oaks.test' });
+    ok('CONTROL: a slug id with no company doc at all is not legacy', r.emails.length === 0, r);
+    reset();
+    const throwing = { collection: () => ({ doc: () => ({ get: async () => { throw new Error('unavailable'); } }) }) };
+    r = await AR.resolveTenantRecipients('oaks', { alertEmail: 'ops@oaks.test' }, { db: throwing });
+    ok('a company-doc read error never takes the legacy branch', r.emails.length === 0, r);
+    // end to end through lead-alert
+    reset();
+    world.docs['companies/oaks'] = { name: 'Oaks' };
+    tenant('oaks', { alertEmail: 'ops@oaks.test' }, null);
+    await LA.alertJoe('contact_leads', lead({ companyId: 'oaks' }), 'oaks-1');
+    ok('end to end: the Oaks alert goes to its configured inbox', rec.emails.some((m) => [].concat(m.to).join() === 'ops@oaks.test'), rec.emails.map((m) => m.to));
   }
 
 

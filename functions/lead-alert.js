@@ -453,6 +453,7 @@ async function alertJoe(collection, d, leadId, opts = {}) {
   // already debited every bucket, so it must not debit them again.
   const debit = !opts.watchdog;
   let capped = false;
+  let ipTripped = false;
   if (debit && !target.isNbd && d.companyId && (target.sms || (target.emails && target.emails.length))) {
     try {
       const RL = require('./rate-limit');
@@ -463,7 +464,7 @@ async function alertJoe(collection, d, leadId, opts = {}) {
         try {
           await RL.enforceRateLimit('leadAlert:tenantIp', String(d.companyId) + '|' + RL.rateLimitIpKey(String(d.ip)), TENANT_ALERT_IP_DAILY_CAP, TENANT_ALERT_WINDOW_MS);
         } catch (ipErr) {
-          if (ipErr && ipErr.rateLimited) throw ipErr;
+          if (ipErr && ipErr.rateLimited) { ipTripped = true; throw ipErr; }
           logger.warn('leadAlert: per-IP cap check unavailable — continuing', { collection, leadId, err: ipErr && ipErr.message });
         }
       }
@@ -474,7 +475,9 @@ async function alertJoe(collection, d, leadId, opts = {}) {
         if (target.sms) outcomes.sms = 'skipped:rate-limited';
         if (target.emails && target.emails.length) outcomes.email = 'skipped:rate-limited';
         logger.warn('leadAlert: tenant daily alert cap reached — email/SMS skipped', { collection, leadId, companyId: String(d.companyId) });
-        await alertsPausedBell(target, d.companyId, trusted);
+        // Only the TENANT ceiling rings the bell: one source IP tripping its own
+        // bucket must not be able to page the owner.
+        if (!ipTripped) await alertsPausedBell(target, d.companyId, trusted);
       } else {
         logger.warn('leadAlert: tenant cap check unavailable — sending', { collection, leadId, err: e && e.message });
       }

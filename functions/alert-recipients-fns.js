@@ -131,8 +131,9 @@ async function revokeConfirmed(db, companyId, actorUid, via, ownerEmail) {
   const snap = await ref.get();
   const map = (snap.exists && snap.data() && snap.data().confirmed) || {};
   for (const k of Object.keys(map)) { if (map[k] && map[k].email) removed = String(map[k].email); }
-  if (!snap.exists) return '';
-  await ref.delete();
+  // Never delete: revokedAtMs lets an in-flight confirmation see it was cancelled.
+  await ref.set({ confirmed: {}, revokedAtMs: Date.now(), updatedAt: FieldValue.serverTimestamp() });
+  if (!removed) return '';
   await audit(db, {
     kind: 'alert_recipient.revoked', companyId: String(companyId), actorUid: String(actorUid || ''), via,
     emailMasked: AR.maskEmail(removed), addrKey: removed ? AR.addrKey(removed) : null,
@@ -301,7 +302,10 @@ async function applyRevoke(db, ref, tok, method, res) {
       if (!cur.exists) throw Object.assign(new Error('used'), { code: 'used' });
       const t = await tx.get(target);
       const map = (t.exists && t.data() && t.data().confirmed) || {};
-      if (t.exists && map[tok.addrKey]) { removed = String((map[tok.addrKey] || {}).email || tok.email || ''); tx.delete(target); }
+      if (t.exists && map[tok.addrKey]) {
+        removed = String((map[tok.addrKey] || {}).email || tok.email || '');
+        tx.set(target, { confirmed: {}, revokedAtMs: Date.now(), updatedAt: FieldValue.serverTimestamp() });
+      }
       tx.delete(ref);
     });
   } catch (e) {
@@ -366,6 +370,12 @@ async function handleConfirm(req, res) {
 
   // ── revoke link (carried by the owner notice) ──
   if (tok.kind === 'revoke') {
+    // Minted for one owner: it does not outlive a hand-off (the new owner makes
+    // their own). A token with no ownerUid is refused.
+    let cur = '';
+    try { cur = await AR.ownerUidFor(tok.companyId); } catch (_) { cur = ''; }
+    if (!cur) return send(res, 503, renderPage('Something went wrong', '<p>Please try the link again in a few minutes.</p>'), method);
+    if (!tok.ownerUid || String(tok.ownerUid) !== cur) return send(res, 404, INVALID, method);
     if (method === 'POST') return applyRevoke(db, ref, tok, method, res);
     return send(res, 200, renderPage('Stop lead alerts to this address?',
       '<p>Stop sending new-lead alerts to <strong>' + esc(tok.email) + '</strong>? Alerts will go to the account owner\'s sign-in email.</p>'
@@ -392,21 +402,74 @@ async function handleConfirm(req, res) {
         '<p>The account owner\'s sign-in email is not verified yet, so this address cannot be confirmed. Verify it, then ask for a new link.</p>'), method);
     }
 
-    // Claim the token in a transaction FIRST (confirmed entry + revoke token),
-    // THEN tell the owner. If the notice cannot be sent (or is rate limited) the
-    // claim is rolled back - the previous confirmed address is restored and the
-    // token is made usable again - and nothing stays confirmed (fail closed).
-    // Exactly one notice is sent: a concurrent second POST loses the claim.
+    // THREE steps, none of which can clobber another writer:
+    //   1. CLAIM: stamp { nonce, atMs } on the confirm token, in a transaction that
+    //      also re-reads companies/{id}.ownerId and aborts unless the requester is
+    //      still the owner. Nothing else is written; the previous confirmed
+    //      address is untouched.
+    //   2. NOTIFY the owner (rate limited). On failure, release the claim (a
+    //      nonce-guarded transaction) and stop: there is nothing to roll back.
+    //   3. PROMOTE: one transaction re-checks the claim nonce, the owner and that
+    //      no revoke happened since the claim, then writes the confirmed entry +
+    //      the revoke token and deletes the confirm token.
+    // Exactly one notice per claim: a second POST sees a live claim and stops.
+    const nonce = mintToken();
     const revokeToken = mintToken();
     const confirmedRef = db.collection(AR.CONFIRMED_COLLECTION).doc(String(tok.companyId));
     const revokeRef = db.collection(AR.TOKEN_COLLECTION).doc(sha256(revokeToken));
-    let prevConfirmed = null;
+    const ownerNow = async (tx) => {
+      const co = await tx.get(db.collection('companies').doc(String(tok.companyId)));
+      const oid = co && co.exists ? ((co.data() || {}).ownerId || '') : '';
+      return String(oid || tok.companyId);
+    };
+    let claimAtMs = 0;
     try {
       await db.runTransaction(async (tx) => {
         const cur = await tx.get(ref);
         if (!cur.exists) throw Object.assign(new Error('used'), { code: 'used' });
+        const c = cur.data() || {};
+        if (c.claim && Number(c.claim.atMs || 0) > Date.now() - AR.CLAIM_TTL_MS) throw Object.assign(new Error('busy'), { code: 'busy' });
+        if ((await ownerNow(tx)) !== String(tok.requestedBy || '')) throw Object.assign(new Error('owner'), { code: 'owner' });
+        claimAtMs = Date.now();
+        tx.set(ref, Object.assign({}, c, { claim: { nonce, atMs: claimAtMs } }));
+      });
+    } catch (e) {
+      if (e && (e.code === 'used' || e.code === 'owner')) return send(res, 404, INVALID, method);
+      if (e && e.code === 'busy') {
+        return send(res, 409, renderPage('Already in progress', '<p>This link is being processed. Check your email in a minute.</p>'), method);
+      }
+      logger.error('confirmAlertRecipient: claim failed', { err: e && e.message });
+      return send(res, 503, renderPage('We couldn\'t save that', '<p>Please press the button again in a minute.</p>'), method);
+    }
+    const releaseClaim = async () => {
+      try {
+        await db.runTransaction(async (tx) => {
+          const cur = await tx.get(ref);
+          const c = cur.exists ? (cur.data() || {}) : null;
+          if (c && c.claim && c.claim.nonce === nonce) { const d = Object.assign({}, c); delete d.claim; tx.set(ref, d); }
+        });
+      } catch (e) {
+        // Harmless: the claim expires on its own (AR.CLAIM_TTL_MS) and nothing was confirmed.
+        logger.warn('confirmAlertRecipient: claim release failed', { err: e && e.message });
+      }
+    };
+    try {
+      await enforceRateLimit('alertNotice:company', String(tok.companyId), NOTICES_PER_COMPANY_DAY, AR.RECIPIENT_WINDOW_MS);
+      await sendOwnerNotice('added', owner.email, tok.email, CONFIRM_URL_BASE + revokeToken);
+    } catch (e) {
+      logger.error('confirmAlertRecipient: owner notice failed — not confirming', { err: e && e.message });
+      await releaseClaim();
+      return send(res, 503, renderPage('We couldn\'t save that', '<p>Please press the button again in a minute.</p>'), method);
+    }
+    try {
+      await db.runTransaction(async (tx) => {
+        const cur = await tx.get(ref);
+        const c = cur.exists ? (cur.data() || {}) : null;
+        if (!c || !c.claim || c.claim.nonce !== nonce) throw Object.assign(new Error('used'), { code: 'used' });
+        if ((await ownerNow(tx)) !== String(tok.requestedBy || '')) throw Object.assign(new Error('owner'), { code: 'owner' });
         const prev = await tx.get(confirmedRef);
-        prevConfirmed = prev && prev.exists ? prev.data() : null;
+        const pd = prev && prev.exists ? (prev.data() || {}) : {};
+        if (Number(pd.revokedAtMs || 0) >= claimAtMs) throw Object.assign(new Error('revoked'), { code: 'revoked' });
         const key = AR.addrKey(tok.email);
         // Replaces any earlier confirmed address (no merge): one at a time.
         tx.set(confirmedRef, {
@@ -416,28 +479,19 @@ async function handleConfirm(req, res) {
           updatedAt: FieldValue.serverTimestamp(),
         });
         tx.set(revokeRef, {
-          kind: 'revoke', companyId: String(tok.companyId), email: tok.email, addrKey: key,
+          kind: 'revoke', companyId: String(tok.companyId), email: tok.email, addrKey: key, ownerUid: String(tok.requestedBy || ''),
           createdAtMs: Date.now(), expiresAtMs: Date.now() + AR.REVOKE_TTL_MS,
         });
         tx.delete(ref);
       });
     } catch (e) {
-      if (e && e.code === 'used') return send(res, 404, INVALID, method);
-      logger.error('confirmAlertRecipient: record failed', { err: e && e.message });
-      return send(res, 503, renderPage('We couldn\'t save that', '<p>Please press the button again in a minute.</p>'), method);
-    }
-    try {
-      await enforceRateLimit('alertNotice:company', String(tok.companyId), NOTICES_PER_COMPANY_DAY, AR.RECIPIENT_WINDOW_MS);
-      await sendOwnerNotice('added', owner.email, tok.email, CONFIRM_URL_BASE + revokeToken);
-    } catch (e) {
-      logger.error('confirmAlertRecipient: owner notice failed — rolling back', { err: e && e.message });
-      try {
-        if (prevConfirmed) await confirmedRef.set(prevConfirmed); else await confirmedRef.delete();
-        await revokeRef.delete();
-        await ref.set(tok);
-      } catch (re) {
-        logger.error('ALERT_RECIPIENT_ROLLBACK_FAILED: confirmed entry may be live without an owner notice', { companyId: String(tok.companyId), err: re && re.message });
+      if (e && (e.code === 'used' || e.code === 'owner')) return send(res, 404, INVALID, method);
+      if (e && e.code === 'revoked') {
+        await releaseClaim();
+        return send(res, 409, renderPage('Cancelled', '<p>A lead-alert address was removed while this was being confirmed, so nothing was changed. Request a new confirmation from Settings if you still want it.</p>'), method);
       }
+      await releaseClaim();
+      logger.error('confirmAlertRecipient: record failed', { err: e && e.message });
       return send(res, 503, renderPage('We couldn\'t save that', '<p>Please press the button again in a minute.</p>'), method);
     }
     if (!(await audit(db, {

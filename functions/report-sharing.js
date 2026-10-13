@@ -146,11 +146,15 @@ async function authorizeShareRecipient(db, { uid, token, target, subjectLeadEmai
   } catch (e) {
     if (e && e.rateLimited) return { ok: false, reason: 'daily-limit' };
   }
-  const cap = await AR.capRecipients('reportShare', [to], {
-    limit: SHARE_EMAIL_RECIPIENT_DAILY_CAP, windowMs: SHARE_EMAIL_WINDOW_MS,
-    tenantKey: companyId || uid, tenantLimit: SHARE_EMAIL_TENANT_RECIPIENT_DAILY_CAP,
-  });
-  if (!cap.allowed.length) return { ok: false, reason: 'recipient-daily-limit' };
+  // NBD's own tenant mails its own customers; the per-destination limits are for
+  // tenants (the caller and platform-wide caps above still apply).
+  if (!AR.isNbdTenant(companyId)) {
+    const cap = await AR.capRecipients('reportShare', [to], {
+      limit: SHARE_EMAIL_RECIPIENT_DAILY_CAP, windowMs: SHARE_EMAIL_WINDOW_MS,
+      tenantKey: companyId || uid, tenantLimit: SHARE_EMAIL_TENANT_RECIPIENT_DAILY_CAP,
+    });
+    if (!cap.allowed.length) return { ok: false, reason: 'recipient-daily-limit' };
+  }
   return { ok: true, to };
 }
 

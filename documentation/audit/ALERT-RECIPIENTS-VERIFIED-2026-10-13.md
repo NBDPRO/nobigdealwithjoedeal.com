@@ -173,6 +173,58 @@ code, the cleanLabel code-point set) plus a hand-off assertion in
 mutation that reddened nothing by assertion (the `send` Auth fallback) failed
 by an uncaught refusal in the test.
 
+### Round 3b: independent review (no critical/high), same day
+
+- **M1 (medium, fixed by removing the rollback).** The round-3 rollback was
+  three blind writes that could clobber a concurrent write or leave an address
+  live with no notice. The confirm flow is now claim, notify, promote:
+  1. CLAIM: a transaction stamps `{nonce, atMs}` on the confirm token and
+     re-reads `companies/{id}.ownerId` (L2: aborts unless the requester is
+     still the owner). Nothing else is written; the previous confirmed address
+     is untouched. A live claim makes a second press stop (409): one notice.
+  2. NOTIFY the owner (rate limited). On failure only the nonce-guarded claim
+     is released; there is nothing to roll back.
+  3. PROMOTE: one transaction re-checks the nonce, the owner, and that no
+     revoke has happened since the claim (`alertRecipients/{id}.revokedAtMs`,
+     now stamped by both revoke paths instead of deleting the doc), then writes
+     the confirmed entry + revoke token and deletes the confirm token. A claim
+     that never finished frees itself after 2 minutes.
+- **L1:** a revoke token carries `ownerUid` and is dead once the company's owner
+  is someone else (a token without one is refused). The hand-off transaction does
+  not delete revoke tokens (they live in a separate collection; the owner check
+  makes them inert and the confirmed doc is deleted anyway).
+- **L4:** NBD's own tenant is exempt from the per-destination share and invite
+  caps (caller and platform-wide caps still apply).
+- **I1:** the "alerts paused" bell rings only when the TENANT ceiling trips, not
+  on one source address tripping its own bucket.
+- **M2 (read-only prod check, 2026-10-13, ids and booleans only).** Prod holds
+  3 company docs and 3 profiles. (1) The platform company: alert email is the
+  owner's verified sign-in email, unaffected. (2) A self-signup company whose
+  owner's sign-in email is NOT verified: it gets no alert email until verified
+  (by design; bell and push unaffected). (3) `oaks`: has an `ownerId` (a
+  verified, enabled Auth user), its configured alert email is not that user's
+  sign-in email and its alert number is not that user's phone, so its alerts go
+  to the owner's verified sign-in email until the owner confirms the configured
+  address from Settings, and texts are not sent (A2P-blocked anyway). No slug
+  company WITHOUT an `ownerId` exists in prod, and `alert_outbox` has 0
+  `skipped:no-target` rows. `alertRecipients` is empty in prod. The coordinator's
+  slug fallback is nevertheless in as a safeguard: a company doc that exists,
+  names no owner and has a non-uid (not 28-alphanumeric) id keeps its configured
+  contacts; a uid-shaped company, a slug with an owner, a slug with no company
+  doc and a read error all do not.
+- **L3 (Jo's decision, unchanged):** access-code comp accounts (an active paid
+  plan on an access-code grant) can email share links.
+- **I2:** informational, no change. **I3:** unverified team members / reps on
+  NBD's tenant get no digests until they verify their email (digests go only
+  to the verified Auth email).
+
+Tests: 215 checks in `tests/alert-recipients-2026-10-13.test.js` (sections u-y
+new). Break tests reddened the matching assertion for: busy check removed,
+release / promote ignoring the nonce, revoke-in-window check removed or
+`revokedAtMs` not stamped, revoke-token owner check removed, owner re-read in
+the claim removed, NBD share / invite exemption removed, bell on IP trip,
+legacy branch removed / ignoring the company doc / applying to uid-shaped ids.
+
 ## What changed
 
 1. **One shared recipient policy** — `functions/alert-recipients.js`. A

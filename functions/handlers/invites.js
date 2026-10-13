@@ -369,8 +369,11 @@ exports.teamInviteEmail = onDocumentCreated(
     const roleLabel = String(d.role || 'sales rep').replace(/_/g, ' ');
     let emailStatus;
     try {
-      const capInv = await AR.capRecipients('invite', [to], { limit: INVITE_RECIPIENT_DAILY_CAP, tenantKey: companyId, tenantLimit: INVITE_TENANT_RECIPIENT_DAILY_CAP });
-      if (!capInv.allowed.length) throw new Error('recipient-capped');
+      // NBD's own tenant is not limited per destination (2026-10-13).
+      if (!AR.isNbdTenant(companyId)) {
+        const capInv = await AR.capRecipients('invite', [to], { limit: INVITE_RECIPIENT_DAILY_CAP, tenantKey: companyId, tenantLimit: INVITE_TENANT_RECIPIENT_DAILY_CAP });
+        if (!capInv.allowed.length) throw new Error('recipient-capped');
+      }
       const resend = new Resend(RESEND_API_KEY.value());
       const from = secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com');
       const response = await resend.emails.send({

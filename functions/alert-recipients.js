@@ -48,6 +48,7 @@ const CONFIRM_REQUESTS_PER_ADDRESS_DAY = 2;   // ... and one destination may rec
 const CONFIRM_GLOBAL_DAILY_CAP = 300;          // confirmation mails platform-wide per rolling 24h
 const CONFIRM_TTL_MS = 48 * 60 * 60 * 1000;
 const REVOKE_TTL_MS = 30 * 24 * 60 * 60 * 1000;   // the revoke link in the owner notice
+const CLAIM_TTL_MS = 2 * 60 * 1000;               // a confirm-token claim that never finished frees itself
 // One TENANT's share of a destination's daily budget (2026-10-13): equal to the
 // per-tenant alert ceiling (lead-alert.js TENANT_ALERT_DAILY_CAP) and inside the
 // all-tenant cap above, so one tenant can never use up a destination for everyone.
@@ -59,6 +60,27 @@ const TOKEN_COLLECTION = 'alertRecipientTokens';      // {sha256(token)} -> pend
 // Paid plan names (functions/billing.js PLAN_LIMITS minus 'free'; a test pins
 // the two together). A non-NBD tenant on any other name is treated as unpaid.
 const KNOWN_PAID_PLANS = Object.freeze(['starter', 'foundation', 'team', 'growth', 'professional', 'enterprise']);
+
+// Firebase Auth uids from sign-up are 28 alphanumerics; every self-signup tenant
+// is keyed by one. A company id of any other shape is an admin-seeded legacy slug.
+const UID_SHAPE_RE = /^[A-Za-z0-9]{28}$/;
+function isUidShaped(id) { return UID_SHAPE_RE.test(String(id || '')); }
+
+// An admin-seeded company doc that exists and names NO owner (a read error is NO).
+async function legacySeededCompany(companyId, deps) {
+  try {
+    const snap = await _db(deps).collection('companies').doc(String(companyId)).get();
+    return !!(snap && snap.exists && !((snap.data() || {}).ownerId));
+  } catch (_) {
+    return false;
+  }
+}
+
+// NBD's own tenant (the platform owner's uid). Read lazily so a test can set it.
+function isNbdTenant(id) {
+  const nbd = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+  return !!id && String(id) === String(nbd);
+}
 
 // Deliberately strict: one plain address. No display names, no lists.
 const EMAIL_RE = /^[A-Za-z0-9._+-]{1,64}@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
@@ -208,6 +230,16 @@ async function resolveTenantRecipients(companyId, contact, deps) {
   const owner = ownerUid ? await authOwner(ownerUid, deps) : { email: '', phone: '' };
   const out = { emails: [], sms: null, ownerEmail: owner.email, ignoredEmail: '', ignoredSms: '' };
 
+  // Legacy admin-seeded tenant (a slug id like 'oaks' whose company doc names NO
+  // owner; never a self-signup, those are keyed by a 28-char uid). Only an admin
+  // can write its company / profile docs, so its configured contacts keep working
+  // as they did before. A uid-shaped company never takes this branch.
+  if (ownerUid && !isUidShaped(companyId) && (await legacySeededCompany(companyId, deps))) {
+    if (cfgEmail) out.emails = [cfgEmail];
+    if (cfgSms) out.sms = cfgSms;
+    return out;
+  }
+
   if (cfgEmail) {
     if (owner.email && cfgEmail === owner.email) {
       out.emails = [owner.email];
@@ -301,7 +333,7 @@ async function verifiedUserEmail(uid, storedEmail, deps) {
 module.exports = {
   RECIPIENT_DAILY_CAP, RECIPIENT_WINDOW_MS,
   CONFIRM_REQUESTS_PER_OWNER_DAY, CONFIRM_REQUESTS_PER_ADDRESS_DAY, CONFIRM_GLOBAL_DAILY_CAP, CONFIRM_TTL_MS,
-  REVOKE_TTL_MS, RECIPIENT_TENANT_DAILY_CAP, KNOWN_PAID_PLANS, maskEmail, planAllowsShareEmail,
+  REVOKE_TTL_MS, CLAIM_TTL_MS, isUidShaped, isNbdTenant, legacySeededCompany, RECIPIENT_TENANT_DAILY_CAP, KNOWN_PAID_PLANS, maskEmail, planAllowsShareEmail,
   CONFIRMED_COLLECTION, TOKEN_COLLECTION,
   normEmail, normPhone, canonicalInbox, addrKey, authOwner, ownerUidFor, confirmedKeys, confirmedEntries, entryHonoured,
   resolveTenantRecipients, capRecipients, verifiedUserEmail, cleanLabel,
