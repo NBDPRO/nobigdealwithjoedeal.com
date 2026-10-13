@@ -228,11 +228,12 @@ function snoozeWakeYmd(c, sinceMs, now) {
  * New items since `sinceMs` that need Jo. calls / textDays: phone_calls /
  * phone_text_days docs (with id); thursday: thursday_calls docs (with id).
  */
-function newNeeds(calls, textDays, thursday, sinceMs, now, labels) {
+function newNeeds(calls, textDays, thursday, sinceMs, now, labels, told) {
   const out = [];
   const ctx = reachIndex(calls);
   if (labels) ctx.labels = labels;
   const tctx = labels ? { labels } : null;
+  const wasTold = (id) => !!told && typeof told.has === 'function' && told.has(id);
   (calls || []).forEach((c) => {
     if (!callNeedsYou(c, now, ctx)) return;
     const arrived = toMs(c.notedAtMs) || toMs(c.createdAtMs) || toMs(c.startedAtMs);
@@ -244,7 +245,14 @@ function newNeeds(calls, textDays, thursday, sinceMs, now, labels) {
     const why = reasonFor(c, now, ctx);
     // Already told by the immediate urgent push (call-center.js pushUrgent).
     if (why === 'urgent' && c.urgentPushedAtMs && !due && !wake) return;
-    out.push({ id: 'call:' + c.id, tellId: arrived <= sinceMs ? 'call:' + c.id + (due ? '#due:' + c.followUpDate : '#wake:' + wake) : undefined, key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) });
+    // A call a run saw while its transcript was still pending ('stored', an
+    // unknown number) is told as "unknown number" under its OWN id. Without that
+    // the plain id was used up, and when the transcript made the call urgent
+    // (after hours) or a promise of Jo's, callWatch never said so and the call
+    // never reached the re-tell ladder (audit 2026-10-13, volume simulation).
+    const stored = c.status === 'stored';
+    if (!stored && !due && !wake && wasTold('call:' + c.id + '#stored') && !HIGH_WHY.test(why)) return;
+    out.push({ id: 'call:' + c.id, tellId: arrived <= sinceMs ? 'call:' + c.id + (due ? '#due:' + c.followUpDate : '#wake:' + wake) : (stored ? 'call:' + c.id + '#stored' : undefined), key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) });
   });
   (textDays || []).forEach((c) => {
     if (!callNeedsYou(c, now, tctx)) return;
@@ -538,9 +546,9 @@ function ladderEmail(retells, now) {
   const url = 'https://nobigdealwithjoedeal.com/pro/dashboard.html#/calls';
   const lines = people.slice(0, 12).map((p) => p.who + ' - ' + String(p.why).replace(/ - still open.*$/, ''));
   const subject = 'Still open: ' + people.length + (people.length === 1 ? ' person' : ' people') + ' waiting on you (' + etYmd(now) + ')';
-  const text = ['These were pushed to your phone earlier today and are still open:', ''].concat(lines.map((l) => '- ' + l)).concat(['', 'Open the Call Center: ' + url, '', 'This is the last reminder; the morning brief lists anything still open.']).join('\n');
+  const text = ['These were pushed to your phone earlier today and are still open:', ''].concat(lines.map((l) => '- ' + l)).concat(['', 'Open the Call Center: ' + url, '', 'This is the last reminder. They stay on your Today list and in the Call Center until you handle them.']).join('\n');
   const html = '<p>These were pushed to your phone earlier today and are still open:</p><ul>' + lines.map((l) => '<li>' + esc(l) + '</li>').join('') +
-    '</ul><p><a href="' + url + '">Open the Call Center</a></p><p style="color:#666">This is the last reminder; the morning brief lists anything still open.</p>';
+    '</ul><p><a href="' + url + '">Open the Call Center</a></p><p style="color:#666">This is the last reminder. They stay on your Today list and in the Call Center until you handle them.</p>';
   return { subject, text, html, people: people.length };
 }
 
