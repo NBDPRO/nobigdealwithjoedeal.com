@@ -1,14 +1,20 @@
 /* sort-customers.css — "Sort my customers" banner + screen
    (js/sort-customers.js, 2026-10-01). Theme tokens only; 44px targets. */
 .sc-wrap { padding: 0 16px 8px; }
+/* One slim row (2026-10-13): the sentence is the title/aria-label, the line
+   shows the count and both actions. Wraps only on a very narrow phone. */
 .sc-banner {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
-  padding: 10px 14px; border-radius: 10px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
+  padding: 4px 8px 4px 12px; border-radius: 10px;
   background: var(--s2, rgba(255,255,255,.05));
   border: 1px solid var(--orange, #e8720c);
-  color: var(--t, inherit); font-size: 14px; line-height: 1.4;
+  color: var(--t, inherit); font-size: 13px; line-height: 1.3;
 }
-.sc-banner-text { flex: 1 1 220px; }
+.sc-banner-text { flex: 1 1 100px; min-width: 0; }
+.sc-banner .sc-btn { padding: 0 10px; font-size: 13px; white-space: nowrap; }
+@media (max-width: 480px) {
+  .sc-wrap { padding: 0 10px 6px; }
+}
 .sc-btn {
   min-height: 44px; padding: 0 16px; border-radius: 8px; cursor: pointer;
   font: inherit; font-weight: 700; border: 1px solid var(--br, rgba(255,255,255,.15));

@@ -129,7 +129,7 @@
       'js/stripe-ledger-panel.js?v=3',
       // One-tap overdue reminder (2026-10-01): the Collections queue's "Remind".
       'js/invoice-reminder.js?v=7',
-      'js/money-dashboard.js?v=10'
+      'js/money-dashboard.js?v=11'
     ],
     repos: [
       'js/rep-os.js?v=4'

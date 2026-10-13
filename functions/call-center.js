@@ -886,6 +886,14 @@ async function moveCallToLead({ db, call, fromId, toId, to, uid, nowMs }) {
   return { activityMoved, taskMoved, phoneAdded: !!patch };
 }
 
+// Keep the away-mode hand-back timeline row true once Jo clears the person
+// (2026-10-13, functions/away-handback-settle.js). Best effort, never throws.
+async function settleAway(db, call, auth, nowMs) {
+  try {
+    await require('./away-handback-settle').settleHandBackTimeline(db, call, { nowMs, byUid: auth && auth.uid, byName: auth && auth.token && auth.token.name });
+  } catch (_) { /* the clearing action already succeeded */ }
+}
+
 async function callAction({ db, auth, data, nowMs }) {
   if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   const id = String((data && data.id) || '');
@@ -906,6 +914,7 @@ async function callAction({ db, auth, data, nowMs }) {
   const action = String((data && data.action) || '');
   if (action === 'handled' || action === 'unhandled') {
     await ref.set({ handledAtMs: action === 'handled' ? nowMs : null, handledBy: auth.uid }, { merge: true });
+    await settleAway(db, call, auth, nowMs);
     return { ok: true };
   }
   // The "Said you'd do" deck (2026-10-03). Done ticks the call's follow-up
@@ -925,6 +934,7 @@ async function callAction({ db, auth, data, nowMs }) {
       // Mirror onto the call now (onCallTaskWrite does the same for a tick
       // anywhere else) so "needs you" drops the person straight away.
       await ref.set({ taskDone: done }, { merge: true });
+      await settleAway(db, call, auth, nowMs);
       return { ok: true, done };
     }
     if (action === 'snooze') {
@@ -996,6 +1006,7 @@ async function callAction({ db, auth, data, nowMs }) {
         await genericRef.set({ done: true, completedAt: FieldValue.serverTimestamp(), supersededBy: taskId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       }
       await ref.set({ handledAtMs: nowMs, handledBy: auth.uid, promiseTaskId: taskId, promiseKind: kind }, { merge: true });
+      await settleAway(db, call, auth, nowMs);
       return { ok: true, on: 'task', taskId, dueDate: built.dueDate };
     }
     if (kind === 'waiting') throw new HttpsError('failed-precondition', 'File this call on a customer first - waiting needs a customer.');
@@ -1128,6 +1139,7 @@ async function mirrorCallTask({ db, leadId, taskId, after }) {
   const done = after.done === true;
   if (call.taskDone === done) return { unchanged: true };
   await ref.set({ taskDone: done }, { merge: true });
+  await settleAway(db, call, null, Date.now());
   return { id: m[2], done };
 }
 

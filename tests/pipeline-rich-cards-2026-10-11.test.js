@@ -170,5 +170,29 @@ console.log('\nRICH CARDS — css tokens');
   ok('no transition:all, no !important', !/transition:\s*all/.test(css) && !/!important/.test(css));
 }
 
+console.log('\nCOMPACT PHONE HEADER (2026-10-13, "CRM tab is getting a bit tight again")');
+{
+  const js = strip(read('docs/pro/js/pipeline-rich-cards.js'));
+  const css = strip(read('docs/pro/css/pipeline-rich-cards.css'));
+  ok('the strip paints one cycle button next to the three segments', /class="kr-cycle ui-seg" data-kr-act="cycle"/.test(js) && /data-kr-card="'/.test(js));
+  ok('the cycle order is none > compact > rich > photo > compact', /\{ '': 'compact', compact: 'rich', rich: 'photo', photo: 'compact' \}/.test(js));
+  ok('the click handler routes cycle to setCardStyle with the next key', /act === 'cycle'\) \{ ev\.preventDefault\(\); setCardStyle\(t\.getAttribute\('data-kr-next'\)/.test(js));
+  ok('the cycle button names its state for assistive tech', /aria-label="' \+ cycleLabel/.test(js) && /Card style: /.test(js));
+  ok('wide windows hide the cycle button and keep the segments', /\.kr-switch \.kr-cycle \{ display: none; \}/.test(css));
+  const phone = (css.match(/@media \(max-width: 640px\) \{[\s\S]*?\n\}/) || [''])[0];
+  ok('a phone hides the segments and shows the cycle button on one row',
+    /\.kr-switch \.kr-sw\.ui-seg \{ display: none; \}/.test(phone) && /\.kr-switch \.kr-cycle\.ui-seg \{[^}]*display: inline-flex/.test(phone) && /\.kr-stats \{ flex-wrap: nowrap;/.test(phone));
+  ok('the 32px chips keep a 44px hit area', /\.kr-stat::after, \.kr-cycle::after \{[^}]*top: -7px; bottom: -7px;/.test(phone));
+  ok('positive control: the old stacked rule (switch 100% wide) is gone', !/\.kr-switch \{ width: 100%; \}/.test(css));
+  const sc = strip(read('docs/pro/js/sort-customers.js'));
+  const scCss = strip(read('docs/pro/css/sort-customers.css'));
+  ok('the no-job-type banner keeps both actions and the full sentence (title + aria-label)',
+    /data-sc="deck">One at a time</.test(sc) && /data-sc="open">See the list</.test(sc) && /title="' \+ why \+ '" aria-label="' \+ why/.test(sc) && /only show on All and Insurance/.test(sc));
+  ok('the banner is one slim row (4px vertical padding)', /\.sc-banner \{[^}]*padding: 4px 8px 4px 12px/.test(scCss));
+  const dash = strip(read('docs/pro/css/dashboard-app.css'));
+  ok('the phone view tabs use the tight padding that fits seven in one row', /\.crm-hdr-views \.kview-btn\{\s*padding:8px 5px!important;\s*font-size:11px!important;/.test(dash));
+  ok('an unpopulated #dailyCommandCenter takes no space', /#dailyCommandCenter:empty\{display:none;\}/.test(dash));
+}
+
 console.log('\n' + (failed ? 'FAILED ' + failed : 'PASSED ' + passed) + ' (' + passed + ' ok)');
 process.exit(failed ? 1 : 0);
