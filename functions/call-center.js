@@ -711,7 +711,7 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
   const outagePatch = {};
   if (outage) {
     const same = prevOutage && prevOutage.kind === outage.kind && prevOutage.provider === outage.provider;
-    const al = outage.needsAction && (live || allowIds.length) ? await alertProviderOutage({ db, d, outage, prev: prevOutage, today, nowMs }) : {};
+    const al = outage.needsAction ? await alertProviderOutage({ db, d, outage, prev: prevOutage, today, nowMs }) : {};
     outagePatch.providerOutage = {
       provider: outage.provider, kind: outage.kind, reason: outage.reason, needsAction: outage.needsAction,
       sinceMs: (same && prevOutage.sinceMs) || nowMs, lastAtMs: nowMs,
