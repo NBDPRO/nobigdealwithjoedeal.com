@@ -172,6 +172,65 @@
     return ref.id;
   }
 
+  // ── what a call's sheet saved, mirrored locally at once (QA 2026-10-13 H4) ──
+  // The server wrote the task / the call's promise; Today reads window._taskCache
+  // (tasks.js's one load) and NBDHomeAttention.lastRows, neither of which hears
+  // about it until the next leads refresh - so the call vanished from "owed"
+  // and the new promise was not on the list. Patch both, then repaint.
+  function callRow(id) {
+    var HA = w.NBDHomeAttention, rows = (HA && HA.lastRows) || [];
+    for (var i = 0; i < rows.length; i++) if (rows[i] && (rows[i].id === id || rows[i].id === 'text:' + id)) return rows[i];
+    var cc = w.NBDCallCenter && w.NBDCallCenter._state && w.NBDCallCenter._state.calls;
+    if (cc) for (var j = 0; j < cc.length; j++) if (cc[j] && cc[j].id === id) return cc[j];
+    return null;
+  }
+  function markHandledLocal(id) {
+    var c = callRow(id);
+    if (c) c.handledAtMs = Date.now();
+  }
+  var KEEP_HISTORY = ['missCount', 'rescheduleCount', 'madeYmd', 'madeBy', 'nudgeCount', 'waitingSince'];
+  function mirrorSaved(res, o) {
+    try {
+      var today = todayYmd();
+      var built = PL.buildTask({
+        kind: o.kind, dueYmd: (res && res.dueDate) || o.due, why: o.why, todayYmd: today, uid: uid(),
+        source: 'call', sourceCallId: o.callId, waitingOn: o.waitingOn, waitingDays: SETTINGS.waitingDays,
+      });
+      if (built.error) return;
+      if (res.on === 'task' && res.taskId) {
+        var row = callRow(o.callId);
+        var leadId = o.leadId || (row && row.leadId) || '';
+        if (!leadId) return;
+        var prev = cached(leadId, res.taskId);
+        var t = Object.assign({}, built, { id: res.taskId, leadId: leadId, title: built.text, phoneCallId: o.callId, createdAt: new Date() });
+        if (prev && prev.kind === 'promise') KEEP_HISTORY.forEach(function (k) { if (prev[k] != null) t[k] = prev[k]; });
+        t.done = false; t.completedAt = null; t.outcome = null;
+        pushCache(leadId, t);
+        markHandledLocal(o.callId);   // the server marked the call handled with the task
+      } else if (res.on === 'call') {
+        var c = callRow(o.callId);
+        if (!c) return;
+        var p = Object.assign({}, built);
+        if (c.promise && c.promise.kind === 'promise') ['missCount', 'rescheduleCount', 'madeYmd', 'madeBy'].forEach(function (k) { if (c.promise[k] != null) p[k] = c.promise[k]; });
+        c.promise = p; c.promiseKind = o.kind; c.followUpDate = built.dueDate; c.handledAtMs = null;
+        c.snoozeUntilYmd = built.dueDate > today ? built.dueDate : null;
+      }
+    } catch (e) { console.warn('[promise] local mirror skipped', e && e.message); }
+    changed();
+  }
+  // A moved promise that rides on a call: the new date, a miss if it was late.
+  function mirrorMoved(callId, due) {
+    try {
+      var c = callRow(callId);
+      if (!c || !c.promise) return;
+      var today = todayYmd();
+      c.promise = Object.assign({}, c.promise, PL.movePatch(c.promise, due, today));
+      c.followUpDate = due;
+      c.snoozeUntilYmd = due > today ? due : null;
+    } catch (e) { console.warn('[promise] local move mirror skipped', e && e.message); }
+    changed();
+  }
+
   // ── the sheet ──────────────────────────────────────────────────────────
   var S = null;       // live sheet state
   var opener = null;
@@ -290,6 +349,7 @@
         if (m.type === 'call') {
           var pm = await callable('callCenterAction', { id: m.callId, action: 'promiseMove', dueYmd: due });
           if (!(pm && pm.ok)) throw new Error('move');
+          mirrorMoved(m.callId, due);
         } else {
           var r = await moveTask(m.leadId, m.task, due);
           if (!r.ok) { S.busy = false; paint(); setErr(r.reason); return; }
@@ -302,8 +362,9 @@
           waitingOn: S.kind === 'waiting' ? S.waitingOn : undefined, waitingDays: SETTINGS.waitingDays,
         });
         if (!(res && res.ok)) throw new Error('promise');
+        mirrorSaved(res, { callId: primary, leadId: S.leadId || (S.lead && S.lead.id) || '', kind: S.kind, due: due, why: why, waitingOn: S.waitingOn });
         // The rest of that person's open calls are covered by this promise.
-        for (var i = 1; i < S.callIds.length; i++) await callable('callCenterAction', { id: S.callIds[i], action: 'handled' });
+        for (var i = 1; i < S.callIds.length; i++) { await callable('callCenterAction', { id: S.callIds[i], action: 'handled' }); markHandledLocal(S.callIds[i]); }
       } else {
         var built = PL.buildTask({
           kind: S.kind, dueYmd: due, why: why, todayYmd: today, uid: uid(), source: 'customer',
@@ -328,7 +389,7 @@
     if (!S || S.busy || !S.callIds.length) { close(); return; }
     S.busy = true;
     try {
-      for (var i = 0; i < S.callIds.length; i++) await callable('callCenterAction', { id: S.callIds[i], action: 'handled' });
+      for (var i = 0; i < S.callIds.length; i++) { await callable('callCenterAction', { id: S.callIds[i], action: 'handled' }); markHandledLocal(S.callIds[i]); }
     } catch (e) {
       if (S) { S.busy = false; setErr(SAVE_FAIL); }
       return;

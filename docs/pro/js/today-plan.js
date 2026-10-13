@@ -437,7 +437,11 @@
     function promisedRow(leadId) {
       if (!promisedByLead.has(leadId)) {
         var l = byId.get(leadId);
-        promisedByLead.set(leadId, { key: 'lead:' + leadId, leadId: leadId, name: leadName(l), phone: digits10(l && (l.phone || l.phoneDigits)), tasks: [], promises: [], callIds: [] });
+        // 'prom:' not 'lead:' (QA 2026-10-13): the Calls-owed row of the same
+        // customer is keyed 'lead:<id>' (home-attention callerKey), and the
+        // session's optimistic "handled" set is keyed by row key - handling the
+        // call used to hide the promise row that appeared afterwards.
+        promisedByLead.set(leadId, { key: 'prom:' + leadId, leadId: leadId, name: leadName(l), phone: digits10(l && (l.phone || l.phoneDigits)), tasks: [], promises: [], callIds: [] });
       }
       return promisedByLead.get(leadId);
     }
@@ -620,17 +624,30 @@
       });
     });
     waiting.sort(function (a, b) { return b.days - a.days || a.name.localeCompare(b.name) || a.key.localeCompare(b.key); });
-    // Open waiting items that have not ripened yet: counted so the page can say
-    // "2 more waiting" and offer the threshold stepper even when none is due.
-    var waitingPending = 0;
+    // One row per PERSON (QA 2026-10-13: a customer waiting on both the adjuster
+    // and a supplier was "2" in the header). `waiting` stays the flat item list
+    // the Nudge / Still waiting / Mark dead handlers look rows up in.
+    var waitingByLead = new Map();
+    waiting.forEach(function (it) {
+      if (!waitingByLead.has(it.leadId)) waitingByLead.set(it.leadId, { key: 'waitp:' + it.leadId, leadId: it.leadId, name: it.name, phone: it.phone, days: it.days, items: [] });
+      var g = waitingByLead.get(it.leadId);
+      g.items.push(it);
+      if (it.days > g.days) g.days = it.days;
+    });
+    var waitingPeople = Array.from(waitingByLead.values()).sort(function (a, b) { return b.days - a.days || a.name.localeCompare(b.name) || a.key.localeCompare(b.key); });
+    // People with an open waiting item that has not ripened yet: counted so the
+    // page can say "2 customers waiting" and offer the threshold stepper even
+    // when none is due.
+    var pendingLeads = new Set();
     if (PL) Object.keys(o.tasksByLead || {}).forEach(function (leadId) {
       if (!byId.has(String(leadId))) return;
-      (o.tasksByLead[leadId] || []).forEach(function (t) { if (PL.isWaiting(t) && PL.isOpen(t) && !PL.isRipe(t, todayLocal, o.waitingDays)) waitingPending++; });
+      (o.tasksByLead[leadId] || []).forEach(function (t) { if (PL.isWaiting(t) && PL.isOpen(t) && !PL.isRipe(t, todayLocal, o.waitingDays)) pendingLeads.add(String(leadId)); });
     });
+    var waitingPending = pendingLeads.size;
 
     var nns = o.noNextStep && o.noNextStep.count > 0 ? { count: o.noNextStep.count } : null;
     var total = appointments.length + calls.length + promises.length + promised.length + estimates.length + money.length + stalled.length;
-    return { appointments: appointments, calls: calls, promises: promises, promised: promised, waiting: waiting, waitingPending: waitingPending, estimates: estimates, money: money, stalled: stalled, noNextStep: nns, total: total };
+    return { appointments: appointments, calls: calls, promises: promises, promised: promised, waiting: waiting, waitingPeople: waitingPeople, waitingPending: waitingPending, estimates: estimates, money: money, stalled: stalled, noNextStep: nns, total: total };
   }
 
   function safeBool(fn, v) { try { return !!fn(v); } catch (_) { return false; } }

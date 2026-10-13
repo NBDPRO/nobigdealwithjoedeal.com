@@ -96,7 +96,9 @@ const TODAY = '2026-10-12';
   const wt = (since, extra) => Object.assign({ kind: 'promise', promiseKind: 'waiting', done: false, waitingSince: since, dueDate: PL.addDaysYmd(since, 3) }, extra || {});
   ok('2 days waited, N=3: not ripe', !PL.isRipe(wt('2026-10-10'), TODAY, 3));
   ok('3 days waited, N=3: ripe', PL.isRipe(wt('2026-10-09'), TODAY, 3));
-  ok('N is the setting: 3 days waited, N=5 not ripe; 5 days waited ripe', !PL.isRipe(wt('2026-10-09'), TODAY, 5) && PL.isRipe(wt('2026-10-07'), TODAY, 5));
+  // 2026-10-13: an item's own "Nudge me on" date wins (see the never-forget-client test); N is the clock for an item with no date.
+  const wtNoDate = (since, extra) => Object.assign(wt(since, extra), { dueDate: undefined });
+  ok('N is the setting for an undated item: 3 days waited, N=5 not ripe; 5 days waited ripe', !PL.isRipe(wtNoDate('2026-10-09'), TODAY, 5) && PL.isRipe(wtNoDate('2026-10-07'), TODAY, 5));
   ok('a done / dead waiting item is never ripe', !PL.isRipe(wt('2026-10-01', { done: true }), TODAY, 3));
   ok('only waiting promises ripen (a callback promise is not "waiting")', !PL.isRipe({ kind: 'promise', promiseKind: 'callback', waitingSince: '2026-10-01', done: false }, TODAY, 3));
   ok('Still waiting: clock restarts today, next nudge today + N, dated', (() => { const p = PL.stillWaitingPatch(wt('2026-10-01'), TODAY, 3); return p.waitingSince === TODAY && p.dueDate === '2026-10-15' && p.stillWaitingCount === 1; })());
@@ -194,8 +196,10 @@ const TODAY = '2026-10-12';
   ok('the waiting row carries who / claim number / adjuster phone for the nudge', p.waiting[0].waitingOn === 'adjuster' && p.waiting[0].claimNumber === 'CLM-9' && p.waiting[0].adjusterPhone === '5135550199' && p.waiting[0].adjusterName === 'Ann Adjuster');
   ok('waiting is NOT owed today: not in total, not in promises or promised', p.total === 0 && p.promises.length === 0 && p.promised.length === 0);
   ok('a waiting item with its own dueDate past does not leak into Promised', build({ tasksByLead: { Gus: [W('w3', '2026-10-01')] } }).promised.length === 0);
-  ok('the setting moves the threshold (N=5: 4 days is not ripe; N=2: 3 days is)', build({ waitingDays: 5, tasksByLead: { Gus: [W('w1', '2026-10-08')] } }).waiting.length === 0
-    && build({ waitingDays: 2, tasksByLead: { Gus: [W('w1', '2026-10-09')] } }).waiting.length === 1);
+  const WND = (id, since) => Object.assign(W(id, since), { dueDate: undefined });
+  ok('the setting moves the threshold for an undated item (N=5: 4 days is not ripe; N=2: 3 days is)', build({ waitingDays: 5, tasksByLead: { Gus: [WND('w1', '2026-10-08')] } }).waiting.length === 0
+    && build({ waitingDays: 2, tasksByLead: { Gus: [WND('w1', '2026-10-09')] } }).waiting.length === 1);
+  ok('a dated item ignores the setting: its Nudge-me-on date is the threshold', build({ waitingDays: 5, tasksByLead: { Gus: [W('w1', '2026-10-08')] } }).waiting.length === 1);
   ok('a dead / kept waiting item leaves the group', build({ tasksByLead: { Gus: [W('w1', '2026-10-01', { done: true, outcome: 'dead' })] } }).waiting.length === 0);
   ok('"Still waiting" (since reset to today) takes it off the group', build({ tasksByLead: { Gus: [W('w1', TODAY)] } }).waiting.length === 0);
   ok('oldest wait first', (() => {
@@ -304,7 +308,7 @@ const TODAY = '2026-10-12';
   ok('Nudge only ever hands off to the phone composer (NBDPhoneShare), never a send call', /NBDPhoneShare\.share\(opts\)/.test(ui) && !/phoneTextAction|sendSms|sendEmail|fetch\(/.test(ui));
   ok('Nudge is recorded only after "shared"', /if \(res && res\.shared\) \{[\s\S]{0,200}nudgePatch/.test(ui));
   ok('a failed write rolls the cached task back (never shown as saved)', /Object\.assign\(t, prev\);[\s\S]{0,120}changed\(\);\s*return false;/.test(ui));
-  ok('the bundle: css + logic before ui, in the lazy loader (no eager boot bytes)', /bundles\.promise = \['css\/promise\.css\?v=1', 'js\/promise-logic\.js\?v=1', 'js\/promise-ui\.js\?v=1'\]/.test(home)
+  ok('the bundle: css + logic before ui, in the lazy loader (no eager boot bytes)', /bundles\.promise = \['css\/promise\.css\?v=1', 'js\/promise-logic\.js\?v=2', 'js\/promise-ui\.js\?v=2'\]/.test(home)
     && !/promise: \[/.test(loader) &&!/promise-(logic|ui)\.js/.test(read('docs/pro/dashboard.html')));
   ok('customer page: a Promise button + the sheet scripts', /data-promise-open/.test(cust) && /js\/promise-logic\.js/.test(cust) && /js\/promise-ui\.js/.test(cust) && /css\/promise\.css/.test(cust));
   ok('an open promise cannot be deleted from the task list', /_t\.kind==='promise'&&_t\.done!==true\)\{[^}]*can't be deleted/.test(tasks));

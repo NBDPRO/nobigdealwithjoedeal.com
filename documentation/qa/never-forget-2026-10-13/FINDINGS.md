@@ -79,6 +79,17 @@ Each fix has a check that reddens when the fix is reverted.
 - Label `ackAtMs` is unbounded: a huge value permanently disables "hidden
   number came back" for that number.
 
+## Update 2026-10-13 (client lane)
+
+The client-side open findings (H4, Home reads by row cap, the Call Center and
+Today hiding failed reads, Waiting ripening without the Nudge date, Waiting
+counting tasks not people, the `handled` key collision) were each reproduced
+with a failing test and fixed — see
+[NEVER-FORGET-CLIENT-FINDINGS-2026-10-13](../../audit/NEVER-FORGET-CLIENT-FINDINGS-2026-10-13.md).
+"Kept it" on a texted day surviving a re-note is the server lane's fix (verified
+there; the client has no write path). The "Not run" list below is the original
+sweep's; the emulator Playwright pass for the client items ran 390 x 844.
+
 ## Not run
 
 Playwright / authed E2E, the Thursday integration suites, a live browser

@@ -242,13 +242,20 @@
       var acts = link(tel(r.phone), 'Call') + link(r.phone ? 'sms:+1' + r.phone : '', 'Text') + link(custUrl(r.leadId), 'Open');
       return '<div class="tp-row tp-promise" data-tp-row="' + esc(r.key) + '"><div class="tp-main"><div class="tp-name">' + esc(r.name) + tag + '</div><div class="tp-prom">' + lines + '</div>' + more + '</div><div class="tp-acts">' + acts + '</div></div>';
     });
-    var wt = (p.waiting || []).map(function (r) {
-      var bits = ['Waiting on ' + esc(r.onLabel) + ' · ' + r.days + (r.days === 1 ? ' day' : ' days')];
-      if (r.why) bits.push(esc(r.why));
-      if (r.nudgeCount) bits.push('nudged ' + r.nudgeCount + (r.nudgeCount === 1 ? ' time' : ' times'));
-      if (r.missLabel) bits.push(esc(r.missLabel));
-      var acts = (ro ? '' : pbtn('pnudge', r.key, r.taskId, '✉ Nudge', 'tp-go') + pbtn('pstill', r.key, r.taskId, 'Still waiting') + pbtn('pdead', r.key, r.taskId, 'Mark dead')) + link(custUrl(r.leadId), 'Open');
-      return row(r.key, esc(r.name) + ' <span class="tp-tag">Waiting</span>', bits.join(' · '), acts);
+    // Waiting on them (2026-10-13): ONE row per PERSON, the count says people.
+    // Each item inside keeps its own Nudge / Still waiting / Mark dead (they
+    // can go to different recipients); the handlers look the item up by its
+    // 'wait:<lead>/<task>' key in the flat p.waiting list.
+    var wt = (p.waitingPeople || []).map(function (g) {
+      var lines = g.items.map(function (r) {
+        var bits = ['Waiting on ' + esc(r.onLabel) + ' · ' + r.days + (r.days === 1 ? ' day' : ' days')];
+        if (r.why) bits.push(esc(r.why));
+        if (r.nudgeCount) bits.push('nudged ' + r.nudgeCount + (r.nudgeCount === 1 ? ' time' : ' times'));
+        if (r.missLabel) bits.push(esc(r.missLabel));
+        var b = ro ? '' : '<div class="tp-acts">' + pbtn('pnudge', r.key, r.taskId, '✉ Nudge', 'tp-go') + pbtn('pstill', r.key, r.taskId, 'Still waiting') + pbtn('pdead', r.key, r.taskId, 'Mark dead') + '</div>';
+        return '<div class="tp-prom-line"><div class="tp-prom-text">' + bits.join(' · ') + '</div>' + b + '</div>';
+      }).join('');
+      return '<div class="tp-row tp-promise tp-waitrow" data-tp-row="' + esc(g.key) + '"><div class="tp-main"><div class="tp-name">' + esc(g.name) + ' <span class="tp-tag">Waiting</span></div><div class="tp-prom">' + lines + '</div></div><div class="tp-acts">' + link(custUrl(g.leadId), 'Open') + '</div></div>';
     });
     var pr = p.promised.map(function (r) {
       var bits = r.tasks.map(function (t) { return esc(t.text || t.title || 'Task'); }).concat(r.promises.map(function (s) { return 'You said: ' + esc(s); }));
@@ -297,7 +304,9 @@
     if ((wt.length || pend) && NP && !ro) {
       var opts = '';
       for (var wd = 1; wd <= 14; wd++) opts += '<option value="' + wd + '"' + (wd === NP.waitingDays() ? ' selected' : '') + '>' + wd + '</option>';
-      wdays = '<label class="tp-wait-step">after <select data-tp-wdays aria-label="Show waiting items after this many days">' + opts + '</select> days</label>';
+      // The "Nudge me on" date set on each item wins; this is the default a NEW
+      // waiting item (and "Still waiting") starts from.
+      wdays = '<label class="tp-wait-step">new items: nudge after <select data-tp-wdays aria-label="Default days before a new waiting item asks for a nudge">' + opts + '</select> days</label>';
     }
     // Label suggestions (phase 2b): at most 3, Accept / Not this, nothing hides on one tap.
     var CS = w.NBDContactSuggest;
@@ -310,11 +319,16 @@
       (w.NBDThursdayHandled ? w.NBDThursdayHandled.todayHtml() : '');
     // No item has been waited out yet: say how many are quietly waiting, and keep
     // the threshold reachable (otherwise the stepper would only exist once it is too late).
-    var quiet = !wt.length && pend ? '<div class="tp-sub tp-waitquiet">' + pend + (pend === 1 ? ' item' : ' items') + ' waiting on others, not due for a nudge yet' + (wdays ? ' · ' + wdays : '') + '</div>' : '';
-    return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc(P.headline(p.total)) + '</div>' +
-      (storm ? '<div class="tp-storm">' + esc(storm) + '</div>' : '') + '</div>' +
+    var quiet = !wt.length && pend ? '<div class="tp-sub tp-waitquiet">Waiting on others for ' + pend + (pend === 1 ? ' customer' : ' customers') + ', no nudge due yet' + (wdays ? ' · ' + wdays : '') + '</div>' : '';
+    // A failed calls read (home-attention.js lastCounts.callsFailed) is NOT an
+    // empty day: say so, never "Nothing on the list" (QA 2026-10-13, fail-open).
+    var HAc = w.NBDHomeAttention && w.NBDHomeAttention.lastCounts;
+    var readFailed = !!(HAc && HAc.callsFailed);
+    var failBanner = readFailed ? '<div class="tp-sub tp-readfail" role="status"><b class="tp-hot">could not check your calls</b> This list may be missing people. It is NOT an all-clear. <button type="button" class="tp-more tp-hd-btn" data-tp-act="retry" data-tp-key="calls">Try again</button></div>' : '';
+    return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc(readFailed && !p.total ? "Can't confirm your day" : P.headline(p.total)) + '</div>' +
+      (storm ? '<div class="tp-storm">' + esc(storm) + '</div>' : '') + '</div>' + failBanner +
       (p.hiddenCalls > 0 ? '<div class="tp-sub tp-hidden">' + p.hiddenCalls + (p.hiddenCalls === 1 ? ' person' : ' people') + ' hidden by labels · <button type="button" class="tp-more tp-hd-btn" data-tp-act="goto" data-tp-key="calls">See them in the Call Center</button></div>' : '') +
-      sugHtml + (body || '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>') + quiet;
+      sugHtml + (body || (readFailed ? '' : '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>')) + quiet;
   }
 
   var _t = 0;
@@ -406,6 +420,7 @@
     var a = t.getAttribute('data-tp-act'), key = t.getAttribute('data-tp-key') || '';
     if (a === 'more') { expanded[key] = true; render(); return; }
     if (a === 'goto') { if (typeof w.goTo === 'function') w.goTo(key); return; }
+    if (a === 'retry') { try { if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); } catch (_) { /* best effort */ } return; }
     if (a === 'fudeck') {
       var ids = new Set(((last && last.stalled) || []).map(function (r) { return r.leadId; }));
       var list = (w._leads || []).filter(function (l) { return l && ids.has(l.id); });
@@ -426,7 +441,7 @@
   // blocking script with no byte headroom: dashboard-boot-budget). This
   // deferred file always runs before the Call Center / customer page load it.
   if (w.ScriptLoader && w.ScriptLoader.bundles && !w.ScriptLoader.bundles.promise) {
-    w.ScriptLoader.bundles.promise = ['css/promise.css?v=1', 'js/promise-logic.js?v=1', 'js/promise-ui.js?v=1'];
+    w.ScriptLoader.bundles.promise = ['css/promise.css?v=1', 'js/promise-logic.js?v=2', 'js/promise-ui.js?v=2'];
   }
   var promiseLoad = null;
   function ensurePromise() {
@@ -448,7 +463,14 @@
     w.NBDPromise.openSheet({
       mode: 'handle', name: r.name, leadId: r.leadId, lead: leadOf(r.leadId), callIds: r.callIds.slice(),
       summary: r.summary, why: (r.said && r.said[0]) || '',
-      onDone: function () { handled.add(key); render(); },
+      onDone: function (res) {
+        // A saved promise becomes its OWN row, keyed 'lead:<id>' - the same key as
+        // this call's row. Remembering that key as "handled" hid the promise
+        // until the next page load (QA H4). The call itself is marked handled
+        // locally by promise-ui (mirrorSaved), so it leaves "Calls owed" anyway.
+        if (res && res.saved && res.kind && res.kind !== 'none') handled.delete(key); else handled.add(key);
+        render();
+      },
     });
   }
   async function promiseAct(a, key, id) {

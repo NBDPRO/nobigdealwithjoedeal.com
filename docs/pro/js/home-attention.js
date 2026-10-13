@@ -66,6 +66,12 @@
 
   const CALL_WINDOW = 14 * DAY;
   const PROMISE_WINDOW = 45 * DAY;
+  // What Home READS (QA 2026-10-13): by DATE, the same 45-day window the server
+  // reads (callWatch / ledger / away mode, #2407) - a row cap alone let 200
+  // newer saved-contact calls push a 20-day-old promise out of sight. The caps
+  // are only a safety bound; hitting one is said on the strip, never silent.
+  // Rows before the window are read separately, for the "old promises" row.
+  const READ = { recentCalls: 600, recentTexts: 300, oldCalls: 300 };
   /** A promise Jo made that nothing has marked kept (promise-cleanup stamps keptAtMs). */
   const openJoPromise = (c) => (c.promises || []).some((p) => p && p.who === 'jo' && !p.keptAtMs);
   const etYmd = (ms) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -109,6 +115,15 @@
     return (typeof L.get === 'function' ? L.get(d) : L[d]) || null;
   }
   const BURST_N = 3, BURST_MS = DAY;
+  // Mirror of call-watch-logic.js saneStampMs (QA 2026-10-13): a label's ackAtMs /
+  // updatedAtMs is a client clock. A stamp more than a day in the future (a bad
+  // phone clock, a hostile write) is ignored, so it can never park a hidden
+  // number forever; the server ignores it the same way.
+  const LABEL_FUTURE_SKEW_MS = DAY;
+  const saneStampMs = (v, now) => {
+    const ms = toMs(v);
+    return isFinite(ms) && ms > 0 && ms <= now + LABEL_FUTURE_SKEW_MS ? ms : 0;
+  };
   /**
    * Hidden numbers that should come back ONCE: a call since the label was
    * applied / last acknowledged that is filed on a customer ('lead'), or 3+
@@ -127,7 +142,7 @@
       if (d.length !== 10) return;
       const lb = typeof labels.get === 'function' ? labels.get(d) : labels[d];
       if (!lb || lb.policy !== 'hide') return;
-      const base = Math.max(toMs(lb.ackAtMs), toMs(lb.updatedAtMs));
+      const base = Math.max(saneStampMs(lb.ackAtMs, t), saneStampMs(lb.updatedAtMs, t));
       if ((toMs(c.startedAtMs) || 0) <= base) return;
       if (!by.has(d)) by.set(d, { digits: d, base, calls: [] });
       by.get(d).calls.push(c);
@@ -249,6 +264,9 @@
     const items = [];
     if (c.stripe > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="money">💳 ' + c.stripe + ' Stripe payment' + (c.stripe === 1 ? '' : 's') + ' need' + (c.stripe === 1 ? 's' : '') + ' a customer</button>');
     if (c.signs > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="signs">🪧 ' + c.signs + ' yard sign' + (c.signs === 1 ? '' : 's') + ' to pick up</button>');
+    if (c.callsCapped) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Showing only your newest ' + (c.callsCap || '') + ' calls — older ones in the last 45 days were not checked. Tap to open the Call Center</button>');
+    if (c.textsCapped) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Showing only your newest ' + (c.textsCap || '') + ' days of texts — older ones in the last 45 days were not checked</button>');
+    if (c.oldFailed) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Could not check old promises (past 45 days) just now — this is NOT an all-clear for them</button>');
     if (c.callsFailed) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Could not check your calls just now' + (c.calls > 0 ? ' — ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you so far' : ' — this is NOT an all-clear') + '. Tap to open the Call Center</button>');
     else if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
     // Review asks, one at a time (review-deck.js opens the deck on data-review-deck).
@@ -257,14 +275,14 @@
     return items.join('');
   }
 
-  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, oldPromiseCount, isOldPromise, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
+  const api = { READ, PROMISE_WINDOW, CALL_WINDOW, canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, oldPromiseCount, isOldPromise, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root || !root.document) return;
   root.NBDHomeAttention = api;
 
   // ── DOM ──────────────────────────────────────────────────────────────
   const w = root;
-  let _last = 0, _busy = false;
+  let _last = 0, _busy = false, _again = false;
   const uid = () => (w._user && w._user.uid) || null;
   const claims = () => w._userClaims || {};
   const fbReady = () => !!(w.db && w.getDocs && w.query && w.where && w.collection);
@@ -300,10 +318,25 @@
       // R5): a missing index, a rules / App Check denial or being offline all
       // land here, and an empty list is exactly what a healthy quiet day looks
       // like. callsFailed turns the strip into a visible warning instead.
-      jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.orderBy('startedAtMs', 'desc'), w.limit(200)))
-        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data()))); }).catch(() => { out.callsFailed = true; }));
-      jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_text_days'), w.where('userId', '==', u), w.orderBy('startedAtMs', 'desc'), w.limit(100)))
-        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: 'text:' + d.id }, d.data()))); }).catch(() => { out.callsFailed = true; }));
+      // Same (userId, startedAtMs DESC) index as before: an equality + a range
+      // on the ordered field. (The emulator never enforces indexes - the
+      // server reads these exact shapes in prod.)
+      const sinceWin = Date.now() - PROMISE_WINDOW;
+      const qWin = (name, cap) => w.getDocs(w.query(w.collection(w.db, name), w.where('userId', '==', u), w.where('startedAtMs', '>=', sinceWin), w.orderBy('startedAtMs', 'desc'), w.limit(cap)));
+      jobs.push(qWin('phone_calls', READ.recentCalls)
+        .then((snap) => {
+          snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data())));
+          if (snap.docs.length >= READ.recentCalls) { out.callsCapped = true; out.callsCap = READ.recentCalls; }
+        }).catch(() => { out.callsFailed = true; }));
+      jobs.push(qWin('phone_text_days', READ.recentTexts)
+        .then((snap) => {
+          snap.docs.forEach((d) => callRows.push(Object.assign({ id: 'text:' + d.id }, d.data())));
+          if (snap.docs.length >= READ.recentTexts) { out.textsCapped = true; out.textsCap = READ.recentTexts; }
+        }).catch(() => { out.callsFailed = true; }));
+      // Open promises older than the window roll into one review row: their own
+      // bounded read. A failed one is a warning (oldFailed), not "no old promises".
+      jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.where('startedAtMs', '<', sinceWin), w.orderBy('startedAtMs', 'desc'), w.limit(READ.oldCalls)))
+        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data()))); }).catch(() => { out.oldFailed = true; }));
     }
     await Promise.all(jobs);
     // Per-number labels (2026-10-12): a lazy bundle, read after the calls so
@@ -325,14 +358,21 @@
 
   async function render(force) {
     const el = document.getElementById('homeAttention');
-    if (!el || !uid() || !fbReady() || _busy) return;
+    if (!el || !uid() || !fbReady()) return;
+    // A FORCED refresh asked for while one is in flight (a promise saved / a
+    // call handled mid-read) used to be dropped, leaving the strip and Today on
+    // the stale rows for a minute: remember it and run it once this one ends.
+    if (_busy) { if (force) _again = true; return; }
     if (!force && Date.now() - _last < 60000) return;
     _busy = true; _last = Date.now();
     try {
       const html = stripHtml(await count());
       el.innerHTML = html;
       el.hidden = !html;
-    } finally { _busy = false; }
+    } finally {
+      _busy = false;
+      if (_again) { _again = false; setTimeout(() => { render(true); }, 0); }
+    }
   }
 
   // The 'contactlabels' lazy bundle is registered HERE, not in script-loader.js:

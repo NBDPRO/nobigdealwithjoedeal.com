@@ -245,7 +245,7 @@ const base = () => ({
   o3.callGroups = HA.groupNeeds(CALLS.map((cl) => cl.id === 'cube_b1' ? Object.assign({}, cl, { snoozeUntilYmd: TP.nyDateOf(NOW + 86400000) }) : cl), NOW);
   ok('…and a promise snoozed to tomorrow (no task) is off today', !TP.buildTodayPlan(o3).promised.some((r) => r.leadId === 'B'));
   const o4 = base();
-  o4.handled = new Set(['lead:C', 'num:5135559999']);
+  o4.handled = new Set(['prom:C', 'num:5135559999']);   // 'prom:' = the promised row's own key (2026-10-13)
   const p4 = TP.buildTodayPlan(o4);
   ok('a row acted on this session hides at once (optimistic)', !p4.promised.some((r) => r.leadId === 'C') && !p4.calls.some((r) => r.key === 'num:5135559999'));
 }
