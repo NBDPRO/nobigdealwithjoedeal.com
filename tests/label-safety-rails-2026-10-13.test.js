@@ -313,6 +313,7 @@ async function runH() {
   ok('reconcile control: the same lead not archived is listed', LG.reconcile(qlab, [L0('A', { createdAt: NOW - H })], { now: NOW }).length === 1);
   const two = LG.reconcile(qlab, [L0('OLDER', { createdAt: NOW - 2 * H }), L0('NEWER', { createdAt: NOW - H, firstName: 'Zed' })], { now: NOW });
   ok('reconcile: two leads on one number -> one row, the NEWEST customer', two.length === 1 && two[0].leadId === 'NEWER' && two[0].name === 'Zed Lee', JSON.stringify(two));
+  ok('reconcile: a lead created at exactly the label time is not newer (> not >=); one ms later is', LG.reconcile(qlab, [L0('T', { createdAt: NOW - 6 * H })], { now: NOW }).length === 0 && LG.reconcile(qlab, [L0('T', { createdAt: NOW - 6 * H + 1 })], { now: NOW }).length === 1);
   ok('reconcile: createdAtMs is read when createdAt is absent', LG.reconcile(qlab, [L0('M', { createdAtMs: NOW - H })], { now: NOW }).length === 1);
   const sc = LG.reconcile({ [N]: { kind: 'personal', policy: 'surface', capture: 'off', updatedAtMs: NOW - 6 * H } }, [L0('A', { createdAt: NOW - H })], { now: NOW });
   ok('reconcile: surface + capture off (a raw doc) is still listed as capture-off', sc.length === 1 && sc[0].captureOff === true);
