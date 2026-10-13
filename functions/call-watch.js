@@ -95,13 +95,16 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
   // First run looks back 2 hours; after that, since the last check.
   const sinceMs = W.toMs(st.lastCheckAtMs) || nowMs - 2 * 3600000;
   const since14 = nowMs - W.CALL_WINDOW;
+  // Calls are READ over the promise window (45 days): callNeedsYou keeps only
+  // open Jo promises past day 14, but it can only judge rows it is fed.
+  const sinceWin = nowMs - W.PROMISE_WINDOW;
 
   // orderBy desc so the ranges use the deployed (userId, startedAtMs DESC)
   // indexes; an unordered range wants an ASC index, which prod doesn't have
   // (the emulator never enforces indexes, so only prod caught it).
   const [calls, texts, thursday, stored, cc, ti] = await Promise.all([
-    db.collection('phone_calls').where('userId', '==', OWNER).where('startedAtMs', '>=', since14).orderBy('startedAtMs', 'desc').get(),
-    db.collection('phone_text_days').where('userId', '==', OWNER).where('startedAtMs', '>=', since14).orderBy('startedAtMs', 'desc').get(),
+    db.collection('phone_calls').where('userId', '==', OWNER).where('startedAtMs', '>=', sinceWin).orderBy('startedAtMs', 'desc').get(),
+    db.collection('phone_text_days').where('userId', '==', OWNER).where('startedAtMs', '>=', sinceWin).orderBy('startedAtMs', 'desc').get(),
     db.collection('thursday_calls').where('companyId', '==', OWNER).limit(300).get(),
     db.collection('phone_calls').where('userId', '==', OWNER).where('status', '==', 'stored').limit(200).get(),
     db.doc('integrations/callCenter').get(),
@@ -134,7 +137,19 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
   const tell = W.problemsToTell(problems, st.problemsToldAt, nowMs);
   // The 20:00 run closes the day with the "nothing fell through" ledger.
   const ledgerDue = W.etYmd(nowMs) !== st.ledgerYmd && Number(new Date(nowMs).toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false })) === 20;
-  const ledger = ledgerDue ? W.dailyLedger(callRows, textRows, nowMs, { lastPush: st.lastPush, problems: problems.map((p) => p.key), labels }) : null;
+  // Old open promises (past 45 days) for the ledger's review line: same
+  // (userId, startedAtMs DESC) index as the window query, read only at 20:00.
+  // A failed read is carried into the ledger as a warning, never as "clear".
+  const OLD_CAP = 300;
+  let oldRows = [], oldPromisesFailed = false, oldCapped = false;
+  if (ledgerDue) {
+    try {
+      const os = await db.collection('phone_calls').where('userId', '==', OWNER).where('startedAtMs', '<', sinceWin).orderBy('startedAtMs', 'desc').limit(OLD_CAP).get();
+      oldRows = rows(os).filter((c) => W.isOldPromise(c, nowMs));
+      oldCapped = os.docs.length >= OLD_CAP;
+    } catch (e) { oldPromisesFailed = true; logger.warn('[callWatch] old-promise read failed', { err: e && e.message }); }
+  }
+  const ledger = ledgerDue ? W.dailyLedger(callRows, textRows, nowMs, { lastPush: st.lastPush, problems: problems.map((p) => p.key), labels, oldRows, oldPromisesFailed, oldCapped }) : null;
   // Items told before and still open come round again (audit R1), short ladder.
   const retells = W.ladderRetells(callRows, textRows, st.ladder, nowMs, labels);
   const alert = W.alertFor(needs.concat(retells), tell, nowMs);
