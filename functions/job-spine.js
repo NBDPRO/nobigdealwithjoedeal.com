@@ -121,6 +121,23 @@ async function recordJobEvent(db, args, deps) {
   if (event === 'paid_in_full' && refused.indexOf(out.reason) === -1 && !(deps && deps.reviewTask === false)) {
     out.reviewTask = await requestReviewTaskIfPaid(db, String(args.leadId || '').trim(), args.companyId || null, deps);
   }
+  // Stage-triggered email DRAFTS for Jo's review queue (doc-drafts.js,
+  // 2026-10-13): schedule confirmation, crew date, warranty + thank-you, paid
+  // receipt. Never sent from here; create-only and deterministic, so a
+  // duplicate / retried event is harmless. Never throws.
+  if (require('./doc-drafts-logic').DRAFT_EVENTS.indexOf(event) !== -1 && refused.indexOf(out.reason) === -1
+      && !(deps && deps.docDrafts === false)) {
+    const dd = (deps && deps.draftDocsForEvent) || require('./doc-drafts').draftDocsForEvent;
+    try {
+      out.docDrafts = await dd(db, {
+        leadId: String(args.leadId || '').trim(), event, companyId: args.companyId || null,
+        sourceId: args.sourceId != null ? String(args.sourceId) : '',
+        meta: (args.meta && typeof args.meta === 'object') ? args.meta : {},
+      }, deps);
+    } catch (e) {
+      out.docDrafts = { created: [], skipped: [], existing: [], reason: 'error', error: String((e && e.message) || e) };
+    }
+  }
   return out;
 }
 const DEPOSIT_DRAFT_EVENTS = ['contract_signed', 'deal_accepted'];
