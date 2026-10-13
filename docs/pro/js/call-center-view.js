@@ -202,7 +202,13 @@
 
   async function fetchFrom(name, channel) {
     var db = window.db, uid = window._user && window._user.uid;
-    if (!db || !uid || !window.query) return [];
+    if (!db || !uid || !window.query) {
+      // The data layer never came up (load() gave up waiting): that is a read
+      // that did not happen, not "No calls yet".
+      state.readFailed.push('your ' + (channel === 'text' ? 'texts' : 'calls'));
+      if (channel === 'call') state.error = 'Could not load calls (not signed in yet).';
+      return [];
+    }
     var col = window.collection(db, name);
     var c = claims();
     var qs = [window.query(col, window.where('userId', '==', uid), window.orderBy('startedAtMs', 'desc'), window.limit(LIMIT))];
@@ -1108,7 +1114,7 @@
   var bootWait = 0;
   function dataReady() { return !!(window.db && window._user && window._user.uid && window.query && window.getDocs); }
   async function load() {
-    if (state.loading) return;
+    if (state.loading) { state.again = true; return; }   // asked mid-load (a promise saved, Try again): run it after
     if (!dataReady() && bootWait < 120) {
       bootWait++;
       render();
@@ -1122,6 +1128,7 @@
     state.calls = got[0];
     state.loading = false; state.loaded = true;
     render();
+    if (state.again) { state.again = false; load(); }
   }
 
   // Promise capture (2026-10-12): the lazy 'promise' bundle owns the sheet.

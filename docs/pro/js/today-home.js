@@ -33,6 +33,9 @@
   var CAP = 6;
 
   var handled = new Set();      // row keys acted on this session
+  var handledAt = {};           // row key -> when (ms): a call NEWER than this brings the row back
+  function markHandled(key) { handled.add(key); handledAt[key] = Date.now(); }
+  function unmarkHandled(key) { handled.delete(key); delete handledAt[key]; }
   var expanded = {};            // section → show all
   var appts = { rows: [], at: 0, day: '', busy: false };
   var last = null;              // last plan painted (tests + the Today's Schedule widget)
@@ -123,6 +126,11 @@
         have[c.id] = true;
       });
     }
+    // Handled earlier this session, but the same person has a call NEWER than the
+    // moment Jo handled it (a second missed call at 2 pm): that row comes back.
+    groups.forEach(function (g) {
+      if (handledAt[g.key] && (g.latestMs || (g.calls[0] && g.calls[0].startedAtMs) || 0) > handledAt[g.key]) unmarkHandled(g.key);
+    });
     var R = w.NBDRevenue;
     var fresh = R && typeof R.cached === 'function' ? R.cached() : null;
     if (fresh) { inv.rows = fresh; inv.at = Date.now(); }
@@ -322,13 +330,22 @@
     var quiet = !wt.length && pend ? '<div class="tp-sub tp-waitquiet">Waiting on others for ' + pend + (pend === 1 ? ' customer' : ' customers') + ', no nudge due yet' + (wdays ? ' · ' + wdays : '') + '</div>' : '';
     // A failed calls read (home-attention.js lastCounts.callsFailed) is NOT an
     // empty day: say so, never "Nothing on the list" (QA 2026-10-13, fail-open).
-    var HAc = w.NBDHomeAttention && w.NBDHomeAttention.lastCounts;
+    var HAn = w.NBDHomeAttention;
+    var HAc = HAn && HAn.lastCounts;
     var readFailed = !!(HAc && HAc.callsFailed);
-    var failBanner = readFailed ? '<div class="tp-sub tp-readfail" role="status"><b class="tp-hot">could not check your calls</b> This list may be missing people. It is NOT an all-clear. <button type="button" class="tp-more tp-hd-btn" data-tp-act="retry" data-tp-key="calls">Try again</button></div>' : '';
-    return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc(readFailed && !p.total ? "Can't confirm your day" : P.headline(p.total)) + '</div>' +
+    // Not read YET (home-attention.js boots 1.5 s after the page): unknown, not clear.
+    var notChecked = !(HAn && Array.isArray(HAn.lastRows)) && !readFailed;
+    var partial = [];
+    if (HAc && HAc.callsCapped) partial.push('only your newest ' + (HAc.callsCap || '') + ' calls were read');
+    if (HAc && HAc.textsCapped) partial.push('only your newest ' + (HAc.textsCap || '') + ' days of texts were read');
+    if (HAc && HAc.oldCapped) partial.push('older open promises may not be listed');
+    if (HAc && HAc.oldFailed) partial.push('old promises could not be checked');
+    var failBanner = readFailed ? '<div class="tp-sub tp-readfail" role="status"><b class="tp-hot">could not check your calls</b> This list may be missing people. It is NOT an all-clear. <button type="button" class="tp-more tp-hd-btn" data-tp-act="retry" data-tp-key="calls">Try again</button></div>'
+      : (partial.length ? '<div class="tp-sub tp-readfail" role="status"><b class="tp-hot">partial list</b> ' + esc(partial.join('; ')) + '. Not an all-clear. <button type="button" class="tp-more tp-hd-btn" data-tp-act="goto" data-tp-key="calls">Open the Call Center</button></div>' : '');
+    return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc((readFailed || notChecked) && !p.total ? "Can't confirm your day yet" : P.headline(p.total)) + '</div>' +
       (storm ? '<div class="tp-storm">' + esc(storm) + '</div>' : '') + '</div>' + failBanner +
       (p.hiddenCalls > 0 ? '<div class="tp-sub tp-hidden">' + p.hiddenCalls + (p.hiddenCalls === 1 ? ' person' : ' people') + ' hidden by labels · <button type="button" class="tp-more tp-hd-btn" data-tp-act="goto" data-tp-key="calls">See them in the Call Center</button></div>' : '') +
-      sugHtml + (body || (readFailed ? '' : '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>')) + quiet;
+      sugHtml + (body || (readFailed ? '' : (notChecked ? '<div class="tp-empty">Checking your calls…</div>' : '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>'))) + quiet;
   }
 
   var _t = 0;
@@ -401,12 +418,12 @@
       jobs.push(setFollowUp(r.leadId, P.addDaysYmdLocal(Date.now(), 7)));
     }
     if (!jobs.length) return;
-    handled.add(key);
+    markHandled(key);
     render();
     var res = await Promise.allSettled(jobs);
     var bad = res.filter(function (x) { return x.status === 'rejected'; }).length;
     if (bad) {
-      handled.delete(key);
+      unmarkHandled(key);
       render();
       toast("Couldn't save that — check your connection and tap it again", 'error');
       return;
@@ -468,7 +485,7 @@
         // this call's row. Remembering that key as "handled" hid the promise
         // until the next page load (QA H4). The call itself is marked handled
         // locally by promise-ui (mirrorSaved), so it leaves "Calls owed" anyway.
-        if (res && res.saved && res.kind && res.kind !== 'none') handled.delete(key); else handled.add(key);
+        if (res && res.saved && res.kind && res.kind !== 'none') unmarkHandled(key); else markHandled(key);
         render();
       },
     });
@@ -481,12 +498,12 @@
     if (!r) return;
     if (a === 'ckept') {
       // A promise riding on a call (no customer on file): kept = the call is handled.
-      try { await callable('callCenterAction', { id: id, action: 'handled' }); handled.add(key); render(); if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); }
+      try { await callable('callCenterAction', { id: id, action: 'handled' }); markHandled(key); render(); if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); }
       catch (e) { toast("Couldn't save that - check your connection and tap it again", 'error'); }
       return;
     }
     if (a === 'cmove') {
-      NP.openSheet({ mode: 'move', name: r.name, moveText: r.promise ? r.promise.text : '', move: { type: 'call', callId: id }, onDone: function () { handled.delete(key); schedule(); if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); } });
+      NP.openSheet({ mode: 'move', name: r.name, moveText: r.promise ? r.promise.text : '', move: { type: 'call', callId: id }, onDone: function () { unmarkHandled(key); schedule(); if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); } });
       return;
     }
     var task = taskOf(r.leadId, id);

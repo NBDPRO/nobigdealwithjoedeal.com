@@ -7,7 +7,7 @@ and the sweep's list,
 `docs/pro/` (Home strip, Today, Call Center, the promise sheet, Waiting). Every
 item was **reproduced with a failing test first**; what a test could not show
 is listed at the bottom as unverified. Tests:
-`tests/never-forget-client-2026-10-13.test.js` (53+ checks, browser files run in
+`tests/never-forget-client-2026-10-13.test.js` (70+ checks, browser files run in
 a vm sandbox with a where()-honouring Firestore fake) and
 `tests/e2e/never-forget-client.spec.js` (390 x 844, standalone rules, emulator).
 
@@ -30,6 +30,36 @@ Also fixed on the way (same root cause class as H4):
   first read ends.
 - The "handled keys collide between the Calls row and the Promise row" finding
   (Medium list) is item 1(b).
+
+## Review pass (silent-failure hunt on the first cut) — all fixed, each with a check
+
+- Today painted "Nothing on the list. Go knock some doors." in the 1.5 s before
+  Home's first calls read (and forever if that render bailed): now "Checking
+  your calls…" / "Can't confirm your day yet".
+- Today showed only `callsFailed`; a capped read (600 calls / 300 text days /
+  300 old calls) or a failed old-promise read was strip-only: Today now shows a
+  "partial list - not an all-clear" banner for all of them.
+- The old-promise read hitting its cap, and a page without `orderBy`/`limit`,
+  were silent: both are now warnings (`oldCapped`, `callsFailed`).
+- `promise-ui.js` save: Cancel / Escape / the backdrop stay live while the
+  callable is in flight and `close()` nulls the sheet state, so the success path
+  threw **after the server had saved**; it now works from a snapshot.
+- The mirror patched Home's row but not the Call Center's own copy of the call;
+  both are patched. A promise saved server-side that cannot be found locally
+  asks the task loader to re-read instead of staying off Today.
+- The Call Center dropped a reload requested while one was in flight (the same
+  bug as Home's forced refresh); and a data layer that never came up (gave up
+  after 30 s) rendered "No calls yet".
+- The session's "handled" memory hid a person for the rest of the session even
+  when they rang again: it now remembers *when*, and a call newer than that
+  brings the row back.
+- `resurfacedNumbers` was handed the new old-promise rows (80-day-old calls
+  would re-open a hidden number); Home feeds it only what the server does.
+
+Seen but not changed (pre-existing, outside the finding list): Stripe and
+yard-sign reads on the Home strip still swallow their errors into `0`; a
+secondary call failing after the primary promise saved reports total failure
+(safe direction: the promise is already saved, a retry re-sends it).
 
 ## Decisions worth Jo's eye (all reversible)
 

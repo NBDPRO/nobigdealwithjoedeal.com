@@ -159,7 +159,7 @@ test.describe('never-forget client findings @shard2', () => {
     await expect(plan.locator('.tp-readfail'), 'Today says the read failed').toContainText(/NOT an all-clear/, { timeout: 15_000 });
     await expect(plan).not.toContainText('Go knock some doors');
     await safeEvaluate(page, () => window.goTo('calls'));
-    await expect(page.locator('#view-calls .cc-readfail')).toContainText(/NOT an all-clear/, { timeout: 30_000 });
+    await expect(page.locator('#view-calls .cc-readfail'), 'it names the texts read (the mocked said-you-would-do callable also fails here)').toContainText(/your texts.*NOT an all-clear/s, { timeout: 30_000 });
     await expect(page.locator('#view-calls .cc-list')).not.toContainText('Nothing needs you');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   });

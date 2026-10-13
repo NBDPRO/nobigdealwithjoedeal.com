@@ -368,6 +368,125 @@ const joP = [{ who: 'jo', text: 'call back with the number' }];
   const pp = bp([prom('p1'), prom('p2', { promiseKind: 'callback' })]);
   ok('Promises: two promises for one customer is ONE row (a person)', pp.promises.length === 1 && pp.promises[0].promiseTasks.length === 2 && pp.total === 1);
 
+  // ═══ R. review follow-ups (silent-failure pass on the first cut) ═════════
+  console.log('\nR. nothing renders unknown / partial as an all-clear');
+  {
+    const bare = await todayHtml({ groupNeeds: () => [], callerKey: HA.callerKey });   // home-attention has not read yet
+    ok('Today before the first calls read says "Checking", not "Nothing on the list"', /Checking your calls/.test(bare) && !/Go knock some doors/.test(bare), bare.slice(0, 300));
+    const cappedHtml = await todayHtml({ groupNeeds: () => [], lastRows: [], lastCounts: { callsCapped: true, callsCap: 600 }, callerKey: HA.callerKey });
+    ok('Today says when only the newest N calls were read', /partial list/.test(cappedHtml) && /newest 600 calls/.test(cappedHtml) && /Not an all-clear/.test(cappedHtml), cappedHtml.slice(0, 400));
+    const oldFail = await todayHtml({ groupNeeds: () => [], lastRows: [], lastCounts: { oldFailed: true }, callerKey: HA.callerKey });
+    ok('Today says when old promises could not be checked', /old promises could not be checked/.test(oldFail));
+  }
+  {
+    // old-promise read that hits its cap, and a page without the query helpers
+    const many = [];
+    const capN = 300;
+    for (let i = 0; i < capN + 3; i++) many.push(call('o' + i, { startedAtMs: NOW - (50 + i % 30) * DAY - i * 1000, callType: 'sub', phoneDigits: '5135557' + String(100 + i).slice(0, 3) }));
+    const h = await homeStrip({ phone_calls: many, phone_text_days: [] });
+    ok('an old-promise read at its cap is a warning, not silence', h.api.lastCounts.oldCapped === true && /before the 45-day window/.test(h.strip.innerHTML), h.strip.innerHTML.slice(0, 300));
+    const env = sandbox({ _user: { uid: 'u1' }, _userClaims: {}, db: {}, collection: () => ({}), query: () => ({}), where: () => ({}), getDocs: async () => ({ docs: [] }) });   // no orderBy / limit
+    env.els.homeAttention = fakeEl('homeAttention');
+    load(env, 'docs/pro/js/home-attention.js');
+    await env.win.NBDHomeAttention.render(true);
+    ok('missing query helpers = a failed read (never "nobody needs you")', env.win.NBDHomeAttention.lastCounts.callsFailed === true && /NOT an all-clear/.test(env.els.homeAttention.innerHTML));
+  }
+  {
+    // Rows from before the window feed only the old-promise row; they must not re-open a hidden number.
+    const labels = { '5135550909': { kind: 'customer', policy: 'hide', updatedAtMs: NOW - 120 * DAY } };
+    const oldFiled = call('oldfiled', { startedAtMs: NOW - 80 * DAY, leadId: 'L1', phoneDigits: '5135550909' });
+    const recentFiled = call('recfiled', { startedAtMs: NOW - 2 * DAY, leadId: 'L1', phoneDigits: '5135550909' });
+    ok('an 80-day-old filed call from a hidden number does not come back', HA.groupNeeds([oldFiled], NOW, labels).length === 0);
+    ok('control: a recent one does', HA.groupNeeds([recentFiled], NOW, labels).length === 1);
+  }
+  {
+    // A person Jo handled this morning rings again: the row is back (the handled set aged by the call's time).
+    const leadH = { id: 'LH', firstName: 'Hana', lastName: 'Cust', phone: '(513) 555-0808' };
+    const rows = [call('cube_H1', { leadId: 'LH', phoneDigits: '5135550808', bucket: 'customer', urgent: true, startedAtMs: NOW - 3 * 3600e3 })];
+    const ha = { lastRows: rows, lastCounts: {}, groupNeeds: HA.groupNeeds, callerKey: HA.callerKey, hiddenPeople: HA.hiddenPeople, render() {} };
+    let calls2 = [];
+    const env = sandbox({
+      _user: { uid: 'u1' }, _userClaims: {}, _leads: [leadH], _leadsLoaded: true, _taskCache: {}, showToast() {},
+      NBDTasks: { loaded: () => true }, NBDTodayPlan: TP, NBDHomeAttention: ha,
+      _functions: {}, _httpsCallable: () => async (data) => { calls2.push(data); return { data: { ok: true } }; },
+    });
+    env.els.todayPlan = fakeEl('todayPlan');
+    load(env, 'docs/pro/js/today-home.js');
+    env.win.NBDToday.render();
+    const tap = async (attrs) => { for (const fn of env.doc._l.click || []) await fn({ target: { closest: (sel) => (/data-tp-act/.test(sel) ? { getAttribute: (k) => (k in attrs ? attrs[k] : null) } : null) } }); await flush(); await flush(); };
+    ok('control: the urgent call is listed', /Hana Cust/.test(env.els.todayPlan.innerHTML));
+    await tap({ 'data-tp-act': 'handled', 'data-tp-key': 'lead:LH' });   // no promise bundle in the sandbox: the plain Handled
+    env.win.NBDToday.render();
+    ok('after one tap the row is gone (optimistic)', !/Hana Cust/.test(env.els.todayPlan.innerHTML));
+    ha.lastRows = rows.concat([call('cube_H2', { leadId: 'LH', phoneDigits: '5135550808', bucket: 'customer', urgent: true, startedAtMs: Date.now() + 1000 })]);
+    env.win.NBDToday.render();
+    ok('a call that arrives AFTER he handled it brings the person back on Today', /Hana Cust/.test(env.els.todayPlan.innerHTML), env.els.todayPlan.innerHTML.slice(0, 300));
+  }
+  {
+    // The sheet is closed (Cancel / Escape / backdrop) while the save is in flight: the save still lands, nothing throws.
+    const calls = [];
+    let release = null;
+    const gate = new Promise((r) => { release = r; });
+    const leadC = { id: 'LC', firstName: 'Cleo', lastName: 'Cust', phone: '(513) 555-0606' };
+    const toasts = [];
+    const env = sandbox({
+      _taskCache: {}, _leads: [leadC], _userClaims: {}, _user: { uid: 'u1' }, showToast(m) { toasts.push(m); },
+      NBDHomeAttention: { lastRows: [call('cube_CL1', { leadId: 'LC', phoneDigits: '5135550606' })], render() {} },
+      NBDCallCenter: { _state: { calls: [call('cube_CL1', { leadId: 'LC', phoneDigits: '5135550606' })] } },
+      _functions: {},
+      _httpsCallable: (_f, name) => async (data) => { calls.push(data); await gate; return { data: { ok: true, on: 'task', taskId: 'promise-cube_CL1', dueDate: TODAY } }; },
+    });
+    load(env, 'docs/pro/js/promise-logic.js');
+    load(env, 'docs/pro/js/promise-ui.js');
+    env.win.NBDPromise.openSheet({ mode: 'handle', name: 'Cleo', callIds: ['cube_CL1'], leadId: 'LC', lead: leadC });
+    const sheet = env.els.prSheet;
+    const tap = (attrs) => sheet._l.click.forEach((fn) => fn({ target: { closest: () => ({ getAttribute: (k) => (k in attrs ? attrs[k] : null) }) } }));
+    tap({ 'data-pr-act': 'kind', 'data-pr-val': 'callback' });
+    tap({ 'data-pr-act': 'save' });
+    await flush();
+    env.win.NBDPromise.closeSheet();          // Cancel while saving
+    release();
+    let threw = null;
+    process.once('unhandledRejection', (e) => { threw = e; });
+    await flush(); await flush(); await flush();
+    ok('closing the sheet mid-save does not throw (it used to, after the server had saved)', threw === null, String(threw && threw.stack));
+    ok('...the saved promise is still mirrored and the user is told', ((env.win._taskCache || {}).LC || []).some((t) => t.id === 'promise-cube_CL1') && toasts.some((m) => /Promise saved/.test(m)), JSON.stringify(toasts));
+    ok('...and the Call Center\'s own copy of the call is marked handled too', env.win.NBDCallCenter._state.calls[0].handledAtMs > 0 && env.win.NBDHomeAttention.lastRows[0].handledAtMs > 0);
+  }
+  {
+    // Saved on the server but the customer cannot be found locally: ask for a reload, do not stay silent.
+    const env = sandbox({ _taskCache: {}, _leads: [], _userClaims: {}, _user: { uid: 'u1' }, showToast() {}, NBDHomeAttention: { lastRows: [], render() {} }, _functions: {},
+      _httpsCallable: () => async () => ({ data: { ok: true, on: 'task', taskId: 'promise-cube_X', dueDate: TODAY } }) });
+    load(env, 'docs/pro/js/promise-logic.js');
+    load(env, 'docs/pro/js/promise-ui.js');
+    env.win.NBDPromise.openSheet({ mode: 'handle', name: 'X', callIds: ['cube_X'] });
+    const sheet = env.els.prSheet;
+    const tap = (attrs) => sheet._l.click.forEach((fn) => fn({ target: { closest: () => ({ getAttribute: (k) => (k in attrs ? attrs[k] : null) }) } }));
+    tap({ 'data-pr-act': 'kind', 'data-pr-val': 'callback' });
+    tap({ 'data-pr-act': 'save' });
+    await flush(); await flush();
+    ok('an unresolvable local copy asks the task loader to re-read (source: leads)', env.events.some((e) => e.type === 'nbd:data-refreshed' && e.detail && e.detail.source === 'leads'));
+  }
+  {
+    // Call Center: a data layer that never came up is a failed read; a reload asked mid-load is run.
+    const fb = fakeFirestore({ phone_calls: [], phone_text_days: [] });
+    let n = 0, release = null;
+    const gate = new Promise((r) => { release = r; });
+    const slow = Object.assign({}, fb, { getDocs: async (q) => { if (q.col.name === 'phone_calls' && n++ === 0) await gate; return fb.getDocs(q); } });
+    const env = sandbox(Object.assign({ _user: { uid: 'u1' }, _userClaims: {}, db: {}, _leads: [], CSS: { escape: (x) => String(x) }, _functions: {},
+      _httpsCallable: () => async () => ({ data: { items: [], counts: {} } }) }, slow));
+    const target = fakeEl('scroll');
+    env.doc.querySelector = (sel) => (sel === '#view-calls .view-scroll' ? target : null);
+    load(env, 'docs/pro/js/home-attention.js');
+    load(env, 'docs/pro/js/call-center-view.js');
+    const first = env.win.NBDCallCenter.reload();
+    await flush();
+    await env.win.NBDCallCenter.reload();      // asked while the first is in flight
+    release();
+    await first; await flush(); await flush(); await flush();
+    ok('a reload requested mid-load is run after it (was dropped)', n >= 2, 'phone_calls reads=' + n);
+  }
+
   // ═══ M5 rule parity fuzz ════════════════════════════════════════════
   console.log('\nM5. Home mirror vs functions/call-watch-logic.js (seeded fuzz)');
   let seed = 20261013;

@@ -221,7 +221,10 @@
     // Safety valve (Jo, 2026-10-12): a HIDDEN number that matches a customer
     // or rings 3+ times in 24 h comes back once, as a row of its own; "Keep
     // hidden" (label ackAtMs) or ✓ Handled quiets it until it happens again.
-    resurfacedNumbers(rows, labels, now).forEach((v) => {
+    // (Rows before the window are on the page only for the old-promise row; the
+    // server never feeds them to this rule, so neither does Home.)
+    const inWindow = (rows || []).filter((c) => (toMs(c && c.startedAtMs) || 0) >= (now == null ? Date.now() : now) - PROMISE_WINDOW);
+    resurfacedNumbers(inWindow, labels, now).forEach((v) => {
       v.calls.forEach((c) => {
         const k = callerKey(c);
         if (!by.has(k)) by.set(k, { key: k, calls: [] });
@@ -266,6 +269,7 @@
     if (c.signs > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="signs">🪧 ' + c.signs + ' yard sign' + (c.signs === 1 ? '' : 's') + ' to pick up</button>');
     if (c.callsCapped) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Showing only your newest ' + (c.callsCap || '') + ' calls — older ones in the last 45 days were not checked. Tap to open the Call Center</button>');
     if (c.textsCapped) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Showing only your newest ' + (c.textsCap || '') + ' days of texts — older ones in the last 45 days were not checked</button>');
+    if (c.oldCapped) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Showing only the newest ' + (c.oldCap || '') + ' calls from before the 45-day window — an older open promise may not be listed</button>');
     if (c.oldFailed) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Could not check old promises (past 45 days) just now — this is NOT an all-clear for them</button>');
     if (c.callsFailed) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Could not check your calls just now' + (c.calls > 0 ? ' — ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you so far' : ' — this is NOT an all-clear') + '. Tap to open the Call Center</button>');
     else if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
@@ -336,7 +340,14 @@
       // Open promises older than the window roll into one review row: their own
       // bounded read. A failed one is a warning (oldFailed), not "no old promises".
       jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.where('startedAtMs', '<', sinceWin), w.orderBy('startedAtMs', 'desc'), w.limit(READ.oldCalls)))
-        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data()))); }).catch(() => { out.oldFailed = true; }));
+        .then((snap) => {
+          snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data())));
+          if (snap.docs.length >= READ.oldCalls) { out.oldCapped = true; out.oldCap = READ.oldCalls; }
+        }).catch(() => { out.oldFailed = true; }));
+    } else if (u) {
+      // The query helpers are missing: that is a read that could not happen,
+      // not "nobody needs you".
+      out.callsFailed = true;
     }
     await Promise.all(jobs);
     // Per-number labels (2026-10-12): a lazy bundle, read after the calls so
