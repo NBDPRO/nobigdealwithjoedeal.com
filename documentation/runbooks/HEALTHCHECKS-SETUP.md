@@ -51,6 +51,45 @@ rethrows. Until the key is set, every ping is a no-op — nothing changes.
    the slug each instance used the first time it pinged — if a slug there
    differs from this table, use the logged one.
 
+## Verify the never-forget chain is actually watched (2026-10-12)
+
+The calls -> reminders chain ends in a heartbeat `/fail` that **Healthchecks
+emails to you** (the dead-man in `functions/pipeline-deadman.js`, the
+callWatch push that reached 0 devices, a failing self-test canary). That last
+line only works if the checks exist. Verify in five minutes; nothing here can
+be checked from the repo:
+
+1. **The secret.** `firebase functions:secrets:access HEALTHCHECKS_PING_KEY`
+   (or Console > Secret Manager) must hold the project's 22-character *Ping key*,
+   not the `__unset__` stub. Every ping is a silent no-op while it is the stub.
+2. **The checks.** In Healthchecks, these four slugs matter most for the
+   never-forget chain and must exist, be **green**, and have the period / grace
+   in the table below:
+   - `calls-texts-ingest` (30 min / 1 h) - ingest, transcribe and the 10-minute
+     leadAlertWatchdog. **The dead-man's `/fail` rides this check**, so it going
+     red is how you hear that callWatch or the call copy stopped.
+   - `call-followups` (12 h / 1 h) - callWatch, the 07:15 / 15:15 sweep and the
+     away-mode tick. Weak on its own (the sweep keeps it green if callWatch dies),
+     which is exactly why the dead-man exists; do not rely on it for callWatch.
+   - `email-queue-worker` (1 min / 10 min) - every outbound email, including the
+     reminder emails, rides this queue.
+   - `health-digest-cron` (1 day / 6 h) - the daily health email.
+3. **The 19 slugs.** All of: `email-queue-worker`, `on-appointment-reminder`,
+   `daily-firestore-backup`, `backup-freshness-cron`, `migrations-tick`,
+   `stripe-ledger-reconcile`, `enforce-lapsed-seats`, `health-digest-cron`,
+   `lead-follow-up-sweep`, `storm-poller`, `social-publisher`,
+   `calls-texts-ingest`, `hourly-crons`, `call-followups`, `daily-retention`,
+   `daily-customer-touches`, `daily-syncs`, `weekly-crons`, `monthly-crons`.
+   A slug with no check behind it is simply ignored (404), so a missing one is
+   invisible until you look.
+4. **Where the alert goes.** Project > Integrations: your own email is on by
+   default; add a push channel (Pushover / Telegram) so a 2 a.m. `/fail` is not
+   only an email.
+5. **Prove it once.** Logs Explorer: `jsonPayload.message="[heartbeat] pinging as slug"`
+   lists the slug each cron used; pause the `calls-texts-ingest` check for a minute
+   and confirm the notice reaches you, then resume it. A watcher nobody has
+   heard from is not a watcher.
+
 ## The 19 checks to create (40 crons)
 
 **Updated 2026-10-05.** There are now 40 scheduled functions and the free tier
