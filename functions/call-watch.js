@@ -23,6 +23,9 @@ const W = require('./call-watch-logic');
 
 const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN = defineSecret('TWILIO_AUTH_TOKEN');
+// The ladder's email rung (Jo's own inbox; same secrets callCenterSweep binds).
+const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
+const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const secretVal = (n) => { const v = String(process.env[n] || '').trim(); return v && v !== '__unset__' ? v : ''; };
 
 /** Twilio outbound messages from the last day — GET only; [] when not configured. */
@@ -84,7 +87,7 @@ async function reconcileTaskDone({ db, calls, texts, nowMs, live }) {
   return n;
 }
 
-async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
+async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
   if (!W.inWatchHours(nowMs)) return { state: 'off_hours' };
   const stateRef = db.doc('integrations/callWatch');
   const stateSnap = await stateRef.get();
@@ -178,10 +181,20 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
   // the heartbeat pings /fail (Healthchecks emails Jo): the bell is the only
   // thing that told him.
   const pushUnreached = !!(alert && pushRes && typeof pushRes === 'object' && pushRes.sent === 0);
+  // Email rung: the third tell of an item still open also emails Jo. A failed
+  // send is logged at error (the heartbeat counts it) and recorded; it never
+  // blocks the state write below.
+  let emailRes = null;
+  const mail = W.ladderEmail(retells, nowMs);
+  if (mail && typeof email === 'function') {
+    try { await email(mail); emailRes = { atMs: nowMs, ok: true, people: mail.people }; }
+    catch (e) { emailRes = { atMs: nowMs, ok: false, error: String(e && e.message || e).slice(0, 160) }; logger.error('[callWatch] ladder email failed', { err: e && e.message }); }
+  }
   await stateRef.set({
     lastCheckAtMs: nowMs, lastResult: counts, problems: problems.map((p) => p.key), problemsToldAt, toldIds,
     ledgerYmd: ledger ? ledger.ymd : (st.ledgerYmd || null),
     ladder: W.nextLadder(callRows, textRows, st.ladder, needs.map((n) => n.id), retells, !pushUnreached, nowMs, labels),
+    lastEmail: emailRes || (st.lastEmail || null),
     lastPush: alert ? { atMs: nowMs, sent: pushRes && pushRes.sent != null ? Number(pushRes.sent) : null, failed: pushRes && pushRes.failed != null ? Number(pushRes.failed) : null } : (st.lastPush || null),
   }, { merge: false });
   if (pushUnreached) throw new Error('callWatch: the alert reached 0 devices (no push token on file, or every token failed) — only the in-app bell was written');
@@ -189,11 +202,24 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts }) {
 }
 
 exports.callWatch = onSchedule(
-  { schedule: '0 8-20/2 * * *', timeZone: 'America/New_York', timeoutSeconds: 120, memory: '512MiB', maxInstances: 1, secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN] },
+  { schedule: '0 8-20/2 * * *', timeZone: 'America/New_York', timeoutSeconds: 120, memory: '512MiB', maxInstances: 1, secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, RESEND_API_KEY, EMAIL_FROM] },
   async () => {
     try {
       const r = await runWatch({
         db: getFirestore(), nowMs: Date.now(), live: watchEnabled(), texts: recentTexts,
+        email: async (m) => {
+          const { secretValue } = require('./integrations/_shared');
+          const key = secretValue(RESEND_API_KEY);
+          if (!key) throw new Error('no-resend-key');
+          const user = await getFirestore().doc('users/' + OWNER).get();
+          const to = user.exists ? String((user.data() || {}).email || '') : '';
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw new Error('no-owner-email');
+          const { Resend } = require('resend');
+          const { resendRejected, resendErrorMessage } = require('./resend-guard');
+          // Email category: INTERNAL - Jo's own reminder, never a homeowner.
+          const resp = await new Resend(key).emails.send({ from: secretValue(EMAIL_FROM) || 'NBD Pro <noreply@nobigdealwithjoedeal.com>', to, subject: m.subject, html: m.html, text: m.text });
+          if (resendRejected(resp)) throw new Error('resend: ' + resendErrorMessage(resp));
+        },
         // sendCustomNotification (as Thursday + deal views use) — push-functions'
         // module.exports.sendPushNotification points at an export never assigned.
         push: (uid, title, body, data) => require('./push-functions').sendCustomNotification(uid, title, body, Object.assign({ notificationId: 'call-watch-' + Date.now() }, data)),

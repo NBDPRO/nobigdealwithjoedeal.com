@@ -403,6 +403,28 @@ function dailyLedger(callRows, textRows, now, extra) {
   };
 }
 
+/**
+ * The email rung (2026-10-12, Jo): the THIRD tell of an item still open also
+ * goes to Jo's own inbox, so a push nobody saw has a second channel (SMS is
+ * blocked until A2P). Internal only; rung items = ladderRetells() output.
+ * Returns null when nothing is on its last rung.
+ */
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function ladderEmail(retells, now) {
+  const last = (retells || []).filter((r) => r && r.rung >= LADDER_MAX);
+  if (!last.length) return null;
+  const seen = new Map();
+  last.forEach((r) => { const k = r.key || r.id; if (!seen.has(k)) seen.set(k, r); });
+  const people = Array.from(seen.values());
+  const url = 'https://nobigdealwithjoedeal.com/pro/dashboard.html#/calls';
+  const lines = people.slice(0, 12).map((p) => p.who + ' - ' + String(p.why).replace(/ - still open.*$/, ''));
+  const subject = 'Still open: ' + people.length + (people.length === 1 ? ' person' : ' people') + ' waiting on you (' + etYmd(now) + ')';
+  const text = ['These were pushed to your phone earlier today and are still open:', ''].concat(lines.map((l) => '- ' + l)).concat(['', 'Open the Call Center: ' + url, '', 'This is the last reminder; the morning brief lists anything still open.']).join('\n');
+  const html = '<p>These were pushed to your phone earlier today and are still open:</p><ul>' + lines.map((l) => '<li>' + esc(l) + '</li>').join('') +
+    '</ul><p><a href="' + url + '">Open the Call Center</a></p><p style="color:#666">This is the last reminder; the morning brief lists anything still open.</p>';
+  return { subject, text, html, people: people.length };
+}
+
 /** The one alert (bell + push). null when there is nothing to say. */
 function alertFor(needs, problems, now) {
   const items = needs || [], pr = problems || [];
@@ -445,6 +467,6 @@ function inWatchHours(now) {
 
 module.exports = {
   CALL_WINDOW, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
-  SMS_REPEAT_MS, smsProblems, deliveryBySid, dailyLedger, LADDER_GAP_MS, LADDER_MAX, ladderCandidates, ladderRetells, nextLadder,
+  SMS_REPEAT_MS, smsProblems, deliveryBySid, dailyLedger, ladderEmail, LADDER_GAP_MS, LADDER_MAX, ladderCandidates, ladderRetells, nextLadder,
   toMs, etYmd, callNeedsYou, labelOf, resurfacedNumbers, callerKey, reasonFor, reachIndex, isMissedCall, callCardUrl, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
 };

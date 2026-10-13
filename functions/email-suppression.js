@@ -410,6 +410,7 @@ const SEND_PATHS = Object.freeze({
   'integrations/email-queue-worker.js': 'internal', // queue: dunning/erasure/health → account holders
   'integrations/thursday.js': 'internal',   // Thursday call alert → Joe's own inbox
   'call-center.js': 'internal',             // callCenterSweep: "you said you'd" reminder → owner
+  'call-watch.js': 'internal',              // callWatch ladder email rung (3rd tell) → owner's own inbox only
 });
 
 module.exports = {

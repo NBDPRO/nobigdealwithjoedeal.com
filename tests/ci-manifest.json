@@ -47,6 +47,7 @@
     "pipeline-deadman-2026-10-12.test.js",
     "push-urgent-label-rule-2026-10-12.test.js",
     "promise-45-day-window-2026-10-12.test.js",
+    "call-ladder-email-rung-2026-10-12.test.js",
     "care-plan-page-2026-10-05.test.js",
     "oaks-own-intake-2026-10-04.test.js",
     "followup-date-retell-2026-10-12.test.js",
