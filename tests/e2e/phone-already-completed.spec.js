@@ -176,7 +176,9 @@ test.describe.serial('already completed on Plan jobs at 390px, installed app @sh
     expect(l.completedBackfill && l.completedBackfill.date, 'the completion day').toBe(past);
     expect(l.completedBackfill.quiet, 'quiet flag').toBe(true);
     expect(l.completedBackfill.byUid, 'who did it').toBeTruthy();
-    const at = l.completedAt && l.completedAt.toDate ? l.completedAt.toDate() : null;
+    // A Timestamp crosses page.evaluate as { seconds, nanoseconds } (methods are lost).
+    const sec = l.completedAt ? (l.completedAt.seconds != null ? l.completedAt.seconds : l.completedAt._seconds) : null;
+    const at = sec != null ? new Date(sec * 1000) : null;
     expect(at && ymd(at), 'completedAt is that day').toBe(past);
     const ev = (l.stageHistory || []).filter((h) => h && h.to === 'install_complete').pop() || {};
     expect(ev.backfill, 'stage history says it was a backfill').toBe(true);

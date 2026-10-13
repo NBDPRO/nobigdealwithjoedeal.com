@@ -129,6 +129,10 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
   let backfillResult = null;
   if (backfill) {
     if (newStage !== 'install_complete') throw new Error('BACKFILL_STAGE_INVALID');
+    // The race guards and the Undo token only mean something inside a
+    // transaction; without one (a page that never exposed runTransaction)
+    // refuse rather than write a completion with no way back.
+    if (typeof window.runTransaction !== 'function') throw new Error('BACKFILL_NEEDS_TRANSACTION');
     if (completionDateIssue(backfill.date, backfill.today)) throw new Error('BACKFILL_DATE_INVALID');
     backfillDate = String(backfill.date).trim();
     const _p = backfillDate.split('-').map(Number);
@@ -257,6 +261,13 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
       const _tier = _soldTierPatch(cur);
       if (_tier) Object.assign(payload, _tier);
       if (backfill) backfillResult = _backfillPatch(payload, cur);
+      else if (cur.completedBackfill && _roleOf(newStage) !== 'won' && _roleOf(newStage) !== 'lost') {
+        // A job marked "already completed" is dragged BACK to open work: the
+        // completion claim (and the quiet flag with it) no longer holds, and
+        // the real completion — when it comes — must not stay muted.
+        payload.completedBackfill = null;
+        payload.completedAt = null;
+      }
       enteredWon = enteringWon && _roleOf(cur.stage) !== 'won';
       tx.update(leadRef, payload);
     });
@@ -463,17 +474,13 @@ export async function undoBackfillCompletion(id, snap) {
     patch.stageHistory = window.arrayUnion(event);
     return patch;
   };
-  if (typeof window.runTransaction === 'function') {
-    await window.runTransaction(window.db, async (tx) => {
-      const s = await tx.get(leadRef);
-      if (!s.exists()) throw new Error('Lead not found');
-      tx.update(leadRef, build(s.data() || {}));
-    });
-  } else {
-    const s = await window.getDoc(leadRef);
+  // The token check is only atomic inside a transaction: no fallback write.
+  if (typeof window.runTransaction !== 'function') throw new Error('UNDO_UNAVAILABLE');
+  await window.runTransaction(window.db, async (tx) => {
+    const s = await tx.get(leadRef);
     if (!s.exists()) throw new Error('Lead not found');
-    await window.updateDoc(leadRef, build(s.data() || {}));
-  }
+    tx.update(leadRef, build(s.data() || {}));
+  });
   try {
     const label = (typeof window.stageLabel === 'function' ? window.stageLabel(snap.prev.stage) : null)
       || (window.STAGE_META && window.STAGE_META[snap.prev.stage] && window.STAGE_META[snap.prev.stage].label)

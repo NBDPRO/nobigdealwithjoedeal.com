@@ -190,6 +190,9 @@
       refreshBoard(id);
       const snap = res && res.backfill;
       if (typeof window.showToast === 'function') {
+        // Quiet means no final invoice is drafted for it either (a job marked
+        // finished after the fact may have been billed long ago).
+        window.showToast({ message: 'No final invoice was drafted for this one - create it from the customer page if one is owed.', type: 'info', duration: 9000 });
         window.showToast({
           message: 'Marked completed ✓ - now ' + doneLabel(), type: 'success', duration: 10000,
           undoText: snap ? 'Undo' : undefined,

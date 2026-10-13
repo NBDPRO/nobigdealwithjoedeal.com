@@ -143,7 +143,7 @@
     // Past Customers win-back list (2026-10-01): pure rules + drafts first,
     // then the view. Nothing is sent without the rep tapping Send.
     winback: [
-      'js/winback-logic.js?v=1',
+      'js/winback-logic.js?v=2',
       'css/winback-view.css?v=1',
       'js/winback.js?v=2'
     ],

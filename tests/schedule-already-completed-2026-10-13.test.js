@@ -264,12 +264,35 @@ const settle = () => new Promise((r) => setImmediate(r));
     ok('already at Install Done → STAGE_RACE_NOOP, nothing written (no second completion stamp)', e2 === 'STAGE_RACE_NOOP' && noop.rec.patches.length === 0, e2);
   }
   {
-    // A sale-less lead path: a tenant on a page without runTransaction still writes ONE patch.
+    // A page that never exposed runTransaction: the race guards and the Undo token mean nothing, so refuse.
     const m = mkWin({});
     delete m.win.runTransaction;
-    const out = await loadSW(m.win).commitStageChange('L1', 'install_complete', 'install_in_progress', { backfill: { date: DATE, today: TODAY } });
-    const p = m.rec.patches[0] || {};
-    ok('fallback path (no runTransaction) carries the same completion fields', m.rec.patches.length === 1 && p.completedBackfill && p.completedBackfill.quiet === true && p.completedAt instanceof Date && out.backfill && out.backfill.token === p.completedBackfill.token);
+    let err = '';
+    try { await loadSW(m.win).commitStageChange('L1', 'install_complete', 'install_in_progress', { backfill: { date: DATE, today: TODAY } }); } catch (e) { err = e.message; }
+    ok('no runTransaction → BACKFILL_NEEDS_TRANSACTION and nothing written (no completion with no way back)',
+      err === 'BACKFILL_NEEDS_TRANSACTION' && m.rec.patches.length === 0 && m.rec.notes.length === 0, err);
+  }
+  {
+    // Dragged back to open work: the completion claim (and the quiet flag) end with it, so a later REAL completion is not muted.
+    const m = mkWin({});
+    const SW = loadSW(m.win);
+    const out = await SW.commitStageChange('L1', 'install_complete', 'install_in_progress', { backfill: { date: DATE, today: TODAY } });
+    m.rec.patches.length = 0;
+    await SW.commitStageChange('L1', 'crew_scheduled', 'install_complete', {});
+    const back = m.rec.patches[0] || {};
+    ok('a normal move back to open work clears completedBackfill and completedAt', back.completedBackfill === null && back.completedAt === null
+      && m.state.lead.completedBackfill === null, JSON.stringify(back));
+    let err = '';
+    try { await SW.undoBackfillCompletion('L1', out.backfill); } catch (e) { err = e.message; }
+    ok('…and the old Undo then refuses (the token is gone)', err === 'UNDO_STALE', err);
+    // control: a forward move (still won) keeps the claim
+    const k = mkWin({});
+    const SW2 = loadSW(k.win);
+    await SW2.commitStageChange('L1', 'install_complete', 'install_in_progress', { backfill: { date: DATE, today: TODAY } });
+    k.rec.patches.length = 0;
+    await SW2.commitStageChange('L1', 'final_photos', 'install_complete', {});
+    ok('control: moving on to Final Photos (still won) leaves the completion fields alone',
+      !('completedBackfill' in k.rec.patches[0]) && !('completedAt' in k.rec.patches[0]) && k.state.lead.completedBackfill && k.state.lead.completedBackfill.date === DATE);
   }
 
   // ═══ 4. Undo ═══════════════════════════════════════════════════════════
@@ -320,6 +343,17 @@ const settle = () => new Promise((r) => setImmediate(r));
     ok('…and Undo clears that stamp too', rec.patches[0].closedAt === null);
   }
 
+  {
+    const m = mkWin({});
+    const SW = loadSW(m.win);
+    const out = await SW.commitStageChange('L1', 'install_complete', 'install_in_progress', { backfill: { date: DATE, today: TODAY } });
+    delete m.win.runTransaction;
+    m.rec.patches.length = 0;
+    let err = '';
+    try { await SW.undoBackfillCompletion('L1', out.backfill); } catch (e) { err = e.message; }
+    ok('Undo with no transaction is refused, not done non-atomically', err === 'UNDO_UNAVAILABLE' && m.rec.patches.length === 0, err);
+  }
+
   // ═══ 5. every consumer honours the quiet flag ═══════════════════════════
   console.log('\n5. after-install automations — quiet means quiet (each with a positive control)');
   // 5a. install-final-invoice trigger: no draft invoice / "Send final invoice" task.
@@ -338,35 +372,63 @@ const settle = () => new Promise((r) => setImmediate(r));
     await IFI.onLeadWrite({}, 'L1', Object.assign({}, before, { completedBackfill: { quiet: true } }), quietAfter, deps);
     ok('an ordinary later re-entry (flag already on the lead) is not swallowed', calls.length === 1);
   }
-  // 5b. review ask: nudge digest, spine task, anniversary.
+  // 5b. review ask: nudge digest (lead lane + job lane), spine task, anniversary.
+  {
+    const QB = require(path.join(ROOT, 'functions/quiet-backfill.js'));
+    const ev = (to, extra) => Object.assign({ from: 'x', to, timestamp: '2026-10-01T10:00:00.000Z' }, extra || {});
+    ok('quiet-backfill: the last Install Done entry was a backfill → quiet', QB.isQuietBackfill({ stageHistory: [ev('crew_scheduled'), ev('install_complete', { backfill: true })] }) === true);
+    ok('…a genuine completion after a drag-back is NOT quiet, even with the stale flag still on the doc',
+      QB.isQuietBackfill({ completedBackfill: { quiet: true }, stageHistory: [ev('install_complete', { backfill: true }), ev('crew_scheduled'), ev('install_complete')] }) === false);
+    ok('…an ordinary completion is not quiet', QB.isQuietBackfill({ stageHistory: [ev('install_complete')] }) === false);
+    ok('…no history at all: the flag decides', QB.isQuietBackfill({ completedBackfill: { quiet: true } }) === true && QB.isQuietBackfill({}) === false && QB.isQuietBackfill(null) === false);
+    ok('…a backfill, then moved on to Final Photos: still quiet (the completion was a backfill)', QB.isQuietBackfill({ stageHistory: [ev('install_complete', { backfill: true }), ev('final_photos')] }) === true);
+  }
   {
     const RN = (require(path.join(ROOT, 'functions/review-request-nudge.js')))._test;
     const NOW = Date.now(), DAY = 86400000;
     const lead = (o) => Object.assign({ userId: 'u1', companyId: 'u1', firstName: 'Pat', lastName: 'J', phone: '5135550142', email: 'p@x.test', stage: 'final_payment', stageRole: 'won', stageStartedAt: NOW - 10 * DAY }, o || {});
-    const mkDb = (leads) => ({
-      collection(name) {
-        const docs = name === 'leads' ? Object.keys(leads).map((id) => ({ id, data: leads[id] })) : [];
-        const q = (list) => ({
-          where(f, op, v) { return q(list.filter((d) => (op === 'in' ? v.includes(d.data[f]) : d.data[f] === v))); },
-          limit() { return q(list); },
-          async get() { return { docs: list.map((d) => ({ id: d.id, data: () => d.data, ref: { id: d.id, parent: { parent: { id: d.id } } } })), empty: list.length === 0, size: list.length }; },
-        });
-        return q(docs);
-      },
-      collectionGroup() { return { where() { return { limit() { return { async get() { return { docs: [] }; } }; } }; } }; },
-    });
-    // Invoices answer as "none owed" (a paid-in-full job).
-    const db = mkDb({ QUIET: lead({ completedBackfill: { quiet: true } }), PLAIN: lead({}) });
-    const origCollection = db.collection.bind(db);
-    db.collection = (n) => {
-      if (n !== 'invoices') return origCollection(n);
-      const chain = { where() { return chain; }, limit() { return chain; }, async get() { return { docs: [], empty: true, size: 0 }; } };
-      return chain;
+    const bfEvent = { from: 'crew_scheduled', to: 'install_complete', timestamp: '2026-10-01T10:00:00.000Z', backfill: true, completedOn: '2026-09-20' };
+    const okEvent = { from: 'crew_scheduled', to: 'install_complete', timestamp: '2026-10-02T10:00:00.000Z' };
+    const mkDb = (leads, jobs) => {
+      const none = { async get() { return { docs: [], empty: true, size: 0 } ; } };
+      const q = (list) => ({
+        where(f, op, v) { return q(list.filter((d) => (op === 'in' ? v.includes(d.data[f]) : d.data[f] === v))); },
+        limit() { return q(list); },
+        async get() { return { docs: list.map((d) => ({ id: d.id, data: () => d.data, ref: d.ref || { id: d.id, parent: { parent: { id: d.id } } } })), empty: list.length === 0, size: list.length }; },
+      });
+      return {
+        collection(name) {
+          if (name === 'invoices') { const chain = { where() { return chain; }, limit() { return chain; }, ...none }; return chain; }
+          if (name !== 'leads') return q([]);
+          const docs = Object.keys(leads).map((id) => ({ id, data: leads[id] }));
+          const c = q(docs);
+          c.doc = (id) => ({ async get() { return { exists: !!leads[id], id, data: () => leads[id] }; }, collection() { return q([]); } });
+          return c;
+        },
+        collectionGroup(n) {
+          return q(n === 'jobs' ? (jobs || []).map((j) => ({ id: j.id, data: j.data, ref: { id: j.id, parent: { parent: { id: j.leadId } } } })) : []);
+        },
+      };
     };
-    let ids = [];
-    try { ids = (await RN.findReviewDueLeads(db, 'u1')).map((x) => x.id); } catch (e) { ids = ['ERR ' + e.message]; }
+    const run = async (leads, jobs) => {
+      try { return (await RN.findReviewDueLeads(mkDb(leads, jobs), 'u1')).map((x) => x.id + (x.jobId ? ':' + x.jobId : '')); } catch (e) { return ['ERR ' + e.message]; }
+    };
+    let ids = await run({ QUIET: lead({ completedBackfill: { quiet: true } }), PLAIN: lead({}) });
     ok('review-request-nudge: a quiet backfill is never nudged', !ids.includes('QUIET'), ids.join());
     ok('control: the same paid job WITHOUT the flag is nudged (the harness really finds due leads)', ids.includes('PLAIN'), ids.join());
+    ids = await run({
+      HIST: lead({ completedBackfill: { quiet: true }, stageHistory: [bfEvent] }),
+      REAL: lead({ completedBackfill: { quiet: true }, stageHistory: [bfEvent, { to: 'crew_scheduled' }, okEvent] }),
+    });
+    ok('a backfilled job (history) is not nudged', !ids.includes('HIST'), ids.join());
+    ok('a job finished FOR REAL after a drag-back is nudged even though the flag lingered on the lead', ids.includes('REAL'), ids.join());
+    // Job lane: the customer's active job moved on (j2); j1 was the backfilled one.
+    const j = (id, hist) => ({ id, leadId: 'LM', data: { stage: 'final_payment', stageRole: 'won', stageHistory: hist, closedAt: NOW - 30 * DAY, stageStartedAt: NOW - 10 * DAY, userId: 'u1' } });
+    const multi = { LM: lead({ activeJobId: 'j2', stage: 'crew_scheduled', stageRole: 'job' }) };
+    ids = await run(multi, [j('j1', [bfEvent])]);
+    ok('multi-job: a NON-active job that was backfilled is not nudged (its own history says so)', !ids.some((x) => /^LM/.test(x)), ids.join());
+    ids = await run(multi, [j('j1', [okEvent])]);
+    ok('control: the same job finished the ordinary way IS nudged', ids.some((x) => /^LM:j1/.test(x)), ids.join());
   }
   {
     const AT = require(path.join(ROOT, 'functions/anniversary-touch.js'))._test;
@@ -398,6 +460,38 @@ const settle = () => new Promise((r) => setImmediate(r));
     const c = await SPINE.requestReviewTaskIfPaid(mkDb(base), 'L1', 'u1', deps);
     ok('control: without the flag the same lead is NOT stopped at that gate', !(c && c.reason === 'quiet_backfill'), JSON.stringify(c));
   }
+  {
+    // Referral bonus: not on the backfill tap (a payout to a third party that Undo cannot reverse).
+    const RR = require(path.join(ROOT, 'functions/referral-rewards.js'))._internal;
+    const closed = RR.projectClosed;
+    const q = { completedBackfill: { quiet: true } };
+    ok('referral: a quiet backfill sitting at Install Done is not a closed project yet', closed(Object.assign({ stage: 'install_complete', stageRole: 'won' }, q)) === false);
+    ok('control: an ordinary Install Done still credits (the project is won)', closed({ stage: 'install_complete', stageRole: 'won' }) === true);
+    ok('…and the backfilled job credits once it moves PAST Install Done', closed(Object.assign({ stage: 'final_photos', stageRole: 'won' }, q)) === true);
+  }
+  {
+    // The homeowner's tracker dates the walkthrough by the day it finished, not the day it was keyed in.
+    const HP = require(path.join(ROOT, 'functions/homeowner-progress.js'));
+    const hist = [{ to: 'install_complete', timestamp: '2026-10-13T15:00:00.000Z', backfill: true, completedOn: '2026-09-20' }];
+    const d = HP.milestoneDatesFor({ stageHistory: hist });
+    const plain = HP.milestoneDatesFor({ stageHistory: [{ to: 'install_complete', timestamp: '2026-10-13T15:00:00.000Z' }] });
+    const key = Object.keys(d)[0];
+    ok('homeowner tracker: a backfilled step carries the completion day', !!key && d[key].slice(0, 10) === '2026-09-20', JSON.stringify(d));
+    ok('control: an ordinary entry keeps its own timestamp', plain[key] === '2026-10-13T15:00:00.000Z', JSON.stringify(plain));
+    const portalSrc = strip(read('functions/portal.js'));
+    ok('homeowner portal: no rating card and no Google review link for a quiet backfill (card and the write gate)',
+      /canRate: hp\.paidInFull && !isQuietBackfill\(lead\)/.test(portalSrc) && /googleReviewUrl: \(!isQuietBackfill\(lead\)/.test(portalSrc)
+      && /!paidInFullFor\(lead, ratingInvoices\) \|\| isQuietBackfill\(lead\)/.test(portalSrc));
+  }
+  {
+    const WB = require(path.join(ROOT, 'docs/pro/js/winback-logic.js'));
+    const later = Date.parse('2026-10-13T12:00:00Z'), done = Date.parse('2026-09-20T12:00:00Z');
+    ok('winback: a backfill\'s completion day wins over the day the sale was keyed in', WB.completedMs({ closedAt: later, completedAt: done, completedBackfill: { quiet: true } }) === done);
+    ok('control: an ordinary lead still reads closedAt first', WB.completedMs({ closedAt: later, completedAt: done }) === later);
+    const AM = require(path.join(ROOT, 'functions/agent-mcp-logic.js'));
+    ok('bots: post_job marks quiet backfills so nobody drafts a review ask for one', /quiet_backfill: !!l\.completedBackfill/.test(strip(read('functions/agent-mcp-logic.js'))) && typeof AM === 'object');
+  }
+
   // 5c. client engines (vm): review bell, review deck, Ask Joe's morning opportunity.
   {
     const src = {
@@ -454,6 +548,10 @@ const settle = () => new Promise((r) => setImmediate(r));
       && !/updateDoc\([^)]*stage:\s*'install_complete'/.test(ui));
     ok('the date is validated before the write', /P\(\)\.completionIssue\(date, todayYmd\(\)\)/.test(ui));
     ok('the offer is re-judged at tap time (a stale row cannot move a lead that already moved)', /if \(!offerCompleted\(lead\)\)/.test(ui));
+    ok('it says out loud that no final invoice was drafted', /No final invoice was drafted for this one/.test(ui));
+    ok('cache-busters were bumped for every changed served script', ['schedule-planner-logic.js?v=3', 'schedule-planner.js?v=5', 'review-engine.js?v=9', 'review-deck.js?v=3', 'ask-joe-proactive.js?v=6']
+      .every((x) => read('docs/pro/dashboard.html').includes(x)) && read('docs/pro/customer.html').includes('review-engine.js?v=9') && read('docs/pro/customer.html').includes('schedule-planner-logic.js?v=3')
+      && read('docs/pro/js/script-loader.js').includes('winback-logic.js?v=2'));
     ok('the toast says what Jo asked for and keeps a one-tap Undo', /'Marked completed ✓ - now '/.test(ui) && /undoText: snap \? 'Undo'/.test(ui) && /undoBackfillCompletion\(id, snap\)/.test(ui));
     ok('viewers never see the panel (existing) and the offer itself checks the role', /role: claims\.role/.test(ui) && /role\(\) === 'viewer'/.test(ui));
     ok('no inline handlers or inline scripts were added', !/\son[a-z]+\s*=\s*"/i.test(ui) && !/<script/i.test(ui));

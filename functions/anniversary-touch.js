@@ -45,6 +45,7 @@ const { FieldPath, getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 const { Resend } = require('resend');
 const stageRoles = require('./stage-roles');
+const { isQuietBackfill } = require('./quiet-backfill');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM     = defineSecret('EMAIL_FROM');
@@ -295,7 +296,7 @@ async function findAnniversaryLeads(db, uid) {
     if (lead.isProspect) return;
     // Quiet "already completed" backfill (schedule planner, 2026-10-13): no
     // anniversary touch is queued for a job marked finished after the fact.
-    if (lead.completedBackfill) return;
+    if (isQuietBackfill(lead)) return;
     // Authoritative re-check, mirroring dormant-leads.js's _isTerminalLead:
     // reuse stage-roles.js's roleFor()/ROLE.WON (via leadCompletionMs /
     // firstCompletionMs) instead of a literal-stage Set, so a persisted

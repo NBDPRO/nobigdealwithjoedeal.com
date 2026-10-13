@@ -263,12 +263,17 @@ function milestoneDatesFor(lead) {
   const history = Array.isArray(lead && lead.stageHistory) ? lead.stageHistory : [];
   for (const h of history) {
     if (!h || !h.to || typeof h.timestamp !== 'string') continue;
+    // A job marked "already completed" after the fact: the entry's timestamp
+    // is when somebody TAPPED (it doubles as the Undo token); the day the job
+    // actually finished is completedOn. The homeowner sees the real day.
+    const when = (h.backfill === true && typeof h.completedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(h.completedOn))
+      ? h.completedOn + 'T12:00:00.000Z' : h.timestamp;
     const k = stageKeyFor({ stage: h.to });
     // new/contacted are BEFORE the inspection; dating it by them would show
     // the day the lead came in as the day the roof was looked at.
     const step = k && !NOT_INSPECTED.has(k) && STAGE_TO_STEP[k];
     if (!step) continue;
-    if (!(step in dates) || h.timestamp < dates[step]) dates[step] = h.timestamp;
+    if (!(step in dates) || when < dates[step]) dates[step] = when;
   }
   return dates;
 }

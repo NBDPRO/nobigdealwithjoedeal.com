@@ -56,6 +56,7 @@ const { logger } = require('firebase-functions/v2');
 const { FieldPath, FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { Resend } = require('resend');
 const roles = require('./stage-roles');
+const { isQuietBackfill } = require('./quiet-backfill');
 // Paid in full (Jo, 2026-10-03): the ask waits until the job's money is in —
 // the ONE rule the client bell / review deck / spine task also use.
 const PIF = require('./paid-in-full');
@@ -304,7 +305,7 @@ async function findReviewDueLeads(db, uid) {
     if (lead.isProspect) continue;
     // Quiet "already completed" backfill (schedule planner, 2026-10-13): Jo's
     // rule is no review ask for a job marked finished after the fact.
-    if (lead.completedBackfill) continue;
+    if (isQuietBackfill(lead)) continue;
 
     // Re-verify through the shared role map: persisted stageRole wins,
     // else the key classifies. Drops legacy-lane rows whose raw stage
@@ -353,6 +354,7 @@ async function findReviewDueLeads(db, uid) {
     catch (_) { lead = null; }
     if (!lead || lead.deleted || lead.isProspect) continue;
     if (lead.activeJobId === d.id) continue;                               // covered above
+    if (isQuietBackfill(job)) continue;                                    // that job was marked finished after the fact (its history carries it)
     // The job's own invoices (its jobId, or none stamped) must owe nothing.
     const paid = await paidAnchor(db, Object.assign({}, job, { companyId: lead.companyId, userId: lead.userId }), leadId, d.id, job.closedAt);
     if (!paid) continue;
