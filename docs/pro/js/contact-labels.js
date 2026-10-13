@@ -112,10 +112,33 @@
     var doc = LG.buildDoc({
       digits: d, kind: o.kind, policy: o.policy, name: o.name != null ? o.name : (prev && prev.name), note: o.note != null ? o.note : (prev && prev.note),
       source: o.source, companyId: tenant(), uid: uid(), createdAtMs: prev && prev.createdAtMs,
+      ackAtMs: o.ackAtMs != null ? o.ackAtMs : (prev && prev.ackAtMs),
+      capture: o.capture,
     });
     if (!doc) { toast("Couldn't label that number.", 'error'); return { ok: false }; }
     var ok = await persist(d, doc, prev);
     return { ok: ok, prev: prev };
+  }
+
+  /** "Keep hidden": a hidden number came back; quiet it until it happens again. */
+  async function ack(digits) {
+    var d = LG.digits10(digits), cur = d ? state.labels[d] : null;
+    if (!cur) return { ok: false };
+    return apply({ digits: d, kind: cur.kind, policy: cur.policy, ackAtMs: Date.now(), source: cur.source, capture: cur.capture });
+  }
+
+  /** apply + the undo bar (used by a one-tap suggestion Accept). */
+  async function applyWithUndo(o) {
+    var d = LG.digits10(o && o.digits);
+    var before = d ? get(d) : null;
+    before = before ? Object.assign({}, before) : null;
+    var r = await apply(o);
+    if (!r.ok) return r;
+    var now = get(d);
+    showUndo('Labeled ' + LG.KIND_LABEL[o.kind] + ' \u00b7 ' + LG.POLICY_LABEL[LG.policyOf(now)], function () {
+      return before ? persistRestore(d, before) : clear(d);
+    });
+    return r;
   }
 
   async function clear(digits) {
@@ -164,7 +187,8 @@
   }
   function paintSheet(s) {
     var cur = get(s.digits);
-    var more = s.more || (cur && LG.PRIMARY_KINDS.indexOf(cur.kind) === -1);
+    var curKind = cur ? cur.kind : s.pending;
+    var more = s.more || (curKind && LG.PRIMARY_KINDS.indexOf(curKind) === -1);
     var extra = LG.KINDS.filter(function (k) { return LG.PRIMARY_KINDS.indexOf(k) === -1; });
     var pol = s.policy || (cur ? LG.policyOf(cur) : '');
     var pols = LG.POLICIES.map(function (p) {
@@ -175,12 +199,14 @@
       '<div class="cl-who">' + (s.name ? esc(s.name) + ' · ' : '') + esc(fmtPhone(s.digits)) + '</div></div>' +
       (s.leadName ? '<div class="cl-hint">On customer <b>' + esc(s.leadName) + '</b>. A label only changes what surfaces — the customer stays as it is.</div>' : '') +
       '<div class="cl-sec">What is it?</div>' +
-      '<div class="cl-kinds">' + LG.PRIMARY_KINDS.map(function (k) { return kindButton(k, cur && cur.kind); }).join('') +
-      (more ? extra.map(function (k) { return kindButton(k, cur && cur.kind); }).join('') : '<button type="button" class="cl-kind cl-more" data-cl="more">More…</button>') + '</div>' +
+      '<div class="cl-kinds">' + LG.PRIMARY_KINDS.map(function (k) { return kindButton(k, curKind); }).join('') +
+      (more ? extra.map(function (k) { return kindButton(k, curKind); }).join('') : '<button type="button" class="cl-kind cl-more" data-cl="more">More…</button>') + '</div>' +
       '<div class="cl-sec">What should the CRM do with its calls?</div>' +
       '<div class="cl-pols">' + pols + '</div>' +
       '<div class="cl-note">' + (pol ? '' : 'Tap what it is and the usual choice for it is applied. ') +
       'This only decides what shows on Today. It never blocks a call or sends anything.</div>' +
+      // Thursday-handled toggle (js/thursday-handled.js; '' until that lazy file is loaded and the flag is on).
+      (w.NBDThursdayHandled ? w.NBDThursdayHandled.sheetHtml(s.digits) : '') +
       '<div class="cl-foot">' + (cur ? '<button type="button" class="cl-link" data-cl="remove">Remove label</button>' : '<span></span>') +
       '<button type="button" class="cl-link" data-cl="close">Cancel</button></div>';
   }
@@ -199,16 +225,35 @@
     doc.body.appendChild(wrap);
     state.opener = doc.activeElement || null;
     state.sheet = wrap;
-    var s = { el: wrap.querySelector('.cl-sheet'), digits: d, name: o.name || (cur && cur.name) || '', leadName: o.leadName || '', policy: '', more: false };
+    var s = { el: wrap.querySelector('.cl-sheet'), digits: d, name: o.name || (cur && cur.name) || '', leadName: o.leadName || '', policy: '', more: false, pending: LG.isKind(o.pending) ? o.pending : '', source: LG.SOURCES.indexOf(o.source) !== -1 ? o.source : 'manual' };
     wrap.__s = s;
     paintSheet(s);
     var first = s.el.querySelector('.cl-kind.is-on') || s.el.querySelector('.cl-kind');
     if (first) first.focus(); else s.el.focus();
   }
 
-  async function chooseKind(s, kind) {
+  // Personal: ask before anything stops being recorded (2026-10-12, Jo). The
+  // sheet repaints as a two-button confirm; nothing is written until a tap.
+  function confirmPersonal(s) {
+    s.el.innerHTML =
+      '<div class="cl-hd"><div class="cl-title">Personal number</div>' +
+      '<div class="cl-who">' + (s.name ? esc(s.name) + ' · ' : '') + esc(fmtPhone(s.digits)) + '</div></div>' +
+      '<div class="cl-hint">Hiding keeps its calls off Today (a promise you make still shows). You can also stop the CRM from <b>copying and transcribing</b> its future calls and texts.</div>' +
+      '<div class="cl-note">If you stop it: new calls and texts from this number are not copied, transcribed or read. A one-line record (time and direction) is still kept so the Call Center shows it rang. <b>Calls and texts already in the CRM stay exactly as they are</b> — remove them from the Call Center yourself if you want them gone. Your original recordings stay in your own Drive.</div>' +
+      '<div class="cl-kinds"><button type="button" class="cl-pol" data-cl="personal-hide">Hide only</button>' +
+      '<button type="button" class="cl-pol is-on" data-cl="personal-stop">Hide + stop copying future calls</button></div>' +
+      '<div class="cl-foot"><span></span><button type="button" class="cl-link" data-cl="close">Cancel</button></div>';
+    var b = s.el.querySelector('[data-cl="personal-stop"]');
+    if (b) b.focus();
+  }
+
+  async function chooseKind(s, kind, capture) {
     var before = get(s.digits);
-    var r = await apply({ digits: s.digits, kind: kind, policy: s.policy || undefined, name: s.name, source: 'manual' });
+    // Same kind again (a policy tap): keep what Jo already confirmed.
+    if (capture === undefined && before && before.kind === kind) capture = before.capture || '';
+    // A first pick of Personal asks about capture before writing anything.
+    if (kind === 'personal' && capture === undefined && !(before && before.kind === 'personal')) { confirmPersonal(s); return; }
+    var r = await apply({ digits: s.digits, kind: kind, policy: s.policy || undefined, name: s.name, source: s.source || 'manual', capture: capture });
     closeSheet();
     if (!r.ok) return;
     var now = get(s.digits);
@@ -217,7 +262,7 @@
     });
   }
   async function persistRestore(d, prev) {
-    var doc = LG.buildDoc({ digits: d, kind: prev.kind, policy: prev.policy, name: prev.name, note: prev.note, source: prev.source, companyId: tenant(), uid: uid(), createdAtMs: prev.createdAtMs });
+    var doc = LG.buildDoc({ digits: d, kind: prev.kind, policy: prev.policy, name: prev.name, note: prev.note, source: prev.source, companyId: tenant(), uid: uid(), createdAtMs: prev.createdAtMs, ackAtMs: prev.ackAtMs, capture: prev.capture });
     if (!doc) return { ok: false };
     var cur = state.labels[d] ? Object.assign({}, state.labels[d]) : null;
     return { ok: await persist(d, doc, cur) };
@@ -236,11 +281,15 @@
     if (a === 'close') { closeSheet(); return; }
     if (!s) return;
     if (a === 'more') { s.more = true; paintSheet(s); return; }
+    if (a === 'personal-hide') { chooseKind(s, 'personal', ''); return; }
+    if (a === 'personal-stop') { chooseKind(s, 'personal', 'off'); return; }
     if (a === 'kind') { chooseKind(s, t.getAttribute('data-kind')); return; }
     if (a === 'policy') {
       var p = t.getAttribute('data-policy');
       var cur = get(s.digits);
       if (cur) { s.policy = p; chooseKind(s, cur.kind); return; }
+      // Opened from a suggestion that hides: the kind is picked, the policy is Jo's tap.
+      if (s.pending) { s.policy = p; chooseKind(s, s.pending); return; }
       s.policy = s.policy === p ? '' : p; paintSheet(s);
       return;
     }
@@ -256,8 +305,32 @@
     if (ev.key === 'Escape' && state.sheet) { ev.stopPropagation(); closeSheet(); }
   });
 
+  // Thursday label playbooks (2026-10-12): the "let Thursday handle this number"
+  // toggle, the Today recap row and the block list live in two lazy files that
+  // load only when the `thursdayLabelPlaybooks` flag is on. Registered here (not
+  // in script-loader.js, whose blocking bytes are at their ceiling). Best-effort.
+  // The flags read can land after this file (it needs the signed-in user), so a
+  // flag that is not on yet is re-checked a few times; NBDFlags caches the read.
+  try {
+    var F = w.NBDFlags;
+    if (F && typeof F.load === 'function' && w.ScriptLoader && typeof w.ScriptLoader.load === 'function') {
+      var thTry = function (n) {
+        Promise.resolve(F.load()).then(function () {
+          if (F.enabled('thursdayLabelPlaybooks')) {
+            return w.ScriptLoader.load('css/thursday-handled.css?v=1')
+              .then(function () { return w.ScriptLoader.load('js/thursday-handled-logic.js?v=1'); })
+              .then(function () { return w.ScriptLoader.load('js/thursday-handled.js?v=1'); });
+          }
+          if (n < 6) setTimeout(function () { thTry(n + 1); }, 2500);
+          return null;
+        }).catch(function () { /* optional surface */ });
+      };
+      thTry(0);
+    }
+  } catch (_) { /* optional surface */ }
+
   w.NBDContactLabels = {
-    load: load, current: function () { return state.labels; }, get: get, apply: apply, clear: clear,
+    load: load, current: function () { return state.labels; }, get: get, apply: apply, applyWithUndo: applyWithUndo, ack: ack, clear: clear,
     openSheet: openSheet, canWrite: canWrite, canRead: canRead,
   };
 })();

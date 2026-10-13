@@ -67,6 +67,8 @@
         // member (their uid != companyId). Mirrors company-profile.js's resolver.
         var tenantKey = (window._userClaims && window._userClaims.companyId) || window._user.uid;
         var isOwnerViewer = tenantKey === window._user.uid;
+        var TO = await _teamOwnerMod(); // owner hand-off half (lazy)
+        if (TO) isOwnerViewer = await TO.isOwner(tenantKey, isOwnerViewer);
         // Owner card: present the viewer AS owner only when they actually are one;
         // otherwise label generically so a member isn't mispresented as Owner.
         var nameEl = document.getElementById('teamOwnerName');
@@ -128,6 +130,7 @@
               + '<div>' + actions + '</div>'
               + '</div>';
           }).join('');
+          if (TO) TO.decorate(list, snap.docs, tenantKey, isOwnerViewer);
           // Over-capacity seat picker (cap-aware batch (de)activation).
           try {
             _renderSeatPanel(snap.docs.map(function(d){ var x = d.data()||{}; return { email:String(x.email||d.id||''), role:x.role, status:x.status, uid:x.uid }; }), list);
@@ -238,12 +241,8 @@
           if (typeof showToast === 'function') showToast('Select at most ' + cap + ' rep' + (cap === 1 ? '' : 's') + '.', 'error');
           return;
         }
-        // Batch 2 (iOS PWA): native confirm() always returns true in PWA
-        // standalone mode (see standalone-compat.js), so every destructive
-        // guard in this tab — benching reps, buying/removing paid seats,
-        // cancelling invites, revoking access — silently answered YES on the
-        // installed app. nbdConfirm returns a real Promise<boolean> from a
-        // modal in PWA mode and falls back to native confirm on desktop.
+        // iOS PWA: native confirm() always returns true (standalone-compat.js);
+        // nbdConfirm is a real modal there and native confirm on desktop.
         var ask = window.nbdConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
         if (!(await ask('Apply this seat selection? ' + checked.length + ' rep' + (checked.length === 1 ? '' : 's') + ' active; the rest are benched (data kept).'))) return;
         if (btn) { btn.disabled = true; btn.textContent = '…'; }
@@ -288,32 +287,19 @@
         }
         var pl = (window.NBDBilling && window.NBDBilling.getPlan) ? window.NBDBilling.getPlan() : null;
         var reps = pl && pl.limits ? pl.limits.reps : null;
-        // past_due is entitled to RENDER the stepper — the server allows a
-        // past_due sub to REDUCE seats (undo a failed proration invoice) even
-        // though it refuses new charges. Excluding past_due here made the
-        // reduction path setCompanySeatCount was explicitly built for
-        // unreachable: the only UI for it simply never appeared.
+        // past_due still RENDERS the stepper: the server lets it REDUCE seats
+        // (undo a failed proration invoice) though it refuses new charges.
         var isPastDue = !!pl && pl.status === 'past_due';
         var entitled = !!pl && (pl.status === 'active' || pl.status === 'trialing' || isPastDue);
-        // Only card-billed Stripe subs can carry a seat line item. An
-        // access-code comp shows 'active' + a paid plan but would get a
-        // failed-precondition from setCompanySeatCount, so don't offer the
-        // stepper at all. source 'checkout' is the card-billed sub.
-        // Founder accounts pass this predicate too (2026-07-29): billing-
-        // gate's owner path mirrors a real checkout sub into getPlan()
-        // (plan/status/source/purchasedSeats), so a card-billed founder
-        // sees the stepper with the real plan's finite caps; a founder
-        // WITHOUT a checkout sub stays enterprise (reps === Infinity) and
-        // is excluded below. Gating is unaffected — owners bypass in
-        // canUse/enforceGate/softGate regardless of the mirrored plan.
+        // Only card-billed subs (source 'checkout') carry a seat line item; an
+        // access-code comp would get failed-precondition. billing-gate mirrors a
+        // founder's real checkout sub into getPlan() (2026-07-29), so a founder
+        // without one stays enterprise (reps === Infinity) and is excluded below.
         var cardBilled = !!pl && pl.source === 'checkout';
-        // The seat add-on is DARK (Jo's standing decision): setCompanySeatCount
-        // refuses with failed-precondition until STRIPE_PRICE_SEAT exists. The
-        // stepper used to render anyway, so every card-billed owner was offered
-        // a control that could only fail with an error toast (GROK-CRM-AUDIT
-        // row 14). It stays hidden until activation: create the seat price in
-        // Stripe, add the STRIPE_PRICE_SEAT secret, deploy functions, THEN set
-        // window.NBD_SEAT_ADDON_ENABLED = true (NEXT_SESSION-2026-09-14.md).
+        // DARK (Jo's decision): setCompanySeatCount refuses until STRIPE_PRICE_SEAT
+        // exists. To activate: create the Stripe seat price + secret, deploy
+        // functions, THEN set window.NBD_SEAT_ADDON_ENABLED = true
+        // (NEXT_SESSION-2026-09-14.md; GROK-CRM-AUDIT row 14).
         var seatAddonLive = window.NBD_SEAT_ADDON_ENABLED === true;
         // !pl.loaded: an unloaded plan has no trustworthy caps (and _seatCap()
         // is null then, so the "included N" copy below would print 0).
@@ -398,18 +384,30 @@
         }
         return window._httpsCallable(window._functions, name)(payload);
       }
+      // Owner hand-off client code (Make owner, former-owner notes) lives in
+      // js/dashboard-team-owner.js: this file is render-blocking, so it loads lazily.
+      function _teamOwnerMod() {
+        var L = window.ScriptLoader;
+        return L ? L.load('js/dashboard-team-owner.js?v=1').then(function () { return window.NBDTeamOwner; }, function () {}) : Promise.resolve();
+      }
       async function handleTeamAction(action, email, btn) {
         // Resolve tenant key like loadTeamMembers (member/admin claim → owner uid).
         // The server callables re-derive the tenant from claims, so this is a
         // presence guard; resolving it correctly keeps non-owner admins working.
         var companyId = (window._userClaims && window._userClaims.companyId) || (window._user && window._user.uid);
         if (!companyId || !email) return;
+        var TO = window.NBDTeamOwner, note = '';
+        if (action === 'makeowner') { // never falls through to deactivateUser
+          if (TO && await TO.makeOwner(email, btn, _teamCallable)) loadTeamMembers();
+          return;
+        }
         var confirms = {
           cancel:  'Cancel the invite for ' + email + '?',
           disable: 'Disable ' + email + '? Their login stops working until re-enabled. Their leads stay.',
           enable:  'Re-enable ' + email + '?',
           remove:  'Remove ' + email + ' from the team? Their access is revoked, their bot keys and calendar link stop working, and their customers move to the company owner.'
         };
+        if (TO && action === 'remove') confirms.remove = TO.removeText(email, btn) || confirms.remove;
         var ask = window.nbdConfirm || function (m) { return Promise.resolve(window.confirm(m)); };
         if (!(await ask(confirms[action] || 'Proceed?'))) return;
         if (btn) { btn.disabled = true; btn.textContent = '…'; }
@@ -419,11 +417,12 @@
             // and revokes their tokens before deleting the roster doc — a bare
             // client deleteDoc left a removed user with live tenant access
             // (Firestore authorizes by claim, not roster membership).
-            await _teamCallable('removeMember', { email: email });
+            var rmRes = await _teamCallable('removeMember', { email: email });
+            if (TO) note = TO.billingNote(rmRes);
           } else {
             await _teamCallable('deactivateUser', { email: email, reactivate: action === 'enable' });
           }
-          if (typeof showToast === 'function') showToast('✓ Done', 'success');
+          if (typeof showToast === 'function') showToast('✓ Done' + note, 'success');
         } catch (e) {
           console.warn('team action failed:', e);
           if (typeof showToast === 'function') showToast('Failed: ' + _nbdEscHtml(e.message || 'unknown error'), 'error');

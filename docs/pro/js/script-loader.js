@@ -454,7 +454,7 @@
     ],
     // Call Center (2026-10-01): one view, goTo('calls') only.
     callcenter: [
-      'js/call-center-view.js?v=13'
+      'js/call-center-view.js?v=18'
     ],
     // Tenant-ready settings (2026-10-05, #2152 boot budget): the Business
     // Rules editor (Settings → Estimates) and the logo upload / company export
@@ -468,7 +468,7 @@
     tenantsettings: [
       'js/tenant-rules-settings.js?v=1',
       'js/tenant-account-ui.js?v=2',
-      'js/sms-compliance-settings.js?v=1',
+      'js/sms-compliance-settings.js?v=2',
       'js/away-mode-settings.js?v=1'
     ],
     // New-owner setup checklist on Home (2026-10-05, #2152 boot budget).

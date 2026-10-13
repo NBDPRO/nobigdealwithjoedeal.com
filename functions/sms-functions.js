@@ -282,7 +282,10 @@ async function verifyAuth(req) {
   if (!idToken) return null;
 
   try {
-    return await getAuth().verifyIdToken(idToken);
+    const decoded = await getAuth().verifyIdToken(idToken);
+    // Owner hand-off (2026-10-12): a ghost (claim-less former owner) is signed out here.
+    if (await require('./tenant-guard').isGhost(decoded.uid, decoded)) return null;
+    return decoded;
   } catch (e) {
     logger.warn('sms_auth_verify_failed', { err: e.message });
     return null;

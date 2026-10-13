@@ -65,6 +65,9 @@
   }
 
   const CALL_WINDOW = 14 * DAY;
+  const PROMISE_WINDOW = 45 * DAY;
+  /** A promise Jo made that nothing has marked kept (promise-cleanup stamps keptAtMs). */
+  const openJoPromise = (c) => (c.promises || []).some((p) => p && p.who === 'jo' && !p.keptAtMs);
   const etYmd = (ms) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
   // A missed call: they rang, it was under 15 s (Cube ACR keeps no real audio).
   const isMissedCall = (c) => !!c && c.channel !== 'text' && c.status === 'short' && c.direction === 'inbound';
@@ -105,11 +108,49 @@
     if (d.length !== 10) return null;
     return (typeof L.get === 'function' ? L.get(d) : L[d]) || null;
   }
+  const BURST_N = 3, BURST_MS = DAY;
+  /**
+   * Hidden numbers that should come back ONCE: a call since the label was
+   * applied / last acknowledged that is filed on a customer ('lead'), or 3+
+   * inbound calls in the last 24 h ('burst'). Returns [{ digits, reason,
+   * calls, base }] — base (max of ackAtMs, updatedAtMs) makes the id of a
+   * once-only alert. Handled / done / personal / spam calls never trigger it.
+   */
+  function resurfacedNumbers(rows, labels, now) {
+    const out = [];
+    if (!labels) return out;
+    const t = now == null ? Date.now() : now;
+    const by = new Map();
+    (rows || []).forEach((c) => {
+      if (!c || c.channel === 'text' || c.handledAtMs || c.taskDone === true || c.status === 'personal' || c.callType === 'spam') return;
+      const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
+      if (d.length !== 10) return;
+      const lb = typeof labels.get === 'function' ? labels.get(d) : labels[d];
+      if (!lb || lb.policy !== 'hide') return;
+      const base = Math.max(toMs(lb.ackAtMs), toMs(lb.updatedAtMs));
+      if ((toMs(c.startedAtMs) || 0) <= base) return;
+      if (!by.has(d)) by.set(d, { digits: d, base, calls: [] });
+      by.get(d).calls.push(c);
+    });
+    by.forEach((v) => {
+      const recent = v.calls.filter((c) => c.direction !== 'outbound' && (toMs(c.startedAtMs) || 0) >= t - BURST_MS);
+      const onLead = v.calls.some((c) => c.leadId);
+      const reason = onLead ? 'lead' : (recent.length >= BURST_N ? 'burst' : '');
+      if (reason) out.push({ digits: v.digits, reason, calls: v.calls, base: v.base });
+    });
+    return out;
+  }
   function callNeedsYou(c, now, ctx) {
     const t = now == null ? Date.now() : now;
     if (!c || c.handledAtMs || c.status === 'personal') return false;
     if (c.callType === 'spam' || c.taskDone === true) return false;
-    if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) return false;
+    // Jo, 2026-10-12: a promise he made stays on the list past the 14-day
+    // window, up to 45 days, then rolls into ONE "old promises" review row
+    // (oldPromiseCount) instead of silently dropping off.
+    if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) {
+      if ((toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW) return false;
+      return openJoPromise(c);
+    }
     const promised = (c.promises || []).some((p) => p && p.who === 'jo');
     const lb = labelOf(ctx, c);
     const pol = lb && (lb.policy === 'hide' || lb.policy === 'quiet' || lb.policy === 'surface') ? lb.policy : '';
@@ -161,12 +202,38 @@
       if (!by.has(k)) by.set(k, { key: k, calls: [] });
       by.get(k).calls.push(c);
     });
+    // Safety valve (Jo, 2026-10-12): a HIDDEN number that matches a customer
+    // or rings 3+ times in 24 h comes back once, as a row of its own; "Keep
+    // hidden" (label ackAtMs) or ✓ Handled quiets it until it happens again.
+    resurfacedNumbers(rows, labels, now).forEach((v) => {
+      v.calls.forEach((c) => {
+        const k = callerKey(c);
+        if (!by.has(k)) by.set(k, { key: k, calls: [] });
+        const g = by.get(k);
+        if (!g.calls.some((x) => x.id === c.id)) g.calls.push(c);
+        g.resurfaced = v.reason; g.resurfacedDigits = v.digits;
+      });
+    });
     const groups = Array.from(by.values());
     groups.forEach((g) => {
       g.calls.sort((a, b) => (toMs(b.startedAtMs) || 0) - (toMs(a.startedAtMs) || 0));
       g.latestMs = toMs(g.calls[0].startedAtMs) || 0;
     });
     return groups.sort((a, b) => b.latestMs - a.latestMs);
+  }
+  /**
+   * Calls past the 45-day promise window that still carry an open promise of
+   * Jo's: ONE review row, never a silent drop. Not counted in "people need you".
+   */
+  function isOldPromise(c, now) {
+    const t = now == null ? Date.now() : now;
+    if (!c || c.handledAtMs || c.status === 'personal' || c.callType === 'spam' || c.taskDone === true || c.channel === 'text') return false;
+    return (toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW && openJoPromise(c);
+  }
+  function oldPromiseCount(rows, now) {
+    const people = new Set();
+    (rows || []).forEach((c) => { if (isOldPromise(c, now)) people.add(callerKey(c)); });
+    return people.size;
   }
   function callersNeedingYou(rows, now, labels) { return groupNeeds(rows, now, labels).length; }
   /** People a label took OFF the list: who needed you by the old rule and no longer do. */
@@ -181,13 +248,15 @@
     const items = [];
     if (c.stripe > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="money">💳 ' + c.stripe + ' Stripe payment' + (c.stripe === 1 ? '' : 's') + ' need' + (c.stripe === 1 ? 's' : '') + ' a customer</button>');
     if (c.signs > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="signs">🪧 ' + c.signs + ' yard sign' + (c.signs === 1 ? '' : 's') + ' to pick up</button>');
-    if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
+    if (c.callsFailed) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Could not check your calls just now' + (c.calls > 0 ? ' — ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you so far' : ' — this is NOT an all-clear') + '. Tap to open the Call Center</button>');
+    else if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
     // Review asks, one at a time (review-deck.js opens the deck on data-review-deck).
+    if (c.oldPromises > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="calls">🗂 ' + c.oldPromises + (c.oldPromises === 1 ? ' old promise' : ' old promises') + ' to review</button>');
     if (c.reviews > 0) items.push('<button type="button" class="ha-item" data-review-deck="1">⭐ ' + c.reviews + ' review ask' + (c.reviews === 1 ? '' : 's') + ' waiting</button>');
     return items.join('');
   }
 
-  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, hiddenPeople, reachIndex, isMissedCall };
+  const api = { canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, oldPromiseCount, isOldPromise, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root || !root.document) return;
   root.NBDHomeAttention = api;
@@ -226,10 +295,14 @@
     // called AND texted is one person.
     const callRows = [];
     if (u && w.orderBy && w.limit) {
+      // A failed read must NOT render as "nobody needs you" (2026-10-12 audit
+      // R5): a missing index, a rules / App Check denial or being offline all
+      // land here, and an empty list is exactly what a healthy quiet day looks
+      // like. callsFailed turns the strip into a visible warning instead.
       jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.orderBy('startedAtMs', 'desc'), w.limit(200)))
-        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data()))); }).catch(() => {}));
+        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data()))); }).catch(() => { out.callsFailed = true; }));
       jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_text_days'), w.where('userId', '==', u), w.orderBy('startedAtMs', 'desc'), w.limit(100)))
-        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: 'text:' + d.id }, d.data()))); }).catch(() => {}));
+        .then((snap) => { snap.docs.forEach((d) => callRows.push(Object.assign({ id: 'text:' + d.id }, d.data()))); }).catch(() => { out.callsFailed = true; }));
     }
     await Promise.all(jobs);
     // Per-number labels (2026-10-12): a lazy bundle, read after the calls so
@@ -241,6 +314,7 @@
     } catch (_) { labels = null; }
     out.calls = callersNeedingYou(callRows, Date.now(), labels);
     out.hidden = hiddenPeople(callRows, Date.now(), labels);
+    out.oldPromises = oldPromiseCount(callRows, Date.now());
     // Today (today-home.js) lists these same people from these same rows —
     // shared, not re-read (2026-10-03).
     api.lastRows = callRows; api.lastCounts = out; api.lastLabels = labels;
@@ -265,7 +339,7 @@
   // (dashboard-boot-budget). today-home.js and call-center-view.js load it by
   // name; this deferred file always runs first.
   if (w.ScriptLoader && w.ScriptLoader.bundles && !w.ScriptLoader.bundles.contactlabels) {
-    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=1', 'js/contact-labels-logic.js?v=2', 'js/contact-labels.js?v=1'];
+    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=2', 'js/contact-labels-logic.js?v=5', 'js/contact-labels.js?v=5', 'js/contact-suggest-logic.js?v=1', 'js/contact-suggest.js?v=1'];
   }
   // A label changed (optimistic apply, undo or rollback): recount from the
   // rows already held — no Firestore read — and repaint the strip.
