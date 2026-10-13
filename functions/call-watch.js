@@ -134,7 +134,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
   const tell = W.problemsToTell(problems, st.problemsToldAt, nowMs);
   // The 20:00 run closes the day with the "nothing fell through" ledger.
   const ledgerDue = W.etYmd(nowMs) !== st.ledgerYmd && Number(new Date(nowMs).toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false })) === 20;
-  const ledger = ledgerDue ? W.dailyLedger(callRows, textRows, nowMs, { lastPush: st.lastPush, problems: problems.map((p) => p.key) }) : null;
+  const ledger = ledgerDue ? W.dailyLedger(callRows, textRows, nowMs, { lastPush: st.lastPush, problems: problems.map((p) => p.key), labels }) : null;
   // Items told before and still open come round again (audit R1), short ladder.
   const retells = W.ladderRetells(callRows, textRows, st.ladder, nowMs, labels);
   const alert = W.alertFor(needs.concat(retells), tell, nowMs);
