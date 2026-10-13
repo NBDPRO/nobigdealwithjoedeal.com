@@ -95,3 +95,17 @@ with an XSS name, wiring pins) and an ingest-level section in
 updated, not weakened: `contact-suggest-2026-10-12.test.js` put its tagged
 number on a customer (so Accept is now two taps there by design) and
 `personal-capture-off-2026-10-12.test.js` pinned the old two-argument call.
+
+## Review round (silent-failure-hunter, same day)
+
+Fixed, each break-tested (the named assertion reddens when the fix is removed):
+ISO-string / `Date` `createdAt` read as 0 on the server (a stale label would
+have been honoured; server `toMs` and client `msOf` now agree, parity-tested
+across six shapes); Keep hidden / Unlabel were silent no-ops on an empty label
+cache (now re-read first, toast when truly gone, `{ok:false}` surfaced);
+partial failure on a two-number person (Undo for the saved ones, failures
+named); Undo no longer restamps `updatedAtMs` (a restored 0 stays 0, so the
+"now a customer" row does not go quiet); one live-lead predicate (not deleted,
+not archived) on both sides; the capture-resumed row now says it is recording
+again; text notes skip a capture-off day unless the customer is newer than the
+label. Still open: text days from a hidden customer are not in the valve.
