@@ -485,7 +485,10 @@ async function waitFor(page, fn, arg, ms) {
       return { text: document.getElementById('view-money').innerText, cents, year };
     });
     const cashM = new RegExp('CASH\\W+' + money.year + '[^$]*?COLLECTED\\s*\\$([\\d,]+)', 'i').exec(money.text);
-    ok('the Money view labels revenue as collected money only (payments by payment date)', /collected money only/i.test(money.text) && /COLLECTED/.test(money.text), money.text.slice(0, 300));
+    // The label must sit inside the Cash section itself (header -> label -> first tile). The
+    // month-close card repeats the words but is collapsed after the 10th of the month, so
+    // matching anywhere in the view passed or failed with the calendar (red on 2026-10-13).
+    ok('the Money view labels revenue as collected money only (payments by payment date)', /CASH\W+\d{4}\s*\(COLLECTED VS SPENT\)[^$]*?collected money only[^$]*?COLLECTED\s*\$/i.test(money.text), money.text.slice(0, 300));
     ok('…and its collected total is exactly the sample payments dated this year', !!cashM && Number(cashM[1].replace(/,/g, '')) * 100 === money.cents && money.cents > 0, JSON.stringify({ shown: cashM && cashM[1], cents: money.cents }));
 
     console.log('19. Create an invoice from an estimate: the real deposit rule, a sample pay link; a Kentucky insurance job holds it');
