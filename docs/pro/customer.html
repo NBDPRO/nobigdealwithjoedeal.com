@@ -40,7 +40,7 @@
 <link rel="manifest" href="/pro/manifest.json">
 <link rel="modulepreload" href="js/stage-write.js">
 <!-- W151: mobile polish sweep -->
-<link rel="stylesheet" href="/pro/css/mobile-polish.css?v=4">
+<link rel="stylesheet" href="/pro/css/mobile-polish.css?v=5">
 <title>Customer Details — NBD Pro</title>
 <meta name="robots" content="noindex, nofollow">
 <script defer src="js/console-quiet.js?v=1"></script>
@@ -853,6 +853,22 @@ body.nbd-photo-reorder .nbd-photo-item.drop-after {
   -webkit-overflow-scrolling:touch;
   padding:24px;
 }
+/* The other card name: sheets built by shared modules (the invoice sheets —
+   Record payment / Mark Paid / Send / Pay link — confirms, expenses,
+   claims) use the dashboard's modal-bg wrapper around a .modal card.
+   .modal was styled only in dashboard-app.css, which this
+   page doesn't load, so on a customer page those cards had no background and
+   no padding: the page showed through the labels, unreadable in sun (phone
+   audit 2026-10-07 #2). Same card as .modal-content. */
+.modal-bg > .modal {
+  position:relative; box-sizing:border-box;
+  background:var(--s); color:var(--t); border:1px solid var(--br); border-radius:12px;
+  max-width:500px; width:100%;
+  max-height:90vh; max-height:90dvh; overflow-y:auto;
+  -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+  padding:20px;
+  box-shadow:0 24px 80px rgba(0,0,0,.5);
+}
 .modal-header {
   display:flex; justify-content:space-between; align-items:center;
   margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--br);
@@ -1563,7 +1579,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" href="css/promise.css?v=1">
 <link rel="stylesheet" href="css/customer-header.css?v=1">
-<link rel="stylesheet" href="css/invoice-pipeline.css?v=4">
+<link rel="stylesheet" href="css/invoice-pipeline.css?v=5">
 <link rel="stylesheet" href="css/supplement.css?v=1">
 <link rel="stylesheet" href="css/customer-bootstrap.css?v=1">
 <link rel="stylesheet" href="css/customer-tasks.css?v=2">
@@ -1617,6 +1633,9 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
   </a>
 </header>
 <script defer src="js/customer-presentation-theme.js?v=3"></script>
+<!-- Sheets above the iPhone keyboard + Home's "Record payment" link (2026-10-08). -->
+<script defer src="js/keyboard-viewport.js?v=1"></script>
+<script defer src="js/customer-pay-link.js?v=1"></script>
 
 <div class="container" role="main">
   <!-- FIRST in the container, above the customer header (2026-10-03).

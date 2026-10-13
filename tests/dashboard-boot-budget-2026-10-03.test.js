@@ -60,6 +60,10 @@ const KNOWN_TEMPLATE_SCRIPTS = [
 // "no photos" (page-scoped-helper rule). Kept as its own line so the other PRs that raise
 // localScripts on the line above merge without a conflict.
 CEILING.localScripts += 1;
+// +1 local tag, deliberate (2026-10-13, phone quick wins re-slice of #2316): js/keyboard-viewport.js
+// (2.9 KB). It keeps every open sheet above the iPhone keyboard (Record payment's Save sat under
+// it); it must be listening before the first sheet opens, so it cannot be lazy. Own line.
+CEILING.localScripts += 1;
 // +1 local tag, deliberate (2026-10-11, C5): js/pipeline-rich-cards.js (window.NBDPipelineRich).
 // crm-pipeline.js buildCard reads it synchronously when the board is in the rich density, and
 // renderLeads paints the board strip through it — lazy-loading would paint the first board
