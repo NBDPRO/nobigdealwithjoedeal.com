@@ -183,7 +183,7 @@ header {
   white-space:nowrap; flex-shrink:0;
 }
 .back-btn:hover { background:var(--s3); border-color:var(--orange); }
-/* The long half of each header label. ≤480px keeps "← Back" and the 🎤 /
+/* The long half of each header label. ≤480px keeps "← Back" and the 🖥️ /
    ✓ icon: at 360 the logo (108px) + the ONLINE pill (63px) left 165px for
    two buttons that need ~280px at full length. Both keep their full
    accessible name via aria-label. */
@@ -1577,7 +1577,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <link rel="stylesheet" href="css/claim-core-view.css?v=1">
 <link rel="stylesheet" href="css/insurance-claim-view.css?v=1">
 <link rel="stylesheet" href="css/lead-snooze-view.css?v=1">
-<link rel="stylesheet" href="css/quick-capture-view.css?v=1">
+<link rel="stylesheet" href="css/quick-capture-view.css?v=2">
 <link rel="stylesheet" href="css/quick-capture-inbox-view.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=1">
 <link rel="stylesheet" href="css/job-templates-view.css?v=1">
@@ -1610,7 +1610,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
        leaking through. Toggle persists per-session so a rep who flips
        it on for a walkthrough stays in light mode through tab switches. -->
   <button id="presentationModeBtn" class="back-btn" data-action="togglePresentationMode" title="Switch to light brand view for in-person walkthroughs" aria-label="Presentation mode" aria-pressed="false" style="margin-right:8px;">
-    <span aria-hidden="true">🎤</span><span class="back-btn-label">Presentation</span>
+    <span aria-hidden="true">🖥️</span><span class="back-btn-label">Presentation</span>
   </button>
   <a href="/pro/dashboard" class="back-btn" aria-label="Back to Dashboard">
     <span>← Back<span class="back-btn-label"> to Dashboard</span></span>
@@ -3189,7 +3189,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="/pro/js/claude-proxy.js?v=5"></script>
 <script defer src="/pro/js/nbd-whisper.js?v=3"></script>
 <!-- W130: NBD Quick Capture — voice scratchpad with summarize + save-to-lead routing -->
-<script defer src="/pro/js/quick-capture.js?v=4"></script>
+<script defer src="/pro/js/quick-capture.js?v=5"></script>
 <!-- W132: Quick Capture inbox — past captures, search, re-link, archive -->
 <script defer src="/pro/js/quick-capture-inbox.js?v=4"></script>
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->
