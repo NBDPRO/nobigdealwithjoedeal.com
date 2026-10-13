@@ -60,6 +60,12 @@ to `tests/firestore-rules.contact-labels.test.js` (96 checks).
 
 ## Evidence
 
+A vacuous-test audit (100+ mutations) found the core checks sound and six
+weak or vacuous ones (Thursday window not exercising order/limit, the away
+Thursday label skip, a fresh tick closing a reopened day, the reworded-promise
+match threshold, a comment-satisfiable source grep, the `updatedAtMs` clamp);
+each now has a check that reddens on its mutation.
+
 Reverting each fix reddens the matching check (and not a different one): the
 new rules cases against the previous `firestore.rules` fail 15 of 96 (every
 new deny, none of the allow controls); the watchdog block fails on a throw and

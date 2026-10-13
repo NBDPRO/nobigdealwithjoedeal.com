@@ -149,7 +149,7 @@ function mkDb(o) {
 
   // ───────────────────────────────────────────────────────────────────────
   console.log('3. thursday_calls: more than 300 rows must not hide the newest');
-  const old = []; for (let i = 0; i < 340; i++) old.push({ id: 'b_old' + i, companyId: OWNER, status: 'processed', reviewed: true, startedAt: new Date(NOW - (60 + i) * D) });
+  const old = []; for (let i = 0; i < 340; i++) old.push({ id: 'b_old' + i, companyId: OWNER, status: 'processed', reviewed: true, startedAt: new Date(NOW - (1 + i * 0.03) * D) });
   const newest = { id: 'z_new', companyId: OWNER, status: 'processed', reviewed: false, from: '5135550133', startedAt: new Date(NOW - 5 * H), processedAt: new Date(NOW - 4 * H), urgent: false };
   const nullStart = { id: 'z_null', companyId: OWNER, status: 'processed', reviewed: false, from: '5135550134', startedAt: null, createdAt: new Date(NOW - 6 * H), processedAt: new Date(NOW - 5 * H) };
   w = await watch({ calls: [todayCall], thursday: old.concat([newest, nullStart]) }, { lastCheckAtMs: NOW - 8 * H });
@@ -187,6 +187,13 @@ function mkDb(o) {
   ok('a QUIET number needs a promise: its urgent flag alone stays quiet', !byNum('5135550203'));
   ok('...and a quiet number with a promise is on the list', !!byNum('5135550204'));
   ok('control: an unlabelled urgent number is on the list', !!byNum('5135550205'));
+  const thu = (id, from) => ({ id, companyId: OWNER, status: 'processed', reviewed: false, from, startedAt: new Date(NOW - 2 * H), processedAt: new Date(NOW - H) });
+  items = await loadOpenItems(mkDb({
+    thursday: [thu('t_hide', '5135550211'), thu('t_quiet', '5135550212'), thu('t_plain', '5135550213')],
+    labels: { 5135550211: L('spam', 'hide'), 5135550212: L('sub', 'quiet') },
+  }), OWNER, NOW);
+  ok('Thursday calls from a hidden or a quiet number stay out of the cover list', !items.some((i) => i.phone10 === '5135550211' || i.phone10 === '5135550212'), items.map((i) => i.phone10));
+  ok('...and the unlabelled Thursday call (positive control) is on it', items.some((i) => i.phone10 === '5135550213'), items.map((i) => i.phone10));
   items = await loadOpenItems(mkDb({ calls: [u('sp', '5135550201')], labels: { 5135550201: L('spam', 'hide') }, failLabels: true }), OWNER, NOW);
   ok('a failed labels read hides nobody (fail toward telling)', items.length === 1, items);
   const txtUrgent = { id: 'txt_5135550206_20261001', channel: 'text', userId: OWNER, leadId: null, phoneDigits: '5135550206', status: 'noted', startedAtMs: NOW - H, urgent: true, bucket: 'unknown' };
@@ -198,7 +205,9 @@ function mkDb(o) {
   const burst = [1, 2, 3].map((n) => call({ id: 'b' + n, leadId: null, bucket: 'unknown', phoneDigits: '5135550301', startedAtMs: NOW - n * H, direction: 'inbound' }));
   const goodLab = { 5135550301: { kind: 'sub', policy: 'hide', ackAtMs: NOW - 5 * D, updatedAtMs: NOW - 9 * D } };
   ok('control: a normal ack lets 3 calls in 24 h come back', W.resurfacedNumbers(burst, goodLab, NOW).length === 1);
-  const evil = { 5135550301: { kind: 'sub', policy: 'hide', ackAtMs: 9e15, updatedAtMs: NOW - 9 * D } };
+  const evil = { 5135550301: { kind: 'sub', policy: 'hide', ackAtMs: 9e15, updatedAtMs: 9e15 } };
+  ok('a stamp two days ahead is dropped, one inside the skew is kept (the bound is one day)',
+    W.saneStampMs(NOW + 2 * D, NOW) === 0 && W.saneStampMs(NOW + 3600000, NOW) === NOW + 3600000);
   ok('a raw huge ackAtMs is ignored by the rule itself', W.resurfacedNumbers(burst, evil, NOW).length === 1, W.resurfacedNumbers(burst, evil, NOW).length);
   const loaded = await CL.loadLabels(mkDb({ labels: { 5135550301: { kind: 'sub', policy: 'hide', ackAtMs: 9e15, updatedAtMs: 9e15 } } }), OWNER);
   ok('the server label loader drops the absurd stamps', loaded['5135550301'] && loaded['5135550301'].ackAtMs === 0 && loaded['5135550301'].updatedAtMs === 0, loaded);
@@ -265,6 +274,18 @@ function mkDb(o) {
   ok('11: Home agrees', HA.callNeedsYou(Object.assign({}, day, { channel: 'text' }), NOWT) === false);
 
   db = await seeded(closeHandled);
+  db.docs.set(COLLECTION + '/m3', txt('m3', 5, 'inbound', 'thanks, today is fine'));
+  setNotes(async () => ({ call_type: 'customer', summary: 'Thanks', promises: [{ who: 'jo', text: 'Send the quote today', due: null }], follow_up_date: null, urgent: false }));
+  await runTextNotes({ db, live: true, nowMs: NOWT });
+  day = dayOf(db);
+  ok('11: a REWORDED regenerated promise (same words + one) is still the kept one', day.promises.length === 1 && Number(day.promises[0].keptAtMs) > 0 && W.callNeedsYou(day, NOWT) === false, day.promises);
+  db = await seeded(closeHandled);
+  db.docs.set(COLLECTION + '/m3', txt('m3', 5, 'inbound', 'thanks'));
+  setNotes(async () => ({ call_type: 'customer', summary: 'Thanks', promises: [{ who: 'jo', text: 'Send the invoice Friday', due: null }], follow_up_date: null, urgent: false }));
+  await runTextNotes({ db, live: true, nowMs: NOWT });
+  day = dayOf(db);
+  ok('11 control: a promise sharing one word (send) is NOT matched to the kept one (stays open)', !day.promises[0].keptAtMs && W.callNeedsYou(day, NOWT) === true, day.promises);
+  db = await seeded(closeHandled);
   db.docs.set(COLLECTION + '/m3', txt('m3', 5, 'inbound', 'also please bring the invoice'));
   setNotes(async () => ({ call_type: 'customer', summary: 'Invoice', promises: [{ who: 'jo', text: 'Send the quote', due: null }, { who: 'jo', text: 'Bring the invoice Friday', due: null }], follow_up_date: null, urgent: false }));
   await runTextNotes({ db, live: true, nowMs: NOWT });
@@ -290,6 +311,12 @@ function mkDb(o) {
   const reconciled = await reconcileTaskDone({ db: Object.assign(mkDb({}), { getAll: async (...r) => Promise.all(r.map((x) => x.get())), doc: db.doc }), calls: [], texts: [Object.assign({ userId: TOWNER }, day)], nowMs: NOWT, live: false });
   ok('10: callWatch\'s task reconcile does not re-close the reopened day', reconciled === 0, reconciled);
 
+  {
+    const fresh = Object.assign({ userId: TOWNER }, day, { id: DAY_ID, urgent: true });
+    const tickDb = Object.assign(mkDb({}), { getAll: async (...r) => Promise.all(r.map((x) => x.get())), doc: (p) => ({ get: async () => ({ exists: true, data: () => ({ done: true, completedAt: new Date(NOWT + H) }) }) }) });
+    const again = await reconcileTaskDone({ db: tickDb, calls: [], texts: [fresh], nowMs: NOWT + 2 * H, live: false });
+    ok('10: a tick made AFTER the reopen closes the day again (the skip only covers the old tick)', again === 1, again);
+  }
   db = await seeded(closeTask);
   db.docs.set(COLLECTION + '/m3', txt('m3', 5, 'inbound', 'thanks!'));
   setNotes(async () => NOTE_THANKS);
@@ -300,6 +327,12 @@ function mkDb(o) {
   const reconciled2 = await reconcileTaskDone({ db: Object.assign(mkDb({}), { getAll: async (...r) => Promise.all(r.map((x) => x.get())), doc: db.doc }), calls: [], texts: [Object.assign({ userId: TOWNER }, day, { urgent: true })], nowMs: NOWT, live: false });
   ok('10: reconcile honours the reopen stamp even if the day needs Jo for another reason', reconciled2 === 0, reconciled2);
 
+  db = await seeded(closeTask);                      // task ticked at NOWT-7h
+  db.docs.set(COLLECTION + '/m3', txt('m3', 7.5, 'inbound', 'water is coming through the ceiling!'));   // arrived BEFORE the tick (he saw it)
+  setNotes(async () => NOTE_URGENT);
+  await runTextNotes({ db, live: true, nowMs: NOWT });
+  day = dayOf(db);
+  ok('10 control: an inbound text that predates the tick (he had seen it) does not reopen', day.taskDone === true && day.reopenedAtMs === undefined, { taskDone: day.taskDone });
   db = await seeded(closeTask);
   db.docs.set(COLLECTION + '/m3', txt('m3', 5, 'outbound', 'On my way Thursday.'));
   setNotes(async () => NOTE_URGENT);
