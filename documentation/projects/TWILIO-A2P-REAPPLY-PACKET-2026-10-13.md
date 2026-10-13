@@ -18,14 +18,14 @@ texting-law fixes are in
 [TEXTING-COMPLIANCE-2026-10-05](../audit/TEXTING-COMPLIANCE-2026-10-05.md).
 
 > **Update 2026-10-13 (item 12 / "Better, a small page PR" below): fixed on
-> branch `fix/estimate-sms-consent-visible` — true once that PR is merged.**
+> branch `fix/estimate-sms-consent-visible` — merged as #2424 (2026-10-13).**
 > `/estimate` now shows the first-name and phone fields and the unchecked SMS
 > consent box (full disclosure, Privacy Policy · Terms beside it) on step 1,
 > on first paint, with no interaction. So `/estimate` can be listed as the
 > third URL in the message flow. One sentence in section 5's paste-ready text
-> is now out of date: "uses the same sentence with 'my estimate' on its
-> final step, after the visitor enters their address and mobile number" —
-> say "on the first screen, next to the address and mobile number" instead.
+> was out of date and is now corrected in section 5 below ("on its first
+> screen, next to the first name and mobile number fields"); `/estimate` is
+> listed as URL 3 in the message flow.
 > Details and evidence:
 > [ESTIMATE-SMS-CONSENT-FIRST-PAINT-2026-10-13](ESTIMATE-SMS-CONSENT-FIRST-PAINT-2026-10-13.md).
 
@@ -221,7 +221,9 @@ Opt-in happens only on our website, nobigdealwithjoedeal.com, by the customer's 
 1) Free inspection request: https://nobigdealwithjoedeal.com/inspect (fields: name, property address, mobile phone, consent checkbox, "Request Free Inspection" button).
 2) Storm Alerts signup: https://nobigdealwithjoedeal.com/storm-alerts (fields: zip, mobile phone, consent checkbox).
 
-Exact consent wording beside the checkbox on /inspect: "I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message & data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. Privacy Policy · Terms" ("Privacy Policy" links to https://nobigdealwithjoedeal.com/privacy#sms-terms and "Terms" links to https://nobigdealwithjoedeal.com/terms). On /storm-alerts the wording is the same but starts "I agree to receive storm alerts and follow-up communication from No Big Deal Home Solutions". Our estimate funnel at https://nobigdealwithjoedeal.com/estimate uses the same sentence with "my estimate" on its final step, after the visitor enters their address and mobile number.
+3) Estimate request: https://nobigdealwithjoedeal.com/estimate (fields: first name, mobile phone, consent checkbox on the first screen, then address and the rest of the wizard).
+
+Exact consent wording beside the checkbox on /inspect: "I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message & data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. Privacy Policy · Terms" ("Privacy Policy" links to https://nobigdealwithjoedeal.com/privacy#sms-terms and "Terms" links to https://nobigdealwithjoedeal.com/terms). On /storm-alerts the wording is the same but starts "I agree to receive storm alerts and follow-up communication from No Big Deal Home Solutions". Our estimate funnel at https://nobigdealwithjoedeal.com/estimate uses the same sentence with "my estimate" on its first screen, next to the first name and mobile number fields (the box is unchecked and required).
 
 We store the consent, the time, the exact wording shown and the page it came from with every request. Full SMS program terms (program name, message types, frequency, rates, STOP/HELP, carrier liability, no sharing of mobile information) are at https://nobigdealwithjoedeal.com/terms. Privacy policy: https://nobigdealwithjoedeal.com/privacy. Customers can also text us first at (859) 420-7382; we reply only about their request.
 ```
