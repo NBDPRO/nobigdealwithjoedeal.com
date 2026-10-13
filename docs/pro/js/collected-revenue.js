@@ -177,7 +177,7 @@
   // window - or a real error - is a failure.
   var CHECK_WINDOW_MS = 2000;
   var RECHECK_MS = 2500;
-  var _unconfirmedSince = 0, _recheckTimer = 0;
+  var _unconfirmedSince = 0, _unconfirmedKey = '', _recheckTimer = 0;
 
   // Resolves to the invoices, or [] when they can't be loaded yet (no db /
   // user at boot, or a failed query). An empty resolve is NOT cached: callers
@@ -186,12 +186,17 @@
   function loadInvoices(opts) {
     var force = !!(opts && opts.force);
     var key = scopeKey();
+    // A "checking" window started for another account / company is not this one's.
+    if (_unconfirmedSince && _unconfirmedKey !== key) { _unconfirmedSince = 0; _failedAt = 0; }
     if (!force && _cache && _cacheKey === key) return Promise.resolve(_cache);
     if (!force && _inflight && _inflight.key === key) return _inflight.p;
     if (!force && _failedAt && Date.now() - _failedAt < RETRY_AFTER_FAIL_MS) return Promise.resolve([]);
     var db = window.db || window._db;
     var u = uid();
     if (!db || !u || !window.getDocs || !window.query || !window.where || !window.collection) {
+      // Not askable YET (boot: no db / user): unconfirmed, not failed.
+      if (!_unconfirmedSince) { _unconfirmedSince = Date.now(); _unconfirmedKey = key; }
+      scheduleRecheck(key);
       return Promise.resolve([]);
     }
     var staff = isStaff() && claims().companyId;
@@ -199,18 +204,23 @@
       ? window.query(window.collection(db, 'invoices'), window.where('companyId', '==', claims().companyId))
       : window.query(window.collection(db, 'invoices'), window.where('createdBy', '==', u));
     var p = window.getDocs(q).then(function (snap) {
-      if (scopeKey() !== key) return _cache || []; // account switched mid-flight
+      if (scopeKey() !== key) {
+        // The account / company claim arrived mid-flight (boot): this answer is for
+        // the old scope. Unconfirmed for the new one, not a failure; ask again.
+        _unconfirmedSince = Date.now(); _unconfirmedKey = scopeKey();
+        scheduleRecheck(scopeKey());
+        return _cache || [];
+      }
       // EMPTY and from the local cache (offline): the server never answered, so
       // this is not "no invoices" - do not cache it as a real empty list.
       if (snap.metadata && snap.metadata.fromCache === true && snap.docs.length === 0) {
         var now = Date.now();
-        if (!_unconfirmedSince) _unconfirmedSince = now;
+        if (!_unconfirmedSince) { _unconfirmedSince = now; _unconfirmedKey = key; }
         if (now - _unconfirmedSince >= CHECK_WINDOW_MS) {
           // Still unconfirmed after the window: now it is a failure, and says so.
           // (_unconfirmedSince is kept: a re-ask that is STILL unconfirmed stays
           // failed instead of restarting the checking window and flapping.)
           _failedAt = now;
-          settled();
         } else {
           // Not a failure yet: no failure window is opened (the next caller
           // re-asks for real) and one quiet re-ask is scheduled so the page

@@ -57,7 +57,7 @@
   var expanded = {};            // section → show all
   var appts = { rows: [], at: 0, day: '', busy: false, failed: false, checking: false, unconfSince: 0 };
   var last = null;              // last plan painted (tests + the Today's Schedule widget)
-  var inv = { rows: null, at: 0, failed: false, busy: false, checking: false };   // last invoice list (NBDRevenue drops its cache on every data refresh)
+  var inv = { rows: null, at: 0, failed: false, busy: false, checking: false, stale: false };   // last invoice list (NBDRevenue drops its cache on every data refresh)
 
   function plan() { return w.NBDTodayPlan || null; }
   function esc(s) {
@@ -78,6 +78,13 @@
   // ── data ─────────────────────────────────────────────────────────────
   function ready() {
     return !!(plan() && w._leadsLoaded === true && Array.isArray(w._leads) && w.NBDTasks && w.NBDTasks.loaded());
+  }
+  // The quiet re-ask of an unconfirmed first read; waits out a read in flight.
+  function rearmAppts(n) {
+    w.setTimeout(function () {
+      if (appts.busy || !uid()) { if (n < 4) rearmAppts(n + 1); else { appts.checking = false; appts.failed = true; schedule(); } return; }
+      loadAppointments(true);
+    }, n ? 1500 : 2500);
   }
   async function loadAppointments(force) {
     var u = uid();
@@ -123,7 +130,7 @@
       appts.checking = pendingLanes > 0 && failedLanes === 0;
       if (!pendingLanes && !failedLanes) appts.unconfSince = 0;
       appts.day = day; appts.at = Date.now();
-      if (appts.checking && typeof w.setTimeout === 'function') w.setTimeout(function () { loadAppointments(true); }, 2500);
+      if (appts.checking && typeof w.setTimeout === 'function') rearmAppts(0);
     } finally { appts.busy = false; }
     schedule();
   }
@@ -138,6 +145,9 @@
     else if (inv.rows === null) {
       var st = typeof R.status === 'function' ? R.status() : 'failed';
       if (st === 'checking') { inv.checking = true; inv.failed = false; } else { inv.failed = true; inv.checking = false; }
+    } else if (typeof R.status === 'function' && R.status() === 'failed') {
+      // Old rows are still held: show them, but say they may be out of date.
+      inv.stale = true;
     }
     schedule();
   }
@@ -190,7 +200,7 @@
     });
     var R = w.NBDRevenue;
     var fresh = R && typeof R.cached === 'function' ? R.cached() : null;
-    if (fresh) { inv.rows = fresh; inv.at = Date.now(); inv.failed = false; }
+    if (fresh) { inv.rows = fresh; inv.at = Date.now(); inv.failed = false; inv.stale = false; }
     else if (R && typeof R.loadInvoices === 'function' && Date.now() - inv.at > 600000) {
       inv.at = Date.now();
       // loadInvoices never rejects: a failed query resolves [] and leaves
@@ -207,6 +217,7 @@
       var stInv = R.status();
       if (stInv === 'checking') { inv.checking = true; inv.failed = false; }
       else if (stInv === 'failed') inv.failed = true;
+      else if (stInv === 'unknown' && inv.at && !inv.busy) inv.failed = true;   // asked, never confirmed, window lapsed
     }
     var invoices = inv.rows || [];
     var IP = w.InvoicePipeline;
@@ -462,9 +473,10 @@
     if (HAc && HAc.stripeFailed) otherFail.push('Stripe payments that need a customer');
     if (appts.failed) otherFail.push("today's appointments");
     if (inv.failed) otherFail.push('money owed (invoices)');
+    else if (inv.stale) otherFail.push('money owed (invoices may be out of date)');
     (p.computeFailed || []).forEach(function (n) { otherFail.push(n); });
     // Still being read (in flight): unknown, not clear - and not a failure either.
-    var pendingOther = !!(appts.busy || inv.busy || inv.checking || appts.checking || (HAc && (HAc.callsPending || HAc.stripePending || HAc.reviewsPending)));
+    var pendingOther = !!(appts.busy || inv.busy || inv.checking || appts.checking || (HAc && (HAc.callsPending || HAc.stripePending || HAc.reviewsPending || HAc.signsPending || HAc.oldPending)));
     if (otherFail.length) failBanner += '<div class="tp-sub tp-readfail" role="status" data-tp-fail="reads"><b class="tp-hot">could not load</b> ' + esc(otherFail.join('; ')) + '. Those parts of your day may be missing - this is NOT an all-clear. <button type="button" class="tp-btn" data-tp-act="retry" data-tp-key="reads">Try again</button></div>';
     var anyFail = readFailed || otherFail.length > 0;
     var titleText = (anyFail || notChecked) && !p.total ? "Can't confirm your day yet" : (pendingOther && !p.total ? 'Checking your day…' : P.headline(p.total));
@@ -558,21 +570,32 @@
   }
   // Run a list of {do, undo} jobs for one row; every outcome is told, every
   // success has a 6 s Undo (UX walk M1).
-  function ok2(v) { if (v === false) throw new Error('write refused'); return v; }
+  function ok2(v) { if (v === false || (v && v.ok === false)) throw new Error('write refused'); return v; }
   async function runRow(key, r, label, steps) {
     if (!steps.length || acting[key]) return;
     acting[key] = true;
     markHandled(key, rowSig(r));
-    var held = new Promise(function (resolve) { leaveThen(key, function () { render(); resolve(); }); });
+    var held = new Promise(function (resolve) { leaveThen(key, function () { try { render(); } finally { resolve(); } }); });
+    var release = function () { delete acting[key]; };
     var res;
     // the key stays "acting" until the hold ends too: the row is still in the
     // painted plan until then, and a second tap must send nothing.
-    try { res = await Promise.allSettled(steps.map(function (s) { return Promise.resolve().then(s.go).then(ok2); })); } finally { held.then(function () { delete acting[key]; }); }
+    try { res = await Promise.allSettled(steps.map(function (s) { return Promise.resolve().then(s.go).then(ok2); })); } finally { held.then(release, release); }
     var bad = res.filter(function (x) { return x.status === 'rejected'; }).length;
     if (bad) {
       unmarkHandled(key);
       render();
-      toast("Couldn't save that — check your connection and tap it again", 'error');
+      var goodSteps = steps.filter(function (s, i) { return res[i].status === 'fulfilled'; });
+      if (goodSteps.length) {
+        // Part of it saved: say so, and let Jo take the saved part back.
+        toast((steps.length - bad) + ' of ' + steps.length + ' changes saved - tap it again, or Undo to take them back', 'error');
+        undoToast('Partly saved' + (r.name ? ': ' + r.name : ''), async function () {
+          await Promise.allSettled(goodSteps.map(function (s) { return Promise.resolve().then(s.undo).then(ok2); }));
+          render(); refreshStrip();
+        });
+      } else {
+        toast("Couldn't save that — check your connection and tap it again", 'error');
+      }
       refreshStrip();
       return;
     }
@@ -672,9 +695,10 @@
     var at = Date.now();
     markHandled(key, rowSig(r));
     ids.forEach(function (id) { mirrorCall(id, at); });
-    var held = new Promise(function (resolve) { leaveThen(key, function () { render(); resolve(); }); });
+    var held = new Promise(function (resolve) { leaveThen(key, function () { try { render(); } finally { resolve(); } }); });
+    var release = function () { delete acting[key]; };
     var res;
-    try { res = await setCalls(ids, 'handled'); } finally { held.then(function () { delete acting[key]; }); }
+    try { res = await setCalls(ids, 'handled'); } finally { held.then(release, release); }
     if (res.bad.length) {
       res.bad.forEach(function (id) { mirrorCall(id, null); });
       unmarkHandled(key);
@@ -773,10 +797,10 @@
   }
   async function askConfirm(msg) {
     try {
-      if (typeof w.nbdConfirm === 'function') return !!(await w.nbdConfirm(msg));
-      if (typeof w.confirm === 'function') return !!w.confirm(msg);
-    } catch (_) { /* fall through: ask nothing, do nothing */ }
-    return false;
+      if (typeof window.nbdConfirm === 'function') return !!(await window.nbdConfirm(msg));
+      if (typeof window.confirm === 'function') return !!window.confirm(msg);
+    } catch (_) { /* no dialog could be shown */ }
+    return null;   // could not ask: NOT the same as "no"
   }
   async function promiseAct(a, key, id) {
     var ok = await ensurePromise();
@@ -791,7 +815,7 @@
       if (acting[key]) return;
       acting[key] = true;
       try {
-        try { await callable('callCenterAction', { id: id, action: 'handled' }); } finally { delete acting[key]; }
+        try { ok2(await callable('callCenterAction', { id: id, action: 'handled' })); } finally { delete acting[key]; }
         mirrorCall(id, Date.now());
         leaveThen(key, render);
         refreshStrip();
@@ -819,6 +843,7 @@
     if (a === 'pdead') {
       // Mark dead drops the customer's item for good: ask first (UX walk M1).
       var okDead = await askConfirm('Mark this dead' + (r.name ? ' for ' + r.name : '') + '? It leaves your list (you can Undo for a few seconds).');
+      if (okDead === null) { toast("Couldn't ask - try again in a moment", 'error'); return; }
       if (!okDead) return;
     }
     var fn = { pkept: NP.keep, pdead: NP.dead, pstill: NP.stillWaiting }[a];

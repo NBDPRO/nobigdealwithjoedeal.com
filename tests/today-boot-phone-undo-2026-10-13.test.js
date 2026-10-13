@@ -381,12 +381,16 @@ function fakeFirestore(data) {
         reopen: async (l, id) => { tasksOpened.push(id); return true; },
         setDue: async (l, id, ymd) => { dueSet.push([id, ymd]); return true; },
       },
-      NBDTodayPlan: TP, NBDHomeAttention: ha,
+      NBDTodayPlan: opts.plan || TP, NBDHomeAttention: ha,
       NBDFollowUpDeck: { setFollowUp: async (l, ymd) => { writes.push(['followUp', l.id, ymd]); l.followUp = ymd; }, open() {} },
       showToast(m, t) { toasts.push(typeof m === 'string' ? { message: m, type: t } : m); },
-      nbdConfirm: async (m) => { confirms.push(m); return opts.confirm !== false; },
+      nbdConfirm: opts.noConfirm ? undefined : async (m) => { confirms.push(m); return opts.confirm !== false; },
       _functions: {},
-      _httpsCallable: (_f, name) => async (data) => { calls.push({ name, data }); return { data: { ok: true } }; },
+      _httpsCallable: (_f, name) => async (data) => {
+        calls.push({ name, data });
+        if (opts.failCall && opts.failCall.has(data && data.id)) throw Object.assign(new Error('unavailable'), { code: 'unavailable' });
+        return { data: typeof opts.reply === 'function' ? opts.reply(data) : { ok: true } };
+      },
       db: {}, doc: (...a) => ({ path: a.slice(1).join('/') }),
       updateDoc: async (ref, data) => { writes.push(['updateDoc', ref.path, data]); },
       serverTimestamp: () => 'TS',
@@ -574,6 +578,133 @@ function fakeFirestore(data) {
     t.win._taskCache.L1[0].dueDate = PL.ymdLocal(REAL_NOW - 3 * DAY);
     t.win.NBDToday.render();
     ok('the same row returns when its due date is no longer the one acted on', /Order shingles/.test(t.html()), t.html().slice(0, 300));
+  }
+
+  // ═══ review follow-ups ════════════════════════════════════════════════════
+  console.log('\nR. review follow-ups (settle loop, stale rows, scope, partial failure, no dialog)');
+  {
+    // the settled event ends a quiet re-ask; it must not feed its own re-read loop
+    const flag = { on: true };
+    const b = bootEnv({ invoices: [owedInvoice], stripeLedger: [], yardSigns: [], phone_calls: [], phone_text_days: [], appointments: [], __cache: () => flag.on });
+    await flush();
+    await b.env.win.NBDHomeAttention.render(true); await flush();
+    const counts = [];
+    for (let i = 0; i < 6; i++) {
+      b.env.advance(3000); b.env.runTimers(); await flush(); await flush();
+      counts.push(b.fb.reads.filter((r) => r.name === 'invoices').length);
+    }
+    ok('a persistently unconfirmed invoice read settles: the number of reads stops growing', counts[counts.length - 1] === counts[counts.length - 3], JSON.stringify(counts));
+    ok('...and nothing is left queued', b.env.timers.length === 0, 'timers=' + b.env.timers.length);
+  }
+  {
+    // rows already held + a failing refresh: shown, and said to be out of date
+    const flag = { on: false };
+    const b = bootEnv({ invoices: [owedInvoice], stripeLedger: [], yardSigns: [], phone_calls: [], phone_text_days: [], appointments: [], __fail: (q) => flag.on && q.col.name === 'invoices' });
+    await flush();
+    await b.env.win.NBDHomeAttention.render(true); await flush();
+    b.env.win.NBDToday.render(); await flush(); b.env.win.NBDToday.render();
+    ok('control: healthy -> the owed row, no "out of date"', /Owed Customer/.test(b.today.innerHTML) && !/out of date/.test(b.today.innerHTML), b.today.innerHTML.slice(0, 300));
+    flag.on = true;
+    b.env.win.NBDRevenue.invalidate();
+    b.env.advance(11 * 60 * 1000);
+    b.env.win.NBDToday.render(); await flush(); await flush(); b.env.win.NBDToday.render();
+    ok('a refresh that fails while old rows are held: the old rows stay AND it says they may be out of date', /Owed Customer/.test(b.today.innerHTML) && /out of date/.test(b.today.innerHTML), b.today.innerHTML.slice(0, 500));
+  }
+  {
+    // the checking window belongs to ONE scope
+    const env = sandbox({ _user: { uid: 'u1' }, _userClaims: { role: 'company_admin', companyId: 'co1' }, db: {} });
+    Object.assign(env.win, fakeFirestore({ invoices: [], __cache: () => true }));
+    load(env, 'docs/pro/js/collected-revenue.js');
+    const R = env.win.NBDRevenue;
+    await R.loadInvoices();                                   // unconfirmed under co1
+    env.win._userClaims = { role: 'company_admin', companyId: 'co2' };
+    env.advance(3000);
+    await R.loadInvoices();                                   // unconfirmed under co2: its OWN first
+    ok('another company\'s first unconfirmed read is "checking", not an instant failure', R.status() === 'checking', R.status());
+  }
+  {
+    // asked, never confirmed, and the quiet re-ask never ran: named, not "Nothing on the list"
+    const b = bootEnv({ invoices: [owedInvoice], stripeLedger: [], yardSigns: [], phone_calls: [], phone_text_days: [], appointments: [], __cache: () => true });
+    await flush();
+    await b.env.win.NBDHomeAttention.render(true); await flush();
+    b.env.win.NBDToday.render();
+    b.env.timers.length = 0;               // the re-ask is lost
+    b.env.advance(6000);
+    b.env.win.NBDToday.render(); await flush(); b.env.win.NBDToday.render();
+    ok('a lapsed window with no answer is a named failure on Today', /could not load/.test(b.today.innerHTML) && /money owed/.test(b.today.innerHTML), b.today.innerHTML.slice(0, 400));
+  }
+  {
+    // appointments re-ask survives "not ready at that moment"
+    const flag = { on: true };
+    const appt = { id: 'a1', userId: 'u1', repUid: 'u1', title: 'Inspection', attendeeName: 'Pat Sample', startTime: REAL_NOW, endTime: REAL_NOW + 3600e3 };
+    const b = bootEnv({ appointments: [appt], invoices: [], stripeLedger: [], yardSigns: [], phone_calls: [], phone_text_days: [], __cache: (q) => flag.on && q.col.name === 'appointments' });
+    await flush();
+    await b.env.win.NBDToday.refreshAppointments(); await flush();
+    flag.on = false;
+    const savedUser = b.env.win._user;
+    b.env.win._user = null;                 // not ready when the timer fires
+    b.env.advance(3000);
+    b.env.runTimers(); await flush();
+    ok('the quiet re-ask is re-armed when it fires before the user is ready (not dropped)', b.env.timers.length >= 1, 'timers=' + b.env.timers.length);
+    b.env.win._user = savedUser;
+    b.env.advance(3000); b.env.runTimers(); await flush(); await flush();
+    b.env.win.NBDToday.render();
+    ok('...and lands the appointment once it can', /Pat Sample/.test(b.today.innerHTML), b.today.innerHTML.slice(0, 300));
+  }
+  {
+    // signs / old promises pending are "checking" on Today too
+    const env = sandbox({
+      _user: { uid: 'u1' }, _userClaims: {}, _leads: [], _leadsLoaded: true, _taskCache: {}, NBDTasks: { loaded: () => true }, NBDTodayPlan: TP,
+      NBDHomeAttention: { lastRows: [], lastCounts: { signsPending: true }, groupNeeds: () => [], callerKey: HA.callerKey, hiddenPeople: () => 0, render() {} },
+    });
+    env.els.todayPlan = fakeEl('todayPlan');
+    load(env, 'docs/pro/js/today-home.js');
+    await flush();
+    env.win.NBDToday.render();
+    ok('a pending yard-sign read: Today says checking, not "Nothing on the list"', /Checking your day/.test(env.els.todayPlan.innerHTML) && !/Nothing on the list/.test(env.els.todayPlan.innerHTML), env.els.todayPlan.innerHTML.slice(0, 300));
+  }
+  {
+    // Kept it on a call promise: a server answer of {ok:false} is not "saved"
+    const pc = { id: 'cube_CPRM02', userId: 'u1', leadId: null, startedAtMs: REAL_NOW - 3600e3, status: 'noted', direction: 'inbound', bucket: 'unknown', phoneDigits: '5135550445', contactName: 'Refused Promise',
+      promise: Object.assign({ kind: 'promise' }, PL.buildTask({ kind: 'callback', dueYmd: TODAY, why: 'x', todayYmd: TODAY, uid: 'u1', source: 'call' })), promises: [] };
+    const t = todayEnv({ rows: [pc], leads: [], promise: true, reply: () => ({ ok: false }) });
+    await flush(); t.paint();
+    const key = (t.html().match(/data-tp-act="ckept" data-tp-key="([^"]+)"/) || [])[1];
+    await t.click('ckept', key, 'cube_CPRM02');
+    ok('{ok:false} from the server is told, not shown as Kept (no Undo toast)', t.toasts.some((x) => x.type === 'error') && t.undoToasts().length === 0, JSON.stringify(t.toasts.map((x) => x.message)));
+    ok('...and the person is still listed', /Refused Promise/.test(t.html()), t.html().slice(0, 300));
+  }
+  {
+    // the acting key is released even if the repaint throws
+    let boom = false;
+    const planProxy = Object.assign({}, TP, { buildTodayPlan: (o) => { if (boom) { boom = false; throw new Error('repaint failed'); } return TP.buildTodayPlan(o); } });
+    const t = todayEnv({ rows: [promCall], tasks: { L1: [clone(task)] }, plan: planProxy });
+    await flush(); t.paint();
+    boom = true;
+    await t.click('done', 'prom:L1');
+    const first = t.tasksDone.length;
+    await t.click('done', 'prom:L1');
+    ok('a repaint that throws does not leave the row dead (the key is released)', first === 1 && t.tasksDone.length === 2, 'done writes ' + first + ' -> ' + t.tasksDone.length);
+  }
+  {
+    // Mark dead with no dialog available: told, nothing written
+    const built = PL.buildTask({ kind: 'callback', dueYmd: YESTERDAY, why: 'about the vent', todayYmd: YESTERDAY, uid: 'u1', source: 'customer' });
+    const ptask = Object.assign({}, built, { id: 'promise-9', leadId: 'L1' });
+    const t = todayEnv({ rows: [], tasks: { L1: [clone(ptask)] }, promise: true, noConfirm: true });
+    await flush(); t.paint();
+    await t.click('pdead', 'prom:L1', 'promise-9');
+    ok('no dialog could be shown: the user is told, nothing is written', t.toasts.some((x) => /Couldn.t ask/.test(x.message)) && t.writes.filter((x) => x[0] === 'updateDoc').length === 0, JSON.stringify(t.toasts.map((x) => x.message)));
+  }
+  {
+    // partly saved: named, and the saved part can be taken back
+    const t = todayEnv({ rows: [promCall], tasks: { L1: [clone(task)] }, failCall: new Set(['cube_PROM01']) });
+    await flush(); t.paint();
+    await t.click('done', 'prom:L1');
+    ok('Done where the task saved and the call did not: "1 of 2 changes saved" is told', t.toasts.some((x) => x.type === 'error' && /1 of 2 changes saved/.test(x.message)), JSON.stringify(t.toasts.map((x) => x.message)));
+    const u = t.undoToasts().filter((x) => /Partly saved/.test(x.message))[0];
+    ok('...with an Undo for the saved part', !!u);
+    await u.undoAction(); await flush();
+    ok('...which reopens the task', t.tasksOpened.join() === 't1', JSON.stringify(t.tasksOpened));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
