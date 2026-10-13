@@ -78,14 +78,27 @@
   // The away-mode hand-back one-liner (functions/away-mode.js
   // fileHandBackTimeline): what the backup did while Jo was away. The text is
   // a teammate's typed note on a customer's call: untrusted, plain strings.
+  //
+  // The row must stay true: "(they say it is done)" is the backup's claim and
+  // only holds while the person is still on Jo's list. Once Jo clears them the
+  // server stamps clearedAtMs (+ clearedByName when known,
+  // functions/away-handback-settle.js) and the row reads as plain history.
   function fromAwayHandBack(a) {
     const done = a.backupSaysDone === true;
+    const clearedMs = Number(a.clearedAtMs) > 0 ? Number(a.clearedAtMs) : 0;
+    let tail = done ? ' (they say it is done)' : '';
+    if (clearedMs) {
+      const who = str(a.clearedByName, 40);
+      let when = '';
+      try { when = new Date(clearedMs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' }); } catch (_) { when = ''; }
+      tail = ' — handed back; cleared' + (who ? ' by ' + who : '') + (when ? ' on ' + when : '');
+    }
     return {
       time: toDate(a.startedAtMs) || toDate(a.createdAt) || new Date(0),
       kind: 'away',
       icon: '↩',
       title: str(a.label, 120) || 'While you were away',
-      desc: str(a.summary, 300) + (done ? ' (they say it is done)' : ''),
+      desc: str(a.summary, 300) + tail,
       type: 'note',
     };
   }

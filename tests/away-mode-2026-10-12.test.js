@@ -835,6 +835,78 @@ const resolve = (o) => L.resolveBackupNotifications(Object.assign({ config: cfg(
     ok('timeline write rides the notify switch: tick passes live, imBack passes tickEnabled()', /timeline: live \}/.test(sc2) && /: tickEnabled\(\),/.test(sc2));
   }
 
+  console.log('U. the hand-back row stays true after Jo clears it (2026-10-13)');
+  {
+    const CT = require(path.join(ROOT, 'docs/pro/js/call-timeline.js'));
+    const S = require(path.join(ROOT, 'functions/away-handback-settle.js'));
+    const ID = 'leads/L1/activity/away-w1-8595550147';
+    const seedU = () => ({
+      'leads/L1': { userId: 'own', companyId: 'own', phoneDigits: '8595550147' },
+      [ID]: { type: 'away_handback', source: 'away-mode', label: 'While you were away \u00b7 Sam', summary: 'Sam: Says done \u2014 sent the estimate', backupSaysDone: true, awayWindowId: 'w1', startedAtMs: NOW - D },
+      'leads/L2': { userId: 'own', companyId: 'own', phoneDigits: '8595550148' },
+      'leads/L2/activity/away-w1-8595550148': { type: 'away_handback', summary: 'Sam: Called', backupSaysDone: false, startedAtMs: NOW - D },
+      'leads/LX': { userId: 'other', companyId: 'other', phoneDigits: '8595550147' },
+      'leads/LX/activity/away-w1-8595550147': { type: 'away_handback', summary: 'Other tenant', backupSaysDone: true, startedAtMs: NOW - D },
+    });
+    const call = { phoneDigits: '8595550147', userId: 'own', companyId: 'own' };
+    const openList = (phones) => async () => phones.map((p) => ({ key: 'num:' + p, phone10: p }));
+    const desc = (db) => CT.fromActivity('away-w1-8595550147', db.store.get(ID)).desc;
+    const quiet = { warn() {}, info() {} };
+
+    // before: the row is the backup's claim
+    const d0 = fakeDb(seedU());
+    ok('open item: the row still reads as the backup\'s claim', desc(d0) === 'Sam: Says done \u2014 sent the estimate (they say it is done)');
+
+    // still open after another action: nothing changes
+    let r = await S.settleHandBackTimeline(d0, call, { nowMs: NOW, byUid: 'own', byName: 'Joe Deal', loadItems: openList(['8595550147']), log: quiet });
+    ok('the person is still on the list: no stamp, claim wording kept', r.settled === 0 && d0.store.get(ID).clearedAtMs === undefined && /they say it is done/.test(desc(d0)));
+
+    // Jo clears them
+    r = await S.settleHandBackTimeline(d0, call, { nowMs: NOW + H, byUid: 'own', byName: 'Joe Deal', loadItems: openList([]), log: quiet });
+    const st = d0.store.get(ID);
+    ok('cleared: the activity doc is stamped with when and by whom', r.settled === 1 && st.clearedAtMs === NOW + H && st.clearedByUid === 'own' && st.clearedByName === 'Joe');
+    ok('cleared: the row no longer says "they say it is done" and reads plainly', desc(d0) === 'Sam: Says done \u2014 sent the estimate \u2014 handed back; cleared by Joe on Oct 13' && !/they say/.test(desc(d0)), desc(d0));
+    ok('the stamp does not move the row or change the backup\'s own line', CT.fromActivity('away-w1-8595550147', st).time.getTime() === NOW - D && st.summary === 'Sam: Says done \u2014 sent the estimate' && st.backupSaysDone === true);
+
+    // idempotent: a second clearing action keeps the first time
+    r = await S.settleHandBackTimeline(d0, call, { nowMs: NOW + 5 * H, byUid: 'own', byName: 'Joe Deal', loadItems: openList([]), log: quiet });
+    ok('settling again writes nothing (idempotent)', r.settled === 0 && r.reopened === 0 && d0.store.get(ID).clearedAtMs === NOW + H);
+
+    // Jo undoes Handled: the person is open again, so is the claim
+    r = await S.settleHandBackTimeline(d0, call, { nowMs: NOW + 6 * H, byUid: 'own', byName: 'Joe Deal', loadItems: openList(['8595550147']), log: quiet });
+    ok('undo: the person is open again, so the claim wording comes back', r.reopened === 1 && /\(they say it is done\)$/.test(desc(d0)) && !d0.store.get(ID).clearedAtMs);
+
+    // a task tick has no signed-in person: nothing is invented
+    const dNoName = fakeDb(seedU());
+    await S.settleHandBackTimeline(dNoName, call, { nowMs: NOW + H, byUid: '', byName: '', loadItems: openList([]), log: quiet });
+    ok('no known name: "cleared on Oct 13", never a made-up person', desc(dNoName) === 'Sam: Says done \u2014 sent the estimate \u2014 handed back; cleared on Oct 13', desc(dNoName));
+
+    // scope: only the cleared person\'s row, only this company\'s lead
+    ok('another number\'s row and another tenant\'s lead are untouched', d0.store.get('leads/L2/activity/away-w1-8595550148').clearedAtMs === undefined && dNoName.store.get('leads/LX/activity/away-w1-8595550147').clearedAtMs === undefined);
+    const dAmb = fakeDb(Object.assign(seedU(), { 'leads/L9': { userId: 'own', companyId: 'own', phoneDigits: '8595550147' } }));
+    r = await S.settleHandBackTimeline(dAmb, call, { nowMs: NOW, loadItems: openList([]), log: quiet });
+    ok('a number on two leads is skipped, as when the note was filed', r.settled === 0 && dAmb.store.get(ID).clearedAtMs === undefined);
+
+    // hostile name / failure paths
+    const dEvil = fakeDb(seedU());
+    await S.settleHandBackTimeline(dEvil, call, { nowMs: NOW, byUid: 'own', byName: '<img src=x onerror=alert(1)> Evil', loadItems: openList([]), log: quiet });
+    const evilRow = CT.fromActivity('away-w1-8595550147', dEvil.store.get(ID));
+    ok('the name is a plain string; the renderer escapes it like the rest of the row', typeof evilRow.desc === 'string' && /cleared by </.test(evilRow.desc) && read('docs/pro/js/customer-bootstrap.module.js').includes('${esc(item.desc)}'));
+    const dBoom = fakeDb(seedU());
+    let threw = false; let rb;
+    try { rb = await S.settleHandBackTimeline(dBoom, call, { nowMs: NOW, loadItems: async () => { throw new Error('boom'); }, log: quiet }); } catch (_) { threw = true; }
+    ok('a failing open-items read never throws into the clearing action', !threw && rb.settled === 0 && dBoom.store.get(ID).clearedAtMs === undefined);
+    const dPhone = fakeDb(seedU());
+    ok('a call with no number settles nothing', (await S.settleHandBackTimeline(dPhone, { userId: 'own' }, { nowMs: NOW, loadItems: openList([]), log: quiet })).settled === 0);
+
+    // wiring
+    const cc = read('functions/call-center.js');
+    ok('callCenterAction settles after handled/unhandled, task done/undo and a promise on a customer', (cc.match(/await settleAway\(db, call, auth, nowMs\);/g) || []).length === 3);
+    ok('the task-tick mirror settles too (no signed-in person)', /await settleAway\(db, call, null, Date\.now\(\)\);/.test(cc));
+    const settleSrc = read('functions/away-handback-settle.js').replace(/\/\*[\s\S]*?\*\//g, '');
+    ok('settle writes only the activity/away- doc: no call, task, lead or send', !/phone_calls|phone_text_days|tasks|sendSms|sendEmail|twilio|resend/i.test(settleSrc) && (settleSrc.match(/\.set\(/g) || []).length === 2);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });
