@@ -13,7 +13,9 @@
  *     photo-queue-store.js). A chunk is NOT playable on its own; the upload is
  *     always the in-order concatenation, chunk 0 (the container header) first.
  *  3. A row left in 'recording' by a killed app is found on the next open and
- *     the person is asked whether to save it (recoverInterrupted()).
+ *     the person is asked whether to save it (recoverInterrupted()). A row
+ *     whose heartbeat is fresh belongs to a live recording in ANOTHER tab or
+ *     window and is left alone.
  *  4. The local copy is deleted ONLY after the server confirmed BOTH the
  *     Storage object and the visit_captures doc. Until then the screen says
  *     "Saved on phone".
@@ -23,6 +25,14 @@
  *     status 'uploaded' for the PR that adds transcription.
  *  6. Nothing is ever filed under a customer without a tap: attach() is only
  *     called by a person (or by a pre-attach that the person started from).
+ *
+ * ── One rule for every write to a visit row ─────────────────────────────
+ * The row has several writers at once (the live session, the upload drain,
+ * the person tapping attach/discard). A whole-row put from a stale copy was
+ * resurrecting a discarded recording and wiping an attach. So NOTHING writes
+ * a row from memory any more: every mutation is patchVisit(id, fn), a
+ * read-modify-write inside ONE IndexedDB transaction that sees the newest row,
+ * and a discarded row is never revived.
  *
  * What a web app cannot do (said in the UI too): record in the background or
  * with the phone locked. A Screen Wake Lock is requested; when the app is
@@ -45,6 +55,12 @@
   var GEO_ASKED_KEY = 'nbd_vr_geo_asked';
   var PERSIST_ASKED_KEY = 'nbd_vr_persist_asked';
   var DOC_CONFIRM_MS = 20000;
+  var HEARTBEAT_EVERY_TICKS = 5;        // the live session stamps its row every 5 s
+  var HEARTBEAT_STALE_MS = 30000;       // older than this and a 'recording' row was cut off
+  var STALL_MS = 90000;                 // an upload making no progress for this long is cancelled and retried
+  var PART_WINDOW_MS = 15 * 60 * 1000;  // a recording started this soon after a cap is part 2
+  // Fields the LIVE SESSION owns; the only ones it may write after the first put.
+  var SESSION_FIELDS = ['lat', 'lng', 'accuracyM', 'backgroundSec', 'chunkCount', 'sizeBytes', 'lastChunkAtMs', 'heartbeatMs'];
 
   // ── small utilities ─────────────────────────────────────────────────────
   function now() { return Date.now(); }
@@ -59,6 +75,7 @@
     try { return (window._user && window._user.uid) || null; } catch (_) { return null; }
   }
   function claims() { try { return window._userClaims || {}; } catch (_) { return {}; } }
+  function companyId() { var c = claims(); return c.companyId || uid(); }
   function withTimeout(p, ms) {
     return new Promise(function (resolve, reject) {
       var t = setTimeout(function () { reject(new Error('timeout')); }, ms);
@@ -103,7 +120,27 @@
   function putVisit(row) { return tx([VISITS], 'readwrite', function (t) { t.objectStore(VISITS).put(row); }); }
   function getVisit(id) { return tx([VISITS], 'readonly', function (t, o) { reqValue(t.objectStore(VISITS).get(id), o); }); }
   function allVisits() { return tx([VISITS], 'readonly', function (t, o) { reqValue(t.objectStore(VISITS).getAll(), o); }).then(function (r) { return r || []; }); }
-  function deleteVisit(id) { return tx([VISITS], 'readwrite', function (t) { t.objectStore(VISITS).delete(id); }); }
+  /**
+   * Read-modify-write one visit row inside ONE readwrite transaction.
+   * fn(row) mutates and returns the row, or returns false to leave it alone.
+   * Resolves the row as stored (or null when there is no such row).
+   */
+  function patchVisit(id, fn) {
+    return tx([VISITS], 'readwrite', function (t, out) {
+      var st = t.objectStore(VISITS);
+      var g = st.get(id);
+      g.onsuccess = function () {
+        var cur = g.result;
+        if (!cur) { out(null); return; }
+        var res;
+        try { res = fn(cur); } catch (e) { try { t.abort(); } catch (_) {} return; }
+        if (res === false) { out(cur); return; }
+        var next = res && typeof res === 'object' ? res : cur;
+        st.put(next);
+        out(next);
+      };
+    });
+  }
   function chunkKey(id, seq) { return id + ':' + ('00000000' + seq).slice(-8); }
   function putChunk(rec) { return tx([CHUNKS], 'readwrite', function (t) { t.objectStore(CHUNKS).put(rec); }); }
   function chunkRange(id) { return window.IDBKeyRange.bound(id + ':', id + ':￿'); }
@@ -122,13 +159,26 @@
     listeners.slice().forEach(function (fn) { try { fn(kind, data || {}); } catch (e) { console.warn('[visit-recorder] listener', e); } });
   }
 
-  // ── config (consent mode + reminder), cached by the launcher so start never waits ──
+  // ── config (consent mode + reminder), cached so start rarely waits ──────
+  /** known:false = never read for THIS company on this phone (first use, or after a logout wiped it). */
   function getConfig() {
     try {
       var c = JSON.parse(lsGet(CFG_KEY) || 'null');
-      if (c && typeof c === 'object') return { consentMode: c.consentMode || 'one_party', reminder: c.reminder === true };
+      if (c && typeof c === 'object' && c.companyId && String(c.companyId) === String(companyId())) {
+        return { consentMode: c.consentMode || 'one_party', reminder: c.reminder === true, known: true };
+      }
     } catch (_) {}
-    return { consentMode: 'one_party', reminder: false };
+    return { consentMode: 'one_party', reminder: false, known: false };
+  }
+  function refreshConfig() {
+    var id = companyId();
+    if (!id || !window.db || typeof window.getDoc !== 'function' || typeof window.doc !== 'function') return Promise.resolve(getConfig());
+    return window.getDoc(window.doc(window.db, 'companies', id)).then(function (snap) {
+      var d = snap && typeof snap.data === 'function' ? (snap.data() || {}) : {};
+      var mode = L.CONSENT_MODES.indexOf(d.recordingConsentMode) >= 0 ? d.recordingConsentMode : 'one_party';
+      lsSet(CFG_KEY, JSON.stringify({ consentMode: mode, reminder: d.visitRecordingReminder === true, companyId: id }));
+      return getConfig();
+    }).catch(function () { return getConfig(); });
   }
 
   // ── counters the launcher reads without opening IndexedDB ───────────────
@@ -147,7 +197,7 @@
     }).catch(function () { return null; });
   }
 
-  // ── the Firestore mirror (fire and forget; the local row is the truth) ──
+  // ── the Firestore mirror (the local row is the truth) ───────────────────
   function visitDocRef(id) {
     var u = uid();
     if (!u || !window.db || typeof window.doc !== 'function') return null;
@@ -161,11 +211,16 @@
     try { p = window.setDoc(ref, L.docFromRow(row), { merge: true }); } catch (_) { return Promise.resolve(false); }
     return withTimeout(p, confirmMs || DOC_CONFIRM_MS).then(function () { return true; }, function () { return false; });
   }
-  function saveRow(row, opts) {
-    return putVisit(row).then(function () {
-      if (!(opts && opts.noMirror)) mirror(row, 60000).then(function (ok) {
-        if (row.status === 'uploaded' && ok && row.docSynced === false) { row.docSynced = true; putVisit(row).catch(function () {}); }
-      });
+  /** Patch, then mirror the PATCHED row (never a stale copy). A late ack marks it synced. */
+  function update(id, fn) {
+    return patchVisit(id, fn).then(function (row) {
+      if (row && row.status !== 'discarded') {
+        mirror(row, 60000).then(function (ok) {
+          if (ok && row.status === 'uploaded' && row.docSynced === false) {
+            patchVisit(id, function (c) { if (c.status === 'uploaded' && c.docSynced === false) { c.docSynced = true; return c; } return false; }).catch(function () {});
+          }
+        });
+      }
       return row;
     });
   }
@@ -177,9 +232,18 @@
       return new Promise(function (resolve, reject) {
         var r = window.ref(window.storage, path);
         var task = uploadBytesResumable(r, blob, { contentType: L.baseMime(blob.type) || 'audio/webm', customMetadata: meta });
+        var last = Date.now();
+        var watch = setInterval(function () {
+          if (Date.now() - last > STALL_MS) {
+            clearInterval(watch);
+            try { task.cancel(); } catch (_) {}
+            reject(Object.assign(new Error('upload-stalled'), { code: 'stalled' }));
+          }
+        }, 15000);
         task.on('state_changed', function (s) {
+          last = Date.now();
           if (s && s.totalBytes) { try { onProgress((s.bytesTransferred / s.totalBytes) * 100); } catch (_) {} }
-        }, function (err) { reject(err); }, function () { resolve(); });
+        }, function (err) { clearInterval(watch); reject(err); }, function () { clearInterval(watch); resolve(); });
       });
     }
     if (typeof window.uploadBytesResumable === 'function') return go(window.uploadBytesResumable);
@@ -197,6 +261,8 @@
   // ── the active session ──────────────────────────────────────────────────
   var session = null;
   var tickTimer = null;
+  var _memoryBlobs = {};
+  var _lastCap = null;   // { id, t } of a recording that hit the soft cap, for part 2
 
   function activeSec(s, t) {
     var tt = t == null ? now() : t;
@@ -216,18 +282,28 @@
       },
     };
   }
+  /** Patch ONLY the session-owned fields onto the newest row, and only while it is still recording. */
+  function patchSession(s, extra) {
+    return patchVisit(s.id, function (cur) {
+      if (cur.status !== 'recording') return false;
+      SESSION_FIELDS.forEach(function (k) { if (s.row[k] !== undefined) cur[k] = s.row[k]; });
+      if (extra) Object.keys(extra).forEach(function (k) { cur[k] = extra[k]; });
+      return cur;
+    }).catch(function () {});
+  }
   function tick() {
     if (!session) return;
-    var sec = activeSec(session);
+    var s = session;
+    var sec = activeSec(s);
     var st = L.capState(sec);
-    if (st === 'warn' && !session.warned) {
-      session.warned = true;
-      session.notice = 'Ten minutes left on this recording. It will save itself at 60 minutes; tap Record to start part 2.';
+    s.beat = (s.beat || 0) + 1;
+    if (s.beat % HEARTBEAT_EVERY_TICKS === 1) { s.row.heartbeatMs = now(); patchSession(s); }
+    if (st === 'warn' && !s.warned) {
+      s.warned = true;
+      s.notice = 'Ten minutes left on this recording. It will save itself at 60 minutes; tap Record to start part 2.';
     }
     emit('tick', publicState());
-    if (st === 'cap' && !session.stopping) {
-      stop({ reason: 'cap' }).then(function (row) { if (row) emit('capped', { row: row }); });
-    }
+    if (st === 'cap' && !s.stopping) stop({ reason: 'cap' });
   }
 
   // wake lock ---------------------------------------------------------------
@@ -266,10 +342,10 @@
         s.backgroundSec += gap;
         s.row.backgroundSec = s.backgroundSec;
         s.notice = 'The app was in the background for ' + L.formatClock(gap) + '. An iPhone cannot record in the background, so that stretch may be silent. Keep the screen on and stay in the app.';
-        putVisit(s.row).catch(function () {});
+        patchSession(s);
       }
       if (s.recorder && s.recorder.state === 'inactive' && !s.stopping) {
-        stop({ reason: 'recorder-ended' }).then(function (row) { if (row) emit('capped', { row: row }); });
+        stop({ reason: 'recorder-ended' });
         return;
       }
       if (s.wake !== 'on') acquireWake(s).then(function () { emit('state', publicState()); });
@@ -317,11 +393,16 @@
           s.row.lat = Math.round(c.latitude * 1e6) / 1e6;
           s.row.lng = Math.round(c.longitude * 1e6) / 1e6;
           s.row.accuracyM = typeof c.accuracy === 'number' ? Math.round(c.accuracy) : null;
-          putVisit(s.row).catch(function () {});
-          emit('state', publicState());
+          // session-owned fields only, onto the newest row (a late fix after Stop cannot clobber it)
+          patchVisit(s.id, function (cur) {
+            if (cur.status === 'discarded') return false;
+            cur.lat = s.row.lat; cur.lng = s.row.lng; cur.accuracyM = s.row.accuracyM;
+            return cur;
+          }).catch(function () {});
+          if (session === s) emit('state', publicState());
         }, function (err) {
           s.geo = err && err.code === 1 ? 'denied' : 'unavailable';
-          emit('state', publicState());
+          if (session === s) emit('state', publicState());
         }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 });
       } catch (_) { s.geo = 'unavailable'; }
     });
@@ -344,7 +425,7 @@
     } catch (_) { return Promise.resolve(false); }
   }
 
-  // ── leads (read-only lookups for the do-not-record gate) ────────────────
+  // ── leads (the do-not-record gate) ──────────────────────────────────────
   function findLead(id) {
     if (!id) return null;
     try {
@@ -356,6 +437,21 @@
       for (var i = 0; i < all.length; i++) if (all[i] && String(all[i].id) === String(id)) return all[i];
     } catch (_) {}
     return null;
+  }
+  /**
+   * The lead's do-not-record flag when it is NOT in memory: ask the lead doc.
+   * Resolves { known: true, lead } or { known: false } (offline, slow, no
+   * permission). Callers decide what unknown means; attach() refuses.
+   */
+  function lookupLead(leadId) {
+    if (!window.db || typeof window.getDoc !== 'function' || typeof window.doc !== 'function') return Promise.resolve({ known: false });
+    var p;
+    try { p = window.getDoc(window.doc(window.db, 'leads', String(leadId))); } catch (_) { return Promise.resolve({ known: false }); }
+    return withTimeout(p, 4000).then(function (snap) {
+      var d = snap && typeof snap.data === 'function' ? snap.data() : null;
+      if (!d) return { known: false };
+      return { known: true, lead: Object.assign({ id: String(leadId) }, d) };
+    }, function () { return { known: false }; });
   }
 
   // ── start ───────────────────────────────────────────────────────────────
@@ -374,22 +470,24 @@
     var gate = L.startGate({ lead: lead, hasMediaRecorder: typeof window.MediaRecorder === 'function' && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) });
     if (!gate.ok) return Promise.resolve({ ok: false, reason: gate.reason, message: gate.message });
     var cfg = getConfig();
+    var plan = L.consentPlan(cfg);
     var source = L.SOURCES.indexOf(o.source) >= 0 ? o.source : 'fab';
     var t0 = now();
     var id = L.newVisitId(t0);
     var isIOS = false;
     try { isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); } catch (_) {}
     var mime = L.pickMime(function (m) { return typeof window.MediaRecorder.isTypeSupported === 'function' && window.MediaRecorder.isTypeSupported(m); }, isIOS);
+    var partOf = o.partOf || (_lastCap && t0 - _lastCap.t < PART_WINDOW_MS ? _lastCap.id : null);
     var s = {
       id: id, startedAtMs: t0, pausedMs: 0, pausedAt: 0, seq: 0, writes: [], mem: [], mime: mime,
       wake: 'unknown', lock: null, geo: 'none', firstGeoAsk: false, backgroundSec: 0, hiddenAt: 0,
       storageError: false, stopping: false, warned: false, notice: '', stream: null, recorder: null,
-      disclosure: L.consentPlan(cfg).line,
+      disclosure: plan.line, beat: 0,
       row: {
-        id: id, uid: u, status: 'recording', startedAtMs: t0, createdAtMs: t0, mime: L.baseMime(mime) || 'audio/webm',
+        id: id, uid: u, status: 'recording', startedAtMs: t0, createdAtMs: t0, mime: audioMime(mime),
         leadId: o.leadId ? String(o.leadId) : null, appointmentId: o.appointmentId ? String(o.appointmentId) : null,
-        source: source, consentMode: L.consentPlan(cfg).mode, sizeBytes: 0, chunkCount: 0, attempts: 0,
-        docSynced: false, partOf: o.partOf || null,
+        source: source, consentMode: plan.mode, sizeBytes: 0, chunkCount: 0, attempts: 0,
+        docSynced: false, partOf: partOf, heartbeatMs: t0,
         disclosureAckedAtMs: o.disclosureAckedAtMs || null,
       },
     };
@@ -404,16 +502,14 @@
       var opts = { audioBitsPerSecond: L.AUDIO_BPS };
       if (mime) opts.mimeType = mime;
       var rec;
-      try { rec = new window.MediaRecorder(stream, opts); } catch (e1) {
-        try { rec = new window.MediaRecorder(stream); } catch (e2) { throw e2; }
-      }
+      try { rec = new window.MediaRecorder(stream, opts); } catch (e1) { rec = new window.MediaRecorder(stream); }
       s.recorder = rec;
-      if (!mime && rec.mimeType) { s.mime = rec.mimeType; s.row.mime = L.baseMime(rec.mimeType) || 'audio/webm'; }
+      if (!mime && rec.mimeType) { s.mime = rec.mimeType; s.row.mime = audioMime(rec.mimeType); }
       rec.ondataavailable = function (ev) { onData(s, ev); };
       rec.onerror = function () { s.notice = 'The recorder reported an error. What was captured so far is kept.'; emit('state', publicState()); };
       // The row is on disk BEFORE the first audio byte, so a kill at second 1 is recoverable.
-      return putVisit(s.row).catch(function () { s.storageError = true; }).then(function () {
-        s.startedAtMs = now(); s.row.startedAtMs = s.startedAtMs;
+      s.startedAtMs = now(); s.row.startedAtMs = s.startedAtMs; s.row.heartbeatMs = s.startedAtMs;
+      return putVisit(s.row).catch(function () { s.storageError = true; s.notice = 'This phone could not open its storage. Keep the app open until you stop.'; }).then(function () {
         rec.start(L.TIMESLICE_MS);
         tickTimer = setInterval(tick, 1000);
         acquireWake(s).then(function () { emit('state', publicState()); });
@@ -441,20 +537,21 @@
       };
     });
   }
+  /** Storage rules and the doc rules both want an audio/* type. */
+  function audioMime(m) {
+    var b = L.baseMime(m);
+    return /^audio\//.test(b) ? b : 'audio/webm';
+  }
 
   function verifyNotDnr(s, leadId) {
-    if (!window.db || typeof window.getDoc !== 'function' || typeof window.doc !== 'function') return;
-    var p;
-    try { p = window.getDoc(window.doc(window.db, 'leads', leadId)); } catch (_) { return; }
-    withTimeout(p, 8000).then(function (snap) {
-      var d = snap && typeof snap.data === 'function' ? snap.data() : null;
-      if (!d || d.doNotRecord !== true || session !== s || s.stopping) return;
+    lookupLead(leadId).then(function (r) {
+      if (!r.known || !L.isDoNotRecord(r.lead) || session !== s || s.stopping) return;
       s.refused = true;
-      var name = L.leadName(Object.assign({ id: leadId }, d)) || 'This customer';
+      var name = L.leadName(r.lead) || 'This customer';
       stop({ reason: 'dnr' }).then(function () { return discard(s.id); }).then(function () {
         emit('refused', { message: name + ' is marked do not record. The recording was stopped and deleted.' });
       });
-    }).catch(function () { /* unreadable: nothing more can be known; attach() re-checks */ });
+    });
   }
 
   function onData(s, ev) {
@@ -468,7 +565,7 @@
     var p = Promise.resolve(typeof blob.arrayBuffer === 'function' ? blob.arrayBuffer() : null).then(function (buf) {
       if (!buf) throw new Error('no-arraybuffer');
       return putChunk({ key: chunkKey(s.id, seq), visitId: s.id, seq: seq, bytes: buf, mime: s.row.mime, t: now() });
-    }).catch(function (e) {
+    }).catch(function () {
       if (!s.storageError) {
         s.storageError = true;
         s.notice = 'This phone could not save the recording to storage. Keep the app open: it is being held in memory only until you stop.';
@@ -477,7 +574,7 @@
     });
     s.writes.push(p);
     // keep the row's counters current for recovery, but not on every chunk
-    if (seq % 5 === 0) putVisit(s.row).catch(function () {});
+    if (seq % 5 === 0 && !s.stopping) { s.row.heartbeatMs = now(); patchSession(s); }
   }
 
   function cleanupSession(s) {
@@ -505,11 +602,17 @@
     return true;
   }
 
-  /** Stop, commit, and queue the upload. Resolves the saved row (or null if nothing was captured). */
+  /**
+   * Stop, commit, and queue the upload. Resolves the saved row (null if nothing
+   * was captured). It never rejects and never leaves the panel up: if the phone
+   * cannot persist the row, the audio is held in memory, the person is told it
+   * is NOT saved to storage, and an upload from memory is attempted.
+   */
   function stop(o) {
     var s = session;
     if (!s || s.stopping) return Promise.resolve(null);
     s.stopping = true;
+    var reason = (o && o.reason) || 'stopped';
     if (s.pausedAt) { s.pausedMs += now() - s.pausedAt; s.pausedAt = 0; }
     var sec = activeSec(s);
     var ended = now();
@@ -529,60 +632,117 @@
       return Promise.all(s.writes.slice());
     }).then(function () {
       cleanupSession(s);
-      s.row.endedAtMs = ended;
-      s.row.durationSec = sec;
-      s.row.backgroundSec = s.backgroundSec;
-      s.row.chunkCount = s.seq;
-      if (!s.row.sizeBytes) {
-        s.row.status = 'discarded'; s.row.discardedAtMs = now();
-        return putVisit(s.row).then(function () { mirror(s.row, 5000); refreshCounters(); return null; });
+      return patchVisit(s.id, function (cur) {
+        if (cur.status === 'discarded') return false;
+        cur.endedAtMs = ended; cur.durationSec = sec; cur.backgroundSec = s.backgroundSec;
+        cur.chunkCount = s.seq; cur.sizeBytes = s.row.sizeBytes;
+        ['lat', 'lng', 'accuracyM'].forEach(function (k) { if (s.row[k] !== undefined) cur[k] = s.row[k]; });
+        if (!cur.sizeBytes) { cur.status = 'discarded'; cur.discardedAtMs = now(); return cur; }
+        cur.status = 'stored'; cur.nextTryAt = 0; cur.lastReason = reason;
+        if (s.storageError) cur.memoryOnly = true;
+        return cur;
+      });
+    }).then(function (row) {
+      if (!row) throw new Error('row-missing');   // the very first put never landed
+      if (row.status === 'discarded') {
+        if (!row.sizeBytes) mirror(row, 5000);
+        refreshCounters();
+        return null;
       }
-      s.row.status = 'stored';
-      s.row.nextTryAt = 0;
-      s.row.lastReason = (o && o.reason) || 'stopped';
-      if (s.storageError) s.row.memoryOnly = true;
-      // If IndexedDB lost chunks, hold the audio in memory and try to land one blob row.
       var rescue = Promise.resolve();
       if (s.storageError) {
+        // IndexedDB lost chunks: keep the audio in memory unless every chunk is on disk after all.
         rescue = chunksFor(s.id).catch(function () { return []; }).then(function (rows) {
-          if (L.orderChunks(rows).ordered.length === s.seq) { s.row.memoryOnly = false; return; }
+          if (L.orderChunks(rows).ordered.length === s.seq) {
+            return patchVisit(s.id, function (c) { c.memoryOnly = false; return c; }).catch(function () {});
+          }
           _memoryBlobs[s.id] = s.mem.slice();
         });
       }
-      return rescue.then(function () { return saveRow(s.row); }).then(function (row) {
+      return rescue.then(function () {
+        mirror(row, 60000);
         refreshCounters();
+        if (reason === 'cap') _lastCap = { id: s.id, t: now() };
         if (s.refused) return row;   // do-not-record: no sheet, no upload; discard() follows
-        emit('stopped', { row: row, notice: s.notice });
+        emit('stopped', { row: row, notice: s.notice, reason: reason });
         drain('stop');
         return row;
       });
+    }).catch(function () {
+      // The row could not be committed. Do not leave a dead recording panel up,
+      // and do not say "saved": hold the audio in memory and say so.
+      cleanupSession(s);
+      var row = Object.assign({}, s.row, {
+        status: 'stored', endedAtMs: ended, durationSec: sec, backgroundSec: s.backgroundSec,
+        chunkCount: s.seq, memoryOnly: true, notSavedToStorage: true,
+      });
+      if (!row.sizeBytes) { refreshCounters(); return null; }
+      _memoryBlobs[s.id] = s.mem.slice();
+      _memoryRows[s.id] = row;
+      emit('stopped', {
+        row: row, reason: reason, error: true,
+        notice: 'This phone could not save the recording to its storage. It is held in memory only: keep this app open until it says uploaded.',
+      });
+      uploadFromMemory(row);
+      return row;
     });
   }
-  var _memoryBlobs = {};
+  var _memoryRows = {};
+
+  /** Last resort when IndexedDB is unusable: assemble from memory and upload; no local row to update. */
+  function uploadFromMemory(row) {
+    var me = uid();
+    var mem = _memoryBlobs[row.id];
+    if (!me || !mem || !mem.length) return Promise.resolve('skipped');
+    var blob = new window.Blob(L.orderChunks(mem).ordered.map(function (c) { return c.blob; }), { type: row.mime || 'audio/webm' });
+    var path = L.storagePath(me, row.id, row.mime);
+    return Promise.resolve(_uploader(blob, path, { uid: me, visitId: row.id, clientVersion: '1' }, function () {})).then(function () {
+      var r = Object.assign({}, row, { status: 'uploaded', audioPath: path, uploadedAtMs: now(), sizeBytes: blob.size });
+      return mirror(r, DOC_CONFIRM_MS).then(function (ok) {
+        if (ok) { delete _memoryBlobs[row.id]; delete _memoryRows[row.id]; }
+        emit('row', { row: r });
+        return ok ? 'uploaded' : 'unconfirmed';
+      });
+    }).catch(function () {
+      emit('row', { row: Object.assign({}, row, { status: 'failed' }) });
+      return 'failed';
+    });
+  }
 
   // ── recovery ────────────────────────────────────────────────────────────
   /**
-   * Rows still 'recording' that are not the live session were cut off (the app
-   * was killed or reloaded). Rebuild their stats from the chunks on disk and
-   * mark them 'recovered' for the person to save or discard.
+   * Rows still 'recording' that are not the live session AND whose heartbeat has
+   * gone quiet were cut off (the app was killed or reloaded). Rebuild their
+   * stats from the chunks on disk and ask the person to save or discard. A row
+   * with a fresh heartbeat is a live recording in another tab: left alone.
    */
   function recoverInterrupted() {
     var me = uid();
     if (!me) return Promise.resolve([]);
     return allVisits().then(function (rows) {
-      var cut = rows.filter(function (r) { return r.uid === me && r.status === 'recording' && !(session && session.id === r.id); });
+      var t = now();
+      var cut = rows.filter(function (r) {
+        if (r.uid !== me || r.status !== 'recording') return false;
+        if (session && session.id === r.id) return false;
+        var beat = r.heartbeatMs || r.lastChunkAtMs || r.startedAtMs || 0;
+        return t - beat > HEARTBEAT_STALE_MS;
+      });
       return Promise.all(cut.map(function (r) {
         return chunksFor(r.id).then(function (cs) {
           var o = L.orderChunks(cs);
           var size = o.ordered.reduce(function (n, c) { return n + ((c.bytes && c.bytes.byteLength) || 0); }, 0);
-          if (!size) { r.status = 'discarded'; r.discardedAtMs = now(); return putVisit(r).then(function () { mirror(r, 5000); return null; }); }
-          r.sizeBytes = size; r.chunkCount = o.ordered.length;
           var lastT = o.ordered.length ? o.ordered[o.ordered.length - 1].t : r.startedAtMs;
-          r.endedAtMs = Math.max(r.startedAtMs, lastT || r.startedAtMs);
-          r.durationSec = Math.max(1, Math.round((r.endedAtMs - r.startedAtMs) / 1000));
-          r.status = 'stored'; r.recoveredAtMs = now(); r.needsRecoveryConfirm = true; r.nextTryAt = 0;
-          if (o.missing.length) r.gaps = o.missing.length;
-          return putVisit(r).then(function () { return r; });
+          return patchVisit(r.id, function (cur) {
+            if (cur.status !== 'recording') return false;   // it finished, or another window recovered it first
+            if (now() - (cur.heartbeatMs || cur.startedAtMs || 0) <= HEARTBEAT_STALE_MS) return false;
+            if (!size) { cur.status = 'discarded'; cur.discardedAtMs = now(); return cur; }
+            cur.sizeBytes = size; cur.chunkCount = o.ordered.length;
+            cur.endedAtMs = Math.max(cur.startedAtMs, lastT || cur.startedAtMs);
+            cur.durationSec = Math.max(1, Math.round((cur.endedAtMs - cur.startedAtMs) / 1000));
+            cur.status = 'stored'; cur.recoveredAtMs = now(); cur.needsRecoveryConfirm = true; cur.nextTryAt = 0;
+            if (o.missing.length) cur.gaps = o.missing.length;
+            return cur;
+          }).then(function (row) { if (row && row.status === 'discarded') mirror(row, 5000); });
         });
       }));
     }).then(function () {
@@ -596,11 +756,11 @@
   }
   /** The person said "save it" on a recovered recording. */
   function confirmRecovered(id) {
-    return getVisit(id).then(function (r) {
-      if (!r) return null;
-      r.needsRecoveryConfirm = false;
-      return saveRow(r).then(function () { drain('recovered'); return r; });
-    });
+    return update(id, function (c) {
+      if (c.status === 'discarded') return false;
+      c.needsRecoveryConfirm = false;
+      return c;
+    }).then(function (row) { drain('recovered'); return row; });
   }
 
   // ── the upload drain ────────────────────────────────────────────────────
@@ -616,93 +776,137 @@
       return new window.Blob(parts, { type: row.mime || 'audio/webm' });
     });
   }
-  function failRow(row, e) {
-    row.status = 'failed';
-    row.attempts = (row.attempts || 0) + 1;
-    row.nextTryAt = L.nextTryAt(now(), row.attempts - 1);
-    row.lastError = String((e && (e.code || e.message)) || e || 'upload-failed').slice(0, 120);
-    row.progress = undefined;
-    return putVisit(row).then(function () { mirror(row, 5000); });
+  function failRow(id, e) {
+    return patchVisit(id, function (c) {
+      if (c.status === 'discarded') return false;
+      c.status = 'failed';
+      c.attempts = (c.attempts || 0) + 1;
+      c.nextTryAt = L.nextTryAt(now(), c.attempts - 1);
+      c.lastError = String((e && (e.code || e.message)) || e || 'upload-failed').slice(0, 120);
+      c.progress = undefined;
+      return c;
+    }).then(function (row) { if (row && row.status !== 'discarded') mirror(row, 5000); return 'failed'; });
   }
-  function uploadOne(row) {
+  function uploadOne(id) {
     var me = uid();
-    if (!me || row.uid !== me) return Promise.resolve('skipped');
-    // Already in Storage: only the doc confirmation is missing.
-    if (row.uploadedAtMs && row.audioPath) return confirmUploaded(row);
-    row.status = 'uploading'; row.progress = 0;
-    return putVisit(row).then(function () {
-      emit('row', { row: row });
-      return assemble(row);
-    }).then(function (blob) {
-      if (!blob || !blob.size) { return failRow(row, new Error('no-audio-on-phone')).then(function () { return 'failed'; }); }
-      if (blob.size > L.MAX_UPLOAD_BYTES) { return failRow(row, new Error('too-large')).then(function () { return 'failed'; }); }
-      var path = L.storagePath(me, row.id, row.mime);
-      var last = 0;
-      return _uploader(blob, path, { uid: me, visitId: row.id, clientVersion: '1' }, function (pct) {
-        var t = now();
-        row.progress = pct;
-        if (t - last > 400) { last = t; emit('row', { row: row }); }
-      }).then(function () {
-        row.audioPath = path; row.uploadedAtMs = now(); row.sizeBytes = blob.size;
-        return confirmUploaded(row);
-      });
-    }).catch(function (e) { return failRow(row, e).then(function () { return 'failed'; }); });
-  }
-  function confirmUploaded(row) {
-    row.status = 'uploaded'; row.progress = undefined; row.attempts = 0; row.lastError = undefined;
-    row.docSynced = false;
-    return putVisit(row).then(function () { return mirror(row, DOC_CONFIRM_MS); }).then(function (ok) {
-      if (!ok) { emit('row', { row: row }); return 'unconfirmed'; }
-      row.docSynced = true;
-      // Server has both the object and the doc: now, and only now, the audio leaves the phone.
-      return putVisit(row).then(function () { return deleteChunks(row.id); }).then(function () {
-        delete _memoryBlobs[row.id];
-        emit('row', { row: row });
-        return 'uploaded';
+    return getVisit(id).then(function (row) {
+      if (!row || row.uid !== me || row.status === 'discarded') return 'skipped';
+      // Already in Storage: only the doc confirmation is missing.
+      if (row.uploadedAtMs && row.audioPath) return confirmUploaded(id);
+      return patchVisit(id, function (c) {
+        if (c.status === 'discarded') return false;
+        c.status = 'uploading'; c.progress = 0;
+        return c;
+      }).then(function (r) {
+        if (!r || r.status === 'discarded') return 'skipped';
+        emit('row', { row: r });
+        return assemble(r).then(function (blob) {
+          if (!blob || !blob.size) return failRow(id, new Error('no-audio-on-phone'));
+          if (blob.size > L.MAX_UPLOAD_BYTES) return failRow(id, new Error('too-large'));
+          var path = L.storagePath(me, id, r.mime);
+          var last = 0;
+          return _uploader(blob, path, { uid: me, visitId: id, clientVersion: '1' }, function (pct) {
+            var t = now();
+            if (t - last > 400) { last = t; emit('row', { row: Object.assign({}, r, { status: 'uploading', progress: pct }) }); }
+          }).then(function () {
+            return patchVisit(id, function (c) {
+              if (c.status === 'discarded') return false;   // the person discarded it while it uploaded
+              c.audioPath = path; c.uploadedAtMs = now(); c.sizeBytes = blob.size;
+              return c;
+            }).then(function (after) {
+              if (!after || after.status === 'discarded') {
+                // The object landed after the person said delete: take it back out.
+                return Promise.resolve(_deleter(path)).then(function () {}, function () {}).then(function () { return 'discarded'; });
+              }
+              return confirmUploaded(id);
+            });
+          });
+        }).catch(function (e) { return failRow(id, e); });
       });
     });
   }
+  function confirmUploaded(id) {
+    return patchVisit(id, function (c) {
+      if (c.status === 'discarded') return false;
+      c.status = 'uploaded'; c.progress = undefined; c.attempts = 0; c.lastError = undefined; c.docSynced = false;
+      return c;
+    }).then(function (row) {
+      if (!row || row.status === 'discarded') return 'skipped';
+      return mirror(row, DOC_CONFIRM_MS).then(function (ok) {
+        if (!ok) { emit('row', { row: row }); return 'unconfirmed'; }
+        // Server has both the object and the doc: now, and only now, the audio leaves the phone.
+        return patchVisit(id, function (c) {
+          if (c.status === 'discarded') return false;
+          c.docSynced = true;
+          return c;
+        }).then(function (r2) {
+          if (!r2 || r2.status === 'discarded') return 'skipped';
+          return deleteChunks(id).then(function () {
+            delete _memoryBlobs[id];
+            emit('row', { row: r2 });
+            return 'uploaded';
+          });
+        });
+      });
+    });
+  }
+  function dueRows(rows, me, force) {
+    var t = now();
+    return rows.filter(function (r) {
+      if (r.uid !== me || (session && session.id === r.id) || r.needsRecoveryConfirm) return false;
+      var ready = force || !r.nextTryAt || t >= r.nextTryAt;
+      if (r.status === 'stored' || r.status === 'uploading' || r.status === 'failed') return ready;
+      if (r.status === 'uploaded' && r.docSynced === false) return ready;
+      if (r.status === 'discarded' && r.audioDeleteFailed) return true;
+      return false;
+    }).sort(function (a, b) { return a.startedAtMs - b.startedAtMs; });
+  }
   function drain(reason) {
-    if (draining) return draining;
-    draining = (function () {
+    if (draining) { drainAgain = true; return draining; }
+    var force = reason === 'online' || reason === 'manual' || reason === 'stop' || reason === 'recovered';
+    draining = (function pass(n, attempted) {
       var me = uid();
       if (!me) return Promise.resolve();
       return allVisits().then(function (rows) {
-        var t = now();
-        var force = reason === 'online' || reason === 'manual' || reason === 'stop' || reason === 'recovered';
-        var due = rows.filter(function (r) {
-          if (r.uid !== me || (session && session.id === r.id) || r.needsRecoveryConfirm) return false;
-          if (r.status === 'stored' || r.status === 'uploading' || r.status === 'failed') return force || !r.nextTryAt || t >= r.nextTryAt;
-          if (r.status === 'uploaded' && r.docSynced === false) return force || !r.nextTryAt || t >= r.nextTryAt;
-          if (r.status === 'discarded' && r.audioDeleteFailed) return true;
-          return false;
-        }).sort(function (a, b) { return a.startedAtMs - b.startedAtMs; });
-        if (!due.length) return null;
-        if (!isOnline()) { emit('row', {}); return null; }
+        var due = dueRows(rows, me, force).filter(function (r) { return !attempted[r.id]; });
+        if (!due.length) return 0;
+        if (!isOnline()) { emit('row', {}); return 0; }
         var chain = Promise.resolve();
         due.forEach(function (r) {
+          attempted[r.id] = true;
           chain = chain.then(function () {
             if (!isOnline()) return null;
-            if (r.status === 'discarded') return purgeAudio(r);
-            return uploadOne(r);
+            if (r.status === 'discarded') return purgeAudio(r.id);
+            return uploadOne(r.id);
           });
         });
-        return chain;
-      }).then(function () { return refreshCounters(); }).then(scheduleRetry);
-    })().catch(function (e) { console.warn('[visit-recorder] drain', e); }).then(function () { draining = null; });
+        return chain.then(function () { return due.length; });
+      }).then(function (count) {
+        // A row stopped while this pass was running is picked up by the next pass,
+        // not left waiting for a trigger that may be minutes away.
+        if ((count || drainAgain) && n < 6) { drainAgain = false; return pass(n + 1, attempted); }
+      });
+    })(0, {}).catch(function (e) { console.warn('[visit-recorder] drain', e); })
+      .then(function () { return refreshCounters(); })
+      .then(function () { draining = null; drainAgain = false; return scheduleRetry(); });
     return draining;
   }
+  var drainAgain = false;
   function scheduleRetry() {
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
     return allVisits().then(function (rows) {
       var me = uid();
       var soonest = null;
+      var t = now();
       rows.forEach(function (r) {
-        if (r.uid !== me) return;
-        var waiting = r.status === 'failed' || r.status === 'stored' || (r.status === 'uploaded' && r.docSynced === false);
-        if (waiting && r.nextTryAt && (soonest == null || r.nextTryAt < soonest)) soonest = r.nextTryAt;
+        if (r.uid !== me || (session && session.id === r.id) || r.needsRecoveryConfirm) return;
+        var waiting = r.status === 'failed' || r.status === 'stored' || r.status === 'uploading' || (r.status === 'uploaded' && r.docSynced === false);
+        if (!waiting) return;
+        // a row with no schedule is due now; give it a short tick rather than none
+        var at = r.nextTryAt ? r.nextTryAt : t + 5000;
+        if (soonest == null || at < soonest) soonest = at;
       });
-      if (soonest != null) retryTimer = setTimeout(function () { drain('timer'); }, Math.max(1000, soonest - now()));
+      if (soonest != null && isOnline()) retryTimer = setTimeout(function () { drain('timer'); }, Math.max(1000, soonest - t));
     }).catch(function () {});
   }
 
@@ -713,37 +917,65 @@
         // Uploaded from another device: no local row, only the server doc.
         var ref = visitDocRef(id);
         if (!ref || typeof window.setDoc !== 'function') return { ok: false, message: 'That recording is not on this phone.' };
-        if (leadId) { var g = L.attachGate(findLead(leadId)); if (!g.ok) return { ok: false, message: g.message }; }
-        return window.setDoc(ref, { leadId: leadId ? String(leadId) : null, attachedAtMs: leadId ? now() : null }, { merge: true })
-          .then(function () { return { ok: true, row: { id: id, leadId: leadId || null } }; },
-                function () { return { ok: false, message: 'Could not attach right now. Try again with a signal.' }; });
+        return gateLead(leadId).then(function (g) {
+          if (!g.ok) return g;
+          return window.setDoc(ref, { leadId: leadId ? String(leadId) : null, attachedAtMs: leadId ? now() : null }, { merge: true })
+            .then(function () { return { ok: true, row: { id: id, leadId: leadId || null } }; },
+                  function () { return { ok: false, message: 'Could not attach right now. Try again with a signal.' }; });
+        });
       }
-      if (leadId) {
-        var gate = L.attachGate(findLead(leadId));
-        if (!gate.ok) return { ok: false, message: gate.message };
-      }
-      row.leadId = leadId ? String(leadId) : null;
-      row.attachedAtMs = leadId ? now() : null;
-      if (extra && extra.appointmentId) row.appointmentId = String(extra.appointmentId);
-      if (row.status === 'uploaded') row.docSynced = false;
-      return saveRow(row).then(function () { refreshCounters(); emit('row', { row: row }); return { ok: true, row: row }; });
+      return gateLead(leadId).then(function (g) {
+        if (!g.ok) return g;
+        return update(id, function (c) {
+          if (c.status === 'discarded') return false;
+          c.leadId = leadId ? String(leadId) : null;
+          c.attachedAtMs = leadId ? now() : null;
+          if (extra && extra.appointmentId) c.appointmentId = String(extra.appointmentId);
+          if (c.status === 'uploaded') c.docSynced = false;
+          return c;
+        }).then(function (r) {
+          if (!r || r.status === 'discarded') return { ok: false, message: 'That recording was discarded.' };
+          refreshCounters(); emit('row', { row: r });
+          return { ok: true, row: r };
+        });
+      });
     });
   }
-  function purgeAudio(row) {
-    if (!row.audioPath) { row.audioDeleteFailed = false; return putVisit(row); }
-    return _deleter(row.audioPath).then(function () { row.audioDeleteFailed = false; }, function (e) {
-      // an object that is already gone is fine
-      if (e && /object-not-found/.test(String(e.code || e.message))) row.audioDeleteFailed = false; else row.audioDeleteFailed = true;
-    }).then(function () { return putVisit(row); });
+  /**
+   * May this recording be filed under leadId? Fails CLOSED: a customer that is
+   * not in memory is looked up; if its do-not-record flag cannot be read, the
+   * attach is refused rather than guessed.
+   */
+  function gateLead(leadId) {
+    if (!leadId) return Promise.resolve({ ok: true });
+    var lead = findLead(leadId);
+    if (lead) return Promise.resolve(L.attachGate(lead));
+    return lookupLead(leadId).then(function (r) {
+      if (!r.known) return { ok: false, message: 'Could not check this customer\'s do-not-record setting. Try again with a signal.' };
+      return L.attachGate(r.lead);
+    });
+  }
+  function purgeAudio(id) {
+    return getVisit(id).then(function (row) {
+      if (!row || !row.audioPath) return null;
+      return Promise.resolve(_deleter(row.audioPath)).then(function () { return false; }, function (e) {
+        // an object that is already gone is fine
+        return !(e && /object-not-found/.test(String(e.code || e.message)));
+      }).then(function (failed) {
+        return patchVisit(id, function (c) { c.audioDeleteFailed = failed === true; return c; });
+      });
+    });
   }
   function discard(id) {
-    return getVisit(id).then(function (row) {
-      if (!row) return { ok: true };
-      row.status = 'discarded'; row.discardedAtMs = now(); row.leadId = null;
-      delete _memoryBlobs[id];
-      return putVisit(row).then(function () { return deleteChunks(id); }).then(function () {
+    delete _memoryBlobs[id];
+    return patchVisit(id, function (c) {
+      c.status = 'discarded'; c.discardedAtMs = now(); c.leadId = null;
+      return c;
+    }).then(function (row) {
+      if (!row) { delete _memoryRows[id]; return { ok: true }; }
+      return deleteChunks(id).then(function () {
         mirror(row, 5000);
-        return purgeAudio(row);
+        return purgeAudio(id);
       }).then(function () { refreshCounters(); emit('row', { row: row }); return { ok: true }; });
     });
   }
@@ -752,9 +984,10 @@
   function list() {
     var me = uid();
     return allVisits().then(function (rows) {
-      return rows.filter(function (r) { return r.uid === me && r.status !== 'discarded'; })
+      var mem = Object.keys(_memoryRows).map(function (k) { return _memoryRows[k]; });
+      return rows.concat(mem).filter(function (r) { return r.uid === me && r.status !== 'discarded'; })
         .sort(function (a, b) { return b.startedAtMs - a.startedAtMs; });
-    }).catch(function () { return []; });
+    }).catch(function () { return Object.keys(_memoryRows).map(function (k) { return _memoryRows[k]; }); });
   }
   /** Rows other devices uploaded; one single-field orderBy, filtered here (no composite index). */
   function listRemote() {
@@ -779,7 +1012,7 @@
     attach: attach, discard: discard,
     recoverInterrupted: recoverInterrupted, confirmRecovered: confirmRecovered,
     drain: drain, retryNow: function () { return drain('manual'); },
-    getConfig: getConfig,
+    getConfig: getConfig, refreshConfig: refreshConfig,
     refreshCounters: refreshCounters, wire: wire,
     // seams for tests (not used by the app)
     _setUploader: function (fn) { _uploader = typeof fn === 'function' ? fn : defaultUploader; },

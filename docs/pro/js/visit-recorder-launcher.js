@@ -43,8 +43,10 @@
   function uid() { try { return (window.auth && window.auth.currentUser && window.auth.currentUser.uid) || null; } catch (_) { return null; } }
   function role() { return String(claims().role || ''); }
   /** Owner-level: no role claim (solo owner) or company_admin. */
-  function isOwner() { var r = role(); return r === '' || r === 'company_admin' || r === 'admin'; }
-  function isStaff() { var r = role(); return r === '' || r === 'company_admin' || r === 'manager' || r === 'admin'; }
+  // Claims arrive after sign-in; an empty role before that is "unknown", not "owner".
+  function claimsKnown() { try { return !!(window._userClaims && typeof window._userClaims === 'object'); } catch (_) { return false; } }
+  function isOwner() { if (!claimsKnown()) return false; var r = role(); return r === '' || r === 'company_admin' || r === 'admin'; }
+  function isStaff() { if (!claimsKnown()) return false; var r = role(); return r === '' || r === 'company_admin' || r === 'manager' || r === 'admin'; }
 
   // ── lazy load ───────────────────────────────────────────────────────────
   var loading = null;
@@ -108,34 +110,47 @@
     var t0 = Date.now();
     (function poll() {
       if (uid()) { cb(); return; }
-      if (Date.now() - t0 > (maxMs || 30000)) return;
-      setTimeout(poll, 400);
+      if (Date.now() - t0 > (maxMs || 180000)) return;   // slow auth restores happen; later events re-arm too
+      setTimeout(poll, Date.now() - t0 < 10000 ? 400 : 2000);
     })();
   }
   function companyId() { return claims().companyId || uid(); }
-  /** Cache the company's consent mode + reminder so a start never waits on the network. */
-  function refreshCfg() {
-    var id = companyId();
-    if (!id || !window.db || typeof window.getDoc !== 'function' || typeof window.doc !== 'function') return;
-    window.getDoc(window.doc(window.db, 'companies', id)).then(function (snap) {
-      var d = snap && typeof snap.data === 'function' ? (snap.data() || {}) : {};
-      var modes = ['one_party', 'two_party_attested', 'two_party_verbal'];
-      lsSet(CFG_KEY, JSON.stringify({
-        consentMode: modes.indexOf(d.recordingConsentMode) >= 0 ? d.recordingConsentMode : 'one_party',
-        reminder: d.visitRecordingReminder === true,
-      }));
-    }).catch(function () {});
-  }
   function counters() {
     return { unfiled: parseInt(lsGet(UNFILED_KEY) || '0', 10) || 0, pending: parseInt(lsGet(PENDING_KEY) || '0', 10) || 0 };
   }
-  /** A recording left on the phone (cut off, or not yet uploaded): load, recover, push. */
-  function resumePending() {
-    var c = counters();
-    if (!c.pending) return;
+  /**
+   * Once per page load, after sign-in and the page has settled: load the recorder,
+   * read the company's consent setting, find a recording a killed app left behind,
+   * and push anything waiting. NOT gated on the localStorage counters: those are
+   * cleared by a logout and by iOS, and a counter that says 0 while rows wait
+   * would strand the recording. Opening IndexedDB here is the point.
+   */
+  var booted = false;
+  function bootRecorder() {
+    if (booted || !uid()) return;
+    booted = true;
     load().then(function () {
       var R = window.NBDVisitRecorder;
       R.wire();
+      R.refreshConfig();
+      return R.recoverInterrupted().then(function (rows) {
+        if (rows && rows.length && !R.getState().active) window.NBDVisitRecorderUI.showRecovered(rows);
+        return R.drain('boot');
+      });
+    }).then(function () { return window.NBDVisitRecorder.refreshCounters(); })
+      .catch(function () { booted = false; });
+  }
+  /** A later event (back in the app, signal returned) with rows known to be waiting: look again. */
+  var lastLook = 0;
+  function lookAgain() {
+    if (!uid()) return;
+    if (!booted) { bootRecorder(); return; }
+    var t = Date.now();
+    if (t - lastLook < 5000 || !counters().pending) return;
+    lastLook = t;
+    load().then(function () {
+      var R = window.NBDVisitRecorder;
+      if (R.getState().active) return null;
       return R.recoverInterrupted().then(function (rows) {
         if (rows && rows.length) window.NBDVisitRecorderUI.showRecovered(rows);
         return R.drain('boot');
@@ -288,7 +303,7 @@
       var want = cb.checked;
       window.setDoc(window.doc(window.db, 'companies', id), { visitRecordingReminder: want }, { merge: true }).then(function () {
         var c = {}; try { c = JSON.parse(lsGet(CFG_KEY) || '{}') || {}; } catch (_) {}
-        c.reminder = want; if (!c.consentMode) c.consentMode = 'one_party';
+        c.reminder = want; c.companyId = id; if (!c.consentMode) c.consentMode = 'one_party';
         lsSet(CFG_KEY, JSON.stringify(c));
         msg.textContent = want ? 'Saved. The reminder shows before each recording.' : 'Saved. No reminder.';
       }).catch(function () { cb.checked = !want; msg.textContent = 'Could not save. Only the owner can change this.'; });
@@ -352,21 +367,20 @@
     observe();
     handleDeepLink();
     whenAuth(function () {
-      refreshCfg();
-      setTimeout(resumePending, 1500);
       paintBar();
-      // Fetch the recorder once the page has settled (NOT on the boot path), so a
-      // recording started with no signal in a basement does not need the network
-      // to load its own code. ~50 KB, parsed on idle, never touches IndexedDB.
+      // Fetch + start the recorder once the page has settled (NOT on the boot path),
+      // so a recording started with no signal in a basement does not need the
+      // network to load its own code. ~50 KB, parsed on idle.
       setTimeout(function () {
-        var go = function () { load().catch(function () {}); };
+        var go = function () { bootRecorder(); };
         if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(go, { timeout: 8000 });
         else go();
       }, 4000);
     });
     // _currentLead arrives after the page's own boot; paint the toggle again
     setTimeout(decorate, 1500); setTimeout(decorate, 4000);
-    window.addEventListener('online', function () { if (counters().pending) resumePending(); });
+    window.addEventListener('online', lookAgain);
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') lookAgain(); });
     window.addEventListener('storage', function (e) { if (e.key === UNFILED_KEY || e.key === PENDING_KEY) paintBar(); });
   }
 

@@ -150,8 +150,8 @@ minutes of when recording started, (c) the 3 most recently opened customers
 
 | Check | Result |
 |---|---|
-| `node tests/visit-recorder-2026-10-13.test.js` (real modules in a vm sandbox with fake IndexedDB / MediaRecorder / geolocation / wake lock / clock / Firestore; a "kill" is a second sandbox sharing only IndexedDB + localStorage) | 126 passed |
-| `tests/firestore-rules.visit-captures.test.js` | 52/52, each deny paired with an allow control |
+| `node tests/visit-recorder-2026-10-13.test.js` (real modules in a vm sandbox with fake IndexedDB / MediaRecorder / geolocation / wake lock / clock / Firestore; a "kill" is a second sandbox sharing only IndexedDB + localStorage) | 187 passed. Break-tested: 30 single mutations of the recorder and logic, each turned a named assertion red (the one survivor is a redundant guard, below) |
+| `tests/firestore-rules.visit-captures.test.js` | 65/65, each deny paired with an allow control; 6 rule mutations each turned a named deny red |
 | `tests/e2e/visit-recorder.spec.js` at 390 x 844, installed-app rules forced, real Chromium MediaRecorder with a fake mic, real Auth + Firestore + Storage emulators, real rules | 4 passed |
 | boot-budget, inline-style ratchet, `check-js-syntax`, `check-site-integrity`, `apply-partials --check`, `check-inline-html-scripts`, `check-image-privacy`, marketing-polish, pwa-manifest | green |
 
@@ -160,6 +160,39 @@ phone - waiting for signal" badge, a chip with evidence, Save unattached, then
 the signal returns and the visit uploads **without a tap**, the doc is
 `uploaded` with `audioPath` under `_inbox`, the Storage object exists, the
 local chunks are gone, and an attach-by-search writes `leadId`.
+
+## Review round (silent-failure hunt + vacuous-test audit), all fixed in this PR
+
+Two read-only reviewers ran on the first commit. What they found and what changed:
+
+| Finding | Fix |
+|---|---|
+| A stale whole-row write from the upload drain could **revive a discarded recording** and **wipe an attach** (and, for do-not-record, leave a forbidden recording on the server) | Nothing writes a row from memory any more: every mutation is `patchVisit(id, fn)`, a read-modify-write in ONE IndexedDB transaction; a discarded row is never revived; an object that lands after a discard is deleted again |
+| Late writers after Stop (geolocation fix, a final chunk) overwrote the drain's row | the live session may patch only its own fields (`SESSION_FIELDS`) and only while the row is `recording` |
+| Two windows: window B "recovered" window A's live recording and could delete its header chunk | the live session stamps `heartbeatMs` every 5 s; only a row quiet for 30 s is treated as cut off |
+| `stop()` could reject and leave a dead "Recording" panel, with the only copy of the audio in memory | never rejects; closes the session, says "NOT saved to the storage on this phone", uploads from memory |
+| A wiped or missing consent cache silently skipped the disclosure of a two-party company | cache is keyed by company; unknown fails closed (one-tap sheet); first use waits at most 1.5 s to read it |
+| The boot check was gated on a localStorage counter that a logout or iOS clears | boot always opens IndexedDB once, after sign-in and idle, and recovers + drains; the counters are only a badge |
+| A recording stopped while another upload was in flight waited for an unrelated trigger | the drain re-scans until nothing is due; a row with no schedule gets a retry tick; a stalled upload (90 s without progress) is cancelled and retried |
+| Status said "Uploaded" while the server doc was unconfirmed | "Saved on phone - confirming with the server" until `docSynced` |
+| Attach checked do-not-record only against `window._leads` | a customer not in memory is looked up; if its flag cannot be read the attach is **refused**, not guessed; unknown recents are never offered as chips |
+| The 60 minute cap was silent; part 2 was never linked | the stopped event carries the reason and the sheet explains it; a recording started within 15 minutes of a cap is `partOf` it |
+| A second tap showed "Not recording" over a live recording | a busy start just shows the live panel |
+| Owner-only controls rendered while claims were still unloaded | they wait for claims |
+
+Honest residue:
+
+- `verifyNotDnr` (the lead-doc lookup on a deep link) cannot answer offline. The recording is
+  then kept, and `attach()` re-checks before anything is filed. The flag is not enforced in
+  Firestore rules (a lead write rule is the place; deliberately not touched here because other
+  open PRs edit that region).
+- `status: 'uploaded'` on the doc is client-settable and the rules do not prove the object
+  exists. **PR 2's server step must verify the object itself** before trusting a visit doc.
+- One guard is redundant on purpose: the first `discarded` check in `confirmUploaded` is
+  unreachable-in-practice behind `uploadOne`'s checks; mutating it alone stays green, so it
+  is belt and braces, not a pinned behaviour.
+- The `uploadOne` uid check and the `dueRows` uid filter each cover the same case; only the
+  pair is pinned by the test.
 
 ## What only a real iPhone can verify (Jo's pass)
 
@@ -193,3 +226,4 @@ local chunks are gone, and an attach-by-search writes `leadId`.
   unattached after a day.
 - The rules already reserve the doc shape; PR 2 adds server-only fields via the
   admin SDK, which the client allowlist already refuses to touch.
+- Verify the Storage object exists before trusting `status: 'uploaded'` (client-set).

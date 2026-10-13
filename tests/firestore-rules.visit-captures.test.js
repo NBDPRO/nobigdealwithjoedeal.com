@@ -74,6 +74,11 @@ async function run() {
     await setDoc(doc(db, 'leads/lead-b1'), { userId: 'bob', companyId: 'co-b', name: 'ZZ Bob Lead' });
     await setDoc(doc(db, 'users/alice/visit_captures/' + VID), visit('alice', { leadId: null }));
     await setDoc(doc(db, 'users/alice/visit_captures/vseeded000000001'), visit('alice', { leadId: 'lead-a1' }));
+    await setDoc(doc(db, 'users/alice/visit_captures/vseeded000000002'), visit('alice', { leadId: null }));
+    await setDoc(doc(db, 'users/alice/visit_captures/vseeded000000003'), visit('alice', { leadId: null }));
+    // a viewer's own doc (written before they were made a viewer): they may not change or delete it
+    await setDoc(doc(db, 'users/vic/visit_captures/vvic000000000001'), visit('vic', { leadId: null }));
+    await setDoc(doc(db, 'users/vic/visit_captures/vvic000000000002'), visit('vic', { leadId: null }));
   });
 
   const alice = ctx('alice', { role: 'sales_rep', companyId: 'co-a' });
@@ -98,6 +103,8 @@ async function run() {
   await check('a different signed-in user cannot write under alice', 'deny', setDoc(ref(bob, 'alice', 'vevil00000000001'), visit('alice')));
   await check('a viewer cannot create one even under their own uid', 'deny', setDoc(ref(vic, 'vic', 'vview00000000001'), visit('vic')));
   await check('signed out cannot write', 'deny', setDoc(ref(anon, 'alice', 'vanon00000000001'), visit('alice')));
+  // Note: read is ALSO granted by the users/{uid}/{subcol} wildcard (same rule), so the read
+  // checks below pin the behaviour, not which match grants it. Writes have one grant only.
   await check('owner reads their doc', 'allow', getDoc(ref(alice, 'alice')));
   await check('another tenant cannot read it', 'deny', getDoc(ref(bob, 'alice')));
   await check('a same-company admin cannot read it either (owner-only)', 'deny', getDoc(ref(carol, 'alice')));
@@ -143,6 +150,30 @@ async function run() {
   await check('attach on an existing doc: merge of just leadId + attachedAtMs', 'allow',
     setDoc(ref(alice, 'alice', 'vseeded000000001'), { leadId: 'lead-a1', attachedAtMs: 1760000200000 }, { merge: true }));
   await check('detach: leadId back to null', 'allow', updateDoc(ref(alice, 'alice', 'vseeded000000001'), { leadId: null, attachedAtMs: null }));
+
+  // the UPDATE path carries its own lead gate: an attach is an update, not a create
+  await check('attach (merge update) to another tenant\'s lead is refused', 'deny',
+    setDoc(ref(alice, 'alice', 'vseeded000000002'), { leadId: 'lead-b1', attachedAtMs: 1760000300000 }, { merge: true }));
+  await check('attach (merge update) to a colleague\'s lead is refused for a sales rep', 'deny',
+    setDoc(ref(alice, 'alice', 'vseeded000000002'), { leadId: 'lead-a2', attachedAtMs: 1760000300000 }, { merge: true }));
+  await check('attach (merge update) to a lead that does not exist is refused', 'deny',
+    setDoc(ref(alice, 'alice', 'vseeded000000002'), { leadId: 'no-such-lead', attachedAtMs: 1760000300000 }, { merge: true }));
+  await check('updateDoc to another tenant\'s lead is refused', 'deny', updateDoc(ref(alice, 'alice', 'vseeded000000002'), { leadId: 'lead-b1' }));
+  await check('control: the same merge update to their own lead is accepted', 'allow',
+    setDoc(ref(alice, 'alice', 'vseeded000000002'), { leadId: 'lead-a1', attachedAtMs: 1760000300000 }, { merge: true }));
+
+  // audioPath: extension allowlist and the exact folder, each with a deny for its own reason
+  await check('audioPath with a non-audio extension in the right folder', 'deny', setDoc(ref(alice, 'alice', 'vpath00000000007'), visit('alice', { audioPath: 'audio/alice/_inbox/vpath00000000007.html' })));
+  await check('audioPath with the right file name in a lead folder (folder is what is wrong)', 'deny', setDoc(ref(alice, 'alice', 'vpath00000000008'), visit('alice', { audioPath: 'audio/alice/lead-a1/vpath00000000008.webm' })));
+  await check('audioPath with the right file name in a sibling folder that merely starts with _inbox', 'deny', setDoc(ref(alice, 'alice', 'vpath00000000009'), visit('alice', { audioPath: 'audio/alice/_inbox2/vpath00000000009.webm' })));
+  await check('control: the right folder and name with each allowed extension', 'allow',
+    Promise.all(['webm', 'm4a', 'ogg', 'mp3', 'wav'].map((e, i) => setDoc(ref(alice, 'alice', 'vext0000000000' + i + '0'), visit('alice', { audioPath: 'audio/alice/_inbox/vext0000000000' + i + '0.' + e })))));
+
+  // a viewer is read-only here too
+  await check('a viewer cannot update their own visit doc', 'deny', updateDoc(ref(vic, 'vic', 'vvic000000000001'), { status: 'uploaded' }));
+  await check('a viewer cannot delete their own visit doc', 'deny', deleteDoc(ref(vic, 'vic', 'vvic000000000002')));
+  await check('control: a sales rep CAN update their own (same shape of change)', 'allow', updateDoc(ref(alice, 'alice', 'vseeded000000003'), { status: 'uploaded' }));
+  await check('platform admin can delete one (support)', 'allow', deleteDoc(ref(admin, 'alice', 'vseeded000000003')));
 
   // ── delete and the sibling-wildcard control ─────────────────────────────
   await check('owner deletes their doc', 'allow', deleteDoc(ref(alice, 'alice', 'vnew00000000001')));

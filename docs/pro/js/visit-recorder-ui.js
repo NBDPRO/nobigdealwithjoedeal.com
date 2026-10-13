@@ -123,7 +123,14 @@
   function begin(o) {
     o = o || {};
     if (R.getState().active) { toast('A recording is already running.', 'info'); return Promise.resolve({ ok: false, reason: 'busy' }); }
-    var plan = L.consentPlan(R.getConfig());
+    var cfg = R.getConfig();
+    // First use on this phone (or a logout wiped the cache): read the company's
+    // consent setting, but never make the person wait more than 1.5 s for it.
+    var ready = cfg.known ? Promise.resolve(cfg)
+      : Promise.race([R.refreshConfig(), new Promise(function (res) { setTimeout(function () { res(R.getConfig()); }, 1500); })]);
+    return ready.then(function (c) { return beginWith(o, L.consentPlan(c || R.getConfig())); });
+  }
+  function beginWith(o, plan) {
     if (!plan.needsSheet) return doStart(o);
     return new Promise(function (resolve) {
       var body = [
@@ -144,7 +151,11 @@
     // The panel appears on the 'state' event the core emits synchronously.
     mountLive();
     return R.start(o).then(function (r) {
-      if (!r.ok) { unmountLive(); if (r.reason !== 'cancelled') showProblem(r); }
+      if (!r.ok) {
+        if (r.reason === 'busy') { mountLive(); return r; }   // a recording is already running: show it, say nothing
+        unmountLive();
+        if (r.reason !== 'cancelled') showProblem(r);
+      }
       return r;
     });
   }
@@ -225,13 +236,16 @@
       showProblem({ reason: 'dnr', message: data.message });
       return;
     }
-    if (kind === 'stopped' || kind === 'capped') {
+    if (kind === 'stopped') {
       unmountLive();
       if (liveUnsub) { liveUnsub(); liveUnsub = null; }
       var row = data && data.row;
       if (row) {
-        if (kind === 'capped') toast('Saved at the 60 minute limit. Tap Record to start part 2.', 'info');
-        showWho(row, data.notice || '');
+        var why = '';
+        if (data.reason === 'cap') why = 'It stopped at the 60 minute limit and was saved. Tap Record to start part 2.';
+        else if (data.reason === 'recorder-ended') why = 'The phone ended the recording (usually because the app went to the background). What was captured is saved.';
+        var msg = [data.notice || '', why].filter(Boolean).join(' ');
+        showWho(row, msg, !!data.error);
       }
     }
   }
@@ -251,9 +265,10 @@
     var un = R.subscribe(function (k, d) { if (k === 'row' || k === 'online' || k === 'counters') paint(); });
     return { node: n, off: un };
   }
-  function showWho(row, notice) {
+  function showWho(row, notice, failed) {
     var badge = liveBadgeNode(row.id);
     var body = [badge.node];
+    if (failed) body.push(el('p', 'nbd-vr-note is-warn', 'NOT saved to the storage on this phone.'));
     if (notice) body.push(el('p', 'nbd-vr-note is-warn', notice));
     var chipsBox = el('div', 'nbd-vr-chips');
     var status = el('p', 'nbd-vr-note', '');

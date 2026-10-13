@@ -85,7 +85,7 @@ CEILING.localBytes += 24 * 1024;
 // whole 18 KB inline and pushed true LF bytes past the localBytes ceiling; the loader split is why it does not.)
 CEILING.localScripts += 1;
 // +1 local tag / +18 KB, deliberate (2026-10-13, visit recorder PR 1): js/visit-recorder-launcher.js
-// (17.9 KB LF, deferred, no boot-time reads beyond one cached company doc). It owns only the ENTRY
+// (19.6 KB LF incl. comments, deferred, no boot-time reads). It owns only the ENTRY
 // POINTS: the Home Record bar, the delegated Record button, today's appointment-row button, the
 // deep link and the "is a recording still on this phone?" check (a localStorage counter, so
 // IndexedDB is not opened on a normal boot). The recorder, its IndexedDB store, the screens and the

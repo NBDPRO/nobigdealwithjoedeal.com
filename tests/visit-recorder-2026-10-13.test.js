@@ -18,11 +18,14 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
+// VR_CORE_PATH / VR_LOGIC_PATH let a break-test point the suite at a mutated copy.
+const LOGIC_PATH = process.env.VR_LOGIC_PATH || path.join(ROOT, 'docs/pro/js/visit-recorder-logic.js');
+const CORE_PATH = process.env.VR_CORE_PATH || path.join(ROOT, 'docs/pro/js/visit-recorder.js');
 const SRC = {
-  logic: fs.readFileSync(path.join(ROOT, 'docs/pro/js/visit-recorder-logic.js'), 'utf8'),
-  core: fs.readFileSync(path.join(ROOT, 'docs/pro/js/visit-recorder.js'), 'utf8'),
+  logic: fs.readFileSync(LOGIC_PATH, 'utf8'),
+  core: fs.readFileSync(CORE_PATH, 'utf8'),
 };
-const Logic = require(path.join(ROOT, 'docs/pro/js/visit-recorder-logic.js'));
+const Logic = require(LOGIC_PATH);
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
@@ -36,7 +39,7 @@ async function settle() { for (let i = 0; i < 6; i++) await tick(2); }
 // ── fakes ──────────────────────────────────────────────────────────────────
 function makeIdb() {
   const dbs = {};   // name -> { stores: { name: { keyPath, map } } }
-  const flags = { failChunkPuts: false };
+  const flags = { failChunkPuts: false, failVisitPuts: false };
   function cb(fn, arg) { setImmediate(() => { try { fn && fn(arg); } catch (e) { /* surfaced by test failure */ } }); }
   const indexedDB = {
     open(name) {
@@ -72,7 +75,7 @@ function makeIdb() {
               const inRange = (k, rg) => k >= rg.lower && k <= rg.upper;
               return {
                 put: (v) => mkReq(() => {
-                  if (n === 'chunks' && flags.failChunkPuts) { const e = new Error('QuotaExceededError'); e.name = 'QuotaExceededError'; throw e; }
+                  if ((n === 'chunks' && flags.failChunkPuts) || (n === 'visits' && flags.failVisitPuts)) { const e = new Error('QuotaExceededError'); e.name = 'QuotaExceededError'; throw e; }
                   st.map.set(v[st.keyPath], JSON.parse(JSON.stringify(v, (k, x) => (x instanceof ArrayBuffer ? { __ab: Array.from(new Uint8Array(x)) } : x))));
                   return v[st.keyPath];
                 }),
@@ -101,13 +104,22 @@ function makeIdb() {
 }
 
 function makeFirestore() {
-  const fs_ = { docs: new Map(), mode: 'ok', writes: [] };   // mode: ok | offline (never settles) | reject
+  const fs_ = { docs: new Map(), mode: 'ok', writes: [], held: [] };   // mode: ok | offline (never settles) | reject | hold (settles when release() is called)
   const api = {
     docs: fs_.docs, state: fs_,
     doc: (db, ...segs) => ({ path: segs.join('/') }),
     setDoc(ref, data, opts) {
       fs_.writes.push({ path: ref.path, data: JSON.parse(JSON.stringify(data)), merge: !!(opts && opts.merge) });
       if (fs_.mode === 'offline') return new Promise(() => {});
+      if (fs_.mode === 'hold') {
+        return new Promise((resolve) => {
+          fs_.held.push(() => {
+            const cur = fs_.docs.get(ref.path) || {};
+            fs_.docs.set(ref.path, Object.assign({}, opts && opts.merge ? cur : {}, JSON.parse(JSON.stringify(data))));
+            resolve();
+          });
+        });
+      }
       if (fs_.mode === 'reject') return Promise.reject(Object.assign(new Error('permission-denied'), { code: 'permission-denied' }));
       const cur = fs_.docs.get(ref.path) || {};
       fs_.docs.set(ref.path, Object.assign({}, opts && opts.merge ? cur : {}, JSON.parse(JSON.stringify(data))));
@@ -204,6 +216,12 @@ function world() {
   return { idb: makeIdb(), ls: {}, clock: { t: 1760000000000 }, firestore: makeFirestore() };
 }
 async function bytesOf(blob) { return Array.from(new Uint8Array(await blob.arrayBuffer())); }
+/** An uploader that has taken the bytes but does not finish until release() - to race other actions against an in-flight upload. */
+function gatedUploader(log) {
+  let release; const gate = new Promise((r) => { release = r; });
+  const fn = async (blob, p, meta, onProgress) => { log.push({ path: p, bytes: await bytesOf(blob) }); await gate; onProgress(100); };
+  return { fn, release: () => release() };
+}
 function uploaderStub(log, behaviour) {
   return async (blob, p, meta, onProgress) => {
     const n = log.length;
@@ -669,6 +687,319 @@ function uploaderStub(log, behaviour) {
     ok('control: the owner signing back in does', await (async () => {
       const c = boot(W); const up2 = []; c.R._setUploader(uploaderStub(up2)); await c.R.drain('manual'); return up2.length === 1;
     })());
+  }
+
+  console.log('\nVISIT RECORDER - races between the session, the drain and the person');
+
+  // a. discard while the upload is in flight must stay discarded, and the object is taken back out
+  {
+    const W = world();
+    const a = boot(W);
+    const log = []; const g = gatedUploader(log); a.R._setUploader(g.fn);
+    const del = []; a.R._setDeleter(async (p) => { del.push(p); });
+    const r = await a.R.start({});
+    a.recorder().emit([1, 2, 3]);
+    await a.R.stop();
+    await settle();
+    ok('setup: the upload has started and is holding', log.length === 1 && (await a.R._getVisit(r.id)).status === 'uploading');
+    await a.R.discard(r.id);
+    g.release();
+    await settle(); await settle();
+    const row = await a.R._getVisit(r.id);
+    ok('discard mid-upload: the row stays discarded (a stale drain copy does not revive it)', row.status === 'discarded', row.status);
+    ok('discard mid-upload: the object that landed afterwards is deleted from Storage', del.length >= 1 && del.every((p) => p === 'audio/u1/_inbox/' + r.id + '.webm'), JSON.stringify(del));
+    ok('discard mid-upload: the doc ends discarded, never "uploaded"', (W.firestore.docs.get('users/u1/visit_captures/' + r.id) || {}).status === 'discarded');
+    ok('discard mid-upload: it is not in the Unfiled list', (await a.R.list()).length === 0);
+    // control: the same flow with no discard does end uploaded
+    const W2 = world(); const b = boot(W2);
+    const log2 = []; const g2 = gatedUploader(log2); b.R._setUploader(g2.fn);
+    const r2 = await b.R.start({}); b.recorder().emit([1, 2, 3]); await b.R.stop(); await settle();
+    g2.release(); await settle(); await settle();
+    ok('control: without the discard the same recording ends uploaded', (await b.R._getVisit(r2.id)).status === 'uploaded');
+  }
+
+  // b. attach while the upload is in flight must survive the drain's own writes
+  {
+    const W = world();
+    const a = boot(W, { leads: [{ id: 'L1', name: 'Ann Reyes' }] });
+    const log = []; const g = gatedUploader(log); a.R._setUploader(g.fn);
+    const r = await a.R.start({});
+    a.recorder().emit([1, 2, 3]);
+    await a.R.stop();
+    await settle();
+    const att = await a.R.attach(r.id, 'L1');
+    g.release();
+    await settle(); await settle();
+    const row = await a.R._getVisit(r.id);
+    ok('attach mid-upload: the customer is still attached after the upload finishes', att.ok && row.status === 'uploaded' && row.leadId === 'L1', JSON.stringify([row.status, row.leadId]));
+    ok('attach mid-upload: the server doc says the same', (W.firestore.docs.get('users/u1/visit_captures/' + r.id) || {}).leadId === 'L1');
+    ok('attach mid-upload: and it is no longer counted as unfiled', W.ls.nbd_vr_unfiled === '0');
+  }
+
+  // c. two windows: a live recording in another tab is not "recovered" out from under it
+  {
+    const W = world();
+    const a = boot(W);
+    const r = await a.R.start({});
+    a.recorder().emit([5, 5]);
+    await settle();
+    const b = boot(W);   // a second window over the same IndexedDB
+    const none = await b.R.recoverInterrupted();
+    ok('two windows: a row with a fresh heartbeat is left alone by the other window', none.length === 0 && (await b.R._getVisit(r.id)).status === 'recording');
+    ok('two windows: its chunks are untouched', (await a.R._chunksFor(r.id)).length === 1);
+    W.clock.t += 31000;
+    const rec = await b.R.recoverInterrupted();
+    ok('control: the same row IS recovered once its heartbeat has gone quiet for 30 s', rec.length === 1 && rec[0].id === r.id);
+    // the live window keeps stamping while it runs
+    const W2 = world(); const c = boot(W2);
+    const r3 = await c.R.start({});
+    const t0 = (await c.R._getVisit(r3.id)).heartbeatMs;
+    W2.clock.t += 7000;
+    for (let i = 0; i < 6; i++) c.tickAll();
+    await settle();
+    ok('heartbeat: the live session re-stamps its row as it runs', (await c.R._getVisit(r3.id)).heartbeatMs > t0);
+  }
+
+  // d. the row cannot be committed at Stop: never leave a dead panel, never say "saved"
+  {
+    const W = world();
+    const a = boot(W);
+    const up = []; a.R._setUploader(uploaderStub(up));
+    const events = [];
+    a.R.subscribe((k, d) => { if (k === 'stopped') events.push(d); });
+    const r = await a.R.start({});
+    a.recorder().emit([9, 9, 9]);
+    await settle();
+    W.idb.flags.failVisitPuts = true;
+    const row = await a.R.stop();
+    await settle(); await settle();
+    ok('stop with storage failing: the recording session is closed (no dead "Recording" panel)', a.R.getState().active === null);
+    ok('stop with storage failing: the person is told it is NOT saved to storage', events.length === 1 && events[0].error === true && /could not save the recording to its storage/.test(events[0].notice), JSON.stringify(events));
+    ok('stop with storage failing: the audio is uploaded from memory, in order', up.length === 1 && eq(up[0].bytes, [9, 9, 9]));
+    ok('stop with storage failing: it is listed as memory-only, not as stored', row && row.memoryOnly === true && row.notSavedToStorage === true);
+  }
+
+  // e. a recording stopped while another upload is in flight is not stranded behind it
+  {
+    const W = world();
+    const a = boot(W);
+    const log = []; const g = gatedUploader(log); a.R._setUploader(g.fn);
+    const r1 = await a.R.start({}); a.recorder().emit([1]); await a.R.stop(); await settle();
+    const r2 = await a.R.start({}); a.recorder().emit([2]); await a.R.stop(); await settle();
+    ok('setup: the first upload is holding and the second recording is stored behind it', log.length === 1 && (await a.R._getVisit(r2.id)).status === 'stored');
+    g.release();
+    await settle(); await settle(); await settle();
+    ok('the second recording uploads after the first, with no other trigger', log.length === 2 && (await a.R._getVisit(r1.id)).status === 'uploaded' && (await a.R._getVisit(r2.id)).status === 'uploaded', JSON.stringify(log.length));
+  }
+
+  // f. consent cache: unknown fails closed; keyed by company; the row records the mode
+  {
+    const W = world();
+    const a = boot(W, { claims: { companyId: 'co-1' } });
+    ok('consent: nothing cached for this company -> known:false', a.R.getConfig().known === false);
+    ok('consent: unknown config makes the start sheet appear (fail closed)', Logic.consentPlan({ consentMode: 'one_party', reminder: false, known: false }).needsSheet === true);
+    ok('control: a known one_party company with the reminder off has no sheet', Logic.consentPlan({ consentMode: 'one_party', reminder: false, known: true }).needsSheet === false);
+    ok('consent: the two-party line says what to do', /get a yes before you start/.test(Logic.consentPlan({ consentMode: 'two_party_verbal', known: true }).line));
+    W.ls.nbd_vr_cfg = JSON.stringify({ consentMode: 'two_party_attested', reminder: false, companyId: 'co-OTHER' });
+    ok('consent: a cache written for ANOTHER company is not trusted', boot(W, { claims: { companyId: 'co-1' } }).R.getConfig().known === false);
+    W.ls.nbd_vr_cfg = JSON.stringify({ consentMode: 'two_party_attested', reminder: false, companyId: 'co-1' });
+    const b = boot(W, { claims: { companyId: 'co-1' } });
+    const c = b.R.getConfig();
+    ok('control: the cache for this company is read, and says two-party', c.known === true && c.consentMode === 'two_party_attested');
+    b.R._setUploader(uploaderStub([]));
+    const r = await b.R.start({ disclosureAckedAtMs: 1760000001234 });
+    const row = await b.R._getVisit(r.id);
+    ok('the visit records the consent mode and the acknowledgement it was started under', row.consentMode === 'two_party_attested' && row.disclosureAckedAtMs === 1760000001234, JSON.stringify([row.consentMode, row.disclosureAckedAtMs]));
+    ok('...and the live state carries the disclosure line for the panel', /get a yes/.test(b.R.getState().active.disclosure));
+  }
+
+  // g. suggestions never name a customer we cannot check; time shapes; ordering
+  {
+    const leads = [{ id: 'L1', name: 'Ann' }, { id: 'L2', name: 'Bob' }, { id: 'L3', name: 'Cy' }];
+    ok('suggest: a recent id with no customer in memory is not offered', Logic.suggest({ startedAtMs: 1, recentIds: ['Lghost'], leads }).length === 0);
+    ok('control: the same id once the customer is in memory is offered', Logic.suggest({ startedAtMs: 1, recentIds: ['L1'], leads }).length === 1);
+    ok('the customer the recording started from is still offered (attach re-checks it)', Logic.suggest({ startedAtMs: 1, preLeadId: 'Lghost', leads }).length === 1);
+    const t0 = Date.UTC(2026, 9, 13, 18, 0, 0);
+    const shapes = [
+      { id: 'a', leadId: 'L1', startTime: { seconds: Math.floor((t0 + 5 * 60000) / 1000), nanoseconds: 0 } },
+      { id: 'b', leadId: 'L2', startTime: new Date(t0 + 30 * 60000).toISOString() },
+      { id: 'c', leadId: 'L3', startTime: { toMillis: () => t0 + 10 * 60000 } },
+    ];
+    const s = Logic.suggest({ startedAtMs: t0, appointments: shapes, leads });
+    ok('appointments are read from {seconds}, ISO strings and Timestamp-like objects, closest first', eq(s.map((c) => c.leadId), ['L1', 'L3', 'L2']), JSON.stringify(s.map((c) => c.leadId)));
+    ok('the window is inclusive at exactly 60 minutes and exclusive past it',
+      Logic.suggest({ startedAtMs: t0, appointments: [{ id: 'x', leadId: 'L1', startTime: t0 + 60 * 60000 }], leads }).length === 1
+      && Logic.suggest({ startedAtMs: t0, appointments: [{ id: 'x', leadId: 'L1', startTime: t0 + 60 * 60000 + 1 }], leads }).length === 0);
+    ok('a do-not-record customer the recording was started from is not offered either',
+      Logic.suggest({ startedAtMs: t0, preLeadId: 'L9', leads: leads.concat([{ id: 'L9', name: 'Flag', doNotRecord: true }]) }).length === 0);
+  }
+  ok('badge: uploaded but the doc is not confirmed says so, not "Uploaded"', /confirming/.test(Logic.badge({ status: 'uploaded', docSynced: false }, true).text) && Logic.badge({ status: 'uploaded', docSynced: true }, true).text === 'Uploaded');
+  {
+    // the Firestore doc never carries an undefined (the real SDK throws on it), and normalises unknown values
+    const d = Logic.docFromRow({ id: 'v', status: 'weird', source: 'weird', consentMode: 'weird', startedAtMs: 1, lat: undefined, accuracyM: undefined });
+    ok('docFromRow: no undefined values, unknown status/source/consentMode normalised',
+      Object.values(d).every((v) => v !== undefined) && d.status === 'stored' && d.source === 'fab' && d.consentMode === 'one_party');
+  }
+
+  // h. attach re-checks a customer that is not in memory, and fails closed
+  {
+    const mk = (flagged, mode) => () => (mode === 'offline' ? new Promise(() => {}) : Promise.resolve({ exists: () => true, data: () => ({ name: 'Eli Vance', doNotRecord: flagged }) }));
+    for (const [label, getDoc, want] of [
+      ['a flagged customer not in memory is refused', mk(true), false],
+      ['an unflagged customer not in memory is allowed', mk(false), true],
+    ]) {
+      const W = world(); const a = boot(W, { leads: [], getDoc });
+      a.R._setUploader(uploaderStub([]));
+      const r = await a.R.start({}); a.recorder().emit([1]); await a.R.stop(); await settle();
+      const res = await a.R.attach(r.id, 'Lunknown');
+      ok('attach: ' + label, res.ok === want, JSON.stringify(res));
+    }
+    const W = world(); const a = boot(W, { leads: [], getDoc: mk(false, 'offline') });
+    a.R._setUploader(uploaderStub([]));
+    const r = await a.R.start({}); a.recorder().emit([1]); await a.R.stop(); await settle();
+    const p = a.R.attach(r.id, 'Lunknown');
+    await settle();
+    a.fireTimers();
+    const res = await p;
+    ok('attach: a customer that cannot be checked (offline, not in memory) is refused, not guessed', res.ok === false && /do-not-record/.test(res.message), JSON.stringify(res));
+    ok('...and the recording is still unattached and safe', (await a.R._getVisit(r.id)).leadId === null);
+  }
+
+  // i. soft cap: reason travels with the stopped event and is recorded; the next start is part 2
+  {
+    const W = world();
+    const a = boot(W);
+    a.R._setUploader(uploaderStub([]));
+    const ev = []; a.R.subscribe((k, d) => { if (k === 'stopped') ev.push(d); });
+    const r1 = await a.R.start({}); a.recorder().emit([1]);
+    a.clock.t += 3601 * 1000; a.tickAll(); await settle();
+    ok('cap: the stopped event carries reason "cap" (the UI explains it)', ev.length === 1 && ev[0].reason === 'cap');
+    ok('cap: the row records why it stopped', (await a.R._getVisit(r1.id)).lastReason === 'cap');
+    a.clock.t += 60 * 1000;
+    const r2 = await a.R.start({}); a.recorder().emit([2]);
+    ok('cap: a recording started within 15 min is linked as part 2 of the capped one', (await a.R._getVisit(r2.id)).partOf === r1.id);
+    await a.R.stop(); await settle();
+    a.clock.t += 20 * 60 * 1000;
+    const r3 = await a.R.start({});
+    ok('control: after 15 min it is an ordinary recording', (await a.R._getVisit(r3.id)).partOf === null);
+  }
+
+  // j. retry plumbing the first suite could not see
+  {
+    const W = world();
+    const a = boot(W);
+    const up = []; a.R._setUploader(uploaderStub(up, (n) => (n < 1 ? 'fail' : 'ok')));
+    const r = await a.R.start({}); a.recorder().emit([4, 4]); await a.R.stop(); await settle();
+    let row = await a.R._getVisit(r.id);
+    ok('retry: a failed row waits (no immediate re-upload)', row.status === 'failed' && up.length === 1);
+    await a.R.drain('manual');
+    await settle();
+    row = await a.R._getVisit(r.id);
+    ok('retry: "Retry now" (manual) ignores the backoff and succeeds', up.length === 2 && row.status === 'uploaded');
+    ok('retry: a success resets the attempt counter', row.attempts === 0);
+    // the retry timer: a failed row with a schedule arms a timer that drains it
+    const W2 = world(); const b = boot(W2);
+    const up2 = []; b.R._setUploader(uploaderStub(up2, (n) => (n < 1 ? 'fail' : 'ok')));
+    const r2 = await b.R.start({}); b.recorder().emit([5]); await b.R.stop(); await settle();
+    ok('retry timer: a failed row has a timer armed', b.timers.some((t) => t.live && t.ms >= 1000));
+    W2.clock.t += 31000;
+    b.fireTimers(); await settle(); await settle();
+    ok('retry timer: when it fires the row is retried and uploaded', up2.length === 2 && (await b.R._getVisit(r2.id)).status === 'uploaded');
+    // a row the page died on mid-upload (status "uploading", no audioPath) is uploaded by the next window
+    const W3 = world(); const c = boot(W3, { online: false });
+    c.R._setUploader(uploaderStub([]));
+    const r3 = await c.R.start({}); c.recorder().emit([6, 6]); await c.R.stop(); await settle();
+    await c.R._getVisit(r3.id);
+    // flip it to "uploading" the way a killed upload leaves it (patch through a second window's store)
+    const flip = boot(W3);
+    await new Promise((res) => {
+      const req = W3.idb.indexedDB.open('nbd-visit-recorder-db');
+      req.onsuccess = () => {
+        const t = req.result.transaction(['visits'], 'readwrite');
+        const st = t.objectStore('visits');
+        const g = st.get(r3.id);
+        g.onsuccess = () => { const v = g.result; v.status = 'uploading'; v.progress = 40; st.put(v); };
+        t.oncomplete = () => res();
+      };
+    });
+    const next = boot(W3);
+    const up3 = []; next.R._setUploader(uploaderStub(up3));
+    await next.R.drain('boot'); await settle(); await settle();
+    ok('an "uploading" row left by a killed page is uploaded by the next window', up3.length === 1 && eq(up3[0].bytes, [6, 6]) && (await next.R._getVisit(r3.id)).status === 'uploaded', JSON.stringify(up3.length));
+  }
+
+  // k. only the signed-in user's rows are touched, each guard on its own
+  {
+    const W = world();
+    const a = boot(W);
+    a.navigator.onLine = false;
+    a.R._setUploader(uploaderStub([]));
+    const r = await a.R.start({}); a.recorder().emit([1]); await a.R.stop(); await settle();
+    const other = boot(W);
+    other.win.auth.currentUser = { uid: 'u2' };
+    other.R._setUploader(uploaderStub([]));
+    ok('another user: list() shows none of the first user\'s rows', (await other.R.list()).length === 0);
+    ok('another user: recoverInterrupted() does not touch them', (await other.R.recoverInterrupted()).length === 0);
+    const counters = await other.R.refreshCounters();
+    ok('another user: their counters do not count them', counters && counters.unfiled === 0 && counters.pending === 0, JSON.stringify(counters));
+    ok('control: the owner sees the row', (await a.R.list()).length === 1);
+    // a stale "uploading" row of someone else is never forced through by an online event
+    const up = []; other.R._setUploader(uploaderStub(up));
+    other.navigator.onLine = true; other.fire('window', 'online'); await settle(); await settle();
+    ok('another user: an online event uploads nothing of the first user', up.length === 0 && (await a.R._getVisit(r.id)).status === 'stored');
+  }
+  {
+    // a cut-off recording belongs to the account that made it: another account's window leaves it alone
+    const W = world();
+    const a = boot(W);
+    const r = await a.R.start({}); a.recorder().emit([3, 3]); await settle();
+    W.clock.t += 5 * 60000;
+    const other = boot(W);
+    other.win.auth.currentUser = { uid: 'u2' };
+    ok('another user: a cut-off recording is not recovered by someone else\'s window', (await other.R.recoverInterrupted()).length === 0 && (await other.R._getVisit(r.id)).status === 'recording');
+    const owner = boot(W);
+    ok('control: the account that made it does recover it', (await owner.R.recoverInterrupted()).length === 1);
+  }
+
+  // m. a discard that lands while the doc write is being acknowledged: the row is not touched again
+  {
+    const W = world();
+    const a = boot(W);
+    a.R._setUploader(uploaderStub([]));
+    a.R._setDeleter(async () => {});
+    W.firestore.state.mode = 'hold';
+    const r = await a.R.start({});
+    a.recorder().emit([8]);
+    await a.R.stop(); await settle();
+    // the upload finished; the doc write (confirmUploaded's mirror) is being held
+    const before = await a.R._getVisit(r.id);
+    ok('setup: uploaded, doc acknowledgement still pending', before.status === 'uploaded' && before.docSynced === false, JSON.stringify([before.status, before.docSynced]));
+    await a.R.discard(r.id);
+    W.firestore.state.mode = 'ok';
+    W.firestore.state.held.splice(0).forEach((fn) => fn());
+    await settle(); await settle();
+    const after = await a.R._getVisit(r.id);
+    ok('discard during the doc acknowledgement: the late ack does not mark the discarded row synced', after.status === 'discarded' && after.docSynced === false, JSON.stringify([after.status, after.docSynced]));
+  }
+
+  // l. chunk order with more than 9 chunks: padded keys keep numeric order, the assembly sorts regardless
+  {
+    const W = world();
+    const a = boot(W);
+    const up = []; a.R._setUploader(uploaderStub(up));
+    const r = await a.R.start({});
+    const expected = [];
+    for (let i = 0; i < 12; i++) { a.recorder().emit([i, i], 0); expected.push(i, i); }
+    await a.R.stop(); await settle();
+    ok('12 chunks (seq 0..11) upload in numeric order, not string order', up.length === 1 && eq(up[0].bytes, expected), JSON.stringify(up[0] && up[0].bytes));
+    ok('and the chunks are gone once the server has both object and doc', (await a.R._chunksFor(r.id)).length === 0);
+    // while pending, all 12 rows are on disk
+    const W2 = world(); const b = boot(W2, { online: false });
+    const r2 = await b.R.start({});
+    for (let i = 0; i < 12; i++) b.recorder().emit([i], 0);
+    await b.R.stop(); await settle();
+    const rows = await b.R._chunksFor(r2.id);
+    ok('while pending, 12 chunk rows are on disk, numerically ordered by key', rows.length === 12 && rows.every((c, i) => c.seq === i), rows.length + ' rows');
   }
 
   // ── static: no innerHTML, no inline handlers, no inline styles in the new files ──

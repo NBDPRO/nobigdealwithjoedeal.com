@@ -170,6 +170,10 @@
     function push(lead, leadId, kind, evidence) {
       var id = String(leadId || '');
       if (!id || used[id]) return;
+      // A customer we cannot find in memory has no name and no do-not-record flag we
+      // could check: only the one the recording was started from is offered blind
+      // (and attach() re-checks it against the lead doc before filing anything).
+      if (!lead && kind !== 'attached') return;
       if (lead && isDoNotRecord(lead)) return;
       used[id] = true;
       out.push({ leadId: id, name: leadName(lead) || 'Customer', kind: kind, evidence: evidence, address: lead && lead.address ? String(lead.address) : '' });
@@ -225,10 +229,14 @@
     var mode = CONSENT_MODES.indexOf(cfg.consentMode) >= 0 ? cfg.consentMode : 'one_party';
     var reminder = cfg.reminder === true;
     var twoParty = mode !== 'one_party';
+    // known:false = this company's setting was never read on this phone. Fail
+    // CLOSED: a company that chose a two-party mode must not be skipped because a
+    // cache was empty. One tap, and the visit records that it was shown.
+    var unknown = cfg.known === false;
     var line = '';
     if (twoParty) line = 'Tell them you are recording this visit and get a yes before you start.';
-    else if (reminder) line = 'Reminder: tell them you are recording this visit.';
-    return { mode: mode, needsSheet: twoParty || reminder, line: line, needsAck: twoParty };
+    else if (reminder || unknown) line = 'Reminder: tell them you are recording this visit.';
+    return { mode: mode, needsSheet: twoParty || reminder || unknown, line: line, needsAck: twoParty, unknown: unknown };
   }
 
   // ── start gate ────────────────────────────────────────────────────────
@@ -269,6 +277,8 @@
     var s = row && row.status;
     if (s === 'recording') return { text: 'Recording', tone: 'live' };
     if (s === 'discarded') return { text: 'Discarded', tone: 'off' };
+    // Not "Uploaded" until the server has the doc too (docSynced), or it would be a lie.
+    if (s === 'uploaded' && row.docSynced === false) return { text: 'Saved on phone - confirming with the server', tone: 'busy' };
     if (s === 'uploaded') return { text: 'Uploaded', tone: 'ok' };
     if (s === 'uploading') {
       var p = row && typeof row.progress === 'number' ? ' ' + Math.round(row.progress) + '%' : '';
