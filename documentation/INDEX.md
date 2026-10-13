@@ -379,7 +379,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 
 ## QA sweeps (dated campaign folders)
 
-Standalone reports: [phone-audit-2026-09-25](qa/phone-audit-2026-09-25.md) · [tenant-lifecycle-audit-2026-07](qa/tenant-lifecycle-audit-2026-07.md) · [homeowner-content-audit-2026-07](qa/homeowner-content-audit-2026-07.md) · [homeowner-consistency-audit-2026-07-15](qa/homeowner-consistency-audit-2026-07-15.md) · [homeowner-site-audit-B-C-D-E-2026-07](qa/homeowner-site-audit-B-C-D-E-2026-07.md)
+Standalone reports: [phone-audit-2026-09-25](qa/phone-audit-2026-09-25.md) · [tenant-lifecycle-audit-2026-07](qa/tenant-lifecycle-audit-2026-07.md) · [homeowner-content-audit-2026-07](qa/homeowner-content-audit-2026-07.md) · [homeowner-consistency-audit-2026-07-15](qa/homeowner-consistency-audit-2026-07-15.md) · [homeowner-site-audit-B-C-D-E-2026-07](qa/homeowner-site-audit-B-C-D-E-2026-07.md) · [text-day-reopen-2026-10-13](qa/text-day-reopen-2026-10-13.md)
 
 Campaign folders (each has its own STATUS / BUG-LOG / CLEANUP):
 
