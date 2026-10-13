@@ -75,7 +75,7 @@ const row = (r, k) => r.rows.find((x) => x.key === k);
   const v = read('docs/pro/js/call-center-view.js');
   ok('the Call Center renders the strip and loads it on init', /healthPanel\(\) \+ tagPanel\(\)/.test(v) && /init: function \(\) \{ load\(\); loadPromises\(\); loadHealth\(\)/.test(v));
   ok('a failed read says so (never renders green)', /Could not check the call pipeline just now/.test(v));
-  ok('loader cache-busted', /call-center-view\.js\?v=1[5-9]/.test(read('docs/pro/js/script-loader.js')));
+  ok('loader cache-busted', /call-center-view\.js\?v=(1[5-9]|[2-9]\d)/.test(read('docs/pro/js/script-loader.js')));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
