@@ -438,12 +438,12 @@ async function runI() {
   const fakeEl = () => { const e = { innerHTML: '', hidden: false, _kids: [], setAttribute() {}, appendChild(k) { if (k && k.id) els[k.id] = k; }, focus() {}, querySelector(sel) { return sel === '.cl-sheet' ? (this._sheet || (this._sheet = { innerHTML: '', querySelector() { return child; }, focus() {} })) : child; }, parentNode: null, className: '', id: '' }; return e; };
   const els = {}; const child = { focus() {} };
   function bootLabels(o) {
-    const toasts = [], writes = [], timers = [], listeners = {}, created = [];
+    const toasts = [], writes = [], timers = [], listeners = {}, created = [], attempts = [];
     const w = { _user: { uid: 'u1' }, _userClaims: { role: 'company_admin', companyId: 'co' }, NBDContactLabelsLogic: LG, db: {}, collection: () => ({}),
       doc: (...a) => ({ p: a.slice(1).join('/') }),
       getDocs: async () => ({ docs: (o.server || []).map((x) => ({ id: x.id, data: () => x })) }),
-      setDoc: async (r, d) => { if (o.failFor && r.p.endsWith(o.failFor)) throw { code: 'unavailable' }; writes.push([r.p, d]); },
-      deleteDoc: async (r) => { if (o.failFor && r.p.endsWith(o.failFor)) throw { code: 'unavailable' }; writes.push([r.p, null]); },
+      setDoc: async (r, d) => { attempts.push(['set', r.p]); if (o.failFor && r.p.endsWith(o.failFor)) throw { code: 'unavailable' }; writes.push([r.p, d]); },
+      deleteDoc: async (r) => { attempts.push(['delete', r.p]); if (o.failFor && r.p.endsWith(o.failFor)) throw { code: 'unavailable' }; writes.push([r.p, null]); },
       showToast: (m) => toasts.push(m), addEventListener() {}, dispatchEvent() {}, CustomEvent: function () {}, _leads: o.leads || [] };
     const docEls = {};
     w.document = { addEventListener: (t, f) => { (listeners[t] = listeners[t] || []).push(f); }, getElementById: (id) => docEls[id] || null,
@@ -454,7 +454,7 @@ async function runI() {
     if (o.callCenter) c.NBDCallCenter = o.callCenter;
     vm.runInContext(read('docs/pro/js/contact-labels.js'), c);
     const click = (attrs, sel) => listeners.click.forEach((f) => f({ target: { closest: (s) => ((sel ? s === sel : /^\[data-cl\]$/.test(s)) ? { getAttribute: (k) => (attrs[k] == null ? null : attrs[k]) } : null) } }));
-    return { c, LB: c.NBDContactLabels, toasts, writes, timers, click, docEls, created };
+    return { c, LB: c.NBDContactLabels, toasts, writes, timers, click, docEls, created, attempts };
   }
   const dd = (id, o) => Object.assign({ id, digits: id, kind: 'supplier', policy: 'quiet', updatedAtMs: NOW - DAY, createdAtMs: NOW - DAY, companyId: 'co', updatedBy: 'u1' }, o || {});
   const A = '5550140001', B = '5550140002';
@@ -464,10 +464,11 @@ async function runI() {
     const r = await p.LB.clear([A, B]);
     const bar = (p.docEls.clUndo || {}).innerHTML || '';
     ok('clear([A,B]) with B failing: ok:false and the Undo says 1 of 2 could not be removed', r.ok === false && /1 of 2 numbers could not be removed/.test(bar), bar);
-    p.writes.length = 0;
+    p.writes.length = 0; p.attempts.length = 0;
     p.click({ 'data-cl': 'undo' });
     await tick(); await tick();
     ok('...and that Undo restores only the number that was removed', p.writes.length === 1 && /5550140001$/.test(p.writes[0][0]), JSON.stringify(p.writes.map((x) => x[0])));
+    ok('...and makes NO restore attempt at all for the number whose removal failed', p.attempts.length === 1 && /5550140001$/.test(p.attempts[0][1]) && !p.attempts.some((a) => /5550140002$/.test(a[1])), JSON.stringify(p.attempts));
   }
   {
     // rendered personal confirm (not the unrelated Unlabel toast)
@@ -534,6 +535,9 @@ async function runI() {
     const lab = { [N]: { kind: 'supplier', policy: 'quiet', updatedAtMs: NOW - DAY } };
     const tw = bootS({ leads: [Object.assign({ createdAt: NOW - H }, lead1)], labels: lab, profile: { twilioNumber: N } });
     ok('the company twilioNumber is an own number (no row)', tw.S.forToday().length === 0);
+    const fmt = bootS({ leads: [Object.assign({ createdAt: NOW - H }, lead1)], labels: lab, profile: { phone: '(555) 014-2222', twilioNumber: '+15550142222' } });
+    ok('own numbers are normalised (formatted phone, +1 twilio): no row', fmt.S.forToday().length === 0);
+    ok('control: an unrelated own number does not hide the row', bootS({ leads: [Object.assign({ createdAt: NOW - H }, lead1)], labels: lab, profile: { phone: '(555) 014-9999' } }).S.forToday().length === 1);
     const q = bootS({ leads: [Object.assign({ createdAt: NOW - H }, lead1, { firstName: 'a" onmouseover="x', lastName: "O'Neil" })], labels: lab });
     const html = q.S.chipHtml(q.S.forToday()[0]);
     ok('a name with quotes cannot open an attribute (escaped, no live onmouseover)', !/\sonmouseover="/.test(html) && /&quot; onmouseover=&quot;x/.test(html) && /O&#39;Neil/.test(html), html);
