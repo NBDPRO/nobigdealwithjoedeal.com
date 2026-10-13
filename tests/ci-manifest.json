@@ -359,6 +359,7 @@
     "sms-outbox-client.test.js",
     "sms-outbox-server.test.js",
     "sms-send-optout-order.test.js",
+    "sms-consent-declined-2026-10-13.test.js",
     "email-unsubscribe.test.js",
     "viewer-callables.test.js",
     "state-store.test.js",

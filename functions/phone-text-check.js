@@ -62,6 +62,7 @@ const OptOut = require('./sms-optout');
 const TextingGate = require('./sms-texting-gate');
 const SendWindow = require('./sms-send-window');
 const Outbox = require('./sms-outbox-guard');
+const ConsentDeclined = require('./sms-consent-declined');
 const { isEnabled: twilioLineEnabled } = require('./twilio-line-logic');
 
 const CORS_ORIGINS = [
@@ -79,7 +80,7 @@ const BODY_MAX = 1600;
 /** What the owner is told, per refusal code. */
 const REASONS = Object.freeze({
   no_phone: 'No textable phone number for this customer.',
-  declined: 'This customer said NO to texts on their form. Call or email instead.',
+  declined: ConsentDeclined.refusalMessage(ConsentDeclined.CODES.DECLINED),
   opted_out: 'This customer replied STOP — they asked not to be texted. Call or email instead.',
   dnc: 'This number is on your company\'s Do Not Text list. Call or email instead.',
   switched_off: 'Texting is switched off for your company (Settings → Texting). Nothing was sent.',
@@ -116,7 +117,6 @@ async function okToText(db, a) {
   const key = OptOut.optOutKey(a.phone);
   if (key.length !== 10) return refusal('no_phone');
   const lead = a.crew ? null : (a.lead || null);
-  if (lead && lead.tcpaConsent === false) return refusal('declined');
   let optOut;
   let status;
   try {
@@ -131,6 +131,22 @@ async function okToText(db, a) {
     // A stop_reply entry on the company's list is the homeowner's own STOP
     // (R6-3-5 keeps a phone-reported STOP there), so say so.
     return refusal(optOut.source === 'dnc' && optOut.dncSource !== 'stop_reply' ? 'dnc' : 'opted_out');
+  }
+  // C-7 (audit 2026-10-13, option A): a number whose form DECLINED texting is
+  // texted only inside the inbound-reply window (sms-consent-declined.js — the
+  // same decision sendSMS and the approved-AI-reply trigger ask). After the
+  // STOP register on purpose: STOP always wins and reads as itself. A crew
+  // text (a sub) is not a homeowner. `a.kind` 'automated' = no inbound exemption.
+  if (!a.crew) {
+    const cd = await ConsentDeclined.decide(db, {
+      phone: a.phone, lead, leadId: lead && lead.id, tenants: a.tenants,
+      kind: a.kind || 'reply', nowMs: a.nowMs, logger,
+    });
+    if (!cd.allowed) {
+      return cd.code === ConsentDeclined.CODES.UNVERIFIED
+        ? refusal('unverified')
+        : refusal('declined', { detail: cd.code });
+    }
   }
   // The company's own OFF switch. Not `allowed`: `not_registered` is about
   // the shared business line's brand, and this text goes from a phone.
@@ -201,6 +217,7 @@ async function handle(request) {
       tenants: [caller.tenant, lead && TextingGate.tenantKeyOfRecord(lead)].filter(Boolean),
       switchTenant: caller.tenant,
       lead, crew, nowMs,
+      kind: ConsentDeclined.kindForSource(data.source),
     });
     // TODO(TWILIO_INBOUND_ENABLED): when true, the client should send through
     // the business line instead of the owner's phone. Reported only.

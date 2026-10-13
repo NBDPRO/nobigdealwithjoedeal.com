@@ -360,7 +360,7 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
   // 5xx answers that are a server VERDICT "nothing was sent" (a check could
   // not run, or the queued-gate budget is spent): the text is certainly not
   // on the homeowner's phone. A plain 500 is not one of them.
-  const NOT_SENT_5XX = { outbox_unverified: 1, optout_unverified: 1, outbox_throttled: 1 };
+  const NOT_SENT_5XX = { outbox_unverified: 1, optout_unverified: 1, outbox_throttled: 1, consent_check_unverified: 1 };
 
   /**
    * One answer from sendQueuedSMS → the outbox's outcome vocabulary (see
@@ -525,6 +525,10 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
             leadId: leadId || undefined,
             knockId: knockId || undefined,
             clientMsgId: clientMsgId || undefined,
+            // What this text IS ('review_request', 'winback', ...). The server
+            // refuses a campaign text to a number whose form declined texting
+            // even when they texted first (sms-consent-declined.js).
+            source: (args && typeof args.source === 'string' && args.source) ? args.source.slice(0, 40) : undefined,
           });
         if (plat.status === 0 && _outbox() && user) {
           // "May have gone" only when a request can actually have left: not
@@ -604,7 +608,7 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       // not run — blocks the hand-off. Resolved at CALL time (script order).
       const PS = window.NBDPhoneShare;
       const chk = (PS && typeof PS.checkText === 'function')
-        ? await PS.checkText(leadId ? { phone: to, leadId } : { phone: to, recipient: 'number' })
+        ? await PS.checkText(leadId ? { phone: to, leadId, source: args.source } : { phone: to, recipient: 'number', source: args.source })
         : null;
       if (!chk || chk.ok !== true) {
         const msg = (chk && chk.reason)
@@ -661,6 +665,9 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       // An edit names the id(s) it replaces; the server holds it if one of
       // them reached Twilio after all.
       if (Array.isArray(rec.supersedes) && rec.supersedes.length) payload.supersedes = rec.supersedes.slice(-5);
+      // The text's own label survives the queue: a campaign text stays a
+      // campaign when replayed (declined-consent policy, sms-consent-declined.js).
+      if (typeof rec.source === 'string' && rec.source) payload.source = rec.source.slice(0, 40);
       if (opts.overrideStale === true) payload.overrideStale = true;
       if (opts.overrideActivity === true) payload.overrideActivity = true;
       return _queuedOutcome(await _platformPost(QUEUED_FN, payload));

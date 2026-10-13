@@ -126,7 +126,9 @@ function makeWorld(opts) {
     limit: () => query(name, filters),
     get: async () => {
       events.push('query:' + name + ':' + filters.map(([f]) => f).join(','));
-      if (opts.smsLogQueryThrows) throw new Error('simulated query failure');
+      // sms_log only: the declined-consent gate (C-7) reads leads by number
+      // on every send and must fail closed on ITS read errors, not this one.
+      if (opts.smsLogQueryThrows && name === 'sms_log') throw new Error('simulated query failure');
       const rows = (name === 'sms_log' ? (opts.priorSmsLog || []) : [])
         .filter((r) => filters.every(([f, v]) => r[f] === v));
       return { empty: rows.length === 0, size: rows.length, docs: rows.map((r) => ({ data: () => r })) };
