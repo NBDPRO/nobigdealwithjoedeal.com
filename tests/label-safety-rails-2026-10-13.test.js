@@ -271,18 +271,134 @@ console.log('F. wiring pins');
   });
   const man = JSON.parse(read('tests/ci-manifest.json'));
   ok('the test is in ci-manifest.json', JSON.stringify(man).indexOf('label-safety-rails-2026-10-13.test.js') !== -1);
-  const ui = read('docs/pro/js/contact-suggest.js') + read('docs/pro/js/contact-labels.js');
-  ok('no inline handler attributes in the label UI', !/\son(click|change|input)=/i.test(ui));
-  const sheet = read('docs/pro/js/contact-labels.js');
+  // A token in a comment must not satisfy a pin: strip comments first, and prove
+  // the stripper works with a positive control.
+  const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"])\/\/[^\n]*/g, '$1');
+  ok('control: stripComments removes a commented token and keeps code', !/setFilter/.test(stripComments("// setFilter('labeled')\n/* setFilter */")) && /setFilter/.test(stripComments("cc.setFilter('x');")));
+  const INLINE = /\son[a-z]+\s*=/i;
+  ok('control: the inline-handler pattern catches onclick / onerror / spaced forms', INLINE.test('<b onclick="x">') && INLINE.test('<img onerror = y>') && INLINE.test(' onfoo=1') && !INLINE.test('<b class="one">'));
+  const ui = stripComments(read('docs/pro/js/contact-suggest.js') + read('docs/pro/js/contact-labels.js') + read('docs/pro/js/contact-suggest-logic.js') + read('docs/pro/js/contact-labels-logic.js'));
+  ok('no inline handler attributes in the label UI (any event name)', !INLINE.test(ui));
+  const sheet = stripComments(read('docs/pro/js/contact-labels.js'));
   ok('the personal confirm warns skipped texts cannot be brought back', /can.?t be brought back|cannot be brought back|not be brought back/i.test(sheet));
-  const tn = read('functions/text-inbox.js');
-  ok('text notes skip a capture-off day (and yield to a newer customer) before noting', /groupTextDays\(rows, \{ nowMs \}\)\.filter\(\(d\) => !CL\.captureOff\(labels, d\.phoneDigits, idx\.get\(d\.phoneDigits\)\)\)/.test(tn));
+  const tn = stripComments(read('functions/text-inbox.js'));
+  ok('text notes filter capture-off days through captureOff (comments stripped)', /groupTextDays\(rows, \{ nowMs \}\)\.filter\(\(d\) => !CL\.captureOff\(labels, d\.phoneDigits, idx\.get\(d\.phoneDigits\)\)\)/.test(tn));
   ok('the sheet repaints an effect line for the current choice', /cl-effect/.test(sheet));
-  ok('the hidden-by-labels line opens the Labeled list', /setFilter\('labeled'\)/.test(sheet));
-  ok('Keep hidden (ack) offers an Undo', /showUndo\([^)]*Kept hidden|showUndo\('Kept/.test(sheet));
+  ok('Keep hidden (ack) offers an Undo', /showUndo\('Kept hidden/.test(sheet));
 }
 
-gDone.then(() => {
+async function runH() {
+  console.log('H. strengthened guards (vacuous-test audit, 2026-10-13)');
+  const FAR = NOW + 400 * DAY;
+  // far-future stamps cannot park a hidden number (both mirrors)
+  const onLeadCall = [call({ id: 'f1', leadId: 'L1', bucket: 'customer', startedAtMs: NOW - H })];
+  [['server', W], ['client', HA]].forEach(([who, impl]) => {
+    ok(who + ': a far-future ackAtMs is ignored — the hidden number on a customer still resurfaces', impl.resurfacedNumbers(onLeadCall, lab('personal', 'hide', { ackAtMs: FAR }), NOW).length === 1);
+    ok(who + ': a far-future updatedAtMs is ignored too', impl.resurfacedNumbers(onLeadCall, { [N]: { kind: 'personal', policy: 'hide', updatedAtMs: FAR } }, NOW).length === 1);
+    ok(who + ' control: a sane ackAtMs after the call DOES silence it', impl.resurfacedNumbers(onLeadCall, lab('personal', 'hide', { ackAtMs: NOW - 10 * MIN }), NOW).length === 0);
+  });
+  // effect copy MEANING, not keywords
+  const q = LG.effectText('supplier', 'quiet');
+  ok('quiet effect: urgent and missed calls "will not show" and nothing says they will', /will not show/.test(q) && !/\bwill show\b/.test(q) && !/still shows/.test(q), q);
+  ok('hide personal: an urgent call "still shows"; hide spam: "does not break through"', /urgent call still shows/.test(LG.effectText('personal', 'hide')) && /does not break through/.test(LG.effectText('spam', 'hide')) && !/still shows\.$/.test(LG.effectText('spam', 'hide').replace(/ If the number.*$/, '')));
+  // capOff only for personal
+  const sp = LG.buildDoc({ digits: N, kind: 'supplier', policy: 'quiet', capture: 'off', companyId: 'c', uid: 'u', nowMs: NOW });
+  ok('buildDoc: capture off on a non-personal kind neither forces hide nor is stored', sp && sp.policy === 'quiet' && sp.capture === undefined, JSON.stringify(sp));
+  const sp2 = LG.buildDoc({ digits: N, kind: 'spam', policy: 'surface', capture: 'off', companyId: 'c', uid: 'u', nowMs: NOW });
+  ok('buildDoc: spam + capture off keeps the chosen surface policy', sp2 && sp2.policy === 'surface' && sp2.capture === undefined);
+  // reconcile branches
+  const L0 = (id, o) => Object.assign({ id, firstName: 'Pat', lastName: 'Lee', phone: N }, o);
+  const qlab = { [N]: { kind: 'supplier', policy: 'quiet', updatedAtMs: NOW - 6 * H } };
+  ok('reconcile: an archived lead is not live', LG.reconcile(qlab, [L0('A', { archived: true, createdAt: NOW - H })], { now: NOW }).length === 0);
+  ok('reconcile control: the same lead not archived is listed', LG.reconcile(qlab, [L0('A', { createdAt: NOW - H })], { now: NOW }).length === 1);
+  const two = LG.reconcile(qlab, [L0('OLDER', { createdAt: NOW - 2 * H }), L0('NEWER', { createdAt: NOW - H, firstName: 'Zed' })], { now: NOW });
+  ok('reconcile: two leads on one number -> one row, the NEWEST customer', two.length === 1 && two[0].leadId === 'NEWER' && two[0].name === 'Zed Lee', JSON.stringify(two));
+  ok('reconcile: createdAtMs is read when createdAt is absent', LG.reconcile(qlab, [L0('M', { createdAtMs: NOW - H })], { now: NOW }).length === 1);
+  const sc = LG.reconcile({ [N]: { kind: 'personal', policy: 'surface', capture: 'off', updatedAtMs: NOW - 6 * H } }, [L0('A', { createdAt: NOW - H })], { now: NOW });
+  ok('reconcile: surface + capture off (a raw doc) is still listed as capture-off', sc.length === 1 && sc[0].captureOff === true);
+  ok('reconcile control: surface + NO capture off is not listed', LG.reconcile({ [N]: { kind: 'customer', policy: 'surface', updatedAtMs: NOW - 6 * H } }, [L0('A', { createdAt: NOW - H })], { now: NOW }).length === 0);
+  // server captureOff edges
+  const cl0 = { [N]: { kind: 'personal', policy: 'hide', capture: 'off', updatedAtMs: NOW - 5 * DAY, ackAtMs: 0 } };
+  ok('captureOff: a DELETED newer lead is not a customer', CL.captureOff(cl0, N, [{ id: 'D', deleted: true, createdAt: NOW - H }]) === true);
+  ok('captureOff: a lead created at exactly the label time is not newer (> not >=)', CL.captureOff(cl0, N, [{ id: 'E', createdAt: NOW - 5 * DAY }]) === true && CL.captureOff(cl0, N, [{ id: 'E', createdAt: NOW - 5 * DAY + 1 }]) === false);
+  ok('captureOff: createdAtMs is read when createdAt is absent', CL.captureOff(cl0, N, [{ id: 'F', createdAtMs: NOW - H }]) === false);
+  // suggestion fields
+  const sgBase = { digits: N, calls: [call({ id: 'a', callType: 'supplier', startedAtMs: NOW - 2 * H }), call({ id: 'b', callType: 'supplier', startedAtMs: NOW - H })], thursday: [], labels: {}, dismissals: {}, now: NOW };
+  const sOn = SG.suggestFor(Object.assign({}, sgBase, { onLead: true, leadName: 'Pat Lee' }));
+  const sOff = SG.suggestFor(Object.assign({}, sgBase, { onLead: false }));
+  ok('suggestion carries onLead + leadName (and false/empty off a customer)', sOn.onLead === true && sOn.leadName === 'Pat Lee' && sOff.onLead === false && sOff.leadName === '');
+
+  // contact-suggest.js in a vm: row ordering, cap, own number, button labels, chip effect text
+  function bootS(o) {
+    const listeners = {};
+    const w = { NBDContactLabelsLogic: LG, NBDContactSuggestLogic: SG, _user: { uid: 'u1' }, _userClaims: { role: 'company_admin', companyId: 'co' },
+      _leads: o.leads || [], _companyProfile: o.profile || {}, NBDHomeAttention: { lastRows: o.rows || [] },
+      NBDContactLabels: { canWrite: () => true, current: () => o.labels || {}, get: () => null, ack: async () => ({ ok: true }), clear: async () => ({ ok: true }), openSheet() {}, applyWithUndo: async () => ({ ok: true }) },
+      addEventListener() {}, dispatchEvent() {}, showToast() {}, getDocs: async () => ({ docs: [] }) };
+    w.document = { addEventListener: (t, f) => { listeners[t] = f; } };
+    const c = vm.createContext(Object.assign({ console, Date, JSON, Math, Object, Array, String, Number, Promise, CustomEvent: function () {} }, w));
+    c.window = c; c.setTimeout = () => 0;
+    vm.runInContext(read('docs/pro/js/contact-suggest.js'), c);
+    return c.NBDContactSuggest;
+  }
+  const realNow = Date.now; Date.now = () => NOW;
+  try {
+    const mkLead = (id, d, ms) => ({ id, firstName: 'P' + id, lastName: 'Q', phone: d, createdAt: NOW - ms });
+    const nums = ['5550141001', '5550141002', '5550141003'];
+    const labs3 = {}; nums.forEach((d) => { labs3[d] = { kind: 'supplier', policy: 'quiet', updatedAtMs: NOW - DAY }; });
+    const leads3 = nums.map((d, i) => mkLead('L' + i, d, (i + 1) * H));
+    const ordinary = call({ id: 'o1', phoneDigits: '5550149876', tags: ['sub'], contactName: 'Tag Sub', startedAtMs: NOW - H });
+    const S3 = bootS({ leads: leads3, labels: labs3, rows: [ordinary] });
+    const l3 = S3.forToday();
+    const recs = l3.filter((s) => s.type === 'reconcile');
+    ok('forToday: reconcile rows come BEFORE an ordinary suggestion that exists (positive control: it is present)', l3.some((s) => s.type !== 'reconcile') && l3[0].type === 'reconcile' && l3.findIndex((s) => s.type !== 'reconcile') > l3.map((s) => s.type).lastIndexOf('reconcile'), JSON.stringify(l3.map((s) => s.type)));
+    ok('forToday: at most 2 reconcile rows; the last carries more = hidden remainder', recs.length === 2 && !recs[0].more && recs[1].more === 1, JSON.stringify(recs.map((r) => r.more)));
+    ok('the "+N more" text is in the rendered row', /1 more like this/.test(S3.chipHtml(recs[1])));
+    const SO = bootS({ leads: [mkLead('L0', nums[0], H)], labels: { [nums[0]]: labs3[nums[0]] }, profile: { phone: nums[0] } });
+    ok('the owner\'s own number never raises a row', SO.forToday().length === 0);
+    const SC = bootS({ leads: [mkLead('L0', nums[0], H)], labels: { [nums[0]]: labs3[nums[0]] } });
+    ok('control: the same label with no own-number match raises the row', SC.forToday().length === 1);
+    const qh = SC.chipHtml(SC.forToday()[0]);
+    ok('quiet row: "Keep it hidden" button and the "and urgent" tail', />Keep it hidden</.test(qh) && /missed and urgent calls/.test(qh), qh);
+    const hideLab = { [nums[0]]: { kind: 'spam', policy: 'hide', updatedAtMs: NOW - DAY } };
+    const hh = bootS({ leads: [mkLead('L0', nums[0], H)], labels: hideLab });
+    const hhHtml = hh.chipHtml(hh.forToday()[0]);
+    ok('hide row: no "and urgent" in the tail (the contrast with quiet)', /Its missed calls stay off/.test(hhHtml) && !/missed and urgent/.test(hhHtml), hhHtml);
+    const capLab = { [nums[0]]: { kind: 'personal', policy: 'hide', capture: 'off', updatedAtMs: NOW - DAY } };
+    const cc = bootS({ leads: [mkLead('L0', nums[0], H)], labels: capLab });
+    ok('capture-off row: "Keep it off" and "Unlabel and record again"', />Keep it off</.test(cc.chipHtml(cc.forToday()[0])) && />Unlabel and record again</.test(cc.chipHtml(cc.forToday()[0])));
+    // chip effect lines
+    const eff = (s) => SC.chipHtml(Object.assign({ digits: N, title: 'Looks like Supplier', why: 'x' }, s));
+    const one = eff({ kind: 'supplier', needsSheet: false, effect: 'EFFECT-TEXT' });
+    ok('one-tap chip: "If you accept:" + the effect, in the effect div', /class="cl-sug-effect">If you accept: EFFECT-TEXT</.test(one), one);
+    const onl = eff({ kind: 'supplier', needsSheet: true, onLead: true, leadName: 'Sam Roe', effect: 'EFFECT-TEXT' });
+    ok('on-customer chip: names the customer and says it is not one tap', /on customer Sam Roe, so it is not one tap/.test(onl) && !/If you accept/.test(onl), onl);
+    const offl = eff({ kind: 'spam', needsSheet: true, onLead: false, effect: 'EFFECT-TEXT' });
+    ok('hiding-kind chip: says you pick next, never promises the effect', /You pick what happens to its calls next/.test(offl) && !/EFFECT-TEXT/.test(offl));
+    ok('control: a kind-less pattern chip has no effect div', !/cl-sug-effect/.test(eff({ kind: '', needsSheet: true, effect: '' })));
+  } finally { Date.now = realNow; }
+
+  // "See them" lands on the Labeled list (behavioural, in a vm)
+  {
+    const calls = []; const listeners = {};
+    const w = { _user: { uid: 'u1' }, _userClaims: { role: 'company_admin', companyId: 'co' }, NBDContactLabelsLogic: LG, db: {}, collection: () => ({}),
+      getDocs: async () => ({ docs: [] }), showToast() {}, addEventListener() {}, dispatchEvent() {}, CustomEvent: function () {}, _leads: [],
+      NBDCallCenter: { setFilter: (f) => calls.push(f), _state: { loaded: true } } };
+    w.document = { addEventListener: (t, f) => { (listeners[t] = listeners[t] || []).push(f); }, getElementById: () => null, createElement: () => ({ setAttribute() {}, appendChild() {}, style: {} }), body: { appendChild() {} } };
+    const c = vm.createContext(Object.assign({ console, Date, JSON, Math, Object, Array, String, Number, Promise, setTimeout: () => 0, clearTimeout() {} }, w));
+    c.window = c;
+    vm.runInContext(read('docs/pro/js/contact-labels.js'), c);
+    const hit = { closest: (sel) => (/tp-hidden/.test(sel) ? {} : null) };
+    const miss = { closest: () => null };
+    listeners.click.forEach((f) => f({ target: miss }));
+    ok('a click elsewhere does not touch the Call Center filter', calls.length === 0);
+    listeners.click.forEach((f) => f({ target: hit }));
+    ok('the hidden-by-labels line sets the Call Center filter to "labeled"', calls.join() === 'labeled', JSON.stringify(calls));
+  }
+}
+
+
+gDone.then(runH).then(() => {
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
 }).catch((e) => { console.error(e); process.exit(1); });
