@@ -562,7 +562,7 @@
   // The same action on every call in a person's group (✓ Handled all, or
   // filing all of an unknown number's calls on one customer). Status shows
   // on the group's card (keyed by its newest call).
-  async function actMany(ids, action, extra) {
+  async function actMany(ids, action, extra, quiet) {
     var lead = ids[0];
     ids.forEach(function (id) { state.busy[id] = true; });
     status(lead, 'Saving ' + ids.length + '…');
@@ -581,7 +581,7 @@
     ids.forEach(function (id) { delete state.busy[id]; });
     render();
     if (okIds.length && (action === 'handled' || action === 'unhandled')) refreshHome();
-    if (okIds.length && action === 'handled') undoToast('Marked ' + okIds.length + ' handled', function () { return actMany(okIds, 'unhandled'); });
+    if (okIds.length && action === 'handled' && !quiet) undoToast('Marked ' + okIds.length + ' handled', function () { return actMany(okIds, 'unhandled'); });
     if (failed) status(lead, ok + ' saved, ' + failed + ' did not — try again.');
     return { ok: ok, failed: failed, last: last };
   }
@@ -633,9 +633,14 @@
         return {
           label: g.calls.length > 1 ? 'Handled (all ' + g.calls.length + ')' : 'Handled',
           act: async function () {
-            var r = await actMany(ids, 'handled');
+            // quiet: the deck has its own Undo button (no second toast).
+            var r = await actMany(ids, 'handled', null, true);
             if (r.failed) throw new Error(r.failed + ' did not save — try again.');
-            return { undo: async function () { await actMany(ids, 'unhandled'); ids.forEach(function (id) { var c = byId(id); if (c) c.handledAtMs = null; }); render(); } };
+            return { undo: async function () {
+              var u = await actMany(ids, 'unhandled', null, true);   // mirrors only the ids that saved
+              render();
+              if (u.failed) throw new Error(u.failed + ' could not be undone — they are still handled.');
+            } };
           },
         };
       },

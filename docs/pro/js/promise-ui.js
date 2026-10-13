@@ -343,7 +343,6 @@
     if (S) S.err = m || '';
     var e = doc.getElementById('prErr');
     if (e) e.textContent = m || '';
-    else if (S) paint();
   }
 
   function onInput(ev) {
@@ -391,7 +390,7 @@
         var rest = st.callIds.slice(1);
         var restRes = await Promise.allSettled(rest.map(function (id) { return callable('callCenterAction', { id: id, action: 'handled' }); }));
         var restBad = 0;
-        restRes.forEach(function (x, i) { if (x.status === 'fulfilled') markHandledLocal(rest[i]); else restBad++; });
+        restRes.forEach(function (x, i) { if (x.status === 'fulfilled' && !(x.value && x.value.ok === false)) markHandledLocal(rest[i]); else restBad++; });
         if (restBad) toast('Promise saved, but ' + restBad + ' other call' + (restBad === 1 ? ' was' : 's were') + " not marked handled - they are still listed", 'error');
       } else {
         var built = PL.buildTask({
@@ -425,7 +424,7 @@
     var ids = st.callIds.slice();
     var res = await Promise.allSettled(ids.map(function (id) { return callable('callCenterAction', { id: id, action: 'handled' }); }));
     var left = [];
-    res.forEach(function (x, i) { if (x.status === 'fulfilled') markHandledLocal(ids[i]); else left.push(ids[i]); });
+    res.forEach(function (x, i) { if (x.status === 'fulfilled' && !(x.value && x.value.ok === false)) markHandledLocal(ids[i]); else left.push(ids[i]); });
     if (left.length) {
       // Retry asks only for what did not save.
       st.callIds = left;

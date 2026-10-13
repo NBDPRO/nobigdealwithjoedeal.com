@@ -103,7 +103,7 @@ function todayEnv(opts) {
     _httpsCallable: (_f, name) => async (data) => {
       calls.push({ name, data });
       if (gate) await gate;
-      if (failIds.has(data && data.id)) throw Object.assign(new Error('unavailable'), { code: 'unavailable' });
+      if (failIds.has(data && data.id) || failIds.has((data && data.action) + ':' + (data && data.id))) throw Object.assign(new Error('unavailable'), { code: 'unavailable' });
       return { data: { ok: true } };
     },
   });
@@ -153,13 +153,16 @@ function todayEnv(opts) {
     const h = t.html();
     ok('the Today row says urgent', /tp-hot">urgent</.test(h), h.slice(0, 600));
     ok('the Today row says missed call', /missed call/.test(h));
+    ok('the stray call is worded as another call from the same customer', /Another call from them/.test(h) && !/unfiled call from this number/.test(h), h.slice(0, 700));
+    ok('...and has the "I promised something" secondary too', /data-tp-act="promised" data-tp-key="lead:L1"/.test(h), h.slice(0, 900));
     ok('the stray call has its own Handled button (data-tp-key lead:L1)', /data-tp-act="handled" data-tp-key="lead:L1"/.test(h), h.slice(0, 900));
     await t.click('done', 'prom:L1');
     const handledIds = t.calls.filter((c) => c.data.action === 'handled').map((c) => c.data.id);
     ok('Done handles the promise-carrying call', handledIds.indexOf('cube_PROM01') !== -1, JSON.stringify(t.calls));
     ok('Done does NOT handle the urgent missed call', handledIds.indexOf('cube_URG001') === -1, JSON.stringify(handledIds));
     ok('...and Done ticked the task', t.tasksDone.indexOf('t1') !== -1);
-    ok('...and the urgent call is still on Today after Done', /cube_URG001|urgent/.test(t.html()) && /missed call/.test(t.html()), t.html().slice(0, 500));
+    ok('...and the urgent call is still on Today after Done (flagged urgent + missed, with its own Handled)', /tp-hot">urgent</.test(t.html()) && /missed call/.test(t.html()) && /data-tp-act="handled" data-tp-key="lead:L1"/.test(t.html()), t.html().slice(0, 500));
+    ok('...and the strip was asked to re-read (Done touched calls)', t.rendered.indexOf(true) !== -1, JSON.stringify(t.rendered));
   }
   {
     const t = todayEnv({ rows: [urgCall, promCall], tasks: { L1: [task] } });
@@ -180,6 +183,10 @@ function todayEnv(opts) {
     const t = todayEnv({ rows: [urgCall, promCall], tasks: { L1: [task] } });
     await flush(); t.paint();
     ok('M3: with another call riding in the row, Done is not a bare "Done" (it says it is this one)', !/data-tp-act="done"[^>]*>✓ Done</.test(t.html()) && /data-tp-act="done"/.test(t.html()), t.html().slice(0, 700));
+    ok('M3: with a task on the row the button reads "Task done"', /data-tp-act="done"[^>]*>\u2713 Task done</.test(t.html()), t.html().slice(0, 700));
+    const noTask = todayEnv({ rows: [urgCall, promCall], tasks: {} });
+    await flush(); noTask.paint();
+    ok('M3: with no task on the row (only the promised call) it reads "Promise done"', /data-tp-act="done"[^>]*>\u2713 Promise done</.test(noTask.html()), noTask.html().slice(0, 700));
     const solo = todayEnv({ rows: [promCall], tasks: { L1: [task] } });
     await flush(); solo.paint();
     ok('control: with no other call, Done keeps its plain label', /data-tp-act="done"[^>]*>✓ Done</.test(solo.html()), solo.html().slice(0, 500));
@@ -211,6 +218,32 @@ function todayEnv(opts) {
     ok('...and Home / the strip re-reads', t.rendered.filter(Boolean).length >= 2, JSON.stringify(t.rendered));
   }
   {
+    // the row is hidden BEFORE the writes land, and a second tap does not send them twice
+    const t = todayEnv({ rows: [cA, cB], leads: [], promise: { openSheet() {}, waitingDays: () => 3 } });
+    await flush(); t.paint();
+    const key = (t.html().match(/data-tp-act="handled" data-tp-key="([^"]+)"/) || [])[1];
+    const release = t.hold();
+    const first = t.click('handled', key);
+    await flush();
+    ok('the row is hidden while the writes are still in flight (optimistic)', !/Pat Caller/.test(t.html()), t.html().slice(0, 300));
+    await t.click('handled', key);
+    release();
+    await first; await flush();
+    ok('a second tap while saving does not send the writes twice', t.calls.filter((c) => c.data.action === 'handled').length === 2, JSON.stringify(t.calls.map((c) => c.data.id)));
+  }
+  {
+    // Undo itself failing is told, not swallowed
+    const t = todayEnv({ rows: [cA, cB], leads: [], failIds: ['unhandled:cube_BBBB02'], promise: { openSheet() {}, waitingDays: () => 3 } });
+    await flush(); t.paint();
+    const key = (t.html().match(/data-tp-act="handled" data-tp-key="([^"]+)"/) || [])[1];
+    await t.click('handled', key);
+    const ut = t.toasts.filter((x) => typeof x.undoAction === 'function')[0];
+    t.toasts.length = 0;
+    await ut.undoAction(); await flush();
+    ok('a failing Undo is named (1 of 2), not swallowed', t.toasts.some((x) => x.type === 'error' && /undo/i.test(x.message) && /1 of 2/.test(x.message)), JSON.stringify(t.toasts));
+    ok('...and the call that did reopen is open locally, the other still handled', t.rows.filter((r) => !r.handledAtMs).map((r) => r.id).join() === 'cube_AAAA01', JSON.stringify(t.rows.map((r) => [r.id, r.handledAtMs])));
+  }
+  {
     const t = todayEnv({ rows: [cA, cB], leads: [], failIds: ['cube_BBBB02'], promise: { openSheet() {}, waitingDays: () => 3 } });
     await flush(); t.paint();
     const key = (t.html().match(/data-tp-act="handled" data-tp-key="([^"]+)"/) || [])[1];
@@ -220,7 +253,8 @@ function todayEnv(opts) {
     const saved = t.rows.filter((r) => r.handledAtMs).map((r) => r.id);
     const open = t.rows.filter((r) => !r.handledAtMs).map((r) => r.id);
     ok('...the call that did save is not asked again, the failed one is still open', saved.join() === 'cube_AAAA01' && open.join() === 'cube_BBBB02', 'saved=' + saved + ' open=' + open);
-    ok('...the error names the count (1 of 2)', t.toasts.some((x) => x.type === 'error' && /1 of 2|1 call/.test(x.message)), JSON.stringify(t.toasts));
+    ok('...the error names the count (1 of 2)', t.toasts.some((x) => x.type === 'error' && /1 of 2/.test(x.message)), JSON.stringify(t.toasts));
+    ok('...and the strip is asked to re-read after the failure', t.rendered.indexOf(true) !== -1, JSON.stringify(t.rendered));
   }
   {
     const opened = [];
@@ -236,12 +270,12 @@ function todayEnv(opts) {
   // ═══ the sheet itself (promise-ui.js) ═══════════════════════════════════
   console.log('\nH3. the sheet: busy, error on step 1, double tap');
   async function sheetEnv(failIds) {
-    const calls = [];
+    const calls = [], toasts = [];
     const failSet = new Set(failIds || []);
     let release = null, gate = null;
     const env = sandbox({
       _taskCache: {}, _leads: [], _userClaims: {}, _user: { uid: 'u1' },
-      showToast() {}, NBDHomeAttention: { lastRows: [], render() {} },
+      showToast(m, t) { toasts.push({ message: m, type: t }); }, NBDHomeAttention: { lastRows: [], render() {} },
       _functions: {},
       _httpsCallable: (_f, name) => async (data) => {
         calls.push({ name, data });
@@ -257,7 +291,7 @@ function todayEnv(opts) {
     const sheet = env.els.prSheet;
     const body = () => sheet.querySelector('#prBody').innerHTML;
     const tap = async (attrs) => { sheet._l.click.forEach((f) => f({ target: { closest: () => ({ getAttribute: (k) => (k in attrs ? attrs[k] : null) }) } })); await flush(); };
-    return { env, NP, calls, sheet, body, tap, failSet, hold: () => { gate = new Promise((r) => { release = r; }); }, release: () => { gate = null; release && release(); } };
+    return { env, NP, calls, toasts, sheet, body, tap, failSet, hold: () => { gate = new Promise((r) => { release = r; }); }, release: () => { gate = null; release && release(); } };
   }
   {
     const s = await sheetEnv(['cube_BBBB02']);
@@ -284,6 +318,14 @@ function todayEnv(opts) {
     ok('...and does not send the writes twice', s.calls.length === before, 'before=' + before + ' after=' + s.calls.length);
     s.release(); await flush();
     ok('control: once the saves land the sheet closes', s.sheet.hidden === true);
+  }
+
+  {
+    // saving a promise: the call's own write lands, the sibling calls' writes fail: told, not swallowed
+    const s = await sheetEnv(['cube_BBBB02', 'cube_CCCC03']);
+    await s.tap({ 'data-pr-act': 'kind', 'data-pr-val': 'callback' });
+    await s.tap({ 'data-pr-act': 'save' });
+    ok('a saved promise whose sibling calls failed to close says so', s.toasts.some((x) => x.type === 'error' && /Promise saved, but 2 other calls were not marked handled/.test(x.message)), JSON.stringify(s.toasts));
   }
 
   // ═══ H4: Call Center Handled repaints Home / Today ══════════════════════
@@ -313,6 +355,12 @@ function todayEnv(opts) {
     rendered.length = 0; calls.length = 0;
     await click({ 'data-cc': 'handledgroup', 'data-ids': 'cube_AAAA01,cube_BBBB02', 'data-id': 'cube_AAAA01' });
     ok('Handled (all N) repaints Home too', rendered.indexOf(true) !== -1 && calls.filter((c) => c.data.action === 'handled').length === 2, JSON.stringify({ rendered, n: calls.length }));
+    const gt = toasts.filter((x) => typeof x.undoAction === 'function').pop();
+    ok('...with an Undo for the whole group', !!gt && /2 handled/.test(gt.message), JSON.stringify(toasts.map((x) => x.message)));
+    calls.length = 0; rendered.length = 0;
+    if (gt) await gt.undoAction();
+    await flush();
+    ok('Undo (all) sends unhandled for both calls, reopens them locally and repaints Home', calls.filter((c) => c.data.action === 'unhandled').length === 2 && CC._state.calls.every((c) => !c.handledAtMs) && rendered.indexOf(true) !== -1, JSON.stringify({ calls: calls.map((c) => c.data), rendered, st: CC._state.calls.map((c) => c.handledAtMs) }));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

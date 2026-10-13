@@ -318,7 +318,7 @@
       var when = r.overdue ? '<b class="tp-hot">overdue</b>' : (r.dueYmd ? 'due today' : 'promised');
       // Label by what it closes (UX walk M3): with another call riding in the
       // row, Done must not read as "this person is done".
-      var doneLabel = (r.phoneCalls || []).length ? (r.tasks.length ? '✓ Task done' : '✓ Call handled') : '✓ Done';
+      var doneLabel = (r.phoneCalls || []).length ? (r.tasks.length ? '✓ Task done' : '✓ Promise done') : '✓ Done';
       var acts = (ro ? '' : btn('done', r.key, doneLabel, 'tp-go') + btn('tomorrow', r.key, 'Tomorrow')) + link(custUrl(r.leadId), 'Open');
       return row(r.key, esc(r.name), when + (bits.length ? ' · ' + bits.slice(0, 3).join(' · ') : '') + ucalls(r, ro), acts);
     });
@@ -513,7 +513,6 @@
   function undoToast(message, fn) {
     if (typeof w.showToast === 'function') w.showToast({ message: message, type: 'success', duration: UNDO_MS, undoAction: fn });
   }
-  var handling = {};   // row key -> true while its writes are in flight (a double tap is ignored)
   async function setCalls(ids, action) {
     var res = await Promise.allSettled(ids.map(function (id) { return callable('callCenterAction', { id: id, action: action }); }));
     var okIds = [], badIds = [];
@@ -522,16 +521,16 @@
   }
   async function handleNow(key) {
     var r = findRow(key);
-    if (!r || !r.callIds || !r.callIds.length || handling[key]) return;
-    handling[key] = true;
+    // markHandled + render below take the row out of the list before the first
+    // await, so a second tap on it finds nothing (findRow) and sends nothing.
+    if (!r || !r.callIds || !r.callIds.length) return;
     var ids = r.callIds.slice();
     var who = r.name || fmtPhone(r.phone) || 'this caller';
     var at = Date.now();
     markHandled(key);
     ids.forEach(function (id) { mirrorCall(id, at); });
     render();
-    var res;
-    try { res = await setCalls(ids, 'handled'); } finally { delete handling[key]; }
+    var res = await setCalls(ids, 'handled');
     if (res.bad.length) {
       res.bad.forEach(function (id) { mirrorCall(id, null); });
       unmarkHandled(key);
