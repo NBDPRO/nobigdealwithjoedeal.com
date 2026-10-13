@@ -15,6 +15,8 @@ const W = require('./call-watch-logic');
 const toMs = (v) => {
   if (!v) return 0;
   if (typeof v === 'number') return v;
+  if (v instanceof Date) return v.getTime() || 0;
+  if (typeof v === 'string') { const t = Date.parse(v); return Number.isFinite(t) ? t : 0; }
   if (typeof v.toMillis === 'function') return v.toMillis();
   if (typeof v._seconds === 'number') return v._seconds * 1000;
   if (typeof v.seconds === 'number') return v.seconds * 1000;
@@ -63,8 +65,8 @@ function captureOff(labels, phoneDigits, leadsOnNumber) {
   // leads is not indexed, so it never counts). A lead with no createdAt is
   // legacy and predates the label.
   const base = Math.max(Number(lb.ackAtMs) || 0, Number(lb.updatedAtMs) || 0);
-  const newer = (leadsOnNumber || []).some((l) => l && l.deleted !== true && toMs(l.createdAt || l.createdAtMs) > base);
+  const newer = (leadsOnNumber || []).some((l) => l && l.deleted !== true && l.archived !== true && toMs(l.createdAt || l.createdAtMs) > base);
   return !newer;
 }
 
-module.exports = { loadLabels, captureOff };
+module.exports = { loadLabels, captureOff, toMs };

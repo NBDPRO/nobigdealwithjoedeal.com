@@ -75,7 +75,8 @@
       source: SOURCES.indexOf(o.source) !== -1 ? o.source : 'manual',
       companyId: String(o.companyId),
       updatedBy: String(o.uid),
-      updatedAtMs: now,
+      // An explicit updatedAtMs (an Undo restoring the old decision, even 0) is kept.
+      updatedAtMs: o.updatedAtMs != null ? (Number(o.updatedAtMs) || 0) : now,
       createdAtMs: Number(o.createdAtMs) || now,
     };
     // ackAtMs: Jo said "keep it hidden" after a hidden number came back (safety valve).
@@ -214,6 +215,7 @@
   function msOf(v) {
     if (v == null) return 0;
     if (typeof v === 'number') return v;
+    if (v instanceof Date) return v.getTime() || 0;
     if (typeof v.toMillis === 'function') return v.toMillis();
     if (typeof v.seconds === 'number') return v.seconds * 1000;
     if (typeof v._seconds === 'number') return v._seconds * 1000;

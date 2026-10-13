@@ -112,7 +112,7 @@
       ? 'You stopped recording this number'
       : (s.policy === 'quiet' ? 'You set this number to quiet' : 'You hid this number');
     var tail = s.captureOff
-      ? 'Calls and texts that arrived while it was off were not saved, and texts cannot be brought back. Unlabel to record it again.'
+      ? 'It is being recorded again now that it is a customer. Calls and texts that arrived while it was off were not saved, and texts cannot be brought back. Unlabel to keep recording it, or keep it off.'
       : 'Its missed' + (s.policy === 'quiet' ? ' and urgent' : '') + ' calls stay off Today unless you promised something.';
     return '<div class="cl-sug cl-rec" data-cs-row="' + esc(nums) + '" role="group" aria-label="A labeled number is now a customer">' +
       '<div class="cl-sug-text"><b>' + esc(s.name) + ' is now a customer</b> <span class="cl-sug-why">— ' + esc(what) + ' as ' + esc(kinds) + '. ' + esc(tail) + '</span>' +
@@ -190,8 +190,8 @@
     var LB = w.NBDContactLabels;
     var list = String(csv || '').split(',').map(function (x) { return LG.digits10(x); }).filter(Boolean);
     if (!LB || !list.length || !canSuggest()) return;
-    if (a === 'rec-keep') await LB.ack(list);
-    else await LB.clear(list);
+    var r = a === 'rec-keep' ? await LB.ack(list) : await LB.clear(list);
+    if (!r || !r.ok) toast("Couldn't change that label. Check the Call Center > Labeled list.", 'error');
     changed();
   }
   w.addEventListener('nbd:labels-changed', function () { changed(); });

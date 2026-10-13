@@ -201,6 +201,66 @@ console.log('E. the Today row (contact-suggest.js in a vm sandbox)');
   } finally { Date.now = realNow; }
 }
 
+console.log('G. coordinator review fixes (timestamps, empty cache, partial failure, undo)');
+const gDone = (async () => {
+  const shapes = {
+    iso: new Date(NOW - H).toISOString(), date: new Date(NOW - H), fsTs: { toMillis: () => NOW - H },
+    seconds: { seconds: Math.floor((NOW - H) / 1000) }, _seconds: { _seconds: Math.floor((NOW - H) / 1000) }, num: NOW - H,
+  };
+  const lbl = { [N]: { kind: 'personal', policy: 'hide', capture: 'off', updatedAtMs: NOW - 5 * DAY, ackAtMs: 0 } };
+  Object.keys(shapes).forEach((k) => {
+    const srv = CL.captureOff(lbl, N, [{ id: 'L', createdAt: shapes[k] }]);
+    const cli = LG.reconcile({ [N]: { kind: 'personal', policy: 'hide', capture: 'off', updatedAtMs: NOW - 5 * DAY } }, [{ id: 'L', phone: N, createdAt: shapes[k] }], { now: NOW }).length === 1;
+    ok('createdAt as ' + k + ': server yields (captured) and client lists it — same answer', srv === false && cli === true, 'server=' + srv + ' client=' + cli);
+  });
+  ok('control: an unparseable createdAt string predates the label on BOTH sides', CL.captureOff(lbl, N, [{ id: 'L', createdAt: 'not a date' }]) === true
+    && LG.reconcile({ [N]: { kind: 'personal', policy: 'hide', capture: 'off', updatedAtMs: NOW - 5 * DAY } }, [{ id: 'L', phone: N, createdAt: 'not a date' }], { now: NOW }).length === 0);
+  ok('an archived customer is not live on either side (same predicate)', CL.captureOff(lbl, N, [{ id: 'L', archived: true, createdAt: NOW - H }]) === true
+    && LG.reconcile({ [N]: { kind: 'personal', policy: 'hide', capture: 'off', updatedAtMs: NOW - 5 * DAY } }, [{ id: 'L', phone: N, archived: true, createdAt: NOW - H }], { now: NOW }).length === 0);
+  const z = LG.buildDoc({ digits: N, kind: 'supplier', policy: 'quiet', companyId: 'c', uid: 'u', updatedAtMs: 0, nowMs: NOW });
+  ok('buildDoc keeps an explicit updatedAtMs of 0 (an Undo never restamps)', z && z.updatedAtMs === 0);
+  ok('control: without it updatedAtMs is now', LG.buildDoc({ digits: N, kind: 'supplier', companyId: 'c', uid: 'u', nowMs: NOW }).updatedAtMs === NOW);
+
+  // contact-labels.js in a vm: ack / clear
+  function bootLabels(opts) {
+    const toasts = []; const writes = []; let reads = 0;
+    const listeners = {};
+    const w = { _user: { uid: 'u1' }, _userClaims: { role: 'company_admin', companyId: 'co' }, NBDContactLabelsLogic: LG,
+      db: {}, collection: () => ({}), doc: (...a) => ({ p: a.slice(1).join('/') }),
+      getDocs: async () => { reads++; return { docs: (opts.server || []).map((x) => ({ id: x.id, data: () => x })) }; },
+      setDoc: async (r, d) => { if (opts.failFor && r.p.endsWith(opts.failFor)) throw { code: 'unavailable' }; writes.push([r.p, d]); },
+      deleteDoc: async (r) => { if (opts.failFor && r.p.endsWith(opts.failFor)) throw { code: 'unavailable' }; writes.push([r.p, null]); },
+      showToast: (m) => toasts.push(m), addEventListener() {}, dispatchEvent() {}, CustomEvent: function () {}, _leads: [] };
+    w.document = { addEventListener: (t, f) => { listeners[t] = f; }, getElementById: () => null, createElement: () => ({ setAttribute() {}, appendChild() {}, style: {}, remove() {} }), body: { appendChild() {} }, activeElement: null };
+    w.window = w; w.setTimeout = () => 0; w.clearTimeout = () => {};
+    const c = vm.createContext(Object.assign({ console, Date, JSON, Math, Object, Array, String, Number, Promise }, w));
+    c.window = c;
+    vm.runInContext(read('docs/pro/js/contact-labels.js'), c);
+    return { LB: c.NBDContactLabels, toasts, writes, reads: () => reads };
+  }
+  const A = '5550140001', B2 = '5550140002';
+  const doc = (id) => ({ id, digits: id, kind: 'supplier', policy: 'quiet', updatedAtMs: NOW - DAY, createdAtMs: NOW - DAY, companyId: 'co', updatedBy: 'u1' });
+  {
+    const e = bootLabels({ server: [doc(A)] });           // cache empty, server has it
+    const r = await e.LB.ack([A]);
+    ok('Keep hidden with an EMPTY cache reloads first and still acks (not a silent no-op)', r.ok === true && e.reads() >= 1 && e.writes.length === 1 && e.writes[0][1].ackAtMs > 0, JSON.stringify({ r, writes: e.writes.length }));
+    const g = bootLabels({ server: [] });
+    const r2 = await g.LB.ack([A]);
+    ok('a label that is really gone says so (toast) and reports ok:false', r2.ok === false && g.toasts.some((t) => /already gone/i.test(t)), JSON.stringify(g.toasts));
+    const g2 = bootLabels({ server: [] });
+    const r3 = await g2.LB.clear([A, B2]);
+    ok('Unlabel on a gone label says so too', r3.ok === false && g2.toasts.length === 1);
+    const p = bootLabels({ server: [doc(A), doc(B2)], failFor: B2 });
+    await p.LB.load(true);
+    const r4 = await p.LB.ack([A, B2]);
+    ok('partial failure: ok:false, the saved number is kept and the failure is toasted (not "all kept")', r4.ok === false && p.writes.some((x) => x[0].endsWith(A)) && p.toasts.some((t) => /Couldn.t save/i.test(t)), JSON.stringify({ r4, toasts: p.toasts }));
+    const u = bootLabels({ server: [Object.assign(doc(A), { updatedAtMs: 0 })] });
+    await u.LB.load(true);
+    await u.LB.clear([A, A]);
+    ok('control: clear of one labeled number writes a delete', u.writes.some((x) => x[1] === null));
+  }
+})();
+
 console.log('F. wiring pins');
 {
   const ha = read('docs/pro/js/home-attention.js');
@@ -220,5 +280,7 @@ console.log('F. wiring pins');
   ok('Keep hidden (ack) offers an Undo', /showUndo\([^)]*Kept hidden|showUndo\('Kept/.test(sheet));
 }
 
-console.log('\n' + passed + ' passed, ' + failed + ' failed');
-if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
+gDone.then(() => {
+  console.log('\n' + passed + ' passed, ' + failed + ' failed');
+  if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
+}).catch((e) => { console.error(e); process.exit(1); });

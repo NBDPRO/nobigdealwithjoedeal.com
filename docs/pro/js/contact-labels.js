@@ -130,25 +130,34 @@
     return { ok: ok, prev: prev };
   }
 
+  // The labeled numbers among `digits`. An empty cache (failed or not-yet load,
+  // or removed in another tab) is re-read once before anything says "gone".
+  async function knownLabels(digits) {
+    var norm = (Array.isArray(digits) ? digits : [digits]).map(function (x) { return LG.digits10(x); }).filter(Boolean);
+    var have = function () { return norm.filter(function (d) { return state.labels[d]; }); };
+    if (!have().length) { try { await load(true); } catch (_) { /* load() already logs */ } }
+    return have();
+  }
+
   /** "Keep hidden": a hidden number came back; quiet it until it happens again. */
   async function ack(digits) {
     // One number or a list (a customer with two labeled numbers): one Undo.
-    var list = (Array.isArray(digits) ? digits : [digits]).map(function (x) { return LG.digits10(x); }).filter(function (d) { return d && state.labels[d]; });
-    if (!list.length) return { ok: false };
-    var before = list.map(function (d) { return Object.assign({}, state.labels[d]); });
-    var okAll = true;
+    var list = await knownLabels(digits);
+    if (!list.length) { toast('That label is already gone, so there is nothing to keep.', 'info'); return { ok: false }; }
+    var done = [], failed = 0;
     for (var i = 0; i < list.length; i++) {
       var cur = state.labels[list[i]];
+      var before = Object.assign({}, cur);
       var r = await apply({ digits: list[i], kind: cur.kind, policy: cur.policy, ackAtMs: Date.now(), source: cur.source, capture: cur.capture });
-      if (!r.ok) okAll = false;
+      if (r.ok) done.push(before); else failed++;
     }
-    if (okAll) {
+    if (done.length) {
       // Audit UX-low: "Keep hidden" had no toast and no Undo.
-      showUndo('Kept hidden — it will tell you again only if it rings after this.', function () {
-        return Promise.all(before.map(function (p) { return persistRestore(p.digits, p); }));
+      showUndo('Kept hidden' + (failed ? ' (' + failed + ' of ' + list.length + ' numbers could not be saved)' : '') + ' — it will tell you again only if it rings after this.', function () {
+        return Promise.all(done.map(function (p) { return persistRestore(p.digits, p); }));
       });
     }
-    return { ok: okAll, prev: before[0] };
+    return { ok: failed === 0 && done.length > 0, prev: done[0] };
   }
 
   /** apply + the undo bar (used by a one-tap suggestion Accept). */
@@ -169,21 +178,20 @@
     if (!canWrite()) return { ok: false };
     if (Array.isArray(digits)) {
       // Several numbers of one customer: remove them all, one Undo.
-      var list = digits.map(function (x) { return LG.digits10(x); }).filter(function (d) { return d && state.labels[d]; });
-      if (!list.length) return { ok: false };
-      var snap = list.map(function (d) { return Object.assign({}, state.labels[d]); });
-      var all = true;
+      var list = await knownLabels(digits);
+      if (!list.length) { toast('That label is already gone.', 'info'); return { ok: false }; }
+      var removed = [], bad = 0;
       for (var i = 0; i < list.length; i++) {
-        var one = await persist(list[i], null, snap[i]);
-        if (!one) all = false;
+        var snapOne = Object.assign({}, state.labels[list[i]]);
+        if (await persist(list[i], null, snapOne)) removed.push(snapOne); else bad++;
       }
-      if (all) {
-        var rec = snap.some(function (p) { return p.capture === 'off'; });
-        showUndo('Label removed.' + (rec ? ' New calls and texts are recorded again; ones skipped earlier cannot be brought back.' : ' Its calls show on Today again.'), function () {
-          return Promise.all(snap.map(function (p) { return persistRestore(p.digits, p); }));
+      if (removed.length) {
+        var rec = removed.some(function (p) { return p.capture === 'off'; });
+        showUndo('Label removed' + (bad ? ' (' + bad + ' of ' + list.length + ' numbers could not be removed)' : '') + '.' + (rec ? ' New calls and texts are recorded again; ones skipped earlier cannot be brought back.' : ' Its calls show on Today again.'), function () {
+          return Promise.all(removed.map(function (p) { return persistRestore(p.digits, p); }));
         });
       }
-      return { ok: all, prev: snap[0] };
+      return { ok: bad === 0 && removed.length > 0, prev: removed[0] };
     }
     var d = LG.digits10(digits);
     if (!d || !state.labels[d]) return { ok: false };
@@ -310,8 +318,8 @@
     // updatedAtMs is kept as it was: it is half of "when did Jo last decide"
     // (with ackAtMs), and an Undo must put the old decision back, not make a
     // fresh one that silences the reconciliation row.
-    var doc = LG.buildDoc({ digits: d, kind: prev.kind, policy: prev.policy, name: prev.name, note: prev.note, source: prev.source, companyId: tenant(), uid: uid(), createdAtMs: prev.createdAtMs, ackAtMs: prev.ackAtMs, capture: prev.capture, nowMs: prev.updatedAtMs || undefined });
-    if (!doc) return { ok: false };
+    var doc = LG.buildDoc({ digits: d, kind: prev.kind, policy: prev.policy, name: prev.name, note: prev.note, source: prev.source, companyId: tenant(), uid: uid(), createdAtMs: prev.createdAtMs, ackAtMs: prev.ackAtMs, capture: prev.capture, updatedAtMs: prev.updatedAtMs || 0 });
+    if (!doc) { toast("Couldn't undo that label change.", 'error'); return { ok: false }; }
     var cur = state.labels[d] ? Object.assign({}, state.labels[d]) : null;
     return { ok: await persist(d, doc, cur) };
   }
