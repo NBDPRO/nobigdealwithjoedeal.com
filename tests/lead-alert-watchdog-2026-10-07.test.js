@@ -237,8 +237,8 @@ const event = (doc, leadId) => ({ data: { data: () => doc }, params: { leadId } 
       ['free_roof_entries', LA.leadAlertFreeRoof, { nomineeName: 'D', phone: '5135550107' }, 'x5'],
       ['storm_alert_subscribers', LA.leadAlertStorm, { name: 'E', phone: '5135550108', concern: 'insurance' }, 'x6'],
       ['storm_alert_subscribers', LA.leadAlertStorm, { name: 'E', phone: '5135550108', concern: 'hail' }, 'x7'],
-      ['leads', LA.leadAlertCalcom, { name: 'F', publicLeadKind: 'calcom_booking', webLead: true }, 'calcom__b1'],
-      ['leads', LA.leadAlertCalcom, { name: 'F', publicLeadKind: 'calcom_booking', webLead: true, backfilledBy: 'script' }, 'calcom__b2'],
+      ['leads', LA.leadAlertCalcom, { name: 'F', publicLeadKind: 'calcom_booking', webLead: true, calcomBookingId: 'b1' }, 'calcom__b1'],
+      ['leads', LA.leadAlertCalcom, { name: 'F', publicLeadKind: 'calcom_booking', webLead: true, calcomBookingId: 'b2', backfilledBy: 'script' }, 'calcom__b2'],
       ['leads', LA.leadAlertCalcom, { name: 'G' }, 'manual1'],
       ['leads', LA.leadAlertCalcom, { name: 'H', publicLeadKind: 'inspect', publicLeadCollection: 'inspect_leads', publicLeadId: 'x4' }, 'inspect_leads__x4'],
       ['leads', LA.leadAlertCalcom, { name: 'I', publicLeadKind: L.BRIDGE_KINDS[TT].kind, publicLeadCollection: TT, publicLeadId: 'r1' }, L.bridgeDocId(TT, 'r1')],
@@ -348,7 +348,7 @@ const event = (doc, leadId) => ({ data: { data: () => doc }, params: { leadId } 
   {
     // Cal.com no-phone notice survives the re-send.
     db = makeDb();
-    await db.collection('leads').doc('calcom__np').set({ name: 'C', publicLeadKind: 'calcom_booking', webLead: true, needsPhone: true, companyId: OWNER_UID, createdAt: at(30) });
+    await db.collection('leads').doc('calcom__np').set({ name: 'C', publicLeadKind: 'calcom_booking', webLead: true, needsPhone: true, calcomBookingId: 'np', companyId: OWNER_UID, createdAt: at(30) });
     calls.length = 0;
     await WDI.runWatchdog({ db, nowMs: NOW, live: true, alert: fakeAlert({ email: 'sent' }), twilio: null, ownerUid: OWNER_UID });
     const n = (calls[0] && calls[0].opts.notice) || {};

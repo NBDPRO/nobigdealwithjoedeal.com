@@ -66,6 +66,16 @@ const TWILIO_AUTH_TOKEN = defineSecret('TWILIO_AUTH_TOKEN');
 const TWILIO_PHONE_NUMBER = defineSecret('TWILIO_PHONE_NUMBER');
 const SECRETS = [RESEND_API_KEY, EMAIL_FROM, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER];
 
+// Per-tenant daily ceiling on email/SMS lead alerts for a NON-NBD tenant
+// (2026-10-13). A tenant sets its own alert contacts and they are not verified,
+// so the alert senders (NBD's Resend domain + Twilio number) are only as
+// well-behaved as the tenant. A real contractor sees a handful of leads a day;
+// this bounds what a misconfigured or hostile tenant can push through NBD's
+// senders. Over the ceiling the lead still lands in the CRM and the tenant's
+// own devices still get the push; only the email/SMS are skipped.
+const TENANT_ALERT_DAILY_CAP = 60;
+const TENANT_ALERT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 const ALERT_EMAILS = ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'];
 const ALERT_SMS = '+18594207382'; // Joe's cell — default when a lead has no tenant contact
 
@@ -386,9 +396,28 @@ async function alertJoe(collection, d, leadId, opts = {}) {
   if (opts.watchdog) outcomes.watchdog = true;
   if (opts.skipSms && target.sms) outcomes.sms = 'skipped:watchdog-resend';
 
+  // Tenant ceiling (NBD's own leads are never capped here). A limiter outage
+  // fails OPEN: a dropped lead alert costs a customer, a missed cap costs one
+  // more message.
+  let capped = false;
+  if (!target.isNbd && d.companyId && (target.sms || (target.emails && target.emails.length))) {
+    try {
+      await require('./rate-limit').enforceRateLimit('leadAlert:tenant', String(d.companyId), TENANT_ALERT_DAILY_CAP, TENANT_ALERT_WINDOW_MS);
+    } catch (e) {
+      if (e && e.rateLimited) {
+        capped = true;
+        if (target.sms) outcomes.sms = 'skipped:rate-limited';
+        if (target.emails && target.emails.length) outcomes.email = 'skipped:rate-limited';
+        logger.warn('leadAlert: tenant daily alert cap reached — email/SMS skipped', { collection, leadId, companyId: String(d.companyId) });
+      } else {
+        logger.warn('leadAlert: tenant cap check unavailable — sending', { collection, leadId, err: e && e.message });
+      }
+    }
+  }
+
   // Text via Twilio (works once the number is A2P 10DLC approved). Skip when
   // the tenant configured no alert SMS — never fall back to Joe's cell.
-  if (target.sms && !opts.skipSms) try {
+  if (target.sms && !opts.skipSms && !capped) try {
     const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
     const msg = await client.messages.create({
       to: target.sms,
@@ -407,7 +436,7 @@ async function alertJoe(collection, d, leadId, opts = {}) {
   }
 
   // Detailed email → the tenant's alert inbox(es). Skip when none configured.
-  if (target.emails && target.emails.length) try {
+  if (target.emails && target.emails.length && !capped) try {
     const resend = new Resend(RESEND_API_KEY.value());
     const from = secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com');
     // Email category: INTERNAL — the tenant's own new-lead alert inbox. Out of scope for the homeowner unsubscribe register (email-suppression.js SEND_PATHS).
@@ -628,6 +657,18 @@ function planLeadsDoc(data, leadId) {
   if (data.backfilledBy) {
     return { alert: false, log: ['leadAlertCalcom: backfilled booking — not a new lead, no alert', { leadId }] };
   }
+  // Provenance (2026-10-13): only the Cal.com webhook's create() mints the
+  // deterministic id calcom__<bookingId> (integrations/calcom.js), and it
+  // writes calcomBookingId from the same value. A lead that merely CLAIMS to
+  // be a booking (any signed-in tenant can write any field onto a lead it
+  // creates) must not page anyone: the alert goes out on NBD's Resend/Twilio
+  // senders, so a forged one is a free relay. Same idea as
+  // isBridgedThumbtackLead above; firestore.rules also refuses these fields
+  // and ids from a client create.
+  const bookingId = data.calcomBookingId;
+  if (bookingId == null || bookingId === '' || String(leadId || '') !== L.bridgeDocId('calcom', bookingId)) {
+    return { alert: false, log: ['leadAlertCalcom: lead claims to be a booking but its id is not the webhook-minted one — no alert', { leadId }] };
+  }
   const needsPhone = data.needsPhone === true;
   const email = String(data.email || '').trim();
   const title = String(data.calcomEventTitle || '').trim();
@@ -719,5 +760,5 @@ exports.leadAlertCalcom   = onDocumentCreated({ ...TRIGGER_OPTS, document: 'lead
 // Functions belong on the deployed export surface.
 Object.defineProperty(exports, '_internal', {
   enumerable: false,
-  value: { alertPlan, alertJoe, resolveAlertTarget, SECRETS, NBD_OWNER_UID, ALERT_COLLECTIONS: Object.keys(KIND_LABEL) },
+  value: { alertPlan, alertJoe, resolveAlertTarget, TENANT_ALERT_DAILY_CAP, SECRETS, NBD_OWNER_UID, ALERT_COLLECTIONS: Object.keys(KIND_LABEL) },
 });
