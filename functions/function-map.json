@@ -31,6 +31,7 @@
   "callCenterIngest": "./call-center",
   "callCenterSweep": "./call-center",
   "callCenterTranscribe": "./call-center",
+  "callPipelineHealth": "./pipeline-health",
   "callPromisesList": "./call-center",
   "callTaggedMatch": "./call-center",
   "callWatch": "./call-watch",

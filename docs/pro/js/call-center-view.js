@@ -405,7 +405,7 @@
       (promises.items.length && !isViewer() && window.NBDTriageDeck ? ' <button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="promises">Said you\'d do (' + groupPromises(promises.items).length + ')</button>' : '') +
       // Owner only (the callable refuses anyone else; promises.denied = not the owner).
       (promises.loaded && !promises.denied && !isViewer() ? ' <button type="button" class="btn btn-ghost pc-play cc-deck-btn" data-cc="tagmatch">Match my tagged contacts</button>' : '') +
-      '</div>' + tagPanel() +
+      '</div>' + healthPanel() + tagPanel() +
       '<div class="cc-toolbar"><input type="search" class="cc-search" id="ccSearch" placeholder="Search name, number, notes…" aria-label="Search calls" value="' + esc(state.q) + '">' +
       '<div class="cc-filters" role="tablist">' + filtersNow().map(function (f) {
         return '<button type="button" role="tab" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
@@ -608,6 +608,42 @@
   // "file on a customer" picker on its card. Every action has an Undo.
   // The email links here: dashboard.html?open=promises[&item=<callId>]#calls.
   var promises = { items: [], counts: null, loaded: false, denied: false, loading: false };
+
+  // The never-forget chain at a glance (2026-10-12 audit): owner / admin only,
+  // read through callPipelineHealth (the integrations status docs are not client-readable).
+  // One line when all is well; a red line naming what stopped otherwise. A
+  // failed read says so - it never renders as green.
+  var health = { data: null, error: false, denied: false, loading: false, open: false };
+
+  async function loadHealth() {
+    if (health.loading || health.denied || isViewer()) return;
+    health.loading = true;
+    try {
+      health.data = await callable('callPipelineHealth', {});
+      health.error = false;
+    } catch (e) {
+      if (e && /permission-denied/.test(e.code || e.message || '')) health.denied = true;
+      else health.error = true;
+    }
+    health.loading = false;
+    render();
+  }
+
+  function healthPanel() {
+    if (health.denied || isViewer()) return '';
+    if (health.error) return '<div class="panel pc-card cc-health cc-health-bad" role="status">⚠ Could not check the call pipeline just now. <button type="button" class="btn btn-ghost" data-cc="health-reload">Try again</button></div>';
+    var d = health.data;
+    if (!d) return '';
+    var icon = d.overall === 'ok' ? '🟢' : (d.overall === 'warn' ? '🟡' : '🔴');
+    var bad = (d.rows || []).filter(function (r) { return r.status !== 'ok'; });
+    var line = d.overall === 'ok' ? 'Call pipeline healthy: recordings, transcripts, the 2-hour check and alerts are all running.'
+      : bad.map(function (r) { return r.label + ' — ' + r.detail; }).slice(0, 2).join(' · ');
+    var rows = health.open ? '<ul class="cc-health-rows">' + (d.rows || []).map(function (r) {
+      return '<li class="cc-health-' + esc(r.status) + '">' + (r.status === 'ok' ? '🟢' : (r.status === 'warn' ? '🟡' : '🔴')) + ' <strong>' + esc(r.label) + '</strong> — ' + esc(r.detail) + '</li>';
+    }).join('') + '</ul>' : '';
+    return '<div class="panel pc-card cc-health cc-health-' + esc(d.overall) + '" role="status">' + icon + ' ' + esc(line) +
+      ' <button type="button" class="btn btn-ghost" data-cc="health-toggle">' + (health.open ? 'Hide' : 'Details') + '</button>' + rows + '</div>';
+  }
 
   async function loadPromises() {
     if (promises.loading || promises.denied || isViewer()) return;
@@ -1102,6 +1138,8 @@
     }
     else if (a === 'newlead') newLead(id);
     else if (a === 'tagmatch') tagPreview();
+    else if (a === 'health-toggle') { health.open = !health.open; render(); }
+    else if (a === 'health-reload') { health.error = false; loadHealth(); }
     else if (a === 'tagconfirm') tagConfirm();
     else if (a === 'tagcancel') { state.tag = null; render(); }
   });
@@ -1117,7 +1155,7 @@
   });
 
   window.NBDCallCenter = {
-    init: function () { load(); loadPromises(); deepLink(); },
+    init: function () { load(); loadPromises(); loadHealth(); deepLink(); },
     reload: load,
     openPromises: openPromiseDeck,
     _groupPromises: groupPromises,

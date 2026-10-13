@@ -87,6 +87,11 @@
 .cc-suggest-btn { align-self: flex-start; max-width: 100%; overflow-wrap: anywhere; }
 .cc-deck-item + .cc-deck-item { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--br, #2a2f35); }
 .cc-tagmatch { margin-bottom: 12px; }
+/* Pipeline health strip (callPipelineHealth, 2026-10-12): one line when well, red when not. */
+.cc-health { margin-bottom: 12px; font-size: 14px; overflow-wrap: anywhere; border-left: 4px solid var(--green, #2e9e5b); }
+.cc-health-warn { border-left-color: var(--orange, #e8720c); }
+.cc-health-bad { border-left-color: var(--red, #e05252); }
+.cc-health-rows { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .cc-tag-list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .cc-tag-row { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; cursor: pointer; overflow-wrap: anywhere; }
 .cc-tag-row input { width: 22px; height: 22px; flex: 0 0 auto; }
