@@ -92,6 +92,16 @@ console.log('\n1b. completedOffer — a forward move on the lead\'s own track, w
     ['final_photos', 'final_payment', 'closed'].every((s) => offer(L('a', s)) === false));
   ok('lost → hidden', offer(L('a', 'lost')) === false);
   ok('an estimate-stage lead (the sale not made) → hidden', offer(L('a', 'estimate_sent')) === false);
+  {
+    // Tenant custom stages: one AFTER Install Done that is not a won stage (only the track rule can hide it),
+    // and one won stage sitting BEFORE Install Done (only the role rule can hide it).
+    const after = INS.slice(0, INS.indexOf('install_complete') + 1).concat(['punch_list'], INS.slice(INS.indexOf('install_complete') + 1));
+    ok('a custom stage after Install Done (not won) → hidden: it is not a forward move', offer(L('a', 'punch_list'), after) === false);
+    const early = INS.slice(0, INS.indexOf('install_in_progress')).concat(['paid_early'], INS.slice(INS.indexOf('install_in_progress')));
+    const roleEarly = (k) => (k === 'paid_early' ? 'won' : ROLE(k));
+    ok('a won-role stage that sits before Install Done → hidden (already won)', P.completedOffer(L('a', 'paid_early'), early, Object.assign({}, ME, { roleOf: roleEarly })) === false);
+    ok('control: the same track, an ordinary job stage before it → offered', P.completedOffer(L('a', 'crew_scheduled'), early, Object.assign({}, ME, { roleOf: roleEarly })) === true);
+  }
   ok('a track with no Install Done (warranty) → hidden', offer(L('a', 'warranty_scheduled'), WARR) === false);
   ok('a stage not on the track → hidden', offer(L('a', 'mystery_stage')) === false);
   ok('an open warranty claim → hidden', offer(L('a', 'crew_scheduled', { openWarrantyClaimId: 'wc1' })) === false);
