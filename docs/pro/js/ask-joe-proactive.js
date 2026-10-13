@@ -353,6 +353,7 @@
     const recentlyCompleted = leads.filter(lead => {
       if (!['closed', 'complete'].includes(lead.stage)) return false;
       if (!lead.completedAt) return false;
+      if (lead.completedBackfill) return false;   // quiet "already completed" backfill: no review prompt
       const daysSince = (now - new Date(lead.completedAt)) / (24 * 60 * 60 * 1000);
       return daysSince >= 2 && daysSince <= 7;
     });

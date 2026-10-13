@@ -315,6 +315,9 @@
 
     const candidates = leads.filter(l => {
       if (l.deleted || l.reviewRequested || l.reviewAskDeclined) return false;
+      // A quiet "already completed" backfill (schedule planner, 2026-10-13):
+      // Jo said no review ask for these. completedBackfill is the flag.
+      if (l.completedBackfill) return false;
       if (!paidInFullFor(l)) return false;
       // Recency keys off BECOMING paid in full: the later of entering the
       // paid stage (stageStartedAt, stamped by moveCard — the old updatedAt
