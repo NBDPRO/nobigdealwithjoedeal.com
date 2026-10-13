@@ -244,6 +244,11 @@ function reviewAskDue(lead, job, jobId, wonMs, now) {
   const l = lead || {};
   if (!wonMs || wonMs < now - NUDGE_MAX_DAYS * DAY_MS || wonMs > now - NUDGE_MIN_DAYS * DAY_MS) return false;
   if (!l.phone && !l.email) return false;           // nothing to send with
+  // Review deck "Don't ask this one" (reviewAskDeclined, 2026-10-13 audit):
+  // the client engine and the deck honoured it, this server rule did not, so
+  // the 08:15 email, the bell and the morning-brief line kept naming a
+  // customer Jo had declined. One shared rule, every path (lead and job).
+  if (l.reviewAskDeclined === true) return false;
   if (!jobId) return !l.reviewRequested && !timestampMillis(l.reviewNudgedAt);
   const j = job || {};
   if (timestampMillis(j.reviewNudgedAt) || timestampMillis(j.reviewRequestedAt)) return false;
