@@ -29,6 +29,19 @@ texting-law fixes are in
 > Details and evidence:
 > [ESTIMATE-SMS-CONSENT-FIRST-PAINT-2026-10-13](ESTIMATE-SMS-CONSENT-FIRST-PAINT-2026-10-13.md).
 
+> **Update 2026-10-13 (row 14 / follow-up 1: code strings now match the
+> registered strings).** The automatic STOP / HELP / START replies in
+> `functions/sms-functions.js` no longer say "NBD Pro"; they are built by
+> `functions/sms-keyword-replies.js` and are exactly the section 5 "Keywords
+> and replies" strings below, with brand "No Big Deal Home Solutions" for
+> NBD's line and any unknown number. One string changed from the first draft
+> of this packet: the opt-in reply is now `No Big Deal Home Solutions: You're
+> subscribed to our texts. Msg frequency varies. Msg & data rates may apply.
+> Reply HELP for help, STOP to opt out.` (the earlier "...about your
+> request..." wording was 162 characters, two segments; this is 147). Paste
+> that one. True once the PR is merged and deployed. Details:
+> [SMS-KEYWORD-REPLIES-BRAND-2026-10-13](SMS-KEYWORD-REPLIES-BRAND-2026-10-13.md).
+
 ## 1. The one-paragraph answer
 
 The brand is **approved**, the account is **already upgraded to Full**, and
@@ -136,7 +149,7 @@ new consent label on `/estimate`.
 | 11 | Consent checkbox links to BOTH Privacy and Terms, beside the box | **PASS** | `docs/inspect.html:454`, `docs/estimate.html:894`, `docs/index.html:1051` (and storm-check, roof-score, storm-report, storm-alerts, `docs/assets/js/quick-lead-form.js`): `Privacy Policy · Terms` to `/privacy#sms-terms` and `/terms`; box unchecked and required |
 | 12 | The reviewer can SEE the opt-in on every URL named in the message flow | **FAIL for `/estimate`; PASS for `/inspect` and `/storm-alerts`** | `/estimate`: consent box on step 5 of 5 behind an address and satellite-confirm step (`docs/estimate.html:629-894`). `/inspect` shows name, address, mobile phone and consent in one form (`docs/inspect.html:427-454`). `/storm-alerts` has the phone field and consent in one form (`docs/storm-alerts.html:454-471`) |
 | 13 | Opt-in proof: what is recorded | **PASS** | `tcpaConsent: true`, `tcpaConsentAt`, `tcpaConsentText` (the exact wording's version id) and `tcpaConsentSource` (page path) are written per lead (`functions/tcpa-consent.js:132-205`, `docs/assets/js/inspect-form.js:309`). Wording versions v2 are the live ones |
-| 14 | Automatic STOP/HELP/START replies name the brand | **FAIL** | `functions/sms-functions.js:1596,1605,1636` still say "NBD Pro". The Messaging Service's Advanced Opt-Out answers STOP/HELP first (`functions/twilio-line-logic.js:23-24`), so the registered strings are the ones that matter. Fix them in the Twilio campaign fields (section 5) and rename the code strings in a follow-up |
+| 14 | Automatic STOP/HELP/START replies name the brand | **FAIL** (fixed on `fix/sms-stop-help-brand-name`, see the update at the top) | `functions/sms-functions.js:1596,1605,1636` still say "NBD Pro". The Messaging Service's Advanced Opt-Out answers STOP/HELP first (`functions/twilio-line-logic.js:23-24`), so the registered strings are the ones that matter. Fix them in the Twilio campaign fields (section 5) and rename the code strings in a follow-up |
 | 15 | Privacy page does not contradict the checkbox flow | **PASS with a note** | `docs/privacy.html:618` says submitting an estimate request "you consent to receive" texts and calls. The forms use an explicit checkbox, so this is looser than reality, not stricter. Safe, but a reviewer could read it as consent-by-submission. Optional wording tweak |
 | 16 | Terms page "Last updated" | **PASS** | `docs/terms.html:428` ("October 6, 2026") |
 
@@ -287,7 +300,7 @@ registered strings are what the carrier sees):
 | Help keywords | `HELP, INFO` |
 | Help reply | `No Big Deal Home Solutions: for help call (859) 420-7382 or email jd@nobigdealwithjoedeal.com. Msg & data rates may apply. Reply STOP to opt out.` |
 | Opt-in keywords | `START, UNSTOP` |
-| Opt-in reply | `No Big Deal Home Solutions: You're subscribed to texts about your request. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to opt out.` |
+| Opt-in reply | `No Big Deal Home Solutions: You're subscribed to our texts. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to opt out.` |
 
 (jd@ is the marketing address and the one the Terms page shows; info@ is for
 documents. Don't mix them.)

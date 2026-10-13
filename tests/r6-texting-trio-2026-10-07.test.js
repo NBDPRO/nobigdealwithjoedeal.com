@@ -267,7 +267,7 @@ const reset = () => { const e = new Error('socket hang up'); e.code = 'ECONNRESE
     const before = await handle(m, tokA, { action: 'check', phone: KEY, leadId: 'LA' });
     ok('…A\'s check now refuses, as "they replied STOP" (opted_out)', before && before.ok === false && before.code === 'opted_out', JSON.stringify(before));
     const res = await startVia(w);
-    ok('the homeowner texts START to NBD\'s number → welcome-back reply as before', /Welcome back/.test(String(res.body || '')));
+    ok('the homeowner texts START to NBD\'s number → resubscribe reply naming the business (2026-10-13: was "Welcome back to NBD Pro SMS")', /No Big Deal Home Solutions: You're subscribed/.test(String(res.body || '')) && !/NBD Pro/.test(String(res.body || '')));
     m = W.load(w, 'phone-text-check.js');
     const after = await handle(m, tokA, { action: 'check', phone: KEY, leadId: 'LA' });
     ok('…company A still may NOT text them (its STOP was told to A, not to NBD\'s number)', after && after.ok === false && after.code === 'opted_out', JSON.stringify(after));

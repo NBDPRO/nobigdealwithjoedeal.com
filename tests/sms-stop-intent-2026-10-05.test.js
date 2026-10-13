@@ -123,7 +123,7 @@ async function inbound(body, extraDocs) {
     ok('START clears the register', !w.store.has('sms_opt_outs/' + KEY));
     ok('START clears the STOP-reply Do Not Text entry', !w.store.has('sms_dnc/co-1__' + KEY));
     ok('START leaves a company\'s MANUAL Do Not Text entry alone', w.store.has('sms_dnc/co-2__' + KEY));
-    ok('START answers the welcome-back TwiML', /Welcome back/.test(String(res.body || '')));
+    ok('START answers the resubscribe TwiML naming the business (2026-10-13: was "Welcome back to NBD Pro SMS")', /No Big Deal Home Solutions: You're subscribed/.test(String(res.body || '')) && !/NBD Pro/.test(String(res.body || '')));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -159,8 +159,11 @@ console.log('6. privacy policy — text-message terms TCR reviewers check');
     Intent.classifyInbound('STOP').intent === 'stop' && /StopIntent\.classifyInbound\(messageBody\)/.test(smsFn));
   ok('code: inbound webhook treats HELP as a help keyword', Intent.classifyInbound('HELP').intent === 'help');
   const helpIdx = smsFn.indexOf("intent.intent === 'help'");
+  // 2026-10-13: the HELP text is built by functions/sms-keyword-replies.js (brand-named).
+  const KR = require('../functions/sms-keyword-replies.js');
   ok('code: the HELP reply gives (859) 420-7382, as the terms do',
-    helpIdx !== -1 && /\(859\) 420-7382/.test(smsFn.slice(helpIdx, helpIdx + 600)) && /\(859\) 420-7382/.test(sms));
+    helpIdx !== -1 && /KeywordReplies\.helpReply\(/.test(smsFn.slice(helpIdx, helpIdx + 600))
+    && /\(859\) 420-7382/.test(KR.helpReply(KR.NBD_BRAND)) && /\(859\) 420-7382/.test(sms));
 
   // Storm-alert frequency must match what the signup page promises.
   const sa = read('docs/storm-alerts.html');

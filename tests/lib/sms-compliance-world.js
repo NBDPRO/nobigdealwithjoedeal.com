@@ -86,11 +86,13 @@ function makeDb(w) {
       limit: (n) => query(collPath, filters, n),
       async get() {
         w.events.push('query:' + collPath);
+        if (w.opts.queryThrows && w.opts.queryThrows(collPath)) throw new Error('simulated Firestore UNAVAILABLE on query ' + collPath);
         const docs = [];
         for (const [p, d] of store) {
           if (parentOf(p) !== collPath) continue;
           const okAll = filters.every(([f, op, v]) => {
-            const x = d[f];
+            // dotted field paths (brand.integrations.twilioNumber) walk nested maps
+            const x = (f in d || f.indexOf('.') === -1) ? d[f] : f.split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), d);
             if (op === '==') return x === v || (x == null && v == null);
             if (op === '>') return x != null && Number(x) > Number(v instanceof Date ? v.getTime() : v);
             return true;
@@ -165,7 +167,7 @@ function makeWorld(opts) {
       onDocumentCreated: (o, h) => ({ __opts: o, __handler: h }),
     },
     'firebase-functions/v2/scheduler': { onSchedule: (o, h) => ({ __opts: o, __handler: h }) },
-    'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'secret-' + n }) },
+    'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => ((opts.secrets && opts.secrets[n] != null) ? opts.secrets[n] : 'secret-' + n) }) },
     'firebase-functions/v2': {
       logger: {
         error: (...a) => w.logs.error.push(a),
