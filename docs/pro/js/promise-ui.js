@@ -172,6 +172,79 @@
     return ref.id;
   }
 
+  // ── what a call's sheet saved, mirrored locally at once (QA 2026-10-13 H4) ──
+  // The server wrote the task / the call's promise; Today reads window._taskCache
+  // (tasks.js's one load) and NBDHomeAttention.lastRows, neither of which hears
+  // about it until the next leads refresh - so the call vanished from "owed"
+  // and the new promise was not on the list. Patch both, then repaint.
+  // Home's rows (NBDHomeAttention.lastRows) and the Call Center's own list
+  // (NBDCallCenter._state.calls) are different objects for the same call; both
+  // are patched, or the one left stale keeps the person listed as owed.
+  function callRows(id) {
+    var out = [], HA = w.NBDHomeAttention, rows = (HA && HA.lastRows) || [];
+    for (var i = 0; i < rows.length; i++) if (rows[i] && (rows[i].id === id || rows[i].id === 'text:' + id)) out.push(rows[i]);
+    var cc = w.NBDCallCenter && w.NBDCallCenter._state && w.NBDCallCenter._state.calls;
+    if (cc) for (var j = 0; j < cc.length; j++) if (cc[j] && cc[j].id === id && out.indexOf(cc[j]) === -1) out.push(cc[j]);
+    return out;
+  }
+  function callRow(id) { return callRows(id)[0] || null; }
+  function markHandledLocal(id) {
+    callRows(id).forEach(function (c) { c.handledAtMs = Date.now(); });
+  }
+  var KEEP_HISTORY = ['missCount', 'rescheduleCount', 'madeYmd', 'madeBy', 'nudgeCount', 'waitingSince'];
+  function mirrorSaved(res, o) {
+    var mirrored = false;
+    try {
+      var today = todayYmd();
+      var built = PL.buildTask({
+        kind: o.kind, dueYmd: (res && res.dueDate) || o.due, why: o.why, todayYmd: today, uid: uid(),
+        source: 'call', sourceCallId: o.callId, waitingOn: o.waitingOn, waitingDays: SETTINGS.waitingDays,
+      });
+      if (built.error) throw new Error(built.error);   // falls through to the reload below
+      if (res.on === 'task' && res.taskId) {
+        var row = callRow(o.callId);
+        var leadId = o.leadId || (row && row.leadId) || '';
+        if (!leadId) throw new Error('customer not found locally');
+        var prev = cached(leadId, res.taskId);
+        var t = Object.assign({}, built, { id: res.taskId, leadId: leadId, title: built.text, phoneCallId: o.callId, createdAt: new Date() });
+        if (prev && prev.kind === 'promise') KEEP_HISTORY.forEach(function (k) { if (prev[k] != null) t[k] = prev[k]; });
+        t.done = false; t.completedAt = null; t.outcome = null;
+        pushCache(leadId, t);
+        markHandledLocal(o.callId);   // the server marked the call handled with the task
+        mirrored = true;
+      } else if (res.on === 'call') {
+        callRows(o.callId).forEach(function (c) {
+          var p = Object.assign({}, built);
+          if (c.promise && c.promise.kind === 'promise') ['missCount', 'rescheduleCount', 'madeYmd', 'madeBy'].forEach(function (k) { if (c.promise[k] != null) p[k] = c.promise[k]; });
+          c.promise = p; c.promiseKind = o.kind; c.followUpDate = built.dueDate; c.handledAtMs = null;
+          c.snoozeUntilYmd = built.dueDate > today ? built.dueDate : null;
+          mirrored = true;
+        });
+      }
+    } catch (e) { console.warn('[promise] local mirror skipped', e && e.message); }
+    if (mirrored) changed();
+    else {
+      // Saved server-side but not found locally (no customer id on the sheet and the
+      // call is in neither list): say so, and ask the task loader to re-read rather
+      // than leave the promise off Today until the next leads refresh.
+      console.warn('[promise] saved but not mirrored locally; asking for a reload');
+      try { w.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'leads' } })); } catch (_) { /* old browser */ }
+    }
+  }
+  // A moved promise that rides on a call: the new date, a miss if it was late.
+  function mirrorMoved(callId, due) {
+    try {
+      var today = todayYmd();
+      callRows(callId).forEach(function (c) {
+        if (!c.promise) return;
+        c.promise = Object.assign({}, c.promise, PL.movePatch(c.promise, due, today));
+        c.followUpDate = due;
+        c.snoozeUntilYmd = due > today ? due : null;
+      });
+    } catch (e) { console.warn('[promise] local move mirror skipped', e && e.message); }
+    changed();
+  }
+
   // ── the sheet ──────────────────────────────────────────────────────────
   var S = null;       // live sheet state
   var opener = null;
@@ -278,6 +351,10 @@
 
   async function save() {
     if (!S || S.busy) return;
+    // The sheet can be closed (Cancel, Escape, the backdrop) while the callable is
+    // in flight: close() nulls S. Everything after an await reads this snapshot,
+    // never S - a null S used to throw AFTER the server had saved the promise.
+    var st = S;
     var today = todayYmd();
     var why = PL.cleanWhy(S.why);
     var due = S.dueYmd;
@@ -285,40 +362,42 @@
     if (bad) { setErr(bad); return; }
     S.busy = true; paint();
     try {
-      if (S.mode === 'move') {
-        var m = S.move || {};
+      if (st.mode === 'move') {
+        var m = st.move || {};
         if (m.type === 'call') {
           var pm = await callable('callCenterAction', { id: m.callId, action: 'promiseMove', dueYmd: due });
           if (!(pm && pm.ok)) throw new Error('move');
+          mirrorMoved(m.callId, due);
         } else {
           var r = await moveTask(m.leadId, m.task, due);
-          if (!r.ok) { S.busy = false; paint(); setErr(r.reason); return; }
+          if (!r.ok) { if (S === st) { st.busy = false; paint(); setErr(r.reason); } return; }
         }
-      } else if (S.callIds.length) {
+      } else if (st.callIds.length) {
         // The call's own action: task + handled + supersede, server side.
-        var primary = S.callIds[0];
+        var primary = st.callIds[0];
         var res = await callable('callCenterAction', {
-          id: primary, action: 'promise', kind: S.kind, dueYmd: due, why: why,
-          waitingOn: S.kind === 'waiting' ? S.waitingOn : undefined, waitingDays: SETTINGS.waitingDays,
+          id: primary, action: 'promise', kind: st.kind, dueYmd: due, why: why,
+          waitingOn: st.kind === 'waiting' ? st.waitingOn : undefined, waitingDays: SETTINGS.waitingDays,
         });
         if (!(res && res.ok)) throw new Error('promise');
+        mirrorSaved(res, { callId: primary, leadId: st.leadId || (st.lead && st.lead.id) || '', kind: st.kind, due: due, why: why, waitingOn: st.waitingOn });
         // The rest of that person's open calls are covered by this promise.
-        for (var i = 1; i < S.callIds.length; i++) await callable('callCenterAction', { id: S.callIds[i], action: 'handled' });
+        for (var i = 1; i < st.callIds.length; i++) { await callable('callCenterAction', { id: st.callIds[i], action: 'handled' }); markHandledLocal(st.callIds[i]); }
       } else {
         var built = PL.buildTask({
-          kind: S.kind, dueYmd: due, why: why, todayYmd: today, uid: uid(), source: 'customer',
-          waitingOn: S.waitingOn, waitingDays: SETTINGS.waitingDays,
+          kind: st.kind, dueYmd: due, why: why, todayYmd: today, uid: uid(), source: 'customer',
+          waitingOn: st.waitingOn, waitingDays: SETTINGS.waitingDays,
         });
-        if (built.error) { S.busy = false; paint(); setErr(built.error); return; }
-        await createTask(S.lead || { id: S.leadId }, built);
+        if (built.error) { if (S === st) { st.busy = false; paint(); setErr(built.error); } return; }
+        await createTask(st.lead || { id: st.leadId }, built);
       }
     } catch (e) {
       console.warn('[promise] save failed', e && (e.code || e.message));
-      if (S) { S.busy = false; paint(); setErr(reasonOf(e)); }
+      if (S === st) { st.busy = false; paint(); setErr(reasonOf(e)); }
       return;
     }
-    var done = S.onDone, mode = S.mode, kind = S.kind;
-    close();
+    var done = st.onDone, mode = st.mode, kind = st.kind;
+    if (S === st) close();
     toast(mode === 'move' ? 'Moved' : 'Promise saved - it will be on your list', 'success');
     try { if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); } catch (_) { /* best effort */ }
     if (done) { try { done({ saved: true, kind: kind, due: due, mode: mode }); } catch (_) { /* caller's */ } }
@@ -326,15 +405,16 @@
 
   async function nothingOwed() {
     if (!S || S.busy || !S.callIds.length) { close(); return; }
-    S.busy = true;
+    var st = S;     // see save(): the sheet can be closed while this is in flight
+    st.busy = true;
     try {
-      for (var i = 0; i < S.callIds.length; i++) await callable('callCenterAction', { id: S.callIds[i], action: 'handled' });
+      for (var i = 0; i < st.callIds.length; i++) { await callable('callCenterAction', { id: st.callIds[i], action: 'handled' }); markHandledLocal(st.callIds[i]); }
     } catch (e) {
-      if (S) { S.busy = false; setErr(SAVE_FAIL); }
+      if (S === st) { st.busy = false; setErr(SAVE_FAIL); }
       return;
     }
-    var done = S.onDone;
-    close();
+    var done = st.onDone;
+    if (S === st) close();
     try { if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); } catch (_) { /* best effort */ }
     if (done) { try { done({ saved: true, kind: 'none' }); } catch (_) { /* caller's */ } }
   }

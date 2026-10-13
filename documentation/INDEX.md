@@ -390,6 +390,7 @@ Campaign folders (each has its own STATUS / BUG-LOG / CLEANUP):
 
 - [never-forget-2026-10-13](qa/never-forget-2026-10-13/FINDINGS.md) — adversarial sweep of Today/labels/promises/callWatch; 5 fixed, ranked open findings
 - [crm-header-compact-2026-10-13](qa/crm-header-compact-2026-10-13/README.md) — phone CRM header made compact (first card 588 px to 413 px at 390x844): tabs one row, banner one line, stats + card style one row; before/after shots
+- [never-forget client findings](audit/NEVER-FORGET-CLIENT-FINDINGS-2026-10-13.md) — the client half of that sweep, each verified with a failing test: H4 (a saved promise was hidden by the handled-key collision and a stale task cache), Home reading by row cap instead of the 45-day window, failed reads rendered as an all-clear (Call Center + Today), Waiting ripening on the clock instead of its date, Waiting counted per task not per person, a dropped forced refresh; Home mirror fuzzed against the server rule
 - [brand-sweep-2026-06-07](qa/brand-sweep-2026-06-07/STATUS.md)
 - [theme-sweep-2026-06-07](qa/theme-sweep-2026-06-07/BUG-LOG.md)
 - [live-qa-2026-06-07](qa/live-qa-2026-06-07/STATUS-MATRIX.md)
