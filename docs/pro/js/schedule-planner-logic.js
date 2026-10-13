@@ -14,6 +14,12 @@
  *                 name / address / customer id.
  *     scheduled — leads with a scheduledDate from opts.today to today+30,
  *                 soonest first, so a date can be moved in the same place.
+ *     missed    — open jobs whose scheduledDate (or last project day) is
+ *                 BEFORE opts.today and which never advanced (2026-10-13:
+ *                 these used to vanish from the planner entirely). Same
+ *                 stage filter as "needs" (READY unless opts.all), oldest
+ *                 first. A needs / missed row can be marked "Already
+ *                 completed" — completedOffer + completionIssue below.
  *   fieldsFor(input) → { ok, fields } | { ok:false, error }
  *     input { date, start, days, week } → the lead's schedule fields,
  *     validated by NBDScheduleWindow.check (the same rules the firestore
@@ -48,7 +54,7 @@
     const today = o.today;
     const horizon = W().addDays(today, 30);
     const q = str(o.q).toLowerCase();
-    const needs = [], scheduled = [];
+    const needs = [], scheduled = [], missed = [];
     for (const l of leads || []) {
       if (!l || l.deleted || !l.id) continue;
       const stage = norm(l.stage || '');
@@ -57,7 +63,15 @@
       const date = str(l.scheduledDate);
       if (date) {
         row.sortKey = date + ' ' + str(l.scheduledStart);
-        if (date >= today && date <= horizon) scheduled.push(row);
+        if (date >= today && date <= horizon) { scheduled.push(row); continue; }
+        // In the past and never advanced: surface it, don't lose it. The
+        // last day of a multi-day project is what has to be behind us.
+        const last = str(l.scheduledEndDate) > date ? str(l.scheduledEndDate) : date;
+        if (last < today && !DONE.includes(stage) && (o.all || READY.includes(stage))) {
+          row.missedOn = last;
+          row.sortKey = date + ' ' + str(l.scheduledStart);
+          missed.push(row);
+        }
         continue;
       }
       // Planned to a week, no day yet. Still ahead (its Sunday not passed) →
@@ -80,7 +94,9 @@
     needs.sort((a, b) => rank(b.stage) - rank(a.stage) || a.name.localeCompare(b.name));
     // Soonest first; within a week, set days before the week-only plans.
     scheduled.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-    return { needs, scheduled };
+    // Missed: the most overdue first.
+    missed.sort((a, b) => a.sortKey.localeCompare(b.sortKey) || a.name.localeCompare(b.name));
+    return { needs, scheduled, missed };
   }
 
   /** The Monday of the week holding ymd (YYYY-MM-DD), or null. */
@@ -163,7 +179,82 @@
     return to > -1 && from > -1 && from < to;
   }
 
-  const api = { READY, DONE, rowsFor, fieldsFor, inputsOf, nameOf, mondayOf, crewMoveOffer };
+  /**
+   * Should this row offer "Already completed"? (2026-10-13, Jo: "say already
+   * completed on anything that missed scheduling and it forwards it to the
+   * next stage" — target Install Done.) Only a FORWARD move on the lead's own
+   * track onto install_complete, on committed (signed) work — the same shape
+   * as crewMoveOffer — and only where the rules would let this user write:
+   *   - not deleted / not a prospect / no open warranty claim;
+   *   - not lost, not already won (Install Done or later hides the button);
+   *   - the lead's track contains install_complete AFTER its current stage
+   *     (a warranty / service lead whose track has no Install Done never
+   *     gets it) and the current stage is at or past contract_signed (an
+   *     estimate-stage lead picked via "Show all open leads" skips the sale);
+   *   - viewers never; a rep only on their own leads; company_admin /
+   *     manager on their tenant's; platform admin anywhere (moveCard's rule).
+   * @param {object}   lead
+   * @param {string[]} order  the lead's track, earliest first
+   * @param {object}   [o]    { normalize(stage), roleOf(stage), role, uid, companyId }
+   */
+  function completedOffer(lead, order, o) {
+    const opts = o || {};
+    const l = lead || {};
+    if (!l.id || l.deleted || l.isProspect || l.openWarrantyClaimId) return false;
+    const role = str(opts.role);
+    if (role === 'viewer') return false;
+    const staff = (role === 'company_admin' || role === 'manager') && !!opts.companyId && l.companyId === opts.companyId;
+    if (l.userId && opts.uid && l.userId !== opts.uid && role !== 'admin' && !staff) return false;
+    const norm = typeof opts.normalize === 'function' ? opts.normalize : (s) => str(s).toLowerCase();
+    const cur = norm(l._stageKey || l.stage || 'new');
+    const stageRole = typeof opts.roleOf === 'function' ? opts.roleOf(cur) : '';
+    if (stageRole === 'won' || stageRole === 'lost' || cur === 'lost' || cur === 'install_complete') return false;
+    const list = Array.isArray(order) ? order : [];
+    const to = list.indexOf('install_complete');
+    const from = list.indexOf(cur);
+    if (to < 0 || from < 0 || from >= to) return false;
+    const signed = list.indexOf('contract_signed');
+    if (signed > -1 && from < signed) return false;
+    return true;
+  }
+
+  /** The stage keys a backfill jumps over: strictly between the lead's stage and install_complete. */
+  function skippedBetween(lead, order, o) {
+    const opts = o || {};
+    const l = lead || {};
+    const norm = typeof opts.normalize === 'function' ? opts.normalize : (s) => str(s).toLowerCase();
+    const cur = norm(l._stageKey || l.stage || 'new');
+    const list = Array.isArray(order) ? order : [];
+    const from = list.indexOf(cur), to = list.indexOf('install_complete');
+    return from > -1 && to > from ? list.slice(from + 1, to) : [];
+  }
+
+  /**
+   * Why an "already completed" date is refused, or '' when it is fine.
+   * 'malformed' (not a real YYYY-MM-DD day), 'future' (after today), 'too-old'
+   * (before 2015). docs/pro/js/stage-write.js completionDateIssue is the same
+   * rule for the write itself (tests keep the two in step).
+   */
+  function completionIssue(ymd, today) {
+    const s = str(ymd);
+    const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!p) return 'malformed';
+    const y = +p[1], m = +p[2], d = +p[3];
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return 'malformed';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(str(today))) return 'malformed';
+    if (s > str(today)) return 'future';
+    if (y < 2015) return 'too-old';
+    return '';
+  }
+  const COMPLETION_MESSAGES = {
+    malformed: 'Pick the day it was finished.',
+    future: 'It can\u2019t have finished in the future \u2014 pick today or earlier.',
+    'too-old': 'That date is too far back \u2014 check the year.',
+  };
+
+  const api = { READY, DONE, rowsFor, fieldsFor, inputsOf, nameOf, mondayOf, crewMoveOffer,
+    completedOffer, skippedBetween, completionIssue, COMPLETION_MESSAGES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDSchedulePlanner = api;
 })(typeof window !== 'undefined' ? window : null);

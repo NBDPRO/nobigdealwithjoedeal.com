@@ -293,6 +293,9 @@ async function findAnniversaryLeads(db, uid) {
     seen.add(lead.id);
     if (lead.deleted) return;
     if (lead.isProspect) return;
+    // Quiet "already completed" backfill (schedule planner, 2026-10-13): no
+    // anniversary touch is queued for a job marked finished after the fact.
+    if (lead.completedBackfill) return;
     // Authoritative re-check, mirroring dormant-leads.js's _isTerminalLead:
     // reuse stage-roles.js's roleFor()/ROLE.WON (via leadCompletionMs /
     // firstCompletionMs) instead of a literal-stage Set, so a persisted

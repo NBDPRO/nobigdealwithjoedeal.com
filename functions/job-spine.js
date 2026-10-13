@@ -141,6 +141,9 @@ async function requestReviewTaskIfPaid(db, leadId, companyId, deps) {
     if (companyId && lead.companyId && String(lead.companyId) !== String(companyId)) return { created: false, reason: 'tenant_mismatch' };
     const jobId = typeof lead.activeJobId === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(lead.activeJobId) ? lead.activeJobId : null;
     if (lead.reviewAskDeclined === true) return { created: false, reason: 'declined' };
+    // Quiet "already completed" backfill (schedule planner, 2026-10-13): Jo's
+    // rule is no review ask for a job marked finished after the fact.
+    if (lead.completedBackfill) return { created: false, reason: 'quiet_backfill' };
     if (!jobId && lead.reviewRequested === true) return { created: false, reason: 'already_asked' };
     if (!PIF.isPaidStage(lead)) return { created: false, reason: 'not_paid_stage' };
     const invoices = await PIF.loadLeadInvoices(db, leadId, lead, jobId);

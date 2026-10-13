@@ -302,6 +302,9 @@ async function findReviewDueLeads(db, uid) {
     const lead = { id: doc.id, ...doc.data() };
     if (lead.deleted) continue;
     if (lead.isProspect) continue;
+    // Quiet "already completed" backfill (schedule planner, 2026-10-13): Jo's
+    // rule is no review ask for a job marked finished after the fact.
+    if (lead.completedBackfill) continue;
 
     // Re-verify through the shared role map: persisted stageRole wins,
     // else the key classifies. Drops legacy-lane rows whose raw stage

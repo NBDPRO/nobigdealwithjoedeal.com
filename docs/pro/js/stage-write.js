@@ -111,6 +111,31 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
   // function re-fetching the lead doc just to read one field.
   const jobType = opts.jobType || null;
 
+  // Already-completed backfill (2026-10-13, Jo: "say already completed on
+  // anything that missed scheduling and it forwards it to the next stage").
+  // A QUIET move onto install_complete for a job that was finished without
+  // ever being scheduled in the app: it stamps the real completion date
+  // (completedAt — the field winback / anniversary / social-studio /
+  // agent-mcp already read), marks the lead completedBackfill (the quiet flag
+  // every after-install automation checks), and fires NO customer-facing
+  // side effect from here (no drip toast, no Before & After report). The
+  // required-field gate lives in moveCard, not here, so this path never
+  // blocks on a skipped intermediate stage — the caller records what it
+  // bypassed in opts.backfill.skipped / .unchecked (history + note only).
+  // opts.backfill = { date: 'YYYY-MM-DD', skipped?: string[], unchecked?: string[], today?: 'YYYY-MM-DD' }
+  const backfill = (opts.backfill && typeof opts.backfill === 'object') ? opts.backfill : null;
+  let backfillAt = null;
+  let backfillDate = '';
+  let backfillResult = null;
+  if (backfill) {
+    if (newStage !== 'install_complete') throw new Error('BACKFILL_STAGE_INVALID');
+    if (completionDateIssue(backfill.date, backfill.today)) throw new Error('BACKFILL_DATE_INVALID');
+    backfillDate = String(backfill.date).trim();
+    const _p = backfillDate.split('-').map(Number);
+    backfillAt = new Date(_p[0], _p[1] - 1, _p[2], 12, 0, 0);   // local noon: the same calendar day in every US zone
+  }
+  const _names = (a) => (Array.isArray(a) ? a : []).map((x) => String(x == null ? '' : x).slice(0, 60)).filter(Boolean).slice(0, 12);
+
   const actor = stageActor(opts.actorLabel);
   const historyEvent = {
     from: oldStage,
@@ -122,6 +147,15 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
   if (actor.email) historyEvent.byEmail = actor.email;
   if (actor.name) historyEvent.byName = actor.name;
   if (isLostMove && lostReason) historyEvent.lostReason = lostReason;
+  if (backfill) {
+    historyEvent.backfill = true;
+    historyEvent.completedOn = backfillDate;
+    historyEvent.reason = 'missed_scheduling';
+    const _sk = _names(backfill.skipped);
+    const _un = _names(backfill.unchecked);
+    if (_sk.length) historyEvent.skipped = _sk;
+    if (_un.length) historyEvent.unchecked = _un;
+  }
 
   const leadRef = window.doc(window.db, 'leads', id);
   // Won-stage close stamp (2026-10-03 data audit: 10 won leads had no
@@ -164,6 +198,27 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
     return out;
   };
 
+  // Backfill: the completion fields, written in the SAME patch as the stage so
+  // a half-applied backfill (stage moved, date missing) cannot exist. prev is
+  // read from the server copy inside the transaction — it is what Undo puts
+  // back. completedBackfill.token is this write's history timestamp: Undo
+  // only fires while that token is still on the lead (nothing moved it since).
+  const _backfillPatch = (payload, cur) => {
+    const prev = {};
+    payload.completedAt = backfillAt;
+    payload.stageStartedAt = backfillAt;          // it entered Install Done on the day it finished
+    payload.completedBackfill = {
+      date: backfillDate, quiet: true, reason: 'missed_scheduling',
+      by: actor.label, byUid: actor.uid, at: window.serverTimestamp(),
+      token: historyEvent.timestamp, fromStage: (cur && cur.stage) || oldStage || null,
+    };
+    ['stage', 'stageRole', 'stageStartedAt', 'closedAt', 'completedAt', 'completedBackfill', 'soldTier', 'soldTierSource'].forEach((k) => {
+      if (Object.prototype.hasOwnProperty.call(payload, k)) prev[k] = (cur && cur[k] !== undefined) ? cur[k] : null;
+    });
+    if (!prev.stage) prev.stage = oldStage || null;
+    return { prev, token: historyEvent.timestamp, date: backfillDate };
+  };
+
   if (typeof window.runTransaction === 'function') {
     await window.runTransaction(window.db, async (tx) => {
       const snap = await tx.get(leadRef);
@@ -201,6 +256,7 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
       }
       const _tier = _soldTierPatch(cur);
       if (_tier) Object.assign(payload, _tier);
+      if (backfill) backfillResult = _backfillPatch(payload, cur);
       enteredWon = enteringWon && _roleOf(cur.stage) !== 'won';
       tx.update(leadRef, payload);
     });
@@ -221,6 +277,7 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
       // No server read on this path: the caller's oldStage decides.
       payload.closedAt = window.serverTimestamp();
     }
+    if (backfill) backfillResult = _backfillPatch(payload, null);
     enteredWon = enteringWon && _roleOf(oldStage) !== 'won';
     await window.updateDoc(leadRef, payload);
   }
@@ -234,7 +291,11 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
     await window.addDoc(window.collection(window.db, 'notes'), {
       leadId: id,
       userId: window._user?.uid || window.auth?.currentUser?.uid || null,
-      text: `Stage moved to "${label}"`,
+      text: backfill
+        ? ("Marked already completed on " + completionLabel(backfillDate) + " (missed scheduling)"
+          + (_names(backfill.skipped).length ? " — skipped " + _names(backfill.skipped).join(", ") : "")
+          + (_names(backfill.unchecked).length ? "; not checked: " + _names(backfill.unchecked).join(", ") : ""))
+        : `Stage moved to "${label}"`,
       type: 'stage_change',
       createdAt: window.serverTimestamp(),
       createdBy: window._user?.email || window.auth?.currentUser?.email || 'system',
@@ -243,7 +304,7 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
 
   // Email drip automation.
   try {
-    if (window.EmailDrip && typeof window.EmailDrip.onStageChange === 'function') {
+    if (!backfill && window.EmailDrip && typeof window.EmailDrip.onStageChange === 'function') {
       window.EmailDrip.onStageChange(id, oldStage, newStage);
     }
   } catch (e) { console.warn('[stage-write] drip trigger failed:', e && e.message); }
@@ -262,7 +323,8 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
 
   // Before & After report on install complete (2026-10-04). Not awaited:
   // a side effect of a stage change that already succeeded.
-  try { autoBeforeAfterOnStage(id, oldStage, newStage); }
+  // Quiet backfill: a long-finished job must not file a homeowner report.
+  try { if (!backfill) autoBeforeAfterOnStage(id, oldStage, newStage); }
   catch (e) { console.warn('[stage-write] before/after trigger failed:', e && e.message); }
 
   // Production flow (2026-10-04, production.js): a soft warning when a job
@@ -277,7 +339,7 @@ export async function commitStageChange(id, newStage, oldStage, opts) {
 
   // enteredWon: this move took the lead from a non-won stage onto a won one —
   // the caller's cue to offer "Create invoice" (crm-pipeline.js moveCard).
-  return { historyEvent, enteredWon };
+  return backfillResult ? { historyEvent, enteredWon, backfill: backfillResult } : { historyEvent, enteredWon };
 }
 
 /**
@@ -329,4 +391,101 @@ export function autoBeforeAfterOnStage(id, oldStage, newStage) {
     return true;
   }
   return false;
+}
+
+/**
+ * Why a completion date is not acceptable, or '' when it is. Pure.
+ * 'malformed' (not a real YYYY-MM-DD calendar day), 'future' (after today —
+ * "already completed" cannot be tomorrow), 'too-old' (before 2015).
+ * @param {string} ymd
+ * @param {string} [today] YYYY-MM-DD; defaults to the device's local day
+ */
+export function completionDateIssue(ymd, today) {
+  const s = String(ymd == null ? '' : ymd).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return 'malformed';
+  const y = +m[1], mo = +m[2], d = +m[3];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return 'malformed';
+  let t = String(today == null ? '' : today).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    const n = new Date();
+    t = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
+  }
+  if (s > t) return 'future';
+  if (y < 2015) return 'too-old';
+  return '';
+}
+
+/** 'YYYY-MM-DD' → 'Oct 2, 2026' (no Date/timezone involved). Pure. */
+export function completionLabel(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || ''));
+  if (!m) return String(ymd || '');
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return (MON[+m[2] - 1] || m[2]) + ' ' + (+m[3]) + ', ' + m[1];
+}
+
+/**
+ * Undo an "already completed" backfill: put back the stage and the fields
+ * that write replaced, and clear completedAt / completedBackfill — but ONLY
+ * while the lead is still exactly as that write left it (stage still
+ * install_complete and completedBackfill.token still the one this write
+ * minted). Anything else having moved the lead since → throws 'UNDO_STALE'
+ * and writes nothing. Cleared fields go back to null (the app reads null and
+ * absent alike). Appends an undo event to stageHistory; never deletes one.
+ * @param {string} id
+ * @param {{prev: Object, token: string, date?: string}} snap commitStageChange's result.backfill
+ * @returns {Promise<{stage: string}>}
+ */
+export async function undoBackfillCompletion(id, snap) {
+  if (!id || !snap || !snap.token || !snap.prev || typeof snap.prev !== 'object' || !snap.prev.stage) {
+    throw new Error('UNDO_UNAVAILABLE');
+  }
+  const actor = stageActor();
+  const leadRef = window.doc(window.db, 'leads', id);
+  const KEYS = ['stage', 'stageRole', 'stageStartedAt', 'closedAt', 'completedAt', 'completedBackfill', 'soldTier', 'soldTierSource'];
+  const event = {
+    from: 'install_complete', to: snap.prev.stage, timestamp: new Date().toISOString(),
+    user: actor.label, by: actor.uid, backfillUndo: true, undoOf: snap.token,
+  };
+  if (actor.email) event.byEmail = actor.email;
+  if (actor.name) event.byName = actor.name;
+  const build = (cur) => {
+    const bf = cur && cur.completedBackfill;
+    if (!cur || cur.stage !== 'install_complete' || !bf || bf.token !== snap.token) throw new Error('UNDO_STALE');
+    const patch = {};
+    KEYS.forEach((k) => {
+      if (Object.prototype.hasOwnProperty.call(snap.prev, k)) patch[k] = snap.prev[k] === undefined ? null : snap.prev[k];
+    });
+    patch.completedAt = Object.prototype.hasOwnProperty.call(snap.prev, 'completedAt') ? (snap.prev.completedAt || null) : null;
+    patch.completedBackfill = null;
+    patch.updatedAt = window.serverTimestamp();
+    patch.stageHistory = window.arrayUnion(event);
+    return patch;
+  };
+  if (typeof window.runTransaction === 'function') {
+    await window.runTransaction(window.db, async (tx) => {
+      const s = await tx.get(leadRef);
+      if (!s.exists()) throw new Error('Lead not found');
+      tx.update(leadRef, build(s.data() || {}));
+    });
+  } else {
+    const s = await window.getDoc(leadRef);
+    if (!s.exists()) throw new Error('Lead not found');
+    await window.updateDoc(leadRef, build(s.data() || {}));
+  }
+  try {
+    const label = (typeof window.stageLabel === 'function' ? window.stageLabel(snap.prev.stage) : null)
+      || (window.STAGE_META && window.STAGE_META[snap.prev.stage] && window.STAGE_META[snap.prev.stage].label)
+      || snap.prev.stage;
+    await window.addDoc(window.collection(window.db, 'notes'), {
+      leadId: id,
+      userId: window._user?.uid || window.auth?.currentUser?.uid || null,
+      text: 'Undid "already completed" - back to "' + label + '"',
+      type: 'stage_change',
+      createdAt: window.serverTimestamp(),
+      createdBy: window._user?.email || window.auth?.currentUser?.email || 'system',
+    });
+  } catch (e) { console.warn('[stage-write] undo note failed:', e && e.message); }
+  return { stage: snap.prev.stage };
 }
