@@ -29,6 +29,13 @@ const OBJECT_WAIT_MS = 24 * 3600 * 1000;  // a doc whose object never appears fo
 const MAX_TRANSCRIBE_STRIKES = 3;
 const MAX_NOTES_STRIKES = 3;
 const LEASE_MS = 9 * 60 * 1000;           // the trigger's timeout is 540 s
+const GIVE_UP_MS = 14 * 24 * 3600 * 1000; // nothing is retried forever
+const TRANSIENT_MAX = 6;                  // consecutive 5xx / network failures of ONE recording before it counts as its fault
+const INTERNAL_MAX = 5;
+const MANUAL_RETRY_MAX = 5;
+const MANUAL_RETRY_COOLDOWN_MS = 2 * 60 * 1000;
+const LEAD_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+const CONSENT_MODES = ['one_party', 'two_party_attested', 'two_party_verbal'];
 const APPT_WINDOW_MS = 60 * 60 * 1000;    // +-60 min, the same window the phone uses
 const GPS_MIN_RADIUS_M = 40;
 const GPS_MAX_RADIUS_M = 200;
@@ -57,9 +64,10 @@ const PIPELINE = Object.freeze({
   SKIPPED: 'skipped',
   QUARANTINED: 'quarantined_consent',
   DISCARDED: 'discarded',
+  PURGE_PENDING: 'purge_pending',   // a skip / discard whose audio could not be deleted yet
 });
 // The sweep re-visits exactly these.
-const RETRY_STATES = [PIPELINE.WAITING_OBJECT, PIPELINE.TRANSCRIBE_PENDING, PIPELINE.CONSENT_PENDING, PIPELINE.TRANSCRIBED, PIPELINE.NOTES_PENDING];
+const RETRY_STATES = [PIPELINE.WAITING_OBJECT, PIPELINE.TRANSCRIBE_PENDING, PIPELINE.CONSENT_PENDING, PIPELINE.TRANSCRIBED, PIPELINE.NOTES_PENDING, PIPELINE.PURGE_PENDING];
 
 const str = (v) => String(v == null ? '' : v);
 const clip = (s, n) => {
@@ -120,6 +128,46 @@ function classifyProviderError(err) {
   return { provider, kind, reason, needsAction: kind === 'credit' || kind === 'auth' };
 }
 
+/**
+ * What the visit line treats as "not this recording's fault": the provider
+ * classifier above PLUS the failures its string rules cannot see: the Groq
+ * adapter's VoiceError codes (groq-not-configured, groq-network), a fetch
+ * timeout (AbortSignal.timeout throws TimeoutError) and a dropped connection.
+ * Those are transient 'overloaded'-class outages: retried, never struck (until
+ * TRANSIENT_MAX in a row, so one poisoned file cannot hold the line).
+ */
+function visitOutage(err) {
+  const c = classifyProviderError(err);
+  if (c) return c;
+  if (!err) return null;
+  const isObj = typeof err === 'object';
+  const code = isObj ? str(err.code) : '';
+  const name = isObj ? str(err.name) : '';
+  const msg = isObj ? str(err.message) : str(err);
+  if (code === 'groq-not-configured' || /GROQ_API_KEY secret is unset/i.test(msg)) {
+    return { provider: 'groq', kind: 'auth', reason: 'Groq key is not configured', needsAction: true };
+  }
+  if (code === 'groq-network' || name === 'TimeoutError' || name === 'AbortError' || /fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|network error|aborted due to timeout/i.test(msg)) {
+    return { provider: 'ai', kind: 'overloaded', reason: 'The AI provider could not be reached (clears by itself)', needsAction: false };
+  }
+  return null;
+}
+
+/** A short, secret-free code for the client-readable doc (the full error stays in the logs). */
+function errCode(err, outage) {
+  if (outage) return outage.provider + ':' + outage.kind;
+  const m = (err && typeof err === 'object' ? str(err.message) : str(err)).replace(/[A-Za-z0-9_-]{24,}/g, '...').replace(/\s+/g, ' ').trim();
+  return m.slice(0, 80);
+}
+
+const CONSENT_RANK = { one_party: 0, two_party_attested: 1, two_party_verbal: 2 };
+/** The stricter of the company's setting and what the phone claimed: a phone can only raise it. */
+function stricterConsent(a, b) {
+  const x = CONSENT_MODES.indexOf(a) >= 0 ? a : 'one_party';
+  const y = CONSENT_MODES.indexOf(b) >= 0 ? b : 'one_party';
+  return CONSENT_RANK[x] >= CONSENT_RANK[y] ? x : y;
+}
+
 /** Minutes to wait before the sweep tries again after an outage of this kind. */
 function outageRetryMs(kind) {
   if (kind === 'credit' || kind === 'auth') return 60 * 60 * 1000;   // only Jo can fix it; do not hammer
@@ -152,14 +200,19 @@ function nextStep(doc, nowMs) {
   const d = doc && typeof doc === 'object' ? doc : null;
   if (!d) return { step: 'none', why: 'no doc' };
   if (d.status === 'discarded') {
-    return d.pipelineStatus === PIPELINE.DISCARDED && d.audioLive !== true ? { step: 'none', why: 'discard done' } : { step: 'discard' };
+    if (d.pipelineStatus === PIPELINE.DISCARDED && d.audioLive !== true) return { step: 'none', why: 'discard done' };
+    if (d.pipelineStatus === PIPELINE.PURGE_PENDING && (Number(d.pipelineNextAtMs) || 0) > nowMs) return { step: 'none', why: 'purge backoff' };
+    return { step: 'discard' };
   }
   if (d.status !== 'uploaded') return { step: 'none', why: 'not uploaded' };
   const p = d.pipelineStatus || '';
   const due = Number(d.pipelineNextAtMs) || 0;
   if (Number(d.pipelineLeaseUntilMs) > nowMs) return { step: 'none', why: 'leased' };
-  // A skip that could not delete its audio yet: finish the delete.
+  // A skip / discard that could not delete its audio yet: finish the delete.
+  if (p === PIPELINE.PURGE_PENDING) return due <= nowMs ? { step: 'purge' } : { step: 'none', why: 'purge backoff' };
   if ((p === PIPELINE.SKIPPED || p === PIPELINE.QUARANTINED) && d.audioLive === true) return due <= nowMs ? { step: 'purge' } : { step: 'none', why: 'purge backoff' };
+  // The person took the customer off (or the phone wrote leadId null): take the filing off too.
+  if (!d.leadId && d.attachedLeadId && (p === PIPELINE.READY || p === PIPELINE.NOTES_PENDING || p === PIPELINE.NOTES_FAILED || p === PIPELINE.TRANSCRIBED)) return { step: 'unfile' };
   const wantsFinalize = !!d.leadId && d.finalizedKey !== finalizeKey(d)
     && (p === PIPELINE.READY || p === PIPELINE.NOTES_PENDING || p === PIPELINE.NOTES_FAILED || p === PIPELINE.TRANSCRIBED);
   if (!p || p === PIPELINE.QUEUED) return due <= nowMs ? { step: 'process', stage: 'start' } : { step: 'none', why: 'backoff' };
@@ -551,7 +604,7 @@ function addDays(ymd, n) { return PR.addDaysYmd(ymd, n); }
  *   leads/{id}/tasks/visit-{visitId}-f{n}            follow-up tasks
  * Tasks are created only when ABSENT, so a tick or an edit is never undone.
  */
-function buildAttachment({ capture, notes, visitId, leadId, lead, uid, todayYmd, nowMs, audioKeptDays }) {
+function buildAttachment({ capture, notes, visitId, leadId, lead, uid, todayYmd, nowMs, audioKeptDays, notesFailed }) {
   const cap = capture || {};
   const n = notes || null;
   const ownerUid = (lead && lead.userId) || uid;
@@ -596,6 +649,7 @@ function buildAttachment({ capture, notes, visitId, leadId, lead, uid, todayYmd,
   const dur = Math.round(Number(cap.durationSec) || 0);
   const parts = [];
   if (n && n.summary) parts.push(n.summary);
+  else if (notesFailed) parts.push('Recorded. The notes could not be written; the transcript is saved (open the visit to retry).');
   else parts.push('Recorded. Notes are pending; the transcript is saved.');
   if (n && n.promises.length) {
     const mine = n.promises.filter((p) => p.who === 'jo').map((p) => p.text);
@@ -617,8 +671,9 @@ function buildAttachment({ capture, notes, visitId, leadId, lead, uid, todayYmd,
     visitType: n ? n.visitType : null,
     urgent: !!(n && n.urgent),
     audioVisitId: cap.audioPath ? visitId : null,
-    audioKeptUntilMs: cap.audioPath && audioKeptDays ? (Number(cap.uploadedAtMs) || nowMs) + audioKeptDays * 86400000 : null,
-    notesPending: !n,
+    audioKeptUntilMs: cap.audioPath && audioKeptDays ? (Number(cap.firstSeenAtMs) || nowMs) + audioKeptDays * 86400000 : null,
+    notesPending: !n && !notesFailed,
+    notesFailed: !n && !!notesFailed,
   };
   if (companyId) activity.companyId = companyId;
   return { activityId: 'visit-' + visitId, activity, tasks, skipped };
@@ -628,7 +683,8 @@ module.exports = {
   MAX_DURATION_SEC, OBJECT_WAIT_MS, MAX_TRANSCRIBE_STRIKES, MAX_NOTES_STRIKES, LEASE_MS, APPT_WINDOW_MS,
   GPS_MIN_RADIUS_M, GPS_MAX_RADIUS_M, GPS_MAX_ACCURACY_M, MAX_CHIPS, SUGGEST_RULES_VERSION, VOCAB_MAX_CHARS,
   RETENTION_DEFAULT_DAYS, PIPELINE, RETRY_STATES, VISIT_TYPES, FIXED_TERMS, VISIT_NOTES_SYSTEM,
-  AUDIO_PATH_RE, classifyProviderError, outageRetryMs, retentionDays, nextStep, finalizeKey,
+  AUDIO_PATH_RE, classifyProviderError, visitOutage, errCode, stricterConsent, CONSENT_MODES, GIVE_UP_MS, TRANSIENT_MAX, INTERNAL_MAX,
+  MANUAL_RETRY_MAX, MANUAL_RETRY_COOLDOWN_MS, LEAD_ID_RE, outageRetryMs, retentionDays, nextStep, finalizeKey,
   buildVocabularyPrompt, correctTranscript, editDistanceLE1,
   buildVisitNotesPrompt, sanitizeVisitNotes,
   haversineM, gpsCandidate, rankSuggestions, guessPromiseKind, buildAttachment, etToday,

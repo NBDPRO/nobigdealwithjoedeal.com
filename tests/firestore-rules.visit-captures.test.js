@@ -72,6 +72,8 @@ async function run() {
     await setDoc(doc(db, 'leads/lead-a1'), { userId: 'alice', companyId: 'co-a', name: 'ZZ Alice Lead' });
     await setDoc(doc(db, 'leads/lead-a2'), { userId: 'rep2', companyId: 'co-a', name: 'ZZ Rep2 Lead' });
     await setDoc(doc(db, 'leads/lead-b1'), { userId: 'bob', companyId: 'co-b', name: 'ZZ Bob Lead' });
+    // The path-splice probe: an activity doc ALICE owns, named like another tenant's lead id.
+    await setDoc(doc(db, 'leads/lead-a1/activity/lead-b1'), { userId: 'alice', companyId: 'co-b', type: 'note', source: 'rep' });
     await setDoc(doc(db, 'users/alice/visit_captures/' + VID), visit('alice', { leadId: null }));
     await setDoc(doc(db, 'users/alice/visit_captures/vseeded000000001'), visit('alice', { leadId: 'lead-a1' }));
     await setDoc(doc(db, 'users/alice/visit_captures/vseeded000000002'), visit('alice', { leadId: null }));
@@ -211,6 +213,16 @@ async function run() {
   await check('PR2: a viewer still cannot patch such a doc', 'deny', updateDoc(ref(vic, 'alice', SV(7)), { status: 'uploaded' }));
   await check('PR2: another tenant still cannot patch it', 'deny', updateDoc(ref(bob, 'alice', SV(7)), { status: 'uploaded' }));
   await check('PR2: the owner can still delete it (the server trigger then removes the audio)', 'allow', deleteDoc(ref(alice, 'alice', SV(8))));
+
+  // ── review round: a leadId is an ID, never a path; consentMode is write-once ──
+  await check('RR: leadId that is a path into an activity doc the writer owns (leads/lead-a1/activity/lead-b1) is refused', 'deny',
+    setDoc(ref(alice, 'alice', 'vslash000000001'), visit('alice', { leadId: 'lead-a1/activity/lead-b1' })));
+  await check('RR: ...on an update too (merge)', 'deny', setDoc(ref(alice, 'alice', SV(9)), { leadId: 'lead-a1/activity/lead-b1', attachedAtMs: 1 }, { merge: true }));
+  await check('RR: leadId with a trailing path escape is refused', 'deny', setDoc(ref(alice, 'alice', 'vslash000000002'), visit('alice', { leadId: 'lead-a1/..' })));
+  await check('RR: leadId that is not a string is refused', 'deny', setDoc(ref(alice, 'alice', 'vslash000000003'), visit('alice', { leadId: 12345 })));
+  await check('RR control: the plain id of their own lead is accepted', 'allow', setDoc(ref(alice, 'alice', 'vslash000000004'), visit('alice', { leadId: 'lead-a1' })));
+  await check('RR: consentMode cannot be lowered after the fact', 'deny', updateDoc(ref(alice, 'alice', SV(10)), { consentMode: 'two_party_verbal' }));
+  await check('RR control: writing the SAME consentMode again (the phone mirrors its row) is accepted', 'allow', setDoc(ref(alice, 'alice', SV(10)), { consentMode: 'one_party', status: 'uploaded' }, { merge: true }));
 
   await env.cleanup();
 

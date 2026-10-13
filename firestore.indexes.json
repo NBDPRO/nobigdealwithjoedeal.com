@@ -1017,7 +1017,7 @@
       ]
     },
     {
-      "_comment": "Visit recordings (2026-10-13): visitCaptureSweep finds uploaded visits whose trigger never ran: collectionGroup('visit_captures').where('status','==','uploaded').where('uploadedAtMs','>',now-48h). Equality + range across every user's visit docs: composite COLLECTION_GROUP (the emulator never enforces it).",
+      "_comment": "Visit recordings (2026-10-13): visitCaptureSweep finds uploaded visits whose trigger never ran: collectionGroup('visit_captures').where('status','==','uploaded').where('uploadedAtMs','>',now-48h).where('uploadedAtMs','<',now+1h).orderBy('uploadedAtMs'). Equality + a two-sided range on uploadedAtMs across every user's visit docs: composite COLLECTION_GROUP (the emulator never enforces it).",
       "collectionGroup": "visit_captures",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
@@ -1026,12 +1026,21 @@
       ]
     },
     {
-      "_comment": "Visit recordings (2026-10-13): the retention phase of recordingRetentionCron reads collectionGroup('visit_captures').where('audioLive','==',true).where('uploadedAtMs','<',cutoff).orderBy('uploadedAtMs'). Composite COLLECTION_GROUP, same shape as the recordings status+recordedAt pair above.",
+      "_comment": "Visit recordings (2026-10-13): the retention phase of recordingRetentionCron reads collectionGroup('visit_captures').where('audioLive','==',true).where('firstSeenAtMs','<',cutoff).orderBy('firstSeenAtMs') (firstSeenAtMs is the server's own stamp, never a phone-written time). Composite COLLECTION_GROUP, same shape as the recordings status+recordedAt pair above.",
       "collectionGroup": "visit_captures",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "audioLive", "order": "ASCENDING" },
-        { "fieldPath": "uploadedAtMs", "order": "ASCENDING" }
+        { "fieldPath": "firstSeenAtMs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Visit recordings (2026-10-13): visitCaptureSweep reads collectionGroup('visit_captures').where('pipelineStatus','in',[retry states]).where('pipelineNextAtMs','<=',now).orderBy('pipelineNextAtMs'): only the docs that are DUE, oldest first, so backed-off docs never use a slot. Composite COLLECTION_GROUP (the emulator never enforces it).",
+      "collectionGroup": "visit_captures",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "pipelineStatus", "order": "ASCENDING" },
+        { "fieldPath": "pipelineNextAtMs", "order": "ASCENDING" }
       ]
     }
   ],
@@ -1127,16 +1136,6 @@
       "_comment": "Jobs under a lead (2026-09-30): the pipeline loads a tenant's jobs in one collectionGroup('jobs').where('userId','==') query (docs/pro/js/jobs-store.js). Equality-only, so a single-field COLLECTION_GROUP index serves it; COLLECTION asc/desc kept so default single-parent indexing is preserved.",
       "collectionGroup": "jobs",
       "fieldPath": "userId",
-      "indexes": [
-        { "order": "ASCENDING",  "queryScope": "COLLECTION" },
-        { "order": "DESCENDING", "queryScope": "COLLECTION" },
-        { "order": "ASCENDING",  "queryScope": "COLLECTION_GROUP" }
-      ]
-    },
-    {
-      "_comment": "Visit recordings (2026-10-13): visitCaptureSweep reads collectionGroup('visit_captures').where('pipelineStatus','in',[waiting_object, transcribe_pending, consent_pending, transcribed, notes_pending]) to retry what a provider outage left. Single-field COLLECTION_GROUP index; COLLECTION asc/desc kept so default single-parent indexing is preserved.",
-      "collectionGroup": "visit_captures",
-      "fieldPath": "pipelineStatus",
       "indexes": [
         { "order": "ASCENDING",  "queryScope": "COLLECTION" },
         { "order": "DESCENDING", "queryScope": "COLLECTION" },

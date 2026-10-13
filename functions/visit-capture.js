@@ -26,13 +26,17 @@
  * Server-owned fields on the doc (the client's rules allowlist never lists
  * them): pipelineStatus (+ pipelineNextAtMs, pipelineLeaseUntilMs,
  * pipelineNote), transcript, transcriptRaw, transcriptCorrections, notes,
- * suggestions, audioLive, finalizedKey. The client's own `status` is the upload
- * lifecycle and is only ever READ here.
+ * suggestions, audioLive, firstSeenAtMs, finalizedKey. The client's own
+ * `status` is the upload lifecycle and is only ever READ here. Every client
+ * field the server acts on (leadId, audioPath, consentMode, uploadedAtMs,
+ * durationSec) is re-validated here: the rules are not the only gate, and a
+ * client-written time never decides how long audio is kept.
  *
  * Everything is idempotent: re-running any step writes the same docs, and the
  * trigger's own writes re-fire it into a no-op (nextStep decides from the doc).
  * Nothing in the pipeline throws out to Firebase (a throw would retry the
- * trigger and re-charge Groq).
+ * trigger and re-charge Groq), and nothing is retried forever: every retry
+ * path has a cap or an age limit.
  */
 
 const { logger } = require('firebase-functions/v2');
@@ -57,7 +61,6 @@ function deps() {
     }),
     notes: (a) => require('./call-center').claudeNotes(a),
     checkConsent: (a) => V._checkVerbalConsent(a),
-    companyContext: (db, uid) => V._getCompanyContext(db, uid),
     checkBudget: (db, companyId, plan) => V._checkBudget(db, companyId, plan),
     recordUsage: (db, a) => V._incrementVoiceUsage(db, a),
     aiDisabled: async () => {
@@ -68,6 +71,7 @@ function deps() {
       const [url] = await bucket.file(path).getSignedUrl({ version: 'v4', action: 'read', expires: Date.now() + 10 * 60 * 1000 });
       return url;
     },
+    rateLimit: (uid) => require('./integrations/upstash-ratelimit').enforceRateLimit('callable:attachVisitCapture:uid', uid, 120, 60 * 60_000),
   };
 }
 function setDeps(d) { _deps = d; }
@@ -81,12 +85,46 @@ function uidFromPath(path) {
   return m ? { uid: m[1], visitId: m[2] } : null;
 }
 const visitRef = (db, uid, id) => db.doc('users/' + uid + '/' + VISITS + '/' + id);
+const isGone = (e) => !!e && (e.code === 5 || /NOT_FOUND|No document to update/i.test(String(e.message || '')));
+class GoneError extends Error { constructor() { super('visit doc is gone'); this.gone = true; } }
+
+/**
+ * Write server fields to a doc that must still EXIST. A merge-set would
+ * resurrect a doc the person deleted mid-pass (transcript and all, with no
+ * status, never swept); update() refuses.
+ */
+async function upd(ref, patch) {
+  try { await ref.update(patch); } catch (e) { if (isGone(e)) throw new GoneError(); throw e; }
+}
 
 /** May `uid` (company `companyId`) file a recording on this lead? Same rule as Voice Intel. */
 function mayRecordOn(lead, uid, companyId) {
   if (!lead) return false;
   if (lead.userId === uid) return true;
   return !!companyId && lead.companyId != null && lead.companyId === companyId;
+}
+/** Roles that may reach the company's customers (rules: company staff); every other non-viewer role: their OWN customers only. */
+const STAFF_ROLES = ['', 'owner', 'company_admin', 'manager', 'admin'];
+
+/**
+ * The caller's tenant, read DIRECTLY (not through Voice Intel's
+ * getCompanyContext, which swallows read errors and falls back to "your own
+ * uid": a blip there would clear a legitimate attach). Throws on a failed
+ * read, so the caller retries instead of deciding on a guess.
+ */
+async function contextFor(db, uid) {
+  const u = await db.doc('users/' + uid).get();
+  const companyId = (u.exists && u.data() && u.data().companyId) || uid;
+  const sub = await db.doc('subscriptions/' + uid).get();
+  const plan = (sub.exists && sub.data() && sub.data().plan) || 'lite';
+  const co = await db.doc('companies/' + companyId).get();
+  const cd = co.exists ? (co.data() || {}) : {};
+  return {
+    companyId, plan,
+    // Unset = one_party for this feature (Ohio / Kentucky), exactly as the phone reads it.
+    companyConsentMode: LG.CONSENT_MODES.indexOf(cd.recordingConsentMode) >= 0 ? cd.recordingConsentMode : 'one_party',
+    retentionDays: LG.retentionDays(cd),
+  };
 }
 
 async function tenantLeads(db, uid, companyId) {
@@ -112,30 +150,36 @@ async function appointmentsAround(db, uid, startedAtMs) {
   return Array.from(byId.values());
 }
 
-function vocabularyFor({ leads, capture, appointments }) {
-  const byId = new Map(leads.map((l) => [String(l.id), l]));
-  const name = (l) => (String(l.name || l.customerName || '') || (String(l.firstName || '') + ' ' + String(l.lastName || '')).trim()).trim();
-  const priority = [];
-  if (capture.leadId && byId.has(String(capture.leadId))) priority.push(name(byId.get(String(capture.leadId))));
-  (appointments || []).forEach((a) => { const l = a && a.leadId ? byId.get(String(a.leadId)) : null; if (l) priority.push(name(l)); });
-  const recent = leads.filter((l) => l.deleted !== true)
-    .sort((a, b) => (LG_ms(b.updatedAt) || 0) - (LG_ms(a.updatedAt) || 0)).slice(0, 25);
-  const streets = []; const towns = [];
-  recent.forEach((l) => {
-    const segs = String(l.address || '').split(',').map((x) => x.trim()).filter(Boolean);
-    if (segs[0]) streets.push(segs[0].replace(/^\d+\s+/, ''));
-    if (segs[1]) towns.push(segs[1]);
-  });
-  const names = recent.map(name);
-  return { priorityNames: priority, names, streets, towns, nameList: priority.concat(names), streetList: streets };
-}
-function LG_ms(v) {
+const ms = (v) => {
   if (v == null) return null;
   if (typeof v === 'number') return v;
   if (typeof v.toMillis === 'function') { try { return v.toMillis(); } catch (_) { return null; } }
   if (typeof v.seconds === 'number') return v.seconds * 1000;
   const t = Date.parse(v);
   return isNaN(t) ? null : t;
+};
+const leadName = (l) => (String(l.name || l.customerName || '') || (String(l.firstName || '') + ' ' + String(l.lastName || '')).trim()).trim();
+
+/**
+ * The Whisper hint's words. Deliberately small: these names leave the
+ * building (Groq), so it is the customers in the room plus the 8 most recently
+ * touched, not the whole book.
+ */
+function vocabularyFor({ leads, capture, appointments }) {
+  const byId = new Map(leads.map((l) => [String(l.id), l]));
+  const priority = [];
+  if (capture.leadId && byId.has(String(capture.leadId))) priority.push(leadName(byId.get(String(capture.leadId))));
+  (appointments || []).forEach((a) => { const l = a && a.leadId ? byId.get(String(a.leadId)) : null; if (l) priority.push(leadName(l)); });
+  const recent = leads.filter((l) => l.deleted !== true && l.doNotRecord !== true)
+    .sort((a, b) => (ms(b.updatedAt) || 0) - (ms(a.updatedAt) || 0)).slice(0, 8);
+  const streets = []; const towns = [];
+  recent.forEach((l) => {
+    const segs = String(l.address || '').split(',').map((x) => x.trim()).filter(Boolean);
+    if (segs[0]) streets.push(segs[0].replace(/^\d+\s+/, ''));
+    if (segs[1]) towns.push(segs[1]);
+  });
+  const names = recent.map(leadName);
+  return { priorityNames: priority, names, streets: streets.slice(0, 4), towns: towns.slice(0, 3), nameList: priority.concat(names), streetList: streets };
 }
 
 async function deleteAudio(bucket, uid, id, path) {
@@ -159,8 +203,12 @@ async function runVisit({ db, bucket, uid, visitId, nowMs }) {
     const d = snap.data() || {};
     const ns = LG.nextStep(d, nowMs);
     if (ns.step === 'none') return ns;
-    if (ns.step === 'discard' || ns.step === 'purge') return await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: ns.step === 'discard' ? 'discarded' : (d.skipReason || 'skipped') });
+    if (ns.step === 'discard' || ns.step === 'purge') {
+      const discarded = ns.step === 'discard' || d.status === 'discarded';
+      return await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: discarded ? 'discarded' : (d.skipReason || 'skipped'), final: discarded ? PIPELINE.DISCARDED : (d.purgeFinal || PIPELINE.SKIPPED) });
+    }
     if (ns.step === 'finalize') return await doFinalize({ db, bucket, ref, uid, visitId, d, nowMs });
+    if (ns.step === 'unfile') return await doUnfile({ db, ref, uid, visitId, d });
     // process: take the lease in a transaction so two invocations never both pay Groq
     const got = await db.runTransaction(async (tx) => {
       const s = await tx.get(ref);
@@ -168,51 +216,85 @@ async function runVisit({ db, bucket, uid, visitId, nowMs }) {
       const cur = s.data() || {};
       const again = LG.nextStep(cur, nowMs);
       if (again.step !== 'process') return null;
-      tx.set(ref, { pipelineLeaseUntilMs: nowMs + LG.LEASE_MS }, { merge: true });
+      tx.update(ref, { pipelineLeaseUntilMs: nowMs + LG.LEASE_MS });
       return { cur, stage: again.stage };
     });
     if (!got) return { step: 'none', why: 'lost the lease' };
     try {
       return await doProcess({ db, bucket, ref, uid, visitId, d: got.cur, stage: got.stage, nowMs });
     } finally {
-      await ref.set({ pipelineLeaseUntilMs: 0 }, { merge: true }).catch(() => {});
+      await ref.update({ pipelineLeaseUntilMs: 0 }).catch(() => {});
     }
   } catch (e) {
+    if (e && e.gone) { logger.info('visit_capture_doc_gone', { uid, visitId }); return { step: 'gone' }; }
     logger.error('visit_capture_unhandled', { uid, visitId, err: msg(e) });
-    try { await ref.set({ pipelineNote: 'internal_error', pipelineError: msg(e), pipelineNextAtMs: nowMs + 15 * 60000, pipelineLeaseUntilMs: 0 }, { merge: true }); } catch (_) {}
+    // Count it: an internal error that repeats is given up on, not retried for ever.
+    try {
+      const cur = await ref.get();
+      if (!cur.exists) return { step: 'gone' };
+      const v = cur.data() || {};
+      const n = (Number(v.internalErrors) || 0) + 1;
+      const patch = { internalErrors: n, pipelineNote: 'internal_error', pipelineError: LG.errCode(e), pipelineNextAtMs: nowMs + 15 * 60000, pipelineLeaseUntilMs: 0 };
+      if (n >= LG.INTERNAL_MAX) {
+        patch.pipelineStatus = v.transcript ? PIPELINE.NOTES_FAILED : PIPELINE.FAILED;
+        patch.pipelineNote = 'internal_error_gave_up';
+        patch.pipelineNextAtMs = 0;
+      }
+      await ref.update(patch);
+    } catch (_) { /* the doc is unreachable right now; the sweep tries again */ }
     return { step: 'error', error: msg(e) };
   }
 }
 
-/** Delete the audio and everything derived from it; keep a tombstone saying why. */
+/**
+ * Delete the audio and everything derived from it; keep a tombstone saying
+ * why. If the delete itself fails the doc goes to purge_pending (retried by
+ * the sweep), never to a final state that still holds the audio.
+ */
 async function doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason, final }) {
   const del = await deleteAudio(bucket, uid, visitId, d.audioPath);
-  const discarded = reason === 'discarded';
+  const finalState = final || PIPELINE.SKIPPED;
   const patch = {
-    pipelineNextAtMs: del.ok ? 0 : nowMs + 60 * 60000,
     transcript: null, transcriptRaw: null, transcriptSegments: null, transcriptCorrections: null,
     notes: null, suggestions: [], pipelineLeaseUntilMs: 0,
-    pipelineStatus: discarded ? PIPELINE.DISCARDED : (final || PIPELINE.SKIPPED),
-    skipReason: discarded ? 'discarded' : reason,
+    skipReason: reason, purgeFinal: finalState,
+    pipelineStatus: del.ok ? finalState : PIPELINE.PURGE_PENDING,
+    pipelineNextAtMs: del.ok ? 0 : nowMs + 60 * 60000,
     audioLive: del.ok ? false : true,
     audioDeletedAtMs: del.ok ? nowMs : null,
   };
-  if (!del.ok) patch.pipelineNote = 'audio_delete_failed: ' + del.why;
-  await ref.set(patch, { merge: true });
+  if (!del.ok) patch.pipelineNote = 'audio_delete_failed';
+  else patch.pipelineNote = null;
+  await upd(ref, patch);
   // Anything this capture filed on a customer goes with it.
-  if (d.attachedLeadId) await retract({ db, leadId: d.attachedLeadId, visitId }).catch((e) => logger.warn('visit_capture_retract_failed', { visitId, err: msg(e) }));
-  return { step: discarded ? 'discard' : 'purge', state: patch.pipelineStatus, audioDeleted: del.ok, reason: patch.skipReason };
+  if (d.attachedLeadId) await retract({ db, leadId: d.attachedLeadId, visitId, uid }).catch((e) => logger.warn('visit_capture_retract_failed', { visitId, err: msg(e) }));
+  return { step: reason === 'discarded' ? 'discard' : 'purge', state: patch.pipelineStatus, audioDeleted: del.ok, reason };
 }
 
 async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
   const D = getDeps();
-  const state = (patch) => ref.set(Object.assign({ pipelineLeaseUntilMs: 0 }, patch), { merge: true });
+  const state = (patch) => upd(ref, Object.assign({ pipelineLeaseUntilMs: 0 }, patch));
   const hasTranscript = typeof d.transcript === 'string' && d.transcript.trim().length > 0;
 
   // 0. the audio path is the one the rules allow, or nothing is read
   if (!d.audioPath || !LG.AUDIO_PATH_RE(uid, visitId).test(d.audioPath)) {
     await state({ pipelineStatus: PIPELINE.FAILED, pipelineNote: 'bad_audio_path', pipelineNextAtMs: 0 });
     return { step: 'process', state: PIPELINE.FAILED, note: 'bad_audio_path' };
+  }
+  // Server-stamped first sight: retention and every age limit run from THIS, never from a client-written time.
+  const firstSeen = Number(d.firstSeenAtMs) || nowMs;
+  if (!(Number(d.firstSeenAtMs) > 0)) {
+    await upd(ref, { firstSeenAtMs: nowMs, audioLive: true });
+    d = Object.assign({}, d, { firstSeenAtMs: nowMs, audioLive: true });
+  } else if (d.audioLive !== true && d.audioLive !== false) {
+    await upd(ref, { audioLive: true });
+  }
+
+  // 0b. nothing is retried for ever
+  if (nowMs - firstSeen > LG.GIVE_UP_MS) {
+    const to = hasTranscript ? PIPELINE.NOTES_FAILED : PIPELINE.FAILED;
+    await state({ pipelineStatus: to, pipelineNote: 'gave_up_after_14_days', pipelineNextAtMs: 0 });
+    return { step: 'process', state: to, note: 'gave_up_after_14_days' };
   }
 
   // 1. the AI kill switch parks the work; nothing is spent
@@ -223,24 +305,31 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
     }
   } catch (_) { /* fail open, like every other caller */ }
 
-  // 2. who is this for, and may we keep it at all?
-  const ctx = await D.companyContext(db, uid);
+  // 2. who is this for, and may we keep it at all? (read errors propagate: retry, never guess)
+  const ctx = await contextFor(db, uid);
   let lead = null;
   if (d.leadId) {
-    const ls = await db.doc('leads/' + d.leadId).get();
-    lead = ls.exists ? Object.assign({ id: ls.id }, ls.data()) : null;
-    if (lead && !mayRecordOn(lead, uid, ctx.companyId)) {
-      // The rules refuse this; refuse it here too. Unattached, not trusted.
-      await ref.set({ leadId: null, attachedAtMs: null, pipelineNote: 'lead_not_reachable' }, { merge: true });
+    if (!LG.LEAD_ID_RE.test(String(d.leadId))) {
+      // Not a lead id (a path with a slash would resolve to a different doc): never looked up.
+      await upd(ref, { leadId: null, attachedAtMs: null, attachNote: 'lead_id_invalid' });
       d = Object.assign({}, d, { leadId: null });
-      lead = null;
+    } else {
+      const ls = await db.doc('leads/' + d.leadId).get();
+      lead = ls.exists ? Object.assign({ id: ls.id }, ls.data()) : null;
+      if (lead && !mayRecordOn(lead, uid, ctx.companyId)) {
+        // The rules refuse this; refuse it here too. Unattached, not trusted.
+        await upd(ref, { leadId: null, attachedAtMs: null, attachNote: 'lead_not_reachable' });
+        d = Object.assign({}, d, { leadId: null });
+        lead = null;
+      }
     }
   }
   if (lead && lead.doNotRecord === true) {
     return await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: 'do_not_record' });
   }
-  // Consent: a two-party company that never recorded the disclosure tap is not processed.
-  if (d.consentMode === 'two_party_attested' && !(Number(d.disclosureAckedAtMs) > 0)) {
+  // Consent: the company's setting is the floor; the phone's claim can only raise it.
+  const consent = LG.stricterConsent(d.consentMode, ctx.companyConsentMode);
+  if (consent === 'two_party_attested' && !(Number(d.disclosureAckedAtMs) > 0)) {
     return await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: 'no_disclosure_ack', final: PIPELINE.QUARANTINED });
   }
 
@@ -270,8 +359,7 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
       return { step: 'process', state: PIPELINE.WAITING_OBJECT, note: 'storage_unreachable' };
     }
     if (!exists) {
-      const since = Number(d.uploadedAtMs) || Number(d.createdAtMs) || nowMs;
-      if (nowMs - since > LG.OBJECT_WAIT_MS) {
+      if (nowMs - firstSeen > LG.OBJECT_WAIT_MS) {
         await state({ pipelineStatus: PIPELINE.FAILED, pipelineNote: 'object_missing', pipelineNextAtMs: 0 });
         return { step: 'process', state: PIPELINE.FAILED, note: 'object_missing' };
       }
@@ -296,17 +384,31 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
     appointments = await appointmentsAround(db, uid, Number(d.startedAtMs) || 0);
     const vocab = vocabularyFor({ leads, capture: d, appointments });
     const prompt = LG.buildVocabularyPrompt(vocab);
+    // Reading the object is Storage's business, not the recording's: its own try, no strike.
+    let buffer;
+    try { [buffer] = await file.download(); } catch (e) {
+      const fails = (Number(d.storageFails) || 0) + 1;
+      const dead = fails >= 6;
+      await state({
+        pipelineStatus: dead ? PIPELINE.FAILED : PIPELINE.WAITING_OBJECT, pipelineNote: dead ? 'storage_read_failed' : 'storage_read_retry',
+        pipelineError: LG.errCode(e), pipelineNextAtMs: dead ? 0 : nowMs + 10 * 60000, storageFails: fails,
+      });
+      logger.warn('visit_capture_download_failed', { visitId, fails, err: msg(e) });
+      return { step: 'process', state: dead ? PIPELINE.FAILED : PIPELINE.WAITING_OBJECT, note: 'storage_read_failed' };
+    }
     let t;
     try {
-      const [buffer] = await file.download();
       t = await D.transcribe({ buffer, ext: extOf(d.audioPath), prompt });
     } catch (e) {
-      const outage = LG.classifyProviderError(e);
-      if (outage) {
+      const outage = LG.visitOutage(e);
+      // One poisoned file can answer 5xx / time out for ever: after TRANSIENT_MAX in a row it is the file's fault.
+      const transient = outage && outage.kind === 'overloaded' ? (Number(d.transientFails) || 0) + 1 : 0;
+      if (outage && !(transient >= LG.TRANSIENT_MAX)) {
         // The account / provider is out, not this recording: no strike.
         await state({
           pipelineStatus: PIPELINE.TRANSCRIBE_PENDING, pipelineNote: 'provider_outage', pipelineNextAtMs: nowMs + LG.outageRetryMs(outage.kind),
-          pipelineError: msg(e), providerOutage: { provider: outage.provider, kind: outage.kind, atMs: nowMs }, audioLive: true,
+          pipelineError: LG.errCode(e, outage), providerOutage: { provider: outage.provider, kind: outage.kind, atMs: nowMs },
+          transientFails: transient, audioLive: true,
         });
         logger.warn('visit_capture_transcribe_outage', { visitId, kind: outage.kind, provider: outage.provider });
         return { step: 'process', state: PIPELINE.TRANSCRIBE_PENDING, outage: outage.kind };
@@ -314,7 +416,7 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
       const strikes = (Number(d.transcribeStrikes) || 0) + 1;
       const dead = strikes >= LG.MAX_TRANSCRIBE_STRIKES;
       await state({
-        pipelineStatus: dead ? PIPELINE.FAILED : PIPELINE.TRANSCRIBE_PENDING, transcribeStrikes: strikes, pipelineError: msg(e),
+        pipelineStatus: dead ? PIPELINE.FAILED : PIPELINE.TRANSCRIBE_PENDING, transcribeStrikes: strikes, pipelineError: LG.errCode(e),
         pipelineNote: dead ? 'transcribe_failed' : 'transcribe_retry', pipelineNextAtMs: dead ? 0 : nowMs + strikes * 15 * 60000, audioLive: true,
       });
       logger.warn('visit_capture_transcribe_failed', { visitId, strikes, err: msg(e) });
@@ -330,31 +432,34 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
     durationSec = Number(t.durationSec) || Number(d.durationSec) || 0;
     segments = (Array.isArray(t.segments) ? t.segments : []).slice(0, 600).map((s) => ({ s: Math.round((s.start || 0) * 10) / 10, e: Math.round((s.end || 0) * 10) / 10, t: String(s.text || '').slice(0, 400) }));
     // SAVE THE TRANSCRIPT FIRST. Everything after this can fail and the
-    // words are already safe on the doc.
-    await state({
+    // words are already safe on the doc. Groq was just paid for: one in-place
+    // retry before the error handler counts it.
+    const save = {
       transcript: fixed.text.slice(0, 120000), transcriptRaw: raw.slice(0, 120000), transcriptCorrections: fixed.corrections,
       transcriptSegments: segments, transcriptDurationSec: durationSec, transcribedAtMs: nowMs,
       pipelineStatus: PIPELINE.TRANSCRIBED, pipelineNote: null, pipelineError: null, pipelineNextAtMs: 0, pipelineLeaseUntilMs: nowMs + LG.LEASE_MS,
-      transcribeStrikes: 0, objectChecks: 0, providerOutage: null, audioLive: true,
+      transcribeStrikes: 0, transientFails: 0, objectChecks: 0, storageFails: 0, providerOutage: null, audioLive: true,
       audioBytes: size, audioMime: d.mime || null,
-    });
+    };
+    try { await state(save); } catch (e) { if (e && e.gone) throw e; await state(save); }
     try {
       await D.recordUsage(db, { uid, companyId: ctx.companyId, audioSec: Math.round(durationSec), analysisTokens: 0, costCents: 0 });
     } catch (e) { logger.warn('visit_capture_usage_failed', { visitId, err: msg(e) }); }
   }
 
-  // 5. verbal consent (two_party_verbal): the opening must contain a yes
-  if (d.consentMode === 'two_party_verbal' && !d.consentCheckedAtMs) {
+  // 5. verbal consent: the opening must contain a yes
+  if (consent === 'two_party_verbal' && !d.consentCheckedAtMs) {
     try {
       const c = await D.checkConsent({ transcript: transcriptText, segments: segments.map((s) => ({ start: s.s, end: s.e, text: s.t })) });
       if (!c || c.consented !== true) {
         return await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: 'no_verbal_consent', final: PIPELINE.QUARANTINED });
       }
-      await ref.set({ consentCheckedAtMs: nowMs, consentEvidence: String(c.evidence || '').slice(0, 300) }, { merge: true });
+      await upd(ref, { consentCheckedAtMs: nowMs, consentEvidence: String(c.evidence || '').slice(0, 300) });
     } catch (e) {
-      const outage = LG.classifyProviderError(e);
+      if (e && e.gone) throw e;
+      const outage = LG.visitOutage(e);
       // Unverified consent fails CLOSED: nothing past the transcript runs until it is.
-      await state({ pipelineStatus: PIPELINE.CONSENT_PENDING, pipelineNote: outage ? 'provider_outage' : 'consent_check_failed', pipelineError: msg(e), pipelineNextAtMs: nowMs + (outage ? LG.outageRetryMs(outage.kind) : 15 * 60000) });
+      await state({ pipelineStatus: PIPELINE.CONSENT_PENDING, pipelineNote: outage ? 'provider_outage' : 'consent_check_failed', pipelineError: LG.errCode(e, outage), pipelineNextAtMs: nowMs + (outage ? LG.outageRetryMs(outage.kind) : 15 * 60000) });
       return { step: 'process', state: PIPELINE.CONSENT_PENDING };
     }
   }
@@ -363,29 +468,28 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
   if (!leads) leads = await tenantLeads(db, uid, ctx.companyId);
   if (!appointments) appointments = await appointmentsAround(db, uid, Number(d.startedAtMs) || 0);
   const rank = (callerFacts) => LG.rankSuggestions({ capture: d, transcript: transcriptText, callerFacts, leads, appointments, nowMs });
-  let r1 = rank(null);
+  const r1 = rank(null);
   if (r1.dnrMatch) {
     // The person named is a do-not-record customer: do not keep their words.
     return await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: 'do_not_record_match' });
   }
-  await ref.set({ suggestions: r1.suggestions, suggestionsAtMs: nowMs, suggestionsRulesV: LG.SUGGEST_RULES_VERSION, pipelineLeaseUntilMs: nowMs + LG.LEASE_MS }, { merge: true });
+  await upd(ref, { suggestions: r1.suggestions, suggestionsAtMs: nowMs, suggestionsRulesV: LG.SUGGEST_RULES_VERSION, pipelineLeaseUntilMs: nowMs + LG.LEASE_MS });
 
   // 7. NOTES (Claude). A retry re-runs only this step.
-  const leadName = lead ? (String(lead.name || lead.customerName || '') || (String(lead.firstName || '') + ' ' + String(lead.lastName || '')).trim()) : '';
+  const name = lead ? leadName(lead) : '';
   let notes;
+  const notesPrompt = LG.buildVisitNotesPrompt({ capture: Object.assign({}, d, { durationSec }), transcript: transcriptText, leadName: name, nowMs });
   try {
-    const raw = await D.notes({
-      system: LG.VISIT_NOTES_SYSTEM,
-      prompt: LG.buildVisitNotesPrompt({ capture: Object.assign({}, d, { durationSec }), transcript: transcriptText, leadName, nowMs }),
-      feature: 'visit-notes', maxTokens: 1500,
-    });
+    const raw = await D.notes({ system: LG.VISIT_NOTES_SYSTEM, prompt: notesPrompt, feature: 'visit-notes', maxTokens: 1500 });
     notes = LG.sanitizeVisitNotes(raw);
   } catch (e) {
-    const outage = LG.classifyProviderError(e);
-    if (outage) {
+    const outage = LG.visitOutage(e);
+    const transient = outage && outage.kind === 'overloaded' ? (Number(d.transientFails) || 0) + 1 : 0;
+    if (outage && !(transient >= LG.TRANSIENT_MAX)) {
       await state({
-        pipelineStatus: PIPELINE.NOTES_PENDING, pipelineNote: 'provider_outage', pipelineError: msg(e),
+        pipelineStatus: PIPELINE.NOTES_PENDING, pipelineNote: 'provider_outage', pipelineError: LG.errCode(e, outage),
         pipelineNextAtMs: nowMs + LG.outageRetryMs(outage.kind), providerOutage: { provider: outage.provider, kind: outage.kind, atMs: nowMs },
+        transientFails: transient,
       });
       logger.warn('visit_capture_notes_outage', { visitId, kind: outage.kind, provider: outage.provider });
       const out = { step: 'process', state: PIPELINE.NOTES_PENDING, outage: outage.kind };
@@ -395,12 +499,18 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
     const strikes = (Number(d.notesStrikes) || 0) + 1;
     const dead = strikes >= LG.MAX_NOTES_STRIKES;
     await state({
-      pipelineStatus: dead ? PIPELINE.NOTES_FAILED : PIPELINE.NOTES_PENDING, notesStrikes: strikes, pipelineError: msg(e),
+      pipelineStatus: dead ? PIPELINE.NOTES_FAILED : PIPELINE.NOTES_PENDING, notesStrikes: strikes, pipelineError: LG.errCode(e),
       pipelineNote: dead ? 'notes_failed' : 'notes_retry', pipelineNextAtMs: dead ? 0 : nowMs + strikes * 15 * 60000,
     });
     logger.warn('visit_capture_notes_failed', { visitId, strikes, err: msg(e) });
-    return { step: 'process', state: dead ? PIPELINE.NOTES_FAILED : PIPELINE.NOTES_PENDING, strikes };
+    const out = { step: 'process', state: dead ? PIPELINE.NOTES_FAILED : PIPELINE.NOTES_PENDING, strikes };
+    if (dead && d.leadId) { const f = await doFinalize({ db, bucket, ref, uid, visitId, d: Object.assign({}, d, { pipelineStatus: PIPELINE.NOTES_FAILED, notes: null }), nowMs }); out.finalized = f.state; }
+    return out;
   }
+  // Claude spend counted against the company (tokens are an estimate from the text sent + the 1.5k cap).
+  try {
+    await D.recordUsage(db, { uid, companyId: ctx.companyId, audioSec: 0, analysisTokens: Math.round((notesPrompt.length + LG.VISIT_NOTES_SYSTEM.length) / 4) + 700, costCents: 0 });
+  } catch (_) { /* best effort: the audio seconds are the budgeted quantity */ }
   if (notes.visitType === 'personal') {
     return await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: 'personal' });
   }
@@ -410,7 +520,7 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
   const dismissed = Array.isArray(d.rejectedLeadIds) ? d.rejectedLeadIds.map(String) : [];
   await state({
     notes, notesAtMs: nowMs, pipelineStatus: PIPELINE.READY, pipelineNote: null, pipelineError: null, pipelineNextAtMs: 0,
-    notesStrikes: 0, providerOutage: null,
+    notesStrikes: 0, transientFails: 0, providerOutage: null,
     suggestions: r2.suggestions.filter((s) => dismissed.indexOf(s.leadId) === -1), suggestionsAtMs: nowMs, suggestionsRulesV: LG.SUGGEST_RULES_VERSION,
   });
   const out = { step: 'process', state: PIPELINE.READY, visitType: notes.visitType };
@@ -434,26 +544,33 @@ async function createIfAbsent(r, data) {
  * Write what attaching files on the customer: ONE activity row (rewritten
  * with each pass, so a later notes pass fills it in), and the tasks, each
  * created only when absent. Keyed by visitId, so it is a no-op the second time.
+ * A different customer than last time retracts the old filing first.
  */
 async function doFinalize({ db, bucket, ref, uid, visitId, d, nowMs }) {
-  const ctx = await getDeps().companyContext(db, uid);
-  const leadSnap = await db.doc('leads/' + d.leadId).get();
+  const refuse = async (note) => {
+    await upd(ref, { leadId: null, attachedAtMs: null, attachNote: note });
+    if (d.attachedLeadId) await retract({ db, leadId: d.attachedLeadId, visitId, uid }).catch(() => {});
+    return { step: 'finalize', state: 'refused', note };
+  };
+  const leadId = String(d.leadId || '');
+  if (!LG.LEAD_ID_RE.test(leadId)) return refuse('lead_id_invalid');
+  const ctx = await contextFor(db, uid);
+  const leadSnap = await db.doc('leads/' + leadId).get();
   const lead = leadSnap.exists ? Object.assign({ id: leadSnap.id }, leadSnap.data()) : null;
-  if (!lead || lead.deleted === true || !mayRecordOn(lead, uid, ctx.companyId)) {
-    await ref.set({ leadId: null, attachedAtMs: null, pipelineNote: 'attach_refused' }, { merge: true });
-    return { step: 'finalize', state: 'refused' };
-  }
+  if (!lead || lead.id !== leadId || lead.deleted === true || !mayRecordOn(lead, uid, ctx.companyId)) return refuse('attach_refused');
   if (lead.doNotRecord === true) {
     return await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: 'do_not_record' });
   }
-  const co = await db.doc('companies/' + (ctx.companyId || uid)).get().catch(() => null);
-  const days = LG.retentionDays(co && co.exists ? co.data() : null);
-  const built = LG.buildAttachment({
-    capture: d, notes: d.notes || null, visitId, leadId: String(d.leadId), lead, uid,
-    todayYmd: LG.etToday(nowMs), nowMs, audioKeptDays: d.audioLive === false ? 0 : days,
-  });
-  const actRef = db.doc('leads/' + lead.id + '/activity/' + built.activityId);
+  const actRef = db.doc('leads/' + lead.id + '/activity/visit-' + visitId);
   const had = await actRef.get();
+  // A row with this id that is not ours (another person's capture with the same id): never overwritten.
+  if (had.exists && (had.data() || {}).visitUid && (had.data() || {}).visitUid !== uid) return refuse('visit_id_conflict');
+  if (d.attachedLeadId && d.attachedLeadId !== lead.id) await retract({ db, leadId: d.attachedLeadId, visitId, uid });
+  const built = LG.buildAttachment({
+    capture: d, notes: d.notes || null, visitId, leadId: lead.id, lead, uid,
+    todayYmd: LG.etToday(nowMs), nowMs, audioKeptDays: d.audioLive === false ? 0 : ctx.retentionDays,
+    notesFailed: d.pipelineStatus === PIPELINE.NOTES_FAILED,
+  });
   await actRef.set(Object.assign({}, built.activity, { updatedAt: FieldValue.serverTimestamp() }, had.exists ? {} : { createdAt: FieldValue.serverTimestamp() }), { merge: true });
   let made = 0;
   for (const t of built.tasks) {
@@ -462,17 +579,30 @@ async function doFinalize({ db, bucket, ref, uid, visitId, d, nowMs }) {
     if (t.type === 'promise') doc.madeAt = FieldValue.serverTimestamp();
     if (await createIfAbsent(r, doc)) made++;
   }
-  await ref.set({
-    finalizedKey: LG.finalizeKey(d), finalizedAtMs: nowMs, attachedLeadId: lead.id,
+  await upd(ref, {
+    finalizedKey: LG.finalizeKey(Object.assign({}, d, { leadId: lead.id })), finalizedAtMs: nowMs, attachedLeadId: lead.id,
     attachedAtMs: Number(d.attachedAtMs) || nowMs, tasksMade: made, tasksSkipped: built.skipped.length || 0,
-  }, { merge: true });
+  });
   return { step: 'finalize', state: 'filed', tasksMade: made, tasks: built.tasks.length, skipped: built.skipped };
 }
 
-/** Undo a filing (the person changed or removed the customer). Untouched tasks go; ticked ones stay. */
-async function retract({ db, leadId, visitId }) {
-  await db.doc('leads/' + leadId + '/activity/visit-' + visitId).delete().catch(() => {});
-  const snap = await db.collection('leads/' + leadId + '/tasks').where('visitId', '==', visitId).get();
+/** The customer was taken off (the phone wrote leadId null): take what was filed off too. */
+async function doUnfile({ db, ref, uid, visitId, d }) {
+  if (d.attachedLeadId) await retract({ db, leadId: d.attachedLeadId, visitId, uid });
+  await upd(ref, { attachedLeadId: null, finalizedKey: null, finalizedAtMs: null });
+  return { step: 'unfile', state: 'unfiled' };
+}
+
+/**
+ * Undo a filing: the row, and the tasks that are still open. Only what THIS
+ * person's capture made (visitUid), so another rep's capture that happens to
+ * share a visit id is never touched. A task already ticked stays.
+ */
+async function retract({ db, leadId, visitId, uid }) {
+  const actRef = db.doc('leads/' + leadId + '/activity/visit-' + visitId);
+  const act = await actRef.get();
+  if (act.exists && (act.data() || {}).visitUid === uid) await actRef.delete().catch(() => {});
+  const snap = await db.collection('leads/' + leadId + '/tasks').where('visitId', '==', visitId).where('visitUid', '==', uid).get();
   const jobs = [];
   snap.forEach((t) => {
     const v = t.data() || {};
@@ -483,20 +613,22 @@ async function retract({ db, leadId, visitId }) {
 }
 
 // ── the callable ────────────────────────────────────────────────────────
-const ATTACH_ROLES = ['', 'owner', 'company_admin', 'manager', 'admin'];
-
 async function attachAction({ db, bucket, auth, data, nowMs }) {
   const { HttpsError } = require('firebase-functions/v2/https');
   if (!auth) throw new HttpsError('unauthenticated', 'Sign in first.');
   const token = auth.token || {};
   require('./shared').assertNotViewer(token);
   const role = String(token.role || '');
-  if (ATTACH_ROLES.indexOf(role) === -1) throw new HttpsError('permission-denied', 'Your role cannot file visit recordings.');
+  const staff = STAFF_ROLES.indexOf(role) !== -1;
   const visitId = String((data && data.visitId) || '');
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(visitId)) throw new HttpsError('invalid-argument', 'Bad visit id.');
   const action = String((data && data.action) || 'attach');
   if (['attach', 'detach', 'notThese', 'retryNotes', 'audioUrl'].indexOf(action) === -1) throw new HttpsError('invalid-argument', 'Unknown action.');
   const uid = auth.uid; // never from the client: a person acts on their OWN captures only
+  try { await getDeps().rateLimit(uid); } catch (e) {
+    if (e && /resource-exhausted/.test(String(e.code || ''))) throw e;
+    // a limiter outage must not lock the person out of their own recordings
+  }
   const ref = visitRef(db, uid, visitId);
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError('not-found', 'That recording is not on the server yet.');
@@ -504,7 +636,8 @@ async function attachAction({ db, bucket, auth, data, nowMs }) {
   if (d.status === 'discarded' || d.pipelineStatus === PIPELINE.DISCARDED) throw new HttpsError('failed-precondition', 'That recording was discarded.');
 
   if (action === 'audioUrl') {
-    if (d.audioLive !== true || !d.audioPath || !LG.AUDIO_PATH_RE(uid, visitId).test(d.audioPath)) {
+    const gone = [PIPELINE.SKIPPED, PIPELINE.QUARANTINED, PIPELINE.PURGE_PENDING].indexOf(d.pipelineStatus) !== -1;
+    if (gone || d.audioLive !== true || !d.audioPath || !LG.AUDIO_PATH_RE(uid, visitId).test(d.audioPath)) {
       throw new HttpsError('failed-precondition', 'The audio is no longer kept.');
     }
     const url = await getDeps().signUrl(bucket, d.audioPath);
@@ -513,41 +646,46 @@ async function attachAction({ db, bucket, auth, data, nowMs }) {
   if (action === 'notThese') {
     const ids = Array.from(new Set((Array.isArray(d.suggestions) ? d.suggestions : []).map((s) => s.leadId)
       .concat(Array.isArray(d.rejectedLeadIds) ? d.rejectedLeadIds : []))).slice(0, 30);
-    await ref.set({ rejectedLeadIds: ids, suggestions: [], suggestionsDismissedAtMs: nowMs }, { merge: true });
+    await upd(ref, { rejectedLeadIds: ids, suggestions: [], suggestionsDismissedAtMs: nowMs });
     return { ok: true };
   }
   if (action === 'retryNotes') {
     if (!d.transcript) throw new HttpsError('failed-precondition', 'There is no transcript to read yet.');
-    await ref.set({ pipelineStatus: PIPELINE.NOTES_PENDING, pipelineNextAtMs: 0, notesStrikes: 0, pipelineNote: 'manual_retry' }, { merge: true });
+    if (Number(d.pipelineLeaseUntilMs) > nowMs) throw new HttpsError('failed-precondition', 'It is being worked on right now.');
+    if (nowMs - (Number(d.lastManualRetryAtMs) || 0) < LG.MANUAL_RETRY_COOLDOWN_MS) throw new HttpsError('resource-exhausted', 'Give it a couple of minutes between tries.');
+    if ((Number(d.manualRetries) || 0) >= LG.MANUAL_RETRY_MAX) throw new HttpsError('resource-exhausted', 'That has been retried the most it will be. The transcript is saved.');
+    await upd(ref, { pipelineStatus: PIPELINE.NOTES_PENDING, pipelineNextAtMs: 0, notesStrikes: 0, transientFails: 0, pipelineNote: 'manual_retry', lastManualRetryAtMs: nowMs, manualRetries: (Number(d.manualRetries) || 0) + 1 });
     const r = await runVisit({ db, bucket, uid, visitId, nowMs });
     return { ok: true, state: r.state || null };
   }
-  const ctx = await getDeps().companyContext(db, uid);
+  const ctx = await contextFor(db, uid);
   if (action === 'detach') {
-    if (d.attachedLeadId) await retract({ db, leadId: d.attachedLeadId, visitId });
-    await ref.set({ leadId: null, attachedLeadId: null, attachedAtMs: null, finalizedKey: null, finalizedAtMs: null }, { merge: true });
+    if (d.attachedLeadId) await retract({ db, leadId: d.attachedLeadId, visitId, uid });
+    await upd(ref, { leadId: null, attachedLeadId: null, attachedAtMs: null, finalizedKey: null, finalizedAtMs: null });
     return { ok: true, leadId: null };
   }
   // attach
   const leadId = String((data && data.leadId) || '');
-  if (!leadId || leadId.length > 128 || /\//.test(leadId)) throw new HttpsError('invalid-argument', 'Pick a customer.');
+  if (!LG.LEAD_ID_RE.test(leadId)) throw new HttpsError('invalid-argument', 'Pick a customer.');
   const ls = await db.doc('leads/' + leadId).get();
   const lead = ls.exists ? Object.assign({ id: ls.id }, ls.data()) : null;
   if (!lead || lead.deleted === true) throw new HttpsError('not-found', 'Customer not found.');
-  if (!mayRecordOn(lead, uid, ctx.companyId)) throw new HttpsError('permission-denied', 'That customer is not in your company.');
+  // Company staff reach the company's customers; any other role only their own (the same split the rules make).
+  const reachable = staff ? mayRecordOn(lead, uid, ctx.companyId) : lead.userId === uid;
+  if (!reachable) throw new HttpsError('permission-denied', 'That customer is not yours to file under.');
   if (lead.doNotRecord === true) throw new HttpsError('failed-precondition', 'That customer is marked do not record.');
-  const name = (String(lead.name || lead.customerName || '') || (String(lead.firstName || '') + ' ' + String(lead.lastName || '')).trim()).trim();
+  const name = leadName(lead);
   if (d.attachedLeadId && d.attachedLeadId === leadId && d.finalizedKey === LG.finalizeKey(Object.assign({}, d, { leadId }))) {
     return { ok: true, already: true, leadId, leadName: name, state: d.pipelineStatus || null };
   }
-  if (d.attachedLeadId && d.attachedLeadId !== leadId) await retract({ db, leadId: d.attachedLeadId, visitId });
-  await ref.set({ leadId, attachedAtMs: nowMs, attachedBy: 'user', finalizedKey: null }, { merge: true });
+  await upd(ref, { leadId, attachedAtMs: nowMs, attachedBy: 'user', finalizedKey: null });
   const cur = Object.assign({}, d, { leadId, attachedAtMs: nowMs, finalizedKey: null });
   let res = { state: 'waiting' };
   // Filed as soon as there is a transcript to file; before that the trigger files it when the pipeline gets there.
   const p = d.pipelineStatus || '';
   if (p === PIPELINE.READY || p === PIPELINE.NOTES_PENDING || p === PIPELINE.NOTES_FAILED || p === PIPELINE.TRANSCRIBED) {
     res = await doFinalize({ db, bucket, ref, uid, visitId, d: cur, nowMs });
+    if (res.state === 'refused') throw new HttpsError('failed-precondition', 'That recording could not be filed there.');
   }
   return { ok: true, leadId, leadName: name, state: p || null, filed: res.state === 'filed', tasksMade: res.tasksMade || 0 };
 }
@@ -558,26 +696,25 @@ async function attachAction({ db, bucket, auth, data, nowMs }) {
  * same rule the recordings cron applies to lead-bound audio) goes from
  * Storage. Transcript + notes stay (they are the useful part and live on
  * owner-only docs). Covers audio/{uid}/_inbox/* AND attached visit audio:
- * attach never moves the object.
+ * attach never moves the object. Age runs from the SERVER's first sight of the
+ * object (firstSeenAtMs), never from a time the phone wrote.
+ * A company whose settings cannot be read this run is skipped, not defaulted:
+ * a guess here is a deletion.
  */
 async function retentionSweep({ db, bucket, nowMs, maxPages }) {
-  const out = { scanned: 0, deleted: 0, failed: 0, kept: 0 };
+  const out = { scanned: 0, deleted: 0, failed: 0, kept: 0, skipped: 0 };
   const minCutoff = nowMs - 7 * 86400000;
   const daysByUid = new Map();
   const daysFor = async (uid) => {
     if (daysByUid.has(uid)) return daysByUid.get(uid);
-    let days = LG.RETENTION_DEFAULT_DAYS;
-    try {
-      const ctx = await getDeps().companyContext(db, uid);
-      const co = await db.doc('companies/' + (ctx.companyId || uid)).get();
-      days = LG.retentionDays(co.exists ? co.data() : null);
-    } catch (_) { /* default */ }
+    let days = null;
+    try { days = (await contextFor(db, uid)).retentionDays; } catch (e) { logger.warn('visit_capture_retention_ctx_failed', { uid, err: msg(e) }); }
     daysByUid.set(uid, days);
     return days;
   };
   let last = null;
   for (let page = 0; page < (maxPages || 30); page++) {
-    let q = db.collectionGroup(VISITS).where('audioLive', '==', true).where('uploadedAtMs', '<', minCutoff).orderBy('uploadedAtMs').limit(100);
+    let q = db.collectionGroup(VISITS).where('audioLive', '==', true).where('firstSeenAtMs', '<', minCutoff).orderBy('firstSeenAtMs').limit(100);
     if (last) q = q.startAfter(last);
     const snap = await q.get();
     if (snap.empty) break;
@@ -587,13 +724,14 @@ async function retentionSweep({ db, bucket, nowMs, maxPages }) {
       const v = doc.data() || {};
       if (!who) { out.kept++; continue; }
       const days = await daysFor(who.uid);
+      if (days == null) { out.skipped++; continue; }
       // A capture that was skipped / quarantined / discarded and whose audio could not be
       // deleted then is overdue at once (the 7-day floor of the query is the only wait).
       const overdue = !!(v.skipReason || v.status === 'discarded');
-      if (!overdue && !(Number(v.uploadedAtMs) < nowMs - days * 86400000)) { out.kept++; continue; }
+      if (!overdue && !(Number(v.firstSeenAtMs) < nowMs - days * 86400000)) { out.kept++; continue; }
       const del = await deleteAudio(bucket, who.uid, who.visitId, v.audioPath);
       if (del.ok) {
-        await doc.ref.set({ audioLive: false, audioDeletedAtMs: nowMs, audioDeletedBy: 'retention' }, { merge: true });
+        await doc.ref.update({ audioLive: false, audioDeletedAtMs: nowMs, audioDeletedBy: 'retention' }).catch((e) => logger.warn('visit_capture_retention_stamp_failed', { path: doc.ref.path, err: msg(e) }));
         out.deleted++;
       } else {
         out.failed++;
@@ -612,13 +750,26 @@ async function sweep({ db, bucket, nowMs, budgetMs }) {
   const t0 = Date.now();
   const rows = new Map();
   try {
-    const snap = await db.collectionGroup(VISITS).where('pipelineStatus', 'in', LG.RETRY_STATES).limit(60).get();
+    // Only what is DUE, oldest first: a backed-off doc never uses a slot, so a flood
+    // of waiting docs cannot starve the ones that can run.
+    const snap = await db.collectionGroup(VISITS).where('pipelineStatus', 'in', LG.RETRY_STATES)
+      .where('pipelineNextAtMs', '<=', nowMs).orderBy('pipelineNextAtMs').limit(60).get();
     snap.forEach((d) => rows.set(d.ref.path, d));
   } catch (e) { logger.warn('visit_capture_sweep_retry_query_failed', { err: msg(e) }); out.errors++; }
   try {
-    // A doc whose trigger never ran: uploaded in the last 48 h and untouched by the pipeline.
-    const snap = await db.collectionGroup(VISITS).where('status', '==', 'uploaded').where('uploadedAtMs', '>', nowMs - 48 * 3600000).limit(100).get();
-    snap.forEach((d) => { const v = d.data() || {}; if (!v.pipelineStatus && !rows.has(d.ref.path)) { rows.set(d.ref.path, d); out.lostTrigger++; } });
+    // A doc whose trigger never ran: uploaded in the last 48 h and untouched by the
+    // pipeline. The window is bounded above so a far-future client time cannot sit in it.
+    let last = null;
+    for (let page = 0; page < 5; page++) {
+      let q = db.collectionGroup(VISITS).where('status', '==', 'uploaded')
+        .where('uploadedAtMs', '>', nowMs - 48 * 3600000).where('uploadedAtMs', '<', nowMs + 3600000)
+        .orderBy('uploadedAtMs').limit(100);
+      if (last) q = q.startAfter(last);
+      const snap = await q.get();
+      snap.forEach((d) => { const v = d.data() || {}; if (!v.pipelineStatus && !rows.has(d.ref.path)) { rows.set(d.ref.path, d); out.lostTrigger++; } });
+      if (snap.size < 100) break;
+      last = snap.docs[snap.docs.length - 1];
+    }
   } catch (e) { logger.warn('visit_capture_sweep_lost_query_failed', { err: msg(e) }); out.errors++; }
   for (const doc of rows.values()) {
     if (Date.now() - t0 > (budgetMs || 480000)) break;
@@ -629,70 +780,69 @@ async function sweep({ db, bucket, nowMs, budgetMs }) {
     if (r.step === 'process') out.ran++;
     if (r.outage) out.outage++;
     if (r.step === 'error') out.errors++;
-    // A provider outage is the same for every visit: stop spending the run on it.
+    // A credit / key outage is the same for every visit: stop spending the run on it.
     if (r.outage && (r.outage === 'credit' || r.outage === 'auth')) break;
   }
   return out;
 }
 
 // ── exports (registered in functions/index.js) ───────────────────────────
-function register() {
-  const { onDocumentWritten } = require('firebase-functions/v2/firestore');
-  const { onCall } = require('firebase-functions/v2/https');
-  const { onSchedule } = require('./integrations/heartbeat');
-  const { defineSecret } = require('firebase-functions/params');
-  const { SECRETS } = require('./integrations/_shared');
-  const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
-  const secrets = [SECRETS.GROQ_API_KEY, ANTHROPIC_API_KEY];
-  const out = {};
+// Top-level `exports.NAME = onX(` on purpose: tests/cron-heartbeat.test.js and the
+// function-map / viewer-callables sweeps find functions by that shape.
+const { onDocumentWritten } = require('firebase-functions/v2/firestore');
+const { onCall } = require('firebase-functions/v2/https');
+const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for the scheduler
+const { defineSecret } = require('firebase-functions/params');
+const { SECRETS } = require('./integrations/_shared');
+const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
+const FN_SECRETS = [SECRETS.GROQ_API_KEY, ANTHROPIC_API_KEY];
 
-  out.onVisitCaptureWrite = onDocumentWritten(
-    { document: 'users/{uid}/' + VISITS + '/{visitId}', region: 'us-central1', memory: '1GiB', timeoutSeconds: 540, concurrency: 1, secrets },
-    async (event) => {
-      try {
-        const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
-        const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
-        const { uid, visitId } = event.params;
-        const bucket = getStorage().bucket();
-        if (!after) {
-          // A deleted doc must not leave its audio behind.
-          if (before && before.audioPath && before.audioLive !== false) {
-            const del = await deleteAudio(bucket, uid, visitId, before.audioPath);
-            logger.info('visit_capture_doc_deleted', { visitId, audioDeleted: del.ok });
-          }
-          return;
+exports.onVisitCaptureWrite = onDocumentWritten(
+  { document: 'users/{uid}/' + VISITS + '/{visitId}', region: 'us-central1', memory: '1GiB', timeoutSeconds: 540, concurrency: 1, maxInstances: 5, secrets: FN_SECRETS },
+  async (event) => {
+    try {
+      const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+      const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+      const { uid, visitId } = event.params;
+      const bucket = getStorage().bucket();
+      if (!after) {
+        // A deleted doc must not leave its audio behind.
+        if (before && before.audioPath && before.audioLive !== false) {
+          const del = await deleteAudio(bucket, uid, visitId, before.audioPath);
+          if (del.ok) logger.info('visit_capture_doc_deleted', { visitId, audioDeleted: true });
+          else logger.error('visit_capture_doc_deleted_audio_kept', { visitId, uid, path: before.audioPath, why: del.why });
         }
-        // Cheap exit for every write that has nothing to do (the pipeline's own writes).
-        const ns = LG.nextStep(after, Date.now());
-        if (ns.step === 'none') return;
-        await runVisit({ db: getFirestore(), bucket, uid, visitId, nowMs: Date.now() });
-      } catch (e) {
-        // Never let Firebase retry this trigger: a retry re-charges Groq.
-        logger.error('onVisitCaptureWrite: swallowed', { err: msg(e) });
+        return;
       }
+      // Cheap exit for every write that has nothing to do (the pipeline's own writes).
+      const ns = LG.nextStep(after, Date.now());
+      if (ns.step === 'none') return;
+      await runVisit({ db: getFirestore(), bucket, uid, visitId, nowMs: Date.now() });
+    } catch (e) {
+      // Never let Firebase retry this trigger: a retry re-charges Groq.
+      logger.error('onVisitCaptureWrite: swallowed', { err: msg(e) });
     }
-  );
+  }
+);
 
-  out.visitCaptureSweep = onSchedule(
-    { schedule: 'every 30 minutes', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '1GiB', secrets },
-    async () => {
-      try {
-        if (await getDeps().aiDisabled()) { logger.info('[visitCaptureSweep] AI kill switch on'); return; }
-        const r = await sweep({ db: getFirestore(), bucket: getStorage().bucket(), nowMs: Date.now() });
-        logger.info('[visitCaptureSweep]', r);
-      } catch (e) { logger.warn('[visitCaptureSweep] failed', { err: msg(e) }); }
-    }
-  );
+exports.visitCaptureSweep = onSchedule(
+  { schedule: 'every 30 minutes', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '1GiB', secrets: FN_SECRETS },
+  async () => {
+    try {
+      if (await getDeps().aiDisabled()) { logger.info('[visitCaptureSweep] AI kill switch on'); return; }
+      const r = await sweep({ db: getFirestore(), bucket: getStorage().bucket(), nowMs: Date.now() });
+      logger.info('[visitCaptureSweep]', r);
+    } catch (e) { logger.warn('[visitCaptureSweep] failed', { err: msg(e) }); }
+  }
+);
 
-  out.attachVisitCapture = onCall(
-    { region: 'us-central1', enforceAppCheck: true, memory: '512MiB', timeoutSeconds: 120, maxInstances: 10, secrets },
-    (request) => attachAction({ db: getFirestore(), bucket: getStorage().bucket(), auth: request.auth, data: request.data, nowMs: Date.now() })
-  );
-  return out;
-}
+exports.attachVisitCapture = onCall(
+  { region: 'us-central1', enforceAppCheck: true, memory: '512MiB', timeoutSeconds: 120, maxInstances: 10, secrets: FN_SECRETS },
+  (request) => attachAction({ db: getFirestore(), bucket: getStorage().bucket(), auth: request.auth, data: request.data, nowMs: Date.now() })
+);
 
-module.exports = Object.assign(register(), {
+Object.assign(exports, {
   runVisit, attachAction, sweep, retentionSweep, retract,
   _setDeps: setDeps,
-  _internal: { doProcess, doFinalize, doPurge, tenantLeads, appointmentsAround, vocabularyFor, mayRecordOn, uidFromPath },
+  _internal: { doProcess, doFinalize, doPurge, doUnfile, tenantLeads, appointmentsAround, vocabularyFor, mayRecordOn, uidFromPath, contextFor },
 });

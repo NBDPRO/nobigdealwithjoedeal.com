@@ -1766,8 +1766,12 @@ service cloud.firestore {
         function vcChangedOk() {
           return request.resource.data.diff(resource.data).affectedKeys().hasOnly(vcKeys());
         }
+        // A leadId containing "/" would be spliced into get(/leads/$(leadId)) as extra path
+        // segments (leads/LA/activity/LB), and could pass as "a lead I own" while the
+        // server resolved the same string to a different document. Ids only.
         function vcLeadOk(d) {
-          return d.get('leadId', null) == null || leadReachable(d.leadId);
+          return d.get('leadId', null) == null
+            || (d.leadId is string && !d.leadId.matches('.*/.*') && leadReachable(d.leadId));
         }
         allow read: if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) && notViewer()
@@ -1777,6 +1781,7 @@ service cloud.firestore {
           && vcChangedOk()
           && vcFieldsOk(request.resource.data)
           && request.resource.data.startedAtMs == resource.data.startedAtMs
+          && request.resource.data.consentMode == resource.data.consentMode
           && vcLeadOk(request.resource.data);
         allow delete: if (isOwner(uid) && notViewer()) || isAdmin();
       }

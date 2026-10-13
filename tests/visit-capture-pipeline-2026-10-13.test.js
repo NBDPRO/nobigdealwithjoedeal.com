@@ -105,11 +105,11 @@ function stub(over) {
       return JSON.parse(JSON.stringify(NOTES));
     },
     checkConsent: async (a) => { counts.consent++; return scripted.consent ? scripted.consent(a) : { consented: true, evidence: 'yes that is fine' }; },
-    companyContext: async (db, uid) => ({ companyId: scripted.companyId && scripted.companyId[uid] ? scripted.companyId[uid] : uid, plan: 'starter', consentMode: 'one_party' }),
     checkBudget: async () => ({ overBudget: flags.overBudget }),
     recordUsage: async () => { counts.usage++; },
     aiDisabled: async () => flags.aiOff,
     signUrl: async (b, p) => 'https://signed.example/' + p + '?exp=600',
+    rateLimit: async () => { counts.rate = (counts.rate || 0) + 1; if (scripted.rateLimited) { const e = new Error('rate'); e.code = 'resource-exhausted'; throw e; } },
   });
 }
 function world(visits, extra) {
@@ -271,7 +271,7 @@ async function channelRead(w, owner) {
   ok('the vocabulary prompt reached the transcriber with the day\'s customers and the shingle brands', /Jane Smith|John Jones/.test(counts.prompts[0]) && /GAF/.test(counts.prompts[0]) && counts.prompts[0].length <= LG.VOCAB_MAX_CHARS, counts.prompts[0]);
   ok('ranked suggestions are on the doc with evidence (spoken name + appointment)', d.suggestions.length === 2 && d.suggestions.some((s) => s.leadId === 'L_SMITH' && /said/.test(s.evidence)) && d.suggestions.some((s) => s.leadId === 'L_JONES' && /calendar/.test(s.evidence)), J(d.suggestions));
   ok('NOTHING was attached: leadId null, no activity row, no task anywhere', d.leadId === null && !w.db.log.some(([k, p]) => /^leads\/[^/]+\/(activity|tasks)\//.test(p) && k !== 'noop'), J(w.db.log.filter(([, p]) => /leads\//.test(p))));
-  ok('usage was recorded once; audioLive is true (retention will see it)', counts.usage === 1 && d.audioLive === true && d.transcriptDurationSec === 1480);
+  ok('usage was recorded for the audio seconds AND the notes tokens (once each); audioLive is true (retention will see it)', counts.usage === 2 && d.audioLive === true && d.transcriptDurationSec === 1480, String(counts.usage));
   const again = await run(w, 'v6happy1');
   ok('IDEMPOTENT: running it again does nothing (no second Groq, no second Claude)', again.step === 'none' && counts.transcribe === 1 && counts.notes === 1, J(again));
 
@@ -472,8 +472,12 @@ async function channelRead(w, owner) {
   ok('NEG: a do-not-record customer is refused (failed-precondition)', e && e.code === 'failed-precondition', e && e.message);
   e = await rej(() => A(w, { uid: OWNER, token: { role: 'viewer' } }, { visitId: 'v7att00001', leadId: 'L_SMITH' }));
   ok('NEG: a viewer is refused', e && e.code === 'permission-denied');
-  e = await rej(() => A(w, { uid: OWNER, token: { role: 'sales_rep' } }, { visitId: 'v7att00001', leadId: 'L_SMITH' }));
-  ok('NEG: a sales rep is refused (owner / company_admin / manager / admin only)', e && e.code === 'permission-denied');
+  r7 = await A(w, { uid: OWNER, token: { role: 'sales_rep' } }, { visitId: 'v7att00001', leadId: 'L_SMITH' });
+  ok('a sales rep may file under THEIR OWN customer (the same line the rules draw)', r7.ok === true);
+  e = await rej(() => A(w, { uid: OWNER, token: { role: 'sales_rep' } }, { visitId: 'v7att00001', leadId: 'L_CO' }));
+  ok('NEG: ...but not under a colleague\'s customer in the same company (company staff only)', e && e.code === 'permission-denied', e && e.message);
+  r7 = await A(w, { uid: OWNER, token: { role: 'manager' } }, { visitId: 'v7att00001', leadId: 'L_CO' });
+  ok('CONTROL: a manager reaches the company\'s customer', r7.ok === true);
   e = await rej(() => A(w, null, { visitId: 'v7att00001', leadId: 'L_SMITH' }));
   ok('NEG: signed out is refused', e && e.code === 'unauthenticated');
   r7 = await A(w, { uid: OWNER, token: { role: 'manager' } }, { visitId: 'v7att00001', leadId: 'L_SMITH' });
@@ -509,11 +513,11 @@ async function channelRead(w, owner) {
   stub();
   const day = 86400000;
   w = world({
-    v8keep00001: cap('v8keep00001', { uploadedAtMs: NOW - 10 * day, audioLive: true, pipelineStatus: 'ready' }),
-    v8old000002: cap('v8old000002', { uploadedAtMs: NOW - 120 * day, audioLive: true, pipelineStatus: 'ready' }),
-    v8att000001: cap('v8att000001', { uploadedAtMs: NOW - 200 * day, audioLive: true, leadId: 'L_SMITH', attachedLeadId: 'L_SMITH', pipelineStatus: 'ready' }),
-    v8gone00001: cap('v8gone00001', { uploadedAtMs: NOW - 300 * day, audioLive: false, audioDeletedAtMs: NOW - 200 * day }),
-  }, { seed: { 'users/uCo': { companyId: 'coShort' }, 'companies/coShort': { recordingRetentionDays: 7 }, ['users/uCo/visit_captures/v8short0001']: cap('v8short0001', { uploadedAtMs: NOW - 9 * day, audioLive: true, audioPath: 'audio/uCo/_inbox/v8short0001.m4a' }) } });
+    v8keep00001: cap('v8keep00001', { firstSeenAtMs: NOW - 10 * day, audioLive: true, pipelineStatus: 'ready' }),
+    v8old000002: cap('v8old000002', { firstSeenAtMs: NOW - 120 * day, audioLive: true, pipelineStatus: 'ready' }),
+    v8att000001: cap('v8att000001', { firstSeenAtMs: NOW - 200 * day, audioLive: true, leadId: 'L_SMITH', attachedLeadId: 'L_SMITH', pipelineStatus: 'ready' }),
+    v8gone00001: cap('v8gone00001', { firstSeenAtMs: NOW - 300 * day, audioLive: false, audioDeletedAtMs: NOW - 200 * day }),
+  }, { seed: { 'users/uCo': { companyId: 'coShort' }, 'companies/coShort': { recordingRetentionDays: 7 }, ['users/uCo/visit_captures/v8short0001']: cap('v8short0001', { firstSeenAtMs: NOW - 9 * day, audioLive: true, audioPath: 'audio/uCo/_inbox/v8short0001.m4a' }) } });
   w.bucket.store.set('audio/uCo/_inbox/v8short0001.m4a', Buffer.from('x'));
   scripted.companyId = { uCo: 'coShort' };
   const rs = await V.retentionSweep({ db: w.db, bucket: w.bucket, nowMs: NOW });
@@ -522,11 +526,11 @@ async function channelRead(w, owner) {
   ok('a company that set recordingRetentionDays=7 is honoured (a 9-day-old memo goes)', !w.bucket.store.has('audio/uCo/_inbox/v8short0001.m4a'), J(rs));
   ok('NEG: an already-deleted one is not touched again', w.bucket.calls.delete.indexOf(pathFor('v8gone00001')) === -1);
   const retQuery = w.db.stats.queries.find((q) => q.label === 'g:visit_captures');
-  ok('the retention query is audioLive == true, uploadedAtMs < cutoff, orderBy uploadedAtMs', retQuery && retQuery.filters.indexOf('audioLive ==') !== -1 && retQuery.filters.indexOf('uploadedAtMs <') !== -1 && retQuery.orderBy[0] === 'uploadedAtMs', J(retQuery));
-  const wSkip = world({ v8skip00001: cap('v8skip00001', { uploadedAtMs: NOW - 10 * day, audioLive: true, skipReason: 'do_not_record', pipelineStatus: 'skipped' }), v8recent001: cap('v8recent001', { uploadedAtMs: NOW - 10 * day, audioLive: true, pipelineStatus: 'ready' }) });
+  ok('the retention query is audioLive == true, firstSeenAtMs < cutoff (the server\'s stamp), orderBy firstSeenAtMs', retQuery && retQuery.filters.indexOf('audioLive ==') !== -1 && retQuery.filters.indexOf('firstSeenAtMs <') !== -1 && retQuery.orderBy[0] === 'firstSeenAtMs', J(retQuery));
+  const wSkip = world({ v8skip00001: cap('v8skip00001', { firstSeenAtMs: NOW - 10 * day, audioLive: true, skipReason: 'do_not_record', pipelineStatus: 'skipped' }), v8recent001: cap('v8recent001', { firstSeenAtMs: NOW - 10 * day, audioLive: true, pipelineStatus: 'ready' }) });
   await V.retentionSweep({ db: wSkip.db, bucket: wSkip.bucket, nowMs: NOW });
   ok('a skipped capture whose audio delete failed earlier is overdue at once (10 days old, well inside 90), its normal sibling is not', !wSkip.bucket.store.has(pathFor('v8skip00001')) && wSkip.bucket.store.has(pathFor('v8recent001')));
-  const w2 = world({ v8fail00001: cap('v8fail00001', { uploadedAtMs: NOW - 120 * day, audioLive: true }) }, { bucket: { deleteThrows: true } });
+  const w2 = world({ v8fail00001: cap('v8fail00001', { firstSeenAtMs: NOW - 120 * day, audioLive: true }) }, { bucket: { deleteThrows: true } });
   const rs2 = await V.retentionSweep({ db: w2.db, bucket: w2.bucket, nowMs: NOW });
   ok('a failed delete keeps the doc live (retried tomorrow), counted', rs2.failed === 1 && D(w2, 'v8fail00001').audioLive === true);
   const cronSrc = fs.readFileSync(path.join(ROOT, 'functions', 'integrations', 'voice-intelligence.js'), 'utf8');
@@ -534,13 +538,198 @@ async function channelRead(w, owner) {
   // indexes
   const idx = JSON.parse(fs.readFileSync(path.join(ROOT, 'firestore.indexes.json'), 'utf8'));
   const hasComposite = (cg, fields) => idx.indexes.some((i) => i.collectionGroup === cg && i.queryScope === 'COLLECTION_GROUP' && J(i.fields.map((f) => f.fieldPath)) === J(fields));
-  const hasOverride = (cg, fp) => idx.fieldOverrides.some((o) => o.collectionGroup === cg && o.fieldPath === fp && o.indexes.some((x) => x.queryScope === 'COLLECTION_GROUP'));
   const groupQs = w.db.stats.queries.concat(sw && w.db.stats.queries).filter((q) => q && q.label === 'g:visit_captures');
-  ok('index: audioLive + uploadedAtMs composite (COLLECTION_GROUP) exists for the retention query', hasComposite('visit_captures', ['audioLive', 'uploadedAtMs']));
+  ok('index: audioLive + firstSeenAtMs composite (COLLECTION_GROUP) exists for the retention query', hasComposite('visit_captures', ['audioLive', 'firstSeenAtMs']));
   ok('index: status + uploadedAtMs composite exists for the lost-trigger query', hasComposite('visit_captures', ['status', 'uploadedAtMs']));
-  ok('index: pipelineStatus single-field COLLECTION_GROUP override exists for the retry "in" query', hasOverride('visit_captures', 'pipelineStatus'));
+  ok('index: pipelineStatus + pipelineNextAtMs composite exists for the due-only retry query', hasComposite('visit_captures', ['pipelineStatus', 'pipelineNextAtMs']));
   ok('index: appointments repUid/userId + startTime composites already exist (the same query the phone runs)', ['repUid', 'userId'].every((f) => idx.indexes.some((i) => i.collectionGroup === 'appointments' && J(i.fields.map((x) => x.fieldPath)) === J([f, 'startTime']))));
   ok('every collection-group query shape this module runs is covered above', groupQs.length >= 1);
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('\n9. Review round: the holes the reviewers found');
+  // F1: a leadId that is a PATH never reaches another tenant's lead
+  stub();
+  w = world({ v9slash0001: cap('v9slash0001', { leadId: 'L_SMITH/activity/L_STRANGER' }) }, { seed: { 'leads/L_SMITH/activity/L_STRANGER': { userId: OWNER, companyId: 'uStranger', type: 'note' } } });
+  out = await run(w, 'v9slash0001');
+  ok('F1: a leadId with slashes is dropped (unattached); nothing is written under any lead', D(w, 'v9slash0001').leadId === null && D(w, 'v9slash0001').attachNote === 'lead_id_invalid' && !w.db.log.some(([k, p]) => /^leads\//.test(p)), J(w.db.log.filter(([, p]) => /^leads\//.test(p))));
+  w = world({ v9slash0002: cap('v9slash0002', { leadId: 'L_SMITH' }) });
+  w.db.docs.get(vpath('v9slash0002')).leadId = 'L_SMITH/..';
+  await V._internal.doFinalize({ db: w.db, bucket: w.bucket, ref: w.db.doc(vpath('v9slash0002')), uid: OWNER, visitId: 'v9slash0002', d: D(w, 'v9slash0002'), nowMs: NOW });
+  ok('F1: doFinalize refuses it too (the same guard, the finalize path)', D(w, 'v9slash0002').leadId === null && !w.db.log.some(([k, p]) => /^leads\//.test(p)));
+  e = await rej(() => A(w, asOwner, { visitId: 'v9slash0002', leadId: 'L_SMITH/activity/x' }));
+  ok('F1: the callable refuses it', e && e.code === 'invalid-argument');
+
+  // F2: the company's consent setting is a floor the phone cannot lower
+  stub();
+  w = world({ v9cons00001: cap('v9cons00001', { consentMode: 'one_party' }) }, { seed: { ['companies/' + OWNER]: { recordingConsentMode: 'two_party_attested' } } });
+  out = await run(w, 'v9cons00001');
+  ok('F2: the company is two-party attested and the phone claimed one_party with no acknowledgement: quarantined, audio deleted, no vendor call', D(w, 'v9cons00001').pipelineStatus === 'quarantined_consent' && counts.transcribe === 0 && !w.bucket.store.has(pathFor('v9cons00001')));
+  w = world({ v9cons00002: cap('v9cons00002', { consentMode: 'one_party', disclosureAckedAtMs: START }) }, { seed: { ['companies/' + OWNER]: { recordingConsentMode: 'two_party_attested' } } });
+  out = await run(w, 'v9cons00002');
+  ok('F2 CONTROL: the same company with the acknowledgement on the doc is processed', D(w, 'v9cons00002').pipelineStatus === 'ready' && counts.transcribe === 1);
+  stub({ consent: () => ({ consented: false }) });
+  w = world({ v9cons00003: cap('v9cons00003', { consentMode: 'one_party' }) }, { seed: { ['companies/' + OWNER]: { recordingConsentMode: 'two_party_verbal' } } });
+  out = await run(w, 'v9cons00003');
+  ok('F2: a two-party-verbal company: the phone saying one_party does not skip the opening-window check (no yes -> quarantined)', D(w, 'v9cons00003').pipelineStatus === 'quarantined_consent' && counts.consent === 1 && D(w, 'v9cons00003').transcript === null);
+  stub();
+  w = world({ v9cons00004: cap('v9cons00004', { consentMode: 'one_party' }) });
+  out = await run(w, 'v9cons00004');
+  ok('F2 CONTROL: a company with NO setting (unset in all three prod companies) stays one-party: no disclosure needed, no consent call', D(w, 'v9cons00004').pipelineStatus === 'ready' && counts.consent === 0);
+  ok('F2: the phone can raise it (a two_party_verbal claim on a one-party company still checks)', LG.stricterConsent('two_party_verbal', 'one_party') === 'two_party_verbal' && LG.stricterConsent('one_party', 'two_party_attested') === 'two_party_attested' && LG.stricterConsent(undefined, undefined) === 'one_party');
+
+  // classifier gaps: the Groq adapter's own codes, timeouts, dropped connections
+  const vErr = (code, message) => Object.assign(new Error(message), { code });
+  ok('visitOutage: Groq key unset (VoiceError groq-not-configured) is an outage that needs Jo', (LG.visitOutage(vErr('groq-not-configured', 'GROQ_API_KEY secret is unset. Set via firebase functions:secrets:set GROQ_API_KEY.')) || {}).kind === 'auth');
+  ok('visitOutage: groq-network / TimeoutError / fetch failed / ECONNRESET are transient outages', ['groq-network'].every((c) => (LG.visitOutage(vErr(c, 'Groq request failed: fetch failed')) || {}).kind === 'overloaded') && (LG.visitOutage(Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' })) || {}).kind === 'overloaded' && (LG.visitOutage(new Error('read ECONNRESET')) || {}).kind === 'overloaded');
+  ok('NEG: visitOutage still refuses the recording\'s own failures', LG.visitOutage(new Error('notes: no JSON')) === null && LG.visitOutage(new Error('Groq rejected: could not process file')) === null && LG.visitOutage(null) === null);
+  stub({ transcribe: () => { throw vErr('groq-network', 'Groq request failed: fetch failed'); } });
+  w = world({ v9net000001: cap('v9net000001') });
+  out = await run(w, 'v9net000001');
+  ok('a Groq network failure is pending, not a strike', out.state === 'transcribe_pending' && !D(w, 'v9net000001').transcribeStrikes && D(w, 'v9net000001').transientFails === 1);
+  // poisoned file: six in a row become the file's fault
+  let t9 = NOW;
+  for (let i = 0; i < 6; i++) { t9 += 2 * 3600000; out = await run(w, 'v9net000001', t9); }
+  ok('...but one poisoned file cannot hold the line for ever: after 6 in a row it strikes, and three strikes stop it', D(w, 'v9net000001').transcribeStrikes >= 1 && counts.transcribe >= 6);
+  stub({ notes: () => { throw Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }); } });
+  w = world({ v9net000002: cap('v9net000002') });
+  out = await run(w, 'v9net000002');
+  ok('a dropped connection on the notes call is pending, not a strike; the transcript is kept', out.state === 'notes_pending' && !D(w, 'v9net000002').notesStrikes && /Jane Smith/.test(D(w, 'v9net000002').transcript));
+  // the object read is Storage's business
+  stub();
+  w = world({ v9dl0000001: cap('v9dl0000001') });
+  const origFile = w.bucket.file;
+  w.bucket.file = (p) => Object.assign(origFile(p), { download: async () => { throw Object.assign(new Error('socket reset'), { code: 503 }); } });
+  out = await run(w, 'v9dl0000001');
+  ok('a failed object read is waiting_object (storage_read_retry): never a transcribe strike, no Groq call', D(w, 'v9dl0000001').pipelineStatus === 'waiting_object' && D(w, 'v9dl0000001').pipelineNote === 'storage_read_retry' && !D(w, 'v9dl0000001').transcribeStrikes && counts.transcribe === 0);
+
+  // nothing is retried for ever
+  stub();
+  w = world({ v9age000001: cap('v9age000001', { firstSeenAtMs: NOW - 15 * 86400000, audioLive: true, pipelineStatus: 'transcribe_pending', pipelineNextAtMs: 0 }) });
+  out = await run(w, 'v9age000001');
+  ok('a doc that has been retrying for 15 days is given up on (failed), not retried again', D(w, 'v9age000001').pipelineStatus === 'failed' && D(w, 'v9age000001').pipelineNote === 'gave_up_after_14_days' && counts.transcribe === 0);
+  w = world({ v9age000002: cap('v9age000002', { firstSeenAtMs: NOW - 15 * 86400000, audioLive: true, pipelineStatus: 'notes_pending', pipelineNextAtMs: 0, transcript: 'hello there', transcriptDurationSec: 60 }) });
+  out = await run(w, 'v9age000002');
+  ok('...and a notes-pending one keeps its transcript and becomes notes_failed (a person can still retry)', D(w, 'v9age000002').pipelineStatus === 'notes_failed' && D(w, 'v9age000002').transcript === 'hello there');
+  // an internal error repeats: counted, then stopped
+  stub();
+  w = world({ v9int000001: cap('v9int000001') });
+  const realGet = w.db.doc;
+  w.db.doc = (p) => { const r = realGet(p); if (/^leads\//.test(p)) r.get = async () => { throw new Error('firestore blip'); }; return r; };
+  w.db.collection = ((orig) => (n) => { if (n === 'leads') throw new Error('firestore blip'); return orig(n); })(w.db.collection);
+  for (let i = 0; i < 5; i++) await run(w, 'v9int000001', NOW + i * 20 * 60000);
+  d = D(w, 'v9int000001');
+  ok('an internal error that repeats is counted and given up on after 5 (not a loop), with a short code, no raw message', d.internalErrors === 5 && d.pipelineStatus === 'failed' && d.pipelineNote === 'internal_error_gave_up' && counts.transcribe === 0, J(d));
+
+  // audioLive + server stamp from first sight; a parked doc is still reaped
+  stub(); flags.aiOff = true;
+  w = world({ v9park00001: cap('v9park00001', { uploadedAtMs: 99999999999999 }) });
+  out = await run(w, 'v9park00001');
+  d = D(w, 'v9park00001');
+  ok('a parked doc (kill switch) is stamped audioLive + firstSeenAtMs by the server at first sight', d.audioLive === true && d.firstSeenAtMs === NOW && d.pipelineNote === 'ai_disabled');
+  const rsp = await V.retentionSweep({ db: w.db, bucket: w.bucket, nowMs: NOW + 120 * 86400000 });
+  ok('retention runs from the server stamp: a phone-written far-future uploadedAtMs does not keep the audio', !w.bucket.store.has(pathFor('v9park00001')) && rsp.deleted === 1, J(rsp));
+
+  // purge_pending: a failed delete is retried, in a state the sweep owns
+  stub();
+  const flaky = { fail: true };
+  w = world({ v9purge0001: cap('v9purge0001', { leadId: 'L_DNR' }) });
+  const baseFile = w.bucket.file;
+  w.bucket.file = (p) => Object.assign(baseFile(p), { delete: async (o) => { if (flaky.fail) throw new Error('delete failed'); return baseFile(p).delete(o); } });
+  out = await run(w, 'v9purge0001');
+  ok('a skip whose audio delete fails is purge_pending (audio still live), retried later', D(w, 'v9purge0001').pipelineStatus === 'purge_pending' && D(w, 'v9purge0001').audioLive === true && D(w, 'v9purge0001').purgeFinal === 'skipped' && D(w, 'v9purge0001').pipelineNextAtMs > NOW);
+  const sw0 = await V.sweep({ db: w.db, bucket: w.bucket, nowMs: NOW + 5 * 60000 });
+  ok('NEG: not due yet: the sweep leaves it alone', D(w, 'v9purge0001').pipelineStatus === 'purge_pending' && sw0.picked === 0, J(sw0));
+  flaky.fail = false;
+  const sw1 = await V.sweep({ db: w.db, bucket: w.bucket, nowMs: NOW + 2 * 3600000 });
+  ok('the sweep retries it when due: audio deleted, state skipped, audioLive false', D(w, 'v9purge0001').pipelineStatus === 'skipped' && D(w, 'v9purge0001').audioLive === false && !w.bucket.store.has(pathFor('v9purge0001')) && sw1.picked === 1, J(sw1));
+  w = world({ v9purge0002: cap('v9purge0002', { status: 'discarded' }) });
+  const bf2 = w.bucket.file; const fl2 = { fail: true };
+  w.bucket.file = (p) => Object.assign(bf2(p), { delete: async (o) => { if (fl2.fail) throw new Error('delete failed'); return bf2(p).delete(o); } });
+  await run(w, 'v9purge0002');
+  ok('a discard whose delete fails is also purge_pending (and discard-due is not re-run before its time)', D(w, 'v9purge0002').pipelineStatus === 'purge_pending' && LG.nextStep(D(w, 'v9purge0002'), NOW + 60000).step === 'none');
+  fl2.fail = false;
+  await V.sweep({ db: w.db, bucket: w.bucket, nowMs: NOW + 2 * 3600000 });
+  ok('...then it settles as discarded', D(w, 'v9purge0002').pipelineStatus === 'discarded' && D(w, 'v9purge0002').audioLive === false);
+
+  // the phone re-pointing or removing the customer by writing the doc directly
+  stub();
+  w = world({ v9repoint01: cap('v9repoint01', { leadId: 'L_SMITH' }) });
+  await run(w, 'v9repoint01');
+  ok('control: filed under L_SMITH', tasksOf(w, 'L_SMITH').length === 3);
+  w.db.docs.get(vpath('v9repoint01')).leadId = 'L_JONES';
+  out = await run(w, 'v9repoint01', NOW + 1000);
+  ok('a direct re-point (the phone wrote leadId) retracts the old customer\'s filing and files the new one', out.step === 'finalize' && tasksOf(w, 'L_SMITH').length === 0 && !w.db.docs.has('leads/L_SMITH/activity/visit-v9repoint01') && tasksOf(w, 'L_JONES').length === 3 && D(w, 'v9repoint01').attachedLeadId === 'L_JONES', J(out));
+  w.db.docs.get(vpath('v9repoint01')).leadId = null;
+  out = await run(w, 'v9repoint01', NOW + 2000);
+  ok('a direct detach (leadId null) unfiles: row and open tasks removed, attachedLeadId cleared', out.step === 'unfile' && tasksOf(w, 'L_JONES').length === 0 && D(w, 'v9repoint01').attachedLeadId === null && LG.nextStep(D(w, 'v9repoint01'), NOW + 3000).step === 'none', J(out));
+
+  // F6: another person's capture with the same id
+  stub();
+  w = world({ v9same00001: cap('v9same00001', { leadId: 'L_SMITH' }) }, { seed: { 'leads/L_SMITH/activity/visit-v9same00001': { type: 'visit', visitUid: 'uOther', summary: 'the other rep\'s row' }, 'users/uOther': { companyId: OWNER } } });
+  out = await run(w, 'v9same00001');
+  ok('F6: a row with this id that belongs to another person is never overwritten (visit_id_conflict)', w.db.docs.get('leads/L_SMITH/activity/visit-v9same00001').visitUid === 'uOther' && /other rep/.test(w.db.docs.get('leads/L_SMITH/activity/visit-v9same00001').summary) && D(w, 'v9same00001').attachNote === 'visit_id_conflict');
+  w.db.docs.set('leads/L_SMITH/tasks/visit-v9same00001-p0', { visitId: 'v9same00001', visitUid: 'uOther', done: false, text: 'theirs' });
+  await V.retract({ db: w.db, leadId: 'L_SMITH', visitId: 'v9same00001', uid: OWNER });
+  ok('F6: retract only removes what THIS person made', w.db.docs.has('leads/L_SMITH/tasks/visit-v9same00001-p0') && w.db.docs.has('leads/L_SMITH/activity/visit-v9same00001'));
+
+  // F7: the person deletes the doc mid-pass
+  stub();
+  w = world({ v9gone00001: cap('v9gone00001') });
+  scripted.transcribe = async () => { w.db.docs.delete(vpath('v9gone00001')); return { text: TRANSCRIPT, durationSec: 60, segments: [] }; };
+  out = await run(w, 'v9gone00001');
+  ok('F7: a doc deleted while the pipeline ran is NOT resurrected with its transcript', !w.db.docs.has(vpath('v9gone00001')) && out.step === 'gone' && counts.notes === 0);
+
+  // F4: due-only sweep, a flood of waiting docs cannot starve a runnable one
+  stub();
+  const flood = {};
+  for (let i = 0; i < 70; i++) flood['v9flood' + String(i).padStart(4, '0')] = cap('v9flood' + String(i).padStart(4, '0'), { pipelineStatus: 'waiting_object', pipelineNextAtMs: NOW + 9e8, firstSeenAtMs: NOW, audioLive: true });
+  flood.v9runnable1 = cap('v9runnable1', { pipelineStatus: 'transcribe_pending', pipelineNextAtMs: NOW - 1000, firstSeenAtMs: NOW - 1e6, audioLive: true });
+  w = world(flood);
+  w.db.docs.set('users/uZed/visit_captures/v9runnable2', cap('v9runnable2', { pipelineStatus: 'transcribe_pending', pipelineNextAtMs: NOW - 5, firstSeenAtMs: NOW - 1e6, audioLive: true, audioPath: 'audio/uZed/_inbox/v9runnable2.m4a' }));
+  w.db.docs.set('users/uZed', { companyId: 'uZed' });
+  w.bucket.store.set('audio/uZed/_inbox/v9runnable2.m4a', Buffer.from('x'));
+  const swf = await V.sweep({ db: w.db, bucket: w.bucket, nowMs: NOW });
+  ok('F4: 70 backed-off docs hold no slot: both runnable docs (two tenants) ran', swf.picked === 2 && D(w, 'v9runnable1').pipelineStatus === 'ready' && w.db.docs.get('users/uZed/visit_captures/v9runnable2').pipelineStatus === 'ready', J(swf));
+  stub();
+  w = world({ v9far000001: cap('v9far000001', { uploadedAtMs: 99999999999999 }), v9near00001: cap('v9near00001', { uploadedAtMs: NOW - 60e3 }) });
+  const swl = await V.sweep({ db: w.db, bucket: w.bucket, nowMs: NOW });
+  ok('F4: a far-future uploadedAtMs is outside the lost-trigger window; a real recent one is rescued', !D(w, 'v9far000001').pipelineStatus && D(w, 'v9near00001').pipelineStatus === 'ready' && swl.lostTrigger === 1, J(swl));
+
+  // the manual retry is bounded
+  stub({ notes: () => { throw new Error('notes: no JSON'); } });
+  w = world({ v9retry0001: cap('v9retry0001') });
+  for (let i = 0; i < 3; i++) await run(w, 'v9retry0001', NOW + i * 3600000);
+  stub();
+  const R1 = await A(w, asOwner, { visitId: 'v9retry0001', action: 'retryNotes' }, NOW + 4 * 3600000);
+  ok('retry notes works once', R1.ok && D(w, 'v9retry0001').manualRetries === 1);
+  e = await rej(() => A(w, asOwner, { visitId: 'v9retry0001', action: 'retryNotes' }, NOW + 4 * 3600000 + 30000));
+  ok('NEG: a second tap inside the cooldown is refused (resource-exhausted) and pays nothing', e && e.code === 'resource-exhausted' && counts.notes === 1);
+  w.db.docs.get(vpath('v9retry0001')).manualRetries = 5;
+  e = await rej(() => A(w, asOwner, { visitId: 'v9retry0001', action: 'retryNotes' }, NOW + 9 * 3600000));
+  ok('NEG: and the number of manual retries is capped', e && e.code === 'resource-exhausted');
+  stub({ rateLimited: true });
+  scripted.rateLimited = true;
+  e = await rej(() => A(w, asOwner, { visitId: 'v9retry0001', action: 'audioUrl' }));
+  ok('the callable is rate limited per person (a limiter refusal passes through)', e && e.code === 'resource-exhausted' && counts.rate >= 1);
+
+  // the doc the person reads never carries a raw provider message
+  stub({ notes: () => { throw Object.assign(new Error('anthropic 401: invalid x-api-key sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), { status: 401, provider: 'anthropic' }); } });
+  w = world({ v9err000001: cap('v9err000001') });
+  out = await run(w, 'v9err000001');
+  ok('pipelineError on the client-readable doc is a short code (anthropic:auth), never the provider\'s text or a key fragment', D(w, 'v9err000001').pipelineError === 'anthropic:auth' && !/sk-ant|ABCDEFG/.test(J(D(w, 'v9err000001'))), D(w, 'v9err000001').pipelineError);
+
+  // skipped audio gives no link; a failed-notes timeline row says so
+  stub();
+  w = world({ v9skip00001: cap('v9skip00001', { leadId: 'L_DNR' }) });
+  await run(w, 'v9skip00001');
+  w.db.docs.get(vpath('v9skip00001')).audioLive = true;
+  e = await rej(() => A(w, asOwner, { visitId: 'v9skip00001', action: 'audioUrl' }));
+  ok('a skipped capture gives no audio link even if audioLive were still set', e && e.code === 'failed-precondition');
+  stub({ notes: () => { throw new Error('notes: no JSON'); } });
+  w = world({ v9nf0000001: cap('v9nf0000001', { leadId: 'L_SMITH' }) });
+  for (let i = 0; i < 3; i++) await run(w, 'v9nf0000001', NOW + i * 3 * 3600000);
+  const nfRow = w.db.docs.get('leads/L_SMITH/activity/visit-v9nf0000001');
+  ok('a permanently failed notes step is said plainly on the timeline (not "pending" for ever)', D(w, 'v9nf0000001').pipelineStatus === 'notes_failed' && nfRow && nfRow.notesFailed === true && nfRow.notesPending === false && /could not be written/.test(nfRow.summary), J(nfRow));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log(fails.map((x) => ' - ' + x).join('\n')); process.exit(1); }

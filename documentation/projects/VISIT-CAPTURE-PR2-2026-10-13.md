@@ -29,9 +29,10 @@ race again, so there are two fields).
 | `notes_pending` | Anthropic outage (credit is exhausted in prod today): "Transcript saved, notes pending" | retried by the sweep (1 h for credit/key, 10 min for 429, 5 min for 5xx); re-runs **only** the notes |
 | `notes_failed` | three notes failures that were the recording's own | transcript kept; the person can "Retry notes" |
 | `ready` | notes + suggestions written | file it if a customer is chosen |
-| `failed` | `bad_audio_path`, `object_missing`, `audio_empty`, `too_large` (> Groq's 25 MB), `too_long` (> 62 min), `no_speech`, `transcribe_failed` (3 strikes) | audio kept; reason in `pipelineNote` |
+| `failed` | `bad_audio_path`, `object_missing`, `audio_empty`, `too_large` (> Groq's 25 MB), `too_long` (> 62 min), `no_speech`, `transcribe_failed` (3 strikes), `storage_read_failed` (6), `internal_error_gave_up` (5), `gave_up_after_14_days` | audio kept; reason in `pipelineNote` |
 | `skipped` | `do_not_record`, `do_not_record_match`, `personal` | **audio deleted, transcript and notes wiped** |
 | `quarantined_consent` | a two-party company with no disclosure tap, or no verbal yes in the opening | audio deleted, transcript wiped |
+| `purge_pending` | a skip / discard whose audio **could not be deleted yet** | retried by the sweep every hour; it never settles into `skipped` while the audio still exists |
 | `discarded` | the phone discarded it | audio deleted, anything filed on a customer retracted |
 
 Only the states a retry can move are in `RETRY_STATES`; everything else is
@@ -63,9 +64,12 @@ Files: `functions/visit-capture-logic.js` (pure), `functions/visit-capture.js`
    (a forged path naming another user's object is never read; tested). Then
    `file.exists()` and size. The client's `status: 'uploaded'` is a claim.
 2. **Gates before any spend:** AI kill switch (`aiDisabled` + `voiceIntelDisabled`),
-   the lead's `doNotRecord`, the consent mode (`two_party_attested` without
-   `disclosureAckedAtMs` is quarantined; `two_party_verbal` runs the existing
-   opening-window check), the company's daily audio budget (`checkBudget`).
+   the lead's `doNotRecord`, the consent mode, the company's daily audio budget
+   (`checkBudget`). **Consent is the stricter of the company's
+   `recordingConsentMode` (read server-side; unset = one_party, as on the phone)
+   and what the phone wrote**: a phone can only raise it, and `consentMode` is
+   write-once in the rules. `two_party_attested` without `disclosureAckedAtMs`
+   is quarantined; `two_party_verbal` runs the existing opening-window check.
 3. **Transcribe** with Groq. New: a vocabulary `prompt` (the pre-attached
    customer, today's appointment customers, the 25 most recently touched
    customers, their streets and towns, then GAF / TAMKO / IKO / Owens Corning /
@@ -143,8 +147,10 @@ the phone retracts the same way.
 
 - uid comes from the token, never the client: a person acts on their **own**
   captures (another user gets `not-found`).
-- roles: no role (solo owner), `owner`, `company_admin`, `manager`, `admin`.
-  Viewer / anonymous / sales rep refused. App Check enforced.
+- roles: no role (solo owner), `owner`, `company_admin`, `manager`, `admin` reach
+  the company's customers; any **other non-viewer role (a sales rep) only their
+  own customers** (the same line the rules draw). Viewer / anonymous refused.
+  App Check enforced; per-person rate limit (120 / hour).
 - the lead must exist, not be deleted, and be reachable
   (`uploaderMayRecordOn`: your own, or your company's); a do-not-record
   customer is `failed-precondition`.
@@ -180,6 +186,9 @@ files the sibling PRs (`feat/today-row-and-handled-flow`,
   the **same field the existing recordings cron already reads**; the cron now
   has a third phase that deletes `audio/{uid}/_inbox/*` (attached or not,
   because attach never moves the object). The transcript and notes stay.
+  Age runs from `firstSeenAtMs`, the **server's** stamp at first sight, never
+  from a time the phone wrote; a company whose settings cannot be read that
+  night is skipped, not defaulted (a guess is a deletion).
 - The per-customer do-not-record toggle and the reminder switch are PR 1's.
 - Skipped / quarantined / discarded audio whose delete failed is retried by the
   nightly phase as soon as the doc is 7 days old (it is overdue regardless of
@@ -192,23 +201,23 @@ files the sibling PRs (`feat/today-row-and-handled-flow`,
   every later phone write (discard, upload confirm, attach) fail. The update
   rule now checks what **changed** (`diff().affectedKeys().hasOnly(vcKeys())`)
   and still validates every allowlisted field on the whole doc. Create is
-  unchanged. 22 new checks (server fields may sit on the doc; the phone cannot
+  unchanged. 29 new checks (server fields may sit on the doc; the phone cannot
   set, change, delete or smuggle one; bad values / other tenant / viewer still
-  refused).
+  refused; `leadId` must be an id, never a path; `consentMode` is write-once).
 - `firestore.indexes.json` (the emulator never enforces indexes): composite
   COLLECTION_GROUP `visit_captures` (`status`, `uploadedAtMs`) for the
-  lost-trigger query; composite (`audioLive`, `uploadedAtMs`) for retention;
-  single-field COLLECTION_GROUP override on `pipelineStatus` for the retry `in`
-  query. The appointments query is the one the phone already runs (indexes
+  lost-trigger query (two-sided window, paged); composite (`audioLive`,
+  `firstSeenAtMs`) for retention; composite (`pipelineStatus`,
+  `pipelineNextAtMs`) for the due-only retry `in` query. The appointments query is the one the phone already runs (indexes
   exist). Leads are read by `userId ==` and `companyId ==` (single field).
 
 ## Evidence
 
 | Check | Result |
 |---|---|
-| `node tests/visit-capture-pipeline-2026-10-13.test.js` (real modules, in-memory Firestore that honours where / orderBy / startAfter, fake Storage, stubbed Groq / Claude) | 129 passed |
+| `node tests/visit-capture-pipeline-2026-10-13.test.js` (real modules, in-memory Firestore that honours where / orderBy / startAfter, fake Storage, stubbed Groq / Claude) | 171 passed |
 | `node tests/visit-recorder-2026-10-13.test.js` (PR 1 suite + 35 for the callable path, pipeline words, merged chips, the Today row in a fake DOM) | 222 passed |
-| `tests/firestore-rules.visit-captures.test.js` (Firestore emulator) | 87/87 |
+| `tests/firestore-rules.visit-captures.test.js` (Firestore emulator) | 94/94 |
 | function-map `--check`, check-js-syntax, site-integrity, apply-partials, sitemap, inline scripts, image privacy | clean |
 
 Scenarios the pipeline test pins: outage -> transcript saved, no strike, notes
@@ -222,6 +231,53 @@ concurrent invocations -> one Groq call; a pre-attached capture files itself
 and the channel read sees the promise; ticked tasks survive a re-file; change
 customer retracts; discard retracts; the callable's tenant / role / DNR /
 idempotency; retention per company; the sweep.
+
+## Review round (three reviewers on the first commit), what changed
+
+A silent-failure hunt, a security review and a vacuous-test audit ran on the
+first commit. The fixes are in this PR; each has a test that fails without it.
+
+| Finding | Fix |
+|---|---|
+| Consent was whatever the phone wrote (and the phone defaults to `one_party` when its cache is empty; the owner could also flip it later) | stricter of the company setting and the phone's claim; `consentMode` write-once in the rules |
+| The classifier missed what the Groq adapter actually throws (`groq-network`, the "key unset" VoiceError, `AbortSignal` timeouts, dropped connections) and the object download shared the strike `try`, so a blip could strike a recording three times into a dead end | `visitOutage` covers them; the download is its own no-strike step; six transient failures in a row do count (one poisoned file cannot hold the line) |
+| An unexpected error after Groq returned could lose the paid transcript and be retried for ever | the transcript save retries once in place; internal errors are counted (5, then given up); everything gives up at 14 days (a notes step keeps its transcript and becomes `notes_failed`) |
+| `audioLive` was set only after verification, so a parked doc's audio was never reaped; retention aged from a client-written time | set at first sight with a server `firstSeenAtMs`; retention and every age limit use it |
+| Voice Intel's `getCompanyContext` swallows read errors and falls back to "your own uid", which would clear a legitimate attach on a blip | the pipeline reads `users` / `companies` directly and retries on error; retention skips (not defaults) a company it cannot read |
+| The phone re-pointing or removing the customer by writing the doc left the old filing in place | `doFinalize` retracts the previous customer's filing; a `leadId: null` with an `attachedLeadId` is `unfile` |
+| A skip whose audio delete failed had no retrier (the `skipped` state is terminal) | `purge_pending`, in the sweep's retry states |
+| The sweep's retry query was an unordered `limit(60)` over every waiting doc, so one tenant's backed-off docs could starve another's; the lost-trigger window included far-future client times | due-only (`pipelineNextAtMs <= now`, oldest first); the lost-trigger lane is bounded above and paged |
+| Another person's capture with the same visit id could overwrite or retract a timeline row | rows carry `visitUid`; a row that is not yours is never overwritten and `retract` filters on it |
+| A doc deleted mid-pass was resurrected by merge-writes, with its transcript | `update()` instead of merge-set: the pipeline stops (`gone`) |
+| `retryNotes` paid Claude with no limit | 2-minute cooldown, 5 per capture, refused while leased; the callable has a per-person rate limit |
+| Raw provider error text was stored on the client-readable doc | a short code (`anthropic:credit`); the detail stays in the logs |
+| `sales_rep` was refused by the callable although the rules let them file their own recordings | allowed, own customers only |
+| A `notes_failed` timeline row said "pending" for ever | says the notes could not be written |
+| The Whisper hint sent up to 14 + 8 customers' names to Groq | the day's customers plus the 8 most recently touched, 4 streets, 3 towns; **a policy question for Jo / counsel** (below) |
+
+**Verified, not assumed:** the security reviewer's headline finding was that a
+`leadId` such as `leads/LA/activity/LB` might be spliced into the rules'
+`get(/leads/$(leadId))` and pass as a lead the writer owns. It was marked
+unverified. Run against the first commit's rules in the emulator, those writes
+are **denied** (the engine does not splice a slash into one segment), so it was
+not exploitable; the guard (`!leadId.matches('.*/.*')` in the rules, and an id
+regex on every server read of `leadId`) is defence in depth, and the test pins
+both sides (plain id allowed, path denied).
+
+**Not fixed here, said plainly:**
+
+- *Parallel burst.* A tenant can create N docs against one 25 MB file and the
+  daily audio budget is read before spend, not reserved. Bounded by
+  `maxInstances: 5` on the trigger, Groq's 25 MB per call, and the kill switch;
+  a transactional reservation is the proper fix and is not in this PR.
+- *Orphan objects.* Audio uploaded to `_inbox` with no doc (a failed doc write)
+  is not found by the retention sweep, which walks docs, not the bucket.
+- *Customer names to Groq.* The vocabulary prompt names customers who are not
+  in the room. Groq already receives every recorded call; whether this needs a
+  line in the privacy policy is for Jo and counsel.
+- *Do-not-record by name* is enforced only for customers the transcript names
+  uniquely (or GPS finds): a visit that never says the name cannot be purged.
+- Leads are capped at 3000 per tenant for matching (Jo has about 300).
 
 ## Cost of one 30-minute memo
 
@@ -247,6 +303,8 @@ budget bound it.
   call line makes. A misjudged visit is lost; the transcript was never kept.
 - A lead's `doNotRecord` is enforced by this pipeline and the callable, not by
   Firestore rules (PR 1's residue: other open PRs edit that region).
+- The Today row shows once the recorder has booted (about 4 s after the page
+  settles), not on first paint.
 - The pipeline does not alert Jo on an outage (the call line already tells
   him about Anthropic credit once a day, and the memo's own sheet says "notes
   pending"). A visit-specific alert is easy to add if he wants it.
