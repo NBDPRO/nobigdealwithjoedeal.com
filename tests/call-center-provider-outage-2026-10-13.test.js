@@ -63,7 +63,8 @@ function fakeDb(seed) {
     batch: () => { const ops = []; return { update: (ref, v) => ops.push([ref, v]), commit: async () => { for (const [r, v] of ops) await r.update(v); } }; },
   };
 }
-const bucket = { file: () => ({ download: async () => [Buffer.from('audio')], delete: async () => {} }) };
+// The bytes ARE the path, so a stub can record WHICH call's audio was sent.
+const bucket = { file: (p) => ({ download: async () => [Buffer.from(String(p))], delete: async () => {} }) };
 const NOW = Date.parse('2026-10-01T16:00:00Z'); // noon ET: inside watch hours
 const call = (id, extra) => Object.assign({ userId: OWNER, companyId: OWNER, status: 'stored', storagePath: 'calls/' + OWNER + '/cube-acr/2026-09-30/' + id + '.m4a', sizeBytes: 400000, startedAtMs: NOW - 3600e3, direction: 'inbound', contactName: 'Pat Example' }, extra);
 const CREDIT = 'anthropic 400: Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.';
@@ -72,9 +73,9 @@ const GOOD = () => ({ call_type: 'customer', summary: 'Gutter leaking; Jo will c
 
 let counts, pushes;
 function stub(notesFn) {
-  counts = { transcribe: 0, notes: 0 }; pushes = [];
+  counts = { transcribe: 0, notes: 0, audio: [] }; pushes = [];
   setDeps({
-    transcribe: async () => { counts.transcribe++; return { text: 'Hi Jo, the gutter is leaking again. Come Thursday please.', durationSec: 95 }; },
+    transcribe: async (buf) => { counts.transcribe++; counts.audio.push(String(buf)); return { text: 'Hi Jo, the gutter is leaking again. Come Thursday please.', durationSec: 95 }; },
     notes: async (a) => { counts.notes++; return notesFn(a); },
     push: async (uid, title, body, data) => { pushes.push({ uid, title, body, data }); return { sent: 1 }; },
   });
@@ -89,10 +90,15 @@ const doc = (db, id) => db.docs.get(COLLECTION + '/' + id);
   ok('credit 400 string → anthropic credit, needs action', (() => { const c = C(CREDIT); return c && c.provider === 'anthropic' && c.kind === 'credit' && c.needsAction === true; })());
   ok('credit Error object (status 400)', C(creditErr()).kind === 'credit');
   ok('402 is credit', C('anthropic 402: payment required').kind === 'credit');
-  ok('401 / 403 / invalid key are auth', C('anthropic 401: invalid x-api-key').kind === 'auth' && C('anthropic 403: forbidden').kind === 'auth' && C('Groq rejected: Invalid API Key').kind === 'auth');
-  ok('key not configured is auth', C(new Error('anthropic-not-configured')).kind === 'auth' && C(new Error('GROQ_API_KEY secret is unset. groq-not-configured')).provider === 'groq');
-  ok('429 and Groq rate limit are rate_limit, no action needed', C('anthropic 429: rate_limit_error').kind === 'rate_limit' && C('Groq rejected: Rate limit reached for model x').needsAction === false);
-  ok('529 overloaded / 503 are overloaded', C('anthropic 529: Overloaded').kind === 'overloaded' && C('anthropic 503: unavailable').kind === 'overloaded');
+  const K = (x) => (C(x) || {}).kind; // a miss fails by assertion, not a TypeError
+  const P = (x) => (C(x) || {}).provider;
+  const RS = (x) => (C(x) || {}).reason || '';
+  ok('401 / 403 / invalid key are auth', K('anthropic 401: invalid x-api-key') === 'auth' && K('anthropic 403: forbidden') === 'auth' && K('Groq rejected: Invalid API Key') === 'auth');
+  ok('auth: provider + reason name who and the key', P('anthropic 401: invalid x-api-key') === 'anthropic' && /Anthropic/.test(RS('anthropic 401: invalid x-api-key')) && /API key/.test(RS('anthropic 401: invalid x-api-key')) && P('Groq rejected: Invalid API Key') === 'groq' && /Groq/.test(RS('Groq rejected: Invalid API Key')) && (C('anthropic 401: x') || {}).needsAction === true);
+  ok('key not configured is auth', K(new Error('anthropic-not-configured')) === 'auth' && P(new Error('GROQ_API_KEY secret is unset. groq-not-configured')) === 'groq');
+  ok('429 and Groq rate limit are rate_limit, no action needed', K('anthropic 429: rate_limit_error') === 'rate_limit' && K('Groq rejected: Rate limit reached for model x') === 'rate_limit' && (C('Groq rejected: Rate limit reached for model x') || {}).needsAction === false && P('Groq rejected: Rate limit reached for model x') === 'groq');
+  ok('529 overloaded / 503 are overloaded, no action needed, reason says so', K('anthropic 529: Overloaded') === 'overloaded' && K('anthropic 503: unavailable') === 'overloaded' && (C('anthropic 529: Overloaded') || {}).needsAction === false && /overloaded or down/.test(RS('anthropic 529: Overloaded')));
+  ok('credit reason names the fix', /out of credit/.test(RS(CREDIT)) && /console\.anthropic\.com/.test(RS(CREDIT)));
   ok('NEG: the call\'s own failures are not outages',
     C('notes: no JSON') === null && C('anthropic 400: messages: text content blocks must be non-empty') === null
       && C('The operation was aborted due to timeout') === null && C('Groq rejected: could not process file') === null && C(null) === null && C('') === null);
@@ -141,7 +147,7 @@ const doc = (db, id) => db.docs.get(COLLECTION + '/' + id);
   const priorTranscribes = counts.transcribe;
   r = await runTranscribe({ db, bucket, live: true, nowMs: NOW + 25 * 3600e3 });
   ok('all three calls noted', ['c1', 'c2', 'c3'].every((id) => doc(db, id).status === 'noted'), JSON.stringify(['c1', 'c2', 'c3'].map((id) => doc(db, id).status)));
-  ok('c1 reused its saved transcript (Groq paid for c2,c3 only)', counts.transcribe === 2 && r.reusedTranscripts === 1, JSON.stringify(counts) + ' ' + r.reusedTranscripts);
+  ok('c1 reused its saved transcript: its audio never went to the transcriber again', counts.audio.length > 0 && !counts.audio.some((a) => /\/c1\.m4a$/.test(a)) && counts.audio.some((a) => /\/c2\.m4a$/.test(a)) && doc(db, 'c1').transcript && /gutter/.test(doc(db, 'c1').transcript), JSON.stringify(counts.audio));
   ok('outage flag cleared on the status doc', cc(db).providerOutage === null && r.outageCleared === true);
   ok('stale transcribeError cleared on noted calls', doc(db, 'c1').transcribeError === null && doc(db, 'c1').transcriptSaved === false);
   ok('recovery sent no new alert (stub() reset the push log)', bells(db).length === 2 && pushes.length === 0);
@@ -237,11 +243,111 @@ const doc = (db, id) => db.docs.get(COLLECTION + '/' + id);
   const lines = [];
   await R.run({ db, apply: false, log: (s) => lines.push(s) });
   ok('dry-run writes nothing', doc(db, 'a').transcribeAttempts === 3 && doc(db, 'a').transcribeError === CREDIT);
-  ok('output is counts only (no ids / error text)', !lines.join('\n').includes('"a"') && !/credit balance/.test(lines.join('\n')) && /would reopen\s+: 1/.test(lines.join('\n')));
+  ok('output is counts only (no ids / error text)', !/credit balance/.test(lines.join('\n')) && !lines.some((l) => /call-id-secret|skip-id-secret/.test(l)));
+  const idDb = fakeDb({
+    [COLLECTION + '/call-id-secret']: { status: 'stored', transcribeAttempts: 3, transcribeError: CREDIT },
+    [COLLECTION + '/skip-id-secret']: { status: 'stored', transcribeAttempts: 3, transcribeError: 'notes: no JSON' },
+  });
+  const idLines = [];
+  const dry = await R.run({ db: idDb, apply: false, log: (s) => idLines.push(s) });
+  ok('POSITIVE CONTROL: matched and skipped ids exist but never reach the output', dry.matched === 1 && dry.scanned === 2 && idLines.length > 0 && !idLines.join('\n').includes('secret'));
   await R.run({ db, apply: true, log: () => {} });
   ok('--apply resets only the matched call and nothing else', doc(db, 'a').transcribeAttempts === 0 && doc(db, 'a').transcribeError === null && doc(db, 'a').status === 'stored' && doc(db, 'a').summary === 'keep' && doc(db, 'b').transcribeAttempts === 3);
   const noProj = cp.spawnSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'reopen-provider-outage-calls.js'), '--apply'], { encoding: 'utf8' });
   ok('refuses without --project (exit 2, even with --apply)', noProj.status === 2 && /--project/.test(noProj.stderr), String(noProj.status));
+
+  console.log('\n11. Alert gating, persistence, clearing (mutation gaps)');
+  const YMD = '2026-10-01';
+  const seedOne = (extra) => fakeDb(Object.assign({ [CONFIG]: {}, [COLLECTION + '/g1']: call('g1', { startedAtMs: NOW - 1000 }) }, extra || {}));
+  const stubWith = (notesFn, pushFn) => {
+    counts = { transcribe: 0, notes: 0, audio: [] }; pushes = [];
+    setDeps({
+      transcribe: async (buf) => { counts.transcribe++; counts.audio.push(String(buf)); return { text: 'Hello Jo, a quick gutter question.', durationSec: 60 }; },
+      notes: async (a) => { counts.notes++; return notesFn(a); },
+      push: async (uid, title, body, data) => { pushes.push({ uid, title, body, data }); return pushFn ? pushFn(pushes.length) : { sent: 1 }; },
+    });
+  };
+  const http = (status, msg) => () => { const e = new Error(msg); e.status = status; e.provider = 'anthropic'; throw e; };
+
+  // (1) bell not rewritten the same day
+  db = seedOne(); stubWith(() => { throw creditErr(); });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  const bellKey = bells(db)[0][0];
+  db.docs.get(bellKey).read = true;
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 30 * 60000 });
+  ok('(1) same-day rerun does not rewrite the bell (Jo\'s read mark survives)', db.docs.get(bellKey).read === true && bells(db).length === 1);
+
+  // (2) no push outside watch hours; bell still written; push retried in hours
+  const NIGHT = Date.parse('2026-10-01T07:00:00Z'); // 03:00 ET
+  db = seedOne({ [COLLECTION + '/g1']: call('g1', { startedAtMs: NIGHT - 1000 }) }); stubWith(() => { throw creditErr(); });
+  await runTranscribe({ db, bucket, live: true, nowMs: NIGHT });
+  ok('(2) 03:00 ET: bell yes, push NO, pushedYmd not claimed', bells(db).length === 1 && pushes.length === 0 && !cc(db).providerOutage.pushedYmd && cc(db).providerOutage.alertedYmd === YMD);
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('(2) the first in-hours run sends the push the night skipped', pushes.length === 1 && cc(db).providerOutage.pushedYmd === YMD);
+
+  // (3) {sent:0} is not "told"
+  db = seedOne(); stubWith(() => { throw creditErr(); }, () => ({ sent: 0, failed: 1 }));
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('(3) push reached nobody: pushedYmd unset', pushes.length === 1 && !cc(db).providerOutage.pushedYmd && cc(db).providerOutage.alertedYmd === YMD);
+  stubWith(() => { throw creditErr(); });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 30 * 60000 });
+  ok('(3) next run retries the push and then marks it told', pushes.length === 1 && cc(db).providerOutage.pushedYmd === YMD);
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 60 * 60000 });
+  ok('(3) NEG: once told, no further push that day', pushes.length === 1);
+
+  // (4) + (10) transient outages: no alert, flags a rate-limit consumer reads
+  db = seedOne(); stubWith(http(429, 'anthropic 429: rate_limit_error'));
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('(4) 429: no bell, no push, no strike', bells(db).length === 0 && pushes.length === 0 && !(Number(doc(db, 'g1').transcribeAttempts) > 0));
+  ok('(10) 429 sets out.rateLimited and the call\'s rateLimitedAtMs (call-watch reads rateLimited > 0)', r.rateLimited === true && doc(db, 'g1').rateLimitedAtMs === NOW && cc(db).lastTranscribe.rateLimited === true && cc(db).providerOutage.needsAction === false);
+  db = seedOne(); stubWith(http(503, 'anthropic 503: unavailable'));
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('(4) 503: recorded as an outage, but no bell, no push', r.state === 'provider_outage' && cc(db).providerOutage.kind === 'overloaded' && bells(db).length === 0 && pushes.length === 0 && !doc(db, 'g1').rateLimitedAtMs);
+
+  // (5) gate off: nothing runs; test mode (transcribeOnly) is a real run that alerts
+  db = seedOne(); stubWith(() => { throw creditErr(); });
+  r = await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  ok('(5) live:false with no transcribeOnly: off, nothing sent, nothing alerted', r.state === 'off' && counts.transcribe === 0 && bells(db).length === 0 && pushes.length === 0 && !cc(db).providerOutage);
+  db = seedOne({ [CONFIG]: { transcribeOnly: ['g1'] } }); stubWith(() => { throw creditErr(); });
+  r = await runTranscribe({ db, bucket, live: false, nowMs: NOW });
+  ok('(5) POSITIVE CONTROL: live:false + transcribeOnly is a real run and does alert', r.state === 'provider_outage' && bells(db).length === 1);
+
+  // (6) + (7) persistence across a no-alert rerun
+  db = seedOne(); stubWith(() => { throw creditErr(); });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW + 30 * 60000 });
+  const po = cc(db).providerOutage;
+  ok('(6) sinceMs is the first run, lastAtMs the latest', po.sinceMs === NOW && po.lastAtMs === NOW + 30 * 60000, JSON.stringify(po));
+  ok('(7) alertedYmd + pushedYmd survive the rerun that sent nothing', po.alertedYmd === YMD && po.pushedYmd === YMD && pushes.length === 1);
+
+  // (8) no evidence, no clearing
+  const prior = { provider: 'anthropic', kind: 'credit', reason: 'x', needsAction: true, sinceMs: NOW - 3600e3, lastAtMs: NOW - 1800e3, alertedYmd: YMD, pushedYmd: YMD };
+  db = fakeDb({ [CONFIG]: { providerOutage: prior } }); stubWith(() => GOOD());
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('(8) a run with no calls and no AI success leaves the outage flag set', cc(db).providerOutage && cc(db).providerOutage.kind === 'credit' && !r.outageCleared);
+  db = fakeDb({ [CONFIG]: { providerOutage: prior }, [COLLECTION + '/ok1']: call('ok1', {}) }); stubWith(() => GOOD());
+  r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('(8) POSITIVE CONTROL: the same seed with one call that notes fine clears it', cc(db).providerOutage === null && r.outageCleared === true);
+
+  // (9) no facts re-read after the outage was hit this run
+  db = fakeDb({
+    [CONFIG]: {},
+    [COLLECTION + '/g1']: call('g1', { startedAtMs: NOW - 1000 }),
+    [COLLECTION + '/nf']: call('nf', { status: 'noted', leadId: null, transcript: 'Dana on Oak Hill Dr', factsV: 0, startedAtMs: NOW - 9000 }),
+  });
+  stubWith(() => { throw creditErr(); });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  ok('(9) the facts re-read does not run once the outage is hit (one model call total)', counts.notes === 1 && !(Number(doc(db, 'nf').factsAttempts) > 0), String(counts.notes));
+
+  // end to end: what runTranscribe wrote -> health row + dead-man problem
+  db = seedOne(); stubWith(() => { throw creditErr(); });
+  await runTranscribe({ db, bucket, live: true, nowMs: NOW });
+  const written = cc(db);
+  const e2eGates = { ingest: true, transcribe: true, watch: true };
+  const hr = H.healthRows({ now: NOW + 60000, gates: e2eGates, cc: written }).rows.find((x) => x.key === 'ai_notes');
+  const dp = DM.deadManProblems({ watch: { lastCheckAtMs: NOW }, cc: written, now: NOW + 60000, gates: e2eGates, newestCallMs: NOW });
+  ok('e2e: the stored outage doc becomes a bad health row naming the reason', hr && hr.status === 'bad' && /out of credit/.test(hr.detail));
+  ok('e2e: ...and a quiet dead-man problem', dp.some((p) => p.key === 'ai_provider_outage' && p.quiet === true && /out of credit/.test(p.text)));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED:\n - ' + fails.join('\n - ')); process.exit(1); }
