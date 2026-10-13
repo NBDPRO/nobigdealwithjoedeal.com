@@ -79,8 +79,20 @@ function _db(deps) {
   return require('firebase-admin/firestore').getFirestore();
 }
 
-// The company owner's Auth identity. companyId IS the owner's uid (the
-// uid-as-tenant convention). email is returned ONLY when Auth says verified.
+// The CURRENT owner's uid. A company keeps its id across an owner hand-off
+// (transferCompanyOwnership), so companyId is the original owner's uid but
+// companies/{companyId}.ownerId names who owns it now; a solo operator has no
+// company doc and is keyed by their own uid.
+async function ownerUidFor(companyId, deps) {
+  try {
+    const snap = await _db(deps).collection('companies').doc(String(companyId)).get();
+    const oid = snap && snap.exists ? ((snap.data() || {}).ownerId || '') : '';
+    if (typeof oid === 'string' && oid) return oid;
+  } catch (_) { /* fall through to the uid-as-tenant key */ }
+  return String(companyId);
+}
+
+// An owner's Auth identity. email is returned ONLY when Auth says verified.
 async function authOwner(companyId, deps) {
   try {
     const u = (deps && deps.getAuthUser)
@@ -122,7 +134,7 @@ async function resolveTenantRecipients(companyId, contact, deps) {
   const c = contact && typeof contact === 'object' ? contact : {};
   const cfgEmail = normEmail(c.alertEmail);
   const cfgSms = normPhone(c.alertSms);
-  const owner = await authOwner(companyId, deps);
+  const owner = await authOwner(await ownerUidFor(companyId, deps), deps);
   const out = { emails: [], sms: null, ownerEmail: owner.email, ignoredEmail: '', ignoredSms: '' };
 
   if (cfgEmail) {
@@ -162,7 +174,8 @@ async function capRecipients(kind, addresses, opts) {
   const capped = [];
   for (const a of (addresses || [])) {
     if (!a) continue;
-    const key = kind === 'sms' ? normPhone(a) || String(a) : normEmail(a) || String(a).toLowerCase();
+    // One inbox, many spellings: drop a +tag so user+1@ and user+2@ share a bucket.
+    const key = kind === 'sms' ? normPhone(a) || String(a) : (normEmail(a) || String(a).toLowerCase()).replace(/\+[^@]*@/, '@');
     try {
       await enforce('alertRecipient:' + kind, key, limit, windowMs);
       allowed.push(a);
@@ -202,6 +215,6 @@ module.exports = {
   RECIPIENT_DAILY_CAP, RECIPIENT_WINDOW_MS,
   CONFIRM_REQUESTS_PER_OWNER_DAY, CONFIRM_REQUESTS_PER_ADDRESS_DAY, CONFIRM_TTL_MS,
   CONFIRMED_COLLECTION, TOKEN_COLLECTION,
-  normEmail, normPhone, addrKey, authOwner, confirmedKeys,
+  normEmail, normPhone, addrKey, authOwner, ownerUidFor, confirmedKeys,
   resolveTenantRecipients, capRecipients, verifiedUserEmail, cleanLabel,
 };

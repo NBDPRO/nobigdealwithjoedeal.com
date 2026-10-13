@@ -201,8 +201,29 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     r = await AR.resolveTenantRecipients('co-a', { alertSms: '+15555550199' });
     ok('SMS: any other number is ignored', r.sms === null && r.ignoredSms === '+15555550199', r);
 
+    // Owner hand-off: the company keeps its id, companies/{id}.ownerId names the new owner.
+    world.auth['co-h'] = { email: 'former@example.test', emailVerified: true };
+    world.auth['new-owner'] = { email: 'current@example.test', emailVerified: true };
+    r = await AR.resolveTenantRecipients('co-h', { alertEmail: 'x@example.test' });
+    ok('CONTROL: before a hand-off the original owner is the fallback', r.emails.join() === 'former@example.test', r);
+    world.docs['companies/co-h'] = { ownerId: 'new-owner' };
+    r = await AR.resolveTenantRecipients('co-h', { alertEmail: 'x@example.test' });
+    ok('after a hand-off the CURRENT owner (not the former one) is the fallback', r.emails.join() === 'current@example.test', r);
+
     r = await AR.resolveTenantRecipients('co-missing', { alertEmail: 'victim@example.test' });
     ok('auth lookup failure: nothing unverified leaks through', r.emails.length === 0, r);
+  }
+
+  // +tag variants share one cap bucket (a spelling must not reset the count).
+  {
+    reset();
+    const seen = [];
+    const limiter = async (ns, key) => { seen.push(key); };
+    await AR.capRecipients('email', ['Pat+1@Example.test', 'pat+2@example.test', 'pat@example.test'], { limiter });
+    ok('+tag and case variants of one inbox share a single cap key', new Set(seen).size === 1 && seen[0] === 'pat@example.test', seen);
+    const seen2 = [];
+    await AR.capRecipients('email', ['pat@example.test', 'sam@example.test'], { limiter: async (n, k) => { seen2.push(k); } });
+    ok('CONTROL: different inboxes keep different keys', new Set(seen2).size === 2, seen2);
   }
 
   // ── (b) lead-alert routing ────────────────────────────────────────────

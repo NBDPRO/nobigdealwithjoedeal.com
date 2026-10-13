@@ -76,7 +76,8 @@ exports.alertRecipients = onCall(
 
     const claims = request.auth.token || {};
     const companyId = String(claims.companyId || uid);
-    const isOwner = companyId === uid;
+    const ownerUid = await AR.ownerUidFor(companyId);
+    const isOwner = ownerUid === uid;
     if (!isOwner && claims.role !== 'company_admin') {
       throw new HttpsError('permission-denied', 'Only the owner or a company admin can manage alert contacts');
     }
@@ -84,7 +85,7 @@ exports.alertRecipients = onCall(
     if (action !== 'status' && action !== 'send') throw new HttpsError('invalid-argument', 'Unknown action');
 
     const db = getFirestore();
-    const owner = await AR.authOwner(companyId);
+    const owner = await AR.authOwner(ownerUid);
     const contact = await contactEmailFor(db, companyId);
     const confirmed = contact.email ? (await AR.confirmedKeys(companyId)).has(AR.addrKey(contact.email)) : false;
     let state = 'none';
