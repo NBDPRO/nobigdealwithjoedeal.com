@@ -188,6 +188,44 @@ never trusted alone (R2: a second channel or a digest always follows).
 - `functions/push-functions.js`: `sendCustomNotification(uid, title, body, data)`
   returns `{sent, failed, errors}` — **callers must read `sent`** (R2).
 
+## 6c. Status 2026-10-12 (end of the reliability lane)
+
+Shipped (each with a test shown to fail without it): pipeline dead-man +
+36 h no-recording canary (R3/R4), a push that reached 0 devices is not "told"
+(R2), Home warns on a failed calls read (R5), short re-tell ladder (R1, with
+the label rule), follow-up date pushed on its day (R7), a deleted task is not
+"kept" (R15), the 8 PM ledger, the health strip + the daily self-test canary,
+the `pushUrgent` label rule, and the 45-day promise window with one "old
+promises" review row (R6). Escalation email rung: see the PR list.
+How to verify the heartbeat end of this chain: the "Verify the never-forget
+chain is actually watched" section of
+[HEALTHCHECKS-SETUP](../runbooks/HEALTHCHECKS-SETUP.md).
+
+### Deferred, with exactly what unblocks it: delivery-receipt loop on customer texts
+
+"After an outbound text, if there is no carrier delivery or reply within X
+hours, the item reappears on Today as retry-or-call." Not built, because today
+it would fire on **every** customer text: Twilio is a trial account and the
+number is not A2P registered (30034 / 21608), so 0 of the customer texts the
+CRM sends are delivered (`smsProblems`, `alert_outbox.smsDelivery`). It
+becomes worth building when, in order:
+
+1. **A2P is approved.** Brand (Low-Volume Standard) and campaign approved in the
+   Twilio console - [TWILIO-A2P-REGISTRATION](../runbooks/TWILIO-A2P-REGISTRATION.md);
+   the account is upgraded off trial. Observable: a test text to Jo's cell shows
+   `delivered` (not `undelivered:30034`) in `alert_outbox.smsDelivery`.
+2. **The line is live.** `TWILIO_INBOUND_ENABLED=true` and the number's webhooks
+   point at `/api/twilio/*` - [TWILIO-LINE-GO-LIVE](../runbooks/TWILIO-LINE-GO-LIVE.md) -
+   so delivery callbacks and customer replies are recorded (the loop's two exits).
+3. **Customer sends carry the message id.** The send paths that text customers
+   must store `smsSid` on the thing they record (lead alerts already do), so
+   `deliveryBySid` can stamp the verdict on the same row.
+4. **Then the loop is small**: callWatch already reads Twilio's last-day
+   deliveries; an undelivered customer text with no reply after N hours becomes
+   a `needs you` item ("text did not arrive: retry or call") under the same
+   people-not-calls rule. Until step 1, the existing `sms_undelivered`
+   problem and the red banner are the honest signal.
+
 ## 7. Questions for Jo
 
 - **Urgent after 8 pm?** Keep "tell me at 8 am", or push urgent calls any hour?
