@@ -120,7 +120,7 @@ async function runTextIngest({ db, live, nowMs }) {
     chunk.forEach((m, k) => {
       cursor = Math.max(cursor, m.dateMs);
       if (have.has(refs[k].id)) return;
-      if (CL.captureOff(labels, m.phoneDigits)) { counts.labelSkipped++; return; }
+      if (CL.captureOff(labels, m.phoneDigits, index.get(m.phoneDigits))) { counts.labelSkipped++; return; }
       counts.fresh++;
       const match = CC.matchLead(m.phoneDigits, index);
       const bucket = CC.classifyCall({ contactLabel: m.contactName, savedContact: !!m.contactName }, match);

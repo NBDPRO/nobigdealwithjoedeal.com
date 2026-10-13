@@ -57,7 +57,8 @@ function fakeDrive() {
     },
   };
 }
-function fakeDb({ labels = [], labelsThrow = false, docs: seed } = {}) {
+function fakeDb({ labels = [], labelsThrow = false, docs: seed, leads = [] } = {}) {
+  const leadsSnap = { forEach: (fn) => leads.forEach((l) => fn({ id: l.id, data: () => l })), docs: leads.map((l) => ({ id: l.id, data: () => l })) };
   const docs = new Map(seed || []);
   const mk = (p) => ({
     id: p.split('/').pop(), path: p,
@@ -70,7 +71,7 @@ function fakeDb({ labels = [], labelsThrow = false, docs: seed } = {}) {
     doc: (p) => mk(p),
     collection: (name) => ({
       doc: (id) => (name === 'companies' ? { collection: () => labelsCol } : mk(name + '/' + id)),
-      where: () => ({ get: async () => ({ forEach: () => {}, docs: [] }), where: () => ({ orderBy: () => ({ limit: () => ({ get: async () => ({ forEach: () => {} }) }) }) }) }),
+      where: () => ({ get: async () => leadsSnap, where: () => ({ orderBy: () => ({ limit: () => ({ get: async () => ({ forEach: () => {} }) }) }) }) }),
     }),
     getAll: async (...refs) => Promise.all(refs.map((r) => r.get())),
   };
@@ -123,6 +124,27 @@ const labelDoc = (extra) => Object.assign({ id: PERSONAL, kind: 'personal', poli
   const rd = await runIngest({ db: dbD, bucket: fakeBucket(), live: false, nowMs: NOW });
   ok('a dry run counts the skip and writes nothing', rd.labelSkipped === 1 && callDocs(dbD).length === 0 && drive5.downloads.length === 0);
 
+  // Audit C-4 (2026-10-13): a number that BECAME a customer after the label is captured.
+  {
+    const ts = (ms) => ({ toMillis: () => ms });
+    const newLead = { id: 'L-new', userId: OWNER, companyId: OWNER, firstName: 'Mo', lastName: 'Example', phone: '(555) 014-7777', createdAt: ts(NOW - 3600000) };
+    const oldLead = Object.assign({}, newLead, { id: 'L-old', createdAt: ts(NOW - 30 * 86400000) });
+    const dr = fakeDrive(); setClient(dr);
+    const dbN = fakeDb({ labels: [labelDoc({ updatedAtMs: NOW - 86400000 })], leads: [newLead] }), bkN = fakeBucket();
+    await runIngest({ db: dbN, bucket: bkN, live: true, nowMs: NOW });
+    const nDoc = [...dbN.docs.entries()].find(([k, v]) => k.startsWith(COLLECTION + '/') && v.phoneDigits === PERSONAL);
+    ok('a customer created AFTER the label: the number is downloaded and stored again (status stored, leadId set)',
+      dr.downloads.includes('p1') && !!nDoc && nDoc[1].status === 'stored' && nDoc[1].leadId === 'L-new', JSON.stringify(nDoc && nDoc[1]));
+    const dr2 = fakeDrive(); setClient(dr2);
+    const dbO = fakeDb({ labels: [labelDoc({ updatedAtMs: NOW - 86400000 })], leads: [oldLead] }), bkO = fakeBucket();
+    await runIngest({ db: dbO, bucket: bkO, live: true, nowMs: NOW });
+    ok('control: a customer that existed BEFORE the label keeps capture off (Jo saw "On customer" when he chose it)', !dr2.downloads.includes('p1') && bkO.saved.size === 1);
+    const dr3 = fakeDrive(); setClient(dr3);
+    const dbA = fakeDb({ labels: [labelDoc({ updatedAtMs: NOW - 86400000, ackAtMs: NOW - 60000 })], leads: [newLead] }), bkA = fakeBucket();
+    await runIngest({ db: dbA, bucket: bkA, live: true, nowMs: NOW });
+    ok('control: "Keep it off" (ackAtMs after the customer appeared) restores capture off', !dr3.downloads.includes('p1') && bkA.saved.size === 1);
+  }
+
   console.log('C. transcribe queue');
   const stored = { userId: OWNER, companyId: OWNER, status: 'stored', phoneDigits: PERSONAL, storagePath: 'calls/x/cube-acr/2026-09-30/cube_p.m4a', startedAtMs: NOW - 3600000, sizeBytes: 10 };
   ok('runTranscribe is exported for the test', typeof runTranscribe === 'function');
@@ -149,7 +171,7 @@ const labelDoc = (extra) => Object.assign({ id: PERSONAL, kind: 'personal', poli
 
   console.log('D. text ingest');
   const src = read('functions/text-inbox.js');
-  ok('the text ingest skips a captureOff number before building the doc', /CL\.captureOff\(labels, m\.phoneDigits\)\) \{ counts\.labelSkipped\+\+; return; \}/.test(src)
+  ok('the text ingest skips a captureOff number before building the doc', /CL\.captureOff\(labels, m\.phoneDigits, index\.get\(m\.phoneDigits\)\)\) \{ counts\.labelSkipped\+\+; return; \}/.test(src)
     && src.indexOf('CL.captureOff(labels') < src.indexOf('T.buildTextDoc'));
   ok('...after the "already filed" check, so a re-run is still a no-op', src.indexOf("if (have.has(refs[k].id)) return;") < src.indexOf('CL.captureOff(labels'));
 
@@ -170,8 +192,9 @@ const labelDoc = (extra) => Object.assign({ id: PERSONAL, kind: 'personal', poli
     && /data-cl="personal-hide"/.test(ui) && /data-cl="personal-stop"/.test(ui));
   ok('a policy tap on an existing label keeps its capture setting', /capture === undefined && before && before\.kind === kind\) capture = before\.capture/.test(ui));
   const cc = read('functions/call-center.js');
-  ok('ingest decides capture BEFORE the budget check and the download', cc.indexOf('CL.captureOff(labels, parsed.phoneDigits)') > 0
-    && cc.indexOf('CL.captureOff(labels, parsed.phoneDigits)') < cc.indexOf('const bytes = await download(f.id)'));
+  const capCall = 'CL.captureOff(labels, parsed.phoneDigits, index.get(parsed.phoneDigits))';
+  ok('ingest decides capture BEFORE the budget check and the download', cc.indexOf(capCall) > 0
+    && cc.indexOf(capCall) < cc.indexOf('const bytes = await download(f.id)'));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

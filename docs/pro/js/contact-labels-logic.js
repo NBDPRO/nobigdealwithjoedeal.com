@@ -63,10 +63,13 @@
     var d = digits10(o.digits);
     if (!d || !isKind(o.kind) || !o.companyId || !o.uid) return null;
     var now = Number(o.nowMs) || Date.now();
+    var capOff = o.capture === 'off' && o.kind === 'personal';
     var doc = {
       digits: d,
       kind: o.kind,
-      policy: isPolicy(o.policy) ? o.policy : defaultPolicy(o.kind),
+      // A number that stops being recorded cannot also "surface": its rows are
+      // status personal, which no rule counts. The label says what happens.
+      policy: capOff ? 'hide' : (isPolicy(o.policy) ? o.policy : defaultPolicy(o.kind)),
       name: clip(o.name, NAME_MAX),
       note: clip(o.note, NOTE_MAX),
       source: SOURCES.indexOf(o.source) !== -1 ? o.source : 'manual',
@@ -92,7 +95,8 @@
       var d = digits10((r && r.id) || data.digits);
       if (!d || !isKind(data.kind)) return;
       out[d] = {
-        digits: d, kind: data.kind, policy: isPolicy(data.policy) ? data.policy : defaultPolicy(data.kind),
+        digits: d, kind: data.kind,
+        policy: (data.kind === 'personal' && data.capture === 'off') ? 'hide' : (isPolicy(data.policy) ? data.policy : defaultPolicy(data.kind)),
         name: clip(data.name, NAME_MAX), note: clip(data.note, NOTE_MAX),
         source: SOURCES.indexOf(data.source) !== -1 ? data.source : 'manual',
         updatedBy: data.updatedBy || '', updatedAtMs: Number(data.updatedAtMs) || 0,
@@ -169,7 +173,97 @@
     return { ok: true, reason: '' };
   }
 
+  /**
+   * What a label DOES, in plain words — shown before the tap (chips, the
+   * sheet) and in the undo bar. One place, so the copy cannot drift from the
+   * rules in home-attention.js (a test pins the words to the rule):
+   *   quiet  promise / due follow-up only; missed + urgent calls stay off
+   *   hide   promise / due follow-up still show; urgent shows except spam
+   * Both come back once when the number turns out to be on a customer.
+   */
+  function effectText(kind, policy, capture) {
+    var p = isPolicy(policy) ? policy : defaultPolicy(kind);
+    var s;
+    if (capture === 'off' && kind === 'personal') {
+      s = 'Its calls stay off Today (a promise you make or a due follow-up still shows). New calls and texts are not copied or transcribed.';
+    } else if (p === 'quiet') {
+      s = 'Keeps its calls off Today unless you promised something or a follow-up is due. Missed and urgent calls from it will not show.';
+    } else if (p === 'hide') {
+      s = 'Keeps its calls off Today. A promise you make or a follow-up that is due still shows.' +
+        (kind === 'spam' ? ' An urgent flag does not break through.' : ' An urgent call still shows.');
+    } else {
+      s = 'Keeps its calls on Today so you decide.';
+    }
+    if (p !== 'surface') s += ' If the number turns out to be a customer, you will be told.';
+    return s;
+  }
+
+  /**
+   * Labels that quietly stopped being right: a number Jo hid, quieted or
+   * stopped recording that has since become a customer. Pure; one entry per
+   * PERSON (a customer with two labeled numbers is one row).
+   *   labels  { digits10: label }       leads  [{ id, deleted, phone..., createdAt }]
+   *   o.now, o.ownDigits
+   * "Since" = the customer was created after the label was last set or
+   * confirmed ("Keep hidden" = ackAtMs). A customer that already existed when
+   * Jo labeled the number is his choice — the sheet showed him "On customer".
+   * A lead with no created stamp is legacy and predates the label.
+   * Returns [{ leadId, name, digits[], kinds[], kind, policy, captureOff, sinceMs }].
+   */
+  var LEAD_PHONE_KEYS = ['phoneDigits', 'phone', 'phone2', 'altPhone', 'mobilePhone', 'secondaryPhone'];
+  function msOf(v) {
+    if (v == null) return 0;
+    if (typeof v === 'number') return v;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (typeof v.seconds === 'number') return v.seconds * 1000;
+    if (typeof v._seconds === 'number') return v._seconds * 1000;
+    var t = Date.parse(v); return isFinite(t) ? t : 0;
+  }
+  function reconcile(labels, leads, o) {
+    o = o || {};
+    var now = Number(o.now) || Date.now();
+    var skew = 86400000;
+    var own = (o.ownDigits || []).map(digits10);
+    var live = (leads || []).filter(function (l) { return l && l.id && l.deleted !== true && l.archived !== true; });
+    var byNum = {};
+    live.forEach(function (l) {
+      var seen = {};
+      LEAD_PHONE_KEYS.forEach(function (k) {
+        var d = digits10(l[k]);
+        if (!d || seen[d]) return;
+        seen[d] = true;
+        (byNum[d] = byNum[d] || []).push(l);
+      });
+    });
+    var people = {}, order = [];
+    Object.keys(labels || {}).forEach(function (d) {
+      var lb = labels[d];
+      if (!lb || !isKind(lb.kind) || own.indexOf(d) !== -1) return;
+      var p = policyOf(lb), capOff = lb.kind === 'personal' && lb.capture === 'off';
+      if (p === 'surface' && !capOff) return;                       // nothing is being suppressed
+      var hits = byNum[d] || [];
+      if (!hits.length || hits.length >= 3) return;                 // none, or a proxy line
+      var sane = function (v) { var n = Number(v) || 0; return n > 0 && n <= now + skew ? n : 0; };
+      var base = Math.max(sane(lb.ackAtMs), sane(lb.updatedAtMs));
+      var newest = hits.slice().sort(function (a, b) { return msOf(b.createdAt || b.createdAtMs) - msOf(a.createdAt || a.createdAtMs); })[0];
+      var since = msOf(newest.createdAt || newest.createdAtMs);
+      if (!(since > base)) return;
+      var key = newest.id;
+      if (!people[key]) {
+        people[key] = { leadId: newest.id, name: ((newest.firstName || '') + ' ' + (newest.lastName || '')).trim() || 'a customer',
+          digits: [], kinds: [], kind: lb.kind, policy: p, captureOff: false, sinceMs: since };
+        order.push(key);
+      }
+      var x = people[key];
+      x.digits.push(d);
+      if (x.kinds.indexOf(lb.kind) === -1) x.kinds.push(lb.kind);
+      if (capOff) x.captureOff = true;
+    });
+    return order.map(function (k) { return people[k]; }).sort(function (a, b) { return b.sinceMs - a.sinceMs; });
+  }
+
   var API = {
+    effectText: effectText, reconcile: reconcile,
     KINDS: KINDS, POLICIES: POLICIES, PRIMARY_KINDS: PRIMARY_KINDS, KIND_LABEL: KIND_LABEL, POLICY_LABEL: POLICY_LABEL,
     DEFAULT_POLICY: DEFAULT_POLICY, SOURCES: SOURCES, DOC_KEYS: DOC_KEYS, NAME_MAX: NAME_MAX, NOTE_MAX: NOTE_MAX,
     digits10: digits10, isKind: isKind, isPolicy: isPolicy, defaultPolicy: defaultPolicy,

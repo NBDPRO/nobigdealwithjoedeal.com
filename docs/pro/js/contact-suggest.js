@@ -74,9 +74,26 @@
     return HA && Array.isArray(HA.lastRows) ? HA.lastRows : [];
   }
 
+  /**
+   * Numbers Jo labeled (hidden / quiet / not recorded) that have since become
+   * a customer — one entry per person, newest first, never auto-changed
+   * (audit C-4, 2026-10-13). type 'reconcile' so chipHtml draws it.
+   */
+  function reconcileRows() {
+    if (!canSuggest() || !w.NBDContactLabels) return [];
+    var own = [];
+    try { own = (w._companyProfile && [w._companyProfile.phone, w._companyProfile.twilioNumber]) || []; } catch (_) { own = []; }
+    return LG.reconcile(w.NBDContactLabels.current(), w._leads || [], { now: Date.now(), ownDigits: own }).map(function (r) {
+      return Object.assign({ type: 'reconcile' }, r);
+    });
+  }
+  var RECONCILE_MAX = 2;
   function forToday() {
     if (!canSuggest()) return [];
-    return SG.buildSuggestions(recentRows(), ctx());
+    var rec = reconcileRows();
+    var shown = rec.slice(0, RECONCILE_MAX);
+    if (rec.length > shown.length) shown[shown.length - 1].more = rec.length - shown.length;
+    return shown.concat(SG.buildSuggestions(recentRows(), ctx()));
   }
   function forNumber(digits, rows) {
     if (!canSuggest()) return null;
@@ -88,10 +105,35 @@
   }
 
   /** "Looks like a Sub — why  [Accept] [Not this]" — plain classes, delegated clicks. */
+  function reconcileHtml(s) {
+    var kinds = (s.kinds || []).map(function (k) { return LG.KIND_LABEL[k] || 'Labeled'; }).join(' / ');
+    var nums = (s.digits || []).join(',');
+    var what = s.captureOff
+      ? 'You stopped recording this number'
+      : (s.policy === 'quiet' ? 'You set this number to quiet' : 'You hid this number');
+    var tail = s.captureOff
+      ? 'Calls and texts that arrived while it was off were not saved, and texts cannot be brought back. Unlabel to record it again.'
+      : 'Its missed' + (s.policy === 'quiet' ? ' and urgent' : '') + ' calls stay off Today unless you promised something.';
+    return '<div class="cl-sug cl-rec" data-cs-row="' + esc(nums) + '" role="group" aria-label="A labeled number is now a customer">' +
+      '<div class="cl-sug-text"><b>' + esc(s.name) + ' is now a customer</b> <span class="cl-sug-why">— ' + esc(what) + ' as ' + esc(kinds) + '. ' + esc(tail) + '</span>' +
+      (s.more ? ' <span class="cl-sug-why">(' + esc(s.more) + ' more like this in the Call Center → Labeled.)</span>' : '') + '</div>' +
+      '<div class="cl-sug-acts">' +
+      '<button type="button" class="cl-sug-btn cl-sug-go" data-cs="rec-clear" data-digits="' + esc(nums) + '">' + (s.captureOff ? 'Unlabel and record again' : 'Unlabel') + '</button>' +
+      '<button type="button" class="cl-sug-btn" data-cs="rec-keep" data-digits="' + esc(nums) + '">Keep it ' + (s.captureOff ? 'off' : 'hidden') + '</button>' +
+      '</div></div>';
+  }
   function chipHtml(s) {
+    if (s && s.type === 'reconcile') return reconcileHtml(s);
     var accept = s.needsSheet ? (s.kind ? 'Choose…' : 'Label it…') : 'Accept';
+    // What Accept does, said before the tap (audit H5). A number on a customer
+    // says why it is not one tap.
+    var effect = '';
+    if (s.kind && s.effect) {
+      var lead = s.needsSheet && s.onLead ? 'This number is on customer ' + (s.leadName || 'a customer') + ', so it is not one tap. You choose next. ' : '';
+      effect = '<div class="cl-sug-effect">' + esc(lead) + (s.needsSheet && !s.onLead ? 'You pick what happens to its calls next.' : esc((s.needsSheet ? '' : 'If you accept: ') + s.effect)) + '</div>';
+    }
     return '<div class="cl-sug" data-cs-row="' + esc(s.digits) + '">' +
-      '<div class="cl-sug-text"><b>' + esc(s.title) + '</b> <span class="cl-sug-why">— ' + esc(s.why) + '.</span></div>' +
+      '<div class="cl-sug-text"><b>' + esc(s.title) + '</b> <span class="cl-sug-why">— ' + esc(s.why) + '.</span>' + effect + '</div>' +
       '<div class="cl-sug-acts">' +
       '<button type="button" class="cl-sug-btn cl-sug-go" data-cs="accept" data-digits="' + esc(s.digits) + '" data-kind="' + esc(s.kind) + '">' + esc(accept) + '</button>' +
       '<button type="button" class="cl-sug-btn" data-cs="dismiss" data-digits="' + esc(s.digits) + '" data-kind="' + esc(s.kind) + '">Not this</button>' +
@@ -126,7 +168,7 @@
     var LB = w.NBDContactLabels;
     if (!d || !LB) return;
     if (!s || s.needsSheet || !kind) {
-      LB.openSheet({ digits: d, name: nameFor(d), pending: kind || '', source: s ? s.source : '' });
+      LB.openSheet({ digits: d, name: nameFor(d), leadName: s && s.leadName ? s.leadName : (leadFor(d) || {}).leadName || '', pending: kind || '', source: s ? s.source : '' });
       return;
     }
     await LB.applyWithUndo({ digits: d, kind: kind, source: s.source, name: nameFor(d) });
@@ -139,10 +181,22 @@
     var a = t.getAttribute('data-cs'), d = t.getAttribute('data-digits'), k = t.getAttribute('data-kind') || '';
     if (a === 'accept') accept(d, k);
     else if (a === 'dismiss') dismiss(d, k);
+    else if (a === 'rec-keep' || a === 'rec-clear') reconcileAct(a, d);
   });
+
+  // "Keep hidden" / "Unlabel" on the reconciliation row: both undoable (the
+  // 9 s bar in contact-labels.js), neither touches the customer.
+  async function reconcileAct(a, csv) {
+    var LB = w.NBDContactLabels;
+    var list = String(csv || '').split(',').map(function (x) { return LG.digits10(x); }).filter(Boolean);
+    if (!LB || !list.length || !canSuggest()) return;
+    if (a === 'rec-keep') await LB.ack(list);
+    else await LB.clear(list);
+    changed();
+  }
   w.addEventListener('nbd:labels-changed', function () { changed(); });
 
-  w.NBDContactSuggest = { load: load, forToday: forToday, forNumber: forNumber, chipHtml: chipHtml, dismiss: dismiss, accept: accept, _state: st };
+  w.NBDContactSuggest = { load: load, forToday: forToday, forNumber: forNumber, chipHtml: chipHtml, dismiss: dismiss, accept: accept, reconcileRows: reconcileRows, _state: st };
   // Warm the evidence once the bundle lands; the first paint just has fewer chips.
   setTimeout(function () { load(false); }, 0);
 })();

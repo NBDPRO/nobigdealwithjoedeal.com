@@ -81,6 +81,16 @@
     }).length;
   }
 
+  // "On customer ..." for the sheet: the one non-deleted lead that carries the
+  // number ('' for none, or a proxy line on 3+ leads, which identifies nobody).
+  function leadNameFor(d) {
+    var hits = (w._leads || []).filter(function (l) {
+      return l && l.id && !l.deleted && [l.phoneDigits, l.phone, l.phone2, l.altPhone, l.mobilePhone, l.secondaryPhone].some(function (p) { return LG.digits10(p) === d; });
+    });
+    if (!hits.length || hits.length >= 3) return '';
+    return ((hits[0].firstName || '') + ' ' + (hits[0].lastName || '')).trim() || 'a customer';
+  }
+
   /** Persist (or remove, when doc is null) with rollback to `prev` on failure. */
   async function persist(d, doc, prev) {
     if (doc) state.labels[d] = LG.indexLabels([{ id: d, data: doc }])[d]; else delete state.labels[d];
@@ -122,9 +132,23 @@
 
   /** "Keep hidden": a hidden number came back; quiet it until it happens again. */
   async function ack(digits) {
-    var d = LG.digits10(digits), cur = d ? state.labels[d] : null;
-    if (!cur) return { ok: false };
-    return apply({ digits: d, kind: cur.kind, policy: cur.policy, ackAtMs: Date.now(), source: cur.source, capture: cur.capture });
+    // One number or a list (a customer with two labeled numbers): one Undo.
+    var list = (Array.isArray(digits) ? digits : [digits]).map(function (x) { return LG.digits10(x); }).filter(function (d) { return d && state.labels[d]; });
+    if (!list.length) return { ok: false };
+    var before = list.map(function (d) { return Object.assign({}, state.labels[d]); });
+    var okAll = true;
+    for (var i = 0; i < list.length; i++) {
+      var cur = state.labels[list[i]];
+      var r = await apply({ digits: list[i], kind: cur.kind, policy: cur.policy, ackAtMs: Date.now(), source: cur.source, capture: cur.capture });
+      if (!r.ok) okAll = false;
+    }
+    if (okAll) {
+      // Audit UX-low: "Keep hidden" had no toast and no Undo.
+      showUndo('Kept hidden — it will tell you again only if it rings after this.', function () {
+        return Promise.all(before.map(function (p) { return persistRestore(p.digits, p); }));
+      });
+    }
+    return { ok: okAll, prev: before[0] };
   }
 
   /** apply + the undo bar (used by a one-tap suggestion Accept). */
@@ -135,7 +159,7 @@
     var r = await apply(o);
     if (!r.ok) return r;
     var now = get(d);
-    showUndo('Labeled ' + LG.KIND_LABEL[o.kind] + ' \u00b7 ' + LG.POLICY_LABEL[LG.policyOf(now)], function () {
+    showUndo('Labeled ' + LG.KIND_LABEL[o.kind] + '. ' + LG.effectText(o.kind, LG.policyOf(now), now && now.capture), function () {
       return before ? persistRestore(d, before) : clear(d);
     });
     return r;
@@ -143,6 +167,24 @@
 
   async function clear(digits) {
     if (!canWrite()) return { ok: false };
+    if (Array.isArray(digits)) {
+      // Several numbers of one customer: remove them all, one Undo.
+      var list = digits.map(function (x) { return LG.digits10(x); }).filter(function (d) { return d && state.labels[d]; });
+      if (!list.length) return { ok: false };
+      var snap = list.map(function (d) { return Object.assign({}, state.labels[d]); });
+      var all = true;
+      for (var i = 0; i < list.length; i++) {
+        var one = await persist(list[i], null, snap[i]);
+        if (!one) all = false;
+      }
+      if (all) {
+        var rec = snap.some(function (p) { return p.capture === 'off'; });
+        showUndo('Label removed.' + (rec ? ' New calls and texts are recorded again; ones skipped earlier cannot be brought back.' : ' Its calls show on Today again.'), function () {
+          return Promise.all(snap.map(function (p) { return persistRestore(p.digits, p); }));
+        });
+      }
+      return { ok: all, prev: snap[0] };
+    }
     var d = LG.digits10(digits);
     if (!d || !state.labels[d]) return { ok: false };
     var prev = Object.assign({}, state.labels[d]);
@@ -203,7 +245,9 @@
       (more ? extra.map(function (k) { return kindButton(k, curKind); }).join('') : '<button type="button" class="cl-kind cl-more" data-cl="more">More…</button>') + '</div>' +
       '<div class="cl-sec">What should the CRM do with its calls?</div>' +
       '<div class="cl-pols">' + pols + '</div>' +
-      '<div class="cl-note">' + (pol ? '' : 'Tap what it is and the usual choice for it is applied. ') +
+      // What the current choice does, in words (audit H5): kind + policy as they stand.
+      (curKind && (pol || LG.defaultPolicy(curKind)) ? '<div class="cl-effect" role="status">' + esc(LG.effectText(curKind, pol || LG.defaultPolicy(curKind), cur && cur.capture)) + '</div>' : '') +
+      '<div class="cl-note">' + (pol ? '' : 'Tapping what it is applies its usual choice at once (you can undo for 9 seconds): Sub, Supplier, Contractor and Job seeker start as “Only if I promised” — their missed and urgent calls stay off Today; Personal and Spam start as “Stop surfacing”. ') +
       'This only decides what shows on Today. It never blocks a call or sends anything.</div>' +
       // Thursday-handled toggle (js/thursday-handled.js; '' until that lazy file is loaded and the flag is on).
       (w.NBDThursdayHandled ? w.NBDThursdayHandled.sheetHtml(s.digits) : '') +
@@ -225,7 +269,7 @@
     doc.body.appendChild(wrap);
     state.opener = doc.activeElement || null;
     state.sheet = wrap;
-    var s = { el: wrap.querySelector('.cl-sheet'), digits: d, name: o.name || (cur && cur.name) || '', leadName: o.leadName || '', policy: '', more: false, pending: LG.isKind(o.pending) ? o.pending : '', source: LG.SOURCES.indexOf(o.source) !== -1 ? o.source : 'manual' };
+    var s = { el: wrap.querySelector('.cl-sheet'), digits: d, name: o.name || (cur && cur.name) || '', leadName: o.leadName || leadNameFor(d), policy: '', more: false, pending: LG.isKind(o.pending) ? o.pending : '', source: LG.SOURCES.indexOf(o.source) !== -1 ? o.source : 'manual' };
     wrap.__s = s;
     paintSheet(s);
     var first = s.el.querySelector('.cl-kind.is-on') || s.el.querySelector('.cl-kind');
@@ -239,11 +283,12 @@
       '<div class="cl-hd"><div class="cl-title">Personal number</div>' +
       '<div class="cl-who">' + (s.name ? esc(s.name) + ' · ' : '') + esc(fmtPhone(s.digits)) + '</div></div>' +
       '<div class="cl-hint">Hiding keeps its calls off Today (a promise you make still shows). You can also stop the CRM from <b>copying and transcribing</b> its future calls and texts.</div>' +
-      '<div class="cl-note">If you stop it: new calls and texts from this number are not copied, transcribed or read. A one-line record (time and direction) is still kept so the Call Center shows it rang. <b>Calls and texts already in the CRM stay exactly as they are</b> — remove them from the Call Center yourself if you want them gone. Your original recordings stay in your own Drive.</div>' +
-      '<div class="cl-kinds"><button type="button" class="cl-pol" data-cl="personal-hide">Hide only</button>' +
-      '<button type="button" class="cl-pol is-on" data-cl="personal-stop">Hide + stop copying future calls</button></div>' +
+      (s.leadName ? '<div class="cl-hint"><b>This number is on customer ' + esc(s.leadName) + '.</b> If you stop copying, you will not see their calls or texts. Pick Hide only unless you are sure.</div>' : '') +
+      '<div class="cl-note">If you stop it: new calls and texts from this number are not copied, transcribed or read. A one-line record (time and direction) is still kept so the Call Center shows it rang. <b>Texts that arrive while it is off are dropped for good — they cannot be brought back into the CRM later</b> (calls stay as recordings in your own Drive). If this number later becomes a customer, the CRM records it again and tells you. <b>Calls and texts already in the CRM stay exactly as they are</b> — remove them from the Call Center yourself if you want them gone.</div>' +
+      '<div class="cl-kinds"><button type="button" class="cl-pol' + (s.leadName ? ' is-on' : '') + '" data-cl="personal-hide">Hide only</button>' +
+      '<button type="button" class="cl-pol' + (s.leadName ? '' : ' is-on') + '" data-cl="personal-stop">Hide + stop copying future calls</button></div>' +
       '<div class="cl-foot"><span></span><button type="button" class="cl-link" data-cl="close">Cancel</button></div>';
-    var b = s.el.querySelector('[data-cl="personal-stop"]');
+    var b = s.el.querySelector('[data-cl="' + (s.leadName ? 'personal-hide' : 'personal-stop') + '"]');
     if (b) b.focus();
   }
 
@@ -257,12 +302,15 @@
     closeSheet();
     if (!r.ok) return;
     var now = get(s.digits);
-    showUndo('Labeled ' + LG.KIND_LABEL[kind] + ' · ' + LG.POLICY_LABEL[LG.policyOf(now)], function () {
+    showUndo('Labeled ' + LG.KIND_LABEL[kind] + '. ' + LG.effectText(kind, LG.policyOf(now), now && now.capture), function () {
       return before ? persistRestore(s.digits, before) : clear(s.digits);
     });
   }
   async function persistRestore(d, prev) {
-    var doc = LG.buildDoc({ digits: d, kind: prev.kind, policy: prev.policy, name: prev.name, note: prev.note, source: prev.source, companyId: tenant(), uid: uid(), createdAtMs: prev.createdAtMs, ackAtMs: prev.ackAtMs, capture: prev.capture });
+    // updatedAtMs is kept as it was: it is half of "when did Jo last decide"
+    // (with ackAtMs), and an Undo must put the old decision back, not make a
+    // fresh one that silences the reconciliation row.
+    var doc = LG.buildDoc({ digits: d, kind: prev.kind, policy: prev.policy, name: prev.name, note: prev.note, source: prev.source, companyId: tenant(), uid: uid(), createdAtMs: prev.createdAtMs, ackAtMs: prev.ackAtMs, capture: prev.capture, nowMs: prev.updatedAtMs || undefined });
     if (!doc) return { ok: false };
     var cur = state.labels[d] ? Object.assign({}, state.labels[d]) : null;
     return { ok: await persist(d, doc, cur) };
@@ -303,6 +351,25 @@
   });
   doc.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape' && state.sheet) { ev.stopPropagation(); closeSheet(); }
+  });
+
+  // The Today line "N people hidden by labels · See them in the Call Center"
+  // opened the default tab (UX walk 2026-10-13). Its own handler still goes to
+  // the Call Center; this one lands it on the Labeled list, where every hidden
+  // person is, so the count is a tap to the people it counts. The view may
+  // still be loading, so it is asked a few times, then given up quietly.
+  doc.addEventListener('click', function (ev) {
+    var t = ev.target && ev.target.closest ? ev.target.closest('.tp-hidden [data-tp-act="goto"]') : null;
+    if (!t) return;
+    var tries = 0;
+    (function land() {
+      var cc = w.NBDCallCenter;
+      if (cc && typeof cc.setFilter === 'function' && cc._state && cc._state.loaded !== undefined) {
+        try { cc.setFilter('labeled'); } catch (_) { /* the default tab is still a safe place to land */ }
+        return;
+      }
+      if (++tries < 20) setTimeout(land, 200);
+    })();
   });
 
   // Thursday label playbooks (2026-10-12): the "let Thursday handle this number"
