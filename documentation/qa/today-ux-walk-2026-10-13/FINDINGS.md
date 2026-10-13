@@ -5,8 +5,8 @@ triggers; `CLOUDSDK_CONFIG` empty so nothing could reach production), seeded
 busy-Tuesday tenant, Playwright at 390x844 @2x, iPhone UA, standalone rules
 forced, notch insets emulated, real taps. Four click-path traces ran first.
 **R** = reproduced, **C** = code-verified only. Screens and the walk rig are
-in this folder (`walk/`). Sibling audits:
-[lifecycle + volume](../../audit/NEEDS-YOU-LIFECYCLE-AND-VOLUME-2026-10-13.md).
+in this folder (`walk/`). Sibling audit: NEEDS-YOU-LIFECYCLE-AND-VOLUME-2026-10-13
+(lifecycle + volume, PR #2430).
 
 ## Fixed in the PR that carries this note
 
