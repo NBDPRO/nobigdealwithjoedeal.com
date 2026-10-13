@@ -171,9 +171,16 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 
 /* ── TCPA ── */
 .tcpa-check{display:flex;gap:10px;align-items:flex-start;margin:20px 0 8px;}
-.tcpa-check input[type="checkbox"]{width:18px;height:18px;margin-top:2px;accent-color:var(--orange);flex-shrink:0;}
-.tcpa-check label{font-size:.8rem;color:rgba(255,255,255,.72);line-height:1.5;}
-.tcpa-check label a{color:var(--orange);text-decoration:none;}
+.tcpa-check input[type="checkbox"]{width:24px;height:24px;margin-top:2px;accent-color:var(--orange);flex-shrink:0;}
+.tcpa-check label{font-size:.8rem;color:rgba(255,255,255,.72);line-height:1.5;padding:2px 0;}
+.tcpa-check label a{color:var(--orange);text-decoration:none;display:inline-block;padding:10px 2px;margin:-10px 0;}
+.tcpa-group{margin:4px 0 10px;}
+.tcpa-group .error-msg{font-size:.7rem;color:var(--error);margin-top:4px;display:none;}
+.tcpa-group.has-error .error-msg{display:block;}
+.contact-intro{margin:0 0 14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);}
+.contact-intro-title{font-weight:700;font-size:1rem;color:var(--white);}
+.contact-intro-sub{font-size:.8rem;color:rgba(255,255,255,.68);margin-top:4px;line-height:1.5;}
+.contact-recap{font-size:.85rem;color:rgba(255,255,255,.78);text-align:center;margin:0 0 18px;line-height:1.5;}
 /* 2026-10-03 funnel unblock: OTP off by default (hidden until the flag turns
    it on), the "use my address as typed" escape, the optional thank-you
    questions, and the trust line above Submit. */
@@ -633,7 +640,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
   <div class="step-eyebrow">Step 1 of 5</div>
   <h1 class="step-h1">Free Roof Estimate &mdash; Greater Cincinnati &amp; Northern KY</h1>
   <h2 class="step-title">What's Your <span>Address?</span></h2>
-  <div class="step-subtitle">Enter your home address and I'll pull up a satellite view to start your estimate.</div>
+  <div class="step-subtitle">Enter your home address and where to reach you, and I'll pull up a satellite view to start your estimate.</div>
 
   <div class="funnel-card">
     <div class="funnel-card-glow"></div>
@@ -642,6 +649,55 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
       <input type="text" id="addressInput" placeholder="Start typing your address&hellip;" autocomplete="street-address" required aria-required="true" aria-describedby="addressInput-err">
       <div class="error-msg" id="addressInput-err" role="alert" aria-live="assertive">Please enter a valid address</div>
       <div class="ac-drop" id="acDrop"></div>
+    </div>
+
+    <!-- Contact + SMS consent live HERE, on first paint (Twilio A2P 30909,
+         2026-10-13): a reviewer opening /estimate must see the phone field and
+         the unchecked opt-in without clicking through four steps. Same ids and
+         same submit path as before (tcpaConsent -> submitPublicLead). -->
+    <div class="contact-intro">
+      <div class="contact-intro-title">Where should Joe send it?</div>
+      <div class="contact-intro-sub">First name and phone. No call center, no spam.</div>
+    </div>
+
+    <div class="input-group">
+      <label for="firstName">First Name</label>
+      <input type="text" id="firstName" placeholder="Joe" autocomplete="given-name" required aria-required="true" aria-describedby="firstName-err">
+      <div class="error-msg" id="firstName-err" role="alert" aria-live="assertive">Required</div>
+    </div>
+
+    <div class="input-group">
+      <label for="phoneNumber">Phone Number</label>
+      <div class="phone-input-row">
+        <input type="tel" id="phoneNumber" placeholder="(859) 555-1234" autocomplete="tel" required aria-required="true" aria-describedby="phoneNumber-err">
+        <!-- Text-code check: OFF (CONFIG.OTP_ENABLED in the wizard). Hidden in
+             the markup so it never flashes; the wizard shows it if re-enabled. -->
+        <button class="btn-send-code" id="btnSendCode" data-action="sendCode" hidden>Send Code</button>
+      </div>
+      <div class="error-msg" id="phoneNumber-err" role="alert" aria-live="assertive">Valid phone number required</div>
+    </div>
+
+    <div class="otp-section" id="otpSection">
+      <div style="font-size:.78rem;font-weight:600;color:rgba(255,255,255,.5);text-align:center;margin-bottom:8px;">Enter the 6-digit code we texted you</div>
+      <div class="otp-row" id="otpRow">
+        <!-- First box takes the WHOLE code from SMS autofill (one-time-code);
+             the wizard spreads it across the boxes, like a paste. -->
+        <input type="text" class="otp-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" aria-label="Digit 1">
+        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 2">
+        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 3">
+        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 4">
+        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 5">
+        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 6">
+      </div>
+      <div class="otp-status" id="otpStatus" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="tcpa-group">
+      <div class="tcpa-check">
+        <input type="checkbox" id="tcpaConsent" aria-describedby="tcpaConsent-err">
+        <label for="tcpaConsent">I agree to receive my estimate and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></label>
+      </div>
+      <div class="error-msg" id="tcpaConsent-err" role="alert" aria-live="assertive">Check the box so Joe can call or text you your estimate</div>
     </div>
   </div>
 
@@ -838,60 +894,23 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <!-- ═══════════════════════ STEP 5: CONTACT + VERIFY ═══════════════════════ -->
 <div class="step" id="step5">
   <div class="step-eyebrow">Final Step</div>
-  <h2 class="step-title">Where Should Joe <span>Send It?</span></h2>
-  <div class="step-subtitle">Your first name and phone are all Joe needs. No call center, no spam.</div>
+  <h2 class="step-title">Almost <span>Done</span></h2>
+  <div class="step-subtitle">Want a copy by email? Add it below, or just send it. Joe already has your name and number.</div>
 
   <div class="funnel-card">
     <div class="funnel-card-glow"></div>
 
-    <div class="input-row">
-      <div class="input-group">
-        <label for="firstName">First Name</label>
-        <input type="text" id="firstName" placeholder="Joe" autocomplete="given-name" required aria-required="true" aria-describedby="firstName-err">
-        <div class="error-msg" id="firstName-err" role="alert" aria-live="assertive">Required</div>
-      </div>
-      <div class="input-group">
-        <label for="lastName">Last Name <span class="field-optional">(optional)</span></label>
-        <input type="text" id="lastName" placeholder="Deal" autocomplete="family-name">
-      </div>
-    </div>
+    <p class="contact-recap" id="contactRecap" role="status" aria-live="polite"></p>
 
     <div class="input-group">
-      <label for="phoneNumber">Phone Number</label>
-      <div class="phone-input-row">
-        <input type="tel" id="phoneNumber" placeholder="(859) 555-1234" autocomplete="tel" required aria-required="true" aria-describedby="phoneNumber-err">
-        <!-- Text-code check: OFF (CONFIG.OTP_ENABLED in the wizard). Hidden in
-             the markup so it never flashes; the wizard shows it if re-enabled. -->
-        <button class="btn-send-code" id="btnSendCode" data-action="sendCode" hidden>Send Code</button>
-      </div>
-      <div class="error-msg" id="phoneNumber-err" role="alert" aria-live="assertive">Valid phone number required</div>
-    </div>
-
-    <div class="otp-section" id="otpSection">
-      <div style="font-size:.78rem;font-weight:600;color:rgba(255,255,255,.5);text-align:center;margin-bottom:8px;">Enter the 6-digit code we texted you</div>
-      <div class="otp-row" id="otpRow">
-        <!-- First box takes the WHOLE code from SMS autofill (one-time-code);
-             the wizard spreads it across the boxes, like a paste. -->
-        <input type="text" class="otp-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" aria-label="Digit 1">
-        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 2">
-        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 3">
-        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 4">
-        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 5">
-        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]" aria-label="Digit 6">
-      </div>
-      <div class="otp-status" id="otpStatus" role="status" aria-live="polite"></div>
+      <label for="lastName">Last Name <span class="field-optional">(optional)</span></label>
+      <input type="text" id="lastName" placeholder="Deal" autocomplete="family-name">
     </div>
 
     <div class="input-group">
       <label for="emailAddress">Email Address <span class="field-optional">(optional)</span></label>
       <input type="email" id="emailAddress" placeholder="you@email.com" autocomplete="email" aria-describedby="emailAddress-err">
       <div class="error-msg" id="emailAddress-err" role="alert" aria-live="assertive">Valid email required</div>
-    </div>
-
-
-    <div class="tcpa-check">
-      <input type="checkbox" id="tcpaConsent">
-      <label for="tcpaConsent">I agree to receive my estimate and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></label>
     </div>
 
     <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Fully insured &middot; Joe on every roof</p>
@@ -1077,7 +1096,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <!-- ═══════════════════════ MAIN SCRIPT (lazy) ═══════════════════════
      The 52KB wizard loads on first user intent (or idle <=2.5s) via the
      loader instead of eagerly — see assets/js/estimate-wizard-loader.js. -->
-<script defer src="/assets/js/estimate-wizard-loader.js"></script>
+<script defer src="/assets/js/estimate-wizard-loader.js?v=2"></script>
 
 <!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>
