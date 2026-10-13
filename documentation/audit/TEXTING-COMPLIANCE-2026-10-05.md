@@ -89,7 +89,11 @@ gaps closed. Tests: `tests/r6-texting-trio-2026-10-07.test.js`.
 - **Per-company A2P registration.** That is being designed separately. Until it
   exists, non-NBD companies cannot text at all.
 - The STOP / HELP TwiML replies still say "NBD Pro" with Joe's number for every
-  tenant (review #9).
+  tenant (review #9). **Fixed 2026-10-13:** they now name the business that owns
+  the number texted (a tenant's own registered number answers with that
+  tenant's name and phone; NBD's line and unknown numbers answer "No Big Deal
+  Home Solutions"). See
+  [SMS-KEYWORD-REPLIES-BRAND-2026-10-13](../projects/SMS-KEYWORD-REPLIES-BRAND-2026-10-13.md).
 - The AI-draft send has no 5/day per-recipient cap (review #5b).
 - The quiet-hours location comes only from the record (state / ZIP / address /
   tz). A record with none of these uses Eastern. Area codes are not used.
