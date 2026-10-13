@@ -326,7 +326,11 @@
     try {
       if (w.NBDReviewDeck) {
         if (w.NBDRevenue && typeof w.NBDRevenue.loadInvoices === 'function') {
-          await w.NBDRevenue.loadInvoices().catch(() => null);
+          // A read that FAILED last time is re-asked for real: loadInvoices keeps a
+          // 30 s "recently failed" window that answers [] without asking, which made
+          // the strip's own "Tap to try again" a no-op (walk 2026-10-13).
+          const reread = !!(api.lastCounts && api.lastCounts.reviewsFailed);
+          await w.NBDRevenue.loadInvoices(reread ? { force: true } : undefined).catch(() => null);
           // loadInvoices never rejects: a failed query resolves [] and leaves
           // cached() null (a real empty list is cached as []). "Paid in full"
           // is judged from these invoices, so no invoices = review asks that

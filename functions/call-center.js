@@ -1218,6 +1218,7 @@ exports._test = {
   gatherSweep,
   promisesList,
   callAction,
+  pushUrgent,
   mirrorCallTask,
   applyLeadContact,
   taggedMatch,
