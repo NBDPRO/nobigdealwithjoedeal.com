@@ -610,7 +610,7 @@
   var promises = { items: [], counts: null, loaded: false, denied: false, loading: false };
 
   // The never-forget chain at a glance (2026-10-12 audit): owner / admin only,
-  // read through callPipelineHealth (integrations/* is not client-readable).
+  // read through callPipelineHealth (the integrations status docs are not client-readable).
   // One line when all is well; a red line naming what stopped otherwise. A
   // failed read says so - it never renders as green.
   var health = { data: null, error: false, denied: false, loading: false, open: false };
