@@ -234,6 +234,41 @@ function fakeFirestore(data) {
     ok('...and nothing in the strip complains', !/did not load/.test(b.strip.innerHTML) && !/Checking/.test(b.strip.innerHTML), b.strip.innerHTML.slice(0, 300));
   }
   {
+    // once the connection is up, the timers and events alone repaint both surfaces (nothing calls render by hand)
+    const flag = { on: true };
+    const b = await bootScenario(flag);
+    ok('control: while unconfirmed the strip says Checking and Today has no owed row', /Checking/.test(b.strip.innerHTML) && !/Owed Customer/.test(b.today.innerHTML));
+    // each repaint path on its own (they overlap in the run below, so pin them one by one)
+    ok('both quiet re-asks are queued: the loader\'s and the strip\'s own re-check', b.env.timers.length >= 2, 'timers=' + b.env.timers.length);
+    const queued = b.env.timers.length;
+    const reads0 = b.fb.reads.length;
+    b.env.win.dispatchEvent(new b.env.win.CustomEvent('nbd:invoices-settled'));
+    await flush();
+    ok('the settled event makes the strip re-read', b.fb.reads.length > reads0, 'reads ' + reads0 + ' -> ' + b.fb.reads.length);
+    ok('...and makes Today schedule a repaint', b.env.timers.length > queued, 'timers ' + queued + ' -> ' + b.env.timers.length);
+    flag.on = false;
+    b.env.advance(3000);
+    b.env.runTimers(); await flush(); await flush();      // the quiet re-ask, the strip's own re-check
+    b.env.runTimers(); await flush(); await flush();      // Today's scheduled repaint
+    ok('the strip repaints itself once confirmed (no manual render)', !/Checking/.test(b.strip.innerHTML) && !/did not load/.test(b.strip.innerHTML), b.strip.innerHTML.slice(0, 200));
+    ok('...and Today lists the owed invoice by itself (settled event + schedule)', /Owed Customer/.test(b.today.innerHTML), b.today.innerHTML.slice(0, 300));
+  }
+  {
+    // confirmed in between: the next unconfirmed read starts a FRESH window (not an instant failure)
+    const flag = { on: true };
+    const data = { invoices: [], stripeLedger: [], yardSigns: [], phone_calls: [], phone_text_days: [], appointments: [], __cache: (q) => flag.on && q.col.name === 'phone_calls' };
+    const b = bootEnv(data);
+    await flush();
+    await b.env.win.NBDHomeAttention.render(true); await flush();
+    ok('control: calls unconfirmed at t0 is pending', b.env.win.NBDHomeAttention.lastCounts.callsPending === true && !b.env.win.NBDHomeAttention.lastCounts.callsFailed);
+    flag.on = false; b.env.advance(100);
+    await b.env.win.NBDHomeAttention.render(true); await flush();
+    ok('control: confirmed -> neither pending nor failed', !b.env.win.NBDHomeAttention.lastCounts.callsPending && !b.env.win.NBDHomeAttention.lastCounts.callsFailed);
+    flag.on = true; b.env.advance(3000);
+    await b.env.win.NBDHomeAttention.render(true); await flush();
+    ok('a blip after a confirmed read is "checking" again, not an instant failure', b.env.win.NBDHomeAttention.lastCounts.callsPending === true && !b.env.win.NBDHomeAttention.lastCounts.callsFailed, JSON.stringify(b.env.win.NBDHomeAttention.lastCounts));
+  }
+  {
     const flag = { on: true };
     const b = await bootScenario(flag);
     b.env.advance(3000);               // never confirmed
@@ -302,6 +337,10 @@ function fakeFirestore(data) {
     const isDup = (re) => items.filter((x) => re.test(x)).every((x) => /data-ha-dup="1"/.test(x)) && items.some((x) => re.test(x));
     ok('the Stripe count and "N people need you" are marked as duplicates of Today rows', isDup(/Stripe payments/) && isDup(/people need you/), dup.slice(0, 500));
     ok('old promises and review asks are NOT duplicates (Today does not list them)', !/data-ha-dup[^>]*>[^<]*old promise/.test(dup) && !/data-ha-dup[^>]*>[^<]*review ask/.test(dup));
+    const warn2 = HA.stripHtml({ oldFailed: true, callsCapped: true, signsFailed: true, reviewsFailed: true, textsCapped: true });
+    ok('positive control: no warning of any kind (old promises, caps, signs, reviews) is marked duplicate', warn2.length > 0 && !/data-ha-dup/.test(warn2), warn2.slice(0, 200));
+    const chk = HA.stripHtml({ pending: true });
+    ok('the "Checking..." item is shown and is NOT marked duplicate (it must stay visible on a phone)', /ha-checking/.test(chk) && /Checking/.test(chk) && !/data-ha-dup/.test(chk), chk);
     const warn = HA.stripHtml({ stripe: 0, calls: 3, callsFailed: true, stripeFailed: true });
     ok('positive control: a failed read is never marked duplicate (its warning must stay on screen)', !/data-ha-dup/.test(warn) && /NOT an all-clear|so far/.test(warn), warn.slice(0, 300));
   }
@@ -358,7 +397,11 @@ function fakeFirestore(data) {
     const norm = css.replace(/\r\n/g, '\n');
     const block = (norm.match(/@media \(max-width:768px\)\{[^@]*?tp-has-rows[\s\S]*?\n\}/) || [''])[0];
     ok('CSS: the collapse + the duplicate hiding live under the phone breakpoint only', /tp-has-rows > \.page-hdr \.page-sub\{display:none;\}/.test(block) && /\.ha-item\[data-ha-dup\]\{display:none;\}/.test(block) && /data-ha-alldup="1"\]\{display:none;\}/.test(block), block.slice(0, 300));
-    ok('CSS: nothing hides the strip outside that media block (desktop unchanged)', !/\n#homeAttention\[data-ha-today[^\n]*\{display:none/.test(norm.replace(block, '')));
+    ok('CSS: the duplicate hiding is gated on data-ha-today (only while Today is on the page)', /#homeAttention\[data-ha-today="1"\] \.ha-item\[data-ha-dup\]\{display:none;\}/.test(block) && /#homeAttention\[data-ha-today="1"\]\[data-ha-alldup="1"\]\{display:none;\}/.test(block), block.slice(-400));
+    const outside = norm.replace(block, '').replace(/\/\*[\s\S]*?\*\//g, '');   // comments stripped: they name the attributes
+    ok('CSS: nothing mentions data-ha-dup / data-ha-alldup outside that media block (desktop unchanged)', !/data-ha-dup|data-ha-alldup/.test(outside), (outside.match(/[^\n]*data-ha-(dup|alldup)[^\n]*/) || [''])[0]);
+    ok('CSS: the list lock is inert pointer-events on the card itself, the leaving row is faded', /\.tp\.tp-lock\{pointer-events:none;\}/.test(norm) && /\.tp-row\.tp-leave\{opacity:/.test(norm));
+    ok('CSS: the "Checking..." strip item has a style (it is not an unstyled span)', /\.ha-checking\{/.test(norm));
   }
 
   // ═══ M1: Undo on every action, hold, confirm ═════════════════════════════
@@ -549,8 +592,11 @@ function fakeFirestore(data) {
     const writes1 = t.tasksDone.length + t.calls.length;
     await t.click('done', 'prom:L1');
     ok('a second tap during the hold sends nothing', t.tasksDone.length + t.calls.length === writes1, 'writes ' + writes1 + ' -> ' + (t.tasksDone.length + t.calls.length));
+    const leaveMs = t.env.timers.map((x) => x.ms);
+    ok('the hold is a beat (150-400 ms), not a pause', leaveMs.some((ms) => ms >= 150 && ms <= 400), JSON.stringify(leaveMs));
     t.env.runTimers(); await flush();
     ok('after the beat the list repaints and unlocks', t.html() !== before && !t.env.els.todayPlan._cls.has('tp-lock'));
+    ok('...and the strip was asked to re-read after the action', t.rendered.indexOf(true) !== -1, JSON.stringify(t.rendered));
   }
 
   // ═══ M4: handled is keyed by facts ═══════════════════════════════════════
