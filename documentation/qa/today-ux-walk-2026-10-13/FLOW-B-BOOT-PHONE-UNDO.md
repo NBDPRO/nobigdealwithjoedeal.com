@@ -42,11 +42,16 @@ before, this branch = after):
 | Cold boots painting a false "NOT an all-clear" at any moment | 5 of 6 | 0 of 8 |
 | ...persisting at 14 s | 0 | 0 |
 
-- `tests/today-boot-phone-undo-2026-10-13.test.js`: 81 checks, real files in a vm
+- `tests/today-boot-phone-undo-2026-10-13.test.js`: 97 checks, real files in a vm
   sandbox with a fake clock + timers; every absence check has a positive control
   (a real error is named at once; unconfirmed past the window is named; a failed
-  read is never marked duplicate). 25 mutations break-tested, the which-assertion
-  list is in the PR.
+  read is never marked duplicate). 36 mutations break-tested (the which-assertion
+  list is in the PR); the silent-failure review's findings are fixed and pinned:
+  the settled event no longer feeds its own re-read loop, held invoice rows that
+  fail to refresh are named "may be out of date", the checking window is
+  per-scope, a lapsed window with no answer is named, `{ok:false}` is not
+  "saved", a partly saved action says so with an Undo for the saved part, "could
+  not ask" (no dialog) is not "no".
 - The walk found two more boot paths while measuring (asked before the db / company
   claim existed; scope changed mid-flight): both pinned by their own check.
 - `walk/flow.js B-undo`: Done -> toast -> Undo reopens the task in Firestore;

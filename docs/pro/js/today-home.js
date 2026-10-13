@@ -35,9 +35,7 @@
   var handled = new Set();      // row keys acted on this session
   var handledAt = {};           // row key -> when (ms): a call NEWER than this brings the row back
   var handledSig = {};          // row key -> the row's facts when it was acted on (rowSig)
-  // A row acted on this session stays hidden only while its FACTS are the ones
-  // that were acted on (UX walk M4): a new call id, another promise, a different
-  // due date or amount brings it back, instead of hiding until the next reload.
+  // A handled row stays hidden only while its FACTS are the ones acted on (M4).
   function markHandled(key, sig) {
     handled.add(key); handledAt[key] = Date.now();
     if (sig !== undefined) handledSig[key] = sig; else delete handledSig[key];
@@ -104,8 +102,7 @@
         try {
           var snap = await w.getDocs(w.query(col, w.where(lanes[i], '==', u), w.where('startTime', '>=', start), w.where('startTime', '<=', end), w.orderBy('startTime', 'asc')));
           // An empty snapshot served from the local cache never reached the server.
-          // Not a failure the first time: the cold-boot connection is still
-          // coming up. Unconfirmed again 2 s later is a failure, and is named.
+          // First time: the connection is still coming up (not a failure); 2 s later it is.
           if (snap && snap.metadata && snap.metadata.fromCache === true && (!snap.docs || !snap.docs.length)) {
             if (!appts.unconfSince) appts.unconfSince = Date.now();
             if (Date.now() - appts.unconfSince >= 2000) failedLanes++; else pendingLanes++;
@@ -210,8 +207,7 @@
       inv.busy = true;
       R.loadInvoices().then(invAfterRead, function () { inv.busy = false; if (inv.rows === null) inv.failed = true; schedule(); });
     }
-    // A first read nobody has confirmed yet (cold boot) is "checking", not
-    // failed; only a real error, or one still unconfirmed after its window, is.
+    // An unconfirmed first read (cold boot) is "checking"; only an error or a lapsed window fails.
     inv.checking = false;
     if (!fresh && inv.rows === null && R && typeof R.status === 'function') {
       var stInv = R.status();
@@ -261,9 +257,8 @@
         return !!(l && l.policy === 'hide');
       },
     };
-    // Pass 1 with nothing hidden gives every row's CURRENT facts; a handled key
-    // whose facts changed since it was acted on is un-hidden (M4). Pass 2 is the
-    // plan that is painted.
+    // Pass 1 (nothing hidden) gives every row's CURRENT facts; a handled key whose
+    // facts changed is un-hidden (M4). Pass 2 is what is painted.
     if (handled.size) {
       var full = P.buildTodayPlan(Object.assign({}, planOpts, { handled: new Set() }));
       var sigs = {};
@@ -501,8 +496,7 @@
     el.innerHTML = html(p);
     el.hidden = false;
     el.setAttribute('data-tp-state', 'ready');
-    // Phone chrome (today-home.css): the welcome block shrinks once there is work
-    // on the list, and the strip drops the items Today already lists.
+    // Phone chrome (today-home.css): welcome block shrinks; strip drops duplicates.
     try {
       var vs = el.closest ? el.closest('.view-scroll') : null;
       if (vs && vs.classList) vs.classList.toggle('tp-has-rows', p.total > 0);
@@ -542,13 +536,10 @@
     await w.updateDoc(w.doc(w.db, 'leads', leadId), { followUp: ymd, updatedAt: w.serverTimestamp ? w.serverTimestamp() : new Date() });
     lead.followUp = ymd;
   }
-  // The row leaves with a beat, not a slide (UX walk M1): it fades in place and
-  // the whole list ignores taps for a moment, so a double tap cannot land on the
-  // next person sliding up under the thumb. Without a DOM row (tests, a rider)
-  // it is immediate.
+  // The row fades in place and the list ignores taps for a beat, so a double tap
+  // cannot land on the next person sliding up (M1). No DOM row: immediate.
   var LEAVE_MS = 240;
-  // Row keys with writes in flight: while the row holds (above) it is still in
-  // the last painted plan, so a second tap would otherwise send the writes twice.
+  // Row keys with writes in flight (the held row is still in the painted plan).
   var acting = {};
   function rowNode(key) {
     var el = doc.getElementById('todayPlan');
@@ -568,8 +559,7 @@
       done();
     }, LEAVE_MS);
   }
-  // Run a list of {do, undo} jobs for one row; every outcome is told, every
-  // success has a 6 s Undo (UX walk M1).
+  // Run {go, undo} steps for one row; every outcome is told, success has a 6 s Undo.
   function ok2(v) { if (v === false || (v && v.ok === false)) throw new Error('write refused'); return v; }
   async function runRow(key, r, label, steps) {
     if (!steps.length || acting[key]) return;
@@ -809,9 +799,8 @@
     var r = findRow(key);
     if (!r) return;
     if (a === 'ckept') {
-      // A promise riding on a call (no customer on file): kept = THAT call is
-      // handled. Its person's other calls stay listed (the row key is not
-      // hidden - UX walk M4), and there is an Undo.
+      // A promise riding on a call: kept = THAT call is handled (the person's
+      // other calls stay listed - M4), with an Undo.
       if (acting[key]) return;
       acting[key] = true;
       try {
