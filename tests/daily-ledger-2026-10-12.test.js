@@ -33,6 +33,14 @@ const NOW = Date.parse('2026-10-02T00:05:00Z');
   l = W.dailyLedger([today({ id: 'p1', urgent: true }), today({ id: 'p2', urgent: true })], [], NOW, {});
   ok('one person with two open calls counts once', l.open === 1);
 
+  const hidden = { '8595550101': { kind: 'spam', policy: 'hide' } };
+  l = W.dailyLedger([today({ id: 'sp', urgent: true, phoneDigits: '8595550101', leadId: null })], [], NOW, {});
+  ok('control (no labels): an urgent call from that number is an open person', l.open === 1);
+  l = W.dailyLedger([today({ id: 'sp', urgent: true, phoneDigits: '8595550101', leadId: null })], [], NOW, { labels: hidden });
+  ok('hidden SPAM number is NOT counted as an open person (label rule)', l.open === 0, JSON.stringify(l));
+  l = W.dailyLedger([today({ id: 'pr', promises: [{ who: 'jo', text: 'x' }], phoneDigits: '8595550101' })], [], NOW, { labels: hidden });
+  ok('...but a promise from Jo on a hidden number still counts', l.open === 1);
+
   console.log('B. through runWatch');
   process.env.CALL_CENTER_INGEST_ENABLED = 'false'; process.env.CALL_CENTER_TRANSCRIBE_ENABLED = 'false';
   const { runWatch } = require(path.join(ROOT, 'functions/call-watch.js'))._internal;
