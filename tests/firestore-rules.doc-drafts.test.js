@@ -75,6 +75,7 @@ async function run() {
     await setDoc(ref(db, 'sentdraft'), draft({ status: 'sent' }));
     await setDoc(ref(db, 'alicedraft', 'lead-alice'), draft({ leadId: 'lead-alice', userId: 'alice' }));
     for (const id of ids) await setDoc(ref(db, id), draft());
+    for (const id of ['f1', 'f2', 'big', 'junk']) await setDoc(ref(db, id), draft({ status: id.startsWith('f') ? 'failed' : 'draft', kind: 'failed' }));
   });
 
   // -- reads
@@ -110,6 +111,16 @@ async function run() {
   await check('control: valid status change allowed', 'allow', updateDoc(ref(owner, 'd6'), { status: 'sent', sentAt: new Date() }));
   await check('a SENT draft is final (cannot be edited)', 'deny', updateDoc(ref(owner, 'sentdraft'), { body: 'rewrite history' }));
   await check('a dismissed draft is final (cannot be revived)', 'deny', updateDoc(ref(owner, 'd4'), { status: 'draft' }));
+
+  // -- failure markers + value validation (review round 1)
+  await check('owner dismisses a failed-draft marker', 'allow', updateDoc(ref(owner, 'f1'), { status: 'dismissed', dismissedAt: new Date() }));
+  await check('viewer CANNOT dismiss a failed marker', 'deny', updateDoc(ref(vic, 'f2'), { status: 'dismissed' }));
+  await check('CANNOT write a 20 KB body', 'deny', updateDoc(ref(owner, 'big'), { body: 'x'.repeat(20000) }));
+  await check('control: a normal body on the same doc', 'allow', updateDoc(ref(owner, 'big'), { body: 'x'.repeat(200) }));
+  await check('CANNOT mark sent with a junk sentAt', 'deny', updateDoc(ref(owner, 'junk'), { status: 'sent', sentAt: 'junk' }));
+  await check('control: the same status change with a real timestamp', 'allow', updateDoc(ref(owner, 'junk'), { status: 'sent', sentAt: new Date() }));
+  await check('CANNOT set a non-string subject', 'deny', updateDoc(ref(owner, 'd8'), { subject: 42 }));
+  await check('other tenant MANAGER cannot edit a co-a draft', 'deny', updateDoc(ref(ctx('mgrb', { role: 'manager', companyId: 'co-b' }), 'd8'), { body: 'x' }));
 
   // -- create / delete: never from a client
   await check('owner CANNOT create a draft', 'deny', setDoc(ref(owner, 'forged1'), draft()));

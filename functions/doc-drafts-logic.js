@@ -66,7 +66,25 @@ function _validJobId(v) { return (typeof v === 'string' && /^[A-Za-z0-9_-]{1,40}
 function _str(v, max) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, max || 200); }
 function _isEmail(v) { return typeof v === 'string' && v.length <= 254 && /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(v); }
 
-/** ddraft_<leadId>_<kind>_<jobId> — one draft per lead + kind + job. */
+/**
+ * The UTC day (YYYYMMDD) the lead entered its current stage — a stable,
+ * per-job suffix for a lead with no activeJobId, so a LATER job on the same
+ * customer does not silently collide with the first one's draft ids.
+ */
+function stageDayOf(lead, nowMs) {
+  const t = lead && lead.stageStartedAt;
+  let ms = NaN;
+  if (t && typeof t.toMillis === 'function') ms = t.toMillis();
+  else if (t && (typeof t.seconds === 'number' || typeof t._seconds === 'number')) ms = (t.seconds != null ? t.seconds : t._seconds) * 1000;
+  else if (typeof t === 'number') ms = t;
+  else if (typeof t === 'string') ms = Date.parse(t);
+  if (!Number.isFinite(ms)) ms = Number(nowMs) || Date.now();
+  return new Date(ms).toISOString().slice(0, 10).replace(/-/g, '');
+}
+/** The job part of an id: the job id, else 'nj<stage-entry day>'. */
+function jobKeyFor(lead, jobId, nowMs) { return jobId || ('nj' + stageDayOf(lead, nowMs)); }
+
+/** ddraft_<leadId>_<kind>_<jobKey> — one draft per lead + kind + job. */
 function draftId(leadId, kind, jobId) {
   return 'ddraft_' + _seg(leadId) + '_' + _seg(kind) + '_' + _seg(jobId || 'job');
 }
@@ -285,7 +303,7 @@ function decide(ctx) {
   const text = build(kind, { lead, brand, event: ctx.event, paidCents: ctx.paidCents, tier });
   if (!text) return { action: 'skip', reason: 'no_template' };
   const channel = channelFor(lead);
-  const id = draftId(leadId, kind, ctx.jobId);
+  const id = draftId(leadId, kind, jobKeyFor(lead, ctx.jobId, ctx.nowMs));
   const spec = DRAFT_KINDS[kind];
   return {
     action: 'create', id,
@@ -305,12 +323,15 @@ function decide(ctx) {
       userId: lead.userId || null,
       customerName: _str(lead.name || [lead.firstName, lead.lastName].filter(Boolean).join(' ') || lead.customerName, 100),
       sourceId: _str(ctx.sourceId, 120),
+      // The schedule a date in the text was baked from; the queue re-derives
+      // it at send time and blocks when the schedule was cleared.
+      scheduleBasis: (kind === 'schedule_confirm' || kind === 'crew_reminder') ? scheduleOf(lead) : '',
     },
   };
 }
 
 module.exports = {
   EVENT_PLAN, DRAFT_EVENTS, DRAFT_KINDS, TIER_LABOR_YEARS, TIER_LABEL, PH, NBD_OWNER_UID,
-  planFor, draftId, channelFor, isMarketplaceSource, shouldDraft, brandOf, build, decide,
+  planFor, draftId, stageDayOf, jobKeyFor, channelFor, isMarketplaceSource, shouldDraft, brandOf, build, decide,
   placeholdersIn, fmtCents, ymdLong, timeLong, scheduleOf, warrantyLines, firstNameOf,
 };

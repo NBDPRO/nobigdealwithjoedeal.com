@@ -40,7 +40,7 @@ function _alreadyExists(e) {
  * @returns {Promise<{ created: string[], skipped: {kind,reason}[], existing: string[], reason?: string, error?: string }>}
  */
 async function draftDocsForEvent(db, args, deps) {
-  const { FieldValue, logger } = _deps(deps);
+  const { FieldValue, logger, now } = _deps(deps);
   args = args || {};
   const out = { created: [], skipped: [], existing: [] };
   try {
@@ -83,32 +83,71 @@ async function draftDocsForEvent(db, args, deps) {
       }
     }
 
+    const nowMs = now();
+    const jobKey = D.jobKeyFor(lead, jobId, nowMs);
+    out.failed = [];
+    // One kind's failure never aborts the others: it is filed as a
+    // status:'failed' marker on the card (the queue shows it) and logged.
+    const fail = async (kind, e) => {
+      const msg = String((e && e.message) || e).slice(0, 300);
+      out.failed.push({ kind, error: msg });
+      logger.warn('[docDrafts] draft not created', { leadId, event, kind, err: msg });
+      try {
+        await leadRef.collection('doc_drafts').doc('ddfail_' + event + '_' + kind + '_' + jobKey).create({
+          status: 'failed', kind: 'failed', failedKind: kind, label: 'A draft could not be created',
+          event, channel: 'none', to: '', emailKind: '', jobId: jobId || '',
+          subject: 'Draft not created: ' + kind.replace(/_/g, ' '),
+          body: 'The ' + kind.replace(/_/g, ' ') + ' draft for this stage could not be created (' + msg + '). Write it by hand, or dismiss this note.',
+          leadId, companyId: lead.companyId || null, userId: lead.userId || null,
+          createdAt: FieldValue.serverTimestamp(), createdBy: 'system: doc drafts',
+        });
+      } catch (me) {
+        if (!_alreadyExists(me)) logger.warn('[docDrafts] failure marker not written', { leadId, event, kind, err: me && me.message });
+      }
+    };
+
     let paidCents = null;
     if (planned.indexOf('paid_receipt') !== -1) {
-      const PIF = require('./paid-in-full');
-      const invoices = await PIF.loadLeadInvoices(db, leadId, lead, jobId);
-      // Same rule as the Request Review task: a receipt says "paid in full"
-      // only when the job really is.
-      if (!PIF.isPaidStage(lead) || !PIF.paidInFull(lead, invoices)) {
-        out.skipped.push({ kind: 'paid_receipt', reason: 'not_paid_in_full' });
+      try {
+        const PIF = require('./paid-in-full');
+        const { owedDollarsOf } = require('./invoice-owed');
+        const invoices = await PIF.loadLeadInvoices(db, leadId, lead, jobId);
+        // The paid_in_full EVENT is only recorded once the job is settled
+        // (invoiceSettlesJob), so it is trusted over a stage move that may not
+        // be visible yet; what is still checked is that no invoice owes money.
+        const owing = invoices.some((inv) => inv && inv.deleted !== true && owedDollarsOf(inv) > 0);
+        if (owing) {
+          out.skipped.push({ kind: 'paid_receipt', reason: 'not_paid_in_full' });
+          planned.splice(planned.indexOf('paid_receipt'), 1);
+        } else {
+          paidCents = invoices.reduce((s, inv) => s + PIF.paidCentsOf(inv), 0);
+        }
+      } catch (e) {
         planned.splice(planned.indexOf('paid_receipt'), 1);
-      } else {
-        paidCents = invoices.reduce((s, inv) => s + PIF.paidCentsOf(inv), 0);
+        await fail('paid_receipt', e);
       }
     }
 
     for (const kind of planned) {
-      const d = D.decide({ leadId, event, kind, lead, profile, tenantKey, jobId, paidCents, sourceId: args.sourceId });
-      if (d.action !== 'create') { out.skipped.push({ kind, reason: d.reason }); continue; }
       try {
-        await leadRef.collection('doc_drafts').doc(d.id).create(Object.assign({}, d.doc, {
-          createdAt: FieldValue.serverTimestamp(),
-          createdBy: 'system: doc drafts',
-        }));
-        out.created.push(d.id);
+        const d = D.decide({ leadId, event, kind, lead, profile, tenantKey, jobId, paidCents, sourceId: args.sourceId, nowMs });
+        if (d.action !== 'create') { out.skipped.push({ kind, reason: d.reason }); continue; }
+        try {
+          await leadRef.collection('doc_drafts').doc(d.id).create(Object.assign({}, d.doc, {
+            createdAt: FieldValue.serverTimestamp(),
+            createdBy: 'system: doc drafts',
+          }));
+          out.created.push(d.id);
+        } catch (e) {
+          if (_alreadyExists(e)) {
+            out.existing.push(d.id);
+            logger.info('[docDrafts] draft already exists (left as is)', { leadId, event, kind, id: d.id });
+            continue;
+          }
+          throw e;
+        }
       } catch (e) {
-        if (_alreadyExists(e)) { out.existing.push(d.id); continue; }
-        throw e;
+        await fail(kind, e);
       }
     }
     if (out.created.length) {

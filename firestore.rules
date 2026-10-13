@@ -870,10 +870,14 @@ service cloud.firestore {
           && (isAdmin()
               || isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
-          && resource.data.status == 'draft'
+          && resource.data.status in ['draft', 'failed']
           && request.resource.data.status in ['draft', 'sent', 'dismissed']
           && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['status', 'subject', 'body', 'sentAt', 'dismissedAt']);
+               .hasOnly(['status', 'subject', 'body', 'sentAt', 'dismissedAt'])
+          && request.resource.data.subject is string && request.resource.data.subject.size() <= 300
+          && request.resource.data.body is string && request.resource.data.body.size() <= 10000
+          && (!('sentAt' in request.resource.data) || request.resource.data.sentAt == null || request.resource.data.sentAt is timestamp)
+          && (!('dismissedAt' in request.resource.data) || request.resource.data.dismissedAt == null || request.resource.data.dismissedAt is timestamp);
         allow create, delete: if false;
       }
       match /notes/{noteId} {

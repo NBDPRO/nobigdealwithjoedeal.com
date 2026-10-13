@@ -62,6 +62,27 @@ name GAF System Plus, whose year counts GAF sets). The NBD Pledge sentence is
 for the words: `estimate-config.js` `TIER_LABOR_YEARS` (copied, test-pinned)
 and `warranty-cert.js`.
 
+## Review round 1 (silent-failure + vacuity + security reviews)
+
+Fixed on the PR: a delivered send whose card bookkeeping failed was reported
+as "could not send" and was re-sendable (now a sent-guard in memory +
+sessionStorage and a "Sent, but couldn't update the card" warning); a failed
+draft creation is filed as a `status:'failed'` marker (`ddfail_*`) shown on
+the card and dismissible, and one kind's failure no longer aborts the others;
+the timeline note uses an auto id and its failure is surfaced; Copy warns and
+Mark sent is blocked on unfilled blanks; no-job-id leads get a stage-entry-day
+suffix (`nj<YYYYMMDD>`) so a later job does not collide; schedule dates are
+re-derived at send time (`scheduleBasis`); the paid_in_full EVENT is trusted
+over a stage move that has not landed (an owing invoice still blocks);
+rules validate subject/body size and timestamp types.
+
+Open, not changed here (pre-existing, found by the security review): the
+commercial/transactional gate in `sendEmail` is asserted by the caller, so a
+same-company rep calling `sendEmail` directly with `kind:'document'` can skip
+the unsubscribe check. Fix = bind sendEmail to the draft (`draftId` ->
+server-side kind + `to`, claim the draft atomically). Needs Jo's go; it
+touches `sendEmail`.
+
 ## Phase 2
 
 Warranty certificate PDF attachment (needs a portal link or document row,

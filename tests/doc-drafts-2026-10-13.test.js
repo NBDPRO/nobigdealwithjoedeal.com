@@ -59,6 +59,7 @@ const leadOf = (o) => Object.assign({ userId: 'u1', companyId: 'u1', stage: 'ins
 function makeDb(seed) {
   const store = new Map(Object.entries(seed || {}).map(([k, v]) => [k, JSON.parse(JSON.stringify(v))]));
   const writes = [];
+  const hooks = { failCreate: null, failInvoices: false };
   const clone = (d) => JSON.parse(JSON.stringify(d));
   const apply = (cur, patch) => Object.assign({}, cur, patch);
   const ref = (p) => ({
@@ -68,6 +69,7 @@ function makeDb(seed) {
     async update(patch) { if (!store.has(p)) throw new Error('NOT_FOUND ' + p); writes.push(['update', p, patch]); store.set(p, apply(store.get(p), patch)); },
     async set(data) { writes.push(['set', p, data]); store.set(p, clone(data)); },
     async create(data) {
+      if (hooks.failCreate && hooks.failCreate.test(p)) throw new Error('simulated write failure');
       if (store.has(p)) { const e = new Error('6 ALREADY_EXISTS: ' + p); e.code = 6; throw e; }
       writes.push(['create', p, data]); store.set(p, clone(data));
     },
@@ -76,6 +78,7 @@ function makeDb(seed) {
     where: (f, op, v) => query(c, filters.concat([[f, v]])),
     limit: () => query(c, filters),
     async get() {
+      if (hooks.failInvoices && c === 'invoices') throw new Error('simulated read failure');
       const docs = [];
       for (const [k, v] of store) {
         const parts = k.split('/');
@@ -87,7 +90,7 @@ function makeDb(seed) {
   });
   const col = (c) => Object.assign({ doc: (id) => ref(c + '/' + id) }, query(c, []));
   return {
-    store, writes, collection: col, doc: (p) => ref(p),
+    store, writes, hooks, collection: col, doc: (p) => ref(p),
     async runTransaction(fn) {
       const pending = [];
       const tx = {
@@ -384,6 +387,298 @@ const kindsOf = (db, leadId) => draftsIn(db, leadId).map((k) => db.store.get(k).
     ok('lazy-loaded from the customer page (ScriptLoader.load) — not an eager <script> tag',
       /_kickDocDrafts\(lead, id\)/.test(kick) && /SL\.load\('js\/doc-drafts-ui\.js\?v=1'\)/.test(kick) && !/doc-drafts-ui\.js/.test(read('docs/pro/customer.html')) && !/doc-drafts-ui\.js/.test(read('docs/pro/dashboard.html')));
     ok('viewers never load the queue', /role === 'viewer'[\s\S]{0,60}return/.test(kick.slice(kick.indexOf('function _kickDocDrafts'))));
+  }
+
+  console.log('\nG. review round 1 (silent-failure findings)');
+  if (DDF && DL && UI) {
+    const seedL = (lead) => ({ 'leads/L1': lead, 'companyProfile/u1': OAKS });
+    const run = (db, event, o) => DDF.draftDocsForEvent(db, Object.assign({ leadId: 'L1', event }, o || {}), deps);
+    // (2) one kind's failure is recorded and does not abort the others
+    {
+      const db = makeDb(seedL(leadOf({ activeJobId: 'j1' })));
+      db.hooks.failCreate = /ddraft_L1_thank_you_/;
+      const o = await run(db, 'installed');
+      const m = db.store.get('leads/L1/doc_drafts/ddfail_installed_thank_you_j1');
+      ok('a failed create is filed as a status:failed marker, not just logged', !!m && m.status === 'failed', JSON.stringify(o));
+      ok('...and the OTHER planned kind still got its draft', db.store.has('leads/L1/doc_drafts/ddraft_L1_warranty_j1'));
+      ok('...and the result says which kind failed', !!(o.failed && o.failed.some((f) => f.kind === 'thank_you')), JSON.stringify(o));
+    }
+    {
+      const db = makeDb(seedL(leadOf({ activeJobId: 'j1', stage: 'final_payment' })));
+      db.hooks.failInvoices = true;
+      const o = await run(db, 'paid_in_full');
+      ok('an invoice-read failure files a paid_receipt marker and does not throw', db.store.has('leads/L1/doc_drafts/ddfail_paid_in_full_paid_receipt_j1') && !!o.failed && o.failed.length === 1, JSON.stringify(o));
+    }
+    // (4) no activeJobId: a later job does not collide with the first
+    {
+      const a = leadOf({ stageStartedAt: { seconds: Date.parse('2026-10-13T15:00:00Z') / 1000 } });
+      const b = leadOf({ stageStartedAt: { seconds: Date.parse('2026-12-02T15:00:00Z') / 1000 } });
+      const db = makeDb(seedL(a));
+      await run(db, 'installed');
+      await run(db, 'installed');
+      ok('no job id: same stage entry retried -> still one set of drafts', draftsIn(db).length === 2);
+      db.store.set('leads/L1', JSON.parse(JSON.stringify(b)));
+      await run(db, 'installed');
+      ok('no job id: a LATER job (new stage entry) gets its own drafts instead of a silent collision', draftsIn(db).length === 4, String(draftsIn(db).length));
+    }
+    // (4) schedule basis stored; the UI refreshes it at send time
+    {
+      const db = makeDb(seedL(leadOf({ activeJobId: 'j1', scheduledDate: '2026-10-21', scheduledStart: '07:30' })));
+      await run(db, 'scheduled');
+      const x = db.store.get('leads/L1/doc_drafts/ddraft_L1_crew_reminder_j1');
+      ok('the schedule a date was baked from is stored on the draft (scheduleBasis)', !!x && x.scheduleBasis === 'Wednesday, October 21 at 7:30 AM', x && x.scheduleBasis);
+      const cur = UI.scheduleOf({ scheduledDate: '2026-10-28', scheduledStart: '07:30' });
+      ok('UI schedule formatter == server formatter', UI.scheduleOf({ scheduledDate: '2026-10-21', scheduledStart: '07:30' }) === DL.scheduleOf({ scheduledDate: '2026-10-21', scheduledStart: '07:30' }) && cur === 'Wednesday, October 28 at 7:30 AM');
+      const r = UI.refreshSchedule(x.body, x.scheduleBasis, cur);
+      ok('a moved date is re-derived into the message at send time', /October 28 at 7:30 AM/.test(r.body) && !/October 21/.test(r.body) && r.changed === true);
+      const ph = UI.refreshSchedule('Date: [[install date]].', '', cur);
+      ok('an unfilled [[install date]] is filled from the schedule once it exists', ph.body === 'Date: ' + cur + '.' && ph.changed === true);
+      ok('control: an unchanged schedule leaves the body alone', UI.refreshSchedule(x.body, x.scheduleBasis, x.scheduleBasis).changed === false);
+      ok('a schedule that was CLEARED blocks the date email',
+        UI.sendBlockers({ channel: 'email', to: 'a@b.co', emailKind: 'appointment', kind: 'crew_reminder', scheduleBasis: 'Wednesday, October 21' }, { subject: 's', body: 'b' }, { scheduledDate: '' }, {}).length > 0);
+    }
+    // (5) the paid-in-full EVENT is trusted over a stage move that has not landed
+    {
+      const inv = (id, o) => ['invoices/' + id, Object.assign({ leadId: 'L1', companyId: 'u1', userId: 'u1', status: 'paid', total: 250, amountPaid: 250, jobId: 'j1' }, o || {})];
+      const db = makeDb(Object.assign(seedL(leadOf({ activeJobId: 'j1', stage: 'install_complete' })), Object.fromEntries([inv('i1')])));
+      await run(db, 'paid_in_full');
+      ok('paid_in_full with the stage move not yet visible still drafts the receipt', db.store.has('leads/L1/doc_drafts/ddraft_L1_paid_receipt_j1'));
+      const db2 = makeDb(Object.assign(seedL(leadOf({ activeJobId: 'j1', stage: 'install_complete' })), Object.fromEntries([inv('i1'), inv('i2', { status: 'sent', amountPaid: 0, total: 900 })])));
+      await run(db2, 'paid_in_full');
+      ok('control: ...but never while a balance is still owed', !db2.store.has('leads/L1/doc_drafts/ddraft_L1_paid_receipt_j1'));
+    }
+    // (1) a delivered send is never re-sendable
+    {
+      const base = { channel: 'email', to: 'a@b.co', emailKind: 'receipt' };
+      ok('already-sent guard blocks a second Send', UI.sendBlockers(base, { subject: 's', body: 'b' }, {}, { alreadySent: true }).length > 0);
+      ok('control: without the guard the same draft is clear', UI.sendBlockers(base, { subject: 's', body: 'b' }, {}, {}).length === 0);
+    }
+    // (3) Copy / Mark sent
+    ok('Mark sent is blocked while a [[placeholder]] is left', UI.markSentBlockers({ subject: 's', body: 'x [[amount paid]]' }).length === 1 && UI.markSentBlockers({ subject: 's', body: 'x' }).length === 0);
+    ok('"copied" timeline text names Thumbtack/Yelp only for a copy-channel draft',
+      /Thumbtack/.test(UI.timelineText({ channel: 'copy', label: 'L' }, 'S', 'copied')) && !/Thumbtack|Yelp/.test(UI.timelineText({ channel: 'email', label: 'L' }, 'S', 'copied')));
+    {
+      const code = stripComments(read('docs/pro/js/doc-drafts-ui.js'));
+      ok('bookkeeping failure after a delivered send is its own message, never "Could not send"',
+        /Sent, but couldn.{1,3}t update the card/.test(code) && /sentGuard/.test(code) && /sessionStorage/.test(code));
+      ok('timeline note uses an auto id (a retry is never a denied update of a deterministic id) and its failure is surfaced',
+        /win\.collection\(win\.db, 'notes'\)/.test(code) && !/'ddraft-' \+ d\.id/.test(code) && /timeline note/i.test(code));
+    }
+  }
+
+  console.log('\nH. queue UI behaviour (fake DOM): a delivered send is never re-sendable');
+  {
+    function mkEl(tag) {
+      const e = { tag, style: {}, children: [], listeners: {}, attrs: {}, disabled: false, value: '', textContent: '', parent: null, removed: false };
+      e.appendChild = (c) => { c.parent = e; e.children.push(c); return c; };
+      e.insertBefore = (c) => { c.parent = e; e.children.unshift(c); return c; };
+      e.addEventListener = (n, f) => { (e.listeners[n] = e.listeners[n] || []).push(f); };
+      e.setAttribute = (k, v) => { e.attrs[k] = v; };
+      e.remove = () => { e.removed = true; };
+      e.querySelectorAll = (sel) => { const out = []; (function walk(n) { n.children.forEach((c) => { if (c.tag === sel && !c.removed) out.push(c); walk(c); }); })(e); return out; };
+      e.click = () => (e.listeners.click || []).forEach((f) => f());
+      return e;
+    }
+    const host = mkEl('div');
+    const toasts = [];
+    let sends = 0; let updateFails = true;
+    const window_ = {
+      document: { createElement: mkEl, getElementById: (id) => (id === 'overviewTab' ? host : null) },
+      console, db: {}, _userClaims: { role: 'company_admin' }, auth: { currentUser: { uid: 'u1' } },
+      showToast: (m, k) => toasts.push(k + ': ' + m),
+      collection: (...a) => ({ a }), doc: (...a) => ({ a }), query: (...a) => ({ a }), where: (...a) => ({ a }),
+      getDocs: async () => ({ forEach: (f) => f({ id: 'dd1', data: () => ({ status: 'draft', kind: 'paid_receipt', label: 'Paid-in-full receipt', emailKind: 'receipt', channel: 'email', to: 'a@b.co', subject: 'Receipt', body: 'Thanks.' }) }) }),
+      updateDoc: async () => { if (updateFails) throw new Error('offline'); },
+      setDoc: async () => {},
+      NBDComms: { sendEmail: async () => { sends++; return { success: true, mode: 'platform' }; } },
+      nbdConfirm: async () => true,
+      sessionStorage: { _m: {}, getItem(k) { return this._m[k] || null; }, setItem(k, v) { this._m[k] = v; } },
+    };
+    window_.window = window_;
+    const vctx = vm.createContext(window_);
+    vm.runInContext(read('docs/pro/js/doc-drafts-ui.js'), vctx, { filename: 'doc-drafts-ui.js' });
+    const n = await window_.NBDDocDrafts.render('L1', { email: 'a@b.co' });
+    const findBtn = (label) => { let hit = null; (function walk(x) { x.children.forEach((c) => { if (c.tag === 'button' && c.textContent === label) hit = c; walk(c); }); })(host); return hit; };
+    const sendBtn = findBtn('Send email');
+    ok('the queue renders one card with a Send button', n === 1 && !!sendBtn);
+    sendBtn.click();
+    await new Promise((r) => setTimeout(r, 20));
+    ok('delivered send + card update failure -> "Sent, but..." warning, NOT "Could not send"',
+      toasts.some((t) => /Sent, but/.test(t)) && !toasts.some((t) => /Could not send/.test(t)), JSON.stringify(toasts));
+    ok('...and Send is disabled for that card', sendBtn.disabled === true);
+    sendBtn.disabled = false; // even a forced second tap must not resend
+    sendBtn.click();
+    await new Promise((r) => setTimeout(r, 20));
+    ok('...a second tap does not email the customer again (control: exactly one platform send happened)', sends === 1, 'sends=' + sends);
+    ok('...and the guard survives in sessionStorage', /dd1/.test(window_.sessionStorage.getItem('nbd_ddraft_sent') || ''));
+    // control: a draft whose send really failed stays sendable
+    sends = 0; toasts.length = 0; host.children.length = 0; window_.sessionStorage._m = {};
+    window_.NBDComms.sendEmail = async () => { sends++; throw new Error('network'); };
+    const vctx2 = vm.createContext(window_);
+    vm.runInContext(read('docs/pro/js/doc-drafts-ui.js'), vctx2, { filename: 'doc-drafts-ui.js' });
+    await window_.NBDDocDrafts.render('L1', { email: 'a@b.co' });
+    const s2 = findBtn('Send email');
+    s2.click();
+    await new Promise((r) => setTimeout(r, 20));
+    ok('control: a send that really failed says "Could not send" and can be retried', toasts.some((t) => /Could not send/.test(t)) && s2.disabled === false, JSON.stringify(toasts));
+  }
+
+  console.log('\nI. vacuity-audit round (behavioural coverage for the survivors)');
+  if (DL && DDF && UI && SPINE) {
+    // logic edges
+    const L2 = (o) => DL.shouldDraft(leadOf(o), 'thank_you', { jobId: '' });
+    ok('already asked (no job id, reviewRequested) -> no second review ask', L2({ reviewRequested: true }).reason === 'already_asked' && L2({}).ok === true);
+    ok('lost via lead.lost and via stageRole', DL.shouldDraft(leadOf({ lost: true }), 'warranty', {}).reason === 'lost' && DL.shouldDraft(leadOf({ stageRole: 'lost' }), 'warranty', {}).reason === 'lost');
+    {
+      const t = (tier, key) => DL.build('warranty', { lead: leadOf({ soldTier: tier }), brand: DL.brandOf(NBDP, key), tier }).body;
+      ok('another company never gets the TAMKO HailGuard line (beyond)', !/TAMKO/.test(t('beyond', 'oaks-co')) && /TAMKO/.test(t('beyond', NBD_UID)));
+    }
+    ok('channel: a header-injection address and an oversized address are copy-only',
+      DL.channelFor(leadOf({ email: 'a@b.co>\r\nBcc: x@y.z' })) === 'copy' && DL.channelFor(leadOf({ email: 'a'.repeat(250) + '@b.co' })) === 'copy' && DL.channelFor(leadOf({ email: 'a@b.co' })) === 'email');
+    ok('first name is sanitised (public lead input): markup / quotes drop to "Hi,"',
+      DL.firstNameOf({ firstName: '<b>Pat' }) === '' && DL.firstNameOf({ name: '"; DROP' }) === '' && DL.firstNameOf({ firstName: "D'Arcy" }) === "D'Arcy");
+    ok('out-of-range times are rejected', DL.timeLong('25:00') === '' && DL.timeLong('10:75') === '' && DL.timeLong('07:05') === '7:05 AM');
+    ok('negative cents format', DL.fmtCents(-5) === '-$0.05');
+    {
+      const mk = (meta) => { const d = makeDb({ 'leads/L1': leadOf({ stage: 'install_complete' }), 'companyProfile/u1': OAKS }); return DDF.draftDocsForEvent(d, { leadId: 'L1', event: 'installed', meta }, deps).then(() => draftsIn(d)); };
+      const bad = await mk({ jobId: '../../x' });
+      const good = await mk({ jobId: 'jobZ' });
+      ok('meta.jobId: hostile value never reaches an id; a valid one does', bad.every((k) => /_nj\d{8}$/.test(k)) && good.every((k) => /_jobZ$/.test(k)), JSON.stringify([bad, good]));
+    }
+    // spine: refused events draft nothing
+    {
+      const d = makeDb({ 'leads/L1': leadOf({ activeJobId: 'j1' }) });
+      const o = await SPINE.recordJobEvent(d, { leadId: 'L1', event: 'installed', companyId: 'someone-else', sourceId: 's' }, { FieldValue: FV, logger: quiet, now: () => NOW, depositDraft: false, signedPrice: false, finalDraft: false, reviewTask: false });
+      ok('a tenant-mismatched spine event drafts nothing', draftsIn(d).length === 0 && !o.docDrafts, JSON.stringify(o).slice(0, 200));
+    }
+    // the drafter file only requires what it should (no mail transport)
+    {
+      const reqs = (stripComments(read('functions/doc-drafts.js')).match(/require\(['"][^'"]+['"]\)/g) || []).map((r) => r.slice(9, -2)).sort();
+      const allowed = ['./doc-drafts-logic', './invoice-owed', './paid-in-full', 'firebase-admin/firestore', 'firebase-functions/v2'];
+      ok('doc-drafts.js requires only allow-listed modules (no mail / SMS transport can be added silently)', reqs.length > 0 && reqs.every((r) => allowed.indexOf(r) !== -1), reqs.join(','));
+    }
+    // UI blockers
+    const E = { channel: 'email', to: 'a@b.co', emailKind: 'receipt' };
+    ok('email channel with an empty `to` is blocked (control: with `to` it is clear)', UI.sendBlockers(Object.assign({}, E, { to: '' }), { subject: 's', body: 'b' }, {}, {}).length > 0 && UI.sendBlockers(E, { subject: 's', body: 'b' }, {}, {}).length === 0);
+    ok('an empty subject is blocked', UI.sendBlockers(E, { subject: '  ', body: 'b' }, {}, {}).length > 0);
+    ok('an empty [[]] placeholder still blocks', UI.sendBlockers(E, { subject: 's', body: 'a [[]] b' }, {}, {}).length === 1);
+  }
+
+  console.log('\nJ. queue UI, driven in a fake window: payloads, role gate, writes');
+  {
+    function mk2(tag) {
+      const e = { tag, style: {}, children: [], listeners: {}, disabled: false, value: '', textContent: '', removed: false };
+      e.appendChild = (c) => { e.children.push(c); return c; };
+      e.insertBefore = (c) => { e.children.unshift(c); return c; };
+      e.addEventListener = (n, f) => { (e.listeners[n] = e.listeners[n] || []).push(f); };
+      e.setAttribute = () => {};
+      e.remove = () => { e.removed = true; };
+      e.querySelectorAll = (sel) => { const out = []; (function w(n) { n.children.forEach((c) => { if (c.tag === sel && !c.removed) out.push(c); w(c); }); })(e); return out; };
+      e.click = () => (e.listeners.click || []).forEach((f) => f());
+      return e;
+    }
+    async function harness(role, rows, sendImpl) {
+      const host = mk2('div');
+      const w = {
+        document: { createElement: mk2, getElementById: (id) => (id === 'overviewTab' ? host : null) },
+        console, db: {}, _userClaims: { role }, auth: { currentUser: { uid: 'u1' } },
+        showToast() {}, collection: (...a) => ({ a }), doc: (...a) => ({ a }), query: (...a) => ({ a }), where: (...a) => ({ a }),
+        reads: 0, updates: [], sends: [],
+        getDocs: async function () { w.reads++; return { forEach: (f) => rows.forEach((r) => f({ id: r.id, data: () => r.data })) }; },
+        updateDoc: async (_r, patch) => { w.updates.push(patch); },
+        setDoc: async () => {},
+        NBDComms: { sendEmail: async (p) => { w.sends.push(p); return sendImpl ? sendImpl(p) : { success: true, mode: 'platform' }; } },
+        nbdConfirm: async () => true,
+        sessionStorage: { _m: {}, getItem(k) { return this._m[k] || null; }, setItem(k, v) { this._m[k] = v; } },
+      };
+      w.window = w;
+      vm.runInContext(read('docs/pro/js/doc-drafts-ui.js'), vm.createContext(w), { filename: 'doc-drafts-ui.js' });
+      return { w, host, find: (label) => { let hit = null; (function walk(x) { x.children.forEach((c) => { if (c.tag === 'button' && c.textContent === label) hit = c; walk(c); }); })(host); return hit; } };
+    }
+    const row = (id, over) => ({ id, data: Object.assign({ status: 'draft', kind: 'warranty', label: 'Warranty summary', emailKind: 'document', channel: 'email', to: 'a@b.co', subject: 'S', body: 'Hello there.' }, over || {}) });
+    const tick = () => new Promise((r) => setTimeout(r, 20));
+    {
+      const h = await harness('company_admin', [row('w1'), row('t1', { kind: 'thank_you', label: 'Thank-you', emailKind: '' })]);
+      await h.w.NBDDocDrafts.render('L1', {});
+      const btns = [];
+      (function walk(x) { x.children.forEach((c) => { if (c.tag === 'button' && c.textContent === 'Send email') btns.push(c); walk(c); }); })(h.host);
+      btns.forEach((b) => b.click());
+      await tick();
+      const byKind = h.w.sends.map((p) => p.kind);
+      ok('warranty is sent with kind "document"; the thank-you is sent with NO kind property at all',
+        h.w.sends.length === 2 && byKind.indexOf('document') !== -1 && h.w.sends.some((p) => !('kind' in p)), JSON.stringify(h.w.sends));
+      ok('every send carries leadId (the server\'s recipient binding)', h.w.sends.every((p) => p.leadId === 'L1' && p.to === 'a@b.co'));
+      const ALLOWED = ['status', 'subject', 'body', 'sentAt', 'dismissedAt'];
+      ok('the client writes only allow-listed keys to a draft (every key of every update)', h.w.updates.length >= 2 && h.w.updates.every((u) => Object.keys(u).every((k) => ALLOWED.indexOf(k) !== -1)), JSON.stringify(h.w.updates.map((u) => Object.keys(u))));
+    }
+    {
+      const h = await harness('viewer', [row('w1')]);
+      const n = await h.w.NBDDocDrafts.render('L1', {});
+      ok('a viewer: nothing rendered and the drafts are never even read', n === 0 && h.w.reads === 0);
+      const h2 = await harness('company_admin', [row('w1')]);
+      const n2 = await h2.w.NBDDocDrafts.render('L1', {});
+      ok('control: a company_admin gets the card', n2 === 1 && h2.w.reads === 1);
+    }
+    {
+      // a mail-app handoff is not a send: the card stays, nothing is written
+      const h = await harness('company_admin', [row('w1')], () => ({ success: true, mode: 'mailto' }));
+      await h.w.NBDDocDrafts.render('L1', {});
+      h.find('Send email').click();
+      await tick();
+      ok('mailto handoff leaves the draft as a draft (no status write)', h.w.updates.length === 0 && h.find('Send email') && !h.find('Send email').disabled);
+    }
+    {
+      // a draft with an unfilled placeholder cannot be sent through a click either
+      const h = await harness('company_admin', [row('w1', { body: 'Date: [[install date]]' })]);
+      await h.w.NBDDocDrafts.render('L1', {});
+      const b = h.find('Send email');
+      b.disabled = false; b.click();
+      await tick();
+      ok('a forced click on a Send with an unfilled blank still sends nothing', h.w.sends.length === 0);
+    }
+  }
+
+  console.log('\nK. survivors from the mutation round');
+  if (DDF && DL) {
+    const db = makeDb({ 'leads/L1': leadOf({ activeJobId: 'j1' }), 'companyProfile/u1': OAKS });
+    db.hooks.failCreate = /ddraft_L1_warranty_/;
+    const o = await DDF.draftDocsForEvent(db, { leadId: 'L1', event: 'installed' }, deps);
+    ok('the FIRST kind failing does not stop the second (thank-you still drafted)', db.store.has('leads/L1/doc_drafts/ddraft_L1_thank_you_j1') && o.failed.length === 1 && !o.error, JSON.stringify(o));
+  }
+  {
+    // schedule refresh + dismiss writes, in the fake window
+    const host = { tag: 'div', children: [] };
+    const mk3 = (tag) => {
+      const e = { tag, style: {}, children: [], listeners: {}, disabled: false, value: '', textContent: '', removed: false };
+      e.appendChild = (c) => { e.children.push(c); return c; };
+      e.insertBefore = (c) => { e.children.unshift(c); return c; };
+      e.addEventListener = (n, f) => { (e.listeners[n] = e.listeners[n] || []).push(f); };
+      e.setAttribute = () => {};
+      e.remove = () => { e.removed = true; };
+      e.querySelectorAll = (sel) => { const out = []; (function w(n) { n.children.forEach((c) => { if (c.tag === sel && !c.removed) out.push(c); w(c); }); })(e); return out; };
+      e.click = () => (e.listeners.click || []).forEach((f) => f());
+      return e;
+    };
+    const h = mk3('div');
+    const updates = [];
+    const w = {
+      document: { createElement: mk3, getElementById: (id) => (id === 'overviewTab' ? h : null) },
+      console, db: {}, _userClaims: { role: 'company_admin' }, auth: { currentUser: { uid: 'u1' } }, showToast() {},
+      collection: () => ({}), doc: () => ({}), query: () => ({}), where: () => ({}),
+      getDocs: async () => ({ forEach: (f) => f({ id: 'c1', data: () => ({ status: 'draft', kind: 'crew_reminder', label: 'Crew date confirmation', emailKind: 'appointment', channel: 'email', to: 'a@b.co', subject: 'S', body: 'Your crew is on the schedule for Wednesday, October 21 at 7:30 AM.', scheduleBasis: 'Wednesday, October 21 at 7:30 AM' }) }) }),
+      updateDoc: async (_r, p) => { updates.push(p); }, setDoc: async () => {},
+      NBDComms: { sendEmail: async () => ({ success: true, mode: 'platform' }) },
+      sessionStorage: { getItem() { return null; }, setItem() {} },
+    };
+    w.window = w;
+    vm.runInContext(read('docs/pro/js/doc-drafts-ui.js'), vm.createContext(w), { filename: 'doc-drafts-ui.js' });
+    await w.NBDDocDrafts.render('L1', { scheduledDate: '2026-10-28', scheduledStart: '07:30' });
+    const area = h.querySelectorAll('textarea')[0];
+    ok('a card opened after the crew date moved shows the NEW date', !!area && /Wednesday, October 28 at 7:30 AM/.test(area.value) && !/October 21/.test(area.value), area && area.value);
+    const find = (label) => { let hit = null; (function walk(x) { x.children.forEach((c) => { if (c.tag === 'button' && c.textContent === label) hit = c; walk(c); }); })(h); return hit; };
+    find('Dismiss').click();
+    await new Promise((r) => setTimeout(r, 20));
+    ok('dismiss writes exactly status + dismissedAt', updates.length === 1 && JSON.stringify(Object.keys(updates[0]).sort()) === '["dismissedAt","status"]' && updates[0].status === 'dismissed', JSON.stringify(updates));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

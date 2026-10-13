@@ -75,7 +75,11 @@ exports.finalInvoiceOnInstall = onDocumentUpdated(
           leadId: String(event.params.leadId), event: 'scheduled', companyId: (after && after.companyId) || null,
           sourceId: 'stage_crew_scheduled',
         });
-        logger.info('[docDrafts] crew scheduled', { leadId: event.params.leadId, created: dd.created.length, skipped: dd.skipped.length });
+        if (dd.error || (dd.failed && dd.failed.length)) {
+          logger.warn('[docDrafts] crew scheduled: draft not created', { leadId: event.params.leadId, error: dd.error || null, failed: dd.failed || [] });
+        } else {
+          logger.info('[docDrafts] crew scheduled', { leadId: event.params.leadId, created: dd.created.length, skipped: dd.skipped.length });
+        }
       } catch (e) {
         logger.warn('[docDrafts] crew scheduled failed', { leadId: event.params.leadId, err: e && e.message });
       }

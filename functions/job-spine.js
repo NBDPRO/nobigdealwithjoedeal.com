@@ -136,6 +136,7 @@ async function recordJobEvent(db, args, deps) {
       }, deps);
     } catch (e) {
       out.docDrafts = { created: [], skipped: [], existing: [], reason: 'error', error: String((e && e.message) || e) };
+      try { require('firebase-functions/v2').logger.warn('[jobSpine] doc drafts failed', { leadId: args.leadId, event, err: out.docDrafts.error }); } catch (_) { /* logging only */ }
     }
   }
   return out;
