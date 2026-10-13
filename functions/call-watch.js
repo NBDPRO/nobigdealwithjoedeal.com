@@ -11,6 +11,12 @@
  * Never texts or emails anyone. Gate: CALL_WATCH_ENABLED=true (otherwise it
  * computes and logs only).
  *
+ * Also reads the promise TASKS (collectionGroup tasks, userId == owner; 2026-10-13,
+ * documentation/audit/PROMISE-CHANNEL-AND-PARKED-RULE-2026-10-13.md): dated
+ * promises / ripe Waiting items owed today or earlier, one row per person ->
+ * ONE "N promises due today" push, the ladder, the 20:00 ledger count. A push
+ * that reaches no phone mails Jo once per item (unreachedEmailed).
+ *
  * Also reads (GET only) Twilio's delivery results for the last day, so texts
  * the carrier blocked surface as "texts are not delivering" (2026-10-02: 0 of
  * 23 delivered while the CRM's records said "sent").
