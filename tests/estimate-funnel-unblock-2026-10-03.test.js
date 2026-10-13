@@ -131,6 +131,13 @@ function makeDom() {
   return { document, El, byId, head, body };
 }
 
+// Step 1 carries the contact fields + the SMS consent box (A2P 30909, 2026-10-13).
+function fillContact(d) {
+  d.getElementById('firstName').value = 'Pat';
+  d.getElementById('phoneNumber').value = '(513) 555-0100';
+  d.getElementById('tcpaConsent').checked = true;
+}
+
 (async () => {
   // ═══════════════════════════════════════════════════════════════════════
   console.log('\n1. the wizard — OTP off, the required fields, Submit');
@@ -245,6 +252,7 @@ function makeDom() {
     const W = loadWizard({ fetch: async (url) => ({ ok: true, json: async () => (/nominatim/.test(url) ? [] : {}) }) });
     const d = W.document;
     const inp = d.getElementById('addressInput');
+    fillContact(d);
     ok('funnel_step {step:1, step_name:"address"} fires when the wizard starts', W.events.some((e) => e.name === 'funnel_step' && e.params.step === 1 && e.params.step_name === 'address'));
     for (const v of ['1', '12', '12 N', '12 No', '12 Nowh', '12 Nowhere', '12 Nowhere Rd']) { inp.value = v; inp.fire('input'); }
     await tick(600);
@@ -270,6 +278,7 @@ function makeDom() {
 
     const W2 = loadWizard({ fetch: async () => { throw new Error('offline'); } });
     W2.document.getElementById('addressInput').value = '9 Lost Ln, Batavia OH';
+    fillContact(W2.document);
     W2.ctx.goToStep(2);
     await tick(20);
     const ev2 = W2.events.find((e) => e.name === 'funnel_address_unmatched');
@@ -277,10 +286,83 @@ function makeDom() {
 
     const W3 = loadWizard({ fetch: async () => ({ ok: true, json: async () => ([{ display_name: '5 Real St, Mason, OH', lat: '39.36', lon: '-84.31' }]) }) });
     W3.document.getElementById('addressInput').value = '5 Real St Mason';
+    fillContact(W3.document);
     W3.ctx.goToStep(2);
     await tick(150);
     ok('a match still goes to the satellite step, with coordinates', W3.t.currentStep === 2 && W3.t.funnelData.lat === 39.36, W3.t.currentStep);
     ok('...emitting funnel_step {step:2, step_name:"confirm_home"}', W3.events.some((e) => e.name === 'funnel_step' && e.params.step === 2 && e.params.step_name === 'confirm_home'));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  console.log('\n2b. step 1 — contact + SMS consent collected up front (A2P 30909)');
+  // ═══════════════════════════════════════════════════════════════════════
+  {
+    const nominatim = (W) => W.fetches.filter((f) => /nominatim/.test(f.url)).length;
+    const hit = { fetch: async (url) => ({ ok: true, json: async () => ([{ display_name: '5 Real St, Mason, OH', lat: '39.36', lon: '-84.31' }]) }) };
+
+    // Address fine, consent NOT ticked: Continue must stop on step 1.
+    const W = loadWizard(hit);
+    const d = W.document;
+    d.getElementById('addressInput').value = '5 Real St Mason';
+    d.getElementById('firstName').value = 'Pat';
+    d.getElementById('phoneNumber').value = '(513) 555-0100';
+    W.ctx.goToStep(2);
+    await tick(150);
+    ok('no consent → Continue stays on step 1', W.t.currentStep === 1, W.t.currentStep);
+    ok('...the consent box is marked as the missing piece', d.getElementById('tcpaConsent').parentElement.parentElement.classList.contains('has-error'));
+    ok('...and Continue never ticks the box for them', d.getElementById('tcpaConsent').checked === false);
+    ok('...and no map lookup was started behind the error', nominatim(W) === 0, nominatim(W));
+
+    // Ticking it clears the mark and lets Continue through.
+    d.getElementById('tcpaConsent').checked = true;
+    d.getElementById('tcpaConsent').fire('change');
+    ok('ticking the box clears the error mark', !d.getElementById('tcpaConsent').parentElement.parentElement.classList.contains('has-error'));
+    W.ctx.goToStep(2);
+    await tick(150);
+    ok('consent + name + phone + address → step 2', W.t.currentStep === 2, W.t.currentStep);
+
+    // Missing first name / short phone each block Continue.
+    const Wn = loadWizard(hit);
+    Wn.document.getElementById('addressInput').value = '5 Real St Mason';
+    Wn.document.getElementById('phoneNumber').value = '(513) 555-0100';
+    Wn.document.getElementById('tcpaConsent').checked = true;
+    Wn.ctx.goToStep(2);
+    await tick(150);
+    ok('no first name → stays on step 1', Wn.t.currentStep === 1);
+    const Wp = loadWizard(hit);
+    Wp.document.getElementById('addressInput').value = '5 Real St Mason';
+    Wp.document.getElementById('firstName').value = 'Pat';
+    Wp.document.getElementById('phoneNumber').value = '(513) 555-01';
+    Wp.document.getElementById('tcpaConsent').checked = true;
+    Wp.ctx.goToStep(2);
+    await tick(150);
+    ok('a short phone → stays on step 1', Wp.t.currentStep === 1);
+
+    // "Use my address as typed" is gated the same way.
+    const Wt = loadWizard({ fetch: async (url) => ({ ok: true, json: async () => [] }) });
+    Wt.document.getElementById('addressInput').value = '12 Nowhere Rd';
+    Wt.document.getElementById('firstName').value = 'Pat';
+    Wt.document.getElementById('phoneNumber').value = '(513) 555-0100';
+    Wt.ctx.useTypedAddress();
+    ok('typed address without consent → stays on step 1', Wt.t.currentStep === 1, Wt.t.currentStep);
+
+    // Step 5 does not ask again — it recaps, and the values survive Back/Next.
+    const Wr = loadWizard();
+    fillContact(Wr.document);
+    Wr.document.getElementById('tcpaConsent').fire('change');
+    Wr.t.funnelData.address = '12 Nowhere Rd';
+    Wr.t.funnelData.addressTyped = '12 Nowhere Rd';
+    Wr.t.funnelData.service = 'roof-repair';
+    Wr.t.funnelData.timeline = 'asap';
+    Wr.document.getElementById('addressInput').value = '12 Nowhere Rd';
+    Wr.ctx.goToStep(3);
+    Wr.ctx.goToStep(4);
+    Wr.ctx.goToStep(5);
+    ok('step 5 recaps who it is going to (no second ask)', /Pat/.test(Wr.document.getElementById('contactRecap').textContent) && /555-0100/.test(Wr.document.getElementById('contactRecap').textContent), Wr.document.getElementById('contactRecap').textContent);
+    Wr.ctx.goToStep(4);
+    Wr.ctx.goToStep(5);
+    ok('Back then Next keeps name, phone and the ticked consent', Wr.document.getElementById('firstName').value === 'Pat' && Wr.document.getElementById('phoneNumber').value === '(513) 555-0100' && Wr.document.getElementById('tcpaConsent').checked === true);
+    ok('...and Submit is already enabled on step 5 (nothing left to fill)', Wr.document.getElementById('btnSubmit').disabled === false);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
