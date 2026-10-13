@@ -1475,7 +1475,7 @@ async function loadTimeline(leadId, lead) {
       const actSnap = await getDocs(collection(db, 'leads', leadId, 'activity'));
       actSnap.docs.forEach(d => {
         const row = CT.fromActivity(d.id, d.data());
-        if (row) timeline.push(Object.assign(row, { icon: row.icon || (row.kind === 'text' ? '💬' : '📞'), callEntry: row.kind !== 'memo' }));
+        if (row) timeline.push(Object.assign(row, { icon: row.icon || (row.kind === 'text' ? '💬' : '📞'), callEntry: row.kind === 'call' || row.kind === 'text' }));
       });
     }
   } catch (e) {
@@ -4224,7 +4224,8 @@ async function _gatherTimelineForReport(leadId, lead) {
       const snap = await getDocs(collection(window.db, 'leads', leadId, 'activity'));
       snap.docs.forEach(d => {
         const row = CT.fromActivity(d.id, d.data());
-        if (row) timeline.push({ time: row.time, title: row.title, desc: row.desc, type: row.type });
+        // the away hand-back line is an internal note to the owner: not in a report
+        if (row && row.kind !== 'away') timeline.push({ time: row.time, title: row.title, desc: row.desc, type: row.type });
       });
     }
   } catch (_) { /* ignore */ }

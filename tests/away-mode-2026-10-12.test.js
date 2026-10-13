@@ -714,7 +714,9 @@ const resolve = (o) => L.resolveBackupNotifications(Object.assign({ config: cfg(
     ok('owner actions go through requireTeamAdmin', /requireTeamAdmin/.test(sc) && /await \(\(deps && deps\.requireAdmin\) \|\| requireTeamAdmin\)\(request, null,/.test(sc));
     ok('the callable takes no companyId argument (tenant comes from the token)', !/data\.companyId|data\.cid|request\.data\.company/.test(sc));
     ok('the callable enforces App Check', /enforceAppCheck: true/.test(sc));
-    ok('away-mode.js never writes a lead, call, task or customer doc', !/collection\('(leads|phone_calls|phone_text_days|tasks|customers)'\)\s*\.(doc|add)|doc\('(leads|phone_calls|phone_text_days)\//.test(sc));
+    const leadDocLines = sc.split('\n').filter((l) => l.includes("doc('leads/'"));
+    ok('away-mode.js writes exactly one lead-side doc: the activity/away- hand-back note (and only when timeline is on)', leadDocLines.length === 1 && leadDocLines[0].includes("/activity/away-'") && sc.includes('if (timeline) tl = await fileHandBackTimeline('));
+    ok('away-mode.js never writes a lead doc itself, nor a call, text-day, task or customer doc', ["collection('leads').doc", "collection('leads').add", "doc('phone_calls/", "doc('phone_text_days/", "collection('tasks')", "collection('customers')"].every((x) => !sc.includes(x)));
     ok('away-mode.js sends nothing to customers (no sms/email helpers required)', !/sms-functions|twilio|resend|sendEmail|sendSms/i.test(sc));
     ok('away-mode.js does not edit callWatch (reads its logic only)', /require\('\.\/call-watch-logic'\)/.test(sc) && !/call-watch'\)|require\('\.\/call-watch\.js'\)/.test(sc));
     ok('external delivery stays off until A2P', /const ALLOW_EXTERNAL = false;/.test(sc));
@@ -736,6 +738,101 @@ const resolve = (o) => L.resolveBackupNotifications(Object.assign({ config: cfg(
     ok('away-mode.js is a lazy bundle kicked from Home (today-home.js)', /away:\s*\[\s*'js\/away-mode\.js\?v=1'\s*\]/.test(read('docs/pro/js/script-loader.js')) && /loadBundle\('away'\)/.test(read('docs/pro/js/today-home.js')));
     ok('script-loader + today-home cache-busters were bumped for the edit', /script-loader\.js\?v=19[7-9]|script-loader\.js\?v=[2-9]\d\d/.test(dash) && /today-home\.js\?v=([4-9]|\d\d)/.test(dash));
     ok('settings script loads with the Settings bundle', /js\/away-mode-settings\.js\?v=1/.test(read('docs/pro/js/script-loader.js')));
+  }
+
+  console.log('T. hand-back note on the lead timeline (2026-10-13)');
+  {
+    const CT = require(path.join(ROOT, 'docs/pro/js/call-timeline.js'));
+    const P = require(path.join(ROOT, 'functions/promise-cleanup-logic.js'));
+    const TOUCHED = { key: 'num:8595550147', who: 'Maria Santos', phone10: '8595550147', why: 'urgent', urgent: true, atMs: NOW - 5 * H, open: true, notifiedCount: 1, assignee: 'backup', touches: [{ action: 'called', note: 'no answer', atMs: NOW - 2 * H }] };
+    const seed = () => ({
+      'companies/own/members/sam@x.com': member(),
+      'away_private/own': { companyId: 'own', backup: { memberEmail: 'sam@x.com' } },
+      'away_mode/own': { companyId: 'own', active: true, backupState: 'ok', backup: { kind: 'member', name: 'Sam R', uid: 'u-sam' }, away: { on: true, startMs: NOW - 2 * D, untilMs: NOW - MIN, windowId: 'w1' }, lastTickAtMs: 0 },
+      'away_windows/own__w1': { companyId: 'own', windowId: 'w1', status: 'active', startMs: NOW - 2 * D, items: {
+        'num:8595550147': TOUCHED,
+        'num:8595550148': Object.assign({}, TOUCHED, { key: 'num:8595550148', who: 'Shared Line', phone10: '8595550148' }),
+        'num:8595550149': Object.assign({}, TOUCHED, { key: 'num:8595550149', who: 'No Lead', phone10: '8595550149' }),
+        'num:8595550150': Object.assign({}, TOUCHED, { key: 'num:8595550150', who: 'Gone Lead', phone10: '8595550150' }),
+        'thursday:abc': Object.assign({}, TOUCHED, { key: 'thursday:abc', who: 'Caller', phone10: '' }),
+      } },
+      'leads/L1': { userId: 'own', companyId: 'own', phoneDigits: '8595550147' },
+      'leads/L2': { userId: 'own', companyId: 'own', phoneDigits: '8595550148' },
+      'leads/L3': { userId: 'own', companyId: 'own', phoneDigits: '8595550148' },
+      'leads/L4': { userId: 'own', companyId: 'own', phoneDigits: '8595550150', deleted: true },
+      'leads/LX': { userId: 'other', companyId: 'other', phoneDigits: '8595550147' },
+    });
+    const allOpen = ['num:8595550147', 'num:8595550148', 'num:8595550149', 'num:8595550150', 'thursday:abc'].map((k) => ({ key: k }));
+    const actKeys = (db) => [...db.store.keys()].filter((k) => /^leads\/[^/]+\/activity\//.test(k));
+    const deliver = async () => ({ sent: 0 });
+
+    // dark: the tick's expiry hand-back with the gate off writes no timeline note
+    const dDark = fakeDb(seed());
+    let r = await I.runAwayTick({ db: dDark, nowMs: NOW, live: false, deliver, loadItems: async () => allOpen });
+    ok('gate off: the window is still handed back, but nothing is written to any lead', r.handedBack === 1 && dDark.store.get('away_windows/own__w1').status === 'handed_back' && actKeys(dDark).length === 0);
+
+    // live: one note, on the one unambiguous lead of THIS company
+    const dLive = fakeDb(seed());
+    r = await I.runAwayTick({ db: dLive, nowMs: NOW, live: true, deliver, loadItems: async () => allOpen });
+    const keys = actKeys(dLive);
+    ok('gate on: exactly one note, on the one lead that matches the number', r.handedBack === 1 && keys.length === 1 && keys[0] === 'leads/L1/activity/away-w1-8595550147', keys.join());
+    const act = dLive.store.get(keys[0]) || {};
+    ok('the note carries the backup\'s one-liner, type, source and tenant stamp', act.summary === 'Sam: Called — no answer' && act.type === 'away_handback' && act.source === 'away-mode' && act.userId === 'own' && act.companyId === 'own' && act.awayWindowId === 'w1');
+    ok('the note carries BOTH order fields (createdAt for the query, startedAtMs for the timeline)', act.createdAt !== undefined && act.createdAt !== null && act.startedAtMs === NOW);
+    ok('a number on two leads, a lead-less number, a deleted lead and a phone-less row get no note', !keys.some((k) => /L2|L3|L4|LX/.test(k)) && keys.length === 1);
+    ok('another company\'s lead with the same number is not touched', !dLive.store.has('leads/LX/activity/away-w1-8595550147'));
+    ok('the ledger / status hand-back is unchanged by the timeline write', dLive.store.get('away_windows/own__w1').handBack.rows.length === 5 && dLive.store.get('away_mode/own').pendingReview.openCount === 5);
+
+    // idempotent
+    const again = await I.fileHandBackTimeline(dLive, 'own', 'w1', dLive.store.get('away_windows/own__w1').handBack.rows, NOW + 99 * MIN, 'Sam');
+    ok('filing the same rows again writes nothing (deterministic id, create-if-absent)', again.written === 0 && actKeys(dLive).length === 1 && dLive.store.get(keys[0]).startedAtMs === NOW);
+
+    // a failing lead lookup never blocks the hand-back
+    const dBoom = fakeDb(seed());
+    const realCol = dBoom.collection;
+    dBoom.collection = (n) => { if (n === 'leads') throw new Error('boom'); return realCol(n); };
+    r = await I.runAwayTick({ db: dBoom, nowMs: NOW, live: true, deliver, loadItems: async () => allOpen, log: { warn() {}, info() {} } });
+    ok('a failing lead lookup is logged and the hand-back still completes', r.handedBack === 1 && r.errors === 0 && dBoom.store.get('away_mode/own').away.on === false);
+
+    // I'm back (callable) is behind the same switch
+    const prev = process.env.AWAY_MODE_ENABLED;
+    const runBack = async () => {
+      const sd = seed();
+      sd['away_mode/own'] = Object.assign({}, sd['away_mode/own'], { away: { on: true, startMs: NOW - H, untilMs: NOW + D, windowId: 'w1' } });
+      const db = fakeDb(sd);
+      await I.handleManageAway({ auth: { uid: 'own', token: {} }, data: { action: 'imBack' } }, { db, nowMs: NOW, requireAdmin: async () => ({ uid: 'own', companyId: 'own', isOwner: true }), loadItems: async () => allOpen });
+      return db;
+    };
+    try {
+      delete process.env.AWAY_MODE_ENABLED;
+      ok('I\'m back with the switch off writes no lead note', actKeys(await runBack()).length === 0);
+      process.env.AWAY_MODE_ENABLED = 'true';
+      ok('I\'m back with the switch on writes the note', actKeys(await runBack()).join() === 'leads/L1/activity/away-w1-8595550147');
+    } finally { if (prev === undefined) delete process.env.AWAY_MODE_ENABLED; else process.env.AWAY_MODE_ENABLED = prev; }
+
+    // hostile text: control / bidi characters are stripped server side, the client returns plain strings
+    const evil = await I.fileHandBackTimeline(dLive, 'own', 'w2', [{ phone10: '8595550147', note: 'Sam: Note — <img src=x onerror=alert(1)>‮​' }], NOW, 'Sam');
+    const evilDoc = dLive.store.get('leads/L1/activity/away-w2-8595550147') || {};
+    ok('control and bidi characters are stripped from the stored note', evil.written === 1 && !/[‮​]/.test(evilDoc.summary || ''));
+    const row = CT.fromActivity('away-w2-8595550147', evilDoc);
+    ok('timeline row: plain strings, never markup the renderer would trust', !!row && typeof row.desc === 'string' && row.desc.includes('<img') && row.kind === 'away' && row.type === 'note');
+    ok('timeline row sorts by when it happened, falls back to filed time', row.time.getTime() === NOW && CT.fromActivity('away-w1-x', { type: 'away_handback', summary: 's', createdAt: { toDate: () => new Date(NOW - H) } }).time.getTime() === NOW - H);
+    ok('only an away- id with the away_handback type is shown; look-alikes are not', CT.fromActivity('abc123', { type: 'away_handback', summary: 'x' }) === null && CT.fromActivity('away-w1-x', { type: 'note', summary: 'x' }) === null);
+
+    // not evidence that Jo kept a promise
+    const call = { id: 'c1', startedAtMs: NOW - 3 * D };
+    const evd = P.evidenceAfter(call, [
+      { id: 'away-w1-8595550147', type: 'away_handback', label: 'While you were away', summary: 'Sam: Says done — sent the estimate', startedAtMs: NOW },
+      { id: 'n1', type: 'note', summary: 'Sent the estimate by email', startedAtMs: NOW - D },
+    ], 'cube-c1');
+    ok('promise cleanup ignores the hand-back line as evidence (a backup\'s "done" is advisory)', evd.length === 1 && evd[0].activityId === 'n1');
+
+    // customer page wiring
+    const cb = read('docs/pro/js/customer-bootstrap.module.js');
+    ok('PDF report gather leaves the internal away line out', /row && row\.kind !== 'away'/.test(cb));
+    ok('timeline marks only call/text rows with the call style', /callEntry: row\.kind === 'call' \|\| row\.kind === 'text'/.test(cb));
+    const sc2 = read('functions/away-mode.js');
+    ok('timeline write rides the notify switch: tick passes live, imBack passes tickEnabled()', /timeline: live \}/.test(sc2) && /: tickEnabled\(\),/.test(sc2));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

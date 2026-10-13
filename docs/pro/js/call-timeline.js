@@ -39,6 +39,7 @@
   /** One activity doc → { time, kind, title, desc, type } or null. */
   function fromActivity(id, a) {
     if (a && typeof a === 'object' && a.type === 'voice_memo') return fromVoiceMemo(a);
+    if (a && typeof a === 'object' && a.type === 'away_handback' && /^away-/.test(String(id || ''))) return fromAwayHandBack(a);
     const m = /^(cube|sms)-/.exec(String(id || ''));
     if (!m || !a || typeof a !== 'object') return null;
     const text = m[1] === 'sms';
@@ -70,6 +71,21 @@
       icon: '🎙',
       title: (str(a.label, 120) || 'Voice memo') + (dur ? ' · ' + Math.floor(dur / 60) + 'm ' + String(dur % 60).padStart(2, '0') + 's' : ''),
       desc: str(a.transcript, 1500),
+      type: 'note',
+    };
+  }
+
+  // The away-mode hand-back one-liner (functions/away-mode.js
+  // fileHandBackTimeline): what the backup did while Jo was away. The text is
+  // a teammate's typed note on a customer's call: untrusted, plain strings.
+  function fromAwayHandBack(a) {
+    const done = a.backupSaysDone === true;
+    return {
+      time: toDate(a.startedAtMs) || toDate(a.createdAt) || new Date(0),
+      kind: 'away',
+      icon: '↩',
+      title: str(a.label, 120) || 'While you were away',
+      desc: str(a.summary, 300) + (done ? ' (they say it is done)' : ''),
       type: 'note',
     };
   }
