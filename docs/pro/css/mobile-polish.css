@@ -237,3 +237,21 @@
     min-width: 40px !important;
   }
 }
+
+/* 7. Sheets above the iPhone keyboard (2026-10-08, phone audit 2026-10-07 #2).
+   iOS keeps a fixed overlay sized to the whole screen when the keyboard
+   opens, so a sheet's bottom (Record payment's Save) sat under the keys.
+   js/keyboard-viewport.js sets html.nbd-kb-open + --nbd-vv-h/--nbd-vv-top
+   from window.visualViewport only while the keyboard is up; every open
+   sheet then fits the visible area and scrolls inside it. */
+html.nbd-kb-open .modal-bg.open {
+  top: var(--nbd-vv-top, 0px);
+  bottom: auto;
+  height: var(--nbd-vv-h, 100%);
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+html.nbd-kb-open .modal-bg.open > .modal,
+html.nbd-kb-open .modal-bg.open > .modal-content {
+  max-height: calc(var(--nbd-vv-h, 100dvh) - 16px);
+}

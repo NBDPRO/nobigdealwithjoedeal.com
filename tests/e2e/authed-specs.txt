@@ -81,6 +81,7 @@ phone-customer-order.spec.js
 phone-offline-safety.spec.js
 inbox-layout.spec.js
 phone-inspect-no-clip.spec.js
+phone-quick-wins-part2.spec.js
 phone-catchup.spec.js
 phone-home-nav.spec.js
 crew-calendar.spec.js
@@ -90,3 +91,4 @@ layout-island.spec.js
 field-app.spec.js
 focus-mode.spec.js
 mission-control.spec.js
+phone-quick-wins.spec.js

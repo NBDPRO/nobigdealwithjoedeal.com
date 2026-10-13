@@ -151,7 +151,8 @@
       if ((toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW) return false;
       return openJoPromise(c);
     }
-    const promised = (c.promises || []).some((p) => p && p.who === 'jo');
+    // A promise stamped kept stops counting at once (it used to nag to day 14).
+    const promised = openJoPromise(c);
     const lb = labelOf(ctx, c);
     const pol = lb && (lb.policy === 'hide' || lb.policy === 'quiet' || lb.policy === 'surface') ? lb.policy : '';
     // Jo, 2026-10-12: "a promise ALWAYS surfaces" — hide / quiet drop missed

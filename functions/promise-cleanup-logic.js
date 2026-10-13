@@ -62,7 +62,8 @@ function evidenceAfter(call, activity, ownActivityId) {
   const after = Number(call.startedAtMs) || 0;
   return (activity || [])
     .map((a) => ({ a, ms: Number(a.startedAtMs) || toMs(a.createdAt) }))
-    .filter(({ a, ms }) => a && a.id !== ownActivityId && ms > after)
+    // the away-mode hand-back line is a backup's note, not evidence Jo did it
+    .filter(({ a, ms }) => a && a.id !== ownActivityId && a.type !== 'away_handback' && ms > after)
     .sort((x, y) => x.ms - y.ms)
     .slice(0, EVIDENCE_MAX)
     .map(({ a, ms }, i) => ({

@@ -21,7 +21,12 @@
 const DAY = 86400000;
 const HOUR = 3600000;
 const CALL_WINDOW = 14 * DAY;
-const PROMISE_WINDOW = 45 * DAY; // Jo, 2026-10-12: an open promise of his stays 'needs you' to 45 days
+// Jo, 2026-10-12: an open promise of his stays 'needs you' to 45 days. Home
+// (docs/pro/js/home-attention.js) declares the same two numbers; every server
+// READ that feeds callNeedsYou (callWatch, the ledger, away mode) must query
+// PROMISE_WINDOW, not CALL_WINDOW (QA 2026-10-13 H2: the rule knew 45 days,
+// the queries fed it 14). tests/promise-window-server-2026-10-13.test.js pins both.
+const PROMISE_WINDOW = 45 * DAY;
 const STALE_RUN_MS = 75 * 60000;        // the 30-min jobs: two missed runs + slack
 const STALE_TEXT_NOTES_MS = 150 * 60000; // the 60-min text notes job
 const TRANSCRIPT_WAIT_MS = 6 * HOUR;
@@ -36,6 +41,8 @@ function toMs(v) {
   if (v instanceof Date) return v.getTime();
   const t = Date.parse(v); return Number.isFinite(t) ? t : 0;
 }
+/** A promise Jo made that nothing has marked kept (promise-cleanup stamps keptAtMs). */
+const openJoPromise = (c) => !!c && (c.promises || []).some((p) => p && p.who === 'jo' && !p.keptAtMs);
 const etYmd = (ms) => new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 
 /** Mirror of home-attention.js isMissedCall / reachIndex / callNeedsYou (kept in step by the test). */
@@ -70,9 +77,10 @@ function callNeedsYou(c, now, ctx) {
   // up to 45 days (then Home's single "old promises" row takes it).
   if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) {
     if ((toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW) return false;
-    return (c.promises || []).some((p) => p && p.who === 'jo' && !p.keptAtMs);
+    return openJoPromise(c);
   }
-  const promised = (c.promises || []).some((p) => p && p.who === 'jo');
+  // A promise stamped kept (promise-cleanup) stops nagging at once, not at day 14.
+  const promised = openJoPromise(c);
   const lb = labelOf(ctx, c);
   const pol = labelPolicy(lb);
   const dueFu = !!(c.followUpDate && c.followUpDate <= etYmd(t));
@@ -127,7 +135,7 @@ function resurfacedNumbers(rows, labels, now) {
 
 /** Why a call / text day needs Jo, in a few words. */
 function reasonFor(c, now, ctx) {
-  const promised = (c.promises || []).some((p) => p && p.who === 'jo');
+  const promised = openJoPromise(c);
   const lb = labelOf(ctx, c);
   const pol = labelPolicy(lb);
   const urgentOk = pol === 'quiet' ? false : (pol === 'hide' ? !!(lb && lb.kind !== 'spam') : true);
@@ -144,6 +152,24 @@ function callerKey(c) {
   if (c.leadId) return 'lead:' + c.leadId;
   const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
   return d ? 'num:' + d : 'id:' + (c.id || '');
+}
+
+/**
+ * Mirror of home-attention.js isOldPromise / oldPromiseCount: a CALL past the
+ * 45-day window that still carries an open promise of Jo's is ONE review row
+ * ("N old promises to review"), counted as PEOPLE, never a live "needs you".
+ * Text days are not read (same as Home). Jo's own newer reply to the number
+ * neither clears nor reopens it: the window anchors on the promise's own call.
+ */
+function isOldPromise(c, now) {
+  const t = now == null ? Date.now() : now;
+  if (!c || c.handledAtMs || c.status === 'personal' || c.callType === 'spam' || c.taskDone === true || c.channel === 'text') return false;
+  return (toMs(c.startedAtMs) || 0) < t - PROMISE_WINDOW && openJoPromise(c);
+}
+function oldPromiseCount(rows, now) {
+  const people = new Set();
+  (rows || []).forEach((c) => { if (isOldPromise(c, now)) people.add(callerKey(c)); });
+  return people.size;
 }
 
 const who = (c) => String(c.contactName || c.from || (c.phoneDigits ? '…' + String(c.phoneDigits).slice(-4) : '') || 'Unknown caller').slice(0, 60);
@@ -179,7 +205,12 @@ function newNeeds(calls, textDays, thursday, sinceMs, now, labels) {
     const arrived = toMs(c.notedAtMs) || toMs(c.startedAtMs);
     const due = followUpCameDue(c, sinceMs, now);
     if (arrived <= sinceMs && !due) return;
-    out.push({ id: 'text:' + c.id, tellId: arrived <= sinceMs ? 'text:' + c.id + '#due:' + c.followUpDate : undefined, key: callerKey(c), kind: 'text', who: who(c), why: reasonFor(c, now, tctx), at: toMs(c.startedAtMs) });
+    // A text day is ONE doc per number per day that textInboxNotes re-writes
+    // (same id, new notedAtMs / urgent / promises) whenever another text lands.
+    // Keyed on the plain id, the 10:00 "who is this" tell swallowed the 15:00
+    // "water through the ceiling" re-note (QA 2026-10-13): told once per REASON.
+    const why = reasonFor(c, now, tctx);
+    out.push({ id: 'text:' + c.id, tellId: arrived <= sinceMs ? 'text:' + c.id + '#due:' + c.followUpDate : 'text:' + c.id + '#' + why, key: callerKey(c), kind: 'text', who: who(c), why, at: toMs(c.startedAtMs) });
   });
   // A hidden number that came back (matches a customer, or 3+ calls in 24 h):
   // told once per label baseline — "Keep hidden" moves the baseline.
@@ -366,8 +397,9 @@ function nextLadder(callRows, textRows, ladder, newIds, retells, reached, now, l
  * The end-of-day "nothing fell through" ledger (2026-10-12 audit, section 4).
  * Written once a day by the 20:00 callWatch run as a bell entry that stays
  * unread until Jo taps it: a digest that arrives and is ignored shows as an
- * unread item instead of vanishing. Pure; rows are the 14-day windows
- * callWatch already loaded.
+ * unread item instead of vanishing. Pure; rows are the 45-day windows
+ * callWatch already loaded (extra.oldRows: older calls with open promises,
+ * for the "old promises to review" line, same count Home's chip shows).
  */
 const LEDGER_OLD_MS = 3 * DAY;
 function dailyLedger(callRows, textRows, now, extra) {
@@ -385,18 +417,31 @@ function dailyLedger(callRows, textRows, now, extra) {
   const people = new Map();
   (callRows || []).forEach((c) => { if (callNeedsYou(c, now, ctx)) { const k = callerKey(c); const at = toMs(c.startedAtMs); if (!people.has(k) || at < people.get(k)) people.set(k, at); } });
   (textRows || []).forEach((c) => { if (callNeedsYou(c, now, tctx)) { const k = callerKey(c); const at = toMs(c.startedAtMs); if (!people.has(k) || at < people.get(k)) people.set(k, at); } });
+  // A HIDDEN number that came back (filed on a customer, or 3+ calls in 24 h)
+  // is a person on Home's list (groupNeeds adds it) and was told once by
+  // callWatch; counting people by callNeedsYou alone read "nothing fell
+  // through" while Home showed that person (QA 2026-10-13).
+  resurfacedNumbers(callRows, ex.labels, now).forEach((v) => {
+    v.calls.forEach((c) => { const k = callerKey(c); const at = toMs(c.startedAtMs); if (!people.has(k) || at < people.get(k)) people.set(k, at); });
+  });
   const open = people.size;
   const oldOpen = Array.from(people.values()).filter((at) => at && now - at > LEDGER_OLD_MS).length;
   const anomalies = [];
   if (!todays.length) anomalies.push('No calls were recorded today. A quiet phone looks exactly like a recorder that stopped.');
   if (waiting > 0) anomalies.push(waiting + ' recording' + (waiting === 1 ? '' : 's') + ' still waiting for a transcript.');
   if (oldOpen > 0) anomalies.push(oldOpen + ' ' + (oldOpen === 1 ? 'person has' : 'people have') + ' been waiting on you more than 3 days.');
+  // Home shows ONE "N old promises to review" chip for open promises past 45
+  // days; the ledger must not call that day clear (QA 2026-10-13 H2). A read
+  // that failed is a warning, never silence.
+  const oldPromises = oldPromiseCount((callRows || []).concat(ex.oldRows || []), now);
+  if (oldPromises > 0) anomalies.push(oldPromises + ' old promise' + (oldPromises === 1 ? '' : 's') + ' to review (open promises past 45 days)' + (ex.oldCapped ? ' - only the newest older calls were checked' : '') + '.');
+  if (ex.oldPromisesFailed) anomalies.push('Could not check for promises older than 45 days just now - this is not an all-clear.');
   if (ex.lastPush && ex.lastPush.sent === 0) anomalies.push('The last alert reached 0 phones. Check that notifications are on for the CRM app.');
   if (ex.problems && ex.problems.length) anomalies.push('Pipeline: ' + ex.problems.slice(0, 2).join(' / '));
   const clear = open === 0 && !anomalies.length;
   const head = todays.length + ' call' + (todays.length === 1 ? '' : 's') + ' today, ' + noted + ' noted · ' + open + (open === 1 ? ' person' : ' people') + ' still need' + (open === 1 ? 's' : '') + ' you';
   return {
-    ymd: today, calls: todays.length, noted, waiting, open, oldOpen, anomalies, clear,
+    ymd: today, calls: todays.length, noted, waiting, open, oldOpen, oldPromises, anomalies, clear,
     title: clear ? '🗒 Day check: nothing fell through' : '🗒 Day check: ' + open + (open === 1 ? ' person' : ' people') + ' still open' + (anomalies.length ? ' · ' + anomalies.length + ' warning' + (anomalies.length === 1 ? '' : 's') : ''),
     message: [head].concat(anomalies.map((a) => '⚠ ' + a)).concat(['Tap to open the Call Center, then mark this reviewed.']).join('\n').slice(0, 900),
     priority: anomalies.length ? 'high' : 'normal',
@@ -466,7 +511,7 @@ function inWatchHours(now) {
 }
 
 module.exports = {
-  CALL_WINDOW, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
+  CALL_WINDOW, PROMISE_WINDOW, openJoPromise, isOldPromise, oldPromiseCount, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
   SMS_REPEAT_MS, smsProblems, deliveryBySid, dailyLedger, ladderEmail, LADDER_GAP_MS, LADDER_MAX, ladderCandidates, ladderRetells, nextLadder,
   toMs, etYmd, callNeedsYou, labelOf, resurfacedNumbers, callerKey, reasonFor, reachIndex, isMissedCall, callCardUrl, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
 };
