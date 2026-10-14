@@ -165,8 +165,20 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
       expect(url, 'the Storage object exists').toBe(true);
       expect(await safeEvaluate(page, (i) => window.NBDVisitRecorder._chunksFor(i).then((c) => c.length), id)).toBe(0);
 
-      // attach by search, from the Unfiled list
-      await page.locator('.nbd-vr-unfiled').tap();
+      // PR 2: attaching an UPLOADED visit asks the server to file it (attachVisitCapture). The
+      // function is not deployed to the emulator, so the browser's request is answered here and
+      // recorded; its server logic is covered by tests/visit-capture-pipeline-2026-10-13.test.js.
+      const attachCalls = [];
+      await page.route(/attachVisitCapture/, async (route) => {
+        const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+        if (route.request().method() === 'OPTIONS') { await route.fulfill({ status: 204, headers: cors }); return; }
+        let body = {};
+        try { body = JSON.parse(route.request().postData() || '{}').data || {}; } catch (_) {}
+        attachCalls.push(body);
+        await route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ result: { ok: true, leadId: body.leadId || null, tasksMade: 0 } }) });
+      });
+
+      // attach by search, from the Unfiled list      await page.locator('.nbd-vr-unfiled').tap();
       const list = page.locator('.nbd-vr-sheet');
       await expect(list.locator('.nbd-vr-title')).toHaveText('Unfiled visits');
       await expect(list.locator('.nbd-vr-item')).toHaveCount(1);
@@ -176,6 +188,8 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
       await page.locator('.nbd-vr-input').fill('ZZVisit Reyes' + stamp);
       await page.locator('.nbd-vr-chip', { hasText: S.name }).first().tap();
       await expect.poll(async () => ((await S.db.doc('users/' + S.uid + '/visit_captures/' + id).get()).data() || {}).leadId, { timeout: 20_000 }).toBe(S.lead);
+      expect(attachCalls.length, 'the server was asked once, for this visit and this customer').toBe(1);
+      expect(attachCalls[0]).toMatchObject({ visitId: id, action: 'attach', leadId: S.lead });
       await expect(page.locator('.nbd-vr-unfiled'), 'the Home badge clears').toBeHidden();
     });
 

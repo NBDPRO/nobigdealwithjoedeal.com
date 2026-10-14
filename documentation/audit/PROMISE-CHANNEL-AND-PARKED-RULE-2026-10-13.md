@@ -133,3 +133,12 @@ task at transcription - option B in the audit - was **not** done: it would add a
 4. **F7** (the same open promise listed in the brief *and* the 15:15 sweep) now
    applies to promise tasks too.
 5. Task creation for urgent calls (F5 option B) - see above.
+
+## Update 2026-10-13 (ping volume PR)
+
+Items 2 and 4 above are done in [PING-VOLUME-2026-10-13](PING-VOLUME-2026-10-13.md):
+a call alert and the promise push of one run are now ONE push, and the 15:15 sweep
+is skipped when its list equals the morning's (so an unchanged promise is mailed
+once a day, not twice). A promise is also subject to the person card: it always
+pushes as a NEW kind, and a second promise from a person already pushed about a
+promise today is folded (its bell and brief row remain).

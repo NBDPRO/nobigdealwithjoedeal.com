@@ -82,6 +82,7 @@ const PLAN = {
 
   callWatch:                 { slug: 'call-followups' },
   callCenterSweep:           { slug: 'call-followups' },
+  visitCaptureSweep:         { slug: 'calls-texts-ingest' }, // 2026-10-13: visit recordings, same 30-minute cadence
   awayModeTick:              { slug: 'call-followups' }, // away-mode lane: every 15 min; give it its own check for an independent dead-man
 
   firestoreBackupRetention:  { slug: 'daily-retention' },
