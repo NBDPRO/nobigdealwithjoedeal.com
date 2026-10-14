@@ -457,7 +457,7 @@ const WHY = [
     ['💰 No sales tricks', 'The estimate is itemized and in writing, with no expiring “deal” attached. Compare it with anyone’s.'],
   ],
   [
-    ['✅ NBD Lifetime Pledge', 'Call about anything I worked on and I’ll come look, free, for as long as you own the home. If it’s my workmanship, I fix it under your written warranty. Full GAF system installs also qualify for enhanced GAF warranty coverage.'],
+    ['✅ The NBD Pledge', 'Call about anything I worked on and I’ll come look, free, for as long as you own the home. If it’s my workmanship, I fix it under your written warranty. Full GAF system installs also qualify for enhanced GAF warranty coverage.'],
     ['✅ The Pledge doesn’t expire', 'For as long as you own the house, a call about my work gets a free visit and a straight answer. Workmanship problems get fixed under the written warranty.'],
     ['✅ A standing offer', 'While you own the home, anything I worked on gets a free look whenever you call. Workmanship issues are fixed under the written warranty, and full GAF system installs are eligible for enhanced GAF warranty coverage.'],
     ['✅ I come back', 'Anything I worked on, you can call me about and I’ll come look at no charge while you own the home. If it’s my workmanship, the written warranty covers the fix.'],
