@@ -388,8 +388,12 @@ async function sendEmail(opts, body) {
     ok('no unsubscribe token minted for a refused send', !w.writes.some((x) => /^email_unsub_tokens\//.test(x.path)));
   }
   {
-    const { res, w } = await sendEmail({ docs: SUPPRESSED_A }, { kind: 'invoice', html: '<p>Invoice</p>' });
-    ok('transactional (kind invoice) to a suppressed address still SENDS', res.statusCode === 200 && w.sends.length === 1, JSON.stringify(res.body));
+    // 2026-10-13: a claimed 'invoice' kind is honoured only with the invoice it
+    // is about (every CRM invoice caller passes invoiceId), so this is the
+    // real call shape.
+    const invDocs = Object.assign({}, SUPPRESSED_A, { 'invoices/inv-1': { companyId: 'co-a', customerEmail: HOMEOWNER, leadId: 'lead-1' } });
+    const { res, w } = await sendEmail({ docs: invDocs }, { kind: 'invoice', invoiceId: 'inv-1', html: '<p>Invoice</p>' });
+    ok('transactional (kind invoice + its invoiceId) to a suppressed address still SENDS', res.statusCode === 200 && w.sends.length === 1, JSON.stringify(res.body));
     ok('transactional send: no List-Unsubscribe header, no footer, register not even read',
       !w.sends[0].headers && !/Unsubscribe/.test(w.sends[0].html) && !w.events.some((e) => e.startsWith('read:email_suppressions/')));
   }
@@ -520,7 +524,11 @@ async function sendEmail(opts, body) {
     ok('...and the refusal is logged (email_log status blocked_no_postal_address)', !!row && row.status === 'blocked_no_postal_address', JSON.stringify(row));
   }
   for (const kind of ['invoice', 'receipt', 'estimate', 'appointment']) {
-    const { res, w } = await sendEmail({ noPostal: true }, { kind, html: '<p>Your ' + kind + '</p>' });
+    // invoice / receipt are honoured only with their invoice (2026-10-13).
+    const needsInvoice = kind === 'invoice' || kind === 'receipt';
+    const { res, w } = await sendEmail(
+      needsInvoice ? { noPostal: true, docs: { 'invoices/inv-1': { companyId: 'co-a', customerEmail: HOMEOWNER, leadId: 'lead-1' } } } : { noPostal: true },
+      Object.assign({ kind, html: '<p>Your ' + kind + '</p>' }, needsInvoice ? { invoiceId: 'inv-1' } : {}));
     ok('transactional (' + kind + ') with NO postal address still SENDS, untouched', res.statusCode === 200 && w.sends.length === 1 && !/Unsubscribe/.test(w.sends[0].html), JSON.stringify(res.body));
   }
   {

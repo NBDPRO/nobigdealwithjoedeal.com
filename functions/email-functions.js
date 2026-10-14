@@ -280,7 +280,7 @@ function populateTemplate(template, variables) {
 /**
  * Log email to Firestore
  */
-async function logEmailToFirestore(db, to, subject, uid, status = 'sent', leadId = null, companyId = null) {
+async function logEmailToFirestore(db, to, subject, uid, status = 'sent', leadId = null, companyId = null, extra = null) {
   try {
     const ts = FieldValue.serverTimestamp();
     const row = {
@@ -299,6 +299,14 @@ async function logEmailToFirestore(db, to, subject, uid, status = 'sent', leadId
     };
     // companyId enables team-wide Comm Log for managers (same-tenant read).
     if (companyId) row.companyId = companyId;
+    // Audit trail for the unsubscribe gate (2026-10-13): which kind the send
+    // was treated as, and — for a claimed kind that was not honoured — what
+    // the caller claimed. Draft sends add draftId.
+    if (extra && typeof extra === 'object') {
+      ['kind', 'category', 'claimedKind', 'draftId'].forEach((k) => {
+        if (typeof extra[k] === 'string' && extra[k]) row[k] = extra[k].slice(0, 80);
+      });
+    }
     await db.collection('email_log').add(row);
   } catch (e) {
     logger.warn('email_log_write_failed', { err: e.message });
@@ -399,6 +407,19 @@ exports.sendEmail = onRequest(
     // `attachments` is no longer read from the caller (security batch
     // 2026-10-03): no CRM call site sends any, and a Resend attachment `path`
     // is a URL Resend fetches on our behalf.
+    // A request that names a draft is a DRAFT send: everything it needs comes
+    // from the draft (see handleDraftSend). The legacy path below never reads
+    // a draft, and a draft send never reads `to` / `kind` from the caller.
+    if (req.body && req.body.draftId !== undefined && req.body.draftId !== null) {
+      try {
+        await handleDraftSend(req, res, decoded, req.body);
+      } catch (e) {
+        logger.error('sendEmail draft_send_error', { err: e && e.message });
+        if (!res.headersSent) res.status(500).json({ error: 'Failed to send email', code: 'draft_send_error' });
+      }
+      return;
+    }
+
     const { to, subject, body, html, replyTo } = req.body || {};
     const leadId = (req.body && typeof req.body.leadId === 'string' && req.body.leadId) || null;
     const invoiceId = (req.body && typeof req.body.invoiceId === 'string' && req.body.invoiceId) || null;
@@ -457,8 +478,39 @@ exports.sendEmail = onRequest(
       res.status(422).json({ error: 'Email can only be sent to a customer on file.', code: 'record_required' });
       return;
     }
+    // One request, one customer: an invoice that belongs to a DIFFERENT lead
+    // than the one named would let that invoice's address ride through this
+    // lead's flags (do-not-contact) and unsubscribe state. (An invoice with no
+    // leadId — legacy — is bound by the recipient check alone.)
+    if (lead && invoice && typeof invoice.leadId === 'string' && invoice.leadId && invoice.leadId !== leadId) {
+      res.status(422).json({ error: 'That invoice belongs to a different customer.', code: 'record_mismatch' });
+      return;
+    }
     if (!SendGuard.recipientOnRecord(to, lead, invoice)) {
       res.status(422).json({ error: 'That address is not on this customer\'s record.', code: 'recipient_not_on_record' });
+      return;
+    }
+
+    // ── Do-not-contact (2026-10-13) ────────────────────────────────────
+    // Enforced here, not only in the browser. An invoice-only send reaches
+    // the customer's lead through invoice.leadId, and when a request names
+    // BOTH a lead and an invoice every lead it resolves to is checked (an
+    // address on invoice B must not ride through lead A's clean flag). FAIL
+    // CLOSED: a lead we cannot read is "do not send" (503), never "probably
+    // fine". An invoice with no leadId at all (legacy) has nothing to resolve.
+    try {
+      let dnc = SendGuard.leadIsDoNotContact(lead);
+      if (!dnc && invoice && typeof invoice.leadId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(invoice.leadId) && invoice.leadId !== leadId) {
+        const ls = await db.doc(`leads/${invoice.leadId}`).get();
+        dnc = ls.exists && SendGuard.leadIsDoNotContact(ls.data() || null);
+      }
+      if (dnc) {
+        res.status(403).json({ error: 'This customer is on your do-not-contact list. Nothing was sent.', code: 'do_not_contact' });
+        return;
+      }
+    } catch (e) {
+      logger.error('sendEmail dnc_lookup_failed', { err: e && e.message });
+      res.status(503).json({ error: 'Could not confirm this customer can be emailed — nothing was sent. Try again in a moment.', code: 'record_unverified' });
       return;
     }
 
@@ -480,8 +532,19 @@ exports.sendEmail = onRequest(
     // badge, the unsubscribe token and markEmailUnsubscribed all use).
     const companyId = decoded.companyId || null;
     const tenantKey = decoded.companyId || decoded.uid;
-    const kind = req.body && typeof req.body.kind === 'string' ? req.body.kind : '';
+    // A claimed transactional kind is honoured only when the request carries
+    // the record that kind is about (email-send-guard.js LEGACY_KIND_NEEDS);
+    // anything else is commercial and the suppression gate applies.
+    const claimedKind = req.body && typeof req.body.kind === 'string' ? req.body.kind : '';
+    const kind = SendGuard.honouredKind(claimedKind, { lead, invoice });
     const category = Suppression.resolveCategory({ kind });
+    const kindLog = {
+      kind: kind || 'commercial', category,
+      claimedKind: claimedKind && claimedKind !== kind ? claimedKind : '',
+    };
+    if (claimedKind && !kind && /^(estimate|proposal|invoice|receipt|contract|portal_link|document|appointment)$/.test(claimedKind)) {
+      logger.warn('sendEmail kind_not_honoured', { claimedKind, hasLead: !!lead, hasInvoice: !!invoice });
+    }
     let unsubGate = null;
     if (category === Suppression.CATEGORY.COMMERCIAL) {
       try {
@@ -500,7 +563,7 @@ exports.sendEmail = onRequest(
         return;
       }
       if (unsubGate.suppressed) {
-        await logEmailToFirestore(db, to, subject, decoded.uid, 'suppressed', leadId || null, companyId);
+        await logEmailToFirestore(db, to, subject, decoded.uid, 'suppressed', leadId || null, companyId, kindLog);
         res.status(403).json({ error: 'This person unsubscribed from email', code: 'unsubscribed' });
         return;
       }
@@ -510,7 +573,7 @@ exports.sendEmail = onRequest(
       // same non-compliant email by another route).
       if (unsubGate.blocked) {
         logger.warn('sendEmail blocked: no postal address', { tenantKey, reason: unsubGate.reason });
-        await logEmailToFirestore(db, to, subject, decoded.uid, 'blocked_no_postal_address', leadId || null, companyId);
+        await logEmailToFirestore(db, to, subject, decoded.uid, 'blocked_no_postal_address', leadId || null, companyId, kindLog);
         res.status(403).json({ error: Suppression.NO_POSTAL_ADDRESS_MESSAGE, code: Suppression.NO_POSTAL_ADDRESS });
         return;
       }
@@ -574,13 +637,13 @@ exports.sendEmail = onRequest(
       if (resendRejected(response)) {
         const msg = resendErrorMessage(response);
         logger.error('sendEmail resend_rejected', { err: msg });
-        await logEmailToFirestore(db, to, subject, decoded.uid, 'failed', leadId || null, companyId);
+        await logEmailToFirestore(db, to, subject, decoded.uid, 'failed', leadId || null, companyId, kindLog);
         res.status(502).json({ error: 'Failed to send email', detail: msg });
         return;
       }
 
       // Log to Firestore
-      await logEmailToFirestore(db, to, subject, decoded.uid, 'sent', leadId || null, companyId);
+      await logEmailToFirestore(db, to, subject, decoded.uid, 'sent', leadId || null, companyId, kindLog);
 
       res.json({
         success: true,
@@ -591,7 +654,7 @@ exports.sendEmail = onRequest(
       logger.error('sendEmail error', { err: e.message });
 
       // Log failure
-      await logEmailToFirestore(db, to, subject, decoded.uid, 'failed', leadId || null, companyId);
+      await logEmailToFirestore(db, to, subject, decoded.uid, 'failed', leadId || null, companyId, kindLog);
 
       res.status(500).json({
         error: 'Failed to send email'
@@ -599,6 +662,57 @@ exports.sendEmail = onRequest(
     }
   }
 );
+
+// ── Send-bound-to-draft (2026-10-13) ───────────────────────────────────────
+// A request naming {leadId, draftId} sends THAT draft: recipient and kind come
+// from the draft, every gate runs here, and the draft is claimed in a
+// transaction before the provider is called (functions/doc-draft-send.js).
+async function handleDraftSend(req, res, decoded, b) {
+  const db = getFirestore();
+  const DraftSend = require('./doc-draft-send');
+  const leadId = typeof b.leadId === 'string' ? b.leadId : '';
+  const companyId = decoded.companyId || null;
+  const prep = await DraftSend.prepareDraftSend({
+    decoded, leadId, draftId: b.draftId, subject: b.subject, body: b.body,
+  }, { db, Suppression, SendGuard, FieldValue });
+  if (prep.refusal) {
+    const r = prep.refusal;
+    if (r.meta && r.meta.log) logger.error('sendEmail draft_prepare_failed', { code: r.json.code, err: r.meta.log });
+    if (r.meta && r.meta.logRow) {
+      await logEmailToFirestore(db, r.meta.to || '', r.meta.subject || '', decoded.uid, r.meta.logRow, leadId || null, companyId, { draftId: String(b.draftId || '') });
+    }
+    res.status(r.status).json(r.json);
+    return;
+  }
+  const plan = prep.plan;
+  // Limiters run BEFORE the claim so a 429 can never strand a claimed draft.
+  if (!(await httpRateLimit(req, res, 'sendEmail:ip', 60, 3_600_000))) return;
+  try {
+    await enforceRateLimit('sendEmail:uid', decoded.uid, 200, 86_400_000);
+  } catch (e) {
+    if (e.rateLimited) { res.status(429).json({ error: 'Daily email limit exceeded', code: 'rate_limited' }); return; }
+    throw e;
+  }
+  let resend = null;
+  const result = await DraftSend.executeDraftSend(plan, {
+    db, FieldValue, logger,
+    buildMessage: async (p) => {
+      resend = new Resend(RESEND_API_KEY.value());
+      const fromEmail = secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com');
+      const contentHtml = SendGuard.plainTextToHtml(p.body);
+      const bodyHtml = Suppression.applyFooter(p.unsubGate, contentHtml, null).html;
+      const sender = await tenantSenderFor(db, p.tenantKey, fromEmail);
+      const message = { from: sender.from, to: p.to, subject: p.subject, html: bodyHtml };
+      if (sender.replyTo) message.reply_to = sender.replyTo;
+      if (p.unsubGate && p.unsubGate.headers) message.headers = p.unsubGate.headers;
+      if (p.unsubGate && p.unsubGate.tags) message.tags = p.unsubGate.tags;
+      return message;
+    },
+    send: (message) => resend.emails.send(message),
+    logEmail: (status, extra) => logEmailToFirestore(db, plan.to, plan.subject, decoded.uid, status, plan.leadId, companyId, extra),
+  });
+  res.status(result.status).json(result.json);
+}
 
 /**
  * sendEstimateEmail — HTTP function (POST, authenticated)

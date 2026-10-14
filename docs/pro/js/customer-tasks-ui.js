@@ -1707,11 +1707,12 @@ async function loadCommunicationLog(leadId) {
         date: data.date?.toDate ? data.date.toDate() : new Date(data.date),
         subject: smsText || 'Text Message',
         preview: smsText.substring(0, 100),
-        status: data.status || 'sent',
+        status: data.refused === true ? 'not sent \u2014 consent declined' : (data.status || 'sent'),
         fromUid: data.uid || null,
         // An outbound text: a STOP reply to it may have landed on the
         // sender's own phone (review R2-3-1) — offer "They replied STOP".
-        outbound: (data.status || 'sent') !== 'received',
+        // A refused text (declined consent) never left: no "They replied STOP".
+        outbound: (data.status || 'sent') !== 'received' && data.refused !== true,
       });
     });
 

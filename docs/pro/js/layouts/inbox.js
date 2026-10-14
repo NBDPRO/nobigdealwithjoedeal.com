@@ -293,7 +293,10 @@
     var rows = [];
     (sms || []).forEach(function (d) {
       var inb = d.direction === 'inbound' || d.status === 'received';
-      rows.push({ dir: inb ? 'in' : 'out', channel: 'text', at: toMs(d.date || d.sentAt), body: String(d.body || d.message || '') });
+      // A text the server REFUSED (declined consent, C-7) was never sent: say so
+      // instead of drawing it as an ordinary outbound bubble.
+      var refused = d.refused === true ? 'Not sent — consent declined: ' : '';
+      rows.push({ dir: inb ? 'in' : 'out', channel: 'text', at: toMs(d.date || d.sentAt), body: refused + String(d.body || d.message || '') });
     });
     (emails || []).forEach(function (d) {
       rows.push({ dir: d.direction === 'inbound' ? 'in' : 'out', channel: 'email', at: toMs(d.date || d.sentAt), body: String(d.subject || 'Email') });

@@ -86,6 +86,7 @@
     "numbers-you-can-trust-2026-10-04.test.js",
     "deposit-draft-2026-10-03.test.js",
     "doc-drafts-2026-10-13.test.js",
+    "send-bound-to-draft-2026-10-13.test.js",
     "tenant-path-locks-2026-10-05.test.js",
     "money-getting-paid-2026-10-03.test.js",
     "signed-price-r6-2026-10-07.test.js",
@@ -270,6 +271,7 @@
     "call-center-logic-2026-10-01.test.js",
     "call-center-ingest-2026-10-01.test.js",
     "call-center-notes-2026-10-01.test.js",
+    "call-center-provider-outage-2026-10-13.test.js",
     "offline-safety-2026-10-04.test.js",
     "sw-offline-shell-2026-10-04.test.js",
     "five-tier-crm-2026-10-02.test.js",
@@ -307,6 +309,7 @@
     "never-forget-server-2026-10-13.test.js",
     "needs-you-lifecycle-fixes-2026-10-13.test.js",
     "needs-you-volume-sim-2026-10-13.test.js",
+    "ping-volume-2026-10-13.test.js",
     "promise-channel-2026-10-13.test.js",
     "ai-automations-server-2026-10-04.test.js",
     "ai-automations-client-2026-10-04.test.js",
@@ -369,6 +372,7 @@
     "sms-outbox-client.test.js",
     "sms-outbox-server.test.js",
     "sms-send-optout-order.test.js",
+    "sms-consent-declined-2026-10-13.test.js",
     "email-unsubscribe.test.js",
     "viewer-callables.test.js",
     "state-store.test.js",
@@ -570,7 +574,8 @@
     "firebase-sdk-vendored-2026-10-04.test.js",
     "paid-in-full-supplements-r6-2026-10-07.test.js",
     "auto-theme-rules.test.js",
-    "visit-recorder-2026-10-13.test.js"
+    "visit-recorder-2026-10-13.test.js",
+    "visit-capture-pipeline-2026-10-13.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

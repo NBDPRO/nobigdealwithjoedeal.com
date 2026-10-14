@@ -1,5 +1,14 @@
 # Docs to review: stage-triggered email drafts (2026-10-13)
 
+> **Update 2026-10-13 (later): send is now bound to the draft.** The "Open"
+> item under Review round 1, the rules line ("client update limited to
+> `status, subject, body, sentAt, dismissedAt`") and the warranty-tier line
+> below are superseded by
+> [SEND-BOUND-TO-DRAFT-2026-10-13](SEND-BOUND-TO-DRAFT-2026-10-13.md): the
+> server sends the draft (recipient + kind from the draft, gates + atomic claim
+> server-side), the browser can no longer write `sent`, "Mark sent" writes
+> `copied`, and the warranty year comes only from the signed estimate.
+
 Jo's ask: when a job hits a stage, draft the customer email that belongs to
 that moment and park it on the customer card for review. **Nothing is sent
 without Jo's tap.**

@@ -62,6 +62,13 @@ const { pickLeadForInbound } = require('./inbound-sms-route-logic');
 // activity. Pure; the Firestore reads that feed it live in queuedSendGate().
 const Outbox = require('./sms-outbox-guard');
 
+// C-7 (audit 2026-10-13, Jo: option A): a number whose form DECLINED texting
+// is refused unless it texted us inside DECLINED_REPLY_WINDOW_DAYS. One
+// decision, asked by every server send path (complianceGate for sendSMS /
+// sendQueuedSMS, onAiDraftApproved here; phone-text-check.js for the device
+// hand-off). tests/sms-consent-declined-2026-10-13.test.js keeps the ledger.
+const ConsentDeclined = require('./sms-consent-declined');
+
 // Per-tenant daily cap on texts to numbers the tenant has NEVER texted before
 // (see handleSendSMS). Generous for real lead flow, tight against fishing.
 const NEW_NUMBERS_PER_TENANT_PER_DAY = 40;
@@ -270,6 +277,26 @@ async function logSMSToFirestore(db, to, body, uid, leadId = null, status = 'sen
     await db.collection('sms_log').add(row);
   } catch (e) {
     logger.warn('sms_log_write_failed', { err: e.message });
+  }
+}
+
+/**
+ * Was this number already refused (declined consent) in the last 10 minutes?
+ * One visible row per burst: a rep tapping Send five times, or an outbox
+ * retrying, must not fill the number's recent-activity page with refusals.
+ * Best-effort by design: on a read error the caller logs the row anyway.
+ */
+async function recentRefusalRow(db, to, tenantKey) {
+  try {
+    const key = OptOut.optOutKey(to);
+    if (!key || !tenantKey) return false;
+    const since = new Date(Outbox.nowMs() - 10 * 60 * 1000);
+    const snap = await db.collection('sms_log')
+      .where('toDigits', '==', key).where('companyId', '==', tenantKey)
+      .where('date', '>', since).orderBy('date', 'desc').limit(10).get();
+    return snap.docs.some((d) => (d.data() || {}).refused === true);
+  } catch (e) {
+    return false;
   }
 }
 
@@ -730,6 +757,29 @@ async function complianceGate(db, decoded, a) {
     if (body) body = withKnockFooter(body, company);
   }
 
+  // 2b. Declined consent (C-7). Number-level, inside the caller's tenant: the
+  //     lead the request names is only a candidate. A door-knock text is
+  //     exempt — its own explicit `smsConsent === true` (checked above) is
+  //     a fresher, express yes. STOP / Do Not Text already answered upstream.
+  if (!a.knockId) {
+    const cd = await ConsentDeclined.decide(db, {
+      phone: a.to,
+      lead: a.lead || null,
+      leadId: a.leadId || null,
+      tenants: a.tenants || [TextingGate.tenantKeyOf(decoded), decoded && decoded.uid],
+      kind: a.kind || 'reply',
+      nowMs: Outbox.nowMs(),
+      logger,
+    });
+    if (!cd.allowed) {
+      const unverified = cd.code === ConsentDeclined.CODES.UNVERIFIED;
+      return {
+        respond: { status: unverified ? 503 : 403, body: { error: cd.message, code: cd.code, reason: cd.code } },
+        consentRefusal: cd,
+      };
+    }
+  }
+
   // 3. Texting hours in the homeowner's local time. A queued send is held
   //    for this inside queuedSendGate (409 held quiet_hours) instead.
   if (a.live) {
@@ -901,8 +951,22 @@ async function handleSendSMS(req, res, queuedEndpoint) {
       knock: recip.knock,
       recipient: recipientRec,
       live: !queued,
+      lead: recip.lead,
+      leadId: recip.leadId,
+      kind: ConsentDeclined.kindForSource(req.body && req.body.source),
     });
     if (compliance.respond) {
+      // A declined-consent refusal leaves a visible 'failed' row with its
+      // reason code on the customer's Comm Log: never a silent drop, never
+      // 'sent'. ('failed' is what the outbox activity check already ignores.)
+      if (compliance.consentRefusal && compliance.consentRefusal.code === ConsentDeclined.CODES.DECLINED
+        && !(await recentRefusalRow(getFirestore(), to, TextingGate.tenantKeyOf(decoded)))) {
+        await logSMSToFirestore(getFirestore(), to, body, decoded.uid, recip.leadId, 'failed', null,
+          TextingGate.tenantKeyOf(decoded), {
+            failureReason: ConsentDeclined.CODES.DECLINED, refused: true,
+            source: ConsentDeclined.cleanSource(req.body && req.body.source) || null,
+          });
+      }
       res.status(compliance.respond.status).json(compliance.respond.body);
       return;
     }
@@ -1732,7 +1796,9 @@ exports.incomingSMS = onRequest(
               .orderBy('date', 'desc')
               .limit(OUTBOUND_SCAN)
               .get();
-            const sentRows = out.docs.map(x => x.data()).filter(x => x && x.status !== 'received');
+            // A REFUSED text (declined consent, C-7) left a 'failed' row but
+            // never reached anyone: it must not "establish" a thread here.
+            const sentRows = out.docs.map(x => x.data()).filter(x => x && x.status !== 'received' && x.refused !== true);
             const sent = sentRows[0];
             c.lastOutboundAt = sent ? tsMillis(sent.date) : null;
             const oldest = sentRows.length ? sentRows[sentRows.length - 1] : null;
@@ -2390,6 +2456,16 @@ exports.onAiDraftApproved = onDocumentUpdated(
       lead = leadSnap.exists ? (leadSnap.data() || {}) : {};
     } catch (e) {
       await fail('texting_check_error', e && e.message); return;
+    }
+    // C-7: a number whose form declined texting is answered only inside the
+    // inbound window. An approved AI draft IS a reply to an inbound text, so
+    // it is a 'reply' send; fail-closed on an unreadable check.
+    {
+      const cd = await ConsentDeclined.decide(db, {
+        phone: to, lead, leadId, tenants: [TextingGate.tenantKeyOfRecord(after), after.userId, lead.companyId, lead.userId],
+        kind: 'reply', nowMs: Outbox.nowMs(), logger,
+      });
+      if (!cd.allowed) { await fail(cd.code, cd.message); return; }
     }
     const hours = SendWindow.checkRecipientWindow(Outbox.nowMs(), lead);
     if (!hours.ok) {

@@ -99,6 +99,21 @@ CEILING.localScripts += 1;
 // to load its own code; none of it is on the boot path, so blockingScripts does not move. Own line.
 CEILING.localScripts += 1;
 CEILING.localBytes += 18 * 1024;
+// +1 KB, deliberate (2026-10-14, SMS declined-consent policy, #2443): no new script tag. The consent-declined
+// banner is customer.html-only; the ~1.2 KB that reaches the dashboard is deferred sms-outbox.js / nbd-comms.js /
+// inbox.js hooks. Measured on main + #2450 + this PR: 4938704 B vs a 4938629 B ceiling (main alone 4935209 of 4936581,
+// #2450 +2 KB line, this PR +1232 B), so the combined tree sat 75 B over; +1 KB restores ~0.9 KB headroom.
+CEILING.localBytes += 1 * 1024;
+// +3 KB, deliberate (2026-10-14, visit capture PR 2): the recorder launcher grows ~1 KB (the
+// "unfiled capture" entry + attach hand-off) and visit-unfiled-today.js (~6 KB, deferred, loaded on
+// the same idle schedule as the recorder, never on the boot path) is the Today "unfiled visit" row.
+// Measured 4820 KB on the restack onto main (main alone: 4817 of 4818); ceiling keeps the same ~1 KB of slack.
+CEILING.localBytes += 3 * 1024;
+// +2 KB, deliberate (2026-10-14, send-email bound to a draft, #2450): no new script, no new tag. doc-drafts-ui.js
+// (+~90 lines: the bound-send confirm + stale/ambiguous handling) and nbd-comms.js (+43 lines: the draftId
+// hand-off) are deferred code that only runs when a draft is opened or sent. Main alone sat at 4820 of 4821 KB after
+// #2449 (visit capture PR 2) consumed the last of the headroom, so this PR measures 4822 and the ceiling keeps ~1 KB.
+CEILING.localBytes += 2 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {

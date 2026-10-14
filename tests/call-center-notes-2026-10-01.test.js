@@ -388,7 +388,9 @@ const BUSINESS = () => ({ call_type: 'customer', summary: 'Gutter leaking again;
   ok('…a spent day makes none', calls.notes === 3);
   await runTranscribe({ db, bucket, live: true, nowMs: Date.parse('2026-10-02T16:00:00Z') });
   ok('…a new day starts a fresh count', calls.notes === 3 + 7 && db.docs.get(CONFIG).factsDay === '2026-10-02' && db.docs.get(CONFIG).factsUsed === 7);
-  factsStub(() => { throw new Error('anthropic 529: overloaded'); });
+  // A call-specific model failure strikes. (A 529 / credit error does NOT any
+  // more - tests/call-center-provider-outage-2026-10-13.test.js.)
+  factsStub(() => { throw new Error('notes: no JSON'); });
   db = seedOld(5);
   r = await runTranscribe({ db, bucket, live: true, nowMs: NOW });
   ok('a model failure stops the re-read for this run (one attempt counted)', calls.notes === 1 && r.factsFailed === 1 && db.docs.get(COLLECTION + '/cube_on0').factsAttempts === 1 && !db.docs.get(COLLECTION + '/cube_on0').factsV);

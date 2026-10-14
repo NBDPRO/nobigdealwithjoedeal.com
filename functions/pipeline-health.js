@@ -36,6 +36,15 @@ function healthRows(i) {
   };
   job('copy', 'Recordings copied from Drive', W.toMs(cc.lastRunAtMs), g.ingest);
   job('transcribe', 'Transcripts + notes', W.toMs(cc.lastTranscribeAtMs), g.transcribe);
+  // The AI step is out (credit / key / provider down): the job above still
+  // "ran", so say what it could not do. Row exists only while it is out.
+  const po = cc.providerOutage;
+  if (po && po.kind) {
+    rows.push({
+      key: 'ai_notes', label: 'AI call notes', status: po.needsAction ? 'bad' : 'warn',
+      detail: String(po.reason || 'AI provider problem') + ' — since ' + ago(W.toMs(po.sinceMs), now) + '; calls are still recorded and listed, notes resume by themselves',
+    });
+  }
 
   const slot = DM.expectedWatchSlotMs(now);
   const lastWatch = W.toMs(watch.lastCheckAtMs);

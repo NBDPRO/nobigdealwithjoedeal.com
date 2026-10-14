@@ -39,6 +39,7 @@
   /** One activity doc → { time, kind, title, desc, type } or null. */
   function fromActivity(id, a) {
     if (a && typeof a === 'object' && a.type === 'voice_memo') return fromVoiceMemo(a);
+    if (a && typeof a === 'object' && a.type === 'visit' && /^visit-/.test(String(id || ''))) return fromVisit(a);
     if (a && typeof a === 'object' && a.type === 'away_handback' && /^away-/.test(String(id || ''))) return fromAwayHandBack(a);
     const m = /^(cube|sms)-/.exec(String(id || ''));
     if (!m || !a || typeof a !== 'object') return null;
@@ -57,6 +58,21 @@
       kind: text ? 'text' : 'call',
       title: (str(a.label, 120) || (text ? 'Texts' : 'Phone call')) + (!text && dur ? ' · ' + Math.floor(dur / 60) + 'm ' + String(dur % 60).padStart(2, '0') + 's' : ''),
       desc: parts.filter(Boolean).join(' — '),
+      type: 'communication',
+    };
+  }
+
+  // An in-person visit recording (functions/visit-capture.js buildAttachment,
+  // 2026-10-13): the summary + what was promised + facts that were SAID. Plain
+  // strings, like the rest (the summary is AI output from what people said).
+  function fromVisit(a) {
+    const dur = Math.round(Number(a.durationSec) || 0);
+    return {
+      time: toDate(a.startedAtMs) || toDate(a.createdAt) || new Date(0),
+      kind: 'visit',
+      icon: '\uD83C\uDFA4',
+      title: (str(a.label, 120) || 'Visit recording') + (dur ? ' \u00B7 ' + Math.floor(dur / 60) + 'm ' + String(dur % 60).padStart(2, '0') + 's' : ''),
+      desc: str(a.summary, 1500),
       type: 'communication',
     };
   }

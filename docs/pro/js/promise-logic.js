@@ -143,7 +143,7 @@
       dueBy: KINDS[x.kind].dueBy || null,
       madeYmd: today,
       madeBy: x.uid || null,
-      source: ['call', 'text', 'today', 'customer'].indexOf(x.source) !== -1 ? x.source : 'customer',
+      source: ['call', 'text', 'today', 'customer', 'visit'].indexOf(x.source) !== -1 ? x.source : 'customer',
       sourceCallId: x.sourceCallId ? String(x.sourceCallId) : null,
       missCount: 0,
       rescheduleCount: 0,

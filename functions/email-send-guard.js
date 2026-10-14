@@ -104,6 +104,65 @@ function sanitizeEmailHtml(html) {
   return s;
 }
 
+// ── Legacy-path transactional kinds (2026-10-13) ──────────────────────────
+// sendEmail used to honour ANY caller-supplied transactional `kind`, so a
+// same-company rep calling it directly with kind:'document' skipped the
+// unsubscribe gate for what was really marketing. A claimed kind is now
+// honoured only when the REQUEST carries the record that kind is about; the
+// server can verify that much (it cannot read intent). Built from every CRM
+// caller (docs/pro/js — see the caller table in documentation/projects/
+// SEND-BOUND-TO-DRAFT-2026-10-13.md):
+//   invoice, receipt   invoice-pipeline.js, invoice-reminder.js — need an
+//                      invoiceId that resolves to an invoice the caller can open
+//   estimate, proposal, portal_link, document, appointment
+//                      close-board.js, email_system.js, nbd-comms.js,
+//                      portal-link-helpers.js, smart-followup.js — need a lead
+//                      the caller can open (sendEmail already requires one)
+// 'contract' is on the suppression module's list but NO CRM caller sends it,
+// so it is not honoured here. Draft sends (draftId) never use this: their
+// kind comes from the draft.
+const LEGACY_KIND_NEEDS = Object.freeze({
+  invoice: 'invoice',
+  receipt: 'invoice',
+  estimate: 'lead',
+  proposal: 'lead',
+  portal_link: 'lead',
+  document: 'lead',
+  appointment: 'lead',
+});
+
+/**
+ * @param {string} kind    the caller's claimed kind ('' when none)
+ * @param {{lead?: object|null, invoice?: object|null}} ctx  records the caller could open
+ * @returns {string} the kind to hand to the suppression resolver: the claimed
+ *   kind when its context is present, '' (commercial) otherwise.
+ */
+function honouredKind(kind, ctx) {
+  const k = typeof kind === 'string' ? kind : '';
+  const need = Object.prototype.hasOwnProperty.call(LEGACY_KIND_NEEDS, k) ? LEGACY_KIND_NEEDS[k] : null;
+  if (!need) return '';
+  const c = ctx || {};
+  if (need === 'invoice') return c.invoice ? k : '';
+  // A lead-only kind needs the LEAD itself: an invoice alone says nothing about
+  // an estimate / portal link / appointment.
+  return c.lead ? k : '';
+}
+
+// A flag set by the app is boolean true; an import or a console edit may leave
+// 'true' / 'yes' / 1. Any of those means "do not contact" — a flag that is
+// merely spelled differently must not silently let mail through.
+function flagOn(v) {
+  if (v === true || v === 1) return true;
+  if (typeof v === 'string') return /^(true|yes|y|1|on)$/i.test(v.trim());
+  return false;
+}
+
+// A lead the rep put on the do-not-contact list (either spelling the CRM and
+// the draft queue use).
+function leadIsDoNotContact(lead) {
+  return !!lead && (flagOn(lead.doNotContact) || flagOn(lead.dnc));
+}
+
 function escapeHtml(v) {
   return String(v == null ? '' : v)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -130,6 +189,10 @@ module.exports = {
   sanitizeEmailHtml,
   plainTextToHtml,
   safeReplyTo,
+  LEGACY_KIND_NEEDS,
+  honouredKind,
+  flagOn,
+  leadIsDoNotContact,
   escapeHtml,
   normEmail,
 };

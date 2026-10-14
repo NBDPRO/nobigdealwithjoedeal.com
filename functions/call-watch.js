@@ -31,6 +31,8 @@ const CL = require('./contact-labels');
 // that live only as lead tasks. Reads in promise-channel.js, rules in -logic.
 const PC = require('./promise-channel');
 const PCL = require('./promise-channel-logic');
+// How often it may buzz (2026-10-13, audit F4/F6/F8): one card per person per day.
+const PV = require('./ping-volume-logic');
 
 const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN = defineSecret('TWILIO_AUTH_TOKEN');
@@ -175,13 +177,28 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
   const ledger = ledgerDue ? W.dailyLedger(callRows, textRows, nowMs, { lastPush: st.lastPush, problems: problems.map((p) => p.key), labels, oldRows, oldPromisesFailed, oldCapped, promisePeople: promiseRead.people, promisesFailed: promiseRead.failed }) : null;
   // Items told before and still open come round again (audit R1), short ladder.
   const retells = W.ladderRetells(callRows, textRows, st.ladder, nowMs, labels, promiseExtras);
-  const alert = W.alertFor(needs.concat(retells), tell, nowMs);
   // People owed a promise the ladder has not told yet (no entry, or the set of
   // due tasks / dates changed): ONE push, "N promises due today".
   const promiseFresh = promiseExtras.filter((x) => !W.ladderPrev(st.ladder || {}, x));
-  const counts = { needs: needs.length, retold: retells.length, problems: problems.length, told: tell.length, tasksMirrored: mirror, promisesDue: promiseRead.people.length, promisesFresh: promiseFresh.length, promisesCheckFailed: promiseRead.failed };
+  // The person card (ping-volume-logic.js): what may BUZZ. A low-value number
+  // (unknown / missed, no customer) is bell-only and belled once a day; a repeat
+  // of a kind of need the person was already pushed about today is folded into
+  // the next re-tell; a NEW kind of need always pushes. Nothing is dropped from
+  // Home / the bell / the ledger / the brief - only the extra buzz.
+  const personPings = (st.personPings && typeof st.personPings === 'object') ? st.personPings : {};
+  const facts = PV.personFacts(callRows.concat(textRows), nowMs, W.callerKey);
+  const planA = PV.planPush({ items: needs.concat(retells), pp: personPings, facts, nowMs, callerKey: W.callerKey });
+  const planP = PV.planPush({ items: promiseFresh, pp: personPings, facts, nowMs, callerKey: W.callerKey });
+  const alert = W.alertFor(planA.alertItems, tell, nowMs);
+  // A run with only low-value items and no pipeline problem is bell-only.
+  const alertBuzzes = !!alert && (planA.pushItems.length > 0 || tell.length > 0);
+  // The push names only the people who EARNED it (the bell lists everyone open
+  // from this run), so a folded repeat never rides a push as if it were news.
+  const pushAlert = alertBuzzes ? W.alertFor(planA.pushItems, tell, nowMs) : null;
+  const promisePushPeople = promiseRead.people.filter((p) => planP.pushItems.some((x) => x.key === p.key));
+  const counts = { needs: needs.length, retold: retells.length, problems: problems.length, told: tell.length, tasksMirrored: mirror, promisesDue: promiseRead.people.length, promisesFresh: promiseFresh.length, promisesCheckFailed: promiseRead.failed, bellOnly: !!alert && !alertBuzzes, lowDropped: planA.lowDropped.length };
 
-  if (!live) return Object.assign({ state: 'dry_run', alert: alert ? alert.title : null }, counts);
+  if (!live) return Object.assign({ state: 'dry_run', alert: alert ? alert.title : null, buzz: alertBuzzes }, counts);
 
   // The lead-alert ledger said "sent" for texts the carrier blocked: stamp the
   // real result on each alert_outbox row that carries the message id.
@@ -196,6 +213,7 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
   }
 
   let pushRes = null;
+  let mergedPush = false;
   if (ledger) {
     await db.collection('notifications').add({
       userId: OWNER, type: 'call_watch', title: ledger.title, message: ledger.message, priority: ledger.priority,
@@ -213,9 +231,21 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
       clickUrl: alert.clickUrl, read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
     });
     // The last rung is sticky (requireInteraction) so it stays on the lock screen.
-    const sticky = retells.some((r) => r.rung >= W.LADDER_MAX);
-    try { pushRes = await push(OWNER, alert.title.replace(/^📞 /, ''), alert.push, Object.assign({ type: 'call_watch', clickUrl: alert.clickUrl }, sticky ? { requireInteraction: 'true' } : {})); }
-    catch (e) { logger.warn('[callWatch] push failed', { err: e && e.message }); pushRes = { sent: 0, failed: 0, errors: [String(e && e.message)] }; }
+    const sticky = planA.pushItems.some((r) => r.rung >= W.LADDER_MAX);
+    if (alertBuzzes) {
+      // (e) a call alert and a promise push in the SAME run are ONE push with a
+      // combined line (08:00 used to buzz twice).
+      const pa = pushAlert || alert;
+      const merged = promisePushPeople.length ? PV.mergePush(pa, PCL.pushText(promisePushPeople)) : null;
+      const title = merged ? merged.title : pa.title.replace(/^📞 /, '');
+      const body = merged ? merged.body : pa.push;
+      const data = Object.assign({ type: 'call_watch', clickUrl: merged ? '/pro/dashboard.html#/home' : pa.clickUrl },
+        sticky ? { requireInteraction: 'true' } : {},
+        merged ? { notificationId: 'watch-' + W.etYmd(nowMs) + '-' + nowMs, promiseKeys: promisePushPeople.map((p) => p.key).join(',').slice(0, 400) } : {});
+      try { pushRes = await push(OWNER, title, body, data); }
+      catch (e) { logger.warn('[callWatch] push failed', { err: e && e.message }); pushRes = { sent: 0, failed: 0, errors: [String(e && e.message)] }; }
+      if (merged) mergedPush = true;
+    }
   }
   // The promise push (separate from the call alert, its own reached flag): a
   // push that reached 0 devices does NOT count as told - the person gets no
@@ -230,22 +260,36 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
         clickUrl: '/pro/dashboard.html#/home', read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
       });
     } catch (e) { logger.warn('[callWatch] promise bell failed', { err: e && e.message }); }
-    try { promiseRes = await push(OWNER, pt.title, pt.body, { type: 'promise_due', clickUrl: '/pro/dashboard.html#/home', notificationId: 'promise-due-' + W.etYmd(nowMs), promiseKeys: freshPeople.map((p) => p.key).join(',').slice(0, 400) }); }
-    catch (e) { logger.warn('[callWatch] promise push failed', { err: e && e.message }); promiseRes = { sent: 0, failed: 0, errors: [String(e && e.message)] }; }
+    if (mergedPush) {
+      promiseRes = pushRes;                 // one push carried both
+    } else if (promisePushPeople.length) {
+      const ppt = PCL.pushText(promisePushPeople);
+      try { promiseRes = await push(OWNER, ppt.title, ppt.body, { type: 'promise_due', clickUrl: '/pro/dashboard.html#/home', notificationId: 'promise-due-' + W.etYmd(nowMs), promiseKeys: promisePushPeople.map((p) => p.key).join(',').slice(0, 400) }); }
+      catch (e) { logger.warn('[callWatch] promise push failed', { err: e && e.message }); promiseRes = { sent: 0, failed: 0, errors: [String(e && e.message)] }; }
+    }
+    // else: every due person already has today's card for this kind of need - the
+    // bell above is the record, and the ladder marks them told (reached below).
   }
   const promiseUnreached = !!(promiseRes && typeof promiseRes === 'object' && promiseRes.sent === 0);
   // Audit R2: the push RESOLVES {sent:0} when no phone is registered or every
   // token failed. Record it, and fail the run after the state is written so
   // the heartbeat pings /fail (Healthchecks emails Jo): the bell is the only
   // thing that told him.
-  const pushUnreached = !!(alert && pushRes && typeof pushRes === 'object' && pushRes.sent === 0);
+  const pushUnreached = !!(alertBuzzes && pushRes && typeof pushRes === 'object' && pushRes.sent === 0);
   // Email rung: the third tell of an item still open also emails Jo. A failed
   // send is logged at error (the heartbeat counts it) and recorded; it never
   // blocks the state write below.
+  // One email per PERSON per day, however many of their calls reach the last
+  // rung (audit F4: a repeat caller got 4 ladder emails in two days).
   let emailRes = null;
-  const mail = W.ladderEmail(retells, nowMs);
+  const emailedKeys = [];
+  const mailRetells = retells.filter((r) => !PV.emailedToday(personPings, r.key || r.id, nowMs, facts));
+  const mail = W.ladderEmail(mailRetells, nowMs);
   if (mail && typeof email === 'function') {
-    try { await email(mail); emailRes = { atMs: nowMs, ok: true, people: mail.people }; }
+    try {
+      await email(mail); emailRes = { atMs: nowMs, ok: true, people: mail.people };
+      mailRetells.filter((r) => r.rung >= W.LADDER_MAX).forEach((r) => emailedKeys.push(r.key || r.id));
+    }
     catch (e) { emailRes = { atMs: nowMs, ok: false, error: String(e && e.message || e).slice(0, 160) }; logger.error('[callWatch] ladder email failed', { err: e && e.message }); }
   }
   // F2 (audit 2026-10-13): the rung email waits behind a REACHED push, so with a
@@ -265,6 +309,8 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
     // Once per item: the id a person was already mailed under (a promise's id
     // carries its signature, so a CHANGED set of due tasks may mail again).
     const idOf = (x) => (x.sig ? x.id + '#' + x.sig : x.id);
+    // (Its own once-per-item rule stays as the promise-channel PR set it: a phone that
+    // reaches nobody is an outage, and a CHANGED set of due tasks may mail again.)
     const items = W.highValueItems(carried).filter((x) => !unreachedEmailed[idOf(x)] && !rungKeys.has(x.key || x.id));
     const um = W.unreachedEmail(items, nowMs);
     if (um) {
@@ -278,17 +324,36 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
       }
     }
   }
+  // The person card, written AFTER the sends: a push that reached no phone does
+  // not count as told (the next run may try again).
+  const reachedOf = (r) => !!r && !(typeof r === 'object' && r.sent === 0);
+  const aReached = alertBuzzes && reachedOf(pushRes);
+  const pReached = promisePushPeople.length > 0 && reachedOf(promiseRes);
+  const pushedItems = (aReached ? planA.pushItems : []).concat(pReached ? planP.pushItems : []);
+  const personPingsNext = PV.applyRun({
+    pp: personPings, nowMs, facts,
+    pushItems: pushedItems, pushReached: pushedItems.length > 0,
+    belledLowKeys: alert ? Array.from(new Set(planA.alertItems.map((x) => x.key || x.id))).slice(0, 5)
+      .filter((k) => planA.alertItems.some((x) => (x.key || x.id) === k && PV.isLow(x))) : [],
+    emailedKeys,
+    stickyKeys: aReached ? planA.pushItems.filter((r) => r.rung >= W.LADDER_MAX).map((r) => r.key || r.id) : [],
+  });
+  const pushedKeys = new Set((aReached || (alertBuzzes && pushUnreached) ? planA.pushItems : []).map((x) => x.key || x.id));
+  const carriedRetells = retells.filter((r) => pushedKeys.has(r.key || r.id) || emailedKeys.includes(r.key || r.id));
   await stateRef.set({
-    lastCheckAtMs: nowMs, lastResult: counts, problems: problems.map((p) => p.key), problemsToldAt, toldIds,
+    lastCheckAtMs: nowMs, lastResult: counts, problems: problems.map((p) => p.key), problemsToldAt, toldIds, personPings: personPingsNext,
     ledgerYmd: ledger ? ledger.ymd : (st.ledgerYmd || null),
-    ladder: W.nextLadder(callRows, textRows, st.ladder, needs.map((n) => n.id), retells, !pushUnreached, nowMs, labels, promiseExtras,
+    // A re-tell the person card folded (no push named the person, no email went) does NOT
+    // climb a rung: it is tried again once the card has room (the next ET day at the
+    // latest), so the ladder never burns its rungs without telling anybody.
+    ladder: W.nextLadder(callRows, textRows, st.ladder, needs.map((n) => n.id), carriedRetells, !pushUnreached, nowMs, labels, promiseExtras,
       { ids: new Set(promiseFresh.map((x) => x.id)), reached: !promiseUnreached }),
     lastEmail: emailRes || (st.lastEmail || null),
     unreachedEmailed,
     lastUnreachedEmail: unreachedRes || (st.lastUnreachedEmail || null),
     lastPromisePush: promiseRes ? { atMs: nowMs, sent: promiseRes.sent != null ? Number(promiseRes.sent) : null, people: promiseFresh.length } : (st.lastPromisePush || null),
     promiseCheck: promiseRead.failed ? { failedAtMs: nowMs, error: promiseRead.error || '' } : { okAtMs: nowMs, due: promiseRead.people.length },
-    lastPush: alert ? { atMs: nowMs, sent: pushRes && pushRes.sent != null ? Number(pushRes.sent) : null, failed: pushRes && pushRes.failed != null ? Number(pushRes.failed) : null } : (st.lastPush || null),
+    lastPush: alertBuzzes ? { atMs: nowMs, sent: pushRes && pushRes.sent != null ? Number(pushRes.sent) : null, failed: pushRes && pushRes.failed != null ? Number(pushRes.failed) : null } : (st.lastPush || null),
   }, { merge: false });
   if (pushUnreached || promiseUnreached) throw new Error('callWatch: the alert reached 0 devices (no push token on file, or every token failed) — only the in-app bell was written');
   return Object.assign({ state: alert ? 'alerted' : 'quiet' }, counts);

@@ -360,7 +360,7 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
   // 5xx answers that are a server VERDICT "nothing was sent" (a check could
   // not run, or the queued-gate budget is spent): the text is certainly not
   // on the homeowner's phone. A plain 500 is not one of them.
-  const NOT_SENT_5XX = { outbox_unverified: 1, optout_unverified: 1, outbox_throttled: 1 };
+  const NOT_SENT_5XX = { outbox_unverified: 1, optout_unverified: 1, outbox_throttled: 1, consent_check_unverified: 1 };
 
   /**
    * One answer from sendQueuedSMS → the outbox's outcome vocabulary (see
@@ -483,6 +483,49 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     },
 
     /**
+     * Send a stage-triggered DRAFT (the "Docs to review" queue) through the
+     * server. The request names only {leadId, draftId} plus the rep's edited
+     * subject/body: the recipient and the email kind come from the draft on
+     * the server, which also runs every opt-out gate and claims the draft so
+     * two tabs / two people cannot both send it (functions/doc-draft-send.js).
+     *
+     * NEVER hands off to the rep's mail app: a mailto: is not a confirmed
+     * send, and the draft has its own Copy / Mark sent path.
+     *
+     * @returns {Promise<{success:boolean, mode:'platform', id?:string,
+     *   error?:string, message?:string, status?:number, draftStatus?:string,
+     *   sendState?:string, unconfirmed?:boolean}>}
+     *   unconfirmed: true = the request may have reached the server (network
+     *   drop / abort / server said it could not confirm). The caller must
+     *   refresh the draft, not offer a retry.
+     */
+    async sendDraftEmail(args) {
+      const a = (args && typeof args === 'object') ? args : {};
+      if (!a.leadId || !a.draftId) return { success: false, mode: 'platform', error: 'bad-request', message: 'Missing customer or draft.' };
+      const payload = { leadId: String(a.leadId), draftId: String(a.draftId) };
+      if (typeof a.subject === 'string') payload.subject = a.subject;
+      if (typeof a.body === 'string') payload.body = a.body;
+      const plat = await _platformPost('sendEmail', payload);
+      if (plat.ok) {
+        if (window.showToast) window.showToast('Email sent', 'success');
+        return {
+          success: true, mode: 'platform',
+          id: (plat.data && plat.data.id) || null,
+          draftStatus: (plat.data && plat.data.draftStatus) || 'sent',
+          bookkeeping: (plat.data && plat.data.bookkeeping) || 'ok',
+        };
+      }
+      return {
+        success: false, mode: 'platform', status: plat.status,
+        error: plat.code || plat.error || 'send-failed',
+        message: plat.error || 'Could not send.',
+        // status 0 = no answer at all (offline / 25s abort): the request may
+        // have been processed. 'send_unconfirmed' = the server said so.
+        unconfirmed: plat.status === 0 || plat.code === 'send_unconfirmed',
+      };
+    },
+
+    /**
      * Send SMS via platform (Twilio) with sms: protocol fallback.
      * @returns {Promise<{success:boolean, mode:string, sid?:string, error?:string}>}
      */
@@ -525,6 +568,10 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
             leadId: leadId || undefined,
             knockId: knockId || undefined,
             clientMsgId: clientMsgId || undefined,
+            // What this text IS ('review_request', 'winback', ...). The server
+            // refuses a campaign text to a number whose form declined texting
+            // even when they texted first (sms-consent-declined.js).
+            source: (args && typeof args.source === 'string' && args.source) ? args.source.slice(0, 40) : undefined,
           });
         if (plat.status === 0 && _outbox() && user) {
           // "May have gone" only when a request can actually have left: not
@@ -604,7 +651,7 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       // not run — blocks the hand-off. Resolved at CALL time (script order).
       const PS = window.NBDPhoneShare;
       const chk = (PS && typeof PS.checkText === 'function')
-        ? await PS.checkText(leadId ? { phone: to, leadId } : { phone: to, recipient: 'number' })
+        ? await PS.checkText(leadId ? { phone: to, leadId, source: args.source } : { phone: to, recipient: 'number', source: args.source })
         : null;
       if (!chk || chk.ok !== true) {
         const msg = (chk && chk.reason)
@@ -661,6 +708,9 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       // An edit names the id(s) it replaces; the server holds it if one of
       // them reached Twilio after all.
       if (Array.isArray(rec.supersedes) && rec.supersedes.length) payload.supersedes = rec.supersedes.slice(-5);
+      // The text's own label survives the queue: a campaign text stays a
+      // campaign when replayed (declined-consent policy, sms-consent-declined.js).
+      if (typeof rec.source === 'string' && rec.source) payload.source = rec.source.slice(0, 40);
       if (opts.overrideStale === true) payload.overrideStale = true;
       if (opts.overrideActivity === true) payload.overrideActivity = true;
       return _queuedOutcome(await _platformPost(QUEUED_FN, payload));

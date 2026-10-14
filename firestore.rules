@@ -857,9 +857,21 @@ service cloud.firestore {
       //   read    lead owner / same-company STAFF / platform admin — never a
       //           viewer or a rep who does not own the lead (it carries the
       //           customer's address and the money in a receipt);
-      //   update  only while it is still a draft, only status / subject /
-      //           body / sentAt / dismissedAt, and status may only go to
-      //           'sent' or 'dismissed' — a sent or dismissed draft is final;
+      //   update  (2026-10-13, send bound to the draft) the browser can no
+      //           longer say a draft was sent. The SERVER (sendEmail with a
+      //           draftId, admin SDK) is the only writer of 'sending' / 'sent'
+      //           / sentAt / messageId / the claim fields. A client may:
+      //             - while status is 'draft': edit subject / body, move to
+      //               'dismissed', or to 'copied' ("I sent it myself,
+      //               outside the CRM" — the Thumbtack / Yelp / text path);
+      //             - while status is 'failed' (a marker): dismiss it;
+      //             - while status is 'sending' AND the server has given up
+      //               waiting (sendState 'check_provider', or 'sent_unrecorded'
+      //               = it went out but could not be marked) or the claim is
+      //               over 5 minutes old: move it to 'copied' or 'dismissed'
+      //               — never back to 'draft', so an unconfirmed send is
+      //               never silently retried.
+      //           A sent / copied / dismissed draft is final.
       //   create / delete  never from a client (a forged draft would sit in
       //           the owner's review queue looking like the system's).
       match /doc_drafts/{draftId} {
@@ -870,14 +882,30 @@ service cloud.firestore {
           && (isAdmin()
               || isOwner(get(/databases/$(database)/documents/leads/$(leadId)).data.userId)
               || (isCompanyStaff() && parentLeadInMyCompany(leadId)))
-          && resource.data.status in ['draft', 'failed']
-          && request.resource.data.status in ['draft', 'sent', 'dismissed']
-          && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['status', 'subject', 'body', 'sentAt', 'dismissedAt'])
-          && request.resource.data.subject is string && request.resource.data.subject.size() <= 300
-          && request.resource.data.body is string && request.resource.data.body.size() <= 10000
-          && (!('sentAt' in request.resource.data) || request.resource.data.sentAt == null || request.resource.data.sentAt is timestamp)
-          && (!('dismissedAt' in request.resource.data) || request.resource.data.dismissedAt == null || request.resource.data.dismissedAt is timestamp);
+          && (
+            (resource.data.status == 'draft'
+              && request.resource.data.status in ['draft', 'dismissed', 'copied']
+              && request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(['status', 'subject', 'body', 'dismissedAt', 'copiedAt'])
+              && request.resource.data.subject is string && request.resource.data.subject.size() <= 300
+              && request.resource.data.body is string && request.resource.data.body.size() <= 10000
+              && (!('copiedAt' in request.resource.data) || request.resource.data.copiedAt == null || request.resource.data.copiedAt is timestamp)
+              && (!('dismissedAt' in request.resource.data) || request.resource.data.dismissedAt == null || request.resource.data.dismissedAt is timestamp))
+            || (resource.data.status == 'failed'
+              && request.resource.data.status == 'dismissed'
+              && request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(['status', 'dismissedAt'])
+              && (!('dismissedAt' in request.resource.data) || request.resource.data.dismissedAt == null || request.resource.data.dismissedAt is timestamp))
+            || (resource.data.status == 'sending'
+              && request.resource.data.status in ['copied', 'dismissed']
+              && request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(['status', 'dismissedAt', 'copiedAt'])
+              && (resource.data.get('sendState', '') in ['check_provider', 'sent_unrecorded']
+                  || (resource.data.get('sendingAt', null) is timestamp
+                      && request.time > resource.data.sendingAt + duration.value(5, 'm')))
+              && (!('copiedAt' in request.resource.data) || request.resource.data.copiedAt == null || request.resource.data.copiedAt is timestamp)
+              && (!('dismissedAt' in request.resource.data) || request.resource.data.dismissedAt == null || request.resource.data.dismissedAt is timestamp))
+          );
         allow create, delete: if false;
       }
       match /notes/{noteId} {
@@ -1753,9 +1781,11 @@ service cloud.firestore {
         function vcStr(d, k, max) {
           return d.get(k, null) == null || (d[k] is string && d[k].size() <= max);
         }
-        function vcShapeOk(d) {
-          return d.keys().hasOnly(vcKeys())
-            && d.keys().hasAll(['startedAtMs', 'status', 'source', 'consentMode'])
+        // The per-field checks, valid for a whole doc that may ALSO carry
+        // server-owned fields (PR 2: transcript, notes, suggestions, pipelineStatus,
+        // ...). Only create pins the key set; update pins what CHANGED.
+        function vcFieldsOk(d) {
+          return d.keys().hasAll(['startedAtMs', 'status', 'source', 'consentMode'])
             && visitId.matches('^[A-Za-z0-9_-]{8,64}$')
             && d.startedAtMs is number && d.startedAtMs > 0
             && d.status in ['recording', 'stored', 'uploading', 'uploaded', 'failed', 'discarded']
@@ -1783,16 +1813,32 @@ service cloud.firestore {
                 || (d.audioPath is string
                     && d.audioPath.matches('^audio/' + uid + '/_inbox/' + visitId + '\\.(webm|m4a|ogg|mp3|wav)$')));
         }
+        function vcShapeOk(d) {
+          return d.keys().hasOnly(vcKeys()) && vcFieldsOk(d);
+        }
+        // An update may change allowlisted keys only. Comparing the CHANGED keys
+        // (not the whole doc) is what lets the server's own fields sit on the doc
+        // while the phone keeps patching its upload state - and still means a
+        // client can never write or alter one of them.
+        function vcChangedOk() {
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(vcKeys());
+        }
+        // A leadId containing "/" would be spliced into get(/leads/$(leadId)) as extra path
+        // segments (leads/LA/activity/LB), and could pass as "a lead I own" while the
+        // server resolved the same string to a different document. Ids only.
         function vcLeadOk(d) {
-          return d.get('leadId', null) == null || leadReachable(d.leadId);
+          return d.get('leadId', null) == null
+            || (d.leadId is string && !d.leadId.matches('.*[/].*') && leadReachable(d.leadId));
         }
         allow read: if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) && notViewer()
           && vcShapeOk(request.resource.data)
           && vcLeadOk(request.resource.data);
         allow update: if isOwner(uid) && notViewer()
-          && vcShapeOk(request.resource.data)
+          && vcChangedOk()
+          && vcFieldsOk(request.resource.data)
           && request.resource.data.startedAtMs == resource.data.startedAtMs
+          && request.resource.data.consentMode == resource.data.consentMode
           && vcLeadOk(request.resource.data);
         allow delete: if (isOwner(uid) && notViewer()) || isAdmin();
       }
