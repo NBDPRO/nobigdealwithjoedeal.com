@@ -21,6 +21,8 @@ const CANNED = {
   // no pending team invite and no third-party integrations connected.
   claimInvite: () => ({ claimed: false, reason: 'no_invite', sample: true }),
   integrationAvailability: () => ({ configured: {}, sample: true }),
+  // Live feature flags are an owner/admin readout of the real deploy; the sample has none.
+  flagStatus: () => ({ flags: [], groups: [], committedAvailable: false, sample: true }),
   getGameCard: () => ({ ok: false, sample: true, reason: 'Leaderboards fill in from a real team.' }),
   // Wave 2: reopening a generated document from the customer's Documents
   // list. The real callable reads the saved HTML out of Storage after an

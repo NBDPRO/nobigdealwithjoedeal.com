@@ -138,6 +138,21 @@ function makeDb(S) {
     },
     doc: (p) => pathDoc(p),
     getAll: async (...refs) => Promise.all(refs.map((r) => r.get())),
+    // collectionGroup('tasks') over leads/<id>/tasks/<id> path docs (the promise channel's read).
+    collectionGroup(n) {
+      const f = [];
+      const self = {
+        where(field, op, v) { f.push([field, op, v]); return self; },
+        async get() {
+          if (S.failTaskRead) throw new Error('simulated: collectionGroup(tasks) unavailable');
+          const docs = Object.keys(S.docs).map((p) => { const m = /^leads\/([^/]+)\/tasks\/([^/]+)$/.exec(p); return m && n === 'tasks' ? { p, leadId: m[1], id: m[2] } : null; })
+            .filter(Boolean).filter((x) => f.every(([k, op, v]) => (op === '==' ? S.docs[x.p][k] === v : true)))
+            .map((x) => ({ id: x.id, data: () => S.docs[x.p], ref: { parent: { parent: { id: x.leadId } } } }));
+          return { size: docs.length, docs, forEach: (fn) => docs.forEach(fn) };
+        },
+      };
+      return self;
+    },
   };
   return db;
 }
@@ -172,14 +187,14 @@ function simulate(o) {
     if (p.leadId) S.docs['leads/' + p.leadId] = { firstName: p.name, userId: OWNER, companyId: OWNER, phoneDigits: p.digits };
   });
 
-  const day = (t) => { const y = etYmd(t); return M.days[y] || (M.days[y] = { push: 0, watchPush: 0, urgentPush: 0, thursdayPush: 0, bell: 0, ledgerBell: 0, email: 0, ladderEmail: 0, sweepEmail: 0, briefEmail: 0, thursdayEmail: 0, reminderPushes: 0 }); };
+  const day = (t) => { const y = etYmd(t); return M.days[y] || (M.days[y] = { push: 0, watchPush: 0, urgentPush: 0, thursdayPush: 0, bell: 0, ledgerBell: 0, email: 0, ladderEmail: 0, sweepEmail: 0, briefEmail: 0, thursdayEmail: 0, reminderPushes: 0, promisePush: 0, unreachedEmail: 0 }); };
   const pp = (key, t) => { const k = key + '|' + etYmd(t); let r = M.perPersonDay.get(k); if (!r) { r = { key, ymd: etYmd(t), push: 0, email: 0, bell: 0 }; M.perPersonDay.set(k, r); } return r; };
   function ping(ch, src, keys, ids, t, whys) {
     events.push({ t, ch, src, keys: keys || [], ids: ids || [], whys: whys || [] });
     const d = day(t);
-    if (ch === 'push') { d.push++; if (src === 'watch') d.watchPush++; else if (src === 'urgent') d.urgentPush++; else if (src === 'thursday') d.thursdayPush++; }
+    if (ch === 'push') { d.push++; if (src === 'watch') d.watchPush++; else if (src === 'urgent') d.urgentPush++; else if (src === 'thursday') d.thursdayPush++; else if (src === 'promise') d.promisePush++; }
     if (ch === 'bell') { d.bell++; if (src === 'ledger') d.ledgerBell++; }
-    if (ch === 'email') { d.email++; if (src === 'ladder') d.ladderEmail++; if (src === 'sweep') d.sweepEmail++; if (src === 'brief') d.briefEmail++; if (src === 'thursday') d.thursdayEmail++; }
+    if (ch === 'email') { d.email++; if (src === 'ladder') d.ladderEmail++; if (src === 'sweep') d.sweepEmail++; if (src === 'brief') d.briefEmail++; if (src === 'thursday') d.thursdayEmail++; if (src === 'unreached') d.unreachedEmail++; }
     const uniq = Array.from(new Set(keys || []));
     uniq.forEach((k) => { const r = pp(k, t); r[ch]++; });
     if (ch === 'push') (ids || []).forEach((id) => { const r = M.perId.get(id) || { push: 0, email: 0, firstAt: t, lastAt: t, ts: [] }; r.push++; r.lastAt = t; r.ts.push(t); M.perId.set(id, r); });
@@ -197,7 +212,7 @@ function simulate(o) {
   let bellSrc = 'urgent', bellKeys = [];
   S.onBell = (v) => {
     const isLedger = /^🗒/.test(String(v.title || ''));
-    ping('bell', isLedger ? 'ledger' : bellSrc, isLedger ? [] : bellKeys, [], clock.now);
+    ping('bell', isLedger ? 'ledger' : (v.type === 'promise_due' ? 'promise' : bellSrc), isLedger || v.type === 'promise_due' ? [] : bellKeys, [], clock.now);
   };
 
   const storedSeen = new Set();
@@ -312,11 +327,12 @@ function simulate(o) {
       if (mi === 0) await textNotes(t);
       // crons
       if (h === 6 && mi === 45) {
-        const g = await CC.gatherSweep({ db, nowMs: t });
+        const g = await CC.gatherSweepWithPromises({ db, nowMs: t });
+        M.briefs = M.briefs || {}; M.briefs[etYmd(t)] = g;
         if (g.items.length) ping('email', 'brief', g.items.map((i) => (i.leadId ? 'lead:' + i.leadId : 'num:' + i.phoneDigits)), g.items.map((i) => 'call:' + i.callId), t);
       }
       if (h === 15 && mi === 15) {
-        const g = await CC.gatherSweep({ db, nowMs: t });
+        const g = await CC.gatherSweepWithPromises({ db, nowMs: t });
         await CC.runSweep({ db, live: true, nowMs: t, slot: 'pm', absorbed: false, send: async () => { ping('email', 'sweep', g.items.map((i) => (i.leadId ? 'lead:' + i.leadId : 'num:' + i.phoneDigits)), g.items.map((i) => 'call:' + i.callId), t); } });
       }
       if (mi === 0 && h >= 8 && h <= 20 && h % 2 === 0) {
@@ -330,6 +346,13 @@ function simulate(o) {
           r = await WATCH.runWatch({
             db, nowMs: t, live: true,
             push: async (uid, title, body, data) => {
+              if (data && data.type === 'promise_due') {
+                const pk = String(data.promiseKeys || '').split(',').filter(Boolean);
+                const pres = o.pushDead ? { sent: 0, failed: 0, errors: [] } : { sent: 1 };
+                ping('push', 'promise', pk, pk.map((k) => 'promise:' + k.replace(/^lead:/, '')), t, ['promise']);
+                M.promisePushes = (M.promisePushes || []).concat([{ t, title, body, keys: pk, reached: pres.sent > 0 }]);
+                return pres;
+              }
               bellKeys = lastItems.map((x) => x.key);
               const res = o.pushDead ? { sent: 0, failed: 0, errors: [] } : { sent: 1 };
               ping('push', 'watch', lastItems.map((x) => x.key), lastItems.map((x) => x.id), t, lastItems.map((x) => x.why));
@@ -340,12 +363,12 @@ function simulate(o) {
             email: async (m) => {
               const keys = [];
               String(m.text || '').split('\n').forEach((ln) => { const mm = /^- (P\d{4} [^ ]+(?: [^ -]+)*?) - /.exec(ln); if (mm && nameToKey.has(mm[1])) keys.push(nameToKey.get(mm[1])); });
-              ping('email', 'ladder', keys, [], t);
+              ping('email', /^Your phone did not get the alert/.test(String(m.subject || '')) ? 'unreached' : 'ladder', keys, [], t);
             },
           });
         } catch (e) { r = { state: 'threw', err: e && e.message }; }
         M.lastWatch = r;
-        if (h === 20 && S.docs['integrations/dailyLedger']) { const L0 = S.docs['integrations/dailyLedger']; M.ledgers = M.ledgers || {}; M.ledgers[etYmd(t)] = { open: L0.open, clear: L0.clear, calls: L0.calls, anomalies: (L0.anomalies || []).length }; }
+        if (h === 20 && S.docs['integrations/dailyLedger']) { const L0 = S.docs['integrations/dailyLedger']; M.ledgers = M.ledgers || {}; M.ledgers[etYmd(t)] = { open: L0.open, clear: L0.clear, calls: L0.calls, anomalies: (L0.anomalies || []).length, anomalyText: (L0.anomalies || []).join(' | ') }; }
         void before;
         // bells for the watch alert are recorded by onBell with bellKeys set at push time;
         // runWatch adds the bell BEFORE the push, so attribute it to the same items.
@@ -517,6 +540,7 @@ function printRow(s) {
 
 (async () => {
   const results = {};
+  const extraRuns = [];                                // scenarios N / O / P: the promise-channel runs
   const run = async (sc, jo, extra) => simulate(Object.assign({ name: sc.name, people: sc.people, events: sc.events, days: sc.days, hook: sc.hook, jo, seed: 9 }, extra || {}));
 
   // ── A. busy storm week ──────────────────────────────────────────────────
@@ -611,13 +635,15 @@ function printRow(s) {
       const p = person('cust', dead ? 'dead-token customer' : 'live-token customer');
       const sim = await simulate({ name: 'push ' + (dead ? 'dead' : 'live'), people: [p], jo: 'ignores', days: 2, seed: 4, pushDead: dead,
         events: [{ k: 'call', t: at(dayYmd(0), 9, 0), p, urgent: true, lag: 5 }] });
-      return { sim, emails: sim.events.filter((e) => e.ch === 'email' && e.src === 'ladder').length, attempts: sim.events.filter((e) => e.ch === 'push' && e.src === 'watch').length, bells: Object.values(sim.days).reduce((a, d) => a + d.bell, 0) };
+      return { sim, emails: sim.events.filter((e) => e.ch === 'email' && (e.src === 'ladder' || e.src === 'unreached')).length, unreached: sim.events.filter((e) => e.ch === 'email' && e.src === 'unreached').length, attempts: sim.events.filter((e) => e.ch === 'push' && e.src === 'watch').length, bells: Object.values(sim.days).reduce((a, d) => a + d.bell, 0) };
     };
     const dead = await mk(true), live = await mk(false);
     console.log('    push alive: ladder emails ' + live.emails + ', watch pushes ' + live.attempts + ', bells ' + live.bells + ' | push dead: ladder emails ' + dead.emails + ', watch push attempts ' + dead.attempts + ', bells ' + dead.bells);
     results.deadPush = { liveEmails: live.emails, deadEmails: dead.emails, deadAttempts: dead.attempts };
     ok('control: with a working push the rung-3 email goes out once', live.emails === 1, live.emails);
     finding('F-EMAIL-GATED-ON-PUSH', 'the email rung never fires when no push reaches a device (the rung advances only on a reached push)', dead.emails === 0 && dead.attempts >= 3, { emails: dead.emails, pushAttempts: dead.attempts });
+    ok('F2: a dead token produces exactly ONE email for the item over 2 days (idempotent), not one per failed run', dead.emails === 1 && dead.unreached === 1, { emails: dead.emails, unreached: dead.unreached, attempts: dead.attempts });
+    ok('F2 control: a live token sends no "phone did not get it" email', live.unreached === 0, live.unreached);
   }
 
   // ── H. longevity: open items for 50 days ────────────────────────────────
@@ -634,6 +660,7 @@ function printRow(s) {
     console.log('    urgent-no-task person: pushes ' + pushFor(keyOf(p)) + ', brief/sweep email days ' + Object.keys(dU).length + ' | promise person: pushes ' + pushFor(keyOf(q)) + ', brief/sweep email days ' + Object.keys(dP).length + ', total emails ' + emailsP + ' | Home people open: day 10 ' + open10 + ', day 30 ' + open30 + ', day 49 ' + open49 + ' | ledger bells ' + Object.values(sim.days).reduce((a, d) => a + d.ledgerBell, 0));
     results.longevity = { urgentPush: pushFor(keyOf(p)), urgentDigestDays: Object.keys(dU).length, promisePush: pushFor(keyOf(q)), promiseDigestDays: Object.keys(dP).length, promiseEmails: emailsP, open10, open30, open49 };
     finding('F-URGENT-NO-TASK', 'an urgent call on a customer with no follow-up task never reaches the brief / sweep email, yet stays open on Home', Object.keys(dU).length === 0 && open10 >= 1, { digestDays: Object.keys(dU).length, homeOpenDay10: open10 });
+    ok('F5: the urgent filed call with no task is on the brief / sweep (day 0-1) and then rolls off with the 36 h window', Object.keys(dU).length >= 1 && Object.keys(dU).length <= 3, Object.keys(dU));
     finding('F-DIGEST-REPEAT', 'an unchanged open promise is emailed twice a day (06:45 brief + 15:15 sweep) for weeks', emailsP >= 40, emailsP + ' emails about one promise');
   }
 
@@ -691,6 +718,62 @@ function printRow(s) {
     results.sheetPromise = { taskDue: task && task.dueDate, pingsAfter: after.length, ledgerOnDue: dueDayLedger };
     ok('control: the sheet created the dated promise task', !!task && task.dueDate === due && task.done !== true, task);
     finding('F-PROMISE-TASK-SILENT', 'a promise captured through the Handled sheet is a task; nothing server-side pushes, emails or counts it on its due day (ledger says nothing is open)', !!task && after.length === 0 && dueDayLedger && dueDayLedger.open === 0, { pingsAfter: after.length, ledgerOpen: dueDayLedger && dueDayLedger.open });
+    extraRuns.push({ tag: 'N', M: sim });
+    const k = keyOf(p);
+    const dueEv = (ch, src) => sim.events.filter((e) => e.ch === ch && e.src === src && e.keys.includes(k) && etYmd(e.t) === due);
+    const promisePushes = dueEv('push', 'promise');
+    const brief = dueEv('email', 'brief');
+    console.log('    AFTER: on the due day (' + due + '): 08:00-run push ' + promisePushes.length + ' (' + promisePushes.map((e) => etHour(e.t) + ':' + String(etMin(e.t)).padStart(2, '0') + ' ET').join(',') + '), brief row ' + brief.length + ', ledger open ' + (dueDayLedger && dueDayLedger.open) + ' clear ' + (dueDayLedger && dueDayLedger.clear));
+    results.sheetPromise.after = { pushes: promisePushes.length, briefRows: brief.length, ledgerOpen: dueDayLedger && dueDayLedger.open, ledgerClear: dueDayLedger && dueDayLedger.clear };
+    ok('N: a promise due Thursday handled via the sheet gets ONE 08:00 ET push on its due day', promisePushes.length === 1 && etHour(promisePushes[0].t) === 8, promisePushes.map((e) => new Date(e.t).toISOString()));
+    ok('N: ...a brief line on the due day', brief.length === 1, brief.length);
+    ok('N: ...and the 20:00 ledger counts the person and never says nothing fell through', !!dueDayLedger && dueDayLedger.open >= 1, dueDayLedger);
+    ok('N: nothing was pushed about it BEFORE the due day (a future date is parked, not nagging)', sim.events.filter((e) => e.ch === 'push' && e.src === 'promise' && etYmd(e.t) < due).length === 0);
+  }
+
+  // ── O. one person owed THREE things = one row, one push, one ledger person ──
+  console.log('O. one person owed three promises on the same day');
+  {
+    const p = person('cust', 'three promises');
+    const d0 = dayYmd(0), due = dayYmd(1);
+    const sim = await simulate({ name: 'three promises', people: [p], jo: 'ignores', days: 3, seed: 13, events: [],
+      hook: async ({ t, h, mi, S }) => {
+        if (etYmd(t) === d0 && h === 12 && mi === 0) {
+          ['a', 'b', 'c'].forEach((x, i) => {
+            S.docs['leads/' + p.leadId + '/tasks/promise-' + x] = { kind: 'promise', promiseKind: i === 2 ? 'estimate' : 'callback', text: 'Item ' + x, done: false, dueDate: due, userId: OWNER, leadId: p.leadId };
+          });
+        }
+      } });
+    extraRuns.push({ tag: 'O', M: sim });
+    const k = keyOf(p);
+    const pushes = sim.events.filter((e) => e.ch === 'push' && e.src === 'promise');
+    const first = pushes.filter((e) => etYmd(e.t) === due);
+    const brief = sim.briefs[due];
+    const rows = brief.items.filter((i) => i.leadId === p.leadId);
+    const led = (sim.ledgers || {})[due];
+    console.log('    due-day promise pushes ' + first.length + ' (title "' + ((sim.promisePushes || [])[0] || {}).title + '"), brief rows for the person ' + rows.length + ' (items listed: ' + (rows[0] ? rows[0].promises.length : 0) + '), ledger open ' + (led && led.open));
+    results.threeItems = { pushes: first.length, briefRows: rows.length, itemsInRow: rows[0] ? rows[0].promises.length : 0, ledgerOpen: led && led.open, title: ((sim.promisePushes || [])[0] || {}).title };
+    ok('O: three due items from one person = ONE push on the due day, titled by people ("1 promise due today")', first.length === 1 && sim.promisePushes[0].title === '1 promise due today', sim.promisePushes);
+    ok('O: ...ONE brief row carrying all three items', rows.length === 1 && rows[0].promises.length === 3, rows.map((r) => r.promises));
+    ok('O: ...the ledger counts ONE person', !!led && led.open === 1, led);
+    ok('O: ...and the ladder tells them 3 times at most (rung limit), then the push stops', pushes.length <= 1 + 2 + 1, pushes.length);
+  }
+
+  // ── P. a failed task read is never an all-clear ─────────────────────────
+  console.log('P. the task read fails (collectionGroup unavailable) on the due day');
+  {
+    const p = person('cust', 'unreadable');
+    const d0 = dayYmd(0), due = dayYmd(1);
+    const sim = await simulate({ name: 'task read fails', people: [p], jo: 'ignores', days: 3, seed: 14, events: [{ k: 'call', t: at(due, 9, 0), p, lag: 5 }],
+      hook: async ({ t, h, mi, S }) => {
+        if (etYmd(t) === d0 && h === 12 && mi === 0) S.docs['leads/' + p.leadId + '/tasks/promise-x'] = { kind: 'promise', promiseKind: 'callback', text: 'Call back', done: false, dueDate: due, userId: OWNER, leadId: p.leadId };
+        if (etYmd(t) === due) S.failTaskRead = true;
+      } });
+    const led = (sim.ledgers || {})[due];
+    console.log('    ledger on the due day: ' + JSON.stringify(led));
+    extraRuns.push({ tag: 'P', M: sim });
+    ok('P: a failed task read shows a promise-tasks warning on the ledger, never "nothing fell through" (a call exists today, so the warning is the only reason)', !!led && led.calls >= 1 && led.clear === false && /promise tasks/.test(led.anomalyText || ''), led);
+    ok('P: ...and says nothing is due (no push) rather than inventing a person', sim.events.filter((e) => e.ch === 'push' && e.src === 'promise' && etYmd(e.t) === due).length === 0);
   }
 
   // ── invariants across all of the above ──────────────────────────────────
@@ -701,6 +784,9 @@ function printRow(s) {
   ok('no single call / text day is pushed more than ladder (3) + due + wake times', tooMany.length === 0, tooMany.slice(0, 3));
   ok('attentive Jo: strictly fewer pushes than ignoring Jo in the storm week', results.stormAtt.pushTotal < results.stormIgnore.pushTotal, [results.stormAtt.pushTotal, results.stormIgnore.pushTotal]);
   ok('the 20:00 ledger bell is written once a day at most', Object.values(stormIgnore.days).every((d) => d.ledgerBell <= 1));
+  ok('at most ONE "N promises due today" push per day, over every run including the promise scenarios', allRuns.concat(extraRuns.map((x) => x.M)).every((M) => Object.values(M.days).every((d) => d.promisePush <= 1)));
+  const tot = (tag) => Object.values(extraRuns.find((x) => x.tag === tag).M.days).reduce((a, d) => a + d.promisePush, 0);
+  ok('N sends exactly one promise push in total; O exactly one; P (read failed) none', tot('N') === 1 && tot('O') === 1 && tot('P') === 0, [tot('N'), tot('O'), tot('P')]);
 
   if (SHOW_TABLE) { console.log('\nRESULTS_JSON ' + JSON.stringify(results)); }
   console.log('\n' + passed + ' passed, ' + failed + ' failed (' + reproduced + ' documented defects reproduce, ' + resolved + ' resolved)');

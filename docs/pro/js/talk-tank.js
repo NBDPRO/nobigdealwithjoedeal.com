@@ -222,6 +222,7 @@
         </button>
       </div>
       <div class="tt-controls">
+        <button class="tt-detail-btn" data-tt-action="openUnfiled" type="button">🎧 Unfiled visits</button>
         <input class="tt-search" type="search" placeholder="Search transcripts, summaries, customers…"
                data-tt-action="search" value="${_esc(state.search)}" />
         <div class="tt-chips">
@@ -317,6 +318,11 @@
       try {
         switch (action) {
           case 'openRecorder':  openRecorder(); break;
+          case 'openUnfiled':
+            // In-person visit recordings still waiting for a customer (visit-recorder-launcher.js).
+            if (window.NBDVisitRecorderLauncher && typeof window.NBDVisitRecorderLauncher.openUnfiled === 'function') window.NBDVisitRecorderLauncher.openUnfiled();
+            else if (typeof window.showToast === 'function') window.showToast('Visit recorder is not loaded yet. Try again in a moment.', 'error');
+            break;
           case 'setFilter':     setFilter(id); break;
           case 'jumpToLead':    jumpToLead(id); break;
           case 'archive':       ev.stopPropagation(); archive(id); break;

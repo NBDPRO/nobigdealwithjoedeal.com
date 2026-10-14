@@ -84,6 +84,16 @@ CEILING.localBytes += 24 * 1024;
 // view, and Pixel World (E2) is lazy-loaded from the core, so this is the only boot tag. (An earlier version shipped the
 // whole 18 KB inline and pushed true LF bytes past the localBytes ceiling; the loader split is why it does not.)
 CEILING.localScripts += 1;
+// +1 local tag / +18 KB, deliberate (2026-10-13, visit recorder PR 1): js/visit-recorder-launcher.js
+// (19.6 KB LF incl. comments, deferred, no boot-time reads). It owns only the ENTRY
+// POINTS: the Home Record bar, the delegated Record button, today's appointment-row button, the
+// deep link and the "is a recording still on this phone?" check (a localStorage counter, so
+// IndexedDB is not opened on a normal boot). The recorder, its IndexedDB store, the screens and the
+// stylesheet (visit-recorder*.js, css/visit-recorder.css, ~52 KB) are fetched ~4 s after the page
+// settles (requestIdleCallback), so a recording started with no signal does not need the network
+// to load its own code; none of it is on the boot path, so blockingScripts does not move. Own line.
+CEILING.localScripts += 1;
+CEILING.localBytes += 18 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {

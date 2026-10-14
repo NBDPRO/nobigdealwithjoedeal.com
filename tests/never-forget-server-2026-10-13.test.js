@@ -90,6 +90,7 @@ function mkDb(o) {
       get: async () => ({ exists: p in docs, data: () => docs[p] }),
       set: async (v, op) => { docs[p] = op && op.merge ? Object.assign({}, docs[p] || {}, v) : v; },
     }),
+    collectionGroup: () => ({ where: () => ({ get: async () => ({ docs: [] }) }) }), 
     getAll: async (...r) => Promise.all(r.map((ref) => ref.get())),
   };
   return db;
@@ -243,7 +244,7 @@ function mkDb(o) {
         return { forEach: (fn) => rows.forEach(([k, v]) => fn({ id: k.split('/')[1], data: () => v })) };
       },
     });
-    return { docs: dd, doc: mk, collection: (n) => Object.assign(query(n, [], null), { doc: (id) => mk(n + '/' + id) }), getAll: async (...r) => Promise.all(r.map((x) => x.get())) };
+    return { docs: dd, doc: mk, collection: (n) => Object.assign(query(n, [], null), { doc: (id) => mk(n + '/' + id) }), collectionGroup: () => ({ where: () => ({ get: async () => ({ docs: [] }) }) }), getAll: async (...r) => Promise.all(r.map((x) => x.get())) };
   }
   const NOTE_PROMISE = { call_type: 'customer', summary: 'Quote promised.', promises: [{ who: 'jo', text: 'Send the quote', due: null }], follow_up_date: null, urgent: false };
   const NOTE_THANKS = Object.assign({}, NOTE_PROMISE, { summary: 'Customer said thanks.' });
