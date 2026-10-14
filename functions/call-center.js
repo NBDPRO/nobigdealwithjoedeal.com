@@ -262,7 +262,11 @@ function deps() {
   if (_deps) return _deps;
   const { transcribeGroqBuffer } = require('./integrations/voice-intelligence');
   return {
-    transcribe: (buffer, ext) => transcribeGroqBuffer({ buffer, mimeType: ext === 'm4a' ? 'audio/mp4' : 'audio/mpeg', filename: 'call.' + (ext || 'm4a'), timeoutMs: 300_000, feature: 'call-center-transcribe' }),
+    transcribe: async (buffer, ext) => {
+      // Groq refuses .amr/.3gp/.aac (Cube ACR): re-encoded to FLAC first.
+      const p = await require('./call-audio-transcode').prepareForGroq(buffer, ext);
+      return transcribeGroqBuffer({ buffer: p.buffer, mimeType: p.mimeType, filename: p.filename, timeoutMs: 300_000, feature: 'call-center-transcribe' });
+    },
     notes: claudeNotes,
     // callWatch's push sender (Jo's own devices; never a customer).
     push: (uid, title, body, data) => require('./push-functions').sendCustomNotification(uid, title, body, data),

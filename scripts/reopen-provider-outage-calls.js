@@ -19,7 +19,8 @@
  *
  * Matches: status === 'stored' AND transcribeError classified as a provider
  * outage by functions/call-center-logic.js classifyProviderError (credit,
- * auth, rate limit, overloaded). A call that failed for its own reasons
+ * auth, rate limit, overloaded), OR Groq's "file must be one of the following
+ * types" refusal (Cube ACR .amr, fixed by call-audio-transcode.js). A call that failed for its own reasons
  * ("notes: no JSON", a timeout) is left alone.
  *
  * SAFETY
@@ -39,6 +40,7 @@ const L = require('../functions/call-center-logic');
 
 const COLLECTION = 'phone_calls';
 const BATCH = 400;
+const UNSUPPORTED_FORMAT_RE = /file must be one of the following types/i;
 
 /** Pure: which docs the script would reopen. rows = [{ id, data }]. */
 function planReopen(rows) {
@@ -47,7 +49,10 @@ function planReopen(rows) {
     out.scanned++;
     const d = (r && r.data) || {};
     if (d.status !== 'stored') { out.skipped++; continue; }
-    const c = L.classifyProviderError(d.transcribeError);
+    let c = L.classifyProviderError(d.transcribeError);
+    // 2026-10-14: Cube ACR .amr files were refused as a file TYPE; the pipeline
+    // now re-encodes them (call-audio-transcode.js), so those strikes are stale.
+    if (!c && UNSUPPORTED_FORMAT_RE.test(String(d.transcribeError || ''))) c = { provider: 'groq', kind: 'unsupported_format' };
     if (!c) { out.skipped++; continue; }
     out.matched.push(r.id);
     const k = c.provider + ':' + c.kind;
