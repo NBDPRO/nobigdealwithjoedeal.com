@@ -178,18 +178,21 @@ function resurfacedNumbers(rows, labels, now) {
     const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
     if (d.length !== 10) return;
     const lb = typeof labels.get === 'function' ? labels.get(d) : labels[d];
-    if (!lb || lb.policy !== 'hide') return;
+    // quiet joins the lead rule only (2026-10-13, audit C-4): a call from a
+    // quiet number that is filed on a customer comes back; quiet still never
+    // bursts (a supplier ringing three times is not news).
+    if (!lb || (lb.policy !== 'hide' && lb.policy !== 'quiet')) return;
     // A label stamp in the far future (a bad client clock, a hostile write) must
     // not park the number forever: ignore it (QA 2026-10-13).
     const base = Math.max(saneStampMs(lb.ackAtMs, t), saneStampMs(lb.updatedAtMs, t));
     if ((toMs(c.startedAtMs) || 0) <= base) return;
-    if (!by.has(d)) by.set(d, { digits: d, base, calls: [] });
+    if (!by.has(d)) by.set(d, { digits: d, base, quiet: lb.policy === 'quiet', calls: [] });
     by.get(d).calls.push(c);
   });
   by.forEach((v) => {
     const recent = v.calls.filter((c) => c.direction !== 'outbound' && (toMs(c.startedAtMs) || 0) >= t - BURST_MS);
     const onLead = v.calls.some((c) => c.leadId);
-    const reason = onLead ? 'lead' : (recent.length >= BURST_N ? 'burst' : '');
+    const reason = onLead ? 'lead' : (!v.quiet && recent.length >= BURST_N ? 'burst' : '');
     if (reason) out.push({ digits: v.digits, reason, calls: v.calls, base: v.base });
   });
   return out;

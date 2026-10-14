@@ -3126,6 +3126,41 @@ async function run() {
     throw new Error('63 lead-alert provenance: ' + s63Fail.length + ' check(s) went the wrong way:\n    ' + s63Fail.join('\n    '));
   }
 
+  // ─── 64. confirmed lead-alert recipients (2026-10-13): alertRecipients/{co} is
+  // the server's record that an owner confirmed a custom alert address, and
+  // alertRecipientTokens/{hash} holds the pending one-time links. A client that
+  // could write the first could "confirm" any inbox for NBD's sender; one that
+  // could read the second could confirm an address it does not own. Both are
+  // admin-SDK only — owner, company_admin and platform admin alike.
+  let s64Pass = 0; const s64Fail = [];
+  const x64 = async (label, want, p) => {
+    let got;
+    try { await (want === 'allow' ? assertSucceeds(p) : assertFails(p)); got = want; } catch (_) { got = want === 'allow' ? 'deny' : 'allow'; }
+    if (got === want) s64Pass++; else s64Fail.push(label + ' (wanted ' + want + ')');
+  };
+  const own64 = env.authenticatedContext('co-64', { role: 'owner', companyId: 'co-64' }).firestore();
+  const adm64 = env.authenticatedContext('t64adm', { role: 'company_admin', companyId: 'co-64' }).firestore();
+  const plat64 = env.authenticatedContext('plat64', { role: 'admin' }).firestore();
+  await x64('control: the same tenant can still create a plain lead (harness wired)', 'allow',
+    setDoc(doc(adm64, 'leads/s64-ok'), { userId: 't64adm', companyId: 'co-64', name: 'ZZ_QA recipients', meter: 'manual' }));
+  for (const [label, db64] of [['owner', own64], ['company_admin', adm64], ['platform admin', plat64]]) {
+    await x64(label + ' cannot write alertRecipients/{own company}', 'deny',
+      setDoc(doc(db64, 'alertRecipients/co-64'), { confirmed: { k: { email: 'x@example.test' } } }));
+    await x64(label + ' cannot update alertRecipients/{own company}', 'deny',
+      updateDoc(doc(db64, 'alertRecipients/co-64'), { confirmed: {} }));
+    await x64(label + ' cannot read alertRecipients/{own company}', 'deny', getDoc(doc(db64, 'alertRecipients/co-64')));
+    await x64(label + ' cannot write a pending token', 'deny',
+      setDoc(doc(db64, 'alertRecipientTokens/abc64'), { companyId: 'co-64', email: 'x@example.test', expiresAtMs: 9e15 }));
+    await x64(label + ' cannot read a pending token', 'deny', getDoc(doc(db64, 'alertRecipientTokens/abc64')));
+    await x64(label + ' cannot delete a confirmed-recipients doc', 'deny', deleteDoc(doc(db64, 'alertRecipients/co-64')));
+    await x64(label + ' cannot update a pending token', 'deny', updateDoc(doc(db64, 'alertRecipientTokens/abc64'), { expiresAtMs: 9e15 }));
+    await x64(label + ' cannot delete a pending token', 'deny', deleteDoc(doc(db64, 'alertRecipientTokens/abc64')));
+  }
+  console.log('  64: ' + s64Pass + ' confirmed-alert-recipient checks passed, ' + s64Fail.length + ' failed');
+  if (s64Fail.length) {
+    throw new Error('64 confirmed alert recipients: ' + s64Fail.length + ' check(s) went the wrong way:\n    ' + s64Fail.join('\n    '));
+  }
+
   console.log('✓ All firestore rules tests passed');
   await env.cleanup();
 }

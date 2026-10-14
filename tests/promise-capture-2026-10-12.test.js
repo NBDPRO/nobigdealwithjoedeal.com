@@ -302,13 +302,15 @@ const TODAY = '2026-10-12';
   ok('hide never swallows a promise: groups the needs-you rule dropped come back when the call carries an open promise',
     /never swallow it[\s\S]{0,900}p\.kind !== 'promise' \|\| p\.done === true\) return;[\s\S]{0,400}g\.calls\.push\(c\)/.test(home));
   ok('Today: a call promise row swaps Handled for Kept it / Move', /r\.promise \? kept :/.test(home));
-  ok('Today: Handled on a call row opens the sheet (forced next action)', /if \(a === 'handled'\) \{ handleViaSheet\(key\)/.test(home));
+  // UX walk 2026-10-13 H3: Handled is one tap with an Undo; the sheet is the
+  // secondary "I promised something".
+  ok('Today: "I promised something" on a call row opens the sheet', /if \(a === 'promised'\) \{ handleViaSheet\(key\)/.test(home));
   ok('Today: waiting actions are Nudge / Still waiting / Mark dead', /pbtn\('pnudge'/.test(home) && /pbtn\('pstill'/.test(home) && /pbtn\('pdead'/.test(home));
   ok('the sheet: Nothing owed only in handle mode, one close path, no inline handlers', /S\.mode === 'handle'\) h \+= chipBtn\('kind', 'none'/.test(ui) && !/\son[a-z]+=/i.test(ui.replace(/\/\/.*$/gm, '')) && !/<script/i.test(ui));
   ok('Nudge only ever hands off to the phone composer (NBDPhoneShare), never a send call', /NBDPhoneShare\.share\(opts\)/.test(ui) && !/phoneTextAction|sendSms|sendEmail|fetch\(/.test(ui));
   ok('Nudge is recorded only after "shared"', /if \(res && res\.shared\) \{[\s\S]{0,200}nudgePatch/.test(ui));
   ok('a failed write rolls the cached task back (never shown as saved)', /Object\.assign\(t, prev\);[\s\S]{0,120}changed\(\);\s*return false;/.test(ui));
-  ok('the bundle: css + logic before ui, in the lazy loader (no eager boot bytes)', /bundles\.promise = \['css\/promise\.css\?v=1', 'js\/promise-logic\.js\?v=2', 'js\/promise-ui\.js\?v=2'\]/.test(home)
+  ok('the bundle: css + logic before ui, in the lazy loader (no eager boot bytes)', /bundles\.promise = \['css\/promise\.css\?v=1', 'js\/promise-logic\.js\?v=2', 'js\/promise-ui\.js\?v=4'\]/.test(home)
     && !/promise: \[/.test(loader) &&!/promise-(logic|ui)\.js/.test(read('docs/pro/dashboard.html')));
   ok('customer page: a Promise button + the sheet scripts', /data-promise-open/.test(cust) && /js\/promise-logic\.js/.test(cust) && /js\/promise-ui\.js/.test(cust) && /css\/promise\.css/.test(cust));
   ok('an open promise cannot be deleted from the task list', /_t\.kind==='promise'&&_t\.done!==true\)\{[^}]*can't be deleted/.test(tasks));

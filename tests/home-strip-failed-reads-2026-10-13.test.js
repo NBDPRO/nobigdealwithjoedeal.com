@@ -110,14 +110,22 @@ const isName = (n) => (q) => q.col.name === n;
 (async () => {
   // ═══ A. the strip ═══════════════════════════════════════════════════
   console.log('\nA. the Home strip: a failed Stripe / yard-sign / review read is never a zero');
-  async function strip(data, extra) {
+  // UX walk 2026-10-13 H7: an EMPTY answer from the local cache is "checking" the
+  // first time (cold boot: the connection is still coming up) and a failure only
+  // when it is still unconfirmed UNCONFIRMED_MS later. `again` renders a second
+  // time on a fake clock 3 s later; the first answer is what a cold boot paints.
+  async function strip(data, extra, again) {
     const fb = fakeFirestore(data);
-    const env = sandbox(Object.assign({ _user: { uid: 'u1' }, _userClaims: {}, db: {} }, fb, extra || {}));
+    const clock = { t: Date.now() };
+    class FakeDate extends Date { static now() { return clock.t; } }
+    const env = sandbox(Object.assign({ _user: { uid: 'u1' }, _userClaims: {}, db: {}, Date: FakeDate }, fb, extra || {}));
     env.els.homeAttention = fakeEl('homeAttention');
     load(env, 'docs/pro/js/home-attention.js');
     const api = env.win.NBDHomeAttention;
     await api.render(true);
-    return { api, fb, strip: env.els.homeAttention, env };
+    const first = { counts: Object.assign({}, api.lastCounts), html: env.els.homeAttention.innerHTML };
+    if (again) { clock.t += 3000; await api.render(true); }
+    return { api, fb, strip: env.els.homeAttention, env, first };
   }
   const ledger = [{ id: 's1', companyId: 'u1', needsReview: true, kind: 'charge' }, { id: 's2', companyId: 'u1', needsReview: true, kind: 'charge' }];
   const signs = [{ id: 'y1', userId: 'u1', status: 'out', dueAt: NOW - DAY }];
@@ -139,7 +147,10 @@ const isName = (n) => (q) => q.col.name === n;
   ok('...and does not hide the Stripe count that did load', /2 Stripe payments/.test(yFail.strip.innerHTML));
 
   // Served from the local cache and empty = the server never answered.
-  const cacheEmpty = await strip({ stripeLedger: [], yardSigns: [], phone_calls: [], phone_text_days: [], __cache: (q) => q.col.name === 'stripeLedger' || q.col.name === 'yardSigns' });
+  const cacheArgs = { stripeLedger: [], yardSigns: [], phone_calls: [], phone_text_days: [], __cache: (q) => q.col.name === 'stripeLedger' || q.col.name === 'yardSigns' };
+  const cacheFirst = await strip(cacheArgs);
+  ok('H7: the FIRST empty-from-cache answer is "checking": no failure flag, no "NOT an all-clear"', cacheFirst.api.lastCounts.stripePending === true && cacheFirst.api.lastCounts.signsPending === true && !cacheFirst.api.lastCounts.stripeFailed && !cacheFirst.api.lastCounts.signsFailed && /Checking/.test(cacheFirst.strip.innerHTML) && !/NOT an all-clear/.test(cacheFirst.strip.innerHTML), cacheFirst.strip.innerHTML);
+  const cacheEmpty = await strip(cacheArgs, null, true);
   ok('an EMPTY answer served from the local cache is unconfirmed, not "none"', cacheEmpty.api.lastCounts.stripeFailed === true && cacheEmpty.api.lastCounts.signsFailed === true && /NOT an all-clear/.test(cacheEmpty.strip.innerHTML), cacheEmpty.strip.innerHTML);
   const cacheFull = await strip({ stripeLedger: ledger, yardSigns: signs, phone_calls: [], phone_text_days: [], __cache: (q) => q.col.name === 'stripeLedger' || q.col.name === 'yardSigns' });
   ok('control: a NON-empty cached answer is real data, no warning', !cacheFull.api.lastCounts.stripeFailed && /2 Stripe payments/.test(cacheFull.strip.innerHTML) && !/NOT an all-clear/.test(cacheFull.strip.innerHTML));
@@ -415,11 +426,13 @@ const isName = (n) => (q) => q.col.name === n;
   {
     // 5. The same cached-empty rule on calls / texts / old promises and on the invoice loader.
     const empty = { phone_calls: [], phone_text_days: [] };
-    const cc = await strip(Object.assign({ __cache: (q) => q.col.name === 'phone_calls' && q.cs.some((c) => c.op === '>=') }, empty));
+    const cc1 = await strip(Object.assign({ __cache: (q) => q.col.name === 'phone_calls' && q.cs.some((c) => c.op === '>=') }, empty));
+    ok('H7: the first empty cached calls answer is "checking", not a failure', cc1.api.lastCounts.callsPending === true && !cc1.api.lastCounts.callsFailed && !/NOT an all-clear/.test(cc1.strip.innerHTML), JSON.stringify(cc1.api.lastCounts));
+    const cc = await strip(Object.assign({ __cache: (q) => q.col.name === 'phone_calls' && q.cs.some((c) => c.op === '>=') }, empty), null, true);
     ok('an EMPTY cached recent-calls answer is a failed read, never "nobody needs you"', cc.api.lastCounts.callsFailed === true && /NOT an all-clear/.test(cc.strip.innerHTML), cc.strip.innerHTML);
-    const ct = await strip(Object.assign({ __cache: (q) => q.col.name === 'phone_text_days' }, empty));
+    const ct = await strip(Object.assign({ __cache: (q) => q.col.name === 'phone_text_days' }, empty), null, true);
     ok('...same for texts', ct.api.lastCounts.callsFailed === true);
-    const co = await strip(Object.assign({ __cache: (q) => q.col.name === 'phone_calls' && q.cs.some((c) => c.op === '<') }, empty));
+    const co = await strip(Object.assign({ __cache: (q) => q.col.name === 'phone_calls' && q.cs.some((c) => c.op === '<') }, empty), null, true);
     ok('...and for the old-promise read (its own warning)', co.api.lastCounts.oldFailed === true && !co.api.lastCounts.callsFailed && /old promises/i.test(co.strip.innerHTML));
     const rows = [call('c1', { urgent: true })];
     const cn = await strip({ phone_calls: rows, phone_text_days: [], __cache: (q) => q.col.name === 'phone_calls' && q.cs.some((c) => c.op === '>=') });

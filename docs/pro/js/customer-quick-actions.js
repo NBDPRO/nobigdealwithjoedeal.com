@@ -43,7 +43,9 @@
    * trip to the More list, not something a rep needs one thumb away. */
   // briefMeBtn (2026-10-04): "Brief me" is the pre-visit tool — one thumb away
   // standing in the driveway, not a trip to More.
-  var PRIMARY_IDS = ['callLink', 'smsBookingLink', 'emailLink', 'stageProgressBtn', 'bookingKindSelect', 'briefMeBtn'];
+  // nbd-vr-custbtn (2026-10-13): "Record visit" (visit-recorder-launcher.js) is the in-person field
+  // tool: one thumb away at the kitchen table, not a trip to More.
+  var PRIMARY_IDS = ['callLink', 'smsBookingLink', 'emailLink', 'stageProgressBtn', 'bookingKindSelect', 'briefMeBtn', 'nbd-vr-custbtn'];
   var PRIMARY_ACTIONS = ['progressStage'];
   /* 2026-10-08: the roof-day action row (#roofActionRow, directly above this
    * bar) carries Call — it taps #callLink — so on a phone the bar's own Call

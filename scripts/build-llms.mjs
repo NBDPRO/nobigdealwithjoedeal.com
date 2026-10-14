@@ -360,7 +360,7 @@ function renderLlms(currentLF) {
 
 function fullPages() {
   const pages = [
-    { rel: 'index.html' }, { rel: 'about.html' }, { rel: 'the-pledge/index.html' },
+    { rel: 'index.html' }, { rel: 'about.html' }, { rel: 'credentials.html' }, { rel: 'the-pledge/index.html' },
   ];
   // Priority order, because the total cap drops pages from the END: core
   // services (FULL_SERVICE_ORDER), the areas hub, the cost/insurance posts,

@@ -57,7 +57,8 @@ function fakeDrive() {
     },
   };
 }
-function fakeDb({ labels = [], labelsThrow = false, docs: seed } = {}) {
+function fakeDb({ labels = [], labelsThrow = false, docs: seed, leads = [] } = {}) {
+  const leadsSnap = { forEach: (fn) => leads.forEach((l) => fn({ id: l.id, data: () => l })), docs: leads.map((l) => ({ id: l.id, data: () => l })) };
   const docs = new Map(seed || []);
   const mk = (p) => ({
     id: p.split('/').pop(), path: p,
@@ -70,7 +71,7 @@ function fakeDb({ labels = [], labelsThrow = false, docs: seed } = {}) {
     doc: (p) => mk(p),
     collection: (name) => ({
       doc: (id) => (name === 'companies' ? { collection: () => labelsCol } : mk(name + '/' + id)),
-      where: () => ({ get: async () => ({ forEach: () => {}, docs: [] }), where: () => ({ orderBy: () => ({ limit: () => ({ get: async () => ({ forEach: () => {} }) }) }) }) }),
+      where: () => ({ get: async () => leadsSnap, where: () => ({ orderBy: () => ({ limit: () => ({ get: async () => ({ forEach: () => {} }) }) }) }) }),
     }),
     getAll: async (...refs) => Promise.all(refs.map((r) => r.get())),
   };
@@ -123,6 +124,27 @@ const labelDoc = (extra) => Object.assign({ id: PERSONAL, kind: 'personal', poli
   const rd = await runIngest({ db: dbD, bucket: fakeBucket(), live: false, nowMs: NOW });
   ok('a dry run counts the skip and writes nothing', rd.labelSkipped === 1 && callDocs(dbD).length === 0 && drive5.downloads.length === 0);
 
+  // Audit C-4 (2026-10-13): a number that BECAME a customer after the label is captured.
+  {
+    const ts = (ms) => ({ toMillis: () => ms });
+    const newLead = { id: 'L-new', userId: OWNER, companyId: OWNER, firstName: 'Mo', lastName: 'Example', phone: '(555) 014-7777', createdAt: ts(NOW - 3600000) };
+    const oldLead = Object.assign({}, newLead, { id: 'L-old', createdAt: ts(NOW - 30 * 86400000) });
+    const dr = fakeDrive(); setClient(dr);
+    const dbN = fakeDb({ labels: [labelDoc({ updatedAtMs: NOW - 86400000 })], leads: [newLead] }), bkN = fakeBucket();
+    await runIngest({ db: dbN, bucket: bkN, live: true, nowMs: NOW });
+    const nDoc = [...dbN.docs.entries()].find(([k, v]) => k.startsWith(COLLECTION + '/') && v.phoneDigits === PERSONAL);
+    ok('a customer created AFTER the label: the number is downloaded and stored again (status stored, leadId set)',
+      dr.downloads.includes('p1') && !!nDoc && nDoc[1].status === 'stored' && nDoc[1].leadId === 'L-new', JSON.stringify(nDoc && nDoc[1]));
+    const dr2 = fakeDrive(); setClient(dr2);
+    const dbO = fakeDb({ labels: [labelDoc({ updatedAtMs: NOW - 86400000 })], leads: [oldLead] }), bkO = fakeBucket();
+    await runIngest({ db: dbO, bucket: bkO, live: true, nowMs: NOW });
+    ok('control: a customer that existed BEFORE the label keeps capture off (Jo saw "On customer" when he chose it)', !dr2.downloads.includes('p1') && bkO.saved.size === 1);
+    const dr3 = fakeDrive(); setClient(dr3);
+    const dbA = fakeDb({ labels: [labelDoc({ updatedAtMs: NOW - 86400000, ackAtMs: NOW - 60000 })], leads: [newLead] }), bkA = fakeBucket();
+    await runIngest({ db: dbA, bucket: bkA, live: true, nowMs: NOW });
+    ok('control: "Keep it off" (ackAtMs after the customer appeared) restores capture off', !dr3.downloads.includes('p1') && bkA.saved.size === 1);
+  }
+
   console.log('C. transcribe queue');
   const stored = { userId: OWNER, companyId: OWNER, status: 'stored', phoneDigits: PERSONAL, storagePath: 'calls/x/cube-acr/2026-09-30/cube_p.m4a', startedAtMs: NOW - 3600000, sizeBytes: 10 };
   ok('runTranscribe is exported for the test', typeof runTranscribe === 'function');
@@ -147,11 +169,72 @@ const labelDoc = (extra) => Object.assign({ id: PERSONAL, kind: 'personal', poli
     ok('control: with no label the same call IS picked by the queue (not marked personal by a label)', cafter.labelCapture !== 'off' && (cr.picked === 1 || cr.failed >= 1 || cafter.transcribeAttempts > 0), JSON.stringify({ cr, cafter }));
   }
 
+  // C-4 in the transcribe queue: a number that became a customer after its label is
+  // transcribed; one whose customer predates the label is still marked personal.
+  if (typeof runTranscribe === 'function') {
+    const ts = (ms) => ({ toMillis: () => ms });
+    const mkLead = (id, createdMs) => ({ id, userId: OWNER, companyId: OWNER, firstName: 'Mo', lastName: 'Example', phone: '(555) 014-7777', createdAt: ts(createdMs) });
+    const run = async (leads, lbl) => {
+      const d = fakeDb({ labels: [lbl || labelDoc({ updatedAtMs: NOW - 86400000 })], leads, docs: [[COLLECTION + '/cube_p', stored]] });
+      d.docs.set('integrations/callCenter', { transcribeOnly: ['cube_p'] });
+      await runTranscribe({ db: d, bucket: fakeBucket(), live: true, nowMs: NOW }).catch(() => null);
+      return d.docs.get(COLLECTION + '/cube_p');
+    };
+    const aNew = await run([mkLead('L-new', NOW - 3600000)]);
+    ok('transcribe: a customer created AFTER the label keeps the stored call in the queue (not marked personal)', aNew.status !== 'personal' && aNew.labelCapture !== 'off', JSON.stringify(aNew));
+    const aOld = await run([mkLead('L-old', NOW - 30 * 86400000)]);
+    ok('transcribe control: a customer that PREDATES the label is still marked personal', aOld.status === 'personal' && aOld.labelCapture === 'off', JSON.stringify(aOld));
+    const aAck = await run([mkLead('L-new', NOW - 3600000)], labelDoc({ updatedAtMs: NOW - 86400000, ackAtMs: NOW - 60000 }));
+    ok('transcribe control: Keep-it-off after the customer appeared marks it personal again', aAck.status === 'personal', JSON.stringify(aAck));
+    const aDel = await run([Object.assign(mkLead('L-del', NOW - 3600000), { deleted: true })]);
+    ok('transcribe: a DELETED new lead is not a customer (still personal)', aDel.status === 'personal', JSON.stringify(aDel));
+  }
+
   console.log('D. text ingest');
-  const src = read('functions/text-inbox.js');
-  ok('the text ingest skips a captureOff number before building the doc', /CL\.captureOff\(labels, m\.phoneDigits\)\) \{ counts\.labelSkipped\+\+; return; \}/.test(src)
-    && src.indexOf('CL.captureOff(labels') < src.indexOf('T.buildTextDoc'));
-  ok('...after the "already filed" check, so a re-run is still a no-op', src.indexOf("if (have.has(refs[k].id)) return;") < src.indexOf('CL.captureOff(labels'));
+  {
+    // Behavioural text-ingest cases (replaces the source-regex pin, which a comment could satisfy).
+    const TM = require(path.join(ROOT, 'functions/text-inbox.js'))._test;
+    const ts2 = (ms) => ({ toMillis: () => ms });
+    const xml = '<smses><sms protocol="0" address="+15550147777" date="' + (NOW - 2 * 3600000) + '" type="1" body="hello there" contact_name="Mom" /></smses>';
+    const F = { id: 'tb1', name: 'sms-20261001100000.xml', size: '900', modifiedTime: '2026-10-01T10:00:00Z' };
+    const mkDrive = () => ({ request: async (o) => {
+      if (o.params && o.params.alt === 'media') return { data: new TextEncoder().encode(xml).buffer };
+      if (/^name = 'SMSBackupRestore'/.test(o.params.q)) return { data: { files: [{ id: 'fold', name: 'SMSBackupRestore' }] } };
+      return { data: { files: [F] } };
+    } });
+    const mkDb = (lbl, leads) => {
+      const docs = new Map();
+      const mk = (p) => ({ id: p.split('/').pop(), _p: p,
+        get: async () => ({ exists: docs.has(p), id: p.split('/').pop(), data: () => docs.get(p) }),
+        set: async (v, o) => { docs.set(p, o && o.merge ? Object.assign({}, docs.get(p) || {}, v) : v); } });
+      return { docs, doc: mk,
+        collection: (n) => ({
+          doc: (id) => (n === 'companies' ? { collection: () => ({ get: async () => ({ docs: [{ id: PERSONAL, data: () => lbl }] }) }) } : mk(n + '/' + id)),
+          where: (f, _o, v) => ({ get: async () => { const rows = n === 'leads' ? leads.filter((l) => l[f] === v) : []; return { forEach: (fn) => rows.forEach((l) => fn({ id: l.id, data: () => l })) }; } }),
+        }),
+        getAll: async (...refs) => Promise.all(refs.map((r) => r.get())),
+        batch: () => { const ops = []; return { set: (r, v) => ops.push([r._p, v]), commit: async () => { ops.forEach(([p, v]) => docs.set(p, v)); } }; } };
+    };
+    const stored2 = (d) => [...d.docs.keys()].filter((k) => k.startsWith(TM.COLLECTION + '/')).length;
+    const lead = (id, ms) => ({ id, userId: TM.OWNER, companyId: TM.OWNER, phone: '(555) 014-7777', createdAt: ts2(ms) });
+    const lbl = labelDoc({ updatedAtMs: NOW - 86400000 });
+    TM.setClient(mkDrive());
+    const dNew = mkDb(lbl, [lead('Ln', NOW - 3600000)]);
+    await TM.runTextIngest({ db: dNew, live: true, nowMs: NOW });
+    ok('text ingest: a customer created AFTER the label -> the text IS stored', stored2(dNew) === 1);
+    const dOld = mkDb(lbl, [lead('Lo', NOW - 30 * 86400000)]);
+    TM.setClient(mkDrive());
+    await TM.runTextIngest({ db: dOld, live: true, nowMs: NOW });
+    ok('text ingest control: a customer that PREDATES the label -> NOT stored', stored2(dOld) === 0);
+    const dNone = mkDb(lbl, []);
+    TM.setClient(mkDrive());
+    await TM.runTextIngest({ db: dNone, live: true, nowMs: NOW });
+    ok('text ingest control: no customer -> NOT stored (capture off)', stored2(dNone) === 0);
+    const dNoLabel = mkDb({ id: PERSONAL, kind: 'personal', policy: 'hide', capture: '', updatedAtMs: 1 }, []);
+    TM.setClient(mkDrive());
+    await TM.runTextIngest({ db: dNoLabel, live: true, nowMs: NOW });
+    ok('text ingest positive control: same text with capture NOT off IS stored', stored2(dNoLabel) === 1);
+  }
 
   console.log('E. client + rules');
   const base = { digits: PERSONAL, companyId: 'co', uid: 'u', nowMs: NOW };
@@ -169,9 +252,6 @@ const labelDoc = (extra) => Object.assign({ id: PERSONAL, kind: 'personal', poli
     /confirmPersonal\(s\); return;/.test(ui) && /Calls and texts already in the CRM stay exactly as they are/.test(ui)
     && /data-cl="personal-hide"/.test(ui) && /data-cl="personal-stop"/.test(ui));
   ok('a policy tap on an existing label keeps its capture setting', /capture === undefined && before && before\.kind === kind\) capture = before\.capture/.test(ui));
-  const cc = read('functions/call-center.js');
-  ok('ingest decides capture BEFORE the budget check and the download', cc.indexOf('CL.captureOff(labels, parsed.phoneDigits)') > 0
-    && cc.indexOf('CL.captureOff(labels, parsed.phoneDigits)') < cc.indexOf('const bytes = await download(f.id)'));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
