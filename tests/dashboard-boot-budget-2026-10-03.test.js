@@ -104,6 +104,11 @@ CEILING.localBytes += 18 * 1024;
 // the same idle schedule as the recorder, never on the boot path) is the Today "unfiled visit" row.
 // Measured 4820 KB on the restack onto main (main alone: 4817 of 4818); ceiling keeps the same ~1 KB of slack.
 CEILING.localBytes += 3 * 1024;
+// +2 KB, deliberate (2026-10-14, send-email bound to a draft, #2450): no new script, no new tag. doc-drafts-ui.js
+// (+~90 lines: the bound-send confirm + stale/ambiguous handling) and nbd-comms.js (+43 lines: the draftId
+// hand-off) are deferred code that only runs when a draft is opened or sent. Main alone sat at 4820 of 4821 KB after
+// #2449 (visit capture PR 2) consumed the last of the headroom, so this PR measures 4822 and the ceiling keeps ~1 KB.
+CEILING.localBytes += 2 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
