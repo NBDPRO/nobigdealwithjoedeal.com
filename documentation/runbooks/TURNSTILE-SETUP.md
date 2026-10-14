@@ -289,10 +289,24 @@ with it.
 
 ## Emergency
 
-`TURNSTILE_REQUIRED=true` (env, not secret) makes an *unset* secret fail
-closed — the opposite of what you want in an incident. To disable Turnstile
-enforcement quickly, destroy or blank `TURNSTILE_SECRET` and redeploy; the
-verifier returns to its unconfigured passthrough.
+**Update 2026-10-13:** `TURNSTILE_REQUIRED=true` is now set in
+`functions/.env.nobigdeal-pro` (the tracked, project-scoped env file the deploy
+reads; not a secret). An *unset or blank* `TURNSTILE_SECRET` therefore fails
+CLOSED: every lead submit and Roof Care Plan checkout gets `403
+turnstile-required`. That is the point (a cleared secret can no longer
+silently turn the CAPTCHA off) and it reverses the old emergency move.
+
+To disable Turnstile enforcement quickly in an incident:
+
+1. Set `TURNSTILE_REQUIRED=false` in `functions/.env.nobigdeal-pro`.
+2. Redeploy. The verifier then behaves as before: with the secret set it still
+   verifies tokens; to also stop verifying, blank `TURNSTILE_SECRET` in the same
+   deploy and it returns to the unconfigured passthrough.
+
+Blanking the secret alone, with the flag still `true`, takes the lead forms
+*down*. Both callers (`submitPublicLead`, `carePlanPublic`) bind the secret;
+`tests/turnstile-contract.test.js` fails if a new `verifyTurnstile` caller
+does not.
 
 ## Related
 
