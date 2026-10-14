@@ -169,6 +169,15 @@
 
   var _cache = null, _cacheKey = null, _inflight = null, _failedAt = 0;
   var RETRY_AFTER_FAIL_MS = 30000;
+  // An EMPTY snapshot served from the local cache is how a cold boot looks while
+  // the connection is still coming up: the server was never asked. It is NOT a
+  // failed read (UX walk 2026-10-13 H7: two false "NOT an all-clear" banners
+  // every boot). The first one starts a short "checking" window and a quiet
+  // re-ask; only an unconfirmed answer that is still unconfirmed after the
+  // window - or a real error - is a failure.
+  var CHECK_WINDOW_MS = 2000;
+  var RECHECK_MS = 2500;
+  var _unconfirmedSince = 0, _unconfirmedKey = '', _recheckTimer = 0;
 
   // Resolves to the invoices, or [] when they can't be loaded yet (no db /
   // user at boot, or a failed query). An empty resolve is NOT cached: callers
@@ -177,12 +186,17 @@
   function loadInvoices(opts) {
     var force = !!(opts && opts.force);
     var key = scopeKey();
+    // A "checking" window started for another account / company is not this one's.
+    if (_unconfirmedSince && _unconfirmedKey !== key) { _unconfirmedSince = 0; _failedAt = 0; }
     if (!force && _cache && _cacheKey === key) return Promise.resolve(_cache);
     if (!force && _inflight && _inflight.key === key) return _inflight.p;
     if (!force && _failedAt && Date.now() - _failedAt < RETRY_AFTER_FAIL_MS) return Promise.resolve([]);
     var db = window.db || window._db;
     var u = uid();
     if (!db || !u || !window.getDocs || !window.query || !window.where || !window.collection) {
+      // Not askable YET (boot: no db / user): unconfirmed, not failed.
+      if (!_unconfirmedSince) { _unconfirmedSince = Date.now(); _unconfirmedKey = key; }
+      scheduleRecheck(key);
       return Promise.resolve([]);
     }
     var staff = isStaff() && claims().companyId;
@@ -190,21 +204,39 @@
       ? window.query(window.collection(db, 'invoices'), window.where('companyId', '==', claims().companyId))
       : window.query(window.collection(db, 'invoices'), window.where('createdBy', '==', u));
     var p = window.getDocs(q).then(function (snap) {
-      if (scopeKey() !== key) return _cache || []; // account switched mid-flight
+      if (scopeKey() !== key) {
+        // The account / company claim arrived mid-flight (boot): this answer is for
+        // the old scope. Unconfirmed for the new one, not a failure; ask again.
+        _unconfirmedSince = Date.now(); _unconfirmedKey = scopeKey();
+        scheduleRecheck(scopeKey());
+        return _cache || [];
+      }
       // EMPTY and from the local cache (offline): the server never answered, so
       // this is not "no invoices" - do not cache it as a real empty list.
       if (snap.metadata && snap.metadata.fromCache === true && snap.docs.length === 0) {
-        _failedAt = Date.now();
+        var now = Date.now();
+        if (!_unconfirmedSince) { _unconfirmedSince = now; _unconfirmedKey = key; }
+        if (now - _unconfirmedSince >= CHECK_WINDOW_MS) {
+          // Still unconfirmed after the window: now it is a failure, and says so.
+          // (_unconfirmedSince is kept: a re-ask that is STILL unconfirmed stays
+          // failed instead of restarting the checking window and flapping.)
+          _failedAt = now;
+        } else {
+          // Not a failure yet: no failure window is opened (the next caller
+          // re-asks for real) and one quiet re-ask is scheduled so the page
+          // does not wait for somebody else to look.
+          scheduleRecheck(key);
+        }
         return _cache || [];
       }
       _cache = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
       _cacheKey = key;
-      _failedAt = 0;
+      _failedAt = 0; _unconfirmedSince = 0;
       try { window.dispatchEvent(new CustomEvent('nbd:invoices-loaded', { detail: { count: _cache.length } })); } catch (_) {}
       return _cache;
     }).catch(function (e) {
       console.warn('[NBDRevenue] invoice load failed:', e && e.message);
-      _failedAt = Date.now();
+      _failedAt = Date.now(); _unconfirmedSince = 0;
       return (_cacheKey === key && _cache) ? _cache : [];
     }).finally(function () { if (_inflight && _inflight.p === p) _inflight = null; });
     _inflight = { key: key, p: p };
@@ -213,6 +245,28 @@
 
   function cached() { return (_cache && _cacheKey === scopeKey()) ? _cache : null; }
   function invalidate() { _cache = null; _cacheKey = null; }
+  // 'ok' (rows held) | 'checking' (the first read has not been confirmed yet:
+  // say "Checking...", never a failure) | 'failed' (a real error, or still
+  // unconfirmed after the window) | 'unknown' (not asked yet).
+  function status() {
+    if (cached()) return 'ok';
+    if (_failedAt && Date.now() - _failedAt < RETRY_AFTER_FAIL_MS) return 'failed';
+    if (_unconfirmedSince && Date.now() - _unconfirmedSince < CHECK_WINDOW_MS + RECHECK_MS) return 'checking';
+    return 'unknown';
+  }
+  // A quiet re-ask ended (confirmed or finally failed): tell the listeners that
+  // were showing "Checking..." to look again. Not fired on ordinary loads.
+  function settled() {
+    try { window.dispatchEvent(new CustomEvent('nbd:invoices-settled', { detail: { status: status() } })); } catch (_) {}
+  }
+  function scheduleRecheck(key) {
+    if (_recheckTimer || typeof window.setTimeout !== 'function') return;
+    _recheckTimer = window.setTimeout(function () {
+      _recheckTimer = 0;
+      if (scopeKey() !== key || cached()) return;
+      loadInvoices({ force: true }).then(function () { settled(); }, function () { settled(); });
+    }, RECHECK_MS);
+  }
 
   try { window.addEventListener('nbd:data-refreshed', invalidate); } catch (_) {}
 
@@ -225,6 +279,7 @@
     collectedByLead: collectedByLead,
     loadInvoices: loadInvoices,
     cached: cached,
+    status: status,
     invalidate: invalidate,
     _toMs: toMs,
   };

@@ -613,6 +613,16 @@ function collectSweepItems({ calls, tasksByCallId, nowMs, todayYmd }) {
       else if (task.dueDate && task.dueDate <= todayYmd) out.push(Object.assign(base, { kind: 'due', due: task.dueDate }));
       continue;
     }
+    // F5 (audit 2026-10-13): an URGENT call on a filed customer with no
+    // follow-up task (no promise, no date: buildFollowUpTask makes none) was in
+    // neither the brief nor this email while it stayed on Home, so the ladder
+    // email's "the brief lists anything still open" was false. List it for its
+    // 36 hours like an urgent call with a task.
+    if (c.leadId) {
+      const urgentFiled = c.urgent && c.taskDone !== true && (Number(c.startedAtMs) || 0) >= nowMs - URGENT_WINDOW_MS;
+      if (urgentFiled) out.push(Object.assign(base, { kind: 'urgent', due: todayYmd }));
+      continue;
+    }
     // No customer on file: only recent calls (same window as tasks).
     if (!c.leadId && (Number(c.startedAtMs) || 0) >= nowMs - TASK_WINDOW_MS) {
       const dues = mine.map((p) => p.due).filter(Boolean).concat(c.followUpDate ? [c.followUpDate] : []).sort();
@@ -844,16 +854,16 @@ function escHtml(s) {
 }
 
 /** The sweep email. Internal (Jo only); every value escaped. */
-function buildSweepEmail({ items, todayYmd, slot }) {
+function buildSweepEmail({ items, todayYmd, slot, promiseCheckFailed }) {
   const n = items.length;
   const shown = items.slice(0, SWEEP_EMAIL_SHOW);
   const more = n - shown.length;
   const subject = (items.some((i) => i.kind === 'urgent') ? '🚨 ' : '') + 'Calls: ' + n + ' thing' + (n === 1 ? '' : 's') + ' you said you\'d do' + (slot === 'pm' ? ' (afternoon check)' : '');
-  const label = { urgent: 'Urgent', due: 'Due', nofile: 'No customer on file' };
+  const label = { urgent: 'Urgent', due: 'Due', nofile: 'No customer on file', promise: 'Promised' };
   const count = (k) => items.filter((i) => i.kind === k).length;
   const isNewLead = (i) => i.kind === 'nofile' && i.callType === 'lead' && !i.suggest;
   const newLeads = items.filter(isNewLead).length;
-  const breakdown = [['urgent', 'urgent'], ['due', 'due'], ['nofile', 'no customer on file']]
+  const breakdown = [['urgent', 'urgent'], ['due', 'due'], ['promise', 'promised'], ['nofile', 'no customer on file']]
     .filter(([k]) => count(k)).map(([k, t]) => count(k) + ' ' + t).join(' · ') +
     (newLeads ? ' (' + newLeads + ' sound like new leads not in the CRM yet)' : '');
   const hint = (i) => i.suggest ? 'Looks like ' + i.suggest.name + ' — ' + i.suggest.why + '. File it on them in one tap.'
@@ -861,10 +871,14 @@ function buildSweepEmail({ items, todayYmd, slot }) {
   // A name opens that person: the customer page, else their call's card in
   // the Call Center (call-center-view.js ?call=, 2026-10-03).
   const link = (i) => i.leadId ? APP + 'customer.html?id=' + encodeURIComponent(i.leadId) : APP + 'dashboard.html?call=' + encodeURIComponent(i.callId) + '#calls';
+  // A promise TASK row has no call to deep-link: it opens the customer.
+  const doUrl = (i) => (i.kind === 'promise' ? link(i) : deckItemUrl(i.callId));
+  const warn = promiseCheckFailed ? 'Could not check your promise tasks just now - this list may be missing some. This is NOT an all-clear.' : '';
   const when = (ms) => ms ? new Date(ms).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
   const btn = '<a href="' + escHtml(DECK_URL) + '" style="display:inline-block;background:#BD5728;color:#fff;font-weight:700;text-decoration:none;padding:11px 18px;border-radius:8px;font-size:15px">Work through all ' + n + ', one at a time →</a>';
   const html = '<div style="font-family:Arial,sans-serif;max-width:620px;color:#111">' +
     '<h2 style="margin:0 0 6px">' + escHtml(subject) + '</h2>' +
+    (warn ? '<p style="margin:0 0 10px;color:#b91c1c;font-size:13px;font-weight:700">' + escHtml(warn) + '</p>' : '') +
     '<p style="margin:0 0 10px;color:#555;font-size:13px">From your recorded calls, ' + escHtml(todayYmd) + (breakdown ? ': ' + escHtml(breakdown) : '') + '. Swipe each one done, later or snooze — it drops off.</p>' +
     '<p style="margin:0 0 16px">' + btn + '</p>' +
     shown.map((i) => '<div style="border:1px solid #ddd;border-radius:8px;padding:10px 12px;margin:0 0 10px">' +
@@ -873,13 +887,13 @@ function buildSweepEmail({ items, todayYmd, slot }) {
       (i.promises.length ? '<ul style="margin:4px 0 4px 18px;padding:0;font-size:14px">' + i.promises.map((p) => '<li>' + escHtml(p) + '</li>').join('') + '</ul>' : '') +
       (i.summary ? '<div style="font-size:13px;color:#444">' + escHtml(i.summary) + '</div>' : '') +
       (hint(i) ? '<div style="font-size:13px;color:#1d4ed8;margin-top:4px">' + escHtml(hint(i)) + '</div>' : '') +
-      '<div style="margin-top:6px;font-size:13px"><a href="' + escHtml(deckItemUrl(i.callId)) + '" style="color:#BD5728;font-weight:700">Do it →</a></div>' +
+      '<div style="margin-top:6px;font-size:13px"><a href="' + escHtml(doUrl(i)) + '" style="color:#BD5728;font-weight:700">' + (i.kind === 'promise' ? 'Open the customer' : 'Do it') + ' →</a></div>' +
       '</div>').join('') +
     (more > 0 ? '<p style="margin:4px 0 0;font-size:14px"><a href="' + escHtml(DECK_URL) + '" style="color:#BD5728;font-weight:700">+ ' + more + ' more — open the list →</a></p>' : '') +
     '</div>';
-  const text = subject + (breakdown ? '\n' + breakdown : '') + '\n\nWork through them one at a time: ' + DECK_URL + '\n\n' +
+  const text = subject + (breakdown ? '\n' + breakdown : '') + (warn ? '\n' + warn : '') + '\n\nWork through them one at a time: ' + DECK_URL + '\n\n' +
     shown.map((i) => '- [' + label[i.kind] + (i.due ? ' ' + i.due : '') + '] ' + i.who + ': ' +
-      (i.promises.length ? i.promises.join('; ') : i.summary) + '\n  ' + deckItemUrl(i.callId)).join('\n') +
+      (i.promises.length ? i.promises.join('; ') : i.summary) + '\n  ' + doUrl(i)).join('\n') +
     (more > 0 ? '\n\n+ ' + more + ' more: ' + DECK_URL : '');
   return { subject, html, text };
 }

@@ -471,7 +471,7 @@ const VERDICTS = {
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
   getConnectStatus: 'read', getDocumentHtml: 'read', getDocumentPdfUrl: 'read', getEsignEnvelopeForOwner: 'read',
   getHailHistory: 'read-paid',
-  integrationAvailability: 'read', integrationStatus: 'role-gated', listTeamMembers: 'role-gated',
+  integrationAvailability: 'read', integrationStatus: 'role-gated', flagStatus: 'role-gated', listTeamMembers: 'role-gated',
   lookupParcel: 'read-paid', markEmailUnsubscribed: 'already', mintOwnerClaims: 'role-gated',
   // Texting compliance (2026-10-05, sms-dnc.js): list is a read; add refuses a
   // viewer / member itself; remove goes through requireTeamAdmin. Proven in
@@ -486,6 +486,8 @@ const VERDICTS = {
   // (phone-text-check.js, 2026-10-06): refuses viewer / member itself before
   // any read. Proven in tests/texting-r2-fixes-2026-10-06.test.js.
   phoneTextAction: 'already',
+  // 2026-10-13: assertNotViewer + OWNER only (server-checked against companies.ownerId); the page is token-authed.
+  alertRecipients: 'already', confirmAlertRecipient: 'public',
   // Pixel World DRAFT TEXT (2026-10-11): assertNotViewer + viewer / member refused,
   // a sales_rep only for a lead they own (functions/pixel-draft.js).
   fileLeadTextDraft: 'role-gated',

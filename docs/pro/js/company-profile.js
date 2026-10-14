@@ -125,7 +125,7 @@
     // in both states (contracts carry a plain payment clause instead).
     paymentTermsProposal: _depositPolicyText(),
     paymentMethodsNoCash:
-      'All payments must be made by check, ACH transfer, or credit card. No cash payments accepted. Material delays may extend timeline.',
+      'Payment may be made by check, ACH transfer, credit card, Zelle, or cash. Material delays may extend timeline.',
 
     materialsWarrantyDisclaimer:
       'Material warranties are provided by manufacturers and are separate from NBD workmanship warranty. See warranty section below.',

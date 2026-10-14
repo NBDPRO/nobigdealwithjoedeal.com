@@ -1544,9 +1544,9 @@
             { key: 'referralCode', label: 'Referral Code', type: 'text', required: true,
               source: 'lead.referralCode', persist: PERSIST.LEAD, placeholder: 'Auto-generated or custom' },
             { key: 'bonusAmount', label: 'Referral Bonus', type: 'currency', required: true,
-              source: 'literal:250', persist: PERSIST.DOCUMENT },
+              source: 'literal:100', persist: PERSIST.DOCUMENT },
             { key: 'terms', label: 'Terms', type: 'textarea', rows: 2,
-              source: 'literal:Bonus paid upon completion of referred job. One bonus per referred customer.',
+              source: 'literal:Bonus paid when the referred job closes. One bonus per referred customer.',
               persist: PERSIST.DOCUMENT }
           ]
         }

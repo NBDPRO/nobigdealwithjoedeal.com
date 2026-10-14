@@ -501,7 +501,13 @@ function addWave4({ S, ROWS, docs, add }) {
   // Decision dates for the Kentucky insurance jobs that are paid or partly
   // paid (written decision on file, window long past). Grace Holm (signed,
   // no decision yet) keeps none: her pay link stays held.
-  const DECISION = { 22: -80, 20: -40, 18: -15 };
+  // The window is the 5th Kentucky BUSINESS day after the decision (weekends and
+  // federal holidays skipped, ky-insurance-law.js kyWindowEnd), so a payment 10
+  // calendar days later is only released on some dates (a Labor Day or Columbus
+  // Day weekend inside the gap made `Unit suites` fail from 2026-10-14 UTC).
+  // Keep every payment at least 18 days after its decision: 5 business days
+  // plus two weekends plus two holidays is at most 11 calendar days.
+  const DECISION = { 22: -92, 20: -52, 18: -15 };
   Object.keys(DECISION).forEach((n) => { lead(+n).carrierDecisionAt = date(DECISION[n]); });
   [16, 18, 20, 22].forEach((n) => { if (!lead(n).deductible) lead(n).deductible = 1000; });
 
