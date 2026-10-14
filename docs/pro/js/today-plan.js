@@ -519,13 +519,26 @@
       var promised = open.some(function (c) { return joPromises(c).length > 0; });
       if (leadId && (it.viaPhone ? (dueTasks[leadId] || promisedByLead.has(leadId)) : (promised || dueTasks[leadId]))) {
         var r = promisedRow(leadId);
+        // Done / Tomorrow on the row act on the calls whose OWN promise or
+        // follow-up task it is (UX walk 2026-10-13 H1). Any other open call of
+        // the same customer - an urgent or missed call with no promise on it -
+        // rides inside the row as its own call, flagged and with its own
+        // Handled button: it is never handled or snoozed behind a task's Done.
+        var strays = [];
         open.forEach(function (c) {
+          var cid = actionId(c);
+          var owned = joPromises(c).length > 0 || leadTasks.some(function (t) { return t && (t.id === 'cube-' + cid || t.id === 'sms-' + cid); });
           // A phone-matched call is acted on through its own rider button only: a
           // task's Done / Tomorrow must never quietly handle or snooze it.
-          if (!it.viaPhone) r.callIds.push(actionId(c));
-          joPromises(c).forEach(function (p) { var s = promiseText(p); if (s) r.promises.push(s); });
+          if (!it.viaPhone) { if (owned) r.callIds.push(cid); else strays.push(c); }
+          if (it.viaPhone || owned) joPromises(c).forEach(function (p) { var s = promiseText(p); if (s) r.promises.push(s); });
         });
         if (it.viaPhone) (r.phoneCalls = r.phoneCalls || []).push(mkCall(g, open, latest, leadId));
+        else if (strays.length) {
+          var sc = mkCall(g, strays, strays[0], leadId);
+          sc.stray = true;
+          (r.phoneCalls = r.phoneCalls || []).push(sc);
+        }
         return;
       }
       var row = mkCall(g, open, latest, leadId);

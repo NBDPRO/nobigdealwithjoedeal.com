@@ -221,7 +221,12 @@ const base = () => ({
   ok('…newest person first, urgent flagged, text ids stripped for callCenterAction', callKeys[0] === 'num:5135559999' && p.calls[0].urgent && p.calls[0].callIds.includes('txt_20261005_5135559999'));
   ok('a handled call never shows', !p.calls.some((r) => r.callIds.includes('cube_h1')));
   ok('a call where Jo promised something moves to Promised (not Calls owed)', !p.calls.some((r) => r.leadId === 'B') && p.promised.some((r) => r.leadId === 'B' && r.promises[0] === 'send the estimate'));
-  ok('a lead with a call AND a task due is ONE promised row', !p.calls.some((r) => r.leadId === 'D') && p.promised.filter((r) => r.leadId === 'D').length === 1 && p.promised.find((r) => r.leadId === 'D').callIds[0] === 'cube_d1');
+  // UX walk 2026-10-13 H1: still ONE row, but a missed call with no promise and no
+  // task of its own rides INSIDE it with its own Handled - the task's Done must
+  // never close it (callIds is what Done / Tomorrow act on).
+  ok('a lead with a call AND a task due is ONE promised row (the call rides in it, not behind Done)', !p.calls.some((r) => r.leadId === 'D') && p.promised.filter((r) => r.leadId === 'D').length === 1
+    && p.promised.find((r) => r.leadId === 'D').callIds.indexOf('cube_d1') === -1
+    && p.promised.find((r) => r.leadId === 'D').phoneCalls.some((u) => u.callIds[0] === 'cube_d1' && u.missed === true));
   const c = p.promised.find((r) => r.leadId === 'C');
   ok('tasks: due + overdue only — done, future and Add-Event entries are not', c && c.tasks.map((t) => t.id).join(',') === 't1', c && c.tasks.map((t) => t.id).join(','));
   ok('a snoozed lead\'s tasks wait; a deleted lead\'s tasks never show', !p.promised.some((r) => r.leadId === 'S' || r.leadId === 'GONE'));

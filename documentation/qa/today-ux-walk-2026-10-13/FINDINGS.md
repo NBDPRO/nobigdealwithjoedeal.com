@@ -8,6 +8,12 @@ forced, notch insets emulated, real taps. Four click-path traces ran first.
 in this folder (`walk/`). Sibling audit: NEEDS-YOU-LIFECYCLE-AND-VOLUME-2026-10-13
 (lifecycle + volume, PR #2430).
 
+## Update 2026-10-13 (fix A, stacked PR)
+
+H1, M3, H3 and H4 are fixed: see [FLOW-A-ROW-AND-HANDLED](FLOW-A-ROW-AND-HANDLED.md).
+H7, H2, M12, M1 and M4 are fixed: see [FLOW-B-BOOT-PHONE-UNDO](FLOW-B-BOOT-PHONE-UNDO.md).
+The text below is the walk as it found things.
+
 ## Fixed in the PR that carries this note
 
 - **F1 (was High): false "could not load today's appointments" on every load.**
