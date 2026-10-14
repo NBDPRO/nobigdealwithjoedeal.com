@@ -55,6 +55,7 @@ const { defineSecret } = require('firebase-functions/params');
 const { logger } = require('firebase-functions/v2');
 const { FieldPath, FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { Resend } = require('resend');
+const AR = require('./alert-recipients');
 const roles = require('./stage-roles');
 const { isQuietBackfill } = require('./quiet-backfill');
 // Paid in full (Jo, 2026-10-03): the ask waits until the job's money is in —
@@ -537,9 +538,16 @@ exports.reviewRequestNudge = onSchedule(
             continue;
           }
 
+          // 2026-10-13: users/{uid}.email is writable by that user, so the digest goes
+          // only to their VERIFIED Auth email (the platform owner's stored address
+          // passes through), and a destination is capped per day across tenants.
+          const toAddr = await AR.verifiedUserEmail(uid, user.email);
+          if (!toAddr) { skippedOptOut++; continue; }
+          const capAddr = await AR.capRecipients('digest', [toAddr]);
+          if (!capAddr.allowed.length) { skippedOptOut++; continue; }
           await resend.emails.send({
             from: fromAddress,
-            to: user.email,
+            to: toAddr,
             subject,
             html,
           });

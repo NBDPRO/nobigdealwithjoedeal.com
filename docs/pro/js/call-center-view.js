@@ -524,6 +524,14 @@
     a.play().catch(function () {});
   }
 
+  // A handled / unhandled here must reach Home and Today now, not on their next
+  // 60 s tick (UX walk H4), and a Handled can be taken back from a toast.
+  function refreshHome() {
+    try { if (window.NBDHomeAttention && typeof window.NBDHomeAttention.render === 'function') window.NBDHomeAttention.render(true); } catch (_) { /* best effort */ }
+  }
+  function undoToast(message, fn) {
+    if (typeof window.showToast === 'function') window.showToast({ message: message, type: 'success', duration: 6000, undoAction: fn });
+  }
   async function act(id, action, extra) {
     state.busy[id] = true;
     status(id, 'Saving…');
@@ -538,6 +546,8 @@
       }
       delete state.busy[id];
       render();
+      if (action === 'handled' || action === 'unhandled') refreshHome();
+      if (action === 'handled') undoToast('Marked handled', function () { return act(id, 'unhandled'); });
       if (action === 'notpersonal') status(id, 'Got it. The recording is back and the notes will be redone within about 30 minutes.');
       if (action === 'attach') status(id, 'Filed on the customer' + refiledText(r) + (r && r.phoneAdded ? '; their number is saved so the next call matches by itself.' : '.'));
       return r;
@@ -552,22 +562,26 @@
   // The same action on every call in a person's group (✓ Handled all, or
   // filing all of an unknown number's calls on one customer). Status shows
   // on the group's card (keyed by its newest call).
-  async function actMany(ids, action, extra) {
+  async function actMany(ids, action, extra, quiet) {
     var lead = ids[0];
     ids.forEach(function (id) { state.busy[id] = true; });
     status(lead, 'Saving ' + ids.length + '…');
-    var ok = 0, failed = 0, last = null;
+    var ok = 0, failed = 0, last = null, okIds = [];
     for (var i = 0; i < ids.length; i++) {
       try {
         last = await callable('callCenterAction', Object.assign({ id: ids[i], action: action }, extra || {}));
         var c = byId(ids[i]);
         if (c && action === 'handled') c.handledAtMs = Date.now();
+        if (c && action === 'unhandled') c.handledAtMs = null;
         if (c && action === 'attach' && last && last.leadId) mirrorFiled(ids[i], last.leadId);
+        okIds.push(ids[i]);
         ok++;
       } catch (e) { failed++; }
     }
     ids.forEach(function (id) { delete state.busy[id]; });
     render();
+    if (okIds.length && (action === 'handled' || action === 'unhandled')) refreshHome();
+    if (okIds.length && action === 'handled' && !quiet) undoToast('Marked ' + okIds.length + ' handled', function () { return actMany(okIds, 'unhandled'); });
     if (failed) status(lead, ok + ' saved, ' + failed + ' did not — try again.');
     return { ok: ok, failed: failed, last: last };
   }
@@ -619,9 +633,14 @@
         return {
           label: g.calls.length > 1 ? 'Handled (all ' + g.calls.length + ')' : 'Handled',
           act: async function () {
-            var r = await actMany(ids, 'handled');
+            // quiet: the deck has its own Undo button (no second toast).
+            var r = await actMany(ids, 'handled', null, true);
             if (r.failed) throw new Error(r.failed + ' did not save — try again.');
-            return { undo: async function () { await actMany(ids, 'unhandled'); ids.forEach(function (id) { var c = byId(id); if (c) c.handledAtMs = null; }); render(); } };
+            return { undo: async function () {
+              var u = await actMany(ids, 'unhandled', null, true);   // mirrors only the ids that saved
+              render();
+              if (u.failed) throw new Error(u.failed + ' could not be undone — they are still handled.');
+            } };
           },
         };
       },

@@ -15,7 +15,11 @@ const W = require('./call-watch-logic');
 const toMs = (v) => {
   if (!v) return 0;
   if (typeof v === 'number') return v;
+  if (v instanceof Date) return v.getTime() || 0;
+  if (typeof v === 'string') { const t = Date.parse(v); return Number.isFinite(t) ? t : 0; }
   if (typeof v.toMillis === 'function') return v.toMillis();
+  if (typeof v._seconds === 'number') return v._seconds * 1000;
+  if (typeof v.seconds === 'number') return v.seconds * 1000;
   return 0;
 };
 
@@ -48,10 +52,21 @@ async function loadLabels(db, tenantUid) {
  * personal + capture 'off'). Both halves are required: a stray capture field
  * on another kind never stops anything.
  */
-function captureOff(labels, phoneDigits) {
+function captureOff(labels, phoneDigits, leadsOnNumber) {
   const d = String(phoneDigits || '').replace(/\D/g, '').slice(-10);
   const lb = d.length === 10 && labels ? labels[d] : null;
-  return !!lb && lb.kind === 'personal' && lb.capture === 'off';
+  if (!(!!lb && lb.kind === 'personal' && lb.capture === 'off')) return false;
+  // Audit C-4 (2026-10-13): a number that BECAME a customer after the label was
+  // set (or last confirmed with "Keep hidden") is captured again. Texts skipped
+  // while it was off are not recoverable, so a real customer must never ride a
+  // stale label. A customer that already existed when Jo labeled the number
+  // (the sheet showed "On customer ...") keeps his choice. Callers pass the
+  // tenant's own non-deleted leads that carry the number (a proxy line on 3+
+  // leads is not indexed, so it never counts). A lead with no createdAt is
+  // legacy and predates the label.
+  const base = Math.max(Number(lb.ackAtMs) || 0, Number(lb.updatedAtMs) || 0);
+  const newer = (leadsOnNumber || []).some((l) => l && l.deleted !== true && l.archived !== true && toMs(l.createdAt || l.createdAtMs) > base);
+  return !newer;
 }
 
-module.exports = { loadLabels, captureOff };
+module.exports = { loadLabels, captureOff, toMs };

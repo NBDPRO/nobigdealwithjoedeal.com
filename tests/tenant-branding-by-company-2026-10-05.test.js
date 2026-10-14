@@ -46,6 +46,8 @@ const NBD_MARKS = /No Big Deal|420-7382|nobigdealwithjoedeal|\bJoe\b/;
 // ── Stubs: only the I/O modules lead-alert touches at call time ──────────
 const rec = { emails: [], sms: [], outbox: [] };
 const profiles = {};
+// Auth owners by company uid (2026-10-13: alert contacts are honoured only when verified/confirmed).
+const authUsers = {};
 const fakeDb = {
   collection: (name) => ({
     add: async (doc) => { if (name === 'alert_outbox') rec.outbox.push(doc); return { id: 'obx' }; },
@@ -64,6 +66,9 @@ const stubs = {
   'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'test-' + n }), defineString: (n) => ({ name: n, value: () => '' }) },
   resend: { Resend: class { constructor() { this.emails = { send: async (p) => { rec.emails.push(p); return { data: { id: 'em' }, error: null }; } }; } } },
   twilio: () => ({ messages: { create: async (p) => { rec.sms.push(p); return { sid: 'SM' }; } } }),
+  'firebase-admin/auth': {
+    getAuth: () => ({ getUser: async (uid) => { if (!authUsers[uid]) throw new Error('auth/user-not-found'); return authUsers[uid]; } }),
+  },
   'firebase-admin/firestore': {
     FieldValue: { serverTimestamp: () => '__ts__', increment: (n) => ({ __inc: n }) },
     Timestamp: { fromMillis: (ms) => ({ toMillis: () => ms }) },
@@ -154,6 +159,7 @@ Module._load = function (request) {
     ok('…no SMS to anyone (never Joe\'s cell)', rec.sms.length === 0, rec.sms.map((m) => m.to));
     ok('…and the outbox records no target', rec.outbox.length === 1 && rec.outbox[0].target.emails === null && rec.outbox[0].target.sms === null, rec.outbox[0] && rec.outbox[0].target);
     profiles['co-set'] = { brand: { legalName: 'Oaks Roofing', contact: { alertEmail: 'scott@oaks.test' } } };
+    authUsers['co-set'] = { email: 'scott@oaks.test', emailVerified: true };
     await fire(lead({ companyId: 'co-set' }));
     ok('configured company: alert goes to its own inbox', rec.emails.length === 1 && JSON.stringify(rec.emails[0].to) === JSON.stringify(['scott@oaks.test']), rec.emails.map((m) => m.to));
     await fire(lead({ companyId: NBD }));

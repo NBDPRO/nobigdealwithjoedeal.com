@@ -114,6 +114,26 @@ function buildTask(o) {
   return t;
 }
 
+// ── readers (2026-10-13): the server channel judges promise TASKS ──────────
+// Server twins of docs/pro/js/promise-logic.js isPromise / isWaiting / isOpen /
+// isOwedNow / isRipe (tests/promise-channel-2026-10-13.test.js runs both).
+const isPromise = (t) => !!t && t.kind === 'promise' && has(KINDS, t.promiseKind);
+const isWaiting = (t) => isPromise(t) && t.promiseKind === 'waiting';
+const isOpen = (t) => !!t && t.done !== true && !t.completedAt && t.deleted !== true;
+function isOwedNow(t, todayYmd) {
+  if (!isPromise(t) || isWaiting(t) || !isOpen(t)) return false;
+  const due = dueYmdOf(t);
+  return !!due && due <= todayYmd;
+}
+function isRipe(t, todayYmd, n) {
+  if (!isWaiting(t) || !isOpen(t)) return false;
+  const due = dueYmdOf(t);
+  if (due) return due <= todayYmd;
+  const since = t && (t.waitingSince || t.madeYmd);
+  const d = daysBetween(since, todayYmd);
+  return (d > 0 ? d : 0) >= clampWaitingDays(n);
+}
+
 function moveProblem(t, newYmd, todayYmd) {
   const bad = dueProblem(newYmd, todayYmd);
   if (bad) return bad;
@@ -139,4 +159,5 @@ module.exports = {
   KINDS, WAITING_ON, DEFAULT_WAITING_DAYS, MAX_AHEAD_DAYS, WHY_MAX,
   isYmd, addDaysYmd, daysBetween, dueYmdOf, clampWaitingDays, defaultDue, dueProblem,
   cleanWhy, taskText, buildTask, moveProblem, movePatch,
+  isPromise, isWaiting, isOpen, isOwedNow, isRipe,
 };

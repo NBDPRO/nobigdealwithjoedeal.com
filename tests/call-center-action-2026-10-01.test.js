@@ -50,6 +50,7 @@ function fakeDb(seed) {
   });
   return {
     docs, doc: mk,
+    collectionGroup: () => ({ where: () => ({ get: async () => ({ docs: [] }) }) }),
     collection: (n) => Object.assign(query(n, [], null), { doc: (id) => mk(n + '/' + id) }),
     batch: () => { const ops = []; return { set: (ref, v, o) => ops.push(() => ref.set(v, o)), commit: async () => { for (const f of ops) await f(); } }; },
   };
