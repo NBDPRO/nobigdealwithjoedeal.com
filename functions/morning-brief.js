@@ -31,7 +31,9 @@
  * Per-user opt-out: users/{owner}.morningBriefEnabled === false.
  * Ships DRY-RUN by default: unless MORNING_BRIEF_ENABLED=true on the
  * morningBrief Cloud Run revision, the brief is built and logged, never sent.
- * Jo turns it on (it is deliberately absent from functions/.env.nobigdeal-pro).
+ * Live since Jo turned it on: MORNING_BRIEF_ENABLED=true and
+ * MORNING_BRIEF_ABSORB_ENABLED=true are in functions/.env.nobigdeal-pro
+ * (corrected 2026-10-13; this header used to say "deliberately absent").
  */
 
 'use strict';
@@ -176,14 +178,24 @@ async function gatherSections({ db, owner, nowMs, log }) {
   const soft = async (what, fn) => {
     try { return await fn(); } catch (e) { log.warn('morning_brief_section_failed', { what, err: e && e.message }); return []; }
   };
+  // The promise TASKS (Handled-sheet promises, Waiting items) ride in the same
+  // list, one row per person (2026-10-13, audit F1). A failed read is flagged,
+  // never an empty section.
+  let promiseCheckFailed = false;
   const [newLeads, promises, reviewAsks] = await Promise.all([
     soft('new-leads', () => require('./lead-digest').gatherDigestRows(db, nowMs)),
-    soft('promises', async () => (await require('./call-center').gatherSweep({ db, nowMs })).items),
+    soft('promises', async () => {
+      try {
+        const g = await require('./call-center').gatherSweepWithPromises({ db, nowMs });
+        if (g.promiseCheckFailed) promiseCheckFailed = true;
+        return g.items;
+      } catch (e) { promiseCheckFailed = true; throw e; }
+    }),
     // Writes the owner's review bells + once-ever marks, exactly as the 08:15
     // run would have (it skips the owner while this absorbs it).
     soft('review-asks', async () => (await require('./review-request-nudge').nudgeUser(db, owner)).dueLeads),
   ]);
-  return { newLeads, promises, reviewAsks };
+  return { newLeads, promises, reviewAsks, promiseCheckFailed };
 }
 
 /** "Brief me" one-liners for the day's appointment leads (cache → Haiku → fallback). */

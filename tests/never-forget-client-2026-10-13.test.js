@@ -186,7 +186,7 @@ const joP = [{ who: 'jo', text: 'call back with the number' }];
     env.win.NBDToday.render();
     const before = env.els.todayPlan.innerHTML;
     const tapTp = async (attrs) => { for (const fn of env.doc._l.click || []) await fn({ target: { closest: (sel) => (/data-tp-act/.test(sel) ? { getAttribute: (k) => (k in attrs ? attrs[k] : null) } : null) } }); await flush(); await flush(); };
-    await tapTp({ 'data-tp-act': 'handled', 'data-tp-key': 'lead:L7' });
+    await tapTp({ 'data-tp-act': 'promised', 'data-tp-key': 'lead:L7' });
     const sheet = env.els.prSheet;
     const tapPr = (attrs) => sheet._l.click.forEach((fn) => fn({ target: { closest: () => ({ getAttribute: (k) => (k in attrs ? attrs[k] : null) }) } }));
     tapPr({ 'data-pr-act': 'kind', 'data-pr-val': 'callback' });
@@ -571,7 +571,7 @@ const joP = [{ who: 'jo', text: 'call back with the number' }];
       await flush(); await flush();
       env.win.NBDToday.render();
       const key = 'num:5135550599';
-      for (const fn of env.doc._l.click || []) await fn({ target: { closest: (sel) => (/data-tp-act/.test(sel) ? { getAttribute: (k) => ({ 'data-tp-act': 'handled', 'data-tp-key': key })[k] || null } : null) } });
+      for (const fn of env.doc._l.click || []) await fn({ target: { closest: (sel) => (/data-tp-act/.test(sel) ? { getAttribute: (k) => ({ 'data-tp-act': 'promised', 'data-tp-key': key })[k] || null } : null) } });
       await flush(); await flush();
       const sh = env.els.prSheet;
       tap(sh, { 'data-pr-act': 'kind', 'data-pr-val': 'callback' });
@@ -658,6 +658,8 @@ const joP = [{ who: 'jo', text: 'call back with the number' }];
         channel: rnd() < 0.2 ? 'text' : 'call', status: pick(['noted', 'short', 'short', 'personal', 'stored']), direction: pick(['inbound', 'inbound', 'outbound']),
         bucket: pick(['customer', 'insurance', 'unknown', 'contact', '']), callType: pick(['', '', 'spam', 'sub', 'supplier', 'insurance']),
         urgent: rnd() < 0.15, taskDone: rnd() < 0.08, handledAtMs: rnd() < 0.15 ? NOW - DAY : 0,
+        // the one parked rule (2026-10-13): snooze on the call, a snoozed task mirrored onto it, a promise task date
+        snoozeUntilYmd: pick(['', '', '', W.etYmd(NOW + 2 * DAY), W.etYmd(NOW - DAY), 'garbage']), taskSnoozed: rnd() < 0.1, taskDueYmd: pick(['', W.etYmd(NOW + DAY), W.etYmd(NOW - DAY)]),
         followUpDate: pick(['', '', W.etYmd(NOW - 2 * DAY), W.etYmd(NOW), W.etYmd(NOW + 3 * DAY)]),
         promises: pick([[], [], joP, [{ who: 'them', text: 'x' }], [{ who: 'jo', text: 'a', keptAtMs: NOW - DAY }], [{ who: 'jo', text: 'a', keptAtMs: NOW - DAY }, { who: 'jo', text: 'b' }]]),
       });
@@ -683,6 +685,7 @@ const joP = [{ who: 'jo', text: 'call back with the number' }];
       rows++;
       if (W.callNeedsYou(c, NOW, cw) !== HA.callNeedsYou(c, NOW, ch)) diffRule++;
       if (W.callerKey(c) !== HA.callerKey(c)) diffKey++;
+      if (W.parkedUntil(c, NOW) !== HA.parkedUntil(c, NOW) || W.parkedUntil(c, NOW, { taskDue: true }) !== HA.parkedUntil(c, NOW, { taskDue: true })) diffRule++;
     });
     if (JSON.stringify(Array.from(cw.reachedAt.entries()).sort()) !== JSON.stringify(Array.from(ch.reachedAt.entries()).sort())) diffReach++;
     const strip = (r) => JSON.stringify((r || []).map((v) => [v.digits, v.reason, v.base, v.calls.map((c) => c.id)]).sort());
@@ -694,7 +697,7 @@ const joP = [{ who: 'jo', text: 'call back with the number' }];
   ok('reachIndex: identical reach maps on every set', diffReach === 0, diffReach + ' differ');
   ok('resurfacedNumbers: identical output on every set', diffRes === 0, diffRes + ' differ');
   ok('oldPromiseCount: 0 differences', diffOld === 0, diffOld + ' differ');
-  ok('both sides export the same shared-rule surface (a new rule function must land on both)', ['callNeedsYou', 'callerKey', 'reachIndex', 'resurfacedNumbers', 'isMissedCall', 'oldPromiseCount', 'isOldPromise']
+  ok('both sides export the same shared-rule surface (a new rule function must land on both)', ['callNeedsYou', 'callerKey', 'reachIndex', 'resurfacedNumbers', 'isMissedCall', 'oldPromiseCount', 'isOldPromise', 'parkedUntil']
     .every((k) => typeof W[k] === 'function' && typeof HA[k] === 'function'));
   ok('the window constants agree (exported values, not source text)', HA.CALL_WINDOW === W.CALL_WINDOW && HA.PROMISE_WINDOW === W.PROMISE_WINDOW && W.PROMISE_WINDOW === 45 * DAY);
   console.log('  (fuzz arms from the server lane: rider promise ' + (hasRider ? 'ACTIVE' : 'inactive - not merged yet') + ', label stamp bounds ' + (hasSane ? 'ACTIVE' : 'inactive - not merged yet') + ')');

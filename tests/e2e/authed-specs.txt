@@ -95,3 +95,4 @@ focus-mode.spec.js
 mission-control.spec.js
 phone-quick-wins.spec.js
 never-forget-client.spec.js
+visit-recorder.spec.js

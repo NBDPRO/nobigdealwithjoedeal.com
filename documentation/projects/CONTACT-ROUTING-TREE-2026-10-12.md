@@ -13,6 +13,16 @@ Phase 1 = the label registry, the Label sheet on Today call rows, label-aware
 designed so phase 1's data model carries it, and built later. Examples in this
 note use fictional numbers (555) only — the repo is public.
 
+## Update 2026-10-13 — label safety rails ([LABEL-SAFETY-RAILS-2026-10-13](LABEL-SAFETY-RAILS-2026-10-13.md))
+
+Corrections to this note, in place: (1) §7's "label hides a real customer" row
+now has teeth — `quiet` also resurfaces a call filed on a customer (the lead
+valve), and a Today row says "<name> is now a customer" with Unlabel / Keep
+hidden; (2) §2's `hide` / personal text "never counts" was already superseded by
+the evening answers; `capture: off` now forces policy `hide` and is **captured
+again** for a customer created after the label; (3) `quiet` itself is unchanged
+(promise / due callback only) — Jo's answer #3 below stands.
+
 ## Update 2026-10-12 (evening) — Jo's answers and the phase 2 plan
 
 Jo answered the decisions in §9. Where this section and an earlier section

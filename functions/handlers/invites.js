@@ -56,6 +56,12 @@ const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const { secretOr } = require('../integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('../resend-guard');
+const AR = require('../alert-recipients');
+// One destination is sent at most this many team invites a day, across every
+// company (2026-10-13). A limiter outage fails open.
+const INVITE_RECIPIENT_DAILY_CAP = 5;
+// ... of which one company may use this many (a tenant cannot burn a destination for everyone).
+const INVITE_TENANT_RECIPIENT_DAILY_CAP = 3;
 
 // Mirror of stripe.js/provisioning.js mergeCustomClaims — setCustomUserClaims
 // replaces the whole set, so read-merge-write to keep billing claims intact.
@@ -351,7 +357,9 @@ exports.teamInviteEmail = onDocumentCreated(
     let replyTo;
     try {
       const coSnap = await db.doc(`companies/${companyId}`).get();
-      if (coSnap.exists) companyName = (coSnap.data() || {}).name || '';
+      // The company name is tenant-written and lands in the Subject: strip
+      // control/bidi characters and bound it (2026-10-13).
+      if (coSnap.exists) companyName = AR.cleanLabel((coSnap.data() || {}).name || '', 60);
       // Reply-to the inviting owner so responses go to a human.
       const inviterUid = d.invitedBy || companyId;
       const inviter = await getAuth().getUser(String(inviterUid)).catch(() => null);
@@ -361,6 +369,11 @@ exports.teamInviteEmail = onDocumentCreated(
     const roleLabel = String(d.role || 'sales rep').replace(/_/g, ' ');
     let emailStatus;
     try {
+      // NBD's own tenant is not limited per destination (2026-10-13).
+      if (!AR.isNbdTenant(companyId)) {
+        const capInv = await AR.capRecipients('invite', [to], { limit: INVITE_RECIPIENT_DAILY_CAP, tenantKey: companyId, tenantLimit: INVITE_TENANT_RECIPIENT_DAILY_CAP });
+        if (!capInv.allowed.length) throw new Error('recipient-capped');
+      }
       const resend = new Resend(RESEND_API_KEY.value());
       const from = secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com');
       const response = await resend.emails.send({
@@ -474,6 +487,18 @@ exports.createTeamInvite = onCall(
     // Owner (incl. solo companyId==uid convention) or platform admin only —
     // same gate the admin team-management callables use.
     const { uid, companyId, isGlobalAdmin } = await requireTeamAdmin(request);
+    // The invite mail goes out on NBD's sender domain with the company's name in
+    // it (2026-10-13): the inviter's own email must be a verified one. A platform
+    // admin is exempt.
+    if (!isGlobalAdmin && request.auth.token.email_verified !== true) {
+      // The token claim lags a fresh verification by up to ~1h: fall back to the
+      // Auth record (same as claimInvite) before refusing.
+      let verified = false;
+      try { verified = (await getAuth().getUser(uid)).emailVerified === true; } catch (_) { verified = false; }
+      if (!verified) {
+        throw new HttpsError('failed-precondition', 'Verify your own email address first, then invite your team.');
+      }
+    }
 
     const email = String((request.data && request.data.email) || '').trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
