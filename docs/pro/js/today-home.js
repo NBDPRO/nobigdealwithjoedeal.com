@@ -81,7 +81,15 @@
           // An empty snapshot served from the local cache never reached the server.
           if (snap && snap.metadata && snap.metadata.fromCache === true && (!snap.docs || !snap.docs.length)) { failedLanes++; continue; }
           snap.docs.forEach(function (d) { byId[d.id] = Object.assign({ id: d.id }, d.data()); });
-        } catch (e) { failedLanes++; console.warn('[today] appointments (' + lanes[i] + '):', e && (e.code || e.message)); }
+        } catch (e) {
+          // firestore.rules: appointments are readable by isOwner(resource.data.userId)
+          // or a platform admin, so a repUid query is permission-denied for everyone
+          // else BY DESIGN (smart-calendar.js says the same). The userId lane carries
+          // the owner's rows; counting the repUid denial as a failed read put "could
+          // not load today's appointments" on every Today (walk 2026-10-13).
+          if (lanes[i] === 'repUid' && e && e.code === 'permission-denied') continue;
+          failedLanes++; console.warn('[today] appointments (' + lanes[i] + '):', e && (e.code || e.message));
+        }
       }
       // A failed lane must not blank the schedule: keep what an earlier read
       // found (same day) and SAY the list may be incomplete (appts.failed).

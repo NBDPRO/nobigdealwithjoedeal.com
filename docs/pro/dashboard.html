@@ -4205,6 +4205,10 @@
                  _cpAlertContactsWarning for a non-NBD company until it saves an
                  Email here. NBD never sees it. -->
             <div id="cp_alertWarn" role="status" hidden class="cp-alert-warn"><strong>Set your lead alert contacts.</strong> New leads from your website and forms are not sent to anyone until you add your company Email below and save — lead alerts go to that address.</div>
+            <!-- 2026-10-13: lead alerts go only to your verified sign-in email or
+                 an address you confirmed. Shown (by _cpAlertContactsWarning) while
+                 the Email below is not one of those. Server: functions/alert-recipients.js -->
+            <div id="cp_alertConfirm" role="status" hidden class="cp-alert-warn"><span id="cp_alertConfirmMsg"></span> <button type="button" id="cp_alertConfirmBtn" class="btn btn-orange" data-action="call" data-fn="_sendAlertConfirm" hidden>Send confirmation email</button> <button type="button" id="cp_alertRevokeBtn" class="btn btn-ghost" data-action="call" data-fn="_revokeAlertConfirm" hidden>Remove confirmed address</button></div>
             <div class="sf-row">
               <div class="sf"><label>Phone</label>
                 <input type="text" id="cp_brand_phone" placeholder="(859) 420-7382"></div>
@@ -7208,7 +7212,7 @@
 <!-- W139: Hot-lead threshold-crossing alert -->
 <script defer src="js/lead-score-alert.js?v=3"></script>
 <script defer src="js/smart-followup-briefing.js?v=2"></script>
-<script defer src="js/home-attention.js?v=19"></script>
+<script defer src="js/home-attention.js?v=22"></script>
 <!-- Send from Jo's own phone (share sheet / Messages) + the estimate follow-up
      cadence and its Home card (2026-10-03). phone-share.js first: close-board.js
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
@@ -7229,7 +7233,7 @@
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=16"></script>
-<script defer src="js/today-home.js?v=12"></script>
+<script defer src="js/today-home.js?v=13"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=6"></script>
