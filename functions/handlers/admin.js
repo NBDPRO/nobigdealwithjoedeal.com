@@ -964,6 +964,10 @@ exports.transferCompanyOwnership = onCall(
           || String(r.role || '').toLowerCase() !== HANDOFF_TARGET_ROLE) {
         throw new HttpsError('failed-precondition', HANDOFF_TARGET_REFUSAL);
       }
+      // The confirmed lead-alert address belongs to the OWNER who confirmed it:
+      // the new owner re-confirms (alert-recipients.js also refuses an entry
+      // whose requester is not the current owner).
+      tx.delete(db.doc(`alertRecipients/${companyId}`));
       tx.update(companyRef, {
         ownerId: target.uid,
         previousOwnerId: callerUid,

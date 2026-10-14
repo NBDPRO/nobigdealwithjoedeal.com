@@ -1718,6 +1718,85 @@ service cloud.firestore {
         allow read, write: if isOwner(uid) || isAdmin();
       }
 
+      // ── In-person visit recordings (feat/visit-recorder-local-first) ──
+      // users/{uid}/visit_captures/{visitId}: the metadata for one recorded
+      // visit (docs/pro/js/visit-recorder.js). The AUDIO goes to Storage at
+      // audio/{uid}/_inbox/{visitId}.{ext}; this doc points at it.
+      //   - OWNER-only read and write (a viewer writes nothing); platform
+      //     admin may read.
+      //   - A strict field allowlist (vcKeys below). Anything the server
+      //     pipeline will later write (transcript, summary, suggested
+      //     customer, analysis status) is NOT in it, so a client can never set
+      //     a server-owned field. The server writes with the admin SDK.
+      //   - leadId is null or a lead the writer may reach (their own, or a
+      //     same-tenant lead for company staff): one tenant cannot file a
+      //     recording under another tenant's customer.
+      //   - audioPath, if present, can only be THIS user's _inbox path for THIS
+      //     visit. The server step reads audioPath with admin credentials, so a
+      //     client-chosen path would be a read of any object in the bucket.
+      //   - startedAtMs is write-once.
+      // The users/{uid}/{subcol} wildcard below grants write only to a short
+      // allowlist that does not include visit_captures, so this match is the
+      // only write grant the collection has.
+      // tests/firestore-rules.visit-captures.test.js
+      match /visit_captures/{visitId} {
+        function vcKeys() {
+          return ['startedAtMs', 'endedAtMs', 'durationSec', 'lat', 'lng', 'accuracyM',
+                  'mime', 'sizeBytes', 'status', 'leadId', 'source', 'consentMode',
+                  'appointmentId', 'audioPath', 'uploadedAtMs', 'chunkCount',
+                  'backgroundSec', 'partOf', 'disclosureAckedAtMs', 'recoveredAtMs',
+                  'attachedAtMs', 'discardedAtMs', 'createdAtMs'];
+        }
+        function vcNum(d, k, lo, hi) {
+          return d.get(k, null) == null || (d[k] is number && d[k] >= lo && d[k] <= hi);
+        }
+        function vcStr(d, k, max) {
+          return d.get(k, null) == null || (d[k] is string && d[k].size() <= max);
+        }
+        function vcShapeOk(d) {
+          return d.keys().hasOnly(vcKeys())
+            && d.keys().hasAll(['startedAtMs', 'status', 'source', 'consentMode'])
+            && visitId.matches('^[A-Za-z0-9_-]{8,64}$')
+            && d.startedAtMs is number && d.startedAtMs > 0
+            && d.status in ['recording', 'stored', 'uploading', 'uploaded', 'failed', 'discarded']
+            && d.source in ['fab', 'appointment', 'customer', 'deeplink']
+            && d.consentMode in ['one_party', 'two_party_attested', 'two_party_verbal']
+            && vcNum(d, 'endedAtMs', 0, 99999999999999)
+            && vcNum(d, 'durationSec', 0, 14400)
+            && vcNum(d, 'lat', -90, 90)
+            && vcNum(d, 'lng', -180, 180)
+            && vcNum(d, 'accuracyM', 0, 1000000)
+            && vcNum(d, 'sizeBytes', 0, 209715200)
+            && vcNum(d, 'uploadedAtMs', 0, 99999999999999)
+            && vcNum(d, 'chunkCount', 0, 100000)
+            && vcNum(d, 'backgroundSec', 0, 86400)
+            && vcNum(d, 'disclosureAckedAtMs', 0, 99999999999999)
+            && vcNum(d, 'recoveredAtMs', 0, 99999999999999)
+            && vcNum(d, 'attachedAtMs', 0, 99999999999999)
+            && vcNum(d, 'discardedAtMs', 0, 99999999999999)
+            && vcNum(d, 'createdAtMs', 0, 99999999999999)
+            && vcStr(d, 'mime', 64)
+            && (d.get('mime', null) == null || d.mime.matches('^audio/.*'))
+            && vcStr(d, 'appointmentId', 128)
+            && vcStr(d, 'partOf', 64)
+            && (d.get('audioPath', null) == null
+                || (d.audioPath is string
+                    && d.audioPath.matches('^audio/' + uid + '/_inbox/' + visitId + '\\.(webm|m4a|ogg|mp3|wav)$')));
+        }
+        function vcLeadOk(d) {
+          return d.get('leadId', null) == null || leadReachable(d.leadId);
+        }
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && notViewer()
+          && vcShapeOk(request.resource.data)
+          && vcLeadOk(request.resource.data);
+        allow update: if isOwner(uid) && notViewer()
+          && vcShapeOk(request.resource.data)
+          && request.resource.data.startedAtMs == resource.data.startedAtMs
+          && vcLeadOk(request.resource.data);
+        allow delete: if (isOwner(uid) && notViewer()) || isAdmin();
+      }
+
       // 2026-09-25 (invite-claim path check): WRITE is an allowlist of the
       // subcollection names the app writes; READ is unchanged. This wildcard
       // used to grant write on ANY name under the caller's own uid. Several
@@ -1982,6 +2061,15 @@ service cloud.firestore {
 
     // ── RATE LIMITS (admin-SDK only) ──────────────────
     match /rate_limits/{uid}        { allow read, write: if false; }
+
+    // ── CONFIRMED LEAD-ALERT RECIPIENTS (2026-10-13) ──
+    // alertRecipients/{companyId} -> { confirmed: { <addrKey>: {email, ...} } }
+    // is the server-side record that an owner confirmed a custom alert address
+    // by clicking the one-time link NBD emailed to it. A client must never be
+    // able to write it (that would let a tenant "confirm" any inbox) or read
+    // the pending tokens. Admin SDK only (functions/alert-recipients*.js).
+    match /alertRecipients/{companyId}      { allow read, write: if false; }
+    match /alertRecipientTokens/{tokenHash} { allow read, write: if false; }
     match /_rate_limits_ip/{docId}  { allow read, write: if false; }
 
     // ── PER-TENANT CATALOG COST BOOK ──────────────────

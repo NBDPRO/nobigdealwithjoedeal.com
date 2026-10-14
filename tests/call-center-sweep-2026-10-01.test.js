@@ -122,7 +122,7 @@ function fakeDb(seed) {
       return { forEach: (fn) => rows.forEach(([k, v]) => fn({ id: k.split('/')[1], data: () => v })) };
     },
   });
-  return { doc: mk, collection: (n) => Object.assign(query(n, [], null), { doc: (id) => mk(n + '/' + id) }), getAll: async (...r) => Promise.all(r.map((x) => x.get())) };
+  return { doc: mk, collection: (n) => Object.assign(query(n, [], null), { doc: (id) => mk(n + '/' + id) }), collectionGroup: () => ({ where: () => ({ get: async () => ({ docs: [] }) }) }), getAll: async (...r) => Promise.all(r.map((x) => x.get())) };
 }
 (async () => {
   const seed = { ['users/' + OWNER]: { email: 'owner@nbd.test' } };

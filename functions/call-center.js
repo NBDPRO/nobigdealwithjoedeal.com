@@ -694,17 +694,37 @@ async function gatherSweep({ db, nowMs }) {
   return { today, items, counts };
 }
 
+/**
+ * gatherSweep + the promise TASKS due today or earlier (2026-10-13, audit F1):
+ * what the morning brief and the 15:15 email list. One row per PERSON (a
+ * person with an open call and a due promise is one row). `promiseCheckFailed`
+ * is true when the task read failed - callers say "could not check", never
+ * "nothing due". The deck (callPromisesList) keeps plain gatherSweep: its rows
+ * are calls it can swipe through callCenterAction.
+ */
+async function gatherSweepWithPromises({ db, nowMs }) {
+  const base = await gatherSweep({ db, nowMs });
+  const PC = require('./promise-channel');
+  const PCL = require('./promise-channel-logic');
+  const labels = await CL.loadLabels(db, OWNER);
+  const pr = await PC.readDuePromisePeople({ db, owner: OWNER, nowMs, labels });
+  const items = PCL.mergeSweep(base.items, pr.people);
+  const counts = Object.assign({}, base.counts, { items: items.length, promises: pr.people.length });
+  return { today: base.today, items, counts, promiseCheckFailed: pr.failed };
+}
+
 async function runSweep({ db, live, nowMs, send, slot, absorbed }) {
   // One morning email (2026-10-04): the 07:15 list rides in the 06:45 brief
   // when it absorbs this email (morning-brief-absorb.js). 15:15 always sends.
   if (slot === 'am' && absorbed) return { state: 'absorbed' };
   const user = await db.collection('users').doc(OWNER).get();
   const email = user.exists ? String((user.data() || {}).email || '') : '';
-  const { today, items, counts } = await gatherSweep({ db, nowMs });
-  if (!items.length) return Object.assign({ state: 'nothing' }, counts);
+  const { today, items, counts, promiseCheckFailed } = await gatherSweepWithPromises({ db, nowMs });
+  // A failed promise-task read is never "nothing": say so (the email carries the warning).
+  if (!items.length && !promiseCheckFailed) return Object.assign({ state: 'nothing' }, counts);
   if (!live) return Object.assign({ state: 'dry_run' }, counts);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Object.assign({ state: 'no_email' }, counts);
-  const mail = L.buildSweepEmail({ items, todayYmd: today, slot });
+  const mail = L.buildSweepEmail({ items, todayYmd: today, slot, promiseCheckFailed });
   await send({ to: email, subject: mail.subject, html: mail.html, text: mail.text });
   return Object.assign({ state: 'sent' }, counts);
 }
@@ -943,6 +963,11 @@ async function callAction({ db, auth, data, nowMs }) {
       const until = L.addDaysYmd(today, days);
       if (task) {
         await taskRef.set({ dueDate: until, snoozedFromDue: task.snoozedFromDue || task.dueDate || today, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        // ALSO stamp the call itself (2026-10-13): Home, the ledger, the brief and
+        // the away list read only the call row, so a snooze that moved nothing but
+        // the task was invisible to them (audit F9a). One parked rule, one field:
+        // call-watch-logic parkedUntil.
+        await ref.set({ snoozeUntilYmd: until, snoozedBy: auth.uid }, { merge: true });
         return { ok: true, until, on: 'task' };
       }
       await ref.set({ snoozeUntilYmd: until, snoozedBy: auth.uid }, { merge: true });
@@ -951,6 +976,7 @@ async function callAction({ db, auth, data, nowMs }) {
     // unsnooze
     if (task && task.snoozedFromDue) {
       await taskRef.set({ dueDate: task.snoozedFromDue, snoozedFromDue: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      await ref.set({ snoozeUntilYmd: null }, { merge: true });
       return { ok: true, on: 'task' };
     }
     await ref.set({ snoozeUntilYmd: null }, { merge: true });
@@ -1206,14 +1232,17 @@ exports.callTaggedMatch = onCall(
 exports.claudeNotes = claudeNotes;
 // The morning brief's "You said you'd…" section reads the same list.
 exports.gatherSweep = gatherSweep;
+exports.gatherSweepWithPromises = gatherSweepWithPromises;
 
 exports._test = {
   runIngest,
   runTranscribe,
   runSweep,
   gatherSweep,
+  gatherSweepWithPromises,
   promisesList,
   callAction,
+  pushUrgent,
   mirrorCallTask,
   applyLeadContact,
   taggedMatch,

@@ -237,3 +237,24 @@ becomes worth building when, in order:
 - **Label "hide"**: should a hidden number still break through for an urgent
   call or a promise Jo made (recommended, like "quiet")?
 - **Promise lifetime**: should a Jo-promise stay open past 14 days?
+
+## Update 2026-10-13 (lifecycle audit)
+
+Re-checked against `main` at 5f1534a8; full write-up in
+[NEEDS-YOU-LIFECYCLE-AND-VOLUME-2026-10-13](NEEDS-YOU-LIFECYCLE-AND-VOLUME-2026-10-13.md).
+
+- **Live gates.** `MORNING_BRIEF_ENABLED` and `MORNING_BRIEF_ABSORB_ENABLED`
+  are now `true` (section 1 above and the `morning-brief.js` header said the
+  brief was off). `TEXT_INBOX_ENABLED` / `TEXT_NOTES_ENABLED` and
+  `AWAY_MODE_ENABLED` are still absent: texts and away mode are dark.
+- **Section 6c's four rungs.** "push, second push, email, morning brief" - the
+  brief lists the sweep's items only, so an urgent call on a filed customer with
+  no follow-up task is on the ladder and on Home but **not** in the brief or the
+  sweep (F5). The ladder email no longer says otherwise.
+- **The email rung depends on a reached push** (F2): the rung advances only
+  when the previous push reached a device, so with no phone token the email
+  never goes. R2's "fail loudly" (the `throw` + heartbeat) is the only cover.
+- **R1 / R7 closed, with a seam:** a call told while its transcript was still
+  pending used up its tell id (F3, fixed 2026-10-13).
+- **Not covered by anything above:** promise tasks created through the sheet
+  have no server-side due-day signal (F1).

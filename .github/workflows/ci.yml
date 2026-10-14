@@ -214,6 +214,11 @@ jobs:
       # partial gate below — without this the scheme is advisory.
       - name: Check projects static-block drift (dry-run diff)
         run: node scripts/build-projects.mjs --check
+      # Credentials drift gate: /credentials cards + JSON-LD and the homepage / about
+      # strip are generated from assets/data/credentials.json, which this also
+      # schema-validates (honesty words, warranty rule, strip cap).
+      - name: Check credentials surfaces drift
+        run: node scripts/build-credentials.mjs --check
       # Town-page drift gate: the TOWNWHY / TOWNFACTS / TOWNFAQ regions on
       # docs/areas/<town>.html and TOWNLOCAL on the town roof-inspection /
       # siding pages are generated from site-src/data/towns.json (NOAA storms,
@@ -535,6 +540,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-commlog-test 'node communication-log-contract.test.js'
+      # In-person visit recordings (2026-10-13): users/{uid}/visit_captures. Own file.
+      - name: Run visit-captures rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-vcap-test 'node firestore-rules.visit-captures.test.js'
       - name: Run Storage rules tests under emulator
         run: |
           cd tests
