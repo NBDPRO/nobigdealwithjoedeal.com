@@ -1313,7 +1313,7 @@ async function submitAndGetEstimate() {
       '2. squares: roofSqft / 100\n' +
       '3. tiers: price ranges for Good / Better / Best (= squares × the per-square ranges above)\n' +
       '4. yearBuilt: estimate if you can, else null\n' +
-      '5. joesTake: 2-3 sentence personalized note addressing ' + funnelData.firstName + ' by name. Reference the neighborhood/city if you can. Do not promise a specific price — say "Joe will give you the exact number after walking your roof."\n\n' +
+      '5. joesTake: 2-3 sentence personalized note addressing ' + funnelData.firstName + ' by name. Joe has NOT seen or inspected this roof yet: write the note as drafted from the homeowner\'s answers only, and never say or imply that Joe inspected, saw, walked, measured on site or assessed the roof. Reference the neighborhood/city if you can. Do not promise a specific price — say "Joe will give you the exact number after walking your roof."\n\n' +
       'RESPOND ONLY WITH THIS JSON (no markdown, no commentary):\n' +
       '{"roofSqft":number,"squares":number,"yearBuilt":number_or_null,"tiers":{"good":{"min":number,"max":number},"better":{"min":number,"max":number},"best":{"min":number,"max":number}},"joesTake":"string"}';
 
@@ -1465,7 +1465,7 @@ async function fetchJoesTakeNote() {
     'Service: ' + label + '\n' +
     'Timeline: ' + funnelData.timeline + '\n\n' +
     'Write a 2-3 sentence personalized note addressing ' + funnelData.firstName + ' by name about their ' + label + ' project. Reference the neighborhood/city if you can. Do NOT mention any dollar amounts, prices, or ranges. ' + stormRule +
-    'Close by saying Joe will confirm everything with a free in-person look — no obligation.\n\n' +
+    'Joe has NOT seen or inspected this roof yet: write the note as drafted from the homeowner\'s answers only, and never say or imply that Joe inspected, saw, walked, measured on site or assessed the roof. Close by saying Joe will confirm everything with a free in-person look — no obligation.\n\n' +
     'Respond with the note text only — no JSON, no markdown, no surrounding quotes.';
 
   var resp = await fetch(CONFIG.PROXY_URL, {
