@@ -152,7 +152,8 @@ async function runIngest({ db, bucket, live, nowMs }) {
       const match = L.matchLead(parsed.phoneDigits, index);
       const bucketName = L.classifyCall(parsed, match);
       counts.buckets[bucketName] = (counts.buckets[bucketName] || 0) + 1;
-      if (CL.captureOff(labels, parsed.phoneDigits)) {
+      // (a number that became a customer after its label is captured: C-4)
+      if (CL.captureOff(labels, parsed.phoneDigits, index.get(parsed.phoneDigits))) {
         // One metadata row (time, direction, number) so the Call Center still
         // shows that it rang; no audio copy, no Groq, no notes, no transcript.
         counts.labelSkipped = (counts.labelSkipped || 0) + 1;
@@ -506,9 +507,12 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
   // was copied: never transcribe it. The stored audio is left exactly as it is
   // (only the status moves, so the queue stops seeing it).
   const labels = await CL.loadLabels(db, OWNER);
+  // A number that became a customer after its label is never skipped (C-4).
+  const anyCaptureOff = Object.keys(labels).some((k) => labels[k] && labels[k].capture === 'off');
+  const leadIndex = anyCaptureOff ? L.buildPhoneIndex(await ownerLeads(db)) : new Map();
   const kept = [];
   for (const c of candidates) {
-    if (!CL.captureOff(labels, c.phoneDigits)) { kept.push(c); continue; }
+    if (!CL.captureOff(labels, c.phoneDigits, leadIndex.get(c.phoneDigits))) { kept.push(c); continue; }
     if (live) await db.collection(COLLECTION).doc(c.id).set({ status: 'personal', labelCapture: 'off' }, { merge: true });
   }
   candidates = kept;
