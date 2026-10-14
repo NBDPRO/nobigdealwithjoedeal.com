@@ -131,7 +131,9 @@ async function tenantLeads(db, uid, companyId) {
   const byId = new Map();
   const take = (snap) => snap.forEach((d) => { if (byId.size < LEAD_CAP && !byId.has(d.id)) byId.set(d.id, Object.assign({ id: d.id }, d.data())); });
   take(await db.collection('leads').where('userId', '==', uid).get());
-  if (companyId && companyId !== uid) take(await db.collection('leads').where('companyId', '==', companyId).get());
+  // Always the company lane, even when companyId === uid: an owner IS their company, and a
+  // teammate's customer carries userId = teammate, companyId = the owner's uid.
+  if (companyId) take(await db.collection('leads').where('companyId', '==', companyId).get());
   return Array.from(byId.values());
 }
 
@@ -256,7 +258,8 @@ async function doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason, final 
   const finalState = final || PIPELINE.SKIPPED;
   const patch = {
     transcript: null, transcriptRaw: null, transcriptSegments: null, transcriptCorrections: null,
-    notes: null, suggestions: [], pipelineLeaseUntilMs: 0,
+    notes: null, suggestions: [], suggestionsAtMs: null, consentEvidence: null, providerOutage: null,
+    pipelineLeaseUntilMs: 0,
     skipReason: reason, purgeFinal: finalState,
     pipelineStatus: del.ok ? finalState : PIPELINE.PURGE_PENDING,
     pipelineNextAtMs: del.ok ? 0 : nowMs + 60 * 60000,

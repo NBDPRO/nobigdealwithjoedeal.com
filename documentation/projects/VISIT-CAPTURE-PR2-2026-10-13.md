@@ -215,8 +215,8 @@ files the sibling PRs (`feat/today-row-and-handled-flow`,
 
 | Check | Result |
 |---|---|
-| `node tests/visit-capture-pipeline-2026-10-13.test.js` (real modules, in-memory Firestore that honours where / orderBy / startAfter, fake Storage, stubbed Groq / Claude) | 171 passed |
-| `node tests/visit-recorder-2026-10-13.test.js` (PR 1 suite + 35 for the callable path, pipeline words, merged chips, the Today row in a fake DOM) | 222 passed |
+| `node tests/visit-capture-pipeline-2026-10-13.test.js` (real modules, in-memory Firestore that honours where / orderBy / startAfter, fake Storage, stubbed Groq / Claude) | 221 passed (about 150 mutations of the guarded code were run by the vacuity auditor; every survivor got an assertion, then re-mutated: killed) |
+| `node tests/visit-recorder-2026-10-13.test.js` (PR 1 suite + 52 for the callable path, refusal vs fallback for four codes on local and remote-only rows, offline / unsynced / not-uploaded, pipeline words, merged chips, the Today row in a fake DOM) | 239 passed |
 | `tests/firestore-rules.visit-captures.test.js` (Firestore emulator) | 94/94 |
 | function-map `--check`, check-js-syntax, site-integrity, apply-partials, sitemap, inline scripts, image privacy | clean |
 
@@ -252,6 +252,7 @@ first commit. The fixes are in this PR; each has a test that fails without it.
 | `retryNotes` paid Claude with no limit | 2-minute cooldown, 5 per capture, refused while leased; the callable has a per-person rate limit |
 | Raw provider error text was stored on the client-readable doc | a short code (`anthropic:credit`); the detail stays in the logs |
 | `sales_rep` was refused by the callable although the rules let them file their own recordings | allowed, own customers only |
+| Vacuity audit: a do-not-record purge left no assertion on the raw transcript / segments / corrections / suggestions; GPS-matched and doFinalize purges were untested; `tenantLeads` skipped the company lane when `companyId === uid`, which is every OWNER, so an owner's recordings never matched a teammate's customer | purge also wipes `suggestionsAtMs`, `consentEvidence`, `providerOutage` and each is asserted; both purge paths tested; the company lane always runs (a teammate's customer has userId = teammate, companyId = the owner's uid) |
 | A `notes_failed` timeline row said "pending" for ever | says the notes could not be written |
 | The Whisper hint sent up to 14 + 8 customers' names to Groq | the day's customers plus the 8 most recently touched, 4 streets, 3 towns; **a policy question for Jo / counsel** (below) |
 

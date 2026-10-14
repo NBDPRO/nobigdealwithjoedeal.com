@@ -1060,7 +1060,64 @@ function uploaderStub(log, behaviour) {
       const at = await a.R.attach('vremote000000002', 'L1');
       ok('attaching a remote-only visit goes through the callable', at.ok && calls.length === 1 && calls[0].data.action === 'attach' && calls[0].data.visitId === 'vremote000000002', J(at) + J(calls));
     }
-    // 5. the helpers the sheet uses
+        {
+      const L1 = [{ id: 'L1', name: 'Ann Reyes' }];
+      const thrower = (code) => caller(() => { throw Object.assign(new Error('server said no'), { code }); });
+      for (const code of ['functions/permission-denied', 'functions/invalid-argument', 'functions/unauthenticated', 'functions/failed-precondition']) {
+        const W = world(); const a = boot(W, { leads: L1 });
+        const r = await uploaded(W, a);
+        a.R._setCaller(thrower(code));
+        const att = await a.R.attach(r.id, 'L1'); await settle();
+        ok('refusal(local row) ' + code, att.ok === false && (await a.R._getVisit(r.id)).leadId === null && (W.firestore.docs.get('users/u1/visit_captures/' + r.id) || {}).leadId === null, J(att));
+        const W2 = world(); const b = boot(W2, { leads: L1 });
+        b.R._setCaller(thrower(code));
+        const at2 = await b.R.attach('vremote000000009', 'L1'); await settle();
+        ok('refusal(remote-only) ' + code + ' writes nothing', at2.ok === false && !W2.firestore.docs.has('users/u1/visit_captures/vremote000000009'), J(at2));
+      }
+      for (const code of ['functions/not-found', 'functions/unavailable', 'functions/internal', 'functions/deadline-exceeded']) {
+        const W = world(); const a = boot(W, { leads: L1 });
+        const r = await uploaded(W, a);
+        a.R._setCaller(thrower(code));
+        const att = await a.R.attach(r.id, 'L1'); await settle();
+        ok('fallback ' + code, att.ok === true && (await a.R._getVisit(r.id)).leadId === 'L1', J(att));
+      }
+      {
+        const W = world(); const a = boot(W, { leads: L1 });
+        a.R._setCaller(caller()); calls.length = 0;
+        await a.R.attach('vremote000000003', null);
+        ok('remote-only detach calls action:detach', calls.length === 1 && calls[0].data.action === 'detach', J(calls));
+      }
+      {
+        const W = world(); const a = boot(W, { leads: L1 });
+        const r = await uploaded(W, a);
+        a.R._setCaller(caller()); calls.length = 0;
+        a.navigator.onLine = false;
+        await a.R.attach(r.id, 'L1'); await settle();
+        ok('offline: uploaded row attaches locally, server NOT called', calls.length === 0 && (await a.R._getVisit(r.id)).leadId === 'L1', J(calls));
+      }
+      {
+        const W = world(); const a = boot(W, { leads: L1 });
+        const r = await uploaded(W, a);
+        W.firestore.state.mode = 'offline';
+        a.R._setCaller(caller()); calls.length = 0;
+        await a.R.attach(r.id, 'L1'); await settle();
+        const row = await a.R._getVisit(r.id);
+        ok('after a local attach the row is marked docSynced:false', row.docSynced === false, J(row));
+        calls.length = 0;
+        await a.R.attach(r.id, null); await settle();
+        ok('a row whose doc is unsynced is not sent to the server', calls.length === 0, J(calls));
+      }
+      {
+        const W = world(); const a = boot(W, { leads: L1, online: true });
+        a.R._setUploader(uploaderStub([], () => 'fail'));
+        const r = await a.R.start({}); a.recorder().emit([1]); await a.R.stop(); await settle();
+        a.R._setCaller(caller()); calls.length = 0;
+        const row0 = await a.R._getVisit(r.id);
+        await a.R.attach(r.id, 'L1');
+        ok('online but not uploaded (status ' + row0.status + '): server NOT called', calls.length === 0, J(calls));
+      }
+    }
+        // 5. the helpers the sheet uses
     {
       const W = world();
       const a = boot(W, { getDoc: async (ref) => ({ exists: () => true, data: () => ({ pipelineStatus: 'ready', suggestions: [{ leadId: 'L9', name: 'Zed' }] }) }) });

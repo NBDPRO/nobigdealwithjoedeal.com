@@ -270,7 +270,7 @@ async function channelRead(w, owner) {
   ok('the transcript is corrected, the raw one is kept beside it', /GAF Timberline/.test(d.transcript) && /gaff Timberline/.test(d.transcriptRaw) && d.transcriptCorrections.length >= 1);
   ok('the vocabulary prompt reached the transcriber with the day\'s customers and the shingle brands', /Jane Smith|John Jones/.test(counts.prompts[0]) && /GAF/.test(counts.prompts[0]) && counts.prompts[0].length <= LG.VOCAB_MAX_CHARS, counts.prompts[0]);
   ok('ranked suggestions are on the doc with evidence (spoken name + appointment)', d.suggestions.length === 2 && d.suggestions.some((s) => s.leadId === 'L_SMITH' && /said/.test(s.evidence)) && d.suggestions.some((s) => s.leadId === 'L_JONES' && /calendar/.test(s.evidence)), J(d.suggestions));
-  ok('NOTHING was attached: leadId null, no activity row, no task anywhere', d.leadId === null && !w.db.log.some(([k, p]) => /^leads\/[^/]+\/(activity|tasks)\//.test(p) && k !== 'noop'), J(w.db.log.filter(([, p]) => /leads\//.test(p))));
+  ok('NOTHING was attached: leadId null, no activity row, no task anywhere', d.leadId === null && !w.db.log.some(([, p]) => /^leads\/[^/]+\/(activity|tasks)\//.test(p)) && w.db.log.some(([, p]) => p === vpath('v6happy1')), J(w.db.log.filter(([, p]) => /leads\//.test(p))));
   ok('usage was recorded for the audio seconds AND the notes tokens (once each); audioLive is true (retention will see it)', counts.usage === 2 && d.audioLive === true && d.transcriptDurationSec === 1480, String(counts.usage));
   const again = await run(w, 'v6happy1');
   ok('IDEMPOTENT: running it again does nothing (no second Groq, no second Claude)', again.step === 'none' && counts.transcribe === 1 && counts.notes === 1, J(again));
@@ -533,17 +533,29 @@ async function channelRead(w, owner) {
   const w2 = world({ v8fail00001: cap('v8fail00001', { firstSeenAtMs: NOW - 120 * day, audioLive: true }) }, { bucket: { deleteThrows: true } });
   const rs2 = await V.retentionSweep({ db: w2.db, bucket: w2.bucket, nowMs: NOW });
   ok('a failed delete keeps the doc live (retried tomorrow), counted', rs2.failed === 1 && D(w2, 'v8fail00001').audioLive === true);
-  const cronSrc = fs.readFileSync(path.join(ROOT, 'functions', 'integrations', 'voice-intelligence.js'), 'utf8');
-  ok('recordingRetentionCron calls the visit retention phase', /require\('\.\.\/visit-capture'\)\.retentionSweep/.test(cronSrc));
+  const stripC = (src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '');
+  const cronSrc = stripC(fs.readFileSync(path.join(ROOT, 'functions', 'integrations', 'voice-intelligence.js'), 'utf8'));
+  const callsRetention = (src) => /await\s+require\('\.\.\/visit-capture'\)\.retentionSweep\(/.test(src);
+  ok('recordingRetentionCron CALLS the visit retention phase (comments stripped)', callsRetention(cronSrc));
+  ok('CONTROL: the detector does not accept a comment-only mention', callsRetention(stripC('// await require(\'../visit-capture\').retentionSweep({})\n/* await require(\'../visit-capture\').retentionSweep({}) */')) === false);
   // indexes
   const idx = JSON.parse(fs.readFileSync(path.join(ROOT, 'firestore.indexes.json'), 'utf8'));
   const hasComposite = (cg, fields) => idx.indexes.some((i) => i.collectionGroup === cg && i.queryScope === 'COLLECTION_GROUP' && J(i.fields.map((f) => f.fieldPath)) === J(fields));
-  const groupQs = w.db.stats.queries.concat(sw && w.db.stats.queries).filter((q) => q && q.label === 'g:visit_captures');
   ok('index: audioLive + firstSeenAtMs composite (COLLECTION_GROUP) exists for the retention query', hasComposite('visit_captures', ['audioLive', 'firstSeenAtMs']));
   ok('index: status + uploadedAtMs composite exists for the lost-trigger query', hasComposite('visit_captures', ['status', 'uploadedAtMs']));
   ok('index: pipelineStatus + pipelineNextAtMs composite exists for the due-only retry query', hasComposite('visit_captures', ['pipelineStatus', 'pipelineNextAtMs']));
   ok('index: appointments repUid/userId + startTime composites already exist (the same query the phone runs)', ['repUid', 'userId'].every((f) => idx.indexes.some((i) => i.collectionGroup === 'appointments' && J(i.fields.map((x) => x.fieldPath)) === J([f, 'startTime']))));
-  ok('every collection-group query shape this module runs is covered above', groupQs.length >= 1);
+  {
+    const w3 = world({ v8shape001: cap('v8shape001', { pipelineStatus: 'notes_pending', pipelineNextAtMs: 0, transcript: 'x', firstSeenAtMs: NOW - 200 * day, audioLive: true }) });
+    stub();
+    await V.sweep({ db: w3.db, bucket: w3.bucket, nowMs: NOW });
+    await V.retentionSweep({ db: w3.db, bucket: w3.bucket, nowMs: NOW });
+    const shapes = [...new Set(w3.db.stats.queries.filter((q) => q.label === 'g:visit_captures').map((q) => q.filters.join(',') + '|' + q.orderBy.join(',')))].sort();
+    const want = ['audioLive ==,firstSeenAtMs <|firstSeenAtMs', 'pipelineStatus in,pipelineNextAtMs <=|pipelineNextAtMs', 'status ==,uploadedAtMs >,uploadedAtMs <|uploadedAtMs'].sort();
+    ok('INDEX: the EXACT set of collection-group query shapes this module runs (a new shape fails here until it has an index)', J(shapes) === J(want), J(shapes));
+    const comp = (fields) => idx.indexes.some((i) => i.collectionGroup === 'visit_captures' && i.queryScope === 'COLLECTION_GROUP' && J(i.fields.map((f) => f.fieldPath)) === J(fields));
+    ok('INDEX: each of those three has its composite', comp(['audioLive', 'firstSeenAtMs']) && comp(['pipelineStatus', 'pipelineNextAtMs']) && comp(['status', 'uploadedAtMs']));
+  }
 
   // ═════════════════════════════════════════════════════════════════════
   console.log('\n9. Review round: the holes the reviewers found');
@@ -730,6 +742,160 @@ async function channelRead(w, owner) {
   for (let i = 0; i < 3; i++) await run(w, 'v9nf0000001', NOW + i * 3 * 3600000);
   const nfRow = w.db.docs.get('leads/L_SMITH/activity/visit-v9nf0000001');
   ok('a permanently failed notes step is said plainly on the timeline (not "pending" for ever)', D(w, 'v9nf0000001').pipelineStatus === 'notes_failed' && nfRow && nfRow.notesFailed === true && nfRow.notesPending === false && /could not be written/.test(nfRow.summary), J(nfRow));
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('\n10. Vacuity-audit round: every guard below was green with its code removed');
+  const SMITH2 = { id: 'L_SMITH2', userId: OWNER, companyId: OWNER, firstName: 'Jane', lastName: 'Smith', address: '9 Other Rd, Union, KY 41091' };
+  const SAID = 'Hi this is Jane Smith, thanks for coming out.';
+  r = R({ transcript: SAID, leads: leadsArr.concat([SMITH2]) });
+  ok('AMBIG: two "Jane Smith" (surname > 3 letters, so the said-name rule really runs) refuse: no chip', r.suggestions.length === 0, J(r));
+  r = R({ transcript: SAID });
+  ok('AMBIG control: ONE Jane Smith is a chip (the rule runs; only the second customer changed)', r.suggestions.length === 1 && r.suggestions[0].leadId === 'L_SMITH', J(r));
+  const lee = (id, addr) => ({ id, userId: OWNER, firstName: 'Pat', lastName: 'Lee', address: addr });
+  const leeF = { name: 'Pat Lee', street: null, town: 'Florence', service: null };
+  ok('FACTS: two same-name customers in the SAME town refuse', R({ transcript: 'Hi this is Pat.', callerFacts: leeF, leads: [lee('A', '5 Birch Ln, Florence, KY'), lee('B', '19 Cedar Ct, Florence, KY')] }).suggestions.length === 0);
+  ok('FACTS control: only one of them in that town is a chip', R({ transcript: 'Hi this is Pat.', callerFacts: leeF, leads: [lee('A', '5 Birch Ln, Florence, KY')] }).suggestions.length === 1);
+  ok('FACTS: a same-name customer with NO address blocks the guess', R({ transcript: 'Hi this is Pat.', callerFacts: leeF, leads: [lee('A', '5 Birch Ln, Florence, KY'), lee('B', '')] }).suggestions.length === 0);
+  const MP = (id, dLat, extra) => Object.assign({ id, userId: OWNER, firstName: 'Mm' + id, lastName: 'Mapped' + id, address: id + ' River Rd, Covington', lat: 39.5 + dLat, lng: -84.9 }, extra || {});
+  const GPSN = (leads, acc) => R({ capture: { startedAtMs: START, lat: 39.5, lng: -84.9, accuracyM: acc }, leads }).suggestions.length;
+  ok('GPS radius is 2 x accuracy: 80 m away with a 60 m fix is a chip', GPSN([MP('A', 0.00072)], 60) === 1);
+  ok('GPS: 150 m away with a 20 m fix is NOT (radius is 40 m, not 2 x 20 only)', GPSN([MP('A', 0.00135)], 20) === 0);
+  ok('GPS: 30 m away with a 5 m fix IS a chip (the 40 m floor)', GPSN([MP('A', 0.00027)], 5) === 1);
+  ok('GPS: 250 m away with a 140 m fix is NOT (the radius is capped at 200 m)', GPSN([MP('A', 0.00225)], 140) === 0);
+  ok('APPT: 45 minutes after you started is a chip', R({ appointments: [apptAt('L_SMITH', 45)] }).suggestions.length === 1);
+  ok('RANK: an appointment on a deleted customer offers nothing', R({ appointments: [apptAt('L_GONE', 10)], leads: leadsArr.concat([{ id: 'L_GONE', userId: OWNER, firstName: 'Gil', lastName: 'Gone', address: '1 Gone St', deleted: true }]) }).suggestions.length === 0);
+  const four = ['L_SMITH', 'L_JONES', 'L_LEE1', 'L_MAPPED'].map((id, i) => apptAt(id, i + 1, { id: 'a' + i }));
+  ok('RANK: four candidates give three chips', R({ appointments: four }).suggestions.length === 3);
+  r = R({ capture: { startedAtMs: START, lat: 39.5, lng: -84.9, accuracyM: 5 }, leads: [MP('D', 0, { doNotRecord: true })] });
+  ok('RANK: GPS landing on a do-not-record customer reports dnrMatch and offers nothing', r.suggestions.length === 0 && !!r.dnrMatch, J(r));
+  ok('retentionDays: 7 ok, 6 -> 90, 3650 ok, 5000 -> 90', LG.retentionDays({ recordingRetentionDays: 7 }) === 7 && LG.retentionDays({ recordingRetentionDays: 6 }) === 90 && LG.retentionDays({ recordingRetentionDays: 3650 }) === 3650 && LG.retentionDays({ recordingRetentionDays: 5000 }) === 90);
+
+  // forged paths: nothing is read, nothing of another person's is deleted
+  for (const [label, p] of [['uid wrong, id right', 'audio/uVictim/_inbox/v10forge01.m4a'], ['uid right, id wrong', 'audio/uOwner/_inbox/other00001.m4a'], ['traversal tail', 'audio/uOwner/_inbox/v10forge01.m4a/../../x.m4a'], ['no extension anchor', 'audio/uOwner/_inbox/v10forge01.m4a.html']]) {
+    stub();
+    w = world({ v10forge01: cap('v10forge01', { audioPath: p }) });
+    w.bucket.store.set(p, Buffer.from('VICTIM'));
+    await run(w, 'v10forge01');
+    ok('FORGE ' + label + ': bad_audio_path, no exists() call, no vendor call', D(w, 'v10forge01').pipelineNote === 'bad_audio_path' && w.bucket.calls.exists.length === 0 && counts.transcribe === 0, String(D(w, 'v10forge01').pipelineNote));
+  }
+  stub();
+  w = world({ v10forgedl1: cap('v10forgedl1', { status: 'discarded', audioPath: 'audio/uVictim/_inbox/x0000001.m4a' }) });
+  w.bucket.store.set('audio/uVictim/_inbox/x0000001.m4a', Buffer.from('VICTIM'));
+  await run(w, 'v10forgedl1');
+  ok('FORGE: discarding a doc whose audioPath names another user\'s object leaves that object in the store', w.bucket.store.has('audio/uVictim/_inbox/x0000001.m4a') && w.bucket.calls.delete.length === 0);
+  w = world({ v10forgeurl: cap('v10forgeurl', { audioPath: 'audio/uVictim/_inbox/x0000001.m4a', audioLive: true, pipelineStatus: 'ready' }) });
+  e = await rej(() => A(w, asOwner, { visitId: 'v10forgeurl', action: 'audioUrl' }));
+  ok('FORGE: audioUrl on a forged audioPath is refused (no signed link to another user\'s object)', e && e.code === 'failed-precondition', e && e.message);
+
+  // do-not-record: everything derived is gone, however the match was found
+  stub({ transcribe: () => ({ text: 'Hi this is Dana Doerr at 7 Pine Road, about the roof.', durationSec: 60, segments: [{ start: 0, end: 2, text: 'Hi Dana Doerr' }] }) });
+  w = world({ v10dnr00001: cap('v10dnr00001') });
+  await run(w, 'v10dnr00001');
+  d = D(w, 'v10dnr00001');
+  ok('DNR named: transcript, RAW transcript, segments, corrections, suggestions, notes and audio are ALL gone',
+    d.transcript === null && d.transcriptRaw === null && d.transcriptSegments === null && d.transcriptCorrections === null && Array.isArray(d.suggestions) && d.suggestions.length === 0 && d.notes === null && !w.bucket.store.has(pathFor('v10dnr00001')) && d.audioLive === false, J(d));
+  ok('...and no customer data survives anywhere on the doc', !/Doerr|Pine Road/.test(J(d)), J(d));
+  stub({ transcribe: () => ({ text: 'Hi, this is Dana, about the roof.', durationSec: 60, segments: [] }), notes: () => Object.assign({}, NOTES, { caller_name: 'Dana Doerr', street: '7 Pine Road', town: null }) });
+  w = world({ v10dnrfact1: cap('v10dnrfact1') });
+  await run(w, 'v10dnrfact1');
+  d = D(w, 'v10dnrfact1');
+  ok('DNR named ONLY in the notes\' caller facts (second ranking): purged as do_not_record_match', d.pipelineStatus === 'skipped' && d.skipReason === 'do_not_record_match' && d.transcript === null && d.notes === null && !w.bucket.store.has(pathFor('v10dnrfact1')), J(d));
+  stub();
+  w = world({ v10dnrgps01: cap('v10dnrgps01', { lat: 39.2, lng: -84.4, accuracyM: 5 }) }, { seed: { 'leads/L_DNRMAP': { userId: OWNER, companyId: OWNER, firstName: 'Mia', lastName: 'Mapped', address: '1 Pin St, Union, KY', lat: 39.2, lng: -84.4, doNotRecord: true } } });
+  await run(w, 'v10dnrgps01');
+  d = D(w, 'v10dnrgps01');
+  ok('DNR found by GPS alone is purged (do_not_record_match), audio deleted', d.pipelineStatus === 'skipped' && d.skipReason === 'do_not_record_match' && d.transcript === null && !w.bucket.store.has(pathFor('v10dnrgps01')), J(d));
+  stub();
+  w = world({ v10dnrfin001: cap('v10dnrfin001', { leadId: 'L_DNR', pipelineStatus: 'ready', notes: { summary: 's', promises: [] }, transcript: 'hello', audioLive: true }) });
+  out = await V._internal.doFinalize({ db: w.db, bucket: w.bucket, ref: w.db.doc(vpath('v10dnrfin001')), uid: OWNER, visitId: 'v10dnrfin001', d: D(w, 'v10dnrfin001'), nowMs: NOW });
+  d = D(w, 'v10dnrfin001');
+  ok('doFinalize onto a customer flagged do-not-record purges (audio deleted, transcript + notes wiped), files nothing', d.pipelineStatus === 'skipped' && d.skipReason === 'do_not_record' && d.transcript === null && d.notes === null && !w.bucket.store.has(pathFor('v10dnrfin001')) && !w.db.log.some(([, p]) => /^leads\//.test(p)), J(d));
+
+  // tenant: an owner's own recordings match a teammate's customers
+  stub({ transcribe: () => ({ text: 'Hi this is Cora Company about the roof.', durationSec: 60, segments: [] }) });
+  w = world({ v10team0001: cap('v10team0001') });
+  await run(w, 'v10team0001');
+  ok('TENANT: the owner (companyId == their own uid) is offered a TEAMMATE\'s customer (userId = teammate, companyId = owner) from the spoken name',
+    (D(w, 'v10team0001').suggestions || []).some((x) => x.leadId === 'L_CO'), J(D(w, 'v10team0001').suggestions));
+  const tl = await V._internal.tenantLeads(w.db, OWNER, OWNER);
+  ok('TENANT: tenantLeads returns the owner\'s own AND the company lane, once each, never another tenant\'s', tl.some((x) => x.id === 'L_CO') && tl.some((x) => x.id === 'L_SMITH') && !tl.some((x) => x.id === 'L_STRANGER') && new Set(tl.map((x) => x.id)).size === tl.length);
+
+  // consent outage: parked with a real backoff, resumes without paying for the transcript again
+  stub({ consent: () => { throw creditErr(); } });
+  w = world({ v10cons0001: cap('v10cons0001', { consentMode: 'two_party_verbal' }) });
+  await run(w, 'v10cons0001');
+  d = D(w, 'v10cons0001');
+  ok('CONSENT outage: note provider_outage, retry >= the credit backoff, and nothing runs before then', d.pipelineStatus === 'consent_pending' && d.pipelineNote === 'provider_outage' && d.pipelineNextAtMs >= NOW + LG.outageRetryMs('credit') && LG.nextStep(d, NOW + 60000).step === 'none', J([d.pipelineNote, d.pipelineNextAtMs]));
+  stub();
+  await run(w, 'v10cons0001', NOW + 2 * 3600000);
+  ok('CONSENT retry after the top-up: ready, and Groq was NOT paid again', D(w, 'v10cons0001').pipelineStatus === 'ready' && counts.transcribe === 0 && counts.consent === 1, D(w, 'v10cons0001').pipelineStatus);
+
+  // the sweep covers every retry state and respects backoff
+  for (const [st, extra, mode] of [['transcribe_pending', {}, 'one_party'], ['waiting_object', {}, 'one_party'], ['consent_pending', { transcript: TRANSCRIPT, transcriptRaw: TRANSCRIPT }, 'two_party_verbal']]) {
+    stub();
+    const id = 'v10sw' + st.slice(0, 6).replace('_', '') + '1';
+    w = world({ [id]: cap(id, Object.assign({ pipelineStatus: st, pipelineNextAtMs: NOW - 1000, consentMode: mode }, extra)) });
+    await V.sweep({ db: w.db, bucket: w.bucket, nowMs: NOW });
+    ok('SWEEP retries a due ' + st + ' doc to ready', D(w, id).pipelineStatus === 'ready', D(w, id).pipelineStatus);
+    const w2 = world({ [id]: cap(id, Object.assign({ pipelineStatus: st, pipelineNextAtMs: NOW + 9e5, consentMode: mode }, extra)) });
+    const sw2 = await V.sweep({ db: w2.db, bucket: w2.bucket, nowMs: NOW });
+    ok('SWEEP leaves a backed-off ' + st + ' doc alone', sw2.picked === 0 && D(w2, id).pipelineStatus === st);
+  }
+  stub({ notes: () => { throw creditErr(); } });
+  w = world({ v10a0000001: cap('v10a0000001', { pipelineStatus: 'notes_pending', pipelineNextAtMs: NOW - 2, transcript: TRANSCRIPT }), v10b0000001: cap('v10b0000001', { pipelineStatus: 'notes_pending', pipelineNextAtMs: NOW - 1, transcript: TRANSCRIPT }) });
+  const swc = await V.sweep({ db: w.db, bucket: w.bucket, nowMs: NOW });
+  ok('SWEEP stops after the first credit outage: ONE Claude call for two due docs', counts.notes === 1 && swc.outage === 1, J(swc) + ' notes=' + counts.notes);
+  stub();
+  w = world({ v10done0001: cap('v10done0001', { pipelineStatus: 'ready', notes: {}, transcript: 'x', audioLive: true, firstSeenAtMs: NOW }) });
+  const swd = await V.sweep({ db: w.db, bucket: w.bucket, nowMs: NOW });
+  ok('SWEEP does not count a finished doc as a lost trigger (and does not touch it)', swd.lostTrigger === 0 && swd.picked === 0, J(swd));
+
+  // size and length guards: no vendor spend
+  stub();
+  w = world({ v10empty001: cap('v10empty001') });
+  w.bucket.store.set(pathFor('v10empty001'), Buffer.alloc(0));
+  await run(w, 'v10empty001');
+  ok('SIZE: empty audio is failed audio_empty with no transcription', D(w, 'v10empty001').pipelineNote === 'audio_empty' && counts.transcribe === 0);
+  w = world({ v10big00001: cap('v10big00001') });
+  const fbig = w.bucket.file;
+  w.bucket.file = (p) => Object.assign(fbig(p), { getMetadata: async () => [{ size: require(path.join(ROOT, 'functions', 'call-center-logic.js')).GROQ_MAX_BYTES + 1 }] });
+  await run(w, 'v10big00001');
+  ok('SIZE: over Groq\'s limit is failed too_large with no transcription', D(w, 'v10big00001').pipelineNote === 'too_large' && counts.transcribe === 0);
+  w = world({ v10long0001: cap('v10long0001', { durationSec: 4000 }) });
+  await run(w, 'v10long0001');
+  ok('SIZE: longer than the cap is failed too_long with no transcription', D(w, 'v10long0001').pipelineNote === 'too_long' && counts.transcribe === 0);
+  w = world({ v10limit0001: cap('v10limit0001', { durationSec: LG.MAX_DURATION_SEC }) });
+  await run(w, 'v10limit0001');
+  ok('SIZE control: exactly at the cap is processed', D(w, 'v10limit0001').pipelineStatus === 'ready' && counts.transcribe === 1);
+
+  // the callable
+  stub();
+  w = world({ v10call0001: cap('v10call0001') });
+  await run(w, 'v10call0001');
+  e = await rej(() => A(w, { uid: 'uStranger', token: {} }, { visitId: 'v10call0001', uid: OWNER, leadId: 'L_STRANGER' }));
+  ok('CALLABLE: a client-sent uid is ignored (the stranger gets not-found, not OWNER\'s capture)', e && e.code === 'not-found', e && e.code);
+  e = await rej(() => A(w, asOwner, { visitId: 'v10call0001', leadId: 'L_GONE' }));
+  w.db.docs.set('leads/L_GONE', { userId: OWNER, companyId: OWNER, firstName: 'Gil', lastName: 'Gone', address: '1 Gone St', deleted: true });
+  e = await rej(() => A(w, asOwner, { visitId: 'v10call0001', leadId: 'L_GONE' }));
+  ok('CALLABLE: a deleted customer is not-found', e && e.code === 'not-found', e && e.code);
+  w.db.docs.set('leads/L_NOCO', { userId: OWNER, firstName: 'Nora', lastName: 'Nocompany', address: '3 Solo St, Union, KY' });
+  r7 = await A(w, asOwner, { visitId: 'v10call0001', leadId: 'L_NOCO' });
+  ok('CALLABLE owner arm: a customer I own that has NO companyId is attachable', r7.ok === true, J(r7));
+  w.db.docs.set('leads/L_SMITH/tasks/manual1', { userId: OWNER, text: 'Call', done: false, leadId: 'L_SMITH' });
+  w.db.docs.set('leads/L_SMITH/tasks/visit-other00001-p0', { userId: OWNER, text: 'x', done: false, leadId: 'L_SMITH', visitId: 'other00001', visitUid: OWNER });
+  await A(w, asOwner, { visitId: 'v10call0001', leadId: 'L_SMITH' });
+  ok('control: attach filed this visit\'s tasks on L_SMITH', w.db.docs.has('leads/L_SMITH/tasks/visit-v10call0001-p0'));
+  await A(w, asOwner, { visitId: 'v10call0001', action: 'detach' });
+  ok('RETRACT: detach removes only THIS visit\'s tasks; a manual task and another visit\'s task survive', w.db.docs.has('leads/L_SMITH/tasks/manual1') && w.db.docs.has('leads/L_SMITH/tasks/visit-other00001-p0') && !w.db.docs.has('leads/L_SMITH/tasks/visit-v10call0001-p0'));
+  w.db.docs.get(vpath('v10call0001')).status = 'discarded';
+  e = await rej(() => A(w, asOwner, { visitId: 'v10call0001', leadId: 'L_SMITH' }));
+  ok('CALLABLE: a discarded capture cannot be attached (failed-precondition)', e && e.code === 'failed-precondition', e && e.code);
+
+  // retention: a discarded capture whose delete failed is overdue at once
+  stub();
+  w = world({ v10disc0001: cap('v10disc0001', { status: 'discarded', pipelineStatus: 'purge_pending', firstSeenAtMs: NOW - 10 * 86400000, audioLive: true }), v10live0001: cap('v10live0001', { firstSeenAtMs: NOW - 10 * 86400000, audioLive: true, pipelineStatus: 'ready' }) });
+  await V.retentionSweep({ db: w.db, bucket: w.bucket, nowMs: NOW });
+  ok('RETENTION: a discarded capture is overdue at once (10 days old, well inside 90); an ordinary one of the same age is not', !w.bucket.store.has(pathFor('v10disc0001')) && w.bucket.store.has(pathFor('v10live0001')));
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log(fails.map((x) => ' - ' + x).join('\n')); process.exit(1); }
