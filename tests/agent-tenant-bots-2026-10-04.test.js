@@ -196,6 +196,18 @@ const NBD_WORDS = /\bJo\b|Jo's|\bNBD\b|No Big Deal|Quinn|TAMKO|HailGuard|jd@|inf
   ok('rules for a company with nothing set: neutral guidance + the KY lines, none of NBD\'s tiers, prices, warranties or house rules',
     !!neutral && neutral.tiers.length === 0 && neutral.general_guidance.length >= 3 && !!neutral.kentucky_insurance_jobs && !NBD_WORDS.test(JSON.stringify(neutral)), neutral && JSON.stringify(neutral).match(NBD_WORDS));
   ok('rules for NBD are NBD\'s own (five tiers, unchanged)', L.rulesReferenceFor && L.rulesReferenceFor({ isNbd: true }).tiers.length === 5 && JSON.stringify(L.rulesReferenceFor({ isNbd: true })) === JSON.stringify(L.rulesReference()));
+  const nbdTyped = L.rulesReferenceFor ? L.rulesReferenceFor({ isNbd: true, houseRules: '- Always offer gutter guards.\n\nNo phone quotes.' }) : null;
+  ok('NBD also gets the house rules typed in bot settings, after its built-in ones', !!nbdTyped
+    && nbdTyped.house_rules.length === L.rulesReference().house_rules.length + 2
+    && nbdTyped.house_rules.slice(-2).join('|') === 'Always offer gutter guards.|No phone quotes.'
+    && L.rulesReference().house_rules.indexOf('Always offer gutter guards.') === -1, nbdTyped && nbdTyped.house_rules);
+  const cred = L.rulesReference && L.rulesReference().credentials;
+  const credText = JSON.stringify(cred || {});
+  ok('NBD rules list its credentials: GAF, TAMKO, IKO certified; Hardie + American Operator as memberships only', !!cred
+    && /GAF Certified #1162011/.test(credText) && /TAMKO Pro Gold/.test(credText) && /IKO ROOFPRO Advantage/.test(credText)
+    && cred.memberships.indexOf('American Operator') !== -1 && cred.memberships.indexOf('James Hardie Alliance') !== -1
+    && !/American Operator|Hardie/.test(cred.certifications.join(' ')) && !/Master Elite/.test(cred.certifications.join(' ').replace('not Master Elite', '')), credText);
+  ok('credentials stay NBD-only (not in another company\'s rules)', !!neutral && neutral.credentials === undefined && !/IKO|TAMKO|GAF Certified/.test(JSON.stringify(neutral)));
   const descs = Object.values(L.TOOLS).map((t) => t.description).join(' | ');
   ok('no tool description names Jo, NBD or Quinn', !/\bJo\b|Jo's|\bNBD\b|Quinn|\bhis\b|\bhim\b/.test(descs), (descs.match(/\bJo\b|Jo's|\bNBD\b|Quinn|\bhis\b|\bhim\b/) || [])[0]);
   const initCustom = L.initializeResult({}, { name: 'Ops helper', role: 'Watches follow-ups', tools: ['list_leads'], scope: 'crm', custom: true }).instructions;
