@@ -199,18 +199,22 @@ const tick = () => new Promise((r) => setImmediate(r));
   // ═══ 3. the morning rep digest (server) ═══════════════════════════════
   console.log('\n3. review-request-nudge: only paid-in-full jobs are due');
   if (RN) {
+    // findReviewDueLeads reads the real clock (Date.now()) for its 3–21 day
+    // window, so these fixtures must too. Pinned to NOW they aged out: B
+    // (10 days before NOW) fell past 21 real days on 2026-10-13 and failed.
+    const live = (d) => Date.now() - d * DAY;
     const db = makeDb({
-      'leads/A': leadOf({ lastName: 'FinalPhotos', stage: 'final_photos', stageRole: 'won', stageStartedAt: ago(10) }),
-      'leads/B': leadOf({ lastName: 'PaidFinal', stage: 'final_payment', stageRole: 'won', stageStartedAt: ago(10) }),
-      'invoices/ib': paidInv({ leadId: 'B', paidAt: ago(10) }),
-      'leads/C': leadOf({ lastName: 'Owes', stage: 'final_payment', stageRole: 'won', stageStartedAt: ago(10) }),
+      'leads/A': leadOf({ lastName: 'FinalPhotos', stage: 'final_photos', stageRole: 'won', stageStartedAt: live(10) }),
+      'leads/B': leadOf({ lastName: 'PaidFinal', stage: 'final_payment', stageRole: 'won', stageStartedAt: live(10) }),
+      'invoices/ib': paidInv({ leadId: 'B', paidAt: live(10) }),
+      'leads/C': leadOf({ lastName: 'Owes', stage: 'final_payment', stageRole: 'won', stageStartedAt: live(10) }),
       'invoices/ic': owedInv({ leadId: 'C' }),
-      'leads/D': leadOf({ lastName: 'Collections', stage: 'collections', stageRole: 'won', stageStartedAt: ago(10) }),
+      'leads/D': leadOf({ lastName: 'Collections', stage: 'collections', stageRole: 'won', stageStartedAt: live(10) }),
       // Entered Final Payment 40 days ago; the last of the money landed 5 days ago.
-      'leads/E': leadOf({ lastName: 'LatePay', stage: 'final_payment', stageRole: 'won', stageStartedAt: ago(40) }),
-      'invoices/ie': paidInv({ leadId: 'E', paidAt: ago(5) }),
+      'leads/E': leadOf({ lastName: 'LatePay', stage: 'final_payment', stageRole: 'won', stageStartedAt: live(40) }),
+      'invoices/ie': paidInv({ leadId: 'E', paidAt: live(5) }),
       // Another company's invoice stamped with this lead id must not block.
-      'leads/F': leadOf({ lastName: 'Foreign', stage: 'closed', stageRole: 'won', stageStartedAt: ago(9) }),
+      'leads/F': leadOf({ lastName: 'Foreign', stage: 'closed', stageRole: 'won', stageStartedAt: live(9) }),
       'invoices/if': owedInv({ leadId: 'F', companyId: 'someone-else' }),
     });
     const out = await RN.findReviewDueLeads(db, 'u1');
@@ -223,7 +227,7 @@ const tick = () => new Promise((r) => setImmediate(r));
     ok('another company\'s invoice on the same lead id does not block the ask', /F/.test(ids), ids);
     const html = typeof RN.buildEmailHtml !== 'function' ? '' : RN.buildEmailHtml({ firstName: 'Jo', dueLeads: out.map((l) => Object.assign({}, l)) });
     ok('the digest says paid in full and its drop-in script carries the referral link', /Paid in full/.test(html) && /referral link/.test(html));
-    const failing = makeDb({ 'leads/B': leadOf({ stage: 'final_payment', stageRole: 'won', stageStartedAt: ago(10) }) });
+    const failing = makeDb({ 'leads/B': leadOf({ stage: 'final_payment', stageRole: 'won', stageStartedAt: live(10) }) });
     const rc = failing.collection.bind(failing);
     failing.collection = (c) => (c === 'invoices' ? { where: () => ({ get: async () => { throw new Error('unavailable'); } }) } : rc(c));
     ok('invoices unreadable → fail closed (no ask on a guess)', (await RN.findReviewDueLeads(failing, 'u1')).length === 0);
