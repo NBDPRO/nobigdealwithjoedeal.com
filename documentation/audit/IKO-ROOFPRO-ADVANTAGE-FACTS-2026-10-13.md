@@ -51,7 +51,7 @@ No contractor ID or account number appears in this note by design.
 | 6b | Logo specs (min size, clear space, wording like "certified" vs "contractor") | **Not found.** No public brand-guideline PDF located. Flyer: terms "will be available for review at time of application"; ask the territory sales rep or the ROOFPRO line. | n/a | n/a | not found |
 | 6c | Trademark line | "IKO ROOFPRO and the IKO (logo) are registered trademarks of IKO Industries Ltd. or IKO Industries Inc." | 2025 flyer; sell sheet | 2025 | primary text read |
 | 7 | FTC-style cautions in IKO terms | Public pages: "Benefits vary by program tier"; "Not all benefits ... available at every tier level"; info "subject to change without notice". Independent-contractor / no-guarantee / release-of-claims language was reported by a search summary of contractor-finder pages but I could not read those pages. | benefits page | 2026 | primary (first three); uncertain (rest) |
-| 8 | Contact | ROOFPRO line 1-866-ROOFPRO (1-866-766-3770); SuccessCoordinators@IKO.com (2025 flyer); IKO main 1-888-IKO-ROOF. | 2025 flyer; sell sheet | 2025 | primary text read |
+| 8 | Contact | ROOFPRO line 1-866-ROOFPRO (1-866-766-3770); a ROOFPRO success-coordinator mailbox listed on the 2025 flyer (address omitted here; read it from the flyer); IKO main 1-888-IKO-ROOF. | 2025 flyer; sell sheet | 2025 | primary text read |
 
 ## Notes on Jo's earlier note ("$1.50/sq, 500 sq/yr of architectural or better")
 
