@@ -485,6 +485,12 @@ function rulesReference() {
       say_instead: 'We document the damage and meet the adjuster; the claim stays the homeowner\'s.',
       crm_messages: { depositHold: msg.depositHold || null, payLinkHeld: msg.payLinkHeld || null, aobRetired: msg.aobRetired || null },
     },
+    // Confirmed by Jo 2026-10-14. Only these are credentials; never claim any other.
+    credentials: {
+      certifications: ['GAF Certified #1162011 (not Master Elite; no Golden or Silver Pledge)', 'TAMKO Pro Gold, Pro ID 181382', 'IKO ROOFPRO Advantage'],
+      memberships: ['James Hardie Alliance', 'American Operator'],
+      note: 'Memberships are never "certified". Say "Fully insured", never "licensed". Jo installs Owens Corning on request, but there is no Owens Corning credential or OC system warranty to claim.',
+    },
     house_rules: [
       'Crews are independent subcontractors carrying their own insurance; never write "in-house crews" or W-2 employees. Jo is on every roof; no salespeople.',
       '"Revenue" means money collected (payments by date received). Estimates, contracts and pipeline are projected.',
@@ -1092,7 +1098,14 @@ function houseRuleLines(text) {
 }
 function rulesReferenceFor(o) {
   const x = o || {};
-  if (x.isNbd) return rulesReference();
+  if (x.isNbd) {
+    // NBD keeps its built-in rules and also gets the house rules typed in
+    // bot settings (they used to be saved but never read for NBD).
+    const r = rulesReference();
+    const typed = houseRuleLines(x.houseRules);
+    if (typed.length) r.house_rules = r.house_rules.concat(typed);
+    return r;
+  }
   const p = x.profile || {};
   const br = (p.businessRules && typeof p.businessRules === 'object') ? p.businessRules : {};
   const t = (br.tiers && typeof br.tiers === 'object') ? br.tiers : {};
