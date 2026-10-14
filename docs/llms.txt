@@ -83,6 +83,7 @@ Joe Deal also built **NBD Pro** — a roofing business management SaaS platform 
 - [The NBD Build](https://nobigdealwithjoedeal.com/services/the-nbd-build): Premium 3-component bundle (LumaNail + GAF Pivot + Roofivent), standard on Elite
 - [Homepage](https://nobigdealwithjoedeal.com/): Full service overview, contact, tier card
 - [About Joe Deal](https://nobigdealwithjoedeal.com/about): Founder story and credentials
+- [Credentials](https://nobigdealwithjoedeal.com/credentials): Every manufacturer certification and insurance claim, with the ID and a link to verify each one
 - [Hail Damage Insurance Claims](https://nobigdealwithjoedeal.com/services/hail-damage-insurance-claim): Hail damage documentation and roof replacement on insurance jobs
 - [Storm Damage](https://nobigdealwithjoedeal.com/services/storm-damage): Storm response and damage documentation
 - [Roof Replacement](https://nobigdealwithjoedeal.com/services/roof-replacement): Full tear-off + GAF install

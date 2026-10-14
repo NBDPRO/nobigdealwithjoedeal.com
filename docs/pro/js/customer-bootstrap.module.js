@@ -769,7 +769,8 @@ async function loadCustomerData(id) {
     // only — sendEmail refuses a commercial send to a suppressed address
     // whatever this shows.
     _renderEmailUnsubState(lead, id);
-    
+    _kickDocDrafts(lead, id);
+
     // Last updated indicator (R3-2: tsToDate handles plain {seconds} reads)
     const updatedAt = tsToDate(lead.updatedAt) || tsToDate(lead.createdAt);
     if (updatedAt) {
@@ -4424,6 +4425,20 @@ Object.assign(window.__NBD_CALL_REGISTRY, {
 // file under. firestore.rules lets a tenant member GET its own tenant's docs;
 // a missing doc reads as "not unsubscribed". Everything here is advisory: the
 // server is what refuses the send.
+// "Docs to review" (2026-10-13): the stage-triggered email drafts the server
+// queues under leads/{id}/doc_drafts. Lazy — no boot <script> tag; the file is
+// loaded once, here, after the lead renders. Viewers never see the queue.
+function _kickDocDrafts(lead, leadId) {
+  try {
+    const role = (window._userClaims && window._userClaims.role) || '';
+    if (role === 'viewer' || role === 'member') return;
+    const SL = window.ScriptLoader;
+    if (!SL || typeof SL.load !== 'function') return;
+    Promise.resolve(SL.load('js/doc-drafts-ui.js?v=1')).then(() => {
+      if (window.NBDDocDrafts && typeof window.NBDDocDrafts.render === 'function') return window.NBDDocDrafts.render(leadId, lead);
+    }).catch(() => {});
+  } catch (_) { /* the queue is an extra; the customer page never waits on it */ }
+}
 let _emailUnsubSeq = 0;
 async function _sha256Hex(text) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));

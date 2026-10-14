@@ -214,6 +214,11 @@ jobs:
       # partial gate below — without this the scheme is advisory.
       - name: Check projects static-block drift (dry-run diff)
         run: node scripts/build-projects.mjs --check
+      # Credentials drift gate: /credentials cards + JSON-LD and the homepage / about
+      # strip are generated from assets/data/credentials.json, which this also
+      # schema-validates (honesty words, warranty rule, strip cap).
+      - name: Check credentials surfaces drift
+        run: node scripts/build-credentials.mjs --check
       # Town-page drift gate: the TOWNWHY / TOWNFACTS / TOWNFAQ regions on
       # docs/areas/<town>.html and TOWNLOCAL on the town roof-inspection /
       # siding pages are generated from site-src/data/towns.json (NOAA storms,
@@ -523,6 +528,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-thandled-test 'node firestore-rules.thursday-handled.test.js'
+      # Stage-triggered "Docs to review" drafts (2026-10-13): leads/{id}/doc_drafts.
+      - name: Run doc-drafts rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-ddrafts-test 'node firestore-rules.doc-drafts.test.js'
       # Communication Log producer→index→consumer contract (customer page).
       # Broke silently once (log permanently empty): producers wrote neither
       # leadId nor `date` while the consumer queried {leadId, uid, orderBy date}.

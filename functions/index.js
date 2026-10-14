@@ -215,6 +215,8 @@ exports.integrationStatus = integrationsHandlers.integrationStatus;
 // integrationStatus in handlers/integrations.js for why that one stays
 // admin-gated and this one deliberately does not.
 exports.integrationAvailability = integrationsHandlers.integrationAvailability;
+// Read-only live feature-flag readout for the owner / admins (Settings -> Access).
+exports.flagStatus = integrationsHandlers.flagStatus;
 exports.submitPublicLead  = integrationsHandlers.submitPublicLead;
 // Photos attached to a website request (2026-09-30) — one-time grant from submitPublicLead.
 exports.uploadPublicLeadPhoto = require('./public-lead-photos').uploadPublicLeadPhoto;
@@ -471,6 +473,11 @@ exports.fileStormDrafts = agentMcp.fileStormDrafts;
 // functions/report-sharing.js.
 const reportSharingFunctions = require('./report-sharing');
 Object.assign(exports, reportSharingFunctions);
+
+// Confirm a custom lead-alert address (2026-10-13): alertRecipients callable +
+// /alert-confirm/<token> page. Policy lives in functions/alert-recipients.js.
+const alertRecipientFunctions = require('./alert-recipients-fns');
+Object.assign(exports, alertRecipientFunctions);
 
 // Read-only .ics calendar feed: one secret URL per rep
 // (calendar_feed_tokens + /calendar/<token>.ics), subscribed once from the

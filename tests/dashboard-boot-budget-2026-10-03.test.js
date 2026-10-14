@@ -78,6 +78,11 @@ CEILING.localBytes += 30 * 1024;   // pipeline-rich-cards.js = 26.5 KB (LF), + ~
 // Per-layout code and CSS (Field App, Focus, ...) load lazily only for the active layout.
 CEILING.localScripts += 1;
 CEILING.localBytes += 24 * 1024;
+// +15 KB, deliberate (2026-10-13, Today UX walk PR-B; 10 -> 15 on the restack, main had absorbed ~5 KB of other PRs' bytes): no new script. The cold-boot "checking"
+// state (collected-revenue.js, home-attention.js, today-home.js), the keyed handled set, the
+// 6 s Undo on every Today action and the hold-then-collapse are ~14.7 KB of deferred code in
+// files already loaded; promise-ui.js (lazy) and the CSS are not counted here. Own line.
+CEILING.localBytes += 15 * 1024;
 // +1 local tag, deliberate (2026-10-11, CRM style integration E1): js/pixel-mode.js (Pixel Mode loader, ~3 KB).
 // Deferred; on boot it reads one settings doc and stops. The skin/Party/dialog code (pixel-mode-core.js), its CSS, the
 // fonts and the logic module are fetched only when the person turned something on or the Settings card scrolls into
@@ -94,6 +99,11 @@ CEILING.localScripts += 1;
 // to load its own code; none of it is on the boot path, so blockingScripts does not move. Own line.
 CEILING.localScripts += 1;
 CEILING.localBytes += 18 * 1024;
+// +3 KB, deliberate (2026-10-14, visit capture PR 2): the recorder launcher grows ~1 KB (the
+// "unfiled capture" entry + attach hand-off) and visit-unfiled-today.js (~6 KB, deferred, loaded on
+// the same idle schedule as the recorder, never on the boot path) is the Today "unfiled visit" row.
+// Measured 4820 KB on the restack onto main (main alone: 4817 of 4818); ceiling keeps the same ~1 KB of slack.
+CEILING.localBytes += 3 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {

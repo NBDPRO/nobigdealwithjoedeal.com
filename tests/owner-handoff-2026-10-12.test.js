@@ -204,6 +204,8 @@ function seed(extra) {
   return Object.assign({
     'companies/ow1': { ownerId: 'ow1', name: 'Acme Roofing' },
     'subscriptions/ow1': { status: 'active', plan: 'team', stripeCustomerId: 'cus_X', stripeSubscriptionId: 'sub_X' },
+    // The former owner's confirmed lead-alert address (2026-10-13): must not survive a hand-off.
+    'alertRecipients/ow1': { confirmed: { k1: { email: 'former-inbox@x.test', requestedBy: 'ow1' } } },
     'companies/ow1/members/adm1@x.test': { uid: 'adm1', email: 'adm1@x.test', status: 'active', role: 'company_admin' },
     'companies/ow1/members/adm2@x.test': { uid: 'adm2', email: 'adm2@x.test', status: 'active', role: 'company_admin' },
     'companies/ow1/members/rep1@x.test': { uid: 'rep1', email: 'rep1@x.test', status: 'active', role: 'sales_rep' },
@@ -261,6 +263,7 @@ const REFUSAL = 'That person is not an active admin on your team. Make them an a
     ok('companies/ow1.ownerId moved to the new owner; provenance stamped',
       co.ownerId === 'adm1' && co.previousOwnerId === 'ow1' && co.ownershipTransferredBy === 'ow1' && !!co.ownershipTransferredAt, JSON.stringify(co));
     ok('the company id did NOT change (no data, billing or Stripe key moved)', s.has('companies/ow1') && s.has('subscriptions/ow1') && !s.has('companies/adm1'));
+    ok('the former owner\'s confirmed lead-alert address is dropped (the new owner re-confirms)', !s.has('alertRecipients/ow1'));
     ok('new owner holds no roster row (an owner is not a seat)', !s.has('companies/ow1/members/adm1@x.test'));
     const fr = s.get('companies/ow1/members/ow1@x.test');
     ok('former owner is on the roster as an active company_admin', !!fr && fr.uid === 'ow1' && fr.status === 'active' && fr.role === 'company_admin' && fr.activatedVia === 'owner-handoff', JSON.stringify(fr));

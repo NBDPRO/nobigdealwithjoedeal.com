@@ -261,7 +261,7 @@ first commit. The fixes are in this PR; each has a test that fails without it.
 `get(/leads/$(leadId))` and pass as a lead the writer owns. It was marked
 unverified. Run against the first commit's rules in the emulator, those writes
 are **denied** (the engine does not splice a slash into one segment), so it was
-not exploitable; the guard (`!leadId.matches('.*/.*')` in the rules, and an id
+not exploitable; the guard (`!leadId.matches('.*[/].*')` in the rules, and an id
 regex on every server read of `leadId`) is defence in depth, and the test pins
 both sides (plain id allowed, path denied).
 

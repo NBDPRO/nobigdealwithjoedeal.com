@@ -725,7 +725,7 @@ async function channelRead(w, owner) {
   ok('the callable is rate limited per person (a limiter refusal passes through)', e && e.code === 'resource-exhausted' && counts.rate >= 1);
 
   // the doc the person reads never carries a raw provider message
-  stub({ notes: () => { throw Object.assign(new Error('anthropic 401: invalid x-api-key sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), { status: 401, provider: 'anthropic' }); } });
+  stub({ notes: () => { throw Object.assign(new Error('anthropic 401: invalid x-api-key ' + 'sk-' + 'ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), { status: 401, provider: 'anthropic' }); } });
   w = world({ v9err000001: cap('v9err000001') });
   out = await run(w, 'v9err000001');
   ok('pipelineError on the client-readable doc is a short code (anthropic:auth), never the provider\'s text or a key fragment', D(w, 'v9err000001').pipelineError === 'anthropic:auth' && !/sk-ant|ABCDEFG/.test(J(D(w, 'v9err000001'))), D(w, 'v9err000001').pipelineError);

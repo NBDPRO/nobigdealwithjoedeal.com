@@ -120,7 +120,7 @@ async function runTextIngest({ db, live, nowMs }) {
     chunk.forEach((m, k) => {
       cursor = Math.max(cursor, m.dateMs);
       if (have.has(refs[k].id)) return;
-      if (CL.captureOff(labels, m.phoneDigits)) { counts.labelSkipped++; return; }
+      if (CL.captureOff(labels, m.phoneDigits, index.get(m.phoneDigits))) { counts.labelSkipped++; return; }
       counts.fresh++;
       const match = CC.matchLead(m.phoneDigits, index);
       const bucket = CC.classifyCall({ contactLabel: m.contactName, savedContact: !!m.contactName }, match);
@@ -183,7 +183,13 @@ async function runTextNotes({ db, live, nowMs }) {
   const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('sentAtMs', '>=', nowMs - 3 * 24 * 3600 * 1000)
     .orderBy('sentAtMs', 'desc').limit(3000).get();
   q.forEach((d) => rows.push(Object.assign({}, d.data(), { id: d.id })));
-  const days = T.groupTextDays(rows, { nowMs });
+  // personal + "stop copying": a day from a number Jo stopped recording is not
+  // noted (texts stored before the label). A number that became a customer
+  // after the label is captured again, so it is noted (audit C-4).
+  const labels = await CL.loadLabels(db, OWNER);
+  const anyOff = Object.keys(labels).some((k) => labels[k] && labels[k].capture === 'off');
+  const idx = anyOff ? CC.buildPhoneIndex(await ownerLeads(db)) : new Map();
+  const days = T.groupTextDays(rows, { nowMs }).filter((d) => !CL.captureOff(labels, d.phoneDigits, idx.get(d.phoneDigits)));
   const refs = days.map((d) => db.collection(DAYS).doc(d.id));
   const have = new Map();
   if (refs.length) (await db.getAll(...refs)).forEach((s) => { if (s.exists) have.set(s.id, s.data()); });

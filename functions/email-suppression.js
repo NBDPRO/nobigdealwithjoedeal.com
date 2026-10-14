@@ -397,6 +397,7 @@ const SEND_PATHS = Object.freeze({
   'esign-io.js': 'transactional',             // signing link / reminder / signed copy (esign-envelope.js + esign-reminders.js send through it)
   'remote-signing.js': 'transactional',       // document signing link
   'report-sharing.js': 'transactional',       // report / document share link
+  'alert-recipients-fns.js': 'transactional', // one-time confirmation link to an alert address the owner named
   'anniversary-touch.js': 'internal',         // rep digest
   'dormant-leads.js': 'internal',             // rep digest
   'review-request-nudge.js': 'internal',      // rep digest

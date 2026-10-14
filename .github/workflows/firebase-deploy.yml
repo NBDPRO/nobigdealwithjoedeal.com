@@ -562,6 +562,7 @@ jobs:
           npx firebase-tools emulators:exec --only firestore --project nbd-xtenant-test 'node firestore-rules.cross-tenant.test.js'
           npx firebase-tools emulators:exec --only firestore --project nbd-labels-test 'node firestore-rules.contact-labels.test.js'
           npx firebase-tools emulators:exec --only firestore --project nbd-thandled-test 'node firestore-rules.thursday-handled.test.js'
+          npx firebase-tools emulators:exec --only firestore --project nbd-ddrafts-test 'node firestore-rules.doc-drafts.test.js'
           npx firebase-tools emulators:exec --only firestore --project nbd-commlog-test 'node communication-log-contract.test.js'
           npx firebase-tools emulators:exec --only firestore --project nbd-vcap-test 'node firestore-rules.visit-captures.test.js'
           npx firebase-tools emulators:exec --only storage --project nbd-storage-test 'node storage-rules.test.js'

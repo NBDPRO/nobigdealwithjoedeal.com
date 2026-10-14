@@ -1514,17 +1514,6 @@ const DOC_TEMPLATES = {
 <p>☐ Final inspection with homeowner walk-through</p>
 <p><strong>Measurements:</strong> ______ squares | Pitch: ______ | Estimated start: ______</p>`
   },
-  authorization: {
-    title: 'Work Authorization',
-    content: `<h2>WORK AUTHORIZATION FORM</h2>
-<p>I, <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>, owner of the property located at:</p>
-<p><span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
-<p>hereby authorize <strong>{{COMPANY}}</strong> to perform the following work:</p>
-<p><span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
-<p>I authorize {{COMPANY}} to negotiate with my insurance company on my behalf and to receive payment directly from the insurance carrier for covered work.</p>
-<p><strong>Homeowner Signature:</strong> <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
-<p><strong>Date:</strong> <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> &nbsp;&nbsp; <strong>Phone:</strong> <span class="field-line">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>`
-  },
   inspection: {
     title: 'Inspection Checklist',
     content: `<h2>ROOF & EXTERIOR INSPECTION CHECKLIST</h2>
@@ -1602,10 +1591,11 @@ function _nbdRepName(){
 // Company identity for the printable blank forms below. These templates had
 // "No Big Deal Home Solutions" and the owner's phone hardcoded into WORK
 // AUTHORIZATIONS, warranty certificates and certificates of completion — the
-// paper a rep prints and has a homeowner sign at the door. One of them reads
-// "I authorize {company} to negotiate with my insurance company on my behalf
-// and to receive payment directly from the insurance carrier": a tenant's
-// customer was signing that in the platform owner's favour.
+// paper a rep prints and has a homeowner sign at the door. The Work
+// Authorization form carried an insurance-negotiation authorization clause
+// (a tenant's customer was signing it in the platform owner's favour); that
+// template is deleted (2026-10-13) and tests/customer-claim-honesty-2026-10-13
+// keeps it from coming back.
 //
 // Same isNbd gate as elsewhere; NBD's own forms render byte-identical.
 function _nbdDocCompany(){

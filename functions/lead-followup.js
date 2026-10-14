@@ -136,6 +136,13 @@ exports.leadFollowUpSweep = onSchedule(
           String(card.stage || '').toLowerCase() === 'new' &&
           String(card.status || '').toLowerCase() === 'new';
         if (!untouched) { skipped++; continue; }
+        // A deliberate snooze (2026-10-13 controls audit): the owner parked
+        // this card on purpose, usually after talking to the homeowner, and a
+        // snooze changes neither stage nor status. Emailing "we haven't
+        // managed to connect" to someone Jo already reached is the worst
+        // failure this sweep has. Any snooze (active, or snoozeCount>0 for one
+        // that just expired) is a human decision; skip and let Jo drive.
+        if (card.snoozedUntil || Number(card.snoozeCount) > 0) { skipped++; continue; }
 
         // Email unsubscribe (CAN-SPAM, 2026-09-22). This follow-up is
         // COMMERCIAL: an address on the lead's tenant's suppression register
