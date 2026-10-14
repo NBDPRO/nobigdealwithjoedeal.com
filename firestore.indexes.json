@@ -83,6 +83,16 @@
       ]
     },
     {
+      "_comment": "Declined-consent reply window (functions/sms-consent-declined.js inboundFromPhoneTexts): where('phoneDigits','==',key).where('companyId','==',tenant).where('sentAtMs','>=',since).orderBy('sentAtMs','desc').limit(100) — did this number text the owner's phone inside the last N days? Without it the phone_texts half of the check throws FAILED_PRECONDITION and the policy answers consent_check_unverified (refuses) unless the sms_log half already found an inbound. The emulator does not enforce indexes: deploy this one before relying on phone-backup texts as the window.",
+      "collectionGroup": "phone_texts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "phoneDigits", "order": "ASCENDING" },
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "sentAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "phone_calls",
       "queryScope": "COLLECTION",
       "fields": [

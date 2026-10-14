@@ -320,6 +320,15 @@ function mapPublicLeadToLead(args) {
     for (const k of ['tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource']) {
       if (data[k] != null) doc[k] = data[k];
     }
+  } else if (data.tcpaConsent === false) {
+    // C-7 (2026-10-13): the form's box was left UNCHECKED and the homeowner
+    // submitted anyway. That is a stored DECLINE, and it must reach the CRM
+    // lead: the server send gate (functions/sms-consent-declined.js) reads
+    // `tcpaConsent === false` from the lead, and before this the bridge left
+    // the field absent — so the gate had nothing to refuse on. Strictly the
+    // boolean false: an absent field (a form that never asked) stays absent,
+    // and no consent RECORD (at / text / source) is invented for a decline.
+    doc.tcpaConsent = false;
   }
 
   // Per-lead acquisition cost (2026-09-20). Thumbtack's leadPrice (webhook

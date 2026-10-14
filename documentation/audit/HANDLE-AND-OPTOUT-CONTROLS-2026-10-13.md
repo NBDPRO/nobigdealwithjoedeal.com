@@ -261,6 +261,13 @@ VERIFIED (harness).**
   is switched on. Fix shape: one server module that Today, callWatch, away,
   sweep and brief all import (M-5).
 
+> **Update 2026-10-13 (later): C-7 is built** — option A, see
+> [SMS-CONSENT-DECLINED-POLICY-2026-10-13](SMS-CONSENT-DECLINED-POLICY-2026-10-13.md).
+> Two corrections to what is written below: the device hand-off check refused a
+> declined lead *outright* (it did not honour an inbound window, so "mirrors the
+> device hand-off path" was wrong), and the lead bridge never stamped
+> `tcpaConsent:false` on the CRM lead at all, so no reader could see a decline.
+
 **C-7. A consent flag declined on the form is not enforced on server sends.
 VERIFIED (harness).** A lead with `tcpaConsent:false` got HTTP 200 and a Twilio
 call from live `sendSMS`. Only `phone-text-check.js:119` and

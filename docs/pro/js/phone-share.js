@@ -120,9 +120,12 @@
       if (!digits(o.phone)) return { ok: false, code: 'no_phone', reason: 'No phone number on file for this customer.' };
       if (!_numberOnly(o) && !o.leadId) return { ok: false, code: 'no_lead', reason: COULD_NOT_CHECK };
       try {
+        // source: what the text IS, so a campaign label is held to the stricter
+        // declined-consent rule (functions/sms-consent-declined.js).
+        const src = typeof o.source === 'string' && o.source ? { source: o.source.slice(0, 40) } : {};
         const r = await _call('check', _numberOnly(o)
-          ? { phone: String(o.phone), recipient: o.recipient }
-          : { phone: String(o.phone), leadId: String(o.leadId), recipient: 'homeowner' });
+          ? Object.assign({ phone: String(o.phone), recipient: o.recipient }, src)
+          : Object.assign({ phone: String(o.phone), leadId: String(o.leadId), recipient: 'homeowner' }, src));
         return r && r.ok === true ? r : { ok: false, code: (r && r.code) || 'unverified', reason: (r && r.reason) || COULD_NOT_CHECK };
       } catch (_) {
         return { ok: false, code: 'unverified', reason: COULD_NOT_CHECK };
