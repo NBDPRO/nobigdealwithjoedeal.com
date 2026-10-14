@@ -483,6 +483,49 @@ let _NBD_NC_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     },
 
     /**
+     * Send a stage-triggered DRAFT (the "Docs to review" queue) through the
+     * server. The request names only {leadId, draftId} plus the rep's edited
+     * subject/body: the recipient and the email kind come from the draft on
+     * the server, which also runs every opt-out gate and claims the draft so
+     * two tabs / two people cannot both send it (functions/doc-draft-send.js).
+     *
+     * NEVER hands off to the rep's mail app: a mailto: is not a confirmed
+     * send, and the draft has its own Copy / Mark sent path.
+     *
+     * @returns {Promise<{success:boolean, mode:'platform', id?:string,
+     *   error?:string, message?:string, status?:number, draftStatus?:string,
+     *   sendState?:string, unconfirmed?:boolean}>}
+     *   unconfirmed: true = the request may have reached the server (network
+     *   drop / abort / server said it could not confirm). The caller must
+     *   refresh the draft, not offer a retry.
+     */
+    async sendDraftEmail(args) {
+      const a = (args && typeof args === 'object') ? args : {};
+      if (!a.leadId || !a.draftId) return { success: false, mode: 'platform', error: 'bad-request', message: 'Missing customer or draft.' };
+      const payload = { leadId: String(a.leadId), draftId: String(a.draftId) };
+      if (typeof a.subject === 'string') payload.subject = a.subject;
+      if (typeof a.body === 'string') payload.body = a.body;
+      const plat = await _platformPost('sendEmail', payload);
+      if (plat.ok) {
+        if (window.showToast) window.showToast('Email sent', 'success');
+        return {
+          success: true, mode: 'platform',
+          id: (plat.data && plat.data.id) || null,
+          draftStatus: (plat.data && plat.data.draftStatus) || 'sent',
+          bookkeeping: (plat.data && plat.data.bookkeeping) || 'ok',
+        };
+      }
+      return {
+        success: false, mode: 'platform', status: plat.status,
+        error: plat.code || plat.error || 'send-failed',
+        message: plat.error || 'Could not send.',
+        // status 0 = no answer at all (offline / 25s abort): the request may
+        // have been processed. 'send_unconfirmed' = the server said so.
+        unconfirmed: plat.status === 0 || plat.code === 'send_unconfirmed',
+      };
+    },
+
+    /**
      * Send SMS via platform (Twilio) with sms: protocol fallback.
      * @returns {Promise<{success:boolean, mode:string, sid?:string, error?:string}>}
      */

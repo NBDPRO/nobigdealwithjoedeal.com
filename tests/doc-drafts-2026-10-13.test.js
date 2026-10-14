@@ -4,7 +4,10 @@
  *
  *   A. the plan table: event -> draft kinds, and each kind's sendEmail `kind`
  *      (the thank-you / review ask has NONE; every other kind is on the
- *      transactional allowlist in functions/email-suppression.js);
+ *      transactional allowlist in functions/email-suppression.js). Since
+ *      2026-10-13 the SERVER takes that kind from the draft; the browser sends
+ *      only {leadId, draftId, subject, body} (tests/send-bound-to-draft-
+ *      2026-10-13.test.js drives the server side);
  *   B. wording: tenant branding (a second company gets ITS name/phone, never
  *      NBD's), [[placeholders]] for the unknown, the warranty email's two
  *      separate warranty lines, TIER_LABOR_YEARS pinned to estimate-config.js,
@@ -377,12 +380,15 @@ const kindsOf = (db, leadId) => draftsIn(db, leadId).map((k) => db.store.get(k).
     const code = stripComments(src);
     ok('strict CSP: no inline handlers, no innerHTML / insertAdjacentHTML / document.write / eval in the queue UI',
       !/\bon[a-z]+\s*=\s*["']/i.test(code) && !/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function/.test(code));
-    ok('send passes leadId and the draft\'s kind to NBDComms.sendEmail, and the kind is omitted when empty (commercial)',
-      /leadId: data\.leadId/.test(code) && /if \(kind\) payload\.kind = kind/.test(code) && /data\.emailKind \|\| undefined/.test(code));
-    ok('a draft is marked sent only when the PLATFORM sent it (not a mail-app handoff)', /r\.success && r\.mode === 'platform'[\s\S]{0,80}finish\('emailed'\)/.test(code));
+    ok('send names only the draft (leadId + draftId + the rep\'s edits) via NBDComms.sendDraftEmail — no `to`, no `kind` from the browser',
+      /sendDraftEmail\(\s*\{\s*leadId\s*:\s*data\.leadId\s*,\s*draftId\s*:\s*d\.id\s*,\s*subject\s*:[^}]*\}\s*\)/.test(code)
+      && !/NBDComms\.sendEmail\b/.test(code) && !/payload\.kind|data\.emailKind\s*\|\|\s*undefined|\bto\s*:\s*data\.to/.test(code));
+    ok('a draft is cleared as emailed only when the server confirmed it (r.success), never from a mail-app handoff',
+      /r\s*&&\s*r\.success\s*\)[\s\S]{0,400}finish\(\s*'emailed'\s*\)/.test(code) && !/mailto/i.test(code));
     ok('44px targets + font-size 16px inputs (iOS no-zoom)', /minHeight: '44px'/.test(code) && /fontSize: '16px'/.test(code));
-    ok('the client writes only status / subject / body / sentAt / dismissedAt to the draft',
-      (code.match(/save\(\{[^}]*\}\)/g) || []).every((c) => /^save\(\{ (status|subject|body|sentAt|dismissedAt)/.test(c)) && !/updateDoc\([^)]*,\s*\{[^}]*\b(to|emailKind|companyId|userId|leadId)\s*:/.test(code));
+    ok('the client never writes status "sent" / "sending" / sentAt to a draft (server-only since 2026-10-13); it writes copied / dismissed only',
+      !/status:\s*'(sent|sending|draft)'/.test(code) && !/\bsentAt\b[^\n]*new Date/.test(code)
+      && (code.match(/status:\s*'[a-z]+'/g) || []).every((m) => /'(copied|dismissed)'/.test(m)) && !/updateDoc\([^)]*,\s*\{[^}]*\b(to|emailKind|companyId|userId|leadId)\s*:/.test(code));
     const kick = stripComments(read('docs/pro/js/customer-bootstrap.module.js'));
     ok('lazy-loaded from the customer page (ScriptLoader.load) — not an eager <script> tag',
       /_kickDocDrafts\(lead, id\)/.test(kick) && /SL\.load\('js\/doc-drafts-ui\.js\?v=1'\)/.test(kick) && !/doc-drafts-ui\.js/.test(read('docs/pro/customer.html')) && !/doc-drafts-ui\.js/.test(read('docs/pro/dashboard.html')));
@@ -490,7 +496,7 @@ const kindsOf = (db, leadId) => draftsIn(db, leadId).map((k) => db.store.get(k).
       getDocs: async () => ({ forEach: (f) => f({ id: 'dd1', data: () => ({ status: 'draft', kind: 'paid_receipt', label: 'Paid-in-full receipt', emailKind: 'receipt', channel: 'email', to: 'a@b.co', subject: 'Receipt', body: 'Thanks.' }) }) }),
       updateDoc: async () => { if (updateFails) throw new Error('offline'); },
       setDoc: async () => {},
-      NBDComms: { sendEmail: async () => { sends++; return { success: true, mode: 'platform' }; } },
+      NBDComms: { sendDraftEmail: async () => { sends++; return { success: true, mode: 'platform', bookkeeping: 'failed' }; } },
       nbdConfirm: async () => true,
       sessionStorage: { _m: {}, getItem(k) { return this._m[k] || null; }, setItem(k, v) { this._m[k] = v; } },
     };
@@ -503,8 +509,8 @@ const kindsOf = (db, leadId) => draftsIn(db, leadId).map((k) => db.store.get(k).
     ok('the queue renders one card with a Send button', n === 1 && !!sendBtn);
     sendBtn.click();
     await new Promise((r) => setTimeout(r, 20));
-    ok('delivered send + card update failure -> "Sent, but..." warning, NOT "Could not send"',
-      toasts.some((t) => /Sent, but/.test(t)) && !toasts.some((t) => /Could not send/.test(t)), JSON.stringify(toasts));
+    ok('delivered send + the server could not update the card -> "Sent. ..." warning, NOT "Could not send"',
+      toasts.some((t) => /Sent\. The card could not be updated/.test(t)) && !toasts.some((t) => /Could not send|Failed to send/.test(t)), JSON.stringify(toasts));
     ok('...and Send is disabled for that card', sendBtn.disabled === true);
     sendBtn.disabled = false; // even a forced second tap must not resend
     sendBtn.click();
@@ -513,14 +519,14 @@ const kindsOf = (db, leadId) => draftsIn(db, leadId).map((k) => db.store.get(k).
     ok('...and the guard survives in sessionStorage', /dd1/.test(window_.sessionStorage.getItem('nbd_ddraft_sent') || ''));
     // control: a draft whose send really failed stays sendable
     sends = 0; toasts.length = 0; host.children.length = 0; window_.sessionStorage._m = {};
-    window_.NBDComms.sendEmail = async () => { sends++; throw new Error('network'); };
+    window_.NBDComms.sendDraftEmail = async () => { sends++; return { success: false, mode: 'platform', error: 'provider_rejected', message: 'Failed to send email' }; };
     const vctx2 = vm.createContext(window_);
     vm.runInContext(read('docs/pro/js/doc-drafts-ui.js'), vctx2, { filename: 'doc-drafts-ui.js' });
     await window_.NBDDocDrafts.render('L1', { email: 'a@b.co' });
     const s2 = findBtn('Send email');
     s2.click();
     await new Promise((r) => setTimeout(r, 20));
-    ok('control: a send that really failed says "Could not send" and can be retried', toasts.some((t) => /Could not send/.test(t)) && s2.disabled === false, JSON.stringify(toasts));
+    ok('control: a send the provider refused says so and can be retried', toasts.some((t) => /Failed to send email/.test(t)) && s2.disabled === false, JSON.stringify(toasts));
   }
 
   console.log('\nI. vacuity-audit round (behavioural coverage for the survivors)');
@@ -554,7 +560,7 @@ const kindsOf = (db, leadId) => draftsIn(db, leadId).map((k) => db.store.get(k).
     // the drafter file only requires what it should (no mail transport)
     {
       const reqs = (stripComments(read('functions/doc-drafts.js')).match(/require\(['"][^'"]+['"]\)/g) || []).map((r) => r.slice(9, -2)).sort();
-      const allowed = ['./doc-drafts-logic', './invoice-owed', './paid-in-full', 'firebase-admin/firestore', 'firebase-functions/v2'];
+      const allowed = ['./customer-estimate-rows', './doc-drafts-logic', './invoice-owed', './paid-in-full', 'firebase-admin/firestore', 'firebase-functions/v2'];
       ok('doc-drafts.js requires only allow-listed modules (no mail / SMS transport can be added silently)', reqs.length > 0 && reqs.every((r) => allowed.indexOf(r) !== -1), reqs.join(','));
     }
     // UI blockers
@@ -587,7 +593,7 @@ const kindsOf = (db, leadId) => draftsIn(db, leadId).map((k) => db.store.get(k).
         getDocs: async function () { w.reads++; return { forEach: (f) => rows.forEach((r) => f({ id: r.id, data: () => r.data })) }; },
         updateDoc: async (_r, patch) => { w.updates.push(patch); },
         setDoc: async () => {},
-        NBDComms: { sendEmail: async (p) => { w.sends.push(p); return sendImpl ? sendImpl(p) : { success: true, mode: 'platform' }; } },
+        NBDComms: { sendDraftEmail: async (p) => { w.sends.push(p); return sendImpl ? sendImpl(p) : { success: true, mode: 'platform' }; } },
         nbdConfirm: async () => true,
         sessionStorage: { _m: {}, getItem(k) { return this._m[k] || null; }, setItem(k, v) { this._m[k] = v; } },
       };
@@ -604,12 +610,24 @@ const kindsOf = (db, leadId) => draftsIn(db, leadId).map((k) => db.store.get(k).
       (function walk(x) { x.children.forEach((c) => { if (c.tag === 'button' && c.textContent === 'Send email') btns.push(c); walk(c); }); })(h.host);
       btns.forEach((b) => b.click());
       await tick();
-      const byKind = h.w.sends.map((p) => p.kind);
-      ok('warranty is sent with kind "document"; the thank-you is sent with NO kind property at all',
-        h.w.sends.length === 2 && byKind.indexOf('document') !== -1 && h.w.sends.some((p) => !('kind' in p)), JSON.stringify(h.w.sends));
-      ok('every send carries leadId (the server\'s recipient binding)', h.w.sends.every((p) => p.leadId === 'L1' && p.to === 'a@b.co'));
-      const ALLOWED = ['status', 'subject', 'body', 'sentAt', 'dismissedAt'];
-      ok('the client writes only allow-listed keys to a draft (every key of every update)', h.w.updates.length >= 2 && h.w.updates.every((u) => Object.keys(u).every((k) => ALLOWED.indexOf(k) !== -1)), JSON.stringify(h.w.updates.map((u) => Object.keys(u))));
+      ok('both drafts go up as {leadId, draftId, subject, body} ONLY — no recipient and no kind property at all (the server derives both)',
+        h.w.sends.length === 2 && h.w.sends.every((p) => JSON.stringify(Object.keys(p).sort()) === '["body","draftId","leadId","subject"]'), JSON.stringify(h.w.sends));
+      ok('every send names the lead and its own draft id', h.w.sends.every((p) => p.leadId === 'L1') && h.w.sends.map((p) => p.draftId).sort().join() === 't1,w1');
+      ok('a delivered send writes NOTHING to the draft from the browser (the server writes sent)', h.w.updates.length === 0, JSON.stringify(h.w.updates));
+    }
+    {
+      // the only browser writes left: copied / dismissed, with allow-listed keys
+      const h = await harness('company_admin', [row('w1'), row('w2')]);
+      await h.w.NBDDocDrafts.render('L1', {});
+      const marks = []; (function walk(x) { x.children.forEach((c) => { if (c.tag === 'button' && c.textContent === 'Mark sent') marks.push(c); walk(c); }); })(h.host);
+      marks[0].click();
+      await tick();
+      const dis = []; (function walk(x) { x.children.forEach((c) => { if (c.tag === 'button' && c.textContent === 'Dismiss' && !x.removed) dis.push(c); walk(c); }); })(h.host);
+      dis[dis.length - 1].click();
+      await tick();
+      const ALLOWED = ['status', 'subject', 'body', 'copiedAt', 'dismissedAt'];
+      ok('Mark sent writes status "copied" (never "sent"), and every key written is allow-listed',
+        h.w.updates.length >= 2 && h.w.updates.some((u) => u.status === 'copied') && h.w.updates.every((u) => u.status !== 'sent' && Object.keys(u).every((k) => ALLOWED.indexOf(k) !== -1)), JSON.stringify(h.w.updates));
     }
     {
       const h = await harness('viewer', [row('w1')]);
@@ -620,12 +638,12 @@ const kindsOf = (db, leadId) => draftsIn(db, leadId).map((k) => db.store.get(k).
       ok('control: a company_admin gets the card', n2 === 1 && h2.w.reads === 1);
     }
     {
-      // a mail-app handoff is not a send: the card stays, nothing is written
-      const h = await harness('company_admin', [row('w1')], () => ({ success: true, mode: 'mailto' }));
+      // a server refusal is not a send: the card stays, nothing is written
+      const h = await harness('company_admin', [row('w1')], () => ({ success: false, mode: 'platform', error: 'do_not_contact', message: 'do not contact' }));
       await h.w.NBDDocDrafts.render('L1', {});
       h.find('Send email').click();
       await tick();
-      ok('mailto handoff leaves the draft as a draft (no status write)', h.w.updates.length === 0 && h.find('Send email') && !h.find('Send email').disabled);
+      ok('a refused send leaves the draft as a draft (no status write, Send usable again)', h.w.updates.length === 0 && h.find('Send email') && !h.find('Send email').disabled);
     }
     {
       // a draft with an unfilled placeholder cannot be sent through a click either
@@ -667,7 +685,7 @@ const kindsOf = (db, leadId) => draftsIn(db, leadId).map((k) => db.store.get(k).
       collection: () => ({}), doc: () => ({}), query: () => ({}), where: () => ({}),
       getDocs: async () => ({ forEach: (f) => f({ id: 'c1', data: () => ({ status: 'draft', kind: 'crew_reminder', label: 'Crew date confirmation', emailKind: 'appointment', channel: 'email', to: 'a@b.co', subject: 'S', body: 'Your crew is on the schedule for Wednesday, October 21 at 7:30 AM.', scheduleBasis: 'Wednesday, October 21 at 7:30 AM' }) }) }),
       updateDoc: async (_r, p) => { updates.push(p); }, setDoc: async () => {},
-      NBDComms: { sendEmail: async () => ({ success: true, mode: 'platform' }) },
+      NBDComms: { sendDraftEmail: async () => ({ success: true, mode: 'platform' }) },
       sessionStorage: { getItem() { return null; }, setItem() {} },
     };
     w.window = w;
