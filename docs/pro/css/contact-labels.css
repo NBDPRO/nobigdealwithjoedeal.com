@@ -66,3 +66,8 @@
 .cl-sug-go{background:color-mix(in srgb, var(--orange) 22%, transparent);border-color:color-mix(in srgb, var(--orange) 75%, transparent);}
 .cl-sug-btn:focus-visible{outline:2px solid var(--orange);outline-offset:2px;}
 .tp-sugs{padding-top:var(--ui-space-2);}
+/* What a choice does, said in words (2026-10-13 label safety rails). */
+.cl-effect{margin-top:var(--ui-space-3);padding:var(--ui-space-2) var(--ui-space-3);border-radius:var(--ui-radius-md);border-left:3px solid color-mix(in srgb, var(--orange) 75%, transparent);background:color-mix(in srgb, var(--t) 7%, transparent);font-size:var(--ui-fs-body-sm);line-height:var(--ui-lh-body-sm);color:var(--t);}
+.cl-sug-effect{margin-top:var(--ui-space-1, 4px);font-size:var(--ui-fs-caption);line-height:var(--ui-lh-body-sm);color:var(--m);}
+/* A labeled number that became a customer: solid, so it reads as a warning, not a tip. */
+.cl-rec{border-style:solid;border-color:color-mix(in srgb, var(--orange) 70%, transparent);background:color-mix(in srgb, var(--orange) 10%, transparent);}

@@ -26,8 +26,15 @@ const path = require('path');
 const ENV_LOCAL = path.join(__dirname, '..', '..', '..', 'functions', '.env.local');
 const BEGIN = '# --- managed by tests/e2e/fixtures/ensure-emulator-env.js (do not edit block) ---';
 const END = '# --- end managed block ---';
+// TURNSTILE_REQUIRED=false: prod's tracked functions/.env.nobigdeal-pro sets it
+// true (an unset secret fails CLOSED). The authed rig emulates --project
+// nobigdeal-pro, so firebase-tools loads that file into the emulated
+// functions, which have no TURNSTILE_SECRET: every tokenless public lead
+// would 403 'turnstile-required'. .env.local loads LAST and only for
+// emulators, so this override never reaches a deploy.
 const BLOCK = `${BEGIN}
 NBD_DEPLOY_SKIP_LIST=onRepSignup
+TURNSTILE_REQUIRED=false
 ${END}`;
 
 let existing = '';

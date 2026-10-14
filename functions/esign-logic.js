@@ -27,6 +27,9 @@
  */
 'use strict';
 
+// cleanLabel: tenant-written text that reaches an email Subject (2026-10-13).
+const AR = require('./alert-recipients');
+
 const MAX_SIGNERS = 4;
 const SIGNER_ID_RE = /^[A-Za-z0-9_-]{1,32}$/;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -310,7 +313,8 @@ function linkEmail(o) {
       ? `${brand} has <strong>${title}</strong> ready for your signature. You can review and sign it right on your phone — it takes about a minute.`
       : `<strong>${title}</strong> is ready for your signature. You can review and sign it right on your phone — it takes about a minute.`);
   return {
-    subject: (p.reminder ? 'Reminder: please sign ' : 'Please sign: ') + (p.title || 'your document'),
+    // The title is tenant-written: control/bidi characters stripped, length bounded.
+    subject: (p.reminder ? 'Reminder: please sign ' : 'Please sign: ') + (AR.cleanLabel(p.title, 80) || 'your document'),
     html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#12223d;">
             <p>Hi ${escHtml(p.name || 'there')},</p>
             <p>${lead}</p>
@@ -329,7 +333,7 @@ function signedCopyEmail(o) {
   const brand = escHtml(senderName(p.brand, p.tenantKey));
   const title = escHtml(p.title || 'your document');
   return {
-    subject: 'Signed copy: ' + (p.title || 'your document'),
+    subject: 'Signed copy: ' + (AR.cleanLabel(p.title, 80) || 'your document'),
     html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#12223d;">
             <p>Hi ${escHtml(p.name || 'there')},</p>
             <p>Thank you — <strong>${title}</strong>${brand ? ' with ' + brand : ''} is fully signed. Your copy is attached as a PDF${p.attached === false ? ' (it was too large to attach — ask your rep and they will send it)' : ''}.</p>
@@ -367,4 +371,5 @@ module.exports = {
   normalizeSigners, fieldsForSigner, nextPendingSigner, signerForToken, sanitizeSignerInput,
   validateSignerLayout, pickSignerValues, buildSignerEvidence, missingEvidence, estimateStatusFor,
   utcStamp, zonedStamp, certificateLines, escHtml, linkEmail, signedCopyEmail, senderName,
+  cleanLabel: AR.cleanLabel,
 };

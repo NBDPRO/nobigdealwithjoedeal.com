@@ -281,8 +281,10 @@ const tick = () => new Promise((r) => setImmediate(r));
       ok('paid in full: the card moves to Final Payment AND the Request Review task is created', r.moved === true && r.to === 'final_payment' && r.reviewTask && (r.reviewTask || {}).created === true
         && t && t.title === 'Request Review' && t.actionId === 'request_review' && t.done === false && t.stageKey === 'final_payment', JSON.stringify(r.reviewTask));
       ok('…alongside the stage\'s own entry task (Warranty Certificate)', db.store.has('leads/L1/tasks/stage-final_payment-warranty_cert'));
-      ok('the spine sends nothing — only the lead, marker, note and tasks were written',
-        db.writes.every((w) => /^(leads\/L1(\/tasks\/[^/]+)?|job_events\/[^/]+|notes\/[^/]+)$/.test(w[1])), JSON.stringify(db.writes.map((w) => w[1])));
+      // + the stage-triggered doc drafts (2026-10-13, leads/L1/doc_drafts/*):
+      // a DRAFT parked for review, written create-only; nothing is sent.
+      ok('the spine sends nothing — only the lead, marker, note, tasks and review drafts were written',
+        db.writes.every((w) => /^(leads\/L1(\/tasks\/[^/]+|\/doc_drafts\/[^/]+)?|job_events\/[^/]+|notes\/[^/]+)$/.test(w[1])), JSON.stringify(db.writes.map((w) => w[1])));
       db.store.set(TASK, Object.assign({}, db.store.get(TASK), { done: true }));
       const again = await SPINE.recordJobEvent(db, { leadId: 'L1', event: 'paid_in_full', sourceId: 'i1' }, deps);
       ok('a redelivered payment never reopens a finished task', again.duplicate === true && db.store.get(TASK).done === true && (again.reviewTask || {}).created === false);
@@ -411,8 +413,8 @@ const tick = () => new Promise((r) => setImmediate(r));
         again.ok === true && again.duplicate === true && again.moved === false && [...db.store.keys()].filter((k) => /^invoices\//.test(k)).length === 1);
       // + the signed estimate's server-only signedPrice stamp (review R6-2-2,
       // 2026-10-07 — functions/signed-price.js): a record, not a send.
-      ok('nothing was sent: only the lead, marker, note, tasks, the signed-price stamp and the draft invoice were written',
-        db.writes.every((w) => /^(leads\/L1(\/tasks\/[^/]+)?|job_events\/[^/]+|notes\/[^/]+|invoices\/[^/]+|estimates\/[^/]+)$/.test(w[1]))
+      ok('nothing was sent: only the lead, marker, note, tasks, review drafts, the signed-price stamp and the draft invoice were written',
+        db.writes.every((w) => /^(leads\/L1(\/tasks\/[^/]+|\/doc_drafts\/[^/]+)?|job_events\/[^/]+|notes\/[^/]+|invoices\/[^/]+|estimates\/[^/]+)$/.test(w[1]))
         && db.writes.filter((w) => /^estimates\//.test(w[1])).every((w) => w[0] === 'update' && Object.keys(w[2]).join() === 'signedPrice'),
         JSON.stringify(db.writes.map((w) => w[1])));
     }

@@ -56,6 +56,7 @@ function mkDb(rows, opts) {
       return q([], n);
     },
     doc: (p) => ({ get: async () => ({ exists: p in docs, data: () => docs[p] }), set: async (v) => { docs[p] = v; } }),
+    collectionGroup: () => ({ where: () => ({ get: async () => ({ docs: [] }) }) }), 
     getAll: async (...r) => r.map(() => ({ exists: false, data: () => null })),
   };
   return db;
