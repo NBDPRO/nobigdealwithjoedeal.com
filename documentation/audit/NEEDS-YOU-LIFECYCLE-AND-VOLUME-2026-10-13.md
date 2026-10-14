@@ -414,6 +414,17 @@ node tests/needs-you-volume-sim-2026-10-13.test.js          # prints the tables 
 node tests/needs-you-lifecycle-fixes-2026-10-13.test.js     # the fixes, red on main
 ```
 
+## Update 2026-10-13 (promise channel PR) - F1, F2, F5 fixed
+
+Jo chose option **A** for F1, **A** for F2 and the sweep branch (**A**) for F5.
+Built in [PROMISE-CHANNEL-AND-PARKED-RULE-2026-10-13](PROMISE-CHANNEL-AND-PARKED-RULE-2026-10-13.md):
+a promise task / ripe Waiting item now has a server channel (one 08:00 push,
+brief + sweep + ledger + away list, ladder, fail-closed); a push that reaches no
+phone mails Jo once per item; an urgent filed call with no task is listed in the
+brief / sweep. Harness: F-PROMISE-TASK-SILENT, F-EMAIL-GATED-ON-PUSH and
+F-URGENT-NO-TASK now print RESOLVED. F4 / F6 / F7 / F8 are untouched (another
+lane); F9a is fixed by the shared parked rule (a snooze now stamps the call).
+
 Findings print as `! F-... REPRODUCES` while they exist and `RESOLVED` after a
 fix; they never fail the run (invariants do: callWatch pushes <= 1 per run,
 0 quiet-hours leaks from callWatch / urgent / ladder, no call pushed more than

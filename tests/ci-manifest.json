@@ -300,6 +300,7 @@
     "never-forget-server-2026-10-13.test.js",
     "needs-you-lifecycle-fixes-2026-10-13.test.js",
     "needs-you-volume-sim-2026-10-13.test.js",
+    "promise-channel-2026-10-13.test.js",
     "ai-automations-server-2026-10-04.test.js",
     "ai-automations-client-2026-10-04.test.js",
     "month-close-2026-10-01.test.js",
