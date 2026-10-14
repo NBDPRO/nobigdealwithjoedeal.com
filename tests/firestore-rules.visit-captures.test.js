@@ -72,6 +72,8 @@ async function run() {
     await setDoc(doc(db, 'leads/lead-a1'), { userId: 'alice', companyId: 'co-a', name: 'ZZ Alice Lead' });
     await setDoc(doc(db, 'leads/lead-a2'), { userId: 'rep2', companyId: 'co-a', name: 'ZZ Rep2 Lead' });
     await setDoc(doc(db, 'leads/lead-b1'), { userId: 'bob', companyId: 'co-b', name: 'ZZ Bob Lead' });
+    // The path-splice probe: an activity doc ALICE owns, named like another tenant's lead id.
+    await setDoc(doc(db, 'leads/lead-a1/activity/lead-b1'), { userId: 'alice', companyId: 'co-b', type: 'note', source: 'rep' });
     await setDoc(doc(db, 'users/alice/visit_captures/' + VID), visit('alice', { leadId: null }));
     await setDoc(doc(db, 'users/alice/visit_captures/vseeded000000001'), visit('alice', { leadId: 'lead-a1' }));
     await setDoc(doc(db, 'users/alice/visit_captures/vseeded000000002'), visit('alice', { leadId: null }));
@@ -79,6 +81,16 @@ async function run() {
     // a viewer's own doc (written before they were made a viewer): they may not change or delete it
     await setDoc(doc(db, 'users/vic/visit_captures/vvic000000000001'), visit('vic', { leadId: null }));
     await setDoc(doc(db, 'users/vic/visit_captures/vvic000000000002'), visit('vic', { leadId: null }));
+    // PR 2: docs the SERVER pipeline has already written to (admin SDK). The phone keeps patching
+    // its own upload state on these, so the update rule must accept that and still refuse every
+    // change to a server-owned field.
+    for (let i = 1; i <= 12; i++) {
+      await setDoc(doc(db, 'users/alice/visit_captures/vsrvown0000000' + String(i).padStart(2, '0')), Object.assign(visit('alice', { status: 'uploaded', audioPath: 'audio/alice/_inbox/vsrvown0000000' + String(i).padStart(2, '0') + '.m4a', uploadedAtMs: 1760000100000 }), {
+        pipelineStatus: 'ready', transcript: 'hello there', transcriptRaw: 'hello there', notes: { summary: 's', promises: [] },
+        suggestions: [{ leadId: 'lead-a1', name: 'ZZ Alice Lead', evidence: 'x' }], audioLive: true, finalizedKey: null,
+        attachedLeadId: null, pipelineNextAtMs: 0, rejectedLeadIds: [],
+      }));
+    }
   });
 
   const alice = ctx('alice', { role: 'sales_rep', companyId: 'co-a' });
@@ -179,6 +191,38 @@ async function run() {
   await check('owner deletes their doc', 'allow', deleteDoc(ref(alice, 'alice', 'vnew00000000001')));
   await check('another user cannot delete it', 'deny', deleteDoc(ref(bob, 'alice', 'vseeded000000001')));
   await check('the wildcard still refuses an unlisted sibling collection', 'deny', setDoc(doc(alice, 'users/alice/visit_captures_x/abc'), { a: 1 }));
+
+  // ── PR 2: server-owned fields sit on the doc; the phone still patches its own ──
+  const SV = (n) => 'vsrvown0000000' + String(n).padStart(2, '0');
+  await check('PR2 control: the phone patches its upload state on a doc the server already wrote to', 'allow', updateDoc(ref(alice, 'alice', SV(1)), { status: 'uploaded', uploadedAtMs: 1760000200000 }));
+  await check('PR2 control: attach (leadId + attachedAtMs) still works on such a doc', 'allow', setDoc(ref(alice, 'alice', SV(2)), { leadId: 'lead-a1', attachedAtMs: 1760000300000 }, { merge: true }));
+  await check('PR2 control: a discard (status + leadId null) works on such a doc', 'allow', updateDoc(ref(alice, 'alice', SV(3)), { status: 'discarded', discardedAtMs: 1760000400000, leadId: null }));
+  await check('PR2 control: a whole-doc merge that leaves every server field untouched is allowed', 'allow',
+    setDoc(ref(alice, 'alice', SV(4)), { status: 'uploaded', durationSec: 62, pipelineStatus: 'ready', transcript: 'hello there' }, { merge: true }));
+  const serverFields = [['pipelineStatus', 'queued'], ['transcript', 'forged words'], ['transcriptRaw', 'x'], ['notes', { summary: 'forged' }],
+    ['suggestions', [{ leadId: 'lead-a1', name: 'x', evidence: 'y' }]], ['audioLive', false], ['finalizedKey', 'lead-a1:n'], ['attachedLeadId', 'lead-a1'],
+    ['pipelineNextAtMs', 1], ['rejectedLeadIds', ['lead-a1']]];
+  for (const [k, v] of serverFields) {
+    await check('PR2: the phone cannot change server-owned "' + k + '"', 'deny', updateDoc(ref(alice, 'alice', SV(5)), { [k]: v }));
+  }
+  await check('PR2: nor smuggle one in beside a legitimate change', 'deny', updateDoc(ref(alice, 'alice', SV(5)), { status: 'uploaded', pipelineStatus: 'ready2' }));
+  await check('PR2: nor delete one', 'deny', updateDoc(ref(alice, 'alice', SV(5)), { transcript: require('firebase/firestore').deleteField() }));
+  await check('PR2: a bad allowlisted value is still refused on such a doc (status outside the list)', 'deny', updateDoc(ref(alice, 'alice', SV(6)), { status: 'transcribed' }));
+  await check('PR2: a bad lead is still refused on such a doc (another tenant)', 'deny', setDoc(ref(alice, 'alice', SV(6)), { leadId: 'lead-b1', attachedAtMs: 1 }, { merge: true }));
+  await check('PR2: startedAtMs is still write-once on such a doc', 'deny', updateDoc(ref(alice, 'alice', SV(6)), { startedAtMs: 1 }));
+  await check('PR2: a viewer still cannot patch such a doc', 'deny', updateDoc(ref(vic, 'alice', SV(7)), { status: 'uploaded' }));
+  await check('PR2: another tenant still cannot patch it', 'deny', updateDoc(ref(bob, 'alice', SV(7)), { status: 'uploaded' }));
+  await check('PR2: the owner can still delete it (the server trigger then removes the audio)', 'allow', deleteDoc(ref(alice, 'alice', SV(8))));
+
+  // ── review round: a leadId is an ID, never a path; consentMode is write-once ──
+  await check('RR: leadId that is a path into an activity doc the writer owns (leads/lead-a1/activity/lead-b1) is refused', 'deny',
+    setDoc(ref(alice, 'alice', 'vslash000000001'), visit('alice', { leadId: 'lead-a1/activity/lead-b1' })));
+  await check('RR: ...on an update too (merge)', 'deny', setDoc(ref(alice, 'alice', SV(9)), { leadId: 'lead-a1/activity/lead-b1', attachedAtMs: 1 }, { merge: true }));
+  await check('RR: leadId with a trailing path escape is refused', 'deny', setDoc(ref(alice, 'alice', 'vslash000000002'), visit('alice', { leadId: 'lead-a1/..' })));
+  await check('RR: leadId that is not a string is refused', 'deny', setDoc(ref(alice, 'alice', 'vslash000000003'), visit('alice', { leadId: 12345 })));
+  await check('RR control: the plain id of their own lead is accepted', 'allow', setDoc(ref(alice, 'alice', 'vslash000000004'), visit('alice', { leadId: 'lead-a1' })));
+  await check('RR: consentMode cannot be lowered after the fact', 'deny', updateDoc(ref(alice, 'alice', SV(10)), { consentMode: 'two_party_verbal' }));
+  await check('RR control: writing the SAME consentMode again (the phone mirrors its row) is accepted', 'allow', setDoc(ref(alice, 'alice', SV(10)), { consentMode: 'one_party', status: 'uploaded' }, { merge: true }));
 
   await env.cleanup();
 

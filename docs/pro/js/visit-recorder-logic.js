@@ -289,6 +289,59 @@
     return { text: 'Saved on phone - upload queued', tone: 'busy' };
   }
 
+  // ── the server's side of a visit (PR 2) ───────────────────────────────
+  /**
+   * What the server pipeline is doing with an uploaded visit, in words a person
+   * can act on. `doc` is users/{uid}/visit_captures/{id} as the server wrote it.
+   * An AI outage is never shown as a failure of the recording.
+   */
+  function pipelineBadge(doc) {
+    var p = doc && doc.pipelineStatus;
+    if (!doc || doc.status !== 'uploaded') return null;
+    if (!p || p === 'queued') return { text: 'Uploaded - transcribing soon', tone: 'busy' };
+    if (p === 'waiting_object') return { text: 'Uploaded - waiting for the audio to land', tone: 'busy' };
+    if (p === 'transcribe_pending') return { text: 'Uploaded - transcription is waiting on the AI service, will retry', tone: 'wait' };
+    if (p === 'consent_pending') return { text: 'Transcript saved - checking the consent line, will retry', tone: 'wait' };
+    if (p === 'transcribed') return { text: 'Transcript saved - writing notes', tone: 'busy' };
+    if (p === 'notes_pending') return { text: 'Transcript saved, notes pending (the AI service is unavailable; it retries by itself)', tone: 'wait' };
+    if (p === 'notes_failed') return { text: 'Transcript saved - notes could not be written. Retry them.', tone: 'warn' };
+    if (p === 'ready') return { text: 'Notes ready', tone: 'ok' };
+    if (p === 'failed') return { text: 'Could not be processed (' + String(doc.pipelineNote || 'see the audio') + '). The audio is kept.', tone: 'warn' };
+    if (p === 'quarantined_consent') return { text: 'Not kept - the consent line was not confirmed', tone: 'off' };
+    if (p === 'skipped') {
+      var why = { do_not_record: 'this customer is marked do not record', do_not_record_match: 'a do-not-record customer was named', personal: 'it was personal', no_disclosure_ack: 'the disclosure was not acknowledged' }[doc.skipReason] || 'it was skipped';
+      return { text: 'Not kept - ' + why + '. The audio was deleted.', tone: 'off' };
+    }
+    if (p === 'discarded') return { text: 'Discarded', tone: 'off' };
+    return null;
+  }
+
+  /**
+   * The chips for "Who was this?": the server's ranked suggestions (with the
+   * evidence it computed) first, then the phone's own, one per customer, never a
+   * customer the server was told "not these" about, never do-not-record.
+   */
+  function mergeChips(serverDoc, localChips, leads) {
+    var out = [];
+    var used = {};
+    var rejected = {};
+    ((serverDoc && serverDoc.rejectedLeadIds) || []).forEach(function (id) { rejected[String(id)] = true; });
+    function push(c) {
+      var id = String(c.leadId || '');
+      if (!id || used[id] || rejected[id]) return;
+      var lead = byId(leads, id);
+      if (lead && isDoNotRecord(lead)) return;
+      used[id] = true;
+      out.push(c);
+    }
+    ((serverDoc && serverDoc.suggestions) || []).forEach(function (s) {
+      if (!s || !s.leadId) return;
+      push({ leadId: String(s.leadId), name: String(s.name || 'Customer'), kind: 'server', evidence: String(s.evidence || ''), address: String(s.address || ''), signals: s.signals || [] });
+    });
+    (localChips || []).forEach(push);
+    return out.slice(0, MAX_CHIPS);
+  }
+
   /** Soft-cap part numbering: a recording that hit the cap continues as part 2. */
   function partLabel(row) { return row && row.partOf ? 'Part 2' : ''; }
 
@@ -306,5 +359,6 @@
     suggest: suggest, appointmentIdFor: appointmentIdFor,
     consentPlan: consentPlan, startGate: startGate, attachGate: attachGate,
     docFromRow: docFromRow, badge: badge, partLabel: partLabel,
+    pipelineBadge: pipelineBadge, mergeChips: mergeChips,
   };
 });

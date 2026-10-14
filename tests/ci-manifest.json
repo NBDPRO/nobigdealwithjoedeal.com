@@ -572,7 +572,8 @@
     "firebase-sdk-vendored-2026-10-04.test.js",
     "paid-in-full-supplements-r6-2026-10-07.test.js",
     "auto-theme-rules.test.js",
-    "visit-recorder-2026-10-13.test.js"
+    "visit-recorder-2026-10-13.test.js",
+    "visit-capture-pipeline-2026-10-13.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [

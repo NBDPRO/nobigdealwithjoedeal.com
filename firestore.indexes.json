@@ -1015,6 +1015,33 @@
         { "fieldPath": "companyId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "_comment": "Visit recordings (2026-10-13): visitCaptureSweep finds uploaded visits whose trigger never ran: collectionGroup('visit_captures').where('status','==','uploaded').where('uploadedAtMs','>',now-48h).where('uploadedAtMs','<',now+1h).orderBy('uploadedAtMs'). Equality + a two-sided range on uploadedAtMs across every user's visit docs: composite COLLECTION_GROUP (the emulator never enforces it).",
+      "collectionGroup": "visit_captures",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "uploadedAtMs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Visit recordings (2026-10-13): the retention phase of recordingRetentionCron reads collectionGroup('visit_captures').where('audioLive','==',true).where('firstSeenAtMs','<',cutoff).orderBy('firstSeenAtMs') (firstSeenAtMs is the server's own stamp, never a phone-written time). Composite COLLECTION_GROUP, same shape as the recordings status+recordedAt pair above.",
+      "collectionGroup": "visit_captures",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "audioLive", "order": "ASCENDING" },
+        { "fieldPath": "firstSeenAtMs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Visit recordings (2026-10-13): visitCaptureSweep reads collectionGroup('visit_captures').where('pipelineStatus','in',[retry states]).where('pipelineNextAtMs','<=',now).orderBy('pipelineNextAtMs'): only the docs that are DUE, oldest first, so backed-off docs never use a slot. Composite COLLECTION_GROUP (the emulator never enforces it).",
+      "collectionGroup": "visit_captures",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "pipelineStatus", "order": "ASCENDING" },
+        { "fieldPath": "pipelineNextAtMs", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
