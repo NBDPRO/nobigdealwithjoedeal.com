@@ -60,6 +60,7 @@
     + '#' + BANNER_ID + '{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 16px;'
     + 'background:rgba(239,68,68,0.10);border-bottom:1px solid rgba(239,68,68,0.45);'
     + 'color:var(--t,#e8eaf0);font-family:"Barlow",-apple-system,system-ui,sans-serif;font-size:13px;}'
+    + '#' + BANNER_ID + ' .ncd-icon{font-size:18px;line-height:1;}'
     + '#' + BANNER_ID + ' .ncd-text{flex:1 1 220px;min-width:0;}'
     + '#' + BANNER_ID + ' .ncd-title{font-weight:700;margin-bottom:2px;}'
     + '#' + BANNER_ID + ' .ncd-detail{font-size:12px;color:var(--m,#9aa3b2);}'
@@ -83,7 +84,7 @@
     const el = doc.createElement('div');
     el.id = BANNER_ID;
     el.setAttribute('role', 'status');
-    el.innerHTML = '<span aria-hidden="true" style="font-size:18px;line-height:1;">🚫</span>'
+    el.innerHTML = '<span class="ncd-icon" aria-hidden="true">🚫</span>'
       + '<div class="ncd-text"><div class="ncd-title">' + esc(m.title) + '</div>'
       + '<div class="ncd-detail">' + esc(m.detail) + '</div></div>'
       + '<div class="ncd-actions">'

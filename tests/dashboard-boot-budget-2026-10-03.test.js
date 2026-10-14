@@ -99,6 +99,11 @@ CEILING.localScripts += 1;
 // to load its own code; none of it is on the boot path, so blockingScripts does not move. Own line.
 CEILING.localScripts += 1;
 CEILING.localBytes += 18 * 1024;
+// +1 KB, deliberate (2026-10-14, SMS declined-consent policy, #2443): no new script tag. The consent-declined
+// banner is customer.html-only; the ~1.2 KB that reaches the dashboard is deferred sms-outbox.js / nbd-comms.js /
+// inbox.js hooks. Measured on main + #2450 + this PR: 4938704 B vs a 4938629 B ceiling (main alone 4935209 of 4936581,
+// #2450 +2 KB line, this PR +1232 B), so the combined tree sat 75 B over; +1 KB restores ~0.9 KB headroom.
+CEILING.localBytes += 1 * 1024;
 // +3 KB, deliberate (2026-10-14, visit capture PR 2): the recorder launcher grows ~1 KB (the
 // "unfiled capture" entry + attach hand-off) and visit-unfiled-today.js (~6 KB, deferred, loaded on
 // the same idle schedule as the recorder, never on the boot path) is the Today "unfiled visit" row.
