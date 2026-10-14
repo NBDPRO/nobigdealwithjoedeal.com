@@ -253,6 +253,7 @@ const { SECRETS, secretValue } = require('./integrations/_shared');
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 const NOTES_MODEL = 'claude-haiku-4-5-20251001';
 const TRANSCRIBE_PER_RUN = 12;
+const TRANSIENT_MAX = 6; // consecutive 5xx/overloaded failures of ONE call before it counts as the call's fault
 const transcribeEnabled = () => process.env.CALL_CENTER_TRANSCRIBE_ENABLED === 'true';
 
 let _deps = null;
@@ -278,7 +279,11 @@ async function claudeNotes({ system, prompt, feature, maxTokens }) {
     signal: AbortSignal.timeout(60_000),
   });
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error('anthropic ' + res.status + ': ' + String((data && data.error && data.error.message) || '').slice(0, 200));
+  if (!res.ok) {
+    const err = new Error('anthropic ' + res.status + ': ' + String((data && data.error && data.error.message) || '').slice(0, 200));
+    err.status = res.status; err.provider = 'anthropic'; // L.classifyProviderError
+    throw err;
+  }
   // AI spend in one place (functions/ai-spend.js) — one counter row per call.
   await require('./ai-spend').recordAiSpend(require('./ai-spend').rowFromAnthropic(feature || 'call-center-notes', NOTES_MODEL, data), { log: logger });
   const text = ((data && data.content) || []).map((c) => (c && c.type === 'text' ? c.text : '')).join('').trim();
@@ -429,6 +434,10 @@ async function reextractFacts({ db, d, rows, cfg, today, nowMs, getLeads }) {
       Object.assign(c, sp);
       out.reextracted++;
     } catch (e) {
+      // Out of credit / bad key / provider down: the CALL did nothing wrong.
+      // No strike (two would retire its facts for good); stop, the run reports it.
+      const outage = L.classifyProviderError(e);
+      if (outage) { out.outage = outage; out.aiCalls--; logger.warn('call_center_facts_provider_outage', { id: c.id, kind: outage.kind }); break; }
       out.failed++;
       c.factsAttempts = (Number(c.factsAttempts) || 0) + 1;
       await ref.set({ factsAttempts: c.factsAttempts, factsError: String((e && e.message) || e).slice(0, 300) }, { merge: true }).catch(() => {});
@@ -481,6 +490,40 @@ async function readStoredAudio(bucket, path) {
   return buf;
 }
 
+/**
+ * One clear signal when the AI step is out for a reason only Jo can fix
+ * (credit / key): a bell (one doc per ET day, so a rerun cannot double it) and
+ * a push to his own devices, in watch hours, once a day. Never a customer.
+ * Returns { alertedYmd, pushedYmd } for what actually happened today.
+ */
+async function alertProviderOutage({ db, d, outage, prev, today, nowMs }) {
+  const out = {};
+  const who = outage.provider === 'groq' ? 'Groq' : (outage.provider === 'anthropic' ? 'Anthropic' : 'AI provider');
+  const fix = outage.kind === 'credit'
+    ? who + ' credit problem - top up at ' + (outage.provider === 'groq' ? 'console.groq.com > Billing' : 'console.anthropic.com > Billing')
+    : who + ' key problem - the API key was rejected, replace it in the Firebase secrets';
+  const title = 'AI call notes are paused';
+  const body = fix + '; calls are still recorded and listed.';
+  const clickUrl = '/pro/dashboard.html#/calls';
+  if (!prev || prev.alertedYmd !== today) {
+    try {
+      await db.collection('notifications').doc('ai-outage-' + today).set({
+        userId: OWNER, type: 'ai_outage', title: '⚠ ' + title, message: body, priority: 'high',
+        clickUrl, read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
+      });
+      out.alertedYmd = today;
+    } catch (e) { logger.warn('call_center_outage_bell_failed', { err: e && e.message }); }
+  }
+  if ((!prev || prev.pushedYmd !== today) && typeof d.push === 'function' && require('./call-watch-logic').inWatchHours(nowMs)) {
+    try {
+      const pr = await d.push(OWNER, title, body, { type: 'ai_outage', clickUrl, notificationId: 'ai-outage-' + today });
+      // {sent:0} = no device reached: not "told", so the next run tries again.
+      if (!(pr && typeof pr === 'object' && pr.sent === 0)) out.pushedYmd = today;
+    } catch (e) { logger.warn('call_center_outage_push_failed', { err: e && e.message }); }
+  }
+  return out;
+}
+
 /** One transcription pass. Exported for the integration test (stubbed deps). */
 async function runTranscribe({ db, bucket, live, nowMs }) {
   const ref = db.doc(CONFIG);
@@ -513,7 +556,7 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
   const kept = [];
   for (const c of candidates) {
     if (!CL.captureOff(labels, c.phoneDigits, leadIndex.get(c.phoneDigits))) { kept.push(c); continue; }
-    if (live) await db.collection(COLLECTION).doc(c.id).set({ status: 'personal', labelCapture: 'off' }, { merge: true });
+    if (live) await db.collection(COLLECTION).doc(c.id).set({ status: 'personal', labelCapture: 'off', transcript: null, transcriptSaved: false }, { merge: true });
   }
   candidates = kept;
   const pick = L.pickToTranscribe(candidates, { live, allowIds, maxCount: TRANSCRIBE_PER_RUN, secLeft });
@@ -523,14 +566,24 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
 
   for (const call of pick) {
     const callRef = db.collection(COLLECTION).doc(call.id);
+    let t = null;
     try {
-      if ((Number(call.sizeBytes) || 0) > L.GROQ_MAX_BYTES) {
+      const reuse = call.transcriptSaved === true && String(call.transcript || '').trim();
+      if (!reuse && (Number(call.sizeBytes) || 0) > L.GROQ_MAX_BYTES) {
         await callRef.set({ status: 'too_large' }, { merge: true });
         continue;
       }
-      const buf = await readStoredAudio(bucket, call.storagePath);
-      const t = await d.transcribe(buf, String(call.storagePath).split('.').pop());
-      out.audioSec += Number(t.durationSec) || L.estimateAudioSec(call.sizeBytes);
+      if (reuse) {
+        // A previous run transcribed this call and only the notes step failed
+        // (provider outage): never pay the transcriber twice.
+        t = { text: String(call.transcript), durationSec: Number(call.durationSec) || 0 };
+        out.reusedTranscripts = (out.reusedTranscripts || 0) + 1;
+      } else {
+        let buf;
+        try { buf = await readStoredAudio(bucket, call.storagePath); } catch (se) { if (se && typeof se === 'object') se.notProvider = true; throw se; }
+        t = await d.transcribe(buf, String(call.storagePath).split('.').pop());
+        out.audioSec += Number(t.durationSec) || L.estimateAudioSec(call.sizeBytes);
+      }
 
       let leadName = '';
       let leadDoc = null;
@@ -555,6 +608,8 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
         callerFacts: notes.callerFacts,
         factsV: L.FACTS_VERSION,
         notedAtMs: nowMs,
+        transcriptSaved: false,
+        transcribeError: null,
       }, { merge: true });
       if (personal) {
         // Jo, 2026-10-01: a personal call keeps no CRM copy of its audio
@@ -598,14 +653,36 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
       // Groq's hourly/daily rate limit is about the account, not this call:
       // no strike, and stop the run (every later call would be refused too).
       // The next half-hourly run picks up where this one stopped.
-      if (L.isRateLimited(e)) {
-        out.rateLimited = true;
-        await callRef.set({ transcribeError: String((e && e.message) || e).slice(0, 300), rateLimitedAtMs: nowMs }, { merge: true }).catch(() => {});
-        logger.info('call_center_transcribe_rate_limited', { id: call.id, noted: out.noted });
+      const errMsg = String((e && e.message) || e).slice(0, 300);
+      // The transcript is the expensive half: if transcription succeeded and
+      // only the notes step failed, keep it on the call (status stays
+      // 'stored', so the call stays listed and eligible; a retry re-runs ONLY
+      // the notes).
+      const keepTranscript = t && t.text && call.transcriptSaved !== true
+        ? { transcriptSaved: true, transcript: String(t.text).slice(0, 100000), transcriptSavedAtMs: nowMs, durationSec: Number(t.durationSec) || Number(call.durationSec) || null }
+        : {};
+      // A provider outage (Groq or Anthropic: out of credit, bad key, rate
+      // limit, overloaded) is about the ACCOUNT, not this call: no strike, and
+      // stop the run (every later call would be refused too). The next
+      // half-hourly run picks up where this one stopped.
+      // Only the transcriber / the model can be a provider outage: a Storage
+      // read that 403s must not tell Jo to top up Anthropic.
+      let outage = e && e.notProvider ? null : L.classifyProviderError(e);
+      // A 5xx can be one poisoned file, not the provider: after TRANSIENT_MAX
+      // in a row it is the call's fault after all (a strike), so one bad call
+      // can never hold the whole line forever. Credit/auth/429 are account-level.
+      const transientFails = (Number(call.transientFails) || 0) + (outage && outage.kind === 'overloaded' ? 1 : 0);
+      if (outage && outage.kind === 'overloaded' && transientFails >= TRANSIENT_MAX) outage = null;
+      if (outage) {
+        if (outage.kind === 'overloaded') keepTranscript.transientFails = transientFails;
+        out.providerOutage = outage;
+        if (outage.kind === 'rate_limit') out.rateLimited = true;
+        await callRef.set(Object.assign({ transcribeError: errMsg, providerOutageAtMs: nowMs }, outage.kind === 'rate_limit' ? { rateLimitedAtMs: nowMs } : {}, keepTranscript), { merge: true }).catch((we) => logger.warn('call_center_outage_write_failed', { id: call.id, err: we && we.message }));
+        logger.warn('call_center_transcribe_provider_outage', { id: call.id, kind: outage.kind, provider: outage.provider, noted: out.noted });
         break;
       }
       out.failed++;
-      await callRef.set({ transcribeAttempts: (Number(call.transcribeAttempts) || 0) + 1, transcribeError: String((e && e.message) || e).slice(0, 300) }, { merge: true }).catch(() => {});
+      await callRef.set(Object.assign({ transcribeAttempts: (Number(call.transcribeAttempts) || 0) + 1, transcribeError: errMsg }, keepTranscript), { merge: true }).catch((we) => logger.warn('call_center_strike_write_failed', { id: call.id, err: we && we.message }));
       logger.warn('call_center_transcribe_failed', { id: call.id, err: e && e.message });
     }
   }
@@ -614,7 +691,7 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
   // Older calls get caller facts re-read (bounded, see reextractFacts) and
   // are re-scored.
   let factsUsed = null;
-  if (live && !allowIds.length) {
+  if (live && !allowIds.length && !out.providerOutage) {
     try {
       const rows = await unfiledNoted(db);
       const getLeads = async () => (leadsForSuggest = leadsForSuggest || await ownerLeads(db));
@@ -623,12 +700,33 @@ async function runTranscribe({ db, bucket, live, nowMs }) {
         out.factsReextracted = f.reextracted;
         if (f.failed) out.factsFailed = f.failed;
         factsUsed = f.usedToday + f.aiCalls;
+        if (f.outage) out.providerOutage = f.outage;
+        else if (f.reextracted > 0) out.aiWorked = true;
       } catch (e) { logger.warn('call_center_facts_backfill_failed', { err: e && e.message }); }
       out.suggested = await backfillSuggestions({ db, nowMs, leads: leadsForSuggest, rows });
     } catch (e) { logger.warn('call_center_suggest_backfill_failed', { err: e && e.message }); }
   }
 
-  const patch = { audioSecDay: today, audioSecUsed: usedSec + out.audioSec, lastTranscribeAtMs: nowMs, lastTranscribe: out };
+  // Provider outage (2026-10-13): say so, once a day, in words Jo can act on;
+  // clears itself on the first run whose AI step works again.
+  const outage = out.providerOutage || null;
+  if (outage) out.state = 'provider_outage';
+  const prevOutage = (cfg && cfg.providerOutage) || null;
+  const outagePatch = {};
+  if (outage) {
+    const same = prevOutage && prevOutage.kind === outage.kind && prevOutage.provider === outage.provider;
+    const al = outage.needsAction ? await alertProviderOutage({ db, d, outage, prev: prevOutage, today, nowMs }) : {};
+    outagePatch.providerOutage = {
+      provider: outage.provider, kind: outage.kind, reason: outage.reason, needsAction: outage.needsAction,
+      sinceMs: (same && prevOutage.sinceMs) || nowMs, lastAtMs: nowMs,
+      alertedYmd: al.alertedYmd || (prevOutage && prevOutage.alertedYmd) || null,
+      pushedYmd: al.pushedYmd || (prevOutage && prevOutage.pushedYmd) || null,
+    };
+  } else if (prevOutage && (out.noted > 0 || out.personal > 0 || out.aiWorked === true)) {
+    outagePatch.providerOutage = null;
+    out.outageCleared = true;
+  }
+  const patch = Object.assign({ audioSecDay: today, audioSecUsed: usedSec + out.audioSec, lastTranscribeAtMs: nowMs, lastTranscribe: out }, outagePatch);
   if (factsUsed !== null) Object.assign(patch, { factsDay: today, factsUsed });
   // The one-call test runs once: clear the ids it handled.
   if (allowIds.length) patch.transcribeOnly = allowIds.filter((id) => !pick.some((c) => c.id === id));

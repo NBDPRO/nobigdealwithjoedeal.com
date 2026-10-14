@@ -101,6 +101,13 @@ function deadManProblems({ watch, cc, now, gates, newestCallMs }) {
       }
     }
   }
+  // The AI step is out (call-center.js providerOutage). Recorded on
+  // integrations/pipelineHealth with the rest; `quiet` = never a second push
+  // (runTranscribe already sent the one daily alert).
+  const po = c.providerOutage;
+  if (po && po.kind && po.needsAction) {
+    out.push({ key: 'ai_provider_outage', quiet: true, repeatMs: 24 * HOUR, text: 'AI call notes are paused: ' + String(po.reason || 'provider problem') + '.' });
+  }
   return out;
 }
 
@@ -151,7 +158,7 @@ async function run(deps) {
   if (canary && canary.ok === false) {
     problems.push({ key: 'canary_failed', repeatMs: REPEAT_MS, text: 'The daily self-test failed: ' + (canary.failed || []).slice(0, 2).join('; ') + '. Home or the 2-hour check may be reading nothing.' });
   }
-  const tell = W.problemsToTell(problems, health.problemsToldAt, nowMs);
+  const tell = W.problemsToTell(problems.filter((p) => !p.quiet), health.problemsToldAt, nowMs);
   const out = { state: problems.length ? 'problem' : 'ok', problems: problems.map((p) => p.key), told: [] };
   if (!live) return Object.assign(out, { state: out.state + '_dry_run' });
 

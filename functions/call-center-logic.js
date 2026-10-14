@@ -304,6 +304,49 @@ function isRateLimited(err) {
 }
 
 /**
+ * Provider OUTAGE class (2026-10-13). A call whose notes step died because the
+ * ACCOUNT is out of credit, the key was revoked, or the provider is down did
+ * nothing wrong: that must never cost the call a strike. 14 calls were dropped
+ * for good on 2026-10-13 because Anthropic's "credit balance is too low" 400
+ * counted as three failures each. One classifier, used by every strike counter
+ * on the call line.
+ *
+ * Takes an Error (status / provider props) or the stored error string. Returns
+ * null for anything that is the CALL's fault, else
+ *   { provider: 'anthropic'|'groq'|'ai', kind, reason, needsAction }
+ * kind: credit | auth | rate_limit | overloaded. needsAction (credit, auth)
+ * means Jo has to do something; rate limits and 5xx heal on their own.
+ */
+function classifyProviderError(err) {
+  if (!err) return null;
+  const isObj = typeof err === 'object';
+  const msg = isObj ? String(err.message || '') : String(err);
+  if (!msg && !(isObj && err.status)) return null;
+  const status = isObj ? Number(err.status) || 0 : 0;
+  let provider = isObj && err.provider ? String(err.provider) : '';
+  if (!provider) provider = /^\s*anthropic\b|anthropic-not-configured/i.test(msg) ? 'anthropic' : (/groq/i.test(msg) ? 'groq' : 'ai');
+  // The stored string carries the status for Anthropic ("anthropic 400: ...")
+  // and, since Groq errors are stored as "Groq rejected: HTTP 503", for Groq.
+  const m = /^\s*anthropic (\d{3})\b/i.exec(msg) || /^\s*groq rejected: HTTP (\d{3})\b/i.exec(msg);
+  const code = status || (m ? Number(m[1]) : 0);
+  let kind = null;
+  if (/credit balance is too low|insufficient[_ ]?(credit|funds|quota)|exceeded your (current )?quota|plans?\s*(&|and)\s*billing|payment required/i.test(msg) || code === 402) kind = 'credit';
+  else if (/invalid[ _-]?(x-)?api[ _-]?key|authentication[_ ]error|permission[_ ]error|unauthori[sz]ed|(anthropic|groq)-not-configured|not-configured|api key (is )?(missing|unset|revoked)/i.test(msg) || code === 401 || code === 403) kind = 'auth';
+  else if (isRateLimited(err) || code === 429 || /rate[_ ]limit[_ ]error/i.test(msg)) kind = 'rate_limit';
+  else if (/overloaded/i.test(msg) || code === 529 || (code >= 500 && code <= 599)) kind = 'overloaded';
+  if (!kind) return null;
+  const who = provider === 'anthropic' ? 'Anthropic' : (provider === 'groq' ? 'Groq' : 'The AI provider');
+  const reason = {
+    credit: who + ' account is out of credit' + (provider === 'anthropic' ? ' (top up at console.anthropic.com > Billing)' : ''),
+    auth: who + ' rejected the API key (missing, invalid or revoked)',
+    rate_limit: who + ' rate limit reached (clears by itself)',
+    overloaded: who + ' is overloaded or down (clears by itself)',
+  }[kind];
+  return { provider, kind, reason, needsAction: kind === 'credit' || kind === 'auth' };
+}
+const isProviderOutage = (err) => classifyProviderError(err) !== null;
+
+/**
  * Which stored calls to transcribe this run. An allow-list (Jo's one-call
  * test) works with the gate OFF and ignores everything else; with the gate
  * ON, newest first, within the per-run count and the day's audio budget.
@@ -315,14 +358,15 @@ function pickToTranscribe(calls, { live, allowIds, maxCount, secLeft }) {
   // last error was a rate limit stays eligible (2026-10-02: six calls, 117
   // min of audio, had been dropped for good by a busy hour).
   const ready = (calls || []).filter((c) => c && c.status === 'stored' && c.storagePath
-    && ((Number(c.transcribeAttempts) || 0) < 3 || isRateLimited(c.transcribeError)));
+    && ((Number(c.transcribeAttempts) || 0) < 3 || isProviderOutage(c.transcribeError)));
   if (allow.length) return ready.filter((c) => allow.includes(c.id)).slice(0, maxCount);
   if (!live) return [];
   const out = [];
   let left = Number(secLeft) || 0;
   for (const c of ready.slice().sort((a, b) => (b.startedAtMs || 0) - (a.startedAtMs || 0))) {
     if (out.length >= maxCount) break;
-    const est = estimateAudioSec(c.sizeBytes);
+    // A transcript already saved (notes failed on an outage) costs no audio.
+    const est = c.transcriptSaved === true && String(c.transcript || '').trim() ? 0 : estimateAudioSec(c.sizeBytes);
     if (est > left) continue;
     left -= est;
     out.push(c);
@@ -945,6 +989,8 @@ module.exports = {
   estimateAudioSec,
   pickToTranscribe,
   isRateLimited,
+  classifyProviderError,
+  isProviderOutage,
   NOTES_SYSTEM,
   buildNotesPrompt,
   sanitizeNotes,
