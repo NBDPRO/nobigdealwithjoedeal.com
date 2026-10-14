@@ -135,6 +135,8 @@
     "esign-gaps-2026-10-04.test.js",
     "address-match.test.js",
     "cron-gate-drift.test.js",
+    "flags-registry-drift.test.js",
+    "prod-flags-panel.test.js",
     "address-audit-script.test.js",
     "zip-state-check-2026-10-07.test.js",
     "backup-freshness.test.js",

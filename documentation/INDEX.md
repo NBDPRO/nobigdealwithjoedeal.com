@@ -108,6 +108,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 - [RESTORE_FROM_BACKUP](runbooks/RESTORE_FROM_BACKUP.md) — detailed Firestore import steps (dated 2026-10-04 corrections at the top)
 - [SECRET_ROTATION](runbooks/SECRET_ROTATION.md) — linked from the admin integrationStatus readout
 - [SPEND_KILLSWITCH](runbooks/SPEND_KILLSWITCH.md)
+- [READ-PROD-FLAGS](runbooks/READ-PROD-FLAGS.md) — **2026-10-13:** see the feature flags the deployed functions are really running with, from the phone: CRM Settings -> Access -> "Live feature flags" (owner/admin only, read-only, `flagStatus` callable, `functions/flags-registry.js`), ON/OFF/PAUSED per flag, "dark - needs Jo's go" hints, deployed-file drift, plus the emergency gcloud one-liner and how to register a new flag
 - [COST-ROTATION](runbooks/COST-ROTATION.md) — closing the Grok Pro/CRM audit's cost-basis leak: worksheets prepared and gitignored in `.local/`, Jo fills real labor/xact/v2 figures and runs apply → import → ledger-paste (Jo action, writes prod Firestore)
 - [ONBOARD_TENANT](runbooks/ONBOARD_TENANT.md)
 - [TENANT-CUSTOM-DOMAINS](runbooks/TENANT-CUSTOM-DOMAINS.md)

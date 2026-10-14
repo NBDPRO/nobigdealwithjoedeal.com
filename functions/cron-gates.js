@@ -14,15 +14,18 @@
  *                  var is the literal string 'true'.
  *   - 'disabled' — the gate defaults ON; the cron skips only when the env
  *                  var is the literal string 'true'.
+ *   - 'default-on' — the gate defaults ON; the function skips / goes dry-run
+ *                  only when the env var is the literal string 'false'
+ *                  (estimate-email.js, lead-followup.js).
  */
 const CRON_GATES = [
   { name: 'ANNIVERSARY_TOUCH_ENABLED', polarity: 'enabled', file: 'anniversary-touch.js' },
   { name: 'DORMANT_NUDGE_ENABLED', polarity: 'enabled', file: 'dormant-leads.js' },
-  { name: 'ESTIMATE_EMAIL_ENABLED', polarity: 'enabled', file: 'estimate-email.js' },
+  { name: 'ESTIMATE_EMAIL_ENABLED', polarity: 'default-on', file: 'estimate-email.js' },
   { name: 'FUNNEL_RECOVERY_ENABLED', polarity: 'enabled', file: 'funnel-recovery.js' },
   { name: 'HEALTH_DIGEST_ENABLED', polarity: 'enabled', file: 'health-digest.js' },
   { name: 'LEAD_ACK_SMS_ENABLED', polarity: 'enabled', file: 'lead-alert.js' },
-  { name: 'LEAD_FOLLOWUP_ENABLED', polarity: 'enabled', file: 'lead-followup.js' },
+  { name: 'LEAD_FOLLOWUP_ENABLED', polarity: 'default-on', file: 'lead-followup.js' },
   { name: 'MORNING_BRIEF_ENABLED', polarity: 'enabled', file: 'morning-brief.js' },
   // One morning email (2026-10-04): the 6:45 brief absorbs the 07:00 lead
   // digest, the 07:15 "said you'd do" sweep and the owner's 08:15 review asks.
@@ -81,7 +84,9 @@ const CRON_GATES = [
 function gateStatus(env) {
   return CRON_GATES.map((g) => {
     const raw = env[g.name];
-    const on = g.polarity === 'enabled' ? raw === 'true' : raw !== 'true';
+    const on = g.polarity === 'enabled' ? raw === 'true'
+      : g.polarity === 'default-on' ? raw !== 'false'
+      : raw !== 'true';
     return { name: g.name, file: g.file, polarity: g.polarity, raw: raw || '(unset)', on };
   });
 }

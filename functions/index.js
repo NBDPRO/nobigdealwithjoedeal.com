@@ -215,6 +215,8 @@ exports.integrationStatus = integrationsHandlers.integrationStatus;
 // integrationStatus in handlers/integrations.js for why that one stays
 // admin-gated and this one deliberately does not.
 exports.integrationAvailability = integrationsHandlers.integrationAvailability;
+// Read-only live feature-flag readout for the owner / admins (Settings -> Access).
+exports.flagStatus = integrationsHandlers.flagStatus;
 exports.submitPublicLead  = integrationsHandlers.submitPublicLead;
 // Photos attached to a website request (2026-09-30) — one-time grant from submitPublicLead.
 exports.uploadPublicLeadPhoto = require('./public-lead-photos').uploadPublicLeadPhoto;
