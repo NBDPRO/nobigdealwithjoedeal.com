@@ -78,11 +78,11 @@ CEILING.localBytes += 30 * 1024;   // pipeline-rich-cards.js = 26.5 KB (LF), + ~
 // Per-layout code and CSS (Field App, Focus, ...) load lazily only for the active layout.
 CEILING.localScripts += 1;
 CEILING.localBytes += 24 * 1024;
-// +10 KB, deliberate (2026-10-13, Today UX walk PR-B): no new script. The cold-boot "checking"
+// +15 KB, deliberate (2026-10-13, Today UX walk PR-B; 10 -> 15 on the restack, main had absorbed ~5 KB of other PRs' bytes): no new script. The cold-boot "checking"
 // state (collected-revenue.js, home-attention.js, today-home.js), the keyed handled set, the
 // 6 s Undo on every Today action and the hold-then-collapse are ~14.7 KB of deferred code in
 // files already loaded; promise-ui.js (lazy) and the CSS are not counted here. Own line.
-CEILING.localBytes += 10 * 1024;
+CEILING.localBytes += 15 * 1024;
 // +1 local tag, deliberate (2026-10-11, CRM style integration E1): js/pixel-mode.js (Pixel Mode loader, ~3 KB).
 // Deferred; on boot it reads one settings doc and stops. The skin/Party/dialog code (pixel-mode-core.js), its CSS, the
 // fonts and the logic module are fetched only when the person turned something on or the Settings card scrolls into

@@ -346,19 +346,22 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
     expect(primary.toLowerCase(), 'tenant primary color applied via getPublicSiteConfig').toBe(STRANGER.primaryColor);
 
     // A homeowner submits the quote form (honeypot #qWebsite stays empty).
-    await page.fill('#qFirst', 'Micro');
-    await page.fill('#qLast', `Site${stamp}`);
-    await page.fill('#qPhone', '513' + String(stamp + 1).slice(-7));
-    // Since the 2026-09-30 intake overhaul every form requires a street
-    // address and a scheduling choice. A microsite has no calendar, so
-    // "please contact me" is the only option, and it names the TENANT.
-    await page.fill('#qAddress', '12 Test Ln, Dayton, OH');
-    const contactMe = page.locator('input[name="tqScheduling"][value="contact_me"]');
-    await expect(page.locator('input[name="tqScheduling"][value="calendar"]'), 'microsite offers no NBD calendar').toHaveCount(0);
-    await expect(page.locator('#qIntake'), 'intake block speaks for the tenant, not Joe').not.toContainText(/Joe/);
-    await contactMe.check();
-    await page.click('#qSubmit');
-    await expect(page.locator('#formOk'), 'quote form confirms').toContainText(/reach out shortly/i, { timeout: 20_000 });
+    const submitQuote = async (last) => {
+      await page.fill('#qFirst', 'Micro');
+      await page.fill('#qLast', last);
+      await page.fill('#qPhone', '513' + String(stamp + 1).slice(-7));
+      // Since the 2026-09-30 intake overhaul every form requires a street
+      // address and a scheduling choice. A microsite has no calendar, so
+      // "please contact me" is the only option, and it names the TENANT.
+      await page.fill('#qAddress', '12 Test Ln, Dayton, OH');
+      const contactMe = page.locator('input[name="tqScheduling"][value="contact_me"]');
+      await expect(page.locator('input[name="tqScheduling"][value="calendar"]'), 'microsite offers no NBD calendar').toHaveCount(0);
+      await expect(page.locator('#qIntake'), 'intake block speaks for the tenant, not Joe').not.toContainText(/Joe/);
+      await contactMe.check();
+      await page.click('#qSubmit');
+      await expect(page.locator('#formOk'), 'quote form confirms').toContainText(/reach out shortly/i, { timeout: 20_000 });
+    };
+    await submitQuote(`Site${stamp}`);
 
     // Server truth: contact_leads doc tagged to the tenant, then the
     // leadBridgeContact trigger (now actually running) mirrors it into the
@@ -378,22 +381,44 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
     // trigger's outbox ledger records WHO the alert targeted. Delivery
     // itself can't succeed in the rig (no Resend/Twilio secrets — the
     // statuses record the failure), but the ROUTING decision is the
-    // product guarantee: the alert for a tenant's public lead goes to
-    // the TENANT's alert contact (createCompany seeded alertEmail from
-    // their account email; the wizard added alertSms) — never to Joe.
-    const outbox = await eventually(async () => {
+    // product guarantee: a tenant's public lead alerts the TENANT, never Joe.
+    //
+    // 2026-10-13 (verified alert recipients): "the tenant" is now the owner's
+    // VERIFIED sign-in email (or an address the owner confirmed). The emulator
+    // never clicks the verification link, so this fresh tenant's owner is
+    // UNVERIFIED and the alert has NO email target (the lead, bell and push are
+    // untouched: the lead bridged above). Positive control below: verify the
+    // owner and the very same flow targets their sign-in email.
+    const outboxFor = (leadLast) => eventually(async () => {
       const snap = await db.collection('alert_outbox')
-        .where('companyId', '==', STRANGER.uid).limit(1).get();
-      return snap.empty ? null : snap.docs[0].data();
-    }, { label: 'alert_outbox entry for the microsite lead', timeout: 45_000 });
-    expect(outbox.kind).toBe('lead-alert');
-    expect(outbox.collection, 'alert fired off the public contact_leads doc').toBe('contact_leads');
-    expect(outbox.target.emails, 'alert email targeted the TENANT\'s alert contact')
-      .toEqual([STRANGER.email]);
-    expect(JSON.stringify(outbox.target), 'alert never routed to Joe')
+        .where('companyId', '==', STRANGER.uid).get();
+      const rows = snap.docs.map((d) => d.data()).filter((r) => r.kind === 'lead-alert' && r.collection === 'contact_leads');
+      return rows.length >= leadLast ? rows : null;
+    }, { label: 'alert_outbox entry #' + leadLast + ' for the microsite lead', timeout: 45_000 });
+    const rows1 = await outboxFor(1);
+    const unverified = rows1[0];
+    expect(unverified.target.emails, 'unverified owner: no alert email target (never an unverified address, never Joe)')
+      .toBeNull();
+    expect(JSON.stringify(unverified.target), 'alert never routed to Joe')
       .not.toMatch(/nobigdealwithjoedeal|jonathandeal459|8594207382/i);
-    expect(outbox.target.seal, 'tenant-resolved target, not the NBD fallback').not.toBe('NBD');
-    expect(String(outbox.emailStatus), 'email attempt recorded (send fails in the rig — no secrets)')
+    expect(unverified.target.seal, 'tenant-resolved target, not the NBD fallback').not.toBe('NBD');
+    expect(String(unverified.emailStatus), 'no email attempted without a verified target').toBe('skipped:no-target');
+
+    // POSITIVE CONTROL: the owner verifies their sign-in email; the same form
+    // now alerts that address (createCompany seeded alertEmail from it).
+    const { auth: adminAuth } = admin();
+    await adminAuth.updateUser(STRANGER.uid, { emailVerified: true });
+    await page.goto(`/sites/t/${STRANGER.uid}`);
+    await expect(page.locator('#site')).toBeVisible({ timeout: 15_000 });
+    await submitQuote(`SiteV${stamp}`);
+    const rows2 = await outboxFor(2);
+    const verified = rows2.find((r) => r.target && Array.isArray(r.target.emails));
+    expect(verified, 'verified owner: the alert email targets the tenant sign-in address').toBeTruthy();
+    expect(verified.target.emails, 'alert email targeted the TENANT\'s verified owner email')
+      .toEqual([STRANGER.email]);
+    expect(JSON.stringify(verified.target), 'alert never routed to Joe')
+      .not.toMatch(/nobigdealwithjoedeal|jonathandeal459|8594207382/i);
+    expect(String(verified.emailStatus), 'email attempt recorded (send fails in the rig — no secrets)')
       .toMatch(/^(sent|failed:)/);
 
     // …and their card shows up in THEIR kanban like any other lead.
@@ -406,6 +431,11 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
   test('team: free plan is seat-gated; upgraded tenant invites a MANAGER who claims in and sees the shared pipeline', async ({ page, browser }) => {
     expect(STRANGER.uid, 'provision test must have run').toBeTruthy();
     const { db, auth, FieldValue } = admin();
+    // 2026-10-13: createTeamInvite needs the inviter's own email verified (the
+    // invite goes out on the platform sender). The emulator never clicks the
+    // verification link, so the admin nudge stands in for it; the page's token
+    // claim is stale, which the server's Auth-record fallback covers.
+    await auth.updateUser(STRANGER.uid, { emailVerified: true });
 
     await loginAs(page, { email: STRANGER.email, password: STRANGER.password });
     await page.waitForFunction(() => window._user && window._user.uid, null, { timeout: 20_000 });

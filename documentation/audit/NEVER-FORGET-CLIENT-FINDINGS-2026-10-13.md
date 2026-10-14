@@ -110,3 +110,17 @@ something".
 
 The Stripe / yard-sign reads that swallowed errors into `0`, and the filed-promise + unfiled-call double row, are fixed in 
 [HOME-STRIP-FAILED-READS-2026-10-13](HOME-STRIP-FAILED-READS-2026-10-13.md). The "Seen but not changed" and "Not fixed" bullets above describe the state before that PR.
+
+## Update 2026-10-13 (lifecycle audit): two corrections
+
+- "Open promises past 45 days come from their own bounded read" is true for
+  **calls only**: `home-attention.js` reads `phone_calls` past the window,
+  not `phone_text_days`. The server ledger does count texted old promises
+  (server findings, item 5), so Home's "N old promises" chip and the 8 pm
+  ledger can differ once texts are on (they are dark today).
+- The strip counts a person Jo **snoozed** (`callNeedsYou` never reads the
+  snooze); Today hides them. And a plain Call Center "Handled" leaves the
+  call's follow-up task, so the person returns on Today as a Promised
+  follow-up. Both reproduced in
+  [NEEDS-YOU-LIFECYCLE-AND-VOLUME-2026-10-13](NEEDS-YOU-LIFECYCLE-AND-VOLUME-2026-10-13.md)
+  (F9a / F9b); the control questions belong to the snooze / handle lane.
