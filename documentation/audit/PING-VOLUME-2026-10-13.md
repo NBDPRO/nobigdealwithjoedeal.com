@@ -87,7 +87,7 @@ rows instead (it cannot share that document: callWatch rewrites it whole).
 
 ## Tests
 
-- `tests/ping-volume-2026-10-13.test.js` (88 checks, CI node bucket): kinds, the
+- `tests/ping-volume-2026-10-13.test.js` (115 checks, CI node bucket): kinds, the
   card (fold / new kind / re-tell / sticky once / immediate push counted / handled
   starts fresh), `applyRun` (an unreached push counts for nothing), digest
   signature, Thursday hold at 21:00 / 22:00 / 23:00 / 00:00 / 03:00 / 07:59 vs
@@ -98,7 +98,7 @@ rows instead (it cannot share that document: callWatch rewrites it whole).
   presence control** built from the same fixture with one field changed.
 - Harness scenarios B / C / D / H / I / J / Q + invariants (no watch run sends two
   pushes; nobody is pushed more than 5 times a day in any scenario).
-- Break-tested: 22 one-line mutations, the last 7 after the review round (a held re-tell still climbing, a folded call never told when its carrier leaves, the Thursday hold ignoring the flag, a bell-only run overwriting lastPush, no-ladder kinds folded to nothing, every low number marked belled, a held re-tell re-belled every run) plus the first 15 (low-value push-worthy, no fold, no new-kind
+- Break-tested: 22 one-line mutations, the last 7 after the review round (a held re-tell still climbing, a folded call never told when its carrier leaves, the Thursday hold ignoring the flag, a bell-only run overwriting lastPush, no-ladder kinds folded to nothing, every low number marked belled, a held re-tell re-belled every run) plus 19 more after the vacuity audit's 123 near-miss mutations found 31 that left both suites green (a fake query ignoring its filters, yesterday's push counted, a digest signature blind to who / kind, closed episodes, quiet-number boundaries, an unreached promise push counted, sweep dedupe despite a failed task read, quiet lines not wired to the email / brief, the fold linking to the first sibling) - each now turns a named check red - plus the first 15 (low-value push-worthy, no fold, no new-kind
   exemption, an unreached push counted, pushUrgent never folds, Thursday never held
   / emergency held too, sweep never deduped / stamp missing / brief stamp missing,
   callWatch repeats Thursday, no merge, no once-a-day email, low number belled every

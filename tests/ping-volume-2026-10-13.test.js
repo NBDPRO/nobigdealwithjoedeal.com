@@ -290,11 +290,19 @@ const TODAY = W.etYmd(T0);
   function urgDb(siblings, failRead) {
     const store = new Map((siblings || []).map((s) => [s.id, s]));
     const stamps = [], bells = [];
-    const col = {
-      where: () => col2, doc: (id) => ({ set: async (v) => { stamps.push([id, v]); } }),
-    };
-    const col2 = { where: () => col2, limit: () => col2, get: async () => { if (failRead) throw new Error('read failed'); return { docs: [...store.values()].map((s) => ({ id: s.id, data: () => s })) }; } };
-    return { stamps, bells, collection: (n) => (n === 'notifications' ? { add: async (v) => { bells.push(v); } } : (n === 'companies' ? { doc: () => ({ collection: () => ({ doc: () => ({ get: async () => ({ exists: false }) }) }) }) } : col)) };
+    const wheres = [];
+    const mkQ = (filters) => ({
+      where: (f, op, v) => { wheres.push([f, op, v]); return mkQ(filters.concat([[f, op, v]])); },
+      limit: () => mkQ(filters),
+      get: async () => {
+        if (failRead) throw new Error('read failed');
+        const rows = [...store.values()].filter((s) => filters.every(([f, op, v]) => op !== '==' || s[f] === v));
+        return { docs: rows.map((s) => ({ id: s.id, data: () => s })) };
+      },
+    });
+    const col = { where: (f, op, v) => { wheres.push([f, op, v]); return mkQ([[f, op, v]]); }, doc: (id) => ({ set: async (v) => { stamps.push([id, v]); } }) };
+    void wheres;
+    return { stamps, bells, wheres, collection: (n) => (n === 'notifications' ? { add: async (v) => { bells.push(v); } } : (n === 'companies' ? { doc: () => ({ collection: () => ({ doc: () => ({ get: async () => ({ exists: false }) }) }) }) } : col)) };
   }
   const newCall = { id: 'cube_new', leadId: 'L3', phoneDigits: '5135550103', startedAtMs: pushNow - 5 * MIN, urgent: true };
   const sibling = { id: 'cube_old', leadId: 'L3', phoneDigits: '5135550103', startedAtMs: pushNow - 3 * H, urgent: true, status: 'noted', urgentPushedAtMs: pushNow - 2 * H, userId: OWNER };
@@ -397,6 +405,112 @@ const TODAY = W.etYmd(T0);
   const mail2 = L.buildSweepEmail({ items: [{ kind: 'due', callId: 'c1', who: 'Dana', promises: ['x'], summary: '', due: TODAY, channel: 'call' }], todayYmd: TODAY, slot: 'pm' });
   ok('control: no lines, no block', !/Repeat unknown numbers/.test(mail2.text) && !/Repeat unknown numbers/.test(mail2.html));
   void MB;
+
+  // ── 10. second audit round: the gaps the vacuity audit found ─────────────
+  console.log('10. query shape, latest carrier, closed episodes, wiring');
+  {
+    // pushUrgent: filed call -> leadId query; unfiled -> phoneDigits query; the carrier is the LATEST
+    const filedDb = urgDb([sibling]); await trySend(filedDb);
+    ok('a filed call looks siblings up by leadId (userId + leadId equality only: no composite index)', filedDb.wheres.some((w) => w[0] === 'leadId' && w[2] === 'L3') && !filedDb.wheres.some((w) => w[0] === 'phoneDigits'), filedDb.wheres);
+    const phoneOnly = Object.assign({}, newCall, { leadId: null });
+    const phoneSib = Object.assign({}, sibling, { leadId: null });
+    const sendPhone = async (db, call) => { const sentP = []; const r = await CC.pushUrgent({ db, d: { push: async (u, t, b) => { sentP.push(b); return { sent: 1 }; } }, call, notes: { urgent: true }, leadName: '', nowMs: pushNow }); return { r, sentP }; };
+    let rp = await sendPhone(urgDb([phoneSib]), phoneOnly);
+    ok('an UNFILED call folds into an open urgent call from the same NUMBER', rp.r === false && rp.sentP.length === 0, rp);
+    rp = await sendPhone(urgDb([Object.assign({}, phoneSib, { phoneDigits: '5135550999' })]), phoneOnly);
+    ok('control: a different number\'s urgent call does not fold it', rp.r === true && rp.sentP.length === 1, rp);
+    const phoneDb = urgDb([phoneSib]); await sendPhone(phoneDb, phoneOnly);
+    ok('...and the unfiled lookup is by phoneDigits, not leadId', phoneDb.wheres.some((w) => w[0] === 'phoneDigits' && w[2] === '5135550103') && !phoneDb.wheres.some((w) => w[0] === 'leadId'), phoneDb.wheres);
+    const older = Object.assign({}, sibling, { id: 'cube_first', urgentPushedAtMs: pushNow - 5 * H });
+    const dbL = urgDb([older, sibling]); await trySend(dbL);
+    ok('with two pushed siblings the fold links to the LATEST push', dbL.stamps.length === 1 && dbL.stamps[0][1].urgentFoldedInto === 'cube_old' && dbL.stamps[0][1].urgentPushedAtMs === sibling.urgentPushedAtMs, dbL.stamps);
+
+    // planPush / personFacts: yesterday's immediate push counts for nothing today
+    p = plan([urg], {}, [Object.assign({}, rowPushed, { urgentPushedAtMs: T0 - 20 * H })]);
+    ok('an immediate urgent push from YESTERDAY (on the call row) does not fill today\'s card', p.pushItems.length === 1);
+    p = plan([urg], {}, [rowPushed]);
+    ok('control: the same push today does', p.pushItems.length === 0);
+
+    // digest signature distinguishes WHO, not just how many
+    ok('digestSig: a different item with the same date and promise text is a different list', PV.digestSig([{ kind: 'due', callId: 'cA', due: TODAY, promises: ['x'] }]) !== PV.digestSig([{ kind: 'due', callId: 'cB', due: TODAY, promises: ['x'] }]));
+    ok('digestSig: the same item changing kind (due -> urgent) is a different list', PV.digestSig([{ kind: 'due', callId: 'cA', due: TODAY, promises: [] }]) !== PV.digestSig([{ kind: 'urgent', callId: 'cA', due: TODAY, promises: [] }]));
+    ok('digestSig: a promise-task row (leadId, no callId) is distinguished by its lead', PV.digestSig([{ kind: 'promise', leadId: 'L1', due: TODAY, promises: ['x'] }]) !== PV.digestSig([{ kind: 'promise', leadId: 'L2', due: TODAY, promises: ['x'] }]));
+
+    // a closed episode: emailed, then handled, then a new need the same day
+    const factsH = new Map([['lead:L9', { handledSince: T0 - 10 * MIN, urgentAt: [] }]]);
+    const ppE = { 'lead:L9': { ymd: TODAY, n: 2, kinds: { urgent: T0 - 3 * H }, emailedYmd: TODAY, firstAtMs: T0 - 4 * H } };
+    ok('emailedToday: a person handled since the email is a NEW episode (may be emailed again)', PV.emailedToday(ppE, 'lead:L9', T0, factsH) === false && PV.emailedToday(ppE, 'lead:L9', T0, new Map()) === true);
+    const afterHandled = PV.applyRun({ pp: ppE, nowMs: T0, pushItems: [urg], pushReached: true, belledLowKeys: [], emailedKeys: [], stickyKeys: [], facts: factsH });
+    ok('applyRun: a push after Jo handled the person starts a fresh card (n 1, not 3; the old email stamp is gone)', afterHandled['lead:L9'].n === 1 && !afterHandled['lead:L9'].emailedYmd, afterHandled['lead:L9']);
+
+    // quietNumbers boundaries
+    const qrow = (o) => Object.assign({ id: 'q' + Math.random().toString(36).slice(2, 7), phoneDigits: '5135550300', status: 'short', direction: 'inbound', bucket: 'unknown', startedAtMs: T0 - H }, o);
+    const qn2 = (rowsQ) => PV.quietNumbers(rowsQ, T0, W.callNeedsYou, Object.assign(W.reachIndex(rowsQ), { labels: {} }));
+    ok('quietNumbers counts a number with two open unlabelled calls', qn2([qrow(), qrow()]).length === 1);
+    ok('control: a customer-filed call is not a repeat NUMBER', qn2([qrow({ leadId: 'L1' }), qrow({ leadId: 'L1' })]).length === 0);
+    ok('control: calls older than 36 h are not in the summary', qn2([qrow({ startedAtMs: T0 - 40 * H }), qrow({ startedAtMs: T0 - 41 * H })]).length === 0);
+    ok('control: an URGENT call is never "just a repeat number"', qn2([qrow({ urgent: true }), qrow({ urgent: true })]).length === 0);
+    const sevenNums = [];
+    for (let i = 0; i < 7; i++) { sevenNums.push(qrow({ phoneDigits: '513555040' + i }), qrow({ phoneDigits: '513555040' + i })); }
+    const lines7 = PV.quietNumberLines(qn2(sevenNums), false);
+    ok('the summary is capped at 5 numbers plus a "+N more" line', lines7.length === 6 && /\+2 more/.test(lines7[5]), lines7);
+
+    // runSweep wiring: the repeat-number line reaches the 15:15 email through gatherSweepWithPromises
+    const sweepN = Date.parse('2026-10-07T19:15:00Z');
+    const quietRows = [];
+    for (let i = 0; i < 3; i++) quietRows.push({ id: 'qs' + i, userId: OWNER, status: 'short', direction: 'inbound', bucket: 'unknown', phoneDigits: '5135550137', startedAtMs: sweepN - (i + 1) * H, leadId: null });
+    const sentQ = [];
+    let rq = await CC.runSweep({ db: sweepDb([callRow].concat(quietRows)), live: true, nowMs: sweepN, slot: 'pm', absorbed: false, send: async (m) => { sentQ.push(m); } });
+    ok('runSweep -> email carries "Repeat unknown numbers" with the number and its count', rq.state === 'sent' && /Repeat unknown numbers/.test(sentQ[0].text) && /555-0137 called 3 times/.test(sentQ[0].text), sentQ[0] && sentQ[0].text);
+    sentQ.length = 0;
+    rq = await CC.runSweep({ db: sweepDb([callRow]), live: true, nowMs: sweepN, slot: 'pm', absorbed: false, send: async (m) => { sentQ.push(m); } });
+    ok('control: without repeat calls the email has no such block', rq.state === 'sent' && !/Repeat unknown numbers/.test(sentQ[0].text));
+    // the gather feeds the brief's sections
+    const realG = CCmod.gatherSweepWithPromises;
+    CCmod.gatherSweepWithPromises = async () => ({ items: [], promiseCheckFailed: false, quietLines: ['(513) 555-0137 called 3 times in the last day'] });
+    let gs = null;
+    try { gs = await MBR._test.gatherSections({ db: bdb, owner: OWNER, nowMs: briefNow, log: quietLog }); } finally { CCmod.gatherSweepWithPromises = realG; }
+    ok('gatherSections passes the gather\'s quietLines through to the brief', gs && Array.isArray(gs.quietLines) && gs.quietLines.length === 1 && /555-0137/.test(gs.quietLines[0]), gs);
+
+    // runSweep + a failed promise-task read: never deduped, never stamped
+    const sweepFail = (docs) => { const dbf = sweepDb([callRow], docs); dbf.collectionGroup = () => { const o = { where: () => o, get: async () => { throw new Error('tasks unavailable'); } }; return o; }; return dbf; };
+    const stampThen = { ymd: TODAY, sig: 'will-not-match', atMs: 1 };
+    const sentF = [];
+    const dbFail = sweepFail({ 'integrations/digestSig': Object.assign({}, sigBefore, { atMs: 1 }) });   // atMs 1: a rewrite is visible
+    rq = await CC.runSweep({ db: dbFail, live: true, nowMs: sweepNow, slot: 'pm', absorbed: false, send: async (m) => { sentF.push(m); } });
+    ok('a failed promise-task read: the 15:15 email goes even when the list matches the stamp, and says "could not check"', rq.state === 'sent' && sentF.length === 1 && /could not check/i.test(sentF[0].text), { state: rq.state, text: sentF[0] && sentF[0].text.slice(0, 160) });
+    ok('...and it does NOT overwrite the signature (a warning list is never the baseline)', dbFail.store['integrations/digestSig'].atMs === 1 && dbFail.store['integrations/digestSig'].sig === sigBefore.sig, dbFail.store['integrations/digestSig']);
+    void stampThen;
+
+    // runWatch: a pipeline problem alone is still a push (bell-only is for low-value ITEMS)
+    process.env.CALL_CENTER_INGEST_ENABLED = 'true';
+    try {
+      d = mkDb([row({ id: 'lowP' })], { 'integrations/callCenter': { lastRunAtMs: T0 - 5 * H, lastRun: { failed: 0 } } });
+      g = await go(d, T0);
+      ok('an unknown-number item PLUS a pipeline problem still pushes (the problem is what buzzes)', g.pushes.length === 1 && /behind|haven't been copied|Calls/i.test(g.pushes[0].title + g.pushes[0].body), g.pushes.map((x) => x.title + ' | ' + x.body));
+      d = mkDb([row({ id: 'lowP' })], { 'integrations/callCenter': { lastRunAtMs: T0 - 5 * MIN, lastRun: { failed: 0 } } });
+      g = await go(d, T0);
+      ok('control: the same item with a healthy pipeline is bell-only', g.pushes.length === 0 && d.bells.length === 1);
+    } finally { process.env.CALL_CENTER_INGEST_ENABLED = 'false'; }
+
+    // merged push that reached nobody: the promise person has no card entry either
+    d = mkDb([overnight], Object.assign({ 'integrations/callWatch': { lastCheckAtMs: NOW8 - 12 * H } }, leads), { taskDocs });
+    try { await WATCH.runWatch({ db: d, nowMs: NOW8, live: true, push: async () => ({ sent: 0, failed: 1, errors: [] }), email: async () => {} }); } catch (e) { /* the run fails loud by design */ }
+    ok('merged push that reached 0 devices: neither person is on the card (the promise person included)', !(d.docs['integrations/callWatch'].personPings || {})['lead:L6'] && !(d.docs['integrations/callWatch'].personPings || {})['lead:L5'], d.docs['integrations/callWatch'].personPings);
+
+    // a promise person already pushed about a promise today is folded (bell + ladder entry kept)
+    const ppProm = { 'lead:L6': { ymd: '2026-10-08', n: 1, kinds: { promise: NOW8 - 3 * H }, firstAtMs: NOW8 - 4 * H } };
+    d = mkDb([], Object.assign({ 'integrations/callWatch': { lastCheckAtMs: NOW8 - 12 * H, personPings: ppProm } }, leads), { taskDocs });
+    g = await go(d, NOW8);
+    ok('a promise person already pushed about a promise today: no second push, the bell is written, the ladder marks them told', g.pushes.length === 0 && d.bells.some((b) => b.type === 'promise_due') && d.docs['integrations/callWatch'].ladder['promise:L6'].n === 1, { pushes: g.pushes.length, bells: d.bells.map((b) => b.type), ladder: d.docs['integrations/callWatch'].ladder });
+
+    // an email stamp only for the people actually mailed (rung 3), not for a rung-2 re-tell in the same run
+    const stuckL = (id, lead) => row({ id, leadId: lead, bucket: 'customer', contactName: 'P' + lead, promises: [{ who: 'jo', text: 'ring back' }], startedAtMs: T0 - 10 * H, createdAtMs: T0 - 10 * H, notedAtMs: T0 - 10 * H });
+    d = mkDb([stuckL('m1', 'L11'), stuckL('m2', 'L12')], { 'integrations/callWatch': { lastCheckAtMs: T0 - 2 * H, ladder: { 'call:m1': { n: 2, at: T0 - 3 * H }, 'call:m2': { n: 1, at: T0 - 3 * H } } } });
+    g = await go(d, T0);
+    const pings = d.docs['integrations/callWatch'].personPings || {};
+    ok('one person on their last rung is mailed and stamped; the other (rung 2) is pushed but NOT stamped as emailed', g.emails.length === 1 && pings['lead:L11'] && pings['lead:L11'].emailedYmd === TODAY && pings['lead:L12'] && !pings['lead:L12'].emailedYmd, pings);
+  }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
