@@ -469,7 +469,8 @@
       'js/tenant-rules-settings.js?v=1',
       'js/tenant-account-ui.js?v=2',
       'js/sms-compliance-settings.js?v=2',
-      'js/away-mode-settings.js?v=1'
+      'js/away-mode-settings.js?v=1',
+      'js/prod-flags-panel.js?v=1'
     ],
     // New-owner setup checklist on Home (2026-10-05, #2152 boot budget).
     // Never needed by NBD's own company: dashboard-bootstrap.module.js loads

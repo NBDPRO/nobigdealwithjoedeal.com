@@ -108,6 +108,18 @@ async function loadOpenItems(db, companyId, nowMs) {
     if (tl && (tl.policy === 'hide' || tl.policy === 'quiet')) return;
     add(d ? 'num:' + d : 'thursday:' + t.id, at, t.urgent ? 'urgent (Thursday took it)' : 'Thursday took it', String(t.from || 'Caller'), d);
   });
+  // Dated promises / ripe Waiting items that live only as lead tasks (the Handled
+  // sheet closes the call and leaves the debt on a task): the backup must see
+  // them too (2026-10-13, audit F1). One entry per PERSON, the same key as a
+  // filed call, urgent never (a promise is dated, not an emergency). A failed
+  // read THROWS like the call reads above: the tick records the error and an
+  // expiring window treats every touched item as still open (fail closed).
+  const PC = require('./promise-channel');
+  const pr = await PC.readDuePromisePeople({ db, owner: companyId, nowMs, labels });
+  if (pr.failed) throw new Error('promise tasks unreadable: ' + (pr.error || 'read failed'));
+  pr.people.forEach((p) => {
+    add(p.key, p.atMs, 'you promised something', p.who, '');
+  });
   return Array.from(by.values());
 }
 

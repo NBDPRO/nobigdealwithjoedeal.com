@@ -10,6 +10,7 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "handle-optout-controls-2026-10-13.test.js",
     "away-mode-2026-10-12.test.js",
     "layout-mapview-2026-10-12.test.js",
     "layout-mission-2026-10-12.test.js",
@@ -137,6 +138,8 @@
     "esign-gaps-2026-10-04.test.js",
     "address-match.test.js",
     "cron-gate-drift.test.js",
+    "flags-registry-drift.test.js",
+    "prod-flags-panel.test.js",
     "address-audit-script.test.js",
     "zip-state-check-2026-10-07.test.js",
     "backup-freshness.test.js",
@@ -302,6 +305,7 @@
     "never-forget-server-2026-10-13.test.js",
     "needs-you-lifecycle-fixes-2026-10-13.test.js",
     "needs-you-volume-sim-2026-10-13.test.js",
+    "promise-channel-2026-10-13.test.js",
     "ai-automations-server-2026-10-04.test.js",
     "ai-automations-client-2026-10-04.test.js",
     "month-close-2026-10-01.test.js",
@@ -433,6 +437,7 @@
     "pro-claims-honesty-2026-09-13.test.js",
     "pro-demo-story-2026-10-06.test.js",
     "homeowner-claims-honesty-2026-10-05.test.js",
+    "credentials-2026-10-13.test.js",
     "crm-homeowner-claims-honesty-2026-10-07.test.js",
     "homeowner-honesty-schema-reviews-2026-10-06.test.js",
     "seo-audit-fixes-2026-10-06.test.js",
@@ -561,7 +566,8 @@
     "photo-cache-lazy-2026-10-04.test.js",
     "firebase-sdk-vendored-2026-10-04.test.js",
     "paid-in-full-supplements-r6-2026-10-07.test.js",
-    "auto-theme-rules.test.js"
+    "auto-theme-rules.test.js",
+    "visit-recorder-2026-10-13.test.js"
   ],
   "smoke": {
     "team-roles.test.js": [
@@ -1123,6 +1129,7 @@
     "firestore-rules.contact-labels.test.js",
     "firestore-rules.thursday-handled.test.js",
     "firestore-rules.cross-tenant.test.js",
+    "firestore-rules.visit-captures.test.js",
     "firestore-rules.test.js",
     "inline-html-scripts.test.js",
     "lead-artifact-cleanup.integration.test.js",

@@ -141,6 +141,17 @@ const STOP_PHRASES = Object.freeze([
   /\bI (?:WANT TO |WOULD LIKE TO |WANNA )?(?:OPT OUT|UNSUBSCRIBE)\b/,
   /\bLEAVE ME ALONE\b/,
   /\bLOSE MY NUMBER\b/,
+  // 2026-10-13 audit: "delete my number", "please delete this number".
+  // TERMINAL only (nothing but courtesy / "from your list" may follow): a
+  // correction like "delete my number 555-1234 and use 555-9999" or "delete me
+  // from the group text" is a customer, not a revocation.
+  /\bDELETE (?:ME|MY NUMBER|THIS NUMBER|OUR NUMBER)(?: FROM (?:YOUR|THE|ALL)? ?(?:LIST|LISTS|SYSTEM|DATABASE|RECORDS))?(?: (?:AGAIN|ANYMORE|PLEASE|PLS|PLZ|NOW|THANKS|THANK YOU|THX))*$/,
+  // "do not call or text me", "dont text or call me", "never call or text".
+  // Both channels named AND terminal, so "don't call or text before 10am, I
+  // work nights" and "don't call or text my husband" (a when / who limit, not
+  // a revocation) are NOT opt-outs. A bare "don't call me" is left alone
+  // (voice-only; a person reads it).
+  /\b(?:DO NOT|DONT|DON T|NEVER)(?: EVER)? (?:CALL|PHONE|TEXT|MESSAGE|CONTACT)(?: ME| US)? (?:OR|AND) (?:CALL|PHONE|TEXT|MESSAGE|CONTACT)(?: ME| US| THIS NUMBER)?(?: (?:AGAIN|ANYMORE|ANY MORE|PLEASE|PLS|PLZ|NOW|THANKS|THANK YOU|THX))*$/,
   /\bWRONG NUMBER STOP\b/,
   /\bI (?:DO NOT|DONT|DON T) WANT (?:ANY )?(?:MORE )?(?:YOUR )?(?:TEXT|TEXTS|MESSAGES)\b/,
   // 2026-10-07 (R6-3-1): "stop sending these", "I no longer want texts from
@@ -155,7 +166,12 @@ const STOP_PHRASES = Object.freeze([
 
 /** "Stop." → "STOP"; "opt-out" → "OPT OUT". */
 function normalise(body) {
-  return String(body == null ? '' : body)
+  let raw = String(body == null ? '' : body);
+  // 2026-10-13 audit: full-width "STOP" (an IME default on some phones) is
+  // not A-Z, so it normalised to nothing and fell through to the AI draft.
+  // NFKC folds compatibility forms to ASCII; it never changes plain ASCII.
+  try { raw = raw.normalize('NFKC'); } catch (_) { /* old engine: leave as is */ }
+  return raw
     .toUpperCase()
     // Curly/straight apostrophes inside a word ("don't") collapse to nothing
     // so DONT and DON T both match; every other non-alphanumeric is a space.
@@ -185,7 +201,11 @@ function classifyInbound(body) {
   const norm = normalise(body);
   if (!norm) return { intent: null, keyword: '', match: null };
 
-  const stopKw = wholeKeyword(norm, STOP_KEYWORDS);
+  // "S T O P" / "s.t.o.p": single letters spaced out. Only when the WHOLE
+  // message is single letters and they spell a keyword, so "a b c" and
+  // "S T O P by after 5" are untouched.
+  const letters = /^(?:[A-Z] )+[A-Z]$/.test(norm) ? norm.replace(/ /g, '') : '';
+  const stopKw = wholeKeyword(letters && STOP_KEYWORDS.indexOf(letters) !== -1 ? letters : norm, STOP_KEYWORDS);
   if (stopKw) return { intent: 'stop', keyword: stopKw.replace(/ /g, ''), match: 'keyword' };
 
   // START before HELP is irrelevant (disjoint sets); both whole-message only.

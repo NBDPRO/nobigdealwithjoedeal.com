@@ -53,7 +53,7 @@ try {
     }
   };
   for (const d of ['areas', 'services', 'blog', 'our-work', 'the-pledge', 'assets/data']) copy(path.join(ROOT, 'docs', d), path.join(tmp, 'docs', d));
-  for (const f of ['index.html', 'about.html', 'llms.txt', 'llms-full.txt', 'sitemap.xml']) fs.copyFileSync(path.join(ROOT, 'docs', f), path.join(tmp, 'docs', f));
+  for (const f of ['index.html', 'about.html', 'credentials.html', 'llms.txt', 'llms-full.txt', 'sitemap.xml']) fs.copyFileSync(path.join(ROOT, 'docs', f), path.join(tmp, 'docs', f));
   fs.mkdirSync(path.join(tmp, 'scripts'));
   for (const f of ['build-llms.mjs', 'indexnow-ping.mjs']) fs.copyFileSync(path.join(ROOT, 'scripts', f), path.join(tmp, 'scripts', f));
 

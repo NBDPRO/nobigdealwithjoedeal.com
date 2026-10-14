@@ -104,6 +104,14 @@ console.log('\ngateStatus() — polarity');
   const enabledJunk = gateStatus({ HEALTH_DIGEST_ENABLED: 'yes' }).find((g) => g.name === 'HEALTH_DIGEST_ENABLED');
   ok('...but NOT on any other truthy-looking value (no silent typo-enable)', enabledJunk.on === false);
 
+  // 'default-on' (estimate-email.js / lead-followup.js): runs unless the literal 'false'.
+  const defOn = gateStatus({}).find((g) => g.name === 'ESTIMATE_EMAIL_ENABLED');
+  ok('a "default-on" gate defaults ON when unset (the code runs unless "false")', defOn.on === true && defOn.polarity === 'default-on');
+  const defOff = gateStatus({ ESTIMATE_EMAIL_ENABLED: 'false' }).find((g) => g.name === 'ESTIMATE_EMAIL_ENABLED');
+  ok('...and OFF only for the literal string "false"', defOff.on === false);
+  const defJunk = gateStatus({ LEAD_FOLLOWUP_ENABLED: 'no' }).find((g) => g.name === 'LEAD_FOLLOWUP_ENABLED');
+  ok('...a typo like "no" does not silently pause it (matches the code)', defJunk.on === true);
+
   const disabledOn = gateStatus({}).find((g) => g.name === 'MONTHLY_OVERHEAD_ALERT_DISABLED');
   ok('a "disabled"-polarity gate defaults ON (runs) when unset', disabledOn.on === true);
   const disabledOff = gateStatus({ MONTHLY_OVERHEAD_ALERT_DISABLED: 'true' }).find((g) => g.name === 'MONTHLY_OVERHEAD_ALERT_DISABLED');

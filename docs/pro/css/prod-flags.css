@@ -1,0 +1,26 @@
+/* prod-flags.css - Settings -> Access -> "Live feature flags" (js/prod-flags-panel.js,
+   2026-10-13). Phone first: one column, 44px targets, text always carries the
+   state (colour is only a second cue). Theme tokens only. */
+.pf-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--ui-space-2) var(--ui-space-3);margin-bottom:var(--ui-space-3);}
+.pf-sum{flex:1 1 220px;min-width:0;font-size:var(--ui-fs-body-sm);color:var(--t);font-weight:var(--ui-fw-bold);overflow-wrap:anywhere;}
+.pf-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding:0 var(--ui-space-4);border:1px solid var(--ui-line-hair);border-radius:var(--ui-radius-md);background:color-mix(in srgb, var(--t) 9%, transparent);color:var(--t);font:inherit;font-size:var(--ui-fs-body-sm);font-weight:var(--ui-fw-bold);cursor:pointer;}
+.pf-btn:hover{background:color-mix(in srgb, var(--t) 15%, transparent);}
+.pf-group{margin:0 0 var(--ui-space-4);}
+.pf-gt{margin:0 0 var(--ui-space-2);font-size:var(--ui-fs-body);font-weight:var(--ui-fw-heavy);color:var(--t);}
+.pf-list{list-style:none;margin:0;padding:0;}
+.pf-row{padding:var(--ui-space-3) 0;border-top:1px solid var(--ui-line-hair);}
+.pf-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--ui-space-2);}
+.pf-name{flex:1 1 200px;min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-weight:var(--ui-fw-bold);color:var(--t);overflow-wrap:anywhere;}
+.pf-chip{display:inline-flex;align-items:center;justify-content:center;min-height:28px;min-width:64px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:var(--ui-fw-heavy);letter-spacing:.04em;border:1px solid transparent;}
+.pf-on{background:color-mix(in srgb, var(--green) 20%, transparent);color:var(--t);border-color:color-mix(in srgb, var(--green) 50%, transparent);}
+.pf-off{background:color-mix(in srgb, var(--t) 8%, transparent);color:var(--m);}
+.pf-paused{background:color-mix(in srgb, var(--orange) 22%, transparent);color:var(--t);border-color:color-mix(in srgb, var(--orange) 50%, transparent);}
+.pf-test{background:color-mix(in srgb, var(--blue, var(--t)) 18%, transparent);color:var(--t);}
+.pf-meaning{margin-top:4px;font-size:var(--ui-fs-body-sm);color:var(--t);overflow-wrap:anywhere;}
+.pf-hint{margin-top:4px;font-size:var(--ui-fs-body-sm);font-weight:var(--ui-fw-bold);overflow-wrap:anywhere;}
+.pf-dark{color:var(--orange);}
+.pf-drift{color:var(--red);}
+.pf-meta,.pf-note{margin-top:4px;font-size:11px;color:var(--m);overflow-wrap:anywhere;}
+.pf-note{margin-bottom:var(--ui-space-3);}
+.pf-fail{padding:var(--ui-space-3);border:1px solid color-mix(in srgb, var(--red) 40%, transparent);border-radius:var(--ui-radius-md);background:color-mix(in srgb, var(--red) 12%, var(--s2));}
+.pf-fail-t{font-size:var(--ui-fs-body-sm);font-weight:var(--ui-fw-heavy);color:var(--t);margin-bottom:var(--ui-space-2);}

@@ -471,7 +471,7 @@ const VERDICTS = {
   getAdminAnalytics: 'role-gated', getAiTextingStats: 'read', getAiUsageAnalytics: 'role-gated',
   getConnectStatus: 'read', getDocumentHtml: 'read', getDocumentPdfUrl: 'read', getEsignEnvelopeForOwner: 'read',
   getHailHistory: 'read-paid',
-  integrationAvailability: 'read', integrationStatus: 'role-gated', listTeamMembers: 'role-gated',
+  integrationAvailability: 'read', integrationStatus: 'role-gated', flagStatus: 'role-gated', listTeamMembers: 'role-gated',
   lookupParcel: 'read-paid', markEmailUnsubscribed: 'already', mintOwnerClaims: 'role-gated',
   // Texting compliance (2026-10-05, sms-dnc.js): list is a read; add refuses a
   // viewer / member itself; remove goes through requireTeamAdmin. Proven in
