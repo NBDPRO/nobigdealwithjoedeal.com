@@ -221,3 +221,12 @@ and written up with options in
 [NEEDS-YOU-LIFECYCLE-AND-VOLUME-2026-10-13](../audit/NEEDS-YOU-LIFECYCLE-AND-VOLUME-2026-10-13.md)
 (F1, section 4.1). A promise riding on an *unfiled* call is not affected: the
 call stays open and callWatch tells it on its date.
+
+## Update 2026-10-13 (promise channel PR) - the server channel exists now
+
+The gap above is closed: callWatch reads open promise tasks and ripe Waiting
+items (one row per person), sends ONE "N promises due today" push, lists them in
+the 06:45 brief + 15:15 sweep, counts them in the 20:00 ledger and the away cover
+list, and feeds the same 3-rung ladder; a failed read says "could not check".
+Details and before / after numbers:
+[PROMISE-CHANNEL-AND-PARKED-RULE-2026-10-13](../audit/PROMISE-CHANNEL-AND-PARKED-RULE-2026-10-13.md).

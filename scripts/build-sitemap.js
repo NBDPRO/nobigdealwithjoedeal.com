@@ -64,6 +64,7 @@ const CORE_PAGES = [
   ['the-pledge',   'the-pledge/index.html', '0.95', 'monthly'],
   ['book',         'book/index.html',       '0.9',  'weekly'],
   ['about',        'about.html',            '0.8',  'monthly'],
+  ['credentials',  'credentials.html',      '0.6',  'monthly'],
   ['our-work',     'our-work.html',         '0.8',  'monthly'],
   ['storm-alerts', 'storm-alerts.html',     '0.7',  'monthly'],
   ['visualizer',   'visualizer.html',       '0.7',  'monthly'],

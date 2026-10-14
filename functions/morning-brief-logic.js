@@ -503,14 +503,17 @@ function sectionCounts(sec) {
     newLeads: (s.newLeads || []).length,
     promises: (s.promises || []).length,
     reviewAsks: (s.reviewAsks || []).length,
+    // The promise-task read failed (2026-10-13): the brief says so, never "none".
+    promiseCheckFailed: s.promiseCheckFailed === true,
   };
 }
 function sectionsHaveContent(sec) {
   const c = sectionCounts(sec);
-  return c.newLeads + c.promises + c.reviewAsks > 0;
+  return c.newLeads + c.promises + c.reviewAsks > 0 || c.promiseCheckFailed;
 }
+const PROMISE_CHECK_WARN = 'Could not check your promise tasks just now - the list below may be missing some. This is NOT an all-clear.';
 function promiseLine(i) {
-  const label = { urgent: 'URGENT', due: 'Due', nofile: 'No customer on file' }[i.kind] || 'Due';
+  const label = { urgent: 'URGENT', due: 'Due', nofile: 'No customer on file', promise: 'Promised' }[i.kind] || 'Due';
   const what = (i.promises && i.promises.length ? i.promises.join('; ') : i.summary) || '';
   return { label, who: i.who || 'Unknown', what, due: i.due || '', leadId: i.leadId || null };
 }
@@ -533,6 +536,7 @@ function sectionsHtml(sec) {
       + '</div>');
   }
   const pr = s.promises || [];
+  if (s.promiseCheckFailed === true) parts.push('<div class="section"><div class="row" style="color:#b91c1c;font-weight:700">⚠ ' + escapeHtml(PROMISE_CHECK_WARN) + '</div></div>');
   if (pr.length) {
     parts.push('<div class="section"><h2>You said you&#39;d… (' + pr.length + ')</h2>'
       + pr.slice(0, SECTION_SHOW).map((i) => {
@@ -565,6 +569,7 @@ function sectionsText(sec) {
     out.push('');
   }
   const pr = s.promises || [];
+  if (s.promiseCheckFailed === true) { out.push('WARNING: ' + PROMISE_CHECK_WARN); out.push(''); }
   if (pr.length) {
     out.push("YOU SAID YOU'D… (" + pr.length + ')');
     for (const i of pr.slice(0, SECTION_SHOW)) { const p = promiseLine(i); out.push('  [' + p.label + '] ' + plain(p.who) + (p.due ? ' · ' + p.due : '') + ' — ' + truncate(p.what, 220) + (p.leadId ? '\n    ' + customerUrl(p.leadId) : '')); }

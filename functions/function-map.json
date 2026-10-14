@@ -85,6 +85,7 @@
   "fileStormDrafts": "./agent-mcp",
   "finalInvoiceOnInstall": "./install-final-invoice",
   "firestoreBackupRetention": "./firestore-backup",
+  "flagStatus": "./handlers/integrations",
   "freshEstimateLink": "./estimate-send",
   "getAdjusterTacticBoard": "./handlers/adjuster-board",
   "getAdminAnalytics": "./handlers/admin",
