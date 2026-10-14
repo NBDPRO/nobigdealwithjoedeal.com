@@ -30,6 +30,7 @@ const { getStorage } = require('firebase-admin/storage');
 const L = require('./call-center-logic');
 const PR = require('./promise-logic');
 const CL = require('./contact-labels');
+const PV = require('./ping-volume-logic'); // digest dedupe + the repeat-number summary line (audit F6/F7)
 
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const CONFIG = 'integrations/callCenter';
@@ -345,6 +346,43 @@ async function pushUrgent({ db, d, call, notes, leadName, nowMs }) {
   const ctx = { labels };
   if (!W.callNeedsYou(row, nowMs, ctx) || W.reasonFor(row, nowMs, ctx) !== 'urgent') return false;
   const lb = W.labelOf(ctx, row);
+  // The person card (audit F4, 2026-10-13): another call from the SAME person that
+  // was already pushed as urgent today and is still open. A second urgent call from
+  // that person does not buzz again - the open urgent call carries the ladder, and
+  // its next re-tell names both ("+1 more call"). A failed read is not an excuse to
+  // stay quiet: the push goes out as before. (Inline, not a helper: the delivery-
+  // truth test slices this function's source.)
+  let sib = null;
+  if (call.leadId || String(call.phoneDigits || '').trim()) {
+    try {
+      const base = db.collection(COLLECTION).where('userId', '==', OWNER);
+      const snap = await (call.leadId ? base.where('leadId', '==', call.leadId) : base.where('phoneDigits', '==', call.phoneDigits)).limit(60).get();
+      const today = W.etYmd(nowMs), key = W.callerKey(call);
+      (snap.docs || []).forEach((doc) => {
+        const c = Object.assign({}, doc.data(), { id: doc.id });
+        if (c.id === call.id || W.callerKey(c) !== key) return;
+        const at = W.toMs(c.urgentPushedAtMs);
+        if (!at || c.urgentFoldedAtMs || W.etYmd(at) !== today) return;
+        if (!W.callNeedsYou(c, nowMs, { labels })) return;          // handled / done / parked: a new need
+        if (!sib || at > W.toMs(sib.urgentPushedAtMs)) sib = c;
+      });
+    } catch (e) {
+      logger.warn('call_center_urgent_sibling_read_failed', { id: call.id, err: e && e.message });
+      sib = null;
+    }
+  }
+  if (sib) {
+    // Folded: stamped as told (callWatch will not re-tell it as new), seeded at the
+    // sibling's push time so the ladder climbs the two calls in step.
+    try {
+      await db.collection(COLLECTION).doc(call.id).set({ urgentPushedAtMs: sib.urgentPushedAtMs, urgentFoldedAtMs: nowMs, urgentFoldedInto: sib.id }, { merge: true });
+    } catch (e) {
+      logger.warn('call_center_urgent_fold_stamp_failed', { id: call.id, err: e && e.message });
+      // Unstamped: callWatch sees it as a new urgent call at the next run and puts it on
+      // the bell; the person card may fold the PUSH (its carrier's re-tell names it).
+    }
+    return false;
+  }
   const msg = L.urgentPushText({ call, notes, leadName });
   if (lb && lb.policy === 'hide') {
     const kindName = { personal: 'Personal', other: 'Other', recruiter: 'Job seeker' }[lb.kind] || String(lb.kind).charAt(0).toUpperCase() + String(lb.kind).slice(1);
@@ -812,7 +850,29 @@ async function gatherSweepWithPromises({ db, nowMs }) {
   const pr = await PC.readDuePromisePeople({ db, owner: OWNER, nowMs, labels });
   const items = PCL.mergeSweep(base.items, pr.people);
   const counts = Object.assign({}, base.counts, { items: items.length, promises: pr.people.length });
-  return { today: base.today, items, counts, promiseCheckFailed: pr.failed };
+  // F6: unlabelled numbers that keep calling are bell-only (never pushed), so the
+  // brief / email carries ONE summary line for them. A failed read says so.
+  let quietLines = [];
+  try {
+    const W = require('./call-watch-logic');
+    const q = await db.collection(COLLECTION).where('userId', '==', OWNER).where('startedAtMs', '>=', nowMs - 36 * 3600000)
+      .orderBy('startedAtMs', 'desc').limit(300).get();
+    const rows = [];
+    q.forEach((d) => rows.push(Object.assign({}, d.data(), { id: d.id })));
+    const ctx = Object.assign(W.reachIndex(rows), { labels });
+    quietLines = PV.quietNumberLines(PV.quietNumbers(rows, nowMs, W.callNeedsYou, ctx), false);
+  } catch (e) {
+    logger.warn('[callCenterSweep] repeat-number summary read failed', { err: e && e.message });
+    quietLines = PV.quietNumberLines([], true);
+  }
+  return { today: base.today, items, counts, promiseCheckFailed: pr.failed, quietLines };
+}
+
+/** The digest signature doc: what the last brief / sweep email listed (audit F7). */
+const DIGEST_SIG_DOC = 'integrations/digestSig';
+async function stampDigest(db, items, nowMs, by) {
+  try { await db.doc(DIGEST_SIG_DOC).set({ ymd: PV.etYmd(nowMs), sig: PV.digestSig(items), n: items.length, atMs: nowMs, by }, { merge: false }); }
+  catch (e) { logger.warn('[digest] signature stamp failed (the next digest will send)', { err: e && e.message }); }
 }
 
 async function runSweep({ db, live, nowMs, send, slot, absorbed }) {
@@ -821,13 +881,24 @@ async function runSweep({ db, live, nowMs, send, slot, absorbed }) {
   if (slot === 'am' && absorbed) return { state: 'absorbed' };
   const user = await db.collection('users').doc(OWNER).get();
   const email = user.exists ? String((user.data() || {}).email || '') : '';
-  const { today, items, counts, promiseCheckFailed } = await gatherSweepWithPromises({ db, nowMs });
+  const { today, items, counts, promiseCheckFailed, quietLines } = await gatherSweepWithPromises({ db, nowMs });
   // A failed promise-task read is never "nothing": say so (the email carries the warning).
   if (!items.length && !promiseCheckFailed) return Object.assign({ state: 'nothing' }, counts);
   if (!live) return Object.assign({ state: 'dry_run' }, counts);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Object.assign({ state: 'no_email' }, counts);
-  const mail = L.buildSweepEmail({ items, todayYmd: today, slot, promiseCheckFailed });
+  // F7: the 15:15 email is skipped when the list is exactly what this morning's
+  // brief / sweep already listed (once per CHANGE, not twice a day). A warning
+  // (the task read failed) always sends; a failed signature read sends too - a
+  // duplicate beats a lost reminder.
+  if (slot === 'pm' && !promiseCheckFailed && items.length) {
+    let last = null;
+    try { const s = await db.doc(DIGEST_SIG_DOC).get(); last = s && s.exists ? s.data() : null; }
+    catch (e) { logger.warn('[callCenterSweep] digest signature read failed (sending)', { err: e && e.message }); }
+    if (PV.digestUnchanged(last, items, nowMs)) return Object.assign({ state: 'unchanged' }, counts);
+  }
+  const mail = L.buildSweepEmail({ items, todayYmd: today, slot, promiseCheckFailed, quietLines });
   await send({ to: email, subject: mail.subject, html: mail.html, text: mail.text });
+  if (!promiseCheckFailed) await stampDigest(db, items, nowMs, 'sweep-' + slot);
   return Object.assign({ state: 'sent' }, counts);
 }
 
@@ -1335,6 +1406,7 @@ exports.claudeNotes = claudeNotes;
 // The morning brief's "You said you'd…" section reads the same list.
 exports.gatherSweep = gatherSweep;
 exports.gatherSweepWithPromises = gatherSweepWithPromises;
+exports.stampDigest = stampDigest;
 
 exports._test = {
   runIngest,

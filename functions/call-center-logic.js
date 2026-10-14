@@ -854,7 +854,7 @@ function escHtml(s) {
 }
 
 /** The sweep email. Internal (Jo only); every value escaped. */
-function buildSweepEmail({ items, todayYmd, slot, promiseCheckFailed }) {
+function buildSweepEmail({ items, todayYmd, slot, promiseCheckFailed, quietLines }) {
   const n = items.length;
   const shown = items.slice(0, SWEEP_EMAIL_SHOW);
   const more = n - shown.length;
@@ -875,6 +875,7 @@ function buildSweepEmail({ items, todayYmd, slot, promiseCheckFailed }) {
   const doUrl = (i) => (i.kind === 'promise' ? link(i) : deckItemUrl(i.callId));
   const warn = promiseCheckFailed ? 'Could not check your promise tasks just now - this list may be missing some. This is NOT an all-clear.' : '';
   const when = (ms) => ms ? new Date(ms).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+  const quiet = Array.isArray(quietLines) ? quietLines.filter(Boolean) : [];
   const btn = '<a href="' + escHtml(DECK_URL) + '" style="display:inline-block;background:#BD5728;color:#fff;font-weight:700;text-decoration:none;padding:11px 18px;border-radius:8px;font-size:15px">Work through all ' + n + ', one at a time →</a>';
   const html = '<div style="font-family:Arial,sans-serif;max-width:620px;color:#111">' +
     '<h2 style="margin:0 0 6px">' + escHtml(subject) + '</h2>' +
@@ -890,11 +891,13 @@ function buildSweepEmail({ items, todayYmd, slot, promiseCheckFailed }) {
       '<div style="margin-top:6px;font-size:13px"><a href="' + escHtml(doUrl(i)) + '" style="color:#BD5728;font-weight:700">' + (i.kind === 'promise' ? 'Open the customer' : 'Do it') + ' →</a></div>' +
       '</div>').join('') +
     (more > 0 ? '<p style="margin:4px 0 0;font-size:14px"><a href="' + escHtml(DECK_URL) + '" style="color:#BD5728;font-weight:700">+ ' + more + ' more — open the list →</a></p>' : '') +
+    (quiet.length ? '<div style="margin:12px 0 0;font-size:13px;color:#555"><strong>Repeat unknown numbers</strong>' + quiet.map((l) => '<div>' + escHtml(l) + '</div>').join('') + '</div>' : '') +
     '</div>';
   const text = subject + (breakdown ? '\n' + breakdown : '') + (warn ? '\n' + warn : '') + '\n\nWork through them one at a time: ' + DECK_URL + '\n\n' +
     shown.map((i) => '- [' + label[i.kind] + (i.due ? ' ' + i.due : '') + '] ' + i.who + ': ' +
       (i.promises.length ? i.promises.join('; ') : i.summary) + '\n  ' + doUrl(i)).join('\n') +
-    (more > 0 ? '\n\n+ ' + more + ' more: ' + DECK_URL : '');
+    (more > 0 ? '\n\n+ ' + more + ' more: ' + DECK_URL : '') +
+    (quiet.length ? '\n\nRepeat unknown numbers:\n' + quiet.map((l) => '- ' + l).join('\n') : '');
   return { subject, html, text };
 }
 
