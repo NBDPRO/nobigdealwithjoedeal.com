@@ -352,7 +352,9 @@ const faqAllowlistHit = new Set();
 //                    partial that is anything but a bare {"@id": "…/#org"}
 //   entity-person    the same for Joe Deal / #joe
 // A bare reference may also carry review[] — /review attaches its reviews to
-// the one entity as {"@id": "…/#org", "review": […]}.
+// the one entity as {"@id": "…/#org", "review": […]} — and the business's own
+// @type (the partial's "RoofingContractor"), so a review block is typed
+// (2026-10-14 SEO audit) without redefining anything.
 const ENTITY_ORIGIN = 'https://nobigdealwithjoedeal.com';
 const ENTITY_IDS = { business: `${ENTITY_ORIGIN}/#org`, person: `${ENTITY_ORIGIN}/#joe` };
 const ENTITY_BIZ_TYPES = /^(RoofingContractor|LocalBusiness|Organization|HomeAndConstructionBusiness|GeneralContractor|ProfessionalService)$/;
@@ -420,7 +422,8 @@ function checkEntity(abs, rel, raw) {
       const kind = entityKind(n);
       if (!kind) return;
       const canonical = n['@id'] === ENTITY_IDS[kind];
-      if (canonical && Object.keys(n).every((k) => ENTITY_REF_KEYS.has(k))) return;
+      if (canonical && Object.keys(n).every((k) => ENTITY_REF_KEYS.has(k)
+        || (k === '@type' && kind === 'business' && n['@type'] === 'RoofingContractor'))) return;
       if (canonical && !partialReach) return;
       add('ERROR', rel, `entity-${kind}`,
         `JSON-LD block ${i + 1} defines ${kind === 'business' ? 'the business' : 'Joe Deal'} at ${where} outside `
