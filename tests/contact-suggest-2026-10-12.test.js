@@ -99,7 +99,9 @@ console.log('B. chips and actions (the real contact-suggest.js in a vm)');
     document: { addEventListener: (t, f) => { docListeners[t] = f; } },
     addEventListener: (t, f) => { (listeners[t] = listeners[t] || []).push(f); },
     dispatchEvent: () => {}, CustomEvent: function (n) { this.type = n; },
-    _user: { uid: 'u1' }, _userClaims: {}, _leads: [{ id: 'L1', firstName: 'Pat', lastName: 'Example', phone: '5550142222' }],
+    _user: { uid: 'u1' }, _userClaims: {}, // A different customer's number: the tagged number itself is NOT on a customer, so
+    // Accept stays one tap (a number on a customer opens the sheet: label-safety-rails test).
+    _leads: [{ id: 'L1', firstName: 'Pat', lastName: 'Example', phone: '5550149000' }],
     NBDContactLabelsLogic: LG, NBDContactSuggestLogic: SG,
     NBDHomeAttention: { lastRows: [call({ tags: ['sub'], contactName: 'Pat Sub' })] },
     NBDContactLabels: {

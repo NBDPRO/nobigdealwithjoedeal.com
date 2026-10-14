@@ -55,6 +55,7 @@ const { defineSecret } = require('firebase-functions/params');
 const { logger } = require('firebase-functions/v2');
 const { FieldPath, FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { Resend } = require('resend');
+const AR = require('./alert-recipients');
 const roles = require('./stage-roles');
 const { isQuietBackfill } = require('./quiet-backfill');
 // Paid in full (Jo, 2026-10-03): the ask waits until the job's money is in —
@@ -244,6 +245,11 @@ function reviewAskDue(lead, job, jobId, wonMs, now) {
   const l = lead || {};
   if (!wonMs || wonMs < now - NUDGE_MAX_DAYS * DAY_MS || wonMs > now - NUDGE_MIN_DAYS * DAY_MS) return false;
   if (!l.phone && !l.email) return false;           // nothing to send with
+  // Review deck "Don't ask this one" (reviewAskDeclined, 2026-10-13 audit):
+  // the client engine and the deck honoured it, this server rule did not, so
+  // the 08:15 email, the bell and the morning-brief line kept naming a
+  // customer Jo had declined. One shared rule, every path (lead and job).
+  if (l.reviewAskDeclined === true) return false;
   if (!jobId) return !l.reviewRequested && !timestampMillis(l.reviewNudgedAt);
   const j = job || {};
   if (timestampMillis(j.reviewNudgedAt) || timestampMillis(j.reviewRequestedAt)) return false;
@@ -532,9 +538,16 @@ exports.reviewRequestNudge = onSchedule(
             continue;
           }
 
+          // 2026-10-13: users/{uid}.email is writable by that user, so the digest goes
+          // only to their VERIFIED Auth email (the platform owner's stored address
+          // passes through), and a destination is capped per day across tenants.
+          const toAddr = await AR.verifiedUserEmail(uid, user.email);
+          if (!toAddr) { skippedOptOut++; continue; }
+          const capAddr = await AR.capRecipients('digest', [toAddr]);
+          if (!capAddr.allowed.length) { skippedOptOut++; continue; }
           await resend.emails.send({
             from: fromAddress,
-            to: user.email,
+            to: toAddr,
             subject,
             html,
           });

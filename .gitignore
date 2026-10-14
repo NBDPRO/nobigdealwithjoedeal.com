@@ -51,6 +51,9 @@ Thumbs.db
 *.pfx
 **/service-account*.json
 **/*credentials*.json
+# The one deliberate exception: the PUBLIC credentials manifest (certifications we
+# claim - no secrets). scripts/build-credentials.mjs refuses unknown fields.
+!docs/assets/data/credentials.json
 **/.runtimeconfig.json
 # Firebase Functions secret overrides. ci.yml generates functions/.secret.local
 # from the defineSecret() calls so the emulator can boot without Secret Manager

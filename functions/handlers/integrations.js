@@ -119,6 +119,46 @@ exports.integrationStatus = onCall(
 );
 
 // ═══════════════════════════════════════════════════════════════
+// flagStatus — READ-ONLY readout of the feature flags the deployed functions
+// are actually running with (2026-10-13, Jo: "we need to figure out how to
+// see the prod flags"). Replaces `gcloud run services describe` from a laptop.
+//
+// Same gate as integrationStatus (admin / company_admin) plus the platform
+// owner (NBD_OWNER_UID). Returns ONLY registry rows (functions/flags-registry.js):
+// name, effective value, ON/OFF/PAUSED, meaning, doc, and — when the deployed
+// source still carries functions/.env.<project> — what that file says, so a
+// `gcloud --update-env-vars` override shows up as drift. Names containing
+// KEY/SECRET/TOKEN/PASSWORD are never returned and values are short plain
+// words only (safeValue). Writes nothing anywhere.
+// ═══════════════════════════════════════════════════════════════
+exports.flagStatus = onCall(
+  {
+    region: 'us-central1',
+    cors: CORS_ORIGINS,
+    enforceAppCheck: true,
+    timeoutSeconds: 10,
+    memory: '256MiB',
+  },
+  async (request) => {
+    if (!request.auth || !request.auth.uid) {
+      throw new HttpsError('unauthenticated', 'Sign in required');
+    }
+    const callerRole = (request.auth.token && request.auth.token.role) || '';
+    const isOwner = !!process.env.NBD_OWNER_UID && request.auth.uid === process.env.NBD_OWNER_UID;
+    if (!isOwner && !['admin', 'company_admin'].includes(callerRole)) {
+      throw new HttpsError('permission-denied', 'Owner or admin access required');
+    }
+    const R = require('../flags-registry');
+    let fileText = null;
+    try {
+      const project = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || 'nobigdeal-pro';
+      fileText = require('fs').readFileSync(require('path').join(__dirname, '..', '.env.' + project), 'utf8');
+    } catch (_) { fileText = null; }   // file not in the deployed bundle — drift unknown, not an error
+    return R.buildResponse(process.env, fileText, { revision: process.env.K_REVISION });
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════
 // integrationAvailability — the non-admin-safe subset of integrationStatus.
 //
 // requestMeasurement / lookupParcel (the callers of requireConfigured() in

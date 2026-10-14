@@ -61,6 +61,9 @@ const rec = { emails: [], sms: [], outbox: [], updates: [], logs: [], pushes: []
 // a limiter outage (any other error).
 const rl = { counts: {}, calls: [], fail: false };
 const profiles = {}; // companyProfile/{id} fixtures
+// Auth owners by company uid (2026-10-13: a tenant's alert contact is honoured
+// only when it is the owner's verified Auth email/phone or a confirmed address).
+const authUsers = {};
 function resetRec() { rec.pushes = []; rec.emails = []; rec.sms = []; rec.outbox = []; rec.updates = []; rec.logs = []; }
 
 const stubs = {
@@ -97,6 +100,9 @@ const stubs = {
   twilio: () => ({ messages: { create: async (p) => { rec.sms.push(p); return { sid: 'SM_test' }; } } }),
   // 2026-10-07: every lead alert also pushes to the owner's devices.
   './push-functions': { sendCustomNotification: async (uid, title, body, data) => { rec.pushes.push({ uid, title, body, data }); return { sent: 1, failed: 0, errors: [] }; } },
+  'firebase-admin/auth': {
+    getAuth: () => ({ getUser: async (uid) => { if (!authUsers[uid]) throw new Error('auth/user-not-found'); return authUsers[uid]; } }),
+  },
   'firebase-admin/firestore': {
     FieldValue: { serverTimestamp: () => '__ts__' },
     getFirestore: () => ({
@@ -319,6 +325,7 @@ const NO_PHONE_SMS = 'NO PHONE — reply to the confirmation email';
   console.log('\n(e) a tenant rep\'s booking routes to the tenant, never Joe');
   {
     profiles['co-tenant'] = { brand: { legalName: 'Tenant Roofing', seal: 'TR', contact: { alertEmail: 'ops@tenant.test' } } };
+    authUsers['co-tenant'] = { email: 'ops@tenant.test', emailVerified: true };
     await fire(exp, calcomLead(noPhonePayload(), { userId: 'rep-tenant', companyId: 'co-tenant' }), 'calcom__' + noPhonePayload().uid);
     ok('email went to the tenant alert inbox only', rec.emails.length === 1 && [].concat(rec.emails[0].to).join() === 'ops@tenant.test', rec.emails.map((e) => e.to));
     ok('no SMS (tenant configured none — never falls back to Joe\'s cell)', rec.sms.length === 0, rec.sms.map((m) => m.to));
@@ -332,6 +339,8 @@ const NO_PHONE_SMS = 'NO PHONE — reply to the confirmation email';
     // controls is below; only the doc id (not under its control: rules refuse
     // the calcom__ prefix) distinguishes it from the webhook's create().
     profiles['co-relay'] = { brand: { legalName: 'Relay Co', seal: 'RC', contact: { alertEmail: 'victim@victim.test', alertSms: '+15135550199' } } };
+    // The relay's own account: a verified owner email, and no phone on Auth.
+    authUsers['co-relay'] = { email: 'owner@relay.test', emailVerified: true };
     const claim = { firstName: 'Free', lastName: 'Prize', phone: '+15135550123', email: 'click@evil.test', notes: 'Visit evil.test to claim',
       webLead: true, publicLeadKind: 'calcom_booking', calcomEventTitle: 'Urgent', calcomEventSlug: 'x', needsPhone: false,
       userId: 'relay-uid', companyId: 'co-relay' };
@@ -340,8 +349,9 @@ const NO_PHONE_SMS = 'NO PHONE — reply to the confirmation email';
     // matching calcomBookingId, DOES alert the tenant's contacts. Without it
     // every absence below could just mean "the harness never sends".
     await fire(exp, Object.assign({}, claim, { calcomBookingId: 'bk_rel' }), 'calcom__bk_rel');
-    ok('(control) a webhook-minted booking for that tenant alerts its configured email', rec.emails.length === 1 && [].concat(rec.emails[0].to).join() === 'victim@victim.test', rec.emails.map((e) => e.to));
-    ok('(control) and its configured SMS', rec.sms.length === 1 && rec.sms[0].to === '+15135550199', rec.sms.map((m) => m.to));
+    ok('(control) a webhook-minted booking for that tenant alerts the OWNER (the configured victim address is unconfirmed, so it is ignored)',
+      rec.emails.length === 1 && [].concat(rec.emails[0].to).join() === 'owner@relay.test', rec.emails.map((e) => e.to));
+    ok('(control) the configured SMS number is not the owner Auth phone, so no text goes out', rec.sms.length === 0, rec.sms.map((m) => m.to));
 
     for (const [name, doc, id] of [
       ['client-minted random id, claims a booking', Object.assign({}, claim, { calcomBookingId: 'bk_rel' }), 'Zr3kQ9wXyP0aBcDeFgHi'],
@@ -362,6 +372,7 @@ const NO_PHONE_SMS = 'NO PHONE — reply to the confirmation email';
   {
     const CAP = LA._internal.TENANT_ALERT_DAILY_CAP;
     profiles['co-cap'] = { brand: { legalName: 'Cap Co', seal: 'CC', contact: { alertEmail: 'ops@cap.test', alertSms: '+15135550177' } } };
+    authUsers['co-cap'] = { email: 'ops@cap.test', emailVerified: true, phoneNumber: '+15135550177' };
     const lead = (i) => calcomLead(payload({ uid: 'bk_cap_' + i }), { userId: 'cap-uid', companyId: 'co-cap' });
     ok('ceiling is a sane, finite number', Number.isInteger(CAP) && CAP >= 20 && CAP <= 200, CAP);
     rl.counts = {}; rl.calls = []; rl.fail = false;
@@ -372,7 +383,9 @@ const NO_PHONE_SMS = 'NO PHONE — reply to the confirmation email';
     ok('alert number ' + (CAP + 1) + ' sends no email and no SMS', rec.emails.length === 0 && rec.sms.length === 0, { emails: rec.emails.length, sms: rec.sms.length });
     ok('...but the lead still gets its push and its ledger row', rec.pushes.length === 1 && rec.outbox.length === 1
       && rec.outbox[0].emailStatus === 'skipped:rate-limited' && rec.outbox[0].smsStatus === 'skipped:rate-limited', rec.outbox);
-    ok('the cap is keyed on the lead tenant', rl.calls.every((c) => c[0] === 'leadAlert:tenant' && c[1] === 'co-cap'), rl.calls.slice(0, 2));
+    // 2026-10-13: a booking is a TRUSTED-origin alert, counted in its own bucket (a public-form flood cannot starve it).
+    const tenantCalls = rl.calls.filter((c) => c[0] === 'leadAlert:tenant:trusted');
+    ok('the cap is keyed on the lead tenant', tenantCalls.length > 0 && tenantCalls.every((c) => c[1] === 'co-cap'), tenantCalls.slice(0, 2));
 
     // NBD's own leads are never capped; a limiter outage fails open.
     rl.calls = [];

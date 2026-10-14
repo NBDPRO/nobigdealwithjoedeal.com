@@ -78,12 +78,27 @@ CEILING.localBytes += 30 * 1024;   // pipeline-rich-cards.js = 26.5 KB (LF), + ~
 // Per-layout code and CSS (Field App, Focus, ...) load lazily only for the active layout.
 CEILING.localScripts += 1;
 CEILING.localBytes += 24 * 1024;
+// +15 KB, deliberate (2026-10-13, Today UX walk PR-B; 10 -> 15 on the restack, main had absorbed ~5 KB of other PRs' bytes): no new script. The cold-boot "checking"
+// state (collected-revenue.js, home-attention.js, today-home.js), the keyed handled set, the
+// 6 s Undo on every Today action and the hold-then-collapse are ~14.7 KB of deferred code in
+// files already loaded; promise-ui.js (lazy) and the CSS are not counted here. Own line.
+CEILING.localBytes += 15 * 1024;
 // +1 local tag, deliberate (2026-10-11, CRM style integration E1): js/pixel-mode.js (Pixel Mode loader, ~3 KB).
 // Deferred; on boot it reads one settings doc and stops. The skin/Party/dialog code (pixel-mode-core.js), its CSS, the
 // fonts and the logic module are fetched only when the person turned something on or the Settings card scrolls into
 // view, and Pixel World (E2) is lazy-loaded from the core, so this is the only boot tag. (An earlier version shipped the
 // whole 18 KB inline and pushed true LF bytes past the localBytes ceiling; the loader split is why it does not.)
 CEILING.localScripts += 1;
+// +1 local tag / +18 KB, deliberate (2026-10-13, visit recorder PR 1): js/visit-recorder-launcher.js
+// (19.6 KB LF incl. comments, deferred, no boot-time reads). It owns only the ENTRY
+// POINTS: the Home Record bar, the delegated Record button, today's appointment-row button, the
+// deep link and the "is a recording still on this phone?" check (a localStorage counter, so
+// IndexedDB is not opened on a normal boot). The recorder, its IndexedDB store, the screens and the
+// stylesheet (visit-recorder*.js, css/visit-recorder.css, ~52 KB) are fetched ~4 s after the page
+// settles (requestIdleCallback), so a recording started with no signal does not need the network
+// to load its own code; none of it is on the boot path, so blockingScripts does not move. Own line.
+CEILING.localScripts += 1;
+CEILING.localBytes += 18 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {

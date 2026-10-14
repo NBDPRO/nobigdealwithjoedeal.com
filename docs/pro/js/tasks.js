@@ -229,6 +229,17 @@ async function _setTaskDone(leadId, taskId) {
   try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'tasks' } })); } catch (_) {}
   return ok;
 }
+// Undo of Done (Today's 6 s Undo toast, UX walk 2026-10-13 M1): the task is open
+// again; the cached copy flips back at once and the write's result is returned.
+async function _setTaskUndone(leadId, taskId) {
+  const t = _cachedTask(leadId, taskId); const prev = t ? t.done : undefined;
+  if (t) t.done = false;
+  const ok = await _toggleTask(leadId, taskId, false);
+  if (!ok && t) t.done = prev;
+  renderTodayTasks();
+  try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'tasks' } })); } catch (_) {}
+  return ok;
+}
 async function _setTaskDue(leadId, taskId, ymd) {
   const t = _cachedTask(leadId, taskId); const prev = t ? t.dueDate : undefined;
   if (t) t.dueDate = ymd;
@@ -238,7 +249,7 @@ async function _setTaskDue(leadId, taskId, ymd) {
   try { window.dispatchEvent(new CustomEvent('nbd:data-refreshed', { detail: { source: 'tasks' } })); } catch (_) {}
   return true;
 }
-window.NBDTasks = { loaded: () => _tasksLoaded, reload: loadAllTasks, setDone: _setTaskDone, setDue: _setTaskDue };
+window.NBDTasks = { loaded: () => _tasksLoaded, reload: loadAllTasks, setDone: _setTaskDone, reopen: _setTaskUndone, setDue: _setTaskDue };
 function renderTodayTasks() {
   const el = document.getElementById('todayTasksList');
   if(!el) return;

@@ -160,24 +160,44 @@
       const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
       if (d.length !== 10) return;
       const lb = typeof labels.get === 'function' ? labels.get(d) : labels[d];
-      if (!lb || lb.policy !== 'hide') return;
+      // quiet joins the lead rule only (2026-10-13, audit C-4): never a burst.
+      if (!lb || (lb.policy !== 'hide' && lb.policy !== 'quiet')) return;
       const base = Math.max(saneStampMs(lb.ackAtMs, t), saneStampMs(lb.updatedAtMs, t));
       if ((toMs(c.startedAtMs) || 0) <= base) return;
-      if (!by.has(d)) by.set(d, { digits: d, base, calls: [] });
+      if (!by.has(d)) by.set(d, { digits: d, base, quiet: lb.policy === 'quiet', calls: [] });
       by.get(d).calls.push(c);
     });
     by.forEach((v) => {
       const recent = v.calls.filter((c) => c.direction !== 'outbound' && (toMs(c.startedAtMs) || 0) >= t - BURST_MS);
       const onLead = v.calls.some((c) => c.leadId);
-      const reason = onLead ? 'lead' : (recent.length >= BURST_N ? 'burst' : '');
+      const reason = onLead ? 'lead' : (!v.quiet && recent.length >= BURST_N ? 'burst' : '');
       if (reason) out.push({ digits: v.digits, reason, calls: v.calls, base: v.base });
     });
     return out;
+  }
+  /**
+   * Mirror of call-watch-logic.js parkedUntil - THE one "parked until a date"
+   * rule (2026-10-13): '' or the YYYY-MM-DD a snooze / moved task parks this
+   * row until. Home only ever sees the call row, so the server stamps
+   * snoozeUntilYmd on it for EVERY snooze (callCenterAction 'snooze').
+   */
+  const YMD_RE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+  function parkedUntil(c, now, opts) {
+    if (!c) return '';
+    const today = etYmd(now == null ? Date.now() : now);
+    const cand = [c.snoozeUntilYmd];
+    if (c.taskSnoozed === true || (opts && opts.taskDue === true)) cand.push(c.taskDueYmd);
+    if (c.kind === 'promise') cand.push(String(c.dueDate || '').slice(0, 10));
+    let until = '';
+    cand.forEach((y) => { const s = String(y || ''); if (YMD_RE.test(s) && s > today && s > until) until = s; });
+    return until;
   }
   function callNeedsYou(c, now, ctx) {
     const t = now == null ? Date.now() : now;
     if (!c || c.handledAtMs || c.status === 'personal') return false;
     if (c.callType === 'spam' || c.taskDone === true) return false;
+    // Parked with a date: not open until that day arrives (mirror of the server).
+    if (parkedUntil(c, t)) return false;
     // Jo, 2026-10-12: a promise he made stays on the list past the 14-day
     // window, up to 45 days, then rolls into ONE "old promises" review row
     // (oldPromiseCount) instead of silently dropping off.
@@ -288,31 +308,50 @@
     // A read that failed is never the same as a zero: the item says so and the
     // tap re-reads (data-ha-retry, delegated below), it does not navigate.
     const retry = (msg) => '<button type="button" class="ha-item ha-warn" data-ha-retry="1">⚠ ' + msg + ' — this is NOT an all-clear. Tap to try again</button>';
+    // First reads of a cold boot are unconfirmed, not failed (UX walk H7): one
+    // quiet line, replaced by the real answer within seconds.
+    if (c.pending) items.push('<span class="ha-item ha-checking" role="status">Checking…</span>');
     if (c.stripeFailed) items.push(retry('Could not check Stripe payments just now'));
     if (c.signsFailed) items.push(retry('Could not check your yard signs just now'));
     if (c.reviewsFailed) items.push(retry('Could not check which review asks are waiting (your invoices did not load)'));
-    if (c.stripe > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="money">💳 ' + c.stripe + ' Stripe payment' + (c.stripe === 1 ? '' : 's') + ' need' + (c.stripe === 1 ? 's' : '') + ' a customer</button>');
+    // data-ha-dup: Today lists the same item as a row; on a phone the strip drops
+    // it (today-home.css, only while Today is on the page) so the first screen
+    // is work, not a count of work.
+    if (c.stripe > 0) items.push('<button type="button" class="ha-item ha-warn" data-ha-dup="1" data-action="goTo" data-target="money">💳 ' + c.stripe + ' Stripe payment' + (c.stripe === 1 ? '' : 's') + ' need' + (c.stripe === 1 ? 's' : '') + ' a customer</button>');
     if (c.signs > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="signs">🪧 ' + c.signs + ' yard sign' + (c.signs === 1 ? '' : 's') + ' to pick up</button>');
     if (c.callsCapped) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Showing only your newest ' + (c.callsCap || '') + ' calls — older ones in the last 45 days were not checked. Tap to open the Call Center</button>');
     if (c.textsCapped) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Showing only your newest ' + (c.textsCap || '') + ' days of texts — older ones in the last 45 days were not checked</button>');
     if (c.oldCapped) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Showing only the newest ' + (c.oldCap || '') + ' calls from before the 45-day window — an older open promise may not be listed</button>');
     if (c.oldFailed) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Could not check old promises (past 45 days) just now — this is NOT an all-clear for them</button>');
     if (c.callsFailed) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Could not check your calls just now' + (c.calls > 0 ? ' — ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you so far' : ' — this is NOT an all-clear') + '. Tap to open the Call Center</button>');
-    else if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
+    else if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-ha-dup="1" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
     // Review asks, one at a time (review-deck.js opens the deck on data-review-deck).
     if (c.oldPromises > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="calls">🗂 ' + c.oldPromises + (c.oldPromises === 1 ? ' old promise' : ' old promises') + ' to review</button>');
     if (c.reviews > 0) items.push('<button type="button" class="ha-item" data-review-deck="1">⭐ ' + c.reviews + ' review ask' + (c.reviews === 1 ? '' : 's') + ' waiting</button>');
     return items.join('');
   }
 
-  const api = { READ, PROMISE_WINDOW, CALL_WINDOW, canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, oldPromiseCount, isOldPromise, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
+  const api = { READ, PROMISE_WINDOW, CALL_WINDOW, parkedUntil, canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, oldPromiseCount, isOldPromise, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root || !root.document) return;
   root.NBDHomeAttention = api;
 
   // ── DOM ──────────────────────────────────────────────────────────────
   const w = root;
-  let _last = 0, _busy = false, _again = false;
+  let _last = 0, _busy = false, _again = false, _recheck = 0;
+  // A read whose answer was an EMPTY snapshot from the local cache never reached
+  // the server. The first one in a window is "checking", not a failure (cold
+  // boot: the connection is still coming up); one that is still unconfirmed
+  // UNCONFIRMED_MS later is a failure and is named.
+  const UNCONFIRMED_MS = 2000, RECHECK_MS = 2500;
+  const _unconf = {};
+  function unconfirmed(name) {
+    const now = Date.now();
+    if (!_unconf[name]) _unconf[name] = now;
+    return now - _unconf[name] >= UNCONFIRMED_MS ? 'failed' : 'pending';
+  }
+  api.UNCONFIRMED_MS = UNCONFIRMED_MS;
+  api._resetUnconfirmed = () => { Object.keys(_unconf).forEach((k) => { delete _unconf[k]; }); };
   const uid = () => (w._user && w._user.uid) || null;
   const claims = () => w._userClaims || {};
   const fbReady = () => !!(w.db && w.getDocs && w.query && w.where && w.collection);
@@ -325,12 +364,20 @@
     try {
       if (w.NBDReviewDeck) {
         if (w.NBDRevenue && typeof w.NBDRevenue.loadInvoices === 'function') {
-          await w.NBDRevenue.loadInvoices().catch(() => null);
+          // A read that FAILED last time is re-asked for real: loadInvoices keeps a
+          // 30 s "recently failed" window that answers [] without asking, which made
+          // the strip's own "Tap to try again" a no-op (walk 2026-10-13).
+          const reread = !!(api.lastCounts && (api.lastCounts.reviewsFailed || api.lastCounts.reviewsPending));
+          await w.NBDRevenue.loadInvoices(reread ? { force: true } : undefined).catch(() => null);
           // loadInvoices never rejects: a failed query resolves [] and leaves
           // cached() null (a real empty list is cached as []). "Paid in full"
           // is judged from these invoices, so no invoices = review asks that
           // may be missing, not "none waiting".
-          if (typeof w.NBDRevenue.cached === 'function' && !w.NBDRevenue.cached()) out.reviewsFailed = true;
+          if (typeof w.NBDRevenue.cached === 'function' && !w.NBDRevenue.cached()) {
+            // 'checking' = the first read is unconfirmed (cold boot), not failed.
+            const st = typeof w.NBDRevenue.status === 'function' ? w.NBDRevenue.status() : 'failed';
+            if (st === 'checking') out.reviewsPending = true; else out.reviewsFailed = true;
+          }
         }
         out.reviews = w.NBDReviewDeck.candidates(w._leads).length;
       }
@@ -342,7 +389,8 @@
         .then((snap) => {
           // An empty answer served from the local cache (offline) is not "no
           // payments need a customer": it is a read that never reached the server.
-          if (unconfirmedEmpty(snap)) { out.stripeFailed = true; return; }
+          if (unconfirmedEmpty(snap)) { if (unconfirmed('stripe') === 'failed') out.stripeFailed = true; else out.stripePending = true; return; }
+          delete _unconf.stripe;
           out.stripe = reviewCount(snap.docs.map((d) => d.data()));
         }).catch(() => { out.stripeFailed = true; }));
     }
@@ -350,7 +398,8 @@
     const col = w.collection(w.db, 'yardSigns');
     jobs.push(w.getDocs(staff ? w.query(col, w.where('companyId', '==', c.companyId)) : w.query(col, w.where('userId', '==', u)))
       .then((snap) => {
-        if (unconfirmedEmpty(snap)) { out.signsFailed = true; return; }
+        if (unconfirmedEmpty(snap)) { if (unconfirmed('signs') === 'failed') out.signsFailed = true; else out.signsPending = true; return; }
+        delete _unconf.signs;
         out.signs = signsDue(snap.docs.map((d) => d.data()), Date.now());
       }).catch(() => { out.signsFailed = true; }));
     // Calls: the owner's own (phone_calls rules: owner always reads own).
@@ -370,13 +419,15 @@
       const qWin = (name, cap) => w.getDocs(w.query(w.collection(w.db, name), w.where('userId', '==', u), w.where('startedAtMs', '>=', sinceWin), w.orderBy('startedAtMs', 'desc'), w.limit(cap)));
       jobs.push(qWin('phone_calls', READ.recentCalls)
         .then((snap) => {
-          if (unconfirmedEmpty(snap)) { out.callsFailed = true; return; }
+          if (unconfirmedEmpty(snap)) { if (unconfirmed('calls') === 'failed') out.callsFailed = true; else out.callsPending = true; return; }
+          delete _unconf.calls;
           snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data())));
           if (snap.docs.length >= READ.recentCalls) { out.callsCapped = true; out.callsCap = READ.recentCalls; }
         }).catch(() => { out.callsFailed = true; }));
       jobs.push(qWin('phone_text_days', READ.recentTexts)
         .then((snap) => {
-          if (unconfirmedEmpty(snap)) { out.callsFailed = true; return; }
+          if (unconfirmedEmpty(snap)) { if (unconfirmed('texts') === 'failed') out.callsFailed = true; else out.callsPending = true; return; }
+          delete _unconf.texts;
           snap.docs.forEach((d) => callRows.push(Object.assign({ id: 'text:' + d.id }, d.data())));
           if (snap.docs.length >= READ.recentTexts) { out.textsCapped = true; out.textsCap = READ.recentTexts; }
         }).catch(() => { out.callsFailed = true; }));
@@ -384,7 +435,8 @@
       // bounded read. A failed one is a warning (oldFailed), not "no old promises".
       jobs.push(w.getDocs(w.query(w.collection(w.db, 'phone_calls'), w.where('userId', '==', u), w.where('startedAtMs', '<', sinceWin), w.orderBy('startedAtMs', 'desc'), w.limit(READ.oldCalls)))
         .then((snap) => {
-          if (unconfirmedEmpty(snap)) { out.oldFailed = true; return; }
+          if (unconfirmedEmpty(snap)) { if (unconfirmed('old') === 'failed') out.oldFailed = true; else out.oldPending = true; return; }
+          delete _unconf.old;
           snap.docs.forEach((d) => callRows.push(Object.assign({ id: d.id }, d.data())));
           if (snap.docs.length >= READ.oldCalls) { out.oldCapped = true; out.oldCap = READ.oldCalls; }
         }).catch(() => { out.oldFailed = true; }));
@@ -401,6 +453,7 @@
       if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') await w.ScriptLoader.loadBundle('contactlabels');
       if (w.NBDContactLabels) labels = await w.NBDContactLabels.load(false);
     } catch (_) { labels = null; }
+    out.pending = !!(out.reviewsPending || out.stripePending || out.signsPending || out.callsPending || out.oldPending);
     out.calls = callersNeedingYou(callRows, Date.now(), labels);
     out.hidden = hiddenPeople(callRows, Date.now(), labels);
     out.oldPromises = oldPromiseCount(callRows, Date.now());
@@ -411,6 +464,15 @@
     return out;
   }
 
+  // Every item is one Today already lists: on a phone the whole strip steps aside
+  // (today-home.css); it reappears the moment anything else is on it.
+  function markAllDup(el, html) {
+    try {
+      const n = (String(html || '').match(/class="ha-item/g) || []).length;
+      const d = (String(html || '').match(/data-ha-dup="1"/g) || []).length;
+      if (n > 0 && n === d) el.setAttribute('data-ha-alldup', '1'); else el.removeAttribute('data-ha-alldup');
+    } catch (_) { /* cosmetic */ }
+  }
   async function render(force) {
     const el = document.getElementById('homeAttention');
     if (!el || !uid() || !fbReady()) return;
@@ -438,6 +500,12 @@
       }
       el.innerHTML = html;
       el.hidden = !html;
+      markAllDup(el, html);
+      // Still checking: ask once more shortly, so "Checking..." resolves to the
+      // real answer or the named failure on its own.
+      if (counts && counts.pending && !_recheck && typeof w.setTimeout === 'function') {
+        _recheck = w.setTimeout(() => { _recheck = 0; render(true); }, RECHECK_MS);
+      }
     } finally {
       _busy = false;
       if (_again) { _again = false; setTimeout(() => { render(true); }, 0); }
@@ -449,7 +517,7 @@
   // (dashboard-boot-budget). today-home.js and call-center-view.js load it by
   // name; this deferred file always runs first.
   if (w.ScriptLoader && w.ScriptLoader.bundles && !w.ScriptLoader.bundles.contactlabels) {
-    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=2', 'js/contact-labels-logic.js?v=5', 'js/contact-labels.js?v=5', 'js/contact-suggest-logic.js?v=1', 'js/contact-suggest.js?v=1'];
+    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=4', 'js/contact-labels-logic.js?v=7', 'js/contact-labels.js?v=7', 'js/contact-suggest-logic.js?v=3', 'js/contact-suggest.js?v=3'];
   }
   // A label changed (optimistic apply, undo or rollback): recount from the
   // rows already held — no Firestore read — and repaint the strip.
@@ -458,8 +526,10 @@
     if (!api.lastRows || !api.lastCounts) return;
     api.lastCounts.calls = callersNeedingYou(api.lastRows, Date.now(), api.lastLabels);
     api.lastCounts.hidden = hiddenPeople(api.lastRows, Date.now(), api.lastLabels);
-    if (el) { const html = stripHtml(api.lastCounts); el.innerHTML = html; el.hidden = !html; }
+    if (el) { const html = stripHtml(api.lastCounts); el.innerHTML = html; el.hidden = !html; markAllDup(el, html); }
   });
+  // The quiet invoice re-ask finished (confirmed or finally failed): look again.
+  w.addEventListener('nbd:invoices-settled', () => { render(true); });
   // "Tap to try again" on a failed Stripe / yard-sign / review-ask read (CSP:
   // no inline handler - one delegate on the document).
   document.addEventListener('click', (ev) => {
