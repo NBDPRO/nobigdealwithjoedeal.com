@@ -117,14 +117,21 @@
     // A kind that is already what every unlabeled number gets adds nothing for
     // evidence as weak as "on a customer": keep it, but it ranks last (above).
     var hides = !!c.kind && LG.defaultPolicy(c.kind) === 'hide';
+    // A kind that takes calls OFF Today (quiet or hide) on a number that is on a
+    // customer is never one tap (audit H5, 2026-10-13): two supplier-typed
+    // calls from a homeowner must not make him vanish on Accept. The sheet
+    // shows "On customer ..." and Jo picks the policy.
+    var suppresses = !!c.kind && LG.defaultPolicy(c.kind) !== 'surface';
     return {
+      effect: c.kind ? LG.effectText(c.kind, LG.defaultPolicy(c.kind)) : '',
+      onLead: !!o.onLead, leadName: o.leadName || '',
       digits: o.digits,
       kind: c.kind,                                   // '' = no kind guessed (pattern)
       evidence: c.evidence,
       source: SOURCE_OF[c.evidence],
       why: WHY[c.evidence](c.kind, c.extra),
       title: c.kind ? 'Looks like ' + (LG.KIND_LABEL[c.kind] || c.kind) : 'Unknown number calling a lot',
-      needsSheet: !c.kind || hides,                   // Accept opens the sheet instead of applying
+      needsSheet: !c.kind || hides || (suppresses && !!o.onLead),   // Accept opens the sheet instead of applying
       rank: RANK[c.evidence],
       latestMs: Math.max.apply(null, [0].concat((o.calls || []).map(function (x) { return toMs(x && x.startedAtMs); }))),
     };

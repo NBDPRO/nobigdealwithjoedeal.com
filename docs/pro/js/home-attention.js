@@ -160,16 +160,17 @@
       const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
       if (d.length !== 10) return;
       const lb = typeof labels.get === 'function' ? labels.get(d) : labels[d];
-      if (!lb || lb.policy !== 'hide') return;
+      // quiet joins the lead rule only (2026-10-13, audit C-4): never a burst.
+      if (!lb || (lb.policy !== 'hide' && lb.policy !== 'quiet')) return;
       const base = Math.max(saneStampMs(lb.ackAtMs, t), saneStampMs(lb.updatedAtMs, t));
       if ((toMs(c.startedAtMs) || 0) <= base) return;
-      if (!by.has(d)) by.set(d, { digits: d, base, calls: [] });
+      if (!by.has(d)) by.set(d, { digits: d, base, quiet: lb.policy === 'quiet', calls: [] });
       by.get(d).calls.push(c);
     });
     by.forEach((v) => {
       const recent = v.calls.filter((c) => c.direction !== 'outbound' && (toMs(c.startedAtMs) || 0) >= t - BURST_MS);
       const onLead = v.calls.some((c) => c.leadId);
-      const reason = onLead ? 'lead' : (recent.length >= BURST_N ? 'burst' : '');
+      const reason = onLead ? 'lead' : (!v.quiet && recent.length >= BURST_N ? 'burst' : '');
       if (reason) out.push({ digits: v.digits, reason, calls: v.calls, base: v.base });
     });
     return out;
@@ -516,7 +517,7 @@
   // (dashboard-boot-budget). today-home.js and call-center-view.js load it by
   // name; this deferred file always runs first.
   if (w.ScriptLoader && w.ScriptLoader.bundles && !w.ScriptLoader.bundles.contactlabels) {
-    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=2', 'js/contact-labels-logic.js?v=5', 'js/contact-labels.js?v=5', 'js/contact-suggest-logic.js?v=1', 'js/contact-suggest.js?v=1'];
+    w.ScriptLoader.bundles.contactlabels = ['css/contact-labels.css?v=4', 'js/contact-labels-logic.js?v=7', 'js/contact-labels.js?v=7', 'js/contact-suggest-logic.js?v=3', 'js/contact-suggest.js?v=3'];
   }
   // A label changed (optimistic apply, undo or rollback): recount from the
   // rows already held — no Firestore read — and repaint the strip.
