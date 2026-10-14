@@ -36,14 +36,18 @@ function _deps(deps) {
  * is server-stamped (functions/signed-price.js) and client-unwritable, so it —
  * not lead.soldTier — is what may put a warranty year in a customer email.
  */
-async function signedTierOf(db, lead) {
+async function signedTierOf(db, lead, leadId) {
   const id = lead && lead.primaryEstimateId;
   if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) return '';
   const es = await db.collection('estimates').doc(id).get();
   const est = es.exists ? (es.data() || null) : null;
   if (!est || est.deleted === true || !CER.hasSignedPrice(est)) return '';
-  // Same tenant guard the spine uses: someone else's estimate is no evidence.
-  if (lead.userId && est.userId && est.userId !== lead.userId) return '';
+  // lead.primaryEstimateId is rep-editable, so the estimate must itself say it
+  // belongs to THIS customer and tenant; anything unproven is no evidence.
+  if (!est.leadId || String(est.leadId) !== String(leadId)) return '';
+  const sameUser = !!(lead.userId && est.userId && String(est.userId) === String(lead.userId));
+  const sameCo = !!(lead.companyId && est.companyId && String(est.companyId) === String(lead.companyId));
+  if (!sameUser && !sameCo) return '';
   const sv = CER.signedView(est);
   return D.trustedTier(String(sv.selectedTier || sv.tier || '').toLowerCase());
 }
@@ -129,7 +133,7 @@ async function draftDocsForEvent(db, args, deps) {
     let signedTier = '';
     if (planned.indexOf('warranty') !== -1) {
       try {
-        signedTier = await signedTierOf(db, lead);
+        signedTier = await signedTierOf(db, lead, leadId);
       } catch (e) {
         logger.warn('[docDrafts] signed tier read failed (placeholder used)', { leadId, err: e && e.message });
       }

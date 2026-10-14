@@ -85,6 +85,8 @@ async function run() {
     await setDoc(ref(db, 'sendCheck'), draft({ status: 'sending', sendState: 'check_provider', sendNonce: 'n2', sendingAt: ago(10 * 1000), sendingBy: 'co-a' }));
     await setDoc(ref(db, 'sendCheck2'), draft({ status: 'sending', sendState: 'check_provider', sendNonce: 'n2', sendingAt: ago(10 * 1000), sendingBy: 'co-a' }));
     await setDoc(ref(db, 'sendCheck3'), draft({ status: 'sending', sendState: 'check_provider', sendNonce: 'n2', sendingAt: ago(10 * 1000), sendingBy: 'co-a' }));
+    await setDoc(ref(db, 'sendUnrec'), draft({ status: 'sending', sendState: 'sent_unrecorded', sendNonce: 'n4', sendingAt: ago(10 * 1000), sendingBy: 'co-a', messageId: 're_1' }));
+    await setDoc(ref(db, 'sendUnrec2'), draft({ status: 'sending', sendState: 'sent_unrecorded', sendNonce: 'n4', sendingAt: ago(10 * 1000), sendingBy: 'co-a', messageId: 're_1' }));
     await setDoc(ref(db, 'sendStale'), draft({ status: 'sending', sendState: 'in_flight', sendNonce: 'n3', sendingAt: ago(10 * 60 * 1000), sendingBy: 'co-a' }));
     await setDoc(ref(db, 'copiedDraft'), draft({ status: 'copied' }));
     await setDoc(ref(db, 'alicedraft', 'lead-alice'), draft({ leadId: 'lead-alice', userId: 'alice' }));
@@ -145,6 +147,8 @@ async function run() {
   await check('control: an unconfirmed claim can be dismissed', 'allow', updateDoc(ref(owner, 'sendCheck2'), { status: 'dismissed', dismissedAt: new Date() }));
   await check('an unconfirmed claim can NEVER go back to draft (no silent retry)', 'deny', updateDoc(ref(owner, 'sendCheck3'), { status: 'draft' }));
   await check('control: a STALE claim (10 min, no answer) can be dismissed', 'allow', updateDoc(ref(owner, 'sendStale'), { status: 'dismissed', dismissedAt: new Date() }));
+  await check('control: a draft that WAS sent but could not be marked (sent_unrecorded) can be marked copied', 'allow', updateDoc(ref(owner, 'sendUnrec'), { status: 'copied', copiedAt: new Date() }));
+  await check('...and can never go back to draft (it would be sent twice)', 'deny', updateDoc(ref(owner, 'sendUnrec2'), { status: 'draft' }));
   await check('a failed marker cannot be revived to draft', 'deny', updateDoc(ref(owner, 'f2'), { status: 'draft' }));
 
   // -- failure markers + value validation (review round 1)

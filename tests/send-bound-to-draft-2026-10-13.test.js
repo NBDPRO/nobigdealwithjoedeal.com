@@ -602,6 +602,103 @@ const st = (w, id) => (w.docs[dPath(id || DRAFT)] || {}).status;
     ok('the SIGNED copy of the tier wins over a later edit to the estimate (signed "good", now "best") -> 5', years(r10.body) === 5, r10.body);
   }
 
+  // ═══ J. review round 1 (silent-failure + security reviews) ════════════
+  console.log('\nJ. review round 1');
+  {
+    // DNC mix: an invoice of ANOTHER lead must not ride through this lead's clean flag
+    const docs = baseDocs({
+      'leads/L2': leadDoc({ doNotContact: true, email: 'dnc.customer@example.com' }),
+      'invoices/invB': { companyId: 'co-a', customerEmail: 'dnc.customer@example.com', leadId: 'L2' },
+    });
+    const r = await send({ docs }, { to: 'dnc.customer@example.com', subject: 'Invoice', body: 'b', leadId: LEAD, invoiceId: 'invB', kind: 'invoice' });
+    ok('lead L1 (clean) + the invoice of DNC lead L2: 422 record_mismatch, nothing sent', r.res.statusCode === 422 && r.res.body.code === 'record_mismatch' && r.w.sends.length === 0, JSON.stringify(r.res.body));
+    const c = await send({ docs: baseDocs({ 'invoices/invA': { companyId: 'co-a', customerEmail: HOMEOWNER, leadId: LEAD } }) }, { to: HOMEOWNER, subject: 'Invoice', body: 'b', leadId: LEAD, invoiceId: 'invA', kind: 'invoice' });
+    ok('control: lead + ITS OWN invoice sends', c.res.statusCode === 200 && c.w.sends.length === 1, JSON.stringify(c.res.body));
+    const legacyNoLead = await send({ docs: baseDocs({ 'invoices/invOld': { companyId: 'co-a', customerEmail: HOMEOWNER } }) }, { to: HOMEOWNER, subject: 'Invoice', body: 'b', leadId: LEAD, invoiceId: 'invOld', kind: 'invoice' });
+    ok('control: a legacy invoice with no leadId is bound by the recipient check and still sends', legacyNoLead.res.statusCode === 200);
+  }
+  for (const [label, val, want] of [['string "true"', 'true', 403], ['string "Yes"', 'Yes', 403], ['number 1', 1, 403], ['string "false"', 'false', 200], ['number 0', 0, 200], ['absent', undefined, 200]]) {
+    const lead = leadDoc(); if (val !== undefined) lead.doNotContact = val;
+    const r = await send({ docs: baseDocs({ 'leads/L1': lead }) }, draftBody());
+    ok('do-not-contact flag as ' + label + ' -> ' + want, r.res.statusCode === want, JSON.stringify(r.res.body));
+  }
+  {
+    const G = require(path.join(FUNCTIONS, 'email-send-guard.js'));
+    ok('flagOn: true / 1 / "true" / "YES" / " on " on; false / 0 / "false" / "no" / null / {} off',
+      [true, 1, 'true', 'YES', ' on '].every((v) => G.flagOn(v)) && [false, 0, 'false', 'no', null, undefined, {}, []].every((v) => !G.flagOn(v)));
+  }
+  {
+    // tenant: a caller whose company is not the lead's company
+    const r = await send({ docs: baseDocs(), token: { uid: 'rep-a', companyId: 'co-b', role: 'company_admin' } }, draftBody(THANKS));
+    ok('the lead\'s OWNER now acting under another company: 403 (not the wrong tenant\'s register)', r.res.statusCode === 403 && r.res.body.code === 'record_forbidden' && r.w.sends.length === 0, JSON.stringify(r.res.body));
+    // platform admin: the LEAD's tenant register and postal address are used
+    const sup = await send({ docs: baseDocs(SUPPRESSED), token: { uid: 'joe', role: 'admin', companyId: undefined } }, draftBody(THANKS));
+    ok('platform admin sending a co-a thank-you: co-a\'s unsubscribe register applies (403 unsubscribed)', sup.res.statusCode === 403 && sup.res.body.code === 'unsubscribed' && sup.w.sends.length === 0, JSON.stringify(sup.res.body));
+    const okAdmin = await send({ docs: baseDocs(), token: { uid: 'joe', role: 'admin', companyId: undefined } }, draftBody(THANKS));
+    ok('control: ...and with a clean register it sends, footer carrying co-a\'s postal address',
+      okAdmin.res.statusCode === 200 && okAdmin.w.sends.length === 1 && okAdmin.w.sends[0].html.indexOf('PO Box 77') !== -1, JSON.stringify(okAdmin.res.body));
+    const noCo = await send({ docs: baseDocs({ 'leads/L1': leadDoc({ companyId: undefined }), [dPath()]: draftDoc({ companyId: null }) }) }, draftBody());
+    ok('control: a legacy lead + draft with no companyId still send for their owner', noCo.res.statusCode === 200);
+    const ownerMismatch = await send({ docs: baseDocs({ 'leads/L1': leadDoc({ companyId: undefined }), [dPath()]: draftDoc({ companyId: null, userId: 'someone-else' }) }) }, draftBody());
+    ok('legacy lead with no companyId: a draft stamped for a DIFFERENT owner is refused', ownerMismatch.res.statusCode === 403 && ownerMismatch.w.sends.length === 0);
+  }
+  {
+    // finalise failed: the email went; the marker must say so, not "check provider"
+    const { res, w } = await send({ docs: baseDocs(), failWrite: (p, d) => p === dPath() && d.status === 'sent' }, draftBody());
+    const d = w.docs[dPath()];
+    ok('provider accepted + the sent write failed: the draft is marked sent_unrecorded with the message id (durable)',
+      res.statusCode === 200 && d.status === 'sending' && d.sendState === 'sent_unrecorded' && d.messageId === 're_1', JSON.stringify(d));
+    ok('...and the browser UI reads that as "WAS sent", not "may not have gone out"',
+      require(path.join(ROOT, 'docs/pro/js/doc-drafts-ui.js')).sendingState(d, Date.now() + 3600 * 1000) === 'sent_unrecorded');
+  }
+  {
+    const UI = require(path.join(ROOT, 'docs/pro/js/doc-drafts-ui.js'));
+    const t0 = 1700000000000;
+    ok('sendingState: fresh in_flight -> in_flight; same claim 6 min later -> check_provider; check_provider flag wins; non-sending -> ""',
+      UI.sendingState({ status: 'sending', sendState: 'in_flight', sendingAt: { toMillis: () => t0 } }, t0 + 1000) === 'in_flight'
+      && UI.sendingState({ status: 'sending', sendState: 'in_flight', sendingAt: { toMillis: () => t0 } }, t0 + 6 * 60 * 1000) === 'check_provider'
+      && UI.sendingState({ status: 'sending', sendState: 'check_provider', sendingAt: { toMillis: () => t0 } }, t0 + 1000) === 'check_provider'
+      && UI.sendingState({ status: 'draft' }, t0) === '' && UI.sendingState({ status: 'sent' }, t0) === ''
+      && UI.sendingState({ status: 'sending', sendState: 'in_flight' }, t0) === 'check_provider');
+    ok('isLostRace names every "not yours to send" code and nothing else',
+      ['already_sent', 'already_sending', 'draft_not_sendable', 'draft_changed', 'draft_not_found'].every((c) => UI.isLostRace(c)) && !UI.isLostRace('provider_rejected') && !UI.isLostRace('unsubscribed') && !UI.isLostRace(undefined));
+  }
+  {
+    // provider_rejected: no provider wording to the browser
+    const { mod } = load({ docs: baseDocs(), provider: async () => ({ data: null, error: { name: 'validation_error', message: 'The sender domain secret-domain.test is not verified', statusCode: 422 } }) });
+    const a = await invoke(mod.sendEmail.__handler, draftBody());
+    ok('provider_rejected carries no provider detail to the browser', a.statusCode === 502 && a.body.code === 'provider_rejected' && !/secret-domain|detail/.test(JSON.stringify(a.body)), JSON.stringify(a.body));
+  }
+  {
+    // the signed estimate must name THIS lead
+    const DDF = require(path.join(FUNCTIONS, 'doc-drafts.js'));
+    const NBD = require(path.join(FUNCTIONS, 'doc-drafts-logic.js')).NBD_OWNER_UID;
+    const mk = (estO) => {
+      const store = new Map(Object.entries({
+        'leads/L1': { userId: NBD, companyId: NBD, stage: 'install_complete', firstName: 'Pat', email: 'pat@x.test', activeJobId: 'j1', jobType: 'cash', primaryEstimateId: 'est1', soldTier: 'best' },
+        ['companyProfile/' + NBD]: { brand: { displayName: 'No Big Deal Home Solutions', contact: { phone: '(859) 420-7382' } } },
+        'estimates/est1': Object.assign({ userId: NBD, companyId: NBD, leadId: 'L1', signedPrice: { fields: { selectedTier: 'better', tier: 'better' }, totalCents: 1 } }, estO),
+      }));
+      const ref = (p) => ({ path: p, collection: (c) => col(p + '/' + c),
+        async get() { const d = store.get(p); return { exists: d !== undefined, data: () => (d === undefined ? undefined : JSON.parse(JSON.stringify(d))) }; },
+        async create(data) { if (store.has(p)) { const e = new Error('x'); e.code = 6; throw e; } store.set(p, JSON.parse(JSON.stringify(data))); } });
+      const col = (c) => ({ doc: (id) => ref(c + '/' + id), where: () => ({ get: async () => ({ docs: [] }), limit: () => ({ get: async () => ({ docs: [] }) }) }) });
+      return { store, collection: col, doc: ref };
+    };
+    const run = async (estO) => {
+      const db = mk(estO);
+      await DDF.draftDocsForEvent(db, { leadId: 'L1', event: 'installed' }, { FieldValue: { serverTimestamp: () => 'ts' }, logger: { info() {}, warn() {}, error() {} }, now: () => 1 });
+      const d = db.store.get('leads/L1/doc_drafts/ddraft_L1_warranty_j1');
+      return d ? d.body : '';
+    };
+    const yrs = (b) => { const m = /labor\) warranty: (\d+) years?/.exec(b); return m ? +m[1] : null; };
+    ok('control: a signed estimate that names L1 and the tenant -> its tier (better = 10)', yrs(await run({})) === 10);
+    ok('an estimate that names ANOTHER lead is no evidence -> placeholder', yrs(await run({ leadId: 'L9' })) === null);
+    ok('an estimate with NO leadId is no evidence -> placeholder', yrs(await run({ leadId: undefined })) === null);
+    ok('a same-company estimate made by another user is still evidence (manager built it) -> 10', yrs(await run({ userId: 'manager-1' })) === 10);
+    ok('an estimate with neither the lead\'s user nor company is no evidence -> placeholder', yrs(await run({ userId: 'x', companyId: 'y' })) === null);
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log('\nFailures:\n  - ' + fails.join('\n  - ')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

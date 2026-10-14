@@ -130,6 +130,16 @@ async function prepareDraftSend(input, deps) {
   if (draft.companyId && lead.companyId && String(draft.companyId) !== String(lead.companyId)) {
     return { refusal: refuse(403, 'record_forbidden', 'That draft does not belong to this customer.') };
   }
+  // A caller whose company is not the lead's company is acting across tenants
+  // (the register / brand / postal address below would be the wrong ones).
+  // Platform admins are the one deliberate exception.
+  if (decoded.role !== 'admin' && decoded.companyId && lead.companyId && String(decoded.companyId) !== String(lead.companyId)) {
+    return { refusal: refuse(403, 'record_forbidden', 'You cannot email this customer from your account.') };
+  }
+  // A legacy lead without a companyId: the owner stamps must still agree.
+  if ((!draft.companyId || !lead.companyId) && draft.userId && lead.userId && String(draft.userId) !== String(lead.userId)) {
+    return { refusal: refuse(403, 'record_forbidden', 'That draft does not belong to this customer.') };
+  }
   const spec = D.DRAFT_KINDS[String(draft.kind || '')];
   if (!spec) return { refusal: refuse(422, 'unknown_draft_kind', 'This draft cannot be sent from here.') };
   if (draft.channel !== 'email') {
@@ -138,7 +148,7 @@ async function prepareDraftSend(input, deps) {
 
   // do-not-contact: every kind, fail closed (the lead was read above — an
   // unreadable lead already answered 503).
-  if (lead.doNotContact === true || lead.dnc === true) {
+  if (SendGuard.leadIsDoNotContact(lead)) {
     return { refusal: refuse(403, 'do_not_contact', 'This customer is on your do-not-contact list. Nothing was sent.') };
   }
 
@@ -171,7 +181,12 @@ async function prepareDraftSend(input, deps) {
 
   // Unsubscribe / STOP / postal address — by the DRAFT'S kind (spec.emailKind),
   // never a client claim. '' = commercial (the review ask).
-  const tenantKey = String(decoded.companyId || decoded.uid || '');
+  // The register and the sender brand are the LEAD's tenant. A platform admin
+  // acting on someone else's customer has no companyId of that tenant; every
+  // other caller keeps the CRM-wide convention (claims.companyId || uid).
+  const callerKey = String(decoded.companyId || decoded.uid || '');
+  const leadKey = String(lead.companyId || draft.companyId || lead.userId || '');
+  const tenantKey = (decoded.role === 'admin' && leadKey) ? leadKey : callerKey;
   const emailKind = spec.emailKind;
   const category = Suppression.resolveCategory({ kind: emailKind });
   let unsubGate = null;
@@ -306,7 +321,9 @@ async function executeDraftSend(plan, deps) {
       logger.error('doc_draft_send provider_refused', { draftId: plan.draftId, err: msg });
       await release('provider_rejected', msg);
       await logEmail('failed', extra);
-      return refuse(502, 'provider_rejected', 'Failed to send email', { detail: msg, draftStatus: 'draft' });
+      // The provider's wording stays in the server log (it can name sender /
+      // domain configuration); the browser gets the code only.
+      return refuse(502, 'provider_rejected', 'Failed to send email', { draftStatus: 'draft' });
     }
     logger.error('doc_draft_send provider_ambiguous', { draftId: plan.draftId, err: msg });
     await _markUnconfirmed(plan, nonce, deps, msg);
@@ -325,6 +342,18 @@ async function executeDraftSend(plan, deps) {
   } catch (e) {
     bookkeeping = 'failed';
     logger.error('doc_draft_send finalise_failed', { draftId: plan.draftId, messageId, err: e && e.message });
+  }
+  if (bookkeeping !== 'ok') {
+    // The email WENT but the draft could not be marked. Leave a durable
+    // marker so the card never reads "may not have gone out" five minutes
+    // later (a rep would dismiss it and send a second email).
+    try {
+      await _ifOwner(plan, nonce, deps, () => ({
+        sendState: 'sent_unrecorded', messageId: messageId || null, sentBy: plan.uid,
+      }));
+    } catch (e) {
+      logger.error('doc_draft_send unrecorded_marker_failed', { draftId: plan.draftId, messageId, err: e && e.message });
+    }
   }
   await logEmail('sent', extra);
   // The email WENT. A bookkeeping miss never turns into "could not send".

@@ -43,6 +43,14 @@
   // ── PURE (unit-tested in node) ──────────────────────────────────────────
   var PH_RE = /\[\[[^\]]*\]\]/g;
 
+  // Same reading as functions/email-send-guard.js flagOn (an import or a
+  // console edit may leave 'true' / 'yes' / 1).
+  function flagOn(v) {
+    if (v === true || v === 1) return true;
+    if (typeof v === 'string') return /^(true|yes|y|1|on)$/i.test(v.trim());
+    return false;
+  }
+
   function placeholders(text) {
     return String(text == null ? '' : text).match(PH_RE) || [];
   }
@@ -65,7 +73,7 @@
     if (left.length) out.push('Fill in ' + left.length + ' highlighted blank' + (left.length === 1 ? '' : 's') + ' first: ' + left.slice(0, 3).join(' '));
     if (d.channel !== 'email' || !d.to) out.push('No email to send to — use Copy.');
     if (!String(e.subject || '').trim() || !String(e.body || '').trim()) out.push('Subject and message can\'t be empty.');
-    if (l.doNotContact === true || l.dnc === true) out.push('This customer is on your do-not-contact list.');
+    if (flagOn(l.doNotContact) || flagOn(l.dnc)) out.push('This customer is on your do-not-contact list.');
     if (s.alreadySent) out.push('Already sent from this screen. Tap Mark sent to clear this card; do not send it again.');
     if (d.scheduleBasis && !scheduleOf(l)) out.push('The schedule was cleared since this was drafted. Add the date back on the schedule first.');
     var commercial = !d.emailKind;
@@ -122,13 +130,15 @@
   }
   /**
    * A draft the server has claimed ('sending'): 'in_flight' (a send is
-   * running — wait), or 'check_provider' (the server could not confirm, or the
-   * claim went stale — a human must look at the provider). '' for any other
-   * status. Mirrors the rule that lets the browser clear it.
+   * running — wait), 'check_provider' (the server could not confirm, or the
+   * claim went stale — a human must look at the provider), or
+   * 'sent_unrecorded' (it DID go out; the server could not mark the draft).
+   * '' for any other status. Mirrors the rule that lets the browser clear it.
    */
   function sendingState(draft, nowMs) {
     var d = draft || {};
     if (d.status !== 'sending') return '';
+    if (d.sendState === 'sent_unrecorded') return 'sent_unrecorded';
     if (d.sendState === 'check_provider') return 'check_provider';
     var at = _ms(d.sendingAt);
     var now = Number(nowMs) || Date.now();
@@ -244,16 +254,18 @@
     var isSending = data.status === 'sending';
     if (isEmail) row.appendChild(send);
     if (!isFailed && !isSending) { row.appendChild(copy); row.appendChild(markSent); }
-    if (isSending && sendInfo === 'check_provider') { row.appendChild(markSent); row.appendChild(dismiss); }
+    if (isSending && (sendInfo === 'check_provider' || sendInfo === 'sent_unrecorded')) { row.appendChild(markSent); row.appendChild(dismiss); }
     if (isSending && sendInfo === 'in_flight') row.appendChild(reload);
     if (!isSending) row.appendChild(dismiss);
     if (isFailed || isSending) { subj.readOnly = true; body.readOnly = true; }
     if (isFailed) head.style.color = '#b91c1c';
     if (isSending) {
       head.style.color = '#b45309';
-      meta.textContent = sendInfo === 'check_provider'
-        ? 'This may or may not have gone out. Check your email provider (or ask the customer) before doing anything else. It was NOT retried. If it went out, tap Mark sent; if not, Dismiss it and send a new message.'
-        : 'Sending… tap Refresh in a moment.';
+      meta.textContent = sendInfo === 'sent_unrecorded'
+        ? 'This email WAS sent. The card could not be marked. Tap Mark sent to clear it. Do not send it again.'
+        : (sendInfo === 'check_provider'
+          ? 'This may or may not have gone out. Check your email provider (or ask the customer) before doing anything else. It was NOT retried. If it went out, tap Mark sent; if not, Dismiss it and send a new message.'
+          : 'Sending… tap Refresh in a moment.');
     }
     var all = [send, copy, markSent, dismiss, reload];
 
@@ -343,6 +355,9 @@
         if (code === 'unsubscribed') { state.suppressed = true; }
         if (r && r.message && code !== 'unsubscribed') toast(r.message, 'error');
         settle();
+        // A provider refusal released the claim server-side; re-read so the
+        // card shows the stored (edited) text and the true state.
+        if (code === 'provider_rejected') return refreshPanel();
       }, function (e) {
         // sendDraftEmail does not reject on a refusal, so this is an
         // unexpected throw: the request may have been processed.

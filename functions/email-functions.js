@@ -478,6 +478,14 @@ exports.sendEmail = onRequest(
       res.status(422).json({ error: 'Email can only be sent to a customer on file.', code: 'record_required' });
       return;
     }
+    // One request, one customer: an invoice that belongs to a DIFFERENT lead
+    // than the one named would let that invoice's address ride through this
+    // lead's flags (do-not-contact) and unsubscribe state. (An invoice with no
+    // leadId — legacy — is bound by the recipient check alone.)
+    if (lead && invoice && typeof invoice.leadId === 'string' && invoice.leadId && invoice.leadId !== leadId) {
+      res.status(422).json({ error: 'That invoice belongs to a different customer.', code: 'record_mismatch' });
+      return;
+    }
     if (!SendGuard.recipientOnRecord(to, lead, invoice)) {
       res.status(422).json({ error: 'That address is not on this customer\'s record.', code: 'recipient_not_on_record' });
       return;
@@ -485,15 +493,18 @@ exports.sendEmail = onRequest(
 
     // ── Do-not-contact (2026-10-13) ────────────────────────────────────
     // Enforced here, not only in the browser. An invoice-only send reaches
-    // the customer's lead through invoice.leadId. FAIL CLOSED: a lead we
-    // cannot read is "do not send" (503), never "probably fine".
+    // the customer's lead through invoice.leadId, and when a request names
+    // BOTH a lead and an invoice every lead it resolves to is checked (an
+    // address on invoice B must not ride through lead A's clean flag). FAIL
+    // CLOSED: a lead we cannot read is "do not send" (503), never "probably
+    // fine". An invoice with no leadId at all (legacy) has nothing to resolve.
     try {
-      let dncLead = lead;
-      if (!dncLead && invoice && typeof invoice.leadId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(invoice.leadId)) {
+      let dnc = SendGuard.leadIsDoNotContact(lead);
+      if (!dnc && invoice && typeof invoice.leadId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(invoice.leadId) && invoice.leadId !== leadId) {
         const ls = await db.doc(`leads/${invoice.leadId}`).get();
-        dncLead = ls.exists ? (ls.data() || null) : null;
+        dnc = ls.exists && SendGuard.leadIsDoNotContact(ls.data() || null);
       }
-      if (SendGuard.leadIsDoNotContact(dncLead)) {
+      if (dnc) {
         res.status(403).json({ error: 'This customer is on your do-not-contact list. Nothing was sent.', code: 'do_not_contact' });
         return;
       }

@@ -146,10 +146,19 @@ function honouredKind(kind, ctx) {
   return (c.lead || c.invoice) ? k : '';
 }
 
+// A flag set by the app is boolean true; an import or a console edit may leave
+// 'true' / 'yes' / 1. Any of those means "do not contact" — a flag that is
+// merely spelled differently must not silently let mail through.
+function flagOn(v) {
+  if (v === true || v === 1) return true;
+  if (typeof v === 'string') return /^(true|yes|y|1|on)$/i.test(v.trim());
+  return false;
+}
+
 // A lead the rep put on the do-not-contact list (either spelling the CRM and
 // the draft queue use).
 function leadIsDoNotContact(lead) {
-  return !!lead && (lead.doNotContact === true || lead.dnc === true);
+  return !!lead && (flagOn(lead.doNotContact) || flagOn(lead.dnc));
 }
 
 function escapeHtml(v) {
@@ -180,6 +189,7 @@ module.exports = {
   safeReplyTo,
   LEGACY_KIND_NEEDS,
   honouredKind,
+  flagOn,
   leadIsDoNotContact,
   escapeHtml,
   normEmail,

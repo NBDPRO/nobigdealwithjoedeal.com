@@ -866,7 +866,8 @@ service cloud.firestore {
       //               outside the CRM" — the Thumbtack / Yelp / text path);
       //             - while status is 'failed' (a marker): dismiss it;
       //             - while status is 'sending' AND the server has given up
-      //               waiting (sendState 'check_provider') or the claim is
+      //               waiting (sendState 'check_provider', or 'sent_unrecorded'
+      //               = it went out but could not be marked) or the claim is
       //               over 5 minutes old: move it to 'copied' or 'dismissed'
       //               — never back to 'draft', so an unconfirmed send is
       //               never silently retried.
@@ -899,7 +900,7 @@ service cloud.firestore {
               && request.resource.data.status in ['copied', 'dismissed']
               && request.resource.data.diff(resource.data).affectedKeys()
                    .hasOnly(['status', 'dismissedAt', 'copiedAt'])
-              && (resource.data.get('sendState', '') == 'check_provider'
+              && (resource.data.get('sendState', '') in ['check_provider', 'sent_unrecorded']
                   || (resource.data.get('sendingAt', null) is timestamp
                       && request.time > resource.data.sendingAt + duration.value(5, 'm')))
               && (!('copiedAt' in request.resource.data) || request.resource.data.copiedAt == null || request.resource.data.copiedAt is timestamp)
