@@ -64,6 +64,27 @@ exports.finalInvoiceOnInstall = onDocumentUpdated(
   async (event) => {
     const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
     const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    // Crew Scheduled (2026-10-13): the spine has a 'scheduled' event and, like
+    // 'installed' before this file, nothing recorded it — a client stage move
+    // writes only the lead. The crew-date email DRAFT (doc-drafts.js) is made
+    // here, directly: the event moves nothing (the lead is already there), so
+    // there is no spine move to record. Create-only per job; never sent.
+    if (L.enteredStage(before, after, 'crew_scheduled')) {
+      try {
+        const dd = await require('./doc-drafts').draftDocsForEvent(getFirestore(), {
+          leadId: String(event.params.leadId), event: 'scheduled', companyId: (after && after.companyId) || null,
+          sourceId: 'stage_crew_scheduled',
+        });
+        if (dd.error || (dd.failed && dd.failed.length)) {
+          logger.warn('[docDrafts] crew scheduled: draft not created', { leadId: event.params.leadId, error: dd.error || null, failed: dd.failed || [] });
+        } else {
+          logger.info('[docDrafts] crew scheduled', { leadId: event.params.leadId, created: dd.created.length, skipped: dd.skipped.length });
+        }
+      } catch (e) {
+        logger.warn('[docDrafts] crew scheduled failed', { leadId: event.params.leadId, err: e && e.message });
+      }
+      return;
+    }
     if (!L.enteredStage(before, after, 'install_complete')) return;
     if (isQuietBackfillEntry(before, after)) { logger.info('[installFinal] quiet backfill — nothing drafted', { leadId: event.params.leadId }); return; }
     const out = await onLeadWrite(getFirestore(), event.params.leadId, before, after);
