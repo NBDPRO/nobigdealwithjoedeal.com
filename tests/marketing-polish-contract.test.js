@@ -474,14 +474,14 @@ const certBarTargets = marketing.filter((f) => /^services\/[a-z0-9-]+-(oh|ky)\.h
 }
 {
   // 10. Nav dropdown label canon: the pledge entry in a dropdown-menu reads
-  //     "The Lifetime Pledge" (index.html also has a separate top-level
+  //     "The NBD Pledge" (index.html also has a separate top-level
   //     "The Pledge" nav item, which is intentionally short — dropdown only).
   const bad = marketing.filter((f) => {
     const s = read(f);
     const menus = s.match(/<ul class="dropdown-menu">[\s\S]*?<\/ul>/g) || [];
-    return menus.some((m) => m.includes('/the-pledge') && !m.includes('>The Lifetime Pledge<'));
+    return menus.some((m) => m.includes('/the-pledge') && !m.includes('>The NBD Pledge<'));
   }).map(rel);
-  ok('nav dropdown pledge label is "The Lifetime Pledge"', bad.length === 0, bad.slice(0, 3).join(', '));
+  ok('nav dropdown pledge label is "The NBD Pledge"', bad.length === 0, bad.slice(0, 3).join(', '));
 }
 {
   // 11. JSON-LD must stay parseable — the cert-bar/form sweeps edit near the

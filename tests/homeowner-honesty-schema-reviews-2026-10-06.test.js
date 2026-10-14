@@ -142,8 +142,9 @@ ok('no "Damage Claims" in any schema value (breadcrumb page titles aside)', sche
 const entity = read('site-src/partials/schema-entity.html');
 ok('schema-entity partial: knowsAbout carries the neutral replacements',
   /"Hail Damage Roof Inspection"/.test(entity) && /"Storm Damage Roof Repair"/.test(entity));
-ok('schema-entity partial still credits American Operator (Jo, 2026-10-06: real and active)',
-  /Certified by American Operator/.test(entity));
+// Jo, 2026-10-14: American Operator is a membership/badge, not a certification.
+ok('schema-entity partial still credits American Operator (Jo, 2026-10-06: real and active) — as memberOf, not a credential',
+  /"memberOf": \[[\s\S]*?"name": "American Operator"/.test(entity) && !/Certified by American Operator/.test(entity));
 
 // ── 2. No hard-coded review-count fallback ───────────────────────────
 console.log('\n2. no hard-coded review count');

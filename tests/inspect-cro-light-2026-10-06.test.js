@@ -35,7 +35,9 @@ console.log('#4 reply promise');
 ok('no "within the hour" anywhere on /inspect', !/within\s+the\s+hour/i.test(html));
 ok('the hero phone line says "usually the same day"',
   /class="phone-sub"[^>]*>[^<]*usually the same day/i.test(html));
-ok('the 24-Hour headline is kept (Jo, 2026-10-06)', /<h1>\s*Free 24-Hour\s*<span>Roof Inspection<\/span>\s*<\/h1>/.test(html));
+// Jo, 2026-10-14: the headline drops "24-Hour" (it read as a 24-hour inspection); the badge keeps the reply promise.
+ok('the headline is "Free Roof Inspection" (Jo, 2026-10-14)', /<h1>\s*Free\s*<span>Roof Inspection<\/span>\s*<\/h1>/.test(html));
+ok('the badge keeps the 24-hour reply promise', /class="hero-badge">Reply within 24 hours, usually the same day</.test(html));
 
 console.log('#5 proof pills');
 const row = (html.match(/<div class="trust-row">([\s\S]*?)\n\s*<\/div>/) || [])[1] || '';

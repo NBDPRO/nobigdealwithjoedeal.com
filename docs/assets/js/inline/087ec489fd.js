@@ -13,9 +13,9 @@ document.querySelectorAll('.faq-q').forEach(q => {
 (function(){
   const answers = {1:null, 2:null, 3:null};
   const recommendations = {
-    Standard: { title: "I'd suggest Standard.", body: "You're not the buyer this house is built for in 20 years. Spend the savings somewhere else — landscaping, kitchen, vacation. The Standard tier is a real GAF Timberline NS roof with my Lifetime Pledge. That's enough." },
+    Standard: { title: "I'd suggest Standard.", body: "You're not the buyer this house is built for in 20 years. Spend the savings somewhere else — landscaping, kitchen, vacation. The Standard tier is a real GAF Timberline NS roof with my NBD Pledge. That's enough." },
     Preferred: { title: "I'd suggest Preferred.", body: "The honest middle. Better shingle, premium pipe boots that won't fail at year 7, full GAF system install, and a warranty that transfers to the next owner if you sell. This is what I'd put on my own house if I weren't planning to die in it." },
-    Elite: { title: "I'd suggest Elite.", body: "You want to be done thinking about the roof. Top-tier GAF UHDZ shingle, LumaNail visible fasteners so you can verify the install, contractual annual inspection in the paperwork, full GAF System Plus system install, and the NBD Lifetime Pledge that follows the house through every sale. The roof you don't think about again." }
+    Elite: { title: "I'd suggest Elite.", body: "You want to be done thinking about the roof. Top-tier GAF UHDZ shingle, LumaNail visible fasteners so you can verify the install, contractual annual inspection in the paperwork, full GAF System Plus system install, and the NBD Pledge that follows the house through every sale. The roof you don't think about again." }
   };
   document.querySelectorAll('.decide-options button').forEach(btn => {
     btn.addEventListener('click', () => {

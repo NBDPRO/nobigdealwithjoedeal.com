@@ -411,15 +411,12 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
           "name": "TAMKO Pro Gold Certified Roofing Contractor",
           "recognizedBy": {"@type": "Organization", "name": "TAMKO Building Products LLC", "url": "https://www.tamko.com"},
           "identifier": "181382"
-        },
-        {
-          "@type": "EducationalOccupationalCredential",
-          "credentialCategory": "certification",
-          "name": "Locally Owned & Operated — Certified by American Operator",
-          "recognizedBy": {"@type": "Organization", "name": "American Operator", "url": "https://www.americanoperator.com"}
         }
       ],
-      "memberOf": [{"@type": "Organization", "name": "James Hardie Alliance"}],
+      "memberOf": [
+        {"@type": "Organization", "name": "James Hardie Alliance"},
+        {"@type": "Organization", "name": "American Operator", "url": "https://www.americanoperator.com", "description": "Locally Owned & Operated member badge"}
+      ],
       "areaServed": [
         {"@type": "City", "name": "Amelia", "containedInPlace": {"@type": "State", "name": "Ohio"}},
         {"@type": "City", "name": "Anderson Township", "containedInPlace": {"@type": "State", "name": "Ohio"}},
@@ -508,22 +505,6 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
         "Insurance Claim Damage Documentation",
         "Storm Damage Assessment"
       ],
-      "hasCredential": [
-        {
-          "@type": "EducationalOccupationalCredential",
-          "credentialCategory": "certification",
-          "name": "GAF Certified Residential Roofing Contractor",
-          "recognizedBy": {"@type": "Organization", "name": "GAF Materials LLC", "url": "https://www.gaf.com"},
-          "identifier": "1162011"
-        },
-        {
-          "@type": "EducationalOccupationalCredential",
-          "credentialCategory": "certification",
-          "name": "TAMKO Pro Gold Certified Roofing Contractor",
-          "recognizedBy": {"@type": "Organization", "name": "TAMKO Building Products LLC", "url": "https://www.tamko.com"},
-          "identifier": "181382"
-        }
-      ],
       "memberOf": [{"@type": "Organization", "name": "James Hardie Alliance"}]
     },
     {
@@ -565,7 +546,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <!-- nbd:partial mobile-nav-standard cta_href="/#contact" -->
 <div class="mobile-nav" id="mobileNav">
   <div class="mnav-group">Featured</div>
-  <a href="/the-pledge" style="color:#dd875f;font-weight:800;">The Lifetime Pledge</a>
+  <a href="/the-pledge" style="color:#dd875f;font-weight:800;">The NBD Pledge</a>
   <a href="/services/the-nbd-guarantee" style="color:#dd875f;font-weight:800;">The NBD Guarantee</a>
   <a href="/services/the-nbd-build" style="color:#dd875f;font-weight:800;">The NBD Build</a>
   <div class="mnav-group">Premium Components</div>  <a href="/services/lumanail" style="color:#dd875f;font-weight:800;">LumaNail&trade; Upgrade</a>  <a href="/services/gaf-timberline">GAF Timberline Lineup</a>
@@ -883,10 +864,10 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 
     <div class="unlock-prompt">
       <p><strong>Want your personalized detailed estimate?</strong></p>
-      <p>Unlock material tier pricing, Joe's professional assessment, and a free inspection offer.</p>
+      <p>See material tier pricing, a quick note drafted from your answers, and a free inspection offer.</p>
     </div>
 
-    <button class="btn-primary" data-step="5">Unlock My Detailed Estimate &#x2192;</button>
+    <button class="btn-primary" data-step="5">See My Estimate &#x2192;</button>
   </div>
   <button class="btn-back" data-step="3">&#8592; Back</button>
 </div>
@@ -933,7 +914,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
       <div class="loading-step" id="ls1">Analyzing your property...</div>
       <div class="loading-step" id="ls2">Calculating roof dimensions...</div>
       <div class="loading-step" id="ls3">Checking local material costs...</div>
-      <div class="loading-step" id="ls4">Getting Joe's assessment...</div>
+      <div class="loading-step" id="ls4">Preparing your note...</div>
     </div>
   </div>
 </div>
@@ -1000,7 +981,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
     <div class="joes-take">
       <div class="joes-take-header">
         <div class="joes-take-avatar">JD</div>
-        <div class="joes-take-name">Joe's Professional Assessment</div>
+        <div class="joes-take-name">Quick note &#8212; AI-drafted from your answers. Joe hasn&#8217;t seen your roof yet.</div>
       </div>
       <div class="joes-take-text" id="joesText">Loading...</div>
       <div id="estimateSourceNote" style="display:none;margin-top:12px;padding:10px 14px;background:rgba(255,193,7,.08);border:1px solid rgba(255,193,7,.3);border-radius:8px;font-size:.74rem;color:#ffc107;line-height:1.5;">
@@ -1020,8 +1001,8 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
             <span class="ns-card-label">Schedule My Free Inspection</span>
             <span class="ns-card-tag">Recommended</span>
           </div>
-          <div class="ns-card-desc">For exact numbers, Joe needs to see your roof in person. He'll check decking condition, existing layers, gutter state, pitch, and do a full attic inspection from inside. <strong>Free, no obligation, ~30 minutes.</strong></div>
-          <div class="ns-card-detail">Interior access recommended — I inspect attic ventilation, structural integrity, and details only visible from inside.</div>
+          <div class="ns-card-desc">For exact numbers, Joe needs to see your roof in person. He'll check decking condition, existing layers, gutter state and pitch, and the attic from inside if you're home. <strong>Free, no obligation, 45&#8211;60 minutes.</strong></div>
+          <div class="ns-card-detail">Being home is preferred so I can check attic ventilation and details only visible from inside &#8212; but it&#8217;s not required.</div>
           <a href="https://cal.com/nobigdeal/roof-inspection" target="_blank" rel="noopener noreferrer" class="ns-card-btn" data-cta="inspection">Schedule Free Inspection &#x2192;</a>
         </div>
 
@@ -1041,7 +1022,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
             <span class="ns-card-icon">&#128233;</span>
             <span class="ns-card-label">Email My Estimate for Now</span>
           </div>
-          <div class="ns-card-desc">Not ready yet? No problem. We'll send this estimate to your inbox so you have it when you're ready. When you want exact numbers, Joe will need an on-site assessment with interior access for attic, ventilation, and structural details.</div>
+          <div class="ns-card-desc">Not ready yet? No problem. We'll send this estimate to your inbox so you have it when you're ready. When you want exact numbers, Joe will need to see the roof in person (45&#8211;60 minutes; being home helps for an attic check, but isn&#8217;t required).</div>
           <input type="email" id="emailEstimateTo" placeholder="you@email.com" autocomplete="email" aria-label="Email address for your estimate" hidden>
           <button class="ns-card-btn outline" data-action="emailEstimate">Send to My Email &#x2192;</button>
         </div>
@@ -1096,7 +1077,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <!-- ═══════════════════════ MAIN SCRIPT (lazy) ═══════════════════════
      The 52KB wizard loads on first user intent (or idle <=2.5s) via the
      loader instead of eagerly — see assets/js/estimate-wizard-loader.js. -->
-<script defer src="/assets/js/estimate-wizard-loader.js?v=2"></script>
+<script defer src="/assets/js/estimate-wizard-loader.js?v=3"></script>
 
 <!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>

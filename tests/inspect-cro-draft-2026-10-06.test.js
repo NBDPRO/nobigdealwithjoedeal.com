@@ -36,14 +36,16 @@ ok('the section sits after the form, before the tagline bar',
   NEXT.length > 0 && HTML.indexOf('id="inspectSuccess"') < HTML.indexOf('class="ins-next"') && HTML.indexOf('class="ins-next"') < HTML.indexOf('class="tagline-bar"'));
 ok('three numbered steps', (NEXT.match(/<li>/g) || []).length === 3 && /<ol class="ins-steps">/.test(NEXT));
 ok('step facts match the roof-inspection page: 45 minutes to an hour, $150 report',
-  /45 minutes to an hour/.test(NEXT_TEXT) && /written photo report is \$150/.test(NEXT_TEXT));
+  // Jo, 2026-10-14: the photos are free; the $150 is only for the formal written report.
+  /45 minutes to an hour/.test(NEXT_TEXT) && /\$150 is only for a formal written photo report/.test(NEXT_TEXT));
 const svc = read('docs/services/roof-inspection.html');
 ok('...and the service page still prints both facts', /45 minutes to an hour/.test(svc) && /report[^.<]{0,80}is \$150/.test(svc));
 const faqs = [...NEXT.matchAll(/<details><summary>([^<]+)<\/summary><p>([\s\S]*?)<\/p><\/details>/g)].map((m) => [m[1], m[2]]);
 ok('four FAQ questions, native <details>', faqs.length === 4, faqs.map((f) => f[0]));
 const ans = (q) => (faqs.find((f) => f[0] === q) || [])[1] || '';
-ok('"Do I need to be home?" = Jo\'s 2026-10-06 wording, word for word',
-  ans('Do I need to be home?') === 'You don&rsquo;t have to be home, but you&rsquo;re welcome to walk it with Joe.');
+// Jo, 2026-10-14: being home is preferred (attic check) but not required.
+ok('"Do I need to be home?" = Jo\'s 2026-10-14 wording, word for word',
+  ans('Do I need to be home?') === 'Being home is preferred so Joe can check the attic, but it&rsquo;s not required. You&rsquo;re welcome to walk it with Joe.');
 const ins = ans('What about insurance?');
 ok('insurance answer uses the allowed wording', /document it with photos/.test(ins) && /meet your adjuster/.test(ins), ins);
 ok('no claim-handling / outcome promises anywhere in the section',
