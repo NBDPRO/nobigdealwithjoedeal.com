@@ -115,9 +115,13 @@ const PRICING = {
     aluminum: [9, 14],
     seamless: [12, 22]
   },
-  // Storm damage routed through insurance — homeowner pays deductible only
-  stormDeductible: [500, 2500]
+  // Storm damage: NO dollar range (2026-10-14, Jo). A deductible range was
+  // an invented number, and what an insurance claim pays is between the
+  // homeowner and their insurer. Storm selections show STORM_NOTE instead.
 };
+// The one storm-damage line, shown wherever another service shows a range.
+const STORM_NOTE = 'If you file and the claim is approved, your deductible is yours to pay — what the claim covers is up to your insurer. Book a free inspection and I\'ll document the damage.';
+const STORM_PRICE_HTML = 'Free inspection <span>&#8211; <a href="/inspect" style="color:inherit">book it here</a></span>';
 
 // Roof squares (100 sqft) by home-size tile
 const SIZE_SQUARES = { small: 14, typical: 20, large: 30, not_sure: 20 };
@@ -657,9 +661,13 @@ function calculateBallpark() {
 
   // Update ballpark reveal DOM
   var fmt = function (n) { return '$' + n.toLocaleString('en-US'); };
+  var bpLabel = document.querySelector('.ballpark-label');
+  if (bpLabel) bpLabel.textContent = funnelData.service === 'storm-damage' ? 'Your Next Step' : 'Estimated Cost Range';
   var priceEl = document.getElementById('ballparkPrice');
   if (priceEl) {
-    priceEl.innerHTML = fmt(range.min) + ' <span>&#8211; ' + fmt(range.max) + '</span>';
+    priceEl.innerHTML = funnelData.service === 'storm-damage'
+      ? STORM_PRICE_HTML
+      : fmt(range.min) + ' <span>&#8211; ' + fmt(range.max) + '</span>';
   }
 
   // Reframe context line so homeowner doesn't expect the next screen to match exactly
@@ -667,7 +675,7 @@ function calculateBallpark() {
   if (contextEl) {
     var serviceKey = funnelData.service;
     if (serviceKey === 'storm-damage') {
-      contextEl.textContent = 'Typical out-of-pocket if going through insurance — your deductible. Insurance covers the rest.';
+      contextEl.textContent = STORM_NOTE;
     } else if (serviceKey === 'roof-replacement') {
       contextEl.textContent = 'Architectural-shingle range for a ' + sizeShortLabel(size) + ' home in your area. The next step shows tier-by-tier pricing once we have your details.';
     } else {
@@ -739,7 +747,8 @@ function priceRangeForFunnel(size) {
   var sz = SIZE_SQUARES[size] || 20;
 
   if (s === 'storm-damage') {
-    return { min: PRICING.stormDeductible[0], max: PRICING.stormDeductible[1] };
+    // No range for storm damage — see STORM_NOTE.
+    return { min: 0, max: 0 };
   }
   if (s === 'roof-repair') {
     var r = PRICING.roofRepair[mat] || PRICING.roofRepair.asphalt;
@@ -1427,7 +1436,7 @@ function buildServiceEstimate() {
   var label = SERVICE_LABELS[funnelData.service] || funnelData.service;
   var joesTake;
   if (funnelData.service === 'storm-damage') {
-    joesTake = funnelData.firstName + ", with storm damage most homeowners end up paying just their deductible — insurance covers the rest when a claim is approved. I'll document everything in a free inspection and walk you through the process, no obligation.";
+    joesTake = funnelData.firstName + ", with storm damage I won't guess at a number. If you file and the claim is approved, your deductible is yours to pay — what the claim covers is up to your insurer. Book a free inspection and I'll document the damage, no obligation.";
   } else {
     joesTake = funnelData.firstName + ', the range above is what ' + label.toLowerCase() + ' typically runs for a ' + sizeShortLabel(size) + ' home in your area. I\'d rather see it in person and give you the exact number — free, no obligation.';
   }
@@ -1448,7 +1457,7 @@ function buildServiceEstimate() {
 async function fetchJoesTakeNote() {
   var label = (SERVICE_LABELS[funnelData.service] || funnelData.service || 'home repair').toLowerCase();
   var stormRule = funnelData.service === 'storm-damage'
-    ? 'This is an insurance-claim situation: you may say insurance often covers approved storm damage minus the deductible, but NEVER promise or imply that their claim will be approved. '
+    ? 'This is a storm-damage situation. Do NOT say or imply what insurance will cover or pay, that the homeowner will only pay their deductible, that the claim will be approved, or that Joe takes the claim over in any way — the homeowner files it and it stays theirs. You may say: if they file and the claim is approved, the deductible is theirs to pay and what the claim covers is up to their insurer; Joe documents the damage in a free inspection and meets the adjuster; the claim stays theirs. '
     : '';
   var prompt = 'You are Joe Deal, owner of No Big Deal Home Solutions. NBD serves the Greater Cincinnati metro area — SW Ohio, Northern Kentucky, and SE Indiana. A verified homeowner just completed the instant estimate funnel.\n\n' +
     'Name: ' + funnelData.firstName + '\n' +
@@ -1510,8 +1519,12 @@ function showResults(est) {
   var tabsRow = document.getElementById('tierTabsRow');
   if (tabsRow) tabsRow.style.display = single ? 'none' : '';
 
+  var resLabel = document.querySelector('.result-label');
+  if (resLabel) resLabel.textContent = (single && funnelData.service === 'storm-damage') ? 'Your Next Step' : 'Your Personalized Estimate';
   if (single) {
-    document.getElementById('resultPrice').innerHTML = '$' + est.range.min.toLocaleString() + ' <span>&#8211; $' + est.range.max.toLocaleString() + '</span>';
+    document.getElementById('resultPrice').innerHTML = funnelData.service === 'storm-damage'
+      ? STORM_PRICE_HTML
+      : '$' + est.range.min.toLocaleString() + ' <span>&#8211; $' + est.range.max.toLocaleString() + '</span>';
     document.getElementById('detailTier').textContent = est.serviceLabel || '—';
     renderMonthlyLine(est.range.min, est.range.max);
   } else {
@@ -1519,11 +1532,11 @@ function showResults(est) {
     switchTier('better');
   }
 
-  // Keep step-4's deductible/insurance framing for storm claims
+  // Storm damage keeps step-4's no-range note (STORM_NOTE)
   var noteEl = document.getElementById('resultNote');
   if (noteEl) {
     noteEl.textContent = funnelData.service === 'storm-damage'
-      ? 'Typical out-of-pocket if going through insurance — your deductible. Insurance covers the rest.'
+      ? STORM_NOTE
       : 'Based on your property · Cincinnati-area pricing · 2026';
   }
 
@@ -1619,11 +1632,11 @@ function trackCTA(type) {
 // roof-replacement, a single range line for every other service.
 function buildEstimateSummary(est) {
   var msg = 'Your estimate for ' + funnelData.address + ':\n\n';
-  if (est && est._singleRange && est.range) {
+  if (funnelData.service === 'storm-damage') {
+    msg += (est && est.serviceLabel || 'Storm Damage') + ': no price range — ' + STORM_NOTE + '\n';
+    msg += 'Book a free inspection: https://nobigdealwithjoedeal.com/inspect\n';
+  } else if (est && est._singleRange && est.range) {
     msg += (est.serviceLabel || 'Estimated range') + ': $' + est.range.min.toLocaleString() + ' - $' + est.range.max.toLocaleString() + '\n';
-    if (funnelData.service === 'storm-damage') {
-      msg += '(Typical out-of-pocket going through insurance — your deductible. Insurance covers the rest.)\n';
-    }
   } else if (est && est.tiers) {
     ['good','better','best'].forEach(function(t) {
       if (est.tiers[t]) {
