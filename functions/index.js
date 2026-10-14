@@ -905,6 +905,13 @@ exports.callTaggedMatch = require('./call-center').callTaggedMatch;
 // "Is the never-forget chain alive" snapshot for the Call Center (owner/admin
 // only; integrations/* is not client-readable). pipeline-health.js, 2026-10-12.
 exports.callPipelineHealth = require('./pipeline-health').callPipelineHealth;
+// In-person visit recordings (PR 2, 2026-10-13): the Firestore trigger that
+// verifies the uploaded audio, transcribes it (transcript saved first) and writes
+// ranked suggestions + notes; the 30-minute retry sweep; the attach callable.
+// documentation/projects/VISIT-CAPTURE-PR2-2026-10-13.md
+exports.onVisitCaptureWrite = require('./visit-capture').onVisitCaptureWrite;
+exports.visitCaptureSweep = require('./visit-capture').visitCaptureSweep;
+exports.attachVisitCapture = require('./visit-capture').attachVisitCapture;
 // Optional game card (2026-10-03): level, XP and this week vs last week,
 // derived on request from the caller's own records — nothing stored.
 exports.getGameCard = require('./game').getGameCard;

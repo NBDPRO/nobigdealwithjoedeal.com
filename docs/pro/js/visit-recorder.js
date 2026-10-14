@@ -910,6 +910,53 @@
     }).catch(function () {});
   }
 
+  // ── the server half (PR 2) ──────────────────────────────────────────────
+  // attachVisitCapture files the recording on the customer (timeline row,
+  // promise tasks, follow-ups) and re-checks tenant + do-not-record on the
+  // server. A seam, like the uploader: the tests swap it.
+  var FUNCTIONS_SDK = '/assets/vendor/firebase/10.12.2/firebase-functions.js';
+  var CALL_TIMEOUT_MS = 20000;
+  var _caller = defaultCaller;
+  function defaultCaller(name, data) {
+    return Promise.resolve().then(function () {
+      if (window._functions && window._httpsCallable) return null;
+      return import(FUNCTIONS_SDK).then(function (mod) { window._functions = mod.getFunctions(); window._httpsCallable = mod.httpsCallable; });
+    }).then(function () { return window._httpsCallable(window._functions, name)(data); })
+      .then(function (r) { return r && r.data; });
+  }
+  /** A callable error that means "the server said no" (do not fall back to a local write). */
+  function isRefusal(e) {
+    var c = String((e && e.code) || '');
+    return /permission-denied|failed-precondition|invalid-argument|unauthenticated/.test(c);
+  }
+  function callServer(action, id, extra) {
+    // A callable that never answers (no signal, a cold function) must not hold the sheet: the
+    // caller falls back to the local write, which the server trigger files later (idempotent).
+    return withTimeout(Promise.resolve(_caller('attachVisitCapture', Object.assign({ visitId: id, action: action }, extra || {}))), CALL_TIMEOUT_MS);
+  }
+  /** The server's view of one visit (suggestions, notes, pipeline state), or null. */
+  function getServerDoc(id) {
+    var ref = visitDocRef(id);
+    if (!ref || typeof window.getDoc !== 'function') return Promise.resolve(null);
+    return withTimeout(window.getDoc(ref), 6000).then(function (snap) {
+      return snap && typeof snap.data === 'function' && snap.exists() ? Object.assign({ id: id }, snap.data()) : null;
+    }, function () { return null; });
+  }
+  /** "Not these": the server clears the chips and remembers the customers it offered. */
+  function dismissSuggestions(id) {
+    return callServer('notThese', id).then(function () { return { ok: true }; },
+      function (e) { return { ok: false, message: (e && e.message) || 'Could not save that. Try again with a signal.' }; });
+  }
+  function retryNotes(id) {
+    return callServer('retryNotes', id).then(function (r) { return { ok: true, state: r && r.state }; },
+      function (e) { return { ok: false, message: (e && e.message) || 'Could not retry right now.' }; });
+  }
+  /** A ten-minute link to the audio (never stored, never public). */
+  function audioUrl(id) {
+    return callServer('audioUrl', id).then(function (r) { return r && r.url ? { ok: true, url: r.url } : { ok: false, message: 'No audio link.' }; },
+      function (e) { return { ok: false, message: (e && e.message) || 'Could not open the audio.' }; });
+  }
+
   // ── attach / discard (always by a person) ───────────────────────────────
   function attach(id, leadId, extra) {
     return getVisit(id).then(function (row) {
@@ -919,24 +966,41 @@
         if (!ref || typeof window.setDoc !== 'function') return { ok: false, message: 'That recording is not on this phone.' };
         return gateLead(leadId).then(function (g) {
           if (!g.ok) return g;
-          return window.setDoc(ref, { leadId: leadId ? String(leadId) : null, attachedAtMs: leadId ? now() : null }, { merge: true })
-            .then(function () { return { ok: true, row: { id: id, leadId: leadId || null } }; },
-                  function () { return { ok: false, message: 'Could not attach right now. Try again with a signal.' }; });
+          var viaDoc = function () {
+            return window.setDoc(ref, { leadId: leadId ? String(leadId) : null, attachedAtMs: leadId ? now() : null }, { merge: true })
+              .then(function () { return { ok: true, row: { id: id, leadId: leadId || null } }; },
+                    function () { return { ok: false, message: 'Could not attach right now. Try again with a signal.' }; });
+          };
+          // The server files it (timeline + tasks) and says no on do-not-record / tenant.
+          return callServer(leadId ? 'attach' : 'detach', id, leadId ? { leadId: String(leadId) } : {}).then(
+            function (r) { return { ok: true, row: { id: id, leadId: leadId || null }, server: r || null }; },
+            function (e) { return isRefusal(e) ? { ok: false, message: e.message || 'The server refused that.' } : viaDoc(); });
         });
       }
       return gateLead(leadId).then(function (g) {
         if (!g.ok) return g;
-        return update(id, function (c) {
+        // Already on the server (uploaded, doc confirmed): let the server file it.
+        // Not yet uploaded: the local write below carries leadId up and the
+        // server trigger files it when the pipeline gets there.
+        var serverKnows = row.status === 'uploaded' && row.docSynced !== false && isOnline();
+        var serverStep = !serverKnows ? Promise.resolve({ ok: true })
+          : callServer(leadId ? 'attach' : 'detach', id, leadId ? { leadId: String(leadId) } : {}).then(
+            function (r) { return { ok: true, server: r || null }; },
+            function (e) { return isRefusal(e) ? { ok: false, message: e.message || 'The server refused that.' } : { ok: true, offline: true }; });
+        return serverStep.then(function (sv) {
+          if (!sv.ok) return sv;
+          return update(id, function (c) {
           if (c.status === 'discarded') return false;
           c.leadId = leadId ? String(leadId) : null;
           c.attachedAtMs = leadId ? now() : null;
           if (extra && extra.appointmentId) c.appointmentId = String(extra.appointmentId);
           if (c.status === 'uploaded') c.docSynced = false;
           return c;
-        }).then(function (r) {
-          if (!r || r.status === 'discarded') return { ok: false, message: 'That recording was discarded.' };
-          refreshCounters(); emit('row', { row: r });
-          return { ok: true, row: r };
+          }).then(function (r) {
+            if (!r || r.status === 'discarded') return { ok: false, message: 'That recording was discarded.' };
+            refreshCounters(); emit('row', { row: r });
+            return { ok: true, row: r, server: sv.server || null };
+          });
         });
       });
     });
@@ -972,7 +1036,15 @@
       c.status = 'discarded'; c.discardedAtMs = now(); c.leadId = null;
       return c;
     }).then(function (row) {
-      if (!row) { delete _memoryRows[id]; return { ok: true }; }
+      if (!row) {
+        delete _memoryRows[id];
+        // No local row: a visit another device uploaded. Discard the SERVER doc; the
+        // server pipeline deletes the audio and anything it filed on a customer.
+        var ref = visitDocRef(id);
+        if (!ref || typeof window.setDoc !== 'function') return { ok: true };
+        return withTimeout(window.setDoc(ref, { status: 'discarded', discardedAtMs: now(), leadId: null }, { merge: true }), DOC_CONFIRM_MS)
+          .then(function () { return { ok: true, remote: true }; }, function () { return { ok: false, message: 'Could not discard that right now. Try again with a signal.' }; });
+      }
       return deleteChunks(id).then(function () {
         mirror(row, 5000);
         return purgeAudio(id);
@@ -1010,6 +1082,7 @@
     getState: publicState, subscribe: subscribe,
     list: list, listRemote: listRemote,
     attach: attach, discard: discard,
+    getServerDoc: getServerDoc, dismissSuggestions: dismissSuggestions, retryNotes: retryNotes, audioUrl: audioUrl,
     recoverInterrupted: recoverInterrupted, confirmRecovered: confirmRecovered,
     drain: drain, retryNow: function () { return drain('manual'); },
     getConfig: getConfig, refreshConfig: refreshConfig,
@@ -1017,6 +1090,7 @@
     // seams for tests (not used by the app)
     _setUploader: function (fn) { _uploader = typeof fn === 'function' ? fn : defaultUploader; },
     _setDeleter: function (fn) { _deleter = typeof fn === 'function' ? fn : defaultDeleter; },
+    _setCaller: function (fn) { _caller = typeof fn === 'function' ? fn : defaultCaller; },
     _chunksFor: chunksFor, _getVisit: getVisit,
   };
 })();

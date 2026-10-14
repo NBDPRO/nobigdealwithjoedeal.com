@@ -33,6 +33,8 @@ const W = require(path.join(ROOT, 'functions/call-watch-logic.js'));
 const L = require(path.join(ROOT, 'functions/call-center-logic.js'));
 const WATCH = require(path.join(ROOT, 'functions/call-watch.js'))._internal;
 const CC = require(path.join(ROOT, 'functions/call-center.js'))._test;
+const CCX = require(path.join(ROOT, 'functions/call-center.js'));
+const PV = require(path.join(ROOT, 'functions/ping-volume-logic.js'));
 const OWNER = CC.OWNER;
 
 const MIN = 60000, H = 3600000, D = 86400000;
@@ -206,13 +208,15 @@ function simulate(o) {
   }
 
   // Capture which people / ids each watch alert covered.
+  // callWatch calls alertFor twice per run: first for the bell (everyone open from
+  // this run), then for the push (only the people who earned it).
   const realAlertFor = W.alertFor;
-  let lastItems = [];
-  W.alertFor = function (needs, problems, now) { lastItems = needs || []; return realAlertFor.call(W, needs, problems, now); };
+  let lastItems = [], bellItems = [], alertCalls = 0;
+  W.alertFor = function (needs, problems, now) { lastItems = needs || []; if (alertCalls++ === 0) bellItems = lastItems; return realAlertFor.call(W, needs, problems, now); };
   let bellSrc = 'urgent', bellKeys = [];
   S.onBell = (v) => {
     const isLedger = /^🗒/.test(String(v.title || ''));
-    ping('bell', isLedger ? 'ledger' : (v.type === 'promise_due' ? 'promise' : bellSrc), isLedger || v.type === 'promise_due' ? [] : bellKeys, [], clock.now);
+    ping('bell', isLedger ? 'ledger' : (v.type === 'promise_due' ? 'promise' : bellSrc), isLedger || v.type === 'promise_due' ? [] : (bellSrc === 'watch' ? bellItems.map((x) => x.key) : bellKeys), [], clock.now);
   };
 
   const storedSeen = new Set();
@@ -308,8 +312,14 @@ function simulate(o) {
       while (hi < thus.length && thus[hi].t <= t) {
         const e = thus[hi++];
         const id = 'th' + (++seq);
-        S.cols.thursday_calls.push({ id, companyId: OWNER, status: 'processed', reviewed: false, from: e.p.digits, urgent: !!e.urgent, startedAt: new Date(e.t), processedAt: new Date(t) });
-        if (!o.thursdayQuiet) { ping('push', 'thursday', [keyOf(e.p)], ['thursday:' + id + '#direct'], t); ping('email', 'thursday', [keyOf(e.p)], [], t); }
+        // The REAL quiet-hours decision (ping-volume-logic holdThursday, used by thursday.js
+        // notifyAll): a non-urgent call at night is held, an urgent one breaks through.
+        const held = PV.holdThursday({ urgent: !!e.urgent }, t);
+        const own = o.thursdayQuiet ? null : (held ? 'held' : 'sent');
+        S.cols.thursday_calls.push({ id, companyId: OWNER, status: 'processed', reviewed: false, from: e.p.digits, urgent: !!e.urgent, startedAt: new Date(e.t), processedAt: new Date(t),
+          notifyState: own === 'sent' ? { push: { status: 'sent', sentAt: new Date(t) }, email: { status: 'sent', sentAt: new Date(t) } } : (own === 'held' ? { push: { status: 'held:quiet-hours' }, email: { status: 'held:quiet-hours' } } : {}) });
+        if (own === 'sent') { ping('push', 'thursday', [keyOf(e.p)], ['thursday:' + id + '#direct'], t); ping('email', 'thursday', [keyOf(e.p)], [], t); }
+        M.thursdayRows = (M.thursdayRows || []).concat([{ id, held: own === 'held', urgent: !!e.urgent, key: keyOf(e.p), at: t }]);
       }
       // :00 / :30 - the Cube ACR jobs
       if (mi === 0 || mi === 30) {
@@ -329,7 +339,10 @@ function simulate(o) {
       if (h === 6 && mi === 45) {
         const g = await CC.gatherSweepWithPromises({ db, nowMs: t });
         M.briefs = M.briefs || {}; M.briefs[etYmd(t)] = g;
-        if (g.items.length) ping('email', 'brief', g.items.map((i) => (i.leadId ? 'lead:' + i.leadId : 'num:' + i.phoneDigits)), g.items.map((i) => 'call:' + i.callId), t);
+        if (g.items.length) {
+          ping('email', 'brief', g.items.map((i) => (i.leadId ? 'lead:' + i.leadId : 'num:' + i.phoneDigits)), g.items.map((i) => 'call:' + i.callId), t);
+          if (!g.promiseCheckFailed) await CCX.stampDigest(db, g.items, t, 'brief');
+        }
       }
       if (h === 15 && mi === 15) {
         const g = await CC.gatherSweepWithPromises({ db, nowMs: t });
@@ -341,6 +354,7 @@ function simulate(o) {
         // counts a 'stored' unknown-number call, so the run tells it as "unknown number".
         S.cols.phone_calls.forEach((r) => { if (r.status === 'stored' && r.bucket === 'unknown') storedSeen.add(r.id); });
         const before = S.docs['integrations/callWatch'];
+        alertCalls = 0; bellItems = [];
         let r;
         try {
           r = await WATCH.runWatch({
@@ -355,7 +369,12 @@ function simulate(o) {
               }
               bellKeys = lastItems.map((x) => x.key);
               const res = o.pushDead ? { sent: 0, failed: 0, errors: [] } : { sent: 1 };
-              ping('push', 'watch', lastItems.map((x) => x.key), lastItems.map((x) => x.id), t, lastItems.map((x) => x.why));
+              // A merged push (08:00: call alert + promise push in ONE) also carries the promise people.
+              const pkeys = data && data.promiseKeys ? String(data.promiseKeys).split(',').filter(Boolean) : [];
+              const merged = pkeys.length > 0;
+              if (merged) { M.mergedPushes = (M.mergedPushes || 0) + 1; M.promisePushes = (M.promisePushes || []).concat([{ t, title, body, keys: pkeys, reached: res.sent > 0, merged: true }]); }
+              M.pushTexts = (M.pushTexts || []).concat([{ t, title, body }]);
+              ping('push', 'watch', lastItems.map((x) => x.key).concat(pkeys), lastItems.map((x) => x.id).concat(pkeys.map((k) => 'promise:' + k.replace(/^lead:/, ''))), t, lastItems.map((x) => x.why).concat(merged ? ['you promised something'] : []));
               if (data && data.requireInteraction === 'true') day(t).reminderPushes++;
               lastItems.forEach((x) => { if (!seenAt.has(x.key)) seenAt.set(x.key, t); });
               return res;
@@ -550,6 +569,9 @@ function printRow(s) {
   const stormAtt = await run(storm, 'attentive');
   results.stormIgnore = summarize(stormIgnore); results.stormAtt = summarize(stormAtt);
   printRow(results.stormIgnore); printRow(results.stormAtt);
+  if (process.env.SIM_TRACE) {   // SIM_TRACE=lead:L0011 prints every ping about that person
+    stormIgnore.events.filter((e) => e.keys.includes(process.env.SIM_TRACE)).forEach((e) => console.log('    trace ' + e.ch + ':' + e.src + ' ' + new Date(e.t).toISOString().slice(5, 16) + ' ' + (e.whys || []).join(' / ').slice(0, 90)));
+  }
   console.log('    stored-state tells in the storm week: ' + results.stormIgnore.storedSeen + ' of ' + results.stormIgnore.callsTotal + ' calls were seen by a run while still transcribing; ' + results.stormIgnore.storedSwallowed + ' of those carried a promise / callback date that the run could not tell as such');
   ok('storm/ignore: callWatch pushes never exceed one per run (7 per day)', results.stormIgnore.pushWatchMax <= 7, results.stormIgnore.pushWatchMax);
   ok('storm/ignore: zero push / ladder-email quiet-hours leaks from callWatch, urgent push and the ladder', stormIgnore.leaks.filter((l) => l.src !== 'thursday').length === 0, stormIgnore.leaks.slice(0, 3));
@@ -560,6 +582,11 @@ function printRow(s) {
   const quietIgnore = await run(qw, 'ignores');
   results.quiet = summarize(quietIgnore); printRow(results.quiet);
   ok('quiet week stays quiet: <= 7 pushes on any day', results.quiet.pushMaxDay <= 7, results.quiet.pushMaxDay);
+  // F6: runs with nothing but unknown-number / missed-call items are bell-only.
+  const lowBells = quietIgnore.events.filter((e) => e.ch === 'bell' && e.src === 'watch').length;
+  ok('F6 quiet week: no push is about ONLY unknown-number / missed-call items (was 13 of 35)', results.quiet.lowOnlyPushes === 0, results.quiet.lowOnlyPushes);
+  ok('F6 positive control: those items still reach the bell (nothing dropped) - the quiet week still writes watch bells', lowBells >= 20, lowBells);
+  ok('F6 control: the real needs are still pushed (the one urgent call and the promises)', quietIgnore.events.some((e) => e.ch === 'push' && e.whys.some((w) => /^urgent/.test(w))) && quietIgnore.events.some((e) => e.ch === 'push' && e.whys.some((w) => /promised/.test(w))));
 
   // ── C. hidden / unlabeled-number spam burst ─────────────────────────────
   console.log('C. one number hangs up every 20 min for 3 days');
@@ -572,6 +599,18 @@ function printRow(s) {
   const roboPushTotal = (M) => { let n = 0; M.perPersonDay.forEach((r) => { if (r.key === roboKey) n += r.push; }); return n; };
   console.log('    unlabeled: robocaller pushes/day max ' + roboPushDay(spamUnlabeled) + ', total over 3 days ' + roboPushTotal(spamUnlabeled) + ' | labelled spam+hide: max ' + roboPushDay(spamLabelled) + ', total ' + roboPushTotal(spamLabelled));
   finding('F-SPAM', 'an unlabeled hang-up number triggers a push on every watch run while it keeps calling', roboPushDay(spamUnlabeled) >= 4, roboPushDay(spamUnlabeled) + ' pushes in one day');
+  // F6: bell ONCE a day for the number, then the brief carries one summary line.
+  const roboBellByDay = {};
+  spamUnlabeled.perPersonDay.forEach((r) => { if (r.key === roboKey) roboBellByDay[r.ymd] = r.bell; });
+  console.log('    AFTER: robocaller bells per day ' + JSON.stringify(roboBellByDay) + ' | pushes over 3 days ' + roboPushTotal(spamUnlabeled));
+  ok('F6: the unlabelled hang-up number never pushes', roboPushTotal(spamUnlabeled) === 0, roboPushTotal(spamUnlabeled));
+  ok('F6: ...is belled exactly ONCE a day while it calls (3 days = 3 bells)', Object.keys(roboBellByDay).length === 3 && Object.values(roboBellByDay).every((n) => n === 1), roboBellByDay);
+  const nextBrief = (spamUnlabeled.briefs || {})[dayYmd(1)];
+  const summary = nextBrief && (nextBrief.quietLines || []).find((l) => l.indexOf(sp.people[0].digits.slice(6)) >= 0 && /called \d+ times/.test(l));
+  console.log('    brief summary line (day 1): ' + JSON.stringify(summary || null));
+  ok('F6: ...and the next morning\'s brief carries ONE summary line for the number', !!summary, nextBrief && nextBrief.quietLines);
+  ok('F6 control: a labelled-spam number has no summary line (it is hidden, nothing to say)', !((spamLabelled.briefs || {})[dayYmd(1)] || { quietLines: [] }).quietLines.some((l) => l.indexOf(sp.people[0].digits.slice(6)) >= 0));
+  ok('F6 control: the number is still OPEN on Home (never dropped): the end-of-day open count includes it', spamUnlabeled.openByDay[dayYmd(0)] >= 1, spamUnlabeled.openByDay);
   ok('a labelled spam/hide number is silent apart from the ONE designed "hidden number is calling a lot" push', roboPushTotal(spamLabelled) <= 1, roboPushTotal(spamLabelled));
 
   // ── D. same customer, six calls in a day ────────────────────────────────
@@ -583,10 +622,28 @@ function printRow(s) {
   printRow(results.repeat); printRow(results.repeatAtt);
   const custKey = keyOf(rc.people[0]);
   const urgentPushesDay0 = repIgnore.events.filter((e) => e.ch === 'push' && e.src === 'urgent' && e.keys[0] === custKey && etYmd(e.t) === dayYmd(0)).length;
-  const ladderEmailsPerson = repIgnore.events.filter((e) => e.ch === 'email' && e.src === 'ladder' && e.keys.includes(custKey)).length;
+  const ladderEmailsByDay = {};
+  repIgnore.events.filter((e) => e.ch === 'email' && e.src === 'ladder' && e.keys.includes(custKey)).forEach((e) => { ladderEmailsByDay[etYmd(e.t)] = (ladderEmailsByDay[etYmd(e.t)] || 0) + 1; });
+  const ladderEmailsPerson = Math.max(0, ...Object.values(ladderEmailsByDay));
   const pushesPersonDay0 = repIgnore.perPersonDay.get(custKey + '|' + dayYmd(0));
   console.log('    day 0: urgent immediate pushes ' + urgentPushesDay0 + ', total push+email for that person ' + (pushesPersonDay0 ? pushesPersonDay0.push + pushesPersonDay0.email : 0) + ', ladder emails over the run ' + ladderEmailsPerson);
   finding('F-REPEAT-URGENT', 'each urgent call from the same person pushes separately (no per-person collapse)', urgentPushesDay0 >= 2, urgentPushesDay0 + ' immediate pushes for one person in a day');
+  {
+    const pd = (M, ymd) => M.perPersonDay.get(custKey + '|' + ymd) || { push: 0, email: 0 };
+    const adaysPush = pd(repIgnore, dayYmd(0)).push, adaysLadder = ladderEmailsByDay[dayYmd(0)] || 0;
+    const day0 = repIgnore.events.filter((e) => e.keys.includes(custKey) && etYmd(e.t) === dayYmd(0));
+    console.log('    AFTER: day 0 for that person: pushes ' + adaysPush + ', ladder emails ' + adaysLadder + ' (design 3 pushes + 1 email)');
+    ok('F4: the repeat caller gets at most the designed 3 pushes in a day', adaysPush <= 3 && adaysPush >= 1, adaysPush);
+    ok('F4: ...ONE immediate urgent push (the second urgent call is folded into the open one)', urgentPushesDay0 === 1, urgentPushesDay0);
+    ok('F4: ...and at most one ladder email per person per day', Object.values(ladderEmailsByDay).every((n) => n <= 1), ladderEmailsByDay);
+    ok('F4 never silent for a NEW kind: the promise (a different kind) after the urgent call was pushed', day0.some((e) => e.ch === 'push' && e.whys.some((w) => /promised/.test(w))), day0.filter((e) => e.ch === 'push').map((e) => e.src + ':' + (e.whys || []).join('/').slice(0, 50)));
+    ok('F4: the folded second urgent call is carried by the next re-tell ("+1 more call"), not lost', (repIgnore.pushTexts || []).some((p) => /\+1 more call/.test(p.body)), (repIgnore.pushTexts || []).map((p) => p.body));
+    const row2 = repIgnore.S.cols.phone_calls.filter((c) => c.urgentFoldedAtMs);
+    ok('F4 control: exactly one of the two urgent calls was folded (stamped as told, the person is still open)', row2.length >= 1 && repIgnore.openByDay[dayYmd(0)] === 1, [row2.length, repIgnore.openByDay]);
+    // Attentive Jo handles Pat between the two urgent calls: the second one is a NEW need -> pushed.
+    const attDay0Urgent = repAtt.events.filter((e) => e.ch === 'push' && e.src === 'urgent' && e.keys[0] === custKey && etYmd(e.t) === dayYmd(0)).length;
+    ok('F4 control: after Jo HANDLES the person, a new urgent call pushes immediately again (not folded)', attDay0Urgent === 2, attDay0Urgent);
+  }
   finding('F-LADDER-PER-CALL', 'the ladder climbs per CALL, so one person can get more ladder emails than the designed one', ladderEmailsPerson > 1, ladderEmailsPerson + ' ladder emails for one person');
 
   // ── E. a promise missed three times ─────────────────────────────────────
@@ -662,18 +719,24 @@ function printRow(s) {
     finding('F-URGENT-NO-TASK', 'an urgent call on a customer with no follow-up task never reaches the brief / sweep email, yet stays open on Home', Object.keys(dU).length === 0 && open10 >= 1, { digestDays: Object.keys(dU).length, homeOpenDay10: open10 });
     ok('F5: the urgent filed call with no task is on the brief / sweep (day 0-1) and then rolls off with the 36 h window', Object.keys(dU).length >= 1 && Object.keys(dU).length <= 3, Object.keys(dU));
     finding('F-DIGEST-REPEAT', 'an unchanged open promise is emailed twice a day (06:45 brief + 15:15 sweep) for weeks', emailsP >= 40, emailsP + ' emails about one promise');
+    const sweepDays = Object.keys(dP).filter((ymd) => sim.events.some((e) => e.ch === 'email' && e.src === 'sweep' && e.keys.includes(keyOf(q)) && etYmd(e.t) === ymd));
+    console.log('    AFTER (F7): promise person emails ' + emailsP + ' over ' + Object.keys(dP).length + ' days; 15:15 sweeps that still sent: ' + sweepDays.length);
+    ok('F7: the unchanged promise is emailed ONCE a day (brief), not twice - about 29 emails, was 57', emailsP <= Object.keys(dP).length + 2 && emailsP >= 25, [emailsP, Object.keys(dP).length]);
+    const urgentSweepDay0 = sim.events.filter((e) => e.ch === 'email' && e.src === 'sweep' && e.keys.includes(keyOf(p)) && etYmd(e.t) === dayYmd(0)).length;
+    ok('F7 positive control: a list that CHANGED since the brief still goes at 15:15 (the urgent call that arrived after 06:45, day 0)', urgentSweepDay0 === 1, urgentSweepDay0);
   }
 
   // ── I. quiet hours: calls at night ──────────────────────────────────────
   console.log('I. quiet hours: urgent calls 21:10-23:50, then a 03:00 call');
   {
-    const p = person('cust', 'night customer'), q = person('unk', 'night prospect');
-    const sim = await simulate({ name: 'night', people: [p, q], jo: 'ignores', days: 2, seed: 6,
+    const p = person('cust', 'night customer'), q = person('unk', 'night prospect'), p2 = person('unk', 'night sales rep');
+    const sim = await simulate({ name: 'night', people: [p, q, p2], jo: 'ignores', days: 2, seed: 6,
       events: [
         { k: 'call', t: at(dayYmd(0), 21, 10), p, urgent: true, lag: 5 },
         { k: 'call', t: at(dayYmd(0), 23, 50), p: q, urgent: true, lag: 5 },
         { k: 'call', t: at(dayYmd(1), 3, 0), p: q, urgent: true, lag: 5 },
         { k: 'thu', t: at(dayYmd(0), 22, 30), p: q, urgent: true },
+        { k: 'thu', t: at(dayYmd(0), 22, 40), p: p2, urgent: false },
       ] });
     const nonThursday = sim.leaks.filter((l) => l.src !== 'thursday');
     const thursday = sim.leaks.filter((l) => l.src === 'thursday');
@@ -682,7 +745,19 @@ function printRow(s) {
     console.log('    first watch pushes: ' + firstMorning.slice(0, 3).join(', '));
     results.night = { nonThursday: nonThursday.length, thursday: thursday.length };
     ok('callWatch / urgent push / ladder never ping outside 08:00-21:00 ET', nonThursday.length === 0, nonThursday);
-    finding('F-THURSDAY-NIGHT', 'Thursday\'s direct push + email + SMS go out at any hour (22:30 here); not covered by the 21:00-08:00 rule', thursday.length > 0, thursday.length + ' direct pings at night');
+    // F8: the non-urgent call at 22:40 is HELD (no direct ping), told by the 08:00 watch run; the
+    // urgent one at 22:30 (her emergency path) is NOT held and is not told twice.
+    const heldRow = (sim.thursdayRows || []).find((r) => !r.urgent), urgRow = (sim.thursdayRows || []).find((r) => r.urgent);
+    const directFor = (key) => sim.events.filter((e) => e.src === 'thursday' && e.keys.includes(key));
+    const morningWatch = (row) => sim.events.filter((e) => e.ch === 'push' && e.src === 'watch' && e.ids.includes('thursday:' + row.id) && etYmd(e.t) === dayYmd(1) && etHour(e.t) >= 8);
+    const watchRepeats = (row) => sim.events.filter((e) => e.ch === 'push' && e.src === 'watch' && e.ids.includes('thursday:' + row.id)).length;
+    console.log('    AFTER: non-urgent Thursday call at 22:40: direct pings ' + directFor(heldRow.key).length + ', told by the morning watch run ' + morningWatch(heldRow).map((e) => etHour(e.t) + ':00 ET').join(',') + ' | urgent call at 22:30: direct pings ' + directFor(urgRow.key).length + ', repeated by the watch ' + watchRepeats(urgRow));
+    finding('F-THURSDAY-NIGHT', 'Thursday\'s non-urgent push + email + SMS go out at night (22:40 here); not covered by the 21:00-08:00 rule', directFor(heldRow.key).length > 0, directFor(heldRow.key).length + ' direct pings at night');
+    ok('F8: a non-urgent Thursday call at night is held: 0 direct pings between 21:00 and 08:00', directFor(heldRow.key).length === 0 && sim.leaks.filter((l) => l.src === 'thursday' && !urgRow).length === 0, directFor(heldRow.key));
+    ok('F8: ...and told by the first watch run of the morning (08:00 ET), not dropped', morningWatch(heldRow).length === 1 && etHour(morningWatch(heldRow)[0].t) === 8, morningWatch(heldRow).length);
+    ok('F8 emergency path intact: an URGENT Thursday call at 22:30 still pushes + emails at once', directFor(urgRow.key).filter((e) => e.ch === 'push').length === 1 && directFor(urgRow.key).filter((e) => e.ch === 'email').length === 1);
+    ok('F8: ...and the morning watch run does not repeat it (her push was delivered)', watchRepeats(urgRow) === 0, watchRepeats(urgRow));
+    ok('F8 positive control: a Thursday row whose own push did NOT go (held) is still in callWatch\'s view', sim.S.cols.thursday_calls.filter((r) => r.notifyState && r.notifyState.push && r.notifyState.push.status === 'held:quiet-hours').length === 1);
   }
 
   // ── J. what a customer-bucket/Thursday duplicate costs ──────────────────
@@ -696,6 +771,12 @@ function printRow(s) {
     console.log('    one Thursday call: ' + desc);
     results.thursdayDup = { pings: evs.filter((e) => e.ch !== 'bell').length };
     finding('F-THURSDAY-DUP', 'one Thursday call pings Jo again at the next callWatch run ("not reviewed") on top of her own push + email', evs.some((e) => e.src === 'thursday') && evs.some((e) => e.src === 'watch'), desc);
+    ok('F8: one Thursday call (daytime, her push delivered) = her push + email and NO callWatch repeat', evs.filter((e) => e.ch === 'push').length === 1 && evs.filter((e) => e.src === 'watch').length === 0, desc);
+    // positive control: when her own push FAILED the watch still tells it
+    const p2 = person('unk', 'thursday caller push failed');
+    const sim2 = await simulate({ name: 'thursday push failed', people: [p2], jo: 'ignores', days: 2, seed: 8, thursdayQuiet: true,
+      events: [{ k: 'thu', t: at(dayYmd(0), 10, 10), p: p2 }] });
+    ok('F8 positive control: with her own push NOT delivered the watch run tells it (never silent)', sim2.events.filter((e) => e.ch === 'push' && e.src === 'watch' && e.keys.includes(keyOf(p2))).length === 1);
   }
 
   // ── N. a promise captured through the sheet: what tells Jo on its due date? ─
@@ -776,16 +857,50 @@ function printRow(s) {
     ok('P: ...and says nothing is due (no push) rather than inventing a person', sim.events.filter((e) => e.ch === 'push' && e.src === 'promise' && etYmd(e.t) === due).length === 0);
   }
 
+  // ── Q. 08:00: a call alert AND a promise push become ONE push ─────────────
+  console.log('Q. 08:00: an overnight urgent call and a promise due today');
+  {
+    const p = person('cust', 'overnight urgent'), q = person('cust', 'promise due today');
+    const d0 = dayYmd(0), due = dayYmd(1);
+    const sim = await simulate({ name: 'merged 08:00 push', people: [p, q], jo: 'ignores', days: 3, seed: 15,
+      events: [{ k: 'call', t: at(d0, 21, 30), p, urgent: true, lag: 5 }],
+      hook: async ({ t, h, mi, S }) => {
+        if (etYmd(t) === d0 && h === 12 && mi === 0) S.docs['leads/' + q.leadId + '/tasks/promise-q'] = { kind: 'promise', promiseKind: 'callback', text: 'Call back about the estimate', done: false, dueDate: due, userId: OWNER, leadId: q.leadId };
+      } });
+    extraRuns.push({ tag: 'Q', M: sim });
+    const at8 = sim.events.filter((e) => e.ch === 'push' && etYmd(e.t) === due && etHour(e.t) === 8);
+    const mp = (sim.promisePushes || []).find((x) => x.merged);
+    console.log('    pushes at 08:00 on the due day: ' + at8.length + (mp ? ' | merged title "' + mp.title + '" body "' + String(mp.body).slice(0, 110) + '"' : ' | NOT MERGED'));
+    results.merged = { pushesAt8: at8.length, title: mp && mp.title };
+    ok('e: the call alert and the promise push at 08:00 are ONE push (was two)', at8.length === 1, at8.map((e) => e.src));
+    ok('e: ...that push names both: the person who needs Jo and the promise due today', !!mp && /need/.test(mp.title) && /promise due today/.test(mp.title) && mp.keys.includes(keyOf(q)) && at8[0].keys.includes(keyOf(p)), mp);
+    ok('e control: nothing was dropped - the urgent call is on the bell and the promise has its own bell + ledger person', sim.events.filter((e) => e.ch === 'bell' && etYmd(e.t) === due && etHour(e.t) === 8).length === 2 && !!(sim.ledgers || {})[due] && sim.ledgers[due].open >= 2, [(sim.ledgers || {})[due]]);
+    ok('e control: with no call alert the promise still goes alone (scenario N: one promise_due push)', Object.values(extraRuns.find((x) => x.tag === 'N').M.days).reduce((a, d) => a + d.promisePush, 0) === 1);
+  }
+
   // ── invariants across all of the above ──────────────────────────────────
   console.log('K. invariants');
   const allRuns = [stormIgnore, stormAtt, quietIgnore, spamUnlabeled, spamLabelled, repIgnore, repAtt, pmRun];
   const tooMany = [];
   allRuns.forEach((M) => M.perId.forEach((r, id) => { if (/^call:|^text:/.test(id) && r.push > W.LADDER_MAX + 2) tooMany.push({ run: M.name.slice(0, 20), id, push: r.push }); }));
   ok('no single call / text day is pushed more than ladder (3) + due + wake times', tooMany.length === 0, tooMany.slice(0, 3));
-  ok('attentive Jo: strictly fewer pushes than ignoring Jo in the storm week', results.stormAtt.pushTotal < results.stormIgnore.pushTotal, [results.stormAtt.pushTotal, results.stormIgnore.pushTotal]);
+  // Handling a person closes their card, so a NEW call from them pushes again: with the daily
+  // person cap, total pushes are arrival-dominated (within a few of each other). What handling
+  // must still do is stop the NAGGING: no ladder emails, far fewer re-tell pushes.
+  const retellPushes = (M) => M.events.filter((e) => e.ch === 'push' && e.src === 'watch' && e.whys.some((w) => /still open \(reminder/.test(w))).length;
+  ok('attentive Jo: far fewer ladder re-tell pushes and no ladder emails vs ignoring Jo (storm week)', retellPushes(stormAtt) < retellPushes(stormIgnore) && results.stormAtt.ladderEmailTotal === 0 && results.stormIgnore.ladderEmailTotal > 0, [retellPushes(stormAtt), retellPushes(stormIgnore)]);
+  ok('attentive Jo: total pushes stay within 5% of ignoring Jo (arrivals, not nagging, drive the volume)', results.stormAtt.pushTotal <= results.stormIgnore.pushTotal * 1.05, [results.stormAtt.pushTotal, results.stormIgnore.pushTotal]);
   ok('the 20:00 ledger bell is written once a day at most', Object.values(stormIgnore.days).every((d) => d.ledgerBell <= 1));
   ok('at most ONE "N promises due today" push per day, over every run including the promise scenarios', allRuns.concat(extraRuns.map((x) => x.M)).every((M) => Object.values(M.days).every((d) => d.promisePush <= 1)));
   const tot = (tag) => Object.values(extraRuns.find((x) => x.tag === tag).M.days).reduce((a, d) => a + d.promisePush, 0);
+  // never two pushes in the same watch run (call alert + promise push merged)
+  const dupRun = [];
+  allRuns.concat(extraRuns.map((x) => x.M)).forEach((M) => { const seen = new Map(); M.events.filter((e) => e.ch === 'push' && (e.src === 'watch' || e.src === 'promise')).forEach((e) => { seen.set(e.t, (seen.get(e.t) || 0) + 1); }); seen.forEach((n, t) => { if (n > 1) dupRun.push({ run: M.name.slice(0, 24), at: new Date(t).toISOString() }); }); });
+  ok('no watch run sends two pushes (call alert + promise push are merged)', dupRun.length === 0, dupRun.slice(0, 3));
+  // the person card: no person is pushed more than 3 + 1 sticky + new kinds in a day by watch / urgent
+  const overCard = [];
+  allRuns.forEach((M) => M.perPersonDay.forEach((r) => { if (r.push > 5) overCard.push({ run: M.name.slice(0, 24), key: r.key, ymd: r.ymd, push: r.push }); }));
+  ok('person card: no person is pushed more than 5 times in a day in any scenario (was 7)', overCard.length === 0, overCard.slice(0, 3));
   ok('N sends exactly one promise push in total; O exactly one; P (read failed) none', tot('N') === 1 && tot('O') === 1 && tot('P') === 0, [tot('N'), tot('O'), tot('P')]);
 
   if (SHOW_TABLE) { console.log('\nRESULTS_JSON ' + JSON.stringify(results)); }

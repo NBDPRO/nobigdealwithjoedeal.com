@@ -273,7 +273,7 @@ async function transcribeGroq({ bucket, path, mimeType }) {
 // `words: true` (Reel Studio burned captions, 2026-10-04) ALSO asks Groq for
 // word timestamps and returns them as `words: [{ word, start, end }]`.
 // Default off, so every existing caller's request and result are unchanged.
-async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, words, feature }) {
+async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, words, feature, prompt }) {
   if (!hasSecret('GROQ_API_KEY')) {
     throw new VoiceError('groq-not-configured',
       'GROQ_API_KEY secret is unset. Set via firebase functions:secrets:set GROQ_API_KEY.');
@@ -287,6 +287,10 @@ async function transcribeGroqBuffer({ buffer, mimeType, filename, timeoutMs, wor
   form.append('timestamp_granularities[]', 'segment');
   if (words) form.append('timestamp_granularities[]', 'word');
   form.append('language', 'en');
+  // Vocabulary hint (visit recorder, 2026-10-13): customer names, streets and
+  // shingle brands. Whisper reads ~224 tokens; callers keep it well under.
+  // Absent for every existing caller, so their request is unchanged.
+  if (prompt) form.append('prompt', String(prompt).slice(0, 900));
 
   let res;
   try {
@@ -1002,8 +1006,18 @@ exports.recordingRetentionCron = onSchedule(
       logger.warn('retention: hard-delete phase error', { err: e.message });
     }
 
+    // ── Phase 3: visit recordings (2026-10-13) ──
+    // users/{uid}/visit_captures audio at audio/{uid}/_inbox/*, attached or
+    // not: the lead-bound phases above never see it (a reserved lead id).
+    let visitAudio = null;
+    try {
+      visitAudio = await require('../visit-capture').retentionSweep({ db, bucket, nowMs: now.toMillis() });
+    } catch (e) {
+      logger.warn('retention: visit audio phase error', { err: e.message });
+    }
+
     logger.info('recordingRetentionCron', {
-      softDeleted, hardDeleted, audioFailed, companiesResolved: retentionByCompany.size
+      softDeleted, hardDeleted, audioFailed, companiesResolved: retentionByCompany.size, visitAudio
     });
   }
 );

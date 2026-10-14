@@ -99,6 +99,11 @@ CEILING.localScripts += 1;
 // to load its own code; none of it is on the boot path, so blockingScripts does not move. Own line.
 CEILING.localScripts += 1;
 CEILING.localBytes += 18 * 1024;
+// +3 KB, deliberate (2026-10-14, visit capture PR 2): the recorder launcher grows ~1 KB (the
+// "unfiled capture" entry + attach hand-off) and visit-unfiled-today.js (~6 KB, deferred, loaded on
+// the same idle schedule as the recorder, never on the boot path) is the Today "unfiled visit" row.
+// Measured 4820 KB on the restack onto main (main alone: 4817 of 4818); ceiling keeps the same ~1 KB of slack.
+CEILING.localBytes += 3 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
