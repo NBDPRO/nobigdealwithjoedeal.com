@@ -55,6 +55,12 @@
       "description": "Pin map and territory view"
     },
     {
+      "name": "Record a Visit",
+      "short_name": "Record",
+      "url": "/pro/dashboard.html?capture=1",
+      "description": "Start recording a customer visit (Android home-screen shortcut)"
+    },
+    {
       "name": "New Estimate",
       "short_name": "Estimate",
       "url": "/pro/dashboard.html#/est",
