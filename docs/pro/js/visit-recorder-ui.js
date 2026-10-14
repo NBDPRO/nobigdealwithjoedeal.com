@@ -265,6 +265,44 @@
     var un = R.subscribe(function (k, d) { if (k === 'row' || k === 'online' || k === 'counters') paint(); });
     return { node: n, off: un };
   }
+  /** What the server made of an attached visit: state words, the summary, a ten-minute audio link, retry. */
+  function paintServerDetail(row, box) {
+    if (!R.getServerDoc) return;
+    R.getServerDoc(row.id).then(function (doc) {
+      if (!doc) return;
+      var pb = L.pipelineBadge(doc);
+      if (pb) box.appendChild(el('div', 'nbd-vr-badge is-' + pb.tone, pb.text));
+      var n = doc.notes;
+      if (n && n.summary) box.appendChild(el('p', 'nbd-vr-line', n.summary));
+      if (n && Array.isArray(n.promises) && n.promises.length) {
+        box.appendChild(el('p', 'nbd-vr-note', 'Promises filed as tasks: ' + n.promises.map(function (p) { return (p.who === 'jo' ? 'You: ' : 'They: ') + p.text; }).join('; ')));
+      }
+      var acts = el('div', 'nbd-vr-actions');
+      if (doc.pipelineStatus === 'notes_pending' || doc.pipelineStatus === 'notes_failed') {
+        var rb = btn('Retry notes', 'nbd-vr-quiet', function () {
+          rb.disabled = true;
+          R.retryNotes(row.id).then(function (r) { rb.textContent = r.ok ? 'Retried - check back in a minute' : (r.message || 'Could not retry'); });
+        });
+        acts.appendChild(rb);
+      }
+      if (doc.audioLive === true) {
+        var pl = btn('Play audio', 'nbd-vr-quiet', function () {
+          pl.disabled = true;
+          R.audioUrl(row.id).then(function (r) {
+            pl.disabled = false;
+            if (!r.ok) { pl.textContent = r.message; return; }
+            var a = el('audio', 'nbd-vr-audio', '', { controls: 'controls', preload: 'none' });
+            a.src = r.url;
+            box.appendChild(a);
+            try { a.play(); } catch (_) {}
+          });
+        });
+        acts.appendChild(pl);
+      }
+      if (acts.childNodes.length) box.appendChild(acts);
+    });
+  }
+
   function showWho(row, notice, failed) {
     var badge = liveBadgeNode(row.id);
     var body = [badge.node];
@@ -299,6 +337,9 @@
     if (row.leadId) {
       title = 'Saved on phone';
       body.push(el('p', 'nbd-vr-line', 'Attached to ' + nameOf(row.leadId) + '.'));
+      var detail = el('div', 'nbd-vr-detail');
+      body.push(detail);
+      paintServerDetail(row, detail);
       actions.appendChild(btn('Done', 'nbd-vr-primary', function () { finish(); }));
       actions.appendChild(btn('Change customer', 'nbd-vr-quiet', function () {
         R.attach(row.id, null).then(function (r) { if (r.ok) { badge.off(); showWho(r.row, ''); } });
@@ -317,11 +358,26 @@
     openSheet(title, body);
 
     chipsBox.appendChild(el('p', 'nbd-vr-note', 'Looking for likely matches...'));
-    appointmentsNear(row.startedAtMs).then(function (appts) {
-      var chips = L.suggest({ startedAtMs: row.startedAtMs, preLeadId: row.leadId, appointments: appts, recentIds: recentIds(), leads: allLeads() });
+    Promise.all([appointmentsNear(row.startedAtMs), R.getServerDoc ? R.getServerDoc(row.id) : Promise.resolve(null)]).then(function (res) {
+      var appts = res[0], server = res[1];
+      var local = L.suggest({ startedAtMs: row.startedAtMs, preLeadId: row.leadId, appointments: appts, recentIds: recentIds(), leads: allLeads() });
+      var chips = L.mergeChips(server, local, allLeads());
       chipsBox.textContent = '';
+      var pb = server ? L.pipelineBadge(server) : null;
+      if (pb) chipsBox.appendChild(el('div', 'nbd-vr-badge is-' + pb.tone, pb.text));
       if (!chips.length) { chipsBox.appendChild(el('p', 'nbd-vr-note', 'No likely match. Search for the customer, or save it unattached.')); return; }
       chips.forEach(function (c) { chipsBox.appendChild(chip(c, c.kind === 'appointment' ? L.appointmentIdFor(appts, c.leadId) : null)); });
+      if (chips.some(function (c) { return c.kind === 'server'; })) {
+        var no = btn('Not these', 'nbd-vr-quiet', function () {
+          no.disabled = true;
+          R.dismissSuggestions(row.id).then(function (r) {
+            if (!r.ok) { no.disabled = false; status.textContent = r.message; status.className = 'nbd-vr-note is-warn'; return; }
+            chipsBox.textContent = '';
+            chipsBox.appendChild(el('p', 'nbd-vr-note', 'Okay. Search for the customer, or save it unattached.'));
+          });
+        });
+        chipsBox.appendChild(no);
+      }
     });
   }
 
@@ -423,8 +479,13 @@
       n.appendChild(el('div', 'nbd-vr-item-title',
         when.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
         when.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + ' - ' + L.formatClock(r.durationSec || 0)));
-      var b = L.badge(r, navigator.onLine !== false);
+      var b = (r.pipelineStatus && L.pipelineBadge(r)) || L.badge(r, navigator.onLine !== false);
       n.appendChild(el('div', 'nbd-vr-badge is-' + b.tone, b.text));
+      if (r.notes && r.notes.summary) n.appendChild(el('div', 'nbd-vr-note', r.notes.summary));
+      if (Array.isArray(r.suggestions) && r.suggestions.length) {
+        var s0 = r.suggestions[0];
+        n.appendChild(el('div', 'nbd-vr-note', 'Looks like ' + (s0.name || 'a customer') + (s0.evidence ? ' - ' + s0.evidence : '')));
+      }
       var acts = el('div', 'nbd-vr-actions');
       acts.appendChild(btn('Attach', 'nbd-vr-primary', function () { closeSheet(); showWho(r, ''); }));
       if (r.status === 'failed' || r.status === 'stored' || (r.status === 'uploaded' && r.docSynced === false)) {

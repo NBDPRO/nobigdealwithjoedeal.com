@@ -429,3 +429,14 @@ Findings print as `! F-... REPRODUCES` while they exist and `RESOLVED` after a
 fix; they never fail the run (invariants do: callWatch pushes <= 1 per run,
 0 quiet-hours leaks from callWatch / urgent / ladder, no call pushed more than
 3 times + due + wake).
+
+## Update 2026-10-13 (ping volume PR) - F4, F6, F7, F8 fixed
+
+Jo chose all of option 4.3 A (person-level), 4.5 A (low value is bell-only), 4.6
+(one digest per change) and 4.7 A + B (Thursday marked told when her push lands,
+her non-urgent channels held 21:00-08:00 ET). Built and measured in
+[PING-VOLUME-2026-10-13](PING-VOLUME-2026-10-13.md); the harness findings
+F-REPEAT-URGENT, F-LADDER-PER-CALL, F-SPAM, F-DIGEST-REPEAT, F-THURSDAY-NIGHT and
+F-THURSDAY-DUP now print RESOLVED. The storm week stays arrival-dominated
+(19 -> 18 pushes a day at the ceiling): this removes repeats and duplicates, not 40
+different callers. Section 2 / 2.1 above describe the harness BEFORE that PR.

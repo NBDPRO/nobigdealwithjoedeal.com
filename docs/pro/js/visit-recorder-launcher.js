@@ -26,13 +26,16 @@
   'use strict';
   if (window.NBDVisitRecorderLauncher) return;
 
-  var V = '1';
+  var V = '2';
   var FILES = [
     '/pro/css/visit-recorder.css?v=' + V,
     '/pro/js/visit-recorder-logic.js?v=' + V,
     '/pro/js/visit-recorder.js?v=' + V,
     '/pro/js/visit-recorder-ui.js?v=' + V,
   ];
+  // PR 2: the one "N unfiled visits" Today row. Its own file so the Today PRs are
+  // untouched, and best-effort: the recorder works without it.
+  var TODAY_FILE = '/pro/js/visit-unfiled-today.js?v=' + V;
   var CFG_KEY = 'nbd_vr_cfg';
   var UNFILED_KEY = 'nbd_vr_unfiled';
   var PENDING_KEY = 'nbd_vr_pending';
@@ -75,6 +78,7 @@
         if (!window.NBDVisitRecorderUI) throw new Error('recorder-missing');
         // keep the Home badge true as the recorder changes things
         window.NBDVisitRecorder.subscribe(function (k) { if (k === 'counters') paintBar(); });
+        loadOne(TODAY_FILE).catch(function () {});
       })
       .catch(function (e) { loading = null; throw e; });
     return loading;
@@ -308,7 +312,38 @@
         msg.textContent = want ? 'Saved. The reminder shows before each recording.' : 'Saved. No reminder.';
       }).catch(function () { cb.checked = !want; msg.textContent = 'Could not save. Only the owner can change this.'; });
     });
-    card.appendChild(h); card.appendChild(p); card.appendChild(label); card.appendChild(msg);
+    // Raw audio retention (PR 2): the daily cleanup deletes the audio of visit recordings
+    // after this many days. The transcript and the notes stay. Default 90, 7 to 3650.
+    var keepRow = document.createElement('label'); keepRow.className = 'nbd-vr-setting-row';
+    var keepIn = document.createElement('input'); keepIn.type = 'number'; keepIn.id = 'nbd-vr-retention';
+    keepIn.min = '7'; keepIn.max = '3650'; keepIn.step = '1'; keepIn.value = '90'; keepIn.className = 'nbd-vr-setting-num';
+    keepIn.setAttribute('inputmode', 'numeric');
+    var keepSpan = document.createElement('span'); keepSpan.textContent = 'Keep the raw audio for this many days (the transcript and notes stay)';
+    keepRow.appendChild(keepSpan); keepRow.appendChild(keepIn);
+    try {
+      var cur = JSON.parse(lsGet(CFG_KEY) || '{}').retentionDays;
+      if (cur) keepIn.value = String(cur);
+      var cid = companyId();
+      if (cid && window.db && typeof window.getDoc === 'function' && typeof window.doc === 'function') {
+        window.getDoc(window.doc(window.db, 'companies', cid)).then(function (snap) {
+          var d = snap && typeof snap.data === 'function' ? snap.data() : null;
+          var v = d && Number(d.recordingRetentionDays);
+          if (v >= 7 && v <= 3650) keepIn.value = String(v);
+        }).catch(function () {});
+      }
+    } catch (_) {}
+    keepIn.addEventListener('change', function () {
+      var id = companyId();
+      var n = Math.round(Number(keepIn.value));
+      if (!(n >= 7 && n <= 3650)) { msg.textContent = 'Pick a number from 7 to 3650.'; return; }
+      if (!id || !window.db || typeof window.setDoc !== 'function' || typeof window.doc !== 'function') { msg.textContent = 'Not ready. Try again.'; return; }
+      window.setDoc(window.doc(window.db, 'companies', id), { recordingRetentionDays: n }, { merge: true }).then(function () {
+        var c = {}; try { c = JSON.parse(lsGet(CFG_KEY) || '{}') || {}; } catch (_) {}
+        c.retentionDays = n; lsSet(CFG_KEY, JSON.stringify(c));
+        msg.textContent = 'Saved. Audio older than ' + n + ' days is deleted each night.';
+      }).catch(function () { msg.textContent = 'Could not save. Only the owner can change this.'; });
+    });
+    card.appendChild(h); card.appendChild(p); card.appendChild(label); card.appendChild(keepRow); card.appendChild(msg);
     panel.appendChild(card);
   }
 

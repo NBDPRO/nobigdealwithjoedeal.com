@@ -79,13 +79,15 @@ const base = (o) => Object.assign({ id: 'cube_s1', userId: OWNER, direction: 'in
   const db = mkDb([storedRow]);
   const pushes = [];
   const r1 = await run(db, T0, pushes);
-  ok('run 1 tells the stored call (as an unknown number)', r1.state === 'alerted' && pushes.length === 1 && /unknown number/.test(pushes[0]), pushes);
+  // Ping volume (2026-10-13, audit F6): an unknown number with nothing else is bell-only,
+  // not a push. The bell still tells it (nothing dropped); the push waits for something real.
+  ok('run 1 tells the stored call (as an unknown number) on the bell, with no push', r1.state === 'alerted' && pushes.length === 0 && db.bells.length === 1 && /unknown number/.test(db.bells[0].message), { pushes, bells: db.bells.map((b) => b.message) });
   // transcript lands between runs: Jo promised something (not urgent), 12:30 ET
   db.rows = [Object.assign({}, storedRow, { status: 'noted', notedAtMs: T0 + 30 * MIN, promises: joPromise, callType: 'lead', summary: 'wants a roof quote' })];
   const r2 = await run(db, T0 + 2 * H, pushes);
-  ok('run 2 tells the promise (it was swallowed before: its tell id was used up)', r2.state === 'alerted' && pushes.length === 2 && /promised/.test(pushes[1]), { state: r2.state, pushes });
+  ok('run 2 tells the promise (it was swallowed before: its tell id was used up)', r2.state === 'alerted' && pushes.length === 1 && /promised/.test(pushes[0]), { state: r2.state, pushes });
   const r3 = await run(db, T0 + 4 * H, pushes);
-  ok('run 3 is the first re-tell: it climbs the ladder like any promise', r3.state === 'alerted' && /still open/.test(pushes[2] || ''), { state: r3.state, pushes });
+  ok('run 3 is the first re-tell: it climbs the ladder like any promise', r3.state === 'alerted' && /still open/.test(pushes[1] || ''), { state: r3.state, pushes });
 
   console.log('2. controls');
   // a stored call whose transcript is just an ordinary unknown number: NO second "unknown number"
@@ -94,14 +96,14 @@ const base = (o) => Object.assign({ id: 'cube_s1', userId: OWNER, direction: 'in
   await run(db2, T0, p2);
   db2.rows = [Object.assign({}, storedRow, { status: 'noted', notedAtMs: T0 + 30 * MIN, promises: [], callType: 'lead', summary: 'asked about gutters' })];
   const q2 = await run(db2, T0 + 2 * H, p2);
-  ok('noted, still just an unknown number -> not told a second time', q2.state === 'quiet' && p2.length === 1, { state: q2.state, p2 });
+  ok('noted, still just an unknown number -> not told a second time (one bell, no push)', q2.state === 'quiet' && p2.length === 0 && db2.bells.length === 1, { state: q2.state, p2, bells: db2.bells.length });
   // an urgent call pushed immediately at transcribe time is not told again by callWatch
   const db3 = mkDb([storedRow]);
   const p3 = [];
   await run(db3, T0, p3);
   db3.rows = [Object.assign({}, storedRow, { status: 'noted', notedAtMs: T0 + 30 * MIN, urgent: true, urgentPushedAtMs: T0 + 30 * MIN, callType: 'lead' })];
   const q3 = await run(db3, T0 + 2 * H, p3);
-  ok('urgent + already pushed immediately -> callWatch does not tell it a second time as new (ladder re-tells it later)', p3.length === 1 || (p3.length === 2 && /still open/.test(p3[1])), p3);
+  ok('urgent + already pushed immediately -> callWatch does not tell it a second time as new (ladder re-tells it later)', p3.every((b) => /still open/.test(b)) && db3.bells.length === 1, p3);
   // the call that was never seen stored (transcript beat the run) is told exactly once, as before
   const db4 = mkDb([base({ status: 'noted', notedAtMs: T0 - 5 * MIN, promises: joPromise, callType: 'lead' })]);
   const p4 = [];

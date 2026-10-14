@@ -1781,9 +1781,11 @@ service cloud.firestore {
         function vcStr(d, k, max) {
           return d.get(k, null) == null || (d[k] is string && d[k].size() <= max);
         }
-        function vcShapeOk(d) {
-          return d.keys().hasOnly(vcKeys())
-            && d.keys().hasAll(['startedAtMs', 'status', 'source', 'consentMode'])
+        // The per-field checks, valid for a whole doc that may ALSO carry
+        // server-owned fields (PR 2: transcript, notes, suggestions, pipelineStatus,
+        // ...). Only create pins the key set; update pins what CHANGED.
+        function vcFieldsOk(d) {
+          return d.keys().hasAll(['startedAtMs', 'status', 'source', 'consentMode'])
             && visitId.matches('^[A-Za-z0-9_-]{8,64}$')
             && d.startedAtMs is number && d.startedAtMs > 0
             && d.status in ['recording', 'stored', 'uploading', 'uploaded', 'failed', 'discarded']
@@ -1811,16 +1813,32 @@ service cloud.firestore {
                 || (d.audioPath is string
                     && d.audioPath.matches('^audio/' + uid + '/_inbox/' + visitId + '\\.(webm|m4a|ogg|mp3|wav)$')));
         }
+        function vcShapeOk(d) {
+          return d.keys().hasOnly(vcKeys()) && vcFieldsOk(d);
+        }
+        // An update may change allowlisted keys only. Comparing the CHANGED keys
+        // (not the whole doc) is what lets the server's own fields sit on the doc
+        // while the phone keeps patching its upload state - and still means a
+        // client can never write or alter one of them.
+        function vcChangedOk() {
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(vcKeys());
+        }
+        // A leadId containing "/" would be spliced into get(/leads/$(leadId)) as extra path
+        // segments (leads/LA/activity/LB), and could pass as "a lead I own" while the
+        // server resolved the same string to a different document. Ids only.
         function vcLeadOk(d) {
-          return d.get('leadId', null) == null || leadReachable(d.leadId);
+          return d.get('leadId', null) == null
+            || (d.leadId is string && !d.leadId.matches('.*[/].*') && leadReachable(d.leadId));
         }
         allow read: if isOwner(uid) || isAdmin();
         allow create: if isOwner(uid) && notViewer()
           && vcShapeOk(request.resource.data)
           && vcLeadOk(request.resource.data);
         allow update: if isOwner(uid) && notViewer()
-          && vcShapeOk(request.resource.data)
+          && vcChangedOk()
+          && vcFieldsOk(request.resource.data)
           && request.resource.data.startedAtMs == resource.data.startedAtMs
+          && request.resource.data.consentMode == resource.data.consentMode
           && vcLeadOk(request.resource.data);
         allow delete: if (isOwner(uid) && notViewer()) || isAdmin();
       }
