@@ -83,10 +83,44 @@ function labelOf(ctx, c) {
 }
 const labelPolicy = (lb) => (lb && (lb.policy === 'hide' || lb.policy === 'quiet' || lb.policy === 'surface') ? lb.policy : '');
 
+/**
+ * THE one "is this person / item parked, and until when" rule (2026-10-13, Jo:
+ * "snooze is five mechanisms - define one function"). Returns the YYYY-MM-DD the
+ * row is parked until, or '' when it is not parked today. Every server surface
+ * (callNeedsYou, the ladder, the ledger, the sweep / brief, the away cover list,
+ * the Thursday tell) asks THIS; docs/pro/js/home-attention.js mirrors it byte
+ * for byte in meaning (tests/never-forget-client-2026-10-13.test.js fuzzes both).
+ *
+ *   1. call snooze     snoozeUntilYmd on the call / text day (callCenterAction
+ *                      'snooze' stamps it whether or not a task exists)
+ *   2. task snooze     the follow-up task's due date moved: callWatch mirrors it
+ *                      as taskSnoozed + taskDueYmd (opts.taskDue also honours an
+ *                      UNSNOOZED task dated ahead: a promise "by Friday" is not
+ *                      re-told before Friday - the ladder asks with taskDue)
+ *   3. Tomorrow / a promise moved to a date (kind 'promise' task: dueDate)
+ *   4. "Later" in the swipe deck is an in-session reorder only (catchup-logic):
+ *      it never parks anything server-side, so it is deliberately absent
+ *   5. "Keep hidden" is a LABEL baseline (ackAtMs, resurfacedNumbers), not a
+ *      date: a different question ("may this number come back"), kept apart
+ */
+const YMD_RE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+function parkedUntil(c, now, opts) {
+  if (!c) return '';
+  const today = etYmd(now == null ? Date.now() : now);
+  const cand = [c.snoozeUntilYmd];
+  if (c.taskSnoozed === true || (opts && opts.taskDue === true)) cand.push(c.taskDueYmd);
+  if (c.kind === 'promise') cand.push(String(c.dueDate || '').slice(0, 10));
+  let until = '';
+  cand.forEach((y) => { const s = String(y || ''); if (YMD_RE.test(s) && s > today && s > until) until = s; });
+  return until;
+}
+
 function callNeedsYou(c, now, ctx) {
   const t = now == null ? Date.now() : now;
   if (!c || c.handledAtMs || c.status === 'personal') return false;
   if (c.callType === 'spam' || c.taskDone === true) return false;
+  // Parked with a date (snooze / moved task): not open until that day arrives.
+  if (parkedUntil(c, t)) return false;
   // Mirror of home-attention.js: a promise Jo made outlives the 14-day window
   // up to 45 days (then Home's single "old promises" row takes it).
   if ((toMs(c.startedAtMs) || 0) < t - CALL_WINDOW) {
@@ -142,18 +176,21 @@ function resurfacedNumbers(rows, labels, now) {
     const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
     if (d.length !== 10) return;
     const lb = typeof labels.get === 'function' ? labels.get(d) : labels[d];
-    if (!lb || lb.policy !== 'hide') return;
+    // quiet joins the lead rule only (2026-10-13, audit C-4): a call from a
+    // quiet number that is filed on a customer comes back; quiet still never
+    // bursts (a supplier ringing three times is not news).
+    if (!lb || (lb.policy !== 'hide' && lb.policy !== 'quiet')) return;
     // A label stamp in the far future (a bad client clock, a hostile write) must
     // not park the number forever: ignore it (QA 2026-10-13).
     const base = Math.max(saneStampMs(lb.ackAtMs, t), saneStampMs(lb.updatedAtMs, t));
     if ((toMs(c.startedAtMs) || 0) <= base) return;
-    if (!by.has(d)) by.set(d, { digits: d, base, calls: [] });
+    if (!by.has(d)) by.set(d, { digits: d, base, quiet: lb.policy === 'quiet', calls: [] });
     by.get(d).calls.push(c);
   });
   by.forEach((v) => {
     const recent = v.calls.filter((c) => c.direction !== 'outbound' && (toMs(c.startedAtMs) || 0) >= t - BURST_MS);
     const onLead = v.calls.some((c) => c.leadId);
-    const reason = onLead ? 'lead' : (recent.length >= BURST_N ? 'burst' : '');
+    const reason = onLead ? 'lead' : (!v.quiet && recent.length >= BURST_N ? 'burst' : '');
     if (reason) out.push({ digits: v.digits, reason, calls: v.calls, base: v.base });
   });
   return out;
@@ -278,11 +315,20 @@ function newNeeds(calls, textDays, thursday, sinceMs, now, labels, told) {
       why: v.reason === 'lead' ? 'a hidden number matches a customer' : 'a hidden number is calling a lot', at,
     });
   });
+  // Numbers Jo parked with a date (the shared parkedUntil rule): a NON-urgent
+  // Thursday call from one waits too (an urgent one breaks through).
+  const parkedNums = new Set();
+  (calls || []).concat(textDays || []).forEach((c) => {
+    if (!c || c.handledAtMs || !parkedUntil(c, now)) return;
+    const d = String(c.phoneDigits || '').replace(/\D/g, '').slice(-10);
+    if (d.length === 10) parkedNums.add(d);
+  });
   (thursday || []).forEach((t) => {
     if (!t || t.reviewed === true || t.status !== 'processed') return;
     const arrived = toMs(t.processedAt) || toMs(t.startedAt);
     if (arrived <= sinceMs || arrived < now - CALL_WINDOW) return;
     const td = String(t.from || '').replace(/\D/g, '').slice(-10);
+    if (!t.urgent && td && parkedNums.has(td)) return;
     // Thursday took a call from a number Jo hid / quieted: a promise would
     // be on a phone call, not here, so it stays out of the alert.
     const tl = labels && td ? (typeof labels.get === 'function' ? labels.get(td) : labels[td]) : null;
@@ -421,32 +467,38 @@ function smsProblems(messages, now) {
 const LADDER_GAP_MS = 100 * 60000;   // runs are 2 h apart; never twice in one run
 const LADDER_MAX = 3;                // tells including the first
 const HIGH_WHY = /^(urgent|you promised something|follow-up due|insurance line)/;
-function ladderCandidates(callRows, textRows, now, labels) {
+function ladderCandidates(callRows, textRows, now, labels, extras) {
   const out = [];
   const ctx = reachIndex(callRows);
   if (labels) ctx.labels = labels;
   const tctx = labels ? { labels } : undefined;
-  const today = etYmd(now);
   const add = (c, prefix, useCtx) => {
     const cx = useCtx ? ctx : tctx;
     if (!callNeedsYou(c, now, cx)) return;
     const why = reasonFor(c, now, cx);
     if (!HIGH_WHY.test(why)) return;
     // Snoozed with a date: on the call (no task) or by moving its task.
-    if (c.snoozeUntilYmd && String(c.snoozeUntilYmd) > today) return;
-    if (c.taskDueYmd && String(c.taskDueYmd) > today) return;
+    if (parkedUntil(c, now, { taskDue: true })) return;
     out.push({ id: prefix + c.id, key: callerKey(c), kind: prefix === 'text:' ? 'text' : 'call', who: who(c), why, at: toMs(c.startedAtMs), seedAt: toMs(c.urgentPushedAtMs) });
   };
   (callRows || []).forEach((c) => add(c, 'call:', true));
   (textRows || []).forEach((c) => add(c, 'text:', false));
+  // Dated promises / ripe Waiting items from the task channel (one candidate per
+  // PERSON, id 'promise:<leadId>', functions/promise-channel-logic.js): same rungs.
+  (extras || []).forEach((x) => { if (x && x.id && HIGH_WHY.test(String(x.why || ''))) out.push(Object.assign({ kind: 'promise', seedAt: 0 }, x)); });
   return out;
 }
+/** What the ladder already knows of an item; a promise whose set of due tasks / dates changed is NEW. */
+function ladderPrev(L, x) {
+  const p = L[x.id] || (x.seedAt ? { n: 1, at: x.seedAt } : null);
+  return p && x.sig && p.sig !== x.sig ? null : p;
+}
 /** Items to tell AGAIN now: told before (ladder, or the immediate urgent push), still open, rungs left. */
-function ladderRetells(callRows, textRows, ladder, now, labels) {
+function ladderRetells(callRows, textRows, ladder, now, labels, extras) {
   const L = ladder || {};
   const out = [];
-  ladderCandidates(callRows, textRows, now, labels).forEach((x) => {
-    const prev = L[x.id] || (x.seedAt ? { n: 1, at: x.seedAt } : null);
+  ladderCandidates(callRows, textRows, now, labels, extras).forEach((x) => {
+    const prev = ladderPrev(L, x);
     if (!prev || !(Number(prev.n) >= 0)) return;
     if (Number(prev.n) >= LADDER_MAX) return;
     if (now - (toMs(prev.at) || 0) < LADDER_GAP_MS) return;
@@ -460,15 +512,19 @@ function ladderRetells(callRows, textRows, ladder, now, labels) {
  * rung does not count, so the next run tries it again). Only items still open
  * are kept, so a handled / snoozed item leaves the map by itself.
  */
-function nextLadder(callRows, textRows, ladder, newIds, retells, reached, now, labels) {
+function nextLadder(callRows, textRows, ladder, newIds, retells, reached, now, labels, extras, promiseFresh) {
   const L = ladder || {};
   const fresh = new Set(newIds || []);
   const re = new Map((retells || []).map((r) => [r.id, r]));
   const next = {};
-  ladderCandidates(callRows, textRows, now, labels).forEach((x) => {
-    const prev = L[x.id] || (x.seedAt ? { n: 1, at: x.seedAt } : null);
-    if (re.has(x.id)) next[x.id] = reached ? { n: re.get(x.id).rung, at: now } : prev;
-    else if (fresh.has(x.id)) next[x.id] = reached ? { n: 1, at: now } : { n: 0, at: 0 };
+  const stamp = (o, x) => (x.sig ? Object.assign(o, { sig: x.sig }) : o);
+  ladderCandidates(callRows, textRows, now, labels, extras).forEach((x) => {
+    const prev = ladderPrev(L, x);
+    // A promise push has its own reached flag (it is a separate push from the alert).
+    const isP = !!(promiseFresh && promiseFresh.ids && promiseFresh.ids.has(x.id));
+    const rch = isP ? promiseFresh.reached : reached;
+    if (re.has(x.id)) next[x.id] = reached ? stamp({ n: re.get(x.id).rung, at: now }, x) : prev;
+    else if (fresh.has(x.id) || isP) next[x.id] = rch ? stamp({ n: 1, at: now }, x) : stamp({ n: 0, at: 0 }, x);
     else if (prev) next[x.id] = prev;
   });
   return next;
@@ -505,6 +561,12 @@ function dailyLedger(callRows, textRows, now, extra) {
   resurfacedNumbers(callRows, ex.labels, now).forEach((v) => {
     v.calls.forEach((c) => { const k = callerKey(c); const at = toMs(c.startedAtMs); if (!people.has(k) || at < people.get(k)) people.set(k, at); });
   });
+  // Promise TASKS due / overdue (the task channel): a person with a due promise
+  // is open however their calls were closed - the Handled sheet closes the call
+  // and leaves the promise on a task, and the ledger must never read "nothing
+  // fell through" over it (audit F1, 2026-10-13).
+  const promisePeople = Array.isArray(ex.promisePeople) ? ex.promisePeople : [];
+  promisePeople.forEach((p) => { const k = p.key; const at = toMs(p.atMs); if (!k) return; if (!people.has(k) || (at && at < people.get(k))) people.set(k, at || now); });
   const open = people.size;
   const oldOpen = Array.from(people.values()).filter((at) => at && now - at > LEDGER_OLD_MS).length;
   const anomalies = [];
@@ -517,12 +579,13 @@ function dailyLedger(callRows, textRows, now, extra) {
   const oldPromises = oldPromiseCount((callRows || []).concat(textRows || [], ex.oldRows || []), now);
   if (oldPromises > 0) anomalies.push(oldPromises + ' old promise' + (oldPromises === 1 ? '' : 's') + ' to review (open promises past 45 days)' + (ex.oldCapped ? ' - only the newest older calls were checked' : '') + '.');
   if (ex.oldPromisesFailed) anomalies.push('Could not check for promises older than 45 days just now - this is not an all-clear.');
+  if (ex.promisesFailed) anomalies.push('Could not check your promise tasks just now - this is not an all-clear.');
   if (ex.lastPush && ex.lastPush.sent === 0) anomalies.push('The last alert reached 0 phones. Check that notifications are on for the CRM app.');
   if (ex.problems && ex.problems.length) anomalies.push('Pipeline: ' + ex.problems.slice(0, 2).join(' / '));
   const clear = open === 0 && !anomalies.length;
-  const head = todays.length + ' call' + (todays.length === 1 ? '' : 's') + ' today, ' + noted + ' noted · ' + open + (open === 1 ? ' person' : ' people') + ' still need' + (open === 1 ? 's' : '') + ' you';
+  const head = todays.length + ' call' + (todays.length === 1 ? '' : 's') + ' today, ' + noted + ' noted · ' + open + (open === 1 ? ' person' : ' people') + ' still need' + (open === 1 ? 's' : '') + ' you' + (promisePeople.length ? ' (' + promisePeople.length + ' with a promise due)' : '');
   return {
-    ymd: today, calls: todays.length, noted, waiting, open, oldOpen, oldPromises, anomalies, clear,
+    ymd: today, calls: todays.length, noted, waiting, open, oldOpen, oldPromises, promises: promisePeople.length, anomalies, clear,
     title: clear ? '🗒 Day check: nothing fell through' : '🗒 Day check: ' + open + (open === 1 ? ' person' : ' people') + ' still open' + (anomalies.length ? ' · ' + anomalies.length + ' warning' + (anomalies.length === 1 ? '' : 's') : ''),
     message: [head].concat(anomalies.map((a) => '⚠ ' + a)).concat(['Tap to open the Call Center, then mark this reviewed.']).join('\n').slice(0, 900),
     priority: anomalies.length ? 'high' : 'normal',
@@ -549,6 +612,31 @@ function ladderEmail(retells, now) {
   const html = '<p>These were pushed to your phone earlier today and are still open:</p><ul>' + lines.map((l) => '<li>' + esc(l) + '</li>').join('') +
     '</ul><p><a href="' + url + '">Open the Call Center</a></p><p style="color:#666">This is the last reminder. They stay on your Today list and in the Call Center until you handle them.</p>';
   return { subject, text, html, people: people.length };
+}
+
+/**
+ * The email for a push that reached NO phone (audit F2, 2026-10-13): the rung
+ * email used to wait behind a REACHED push, so with a dead token nothing ever
+ * mailed. Sent on the first unreached run, once per item (callWatch stamps
+ * unreachedEmailed), to Jo's own inbox through the same helper as the ladder
+ * email. items = alert items ({ id, key, who, why }); only high-value ones.
+ * Returns null when there is nothing to say.
+ */
+function highValueItems(items) {
+  return (items || []).filter((x) => x && x.id && HIGH_WHY.test(String(x.why || '')));
+}
+function unreachedEmail(items, now) {
+  const seen = new Map();
+  highValueItems(items).forEach((r) => { const k = r.key || r.id; if (!seen.has(k)) seen.set(k, r); });
+  if (!seen.size) return null;
+  const people = Array.from(seen.values());
+  const url = 'https://nobigdealwithjoedeal.com/pro/dashboard.html#/calls';
+  const lines = people.slice(0, 12).map((p) => p.who + ' - ' + String(p.why).replace(/ [-\u2014] still open.*$/, ''));
+  const subject = 'Your phone did not get the alert: ' + people.length + (people.length === 1 ? ' person' : ' people') + ' waiting on you (' + etYmd(now) + ')';
+  const text = ['The alert for these reached no phone (no push token on file, or every token failed), so this email is the second channel:', ''].concat(lines.map((l) => '- ' + l)).concat(['', 'Open the Call Center: ' + url, '', 'Check that notifications are on for the CRM app. You get this once per person; they stay on Today and in the Call Center until you handle them.']).join('\n');
+  const html = '<p>The alert for these reached no phone (no push token on file, or every token failed), so this email is the second channel:</p><ul>' + lines.map((l) => '<li>' + esc(l) + '</li>').join('') +
+    '</ul><p><a href="' + url + '">Open the Call Center</a></p><p style="color:#666">Check that notifications are on for the CRM app. You get this once per person; they stay on Today and in the Call Center until you handle them.</p>';
+  return { subject, text, html, people: people.length, ids: people.map((p) => p.id) };
 }
 
 /** The one alert (bell + push). null when there is nothing to say. */
@@ -592,7 +680,7 @@ function inWatchHours(now) {
 }
 
 module.exports = {
-  CALL_WINDOW, PROMISE_WINDOW, openJoPromise, ridingPromiseOpen, snoozeWakeYmd, saneStampMs, LABEL_FUTURE_SKEW_MS, readThursday, THURSDAY_CAP, isOldPromise, oldPromiseCount, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
+  CALL_WINDOW, PROMISE_WINDOW, parkedUntil, highValueItems, unreachedEmail, ladderPrev, HIGH_WHY, openJoPromise, ridingPromiseOpen, snoozeWakeYmd, saneStampMs, LABEL_FUTURE_SKEW_MS, readThursday, THURSDAY_CAP, isOldPromise, oldPromiseCount, STALE_RUN_MS, TRANSCRIPT_WAIT_MS, THURSDAY_STUCK_MS, PROBLEM_REPEAT_MS,
   SMS_REPEAT_MS, smsProblems, deliveryBySid, dailyLedger, ladderEmail, LADDER_GAP_MS, LADDER_MAX, ladderCandidates, ladderRetells, nextLadder,
   toMs, etYmd, callNeedsYou, labelOf, resurfacedNumbers, callerKey, reasonFor, reachIndex, isMissedCall, callCardUrl, newNeeds, pipelineProblems, problemsToTell, alertFor, inWatchHours,
 };

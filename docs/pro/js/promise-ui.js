@@ -118,20 +118,40 @@
   }
   var SAVE_FAIL = "Couldn't save that - check your connection and tap it again";
 
-  async function keep(leadId, task) {
-    var ok = await patchTask(leadId, task, PL.keptPatch(), true);
-    if (!ok) toast(SAVE_FAIL, 'error'); else toast('Kept it', 'success');
+  // ── Undo (UX walk 2026-10-13 M1): every change below is taken back from a 6 s
+  // toast by writing the task's OWN previous values (null where it had none),
+  // so counters and dates return exactly - not "moved again".
+  var UNDO_MS = 6000;
+  function snapFields(leadId, task, keys) {
+    var t = cached(leadId, task.id) || task, prev = {};
+    keys.forEach(function (k) { prev[k] = t[k] === undefined ? null : t[k]; });
+    return prev;
+  }
+  function offerUndo(message, leadId, task, prev) {
+    if (typeof w.showToast !== 'function') return;
+    w.showToast({
+      message: message, type: 'success', duration: UNDO_MS,
+      undoAction: async function () {
+        var ok = await patchTask(leadId, task, prev, false);
+        if (!ok) toast("Couldn't undo that - check your connection and try again", 'error');
+        else toast('Undone', 'info');
+      },
+    });
+  }
+  async function patchWithUndo(leadId, task, patch, withCompleted, message) {
+    var prev = snapFields(leadId, task, Object.keys(patch).concat(withCompleted ? ['completedAt'] : []));
+    var ok = await patchTask(leadId, task, patch, withCompleted);
+    if (!ok) toast(SAVE_FAIL, 'error'); else offerUndo(message, leadId, task, prev);
     return ok;
+  }
+  async function keep(leadId, task) {
+    return patchWithUndo(leadId, task, PL.keptPatch(), true, 'Kept it');
   }
   async function dead(leadId, task) {
-    var ok = await patchTask(leadId, task, PL.deadPatch(), true);
-    if (!ok) toast(SAVE_FAIL, 'error'); else toast('Marked dead', 'info');
-    return ok;
+    return patchWithUndo(leadId, task, PL.deadPatch(), true, 'Marked dead');
   }
   async function stillWaiting(leadId, task) {
-    var ok = await patchTask(leadId, task, PL.stillWaitingPatch(task, todayYmd(), SETTINGS.waitingDays), false);
-    if (!ok) toast(SAVE_FAIL, 'error'); else toast('Still waiting - clock reset to today', 'info');
-    return ok;
+    return patchWithUndo(leadId, task, PL.stillWaitingPatch(task, todayYmd(), SETTINGS.waitingDays), false, 'Still waiting - clock reset to today');
   }
   async function moveTask(leadId, task, ymd) {
     var bad = PL.moveProblem(task, ymd, todayYmd());
@@ -372,8 +392,12 @@
           if (!(pm && pm.ok)) throw new Error('move');
           mirrorMoved(m.callId, due);
         } else {
+          // The task's own values before the move, for the Undo toast.
+          var movePrev = null;
+          try { movePrev = snapFields(m.leadId, m.task, Object.keys(PL.movePatch(m.task, due, today))); } catch (_) { movePrev = null; }
           var r = await moveTask(m.leadId, m.task, due);
           if (!r.ok) { if (S === st) { st.busy = false; paint(); setErr(r.reason); } return; }
+          if (movePrev) st.undoMove = { leadId: m.leadId, task: m.task, prev: movePrev };
         }
       } else if (st.callIds.length) {
         // The call's own action: task + handled + supersede, server side.
@@ -407,7 +431,8 @@
     }
     var done = st.onDone, mode = st.mode, kind = st.kind;
     if (S === st) close();
-    toast(mode === 'move' ? 'Moved' : 'Promise saved - it will be on your list', 'success');
+    if (st.undoMove) offerUndo('Moved', st.undoMove.leadId, st.undoMove.task, st.undoMove.prev);
+    else toast(mode === 'move' ? 'Moved' : 'Promise saved - it will be on your list', 'success');
     try { if (w.NBDHomeAttention && w.NBDHomeAttention.render) w.NBDHomeAttention.render(true); } catch (_) { /* best effort */ }
     if (done) { try { done({ saved: true, kind: kind, due: due, mode: mode }); } catch (_) { /* caller's */ } }
   }
