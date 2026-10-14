@@ -504,6 +504,7 @@
     "contract-cancel-forms.test.js",
     "cancel-paper-ky-hold-2026-10-08.test.js",
     "ky-claims-wording-scan.test.js",
+    "customer-claim-honesty-2026-10-13.test.js",
     "oh-claims-wording-scan.test.js",
     "voice-intel-anthropic-key.test.js",
     "check-js-syntax.test.js",
