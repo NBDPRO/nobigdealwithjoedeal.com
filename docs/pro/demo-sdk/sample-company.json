@@ -2145,7 +2145,7 @@
    "claimNumber": "SAMPLE-4119",
    "carrierDecisionAt": {
     "__date": {
-     "days": -40
+     "days": -52
     }
    },
    "deductible": 1000,
@@ -2313,7 +2313,7 @@
    "claimNumber": "SAMPLE-4121",
    "carrierDecisionAt": {
     "__date": {
-     "days": -80
+     "days": -92
     }
    },
    "deductible": 1000
