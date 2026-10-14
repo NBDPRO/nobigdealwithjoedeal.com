@@ -120,6 +120,18 @@ lead's company is refused (403) on the draft path, and a platform admin uses the
 LEAD's tenant (register, postal address, brand); a signed estimate counts as
 tier evidence only when it names this lead and the lead's user or company.
 
+## Vacuity-audit round (2026-10-13)
+
+The auditor mutated the first cut (~90 mutations, ~70 red, ~30 survivors). All
+survivors are now covered or fixed: tier lookups are own-property only (a signed
+tier of `constructor` / `__proto__` / `toString` gives the placeholder, never a
+function string); the claim also refuses when `channel` or `emailKind` moved
+between prepare and claim; a lead-only kind with just an invoice is demoted;
+the text cleaning is tested for every stripped code point; the queue UI and
+`NBDComms.sendDraftEmail` are driven for real (409 refresh, unconfirmed, stale
+claim boundary, no mailto, what the clear writes); rules deny `sending` ->
+`sent`, edits on a claimed draft, junk timestamps, over-long subject/body.
+
 ## Not done / follow-ups
 
 - No Resend `Idempotency-Key`: a release-then-retry within 24h could reuse a

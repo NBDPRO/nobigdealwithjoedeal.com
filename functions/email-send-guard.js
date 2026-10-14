@@ -143,7 +143,9 @@ function honouredKind(kind, ctx) {
   if (!need) return '';
   const c = ctx || {};
   if (need === 'invoice') return c.invoice ? k : '';
-  return (c.lead || c.invoice) ? k : '';
+  // A lead-only kind needs the LEAD itself: an invoice alone says nothing about
+  // an estimate / portal link / appointment.
+  return c.lead ? k : '';
 }
 
 // A flag set by the app is boolean true; an import or a console edit may leave

@@ -223,7 +223,9 @@ function _hi(lead) { const f = firstNameOf(lead); return f ? 'Hi ' + f + ',' : '
 /** The warranty email's two separate warranty lines. → { labor, manufacturer } */
 function warrantyLines(tier, isNbd) {
   const t = String(tier || '').toLowerCase();
-  const years = TIER_LABOR_YEARS[t];
+  // Own-property reads only: a tier of 'constructor' / '__proto__' / 'toString'
+  // must never reach the text as a function.
+  const years = Object.prototype.hasOwnProperty.call(TIER_LABOR_YEARS, t) ? TIER_LABOR_YEARS[t] : undefined;
   let labor;
   if (isNbd && years) {
     labor = 'Workmanship (labor) warranty: ' + years + (years === 1 ? ' year' : ' years') + ' from the installation date, as written in your signed paperwork.';
@@ -272,7 +274,7 @@ function build(kind, ctx) {
   if (kind === 'warranty') {
     const tier = String((ctx && ctx.tier) || '').toLowerCase();
     const wl = warrantyLines(tier, !!brand.isNbd);
-    const pkg = TIER_LABEL[tier] ? 'Your package: ' + TIER_LABEL[tier] + '.\n\n' : '';
+    const pkg = Object.prototype.hasOwnProperty.call(TIER_LABEL, tier) ? 'Your package: ' + TIER_LABEL[tier] + '.\n\n' : '';
     return {
       subject: 'Your warranty summary — ' + co,
       body: hi + '\n\nYour project is complete. Here is a plain summary of your warranty coverage. These are two separate warranties.\n\n'

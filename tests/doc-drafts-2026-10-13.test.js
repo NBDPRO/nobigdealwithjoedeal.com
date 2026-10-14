@@ -381,10 +381,10 @@ const kindsOf = (db, leadId) => draftsIn(db, leadId).map((k) => db.store.get(k).
     ok('strict CSP: no inline handlers, no innerHTML / insertAdjacentHTML / document.write / eval in the queue UI',
       !/\bon[a-z]+\s*=\s*["']/i.test(code) && !/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function/.test(code));
     ok('send names only the draft (leadId + draftId + the rep\'s edits) via NBDComms.sendDraftEmail — no `to`, no `kind` from the browser',
-      /sendDraftEmail\(\{ leadId: data\.leadId, draftId: d\.id, subject: [^}]*\}\)/.test(code)
-      && !/NBDComms\.sendEmail\b/.test(code) && !/payload\.kind|data\.emailKind \|\| undefined|to: data\.to/.test(code));
+      /sendDraftEmail\(\s*\{\s*leadId\s*:\s*data\.leadId\s*,\s*draftId\s*:\s*d\.id\s*,\s*subject\s*:[^}]*\}\s*\)/.test(code)
+      && !/NBDComms\.sendEmail\b/.test(code) && !/payload\.kind|data\.emailKind\s*\|\|\s*undefined|\bto\s*:\s*data\.to/.test(code));
     ok('a draft is cleared as emailed only when the server confirmed it (r.success), never from a mail-app handoff',
-      /r && r\.success\)[\s\S]{0,260}finish\('emailed'\)/.test(code) && !/mailto/i.test(code));
+      /r\s*&&\s*r\.success\s*\)[\s\S]{0,400}finish\(\s*'emailed'\s*\)/.test(code) && !/mailto/i.test(code));
     ok('44px targets + font-size 16px inputs (iOS no-zoom)', /minHeight: '44px'/.test(code) && /fontSize: '16px'/.test(code));
     ok('the client never writes status "sent" / "sending" / sentAt to a draft (server-only since 2026-10-13); it writes copied / dismissed only',
       !/status:\s*'(sent|sending|draft)'/.test(code) && !/\bsentAt\b[^\n]*new Date/.test(code)

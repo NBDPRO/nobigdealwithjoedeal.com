@@ -34,6 +34,7 @@ const fs = require('fs');
 const path = require('path');
 const Module = require('module');
 const crypto = require('crypto');
+const vm = require('vm');
 
 const ROOT = path.join(__dirname, '..');
 const FUNCTIONS = path.join(ROOT, 'functions');
@@ -58,8 +59,11 @@ const DELETE = { __delete: true };
 const tick = () => new Promise((r) => setImmediate(r));
 
 /**
- * opts: docs, token, limited[], provider: async (msg, n) => response|throw,
- *       failWrite(path, data) -> true to throw on a write to that path
+ * opts: docs, token, limited[], provider: async (msg, n, world) => response|throw,
+ *       failWrite(path, data) -> true to throw on a write to that path,
+ *       onLimit(mutate) runs between prepare and claim (a concurrent writer),
+ *       docThrows(path) makes db.doc(path) throw synchronously,
+ *       txCommitThrows(writes) makes a transaction commit throw
  */
 function makeWorld(opts) {
   opts = opts || {};
@@ -80,7 +84,14 @@ function makeWorld(opts) {
     Object.keys(data).forEach((k) => { if (data[k] === DELETE) delete next[k]; else next[k] = data[k]; });
     docs[p] = next; versions[p] = ver(p) + 1;
   }
+  // A concurrent writer's write: bypasses failWrite, bumps the version.
+  function mutate(p, patch) {
+    const next = Object.assign({}, docs[p] || {});
+    Object.keys(patch).forEach((k) => { if (patch[k] === DELETE) delete next[k]; else next[k] = patch[k]; });
+    docs[p] = next; versions[p] = ver(p) + 1;
+  }
   function docRef(p) {
+    if (opts.docThrows && opts.docThrows(p)) throw new Error('simulated db.doc failure');
     return {
       id: p.split('/').pop(), path: p,
       get: async () => {
@@ -133,7 +144,7 @@ function makeWorld(opts) {
           events.push('resend-send');
           sends.push(msg);
           const n = ++sendN;
-          if (opts.provider) return opts.provider(msg, n);
+          if (opts.provider) return opts.provider(msg, n, self);
           await tick(); await tick();
           return { data: { id: 're_' + n }, error: null };
         },
@@ -143,6 +154,7 @@ function makeWorld(opts) {
   const limiter = {
     httpRateLimit: async (req, res, ns) => {
       events.push('limit:' + ns);
+      if (opts.onLimit && ns === 'sendEmail:ip') opts.onLimit(mutate);
       if (limited.has(ns)) { res.status(429).json({ error: 'Too many requests' }); return false; }
       return true;
     },
@@ -172,7 +184,8 @@ function makeWorld(opts) {
     './integrations/heartbeat': { onSchedule: (o, h) => ({ __opts: o, __handler: h }) },
     './lead-bridge-logic': { isFollowUpEvent: () => false },
   };
-  return { stubs, docs, events, sends, adds, logs };
+  const self = { stubs, docs, events, sends, adds, logs, mutate };
+  return self;
 }
 
 function load(opts) {
@@ -224,6 +237,17 @@ async function send(opts, body) {
 }
 const draftBody = (id, extra) => Object.assign({ leadId: LEAD, draftId: id || DRAFT }, extra || {});
 const st = (w, id) => (w.docs[dPath(id || DRAFT)] || {}).status;
+
+// Every code point sendEmail's text cleaning must remove (kept independent of
+// the source's regex so a narrowed regex is caught).
+const STRIP_RANGES = [[0x0, 0x8], [0xB, 0xC], [0xE, 0x1F], [0x7F, 0x9F], [0x61C, 0x61C], [0x200B, 0x200F],
+  [0x2028, 0x2029], [0x202A, 0x202E], [0x2060, 0x206F], [0xFEFF, 0xFEFF]];
+const strippedCodePoints = () => { const out = []; STRIP_RANGES.forEach(([a, b]) => { for (let c = a; c <= b; c++) out.push(c); }); return out; };
+function hasStripped(s) {
+  const set = new Set(strippedCodePoints());
+  for (const ch of String(s)) if (set.has(ch.codePointAt(0))) return true;
+  return false;
+}
 
 (async () => {
   // ═══ A. a draft send ═════════════════════════════════════════════════
@@ -362,12 +386,12 @@ const st = (w, id) => (w.docs[dPath(id || DRAFT)] || {}).status;
     ok('a STORED placeholder (no client edit) is refused too', stored.res.statusCode === 422 && stored.w.sends.length === 0);
   }
   {
-    const bidi = '‮evil‬ ​hidden\u0007 ok⁦x⁩';
+    const bidi = '\u202Eevil\u202C \u200Bhidden\u0007 ok\u2066x\u2069';
     const r = await send({ docs: baseDocs() }, draftBody(DRAFT, { subject: 'Warranty' + bidi + '\nBcc: x@y.z', body: 'Hi\u0000 Pat,\r\n\r\nSafe' + bidi }));
     const m = r.w.sends[0] || {};
     ok('control/characters: sends', r.res.statusCode === 200 && r.w.sends.length === 1);
     ok('bidi overrides, zero-width marks and control chars are stripped from subject and body',
-      !/[‪-‮⁦-⁩​-‏\u0000-\u0008]/.test(m.subject + m.html), JSON.stringify(m.subject));
+      !hasStripped(m.subject + m.html), JSON.stringify(m.subject));
     ok('a newline in the subject cannot become a header: collapsed to one line', !/\n|\r/.test(m.subject) && /Bcc: x@y\.z/.test(m.subject) === true && m.subject.indexOf('\n') === -1);
     const long = await send({ docs: baseDocs() }, draftBody(DRAFT, { subject: 'x'.repeat(301) }));
     ok('a 301-character subject is refused (422 invalid_text)', long.res.statusCode === 422 && long.res.body.code === 'invalid_text' && long.w.sends.length === 0);
@@ -375,7 +399,7 @@ const st = (w, id) => (w.docs[dPath(id || DRAFT)] || {}).status;
     ok('control: 300 characters is accepted', edge.res.statusCode === 200);
     const bigBody = await send({ docs: baseDocs() }, draftBody(DRAFT, { body: 'y'.repeat(10001) }));
     ok('a 10,001-character body is refused', bigBody.res.statusCode === 422 && bigBody.w.sends.length === 0);
-    const empty = await send({ docs: baseDocs() }, draftBody(DRAFT, { body: ' \n​ ' }));
+    const empty = await send({ docs: baseDocs() }, draftBody(DRAFT, { body: ' \n\u200B ' }));
     ok('a body that is empty after stripping is refused', empty.res.statusCode === 422 && empty.res.body.code === 'invalid_text');
     const html = await send({ docs: baseDocs() }, draftBody(DRAFT, { body: '<img src=x onerror=alert(1)> hi' }));
     ok('markup in the body is escaped (plain text only)', html.res.statusCode === 200 && /&lt;img/.test(html.w.sends[0].html) && !/<img/.test(html.w.sends[0].html));
@@ -539,7 +563,7 @@ const st = (w, id) => (w.docs[dPath(id || DRAFT)] || {}).status;
     ok('...and every one of them is on the suppression module\'s transactional list (no drift)', Object.keys(G.LEGACY_KIND_NEEDS).every((k) => S.TRANSACTIONAL_KINDS.indexOf(k) !== -1));
     const DS = require(path.join(FUNCTIONS, 'doc-draft-send.js'));
     ok('cleanText: strips bidi/zero-width/control, keeps newlines in a body, flattens a subject',
-      DS.cleanText('a‮b​c\u0007d\ne', true) === 'abcd\ne' && DS.cleanText('a‮b\nc', false) === 'ab c');
+      DS.cleanText('a\u202Eb\u200Bc\u0007d\ne', true) === 'abcd\ne' && DS.cleanText('a\u202Eb\nc', false) === 'ab c');
     ok('definiteProviderRefusal: 4xx (not 408) yes; 5xx / 408 / none / thrown-shape no',
       DS.definiteProviderRefusal({ error: { statusCode: 422 } }) && DS.definiteProviderRefusal({ error: { statusCode: 429 } })
       && !DS.definiteProviderRefusal({ error: { statusCode: 500 } }) && !DS.definiteProviderRefusal({ error: { statusCode: 408 } })
@@ -697,6 +721,395 @@ const st = (w, id) => (w.docs[dPath(id || DRAFT)] || {}).status;
     ok('an estimate with NO leadId is no evidence -> placeholder', yrs(await run({ leadId: undefined })) === null);
     ok('a same-company estimate made by another user is still evidence (manager built it) -> 10', yrs(await run({ userId: 'manager-1' })) === 10);
     ok('an estimate with neither the lead\'s user nor company is no evidence -> placeholder', yrs(await run({ userId: 'x', companyId: 'y' })) === null);
+  }
+
+  // ═══ K. survivors from the vacuity audit (server) ═════════════════════
+  console.log('\nK. vacuity-audit survivors: server');
+  {
+    // (3) the draft changes BETWEEN prepare and claim (a concurrent writer)
+    const want = { sent: [409, 'already_sent'], sending: [409, 'already_sending'], dismissed: [409, 'draft_not_sendable'], copied: [409, 'draft_not_sendable'], failed: [409, 'draft_not_sendable'] };
+    for (const status of Object.keys(want)) {
+      const r = await send({ docs: baseDocs(), onLimit: (m) => m(dPath(), { status }) }, draftBody());
+      ok('draft turns "' + status + '" between prepare and claim: ' + want[status].join(' ') + ', NO provider call',
+        r.res.statusCode === want[status][0] && r.res.body.code === want[status][1] && r.w.sends.length === 0, JSON.stringify(r.res.body));
+      ok('...and the claim did not overwrite it (still "' + status + '")', st(r.w) === status && !r.w.docs[dPath()].sendNonce);
+    }
+    const c = await send({ docs: baseDocs(), onLimit: (m) => m(dPath(), { note: 'unrelated field' }) }, draftBody());
+    ok('control: an unrelated concurrent write to the draft does not stop the send', c.res.statusCode === 200 && c.w.sends.length === 1);
+  }
+  for (const [field, val] of [['to', 'other@example.com'], ['kind', 'paid_receipt'], ['channel', 'copy'], ['emailKind', 'receipt']]) {
+    const r = await send({ docs: baseDocs(), onLimit: (m) => m(dPath(), { [field]: val }) }, draftBody());
+    ok('draft ' + field + ' changes between prepare and claim: 409 draft_changed, NO provider call',
+      r.res.statusCode === 409 && r.res.body.code === 'draft_changed' && r.w.sends.length === 0 && st(r.w) === 'draft', JSON.stringify(r.res.body));
+  }
+  {
+    // (4)(5) the claim holder LOST the claim during the provider call
+    const lostNonce = await send({ docs: baseDocs(), provider: async (m, n, w) => { w.mutate(dPath(), { sendNonce: 'someone-else' }); return { data: { id: 're_9' }, error: null }; } }, draftBody());
+    const d = lostNonce.w.docs[dPath()];
+    ok('claim lost (nonce changed): still reported as sent (the email went), bookkeeping "claim_lost"',
+      lostNonce.res.statusCode === 200 && lostNonce.res.body.success === true && lostNonce.res.body.bookkeeping === 'claim_lost', JSON.stringify(lostNonce.res.body));
+    ok('...and finalise wrote NOTHING over the other holder (no sent status / sentAt / messageId / marker)',
+      d.status === 'sending' && d.sendNonce === 'someone-else' && !d.sentAt && !d.messageId && d.sendState === 'in_flight', JSON.stringify(d));
+    const dismissed = await send({ docs: baseDocs(), provider: async (m, n, w) => { w.mutate(dPath(), { status: 'dismissed' }); return { data: { id: 're_9' }, error: null }; } }, draftBody());
+    ok('draft dismissed while the provider call was running: finalise does not resurrect it as sent',
+      dismissed.res.statusCode === 200 && dismissed.res.body.bookkeeping === 'claim_lost' && dismissed.w.docs[dPath()].status === 'dismissed' && !dismissed.w.docs[dPath()].messageId);
+    const ctl = await send({ docs: baseDocs() }, draftBody());
+    ok('control: with the claim intact, bookkeeping is "ok" and the draft is sent', ctl.res.body.bookkeeping === 'ok' && st(ctl.w) === 'sent');
+  }
+  {
+    // (6) the claim transaction cannot commit
+    const r = await send({ docs: baseDocs(), txCommitThrows: (writes) => writes.some((w) => w[0] === dPath() && w[1].status === 'sending') }, draftBody());
+    ok('the claim cannot commit: 503 claim_failed, NO provider call, draft still a draft',
+      r.res.statusCode === 503 && r.res.body.code === 'claim_failed' && r.w.sends.length === 0 && st(r.w) === 'draft', JSON.stringify(r.res.body));
+  }
+  {
+    // (1) draft vs lead company, (10) malformed leadId, (9) empty subject
+    const co = await send({ docs: baseDocs({ [dPath()]: draftDoc({ companyId: 'co-z' }) }) }, draftBody());
+    ok('draft.companyId != lead.companyId: 403 record_forbidden, nothing sent', co.res.statusCode === 403 && co.res.body.code === 'record_forbidden' && co.w.sends.length === 0);
+    for (const bad of ['bad/id', '', 123, null, 'a'.repeat(129), '../leads/x']) {
+      const r = await send({ docs: baseDocs() }, { leadId: bad, draftId: DRAFT });
+      ok('malformed leadId ' + JSON.stringify(bad) + ': 400 bad_draft_ref, nothing sent', r.res.statusCode === 400 && r.res.body.code === 'bad_draft_ref' && r.w.sends.length === 0, JSON.stringify(r.res.body));
+    }
+    const noSubject = await send({ docs: baseDocs() }, draftBody(DRAFT, { subject: '   ' }));
+    ok('an empty (whitespace) subject: 422 invalid_text, nothing sent', noSubject.res.statusCode === 422 && noSubject.res.body.code === 'invalid_text' && noSubject.w.sends.length === 0);
+    const storedEmpty = await send({ docs: baseDocs({ [dPath()]: draftDoc({ subject: '' }) }) }, draftBody());
+    ok('a stored empty subject with no client edit is refused too', storedEmpty.res.statusCode === 422 && storedEmpty.w.sends.length === 0);
+    const nonString = await send({ docs: baseDocs() }, draftBody(DRAFT, { subject: 42, body: { a: 1 } }));
+    ok('non-string subject/body from the client fall back to the stored text and still send', nonString.res.statusCode === 200 && nonString.w.sends[0].subject === 'Your warranty summary');
+  }
+  {
+    // (11)(12)(13) log rows + the message that went out
+    const profile = { brand: { displayName: 'Oaks Roofing', contact: { mailingAddress: POSTAL, email: 'office@oaks.example.test', phone: '(555) 010-0101' } } };
+    const c = await send({ docs: baseDocs({ 'companyProfile/co-a': profile }) }, draftBody(THANKS));
+    const m = c.w.sends[0];
+    ok('commercial send: message from carries the tenant brand, reply_to the business email, to the draft address',
+      c.res.statusCode === 200 && /Oaks Roofing/.test(m.from) && m.reply_to === 'office@oaks.example.test' && m.to === HOMEOWNER, JSON.stringify({ from: m.from, reply_to: m.reply_to, to: m.to }));
+    ok('commercial send: unsubscribe tag + List-Unsubscribe headers + postal address footer',
+      Array.isArray(m.tags) && m.tags.some((t) => t.name === 'nbd_unsub' && /^[A-Za-z0-9_-]{43}$/.test(t.value))
+      && m.headers && /List-Unsubscribe/.test(Object.keys(m.headers).join()) && /PO Box 77/.test(m.html));
+    const row = (c.w.adds.email_log || []).find((r) => r.status === 'sent');
+    ok('commercial send: the log row carries leadId, companyId, uid, to, subject, draftId, kind "commercial", category "commercial"',
+      !!row && row.leadId === LEAD && row.companyId === 'co-a' && row.uid === 'rep-a' && row.to === HOMEOWNER && row.subject === 'Thank you'
+      && row.draftId === THANKS && row.kind === 'commercial' && row.category === 'commercial', JSON.stringify(row));
+    const t = await send({ docs: baseDocs({ 'companyProfile/co-a': profile }) }, draftBody(DRAFT));
+    const tm = t.w.sends[0];
+    ok('transactional send: no tags, no List-Unsubscribe headers, no footer',
+      t.res.statusCode === 200 && !tm.tags && !tm.headers && !/Unsubscribe/.test(tm.html));
+    const trow = (t.w.adds.email_log || []).find((r) => r.status === 'sent');
+    ok('transactional send: log row kind "document", category "transactional", companyId + leadId set',
+      !!trow && trow.kind === 'document' && trow.category === 'transactional' && trow.companyId === 'co-a' && trow.leadId === LEAD, JSON.stringify(trow));
+    const docs = baseDocs(); delete docs['companyProfile/co-a'];
+    const np = await send({ docs }, draftBody(THANKS));
+    const nrow = (np.w.adds.email_log || []).find((r) => r.status === 'blocked_no_postal_address');
+    ok('no postal address: a blocked_no_postal_address log row with to, subject, draftId, leadId, companyId',
+      !!nrow && nrow.to === HOMEOWNER && nrow.subject === 'Thank you' && nrow.draftId === THANKS && nrow.leadId === LEAD && nrow.companyId === 'co-a', JSON.stringify(nrow));
+    const sup = await send({ docs: baseDocs(SUPPRESSED) }, draftBody(THANKS));
+    const srow = (sup.w.adds.email_log || []).find((r) => r.status === 'suppressed');
+    ok('unsubscribed: a suppressed log row carries to, draftId, leadId', !!srow && srow.to === HOMEOWNER && srow.draftId === THANKS && srow.leadId === LEAD);
+    const fail = await send({ docs: baseDocs(), provider: async () => ({ data: null, error: { statusCode: 422, message: 'no' } }) }, draftBody());
+    const frow = (fail.w.adds.email_log || []).find((r) => r.status === 'failed');
+    ok('definite provider refusal: a failed log row names the draft and kind', !!frow && frow.draftId === DRAFT && frow.kind === 'document');
+  }
+  {
+    // (14) an unexpected throw in the draft branch
+    const r = await send({ docs: baseDocs(), docThrows: (p) => p === 'leads/' + LEAD }, draftBody());
+    ok('an unexpected throw while preparing: 500 draft_send_error (never a hang, never a send)',
+      r.res.statusCode === 500 && r.res.body && r.res.body.code === 'draft_send_error' && r.w.sends.length === 0, JSON.stringify([r.res.statusCode, r.res.body]));
+    const ctl = await send({ docs: baseDocs(), docThrows: (p) => p === 'leads/OTHER' }, draftBody());
+    ok('control: a doc() failure on an unrelated path does not stop the send', ctl.res.statusCode === 200);
+  }
+  {
+    // (15)(17) honouredKind + DNC booleans / strings
+    const G = require(path.join(FUNCTIONS, 'email-send-guard.js'));
+    ok('lead-only kinds with ONLY an invoice are demoted (estimate, proposal, portal_link, document, appointment); with a lead they are honoured',
+      ['estimate', 'proposal', 'portal_link', 'document', 'appointment'].every((k) => G.honouredKind(k, { invoice: {} }) === '' && G.honouredKind(k, { lead: {} }) === k));
+    for (const [label, v, blocked] of [['boolean true', true, true], ['boolean false', false, false], ['string "true"', 'true', true], ['string "false"', 'false', false]]) {
+      for (const field of ['doNotContact', 'dnc']) {
+        const r = await send({ docs: baseDocs({ 'leads/L1': leadDoc({ [field]: v }) }) }, draftBody());
+        ok(field + ' = ' + label + (blocked ? ' blocks (403 do_not_contact)' : ' does not block (sends)'),
+          blocked ? (r.res.statusCode === 403 && r.res.body.code === 'do_not_contact' && r.w.sends.length === 0) : (r.res.statusCode === 200 && r.w.sends.length === 1), JSON.stringify(r.res.body));
+      }
+    }
+  }
+  {
+    // (7)(8) text cleaning, every stripped code point
+    const DS = require(path.join(FUNCTIONS, 'doc-draft-send.js'));
+    const all = strippedCodePoints();
+    const survivors = all.filter((cp) => DS.cleanText('a' + String.fromCodePoint(cp) + 'b', true) !== 'ab' && !(cp === 0xA || cp === 0x9 || cp === 0xD));
+    ok('cleanText removes every one of the ' + all.length + ' listed control / bidi / zero-width / separator code points (body mode)',
+      survivors.length === 0, 'survivors: ' + survivors.map((c) => c.toString(16)).join(','));
+    const subjSurvivors = all.filter((cp) => DS.cleanText('a' + String.fromCodePoint(cp) + 'b', false) !== 'ab');
+    ok('...and in subject mode', subjSurvivors.length === 0, 'survivors: ' + subjSurvivors.map((c) => c.toString(16)).join(','));
+    ok('CRLF and lone CR become LF; tab becomes a space; newlines survive in a body; a subject is one line',
+      DS.cleanText('a\r\nb\rc\td', true) === 'a\nb\nc d' && DS.cleanText('x\ny', true) === 'x\ny' && DS.cleanText('a\n\n b', false) === 'a b');
+    ok('control: ordinary text, accents, emoji and a normal space are untouched',
+      DS.cleanText('Café — 5% off 👍', true) === 'Café — 5% off 👍');
+    ok('boundaries: U+0009/000A/000D are not "stripped" as bytes (tab -> space, LF kept), U+0020 and U+00A0 kept, U+00A0 is not in the strip set',
+      DS.cleanText('a b', true) === 'a b' && DS.cleanText('a b', true) === 'a b' && DS.cleanText('a\u0080b', true) === 'ab' && DS.cleanText('a\u009Fb', true) === 'ab' && DS.cleanText('a b', true).length === 3);
+    // end to end for the ones most likely to be narrowed: separators + BOM + ALM + isolates
+    const bad = '\u2028\u2029\uFEFF\u061C\u2066\u2067\u2068\u2069\u007F\u0085\u000B\u000C\u001F';
+    const r = await send({ docs: baseDocs() }, draftBody(DRAFT, { subject: 'Hi' + bad + 'there', body: 'Dear' + bad + 'Pat' }));
+    ok('end to end: none of them reaches the provider message', r.res.statusCode === 200 && !hasStripped(r.w.sends[0].subject + r.w.sends[0].html) && r.w.sends[0].subject === 'Hithere');
+  }
+
+  // ═══ L. warranty text + estimate evidence edge cases ═══════════════════
+  console.log('\nL. vacuity-audit survivors: tier text and signed-tier evidence');
+  {
+    const DL = require(path.join(FUNCTIONS, 'doc-drafts-logic.js'));
+    const nbd = DL.brandOf({ brand: { displayName: 'NBD', contact: { phone: '1' } } }, DL.NBD_OWNER_UID);
+    for (const evil of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf', 'prototype']) {
+      ok('trustedTier("' + evil + '") is "" (no prototype key reaches the text)', DL.trustedTier(evil) === '');
+      const body = DL.build('warranty', { lead: {}, brand: nbd, tier: evil }).body;
+      ok('build(warranty, tier "' + evil + '") has no function text and uses the placeholder',
+        !/native code|function|undefined|\[object/.test(body) && /\[\[workmanship warranty term/.test(body) && !/Your package/.test(body), body.slice(0, 200));
+    }
+    ok('control: a real tier still states its years', /labor\) warranty: 10 years/.test(DL.build('warranty', { lead: {}, brand: nbd, tier: 'better' }).body) && DL.trustedTier('Better') === 'better');
+    const dec = DL.decide({ leadId: 'L1', event: 'installed', kind: 'warranty', lead: { userId: 'u', companyId: 'u', email: 'a@b.co', stage: 'install_complete', soldTier: 'best' }, profile: null, tenantKey: DL.NBD_OWNER_UID, jobId: 'j', signedTier: 'constructor', nowMs: 1 });
+    ok('decide() with a signedTier of "constructor" yields the placeholder, never a function string', dec.action === 'create' && /\[\[workmanship warranty term/.test(dec.doc.body) && !/native code/.test(dec.doc.body));
+
+    const DDF = require(path.join(FUNCTIONS, 'doc-drafts.js'));
+    const NBD = DL.NBD_OWNER_UID;
+    function mk(estO, leadO, reads) {
+      const store = new Map(Object.entries({
+        'leads/L1': Object.assign({ userId: NBD, companyId: NBD, stage: 'install_complete', firstName: 'Pat', email: 'pat@x.test', activeJobId: 'j1', jobType: 'cash', primaryEstimateId: 'est1' }, leadO || {}),
+        ['companyProfile/' + NBD]: { brand: { displayName: 'No Big Deal Home Solutions', contact: { phone: '(859) 420-7382' } } },
+        'estimates/est1': Object.assign({ userId: NBD, companyId: NBD, leadId: 'L1', signedPrice: { fields: { selectedTier: 'better', tier: 'better' }, totalCents: 1 } }, estO),
+      }));
+      const ref = (p) => ({ path: p, collection: (c) => col(p + '/' + c),
+        async get() { if (reads) reads.push(p); const d = store.get(p); return { exists: d !== undefined, data: () => (d === undefined ? undefined : JSON.parse(JSON.stringify(d))) }; },
+        async create(data) { if (store.has(p)) { const e = new Error('x'); e.code = 6; throw e; } store.set(p, JSON.parse(JSON.stringify(data))); } });
+      const col = (c) => ({ doc: (id) => ref(c + '/' + id), where: () => ({ get: async () => ({ docs: [] }), limit: () => ({ get: async () => ({ docs: [] }) }) }) });
+      return { store, collection: col, doc: ref };
+    }
+    const run = async (estO, leadO, reads) => {
+      const db = mk(estO, leadO, reads);
+      await DDF.draftDocsForEvent(db, { leadId: 'L1', event: 'installed' }, { FieldValue: { serverTimestamp: () => 'ts' }, logger: { info() {}, warn() {}, error() {} }, now: () => 1 });
+      const d = db.store.get('leads/L1/doc_drafts/ddraft_L1_warranty_j1');
+      return d ? d.body : '';
+    };
+    const yrs = (b) => { const m = /labor\) warranty: (\d+) years?/.exec(b); return m ? +m[1] : null; };
+    // (20) selectedTier vs tier when they disagree
+    ok('signed selectedTier "good" and tier "best" disagree: selectedTier wins -> 5 years', yrs(await run({ signedPrice: { fields: { selectedTier: 'good', tier: 'best' }, totalCents: 1 } })) === 5);
+    ok('...and with only tier "best" signed -> 20 years', yrs(await run({ signedPrice: { fields: { tier: 'best' }, totalCents: 1 } })) === 20);
+    ok('a signed selectedTier of "constructor" -> placeholder (not "function Object()")', (await run({ signedPrice: { fields: { selectedTier: 'constructor', tier: 'best' }, totalCents: 1 } })).indexOf('native code') === -1
+      && yrs(await run({ signedPrice: { fields: { selectedTier: 'constructor' }, totalCents: 1 } })) === null);
+    // (19) primaryEstimateId shape
+    for (const bad of ['../x', 'a/b', '', 'x'.repeat(129), 'has space', 5]) {
+      const reads = [];
+      const b = await run({}, { primaryEstimateId: bad }, reads);
+      ok('primaryEstimateId ' + JSON.stringify(bad) + ': the estimate is never read, placeholder', !reads.some((p) => /^estimates\//.test(p)) && yrs(b) === null && /\[\[workmanship warranty term/.test(b));
+    }
+    const reads = [];
+    ok('control: a well-formed id IS read and yields the signed tier', yrs(await run({}, {}, reads)) === 10 && reads.indexOf('estimates/est1') !== -1);
+  }
+
+  // ═══ M. the queue UI, driven for real ══════════════════════════════════
+  console.log('\nM. vacuity-audit survivors: queue UI behaviour');
+  {
+    function mkEl(tag) {
+      const e = { tag, style: {}, children: [], listeners: {}, disabled: false, readOnly: false, value: '', textContent: '', removed: false };
+      e.appendChild = (c) => { e.children.push(c); return c; };
+      e.insertBefore = (c) => { e.children.unshift(c); return c; };
+      e.addEventListener = (n, f) => { (e.listeners[n] = e.listeners[n] || []).push(f); };
+      e.setAttribute = () => {};
+      e.remove = () => { e.removed = true; };
+      e.querySelectorAll = (sel) => { const out = []; (function walk(n) { n.children.forEach((c) => { if (c.tag === sel && !c.removed) out.push(c); walk(c); }); })(e); return out; };
+      e.click = () => (e.listeners.click || []).forEach((f) => f());
+      return e;
+    }
+    const wait = () => new Promise((r) => setTimeout(r, 25));
+    async function ui(rows, sendImpl, role) {
+      const host = mkEl('div');
+      const w = {
+        document: { createElement: mkEl, getElementById: (id) => (id === 'overviewTab' ? host : null) },
+        console, db: {}, _userClaims: { role: role || 'company_admin' }, auth: { currentUser: { uid: 'u1' } },
+        toasts: [], reads: 0, updates: [], sends: [],
+        showToast(m, k) { w.toasts.push((k || 'info') + ': ' + m); },
+        collection: (...a) => ({ a }), doc: (...a) => ({ a }), query: (...a) => ({ a }), where: (...a) => ({ a }),
+        getDocs: async () => { w.reads++; return { forEach: (f) => rows.forEach((r) => f({ id: r.id, data: () => r.data })) }; },
+        updateDoc: async (_r, patch) => { w.updates.push(patch); },
+        setDoc: async () => {},
+        NBDComms: { sendDraftEmail: async (p) => { w.sends.push(p); if (sendImpl === 'throw') throw new Error('boom'); return sendImpl ? sendImpl(p) : { success: true, mode: 'platform' }; } },
+        nbdConfirm: async () => true,
+        sessionStorage: { _m: {}, getItem(k) { return this._m[k] || null; }, setItem(k, v) { this._m[k] = v; } },
+      };
+      w.window = w;
+      vm.runInContext(fs.readFileSync(path.join(ROOT, 'docs/pro/js/doc-drafts-ui.js'), 'utf8'), vm.createContext(w), { filename: 'doc-drafts-ui.js' });
+      await w.NBDDocDrafts.render('L1', {});
+      const btns = (label) => { const out = []; (function walk(x) { x.children.forEach((c) => { if (c.tag === 'button' && c.textContent === label && !c.removed) out.push(c); walk(c); }); })(host); return out; };
+      const all = () => ({ send: btns('Send email').length, copy: btns('Copy').length, mark: btns('Mark sent').length, dismiss: btns('Dismiss').length, refresh: btns('Refresh').length });
+      return { w, host, btns, all, area: () => host.querySelectorAll('textarea')[0], input: () => host.querySelectorAll('input')[0] };
+    }
+    const base = { status: 'draft', kind: 'warranty', label: 'Warranty summary', emailKind: 'document', channel: 'email', to: 'a@b.co', subject: 'S', body: 'Hello there.' };
+    const row = (id, over) => ({ id, data: Object.assign({}, base, over || {}) });
+    const ago = (ms) => ({ toMillis: () => Date.now() - ms });
+
+    for (const code of ['already_sent', 'already_sending', 'draft_not_sendable', 'draft_changed', 'draft_not_found']) {
+      const h = await ui([row('d1')], () => ({ success: false, mode: 'platform', error: code, message: 'x' }));
+      h.btns('Send email')[0].click();
+      await wait();
+      ok('server says ' + code + ': the panel is RE-READ (refresh), a "someone else" notice shows, nothing is written',
+        h.w.reads === 2 && h.w.toasts.some((t) => /Someone else/.test(t)) && h.w.updates.length === 0, 'reads=' + h.w.reads + ' ' + JSON.stringify(h.w.toasts));
+    }
+    {
+      const h = await ui([row('d1')], () => ({ success: false, mode: 'platform', error: 'send_unconfirmed', unconfirmed: true, message: 'x' }));
+      h.btns('Send email')[0].click();
+      await wait();
+      ok('an unconfirmed send: warns "may or may not", re-reads, writes nothing, never says "Could not send"',
+        h.w.toasts.some((t) => /may or may not/.test(t)) && h.w.reads === 2 && h.w.updates.length === 0 && !h.w.toasts.some((t) => /Could not send/.test(t)));
+      const h2 = await ui([row('d1')], 'throw');
+      h2.btns('Send email')[0].click();
+      await wait();
+      ok('an unexpected throw from sendDraftEmail: "Could not confirm", the panel is re-read, nothing written',
+        h2.w.toasts.some((t) => /Could not confirm the send/.test(t)) && h2.w.reads === 2 && h2.w.updates.length === 0);
+      const h3 = await ui([row('d1')], () => ({ success: false, mode: 'platform', error: 'provider_rejected', message: 'Failed to send email' }));
+      h3.btns('Send email')[0].click();
+      await wait();
+      ok('a provider refusal: message shown, panel re-read (the claim was released server-side)', h3.w.toasts.some((t) => /Failed to send email/.test(t)) && h3.w.reads === 2);
+      const h4 = await ui([row('d1')], () => ({ success: false, mode: 'platform', error: 'do_not_contact', message: 'DNC!' }));
+      h4.btns('Send email')[0].click();
+      await wait();
+      ok('a plain refusal (do_not_contact): message shown, NO re-read, Send usable again', h4.w.toasts.some((t) => /DNC!/.test(t)) && h4.w.reads === 1 && h4.btns('Send email')[0].disabled === false);
+    }
+    {
+      // statuses -> which controls exist
+      const inflight = await ui([row('s1', { status: 'sending', sendState: 'in_flight', sendingAt: ago(1000) })]);
+      ok('sending / in_flight: only Refresh; no Send, Mark sent, Dismiss, Copy; fields read-only',
+        JSON.stringify(inflight.all()) === JSON.stringify({ send: 0, copy: 0, mark: 0, dismiss: 0, refresh: 1 }) && inflight.area().readOnly === true && inflight.input().readOnly === true, JSON.stringify(inflight.all()));
+      inflight.btns('Refresh')[0].click(); await wait();
+      ok('...Refresh re-reads the queue', inflight.w.reads === 2);
+      const stale = await ui([row('s2', { status: 'sending', sendState: 'in_flight', sendingAt: ago(6 * 60 * 1000) })]);
+      ok('sending, claim 6 minutes old: treated as unconfirmed — Mark sent + Dismiss, no Send, no Refresh',
+        JSON.stringify(stale.all()) === JSON.stringify({ send: 0, copy: 0, mark: 1, dismiss: 1, refresh: 0 }), JSON.stringify(stale.all()));
+      const chk = await ui([row('s3', { status: 'sending', sendState: 'check_provider', sendingAt: ago(1000) })]);
+      ok('sending / check_provider (fresh): Mark sent + Dismiss', JSON.stringify(chk.all()) === JSON.stringify({ send: 0, copy: 0, mark: 1, dismiss: 1, refresh: 0 }));
+      const unrec = await ui([row('s4', { status: 'sending', sendState: 'sent_unrecorded', sendingAt: ago(1000), messageId: 're_1' })]);
+      let unrecText = '';
+      (function walk(x) { if (typeof x.textContent === 'string') unrecText += x.textContent + '|'; x.children.forEach(walk); })(unrec.host);
+      ok('sending / sent_unrecorded: Mark sent + Dismiss, no Send, and the card says it WAS sent',
+        unrec.all().mark === 1 && unrec.all().dismiss === 1 && unrec.all().send === 0 && /WAS sent/.test(unrecText), unrecText.slice(0, 200));
+      // isEmail vs status: Send exists only for a status 'draft' email card
+      const copyCh = await ui([row('c1', { channel: 'copy', to: '' })]);
+      const failed = await ui([row('f1', { status: 'failed', kind: 'failed', channel: 'none' })]);
+      const sendingEmail = await ui([row('s5', { status: 'sending', sendState: 'check_provider', channel: 'email', to: 'a@b.co' })]);
+      const okDraft = await ui([row('o1')]);
+      ok('Send exists only for a status "draft" email card (copy channel, failed marker and sending cards have none; control: the plain draft has it)',
+        copyCh.all().send === 0 && failed.all().send === 0 && sendingEmail.all().send === 0 && okDraft.all().send === 1, JSON.stringify([copyCh.all(), failed.all(), sendingEmail.all(), okDraft.all()]));
+      ok('a failed marker is read-only and has only Dismiss', failed.area().readOnly === true && JSON.stringify(failed.all()) === JSON.stringify({ send: 0, copy: 0, mark: 0, dismiss: 1, refresh: 0 }));
+    }
+    {
+      // what the stale-claim Mark sent / Dismiss actually WRITE
+      const h = await ui([row('s2', { status: 'sending', sendState: 'check_provider', sendingAt: ago(1000), subject: 'Stored S', body: 'Stored body.' })]);
+      h.area().value = 'EDITED BODY'; // read-only in the real UI; must still never be written
+      h.btns('Mark sent')[0].click();
+      await wait();
+      ok('Mark sent on an unconfirmed claim writes exactly {status:"copied", copiedAt} — never sent / sending / subject / body',
+        h.w.updates.length === 1 && JSON.stringify(Object.keys(h.w.updates[0]).sort()) === '["copiedAt","status"]' && h.w.updates[0].status === 'copied', JSON.stringify(h.w.updates));
+      const d = await ui([row('s2', { status: 'sending', sendState: 'check_provider', sendingAt: ago(1000) })]);
+      d.btns('Dismiss')[0].click();
+      await wait();
+      ok('Dismiss on an unconfirmed claim writes exactly {status:"dismissed", dismissedAt}',
+        d.w.updates.length === 1 && JSON.stringify(Object.keys(d.w.updates[0]).sort()) === '["dismissedAt","status"]' && d.w.updates[0].status === 'dismissed');
+      const n = await ui([row('o1', { subject: 'Hello', body: 'Body text.' })]);
+      n.btns('Mark sent')[0].click();
+      await wait();
+      ok('Mark sent on a normal draft writes status "copied" with the (edited) subject + body and copiedAt only',
+        n.w.updates.length === 1 && n.w.updates[0].status === 'copied' && JSON.stringify(Object.keys(n.w.updates[0]).sort()) === '["body","copiedAt","status","subject"]' && n.w.updates.every((u) => u.status !== 'sent' && u.status !== 'sending'));
+    }
+    {
+      const UI = require(path.join(ROOT, 'docs/pro/js/doc-drafts-ui.js'));
+      const t0 = 1700000000000; const FIVE = 5 * 60 * 1000;
+      const at = (ms) => ({ status: 'sending', sendState: 'in_flight', sendingAt: { toMillis: () => t0 } });
+      ok('sendingState boundary: exactly 5 minutes is still in_flight, 5 minutes + 1 ms is check_provider, 1 ms is in_flight',
+        UI.sendingState(at(), t0 + FIVE) === 'in_flight' && UI.sendingState(at(), t0 + FIVE + 1) === 'check_provider' && UI.sendingState(at(), t0 + 1) === 'in_flight');
+      ok('sendingState reads Date, ISO string, {seconds} and {_seconds} claim times',
+        UI.sendingState({ status: 'sending', sendingAt: new Date(t0) }, t0 + 1000) === 'in_flight'
+        && UI.sendingState({ status: 'sending', sendingAt: new Date(t0).toISOString() }, t0 + 1000) === 'in_flight'
+        && UI.sendingState({ status: 'sending', sendingAt: { seconds: t0 / 1000 } }, t0 + 1000) === 'in_flight'
+        && UI.sendingState({ status: 'sending', sendingAt: { _seconds: t0 / 1000 } }, t0 + FIVE + 5000) === 'check_provider'
+        && UI.sendingState({ status: 'sending', sendingAt: 'garbage' }, t0) === 'check_provider');
+    }
+    {
+      // source shape, whitespace/EOL tolerant (the behavioural cases above carry the weight)
+      const code = fs.readFileSync(path.join(ROOT, 'docs/pro/js/doc-drafts-ui.js'), 'utf8').replace(/\r/g, '');
+      ok('the UI never writes status sent / sending (tolerant of spacing and quotes)', !/status\s*:\s*['"](sent|sending)['"]/.test(code));
+    }
+  }
+
+  // ═══ N. NBDComms.sendDraftEmail, for real ══════════════════════════════
+  console.log('\nN. NBDComms.sendDraftEmail');
+  {
+    const SRC = fs.readFileSync(path.join(ROOT, 'docs/pro/js/nbd-comms.js'), 'utf8');
+    function loadComms(respond) {
+      const toasts = [], opened = [], posts = [];
+      const window = {
+        _user: { getIdToken: async () => 'id' },
+        showToast: (msg, type) => toasts.push({ msg, type }),
+        dispatchEvent() {},
+        location: { get href() { return 'https://x/pro/customer.html'; }, set href(v) { opened.push(v); } },
+      };
+      const document = {
+        createElement: () => { const a = { style: {}, remove() {} }; a.click = () => opened.push(a.href); return a; },
+        body: { appendChild() {} }, addEventListener() {},
+      };
+      const sandbox = {
+        window, document, console, location: { hostname: 'nobigdealwithjoedeal.com' },
+        fetch: async (url, init) => { posts.push({ url, body: JSON.parse(init.body) }); return respond(); },
+        AbortController, setTimeout, clearTimeout, CustomEvent: function () {},
+      };
+      vm.createContext(sandbox);
+      vm.runInContext(SRC, sandbox, { filename: 'nbd-comms.js' });
+      return { C: window.NBDComms, toasts, opened, posts };
+    }
+    const jsonRes = (status, body) => () => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+    let h = loadComms(jsonRes(200, { success: true, id: 're_1', draftStatus: 'sent', bookkeeping: 'ok' }));
+    let r = await h.C.sendDraftEmail({ leadId: 'L1', draftId: 'd1', subject: 'S', body: 'B', to: 'attacker@evil.test', kind: 'document', html: '<b>x</b>', invoiceId: 'i', replyTo: 'x@y.z' });
+    ok('posts to /sendEmail with ONLY leadId, draftId, subject, body (to / kind / html / invoiceId / replyTo are dropped)',
+      h.posts.length === 1 && /\/sendEmail$/.test(h.posts[0].url) && JSON.stringify(Object.keys(h.posts[0].body).sort()) === '["body","draftId","leadId","subject"]', JSON.stringify(h.posts[0]));
+    ok('success: { success, mode platform, id, draftStatus, bookkeeping }, no mailto', r.success === true && r.mode === 'platform' && r.id === 're_1' && r.draftStatus === 'sent' && r.bookkeeping === 'ok' && h.opened.length === 0);
+    h = loadComms(jsonRes(200, { success: true, id: 're_1' }));
+    await h.C.sendDraftEmail({ leadId: 'L1', draftId: 'd1' });
+    ok('subject / body are omitted from the request when not strings', JSON.stringify(Object.keys(h.posts[0].body).sort()) === '["draftId","leadId"]');
+    h = loadComms(jsonRes(200, {}));
+    r = await h.C.sendDraftEmail({ leadId: 'L1' });
+    ok('a missing draftId makes no request at all', r.success === false && r.error === 'bad-request' && h.posts.length === 0);
+    h = loadComms(jsonRes(200, {}));
+    r = await h.C.sendDraftEmail();
+    ok('no arguments at all: bad-request, no request', r.success === false && h.posts.length === 0);
+    for (const [status, body, errWant, unconfirmedWant] of [
+      [409, { error: 'This was already sent.', code: 'already_sent' }, 'already_sent', false],
+      [409, { error: 'x', code: 'already_sending' }, 'already_sending', false],
+      [403, { error: 'no', code: 'do_not_contact' }, 'do_not_contact', false],
+      [403, { error: 'no', code: 'unsubscribed' }, 'unsubscribed', false],
+      [422, { error: 'no', code: 'unresolved_placeholders' }, 'unresolved_placeholders', false],
+      [502, { error: 'maybe', code: 'send_unconfirmed' }, 'send_unconfirmed', true],
+      [502, { error: 'no', code: 'provider_rejected' }, 'provider_rejected', false],
+      [503, { error: 'no', code: 'suppression_unverified' }, 'suppression_unverified', false],
+    ]) {
+      h = loadComms(jsonRes(status, body));
+      r = await h.C.sendDraftEmail({ leadId: 'L1', draftId: 'd1', subject: 'S', body: 'B' });
+      ok('HTTP ' + status + ' ' + body.code + ': success false, mode platform, error "' + errWant + '", unconfirmed ' + unconfirmedWant + ', NEVER a mailto handoff',
+        r.success === false && r.mode === 'platform' && r.error === errWant && r.unconfirmed === unconfirmedWant && h.opened.length === 0, JSON.stringify(r));
+    }
+    {
+      const toasts = [], opened = [];
+      const window = { _user: { getIdToken: async () => 'id' }, showToast: (m, t) => toasts.push(t + ':' + m), dispatchEvent() {}, location: { set href(v) { opened.push(v); }, get href() { return ''; } } };
+      const sandbox = { window, document: { createElement: () => { const a = { style: {}, remove() {} }; a.click = () => opened.push('click'); return a; }, body: { appendChild() {} }, addEventListener() {} }, console, location: { hostname: 'nobigdealwithjoedeal.com' }, fetch: async () => { throw new Error('network down'); }, AbortController, setTimeout, clearTimeout, CustomEvent: function () {} };
+      vm.createContext(sandbox);
+      vm.runInContext(SRC, sandbox, { filename: 'nbd-comms.js' });
+      const rr = await window.NBDComms.sendDraftEmail({ leadId: 'L1', draftId: 'd1', subject: 'S', body: 'B' });
+      ok('no answer at all (network down / abort): unconfirmed true (the request may have been processed), no mailto handoff, no success toast',
+        rr.success === false && rr.mode === 'platform' && rr.unconfirmed === true && opened.length === 0 && !toasts.some((t) => /Email sent/.test(t)), JSON.stringify([rr, opened, toasts]));
+    }
+    {
+      const toasts = [];
+      h = loadComms(jsonRes(200, { success: true, id: 'x' }));
+      await h.C.sendDraftEmail({ leadId: 'L1', draftId: 'd1', subject: 'S', body: 'B' });
+      ok('a success toasts "Email sent"; a refusal does not', h.toasts.some((t) => t.type === 'success' && /Email sent/.test(t.msg)));
+      h = loadComms(jsonRes(409, { error: 'no', code: 'already_sent' }));
+      await h.C.sendDraftEmail({ leadId: 'L1', draftId: 'd1', subject: 'S', body: 'B' });
+      ok('...(control) a 409 does not toast "Email sent"', !h.toasts.some((t) => /Email sent/.test(t.msg)));
+    }
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

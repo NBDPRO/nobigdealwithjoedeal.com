@@ -89,6 +89,12 @@ async function run() {
     await setDoc(ref(db, 'sendUnrec2'), draft({ status: 'sending', sendState: 'sent_unrecorded', sendNonce: 'n4', sendingAt: ago(10 * 1000), sendingBy: 'co-a', messageId: 're_1' }));
     await setDoc(ref(db, 'sendStale'), draft({ status: 'sending', sendState: 'in_flight', sendNonce: 'n3', sendingAt: ago(10 * 60 * 1000), sendingBy: 'co-a' }));
     await setDoc(ref(db, 'copiedDraft'), draft({ status: 'copied' }));
+    // more claimed drafts for the vacuity-audit survivors (each id used once)
+    for (const id of ['cp1', 'cp2', 'cp3', 'cp4', 'cp5', 'cp6', 'cp7', 'cp8']) {
+      await setDoc(ref(db, id), draft({ status: 'sending', sendState: 'check_provider', sendNonce: 'n9', sendingAt: ago(10 * 1000), sendingBy: 'co-a' }));
+    }
+    for (const id of ['fj1', 'fj2', 'fj3']) await setDoc(ref(db, id), draft({ status: 'failed', kind: 'failed' }));
+    for (const id of ['sj1', 'sj2']) await setDoc(ref(db, id), draft());
     await setDoc(ref(db, 'alicedraft', 'lead-alice'), draft({ leadId: 'lead-alice', userId: 'alice' }));
     for (const id of ids) await setDoc(ref(db, id), draft());
     for (const id of ['f1', 'f2', 'big', 'junk']) await setDoc(ref(db, id), draft({ status: id.startsWith('f') ? 'failed' : 'draft', kind: 'failed' }));
@@ -149,6 +155,27 @@ async function run() {
   await check('control: a STALE claim (10 min, no answer) can be dismissed', 'allow', updateDoc(ref(owner, 'sendStale'), { status: 'dismissed', dismissedAt: new Date() }));
   await check('control: a draft that WAS sent but could not be marked (sent_unrecorded) can be marked copied', 'allow', updateDoc(ref(owner, 'sendUnrec'), { status: 'copied', copiedAt: new Date() }));
   await check('...and can never go back to draft (it would be sent twice)', 'deny', updateDoc(ref(owner, 'sendUnrec2'), { status: 'draft' }));
+  // -- vacuity-audit survivors (2026-10-13): the claimed-draft branch is hasOnly + typed
+  await check('an unconfirmed claim CANNOT be set to "sent" by the browser', 'deny', updateDoc(ref(owner, 'cp1'), { status: 'sent', sentAt: new Date() }));
+  await check('an unconfirmed claim CANNOT be set to "sending" again', 'deny', updateDoc(ref(owner, 'cp1'), { status: 'sending' }));
+  await check('an unconfirmed claim: editing the body with no status change is denied', 'deny', updateDoc(ref(owner, 'cp2'), { body: 'sneaky edit' }));
+  await check('an unconfirmed claim: copied + a body edit together is denied (hasOnly)', 'deny', updateDoc(ref(owner, 'cp3'), { status: 'copied', copiedAt: new Date(), body: 'sneaky edit' }));
+  await check('an unconfirmed claim: copied + a subject edit together is denied', 'deny', updateDoc(ref(owner, 'cp3'), { status: 'copied', copiedAt: new Date(), subject: 'x' }));
+  await check('control: the same claim, copied with only copiedAt, is allowed', 'allow', updateDoc(ref(owner, 'cp4'), { status: 'copied', copiedAt: new Date() }));
+  await check('an unconfirmed claim: junk copiedAt is denied', 'deny', updateDoc(ref(owner, 'cp5'), { status: 'copied', copiedAt: 'junk' }));
+  await check('control: a real copiedAt on that claim is allowed', 'allow', updateDoc(ref(owner, 'cp5'), { status: 'copied', copiedAt: new Date() }));
+  await check('an unconfirmed claim: junk dismissedAt is denied', 'deny', updateDoc(ref(owner, 'cp6'), { status: 'dismissed', dismissedAt: 'junk' }));
+  await check('control: a real dismissedAt on that claim is allowed', 'allow', updateDoc(ref(owner, 'cp6'), { status: 'dismissed', dismissedAt: new Date() }));
+  await check('an unconfirmed claim: a stray server field (sendNonce) cannot be rewritten with a clear', 'deny', updateDoc(ref(owner, 'cp7'), { status: 'dismissed', dismissedAt: new Date(), sendNonce: 'mine' }));
+  await check('an unconfirmed claim: messageId cannot be written with a clear', 'deny', updateDoc(ref(owner, 'cp8'), { status: 'copied', copiedAt: new Date(), messageId: 'x' }));
+  await check('a failed marker: junk dismissedAt is denied', 'deny', updateDoc(ref(owner, 'fj1'), { status: 'dismissed', dismissedAt: 'junk' }));
+  await check('control: a real dismissedAt on a failed marker is allowed', 'allow', updateDoc(ref(owner, 'fj1'), { status: 'dismissed', dismissedAt: new Date() }));
+  await check('a failed marker: dismissed + a body edit together is denied', 'deny', updateDoc(ref(owner, 'fj2'), { status: 'dismissed', dismissedAt: new Date(), body: 'x' }));
+  await check('a failed marker cannot be marked copied (dismiss only)', 'deny', updateDoc(ref(owner, 'fj3'), { status: 'copied', copiedAt: new Date() }));
+  await check('a draft: a 301-character subject is denied', 'deny', updateDoc(ref(owner, 'sj1'), { subject: 'x'.repeat(301) }));
+  await check('control: a 300-character subject on the same draft is allowed', 'allow', updateDoc(ref(owner, 'sj1'), { subject: 'x'.repeat(300) }));
+  await check('a draft: a 10,001-character body is denied', 'deny', updateDoc(ref(owner, 'sj2'), { body: 'y'.repeat(10001) }));
+  await check('control: a 10,000-character body is allowed', 'allow', updateDoc(ref(owner, 'sj2'), { body: 'y'.repeat(10000) }));
   await check('a failed marker cannot be revived to draft', 'deny', updateDoc(ref(owner, 'f2'), { status: 'draft' }));
 
   // -- failure markers + value validation (review round 1)

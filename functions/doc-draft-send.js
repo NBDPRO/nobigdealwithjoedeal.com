@@ -215,6 +215,7 @@ async function prepareDraftSend(input, deps) {
       kind: String(draft.kind), emailKind, category, unsubGate, tenantKey,
       companyId: decoded.companyId || null, uid: decoded.uid,
       draftTo: String(draft.to || ''), draftKind: String(draft.kind || ''),
+      draftChannel: String(draft.channel || ''), draftEmailKind: String(draft.emailKind || ''),
     },
   };
 }
@@ -230,7 +231,8 @@ async function _claim(plan, nonce, deps) {
     if (cur.status !== 'draft') return { ok: false, status: 409, code: 'draft_not_sendable', error: 'This draft cannot be sent any more.', draftStatus: String(cur.status || '') };
     // Everything the gates decided on is server-owned and immutable; if it
     // moved anyway, re-run from the top.
-    if (String(cur.to || '') !== plan.draftTo || String(cur.kind || '') !== plan.draftKind) {
+    if (String(cur.to || '') !== plan.draftTo || String(cur.kind || '') !== plan.draftKind
+        || String(cur.channel || '') !== plan.draftChannel || String(cur.emailKind || '') !== plan.draftEmailKind) {
       return { ok: false, status: 409, code: 'draft_changed', error: 'This draft changed. Reopen it and review it again.', draftStatus: 'draft' };
     }
     tx.update(plan.draftRef, {
