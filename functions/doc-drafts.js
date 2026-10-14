@@ -18,6 +18,7 @@
 'use strict';
 
 const D = require('./doc-drafts-logic');
+const CER = require('./customer-estimate-rows');
 
 function _deps(deps) {
   deps = deps || {};
@@ -28,6 +29,23 @@ function _deps(deps) {
     try { logger = require('firebase-functions/v2').logger; } catch (_) { logger = console; }
   }
   return { FieldValue, logger, now: deps.now || (() => Date.now()) };
+}
+
+/**
+ * The tier on the estimate the homeowner SIGNED, or ''. estimates/{id}.signedPrice
+ * is server-stamped (functions/signed-price.js) and client-unwritable, so it —
+ * not lead.soldTier — is what may put a warranty year in a customer email.
+ */
+async function signedTierOf(db, lead) {
+  const id = lead && lead.primaryEstimateId;
+  if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) return '';
+  const es = await db.collection('estimates').doc(id).get();
+  const est = es.exists ? (es.data() || null) : null;
+  if (!est || est.deleted === true || !CER.hasSignedPrice(est)) return '';
+  // Same tenant guard the spine uses: someone else's estimate is no evidence.
+  if (lead.userId && est.userId && est.userId !== lead.userId) return '';
+  const sv = CER.signedView(est);
+  return D.trustedTier(String(sv.selectedTier || sv.tier || '').toLowerCase());
 }
 
 function _alreadyExists(e) {
@@ -106,6 +124,17 @@ async function draftDocsForEvent(db, args, deps) {
       }
     };
 
+    // The warranty email's tier comes from the SIGNED estimate only (never
+    // lead.soldTier, which a rep can edit). Any miss -> '' -> a placeholder.
+    let signedTier = '';
+    if (planned.indexOf('warranty') !== -1) {
+      try {
+        signedTier = await signedTierOf(db, lead);
+      } catch (e) {
+        logger.warn('[docDrafts] signed tier read failed (placeholder used)', { leadId, err: e && e.message });
+      }
+    }
+
     let paidCents = null;
     if (planned.indexOf('paid_receipt') !== -1) {
       try {
@@ -130,7 +159,7 @@ async function draftDocsForEvent(db, args, deps) {
 
     for (const kind of planned) {
       try {
-        const d = D.decide({ leadId, event, kind, lead, profile, tenantKey, jobId, paidCents, sourceId: args.sourceId, nowMs });
+        const d = D.decide({ leadId, event, kind, lead, profile, tenantKey, jobId, paidCents, signedTier, sourceId: args.sourceId, nowMs });
         if (d.action !== 'create') { out.skipped.push({ kind, reason: d.reason }); continue; }
         try {
           await leadRef.collection('doc_drafts').doc(d.id).create(Object.assign({}, d.doc, {

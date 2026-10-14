@@ -13,6 +13,11 @@
  * Every deny about SHAPE is paired with an allow of the same write minus the
  * one defect (a positive control), so a rule that denies everything cannot
  * pass. RULES_PATH points a break-test at a mutated copy of the rules.
+ *
+ * 2026-10-13 (send bound to the draft): the browser can no longer say a draft
+ * was sent. The server (admin SDK) writes 'sending' / 'sent' / sentAt /
+ * messageId / the claim fields; a client may only edit subject+body, dismiss,
+ * mark 'copied', and clear a server claim that is unconfirmed or stale.
  */
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
 const fs = require('fs');
@@ -73,6 +78,15 @@ async function run() {
     await setDoc(doc(db, 'leads/lead-alice'), { userId: 'alice', companyId: 'co-a', name: 'Rep Lead', stage: 'final_payment' });
     await setDoc(ref(db), draft());
     await setDoc(ref(db, 'sentdraft'), draft({ status: 'sent' }));
+    // server-claimed drafts: in flight (fresh), unconfirmed, stale (10 min old)
+    const ago = (ms) => new Date(Date.now() - ms);
+    await setDoc(ref(db, 'sendFresh'), draft({ status: 'sending', sendState: 'in_flight', sendNonce: 'n1', sendingAt: ago(10 * 1000), sendingBy: 'co-a' }));
+    await setDoc(ref(db, 'sendFresh2'), draft({ status: 'sending', sendState: 'in_flight', sendNonce: 'n1', sendingAt: ago(10 * 1000), sendingBy: 'co-a' }));
+    await setDoc(ref(db, 'sendCheck'), draft({ status: 'sending', sendState: 'check_provider', sendNonce: 'n2', sendingAt: ago(10 * 1000), sendingBy: 'co-a' }));
+    await setDoc(ref(db, 'sendCheck2'), draft({ status: 'sending', sendState: 'check_provider', sendNonce: 'n2', sendingAt: ago(10 * 1000), sendingBy: 'co-a' }));
+    await setDoc(ref(db, 'sendCheck3'), draft({ status: 'sending', sendState: 'check_provider', sendNonce: 'n2', sendingAt: ago(10 * 1000), sendingBy: 'co-a' }));
+    await setDoc(ref(db, 'sendStale'), draft({ status: 'sending', sendState: 'in_flight', sendNonce: 'n3', sendingAt: ago(10 * 60 * 1000), sendingBy: 'co-a' }));
+    await setDoc(ref(db, 'copiedDraft'), draft({ status: 'copied' }));
     await setDoc(ref(db, 'alicedraft', 'lead-alice'), draft({ leadId: 'lead-alice', userId: 'alice' }));
     for (const id of ids) await setDoc(ref(db, id), draft());
     for (const id of ['f1', 'f2', 'big', 'junk']) await setDoc(ref(db, id), draft({ status: id.startsWith('f') ? 'failed' : 'draft', kind: 'failed' }));
@@ -94,7 +108,7 @@ async function run() {
   // -- updates: who
   await check('owner edits the body', 'allow', updateDoc(ref(owner, 'd1'), { body: 'Hi Sam,\n\nEdited.' }));
   await check('manager edits the subject', 'allow', updateDoc(ref(eve, 'd2'), { subject: 'New subject' }));
-  await check('company_admin marks sent (+sentAt)', 'allow', updateDoc(ref(carol, 'd3'), { status: 'sent', sentAt: new Date() }));
+  await check('company_admin marks copied (+copiedAt)', 'allow', updateDoc(ref(carol, 'd3'), { status: 'copied', copiedAt: new Date() }));
   await check('owner dismisses (+dismissedAt)', 'allow', updateDoc(ref(owner, 'd4'), { status: 'dismissed', dismissedAt: new Date() }));
   await check('viewer CANNOT edit', 'deny', updateDoc(ref(vic, 'd5'), { body: 'x' }));
   await check('sales_rep CANNOT edit a lead they do not own', 'deny', updateDoc(ref(alice, 'd5'), { body: 'x' }));
@@ -108,17 +122,38 @@ async function run() {
   await check('CANNOT change kind / leadId / companyId / userId', 'deny', updateDoc(ref(owner, 'd6'), { companyId: 'co-b' }));
   await check('CANNOT set an unknown status', 'deny', updateDoc(ref(owner, 'd6'), { status: 'approved' }));
   await check('CANNOT add a stray field with a valid edit', 'deny', updateDoc(ref(owner, 'd6'), { body: 'ok', extra: 1 }));
-  await check('control: valid status change allowed', 'allow', updateDoc(ref(owner, 'd6'), { status: 'sent', sentAt: new Date() }));
+  await check('control: valid status change allowed', 'allow', updateDoc(ref(owner, 'd6'), { status: 'copied', copiedAt: new Date() }));
   await check('a SENT draft is final (cannot be edited)', 'deny', updateDoc(ref(owner, 'sentdraft'), { body: 'rewrite history' }));
   await check('a dismissed draft is final (cannot be revived)', 'deny', updateDoc(ref(owner, 'd4'), { status: 'draft' }));
+  await check('a COPIED draft is final (cannot be edited)', 'deny', updateDoc(ref(owner, 'copiedDraft'), { body: 'rewrite' }));
+  await check('a copied draft cannot be revived', 'deny', updateDoc(ref(owner, 'copiedDraft'), { status: 'draft' }));
+
+  // -- send bound to the draft: the browser can never claim a send
+  await check('owner CANNOT set status "sent" (server-only)', 'deny', updateDoc(ref(owner, 'd9'), { status: 'sent', sentAt: new Date() }));
+  await check('owner CANNOT set status "sent" without sentAt either', 'deny', updateDoc(ref(owner, 'd9'), { status: 'sent' }));
+  await check('owner CANNOT set status "sending" (server-only claim)', 'deny', updateDoc(ref(owner, 'd9'), { status: 'sending' }));
+  await check('owner CANNOT write sentAt on a draft', 'deny', updateDoc(ref(owner, 'd9'), { sentAt: new Date() }));
+  await check('owner CANNOT write messageId / sendNonce / sendState', 'deny', updateDoc(ref(owner, 'd9'), { messageId: 'x' }));
+  await check('owner CANNOT forge a claim nonce', 'deny', updateDoc(ref(owner, 'd9'), { sendNonce: 'x' }));
+  await check('control: the same draft takes a normal edit', 'allow', updateDoc(ref(owner, 'd9'), { body: 'normal edit' }));
+  await check('control: and a copied mark (the manual path stays)', 'allow', updateDoc(ref(owner, 'd10'), { status: 'copied', copiedAt: new Date() }));
+  await check('a viewer CANNOT mark copied', 'deny', updateDoc(ref(vic, 'd11'), { status: 'copied', copiedAt: new Date() }));
+  await check('a CLAIMED draft (sending, in flight) cannot be edited', 'deny', updateDoc(ref(owner, 'sendFresh'), { body: 'sneaky' }));
+  await check('a claimed draft in flight cannot be dismissed (a send is running)', 'deny', updateDoc(ref(owner, 'sendFresh'), { status: 'dismissed', dismissedAt: new Date() }));
+  await check('a claimed draft in flight cannot be marked copied', 'deny', updateDoc(ref(owner, 'sendFresh2'), { status: 'copied', copiedAt: new Date() }));
+  await check('control: an UNCONFIRMED claim (check_provider) can be marked copied', 'allow', updateDoc(ref(owner, 'sendCheck'), { status: 'copied', copiedAt: new Date() }));
+  await check('control: an unconfirmed claim can be dismissed', 'allow', updateDoc(ref(owner, 'sendCheck2'), { status: 'dismissed', dismissedAt: new Date() }));
+  await check('an unconfirmed claim can NEVER go back to draft (no silent retry)', 'deny', updateDoc(ref(owner, 'sendCheck3'), { status: 'draft' }));
+  await check('control: a STALE claim (10 min, no answer) can be dismissed', 'allow', updateDoc(ref(owner, 'sendStale'), { status: 'dismissed', dismissedAt: new Date() }));
+  await check('a failed marker cannot be revived to draft', 'deny', updateDoc(ref(owner, 'f2'), { status: 'draft' }));
 
   // -- failure markers + value validation (review round 1)
   await check('owner dismisses a failed-draft marker', 'allow', updateDoc(ref(owner, 'f1'), { status: 'dismissed', dismissedAt: new Date() }));
   await check('viewer CANNOT dismiss a failed marker', 'deny', updateDoc(ref(vic, 'f2'), { status: 'dismissed' }));
   await check('CANNOT write a 20 KB body', 'deny', updateDoc(ref(owner, 'big'), { body: 'x'.repeat(20000) }));
   await check('control: a normal body on the same doc', 'allow', updateDoc(ref(owner, 'big'), { body: 'x'.repeat(200) }));
-  await check('CANNOT mark sent with a junk sentAt', 'deny', updateDoc(ref(owner, 'junk'), { status: 'sent', sentAt: 'junk' }));
-  await check('control: the same status change with a real timestamp', 'allow', updateDoc(ref(owner, 'junk'), { status: 'sent', sentAt: new Date() }));
+  await check('CANNOT mark copied with a junk copiedAt', 'deny', updateDoc(ref(owner, 'junk'), { status: 'copied', copiedAt: 'junk' }));
+  await check('control: the same status change with a real timestamp', 'allow', updateDoc(ref(owner, 'junk'), { status: 'copied', copiedAt: new Date() }));
   await check('CANNOT set a non-string subject', 'deny', updateDoc(ref(owner, 'd8'), { subject: 42 }));
   await check('other tenant MANAGER cannot edit a co-a draft', 'deny', updateDoc(ref(ctx('mgrb', { role: 'manager', companyId: 'co-b' }), 'd8'), { body: 'x' }));
 

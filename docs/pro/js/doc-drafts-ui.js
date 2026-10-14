@@ -15,14 +15,19 @@
  *   - the address is on the do-not-contact list, or — for the thank-you's
  *     review ask, the one COMMERCIAL kind — the person unsubscribed from this
  *     company's email or texted STOP.
- * The server enforces the unsubscribe itself (sendEmail answers 403
- * 'unsubscribed'); the checks here only keep the button honest.
+ * The server enforces every one of these itself (sendEmail answers 403
+ * 'unsubscribed' / 'do_not_contact' / 'stop_requested', 422
+ * 'unresolved_placeholders'); the checks here only keep the button honest.
  *
- * Sending goes through window.NBDComms.sendEmail with leadId and the draft's
- * email `kind` (receipt / appointment / document are transactional; the
- * thank-you carries NO kind so the server treats it as commercial). A draft is
- * marked sent only when the PLATFORM delivered it — a mail-app handoff is not
- * a confirmed send.
+ * Sending goes through window.NBDComms.sendDraftEmail({leadId, draftId,
+ * subject, body}) (2026-10-13). The SERVER takes the recipient and the email
+ * kind from the draft, claims the draft in a transaction, calls the provider
+ * and writes status 'sent' — the browser never does (firestore.rules). Two
+ * tabs / two people: the loser gets a 409 and this card refreshes. A send the
+ * server could not confirm leaves the draft 'sending' with a "check your
+ * provider" state; it is never retried automatically and never handed to a
+ * mail app. "Mark sent" (the Thumbtack / Yelp / text path, or an unconfirmed
+ * send you verified) writes status 'copied'.
  *
  * Lazy: loaded by customer-bootstrap.module.js after the lead renders
  * (ScriptLoader.load), so it costs no boot <script> tag. Strict CSP: no
@@ -105,6 +110,35 @@
     if (b.indexOf('[[install date]]') !== -1) return { body: b.split('[[install date]]').join(cur), changed: true };
     return { body: b, changed: false };
   }
+  var STALE_CLAIM_MS = 5 * 60 * 1000;
+  function _ms(t) {
+    if (!t) return NaN;
+    if (typeof t.toMillis === 'function') return t.toMillis();
+    if (typeof t.seconds === 'number') return t.seconds * 1000;
+    if (typeof t._seconds === 'number') return t._seconds * 1000;
+    if (typeof t === 'number') return t;
+    var p = Date.parse(t);
+    return p;
+  }
+  /**
+   * A draft the server has claimed ('sending'): 'in_flight' (a send is
+   * running — wait), or 'check_provider' (the server could not confirm, or the
+   * claim went stale — a human must look at the provider). '' for any other
+   * status. Mirrors the rule that lets the browser clear it.
+   */
+  function sendingState(draft, nowMs) {
+    var d = draft || {};
+    if (d.status !== 'sending') return '';
+    if (d.sendState === 'check_provider') return 'check_provider';
+    var at = _ms(d.sendingAt);
+    var now = Number(nowMs) || Date.now();
+    return (isFinite(at) && now - at <= STALE_CLAIM_MS) ? 'in_flight' : 'check_provider';
+  }
+  /** Server codes that mean "the draft is not yours to send any more". */
+  function isLostRace(code) {
+    return code === 'already_sent' || code === 'already_sending' || code === 'draft_not_sendable' || code === 'draft_changed' || code === 'draft_not_found';
+  }
+
   /** Why "Mark sent" must not run yet (it asserts the message really went out). */
   function markSentBlockers(edit) {
     var left = unresolved((edit || {}).subject, (edit || {}).body);
@@ -128,6 +162,7 @@
   var pure = {
     placeholders: placeholders, unresolved: unresolved, sendBlockers: sendBlockers, timelineText: timelineText, copyText: copyText,
     scheduleOf: scheduleOf, refreshSchedule: refreshSchedule, markSentBlockers: markSentBlockers,
+    sendingState: sendingState, isLostRace: isLostRace,
   };
   if (!win || !win.document) return { pure: pure };
 
@@ -201,14 +236,26 @@
     var copy = el('button', BTN, 'Copy'); copy.type = 'button';
     var markSent = el('button', BTN, 'Mark sent'); markSent.type = 'button';
     var dismiss = el('button', BTN, 'Dismiss'); dismiss.type = 'button';
+    var reload = el('button', BTN, 'Refresh'); reload.type = 'button';
     var state = { suppressed: false };
     var isEmail = data.status === 'draft' && data.channel === 'email' && !!data.to;
     var isFailed = data.status === 'failed';
+    var sendInfo = sendingState(data);            // '' | 'in_flight' | 'check_provider'
+    var isSending = data.status === 'sending';
     if (isEmail) row.appendChild(send);
-    if (!isFailed) { row.appendChild(copy); row.appendChild(markSent); }
-    row.appendChild(dismiss);
-    if (isFailed) { subj.readOnly = true; body.readOnly = true; head.style.color = '#b91c1c'; }
-    var all = [send, copy, markSent, dismiss];
+    if (!isFailed && !isSending) { row.appendChild(copy); row.appendChild(markSent); }
+    if (isSending && sendInfo === 'check_provider') { row.appendChild(markSent); row.appendChild(dismiss); }
+    if (isSending && sendInfo === 'in_flight') row.appendChild(reload);
+    if (!isSending) row.appendChild(dismiss);
+    if (isFailed || isSending) { subj.readOnly = true; body.readOnly = true; }
+    if (isFailed) head.style.color = '#b91c1c';
+    if (isSending) {
+      head.style.color = '#b45309';
+      meta.textContent = sendInfo === 'check_provider'
+        ? 'This may or may not have gone out. Check your email provider (or ask the customer) before doing anything else. It was NOT retried. If it went out, tap Mark sent; if not, Dismiss it and send a new message.'
+        : 'Sending… tap Refresh in a moment.';
+    }
+    var all = [send, copy, markSent, dismiss, reload];
 
     function refresh() {
       var edit = { subject: subj.value, body: body.value };
@@ -222,6 +269,11 @@
     }
     subj.addEventListener('input', refresh);
     body.addEventListener('input', refresh);
+    // A fresh read of the whole queue (the server may have moved this draft).
+    function refreshPanel() {
+      return render(data.leadId, lead).catch(function () { return 0; });
+    }
+    reload.addEventListener('click', function () { refreshPanel(); });
 
     function ref() { return win.doc(win.db, 'leads', data.leadId, 'doc_drafts', d.id); }
     function save(patch) { return win.updateDoc(ref(), patch); }
@@ -238,8 +290,13 @@
         }).then(function () { return true; }, function () { return false; });
       } catch (_) { return Promise.resolve(false); }
     }
+    // 'emailed': the SERVER already wrote status 'sent' (the rules do not let
+    // a browser write it). 'copied': the rep says they sent it themselves.
     function finish(how) {
-      return save({ status: 'sent', subject: subj.value, body: body.value, sentAt: new Date() })
+      var wrote = how === 'emailed' ? Promise.resolve()
+        : save(isSending ? { status: 'copied', copiedAt: new Date() }
+          : { status: 'copied', subject: subj.value, body: body.value, copiedAt: new Date() });
+      return wrote
         .then(function () { return logTimeline(how); })
         .then(function (noted) {
           if (!noted) toast('Marked sent, but the timeline note could not be saved. Add it by hand if you need the record.', 'warning');
@@ -250,34 +307,48 @@
     send.addEventListener('click', function () {
       refresh();
       if (send.disabled) return;
-      if (!win.NBDComms || typeof win.NBDComms.sendEmail !== 'function') { toast('Email isn\'t available right now.', 'error'); return; }
-      setBusy(all, true);
-      var kind = data.emailKind || undefined;
-      var payload = { to: data.to, subject: subj.value.trim(), body: body.value, leadId: data.leadId };
-      if (kind) payload.kind = kind;
+      if (!win.NBDComms || typeof win.NBDComms.sendDraftEmail !== 'function') { toast('Email isn\'t available right now.', 'error'); return; }
       if (sentGuard[d.id]) { refresh(); return; }
-      win.NBDComms.sendEmail(payload).then(function (r) {
-        if (r && r.success && r.mode === 'platform') {
+      setBusy(all, true);
+      send.textContent = 'Sending…';
+      function settle() { send.textContent = 'Send email'; setBusy(all, false); refresh(); }
+      // Only the draft's id and the rep's edited text go up. The server takes
+      // the recipient and the email kind from the draft itself.
+      win.NBDComms.sendDraftEmail({ leadId: data.leadId, draftId: d.id, subject: subj.value.trim(), body: body.value }).then(function (r) {
+        if (r && r.success) {
           // DELIVERED. From here a failure is bookkeeping, never "could not
           // send": guard first so no second tap can resend.
           guardAdd(d.id);
+          if (r.bookkeeping && r.bookkeeping !== 'ok') toast('Sent. The card could not be updated on the server; it may reappear. Do not send again.', 'warning');
           return finish('emailed').catch(function () {
+            send.textContent = 'Send email';
             setBusy(all, false);
             send.disabled = true; send.style.opacity = '.5';
             refresh();
-            toast('Sent, but couldn\'t update the card. Tap Mark sent to clear it. Do not send again.', 'warning');
+            toast('Sent, but couldn\'t update the card. Refresh the page. Do not send again.', 'warning');
           });
         }
-        if (r && r.success && r.mode === 'mailto') {
-          toast('Opened your mail app. Tap Mark sent once you\'ve sent it.', 'warning');
-        } else if (r && r.error === 'unsubscribed') {
-          state.suppressed = true; refresh();
+        var code = r && r.error;
+        if (isLostRace(code)) {
+          // Another tab or person got there first (or it was dismissed).
+          toast('Someone else already sent or changed this one. Refreshing.', 'warning');
+          settle();
+          return refreshPanel();
         }
-        setBusy(all, false); refresh();
+        if (r && r.unconfirmed) {
+          toast('This may or may not have gone out. Check before doing anything else. It will not be retried automatically.', 'warning');
+          settle();
+          return refreshPanel();
+        }
+        if (code === 'unsubscribed') { state.suppressed = true; }
+        if (r && r.message && code !== 'unsubscribed') toast(r.message, 'error');
+        settle();
       }, function (e) {
-        // sendEmail itself failed: nothing was delivered.
-        setBusy(all, false); refresh();
-        toast('Could not send: ' + ((e && e.message) || 'try again'), 'error');
+        // sendDraftEmail does not reject on a refusal, so this is an
+        // unexpected throw: the request may have been processed.
+        settle();
+        toast('Could not confirm the send: ' + ((e && e.message) || 'refresh and check') + '. Refreshing.', 'error');
+        return refreshPanel();
       });
     });
 
@@ -297,9 +368,13 @@
       var blockedBy = markSentBlockers({ subject: subj.value, body: body.value });
       if (blockedBy.length) { toast(blockedBy[0], 'warning'); return; }
       var ask = win.nbdConfirm || function (m) { return Promise.resolve(win.confirm(m)); };
-      Promise.resolve(ask('Mark this as sent? Only do this if you actually sent it yourself.')).then(function (yes) {
+      Promise.resolve(ask(isSending
+        ? 'Mark this as sent? Only do this if you checked and the email really did go out.'
+        : 'Mark this as sent? Only do this if you actually sent it yourself.')).then(function (yes) {
         if (!yes) return;
         setBusy(all, true);
+        // Delivered from this screen already: the server wrote 'sent', so a
+        // second write would be refused — just note it and clear the card.
         return finish(sentGuard[d.id] ? 'emailed' : 'copied').catch(function (e) { setBusy(all, false); toast('Could not update: ' + ((e && e.message) || 'try again'), 'error'); });
       });
     });
@@ -335,7 +410,7 @@
     if (old) old.remove();
     if (!leadId || role === 'viewer' || role === 'member') return Promise.resolve(0);
     if (!win.db || !win.getDocs || !win.query || !win.collection || !win.where) return Promise.resolve(0);
-    return win.getDocs(win.query(win.collection(win.db, 'leads', leadId, 'doc_drafts'), win.where('status', 'in', ['draft', 'failed'])))
+    return win.getDocs(win.query(win.collection(win.db, 'leads', leadId, 'doc_drafts'), win.where('status', 'in', ['draft', 'failed', 'sending'])))
       .then(function (snap) {
         if (mine !== seq) return 0;
         var rows = [];

@@ -6,7 +6,9 @@
  * When the job spine records a stage event, the server drafts the customer
  * email that belongs to that moment and parks it on the customer card for
  * Jo's review. NOTHING here sends: a draft goes out only from the CRM's Send
- * button (docs/pro/js/doc-drafts-ui.js -> NBDComms.sendEmail).
+ * button (docs/pro/js/doc-drafts-ui.js -> NBDComms.sendDraftEmail -> sendEmail
+ * {leadId, draftId}; the server takes the recipient and kind FROM the draft —
+ * functions/doc-draft-send.js).
  *
  *   event                       draft kind          email `kind`  (sendEmail)
  *   contract_signed/deal_accepted  schedule_confirm  appointment   transactional
@@ -22,8 +24,9 @@
  *
  * Wording rules (documentation/ + memory, 2026-10): the company's name, phone
  * and sign-off come from the TENANT's companyProfile — never hardcoded; the
- * warranty text states the written labor term ONLY for NBD with a sold tier
- * (TIER_LABOR_YEARS, estimate-config.js) and the manufacturer warranty as its
+ * warranty text states the written labor term ONLY for NBD with the tier on
+ * the SIGNED estimate (trustedTier; TIER_LABOR_YEARS, estimate-config.js) and
+ * the manufacturer warranty as its
  * own line; anything unknown is a `[[placeholder]]` that blocks Send; no
  * insurance-claim wording at all (Kentucky KRS 367.628); fully-insured only
  * ever by the company profile, never claimed here.
@@ -38,6 +41,24 @@ const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 /** Mirror of docs/pro/js/estimate-config.js TIER_LABOR_YEARS (test-pinned). */
 const TIER_LABOR_YEARS = Object.freeze({ economy: 1, good: 5, better: 10, best: 20, beyond: 20 });
 const TIER_LABEL = Object.freeze({ economy: 'Economy', good: 'Standard', better: 'Preferred', best: 'Elite', beyond: 'Beyond' });
+
+/**
+ * The package a warranty email may NAME, and so the labor-warranty YEARS it
+ * may state (2026-10-13 security review). lead.soldTier is rep-editable —
+ * the customer page, catch-up and week-review all write it, and the rules do
+ * not protect it — so it never reaches a customer's inbox on its own. The
+ * only trusted tier is the one on the estimate the homeowner SIGNED:
+ * estimates/{id}.signedPrice is server-only (firestore.rules /estimates;
+ * functions/signed-price.js stamps it at contract_signed / deal_accepted),
+ * and functions/doc-drafts.js reads the signed tier off it and passes it in
+ * as signedTier. No signed estimate / unreadable estimate / unknown tier
+ * -> '' -> the [[workmanship warranty term]] placeholder, which blocks Send
+ * until the rep reads the signed contract and types the term.
+ */
+function trustedTier(signedTier) {
+  const t = String(signedTier == null ? '' : signedTier).toLowerCase();
+  return Object.prototype.hasOwnProperty.call(TIER_LABOR_YEARS, t) ? t : '';
+}
 
 const DRAFT_KINDS = Object.freeze({
   schedule_confirm: { emailKind: 'appointment', label: 'Schedule confirmation' },
@@ -299,7 +320,7 @@ function decide(ctx) {
   if (!gate.ok) return { action: 'skip', reason: gate.reason };
   const lead = ctx.lead;
   const brand = brandOf(ctx.profile, ctx.tenantKey);
-  const tier = String(lead.soldTier || '').toLowerCase();
+  const tier = trustedTier(ctx.signedTier);
   const text = build(kind, { lead, brand, event: ctx.event, paidCents: ctx.paidCents, tier });
   if (!text) return { action: 'skip', reason: 'no_template' };
   const channel = channelFor(lead);
@@ -332,6 +353,7 @@ function decide(ctx) {
 
 module.exports = {
   EVENT_PLAN, DRAFT_EVENTS, DRAFT_KINDS, TIER_LABOR_YEARS, TIER_LABEL, PH, NBD_OWNER_UID,
+  trustedTier,
   planFor, draftId, stageDayOf, jobKeyFor, channelFor, isMarketplaceSource, shouldDraft, brandOf, build, decide,
   placeholdersIn, fmtCents, ymdLong, timeLong, scheduleOf, warrantyLines, firstNameOf,
 };
