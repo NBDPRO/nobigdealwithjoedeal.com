@@ -28,6 +28,7 @@ const { logger } = require('firebase-functions/v2');
 const { FieldPath, getFirestore, Timestamp } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 const { Resend } = require('resend');
+const AR = require('./alert-recipients');
 const stageRoles = require('./stage-roles');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -294,9 +295,16 @@ exports.dormantLeadNudge = onSchedule(
           continue;
         }
 
+        // 2026-10-13: users/{uid}.email is writable by that user, so the digest goes
+        // only to their VERIFIED Auth email (the platform owner's stored address
+        // passes through), and a destination is capped per day across tenants.
+        const toAddr = await AR.verifiedUserEmail(uid, user.email);
+        if (!toAddr) { skippedOptOut++; continue; }
+        const capAddr = await AR.capRecipients('digest', [toAddr]);
+        if (!capAddr.allowed.length) { skippedOptOut++; continue; }
         await resend.emails.send({
           from: fromAddress,
-          to: user.email,
+          to: toAddr,
           subject,
           html,
         });

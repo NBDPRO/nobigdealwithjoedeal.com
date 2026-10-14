@@ -64,6 +64,7 @@ const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const { awaitBriefly } = require('./await-briefly');
+const AR = require('./alert-recipients');
 // Platform tenant (lead-alert.js convention): NBD = the tenant key is this uid.
 const REPORT_NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 
@@ -77,6 +78,85 @@ const CORS_ORIGINS = [
 ];
 const REPORT_URL_BASE = 'https://nobigdealwithjoedeal.com/report/';
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+// Share-link email limits (2026-10-13). The mail goes out on NBD's sender
+// domain, so who may receive it and how many go out are bounded server-side.
+const SHARE_EMAIL_CALLER_DAILY_CAP = 40;      // per signed-in caller per rolling day
+const SHARE_EMAIL_RECIPIENT_DAILY_CAP = 5;    // per destination address per rolling day, all tenants
+const SHARE_EMAIL_TENANT_RECIPIENT_DAILY_CAP = 3; // ... of which one TENANT may use this many
+const SHARE_EMAIL_GLOBAL_DAILY_CAP = 1000;    // share emails platform-wide per rolling day (backstop)
+const SHARE_EMAIL_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// Tenant-written text that reaches an email Subject or greeting (shared helper).
+const cleanLabel = AR.cleanLabel;
+
+// May this caller's share link be emailed to `target`? Only to (a) the
+// caller's own VERIFIED email, (b) the subject lead's address, or (c) an address
+// on a lead/customer record in the caller's own tenant. Then the caller and
+// recipient daily caps. Returns { ok } or { ok:false, reason }.
+// Plan gate (Jo, 2026-10-13): the email goes out on NBD's sender domain, so only a
+// PAID, non-trial tenant may use it. NBD's own tenant is always allowed; a
+// platform admin is exempt; any read error or unknown plan fails CLOSED. The
+// link is still minted, so a Free tenant can copy it and send it themselves.
+async function sharePlanAllows(db, billingKey, isAdmin) {
+  if (isAdmin) return true;
+  if (!billingKey) return false;
+  if (String(billingKey) === REPORT_NBD_OWNER_UID) return true;
+  try {
+    const snap = await db.doc(`subscriptions/${billingKey}`).get();
+    return AR.planAllowsShareEmail(snap && snap.exists ? snap.data() : null, Date.now());
+  } catch (e) {
+    logger.warn('[createReportShareToken] plan lookup failed — not emailing', { err: e && e.message });
+    return false;
+  }
+}
+
+async function authorizeShareRecipient(db, { uid, token, target, subjectLeadEmail, companyId, enforce, isAdmin }) {
+  if (!token || token.email_verified !== true) return { ok: false, reason: 'verify-your-email' };
+  if (!(await sharePlanAllows(db, companyId, isAdmin))) return { ok: false, reason: 'plan' };
+  const to = AR.normEmail(target);
+  if (!to) return { ok: false, reason: 'invalid-recipient' };
+  let allowed = to === AR.normEmail(token.email) || to === AR.normEmail(subjectLeadEmail);
+  if (!allowed) {
+    const variants = Array.from(new Set([to, String(target).trim()]));
+    const scopes = [];
+    if (companyId) scopes.push(['companyId', String(companyId)]);
+    if (uid) scopes.push(['userId', String(uid)]);
+    outer:
+    for (const [field, value] of scopes) {
+      for (const v of variants) {
+        try {
+          const q = await db.collection('leads').where(field, '==', value).where('email', '==', v).limit(1).get();
+          if (q && !q.empty) { allowed = true; break outer; }
+        } catch (e) {
+          logger.warn('[createReportShareToken] recipient lookup failed', { err: e && e.message });
+        }
+      }
+    }
+  }
+  if (!allowed) return { ok: false, reason: 'recipient-not-a-customer' };
+  const limiter = enforce || require('./rate-limit').enforceRateLimit;
+  try {
+    await limiter('reportShareEmail:caller', String(uid), SHARE_EMAIL_CALLER_DAILY_CAP, SHARE_EMAIL_WINDOW_MS);
+  } catch (e) {
+    if (e && e.rateLimited) return { ok: false, reason: 'daily-limit' };
+  }
+  try {
+    await limiter('reportShareEmail:global', 'all', SHARE_EMAIL_GLOBAL_DAILY_CAP, SHARE_EMAIL_WINDOW_MS);
+  } catch (e) {
+    if (e && e.rateLimited) return { ok: false, reason: 'daily-limit' };
+  }
+  // NBD's own tenant mails its own customers; the per-destination limits are for
+  // tenants (the caller and platform-wide caps above still apply).
+  if (!AR.isNbdTenant(companyId)) {
+    const cap = await AR.capRecipients('reportShare', [to], {
+      limit: SHARE_EMAIL_RECIPIENT_DAILY_CAP, windowMs: SHARE_EMAIL_WINDOW_MS,
+      tenantKey: companyId || uid, tenantLimit: SHARE_EMAIL_TENANT_RECIPIENT_DAILY_CAP,
+    });
+    if (!cap.allowed.length) return { ok: false, reason: 'recipient-daily-limit' };
+  }
+  return { ok: true, to };
+}
 
 // 32-char no-confusable alphabet (no 0/O, 1/I/L) — same as deal-acceptance.js / portal.js.
 const TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -407,15 +487,31 @@ exports.createReportShareToken = onCall(
     // the rep (emailed:false) without losing the link.
     let toEmail = (typeof d.email === 'string' && EMAIL_RE.test(d.email.trim())) ? d.email.trim() : '';
     let firstName = '';
-    if (!toEmail && subject.leadId) {
+    let subjectLeadEmail = '';
+    let leadFirstName = '';
+    if (subject.leadId) {
       try {
         const leadSnap = await db.doc(`leads/${subject.leadId}`).get();
         if (leadSnap.exists) {
           const lead = leadSnap.data();
-          firstName = String(lead.firstName || '').slice(0, 80);
-          if (typeof lead.email === 'string' && EMAIL_RE.test(lead.email.trim())) toEmail = lead.email.trim();
+          leadFirstName = cleanLabel(lead.firstName, 80);
+          if (typeof lead.email === 'string' && EMAIL_RE.test(lead.email.trim())) subjectLeadEmail = lead.email.trim();
         }
       } catch (e) { logger.warn('[createReportShareToken] lead email lookup failed', { err: e.message }); }
+    }
+    if (!toEmail) toEmail = subjectLeadEmail;
+    // The greeting names the lead only when the lead is who is being emailed.
+    if (toEmail && subjectLeadEmail && AR.normEmail(toEmail) === AR.normEmail(subjectLeadEmail)) firstName = leadFirstName;
+
+    // Recipient + volume gate (2026-10-13). The link is minted either way; only
+    // the email is withheld, and the reason is returned so the UI can say so.
+    let emailBlocked = '';
+    if (toEmail) {
+      const gate = await authorizeShareRecipient(db, {
+        uid, token: request.auth.token, target: toEmail, subjectLeadEmail, companyId: subject.companyId, isAdmin,
+      });
+      if (!gate.ok) { emailBlocked = gate.reason; toEmail = ''; }
+      else toEmail = gate.to;
     }
 
     let emailed = false;
@@ -431,7 +527,7 @@ exports.createReportShareToken = onCall(
       if (tenantKey) {
         try {
           const cpSnap = await db.doc(`companyProfile/${tenantKey}`).get();
-          if (cpSnap.exists) { const _ln = ((cpSnap.data() || {}).brand || {}).legalName || ''; tenantName = (_ln && _ln !== 'No Big Deal Home Solutions') ? _ln : ''; }  // NBD-name guard (byte-identical; mirrors render-pdf.js/sms-functions.js)
+          if (cpSnap.exists) { const _ln = cleanLabel(((cpSnap.data() || {}).brand || {}).legalName || '', 60); tenantName = (_ln && _ln !== 'No Big Deal Home Solutions') ? _ln : ''; }  // NBD-name guard (byte-identical; mirrors render-pdf.js/sms-functions.js)
         } catch (e) {
           logger.warn('[createReportShareToken] tenant resolve failed', { subjectId: subject.logId, err: e.message });
         }
@@ -443,7 +539,7 @@ exports.createReportShareToken = onCall(
         // Two nouns, deliberately. The subject line has always been a fixed
         // string while the body used the report's own type; keeping them
         // separate is what makes the /reports path byte-identical here.
-        const reportName = escHtml(subject.bodyNoun);
+        const reportName = escHtml(cleanLabel(subject.bodyNoun, 80) || 'inspection report');
         // Email category: TRANSACTIONAL — delivers a report / document the customer is receiving. Not gated by the unsubscribe register (email-suppression.js SEND_PATHS).
         const response = await resend.emails.send({
           from: fromEmail,
@@ -482,7 +578,7 @@ exports.createReportShareToken = onCall(
     // token doc may carry none at all — so this is not unconditionally a
     // Timestamp the way it was when every call minted one.
     const expiresMs = (expiresAt && typeof expiresAt.toMillis === 'function') ? expiresAt.toMillis() : null;
-    return { token, shareUrl, expiresAt: expiresMs, emailed, sentTo: emailed ? toEmail : null, reused: !!subject.existingToken };
+    return { token, shareUrl, expiresAt: expiresMs, emailed, sentTo: emailed ? toEmail : null, reused: !!subject.existingToken, emailBlocked: emailBlocked || null };
   }
 );
 

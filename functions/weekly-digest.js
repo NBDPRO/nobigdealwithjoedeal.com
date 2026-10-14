@@ -26,6 +26,7 @@ const { logger } = require('firebase-functions/v2');
 const { FieldPath, getFirestore, Timestamp } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 const { Resend } = require('resend');
+const AR = require('./alert-recipients');
 const stageRoles = require('./stage-roles');
 // The ONE money reader ('$45,000' → 45000) and the jobs rule the Home KPI
 // tiles use (review R2, 2026-10-06).
@@ -484,9 +485,16 @@ exports.weeklyDigest = onSchedule(
           continue;
         }
 
+        // 2026-10-13: users/{uid}.email is writable by that user, so the digest goes
+        // only to their VERIFIED Auth email (the platform owner's stored address
+        // passes through), and a destination is capped per day across tenants.
+        const toAddr = await AR.verifiedUserEmail(uid, user.email);
+        if (!toAddr) { skipped++; continue; }
+        const capAddr = await AR.capRecipients('digest', [toAddr]);
+        if (!capAddr.allowed.length) { skipped++; continue; }
         await resend.emails.send({
           from: fromAddress,
-          to: user.email,
+          to: toAddr,
           subject,
           html,
         });

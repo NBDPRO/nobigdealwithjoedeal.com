@@ -472,6 +472,11 @@ exports.fileStormDrafts = agentMcp.fileStormDrafts;
 const reportSharingFunctions = require('./report-sharing');
 Object.assign(exports, reportSharingFunctions);
 
+// Confirm a custom lead-alert address (2026-10-13): alertRecipients callable +
+// /alert-confirm/<token> page. Policy lives in functions/alert-recipients.js.
+const alertRecipientFunctions = require('./alert-recipients-fns');
+Object.assign(exports, alertRecipientFunctions);
+
 // Read-only .ics calendar feed: one secret URL per rep
 // (calendar_feed_tokens + /calendar/<token>.ics), subscribed once from the
 // iPhone Calendar app and refreshed by iOS thereafter. No vendor, no secret.

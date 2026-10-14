@@ -469,7 +469,9 @@ exports.createSignRequest = onCall(
       const response = await resend.emails.send({
         from: fromEmail,
         to: signerEmail,
-        subject: `Please sign your ${docName}`,
+        // Subject is plain text: the tenant-written type name is cleaned, NOT
+        // HTML-escaped (docName above is the escaped body copy).
+        subject: `Please sign your ${ESL.cleanLabel(docMeta.typeName || docMeta.type || 'document', 60) || 'document'}`,
         html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#12223d;">
           <p>Hi ${escHtml(signerName || lead.firstName || 'there')},</p>
           <p>${repName} has a <strong>${docName}</strong> ready for your signature. It only takes a minute — just tap the button, sign on your phone, and you're done.</p>
