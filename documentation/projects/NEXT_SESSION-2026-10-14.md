@@ -85,3 +85,7 @@ before re-running. #2316 is held until Jo says close.
   overrides go in the gitignored `functions/.env.local`.
 - Hooks block `git reset --hard` and `sed -i`; use `commit-tree` + `branch -f`
   and Node scripts.
+
+## Update (later 10-14): stuck calls were .amr, not credit
+
+After the credit top-up a census of `phone_calls` (600 newest) showed 446 noted, 77 short, 67 personal, 1 too_large, **9 stored** — all Cube ACR `.amr`, "Groq rejected: file must be one of the following types", 3 strikes, up to 12 days old. Groq does not accept AMR/3GP/AAC. Fix: `functions/call-audio-transcode.js` re-encodes anything outside Groq's list to mono FLAC before upload (`prepareForGroq`, wired in `call-center.js`); verified on a real 15 s recording. `scripts/reopen-provider-outage-calls.js` now also matches that error. **After this deploys:** `node scripts/reopen-provider-outage-calls.js --project nobigdeal-pro --apply` (dry run said 9), then the half-hourly transcribe pass picks them up. 77 "short" calls are by design.
