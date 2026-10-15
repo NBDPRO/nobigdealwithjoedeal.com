@@ -138,6 +138,7 @@
     agent_inbox: '🤖', call_watch: '📞',
   };
   function serverIcon(type) { return SERVER_NOTIF_ICONS[type] || '🔔'; }
+  const SMS_HREF_RE = /^sms:\+1[0-9]{10}\?body=[A-Za-z0-9%._~!*'()-]{1,600}$/;
   function serverSeverity(n) {
     const p = String(n && n.priority || '').toLowerCase();
     if (p === 'high') return 'high';
@@ -166,6 +167,9 @@
       text:       n.message || '',
       sub:        ts ? relativeTime(ts) : '',
       ts:         ts,
+      // Speed-to-lead (2026-10-15): a missed call's one-tap reply, typed and
+      // ready (functions/missed-call-reply-logic.js). Our own sms: shape only.
+      smsHref:    SMS_HREF_RE.test(String(n.smsHref || '')) ? String(n.smsHref) : '',
       // The bot team's filings open the Agent inbox (agent-inbox.js).
       // The every-2-hours call check opens the Call Center (call-watch.js).
       href:       n.type === 'agent_inbox' ? '/pro/dashboard.html?agentInbox=1'
@@ -701,6 +705,12 @@
     // info). stopPropagation on each so an action click doesn't
     // ALSO fire the row's _handleClick navigation.
     let actionButtonsHTML = '';
+    // A missed call's prefilled reply: opens Jo's own messages app with the
+    // text typed. Plain link (CSP-safe); data-nb-stop-self keeps the row's
+    // click from firing too.
+    const textBackHTML = (n.smsHref && !isDismissedView)
+      ? `<a class="notif-action notif-textback" href="${escapeHtml(n.smsHref)}" title="Text back with the reply already typed" data-nb-stop-self="1">💬 Text back</a>`
+      : '';
     if (n.leadId && Array.isArray(window._leads)) {
       const lead = window._leads.find(l => l && l.id === n.leadId);
       if (lead) {
@@ -840,6 +850,7 @@
             ${escapeHtml(n.sub)}
           </div>
         </div>
+        ${textBackHTML ? `<div class="notif-actions notif-actions-textback">${textBackHTML}</div>` : ''}
         ${actionButtonsHTML}
         ${isDismissedView ? `
         <button class="notif-dismiss" title="Restore"

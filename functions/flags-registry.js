@@ -64,6 +64,8 @@ const ROWS = {
     meaning: 'Lets the Twilio line read inbound texts and forward inbound calls. Off = fixed message, nothing read or written. Waits on A2P approval.' },
   THURSDAY_LABEL_PLAYBOOKS_ENABLED: { group: 'Calls & texts', dark: true, doc: 'documentation/projects/THURSDAY-LABEL-PLAYBOOKS-2026-10-12.md',
     meaning: 'Thursday (the AI receptionist) gets per-label caller playbooks and away wording on a caller lookup.' },
+  MISSED_CALL_AUTOTEXT_ENABLED: { group: 'Calls & texts', dark: true, doc: 'documentation/runbooks/TWILIO-LINE-GO-LIVE.md',
+    meaning: 'Auto-texts a missed caller who gave texting consent on a web form (8am-9pm, once a day). Off = Jo gets the one-tap reply draft only. Waits on A2P.' },
   LEAD_ACK_SMS_ENABLED: { group: 'Calls & texts', doc: ENV_DOC,
     meaning: 'Texts the homeowner a quick acknowledgement when a new lead arrives. Off = no acknowledgement text.' },
   STORM_TEXT_ENABLED: { group: 'Calls & texts', doc: 'documentation/projects/AI-AUTOMATIONS-2026-10-04.md',

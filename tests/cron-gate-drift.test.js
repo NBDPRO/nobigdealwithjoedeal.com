@@ -85,8 +85,9 @@ ok('every registered gate is actually checked by some function (no stale entries
 // 30 (2026-10-07): + LEAD_ALERT_WATCHDOG_DISABLED, the missed-lead-alert re-send's kill switch.
 // 31 (2026-10-12): + AWAY_MODE_ENABLED, the away-mode backup tick's notify switch.
 // 32 (2026-10-12): + THURSDAY_LABEL_PLAYBOOKS_ENABLED, Thursday's per-label playbooks (dark).
-ok('the registry has exactly 32 gates (update this pin deliberately if that changes)',
-  CRON_GATES.length === 32, String(CRON_GATES.length));
+// 33 (2026-10-15): + MISSED_CALL_AUTOTEXT_ENABLED, the missed-call auto-text (dark until A2P).
+ok('the registry has exactly 33 gates (update this pin deliberately if that changes)',
+  CRON_GATES.length === 33, String(CRON_GATES.length));
 
 for (const g of CRON_GATES) {
   const files2 = foundInFile.get(g.name);

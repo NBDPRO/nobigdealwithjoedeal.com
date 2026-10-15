@@ -76,6 +76,16 @@
 .cc-deck-one { margin-top: 8px; width: 100%; justify-content: center; }
 /* Call / Text on every call card (2026-10-03): tel: / sms: links, 44px. */
 .cc-reach { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; text-decoration: none; }
+/* Speed-to-lead (2026-10-15): a missed call's "Text back" — the reply is
+   already typed (sms: link with body). The card's and the bell row's. */
+.cc-textback { font-weight: 700; color: var(--orange, #e8720c); }
+.notif-actions-textback { display: flex; align-self: center; flex-shrink: 0; }
+.notif-textback {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  min-height: 36px; padding: 0 10px; border-radius: 6px; white-space: nowrap;
+  font-size: 12px; font-weight: 700; text-decoration: none;
+  color: var(--orange, #e8720c); background: color-mix(in srgb, var(--orange, #e8720c) 14%, transparent);
+}
 /* The card a ?call=<id> link opened (the urgent push, the email). */
 .cc-card.cc-focus { outline: 2px solid var(--orange, #e8720c); outline-offset: 2px; scroll-margin-top: 72px; }
 

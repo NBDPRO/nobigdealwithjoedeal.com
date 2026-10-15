@@ -114,6 +114,12 @@ function resolveNotificationAction(action, data) {
       // opening the lead so the rep can still act.
       return digits ? { kind: 'call', phone: digits, url } : { kind: 'navigate', url };
     }
+    case 'text': {
+      // Only our own sms: shape (functions/missed-call-reply-logic.js
+      // isSafeSmsHref); anything else opens the CRM instead.
+      const sms = String(d.smsUrl || '');
+      return /^sms:\+1[0-9]{10}\?body=[A-Za-z0-9%._~!*'()-]{1,600}$/.test(sms) ? { kind: 'text', sms, url } : { kind: 'navigate', url };
+    }
     case 'snooze':
       return { kind: 'snooze', leadId: String(d.leadId || ''), url };
     default:
@@ -158,6 +164,14 @@ self.addEventListener('notificationclick', (event) => {
         const w = await clients.openWindow('tel:' + plan.phone);
         if (w) return w;
       } catch (e) { /* fall through to the lead */ }
+      return clients.openWindow(plan.url);
+    }
+    // Same for sms: (the missed-call "Text back" — Jo's own messages app).
+    if (plan.kind === 'text') {
+      try {
+        const w = await clients.openWindow(plan.sms);
+        if (w) return w;
+      } catch (e) { /* fall through to the CRM */ }
       return clients.openWindow(plan.url);
     }
 
@@ -212,7 +226,11 @@ function getClickUrl(data = {}) {
 
     case 'yardSignPickup':
       return `${baseUrl}dashboard.html#/signs`;
-    
+
+    case 'missedCall':
+      // The call's own Call Center card (call-watch-logic.js callCardUrl).
+      return /^\/pro\/dashboard\.html[?#]/.test(String(data.clickUrl || '')) ? data.clickUrl : `${baseUrl}dashboard.html#/calls`;
+
     default:
       return `${baseUrl}dashboard.html`;
   }
@@ -243,6 +261,13 @@ function getNotificationActions(type) {
         { action: 'view', title: 'View' },
         { action: 'snooze', title: 'Snooze 1h' },
         { action: 'dismiss', title: 'Dismiss' }
+      ];
+
+    case 'missedCall':
+      // Speed-to-lead (2026-10-15): the reply is already typed (data.smsUrl).
+      return [
+        { action: 'text', title: 'Text back' },
+        { action: 'view', title: 'Open' }
       ];
 
     default:

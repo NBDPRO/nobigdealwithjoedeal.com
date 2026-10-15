@@ -19,6 +19,7 @@
  */
 
 const PV = require('./ping-volume-logic');
+const MCR = require('./missed-call-reply-logic');
 
 const DAY = 86400000;
 const HOUR = 3600000;
@@ -301,7 +302,11 @@ function newNeeds(calls, textDays, thursday, sinceMs, now, labels, told) {
     // never reached the re-tell ladder (audit 2026-10-13, volume simulation).
     const stored = c.status === 'stored';
     if (!stored && !due && !wake && wasTold('call:' + c.id + '#stored') && !HIGH_WHY.test(why)) return;
-    out.push({ id: 'call:' + c.id, tellId: arrived <= sinceMs ? 'call:' + c.id + (due ? '#due:' + c.followUpDate : (wake ? '#wake:' + wake : '#carrier')) : (orphan ? 'call:' + c.id + '#carrier' : (stored ? 'call:' + c.id + '#stored' : undefined)), key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) });
+    const sms = why === 'missed call' ? MCR.draftHref(c) : '';
+    out.push(Object.assign({ id: 'call:' + c.id, tellId: arrived <= sinceMs ? 'call:' + c.id + (due ? '#due:' + c.followUpDate : (wake ? '#wake:' + wake : '#carrier')) : (orphan ? 'call:' + c.id + '#carrier' : (stored ? 'call:' + c.id + '#stored' : undefined)), key: callerKey(c), kind: 'call', who: who(c), why, at: toMs(c.startedAtMs) },
+      // Speed-to-lead (2026-10-15): the missed call's one-tap reply draft
+      // (only when present: these items are stored, and Firestore refuses undefined).
+      sms ? { smsHref: sms } : {}));
   });
   (textDays || []).forEach((c) => {
     if (!callNeedsYou(c, now, tctx)) return;
@@ -684,6 +689,8 @@ function alertFor(needs, problems, now) {
     // One person on a phone call / text day → straight to their card in the
     // Call Center (call-center-view.js ?call=); anything else → the list.
     clickUrl: n.length === 1 && /^(call|text):/.test(n[0].id) ? callCardUrl(n[0].id.replace(/^(call|text):/, '')) : '/pro/dashboard.html#/calls',
+    // One missed call → "Text back" with the prefilled reply (bell + push).
+    smsHref: n.length === 1 && MCR.isSafeSmsHref(n[0].smsHref) ? n[0].smsHref : '',
   };
 }
 /** The Call Center opened on one call's card (call-center-view.js reads ?call=). */

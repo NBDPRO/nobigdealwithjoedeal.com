@@ -229,6 +229,8 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
     await db.collection('notifications').add({
       userId: OWNER, type: 'call_watch', title: alert.title, message: alert.message, priority: alert.priority,
       clickUrl: alert.clickUrl, read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
+      // One missed call: the bell row's "Text back" (prefilled reply, Jo's own phone).
+      ...(alert.smsHref ? { smsHref: alert.smsHref } : {}),
     });
     // The last rung is sticky (requireInteraction) so it stays on the lock screen.
     const sticky = planA.pushItems.some((r) => r.rung >= W.LADDER_MAX);
@@ -239,7 +241,11 @@ async function runWatch({ db, nowMs, live, push, texts: fetchTexts, email }) {
       const merged = promisePushPeople.length ? PV.mergePush(pa, PCL.pushText(promisePushPeople)) : null;
       const title = merged ? merged.title : pa.title.replace(/^📞 /, '');
       const body = merged ? merged.body : pa.push;
-      const data = Object.assign({ type: 'call_watch', clickUrl: merged ? '/pro/dashboard.html#/home' : pa.clickUrl },
+      // A push about ONE missed call carries the reply draft: its "Text back"
+      // button opens Jo's own messages app with the reply typed (type
+      // 'missedCall' picks the buttons, push-functions.js notificationActionsFor).
+      const textBack = !merged && pa.smsHref ? { type: 'missedCall', smsUrl: pa.smsHref } : {};
+      const data = Object.assign({ type: 'call_watch', clickUrl: merged ? '/pro/dashboard.html#/home' : pa.clickUrl }, textBack,
         sticky ? { requireInteraction: 'true' } : {},
         merged ? { notificationId: 'watch-' + W.etYmd(nowMs) + '-' + nowMs, promiseKeys: promisePushPeople.map((p) => p.key).join(',').slice(0, 400) } : {});
       try { pushRes = await push(OWNER, title, body, data); }
