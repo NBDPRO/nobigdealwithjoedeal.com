@@ -22,6 +22,8 @@
 .project-img{width:100%;height:230px;object-fit:cover;display:block}
 .project-body{padding:20px}
 .project-tag{display:inline-block;background:rgba(189,87,40,.1);color:#A14A22;font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 12px;border-radius:100px;margin-bottom:8px}
+/* "Joe's work before No Big Deal" (2026-10-15): jobs Joe did before NBD started in 2026. Navy, not orange, so it reads as a different kind of label from the service tag. */
+.project-tag.project-era{background:rgba(18,34,61,.08);color:#12223d;text-transform:none;letter-spacing:.02em}
 .project h3{font-size:1rem;font-weight:700;color:var(--navy-dark,#12223d);margin-bottom:6px}
 .project p{font-size:.82rem;color:var(--gray,#5d6673);line-height:1.6}
 .project-loc{font-size:.75rem;color:var(--gray,#5d6673);display:inline-flex;align-items:center;gap:4px}

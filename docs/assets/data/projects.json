@@ -26,7 +26,12 @@
     "may be a list of strings. Photos may carry an optional caption (falls back to",
     "alt). Write only what is true of the job — the template never fills a gap.",
     "city ('Town, ST') also places the job on /areas/<town> and the town-specific",
-    "/services/<service>-<town> pages (OURWORK-AREA / OURWORK-LOCAL regions)."
+    "/services/<service>-<town> pages (OURWORK-AREA / OURWORK-LOCAL regions).",
+    "ERA (2026-10-15): No Big Deal started in 2026. A job whose WORK year (year,",
+    "not published) is before 2026, or that has no year, renders labelled",
+    "\"Joe's work before No Big Deal\" and is left out of NBD schema, the homepage",
+    "wall and NBD counts. Optional era: \"nbd\" | \"pre-nbd\" overrides that rule",
+    "for one job (e.g. an undated job Joe confirms was a 2026 NBD job)."
   ],
   "projects": [
     {
