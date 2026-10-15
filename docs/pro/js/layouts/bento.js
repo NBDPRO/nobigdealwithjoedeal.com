@@ -518,7 +518,7 @@
       // forget my board: back to the company default (new-hire board) or the
       // built-in one. It cannot be undone, so ask first (the app's own confirm
       // sheet when it is loaded; the browser's otherwise).
-      var ask = typeof W.nbdConfirm === 'function' ? W.nbdConfirm : function (m) { return W.confirm(m); };
+      var ask = W.nbdConfirm || function (m) { return Promise.resolve(W.confirm(m)); };
       Promise.resolve(ask('Reset your board? Your tile arrangement is cleared and you start again from ' +
         (companyBoard() ? 'your company\'s default board.' : 'the standard board.'))).then(function (yes) {
         if (!yes) return;
