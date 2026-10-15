@@ -17,27 +17,44 @@
   function wireAddress() {
     var inp = $('sr-address'), drop = $('sr-acdrop');
     if (!inp) return;
+    // Lookup on blur or Generate, never per keystroke (2026-10-15, review H4):
+    // the public Nominatim policy forbids autocomplete-as-you-type. Same rule
+    // as /estimate: one debounced lookup when the field loses focus, at least
+    // 5 characters, each distinct string looked up once per page.
     inp.addEventListener('input', function () {
       S.lat = S.lon = null; S.address = '';
       clearTimeout(deb);
+      drop.style.display = 'none';
+    });
+    inp.addEventListener('blur', function () {
+      clearTimeout(deb);
       var q = this.value.trim();
-      if (q.length < 4) { drop.style.display = 'none'; return; }
-      deb = setTimeout(function () { searchAddr(q); }, 350);
+      if (q.length < 5 || S.lat != null) return;
+      deb = setTimeout(function () { searchAddr(q); }, 400);
     });
     document.addEventListener('click', function (e) { if (!e.target.closest('.sr-input-wrap')) drop.style.display = 'none'; });
   }
+  var geoCache = {};
+  function geocodeOnce(q) {
+    var key = String(q || '').trim().toLowerCase();
+    if (!geoCache[key]) {
+      geoCache[key] = fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(q) +
+        '&format=json&addressdetails=1&countrycodes=us&limit=5&viewbox=' +
+        encodeURIComponent('-85.2,39.5,-83.6,38.6') + '&bounded=0')
+        .then(function (r) { if (!r.ok) throw new Error('geocode-failed'); return r.json(); })
+        .catch(function (e) { delete geoCache[key]; throw e; });
+    }
+    return geoCache[key];
+  }
   function searchAddr(q) {
     var drop = $('sr-acdrop'), my = ++seq;
-    fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(q) +
-      '&format=json&addressdetails=1&countrycodes=us&limit=5&viewbox=' +
-      encodeURIComponent('-85.2,39.5,-83.6,38.6') + '&bounded=0')
-      .then(function (r) { return r.json(); }).then(function (data) {
-        if (my !== seq) return;
-        if (!data.length) { drop.style.display = 'none'; return; }
-        window._srAc = data;
-        drop.innerHTML = data.map(function (d, i) { return '<div class="sr-ac-item" data-idx="' + i + '">' + String(d.display_name).replace(/[<>]/g, '') + '</div>'; }).join('');
-        drop.style.display = 'block';
-      }).catch(function () { if (my === seq) drop.style.display = 'none'; });
+    geocodeOnce(q).then(function (data) {
+      if (my !== seq) return;
+      if (!data.length) { drop.style.display = 'none'; return; }
+      window._srAc = data;
+      drop.innerHTML = data.map(function (d, i) { return '<div class="sr-ac-item" data-idx="' + i + '">' + String(d.display_name).replace(/[<>]/g, '') + '</div>'; }).join('');
+      drop.style.display = 'block';
+    }).catch(function () { if (my === seq) drop.style.display = 'none'; });
   }
   function pickAddr(i) {
     var d = (window._srAc || [])[i]; if (!d) return;
@@ -48,7 +65,22 @@
 
   /* ── step 1: generate (fetch the report) ── */
   function generate() {
-    if (S.lat == null) { var h = $('sr-addr-hint'); h.textContent = 'Type your address and pick it from the dropdown.'; h.style.display = 'block'; return; }
+    if (S.lat == null) {
+      var h = $('sr-addr-hint');
+      // Typed but never picked (the dropdown now opens only on blur): use the
+      // top match, as /storm-check and /estimate do. The report needs a map
+      // point, so with no match the visitor is asked to pick one.
+      var typed = $('sr-address').value.trim();
+      if (typed.length >= 5) {
+        h.textContent = 'Looking up that address…'; h.style.display = 'block';
+        geocodeOnce(typed).then(function (data) {
+          if (!data || !data.length) { h.textContent = 'Type your address and pick it from the dropdown.'; return; }
+          window._srAc = data; pickAddr(0); generate();
+        }).catch(function () { h.textContent = 'Type your address and pick it from the dropdown.'; });
+        return;
+      }
+      h.textContent = 'Type your address and pick it from the dropdown.'; h.style.display = 'block'; return;
+    }
     show('sr-loading');
     fetch(API + '?lat=' + S.lat + '&lon=' + S.lon)
       .then(function (r) { return r.json(); })
@@ -209,7 +241,7 @@
 
   /* ── helpers ── */
   function show(id) { document.querySelectorAll('.sr-panel').forEach(function (p) { p.classList.remove('active'); }); var t = $(id); if (t) t.classList.add('active'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-  function wirePhone() { var el = $('sr-phone'); if (!el) return; el.addEventListener('input', function () { var v = this.value.replace(/\D/g, '').slice(0, 10); if (v.length >= 7) this.value = '(' + v.slice(0, 3) + ') ' + v.slice(3, 6) + '-' + v.slice(6); else if (v.length >= 4) this.value = '(' + v.slice(0, 3) + ') ' + v.slice(3); else this.value = v; }); }
+  function wirePhone() { var el = $('sr-phone'); if (!el) return; el.addEventListener('input', function () { var v = this.value.replace(/\D/g, ''); if (v.length > 10 && v.charAt(0) === '1') v = v.slice(1); v = v.slice(0, 10); if (v.length >= 7) this.value = '(' + v.slice(0, 3) + ') ' + v.slice(3, 6) + '-' + v.slice(6); else if (v.length >= 4) this.value = '(' + v.slice(0, 3) + ') ' + v.slice(3); else this.value = v; }); }
   function wire() {
     wireAddress(); wirePhone();
     if (!mountIntake()) { var _it = 0, _iv = setInterval(function () { if (mountIntake() || ++_it > 40) clearInterval(_iv); }, 250); }

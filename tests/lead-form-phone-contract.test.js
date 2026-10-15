@@ -78,6 +78,39 @@ for (const [rel, from, to] of FORMS) {
 }
 ok('/estimate keeps its own exact-10 checks (the model the rule was aligned to)', (read('docs/assets/js/inline/4053149b2f.js').match(/length\s*[!=]==\s*10/g) || []).length >= 3);
 
+// 2026-10-15 (review H1): the as-you-type formatters kept the FIRST ten
+// digits, so an autofilled "+1 (859) 555-1234" became "(185) 955-5123".
+// Each formatter's input handler is sliced from source and EXECUTED.
+console.log('\nPHONE FORMATTERS — an autofilled +1 number keeps the right ten digits');
+function extractInputHandler(rel, anchor) {
+  const src = read(rel);
+  const at = src.indexOf(anchor);
+  if (at === -1) return null;
+  const start = src.indexOf('function', src.indexOf("addEventListener('input'", at));
+  let depth = 0, i = src.indexOf('{', start);
+  for (; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}' && --depth === 0) break;
+  }
+  return new Function('return (' + src.slice(start, i + 1) + ');')();
+}
+const FORMATTERS = [
+  ['docs/assets/js/inline/4053149b2f.js', "var phoneNumberEl = document.getElementById('phoneNumber')"],
+  ['docs/assets/js/storm-check.js', "var el = $('sc-phone')"],
+  ['docs/assets/js/roof-score.js', "var el = $('rs-phone')"],
+  ['docs/assets/js/storm-report-page.js', "var el = $('sr-phone')"],
+];
+for (const [rel, anchor] of FORMATTERS) {
+  const fn = extractInputHandler(rel, anchor);
+  ok(`${rel}: phone input handler found`, typeof fn === 'function');
+  if (typeof fn !== 'function') continue;
+  const fmt = (v) => { const el = { value: v }; fn.call(el); return el.value; };
+  ok(`${rel}: "+1 (859) 555-1234" → "(859) 555-1234"`, fmt('+1 (859) 555-1234') === '(859) 555-1234', fmt('+1 (859) 555-1234'));
+  ok(`${rel}: "18595551234" → "(859) 555-1234"`, fmt('18595551234') === '(859) 555-1234', fmt('18595551234'));
+  ok(`${rel}: a plain 10-digit number is unchanged`, fmt('8595551234') === '(859) 555-1234', fmt('8595551234'));
+  ok(`${rel}: a non-1 11th digit is still cut at ten`, fmt('85955512345') === '(859) 555-1234', fmt('85955512345'));
+}
+
 console.log('\n/inspect — the handler, executed against a fake form');
 function runInspect({ name, address, phone, response }) {
   const calls = [];

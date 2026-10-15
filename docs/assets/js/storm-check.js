@@ -13,7 +13,7 @@
 
   var PROXY = 'https://us-central1-nobigdeal-pro.cloudfunctions.net/publicFunnelAI';
   var S = {
-    step: 1, address: '', addressFull: null, lat: null, lon: null,
+    step: 1, address: '', addressFull: null, addressTyped: '', lat: null, lon: null,
     stormWhen: '', stormType: '', roofAge: '', roofType: 'asphalt',
     signs: [], firstName: '', phone: '', email: '', submitted: false
   };
@@ -33,7 +33,7 @@
   }
   function validate(step) {
     if (step === 1) {
-      if (!S.addressFull) {
+      if (!S.addressFull && !S.addressTyped) {
         // Typed but never picked (mouse or keyboard) — resolve the top match
         // instead of dead-ending; pickAddr fills S.addressFull so the next
         // Continue press advances.
@@ -64,12 +64,22 @@
     inp.setAttribute('aria-expanded', 'false');
     inp.setAttribute('aria-controls', 'sc-acdrop');
     if (drop) drop.setAttribute('role', 'listbox');
+    // Lookup on blur or Continue, never per keystroke (2026-10-15, review H4):
+    // the public Nominatim policy forbids autocomplete-as-you-type, and a
+    // throttled Referer breaks every address lookup on the site. Same rule as
+    // /estimate: one debounced lookup when the field loses focus, at least 5
+    // characters, each distinct string looked up once per page (geocodeOnce).
     inp.addEventListener('input', function () {
       S.addressFull = null;
+      if (S.addressTyped && this.value.trim() !== S.addressTyped) S.addressTyped = '';
+      clearTimeout(debTimer);
+      closeDrop();
+    });
+    inp.addEventListener('blur', function () {
       clearTimeout(debTimer);
       var q = this.value.trim();
-      if (q.length < 4) { closeDrop(); return; }
-      debTimer = setTimeout(function () { searchAddr(q); }, 350);
+      if (q.length < 5 || S.addressFull || S.addressTyped) return;
+      debTimer = setTimeout(function () { searchAddr(q); }, 400);
     });
     // Keyboard path: the dropdown items are divs, so without this a
     // keyboard/screen-reader user could type but never select — and step 1
@@ -111,27 +121,58 @@
     if (inp) { inp.setAttribute('aria-expanded', 'false'); inp.setAttribute('aria-activedescendant', ''); }
     kbIdx = -1;
   }
+  // One request per distinct address string per page (same as /estimate's
+  // _geocodeOnce): blur, Continue and Enter share one answer.
+  var geoCache = {};
+  function geocodeOnce(q) {
+    var key = String(q || '').trim().toLowerCase();
+    if (!geoCache[key]) {
+      var url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(q) +
+        '&format=json&addressdetails=1&countrycodes=us&limit=5' +
+        '&viewbox=' + encodeURIComponent('-85.2,39.5,-83.6,38.6') + '&bounded=0';
+      geoCache[key] = fetch(url).then(function (r) {
+        if (!r.ok) throw new Error('geocode-failed');
+        return r.json();
+      }).catch(function (e) { delete geoCache[key]; throw e; });
+    }
+    return geoCache[key];
+  }
   // Typed-without-picking fallback (same pattern as the estimate funnel's
   // _resolveAddressInline): resolve the top geocoder match so typing alone
-  // is enough to proceed.
+  // is enough to proceed. The map lookup is a convenience, never a gate
+  // (2026-10-15, review H3): when it finds nothing or fails, offer "Use my
+  // address as typed" like /estimate does; Joe confirms it when he calls.
   function resolveTyped(q) {
     if (!q || q.length < 5) { hint('Type your address and pick it from the dropdown.'); return; }
     hint('Looking up that address…');
-    var url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(q) +
-      '&format=json&addressdetails=1&countrycodes=us&limit=1' +
-      '&viewbox=' + encodeURIComponent('-85.2,39.5,-83.6,38.6') + '&bounded=0';
-    fetch(url).then(function (r) { return r.json(); }).then(function (data) {
-      if (!data || !data.length) { hint("Couldn't find that address. Please type more of it."); return; }
+    geocodeOnce(q).then(function (data) {
+      if (!data || !data.length) { offerTyped("We couldn't find that address on the map. Check it, or continue with it as typed."); return; }
       window._scAc = data;
       pickAddr(0);
-    }).catch(function () { hint('Address lookup failed. Check your connection and try again.'); });
+    }).catch(function () { offerTyped("The map lookup isn't responding. You can continue with your address as typed."); });
+  }
+  function offerTyped(msg) {
+    hint(msg);
+    var el = $('sc-addr-hint'); if (!el) return;
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'sc-back';
+    b.style.cssText = 'display:block;margin-top:10px;padding:10px 16px;';
+    b.setAttribute('data-action', 'useTypedAddress');
+    b.textContent = 'Use my address as typed →';
+    el.appendChild(b);
+  }
+  function useTypedAddress() {
+    var inp = $('sc-address'); var addr = inp ? inp.value.trim() : '';
+    if (addr.length < 5) { hint('Type your address and pick it from the dropdown.'); return; }
+    S.addressFull = null; S.addressTyped = addr; S.address = addr;
+    S.lat = null; S.lon = null;
+    closeDrop(); hint('');
+    goToStep(2);
   }
   function searchAddr(q) {
     var drop = $('sc-acdrop'), my = ++seq;
-    var url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(q) +
-      '&format=json&addressdetails=1&countrycodes=us&limit=5' +
-      '&viewbox=' + encodeURIComponent('-85.2,39.5,-83.6,38.6') + '&bounded=0';
-    fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+    geocodeOnce(q).then(function (data) {
       if (my !== seq) return;
       if (!data.length) { drop.style.display = 'none'; return; }
       window._scAc = data;
@@ -146,7 +187,7 @@
   }
   function pickAddr(i) {
     var d = (window._scAc || [])[i]; if (!d) return;
-    S.addressFull = d; S.address = d.display_name;
+    S.addressFull = d; S.addressTyped = ''; S.address = d.display_name;
     S.lat = parseFloat(d.lat); S.lon = parseFloat(d.lon);
     $('sc-address').value = d.display_name;
     closeDrop();
@@ -164,7 +205,7 @@
           if (t !== tile) t.classList.remove('selected');
         });
       } else {
-        var noneT = document.querySelector('[data-group="signs"][data-value="none"]');
+        var noneT = document.querySelector('[data-group="signs"] .sc-tile[data-value="none"]');
         if (noneT) noneT.classList.remove('selected');
         S.signs = [].slice.call(document.querySelectorAll('[data-group="signs"] .sc-tile.selected'))
           .map(function (t) { return t.getAttribute('data-value'); });
@@ -191,7 +232,11 @@
     var ets = new Date(), sts = new Date(Date.now() - days * 864e5);
     var url = 'https://mesonet.agron.iastate.edu/geojson/lsr.geojson?sts=' + iso(sts) +
       '&ets=' + iso(ets) + '&states=OH,KY,IN';
-    return fetch(url).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    // Same 30 s cap: the result screen waits on this lookup too.
+    var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
+    return fetch(url, { signal: ctrl ? ctrl.signal : undefined }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      clearTimeout(timer);
       if (!j || !j.features) return null;
       return j.features.map(function (f) {
         var c = f.geometry && f.geometry.coordinates; var p = f.properties || {};
@@ -242,13 +287,18 @@
       var prompt = 'You are Joe Deal, owner of No Big Deal Home Solutions, a Cincinnati roofer who documents storm damage, writes the estimate, and meets the adjuster on the roof — the homeowner owns and decides their own claim. Write a 2-sentence, warm, no-BS note to ' +
         (S.firstName || 'a homeowner') + ' who just used your storm-damage self-check. Roof age: ' + S.roofAge +
         '. Signs reported: ' + (S.signs.join(', ') || 'none') + '. Do NOT promise the claim will be approved or pay out; say you’ll inspect free, document the damage, and meet the adjuster on the roof — the claim stays theirs. No dollar amounts.';
+      // 30 s client timeout (2026-10-15, review M3): a slow or cold backend
+      // held the result (and the lead saved/failed notice) behind a spinner.
+      var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
       return fetch(PROXY, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt, maxTokens: 180 })
+        body: JSON.stringify({ prompt: prompt, maxTokens: 180 }),
+        signal: ctrl ? ctrl.signal : undefined
       }).then(function (r) { return r.json(); }).then(function (d) {
         var txt = d && d.text;
         return (txt && txt.trim()) ? txt.trim() : fb;
-      }).catch(function () { return fb; });
+      }).catch(function () { return fb; }).then(function (t) { clearTimeout(timer); return t; });
     } catch (e) { return Promise.resolve(fb); }
   }
 
@@ -330,7 +380,9 @@
   function wirePhone() {
     var el = $('sc-phone'); if (!el) return;
     el.addEventListener('input', function () {
-      var v = this.value.replace(/\D/g, '').slice(0, 10);
+      var v = this.value.replace(/\D/g, '');
+      if (v.length > 10 && v.charAt(0) === '1') v = v.slice(1); // drop an autofilled +1 country code
+      v = v.slice(0, 10);
       if (v.length >= 7) this.value = '(' + v.slice(0, 3) + ') ' + v.slice(3, 6) + '-' + v.slice(6);
       else if (v.length >= 4) this.value = '(' + v.slice(0, 3) + ') ' + v.slice(3);
       else this.value = v;
@@ -347,6 +399,7 @@
       if (tile) { var g = tile.closest('[data-group]'); if (g) { selectTile(tile, g.dataset.group); } return; }
       var step = e.target.closest('[data-step]'); if (step) { goToStep(+step.dataset.step); return; }
       var act = e.target.closest('[data-action]'); if (act && act.dataset.action === 'submit') { submitLead(); }
+      else if (act && act.dataset.action === 'useTypedAddress') { useTypedAddress(); }
     });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);

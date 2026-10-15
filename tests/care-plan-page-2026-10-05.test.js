@@ -107,7 +107,10 @@ function boot(opts) {
     const r = o.respond ? o.respond(body) : { status: 200, data: { url: body.action === 'portal' ? 'https://billing.stripe.com/p/x' : 'https://checkout.stripe.com/c/x' } };
     return Promise.resolve({ ok: r.status < 300, status: r.status, json: () => Promise.resolve(r.data) });
   };
-  const win = { location: { search: o.search || '', set href(v) { href = v; }, get href() { return href; } }, nbdTurnstileExecute: () => Promise.resolve('tok_' + 'x'.repeat(12)) };
+  const winListeners = {};
+  const win = { location: { search: o.search || '', set href(v) { href = v; }, get href() { return href; } }, nbdTurnstileExecute: () => Promise.resolve('tok_' + 'x'.repeat(12)),
+    addEventListener(t, fn) { (winListeners[t] = winListeners[t] || []).push(fn); },
+    fire(t, ev) { (winListeners[t] || []).forEach((fn) => fn(ev || {})); } };
   win.window = win;
   const sandbox = { window: win, document: doc, fetch, URLSearchParams, setTimeout, clearTimeout, AbortController, JSON, Promise, console };
   Object.defineProperty(sandbox, 'location', { get: () => win.location });
@@ -191,6 +194,25 @@ const tick = () => new Promise((r) => setTimeout(r, 15));
     ok('"Manage or cancel" → portal with the session id → Stripe billing page', pb.action === 'portal' && pb.sessionId === 'cs_live_' + 'a'.repeat(20) && b.href() === 'https://billing.stripe.com/p/x');
     const bad = boot({ mode: 'live', search: '?careplan=joined&session_id=nope' }).T.readParams();
     ok('a malformed session id is ignored', bad.sessionId === null);
+    // 2026-10-15 (review M7): browser Back from Stripe restores this page from
+    // bfcache with the manage button still disabled.
+    const mb = b.sec.querySelector('[data-cp-manage]');
+    ok('after the portal redirect the manage button is disabled', mb.disabled === true);
+    b.win.fire('pageshow', { persisted: true });
+    ok('Back from Stripe (pageshow, persisted) re-enables "Manage or cancel"', mb.disabled === false);
+  }
+
+  console.log('\n5. Back from Stripe Checkout (bfcache, review M7)');
+  {
+    const b = boot({ mode: 'live' }); await tick();
+    b.form.fire('submit');
+    await tick();
+    const btn = b.form.querySelector('button[type="submit"]');
+    ok('the checkout button is disabled while we head to Stripe', b.href() === 'https://checkout.stripe.com/c/x' && btn.disabled === true && /Opening secure checkout/.test(btn.textContent));
+    b.win.fire('pageshow', { persisted: false });
+    ok('a normal (non-bfcache) pageshow leaves it alone', btn.disabled === true);
+    b.win.fire('pageshow', { persisted: true });
+    ok('Back from Stripe (pageshow, persisted) re-enables it with its label', btn.disabled === false && btn.textContent === 'Continue to secure checkout', btn.textContent);
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -787,6 +787,9 @@ function priceRangeForFunnel(size) {
 var phoneNumberEl = document.getElementById('phoneNumber');
 if (phoneNumberEl) phoneNumberEl.addEventListener('input', function() {
   let val = this.value.replace(/\D/g, '');
+  // An autofilled "+1 (859) 555-1234" is 11 digits: drop the country code
+  // before cutting to ten, or the field keeps the wrong ten.
+  if (val.length > 10 && val.charAt(0) === '1') val = val.slice(1);
   if (val.length > 10) val = val.slice(0, 10);
   if (val.length >= 7) {
     this.value = '(' + val.slice(0,3) + ') ' + val.slice(3,6) + '-' + val.slice(6);
@@ -1317,13 +1320,7 @@ async function submitAndGetEstimate() {
       'RESPOND ONLY WITH THIS JSON (no markdown, no commentary):\n' +
       '{"roofSqft":number,"squares":number,"yearBuilt":number_or_null,"tiers":{"good":{"min":number,"max":number},"better":{"min":number,"max":number},"best":{"min":number,"max":number}},"joesTake":"string"}';
 
-    var resp = await fetch(CONFIG.PROXY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompt, maxTokens: 600 })
-    });
-
-    var data = await resp.json();
+    var data = await _fetchAI({ prompt: prompt, maxTokens: 600 });
     var raw = (data && data.text) || '';
     var clean = raw.replace(/```json|```/g, '').trim();
     var est = JSON.parse(clean);
@@ -1451,6 +1448,27 @@ function buildServiceEstimate() {
   };
 }
 
+// publicFunnelAI with a 30 s client timeout (2026-10-15, review M3): the AI
+// call had none, so after the measurement wait a slow or cold backend held
+// the loading screen. Resolves to the parsed JSON body. On abort the
+// caller's catch shows the code-built fallback estimate / note, as on any
+// other AI failure. The timer covers the body read too.
+async function _fetchAI(body) {
+  var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
+  try {
+    var resp = await fetch(CONFIG.PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ctrl ? ctrl.signal : undefined
+    });
+    return await resp.json();
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 // Ask the AI proxy for the short personalized note ONLY — pricing for
 // non-roof-replacement services is deterministic (priceRangeForFunnel),
 // so the model is never asked for dollar amounts.
@@ -1468,12 +1486,7 @@ async function fetchJoesTakeNote() {
     'Joe has NOT seen or inspected this roof yet: write the note as drafted from the homeowner\'s answers only, and never say or imply that Joe inspected, saw, walked, measured on site or assessed the roof. Close by saying Joe will confirm everything with a free in-person look — no obligation.\n\n' +
     'Respond with the note text only — no JSON, no markdown, no surrounding quotes.';
 
-  var resp = await fetch(CONFIG.PROXY_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: prompt, maxTokens: 180 })
-  });
-  var data = await resp.json();
+  var data = await _fetchAI({ prompt: prompt, maxTokens: 180 });
   var text = (data && data.text) || '';
   return text.trim();
 }
@@ -1660,7 +1673,7 @@ function buildEstimateSummary(est) {
 }
 
 // `btn` is passed through from the delegated [data-action] handler so we
-// never rely on the global `event`. Only claims "Sent!" once _saveLead
+// never rely on the global `event`. Only says "Requested" once _saveLead
 // resolves with a real document id (it returns the id or null).
 async function emailEstimate(btn) {
   // Email is optional on the contact step (2026-10-03). Without one, the first
@@ -1708,7 +1721,11 @@ async function emailEstimate(btn) {
 
   if (!btn) return;
   if (id) {
-    btn.textContent = 'Sent! Check your inbox ✓';
+    // A saved id means the REQUEST was stored, not that an email went out:
+    // functions/estimate-email.js sends it from a trigger that can throttle
+    // (per-recipient and daily caps), dry-run or skip it, and nothing about
+    // that comes back to this page (2026-10-15, review M4).
+    btn.textContent = 'Requested ✓ It should arrive in a few minutes. Not there? Call/text (859) 420-7382';
   } else {
     btn.textContent = 'Couldn\'t send — call/text (859) 420-7382';
     btn.disabled = false;
@@ -1754,7 +1771,7 @@ function resetFunnel() {
   document.getElementById('btnSendCode').disabled = false;
   document.getElementById('otpSection').style.display = 'none';
   document.getElementById('btnSubmit').disabled = true;
-  document.getElementById('btnSubmit').textContent = 'Get My Free Detailed Estimate &#x2192;';
+  document.getElementById('btnSubmit').textContent = 'Get My Free Detailed Estimate →';
   document.getElementById('btnStep3').disabled = true;
 
   // Reset tiles — then re-select the defaults so the UI matches the
