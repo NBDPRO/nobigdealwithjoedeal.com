@@ -26,7 +26,7 @@
   'use strict';
   if (window.NBDVisitRecorderLauncher) return;
 
-  var V = '2';
+  var V = '3';
   var FILES = [
     '/pro/css/visit-recorder.css?v=' + V,
     '/pro/js/visit-recorder-logic.js?v=' + V,
