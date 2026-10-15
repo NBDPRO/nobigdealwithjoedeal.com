@@ -19,6 +19,10 @@
 /* controls follow the theme */
 .nbd-mv .leaflet-bar a { background: var(--s); color: var(--t); border-color: var(--rule); }
 .nbd-mv .leaflet-bar a:hover { background: var(--s2); }
+/* zoom +/-: Leaflet draws them 30px (26px on touch); a gloved thumb needs 44 */
+.nbd-mv .leaflet-bar a, .nbd-mv .leaflet-touch .leaflet-bar a, .nbd-mv.leaflet-touch .leaflet-bar a {
+  width: 44px; height: 44px; line-height: 44px; font-size: 22px;
+}
 .nbd-mv .leaflet-control-attribution { background: color-mix(in srgb, var(--s) 80%, transparent); color: var(--m); }
 .nbd-mv .leaflet-control-attribution a { color: var(--m); }
 .nbd-mv .leaflet-tooltip { background: var(--s); color: var(--t); border: 1px solid var(--rule); box-shadow: none; }

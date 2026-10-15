@@ -94,6 +94,7 @@
     map: 'M9 4l6 2 5-2v14l-5 2-6-2-5 2V6zM9 4v14M15 6v14',
     leads: 'M16 11a3 3 0 1 0-6 0 3 3 0 0 0 6 0zM5 20a7 7 0 0 1 14 0',
     me: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
+    menu: 'M4 7h16M4 12h16M4 17h16',
   };
   function icon(name) {
     var d = ICONS[name];

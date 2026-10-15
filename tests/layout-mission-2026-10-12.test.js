@@ -182,7 +182,9 @@ console.log('\n8. registry, lazy assets, nothing is sent');
     !/\b(sms_log|sendSms|sendEmail|sendText|addDoc|setDoc|updateDoc|fileStormDrafts|fileLeadTextDraft)\b/.test(js));
   ok('the only network calls are the storm feed and one limited knocks read', (js.match(/\bfetch\(/g) || []).length === 1 && /\/api\/storm-report/.test(js) && /W\.limit\(500\)/.test(js));
   ok('the hand-off is labelled a draft and says nothing was sent', /Send routes to phones \(draft\)/.test(js) && /Nothing was sent/.test(js));
-  ok('Switch back is always rendered in the top bar', /data-mc="back">Switch back</.test(js));
+  // 2026-10-15: the way out is "Menu" in every layout; Mission's Menu (always in
+  // the top bar) holds the app's pages plus "Leave Mission Control".
+  ok('Menu is always rendered in the top bar, and it holds the way out', /data-mc="menu"[^>]*>Menu</.test(js) && /data-mc="back">Leave Mission Control</.test(js) && /K\.menuItems\('mc'\)/.test(js));
   const sheet = ML.turfSheetText([{ name: 'Turf A', rep: 'Sam', doors: 12, areaSqMi: 3.2, center: [39.1, -84.5] }], { when: 'Oct 12' });
   ok('turf sheet is plain text with the draft caveat', /draft, review before sharing/.test(sheet) && /Turf A - Sam: 12 known doors/.test(sheet));
 }
