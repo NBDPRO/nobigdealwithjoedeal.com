@@ -663,7 +663,8 @@
     if (!S.day) S.day = todayYmd();
     var body = S.view === 'week' ? weekHtml() : dayHtml();
     var focusLead = doc.activeElement && doc.activeElement.getAttribute && rootEl.contains(doc.activeElement) ? doc.activeElement.getAttribute('data-lead') : null;
-    var html = '<div class="cw-wrap' + (canWrite() ? '' : ' cw-ro') + '">' + topBar() + body + '</div>' + drawerHtml();
+    // "What closes this week" (js/closes-week.js, 2026-10-15) fills [data-cw-slot].
+    var html = '<div class="cw-wrap' + (canWrite() ? '' : ' cw-ro') + '">' + topBar() + '<div data-cw-slot="crew"></div>' + body + '</div>' + drawerHtml();
     K.setOverlay(rootEl, homeActive());
     // A repaint that would change nothing is skipped: data callbacks fire in
     // bursts, and swapping identical nodes only costs focus, hover and drags.

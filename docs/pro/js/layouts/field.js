@@ -333,7 +333,8 @@
     else html = renderToday();
     rootEl.setAttribute('data-screen', S.screen);
     doc.documentElement.setAttribute('data-fa-screen', S.screen);   // css hides the nav under the camera
-    rootEl.innerHTML = '<div class="fa-scroll">' + html + '</div>';
+    // "What closes this week" (js/closes-week.js, 2026-10-15) fills [data-cw-slot].
+    rootEl.innerHTML = '<div class="fa-scroll">' + html + (S.screen === 'today' ? '<div data-cw-slot="field"></div>' : '') + '</div>';
     if (S.screen === 'capture') startCamera();
     else stopCamera();
     paintNav();

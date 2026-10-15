@@ -895,7 +895,7 @@
     ensurePromise();
     // Away mode (js/away-mode.js): status line / hand-back card / backup cover list
     // on Home. A lazy bundle, so it adds no boot <script> tag; best-effort.
-    try { if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') w.ScriptLoader.loadBundle('away'); } catch (_) { /* optional surface */ }
+    try { if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') { w.ScriptLoader.loadBundle('away'); w.ScriptLoader.loadBundle('closesweek'); } } catch (_) { /* optional surface */ }
     // Home is a <template> mounted on navigation: paint when #todayPlan appears.
     try {
       new MutationObserver(function () {

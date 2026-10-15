@@ -29,7 +29,7 @@
     crm_summary: 'Pipeline at a glance', schedule: 'Day schedule', overdue_followups: 'Overdue follow-ups',
     list_leads: 'Customer list', lead_detail: 'One customer (notes, open reminders)', file_note: 'File a note',
     file_reminder: 'File a reminder', file_report: 'File a report', inbox_pending: 'Read the Agent inbox',
-    verify_item: 'Fact-check inbox items', estimates_status: 'Estimates + proposal status', rules_reference: 'Your rules',
+    verify_item: 'Fact-check inbox items', estimates_status: 'Estimates + proposal status', closes_this_week: 'What closes this week', rules_reference: 'Your rules',
     post_job: 'Finished jobs', lead_sources: 'Lead sources + spend', job_profit: 'Job profit (internal)',
     storm_near_customers: 'Storms near customers', team_activity: 'What your bots did', collected_revenue: 'Collected revenue',
   };

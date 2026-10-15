@@ -1,0 +1,20 @@
+/* closes-week.css — the "What closes this week" card (js/closes-week.js, 2026-10-15).
+   Same card shell as Today (today-home.css); it renders in #homeClosesWeek and in
+   every full-screen layout's [data-cw-slot]. */
+.cw-card{margin:0 0 var(--ui-space-5, 20px);padding:var(--ui-space-4, 16px) var(--ui-space-5, 20px) var(--ui-space-3, 12px);background:var(--s2);border:1px solid var(--ui-line-hair, rgba(127,127,127,.2));border-radius:max(var(--r-card, 8px), var(--ui-radius-lg, 12px));box-shadow:var(--elevation-card, var(--ui-elev-1, none));color:var(--t);}
+.cw-hdr{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;margin-bottom:var(--ui-space-3, 12px);}
+.cw-title{margin:0;font-family:var(--ui-font-display, inherit);font-size:var(--ui-fs-title, 18px);font-weight:var(--ui-fw-heavy, 800);color:var(--t);}
+.cw-aside{font-size:var(--ui-fs-caption, 12px);color:var(--m);font-variant-numeric:tabular-nums;}
+.cw-list{list-style:none;margin:0;padding:0;}
+.cw-row{display:flex;align-items:center;gap:var(--ui-space-3, 12px);padding:10px 0;border-top:1px solid var(--ui-line-hair, rgba(127,127,127,.2));}
+.cw-row:first-child{border-top:0;}
+.cw-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;text-decoration:none;color:inherit;}
+.cw-name{font-weight:var(--ui-fw-bold, 700);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cw-meta{font-size:var(--ui-fs-caption, 12px);color:var(--m);font-variant-numeric:tabular-nums;}
+.cw-why{font-size:var(--ui-fs-body-sm, 13px);color:var(--t);}
+.cw-act{flex:0 0 auto;display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:var(--ui-radius-pill, 999px);border:1px solid color-mix(in srgb, var(--orange) 45%, transparent);background:color-mix(in srgb, var(--orange) 12%, transparent);color:var(--t);font:inherit;font-size:var(--ui-fs-body-sm, 13px);font-weight:var(--ui-fw-bold, 700);text-decoration:none;cursor:pointer;white-space:nowrap;}
+.cw-more{margin-top:8px;background:none;border:0;padding:6px 0;color:var(--orange);font:inherit;font-weight:var(--ui-fw-bold, 700);cursor:pointer;}
+.cw-empty,.cw-note{margin:6px 0 0;font-size:var(--ui-fs-caption, 12px);color:var(--m);line-height:1.45;}
+[data-cw-slot]{display:block;}
+[data-cw-slot]:empty{display:none;}
+@media (max-width:480px){.cw-row{flex-wrap:wrap;}.cw-act{width:100%;justify-content:center;}}

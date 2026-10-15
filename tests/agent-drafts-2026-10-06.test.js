@@ -163,7 +163,8 @@ const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')
   ok('Marcus + Tucker get draft_text + draft_email, not the social draft', ['marcus', 'tucker'].every((b) => names(b).includes('draft_text') && names(b).includes('draft_email') && !names(b).includes('file_social_draft')));
   ok('Dana + Priya get file_social_draft, no customer drafts', ['dana', 'priya'].every((b) => names(b).includes('file_social_draft') && !names(b).includes('draft_text') && !names(b).includes('draft_email')));
   ok('only those four bots hold a draft tool', Object.keys(L.BOTS).filter((b) => L.DRAFT_TOOLS.some((t) => L.botAllows(b, t))).sort().join() === 'dana,marcus,priya,tucker');
-  ok('CoS keeps its exact list', L.BOTS.cos.tools.join() === 'crm_summary,schedule,overdue_followups,collected_revenue,lead_sources,inbox_pending,team_activity,file_report');
+  // + closes_this_week (2026-10-15, read-only): the What-closes-this-week radar for the morning brief / Command Deck.
+  ok('CoS keeps its exact list', L.BOTS.cos.tools.join() === 'crm_summary,schedule,overdue_followups,collected_revenue,lead_sources,inbox_pending,team_activity,closes_this_week,file_report');
   ok('Frank gets post_job + file_reminder (and still no notes)', L.botAllows('frank', 'post_job') && L.botAllows('frank', 'file_reminder') && !L.botAllows('frank', 'file_note'));
   ok('company-made bots can never pick a draft tool', L.DRAFT_TOOLS.every((t) => L.CUSTOM_TOOLS.indexOf(t) === -1) && !!L.normalizeBotInput({ name: 'x', tools: ['draft_text'] }).error);
   ok('draft tools are marked as writes (not read-only)', L.DRAFT_TOOLS.every((t) => L.annotationsFor(t).readOnlyHint === false));

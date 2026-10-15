@@ -610,7 +610,7 @@
   function shell() {
     rootEl.innerHTML = '<div class="mc-wrap"><div data-mc-slot="top"></div>' +
       '<div class="mc-body"><aside class="mc-side mc-left" data-mc-slot="left"></aside>' +
-      '<section class="mc-center"><div class="mc-map" aria-label="Storm map"></div><div data-mc-slot="tl"></div></section>' +
+      '<section class="mc-center"><div class="mc-map" aria-label="Storm map"></div><div data-mc-slot="tl"></div><div data-cw-slot="mission"></div></section>' +
       '<aside class="mc-side mc-right" data-mc-slot="right"></aside></div></div>';
     built = true;
     ensureMap();

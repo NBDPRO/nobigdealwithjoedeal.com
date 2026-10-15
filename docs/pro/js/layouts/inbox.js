@@ -699,7 +699,7 @@
       ? '<div class="ib-headline"><span><b>' + items.length + '</b> ' + (items.length === 1 ? 'person needs' : 'people need') + ' a reply</span>' + listRec + '</div>'
       : '<div class="ib-headline"><span><b>' + leads().length + '</b> leads on your pipeline</span>' + listRec + '</div>';
     var html = '<div class="ib-wrap">' + railHtml(counts) +
-      '<section class="ib-list" aria-label="' + (S.pane === 'inbox' ? 'Inbox' : 'Pipeline by stage') + '">' + head + bannerHtml() + '<div class="ib-scroll">' + listHtml() + '</div></section>' +
+      '<section class="ib-list" aria-label="' + (S.pane === 'inbox' ? 'Inbox' : 'Pipeline by stage') + '">' + head + bannerHtml() + '<div data-cw-slot="inbox"></div><div class="ib-scroll">' + listHtml() + '</div></section>' +
       '<section class="ib-thread" aria-label="Thread">' + threadHtml(it) + '</section>' +
       '<aside class="ib-side" aria-label="Customer facts">' + factsHtml(it) + '</aside>' +
       legendHtml() + '</div>';
