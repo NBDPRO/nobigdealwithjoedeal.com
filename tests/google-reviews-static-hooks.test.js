@@ -153,7 +153,7 @@ ok('...beside a plain fallback that names no number',
 ok('the star row ships empty (no static five stars)',
   !!reviewsBlock && /data-nbd-gr-stars><\/div>/.test(reviewsBlock));
 const STATIC_RATING = /data-nbd-gr-rating(?![\w-])[^>]*>\s*\d/;
-for (const rel of ['docs/index.html', 'docs/review.html', 'docs/storm-check.html']) {
+for (const rel of ['docs/index.html', 'docs/review.html', 'docs/storm-check.html', 'docs/inspect.html', 'docs/estimate.html', 'docs/storm-alerts.html', 'docs/assets/js/quick-lead-form.js']) {
   ok(rel + ': no rating hook ships a hard-coded number', !STATIC_RATING.test(read(rel)));
 }
 // 2026-10-06: the COUNT is the exception. A hard-coded "29" went stale the day
