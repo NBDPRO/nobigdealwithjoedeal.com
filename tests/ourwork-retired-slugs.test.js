@@ -50,6 +50,13 @@ const EXPECTED = {
   'apartment-complex-complete': 'apartment-complex-tearoff',
 };
 
+// Removed outright, not merged (no kept case study to land on), so the 301
+// goes to the /our-work gallery itself. 2026-10-15: the Gatlinburg TN A-frame
+// was not a job Joe did (a personal trip), Joe's call.
+const REMOVED = new Set([
+  'aframe-standing-seam-metal',
+]);
+
 const hosting = JSON.parse(fs.readFileSync(path.join(ROOT, 'firebase.json'), 'utf8')).hosting;
 const redirects = hosting.redirects || [];
 const manifest = JSON.parse(fs.readFileSync(path.join(DOCS, 'assets', 'data', 'projects.json'), 'utf8'));
@@ -76,6 +83,9 @@ console.log('\nOUR-WORK RETIRED SLUGS — 301 to the kept case study, gone from 
 ok('firebase.json carries a /our-work redirect for every 2026-09-27 retired slug',
   Object.keys(EXPECTED).every((s) => retired.has(s)),
   Object.keys(EXPECTED).filter((s) => !retired.has(s)).join(', '));
+ok('firebase.json carries a /our-work redirect for every removed slug',
+  [...REMOVED].every((s) => retired.has(s)),
+  [...REMOVED].filter((s) => !retired.has(s)).join(', '));
 
 for (const [slug, e] of retired) {
   const expectDest = EXPECTED[slug];
@@ -85,6 +95,10 @@ for (const [slug, e] of retired) {
     ok(`${label} has a redirect`, !!r, 'both the extensionless and the .html URL must redirect');
     if (!r) continue;
     ok(`${label} is a permanent 301`, r.type === 301, `type ${r.type}`);
+    if (REMOVED.has(slug)) {
+      ok(`${label} → /our-work (removed, no kept page)`, r.destination === '/our-work', r.destination);
+      continue;
+    }
     const dm = /^\/our-work\/([a-z0-9-]+)$/.exec(r.destination || '');
     ok(`${label} → an extensionless /our-work/<slug> page`, !!dm, r.destination);
     if (!dm) continue;
