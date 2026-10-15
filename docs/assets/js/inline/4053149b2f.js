@@ -787,6 +787,9 @@ function priceRangeForFunnel(size) {
 var phoneNumberEl = document.getElementById('phoneNumber');
 if (phoneNumberEl) phoneNumberEl.addEventListener('input', function() {
   let val = this.value.replace(/\D/g, '');
+  // An autofilled "+1 (859) 555-1234" is 11 digits: drop the country code
+  // before cutting to ten, or the field keeps the wrong ten.
+  if (val.length > 10 && val.charAt(0) === '1') val = val.slice(1);
   if (val.length > 10) val = val.slice(0, 10);
   if (val.length >= 7) {
     this.value = '(' + val.slice(0,3) + ') ' + val.slice(3,6) + '-' + val.slice(6);

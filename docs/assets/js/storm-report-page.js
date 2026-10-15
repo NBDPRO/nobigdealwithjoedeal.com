@@ -209,7 +209,7 @@
 
   /* ── helpers ── */
   function show(id) { document.querySelectorAll('.sr-panel').forEach(function (p) { p.classList.remove('active'); }); var t = $(id); if (t) t.classList.add('active'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-  function wirePhone() { var el = $('sr-phone'); if (!el) return; el.addEventListener('input', function () { var v = this.value.replace(/\D/g, '').slice(0, 10); if (v.length >= 7) this.value = '(' + v.slice(0, 3) + ') ' + v.slice(3, 6) + '-' + v.slice(6); else if (v.length >= 4) this.value = '(' + v.slice(0, 3) + ') ' + v.slice(3); else this.value = v; }); }
+  function wirePhone() { var el = $('sr-phone'); if (!el) return; el.addEventListener('input', function () { var v = this.value.replace(/\D/g, ''); if (v.length > 10 && v.charAt(0) === '1') v = v.slice(1); v = v.slice(0, 10); if (v.length >= 7) this.value = '(' + v.slice(0, 3) + ') ' + v.slice(3, 6) + '-' + v.slice(6); else if (v.length >= 4) this.value = '(' + v.slice(0, 3) + ') ' + v.slice(3); else this.value = v; }); }
   function wire() {
     wireAddress(); wirePhone();
     if (!mountIntake()) { var _it = 0, _iv = setInterval(function () { if (mountIntake() || ++_it > 40) clearInterval(_iv); }, 250); }
