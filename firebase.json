@@ -179,6 +179,13 @@
         ]
       },
       {
+        "_comment": "Static brand/manufacturer images and the homepage welcome video live outside /assets/images/, so they fell through to the ** rule's 5-minute cache (site QA 2026-10-14, M-3). Same 30-day policy as /assets/images/**: these files rarely change, and the homepage video/poster/captions carry ?v= (bump it when they change, per the comment in docs/index.html). Cache-Control only; CORP keeps the stricter default. Placed AFTER the ** rule so last-match-wins lets it stick.",
+        "source": "/assets/@(gaf|gaf-pivot-boot|tamko|lumanail|roofivent|american-operator|img|video)/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=2592000" }
+        ]
+      },
+      {
         "_comment": "The signature pad script must be loadable cross-origin for the same reason as the images above. document-generator.js _injectSignatureAssets bakes <script src=\"<origin>/pro/js/signature-widget.js\"> into every document that carries signers, and both places a document is signed show it in an <iframe srcdoc> sandboxed WITHOUT allow-same-origin: /pro/sign.html (the homeowner's remote-signing link) and the rep's in-person signing in the doc viewer. That frame has an opaque origin, so the global Cross-Origin-Resource-Policy: same-origin makes Chrome refuse the script (net::ERR_BLOCKED_BY_RESPONSE.NotSameOrigin): no pad initialises, no Clear/Undo, and the signing page cannot finalise. Found 2026-09-25 by the Linux hosting emulator in CI (phone-signing.spec.js); the Windows emulator sends no firebase.json headers at all, so it passed locally. The file is a public static script, so cross-origin embedding exposes nothing. Exact path, not /pro/js/**, so every other script keeps the stricter default. Placed AFTER the ** rule so last-match-wins lets it stick; tests/smoke/photo.test.js resolves the effective header.",
         "source": "/pro/js/signature-widget.js",
         "headers": [
