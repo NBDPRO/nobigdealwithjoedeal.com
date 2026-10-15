@@ -32,6 +32,17 @@
   }
   // "$218–$299" for this price over the band's default term, or '' when the
   // band is missing or the price is not a positive number.
+  // TILA / Reg Z (2026-10-15, Joe): EVERY "$X/mo" on the deal page carries
+  // this label, and the page prints no APR and no specific rate (the band's
+  // APRs stay in the data island only, as the math's inputs).
+  const EST_PAYMENT_LABEL = 'Estimated payment; actual rate, APR and term are set by the lender after approval';
+  // "Check my rate" (Acorn's own words: customers "check personalized rates
+  // with no credit score impact"; "Prequalification is a soft credit check
+  // and will not impact their score"; a hard inquiry only when they choose
+  // and proceed with a lender — acornfinance.com, read 2026-10-15). Acorn's
+  // public pages document no amount parameter, so the link is the dealer
+  // link as-is (no prefill).
+  const CHECK_RATE_NOTE = 'Checking your rate is a soft credit check through Acorn Finance and does not affect your credit score. A lender runs a hard credit check only if you choose an offer and proceed.';
   function financingRangeText(price) {
     const b = financingBand();
     const p = Number(price);
@@ -1066,6 +1077,9 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
 .tier-name{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;}
 .tier-price{font-size:28px;font-weight:700;color:var(--orange);margin:8px 0;}
 .tier-monthly{font-size:12px;color:#8b8e96;}
+.tier-monthly-note{font-size:10px;color:#8b8e96;line-height:1.4;margin-top:2px;}
+.check-rate-btn{display:block;text-align:center;margin-top:12px;padding:13px;border-radius:10px;background:var(--orange);color:#fff;font-weight:700;font-size:15px;text-decoration:none;}
+.check-rate-note{font-size:11px;color:#8b8e96;line-height:1.5;margin-top:6px;text-align:center;}
 .tier-desc{font-size:13px;color:#8b8e96;margin-top:8px;line-height:1.5;}
 .tier-warranty{font-size:11px;color:var(--orange);margin-top:6px;font-weight:600;}
 .tier-deposit{font-size:12px;color:#e5e7eb;margin-top:6px;}
@@ -1131,7 +1145,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
     <div class="tier${t === _recommended ? ' recommended' : ''}" id="tier-${t}" data-deal-tier="${t}">
       <div class="tier-name">${_stars[t] || ''} ${esc(tierDisplayLabel(t))}</div>
       <div class="tier-price">${fmtCurrency(_dt[t].price)}</div>
-      ${_payFor[t] ? `<div class="tier-monthly">or est. ${_payFor[t]}/mo with financing*</div>` : ''}
+      ${_payFor[t] ? `<div class="tier-monthly">Estimated payment: ${_payFor[t]}/mo with financing*</div><div class="tier-monthly-note">${esc(EST_PAYMENT_LABEL)}</div>` : ''}
       <div class="tier-desc">${esc(_dt[t].description || TIER_DESCRIPTIONS[t] || '')}</div>
       ${dealWarrantyText(deal, t) ? `<div class="tier-warranty">🛡️ ${esc(dealWarrantyText(deal, t))}</div>` : ''}
       ${depositLine(_dt[t].price)}
@@ -1151,7 +1165,9 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
 
   <div class="section-title">Financing Options</div>
   <div class="finance-section" id="financeOpts"></div>
-  ${_band ? `<div class="finance-disc">*Estimated range at ${esc(_band.aprLabel)} over ${_band.defaultTermYears} years through the ${esc(_band.lender)} marketplace. ${esc(_band.disclaimer)} Not an offer of credit. <a href="${esc(_band.preQualUrl)}" target="_blank" rel="noopener noreferrer">Check your options (soft credit pull) &rarr;</a></div>` : ''}
+  ${_band ? `<div class="finance-disc">*${esc(EST_PAYMENT_LABEL)}. Example over ${_band.defaultTermYears} years through the ${esc(_band.lender)} marketplace. ${esc(_band.disclaimer)} Not an offer of credit.</div>
+  <a class="check-rate-btn" href="${esc(_band.preQualUrl)}" target="_blank" rel="noopener noreferrer" data-deal-action="checkRate">Check my rate</a>
+  <div class="check-rate-note">${esc(CHECK_RATE_NOTE)}</div>` : ''}
 
   <div class="section-title">Sign & Schedule</div>
   ${kyNotices}
@@ -1193,7 +1209,7 @@ body{font-family:'Barlow',sans-serif;background:#0d0f14;color:#e5e7eb;min-height
       band: _band ? { aprLo: _band.aprLo, aprHi: _band.aprHi, months: _band.defaultTermYears * 12, lender: _band.lender } : null,
     }).replace(/</g, '\\u003c')
   }</script>
-<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=5"><\/script>
+<script src="https://nobigdealwithjoedeal.com/pro/deal-room.js?v=6"><\/script>
 </body></html>`;
   }
 

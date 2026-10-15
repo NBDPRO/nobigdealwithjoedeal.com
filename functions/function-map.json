@@ -69,6 +69,7 @@
   "dailyFirestoreBackup": "./firestore-backup",
   "dailyLeadDigest": "./lead-digest",
   "deactivateUser": "./handlers/admin",
+  "dealPrequalStarted": "./deal-prequal",
   "dealRoomReadPing": "./deal-acceptance",
   "declineEsignEnvelope": "./esign-envelope",
   "deleteAgentBot": "./agent-mcp",

@@ -62,6 +62,7 @@ const CORS_ORIGINS = [
 const DEAL_URL_BASE = 'https://nobigdealwithjoedeal.com/deal/';
 const SUBMIT_PATH = '/api/deal-accept'; // same-origin hosting rewrite → submitDealAcceptance
 const READ_PATH = '/api/deal-read';     // same-origin hosting rewrite → dealRoomReadPing (2026-10-02)
+const PREQUAL_PATH = '/api/deal-prequal'; // same-origin hosting rewrite → dealPrequalStarted ("Check my rate", 2026-10-15)
 
 // Five tiers since 2026-10-02 (Jo): Economy and Beyond join Good/Better/Best.
 // Same order as docs/pro/js/estimate-config.js TIER_ORDER.
@@ -447,6 +448,7 @@ exports.getDealRoom = onRequest(
     const inject = `<meta name="nbd-deal-token" content="${escAttr(token)}">`
       + `<meta name="nbd-deal-submit" content="${escAttr(SUBMIT_PATH)}">`
       + `<meta name="nbd-deal-read" content="${escAttr(READ_PATH)}">`
+      + `<meta name="nbd-deal-prequal" content="${escAttr(PREQUAL_PATH)}">`
       + `<script>window.__NBD_DEAL_TOKEN=${JSON.stringify(token)};window.__NBD_DEAL_SUBMIT_URL=${JSON.stringify(SUBMIT_PATH)};</script>`
       // NBD deals only: the Thursday card marker + script (empty otherwise).
       + (withThursday ? ThursdayGate.DEAL_ROOM_INJECT : '');

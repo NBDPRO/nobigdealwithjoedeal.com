@@ -10,6 +10,7 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "deal-check-rate-2026-10-15.test.js",
     "review-ask-auto-2026-10-15.test.js",
     "missed-call-reply-2026-10-15.test.js",
     "csp-report-noise-2026-10-15.test.js",

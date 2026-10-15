@@ -397,7 +397,7 @@ section('C. Financing — one shared band, public estimator and deal page agree'
   const html = CB.generatePageHTML(DEAL5);
   for (const [t, p] of [['economy', 9000], ['better', 13000], ['beyond', 17000]]) {
     const pub = publicRange(p, BAND.defaultTermYears);
-    const m = /or est\. (\$[\d,]+–\$[\d,]+)\/mo/.exec(tierBlock(html, t));
+    const m = /Estimated payment: (\$[\d,]+–\$[\d,]+)\/mo/.exec(tierBlock(html, t));
     ok(t + ' $' + p + ': deal page range = public estimator range (' + pub + ')', m && m[1] === pub, m && m[1]);
   }
   ok('the public estimator reads the shared band (no own APR constants)', !/0\.1149|0\.1999/.test(read('docs/assets/js/financing-estimator.js')));
@@ -407,7 +407,11 @@ section('C. Financing — one shared band, public estimator and deal page agree'
   ok('no 7.99% / 5.99% / same-as-cash plans on the deal page', !/(^|[^\d.])(7\.99|5\.99|9\.99|11\.99)%|Same-as-Cash/.test(html));
   ok('disclaimer: "Estimate only. Subject to credit approval. Rates and terms vary."', html.indexOf('Estimate only. Subject to credit approval. Rates and terms vary.') !== -1);
   ok('the site\'s Acorn pre-qualification link', html.indexOf('https://www.acornfinance.com/pre-qualify/?d=QU6WZ') !== -1);
-  ok('the band label 11.49%–19.99% APR is printed', html.indexOf('11.49%–19.99% APR') !== -1);
+  // 2026-10-15 (TILA / Reg Z, Joe): no APR or specific rate on the page; every
+  // "$X/mo" says the lender sets the rate, APR and term after approval
+  // (tests/deal-check-rate-2026-10-15.test.js has the full check).
+  ok('no APR band printed (the label says the lender sets rate, APR and term)', html.indexOf('11.49%–19.99% APR') === -1
+    && html.indexOf('Estimated payment; actual rate, APR and term are set by the lender after approval') !== -1);
   const island = JSON.parse(/<script type="application\/json" id="nbd-deal-data">([\s\S]*?)<\/script>/.exec(html)[1]);
   ok('data island carries the band (not rates)', island.band && island.band.aprLo === BAND.aprLo && island.band.aprHi === BAND.aprHi && !island.rates);
 

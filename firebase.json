@@ -99,6 +99,7 @@
       { "source": "/api/deal-accept", "function": { "functionId": "submitDealAcceptance", "region": "us-central1" } },
       { "source": "/api/mcp", "function": { "functionId": "crmMcp", "region": "us-central1" } },
       { "source": "/api/deal-read", "function": { "functionId": "dealRoomReadPing", "region": "us-central1" } },
+      { "source": "/api/deal-prequal", "function": { "functionId": "dealPrequalStarted", "region": "us-central1" } },
       { "_comment": "NBD's Twilio line (2026-10-06, functions/twilio-line.js). Twilio posts here once the number's Messaging + Voice webhooks are pointed at these URLs (runbook documentation/runbooks/TWILIO-LINE-GO-LIVE.md). Every request is X-Twilio-Signature verified; DARK until TWILIO_INBOUND_ENABLED=true (fixed TwiML, nothing written). Exact sources, no wildcard.",
         "source": "/api/twilio/sms", "function": { "functionId": "twilioSmsWebhook", "region": "us-central1" } },
       { "source": "/api/twilio/sms-status", "function": { "functionId": "twilioSmsStatus", "region": "us-central1" } },

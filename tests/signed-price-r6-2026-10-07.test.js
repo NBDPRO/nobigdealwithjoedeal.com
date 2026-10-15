@@ -418,7 +418,7 @@ for (const m of ['log', 'info', 'warn', 'error']) {
       /if \(j && j\.code === 'price_changed'\) \{ showPriceChanged\(j\); return; \}/.test(dr)
       && /confirmPrice: \(confirmed && confirmed\.tier === selectedTier\) \? confirmed\.price : null/.test(dr)
       && /confirmed = \{ tier: j\.tier, price: Number\(j\.tierPrice\) \};/.test(dr));
-    ok('close-board.js serves the new deal-room.js (?v=5)', /pro\/deal-room\.js\?v=5"/.test(read('docs/pro/js/close-board.js')));
+    ok('close-board.js serves the new deal-room.js (?v=6 since "Check my rate", 2026-10-15)', /pro\/deal-room\.js\?v=6"/.test(read('docs/pro/js/close-board.js')));
   }
 
   // ════════════════════════════════════════════════════════════════════

@@ -92,6 +92,9 @@ function selectTier(tier) {
 // rounding as the public financing estimator. Pages generated before this
 // carried CONFIG.rates (0%–11.99% plans that understated every payment);
 // those rates are ignored, so an old page offers Pay in Full only.
+// TILA / Reg Z (2026-10-15): every "$X/mo" carries this label; no APR or
+// specific rate is printed (the APRs here are only the math's inputs).
+const EST_PAYMENT_LABEL = 'Estimated payment; actual rate, APR and term are set by the lender after approval';
 function bandPayment(P, apr, n) { const r = apr / 12; return r === 0 ? P / n : P * r / (1 - Math.pow(1 + r, -n)); }
 function wholeDollars(n) { return '$' + Math.round(Number(n) || 0).toLocaleString('en-US'); }
 function financingRow(price) {
@@ -102,7 +105,8 @@ function financingRow(price) {
   const hi = wholeDollars(bandPayment(P, b.aprHi, b.months));
   const years = Math.round(b.months / 12);
   return '<div class="finance-opt" data-idx="0"><span class="finance-label">🏦 Finance' + (b.lender ? ' through ' + String(b.lender).replace(/[<>&"']/g, '') : '') +
-    ' — ' + years + ' yr (est.*)</span><span class="finance-payment">' + lo + '–' + hi + '/mo</span></div>';
+    ' — ' + years + ' yr example*</span><span class="finance-payment">' + lo + '–' + hi + '/mo</span></div>' +
+    '<div class="tier-monthly-note">' + EST_PAYMENT_LABEL + '</div>';
 }
 
 function updateFinancing() {
@@ -272,6 +276,19 @@ async function submitDeal() {
   window.addEventListener('pagehide', flush);
 })();
 
+// ── "Check my rate" (2026-10-15) ──
+// The button is a plain link to Acorn's pre-qualification page (new tab);
+// this only tells the rep: /api/deal-prequal logs "Financing prequal
+// started" and moves the lead to Pre-Qual Sent when that is forward
+// (functions/deal-prequal-logic.js). Served via /deal/<token> only — the
+// rep's in-app preview has no token and reports nothing. Best effort.
+function prequalStarted() {
+  const token = readMeta('nbd-deal-token') || window.__NBD_DEAL_TOKEN;
+  const url = readMeta('nbd-deal-prequal');
+  if (!token || !url || !navigator.sendBeacon) return false;
+  try { return navigator.sendBeacon(url, new Blob([JSON.stringify({ token: token })], { type: 'text/plain' })); } catch (e) { return false; }
+}
+
 // ── Packet photos (2026-10-04) ──
 // A full packet's inspection photos load from /deal/<token>/photo/<n>; one
 // that fails (link just expired, photo removed) is hidden, not a broken icon.
@@ -291,6 +308,7 @@ document.addEventListener('click', function (ev) {
   if (fin) { selectFinancing(parseInt(fin.dataset.idx, 10), fin); return; }
   const act = ev.target.closest && ev.target.closest('[data-deal-action]');
   if (!act) return;
+  if (act.dataset.dealAction === 'checkRate') { prequalStarted(); return; }   // the link itself opens Acorn (never prevented)
   if (act.dataset.dealAction === 'clearSig') clearSig();
   else if (act.dataset.dealAction === 'submit') submitDeal();
 });

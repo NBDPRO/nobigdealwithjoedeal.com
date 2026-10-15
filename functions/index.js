@@ -434,6 +434,10 @@ exports.esignReminderSweep = require('./esign-reminders').esignReminderSweep;
 // single-use token model as remote-signing.js. See functions/deal-acceptance.js.
 const dealAcceptanceFunctions = require('./deal-acceptance');
 Object.assign(exports, dealAcceptanceFunctions);
+// "Check my rate" in the deal room (2026-10-15): /api/deal-prequal logs
+// "Financing prequal started" and moves the lead to Pre-Qual Sent when that
+// is forward. Token-authed, sends nothing. See functions/deal-prequal.js.
+exports.dealPrequalStarted = require('./deal-prequal').dealPrequalStarted;
 
 // Send for review / record the share / Fresh link (2026-10-03): the CRM mints
 // the tracked link for an attached estimate PDF and Jo sends it from his own
