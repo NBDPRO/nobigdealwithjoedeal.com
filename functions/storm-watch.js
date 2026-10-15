@@ -188,6 +188,12 @@ async function runStormWatch() {
     logger.error('stormWatch: texting switch unreadable', { err: e && e.message });
   }
   if (!companyOn) logger.info('stormWatch: company texting switched off');
+  // DO NOT set STORM_TEXT_ENABLED=true until storm alerts have a confirm-YES
+  // (double opt-in) step (public intake hardening, 2026-10-15). /storm-alerts
+  // takes ANY typed phone number, so today a stranger can sign someone else up
+  // and that person would get recurring storm texts they never asked for. The
+  // subscriber must reply YES to a confirmation text before the first alert;
+  // that design is a separate PR (see the Twilio packet's follow-ups).
   const textEnabled = process.env.STORM_TEXT_ENABLED === 'true' && switchOn && companyOn;
   const nowMs = Date.now();
   // active:true is server-stamped on every subscriber (functions/handlers/
