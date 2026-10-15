@@ -125,7 +125,7 @@ check('B5a the label carries the disclosure and BOTH links, right beside the box
   assert.ok(m, 'no <label for="tcpaConsent">');
   const t = m[1];
   for (const need of [
-    'No Big Deal Home Solutions', 'by call or text at the number above', 'Message frequency varies',
+    'No Big Deal Home Solutions (No Big Deal Solutions LLC)', 'at the number above about my estimate request', 'Message frequency varies',
     'Message &amp; data rates may apply', 'Reply STOP to opt out, HELP for help', 'Consent is not a condition of purchase',
     '<a href="/privacy#sms-terms">Privacy Policy</a>', '<a href="/terms">Terms</a>'
   ]) assert.ok(t.includes(need), 'label lacks: ' + need);

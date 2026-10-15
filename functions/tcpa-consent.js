@@ -134,6 +134,12 @@ function smsAckGate(args) {
 const SMS_TERMS_TAIL = 'by call or text at the number above. Message frequency varies. '
   + 'Message & data rates may apply. Reply STOP to opt out, HELP for help. '
   + 'Consent is not a condition of purchase.';
+// v3 (2026-10-15): legal entity + d/b/a, "text messages and calls", then the
+// form's own "about ..." clause with the message types.
+const V3_HEAD = 'I agree to receive text messages and calls from No Big Deal Home Solutions '
+  + '(No Big Deal Solutions LLC) at the number above about ';
+const V3_TAIL = 'Message frequency varies. Message & data rates may apply. '
+  + 'Reply STOP to opt out, HELP for help. Consent is not a condition of purchase.';
 const CONSENT_TEXTS = Object.freeze({
   // /storm-check, /roof-score, /storm-report, and (from 2026-10-03) /inspect,
   // /storm-alerts, the homepage form and the on-page quick form.
@@ -160,16 +166,38 @@ const CONSENT_TEXTS = Object.freeze({
   'tcpa-storm-alerts-v2-2026-10-05':
     'I agree to receive storm alerts and follow-up communication from No Big Deal Home Solutions '
     + SMS_TERMS_TAIL,
+  // 2026-10-15 (Twilio rejected the campaign twice for the CTA, 30909): the
+  // registered brand is the LLC, so every box now names it next to the d/b/a
+  // and lists the message types. /inspect gets its own text ("my inspection
+  // request"); the other forms that post kind 'inspect' or 'contact' share v3.
+  'tcpa-v3-2026-10-15':
+    V3_HEAD + 'my request, including my results, appointment confirmations and reminders, '
+    + 'estimate and project updates, and replies to my questions. ' + V3_TAIL,
+  'tcpa-inspect-v3-2026-10-15':
+    V3_HEAD + 'my inspection request, including appointment confirmations and reminders, '
+    + 'estimate and project updates, and replies to my questions. ' + V3_TAIL,
+  'tcpa-estimate-v3-2026-10-15':
+    V3_HEAD + 'my estimate request, including appointment confirmations and reminders, '
+    + 'estimate and project updates, and replies to my questions. ' + V3_TAIL,
+  'tcpa-storm-alerts-v3-2026-10-15':
+    V3_HEAD + 'severe weather near my ZIP code (storm alerts, usually 2–4 per season) '
+    + 'and related follow-up, such as inspection scheduling and replies to my questions. ' + V3_TAIL,
 });
-const CONSENT_VERSION = 'tcpa-v2-2026-10-05';
-const ESTIMATE_CONSENT_VERSION = 'tcpa-estimate-v2-2026-10-05';
-const STORM_ALERTS_CONSENT_VERSION = 'tcpa-storm-alerts-v2-2026-10-05';
+const CONSENT_VERSION = 'tcpa-v3-2026-10-15';
+const INSPECT_CONSENT_VERSION = 'tcpa-inspect-v3-2026-10-15';
+const ESTIMATE_CONSENT_VERSION = 'tcpa-estimate-v3-2026-10-15';
+const STORM_ALERTS_CONSENT_VERSION = 'tcpa-storm-alerts-v3-2026-10-15';
 
-/** Which disclosure a submission of this public-lead kind was shown. */
-function consentVersionForKind(kind) {
+/**
+ * Which disclosure a submission of this public-lead kind was shown. Kind
+ * 'inspect' is posted by /inspect AND by /storm-check, /roof-score and
+ * /storm-report, so the form's own source tag picks /inspect's wording.
+ */
+function consentVersionForKind(kind, source) {
   if (kind === 'estimate') return ESTIMATE_CONSENT_VERSION;
   // 'storm' is only ever posted by /storm-alerts (window._saveStormAlert).
   if (kind === 'storm') return STORM_ALERTS_CONSENT_VERSION;
+  if (kind === 'inspect' && source === '/inspect') return INSPECT_CONSENT_VERSION;
   return CONSENT_VERSION;
 }
 
@@ -207,7 +235,7 @@ function consentRecord(a) {
   if (o.consent !== true) return {};
   const rec = {
     tcpaConsentAt: o.at,
-    tcpaConsentText: consentVersionForKind(o.kind),
+    tcpaConsentText: consentVersionForKind(o.kind, o.source),
     tcpaConsentSource: consentSourcePath(o.referer, o.source),
   };
   if (o.ip) rec.tcpaConsentIp = String(o.ip).slice(0, 64);
@@ -219,6 +247,7 @@ module.exports = {
   CONSENT_COLLECTIONS,
   CONSENT_TEXTS,
   CONSENT_VERSION,
+  INSPECT_CONSENT_VERSION,
   ESTIMATE_CONSENT_VERSION,
   STORM_ALERTS_CONSENT_VERSION,
   parseSubmittedConsent,
