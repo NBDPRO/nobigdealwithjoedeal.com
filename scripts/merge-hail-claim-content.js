@@ -73,7 +73,7 @@ const LOCAL_BOX_MERGE = {
   },
   'west-chester': {
     mode: 'append',
-    html: 'Spring events routinely produce 1- to 2-inch hail that exceeds the threshold for full roof replacement under most policies. I have 7+ years of insurance restoration experience and know how to document Butler County hail damage in a format that supports full claim approval.',
+    html: 'Spring events routinely produce 1- to 2-inch hail, the size that can do real damage to a roof. I have 7+ years of insurance restoration experience and know how to document Butler County hail damage so the adjuster sees all of it.',
   },
 };
 
