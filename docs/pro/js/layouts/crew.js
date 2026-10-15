@@ -644,7 +644,7 @@
       '<div class="cw-d-sec"><h3>Materials</h3>' + ordersHtml + '</div>' +
       '<div class="cw-d-sec"><h3>Crew notes</h3><p>' + (str(l.accessNotes) ? esc(l.accessNotes) : '<span class="cw-muted">None saved. Gate code, dog, parking and power notes live on the job\'s Production panel.</span>') + '</p></div>' +
       '<div class="cw-d-actions">' +
-        K.recordButton({ source: 'crew', leadId: l.id, cls: 'cw-rec' }) +
+        K.recordEntry({ source: 'crew', leadId: l.id, cls: 'cw-rec' }) +
         '<a class="cw-btn" href="' + esc(K.customerUrl(l.id)) + '">Open the full customer page</a>' +
         (l.address ? '<a class="cw-btn" href="' + esc(K.mapsUrl(l.address)) + '" target="_blank" rel="noopener">Navigate</a>' : '') +
         (w && r && W.NBDProduction && W.NBDProduction.openRainPush ? '<button type="button" class="cw-btn" data-cw="rain">Rain day...</button>' : '') +

@@ -100,7 +100,7 @@ console.log('\n4. registration + nav');
   ok('pill honours what the sidebar offers', L.pillItems((id) => id !== 'calls').every((i) => i.id !== 'calls') && L.pillItems().length === 5);
   // 2026-10-15: Record visit is the dock's primary action (one bar, not the
   // floating Record bar stacked on the dock).
-  ok('dock is Record visit (primary) / New lead / Filter / Sort', L.DOCK.map((d2) => d2.id).join() === 'record,newlead,filter,sort'
+  ok('dock is Record visit (primary) / Recent visits / New lead / Filter / Sort', L.DOCK.map((d2) => d2.id).join() === 'record,recent,newlead,filter,sort'
     && L.DOCK.filter((d2) => d2.primary).map((d2) => d2.id).join() === 'record');
 }
 

@@ -253,6 +253,21 @@
       '<span class="lk-rec-dot" aria-hidden="true"></span><span class="lk-rec-lbl">' + RECORD_LABEL + '</span></button>';
   }
 
+  // "Recent visits" (the last 14 days) sits beside every Record visit; the
+  // launcher delegates [data-nbd-recent-visits] and loads the recorder first.
+  var RECENT_LABEL = 'Recent visits';
+  function recentButton(opts) {
+    var o = opts || {};
+    return '<button type="button" class="lk-recent' + (o.cls ? ' ' + esc(o.cls) : '') + '" data-nbd-recent-visits=""' +
+      ' data-source="' + esc(o.source || 'layout') + '">' + RECENT_LABEL + '</button>';
+  }
+  /** Record visit + Recent visits, as one pair. opts.cls goes on the pair. */
+  function recordEntry(opts) {
+    var o = opts || {};
+    var rec = {}; Object.keys(o).forEach(function (k) { if (k !== 'cls') rec[k] = o[k]; });
+    return '<span class="lk-rec-pair' + (o.cls ? ' ' + esc(o.cls) : '') + '">' + recordButton(rec) + recentButton({ source: o.source }) + '</span>';
+  }
+
   // ── Menu: the way out of a full-screen layout, named the same everywhere ─
   // "Map" is the door-knock map (view-d2d) in every layout, the view the
   // sidebar's Maps & Pins entry also lands on.
@@ -286,9 +301,9 @@
   var api = {
     esc: esc, digits10: digits10, fmtPhone: fmtPhone, leadName: leadName, customerUrl: customerUrl,
     mapsUrl: mapsUrl, telUrl: telUrl, smsUrl: smsUrl, fromLead: fromLead, icon: icon,
-    ACTIONS: ACTIONS, DENSITIES: DENSITIES, SIZES: SIZES, MENU: MENU, RECORD_LABEL: RECORD_LABEL,
+    ACTIONS: ACTIONS, DENSITIES: DENSITIES, SIZES: SIZES, MENU: MENU, RECORD_LABEL: RECORD_LABEL, RECENT_LABEL: RECENT_LABEL,
     actionBar: actionBar, card: card, widget: widget, nav: nav, bind: bind,
-    recordButton: recordButton, menuItems: menuItems, setOverlay: setOverlay, clearOverlay: clearOverlay,
+    recordButton: recordButton, recentButton: recentButton, recordEntry: recordEntry, menuItems: menuItems, setOverlay: setOverlay, clearOverlay: clearOverlay,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDLayoutKit = api;

@@ -91,6 +91,17 @@
 .lk-rec:disabled { opacity: .5; cursor: not-allowed; }
 .lk-rec-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 30%, transparent); }
 .lk-rec-ghost { background: var(--s2); color: var(--t); }
+/* kit.recordEntry: Record visit, then the quieter Recent visits beside it */
+.lk-rec-pair { display: inline-flex; flex-wrap: wrap; align-items: stretch; gap: 8px; max-width: 100%; box-sizing: border-box; }
+.lk-rec-pair > .lk-rec { flex: 1 1 auto; }
+.lk-recent {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  min-height: max(44px, var(--tap)); padding: 0 16px; box-sizing: border-box;
+  border: 1px solid var(--rule); border-radius: 999px; background: var(--s2); color: var(--t);
+  font: inherit; font-size: 14px; font-weight: 700; line-height: 1.1; white-space: nowrap; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.lk-recent:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
 .lk-rec-ghost .lk-rec-dot { background: var(--orange); }
 
 /* ── full-screen overlays (kit.setOverlay) ── */

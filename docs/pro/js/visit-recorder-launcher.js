@@ -43,6 +43,7 @@
   var BAR_CSS = '/pro/css/visit-recorder.css?v=3';
   // The same words on every entry point, in every layout (kit.js RECORD_LABEL).
   var RECORD_LABEL = 'Record visit';
+  var RECENT_LABEL = 'Recent visits';
   var CFG_KEY = 'nbd_vr_cfg';
   var UNFILED_KEY = 'nbd_vr_unfiled';
   var PENDING_KEY = 'nbd_vr_pending';
@@ -110,6 +111,8 @@
     return { leadId: d.leadId || null, appointmentId: d.appointmentId || null, source: d.source || 'fab' };
   }
   function onClick(e) {
+    var r = e.target && e.target.closest ? e.target.closest('[data-nbd-recent-visits]') : null;
+    if (r) { e.preventDefault(); openRecent(); return; }
     var t = e.target && e.target.closest ? e.target.closest('[data-nbd-record-visit]') : null;
     if (!t) return;
     e.preventDefault();
@@ -218,12 +221,31 @@
     unfiledBtn.className = 'nbd-vr-unfiled';
     unfiledBtn.hidden = true;
     unfiledBtn.addEventListener('click', function () { openUnfiled(); });
-    bar.appendChild(rec); bar.appendChild(unfiledBtn);
+    // Recent visits: the quiet second button beside Record (the unfiled
+    // button's look; delegated through [data-nbd-recent-visits] like the rest)
+    var recent = document.createElement('button');
+    recent.type = 'button';
+    recent.className = 'nbd-vr-unfiled nbd-vr-recent';
+    recent.setAttribute('data-nbd-recent-visits', '');
+    recent.textContent = RECENT_LABEL;
+    bar.appendChild(rec); bar.appendChild(recent); bar.appendChild(unfiledBtn);
     document.body.appendChild(bar);
     paintBar();
   }
   function openUnfiled() {
     return load().then(function () { window.NBDVisitRecorderUI.openUnfiled(); }).catch(function () { toast('Could not load the recorder.', 'error'); });
+  }
+  /**
+   * "Recent visits" (the last 14 days, NBDVisitRecorderUI.openRecent): every
+   * [data-nbd-recent-visits] element, beside each Record visit entry. Same lazy
+   * path as Record: the recorder files load first if they have not yet.
+   */
+  function openRecent() {
+    return load().then(function () {
+      var UI = window.NBDVisitRecorderUI;
+      if (UI && typeof UI.openRecent === 'function') { UI.openRecent(); return; }
+      toast('Recent visits are not available yet. Reload the app to get the latest version.', 'info');
+    }).catch(function () { toast('Could not load the recorder. Check your signal and try again.', 'error'); });
   }
 
   // ── decorators (appointments, customer page, settings) ──────────────────
@@ -270,6 +292,12 @@
       b.setAttribute('data-source', 'customer');
       b.setAttribute('data-lead-id', id);
       qa.appendChild(b);
+      var rv = document.createElement('button');
+      rv.type = 'button';
+      rv.className = 'btn nbd-vr-custbtn nbd-vr-recentbtn';
+      rv.textContent = RECENT_LABEL;
+      rv.setAttribute('data-nbd-recent-visits', '');
+      qa.appendChild(rv);
     }
     if (isStaff() && !qa.querySelector('.nbd-vr-dnr')) {
       var d = document.createElement('button');
@@ -440,7 +468,7 @@
   }
 
   window.NBDVisitRecorderLauncher = {
-    begin: begin, openUnfiled: openUnfiled, load: load, decorate: decorate,
+    begin: begin, openUnfiled: openUnfiled, openRecent: openRecent, load: load, decorate: decorate,
     // Called by the recorder after any change so the Home badge stays true.
     paint: paintBar,
   };

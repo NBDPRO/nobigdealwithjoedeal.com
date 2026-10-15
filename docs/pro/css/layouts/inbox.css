@@ -47,7 +47,8 @@ html[data-layout="inbox"] .ib-sheet button:hover { background: var(--og); }
 
 html[data-layout="inbox"] .ib-list { grid-area: list; background: var(--s); border-right: 1px solid var(--rule); display: flex; flex-direction: column; min-height: 0; }
 html[data-layout="inbox"] .ib-headline { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--rule); font-size: 14px; color: var(--m); }
-html[data-layout="inbox"] .ib-rec { flex: none; min-height: 44px; padding: 0 14px; font-size: 14px; }
+html[data-layout="inbox"] .ib-rec { flex: none; }
+html[data-layout="inbox"] .ib-rec .lk-rec, html[data-layout="inbox"] .ib-rec .lk-recent { min-height: 44px; padding: 0 14px; font-size: 14px; }
 html[data-layout="inbox"] .ib-thread-head .ib-rec { margin-left: auto; }
 /* one Record visit in view: beside an open thread the list's copy steps aside */
 @media (min-width: 1101px) {

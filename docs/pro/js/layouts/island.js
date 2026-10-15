@@ -133,6 +133,7 @@
   // cards). One bar now; island.css hides the floating one.
   var DOCK = [
     { id: 'record', label: 'Record visit', icon: 'rec', primary: true, record: true },
+    { id: 'recent', label: 'Recent visits', icon: 'clock', recent: true },
     { id: 'newlead', label: 'New lead', icon: 'plus' },
     { id: 'filter', label: 'Filter', icon: 'filter' },
     { id: 'sort', label: 'Sort', icon: 'sort' },
@@ -161,6 +162,7 @@
     doc: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7',
     more: 'M5 12h.01M12 12h.01M19 12h.01',
     rec: 'M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z',
+    clock: 'M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',
   };
   function ic(name) {
     if (EXTRA[name]) {
@@ -208,6 +210,12 @@
         // [data-nbd-record-visit] on document and opens the recorder.
         html += '<button type="button" class="isl-item isl-act isl-primary isl-rec" data-nbd-record-visit="" data-source="island-dock">' +
           ic(it.icon) + '<span class="isl-lbl">' + esc(K.RECORD_LABEL || it.label) + '</span></button>';
+        return;
+      }
+      if (it.recent) {
+        // beside Record: the last 14 days of visits, through the launcher's lazy path
+        html += '<button type="button" class="isl-item isl-act isl-recent" data-nbd-recent-visits="" data-source="island-dock" aria-label="' + esc(it.label) + '">' +
+          ic(it.icon) + '<span class="isl-lbl">' + esc(it.label) + '</span></button>';
         return;
       }
       var h = item(it, 'isl-act' + (it.id === 'sort' && sortOn ? ' isl-on' : ''), '');

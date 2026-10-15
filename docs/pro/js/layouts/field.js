@@ -194,7 +194,7 @@
       h += '<div class="fa-empty"><strong>No stops on the calendar today.</strong><br>' +
         (n ? esc(n + (n === 1 ? ' thing' : ' things')) + ' on your list: calls, follow-ups and estimates.' : 'Nothing is due today.') + '</div>' +
         '<div class="fa-actions-row"><button type="button" class="fa-big" data-fa="goto" data-to="crm">Open leads</button>' +
-        K.recordButton({ source: 'field', cls: 'fa-rec' }) + '</div>';
+        K.recordEntry({ source: 'field', cls: 'fa-rec' }) + '</div>';
     } else {
       var doneN = all.length - pending.length;
       h += '<div class="fa-prog" role="status">' +
@@ -210,7 +210,7 @@
           '<div class="fa-now-why"><span class="fa-do">Do this</span> ' + esc(it.why) + '</div>' +
           K.actionBar(it, ['navigate', 'call', 'photo'], { size: 'lg', primary: 'navigate' }) +
           // this stop's customer (and appointment) ride along into the recording
-          K.recordButton({ source: 'field', leadId: current.leadId || '', appointmentId: apptIdOf(current), cls: 'fa-rec' }) +
+          K.recordEntry({ source: 'field', leadId: current.leadId || '', appointmentId: apptIdOf(current), cls: 'fa-rec' }) +
           '<div class="fa-actions-row">' +
           (current.leadId ? '<button type="button" class="fa-big fa-open" data-fa="lead" data-key="' + esc(current.key) + '">Open this stop</button>' : '') +
           '<button type="button" class="fa-big fa-ghost" data-fa="done" data-key="' + esc(current.key) + '">Done · next</button>' +
@@ -256,7 +256,7 @@
       (tel ? '<a class="fa-tile" href="' + esc(tel) + '">' + K.icon('call') + '<span>Call</span></a>' : '<button type="button" class="fa-tile fa-off" disabled>' + K.icon('call') + '<span>Call</span></button>') +
       (sms ? '<a class="fa-tile" href="' + esc(sms) + '">' + K.icon('text') + '<span>Text</span></a>' : '<button type="button" class="fa-tile fa-off" disabled>' + K.icon('text') + '<span>Text</span></button>') +
       '<button type="button" class="fa-tile" data-fa="voice">' + K.icon('voice') + '<span>Voice note</span></button>' +
-      '</div>' + K.recordButton({ source: 'field', leadId: it.id, appointmentId: apptIdOf(stop), cls: 'fa-rec' });
+      '</div>' + K.recordEntry({ source: 'field', leadId: it.id, appointmentId: apptIdOf(stop), cls: 'fa-rec' });
     h += '<h3 class="fa-h">Checklist</h3><ul class="fa-check">' + CHECKLIST.map(function (c) {
       return '<li><label><input type="checkbox" data-fa-check="' + c.id + '"' + (checks[c.id] ? ' checked' : '') + '> <span>' + esc(c.text) + '</span></label></li>';
     }).join('') + '</ul>';

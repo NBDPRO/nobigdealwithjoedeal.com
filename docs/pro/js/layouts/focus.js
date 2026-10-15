@@ -193,7 +193,7 @@
   function topBar(withRecord) {
     return '<div class="fo-top"><button type="button" class="fo-pill" data-fo="today">Today</button>' +
       '<button type="button" class="fo-pill" data-fo="wrap">Wrap-up</button>' +
-      (withRecord ? K.recordButton({ source: 'focus', cls: 'fo-rec' }) : '') +
+      (withRecord ? K.recordEntry({ source: 'focus', cls: 'fo-rec' }) : '') +
       '<button type="button" class="fo-pill fo-menu" data-fo="menu" aria-expanded="' + S.menu + '">Menu</button></div>' +
       (S.menu ? '<div class="fo-sheet" role="menu">' + K.menuItems('fo') +
         '<button type="button" role="menuitem" data-fo="today">Back to Focus</button></div>' : '');
@@ -250,7 +250,7 @@
       '<button type="button" class="fo-act" data-fo="snooze"' + (it.id ? '' : ' disabled') + '><span>Snooze</span><kbd>S</kbd></button>' +
       '<button type="button" class="fo-act" data-fo="done"><span>' + esc(doneLbl) + '</span><kbd>D</kbd></button>' +
       '</div>' +
-      K.recordButton({ source: 'focus', leadId: it.id, cls: 'fo-rec fo-rec-card' }) +
+      K.recordEntry({ source: 'focus', leadId: it.id, cls: 'fo-rec fo-rec-card' }) +
       (it.id ? '<a class="fo-open" href="' + esc(K.customerUrl(it.id)) + '">Open the full customer page</a>' : '') +
       '</article>' +
       '<button type="button" class="fo-peek fo-peek-r" data-fo="next"' + (next ? '' : ' disabled') + ' aria-label="Next">' + (next ? '<span>' + esc(firstName(next.name)) + '</span>' : '') + '</button>' +

@@ -374,7 +374,7 @@
       (leg ? '<p class="mc-line">About ' + leg.min + ' min from the previous stop (est.)</p>' : '') + '</div>';
     h += K.actionBar(item, ['call', 'navigate', 'open'], { size: 'lg' });
     h += '<button type="button" class="mc-btn mc-btn-primary" data-mc="omw" data-key="' + esc(s.key) + '">On my way</button>';
-    h += K.recordButton({ source: 'mission-route', leadId: s.leadId, cls: 'mc-rec' });
+    h += K.recordEntry({ source: 'mission-route', leadId: s.leadId, cls: 'mc-rec' });
     var d = S.route.omw && S.route.omw.key === s.key ? S.route.omw : null;
     if (d) {
       if (d.error) h += '<p class="mc-note">' + esc(d.error) + '</p>';
@@ -546,7 +546,7 @@
       '<p class="mc-fine">Reports are weather data, not an inspection finding.</p></div>' +
       '<div class="mc-block"><div class="mc-label">Next action</div><p class="mc-line">' + esc(next) + '</p></div>' +
       K.actionBar(item, ['call', 'text', 'navigate', 'open', 'snooze'], { size: 'lg' }) +
-      K.recordButton({ source: 'mission', leadId: l.id, cls: 'mc-rec' });
+      K.recordEntry({ source: 'mission', leadId: l.id, cls: 'mc-rec' });
   }
   function canvassPanel() {
     var t = turfs();

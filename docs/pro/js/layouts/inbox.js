@@ -617,7 +617,7 @@
     var t = threads[it.key];
     var h = '<div class="ib-thread-head"><button type="button" class="ib-back" data-ib="back">&larr; List</button><h2 class="ib-title">' + esc(it.name) + '</h2>' +
       (it.timer ? chipHtml(it.timer) : '') +
-      K.recordButton({ source: 'inbox', leadId: it.leadId || '', cls: 'ib-rec' }) + '</div>';
+      K.recordEntry({ source: 'inbox', leadId: it.leadId || '', cls: 'ib-rec' }) + '</div>';
     if (it.why && !it.pipeline) h += '<p class="ib-why"><span class="ib-why-k">Why it is here</span> ' + esc(it.why) + '</p>';
     h += '<div class="ib-msgs" aria-live="polite">';
     if (!t || t.state === 'loading') h += '<div class="ib-state" role="status">Loading messages&hellip;</div>';
@@ -694,7 +694,7 @@
     // list otherwise. inbox.css hides the list's copy beside an open thread on
     // a wide screen, so there is one Record button in view, never two.
     rootEl.setAttribute('data-sel', it ? '1' : '0');
-    var listRec = K.recordButton({ source: 'inbox', cls: 'ib-rec ib-rec-list' });
+    var listRec = K.recordEntry({ source: 'inbox', cls: 'ib-rec ib-rec-list' });
     var head = S.pane === 'inbox'
       ? '<div class="ib-headline"><span><b>' + items.length + '</b> ' + (items.length === 1 ? 'person needs' : 'people need') + ' a reply</span>' + listRec + '</div>'
       : '<div class="ib-headline"><span><b>' + leads().length + '</b> leads on your pipeline</span>' + listRec + '</div>';

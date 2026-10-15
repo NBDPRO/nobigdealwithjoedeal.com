@@ -53,17 +53,22 @@ const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
     ok('...labelled "Record visit", no inline handler or style', K.RECORD_LABEL === 'Record visit' && />Record visit</.test(b) && !/\son[a-z]+=|style=/.test(b));
     const bare = K.recordButton({});
     ok('...with no lead it attaches none (the recorder asks who)', !/data-lead-id/.test(bare) && !/data-appointment-id/.test(bare));
+    const pair = K.recordEntry({ source: 'crew', leadId: 'L9', cls: 'cw-rec' });
+    ok('kit.recordEntry = Record visit + Recent visits beside it ([data-nbd-recent-visits]); cls on the pair',
+      /^<span class="lk-rec-pair cw-rec"><button type="button" class="lk-rec" data-nbd-record-visit="" data-source="crew" data-lead-id="L9">/.test(pair)
+      && /<button type="button" class="lk-recent" data-nbd-recent-visits="" data-source="crew">Recent visits<\/button><\/span>$/.test(pair), pair);
   }
   {
     const want = {
-      field: /K\.recordButton\(\{ source: 'field', leadId: current\.leadId/,
-      focus: /K\.recordButton\(\{ source: 'focus', leadId: it\.id/,
-      inbox: /K\.recordButton\(\{ source: 'inbox', leadId: it\.leadId/,
-      mission: /K\.recordButton\(\{ source: 'mission', leadId: l\.id/,
-      crew: /K\.recordButton\(\{ source: 'crew', leadId: l\.id/,
+      field: /K\.recordEntry\(\{ source: 'field', leadId: current\.leadId/,
+      focus: /K\.recordEntry\(\{ source: 'focus', leadId: it\.id/,
+      inbox: /K\.recordEntry\(\{ source: 'inbox', leadId: it\.leadId/,
+      mission: /K\.recordEntry\(\{ source: 'mission', leadId: l\.id/,
+      crew: /K\.recordEntry\(\{ source: 'crew', leadId: l\.id/,
     };
-    Object.keys(want).forEach((id) => ok(id + ' draws Record visit in its own UI, with the lead it is showing', want[id].test(L(id))));
-    ok('Mission also has it on a route stop', /K\.recordButton\(\{ source: 'mission-route', leadId: s\.leadId/.test(L('mission')));
+    Object.keys(want).forEach((id) => ok(id + ' draws Record visit + Recent visits in its own UI, with the lead it is showing', want[id].test(L(id)) && !/K\.recordButton\(/.test(L(id))));
+    ok('Mission also has it on a route stop', /K\.recordEntry\(\{ source: 'mission-route', leadId: s\.leadId/.test(L('mission')));
+    ok('Island dock: Recent visits sits beside Record', /data-nbd-recent-visits="" data-source="island-dock"/.test(L('island')));
     ok('Field passes the current stop\'s appointment too', /appointmentId: apptIdOf\(current\)/.test(L('field')) && /'appt:'/.test(L('field')));
     const I = require(path.join(ROOT, 'docs/pro/js/layouts/island.js'));
     ok('Island: Record visit is the dock\'s ONE primary action', I.DOCK[0].id === 'record' && I.DOCK.filter((d) => d.primary).length === 1 && I.DOCK[0].primary === true);
@@ -82,6 +87,10 @@ const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
     ok('Home reserves room under the bar while it shows (no card under it)',
       /classList\.toggle\('nbd-vr-bar-on', show\)/.test(lsrc) && /html\.nbd-vr-bar-on #view-home \.view-scroll\{ padding-bottom:calc\(74px/.test(vcss));
     ok('the bar follows a layout switch', /addEventListener\('layoutchange', paintBar\)/.test(lsrc));
+    ok('Recent visits: delegated, and it loads the recorder first (the Record path) before NBDVisitRecorderUI.openRecent()',
+      /closest\('\[data-nbd-recent-visits\]'\)[\s\S]{0,80}openRecent\(\)/.test(lsrc)
+      && /function openRecent\(\) \{\s*return load\(\)\.then\(function \(\) \{\s*var UI = window\.NBDVisitRecorderUI;\s*if \(UI && typeof UI\.openRecent === 'function'\) \{ UI\.openRecent\(\); return; \}/.test(lsrc)
+      && /openRecent: openRecent/.test(lsrc));
     ok('the bar stylesheet is re-versioned (and only it)', /BAR_CSS = '\/pro\/css\/visit-recorder\.css\?v=3'/.test(lsrc) && /visit-recorder-ui\.js\?v=' \+ V/.test(lsrc));
   }
   {
@@ -111,6 +120,7 @@ const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
     const recBtn = classic.bar && classic.bar.children[0];
     ok('run: Classic Home shows the bar, labelled Record visit, and reserves room under it',
       classic.bar && classic.bar.hidden === false && recBtn.children[1].textContent === 'Record visit' && classic.cls.has('nbd-vr-bar-on'));
+    ok('run: Recent visits sits beside Record on the bar', classic.bar.children[1].textContent === 'Recent visits' && 'data-nbd-recent-visits' in classic.bar.children[1].attrs);
     const bento = runLauncher('bento');
     ok('run: Bento shows it too', bento.bar && bento.bar.hidden === false);
     const island = runLauncher('island');
