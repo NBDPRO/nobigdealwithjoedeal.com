@@ -596,7 +596,7 @@ for (const p of live) {
 // Reuses project-cards.css; area and town-service pages don't load it in
 // <head>, so the region carries its own <link> (body-ok per the HTML spec,
 // and it arrives and leaves with the region).
-const CARDS_CSS = '<link rel="stylesheet" href="/assets/css/project-cards.css?v=1">';
+const CARDS_CSS = '<link rel="stylesheet" href="/assets/css/project-cards.css?v=3">';
 const AREA_CARDS = 6;
 const LOCAL_CARDS = 3;
 
@@ -972,7 +972,7 @@ const detailPage = (p) => {
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="No Big Deal">
 <link rel="stylesheet" href="/assets/css/nbd-fonts.css">
-<link rel="stylesheet" href="/assets/css/project-cards.css?v=2">
+<link rel="stylesheet" href="/assets/css/project-cards.css?v=3">
 <link rel="stylesheet" href="/assets/css/nbd-icons.css">
 <link rel="stylesheet" href="/assets/css/mobile-cta.css">
 <script type="application/ld+json">${JSON.stringify(detailSchema(p))}</script>

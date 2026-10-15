@@ -73,7 +73,10 @@ a.project-link{display:block;color:inherit;text-decoration:none}
 .nbd-recent-jobs-cta a{display:inline-block;background:#BD5728;color:#fff;padding:12px 24px;border-radius:8px;font-weight:700;font-size:.85rem;text-decoration:none}
 
 @media(max-width:768px){
-  .gallery,.nbd-recent-jobs .gallery,.nbd-recent-jobs-more{grid-template-columns:1fr}
+  .gallery,.nbd-recent-jobs-more{grid-template-columns:1fr}
+  /* Recent-jobs strips are a swipe row on phones (grid-auto-flow:column in service-revamp.css,
+     which can load before this file): an explicit 1fr track here squashed the first card to ~2px. */
+  .nbd-recent-jobs .gallery{grid-template-columns:none}
   .nbd-recent-jobs{padding:40px 20px}
 }
 
