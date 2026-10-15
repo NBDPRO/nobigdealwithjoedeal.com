@@ -61,7 +61,10 @@
 
   // Workmanship warranty kinds a template may declare (job-templates-data.js
   // header; years live in NBD_ESTIMATE_CONFIG.WORKMANSHIP_WARRANTY).
-  const WARRANTY_KINDS = ['roof', 'gutter_system', 'guard_only', 'install_default', 'repair', 'none'];
+  const WARRANTY_KINDS = ['roof', 'gutter_system', 'guard_only', 'install_default', 'repair', 'none', 'siding'];
+  // Siding replacement packages (Jo, 2026-10-15): the labor warranty is 5/10/20
+  // years by package. Warranty terms only — no price changes with it.
+  const WARRANTY_PACKAGES = ['standard', 'preferred', 'elite'];
 
   // Typical-house measurement context — the BASE of the resolveSelection
   // overlay: DEFAULT_MEASUREMENTS ← each selected template's (possibly
@@ -872,11 +875,17 @@
   // A from-scratch custom with neither gets the cautious reading of its own
   // jobType: installs 2 yr, everything else no warranty unless the rep ticks
   // the repair box — never lifetime unless it is a roof replacement.
+  // A custom edited or Duplicated from the siding-replacement default before
+  // 2026-10-15 carries that default's old 'install_default' copy; the build
+  // screen never let a rep choose a kind, so it follows the default to
+  // 'siding' (by package). Only new estimates read this — saved ones keep the
+  // warrantyKind they saved.
   function warrantyKindOf(tpl) {
     if (!tpl) return null;
-    if (WARRANTY_KINDS.indexOf(tpl.warrantyKind) !== -1) return tpl.warrantyKind;
     const baseId = tpl.basedOn || tpl.id;
     const base = defaults().find(d => d && d.id === baseId);
+    if (tpl.warrantyKind === 'install_default' && base && base.warrantyKind === 'siding') return 'siding';
+    if (WARRANTY_KINDS.indexOf(tpl.warrantyKind) !== -1) return tpl.warrantyKind;
     if (base && WARRANTY_KINDS.indexOf(base.warrantyKind) !== -1) return base.warrantyKind;
     if (tpl.category === 'roof_replacement') return 'roof';
     if (tpl.jobType === 'inspection') return 'none';
@@ -1166,7 +1175,8 @@
   /**
    * buildEstimatePayload(resolved, meta)
    *   resolved: resolveSelection() result (totals required)
-   *   meta:     {name, leadId, addr, owner, deposit, deductible?, county?, repairWarranty?}
+   *   meta:     {name, leadId, addr, owner, deposit, deductible?, county?, repairWarranty?,
+   *              warrantyPackage? ('standard'|'preferred'|'elite', siding replacement only)}
    * county persists (V2 _buildSavePayload parity — estimate-v2-ui.js:2120)
    * so reopen doesn't silently re-tax at a different rate; meta.owner/addr
    * pass through (blank default stays '').
@@ -1197,6 +1207,13 @@
     const repairWarranty = meta.repairWarranty === true
       && resolved.warrantyKind !== 'roof'
       && warrantyParts.some(p => p && p.kind === 'repair');
+    // Siding replacement's package (2026-10-15): saved whenever a siding part
+    // is on a non-roofing estimate, Standard unless the rep picked another.
+    // null otherwise, so no other job type ever carries one.
+    const hasSiding = resolved.warrantyKind !== 'roof'
+      && warrantyParts.some(p => p && p.kind === 'siding');
+    const pkg = String(meta.warrantyPackage || '').toLowerCase();
+    const warrantyPackage = hasSiding ? (WARRANTY_PACKAGES.indexOf(pkg) !== -1 ? pkg : 'standard') : null;
     const dep = depositStamp(est.total, est.mode || 'cash', meta);
 
     return {
@@ -1215,6 +1232,7 @@
       warrantyKind:    resolved.warrantyKind || null,
       warrantyParts:   warrantyParts.map(p => ({ name: String((p && p.name) || ''), kind: (p && p.kind) || null })),
       repairWarranty:  repairWarranty,
+      warrantyPackage: warrantyPackage,
       // Customer association
       leadId:          meta.leadId || null,
       addr:            meta.addr || '',
@@ -1705,6 +1723,7 @@
     DATA_VERSION,
     SINGLETON_CODES,
     WARRANTY_KINDS,
+    WARRANTY_PACKAGES,
 
     list,
     get,

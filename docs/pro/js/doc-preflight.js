@@ -3040,8 +3040,16 @@
     // Job-type workmanship warranty (2026-09-25): null for anything that is
     // not a Job Template estimate, so every other document is untouched.
     var _rowsApi = window.NBDCustomerEstimateRows;
+    // A warranty certificate certifies what was SIGNED: a siding package (or
+    // a tier) changed after signing never reaches it until the homeowner
+    // re-signs (warrantyPackage locks at signing, Jo 2026-10-15).
+    var _warrantyEst = estimate;
+    if (estimate && type === 'warranty_certificate' && _sp && typeof _sp.hasUnsignedChanges === 'function'
+        && _sp.hasUnsignedChanges(estimate)) {
+      _warrantyEst = _sp.signedView(estimate);
+    }
     var jobWarranty = (_rowsApi && typeof _rowsApi.estimateWarranty === 'function')
-      ? _rowsApi.estimateWarranty(estimate) : null;
+      ? _rowsApi.estimateWarranty(_warrantyEst) : null;
     // A warranty certificate for a job that carries no workmanship warranty
     // would certify a promise nobody made. Say so instead of opening.
     if (type === 'warranty_certificate' && jobWarranty && jobWarranty.text === '') {

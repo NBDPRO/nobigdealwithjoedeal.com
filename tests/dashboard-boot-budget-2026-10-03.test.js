@@ -114,6 +114,11 @@ CEILING.localBytes += 3 * 1024;
 // hand-off) are deferred code that only runs when a draft is opened or sent. Main alone sat at 4820 of 4821 KB after
 // #2449 (visit capture PR 2) consumed the last of the headroom, so this PR measures 4822 and the ceiling keeps ~1 KB.
 CEILING.localBytes += 2 * 1024;
+// +5 KB, deliberate (2026-10-15, siding warranty by package, #2463 + its follow-up): no new script tag.
+// The siding kind + package table in estimate-config.js and customer-estimate-rows.js (both deferred),
+// the Package row in job-templates-ui.js, the signed-package lock and the certificate's signed view in
+// doc-preflight.js. Main sat at 4823 of 4824 KB; this PR measures 4828, so the ceiling keeps ~1 KB of slack.
+CEILING.localBytes += 5 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
