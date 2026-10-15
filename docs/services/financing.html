@@ -882,6 +882,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 .fe-out{background:var(--navy-dark,#12223d);border-radius:12px;padding:22px;text-align:center;color:#fff}
 .fe-out .fe-pay{font-family:'Bebas Neue',sans-serif;font-size:2.6rem;line-height:1;color:var(--orange-light,#dd875f)}
 .fe-out .fe-pay small{font-size:1rem;color:rgba(255,255,255,.7)}
+.fe-out .fe-pay-fallback{font-size:1.5rem}
 .fe-out .fe-cap{font-size:.78rem;color:rgba(255,255,255,.72);margin-top:8px;line-height:1.5}
 .fe-cta{display:block;text-align:center;background:#BD5728;color:#fff;text-decoration:none;font-weight:800;border-radius:10px;padding:15px;margin-top:18px;letter-spacing:.02em}
 .fe-cta:hover{background:#A14A22}
@@ -910,7 +911,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
         </div>
       </div>
       <div class="fe-out">
-        <div class="fe-pay"><span id="fe-lo">$&mdash;</span> <small>to</small> <span id="fe-hi">$&mdash;</span> <small>/mo</small></div>
+        <div class="fe-pay"><span id="fe-pay-range" hidden><span id="fe-lo"></span> <small>to</small> <span id="fe-hi"></span> <small>/mo</small></span><span class="fe-pay-fallback" id="fe-pay-fallback">Check your real rate below</span></div>
         <div class="fe-cap">Estimated range at 11.49%&ndash;19.99% APR. Not an offer of credit.</div>
       </div>
       <a class="fe-cta" href="https://www.acornfinance.com/pre-qualify/?d=QU6WZ" target="_blank" rel="noopener noreferrer">Check my real rate &mdash; soft pull, no score hit &rarr;</a>
@@ -1088,7 +1089,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <script defer  src="/assets/js/inline/b1d1695580.js"></script>
 <script defer src="/assets/js/ann-bar.js"></script>
 <script defer src="/assets/js/financing-band.js"></script>
-<script defer src="/assets/js/financing-estimator.js"></script>
+<script defer src="/assets/js/financing-estimator.js?v=2"></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
 <!-- nbd:partial mobile-cta book_href="/inspect" -->
 <div class="mobile-cta-strip mobile-cta-bookfirst" aria-label="Quick contact options">
