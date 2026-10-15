@@ -240,6 +240,9 @@
   }
   window.nbdLeadFailFallback = showLeadFallback;
 
+  const SUBMIT_TIMEOUT_MS = 20000;
+  const FOLLOW_UP_TYPES = ['estimate_result', 'cta_click', 'email_estimate_request'];
+
   async function submitPublicLead(kind, fields) {
     if (!kind || typeof kind !== 'string') {
       return { ok: false, reason: 'Missing kind' };
@@ -254,6 +257,11 @@
 
     const payload = Object.assign({ kind }, fields || {});
     if (turnstileToken) payload.turnstileToken = turnstileToken;
+    // Client timeout (2026-10-15, review M5): a stalled connection (carrier
+    // handoff, not a clean failure) left "Sending…" up forever and the
+    // call/text fallback never showed. The server gives up at 15 s.
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const abortTimer = ctrl ? setTimeout(() => ctrl.abort(), SUBMIT_TIMEOUT_MS) : null;
     try {
       const res = await fetch(baseUrl() + '/submitPublicLead', {
         method: 'POST',
@@ -262,9 +270,11 @@
         // We don't ship credentials — the endpoint is unauth'd and
         // gated by App Check + Turnstile + per-IP rate limit.
         credentials: 'omit',
-        mode: 'cors'
+        mode: 'cors',
+        signal: ctrl ? ctrl.signal : undefined
       });
       const data = await res.json().catch(() => ({}));
+      if (abortTimer) clearTimeout(abortTimer);
       if (!res.ok) {
         showLeadFallback();
         return { ok: false, reason: data.error || 'Submission failed', status: res.status };
@@ -272,8 +282,14 @@
       // Central conversion event: every public lead form routes through
       // here (guide/contact/inspect/estimate/storm/free_roof), so this is
       // the one place GA4 sees all of them. No PII in params.
+      // Once per lead (2026-10-15, review H2): /estimate saves follow-up
+      // events (estimate_result, cta_click, email_estimate_request) through
+      // this same call, and each one used to count as a new lead in GA4.
+      // The server already treats those types as follow-ups of the lead
+      // (functions/lead-bridge-logic.js ESTIMATE_EVENT_TYPES).
       try {
-        if (typeof window.gtag === 'function') {
+        const followUp = FOLLOW_UP_TYPES.indexOf(String((fields && fields.type) || '')) !== -1;
+        if (!followUp && typeof window.gtag === 'function') {
           window.gtag('event', 'generate_lead', {
             lead_kind: kind,
             lead_source: (fields && fields.source) || ''
@@ -284,7 +300,11 @@
       // submission (intake-extras.js uploads them). Only present when asked.
       return { ok: true, id: data.id || null, photoToken: data.photoToken || null };
     } catch (e) {
+      if (abortTimer) clearTimeout(abortTimer);
       showLeadFallback();
+      if (e && e.name === 'AbortError') {
+        return { ok: false, timedOut: true, reason: 'This is taking too long. Check your connection and try again.' };
+      }
       return { ok: false, reason: 'Network error: ' + (e.message || 'unknown') };
     }
   }
