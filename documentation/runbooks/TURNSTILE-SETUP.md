@@ -104,7 +104,7 @@ repo. The secret key is viewable again in the dashboard (Turnstile → the widge
 → Settings) if it is ever needed.
 
 **Legal condition of invisible mode:** Cloudflare requires the [Turnstile
-Privacy Addendum](https://www.cloudflare.com/turnstile-privacy-addendum/) to be
+Privacy Addendum](https://www.cloudflare.com/turnstile-privacy-policy/) to be
 referenced in our own privacy policy. `docs/privacy.html` §"Security &
 Monitoring" does that. If the mode is ever switched away from invisible that
 sentence can go; if a new public surface adopts Turnstile, it stays.
