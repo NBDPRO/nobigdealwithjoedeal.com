@@ -272,3 +272,14 @@ html body > footer:not([class]) .label { color: rgba(255, 255, 255, 0.85) !impor
     height: 44px;
   }
 }
+
+/* ── Footer "Text Messages" link matches Privacy / Terms (2026-10-15) ───────
+   #2472 added <a href="/sms-program"> beside Privacy and Terms, which carry
+   inline style="color:inherit;text-decoration:none"; the new link had none, so
+   it took the browser's default underline. No new inline styles, so the same
+   two declarations live here, keyed on data-nbd-sms (set only in footers whose
+   Privacy/Terms are styled that way). Inline styles outrank any page's
+   non-!important footer rule, hover included, so the selector carries enough
+   weight to outrank those too (e.g. `.footer-bottom a:hover`). */
+html body footer a[data-nbd-sms][href],
+html body footer a[data-nbd-sms][href]:hover { color: inherit; text-decoration: none; }

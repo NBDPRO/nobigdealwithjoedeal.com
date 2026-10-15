@@ -80,8 +80,14 @@ console.log('\nWiring');
 ok('W1 /sms-program in docs/sitemap.xml and build-sitemap CORE_PAGES',
   /<loc>https:\/\/nobigdealwithjoedeal\.com\/sms-program<\/loc>/.test(read('docs/sitemap.xml')) && /\['sms-program',\s*'sms-program\.html'/.test(read('scripts/build-sitemap.js')));
 const partials = ['footer-standard', 'footer-extended', 'footer-blog', 'footer-area', 'footer-slim'];
-const bad = partials.filter((n) => { const s = read('site-src/partials/' + n + '.html'); return !s.includes('<a href="/sms-program">') || !s.includes('No Big Deal Home Solutions is a d/b/a of No Big Deal Solutions LLC.'); });
+const bad = partials.filter((n) => { const s = read('site-src/partials/' + n + '.html'); return !/<a href="\/sms-program"(?: data-nbd-sms="1")?>Text Messages<\/a>/.test(s) ||!s.includes('No Big Deal Home Solutions is a d/b/a of No Big Deal Solutions LLC.'); });
 ok('W2 every footer partial links /sms-program and states the d/b/a', bad.length === 0, bad.join(','));
+// Beside an inline-styled Terms link, Text Messages must carry data-nbd-sms so
+// nbd-nav.css gives it the same colour and no underline (2026-10-15 fix).
+const styledTerms = '<a href="/terms" data-nbd-terms="1" style="color:inherit;text-decoration:none">Terms</a> &middot; <a href="/sms-program">';
+const untagged = partials.filter((n) => read('site-src/partials/' + n + '.html').includes(styledTerms));
+ok('W2b footer Text Messages link is tagged where Privacy/Terms are styled, and nbd-nav.css styles the tag',
+  untagged.length === 0 && /footer a\[data-nbd-sms\]\[href\][\s\S]*?text-decoration:\s*none/.test(read('docs/assets/css/nbd-nav.css')), untagged.join(','));
 ok('W3 /terms#sms-terms links /sms-program', /id="sms-terms"[\s\S]*?<a href="\/sms-program">[\s\S]*?class="terms-section"/.test(read('docs/terms.html')));
 const priv = read('docs/privacy.html');
 const pi = priv.indexOf('id="sms-terms"');
