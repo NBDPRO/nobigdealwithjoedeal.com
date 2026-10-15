@@ -763,7 +763,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     <ul class="hx-proof" aria-label="Credentials">
       <li>GAF Certified&trade;</li>
       <li>TAMKO Pro Gold</li>
-      <li><span><span data-nbd-gr-rating>5.0</span> on Google</span></li>
+      <li><span><span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating></span> on Google</span><span data-nbd-gr-rating-fallback>Real Google reviews</span></span></li>
       <li>Cincinnati &amp; N. KY</li>
     </ul>
     <div class="hx-cta">
@@ -901,8 +901,11 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     </div>
     <!-- The score, star row and review count are hydrated from the live
          Places payload by js/google-reviews-widget.js (data-nbd-gr-* hooks).
-         The rating and stars below are the static fallback a visitor sees if
-         the fetch fails, so they must stay TRUE at rest, not zeroed. The
+         The rating and stars have no static number either (2026-10-15, Joe's
+         wording decision 7): data-nbd-gr-rating ships empty inside a hidden
+         data-nbd-gr-rating-wrap, the star row ships empty, and a plain
+         data-nbd-gr-rating-fallback ("Real Google reviews") shows until a live
+         rating arrives, so a failed fetch never shows a number. The
          review COUNT has no static fallback (2026-10-06): a hard-coded count
          goes stale the day the next review lands, so data-nbd-gr-total ships
          empty inside a hidden data-nbd-gr-total-wrap that the widget reveals
@@ -914,9 +917,9 @@ footer.foot a,.review-footer a{color:#bd5728!important}
          (Google's count grew against a real baseline), and never gets a
          static fallback — a stale "new this month" would be a false claim. -->
     <div class="reviews-rating">
-      <div class="reviews-stars" data-nbd-gr-stars>★★★★★</div>
+      <div class="reviews-stars" data-nbd-gr-stars></div>
       <div>
-        <div class="reviews-score"><span data-nbd-gr-rating>5.0</span> on Google<span data-nbd-gr-total-wrap hidden> &middot; <span data-nbd-gr-total></span> reviews</span><span data-nbd-gr-recent></span></div>
+        <div class="reviews-score"><span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating></span> on Google</span><span data-nbd-gr-rating-fallback>Real Google reviews</span><span data-nbd-gr-total-wrap hidden> &middot; <span data-nbd-gr-total></span> reviews</span><span data-nbd-gr-recent></span></div>
         <div class="reviews-score-sub"><a href="https://g.page/r/CXzIjLwvtRPdEBM" target="_blank" rel="noopener noreferrer" style="color:inherit">Verified Google Business Profile</a> — real reviews from Cincinnati &amp; N. Kentucky homeowners</div>
       </div>
       <a href="/inspect" class="btn-primary" style="margin-left:auto">Book a free inspection</a>
@@ -955,7 +958,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
       <h2 class="sec-title">Questions Homeowners <span>Actually Ask</span></h2>
     </div>
     <div class="faq-list">
-      <div class="faq-item open"><div class="faq-q">How much does a new roof cost in the Cincinnati area?</div><div class="faq-a"><p>It depends on your roof's size, pitch, and the shingle you pick — but to give you a real number: most architectural-shingle replacements in Greater Cincinnati run about <strong>$740–$825 per roofing square</strong> installed, with budget and premium tiers landing roughly <strong>$615–$965 per square</strong>. Our free <a href="/estimate">Instant Estimate</a> gives you a tailored ballpark in about 60 seconds. You&rsquo;ll enter a first name and phone number so Joe can send it &mdash; no call center, no pressure. The full breakdown is in my <a href="/blog/how-much-does-roof-cost-cincinnati-2026">2026 Cincinnati roof cost guide</a>.</p></div></div>
+      <div class="faq-item open"><div class="faq-q">How much does a new roof cost in the Cincinnati area?</div><div class="faq-a"><p>It depends on your roof's size, pitch, and the shingle you pick — but to give you a real number: most architectural-shingle replacements in Greater Cincinnati run about <strong>$740–$825 per roofing square</strong> installed, with Standard and Elite landing roughly <strong>$615–$965 per square</strong>. Our free <a href="/estimate">Instant Estimate</a> gives you a tailored ballpark in about 60 seconds. You&rsquo;ll enter a first name and phone number so Joe can send it &mdash; no call center, no pressure. The full breakdown is in my <a href="/blog/how-much-does-roof-cost-cincinnati-2026">2026 Cincinnati roof cost guide</a>.</p></div></div>
       <div class="faq-item"><div class="faq-q">Do you do storm damage insurance jobs?</div><div class="faq-a"><p>Absolutely — storm work is a big part of what we do. The claim is yours to file and decide. We document the damage properly, write a line-item estimate, and meet your adjuster on the roof after you file, so you're not stuck translating roofing jargon. I estimate in <strong>Xactimate</strong> — the same software your insurer prices the claim in — so I can read their scope line by line.</p></div></div>
       <div class="faq-item"><div class="faq-q">Do you offer financing?</div><div class="faq-a"><p>Yes — through <a href="/services/financing">Acorn Finance</a>, a lending marketplace that lets you check your options with a soft credit pull that doesn't affect your credit score. You'll see the actual lender, rate, and full terms before you commit to anything. If financing isn't the right move for your project, Joe will tell you straight.</p></div></div>
       <div class="faq-item"><div class="faq-q">What areas do you serve?</div><div class="faq-a"><p>We cover Greater Cincinnati — across Southwest Ohio and into Kentucky. Cincinnati, Milford, Loveland, Mason, Batavia, West Chester and the surrounding communities are all areas I work regularly, and as of 2026 I also serve the Lexington area — Lexington, Georgetown, Nicholasville, Winchester, Richmond, and Versailles — on scheduled trips. Not sure if you're in range? See <a href="/areas">every area I serve</a> or just <a href="tel:+18594207382">call Joe</a> and ask.</p></div></div>
@@ -968,7 +971,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    {"@type": "Question", "name": "How much does a new roof cost in the Cincinnati area?", "acceptedAnswer": {"@type": "Answer", "text": "It depends on your roof's size, pitch, and the shingle you pick — but to give you a real number: most architectural-shingle replacements in Greater Cincinnati run about $740–$825 per roofing square installed, with budget and premium tiers landing roughly $615–$965 per square. Our free Instant Estimate gives you a tailored ballpark in about 60 seconds. You'll enter a first name and phone number so Joe can send it — no call center, no pressure. The full breakdown is in my 2026 Cincinnati roof cost guide."}},
+    {"@type": "Question", "name": "How much does a new roof cost in the Cincinnati area?", "acceptedAnswer": {"@type": "Answer", "text": "It depends on your roof's size, pitch, and the shingle you pick — but to give you a real number: most architectural-shingle replacements in Greater Cincinnati run about $740–$825 per roofing square installed, with Standard and Elite landing roughly $615–$965 per square. Our free Instant Estimate gives you a tailored ballpark in about 60 seconds. You'll enter a first name and phone number so Joe can send it — no call center, no pressure. The full breakdown is in my 2026 Cincinnati roof cost guide."}},
     {"@type": "Question", "name": "Do you do storm damage insurance jobs?", "acceptedAnswer": {"@type": "Answer", "text": "Absolutely — storm work is a big part of what we do. The claim is yours to file and decide. We document the damage properly, write a line-item estimate, and meet your adjuster on the roof after you file, so you're not stuck translating roofing jargon. I estimate in Xactimate — the same software your insurer prices the claim in — so I can read their scope line by line."}},
     {"@type": "Question", "name": "Do you offer financing?", "acceptedAnswer": {"@type": "Answer", "text": "Yes — through Acorn Finance, a lending marketplace that lets you check your options with a soft credit pull that doesn't affect your credit score. You'll see the actual lender, rate, and full terms before you commit to anything. If financing isn't the right move for your project, Joe will tell you straight."}},
     {"@type": "Question", "name": "What areas do you serve?", "acceptedAnswer": {"@type": "Answer", "text": "We cover Greater Cincinnati — across Southwest Ohio and into Kentucky. Cincinnati, Milford, Loveland, Mason, Batavia, West Chester and the surrounding communities are all areas I work regularly, and as of 2026 I also serve the Lexington area — Lexington, Georgetown, Nicholasville, Winchester, Richmond, and Versailles — on scheduled trips. Not sure if you're in range? See every area I serve or just call Joe and ask."}},
@@ -1051,7 +1054,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
             <div style="position:absolute;left:-9999px;" aria-hidden="true"><label for="fieldNbdHp">Leave blank</label><input type="text" id="fieldNbdHp" tabindex="-1" autocomplete="off"></div>
             <label class="sc-consent"><input type="checkbox" id="fieldConsent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>
             <p id="formError" class="form-error" role="alert" hidden></p>
-            <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Fully insured &middot; Joe on every roof</p>
+            <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating></span> on Google</span><span data-nbd-gr-rating-fallback>Real Google reviews</span> &middot; Fully insured &middot; Joe on every roof</p>
             <button class="form-submit" id="leadFormSubmit">Get My Free Estimate →</button>
             <script defer  src="/assets/js/inline/72fb917108.js"></script>
             <p class="form-note">🔒 No spam, no pressure. I will reach out personally — usually same day.</p>
