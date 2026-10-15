@@ -148,7 +148,7 @@ const POSTS = [
     tag: "Insurance",
     title: "My Roof Is Too Old — Will Insurance Still Pay?",
     meta: "By Joe Deal · January 2026 · 7 min read",
-    excerpt: "The number one objection I hear at the door — 'my roof is too old, insurance won't cover it.' I've heard it a thousand times. And almost every single time, the homeowner is wrong. Here's the truth.",
+    excerpt: "The number one objection I hear at the door — 'my roof is too old, insurance won't cover it.' I've heard it a thousand times. Roof age alone usually isn't what decides it; your policy is. Here's the truth.",
     published: "2026-01-12",
   },
   {
