@@ -51,7 +51,7 @@
     { id: 'schedule',  title: "Today's schedule",       kind: 'widget', widget: 'today-schedule',   def: [2, 2], min: [1, 1], max: [4, 3], nav: 'schedule', about: 'Appointments, job days and adjuster meetings today.' },
     { id: 'tasks',     title: 'Personal checklist',     kind: 'widget', widget: 'task-checklist',   def: [1, 2], min: [1, 1], max: [2, 3], nav: 'crm',      about: 'Your private scratch list.' },
     { id: 'hail',      title: 'Hail near customers',    kind: 'native', native: 'hail',              def: [2, 1], min: [1, 1], max: [4, 2], nav: 'crm',      about: 'Customers hail-cron stamped a hail hit on.' },
-    { id: 'map',       title: 'Map',                    kind: 'native', native: 'map',               def: [1, 1], min: [1, 1], max: [2, 2], nav: 'map',      about: 'One tap to the map.' },
+    { id: 'map',       title: 'Map',                    kind: 'native', native: 'map',               def: [1, 1], min: [1, 1], max: [2, 2], nav: 'd2d',      about: 'One tap to the map.' },
     { id: 'storm',     title: 'Storm alerts',           kind: 'widget', widget: 'storm-alerts',     def: [1, 1], min: [1, 1], max: [2, 2], nav: 'storm',    about: 'Weather alerts for your area.' },
     { id: 'hot',       title: 'Hot leads',              kind: 'widget', widget: 'hot-leads',        def: [2, 2], min: [1, 1], max: [4, 3], nav: 'crm',      about: 'Who to call first.' },
     { id: 'stale',     title: 'Stale leads',            kind: 'widget', widget: 'stale-leads',      def: [2, 1], min: [1, 1], max: [4, 3], nav: 'crm',      about: 'Leads that have gone quiet.' },
@@ -247,6 +247,12 @@
     if (coB && coB.length) return { board: coB, source: 'company' };
     return { board: defaultBoard(), source: 'default' };
   }
+  /** Does the company have a default board a reset would land on? */
+  function companyBoard() {
+    var p = E.prefs();
+    var co = sanitize(p && p.company && p.company.defaultWidgets ? p.company.defaultWidgets.bento : null);
+    return !!(co && co.length);
+  }
 
   // ── persistence ──────────────────────────────────────────────────────
   function flushSave() {
@@ -282,6 +288,13 @@
 
   function renderNative(c, el) {
     var K0 = K(), leads = W._leads || [];
+    // Before the CRM has loaded the leads, a count of them is a guess: "0
+    // customers" on a board that is still loading reads as an empty business.
+    // The data-refreshed hook re-renders the tile once they arrive.
+    if (W._leadsLoaded !== true) {
+      el.innerHTML = '<div class="bn-note" role="status">Loading your customers…</div>';
+      return;
+    }
     if (c.native === 'hail') {
       var rows = leads.filter(function (l) {
         var s = l && l.hailHit && Number(l.hailHit.sizeInches);
@@ -304,7 +317,7 @@
     if (c.native === 'map') {
       var n = leads.filter(function (l) { return l && isFinite(Number(l.lat)) && isFinite(Number(l.lng)) && (l.lat || l.lng); }).length;
       el.innerHTML = '<div class="bn-big">' + n + '</div><div class="bn-sub">customers on the map</div>' +
-        '<button type="button" class="bn-go" data-bn-goto="map">Open the map</button>';
+        '<button type="button" class="bn-go" data-bn-goto="d2d">Open the map</button>';
     }
   }
 
@@ -502,13 +515,20 @@
     if (act === 'done') { S.edit = false; S.drawer = false; flushSave().then(function (ok) { if (!ok && S.source !== 'user') toast('Board kept on this screen; it could not be saved yet.', 'error'); }); render(); return; }
     if (act === 'add') { S.drawer = !S.drawer; var d = rootEl.querySelector('#bnDrawer'); if (d) d.hidden = !S.drawer; var b = rootEl.querySelector('[data-bn-top="add"]'); if (b) b.setAttribute('aria-expanded', S.drawer ? 'true' : 'false'); return; }
     if (act === 'reset') {
-      // forget my board: back to the company default (new-hire board) or the built-in one
-      S.local = false;
-      if (S.saveT) { clearTimeout(S.saveT); S.saveT = null; }
-      Promise.resolve(E.saveUser({ layoutState: { bento: null } })).then(function () {
-        var r = resolveBoard();
-        S.board = r.board; S.source = r.source; render();
-        say(r.source === 'company' ? 'Back to your company default board.' : 'Back to the standard board.');
+      // forget my board: back to the company default (new-hire board) or the
+      // built-in one. It cannot be undone, so ask first (the app's own confirm
+      // sheet when it is loaded; the browser's otherwise).
+      var ask = W.nbdConfirm || function (m) { return Promise.resolve(W.confirm(m)); };
+      Promise.resolve(ask('Reset your board? Your tile arrangement is cleared and you start again from ' +
+        (companyBoard() ? 'your company\'s default board.' : 'the standard board.'))).then(function (yes) {
+        if (!yes) return;
+        S.local = false;
+        if (S.saveT) { clearTimeout(S.saveT); S.saveT = null; }
+        return Promise.resolve(E.saveUser({ layoutState: { bento: null } })).then(function () {
+          var r = resolveBoard();
+          S.board = r.board; S.source = r.source; render();
+          say(r.source === 'company' ? 'Back to your company default board.' : 'Back to the standard board.');
+        });
       });
       return;
     }

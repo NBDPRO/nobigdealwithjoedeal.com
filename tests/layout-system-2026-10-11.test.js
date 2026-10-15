@@ -34,7 +34,6 @@ function ok(name, cond, detail) {
 // registry + engine live in ONE deferred file (the boot budget allows no extra tags)
 const SYS_SRC = read('docs/pro/js/layout-system.js');
 const REG_SRC = SYS_SRC;
-const ENG_SRC = '';
 const PREBOOT_SRC = read('docs/pro/js/shape-preboot.js');
 const R = require(path.join(ROOT, 'docs/pro/js/layout-system.js'));
 
@@ -174,7 +173,8 @@ function loadEngine(b) {
   ctx.LayoutRegistry.register({ id: 'field', name: 'Field App', surfaces: ['phone', 'tablet'], script: 'js/layouts/field.js', css: 'css/layouts/field.css' });
   ctx.LayoutRegistry.register({ id: 'bento', name: 'Bento', surfaces: ['desktop', 'tablet'], css: 'css/layouts/bento.css' });
   ctx.LayoutRegistry.register({ id: 'focus', name: 'Focus', surfaces: ['phone', 'tablet', 'desktop'] });
-  vm.runInContext(ENG_SRC, ctx, { filename: 'layout-engine.js' });
+  // (The engine is the second half of layout-system.js, already run above; the
+  // old separate layout-engine.js step ran an empty string and is gone.)
   return ctx;
 }
 const tick = (ms) => new Promise((r) => setTimeout(r, ms || 5));
@@ -242,6 +242,9 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms || 5));
         'companies/u1/settings/layout': { defaultLayout: 'focus', allowed: ['bento', 'field', 'focus'], locked: false },
       } });
     const ctx = loadEngine(b);
+    // field has a script: a layout whose script never implements it now falls
+    // back to Classic (2026-10-15), so stand in for field.js having loaded.
+    ctx.LayoutEngine.implement('field', { mount() {}, unmount() {} });
     await tick(30);
     ok('hydrate resolves the PHONE choice from byDevice', ctx.LayoutEngine.current().id === 'field' && b.attrs['data-layout'] === 'field');
     const cache = JSON.parse(b.store.nbd_layout_resolved);

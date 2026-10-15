@@ -302,6 +302,7 @@
     return groupNeeds(rows, now).filter((g) => !shown.has(g.key)).length;
   }
 
+  let oldCapLogged = false;
   function stripHtml(counts) {
     const c = counts || {};
     const items = [];
@@ -321,7 +322,14 @@
     if (c.signs > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="signs">🪧 ' + c.signs + ' yard sign' + (c.signs === 1 ? '' : 's') + ' to pick up</button>');
     if (c.callsCapped) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Showing only your newest ' + (c.callsCap || '') + ' calls — older ones in the last 45 days were not checked. Tap to open the Call Center</button>');
     if (c.textsCapped) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Showing only your newest ' + (c.textsCap || '') + ' days of texts — older ones in the last 45 days were not checked</button>');
-    if (c.oldCapped) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Showing only the newest ' + (c.oldCap || '') + ' calls from before the 45-day window — an older open promise may not be listed</button>');
+    // The old-calls read hitting its cap is a developer fact, not something the
+    // owner can act on (Joe, 2026-10-15): the console says it once, the strip
+    // does not. Today's partial-list line still says, plainly, that some older
+    // calls are not shown. A FAILED read (below) stays on screen.
+    if (c.oldCapped && !oldCapLogged) {
+      oldCapLogged = true;
+      try { console.info('[home-attention] old-calls read hit its cap of ' + (c.oldCap || '?') + ' (calls before the 45-day window); an older open promise may not be listed'); } catch (_) { /* no console */ }
+    }
     if (c.oldFailed) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Could not check old promises (past 45 days) just now — this is NOT an all-clear for them</button>');
     if (c.callsFailed) items.push('<button type="button" class="ha-item ha-warn" data-action="goTo" data-target="calls">⚠ Could not check your calls just now' + (c.calls > 0 ? ' — ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you so far' : ' — this is NOT an all-clear') + '. Tap to open the Call Center</button>');
     else if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-ha-dup="1" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');

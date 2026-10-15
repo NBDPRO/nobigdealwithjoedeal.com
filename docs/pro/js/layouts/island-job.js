@@ -102,4 +102,23 @@
     if (!done && ++tries < 60) setTimeout(tick, 500);
   })();
   root.addEventListener('nbd:photos-loaded', paint);
+
+  // ij-has-hero follows the hero's real visibility. renderCoverHero()
+  // (customer-tasks-ui.js) hides it when a cover is cleared, and the class used
+  // to stay set, so the name card kept its -56px pull-up over an empty gap.
+  var watched = null;
+  function syncHeroClass() {
+    var hero = doc.getElementById('coverHero');
+    de.classList.toggle('ij-has-hero', !!(hero && hero.style.display === 'block'));
+  }
+  function watchHero() {
+    var hero = doc.getElementById('coverHero');
+    if (!hero || hero === watched || typeof MutationObserver !== 'function') return !!hero;
+    watched = hero;
+    new MutationObserver(syncHeroClass).observe(hero, { attributes: true, attributeFilter: ['style', 'hidden', 'class'] });
+    syncHeroClass();
+    return true;
+  }
+  var wTries = 0;
+  (function waitHero() { if (!watchHero() && ++wTries < 60) setTimeout(waitHero, 500); })();
 })(typeof window !== 'undefined' ? window : null);

@@ -314,10 +314,16 @@ let nbdAlert; // module-local (globals Tranche 1 — was window.*)
   // =========================================================================
   // 5. SAFE AREA PADDING — for notched iPhones
   // =========================================================================
+  // The top inset is reserved ONCE. A page whose own header already pads for
+  // it (dashboard.html, customer.html: <html data-safe-top="header">) must not
+  // get a body padding as well, or the installed app shows a second, empty
+  // black band under the status bar (Joe's phone, 2026-10-15). Pages with no
+  // such header (login, register, onboarding, analytics, ask-joe) keep it.
+  const headerOwnsTop = document.documentElement.getAttribute('data-safe-top') === 'header';
   const safeStyle = document.createElement('style');
   safeStyle.textContent = `
     @supports(padding-top: env(safe-area-inset-top)){
-      body{ padding-top: env(safe-area-inset-top); }
+      ${headerOwnsTop ? '' : 'body{ padding-top: env(safe-area-inset-top); }'}
       .mn{ padding-bottom: env(safe-area-inset-bottom); }
     }
   `;

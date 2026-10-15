@@ -298,6 +298,21 @@
       '<div class="tp-main"><div class="tp-name">' + main + '</div>' + (sub ? '<div class="tp-sub">' + sub + '</div>' : '') + '</div>' +
       '<div class="tp-acts">' + acts + '</div></div>';
   }
+  // A big day (Joe's phone, 2026-10-15: "100 things today") reads calmer as
+  // what is due today plus the overdue follow-ups behind it. Nothing is capped
+  // and nothing changes what is counted: data-tp-total stays p.total, the
+  // stalled section keeps its own count and its Show all, and a normal day
+  // keeps the plain "N things today" headline.
+  var BIG_DAY = 25;
+  function bigDay(p) {
+    var s = (p && p.stalled ? p.stalled.length : 0);
+    if (!p || p.total < BIG_DAY || !s) return null;
+    var now = p.total - s;
+    var fu = s + (s === 1 ? ' overdue follow-up' : ' overdue follow-ups');
+    return now > 0
+      ? { title: 'Today: ' + now + ' to do', sub: 'Plus ' + fu + ' in Stalled leads below (' + p.total + ' in all).' }
+      : { title: 'Today: ' + fu, sub: 'All in Stalled leads below.' };
+  }
   function section(id, title, rows, extraHead) {
     if (!rows.length) return '';
     var all = !!expanded[id];
@@ -458,7 +473,10 @@
     var partial = [];
     if (HAc && HAc.callsCapped) partial.push('only your newest ' + (HAc.callsCap || '') + ' calls were read');
     if (HAc && HAc.textsCapped) partial.push('only your newest ' + (HAc.textsCap || '') + ' days of texts were read');
-    if (HAc && HAc.oldCapped) partial.push('older open promises may not be listed');
+    // The old-calls cap is not a reason to call the whole list partial (Joe,
+    // 2026-10-15: the strip's developer wording read as an error). One plain,
+    // quiet line instead; home-attention.js logs the detail to the console.
+    var oldCapLine = HAc && HAc.oldCapped && !HAc.oldFailed ? '<div class="tp-sub tp-oldcap">Some older calls aren\'t shown here.</div>' : '';
     if (HAc && HAc.oldFailed) partial.push('old promises could not be checked');
     var failBanner = readFailed ? '<div class="tp-sub tp-readfail" role="status"><b class="tp-hot">could not check your calls</b> This list may be missing people. It is NOT an all-clear. <button type="button" class="tp-btn" data-tp-act="retry" data-tp-key="calls">Try again</button></div>'
       : (partial.length ? '<div class="tp-sub tp-readfail" role="status"><b class="tp-hot">partial list</b> ' + esc(partial.join('; ')) + '. Not an all-clear. <button type="button" class="tp-btn" data-tp-act="goto" data-tp-key="calls">Open the Call Center</button></div>' : '');
@@ -474,9 +492,11 @@
     var pendingOther = !!(appts.busy || inv.busy || inv.checking || appts.checking || (HAc && (HAc.callsPending || HAc.stripePending || HAc.reviewsPending || HAc.signsPending || HAc.oldPending)));
     if (otherFail.length) failBanner += '<div class="tp-sub tp-readfail" role="status" data-tp-fail="reads"><b class="tp-hot">could not load</b> ' + esc(otherFail.join('; ')) + '. Those parts of your day may be missing - this is NOT an all-clear. <button type="button" class="tp-btn" data-tp-act="retry" data-tp-key="reads">Try again</button></div>';
     var anyFail = readFailed || otherFail.length > 0;
-    var titleText = (anyFail || notChecked) && !p.total ? "Can't confirm your day yet" : (pendingOther && !p.total ? 'Checking your day…' : P.headline(p.total));
+    var big = bigDay(p);
+    var titleText = (anyFail || notChecked) && !p.total ? "Can't confirm your day yet" : (pendingOther && !p.total ? 'Checking your day…' : (big ? big.title : P.headline(p.total)));
     return '<div class="tp-hd"><div class="tp-title" data-tp-total="' + p.total + '">' + esc(titleText) + '</div>' +
-      (storm ? '<div class="tp-storm">' + esc(storm) + '</div>' : '') + '</div>' + failBanner +
+      (storm ? '<div class="tp-storm">' + esc(storm) + '</div>' : '') + '</div>' +
+      (big ? '<div class="tp-sub tp-bigday">' + esc(big.sub) + '</div>' : '') + failBanner + oldCapLine +
       (p.hiddenCalls > 0 ? '<div class="tp-sub tp-hidden">' + p.hiddenCalls + (p.hiddenCalls === 1 ? ' person' : ' people') + ' hidden by labels · <button type="button" class="tp-more tp-hd-btn" data-tp-act="goto" data-tp-key="calls">See them in the Call Center</button></div>' : '') +
       (body || (anyFail ? '' : (notChecked ? '<div class="tp-empty">Checking your calls…</div>' : (pendingOther ? '<div class="tp-empty">Checking your day…</div>' : '<div class="tp-empty">Nothing on the list. Go knock some doors.</div>')))) + quiet + sugHtml;
   }
@@ -896,5 +916,5 @@
   }
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', boot); else boot();
 
-  w.NBDToday = { render: render, compute: compute, last: function () { return last; }, refreshAppointments: function () { return loadAppointments(true); } };
+  w.NBDToday = { render: render, compute: compute, last: function () { return last; }, refreshAppointments: function () { return loadAppointments(true); }, _bigDay: bigDay };
 })();

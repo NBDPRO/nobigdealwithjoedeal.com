@@ -98,7 +98,10 @@ console.log('\n4. registration + nav');
   const reg = strip(read('docs/pro/js/layout-system.js'));
   ok('registered inside the one deferred file, not a new tag', /id: 'island'/.test(reg));
   ok('pill honours what the sidebar offers', L.pillItems((id) => id !== 'calls').every((i) => i.id !== 'calls') && L.pillItems().length === 5);
-  ok('dock is New lead / Filter / Sort', L.DOCK.map((d2) => d2.id).join() === 'newlead,filter,sort');
+  // 2026-10-15: Record visit is the dock's primary action (one bar, not the
+  // floating Record bar stacked on the dock).
+  ok('dock is Record visit (primary) / Recent visits / New lead / Filter / Sort', L.DOCK.map((d2) => d2.id).join() === 'record,recent,newlead,filter,sort'
+    && L.DOCK.filter((d2) => d2.primary).map((d2) => d2.id).join() === 'record');
 }
 
 console.log('\n5. css');
@@ -133,7 +136,7 @@ console.log('\n6. nothing written, sent, or inline');
   ok('no eval / Function', !/\beval\s*\(|new Function/.test(JS_CODE));
   ok("Filter / Sort click the Pipeline toolbar's own buttons", /pipelineButton\('crmFiltersBtn'\)/.test(JS_CODE) && /pipelineButton\('engagementSortBtn'/.test(JS_CODE));
   ok('New lead runs openLeadModal', /W\.openLeadModal\(\)/.test(JS_CODE));
-  ok('the tag in customer.html is deferred', /<script defer src="js\/layouts\/island-job\.js\?v=1"><\/script>/.test(read('docs/pro/customer.html')));
+  ok('the tag in customer.html is deferred', /<script defer src="js\/layouts\/island-job\.js\?v=\d+"><\/script>/.test(read('docs/pro/customer.html')));
   ok('no new dashboard.html tag for the layout', !/layouts\/island/.test(read('docs/pro/dashboard.html')));
   ok('positive control: the write detector sees a write', /\b(setDoc|fetch\s*\()/.test('setDoc(x)'));
 }

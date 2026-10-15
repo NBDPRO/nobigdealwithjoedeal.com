@@ -261,7 +261,9 @@
 
   // L04 Island Dock: floating pill + dock over glass islands. Lazy, like the rest.
   register({
-    id: 'island', name: 'Island Dock', blurb: 'No sidebar: a floating nav pill, a bottom dock, and glass islands over your wallpaper.',
+    id: 'island', name: 'Island Dock', version: 1,
+    blurb: 'No sidebar: a floating nav pill, a bottom dock, and glass islands over your wallpaper.',
+    surfaces: SURFACES, tier: 'free',
     script: 'js/layouts/island.js', css: 'css/layouts/island.css',
     needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
     supports: { wallpaper: true, glass: true },
@@ -441,6 +443,18 @@
     if (typeof impl.mount === 'function') safe(function () { impl.mount(ctxFor(id)); }, 'mount ' + id);
   }
 
+  var failedOnce = {};
+  function noteLoadFailure(def) {
+    try { console.warn('[layout] ' + def.id + ' did not load (no implementation after its script); showing Classic'); } catch (_) {}
+    if (failedOnce[def.id]) return;
+    failedOnce[def.id] = true;
+    try {
+      if (typeof window.showToast === 'function') {
+        window.showToast(def.name + ' didn\'t load, so you\'re on Classic for now. Check your signal and reload to try again.', 'error');
+      }
+    } catch (_) {}
+  }
+
   // ── apply ────────────────────────────────────────────────────────────
   // opts.source: why this layout (resolve()'s source, or 'preview').
   // Returns a promise of the applied id. A newer apply() supersedes an older
@@ -452,6 +466,15 @@
     var surf = surface();
     return Promise.all([loadCss(def), loadNeedsCss(def), loadScript(def)]).then(function () {
       if (seq !== applySeq) return current.id;
+      // The layout has a script, every asset has settled, and still nothing
+      // implemented it: the script (or the kit it needs) failed to load. Never
+      // leave the screen stamped with a layout that has no behaviour (a dead
+      // overlay, or the sidebar hidden with nothing in its place): show
+      // Classic, say so once, and try the real pick again on the next boot.
+      if (def.id !== R.FALLBACK && def.script && !impls[def.id]) {
+        noteLoadFailure(def);
+        return apply(R.FALLBACK, { source: 'fallback' });
+      }
       var previous = current.id;
       if (previous === def.id && mounted === def.id) {
         current.source = o.source || current.source;
@@ -700,6 +723,17 @@
     _setCompany: function (c) { company = R.normalizeCompany(c); writePrefsCache(); return refresh(); },
   };
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
-  else boot();
+  // Boot on DOMContentLoaded, not when this file runs. It is a deferred tag in
+  // the MIDDLE of the deferred list, so at run time readyState is already
+  // 'interactive' and the scripts after it (pixel-mode.js, the visit-recorder
+  // launcher, ...) have not run yet; DOMContentLoaded fires only after every
+  // deferred script, so a layout mounts into a page that is all there. `load`
+  // is a backstop for a late injection that missed DOMContentLoaded.
+  var booted = false;
+  function bootOnce() { if (booted) return; booted = true; boot(); }
+  if (document.readyState === 'complete') bootOnce();
+  else {
+    document.addEventListener('DOMContentLoaded', bootOnce, { once: true });
+    window.addEventListener('load', bootOnce, { once: true });
+  }
 })();

@@ -188,18 +188,19 @@
     return c;
   }
 
-  function topBar() {
+  // withRecord: the Today and Wrap-up screens carry Record visit up here; the
+  // one-lead screen carries it on the card instead, with that lead attached.
+  function topBar(withRecord) {
     return '<div class="fo-top"><button type="button" class="fo-pill" data-fo="today">Today</button>' +
       '<button type="button" class="fo-pill" data-fo="wrap">Wrap-up</button>' +
+      (withRecord ? K.recordEntry({ source: 'focus', cls: 'fo-rec' }) : '') +
       '<button type="button" class="fo-pill fo-menu" data-fo="menu" aria-expanded="' + S.menu + '">Menu</button></div>' +
-      (S.menu ? '<div class="fo-sheet" role="menu">' +
-        [['crm', 'Pipeline'], ['schedule', 'Schedule'], ['d2d', 'Map'], ['settings', 'Settings']].map(function (x) {
-          return '<button type="button" role="menuitem" data-fo="goto" data-to="' + x[0] + '">' + x[1] + '</button>';
-        }).join('') + '<button type="button" role="menuitem" data-fo="today">Back to Focus</button></div>' : '');
+      (S.menu ? '<div class="fo-sheet" role="menu">' + K.menuItems('fo') +
+        '<button type="button" role="menuitem" data-fo="today">Back to Focus</button></div>' : '');
   }
 
   function renderToday(q) {
-    var h = topBar();
+    var h = topBar(true);
     if (!q) return h + '<div class="fo-empty">Loading your day…</div>';
     var c = counts(q);
     if (!q.length) {
@@ -218,8 +219,8 @@
   }
 
   function renderFocus(q) {
-    var h = topBar();
-    if (!q || !q.length) return h + '<div class="fo-hero"><div class="fo-big">&#10003;</div><div class="fo-sub">That is everyone for now.</div></div>' +
+    var h = topBar(!q || !q.length);
+    if (!q || !q.length) return h +'<div class="fo-hero"><div class="fo-big">&#10003;</div><div class="fo-sub">That is everyone for now.</div></div>' +
       '<button type="button" class="fo-start" data-fo="wrap">See your wrap-up</button>';
     if (S.i >= q.length) S.i = q.length - 1;
     if (S.i < 0) S.i = 0;
@@ -249,6 +250,7 @@
       '<button type="button" class="fo-act" data-fo="snooze"' + (it.id ? '' : ' disabled') + '><span>Snooze</span><kbd>S</kbd></button>' +
       '<button type="button" class="fo-act" data-fo="done"><span>' + esc(doneLbl) + '</span><kbd>D</kbd></button>' +
       '</div>' +
+      K.recordEntry({ source: 'focus', leadId: it.id, cls: 'fo-rec fo-rec-card' }) +
       (it.id ? '<a class="fo-open" href="' + esc(K.customerUrl(it.id)) + '">Open the full customer page</a>' : '') +
       '</article>' +
       '<button type="button" class="fo-peek fo-peek-r" data-fo="next"' + (next ? '' : ' disabled') + ' aria-label="Next">' + (next ? '<span>' + esc(firstName(next.name)) + '</span>' : '') + '</button>' +
@@ -258,7 +260,7 @@
   function renderWrap(q) {
     var d = day();
     var done = Object.keys(d.done).length, aside = Object.keys(d.aside).length;
-    return topBar() + '<div class="fo-hero"><div class="fo-big">' + done + '</div><div class="fo-sub">marked done today</div></div>' +
+    return topBar(true) + '<div class="fo-hero"><div class="fo-big">' + done + '</div><div class="fo-sub">marked done today</div></div>' +
       '<ul class="fo-lines"><li>' + plural(d.calls || 0, 'call') + ' started from here</li><li>' + aside + ' set aside on this device</li><li>' +
       (q ? q.length : 0) + ' still waiting</li></ul>' +
       '<p class="fo-note">Set-aside items come back tomorrow. They were not changed in the CRM.</p>' +
@@ -271,7 +273,7 @@
     var html = S.screen === 'focus' ? renderFocus(q) : S.screen === 'wrap' ? renderWrap(q) : renderToday(q);
     rootEl.setAttribute('data-screen', S.screen);
     rootEl.innerHTML = '<div class="fo-wrap">' + html + '</div>';
-    rootEl.hidden = !homeActive();
+    K.setOverlay(rootEl, homeActive());
   }
   function activeView() { var v = doc.querySelector('.view.active'); return v && v.id ? v.id.replace(/^view-/, '') : ''; }
   function homeActive() { var a = activeView(); return !a || a === 'home'; }
@@ -350,7 +352,7 @@
     });
     try {
       var raf = null;
-      mo = new MutationObserver(function () { if (raf) return; raf = setTimeout(function () { raf = null; if (rootEl) rootEl.hidden = !homeActive(); }, 60); });
+      mo = new MutationObserver(function () { if (raf) return; raf = setTimeout(function () { raf = null; if (rootEl) K.setOverlay(rootEl, homeActive()); }, 60); });
       mo.observe(doc.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
     } catch (e) {}
     if (W.NBDToday && typeof W.NBDToday.refreshAppointments === 'function') { try { W.NBDToday.refreshAppointments(); } catch (e) {} }
@@ -366,6 +368,7 @@
     if (mo) { mo.disconnect(); mo = null; }
     if (rootEl && rootEl.parentNode) rootEl.parentNode.removeChild(rootEl);
     rootEl = null;
+    K.clearOverlay();
     S.screen = 'today'; S.i = 0; S.menu = false;
   }
 

@@ -30,8 +30,8 @@
  *
  * Left out, with the reason: drive time and billable hours (no routing or
  * time-clock data source — the Day view shows straight-line miles between
- * stops with a GPS point instead); the route MAP (waits for the shared MapView
- * component rather than a second map); permit and crew-note EDITING (read-only
+ * stops with a GPS point instead); a route MAP here (the shared MapView now
+ * draws one in Mission Control's Day route; this view lists the stops); permit and crew-note EDITING (read-only
  * here, edited where they already live — the job's production panel).
  *
  * Pure part (rules) is require()-able for tests; the browser part mounts an
@@ -512,10 +512,7 @@
       '<div class="cw-title" aria-live="polite">' + esc(title) + '</div>' +
       '<button type="button" class="cw-pill cw-menu" data-cw="menu" aria-expanded="' + S.menu + '">Menu</button>' +
       '</div>' +
-      (S.menu ? '<div class="cw-sheet" role="menu">' +
-        [['crm', 'Pipeline'], ['schedule', 'Schedule and Plan Jobs'], ['d2d', 'Map'], ['settings', 'Settings']].map(function (x) {
-          return '<button type="button" role="menuitem" data-cw="goto" data-to="' + x[0] + '">' + x[1] + '</button>';
-        }).join('') + '</div>' : '') +
+      (S.menu ? '<div class="cw-sheet" role="menu">' + K.menuItems('cw') + '</div>' : '') +
       (S.notice ? '<div class="cw-notice" role="status"><b>' + esc(S.notice.title) + '</b>' +
         (S.notice.lines.length ? '<ul>' + S.notice.lines.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>' : '') +
         (S.busyHtml ? '<div class="cw-busy gcal-conflict">' + S.busyHtml + '</div>' : '') +
@@ -598,7 +595,7 @@
         }).join('') + '</ol></section>';
     }).join('');
     return head + '<div class="cw-daygrid">' + cards + '</div>' +
-      '<p class="cw-hint">Drive time and billable hours are not shown: there is no routing or time-clock data behind them. The route map joins this view with the shared map component.</p>';
+      '<p class="cw-hint">Drive time and billable hours are not shown: there is no routing or time-clock data behind them. For today\'s stops on a map, use Mission Control\'s Day route.</p>';
   }
 
   function drawerHtml() {
@@ -647,6 +644,7 @@
       '<div class="cw-d-sec"><h3>Materials</h3>' + ordersHtml + '</div>' +
       '<div class="cw-d-sec"><h3>Crew notes</h3><p>' + (str(l.accessNotes) ? esc(l.accessNotes) : '<span class="cw-muted">None saved. Gate code, dog, parking and power notes live on the job\'s Production panel.</span>') + '</p></div>' +
       '<div class="cw-d-actions">' +
+        K.recordEntry({ source: 'crew', leadId: l.id, cls: 'cw-rec' }) +
         '<a class="cw-btn" href="' + esc(K.customerUrl(l.id)) + '">Open the full customer page</a>' +
         (l.address ? '<a class="cw-btn" href="' + esc(K.mapsUrl(l.address)) + '" target="_blank" rel="noopener">Navigate</a>' : '') +
         (w && r && W.NBDProduction && W.NBDProduction.openRainPush ? '<button type="button" class="cw-btn" data-cw="rain">Rain day...</button>' : '') +
@@ -666,7 +664,7 @@
     var body = S.view === 'week' ? weekHtml() : dayHtml();
     var focusLead = doc.activeElement && doc.activeElement.getAttribute && rootEl.contains(doc.activeElement) ? doc.activeElement.getAttribute('data-lead') : null;
     var html = '<div class="cw-wrap' + (canWrite() ? '' : ' cw-ro') + '">' + topBar() + body + '</div>' + drawerHtml();
-    rootEl.hidden = !homeActive();
+    K.setOverlay(rootEl, homeActive());
     // A repaint that would change nothing is skipped: data callbacks fire in
     // bursts, and swapping identical nodes only costs focus, hover and drags.
     if (html === lastHtml) return;
@@ -942,7 +940,7 @@
     });
     try {
       var raf = null;
-      mo = new MutationObserver(function () { if (raf) return; raf = setTimeout(function () { raf = null; if (rootEl) rootEl.hidden = !homeActive(); }, 60); });
+      mo = new MutationObserver(function () { if (raf) return; raf = setTimeout(function () { raf = null; if (rootEl) K.setOverlay(rootEl, homeActive()); }, 60); });
       mo.observe(doc.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
     } catch (e) {}
     load();
@@ -959,6 +957,7 @@
     if (mo) { mo.disconnect(); mo = null; }
     if (rootEl && rootEl.parentNode) rootEl.parentNode.removeChild(rootEl);
     rootEl = null;
+    K.clearOverlay();
     lastHtml = '';
     D = null;
     S.open = null; S.menu = false; S.notice = null; S.busyHtml = '';

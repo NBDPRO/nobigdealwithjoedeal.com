@@ -14,9 +14,12 @@
  *
  * It reads userSettings/{uid} once and writes nothing.
  *
- * Layout seam: when window.LayoutRegistry exists (at boot, or when it fires
- * "nbd:layout-registry-ready") Pixel World registers as layout 'pixel'. The
- * entry is thin: load/mount fetch the core on demand.
+ * Not a layout (2026-10-15). It used to register as layout 'pixel', but the
+ * registry kept none of its fields (enabled/load/mount), the engine had no
+ * implementation to mount, and the preboot asked for a pixel.css that does not
+ * exist, so picking "Pixel World" in Settings > Layouts did nothing. Pixel
+ * World stays where it works: the Pixel Mode card in Settings > Appearance and
+ * NBDPixelMode.open().
  */
 (function () {
   'use strict';
@@ -33,7 +36,6 @@
 
   var CORE_URL = '/pro/js/pixel-mode-core.js?v=1';
   var corePromise = null;
-  var userWorldOn = false;
 
   function loadCore() {
     if (corePromise) return corePromise;
@@ -67,7 +69,6 @@
         setTimeout(function () { read(tries + 1); }, 1500);
         return;
       }
-      userWorldOn = !!(data.pixelWorld && data.pixelWorld.enabled === true);
       if (wantsCore(data.pixelMode)) loadCore();
     }).catch(function () { /* unreadable: stay off */ });
   }
@@ -83,27 +84,6 @@
     io.observe(p);
   }
 
-  var registered = false;
-  function registerLayout() {
-    var R = w.LayoutRegistry;
-    if (registered || !R || typeof R.register !== 'function') return;
-    try {
-      R.register({
-        id: 'pixel', name: 'Pixel World', version: 1, surfaces: ['desktop', 'tablet', 'phone'], tier: 'pro', flag: 'pixelWorld',
-        // Best effort until the core is loaded: the person's own opt-in. The core
-        // also honours the company switch when mount() runs.
-        enabled: function () {
-          var real = w.NBDPixelMode;
-          return real && !real.__stub && typeof real.worldEnabled === 'function' ? real.worldEnabled() : userWorldOn;
-        },
-        load: function () { return loadCore(); },
-        mount: function () { return viaCore('open'); },
-        unmount: function () { return viaCore('close'); },
-      });
-      registered = true;
-    } catch (e) { /* registry shape changed: stay reachable from Settings */ }
-  }
-
   function boot() {
     var tries = 0;
     (function poll() {
@@ -111,8 +91,6 @@
       read(0);
     })();
     watchPanel();
-    doc.addEventListener('nbd:layout-registry-ready', registerLayout);
-    registerLayout();
   }
 
   // Replaced by the real API when the core loads (it checks __stub).

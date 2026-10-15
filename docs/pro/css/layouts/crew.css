@@ -11,7 +11,11 @@ html[data-layout="crew"] .cw-root {
 }
 html[data-layout="crew"] .cw-root[hidden] { display: none; }
 html[data-layout="crew"].my-skin-wallpaper .cw-root { background: transparent; }
-html[data-layout="crew"] .cw-wrap { max-width: 1280px; margin: 0 auto; padding: 12px 14px 48px; box-sizing: border-box; }
+html[data-layout="crew"] .cw-wrap {
+  max-width: 1280px; margin: 0 auto; box-sizing: border-box;
+  /* full screen over the status bar and the home indicator */
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(48px + env(safe-area-inset-bottom, 0px));
+}
 
 /* crew palette (the lane index picks one; "No crew yet" is neutral) */
 html[data-layout="crew"] .cw-k0 { --cw-k: var(--orange); }
@@ -48,7 +52,7 @@ html[data-layout="crew"] .cw-notice {
   border: 1px solid var(--rule); border-left: 4px solid var(--orange); background: var(--s); font-size: 14px;
 }
 html[data-layout="crew"] .cw-notice ul, html[data-layout="crew"] .cw-warns ul { margin: 6px 0 0; padding-left: 18px; }
-html[data-layout="crew"] .cw-x { position: absolute; top: 4px; right: 6px; width: 36px; height: 36px; border: 0; background: none; color: var(--m); font-size: 22px; cursor: pointer; }
+html[data-layout="crew"] .cw-x { position: absolute; top: 0; right: 0; width: 44px; height: 44px; border: 0; background: none; color: var(--m); font-size: 22px; cursor: pointer; }
 html[data-layout="crew"] .cw-busy:empty { display: none; }
 
 /* week grid */
@@ -63,7 +67,7 @@ html[data-layout="crew"] .cw-day-h { padding: 8px 6px; text-align: center; borde
 html[data-layout="crew"] .cw-day-h b { font-size: 20px; color: var(--t); }
 html[data-layout="crew"] .cw-day-h.cw-today { box-shadow: inset 0 3px 0 var(--orange); }
 html[data-layout="crew"] .cw-day-h.cw-today b { color: var(--orange); }
-html[data-layout="crew"] .cw-wx { font-style: normal; font-size: 11px; font-weight: 800; color: var(--t); }
+html[data-layout="crew"] .cw-wx { font-style: normal; font-size: 12px; font-weight: 800; color: var(--t); }
 html[data-layout="crew"] .cw-lane-name {
   position: sticky; left: 0; z-index: 1; background: var(--s); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px;
   border-left: 4px solid var(--cw-k, var(--rule)); overflow-wrap: anywhere;
@@ -99,11 +103,13 @@ html[data-layout="crew"] .cw-block.cw-conflict { border-top: 2px solid var(--red
 html[data-layout="crew"] .cw-block.cw-clip-l { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 html[data-layout="crew"] .cw-block.cw-clip-r { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 html[data-layout="crew"] .cw-block.cw-lift, html[data-layout="crew"] .cw-chip.cw-lift { opacity: .55; cursor: grabbing; }
-html[data-layout="crew"] .cw-grip { position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 12px; letter-spacing: -2px; color: var(--m); touch-action: none; padding: 10px 2px; }
+/* The whole block (min var(--tap) tall) is the drag target; the grip is its
+   visible handle, given a 44px-tall touch strip so a thumb on it always lands. */
+html[data-layout="crew"] .cw-grip { position: absolute; left: 2px; top: 50%; transform: translateY(-50%); min-height: 44px; display: flex; align-items: center; font-size: 12px; letter-spacing: -2px; color: var(--m); touch-action: none; padding: 0 4px; box-sizing: border-box; }
 html[data-layout="crew"] .cw-b-name { font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-html[data-layout="crew"] .cw-b-sub { font-size: 11px; color: var(--m); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-layout="crew"] .cw-b-sub { font-size: 12px; color: var(--m); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 html[data-layout="crew"] .cw-b-flags { display: flex; gap: 4px; }
-html[data-layout="crew"] .cw-b-flags em { font-style: normal; font-size: 10px; font-weight: 800; padding: 0 5px; border-radius: 999px; background: var(--s); border: 1px solid var(--rule); white-space: nowrap; }
+html[data-layout="crew"] .cw-b-flags em { font-style: normal; font-size: 12px; font-weight: 800; padding: 0 5px; border-radius: 999px; background: var(--s); border: 1px solid var(--rule); white-space: nowrap; }
 html[data-layout="crew"] .cw-ro .cw-block { cursor: pointer; }
 html[data-layout="crew"] .cw-dragging, html[data-layout="crew"] .cw-dragging * { cursor: grabbing; }
 
@@ -161,12 +167,14 @@ html[data-layout="crew"] .cw-stop-n { flex: 0 0 28px; height: 28px; border-radiu
 html[data-layout="crew"] .cw-stop-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 html[data-layout="crew"] .cw-stop-main small, html[data-layout="crew"] .cw-stop-when small { color: var(--m); font-size: 12px; }
 html[data-layout="crew"] .cw-stop-when { display: flex; flex-direction: column; align-items: flex-end; font-size: 13px; font-weight: 700; white-space: nowrap; }
-html[data-layout="crew"] .cw-stop-nav { min-height: 40px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: 10px; border: 1px solid var(--rule); color: var(--t); font-weight: 700; font-size: 13px; text-decoration: none; }
+html[data-layout="crew"] .cw-stop-nav { min-height: 44px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: 10px; border: 1px solid var(--rule); color: var(--t); font-weight: 700; font-size: 13px; text-decoration: none; }
 
-/* drawer */
-html[data-layout="crew"] .cw-scrim { position: fixed; inset: 0; z-index: 1810; background: rgba(0, 0, 0, .35); }
+/* drawer: above the app's phone nav (#mobile-nav is z-index 1900), so its
+   bottom actions are never under it, and clear of the home indicator */
+html[data-layout="crew"] .cw-scrim { position: fixed; inset: 0; z-index: 1950; background: rgba(0, 0, 0, .35); }
 html[data-layout="crew"] .cw-drawer {
-  position: fixed; z-index: 1811; top: 0; right: 0; bottom: 0; width: min(440px, 100%); box-sizing: border-box;
+  position: fixed; z-index: 1951; top: 0; right: 0; bottom: 0; width: min(440px, 100%); box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--s); color: var(--t); border-left: 1px solid var(--rule); box-shadow: -12px 0 30px rgba(0, 0, 0, .3);
   display: flex; flex-direction: column;
 }
@@ -189,6 +197,7 @@ html[data-layout="crew"] .cw-btn {
   min-height: var(--tap); padding: 0 16px; display: inline-flex; align-items: center; border-radius: 12px; border: 1px solid var(--rule);
   background: var(--s2); color: var(--t); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; text-decoration: none;
 }
+html[data-layout="crew"] .cw-rec { min-height: var(--tap); }
 html[data-layout="crew"] .cw-btn.cw-primary { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); }
 html[data-layout="crew"] .cw-orders { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
 html[data-layout="crew"] .cw-orders small { display: block; color: var(--m); font-size: 12px; }
@@ -197,5 +206,5 @@ html[data-layout="crew"] .cw-orders small { display: block; color: var(--m); fon
   html[data-layout="crew"] .cw-grid { --cw-lane: 100px; min-width: 640px; }
   html[data-layout="crew"] .cw-title { order: 5; flex-basis: 100%; }
   html[data-layout="crew"] .cw-drawer { top: auto; width: 100%; max-height: 88vh; border-left: 0; border-top: 1px solid var(--rule); border-radius: 18px 18px 0 0; box-shadow: 0 -12px 30px rgba(0, 0, 0, .3); }
-  html[data-layout="crew"] .cw-wrap { padding-bottom: 96px; }
+  html[data-layout="crew"] .cw-wrap { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 }

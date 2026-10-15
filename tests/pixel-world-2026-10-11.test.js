@@ -9,7 +9,7 @@
  *      no message send), lazy (not referenced by dashboard.html), original
  *      (no third-party game names), safe (no innerHTML), and its stylesheet
  *      uses tokens and honours both Reduce Motion switches
- *   3. pixel-mode-core.js launcher: switch parity with the logic module; the boot loader's layout seam
+ *   3. pixel-mode-core.js launcher: switch parity with the logic module; Pixel World is not a layout (2026-10-15)
  *
  * Run: node tests/pixel-world-2026-10-11.test.js
  */
@@ -259,9 +259,12 @@ console.log('\n3. launcher parity');
 {
   const loader = stripJs(read('docs/pro/js/pixel-mode.js'));
   ok('boot loader exposes open() and fetches the core for it (no game code at boot)', /open: function \(\) \{ return viaCore\('open'\)/.test(loader) && !/pixel-world/.test(loader));
-  ok('layout seam: registers layout "pixel" with the registry only if it exists, and is thin (load/mount/unmount via the core)',
-    /window|w\.LayoutRegistry/.test(loader) && /id: 'pixel'/.test(loader) && /R\.register\(\{/.test(loader) && /mount: function \(\) \{ return viaCore\('open'\)/.test(loader) && /unmount: function \(\) \{ return viaCore\('close'\)/.test(loader));
-  ok('the core no longer registers a layout (the loader owns it, so there is no double registration)', !/LayoutRegistry/.test(stripJs(read('docs/pro/js/pixel-mode-core.js'))));
+  // 2026-10-15: Pixel World is no longer a layout. The registry dropped its
+  // enabled/load/mount fields, nothing implemented it and the preboot asked for
+  // a pixel.css that does not exist, so picking it did nothing. It stays
+  // reachable from the Pixel Mode card (NBDPixelMode.open()).
+  ok('Pixel World is not registered as a layout (neither the loader nor the core)',
+    !/LayoutRegistry/.test(loader) && !/id: 'pixel'/.test(loader) && !/LayoutRegistry/.test(stripJs(read('docs/pro/js/pixel-mode-core.js'))));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

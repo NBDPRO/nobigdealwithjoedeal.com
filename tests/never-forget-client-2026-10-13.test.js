@@ -384,7 +384,12 @@ const joP = [{ who: 'jo', text: 'call back with the number' }];
     const capN = 300;
     for (let i = 0; i < capN + 3; i++) many.push(call('o' + i, { startedAtMs: NOW - (50 + i % 30) * DAY - i * 1000, callType: 'sub', phoneDigits: '5135557' + String(100 + i).slice(0, 3) }));
     const h = await homeStrip({ phone_calls: many, phone_text_days: [] });
-    ok('an old-promise read at its cap is a warning, not silence', h.api.lastCounts.oldCapped === true && /before the 45-day window/.test(h.strip.innerHTML), h.strip.innerHTML.slice(0, 300));
+    // 2026-10-15 (Joe): the cap is still recorded (lastCounts) and Today says it
+    // plainly ("Some older calls aren't shown here."), but the strip no longer
+    // shows the developer wording to the owner.
+    ok('an old-promise read at its cap is recorded, and the strip does not show the developer warning', h.api.lastCounts.oldCapped === true && !/before the 45-day window/.test(h.strip.innerHTML), h.strip.innerHTML.slice(0, 300));
+    const oldCapToday = await todayHtml({ groupNeeds: () => [], lastRows: [], lastCounts: { oldCapped: true, oldCap: 300 }, callerKey: HA.callerKey });
+    ok('Today says the old-calls cap plainly, not as a partial-list alarm', /Some older calls aren(&#39;|')t shown here\./.test(oldCapToday) && !/partial list/.test(oldCapToday), oldCapToday.slice(0, 400));
     const env = sandbox({ _user: { uid: 'u1' }, _userClaims: {}, db: {}, collection: () => ({}), query: () => ({}), where: () => ({}), getDocs: async () => ({ docs: [] }) });   // no orderBy / limit
     env.els.homeAttention = fakeEl('homeAttention');
     load(env, 'docs/pro/js/home-attention.js');

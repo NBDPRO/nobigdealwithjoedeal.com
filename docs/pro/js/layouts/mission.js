@@ -48,13 +48,15 @@
   var REPORTS_MS = 10 * 60 * 1000;
   var MAX_PINS = 500;
 
-  var rootEl = null, mounted = false, map = null, mapSeq = 0;
+  // mapLoading: a MV.create() is in flight. It (not mapSeq, which only ever
+  // grows) is the guard, and unmount resets it, so a remount builds a new map.
+  var rootEl = null, mounted = false, map = null, mapSeq = 0, mapLoading = false;
   var timers = [], unbind = [], mo = null;
   var S = null;
 
   function fresh() {
     return {
-      tab: 'watch', sel: null,
+      tab: 'watch', sel: null, menu: false,
       warnings: [], warnState: 'loading',
       reports: [], reportState: 'loading', win: { start: null, end: null, items: [] }, cursor: null, playing: false,
       turfN: 3, reps: {}, sheet: false,
@@ -180,14 +182,24 @@
 
   // ── map ──────────────────────────────────────────────────────────────
   function mapEl() { return rootEl && rootEl.querySelector('.mc-map'); }
+  function mapFailed(el) {
+    if (!el) return;
+    el.innerHTML = '<div class="mc-map-fail" role="alert"><p class="mc-note">Map couldn\'t load. Check your signal, then try again.</p>' +
+      '<button type="button" class="mc-btn" data-mc="map-retry">Retry</button></div>';
+  }
   function ensureMap() {
-    if (map || mapSeq) return;
+    if (map || mapLoading) return;
     var el = mapEl();
     if (!el) return;
     var seq = ++mapSeq;
+    mapLoading = true;
+    var fail = el.querySelector('.mc-map-fail');
+    if (fail) fail.parentNode.removeChild(fail);
     var c = ML.leadCenter(leads());
-    MV.create(el, { center: c ? [c.lat, c.lng] : undefined, zoom: 10, tiles: 'streets' }).then(function (inst) {
-      if (!inst || !mounted || seq !== mapSeq) { if (inst) inst.destroy(); return; }
+    Promise.resolve(MV.create(el, { center: c ? [c.lat, c.lng] : undefined, zoom: 10, tiles: 'streets' })).then(function (inst) {
+      if (!mounted || seq !== mapSeq) { if (inst) inst.destroy(); return; }   // unmounted or superseded: unmount already reset mapLoading
+      mapLoading = false;
+      if (!inst) { mapFailed(mapEl()); return; }
       map = inst;
       inst.on('pinclick', function (d) {
         var id = d.pin && d.pin.id;
@@ -200,6 +212,10 @@
         if (id.indexOf('L:') === 0) selectLead(id.slice(2));
       });
       drawMap(true);
+    }, function () {
+      if (!mounted || seq !== mapSeq) return;
+      mapLoading = false;
+      mapFailed(mapEl());
     });
   }
   function drawMap(fit) {
@@ -318,7 +334,9 @@
       '<button type="button" class="mc-btn' + (S.route.mode === 'time' ? ' mc-tab-on' : '') + '" data-mc="mode" data-m="time">By time</button>' +
       '<button type="button" class="mc-btn' + (S.route.mode === 'short' ? ' mc-tab-on' : '') + '" data-mc="mode" data-m="short">Shortest</button></div>';
     if (!m.stops.length && !m.unlocated.length) {
-      return h + '<p class="mc-note">No appointments on today\'s schedule. Add a customer from the map and they join the route.</p>';
+      // The Leads layer is switched on for an empty day (see the tab handler),
+      // so the customers this copy points at are actually on the map.
+      return h + '<p class="mc-note">No appointments on today\'s schedule. Tap a customer on the map (the Leads layer shows them), then Add to today\'s route.</p>';
     }
     h += '<p class="mc-note"><strong>' + m.stops.length + ' stop' + (m.stops.length === 1 ? '' : 's') + '</strong>' +
       (m.stops.length > 1 ? ' · about ' + m.min + ' min driving · ' + m.roadMi + ' mi (est.)' : '') + '</p>';
@@ -356,6 +374,7 @@
       (leg ? '<p class="mc-line">About ' + leg.min + ' min from the previous stop (est.)</p>' : '') + '</div>';
     h += K.actionBar(item, ['call', 'navigate', 'open'], { size: 'lg' });
     h += '<button type="button" class="mc-btn mc-btn-primary" data-mc="omw" data-key="' + esc(s.key) + '">On my way</button>';
+    h += K.recordEntry({ source: 'mission-route', leadId: s.leadId, cls: 'mc-rec' });
     var d = S.route.omw && S.route.omw.key === s.key ? S.route.omw : null;
     if (d) {
       if (d.error) h += '<p class="mc-note">' + esc(d.error) + '</p>';
@@ -476,7 +495,10 @@
     return '<div class="mc-top"><div class="mc-title">Mission Control</div><nav class="mc-tabs" aria-label="Mission Control screens">' + tabs + '</nav>' +
       statusChip() +
       '<div class="mc-top-end"><button type="button" class="mc-btn" data-mc="refresh">Refresh</button>' +
-      '<button type="button" class="mc-btn mc-back" data-mc="back">Switch back</button></div></div>';
+      '<button type="button" class="mc-btn mc-menu" data-mc="menu" aria-haspopup="true" aria-expanded="' + (S.menu ? 'true' : 'false') + '">Menu</button></div>' +
+      // The way out, like Crew's: the app's pages, plus stepping out of the war room.
+      (S.menu ? '<div class="mc-sheet-menu" role="menu">' + K.menuItems('mc') +
+        '<button type="button" role="menuitem" class="mc-back" data-mc="back">Leave Mission Control</button></div>' : '') + '</div>';
   }
   function alertRail() {
     var h = '<h2 class="mc-h">Alerts</h2>';
@@ -523,7 +545,8 @@
       '<div class="mc-block"><div class="mc-label">Hail at this address</div>' + lines.map(function (t) { return '<p class="mc-line">' + esc(t) + '</p>'; }).join('') +
       '<p class="mc-fine">Reports are weather data, not an inspection finding.</p></div>' +
       '<div class="mc-block"><div class="mc-label">Next action</div><p class="mc-line">' + esc(next) + '</p></div>' +
-      K.actionBar(item, ['call', 'text', 'navigate', 'open', 'snooze'], { size: 'lg' });
+      K.actionBar(item, ['call', 'text', 'navigate', 'open', 'snooze'], { size: 'lg' }) +
+      K.recordEntry({ source: 'mission', leadId: l.id, cls: 'mc-rec' });
   }
   function canvassPanel() {
     var t = turfs();
@@ -612,7 +635,7 @@
     else { slot('left', alertRail()); slot('right', pathList()); }
     slot('tl', timeline());
     drawMap(false);
-    rootEl.hidden = !homeActive();
+    K.setOverlay(rootEl, homeActive());
   }
   function activeView() { var v = doc.querySelector('.view.active'); return v && v.id ? v.id.replace(/^view-/, '') : ''; }
   function homeActive() { var a = activeView(); return !a || a === 'home'; }
@@ -647,16 +670,35 @@
     if (!t || !rootEl.contains(t)) return;
     var a = t.getAttribute('data-mc');
     ev.preventDefault();
+    if (a === 'menu') { S.menu = !S.menu; render(); return; }
+    if (a === 'goto') { S.menu = false; if (typeof W.goTo === 'function') W.goTo(t.getAttribute('data-to')); setTimeout(render, 80); return; }
+    if (a === 'map-retry') {
+      // a fresh container: a half-built Leaflet map cannot be initialised twice on the same node
+      var old = mapEl();
+      if (old && old.parentNode) {
+        var fresh = doc.createElement('div');
+        fresh.className = 'mc-map';
+        fresh.setAttribute('aria-label', 'Storm map');
+        old.parentNode.replaceChild(fresh, old);
+      }
+      ensureMap();
+      return;
+    }
     if (a === 'tab') {
       S.tab = t.getAttribute('data-to') || 'watch';
+      S.menu = false;
       if (S.tab === 'canvass') loadKnocks();
-      if (S.tab === 'route') routeKick(0);
+      if (S.tab === 'route') {
+        // An empty day: show the customers the empty-state copy points at.
+        if (!routeStops().length && !S.route.layersTouched) S.route.layers.leads = true;
+        routeKick(0);
+      }
       render();
       if (map) drawMap(S.tab === 'canvass' || S.tab === 'route');
       return;
     }
     if (a === 'mode') { S.route.mode = t.getAttribute('data-m') === 'short' ? 'short' : 'time'; render(); return; }
-    if (a === 'layer') { var lid = t.getAttribute('data-l'); if (S.route.layers.hasOwnProperty(lid)) { S.route.layers[lid] = !S.route.layers[lid]; render(); } return; }
+    if (a === 'layer') { var lid = t.getAttribute('data-l'); if (S.route.layers.hasOwnProperty(lid)) { S.route.layersTouched = true; S.route.layers[lid] = !S.route.layers[lid]; render(); } return; }
     if (a === 'stop') { S.route.sel = t.getAttribute('data-key'); S.route.peek = null; S.route.omw = null; render(); var sp = stopByKey(S.route.sel); if (map && sp && sp.lat != null) map.select('S:' + sp.key); return; }
     if (a === 'addstop') { var aid = t.getAttribute('data-id'); if (aid && S.route.extra.indexOf(aid) === -1) S.route.extra.push(aid); S.route.peek = null; render(); return; }
     if (a === 'omw') { onMyWay(t.getAttribute('data-key')); return; }
@@ -717,7 +759,7 @@
     unbind.push(function () { ['nbd:data-refreshed', 'nbd:attention-loaded'].forEach(function (n) { W.removeEventListener(n, refresh); }); });
     try {
       var raf = null;
-      mo = new MutationObserver(function () { if (raf) return; raf = setTimeout(function () { raf = null; if (rootEl) rootEl.hidden = !homeActive(); if (map && !rootEl.hidden) map.invalidate(); }, 60); });
+      mo = new MutationObserver(function () { if (raf) return; raf = setTimeout(function () { raf = null; if (rootEl) K.setOverlay(rootEl, homeActive()); if (map && rootEl && !rootEl.hidden) map.invalidate(); }, 60); });
       mo.observe(doc.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
     } catch (e) {}
     render();
@@ -728,13 +770,15 @@
   }
   function unmount() {
     mounted = false;
-    mapSeq++;
+    mapSeq++;            // a create() still in flight destroys what it built
+    mapLoading = false;  // ...and the next mount is free to build a new map
     timers.forEach(function (t) { clearInterval(t); }); timers = [];
     unbind.forEach(function (f) { try { f(); } catch (e) {} }); unbind = [];
     if (mo) { mo.disconnect(); mo = null; }
     if (map) { try { map.destroy(); } catch (e) {} map = null; }
     if (rootEl && rootEl.parentNode) rootEl.parentNode.removeChild(rootEl);
     rootEl = null; built = false; S = null;
+    K.clearOverlay();
   }
 
   E.implement('mission', { mount: mount, unmount: unmount });

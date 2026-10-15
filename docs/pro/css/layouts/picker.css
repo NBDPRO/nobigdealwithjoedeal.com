@@ -3,7 +3,7 @@
  * layout-system.js the first time the Appearance tab opens. */
 
 .lp-devices { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-.lp-dev { min-height: 40px; }
+.lp-dev { min-height: 44px; }
 .lp-dev-on { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); }
 
 .lp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px; }
@@ -14,22 +14,22 @@
 .lp-thumb .b { fill: var(--s2); stroke: var(--rule, var(--br)); stroke-width: 1; }
 .lp-thumb .c { fill: var(--rule, var(--br)); }
 .lp-name { margin: 0; font-size: 15px; font-weight: 800; color: var(--t); }
-.lp-badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--og); color: var(--orange); font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; vertical-align: middle; }
+.lp-badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--og); color: var(--orange); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; vertical-align: middle; }
 .lp-about { margin: 0; font-size: 12px; line-height: 1.45; color: var(--m); }
-.lp-meta { margin: 0; font-size: 11px; font-weight: 700; color: var(--m); letter-spacing: .03em; }
+.lp-meta { margin: 0; font-size: 12px; font-weight: 700; color: var(--m); letter-spacing: .03em; }
 .lp-btns { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: auto; }
-.lp-btn { min-height: 40px; }
+.lp-btn { min-height: 44px; }
 .lp-btn[disabled] { opacity: .5; cursor: not-allowed; }
-.lp-note { margin: 4px 0; font-size: 11px; color: var(--m); }
+.lp-note { margin: 4px 0; font-size: 12px; color: var(--m); }
 .lp-lock { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--orange); border-radius: 10px; background: var(--og); color: var(--t); font-size: 13px; }
 .lp-chk { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--t); padding: 6px 0; cursor: pointer; }
 .lp-glove { margin-top: 6px; }
 .lp-admin { margin-top: 16px; border-top: 1px solid var(--rule, var(--br)); padding-top: 12px; }
 .lp-admin summary { cursor: pointer; font-weight: 700; font-size: 13px; color: var(--t); }
 .lp-row { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--m); margin: 10px 0; }
-.lp-select { min-height: 40px; background: var(--s2); color: var(--t); border: 1px solid var(--rule, var(--br)); border-radius: 8px; padding: 0 10px; font: inherit; }
+.lp-select { min-height: 44px; background: var(--s2); color: var(--t); border: 1px solid var(--rule, var(--br)); border-radius: 8px; padding: 0 10px; font: inherit; }
 .lp-fs { border: 1px solid var(--rule, var(--br)); border-radius: 10px; margin: 10px 0; padding: 4px 12px; }
-.lp-fs legend { font-size: 11px; font-weight: 700; color: var(--m); padding: 0 6px; }
+.lp-fs legend { font-size: 12px; font-weight: 700; color: var(--m); padding: 0 6px; }
 .lp-status { font-size: 12px; color: var(--m); }
 
 /* the 30-second preview bar, over everything */

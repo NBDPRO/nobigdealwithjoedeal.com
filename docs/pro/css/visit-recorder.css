@@ -3,12 +3,24 @@
    aware. Loaded with the launcher's Record bar (one small file). */
 
 /* ── the Record bar on Home ─────────────────────────────────────────── */
+/* Classic and Bento only (2026-10-15). Centred, and Home's content gets room
+   under it (html.nbd-vr-bar-on, set by the launcher while the bar shows) so no
+   card sits under it. Island has Record visit in its dock; Field, Focus,
+   Inbox, Mission and Crew draw it in their own screens. */
 .nbd-vr-bar{
   position:fixed; left:12px; right:12px;
   bottom:calc(74px + env(safe-area-inset-bottom, 0px));
-  z-index:900; display:flex; gap:8px; align-items:stretch;
+  z-index:900; display:flex; gap:8px; align-items:stretch; justify-content:center;
   pointer-events:none;
 }
+html[data-layout="island"] .nbd-vr-bar,
+html[data-layout="field"] .nbd-vr-bar,
+html[data-layout="focus"] .nbd-vr-bar,
+html[data-layout="inbox"] .nbd-vr-bar,
+html[data-layout="mission"] .nbd-vr-bar,
+html[data-layout="crew"] .nbd-vr-bar{ display:none; }
+/* 56px bar + 18px gap above it, on top of the nav room body already has */
+html.nbd-vr-bar-on #view-home .view-scroll{ padding-bottom:calc(74px + env(safe-area-inset-bottom, 0px)); }
 .nbd-vr-bar[hidden]{ display:none; }
 .nbd-vr-barbtn, .nbd-vr-unfiled{ pointer-events:auto; }
 .nbd-vr-barbtn{
@@ -29,8 +41,9 @@
 }
 .nbd-vr-unfiled[hidden]{ display:none; }
 @media (min-width:769px){
-  .nbd-vr-bar{ left:24px; right:auto; bottom:24px; }
+  .nbd-vr-bar{ left:24px; right:24px; bottom:24px; }
   .nbd-vr-barbtn{ min-width:220px; }
+  html.nbd-vr-bar-on #view-home .view-scroll{ padding-bottom:96px; }
 }
 
 /* ── entry-point buttons that live inside other pages ───────────────── */

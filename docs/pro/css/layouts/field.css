@@ -36,10 +36,24 @@ html[data-layout="field"] .fa-root {
 }
 html[data-layout="field"] .fa-root[hidden] { display: none; }
 html[data-layout="field"] .fa-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1900; }
+/* Menu (the nav's last tab): the same sheet every layout's Menu opens, above the bar */
+html[data-layout="field"] .fa-menu {
+  position: absolute; right: 8px; bottom: calc(100% + 8px); min-width: 210px; padding: 6px;
+  display: flex; flex-direction: column; background: var(--s); border: var(--fa-bw) solid var(--rule); border-radius: 14px;
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--bg) 60%, transparent);
+}
+html[data-layout="field"] .fa-menu button {
+  min-height: var(--tap); padding: 0 14px; text-align: left; border: 0; border-radius: 10px; background: none;
+  color: var(--t); font: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
+}
+html[data-layout="field"] .fa-menu button:hover { background: var(--og); }
+html[data-layout="field"] .fa-rec { width: 100%; }
 html[data-layout="field"][data-fa-screen="capture"] .fa-nav { display: none; }
 html[data-layout="field"][data-fa-screen="capture"] .fa-root { bottom: 0; z-index: 2000; background: #000; }
 
-html[data-layout="field"] .fa-scroll { padding: 12px 14px 28px; max-width: 640px; margin: 0 auto; box-sizing: border-box; }
+/* top: the shell starts under the status bar; bottom: the nav already sits above
+   the home indicator, so the inset here is only the room under the last row */
+html[data-layout="field"] .fa-scroll { padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(28px + env(safe-area-inset-bottom, 0px)); max-width: 640px; margin: 0 auto; box-sizing: border-box; }
 html[data-layout="field"] .lk-act,
 html[data-layout="field"] .lk-card,
 html[data-layout="field"] .lk-widget { border-width: var(--fa-bw); }
@@ -67,7 +81,7 @@ html[data-layout="field"] .fa-now-time { font-size: 13px; font-weight: 800; lett
 html[data-layout="field"] .fa-now-name { font-size: 30px; line-height: 1.1; font-weight: 800; overflow-wrap: anywhere; }
 html[data-layout="field"] .fa-now-addr { font-size: 17px; color: var(--m); overflow-wrap: anywhere; }
 html[data-layout="field"] .fa-now-why { font-size: 16px; line-height: 1.4; }
-html[data-layout="field"] .fa-do { display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 999px; background: var(--og); color: var(--orange); font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+html[data-layout="field"] .fa-do { display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 999px; background: var(--og); color: var(--orange); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 html[data-layout="field"] .fa-actions-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 html[data-layout="field"] .fa-big {
   flex: 1 1 140px; min-height: var(--tap); padding: 0 16px; border-radius: 16px; font: inherit; font-size: 16px; font-weight: 800;

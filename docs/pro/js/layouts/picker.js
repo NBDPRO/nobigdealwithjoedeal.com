@@ -9,7 +9,9 @@
  *   - one card per registered layout that supports that device, with a
  *     schematic thumbnail, what it is for, and Use / Try it.
  *   - Try it: previews on THIS screen for 30 seconds without saving, then
- *     Keep or Revert (it reverts on its own when the time is up).
+ *     Keep or Revert (it reverts on its own when the time is up). It opens
+ *     Home (where the full-screen layouts draw) and returns to Settings after,
+ *     and it is offered only when the chosen device is this screen.
  *   - Glove mode: the --tap token goes 56px -> 64px.
  *   - Company default / lock (owner or company_admin only; the rules enforce
  *     it): a default per device, which layouts are offered, and Lock.
@@ -43,6 +45,12 @@
     focus: '<rect x="14" y="4" width="72" height="52" rx="6" class="b"/><rect x="24" y="12" width="52" height="8" rx="2" class="a"/><rect x="24" y="26" width="52" height="5" rx="2" class="c"/><rect x="24" y="36" width="24" height="12" rx="3" class="a"/><rect x="52" y="36" width="24" height="12" rx="3" class="c"/>',
     mission: '<rect x="2" y="2" width="22" height="56" rx="3" class="b"/><rect x="28" y="2" width="44" height="56" rx="3" class="c"/><rect x="34" y="14" width="30" height="8" rx="2" class="a"/><rect x="40" y="30" width="24" height="8" rx="2" class="a"/><rect x="76" y="2" width="22" height="56" rx="3" class="b"/>',
     bento: '<rect x="2" y="2" width="46" height="26" rx="3" class="b"/><rect x="52" y="2" width="22" height="26" rx="3" class="a"/><rect x="78" y="2" width="20" height="12" rx="3" class="b"/><rect x="78" y="16" width="20" height="12" rx="3" class="b"/><rect x="2" y="32" width="30" height="26" rx="3" class="b"/><rect x="36" y="32" width="62" height="26" rx="3" class="b"/>',
+    // crew lanes on a week grid, a job block spanning days
+    crew: '<rect x="2" y="2" width="96" height="8" rx="2" class="b"/><rect x="2" y="13" width="18" height="45" rx="2" class="c"/><rect x="23" y="14" width="34" height="9" rx="2" class="a"/><rect x="45" y="27" width="40" height="9" rx="2" class="b"/><rect x="28" y="40" width="22" height="9" rx="2" class="b"/><rect x="64" y="40" width="30" height="9" rx="2" class="a"/>',
+    // the pill on top, glass islands, the dock at the bottom
+    island: '<rect x="26" y="2" width="48" height="8" rx="4" class="b"/><rect x="6" y="14" width="88" height="18" rx="6" class="b"/><rect x="12" y="19" width="34" height="8" rx="2" class="a"/><rect x="6" y="35" width="88" height="12" rx="6" class="b"/><rect x="30" y="50" width="40" height="8" rx="4" class="a"/>',
+    // folder rail | list | thread
+    inbox: '<rect x="2" y="2" width="18" height="56" rx="3" class="c"/><rect x="24" y="2" width="32" height="56" rx="3" class="b"/><rect x="27" y="6" width="26" height="6" rx="2" class="a"/><rect x="27" y="16" width="26" height="6" rx="2" class="c"/><rect x="27" y="26" width="26" height="6" rx="2" class="c"/><rect x="60" y="2" width="38" height="56" rx="3" class="b"/><rect x="64" y="44" width="30" height="10" rx="2" class="a"/>',
     generic: '<rect x="2" y="2" width="96" height="12" rx="2" class="a"/><rect x="2" y="18" width="46" height="40" rx="3" class="b"/><rect x="52" y="18" width="46" height="40" rx="3" class="b"/>',
   };
   // What each layout is FOR, in the rep's words. Neutral claims only.
@@ -52,9 +60,12 @@
     focus: 'One lead at a time, ranked, with a plain line on why now and four big actions.',
     mission: 'A storm war room: the map with the hail swath, who is in its path, and canvass turfs.',
     bento: 'A dashboard of tiles you arrange yourself.',
+    crew: 'Your crews as lanes on a week: drag a job to another day or crew, with rain days marked. Moves warn, they never block.',
+    island: 'No sidebar: a nav pill on top, a dock with Record visit at the bottom, and your pages as glass panels over your wallpaper.',
+    inbox: 'Texts, calls, new leads and nudges in one list, each with a reply-by timer and a drafted reply you send yourself.',
   };
 
-  var state = { device: E.surface(), preview: null, timer: null, tick: null, left: 0, busy: false, adminOpen: false };
+  var state = { device: E.surface(), preview: null, timer: null, tick: null, left: 0, busy: false, adminOpen: false, returnTo: null };
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -99,6 +110,10 @@
     var current = eff.id === d.id;
     var mine = mineFor(state.device) === d.id;
     var off = !!lock || state.busy;
+    // A preview shows on THIS screen, so it only makes sense when the device
+    // being chosen for is this screen (Try a Phone layout from a computer and
+    // nothing you would see is the phone's).
+    var here = state.device === E.surface();
     var phoneOnly = d.surfaces.length && d.surfaces.indexOf('desktop') === -1;
     var h = '<article class="lp-card' + (current ? ' lp-current' : '') + '" data-layout-id="' + esc(d.id) + '">' + thumb(d.id) +
       '<h4 class="lp-name">' + esc(d.name) + (current ? ' <span class="lp-badge">In use</span>' : '') + '</h4>' +
@@ -107,7 +122,8 @@
       (d.supports && d.supports.sunlight ? ' · Sunlight mode' : '') + '</p>' +
       '<div class="lp-btns">' +
       '<button type="button" class="btn btn-ghost lp-btn" data-lp="use" data-id="' + esc(d.id) + '"' + (off || mine ? ' disabled' : '') + '>' + (mine ? 'Your choice' : 'Use this') + '</button>' +
-      (d.id === R.FALLBACK ? '' : '<button type="button" class="btn btn-ghost lp-btn" data-lp="try" data-id="' + esc(d.id) + '"' + (off || current ? ' disabled' : '') + '>Try it (' + PREVIEW_SECONDS + 's)</button>') +
+      (d.id === R.FALLBACK ? '' : '<button type="button" class="btn btn-ghost lp-btn" data-lp="try" data-id="' + esc(d.id) + '"' +
+        (off || current || !here ? ' disabled' : '') + (!here ? ' title="Open Settings on that device to try it there"' : '') + '>Try it (' + PREVIEW_SECONDS + 's)</button>') +
       '</div>' +
       (phoneOnly && state.device === window.LayoutEngine.surface() && window.LayoutEngine.surface() === 'desktop' ? '<p class="lp-note">Made for phones. On a computer it only shows in a narrow window.</p>' : '') +
       '</article>';
@@ -155,7 +171,8 @@
       h += '<p><button type="button" class="btn btn-ghost lp-btn" data-lp="clear" data-id="' + esc(state.device) + '">Use my company\'s default</button></p>';
     }
     h += '<label class="lp-chk lp-glove"><input type="checkbox" id="lpGlove"' + (u.glove ? ' checked' : '') + '> Glove mode — bigger buttons (64px instead of 56px)</label>';
-    h += '<p class="lp-note">More layouts are on the way, starting with Bento Board. Your theme and My Skin work with every layout.</p>';
+    if (state.device !== E.surface()) h += '<p class="lp-note">Try it previews on the screen you are using. To try a ' + esc(DEVICES.filter(function (d) { return d.id === state.device; })[0].label.toLowerCase()) + ' layout, open Settings on that device; Use this saves it for that device from here.</p>';
+    h += '<p class="lp-note">Your theme and My Skin work with every layout.</p>';
     if (canAdmin()) h += adminHtml();
     var mount = mountEl();
     if (mount) mount.innerHTML = h;
@@ -179,11 +196,19 @@
   }
   function hideBar() { var b = barEl(); if (b && b.parentNode) b.parentNode.removeChild(b); }
   function stopTimer() { if (state.tick) clearInterval(state.tick); state.tick = null; }
+  // The full-screen layouts (Mission, Crew, Focus, Inbox, Field) draw over Home
+  // only, so a preview started from Settings showed nothing at all: the
+  // preview opens Home, and ending it comes back to Settings.
+  function activeView() { var v = document.querySelector('.view.active'); return v && v.id ? v.id.replace(/^view-/, '') : ''; }
+  function goView(v) { if (v && typeof window.goTo === 'function') { try { window.goTo(v); } catch (e) {} } }
   function endPreview(keep) {
     var id = state.preview;
     stopTimer();
     state.preview = null;
     hideBar();
+    var back = state.returnTo;
+    state.returnTo = null;
+    if (back && activeView() !== back) goView(back);
     if (!id) return Promise.resolve();
     if (keep) {
       state.busy = true; render();
@@ -195,11 +220,12 @@
     return E.refresh().then(function () { render(); });
   }
   function startPreview(id) {
-    if (lockInfo()) return;
+    if (lockInfo() || state.device !== E.surface()) return;
     if (state.preview) stopTimer();
     state.preview = id;
     state.left = PREVIEW_SECONDS;
-    E.apply(id, { source: 'preview' }).then(function () { showBar(); });
+    if (!state.returnTo) { var from = activeView(); state.returnTo = from && from !== 'home' ? from : null; }
+    E.apply(id, { source: 'preview' }).then(function () { goView('home'); showBar(); });
     showBar();
     state.tick = setInterval(function () {
       state.left -= 1;

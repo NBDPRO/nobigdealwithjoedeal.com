@@ -56,7 +56,9 @@
     { id: 'map', label: 'Map', icon: 'map' },
     { id: 'capture', label: 'Capture', icon: 'photo', raised: true },
     { id: 'leads', label: 'Leads', icon: 'leads' },
-    { id: 'me', label: 'Me', icon: 'me' },
+    // The way out is "Menu" in every layout (2026-10-15; this was "Me", which
+    // went straight to Settings): the same sheet as Focus, Inbox, Crew, Mission.
+    { id: 'menu', label: 'Menu', icon: 'menu' },
   ];
 
   var doc = document;
@@ -70,7 +72,10 @@
     stream: null, camError: '', shots: 0, queued: 0, online: true,
     wx: null, wxFor: '',
     stamping: false,
+    menu: false,
   };
+  // The appointment id the visit recorder attaches (today-plan keys rows appt:<id>).
+  function apptIdOf(stop) { var k = String((stop && stop.key) || ''); return k.indexOf('appt:') === 0 ? k.slice(5) : ''; }
 
   // ── small helpers ────────────────────────────────────────────────────
   var esc = K.esc;
@@ -188,7 +193,8 @@
       var n = p.total || 0;
       h += '<div class="fa-empty"><strong>No stops on the calendar today.</strong><br>' +
         (n ? esc(n + (n === 1 ? ' thing' : ' things')) + ' on your list: calls, follow-ups and estimates.' : 'Nothing is due today.') + '</div>' +
-        '<div class="fa-actions-row"><button type="button" class="fa-big" data-fa="goto" data-to="crm">Open leads</button></div>';
+        '<div class="fa-actions-row"><button type="button" class="fa-big" data-fa="goto" data-to="crm">Open leads</button>' +
+        K.recordEntry({ source: 'field', cls: 'fa-rec' }) + '</div>';
     } else {
       var doneN = all.length - pending.length;
       h += '<div class="fa-prog" role="status">' +
@@ -203,6 +209,8 @@
           (it.address ? '<div class="fa-now-addr">' + esc(it.address) + '</div>' : '') +
           '<div class="fa-now-why"><span class="fa-do">Do this</span> ' + esc(it.why) + '</div>' +
           K.actionBar(it, ['navigate', 'call', 'photo'], { size: 'lg', primary: 'navigate' }) +
+          // this stop's customer (and appointment) ride along into the recording
+          K.recordEntry({ source: 'field', leadId: current.leadId || '', appointmentId: apptIdOf(current), cls: 'fa-rec' }) +
           '<div class="fa-actions-row">' +
           (current.leadId ? '<button type="button" class="fa-big fa-open" data-fa="lead" data-key="' + esc(current.key) + '">Open this stop</button>' : '') +
           '<button type="button" class="fa-big fa-ghost" data-fa="done" data-key="' + esc(current.key) + '">Done · next</button>' +
@@ -211,7 +219,7 @@
       var upcoming = pending.slice(1);
       if (upcoming.length) {
         h += '<h3 class="fa-h">Up next</h3><div class="fa-list">' + upcoming.map(function (s) {
-          return '<button type="button" class="fa-rowbtn" data-fa="lead" data-key="' + esc(s.key) + '">' + K.card(itemOf(s), { density: 'row' }) + '</button>';
+          return '<button type="button" class="fa-rowbtn" data-fa="lead" data-key="' + esc(s.key) + '">' + K.card(itemOf(s), { density: 'row', link: false }) + '</button>';
         }).join('') + '</div>';
       }
       var finished = all.filter(function (s) { return d.done[s.key]; });
@@ -248,7 +256,7 @@
       (tel ? '<a class="fa-tile" href="' + esc(tel) + '">' + K.icon('call') + '<span>Call</span></a>' : '<button type="button" class="fa-tile fa-off" disabled>' + K.icon('call') + '<span>Call</span></button>') +
       (sms ? '<a class="fa-tile" href="' + esc(sms) + '">' + K.icon('text') + '<span>Text</span></a>' : '<button type="button" class="fa-tile fa-off" disabled>' + K.icon('text') + '<span>Text</span></button>') +
       '<button type="button" class="fa-tile" data-fa="voice">' + K.icon('voice') + '<span>Voice note</span></button>' +
-      '</div>';
+      '</div>' + K.recordEntry({ source: 'field', leadId: it.id, appointmentId: apptIdOf(stop), cls: 'fa-rec' });
     h += '<h3 class="fa-h">Checklist</h3><ul class="fa-check">' + CHECKLIST.map(function (c) {
       return '<li><label><input type="checkbox" data-fa-check="' + c.id + '"' + (checks[c.id] ? ' checked' : '') + '> <span>' + esc(c.text) + '</span></label></li>';
     }).join('') + '</ul>';
@@ -275,7 +283,7 @@
     var h = '<div class="fa-top"><button type="button" class="fa-back" data-fa="back">&larr; Today</button></div>' +
       '<div class="fa-lead-name fa-pick-title">Photos for which customer?</div>';
     h += rows.length ? '<div class="fa-list">' + rows.map(function (it) {
-      return '<button type="button" class="fa-rowbtn" data-fa="capture-for" data-id="' + esc(it.id) + '">' + K.card(it, { density: 'row' }) + '</button>';
+      return '<button type="button" class="fa-rowbtn" data-fa="capture-for" data-id="' + esc(it.id) + '">' + K.card(it, { density: 'row', link: false }) + '</button>';
     }).join('') + '</div>' : '<div class="fa-empty">No customers loaded yet.</div>';
     return h;
   }
@@ -332,7 +340,7 @@
   }
 
   // ── navigation ───────────────────────────────────────────────────────
-  var VIEW_FOR_NAV = { today: 'home', map: 'd2d', leads: 'crm', me: 'settings' };
+  var VIEW_FOR_NAV = { today: 'home', map: 'd2d', leads: 'crm' };
   function activeView() {
     var v = doc.querySelector('.view.active');
     return v && v.id ? v.id.replace(/^view-/, '') : '';
@@ -344,17 +352,21 @@
     if (!a || a === 'home') return 'today';
     if (a === 'd2d' || a === 'map') return 'map';
     if (a === 'crm') return 'leads';
-    if (a === 'settings') return 'me';
+    if (S.menu) return 'menu';
     return '';
   }
   function paintNav() {
     if (!navEl) return;
-    navEl.innerHTML = K.nav('bottom', NAV, navActive());
+    navEl.innerHTML = (S.menu ? '<div class="fa-menu" role="menu">' + K.menuItems('fa') + '</div>' : '') + K.nav('bottom', NAV, navActive());
+    var m = navEl.querySelector('[data-lk-nav="menu"]');
+    if (m) { m.setAttribute('aria-haspopup', 'true'); m.setAttribute('aria-expanded', S.menu ? 'true' : 'false'); }
     // The shell covers the app only while Home is the active view and the rep
     // is on a Field screen; any other view shows through with our nav on top.
-    rootEl.hidden = !homeActive();
+    K.setOverlay(rootEl, homeActive());
   }
   function go(to) {
+    if (to === 'menu') { S.menu = !S.menu; paintNav(); return; }
+    S.menu = false;
     if (to === 'capture') { openCaptureFlow(); return; }
     if (to === 'today') {
       S.screen = 'today';
@@ -629,6 +641,15 @@
   }
 
   function onNavClick(ev) {
+    var mi = ev.target && ev.target.closest ? ev.target.closest('[data-fa="goto"]') : null;
+    if (mi) {
+      ev.preventDefault();
+      S.menu = false;
+      stopCamera();
+      if (typeof W.goTo === 'function') W.goTo(mi.getAttribute('data-to'));
+      setTimeout(paintNav, 80);
+      return;
+    }
     var b = ev.target && ev.target.closest ? ev.target.closest('[data-lk-nav]') : null;
     if (!b) return;
     ev.preventDefault();
@@ -705,9 +726,10 @@
     if (rootEl && rootEl.parentNode) rootEl.parentNode.removeChild(rootEl);
     if (navEl && navEl.parentNode) navEl.parentNode.removeChild(navEl);
     rootEl = null; navEl = null;
+    K.clearOverlay();
     doc.documentElement.classList.remove('sun');   // sunlight mode belongs to this layout
     doc.documentElement.removeAttribute('data-fa-screen');
-    S.screen = 'today'; S.leadId = null; S.stopKey = null;
+    S.screen = 'today'; S.leadId = null; S.stopKey = null; S.menu = false;
   }
 
   E.implement('field', { mount: mount, unmount: unmount });

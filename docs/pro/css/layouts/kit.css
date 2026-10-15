@@ -36,7 +36,7 @@
 .lk-phone { font-size: 15px; font-weight: 700; color: var(--m); }
 .lk-badge {
   display: inline-block; vertical-align: middle; padding: 2px 8px; border-radius: 999px;
-  background: var(--og); color: var(--orange); font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+  background: var(--og); color: var(--orange); font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
 }
 .lk-card-row { flex-direction: row; align-items: center; padding: 10px 12px; gap: 12px; min-height: var(--tap); }
 .lk-card-row .lk-time { flex: none; min-width: 64px; }
@@ -67,7 +67,7 @@
 .lk-nav-item {
   flex: 1 1 0; min-height: var(--tap); border: 0; background: transparent; color: var(--m);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 .lk-nav-active { color: var(--orange); }
 .lk-nav-raised {
@@ -77,3 +77,34 @@
   box-shadow: 0 4px 14px rgba(0, 0, 0, .35); border: 3px solid var(--s);
 }
 .lk-nav-raised .lk-nav-lbl { display: none; }
+
+/* ── Record visit (kit.recordButton): the same button in every layout ── */
+.lk-rec {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: max(44px, var(--tap)); padding: 0 18px; box-sizing: border-box;
+  border: 2px solid var(--orange); border-radius: 999px;
+  background: var(--orange); color: var(--accent-fg, #fff);
+  font: inherit; font-size: 16px; font-weight: 800; line-height: 1.1; white-space: nowrap;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.lk-rec:focus-visible { outline: 3px solid var(--t); outline-offset: 2px; }
+.lk-rec:disabled { opacity: .5; cursor: not-allowed; }
+.lk-rec-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 30%, transparent); }
+.lk-rec-ghost { background: var(--s2); color: var(--t); }
+/* kit.recordEntry: Record visit, then the quieter Recent visits beside it */
+.lk-rec-pair { display: inline-flex; flex-wrap: wrap; align-items: stretch; gap: 8px; max-width: 100%; box-sizing: border-box; }
+.lk-rec-pair > .lk-rec { flex: 1 1 auto; }
+.lk-recent {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  min-height: max(44px, var(--tap)); padding: 0 16px; box-sizing: border-box;
+  border: 1px solid var(--rule); border-radius: 999px; background: var(--s2); color: var(--t);
+  font: inherit; font-size: 14px; font-weight: 700; line-height: 1.1; white-space: nowrap; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.lk-recent:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+.lk-rec-ghost .lk-rec-dot { background: var(--orange); }
+
+/* ── full-screen overlays (kit.setOverlay) ── */
+/* The app's phone nav is hidden ONLY while a layout's overlay is on screen;
+   on every other view it is back, so Home is always one tap away. */
+html.lk-overlay-on #mobile-nav { display: none !important; }

@@ -119,6 +119,14 @@ CEILING.localBytes += 2 * 1024;
 // the Package row in job-templates-ui.js, the signed-package lock and the certificate's signed view in
 // doc-preflight.js. Main sat at 4823 of 4824 KB; this PR measures 4828, so the ceiling keeps ~1 KB of slack.
 CEILING.localBytes += 5 * 1024;
+// +6 KB, deliberate (2026-10-15, CRM layouts + Home + Record visit, Joe's phone pass): no new script, no new tag.
+// layout-system.js (+~2 KB: the fallback-to-Classic path and its toast, the DOMContentLoaded boot), the recorder
+// launcher (+~1.5 KB: Record bar only in Classic/Bento, the room it reserves, one label), today-home.js (+~1.3 KB:
+// the big-day headline, the plain old-calls line) and standalone-compat.js (+~0.5 KB) are deferred code already on
+// the page; pixel-mode.js shrank ~1.4 KB (no layout seam). The launcher also gained the "Recent visits" entry
+// beside Record (+~1.5 KB, delegated, lazy-loads the recorder like Record). Measured 4834 KB on main + #2463
+// (ceiling 4829 before this line); the ceiling keeps ~1 KB of slack. The layout files themselves are lazy and not counted here.
+CEILING.localBytes += 6 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
