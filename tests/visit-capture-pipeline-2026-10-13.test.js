@@ -951,10 +951,14 @@ async function channelRead(w, owner) {
   ok('detaching it takes the row off', !w.db.docs.has('leads/L_SMITH/activity/visit-v11fail0002'));
   e = await rej(() => A(w, asOwner, { visitId: 'v11fail0002', leadId: 'L_STRANGER' }));
   ok('NEG: a failed visit is never filed on another tenant\'s customer', e && e.code === 'permission-denied' && !w.db.docs.has('leads/L_STRANGER/activity/visit-v11fail0002'));
-  w.db.docs.get(vpath('v11fail0002')).leadId = 'L_DNR';
+  w.db.docs.get(vpath('v11fail0002')).leadId = 'L_STRANGER';   // the phone wrote another tenant's customer directly
   w.db.docs.get(vpath('v11fail0002')).finalizedKey = null;
-  const fd = await V._internal.fileFailure({ db: w.db, ref: w.db.doc(vpath('v11fail0002')), uid: OWNER, visitId: 'v11fail0002', nowMs: NOW });
-  ok('NEG: nothing is filed on a do-not-record customer', fd.state === 'refused' && !w.db.docs.has('leads/L_DNR/activity/visit-v11fail0002'));
+  ok('setup: a direct write of a customer on a failed visit asks for file_failure', LG.nextStep(D(w, 'v11fail0002'), NOW).step === 'file_failure');
+  let fd = await run(w, 'v11fail0002', NOW + 10);
+  ok('a customer the visit may not be filed under is TAKEN OFF (leadId null, attachNote), nothing written on it, and it settles', fd.state === 'refused' && D(w, 'v11fail0002').leadId === null && D(w, 'v11fail0002').attachNote === 'attach_refused' && !w.db.docs.has('leads/L_STRANGER/activity/visit-v11fail0002') && LG.nextStep(D(w, 'v11fail0002'), NOW + 20).step === 'none', J(fd));
+  w.db.docs.get(vpath('v11fail0002')).leadId = 'L_DNR';
+  fd = await run(w, 'v11fail0002', NOW + 30);
+  ok('a do-not-record customer on a failed visit: nothing filed, the recording is purged (audio deleted)', fd.state === 'purged' && !w.db.docs.has('leads/L_DNR/activity/visit-v11fail0002') && D(w, 'v11fail0002').pipelineStatus === 'skipped' && D(w, 'v11fail0002').skipReason === 'do_not_record' && !w.bucket.store.has(pathFor('v11fail0002')), J(fd));
   ok('nextStep: failed + customer not yet filed -> file_failure; filed -> none; customer removed -> unfile',
     LG.nextStep({ status: 'uploaded', pipelineStatus: 'failed', pipelineNote: 'too_large', leadId: 'L1' }, NOW).step === 'file_failure'
     && LG.nextStep({ status: 'uploaded', pipelineStatus: 'failed', pipelineNote: 'too_large', leadId: 'L1', finalizedKey: 'L1:f:too_large' }, NOW).step === 'none'

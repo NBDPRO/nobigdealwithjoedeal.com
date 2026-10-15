@@ -214,7 +214,7 @@ async function runVisit({ db, bucket, uid, visitId, nowMs }) {
     }
     if (ns.step === 'finalize') return await doFinalize({ db, bucket, ref, uid, visitId, d, nowMs });
     if (ns.step === 'unfile') return await doUnfile({ db, ref, uid, visitId, d });
-    if (ns.step === 'file_failure') return await fileFailure({ db, ref, uid, visitId, nowMs });
+    if (ns.step === 'file_failure') return await fileFailure({ db, bucket, ref, uid, visitId, nowMs });
     // process: take the lease in a transaction so two invocations never both pay Groq
     const got = await db.runTransaction(async (tx) => {
       const s = await tx.get(ref);
@@ -234,7 +234,7 @@ async function runVisit({ db, bucket, uid, visitId, nowMs }) {
     }
     // A visit already on a customer that could not be processed is said ON the customer.
     if (res && res.state === PIPELINE.FAILED) {
-      const f = await fileFailure({ db, ref, uid, visitId, nowMs }).catch((e) => { logger.warn('visit_capture_file_failure_failed', { visitId, err: msg(e) }); return null; });
+      const f = await fileFailure({ db, bucket, ref, uid, visitId, nowMs }).catch((e) => { logger.warn('visit_capture_file_failure_failed', { visitId, err: msg(e) }); return null; });
       if (f) res.failureFiled = f.state;
     }
     return res;
@@ -254,7 +254,7 @@ async function runVisit({ db, bucket, uid, visitId, nowMs }) {
         patch.pipelineNextAtMs = 0;
       }
       await ref.update(patch);
-      if (patch.pipelineStatus === PIPELINE.FAILED) await fileFailure({ db, ref, uid, visitId, nowMs }).catch(() => {});
+      if (patch.pipelineStatus === PIPELINE.FAILED) await fileFailure({ db, bucket, ref, uid, visitId, nowMs }).catch(() => {});
     } catch (_) { /* the doc is unreachable right now; the sweep tries again */ }
     return { step: 'error', error: msg(e) };
   }
@@ -615,10 +615,11 @@ async function doUnfile({ db, ref, uid, visitId, d }) {
  * there ("Visit recording couldn't be processed — audio kept"), so it never
  * vanishes from the customer. Read fresh, keyed by customer + reason (failKey),
  * so a re-run is a no-op and a different reason rewrites the same row. The
- * same tenant / do-not-record / visit-id-conflict guards as doFinalize; a
- * customer that is refused gets nothing.
+ * same guards as doFinalize, with the same outcome: a customer that may not
+ * be filed under is taken off the visit (attachNote says why, the phone
+ * follows), and a do-not-record customer's recording is purged.
  */
-async function fileFailure({ db, ref, uid, visitId, nowMs }) {
+async function fileFailure({ db, bucket, ref, uid, visitId, nowMs }) {
   const snap = await ref.get();
   if (!snap.exists) return { step: 'file_failure', state: 'gone' };
   const d = snap.data() || {};
@@ -626,14 +627,24 @@ async function fileFailure({ db, ref, uid, visitId, nowMs }) {
   const leadId = String(d.leadId || '');
   if (!leadId) return { step: 'file_failure', state: 'unattached' };
   if (d.finalizedKey === LG.failKey(d)) return { step: 'file_failure', state: 'already' };
-  if (!LG.LEAD_ID_RE.test(leadId)) return { step: 'file_failure', state: 'refused' };
+  const refuse = async (note) => {
+    await upd(ref, { leadId: null, attachedAtMs: null, attachNote: note });
+    if (d.attachedLeadId) await retract({ db, leadId: d.attachedLeadId, visitId, uid }).catch(() => {});
+    return { step: 'file_failure', state: 'refused', note };
+  };
+  if (!LG.LEAD_ID_RE.test(leadId)) return refuse('lead_id_invalid');
   const ctx = await contextFor(db, uid);
   const ls = await db.doc('leads/' + leadId).get();
   const lead = ls.exists ? Object.assign({ id: ls.id }, ls.data()) : null;
-  if (!lead || lead.deleted === true || lead.doNotRecord === true || !mayRecordOn(lead, uid, ctx.companyId)) return { step: 'file_failure', state: 'refused' };
+  if (!lead || lead.deleted === true || !mayRecordOn(lead, uid, ctx.companyId)) return refuse('attach_refused');
+  if (lead.doNotRecord === true) {
+    if (!bucket) return refuse('attach_refused');
+    const p = await doPurge({ db, bucket, ref, uid, visitId, d, nowMs, reason: 'do_not_record' });
+    return { step: 'file_failure', state: 'purged', purge: p.state };
+  }
   const actRef = db.doc('leads/' + leadId + '/activity/visit-' + visitId);
   const had = await actRef.get();
-  if (had.exists && (had.data() || {}).visitUid && (had.data() || {}).visitUid !== uid) return { step: 'file_failure', state: 'refused' };
+  if (had.exists && (had.data() || {}).visitUid && (had.data() || {}).visitUid !== uid) return refuse('visit_id_conflict');
   if (d.attachedLeadId && d.attachedLeadId !== leadId) await retract({ db, leadId: d.attachedLeadId, visitId, uid });
   const built = LG.buildFailureActivity({ capture: d, visitId, lead, uid, nowMs, audioKeptDays: ctx.retentionDays });
   await actRef.set(Object.assign({}, built.activity, { updatedAt: FieldValue.serverTimestamp() }, had.exists ? {} : { createdAt: FieldValue.serverTimestamp() }), { merge: true });
@@ -752,7 +763,7 @@ async function attachAction({ db, bucket, auth, data, nowMs }) {
     if (res.state === 'refused') throw new HttpsError('failed-precondition', 'That recording could not be filed there.');
   } else if (p === PIPELINE.FAILED) {
     // Could not be processed: it still goes on the customer, as a "could not be processed" row.
-    res = await fileFailure({ db, ref, uid, visitId, nowMs });
+    res = await fileFailure({ db, bucket, ref, uid, visitId, nowMs });
     if (res.state === 'refused') throw new HttpsError('failed-precondition', 'That recording could not be filed there.');
   }
   return { ok: true, leadId, leadName: name, state: p || null, filed: res.state === 'filed', failed: p === PIPELINE.FAILED, tasksMade: res.tasksMade || 0 };
