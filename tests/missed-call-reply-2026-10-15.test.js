@@ -40,7 +40,24 @@ function fakeDb(seed) {
     async update(v) { if (!store.has(p)) throw new Error('missing'); store.set(p, Object.assign({}, store.get(p), v)); },
     collection: (c) => coll(p + '/' + c),
   });
-  const coll = (c) => ({ doc: (id) => ref(c + '/' + id) });
+  // where(...).where(...).limit(n).get() over the direct children of a collection
+  // (the declined-consent decision's lead and inbound scans).
+  const query = (c, filters, lim) => ({
+    where: (f, op, v) => query(c, filters.concat([[f, op, v]]), lim),
+    orderBy: () => query(c, filters, lim),
+    limit: (n) => query(c, filters, n),
+    async get() {
+      reads++;
+      const docs = [];
+      for (const [k, v] of store) {
+        if (k.indexOf(c + '/') !== 0 || k.slice(c.length + 1).indexOf('/') !== -1) continue;
+        if (!filters.every(([f, op, x]) => (op === '==' ? v[f] === x : op === '>=' ? v[f] >= x : true))) continue;
+        docs.push({ id: k.split('/').pop(), data: () => JSON.parse(JSON.stringify(v)) });
+      }
+      return { docs: lim ? docs.slice(0, lim) : docs, empty: !docs.length, size: docs.length };
+    },
+  });
+  const coll = (c) => Object.assign({ doc: (id) => ref(c + '/' + id) }, query(c, [], 0));
   return {
     store, get reads() { return reads; },
     doc: ref, collection: coll,
@@ -177,6 +194,15 @@ function fakeDb(seed) {
   db = fakeDb(Object.assign(seed(), { ['sms_dnc/O__' + OptOut.optOutKey('+15135550100')]: { phone: '+15135550100' } }));
   r = await AT.maybeAutoTextMissedCall({ db, call: fresh, nowMs: NOW, env: ON, send, tenantKey: 'O', logger: quiet });
   ok('number on the company Do Not Text list → refused', r.reason === 'opted_out' && sent.length === 0, r.reason);
+  // The same number said NO on a later form for this tenant: the declined-consent
+  // decision (kind 'automated', no inbound exemption) refuses before Twilio.
+  db = fakeDb(Object.assign(seed(), {
+    'leads/L1': Object.assign({}, consented, { phoneDigits: '5135550100', tcpaConsentAt: NOW - 30 * 24 * H, createdAt: NOW - 30 * 24 * H }),
+    'leads/L2': { userId: 'O', companyId: 'O', phoneDigits: '5135550100', tcpaConsent: false, createdAt: NOW - 2 * 24 * H },
+    'sms_settings/O': { registered: true },
+  }));
+  r = await AT.maybeAutoTextMissedCall({ db, call: fresh, nowMs: NOW, env: ON, send, tenantKey: 'O', logger: quiet });
+  ok('a later "no" on another of this tenant\'s forms for the number → consent_declined, nothing sent', r.reason === 'consent_declined' && sent.length === 0, r.reason);
   db = fakeDb(Object.assign(seed(), { 'sms_settings/O': { registered: true, enabled: false } }));
   r = await AT.maybeAutoTextMissedCall({ db, call: fresh, nowMs: NOW, env: ON, send, tenantKey: 'O', logger: quiet });
   ok('company texting switch off → refused', r.reason === 'texting_switched_off' && sent.length === 0, r.reason);

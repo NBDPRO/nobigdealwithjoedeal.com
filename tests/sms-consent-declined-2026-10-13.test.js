@@ -538,6 +538,7 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
       'sms-functions.js': { covered: ['complianceGate', 'onAiDraftApproved'], note: 'sendSMS, sendQueuedSMS, sendD2DSMS (knock: own explicit yes), onAiDraftApproved; storm cron = subscriber tcpaConsent===true' },
       'lead-alert.js': { exempt: 'staff alerts to Jo; the homeowner ack is gated by smsAckGate which requires tcpaConsent === true (stricter than "not declined")' },
       'storm-watch.js': { exempt: 'Joe\'s own alert; subscriber texts go through storm-sms-guard (subscriber tcpaConsent === true, a separate signup consent)' },
+      'call-center.js': { covered: ['missed-call-autotext.js'], note: 'sendAutoText is the missed-call auto-text\'s Twilio sender (dark: MISSED_CALL_AUTOTEXT_ENABLED); maybeAutoTextMissedCall requires a web-form tcpaConsent === true, the STOP/DNT register, then ConsentDeclined.decide kind automated, all before the claim and the send' },
       'verify-functions.js': { exempt: 'one-time verification code to the number the user is verifying; not a customer message' },
     };
     const files = fs.readdirSync(FUNCTIONS).filter((f) => f.endsWith('.js'));
@@ -564,6 +565,11 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
     const aiBody = sms.slice(sms.indexOf('exports.onAiDraftApproved'));
     ok('onAiDraftApproved asks it BEFORE Twilio (by position)',
       aiBody.indexOf('ConsentDeclined.decide(') > -1 && aiBody.indexOf('ConsentDeclined.decide(') < aiBody.indexOf('messages.create('));
+    const mca = stripComments(fs.readFileSync(path.join(FUNCTIONS, 'missed-call-autotext.js'), 'utf8'));
+    ok('the missed-call auto-text asks it (kind automated) BEFORE its claim and send',
+      /ConsentDeclined\.decide\([\s\S]{0,200}kind:\s*'automated'/.test(mca)
+      && mca.indexOf('ConsentDeclined.decide(') > -1 && mca.indexOf('ConsentDeclined.decide(') < mca.indexOf('runTransaction(')
+      && mca.indexOf('ConsentDeclined.decide(') < mca.indexOf('a.send('));
     const incoming = sms.slice(sms.indexOf('exports.incomingSMS'));
     ok('incomingSMS thread-start reads skip a REFUSED row', /x\.refused !== true/.test(incoming));
     const ptc = stripComments(fs.readFileSync(path.join(FUNCTIONS, 'phone-text-check.js'), 'utf8'));

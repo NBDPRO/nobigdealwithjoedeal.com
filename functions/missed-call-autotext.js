@@ -12,7 +12,10 @@
  *   1. planAutoText (missed-call-reply-logic.js): flag, a fresh missed call,
  *      a customer on file whose stored web-form consent covers this number,
  *      no do-not-contact flag, 8am-9pm in the homeowner's local time
- *   2. the STOP register + the company's Do Not Text list (sms-optout.js)
+ *   2. the STOP register + the company's Do Not Text list (sms-optout.js),
+ *      then the declined-consent decision (sms-consent-declined.js, kind
+ *      'automated': a "no" on ANY of this tenant's forms for this number wins
+ *      unless a later stamped "yes" supersedes it; no inbound exemption)
  *   3. the company's texting master switch (sms-texting-gate.js)
  *   4. THE CLAIM: missed_call_autotext/{tenant}__{digits10}, one transaction:
  *      refuses inside 24 h of the last auto-text to this number, else stamps
@@ -26,6 +29,7 @@
 const R = require('./missed-call-reply-logic');
 const OptOut = require('./sms-optout');
 const TextingGate = require('./sms-texting-gate');
+const ConsentDeclined = require('./sms-consent-declined');
 
 const CLAIMS = 'missed_call_autotext';
 
@@ -50,6 +54,12 @@ async function maybeAutoTextMissedCall(args) {
     const tenantKey = String(a.tenantKey || TextingGate.tenantKeyOfRecord(lead) || TextingGate.NBD_OWNER_UID);
     const opt = await OptOut.isOptedOut(db, plan.to, { companyId: tenantKey, timeoutMs: OptOut.READ_TIMEOUT_MS });
     if (opt.optedOut) return done('opted_out');
+    const cd = await ConsentDeclined.decide(db, {
+      phone: plan.to, lead, leadId: call.leadId,
+      tenants: [tenantKey, lead.companyId, lead.userId].filter(Boolean),
+      kind: 'automated', nowMs, logger: log,
+    });
+    if (!cd.allowed) return done(cd.code);
     const status = await TextingGate.textingStatus(db, tenantKey);
     if (!status.allowed) return done('texting_' + status.reason);
 
