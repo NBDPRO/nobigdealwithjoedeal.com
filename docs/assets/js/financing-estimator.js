@@ -25,6 +25,11 @@
     $('fe-amt').textContent = fmt(P);
     $('fe-lo').textContent = fmt(r.lo);
     $('fe-hi').textContent = fmt(r.hi);
+    // Static markup ships a no-number fallback (no "$—" for crawlers or
+    // no-JS readers); swap in the range once it is computed.
+    var range = $('fe-pay-range'), fallback = $('fe-pay-fallback');
+    if (range) range.hidden = false;
+    if (fallback) fallback.hidden = true;
   }
   amt.addEventListener('input', render);
   group.addEventListener('click', function (e) {

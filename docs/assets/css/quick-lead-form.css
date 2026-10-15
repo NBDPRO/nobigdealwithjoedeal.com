@@ -24,7 +24,7 @@
 .qlf-btn:hover:not(:disabled){background:#A14A22}
 .qlf-btn:disabled{opacity:.65;cursor:default}
 .qlf-alt{text-align:center;font-size:.82rem;color:#5b6572;margin-top:12px}
-.qlf-alt a{color:#A14A22;font-weight:700;text-decoration:none}
+.qlf-alt a{display:inline-block;padding:6px 0;color:#A14A22;font-weight:700;text-decoration:none}
 .qlf-msg{display:none;border-radius:8px;padding:9px 12px;font-size:.84rem;margin-bottom:12px}
 .qlf-msg.qlf-err:not(:empty){display:block;background:#fdeaea;color:#9d2727}
 .qlf-msg.qlf-ok:not(:empty){display:block;background:#e8f7ee;color:#1c6b3c}

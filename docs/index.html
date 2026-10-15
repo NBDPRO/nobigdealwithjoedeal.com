@@ -143,6 +143,7 @@ section{padding:80px 40px}
 .reviews-stars{font-size:1.6rem;color:var(--orange);letter-spacing:3px}
 .reviews-score{font-family:'Bebas Neue',sans-serif;font-size:2.8rem;color:var(--navy-dark);letter-spacing:.05em;line-height:1}
 .reviews-score-sub{font-size:.78rem;color:var(--gray);margin-top:2px}
+.reviews-score-sub a{display:inline-block;padding:5px 0}
 .reviews-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-bottom:36px}
 .review-card{background:var(--off-white);border-radius:12px;padding:28px;border:1px solid var(--light-gray);position:relative;transition:box-shadow .2s;display:flex;flex-direction:column}
 .review-card:hover{box-shadow:0 8px 30px rgba(0,0,0,.08)}
@@ -237,8 +238,11 @@ footer{background:var(--navy-dark);border-top:3px solid var(--orange);padding:60
   .mobile-cta-call:active{background:#BD5728}
   .mobile-cta-text{background:rgba(255,255,255,.08);color:white;border:1px solid rgba(255,255,255,.2)}
   .mobile-cta-strip svg{width:16px;height:16px;flex-shrink:0}
-  /* Push footer content above the strip — account for iPhone home indicator. */
-  body{padding-bottom:calc(80px + env(safe-area-inset-bottom, 0px))}
+  /* Push footer content above the strip — account for iPhone home indicator.
+     The strip is 87px (12px + 16px padding, 3px border, 56px buttons) plus the inset. */
+  body{padding-bottom:calc(88px + env(safe-area-inset-bottom, 0px))}
+  /* Back-to-top sits above the strip (z-index 999) so it stays tappable. */
+  .back-to-top{bottom:calc(100px + env(safe-area-inset-bottom, 0px))}
 }
 @media(max-width:480px){
   /* Reviews rating header: stack stars / score / CTA on small phones. */
@@ -1208,7 +1212,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
      (C-3); submissions route through submitPublicLead. -->
 <script defer  src="/assets/js/inline/7cd8e505ab.js"></script>
 <script defer src="/assets/js/public-lead-submit.js"></script>
-<script defer src="/assets/js/intake-extras.js?v=1"></script>
+<script defer src="/assets/js/intake-extras.js?v=4"></script>
 <script defer  src="/assets/js/inline/0214ed5eea.js"></script>
 <script defer  src="/assets/js/inline/72f02d79d0.js?v=3"></script>
 
