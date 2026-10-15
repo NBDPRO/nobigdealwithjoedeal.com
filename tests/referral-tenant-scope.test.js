@@ -119,6 +119,9 @@ async function resolve({ ref, leads, prefixes }) {
     db, ref,
     logger: { warn: (m, d) => logged.push({ lvl: 'warn', m, d }), error: (m, d) => logged.push({ lvl: 'error', m, d }) },
     bad: (res, code, msg) => { badCall = { code, msg }; return { __bad: true }; },
+    // 2026-10-15 (L1): every refused code answers through refUnavailable (one
+    // uniform 404, the reason logged only) — same exit shape as bad().
+    refUnavailable: (res, reason) => { badCall = { code: 404, msg: reason }; return { __bad: true }; },
     res: {},
     console,
   };

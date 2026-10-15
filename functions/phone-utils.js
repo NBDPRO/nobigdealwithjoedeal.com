@@ -36,4 +36,17 @@ function phoneDigits10(phone) {
   return String(phone == null ? '' : phone).replace(/\D/g, '').replace(/^1/, '').slice(-10);
 }
 
-module.exports = { phoneDigits10 };
+/**
+ * E.164 for a US/Canada number, else null: exactly 10 digits, or 11 with a
+ * leading 1. Anything else (7 digits, international, junk) is rejected.
+ * Moved here from verify-functions.js (2026-10-15) so the OTP sender and the
+ * public lead intake (submitPublicLead) apply ONE rule.
+ */
+function formatPhone(phone) {
+  const cleaned = String(phone == null ? '' : phone).replace(/\D/g, '');
+  if (cleaned.length === 10) return '+1' + cleaned;
+  if (cleaned.length === 11 && cleaned.startsWith('1')) return '+' + cleaned;
+  return null;
+}
+
+module.exports = { phoneDigits10, formatPhone };

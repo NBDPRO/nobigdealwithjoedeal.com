@@ -145,7 +145,7 @@ fenced four ways:
 | Gate | `measureNewWebLead` | Fires only for `webLead === true` + `publicLeadKind === 'estimate'` + usable `lat`/`lng`. A CRM-entered, Thumbtack or contact-form lead never measures. |
 | Once per lead | deterministic doc id `measurements/weblead-{leadId}` written with `create()` | A Firestore trigger is at-least-once; a redelivery hits `ALREADY_EXISTS` instead of buying a second report. |
 | Reuse | the same 90-day `coordKey` cache the rep path uses | A repeat submission for a roof already measured costs nothing. |
-| Daily cap | `trigger:measureNewWebLead:daily`, 25/day account-wide | Real volume is ≈1 web lead/day, so this is ~25× headroom and caps a runaway (bot flood, trigger bug) at $75/day rather than unbounded. Deliberately NOT the rep-facing 5/min meter — a storm-day burst of web leads must not resource-exhaust the rep standing on a roof pressing Auto-measure. |
+| Daily cap | `trigger:measureNewWebLead:daily`, 10/day account-wide (env `WEB_LEAD_MEASURE_DAILY_CAP`; was 25 until 2026-10-15) | Real volume is ≈1 web lead/day, so this is ~10× headroom and caps a runaway (bot flood, trigger bug) at $30/day rather than unbounded. A repeat-phone lead (same phone within 24h, `duplicateLead`) is never measured. Deliberately NOT the rep-facing 5/min meter — a storm-day burst of web leads must not resource-exhaust the rep standing on a roof pressing Auto-measure. |
 
 **To stop it without a deploy** (the SPEND_KILLSWITCH pattern — one Firestore
 write):

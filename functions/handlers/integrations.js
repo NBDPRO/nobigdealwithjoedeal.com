@@ -28,6 +28,9 @@ const { resolveCompanyByKey } = require('./public-site');
 // lead-alert's send-time gate, so "what counts as consent" cannot drift
 // between the code that STORES it and the code that ACTS on it.
 const TCPA = require('../tcpa-consent');
+// One US-phone rule shared with the OTP sender (verify-functions.js).
+const { formatPhone } = require('../phone-utils');
+const LeadGuard = require('../public-lead-guard');
 
 // ═══════════════════════════════════════════════════════════════
 // integrationStatus — client-facing readout of which adapters are
@@ -632,6 +635,19 @@ exports.submitPublicLead = onRequest(
     // homeowner's lead. Tighten to a hard requirement once caches have turned.
     if (SERVICE_KINDS.includes(kind) && !data.address) data.missingAddress = true;
 
+    // Phone (M4, 2026-10-15): when a phone is on the lead — required on
+    // contact / inspect / storm / free_roof, optional on estimate — it must be
+    // a US/Canada number: 10 digits, or 11 with a leading 1 (the same
+    // formatPhone rule the OTP sender uses). Every public form already enforces
+    // this before submit (tests/lead-form-phone-contract.test.js), so a 400
+    // here only meets a script or a stale page. An ABSENT/empty optional phone
+    // is fine: the optional loop above never stores an empty string. The
+    // submitted string is stored as typed, as before.
+    if (data.phone != null && !formatPhone(data.phone)) {
+      res.status(400).json({ error: 'Please enter a valid 10-digit US phone number.', field: 'phone' });
+      return;
+    }
+
     // Trust-but-tag: server-only fields the client can't spoof.
     data.ip = clientIp(req);
     data.userAgent = String(req.headers['user-agent'] || '').slice(0, 200);
@@ -700,6 +716,19 @@ exports.submitPublicLead = onRequest(
         if (hit) data.companyId = hit.companyId;
       } catch (_) { /* tag drop only */ }
     }
+
+    // Flood + repeat guard (M1, 2026-10-15; functions/public-lead-guard.js).
+    // NBD's own leads skip every alert cap in lead-alert.js and this endpoint's
+    // only gate is 20/min per IP, so an IP-rotating script could page Joe all
+    // day. Decided here, after the tenant tag is final: a repeat phone within
+    // 24h is stored as duplicateLead (no alerts); past
+    // PUBLIC_LEAD_ALERT_DAILY_CAP (default 75) alert-eligible leads a day for
+    // one company, the lead is still stored but alerts pause, after ONE
+    // "volume unusually high" notice. Never refuses a lead; a limiter outage
+    // leaves the lead unmarked (fail open).
+    Object.assign(data, await LeadGuard.classifyPublicLead({
+      collection: spec.collection, data, enforce: enforceRateLimit, env: process.env, log: logger,
+    }));
 
     try {
       const ref = await getFirestore().collection(spec.collection).add(data);

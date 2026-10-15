@@ -55,6 +55,9 @@
     return {
       invite: invite && /^[A-Za-z0-9_-]{20,128}$/.test(invite) ? invite : null,
       preview: q.get('preview') === 'careplan',
+      // Jo's preview key (2026-10-15): the server refuses a TEST-mode direct
+      // signup without it (CARE_PLAN_PREVIEW_SECRET). Never stored or shown.
+      previewKey: (q.get('pk') || '').slice(0, 200),
       state: q.get('careplan'),
       sessionId: (q.get('session_id') || '').match(/^cs_(test|live)_[A-Za-z0-9]{10,200}$/) ? q.get('session_id') : null,
     };
@@ -121,7 +124,7 @@
           var el = form.elements['cp_' + k];
           body[k] = el ? String(el.value || '').trim() : '';
         });
-        if (params.preview) body.preview = true;
+        if (params.preview) { body.preview = true; if (params.previewKey) body.previewKey = params.previewKey; }
         if (!body.firstName || !body.email || !body.phone || !body.address) { say(sec, 'Please fill in your name, email, phone and the home address.', true); return; }
       }
       if (btn) { btn.disabled = true; btn.textContent = 'Opening secure checkout…'; }
