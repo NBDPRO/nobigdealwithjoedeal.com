@@ -364,6 +364,17 @@ function buildQuiz(P) {
     ok('a failed save keeps the call/text message and re-enables the button', /Couldn't send/.test(failBtn.textContent) && failBtn.disabled === false, failBtn.textContent);
   }
 
+  console.log('\nL1 — /estimate "Start over" restores a real arrow on the submit button');
+  {
+    const src = read('docs/assets/js/inline/4053149b2f.js');
+    const html = read('docs/estimate.html');
+    const initial = (html.match(/id="btnSubmit"[^>]*>([^<]*)</) || [])[1] || '';
+    const reset = (src.match(/getElementById\('btnSubmit'\)\.textContent = '([^']*)'/) || [])[1];
+    ok('the reset sets the submit label through textContent', typeof reset === 'string', reset);
+    ok('…with the → character, not the literal "&#x2192;" entity', reset === 'Get My Free Detailed Estimate →', reset);
+    ok('…matching the initial label in estimate.html', initial.replace('&#x2192;', '→') === reset, initial);
+  }
+
   console.log('\nM1 — "None / not sure" clears when a real sign is picked');
   for (const [rel, P] of [['docs/assets/js/storm-check.js', 'sc'], ['docs/assets/js/roof-score.js', 'rs']]) {
     const t = loadTool(rel, buildQuiz(P));

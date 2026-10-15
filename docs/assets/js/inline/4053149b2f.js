@@ -1771,7 +1771,7 @@ function resetFunnel() {
   document.getElementById('btnSendCode').disabled = false;
   document.getElementById('otpSection').style.display = 'none';
   document.getElementById('btnSubmit').disabled = true;
-  document.getElementById('btnSubmit').textContent = 'Get My Free Detailed Estimate &#x2192;';
+  document.getElementById('btnSubmit').textContent = 'Get My Free Detailed Estimate →';
   document.getElementById('btnStep3').disabled = true;
 
   // Reset tiles — then re-select the defaults so the UI matches the
