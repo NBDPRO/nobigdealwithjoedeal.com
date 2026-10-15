@@ -232,7 +232,11 @@
     var ets = new Date(), sts = new Date(Date.now() - days * 864e5);
     var url = 'https://mesonet.agron.iastate.edu/geojson/lsr.geojson?sts=' + iso(sts) +
       '&ets=' + iso(ets) + '&states=OH,KY,IN';
-    return fetch(url).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    // Same 30 s cap: the result screen waits on this lookup too.
+    var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
+    return fetch(url, { signal: ctrl ? ctrl.signal : undefined }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      clearTimeout(timer);
       if (!j || !j.features) return null;
       return j.features.map(function (f) {
         var c = f.geometry && f.geometry.coordinates; var p = f.properties || {};
@@ -283,13 +287,18 @@
       var prompt = 'You are Joe Deal, owner of No Big Deal Home Solutions, a Cincinnati roofer who documents storm damage, writes the estimate, and meets the adjuster on the roof — the homeowner owns and decides their own claim. Write a 2-sentence, warm, no-BS note to ' +
         (S.firstName || 'a homeowner') + ' who just used your storm-damage self-check. Roof age: ' + S.roofAge +
         '. Signs reported: ' + (S.signs.join(', ') || 'none') + '. Do NOT promise the claim will be approved or pay out; say you’ll inspect free, document the damage, and meet the adjuster on the roof — the claim stays theirs. No dollar amounts.';
+      // 30 s client timeout (2026-10-15, review M3): a slow or cold backend
+      // held the result (and the lead saved/failed notice) behind a spinner.
+      var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
       return fetch(PROXY, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt, maxTokens: 180 })
+        body: JSON.stringify({ prompt: prompt, maxTokens: 180 }),
+        signal: ctrl ? ctrl.signal : undefined
       }).then(function (r) { return r.json(); }).then(function (d) {
         var txt = d && d.text;
         return (txt && txt.trim()) ? txt.trim() : fb;
-      }).catch(function () { return fb; });
+      }).catch(function () { return fb; }).then(function (t) { clearTimeout(timer); return t; });
     } catch (e) { return Promise.resolve(fb); }
   }
 

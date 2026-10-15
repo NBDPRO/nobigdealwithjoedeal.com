@@ -335,12 +335,17 @@
         (S.firstName || 'a homeowner') + ' who just got a Roof Health Score of ' + S.score + '/100 (' + (S.band && S.band.label) + '). Roof age: ' + S.roofAge +
         ', material: ' + S.roofType + ', signs: ' + (S.signs.join(', ') || 'none') + ', interior moisture: ' + S.moisture +
         '. Offer a free inspection. Do NOT guarantee any condition, claim approval, or mention any dollar amounts.';
+      // 30 s client timeout (2026-10-15, review M3): a slow or cold backend
+      // held the result (and the lead saved/failed notice) behind a spinner.
+      var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
       return fetch(PROXY, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt, maxTokens: 180 })
+        body: JSON.stringify({ prompt: prompt, maxTokens: 180 }),
+        signal: ctrl ? ctrl.signal : undefined
       }).then(function (r) { return r.json(); }).then(function (d) {
         var txt = d && d.text; return (txt && txt.trim()) ? txt.trim() : fb;
-      }).catch(function () { return fb; });
+      }).catch(function () { return fb; }).then(function (t) { clearTimeout(timer); return t; });
     } catch (e) { return Promise.resolve(fb); }
   }
 

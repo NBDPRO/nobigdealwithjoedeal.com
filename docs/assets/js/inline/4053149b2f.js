@@ -1320,13 +1320,7 @@ async function submitAndGetEstimate() {
       'RESPOND ONLY WITH THIS JSON (no markdown, no commentary):\n' +
       '{"roofSqft":number,"squares":number,"yearBuilt":number_or_null,"tiers":{"good":{"min":number,"max":number},"better":{"min":number,"max":number},"best":{"min":number,"max":number}},"joesTake":"string"}';
 
-    var resp = await fetch(CONFIG.PROXY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: prompt, maxTokens: 600 })
-    });
-
-    var data = await resp.json();
+    var data = await _fetchAI({ prompt: prompt, maxTokens: 600 });
     var raw = (data && data.text) || '';
     var clean = raw.replace(/```json|```/g, '').trim();
     var est = JSON.parse(clean);
@@ -1454,6 +1448,27 @@ function buildServiceEstimate() {
   };
 }
 
+// publicFunnelAI with a 30 s client timeout (2026-10-15, review M3): the AI
+// call had none, so after the measurement wait a slow or cold backend held
+// the loading screen. Resolves to the parsed JSON body. On abort the
+// caller's catch shows the code-built fallback estimate / note, as on any
+// other AI failure. The timer covers the body read too.
+async function _fetchAI(body) {
+  var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
+  try {
+    var resp = await fetch(CONFIG.PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ctrl ? ctrl.signal : undefined
+    });
+    return await resp.json();
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 // Ask the AI proxy for the short personalized note ONLY — pricing for
 // non-roof-replacement services is deterministic (priceRangeForFunnel),
 // so the model is never asked for dollar amounts.
@@ -1471,12 +1486,7 @@ async function fetchJoesTakeNote() {
     'Joe has NOT seen or inspected this roof yet: write the note as drafted from the homeowner\'s answers only, and never say or imply that Joe inspected, saw, walked, measured on site or assessed the roof. Close by saying Joe will confirm everything with a free in-person look — no obligation.\n\n' +
     'Respond with the note text only — no JSON, no markdown, no surrounding quotes.';
 
-  var resp = await fetch(CONFIG.PROXY_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: prompt, maxTokens: 180 })
-  });
-  var data = await resp.json();
+  var data = await _fetchAI({ prompt: prompt, maxTokens: 180 });
   var text = (data && data.text) || '';
   return text.trim();
 }

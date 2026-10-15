@@ -154,7 +154,7 @@ function loadTool(rel, build, { geocode = () => [] } = {}) {
   const dom = makeDom();
   const ids = build(dom.el);
   const timers = new Map(); let seq = 0;
-  const fetches = [];
+  const fetches = [], inits = [];
   const window = {
     document: dom.doc,
     location: { pathname: '/', search: '' },
@@ -162,14 +162,18 @@ function loadTool(rel, build, { geocode = () => [] } = {}) {
     setTimeout(fn, ms) { const id = ++seq; timers.set(id, { fn, ms }); return id; },
     clearTimeout(id) { timers.delete(id); },
     setInterval() { return 0; }, clearInterval() {},
-    fetch(url) {
-      fetches.push(String(url));
+    AbortController,
+    fetch(url, init) {
+      fetches.push(String(url)); inits.push(init || {});
       if (/nominatim/.test(url)) {
         const r = geocode(url);
         if (r instanceof Error) return Promise.reject(r);
         return Promise.resolve({ ok: true, json: () => Promise.resolve(r) });
       }
-      return new Promise(() => {}); // other APIs (storm data, AI) stay pending
+      // Other APIs (storm data, AI) stall until their signal aborts, if any.
+      return new Promise((resolve, reject) => {
+        if (init && init.signal) init.signal.addEventListener('abort', () => { const e = new Error('aborted'); e.name = 'AbortError'; reject(e); });
+      });
     },
     console,
   };
@@ -178,7 +182,7 @@ function loadTool(rel, build, { geocode = () => [] } = {}) {
   vm.runInContext(read(rel), window, { filename: rel });
   const runTimers = () => { for (const [id, t] of [...timers]) { timers.delete(id); t.fn(); } };
   const nominatimCalls = () => fetches.filter((u) => /nominatim/.test(u)).length;
-  return { window, dom, ids, fetches, nominatimCalls, runTimers, fire: dom.fire, $: dom.doc.getElementById };
+  return { window, dom, ids, fetches, inits, timers, nominatimCalls, runTimers, fire: dom.fire, $: dom.doc.getElementById };
 }
 function buildQuiz(P) {
   return (el) => {
@@ -193,6 +197,7 @@ function buildQuiz(P) {
     const group = el('div', { class: 'sc-tiles', 'data-group': 'signs' }, step2);
     for (const v of ['missing', 'dents', 'none']) el('div', { class: 'sc-tile', 'data-value': v }, group);
     el('input', { id: P + '-phone' }, root);
+    return root;
   };
 }
 
@@ -267,6 +272,68 @@ function buildQuiz(P) {
       ok(`${label}: clicking it moves on to step 2`, t.$(P + '-step2').classList.contains('active') === true);
       ok(`${label}: …and the hint is cleared`, t.$(P + '-addr-hint').style.display === 'none');
     }
+  }
+
+  console.log('\nM3 — /storm-check: a stalled AI call ends at 30 s and the result shows the canned note');
+  {
+    const t = loadTool('docs/assets/js/storm-check.js', (el) => {
+      const root = buildQuiz('sc')(el);
+      for (const id of ['sc-firstName', 'sc-email', 'sc-consent', 'sc-contact-err', 'sc-submit',
+        'sc-result-headline', 'sc-result-detail', 'sc-result-data', 'sc-result-take', 'sc-result-warn']) el('div', { id }, root);
+      el('section', { id: 'sc-step6', class: 'sc-step' }, root);
+      el('section', { id: 'sc-result', class: 'sc-step' }, root);
+      el('button', { 'data-action': 'submit' }, root);
+    });
+    t.$('sc-firstName').value = 'Pat'; t.$('sc-phone').value = '(859) 555-0100'; t.$('sc-consent').checked = true;
+    t.fire(t.dom.doc.querySelector('[data-action="submit"]'), 'click');
+    for (let i = 0; i < 6; i++) await tick();
+    const aiAt = t.fetches.findIndex((u) => /publicFunnelAI/.test(u));
+    ok('the AI call was made', aiAt !== -1, t.fetches);
+    ok('…with an abort signal', aiAt !== -1 && !!t.inits[aiAt].signal);
+    const abortT = [...t.timers.values()].find((x) => x.ms === 30000);
+    ok('…and a 30 s abort timer', !!abortT, [...t.timers.values()].map((x) => x.ms));
+    ok('the result is not shown while the AI call is pending', !t.$('sc-result').classList.contains('active'));
+    if (abortT) abortT.fn();
+    for (let i = 0; i < 6; i++) await tick();
+    ok('after the timeout the result screen shows', t.$('sc-result').classList.contains('active'));
+    ok('…with Joe\'s canned note', /Pat, I’ll get on your roof/.test(t.$('sc-result-take').textContent), t.$('sc-result-take').textContent);
+  }
+
+  console.log('\nM3 — /estimate: _fetchAI aborts at 30 s');
+  {
+    const src = read('docs/assets/js/inline/4053149b2f.js');
+    const at = src.indexOf('async function _fetchAI(body) {');
+    ok('_fetchAI exists', at !== -1);
+    if (at !== -1) {
+      let depth = 0, i = src.indexOf('{', at);
+      for (; i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}' && --depth === 0) break; }
+      const timers = []; let signal = null;
+      const ctx = {
+        AbortController, CONFIG: { PROXY_URL: 'https://x.test/publicFunnelAI' },
+        setTimeout(fn, ms) { timers.push({ fn, ms }); return timers.length; }, clearTimeout() {},
+        fetch(url, init) { signal = init.signal; return new Promise((res, rej) => init.signal.addEventListener('abort', () => { const e = new Error('aborted'); e.name = 'AbortError'; rej(e); })); },
+      };
+      vm.createContext(ctx);
+      vm.runInContext(src.slice(at, i + 1), ctx);
+      let outcome = null;
+      ctx._fetchAI({ prompt: 'p' }).then(() => { outcome = 'resolved'; }, (e) => { outcome = e.name; });
+      await tick();
+      ok('the fetch carries an abort signal', !!signal);
+      const t30 = timers.find((x) => x.ms === 30000);
+      ok('a 30 s abort timer is armed', !!t30, timers.map((x) => x.ms));
+      if (t30) t30.fn();
+      await tick(); await tick();
+      ok('on timeout it rejects (the caller\'s catch shows the fallback estimate)', outcome === 'AbortError', outcome);
+    }
+    ok('both publicFunnelAI calls go through _fetchAI (one raw fetch left, inside it)',
+      (src.match(/await _fetchAI\(/g) || []).length === 2 && (src.match(/fetch\(CONFIG\.PROXY_URL/g) || []).length === 1);
+  }
+
+  console.log('\nM3 — /roof-score: the AI call carries a 30 s abort');
+  {
+    const src = read('docs/assets/js/roof-score.js');
+    const jt = src.slice(src.indexOf('function joesTake()'), src.indexOf('/* ── shared intake block'));
+    ok('joesTake arms a 30 s abort and passes the signal', /setTimeout\(function \(\) \{ ctrl\.abort\(\); \}, 30000\)/.test(jt) && /signal: ctrl \? ctrl\.signal : undefined/.test(jt));
   }
 
   console.log('\nM1 — "None / not sure" clears when a real sign is picked');
