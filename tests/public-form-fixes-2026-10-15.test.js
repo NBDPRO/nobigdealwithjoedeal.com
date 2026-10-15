@@ -269,6 +269,16 @@ function buildQuiz(P) {
     }
   }
 
+  console.log('\nM1 — "None / not sure" clears when a real sign is picked');
+  for (const [rel, P] of [['docs/assets/js/storm-check.js', 'sc'], ['docs/assets/js/roof-score.js', 'rs']]) {
+    const t = loadTool(rel, buildQuiz(P));
+    const tile = (v) => t.dom.doc.querySelector('[data-group="signs"] .sc-tile[data-value="' + v + '"]');
+    t.fire(tile('none'), 'click');
+    ok(`${rel}: tapping "none" selects it`, tile('none').classList.contains('selected'));
+    t.fire(tile('missing'), 'click');
+    ok(`${rel}: tapping "missing" afterwards deselects "none"`, !tile('none').classList.contains('selected') && tile('missing').classList.contains('selected'));
+  }
+
   console.log('\nH4 — storm-report-page.js: no lookup per keystroke; Generate resolves a typed address');
   {
     const t = loadTool('docs/assets/js/storm-report-page.js', (el) => {

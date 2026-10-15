@@ -205,7 +205,7 @@
           if (t !== tile) t.classList.remove('selected');
         });
       } else {
-        var noneT = document.querySelector('[data-group="signs"][data-value="none"]');
+        var noneT = document.querySelector('[data-group="signs"] .sc-tile[data-value="none"]');
         if (noneT) noneT.classList.remove('selected');
         S.signs = [].slice.call(document.querySelectorAll('[data-group="signs"] .sc-tile.selected'))
           .map(function (t) { return t.getAttribute('data-value'); });
