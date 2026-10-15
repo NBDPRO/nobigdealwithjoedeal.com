@@ -32,21 +32,17 @@ const { httpRateLimit, enforceRateLimit } = require('../integrations/upstash-rat
 // Browsers post CSP reports as application/csp-report (report-uri) or
 // application/reports+json (report-to). The JSON body parser only reads
 // application/json, so req.body arrived as {} and all 38 reports after the
-// 10-02 invoker fix logged with every field blank (2026-10-03 audit). Parse
-// the raw body ourselves when the parsed one is empty, and skip blanks.
-function parseCspBody(body, raw) {
-  let b = body;
-  const isEmptyObj = (x) => x && typeof x === 'object' && !Array.isArray(x) && !Buffer.isBuffer(x) && Object.keys(x).length === 0;
-  if ((b == null || isEmptyObj(b) || Buffer.isBuffer(b) || typeof b === 'string') && raw && raw.length) {
-    try { b = JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw)); } catch (_) { b = {}; }
-  } else if (typeof b === 'string') {
-    try { b = JSON.parse(b); } catch (_) { b = {}; }
-  }
-  const list = Array.isArray(b)
-    ? b.map((r) => r && r.body).filter(Boolean)
-    : b && b['csp-report'] ? [b['csp-report']] : [b || {}];
-  return list.filter((r) => r && typeof r === 'object' && Object.keys(r).length > 0);
-}
+// 10-02 invoker fix logged with every field blank (2026-10-03 audit). The
+// raw body is parsed ourselves, and blanks are skipped.
+//
+// 2026-10-15: parsing, normalizing, dedupe and the sampled denial log moved
+// to ../csp-report-logic.js (makeCspReportHandler). WebKit posts a SINGLE
+// Reporting API object per request, which the old parser logged as a blank
+// report; one iPhone's ~300 of those tripped the per-IP limit, every
+// rate_limit_denied WARNING paged Joe, and the Firestore contention on that
+// IP's counter doc ran requests into the 5 s timeout (504). See that file.
+const cspReportLogic = require('../csp-report-logic');
+const rateLimitCore = require('../rate-limit');
 
 exports.cspReport = onRequest(
   {
@@ -69,50 +65,17 @@ exports.cspReport = onRequest(
     // full-graph cold start across ~97 other functions.
     memory: '256MiB'
   },
-  async (req, res) => {
-    if (req.method !== 'POST') { res.status(405).end(); return; }
-    try {
-      // Hard size cap — bounded-budget log ingestion.
-      const raw = req.rawBody;
-      if (raw && Buffer.isBuffer(raw) && raw.length > 8192) {
-        res.status(413).end(); return;
-      }
-      // Per-IP rate limit — 60/min/IP. Normal reporting is well below
-      // this; a page stuck in a CSP loop could exceed. httpRateLimit sends
-      // the 429 itself and returns FALSE when limited (it does not throw) —
-      // until 2026-08-10 the boolean was ignored, so a limited IP still got
-      // its full body parsed and every entry logged (the exact flood the
-      // limit exists to stop) followed by a second response on an already-
-      // sent request. Limiter-BACKEND errors still fail open: dropping
-      // violation reports because the limiter broke isn't worth it.
-      let allowed = true;
-      try {
-        allowed = await httpRateLimit(req, res, 'cspReport:ip', 60, 60_000);
-      } catch (_) { /* fail open on limiter backend error */ }
-      if (!allowed) return;
-
-      // `report-uri` shape: { "csp-report": { ... } }
-      // `report-to` shape: [ { type: 'csp-violation', body: { ... } } ]
-      const reports = parseCspBody(req.body, raw);
-      for (const r of reports) {
-        logger.warn('csp_violation', {
-          documentURI:        String(r['document-uri']       || r.documentURL || '').slice(0, 400),
-          blockedURI:         String(r['blocked-uri']        || r.blockedURL  || '').slice(0, 400),
-          violatedDirective:  String(r['violated-directive'] || r.effectiveDirective || '').slice(0, 200),
-          originalPolicy:     String(r['original-policy']    || r.originalPolicy     || '').slice(0, 500),
-          disposition:        String(r.disposition || '').slice(0, 20),
-          sourceFile:         String(r['source-file']        || r.sourceFile || '').slice(0, 400),
-          lineNumber:         Number(r['line-number']        || r.lineNumber || 0) || null,
-          statusCode:         Number(r['status-code']        || r.statusCode || 0) || null,
-          userAgent:          String(req.headers['user-agent'] || '').slice(0, 200)
-        });
-      }
-      res.status(204).end();
-    } catch (e) {
-      logger.warn('cspReport error', { err: e.message });
-      res.status(204).end();  // Never signal failure to the browser — it'll retry.
-    }
-  }
+  // Per-IP rate limit 'cspReport:ip' 60/min (after the per-instance dedupe),
+  // 8 KB body cap, and a 204 on every POST path within ~1.5 s. Limiter-
+  // BACKEND errors still fail open. Denials log a sampled INFO
+  // 'csp_report_rate_limited', never the paging rate_limit_denied WARNING.
+  cspReportLogic.makeCspReportHandler({
+    logger,
+    enforceRateLimit,
+    clientIp: rateLimitCore.clientIp,
+    rateLimitIpKey: rateLimitCore.rateLimitIpKey,
+    hashKey: rateLimitCore.hashKey,
+  })
 );
 
 // ═════════════════════════════════════════════════════════════
@@ -196,4 +159,4 @@ exports.clientError = onRequest(
 );
 
 // Test hook (exported by name from index.js, so this never deploys).
-exports._test = { parseCspBody, makeClientErrorHandler };
+exports._test = { parseCspReports: cspReportLogic.parseCspReports, makeClientErrorHandler };

@@ -139,8 +139,11 @@ function rateLimitIpKey(ip) {
  * @param {string} key raw key (IP or uid)
  * @param {number} limit max requests per window
  * @param {number} windowMs window duration in ms
+ * @param {{logDenial?: boolean}} [opts] logDenial:false skips the
+ *   rate_limit_denied WARNING (the paging alert's match) for a caller that
+ *   logs its own sampled line instead — only cspReport does (2026-10-15).
  */
-async function enforceRateLimit(namespace, key, limit, windowMs) {
+async function enforceRateLimit(namespace, key, limit, windowMs, opts) {
   const db = getDb();
   const docId = `${namespace}__${hashKey(key)}`;
   const ref = db.collection('_rate_limits_ip').doc(docId);
@@ -164,10 +167,12 @@ async function enforceRateLimit(namespace, key, limit, windowMs) {
   if (!result.allowed) {
     // Emit a structured warning so Cloud Monitoring can attach a log-based
     // metric to this and alert on spikes. See monitoring/alert-rate-limit-spike.json.
-    logger().warn('rate_limit_denied', {
-      namespace,
-      retryAfterMs: result.retryAfterMs,
-    });
+    if (!opts || opts.logDenial !== false) {
+      logger().warn('rate_limit_denied', {
+        namespace,
+        retryAfterMs: result.retryAfterMs,
+      });
+    }
     const e = new Error('rate_limited');
     e.rateLimited = true;
     e.retryAfterMs = result.retryAfterMs;

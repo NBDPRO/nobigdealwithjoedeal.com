@@ -27,19 +27,23 @@ function ok(name, cond, detail) {
 
 (async () => {
   console.log('\n1. CSP reports are parsed from the raw body');
-  const { parseCspBody } = require(path.join(ROOT, 'functions/handlers/monitoring.js'))._test;
+  // 2026-10-15: parseCspBody became csp-report-logic.js parseCspReports, which
+  // returns NORMALIZED reports (directive/blocked/document/…). The WebKit
+  // single-object shape, dedupe and the 204 paths are in
+  // tests/csp-report-noise-2026-10-15.test.js.
+  const { parseCspReports } = require(path.join(ROOT, 'functions/csp-report-logic.js'));
   const legacy = Buffer.from(JSON.stringify({ 'csp-report': { 'document-uri': 'https://x.test/pro/', 'violated-directive': 'script-src', 'blocked-uri': 'inline' } }));
-  let r = parseCspBody({}, legacy);
-  ok('application/csp-report (unparsed, body {}) → one report with its fields', r.length === 1 && r[0]['violated-directive'] === 'script-src' && r[0]['document-uri'] === 'https://x.test/pro/', JSON.stringify(r));
+  let r = parseCspReports({}, legacy);
+  ok('application/csp-report (unparsed, body {}) → one report with its fields', r.length === 1 && r[0].directive === 'script-src' && r[0].document === 'https://x.test/pro/', JSON.stringify(r));
   const modern = Buffer.from(JSON.stringify([{ type: 'csp-violation', body: { documentURL: 'https://x.test/', effectiveDirective: 'img-src', blockedURL: 'https://evil.test/a.png' } }, { type: 'csp-violation', body: { documentURL: 'https://x.test/b', effectiveDirective: 'style-src' } }]));
-  r = parseCspBody({}, modern);
-  ok('application/reports+json array → each report body', r.length === 2 && r[0].effectiveDirective === 'img-src' && r[1].documentURL === 'https://x.test/b', JSON.stringify(r));
-  r = parseCspBody({ 'csp-report': { 'blocked-uri': 'eval' } }, legacy);
-  ok('an already-parsed JSON body is used as-is', r.length === 1 && r[0]['blocked-uri'] === 'eval');
-  ok('an empty or junk body logs nothing (no blank lines)', parseCspBody({}, Buffer.from('')).length === 0 && parseCspBody({}, Buffer.from('not json')).length === 0 && parseCspBody(undefined, undefined).length === 0);
-  ok('a Buffer req.body (raw passthrough) is parsed too', parseCspBody(legacy, legacy).length === 1);
+  r = parseCspReports({}, modern);
+  ok('application/reports+json array → each report body', r.length === 2 && r[0].directive === 'img-src' && r[1].document === 'https://x.test/b', JSON.stringify(r));
+  r = parseCspReports({ 'csp-report': { 'blocked-uri': 'eval' } }, legacy);
+  ok('an already-parsed JSON body is used as-is', r.length === 1 && r[0].blocked === 'eval');
+  ok('an empty or junk body logs nothing (no blank lines)', parseCspReports({}, Buffer.from('')).length === 0 && parseCspReports({}, Buffer.from('not json')).length === 0 && parseCspReports(undefined, undefined).length === 0);
+  ok('a Buffer req.body (raw passthrough) is parsed too', parseCspReports(legacy, legacy).length === 1);
   const mon = read('functions/handlers/monitoring.js');
-  ok('the handler routes through parseCspBody', /const reports = parseCspBody\(req\.body, raw\);/.test(mon));
+  ok('the handler routes through makeCspReportHandler', /cspReportLogic\.makeCspReportHandler\(/.test(mon));
 
   console.log('\n2. migrationsTick runs at a fixed time');
   const runner = read('functions/migrations/runner.js');

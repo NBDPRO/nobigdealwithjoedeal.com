@@ -2658,9 +2658,14 @@ section('Per-route rate-limit policy');
   // cspReport: httpRateLimit sends the 429 and returns FALSE — the handler
   // must honor the boolean or the limit is advisory (the pre-2026-08-10 bug:
   // limited IPs still got their full report logged + a double response).
-  assert('cspReport honors the httpRateLimit boolean (limit is enforcing, not advisory)',
-    /allowed\s*=\s*await httpRateLimit\(req,\s*res,\s*['"]cspReport:ip['"],\s*60,\s*60_000\)/.test(monH)
-    && /if\s*\(!allowed\)\s*return;/.test(monH));
+  // 2026-10-15: the limiter call moved to functions/csp-report-logic.js (it
+  // answers 204, not 429, and logs a sampled INFO line); the denied branch
+  // must still return before anything is logged as a violation.
+  const cspL = read(path.join(ROOT, 'functions/csp-report-logic.js'));
+  assert('cspReport honors the limiter verdict (limit is enforcing, not advisory)',
+    /const NAMESPACE = 'cspReport:ip';/.test(cspL) && /const RATE_LIMIT = 60;/.test(cspL) && /const RATE_WINDOW_MS = 60_000;/.test(cspL)
+    && /if \(verdict === 'denied'\) \{\s*logSampled\([^;]*\);\s*res\.status\(204\)\.end\(\); return;/.test(cspL)
+    && /cspReportLogic\.makeCspReportHandler\(/.test(monH));
   assert('ROUTES.cspReport records the real 60/min gate',
     /cspReport:\s*\{[^}]*ipLimit:\s*60\b[^}]*ipWindow:\s*MINUTE/.test(policy));
   // getGoogleReviews: was the ONLY public onRequest endpoint with zero rate

@@ -38,8 +38,8 @@ function provider() {
 
 // Late-bound (looked up per call, as the old adapter did) so a test that
 // patches the Firestore limiter after this module loads still takes effect.
-function enforceRateLimit(namespace, keyRaw, limit, windowMs) {
-  return firestoreLimiter.enforceRateLimit(namespace, keyRaw, limit, windowMs);
+function enforceRateLimit(namespace, keyRaw, limit, windowMs, opts) {
+  return firestoreLimiter.enforceRateLimit(namespace, keyRaw, limit, windowMs, opts);
 }
 function httpRateLimit(req, res, namespace, limit, windowMs) {
   return firestoreLimiter.httpRateLimit(req, res, namespace, limit, windowMs);
