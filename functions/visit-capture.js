@@ -19,7 +19,10 @@
  *                         behind (notes only; the transcript is never paid
  *                         for twice) and picks up docs whose trigger was lost.
  *   attachVisitCapture    callable: attach / detach / "not these" / retry
- *                         notes / a ten-minute audio link.
+ *                         notes / retry transcription (both only QUEUE the
+ *                         work; the trigger runs it) / a ten-minute audio link.
+ *   fileFailure           a visit on a customer that could not be processed
+ *                         gets one "couldn't be processed" row on the customer.
  *   retentionSweep        called by recordingRetentionCron: raw audio older
  *                         than the company's recordingRetentionDays goes.
  *
@@ -211,6 +214,7 @@ async function runVisit({ db, bucket, uid, visitId, nowMs }) {
     }
     if (ns.step === 'finalize') return await doFinalize({ db, bucket, ref, uid, visitId, d, nowMs });
     if (ns.step === 'unfile') return await doUnfile({ db, ref, uid, visitId, d });
+    if (ns.step === 'file_failure') return await fileFailure({ db, ref, uid, visitId, nowMs });
     // process: take the lease in a transaction so two invocations never both pay Groq
     const got = await db.runTransaction(async (tx) => {
       const s = await tx.get(ref);
@@ -222,11 +226,18 @@ async function runVisit({ db, bucket, uid, visitId, nowMs }) {
       return { cur, stage: again.stage };
     });
     if (!got) return { step: 'none', why: 'lost the lease' };
+    let res;
     try {
-      return await doProcess({ db, bucket, ref, uid, visitId, d: got.cur, stage: got.stage, nowMs });
+      res = await doProcess({ db, bucket, ref, uid, visitId, d: got.cur, stage: got.stage, nowMs });
     } finally {
       await ref.update({ pipelineLeaseUntilMs: 0 }).catch(() => {});
     }
+    // A visit already on a customer that could not be processed is said ON the customer.
+    if (res && res.state === PIPELINE.FAILED) {
+      const f = await fileFailure({ db, ref, uid, visitId, nowMs }).catch((e) => { logger.warn('visit_capture_file_failure_failed', { visitId, err: msg(e) }); return null; });
+      if (f) res.failureFiled = f.state;
+    }
+    return res;
   } catch (e) {
     if (e && e.gone) { logger.info('visit_capture_doc_gone', { uid, visitId }); return { step: 'gone' }; }
     logger.error('visit_capture_unhandled', { uid, visitId, err: msg(e) });
@@ -243,6 +254,7 @@ async function runVisit({ db, bucket, uid, visitId, nowMs }) {
         patch.pipelineNextAtMs = 0;
       }
       await ref.update(patch);
+      if (patch.pipelineStatus === PIPELINE.FAILED) await fileFailure({ db, ref, uid, visitId, nowMs }).catch(() => {});
     } catch (_) { /* the doc is unreachable right now; the sweep tries again */ }
     return { step: 'error', error: msg(e) };
   }
@@ -379,7 +391,9 @@ async function doProcess({ db, bucket, ref, uid, visitId, d, stage, nowMs }) {
       await state({ pipelineStatus: PIPELINE.FAILED, pipelineNote: 'too_large', pipelineNextAtMs: 0, audioLive: true });
       return { step: 'process', state: PIPELINE.FAILED, note: 'too_large' };
     }
-    if ((Number(d.durationSec) || 0) > LG.MAX_DURATION_SEC) {
+    // A recovered recording's durationSec is a reconstruction (the app was killed), so
+    // the size check above is its guard, not the clock (2026-10-15).
+    if (!(Number(d.recoveredAtMs) > 0) && (Number(d.durationSec) || 0) > LG.MAX_DURATION_SEC) {
       await state({ pipelineStatus: PIPELINE.FAILED, pipelineNote: 'too_long', pipelineNextAtMs: 0, audioLive: true });
       return { step: 'process', state: PIPELINE.FAILED, note: 'too_long' };
     }
@@ -597,6 +611,37 @@ async function doUnfile({ db, ref, uid, visitId, d }) {
 }
 
 /**
+ * A visit on a customer that the pipeline could not process: ONE timeline row
+ * there ("Visit recording couldn't be processed — audio kept"), so it never
+ * vanishes from the customer. Read fresh, keyed by customer + reason (failKey),
+ * so a re-run is a no-op and a different reason rewrites the same row. The
+ * same tenant / do-not-record / visit-id-conflict guards as doFinalize; a
+ * customer that is refused gets nothing.
+ */
+async function fileFailure({ db, ref, uid, visitId, nowMs }) {
+  const snap = await ref.get();
+  if (!snap.exists) return { step: 'file_failure', state: 'gone' };
+  const d = snap.data() || {};
+  if (d.pipelineStatus !== PIPELINE.FAILED || d.status === 'discarded') return { step: 'file_failure', state: 'not_failed' };
+  const leadId = String(d.leadId || '');
+  if (!leadId) return { step: 'file_failure', state: 'unattached' };
+  if (d.finalizedKey === LG.failKey(d)) return { step: 'file_failure', state: 'already' };
+  if (!LG.LEAD_ID_RE.test(leadId)) return { step: 'file_failure', state: 'refused' };
+  const ctx = await contextFor(db, uid);
+  const ls = await db.doc('leads/' + leadId).get();
+  const lead = ls.exists ? Object.assign({ id: ls.id }, ls.data()) : null;
+  if (!lead || lead.deleted === true || lead.doNotRecord === true || !mayRecordOn(lead, uid, ctx.companyId)) return { step: 'file_failure', state: 'refused' };
+  const actRef = db.doc('leads/' + leadId + '/activity/visit-' + visitId);
+  const had = await actRef.get();
+  if (had.exists && (had.data() || {}).visitUid && (had.data() || {}).visitUid !== uid) return { step: 'file_failure', state: 'refused' };
+  if (d.attachedLeadId && d.attachedLeadId !== leadId) await retract({ db, leadId: d.attachedLeadId, visitId, uid });
+  const built = LG.buildFailureActivity({ capture: d, visitId, lead, uid, nowMs, audioKeptDays: ctx.retentionDays });
+  await actRef.set(Object.assign({}, built.activity, { updatedAt: FieldValue.serverTimestamp() }, had.exists ? {} : { createdAt: FieldValue.serverTimestamp() }), { merge: true });
+  await upd(ref, { attachedLeadId: leadId, finalizedKey: LG.failKey(d), finalizedAtMs: nowMs, attachedAtMs: Number(d.attachedAtMs) || nowMs });
+  return { step: 'file_failure', state: 'filed' };
+}
+
+/**
  * Undo a filing: the row, and the tasks that are still open. Only what THIS
  * person's capture made (visitUid), so another rep's capture that happens to
  * share a visit id is never touched. A task already ticked stays.
@@ -626,7 +671,7 @@ async function attachAction({ db, bucket, auth, data, nowMs }) {
   const visitId = String((data && data.visitId) || '');
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(visitId)) throw new HttpsError('invalid-argument', 'Bad visit id.');
   const action = String((data && data.action) || 'attach');
-  if (['attach', 'detach', 'notThese', 'retryNotes', 'audioUrl'].indexOf(action) === -1) throw new HttpsError('invalid-argument', 'Unknown action.');
+  if (['attach', 'detach', 'notThese', 'retryNotes', 'retryTranscribe', 'audioUrl'].indexOf(action) === -1) throw new HttpsError('invalid-argument', 'Unknown action.');
   const uid = auth.uid; // never from the client: a person acts on their OWN captures only
   try { await getDeps().rateLimit(uid); } catch (e) {
     if (e && /resource-exhausted/.test(String(e.code || ''))) throw e;
@@ -652,14 +697,30 @@ async function attachAction({ db, bucket, auth, data, nowMs }) {
     await upd(ref, { rejectedLeadIds: ids, suggestions: [], suggestionsDismissedAtMs: nowMs });
     return { ok: true };
   }
-  if (action === 'retryNotes') {
-    if (!d.transcript) throw new HttpsError('failed-precondition', 'There is no transcript to read yet.');
+  const retryGuards = () => {
     if (Number(d.pipelineLeaseUntilMs) > nowMs) throw new HttpsError('failed-precondition', 'It is being worked on right now.');
     if (nowMs - (Number(d.lastManualRetryAtMs) || 0) < LG.MANUAL_RETRY_COOLDOWN_MS) throw new HttpsError('resource-exhausted', 'Give it a couple of minutes between tries.');
-    if ((Number(d.manualRetries) || 0) >= LG.MANUAL_RETRY_MAX) throw new HttpsError('resource-exhausted', 'That has been retried the most it will be. The transcript is saved.');
+    if ((Number(d.manualRetries) || 0) >= LG.MANUAL_RETRY_MAX) throw new HttpsError('resource-exhausted', 'That has been retried the most it will be. The audio and anything already written are kept.');
+  };
+  // Both retries are QUEUED, not run here: the write re-fires onVisitCaptureWrite, which
+  // does the work (540 s budget). Running a Claude / Groq pass inside this callable
+  // outlived the phone's 20 s call timeout and showed a false failure (2026-10-15).
+  if (action === 'retryNotes') {
+    if (!d.transcript) throw new HttpsError('failed-precondition', 'There is no transcript to read yet.');
+    retryGuards();
     await upd(ref, { pipelineStatus: PIPELINE.NOTES_PENDING, pipelineNextAtMs: 0, notesStrikes: 0, transientFails: 0, pipelineNote: 'manual_retry', lastManualRetryAtMs: nowMs, manualRetries: (Number(d.manualRetries) || 0) + 1 });
-    const r = await runVisit({ db, bucket, uid, visitId, nowMs });
-    return { ok: true, state: r.state || null };
+    return { ok: true, queued: true, state: PIPELINE.NOTES_PENDING };
+  }
+  if (action === 'retryTranscribe') {
+    if (!LG.canRetryTranscription(d) || !d.audioPath || !LG.AUDIO_PATH_RE(uid, visitId).test(d.audioPath)) {
+      throw new HttpsError('failed-precondition', 'Another try would not help this recording.');
+    }
+    retryGuards();
+    await upd(ref, {
+      pipelineStatus: PIPELINE.TRANSCRIBE_PENDING, pipelineNextAtMs: 0, transcribeStrikes: 0, transientFails: 0, storageFails: 0, internalErrors: 0,
+      pipelineNote: 'manual_retry', pipelineError: null, lastManualRetryAtMs: nowMs, manualRetries: (Number(d.manualRetries) || 0) + 1,
+    });
+    return { ok: true, queued: true, state: PIPELINE.TRANSCRIBE_PENDING };
   }
   const ctx = await contextFor(db, uid);
   if (action === 'detach') {
@@ -689,8 +750,12 @@ async function attachAction({ db, bucket, auth, data, nowMs }) {
   if (p === PIPELINE.READY || p === PIPELINE.NOTES_PENDING || p === PIPELINE.NOTES_FAILED || p === PIPELINE.TRANSCRIBED) {
     res = await doFinalize({ db, bucket, ref, uid, visitId, d: cur, nowMs });
     if (res.state === 'refused') throw new HttpsError('failed-precondition', 'That recording could not be filed there.');
+  } else if (p === PIPELINE.FAILED) {
+    // Could not be processed: it still goes on the customer, as a "could not be processed" row.
+    res = await fileFailure({ db, ref, uid, visitId, nowMs });
+    if (res.state === 'refused') throw new HttpsError('failed-precondition', 'That recording could not be filed there.');
   }
-  return { ok: true, leadId, leadName: name, state: p || null, filed: res.state === 'filed', tasksMade: res.tasksMade || 0 };
+  return { ok: true, leadId, leadName: name, state: p || null, filed: res.state === 'filed', failed: p === PIPELINE.FAILED, tasksMade: res.tasksMade || 0 };
 }
 
 // ── retention (called by recordingRetentionCron) ────────────────────────
@@ -847,5 +912,5 @@ exports.attachVisitCapture = onCall(
 Object.assign(exports, {
   runVisit, attachAction, sweep, retentionSweep, retract,
   _setDeps: setDeps,
-  _internal: { doProcess, doFinalize, doPurge, doUnfile, tenantLeads, appointmentsAround, vocabularyFor, mayRecordOn, uidFromPath, contextFor },
+  _internal: { doProcess, doFinalize, doPurge, doUnfile, fileFailure, tenantLeads, appointmentsAround, vocabularyFor, mayRecordOn, uidFromPath, contextFor },
 });
