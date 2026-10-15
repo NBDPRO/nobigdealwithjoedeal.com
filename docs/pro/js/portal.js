@@ -1332,12 +1332,24 @@
     //   2. Can rate (job complete + not yet rated) → show the rater
     // Hidden entirely on jobs that aren't complete yet.
     const ratingInfo = view.rating || {};
+    // 2026-10-15 (Joe): the card links STRAIGHT to the public Google review
+    // page, for everyone, before any rating — no "rate us first", no review
+    // gating. The private star rating below stays optional. https only
+    // (W134: the server already allows only http(s); this repeats it).
+    const crReviewUrl = (typeof ratingInfo.googleReviewUrl === 'string'
+      && /^https:\/\//i.test(ratingInfo.googleReviewUrl.trim())) ? ratingInfo.googleReviewUrl.trim() : null;
+    const crReviewLink = crReviewUrl
+      ? '<a id="cr-review-link" class="btn cr-review-link" href="' + esc(crReviewUrl) + '" target="_blank" rel="noopener">⭐ Leave a Google review</a>'
+      : '';
     if (ratingInfo.canRate && !ratingInfo.submitted) {
       parts.push(
         '<div class="card" id="cr-card" style="border:1px solid var(--accent, #A14A22);background:rgba(189,87,40,0.05);">' +
           '<div class="card-label">⭐ How did we do?</div>' +
           '<div class="card-title">Rate your experience</div>' +
-          '<p style="color:var(--muted);margin:0 0 14px;font-size:14px;line-height:1.5;">Your rep would love to hear how the project went. It only takes a tap.</p>' +
+          (crReviewLink
+            ? '<p class="cr-review-lede">A Google review, good or bad, helps your neighbors pick a contractor.</p>' + crReviewLink +
+              '<p class="cr-private-lede">Or tell ' + esc(repName.split(' ')[0]) + ' privately how it went:</p>'
+            : '<p style="color:var(--muted);margin:0 0 14px;font-size:14px;line-height:1.5;">Your rep would love to hear how the project went. It only takes a tap.</p>') +
           '<div id="cr-stars" style="display:flex;justify-content:space-between;gap:6px;margin-bottom:14px;">' +
             [1,2,3,4,5].map(n =>
               '<button type="button" class="cr-star" data-stars="' + n + '" aria-label="' + n + ' stars" style="flex:1;padding:14px 0;border-radius:8px;border:1px solid var(--br, #2a3344);background:var(--bg, #0a1424);color:#888;font-size:24px;cursor:pointer;transition:all 120ms ease;-webkit-tap-highlight-color:transparent;">☆</button>'
@@ -1358,6 +1370,7 @@
             '★'.repeat(stars) + '<span style="color:#444;">' + '☆'.repeat(5 - stars) + '</span>' +
           '</div>' +
           '<div style="color:var(--muted);font-size:13px;margin-top:8px;">Thanks for rating ' + esc(repName.split(' ')[0]) + '!</div>' +
+          crReviewLink +
         '</div>'
       );
     }
@@ -2326,24 +2339,26 @@
 
         if (thanksEl) {
           thanksEl.style.display = 'block';
+          // W134 defense-in-depth: validate URL scheme on the client too.
+          // Server-side `submitCustomerRating` already enforces https?://,
+          // but a defensive check here means any future server bug or
+          // direct-invocation can't pivot to a `javascript:` href.
+          // 2026-10-15: EVERY rater is offered the public review, whatever
+          // the stars (no review gating) — the low tier below too.
+          const _rawUrl = json.googleReviewUrl;
+          const reviewUrl = (typeof _rawUrl === 'string'
+            && /^https?:\/\//i.test(_rawUrl.trim())) ? _rawUrl.trim() : null;
+          const reviewBtn = reviewUrl
+            ? '<a href="' + esc(reviewUrl) + '" target="_blank" rel="noopener" class="btn cr-review-link">⭐ Leave a Google review</a>'
+            : '';
           if (json.tier === 'high') {
-            // 4-5 stars → nudge to Google review.
-            // W134 defense-in-depth: validate URL scheme on the client too.
-            // Server-side `submitCustomerRating` already enforces https?://,
-            // but a defensive check here means any future server bug or
-            // direct-invocation can't pivot to a `javascript:` href.
-            const _rawUrl = json.googleReviewUrl;
-            const reviewUrl = (typeof _rawUrl === 'string'
-              && /^https?:\/\//i.test(_rawUrl.trim())) ? _rawUrl.trim() : null;
             thanksEl.innerHTML =
               '<div style="font-size:15px;font-weight:600;color:var(--nbd-success);margin-bottom:8px;">🎉 Thank you!</div>' +
               '<div style="color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:' + (reviewUrl ? '12px' : '0') + ';">' +
               'It means the world that we earned ' + chosenStars + ' stars. ' +
               (reviewUrl ? 'A public Google review helps other homeowners find us — tap below if you have a sec.' : '&mdash; ' + esc(repName.split(' ')[0]) + ' will be in touch.') +
               '</div>' +
-              (reviewUrl
-                ? '<a href="' + esc(reviewUrl) + '" target="_blank" rel="noopener" class="btn" style="display:block;text-align:center;padding:12px;font-size:14px;background:var(--accent, #A14A22);color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">⭐ Leave a Google review</a>'
-                : '');
+              reviewBtn;
           } else {
             // 1-3 stars → recovery message.
             thanksEl.style.background = 'rgba(251,191,36,0.08)';
@@ -2352,7 +2367,8 @@
               '<div style="font-size:15px;font-weight:600;color:#fbbf24;margin-bottom:8px;">Thank you for the honest feedback.</div>' +
               '<div style="color:var(--muted);font-size:13px;line-height:1.5;">' +
               'We take this seriously. ' + esc(repName.split(' ')[0]) + ' will reach out within 24 hours to make this right.' +
-              '</div>';
+              (reviewUrl ? ' You are also welcome to leave a public Google review.' : '') +
+              '</div>' + reviewBtn;
           }
         }
       } catch (err) {

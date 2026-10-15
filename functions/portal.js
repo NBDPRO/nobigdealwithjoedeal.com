@@ -102,6 +102,15 @@ const JOBS = require('./jobs-logic');
 const { awaitBriefly } = require('./await-briefly');
 // Platform tenant (lead-alert.js convention): NBD = the tenant key is this uid.
 const PORTAL_NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+
+/**
+ * The Google review link the portal shows: the rep's own http(s) link
+ * (W134: never a javascript: URL), else NBD's for an NBD job, else null.
+ */
+function portalReviewUrl(raw, isNbd) {
+  if (typeof raw === 'string' && /^https?:\/\//i.test(raw.trim())) return raw.trim().slice(0, 500);
+  return isNbd ? require('./review-ask-auto-logic').NBD_REVIEW_URL : null;
+}
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 function otherJobsFor(lead, jobs) {
   const l = lead || {};
@@ -1270,10 +1279,10 @@ exports.getHomeownerPortalView = onRequest(
         // misconfigured (or malicious) googleReviewUrl can't inject a
         // javascript: URL into the portal's <a href>. esc() in the
         // portal HTML doesn't strip schemes — only escapes characters.
-        googleReviewUrl: (!isQuietBackfill(lead) && typeof rep.googleReviewUrl === 'string'
-          && /^https?:\/\//i.test(rep.googleReviewUrl.trim()))
-          ? rep.googleReviewUrl.trim().slice(0, 500)
-          : null,
+        // 2026-10-15 (Joe): the card links STRAIGHT to the review page for
+        // everyone, before and without a rating (no review gating). The rep's
+        // own link, else NBD's (review-ask-auto-logic.js NBD_REVIEW_URL).
+        googleReviewUrl: isQuietBackfill(lead) ? null : portalReviewUrl(rep.googleReviewUrl, _portalIsNbd),
       },
     };
 
@@ -2117,6 +2126,7 @@ exports.submitCustomerRating = onRequest(
     // `customerRating > 0` check and both write. Now we atomically
     // verify the lead exists, that customerRating is unset, and then
     // stamp it inside a single transaction.
+    let ratedLead = null;   // the lead the transaction read (its tenant picks the review link)
     try {
       await db.runTransaction(async (tx) => {
         const leadSnap = await tx.get(leadRef);
@@ -2125,6 +2135,7 @@ exports.submitCustomerRating = onRequest(
           const e = new Error(refusal.code); e._http = refusal.status; e._msg = refusal.error; e._code = refusal.code; throw e;
         }
         const lead = leadSnap.data();
+        ratedLead = lead;
         if (typeof lead.customerRating === 'number' && lead.customerRating > 0) {
           const e = new Error('already-rated'); e._http = 409; e._msg = 'You\'ve already rated this job. Thank you!'; throw e;
         }
@@ -2213,26 +2224,26 @@ exports.submitCustomerRating = onRequest(
         logger.warn('[submitCustomerRating] notification create failed', { msg: notifErr.message });
       }
 
-      // For 4-5 star raters, return the Google review URL so the
-      // portal can nudge them to leave a public review. Resolve
-      // from the rep's user doc — same field surfaced in the view.
+      // Return the Google review URL so the portal can offer the public
+      // review. Resolve from the rep's user doc — same field surfaced in
+      // the view (portalReviewUrl).
       // W134 CRITICAL fix: enforce https:// scheme. Previously a rep
       // who set googleReviewUrl to `javascript:alert(...)` would have
       // that value flow into the portal's <a href> via esc() (which
       // only HTML-escapes — does NOT strip dangerous schemes). XSS
       // pivot. The whitelist below ensures only http(s) URLs survive.
+      // 2026-10-15 (Joe): EVERY rater gets the public review link, whatever
+      // the stars. Offering it only to 4-5 star raters is review gating
+      // (Google's review policy; FTC 16 CFR 465.7 review suppression).
       let googleReviewUrl = null;
-      if (starsNum >= 4) {
-        try {
-          const repSnap = await db.doc(`users/${tok.ownerUid}`).get();
-          if (repSnap.exists) {
-            const raw = repSnap.data().googleReviewUrl;
-            if (typeof raw === 'string' && /^https?:\/\//i.test(raw.trim())) {
-              googleReviewUrl = raw.trim().slice(0, 500); // also bound length
-            }
-          }
-        } catch (_) { /* non-critical */ }
-      }
+      try {
+        const repSnap = await db.doc(`users/${tok.ownerUid}`).get();
+        const raw = repSnap.exists ? (repSnap.data() || {}).googleReviewUrl : null;
+        googleReviewUrl = (function () {
+          const t = ratedLead ? portalTenant(tok, ratedLead) : null;
+          return portalReviewUrl(raw, !t || String(t) === PORTAL_NBD_OWNER_UID);   // same rule as the view's _portalIsNbd
+        })();
+      } catch (_) { /* non-critical */ }
 
       res.status(200).json({
         ok: true,

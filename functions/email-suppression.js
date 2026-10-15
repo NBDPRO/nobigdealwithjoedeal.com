@@ -391,6 +391,7 @@ const SEND_PATHS = Object.freeze({
   'email-functions.js': 'mixed',              // sendEmail: per-request kind → category (default commercial)
   'funnel-recovery.js': 'commercial',         // runAbandonRecovery → website visitor
   'lead-followup.js': 'commercial',           // leadFollowUpSweep → homeowner
+  'review-ask-auto.js': 'commercial',         // reviewAskAutoSweep → paid-in-full homeowner's review ask
   'estimate-email.js': 'transactional',       // homeowner explicitly asked "Email My Estimate"
   'storm-report-email.js': 'transactional',   // homeowner asked for their storm report copy
   'lead-alert.js': 'transactional',           // tenant alert (internal) + homeowner ack of their own request

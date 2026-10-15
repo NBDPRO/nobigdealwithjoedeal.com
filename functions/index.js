@@ -839,6 +839,11 @@ exports.resumeMemberStorageMoves = require('./member-storage-move-cron').resumeM
 // reviewRequestNudge Cloud Run revision to go live.
 exports.reviewRequestNudge = require('./review-request-nudge').reviewRequestNudge;
 
+// Automatic homeowner review ask (2026-10-15): daily 10:00 ET, one email per
+// paid-in-full job (REVIEW_ASK_AUTO_EMAIL_ENABLED), text dark
+// (REVIEW_ASK_AUTO_TEXT_ENABLED). functions/review-ask-auto.js.
+exports.reviewAskAutoSweep = require('./review-ask-auto').reviewAskAutoSweep;
+
 // ═══════════════════════════════════════════════════════════════
 // MORNING BRIEF — 06:45 ET appointment brief for the owner
 // ═══════════════════════════════════════════════════════════════
