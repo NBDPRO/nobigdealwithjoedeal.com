@@ -58,10 +58,9 @@
           if (added[j] && added[j].id === 'inspectFormError') {
             var ids = [];
             form.querySelectorAll('[aria-invalid="true"]').forEach(function (el) { if (el.id) ids.push(el.id); });
-            if (!ids.length) {
-              var consent = document.getElementById('ins-consent');
-              ids.push(consent && !consent.checked ? 'ins-consent' : 'submit');
-            }
+            // The SMS box is optional (2026-10-15), so it never blocks a
+            // submit and is never the field to blame.
+            if (!ids.length) ids.push('submit');
             send('inspect_form_error', { fields: ids.join(','), page: 'inspect' });
             return;
           }

@@ -57,7 +57,8 @@ const smsText = visible(sms);
 
 ok('T2 canonical is https://nobigdealwithjoedeal.com/terms', /<link rel="canonical" href="https:\/\/nobigdealwithjoedeal\.com\/terms">/.test(raw));
 ok('T3 page is indexable (no robots noindex)', !/<meta name="robots"[^>]*noindex/i.test(raw));
-ok('T4 "Last updated: October 6, 2026" line', /Last updated: October 6, 2026/.test(text));
+ok('T4 "Last updated: October 15, 2026" line (optional-consent wording, 2026-10-15)', /Last updated: October 15, 2026/.test(text));
+ok('S15 an unchecked box means no automatic texts; only Storm Alerts requires it', /do not send you automatic texts/.test(text) && /Storm Alerts signup is the one form where the box is required/.test(text));
 ok('T5 legal name + DBA: No Big Deal Solutions LLC (DBA No Big Deal Home Solutions)', /No Big Deal Solutions LLC,? (\(DBA|doing business as) No Big Deal Home Solutions/.test(text));
 
 console.log('\nSMS / Text Messaging Terms section (#sms-terms)');

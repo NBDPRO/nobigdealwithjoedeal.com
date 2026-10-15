@@ -280,15 +280,15 @@
         return;
       }
       // TCPA (2026-10-03): the same express-written-consent box as
-      // /storm-check, required because Joe calls and texts back. Unnamed, so
-      // gatherFormData never picks it up; posted explicitly below.
+      // /storm-check. OPTIONAL since 2026-10-15 (Twilio A2P reapply): the
+      // request goes through either way, and its real value is posted so the
+      // server stores whether texting was agreed to. A lead with
+      // tcpaConsent:false is saved and Joe is alerted, but no automatic text
+      // goes to the homeowner (functions/tcpa-consent.js smsAckGate,
+      // functions/sms-consent-declined.js). Unnamed, so gatherFormData never
+      // picks it up; posted explicitly below.
       var consentEl = document.getElementById('ins-consent');
       var consent = !!(consentEl && consentEl.checked);
-      if (!consent) {
-        showError(btn, 'Please check the consent box so Joe can reach you.');
-        try { consentEl.focus(); } catch (e) {}
-        return;
-      }
       // Scheduling choice (required) + photos and the rest.
       var intake = { fields: {}, files: [] };
       if (window.NBDIntake) {

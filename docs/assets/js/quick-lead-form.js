@@ -83,7 +83,8 @@
         // heuristics, and an autofilled honeypot silently drops a real lead.
         '<input class="qlf-hp" id="' + uid + '-hp" type="text" name="nbd_hp" tabindex="-1" autocomplete="off" aria-hidden="true">' +
         // TCPA (2026-10-03): the express-written-consent box /storm-check uses,
-        // same wording; required, and posted as tcpaConsent for the record.
+        // same wording; OPTIONAL (2026-10-15), and posted as tcpaConsent
+        // (true or false) for the record.
         '<label class="sc-consent"><input type="checkbox" id="' + uid + '-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>' +
         // Trust line above Submit (2026-10-03). Rating hydrated live (hydrateRating).
         '<p class="qlf-trust"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Fully insured &middot; Joe on every roof</p>' +
@@ -117,11 +118,8 @@
         return;
       }
       var consentEl = document.getElementById(uid + '-consent');
+      // SMS consent is optional since 2026-10-15: the lead is saved either way; no automatic text without it.
       var consent = !!(consentEl && consentEl.checked);
-      if (!consent) {
-        err.textContent = 'Please check the consent box so Joe can reach you.';
-        return;
-      }
       var intake = { fields: {}, files: [] };
       if (window.NBDIntake) {
         intake = window.NBDIntake.read(form, uid + 'i');

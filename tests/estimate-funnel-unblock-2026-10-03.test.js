@@ -185,7 +185,8 @@ function fillContact(d) {
     };
     ok('first name + phone + consent → Submit ENABLED (no last name, no email, no code)', fill('Pat', '5135550100', true) === true);
     ok('...and the phone input formats as typed', d.getElementById('phoneNumber').value === '(513) 555-0100');
-    ok('no consent → Submit disabled', fill('Pat', '5135550100', false) === false);
+    // 2026-10-15: the SMS box is optional (Twilio A2P reapply).
+    ok('no consent → Submit still ENABLED (the SMS box is optional)', fill('Pat', '5135550100', false) === true);
     ok('no first name → Submit disabled', fill('', '5135550100', true) === false);
     ok('a 9-digit phone → Submit disabled', fill('Pat', '513555010', true) === false);
     ok('an email that is typed must look like one ("pat@") → disabled', fill('Pat', '5135550100', true, { email: 'pat@' }) === false);
@@ -227,6 +228,22 @@ function fillContact(d) {
     // Joe's alert is leadAlertEstimate on the saved doc; see
     // estimate-funnel-lost-lead-banner-2026-10-05.test.js.
     ok('...and no notifyNewLead call (Joe is alerted by the estimate_leads trigger)', notes.length === 0, notes.length);
+    {
+      // 2026-10-15: the same submit with the box left unticked still saves, and says so.
+      const Wf = loadWizard();
+      const df = Wf.document;
+      const savesF = [];
+      Wf.ctx._saveLead = async (lead) => { savesF.push(lead); return 'lead-2'; };
+      Wf.ctx._notifyJoe = async () => {};
+      Wf.ctx.NBDIntake = { html: () => '<fieldset></fieldset>', read: () => ({ fields: {}, files: [] }), afterSubmit: async () => {} };
+      Wf.t.funnelData.address = '12 Test St, Mason, OH';
+      df.getElementById('firstName').value = 'Pat';
+      df.getElementById('phoneNumber').value = '(513) 555-0100';
+      df.getElementById('phoneNumber').fire('input');
+      ok('box unticked → Submit is enabled', df.getElementById('btnSubmit').disabled === false);
+      await Wf.ctx.submitAndGetEstimate();
+      ok('box unticked → the lead is still saved, with tcpaConsent: false (a boolean, never omitted)', savesF.length === 1 && savesF[0].tcpaConsent === false, savesF[0]);
+    }
     await tick(900);
     ok('the results screen shows the optional "help Joe prepare" block (lead saved, grant held)', d.getElementById('estFollowUp').hidden === false && d.getElementById('estIntake').innerHTML.length > 0);
     ok('a funnel_step for the results screen fires', W.events.some((e) => e.name === 'funnel_step' && e.params.step === 6 && e.params.step_name === 'results'));
@@ -300,7 +317,8 @@ function fillContact(d) {
     const nominatim = (W) => W.fetches.filter((f) => /nominatim/.test(f.url)).length;
     const hit = { fetch: async (url) => ({ ok: true, json: async () => ([{ display_name: '5 Real St, Mason, OH', lat: '39.36', lon: '-84.31' }]) }) };
 
-    // Address fine, consent NOT ticked: Continue must stop on step 1.
+    // Address fine, consent NOT ticked: the box is optional since 2026-10-15
+    // (Twilio A2P reapply), so Continue goes on, never ticking it for them.
     const W = loadWizard(hit);
     const d = W.document;
     d.getElementById('addressInput').value = '5 Real St Mason';
@@ -308,18 +326,20 @@ function fillContact(d) {
     d.getElementById('phoneNumber').value = '(513) 555-0100';
     W.ctx.goToStep(2);
     await tick(150);
-    ok('no consent → Continue stays on step 1', W.t.currentStep === 1, W.t.currentStep);
-    ok('...the consent box is marked as the missing piece', d.getElementById('tcpaConsent').parentElement.parentElement.classList.contains('has-error'));
+    ok('no consent → Continue still reaches step 2 (the SMS box is optional)', W.t.currentStep === 2, W.t.currentStep);
+    ok('...the consent box is never marked as an error', !d.getElementById('tcpaConsent').parentElement.parentElement.classList.contains('has-error'));
     ok('...and Continue never ticks the box for them', d.getElementById('tcpaConsent').checked === false);
-    ok('...and no map lookup was started behind the error', nominatim(W) === 0, nominatim(W));
 
-    // Ticking it clears the mark and lets Continue through.
-    d.getElementById('tcpaConsent').checked = true;
-    d.getElementById('tcpaConsent').fire('change');
-    ok('ticking the box clears the error mark', !d.getElementById('tcpaConsent').parentElement.parentElement.classList.contains('has-error'));
-    W.ctx.goToStep(2);
+    // Ticked is fine too.
+    const Wc = loadWizard(hit);
+    Wc.document.getElementById('addressInput').value = '5 Real St Mason';
+    Wc.document.getElementById('firstName').value = 'Pat';
+    Wc.document.getElementById('phoneNumber').value = '(513) 555-0100';
+    Wc.document.getElementById('tcpaConsent').checked = true;
+    Wc.document.getElementById('tcpaConsent').fire('change');
+    Wc.ctx.goToStep(2);
     await tick(150);
-    ok('consent + name + phone + address → step 2', W.t.currentStep === 2, W.t.currentStep);
+    ok('consent + name + phone + address → step 2', Wc.t.currentStep === 2, Wc.t.currentStep);
 
     // Missing first name / short phone each block Continue.
     const Wn = loadWizard(hit);
@@ -344,7 +364,7 @@ function fillContact(d) {
     Wt.document.getElementById('firstName').value = 'Pat';
     Wt.document.getElementById('phoneNumber').value = '(513) 555-0100';
     Wt.ctx.useTypedAddress();
-    ok('typed address without consent → stays on step 1', Wt.t.currentStep === 1, Wt.t.currentStep);
+    ok('typed address without consent → leaves step 1 (the SMS box is optional)', Wt.t.currentStep > 1,Wt.t.currentStep);
 
     // Step 5 does not ask again — it recaps, and the values survive Back/Next.
     const Wr = loadWizard();

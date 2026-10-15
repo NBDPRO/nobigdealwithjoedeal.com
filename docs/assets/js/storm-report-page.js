@@ -139,7 +139,7 @@
   function unlock() {
     var fn = $('sr-firstName').value.trim(), ph = $('sr-phone').value.trim(), em = $('sr-email').value.trim();
     if (!fn || ph.replace(/\D/g, '').replace(/^1/, '').length !== 10) { $('sr-gate-err').textContent = 'Please add your name and a 10-digit phone.'; return; }
-    if (!$('sr-consent').checked) { $('sr-gate-err').textContent = 'Please check the box so Joe can send your report.'; return; }
+    // SMS consent is optional since 2026-10-15: the lead is saved either way; no automatic text without it (the report shows on this page).
     var intake = readIntake();
     if (intake.error) { $('sr-gate-err').textContent = intake.error; if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid'); return; }
     S.intake = intake;
