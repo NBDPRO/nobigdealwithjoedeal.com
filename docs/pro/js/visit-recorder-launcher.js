@@ -10,7 +10,9 @@
  * Entry points (all end in NBDVisitRecorderUI.begin()):
  *   - any element with data-nbd-record-visit (delegated; optional
  *     data-lead-id, data-appointment-id, data-source)
- *   - the Record bar on Home (dashboard.html, #view-home)
+ *   - the Record bar on Home (dashboard.html, #view-home) in Classic and
+ *     Bento; Island has it in its dock and the full-screen layouts in their
+ *     own screens (js/layouts/kit.js recordButton), all via the delegate
  *   - "Record visit" on today's appointment rows (decorated here, so the
  *     Today files are untouched) - pre-attaches lead + appointment
  *   - "Record visit" in the customer page quick-actions - pre-attaches lead
@@ -28,7 +30,7 @@
 
   var V = '2';
   var FILES = [
-    '/pro/css/visit-recorder.css?v=' + V,
+    '/pro/css/visit-recorder.css?v=3',   // = BAR_CSS below
     '/pro/js/visit-recorder-logic.js?v=' + V,
     '/pro/js/visit-recorder.js?v=' + V,
     '/pro/js/visit-recorder-ui.js?v=' + V,
@@ -36,6 +38,11 @@
   // PR 2: the one "N unfiled visits" Today row. Its own file so the Today PRs are
   // untouched, and best-effort: the recorder works without it.
   var TODAY_FILE = '/pro/js/visit-unfiled-today.js?v=' + V;
+  // The bar's stylesheet has its own version: only its bar placement changes
+  // here, and the recorder files above keep theirs.
+  var BAR_CSS = '/pro/css/visit-recorder.css?v=3';
+  // The same words on every entry point, in every layout (kit.js RECORD_LABEL).
+  var RECORD_LABEL = 'Record visit';
   var CFG_KEY = 'nbd_vr_cfg';
   var UNFILED_KEY = 'nbd_vr_unfiled';
   var PENDING_KEY = 'nbd_vr_pending';
@@ -165,11 +172,23 @@
   // ── the Home bar ────────────────────────────────────────────────────────
   var bar = null;
   var unfiledBtn = null;
+  // ONE Record visit entry per layout (2026-10-15). The floating bar is
+  // Classic's and Bento's. Island puts Record visit in its dock, and the
+  // full-screen layouts (Field, Focus, Inbox, Mission, Crew) draw it in their
+  // own screens (js/layouts/kit.js recordButton), all through the same
+  // [data-nbd-record-visit] delegate below.
+  var BAR_LAYOUTS = { classic: 1, bento: 1 };
+  function layoutWantsBar() {
+    var id = document.documentElement.getAttribute('data-layout');
+    return !id || BAR_LAYOUTS[id] === 1;
+  }
   function paintBar() {
     if (!bar) return;
     var home = document.getElementById('view-home');
-    var show = !!(home && home.classList.contains('active'));
+    var show = !!(home && home.classList.contains('active')) && layoutWantsBar();
     bar.hidden = !show;
+    // visit-recorder.css reserves room under Home's content while the bar shows
+    document.documentElement.classList.toggle('nbd-vr-bar-on', show);
     var n = counters().unfiled;
     unfiledBtn.hidden = n < 1;
     unfiledBtn.textContent = 'Unfiled visits (' + n + ')';
@@ -179,7 +198,7 @@
     // the bar needs its stylesheet at boot: one small link, the rest stays lazy
     if (!document.querySelector('[data-nbd-vr-src="/pro/css/visit-recorder.css"]')) {
       var l = document.createElement('link');
-      l.rel = 'stylesheet'; l.href = FILES[0]; l.setAttribute('data-nbd-vr-src', '/pro/css/visit-recorder.css');
+      l.rel = 'stylesheet'; l.href = BAR_CSS; l.setAttribute('data-nbd-vr-src', '/pro/css/visit-recorder.css');
       document.head.appendChild(l);
     }
     bar = document.createElement('div');
@@ -191,9 +210,8 @@
     rec.className = 'nbd-vr-barbtn';
     rec.setAttribute('data-nbd-record-visit', '');
     rec.setAttribute('data-source', 'fab');
-    rec.setAttribute('aria-label', 'Record a visit');
     var dot = document.createElement('span'); dot.className = 'nbd-vr-bardot'; dot.setAttribute('aria-hidden', 'true');
-    var txt = document.createElement('span'); txt.textContent = 'Record a visit';
+    var txt = document.createElement('span'); txt.textContent = RECORD_LABEL;
     rec.appendChild(dot); rec.appendChild(txt);
     unfiledBtn = document.createElement('button');
     unfiledBtn.type = 'button';
@@ -223,7 +241,7 @@
       var b = document.createElement('button');
       b.type = 'button';
       b.className = 'tp-btn nbd-vr-rowbtn';
-      b.textContent = 'Record visit';
+      b.textContent = RECORD_LABEL;
       b.setAttribute('data-nbd-record-visit', '');
       b.setAttribute('data-source', 'appointment');
       b.setAttribute('data-appointment-id', key.replace(/^appt:/, ''));
@@ -246,7 +264,7 @@
       b.type = 'button';
       b.className = 'btn nbd-vr-custbtn';
       b.id = 'nbd-vr-custbtn';
-      b.textContent = '● Record visit';
+      b.textContent = RECORD_LABEL;
       b.title = 'Record this visit. It saves on your phone first, then uploads.';
       b.setAttribute('data-nbd-record-visit', '');
       b.setAttribute('data-source', 'customer');
@@ -417,6 +435,8 @@
     window.addEventListener('online', lookAgain);
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') lookAgain(); });
     window.addEventListener('storage', function (e) { if (e.key === UNFILED_KEY || e.key === PENDING_KEY) paintBar(); });
+    // the bar is Classic's and Bento's: follow a layout switch (layout-system.js)
+    document.addEventListener('layoutchange', paintBar);
   }
 
   window.NBDVisitRecorderLauncher = {
