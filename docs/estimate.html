@@ -175,6 +175,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 .tcpa-check label{font-size:.8rem;color:rgba(255,255,255,.72);line-height:1.5;padding:2px 0;}
 .tcpa-check label a{color:var(--orange);text-decoration:none;display:inline-block;padding:10px 2px;margin:-10px 0;}
 .tcpa-group{margin:4px 0 10px;}
+.tcpa-req{font-size:.8rem;color:rgba(255,255,255,.72);line-height:1.5;margin:16px 0 -14px;}
 .tcpa-group .error-msg{font-size:.7rem;color:var(--error);margin-top:4px;display:none;}
 .tcpa-group.has-error .error-msg{display:block;}
 .contact-intro{margin:0 0 14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.1);}
@@ -674,8 +675,9 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
     </div>
 
     <div class="tcpa-group">
+      <p class="tcpa-req" aria-hidden="true">(required)</p>
       <div class="tcpa-check">
-        <input type="checkbox" id="tcpaConsent" aria-describedby="tcpaConsent-err">
+        <input type="checkbox" id="tcpaConsent" aria-required="true" aria-describedby="tcpaConsent-err">
         <label for="tcpaConsent">I agree to receive my estimate and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></label>
       </div>
       <div class="error-msg" id="tcpaConsent-err" role="alert" aria-live="assertive">Check the box so Joe can call or text you your estimate</div>

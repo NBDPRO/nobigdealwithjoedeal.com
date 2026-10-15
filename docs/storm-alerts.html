@@ -79,6 +79,7 @@ nav { background:var(--navy-dark); border-bottom:3px solid var(--orange); paddin
 .sc-consent { display:flex; gap:10px; align-items:flex-start; margin:4px 0 14px; font-size:.78rem; color:rgba(255,255,255,.62); line-height:1.4; text-align:left; }
 .sc-consent input { margin-top:2px; width:18px; height:18px; flex-shrink:0; accent-color:var(--orange); }
 .sc-consent a { color:inherit; text-decoration:underline; }
+.sc-consent-req { margin:4px 0 0; font-size:.78rem; color:rgba(255,255,255,.62); line-height:1.4; text-align:left; }
 .field input[aria-invalid="true"] { border-color:#f87171; }
 
 /* Success */
@@ -449,7 +450,8 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
       </select>
     </div>
     <div style="position:absolute;left:-9999px;" aria-hidden="true"><input type="text" id="alertHoneypot" tabindex="-1" autocomplete="off" aria-label="Leave this field blank"></div>
-    <label class="sc-consent"><input type="checkbox" id="sa-consent"><span>I agree to receive storm alerts and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>
+    <p class="sc-consent-req" aria-hidden="true">(required)</p>
+    <label class="sc-consent"><input type="checkbox" id="sa-consent" aria-required="true"><span>I agree to receive storm alerts and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>
     <div class="signup-err" id="sa-error" role="alert"></div>
     <p class="nbd-trust-line"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Fully insured &middot; Joe on every roof</p>
     <button class="signup-btn" id="alertSignupBtn">🔔 Sign Me Up — Free</button>
