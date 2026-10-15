@@ -229,16 +229,18 @@ function goToStep(step) {
 /* Contact + SMS consent are collected on step 1 (2026-10-13, Twilio A2P 30909:
    the opt-in must be visible on first paint). Same field ids, same submit
    path. The consent box is only READ here — never set, never defaulted — and
-   Continue does not tick it. Returns true when first name, a 10-digit phone
-   and the ticked consent box are all present; marks each missing one. */
+   Continue does not tick it. Since 2026-10-15 (Twilio A2P reapply) the box is
+   OPTIONAL: it never blocks Continue or Submit, and its real value is posted
+   as tcpaConsent so the server stores whether texting was agreed to (a
+   tcpaConsent:false lead is saved and Joe is alerted, but no automatic text
+   goes to the homeowner). Returns true when first name and a 10-digit phone
+   are present; marks each missing one. */
 function _validateContact(focusFirst) {
   const fn = document.getElementById('firstName');
   const ph = document.getElementById('phoneNumber');
-  const cb = document.getElementById('tcpaConsent');
   const checks = [
     { el: fn, group: fn.parentElement, bad: !fn.value.trim() },
-    { el: ph, group: ph.parentElement.parentElement, bad: ph.value.replace(/\D/g, '').length !== 10 },
-    { el: cb, group: cb.parentElement.parentElement, bad: !cb.checked }
+    { el: ph, group: ph.parentElement.parentElement, bad: ph.value.replace(/\D/g, '').length !== 10 }
   ];
   let firstBad = null;
   checks.forEach(function (c) {
@@ -945,9 +947,9 @@ async function skipOtpAndRequestCall(btn) {
   var email = document.getElementById('emailAddress').value.trim();
   var consent = document.getElementById('tcpaConsent').checked;
 
-  if (!(fn && phoneDigits.length === 10 && _emailOk(email) && consent)) {
+  if (!(fn && phoneDigits.length === 10 && _emailOk(email))) {
     status.className = 'otp-skip-status error';
-    status.textContent = 'Go back to the first step and add your first name and phone (and check the consent box) so Joe knows how to reach you.';
+    status.textContent = 'Go back to the first step and add your first name and phone so Joe knows how to reach you.';
     return;
   }
 
@@ -987,15 +989,10 @@ async function skipOtpAndRequestCall(btn) {
     email: funnelData.email,
     phoneVerified: false,
     // Same express-written-consent record the verified path stores (see
-    // submitAndGetEstimate). This path ALREADY refuses to submit without the
-    // box ticked — `consent` is part of the guard above — but it omitted the
-    // field from the payload, so the lead landed with no proof. Harmless while
-    // nothing read the flag; the moment lead-alert's SMS ack started gating on
-    // a stored consent, this path's homeowners would have been silently
-    // dropped: they ticked the box, asked Joe to call, and would never have
-    // received the acknowledgement. Always true here by construction, but
-    // written from the variable the guard actually tested, not a literal.
-    tcpaConsent: consent,
+    // submitAndGetEstimate): the box's real value, true or false. The box is
+    // optional (2026-10-15), so false is a normal value here: the lead is
+    // saved and Joe is alerted, and the server sends no automatic text.
+    tcpaConsent: consent === true,
     requestType: 'otp_skipped_call_request'
   };
 
@@ -1100,16 +1097,16 @@ function _intakeInfo(intake) {
 
 /* ── Form Validation ── */
 function checkSubmitReady() {
-  // Required: first name, a 10-digit phone, consent. Last name and email are
-  // optional (an email, when typed, must look like one). Phone verification
-  // only counts when OTP_ENABLED.
+  // Required: first name and a 10-digit phone. Last name, email and the SMS
+  // consent box are optional (an email, when typed, must look like one; the
+  // box is posted as tcpaConsent either way). Phone verification only counts
+  // when OTP_ENABLED.
   const fn = document.getElementById('firstName').value.trim();
   const phone = document.getElementById('phoneNumber').value.replace(/\D/g, '');
   const email = document.getElementById('emailAddress').value.trim();
-  const consent = document.getElementById('tcpaConsent').checked;
   const verified = _otpVerified || !CONFIG.OTP_ENABLED;
 
-  document.getElementById('btnSubmit').disabled = !(fn && phone.length === 10 && _emailOk(email) && consent && verified);
+  document.getElementById('btnSubmit').disabled = !(fn && phone.length === 10 && _emailOk(email) && verified);
 }
 
 // Attach validation listeners
@@ -1202,10 +1199,10 @@ async function submitAndGetEstimate() {
     phone: funnelData.phone,
     email: funnelData.email,
     phoneVerified: _otpVerified,
-    // Submit is hard-gated on the TCPA checkbox, so this is always true on a
-    // completed lead — stored explicitly so the record is audit-ready and the
-    // SMS-ack trigger can rely on it.
-    tcpaConsent: document.getElementById('tcpaConsent').checked,
+    // The TCPA checkbox's real value. Optional since 2026-10-15, so it can be
+    // false: stored explicitly either way so the record is audit-ready and the
+    // SMS-ack trigger texts only a lead that ticked it.
+    tcpaConsent: document.getElementById('tcpaConsent').checked === true,
     ballpark: funnelData.ballpark,
     // Ask for the one-time grant the thank-you screen's optional questions
     // (and photos) are saved with — see saveFollowUp.

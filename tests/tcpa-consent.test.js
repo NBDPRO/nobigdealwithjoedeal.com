@@ -417,16 +417,20 @@ check('T35 every consent label is word-for-word the text its stored version id n
   assert.strictEqual(labelText(sa, 'sa-consent'), C.CONSENT_TEXTS[C.STORM_ALERTS_CONSENT_VERSION]);
 });
 
-check('T36 the three newly-gated forms read their box, refuse without it, and post tcpaConsent', () => {
+// 2026-10-15 (Twilio A2P reapply): the box is OPTIONAL on the homepage and
+// quick forms (the lead is saved either way, no automatic text without it)
+// and stays REQUIRED on /storm-alerts, whose service is texts.
+check('T36 the three newly-gated forms read their box and post tcpaConsent; only /storm-alerts refuses without it', () => {
   const forms = [
-    ['docs/assets/js/inline/c5a2295382.js', "getElementById('sa-consent')"],
-    ['docs/assets/js/inline/72f02d79d0.js', "getElementById('fieldConsent')"],
-    ['docs/assets/js/quick-lead-form.js', "getElementById(uid + '-consent')"],
+    ['docs/assets/js/inline/c5a2295382.js', "getElementById('sa-consent')", true],
+    ['docs/assets/js/inline/72f02d79d0.js', "getElementById('fieldConsent')", false],
+    ['docs/assets/js/quick-lead-form.js', "getElementById(uid + '-consent')", false],
   ];
-  for (const [file, read] of forms) {
+  for (const [file, read, required] of forms) {
     const js = fs.readFileSync(path.join(ROOT, file), 'utf8');
     assert.ok(js.includes(read), file + ' no longer reads its consent checkbox');
-    assert.ok(/if\s*\(\s*!consent\s*\)\s*\{/.test(js), file + ' no longer refuses to submit without consent');
+    const refuses = /if\s*\(\s*!consent\s*\)\s*\{/.test(js);
+    assert.ok(refuses === required, file + (required ? ' no longer refuses to submit without consent' : ' still refuses to submit without the (optional) consent box'));
     assert.ok(/tcpaConsent:\s*consent === true/.test(js), file + ' does not post tcpaConsent');
   }
 });

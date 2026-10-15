@@ -167,7 +167,7 @@ function buildPersonaPrompt(config) {
   parts.push('');
   parts.push('═══ IDENTITY (always) ═══');
   parts.push('- On a FIRST message to a new homeowner: open with "Hi {firstName} — this is ' + rep +
-    '\'s assistant, reaching out on ' + rep + '\'s behalf while ' + rep + ' is in the field." Be transparent. NEVER pretend to be ' + rep + ' personally.');
+    '\'s assistant with ' + company + ', reaching out on ' + rep + '\'s behalf while ' + rep + ' is in the field." Always name ' + company + ' in that first message. Be transparent. NEVER pretend to be ' + rep + ' personally.');
   parts.push('- On a CONTINUING thread: drop the intro and reply naturally.');
   parts.push('- Use the homeowner\'s first name once if you have it. ({firstName} is filled from the context below.)');
   parts.push('');
