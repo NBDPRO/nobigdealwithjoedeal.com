@@ -561,7 +561,7 @@ const VERDICTS = {
   saveFunnelProgress: 'public', sendD2DSMS: 'refused', sendEmail: 'already', sendPortalMessage: 'public',
   sendQueuedSMS: 'refused', sendSMS: 'refused', setStorageCors: 'role-gated', shareSSR: 'public',
   signImageUrl: 'read', stormReport: 'public', stripeConnectWebhook: 'public', stripeWebhook: 'public',
-  submitCustomerRating: 'public', submitDealAcceptance: 'public', dealRoomReadPing: 'public', crmMcp: 'public', submitEsignEnvelope: 'public',
+  submitCustomerRating: 'public', submitDealAcceptance: 'public', dealRoomReadPing: 'public', dealPrequalStarted: 'public', crmMcp: 'public', submitEsignEnvelope: 'public',
   submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', referralLinkOpened: 'public', submitSignature: 'public',
   submitPublicLead: 'public', uploadPublicLeadPhoto: 'public', updatePublicLeadIntake: 'public', submitReferral: 'public', submitSignature: 'public',
   thumbtackWebhook: 'public', uploadHomeownerPhoto: 'public', visualizerImageGen: 'public',
