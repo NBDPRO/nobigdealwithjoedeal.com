@@ -119,9 +119,13 @@ async function run() {
   ok('contact phone over maxLen(30) → 400',
     (await post({ kind: 'contact', firstName: 'Jo', phone: '1'.repeat(31), source: 'web' })).status === 400);
 
+  // phone must be a US/Canada number (2026-10-15, public intake hardening M4):
+  // 10 digits or 11 with a leading 1. Valid-shape phones below are 10 digits.
+  ok('contact with a 7-digit phone → 400 (phone validation)',
+    (await post({ kind: 'contact', firstName: 'Jo', phone: '5550100', source: 'web' })).status === 400);
   // exact-length enforcement (storm zip must be exactly 5)
   ok('storm zip != 5 chars → 400',
-    (await post({ kind: 'storm', name: 'Jo', phone: '5550100', zip: '1234', source: 'web' })).status === 400);
+    (await post({ kind: 'storm', name: 'Jo', phone: '5135550100', zip: '1234', source: 'web' })).status === 400);
 
   // honeypot — legacy 'website' key filled → silent 200, no lead written
   // (old cached pages / bots replaying the pre-2026-08-05 form shape)
@@ -153,7 +157,7 @@ async function run() {
   }
   // valid storm with exact 5-digit zip also passes validation
   {
-    const r = await post({ kind: 'storm', name: 'Jo', phone: '5550100', zip: '78704', source: 'web' });
+    const r = await post({ kind: 'storm', name: 'Jo', phone: '5135550101', zip: '78704', source: 'web' });
     ok(`valid storm (zip 5) passes validation (not 4xx; got ${r.status})`, ![400, 405].includes(r.status));
   }
 
@@ -307,7 +311,7 @@ async function run() {
     await seedDoc('companies', GONE, { name: 'Gone Roofing', siteSlug: 'gone-roofing', status: 'suspended' });
 
     const lead = (extra) => Object.assign(
-      { kind: 'contact', firstName: 'Pat', phone: '5550166', source: 'tenant-site:test' }, extra);
+      { kind: 'contact', firstName: 'Pat', phone: '5135550166', source: 'tenant-site:test' }, extra);
 
     // slug resolves → lead tagged with the RESOLVED uid; siteKey never persists raw
     {
