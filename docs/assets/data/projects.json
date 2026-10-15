@@ -234,12 +234,12 @@
       ],
       "tag": "Active Jobsite",
       "city": "Cincinnati, OH",
-      "description": "Branded trucks, tarps down, materials staged, crew on the roof. This is what a professional jobsite looks like. Neighbors took notice — two more estimates booked that week.",
+      "description": "Joe was on this roof for a full tear-off in May 2025. The old shingles came off down to the decking, synthetic underlayment went on, and new shingles were installed on every plane, with the ridge, valleys, chimney and vents finished clean.",
       "hero": "/assets/images/projects/active-culdescac-crew.jpg",
       "photos": [
         {
           "src": "/assets/images/projects/active-culdescac-crew.jpg",
-          "alt": "NBD crew actively working on roof tear-off in residential neighborhood"
+          "alt": "Roofers tearing off the old roof on a house in a residential neighborhood"
         },
         {
           "src": "/assets/images/projects/cul-de-sac-full-crew-tearoff-1.jpg",
@@ -273,7 +273,8 @@
       "consentOnFile": true,
       "published": "2026-08-06",
       "priceLow": 18000,
-      "priceHigh": 22000
+      "priceHigh": 22000,
+      "year": 2025
     },
     {
       "slug": "valley-flashing-detail",
@@ -360,46 +361,6 @@
       "published": "2026-08-06",
       "priceLow": 100000,
       "priceHigh": 125000
-    },
-    {
-      "slug": "aframe-standing-seam-metal",
-      "title": "A-Frame Cabin — Standing Seam Metal",
-      "category": "specialty",
-      "services": [
-        "roof-replacement"
-      ],
-      "tag": "Metal Roof",
-      "city": "Gatlinburg, TN",
-      "description": "Not every job is shingles. This mountain A-frame got a standing seam metal roof — built for steep pitch, heavy snow loads, and decades of zero maintenance.",
-      "hero": "/assets/images/projects/aframe-standing-seam-metal-2.jpg",
-      "photos": [
-        {
-          "src": "/assets/images/projects/aframe-standing-seam-metal-2.jpg",
-          "alt": "Three-quarter aerial of the A-frame cabin with the full sweep of its ribbed metal roof running down to the eave"
-        },
-        {
-          "src": "/assets/images/projects/aframe-standing-seam-metal-3.jpg",
-          "alt": "Straight-on view of the A-frame front gable, the metal roof running symmetrically to both eaves"
-        },
-        {
-          "src": "/assets/images/projects/aframe-standing-seam-metal-4.jpg",
-          "alt": "Close view of the metal roof field with the panel ribs running eave to ridge"
-        },
-        {
-          "src": "/assets/images/projects/aframe-standing-seam-metal-5.jpg",
-          "alt": "Looking out from above the cabin across the wooded hillside setting"
-        },
-        {
-          "src": "/assets/images/projects/aframe-standing-seam-metal-1.jpg",
-          "alt": "Directly overhead view of the A-frame cabin’s completed standing seam metal roof"
-        },
-        {
-          "src": "/assets/images/projects/metal-aframe-cabin-2.jpg",
-          "alt": "Aerial view of the cabin community on the misty mountainside, metal roofs among the bare trees"
-        }
-      ],
-      "consentOnFile": true,
-      "published": "2026-08-06"
     },
     {
       "slug": "cincinnati-oh-gutter-screens-2026",
