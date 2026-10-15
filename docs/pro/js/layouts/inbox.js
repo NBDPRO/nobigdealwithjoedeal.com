@@ -570,9 +570,7 @@
     }
     h += '<button type="button" class="ib-folder ib-menu-btn" data-ib="menu" aria-expanded="' + S.menu + '"><span>Menu</span></button>';
     if (S.menu) {
-      h += '<div class="ib-sheet" role="menu">' + [['crm', 'Classic pipeline'], ['calls', 'Call Center'], ['schedule', 'Schedule'], ['settings', 'Settings']].map(function (x) {
-        return '<button type="button" role="menuitem" data-ib="goto" data-to="' + x[0] + '">' + x[1] + '</button>';
-      }).join('') + '</div>';
+      h += '<div class="ib-sheet" role="menu">' + K.menuItems('ib') + '</div>';
     }
     return h + '</nav>';
   }
@@ -618,7 +616,8 @@
     if (!it) return '<div class="ib-state">Pick someone from the list. <span class="ib-hint">J / K to move, R to reply.</span></div>';
     var t = threads[it.key];
     var h = '<div class="ib-thread-head"><button type="button" class="ib-back" data-ib="back">&larr; List</button><h2 class="ib-title">' + esc(it.name) + '</h2>' +
-      (it.timer ? chipHtml(it.timer) : '') + '</div>';
+      (it.timer ? chipHtml(it.timer) : '') +
+      K.recordButton({ source: 'inbox', leadId: it.leadId || '', cls: 'ib-rec' }) + '</div>';
     if (it.why && !it.pipeline) h += '<p class="ib-why"><span class="ib-why-k">Why it is here</span> ' + esc(it.why) + '</p>';
     h += '<div class="ib-msgs" aria-live="polite">';
     if (!t || t.state === 'loading') h += '<div class="ib-state" role="status">Loading messages&hellip;</div>';
@@ -691,15 +690,20 @@
     if (it && !threads[it.key]) loadThread(it);
     rootEl.setAttribute('data-pane', S.pane);
     rootEl.setAttribute('data-mobile', S.mobile);
+    // Record visit: on the thread (with that customer) when one is open, on the
+    // list otherwise. inbox.css hides the list's copy beside an open thread on
+    // a wide screen, so there is one Record button in view, never two.
+    rootEl.setAttribute('data-sel', it ? '1' : '0');
+    var listRec = K.recordButton({ source: 'inbox', cls: 'ib-rec ib-rec-list' });
     var head = S.pane === 'inbox'
-      ? '<div class="ib-headline"><b>' + items.length + '</b> ' + (items.length === 1 ? 'person needs' : 'people need') + ' a reply</div>'
-      : '<div class="ib-headline"><b>' + leads().length + '</b> leads on your pipeline</div>';
+      ? '<div class="ib-headline"><span><b>' + items.length + '</b> ' + (items.length === 1 ? 'person needs' : 'people need') + ' a reply</span>' + listRec + '</div>'
+      : '<div class="ib-headline"><span><b>' + leads().length + '</b> leads on your pipeline</span>' + listRec + '</div>';
     var html = '<div class="ib-wrap">' + railHtml(counts) +
       '<section class="ib-list" aria-label="' + (S.pane === 'inbox' ? 'Inbox' : 'Pipeline by stage') + '">' + head + bannerHtml() + '<div class="ib-scroll">' + listHtml() + '</div></section>' +
       '<section class="ib-thread" aria-label="Thread">' + threadHtml(it) + '</section>' +
       '<aside class="ib-side" aria-label="Customer facts">' + factsHtml(it) + '</aside>' +
       legendHtml() + '</div>';
-    rootEl.hidden = !homeActive();
+    K.setOverlay(rootEl, homeActive());
     // Same markup as last time (a refresh event with nothing new, a minute tick
     // with no chip change): leave the DOM alone. Replacing it under a press
     // loses the click, and a scroll position / caret with it.
@@ -891,7 +895,7 @@
     });
     try {
       var raf = null;
-      mo = new MutationObserver(function () { if (raf) return; raf = setTimeout(function () { raf = null; if (rootEl) rootEl.hidden = !homeActive(); }, 60); });
+      mo = new MutationObserver(function () { if (raf) return; raf = setTimeout(function () { raf = null; if (rootEl) K.setOverlay(rootEl, homeActive()); }, 60); });
       mo.observe(doc.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
     } catch (e) {}
     if (W.NBDToday && typeof W.NBDToday.refreshAppointments === 'function') { try { W.NBDToday.refreshAppointments(); } catch (e) {} }
@@ -914,6 +918,7 @@
     if (mo) { mo.disconnect(); mo = null; }
     if (rootEl && rootEl.parentNode) rootEl.parentNode.removeChild(rootEl);
     rootEl = null;
+    K.clearOverlay();
     lastHtml = '';
     S.pane = 'inbox'; S.folder = 'all'; S.sel = ''; S.mobile = 'list'; S.menu = false;
   }

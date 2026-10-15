@@ -10,6 +10,8 @@ html[data-layout="inbox"] .ib-root {
 }
 html[data-layout="inbox"] .ib-root[hidden] { display: none; }
 html[data-layout="inbox"] .ib-wrap {
+  /* full screen over the status bar and the home indicator */
+  box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
   height: 100%; display: grid; grid-template-columns: 200px minmax(280px, 380px) minmax(0, 1fr) 280px;
   grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: "rail list thread side" "legend legend legend legend";
 }
@@ -24,12 +26,12 @@ html[data-layout="inbox"].my-skin-wallpaper .ib-rail {
 }
 html[data-layout="inbox"] .ib-switch { display: flex; gap: 4px; margin-bottom: 8px; }
 html[data-layout="inbox"] .ib-tab {
-  flex: 1; min-height: 36px; border-radius: 8px; border: 1px solid var(--rule); background: var(--s); color: var(--m);
+  flex: 1; min-height: 44px; border-radius: 8px; border: 1px solid var(--rule); background: var(--s); color: var(--m);
   font: inherit; font-size: 13px; font-weight: 800; cursor: pointer;
 }
 html[data-layout="inbox"] .ib-tab.is-on { background: var(--og); color: var(--orange); border-color: var(--orange); }
 html[data-layout="inbox"] .ib-folder {
-  min-height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px;
+  min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px;
   border: 0; border-radius: 8px; background: none; color: var(--t); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; text-align: left;
 }
 html[data-layout="inbox"] .ib-folder:hover { background: var(--s3); }
@@ -40,11 +42,17 @@ html[data-layout="inbox"] .ib-sheet {
   position: absolute; left: 10px; right: 10px; bottom: 54px; background: var(--s); border: 1px solid var(--rule);
   border-radius: 12px; padding: 6px; display: flex; flex-direction: column; z-index: 3; box-shadow: 0 10px 30px rgba(0, 0, 0, .3);
 }
-html[data-layout="inbox"] .ib-sheet button { min-height: 40px; border: 0; background: none; color: var(--t); font: inherit; font-weight: 700; text-align: left; padding: 0 12px; border-radius: 8px; cursor: pointer; }
+html[data-layout="inbox"] .ib-sheet button { min-height: 44px; border: 0; background: none; color: var(--t); font: inherit; font-weight: 700; text-align: left; padding: 0 12px; border-radius: 8px; cursor: pointer; }
 html[data-layout="inbox"] .ib-sheet button:hover { background: var(--og); }
 
 html[data-layout="inbox"] .ib-list { grid-area: list; background: var(--s); border-right: 1px solid var(--rule); display: flex; flex-direction: column; min-height: 0; }
-html[data-layout="inbox"] .ib-headline { padding: 12px 14px; border-bottom: 1px solid var(--rule); font-size: 14px; color: var(--m); }
+html[data-layout="inbox"] .ib-headline { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--rule); font-size: 14px; color: var(--m); }
+html[data-layout="inbox"] .ib-rec { flex: none; min-height: 44px; padding: 0 14px; font-size: 14px; }
+html[data-layout="inbox"] .ib-thread-head .ib-rec { margin-left: auto; }
+/* one Record visit in view: beside an open thread the list's copy steps aside */
+@media (min-width: 1101px) {
+  html[data-layout="inbox"] .ib-root[data-sel="1"] .ib-rec-list { display: none; }
+}
 html[data-layout="inbox"] .ib-headline b { color: var(--t); font-size: 18px; margin-right: 4px; }
 html[data-layout="inbox"] .ib-scroll { overflow-y: auto; flex: 1 1 auto; min-height: 0; -webkit-overflow-scrolling: touch; }
 html[data-layout="inbox"] .ib-banner {
@@ -156,6 +164,8 @@ html[data-layout="inbox"] .ib-legend kbd {
   html[data-layout="inbox"] .ib-legend { display: none; }
   html[data-layout="inbox"] .ib-row { min-height: var(--tap); }
   html[data-layout="inbox"] .ib-msg { max-width: 90%; }
-  /* the app bottom nav sits above this overlay and ate taps on the lowest rows; Menu in the rail is the way out */
-  html[data-layout="inbox"] #mobile-nav { display: none !important; }
+  /* The app bottom nav used to sit over this overlay and eat taps on the lowest
+     rows, so it was hidden on every view, and Menu > Pipeline was a dead end.
+     It is now hidden only while the overlay is up (kit.css, html.lk-overlay-on):
+     Menu in the rail is the way out, and the nav is the way back. */
 }

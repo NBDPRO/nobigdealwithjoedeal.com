@@ -9,9 +9,14 @@ html[data-layout="focus"] .fo-root {
 }
 html[data-layout="focus"] .fo-root[hidden] { display: none; }
 html[data-layout="focus"].my-skin-wallpaper .fo-root { background: transparent; }
-html[data-layout="focus"] .fo-wrap { max-width: 920px; margin: 0 auto; padding: 14px 16px 40px; box-sizing: border-box; min-height: 100%; display: flex; flex-direction: column; }
+html[data-layout="focus"] .fo-wrap {
+  max-width: 920px; margin: 0 auto; box-sizing: border-box; min-height: 100%; display: flex; flex-direction: column;
+  /* full screen over the status bar and the home indicator */
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 16px calc(40px + env(safe-area-inset-bottom, 0px));
+}
 
-html[data-layout="focus"] .fo-top { display: flex; gap: 8px; align-items: center; }
+html[data-layout="focus"] .fo-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+html[data-layout="focus"] .fo-rec-card { align-self: stretch; width: 100%; }
 html[data-layout="focus"] .fo-pill {
   min-height: var(--tap); padding: 0 18px; border-radius: 999px; border: 1px solid var(--rule); background: var(--s2); color: var(--t);
   font: inherit; font-size: 15px; font-weight: 800; cursor: pointer;
@@ -57,7 +62,7 @@ html[data-layout="focus"] .fo-why { margin: 0; font-size: 19px; line-height: 1.3
 html[data-layout="focus"] .fo-why-k { display: inline-block; margin-right: 8px; padding: 2px 10px; border-radius: 999px; background: var(--og); color: var(--orange); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; vertical-align: 2px; }
 html[data-layout="focus"] .fo-facts { list-style: none; margin: 0; padding: 0; color: var(--m); font-size: 15px; display: flex; flex-direction: column; gap: 3px; }
 html[data-layout="focus"] .fo-draft { background: var(--s2); border: 1px dashed var(--rule); border-radius: 14px; padding: 12px 14px; }
-html[data-layout="focus"] .fo-draft-k { font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--m); margin-bottom: 4px; }
+html[data-layout="focus"] .fo-draft-k { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--m); margin-bottom: 4px; }
 html[data-layout="focus"] .fo-draft p { margin: 0; font-size: 16px; line-height: 1.4; }
 html[data-layout="focus"] .fo-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
 html[data-layout="focus"] .fo-act {
@@ -66,7 +71,7 @@ html[data-layout="focus"] .fo-act {
 }
 html[data-layout="focus"] .fo-act[disabled] { opacity: .45; cursor: not-allowed; }
 html[data-layout="focus"] .fo-act-primary { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); box-shadow: 0 0 20px var(--og); }
-html[data-layout="focus"] .fo-act kbd { font: inherit; font-size: 11px; font-weight: 800; opacity: .7; border: 1px solid currentColor; border-radius: 6px; padding: 0 5px; }
+html[data-layout="focus"] .fo-act kbd { font: inherit; font-size: 12px; font-weight: 800; opacity: .7; border: 1px solid currentColor; border-radius: 6px; padding: 0 5px; }
 html[data-layout="focus"] .fo-open { font-size: 14px; font-weight: 700; color: var(--orange); }
 html[data-layout="focus"] .fo-keys { text-align: center; color: var(--m); font-size: 12px; margin: 16px 0 0; }
 
@@ -74,5 +79,7 @@ html[data-layout="focus"] .fo-keys { text-align: center; color: var(--m); font-s
   html[data-layout="focus"] .fo-peek { display: none; }
   html[data-layout="focus"] .fo-keys { display: none; }
   html[data-layout="focus"] .fo-hero { margin-top: 5vh; }
-  html[data-layout="focus"] #mobile-nav { display: none !important; }
+  /* The phone nav is hidden only while the Focus overlay is up (kit.css,
+     html.lk-overlay-on): after Menu > Pipeline it is back, so Home and Focus
+     are one tap away instead of a dead end. */
 }

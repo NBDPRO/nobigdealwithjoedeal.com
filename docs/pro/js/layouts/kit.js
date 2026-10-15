@@ -163,7 +163,11 @@
     if (d !== 'row' && it.why) html += '<div class="lk-why">' + esc(it.why) + '</div>';
     if (d === 'hero' && it.phone && fmtPhone(it.phone)) html += '<div class="lk-phone">' + esc(fmtPhone(it.phone)) + '</div>';
     html += '</div>';
-    if (d === 'row' && open) html += '<a class="lk-open" href="' + esc(open) + '" data-lk-link="open" aria-label="Open ' + esc(it.name || 'lead') + '">' + icon('open') + '</a>';
+    // link:false = the row sits inside a button that already opens it (an <a>
+    // inside a <button> is invalid HTML and the inner tap is unpredictable):
+    // the arrow is drawn, not linked.
+    if (d === 'row' && open && o.link === false) html += '<span class="lk-open" aria-hidden="true">' + icon('open') + '</span>';
+    else if (d === 'row' && open) html += '<a class="lk-open" href="' + esc(open) + '" data-lk-link="open" aria-label="Open ' + esc(it.name || 'lead') + '">' + icon('open') + '</a>';
     if (d !== 'row' && Array.isArray(o.actions) && o.actions.length) {
       html += actionBar(it, o.actions, { size: d === 'hero' ? 'lg' : 'sm', primary: o.primary });
     }
@@ -233,11 +237,57 @@
     return function unbind() { rootEl.removeEventListener('click', onClick); };
   }
 
+  // ── Record visit: ONE entry point, the same label in every layout ────
+  // The visit-recorder launcher (js/visit-recorder-launcher.js) delegates any
+  // [data-nbd-record-visit] click on document, so a layout only draws the
+  // button: no handler here, nothing to unbind. leadId / appointmentId pre-attach
+  // the recording; source says where it was started from.
+  var RECORD_LABEL = 'Record visit';
+  function recordButton(opts) {
+    var o = opts || {};
+    return '<button type="button" class="lk-rec' + (o.cls ? ' ' + esc(o.cls) : '') + '" data-nbd-record-visit=""' +
+      ' data-source="' + esc(o.source || 'layout') + '"' +
+      (o.leadId ? ' data-lead-id="' + esc(o.leadId) + '"' : '') +
+      (o.appointmentId ? ' data-appointment-id="' + esc(o.appointmentId) + '"' : '') + '>' +
+      '<span class="lk-rec-dot" aria-hidden="true"></span><span class="lk-rec-lbl">' + RECORD_LABEL + '</span></button>';
+  }
+
+  // ── Menu: the way out of a full-screen layout, named the same everywhere ─
+  // "Map" is the door-knock map (view-d2d) in every layout, the view the
+  // sidebar's Maps & Pins entry also lands on.
+  var MENU = [
+    { to: 'crm', label: 'Pipeline' },
+    { to: 'schedule', label: 'Schedule' },
+    { to: 'd2d', label: 'Map' },
+    { to: 'calls', label: 'Call Center' },
+    { to: 'settings', label: 'Settings' },
+  ];
+  // prefix: the layout's own delegated attribute (data-fo, data-ib, data-cw...).
+  function menuItems(prefix) {
+    var p = /^[a-z]{2,4}$/.test(String(prefix)) ? prefix : 'lk';
+    return MENU.map(function (m) {
+      return '<button type="button" role="menuitem" data-' + p + '="goto" data-to="' + m.to + '">' + esc(m.label) + '</button>';
+    }).join('');
+  }
+
+  // ── full-screen overlays (Field, Focus, Inbox, Mission, Crew) ───────
+  // A layout shows its overlay only while Home is the active view. While it is
+  // up, <html class="lk-overlay-on"> hides the app's phone nav (kit.css) so it
+  // cannot sit over the overlay; the moment the rep is on any other view the
+  // nav is back, so Home (and the layout) is always one tap away.
+  function setOverlay(el, shown) {
+    if (el) el.hidden = !shown;
+    var de = root && root.document && root.document.documentElement;
+    if (de && de.classList) de.classList.toggle('lk-overlay-on', !!shown);
+  }
+  function clearOverlay() { setOverlay(null, false); }
+
   var api = {
     esc: esc, digits10: digits10, fmtPhone: fmtPhone, leadName: leadName, customerUrl: customerUrl,
     mapsUrl: mapsUrl, telUrl: telUrl, smsUrl: smsUrl, fromLead: fromLead, icon: icon,
-    ACTIONS: ACTIONS, DENSITIES: DENSITIES, SIZES: SIZES,
+    ACTIONS: ACTIONS, DENSITIES: DENSITIES, SIZES: SIZES, MENU: MENU, RECORD_LABEL: RECORD_LABEL,
     actionBar: actionBar, card: card, widget: widget, nav: nav, bind: bind,
+    recordButton: recordButton, menuItems: menuItems, setOverlay: setOverlay, clearOverlay: clearOverlay,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDLayoutKit = api;
