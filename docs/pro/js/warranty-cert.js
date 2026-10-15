@@ -48,6 +48,16 @@ function _wcOwnWorkmanship(tier) {
   return (TR && typeof TR.ownWarrantyText === 'function') ? (TR.ownWarrantyText(tier) || '') : '';
 }
 
+// A siding-replacement job (2026-10-15): its estimate carries warrantyKind
+// 'siding' (or a saved siding warrantyPackage). Its Standard / Preferred /
+// Elite terms are the roof tiers' labor terms (Elite: annual inspection too),
+// so only the "Work Performed" wording changes.
+function _wcIsSidingJob(lead) {
+  if (!lead || typeof lead !== 'object') return false;
+  if (lead.warrantyKind === 'siding') return true;
+  return ['standard', 'preferred', 'elite'].indexOf(String(lead.warrantyPackage || '').toLowerCase()) !== -1;
+}
+
 // The two warranty lines (2026-10-06): workmanship (NBD: the NBD Pledge;
 // another company: its own sentence or none) and the manufacturer warranty the
 // job actually bought. tenant-rules.js builds both; without it, the honest
@@ -88,7 +98,10 @@ function openWarrantyCertWizard(lead) {
                   : (typeof lead === 'string' ? lead : null);
   _wcCurrentJob = {
     lineItems: (lead && typeof lead === 'object' && (lead.estimateLineItems || lead.lineItems)) || [],
-    extendedWarranty: (lead && typeof lead === 'object' && lead.extendedWarranty) || null
+    extendedWarranty: (lead && typeof lead === 'object' && lead.extendedWarranty) || null,
+    // Siding replacement (2026-10-15): the same Standard / Preferred / Elite
+    // labor terms as a roof, so the certificate names siding, not a roof.
+    siding: _wcIsSidingJob(lead)
   };
   // Pre-fill from lead if provided
   if (lead) {
@@ -105,7 +118,7 @@ function openWarrantyCertWizard(lead) {
       const _res = window.NBDDocGen && window.NBDDocGen.resolveDocManufacturer && window.NBDDocGen.resolveDocManufacturer(_li);
       if (_res && _res.manufacturerName && _res.manufacturerName !== _res.manufacturer + ' shingles') _mfgWork = _res.manufacturerName;
     } catch (_) { /* name no shingle */ }
-    const _workBase = lead.damageType || 'Roof replacement';
+    const _workBase = _wcCurrentJob.siding ? 'Siding replacement' : (lead.damageType || 'Roof replacement');
     document.getElementById('wcWork').value = _mfgWork ? `${_workBase} — ${_mfgWork}` : _workBase;
     // GBB audit §7.3, 2026-09-09: this certificate is the roofing job's
     // actual warranty, not a separate rep-picked product — pre-fill the
@@ -114,7 +127,8 @@ function openWarrantyCertWizard(lead) {
     // config), instead of always silently defaulting to Standard. Still
     // rep-overridable below — not every lead carries a resolvable tier.
     try {
-      const soldTier = String(lead.warrantyTier || lead.tier || lead.tierName || '').toLowerCase();
+      // A siding job's package (standard/preferred/elite) is already a cert tier key.
+      const soldTier = String((_wcCurrentJob.siding && lead.warrantyPackage) || lead.warrantyTier || lead.tier || lead.tierName || '').toLowerCase();
       const cfg = window.NBD_ESTIMATE_CONFIG;
       const mapped = (cfg && typeof cfg.tierLabel === 'function' ? cfg.tierLabel(soldTier) : soldTier).toLowerCase();
       const tierSelect = document.getElementById('wcTier');
@@ -178,7 +192,7 @@ async function generateWarrantyCertPDF() {
   const addr  = document.getElementById('wcAddr').value.trim()  || '___________________';
   const date  = document.getElementById('wcDate').value         || '';
   const tier  = document.getElementById('wcTier').value         || 'standard';
-  const work  = document.getElementById('wcWork').value.trim()  || 'Roofing installation';
+  const work  = document.getElementById('wcWork').value.trim()  || (_wcCurrentJob.siding ? 'Siding installation' : 'Roofing installation');
 
   const dateFormatted = date ? new Date(date + 'T12:00:00').toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'}) : '___________________';
 

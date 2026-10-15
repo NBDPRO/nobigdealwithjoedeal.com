@@ -398,10 +398,14 @@
     //                     transfer terms BY PACKAGE, the roof tiers' labor
     //                     terms — Standard 5 (does not transfer), Preferred 10
     //                     (one subsequent owner within 30 days of sale), Elite
-    //                     20 (fully transferable). The rep picks the package
-    //                     on the estimate (est.warrantyPackage, default
-    //                     'standard'); it changes no price. Economy and Beyond
-    //                     are roof-only. Siding REPAIR stays 'repair'.
+    //                     20 (fully transferable + the annual courtesy
+    //                     inspection, the same as roof Elite — Jo,
+    //                     2026-10-15). The rep picks the package on the
+    //                     estimate (est.warrantyPackage, default 'standard');
+    //                     it changes no price, and it locks at signing (it is
+    //                     one of customer-estimate-rows.js PRICED_FIELDS, like
+    //                     the roof tier). Economy and Beyond are roof-only.
+    //                     Siding REPAIR stays 'repair'.
     // Defaults only — tenant-overridable later. The sentence is built by
     // NBDCustomerEstimateRows.estimateWarranty(), which reads this table and
     // carries a copy for pages that don't load this file (customer.html);
@@ -416,7 +420,7 @@
       siding:          Object.freeze({ byPackage: Object.freeze({
         standard:  Object.freeze({ label: 'Standard', years: 5, transferable: false, transferWindowDays: 0 }),
         preferred: Object.freeze({ label: 'Preferred', years: 10, transferable: true, transferWindowDays: 30 }),
-        elite:     Object.freeze({ label: 'Elite', years: 20, transferable: true, transferWindowDays: 0 })
+        elite:     Object.freeze({ label: 'Elite', years: 20, transferable: true, transferWindowDays: 0, inspection: true })
       }) })
     }),
 

@@ -64,6 +64,12 @@ function ok(label, cond, detail) {
   }));
   ok('workmanship years by job type match WORKMANSHIP_WARRANTY', Object.keys(L.WORKMANSHIP_YEARS).every((k) => {
     const v = CFG.WORKMANSHIP_WARRANTY && CFG.WORKMANSHIP_WARRANTY[k];
+    // By-package kinds (siding replacement, 2026-10-15): every package's years.
+    if (v && v.byPackage) {
+      const mine = L.WORKMANSHIP_YEARS[k] || {};
+      return Object.keys(v.byPackage).join() === Object.keys(mine).join()
+        && Object.keys(v.byPackage).every((p) => v.byPackage[p].years === mine[p]);
+    }
     return v != null && (typeof v === 'number' ? v : (v.years != null ? v.years : v.workmanshipYears)) === L.WORKMANSHIP_YEARS[k];
   }), JSON.stringify(CFG.WORKMANSHIP_WARRANTY));
   ok('deposit rule matches DEPOSIT_RULE', CFG.DEPOSIT_RULE.CASH_NO_DEPOSIT_UNDER_CENTS === L.DEPOSIT.cashNoDepositUnderCents && CFG.DEPOSIT_RULE.CASH_DEPOSIT_PCT === L.DEPOSIT.cashDepositPct);

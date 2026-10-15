@@ -30,6 +30,15 @@
  *                  saved estimate, and resets for the next estimate.
  *   7. V2          a siding estimate reopened in estimate-v2-ui.js keeps its
  *                  package through print and re-save.
+ * Follow-up (Jo, 2026-10-15):
+ *   - Elite siding includes the annual courtesy inspection, like roof Elite.
+ *   8. LOCK        warrantyPackage locks at contract signing the way the roof
+ *                  tier does (customer-estimate-rows.js PRICED_FIELDS →
+ *                  signedPrice): a later change is an unsigned change, and
+ *                  the warranty certificate prints the signed package.
+ *   9. AGENTS      functions/agent-mcp-logic.js rules_reference lists siding
+ *                  by package (WORKMANSHIP_YEARS.siding + the terms).
+ *  10. WIZARD      warranty-cert.js says "Siding replacement" on a siding job.
  *
  * Run: node tests/siding-warranty-by-package-2026-10-15.test.js
  */
@@ -142,7 +151,7 @@ const txt = (est) => { const r = ROWS.estimateWarranty(est); return r ? r.text :
 
 const STD = '5-year workmanship warranty (Standard package); does not transfer on sale of property.';
 const PREF = '10-year workmanship warranty (Preferred package); transferable to one subsequent owner within 30 days of sale.';
-const ELITE = '20-year workmanship warranty (Elite package); fully transferable — follows the property through all subsequent owners.';
+const ELITE = '20-year workmanship warranty (Elite package); fully transferable — follows the property through all subsequent owners; annual courtesy inspection included.';
 
 // ════════════════════════════════════════════════════════════════════
 section('1. DATA — siding replacement is its own kind');
@@ -165,6 +174,9 @@ section('1. DATA — siding replacement is its own kind');
     bp && bp.standard.years === 5 && bp.standard.transferable === false
       && bp.preferred.years === 10 && bp.preferred.transferable === true && bp.preferred.transferWindowDays === 30
       && bp.elite.years === 20 && bp.elite.transferable === true && !bp.elite.transferWindowDays);
+  ok('config: Elite siding includes the annual inspection (same flag as roof Elite); Standard/Preferred do not',
+    bp && bp.elite.inspection === true && !bp.standard.inspection && !bp.preferred.inspection
+      && CFG.TIER_DISPLAY.best.warranty.inspection === true);
   ok('…the same years as the roof tiers (Standard/Preferred/Elite)',
     bp && bp.standard.years === CFG.TIER_DISPLAY.good.warranty.workmanshipYears
       && bp.preferred.years === CFG.TIER_DISPLAY.better.warranty.workmanshipYears
@@ -191,7 +203,10 @@ section('2. SENTENCE — 5/10/20 by package with the transfer terms');
     ROWS.estimateWarranty(std).years === 5 && ROWS.estimateWarranty(pref).years === 10 && ROWS.estimateWarranty(elite).years === 20);
   ok('kind "siding", no tier wording', ROWS.estimateWarranty(pref).kind === 'siding' && ROWS.estimateWarranty(pref).wordingTier === '');
   ok('no tier recorded (packages are not roof tiers)', pref.tier === null && pref.selectedTier === null && pref.tierApplies === false);
-  ok('Elite siding promises no annual inspection and no GAF/shingle warranty', !/inspection|GAF|shingle/i.test(txt(elite)));
+  ok('Elite siding includes the annual courtesy inspection (same words as roof Elite)', /; annual courtesy inspection included\.$/.test(txt(elite))
+    && /annual courtesy inspection included/.test(CFG.tierWarrantyText('best', true)), txt(elite));
+  ok('Standard and Preferred siding carry no inspection', !/inspection/i.test(txt(std)) && !/inspection/i.test(txt(pref)));
+  ok('Elite siding promises no GAF/shingle warranty', !/GAF|shingle/i.test(txt(elite)));
   const bogus = payloadFor([SIDING], { warrantyPackage: 'beyond' });
   ok('an unknown package (beyond) saves Standard', bogus.warrantyPackage === 'standard' && txt(bogus) === STD);
   const hand = Object.assign({}, pref, { warrantyPackage: 'lifetime' });
@@ -211,7 +226,7 @@ section('2. SENTENCE — 5/10/20 by package with the transfer terms');
       + '5-year workmanship warranty on ' + byId[GUTTER].name + '.', txt(mixStd));
   const mixRep = payloadFor([SIDING, SIDING_REPAIR], { warrantyPackage: 'elite' });
   ok('siding replacement + unticked siding repair: names only the replacement',
-    txt(mixRep) === '20-year workmanship warranty (Elite package) on ' + byId[SIDING].name + '; fully transferable — follows the property through all subsequent owners.', txt(mixRep));
+    txt(mixRep) === '20-year workmanship warranty (Elite package) on ' + byId[SIDING].name + '; fully transferable — follows the property through all subsequent owners; annual courtesy inspection included.', txt(mixRep));
   ok('a job with no siding part saves no package', payloadFor([GUTTER], { warrantyPackage: 'elite' }).warrantyPackage === null);
 
   const cases = [std, pref, elite, mix, mixStd, mixRep, noPkg];
@@ -443,6 +458,132 @@ const has = (html, s) => !!html && (html.indexOf(s) !== -1 || html.indexOf(esc(s
         JSON.stringify({ p: resaved.warrantyPackage, k: resaved.warrantyKind }));
       ok('…and still prints 10 years', txt(resaved) === PREF);
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  section('8. LOCKED AT SIGNING — the package rides the signed price, like the roof tier');
+  // ══════════════════════════════════════════════════════════════════
+  {
+    const SP = require(path.join(ROOT, 'functions', 'signed-price.js'));
+    ok('warrantyPackage is a signed field, beside the roof tier (both copies)',
+      ROWS.PRICED_FIELDS.indexOf('warrantyPackage') !== -1 && ROWS.PRICED_FIELDS.indexOf('tier') !== -1
+        && SERVER_ROWS.PRICED_FIELDS.indexOf('warrantyPackage') !== -1);
+    const est = payloadFor([SIDING], { warrantyPackage: 'elite' });
+    const plan = SP.planSignedStamp({ event: 'contract_signed', lead: { userId: 'u1' }, leadId: 'L1', est: est, estimateId: 'e1', sourceId: 'c1', nowMs: 1 });
+    ok('a contract signature stamps the Elite package into signedPrice', plan.action === 'stamp' && plan.signedPrice.fields.warrantyPackage === 'elite',
+      JSON.stringify(plan.signedPrice && plan.signedPrice.fields && plan.signedPrice.fields.warrantyPackage));
+    const signed = Object.assign({}, est, { signedPrice: plan.signedPrice });
+    ok('signed and untouched: no unsigned change', SERVER_ROWS.hasUnsignedChanges(signed) === false);
+    const edited = Object.assign({}, signed, { warrantyPackage: 'standard' });
+    ok('package changed after signing (Elite -> Standard) shows as an unsigned change', ROWS.hasUnsignedChanges(edited) === true);
+    ok('…and the signed view keeps Elite', ROWS.signedView(edited).warrantyPackage === 'elite' && txt(ROWS.signedView(edited)) === ELITE,
+      txt(ROWS.signedView(edited)));
+    const other = Object.assign({}, signed, { warrantyPackage: 'preferred' });
+    ok('…the same for any other package (Elite -> Preferred is still not what was signed)', ROWS.hasUnsignedChanges(other) === true);
+    const restamp = SP.planSignedStamp({ event: 'contract_signed', lead: { userId: 'u1' }, leadId: 'L1', est: edited, estimateId: 'e1', sourceId: 'c2', nowMs: 2 });
+    ok('a re-sign stamps the new package (that is the re-sign)', restamp.action === 'stamp' && restamp.signedPrice.fields.warrantyPackage === 'standard');
+
+    // Non-siding estimates carry warrantyPackage: null. null is "none", so an
+    // estimate signed before the field existed keeps its fingerprint.
+    const gut = payloadFor([GUTTER]);
+    const bare = Object.assign({}, gut); delete bare.warrantyPackage;
+    ok('no package (null) is not in the signed snapshot', !('warrantyPackage' in ROWS.signedPriceSnapshot(gut)));
+    ok('…so null and missing hash the same (old signed estimates show no false unsigned change)',
+      ROWS.pricedFingerprint(gut) === ROWS.pricedFingerprint(bare) && SERVER_ROWS.pricedFingerprint(gut) === ROWS.pricedFingerprint(bare));
+    const oldSigned = Object.assign({}, gut, { signedPrice: { fields: ROWS.signedPriceSnapshot(bare), fingerprint: ROWS.pricedFingerprint(bare) } });
+    ok('…a gutter estimate signed before, re-saved with warrantyPackage null: no unsigned change', ROWS.hasUnsignedChanges(oldSigned) === false);
+
+    const rules = read(path.join(ROOT, 'firestore.rules'));
+    ok('signedPrice stays server-only (frozen on update, refused on create)',
+      /didNotChange\(\[[^\]]*'signedPrice'\]\)/.test(rules) && /!\('signedPrice' in request\.resource\.data\)/.test(rules));
+
+    // Paperwork: the certificate certifies the SIGNED package; a contract
+    // for the re-sign reads the estimate as saved (the same split bills use).
+    for (const withConfig of [true, false]) {
+      const tag = withConfig ? '[dashboard]' : '[customer.html]';
+      const env = docStack(withConfig);
+      const cert = await throughPreflight(env, 'warranty_certificate', JSON.parse(JSON.stringify(edited)));
+      ok(tag + ' certificate after a post-signing change prints the signed Elite package',
+        cert.html && /20-YEAR WORKMANSHIP WARRANTY/.test(cert.html) && has(cert.html, ELITE) && !has(cert.html, STD), cert.error || cert.toast);
+      const con = await throughPreflight(env, 'contract', JSON.parse(JSON.stringify(edited)));
+      ok(tag + ' a contract for the re-sign prints the saved Standard package', con.data && con.data.warranty === STD, con.data && con.data.warranty);
+      const plain = await throughPreflight(env, 'warranty_certificate', JSON.parse(JSON.stringify(signed)));
+      ok(tag + ' signed and untouched: certificate prints Elite', plain.html && has(plain.html, ELITE), plain.toast);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  section('9. AGENT RULES — rules_reference lists siding by package');
+  // ══════════════════════════════════════════════════════════════════
+  {
+    const L = require(path.join(ROOT, 'functions', 'agent-mcp-logic.js'));
+    const r = L.rulesReference();
+    const bp = CFG.WORKMANSHIP_WARRANTY.siding.byPackage;
+    const ys = r.workmanship_warranty_years && r.workmanship_warranty_years.siding;
+    ok('WORKMANSHIP_YEARS.siding = Standard 5 / Preferred 10 / Elite 20 (== estimate-config.js)',
+      JSON.stringify(L.WORKMANSHIP_YEARS.siding) === JSON.stringify({ standard: 5, preferred: 10, elite: 20 })
+        && Object.keys(bp).every((p) => L.WORKMANSHIP_YEARS.siding[p] === bp[p].years), JSON.stringify(L.WORKMANSHIP_YEARS.siding));
+    ok('rules_reference carries the siding years', ys && ys.standard === 5 && ys.preferred === 10 && ys.elite === 20, JSON.stringify(ys));
+    ok('…as a copy (a caller cannot change the module table)', (function () { ys.elite = 99; return L.WORKMANSHIP_YEARS.siding.elite === 20; })());
+    const pk = {}; (r.siding_replacement_packages || []).forEach((p) => { pk[p.key] = p; });
+    ok('three siding packages, no Economy / Beyond', Object.keys(pk).join() === 'standard,preferred,elite', Object.keys(pk).join());
+    ok('Standard: 5 years, not transferable', pk.standard && pk.standard.years === 5 && /5-year/.test(pk.standard.warranty) && /not transferable/.test(pk.standard.warranty));
+    ok('Preferred: 10 years, transferable once within 30 days of sale',
+      pk.preferred && pk.preferred.years === 10 && /10-year/.test(pk.preferred.warranty) && /one later owner within 30 days of sale/.test(pk.preferred.warranty));
+    ok('Elite: 20 years, fully transferable + annual inspection',
+      pk.elite && pk.elite.years === 20 && /20-year/.test(pk.elite.warranty) && /fully transferable/.test(pk.elite.warranty) && /annual inspection/.test(pk.elite.warranty));
+    ok('the siding terms match the roof tiers word for word (labor part)', ['good', 'better', 'best'].every((k, i) => {
+      const roof = r.tiers.find((t) => t.key === k).warranty;
+      const sid = pk[['standard', 'preferred', 'elite'][i]].warranty;
+      return roof.indexOf(sid) === 0;
+    }));
+    ok('the package years equal the config byPackage years', Object.keys(bp).every((p) => pk[p] && pk[p].years === bp[p].years
+      && (bp[p].inspection === true) === /annual inspection/.test(pk[p].warranty)));
+    ok('siding note: no price change, locked at signing, no GAF/shingle warranty',
+      /no price/.test(r.siding_note || '') && /signing/.test(r.siding_note || '') && /no GAF System Plus/.test(r.siding_note || ''));
+    ok('siding repair stays 1 year when ticked', /siding repair/i.test(r.repair_warranty_note) && /1 year only when the rep ticks/.test(r.repair_warranty_note)
+      && L.WORKMANSHIP_YEARS.repair === 1);
+    ok('the tool description names siding packages', /siding packages/.test(L.TOOLS.rules_reference.description));
+    ok('the reference still passes the Kentucky wording guard', !L.claimWordingProblem(JSON.stringify(r).replace(/never_say[^\]]*\]/, '')));
+    ok('no "lifetime" anywhere in the siding rules', !/lifetime/i.test(JSON.stringify(r.siding_replacement_packages) + r.siding_note));
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  section('10. CERTIFICATE WIZARD — warranty-cert.js says siding on a siding job');
+  // ══════════════════════════════════════════════════════════════════
+  {
+    ['warrantyCertModal', 'wcOwner', 'wcAddr', 'wcDate', 'wcTier', 'wcWork', 'wcTierDesc', 'wcEyebrow'].forEach((id) => {
+      if (DOM_IDS.indexOf(id) === -1) DOM_IDS.push(id);
+    });
+    const wiz = () => {
+      const env = makeSandbox(null);
+      load(env, 'docs/pro/js/estimate-config.js');
+      load(env, 'docs/pro/js/warranty-cert.js');
+      const sel = env.win.document.getElementById('wcTier');
+      sel.options = ['economy', 'standard', 'preferred', 'elite', 'beyond'].map((v) => ({ value: v, textContent: v }));
+      sel.value = 'standard';
+      return env;
+    };
+    const open = (lead) => {
+      const env = wiz();
+      vm.runInContext('openWarrantyCertWizard(__lead)', Object.assign(env.sandbox, { __lead: lead }));
+      const d = env.win.document;
+      return { work: d.getElementById('wcWork').value, tier: d.getElementById('wcTier').value, desc: d.getElementById('wcTierDesc').textContent, env };
+    };
+    const sid = open({ id: 'L1', firstName: 'Jane', lastName: 'Smith', address: '1 A St', warrantyKind: 'siding', warrantyPackage: 'elite', damageType: 'Hail' });
+    ok('siding job: Work Performed reads "Siding replacement"', sid.work === 'Siding replacement', sid.work);
+    ok('…the tier pre-fills from the siding package (Elite)', sid.tier === 'elite', sid.tier);
+    ok('…and the Elite terms name the annual courtesy inspection', /Annual courtesy inspection included/.test(sid.desc), sid.desc);
+    ok('…with no shingle or roof wording in the terms', !/shingle|roof/i.test(sid.desc));
+    const pkgOnly = open({ id: 'L2', warrantyPackage: 'preferred' });
+    ok('a saved siding package alone marks the job as siding (Preferred)', pkgOnly.work === 'Siding replacement' && pkgOnly.tier === 'preferred', JSON.stringify([pkgOnly.work, pkgOnly.tier]));
+    const roof = open({ id: 'L3', firstName: 'Bo', tier: 'best' });
+    ok('roof job: unchanged ("Roof replacement", tier from the roof tier)', roof.work === 'Roof replacement' && roof.tier === 'elite', JSON.stringify([roof.work, roof.tier]));
+    const hail = open({ id: 'L4', damageType: 'Hail damage', tier: 'good' });
+    ok('roof job with a damage type: unchanged', hail.work === 'Hail damage' && hail.tier === 'standard');
+    const src = read(path.join(ROOT, 'docs', 'pro', 'js', 'warranty-cert.js'));
+    ok('blank Work Performed falls back to "Siding installation" on siding, "Roofing installation" otherwise',
+      /_wcCurrentJob\.siding \? 'Siding installation' : 'Roofing installation'/.test(src));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

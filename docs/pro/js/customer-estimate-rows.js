@@ -344,14 +344,16 @@
     siding:          { byPackage: {
       standard:  { label: 'Standard', years: 5, transferable: false, transferWindowDays: 0 },
       preferred: { label: 'Preferred', years: 10, transferable: true, transferWindowDays: 30 },
-      elite:     { label: 'Elite', years: 20, transferable: true, transferWindowDays: 0 },
+      elite:     { label: 'Elite', years: 20, transferable: true, transferWindowDays: 0, inspection: true },
     } },
   };
 
   // Siding replacement packages (Jo, 2026-10-15). A siding estimate saves
   // `warrantyPackage`; one without it (or with an unknown value) reads as
-  // Standard, the smallest promise. Same transfer phrases as roofing's
-  // tierWarrantyText (estimate-config.js), so the two never disagree.
+  // Standard, the smallest promise. Same transfer and inspection phrases as
+  // roofing's tierWarrantyText (estimate-config.js), so the two never
+  // disagree: Elite siding includes the annual courtesy inspection, the same
+  // as roof Elite. The package locks at signing (PRICED_FIELDS below).
   const WARRANTY_PACKAGES = ['standard', 'preferred', 'elite'];
   function warrantyPackageOf(est) {
     const p = String((est && est.warrantyPackage) || '').toLowerCase();
@@ -361,6 +363,10 @@
     if (!t.transferable) return 'does not transfer on sale of property';
     if (t.transferWindowDays) return 'transferable to one subsequent owner within ' + t.transferWindowDays + ' days of sale';
     return 'fully transferable — follows the property through all subsequent owners';
+  }
+  // A package's terms after the years: transfer, then the inspection perk.
+  function packageTerms(t) {
+    return transferPhrase(t) + (t.inspection ? '; annual courtesy inspection included' : '');
   }
 
   // ESTIMATES SAVED BEFORE 2026-09-25 carry no tierApplies/warrantyKind, only
@@ -491,7 +497,7 @@
       const t = entry.byPackage[warrantyPackageOf(est)];
       const y = t ? Number(t.years) : 0;
       if (!(Number.isFinite(y) && y > 0)) return { years: 0, qual: '', terms: '' };
-      return { years: y, qual: ' (' + t.label + ' package)', terms: transferPhrase(t) };
+      return { years: y, qual: ' (' + t.label + ' package)', terms: packageTerms(t) };
     }
     return { years: warrantyYears(kind, est.repairWarranty), qual: '', terms: '' };
   }
@@ -525,7 +531,8 @@
    *          terms from est.warrantyPackage (standard 5 / preferred 10 /
    *          elite 20; missing or unknown = standard), e.g. "10-year
    *          workmanship warranty (Preferred package); transferable to one
-   *          subsequent owner within 30 days of sale."
+   *          subsequent owner within 30 days of sale." Elite adds "; annual
+   *          courtesy inspection included" (the same as roof Elite).
    */
   function estimateWarranty(est) {
     if (!est || isPerSqEstimate(est)) return null;
@@ -611,12 +618,17 @@
   // pricedFingerprint is the version of an estimate's price: a signed
   // estimate whose fingerprint moved has changes the homeowner never signed,
   // and a deal-room link carries the fingerprint it was issued at.
+  // warrantyPackage (siding replacement, Jo 2026-10-15) prices nothing, but it
+  // is a signed term like the roof tier: it locks at signing the same way
+  // (signed copy, versioned, so a package changed after signing shows as an
+  // unsigned change and the warranty certificate prints the signed package).
   const PRICED_FIELDS = [
     'grandTotal', 'total', 'amount', 'subtotal', 'tax', 'taxAmount', 'taxRate',
     'rows', 'lineItems', 'prices', 'priceMode', 'tier', 'selectedTier', 'tierName',
     'tierApplies', 'builder', 'sourceTemplates', 'materialMarkupPct', 'overhead',
     'profit', 'overheadPct', 'profitPct', 'minJobApplied', 'mode', 'jobMode',
     'claim', 'deposit', 'depositPlan', 'depositPctOverride', 'depositOverridePct',
+    'warrantyPackage',
   ];
   // Carried with the signed price, but not part of its version: the deposit
   // stamp is derived from the price (and carries display text).
@@ -664,6 +676,10 @@
     if (!est || typeof est !== 'object') return out;
     PRICED_FIELDS.forEach(function (k) {
       if (est[k] === undefined) return;
+      // No package (null: every non-siding estimate) is the same as none at
+      // all, so an estimate signed before warrantyPackage existed and re-saved
+      // since keeps its fingerprint and does not show an unsigned change.
+      if (k === 'warrantyPackage' && est[k] == null) return;
       out[k] = (k === 'claim') ? _claimMoney(est[k]) : est[k];
     });
     return out;
