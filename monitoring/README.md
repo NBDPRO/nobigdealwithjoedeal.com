@@ -140,6 +140,23 @@ every 10 minutes. The old "more than 200 denials in 10 minutes" was never what
 a matched-log condition does. CI E2E calls production functions, so a CI
 burst can trip it.
 
+**2026-10-15: `cspReport:*` is excluded** (`AND NOT jsonPayload.namespace=~"^cspReport"`).
+From 10-12 every one of the 2,000 most recent denials was `cspReport:ip`: one
+iPhone's browser re-sending CSP reports paged Joe several times a day. The
+endpoint now dedupes identical reports per IP for 10 minutes before the
+limiter, and logs its own denials as INFO `csp_report_rate_limited`
+(`sampled: true`, once per IP per 10 min, with `suppressedSinceLast`), so CSP
+report abuse stays visible in Logging without paging. Every other namespace
+(lead intake, OTP `sendVerificationCode`/`verifyCode`, AI, access code) still
+pages. Applied live the same day (backup of the old policy was taken first):
+
+```bash
+gcloud alpha monitoring policies update \
+  projects/nobigdeal-pro/alertPolicies/13778878090024008942 \
+  --policy-from-file=monitoring/alert-rate-limit-spike.json \
+  --project=nobigdeal-pro
+```
+
 ### 5. Billing budget (set in Cloud Billing console, not here)
 In Cloud Billing → Budgets, set a **$50/day** budget on the project with a
 50%/90%/100% threshold. Email + SMS to Joe.

@@ -66,8 +66,36 @@ const PIPELINE = Object.freeze({
   DISCARDED: 'discarded',
   PURGE_PENDING: 'purge_pending',   // a skip / discard whose audio could not be deleted yet
 });
-// The sweep re-visits exactly these.
-const RETRY_STATES = [PIPELINE.WAITING_OBJECT, PIPELINE.TRANSCRIBE_PENDING, PIPELINE.CONSENT_PENDING, PIPELINE.TRANSCRIBED, PIPELINE.NOTES_PENDING, PIPELINE.PURGE_PENDING];
+// The sweep re-visits exactly these. QUEUED is here because the AI kill switch
+// parks a never-started doc as 'queued' with a retry time: without it the doc
+// sat in 'queued' for ever once the switch was turned back off (2026-10-15).
+const RETRY_STATES = [PIPELINE.QUEUED, PIPELINE.WAITING_OBJECT, PIPELINE.TRANSCRIBE_PENDING, PIPELINE.CONSENT_PENDING, PIPELINE.TRANSCRIBED, PIPELINE.NOTES_PENDING, PIPELINE.PURGE_PENDING];
+
+// ── a failed visit, in plain words ──────────────────────────────────────
+// pipelineNote codes the pipeline leaves on a FAILED doc -> words a person
+// can read. The phone has the same map (docs/pro/js/visit-recorder-logic.js
+// FAIL_WORDS); a test keeps the two in step.
+const FAIL_WORDS = {
+  bad_audio_path: 'the audio file was not where it should be',
+  object_missing: 'the audio never finished uploading',
+  audio_empty: 'the audio file was empty',
+  too_large: 'the recording is too big for the transcriber (over 25 MB)',
+  too_long: 'the recording is longer than the 60 minute limit',
+  storage_read_failed: 'the audio could not be read back from storage',
+  transcribe_failed: 'the transcriber could not read it',
+  no_speech: 'no speech was heard on it',
+  gave_up_after_14_days: 'it kept failing for two weeks',
+  internal_error_gave_up: 'something went wrong on our side',
+};
+function failureWords(note) { return FAIL_WORDS[str(note)] || 'something went wrong'; }
+// A person may ask for the transcription again only where another try can help
+// (the audio is the same; too big / too long / missing never change).
+const RETRANSCRIBE_NOTES = ['transcribe_failed', 'storage_read_failed', 'no_speech', 'internal_error_gave_up'];
+function canRetryTranscription(d) {
+  return !!d && d.pipelineStatus === PIPELINE.FAILED && d.audioLive === true && RETRANSCRIBE_NOTES.indexOf(str(d.pipelineNote)) !== -1;
+}
+/** The idempotency key of a filed failure: which customer, and why it failed. */
+function failKey(d) { return d && d.leadId ? String(d.leadId) + ':f:' + str(d.pipelineNote) : ''; }
 
 const str = (v) => String(v == null ? '' : v);
 const clip = (s, n) => {
@@ -212,7 +240,9 @@ function nextStep(doc, nowMs) {
   if (p === PIPELINE.PURGE_PENDING) return due <= nowMs ? { step: 'purge' } : { step: 'none', why: 'purge backoff' };
   if ((p === PIPELINE.SKIPPED || p === PIPELINE.QUARANTINED) && d.audioLive === true) return due <= nowMs ? { step: 'purge' } : { step: 'none', why: 'purge backoff' };
   // The person took the customer off (or the phone wrote leadId null): take the filing off too.
-  if (!d.leadId && d.attachedLeadId && (p === PIPELINE.READY || p === PIPELINE.NOTES_PENDING || p === PIPELINE.NOTES_FAILED || p === PIPELINE.TRANSCRIBED)) return { step: 'unfile' };
+  if (!d.leadId && d.attachedLeadId && (p === PIPELINE.READY || p === PIPELINE.NOTES_PENDING || p === PIPELINE.NOTES_FAILED || p === PIPELINE.TRANSCRIBED || p === PIPELINE.FAILED)) return { step: 'unfile' };
+  // A failed visit on a customer gets ONE "could not be processed" row there, so it never vanishes.
+  if (p === PIPELINE.FAILED && d.leadId && d.finalizedKey !== failKey(d)) return { step: 'file_failure' };
   const wantsFinalize = !!d.leadId && d.finalizedKey !== finalizeKey(d)
     && (p === PIPELINE.READY || p === PIPELINE.NOTES_PENDING || p === PIPELINE.NOTES_FAILED || p === PIPELINE.TRANSCRIBED);
   if (!p || p === PIPELINE.QUEUED) return due <= nowMs ? { step: 'process', stage: 'start' } : { step: 'none', why: 'backoff' };
@@ -674,9 +704,38 @@ function buildAttachment({ capture, notes, visitId, leadId, lead, uid, todayYmd,
     audioKeptUntilMs: cap.audioPath && audioKeptDays ? (Number(cap.firstSeenAtMs) || nowMs) + audioKeptDays * 86400000 : null,
     notesPending: !n && !notesFailed,
     notesFailed: !n && !!notesFailed,
+    // set explicitly: the row is merge-written, and a "could not be processed" row may be under it
+    processingFailed: false, failureNote: null,
   };
   if (companyId) activity.companyId = companyId;
   return { activityId: 'visit-' + visitId, activity, tasks, skipped };
+}
+
+/**
+ * The timeline row for a visit on a customer that the pipeline could NOT
+ * process. Same id as the normal row (visit-{visitId}), so a later successful
+ * retry overwrites it. No tasks: nothing was heard.
+ */
+function buildFailureActivity({ capture, visitId, lead, uid, nowMs, audioKeptDays }) {
+  const cap = capture || {};
+  const ownerUid = (lead && lead.userId) || uid;
+  const kept = cap.audioLive === true;
+  const words = failureWords(cap.pipelineNote);
+  const summary = (kept ? 'Visit recording couldn\'t be processed — audio kept.' : 'Visit recording couldn\'t be processed.')
+    + ' Reason: ' + words + '.' + (kept ? ' Open the visit to play it' + (canRetryTranscription(cap) ? ' or retry the transcription.' : '.') : '');
+  const activity = {
+    userId: ownerUid, type: 'visit', source: 'visit-capture', label: 'Visit recording',
+    summary: clip(summary, 1500),
+    visitId, visitUid: uid, durationSec: Math.round(Number(cap.durationSec) || 0),
+    startedAtMs: Number(cap.startedAtMs) || null,
+    visitType: null, urgent: false,
+    audioVisitId: kept && cap.audioPath ? visitId : null,
+    audioKeptUntilMs: kept && cap.audioPath && audioKeptDays ? (Number(cap.firstSeenAtMs) || nowMs) + audioKeptDays * 86400000 : null,
+    notesPending: false, notesFailed: false,
+    processingFailed: true, failureNote: str(cap.pipelineNote) || null,
+  };
+  if (lead && lead.companyId) activity.companyId = lead.companyId;
+  return { activityId: 'visit-' + visitId, activity };
 }
 
 module.exports = {
@@ -688,4 +747,5 @@ module.exports = {
   buildVocabularyPrompt, correctTranscript, editDistanceLE1,
   buildVisitNotesPrompt, sanitizeVisitNotes,
   haversineM, gpsCandidate, rankSuggestions, guessPromiseKind, buildAttachment, etToday,
+  FAIL_WORDS, failureWords, RETRANSCRIBE_NOTES, canRetryTranscription, failKey, buildFailureActivity,
 };

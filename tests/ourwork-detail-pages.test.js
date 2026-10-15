@@ -46,6 +46,11 @@ const live = manifest.projects.filter((p) => {
   return d <= today;
 });
 const liveSlugs = new Set(live.map((p) => p.slug));
+// Joe's work before No Big Deal (2026-10-15): same rule as isPreNbd() in
+// build-projects.mjs, restated here so the test does not trust the generator.
+const PRE_NBD_LABEL = "Joe's work before No Big Deal";
+const isPreNbd = (p) => (p.era === 'nbd' ? false : p.era === 'pre-nbd' ? true
+  : !(Number.isInteger(p.year) && p.year >= 2026));
 
 const onDisk = fs.existsSync(DETAIL_DIR)
   ? fs.readdirSync(DETAIL_DIR).filter((f) => f.endsWith('.html')).map((f) => f.replace(/\.html$/, ''))
@@ -107,8 +112,21 @@ for (const p of live) {
     html.includes('<link rel="stylesheet" href="/assets/css/mobile-cta.css">')
       && /<div class="mobile-cta-strip"[^>]*>\s*<a href="tel:\+18594207382" class="mobile-cta-call">[\s\S]*?<a href="sms:\+18594207382" class="mobile-cta-text">/.test(html)
       && html.indexOf('class="mobile-cta-strip"') > html.indexOf('<!-- /nbd:partial footer-standard -->'));
-  ok(`${p.slug}: Service + BreadcrumbList JSON-LD present`,
-    /"@type":"Service"/.test(html) && /"@type":"BreadcrumbList"/.test(html));
+  if (isPreNbd(p)) {
+    // A job Joe did before NBD existed is not NBD's Service or offer: the page
+    // credits it to Joe (#joe) and carries the visible label.
+    ok(`${p.slug}: pre-NBD — CreativeWork credited to #joe + BreadcrumbList, no NBD Service/offer`,
+      /"@type":"CreativeWork"[^}]*"creator":\{"@id":"https:\/\/nobigdealwithjoedeal\.com\/#joe"\}/.test(html)
+        && /"@type":"BreadcrumbList"/.test(html)
+        && !/"@type":"Service"/.test(html) && !/"@type":"AggregateOffer"/.test(html));
+    ok(`${p.slug}: pre-NBD — "${PRE_NBD_LABEL}" label and note on the page`,
+      html.includes(`<span class="project-tag project-era">${PRE_NBD_LABEL}</span>`)
+        && html.includes('<p class="pd-era"><strong>'));
+  } else {
+    ok(`${p.slug}: Service + BreadcrumbList JSON-LD present`,
+      /"@type":"Service"/.test(html) && /"@type":"BreadcrumbList"/.test(html));
+    ok(`${p.slug}: No Big Deal job — no pre-NBD label`, !html.includes('project-era') && !html.includes('class="pd-era"'));
+  }
   ok(`${p.slug}: nav-standard region is FILLED, not an empty marker pair (apply-partials ran)`,
     /<!-- nbd:partial nav-standard[^>]*-->\r?\n<nav/.test(html));
   ok(`${p.slug}: footer-standard region is FILLED, not an empty marker pair`,
@@ -145,6 +163,25 @@ console.log('\nCARD LINK — the listing gallery links out to each detail page')
   ok('no <a> on the gallery carries .project-view', !/<a class="project-view/.test(ourWorkHtml));
   ok('Show-more button ships hidden (no-JS shows every card)',
     /<button type="button" class="ow-more" id="owMore" data-step="12" hidden>/.test(ourWorkHtml));
+  // Joe's work before No Big Deal (2026-10-15): labelled on its card, and left
+  // out of the ItemList whose items are Services provided by #org.
+  const pre = live.filter(isPreNbd);
+  const unlabelled = pre.filter((p) => {
+    const i = ourWorkHtml.indexOf(`data-slug="${p.slug}"`);
+    const card = i < 0 ? '' : ourWorkHtml.slice(i, ourWorkHtml.indexOf('</h3>', i));
+    return !card.includes(`<span class="project-tag project-era">${PRE_NBD_LABEL}</span>`);
+  });
+  ok('every pre-NBD gallery card carries the label', unlabelled.length === 0, unlabelled.map((p) => p.slug).join(', '));
+  const sm = ourWorkHtml.match(/<!-- OURWORK-HEAD-SCHEMA-START -->\s*<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  const list = sm ? JSON.parse(sm[1])['@graph'].find((n) => n['@type'] === 'ItemList') : null;
+  const ids = list ? list.itemListElement.map((e) => e.item['@id']) : [];
+  ok('/our-work ItemList lists No Big Deal jobs only',
+    !!list && list.numberOfItems === live.length - pre.length && ids.length === list.numberOfItems
+      && pre.every((p) => !ids.some((id) => id.endsWith(`#p-${p.slug}`))),
+    list ? `${list.numberOfItems} items` : 'no ItemList');
+  const wall = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'assets', 'data', 'homeowner-wall.json'), 'utf8'));
+  const preSlugs = new Set(pre.map((p) => p.slug));
+  ok('homepage photo wall shows No Big Deal jobs only', wall.every((w) => !preSlugs.has(w.slug)));
 }
 
 console.log('\nSITEMAP — every detail page is discoverable');

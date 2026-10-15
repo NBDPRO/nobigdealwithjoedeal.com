@@ -42,6 +42,29 @@ texting-law fixes are in
 > that one. True once the PR is merged and deployed. Details:
 > [SMS-KEYWORD-REPLIES-BRAND-2026-10-13](SMS-KEYWORD-REPLIES-BRAND-2026-10-13.md).
 
+> **Update 2026-10-15: rejected twice now, same reason.** Twilio has
+> rejected the campaign **two times** with "rejected due to issues verifying
+> the Call to Action (CTA) provided for the campaign", error **30909**, field
+> **MESSAGE_FLOW** (the 2026-10-06 submission described in section 3, and
+> the resubmission after it). The most likely remaining cause: the
+> **registered brand is "No Big Deal Solutions LLC"**, but the consent boxes
+> and every page footer said only "No Big Deal Home Solutions"; the LLC
+> appeared only on `/terms`. A reviewer matching the brand to the opt-in
+> could not find it beside any checkbox. Fixed on branch
+> `fix/sms-cta-brand-2026-10-15`:
+> every consent box now reads "text messages and calls from No Big Deal Home
+> Solutions (No Big Deal Solutions LLC) ... about [the form's own topic],
+> including [message types]" (stored wording versions v3 in
+> `functions/tcpa-consent.js`); every public footer says "No Big Deal Home
+> Solutions is a d/b/a of No Big Deal Solutions LLC." and links the new
+> **https://nobigdealwithjoedeal.com/sms-program** page, which shows a
+> phone-width screenshot of each of the three opt-in forms with its exact
+> consent wording. Section 5's message flow and campaign description below
+> are rewritten to match: they name the LLC and the d/b/a, point the reviewer
+> to `/sms-program` as the screenshot proof page, quote the new wording, and
+> no longer say customers can text us first. Resubmit only after that PR is
+> merged and the hosting deploy is green (the reviewer reads the live pages).
+
 ## 1. The one-paragraph answer
 
 The brand is **approved**, the account is **already upgraded to Full**, and
@@ -222,28 +245,41 @@ what's already set up).
 **Campaign description:**
 
 ```
-No Big Deal Home Solutions is a roofing, siding and gutter contractor serving the Greater Cincinnati, Ohio and Northern Kentucky area. We text homeowners who asked us to: a confirmation that we got their inspection or estimate request, appointment confirmations and reminders, updates about their estimate and project, and invoice and payment notices. Homeowners who sign up on our Storm Alerts page get a text when hail or severe weather is reported near their zip code, usually 2-4 per season. We only text people who checked an unchecked consent box on one of our website forms, or who texted us first. Customers can reply STOP to opt out or HELP for help at any time.
+No Big Deal Solutions LLC, doing business as No Big Deal Home Solutions, is a roofing, siding and gutter contractor serving the Greater Cincinnati, Ohio and Northern Kentucky area. We text homeowners who asked us to: a confirmation that we got their inspection or estimate request, appointment confirmations and reminders, updates about their estimate and project, and invoice and payment notices. Homeowners who sign up on our Storm Alerts page get a text when hail or severe weather is reported near their zip code, usually 2-4 per season. We only text people who checked an unchecked consent box on one of our website forms (shown at https://nobigdealwithjoedeal.com/sms-program). Customers can reply STOP to opt out or HELP for help at any time.
 ```
 
 (2026-10-15: the "We also send new-lead notices to the business owner's own
 phone." sentence is removed, together with the old sample that was that
 internal alert. The sample list is now three: lead acknowledgement, storm
-alert, START reply.)
+alert, START reply. Later on 2026-10-15, after the second 30909: the
+description opens with the registered LLC and its d/b/a, and "or who texted
+us first" is gone, so the only opt-in it describes is the website box.)
 
 **Message flow / call to action** (this is the field Twilio rejected, so it
 is written to be verifiable by someone who only opens the URLs):
 
 ```
-Opt-in happens only on our website, nobigdealwithjoedeal.com, by the customer's own action: checking an SMS consent checkbox that is never pre-checked. Only people who tick the box get texts from us. Each of the three forms below shows a mobile phone field and the UNCHECKED consent checkbox on the same screen.
+Opt-in happens only on our website, nobigdealwithjoedeal.com, run by No Big Deal Solutions LLC d/b/a No Big Deal Home Solutions (the registered brand). The customer checks an SMS consent checkbox that is never pre-checked; only people who check it get texts. Proof page with a screenshot of each form's consent box and its exact wording: https://nobigdealwithjoedeal.com/sms-program
 
-1) Free inspection request: https://nobigdealwithjoedeal.com/inspect (fields: name, property address, mobile phone, consent checkbox, "Request Free Inspection" button). The checkbox is optional: the request can be sent without it, and then we call or email instead and send no texts.
-2) Estimate request: https://nobigdealwithjoedeal.com/estimate (fields: first name, mobile phone and the consent checkbox on the first screen, then address and the rest of the estimate steps). The checkbox is optional, as on /inspect.
-3) Storm Alerts signup: https://nobigdealwithjoedeal.com/storm-alerts (fields: first name, mobile phone, zip, storm concern, consent checkbox marked "(required)", "Sign Me Up" button). The checkbox is required here, because the service is text alerts; the form cannot be submitted until it is ticked.
+1) Free inspection request: https://nobigdealwithjoedeal.com/inspect (name, address, mobile phone, consent checkbox, "Request Free Inspection" button). Checkbox optional.
+2) Estimate request: https://nobigdealwithjoedeal.com/estimate (first name, phone and the consent checkbox on the first screen, "Continue" button). Checkbox optional.
+3) Storm Alerts signup: https://nobigdealwithjoedeal.com/storm-alerts (first name, phone, ZIP, concern, consent checkbox marked "(required)", "Sign Me Up" button). Checkbox required; the form cannot be sent without it.
 
-Exact consent wording beside the checkbox on /inspect: "I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message & data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. Privacy Policy · Terms". On /estimate the sentence is the same but starts "I agree to receive my estimate and follow-up communication from No Big Deal Home Solutions". On /storm-alerts it starts "I agree to receive storm alerts and follow-up communication from No Big Deal Home Solutions". On all three forms "Privacy Policy" links to https://nobigdealwithjoedeal.com/privacy#sms-terms and "Terms" links to https://nobigdealwithjoedeal.com/terms.
+Exact wording on /inspect: "I agree to receive text messages and calls from No Big Deal Home Solutions (No Big Deal Solutions LLC) at the number above about my inspection request, including appointment confirmations and reminders, estimate and project updates, and replies to my questions. Message frequency varies. Message & data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. Privacy Policy · Terms". /estimate is identical except "about my estimate request". /storm-alerts says "about severe weather near my ZIP code (storm alerts, usually 2–4 per season) and related follow-up, such as inspection scheduling and replies to my questions", then the same disclosures. "Privacy Policy" links to https://nobigdealwithjoedeal.com/privacy#sms-terms and "Terms" to https://nobigdealwithjoedeal.com/terms.
 
-With every request we store whether the box was ticked; when it was, we also store the time, the exact wording shown and the page it came from. A request without the box ticked gets no automatic texts. Full SMS program terms (program name, message types, frequency, rates, STOP/HELP, carrier liability, no sharing of mobile information) are at https://nobigdealwithjoedeal.com/terms. Text message terms in our privacy policy: https://nobigdealwithjoedeal.com/privacy#sms-terms. Customers can also text us first at (859) 420-7382; we reply only about their message.
+If the box is left unchecked, we send no automatic texts. For each consent we store the time, the exact wording shown and the page.
 ```
+
+2026-10-15, after the second 30909 rejection (`fix/sms-cta-brand-2026-10-15`):
+the flow now opens with the registered brand, **No Big Deal Solutions LLC
+d/b/a No Big Deal Home Solutions**; it sends the reviewer to
+`https://nobigdealwithjoedeal.com/sms-program`, which shows a 390px
+screenshot of each form's phone field, consent box and submit button
+with the exact wording under it; it quotes the NEW v3 consent wording
+(LLC named, message types listed); and the old closing sentence
+"Customers can also text us first at (859) 420-7382; we reply only about
+their message." is **removed**, so the only opt-in described is the
+website checkbox. The flow is 1923 characters (limit 2048).
 
 Changed from the rejected version, on purpose: the in-person
 verbal-consent line is gone, and `/estimate` is listed as a proof URL now

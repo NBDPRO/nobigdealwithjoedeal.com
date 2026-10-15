@@ -114,7 +114,7 @@ async function alert(exportName, lead, docs) {
   {
     const r = await submit('inspect', Object.assign({}, INSPECT, { tcpaConsent: true }));
     ok('control: tcpaConsent:true is stored with its server-stamped record', !!r.row && r.row.tcpaConsent === true
-      && r.row.tcpaConsentAt === '__server_ts__' && r.row.tcpaConsentText === 'tcpa-v2-2026-10-05', r.row);
+      && r.row.tcpaConsentAt === '__server_ts__' && r.row.tcpaConsentText === 'tcpa-inspect-v3-2026-10-15', r.row);
   }
 
   // ═══ 1b/1c. no automatic text; the owner is still alerted ══════════════

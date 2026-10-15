@@ -22,8 +22,18 @@
   var TIMESLICE_MS = 2000;                 // 1-5 s: a chunk reaches IndexedDB every 2 s
   var SOFT_CAP_SEC = 60 * 60;              // auto-stop + save; "Record" again starts part 2
   var WARN_SEC = 50 * 60;                  // warning ten minutes out
-  var MAX_UPLOAD_BYTES = 190 * 1024 * 1024; // storage.rules refuses >= 200 MB
+  // The transcriber (Groq) refuses a file over 25 MB (functions/call-center-logic.js
+  // GROQ_MAX_BYTES; visit-capture.js fails it 'too_large'). storage.rules would take
+  // 200 MB, but a recording the server cannot read is not worth uploading as "done",
+  // so the phone caps at 24 MB and STOPS the recording itself before it gets there
+  // (2026-10-15; it was 190 MB). At 48 kbps 24 MB is about 70 minutes, so the 60
+  // minute cap normally comes first; the size stop is for a phone that ignores the
+  // bitrate.
+  var MAX_UPLOAD_BYTES = 24 * 1024 * 1024;
+  var SIZE_WARN_BYTES = 21 * 1024 * 1024;  // "almost full" notice
+  var SIZE_STOP_BYTES = 23 * 1024 * 1024;  // auto-stop + save; Record again starts part 2
   var AUDIO_BPS = 48000;                   // speech: 20 min is roughly 7 MB
+  var CONFIG_MAX_AGE_MS = 10 * 60 * 1000;  // an older consent cache is re-read before a recording starts
   var BACKOFF_MS = [30 * 1000, 2 * 60 * 1000, 10 * 60 * 1000];
   var APPT_WINDOW_MS = 60 * 60 * 1000;     // +-60 min around the moment you hit record
   var MAX_CHIPS = 3;
@@ -137,6 +147,33 @@
     if (sec >= WARN_SEC) return 'warn';
     return 'ok';
   }
+  /** ok | warn | cap, by bytes captured so far (the upload limit, not the clock). */
+  function sizeCapState(bytes) {
+    var b = Number(bytes) || 0;
+    if (b >= SIZE_STOP_BYTES) return 'cap';
+    if (b >= SIZE_WARN_BYTES) return 'warn';
+    return 'ok';
+  }
+  /**
+   * How long a recording cut off by a killed app really recorded. The wall
+   * clock from start to the last chunk counted the pauses (2026-10-15). The
+   * session writes its total paused time (pausedMs) to the row on every resume;
+   * a pause still running at the kill is after the last chunk (a paused
+   * recorder sends none), so start -> last chunk minus pausedMs is the
+   * recorded time. A row with no pausedMs (older code) falls back to the chunk
+   * count x the 2 s timeslice, never more than the wall clock.
+   */
+  function recoveredDurationSec(row, chunkCount, lastChunkT) {
+    var r = row || {};
+    var start = Number(r.startedAtMs) || 0;
+    var last = Math.max(start, Number(lastChunkT) || start);
+    var wall = Math.max(1, Math.round((last - start) / 1000));
+    if (typeof r.pausedMs === 'number' && r.pausedMs >= 0) {
+      return Math.max(1, Math.min(wall, Math.round((last - start - r.pausedMs) / 1000)));
+    }
+    var byChunks = Math.round((Number(chunkCount) || 0) * TIMESLICE_MS / 1000);
+    return Math.max(1, Math.min(wall, byChunks || wall));
+  }
 
   // ── customers ─────────────────────────────────────────────────────────
   function leadName(l) {
@@ -246,7 +283,8 @@
     if (o.lead && isDoNotRecord(o.lead)) {
       return { ok: false, reason: 'dnr', message: (leadName(o.lead) || 'This customer') + ' is marked do not record. Nothing was started.' };
     }
-    if (!o.hasMediaRecorder) return { ok: false, reason: 'unsupported', message: 'This browser cannot record audio. Open the installed NBD app and try again.' };
+    // The installed app is the same browser engine, so "open the installed app" did not help (2026-10-15).
+    if (!o.hasMediaRecorder) return { ok: false, reason: 'unsupported', message: 'This browser cannot record audio. Update the phone, then open NBD Pro in Safari (iPhone) or Chrome (Android) and try again.' };
     return { ok: true };
   }
   function attachGate(lead) {
@@ -284,10 +322,40 @@
       var p = row && typeof row.progress === 'number' ? ' ' + Math.round(row.progress) + '%' : '';
       return { text: 'Saved on phone - uploading' + p, tone: 'busy' };
     }
+    if (s === 'failed' && row.tooLarge) return { text: 'Saved on phone - too big to upload (over 24 MB). It stays on this phone.', tone: 'warn' };
     if (s === 'failed') return { text: 'Saved on phone - upload failed, will retry', tone: 'warn' };
     if (online === false) return { text: 'Saved on phone - waiting for signal', tone: 'wait' };
     return { text: 'Saved on phone - upload queued', tone: 'busy' };
   }
+
+  // ── failures, in plain words (the server has the same map) ─────────────
+  // functions/visit-capture-logic.js FAIL_WORDS: a test keeps the two equal.
+  var FAIL_WORDS = {
+    bad_audio_path: 'the audio file was not where it should be',
+    object_missing: 'the audio never finished uploading',
+    audio_empty: 'the audio file was empty',
+    too_large: 'the recording is too big for the transcriber (over 25 MB)',
+    too_long: 'the recording is longer than the 60 minute limit',
+    storage_read_failed: 'the audio could not be read back from storage',
+    transcribe_failed: 'the transcriber could not read it',
+    no_speech: 'no speech was heard on it',
+    gave_up_after_14_days: 'it kept failing for two weeks',
+    internal_error_gave_up: 'something went wrong on our side',
+  };
+  function failureWords(note) { return Object.prototype.hasOwnProperty.call(FAIL_WORDS, String(note || '')) ? FAIL_WORDS[note] : 'something went wrong'; }
+  var RETRANSCRIBE_NOTES = ['transcribe_failed', 'storage_read_failed', 'no_speech', 'internal_error_gave_up'];
+  /** Another transcription try can help (same rule the server enforces). */
+  function canRetryTranscription(doc) {
+    return !!doc && doc.pipelineStatus === 'failed' && doc.audioLive === true && RETRANSCRIBE_NOTES.indexOf(String(doc.pipelineNote || '')) !== -1;
+  }
+  // The server's attachNote when it took a customer back off a visit.
+  var ATTACH_NOTE_WORDS = {
+    lead_not_reachable: 'That customer is not one you can file under, so it was taken off.',
+    attach_refused: 'The server could not file it on that customer, so it was taken off.',
+    lead_id_invalid: 'That customer link was not valid, so it was taken off.',
+    visit_id_conflict: 'Another recording already uses that spot on the customer, so it was taken off.',
+  };
+  function attachNoteWords(note) { return note ? (ATTACH_NOTE_WORDS[note] || 'The server took the customer off this visit.') + ' Pick the customer again.' : ''; }
 
   // ── the server's side of a visit (PR 2) ───────────────────────────────
   /**
@@ -306,7 +374,9 @@
     if (p === 'notes_pending') return { text: 'Transcript saved, notes pending (the AI service is unavailable; it retries by itself)', tone: 'wait' };
     if (p === 'notes_failed') return { text: 'Transcript saved - notes could not be written. Retry them.', tone: 'warn' };
     if (p === 'ready') return { text: 'Notes ready', tone: 'ok' };
-    if (p === 'failed') return { text: 'Could not be processed (' + String(doc.pipelineNote || 'see the audio') + '). The audio is kept.', tone: 'warn' };
+    // Words, never the raw code (2026-10-15).
+    if (p === 'failed') return { text: 'Could not be processed: ' + failureWords(doc.pipelineNote) + '.' + (doc.audioLive !== false ? ' The audio is kept.' : ''), tone: 'warn' };
+    if (p === 'purge_pending') return { text: 'Not kept - deleting the audio, it finishes by itself', tone: 'off' };
     if (p === 'quarantined_consent') return { text: 'Not kept - the consent line was not confirmed', tone: 'off' };
     if (p === 'skipped') {
       var why = { do_not_record: 'this customer is marked do not record', do_not_record_match: 'a do-not-record customer was named', personal: 'it was personal', no_disclosure_ack: 'the disclosure was not acknowledged' }[doc.skipReason] || 'it was skipped';
@@ -345,20 +415,111 @@
   /** Soft-cap part numbering: a recording that hit the cap continues as part 2. */
   function partLabel(row) { return row && row.partOf ? 'Part 2' : ''; }
 
+  // ── one meaning of "unfiled" (the Home count and the Today row) ────────
+  var DEAD_PIPELINE = { discarded: 1, skipped: 1, quarantined_consent: 1, purge_pending: 1 };
+  /** On no customer, not thrown away, not still being recorded. */
+  function isUnfiled(r) {
+    if (!r || !r.id || r.leadId) return false;
+    if (r.status === 'discarded' || r.status === 'recording') return false;
+    return !(r.pipelineStatus && DEAD_PIPELINE[r.pipelineStatus]);
+  }
+
+  // ── the phone's row + the server's doc for one visit ───────────────────
+  // The server owns these; the phone's row never has them.
+  var SERVER_KEYS = ['pipelineStatus', 'pipelineNote', 'pipelineNextAtMs', 'audioLive', 'notes', 'suggestions', 'rejectedLeadIds', 'skipReason', 'attachNote', 'attachedLeadId', 'transcript'];
+  function mergeVisit(local, remote) {
+    if (!local) return remote ? Object.assign({ remoteOnly: true }, remote) : null;
+    var out = Object.assign({}, local);
+    if (remote) SERVER_KEYS.forEach(function (k) { if (remote[k] !== undefined) out[k] = remote[k]; });
+    return out;
+  }
+  /**
+   * Every visit from the last `days` days (default 14), attached or not, newest
+   * first: what "Recent visits" lists so a visit that failed on the server is
+   * never invisible just because it is on a customer.
+   */
+  function recentVisits(local, remote, nowMs, days) {
+    var since = (Number(nowMs) || 0) - (days || 14) * 86400000;
+    var byId = {};
+    (Array.isArray(remote) ? remote : []).forEach(function (r) { if (r && r.id) byId[r.id] = r; });
+    var out = [];
+    var seen = {};
+    (Array.isArray(local) ? local : []).forEach(function (r) {
+      if (!r || !r.id || seen[r.id]) return;
+      seen[r.id] = true;
+      out.push(mergeVisit(r, byId[r.id]));
+    });
+    Object.keys(byId).forEach(function (id) { if (!seen[id]) out.push(mergeVisit(null, byId[id])); });
+    return out.filter(function (r) { return r && r.status !== 'discarded' && (Number(r.startedAtMs) || 0) >= since; })
+      .sort(function (a, b) { return (Number(b.startedAtMs) || 0) - (Number(a.startedAtMs) || 0); });
+  }
+  /** The one status line for a (merged) visit: the server's words once it has the visit, else the phone's. */
+  function visitStatus(row, online) {
+    if (!row) return { text: '', tone: 'off' };
+    if (row.status === 'uploaded' && row.docSynced !== false) {
+      var pb = pipelineBadge(row);
+      if (pb) return pb;
+    }
+    if (row.remoteOnly && row.status !== 'uploaded') return { text: 'Recorded on another device - not uploaded yet', tone: 'wait' };
+    return badge(row, online);
+  }
+  /**
+   * The phone's leadId after the server changed it (took a refused customer
+   * off, or a teammate's device attached it). The phone is right while it has
+   * an unsent change (docSynced false) or changed it after the server's copy
+   * was read; otherwise the server is. null = nothing to change.
+   */
+  function reconcileLead(local, remote, fetchedAtMs) {
+    if (!local || !remote || local.status !== 'uploaded' || local.docSynced === false) return null;
+    if ((Number(local.leadChangedAtMs) || 0) >= (Number(fetchedAtMs) || 0) - 2000) return null;
+    var want = remote.leadId ? String(remote.leadId) : null;
+    var have = local.leadId ? String(local.leadId) : null;
+    if (want === have) return null;
+    return { leadId: want, note: !want && remote.attachNote ? String(remote.attachNote) : null };
+  }
+  /** The title of the visit sheet, from where the visit really is. */
+  function sheetTitle(local, server) {
+    if (local && (local.status !== 'uploaded' || local.docSynced === false)) return 'Saved on phone';
+    var p = server && server.pipelineStatus;
+    if (p === 'ready') return 'Notes ready';
+    if (p === 'failed') return 'Could not be processed';
+    if (p === 'transcribed' || p === 'notes_pending' || p === 'notes_failed' || p === 'consent_pending') return 'Transcript saved';
+    if (p === 'skipped' || p === 'quarantined_consent' || p === 'purge_pending') return 'Not kept';
+    if (local || server) return 'Uploaded';
+    return 'Visit recording';
+  }
+  /** What the toast after an attach may truthfully say was filed. */
+  function attachToast(name, res) {
+    var who = String(name || 'the customer');
+    var s = res && res.server;
+    if (s && s.filed && s.failed) return 'Attached to ' + who + '. A "could not be processed" note is on their timeline.';
+    if (s && s.filed) {
+      var n = Number(s.tasksMade) || 0;
+      return 'Attached to ' + who + '. Filed on their timeline' + (n ? ' with ' + n + (n === 1 ? ' task' : ' tasks') : '') + '.';
+    }
+    if (s) return 'Attached to ' + who + '. It goes on their timeline when the notes are written.';
+    return 'Attached to ' + who + '. It goes on their timeline after it uploads and the notes are written.';
+  }
+
   return {
     TIMESLICE_MS: TIMESLICE_MS, SOFT_CAP_SEC: SOFT_CAP_SEC, WARN_SEC: WARN_SEC,
-    MAX_UPLOAD_BYTES: MAX_UPLOAD_BYTES, AUDIO_BPS: AUDIO_BPS, BACKOFF_MS: BACKOFF_MS.slice(),
+    MAX_UPLOAD_BYTES: MAX_UPLOAD_BYTES, SIZE_WARN_BYTES: SIZE_WARN_BYTES, SIZE_STOP_BYTES: SIZE_STOP_BYTES, CONFIG_MAX_AGE_MS: CONFIG_MAX_AGE_MS,
+    AUDIO_BPS: AUDIO_BPS, BACKOFF_MS: BACKOFF_MS.slice(),
     APPT_WINDOW_MS: APPT_WINDOW_MS, MAX_CHIPS: MAX_CHIPS,
     STATUSES: STATUSES.slice(), SOURCES: SOURCES.slice(), CONSENT_MODES: CONSENT_MODES.slice(), DOC_FIELDS: DOC_FIELDS.slice(),
     newVisitId: newVisitId, isValidVisitId: isValidVisitId,
     baseMime: baseMime, pickMime: pickMime, extFor: extFor, storagePath: storagePath,
     backoffMs: backoffMs, nextTryAt: nextTryAt,
     orderChunks: orderChunks,
-    toMs: toMs, formatClock: formatClock, capState: capState,
+    toMs: toMs, formatClock: formatClock, capState: capState, sizeCapState: sizeCapState, recoveredDurationSec: recoveredDurationSec,
     leadName: leadName, isDoNotRecord: isDoNotRecord,
     suggest: suggest, appointmentIdFor: appointmentIdFor,
     consentPlan: consentPlan, startGate: startGate, attachGate: attachGate,
     docFromRow: docFromRow, badge: badge, partLabel: partLabel,
     pipelineBadge: pipelineBadge, mergeChips: mergeChips,
+    FAIL_WORDS: FAIL_WORDS, failureWords: failureWords, RETRANSCRIBE_NOTES: RETRANSCRIBE_NOTES.slice(), canRetryTranscription: canRetryTranscription,
+    attachNoteWords: attachNoteWords,
+    isUnfiled: isUnfiled, mergeVisit: mergeVisit, recentVisits: recentVisits, visitStatus: visitStatus,
+    reconcileLead: reconcileLead, sheetTitle: sheetTitle, attachToast: attachToast,
   };
 });

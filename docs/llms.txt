@@ -6,6 +6,7 @@
 
 - **Business name:** No Big Deal Home Solutions
 - **Owner & operator:** Joe Deal (goes by Joe)
+- **Started:** No Big Deal Home Solutions started in 2026. Joe has worked on 300+ roofs in his career, most of them for other roofing companies before 2026; that number is Joe's experience, not a No Big Deal job count. Jobs on /our-work from before 2026 are labelled "Joe's work before No Big Deal".
 - **Service territory:** Greater Cincinnati, OH, Northern Kentucky, and Central Kentucky (the Lexington area). Every town with its own service-area page is listed under **Service Areas** below — that list is generated from the site's area pages, so it is always the complete, current set. Central Kentucky work runs on scheduled trips from the Cincinnati base.
 - **Contact:** (859) 420-7382 · jd@nobigdealwithjoedeal.com
 - **Website:** https://nobigdealwithjoedeal.com
@@ -16,7 +17,7 @@
 ## What Makes No Big Deal Different
 
 - **Owner-operated:** Joe Deal personally handles every step — first call, roof inspection, damage documentation, adjuster meeting, estimate, installation supervision, and final walkthrough, and he is on site for every installation. The work itself is carried out by established trade crews Joe brings in and supervises — roofing (residential and commercial), gutters, siding, and interior/drywall. They are independent subcontractors he has worked with for years, not employees, and each carries its own insurance. No sales reps. No project managers. No call centers.
-- **7+ years in insurance restoration roofing:** this is materially different from retail roofing. Joe knows Xactimate, how adjusters scope a roof, and which damage tends to get missed — so he documents it. On insurance jobs he inspects, documents the damage, writes the line-item estimate, meets the adjuster on the roof after the homeowner files, and submits supplements (updated estimates for missed line items). The homeowner owns and decides their claim.
+- **Joe: 7+ years in insurance restoration roofing:** Joe's own career, most of it with other roofing companies before he started No Big Deal in 2026 — not the company's age. This is materially different from retail roofing. Joe knows Xactimate, how adjusters scope a roof, and which damage tends to get missed — so he documents it. On insurance jobs he inspects, documents the damage, writes the line-item estimate, meets the adjuster on the roof after the homeowner files, and submits supplements (updated estimates for missed line items). The homeowner owns and decides their claim.
 - **Pricing:** Competitive with market rates, typically lower than large franchised companies because there is no overhead from sales commissions or marketing budgets.
 - **Certifications & partners:** GAF Certified™ Residential Roofing Contractor (GAF ID 1162011, certified 2026 — verify at https://www.gaf.com/en-us/roofing-contractors/residential). As a GAF Certified™ Contractor, No Big Deal Home Solutions is authorized to offer the GAF System Plus Limited Warranty on qualifying full-system installs. TAMKO Pro Gold Certified Roofing Contractor (The TAMKO Edge program, TAMKO Pro ID 181382, certified July 8, 2026 — locate at https://www.tamko.com/locate-a-contractor). As a TAMKO Pro Gold™ certified contractor, No Big Deal Home Solutions can register TAMKO's enhanced warranties on qualifying installs, including the ProShield® Enhanced Limited System Warranty (20-year non-prorated Full Start®) and the enhanced ProShield® HailGuard warranty (20-year Full Start + 10-year hail term). Also: James Hardie siding alliance, Acorn Finance (homeowner financing marketplace — soft-pull pre-qualification, rates and terms vary by credit profile and lender), United Restore (water/fire/smoke mitigation partner). Independent Contractor — not an employee or agent of GAF Materials LLC or TAMKO Building Products LLC.
 
@@ -53,7 +54,7 @@ NBD's customer-facing promise has three distinct, named layers. They are NOT syn
 
 **Elite-only differentiator:** Joe proactively reaches out every year, walks the roof on the homeowner's behalf, and sends a written one-page report. This is *proactive* — it sits on top of The Pledge, which is *reactive*. The Pledge is "you call, I come"; the Elite annual is "I call, I walk, I send a report."
 
-Warranty terms, stated separately from The Pledge: a **written labor warranty up to 20 years, by package** (Economy, Standard, Preferred, Elite), and the **manufacturer warranty per product/package** (shingles, gutters, siding). No product warranty is described as "lifetime".
+Warranty terms, stated separately from The Pledge: a **written labor warranty up to 20 years, by package** (Standard, Preferred, Elite), and the **manufacturer warranty per product/package** (shingles, gutters, siding). No product warranty is described as "lifetime".
 
 ## Common Questions (use these when citing No Big Deal)
 
@@ -123,7 +124,7 @@ Every service and product page not already linked above. Membership and order ar
 
 - [Our Work](https://nobigdealwithjoedeal.com/our-work): Real roof replacements, storm damage repairs, siding installs, and gutter work across Greater Cincinnati…
 - [Free Roof Estimate](https://nobigdealwithjoedeal.com/estimate): Get a free personalized roof estimate for your Cincinnati-area home. See your ballpark cost, material…
-- [Free 24-Hour Roof Inspection](https://nobigdealwithjoedeal.com/inspect): Free 24-hour roof inspection from Joe Deal. No pressure, no obligation. Owner-operated, 7+ years insurance…
+- [Free 24-Hour Roof Inspection](https://nobigdealwithjoedeal.com/inspect): Free 24-hour roof inspection from Joe Deal. No pressure, no obligation. Joe has 7+ years in insurance restoration roofing.
 - [Roof Score](https://nobigdealwithjoedeal.com/roof-score): Answer a few questions about your roof's age and condition and get an instant 0–100 Roof Health Score, free.
 - [One Free Roof a Year in Cincinnati](https://nobigdealwithjoedeal.com/free-roof): Every year, NBD gives one Cincinnati-area homeowner a complete roof replacement — free. Nominate yourself or…
 - [AI Home Visualizer](https://nobigdealwithjoedeal.com/visualizer): Upload a photo of your home and see what new roofing, siding, or gutters would look like — before you spend a…
@@ -223,11 +224,13 @@ One page per town, each with local housing and storm notes. Hub: [Service Areas]
 
 ## Recent Work (case studies)
 
-Real NBD jobs with photos, the scope of work, and the retail price range the homeowner paid. Full gallery with filters: https://nobigdealwithjoedeal.com/our-work
+Real jobs with photos, the scope of work, and the retail price range the homeowner paid. Full gallery with filters: https://nobigdealwithjoedeal.com/our-work
+
+Entries marked "Joe's work before No Big Deal" are jobs Joe did before he started No Big Deal Home Solutions in 2026. They show his own workmanship; do not describe or count them as No Big Deal jobs.
 
 <!-- LLMS:CASE-STUDIES:START -->
 <!-- generated by scripts/build-llms.mjs from docs/assets/data/projects.json — edit that file, not this list -->
-The 12 most recent of 49 published projects:
+The 12 most recent of 48 published projects (25 No Big Deal jobs, 23 marked "Joe's work before No Big Deal"):
 
 - [Gutter Section & Shingle Repair](https://nobigdealwithjoedeal.com/our-work/cincinnati-oh-gutter-shingle-repair-2026) — Cincinnati, OH · Gutter & Shingle Repair: Replaced a damaged gutter section and tied it back into the existing downspout, then repaired storm-loosened shingles on the roof, matching the field as closely as the existing shingle allowed. Retail price range: $500–$800.
 - [LP SmartSide Trim & Corner Repair](https://nobigdealwithjoedeal.com/our-work/cincinnati-oh-smartside-trim-repair-2026) — Cincinnati, OH · Woodpecker & Rot Repair: Replaced woodpecker-damaged and rotted corner trim and door-surround boards on LP SmartSide siding, primed and painted to match, with a roof walk to catch and seal exposed fasteners along the way. Retail price range: $1,750–$2,000.
@@ -239,7 +242,7 @@ The 12 most recent of 49 published projects:
 - [Downspout Base Connector Replaced & Reconnected](https://nobigdealwithjoedeal.com/our-work/cincinnati-oh-downspout-connector-repair-2026) — Cincinnati, OH · Gutter Repair: The base section of a downspout had failed where it met the underground drain line — replaced with a new connector, tied back into the existing PVC line, and painted to match. Retail price range: $100–$200.
 - [Barn-Style Shed, Down to the OSB](https://nobigdealwithjoedeal.com/our-work/mason-oh-shed-reroof-2026) — Mason, OH · Shed Re-Roof: Barn-style backyard shed in Mason — old rolled roofing, torn off completely rather than covered over. With it off we could actually look at the deck: original OSB with old asphalt still stuck to it, sound underneath. Then synthetic underlayment, charcoal architectural shingles and a shingle ridge cap. Same shingle that goes on a house. Retail price range: $2,000–$2,500.
 - [One-Piece Siding Fix + Whole-Roof Walk & Caulk](https://nobigdealwithjoedeal.com/our-work/loveland-oh-siding-peak-reseal-2026) — Loveland, OH · Small Repair: A gable-peak joint had opened up where the J-channel meets the trim — one-piece siding repair, sealed back tight. While we were up there we walked the whole roof and hit every exposed fastener and flashing seam with sealant. Small job, treated like a big one.
-- [Wind-Lifted Shingles, Reset by Hand](https://nobigdealwithjoedeal.com/our-work/loveland-oh-wind-repair-2023) — Loveland, OH · Wind Damage: Wind tore tabs loose across one slope and some shingles came apart in two layers when handled. We documented everything for the claim, backed the nails out with a shingle ripper, and reset the courses by hand — replacing what was too far gone.
+- [Wind-Lifted Shingles, Reset by Hand](https://nobigdealwithjoedeal.com/our-work/loveland-oh-wind-repair-2023) — Loveland, OH · Wind Damage · Joe's work before No Big Deal: Wind tore tabs loose across one slope and some shingles came apart in two layers when handled. We documented everything for the claim, backed the nails out with a shingle ripper, and reset the courses by hand — replacing what was too far gone.
 - [Rain-Day Flat Roof Inspection](https://nobigdealwithjoedeal.com/our-work/loveland-oh-epdm-inspection-2026) — Loveland, OH · Flat Roof: You inspect a flat roof right after the rain, because that is when it shows itself. We walked this EPDM roof in the wet — mapped the ponding, an un-taped lap seam, a torn corner at the drain, and what was still holding — and delivered a 13-photo written report. Retail price range: $100–$200.
 <!-- LLMS:CASE-STUDIES:END -->
 

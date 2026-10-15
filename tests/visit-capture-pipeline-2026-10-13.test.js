@@ -311,7 +311,9 @@ async function channelRead(w, owner) {
   ok('and it stops by itself (nothing due, no loop)', LG.nextStep(d, NOW + 9e9).step === 'none');
   stub();
   const retried = await V.attachAction({ db: w.db, bucket: w.bucket, auth: { uid: OWNER, token: {} }, data: { visitId: 'v6own00001', action: 'retryNotes' }, nowMs: NOW + 8000000 });
-  ok('the person can retry the notes; only the notes run', retried.ok && D(w, 'v6own00001').pipelineStatus === 'ready' && counts.transcribe === 0 && counts.notes === 1, J(retried));
+  ok('the person can retry the notes: the callable only QUEUES it (no Claude call inside the 20 s callable)', retried.ok && retried.queued === true && D(w, 'v6own00001').pipelineStatus === 'notes_pending' && counts.notes === 0, J(retried));
+  await run(w, 'v6own00001', NOW + 8000000);   // the write re-fires the trigger
+  ok('...and the trigger the write fires runs ONLY the notes', D(w, 'v6own00001').pipelineStatus === 'ready' && counts.transcribe === 0 && counts.notes === 1);
 
   // 6e object missing
   stub();
@@ -713,7 +715,8 @@ async function channelRead(w, owner) {
   for (let i = 0; i < 3; i++) await run(w, 'v9retry0001', NOW + i * 3600000);
   stub();
   const R1 = await A(w, asOwner, { visitId: 'v9retry0001', action: 'retryNotes' }, NOW + 4 * 3600000);
-  ok('retry notes works once', R1.ok && D(w, 'v9retry0001').manualRetries === 1);
+  await run(w, 'v9retry0001', NOW + 4 * 3600000);   // the trigger the queued write fires
+  ok('retry notes works once', R1.ok && D(w, 'v9retry0001').manualRetries === 1 && counts.notes === 1);
   e = await rej(() => A(w, asOwner, { visitId: 'v9retry0001', action: 'retryNotes' }, NOW + 4 * 3600000 + 30000));
   ok('NEG: a second tap inside the cooldown is refused (resource-exhausted) and pays nothing', e && e.code === 'resource-exhausted' && counts.notes === 1);
   w.db.docs.get(vpath('v9retry0001')).manualRetries = 5;
@@ -896,6 +899,118 @@ async function channelRead(w, owner) {
   w = world({ v10disc0001: cap('v10disc0001', { status: 'discarded', pipelineStatus: 'purge_pending', firstSeenAtMs: NOW - 10 * 86400000, audioLive: true }), v10live0001: cap('v10live0001', { firstSeenAtMs: NOW - 10 * 86400000, audioLive: true, pipelineStatus: 'ready' }) });
   await V.retentionSweep({ db: w.db, bucket: w.bucket, nowMs: NOW });
   ok('RETENTION: a discarded capture is overdue at once (10 days old, well inside 90); an ordinary one of the same age is not', !w.bucket.store.has(pathFor('v10disc0001')) && w.bucket.store.has(pathFor('v10live0001')));
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('\n11. Reliability round (2026-10-15): nothing stuck, nothing vanishes');
+  // P1.5 the kill switch parks a doc as queued; the sweep picks it up once the switch is off
+  ok('RETRY_STATES includes queued (a kill-switch-parked doc is swept)', LG.RETRY_STATES.indexOf('queued') !== -1);
+  stub(); flags.aiOff = true;
+  w = world({ v11kill0001: cap('v11kill0001') });
+  await run(w, 'v11kill0001');
+  d = D(w, 'v11kill0001');
+  ok('setup: kill switch on -> parked queued with a retry time, nothing spent', d.pipelineStatus === 'queued' && d.pipelineNote === 'ai_disabled' && d.pipelineNextAtMs > NOW && counts.transcribe === 0, J([d.pipelineStatus, d.pipelineNote]));
+  flags.aiOff = false;
+  let s11 = await V.sweep({ db: w.db, bucket: w.bucket, nowMs: NOW + 60000 });
+  ok('NEG: before its retry time the sweep leaves the parked doc alone', s11.picked === 0 && D(w, 'v11kill0001').pipelineStatus === 'queued', J(s11));
+  s11 = await V.sweep({ db: w.db, bucket: w.bucket, nowMs: NOW + 31 * 60000 });
+  ok('switch off + due: the sweep picks the queued doc up and it is processed to ready', s11.picked === 1 && D(w, 'v11kill0001').pipelineStatus === 'ready' && counts.transcribe === 1, J(s11));
+  stub(); flags.aiOff = true;
+  w = world({ v11kill0002: cap('v11kill0002') });
+  await run(w, 'v11kill0002');
+  s11 = await V.sweep({ db: w.db, bucket: w.bucket, nowMs: NOW + 31 * 60000 });
+  ok('CONTROL: with the switch still on, a swept queued doc is parked again (no spend, retry cap untouched)', D(w, 'v11kill0002').pipelineStatus === 'queued' && counts.transcribe === 0 && D(w, 'v11kill0002').pipelineNextAtMs > NOW + 31 * 60000);
+  w.db.docs.get(vpath('v11kill0002')).firstSeenAtMs = NOW - 15 * 86400000;
+  flags.aiOff = false;
+  await V.sweep({ db: w.db, bucket: w.bucket, nowMs: NOW + 2 * 3600000 });
+  ok('the 14-day give-up cap still applies to a queued doc', D(w, 'v11kill0002').pipelineStatus === 'failed' && D(w, 'v11kill0002').pipelineNote === 'gave_up_after_14_days');
+
+  // P1.4 a failed visit on a customer is said on the customer
+  const bigBucket = (w2) => { const f0 = w2.bucket.file; w2.bucket.file = (p) => Object.assign(f0(p), { getMetadata: async () => [{ size: require(path.join(ROOT, 'functions', 'call-center-logic.js')).GROQ_MAX_BYTES + 1 }] }); };
+  stub();
+  w = world({ v11fail0001: cap('v11fail0001', { leadId: 'L_SMITH', source: 'customer' }) });
+  bigBucket(w);
+  out = await run(w, 'v11fail0001');
+  d = D(w, 'v11fail0001');
+  const frow = w.db.docs.get('leads/L_SMITH/activity/visit-v11fail0001');
+  ok('pre-attached visit that FAILS (too large): a timeline row on the customer says it could not be processed, audio kept', out.state === 'failed' && out.failureFiled === 'filed' && frow && frow.processingFailed === true && /couldn't be processed — audio kept/.test(frow.summary) && /too big/.test(frow.summary) && frow.type === 'visit', J(frow));
+  ok('...the doc records the filing (attachedLeadId + failure key) and no tasks were made', d.attachedLeadId === 'L_SMITH' && d.finalizedKey === LG.failKey(d) && tasksOf(w, 'L_SMITH').length === 0 && counts.transcribe === 0);
+  ok('...and it settles: nothing more to do', LG.nextStep(d, NOW + 9e9).step === 'none');
+  const logLen = w.db.log.length;
+  await V._internal.fileFailure({ db: w.db, ref: w.db.doc(vpath('v11fail0001')), uid: OWNER, visitId: 'v11fail0001', nowMs: NOW + 5 });
+  ok('filing the failure again writes nothing (idempotent)', w.db.log.length === logLen);
+  stub();
+  w = world({ v11fail0002: cap('v11fail0002') });
+  bigBucket(w);
+  await run(w, 'v11fail0002');
+  ok('CONTROL: the same failure with NO customer writes nothing under any lead', D(w, 'v11fail0002').pipelineStatus === 'failed' && !w.db.log.some(([, p]) => /^leads\//.test(p)));
+  r7 = await A(w, asOwner, { visitId: 'v11fail0002', leadId: 'L_JONES' });
+  ok('attaching a FAILED visit later files the "could not be processed" row on that customer', r7.ok && r7.failed === true && r7.filed === true && w.db.docs.get('leads/L_JONES/activity/visit-v11fail0002').processingFailed === true, J(r7));
+  r7 = await A(w, asOwner, { visitId: 'v11fail0002', leadId: 'L_SMITH' });
+  ok('changing the customer of a failed visit moves the row', !w.db.docs.has('leads/L_JONES/activity/visit-v11fail0002') && !!w.db.docs.get('leads/L_SMITH/activity/visit-v11fail0002'));
+  await A(w, asOwner, { visitId: 'v11fail0002', action: 'detach' });
+  ok('detaching it takes the row off', !w.db.docs.has('leads/L_SMITH/activity/visit-v11fail0002'));
+  e = await rej(() => A(w, asOwner, { visitId: 'v11fail0002', leadId: 'L_STRANGER' }));
+  ok('NEG: a failed visit is never filed on another tenant\'s customer', e && e.code === 'permission-denied' && !w.db.docs.has('leads/L_STRANGER/activity/visit-v11fail0002'));
+  w.db.docs.get(vpath('v11fail0002')).leadId = 'L_STRANGER';   // the phone wrote another tenant's customer directly
+  w.db.docs.get(vpath('v11fail0002')).finalizedKey = null;
+  ok('setup: a direct write of a customer on a failed visit asks for file_failure', LG.nextStep(D(w, 'v11fail0002'), NOW).step === 'file_failure');
+  let fd = await run(w, 'v11fail0002', NOW + 10);
+  ok('a customer the visit may not be filed under is TAKEN OFF (leadId null, attachNote), nothing written on it, and it settles', fd.state === 'refused' && D(w, 'v11fail0002').leadId === null && D(w, 'v11fail0002').attachNote === 'attach_refused' && !w.db.docs.has('leads/L_STRANGER/activity/visit-v11fail0002') && LG.nextStep(D(w, 'v11fail0002'), NOW + 20).step === 'none', J(fd));
+  w.db.docs.get(vpath('v11fail0002')).leadId = 'L_DNR';
+  fd = await run(w, 'v11fail0002', NOW + 30);
+  ok('a do-not-record customer on a failed visit: nothing filed, the recording is purged (audio deleted)', fd.state === 'purged' && !w.db.docs.has('leads/L_DNR/activity/visit-v11fail0002') && D(w, 'v11fail0002').pipelineStatus === 'skipped' && D(w, 'v11fail0002').skipReason === 'do_not_record' && !w.bucket.store.has(pathFor('v11fail0002')), J(fd));
+  ok('nextStep: failed + customer not yet filed -> file_failure; filed -> none; customer removed -> unfile',
+    LG.nextStep({ status: 'uploaded', pipelineStatus: 'failed', pipelineNote: 'too_large', leadId: 'L1' }, NOW).step === 'file_failure'
+    && LG.nextStep({ status: 'uploaded', pipelineStatus: 'failed', pipelineNote: 'too_large', leadId: 'L1', finalizedKey: 'L1:f:too_large' }, NOW).step === 'none'
+    && LG.nextStep({ status: 'uploaded', pipelineStatus: 'failed', leadId: null, attachedLeadId: 'L1' }, NOW).step === 'unfile'
+    && LG.nextStep({ status: 'uploaded', pipelineStatus: 'failed', audioLive: true }, NOW).step === 'none');
+  stub();
+  w = world({ v11fail0003: cap('v11fail0003', { leadId: 'L_SMITH' }) });
+  bigBucket(w);
+  await run(w, 'v11fail0003');
+  w.db.docs.get(vpath('v11fail0003')).status = 'discarded';
+  await run(w, 'v11fail0003', NOW + 1000);
+  ok('discarding a failed visit removes its row from the customer', !w.db.docs.has('leads/L_SMITH/activity/visit-v11fail0003'));
+
+  // P2.8 retry transcription for a failed visit whose audio is live
+  stub({ transcribe: () => { throw new Error('Groq rejected: could not process file'); } });
+  w = world({ v11rt000001: cap('v11rt000001', { leadId: 'L_SMITH' }) });
+  for (let i = 0; i < 3; i++) await run(w, 'v11rt000001', NOW + i * 3600000);
+  d = D(w, 'v11rt000001');
+  ok('setup: three transcription strikes -> failed (transcribe_failed), audio kept, failure row on the customer', d.pipelineStatus === 'failed' && d.pipelineNote === 'transcribe_failed' && d.audioLive === true && w.db.docs.get('leads/L_SMITH/activity/visit-v11rt000001').processingFailed === true, J([d.pipelineStatus, d.pipelineNote]));
+  ok('canRetryTranscription: yes for transcribe_failed with live audio; no for too_large / audio gone', LG.canRetryTranscription(d) && !LG.canRetryTranscription(Object.assign({}, d, { pipelineNote: 'too_large' })) && !LG.canRetryTranscription(Object.assign({}, d, { audioLive: false })));
+  stub();
+  const rt = await A(w, asOwner, { visitId: 'v11rt000001', action: 'retryTranscribe' }, NOW + 5 * 3600000);
+  ok('retryTranscribe QUEUES (returns at once, no Groq call in the callable), strikes reset', rt.ok && rt.queued && D(w, 'v11rt000001').pipelineStatus === 'transcribe_pending' && D(w, 'v11rt000001').transcribeStrikes === 0 && counts.transcribe === 0, J(rt));
+  await run(w, 'v11rt000001', NOW + 5 * 3600000);
+  const rrow = w.db.docs.get('leads/L_SMITH/activity/visit-v11rt000001');
+  ok('...the trigger transcribes it, and the customer\'s row becomes the real one (processingFailed false, notes, tasks)', D(w, 'v11rt000001').pipelineStatus === 'ready' && rrow.processingFailed === false && /two layers/.test(rrow.summary) && tasksOf(w, 'L_SMITH').length === 3, J(rrow));
+  stub();
+  w = world({ v11rt000002: cap('v11rt000002') });
+  bigBucket(w);
+  await run(w, 'v11rt000002');
+  e = await rej(() => A(w, asOwner, { visitId: 'v11rt000002', action: 'retryTranscribe' }));
+  ok('NEG: a too-large recording cannot be "retried" (another try would not help)', e && e.code === 'failed-precondition');
+
+  // P3 a recovered recording's clock is a reconstruction: the size is its guard, not durationSec
+  stub();
+  w = world({ v11rec00001: cap('v11rec00001', { durationSec: 5000, recoveredAtMs: NOW - 1000 }) });
+  await run(w, 'v11rec00001');
+  ok('a RECOVERED visit with a long reconstructed duration is still transcribed', D(w, 'v11rec00001').pipelineStatus === 'ready' && counts.transcribe === 1);
+  w = world({ v11rec00002: cap('v11rec00002', { durationSec: 5000 }) });
+  await run(w, 'v11rec00002');
+  ok('CONTROL: the same duration on an ordinary visit is too_long', D(w, 'v11rec00002').pipelineNote === 'too_long');
+
+  // P2.8 one vocabulary of failure words, phone and server
+  {
+    const CL = require(path.join(ROOT, 'docs', 'pro', 'js', 'visit-recorder-logic.js'));
+    ok('FAIL_WORDS: the phone and the server say the same thing for every failure code', J(CL.FAIL_WORDS) === J(LG.FAIL_WORDS), J(Object.keys(CL.FAIL_WORDS || {})));
+    ok('FAIL_WORDS: every FAILED note the pipeline can write has words', ['bad_audio_path', 'object_missing', 'audio_empty', 'too_large', 'too_long', 'storage_read_failed', 'transcribe_failed', 'no_speech', 'gave_up_after_14_days', 'internal_error_gave_up'].every((k) => typeof LG.FAIL_WORDS[k] === 'string'));
+    const src = fs.readFileSync(path.join(ROOT, 'functions', 'visit-capture.js'), 'utf8');
+    const written = [...src.matchAll(/pipelineStatus: (?:dead \? )?PIPELINE\.FAILED[^}]*?pipelineNote: (?:dead \? )?'([a-z_]+)'/g)].map((m) => m[1]);
+    ok('FAIL_WORDS covers every literal FAILED note in visit-capture.js', written.length >= 6 && written.every((k) => LG.FAIL_WORDS[k]), J(written));
+    ok('RETRANSCRIBE_NOTES are all failure codes with words', LG.RETRANSCRIBE_NOTES.every((k) => LG.FAIL_WORDS[k]));
+  }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   if (failed) { console.log(fails.map((x) => ' - ' + x).join('\n')); process.exit(1); }

@@ -7,10 +7,14 @@
  * the live page. Every homeowner-site checkbox that covers texts must carry
  * the same sentence, with only the form's own "what" changing:
  *
- *   I agree to receive [what] from No Big Deal Home Solutions by call or text
- *   at the number above. Message frequency varies. Message & data rates may
- *   apply. Reply STOP to opt out, HELP for help. Consent is not a condition of
- *   purchase. Privacy Policy · Terms
+ *   I agree to receive text messages and calls from No Big Deal Home
+ *   Solutions (No Big Deal Solutions LLC) at the number above about [what].
+ *   Message frequency varies. Message & data rates may apply. Reply STOP to
+ *   opt out, HELP for help. Consent is not a condition of purchase.
+ *   Privacy Policy · Terms
+ *   (2026-10-15: Twilio rejected the CTA twice, 30909. The registered brand
+ *   is the LLC, so the box names it beside the d/b/a and lists the message
+ *   types.)
  *   (Privacy Policy -> /privacy#sms-terms, Terms -> /terms. Twilio error
  *   30564, 2026-10-06: reviewers want BOTH links right next to the opt-in.)
  *
@@ -90,18 +94,19 @@ function labelText(label) {
     .replace(/&amp;/g, '&').replace(/&middot;/g, '·').replace(/\s+/g, ' ').trim();
 }
 
-const SENTENCE = /^I agree to receive (.+?) from No Big Deal Home Solutions by call or text at the number above\. Message frequency varies\. Message & data rates may apply\. Reply STOP to opt out, HELP for help\. Consent is not a condition of purchase\. Privacy Policy · Terms$/;
+const SENTENCE = /^I agree to receive text messages and calls from No Big Deal Home Solutions \(No Big Deal Solutions LLC\) at the number above about (.+?)\. Message frequency varies\. Message & data rates may apply\. Reply STOP to opt out, HELP for help\. Consent is not a condition of purchase\. Privacy Policy · Terms$/;
 
 // Each form keeps its own "what".
+const SHARED_WHAT = 'my request, including my results, appointment confirmations and reminders, estimate and project updates, and replies to my questions';
 const EXPECTED = {
-  'docs/inspect.html#ins-consent': 'my results and follow-up communication',
-  'docs/storm-check.html#sc-consent': 'my results and follow-up communication',
-  'docs/roof-score.html#rs-consent': 'my results and follow-up communication',
-  'docs/storm-report.html#sr-consent': 'my results and follow-up communication',
-  'docs/index.html#fieldConsent': 'my results and follow-up communication',
-  "docs/assets/js/quick-lead-form.js#' + uid + '-consent": 'my results and follow-up communication',
-  'docs/storm-alerts.html#sa-consent': 'storm alerts and follow-up communication',
-  'docs/estimate.html#tcpaConsent': 'my estimate and follow-up communication',
+  'docs/inspect.html#ins-consent': 'my inspection request, including appointment confirmations and reminders, estimate and project updates, and replies to my questions',
+  'docs/storm-check.html#sc-consent': SHARED_WHAT,
+  'docs/roof-score.html#rs-consent': SHARED_WHAT,
+  'docs/storm-report.html#sr-consent': SHARED_WHAT,
+  'docs/index.html#fieldConsent': SHARED_WHAT,
+  "docs/assets/js/quick-lead-form.js#' + uid + '-consent": SHARED_WHAT,
+  'docs/storm-alerts.html#sa-consent': 'severe weather near my ZIP code (storm alerts, usually 2–4 per season) and related follow-up, such as inspection scheduling and replies to my questions',
+  'docs/estimate.html#tcpaConsent': 'my estimate request, including appointment confirmations and reminders, estimate and project updates, and replies to my questions',
 };
 
 console.log('\nSMS CONSENT — carrier A2P elements on every homeowner form\n' + '═'.repeat(64));
