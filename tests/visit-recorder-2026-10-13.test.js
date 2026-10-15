@@ -187,13 +187,21 @@ function boot(shared, over) {
   const navigator = {
     onLine: over.online !== false, userAgent: over.ios ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X)' : 'Mozilla/5.0 (Linux; Android 14)',
     platform: 'Linux', maxTouchPoints: 5,
-    mediaDevices: { getUserMedia: () => { gum.calls++; return gum.mode === 'denied' ? Promise.reject(Object.assign(new Error('denied'), { name: 'NotAllowedError' })) : Promise.resolve({ getTracks: () => [{ stop() { win.__trackStops = (win.__trackStops || 0) + 1; } }] }); } },
+    mediaDevices: { getUserMedia: () => {
+      gum.calls++;
+      if (gum.mode === 'denied') return Promise.reject(Object.assign(new Error('denied'), { name: 'NotAllowedError' }));
+      // a track that can fire 'ended' / 'mute' (a phone call takes the microphone)
+      const track = { ls: {}, stop() { win.__trackStops = (win.__trackStops || 0) + 1; }, addEventListener(t, fn) { (this.ls[t] = this.ls[t] || []).push(fn); }, fire(t) { (this.ls[t] || []).forEach((fn) => fn({ type: t })); } };
+      win.__tracks = (win.__tracks || []).concat([track]);
+      return Promise.resolve({ getTracks: () => [track] });
+    } },
     geolocation: { getCurrentPosition: (ok, err) => { geo.calls++; if (geo.mode === 'granted') setImmediate(() => ok({ coords: { latitude: 39.1031234, longitude: -84.5120987, accuracy: 13.6 } })); else if (geo.mode === 'denied') setImmediate(() => err({ code: 1 })); } },
     permissions: { query: () => Promise.resolve({ state: geo.mode === 'denied-known' ? 'denied' : 'prompt' }) },
     storage: { persist: () => Promise.resolve(true), estimate: () => Promise.resolve({ quota: 5e9, usage: 1e6 }) },
   };
+  if (shared.locks) navigator.locks = shared.locks.api;
   if (wl.available) {
-    navigator.wakeLock = { request: () => { const s = { released: false, ls: [], release() { s.released = true; }, addEventListener(t, fn) { s.ls.push(fn); } }; wl.sentinels.push(s); return Promise.resolve(s); } };
+    navigator.wakeLock ={ request: () => { const s = { released: false, ls: [], release() { s.released = true; }, addEventListener(t, fn) { s.ls.push(fn); } }; wl.sentinels.push(s); return Promise.resolve(s); } };
   }
   const document = {
     visibilityState: 'visible',
@@ -212,9 +220,26 @@ function boot(shared, over) {
     recorder() { return FakeRecorder.all[FakeRecorder.all.length - 1]; },
   };
 }
-function world() {
+function world(opts) {
   FakeRecorder.all.length = 0;
-  return { idb: makeIdb(), ls: {}, clock: { t: 1760000000000 }, firestore: makeFirestore() };
+  const w = { idb: makeIdb(), ls: {}, clock: { t: 1760000000000 }, firestore: makeFirestore() };
+  if (opts && opts.locks) w.locks = makeLocks();
+  return w;
+}
+/** Web Locks shared by every "tab" of one world. kill(name) is the browser dropping a dead tab's lock. */
+function makeLocks() {
+  const held = new Map();   // name -> release()
+  const api = {
+    request(name, opts, cb) {
+      if (held.has(name)) return Promise.resolve(cb(null));
+      let release;
+      const done = new Promise((r) => { release = r; });
+      held.set(name, release);
+      return Promise.resolve().then(() => cb({ name })).then((p) => Promise.race([Promise.resolve(p), done])).then(() => { held.delete(name); });
+    },
+    query() { return Promise.resolve({ held: Array.from(held.keys()).map((name) => ({ name })), pending: [] }); },
+  };
+  return { api, held, kill(name) { const r = held.get(name); held.delete(name); if (r) r(); } };
 }
 async function bytesOf(blob) { return Array.from(new Uint8Array(await blob.arrayBuffer())); }
 /** An uploader that has taken the bytes but does not finish until release() - to race other actions against an in-flight upload. */
@@ -1154,7 +1179,7 @@ function uploaderStub(log, behaviour) {
       ok('a capped recording and its part 2 are ONE visit', T.summarize([row('p1', 30), row('p2', 29, { partOf: 'p1' })], NOW0).count === 1);
       ok('CONTROL: two unrelated visits are two', T.summarize([row('p1', 30), row('p2', 29)], NOW0).count === 2);
       ok('Keep hides until tomorrow, unless more have piled up since', T.keepHides({ until: NOW0 + 1000, count: 2 }, 2, NOW0) === true && T.keepHides({ until: NOW0 + 1000, count: 2 }, 3, NOW0) === false && T.keepHides({ until: NOW0 - 1, count: 2 }, 2, NOW0) === false && T.keepHides(null, 1, NOW0) === false);
-      ok('words: 1 unfiled visit / 3 unfiled visits', T.title(1) === '1 unfiled visit' && T.title(3) === '3 unfiled visits');
+      ok('words: the Today row says it counts visits unfiled for OVER A DAY (the Home count is all of them)', T.title(1) === '1 visit unfiled for over a day' && T.title(3) === '3 visits unfiled for over a day');
     }
     // 8. the Today row in a small fake DOM: the real file, the real event, ONE row after the header
     {
@@ -1194,7 +1219,7 @@ function uploaderStub(log, behaviour) {
       vm.runInContext(fs.readFileSync(path.join(ROOT, 'docs/pro/js/visit-unfiled-today.js'), 'utf8'), ctx, { filename: 'visit-unfiled-today.js' });
       await settle();
       const secs = () => host.children.filter((c) => c.attrs['data-vr-today']);
-      ok('the row appears right after the Today header, once, saying how many', secs().length === 1 && host.children[1] === secs()[0] && secs()[0].texts().some((t) => t === '2 unfiled visits'), J(host.children.map((c) => c.className)));
+      ok('the row appears right after the Today header, once, saying how many', secs().length === 1 && host.children[1] === secs()[0] && secs()[0].texts().some((t) => t === '2 visits unfiled for over a day'), J(host.children.map((c) => c.className)));
       (winListeners['nbd:today-rendered'] || []).forEach((fn) => fn({}));
       await settle();
       ok('a re-render of Today does not duplicate it', secs().length === 1);
@@ -1215,8 +1240,274 @@ function uploaderStub(log, behaviour) {
       ok('...a repaint with the same count keeps it hidden', secs().length === 0);
       rows.push({ id: 'd', startedAtMs: NOW1 - 41 * 3600000, status: 'uploaded', leadId: null });
       await sandbox.NBDVisitUnfiledToday.paint();
-      ok('...and more piling up brings it back sooner', secs().length === 1 && secs()[0].texts().indexOf('2 unfiled visits') >= 0);
+      ok('...and more piling up brings it back sooner', secs().length === 1 && secs()[0].texts().indexOf('2 visits unfiled for over a day') >= 0);
     }
+  }
+
+  // ── 2026-10-15: never lose a recording, failed visits visible, plain words ──
+  console.log('\nVISIT RECORDER - reliability round (2026-10-15)');
+  const linkEvent = (href, extra) => {
+    const a = { href, getAttribute: (k) => (k === 'href' ? href : (extra && extra[k]) || null), hasAttribute: (k) => !!(extra && k in extra) };
+    const ev = { defaultPrevented: false, button: 0, target: { closest: (sel) => (sel === 'a[href]' ? a : null) }, preventDefault() { this.defaultPrevented = true; } };
+    return Object.assign(ev, (extra && extra.event) || {});
+  };
+  const withLocation = (a, asks) => {
+    const nav = [];
+    a.win.URL = URL;
+    a.win.location = { href: 'https://app.test/pro/dashboard.html#home', origin: 'https://app.test', pathname: '/pro/dashboard.html', search: '', assign: (u) => nav.push(u) };
+    a.win.confirm = (m) => { asks.push(m); return asks.answer !== false; };
+    return nav;
+  };
+
+  // P1.1 leaving the page
+  {
+    const W = world(); const a = boot(W);
+    a.R._setUploader(uploaderStub([]));
+    a.R.wire();
+    ok('beforeunload: no prompt when nothing is recording (control)', a.R._onBeforeUnload({}) === undefined);
+    await a.R.start({}); a.recorder().emit([1, 2]);
+    const ev = { preventDefault() { this.prevented = true; } };
+    const m = a.R._onBeforeUnload(ev);
+    ok('beforeunload: while recording the browser is asked to confirm leaving (returnValue + preventDefault)', typeof m === 'string' && /stops the recording/.test(m) && ev.returnValue === m && ev.prevented === true);
+    ok('beforeunload is wired on the window by wire()', (a.listeners.window.beforeunload || []).length === 1 && (a.listeners.window.click || []).length === 1);
+    await a.R.stop(); await settle();
+    ok('...and not once it is stopped and saved', a.R._onBeforeUnload({}) === undefined);
+  }
+  {
+    // Today's "Open" link while recording: confirm, then stop + save, then navigate
+    const W = world(); const a = boot(W);
+    a.R._setUploader(uploaderStub([]));
+    const asks = []; const nav = withLocation(a, asks);
+    const r = await a.R.start({}); a.recorder().emit([4, 4]);
+    asks.answer = false;
+    let ev = linkEvent('/pro/customer.html?id=L1');
+    a.R._onLinkClick(ev); await settle();
+    ok('Open mid-recording, person says no: the navigation is stopped and the recording keeps going', ev.defaultPrevented === true && asks.length === 1 && nav.length === 0 && a.R.getState().active && a.R.getState().active.id === r.id);
+    for (const [label, e] of [['a hash-only link', linkEvent('#customers')], ['target=_blank', linkEvent('/pro/customer.html?id=L1', { target: '_blank' })], ['a tel: link', linkEvent('tel:5135550100')], ['a link the app already handled', linkEvent('/pro/customer.html?id=L1', { event: { defaultPrevented: true } })], ['a ctrl-click (new tab)', linkEvent('/pro/customer.html?id=L1', { event: { ctrlKey: true } })]]) {
+      const before = asks.length;
+      a.R._onLinkClick(e);
+      ok('NEG: ' + label + ' is not intercepted', asks.length === before && (label === 'a link the app already handled' || e.defaultPrevented === false));
+    }
+    asks.answer = true;
+    ev = linkEvent('/pro/customer.html?id=L1');
+    a.R._onLinkClick(ev); await settle(); await settle();
+    const row = await a.R._getVisit(r.id);
+    ok('Open mid-recording, person says yes: stopped, SAVED on the phone, then navigated', ev.defaultPrevented && a.R.getState().active === null && nav.length === 1 && /\/pro\/customer\.html\?id=L1$/.test(nav[0]) && row && row.lastReason === 'navigate' && row.sizeBytes === 2 && ['stored', 'uploading', 'uploaded'].indexOf(row.status) !== -1, J([nav, row && row.status]));
+    const ev2 = linkEvent('/pro/customer.html?id=L2');
+    a.R._onLinkClick(ev2);
+    ok('CONTROL: with no recording a link is never touched', ev2.defaultPrevented === false && asks.length === 2);
+  }
+  {
+    // reload: the cut-off recording is recoverable at once when its tab's lock is gone
+    const W = world({ locks: true });
+    const a = boot(W);
+    const r = await a.R.start({}); a.recorder().emit([7, 7]); await settle();
+    ok('setup: the live tab holds a Web Lock for the visit and says so on the row', W.locks.held.has('nbd-vr-rec:' + r.id) && (await a.R._getVisit(r.id)).tabLock === true);
+    const b = boot(W);   // a second tab while the first is alive
+    ok('CONTROL: a live tab (lock held) is left alone even with no clock change', (await b.R.recoverInterrupted()).length === 0 && (await b.R._getVisit(r.id)).status === 'recording');
+    W.locks.kill('nbd-vr-rec:' + r.id);   // the first tab is killed / reloaded: the browser drops its lock
+    const c = boot(W);
+    const rec = await c.R.recoverInterrupted();
+    ok('reload: recovered IMMEDIATELY (no 30 s heartbeat wait), with its audio', rec.length === 1 && rec[0].id === r.id && rec[0].sizeBytes === 2 && rec[0].needsRecoveryConfirm === true, J(rec));
+    // no Web Locks (older Safari): the heartbeat rule, plus a re-check when it goes stale
+    const W2 = world(); const d = boot(W2);
+    const r2 = await d.R.start({}); d.recorder().emit([1]); await settle();
+    const e = boot(W2);
+    const seen = []; e.R.subscribe((k, x) => { if (k === 'recoverable') seen.push(x.rows.map((y) => y.id)); });
+    ok('no Web Locks + fresh heartbeat: not recovered yet (it may be a live tab)', (await e.R.recoverInterrupted()).length === 0);
+    const t = e.timers.filter((x) => x.live && x.ms >= 1000).pop();
+    ok('...a re-check is scheduled for when the heartbeat goes stale', !!t && t.ms <= 31000 && t.ms >= 1000, t && String(t.ms));
+    W2.clock.t += 31000; t.live = false; t.fn(); await settle(); await settle();
+    ok('...and when it fires the recording is announced as recoverable (the UI shows it)', seen.length === 1 && seen[0][0] === r2.id, J(seen));
+  }
+
+  // P1.2 a phone call / recorder error stops the SESSION and keeps the audio
+  for (const [label, kill] of [
+    ['track ended', (a) => a.win.__tracks[a.win.__tracks.length - 1].fire('ended')],
+    ['track muted (a phone call)', (a) => a.win.__tracks[a.win.__tracks.length - 1].fire('mute')],
+    ['recorder stopped by itself', (a) => { const rc = a.recorder(); rc.state = 'inactive'; rc.onstop(); }],
+    ['recorder error', (a) => { const rc = a.recorder(); rc.state = 'inactive'; rc.onerror(new Error('x')); }],
+  ]) {
+    const W = world(); const a = boot(W);
+    const up = []; a.R._setUploader(uploaderStub(up));
+    const ev = []; a.R.subscribe((k, d) => { if (k === 'stopped') ev.push(d); });
+    const r = await a.R.start({}); a.recorder().emit([3, 1, 4]);
+    await settle();
+    ok('CONTROL (' + label + '): still recording before it happens', a.R.getState().active && ev.length === 0);
+    kill(a);
+    await settle(); await settle();
+    const row = await a.R._getVisit(r.id);
+    ok(label + ': the session stops (reason recorder-ended), what was captured is saved and uploaded', a.R.getState().active === null && ev.length === 1 && ev[0].reason === 'recorder-ended' && row.lastReason === 'recorder-ended' && up.length === 1 && eq(up[0].bytes, [3, 1, 4]), J([ev.map((x) => x.reason), row.status, up.length]));
+  }
+
+  // P2.6 the upload limit: 24 MB, a warning, an auto-stop, part 2
+  {
+    ok('MAX_UPLOAD_BYTES is 24 MB (under the transcriber\'s 25 MB), the stop and warning sit below it', Logic.MAX_UPLOAD_BYTES === 24 * 1024 * 1024 && Logic.SIZE_STOP_BYTES < Logic.MAX_UPLOAD_BYTES && Logic.SIZE_WARN_BYTES < Logic.SIZE_STOP_BYTES);
+    ok('at 48 kbps the 60 minute cap comes before the size limit (about 21.6 MB an hour)', Logic.AUDIO_BPS / 8 * 3600 < Logic.SIZE_STOP_BYTES);
+    ok('sizeCapState: ok / warn / cap', Logic.sizeCapState(1e6) === 'ok' && Logic.sizeCapState(Logic.SIZE_WARN_BYTES) === 'warn' && Logic.sizeCapState(Logic.SIZE_STOP_BYTES) === 'cap');
+    const W = world(); const a = boot(W);
+    a.R._setUploader(uploaderStub([]));
+    const ev = []; a.R.subscribe((k, d) => { if (k === 'stopped') ev.push(d); });
+    const r = await a.R.start({});
+    const fat = (size) => ({ size, type: 'audio/webm', arrayBuffer: () => Promise.resolve(Uint8Array.from([9]).buffer) });
+    a.recorder().ondataavailable({ data: fat(Logic.SIZE_WARN_BYTES) });
+    ok('near the limit: a notice, still recording', a.R.getState().active && /24 MB/.test(a.R.getState().active.notice));
+    a.recorder().ondataavailable({ data: fat(Logic.SIZE_STOP_BYTES - Logic.SIZE_WARN_BYTES) });
+    await settle(); await settle();
+    ok('at the stop size: it stops and saves itself (reason size-cap)', a.R.getState().active === null && ev.length === 1 && ev[0].reason === 'size-cap' && (await a.R._getVisit(r.id)).lastReason === 'size-cap');
+    const r2 = await a.R.start({}); a.recorder().emit([1]);
+    ok('...and the next recording is part 2 of it', (await a.R._getVisit(r2.id)).partOf === r.id);
+  }
+  // P3 too large never retries for ever
+  {
+    const W = world(); const a = boot(W);
+    const up = []; a.R._setUploader(uploaderStub(up));
+    a.win.NBDVisitRecorderLogic.MAX_UPLOAD_BYTES = 2;   // a 3-byte recording is "too large" here
+    const r = await a.R.start({}); a.recorder().emit([1, 2, 3]); await a.R.stop(); await settle(); await settle();
+    let row = await a.R._getVisit(r.id);
+    ok('too large: not uploaded, marked tooLarge, and the words say it stays on the phone', up.length === 0 && row.status === 'failed' && row.tooLarge === true && /too big to upload/.test(Logic.badge(row, true).text) && !/will retry/.test(Logic.badge(row, true).text), J(row));
+    await a.R.drain('manual'); await a.R.drain('online'); W.clock.t += 3600e3; await a.R.drain('timer'); await settle();
+    a.fireTimers(); await settle(); await settle();   // whatever timers are armed (retry or not) fire: still nothing
+    row = await a.R._getVisit(r.id);
+    ok('...no drain ever tries it again (manual, online, timer, any armed timer)', up.length === 0 && row.attempts === 1, J([up.length, row.attempts]));
+    ok('...its audio is still on the phone and it is not counted as pending work', (await a.R._chunksFor(r.id)).length === 1 && W.ls.nbd_vr_pending === '0');
+    a.win.NBDVisitRecorderLogic.MAX_UPLOAD_BYTES = 24 * 1024 * 1024;
+    const r2 = await a.R.start({}); a.recorder().emit([1, 2, 3]); await a.R.stop(); await settle(); await settle();
+    ok('CONTROL: under the limit the same recording uploads', up.length === 1 && (await a.R._getVisit(r2.id)).status === 'uploaded');
+  }
+  // P3 memory-only uploads retry while the tab lives
+  {
+    const W = world(); const a = boot(W);
+    const up = []; a.R._setUploader(uploaderStub(up, (n) => (n < 1 ? 'fail' : 'ok')));
+    const r = await a.R.start({}); a.recorder().emit([6, 6]); await settle();
+    W.idb.flags.failVisitPuts = true;
+    await a.R.stop(); await settle(); await settle();
+    ok('setup: storage refused the row, the first upload from memory failed', up.length === 1 && a.R._memoryRows().length === 1 && a.R._memoryRows()[0].status === 'failed');
+    ok('while it is held only in memory, leaving the page asks first', typeof a.R._onBeforeUnload({}) === 'string');
+    const t = a.timers.filter((x) => x.live && x.ms >= 1000).pop();
+    ok('a retry is armed on the backoff (it used to try once)', !!t && t.ms >= 25000 && t.ms <= 31000, t && String(t.ms));
+    W.clock.t += 31000; t.live = false; t.fn(); await settle(); await settle();
+    ok('the retry uploads it, the same bytes, and nothing is held in memory any more', up.length === 2 && eq(up[1].bytes, [6, 6]) && a.R._memoryRows().length === 0 && a.R._onBeforeUnload({}) === undefined && (W.firestore.docs.get('users/u1/visit_captures/' + r.id) || {}).status === 'uploaded');
+  }
+  // P3 a recovered recording's length leaves the pauses out
+  {
+    // geo off: the fake IndexedDB does not serialise readwrite transactions the way a real one
+    // does, so a geo patch racing the resume patch would drop it here (never on a phone)
+    const W = world(); const a = boot(W, { geo: 'denied-known' });
+    const r = await a.R.start({});
+    a.clock.t += 60000; a.recorder().emit([1]);
+    a.R.pause(); a.clock.t += 120000; a.R.resume();
+    a.clock.t += 10000; a.recorder().emit([2]);
+    await settle();
+    W.clock.t += 5 * 60000;   // killed here
+    const rec = await boot(W).R.recoverInterrupted();
+    ok('recovered after a 2 minute pause: 70 s recorded, not the 190 s wall clock', rec.length === 1 && rec[0].durationSec === 70, J(rec.map((x) => [x.durationSec, x.pausedMs])));
+    ok('recoveredDurationSec: no pause stamp (older rows) falls back to chunks x 2 s, never past the wall clock',
+      Logic.recoveredDurationSec({ startedAtMs: 0 }, 5, 600000) === 10 && Logic.recoveredDurationSec({ startedAtMs: 0 }, 500, 60000) === 60 && Logic.recoveredDurationSec({ startedAtMs: 0, pausedMs: 30000 }, 0, 90000) === 60);
+  }
+  // P2.13 the consent cache is re-read when it is old
+  {
+    const W = world();
+    W.ls.nbd_vr_cfg = JSON.stringify({ consentMode: 'one_party', reminder: false, companyId: 'u1' });
+    const a = boot(W);
+    ok('a cache with no read time is known but STALE (re-read before recording)', a.R.getConfig().known === true && a.R.getConfig().stale === true);
+    a.win.getDoc = async () => ({ data: () => ({ recordingConsentMode: 'two_party_attested' }) });
+    const c = await a.R.refreshConfig();
+    ok('refreshConfig stamps the read time: fresh, and the new two-party mode is used', c.known && !c.stale && c.consentMode === 'two_party_attested' && JSON.parse(W.ls.nbd_vr_cfg).atMs === W.clock.t);
+    W.clock.t += Logic.CONFIG_MAX_AGE_MS + 1;
+    ok('...ten minutes later it is stale again', a.R.getConfig().stale === true);
+  }
+  // P2.12 + P2.14 the phone follows the server's customer; one meaning of unfiled
+  {
+    const W = world(); const a = boot(W, { leads: [{ id: 'L1', name: 'Ann Reyes' }] });
+    a.R._setUploader(uploaderStub([]));
+    const r = await a.R.start({ leadId: 'L1', source: 'customer' }); a.recorder().emit([1]); await a.R.stop(); await settle(); await settle();
+    const remote = () => [...W.firestore.docs.entries()].filter(([p]) => p.startsWith('users/u1/visit_captures/')).map(([p, v]) => Object.assign({}, v, { id: p.split('/').pop() }));
+    a.win.query = () => ({}); a.win.collection = () => ({}); a.win.orderBy = () => ({}); a.win.limit = () => ({});
+    a.win.getDocs = async () => { const rows = remote(); return { forEach: (fn) => rows.forEach((v) => fn({ id: v.id, data: () => v })) }; };
+    W.clock.t += 60000;
+    let res = await a.R.listAll();
+    ok('CONTROL: phone and server agree (L1): nothing changes', (await a.R._getVisit(r.id)).leadId === 'L1' && res.local[0].leadId === 'L1' && W.ls.nbd_vr_unfiled === '0');
+    const doc = W.firestore.docs.get('users/u1/visit_captures/' + r.id);
+    doc.leadId = null; doc.attachNote = 'lead_not_reachable';   // the server refused the customer and took it off
+    W.clock.t += 60000;
+    res = await a.R.listAll();
+    const row = await a.R._getVisit(r.id);
+    ok('server took the customer off: the phone follows (unattached, with the reason), and it counts as unfiled again', row.leadId === null && row.attachRefused === 'lead_not_reachable' && res.local[0].leadId === null && W.ls.nbd_vr_unfiled === '1', J([row.leadId, row.attachRefused, W.ls.nbd_vr_unfiled]));
+    ok('...and the words say what happened', /taken off/.test(Logic.attachNoteWords('lead_not_reachable')) && /Pick the customer again/.test(Logic.attachNoteWords('lead_not_reachable')));
+    ok('...and nothing was written back to the server (the server is the truth here)', W.firestore.docs.get('users/u1/visit_captures/' + r.id).leadId === null);
+    ok('reconcileLead: the phone wins while it has an unsent change, or changed it after the server copy was read',
+      Logic.reconcileLead({ status: 'uploaded', docSynced: false, leadId: 'L1' }, { leadId: null }, 1e12) === null
+      && Logic.reconcileLead({ status: 'uploaded', leadId: 'L1', leadChangedAtMs: 1e12 }, { leadId: null }, 1e12) === null
+      && Logic.reconcileLead({ status: 'stored', leadId: 'L1' }, { leadId: null }, 1e12) === null
+      && J(Logic.reconcileLead({ status: 'uploaded', leadId: null }, { leadId: 'L9' }, 1e12)) === J({ leadId: 'L9', note: null }));
+    // a live recording is not "unfiled"; the Today row and the Home count use the same rule
+    const b = boot(world());
+    await b.R.start({}); b.recorder().emit([1]);
+    const cnt = await b.R.refreshCounters();
+    ok('a recording still running is not counted as unfiled (it was)', cnt.unfiled === 0 && cnt.pending === 1, J(cnt));
+    const T = require(path.join(ROOT, 'docs/pro/js/visit-unfiled-today.js'));
+    const fx = [{ id: 'a' }, { id: 'b', leadId: 'L' }, { id: 'c', status: 'recording' }, { id: 'd', status: 'discarded' }, { id: 'e', status: 'uploaded', pipelineStatus: 'skipped' }, { id: 'f', status: 'uploaded', pipelineStatus: 'failed' }, { id: 'g', status: 'uploaded', pipelineStatus: 'purge_pending' }, null, { status: 'stored' }];
+    ok('one meaning of unfiled: the Today row\'s rule equals Logic.isUnfiled on every case', fx.every((x) => T.fallbackIsUnfiled(x) === Logic.isUnfiled(x)) && fx.filter(Logic.isUnfiled).length === 2);
+  }
+  // P2.11 progress-only events are marked
+  {
+    const W = world(); const a = boot(W);
+    a.R._setUploader(async (blob, p, meta, onProgress) => { for (let i = 1; i <= 4; i++) { W.clock.t += 500; onProgress(i * 25); } });
+    const evs = []; a.R.subscribe((k, d) => { if (k === 'row') evs.push(d); });
+    await a.R.start({}); a.recorder().emit([1]); await a.R.stop(); await settle(); await settle();
+    const prog = evs.filter((d) => d.progress);
+    ok('upload progress events carry progress:true; the status changes do not', prog.length >= 3 && prog.every((d) => d.row.status === 'uploading') && evs.some((d) => !d.progress && d.row && d.row.status === 'uploaded'), J(evs.map((d) => [d.progress, d.row && d.row.status])));
+  }
+  // retries go to the server as queued actions
+  {
+    const W = world(); const a = boot(W);
+    const calls = [];
+    a.R._setCaller(async (n, d) => { calls.push(d.action); return { ok: true, queued: true, state: d.action === 'retryNotes' ? 'notes_pending' : 'transcribe_pending' }; });
+    const rn = await a.R.retryNotes('vabcdefgh1');
+    const rt = await a.R.retryTranscription('vabcdefgh1');
+    ok('retryNotes / retryTranscription call the queued server actions and report queued', rn.ok && rn.queued && rt.ok && rt.queued && calls.join() === 'retryNotes,retryTranscribe', J([rn, rt, calls]));
+  }
+  // pure: the words
+  {
+    const PB = (p, extra) => Logic.pipelineBadge(Object.assign({ status: 'uploaded', pipelineStatus: p }, extra || {}));
+    const f = PB('failed', { pipelineNote: 'too_large', audioLive: true });
+    ok('failed: plain words, never the raw code', /too big for the transcriber/.test(f.text) && !/too_large/.test(f.text) && /audio is kept/.test(f.text));
+    ok('failed with the audio gone does not claim it is kept; an unknown code still reads as words', !/kept/.test(PB('failed', { pipelineNote: 'object_missing', audioLive: false }).text) && /something went wrong/.test(PB('failed', { pipelineNote: 'weird_new_code' }).text) && !/weird_new_code/.test(PB('failed', { pipelineNote: 'weird_new_code' }).text));
+    ok('every FAIL_WORDS entry is a sentence fragment, not a code', Object.keys(Logic.FAIL_WORDS).every((k) => / /.test(Logic.FAIL_WORDS[k]) && Logic.FAIL_WORDS[k].indexOf('_') === -1));
+    ok('canRetryTranscription: failed + audio live + a retryable reason only', Logic.canRetryTranscription({ pipelineStatus: 'failed', audioLive: true, pipelineNote: 'transcribe_failed' }) && !Logic.canRetryTranscription({ pipelineStatus: 'failed', audioLive: true, pipelineNote: 'too_long' }) && !Logic.canRetryTranscription({ pipelineStatus: 'failed', audioLive: false, pipelineNote: 'transcribe_failed' }) && !Logic.canRetryTranscription({ pipelineStatus: 'ready', audioLive: true, pipelineNote: 'transcribe_failed' }));
+    ok('visitStatus: a visit from another device is never a blank badge', Logic.visitStatus({ remoteOnly: true, status: 'uploaded', pipelineStatus: 'ready' }, true).text === 'Notes ready' && /another device/.test(Logic.visitStatus({ remoteOnly: true, status: 'stored' }, true).text) && Logic.visitStatus({ remoteOnly: true, status: 'uploaded' }, true).text.length > 0);
+    ok('visitStatus: the phone\'s words until the server has it, then the server\'s', /^Saved on phone/.test(Logic.visitStatus({ status: 'stored', pipelineStatus: 'ready' }, true).text) && /^Saved on phone/.test(Logic.visitStatus({ status: 'uploaded', docSynced: false, pipelineStatus: 'ready' }, true).text) && Logic.visitStatus({ status: 'uploaded', docSynced: true, pipelineStatus: 'ready' }, true).text === 'Notes ready');
+    ok('sheetTitle follows the real state (it was "Saved on phone" always)',
+      Logic.sheetTitle({ status: 'stored' }, null) === 'Saved on phone' && Logic.sheetTitle({ status: 'uploaded', docSynced: true }, { pipelineStatus: 'ready' }) === 'Notes ready'
+      && Logic.sheetTitle({ status: 'uploaded' }, { pipelineStatus: 'failed' }) === 'Could not be processed' && Logic.sheetTitle(null, { pipelineStatus: 'notes_pending' }) === 'Transcript saved'
+      && Logic.sheetTitle({ status: 'uploaded' }, null) === 'Uploaded' && Logic.sheetTitle(null, { pipelineStatus: 'skipped' }) === 'Not kept');
+    ok('attachToast never says "Nothing else was filed"; it says what the server filed', [Logic.attachToast('Ann', { server: { filed: true, tasksMade: 2 } }), Logic.attachToast('Ann', { server: { filed: false } }), Logic.attachToast('Ann', {}), Logic.attachToast('Ann', { server: { filed: true, failed: true } })].every((t) => !/Nothing else/.test(t))
+      && /with 2 tasks/.test(Logic.attachToast('Ann', { server: { filed: true, tasksMade: 2 } })) && /when the notes are written/.test(Logic.attachToast('Ann', { server: { filed: false } })) && /after it uploads/.test(Logic.attachToast('Ann', { server: null })) && /could not be processed/.test(Logic.attachToast('Ann', { server: { filed: true, failed: true } })));
+    const NOW2 = 1760000000000; const D = 86400000;
+    const rv = Logic.recentVisits(
+      [{ id: 'l1', startedAtMs: NOW2 - D, status: 'uploaded', leadId: 'L1' }, { id: 'l2', startedAtMs: NOW2 - 20 * D, status: 'uploaded' }, { id: 'l3', startedAtMs: NOW2 - 2 * D, status: 'discarded' }, { id: 'l4', startedAtMs: NOW2 - 3 * D, status: 'stored' }],
+      [{ id: 'l1', startedAtMs: NOW2 - D, status: 'uploaded', leadId: 'L1', pipelineStatus: 'failed', pipelineNote: 'too_large', audioLive: true }, { id: 'r1', startedAtMs: NOW2 - 5 * D, status: 'uploaded', pipelineStatus: 'ready' }], NOW2);
+    ok('recentVisits: last 14 days, attached ones INCLUDED, discarded and older left out, newest first', J(rv.map((x) => x.id)) === J(['l1', 'l4', 'r1']), J(rv.map((x) => x.id)));
+    ok('...an attached visit that failed on the server shows the failure', /Could not be processed/.test(Logic.visitStatus(rv[0], true).text) && rv[0].leadId === 'L1');
+    ok('unsupported browser: no "open the installed app" advice (the installed app is the same browser)', !/installed/i.test(Logic.startGate({ hasMediaRecorder: false }).message) && /Safari|Chrome/.test(Logic.startGate({ hasMediaRecorder: false }).message));
+  }
+  // P1.3 the audio link's host is allowed to play
+  {
+    const fb = JSON.parse(fs.readFileSync(path.join(ROOT, 'firebase.json'), 'utf8'));
+    const hosting = [].concat(fb.hosting)[0];
+    const csp = (src) => { const r = hosting.headers.find((h) => h.source === src); return r ? r.headers.filter((x) => /^Content-Security-Policy/i.test(x.key)).map((x) => x.value) : []; };
+    const media = (v) => ((/(?:^|;)\s*media-src ([^;]*)/.exec(v) || [])[1] || '').trim().split(/\s+/);
+    for (const src of ['**', '/@(pro|admin|dev|sites)', '/@(pro|admin|dev|sites)/**']) {
+      const vals = csp(src);
+      ok('CSP ' + src + ': enforced + report-only media-src admit the signed audio host (storage.googleapis.com), still self + blob:', vals.length === 2 && vals.every((v) => { const m = media(v); return m.indexOf('https://storage.googleapis.com') !== -1 && m.indexOf("'self'") !== -1 && m.indexOf('blob:') !== -1; }), J(vals.map(media)));
+    }
+    ok('NEG: media-src admits no wildcard host (only the one signed-URL host was added)', hosting.headers.every((h) => h.headers.filter((x) => /^Content-Security-Policy/i.test(x.key)).every((x) => !media(x.value).some((t) => /\*/.test(t)))));
+    ok('NEG: the demo (/pro/explore) keeps its locked-down media-src', csp('/pro/explore').every((v) => media(v).indexOf('https://storage.googleapis.com') === -1));
+    const sig = 'https://storage.googleapis.com/demo.appspot.com/audio/u1/_inbox/v1.m4a?X-Goog-Signature=x';
+    ok('the server signs a v4 URL on storage.googleapis.com (the host the CSP now admits)', /getSignedUrl\(\{ version: 'v4'/.test(fs.readFileSync(path.join(ROOT, 'functions', 'visit-capture.js'), 'utf8')) && new URL(sig).origin === 'https://storage.googleapis.com');
+    const lv = fs.readFileSync(path.join(ROOT, 'docs/pro/js/visit-recorder-launcher.js'), 'utf8');
+    ok('the launcher loads the recorder files at a new ?v= (3)', /var V = '3';/.test(lv));
   }
 
   // ── static: no innerHTML, no inline handlers, no inline styles in the new files ──
