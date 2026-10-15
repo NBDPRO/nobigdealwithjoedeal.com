@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- NBD-BUILD-20260410-DEPLOY-TEST-XYZ789 -->
-<html lang="en" data-theme="nbd-original">
+<html lang="en" data-theme="nbd-original" data-safe-top="header">
 <head>
 <!-- Sample account (Pro demo phase 2, 2026-10-06): inert on this real page;
      under /pro/explore/ it arms the browser-only sample account. First and
@@ -16,7 +16,7 @@
      in <head> before theme-system.css. ThemeEngine.init() takes over later. -->
 <script src="js/theme-mode-preboot.js?v=1"></script>
 <script src="js/material-preboot.js?v=1"></script>
-<script src="js/shape-preboot.js?v=2"></script>
+<script src="js/shape-preboot.js?v=3"></script>
 <!-- Stamp <html data-theme="..."> from the saved theme (canonical nbd_pro_theme,
      legacy nbd-theme fallback) BEFORE first paint, so the dashboard doesn't flash
      the hardcoded default before the deferred ThemeEngine boots (audit F-2). Must
@@ -97,7 +97,7 @@
 -->
 <script src="js/sentry-config.js?v=2"></script>
 <!-- Safari standalone (Add to Home Screen) compat — must load FIRST -->
-<script src="js/standalone-compat.js"></script>
+<script src="js/standalone-compat.js?v=2"></script>
 <!-- Escape helpers for user-controlled strings: exposes window.nbdEsc -->
 <script type="module" src="js/dom-safe.js"></script>
 <!-- Client error reporter — no-op when __NBD_SENTRY_DSN is empty. -->
@@ -160,7 +160,7 @@
 <link rel="stylesheet" href="css/expenses.css?v=3">
 <link rel="stylesheet" href="css/crm-pipeline-view.css?v=1">
 <link rel="stylesheet" href="css/pipeline-rich-cards.css?v=2">
-<link rel="stylesheet" href="css/today-home.css?v=5">
+<link rel="stylesheet" href="css/today-home.css?v=6">
 <link rel="stylesheet" href="css/away-mode.css?v=1">
 <link rel="stylesheet" href="css/prod-flags.css?v=1">
 <link rel="stylesheet" href="css/templates-library-view.css?v=2">
@@ -7215,7 +7215,7 @@
 <!-- W139: Hot-lead threshold-crossing alert -->
 <script defer src="js/lead-score-alert.js?v=3"></script>
 <script defer src="js/smart-followup-briefing.js?v=2"></script>
-<script defer src="js/home-attention.js?v=22"></script>
+<script defer src="js/home-attention.js?v=23"></script>
 <!-- Send from Jo's own phone (share sheet / Messages) + the estimate follow-up
      cadence and its Home card (2026-10-03). phone-share.js first: close-board.js
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
@@ -7236,13 +7236,13 @@
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=16"></script>
-<script defer src="js/today-home.js?v=15"></script>
+<script defer src="js/today-home.js?v=16"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=6"></script>
 <script defer src="js/my-skin.js?v=9"></script>
-<script defer src="js/layout-system.js?v=1"></script>
-<script defer src="js/pixel-mode.js?v=1"></script>
+<script defer src="js/layout-system.js?v=2"></script>
+<script defer src="js/pixel-mode.js?v=2"></script>
 <script defer src="js/ui.js?v=10"></script>
 <script defer src="js/demo.js?v=5"></script>
 <script defer src="js/icons.js?v=4"></script>
@@ -7419,7 +7419,7 @@
 <!-- Visit recorder launcher (2026-10-13): entry points only; the recorder, its
      IndexedDB store and screens load on the first tap or when a recording is
      still on the phone. -->
-<script defer src="js/visit-recorder-launcher.js?v=1"></script>
+<script defer src="js/visit-recorder-launcher.js?v=2"></script>
 <!-- W149: FAB stack coordinator — hides voice/inbox FABs when a
      modal is open so they don't float over the modal content. -->
 <script defer src="js/fab-stack-coordinator.js?v=2"></script>

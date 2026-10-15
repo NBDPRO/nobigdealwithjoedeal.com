@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="nbd-original">
+<html lang="en" data-theme="nbd-original" data-safe-top="header">
 <head>
 <meta charset="UTF-8">
 <!-- Sample account (Pro demo phase 2, 2026-10-06): inert on this real page;
@@ -68,7 +68,7 @@
      stay BEFORE customer-bootstrap.module.js: it installs the accessors the
      bootstrap then assigns window._userClaims / window.addDoc through. -->
 <script defer src="js/role-gate.js?v=7"></script>
-<script defer src="js/standalone-compat.js"></script>
+<script defer src="js/standalone-compat.js?v=2"></script>
 <!-- The ONE vocabulary for /photos.damageType (window.NBD_PHOTO_DAMAGE).
      Four surfaces wrote this field in four spellings until 2026-09-08, so
      photos of the same peril tagged in different places never grouped in
@@ -2855,7 +2855,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <script defer src="js/my-skin-logic.js?v=6"></script>
 <script defer src="js/my-skin.js?v=9"></script>
 <!-- Island Dock layout (2026-10-12): a no-op unless the rep resolved to it; then the hero image of the house. -->
-<script defer src="js/layouts/island-job.js?v=1"></script>
+<script defer src="js/layouts/island-job.js?v=2"></script>
 
 
 <!-- The one lead event (appointment) writer — Add Event + D2D (2026-10-03). -->
@@ -3215,7 +3215,7 @@ body.nbd-photo-selecting .nbd-photo-checkbox,
 <!-- W133: Cmd+K command palette — fuzzy search leads, actions, views -->
 <script defer src="/pro/js/command-palette.js?v=5"></script>
 <!-- Visit recorder launcher (2026-10-13): Record visit + do-not-record toggle. -->
-<script defer src="/pro/js/visit-recorder-launcher.js?v=1"></script>
+<script defer src="/pro/js/visit-recorder-launcher.js?v=2"></script>
 <!-- W149: FAB stack coordinator — hides voice/inbox FABs when a
      modal is open so they don't float over the modal content. -->
 <script defer src="/pro/js/fab-stack-coordinator.js?v=2"></script>
