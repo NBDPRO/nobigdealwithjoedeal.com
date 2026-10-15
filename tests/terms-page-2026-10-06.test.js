@@ -63,7 +63,9 @@ ok('T5 legal name + DBA: No Big Deal Solutions LLC (DBA No Big Deal Home Solutio
 
 console.log('\nSMS / Text Messaging Terms section (#sms-terms)');
 ok('S1 section exists with heading "SMS / Text Messaging Terms"', i > 0 && /SMS \/ Text Messaging Terms/.test(smsText));
-ok('S2 [30557] program name "No Big Deal Home Solutions text messages"', /No Big Deal Home Solutions text messages/.test(smsText));
+ok('S2 [30557] program name "No Big Deal Home Solutions Text Messages" (2026-10-15)', /No Big Deal Home Solutions Text Messages/.test(smsText));
+ok('S16 the SMS section names the LLC with its d/b/a and links /sms-program (2026-10-15)', /No Big Deal Solutions LLC, d\/b\/a No Big Deal Home Solutions/.test(smsText) && /<a href="\/sms-program">/.test(sms));
+ok('S17 opt-in is by the website box only (no "texting us first" path)', !/texting us first|text us first/i.test(smsText));
 // [30559] program description — the campaign's use cases.
 const USES = [/appointment confirmations and reminders/i, /estimate and project updates/i, /invoice and payment notices/i,
   /replies to questions/i, /storm-damage inspection reminders[^.]*opted in/i, /storm alerts[^.]*Storm Alerts/i];
@@ -131,7 +133,7 @@ const priv = stripComments(read('docs/privacy.html'));
 const pi = priv.indexOf('id="sms-terms"');
 const privSms = pi > 0 ? priv.slice(pi, priv.indexOf('</div>', pi)) : '';
 ok('W6 /privacy#sms-terms still exists and now links /terms', pi > 0 && /<a href="\/terms[^"]*"[^>]*>Terms &amp; Conditions<\/a>/.test(privSms));
-ok('W7 NBD Pro SaaS terms (docs/pro/terms.html) untouched and not the homeowner page', fs.existsSync(path.join(DOCS, 'pro', 'terms.html')) && !/No Big Deal Home Solutions text messages/.test(read('docs/pro/terms.html')));
+ok('W7 NBD Pro SaaS terms (docs/pro/terms.html) untouched and not the homeowner page', fs.existsSync(path.join(DOCS, 'pro', 'terms.html')) && !/No Big Deal Home Solutions text messages/i.test(read('docs/pro/terms.html')));
 
 console.log('\n' + (fail ? 'FAILED' : 'PASSED') + ' — ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

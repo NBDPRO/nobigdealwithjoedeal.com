@@ -390,6 +390,7 @@
     "sms-consent-a2p-2026-10-05.test.js",
     "estimate-sms-consent-first-paint-2026-10-13.test.js",
     "terms-page-2026-10-06.test.js",
+    "sms-program-page-2026-10-15.test.js",
     "account-erasure-billing.test.js",
     "legal-disclosures-2026-10-03.test.js",
     "tenant-brand.test.js",

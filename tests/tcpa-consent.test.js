@@ -354,7 +354,7 @@ check('T31 consentRecord stamps when / which text / which page / which IP for a 
   });
   assert.deepStrictEqual(rec, {
     tcpaConsentAt: '__server_ts__',
-    tcpaConsentText: 'tcpa-storm-alerts-v2-2026-10-05',
+    tcpaConsentText: 'tcpa-storm-alerts-v3-2026-10-15',
     tcpaConsentSource: '/storm-alerts',
     tcpaConsentIp: '203.0.113.9',
   });
@@ -374,15 +374,22 @@ check('T33 source falls back to the form tag without a usable Referer; IP omitte
   assert.ok(!('tcpaConsentIp' in rec));
 });
 
-check('T34 /estimate and /storm-alerts record THEIR wording versions; every other kind the shared one', () => {
+check('T34 /estimate, /storm-alerts and /inspect record THEIR wording versions; every other form the shared one', () => {
   assert.strictEqual(C.consentVersionForKind('estimate'), C.ESTIMATE_CONSENT_VERSION);
   assert.strictEqual(C.consentVersionForKind('storm'), C.STORM_ALERTS_CONSENT_VERSION);
-  for (const k of ['inspect', 'contact']) assert.strictEqual(C.consentVersionForKind(k), C.CONSENT_VERSION);
+  // kind 'inspect' is shared by /inspect, /storm-check, /roof-score and
+  // /storm-report: only /inspect's own source tag picks its wording (2026-10-15).
+  assert.strictEqual(C.consentVersionForKind('inspect', '/inspect'), C.INSPECT_CONSENT_VERSION);
+  for (const src of ['/storm-check', '/roof-score', '/storm-report', undefined]) {
+    assert.strictEqual(C.consentVersionForKind('inspect', src), C.CONSENT_VERSION, 'inspect from ' + src);
+  }
+  assert.strictEqual(C.consentVersionForKind('contact'), C.CONSENT_VERSION);
   assert.ok(C.CONSENT_TEXTS[C.CONSENT_VERSION] && C.CONSENT_TEXTS[C.ESTIMATE_CONSENT_VERSION]
-    && C.CONSENT_TEXTS[C.STORM_ALERTS_CONSENT_VERSION]);
+    && C.CONSENT_TEXTS[C.STORM_ALERTS_CONSENT_VERSION] && C.CONSENT_TEXTS[C.INSPECT_CONSENT_VERSION]);
   // Old versions are never deleted: records already stamped with them must
   // keep pointing at the words those people saw.
-  for (const v of ['tcpa-v1-2026-10-03', 'tcpa-estimate-v1-2026-10-03']) assert.ok(C.CONSENT_TEXTS[v], v + ' was removed');
+  for (const v of ['tcpa-v1-2026-10-03', 'tcpa-estimate-v1-2026-10-03', 'tcpa-v2-2026-10-05',
+    'tcpa-estimate-v2-2026-10-05', 'tcpa-storm-alerts-v2-2026-10-05']) assert.ok(C.CONSENT_TEXTS[v], v + ' was removed');
   assert.strictEqual(Object.isFrozen(C.CONSENT_TEXTS), true);
 });
 
@@ -400,7 +407,7 @@ function labelText(src, id) {
 }
 const PAGES_V1 = [
   ['docs/storm-check.html', 'sc-consent'], ['docs/roof-score.html', 'rs-consent'],
-  ['docs/storm-report.html', 'sr-consent'], ['docs/inspect.html', 'ins-consent'],
+  ['docs/storm-report.html', 'sr-consent'],
   ['docs/index.html', 'fieldConsent'],
   ['docs/assets/js/quick-lead-form.js', "' + uid + '-consent"],
 ];
@@ -411,6 +418,8 @@ check('T35 every consent label is word-for-word the text its stored version id n
     assert.strictEqual(labelText(src, id), C.CONSENT_TEXTS[C.CONSENT_VERSION],
       file + ': label differs from CONSENT_TEXTS[' + C.CONSENT_VERSION + '] — new wording needs a NEW version id');
   }
+  const ins = fs.readFileSync(path.join(ROOT, 'docs', 'inspect.html'), 'utf8');
+  assert.strictEqual(labelText(ins, 'ins-consent'), C.CONSENT_TEXTS[C.INSPECT_CONSENT_VERSION]);
   const est = fs.readFileSync(path.join(ROOT, 'docs', 'estimate.html'), 'utf8');
   assert.strictEqual(labelText(est, 'tcpaConsent'), C.CONSENT_TEXTS[C.ESTIMATE_CONSENT_VERSION]);
   const sa = fs.readFileSync(path.join(ROOT, 'docs', 'storm-alerts.html'), 'utf8');
@@ -500,7 +509,7 @@ for (const [kind, body, referer, coll, srcPath] of ROUND_TRIPS) {
     assert.strictEqual(name, coll);
     assert.strictEqual(row.tcpaConsent, true, kind + ': the boolean was dropped');
     assert.strictEqual(row.tcpaConsentAt, '__server_ts__', kind + ': no server timestamp on the consent');
-    assert.strictEqual(row.tcpaConsentText, C.consentVersionForKind(kind));
+    assert.strictEqual(row.tcpaConsentText, C.consentVersionForKind(kind, body.source));
     assert.strictEqual(row.tcpaConsentSource, srcPath);
     assert.strictEqual(row.tcpaConsentIp, '198.51.100.7');
   }]);
