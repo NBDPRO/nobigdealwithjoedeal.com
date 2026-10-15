@@ -31,7 +31,7 @@
     file_reminder: 'File a reminder', file_report: 'File a report', inbox_pending: 'Read the Agent inbox',
     verify_item: 'Fact-check inbox items', estimates_status: 'Estimates + proposal status', closes_this_week: 'What closes this week', rules_reference: 'Your rules',
     post_job: 'Finished jobs', lead_sources: 'Lead sources + spend', job_profit: 'Job profit (internal)',
-    storm_near_customers: 'Storms near customers', team_activity: 'What your bots did', collected_revenue: 'Collected revenue',
+    storm_near_customers: 'Storms near customers', match_photo_location: 'Match photos to customers', team_activity: 'What your bots did', collected_revenue: 'Collected revenue',
   };
   const STARTER = ['crm_summary', 'schedule', 'overdue_followups', 'list_leads', 'lead_detail', 'file_note', 'file_reminder', 'file_report', 'rules_reference'];
 

@@ -107,6 +107,18 @@ const TOOLS = {
     description: 'Hail / wind / tornado reports from the NWS storm feed (stormWatch) in the last N days (default 14), each with the customers whose address lies within R miles (default 3). For storm response: knock plans, checking a date of loss, proof for an adjuster meeting. Names + addresses only.',
     inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 1, maximum: 60 }, miles: { type: 'number', minimum: 0.5, maximum: 10 } }, additionalProperties: false },
   },
+  match_photo_location: {
+    description: 'Which customer was this photo taken at? Give up to 200 photo points (lat, lng, taken_at from the photo\'s EXIF). Each point is compared with the company\'s located customers that had a job, an adjuster meeting or an appointment on a day where taken_at falls between the start of the first day and the end of the last day + window_hours (default 36). Returns per point only the matching customers within radius_m (default 150, max 300), nearest first: lead_id, a short label ("First L. · Town · job type"), distance_m (to 10 m) and stage. Never coordinates, street address, phone or email. Exactly one match is safe to file; two or more needs the owner. Read-only; the points are not stored.',
+    inputSchema: { type: 'object', properties: {
+      points: { type: 'array', minItems: 1, maxItems: 200, items: { type: 'object', properties: {
+        lat: { type: 'number', minimum: -90, maximum: 90 },
+        lng: { type: 'number', minimum: -180, maximum: 180 },
+        taken_at: { type: 'string', description: 'ISO 8601 date-time. Without an offset it is read as the company\'s local time.' },
+      }, required: ['lat', 'lng', 'taken_at'], additionalProperties: false } },
+      radius_m: { type: 'number', minimum: 10, maximum: 300, description: 'Match radius in metres (default 150).' },
+      window_hours: { type: 'number', minimum: 0, maximum: 72, description: 'Hours after the last scheduled day a photo still counts (default 36).' },
+    }, required: ['points'], additionalProperties: false },
+  },
   team_activity: {
     description: 'What each of the company\'s bots did over the last N days (default 7): tool calls, filings, and how the owner decided them — approved, tossed, still waiting — plus fact-check counts (checked / flagged). Use it to coach the bots: a bot whose filings keep getting tossed needs a different approach. Personal bots are not included.',
     inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 1, maximum: 30 } }, additionalProperties: false },
@@ -180,7 +192,7 @@ const FILE = ['file_note', 'file_reminder', 'file_report'];
 // Nova is deliberately absent: no NBD key can be made for her.
 const BOTS = {
   cos:    { name: 'Chief of Staff', tools: ['crm_summary', 'schedule', 'overdue_followups', 'collected_revenue', 'lead_sources', 'inbox_pending', 'team_activity', 'closes_this_week', 'file_report'] },
-  marcus: { name: 'Marcus · NBD Ops', tools: READ.concat(['estimates_status', 'closes_this_week', 'storm_near_customers', 'rules_reference'], FILE, ['draft_text', 'draft_email']) },
+  marcus: { name: 'Marcus · NBD Ops', tools: READ.concat(['estimates_status', 'closes_this_week', 'storm_near_customers', 'match_photo_location', 'rules_reference'], FILE, ['draft_text', 'draft_email']) },
   quinn:  { name: 'Quinn · Fact & Compliance', tools: READ.concat(['estimates_status', 'collected_revenue', 'rules_reference', 'storm_near_customers', 'inbox_pending', 'verify_item', 'file_report']) },
   tucker: { name: 'Tucker · Customer Care', tools: ['post_job', 'list_leads', 'lead_detail', 'overdue_followups', 'estimates_status', 'rules_reference', 'file_note', 'file_reminder', 'draft_text', 'draft_email'] },
   dana:   { name: 'Dana · Marketing', tools: ['crm_summary', 'lead_sources', 'rules_reference', 'file_report', 'file_social_draft'] },
@@ -674,6 +686,126 @@ function stormNearCustomers(events, leads, nowMs, args) {
     });
   return { days, miles, events: out, customers_without_location: activeLeads(leads).length - located.length,
     note: 'NWS local storm reports (area reports, not per-roof proof). Never promise a homeowner their claim will be paid.' };
+}
+
+// ── Photo → customer (2026-10-15) ──────────────────────────────────────
+// match_photo_location: Marcus's photo intake sends each photo's EXIF GPS +
+// time; a point matches a located customer when it is within radius_m of the
+// customer AND was taken while that customer had work on the calendar: from
+// the start (company local midnight) of the first day to the end of the last
+// day + window_hours. The answer is lead id, a short label, distance (10 m
+// steps) and stage — never the customer's coordinates, street, phone or email.
+const PHOTO_MATCH = { MAX_POINTS: 200, RADIUS_DEFAULT: 150, RADIUS_MIN: 10, RADIUS_MAX: 300, WINDOW_DEFAULT: 36, WINDOW_MAX: 72, MAX_MATCHES: 10 };
+const _SW = require('./schedule-window');
+const { titleFor } = require('./jobs-logic');
+const HAS_OFFSET = /(Z|[+-]\d{2}:?\d{2})$/i;
+const LOCAL_ISO = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3})\d*)?)?$/;
+// An ISO time → epoch ms. With no offset (EXIF DateTimeOriginal has none) it
+// is the company's wall clock, not the server's UTC.
+function photoTimeMs(v, tz) {
+  const s = typeof v === 'string' ? v.trim() : '';
+  if (!s || s.length > 40) return null;
+  if (HAS_OFFSET.test(s)) { const t = Date.parse(s); return Number.isFinite(t) ? t : null; }
+  const m = LOCAL_ISO.exec(s);
+  if (!m) return null;
+  const base = _SW.localToUtcMs(m[1], m[2] + ':' + m[3], tz);
+  return base == null ? null : base + (Number(m[4]) || 0) * 1000 + (Number(String(m[5] || '0').padEnd(3, '0')) || 0);
+}
+const finiteIn = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
+function validatePhotoMatch(args, tz) {
+  const a = args || {};
+  if (!Array.isArray(a.points) || !a.points.length) return { error: 'points must be a non-empty array of { lat, lng, taken_at }' };
+  if (a.points.length > PHOTO_MATCH.MAX_POINTS) return { error: 'at most ' + PHOTO_MATCH.MAX_POINTS + ' points per call' };
+  let radius = PHOTO_MATCH.RADIUS_DEFAULT, windowH = PHOTO_MATCH.WINDOW_DEFAULT;
+  if (a.radius_m != null) { if (!finiteIn(a.radius_m, PHOTO_MATCH.RADIUS_MIN, PHOTO_MATCH.RADIUS_MAX)) return { error: 'radius_m must be a number from ' + PHOTO_MATCH.RADIUS_MIN + ' to ' + PHOTO_MATCH.RADIUS_MAX }; radius = a.radius_m; }
+  if (a.window_hours != null) { if (!finiteIn(a.window_hours, 0, PHOTO_MATCH.WINDOW_MAX)) return { error: 'window_hours must be a number from 0 to ' + PHOTO_MATCH.WINDOW_MAX }; windowH = a.window_hours; }
+  const points = [];
+  for (let i = 0; i < a.points.length; i++) {
+    const p = a.points[i];
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return { error: 'points[' + i + '] must be { lat, lng, taken_at }' };
+    if (!finiteIn(p.lat, -90, 90) || !finiteIn(p.lng, -180, 180)) return { error: 'points[' + i + ']: lat must be -90..90 and lng -180..180' };
+    const t = photoTimeMs(p.taken_at, tz);
+    if (t == null) return { error: 'points[' + i + ']: taken_at must be an ISO 8601 date-time' };
+    points.push({ index: i, lat: p.lat, lng: p.lng, t });
+  }
+  return { points, radius, windowH };
+}
+const locOf = (o) => (o && Number.isFinite(Number(o.lat)) && Number.isFinite(Number(o.lng)) && (Number(o.lat) || Number(o.lng)) ? { lat: Number(o.lat), lng: Number(o.lng) } : null);
+// "Maria L." — first name and last initial only.
+function shortName(l) {
+  const first = String(l.firstName || '').trim() || String(l.name || '').trim().split(/\s+/)[0] || '';
+  const lastFull = String(l.lastName || '').trim() || (String(l.firstName || '').trim() ? '' : String(l.name || '').trim().split(/\s+/).slice(1).join(' '));
+  return (first + (lastFull ? ' ' + lastFull.charAt(0).toUpperCase() + '.' : '')).trim() || 'Customer';
+}
+// The town only — never the street. lead.city, else the address segment
+// before "ST 12345" ("12 Oak St, Florence, KY 41042" → "Florence").
+function townOf(l) {
+  const c = String(l.city || l.town || '').trim();
+  if (c) return c.slice(0, 60);
+  const parts = String(l.address || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (parts.length < 2) return '';
+  let t = parts.length >= 3 ? parts[parts.length - 2] : parts[1];
+  t = t.replace(/\s+[A-Za-z]{2}(\s+\d{5}(-\d{4})?)?$/, '').replace(/\s+\d{5}(-\d{4})?$/, '').trim();
+  return /\d/.test(t) ? '' : t.slice(0, 60);
+}
+// The windows a photo may fall in: the lead's scheduled job (1–14 days), its
+// adjuster meeting, each job's own scheduled days, and Cal.com appointments
+// tied to one of THESE leads (anything else is dropped). Day bounds come from
+// schedule-window.js in the company's zone.
+function photoVisits(leads, jobsByLead, appointments, tz) {
+  const zone = tz || _SW.DEFAULT_TZ;
+  const byId = {};
+  const visits = [];
+  const dayStart = (ymd) => _SW.localToUtcMs(ymd, '00:00', zone);
+  const push = (l, loc, firstYmd, lastYmd, stage, title) => {
+    const from = dayStart(firstYmd), endDay = _SW.addDays(lastYmd, 1);
+    const to = endDay ? dayStart(endDay) : null;
+    if (!loc || from == null || to == null) return;
+    visits.push({ leadId: l.id, lat: loc.lat, lng: loc.lng, from, to, stage: String(stage || ''), label: [shortName(l), townOf(l), title || titleFor(l)].filter(Boolean).join(' · ') });
+  };
+  const fromFields = (o) => {
+    const c = _SW.check(o || {});
+    if (c.ok) return [c.window.date, c.window.endDate || c.window.date];
+    return isYmd(o && o.scheduledDate) && _SW.parseYmd(o.scheduledDate) ? [o.scheduledDate, o.scheduledDate] : null;
+  };
+  activeLeads(leads).forEach((l) => {
+    byId[l.id] = l;
+    const loc = locOf(l);
+    const w = fromFields(l);
+    if (w) push(l, loc, w[0], w[1], l.stage);
+    if (isYmd(l.adjusterMeetingDate) && _SW.parseYmd(l.adjusterMeetingDate)) push(l, loc, l.adjusterMeetingDate, l.adjusterMeetingDate, l.stage);
+    ((jobsByLead && jobsByLead[l.id]) || []).forEach((j) => {
+      if (!j || j.deleted === true) return;
+      const jw = fromFields(j);
+      if (jw) push(l, locOf(j.property) || loc, jw[0], jw[1], j.stage || l.stage, j.title && j.title !== 'Job' ? j.title : '');
+    });
+  });
+  (appointments || []).forEach((a) => {
+    const l = a && byId[String(a.leadId || '')];
+    const t = a ? ms(a.startTime) : 0;
+    if (!l || !t || a.status === 'cancelled') return;
+    const day = nyDay(t, zone);
+    push(l, locOf(l), day, day, l.stage);
+  });
+  return visits;
+}
+function matchPhotoLocation(leads, jobsByLead, appointments, args, tz) {
+  const v = validatePhotoMatch(args, tz);
+  if (v.error) return v;
+  const visits = photoVisits(leads, jobsByLead, appointments, tz);
+  const winMs = v.windowH * 3600000;
+  return { points: v.points.map((p) => {
+    const best = {};
+    visits.forEach((x) => {
+      if (p.t < x.from || p.t > x.to + winMs) return;
+      const d = haversineMi(p.lat, p.lng, x.lat, x.lng) * 1609.344;
+      if (d > v.radius) return;
+      if (!best[x.leadId] || d < best[x.leadId].d) best[x.leadId] = { d, x };
+    });
+    const matches = Object.values(best).sort((a, b) => a.d - b.d).slice(0, PHOTO_MATCH.MAX_MATCHES)
+      .map((m) => ({ lead_id: m.x.leadId, label: m.x.label, distance_m: Math.round(m.d / 10) * 10, stage: m.x.stage }));
+    return { index: p.index, matches };
+  }) };
 }
 
 // ── Team activity (CoS) ────────────────────────────────────────────────
@@ -1217,6 +1349,7 @@ module.exports = {
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
   TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
+  PHOTO_MATCH, photoTimeMs, validatePhotoMatch, photoVisits, matchPhotoLocation, townOf, shortName,
   botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,
   SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, editedTextProblem, buildTextDraft, buildStormCheckIn, textGate, buildEmailDraft, emailGate, buildSocialDraft,
   planAllowsBots, accessDecision, validTimeZone, companyTimeZone, dayInZone, rulesReferenceFor, houseRuleLines, NEUTRAL_GUIDANCE,
