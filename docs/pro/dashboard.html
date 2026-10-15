@@ -123,7 +123,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=197"></script>
+<script src="js/script-loader.js?v=198"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -906,6 +906,11 @@
            list of what is on Jo's plate — appointments, calls owed, promised
            follow-ups, money to collect, stalled leads. Boot view and phone Home tab. -->
       <section id="todayPlan" class="tp" aria-label="Today" hidden></section>
+      <!-- What closes this week (js/closes-week.js, lazy bundle 'closesweek',
+           2026-10-15): open estimates and deals ranked by likelihood x
+           projected value, one next action each. Full-screen layouts carry
+           their own [data-cw-slot]. -->
+      <section id="homeClosesWeek" aria-label="What closes this week" hidden></section>
       <!-- Roof Rep game card: off by default — a rep who turned it on in
            Settings chose to see it, so it stays out of the fold below. -->
       <div id="homeGameCard" class="mb-md" hidden></div>
@@ -7178,7 +7183,7 @@
 <script defer src="js/dol-fill.js?v=3"></script>
 <script defer src="js/notif-bell.js?v=8"></script>
 <script defer src="js/agent-inbox.js?v=8"></script>
-<script defer src="js/agent-bots-settings.js?v=3"></script>
+<script defer src="js/agent-bots-settings.js?v=4"></script>
 <script defer src="js/buying-intent-strike.js?v=3"></script>
 <script defer src="js/lead-dedup.js?v=4"></script>
 <script defer src="js/dup-review.js?v=1"></script>
@@ -7236,7 +7241,7 @@
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=16"></script>
-<script defer src="js/today-home.js?v=16"></script>
+<script defer src="js/today-home.js?v=17"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=6"></script>

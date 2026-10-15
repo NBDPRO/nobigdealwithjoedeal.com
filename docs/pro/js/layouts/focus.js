@@ -272,7 +272,8 @@
     var q = queue();
     var html = S.screen === 'focus' ? renderFocus(q) : S.screen === 'wrap' ? renderWrap(q) : renderToday(q);
     rootEl.setAttribute('data-screen', S.screen);
-    rootEl.innerHTML = '<div class="fo-wrap">' + html + '</div>';
+    // "What closes this week" (js/closes-week.js, 2026-10-15) fills [data-cw-slot].
+    rootEl.innerHTML = '<div class="fo-wrap">' + html + (S.screen === 'today' ? '<div data-cw-slot="focus"></div>' : '') + '</div>';
     K.setOverlay(rootEl, homeActive());
   }
   function activeView() { var v = doc.querySelector('.view.active'); return v && v.id ? v.id.replace(/^view-/, '') : ''; }

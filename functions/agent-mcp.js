@@ -290,6 +290,19 @@ async function runTool(name, args, key) {
       note: 'total_customer_facing is what the homeowner sees. Cost and margin are never shared here.' });
   }
 
+  if (name === 'closes_this_week') {
+    // The estimate-opened alerts (estimate-view-alert.js: one per lead per 6 h)
+    // from the last week — equality-only filters, the 7-day cut in memory.
+    const viewsP = db().collection('notifications').where('userId', '==', company).where('type', '==', 'estimate_viewed').limit(500).get()
+      .then((s) => s.docs.map((d) => { const n = d.data() || {}; return { leadId: n.leadId, atMs: L.ms(n.createdAt) }; }))
+      .catch(() => []);
+    const [leads, estimates, deals, views] = await Promise.all([
+      companyLeads(company), companyDocs('estimates', company, ['companyId', 'userId']), companyDocs('deal_rooms', company, ['userId']), viewsP,
+    ]);
+    return L.toolText({ customers: L.closesThisWeek(leads, estimates, deals, views, args, Date.now(), tz),
+      note: 'projected_value is the job value (else the latest estimate total), customer-facing. likelihood_pct is a heuristic (stage, last touch, estimate opens, prequal / deposit, follow-up), not a forecast. Next actions are for the owner; nothing is sent.' });
+  }
+
   if (name === 'collected_revenue') {
     const from = args.from ? String(args.from) : today.slice(0, 8) + '01';
     const to = args.to ? String(args.to) : today;

@@ -158,6 +158,12 @@ const TOOLS = {
     description: 'The key owner\'s saved Sunday reviews, newest first: floors %, miss tax moved or not, last week\'s hard thing done or not, what they kept, where they bailed, and this week\'s hard thing with its deadline. Hold them to it. Read only.',
     inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 12 } }, additionalProperties: false },
   },
+  closes_this_week: {
+    description: 'What closes this week: open estimates and deals ranked by likelihood x projected value (job value, else the latest estimate total; customer-facing, never cost or margin), each with the plain reason and ONE next action (call, text draft, send the estimate again, check rate, book an inspection). Likelihood is a transparent heuristic (stage, days since last touch, estimate-opened alerts, prequal / deposit status, follow-up overdue), not AI. Read-only. No phone or email.',
+    inputSchema: { type: 'object', properties: {
+      limit: { type: 'integer', minimum: 1, maximum: 50, description: 'How many rows (default 10).' },
+    }, additionalProperties: false },
+  },
   collected_revenue: {
     description: 'Money actually COLLECTED (invoice payments by the date they arrived, refunds subtracted) between two dates. This is the only figure to call "revenue". Defaults to this month. Returns totals, by month, and the top customers by collected amount.',
     inputSchema: { type: 'object', properties: {
@@ -173,12 +179,12 @@ const FILE = ['file_note', 'file_reminder', 'file_report'];
 // ── Bots → tools ───────────────────────────────────────────────────────
 // Nova is deliberately absent: no NBD key can be made for her.
 const BOTS = {
-  cos:    { name: 'Chief of Staff', tools: ['crm_summary', 'schedule', 'overdue_followups', 'collected_revenue', 'lead_sources', 'inbox_pending', 'team_activity', 'file_report'] },
-  marcus: { name: 'Marcus · NBD Ops', tools: READ.concat(['estimates_status', 'storm_near_customers', 'rules_reference'], FILE, ['draft_text', 'draft_email']) },
+  cos:    { name: 'Chief of Staff', tools: ['crm_summary', 'schedule', 'overdue_followups', 'collected_revenue', 'lead_sources', 'inbox_pending', 'team_activity', 'closes_this_week', 'file_report'] },
+  marcus: { name: 'Marcus · NBD Ops', tools: READ.concat(['estimates_status', 'closes_this_week', 'storm_near_customers', 'rules_reference'], FILE, ['draft_text', 'draft_email']) },
   quinn:  { name: 'Quinn · Fact & Compliance', tools: READ.concat(['estimates_status', 'collected_revenue', 'rules_reference', 'storm_near_customers', 'inbox_pending', 'verify_item', 'file_report']) },
   tucker: { name: 'Tucker · Customer Care', tools: ['post_job', 'list_leads', 'lead_detail', 'overdue_followups', 'estimates_status', 'rules_reference', 'file_note', 'file_reminder', 'draft_text', 'draft_email'] },
   dana:   { name: 'Dana · Marketing', tools: ['crm_summary', 'lead_sources', 'rules_reference', 'file_report', 'file_social_draft'] },
-  frank:  { name: 'Frank · Finance', tools: ['crm_summary', 'collected_revenue', 'job_profit', 'lead_sources', 'estimates_status', 'post_job', 'file_report', 'file_reminder'] },
+  frank:  { name: 'Frank · Finance', tools: ['crm_summary', 'collected_revenue', 'job_profit', 'lead_sources', 'estimates_status', 'closes_this_week', 'post_job', 'file_report', 'file_reminder'] },
   priya:  { name: 'Priya · Product Manager', tools: ['team_activity', 'file_report', 'file_social_draft'] },
   theo:   { name: 'Theo · Venture Scout', tools: ['crm_summary', 'lead_sources', 'file_report'] },
   // Personal side (Jo, 2026-10-02): these read ONLY the key owner's own
@@ -399,6 +405,28 @@ function clampLimit(n) { const v = Math.floor(Number(n)); return Number.isFinite
 // rows, costs, markup and margin are never read into the answer.
 function estimateTotal(e) { const v = Number(e.grandTotal != null ? e.grandTotal : e.total); return Number.isFinite(v) ? Math.round(v * 100) / 100 : null; }
 function isoDay(v, tz) { return dayOf(v, tz); }
+
+// What closes this week (2026-10-15): the Home card's ONE ranking
+// (closes-week-logic.js, byte-identical to docs/pro/js/closes-week-logic.js),
+// shaped for a bot: lead id, name, stage, projected value, likelihood, reason,
+// next action. Never a phone or an email.
+function closesThisWeek(leads, estimates, deals, views, args, nowMs, tz) {
+  const a = args || {};
+  const lim = Math.min(50, Math.max(1, Math.floor(Number(a.limit)) || 10));
+  const rows = require('./closes-week-logic').rank(activeLeads(leads), {
+    nowMs, tz, estimates: estimates || [], deals: deals || [], views: views || [], limit: lim,
+  });
+  return rows.map((r) => ({
+    lead_id: r.leadId,
+    name: r.name,
+    stage: r.stageLabel,
+    projected_value: r.projectedValue,
+    likelihood_pct: r.likelihoodPct,
+    score: r.score,
+    reason: r.reason,
+    next_action: r.nextAction.label,
+  }));
+}
 
 function estimatesStatus(estimates, deals, leads, args, nowMs, tz) {
   const a = args || {};
@@ -1185,7 +1213,7 @@ module.exports = {
   PROTOCOL_VERSIONS, SERVER_INFO, TOOLS, BOTS, FIRST_WAVE, MAX_TEXT, MAX_LIST, FORBIDDEN_KEYS,
   toolsForBot, botAllows, minimalLead, summary, overdueFollowups, listLeads, listLeadsPage, encodeListCursor, LIST_CURSOR_MAX, validateFiling,
   claimWordingProblem, rpcResult, rpcError, initializeResult, toolText, toolErr, ymd, isYmd, ms, activeLeads,
-  estimatesStatus, estimateTotal, paymentsOf, collectedRevenue,
+  estimatesStatus, closesThisWeek, estimateTotal, paymentsOf, collectedRevenue,
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
   TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
