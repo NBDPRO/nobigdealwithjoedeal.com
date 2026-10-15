@@ -16,7 +16,7 @@
 
   var PROXY = 'https://us-central1-nobigdeal-pro.cloudfunctions.net/publicFunnelAI';
   var S = {
-    step: 1, address: '', addressFull: null, lat: null, lon: null,
+    step: 1, address: '', addressFull: null, addressTyped: '', lat: null, lon: null,
     roofAge: '', roofType: '', signs: [], moisture: '', lastInspect: '',
     firstName: '', phone: '', email: '', score: null, band: null, submitted: false
   };
@@ -37,7 +37,7 @@
   function setProgress(pct) { var f = $('rs-progress-fill'); if (f) f.style.width = pct + '%'; }
   function validate(step) {
     if (step === 1) {
-      if (!S.addressFull) {
+      if (!S.addressFull && !S.addressTyped) {
         var inp = $('rs-address'); var typed = inp ? inp.value.trim() : '';
         if (typed.length >= 5) { resolveTyped(typed); }
         else { hint('Type your address and pick it from the dropdown.'); }
@@ -82,12 +82,22 @@
     inp.setAttribute('aria-expanded', 'false');
     inp.setAttribute('aria-controls', 'rs-acdrop');
     if (drop) drop.setAttribute('role', 'listbox');
+    // Lookup on blur or Continue, never per keystroke (2026-10-15, review H4):
+    // the public Nominatim policy forbids autocomplete-as-you-type, and a
+    // throttled Referer breaks every address lookup on the site. Same rule as
+    // /estimate: one debounced lookup when the field loses focus, at least 5
+    // characters, each distinct string looked up once per page (geocodeOnce).
     inp.addEventListener('input', function () {
       S.addressFull = null;
+      if (S.addressTyped && this.value.trim() !== S.addressTyped) S.addressTyped = '';
+      clearTimeout(debTimer);
+      closeDrop();
+    });
+    inp.addEventListener('blur', function () {
       clearTimeout(debTimer);
       var q = this.value.trim();
-      if (q.length < 4) { closeDrop(); return; }
-      debTimer = setTimeout(function () { searchAddr(q); }, 350);
+      if (q.length < 5 || S.addressFull || S.addressTyped) return;
+      debTimer = setTimeout(function () { searchAddr(q); }, 400);
     });
     inp.addEventListener('keydown', function (e) {
       var open = drop && drop.style.display === 'block';
@@ -123,23 +133,58 @@
     if (inp) { inp.setAttribute('aria-expanded', 'false'); inp.setAttribute('aria-activedescendant', ''); }
     kbIdx = -1;
   }
+  // One request per distinct address string per page (same as /estimate's
+  // _geocodeOnce): blur, Continue and Enter share one answer.
+  var geoCache = {};
+  function geocodeOnce(q) {
+    var key = String(q || '').trim().toLowerCase();
+    if (!geoCache[key]) {
+      var url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(q) +
+        '&format=json&addressdetails=1&countrycodes=us&limit=5' +
+        '&viewbox=' + encodeURIComponent('-85.2,39.5,-83.6,38.6') + '&bounded=0';
+      geoCache[key] = fetch(url).then(function (r) {
+        if (!r.ok) throw new Error('geocode-failed');
+        return r.json();
+      }).catch(function (e) { delete geoCache[key]; throw e; });
+    }
+    return geoCache[key];
+  }
+  // Typed-without-picking fallback (same pattern as the estimate funnel's
+  // _resolveAddressInline): resolve the top geocoder match so typing alone
+  // is enough to proceed. The map lookup is a convenience, never a gate
+  // (2026-10-15, review H3): when it finds nothing or fails, offer "Use my
+  // address as typed" like /estimate does; Joe confirms it when he calls.
   function resolveTyped(q) {
     if (!q || q.length < 5) { hint('Type your address and pick it from the dropdown.'); return; }
     hint('Looking up that address…');
-    var url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(q) +
-      '&format=json&addressdetails=1&countrycodes=us&limit=1' +
-      '&viewbox=' + encodeURIComponent('-85.2,39.5,-83.6,38.6') + '&bounded=0';
-    fetch(url).then(function (r) { return r.json(); }).then(function (data) {
-      if (!data || !data.length) { hint("Couldn't find that address. Please type more of it."); return; }
-      window._rsAc = data; pickAddr(0);
-    }).catch(function () { hint('Address lookup failed. Check your connection and try again.'); });
+    geocodeOnce(q).then(function (data) {
+      if (!data || !data.length) { offerTyped("We couldn't find that address on the map. Check it, or continue with it as typed."); return; }
+      window._rsAc = data;
+      pickAddr(0);
+    }).catch(function () { offerTyped("The map lookup isn't responding. You can continue with your address as typed."); });
+  }
+  function offerTyped(msg) {
+    hint(msg);
+    var el = $('rs-addr-hint'); if (!el) return;
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'sc-back';
+    b.style.cssText = 'display:block;margin-top:10px;padding:10px 16px;';
+    b.setAttribute('data-action', 'useTypedAddress');
+    b.textContent = 'Use my address as typed →';
+    el.appendChild(b);
+  }
+  function useTypedAddress() {
+    var inp = $('rs-address'); var addr = inp ? inp.value.trim() : '';
+    if (addr.length < 5) { hint('Type your address and pick it from the dropdown.'); return; }
+    S.addressFull = null; S.addressTyped = addr; S.address = addr;
+    S.lat = null; S.lon = null;
+    closeDrop(); hint('');
+    goToStep(2);
   }
   function searchAddr(q) {
     var drop = $('rs-acdrop'), my = ++seq;
-    var url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(q) +
-      '&format=json&addressdetails=1&countrycodes=us&limit=5' +
-      '&viewbox=' + encodeURIComponent('-85.2,39.5,-83.6,38.6') + '&bounded=0';
-    fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+    geocodeOnce(q).then(function (data) {
       if (my !== seq) return;
       if (!data.length) { drop.style.display = 'none'; return; }
       window._rsAc = data;
@@ -153,7 +198,7 @@
   }
   function pickAddr(i) {
     var d = (window._rsAc || [])[i]; if (!d) return;
-    S.addressFull = d; S.address = d.display_name;
+    S.addressFull = d; S.addressTyped = ''; S.address = d.display_name;
     S.lat = parseFloat(d.lat); S.lon = parseFloat(d.lon);
     $('rs-address').value = d.display_name;
     closeDrop(); hint('');
@@ -400,6 +445,7 @@
       if (act) {
         if (act.dataset.action === 'calc') { showBand(); return; }
         if (act.dataset.action === 'submit') { submitLead(); return; }
+        if (act.dataset.action === 'useTypedAddress') { useTypedAddress(); return; }
       }
       var step = e.target.closest('[data-step]'); if (step) { goToStep(+step.dataset.step); return; }
     });
