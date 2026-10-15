@@ -226,7 +226,8 @@ ok('every selector is scoped under html[data-layout="bento"]', unscoped.length =
 ok('no hard-coded colours (tokens only) and no inline style hooks', !/#[0-9a-f]{3,8}\b/i.test(css.replace(/var\([^)]*#[0-9a-f]+[^)]*\)/gi, '')) && !/\brgba?\(/.test(css));
 ok('glass only behind the wallpaper class or Surface style: Glass',
   /my-skin-wallpaper \.bn-cell > \.lk-widget,\s*html\[data-layout="bento"\]\[data-surface="glass"\]/.test(css) && !/backdrop-filter/.test(css.replace(/my-skin-wallpaper[\s\S]*?\}/g, '').replace(/@media \(prefers-contrast[\s\S]*?\}\s*\}/g, '')));
-ok('phone is two columns and edit buttons are >= 40px', /max-width: 768px[\s\S]*repeat\(2, minmax\(0, 1fr\)\)/.test(css) && /\.bn-tbtn \{[^}]*min-height: 40px/.test(css));
+// 2026-10-15: every tap target in the layouts is at least 44px (was 40px here).
+ok('phone is two columns and edit buttons are >= 44px', /max-width: 768px[\s\S]*repeat\(2, minmax\(0, 1fr\)\)/.test(css) && /\.bn-tbtn \{[^}]*min-width: 44px; min-height: 44px/.test(css));
 ok('drag cursors only where there is a hover pointer and room', /@media \(hover: hover\) and \(min-width: 769px\)[\s\S]*touch-action: none/.test(css));
 
 // ── 6. the browser half ────────────────────────────────────────────────
