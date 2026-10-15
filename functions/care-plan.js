@@ -55,6 +55,12 @@ const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY');
 // care plan never shares stripeWebhook's / invoiceWebhook's idempotency or
 // failure modes. Unset → 503 (dark).
 const STRIPE_CAREPLAN_WEBHOOK_SECRET = defineSecret('STRIPE_CAREPLAN_WEBHOOK_SECRET');
+// L3 (2026-10-15): the TEST-mode direct signup (?preview=careplan) used to be
+// open to anyone who sent preview:true. It now also needs this secret, sent by
+// the page as previewKey (?preview=careplan&pk=<secret>). Unset (the deploy's
+// __unset__ stub) = preview refused, so it ships closed. CRM invite links and
+// LIVE mode do not use it.
+const CARE_PLAN_PREVIEW_SECRET = defineSecret('CARE_PLAN_PREVIEW_SECRET');
 
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const OWNER_ALERT_FALLBACK = 'jd@nobigdealwithjoedeal.com';
@@ -74,6 +80,14 @@ function stripeClient() {
 
 const mode = () => C.carePlanMode(process.env);
 const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+// Constant-time compare of the submitted preview key with the configured one.
+// No secret configured, or a short/absent key, is always false.
+function previewKeyOk(submitted, secret) {
+  if (typeof secret !== 'string' || secret.length < 16) return false;
+  if (typeof submitted !== 'string' || !submitted) return false;
+  const a = Buffer.from(sha256(submitted), 'hex'), b = Buffer.from(sha256(secret), 'hex');
+  return crypto.timingSafeEqual(a, b);
+}
 const isAlreadyExists = (e) => !!(e && (e.code === 6 || /already exists/i.test(String(e.message || ''))));
 async function createIfAbsent(ref, data) {
   try { await ref.create(data); return true; } catch (e) { if (isAlreadyExists(e)) return false; throw e; }
@@ -157,13 +171,14 @@ async function memberPlanFor(db, leadId) {
 
 // ── checkout ─────────────────────────────────────────────────────────────
 /** Core of carePlanPublic { action:'checkout' }. Returns { status, body }. */
-async function handleCheckout(db, stripe, body, currentMode) {
+async function handleCheckout(db, stripe, body, currentMode, opts) {
+  const previewSecret = opts && opts.previewSecret;
   if (currentMode === 'off') return { status: 404, body: { error: 'not_available' } };
   const v = C.validateCheckout(body);
   if (!v.ok) return { status: 400, body: { error: v.error } };
   const d = v.data;
 
-  let carePlanId, leadId, lead, source, isNew = false;
+  let carePlanId, leadId, lead, source, isNew = false, reusedPending = false;
   if (d.invite) {
     const snap = await db.collection(COL).where('inviteTokenHash', '==', sha256(d.invite)).limit(1).get();
     const doc = snap.docs[0];
@@ -179,14 +194,25 @@ async function handleCheckout(db, stripe, body, currentMode) {
     carePlanId = doc.id; leadId = leadSnap.id; source = 'crm_invite';
   } else {
     // Direct signup: the public page, live — or Jo's preview while in test.
-    if (currentMode !== 'live' && body.preview !== true) return { status: 404, body: { error: 'not_available' } };
+    if (currentMode !== 'live' && !(body.preview === true && previewKeyOk(body.previewKey, previewSecret))) {
+      return { status: 404, body: { error: 'not_available' } };
+    }
     carePlanId = db.collection(COL).doc().id;
     const found = await findOrCreateLead(db, d, carePlanId);
     leadId = found.leadId; lead = found.lead; source = 'website';
     const existing = await memberPlanFor(db, leadId);
     if (existing.member) return { status: 409, body: { error: 'already_member' } };
-    if (existing.pending) carePlanId = existing.pending.id;
-    else isNew = true;
+    // L3 (2026-10-15): reuse a pending membership only when it is the SAME
+    // person retrying (same email). Anyone who knows a customer's email or
+    // phone could otherwise re-point that customer's pending plan at their own
+    // name/email/address. A different signer gets a fresh pending plan, and
+    // an existing plan's member fields are never overwritten (see record).
+    const pend = existing.pending;
+    if (pend && String((pend.data || {}).memberEmail || '').toLowerCase() === String(d.email || '').toLowerCase()) {
+      carePlanId = pend.id; reusedPending = true;
+    } else {
+      isNew = true;
+    }
   }
 
   const email = d.email || lead.email || '';
@@ -209,6 +235,10 @@ async function handleCheckout(db, stripe, body, currentMode) {
     updatedAt: FieldValue.serverTimestamp(),
   };
   if (isNew) { record.source = source; record.createdAt = FieldValue.serverTimestamp(); }
+  if (reusedPending) {
+    // Never rewrite who the pending membership belongs to.
+    delete record.memberName; delete record.memberEmail; delete record.memberPhone; delete record.memberAddress;
+  }
   // Written BEFORE the session exists, so the webhook can always find it.
   await ref.set(record, { merge: true });
 
@@ -395,7 +425,7 @@ exports.carePlanPublic = onRequest(
   {
     cors: CORS_ORIGINS,
     invoker: 'public',
-    secrets: [STRIPE_SECRET_KEY, INT_SECRETS.TURNSTILE_SECRET],
+    secrets: [STRIPE_SECRET_KEY, INT_SECRETS.TURNSTILE_SECRET, CARE_PLAN_PREVIEW_SECRET],
     maxInstances: 10,
     concurrency: 40,
     timeoutSeconds: 30,
@@ -430,7 +460,7 @@ exports.carePlanPublic = onRequest(
         const { clientIp } = require('./integrations/upstash-ratelimit');
         const ts = await verifyTurnstile(body.turnstileToken || '', clientIp(req));
         if (!ts.ok) { res.status(403).json({ error: 'Verification failed — please try again.' }); return; }
-        out = await handleCheckout(db, stripeClient(), body, mode());
+        out = await handleCheckout(db, stripeClient(), body, mode(), { previewSecret: secretValue(CARE_PLAN_PREVIEW_SECRET) });
       } else {
         out = { status: 400, body: { error: 'Invalid request' } };
       }
@@ -502,7 +532,7 @@ exports.carePlanAdmin = onCall(
 
 // Test seam (non-function export; not deployed).
 exports._internal = {
-  handleCheckout, handlePortal, handleEvent, handleAdmin, findOrCreateLead, requireOwner, sha256,
+  handleCheckout, previewKeyOk, handlePortal, handleEvent, handleAdmin, findOrCreateLead, requireOwner, sha256,
   setStripe: (s) => { _stripe = s; },
   reset: () => { _productReady = false; },
 };

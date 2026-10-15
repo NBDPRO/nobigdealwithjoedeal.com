@@ -209,7 +209,10 @@ const T0 = Date.UTC(2026, 9, 6, 15, 0, 0);
     'leads/L_PHONE': { companyId: 'OWNER', userId: 'OWNER', firstName: 'Pho', lastName: 'Ne', email: '', phone: '(513) 555-0199', phoneDigits: '5135550199', address: '2 B St' },
     'leads/L_OTHER': { companyId: 'co-other', userId: 'u-other', firstName: 'Other', lastName: 'Tenant', email: 'shared@example.com', phoneDigits: '5135550777' },
   };
-  const signup = (o) => Object.assign({ action: 'checkout', interval: 'year', termsAccepted: true, firstName: 'Pat', lastName: 'Q', email: 'new@example.com', phone: '513 555 0142', address: '12 Oak St', preview: true }, o || {});
+  const PREVIEW_KEY = 'pk-test-0123456789abcdef';
+  const signup = (o) => Object.assign({ action: 'checkout', interval: 'year', termsAccepted: true, firstName: 'Pat', lastName: 'Q', email: 'new@example.com', phone: '513 555 0142', address: '12 Oak St', preview: true, previewKey: PREVIEW_KEY }, o || {});
+  // TEST-mode direct signup needs the server-side preview secret (L3, 2026-10-15).
+  const PV = { previewSecret: PREVIEW_KEY };
 
   console.log('\n7. checkout — dark, preview, linking, creating');
   {
@@ -219,7 +222,7 @@ const T0 = Date.UTC(2026, 9, 6, 15, 0, 0);
     ok('OFF: 404, nothing written, no Stripe call', off.status === 404 && db._count() === before && stripe.sessions.length === 0);
     const noPreview = await X.handleCheckout(db, stripe, signup({ preview: false }), 'test');
     ok('TEST without ?preview: 404, nothing written', noPreview.status === 404 && db._count() === before);
-    const r = await X.handleCheckout(db, stripe, signup(), 'test');
+    const r = await X.handleCheckout(db, stripe, signup(), 'test', PV);
     ok('TEST with preview: a checkout url', r.status === 200 && /^https:\/\/checkout\.stripe\.test\//.test(r.body.url));
     const leadKey = db._list('leads/careplans__')[0];
     const lead = leadKey && db._get(leadKey);
@@ -231,7 +234,7 @@ const T0 = Date.UTC(2026, 9, 6, 15, 0, 0);
       plan.status === 'pending' && plan.companyId === 'OWNER' && plan.amountCents === 19900 && plan.disclosureVersion === C.DISCLOSURE_VERSION && !!plan.termsAcceptedAt && plan.leadId === leadKey.split('/')[1]);
     ok('the session id is stored and its metadata names this plan', plan.stripeCheckoutSessionId === stripe.sessions[0].id && stripe.sessions[0].subscription_data.metadata.carePlanId === planKey.split('/')[1]);
     ok('the product is created lazily, once', productCount(stripe) === 1);
-    await X.handleCheckout(db, stripe, signup(), 'test');
+    await X.handleCheckout(db, stripe, signup(), 'test', PV);
     ok('a second try for the same person reuses the pending membership (no pile of pendings)', db._list('careplans/').length === 1 && stripe.sessions.length === 2);
 
     const db2 = makeDb(OWNER_LEADS); X.reset();
