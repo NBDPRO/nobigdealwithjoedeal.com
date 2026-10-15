@@ -346,6 +346,26 @@ async function runTool(name, args, key) {
     return L.toolText(L.stormNearCustomers(ev.docs.map((d) => d.data()), leads, Date.now(), args));
   }
 
+  if (name === 'match_photo_location') {
+    // Validate before any read; the points are used in memory only — never
+    // written, and never logged (tool failures log the tool name only).
+    const v = L.validatePhotoMatch(args, tz);
+    if (v.error) return L.toolErr(v.error);
+    const times = v.points.map((p) => p.t);
+    // Appointments of the person this bot works for (as schedule does), from
+    // a project's longest span before the first photo to after the last; the
+    // logic keeps only those tied to one of THIS company's leads.
+    const from = new Date(Math.min.apply(null, times) - (SW.MAX_PROJECT_DAYS + 1) * 86400000 - v.windowH * 3600000);
+    const to = new Date(Math.max.apply(null, times) + 86400000);
+    const appts = Promise.all(['repUid', 'userId'].map((f) => db().collection('appointments').where(f, '==', key.routeUid)
+      .where('startTime', '>=', from).where('startTime', '<=', to).limit(500).get()))
+      .then((snaps) => { const seen = {}; return snaps.reduce((all, s) => all.concat(s.docs), []).filter((d) => !seen[d.id] && (seen[d.id] = true)).map((d) => d.data()); })
+      .catch((e) => { logger.warn('[crmMcp] appointments read failed', { msg: e.message }); return []; });
+    const [leads, jobsByLead, appointments] = await Promise.all([companyLeads(company), companyJobsByLead(company), appts]);
+    const out = L.matchPhotoLocation(leads, jobsByLead, appointments, args, tz);
+    return out.error ? L.toolErr(out.error) : L.toolText(out);
+  }
+
   if (name === 'team_activity') {
     // Single-field equality reads (no composite index); dates filtered in logic.
     const [audits, items, own] = await Promise.all([
