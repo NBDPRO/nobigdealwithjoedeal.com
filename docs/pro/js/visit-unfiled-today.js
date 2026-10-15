@@ -28,7 +28,23 @@
 
   var AGE_MS = 24 * 3600 * 1000;
   var KEEP_KEY = 'nbd_vr_today_keep';
-  var DEAD = { discarded: 1, skipped: 1, quarantined_consent: 1 };
+  var DEAD = { discarded: 1, skipped: 1, quarantined_consent: 1, purge_pending: 1 };
+
+  /**
+   * "Unfiled" means ONE thing here and on the Home count: NBDVisitRecorderLogic.isUnfiled
+   * (this copy is only for when the logic module is not loaded, e.g. the node test, which
+   * checks the two agree). This row adds "and over a day old", and its words say so
+   * (2026-10-15: the Home count and this row disagreed with no explanation).
+   */
+  function fallbackIsUnfiled(r) {
+    if (!r || !r.id || r.leadId) return false;
+    if (r.status === 'discarded' || r.status === 'recording') return false;
+    return !(r.pipelineStatus && DEAD[r.pipelineStatus]);
+  }
+  function isUnfiled(r) {
+    var L = root && root.NBDVisitRecorderLogic;
+    return L && typeof L.isUnfiled === 'function' ? L.isUnfiled(r) : fallbackIsUnfiled(r);
+  }
 
   /**
    * Pure: which unattached visits are unfiled and old enough, counted once.
@@ -36,10 +52,7 @@
    */
   function summarize(rows, nowMs) {
     var list = (Array.isArray(rows) ? rows : []).filter(function (r) {
-      if (!r || !r.id) return false;
-      if (r.leadId) return false;
-      if (r.status === 'discarded' || r.status === 'recording') return false;
-      if (r.pipelineStatus && DEAD[r.pipelineStatus]) return false;
+      if (!isUnfiled(r)) return false;
       var t = Number(r.startedAtMs) || 0;
       return t > 0 && nowMs - t >= AGE_MS;
     });
@@ -53,7 +66,8 @@
     list.forEach(function (r) { var t = Number(r.startedAtMs) || 0; if (!oldest || t < oldest) oldest = t; });
     return { count: uniq.length, ids: list.map(function (r) { return r.id; }), oldestMs: oldest };
   }
-  function title(n) { return n === 1 ? '1 unfiled visit' : n + ' unfiled visits'; }
+  // "over a day": this row only counts visits unfiled for 24 h; the Home "Unfiled visits (N)" counts all of them.
+  function title(n) { return n === 1 ? '1 visit unfiled for over a day' : n + ' visits unfiled for over a day'; }
   function ageWords(oldestMs, nowMs) {
     var d = Math.floor((nowMs - oldestMs) / 86400000);
     if (d < 1) return 'since yesterday';
@@ -79,11 +93,17 @@
   function allRows() {
     var R = root.NBDVisitRecorder;
     if (!R || typeof R.list !== 'function') return Promise.resolve([]);
-    return Promise.all([R.list(), R.listRemote ? R.listRemote() : Promise.resolve([])]).then(function (res) {
+    // listAll brings the phone's customer in line with the server's first (a refused attach
+    // the server took back off is unfiled again, not hidden as "attached").
+    var both = typeof R.listAll === 'function'
+      ? R.listAll().then(function (r) { return [r.local, r.remote]; })
+      : Promise.all([R.list(), R.listRemote ? R.listRemote() : Promise.resolve([])]);
+    return both.then(function (res) {
       var local = res[0] || [], remote = res[1] || [];
       var have = {};
       local.forEach(function (r) { have[r.id] = true; });
-      return local.concat(remote.filter(function (r) { return !have[r.id]; }));
+      // another device's visit counts here once it is uploaded (the same rule as the Home count)
+      return local.concat(remote.filter(function (r) { return !have[r.id] && r.status === 'uploaded'; }));
     }).catch(function () { return []; });
   }
   function removeRow() {
@@ -156,5 +176,5 @@
     if (host && host.getAttribute('data-tp-state') === 'ready') paint();
   }
 
-  return { summarize: summarize, title: title, ageWords: ageWords, keepHides: keepHides, paint: paint, boot: boot, AGE_MS: AGE_MS };
+  return { summarize: summarize, title: title, ageWords: ageWords, keepHides: keepHides, paint: paint, boot: boot, AGE_MS: AGE_MS, fallbackIsUnfiled: fallbackIsUnfiled };
 });
