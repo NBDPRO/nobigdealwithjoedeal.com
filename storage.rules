@@ -260,9 +260,14 @@ service firebase.storage {
     // uploads here via uploadBytesResumable; the processing
     // function reads via admin SDK (bypasses these rules).
     //
-    // 200MB cap = ~2.5 hours at 160kbps opus/webm. A longer
-    // recording is almost always user error (forgot to stop);
-    // the client splits before upload.
+    // 200MB cap = ~2.5 hours at 160kbps opus/webm: a backstop for
+    // Voice Intelligence uploads, NOT what can be transcribed. The
+    // transcriber (Groq) refuses a file over 25MB (functions/
+    // call-center-logic.js GROQ_MAX_BYTES). Visit recordings under
+    // audio/{uid}/_inbox/ are capped at 24MB on the phone, which
+    // stops and saves the recording itself before it gets there
+    // (docs/pro/js/visit-recorder-logic.js MAX_UPLOAD_BYTES). Nothing
+    // splits a recording before upload.
     //
     // Content-type allowlist covers MediaRecorder outputs from
     // Chrome/Firefox (audio/webm) and Safari/iOS (audio/mp4,
