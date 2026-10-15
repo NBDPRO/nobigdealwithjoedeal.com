@@ -70,17 +70,17 @@
     "tag": "Small Repair"
   },
   {
-    "image": "/assets/images/projects/loveland-oh-wind-repair-2023-1.jpg",
-    "city": "Loveland, OH",
-    "alt": "Looking down a gray asphalt shingle roof at a long strip of wind-torn, missing shingles beside the exposed area during inspection",
-    "slug": "loveland-oh-wind-repair-2023",
-    "tag": "Wind Damage"
-  },
-  {
     "image": "/assets/images/projects/loveland-oh-epdm-inspection-2026-3.jpg",
     "city": "Loveland, OH",
     "alt": "Fingertip pointing to torn, bunched EPDM membrane at a corner drain fitting on a flat roof edge, where the sheet should lap flat and sealed",
     "slug": "loveland-oh-epdm-inspection-2026",
     "tag": "Flat Roof"
+  },
+  {
+    "image": "/assets/images/projects/loveland-oh-shingle-samples-2026-1.jpg",
+    "city": "Loveland, OH",
+    "alt": "Full strip of aged three-tab asphalt shingle laid on a concrete walkway after removal from the roof, showing heavy granule loss, a worn seam line, and torn spots along one edge",
+    "slug": "loveland-oh-shingle-samples-2026",
+    "tag": "Warranty Support"
   }
 ]

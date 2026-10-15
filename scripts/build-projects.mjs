@@ -109,6 +109,10 @@ const KNOWN_FIELDS = new Set([
   'slug', 'title', 'category', 'services', 'tag', 'city', 'description',
   'hero', 'photos', 'consentOnFile', 'published', 'priceLow', 'priceHigh',
   'year', 'duration',
+  // Optional override of the derived era (2026-10-15): "nbd" or "pre-nbd".
+  // See isPreNbd() below. Set it only to correct a job the year rule gets
+  // wrong (an undated job Joe confirms was a 2026 No Big Deal job).
+  'era',
   // Optional case-study narrative (2026-09-27). Each renders its own H2 on the
   // /our-work/<slug> page ONLY when present — the template never fills a gap
   // with invented copy. Strings, except scope/materials which may also be a
@@ -125,6 +129,29 @@ const NARRATIVE = [
   ['outcome', 'Result'],
 ];
 const LIST_OK = new Set(['scope', 'materials']);
+
+// ── Joe's work before No Big Deal (Joe's decision, 2026-10-15) ───
+// No Big Deal Home Solutions started in 2026 (EIN March 2026, first invoices
+// May 2026). From 2022 to May 2026 Joe worked for other roofing companies, and
+// some jobs on /our-work are from those years. They stay up, as Joe's own
+// workmanship, but every surface labels them PRE_NBD_LABEL (never naming the
+// old company), and they are left out of everything that speaks for the
+// business: the /our-work ItemList schema, the case pages' Service/provider
+// node, the homepage photo wall, and NBD job counts.
+//
+// The rule: a job is a No Big Deal job only when its WORK year (`year`, not
+// `published` — that is when it went on the site) is NBD_START_YEAR or later.
+// An undated job counts as pre-NBD, because nothing in the data says
+// otherwise. `era` overrides the rule per job ("nbd" / "pre-nbd") once Joe
+// confirms a date.
+const ERAS = new Set(['nbd', 'pre-nbd']);
+const NBD_START_YEAR = 2026;
+const PRE_NBD_LABEL = "Joe's work before No Big Deal";
+const isPreNbd = (p) => {
+  if (p.era === 'nbd') return false;
+  if (p.era === 'pre-nbd') return true;
+  return !(Number.isInteger(p.year) && p.year >= NBD_START_YEAR);
+};
 
 // ── Load + validate ─────────────────────────────────────────────
 const manifest = JSON.parse(readFileSync(DATA, 'utf8'));
@@ -168,6 +195,7 @@ for (const p of all) {
     if (!p[req] || typeof p[req] !== 'string') fail(`${at}: missing required field "${req}"`);
   }
   if (p.consentOnFile !== true) fail(`${at}: consentOnFile must be literally true — no consent, no publish`);
+  if (p.era != null && !ERAS.has(p.era)) fail(`${at}: era (optional) must be "nbd" or "pre-nbd" — omit it to derive the era from year`);
   if (isNaN(new Date(p.published).getTime())) fail(`${at}: published is not a valid ISO date`);
   if (!Array.isArray(p.photos) || !p.photos.length) fail(`${at}: photos[] must have at least one entry`);
 
@@ -228,6 +256,8 @@ const live = all.filter((p) => {
 // entries keep their curated manifest order. New entries are appended at the
 // END of projects.json and still render first.
 live.sort((a, b) => new Date(b.published) - new Date(a.published));
+// No Big Deal's own jobs — the only ones any NBD count or schema may use.
+const nbdLive = live.filter((p) => !isPreNbd(p));
 
 // ── Dated-price context (2026-09-27) ────────────────────────────
 // Older job prices keep their year and get one honest line of context
@@ -276,6 +306,13 @@ const heroImg = (p, cls, lcp = false) => {
 };
 
 const PIN_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>';
+
+// The visible pre-NBD label. It reuses the .project-tag pill (so it renders
+// correctly even from a cached project-cards.css) plus .project-era for its
+// own colour. eraSuffix is the text-only form for link lists.
+const eraBadge = (p) => (isPreNbd(p) ? ` <span class="project-tag project-era">${esc(PRE_NBD_LABEL)}</span>` : '');
+const eraSuffix = (p) => (isPreNbd(p) ? ` · ${esc(PRE_NBD_LABEL)}` : '');
+const PRE_NBD_NOTE = "Joe did this job before he started No Big Deal Home Solutions in 2026. It's here to show his own workmanship; it isn't counted as a No Big Deal job.";
 
 // ── Towns → /areas/<town> and /services/<service>-<town> ─────────
 // A job's town is its city field ("Mason, OH"). The slug rule is the one the
@@ -350,7 +387,7 @@ const caseCard = (p, { withDesc = false } = {}) => {
   return `    <a class="project project-link" href="/our-work/${esc(p.slug)}">
       ${heroImg(p, 'project-img')}
       <div class="project-body">
-        <span class="project-tag">${esc(p.tag)}</span>
+        <span class="project-tag">${esc(p.tag)}</span>${eraBadge(p)}
         <h3>${esc(p.title)}</h3>${price ? `
         <div class="project-price">${esc(price)}</div>` : ''}${price && ctx ? `
         <p data-price-context="${ctx.year}">${esc(ctx.short)}</p>` : ''}${withDesc ? `
@@ -369,7 +406,7 @@ const moreList = (ps, heading) => (ps.length ? `
     <details class="nbd-recent-jobs-fold">
       <summary class="nbd-recent-jobs-more-h">${heading} (${ps.length})</summary>
       <ul class="nbd-recent-jobs-more">
-${ps.map((p) => `        <li><a href="/our-work/${esc(p.slug)}">${esc(p.title)}</a> <span>${esc(p.city)}${p.year ? ` · ${esc(String(p.year))}` : ''}</span></li>`).join('\n')}
+${ps.map((p) => `        <li><a href="/our-work/${esc(p.slug)}">${esc(p.title)}</a> <span>${esc(p.city)}${p.year ? ` · ${esc(String(p.year))}` : ''}${eraSuffix(p)}</span></li>`).join('\n')}
       </ul>
     </details>` : '');
 
@@ -387,6 +424,9 @@ const card = (p) => {
     title: p.title, tag: p.tag, city: p.city, price, year: p.year || null,
     description: p.description, photos: p.photos,
   };
+  // The lightbox shows the description, so a pre-NBD job's label rides at
+  // its front — the photos never appear unlabelled.
+  if (isPreNbd(p)) payload.description = `${PRE_NBD_LABEL}. ${p.description}`;
   // Dated price: the lightbox's headline IS the price, so it carries the same
   // context line (our-work.js prepends it to the description).
   if (price && ctx) payload.priceNote = ctx.short;
@@ -401,7 +441,7 @@ const card = (p) => {
   return `      <div class="project" data-services="${esc(p.services.join(' '))}" data-slug="${esc(p.slug)}" data-project="${esc(JSON.stringify(payload))}">
         ${heroImg(p, 'project-img')}
         <div class="project-body">
-          <span class="project-tag">${esc(p.tag)}</span>
+          <span class="project-tag">${esc(p.tag)}</span>${eraBadge(p)}
           <h3>${esc(p.title)}</h3>${price ? `
           <div class="project-price">${esc(price)}</div>` : ''}${price && ctx ? `
           ${datedLine(ctx, 'p', '', 'nbd-recent-jobs-all')}` : ''}
@@ -447,7 +487,7 @@ const filters = [
 const newestPublished = live.map((p) => p.published).sort().at(-1);
 
 const staticBlock = `<!-- OURWORK-STATIC-START -->
-<!-- generated by build-projects.mjs from assets/data/projects.json — do not hand-edit; ${live.length} live projects, newest published ${newestPublished} -->
+<!-- generated by build-projects.mjs from assets/data/projects.json — do not hand-edit; ${live.length} live projects (${nbdLive.length} No Big Deal, ${live.length - nbdLive.length} ${PRE_NBD_LABEL}), newest published ${newestPublished} -->
     <div class="filters">
 ${filters}
     </div>
@@ -469,6 +509,9 @@ const ORIGIN = 'https://nobigdealwithjoedeal.com';
 // site-src/partials/schema-entity.html, which apply-partials.js stamps into
 // our-work.html and every detail page. A copy here is a second business, and
 // check-seo-surface.js fails the build on it (entity-business).
+// Only No Big Deal's own jobs (nbdLive) go in the ItemList: every item is a
+// Service whose provider is #org, and a job Joe did before NBD existed is not
+// NBD's work (2026-10-15). The pre-NBD cards stay on the page, labelled.
 const schema = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -491,8 +534,8 @@ const schema = {
     {
       '@type': 'ItemList',
       '@id': `${ORIGIN}/our-work#projects`,
-      numberOfItems: live.length,
-      itemListElement: live.map((p, i) => {
+      numberOfItems: nbdLive.length,
+      itemListElement: nbdLive.map((p, i) => {
         const item = {
           '@type': 'Service',
           '@id': `${ORIGIN}/our-work#p-${p.slug}`,
@@ -603,15 +646,20 @@ const LOCAL_CARDS = 3;
 const areaBlock = (t, jobs) => {
   const town = t.name;
   const priced = jobs.some((p) => p.priceLow != null);
-  return `<!-- generated by build-projects.mjs from assets/data/projects.json — do not hand-edit; ${jobs.length} live job(s) in ${esc(town)}, ${t.state}, newest published ${jobs.map((p) => p.published).sort().at(-1)} -->
+  // "We" is No Big Deal: a town whose only jobs are Joe's pre-NBD work says
+  // so in the heading, and the lede says how many of the jobs are pre-NBD.
+  const pre = jobs.filter(isPreNbd).length;
+  const heading = pre === jobs.length ? `Joe's Jobs in <span>${esc(town)}</span>` : `Jobs We've Done in <span>${esc(town)}</span>`;
+  const preLine = !pre ? '' : ` ${pre === jobs.length ? (jobs.length === 1 ? 'It is' : 'All of them are') : `${pre} of them ${pre === 1 ? 'is' : 'are'}`} Joe's work from before he started No Big Deal in 2026, labelled on the card.`;
+  return `<!-- generated by build-projects.mjs from assets/data/projects.json — do not hand-edit; ${jobs.length} live job(s) in ${esc(town)}, ${t.state} (${pre} pre-NBD), newest published ${jobs.map((p) => p.published).sort().at(-1)} -->
 ${CARDS_CSS}
 <section class="nbd-recent-jobs nbd-local-jobs" id="local-jobs" aria-labelledby="local-jobs-h">
   <div class="nbd-recent-jobs-inner">
     <div class="nbd-recent-jobs-head">
-      <h2 id="local-jobs-h">Jobs We've Done in <span>${esc(town)}</span></h2>
+      <h2 id="local-jobs-h">${heading}</h2>
       <a class="nbd-recent-jobs-all" href="/our-work">See all our work &rarr;</a>
     </div>
-    <p class="nbd-recent-jobs-lede">${jobs.length === 1 ? 'A finished job' : `${jobs.length} finished jobs`} in ${esc(town)}, ${t.state} — photos and the write-up for ${jobs.length === 1 ? 'it' : 'each one'}${priced ? ', with the price range where we publish one' : ''}.</p>
+    <p class="nbd-recent-jobs-lede">${jobs.length === 1 ? 'A finished job' : `${jobs.length} finished jobs`} in ${esc(town)}, ${t.state} — photos and the write-up for ${jobs.length === 1 ? 'it' : 'each one'}${priced ? ', with the price range where we publish one' : ''}.${preLine}</p>
     <div class="gallery">
 ${jobs.slice(0, AREA_CARDS).map((p) => caseCard(p, { withDesc: true })).join('\n\n')}
     </div>${moreList(jobs.slice(AREA_CARDS), `More ${esc(town)} jobs`)}
@@ -640,7 +688,9 @@ ${jobs.slice(0, LOCAL_CARDS).map((p) => caseCard(p, { withDesc: true })).join('\
 // ── Homepage strip (docs/index.html, OURWORK-HOME) ──────────────
 // Four curated jobs right under the home hero, swipeable on a phone, plus the
 // "Browse our work" door (2026-10-14, Jo: no count — "See all 49 jobs" read
-// as NBD's total job count, which is 300+). Picks are slugs, not a rule:
+// as a total job count; Joe's 300+ roofs are his career, not NBD's, since
+// 2026-10-15). Picks must be No Big Deal jobs (isPreNbd false; the build
+// fails otherwise). Picks are slugs, not a rule:
 // "newest priced roof" would currently surface the $73k commercial rebuild.
 // Each pick must be live, priced and a real repo photo, or the build fails
 // naming the slug — the homepage never shows a stale or unpriced card.
@@ -654,6 +704,7 @@ const homePicks = HOME_PICKS.map((slug) => {
   const p = live.find((x) => x.slug === slug);
   if (!p) { console.error(`FATAL: HOME_PICKS: "${slug}" is not a live project in projects.json`); process.exit(1); }
   if (p.priceLow == null) { console.error(`FATAL: HOME_PICKS: "${slug}" has no published price range — the home strip shows real prices only`); process.exit(1); }
+  if (isPreNbd(p)) { console.error(`FATAL: HOME_PICKS: "${slug}" is ${PRE_NBD_LABEL} — "Recent roofs" on the homepage are No Big Deal jobs only`); process.exit(1); }
   return p;
 });
 const homeCard = (p) => {
@@ -661,7 +712,7 @@ const homeCard = (p) => {
   const meta = [esc(p.city), p.year ? esc(String(p.year)) : null].filter(Boolean).join(' · ');
   return `      <a class="hj-card" href="/our-work/${esc(p.slug)}">
         ${heroImg(p, 'hj-img')}
-        <span class="hj-body"><b>${esc(p.title)}</b><span class="hj-meta">${meta}</span><span class="hj-price">${esc(priceLine(p))}</span>${ctx ? `<span class="hj-note" data-price-context="${ctx.year}">${esc(ctx.short)}</span>` : ''}</span>
+        <span class="hj-body"><b>${esc(p.title)}</b><span class="hj-meta">${meta}</span>${isPreNbd(p) ? `<span class="hj-note">${esc(PRE_NBD_LABEL)}</span>` : ''}<span class="hj-price">${esc(priceLine(p))}</span>${ctx ? `<span class="hj-note" data-price-context="${ctx.year}">${esc(ctx.short)}</span>` : ''}</span>
       </a>`;
 };
 const homeBlock = () => `<!-- generated by build-projects.mjs from assets/data/projects.json — do not hand-edit; HOME_PICKS (${homePicks.length}) of ${live.length} live project(s) -->
@@ -723,7 +774,7 @@ const RELATED_BY_SERVICE = 4;
 const RELATED_BY_TOWN = 6;
 
 const relatedList = (ps) => `<ul class="pd-related">
-${ps.map((q) => `      <li><a href="/our-work/${esc(q.slug)}">${esc(q.title)}</a> <span>${esc(q.city)}${q.year ? ` · ${esc(String(q.year))}` : ''}</span></li>`).join('\n')}
+${ps.map((q) => `      <li><a href="/our-work/${esc(q.slug)}">${esc(q.title)}</a> <span>${esc(q.city)}${q.year ? ` · ${esc(String(q.year))}` : ''}${eraSuffix(q)}</span></li>`).join('\n')}
     </ul>`;
 
 const linksOutHtml = (p) => {
@@ -760,6 +811,7 @@ const factsHtml = (p) => {
     ['Services', p.services.map((s) => `<a href="/services/${s}">${esc(SERVICES[s])}</a>`).join(', ')],
   ];
   if (p.year) rows.push(['Year', esc(String(p.year))]);
+  if (isPreNbd(p)) rows.push(['Done by', 'Joe Deal, before No Big Deal']);
   if (p.duration) rows.push(['Duration', esc(p.duration)]);
   const price = priceLine(p);
   const ctx = dated(p);
@@ -795,7 +847,22 @@ const detailSchema = (p) => {
       image: `${DETAIL_ORIGIN}${p.hero}`,
     },
   ];
-  if (p.priceLow != null) {
+  if (isPreNbd(p)) {
+    // Joe's work before No Big Deal (2026-10-15): not a Service NBD provided
+    // and not an offer NBD made, so no provider #org and no AggregateOffer.
+    // A CreativeWork credited to Joe (#joe, defined in schema-entity) instead.
+    graph[1] = {
+      '@type': 'CreativeWork',
+      '@id': `${DETAIL_ORIGIN}/our-work/${p.slug}#work`,
+      name: p.title,
+      about: SERVICES[p.services[0]],
+      creator: { '@id': `${DETAIL_ORIGIN}/#joe` },
+      description: `${PRE_NBD_LABEL}: ${PRE_NBD_NOTE} ${p.description}`,
+      locationCreated: placeNode(p.city),
+      image: `${DETAIL_ORIGIN}${p.hero}`,
+    };
+    if (p.year) graph[1].dateCreated = String(p.year);
+  } else if (p.priceLow != null) {
     graph[1].offers = { '@type': 'AggregateOffer', lowPrice: p.priceLow, highPrice: p.priceHigh, priceCurrency: 'USD' };
   }
   return { '@context': 'https://schema.org', '@graph': graph };
@@ -947,7 +1014,8 @@ const detailPage = (p) => {
   // keep the metro default.
   const crumbArea = areaHref(townOf(p)) || '/areas/cincinnati-oh';
   const crumbCity = crumbArea === '/areas/cincinnati-oh' ? 'Cincinnati, OH' : esc(p.city);
-  const descMeta = String(p.description).slice(0, 155);
+  // A pre-NBD job's search snippet carries the label too.
+  const descMeta = `${isPreNbd(p) ? `${PRE_NBD_LABEL}: ` : ''}${p.description}`.slice(0, 155);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1006,6 +1074,7 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
 .pd-title{font-family:'Bebas Neue',sans-serif;font-size:2.4rem;color:var(--navy-dark);letter-spacing:.5px;margin-bottom:8px;}
 .pd-price{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:#A14A22;margin-bottom:14px;}
 .pd-meta{font-size:.85rem;color:var(--gray);margin-bottom:20px;}
+.pd-era{font-size:.9rem;line-height:1.6;color:#333;background:var(--off-white);border-left:3px solid var(--navy-dark);padding:10px 14px;border-radius:0 8px 8px 0;margin:4px 0 14px;max-width:720px;}
 .pd-desc{font-size:1rem;line-height:1.7;color:#333;margin-bottom:32px;max-width:720px;}
 .pd-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:32px;}
 .pd-back{display:inline-block;margin-top:8px;font-weight:700;color:#A14A22;text-decoration:none;}
@@ -1037,8 +1106,9 @@ footer p{color:rgba(255,255,255,.7);font-size:.75rem;line-height:1.7}footer a{co
   <div class="pd-wrap">
     <nav class="pd-crumb" aria-label="Breadcrumb"><a href="/our-work">&larr; Back to Our Work</a></nav>
     ${heroImg(p, 'pd-hero', true)}
-    <span class="project-tag">${esc(p.tag)}</span>
-    <h1 class="pd-title">${esc(p.title)}</h1>${price ? `
+    <span class="project-tag">${esc(p.tag)}</span>${eraBadge(p)}
+    <h1 class="pd-title">${esc(p.title)}</h1>${isPreNbd(p) ? `
+    <p class="pd-era"><strong>${esc(PRE_NBD_LABEL)}.</strong> ${esc(PRE_NBD_NOTE)}</p>` : ''}${price ? `
     <div class="pd-price">${esc(price)}</div>` : ''}${price && dated(p) ? `
     ${datedLine(dated(p), 'p', 'pd-links', '')}` : ''}
     <div class="pd-meta">${PIN_SVG} ${metaBits.join(' · ')}</div>
@@ -1083,8 +1153,11 @@ ${MOBILE_CTA_STRIP}
 // schema. Not emitted at all rather than emitted-and-ignored: a public manifest
 // carrying a field nothing renders is how it gets picked up again by accident.
 // Restoring it is this one line plus the caption array in homeowner-wall.js.
+// No Big Deal jobs only (2026-10-15): the wall is "Real Roofs. Real
+// Neighbors." on the business's homepage, with no room for a label, so Joe's
+// pre-NBD work stays on /our-work where every card says what it is.
 const wallJson = JSON.stringify(
-  live.slice(0, 12).map((p) => ({
+  live.filter((p) => !isPreNbd(p)).slice(0, 12).map((p) => ({
     image: p.hero,
     city: p.city,
     alt: heroAlt(p),
