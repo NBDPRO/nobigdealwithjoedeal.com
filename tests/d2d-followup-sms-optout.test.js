@@ -233,8 +233,8 @@ const sentToast = (h) => h.toasts.some(([, m]) => /text sent to/i.test(m));
     }
     await flush(); await flush();
     const bodies = h.smsCalls.map((c) => String(c[1] || ''));
-    ok('all six door-knock templates end "Reply STOP to opt out." and name the company',
-      bodies.length === 6 && bodies.every((b) => /Reply STOP to opt out\.$/.test(b) && /NBD Home Solutions/.test(b)),
+    ok('all six door-knock templates end "Reply STOP to opt out." and name the company in full (2026-10-15)',
+      bodies.length === 6 && bodies.every((b) => /Reply STOP to opt out\.$/.test(b) && /No Big Deal Home Solutions/.test(b) && !/\bNBD\b/.test(b)),
       JSON.stringify(bodies));
   }
 

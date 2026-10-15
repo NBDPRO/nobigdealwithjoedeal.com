@@ -281,14 +281,20 @@ const queuedBody = (w, over) => Object.assign({
       { to: PHONE, body: 'Hi Sam, thanks for chatting today!', knockId: 'k1' });
     const sent = (r.w.twilioCalls[0] || {}).body || '';
     ok('consent on file → sent', r.res.statusCode === 200 && r.w.twilioCalls.length === 1, JSON.stringify(r.res.body));
-    ok('…with the company named and the STOP line added', /– NBD Home Solutions\. Reply STOP to opt out\.$/.test(sent), sent);
+    ok('…with the company named (full brand, 2026-10-15) and the STOP line added', /– No Big Deal Home Solutions\. Reply STOP to opt out\.$/.test(sent), sent);
     const log = [...r.w.store.entries()].find(([p]) => p.startsWith('sms_log/'));
     ok('…and the sms_log row records what was actually sent', !!log && log[1].body === sent);
   }
   {
     const r = await sendSMS({ token: NBD_TOKEN, clockMs: NOON, docs: { 'knocks/k1': Object.assign({}, KNOCK, { smsConsent: true }) } },
+      { to: PHONE, body: 'Hi Sam, Joe from No Big Deal Home Solutions. Reply STOP to opt out.', knockId: 'k1' });
+    ok('a template that already names the company and says STOP is sent unchanged', (r.w.twilioCalls[0] || {}).body === 'Hi Sam, Joe from No Big Deal Home Solutions. Reply STOP to opt out.');
+  }
+  {
+    // An older cached tracker still says "NBD Home Solutions": the server adds the full brand.
+    const r = await sendSMS({ token: NBD_TOKEN, clockMs: NOON, docs: { 'knocks/k1': Object.assign({}, KNOCK, { smsConsent: true }) } },
       { to: PHONE, body: 'Hi Sam, Joe from NBD Home Solutions. Reply STOP to opt out.', knockId: 'k1' });
-    ok('a template that already names the company and says STOP is sent unchanged', (r.w.twilioCalls[0] || {}).body === 'Hi Sam, Joe from NBD Home Solutions. Reply STOP to opt out.');
+    ok('a cached "NBD Home Solutions" body gets the full brand name appended', (r.w.twilioCalls[0] || {}).body === 'Hi Sam, Joe from NBD Home Solutions. Reply STOP to opt out. – No Big Deal Home Solutions.', (r.w.twilioCalls[0] || {}).body);
   }
   {
     const r = await sendSMS({ token: NBD_TOKEN, clockMs: NOON, docs: { 'knocks/k1': Object.assign({}, KNOCK, { smsConsent: true }) } },
@@ -311,8 +317,8 @@ const queuedBody = (w, over) => Object.assign({
   for (const key of ['follow_up', 'not_home', 'interested']) {
     const r = await d2d({ token: NBD_TOKEN, clockMs: NOON }, Object.assign({}, KNOCK, { repName: 'Joe', firstName: 'Sam', smsConsent: true }), key);
     const sent = (r.w.twilioCalls[0] || {}).body || '';
-    ok('sendD2DSMS ' + key + ' with consent → sent, names NBD and ends "Reply STOP to opt out."',
-      r.res.statusCode === 200 && /\bNBD\b/.test(sent) && /Reply STOP to opt out\.$/.test(sent), r.res.statusCode + ' ' + sent);
+    ok('sendD2DSMS ' + key + ' with consent → sent, names No Big Deal Home Solutions in full and ends "Reply STOP to opt out."',
+      r.res.statusCode === 200 && /No Big Deal Home Solutions/.test(sent) && !/\bNBD\b/.test(sent) && /Reply STOP to opt out\.$/.test(sent), r.res.statusCode + ' ' + sent);
   }
   {
     const r = await d2d({ token: CO1_TOKEN, clockMs: NOON, docs: { 'sms_settings/co-1': { registered: true } } },
