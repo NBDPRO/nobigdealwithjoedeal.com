@@ -85,8 +85,11 @@ test.describe.serial('Island Dock @shard2', () => {
     await expect(page.locator('.sidebar')).toBeHidden();
     await expect(page.locator('#nbdIslandPill')).toBeVisible();
     expect(await page.locator('#nbdIslandPill .isl-item').count()).toBeGreaterThanOrEqual(4);
-    await expect(page.locator('#nbdIslandDock .isl-item')).toHaveCount(3);
+    // 2026-10-15: Record visit (primary) + Recent visits lead the dock; New lead / Filter / Sort follow
+    await expect(page.locator('#nbdIslandDock .isl-item')).toHaveCount(5);
+    await expect(page.locator('#nbdIslandDock .isl-primary')).toContainText('Record visit');
     await expect(page.locator('#nbdIslandDock')).toContainText('New lead');
+    await expect(page.locator('#nbd-vr-bar')).toBeHidden();   // one bar: the floating Record bar steps aside
     await expect(page.locator('#nbdIslandPill .isl-active')).toContainText('Today');
 
     // ── Home: the projected headline equals the Pipeline header ──

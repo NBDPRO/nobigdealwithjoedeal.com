@@ -187,6 +187,8 @@ test.describe.serial('Mission Control @shard2', () => {
     await safeEvaluate(page, () => window.ThemeEngine.setModePref('auto'));
 
     // Switch back: this layout is the rep's own pick, so it steps out to Classic for the session
+    // (2026-10-15: "Leave Mission Control" lives in the Menu sheet, the way out in every layout)
+    await page.locator('[data-mc="menu"]').click();
     await page.locator('[data-mc="back"]').click();
     await safeWaitForFunction(page, () => document.documentElement.getAttribute('data-layout') === 'classic', null, { timeout: 15_000 });
     expect(await page.locator('#nbdMissionRoot').count()).toBe(0);
@@ -256,6 +258,7 @@ test.describe.serial('Mission Control @shard2', () => {
     await mc.click();
     await safeWaitForFunction(page, () => document.documentElement.getAttribute('data-layout') === 'mission' && !!document.getElementById('nbdMissionRoot'), null, { timeout: 30_000 });
     // entered by the storm switch: Switch back returns to the rep's own layout
+    await page.locator('[data-mc="menu"]').click();
     await page.locator('[data-mc="back"]').click();
     await safeWaitForFunction(page, () => document.documentElement.getAttribute('data-layout') === 'classic', null, { timeout: 15_000 });
 
