@@ -327,8 +327,23 @@ console.log('\n11. Pledge promise, written labor warranty, no "lifetime" warrant
     ok(rel.replace('docs/', '') + ' names the NBD Pledge in its own body', /\b(?:NBD|The) Pledge\b/.test(vis(rel)));
   }
   // Where warranty terms are discussed: the written labor warranty by package.
-  for (const rel of ['docs/the-pledge/index.html', 'docs/services/the-nbd-guarantee/index.html', 'docs/services/roof-replacement.html', 'docs/services/gutter-replacement.html', 'docs/services/siding-replacement.html', 'docs/llms.txt']) {
+  for (const rel of ['docs/the-pledge/index.html', 'docs/services/the-nbd-guarantee/index.html', 'docs/services/roof-replacement.html', 'docs/llms.txt']) {
     ok(rel.replace('docs/', '') + ' says "written labor warranty up to 20 years, by package"', /written labor warranty \(?up to 20 years, by package/i.test(vis(rel)));
+  }
+  // 2026-10-15 (Joe, wording decision 5): gutter, siding and repair pages state
+  // their own trade's years instead of the roof tiers' "5, 10 or 20".
+  // Gutters 5 (guards only 2), repairs 1 when written on the invoice, siding
+  // replacement by package (Standard 5, Preferred 10, Elite 20).
+  const TRADE_YEARS = {
+    'docs/services/gutter-replacement.html': [/your written labor warranty is 5 years on a new gutter system, 2 years on guards only\./, /Written labor warranty: 5 years on a gutter system, 2 on guards only; manufacturer warranty per product/],
+    'docs/services/siding-replacement.html': [/your written labor warranty follows your package: 5 years on Standard, 10 on Preferred, 20 on Elite\./, /Written labor warranty by package: 5 years on Standard, 10 on Preferred, 20 on Elite; manufacturer warranty per product/],
+    'docs/services/roof-repair.html': [/repairs carry a 1-year written labor warranty when it's written on your invoice\./],
+    'docs/services/siding-repair.html': [/repairs carry a 1-year written labor warranty when it's written on your invoice\./],
+  };
+  for (const [rel, res] of Object.entries(TRADE_YEARS)) {
+    const t = vis(rel);
+    ok(rel.replace('docs/', '') + ' states its own labor-warranty years', res.every((re) => re.test(t)));
+    ok(rel.replace('docs/', '') + ' no longer borrows the roof tiers\' "5, 10 or 20" / "up to 20 years"', !/5, 10 or 20 years|up to 20 years/i.test(t));
   }
   // Restored by this PR after #2204 / #2248 / #2250 dropped them.
   for (const s of ['hail-damage-insurance-claim', 'roof-cleaning-soft-wash', 'roof-inspection']) {
