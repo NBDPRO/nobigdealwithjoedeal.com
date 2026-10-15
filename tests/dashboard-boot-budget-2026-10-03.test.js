@@ -114,6 +114,13 @@ CEILING.localBytes += 3 * 1024;
 // hand-off) are deferred code that only runs when a draft is opened or sent. Main alone sat at 4820 of 4821 KB after
 // #2449 (visit capture PR 2) consumed the last of the headroom, so this PR measures 4822 and the ceiling keeps ~1 KB.
 CEILING.localBytes += 2 * 1024;
+// +4 KB, deliberate (2026-10-15, CRM layouts + Home + Record visit, Joe's phone pass): no new script, no new tag.
+// layout-system.js (+~2 KB: the fallback-to-Classic path and its toast, the DOMContentLoaded boot), the recorder
+// launcher (+~1.5 KB: Record bar only in Classic/Bento, the room it reserves, one label), today-home.js (+~1.3 KB:
+// the big-day headline, the plain old-calls line) and standalone-compat.js (+~0.5 KB) are deferred code already on
+// the page; pixel-mode.js shrank ~1.4 KB (no layout seam). Measured 4827 KB against a 4824 KB ceiling; the
+// ceiling keeps ~1 KB of slack. The layout files themselves are lazy and not counted here.
+CEILING.localBytes += 4 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
