@@ -47,6 +47,7 @@
 .nbd-recent-jobs h2 span{color:#BD5728}
 .nbd-recent-jobs-all{font-size:.82rem;font-weight:700;color:#A14A22;text-decoration:none}
 .nbd-recent-jobs-all:hover{text-decoration:underline}
+.nbd-recent-jobs-head .nbd-recent-jobs-all{display:inline-block;padding:6px 0}
 .nbd-recent-jobs .gallery{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
 a.project-link{display:block;color:inherit;text-decoration:none}
 
