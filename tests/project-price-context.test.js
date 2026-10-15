@@ -80,7 +80,9 @@ function ok(name, cond, detail) {
   ok('a garbage year fails', yearRuleErrors([P({ slug: 'g', year: '2024ish' })], TODAY, []).some((e) => /4-digit year/.test(e)));
   ok('a legacy entry that now has a year fails (the list only shrinks)', yearRuleErrors([P({ slug: 'old-legacy-job', year: 2023 })], TODAY, inj).some((e) => /now has a year/.test(e)));
   ok('a legacy entry missing from the data fails', yearRuleErrors([P({ slug: 'dated' })], TODAY, inj).some((e) => /not in projects\.json/.test(e)));
-  ok('the real legacy list is exactly the 7 undated priced jobs named in Jo\'s 2026-09-27 call', mod.LEGACY_UNDATED_PRICED.length === 7 && Object.isFrozen(mod.LEGACY_UNDATED_PRICED));
+  // 7 in Jo's 2026-09-27 call; cul-de-sac-full-crew-tearoff left 2026-10-15
+  // when Joe dated it May 2025 (it now carries year 2025).
+  ok('the real legacy list is exactly the 6 remaining undated priced jobs from Jo\'s 2026-09-27 call', mod.LEGACY_UNDATED_PRICED.length === 6 && Object.isFrozen(mod.LEGACY_UNDATED_PRICED) && !mod.LEGACY_UNDATED_PRICED.includes('cul-de-sac-full-crew-tearoff'));
   {
     const realProjects = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'assets', 'data', 'projects.json'), 'utf8')).projects;
     // Real data at the real date — the same thing the build checks.

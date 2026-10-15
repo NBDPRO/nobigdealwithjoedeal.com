@@ -320,7 +320,7 @@ const PRE_NBD_NOTE = "Joe did this job before he started No Big Deal Home Soluti
 // then the state. TOWN_ALIASES folds spelling variants onto the page's own
 // spelling BEFORE slugging — add a row here rather than renaming a page. A
 // town with no docs/areas/<slug>.html (out-of-area jobs: Evansville IN,
-// Gatlinburg TN, West Liberty KY) simply gets no area link; nothing is guessed.
+// West Liberty KY) simply gets no area link; nothing is guessed.
 const TOWN_ALIASES = {
   'mount orab': 'mt orab',
   'mt. orab': 'mt orab',

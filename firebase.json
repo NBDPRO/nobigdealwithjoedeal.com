@@ -66,7 +66,10 @@
       { "source": "/our-work/brick-underlayment-install", "destination": "/our-work/multi-section-complex-roof", "type": 301 },
       { "source": "/our-work/brick-underlayment-install.html", "destination": "/our-work/multi-section-complex-roof", "type": 301 },
       { "source": "/our-work/apartment-complex-complete", "destination": "/our-work/apartment-complex-tearoff", "type": 301 },
-      { "source": "/our-work/apartment-complex-complete.html", "destination": "/our-work/apartment-complex-tearoff", "type": 301 }
+      { "source": "/our-work/apartment-complex-complete.html", "destination": "/our-work/apartment-complex-tearoff", "type": 301 },
+      { "_comment": "Removed /our-work case study (2026-10-15, Joe's call): the Gatlinburg TN A-frame metal roof was not a job Joe did (it was a personal trip), so it was taken off the site entirely. There is no kept page to merge into, so its old URL lands on the /our-work gallery. Same extensionless + .html pair as the merges above. Guarded by tests/ourwork-retired-slugs.test.js.",
+        "source": "/our-work/aframe-standing-seam-metal", "destination": "/our-work", "type": 301 },
+      { "source": "/our-work/aframe-standing-seam-metal.html", "destination": "/our-work", "type": 301 }
     ],
     "rewrites": [
       { "_comment": "Pro demo phase 2 (2026-10-06): the browser-only sample account. The REAL page files are served under /pro/explore/ so /pro/explore/demo-sw.js (scope /pro/explore/) can answer their Firebase SDK imports with the in-browser fake in docs/pro/demo-sdk/. One copy of each page; nothing touches the live database. Rewrites only fire when no file matches, and docs/pro/explore/ holds no dashboard/customer file. Plan: documentation/projects/PRO-DEMO-PHASE2-FULL-ACCOUNT-PLAN-2026-10-06.md",

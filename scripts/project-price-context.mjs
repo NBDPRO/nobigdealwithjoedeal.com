@@ -83,12 +83,12 @@ export const UNDATED_LABEL = 'before 2025';
 // job must carry `year` — build-projects.mjs fails the build naming the slug
 // (yearRuleErrors below). If a real year turns up for one of these, add it to
 // projects.json and delete the slug here (the build insists).
+// 2026-10-15: cul-de-sac-full-crew-tearoff dated May 2025 by Joe (year 2025).
 export const LEGACY_UNDATED_PRICED = Object.freeze([
   'brick-colonial-full-reroof',
   'brick-two-story-drone-verified',
   'multi-section-complex-roof',
   'wind-damage-lifted-shingles',
-  'cul-de-sac-full-crew-tearoff',
   'two-properties-one-day',
   'apartment-complex-tearoff',
 ]);
