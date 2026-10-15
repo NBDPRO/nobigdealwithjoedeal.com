@@ -52,12 +52,14 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     ok('no email / story / referral / photo field on the form', !/f-email|f-story|f-referral|Photos/.test(FORM.replace(/<!--[\s\S]*?-->/g, '')));
     ok('the consent sentence is byte-for-byte the live one (#2225 owns its change)', FORM.includes('<label class="sc-consent"><input type="checkbox" id="ins-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>'));
     ok('the box is not pre-checked', !/id="ins-consent"[^>]*checked/.test(FORM));
+    // 2026-10-15 (later the same day): the box is OPTIONAL, so no required marker of any kind.
+    ok('the box is optional: no native required, no aria-required, no visible (required)', !/id="ins-consent"[^>]*\srequired\b/.test(FORM) && !/id="ins-consent"[^>]*aria-required="true"/.test(FORM) && !/sc-consent-req|\(required\)/.test(FORM.replace(/<!--[\s\S]*?-->/g, '')));
     ok('the home-preferred-not-required line is on the page (Jo, 2026-10-14)', HTML.includes('Being home is preferred so Joe can check the attic, but it&rsquo;s not required.'));
     ok('the moved fields live on the thank-you screen', /id="insDetails" hidden/.test(SUCCESS) && ['f-story', 'f-email', 'f-referral', 'insXIntake', 'insDetailsSave', 'insDetailsStatus'].every((id) => SUCCESS.includes('id="' + id + '"')));
     ok('the default thank-you headline is the same-day one (no "within 24 hours" there)', /<h3 id="insThanksTitle">Joe will reach out, usually the same day<\/h3>/.test(SUCCESS) && !/24 hours|within the hour/.test(SUCCESS));
     ok('Pick My Time is a plain link, hidden until a calendar choice', /<a class="ins-pick-time" id="insPickTime" href="https:\/\/cal\.com\/nobigdeal\/roof-inspection" target="_blank" rel="noopener" hidden>Pick My Time<\/a>/.test(SUCCESS) && /\.ins-pick-time\[hidden\]\{display:none\}/.test(HTML));
     ok('no inline handlers', !/\son[a-z]+=/i.test(FORM + SUCCESS));
-    ok('cache-busters bumped', /intake-extras\.js\?v=4/.test(HTML) && /inspect-form\.js\?v=[45]/.test(HTML));
+    ok('cache-busters bumped', /intake-extras\.js\?v=4/.test(HTML) && /inspect-form\.js\?v=[456]/.test(HTML));
   }
 
   console.log('\n2. intake-extras: the block splits in two, the popup is opt-out');
@@ -95,7 +97,7 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
 
   console.log('\n3. inspect-form.js, executed: submit, thank-you, add details');
   const JS = read('docs/assets/js/inspect-form.js');
-  function runInspect({ scheduling, response, photoToken }) {
+  function runInspect({ scheduling, response, photoToken, consent }) {
     const els = {}; const calls = []; const fetches = []; const opened = []; const handlers = {};
     const mk = (id, props) => {
       const el = Object.assign({ id, value: '', attrs: {}, textContent: '', disabled: false, hidden: false, style: {}, className: '', childElementCount: 0,
@@ -105,7 +107,7 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     };
     const form = mk('inspectForm', { fields: () => ({ name: 'Pat Example', address: '12 Elm St, Goshen OH', phone: '8595550100', nbd_hp: '' }) });
     mk('f-name', { value: 'Pat Example' }); mk('f-address', { value: '12 Elm St, Goshen OH' }); mk('f-phone', { value: '8595550100' });
-    mk('ins-consent', { checked: true }); mk('inspectSubmit'); mk('inspectSuccess');
+    mk('ins-consent', { checked: consent !== false }); mk('inspectSubmit'); mk('inspectSuccess');
     mk('insThanksTitle', { textContent: 'Joe will reach out, usually the same day' }); mk('insThanksText', { textContent: 'default' });
     mk('insPickTime', { hidden: true, attrs: { href: 'https://cal.com/nobigdeal/roof-inspection' } });
     mk('insDetails', { hidden: true }); mk('insDetailsSave'); mk('insDetailsStatus'); mk('insIntakeAfter');
@@ -139,6 +141,10 @@ const SUCCESS = (/<div class="form-success" id="inspectSuccess">[\s\S]*?<div id=
     const d = (r.calls[0] || {}).data || {};
     ok('the submit posts the first-screen fields + the scheduling choice + consent', r.calls.length === 1 && d.name && d.address && d.phone && d.scheduling === 'calendar' && d.tcpaConsent === true && d.source === '/inspect', d);
     ok('...asks for the follow-up grant (wantsFollowUp)', d.wantsFollowUp === true);
+    const nr = runInspect({ scheduling: 'calendar', consent: false });
+    await tick(); await tick();
+    const nd = (nr.calls[0] || {}).data || {};
+    ok('box unticked → the request is still sent, with tcpaConsent: false (optional since 2026-10-15)', nr.calls.length === 1 && nd.tcpaConsent === false && nd.name && nd.phone, nd);
     ok('...and carries no story / email / referral', !('story' in d) && !('email' in d) && !('referralCode' in d));
     ok('calendar → headline "Pick your time"', r.els.insThanksTitle.textContent === 'Pick your time');
     ok('...Pick My Time shown, prefilled, as a link (no window.open)', r.els.insPickTime.hidden === false && /^https:\/\/cal\.com\/nobigdeal\/roof-inspection\?name=Pat/.test(r.els.insPickTime.attrs.href) && r.opened.length === 0, r.els.insPickTime);

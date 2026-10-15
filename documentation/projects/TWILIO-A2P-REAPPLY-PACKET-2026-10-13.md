@@ -150,7 +150,7 @@ new consent label on `/estimate`.
 | 12 | The reviewer can SEE the opt-in on every URL named in the message flow | **FAIL for `/estimate`; PASS for `/inspect` and `/storm-alerts`** | `/estimate`: consent box on step 5 of 5 behind an address and satellite-confirm step (`docs/estimate.html:629-894`). `/inspect` shows name, address, mobile phone and consent in one form (`docs/inspect.html:427-454`). `/storm-alerts` has the phone field and consent in one form (`docs/storm-alerts.html:454-471`) |
 | 13 | Opt-in proof: what is recorded | **PASS** | `tcpaConsent: true`, `tcpaConsentAt`, `tcpaConsentText` (the exact wording's version id) and `tcpaConsentSource` (page path) are written per lead (`functions/tcpa-consent.js:132-205`, `docs/assets/js/inspect-form.js:309`). Wording versions v2 are the live ones |
 | 14 | Automatic STOP/HELP/START replies name the brand | **FAIL** (fixed on `fix/sms-stop-help-brand-name`, see the update at the top) | `functions/sms-functions.js:1596,1605,1636` still say "NBD Pro". The Messaging Service's Advanced Opt-Out answers STOP/HELP first (`functions/twilio-line-logic.js:23-24`), so the registered strings are the ones that matter. Fix them in the Twilio campaign fields (section 5) and rename the code strings in a follow-up |
-| 15 | Privacy page does not contradict the checkbox flow | **PASS with a note** | `docs/privacy.html:618` says submitting an estimate request "you consent to receive" texts and calls. The forms use an explicit checkbox, so this is looser than reality, not stricter. Safe, but a reviewer could read it as consent-by-submission. Optional wording tweak |
+| 15 | Privacy page does not contradict the checkbox flow | **PASS** (fixed 2026-10-15, `fix/sms-consent-wording-2026-10-15`) | The TCPA notice in `docs/privacy.html` section 5 used to say that by providing a phone number and submitting an estimate request "you consent to receive" texts and calls, which reads as consent-by-submission. It now says texts go only to customers who check the SMS consent box. `/terms` already said opt-in is by checking the box |
 | 16 | Terms page "Last updated" | **PASS** | `docs/terms.html:428` ("October 6, 2026") |
 
 **So the page work before reapplying is one item (12), plus the optional
@@ -206,7 +206,7 @@ campaign:
   opted-in texts in this campaign are the low-risk class.
 - **Kentucky insurance jobs** (`KY-CLAIM-WORDING-2026-09-27`): sample
   messages must not say "we handle/negotiate your claim", offer advance
-  payment, or promise a deductible outcome. All five samples in section 5
+  payment, or promise a deductible outcome. All three samples in section 5
   stay inside that. Do not let a reviewer-friendly rewrite add "we'll help
   with your insurance claim".
 
@@ -222,72 +222,99 @@ what's already set up).
 **Campaign description:**
 
 ```
-No Big Deal Home Solutions is a roofing, siding and gutter contractor serving the Greater Cincinnati, Ohio and Northern Kentucky area. We text homeowners who asked us to: a confirmation that we got their inspection or estimate request, appointment confirmations and reminders, updates about their estimate and project, and invoice and payment notices. Homeowners who sign up on our Storm Alerts page get a text when hail or severe weather is reported near their zip code, usually 2-4 per season. We also send new-lead notices to the business owner's own phone. We only text people who checked an unchecked consent box on one of our website forms, or who texted us first. Customers can reply STOP to opt out or HELP for help at any time.
+No Big Deal Home Solutions is a roofing, siding and gutter contractor serving the Greater Cincinnati, Ohio and Northern Kentucky area. We text homeowners who asked us to: a confirmation that we got their inspection or estimate request, appointment confirmations and reminders, updates about their estimate and project, and invoice and payment notices. Homeowners who sign up on our Storm Alerts page get a text when hail or severe weather is reported near their zip code, usually 2-4 per season. We only text people who checked an unchecked consent box on one of our website forms, or who texted us first. Customers can reply STOP to opt out or HELP for help at any time.
 ```
+
+(2026-10-15: the "We also send new-lead notices to the business owner's own
+phone." sentence is removed, together with the old sample that was that
+internal alert. The sample list is now three: lead acknowledgement, storm
+alert, START reply.)
 
 **Message flow / call to action** (this is the field Twilio rejected, so it
 is written to be verifiable by someone who only opens the URLs):
 
 ```
-Opt-in happens only on our website, nobigdealwithjoedeal.com, by the customer's own action. Each form below shows a mobile phone field and an UNCHECKED, required consent checkbox on the same screen, and the form cannot be submitted until the box is ticked.
+Opt-in happens only on our website, nobigdealwithjoedeal.com, by the customer's own action: checking an SMS consent checkbox that is never pre-checked. Only people who tick the box get texts from us. Each of the three forms below shows a mobile phone field and the UNCHECKED consent checkbox on the same screen.
 
-1) Free inspection request: https://nobigdealwithjoedeal.com/inspect (fields: name, property address, mobile phone, consent checkbox, "Request Free Inspection" button).
-2) Storm Alerts signup: https://nobigdealwithjoedeal.com/storm-alerts (fields: zip, mobile phone, consent checkbox).
+1) Free inspection request: https://nobigdealwithjoedeal.com/inspect (fields: name, property address, mobile phone, consent checkbox, "Request Free Inspection" button). The checkbox is optional: the request can be sent without it, and then we call or email instead and send no texts.
+2) Estimate request: https://nobigdealwithjoedeal.com/estimate (fields: first name, mobile phone and the consent checkbox on the first screen, then address and the rest of the estimate steps). The checkbox is optional, as on /inspect.
+3) Storm Alerts signup: https://nobigdealwithjoedeal.com/storm-alerts (fields: first name, mobile phone, zip, storm concern, consent checkbox marked "(required)", "Sign Me Up" button). The checkbox is required here, because the service is text alerts; the form cannot be submitted until it is ticked.
 
-3) Estimate request: https://nobigdealwithjoedeal.com/estimate (fields: first name, mobile phone, consent checkbox on the first screen, then address and the rest of the wizard).
+Exact consent wording beside the checkbox on /inspect: "I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message & data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. Privacy Policy · Terms". On /estimate the sentence is the same but starts "I agree to receive my estimate and follow-up communication from No Big Deal Home Solutions". On /storm-alerts it starts "I agree to receive storm alerts and follow-up communication from No Big Deal Home Solutions". On all three forms "Privacy Policy" links to https://nobigdealwithjoedeal.com/privacy#sms-terms and "Terms" links to https://nobigdealwithjoedeal.com/terms.
 
-Exact consent wording beside the checkbox on /inspect: "I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message & data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. Privacy Policy · Terms" ("Privacy Policy" links to https://nobigdealwithjoedeal.com/privacy#sms-terms and "Terms" links to https://nobigdealwithjoedeal.com/terms). On /storm-alerts the wording is the same but starts "I agree to receive storm alerts and follow-up communication from No Big Deal Home Solutions". Our estimate funnel at https://nobigdealwithjoedeal.com/estimate uses the same sentence with "my estimate" on its first screen, next to the first name and mobile number fields (the box is unchecked and required).
-
-We store the consent, the time, the exact wording shown and the page it came from with every request. Full SMS program terms (program name, message types, frequency, rates, STOP/HELP, carrier liability, no sharing of mobile information) are at https://nobigdealwithjoedeal.com/terms. Privacy policy: https://nobigdealwithjoedeal.com/privacy. Customers can also text us first at (859) 420-7382; we reply only about their request.
+With every request we store whether the box was ticked; when it was, we also store the time, the exact wording shown and the page it came from. A request without the box ticked gets no automatic texts. Full SMS program terms (program name, message types, frequency, rates, STOP/HELP, carrier liability, no sharing of mobile information) are at https://nobigdealwithjoedeal.com/terms. Text message terms in our privacy policy: https://nobigdealwithjoedeal.com/privacy#sms-terms. Customers can also text us first at (859) 420-7382; we reply only about their message.
 ```
 
-Two things changed from the rejected version, on purpose: the in-person
-verbal-consent line is gone, and the estimate funnel is described as the
-final step rather than offered as the proof URL. If Jo does the page PR from
-row 12, `/estimate` can be listed as a third URL.
+Changed from the rejected version, on purpose: the in-person
+verbal-consent line is gone, and `/estimate` is listed as a proof URL now
+that its consent box is on the first screen (#2424). 2026-10-15: the three
+URLs are numbered in one list, the /estimate wording is quoted and the
+/storm-alerts field list matches the page. Later on 2026-10-15
+(`fix/sms-optin-and-brand-2026-10-15`): the box is **optional** on
+`/inspect` and `/estimate` (and on the homepage form, the on-page quick
+form, `/storm-check`, `/roof-score` and `/storm-report`), so a reviewer
+who tries the form without ticking it can still send it, which is what
+`/terms` has always said ("you can still request an inspection or estimate
+without it"). Those two boxes no longer carry the "(required)" marker or
+`aria-required`; `/storm-alerts` keeps both. The server saves a lead
+without consent (`tcpaConsent: false`) and alerts Joe, and no automatic text
+goes to that homeowner (see "Who gets an automatic text" below).
 
 **Privacy policy URL:** `https://nobigdealwithjoedeal.com/privacy`
 **Terms and conditions URL:** `https://nobigdealwithjoedeal.com/terms`
 (Not `/privacy#sms-terms`. The earlier submission used the anchor and was
 rejected for Terms; `/terms` exists now.)
 
-**Sample messages.** These are the real templates from the code (source in
-brackets); [brackets] mark the variable parts. Paste 1 to 4, 5 is optional.
-Samples 3 and 5 are templates that carry no STOP line in the code today
-(hand-sent texts don't add one; see the runbook). The paste adds "Reply STOP
-to opt out." so a reviewer sees the opt-out language; add it by hand to the
-first text you send a new person, so the campaign record matches reality.
-The real sample 4 starts with a bell emoji, dropped here.
+**Sample messages.** Paste these three. Each is the real customer-facing
+text exactly as the code produces it (source in brackets); `{braces}` mark
+the variable parts. Every one names **No Big Deal Home Solutions** in full.
 
-1. Lead acknowledgement (`functions/lead-alert.js` `ackHomeownerSms`):
+1. Lead acknowledgement, sent once to a homeowner who ticked the box (`functions/lead-alert.js` `ackHomeownerSms`; with no first name on file it starts "Got your estimate request."):
 ```
-[First name] — got your estimate request. This is Joe with No Big Deal Home Solutions — I'll call you shortly. Urgent? Call/text me at (859) 420-7382. Reply STOP to opt out.
+{first_name} — got your estimate request. This is Joe with No Big Deal Home Solutions — I'll call you shortly. Urgent? Call/text me at (859) 420-7382. Reply STOP to opt out.
 ```
-2. Storm alert to subscribers (`functions/storm-watch.js:273`):
+2. Storm alert to Storm Alerts subscribers (`functions/storm-watch.js:273`; `{event}` is like `1.25" hail`, `{city}` is the reported place):
 ```
-NBD Storm Alert: [1.25" hail] reported near [city]. If your roof took it, Joe documents damage free before you call insurance: nobigdealwithjoedeal.com/storm-check or call/text (859) 420-7382. Reply STOP to opt out.
+No Big Deal Home Solutions Storm Alert: {event} reported near {city}. If your roof took it, Joe documents damage free before you call insurance: nobigdealwithjoedeal.com/storm-check or call/text (859) 420-7382. Reply STOP to opt out.
 ```
-3. Appointment confirmation (`functions/sms-functions.js:125`, template `appointment`):
+3. Opt-in confirmation, sent when a customer texts START (`functions/sms-keyword-replies.js` `startReply`, NBD brand):
 ```
-Hi [name]! [rep name] from NBD confirming our upcoming roof inspection on [date] at [time]. Looking forward to it! Reply STOP to opt out.
-```
-4. New-lead alert to the owner's own phone (`functions/lead-alert.js` `smsBody`):
-```
-NBD lead — [form name] ([source])
-[customer name] · [phone]
-[address]
-Concern: [concern]
-```
-5. Follow-up after a visit (`functions/sms-functions.js`, template `interested`):
-```
-Hey [name]! This is [rep name] from NBD Home Solutions. Great chatting today — I'd love to take a closer look at your roof. Let me know a good time! Reply STOP to opt out.
+No Big Deal Home Solutions: You're subscribed to our texts. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to opt out.
 ```
 
-Before pasting, re-read each against the code line named in brackets (this
-packet checked samples 1 and 2 and the sample 3 body against current `main`
-on 2026-10-13). Sample 4 goes to Jo's own phone; if a reviewer objects to an
-internal alert in a customer campaign, drop it and the description's
-"new-lead notices" sentence together.
+All three match the code word for word once `fix/sms-optin-and-brand-2026-10-15`
+is merged and its functions deploy has run (merging to `main` deploys
+functions automatically, `.github/workflows/firebase-deploy.yml`; check that
+run is green before submitting). `tests/sms-optional-consent-brand-2026-10-15.test.js`
+pins samples 1 and 3 and the storm template.
+
+**Other customer texts, renamed but not pasted.** The NWS-warning storm text
+(`functions/sms-functions.js` `runCheckStormAlerts`, to the same
+subscribers) now starts "⛈️ No Big Deal Home Solutions Storm Alert:". The six
+door-knock templates (`D2D_SMS_TEMPLATES`, `NBD_D2D_COMPANY`, and the CRM
+tracker's `_d2dCompany` in `docs/pro/js/d2d-tracker-core-2026b.js`) say
+"from No Big Deal Home Solutions". They are not pasted as samples because they
+go only to a number whose door-knock record carries the rep's note that the
+homeowner agreed to texts (`knockHasConsent`), a consent path the web-only
+message flow does not describe. The AI first-touch opener now reads "this is
+Joe's assistant with No Big Deal Home Solutions"; AI replies are drafts a
+person approves.
+
+**Who gets an automatic text** (what the message flow promises, as the code
+enforces it):
+
+| Automatic homeowner text | Gate on consent |
+|---|---|
+| Lead acknowledgement (`lead-alert.js` `ackHomeownerSms`) | Only when the lead carries `tcpaConsent === true` (`tcpa-consent.js` `smsAckGate`), plus `LEAD_ACK_SMS_ENABLED`, STOP / Do Not Text, the texting switch and quiet hours. `false` or absent: no text, logged `no_stored_consent` |
+| Storm alerts (`storm-watch.js`, `sms-functions.js` `runCheckStormAlerts`) | Only subscribers whose signup stored `tcpaConsent === true` (`storm-sms-guard.js`); /storm-alerts requires the box |
+| Approved AI reply (`sms-functions.js` `onAiDraftApproved`) | `sms-consent-declined.js`: a `tcpaConsent: false` number is refused unless it texted us in the last 7 days |
+| CRM sends labelled as campaigns (review ask, referral code, win-back, estimate follow-up, lead_ack, sequence) | `sms-consent-declined.js` `AUTOMATED_SOURCES`: refused for a declined number, no inbound exemption |
+| Door-knock texts | Only with the knock's own explicit yes (`knockHasConsent`) |
+
+Joe's own new-lead alert (text, email, push) still fires for every lead,
+with or without consent; it goes to the business, not the homeowner.
+
+Before pasting, re-read each against the code line named in brackets.
 
 **Checkboxes:** Embedded links **Yes**. Embedded phone numbers **Yes**.
 Age-gated content **No**. Direct lending or loan arrangement **No**.
@@ -365,3 +392,13 @@ console.
   are all superseded by this note).
 - Counsel question: Kentucky and Ohio telephone-solicitation hours and
   registration, for any marketing-style sequence.
+- (2026-10-15) Done in `fix/sms-optin-and-brand-2026-10-15`: the
+  customer-facing SMS strings that said only "NBD" now say "No Big Deal Home
+  Solutions" (`storm-watch.js`, the `sms-functions.js` storm cron, the
+  door-knock templates and `NBD_D2D_COMPANY`, the CRM tracker's
+  `_d2dCompany`, the AI first-touch opener in `handlers/ai-texting.js` and
+  `handlers/ai-persona.js`), and the SMS box is optional on `/inspect` and
+  `/estimate`, so the forms now match `/terms`. Left alone: the
+  anniversary script in `functions/anniversary-touch.js` is a suggested
+  script in a rep email (the rep sends it by hand, for any tenant), not an
+  automatic text.

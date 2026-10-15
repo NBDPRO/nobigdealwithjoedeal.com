@@ -376,7 +376,7 @@
     var fn = $('rs-firstName').value.trim(), ph = $('rs-phone').value.trim(),
         em = $('rs-email').value.trim(), consent = $('rs-consent').checked;
     if (!fn || ph.replace(/\D/g, '').replace(/^1/, '').length !== 10) { $('rs-contact-err').textContent = 'Please add your name and a 10-digit phone.'; return; }
-    if (!consent) { $('rs-contact-err').textContent = 'Please check the consent box so Joe can reach you.'; return; }
+    // SMS consent is optional since 2026-10-15: the lead is saved either way; no automatic text without it.
     var intake = readIntake();
     if (intake.error) { $('rs-contact-err').textContent = intake.error; if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid'); return; }
     S.intake = intake;

@@ -128,7 +128,8 @@ ok('inspect_form_error names the invalid field ids', last[1] === 'inspect_form_e
 inputs[2].attrs['aria-invalid'] = 'false';
 added({ id: 'inspectFormError' });
 last = events[events.length - 1];
-ok('consent refusal reports ins-consent', last[2] && last[2].fields === 'ins-consent', JSON.stringify(last));
+// 2026-10-15: the SMS box is optional, so an unticked box is never the field blamed.
+ok('an unticked (optional) consent box is not reported as the error', last[2] && last[2].fields === 'submit', JSON.stringify(last));
 consent.checked = true;
 added({ id: 'inspectFormError' });
 last = events[events.length - 1];

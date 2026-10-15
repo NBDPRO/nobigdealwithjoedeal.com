@@ -635,7 +635,8 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
     <!-- Contact + SMS consent live HERE, on first paint (Twilio A2P 30909,
          2026-10-13): a reviewer opening /estimate must see the phone field and
          the unchecked opt-in without clicking through four steps. Same ids and
-         same submit path as before (tcpaConsent -> submitPublicLead). -->
+         same submit path as before (tcpaConsent -> submitPublicLead).
+         2026-10-15: the box is OPTIONAL; its real value is posted either way. -->
     <div class="contact-intro">
       <div class="contact-intro-title">Where should Joe send it?</div>
       <div class="contact-intro-sub">First name and phone. No call center, no spam.</div>
@@ -675,10 +676,9 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 
     <div class="tcpa-group">
       <div class="tcpa-check">
-        <input type="checkbox" id="tcpaConsent" aria-describedby="tcpaConsent-err">
+        <input type="checkbox" id="tcpaConsent">
         <label for="tcpaConsent">I agree to receive my estimate and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></label>
       </div>
-      <div class="error-msg" id="tcpaConsent-err" role="alert" aria-live="assertive">Check the box so Joe can call or text you your estimate</div>
     </div>
   </div>
 

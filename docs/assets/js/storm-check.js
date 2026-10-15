@@ -329,7 +329,7 @@
     var fn = $('sc-firstName').value.trim(), ph = $('sc-phone').value.trim(),
         em = $('sc-email').value.trim(), consent = $('sc-consent').checked;
     if (!fn || ph.replace(/\D/g, '').replace(/^1/, '').length !== 10) { $('sc-contact-err').textContent = 'Please add your name and a 10-digit phone.'; return; }
-    if (!consent) { $('sc-contact-err').textContent = 'Please check the consent box so Joe can reach you.'; return; }
+    // SMS consent is optional since 2026-10-15: the lead is saved either way; no automatic text without it.
     var intake = readIntake();
     if (intake.error) { $('sc-contact-err').textContent = intake.error; if (intake.el && intake.el.classList) intake.el.classList.add('nbd-intake-invalid'); return; }
     S.intake = intake;
@@ -340,7 +340,7 @@
     // capture the lead FIRST (so it saves even if the result errors out)
     var story = 'STORM CHECK | storm: ' + S.stormWhen + '/' + S.stormType +
       ' | roof age: ' + S.roofAge + ' (' + S.roofType + ') | signs: ' + (S.signs.join(', ') || 'none');
-    // tcpaConsent is the checkbox's real value (always true past the gate above);
+    // tcpaConsent is the checkbox's real value (true or false; the box is optional);
     // submitPublicLead persists it so lead-alert's SMS ack can gate on a stored
     // record instead of inferring consent (TCPA fix, 2026-09-04; see #1377).
     var payload = { name: fn, phone: ph, address: S.address || $('sc-address').value.trim(), source: '/storm-check', story: story, tcpaConsent: consent === true };

@@ -126,29 +126,31 @@ const CORS_ORIGINS = [
 const D2D_SMS_TEMPLATES = {
   interested: {
     label: 'Thanks for Chatting',
-    body: 'Hey {name}! This is {rep} from NBD Home Solutions. Great chatting today — I\'d love to take a closer look at your roof. Let me know a good time!'
+    body: 'Hey {name}! This is {rep} from No Big Deal Home Solutions. Great chatting today — I\'d love to take a closer look at your roof. Let me know a good time!'
   },
   appointment: {
     label: 'Appointment Confirmation',
-    body: 'Hi {name}! {rep} from NBD confirming our upcoming roof inspection on {appointmentDate} at {appointmentTime}. Looking forward to it!'
+    body: 'Hi {name}! {rep} from No Big Deal Home Solutions confirming our upcoming roof inspection on {appointmentDate} at {appointmentTime}. Looking forward to it!'
   },
   storm_damage: {
     label: 'Storm Damage Alert',
-    body: 'Hi {name}, {rep} from NBD. I noticed some storm damage on your roof today. I offer free inspections — would you like me to come take a closer look?'
+    body: 'Hi {name}, {rep} from No Big Deal Home Solutions. I noticed some storm damage on your roof today. I offer free inspections — would you like me to come take a closer look?'
   },
   ins_has_claim: {
     label: 'Insurance Claim Alert',
-    body: 'Hi {name}! {rep} from NBD. I noticed storm damage on your roof. I can inspect it and give you photos and a repair estimate to share with your insurer. Want to talk?'
+    body: 'Hi {name}! {rep} from No Big Deal Home Solutions. I noticed storm damage on your roof. I can inspect it and give you photos and a repair estimate to share with your insurer. Want to talk?'
   },
   // 2026-10-05: follow_up and not_home now name the company (they named no
   // one); every D2D text also gets the STOP line (withKnockFooter below).
+  // 2026-10-15 (Twilio A2P reapply): every template spells the brand out,
+  // "No Big Deal Home Solutions", the name registered on the campaign.
   follow_up: {
     label: 'Follow-Up',
-    body: 'Hi {name}! {rep} from NBD following up from our conversation last time. Still interested in getting that roof inspected? Give me a call or text back!'
+    body: 'Hi {name}! {rep} from No Big Deal Home Solutions following up from our conversation last time. Still interested in getting that roof inspected? Give me a call or text back!'
   },
   not_home: {
     label: 'Not Home Follow-Up',
-    body: 'Hi {name}! {rep} from NBD — I stopped by but didn\'t catch you home. Would love to chat about your roof. Free inspection — no pressure. Hit me back!'
+    body: 'Hi {name}! {rep} from No Big Deal Home Solutions — I stopped by but didn\'t catch you home. Would love to chat about your roof. Free inspection — no pressure. Hit me back!'
   }
 };
 
@@ -158,7 +160,7 @@ const D2D_SMS_TEMPLATES = {
 // and says how to stop. Shared by sendD2DSMS and sendSMS-with-knockId (the
 // D2D tracker's own path, docs/pro/js/d2d-tracker-core-2026b.js).
 
-const NBD_D2D_COMPANY = 'NBD Home Solutions';
+const NBD_D2D_COMPANY = 'No Big Deal Home Solutions';
 
 /** True only for an explicit boolean consent on the knock (never inferred). */
 function knockHasConsent(knock) {
@@ -1475,10 +1477,12 @@ exports.sendD2DSMS = onRequest(
       });
 
       // Non-NBD tenant: replace NBD's brand mentions with the tenant's name.
-      // Longer token first so 'NBD Home Solutions' doesn't half-match the
-      // '\bNBD\b' rule. NBD tenants skip this entirely (tenantName '').
+      // Longest token first so 'No Big Deal Home Solutions' (the templates'
+      // name since 2026-10-15) and the older 'NBD Home Solutions' don't
+      // half-match the '\bNBD\b' rule. NBD tenants skip this entirely
+      // (tenantName '').
       if (tenantName) {
-        body = body.replace(/NBD Home Solutions/g, tenantName).replace(/\bNBD\b/g, tenantName);
+        body = body.replace(/No Big Deal Home Solutions/g, tenantName).replace(/NBD Home Solutions/g, tenantName).replace(/\bNBD\b/g, tenantName);
       }
 
       // Company + "Reply STOP to opt out." (the company the gate resolved).
@@ -2197,7 +2201,7 @@ async function runCheckStormAlerts(event) {
           const phone = formatPhoneNumber(sub.phone);
           if (!phone) continue;
 
-          const body = `⛈️ NBD Storm Alert: ${event} reported near ${zip}. ${String(headline).substring(0, 120)} — Free roof inspection: nobigdealwithjoedeal.com or call Joe (859) 420-7382. Reply STOP to unsubscribe.`;
+          const body = `⛈️ No Big Deal Home Solutions Storm Alert: ${event} reported near ${zip}. ${String(headline).substring(0, 120)} — Free roof inspection: nobigdealwithjoedeal.com or call Joe (859) 420-7382. Reply STOP to unsubscribe.`;
 
           const result = await StormGuard.sendGuardedStormText({
             db,

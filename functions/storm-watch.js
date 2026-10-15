@@ -270,7 +270,7 @@ async function runStormWatch() {
         send: () => client.messages.create({
           to: a.to,
           from: TWILIO_PHONE_NUMBER.value(),
-          body: `NBD Storm Alert: ${eventLabel(a.event)} reported near ${a.event.city || 'your area'}. If your roof took it, Joe documents damage free before you call insurance: nobigdealwithjoedeal.com/storm-check or call/text (859) 420-7382. Reply STOP to opt out.`,
+          body: `No Big Deal Home Solutions Storm Alert: ${eventLabel(a.event)} reported near ${a.event.city || 'your area'}. If your roof took it, Joe documents damage free before you call insurance: nobigdealwithjoedeal.com/storm-check or call/text (859) 420-7382. Reply STOP to opt out.`,
         }),
       });
       if (result.status === 'sent') texted++;

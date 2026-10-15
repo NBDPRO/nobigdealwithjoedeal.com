@@ -233,7 +233,9 @@
     let b = null;
     try { if (typeof window._brand === 'function') b = window._brand() || null; } catch (e) { b = null; }
     const isNbd = !b || !b.legalName || b.legalName === 'No Big Deal Home Solutions';
-    if (isNbd) return 'NBD Home Solutions';
+    // 2026-10-15 (Twilio A2P reapply): NBD's texts spell the registered
+    // brand out, the same name as functions/sms-functions.js NBD_D2D_COMPANY.
+    if (isNbd) return 'No Big Deal Home Solutions';
     return b.legalName || b.displayName || 'our team';
   }
   // Substitutes the shared tokens. Used by the send paths AND by the template

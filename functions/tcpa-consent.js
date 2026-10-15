@@ -51,6 +51,11 @@ const CONSENT_FIELD = 'tcpaConsent';
 // post the value; the fourth (/inspect) has no checkbox, posts nothing, and its
 // documents therefore fail hasWrittenConsent — they are never texted. That is
 // the point of reading consent from the document rather than the collection.
+// 2026-10-15 (Twilio A2P reapply): the box is now OPTIONAL on /inspect,
+// /estimate, /storm-check, /roof-score and /storm-report. Every form presents
+// it unchecked and posts its real value; a lead without it is saved and Joe
+// is alerted, and smsAckGate (hasWrittenConsent) is what keeps the
+// homeowner from being texted. The collection is still only half the test.
 const CONSENT_COLLECTIONS = Object.freeze(['estimate_leads', 'inspect_leads']);
 
 /**
