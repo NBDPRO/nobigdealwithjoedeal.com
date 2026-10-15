@@ -333,6 +333,8 @@ async function handleVoiceDialStatus(req, res, deps) {
         userId: uid, companyId: NBD_OWNER_UID, type: 'missed_call', priority: 'high', leadId: lead.id,
         title: '📞 Missed call from ' + who, message: 'Called the NBD line; the forward to your cell was not answered.',
         read: false, dismissed: false, createdAt: ts,
+        // One-tap "Text back" from Jo's own phone (missed-call-reply-logic.js).
+        smsHref: require('./missed-call-reply-logic').smsHref(from) || null,
       });
     }
   } else if (outcome === 'missed') {

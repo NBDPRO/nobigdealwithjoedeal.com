@@ -240,7 +240,7 @@ function parseSidecar(text) {
 function buildCallDoc({ ownerUid, file, parsed, match, bucket, storedPath, nowMs, durationSec }) {
   const dur = Number.isFinite(durationSec) ? durationSec : null;
   const short = dur != null && dur < SHORT_CALL_SEC;
-  return {
+  const doc = {
     userId: ownerUid,
     companyId: ownerUid,
     source: 'cube-acr',
@@ -267,6 +267,11 @@ function buildCallDoc({ ownerUid, file, parsed, match, bucket, storedPath, nowMs
     actionItems: [],
     createdAtMs: nowMs,
   };
+  // Speed-to-lead (2026-10-15): a missed inbound call carries a ready reply
+  // Jo sends from his own phone in one tap (missed-call-reply-logic.js).
+  const draft = require('./missed-call-reply-logic').replyDraftFor(doc, nowMs);
+  if (draft) doc.replyDraft = draft;
+  return doc;
 }
 
 // ── Stage 2: transcript → notes (2026-10-01) ─────────────────────────────

@@ -33,6 +33,20 @@ const CL = require('./contact-labels');
 const PV = require('./ping-volume-logic'); // digest dedupe + the repeat-number summary line (audit F6/F7)
 
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+
+// The missed-call auto-text's sender (missed-call-autotext.js; dark unless
+// MISSED_CALL_AUTOTEXT_ENABLED === 'true'). Same Secret Manager names
+// lead-alert.js uses; the Twilio SDK loads only on a real send.
+const { defineSecret: _defineSecret } = require('firebase-functions/params');
+const TWILIO_ACCOUNT_SID = _defineSecret('TWILIO_ACCOUNT_SID');
+const TWILIO_AUTH_TOKEN = _defineSecret('TWILIO_AUTH_TOKEN');
+const TWILIO_PHONE_NUMBER = _defineSecret('TWILIO_PHONE_NUMBER');
+async function sendAutoText({ to, body }) {
+  const { secretValue: sv } = require('./integrations/_shared');
+  const sid = sv(TWILIO_ACCOUNT_SID), tok = sv(TWILIO_AUTH_TOKEN), from = sv(TWILIO_PHONE_NUMBER);
+  if (!sid || !tok || !from) throw new Error('twilio-not-configured');
+  return require('twilio')(sid, tok).messages.create({ to, from, body });
+}
 const CONFIG = 'integrations/callCenter';
 const COLLECTION = 'phone_calls';
 const DRIVE = 'https://www.googleapis.com/drive/v3';
@@ -178,8 +192,17 @@ async function runIngest({ db, bucket, live, nowMs }) {
         }
         if (durationSec != null && durationSec < L.SHORT_CALL_SEC) counts.short = (counts.short || 0) + 1;
         await bucket.file(path).save(bytes, { contentType: parsed.ext === 'm4a' ? 'audio/mp4' : (f.mimeType || 'application/octet-stream'), resumable: false, metadata: { cacheControl: 'private, max-age=0' } });
-        await docRef.set(Object.assign(L.buildCallDoc({ ownerUid: OWNER, file: f, parsed, match, bucket: bucketName, storedPath: path, nowMs, durationSec }), { createdAt: FieldValue.serverTimestamp() }));
+        const callDoc = L.buildCallDoc({ ownerUid: OWNER, file: f, parsed, match, bucket: bucketName, storedPath: path, nowMs, durationSec });
+        await docRef.set(Object.assign({}, callDoc, { createdAt: FieldValue.serverTimestamp() }));
         counts.stored++;
+        // Speed-to-lead auto-text (2026-10-15): dark unless
+        // MISSED_CALL_AUTOTEXT_ENABLED === 'true'; consented customers only.
+        if (callDoc.replyDraft && process.env.MISSED_CALL_AUTOTEXT_ENABLED === 'true') {
+          const r = await require('./missed-call-autotext').maybeAutoTextMissedCall({
+            db, call: Object.assign({ id: docRef.id }, callDoc), nowMs, tenantKey: OWNER, send: sendAutoText, logger,
+          });
+          if (r.sent) counts.autoTexted = (counts.autoTexted || 0) + 1;
+        }
       } catch (e) {
         counts.failed++;
         finishedDay = false;
@@ -215,7 +238,7 @@ async function runIngest({ db, bucket, live, nowMs }) {
 }
 
 exports.callCenterIngest = onSchedule(
-  { schedule: 'every 30 minutes', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '1GiB' },
+  { schedule: 'every 30 minutes', timeZone: 'America/New_York', timeoutSeconds: 540, memory: '1GiB', secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER] },
   async () => {
     const db = getFirestore();
     const live = enabled();

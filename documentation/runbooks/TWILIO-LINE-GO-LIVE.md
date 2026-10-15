@@ -93,3 +93,24 @@ webhooks back. Both work without the other.
 - There was no separate Do-Not-Call list in the code. `sms_opt_outs`
   (`functions/sms-optout.js`) is the opt-out register every send path
   checks, and this line writes to it.
+
+## After approval: the missed-call auto-text (2026-10-15)
+
+Every missed inbound call already carries a one-tap reply draft (an `sms:`
+link with the reply typed) on the Call Center card, the bell row and the
+callWatch push. Joe sends it from his own phone; nothing goes from Twilio.
+
+Once the A2P campaign is approved, set `MISSED_CALL_AUTOTEXT_ENABLED=true` in
+`functions/.env.nobigdeal-pro` and deploy. Then the Call Center ingest
+(`functions/missed-call-autotext.js`) also texts the caller from the Twilio
+number, but only when ALL of these hold:
+
+- the caller is a customer on file and the number is that customer's,
+- the customer has a stored web-form consent record (`tcpaConsent === true`
+  with a form consent version id) — never a cold caller,
+- no STOP / Do Not Text entry and the company texting switch is on,
+- 8am to 9pm in the homeowner's local time,
+- the call is under 3 hours old, and no auto-text went to that number in the
+  last 24 hours (`missed_call_autotext/{tenant}__{digits}`).
+
+The text ends with "Reply STOP to opt out." Turn it off again with `false`.

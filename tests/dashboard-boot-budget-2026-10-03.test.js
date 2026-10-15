@@ -127,6 +127,11 @@ CEILING.localBytes += 5 * 1024;
 // beside Record (+~1.5 KB, delegated, lazy-loads the recorder like Record). Measured 4834 KB on main + #2463
 // (ceiling 4829 before this line); the ceiling keeps ~1 KB of slack. The layout files themselves are lazy and not counted here.
 CEILING.localBytes += 6 * 1024;
+// +1 KB, deliberate (2026-10-15, speed-to-lead missed-call reply, #2470): no new script, no new tag. notif-bell.js
+// (deferred, already on the page) gains the "Text back" link for a missed call's prefilled sms: draft (+~0.7 KB:
+// one shape-check regex, the smsHref field, the link markup). call-center-view.js is lazy and not counted here.
+// Main sat at 4834 of 4835 KB; this PR measures 4835, so the ceiling keeps ~1 KB of slack.
+CEILING.localBytes += 1 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {

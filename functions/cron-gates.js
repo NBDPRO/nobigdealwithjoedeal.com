@@ -75,6 +75,10 @@ const CRON_GATES = [
   // Not a cron: NBD's Twilio line webhooks (/api/twilio/*, 2026-10-06). DARK
   // until A2P is approved and Jo flips it (fixed TwiML, nothing written).
   { name: 'TWILIO_INBOUND_ENABLED', polarity: 'enabled', file: 'twilio-line.js' },
+  // Speed-to-lead (2026-10-15): the Call Center ingest auto-texts a missed
+  // caller with stored web-form consent (missed-call-autotext.js). DARK until
+  // the A2P campaign is approved; the one-tap reply DRAFT is not behind it.
+  { name: 'MISSED_CALL_AUTOTEXT_ENABLED', polarity: 'enabled', file: 'call-center.js' },
 ];
 
 /**

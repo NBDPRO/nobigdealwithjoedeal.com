@@ -116,6 +116,12 @@ function notificationActionsFor(type) {
         { action: 'snooze', title: 'Snooze 1h' },
         { action: 'dismiss', title: 'Dismiss' },
       ];
+    case 'missedCall':
+      // Speed-to-lead (2026-10-15): the reply is already typed (data.smsUrl).
+      return [
+        { action: 'text', title: 'Text back' },
+        { action: 'view', title: 'Open' },
+      ];
     default:
       return [{ action: 'view', title: 'View' }];
   }
