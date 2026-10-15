@@ -58,7 +58,10 @@
     var surface = w <= 768 ? 'phone' : (w <= 1180 && coarse ? 'tablet' : 'desktop');
     if (c.glove === true) de.setAttribute('data-tap', 'glove');
     var id = c.byDevice && c.byDevice[surface];
-    if (typeof id !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(id) || id === 'classic') return;
+    // 'pixel' was never a real layout (no stylesheet, no implementation) and is
+    // no longer offered (2026-10-15): a cache left from when it was in the
+    // picker paints Classic and asks for no missing pixel.css.
+    if (typeof id !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(id) || id === 'classic' || id === 'pixel') return;
     de.setAttribute('data-layout', id);
     if (document.readyState === 'loading') {
       document.write('<link rel="stylesheet" id="nbd-layout-css" data-layout-css="' + id + '" href="/pro/css/layouts/' + id + '.css">');
