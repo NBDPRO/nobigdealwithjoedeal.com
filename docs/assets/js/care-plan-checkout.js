@@ -141,6 +141,16 @@
           if (btn) { btn.disabled = false; btn.textContent = 'Continue to secure checkout'; }
         });
     });
+    // Browser Back from Stripe Checkout restores this page from bfcache with
+    // the button still disabled on "Opening secure checkout…" (2026-10-15,
+    // review M7). Reset it so the homeowner can try again without a reload.
+    if (typeof window.addEventListener === 'function') {
+      window.addEventListener('pageshow', function (e) {
+        if (!e || !e.persisted) return;
+        var btn = $('button[type="submit"]', form);
+        if (btn) { btn.disabled = false; btn.textContent = 'Continue to secure checkout'; }
+      });
+    }
   }
 
   function openCheckout(sec, params) {
@@ -179,6 +189,10 @@
           say(sec, 'Could not open your billing page. Call or text Joe at ' + JOE + '.', true);
         });
       });
+      // Same bfcache reset for Back from the Stripe billing page (M7).
+      if (typeof window.addEventListener === 'function') {
+        window.addEventListener('pageshow', function (e) { if (e && e.persisted) btn.disabled = false; });
+      }
     }
     try { sec.scrollIntoView({ block: 'start' }); } catch (_) { /* ignore */ }
   }
