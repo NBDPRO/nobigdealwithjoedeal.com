@@ -128,8 +128,12 @@
     var ok = typeof has === 'function' ? has : function () { return true; };
     return PILL.filter(function (it) { return ok(it.id); });
   }
+  // Record visit is the dock's primary action (Joe's phone, 2026-10-15: the
+  // floating Record bar stacked on top of this dock, off-centre, over the
+  // cards). One bar now; island.css hides the floating one.
   var DOCK = [
-    { id: 'newlead', label: 'New lead', icon: 'plus', primary: true },
+    { id: 'record', label: 'Record visit', icon: 'rec', primary: true, record: true },
+    { id: 'newlead', label: 'New lead', icon: 'plus' },
     { id: 'filter', label: 'Filter', icon: 'filter' },
     { id: 'sort', label: 'Sort', icon: 'sort' },
   ];
@@ -156,6 +160,7 @@
     cal: 'M4 5h16v15H4zM4 10h16M9 3v4M15 3v4',
     doc: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7',
     more: 'M5 12h.01M12 12h.01M19 12h.01',
+    rec: 'M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z',
   };
   function ic(name) {
     if (EXTRA[name]) {
@@ -198,6 +203,13 @@
     var sortOn = ls('nbd_crm_sort_engagement') === '1';
     var html = '<div class="isl-dock-in">';
     DOCK.forEach(function (it) {
+      if (it.record) {
+        // Not a data-lk-nav item: visit-recorder-launcher.js delegates
+        // [data-nbd-record-visit] on document and opens the recorder.
+        html += '<button type="button" class="isl-item isl-act isl-primary isl-rec" data-nbd-record-visit="" data-source="island-dock">' +
+          ic(it.icon) + '<span class="isl-lbl">' + esc(K.RECORD_LABEL || it.label) + '</span></button>';
+        return;
+      }
       var h = item(it, 'isl-act' + (it.id === 'sort' && sortOn ? ' isl-on' : ''), '');
       if (it.id === 'sort') h = h.replace('<button ', '<button aria-pressed="' + (sortOn ? 'true' : 'false') + '" ');
       html += h;
@@ -277,13 +289,17 @@
       if (after) setTimeout(after, 60);
       return true;
     }
+    stopPipelineWait();
     if (activeView() === 'crm' && click()) return;
     goto('crm');
     var tries = 0;
-    var t = setInterval(function () {
-      if (click() || ++tries > 25) clearInterval(t);
+    // one wait at a time, and unmount clears it (it used to outlive the layout)
+    pipeTimer = setInterval(function () {
+      if (click() || ++tries > 25) stopPipelineWait();
     }, 120);
   }
+  var pipeTimer = null;
+  function stopPipelineWait() { if (pipeTimer) { clearInterval(pipeTimer); pipeTimer = null; } }
   function onNav(id) {
     if (id === 'more') { setMore(!S.moreOpen); return; }
     if (S.moreOpen) setMore(false);
@@ -542,6 +558,7 @@
     observers = [];
     timers.forEach(function (t) { clearInterval(t); });
     timers = [];
+    stopPipelineWait();
     listeners.forEach(function (l) { try { l[0].removeEventListener(l[1], l[2], l[3]); } catch (e) { /* ignore */ } });
     listeners = [];
     [pillEl, dockEl, moreEl, laneEl, heroEl].forEach(function (n) { if (n && n.parentNode) n.parentNode.removeChild(n); });
