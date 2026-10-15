@@ -122,7 +122,9 @@ async function run() {
   // phone must be a US/Canada number (2026-10-15, public intake hardening M4):
   // 10 digits or 11 with a leading 1. Valid-shape phones below are 10 digits.
   ok('contact with a 7-digit phone → 400 (phone validation)',
-    (await post({ kind: 'contact', firstName: 'Jo', phone: '5550100', source: 'web' })).status === 400);
+    // Own ipTag: an untagged post here was the shared bucket's 21st and 429'd
+    // the compat-pin check at the end of the file (see post() above).
+    (await post({ kind: 'contact', firstName: 'Jo', phone: '5550100', source: 'web' }, '203.0.113.18')).status === 400);
   // exact-length enforcement (storm zip must be exactly 5)
   ok('storm zip != 5 chars → 400',
     (await post({ kind: 'storm', name: 'Jo', phone: '5135550100', zip: '1234', source: 'web' })).status === 400);
