@@ -375,6 +375,12 @@ function buildQuiz(P) {
     ok('…matching the initial label in estimate.html', initial.replace('&#x2192;', '→') === reset, initial);
   }
 
+  console.log('\nM10 — form errors are announced to screen readers');
+  for (const [page, id] of [['docs/storm-check.html', 'sc-contact-err'], ['docs/roof-score.html', 'rs-contact-err'], ['docs/storm-report.html', 'sr-gate-err']]) {
+    const tag = (read(page).match(new RegExp('<div[^>]*id="' + id + '"[^>]*>')) || [])[0] || '';
+    ok(`${page}: #${id} has role="alert"`, /\srole="alert"/.test(tag), tag);
+  }
+
   console.log('\nM1 — "None / not sure" clears when a real sign is picked');
   for (const [rel, P] of [['docs/assets/js/storm-check.js', 'sc'], ['docs/assets/js/roof-score.js', 'rs']]) {
     const t = loadTool(rel, buildQuiz(P));
