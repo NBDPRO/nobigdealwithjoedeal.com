@@ -65,10 +65,18 @@ const { rateLimitIpKey, clientIp } = require('../rate-limit');
 
 // A ceiling on AUTOMATED spend, independent of the per-rep and per-account
 // meters the callable uses. Real volume is roughly one web lead a day (~32
-// leads/month across every source, per the 2026-09 lead counters), so 25/day
-// is ~25x headroom and still caps a runaway — a bot flood of form submissions,
-// or a bug that re-fires the trigger — at $75 rather than unbounded.
-const AUTO_MEASURE_DAILY_CAP = 25;
+// leads/month across every source, per the 2026-09 lead counters). Lowered
+// from 25 to 10/day on 2026-10-15 (public intake hardening, M2): the estimate
+// form takes any address with coordinates and no verified phone, so 25 junk
+// leads a day was $75/day of measurements on nothing. 10 is still ~10x real
+// volume and caps a runaway at $30/day. Override with WEB_LEAD_MEASURE_DAILY_CAP.
+// Better still (not done here): only measure a lead whose phone passed the
+// OTP step server-side (verified_phones/{e164}), once OTP is switched back on.
+function autoMeasureDailyCap(env) {
+  const n = Number((env || process.env).WEB_LEAD_MEASURE_DAILY_CAP);
+  return Number.isFinite(n) && n >= 1 && n <= 1000 ? Math.floor(n) : 10;
+}
+const AUTO_MEASURE_DAILY_CAP = autoMeasureDailyCap();
 
 // The wizard shows a ~3.6 s loading animation and then calls the AI for the
 // personalised note, so it can afford to wait a little for real numbers. Past
@@ -328,6 +336,12 @@ exports.measureNewWebLead = onDocumentCreated(
       logger.warn('public-measure: not a bridged estimate lead — no measurement', { leadId });
       return;
     }
+    // A repeat phone within 24h (submitPublicLead's intake guard) is the
+    // same household again: never buy a second report for it.
+    if (lead.duplicateLead === true) {
+      logger.info('public-measure: duplicate web lead (same phone within 24h), skipping', { leadId });
+      return;
+    }
     if (!IR.validateCoords(lead.lat, lead.lng).ok) {
       logger.info('public-measure: web lead has no usable coordinates, skipping', { leadId });
       return;
@@ -420,6 +434,6 @@ exports.publicRoofMeasure = onRequest(
   }
 );
 
-exports._test = { publicSummary, measureLeadAndPublish, bridgedEstimateId, PUBLIC_WAIT_MS, PUBLIC_POLL_MS, corsOrigin, AUTO_MEASURE_DAILY_CAP };
+exports._test = { publicSummary, measureLeadAndPublish, bridgedEstimateId, PUBLIC_WAIT_MS, PUBLIC_POLL_MS, corsOrigin, AUTO_MEASURE_DAILY_CAP, autoMeasureDailyCap };
 
 module.exports = exports;

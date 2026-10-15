@@ -74,7 +74,9 @@ module.exports.run = function run(ctx) {
   section('phone-utils — module contract');
   {
     const src = read(path.join(FUNCTIONS, 'phone-utils.js'));
-    assert('exports phoneDigits10', /module\.exports\s*=\s*\{\s*phoneDigits10\s*\}/.test(src));
+    // formatPhone (the US/Canada E.164 rule) joined it 2026-10-15, shared by
+    // the OTP sender and submitPublicLead.
+    assert('exports phoneDigits10', /module\.exports\s*=\s*\{\s*phoneDigits10\s*(,\s*formatPhone\s*)?\}/.test(src));
     assert('stays firebase-free (requirable from scripts + tests with zero deps)',
       !/require\(['"]firebase/.test(src));
     assert('helper body IS the canonical transform (guards drift vs inlined copies)',

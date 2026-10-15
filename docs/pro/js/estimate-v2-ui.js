@@ -255,7 +255,7 @@
   // fields NBDCustomerEstimateRows.estimateWarranty() reads; they are copied
   // off the saved doc, carried on every estimate this builder produces, and
   // re-saved with it. null when the doc is not a Job Template estimate.
-  const _JOB_TYPE_KEYS = ['sourceTemplates', 'tierApplies', 'warrantyKind', 'warrantyParts', 'repairWarranty'];
+  const _JOB_TYPE_KEYS = ['sourceTemplates', 'tierApplies', 'warrantyKind', 'warrantyParts', 'repairWarranty', 'warrantyPackage'];
   function _jobTypeFieldsOf(doc) {
     if (!doc) return null;
     const out = {};

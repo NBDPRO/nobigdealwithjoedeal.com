@@ -390,6 +390,12 @@ console.
 - Correct the runbook's 2026-10-04 "ready to submit" section in place once
   the new campaign is submitted (its brand type, terms URL and message flow
   are all superseded by this note).
+- **Storm alerts need a confirm-YES (double opt-in) step before
+  `STORM_TEXT_ENABLED` goes on** (2026-10-15, public intake hardening PR).
+  `/storm-alerts` accepts any typed phone number, so a stranger can sign
+  someone else up. The subscriber must reply YES to a confirmation text
+  before the first storm alert. Separate design; code comments mark the gate
+  in `functions/storm-watch.js` and `functions/sms-functions.js`.
 - Counsel question: Kentucky and Ohio telephone-solicitation hours and
   registration, for any marketing-style sequence.
 - (2026-10-15) Done in `fix/sms-optin-and-brand-2026-10-15`: the

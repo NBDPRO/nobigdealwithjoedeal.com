@@ -627,7 +627,10 @@ function fillContact(d) {
   console.log('\n7. trust line above every listed form + live rating');
   // ═══════════════════════════════════════════════════════════════════════
   {
-    const TL = /<p class="(?:nbd-trust-line|qlf-trust)"><span aria-hidden="true">&#9733;<\/span> <span data-nbd-gr-rating>5\.0<\/span> on Google &middot; (?:Fully insured|Licensed &amp; insured) &middot; Joe on every roof<\/p>/;
+    // 2026-10-15 (Joe, wording decision 7): the rating ships EMPTY inside a
+    // hidden data-nbd-gr-rating-wrap with a "Real Google reviews" fallback.
+    // A failed fetch reads "Real Google reviews"; no page ships a number.
+    const TL = /<p class="(?:nbd-trust-line|qlf-trust)"><span aria-hidden="true">&#9733;<\/span> <span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating><\/span> on Google<\/span><span data-nbd-gr-rating-fallback>Real Google reviews<\/span> &middot; (?:Fully insured|Licensed &amp; insured) &middot; Joe on every roof<\/p>/;
     // 2026-10-05: "Fully insured" (Jo has no OH/KY registration number to back
     // "Licensed"). every page incl. docs/index.html now says it;
     // tests/homeowner-claims-honesty-2026-10-05.test.js bans it elsewhere.

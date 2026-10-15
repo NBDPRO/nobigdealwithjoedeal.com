@@ -217,6 +217,9 @@ function mapPublicLeadToLead(args) {
   // Intake answers (2026-09-30).
   notesParts.push(...intakeNoteLines(data));
   if (data.missingAddress) notesParts.push('⚠ No address given — ask for it');
+  // Intake guard (2026-10-15, public-lead-guard.js): same phone already sent a
+  // lead in the last 24h, so this one paged nobody.
+  if (data.duplicateLead === true) notesParts.push('⚠ Repeat submission — same phone within 24h (no alert sent)');
   // Estimator context — so the pipeline card shows what the homeowner
   // actually asked for, not just a name and address. Fields are present
   // only post-M-04 allowlist expansion; older docs simply add no line.
@@ -271,6 +274,9 @@ function mapPublicLeadToLead(args) {
     sourcePage: String(data.source || ''),
   };
   if (data.scheduling === 'calendar' || data.scheduling === 'contact_me') doc.schedulingPreference = data.scheduling;
+  // Server-set by submitPublicLead only (the public collections deny client
+  // writes). public-measure.js skips the paid roof measurement for it.
+  if (data.duplicateLead === true) doc.duplicateLead = true;
 
   // Coordinates (2026-09-06). The /estimate wizard geocodes the address at
   // step 1 and the gateway now persists lat/lon on the public lead; carry

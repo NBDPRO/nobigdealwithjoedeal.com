@@ -34,6 +34,8 @@ const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const GUST = require('./asos-gust-logic');
 const { gustForAddressDay } = require('./integrations/asos-gust');
+const AR = require('./alert-recipients');
+const PLG = require('./public-lead-guard');
 
 const PHONE_DISPLAY = '(859) 420-7382';
 const PHONE_TEL = 'tel:+18594207382';
@@ -55,10 +57,31 @@ function esc(s) {
 // The lead's `story` is an internal line: "STORM REPORT | 42 events/5yr (...)".
 // Strip the prefix → a homeowner-facing summary. Robust to format drift: if the
 // prefix is missing we just present whatever is there.
+//
+// H1 (2026-10-15): `story` arrives from the browser, and this email goes to an
+// address the visitor TYPED — so echoing it verbatim made NBD's sending domain
+// a relay for any sentence (or link) to any inbox. The summary is now REBUILT
+// from the numbers alone, and only when the line has the exact shape
+// storm-report-page.js writes; anything else gets the generic sentence.
+const GENERIC_SUMMARY = 'a multi-year history of hail and wind storms';
+const STORY_RE = /^\s*STORM\s*REPORT\s*\|\s*(\d{1,4}) events\/(\d{1,2})yr \((\d{1,4}) hail, (\d{1,4}) wind, (\d{1,4}) tornado, max (\d{1,2}(?:\.\d{1,2})?)″\)\s*$/;
 function summaryLine(story) {
-  const s = String(story || '').replace(/^\s*STORM\s*REPORT\s*\|\s*/i, '').trim();
-  return s || 'a multi-year history of hail and wind storms';
+  const m = STORY_RE.exec(String(story || ''));
+  if (!m) return GENERIC_SUMMARY;
+  const [, total, years, hail, wind, tornado, maxHail] = m;
+  return `${Number(total)} events/${Number(years)}yr (${Number(hail)} hail, ${Number(wind)} wind, ${Number(tornado)} tornado, max ${Number(maxHail)}″)`;
 }
+
+// The street address is visitor text too: only a 5-digit ZIP found in it is
+// shown ("near ZIP 45202"), never the typed string.
+function zipLabel(address) {
+  const m = String(address || '').match(/\b(\d{5})(?:-\d{4})?\b(?!.*\b\d{5}\b)/);
+  return m ? 'ZIP ' + m[1] : '';
+}
+
+// At most this many storm-report emails per destination inbox per rolling
+// 24h (H1, 2026-10-15) — same helper and pattern as funnel-recovery.js.
+const STORM_REPORT_RECIPIENT_DAILY_CAP = 1;
 
 // Branded HTML — orange header / navy footer, matching the other NBD emails.
 // First-person voice ("I'll …", "— Joe"), consistent with the marketing site.
@@ -175,6 +198,13 @@ exports.stormReportEmail = onDocumentCreated(
       return;
     }
 
+    // A repeat phone or a lead past the daily cap (public-lead-guard.js) gets
+    // no outbound email to a typed address either.
+    if (d.alertSuppressed === 'duplicate' || d.alertSuppressed === 'volume') {
+      logger.info('stormReportEmail: skip — suppressed at intake', { leadId, reason: d.alertSuppressed });
+      return;
+    }
+
     // Idempotency: at-least-once delivery means this can fire more than once.
     // Transactionally claim the doc before sending so a redelivery is a no-op.
     const ref = snap.ref;
@@ -196,8 +226,18 @@ exports.stormReportEmail = onDocumentCreated(
       return;
     }
 
-    const firstName = (String(d.name || '').trim().split(/\s+/)[0]) || 'there';
-    const address = String(d.address || '').trim();
+    // Per-recipient cap, checked after the claim so a redelivered event (a
+    // no-op above) never spends it. Limiter outage fails open (capRecipients).
+    const capR = await AR.capRecipients('stormReport', [d.email], { limit: STORM_REPORT_RECIPIENT_DAILY_CAP });
+    if (!capR.allowed.length) {
+      logger.info('stormReportEmail: skip — recipient already sent a report in the last 24h', { leadId });
+      return;
+    }
+
+    // Nothing the visitor typed is echoed as-is: a one-word greeting name, a
+    // ZIP, and a summary rebuilt from numbers only.
+    const firstName = PLG.safeGreetingName(d.name) || 'there';
+    const address = zipLabel(d.address);
     const summary = summaryLine(d.story);
     const gust = await gustForLead(d, getFirestore());
     const html = EMAIL_HTML({ firstName, address, summary, gust });
@@ -233,4 +273,4 @@ exports.stormReportEmail = onDocumentCreated(
 );
 
 // Pure renderers, exposed for tests only (not Cloud Functions).
-exports._test = { EMAIL_HTML, gustForLead };
+exports._test = { EMAIL_HTML, gustForLead, summaryLine, zipLabel, STORM_REPORT_RECIPIENT_DAILY_CAP };

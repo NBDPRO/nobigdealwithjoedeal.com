@@ -55,16 +55,9 @@ const JOE_EMAIL_SECRET = defineSecret('JOE_NOTIFY_EMAIL');
 const JOE_PHONE_FALLBACK = '+18594207382';
 const JOE_EMAIL_FALLBACK = 'jonathandeal459@gmail.com';
 
-/**
- * Format phone to E.164 — US/Canada only.
- * International numbers are explicitly rejected to block SMS-pumping fraud.
- */
-function formatPhone(phone) {
-  const cleaned = String(phone || '').replace(/\D/g, '');
-  if (cleaned.length === 10) return '+1' + cleaned;
-  if (cleaned.length === 11 && cleaned.startsWith('1')) return '+' + cleaned;
-  return null;
-}
+// Format phone to E.164 — US/Canada only. International numbers are explicitly
+// rejected to block SMS-pumping fraud. Shared with submitPublicLead (2026-10-15).
+const { formatPhone } = require('./phone-utils');
 /**
  * Rate limit check — prevents abuse of OTP sends
  * Max 3 OTP requests per phone per 10 minutes
@@ -77,6 +70,48 @@ async function checkOTPRateLimit(db, phone) {
     .get();
 
   return snap.size < 3;
+}
+
+// ── Daily OTP caps (L2, 2026-10-15) ─────────────────────────────────────
+// The 10-minute caps above still let one phone be sent ~430 codes a day, and
+// nothing bounded the total: an IP-rotating script could spend the Verify
+// budget on numbers it does not own (SMS pumping / toll fraud). Two more
+// buckets in the admin-only rate-limit store:
+//   per phone: OTP_PHONE_DAILY_CAP (5) sends per rolling 24h
+//   global:    OTP_GLOBAL_DAILY_CAP (env, default 200) sends per rolling 24h
+// The phone bucket is checked first, so one hammered number cannot use up the
+// global allowance. A limiter outage fails CLOSED here (no send): the funnel
+// shows the error and still saves the lead without a verified phone.
+const OTP_PHONE_DAILY_CAP = 5;
+const OTP_DAY_MS = 24 * 60 * 60 * 1000;
+function otpGlobalDailyCap(env) {
+  const n = Number((env || process.env).OTP_GLOBAL_DAILY_CAP);
+  return Number.isFinite(n) && n >= 1 && n <= 100000 ? Math.floor(n) : 200;
+}
+async function enforceOtpDailyCaps(formatted, deps) {
+  const enforce = (deps && deps.enforce) || enforceRateLimit;
+  const env = (deps && deps.env) || process.env;
+  try {
+    await enforce('sendVerificationCode:phoneDay', formatted, OTP_PHONE_DAILY_CAP, OTP_DAY_MS);
+  } catch (e) {
+    if (e && e.rateLimited) {
+      logger.warn('otp_daily_phone_cap');
+      return { ok: false, reason: 'phone', error: 'Too many codes sent to this number today. Please try again tomorrow or call (859) 420-7382.' };
+    }
+    logger.error('otp_daily_cap_unavailable', { err: e && e.message });
+    return { ok: false, reason: 'error', error: 'Failed to send verification code. Please try again.' };
+  }
+  try {
+    await enforce('sendVerificationCode:globalDay', 'all', otpGlobalDailyCap(env), OTP_DAY_MS);
+  } catch (e) {
+    if (e && e.rateLimited) {
+      logger.error('otp_daily_global_cap', { cap: otpGlobalDailyCap(env) });
+      return { ok: false, reason: 'global', error: 'Text verification is busy right now. Please try again later or call (859) 420-7382.' };
+    }
+    logger.error('otp_daily_cap_unavailable', { err: e && e.message });
+    return { ok: false, reason: 'error', error: 'Failed to send verification code. Please try again.' };
+  }
+  return { ok: true };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -124,6 +159,10 @@ exports.sendVerificationCode = onCall(
       if (!allowed) {
         return { success: false, error: 'Too many verification attempts. Please wait 10 minutes.' };
       }
+
+      // Daily caps (L2, 2026-10-15): every send is a paid Twilio Verify SMS.
+      const daily = await enforceOtpDailyCaps(formatted);
+      if (!daily.ok) return { success: false, error: daily.error };
 
       // Log the OTP request
       await db.collection('otp_requests').add({
@@ -438,5 +477,12 @@ exports.notifyNewLead = onCall(
     }
   }
 );
+
+// Tests only. Non-enumerable so index.js's Object.assign never puts it on the
+// deployed export surface.
+Object.defineProperty(exports, '_internal', {
+  enumerable: false,
+  value: { enforceOtpDailyCaps, otpGlobalDailyCap, OTP_PHONE_DAILY_CAP, formatPhone },
+});
 
 logger.info('verify_functions_loaded');

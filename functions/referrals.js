@@ -41,7 +41,8 @@ const { onRequest } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
-const { httpRateLimit } = require('./integrations/upstash-ratelimit');
+const { httpRateLimit, clientIp } = require('./integrations/upstash-ratelimit');
+const { SECRETS: INT_SECRETS } = require('./integrations/_shared');
 const { phoneDigits10 } = require('./phone-utils');
 const { createLeadWithCustomerId } = require('./customer-id-mint');
 
@@ -76,6 +77,17 @@ function validEmail(s) { return /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(St
 function digitsOnly(s) { return String(s || '').replace(/\D/g, ''); }
 
 function ok(res, body)   { res.status(200).json(body); }
+// L1 (2026-10-15): ONE answer for every referral code that cannot take a
+// referral right now — malformed, unknown, another tenant's, ambiguous,
+// deleted, or over its daily cap. Distinct statuses/messages were an existence
+// oracle: a script could walk NBD-0001..NBD-9999 and learn which customer ids
+// are real (and which are active). The real reason is logged server-side only.
+const REF_UNAVAILABLE_STATUS = 404;
+const REF_UNAVAILABLE_ERROR = 'This referral link is not active. Please call or text us directly.';
+function refUnavailable(res, reason, meta) {
+  logger.info('[submitReferral] referral code refused', Object.assign({ reason }, meta || {}));
+  return bad(res, REF_UNAVAILABLE_STATUS, REF_UNAVAILABLE_ERROR);
+}
 function bad(res, code, error) { res.status(code).json({ error }); }
 
 // CORS preflight + header writer shared across routes here.
@@ -97,6 +109,7 @@ function applyCors(req, res) {
 //         address?, notes? }
 // Resolves: 200 { ok: true } | 4xx { error }
 exports._ownReferralCode = ownReferralCode;
+exports._refUnavailable = { status: REF_UNAVAILABLE_STATUS, error: REF_UNAVAILABLE_ERROR };
 
 exports.submitReferral = onRequest(
   {
@@ -106,6 +119,7 @@ exports.submitReferral = onRequest(
     concurrency: 60,
     timeoutSeconds: 15,
     memory: '256MiB',
+    secrets: [INT_SECRETS.TURNSTILE_SECRET],
   },
   async (req, res) => {
     applyCors(req, res);
@@ -113,6 +127,16 @@ exports.submitReferral = onRequest(
     if (req.method !== 'POST')   { return bad(res, 405, 'POST only'); }
 
     if (!(await httpRateLimit(req, res, 'referral:ip', 5, 10 * 60_000))) return;
+
+    // Turnstile (L1, 2026-10-15), the same verifier submitPublicLead uses:
+    // /pro/refer.html now loads public-lead-submit.js and sends a token. Passes
+    // through while TURNSTILE_SECRET is unset (or fails closed when
+    // TURNSTILE_REQUIRED=true), so the rollout order is unchanged.
+    {
+      const { verifyTurnstile } = require('./integrations/turnstile');
+      const ts = await verifyTurnstile((req.body && req.body.turnstileToken) || '', clientIp(req));
+      if (!ts.ok) return bad(res, 403, 'Verification failed. Please refresh the page and try again.');
+    }
 
     const body = req.body || {};
     const ref = String(body.ref || '').trim().toUpperCase();
@@ -132,7 +156,7 @@ exports.submitReferral = onRequest(
     // OR a raw lead doc id (rare but used in shared previews). Both
     // are looked up below.
     if (!ref || ref.length < 4 || ref.length > 32) {
-      return bad(res, 400, 'Missing or malformed referral code');
+      return refUnavailable(res, 'malformed');
     }
     if (!firstName) return bad(res, 400, 'First name is required');
     const phoneDigits = digitsOnly(phone);
@@ -195,7 +219,7 @@ exports.submitReferral = onRequest(
           matchCount: candidates.length,
           companyIds: candidates.map(d => d.get('companyId')),
         });
-        return bad(res, 409, 'This referral link is not unique. Please contact us directly.');
+        return refUnavailable(res, 'ambiguous');
       }
       if (candidates.length === 1) {
         sourceLead = { id: candidates[0].id, ...candidates[0].data() };
@@ -215,8 +239,8 @@ exports.submitReferral = onRequest(
     } catch (e) {
       logger.warn('[submitReferral] lookup failed', { ref, err: e.message });
     }
-    if (!sourceLead) return bad(res, 404, 'Referral link is invalid');
-    if (sourceLead.deleted) return bad(res, 410, 'Referral link is no longer active');
+    if (!sourceLead) return refUnavailable(res, 'unknown');
+    if (sourceLead.deleted) return refUnavailable(res, 'deleted');
 
     // ─── Per-source-customer daily cap ──────────────────────────
     const since = new Date(Date.now() - DAY_MS);
@@ -227,7 +251,7 @@ exports.submitReferral = onRequest(
         .limit(MAX_REFERRALS_PER_SOURCE_PER_DAY + 1)
         .get();
       if (recent.size >= MAX_REFERRALS_PER_SOURCE_PER_DAY) {
-        return bad(res, 429, 'This referrer has reached the daily limit. Try again tomorrow.');
+        return refUnavailable(res, 'source_daily_cap');
       }
     } catch (e) {
       // Composite-index missing — don't block the referral, just log.

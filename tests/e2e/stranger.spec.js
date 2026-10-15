@@ -346,10 +346,15 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
     expect(primary.toLowerCase(), 'tenant primary color applied via getPublicSiteConfig').toBe(STRANGER.primaryColor);
 
     // A homeowner submits the quote form (honeypot #qWebsite stays empty).
-    const submitQuote = async (last) => {
+    // phoneOffset (2026-10-15): submitPublicLead now treats the same phone for
+    // the same company within 24h as a repeat (stored, marked duplicateLead,
+    // NO alert — public-lead-guard.js). The two submits below are two
+    // different homeowners, each of which must page the tenant, so they carry
+    // two different numbers.
+    const submitQuote = async (last, phoneOffset = 1) => {
       await page.fill('#qFirst', 'Micro');
       await page.fill('#qLast', last);
-      await page.fill('#qPhone', '513' + String(stamp + 1).slice(-7));
+      await page.fill('#qPhone', '513' + String(stamp + phoneOffset).slice(-7));
       // Since the 2026-09-30 intake overhaul every form requires a street
       // address and a scheduling choice. A microsite has no calendar, so
       // "please contact me" is the only option, and it names the TENANT.
@@ -410,7 +415,7 @@ test.describe.serial('The Stranger Test — second-contractor lifecycle @strange
     await adminAuth.updateUser(STRANGER.uid, { emailVerified: true });
     await page.goto(`/sites/t/${STRANGER.uid}`);
     await expect(page.locator('#site')).toBeVisible({ timeout: 15_000 });
-    await submitQuote(`SiteV${stamp}`);
+    await submitQuote(`SiteV${stamp}`, 2);
     const rows2 = await outboxFor(2);
     const verified = rows2.find((r) => r.target && Array.isArray(r.target.emails));
     expect(verified, 'verified owner: the alert email targets the tenant sign-in address').toBeTruthy();

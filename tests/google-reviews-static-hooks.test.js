@@ -140,9 +140,22 @@ ok('the #reviews summary row exists', !!reviewsBlock);
 ok('star row carries data-nbd-gr-stars', !!reviewsBlock && /data-nbd-gr-stars/.test(reviewsBlock));
 ok('score carries data-nbd-gr-rating', !!reviewsBlock && /data-nbd-gr-rating/.test(reviewsBlock));
 ok('count carries data-nbd-gr-total', !!reviewsBlock && /data-nbd-gr-total/.test(reviewsBlock));
-ok('the static fallback still names a rating (a blank rating is worse than a stale one)',
-  !!reviewsBlock && /data-nbd-gr-rating[^>]*>\s*\d\.\d\s*</.test(reviewsBlock),
-  'the rating hook must ship with real text inside it, not an empty span');
+// 2026-10-15 (Joe, wording decision 7): the RATING went the way of the count.
+// A hard-coded "5.0" turns false on every failed fetch, and for every crawler,
+// the day a 4-star review lands. It now ships EMPTY inside a hidden
+// data-nbd-gr-rating-wrap, beside a plain "Real Google reviews" fallback, and
+// the star row ships empty — a failure shows no number and no stars.
+ok('the rating hook ships EMPTY inside a hidden data-nbd-gr-rating-wrap',
+  !!reviewsBlock && /<span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating><\/span> on Google<\/span>/.test(reviewsBlock)
+  && !/data-nbd-gr-rating[^>-]*>\s*\d/.test(reviewsBlock));
+ok('...beside a plain fallback that names no number',
+  !!reviewsBlock && /<span data-nbd-gr-rating-fallback>Real Google reviews<\/span>/.test(reviewsBlock));
+ok('the star row ships empty (no static five stars)',
+  !!reviewsBlock && /data-nbd-gr-stars><\/div>/.test(reviewsBlock));
+const STATIC_RATING = /data-nbd-gr-rating(?![\w-])[^>]*>\s*\d/;
+for (const rel of ['docs/index.html', 'docs/review.html', 'docs/storm-check.html', 'docs/inspect.html', 'docs/estimate.html', 'docs/storm-alerts.html', 'docs/assets/js/quick-lead-form.js']) {
+  ok(rel + ': no rating hook ships a hard-coded number', !STATIC_RATING.test(read(rel)));
+}
 // 2026-10-06: the COUNT is the exception. A hard-coded "29" went stale the day
 // the next review landed, and it is what a visitor saw whenever the fetch
 // failed. The count now ships EMPTY inside a hidden wrapper the widget reveals
@@ -205,6 +218,27 @@ section('hydration — a real payload rewrites every hook');
   const doc = makeDoc({ 'data-nbd-gr-count': [count] });
   makeHydrate(doc)({ rating: 5, total: 1 });
   ok('a single review reads "1 Google review", singular', count.textContent === '1 Google review • tap to see them all');
+}
+
+section('rating wrap — only a live rating swaps the fallback for the number');
+
+for (const [label, payload, live] of [
+  ['live payload', { rating: 4.8, total: 33 }, true],
+  ['empty payload', { rating: 0, total: 0, empty: true }, false],
+  ['rating but no count', { rating: 5 }, false],
+  ['count but zero rating', { rating: 0, total: 12 }, false],
+]) {
+  const wrap = makeEl();
+  wrap.hidden = true;
+  const fallback = makeEl();
+  fallback.hidden = false;
+  const doc = makeDoc({
+    'data-nbd-gr-rating-wrap': [wrap],
+    'data-nbd-gr-rating-fallback': [fallback],
+  });
+  makeHydrate(doc)(payload);
+  ok(label + (live ? ' — reveals the rating and hides the fallback' : ' — keeps the rating hidden and the fallback showing'),
+    live ? (wrap.hidden === false && fallback.hidden === true) : (wrap.hidden === true && fallback.hidden === false));
 }
 
 section('degradation — an empty or failed payload must NOT zero the page');

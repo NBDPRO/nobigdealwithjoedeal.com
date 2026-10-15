@@ -88,7 +88,7 @@ const TOOLS = {
     }, additionalProperties: false },
   },
   rules_reference: {
-    description: 'The company\'s own rules to check anything against: its roof tiers and retail $/SQ, warranty wording and deposit rule where the company has set them, its house rules for bots, general guidance ("revenue" means collected money; cost and margin are never public), and the Kentucky insurance-job lines (what is never said or done on a Kentucky property). Read only.',
+    description: 'The company\'s own rules to check anything against: its roof tiers and retail $/SQ, warranty wording (roof tiers, siding packages, other job types) and deposit rule where the company has set them, its house rules for bots, general guidance ("revenue" means collected money; cost and margin are never public), and the Kentucky insurance-job lines (what is never said or done on a Kentucky property). Read only.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   post_job: {
@@ -465,7 +465,14 @@ const TIERS = [
 // never call it (or anything) a "lifetime warranty". Same text as
 // docs/pro/js/estimate-config.js PLEDGE_PROMISE (pinned by test).
 const PLEDGE_PROMISE = 'NBD Pledge: for as long as you own the home, we\'ll come back and make it right.';
-const WORKMANSHIP_YEARS = { gutter_system: 5, guard_only: 2, install_default: 2, repair: 1, none: 0 };
+// Siding replacement (Jo, 2026-10-15): labor years BY PACKAGE, the roof
+// tiers' terms (estimate-config.js WORKMANSHIP_WARRANTY.siding.byPackage).
+const WORKMANSHIP_YEARS = { gutter_system: 5, guard_only: 2, install_default: 2, repair: 1, none: 0, siding: { standard: 5, preferred: 10, elite: 20 } };
+const SIDING_PACKAGES = [
+  { key: 'standard', label: 'Standard', years: 5, warranty: '5-year written workmanship (labor) warranty; not transferable' },
+  { key: 'preferred', label: 'Preferred', years: 10, warranty: '10-year written workmanship (labor) warranty; transferable to one later owner within 30 days of sale' },
+  { key: 'elite', label: 'Elite', years: 20, warranty: '20-year written workmanship (labor) warranty; fully transferable; annual inspection' },
+];
 const DEPOSIT = { cashNoDepositUnderCents: 200000, cashDepositPct: 50, insurance: 'Kentucky insurance job: nothing due at signing; deductible + ACV due after the carrier\'s written decision and the 5-business-day cancellation window.' };
 let KY = null;
 try { KY = require('./ky-insurance-law'); } catch (_) { KY = null; }
@@ -474,8 +481,10 @@ function rulesReference() {
   return {
     tiers: TIERS.map((t) => Object.assign({}, t)),
     tier_note: 'Per-SQ retail rates exclude delivery and add-ons. Economy and Beyond are CRM-only (not on the public site). Older jobs keep the year and "priced in <year>" context.',
-    workmanship_warranty_years: Object.assign({}, WORKMANSHIP_YEARS),
-    repair_warranty_note: 'Repairs carry 1 year only when the rep ticks the box.',
+    workmanship_warranty_years: Object.assign({}, WORKMANSHIP_YEARS, { siding: Object.assign({}, WORKMANSHIP_YEARS.siding) }),
+    siding_replacement_packages: SIDING_PACKAGES.map((p) => Object.assign({}, p)),
+    siding_note: 'Siding replacement carries a labor warranty by package (Standard / Preferred / Elite), the same terms as the roof tiers; the package changes no price and is locked at contract signing. Siding has no Economy or Beyond package, and no GAF System Plus or shingle warranty.',
+    repair_warranty_note: 'Repairs (siding repair included) carry 1 year only when the rep ticks the box.',
     pledge: PLEDGE_PROMISE,
     pledge_note: 'The NBD Pledge is a promise on every NBD job, every tier. It is not a warranty term: the written labor warranty is by package (1 to 20 years, above). Never write "lifetime warranty" or "lifetime workmanship", and never call a product warranty lifetime.',
     deposit: { cash_under_2000: 'no deposit', cash_2000_and_up: DEPOSIT.cashDepositPct + '% at signing', insurance: DEPOSIT.insurance },

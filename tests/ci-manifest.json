@@ -10,6 +10,7 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "public-intake-hardening-2026-10-15.test.js",
     "handle-optout-controls-2026-10-13.test.js",
     "away-mode-2026-10-12.test.js",
     "layout-mapview-2026-10-12.test.js",
@@ -498,6 +499,7 @@
     "strip-redundant-inline-css.test.js",
     "upgrade-pricing.test.js",
     "job-template-honest-paperwork.test.js",
+    "siding-warranty-by-package-2026-10-15.test.js",
     "job-templates-late-refresh-2026-10-06.test.js",
     "estimate-gutter-source.test.js",
     "draw-geom.test.js",

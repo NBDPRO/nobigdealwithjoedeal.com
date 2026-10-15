@@ -34,8 +34,8 @@
 
   // The live Google rating for the trust line (data-nbd-gr-rating). Pages that
   // already load google-reviews-widget.js get re-hydrated through its hook;
-  // the rest load it once. Until it answers, the static "5.0" stands — the
-  // same true-at-rest fallback the homepage's reviews row uses.
+  // the rest load it once. Until it answers, the trust line reads "Real Google
+  // reviews": the rating ships empty and hidden, like the homepage (2026-10-15).
   function hydrateRating() {
     if (typeof window.nbdHydrateReviewHooks === 'function') { window.nbdHydrateReviewHooks(); return; }
     if (document.querySelector('script[src*="google-reviews-widget.js"]')) return; // loading — it hydrates on its own
@@ -87,7 +87,7 @@
         // (true or false) for the record.
         '<label class="sc-consent"><input type="checkbox" id="' + uid + '-consent"><span>I agree to receive my results and follow-up communication from No Big Deal Home Solutions by call or text at the number above. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase. <a href="/privacy#sms-terms">Privacy Policy</a> &middot; <a href="/terms">Terms</a></span></label>' +
         // Trust line above Submit (2026-10-03). Rating hydrated live (hydrateRating).
-        '<p class="qlf-trust"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating>5.0</span> on Google &middot; Fully insured &middot; Joe on every roof</p>' +
+        '<p class="qlf-trust"><span aria-hidden="true">&#9733;</span> <span data-nbd-gr-rating-wrap hidden><span data-nbd-gr-rating></span> on Google</span><span data-nbd-gr-rating-fallback>Real Google reviews</span> &middot; Fully insured &middot; Joe on every roof</p>' +
         '<button class="qlf-btn" type="submit" id="' + uid + '-btn">Send &mdash; Joe calls you back</button>' +
         '<div class="qlf-alt">Rather talk now? <a href="tel:+18594207382">Call or text (859) 420-7382</a></div>' +
       '</form>';

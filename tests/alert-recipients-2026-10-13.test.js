@@ -253,8 +253,12 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     ok("NBD lead: email goes to Jo's two deliberate addresses, as two separate entries",
       Array.isArray(to) && to.length === 2 && to[0] === JOE_EMAILS[0] && to[1] === JOE_EMAILS[1], to);
     ok("NBD lead: text goes to Jo's cell", rec.sms.length === 1 && rec.sms[0].to === JOE_SMS, rec.sms);
-    ok('NBD lead: nothing is looked up in Auth or the confirmed list, no per-recipient limiter call',
-      rl.calls.every(([ns]) => !/^alertRecipient/.test(ns)), rl.calls);
+    // 2026-10-15 (public intake hardening, H1): the ONE per-recipient call an
+    // NBD lead makes is the homeowner ack's own cap on the address the visitor
+    // typed (alertRecipient:leadAck). Jo's own alert addresses stay uncapped.
+    ok('NBD lead: nothing is looked up in Auth or the confirmed list, no per-recipient limiter call on Jo\'s alert',
+      rl.calls.every(([ns]) => !/^alertRecipient/.test(ns) || ns === 'alertRecipient:leadAck')
+        && rl.calls.filter(([ns]) => ns === 'alertRecipient:leadAck').every(([, key]) => !JOE_EMAILS.includes(key)), rl.calls);
     ok('NBD lead outcomes', o.email === 'sent', o);
 
     // Tenant: custom address aimed at a victim.
@@ -1030,7 +1034,7 @@ const lead = (over) => Object.assign({ name: 'Pat Example', phone: '555-0101', e
     await LA.alertJoe('contact_leads', lead({ companyId: undefined, ip: '203.0.113.77' }), 'nbd-ip');
     await LA.alertJoe('contact_leads', lead({ companyId: OWNER_UID, ip: '203.0.113.77' }), 'nbd-uid');
     ok('NBD leads (no tenant, and the NBD uid) never touch a tenant / recipient / IP bucket',
-      rl.calls.every(([ns]) => !/^(leadAlert|alertRecipient)/.test(ns)) && rec.emails.length > 0, rl.calls);
+      rl.calls.every(([ns]) => !/^(leadAlert|alertRecipient)/.test(ns) || ns === 'alertRecipient:leadAck') && rec.emails.length > 0, rl.calls);
 
     const cp = [[0, 0x1f], [0x7f, 0x9f], [0x200b, 0x200f], [0x2028, 0x202e], [0x2060, 0x206f], [0xfeff, 0xfeff]];
     const hasCtl = (s) => { for (const ch of s) { const k = ch.charCodeAt(0); if (k <= 0x1f || (k >= 0x7f && k <= 0x9f)) return true; } return false; };

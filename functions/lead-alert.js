@@ -59,6 +59,11 @@ const CL = require('./integrations/calcom-logic');
 // Who an alert may go TO: the owner's verified Auth email / phone or an address
 // the owner confirmed — never a raw tenant-writable value (2026-10-13).
 const AR = require('./alert-recipients');
+// Flood / repeat guard decided at intake (submitPublicLead) — 2026-10-15.
+const PLG = require('./public-lead-guard');
+// The homeowner "got your request" email: at most this many per destination
+// inbox per rolling 24h (H1, 2026-10-15).
+const ACK_RECIPIENT_DAILY_CAP = 1;
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -302,9 +307,21 @@ async function ackHomeowner(collection, d, leadId, target) {
   if (!target || target.isNbd !== true) return;
   const email = String(d.email || '').trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+  // Per-recipient cap (H1, 2026-10-15). The address was typed into a public
+  // form, so anyone can name anyone: without this, a script could make NBD's
+  // Resend domain mail the same stranger once per submit. One ack per
+  // destination inbox per 24h, across every form. A limiter outage fails
+  // open (capRecipients), same as every other alert path.
+  const capAck = await AR.capRecipients('leadAck', [email], { limit: ACK_RECIPIENT_DAILY_CAP });
+  if (!capAck.allowed.length) {
+    logger.info('leadAck: email skipped — recipient already acked in the last 24h', { collection, leadId });
+    return;
+  }
   try {
     const resend = new Resend(RESEND_API_KEY.value());
-    const firstName = String(d.firstName || d.name || '').trim().split(/\s+/)[0] || '';
+    // Greeting name only when it is a plain single word (letters, ' or -):
+    // never echo arbitrary visitor text to a third-party inbox.
+    const firstName = PLG.safeGreetingName(d.firstName || d.name);
     // Email category: TRANSACTIONAL — acknowledges the homeowner's own request, sent once at submit time. Not gated by the unsubscribe register (email-suppression.js SEND_PATHS).
     const response = await resend.emails.send({
       from: 'Joe Deal <jd@nobigdealwithjoedeal.com>',
@@ -671,8 +688,33 @@ const TRIGGER_OPTS = {
 //   { alert: true, collection, data, opts, log? } — alertJoe(collection, data, leadId, opts)
 function alertPlan(collection, data, leadId) {
   data = data || {};
-  if (collection === 'storm_alert_subscribers') return planStorm(data);
   if (collection === 'leads') return planLeadsDoc(data, leadId);
+  // Intake guard (M1, 2026-10-15): submitPublicLead marks a repeat phone
+  // within 24h ('duplicate') and every lead past the daily alert cap
+  // ('volume'). The lead is stored and bridged as usual; no SMS / email /
+  // push / homeowner ack. These fields are server-set only (the public
+  // collections deny every client write), and the watchdog reads this same
+  // plan, so it will not re-send them either.
+  if (data.alertSuppressed === 'duplicate' || data.alertSuppressed === 'volume') {
+    return { alert: false, log: ['leadAlert: alert suppressed at intake', { collection, reason: data.alertSuppressed }] };
+  }
+  const plan = collection === 'storm_alert_subscribers' ? planStorm(data) : alertPlanPublic(collection, data);
+  // The first lead over the daily cap carries the ONE "volume unusually high"
+  // notice; everything after it today is suppressed above.
+  if (plan.alert && data.leadVolumeNotice === true) {
+    plan.opts = Object.assign({}, plan.opts, { notice: LEAD_VOLUME_NOTICE });
+  }
+  return plan;
+}
+
+const LEAD_VOLUME_NOTICE = {
+  email: 'Lead volume is unusually high today. Text, email and push alerts are paused for the rest of the day. New leads still land in the CRM; check the pipeline.',
+  mailto: '',
+  sms: 'LEAD VOLUME UNUSUALLY HIGH TODAY - alerts paused, leads still in CRM',
+  subject: 'LEAD VOLUME HIGH',
+};
+
+function alertPlanPublic(collection, data) {
   // The /estimate funnel writes follow-up EVENT docs (results shown / CTA
   // click / email request) into estimate_leads alongside the initial lead.
   // Each is a fresh create → without this skip, one completed funnel fires

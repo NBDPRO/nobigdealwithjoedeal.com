@@ -2062,6 +2062,11 @@ const STORM_SMS_PACING_MS = 1100;
 // The NWS-ALERTS half of the merged storm poller (functions/storm-poller.js,
 // 2026-10-04): no longer its own cron; stormPoller runs it right after the
 // storm-reports half. Every guard below is unchanged.
+// Storm-alert subscribers are typed in on /storm-alerts with no confirmation
+// that the number belongs to the person who typed it. Before subscriber texts
+// go out (STORM_TEXT_ENABLED / the stormAlerts switch), add a confirm-YES
+// (double opt-in) step: see storm-watch.js and the Twilio packet follow-ups
+// (public intake hardening, 2026-10-15).
 async function runCheckStormAlerts(event) {
   const db = getFirestore();
   const runStartMs = Date.now();

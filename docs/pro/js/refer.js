@@ -100,11 +100,18 @@
     btn.textContent = 'Sending…';
 
     try {
+      // Turnstile (2026-10-15): the same widget the lead forms use, loaded by
+      // /assets/js/public-lead-submit.js. '' when it is missing or times out;
+      // the server only insists once TURNSTILE_SECRET is set.
+      let turnstileToken = '';
+      try {
+        if (typeof window.nbdTurnstileExecute === 'function') turnstileToken = await window.nbdTurnstileExecute();
+      } catch (e) { turnstileToken = ''; }
       const res = await fetch(FUNCTIONS_BASE + '/submitReferral', {
         method: 'POST',
         credentials: 'omit',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.assign({ ref, firstName, lastName, phone, email, address, notes }, code ? { code } : {})),
+        body: JSON.stringify(Object.assign({ ref, firstName, lastName, phone, email, address, notes }, code ? { code } : {}, turnstileToken ? { turnstileToken } : {})),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {

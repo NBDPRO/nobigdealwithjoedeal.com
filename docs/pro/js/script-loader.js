@@ -272,7 +272,7 @@
       'js/estimate-finalization.js?v=11',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=34',
+      'js/estimate-v2-ui.js?v=35',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=5',
@@ -284,10 +284,10 @@
       // inserts into the V2 builder — end-of-bundle satisfies all three.
       // entity-resolver.js (the lead search/quick-create picker) must load
       // before job-templates-ui.js, which calls it from paintModal.
-      'js/job-templates-data.js?v=5',
-      'js/job-templates.js?v=8',
+      'js/job-templates-data.js?v=6',
+      'js/job-templates.js?v=9',
       'js/entity-resolver.js?v=2',
-      'js/job-templates-ui.js?v=9',
+      'js/job-templates-ui.js?v=10',
       // Upgrades & Add-ons (2026-09-25): the retail upgrade library, then the
       // pure pricing core that reads it, then Settings → Upgrade prices,
       // which needs both. The Estimates settings tab loads this bundle

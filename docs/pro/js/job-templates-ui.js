@@ -135,6 +135,7 @@
     collapsed: {},           // templateId -> bool (preconfirm sections)
     tier: 'better',          // used only when a selected template is tierPriced (see tiersApply)
     repairWarranty: false,   // per-estimate "1-year workmanship warranty" box — repair-kind jobs only, off by default
+    warrantyPackage: 'standard', // siding replacement's package (5/10/20-yr labor warranty) — siding jobs only; prices nothing
     jobMode: 'cash',
     county: '',              // tax jurisdiction — neutral "Other / My county" default (estimate-v2-ui.js parity; engines fail safe at $150 permit / 7% tax)
     measurements: Object.assign({}, MEAS_DEFAULTS),
@@ -510,6 +511,7 @@
       leadId: state.leadId || null,
       tier: state.tier,
       repairWarranty: state.repairWarranty === true,
+      warrantyPackage: state.warrantyPackage,
       jobMode: state.jobMode,
       county: state.county || '',
       measurements: Object.assign({}, state.measurements)
@@ -543,6 +545,24 @@
     return kinds.indexOf('repair') !== -1 && kinds.indexOf('roof') === -1;
   }
 
+  // The siding-replacement Package row (Jo, 2026-10-15): Standard / Preferred /
+  // Elite sets the labor warranty (5 / 10 / 20 years, the roof tiers' transfer
+  // terms) and prices nothing. Shown only when a selected template is siding
+  // replacement and no roofing template is (roofing wording then covers all).
+  var WARRANTY_PACKAGES = ['standard', 'preferred', 'elite'];
+  var WARRANTY_PACKAGE_LABELS = { standard: 'Standard · 5 yr', preferred: 'Preferred · 10 yr', elite: 'Elite · 20 yr' };
+  function selectionHasSiding() {
+    var JT = engine();
+    if (!JT || typeof JT.warrantyKindOf !== 'function') return false;
+    var kinds = state.selected.map(function (tid) { return JT.warrantyKindOf(getTpl(tid)); });
+    return kinds.indexOf('siding') !== -1 && kinds.indexOf('roof') === -1;
+  }
+
+  // The warranty choices the payload builder reads, for the preview paths.
+  function warrantyOpts() {
+    return { repairWarranty: state.repairWarranty === true, warrantyPackage: state.warrantyPackage };
+  }
+
   // The workmanship-warranty sentence this estimate's paperwork will print.
   // Built from the SAME payload createEstimate saves and read through the SAME
   // helper the proposal/contract/portal paths use, so the preview cannot say
@@ -553,7 +573,7 @@
     if (!res || !res.totals || !JT || typeof JT.buildEstimatePayload !== 'function'
         || !rows || typeof rows.estimateWarranty !== 'function') return '';
     try {
-      var w = rows.estimateWarranty(JT.buildEstimatePayload(res, { repairWarranty: state.repairWarranty === true }));
+      var w = rows.estimateWarranty(JT.buildEstimatePayload(res, warrantyOpts()));
       if (!w) return '';
       if (w.text !== null) return w.text;
       var cfg = window.NBD_ESTIMATE_CONFIG;
@@ -1066,6 +1086,7 @@
     state.createErr = '';
     state.leadId = null; // lead context is per-open, never sticky
     state.repairWarranty = false; // a warranty is chosen per estimate — never carried into the next one
+    state.warrantyPackage = 'standard'; // so is the siding package
     state.upg = freshUpg();       // so are upgrade picks, stars and "No thanks" answers
     var ho = document.getElementById('jtHomeowner');
     if (ho) { ho.classList.remove('open'); ho.innerHTML = ''; }
@@ -1363,7 +1384,14 @@
         (state.repairWarranty ? ' checked' : '') + '> 1-year workmanship warranty</label></div>'
       : '';
 
-    var modeSeg = '<div><span class="jt-ctl-lbl">Job mode</span><div class="jt-seg">' +
+    var packageSeg = selectionHasSiding()
+      ? '<div><span class="jt-ctl-lbl">Siding package (labor warranty)</span><div class="jt-seg">' +
+        WARRANTY_PACKAGES.map(function (p) {
+          return '<button type="button" class="' + (state.warrantyPackage === p ? 'on' : '') + '" data-jt-action="set-warranty-package" data-id="' + p + '">' + WARRANTY_PACKAGE_LABELS[p] + '</button>';
+        }).join('') + '</div></div>'
+      : '';
+
+    var modeSeg ='<div><span class="jt-ctl-lbl">Job mode</span><div class="jt-seg">' +
       ['cash', 'insurance'].map(function (m) {
         return '<button type="button" class="' + (state.jobMode === m ? 'on' : '') + '" data-jt-action="set-jobmode" data-id="' + m + '">' + (m === 'cash' ? 'Cash' : 'Insurance') + '</button>';
       }).join('') + '</div></div>';
@@ -1384,7 +1412,7 @@
     // items. It is painted by refreshTotals() (it needs the resolved lines —
     // offers and footage follow the scope), so this is only its slot.
     var html = '<div class="jt-col">' +
-      '<div class="jt-topctl">' + tierSeg + modeSeg + countySel + repairBox + measBtn + '</div>' +
+      '<div class="jt-topctl">' + tierSeg + modeSeg + countySel + repairBox + packageSeg + measBtn + '</div>' +
       (state.measOpen ? renderMeasPanel() : '') +
       '<div id="jtUpgCard"></div>';
 
@@ -1692,7 +1720,7 @@
     var pv = null;
     var errors = [];
     try {
-      var base = JT.buildEstimatePayload(res, { repairWarranty: state.repairWarranty === true });
+      var base = JT.buildEstimatePayload(res, warrantyOpts());
       if (base) {
         var r = JT.applyUpgrades(base, res, sel);
         errors = r.errors || [];
@@ -3064,6 +3092,10 @@
           break;
         case 'set-tier':
           if (id && TIERS.indexOf(id) !== -1) { state.tier = id; paintModal(); }
+          break;
+        case 'set-warranty-package':
+          // Warranty terms only — no price change, so no re-resolve.
+          if (id && WARRANTY_PACKAGES.indexOf(id) !== -1) { state.warrantyPackage = id; paintModal(); }
           break;
         case 'set-jobmode':
           if (id === 'cash' || id === 'insurance') { state.jobMode = id; paintModal(); }

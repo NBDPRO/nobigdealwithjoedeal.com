@@ -157,12 +157,14 @@
 
   // Hydrate any static rating/count hooks elsewhere on the page (e.g. the
   // /review hero score box, the homepage #reviews summary) from the same
-  // payload. The rating/stars hooks ship with static fallback text, so a
-  // failed fetch simply leaves them untouched — last-known-true beats a zero.
-  // The COUNT is the exception (2026-10-06): a hard-coded "29" goes stale the
-  // day the next review lands, so data-nbd-gr-total ships EMPTY inside a
-  // `hidden` data-nbd-gr-total-wrap, and only a live count reveals it. A
-  // failed fetch shows "5.0 on Google" with no count at all.
+  // payload. A failed fetch leaves every hook untouched — never a zero.
+  // The COUNT ships EMPTY (2026-10-06): a hard-coded "29" goes stale the
+  // day the next review lands, so data-nbd-gr-total sits inside a `hidden`
+  // data-nbd-gr-total-wrap, and only a live count reveals it. The RATING
+  // followed (2026-10-15): data-nbd-gr-rating ships empty inside a hidden
+  // data-nbd-gr-rating-wrap, and a data-nbd-gr-rating-fallback ("Real Google
+  // reviews") shows until a live rating hides it. A failed fetch shows no
+  // number at all.
   //
   // Five hooks, because the pages need different shapes of the same numbers:
   //   data-nbd-gr-rating  the score alone ("5.0")
@@ -186,6 +188,13 @@
     document.querySelectorAll('[data-nbd-gr-rating]').forEach((el) => {
       el.textContent = rating.toFixed(1);
     });
+    // The rating ships EMPTY too (2026-10-15): it sits inside a hidden
+    // data-nbd-gr-rating-wrap, beside a plain data-nbd-gr-rating-fallback
+    // ("Real Google reviews"). Only a live rating swaps one for the other.
+    if (rating > 0) {
+      document.querySelectorAll('[data-nbd-gr-rating-wrap]').forEach((el) => { el.hidden = false; });
+      document.querySelectorAll('[data-nbd-gr-rating-fallback]').forEach((el) => { el.hidden = true; });
+    }
     document.querySelectorAll('[data-nbd-gr-total]').forEach((el) => {
       el.textContent = String(total);
     });
