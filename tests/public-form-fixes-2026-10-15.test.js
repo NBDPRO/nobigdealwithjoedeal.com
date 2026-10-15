@@ -336,6 +336,34 @@ function buildQuiz(P) {
     ok('joesTake arms a 30 s abort and passes the signal', /setTimeout\(function \(\) \{ ctrl\.abort\(\); \}, 30000\)/.test(jt) && /signal: ctrl \? ctrl\.signal : undefined/.test(jt));
   }
 
+  console.log('\nM4 — /estimate "Email my estimate" does not promise an email the server may not send');
+  {
+    // The email goes out from a Firestore trigger (functions/estimate-email.js)
+    // that can throttle, dry-run or skip it; submitPublicLead's response only
+    // says the request doc was saved. The success text must say just that.
+    const src = read('docs/assets/js/inline/4053149b2f.js');
+    const at = src.indexOf('async function emailEstimate(btn) {');
+    let depth = 0, i = src.indexOf('{', at);
+    for (; i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}' && --depth === 0) break; }
+    const run = async (savedId) => {
+      const btn = { textContent: '', disabled: false, style: {} };
+      const ctx = {
+        funnelData: { email: 'pat@example.com', estimate: {} }, trackCTA() {}, buildEstimateSummary: () => 's',
+        window: { _saveLead: async () => savedId }, document: { getElementById: () => null }, console,
+      };
+      vm.createContext(ctx);
+      vm.runInContext(src.slice(at, i + 1), ctx);
+      await ctx.emailEstimate(btn);
+      return btn;
+    };
+    const okBtn = await run('lead-1');
+    ok('a saved request no longer says "Check your inbox"', !/check your inbox/i.test(okBtn.textContent), okBtn.textContent);
+    ok('…it says the email was requested and should arrive in a few minutes', /requested/i.test(okBtn.textContent) && /few minutes/i.test(okBtn.textContent), okBtn.textContent);
+    ok('…with the call/text fallback if it does not', /\(859\) 420-7382/.test(okBtn.textContent), okBtn.textContent);
+    const failBtn = await run(null);
+    ok('a failed save keeps the call/text message and re-enables the button', /Couldn't send/.test(failBtn.textContent) && failBtn.disabled === false, failBtn.textContent);
+  }
+
   console.log('\nM1 — "None / not sure" clears when a real sign is picked');
   for (const [rel, P] of [['docs/assets/js/storm-check.js', 'sc'], ['docs/assets/js/roof-score.js', 'rs']]) {
     const t = loadTool(rel, buildQuiz(P));

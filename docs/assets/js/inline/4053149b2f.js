@@ -1673,7 +1673,7 @@ function buildEstimateSummary(est) {
 }
 
 // `btn` is passed through from the delegated [data-action] handler so we
-// never rely on the global `event`. Only claims "Sent!" once _saveLead
+// never rely on the global `event`. Only says "Requested" once _saveLead
 // resolves with a real document id (it returns the id or null).
 async function emailEstimate(btn) {
   // Email is optional on the contact step (2026-10-03). Without one, the first
@@ -1721,7 +1721,11 @@ async function emailEstimate(btn) {
 
   if (!btn) return;
   if (id) {
-    btn.textContent = 'Sent! Check your inbox ✓';
+    // A saved id means the REQUEST was stored, not that an email went out:
+    // functions/estimate-email.js sends it from a trigger that can throttle
+    // (per-recipient and daily caps), dry-run or skip it, and nothing about
+    // that comes back to this page (2026-10-15, review M4).
+    btn.textContent = 'Requested ✓ It should arrive in a few minutes. Not there? Call/text (859) 420-7382';
   } else {
     btn.textContent = 'Couldn\'t send — call/text (859) 420-7382';
     btn.disabled = false;
