@@ -160,7 +160,7 @@ const PRICED = engineStack({
   recordJobItems: () => Promise.resolve(false), hydrate: () => Promise.resolve(null),
 });
 
-const KINDS = ['roof', 'gutter_system', 'guard_only', 'install_default', 'repair', 'none'];
+const KINDS = ['roof', 'gutter_system', 'guard_only', 'install_default', 'repair', 'none', 'siding'];
 const byId = {}; TPLS.forEach((t) => { byId[t.id] = t; });
 const payloadFor = (ids, opts, env) => {
   const jt = (env || BARE).win.JobTemplates;
@@ -204,8 +204,10 @@ section('1. DATA — explicit warranty kind per template');
   // The legacy table (estimates saved before 2026-09-25) is a copy of the
   // data: every default whose kind grants years without a rep choice, with
   // its kind and name — and nothing else (no repair, none, roof or unknown id).
-  const want = TPLS.filter((t) => ['gutter_system', 'guard_only', 'install_default'].indexOf(t.warrantyKind) !== -1)
-    .map((t) => t.id + '=' + t.warrantyKind + '|' + t.name).sort();
+  // Siding replacement (kind 'siding' since 2026-10-15) printed 2 years before
+  // then, so its legacy row stays install_default (old paperwork unchanged).
+  const want = TPLS.filter((t) => ['gutter_system', 'guard_only', 'install_default', 'siding'].indexOf(t.warrantyKind) !== -1)
+    .map((t) => t.id + '=' + (t.warrantyKind === 'siding' ? 'install_default' : t.warrantyKind) + '|' + t.name).sort();
   const have = Object.keys(ROWS.LEGACY_WARRANTY_BY_ID)
     .map((id) => id + '=' + ROWS.LEGACY_WARRANTY_BY_ID[id][0] + '|' + ROWS.LEGACY_WARRANTY_BY_ID[id][1]).sort();
   const missing = want.filter((x) => have.indexOf(x) === -1), extra = have.filter((x) => want.indexOf(x) === -1);
@@ -309,7 +311,9 @@ const SERVER_ROWS = require(path.join(ROOT, 'functions', 'customer-estimate-rows
     JSON.stringify(cfgTable) + ' vs ' + JSON.stringify(ROWS.WORKMANSHIP_WARRANTY_FALLBACK));
   ok('config: gutter_system 5 / guard_only 2 / install_default 2 / repair 1 opt-in / none 0',
     cfgTable.gutter_system.years === 5 && cfgTable.guard_only.years === 2 && cfgTable.install_default.years === 2
-      && cfgTable.repair.years === 1 && cfgTable.repair.optIn === true && cfgTable.none.years === 0 && cfgTable.roof.tierWording === true);
+      && cfgTable.repair.years === 1 && cfgTable.repair.optIn === true && cfgTable.none.years === 0 && cfgTable.roof.tierWording === true
+      && cfgTable.siding.byPackage.standard.years === 5 && cfgTable.siding.byPackage.preferred.years === 10
+      && cfgTable.siding.byPackage.elite.years === 20);
   const ids = ['jt_gi_k5_seamless_full', 'jt_gr_guard_install_50lf', 'jt_gr_hanger_resecure', 'jt_fr_asphalt_good'];
   const same = ids.every((id) => [false, true].every((rw) => {
     const est = payloadFor([id], { repairWarranty: rw });

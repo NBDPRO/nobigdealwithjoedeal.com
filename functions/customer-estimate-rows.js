@@ -341,7 +341,27 @@
     repair:          { years: 1, optIn: true },
     none:            { years: 0 },
     roof:            { tierWording: true },
+    siding:          { byPackage: {
+      standard:  { label: 'Standard', years: 5, transferable: false, transferWindowDays: 0 },
+      preferred: { label: 'Preferred', years: 10, transferable: true, transferWindowDays: 30 },
+      elite:     { label: 'Elite', years: 20, transferable: true, transferWindowDays: 0 },
+    } },
   };
+
+  // Siding replacement packages (Jo, 2026-10-15). A siding estimate saves
+  // `warrantyPackage`; one without it (or with an unknown value) reads as
+  // Standard, the smallest promise. Same transfer phrases as roofing's
+  // tierWarrantyText (estimate-config.js), so the two never disagree.
+  const WARRANTY_PACKAGES = ['standard', 'preferred', 'elite'];
+  function warrantyPackageOf(est) {
+    const p = String((est && est.warrantyPackage) || '').toLowerCase();
+    return WARRANTY_PACKAGES.indexOf(p) !== -1 ? p : 'standard';
+  }
+  function transferPhrase(t) {
+    if (!t.transferable) return 'does not transfer on sale of property';
+    if (t.transferWindowDays) return 'transferable to one subsequent owner within ' + t.transferWindowDays + ' days of sale';
+    return 'fully transferable — follows the property through all subsequent owners';
+  }
 
   // ESTIMATES SAVED BEFORE 2026-09-25 carry no tierApplies/warrantyKind, only
   // the silent tier and `sourceTemplates`. The rule for them: a Job Template
@@ -370,6 +390,11 @@
   // tests/job-template-honest-paperwork.test.js pins this table to the data
   // both ways (every gutter_system / guard_only / install_default default is
   // here with its kind and name, and nothing else is).
+  // Siding replacement (2026-10-15) became kind 'siding' (5/10/20 by package)
+  // for NEW estimates only. An estimate saved before then printed 2 years, so
+  // its row here stays 'install_default' on purpose: a customer's existing
+  // paperwork is never changed retroactively. (Estimates saved 2026-09-25 to
+  // 2026-10-15 carry warrantyKind 'install_default' themselves and keep it.)
   const LEGACY_WARRANTY_BY_ID = {
     jt_lf_chimney_cricket: ['install_default', 'Chimney Cricket / Saddle Install'],
     jt_lf_skylight_replace_curb: ['install_default', 'Skylight Replacement (Curb-Mount)'],
@@ -451,10 +476,24 @@
 
   function warrantyYears(kind, repairWarranty) {
     const entry = warrantyTable()[kind];
-    if (!entry || entry.tierWording) return 0;
+    if (!entry || entry.tierWording || entry.byPackage) return 0;
     if (entry.optIn && repairWarranty !== true) return 0;
     const y = Number(entry.years);
     return Number.isFinite(y) && y > 0 ? y : 0;
+  }
+
+  // One part's terms: { years, qual, terms }. qual/terms are '' for every
+  // kind but a by-package one (siding): qual names the package, terms is the
+  // transfer phrase. 0 years = this part carries no workmanship warranty.
+  function warrantyTerms(kind, est) {
+    const entry = warrantyTable()[kind];
+    if (entry && entry.byPackage) {
+      const t = entry.byPackage[warrantyPackageOf(est)];
+      const y = t ? Number(t.years) : 0;
+      if (!(Number.isFinite(y) && y > 0)) return { years: 0, qual: '', terms: '' };
+      return { years: y, qual: ' (' + t.label + ' package)', terms: transferPhrase(t) };
+    }
+    return { years: warrantyYears(kind, est.repairWarranty), qual: '', terms: '' };
   }
 
   function joinNames(names) {
@@ -482,6 +521,11 @@
    *          2026-09-25: its kinds come from LEGACY_WARRANTY_BY_ID, so a gutter
    *          system still gets its 5 years and a repair gets none (the box
    *          did not exist). Screens use the flag to say why there is none.
+   *   Siding replacement (kind 'siding', 2026-10-15): years and transfer
+   *          terms from est.warrantyPackage (standard 5 / preferred 10 /
+   *          elite 20; missing or unknown = standard), e.g. "10-year
+   *          workmanship warranty (Preferred package); transferable to one
+   *          subsequent owner within 30 days of sale."
    */
   function estimateWarranty(est) {
     if (!est || isPerSqEstimate(est)) return null;
@@ -520,27 +564,35 @@
       return { kind: 'roof', wordingTier: t || 'better', years: null, text: null };
     }
     if (!(Array.isArray(parts) && parts.length)) parts = [{ name: '', kind: kind }];
+    // Siding replacement prints its package's years and transfer terms
+    // (2026-10-15); every other kind has empty qual/terms, so its sentence is
+    // byte-for-byte what it was.
     const covered = [];
     parts.forEach(function (p) {
-      const y = warrantyYears(p && p.kind, est.repairWarranty);
-      if (y > 0) covered.push({ name: String((p && p.name) || '').trim(), years: y });
+      const t = warrantyTerms(p && p.kind, est);
+      if (t.years > 0) {
+        covered.push({ name: String((p && p.name) || '').trim(), years: t.years, qual: t.qual, terms: t.terms,
+          key: t.years + '|' + t.qual + '|' + t.terms });
+      }
     });
     if (!covered.length) return result(null, '');
-    const uniform = covered.every(function (c) { return c.years === covered[0].years; });
+    const tail = function (c) { return c.terms ? '; ' + c.terms + '.' : '.'; };
+    const uniform = covered.every(function (c) { return c.key === covered[0].key; });
     if (uniform && covered.length === parts.length) {
-      return result(covered[0].years, covered[0].years + '-year workmanship warranty.');
+      const c0 = covered[0];
+      return result(c0.years, c0.years + '-year workmanship warranty' + c0.qual + tail(c0));
     }
-    // Part of the job is warranted and part is not, or durations differ: name
+    // Part of the job is warranted and part is not, or terms differ: name
     // each warranted part, so the sentence cannot be read as covering the rest.
-    const byYears = {};
+    const byKey = {};
     const order = [];
     covered.forEach(function (c) {
-      if (!byYears[c.years]) { byYears[c.years] = []; order.push(c.years); }
-      if (c.name) byYears[c.years].push(c.name);
+      if (!byKey[c.key]) { byKey[c.key] = { c: c, names: [] }; order.push(c.key); }
+      if (c.name) byKey[c.key].names.push(c.name);
     });
-    const text = order.map(function (y) {
-      const names = byYears[y];
-      return y + '-year workmanship warranty' + (names.length ? ' on ' + joinNames(names) : '') + '.';
+    const text = order.map(function (k) {
+      const g = byKey[k];
+      return g.c.years + '-year workmanship warranty' + g.c.qual + (g.names.length ? ' on ' + joinNames(g.names) : '') + tail(g.c);
     }).join(' ');
     return result(null, text);
   }
@@ -683,6 +735,8 @@
     tierApplies: tierApplies,
     estimateWarranty: estimateWarranty,
     WORKMANSHIP_WARRANTY_FALLBACK: WORKMANSHIP_WARRANTY_FALLBACK,
+    WARRANTY_PACKAGES: WARRANTY_PACKAGES,
+    warrantyPackageOf: warrantyPackageOf,
     ROOFING_TEMPLATE_ID_RE: ROOFING_TEMPLATE_ID_RE,
     LEGACY_WARRANTY_BY_ID: LEGACY_WARRANTY_BY_ID,
     PRICED_FIELDS: PRICED_FIELDS,
