@@ -63,7 +63,11 @@ const fs = require('fs');
 const read = (p) => fs.readFileSync(path.join(__dirname, '..', 'functions', p), 'utf8');
 ok('sendEmail still verifies the caller (401 without a valid ID token)', /res\.status\(401\)/.test(read('email-functions.js')) && /verifyIdToken/.test(read('email-functions.js')));
 ok('sendSMS still verifies the caller (401 without a valid ID token)', /res\.status\(401\)/.test(read('sms-functions.js')) && /verifyIdToken/.test(read('sms-functions.js')));
-ok('cspReport keeps its per-IP rate limit', /httpRateLimit\(req, res, 'cspReport:ip'/.test(read('handlers/monitoring.js')));
+// 2026-10-15: the limiter call moved into csp-report-logic.js (dedupe first,
+// sampled INFO on denial); the namespace and 60/min stay.
+ok('cspReport keeps its per-IP rate limit', /cspReportLogic\.makeCspReportHandler\(\{[\s\S]*enforceRateLimit/.test(read('handlers/monitoring.js'))
+  && /const NAMESPACE = 'cspReport:ip';/.test(read('csp-report-logic.js'))
+  && /enforceRateLimit\(NAMESPACE, ip, RATE_LIMIT, RATE_WINDOW_MS/.test(read('csp-report-logic.js')));
 
 // The weekly watch (scripts/check-public-invoker.mjs, invoker-watch.yml):
 // its pure rules, against the REAL export list.
