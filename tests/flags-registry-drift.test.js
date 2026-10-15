@@ -88,8 +88,9 @@ for (const f of FLAGS) {
   ok(`${f.name}: registry file "${f.file}" is a file that really reads it`, where.has(f.file), JSON.stringify([...where]));
 }
 
-ok('registry pins 39 flags (update deliberately: 33 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag)',
-  FLAGS.length === 39, String(FLAGS.length));
+// 41 (2026-10-15): + REVIEW_ASK_AUTO_EMAIL_ENABLED / REVIEW_ASK_AUTO_TEXT_ENABLED (two more gates).
+ok('registry pins 41 flags (update deliberately: 35 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag)',
+  FLAGS.length === 41, String(FLAGS.length));
 
 // ── cron-gates.js stays the single polarity source ────────────────────────
 const gateNames = new Set(CRON_GATES.map((g) => g.name));
@@ -134,7 +135,7 @@ ok('no registry name looks like a secret (KEY/SECRET/TOKEN/PASSWORD)', FLAGS.eve
 ok('every group in GROUPS is used by at least one flag', GROUPS.every((g) => FLAGS.some((f) => f.group === g)));
 ok('the ships-dark hints are exactly the flags that shipped dark awaiting Jo\'s go',
   JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()) === JSON.stringify([
-    'AWAY_MODE_ENABLED', 'CARE_PLAN_MODE', 'MISSED_CALL_AUTOTEXT_ENABLED', 'SOCIAL_GBP_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED',
+    'AWAY_MODE_ENABLED', 'CARE_PLAN_MODE', 'MISSED_CALL_AUTOTEXT_ENABLED', 'REVIEW_ASK_AUTO_TEXT_ENABLED', 'SOCIAL_GBP_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED',
     'THURSDAY_LABEL_PLAYBOOKS_ENABLED', 'TWILIO_INBOUND_ENABLED']),
   JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()));
 

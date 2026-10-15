@@ -561,6 +561,12 @@
     .card { break-inside: avoid; box-shadow: none; }
     .doc-row, .ph-tile { break-inside: avoid; }
   }
+
+  /* Rating card (2026-10-15): the straight-to-Google review link, offered to
+     everyone before (and without) a rating. Classes, not inline styles. */
+  .cr-review-lede { color: var(--muted); margin: 0 0 12px; font-size: 14px; line-height: 1.5; }
+  a.cr-review-link { display: flex; width: 100%; box-sizing: border-box; padding: 13px; font-size: 15px; font-weight: 600; text-decoration: none; margin: 0 0 14px; }
+  .cr-private-lede { color: var(--muted); margin: 4px 0 10px; font-size: 13px; line-height: 1.5; }
 </style>
 <link rel="stylesheet" href="/assets/css/nbd-mobile.css">
 </head>
@@ -608,6 +614,6 @@
 <!-- "A video from Thursday" card (NBD only; ships dark until a video is
      configured). Before portal.js, which reads window.NBDThursdayVideo. -->
 <script defer src="js/thursday-video.js?v=1"></script>
-<script src="js/portal.js?v=16" defer></script>
+<script src="js/portal.js?v=17" defer></script>
 </body>
 </html>

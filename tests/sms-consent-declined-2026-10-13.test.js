@@ -539,6 +539,7 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
       'lead-alert.js': { exempt: 'staff alerts to Jo; the homeowner ack is gated by smsAckGate which requires tcpaConsent === true (stricter than "not declined")' },
       'storm-watch.js': { exempt: 'Joe\'s own alert; subscriber texts go through storm-sms-guard (subscriber tcpaConsent === true, a separate signup consent)' },
       'call-center.js': { covered: ['missed-call-autotext.js'], note: 'sendAutoText is the missed-call auto-text\'s Twilio sender (dark: MISSED_CALL_AUTOTEXT_ENABLED); maybeAutoTextMissedCall requires a web-form tcpaConsent === true, the STOP/DNT register, then ConsentDeclined.decide kind automated, all before the claim and the send' },
+      'review-ask-auto.js': { covered: ['askOne'], note: 'the automatic review ask by text (dark: REVIEW_ASK_AUTO_TEXT_ENABLED); planText requires a web-form tcpaConsent === true and the 8am-9pm window, then the STOP/DNT register, ConsentDeclined.decide kind automated and the texting switch, all before the claim and the send' },
       'verify-functions.js': { exempt: 'one-time verification code to the number the user is verifying; not a customer message' },
     };
     const files = fs.readdirSync(FUNCTIONS).filter((f) => f.endsWith('.js'));

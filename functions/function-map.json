@@ -222,6 +222,7 @@
   "resolveAddress": "./handlers/geocode",
   "resumeMemberStorageMoves": "./member-storage-move-cron",
   "reverifyCompanyKnocks": "./handlers/reverify-knocks",
+  "reviewAskAutoSweep": "./review-ask-auto",
   "reviewRequestNudge": "./review-request-nudge",
   "revokeAgentKey": "./agent-mcp",
   "revokeMySessions": "./handlers/auth",

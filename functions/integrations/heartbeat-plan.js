@@ -100,6 +100,7 @@ const PLAN = {
   reviewRequestNudge:        { slug: 'daily-customer-touches' },
   onAfterInstallDay:         { slug: 'daily-customer-touches' }, // #2147: 07:15 ET push to Jo
   esignReminderSweep:        { slug: 'daily-customer-touches' }, // #2166: 10:00 ET signer reminders
+  reviewAskAutoSweep:        { slug: 'daily-customer-touches' }, // 2026-10-15: 10:00 ET automatic review ask
   invoiceOverdueSweep:       { slug: 'daily-customer-touches' }, // R4 dates: 08:15 ET overdue flags
 
   syncGbpReviews:            { slug: 'daily-syncs' },

@@ -61,6 +61,10 @@ const { isQuietBackfill } = require('./quiet-backfill');
 // Paid in full (Jo, 2026-10-03): the ask waits until the job's money is in —
 // the ONE rule the client bell / review deck / spine task also use.
 const PIF = require('./paid-in-full');
+// The automatic homeowner review ask (2026-10-15, review-ask-auto.js): the
+// window there counts from the payment's DATE RECEIVED (receivedMs), and the
+// nudge waits for a job that sweep will ask (willHandle).
+const RA = require('./review-ask-auto-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM     = defineSecret('EMAIL_FROM');
@@ -278,12 +282,27 @@ async function paidAnchor(db, rec, leadId, jobId, fallbackTs) {
   try { invoices = await PIF.loadLeadInvoices(db, leadId, rec, jobId || null); }
   catch (e) { logger.warn('review_nudge_invoices_read_failed', { leadId, err: e.message }); return null; }
   if (!PIF.paidInFull(rec, invoices)) return null;
-  return { ms: Math.max(stageMs, PIF.lastPaidMs(invoices)) };
+  // receivedMs: the latest payment's DATE RECEIVED only (no stage date, no
+  // recordedAt) — the automatic ask's window (review-ask-auto-logic.js).
+  return { ms: Math.max(stageMs, PIF.lastPaidMs(invoices)), receivedMs: RA.receivedMs(invoices) };
 }
 
 // ─── Per-user aggregation ────────────────────────────────────────
-async function findReviewDueLeads(db, uid) {
-  const now = Date.now();                            // the 3–21 day window lives in reviewAskDue
+// opts.mode 'nudge' (default): the rep nudge. A job the automatic ask will
+//   handle (RA.willHandle: its flag on, NBD, an address or consented number,
+//   money RECEIVED 3–21 days ago, not yet tried) is left for that sweep, so
+//   Joe is not told to ask by hand for an ask that is about to go out.
+// opts.mode 'auto': the automatic ask's candidates. Same lanes and latches,
+//   but the 3–21 day window counts from receivedMs (the payment's date
+//   received), never from the stage date: a payment backfilled today with an
+//   old date is outside it.
+async function findReviewDueLeads(db, uid, opts) {
+  const o = opts || {};
+  const auto = o.mode === 'auto';
+  const env = o.env || process.env;
+  const now = Number(o.nowMs) || Date.now();         // the 3–21 day window lives in reviewAskDue
+  // A job the automatic ask will take: skipped by the nudge (see above).
+  const leaveForAuto = (lead, job, jobId, paid) => !auto && RA.willHandle({ env, lead, job, jobId, recvMs: paid.receivedMs, nowMs: now });
 
   // Two query lanes, merged + deduped: persisted-role (custom stages
   // included — leads(userId, stageRole) composite) and the legacy key
@@ -331,14 +350,15 @@ async function findReviewDueLeads(db, uid) {
     // (stageStartedAt, stamped by every moveCard; updatedAt is the
     // pre-rollout fallback) and the last invoice payment. The lead's fields
     // are its ACTIVE job's; that job's own latch lives on its job doc.
-    const wonMs = paid.ms;
+    const wonMs = auto ? paid.receivedMs : paid.ms;
     let job = null;
     if (jobId && reviewAskDue(lead, null, jobId, wonMs, now)) {
       try { const js = await db.collection('leads').doc(lead.id).collection('jobs').doc(jobId).get(); job = js.exists ? js.data() : null; }
       catch (_) { job = null; }
     }
     if (!reviewAskDue(lead, job, jobId, wonMs, now)) continue;
-    out.push({ ...lead, wonMs, jobId, jobTitle: (job && job.title) || null });
+    if (leaveForAuto(lead, job, jobId, paid)) continue;
+    out.push({ ...lead, wonMs, receivedMs: paid.receivedMs, jobId, job, jobTitle: (job && job.title) || null });
   }
 
   // A customer's OTHER jobs that were won recently (multi-job). One
@@ -364,9 +384,10 @@ async function findReviewDueLeads(db, uid) {
     // The job's own invoices (its jobId, or none stamped) must owe nothing.
     const paid = await paidAnchor(db, Object.assign({}, job, { companyId: lead.companyId, userId: lead.userId }), leadId, d.id, job.closedAt);
     if (!paid) continue;
-    const wonMs = paid.ms;
+    const wonMs = auto ? paid.receivedMs : paid.ms;
     if (!reviewAskDue(lead, job, d.id, wonMs, now)) continue;
-    out.push({ ...lead, wonMs, jobId: d.id, jobTitle: job.title || null });
+    if (leaveForAuto(lead, job, d.id, paid)) continue;
+    out.push({ ...lead, wonMs, receivedMs: paid.receivedMs, jobId: d.id, job, jobTitle: job.title || null });
   }
 
   // Never two asks to one customer in one sweep: keep their newest win.

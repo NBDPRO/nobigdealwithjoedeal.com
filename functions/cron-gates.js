@@ -79,6 +79,10 @@ const CRON_GATES = [
   // caller with stored web-form consent (missed-call-autotext.js). DARK until
   // the A2P campaign is approved; the one-tap reply DRAFT is not behind it.
   { name: 'MISSED_CALL_AUTOTEXT_ENABLED', polarity: 'enabled', file: 'call-center.js' },
+  // Automatic homeowner review ask (2026-10-15, reviewAskAutoSweep 10:00 ET):
+  // the email is live on nobigdeal-pro; the text is DARK until A2P approval.
+  { name: 'REVIEW_ASK_AUTO_EMAIL_ENABLED', polarity: 'enabled', file: 'review-ask-auto.js' },
+  { name: 'REVIEW_ASK_AUTO_TEXT_ENABLED', polarity: 'enabled', file: 'review-ask-auto.js' },
 ];
 
 /**
