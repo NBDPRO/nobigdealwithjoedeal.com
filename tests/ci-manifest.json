@@ -33,6 +33,7 @@
     "missed-call-reply-2026-10-15.test.js",
     "csp-report-noise-2026-10-15.test.js",
     "public-intake-hardening-2026-10-15.test.js",
+    "free-guide-honesty-2026-10-16.test.js",
     "handle-optout-controls-2026-10-13.test.js",
     "away-mode-2026-10-12.test.js",
     "layout-mapview-2026-10-12.test.js",

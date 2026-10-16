@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
-    <meta name="description" content="Free guide: 12 proven systems to dominate your local market as a contractor. No ad spend required. Download now.">
+    <meta name="description" content="A free local-marketing playbook for contractors from Joe Deal, a roofer who built NBD Pro to run his own company. Google Business Profile, reviews, SEO and more.">
     <meta name="theme-color" content="#1A3057">
-    <title>Free Guide: Dominate Your Local Market Without Ad Spend | No Big Deal with Joe Deal</title>
+    <title>Free Local Marketing Playbook for Contractors | NBD Pro</title>
     <link rel="canonical" href="https://nobigdealwithjoedeal.com/sites/free-guide">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Free Guide: Dominate Your Local Market Without Ad Spend">
-    <meta property="og:description" content="12 proven systems. Zero ad spend. Built by a contractor who's done it.">
+    <meta property="og:title" content="Free Local Marketing Playbook for Contractors">
+    <meta property="og:description" content="12 practical systems for getting found locally without paid ads, from a roofer who uses them.">
     <meta property="og:image" content="https://nobigdealwithjoedeal.com/assets/images/joe-hero.jpg">
     <meta property="og:url" content="https://nobigdealwithjoedeal.com/sites/free-guide">
     <link rel="icon" href="/pro/favicon.svg" type="image/svg+xml">
@@ -321,6 +321,46 @@
 
         button:active {
             transform: translateY(0);
+        }
+
+        .consent-check {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            font-weight: 500;
+            font-size: .85rem;
+            line-height: 1.45;
+            color: var(--gray);
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .consent-check input {
+            margin-top: 3px;
+            width: 18px;
+            height: 18px;
+            flex: 0 0 auto;
+        }
+
+        .inline-link {
+            color: var(--orange);
+            font-weight: 600;
+        }
+
+        .success-next {
+            margin-top: 18px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(0,0,0,.08);
+            font-size: .88rem;
+            line-height: 1.55;
+        }
+
+        .success-next-link {
+            display: inline-block;
+            margin-top: 10px;
+            font-weight: 800;
+            color: var(--orange);
+            text-decoration: underline;
         }
 
         .trust-line {
@@ -849,7 +889,7 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 </head>
 <body>
     <!-- Announcement Bar -->
-    <div class="ann-bar">Your Free Guide to Local Market Domination Awaits Below</div>
+    <div class="ann-bar">Free for contractors: the local marketing playbook behind NBD Pro</div>
 
     <!-- Navigation -->
     <nav>
@@ -890,8 +930,8 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     <section id="hero" class="hero">
         <div class="hero-inner">
             <div class="hero-content">
-                <h1>Dominate Your Local Market <span>Without Spending a Dollar on Ads</span></h1>
-                <p class="hero-subhead">12 proven systems. Zero ad spend. Built by a contractor who's done it. Download the free playbook that's helping 500+ contractors crush their local market.</p>
+                <h1>Get Found Locally <span>Without Paying for Ads</span></h1>
+                <p class="hero-subhead">12 practical systems for your Google Business Profile, reviews, website and local search. Written by Joe Deal, a roofer who started No Big Deal Home Solutions in 2026 and built NBD Pro to run it. Free.</p>
 
                 <div class="form-wrapper">
                     <form id="optinForm">
@@ -905,30 +945,30 @@ footer.foot a,.review-footer a{color:#bd5728!important}
                             <input type="email" id="email" name="email" placeholder="john@example.com" required>
                         </div>
 
+                        <label class="consent-check" for="emailConsent"><input type="checkbox" id="emailConsent" name="emailConsent" value="yes"> <span>Also email me occasional NBD Pro tips from Joe (a few emails at most). Unsubscribe any time.</span></label>
                         <div style="position:absolute;left:-9999px;"><input type="text" name="nbd_hp" tabindex="-1" autocomplete="off"></div>
-                        <button type="submit">Get the Free Guide</button>
+                        <button type="submit">Email Me the Free Guide</button>
 
                         <div class="success-state" id="successState">
                             <div class="checkmark">✓</div>
-                            <div class="success-message">Your guide is ready!</div>
-                            <div class="success-submessage">Click below to download your free playbook.</div>
-                            <a href="/lead-magnet.pdf" download style="display:inline-block;margin-top:16px;background:var(--orange);color:white;padding:14px 28px;border-radius:8px;font-weight:700;font-size:.9rem;text-decoration:none;">📥 Download the Guide (PDF)</a>
-                            <div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(0,0,0,.08);font-size:.88rem;line-height:1.55">
-                                The guide shows the systems &mdash; NBD PRO is the software Joe built to run them.
-                                <a href="/pro/register.html?utm_source=free-guide&amp;utm_medium=magnet&amp;utm_campaign=guide-success" style="display:inline-block;margin-top:10px;font-weight:800;color:var(--orange);text-decoration:underline">Create a free NBD PRO account &rarr;</a>
+                            <div class="success-message">You're on the list.</div>
+                            <div class="success-submessage">I'm rewriting this guide for 2026 so every claim in it is one I can back up. I'll email it to you as soon as it's done. Until then, several chapters are free to read on the <a href="/pro/blog" class="inline-link">NBD Pro blog</a>.</div>
+                            <div class="success-next">
+                                NBD Pro is the CRM I built to run my own roofing company.
+                                <a href="/pro/register.html?utm_source=free-guide&amp;utm_medium=magnet&amp;utm_campaign=guide-success" class="success-next-link">Create a free NBD Pro account &rarr;</a>
                             </div>
                         </div>
                     </form>
 
-                    <div class="trust-line">Join 500+ contractors. No spam. Unsubscribe anytime.</div>
+                    <div class="trust-line">I'll email you the guide. No spam, and every email has an unsubscribe link.</div>
                 </div>
             </div>
 
             <div class="guide-mockup">
                 <div class="guide-content">
                     <div class="guide-label">Free Guide</div>
-                    <div class="guide-title">How to Dominate Your Local Market Without Spending a Dollar on Ads</div>
-                    <div class="guide-subtitle">12 Proven Systems From a Real Contractor</div>
+                    <div class="guide-title">The Local Marketing Playbook for Contractors (2026)</div>
+                    <div class="guide-subtitle">12 Practical Systems From a Working Roofer</div>
                 </div>
             </div>
         </div>
@@ -942,26 +982,26 @@ footer.foot a,.review-footer a{color:#bd5728!important}
             <div class="takeaways-grid">
                 <div class="takeaway-card">
                     <div class="takeaway-icon">📍</div>
-                    <h3>How to Rank #1 on Google Maps</h3>
-                    <p>Without paying for ads. The exact system Joe uses to get 10+ qualified leads per week from Google Maps alone.</p>
+                    <h3>Show Up on Google Maps</h3>
+                    <p>Without paying for ads. The weekly Google Business Profile routine Joe follows for his own roofing company.</p>
                 </div>
 
                 <div class="takeaway-card">
                     <div class="takeaway-icon">📈</div>
                     <h3>The 90-Day SEO Launch Plan</h3>
-                    <p>Put your service area on page 1 of Google. The step-by-step blueprint to dominate search results in competitive markets.</p>
+                    <p>Fix the basics that keep contractor websites from ranking: one strong page per real service, real photos, and pages for towns you actually work in.</p>
                 </div>
 
                 <div class="takeaway-card">
                     <div class="takeaway-icon">⭐</div>
-                    <h3>Autopilot Review System</h3>
-                    <p>Get 4+ quality reviews per week on autopilot. The simple system that builds a 4.9+ star reputation without asking.</p>
+                    <h3>A Review Habit That Plays Fair</h3>
+                    <p>Ask every customer, the same way, at the right moment. No gifts for reviews, no screening out unhappy customers, and texts that follow the opt-out rules.</p>
                 </div>
 
                 <div class="takeaway-card">
                     <div class="takeaway-icon">🔄</div>
                     <h3>The Content Repurposing Wheel</h3>
-                    <p>Create one piece of content. Repurpose it across 6 platforms. The framework that saves 10+ hours per week.</p>
+                    <p>Turn one job into a project page, a Google post and a social post, so a little content goes further.</p>
                 </div>
 
                 <div class="takeaway-card">
@@ -972,8 +1012,8 @@ footer.foot a,.review-footer a{color:#bd5728!important}
 
                 <div class="takeaway-card">
                     <div class="takeaway-icon">🎯</div>
-                    <h3>The "Unfair Advantage" Framework</h3>
-                    <p>Stack 4 trust signals that set you apart. The psychological triggers that make prospects choose you over the competition.</p>
+                    <h3>Earn Trust You Can Prove</h3>
+                    <p>Show the things a homeowner can check: your insurance, your manufacturer credentials, real job photos and how you handle problems.</p>
                 </div>
             </div>
         </div>
@@ -984,10 +1024,9 @@ footer.foot a,.review-footer a{color:#bd5728!important}
         <div class="section-container">
             <div class="about-joe">
                 <div>
-                    <h2>Built By a Contractor, Not a Marketing Agency</h2>
-                    <p>Joe Deal built No Big Deal Home Solutions from scratch. No investors. No marketing team. No ad budget. Just systems that work.</p>
-                    <p>He did the hard work so you don't have to. Spent 5 years testing, failing, learning, and perfecting. Then packaged everything into this guide so you can skip the trial and error and go straight to results.</p>
-                    <p>The systems inside have generated over $2M in revenue for his business. Now he's giving you the playbook for free. No strings attached. No hidden upsell (well, there's the <a href="/pro" style="color: var(--orange); font-weight: 600;">NBD Pro Masterclass</a> if you want to go deeper, but this guide stands alone).</p>
+                    <h2>Written By a Roofer, Not a Marketing Agency</h2>
+                    <p>Joe Deal is a roofer in Greater Cincinnati and Northern Kentucky. He started No Big Deal Home Solutions in 2026 with no investors, no marketing team and no ad budget.</p>
+                    <p>He built <a href="/pro" class="inline-link">NBD Pro</a> to run his own company, and this guide is the marketing side of that: what he does every week to get found by homeowners. It's practical advice, not a promise of results. Your market, your work and your reviews decide those.</p>
                 </div>
 
                 <div>
@@ -1000,15 +1039,10 @@ footer.foot a,.review-footer a{color:#bd5728!important}
     <!-- Second CTA Section -->
     <section class="section section-light">
         <div class="section-container urgency-section">
-            <h2>This Guide Won't Be Free Forever</h2>
+            <h2>Get the Guide by Email</h2>
 
             <p class="urgency-text">
-                This 35+ page playbook is condensed from the <span class="accent-text">$97 NBD Pro Masterclass Series</span>.
-                Every system, framework, and blueprint you need to dominate your local market without spending on ads.
-            </p>
-
-            <p class="urgency-text">
-                Right now, it's free. Download it, apply the systems, and see what happens. The 500+ contractors who already grabbed it are getting real results.
+                The guide is free. Leave your name and email and I'll send it over. Several chapters are on the <a href="/pro/blog" class="inline-link">NBD Pro blog</a> in the meantime.
             </p>
 
             <div class="urgency-form-wrapper">
@@ -1024,22 +1058,22 @@ footer.foot a,.review-footer a{color:#bd5728!important}
                             <input type="email" id="email2" name="email" placeholder="john@example.com" required>
                         </div>
 
+                        <label class="consent-check" for="emailConsent2"><input type="checkbox" id="emailConsent2" name="emailConsent" value="yes"> <span>Also email me occasional NBD Pro tips from Joe (a few emails at most). Unsubscribe any time.</span></label>
                         <div style="position:absolute;left:-9999px;"><input type="text" name="nbd_hp" tabindex="-1" autocomplete="off"></div>
-                        <button type="submit">Get the Free Guide</button>
+                        <button type="submit">Email Me the Free Guide</button>
 
                         <div class="success-state" id="successState2">
                             <div class="checkmark">✓</div>
-                            <div class="success-message">Your guide is ready!</div>
-                            <div class="success-submessage">Click below to download. Welcome to the community.</div>
-                            <a href="/lead-magnet.pdf" download style="display:inline-block;margin-top:16px;background:var(--orange);color:white;padding:14px 28px;border-radius:8px;font-weight:700;font-size:.9rem;text-decoration:none;">📥 Download the Guide (PDF)</a>
-                            <div style="margin-top:18px;padding-top:16px;border-top:1px solid rgba(0,0,0,.08);font-size:.88rem;line-height:1.55">
-                                The guide shows the systems &mdash; NBD PRO is the software Joe built to run them.
-                                <a href="/pro/register.html?utm_source=free-guide&amp;utm_medium=magnet&amp;utm_campaign=guide-success" style="display:inline-block;margin-top:10px;font-weight:800;color:var(--orange);text-decoration:underline">Create a free NBD PRO account &rarr;</a>
+                            <div class="success-message">You're on the list.</div>
+                            <div class="success-submessage">I'm rewriting this guide for 2026 so every claim in it is one I can back up. I'll email it to you as soon as it's done. Until then, several chapters are free to read on the <a href="/pro/blog" class="inline-link">NBD Pro blog</a>.</div>
+                            <div class="success-next">
+                                NBD Pro is the CRM I built to run my own roofing company.
+                                <a href="/pro/register.html?utm_source=free-guide&amp;utm_medium=magnet&amp;utm_campaign=guide-success" class="success-next-link">Create a free NBD Pro account &rarr;</a>
                             </div>
                         </div>
                     </form>
 
-                    <div class="trust-line">Join 500+ contractors. No spam. Unsubscribe anytime.</div>
+                    <div class="trust-line">I'll email you the guide. No spam, and every email has an unsubscribe link.</div>
                 </div>
             </div>
         </div>
@@ -1063,8 +1097,8 @@ footer.foot a,.review-footer a{color:#bd5728!important}
          so there's no checkbox UX for the homeowner. -->
     <script defer  src="/assets/js/inline/7cd8e505ab.js"></script>
     <script defer src="/assets/js/public-lead-submit.js"></script>
-    <script defer  src="/assets/js/inline/0a1da782e5.js"></script>
+    <script defer  src="/assets/js/inline/0a1da782e5.js?v=20261016"></script>
 
-    <script defer  src="/assets/js/inline/3117b8ac17.js"></script>
+    <script defer  src="/assets/js/inline/3117b8ac17.js?v=20261016"></script>
 </body>
 </html>

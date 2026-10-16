@@ -536,6 +536,8 @@ const VERDICTS = {
   // /tenant-logo/** serves public logos.
   adminListTenants: 'role-gated', exportCompanyData: 'role-gated', uploadCompanyLogo: 'role-gated',
   tenantLogo: 'public',
+  // NBD Pro prospects list (pro-prospects.js, 2026-10-16): platform admin only.
+  adminListProProspects: 'role-gated',
   // "Brief me" (lead-brief.js, 2026-10-04): returns a summary of a lead the
   // caller may already READ (canReadLead mirrors the /leads read rule, which
   // admits a same-company viewer). Writes only the server-derived cache and
