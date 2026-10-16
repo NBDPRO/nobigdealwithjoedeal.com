@@ -44,6 +44,8 @@ const GUIDES = [
   { slug: 'hail-photo-baseline-sheet', page: 'docs/guides/hail-photo-baseline-sheet.html' },
   { slug: 'compare-roofing-quotes-checklist', page: 'docs/guides/compare-roofing-quotes-checklist.html' },
   { slug: 'home-care-warranty-card', page: 'docs/guides/home-care-warranty-card.html' },
+  { slug: 'roof-financing-explained', page: 'docs/guides/roof-financing-explained.html' },
+  { slug: 'siding-gutter-buyers-guide', page: 'docs/guides/siding-gutter-buyers-guide.html' },
 ];
 
 function esc(s) {
@@ -189,8 +191,11 @@ function renderBody(body) {
       const cells = (r) => r.replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
       const head = cells(rows[0]);
       const body = rows.slice(2).map(cells);
-      out.push('<div class="g-table-wrap"><table class="g-table"><thead><tr>' + head.map((c) => '<th scope="col">' + inline(c) + '</th>').join('') + '</tr></thead><tbody>'
-        + body.map((r) => '<tr>' + r.map((c, k) => (k === 0 ? '<th scope="row">' + inline(c) + '</th>' : '<td>' + inline(c) + '</td>')).join('') + '</tr>').join('')
+      // Wide prose tables (3+ columns of sentences) stack into cards on a
+      // phone; short grids (Yes / No / years) stay a table.
+      const stack = head.length >= 3 && body.some((r) => r.some((c) => c.length > 40));
+      out.push('<div class="g-table-wrap"><table class="g-table' + (stack ? ' g-table-stack' : '') + '"><thead><tr>' + head.map((c) => '<th scope="col">' + inline(c) + '</th>').join('') + '</tr></thead><tbody>'
+        + body.map((r) => '<tr>' + r.map((c, k) => (k === 0 ? '<th scope="row">' + inline(c) + '</th>' : '<td' + (stack ? ' data-label="' + esc(head[k] || '') + '"' : '') + '>' + inline(c) + '</td>')).join('') + '</tr>').join('')
         + '</tbody></table></div>');
       continue;
     }
