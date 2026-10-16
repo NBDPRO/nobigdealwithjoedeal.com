@@ -514,7 +514,7 @@
     // saved on this device. Kicked by today-home.js at Home boot.
     cardprefs: [
       'css/card-prefs.css?v=1',
-      'js/card-prefs.js?v=1'
+      'js/card-prefs.js?v=2'
     ],
     // Day and night layouts (2026-10-15): offers Field on a phone by day and
     // Mission Control on a computer at night (never switches by itself), plus
@@ -522,6 +522,13 @@
     layoutoffer: [
       'css/layout-offer.css?v=1',
       'js/layout-offer.js?v=1'
+    ],
+    // Call back now + Needs you (2026-10-16): the speed-to-lead strip in Field
+    // and Focus and the money-and-momentum chips in Field and Mission. Kicked by
+    // today-home.js at Home boot. Reads what Home already holds.
+    homestrips: [
+      'css/home-strips.css?v=1',
+      'js/home-strips.js?v=1'
     ]
   };
 

@@ -191,6 +191,9 @@
     // Next stop (js/next-stop.js, 2026-10-15) fills [data-ns-slot]: drive time,
     // Navigate and a checked "On my way", above the stop itself.
     h += '<div data-ns-slot="field" data-ns-variant="compact"></div>';
+    // "Call back now" (js/home-strips.js, 2026-10-16): a missed call or new lead
+    // from the last 30 minutes, right under the next stop.
+    h += '<div data-stl-slot="field"></div>';
 
     if (!ready) {
       h += '<div class="fa-empty">Loading your day…</div>';
@@ -344,7 +347,7 @@
     doc.documentElement.setAttribute('data-fa-screen', S.screen);   // css hides the nav under the camera
     // "What closes this week" (js/closes-week.js, 2026-10-15) fills [data-cwk-slot];
     // the Cash strip (js/cash-card.js) fills [data-cash-slot].
-    rootEl.innerHTML = '<div class="fa-scroll">' + html + (S.screen === 'today' ? '<div data-cash-slot="field" data-cash-variant="compact"></div><div data-cwk-slot="field"></div>' : '') + '</div>';
+    rootEl.innerHTML = '<div class="fa-scroll">' + html + (S.screen === 'today' ? '<div data-ny-slot="field"></div><div data-cash-slot="field" data-cash-variant="compact"></div><div data-cwk-slot="field"></div>' : '') + '</div>';
     if (S.screen === 'capture') startCamera();
     else stopCamera();
     paintNav();
