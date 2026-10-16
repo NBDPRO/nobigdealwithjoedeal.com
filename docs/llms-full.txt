@@ -39,10 +39,10 @@ Pages included (33):
 - Filing a Storm Damage Claim in Ohio: Step by Step | NBD — https://nobigdealwithjoedeal.com/blog/how-to-file-storm-damage-insurance-claim-ohio
 - My Roof Is Too Old — Will Insurance Still Pay? | No Big Deal — https://nobigdealwithjoedeal.com/blog/my-roof-is-too-old-will-insurance-still-pay
 - State Farm & Allstate Roof Claims in Ohio | NBD — https://nobigdealwithjoedeal.com/blog/state-farm-allstate-roof-claims-ohio
-- GAF Master Flow Pivot Boot | NBD Preferred & Elite Roofs — https://nobigdealwithjoedeal.com/services/gaf-pivot-boot
+- What to Expect From a Roof Insurance Adjuster Visit | NBD — https://nobigdealwithjoedeal.com/blog/what-to-expect-roof-insurance-adjuster-visit
 
 Left out to keep this file under 300 KB (read them at their URLs):
-- https://nobigdealwithjoedeal.com/blog/what-to-expect-roof-insurance-adjuster-visit
+- https://nobigdealwithjoedeal.com/services/gaf-pivot-boot
 - https://nobigdealwithjoedeal.com/services/gaf-timberline
 - https://nobigdealwithjoedeal.com/services/lumanail
 - https://nobigdealwithjoedeal.com/services/roofivent
@@ -5529,7 +5529,7 @@ Homeowner Financing · Greater Cincinnati
 
 ### Your Home Can't Wait. Your Budget Shouldn't Have To.
 
-Financing runs through the Acorn Finance marketplace: pre-qualify in about a minute with a soft credit pull that doesn’t touch your score, and no home equity required. It makes most sense on projects of $3,000 and up — a typical $15,500 roof over 10 years illustrates at roughly $218–$299 a month. Rates and terms vary by lender and credit.
+Financing runs through the Acorn Finance marketplace: pre-qualify in about a minute with a soft credit pull that doesn’t touch your score, and no home equity required. It makes most sense on projects of $3,000 and up. Your rate, term and payment come from the lender after approval, and they vary by lender and credit.
 
 Get My Free Estimate →
 📞 (859) 420-7382
@@ -5624,9 +5624,9 @@ VS
 
 Sized to what the house needs
 
-$218–$299/mo · illustrative*
+Paid over time
 
-A typical $15,500 architectural replacement, spread over a 10-year term at the marketplace's published APR range.*
+A typical $15,500 architectural replacement, spread into monthly payments. The lender sets the rate, term and payment after approval.
 
 - The full tear-off replacement — done once, warrantied
 - Same price as cash — my price is my price, financed or not
@@ -5635,27 +5635,9 @@ A typical $15,500 architectural replacement, spread over a 10-year term at the m
 
 The most expensive roof out there is the one you pay for twice — once in patches, then again in full.
 
-Your number isn't $15,500? Slide your real project into the estimator below, then check actual offers with a soft pull that never touches your score.
+Want real numbers for your project? Check actual offers with a soft pull that never touches your score.
 
-*Illustration only, not an offer of credit — a fixed, fully-amortizing loan at the Acorn Finance marketplace's published 11.49%–19.99% APR range over 120 months. Your actual rate, term, and payment are set by a third-party lender based on your credit. And if a repair is truly all your roof needs, that's what I'll tell you — and quote.
-
-Payment Estimator
-
-### What Might It Cost Per Month?
-
-Slide to a rough monthly payment for a project financed through the Acorn Finance marketplace. It's only an estimate — your real rate and term come from the lender when you check your options.
-
-Project amount$12,000
-
-Term length
-
-Check your real rate below
-
-Estimated range at 11.49%–19.99% APR. Not an offer of credit.
-
-Check my real rate — soft pull, no score hit →
-
-Estimates are for illustration only and are not an offer or guarantee of credit. Payments assume a fixed, fully-amortizing loan at the APRs shown and exclude any taxes or fees. In the Acorn Finance marketplace, APRs currently range from 11.49% to 19.99% and terms from 2 to 15 years; your actual rate, term, and payment are set by a third-party lender based on your credit when you apply and are subject to change. No Big Deal Home Solutions is not a lender and does not make credit decisions.
+Financing is not an offer of credit. Loans come from third-party lenders in the Acorn Finance marketplace and are subject to credit approval; the lender sets your rate, term and payment. And if a repair is truly all your roof needs, that's what I'll tell you — and quote.
 
 FAQ
 
@@ -7068,169 +7050,140 @@ Verify on GAF.com →
 
 ---
 
-## GAF Master Flow Pivot Boot | NBD Preferred & Elite Roofs
+## What to Expect From a Roof Insurance Adjuster Visit | NBD
 
-URL: https://nobigdealwithjoedeal.com/services/gaf-pivot-boot
+URL: https://nobigdealwithjoedeal.com/blog/what-to-expect-roof-insurance-adjuster-visit
 
-The Promise
+Home›Blog›What to Expect from an Adjuster Visit
 
-The NBD Pledge
-The NBD Guarantee
-The NBD Build
+Roofing AdviceJanuary 14, 2026Updated September 27, 202610 min read
 
-Premium Components
+### What to Expect From a Roof Insurance Adjuster Visit
 
-LumaNail™ GAF Timberline Lineup
-Roofivent
-GAF Pivot Boot
+By Joe Deal · No Big Deal Home Solutions · Greater Cincinnati, OH
 
-Services
+After you file, the insurance company sends an adjuster to walk the property and, usually, get on the roof. They mark and photograph hail hits, check gutters and other soft metals, take measurements, and write up a scope of repairs. Plan on thirty to ninety minutes. Be there, have your contractor there, and get a copy of the estimate.
 
-Roof Replacement
-Roof Repair
-Storm Damage
+The adjuster visit is the most important hour of a roof claim. Almost everything afterward — what gets approved, what gets paid — traces back to what got written down while the adjuster was on your roof. Here's how it goes and what I'd have you do before, during and after.
 
-Company
+### When does the adjuster come out?
 
-About Joe
-Blog
-Book Inspection →
+You file the claim with your insurance company — by phone, through their app, or through your agent — and you get a claim number. The carrier then assigns an adjuster. That might be one of their own staff adjusters or an independent adjuster they contract with; after a big storm, carriers often bring in extra adjusters from out of the area to handle the volume.
 
-Home›The NBD Guarantee›The NBD Build›GAF Pivot Boot
+The adjuster, or someone from their office, calls you to set up the inspection. How fast depends on the carrier and how many claims came in from the same storm. Ohio's claims-handling rule requires an insurer to acknowledge a claim within 15 days of being notified (Ohio Administrative Code 3901-1-54), and Kentucky's regulation sets the same 15-day acknowledgment window (806 KAR 12:095). Acknowledging isn't the same as inspecting, but if you've heard nothing at all after a couple of weeks, call and ask.
 
-Premium Pipe Boot · Bundled Into Preferred & Elite
+When they call, write down the adjuster's name, company, phone number and email, and ask whether they plan to get on the roof. Then call your contractor with the date and time.
 
-### The pipe boot with nothing to fail.
+### How long does a roof adjuster inspection take?
 
-The GAF Master Flow Pivot Boot is an all-metal, ball-and-socket pipe boot with no rubber gasket to crack — standard neoprene boots crack from UV in 7–12 years. It runs about $200 per boot versus about $40 for neoprene and carries a 50-year warranty. Bundled into every NBD Preferred and Elite roof.
+Most take somewhere between thirty minutes and an hour and a half. A simple, walkable roof with obvious damage goes quicker. A steep or cut-up roof, a detached garage or shed, siding and gutter damage on several sides, or an interior leak all add time. Some adjusters won't walk a steep roof and will work from a ladder, a harness or a drone instead, which can change what they're able to see up close.
 
-Reviewed by Joe Deal · September 2026
+### What does the adjuster actually look at?
 
-GAF Master Flow™
+A good hail or wind inspection is methodical. Here's what you'll typically see:
 
-Why I Install It
+- Test squares. On hail claims, the adjuster usually marks off a 10-by-10-foot square on each slope that faced the storm, chalks every hit inside it, and counts them. Each carrier has its own threshold for how many hits make a slope qualify, and it isn't always shared with you.
+- The kind of damage on the shingles. Hail bruises, fractured mats, granules knocked loose at the point of impact, cracked or torn tabs — versus blistering, granule loss from age, foot traffic or manufacturing defects, which insurance doesn't pay for. That distinction is where a lot of disagreements start.
+- Wind damage. Creased, lifted or missing tabs and broken seal strips, usually along the edges and on the windward side.
+- Soft metals. Roof vents, pipe flashing, drip edge, gutters, downspouts, and the fins on your AC condenser. Dents in soft metal show that hail hit, roughly how big it was, and which direction it came from. They're the adjuster's corroborating evidence.
+- Collateral damage. Siding, window screens, window wraps, fences, painted surfaces, the mailbox. It backs up the roof findings and gets its own line items when it's damaged.
+- Measurements. Roof area, pitch, ridges, hips, valleys, eaves and rakes. Those numbers drive almost every line of the estimate, so they matter as much as the hit count.
+- Inside, if there's a leak. Ceiling stains, wet insulation and damaged drywall go on the claim too.
 
-### Why do pipe boots leak so often?
+### Should I be home for the adjuster?
 
-Ask any roofer what they get the most service calls about and the answer will probably be pipe boots. The standard neoprene boot — that black rubber collar that seals around your plumbing vent stack — is bare rubber exposed to direct UV all day, every day. It cracks. Always. The question is just when.
+Yes. You know things nobody on the roof knows: when the storm hit, when the stain on the ceiling showed up, what the gutters looked like before. You can walk the adjuster to the interior damage, and you'll hear firsthand what they're thinking before the estimate arrives. If you truly can't be there, make sure your contractor is, and that the adjuster can get into the yard and the attic.
 
-When it fails, the failure is dramatic: water runs straight down the plumbing vent stack into the bathroom or kitchen ceiling below. The customer thinks the roof is leaking. The roofer comes back, replaces the boot, charges for the trip. It's a built-in maintenance event the industry has just accepted.
+### Should my contractor meet the adjuster?
 
-"The whole pipe boot category is engineered around the assumption that the seal will fail. The Pivot Boot rejects that assumption — there's no seal to fail."
+I think so, and it's the question homeowners ask me most. Two people on a roof find more than one, and the time to point out a missed slope, a dented vent or a cracked ridge cap is while the adjuster is standing next to it — not in a letter three weeks later.
 
-The GAF Master Flow Pivot Boot took a completely different approach. Instead of a rubber gasket, it uses an all-metal ball-and-socket design where the boot pivots to seal flush against the pipe. No rubber, no seal, no parts to degrade. The metal stays metal. The seal stays sealed. The boot lasts the life of the roof.
+On my jobs, I'm usually at the adjuster meeting, and usually up on the roof with the adjuster.
 
-That's why I install it on every Preferred and Elite roof. Not because GAF asked me to — because I'd rather not be back in 8 years pulling shingles to replace the cheap rubber thing that everyone knows is going to fail.
+I usually bring my own photos of the damage, my own measurements and my own line-item estimate, so the adjuster and I can compare what we each found, slope by slope.
 
-Tech Spec
+It's worth being clear about what a contractor's job is at that meeting: show the adjuster the damage and give an accurate estimate for fixing it. The claim itself stays between you and your insurance company. Kentucky's law says it directly — KRS 367.628 bars contractors from representing a homeowner on an insurance claim, while still allowing them to give estimates and confer with the insurer's representative about the damage. In Ohio, the person licensed to represent you on a property claim for pay is a public insurance adjuster (Ohio Revised Code Chapter 3951).
 
-### What's actually in the box?
+### What should I have ready before the adjuster comes?
 
-BrandGAF Master Flow™
+- Your claim number and the date of loss. The date matters — it ties the damage to a specific storm.
+- Your policy's declarations page. Know your deductible, whether you have a separate wind/hail deductible, and whether the roof is covered at replacement cost or actual cash value.
+- Your own photos. Hail on the ground, dented cars or patio furniture, interior stains, and any older photos that show what the roof looked like before.
+- Receipts for emergency work. If you had a leak tarped, keep the invoice and the before-and-after photos. Most policies expect you to take reasonable steps to prevent further damage, and that cost is usually part of the claim.
+- A short list of what you've noticed. Leaks, stains, dented gutters, cracked siding, the side of the house that took the worst of it.
+- Clear access. Gates unlocked, dogs inside, a path to the attic hatch.
 
-ProductPivot™ Pipe Boot Flashing
+### What happens after the adjuster leaves?
 
-MaterialGalvanized steel (all-metal)
+The adjuster writes up an estimate — often called the scope — listing every line item the carrier agrees to pay for, with quantities and prices. Most large carriers build these in Xactimate. You'll usually get it within a few days to a few weeks, depending on the carrier and the storm volume.
 
-DesignBall-and-socket pivot
+Ask for it in writing, and ask for the photos and report if they'll share them. In Ohio, when a partial loss is settled from a written estimate prepared by or for the insurer, the insurer is required to give you a copy of that estimate (Ohio Administrative Code 3901-1-54). The same Ohio rule gives the insurer 21 days after it receives a properly executed proof of loss to accept or deny the claim, or to tell you why it needs more time. In Kentucky, the regulation calls for any payment due to be offered within 30 days of proof of loss (806 KAR 12:095).
 
-Pipe diameters1.5″, 2″, 3″, 4″
+When the estimate arrives, read it line by line against what's actually on your house. Check the roof area and waste, starter strip, drip edge, ice and water shield, ridge cap, pipe boots and vents, and whether gutters, siding and screens made it in. Then look at how it pays: on a replacement-cost policy the first check is usually the actual cash value, with depreciation held back until the work is finished, and if there's a mortgage the check will likely be made out to your lender too. I walk through that part in Can I Keep the Insurance Check and Not Fix My Roof?
 
-Roof pitch3:12 to 12:12 (adjustable)
+### What if the adjuster missed damage or I disagree?
 
-Wind rating110 mph (TAS-100A test)
+A first estimate that misses things isn't unusual, and it isn't the end of the conversation. The usual path looks like this:
 
-Impact testingPasses a test modeled after UL 2218 Class 4 (per GAF; not a UL classification)
+- Supplement. When items were missed, or turn up during tear-off — rotted decking, a second layer of shingles, code-required items — you send the carrier a supplement request with photos, measurements and a line-item estimate for what was left out. The carrier reviews it and decides.
+- Reinspection. If the disagreement is about the damage itself, ask in writing for a reinspection. Sometimes a different adjuster comes out.
+- Appraisal. Many homeowners policies include an appraisal clause for disputes over the amount of a loss, where each side picks an appraiser and an umpire settles what they can't agree on. Read your policy's wording before you invoke it.
+- A complaint to the state. If you think a claim isn't being handled fairly, the Ohio Department of Insurance and the Kentucky Department of Insurance both take consumer complaints.
 
-ColorsBlack, Brown, Weathered Wood, Gray
+On my jobs, the supplement documentation is my own updated estimate — the photos, the measurements and the line items for what was left out — so the carrier has what it needs to review it.
 
-InstallPre-punched nail guides
+If the claim is denied, ask for the reason in writing, along with the policy language they're relying on. That's what you, your agent, or anyone else you bring in will need to look at.
 
-Warranty50 years (or roof cladding warranty)
+### What should I not do during an adjuster visit?
 
-GAF system componentYes — genuine GAF accessory
+- Don't sign anything you haven't read. That includes an assignment of benefits or any paper that hands control of your claim or its payments to someone else. Take it home and ask your agent.
+- Don't guess. If you don't know when a stain appeared, say so. A guessed date hurts a claim more than an honest "I'm not sure."
+- Don't argue on the roof. Point things out, ask questions, and save disagreements for the written process.
+- Don't let anyone "help" the damage along. Creating damage to make a claim bigger is fraud — Kentucky's statute makes it a fraudulent insurance act and criminal mischief when a contractor does it.
+- Don't lose the paper trail. Keep the claim number, the adjuster's contact info, and copies of everything in one place.
 
-The Honest Difference
+### Straight Answers
 
-### How long does each pipe boot last?
+#### What happens during a roof insurance adjuster visit?
 
-Roughly what you should expect from each option, in plain English.
+The adjuster inspects the roof and the rest of the exterior for storm damage. On hail claims they usually mark test squares on the slopes and count hits, check soft metals like vents, gutters and AC fins, look for collateral damage to siding and screens, measure the roof, and take photos. They use that to write an estimate of what the insurer will pay for.
 
-Commodity Neoprene
+#### Should I be home for the roof insurance adjuster?
 
-GAF Pivot Boot
+Yes, if you can. You can show the adjuster interior damage, tell them when the storm hit and what you noticed, and hear their findings firsthand. If you cannot be there, have your contractor meet them and make sure they can get into the yard and attic.
 
-Material
-Black rubber gasket
-All-metal ball-and-socket
+#### Should I have my contractor meet the insurance adjuster?
 
-UV degradation
-Cracks at year 7-12
-No rubber to degrade
+Yes. A contractor on the roof with the adjuster can point out damage while everyone is standing next to it, so it gets documented in the first estimate instead of argued about later. The contractor's role is to show the damage and estimate the repair; the claim itself stays between you and your insurance company.
 
-Maintenance
-Replace whole boot when seal fails
-None — no parts to fail
+#### How long does an insurance roof adjuster visit take?
 
-Cost (per boot)
-~$40
-~$200
+Usually thirty to ninety minutes. Steep or complicated roofs, detached structures, siding and gutter damage, or an interior leak can make it longer. The written estimate typically arrives afterward, anywhere from a few days to a few weeks later depending on the carrier and storm volume.
 
-Lifespan
-7-12 years
-50+ years
+#### What if the adjuster misses damage or I disagree with the estimate?
 
-Wind rating
-Varies — usually un-rated
-110 mph TAS-100A
+Ask for a copy of the estimate and read it line by line. Missed items can be sent back as a supplement with photos and a line-item estimate, you can request a reinspection in writing, and many policies include an appraisal clause for disputes over the amount of the loss.
 
-Impact rating
-None
-Passes a test modeled after UL 2218 Class 4
+If a storm came through and you haven't filed yet, start with a free roof inspection so you know what's actually up there before anyone from the insurance company sees it. Here's more on what I do on a hail damage claim, and if you want to know how your policy pays, read Does Homeowner Insurance Cover Hail Damage in Ohio? Or call or text me at (859) 420-7382.
 
-Manufacturer warranty
-None standard
-50 years
+#### Questions About Your Roof? Ask Joe Directly.
 
-Genuine GAF system component
-No
-Yes
+No call center, no runaround. Joe answers his own phone and gives you a straight answer.
 
-Real Talk From Joe — When the Pivot Boot Is Overkill
+📞 (859) 420-7382
+Get My Free Estimate →
+Schedule Inspection
 
-#### If you're selling in 5 years, the math doesn't quite work.
+#### Keep Reading
 
-I'll be honest: the Pivot Boot is real-deal premium. ~$200 per boot vs ~$40 for commodity neoprene. On a typical home with 2-3 plumbing vent stacks, that's roughly a $400-600 add to the project. Worth it if you're staying — you'll skip the year-9 leak callback. Maybe not worth it if you're moving in three years.
+Hail Damage Claims — What Joe Does
 
-That's why I bundle it into Preferred and Elite (where customers tend to be staying) and don't push it on Standard tier (which is more often rentals or sell-soon situations). For Standard customers who want the same long-life thinking on a budget, the Roofivent iVent Pipe Flashing is honestly excellent — replaceable EPDM gasket, manufacturer functionality warranty, and I can swap the gasket on my annual visit instead of tearing into the roof.
+What it looks like when Joe documents the damage and meets your adjuster.
 
-Both designs reject the "throwaway boot" model. They just do it different ways. If you'd rather have nothing to maintain ever, GAF Pivot. If you'd rather have something serviceable that I can fix in 10 minutes, Roofivent. Both are honest answers.
+How to File a Storm Damage Claim in Ohio
 
-— Joe
+Step-by-step from the first call to your payout. The whole process explained.
 
-Owner & Operator
+State Farm and Allstate Claims in Ohio
 
-Straight From the Manufacturer
-
-### Don't Take My Word for It. Here's GAF.
-
-Don't just take my word for it — here's what GAF says about the Master Flow Pivot boot, and every color it comes in. If anything on my page ever disagrees with GAF's, GAF's is right.
-
-#### GAF Master Flow™ Pivot™ Pipe Boot
-
-- GAF's Pivot page — specs, fit and colors
-
-Link opens GAF.com in a new tab. I'm an independent GAF Certified™ contractor — GAF doesn't write or review this page.
-
-GAF Master Flow™ Pivot™ Pipe Boot is manufactured by GAF Materials LLC. I install GAF products as a GAF Certified™ Contractor (GAF ID 1162011), which makes the GAF System Plus Limited Warranty available on qualifying full-system installs. Manufacturer specifications and warranty terms at gaf.com. Verify on GAF.com →
-
-No Big Deal Home Solutions is an Independent Contractor and is not an employee or agent of GAF. Contractors enrolled in GAF certification programs are not employees or agents of GAF, and GAF does not control or otherwise supervise these independent businesses. GAF® and GAF Certified™ are either registered trademarks or trademarks of BMIC LLC in the United States and/or other countries.
-
-### Want the boot that doesn't fail?
-
-Free in-person estimate. I'll show you the boots on your current roof, tell you straight whether they need replacing, and price out the upgrade.
-
-📞 Call Joe — (859) 420-7382
-See The NBD Build
-
-Last updated October 6, 2026
+What to actually expect when you file with the two biggest carriers.
