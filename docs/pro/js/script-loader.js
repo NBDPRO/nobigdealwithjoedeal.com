@@ -509,6 +509,12 @@
     cashcard: [
       'css/cash-card.css?v=1',
       'js/cash-card.js?v=1'
+    ],
+    // Customize this screen (2026-10-15): hide / reorder each layout's cards,
+    // saved on this device. Kicked by today-home.js at Home boot.
+    cardprefs: [
+      'css/card-prefs.css?v=1',
+      'js/card-prefs.js?v=1'
     ]
   };
 

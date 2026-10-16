@@ -282,11 +282,15 @@
     { to: 'settings', label: 'Settings' },
   ];
   // prefix: the layout's own delegated attribute (data-fo, data-ib, data-cw...).
+  // "Customize this screen" (js/card-prefs.js, 2026-10-15) is the last item in
+  // every layout's Menu: hide and reorder this layout's cards. card-prefs.js
+  // delegates [data-hc-open] on document, so no layout wires it.
+  var CUSTOMIZE_LABEL = 'Customize this screen';
   function menuItems(prefix) {
     var p = /^[a-z]{2,4}$/.test(String(prefix)) ? prefix : 'lk';
     return MENU.map(function (m) {
       return '<button type="button" role="menuitem" data-' + p + '="goto" data-to="' + m.to + '">' + esc(m.label) + '</button>';
-    }).join('');
+    }).join('') + '<button type="button" role="menuitem" data-hc-open="">' + CUSTOMIZE_LABEL + '</button>';
   }
 
   // ── full-screen overlays (Field, Focus, Inbox, Mission, Crew) ───────
@@ -304,7 +308,7 @@
   var api = {
     esc: esc, digits10: digits10, fmtPhone: fmtPhone, leadName: leadName, customerUrl: customerUrl,
     mapsUrl: mapsUrl, telUrl: telUrl, smsUrl: smsUrl, fromLead: fromLead, icon: icon,
-    ACTIONS: ACTIONS, DENSITIES: DENSITIES, SIZES: SIZES, MENU: MENU, RECORD_LABEL: RECORD_LABEL, RECENT_LABEL: RECENT_LABEL,
+    ACTIONS: ACTIONS, DENSITIES: DENSITIES, SIZES: SIZES, MENU: MENU, CUSTOMIZE_LABEL: CUSTOMIZE_LABEL, RECORD_LABEL: RECORD_LABEL, RECENT_LABEL: RECENT_LABEL,
     actionBar: actionBar, card: card, widget: widget, nav: nav, bind: bind,
     recordButton: recordButton, recentButton: recentButton, recordEntry: recordEntry, menuItems: menuItems, setOverlay: setOverlay, clearOverlay: clearOverlay,
   };

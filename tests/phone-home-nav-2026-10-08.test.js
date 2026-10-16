@@ -93,7 +93,8 @@ console.log('\n3. Home order: needs-you strip, Today, then More on Home');
   ok('the opt-in game card stays out of the fold (a rep who turned it on sees it)', pos('id="homeGameCard"') > pos('id="todayPlan"') && pos('id="homeGameCard"') < body);
   ok('a checkbox + label disclosure (no script)', /<input type="checkbox" id="homeMoreChk" class="home-more-chk"/.test(tpl) && /<label for="homeMoreChk" class="home-more-toggle" id="homeMoreToggle">/.test(tpl));
   const hdr = tpl.slice(0, pos('id="homeAttention"'));
-  ok('the three extra header links carry .home-hdr-extra', (hdr.match(/home-hdr-extra/g) || []).length === 3 && !/btn-orange[^"]*home-hdr-extra/.test(hdr));
+  // four since 2026-10-16: "Arrange Home" (card-prefs.js) joined Sunday review / Catch up / Customize
+  ok('the four extra header links carry .home-hdr-extra', (hdr.match(/home-hdr-extra/g) || []).length === 4 && !/btn-orange[^"]*home-hdr-extra/.test(hdr));
   const acts = tpl.slice(pos('class="home-more-acts"'), pos('id="homeNoNextStep"'));
   ok('the body repeats Sunday review / Catch up / Customize, with no ids', /data-target="weekreview"/.test(acts) && /data-target="catchup"/.test(acts) && /NBDWidgets\.openPicker/.test(acts) && !/\bid="/.test(acts));
   ok('the needs-you chip is a 44px tap target', /\.ha-item\{[^}]*min-height:44px/.test(tpl));

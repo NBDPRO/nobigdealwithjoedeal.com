@@ -221,15 +221,16 @@
       }
       var upcoming = pending.slice(1);
       if (upcoming.length) {
-        h += '<h3 class="fa-h">Up next</h3><div class="fa-list">' + upcoming.map(function (s) {
+        // one wrapper per section, so Customize (js/card-prefs.js) can move or hide it
+        h += '<div class="fa-group" data-fa-group="upnext"><h3 class="fa-h">Up next</h3><div class="fa-list">' + upcoming.map(function (s) {
           return '<button type="button" class="fa-rowbtn" data-fa="lead" data-key="' + esc(s.key) + '">' + K.card(itemOf(s), { density: 'row', link: false }) + '</button>';
-        }).join('') + '</div>';
+        }).join('') + '</div></div>';
       }
       var finished = all.filter(function (s) { return d.done[s.key]; });
       if (finished.length) {
-        h += '<h3 class="fa-h">Done</h3><div class="fa-list">' + finished.map(function (s) {
+        h += '<div class="fa-group" data-fa-group="done"><h3 class="fa-h">Done</h3><div class="fa-list">' + finished.map(function (s) {
           return K.card(itemOf(s), { density: 'row', done: true });
-        }).join('') + '</div>';
+        }).join('') + '</div></div>';
       }
     }
     return h;
