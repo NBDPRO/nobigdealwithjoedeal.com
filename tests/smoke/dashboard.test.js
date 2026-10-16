@@ -282,10 +282,15 @@ section('ScriptLoader contract');
   assert('PR 2a: ApexCharts is NOT eager-loaded in dashboard.html',
     !/cdn\.jsdelivr\.net\/npm\/apexcharts/.test(dashRaw),
     'ApexCharts CDN must not be an eager <script src> in dashboard.html — it belongs in the ScriptLoader reports bundle');
+  // 2026-10-16: ApexCharts retired. The Rep Report's charts are static HTML/SVG
+  // (rep-report-generator.js), so nothing may load the library again.
   const reportsBundleSrc = (src.match(/reports:\s*\[([\s\S]*?)\]/) || [])[1] || '';
-  assert('PR 2a: ApexCharts IS lazy-loaded via the reports bundle',
-    /apexcharts/i.test(reportsBundleSrc),
-    'ApexCharts CDN URL must be in the reports bundle in script-loader.js so the Rep Report view still loads it');
+  assert('ApexCharts is retired: not in the reports bundle (charts are static HTML/SVG)',
+    !/'[^']*apexcharts[^']*'/i.test(reportsBundleSrc) && /rep-report-generator\.js/.test(reportsBundleSrc),
+    'the reports bundle must load rep-report-generator.js and no ApexCharts file');
+  assert('ApexCharts is retired: the vendored file is gone and nothing calls new ApexCharts',
+    !fs.existsSync(path.join(ROOT, 'docs/assets/vendor/apexcharts')) &&
+    !/new ApexCharts\(/.test(read(path.join(ROOT, 'docs/pro/js/rep-report-generator.js'))));
 
   // PR 2b (perf): the doc-generation cluster (~419 KB) moved off the eager
   // boot path into the lazy `docgen` bundle, triggered load-then-run from the

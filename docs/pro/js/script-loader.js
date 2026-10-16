@@ -171,15 +171,11 @@
       'js/decision-engine.js?v=4'
     ],
     reports: [
-      // ApexCharts must load BEFORE rep-report-generator.js, which calls
-      // `new ApexCharts(...)` when the Rep Report view renders its charts.
-      // It was eager in dashboard.html (~150 KB gzipped on every boot);
-      // PR 2a moved it here so it loads only when the reports view opens.
-      // loadBundle() runs entries sequentially (async=false), so the
-      // ApexCharts global is defined before the generator executes. If the
-      // CDN fetch fails, load() resolves anyway and the generator's existing
-      // `typeof ApexCharts === 'undefined'` guard degrades gracefully.
-      '/assets/vendor/apexcharts/apexcharts.min.js',
+      // ApexCharts retired 2026-10-16: the generator's charts are static
+      // HTML/SVG built at generation time (no charting library at all), so
+      // the ~137 KB gz library loaded here was never called. It is also no
+      // longer plain MIT after v3 and injects <style>, which blocks the strict
+      // style-src in Report-Only. Nothing else used it; the file is deleted.
       'js/rep-report-generator.js?v=7'
     ],
     // Doc-generation cluster (PR 2b). Only needed when the rep generates a
@@ -527,8 +523,8 @@
     // Customize this screen (2026-10-15): hide / reorder each layout's cards,
     // saved on this device. Kicked by today-home.js at Home boot.
     cardprefs: [
-      'css/card-prefs.css?v=1',
-      'js/card-prefs.js?v=5'
+      'css/card-prefs.css?v=2',
+      'js/card-prefs.js?v=6'
     ],
     // Day and night layouts (2026-10-15): offers Field on a phone by day and
     // Mission Control on a computer at night (never switches by itself), plus

@@ -123,9 +123,22 @@
     }
     return { order: p.order.slice(), off: off };
   }
+  /**
+   * A whole new order from a drag (2026-10-16, SortableJS). Must be the same
+   * set of cards; anything else (a stale sheet, a duplicate) leaves p as is.
+   */
+  function reorder(p, ids) {
+    if (!Array.isArray(ids) || ids.length !== p.order.length) return p;
+    var seen = {};
+    for (var i = 0; i < ids.length; i++) {
+      if (p.order.indexOf(ids[i]) === -1 || seen[ids[i]]) return p;
+      seen[ids[i]] = 1;
+    }
+    return { order: ids.slice(), off: p.off.slice() };
+  }
   function isDefault(p, ids) { return p.off.length === 0 && p.order.join('|') === (ids || []).join('|'); }
 
-  var pure = { CARDS: CARDS, sanitize: sanitize, move: move, toggle: toggle, isDefault: isDefault, idsOf: idsOf, LS_KEY: LS_KEY };
+  var pure = { CARDS: CARDS, sanitize: sanitize, move: move, reorder: reorder, toggle: toggle, isDefault: isDefault, idsOf: idsOf, LS_KEY: LS_KEY };
   if (typeof module !== 'undefined' && module.exports) module.exports = pure;
   if (!root || !root.document || root.NBDCardPrefs) return;
 
@@ -236,12 +249,13 @@
     var byId = {};
     (CARDS[layout] || []).forEach(function (c) { byId[c.id] = c; });
     var visible = p.order.length - p.off.length;
-    h += '<p class="hc-note">Show or hide each card and move it up or down. Saved on this device only.</p><ol class="hc-list">';
+    h += '<p class="hc-note">Show or hide each card. Drag a card by its handle, or move it with the arrows. Saved on this device only.</p><ol class="hc-list">';
     p.order.forEach(function (id, i) {
       var c = byId[id];
       var on = p.off.indexOf(id) === -1;
       var lastOn = on && visible <= 1;
-      h += '<li class="hc-row' + (on ? '' : ' hc-row-off') + '">' +
+      h += '<li class="hc-row' + (on ? '' : ' hc-row-off') + '" data-hc-row="' + esc(id) + '">' +
+        '<span class="hc-grip" aria-hidden="true" title="Drag to reorder"></span>' +
         '<label class="hc-show"><input type="checkbox" data-hc="show" data-hc-id="' + esc(id) + '"' + (on ? ' checked' : '') + (lastOn ? ' disabled aria-describedby="hcLast"' : '') + '>' +
         '<span class="hc-name">' + esc(c.label) + '</span></label>' +
         '<span class="hc-moves">' +
@@ -255,9 +269,45 @@
       '<span class="hc-live" role="status" aria-live="polite"></span></div>';
     return h + '</div>';
   }
+  // ── drag to reorder (SortableJS 1.15.7, MIT, loaded only when the sheet opens) ──
+  // The arrows stay: they are the keyboard and screen-reader path. SortableJS
+  // moves rows with CSSOM writes only (no <style> element, no inline style attribute), so the
+  // strict CSP is untouched.
+  var SORTABLE_SRC = '/assets/vendor/sortablejs/1.15.7/Sortable.min.js';
+  var sortable = null, sortableLoading = false;
+  function loadSortable(then) {
+    if (w.Sortable) { then(); return; }
+    if (sortableLoading) return;
+    sortableLoading = true;
+    var s = doc.createElement('script');
+    s.src = SORTABLE_SRC;
+    s.async = true;
+    s.onload = function () { sortableLoading = false; then(); };
+    s.onerror = function () { sortableLoading = false; };
+    var host = doc.head;
+    if (host && host.appendChild) host.appendChild(s); else sortableLoading = false;
+  }
+  function attachDrag() {
+    if (sortable) { try { sortable.destroy(); } catch (_) {} sortable = null; }
+    var list = sheet && sheet.querySelector('.hc-list');
+    if (!list || !w.Sortable || locked()) return;
+    sortable = w.Sortable.create(list, {
+      handle: '.hc-grip', animation: 150, delayOnTouchOnly: true, delay: 120,
+      ghostClass: 'hc-row-ghost', chosenClass: 'hc-row-chosen',
+      onEnd: function (e) {
+        if (e.oldIndex === e.newIndex) return;
+        var ids = Array.prototype.map.call(list.querySelectorAll('[data-hc-row]'), function (li) { return li.getAttribute('data-hc-row'); });
+        var p = load(sheetFor), n = reorder(p, ids);
+        var id = ids[e.newIndex];
+        if (n === p) { paintSheet(); return; }
+        change(n, '[data-hc="up"][data-hc-id="' + id + '"]', labelOf(id) + ' moved to position ' + (e.newIndex + 1) + '.');
+      },
+    });
+  }
   function paintSheet(focusSel, say) {
     if (!sheet) return;
     sheet.innerHTML = sheetHtml(sheetFor);
+    attachDrag();
     if (say) { var live = sheet.querySelector('.hc-live'); if (live) live.textContent = say; }
     var f = focusSel ? sheet.querySelector(focusSel) : null;
     if (f && f.disabled) f = null;
@@ -272,8 +322,10 @@
     sheet.className = 'hc-scrim';
     doc.body.appendChild(sheet);
     paintSheet();
+    loadSortable(function () { if (sheet) attachDrag(); });
   }
   function close() {
+    if (sortable) { try { sortable.destroy(); } catch (_) {} sortable = null; }
     if (sheet && sheet.parentNode) sheet.parentNode.removeChild(sheet);
     sheet = null;
     if (lastFocus && typeof lastFocus.focus === 'function' && doc.contains(lastFocus)) lastFocus.focus();

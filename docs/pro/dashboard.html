@@ -7144,10 +7144,8 @@
      bundle (PR 2b2), on demand from the doc-viewer's Download-PDF handler
      (nbd-doc-viewer.js handlePdf). html2pdf was the only dashboard consumer and
      was eager despite the old "loaded on-demand" comment — now it really is. -->
-<!-- LAZY: ApexCharts (Rep Report charts) loaded via ScriptLoader's
-     `reports` bundle, ahead of rep-report-generator.js. Was eager here;
-     PR 2a moved it off the boot path — only the Rep Report view uses it,
-     so ~150 KB gzipped no longer downloads/executes on every load. -->
+<!-- ApexCharts: retired 2026-10-16 (Rep Report charts are static HTML/SVG;
+     see the `reports` bundle in script-loader.js). -->
 
 <!-- Universal in-app document viewer — routes every generator's
      HTML through one modal so we never launch a blank popup again.

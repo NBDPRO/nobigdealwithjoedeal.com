@@ -10,6 +10,10 @@
 .hc-list{list-style:none;margin:0;padding:0;}
 .hc-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid var(--ui-line-hair, rgba(127,127,127,.2));}
 .hc-row:first-child{border-top:0;}
+/* drag handle (SortableJS, 2026-10-16): a 44px grip; the arrows stay for keyboards and screen readers */
+.hc-grip{flex:none;width:28px;min-height:44px;cursor:grab;touch-action:none;background:radial-gradient(circle, var(--m) 1.6px, transparent 1.8px) 0 0/9px 9px;opacity:.75;}
+.hc-row-chosen .hc-grip{cursor:grabbing;}
+.hc-row-ghost{opacity:.4;}
 .hc-show{flex:1;min-width:0;display:flex;align-items:center;gap:12px;min-height:44px;cursor:pointer;}
 .hc-show input{width:22px;height:22px;margin:0;flex:none;accent-color:var(--orange);}
 .hc-name{font-weight:var(--ui-fw-bold, 700);overflow-wrap:anywhere;}
