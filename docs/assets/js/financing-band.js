@@ -7,7 +7,6 @@
  * payment are set by a third-party lender on approved credit.
  *
  * Readers (keep them on this file — never a second copy of the numbers):
- *   - docs/assets/js/financing-estimator.js  (public /services/financing)
  *   - docs/pro/js/close-board.js             (the homeowner deal page)
  *   - docs/pro/deal-room.js                  (reads the band close-board
  *                                             bakes into the page's data)
