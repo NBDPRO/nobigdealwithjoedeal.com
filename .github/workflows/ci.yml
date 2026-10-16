@@ -1092,7 +1092,7 @@ jobs:
   pro-demo-zero-network:
     name: Pro demo zero-network walk (Chromium)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -1110,6 +1110,14 @@ jobs:
         run: |
           cd tests
           node pro-demo-zero-network-2026-10-06.test.js
+      # The CRM layouts as painted on the same sample account (layouts audit
+      # 2026-10-15): Island's Today rows readable at 390 px, Mission's map not
+      # squeezed, the closes-week card one line in Crew/Inbox, no brand-orange
+      # text, 44 px targets, light mode at boot. Same server, same Chromium.
+      - name: Run the CRM layouts render check
+        run: |
+          cd tests
+          node crm-layouts-render-2026-10-15.test.js
 
   # CRITICAL RECIPE NOTE: tests/playwright.config.js defaults baseURL to
   # PRODUCTION — PLAYWRIGHT_BASE_URL must stay pinned to the hosting

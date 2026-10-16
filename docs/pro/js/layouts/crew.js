@@ -455,6 +455,10 @@
   var pendingPaint = false;
   var lastHtml = '';
   var DATA = { subs: [], rain: {}, orders: [] };
+  // The roster's read state: an empty lane list means "no crews" only once the
+  // read came back (audit D15: it used to say so while loading, and for good
+  // when the read failed).
+  var subsState = 'loading';   // 'loading' | 'ok' | 'fail'
   var saving = {};
   var suppressClick = false;
 
@@ -483,8 +487,14 @@
   // ── data ─────────────────────────────────────────────────────────────
   function load() {
     var P = W.NBDProduction;
-    if (!P) return;
-    if (typeof P.loadSubs === 'function') P.loadSubs().then(function (s) { DATA.subs = (s || []).slice(); render(); }).catch(function () {});
+    if (!P || typeof P.loadSubs !== 'function') {
+      // still missing once the leads are in: the production tools never arrived
+      if (W._leadsLoaded === true && subsState !== 'ok') { subsState = 'fail'; render(); }
+      return;
+    }
+    if (subsState !== 'ok') subsState = 'loading';
+    P.loadSubs().then(function (s) { DATA.subs = (s || []).slice(); subsState = 'ok'; render(); },
+      function () { if (subsState !== 'ok') subsState = 'fail'; render(); });
     if (typeof P.loadWeather === 'function') P.loadWeather().then(function (by) { DATA.rain = rainByDate(by || {}); render(); }).catch(function () {});
     if (typeof P.loadTenantOrders === 'function') P.loadTenantOrders().then(function (o) { DATA.orders = o || []; render(); }).catch(function () {});
   }
@@ -564,8 +574,11 @@
           '<span class="cw-grip" aria-hidden="true">&#8942;&#8942;</span><b>' + esc(t.name) + '</b><small>' +
           esc(t.week ? (t.weekPassed ? 'Week of ' + shortDate(t.week) + ' passed' : 'Week of ' + shortDate(t.week)) : stageLabel(t.stage)) + '</small></div>';
       }).join('') + '</div><p class="cw-hint">Drag a job onto a crew and a day, or tap it to open. Nothing is blocked; warnings show what to check.</p>'
-        : '<p class="cw-hint">Every signed job has a day.</p>') + '</section>';
-    var noSubs = !DATA.subs.length ? '<p class="cw-hint">No crews on the roster yet. Add your subs from any job\'s Production panel and each one gets a lane here.</p>' : '';
+        : '<p class="cw-hint"' + (W._leadsLoaded === true ? '>Every signed job has a day.' : ' role="status">Loading your jobs...') + '</p>') + '</section>';
+    var noSubs = DATA.subs.length ? ''
+      : subsState === 'loading' ? '<p class="cw-hint" role="status">Loading your crews...</p>'
+      : subsState === 'fail' ? '<p class="cw-hint" role="alert">Couldn\'t load your crew roster, so crews may be missing from the lanes. <button type="button" class="cw-btn" data-cw="reload">Try again</button></p>'
+      : '<p class="cw-hint">No crews on the roster yet. Add your subs from any job\'s Production panel and each one gets a lane here.</p>';
     return '<div class="cw-scroll"><div class="cw-grid" role="region" aria-label="Crew week">' + head + lanesHtml + '</div></div>' + noSubs + trayHtml;
   }
 
@@ -575,7 +588,7 @@
     var rain = DATA.rain[S.day];
     var head = rain && rain.level !== 'ok'
       ? '<div class="cw-daywx cw-rain-' + rain.level + '">' + (rain.level === 'warn' ? 'Rain in the forecast' : 'Showers possible') + (rain.label ? ' — ' + esc(rain.label) : '') + '</div>' : '';
-    if (!plan.length) return head + '<p class="cw-empty">No jobs on ' + esc(shortDate(S.day)) + '.</p>';
+    if (!plan.length) return head + (W._leadsLoaded === true ? '<p class="cw-empty">No jobs on ' + esc(shortDate(S.day)) + '.</p>' : '<p class="cw-empty" role="status">Loading your jobs...</p>');
     var lanes = weekBoard(leads(), S.monday, c).lanes; // colour order matches the week view
     var cards = plan.map(function (ln) {
       var color = laneColor(ln.key, lanes);
@@ -663,8 +676,9 @@
     if (!S.day) S.day = todayYmd();
     var body = S.view === 'week' ? weekHtml() : dayHtml();
     var focusLead = doc.activeElement && doc.activeElement.getAttribute && rootEl.contains(doc.activeElement) ? doc.activeElement.getAttribute('data-lead') : null;
-    // "What closes this week" (js/closes-week.js, 2026-10-15) fills [data-cw-slot].
-    var html = '<div class="cw-wrap' + (canWrite() ? '' : ' cw-ro') + '">' + topBar() + '<div data-cw-slot="crew"></div>' + body + '</div>' + drawerHtml();
+    // "What closes this week" (js/closes-week.js, 2026-10-15) fills [data-cwk-slot];
+    // compact (one line that opens the card) so the week grid stays on screen.
+    var html = '<div class="cw-wrap' + (canWrite() ? '' : ' cw-ro') + '">' + topBar() + '<div class="cw-cwk" data-cwk-slot="crew" data-cwk-compact="1"></div>' + body + '</div>' + drawerHtml();
     K.setOverlay(rootEl, homeActive());
     // A repaint that would change nothing is skipped: data callbacks fire in
     // bursts, and swapping identical nodes only costs focus, hover and drags.
@@ -872,6 +886,7 @@
     }
     var a = t.getAttribute('data-cw');
     if (a === 'close') { closeJob(); return; }
+    if (a === 'reload') { load(); render(); return; }
     if (a === 'dismiss') { S.notice = null; S.busyHtml = ''; render(); return; }
     if (a === 'menu') { S.menu = !S.menu; render(); return; }
     if (a === 'goto') { S.menu = false; if (typeof W.goTo === 'function') W.goTo(t.getAttribute('data-to')); setTimeout(render, 80); return; }

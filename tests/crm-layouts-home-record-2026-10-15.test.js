@@ -407,7 +407,7 @@ const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
     ok('the welcome row sits on the cards\' edges with a 44px button', /#view-home \.view-scroll > \.page-hdr\{width:100%;margin-left:0;margin-right:0;padding-left:0;padding-right:0;/.test(tcss) && /\.home-hdr-acts > \.btn\{min-height:44px;/.test(tcss));
     const dash = read('docs/pro/dashboard.html');
     ok('dashboard tags are re-versioned for the files changed',
-      /today-home\.css\?v=6/.test(dash) && /home-attention\.js\?v=23/.test(dash) && /today-home\.js\?v=(1[6-9]|[2-9]\d)(?!\d)/.test(dash)   /* >= 16: 17 since the closes-this-week kick (2026-10-15) */ && /layout-system\.js\?v=2/.test(dash)
+      /today-home\.css\?v=6/.test(dash) && /home-attention\.js\?v=23/.test(dash) && /today-home\.js\?v=(1[6-9]|[2-9]\d)(?!\d)/.test(dash)   /* >= 16: 17 since the closes-this-week kick (2026-10-15) */ && /layout-system\.js\?v=([2-9]|[1-9]\d)(?!\d)/.test(dash)   /* >= 2: 3 since the fail-closed hydrate (layouts audit D14, 2026-10-15) */
       && /pixel-mode\.js\?v=2/.test(dash) && /visit-recorder-launcher\.js\?v=2/.test(dash) && /shape-preboot\.js\?v=3/.test(dash) && /standalone-compat\.js\?v=2/.test(dash));
   }
 

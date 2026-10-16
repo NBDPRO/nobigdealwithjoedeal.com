@@ -48,6 +48,16 @@ html[data-layout="mission"] .mc-chip-warn { color: var(--t); border-color: var(-
 html[data-layout="mission"] .mc-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr) 320px; }
 html[data-layout="mission"] .mc-side { overflow-y: auto; padding: 12px; background: var(--s); border-right: 1px solid var(--rule); }
 html[data-layout="mission"] .mc-right { border-right: 0; border-left: 1px solid var(--rule); }
+/* "What closes this week": its own cell under the left rail, never the map
+   column (D2). A 300px rail is narrow, so each row's action drops under it. */
+html[data-layout="mission"] .mc-body { grid-template-rows: minmax(0, 1fr) auto; }
+html[data-layout="mission"] .mc-left { grid-column: 1; grid-row: 1; }
+html[data-layout="mission"] .mc-center { grid-column: 2; grid-row: 1 / span 2; }
+html[data-layout="mission"] .mc-right { grid-column: 3; grid-row: 1 / span 2; }
+html[data-layout="mission"] .mc-cwk { grid-column: 1; grid-row: 2; max-height: 42vh; border-top: 1px solid var(--rule); }
+html[data-layout="mission"] .mc-cwk .cwk-card { margin: 0; padding: 12px; }
+html[data-layout="mission"] .mc-cwk .cwk-row { flex-wrap: wrap; }
+html[data-layout="mission"] .mc-cwk .cwk-act { width: 100%; justify-content: center; }
 html[data-layout="mission"] .mc-center { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 html[data-layout="mission"] .mc-map { flex: 1 1 auto; min-height: 0; }
 
@@ -103,7 +113,8 @@ html[data-layout="mission"] .mc-script li, html[data-layout="mission"] .mc-obj {
 
 /* timeline */
 html[data-layout="mission"] .mc-tl { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--s); border-top: 1px solid var(--rule); flex-wrap: wrap; }
-html[data-layout="mission"] .mc-scrub { flex: 1 1 160px; min-width: 120px; accent-color: var(--orange); }
+/* a 44px-tall input: the thumb looks the same, the finger target is not 16px (audit D8) */
+html[data-layout="mission"] .mc-scrub { flex: 1 1 160px; min-width: 120px; height: 44px; min-height: 44px; margin: 0; accent-color: var(--orange); cursor: pointer; }
 html[data-layout="mission"] .mc-tl-label { font-size: 13px; color: var(--m); }
 
 /* day route (M3) */
@@ -133,10 +144,17 @@ html[data-layout="mission"] .mc-open-sms { display: inline-flex; align-items: ce
 
 /* phones and narrow windows: map on top, panels stack under it */
 @media (max-width: 900px) {
-  html[data-layout="mission"] .mc-body { grid-template-columns: 1fr; grid-template-rows: minmax(220px, 46vh) auto auto; overflow-y: auto; }
-  html[data-layout="mission"] .mc-center { grid-row: 1; }
+  /* Rows sized to their content and the map given its own height. As a
+     minmax(220px, 46vh) row (with .mc-center's min-height:0) the map row fell
+     to its minimum once the panels below had content, and the timeline took a
+     third of it; the closes-week card in that row made it 0 px (audit D2). */
+  html[data-layout="mission"] .mc-body { grid-template-columns: 1fr; grid-template-rows: max-content max-content max-content max-content; overflow-y: auto; }
+  html[data-layout="mission"] .mc-map { flex: none; height: clamp(240px, 44vh, 420px); }
+  html[data-layout="mission"] .mc-center { grid-column: 1; grid-row: 1; }
   html[data-layout="mission"] .mc-left { grid-row: 2; border-right: 0; border-top: 1px solid var(--rule); overflow: visible; }
-  html[data-layout="mission"] .mc-right { grid-row: 3; border-left: 0; border-top: 1px solid var(--rule); overflow: visible; }
+  html[data-layout="mission"] .mc-right { grid-column: 1; grid-row: 3; border-left: 0; border-top: 1px solid var(--rule); overflow: visible; }
+  /* last: Alerts and In the path come first on a storm day */
+  html[data-layout="mission"] .mc-cwk { grid-row: 4; max-height: none; border-right: 0; overflow: visible; }
   html[data-layout="mission"] .mc-title { display: none; }
   html[data-layout="mission"] .mc-top { gap: 8px; }
 }

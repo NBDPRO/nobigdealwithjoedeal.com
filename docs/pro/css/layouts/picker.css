@@ -14,7 +14,7 @@
 .lp-thumb .b { fill: var(--s2); stroke: var(--rule, var(--br)); stroke-width: 1; }
 .lp-thumb .c { fill: var(--rule, var(--br)); }
 .lp-name { margin: 0; font-size: 15px; font-weight: 800; color: var(--t); }
-.lp-badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--og); color: var(--orange); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; vertical-align: middle; }
+.lp-badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--og); color: var(--ui-accent-text, var(--orange)); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; vertical-align: middle; }
 .lp-about { margin: 0; font-size: 12px; line-height: 1.45; color: var(--m); }
 .lp-meta { margin: 0; font-size: 12px; font-weight: 700; color: var(--m); letter-spacing: .03em; }
 .lp-btns { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: auto; }

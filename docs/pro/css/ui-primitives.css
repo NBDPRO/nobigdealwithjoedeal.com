@@ -260,6 +260,12 @@
      both dark and light surfaces (plain #BD5728 on navy is ~2.5:1). */
   --ui-focus: color-mix(in srgb, var(--orange, #BD5728) 60%, var(--t, #e8eaf0));
   --ui-focus-ring: 0 0 0 2px var(--bg, #0a0c0f), 0 0 0 4px var(--ui-focus);
+  /* Accent as TEXT (an active tab, a "DO THIS" tag, a link-button): the accent
+     pulled halfway to the text colour. Brand orange as text on navy is 2.8:1;
+     this is 4.85:1 on every nbd-original surface and darker, not lighter, on a
+     light theme. Filled buttons keep var(--orange) with --accent-fg on top.
+     (CRM layouts audit D5, 2026-10-15.) */
+  --ui-accent-text: color-mix(in srgb, var(--orange, #BD5728) 50%, var(--t, #e8eaf0));
 
   /* Motion. Durations by job, not by whim. Easing: standard for state
      changes, enter (decelerate) for things arriving, exit (accelerate) for

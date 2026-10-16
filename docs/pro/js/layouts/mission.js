@@ -57,7 +57,7 @@
   function fresh() {
     return {
       tab: 'watch', sel: null, menu: false,
-      warnings: [], warnState: 'loading',
+      warnings: [], warnState: 'loading', warnAt: 0,
       reports: [], reportState: 'loading', win: { start: null, end: null, items: [] }, cursor: null, playing: false,
       turfN: 3, reps: {}, sheet: false,
       knocks: [], knockState: 'idle',
@@ -96,11 +96,16 @@
     }
     return SM.observeWarnings().then(function (w) {
       if (!mounted) return;
-      if (w === null) { if (S.warnState !== 'ok') S.warnState = 'fail'; }   // keep the last good list on a failed poll
-      else { S.warnings = w; S.warnState = 'ok'; }
+      if (w === null) warnFailed();
+      else { S.warnings = w; S.warnState = 'ok'; S.warnAt = Date.now(); }
       render();
-    }, function () { if (mounted) { if (S.warnState !== 'ok') S.warnState = 'fail'; render(); } });
+    }, function () { if (mounted) { warnFailed(); render(); } });
   }
+  // A failed poll keeps the last good list on the map, but the screen stops
+  // calling it current: 'stale' says when it was last checked and that it is
+  // not an all-clear (audit D13: one good poll used to mean "No active
+  // warning" for as long as the feed stayed down).
+  function warnFailed() { S.warnState = (S.warnState === 'ok' || S.warnState === 'stale') ? 'stale' : 'fail'; }
 
   function loadReports() {
     if (W._leadsLoaded !== true) { S.reportState = 'loading'; render(); return Promise.resolve(); }
@@ -485,8 +490,9 @@
     if (S.warnState === 'loading') return '<span class="mc-chip">Checking the sky...</span>';
     if (S.warnState === 'nocoords') return '<span class="mc-chip mc-chip-warn">No customer has a map location yet</span>';
     if (S.warnState === 'fail') return '<span class="mc-chip mc-chip-warn">Warning feed unavailable. This is not an all-clear.</span>';
+    if (S.warnState === 'stale') return '<span class="mc-chip mc-chip-warn">Storm feed unavailable. Last checked ' + esc(timeOnly(S.warnAt)) + '; not an all-clear.</span>';
     if (S.warnings.length) return '<span class="mc-chip mc-chip-hot">' + S.warnings.length + ' active warning' + (S.warnings.length === 1 ? '' : 's') + '</span>';
-    return '<span class="mc-chip">No active warning over your customers</span>';
+    return '<span class="mc-chip">No active warning over your customers · checked ' + esc(timeOnly(S.warnAt)) + '</span>';
   }
   function topBar() {
     var tabs = [['watch', 'Watch'], ['customer', 'Customer'], ['canvass', 'Canvass'], ['route', 'Day route']].map(function (t) {
@@ -503,6 +509,7 @@
   function alertRail() {
     var h = '<h2 class="mc-h">Alerts</h2>';
     if (S.warnState === 'fail') h += '<p class="mc-note">Could not reach the weather service. Warnings below may be out of date. Try Refresh.</p>';
+    if (S.warnState === 'stale') h += '<p class="mc-note">Could not reach the weather service. What is shown is from ' + esc(timeOnly(S.warnAt)) + ' and may be out of date; it is not an all-clear. Try Refresh.</p>';
     if (S.warnState === 'nocoords') h += '<p class="mc-note">None of your customers has a map location yet, so there is nothing to compare a warning against. Addresses get a location when they are saved from the map or geocoded.</p>';
     if (!S.warnings.length && S.warnState === 'ok') h += '<p class="mc-note">Nothing warned over your customers right now. Storm reports on the map are what already happened.</p>';
     S.warnings.forEach(function (w) {
@@ -517,7 +524,12 @@
   function pathList() {
     var path = inPath();
     var h = '<h2 class="mc-h">In the path <span class="mc-count">' + path.length + '</span></h2>';
-    if (!path.length) return h + '<p class="mc-note">No customer address sits inside an active warning.</p>';
+    if (!path.length) {
+      if (S.warnState === 'fail') return h + '<p class="mc-note">Unknown: the warning feed is unavailable, so nobody can be ruled out.</p>';
+      if (S.warnState === 'loading') return h + '<p class="mc-note">Checking the warning feed...</p>';
+      if (S.warnState === 'stale') return h + '<p class="mc-note">None as of ' + esc(timeOnly(S.warnAt)) + '. The feed is unavailable now, so this may be out of date.</p>';
+      return h + '<p class="mc-note">No customer address sits inside an active warning.</p>';
+    }
     h += '<ul class="mc-list">';
     path.slice(0, 60).forEach(function (p) {
       var l = leadById(p.leadId);
@@ -610,8 +622,12 @@
   function shell() {
     rootEl.innerHTML = '<div class="mc-wrap"><div data-mc-slot="top"></div>' +
       '<div class="mc-body"><aside class="mc-side mc-left" data-mc-slot="left"></aside>' +
-      '<section class="mc-center"><div class="mc-map" aria-label="Storm map"></div><div data-mc-slot="tl"></div><div data-cw-slot="mission"></div></section>' +
-      '<aside class="mc-side mc-right" data-mc-slot="right"></aside></div></div>';
+      '<section class="mc-center"><div class="mc-map" aria-label="Storm map"></div><div data-mc-slot="tl"></div></section>' +
+      '<aside class="mc-side mc-right" data-mc-slot="right"></aside>' +
+      // "What closes this week" (js/closes-week.js): its own cell, never the map
+      // column. Under the left rail on a laptop, last on a phone. In the map
+      // column it squeezed the phone's map to 0 px and slid over Alerts (D2).
+      '<div class="mc-side mc-cwk" data-cwk-slot="mission"></div></div></div>';
     built = true;
     ensureMap();
   }

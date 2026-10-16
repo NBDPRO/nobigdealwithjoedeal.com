@@ -489,9 +489,9 @@
     // by today-home.js at Home boot like 'away' (no boot <script> tag).
     // closes-week-logic.js is byte-identical to functions/closes-week-logic.js.
     closesweek: [
-      'css/closes-week.css?v=1',
+      'css/closes-week.css?v=2',
       'js/closes-week-logic.js?v=1',
-      'js/closes-week.js?v=1'
+      'js/closes-week.js?v=2'
     ]
   };
 

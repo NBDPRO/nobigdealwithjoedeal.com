@@ -72,6 +72,10 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function toast(m, t) { if (typeof window.showToast === 'function') window.showToast(m, t || 'info'); }
+  function sayUserSave(r) {
+    if (r && r.blocked) { toast('Your company\'s layout settings haven\'t loaded yet, so nothing changed. Check your connection and try again.', 'error'); return; }
+    toast(r && r.saved ? 'Layout saved.' : 'Layout applied on this device. Couldn\'t sync it; check your connection.', r && r.saved ? 'success' : 'info');
+  }
   function prefs() { return E.prefs(); }
   function lockInfo() {
     var p = prefs();
@@ -214,7 +218,9 @@
       state.busy = true; render();
       return E.saveUser({ id: id, device: state.device }).then(function (r) {
         state.busy = false; render();
-        toast(r && r.saved ? 'Layout saved.' : 'Layout applied on this device. Couldn\'t sync it; check your connection.', r && r.saved ? 'success' : 'info');
+        sayUserSave(r);
+        // not kept (settings unknown): end the preview like Revert does
+        if (r && r.blocked) return E.refresh().then(function () { render(); });
       });
     }
     return E.refresh().then(function () { render(); });
@@ -280,7 +286,7 @@
       state.busy = true; render();
       E.saveUser({ id: id, device: state.device }).then(function (r) {
         state.busy = false; render();
-        toast(r && r.saved ? 'Layout saved.' : 'Layout applied on this device. Couldn\'t sync it; check your connection.', r && r.saved ? 'success' : 'info');
+        sayUserSave(r);
       });
       return;
     }

@@ -12,6 +12,7 @@
   "node": [
     "photo-match-2026-10-15.test.js",
     "closes-week-2026-10-15.test.js",
+    "crm-layouts-audit-fixes-2026-10-15.test.js",
     "deal-check-rate-2026-10-15.test.js",
     "review-ask-auto-2026-10-15.test.js",
     "missed-call-reply-2026-10-15.test.js",
@@ -1159,6 +1160,7 @@
     "lead-bridge.integration.test.js",
     "marketing-polish-contract.test.js",
     "pro-demo-zero-network-2026-10-06.test.js",
+    "crm-layouts-render-2026-10-15.test.js",
     "public-intake.test.js",
     "referral-rewards.test.js",
     "smoke.test.js",

@@ -132,6 +132,12 @@ CEILING.localBytes += 6 * 1024;
 // one shape-check regex, the smsHref field, the link markup). call-center-view.js is lazy and not counted here.
 // Main sat at 4834 of 4835 KB; this PR measures 4835, so the ceiling keeps ~1 KB of slack.
 CEILING.localBytes += 1 * 1024;
+// +6 KB, deliberate (2026-10-15, CRM layouts audit fixes): no new script, no new tag. phone-share.js gains the one
+// delegated "ok to text?" hold for <a href="sms:" data-ps-check> drafts (+~1.9 KB, D16); layout-system.js fails
+// closed and retries when the settings read fails with no cache (+~2.4 KB, D14); dashboard-state.js loads the theme
+// engine at boot when the phone prefers light (+~0.9 KB, D21). All deferred code already on the page. Main sat at
+// 4836 of 4836 KB; this PR measures 4841, so the ceiling keeps ~1 KB of slack.
+CEILING.localBytes += 6 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {

@@ -76,7 +76,7 @@ html[data-layout="island"] .isl-item:hover { color: var(--t); }
 html[data-layout="island"] .isl-item .lk-ic { width: 20px; height: 20px; }
 html[data-layout="island"] .isl-lbl { overflow: hidden; text-overflow: ellipsis; }
 /* active item: tinted with --og */
-html[data-layout="island"] .isl-item.isl-active { background: var(--og); color: var(--orange); }
+html[data-layout="island"] .isl-item.isl-active { background: var(--og); color: var(--ui-accent-text, var(--orange)); }
 
 /* ── the dock (bottom) ── */
 html[data-layout="island"] .isl-dock {
@@ -93,7 +93,7 @@ html[data-layout="island"] .isl-dock .isl-primary:hover { color: var(--accent-fg
 html[data-layout="island"] .isl-dock .isl-rec .lk-ic { fill: currentColor; stroke: none; width: 14px; height: 14px; }
 /* one bar: the floating Home Record bar steps aside for the dock's button */
 html[data-layout="island"] .nbd-vr-bar { display: none !important; }
-html[data-layout="island"] .isl-dock .isl-on { background: var(--og); color: var(--orange); }
+html[data-layout="island"] .isl-dock .isl-on { background: var(--og); color: var(--ui-accent-text, var(--orange)); }
 
 /* ── More: the sidebar's own entries in a floating sheet ── */
 html[data-layout="island"] .isl-more {
@@ -156,7 +156,7 @@ html[data-layout="island"] .isl-home { display: flex; flex-direction: column; ga
 html[data-layout="island"] .isl-isle { padding: 18px 20px; box-sizing: border-box; min-width: 0; }
 html[data-layout="island"] .isl-hero { padding: 22px 24px; }
 html[data-layout="island"] .isl-hero-k {
-  font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--orange);
+  font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ui-accent-text, var(--orange));
 }
 html[data-layout="island"] .isl-hero-num {
   margin-top: 6px; font-size: clamp(44px, 11vw, 92px); font-weight: 900; line-height: 1;
@@ -204,7 +204,7 @@ html[data-layout="island"] .isl-lane {
   background: color-mix(in srgb, var(--s) var(--isl-bar-frost), transparent);
   border: 1px solid color-mix(in srgb, var(--isl-edge)12%, var(--br));
 }
-html[data-layout="island"] .isl-lane.isl-lane-on { background: var(--og); color: var(--orange); border-color: var(--orange); }
+html[data-layout="island"] .isl-lane.isl-lane-on { background: var(--og); color: var(--ui-accent-text, var(--orange)); border-color: var(--orange); }
 html[data-layout="island"] .isl-lane-n { font-weight: 900; }
 html[data-layout="island"] #kanbanBoard {
   scroll-snap-type: x proximity; scroll-padding-inline: 14px; padding-inline: 14px !important; gap: 12px !important;

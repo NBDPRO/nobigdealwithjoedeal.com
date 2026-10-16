@@ -30,7 +30,7 @@ html[data-layout="focus"] .fo-sheet button { min-height: var(--tap); text-align:
 html[data-layout="focus"] .fo-sheet button:hover { background: var(--og); }
 
 html[data-layout="focus"] .fo-hero { text-align: center; margin: 9vh 0 16px; }
-html[data-layout="focus"] .fo-big { font-size: clamp(72px, 18vw, 140px); line-height: 1; font-weight: 900; color: var(--orange); font-variant-numeric: tabular-nums; }
+html[data-layout="focus"] .fo-big { font-size: clamp(72px, 18vw, 140px); line-height: 1; font-weight: 900; color: var(--ui-accent-text, var(--orange)); font-variant-numeric: tabular-nums; }
 html[data-layout="focus"] .fo-sub { font-size: 20px; font-weight: 700; color: var(--t); }
 html[data-layout="focus"] .fo-lines { list-style: none; margin: 8px auto 24px; padding: 0; text-align: center; color: var(--m); font-size: 16px; line-height: 1.8; }
 html[data-layout="focus"] .fo-note { text-align: center; color: var(--m); font-size: 14px; }
@@ -59,7 +59,7 @@ html[data-layout="focus"].my-skin-wallpaper .fo-card {
 }
 html[data-layout="focus"] .fo-name { margin: 0; font-size: clamp(30px, 6vw, 48px); line-height: 1.08; font-weight: 800; overflow-wrap: anywhere; }
 html[data-layout="focus"] .fo-why { margin: 0; font-size: 19px; line-height: 1.35; }
-html[data-layout="focus"] .fo-why-k { display: inline-block; margin-right: 8px; padding: 2px 10px; border-radius: 999px; background: var(--og); color: var(--orange); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; vertical-align: 2px; }
+html[data-layout="focus"] .fo-why-k { display: inline-block; margin-right: 8px; padding: 2px 10px; border-radius: 999px; background: var(--og); color: var(--ui-accent-text, var(--orange)); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; vertical-align: 2px; }
 html[data-layout="focus"] .fo-facts { list-style: none; margin: 0; padding: 0; color: var(--m); font-size: 15px; display: flex; flex-direction: column; gap: 3px; }
 html[data-layout="focus"] .fo-draft { background: var(--s2); border: 1px dashed var(--rule); border-radius: 14px; padding: 12px 14px; }
 html[data-layout="focus"] .fo-draft-k { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--m); margin-bottom: 4px; }
@@ -72,7 +72,7 @@ html[data-layout="focus"] .fo-act {
 html[data-layout="focus"] .fo-act[disabled] { opacity: .45; cursor: not-allowed; }
 html[data-layout="focus"] .fo-act-primary { background: var(--orange); border-color: var(--orange); color: var(--accent-fg, #fff); box-shadow: 0 0 20px var(--og); }
 html[data-layout="focus"] .fo-act kbd { font: inherit; font-size: 12px; font-weight: 800; opacity: .7; border: 1px solid currentColor; border-radius: 6px; padding: 0 5px; }
-html[data-layout="focus"] .fo-open { font-size: 14px; font-weight: 700; color: var(--orange); }
+html[data-layout="focus"] .fo-open { font-size: 14px; font-weight: 700; color: var(--ui-accent-text, var(--orange)); }
 html[data-layout="focus"] .fo-keys { text-align: center; color: var(--m); font-size: 12px; margin: 16px 0 0; }
 
 @media (max-width: 768px) {

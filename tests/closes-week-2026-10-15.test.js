@@ -153,13 +153,13 @@ console.log('\nF. the Home card');
   ok('book an inspection → a text draft with the booking link', /cal\.com\/joedeal\/roof-inspection/.test(decodeURIComponent(A(row('book_inspection'), L1, {}))));
   ok('no phone on file → the customer page, never a broken link', /href="\/pro\/customer\.html\?id=L1"/.test(A(row('call'), {}, {})));
   const card = win.NBDClosesWeek._cardHtml([{ leadId: 'L1', name: '<b>x</b>', stageLabel: 'Negotiating', projectedValue: 12000, likelihoodPct: 50, score: 6000, reason: 'opened estimate 2× this week, no reply', nextAction: { kind: 'call', label: 'Call' } }]);
-  ok('each row taps through to the customer; value says "projected"; names are escaped', /class="cw-main" href="\/pro\/customer\.html\?id=L1"/.test(card) && /\$12,000 projected/.test(card) && card.indexOf('<b>x</b>') === -1);
+  ok('each row taps through to the customer; value says "projected"; names are escaped', /class="cwk-main" href="\/pro\/customer\.html\?id=L1"/.test(card) && /\$12,000 projected/.test(card) && card.indexOf('<b>x</b>') === -1);
   ok('no inline handlers or styles', !/\son[a-z]+=|style="/i.test(card + t));
 
   const dash = read('docs/pro/dashboard.html');
   ok('Home template: #homeClosesWeek right after #todayPlan, outside .home-more (Classic, Bento, Island)', dash.indexOf('id="homeClosesWeek"') > dash.indexOf('id="todayPlan"') && dash.indexOf('id="homeClosesWeek"') < dash.indexOf('class="home-more'));
   for (const [f, slot] of [['focus', 'focus'], ['field', 'field'], ['inbox', 'inbox'], ['crew', 'crew'], ['mission', 'mission']]) {
-    ok('the ' + f + ' layout leaves a [data-cw-slot] in its own markup', read('docs/pro/js/layouts/' + f + '.js').indexOf('data-cw-slot="' + slot + '"') !== -1);
+    ok('the ' + f + ' layout leaves a [data-cwk-slot] in its own markup', read('docs/pro/js/layouts/' + f + '.js').indexOf('data-cwk-slot="' + slot + '"') !== -1);
   }
   ok('every registered layout is covered (no new layout without a slot or Home)', (() => {
     const ls = read('docs/pro/js/layout-system.js');
@@ -168,7 +168,7 @@ console.log('\nF. the Home card');
     return ids.length >= 7 && ids.every((i) => covered[i] || i === 'FALLBACK');
   })(), [...read('docs/pro/js/layout-system.js').matchAll(/id: '([a-z-]+)', name:/g)].map((x) => x[1]).join());
   const sl = read('docs/pro/js/script-loader.js');
-  ok('lazy bundle "closesweek" (css + logic + card), no boot <script> tag', /closesweek: \[\s*'css\/closes-week\.css\?v=1',\s*'js\/closes-week-logic\.js\?v=1',\s*'js\/closes-week\.js\?v=1'\s*\]/.test(sl) && !/<script[^>]*closes-week/.test(dash));
+  ok('lazy bundle "closesweek" (css + logic + card), no boot <script> tag', /closesweek: \[\s*'css\/closes-week\.css\?v=2',\s*'js\/closes-week-logic\.js\?v=1',\s*'js\/closes-week\.js\?v=2'\s*\]/.test(sl) && !/<script[^>]*closes-week/.test(dash));
   ok('today-home.js kicks it at Home boot', /loadBundle\('closesweek'\)/.test(read('docs/pro/js/today-home.js')) && /today-home\.js\?v=17/.test(dash));
 }
 

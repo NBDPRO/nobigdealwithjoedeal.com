@@ -69,7 +69,7 @@ html[data-layout="field"] .fa-back {
 }
 html[data-layout="field"] .fa-strip { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 10px; }
 html[data-layout="field"] .fa-wx { font-size: 15px; color: var(--t); }
-html[data-layout="field"] .fa-storm { font-size: 14px; font-weight: 700; color: var(--orange); }
+html[data-layout="field"] .fa-storm { font-size: 14px; font-weight: 700; color: var(--ui-accent-text, var(--orange)); }
 html[data-layout="field"] .fa-prog { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--m); margin-bottom: 8px; }
 html[data-layout="field"] .fa-empty { padding: 28px 8px; text-align: center; color: var(--m); font-size: 16px; line-height: 1.5; }
 
@@ -77,11 +77,11 @@ html[data-layout="field"] .fa-now {
   background: var(--s); border: var(--fa-bw) solid var(--orange); border-radius: 20px; padding: 18px;
   display: flex; flex-direction: column; gap: 12px;
 }
-html[data-layout="field"] .fa-now-time { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--orange); }
+html[data-layout="field"] .fa-now-time { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ui-accent-text, var(--orange)); }
 html[data-layout="field"] .fa-now-name { font-size: 30px; line-height: 1.1; font-weight: 800; overflow-wrap: anywhere; }
 html[data-layout="field"] .fa-now-addr { font-size: 17px; color: var(--m); overflow-wrap: anywhere; }
 html[data-layout="field"] .fa-now-why { font-size: 16px; line-height: 1.4; }
-html[data-layout="field"] .fa-do { display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 999px; background: var(--og); color: var(--orange); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+html[data-layout="field"] .fa-do { display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 999px; background: var(--og); color: var(--ui-accent-text, var(--orange)); font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
 html[data-layout="field"] .fa-actions-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 html[data-layout="field"] .fa-big {
   flex: 1 1 140px; min-height: var(--tap); padding: 0 16px; border-radius: 16px; font: inherit; font-size: 16px; font-weight: 800;
@@ -108,7 +108,7 @@ html[data-layout="field"] .fa-check li { border-bottom: 1px solid var(--rule); }
 html[data-layout="field"] .fa-check label { display: flex; gap: 12px; align-items: center; min-height: var(--tap); font-size: 16px; }
 html[data-layout="field"] .fa-check input { width: 26px; height: 26px; accent-color: var(--orange); flex: none; }
 html[data-layout="field"] .fa-onsite { margin: 18px 0; padding: 16px; border: var(--fa-bw) solid var(--orange); border-radius: 16px; font-size: 17px; font-weight: 800; text-align: center; }
-html[data-layout="field"] .fa-link { color: var(--orange); font-weight: 700; }
+html[data-layout="field"] .fa-link { color: var(--ui-accent-text, var(--orange)); font-weight: 700; }
 
 /* slide to confirm */
 html[data-layout="field"] .fa-slide {
