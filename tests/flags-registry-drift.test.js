@@ -89,8 +89,9 @@ for (const f of FLAGS) {
 }
 
 // 41 (2026-10-15): + REVIEW_ASK_AUTO_EMAIL_ENABLED / REVIEW_ASK_AUTO_TEXT_ENABLED (two more gates).
-ok('registry pins 41 flags (update deliberately: 35 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag)',
-  FLAGS.length === 41, String(FLAGS.length));
+// 42 (2026-10-16): + REVIEW_ASK_EMAIL_PHOTO_ENABLED (a non-gate 'enabled' flag inside the review ask).
+ok('registry pins 42 flags (update deliberately: 35 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag + the review photo)',
+  FLAGS.length === 42, String(FLAGS.length));
 
 // ── cron-gates.js stays the single polarity source ────────────────────────
 const gateNames = new Set(CRON_GATES.map((g) => g.name));
@@ -119,8 +120,8 @@ console.log('\nthe literal each flag is compared with in its own file');
   }
 }
 const nonGate = FLAGS.filter((f) => !gateNames.has(f.name)).map((f) => f.name).sort();
-ok('the non-gate flags are exactly CARE_PLAN_MODE, TURNSTILE_REQUIRED, the three NBD_* off-switches and the QA test-mode flag',
-  JSON.stringify(nonGate) === JSON.stringify(['CARE_PLAN_MODE', 'NBD_CONNECT_ALLOW_TEST_MODE', 'NBD_CRM_STRIPE_INVOICES', 'NBD_INVOICE_OVERDUE', 'NBD_MONEY_PAPER', 'TURNSTILE_REQUIRED']),
+ok('the non-gate flags are exactly CARE_PLAN_MODE, TURNSTILE_REQUIRED, the three NBD_* off-switches, the QA test-mode flag and the review-ask photo',
+  JSON.stringify(nonGate) === JSON.stringify(['CARE_PLAN_MODE', 'NBD_CONNECT_ALLOW_TEST_MODE', 'NBD_CRM_STRIPE_INVOICES', 'NBD_INVOICE_OVERDUE', 'NBD_MONEY_PAPER', 'REVIEW_ASK_EMAIL_PHOTO_ENABLED', 'TURNSTILE_REQUIRED']),
   JSON.stringify(nonGate));
 
 // ── row quality ──────────────────────────────────────────────────────────
