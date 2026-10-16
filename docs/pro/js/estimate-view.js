@@ -238,10 +238,10 @@
     html += '</div>';
 
     if (est.owner || est.addr) {
-      html += '<div class="ev-customer">';
+      html += '<dl class="ev-customer">';
       if (est.owner) html += '<dt>Prepared for</dt><dd>' + escHtml(est.owner) + '</dd>';
       if (est.addr)  html += '<dt>Property</dt><dd>' + escHtml(est.addr) + '</dd>';
-      html += '</div>';
+      html += '</dl>';
     }
 
     // Tier comparison cards if the estimate carries a tiers object

@@ -139,7 +139,6 @@
       .nbd-ba-meta .nbd-ba-hint {
         font-size: 11px;
         font-style: italic;
-        opacity: 0.7;
       }
     `;
     document.head.appendChild(s);

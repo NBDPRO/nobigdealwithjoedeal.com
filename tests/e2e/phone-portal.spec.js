@@ -615,3 +615,28 @@ test.describe('phone portal: the rep preview @shard2 @phoneportal', () => {
     });
   });
 });
+
+// Accessibility (axe-core, 2026-10-16): the two pages a homeowner opens from
+// a text, on a phone, with the same mocked backend as above. Fails on
+// serious/critical WCAG 2.x A/AA violations; moderate/minor ones go to the
+// report. axe is injected as a script, so THIS block's context bypasses the
+// page CSP (fixtures/axe.js).
+test.describe('phone portal: accessibility (axe) @shard1 @phoneportal', () => {
+  const { expectNoSeriousA11y } = require('./fixtures/axe');
+  test.use({ ...PHONE, bypassCSP: true });
+  test.skip(skipWithoutCreds(), 'PLAYWRIGHT_TEST_USER_* not set');
+
+  for (const kind of ['estimate', 'complete']) {
+    test(`the project page (${kind}) has no serious or critical axe violations`, async ({ page }, testInfo) => {
+      await openPortal(page, kind);
+      await expectNoSeriousA11y(page, testInfo, { label: 'portal-' + kind });
+    });
+  }
+
+  test('the itemized estimate page has no serious or critical axe violations', async ({ page, context }, testInfo) => {
+    await mockBackend(context, { kind: 'estimate' });
+    await page.goto('/pro/estimate-view.html?token=' + TOKEN + '&estimateId=' + EST_ID);
+    await page.waitForSelector('.ev-line', { timeout: 15_000 });
+    await expectNoSeriousA11y(page, testInfo, { label: 'estimate-view' });
+  });
+});
