@@ -132,9 +132,13 @@ console.log('\n5. on my way');
 
   const src = read('docs/pro/js/layouts/mission.js');
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  ok('On my way is gated on the server text check and shows a DRAFT, it does not navigate', /PS\.checkText\(\{ phone: s\.phone, leadId: s\.leadId \}\)/.test(code)
-    && /chk && chk\.ok === true/.test(code) && !/location\.href\s*=/.test(code) && !/window\.open\(/.test(code));
-  ok('a failed or impossible check shows the reason and no draft', /fail\(\(chk && chk\.reason\)/.test(code));
+  // 2026-10-15: the gate moved into routeplan.js draftOnMyWay (the Next stop
+  // card shares it); tests/next-stop-2026-10-15.test.js runs it end to end.
+  const rpCode = read('docs/pro/js/layouts/routeplan.js');
+  ok('On my way is gated on the server text check and shows a DRAFT, it does not navigate', /RP\.draftOnMyWay\(\{[^;]*\}, W\.NBDPhoneShare\)/.test(code)
+    && /PS\.checkText\(\{ phone: x\.phone, leadId: x\.leadId \}\)/.test(rpCode) && /r && r\.ok === true/.test(rpCode)
+    && !/location\.href\s*=/.test(code) && !/window\.open\(/.test(code));
+  ok('a failed or impossible check shows the reason and no draft', /\{ key: key, error: r\.reason \}/.test(code) && /ok: false, code: \(r && r\.code\) \|\| 'unverified', reason: \(r && r\.reason\) \|\| COULD_NOT_CHECK/.test(rpCode));
   ok('the draft says nothing is sent until the rep presses Send', /Nothing is sent until you press Send in Messages/.test(code));
   ok('Crews is disabled with a reason, not invented', /chip\('crews', 'Crews', false, true, 'No live crew locations are collected yet'\)/.test(code));
   ok('drive times are labelled as estimates wherever shown', (code.match(/\(est\.\)/g) || []).length >= 3);

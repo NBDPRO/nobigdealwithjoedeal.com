@@ -186,6 +186,9 @@
     }
     var storm = stormLine();
     h += '<div class="fa-strip">' + wx + (storm ? '<div class="fa-storm">' + esc(storm) + '</div>' : '') + '</div>';
+    // Next stop (js/next-stop.js, 2026-10-15) fills [data-ns-slot]: drive time,
+    // Navigate and a checked "On my way", above the stop itself.
+    h += '<div data-ns-slot="field" data-ns-variant="compact"></div>';
 
     if (!ready) {
       h += '<div class="fa-empty">Loading your day…</div>';

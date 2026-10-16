@@ -467,22 +467,16 @@
     if (!s) return;
     var model = routeModel();
     var leg = legInto(key, model);
-    var text = RP.onMyWayText({ first: firstName(s.name), minutes: leg ? leg.min : null, signOff: signOff() });
-    var href = RP.smsHref(s.phone, text);
-    function fail(msg) { S.route.omw = { key: key, error: msg }; render(); }
-    if (!href) { fail('No phone number on file for this customer, so there is nothing to text.'); return; }
-    var PS = W.NBDPhoneShare;
-    var check = PS && typeof PS.checkText === 'function'
-      ? Promise.resolve(PS.checkText({ phone: s.phone, leadId: s.leadId })).catch(function () { return null; })
-      : Promise.resolve(null);
-    check.then(function (chk) {
-      if (!mounted) return;
-      if (chk && chk.ok === true) { S.route.omw = { key: key, text: text, href: href }; render(); return; }
-      // the same server check every other text button runs (STOP list, Do Not
-      // Text, consent, texting switch, 8am-9pm): a "no", or a check that cannot
-      // run, shows the reason and no draft opens.
-      fail((chk && chk.reason) || 'Could not check whether this customer can be texted right now. Nothing was drafted.');
-    });
+    // routeplan.js draftOnMyWay: the ONE gated path (the Next stop card uses it
+    // too). The same server check every other text button runs (STOP list, Do
+    // Not Text, consent, texting switch, 8am-9pm): a "no", or a check that
+    // cannot run, shows the reason and no draft opens.
+    RP.draftOnMyWay({ phone: s.phone, leadId: s.leadId, first: firstName(s.name), minutes: leg ? leg.min : null, signOff: signOff() }, W.NBDPhoneShare)
+      .then(function (r) {
+        if (!mounted) return;
+        S.route.omw = r.ok ? { key: key, text: r.text, href: r.href } : { key: key, error: r.reason };
+        render();
+      });
   }
 
   // ── render ───────────────────────────────────────────────────────────
@@ -620,7 +614,8 @@
 
   var built = false;
   function shell() {
-    rootEl.innerHTML = '<div class="mc-wrap"><div data-mc-slot="top"></div>' +
+    // Next stop (js/next-stop.js, 2026-10-15): a one-line strip under the header.
+    rootEl.innerHTML = '<div class="mc-wrap"><div data-mc-slot="top"></div><div class="mc-ns" data-ns-slot="mission" data-ns-variant="compact"></div>' +
       '<div class="mc-body"><aside class="mc-side mc-left" data-mc-slot="left"></aside>' +
       '<section class="mc-center"><div class="mc-map" aria-label="Storm map"></div><div data-mc-slot="tl"></div></section>' +
       '<aside class="mc-side mc-right" data-mc-slot="right"></aside>' +

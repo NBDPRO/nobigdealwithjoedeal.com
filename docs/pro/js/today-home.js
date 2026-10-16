@@ -93,7 +93,10 @@
     appts.busy = true;
     try {
       var start = new Date(); start.setHours(0, 0, 0, 0); start.setTime(start.getTime() - 12 * 3600 * 1000);
-      var end = new Date(); end.setHours(23, 59, 59, 999); end.setTime(end.getTime() + 12 * 3600 * 1000);
+      // Through the end of TOMORROW (+12 h of zone slack): Today keeps only
+      // today's rows (collectTodayItems), and the Next stop card (next-stop.js)
+      // reads tomorrow's first stop from this same read once today is done.
+      var end = new Date(); end.setHours(23, 59, 59, 999); end.setTime(end.getTime() + 36 * 3600 * 1000);
       var col = w.collection(w.db, 'appointments');
       var byId = {};
       var lanes = ['repUid', 'userId'];
@@ -895,7 +898,7 @@
     ensurePromise();
     // Away mode (js/away-mode.js): status line / hand-back card / backup cover list
     // on Home. A lazy bundle, so it adds no boot <script> tag; best-effort.
-    try { if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') { w.ScriptLoader.loadBundle('away'); w.ScriptLoader.loadBundle('closesweek'); } } catch (_) { /* optional surface */ }
+    try { if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') { w.ScriptLoader.loadBundle('away'); w.ScriptLoader.loadBundle('closesweek'); w.ScriptLoader.loadBundle('nextstop'); } } catch (_) { /* optional surface */ }
     // Home is a <template> mounted on navigation: paint when #todayPlan appears.
     try {
       new MutationObserver(function () {
@@ -916,5 +919,8 @@
   }
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', boot); else boot();
 
-  w.NBDToday = { render: render, compute: compute, last: function () { return last; }, refreshAppointments: function () { return loadAppointments(true); }, _bigDay: bigDay };
+  w.NBDToday = { render: render, compute: compute, last: function () { return last; }, refreshAppointments: function () { return loadAppointments(true); }, _bigDay: bigDay,
+    // The raw appointment docs of the last read (today and tomorrow) and whether
+    // a lane failed: the Next stop card's tomorrow-first and its honesty line.
+    appointmentRows: function () { return appts.rows.slice(); }, appointmentsFailed: function () { return !!appts.failed; } };
 })();

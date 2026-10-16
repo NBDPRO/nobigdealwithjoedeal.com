@@ -11,7 +11,9 @@
  *   conflicts    consecutive timed stops where the estimated drive does not fit
  *                the gap, assuming 45 minutes on site (labelled)
  *   on my way    the drafted text; the layout opens the rep's own composer, the
- *                rep presses Send
+ *                rep presses Send. draftOnMyWay() is the ONE gated path (the
+ *                text check is passed in, so this file still makes no call itself)
+ *   directions   the phone's own maps app (Apple Maps on Apple devices)
  */
 (function (root) {
   'use strict';
@@ -189,11 +191,51 @@
     return 'sms:+1' + d + '?&body=' + encodeURIComponent(body);
   }
 
+  /**
+   * Turn-by-turn in the phone's own maps app: Apple Maps on an iPhone, iPad or
+   * Mac, Google Maps otherwise (customer-phone-order.js directionsUrl, the
+   * customer page's Directions button, is the same rule). '' with no address.
+   */
+  function directionsUrl(address, ua) {
+    var a = String(address == null ? '' : address).trim();
+    if (!a) return '';
+    var q = encodeURIComponent(a);
+    return /iP(ad|hone|od)|Macintosh/.test(String(ua || ''))
+      ? 'https://maps.apple.com/?daddr=' + q
+      : 'https://www.google.com/maps/dir/?api=1&destination=' + q;
+  }
+
+  var COULD_NOT_CHECK = 'Could not check whether this customer can be texted right now. Nothing was drafted.';
+  /**
+   * "On my way", gated. The ONE path every On my way button takes (Mission's
+   * day route, the Next stop card): the server's text check first
+   * (phoneShare.checkText: STOP list, Do Not Text, consent, the texting
+   * switch, 8am-9pm). Only a YES gets a draft; a "no", a check that cannot run
+   * or no phone resolves { ok:false, reason } and nothing is drafted. Never
+   * rejects. Never sends: the caller shows the draft with an sms: link.
+   *   o: { phone, leadId, first, minutes, signOff }
+   */
+  function draftOnMyWay(o, phoneShare) {
+    var x = o || {};
+    var text = onMyWayText({ first: x.first, minutes: x.minutes, signOff: x.signOff });
+    var href = smsHref(x.phone, text);
+    if (!href) return Promise.resolve({ ok: false, code: 'no_phone', reason: 'No phone number on file for this customer, so there is nothing to text.' });
+    var PS = phoneShare;
+    if (!PS || typeof PS.checkText !== 'function') return Promise.resolve({ ok: false, code: 'unverified', reason: COULD_NOT_CHECK });
+    var chk;
+    try { chk = Promise.resolve(PS.checkText({ phone: x.phone, leadId: x.leadId })); } catch (e) { chk = Promise.resolve(null); }
+    return chk.then(function (r) {
+      if (r && r.ok === true) return { ok: true, text: text, href: href };
+      return { ok: false, code: (r && r.code) || 'unverified', reason: (r && r.reason) || COULD_NOT_CHECK };
+    }, function () { return { ok: false, code: 'unverified', reason: COULD_NOT_CHECK }; });
+  }
+
   var api = {
     ROAD_FACTOR: ROAD_FACTOR, AVG_MPH: AVG_MPH, ON_SITE_MIN: ON_SITE_MIN, MAX_STOPS: MAX_STOPS,
     distMi: distMi, driveMin: driveMin, roadMi: roadMi, pathMi: pathMi,
     nearestNeighbor: nearestNeighbor, twoOpt: twoOpt, optimize: optimize, legs: legs, totals: totals, conflicts: conflicts,
     stageGroup: stageGroup, roofAgeBucket: roofAgeBucket, onMyWayText: onMyWayText, smsHref: smsHref,
+    directionsUrl: directionsUrl, draftOnMyWay: draftOnMyWay, COULD_NOT_CHECK: COULD_NOT_CHECK,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDRoutePlan = api;

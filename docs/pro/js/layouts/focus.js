@@ -200,7 +200,8 @@
   }
 
   function renderToday(q) {
-    var h = topBar(true);
+    // Next stop (js/next-stop.js, 2026-10-15) fills [data-ns-slot].
+    var h = topBar(true) + '<div data-ns-slot="focus"></div>';
     if (!q) return h + '<div class="fo-empty">Loading your day…</div>';
     var c = counts(q);
     if (!q.length) {

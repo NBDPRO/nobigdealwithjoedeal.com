@@ -1,0 +1,49 @@
+/* next-stop.css — the "Next stop" card (js/next-stop.js, 2026-10-15).
+   Same card shell as Today and "What closes this week"; it renders in
+   #homeNextStop and in every full-screen layout's [data-ns-slot].
+   .ns-compact is the one-line strip (Mission's header, Crew, Inbox). */
+.ns-card{margin:0 0 var(--ui-space-5, 20px);padding:var(--ui-space-4, 16px) var(--ui-space-5, 20px);background:var(--s2);border:1px solid var(--ui-line-hair, rgba(127,127,127,.2));border-left:4px solid var(--orange);border-radius:max(var(--r-card, 8px), var(--ui-radius-lg, 12px));box-shadow:var(--elevation-card, var(--ui-elev-1, none));color:var(--t);}
+.ns-hdr{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-bottom:6px;}
+.ns-title{margin:0;font-family:var(--ui-font-display, inherit);font-size:var(--ui-fs-title, 18px);font-weight:var(--ui-fw-heavy, 800);color:var(--t);}
+.ns-time{font-size:var(--ui-fs-body, 15px);font-weight:var(--ui-fw-bold, 700);color:var(--t);font-variant-numeric:tabular-nums;}
+.ns-aside{margin-left:auto;font-size:var(--ui-fs-caption, 12px);color:var(--m);}
+.ns-who{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.ns-name{font-size:var(--ui-fs-body, 15px);font-weight:var(--ui-fw-bold, 700);overflow-wrap:anywhere;}
+.ns-addr,.ns-sub{font-size:var(--ui-fs-body-sm, 13px);color:var(--m);overflow-wrap:anywhere;}
+.ns-sub{margin:0;}
+.ns-sub strong{color:var(--t);}
+.ns-line{margin:6px 0 0;min-height:0;}
+.ns-line:empty{display:none;}
+.ns-drive{font-size:var(--ui-fs-body-sm, 13px);color:var(--t);font-variant-numeric:tabular-nums;}
+.ns-drive-btn{min-height:44px;padding:0 12px;margin-left:-12px;background:none;border:0;border-radius:var(--ui-radius-pill, 999px);color:var(--t);font:inherit;font-size:var(--ui-fs-body-sm, 13px);font-weight:var(--ui-fw-bold, 700);text-decoration:underline;text-underline-offset:3px;cursor:pointer;}
+.ns-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+.ns-btn{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding:0 16px;border-radius:var(--r-card, 8px);border:1px solid var(--br, rgba(127,127,127,.35));background:var(--s3, var(--s2));color:var(--t);font:inherit;font-size:var(--ui-fs-body-sm, 14px);font-weight:var(--ui-fw-bold, 700);text-decoration:none;cursor:pointer;white-space:nowrap;}
+.ns-btn-primary{background:var(--orange);border-color:var(--orange);color:var(--accent-fg, #fff);}
+.ns-btn-quiet{background:transparent;}
+.ns-btn[disabled]{opacity:.6;cursor:default;}
+.ns-btn:focus-visible,.ns-drive-btn:focus-visible{outline:2px solid var(--t);outline-offset:2px;}
+.ns-draft{margin-top:10px;padding:12px;border-radius:var(--r-card, 8px);background:var(--s3, var(--s));border:1px solid var(--ui-line-hair, rgba(127,127,127,.2));}
+.ns-label{font-size:var(--ui-fs-caption, 12px);font-weight:var(--ui-fw-bold, 700);color:var(--m);text-transform:uppercase;letter-spacing:.06em;}
+.ns-draft-txt{margin:4px 0 10px;font-size:var(--ui-fs-body-sm, 14px);line-height:1.45;}
+.ns-note,.ns-fine{margin:8px 0 0;font-size:var(--ui-fs-caption, 12px);color:var(--m);line-height:1.45;}
+.ns-warn{color:var(--t);}
+.ns-warn::before{content:"! ";font-weight:800;color:var(--red, #dc2626);}
+[data-ns-slot]{display:block;}
+[data-ns-slot]:empty{display:none;}
+/* the strip: name, town and drive time on one wrapped line, buttons beside */
+.ns-compact{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:0 0 var(--ui-space-3, 12px);padding:10px 14px;}
+.ns-compact .ns-hdr{margin:0;}
+.ns-compact .ns-title{font-size:var(--ui-fs-body, 15px);}
+.ns-compact .ns-aside{margin-left:0;}
+.ns-compact .ns-who{flex-direction:row;flex-wrap:wrap;gap:0 8px;align-items:baseline;flex:1 1 160px;}
+.ns-compact .ns-line{margin:0;}
+.ns-compact .ns-acts{margin:0;margin-left:auto;}
+.ns-compact .ns-draft,.ns-compact .ns-note{flex-basis:100%;}
+@media (max-width:480px){
+  .ns-card{padding:14px 16px;}
+  .ns-acts .ns-btn{flex:1 1 auto;}
+  .ns-compact .ns-acts{margin-left:0;width:100%;}
+}
+/* where a layout places it */
+html[data-layout="mission"] .mc-ns{flex:none;padding:8px 10px 0;}
+html[data-layout="mission"] .mc-ns .ns-card{margin:0;}

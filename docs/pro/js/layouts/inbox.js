@@ -701,7 +701,7 @@
     // data-cwk-slot: "What closes this week" (js/closes-week.js) as ONE line
     // above the list that opens the card, so the replies stay in view (audit D4).
     var html = '<div class="ib-wrap">' + railHtml(counts) +
-      '<section class="ib-list" aria-label="' + (S.pane === 'inbox' ? 'Inbox' : 'Pipeline by stage') + '">' + head + bannerHtml() + '<div data-cwk-slot="inbox" data-cwk-compact="1"></div><div class="ib-scroll">' + listHtml() + '</div></section>' +
+      '<section class="ib-list" aria-label="' + (S.pane === 'inbox' ? 'Inbox' : 'Pipeline by stage') + '">' + head + bannerHtml() + '<div data-ns-slot="inbox" data-ns-variant="compact"></div><div data-cwk-slot="inbox" data-cwk-compact="1"></div><div class="ib-scroll">' + listHtml() + '</div></section>' +
       '<section class="ib-thread" aria-label="Thread">' + threadHtml(it) + '</section>' +
       '<aside class="ib-side" aria-label="Customer facts">' + factsHtml(it) + '</aside>' +
       legendHtml() + '</div>';
