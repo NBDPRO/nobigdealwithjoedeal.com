@@ -87,7 +87,7 @@ html[data-layout="mission"] .mc-row-on { border-color: var(--orange); box-shadow
 html[data-layout="mission"] .mc-row-name { font-weight: 700; overflow-wrap: anywhere; }
 html[data-layout="mission"] .mc-row-sub { grid-column: 1; font-size: 12px; color: var(--m); overflow-wrap: anywhere; }
 html[data-layout="mission"] .mc-hail { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-weight: 800; font-size: 13px; padding: 2px 8px; border-radius: 999px; border: 1px solid; }
-html[data-layout="mission"] .mc-hail-red { color: var(--red); border-color: var(--red); }
+html[data-layout="mission"] .mc-hail-red { color: var(--ui-danger-text, var(--red)); border-color: var(--red); }
 html[data-layout="mission"] .mc-hail-gold { color: var(--gold); border-color: var(--gold); }
 
 /* customer */

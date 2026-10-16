@@ -16,6 +16,8 @@
  *       Field's accent text clears 4.5:1 against what is behind it
  *   D6/D8 the closes-week buttons and the Mission scrubber are >= 44 px tall
  *   D21 a phone that prefers light gets the light palette at boot
+ *   danger text (Crew certificate, Inbox late timer, Mission red hail chip)
+ *       clears 4.5:1 as painted, dark and light
  *   and nothing scrolls sideways at 390 px.
  *
  * SHOTS_DIR=<dir> also saves <layout>-<width>-<theme>.png there (the audit's
@@ -263,6 +265,18 @@ function pageHelpers() {
       const ibL = await lp.evaluate(() => { const sc = document.querySelector('.ib-scroll'); const v = document.querySelector('[data-cwk-slot="inbox"] .cwk-sum-v');
         return { listTop: sc ? Math.round(sc.getBoundingClientRect().top) : 9999, oneLine: v ? v.getBoundingClientRect().height < 30 : false }; });
       ok('D4 Inbox (laptop): the reply list starts near the top and the summary stays one line', ibL.listTop < 300 && ibL.oneLine, JSON.stringify(ibL));
+      // Reply-by timer (2026-10-16, --ui-danger-text): the red "late" chip measured as painted. The
+      // sample account may have no late reply, so a row without one gets the exact markup inbox.js writes.
+      const timerC = await lp.evaluate(() => {
+        let el = [...document.querySelectorAll('.ib-row .ib-timer-red')].find((e) => window.__lx.visible(e));
+        let added = null;
+        const top = [...document.querySelectorAll('.ib-row .ib-row-top')].find((e) => window.__lx.visible(e));
+        if (!el && top) { added = document.createElement('span'); added.className = 'ib-timer ib-timer-red'; added.setAttribute('data-ib-timer', ''); added.textContent = '2h late'; top.appendChild(added); el = added; }
+        const c = el && window.__lx.visible(el) ? Math.round(window.__lx.contrast(el) * 100) / 100 : 0;
+        if (added) added.remove();
+        return c;
+      });
+      ok('Inbox: the red reply-by timer text clears 4.5:1 against its row', timerC >= 4.5, String(timerC));
       await shot(lp, 'inbox-1440-' + theme);
 
       await useLayout(lp, 'mission');
@@ -273,6 +287,23 @@ function pageHelpers() {
         return { map: Math.round(b('.mc-map').height), card: !!(slot && slot.querySelector('.cwk-card')), underLeft: b('[data-cwk-slot="mission"]').top >= b('.mc-left').bottom - 1 && Math.abs(b('[data-cwk-slot="mission"]').left - b('.mc-left').left) < 2, scrub: (document.querySelector('.mc-scrub') || { getBoundingClientRect: () => ({ height: 44 }) }).getBoundingClientRect().height };
       });
       ok('D2 Mission (laptop): full-height map, the card under the left rail; the scrubber is 44 px', mcL.map >= 400 && mcL.card && mcL.underLeft && mcL.scrub >= 44, JSON.stringify(mcL));
+      // Hail chip (2026-10-16, --ui-danger-text): the red (>= 1.75") size chip in "In the path",
+      // measured as painted. The sample account has no live warning, so the rail gets the exact row
+      // markup mission.js writes when nothing real is listed.
+      const hailC = await lp.evaluate(() => {
+        let el = [...document.querySelectorAll('.mc-right .mc-hail-red')].find((e) => window.__lx.visible(e));
+        let added = null;
+        const rail = document.querySelector('.mc-right');
+        if (!el && rail) {
+          added = document.createElement('ul'); added.className = 'mc-list';
+          added.innerHTML = '<li><button type="button" class="mc-row"><span class="mc-row-name">Customer</span><span class="mc-row-sub">1 Main St</span><span class="mc-hail mc-hail-red">2"</span></button></li>';
+          rail.insertBefore(added, rail.firstChild); el = added.querySelector('.mc-hail-red');
+        }
+        const c = el && window.__lx.visible(el) ? Math.round(window.__lx.contrast(el) * 100) / 100 : 0;
+        if (added) added.remove();
+        return c;
+      });
+      ok('Mission: the red hail-size chip text clears 4.5:1 against its row', hailC >= 4.5, String(hailC));
       await shot(lp, 'mission-1440-' + theme);
 
       for (const id of ['island', 'focus', 'bento', 'classic']) { await useLayout(lp, id); await shot(lp, id + '-1440-' + theme); }
