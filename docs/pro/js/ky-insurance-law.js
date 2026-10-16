@@ -98,6 +98,21 @@
     'so, then you remain liable for performance of all obligations under the contract.'
   ];
 
+  // KRS 367.430(2), verbatim (apps.legislature.ky.gov/law/statutes/statute.aspx?id=34960,
+  // read 2026-10-16). A Kentucky home solicitation sale (KRS 367.410: the pitch
+  // and the buyer's agreement at the buyer's residence) must be a written
+  // agreement that "contains a statement of the buyer's rights" under this
+  // caption, with these words (367.430(1)-(2)); until it does, the buyer may
+  // cancel "in any manner and by any means" (367.430(3)). Kentucky has no
+  // FTC-form safe harbor, so the FTC statement alone does not satisfy it.
+  // The two dotted lines take the seller's name and mailing address.
+  var KY_HSSA_CAPTION = "BUYER'S RIGHT TO CANCEL";
+  var KY_HSSA_TEXT =
+    'If this agreement was solicited to your residence and you do not want the goods or services, you may cancel ' +
+    'this agreement by mailing a notice to the seller. The notice must say that you do not want the goods or ' +
+    'services and must be mailed before midnight of the third business day after you sign this agreement. The ' +
+    'notice must be mailed to:';
+
   // ── Rep-facing messages (one copy, shared by every surface) ──────────────
   var MSG = {
     addressRequired:
@@ -602,6 +617,8 @@
     '.nbd-statutory{font-weight:700 !important;font-size:13px !important;line-height:1.45;color:#111;}' +
     '.nbd-statutory p{margin:0 0 8px;font-weight:700 !important;font-size:13px !important;}' +
     '.nbd-noc-page{page-break-before:always;break-before:page;}' +
+    '.nbd-ky-hssa{border:1.5px solid #111;padding:12px 14px;margin:12px 0;page-break-inside:avoid;break-inside:avoid;}' +
+    '.nbd-ky-hssa .nbd-ky-hssa-to{margin-bottom:0;}' +
     '.nbd-noc{border:1.5px solid #111;padding:14px 16px;margin:0 0 6px;page-break-inside:avoid;break-inside:avoid;}' +
     '.nbd-noc-caption{text-align:center;font-weight:800 !important;letter-spacing:.06em;margin-bottom:8px;}' +
     '.nbd-noc-blank{display:inline-block;min-width:240px;border-bottom:1px solid #111;}' +
@@ -618,6 +635,30 @@
       'border:1.5px solid #111;padding:12px 14px;margin:12px 0;page-break-inside:avoid;break-inside:avoid;">' +
       '<p style="' + BOLD + '">' + esc(KY_NOTICE_CANCEL) + '</p>' +
       '<p style="' + BOLD + 'margin-bottom:0;">' + esc(KY_NOTICE_NO_ASSIGNMENT) + '</p>' +
+      '</div>';
+  }
+
+  /**
+   * Does the KRS 367.430 statement go on this contract? A Kentucky property,
+   * or a property whose state cannot be read (FAIL CLOSED, like the insurance
+   * notices: the statement costs nothing on another state's contract, its
+   * absence leaves a Kentucky one cancellable at any time).
+   */
+  function kyHomeSolicitationApplies(state) {
+    var s = _str(state).trim().toUpperCase();
+    return s === 'KY' || s === 'KENTUCKY' || s === '';
+  }
+
+  /** KRS 367.430(2): the BUYER'S RIGHT TO CANCEL statement, seller name + address filled in. */
+  function kyHomeSolicitationHtml(opts) {
+    opts = opts || {};
+    // Styled by STATUTORY_CSS (.nbd-statutory: bold 13px screen / 10pt print;
+    // .nbd-ky-hssa: the box), which every surface that prints this carries.
+    return '<div class="nbd-statutory nbd-ky-hssa" data-nbd-statutory="ky-367-430">' +
+      '<div class="nbd-noc-caption">' + esc(KY_HSSA_CAPTION) + '</div>' +
+      '<p>' + esc(KY_HSSA_TEXT) + '</p>' +
+      '<p class="nbd-ky-hssa-to">' + _blank(opts.sellerName, 'name of seller') + '<br>' +
+        _blank(opts.sellerAddress, 'mailing address of seller') + '</p>' +
       '</div>';
   }
 
@@ -874,6 +915,7 @@
       '<div class="nbd-cxl-h">How to cancel</div>' +
       '<ol>' + steps.map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol>' +
       ftcStatementHtml() +
+      (kyHomeSolicitationApplies(stored.state) ? kyHomeSolicitationHtml({ sellerName: stored.sellerName, sellerAddress: stored.sellerAddress }) : '') +
       kyPart +
       '<p class="nbd-cxl-ack">The homeowner received this notice and two completed copies of the Notice of Cancellation form on ' +
         esc(dateText) + '.</p>' +
@@ -992,6 +1034,10 @@
     CANCEL_LINE: CANCEL_LINE,
     NO_FAX_TEXT: NO_FAX_TEXT,
     FTC_STATEMENT: FTC_STATEMENT,
+    KY_HSSA_CAPTION: KY_HSSA_CAPTION,
+    KY_HSSA_TEXT: KY_HSSA_TEXT,
+    kyHomeSolicitationApplies: kyHomeSolicitationApplies,
+    kyHomeSolicitationHtml: kyHomeSolicitationHtml,
     FTC_FORM_PARAS: FTC_FORM_PARAS.slice(),
     MSG: MSG,
     STATUTORY_CSS: STATUTORY_CSS,

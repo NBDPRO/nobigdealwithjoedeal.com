@@ -674,6 +674,7 @@ exports.sendEstimateEnvelope = onCall(
       pdf = await require('./estimate-esign-pdf').buildEstimateContractPdf({
         companyName: sellerName,
         sellerAddress: KyLaw.contractorMailingAddress(profile),
+        state: (j && j.state) || '',
         title: 'Roofing Contract',
         estimateNumber: est.number || estimateId.slice(0, 8),
         preparedDate: KyLaw.formatDay(KyLaw.todayIn(timeZone)),
