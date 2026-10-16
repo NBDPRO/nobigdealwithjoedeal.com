@@ -42,6 +42,7 @@ const GUIDES = [
   // Homeowner guides (/guides/<slug>), 2026-10-16 onward.
   { slug: 'kentucky-ohio-storm-claim-guide', page: 'docs/guides/kentucky-ohio-storm-claim-guide.html' },
   { slug: 'hail-photo-baseline-sheet', page: 'docs/guides/hail-photo-baseline-sheet.html' },
+  { slug: 'compare-roofing-quotes-checklist', page: 'docs/guides/compare-roofing-quotes-checklist.html' },
 ];
 
 function esc(s) {
