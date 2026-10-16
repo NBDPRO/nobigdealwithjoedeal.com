@@ -283,7 +283,7 @@
       (plan.skipped.duplicate + plan.skipped.no_address + plan.skipped.bad_location + plan.skipped.over_cap ? ' Skipped: ' +
         Object.keys(plan.skipped).filter(function (k) { return plan.skipped[k]; }).map(function (k) { return plan.skipped[k] + ' ' + k.replace(/_/g, ' '); }).join(', ') + '.' : '') +
       ' Import this door list?';
-    var ask = typeof st.uiConfirm === 'function' ? st.uiConfirm(msg, { okLabel: 'Import' }) : Promise.resolve(root.confirm ? root.confirm(msg) : true);
+    var ask = typeof st.uiConfirm === 'function' ? st.uiConfirm(msg, { okLabel: 'Import' }) : (typeof window.nbdConfirm === 'function' ? window.nbdConfirm(msg) : Promise.resolve(window.confirm(msg)));
     return Promise.resolve(ask).then(function (yes) {
       if (!yes) return null;
       var w = W();
