@@ -515,6 +515,13 @@
     cardprefs: [
       'css/card-prefs.css?v=1',
       'js/card-prefs.js?v=1'
+    ],
+    // Day and night layouts (2026-10-15): offers Field on a phone by day and
+    // Mission Control on a computer at night (never switches by itself), plus
+    // its Settings > Appearance panel. Kicked by today-home.js at Home boot.
+    layoutoffer: [
+      'css/layout-offer.css?v=1',
+      'js/layout-offer.js?v=1'
     ]
   };
 

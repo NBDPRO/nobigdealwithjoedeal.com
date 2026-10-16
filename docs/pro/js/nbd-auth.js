@@ -824,6 +824,9 @@ export const NBDAuth = {
         // shows, in what order, on THIS device (keyed by uid inside; card ids
         // only, no account data). Kept like the other layout preferences.
         'nbd_card_prefs',
+        // "Day and night layouts" (js/layout-offer.js): this screen's on/off and
+        // daytime hours, and which day/night offers were already answered.
+        'nbd_layout_offer', 'nbd_layout_offer_seen',
       ]);
       const drop = [];
       for (let i = 0; i < localStorage.length; i++) {

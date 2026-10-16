@@ -175,7 +175,9 @@
     var ready = !!p;
     var pending = all.filter(function (s) { return !d.done[s.key]; });
     var current = pending[0] || null;
-    var h = header(new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }), sunBtn());
+    // the sync dot (kit.js): online / offline and photos still waiting, since the
+    // shell covers the header's own connection dot
+    var h = header(new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }), '<span class="fa-top-end">' + K.syncDot() + sunBtn() + '</span>');
 
     var lead0 = current && current.leadId ? leadById(current.leadId) : null;
     if (lead0 && lead0.lat != null) loadWeather(lead0.lat, lead0.lng);
@@ -250,7 +252,7 @@
     var key = S.stopKey || ('lead:' + S.leadId);
     var arrived = d.arrived[key];
     var checks = d.checks[key] || {};
-    var h = '<div class="fa-top"><button type="button" class="fa-back" data-fa="back" aria-label="Back to Today">&larr; Today</button>' + sunBtn() + '</div>';
+    var h = '<div class="fa-top"><button type="button" class="fa-back" data-fa="back" aria-label="Back to Today">&larr; Today</button><span class="fa-top-end">' + K.syncDot() + sunBtn() + '</span></div>';
     h += '<div class="fa-lead-name">' + esc(it.name) + '</div>';
     if (it.address) h += '<div class="fa-now-addr">' + esc(it.address) + '</div>';
     h += '<div class="fa-now-why"><span class="fa-do">Why you are here</span> ' + esc(it.why) + '</div>';
@@ -364,9 +366,57 @@
     if (S.menu) return 'menu';
     return '';
   }
+  // ── the one-thumb action bar (2026-10-15, layouts feature N5) ──────────
+  // Above the nav on every Field screen but the camera: Navigate / Call / Text
+  // / Photo / Collect for the customer in front of the rep (the open stop or
+  // lead, else the current stop). Navigate, Call and Text are kit.js's own
+  // ActionBar links; Text carries data-ps-check, so phone-share.js runs the
+  // "ok to text?" check (STOP, Do Not Text, consent, texting hours) before
+  // Messages opens. Collect opens the existing Record payment link for this
+  // customer's oldest open invoice (NBDRevenue's one owed rule). Nothing sends.
+  function barCustomer() {
+    if (S.screen === 'capture' || S.screen === 'pick' || !homeActive()) return null;
+    if (S.screen === 'lead') {
+      var st = S.stopKey ? stopByKey(S.stopKey) : null;
+      if (st) return itemOf(st);
+      var ld = S.leadId ? leadById(S.leadId) : null;
+      return ld ? K.fromLead(ld) : null;
+    }
+    var d = day();
+    var cur = stopsFrom(plan()).filter(function (s) { return !d.done[s.key]; })[0];
+    return cur ? itemOf(cur) : null;
+  }
+  function oldestOwed(leadId) {
+    var R = W.NBDRevenue;
+    var invs = R && typeof R.cached === 'function' ? R.cached() : null;
+    if (!leadId || !Array.isArray(invs) || typeof R.isOwedInvoice !== 'function') return null;
+    var ms = function (v) { if (!v) return Infinity; if (typeof v.toMillis === 'function') return v.toMillis(); if (typeof v.seconds === 'number') return v.seconds * 1000; var t = new Date(v).getTime(); return isFinite(t) ? t : Infinity; };
+    return invs.filter(function (i) { return i && String(i.leadId) === String(leadId) && R.isOwedInvoice(i) && R.owedDollarsOf(i) > 0; })
+      .sort(function (a, b) { return ms(a.createdAt) - ms(b.createdAt); })[0] || null;
+  }
+  function collectHtml(it) {
+    var inv = it && it.id ? oldestOwed(it.id) : null;
+    var viewer = ((W._userClaims || {}).role || '') === 'viewer';
+    var inner = K.icon('done') + '<span class="lk-act-lbl">Collect</span>';
+    if (!inv || viewer) {
+      return '<button type="button" class="lk-act fa-collect lk-act-off" disabled aria-disabled="true" aria-label="Collect: ' +
+        (viewer ? 'viewers cannot record a payment' : 'nothing owed') + '">' + inner + '</button>';
+    }
+    return '<a class="lk-act fa-collect" href="/pro/customer.html?id=' + encodeURIComponent(it.id) + '&amp;pay=' + encodeURIComponent(inv.id || '1') + '">' + inner + '</a>';
+  }
+  function barHtml() {
+    var it = barCustomer();
+    if (!it) return '';
+    return '<div class="fa-bar" role="toolbar" aria-label="Actions for ' + esc(it.name || 'this customer') + '">' +
+      K.actionBar(it, ['navigate', 'call', 'text', 'photo'], { size: 'sm' }) + collectHtml(it) + '</div>';
+  }
+  var lastNav = '';
   function paintNav() {
     if (!navEl) return;
-    navEl.innerHTML = (S.menu ? '<div class="fa-menu" role="menu">' + K.menuItems('fa') + '</div>' : '') + K.nav('bottom', NAV, navActive());
+    var bar = barHtml();
+    doc.documentElement.classList.toggle('fa-bar-on', !!bar);
+    var html = (S.menu ? '<div class="fa-menu" role="menu">' + K.menuItems('fa') + '</div>' : '') + bar + K.nav('bottom', NAV, navActive());
+    if (html !== lastNav || !navEl.firstChild) { lastNav = html; navEl.innerHTML = html; }
     var m = navEl.querySelector('[data-lk-nav="menu"]');
     if (m) { m.setAttribute('aria-haspopup', 'true'); m.setAttribute('aria-expanded', S.menu ? 'true' : 'false'); }
     // The shell covers the app only while Home is the active view and the rep
@@ -656,6 +706,18 @@
   }
 
   function onNavClick(ev) {
+    var ph = ev.target && ev.target.closest ? ev.target.closest('.fa-bar [data-lk-act="photo"]') : null;
+    if (ph) {
+      ev.preventDefault();
+      var lid = ph.getAttribute('data-lead-id') || '';
+      if (!lid) { openCaptureFlow(); return; }
+      if (String(S.leadId || '') !== lid) { S.hits = {}; }
+      S.leadId = lid;
+      if (S.screen !== 'lead') { var cur = stopsFrom(plan()).filter(function (s) { return !day().done[s.key]; })[0]; S.stopKey = cur && String(cur.leadId) === lid ? cur.key : S.stopKey; }
+      S.screen = 'capture';
+      render();
+      return;
+    }
     var mi = ev.target && ev.target.closest ? ev.target.closest('[data-fa="goto"]') : null;
     if (mi) {
       ev.preventDefault();
@@ -745,6 +807,8 @@
     K.clearOverlay();
     doc.documentElement.classList.remove('sun');   // sunlight mode belongs to this layout
     doc.documentElement.removeAttribute('data-fa-screen');
+    doc.documentElement.classList.remove('fa-bar-on');
+    lastNav = '';
     S.screen = 'today'; S.leadId = null; S.stopKey = null; S.menu = false;
   }
 
