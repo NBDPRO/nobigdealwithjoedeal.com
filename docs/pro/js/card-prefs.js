@@ -49,6 +49,7 @@
       { id: 'now', label: 'Current stop', sel: '#nbdFieldRoot .fa-now' },
       { id: 'upnext', label: 'Up next', sel: '[data-fa-group="upnext"]' },
       { id: 'done', label: 'Done today', sel: '[data-fa-group="done"]' },
+      { id: 'wrap', label: 'Day wrap-up', sel: '[data-fa-group="wrap"]' },
       { id: 'needsyou', label: 'Needs you', sel: '[data-ny-slot="field"]' },
       { id: 'cash', label: 'Cash collected', sel: '[data-cash-slot="field"]' },
       { id: 'closesweek', label: 'What closes this week', sel: '[data-cwk-slot="field"]' },

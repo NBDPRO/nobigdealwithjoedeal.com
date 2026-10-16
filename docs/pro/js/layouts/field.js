@@ -204,6 +204,8 @@
       h += '<div class="fa-prog" role="status">' +
         (current ? 'Stop ' + (doneN + 1) + ' of ' + all.length : 'All ' + all.length + ' stops done') +
         (current && current.timeLabel ? ' · ' + esc(current.timeLabel) : '') + '</div>';
+      // Every stop done: the end-of-day wrap (2026-10-16, Focus's wrap-up for Field).
+      if (!current) h += wrapHtml(all.length, doneN, d);
       if (current) {
         var it = itemOf(current);
         var arrived = d.arrived[current.key];
@@ -235,6 +237,47 @@
       }
     }
     return h;
+  }
+
+  // ── end-of-day wrap ──────────────────────────────────────────────────
+  // Plain lines, each from data the CRM already holds: Field's own done marks,
+  // the photos saved from this camera today (nbd_field_day.photos), the durable
+  // upload queue (kit.js sync state: "all uploaded" only after a real 0), the
+  // visits recorded today (the visit recorder's own list, when it is loaded) and
+  // tomorrow's first stop (the Next stop card's read). Unknown is said, never 0.
+  function wrapLines(o) {
+    var x = o || {};
+    var out = [x.done + ' of ' + x.total + (x.total === 1 ? ' stop' : ' stops') + ' done'];
+    var p = Number(x.photos) || 0;
+    if (p > 0) {
+      out.push(p + (p === 1 ? ' photo' : ' photos') + ' from this phone today · ' +
+        (x.queued === 0 ? 'all uploaded' : x.queued > 0 ? x.queued + ' still uploading' : 'upload status unknown, they are saved on this phone'));
+    } else if (x.queued > 0) {
+      out.push(x.queued + (x.queued === 1 ? ' photo' : ' photos') + ' still uploading');
+    }
+    if (x.visits != null) out.push(x.visits + (x.visits === 1 ? ' visit' : ' visits') + ' recorded today');
+    if (x.tomorrow && x.tomorrow.name) out.push('Tomorrow first: ' + (x.tomorrow.timeLabel || 'all day') + ' · ' + x.tomorrow.name);
+    return out;
+  }
+  var visitsToday = null, visitsAsked = 0;
+  function loadVisits() {
+    var R = W.NBDVisitRecorder;
+    if (!R || typeof R.list !== 'function' || Date.now() - visitsAsked < 60000) return;
+    visitsAsked = Date.now();
+    var start = new Date(); start.setHours(0, 0, 0, 0);
+    Promise.resolve(R.list()).then(function (rows) {
+      var n = (rows || []).filter(function (r) { return r && r.status !== 'discarded' && !r.partOf && Number(r.startedAtMs) >= start.getTime(); }).length;
+      if (n !== visitsToday) { visitsToday = n; if (S.screen === 'today') render(); }
+    }, function () { /* unknown: the line stays off */ });
+  }
+  function wrapHtml(total, done, d) {
+    loadVisits();
+    var NS = W.NBDNextStop, m = NS && typeof NS.model === 'function' ? NS.model() : null;
+    var sync = K._sync || {};
+    var lines = wrapLines({ total: total, done: done, photos: d.photos || 0, queued: S.queued != null ? S.queued : sync.queued, visits: visitsToday, tomorrow: m && m.tomorrow });
+    return '<section class="fa-wrap" data-fa-group="wrap" aria-label="Day wrap-up"><h3 class="fa-h">That\'s the day</h3><ul class="fa-wrap-lines">' +
+      lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
+      K.recordEntry({ source: 'field-wrap', cls: 'fa-rec' }) + '</section>';
   }
 
   function stopByKey(key) {
@@ -598,6 +641,7 @@
     }).then(function (out) {
       if (out && out.queued === false) { toast(out.message || 'Could not hold the photo. Take it again.', 'error'); return; }
       S.shots += 1;
+      var dd = day(); dd.photos = (dd.photos || 0) + 1; saveDay(dd);   // the wrap-up's "photos from this phone today"
       haptic(20);
       if (typeof P.flushUploadQueue === 'function') P.flushUploadQueue({ quiet: true });
       refreshQueue();
@@ -813,7 +857,7 @@
 
   E.implement('field', { mount: mount, unmount: unmount });
   W.NBDFieldApp = {
-    _state: S, _slopes: SLOPES, EXAMPLE_THRESHOLD: EXAMPLE_THRESHOLD,
+    _state: S, _slopes: SLOPES, EXAMPLE_THRESHOLD: EXAMPLE_THRESHOLD, _wrapLines: wrapLines,
     render: render, go: go,
   };
 })();

@@ -95,7 +95,7 @@ const H = 3600000, D = 86400000;
     const field = read('docs/pro/js/layouts/field.js');
     ok('Field: the strip replaces the old cached storm line', /data-storm-slot="field" data-storm-variant="compact"/.test(field) && !/function stormLine\(/.test(field) && !/fa-storm/.test(field));
     ok('lazy bundle "stormstrip" (?v=), kicked by today-home.js', /stormstrip: \[\s*'css\/storm-strip\.css\?v=\d+',\s*'js\/storm-strip\.js\?v=\d+'\s*\]/.test(read('docs/pro/js/script-loader.js')) && /loadBundle\('stormstrip'\)/.test(read('docs/pro/js/today-home.js')));
-    ok('home-attention.js was cache-busted for the badge', /home-attention\.js\?v=24/.test(dash));
+    ok('home-attention.js was cache-busted for the badge', /home-attention\.js\?v=25/.test(dash));
     const CP = require(path.join(ROOT, 'docs/pro/js/card-prefs.js'));
     ok('Customize knows the Storm card (Home and Field)', CP.idsOf('classic')[0] === 'storm' && CP.idsOf('field')[0] === 'storm');
     const js = read('docs/pro/js/storm-strip.js'), css = read('docs/pro/css/storm-strip.css');

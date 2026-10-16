@@ -335,7 +335,16 @@
     else if (c.calls > 0) items.push('<button type="button" class="ha-item ha-warn" data-ha-dup="1" data-action="goTo" data-target="calls">📞 ' + c.calls + (c.calls === 1 ? ' person needs' : ' people need') + ' you</button>');
     // Review asks, one at a time (review-deck.js opens the deck on data-review-deck).
     if (c.oldPromises > 0) items.push('<button type="button" class="ha-item" data-action="goTo" data-target="calls">🗂 ' + c.oldPromises + (c.oldPromises === 1 ? ' old promise' : ' old promises') + ' to review</button>');
-    if (c.reviews > 0) items.push('<button type="button" class="ha-item" data-review-deck="1">⭐ ' + c.reviews + ' review ask' + (c.reviews === 1 ? '' : 's') + ' waiting</button>');
+    // Review velocity (2026-10-16): the asks waiting, how many Google reviews came
+    // in over the last 30 days (NBD's own Google profile only, of the latest the
+    // API returns; left off when that read did not answer), and a DRAFT ask to the
+    // newest paid-in-full customer: an sms: link phone-share.js holds until
+    // checkText says yes. No incentive, no "if you were happy" gate; Joe sends it.
+    if (c.reviews > 0) items.push('<button type="button" class="ha-item" data-review-deck="1">⭐ ' + c.reviews + ' review ask' + (c.reviews === 1 ? '' : 's') + ' waiting' +
+      (c.reviews30 != null ? ' · ' + c.reviews30 + ' Google review' + (c.reviews30 === 1 ? '' : 's') + ' in 30 days' : '') + '</button>');
+    if (c.reviews > 0 && c.reviewDraft && /^sms:\+1[0-9]{10}\?&body=[A-Za-z0-9%._~!*'()-]{1,900}$/.test(c.reviewDraft.href)) {
+      items.push('<a class="ha-item" href="' + c.reviewDraft.href + '" data-ps-check="1" data-ps-lead="' + String(c.reviewDraft.leadId).replace(/[^A-Za-z0-9_-]/g, '') + '">✍ Draft a review ask</a>');
+    }
     return items.join('');
   }
 
@@ -349,7 +358,7 @@
     const n = (c.calls || 0) + (c.stripe || 0) + (c.signs || 0) + (c.oldPromises || 0) + (c.reviews || 0);
     return n > 0 ? Math.min(n, 999) : 0;
   }
-  const api = { READ, PROMISE_WINDOW, badgeCount, CALL_WINDOW, parkedUntil, canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, oldPromiseCount, isOldPromise, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
+  const api = { READ, PROMISE_WINDOW, badgeCount, reviewAskBody, CALL_WINDOW, parkedUntil, canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, oldPromiseCount, isOldPromise, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root || !root.document) return;
   root.NBDHomeAttention = api;
@@ -374,6 +383,33 @@
   const claims = () => w._userClaims || {};
   const fbReady = () => !!(w.db && w.getDocs && w.query && w.where && w.collection);
 
+  // The draft ask: plain thanks and the review link. Pure apart from the link.
+  function reviewAskBody(first, company, link) {
+    const hi = first ? 'Hi ' + first + ', ' : 'Hi, ';
+    return hi + 'thank you for choosing ' + (company || 'us') + ' for your project. If you have a minute, a Google review helps other homeowners find us: ' + link;
+  }
+  async function reviewVelocity(lead) {
+    const out = {};
+    const ND = w.NBDNumbersData;
+    const nbd = typeof w._isNbdPlatformTenant === 'function' && w._isNbdPlatformTenant() === true;
+    if (nbd && ND && typeof ND.loadReviews === 'function') {
+      const list = await ND.loadReviews();
+      if (typeof ND.reviewsOk === 'function' && ND.reviewsOk()) {
+        const since = Date.now() / 1000 - 30 * 86400;
+        out.reviews30 = (list || []).filter((r) => r && r.time >= since).length;
+      }
+    }
+    const RE = w.ReviewEngine;
+    const d = String((lead && (lead.phone || lead.phoneDigits)) || '').replace(/\D/g, '').slice(-10);
+    if (lead && lead.id && d.length === 10 && RE && typeof RE.getReviewLink === 'function') {
+      const link = await RE.getReviewLink();
+      const p = w._companyProfile;
+      const company = String((p && (p.companyName || p.name)) || '').slice(0, 60);
+      const first = String(lead.firstName || '').trim().split(/\s+/)[0].slice(0, 30);
+      if (link) out.reviewDraft = { leadId: String(lead.id), href: 'sms:+1' + d + '?&body=' + encodeURIComponent(reviewAskBody(first, company, link)) };
+    }
+    return out;
+  }
   async function count() {
     const u = uid(), c = claims();
     const out = { stripe: 0, signs: 0, calls: 0, reviews: 0 };
@@ -400,6 +436,9 @@
         out.reviews = w.NBDReviewDeck.candidates(w._leads).length;
       }
     } catch (_) { out.reviewsFailed = true; /* never block the strip - but say so */ }
+    if (out.reviews > 0) {
+      try { Object.assign(out, await reviewVelocity(w.NBDReviewDeck.candidates(w._leads)[0])); } catch (_) { /* the chip still shows the asks */ }
+    }
     const tenant = tenantOf(c, u);
     const jobs = [];
     if (canSeeStripe(c, u) && tenant) {

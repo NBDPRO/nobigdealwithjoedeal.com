@@ -162,3 +162,7 @@ html[data-layout="field"] .fa-bar .lk-ic { width: 20px; height: 20px; }
 html[data-layout="field"] .fa-bar .lk-act-lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 html[data-layout="field"].fa-bar-on .fa-root { bottom: calc(var(--tap) + 13px + 80px + env(safe-area-inset-bottom, 0px)); }
 html[data-layout="field"] .fa-top-end { display: inline-flex; align-items: center; gap: 10px; }
+/* end-of-day wrap (field.js wrapHtml, 2026-10-16) */
+html[data-layout="field"] .fa-wrap { margin: 12px 0 16px; padding: 16px; border: var(--fa-bw) solid var(--rule); border-radius: 18px; background: var(--s); }
+html[data-layout="field"] .fa-wrap .fa-h { margin-top: 0; }
+html[data-layout="field"] .fa-wrap-lines { margin: 0 0 12px; padding-left: 20px; font-size: 16px; line-height: 1.6; color: var(--t); }
