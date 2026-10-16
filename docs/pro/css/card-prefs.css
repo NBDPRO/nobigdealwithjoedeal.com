@@ -1,0 +1,25 @@
+/* card-prefs.css — "Customize this screen" (js/card-prefs.js, 2026-10-15).
+   A hidden card, and the sheet that hides / reorders the cards. */
+[data-hc-off]{display:none !important;}
+.hc-scrim{position:fixed;inset:0;z-index:2100;display:flex;align-items:flex-end;justify-content:center;padding:0 0 env(safe-area-inset-bottom, 0px);background:color-mix(in srgb, var(--bg, #000) 60%, transparent);}
+.hc-panel{box-sizing:border-box;width:100%;max-width:520px;max-height:min(88dvh, 720px);overflow-y:auto;padding:var(--ui-space-4, 16px) var(--ui-space-4, 16px) var(--ui-space-5, 20px);background:var(--s2);color:var(--t);border:1px solid var(--br, rgba(127,127,127,.35));border-radius:var(--ui-radius-lg, 12px) var(--ui-radius-lg, 12px) 0 0;box-shadow:var(--ui-elev-3, 0 -8px 30px rgba(0,0,0,.35));}
+@media (min-width:769px){.hc-scrim{align-items:center;}.hc-panel{border-radius:var(--ui-radius-lg, 12px);}}
+.hc-hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;}
+.hc-title{margin:0;font-family:var(--ui-font-display, inherit);font-size:var(--ui-fs-title, 18px);font-weight:var(--ui-fw-heavy, 800);}
+.hc-note{margin:4px 0 12px;font-size:var(--ui-fs-body-sm, 13px);color:var(--m);line-height:1.45;}
+.hc-list{list-style:none;margin:0;padding:0;}
+.hc-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid var(--ui-line-hair, rgba(127,127,127,.2));}
+.hc-row:first-child{border-top:0;}
+.hc-show{flex:1;min-width:0;display:flex;align-items:center;gap:12px;min-height:44px;cursor:pointer;}
+.hc-show input{width:22px;height:22px;margin:0;flex:none;accent-color:var(--orange);}
+.hc-name{font-weight:var(--ui-fw-bold, 700);overflow-wrap:anywhere;}
+.hc-row-off .hc-name{color:var(--m);text-decoration:line-through;}
+.hc-moves{display:flex;gap:6px;flex:none;}
+.hc-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding:0 14px;border-radius:var(--r-card, 8px);border:1px solid var(--br, rgba(127,127,127,.35));background:var(--s3, var(--s));color:var(--t);font:inherit;font-weight:var(--ui-fw-bold, 700);cursor:pointer;}
+.hc-mv{padding:0;font-size:18px;}
+.hc-btn[disabled]{opacity:.45;cursor:default;}
+.hc-btn:focus-visible,.hc-show input:focus-visible{outline:2px solid var(--t);outline-offset:2px;}
+.hc-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:12px;}
+.hc-live{font-size:var(--ui-fs-caption, 12px);color:var(--m);}
+/* Bento hides "More on Home" on a phone, so its header keeps the Arrange entry */
+@media (max-width:768px){html[data-layout="bento"] .home-hdr-acts > .hc-home-open{display:inline-flex;}}

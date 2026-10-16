@@ -214,9 +214,10 @@
     if (c.promised) line.push(c.promised + ' you promised');
     if (c.estimates) line.push(plural(c.estimates, 'estimate') + ' to follow up');
     if (c.followups) line.push(plural(c.followups, 'follow-up'));
-    return h + '<div class="fo-hero"><div class="fo-big">' + q.length + '</div><div class="fo-sub">' + (q.length === 1 ? 'thing needs' : 'things need') + ' you today</div></div>' +
+    // one wrapper, so Customize (js/card-prefs.js) can move or hide the queue
+    return h + '<div class="fo-queue"><div class="fo-hero"><div class="fo-big">' + q.length + '</div><div class="fo-sub">' + (q.length === 1 ? 'thing needs' : 'things need') + ' you today</div></div>' +
       '<ul class="fo-lines">' + line.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
-      '<button type="button" class="fo-start" data-fo="start">Start with ' + esc(firstName(q[0].name) || 'the first one') + '</button>';
+      '<button type="button" class="fo-start" data-fo="start">Start with ' + esc(firstName(q[0].name) || 'the first one') + '</button></div>';
   }
 
   function renderFocus(q) {

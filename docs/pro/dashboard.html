@@ -123,7 +123,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=201"></script>
+<script src="js/script-loader.js?v=202"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -889,6 +889,10 @@
           <button class="btn ui-btn-quiet home-hdr-extra" data-action="module" data-target="NBDWidgets.openPicker">⚙️ Customize</button>
           <button class="btn btn-ghost nb-home-link home-hdr-extra" id="homeWeekReviewBtn" data-action="goTo" data-target="weekreview">🗓️ Sunday review</button>
           <button class="btn btn-ghost nb-home-link home-hdr-extra" id="homeCatchUpBtn" data-action="goTo" data-target="catchup">📋 Catch up my numbers</button>
+          <!-- Arrange Home (js/card-prefs.js, 2026-10-15): show, hide and reorder
+               the Home cards on this device. Full-screen layouts carry the same
+               "Customize this screen" in their Menu. -->
+          <button type="button" class="btn btn-ghost nb-home-link home-hdr-extra hc-home-open" data-hc-open="">↕️ Arrange Home</button>
           <button class="btn btn-orange" data-action="newEstimate">＋ New Estimate</button>
         </div>
       </div>
@@ -937,6 +941,7 @@
             <button class="btn btn-ghost nb-home-link" data-action="goTo" data-target="weekreview">🗓️ Sunday review</button>
             <button class="btn btn-ghost nb-home-link" data-action="goTo" data-target="catchup">📋 Catch up my numbers</button>
             <button class="btn ui-btn-quiet" data-action="module" data-target="NBDWidgets.openPicker">⚙️ Customize widgets</button>
+            <button type="button" class="btn btn-ghost nb-home-link" data-hc-open="">↕️ Arrange Home</button>
           </div>
           <!-- No next step (js/no-next-step.js): open leads with no follow-up and
                no open task, oldest first, one-tap rows. Hidden when empty. -->
@@ -7262,7 +7267,7 @@
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=16"></script>
-<script defer src="js/today-home.js?v=19"></script>
+<script defer src="js/today-home.js?v=20"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=6"></script>
