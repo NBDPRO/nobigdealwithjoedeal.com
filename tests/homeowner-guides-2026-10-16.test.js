@@ -72,6 +72,21 @@ const REQUIRED = {
     'a promise, not a warranty term',
     "In Kentucky, a contractor can't require payment until the cancellation window after that decision has passed.",
   ],
+  'home-care-warranty-card': [
+    '| Written labor warranty | 5 years | 10 years | 20 years |',
+    '| Transferable when you sell | No | Once, within 30 days of the sale | Fully |',
+    '| Siding labor warranty | 5 years | 10 years | 20 years |',
+    '| Gutter system | 5 years |',
+    '| Gutter guards only | 2 years |',
+    "| Repairs | 1 year, when it's written on your invoice |",
+    "It doesn't cover workmanship: that's what our written labor warranty is for.",
+    'a promise, not a warranty term',
+    '**$100 referral credit**',
+    'limits what a contractor may give an insured homeowner on an insurance job to $100 in value',
+    'nothing is ever offered in exchange for a review',
+    'Stay on the ground',
+    'Whether insurance covers it depends on your policy and the damage.',
+  ],
 };
 
 // Pages that must link each guide (the audit's "lives on" list).
@@ -79,6 +94,10 @@ const LINKED_FROM = {
   'kentucky-ohio-storm-claim-guide': ['docs/services/storm-damage.html', 'docs/services/hail-damage-insurance-claim.html', 'docs/storm-report.html', 'docs/storm-check.html', 'docs/blog/hail-season-prep-checklist.html', 'docs/free-tools/index.html'],
   'hail-photo-baseline-sheet': ['docs/blog/hail-season-prep-checklist.html', 'docs/services/storm-damage.html', 'docs/free-tools/index.html'],
   'compare-roofing-quotes-checklist': ['docs/services/roof-replacement.html', 'docs/estimate.html', 'docs/blog/how-to-choose-a-roofer-after-a-storm.html', 'docs/free-tools/index.html'],
+  // The CRM's Job done hand-off card (docs/pro/js/review-handoff.js) is
+  // multi-tenant and pinned to a single "Open review page" link, so the card
+  // is not linked from there yet (noted for Jo in the PR).
+  'home-care-warranty-card': ['docs/review.html', 'docs/services/roof-care-plan.html', 'docs/free-tools/index.html'],
 };
 
 // Wording Rules: never said or implied anywhere in a homeowner guide.

@@ -43,6 +43,7 @@ const GUIDES = [
   { slug: 'kentucky-ohio-storm-claim-guide', page: 'docs/guides/kentucky-ohio-storm-claim-guide.html' },
   { slug: 'hail-photo-baseline-sheet', page: 'docs/guides/hail-photo-baseline-sheet.html' },
   { slug: 'compare-roofing-quotes-checklist', page: 'docs/guides/compare-roofing-quotes-checklist.html' },
+  { slug: 'home-care-warranty-card', page: 'docs/guides/home-care-warranty-card.html' },
 ];
 
 function esc(s) {
