@@ -62,7 +62,9 @@ ok(whiteAlphaRatio(0.35) < 4.5, 'helper: 35% white on #12223d fails AA (the old 
     const ratio = whiteAlphaRatio(r.a);
     ok(ratio >= 4.5, `estimate.html: "${r.sel}" text is ${r.a} white = ${ratio.toFixed(2)}:1 on #12223d (needs ≥ 4.5)`);
   }
-  const legal = ['.tcpa-check label', '.result-monthly .rm-disc'];
+  // '.result-monthly .rm-disc' (the payment small print) went with the monthly
+  // payment line itself on 2026-10-16 (tests/claim-cleanups-2026-10-16.test.js).
+  const legal = ['.tcpa-check label'];
   for (const sel of legal) {
     const r = rules.find((x) => x.sel === sel);
     ok(!!r, `estimate.html: rule ${sel} exists`);

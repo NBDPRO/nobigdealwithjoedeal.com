@@ -390,7 +390,9 @@ console.log('\nLANDING (2026-10-04) — every /pro section claim is tied to the 
   }
   // Story — Jo's figures; NBD uses independent subcontractor crews
   ok('story: leads with "built by a roofer on his own roofs" and Jo-confirmed figures',
-    has(/Built by a roofer, on his own roofs/) && has(/7 years/) && has(/\$10M\+/));
+    has(/Built by a roofer, on his own roofs/) && has(/7 years/));
+  // 2026-10-16: "$10M+ in claims experience" had no source anyone could check; removed.
+  ok('story: no "$10M+ in claims experience" (unverifiable)', !/\$10M\+|claims experience/i.test(idx));
   ok('story: no "solo", "employees" or "in-house" on /pro, pricing or register',
     [idx, pricing, register].every((s) => !/\bsolo\b|\bemployees?\b|in-house/i.test(s.replace(/<!--[\s\S]*?-->/g, ''))));
 }
