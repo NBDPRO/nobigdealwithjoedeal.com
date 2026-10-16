@@ -355,14 +355,15 @@ async function callPhone(token, data, docs, wopts) {
     // On a tree without the fix the validator is absent: every check below fails, none crashes.
     if (typeof L.editedTextProblem !== 'function') L.editedTextProblem = () => 'MISSING editedTextProblem';
     const d = L.buildTextDraft({ body: 'Hi Sam, Joe from No Big Deal — your estimate is ready.', reason: 'follow-up' }, ['No Big Deal']);
-    ok('the STOP line on a phone-sent draft is honest: "Reply STOP and we\'ll stop texting."', /\nReply STOP and we'll stop texting\.$/.test(d.body) && !/to opt out/.test(d.body), d.body);
+    // The rulebook's one opt-out line since 2026-10-16 (it was "Reply STOP and we'll stop texting.").
+    ok('the STOP line on a phone-sent draft is the rulebook line: "Reply STOP to opt out."', /\nReply STOP to opt out\.$/.test(d.body) && !/stop texting/.test(d.body), d.body);
     ok('editedTextProblem: ok text passes', L.editedTextProblem(d.body, ['No Big Deal']) === null);
     ok('…STOP line removed → refused', /STOP line/.test(L.editedTextProblem('Hi Sam, Joe from No Big Deal.', ['No Big Deal']) || ''));
-    ok('…company name removed → refused', /company name/.test(L.editedTextProblem('Hi Sam. Reply STOP and we\'ll stop texting.', ['No Big Deal']) || ''));
-    ok('…claim wording added → refused', /Kentucky rule/.test(L.editedTextProblem('No Big Deal here — we will handle your insurance claim. Reply STOP and we\'ll stop texting.', ['No Big Deal']) || ''));
+    ok('…company name removed → refused', /company name/.test(L.editedTextProblem('Hi Sam. Reply STOP to opt out.', ['No Big Deal']) || ''));
+    ok('…claim wording added → refused', /Kentucky rule/.test(L.editedTextProblem('No Big Deal here — we will handle your insurance claim. Reply STOP to opt out.', ['No Big Deal']) || ''));
 
     const OWNER = { uid: 'own-1', companyId: 'own-1' };
-    const GOOD = 'Hi Sam, Joe from No Big Deal — Thursday works? Reply STOP and we\'ll stop texting.';
+    const GOOD = 'Hi Sam, Joe from No Big Deal — Thursday works? Reply STOP to opt out.';
     const docs = (extra) => Object.assign({
       'companyProfile/own-1': { brand: { name: 'No Big Deal' } },
       'leads/lead-1': Object.assign({}, LEAD, { companyId: 'own-1', userId: 'own-1' }),
@@ -377,9 +378,9 @@ async function callPhone(token, data, docs, wopts) {
     const untouched = (w) => w.store.get('agent_inbox/d1').status === 'pending' && ![...w.store.keys()].some((k) => /^sms_log\//.test(k));
     let r = await sent('Hi Sam, Joe from No Big Deal — Thursday works?');
     ok('edited text WITHOUT the STOP line → refused; not marked sent, nothing logged', r.err && r.err.code === 'failed-precondition' && /STOP line/.test(r.err.message) && untouched(r.w), r.err && r.err.message);
-    r = await sent('Hi Sam — Thursday works? Reply STOP and we\'ll stop texting.');
+    r = await sent('Hi Sam — Thursday works? Reply STOP to opt out.');
     ok('edited text WITHOUT the company name → refused, untouched', r.err && /company name/.test(r.err.message) && untouched(r.w));
-    r = await sent('Hi Sam, No Big Deal here — we handle the insurance claim for you. Reply STOP and we\'ll stop texting.');
+    r = await sent('Hi Sam, No Big Deal here — we handle the insurance claim for you. Reply STOP to opt out.');
     ok('edited text WITH claim wording → refused, untouched', r.err && /Kentucky rule/.test(r.err.message) && untouched(r.w));
     r = await sent(GOOD, { ['sms_dnc/own-1__' + KEY]: { companyId: 'own-1', key: KEY, source: 'stop_reply' } });
     ok('the customer went on the Do Not Text list since the check → refused at "sent", untouched', r.err && r.err.code === 'failed-precondition' && untouched(r.w));

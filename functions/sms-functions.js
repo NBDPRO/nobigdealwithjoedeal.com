@@ -2206,7 +2206,7 @@ async function runCheckStormAlerts(event) {
           const phone = formatPhoneNumber(sub.phone);
           if (!phone) continue;
 
-          const body = `⛈️ No Big Deal Home Solutions Storm Alert: ${event} reported near ${zip}. ${String(headline).substring(0, 120)} — Free roof inspection: nobigdealwithjoedeal.com or call Joe (859) 420-7382. Reply STOP to unsubscribe.`;
+          const body = `⛈️ No Big Deal Home Solutions Storm Alert: ${event} reported near ${zip}. ${String(headline).substring(0, 120)} — Free roof inspection: nobigdealwithjoedeal.com or call Joe (859) 420-7382. Reply STOP to opt out.`;
 
           const result = await StormGuard.sendGuardedStormText({
             db,

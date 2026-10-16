@@ -172,13 +172,15 @@ const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')
   const nbdNames = L.companyNames({}, true);
   let d = L.buildTextDraft({ body: 'Hi Maria, Joe with No Big Deal — still want the gutter quote?', reason: 'quiet 14 days' }, nbdNames);
   // Review R2-3-1 (2026-10-06): the honest line for a text sent from the owner's phone.
-  ok('STOP line appended when missing', d.body === 'Hi Maria, Joe with No Big Deal — still want the gutter quote?\nReply STOP and we\'ll stop texting.');
+  ok('STOP line appended when missing', d.body === 'Hi Maria, Joe with No Big Deal — still want the gutter quote?\nReply STOP to opt out.');
   d = L.buildTextDraft({ body: 'No Big Deal here. Reply STOP to opt out.', reason: 'x' }, nbdNames);
   ok('STOP line not doubled when present', (d.body.match(/STOP/g) || []).length === 1);
   ok('company name is required', /company name/.test(L.buildTextDraft({ body: 'Hi Maria, want a quote?', reason: 'x' }, nbdNames).error || ''));
   ok('a company with no name set cannot text', !!L.buildTextDraft({ body: 'Hi', reason: 'x' }, L.companyNames({}, false)).error);
-  ok('480 characters including the STOP line', !!L.buildTextDraft({ body: 'No Big Deal ' + 'x'.repeat(434), reason: 'x' }, nbdNames).error
-    && !L.buildTextDraft({ body: 'No Big Deal ' + 'x'.repeat(433), reason: 'x' }, nbdNames).error);
+  // 480 = 'No Big Deal ' (12) + the x's + '\n' + the STOP line.
+  const _fit = 480 - 12 - 1 - L.STOP_LINE.length;
+  ok('480 characters including the STOP line', !!L.buildTextDraft({ body: 'No Big Deal ' + 'x'.repeat(_fit + 1), reason: 'x' }, nbdNames).error
+    && !L.buildTextDraft({ body: 'No Big Deal ' + 'x'.repeat(_fit), reason: 'x' }, nbdNames).error);
   ok('reason is required', !!L.buildTextDraft({ body: 'No Big Deal hi' }, nbdNames).error);
   ok('email: from must be jd or info', !!L.buildEmailDraft({ subject: 's', body: 'b', reason: 'r', from: 'joe' }).error && L.buildEmailDraft({ subject: 's', body: 'b', reason: 'r', from: 'info' }).fromAddress === 'info@nobigdealwithjoedeal.com');
   ok('social: unknown platform / brand / non-https media refused', !!L.buildSocialDraft({ brand: 'nbd', platform: 'myspace', caption: 'c', reason: 'r' }).error
@@ -192,7 +194,7 @@ const rows = (c) => [...DB.docs.entries()].filter(([k]) => k.startsWith(c + '/')
   let t = await tool('marcus', 'draft_text', { lead_id: 'ok1', body: 'Hi Maria, Joe from No Big Deal. Still want that gutter quote?', reason: 'Estimate viewed 3x, quiet 9 days' });
   let items = inbox();
   ok('Marcus files a text draft', !t.isError && t.json && t.json.filed === true && t.json.kind === 'draft_text' && items.length === 1, t.text);
-  ok('the inbox item holds the body + STOP line, the lead, the reason and consent — never the number', items[0] && items[0].kind === 'draft_text' && items[0].leadId === 'ok1' && /Reply STOP and we'll stop texting\.$/.test(items[0].text)
+  ok('the inbox item holds the body + STOP line, the lead, the reason and consent — never the number', items[0] && items[0].kind === 'draft_text' && items[0].leadId === 'ok1' && /Reply STOP to opt out\.$/.test(items[0].text)
     && items[0].consentOnFile === true && items[0].status === 'pending' && !/555|0147/.test(JSON.stringify(items[0])));
   t = await tool('marcus', 'draft_text', { lead_id: 'stop1', body: 'No Big Deal here — quick question.', reason: 'x' });
   ok('Do-Not-Text (STOP register, canonical key) → refused', t.isError && /Do-Not-Text/.test(t.text));
