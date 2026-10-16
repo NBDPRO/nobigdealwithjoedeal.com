@@ -339,7 +339,17 @@
     return items.join('');
   }
 
-  const api = { READ, PROMISE_WINDOW, CALL_WINDOW, parkedUntil, canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, oldPromiseCount, isOldPromise, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
+  // App badge (2026-10-16): the installed app's icon shows the same count the
+  // Needs-you strip shows (people who need you, Stripe payments to assign,
+  // yard signs, old promises, review asks). null = do not touch the badge: a
+  // read that is still checking or failed is never painted as a number or a 0.
+  function badgeCount(counts) {
+    const c = counts || {};
+    if (c.pending || c.callsFailed || c.stripeFailed || c.signsFailed || c.reviewsFailed || c.oldFailed) return null;
+    const n = (c.calls || 0) + (c.stripe || 0) + (c.signs || 0) + (c.oldPromises || 0) + (c.reviews || 0);
+    return n > 0 ? Math.min(n, 999) : 0;
+  }
+  const api = { READ, PROMISE_WINDOW, badgeCount, CALL_WINDOW, parkedUntil, canSeeStripe, tenantOf, signsDue, reviewCount, stripHtml, callNeedsYou, callsNeedingYou, callerKey, groupNeeds, callersNeedingYou, oldPromiseCount, isOldPromise, hiddenPeople, resurfacedNumbers, reachIndex, isMissedCall };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (!root || !root.document) return;
   root.NBDHomeAttention = api;
@@ -509,6 +519,7 @@
       el.innerHTML = html;
       el.hidden = !html;
       markAllDup(el, html);
+      setBadge(counts);
       // Still checking: ask once more shortly, so "Checking..." resolves to the
       // real answer or the named failure on its own.
       if (counts && counts.pending && !_recheck && typeof w.setTimeout === 'function') {
@@ -518,6 +529,20 @@
       _busy = false;
       if (_again) { _again = false; setTimeout(() => { render(true); }, 0); }
     }
+  }
+
+  // navigator.setAppBadge: the installed app on iOS 16.4+ (once notifications
+  // are allowed), Android and desktop Chrome / Edge. A no-op anywhere else.
+  function setBadge(counts) {
+    // Never allowed to break the strip: a bad count just leaves the badge alone.
+    try {
+      const n = badgeCount(counts);
+      const nav = w.navigator;
+      if (n === null || !nav) return;
+      const p = n > 0 ? (typeof nav.setAppBadge === 'function' ? nav.setAppBadge(n) : null)
+        : (typeof nav.clearAppBadge === 'function' ? nav.clearAppBadge() : null);
+      if (p && typeof p.catch === 'function') p.catch(() => { /* not allowed: nothing to show */ });
+    } catch (_) { /* unsupported */ }
   }
 
   // The 'contactlabels' lazy bundle is registered HERE, not in script-loader.js:
@@ -535,6 +560,7 @@
     api.lastCounts.calls = callersNeedingYou(api.lastRows, Date.now(), api.lastLabels);
     api.lastCounts.hidden = hiddenPeople(api.lastRows, Date.now(), api.lastLabels);
     if (el) { const html = stripHtml(api.lastCounts); el.innerHTML = html; el.hidden = !html; markAllDup(el, html); }
+    setBadge(api.lastCounts);
   });
   // The quiet invoice re-ask finished (confirmed or finally failed): look again.
   w.addEventListener('nbd:invoices-settled', () => { render(true); });

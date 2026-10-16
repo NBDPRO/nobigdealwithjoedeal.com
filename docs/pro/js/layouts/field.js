@@ -151,13 +151,6 @@
       if (S.screen === 'today') render();
     }).catch(function () { /* weather is a nicety; never block the day */ });
   }
-  function stormLine() {
-    try {
-      var P = W.NBDTodayPlan;
-      var c = JSON.parse(ls('nbd_storm_alerts_cache') || 'null');
-      return P && P.stormLine ? P.stormLine(c, Date.now()) : '';
-    } catch (e) { return ''; }
-  }
 
   // ── screens ──────────────────────────────────────────────────────────
   function header(title, right) {
@@ -186,8 +179,11 @@
       var rain = S.wx.pop != null ? ' · ' + Math.round(S.wx.pop) + '% rain' : '';
       wx = '<div class="fa-wx">' + esc(S.wx.temp + '°' + S.wx.unit + ' · ' + S.wx.short + rain) + '</div>';
     }
-    var storm = stormLine();
-    h += '<div class="fa-strip">' + wx + (storm ? '<div class="fa-storm">' + esc(storm) + '</div>' : '') + '</div>';
+    h += '<div class="fa-strip">' + wx + '</div>';
+    // The shared storm strip (js/storm-strip.js, 2026-10-16) replaces the old
+    // cached storm line: a live NWS read, hail near customers, "feed unavailable"
+    // when the read fails, and nothing at all when it is clear.
+    h += '<div data-storm-slot="field" data-storm-variant="compact"></div>';
     // Next stop (js/next-stop.js, 2026-10-15) fills [data-ns-slot]: drive time,
     // Navigate and a checked "On my way", above the stop itself.
     h += '<div data-ns-slot="field" data-ns-variant="compact"></div>';

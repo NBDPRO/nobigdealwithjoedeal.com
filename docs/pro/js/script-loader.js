@@ -514,7 +514,7 @@
     // saved on this device. Kicked by today-home.js at Home boot.
     cardprefs: [
       'css/card-prefs.css?v=1',
-      'js/card-prefs.js?v=2'
+      'js/card-prefs.js?v=3'
     ],
     // Day and night layouts (2026-10-15): offers Field on a phone by day and
     // Mission Control on a computer at night (never switches by itself), plus
@@ -529,6 +529,13 @@
     homestrips: [
       'css/home-strips.css?v=1',
       'js/home-strips.js?v=1'
+    ],
+    // Storm strip (2026-10-16): Home (Classic, Bento, Island) and Field, only
+    // when a warning or hail touches the territory or a customer. Kicked by
+    // today-home.js at Home boot; it loads storm-mode.js like Mission Control.
+    stormstrip: [
+      'css/storm-strip.css?v=1',
+      'js/storm-strip.js?v=1'
     ]
   };
 

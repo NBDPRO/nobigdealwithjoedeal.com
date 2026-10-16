@@ -114,6 +114,12 @@ CEILING.localBytes += 3 * 1024;
 // hand-off) are deferred code that only runs when a draft is opened or sent. Main alone sat at 4820 of 4821 KB after
 // #2449 (visit capture PR 2) consumed the last of the headroom, so this PR measures 4822 and the ceiling keeps ~1 KB.
 CEILING.localBytes += 2 * 1024;
+// +2 KB, deliberate (2026-10-16, layouts extras: storm strip + app badge): no new script, no new tag.
+// home-attention.js (deferred, already on the page) sets the installed app's badge to the Needs-you count
+// (+~1.2 KB: badgeCount + setAppBadge/clearAppBadge, a no-op where unsupported); script-loader.js registers
+// the lazy 'homestrips' and 'stormstrip' bundles and today-home.js kicks them (+~0.8 KB); Field's old cached
+// storm line went away (-0.3 KB, field.js is lazy anyway). Main + this stack measures 4845 of 4844 KB.
+CEILING.localBytes += 2 * 1024;
 // +5 KB, deliberate (2026-10-15, siding warranty by package, #2463 + its follow-up): no new script tag.
 // The siding kind + package table in estimate-config.js and customer-estimate-rows.js (both deferred),
 // the Package row in job-templates-ui.js, the signed-package lock and the certificate's signed view in
