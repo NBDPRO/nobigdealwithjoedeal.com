@@ -52,6 +52,12 @@
     var de = document.documentElement;
     var c = JSON.parse(localStorage.getItem('nbd_layout_resolved') || 'null');
     if (!c || typeof c !== 'object') return;
+    // Another account's cache on a shared device paints nothing (#2467 follow-up,
+    // audit D34): the login and sign-up pages write who just signed in
+    // (nbd_signin_uid) before opening the dashboard, and the engine corrects
+    // the layout for the real uid moments later anyway.
+    var who = localStorage.getItem('nbd_signin_uid');
+    if (who && c.uid && who !== c.uid) return;
     var coarse = false;
     try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) {}
     var w = window.innerWidth || 1024;
