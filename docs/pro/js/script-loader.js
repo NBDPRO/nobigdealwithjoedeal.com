@@ -492,6 +492,15 @@
       'css/closes-week.css?v=2',
       'js/closes-week-logic.js?v=1',
       'js/closes-week.js?v=2'
+    ],
+    // Next stop (2026-10-15): the next appointment, drive time, Navigate and a
+    // checked "On my way", in every layout. Kicked by today-home.js at Home boot
+    // like 'closesweek'. routeplan.js is the drive-time estimate and the one
+    // gated On my way path (Mission Control loads the same file).
+    nextstop: [
+      'css/next-stop.css?v=1',
+      'js/layouts/routeplan.js?v=2',
+      'js/next-stop.js?v=1'
     ]
   };
 

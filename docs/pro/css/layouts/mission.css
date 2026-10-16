@@ -157,6 +157,13 @@ html[data-layout="mission"] .mc-open-sms { display: inline-flex; align-items: ce
   html[data-layout="mission"] .mc-cwk { grid-row: 4; max-height: none; border-right: 0; overflow: visible; }
   html[data-layout="mission"] .mc-title { display: none; }
   html[data-layout="mission"] .mc-top { gap: 8px; }
+  /* The Next stop strip under the header (next-stop.js, 2026-10-15) would
+     take a fixed slice of a phone screen outside the scrolling panels, so on
+     a phone the whole screen scrolls instead: header (sticky), strip, map,
+     panels. */
+  html[data-layout="mission"] .mc-wrap { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  html[data-layout="mission"] .mc-body { flex: none; overflow: visible; }
+  html[data-layout="mission"] [data-mc-slot="top"] { position: sticky; top: 0; z-index: 3; background: var(--bg); }
 }
 /* The phone nav is hidden only while Mission Control is on screen (kit.css,
    html.lk-overlay-on), never on every view: Menu > Pipeline used to strand you. */
