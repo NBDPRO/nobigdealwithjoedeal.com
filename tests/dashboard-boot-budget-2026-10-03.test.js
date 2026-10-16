@@ -166,6 +166,11 @@ CEILING.localBytes += 2 * 1024;
 // Profile plus the nbd:monthly-goal repaint (+~2.2 KB). Main sat at 4851 of 4851 KB; this PR measures 4853,
 // so the ceiling keeps ~1 KB of slack.
 CEILING.localBytes += 3 * 1024;
+// +3 KB, deliberate (2026-10-16, warranty locks): no new script, no new tag. warranty-cert.js (deferred,
+// lazy with the Docs view) reads the lead's estimate for the certificate's tier / package / job-type years
+// (+~4 KB LF); customer-estimate-rows.js locks repairWarranty at signing (+~1 KB). Measured 4855 of 4854 KB,
+// so the ceiling keeps ~2 KB of slack.
+CEILING.localBytes += 3 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {

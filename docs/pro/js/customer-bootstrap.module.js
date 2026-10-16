@@ -3830,8 +3830,15 @@ window.generateCertFromEstimate = async function(estimateId) {
     if (typeof showToast === 'function') showToast('Estimate not found', 'error');
     return;
   }
-  const est = window._customerEstimates.find(e => e.id === estimateId);
-  if (!est) { if (typeof showToast === 'function') showToast('Estimate not found', 'error'); return; }
+  const _savedEst = window._customerEstimates.find(e => e.id === estimateId);
+  if (!_savedEst) { if (typeof showToast === 'function') showToast('Estimate not found', 'error'); return; }
+  // A certificate certifies what was SIGNED (Jo, 2026-10-15: warranty terms
+  // lock at signing): a tier, siding package or repair box changed after
+  // signing never reaches it until the homeowner re-signs. Same rule as
+  // doc-preflight.js's warranty certificate.
+  const _spApi = window.NBDCustomerEstimateRows;
+  const est = (_spApi && typeof _spApi.hasUnsignedChanges === 'function' && _spApi.hasUnsignedChanges(_savedEst))
+    ? _spApi.signedView(_savedEst) : _savedEst;
 
   // Job-type warranty (2026-09-25). A Job Template estimate's workmanship
   // warranty comes from its job type, not a roofing tier: this certificate
