@@ -208,12 +208,8 @@ body{font-family:'Montserrat',sans-serif;background:var(--navy-dark);color:var(-
 .result-price{font-family:'Bebas Neue',sans-serif;font-size:3.2rem;color:var(--white);line-height:1;}
 .result-price span{font-size:1.8rem;color:rgba(255,255,255,.72);}
 .result-note{font-size:.72rem;color:rgba(255,255,255,.72);margin-top:6px;}
-.result-monthly{margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08);}
-.result-monthly .rm-line{font-size:.95rem;color:rgba(255,255,255,.85);}
-.result-monthly .rm-line strong{color:var(--orange);font-weight:800;}
-.result-monthly .rm-link{display:inline-block;margin-top:7px;font-size:.78rem;font-weight:700;color:var(--orange);text-decoration:none;}
-.result-monthly .rm-link:hover{text-decoration:underline;}
-.result-monthly .rm-disc{font-size:.8rem;color:rgba(255,255,255,.72);margin-top:9px;line-height:1.55;max-width:460px;margin-left:auto;margin-right:auto;}
+.result-range .rm-link{display:inline-block;margin-top:12px;font-size:.78rem;font-weight:700;color:var(--orange);text-decoration:none;}
+.result-range .rm-link:hover{text-decoration:underline;}
 .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px;}
 .detail-item{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:12px;}
 .detail-label{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.72);margin-bottom:4px;}
@@ -931,21 +927,19 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
     <div class="tier-tabs" id="tierTabsRow">
       <button class="tier-tab" data-tier="good">Standard &#183; Architectural</button>
       <button class="tier-tab active" data-tier="better">Preferred &#183; Architectural</button>
-      <button class="tier-tab" data-tier="best">Elite &#183; Lifetime Designer</button>
+      <button class="tier-tab" data-tier="best">Elite &#183; Architectural</button>
     </div>
 
     <div class="result-range">
       <div class="result-label">Your Personalized Estimate</div>
       <div class="result-price" id="resultPrice">$14,800 <span>&#8211; $20,600</span></div>
       <div class="result-note" id="resultNote">Based on your property &#183; Cincinnati-area pricing &#183; 2026</div>
-      <!-- Monthly-payment framing (financing-benefits session 2026-08-17):
-           same published Acorn APR band + amortization math as
-           /services/financing. Populated by the wizard; hidden for storm
-           claims (deductible framing stays clean) and sub-$3k projects. -->
-      <div class="result-monthly" id="resultMonthly" hidden>
-        <div class="rm-line">or about <strong id="resultMonthlyFigs">$&#8212;</strong> per month with financing*</div>
-        <a class="rm-link" href="/services/financing">Don't shrink the project &#8212; see how financing works &#8594;</a>
-        <div class="rm-disc">*Illustration, not an offer of credit: 10-year term at the Acorn Finance marketplace's published 11.49&#8211;19.99% APR range. Your rate and term come from the lender you choose &#8212; checking is a soft pull that never touches your score.</div>
+      <!-- No monthly payment here (2026-10-16): a payment amount in an ad needs
+           the APR beside it under Reg Z, and the lender sets rate, term and
+           payment. The financing link stays; the wizard hides it for storm
+           claims and sub-$3k projects. -->
+      <div class="result-financing" id="resultFinancing" hidden>
+        <a class="rm-link" href="/services/financing">Want to spread it out? See how financing works &#8594;</a>
       </div>
     </div>
 
@@ -1079,7 +1073,7 @@ footer.foot .nbd-social a{text-decoration:none!important;padding:0}
 <!-- ═══════════════════════ MAIN SCRIPT (lazy) ═══════════════════════
      The 52KB wizard loads on first user intent (or idle <=2.5s) via the
      loader instead of eagerly — see assets/js/estimate-wizard-loader.js. -->
-<script defer src="/assets/js/estimate-wizard-loader.js?v=4"></script>
+<script defer src="/assets/js/estimate-wizard-loader.js?v=5"></script>
 
 <!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-8PG7N9Q3DL"></script>

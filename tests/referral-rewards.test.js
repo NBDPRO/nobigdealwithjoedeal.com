@@ -10,9 +10,10 @@
  *   - ATTRIBUTE: a lead stamped with `redeemReferralCode` gets linked to its
  *     referrer (referrerLeadId + referralRewardStatus 'pending'), the referral
  *     doc's referredLeads is updated, and the rep is notified.
- *   - CREDIT: when that lead's stage → 'closed', the $100 bonus is recorded as
- *     OWED on the referral doc (rewards[] + rewardsOwedTotal) and the rep is
- *     notified.
+ *   - CREDIT: only once the referred job is PAID IN FULL (Joe, 2026-10-16):
+ *     Install Done and a closed stage with nothing paid credit nothing; a
+ *     paid invoice (dated received) then records the $100 as OWED on the
+ *     referral doc (rewards[] + rewardsOwedTotal) and notifies the rep.
  *   - IDEMPOTENT: re-writing/re-closing does not double-credit.
  *   - REJECT: unknown code, foreign-tenant code, and self-referral all mark
  *     referralCodeInvalid and never credit.
@@ -120,7 +121,7 @@ const REP = 'repUid_AAAAAAAAAAAAAAAAAAAA1';   // owns the codes under test
 const REP2 = 'repUid_BBBBBBBBBBBBBBBBBBBB2';  // a different tenant
 
 async function run() {
-  console.log('REFERRAL REWARDS — code redemption + $100 bonus on close\n');
+  console.log('REFERRAL REWARDS — code redemption + $100 bonus once paid in full\n');
 
   // ── Seed: a referrer (past customer) + their minted code ──────
   await setDoc('leads', 'ref_referrer', { userId: REP, companyId: REP, firstName: 'John', lastName: 'Doe', stage: 'closed' });
@@ -155,9 +156,24 @@ async function run() {
   const attrNotes = await waitUntil(() => notificationsFor('ref_friend'), (n) => n.some((x) => x.type === 'referral'));
   ok('rep notified: referral tracked', attrNotes.some((n) => n.type === 'referral'));
 
-  // ═══ 2. CREDIT ON CLOSE ═══════════════════════════════════════
-  console.log('\n2) Credit — the referred project closes → $100 owed');
+  // ═══ 2. CREDIT ONLY WHEN PAID IN FULL ═════════════════════════
+  console.log('\n2) Credit — only when the referred job is paid in full → $100 owed');
+  await patchDoc('leads', 'ref_friend', { stage: 'install_complete' });
+  await sleep(8000); // a negative check: give the trigger time to act
+  const atInstall = await getDoc('leads', 'ref_friend');
+  ok('Install Done (a won stage) credits nothing', atInstall && atInstall.referralRewardStatus === 'pending');
   await patchDoc('leads', 'ref_friend', { stage: 'closed' });
+  await sleep(8000); // a negative check: give the trigger time to act
+  const closedUnpaid = await getDoc('leads', 'ref_friend');
+  ok('closed with no payment received credits nothing', closedUnpaid && closedUnpaid.referralRewardStatus === 'pending');
+  const unpaidCode = await getDoc('referrals', codeDocId);
+  ok('…and the code doc owes nothing yet', !unpaidCode || !unpaidCode.rewardsOwedTotal);
+  // The money arrives: one paid invoice, dated received; then the lead is re-written.
+  await setDoc('invoices', 'ref_friend_inv1', {
+    leadId: 'ref_friend', userId: REP, companyId: REP, status: 'paid',
+    total: 12000, amount: 12000, amountPaid: 12000, paidAt: new Date(Date.now() - 86400000),
+  });
+  await patchDoc('leads', 'ref_friend', { stage: 'closed', paymentNote: 'paid in full' });
   const credited = await waitUntil(() => getDoc('leads', 'ref_friend'), (l) => l && l.referralRewardStatus === 'owed');
   ok('reward status = owed', credited && credited.referralRewardStatus === 'owed');
   ok('reward amount = 100', credited && credited.referralRewardAmount === 100);

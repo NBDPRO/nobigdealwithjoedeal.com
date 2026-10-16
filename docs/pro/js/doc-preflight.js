@@ -1546,7 +1546,7 @@
             { key: 'bonusAmount', label: 'Referral Bonus', type: 'currency', required: true,
               source: 'literal:100', persist: PERSIST.DOCUMENT },
             { key: 'terms', label: 'Terms', type: 'textarea', rows: 2,
-              source: 'literal:Bonus paid when the referred job closes. One bonus per referred customer.',
+              source: 'literal:Bonus paid after the referred job is paid in full. One bonus per referred job.',
               persist: PERSIST.DOCUMENT }
           ]
         }
