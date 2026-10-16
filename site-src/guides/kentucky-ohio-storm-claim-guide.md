@@ -21,6 +21,9 @@ compliance:
   - Ohio facts verified against ORC 1345.21-.23 (home solicitation, 3 business days) and ORC 4722.01/4722.04 (10% down payment cap on home construction service contracts over $25,000), opened 2026-10-16. Where a rule's reach is a legal question, the guide says "ask us / check your contract".
   - No deductible help of any kind; KY $100 cap on anything of value to an insured homeowner.
   - General information, not legal advice.
+qa_allow:
+  - { rule: claim-incentive, reason: "Red flags chapter: the walk-away list quotes a cash or gift-card offer as something to refuse; NBD never offers one" }
+  - { rule: licensed, reason: "Refers to a licensed public adjuster the homeowner may hire; not a claim about NBD" }
 ---
 
 # Before you call anyone
@@ -41,6 +44,8 @@ A hailstorm or a wind storm leaves a lot of people knocking on doors and a lot o
 
 An emergency tarp from us is billed on its own invoice, separate from any repair or replacement.
 
+<!-- pagebreak -->
+
 ## Write it down while it's fresh
 
 - [ ] The date and rough time of the storm
@@ -49,7 +54,7 @@ An emergency tarp from us is billed on its own invoice, separate from any repair
 - [ ] Shingle pieces or granules in the yard or at the downspouts
 - [ ] Any new water stains inside, especially on top-floor ceilings and in the attic
 
-Our free [5-Year Storm Report](/storm-report) shows the hail and wind reports the National Weather Service logged near your address, which helps you pin down the date.
+Our free [5-Year Storm Report](https://nobigdealwithjoedeal.com/storm-report) shows the hail and wind reports the National Weather Service logged near your address, which helps you pin down the date.
 
 # How a claim actually works
 
