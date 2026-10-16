@@ -102,6 +102,7 @@ function _stageText(l) {
 // `name` (only seeds, D2D and some imports set it), so reading `l.name` alone
 // showed every form-created lead by its address.
 let _wGoalSynced = false; // revenue-month: one userSettings read per page
+let _wGoalListen = false, _wRevEl = null; // revenue-month: repaint on nbd:monthly-goal
 function _leadName(l, fallback) {
   if (!l) return fallback;
   return ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || l.customerName || l.address || fallback;
@@ -264,8 +265,20 @@ const WIDGETS = [
       // local cache for the instant paint, Firestore as the source of truth).
       let _cachedGoal = null;
       try { _cachedGoal = localStorage.getItem('nbd_monthly_goal'); } catch (_) {}
-      const goal = parseFloat(_cachedGoal || '50000');
-      if (!_cachedGoal && !_wGoalSynced && window._user && window.getDoc && window.doc && window.db) {
+      // No goal saved = no goal: no bar, no percentage, collected only (the
+      // Cash card's rule). This used to assume $50k, so a rep who never set
+      // one read "25% of $50k goal" on Home and no ring on the Cash card.
+      const goal = parseFloat(_cachedGoal) > 0 ? parseFloat(_cachedGoal) : 0;
+      _wRevEl = el;
+      if (!_wGoalListen) {
+        // Settings > Profile (cash-card.js) saves or clears the goal → repaint.
+        _wGoalListen = true;
+        window.addEventListener('nbd:monthly-goal', () => {
+          const w = WIDGETS.find(x => x.id === 'revenue-month');
+          if (w && _wRevEl && document.contains(_wRevEl)) w.render(_wRevEl);
+        });
+      }
+      if (!goal && !_wGoalSynced && window._user && window.getDoc && window.doc && window.db) {
         _wGoalSynced = true;
         window.getDoc(window.doc(window.db, 'userSettings', window._user.uid)).then(snap => {
           const g = snap && snap.exists() ? Number(snap.data().monthlyGoal) : 0;
@@ -285,8 +298,32 @@ const WIDGETS = [
       el.innerHTML = `
         <div class="w-big-num wg-green">${revText}</div>
         <div class="w-sub">Revenue This Month <span class="wg-o7">· collected</span>${thisMonth.length ? ' <span class="wg-o7">· ' + thisMonth.length + ' closed</span>' : ''}</div>
-        <div class="w-bar-track"><div class="w-bar-fill" style="width:${pct}%"></div></div>
-        <div class="w-goal-edit wg-edit-link" data-w-stop="1" title="Click to change your monthly goal">${pct.toFixed(0)}% of $${(goal/1000).toFixed(0)}k goal ✎</div>`;
+        ${goal > 0 ? `<div class="w-bar-track"><div class="w-bar-fill" style="width:${pct}%"></div></div>
+        <div class="w-goal-edit wg-edit-link" data-w-stop="1" title="Click to change your monthly goal">${pct.toFixed(0)}% of $${(goal/1000).toFixed(0)}k goal ✎</div>`
+        : `<div class="w-goal-set wg-edit-link" data-w-stop="1" role="button" tabindex="0" title="Set a monthly collected goal in Settings, Profile tab">Set a goal</div>`}`;
+      const setEl = el.querySelector('.w-goal-set');
+      if (setEl) {
+        const openGoal = (ev) => {
+          if (ev && ev.type === 'keydown' && ev.key !== 'Enter' && ev.key !== ' ') return;
+          if (ev && ev.preventDefault) ev.preventDefault();
+          // Settings > Profile holds the goal input (#cashGoalPanel). The tab
+          // hydrates lazily after goTo, so wait for it (agent-bots-settings.js).
+          if (typeof window.goTo === 'function') window.goTo('settings', { id: 'profile' });
+          let tries = 0;
+          const iv = setInterval(() => {
+            const ready = typeof window.switchSettingsTab === 'function' && document.getElementById('stab-panel-profile');
+            if (!ready && ++tries < 40) return;
+            clearInterval(iv);
+            if (typeof window.switchSettingsTab === 'function') window.switchSettingsTab('profile');
+            const panel = document.getElementById('cashGoalPanel');
+            if (panel && panel.scrollIntoView) panel.scrollIntoView({ block: 'center' });
+            const inp = document.getElementById('cashGoalInput');
+            if (inp && inp.focus) { try { inp.focus({ preventScroll: true }); } catch (_) {} }
+          }, 150);
+        };
+        setEl.addEventListener('click', openGoal);
+        setEl.addEventListener('keydown', openGoal);
+      }
       const goalEl = el.querySelector('.w-goal-edit');
       if (goalEl) {
         goalEl.addEventListener('click', () => {
