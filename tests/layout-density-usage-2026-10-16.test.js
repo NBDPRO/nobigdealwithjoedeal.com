@@ -66,7 +66,7 @@ console.log('\nB. applied on every switch, stamped before paint, saved');
   vm.createContext(ctx);
   vm.runInContext(read('docs/pro/js/shape-preboot.js'), ctx);
   ok('the preboot paints Field at its own size before first paint', attrs['data-layout'] === 'field' && attrs['data-tap'] === 'compact', JSON.stringify(attrs));
-  ok('shape-preboot.js and layout-system.js were cache-busted', /shape-preboot\.js\?v=([4-9]|[1-9]\d)(?!\d)/.test(read('docs/pro/dashboard.html')) && /layout-system\.js\?v=4/.test(read('docs/pro/dashboard.html')) && /layout-system\.css\?v=2/.test(read('docs/pro/dashboard.html')));
+  ok('shape-preboot.js and layout-system.js were cache-busted', /shape-preboot\.js\?v=([4-9]|[1-9]\d)(?!\d)/.test(read('docs/pro/dashboard.html')) && /layout-system\.js\?v=([4-9]|[1-9]\d)(?!\d)/.test(read('docs/pro/dashboard.html')) && /layout-system\.css\?v=2/.test(read('docs/pro/dashboard.html')));
 }
 
 console.log('\nC. the picker');
