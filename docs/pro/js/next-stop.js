@@ -13,7 +13,8 @@
  * The stops are the Today list's own appointments (NBDToday.compute(): the
  * same rows Home and Field show). The next stop is the first timed one that
  * starts no earlier than 30 minutes ago and that Field has not marked done;
- * with no timed stop left, an all-day job day Field has not marked done.
+ * with no timed stop left, a job day (all day at that house, even with a crew
+ * start time) Field has not marked done.
  * None left: "No more stops today" and tomorrow's first, from the same
  * appointment read (it reaches into tomorrow) through the same rule
  * (NBDTodayPlan.collectTodayItems for tomorrow's date).
@@ -90,10 +91,13 @@
   function pickNext(items, nowMs, done) {
     var d = done || {};
     var open = (Array.isArray(items) ? items : []).filter(function (it) { return it && it.key && !d[it.key]; });
+    // A crew / job day (today-plan source 'job') is the whole day at that
+    // house: like an all-day row it stays until Field marks it done.
+    function dayLong(it) { return it.allDay || it.source === 'job'; }
     var up = open.filter(function (it) {
-      return !it.allDay && it.sortMs != null && isFinite(Number(it.sortMs)) && Number(it.sortMs) >= nowMs - GRACE_MS;
+      return !dayLong(it) && it.sortMs != null && isFinite(Number(it.sortMs)) && Number(it.sortMs) >= nowMs - GRACE_MS;
     }).sort(function (a, b) { return a.sortMs - b.sortMs; });
-    var allDay = open.filter(function (it) { return it.allDay; });
+    var allDay = open.filter(dayLong);
     var list = up.concat(allDay);
     return { next: list[0] || null, later: Math.max(0, list.length - 1) };
   }

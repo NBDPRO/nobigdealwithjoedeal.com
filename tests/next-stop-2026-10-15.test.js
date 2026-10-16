@@ -98,6 +98,7 @@ const stop = (key, minFromNow, extra) => Object.assign({ key, sortMs: NOW + minF
     ok('a stop Field marked done is never next', pick(a, NOW, { just: 1 }).next.key === 'soon');
     ok('an hour-old stop is not next', pick([stop('past', -90)], NOW, {}).next === null);
     ok('no timed stop left: an all-day job day (not done) is next', pick([stop('past', -90), stop('job', 0, { allDay: true, sortMs: null })], NOW, {}).next.key === 'job');
+    ok('a crew job day with a 7 am start stays next until Field marks it done', pick([stop('job:L1/-', -600, { source: 'job' })], NOW, {}).next.key === 'job:L1/-' && pick([stop('job:L1/-', -600, { source: 'job' })], NOW, { 'job:L1/-': 1 }).next === null);
     ok('timed stops come before all-day ones', pick([stop('job', 0, { allDay: true, sortMs: null }), stop('soon', 20)], NOW, {}).next.key === 'soon');
     ok('the grace window is 30 minutes', ns.GRACE_MS === 30 * 60000);
   }
