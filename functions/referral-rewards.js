@@ -20,8 +20,9 @@
  *     lead back to the referrer (referrerLeadId + referralRewardStatus:
  *     'pending'). Idempotent via the `referralAttributedAt` latch.
  *
- *   Phase B — CREDIT: when the referred lead's project reaches a CLOSED stage
- *     (Jo's chosen payout moment), record the $100 as OWED on the referrer's
+ *   Phase B — CREDIT: when the referred customer's job is PAID IN FULL (Joe,
+ *     2026-10-16: "after paid in full"; until then any won stage, Install
+ *     Done included, credited it), record the $100 as OWED on the referrer's
  *     referrals doc and notify the rep to pay it. Idempotent via the
  *     referralRewardStatus pending→owed flip. There is no automated payment
  *     rail to a customer — the bonus is TRACKED + the rep is notified; they
@@ -55,31 +56,42 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 // $100 everywhere — all states, all job types (Jo, 2026-09-27; was $200).
 const REFERRAL_BONUS_USD = 100;
 
-// Stages that count as "the project closed" — Jo's payout trigger. Matches
-// crm-stages.js S.CLOSED ('closed', the 🏆 final job stage) plus the legacy
-// display names that normalize to it. Compared after lower-casing +
-// space→underscore so 'Closed', 'Closed Won' and 'Complete' all match.
-const CLOSED_STAGES = new Set(['closed', 'closed_won', 'closed-won', 'complete']);
-
-function normStage(s) {
-  return String(s || '').toLowerCase().trim().replace(/\s+/g, '_');
-}
-function isClosed(stage) {
-  return CLOSED_STAGES.has(normStage(stage));
-}
-// Freeform-pipeline aware (Phase 3): the payout fires when the referred lead's
-// project reaches a WON-role stage — including a tenant's CUSTOM won stage,
-// resolved from the persisted lead.stageRole. Built-in stages keep working via
-// the CLOSED_STAGES fallback below.
-const { isWon: _roleIsWon } = require('./stage-roles');
+// THE PAYOUT MOMENT: PAID IN FULL (Joe, 2026-10-16). The bonus is credited
+// only when the referred customer's job is paid in full, by the SAME rule the
+// automatic review ask uses (review-ask-auto.js): paid-in-full.js isPaidInFull
+// (a won stage at or after Final Payment, a tenant's custom won stage
+// included, never Install Done / Final Photos / Deductible / Collections, and
+// no invoice still owing) plus a dated payment RECEIVED
+// (review-ask-auto-logic.js receivedMs: the date the rep entered as received,
+// never the stage date). A job closed with no dated payment is not credited.
+// Bonuses already owed or paid stay as they are: the per-job and per-customer
+// latches below are untouched.
+const PIF = require('./paid-in-full');
+const { receivedMs } = require('./review-ask-auto-logic');
 const { isQuietBackfill: _isQuietBackfill } = require('./quiet-backfill');
+
+// The stage half, checked before any read: at or after Final Payment.
 function projectClosed(lead) {
+  if (!lead) return false;
   // A job marked "already completed" after the fact (schedule planner,
-  // 2026-10-13) sits at Install Done on a tap that Undo can take back — and a
-  // referral bonus owed to a third party cannot be taken back. It credits when
-  // the job moves PAST Install Done (the next write sees a later won stage).
-  if (lead && String(lead.stage || '') === 'install_complete' && _isQuietBackfill(lead)) return false;
-  return _roleIsWon(lead) || isClosed(lead && lead.stage);
+  // 2026-10-13) sits at Install Done, which never counts now anyway.
+  if (String(lead.stage || '') === 'install_complete' && _isQuietBackfill(lead)) return false;
+  return PIF.isPaidStage(lead);
+}
+/** PURE. Paid in full for the referral bonus: the stage, nothing owing, money received. */
+function paidForReferral(holder, invoices) {
+  return projectClosed(holder) && PIF.paidInFull(holder, invoices) && receivedMs(invoices) > 0;
+}
+/** Read the job's invoices and apply paidForReferral. A read error = not yet. */
+async function loadPaidForReferral(db, leadId, lead, holder, jobId) {
+  let invoices;
+  try {
+    invoices = await PIF.loadLeadInvoices(db, leadId, lead, jobId || null);
+  } catch (e) {
+    logger.warn('[referral] invoice read failed; not crediting yet', { leadId, jobId, err: e && e.message });
+    return false;
+  }
+  return paidForReferral(holder, invoices);
 }
 function fullName(lead) {
   return `${(lead && lead.firstName) || ''} ${(lead && lead.lastName) || ''}`.trim();
@@ -275,7 +287,7 @@ async function handleReferralLeadWrite(event) {
         type: 'referral',
         leadId,
         title: '🎁 Referral tracked',
-        message: `${fullName(after) || 'A new lead'} was referred${referrerName ? ' by ' + referrerName : ''} (code ${code}). $${REFERRAL_BONUS_USD} bonus is owed when their project closes.`,
+        message: `${fullName(after) || 'A new lead'} was referred${referrerName ? ' by ' + referrerName : ''} (code ${code}). $${REFERRAL_BONUS_USD} bonus is owed once their project is paid in full.`,
         read: false,
         dismissed: false,
         createdAt: FieldValue.serverTimestamp(),
@@ -298,10 +310,12 @@ async function handleReferralLeadWrite(event) {
   const activeJobId = validJobId(after.activeJobId);
   if (activeJobId && REFERRED.has(after.referralRewardStatus) && projectClosed(after)) {
     const wasClosed = !!before && projectClosed(before) && before.activeJobId === after.activeJobId;
-    // Cheap gate: a closed lead is re-written often; only look when it JUST
-    // closed, the active job changed, or the code was just attributed.
+    // Cheap gate: a paid-stage lead is re-written often; only look when it
+    // JUST reached the stage, the active job changed, or the bonus is still
+    // pending. A job whose last invoice is paid AFTER the stage moved is
+    // caught by onReferralJobWrite when the job flips paidInFull.
     if (!wasClosed || after.referralRewardStatus === 'pending') {
-      await creditJob(db, leadId, after, activeJobId);
+      if (await loadPaidForReferral(db, leadId, after, after, activeJobId)) await creditJob(db, leadId, after, activeJobId);
     }
     return;
   }
@@ -311,7 +325,8 @@ async function handleReferralLeadWrite(event) {
   // the re-trigger from our own write no longer matches. The status latch —
   // not a stage-transition check — is the idempotency guard, so a code
   // entered on an already-closed lead still credits exactly once.
-  if (!activeJobId && after.referralRewardStatus === 'pending' && projectClosed(after)) {
+  if (!activeJobId && after.referralRewardStatus === 'pending' && projectClosed(after)
+      && await loadPaidForReferral(db, leadId, after, after, null)) {
     const amount = REFERRAL_BONUS_USD;
     try {
       await afterSnap.ref.set({
@@ -366,7 +381,7 @@ async function handleReferralLeadWrite(event) {
         type: 'referral_reward',
         leadId,
         title: '🎁 Referral bonus owed',
-        message: `$${amount} referral bonus owed to ${after.referredByName || 'your referrer'} — ${fullName(after) || 'a referred lead'}'s project closed. Mark paid once you've sent it.`,
+        message: `$${amount} referral bonus owed to ${after.referredByName || 'your referrer'} — ${fullName(after) || 'a referred lead'}'s project is paid in full. Mark paid once you've sent it.`,
         read: false,
         dismissed: false,
         createdAt: FieldValue.serverTimestamp(),
@@ -464,7 +479,7 @@ async function creditJob(db, leadId, lead, jobId) {
       type: 'referral_reward',
       leadId: String(leadId),
       title: '🎁 Referral bonus owed',
-      message: `$${amount} referral bonus owed to ${lead.referredByName || 'your referrer'} — a job for ${fullName(lead) || 'a referred customer'} closed. Mark paid once you've sent it.`,
+      message: `$${amount} referral bonus owed to ${lead.referredByName || 'your referrer'} — a job for ${fullName(lead) || 'a referred customer'} is paid in full. Mark paid once you've sent it.`,
       read: false,
       dismissed: false,
       createdAt: FieldValue.serverTimestamp(),
@@ -475,17 +490,30 @@ async function creditJob(db, leadId, lead, jobId) {
   return plan;
 }
 
-/** A job other than the customer's active one closed → its bonus. */
+/**
+ * A job doc changed → its bonus, once it is paid in full. Another job than the
+ * customer's active one is judged by its own stage. The ACTIVE job is the lead
+ * path's, except at the moment the job flips paidInFull (money-paper.js
+ * markJobPaid, when the last invoice is paid): a job whose stage reached Final
+ * Payment before the money did is credited then. creditJob's latch keeps the
+ * two paths from paying twice.
+ */
 async function handleReferralJobWrite(event) {
   const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
-  if (!after || after.referralRewardOwedAt || !projectClosed(after)) return;
+  if (!after || after.referralRewardOwedAt) return;
+  const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+  const paidFlip = after.paidInFull === true && !(before && before.paidInFull === true);
   const { leadId, jobId } = event.params || {};
   if (!validJobId(jobId)) return;
+  if (!paidFlip && !projectClosed(after)) return;
   const db = getFirestore();
   const ls = await db.collection('leads').doc(String(leadId)).get();
   const lead = ls.exists ? ls.data() : null;
   if (!lead || !REFERRED.has(lead.referralRewardStatus)) return;   // not a referred customer
-  if (lead.activeJobId === jobId) return;                          // the lead path handles it
+  const active = lead.activeJobId === jobId;
+  if (active && !paidFlip) return;                                 // the lead path handles it
+  const holder = active ? lead : after;                            // the active job's stage is the lead's
+  if (!(await loadPaidForReferral(db, leadId, lead, holder, jobId))) return;
   await creditJob(db, leadId, lead, jobId);
 }
 
@@ -500,7 +528,7 @@ exports.onReferralJobWrite = onDocumentWritten(
   handleReferralJobWrite
 );
 
-exports._internal = { projectClosed, planJobCredit, creditJob, handleReferralJobWrite, handleReferralLeadWrite, referralOwnerInLeadCompany, REFERRAL_BONUS_USD };
+exports._internal = { projectClosed, paidForReferral, loadPaidForReferral, planJobCredit, creditJob, handleReferralJobWrite, handleReferralLeadWrite, referralOwnerInLeadCompany, REFERRAL_BONUS_USD };
 
 exports.onReferralLeadWrite = onDocumentWritten(
   {

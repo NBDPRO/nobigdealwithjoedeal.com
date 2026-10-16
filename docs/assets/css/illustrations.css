@@ -1,0 +1,79 @@
+/* illustrations.css — NBD technical illustrations (2026-10-16).
+   Figures are stamped by scripts/build-illustrations.mjs; the two interactive
+   pieces are driven by assets/js/roof-explode.js and assets/js/vent-flow.js.
+   Marketing tokens (DESIGN.md): navy + orange #bd5728, Montserrat, radii 8px
+   and pills only. The badge is deliberately different from the real-photo
+   badge ("Our crew · real job, not stock"). */
+.illus,.rx,.vx{--il-navy:#12223d;--il-orange:#bd5728;--il-orange-dark:#a14a22;--il-gray:#5d6673;--il-line:#e8e5e0;margin:28px 0;font-family:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--il-navy)}
+.illus-frame,.rx-frame{position:relative;background:#fff;border:1px solid var(--il-line);border-radius:8px;overflow:hidden}
+.illus-frame img{display:block;width:100%;height:auto}
+.illus-badge{position:absolute;left:10px;top:10px;z-index:2;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.94);color:var(--il-navy);border:1px solid var(--il-navy);border-radius:100px;padding:3px 10px;font-size:.68rem;font-weight:700;letter-spacing:.02em;line-height:1.4}
+.illus-badge::before{content:"";width:7px;height:7px;border-radius:100px;background:var(--il-orange);flex:0 0 auto}
+.illus-cap{margin-top:12px;font-size:.88rem;line-height:1.6;color:var(--il-navy)}
+.illus-cap .illus-title{font-weight:800;font-size:.98rem;margin:0 0 6px}
+.illus-cap .illus-key{margin:0 0 8px;padding-left:1.4em;columns:1;column-gap:28px}
+.illus-cap .illus-key li{margin:0 0 4px;break-inside:avoid}
+.illus-cap .illus-key li::marker{color:var(--il-orange);font-weight:800}
+.illus-cap .illus-note{margin:0 0 6px;color:var(--il-gray)}
+.illus-cap .illus-src{margin:0;font-size:.78rem;color:var(--il-gray)}
+.illus-cap .illus-src a{color:var(--il-orange-dark)}
+.illus-sources{padding-left:1.2em;font-size:.88rem;line-height:1.6}
+.illus-sources li{margin-bottom:6px}
+.illus-pub{color:var(--il-gray);font-size:.8rem}
+@media (min-width:760px){.illus-cap .illus-key{columns:2}}
+/* The static SVGs carry their own badge, drawn at full width; on phones the
+   SVG hides its small text, so the HTML badge takes over. */
+.illus .illus-badge{display:none}
+@media (max-width:700px){.illus .illus-badge{display:inline-flex}}
+
+/* ── Pull the roof apart ── */
+.rx{display:grid;gap:16px}
+.rx-stage svg{display:block;width:100%;height:auto}
+.rx-svg .rx-layer,.rx-svg .rx-tag{cursor:pointer}
+.rx-anim .rx-layer,.rx-anim .rx-tag{transition:transform 120ms linear,opacity 140ms ease}
+.rx-svg.has-sel .rx-layer,.rx-svg.has-sel .rx-tag{opacity:.3}
+.rx-svg.has-sel .rx-layer.is-sel,.rx-svg.has-sel .rx-tag.is-sel{opacity:1}
+.rx-svg .nb circle,.vx-svg .nb circle{fill:#bd5728;stroke:#fff;stroke-width:2.5}
+.rx-svg .nb text,.vx-svg .nb text{font:800 15px 'Montserrat',system-ui,sans-serif;fill:#fff}
+.rx-control{display:grid;gap:4px}
+.rx-label{font-weight:800;font-size:.9rem}
+.rx-range{width:100%;min-height:44px;accent-color:#bd5728;cursor:pointer}
+.rx-range:focus-visible{outline:3px solid #12223d;outline-offset:2px;border-radius:8px}
+.rx .rx-ends{display:flex;justify-content:space-between;margin:0;font-size:.74rem;font-weight:700;color:var(--il-gray);text-transform:uppercase;letter-spacing:.08em}
+.rx .rx-legend{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.rx-btn{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 10px;background:#fff;border:1px solid var(--il-line);border-radius:8px;font:700 .8rem/1.25 'Montserrat',system-ui,sans-serif;color:var(--il-navy);text-align:left;cursor:pointer}
+.rx-btn:hover{border-color:#bd5728}
+.rx-btn:focus-visible{outline:3px solid #12223d;outline-offset:2px}
+.rx-btn[aria-pressed="true"]{border-color:#bd5728;background:#fbefe9}
+.rx-n{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:100px;background:#bd5728;color:#fff;font-weight:800;font-size:.75rem;flex:0 0 auto}
+.rx-info{background:#fff;border:1px solid var(--il-line);border-left:4px solid #bd5728;border-radius:8px;padding:12px 14px;min-height:96px}
+.rx .rx-info-title{margin:0 0 4px;font-weight:800;font-size:.95rem}
+.rx .rx-info-text{margin:0;font-size:.88rem;line-height:1.55;color:var(--il-navy)}
+.rx .illus-cap{grid-column:1/-1;margin-top:0}
+@media (min-width:900px){.rx{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);align-items:start}.rx-panel{display:grid;gap:14px}}
+@media (max-width:899px){.rx-panel{display:grid;gap:12px}}
+@media (max-width:640px){.rx-svg .nb,.vx-svg .nb{transform-box:fill-box;transform-origin:center;transform:scale(1.5)}}
+
+/* ── Attic airflow ── */
+.vx-stage svg{display:block;width:100%;height:auto}
+.vx-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}
+.vx-toggle{min-height:44px;padding:0 16px;border-radius:8px;border:2px solid #12223d;background:#fff;color:#12223d;font:800 .78rem/1 'Montserrat',system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.vx-toggle:focus-visible{outline:3px solid #bd5728;outline-offset:2px}
+.vx .vx-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0;font-size:.8rem;font-weight:700;line-height:1.4}
+.vx-cool::before,.vx-warm::before{content:"";display:inline-block;width:22px;height:0;border-top:4px dashed #2b78c5;vertical-align:middle;margin-right:6px}
+.vx-warm::before{border-top-color:#c8643a}
+.vx.is-animating .vf{animation:vx-flow 1.6s linear infinite}
+@keyframes vx-flow{to{stroke-dashoffset:-38}}
+@media (prefers-reduced-motion:reduce){.vx .vf{animation:none!important}.rx-anim .rx-layer,.rx-anim .rx-tag{transition:none}}
+
+/* ── Service-page sections holding figures. :where() keeps these at zero
+   specificity so a page's own .section / .section-label / .section-title
+   styles win; pages without them (gaf-timberline, the-nbd-build) get these. */
+:where(.illus-section){padding:64px 16px;background:#fff}
+:where(.illus-section) :where(.section-label){display:block;font-size:.72rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#bd5728;margin-bottom:8px;font-family:'Montserrat',system-ui,sans-serif}
+:where(.illus-section) :where(.section-title){font-family:'Bebas Neue',sans-serif;font-weight:400;font-size:clamp(2rem,3.5vw,3rem);letter-spacing:.03em;line-height:1.05;color:#12223d;margin:0 0 12px}
+.illus-wrap{max-width:900px;margin:0 auto}
+.illus-lede{font-size:1rem;line-height:1.65;color:#3a4352;max-width:720px;margin:0 0 8px}
+.illus-more{margin:8px 0 0;font-weight:700;font-size:.92rem}
+.illus-more a{color:#a14a22}
+.hw-wrap{max-width:960px}

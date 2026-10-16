@@ -22,6 +22,11 @@ compliance:
   - Contact for NBD Pro is jd@nobigdealwithjoedeal.com and (859) 420-7382. Never the wrong number the old 2026-03 PDF printed.
 back_cover:
   headline: [Run it in, NBD Pro]
+  body: NBD Pro is the CRM I run my own roofing company on. There is a free plan, and every price is published.
+  points: [{ icon: circle-check, label: "Free plan" }, { icon: tag, label: "Every price published" }, { icon: mail, label: "jd@nobigdealwithjoedeal.com" }]
+  url: https://nobigdealwithjoedeal.com/pro/pricing
+  qr_label: Scan for pricing
+  qr_alt: the NBD Pro pricing page
 ---
 
 # Before you start

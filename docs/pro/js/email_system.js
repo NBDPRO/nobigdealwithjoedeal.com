@@ -639,7 +639,7 @@ Your project at {address} is officially complete! Thank you for trusting {compan
 
 Your warranty certificate is attached for your records. Please keep this in a safe place.
 
-If you know anyone who needs roofing or home exterior work, we'd appreciate the referral. We offer a $100 referral bonus for every job that closes.
+If you know anyone who needs roofing or home exterior work, we'd appreciate the referral. We offer a $100 referral bonus for every referred job, once it is paid in full.
 
 It was a pleasure working with you. Don't hesitate to reach out if you need anything in the future.
 

@@ -64,7 +64,15 @@ function makeDb() {
     };
   }
   function col(c) {
-    return { doc: (id) => ref(c + '/' + id), async add(d) { notes.push(d); return { id: 'n' + notes.length }; } };
+    return {
+      doc: (id) => ref(c + '/' + id), async add(d) { notes.push(d); return { id: 'n' + notes.length }; },
+      // invoices where leadId == x (paid-in-full.js loadLeadInvoices)
+      where: (field, op, val) => ({ async get() {
+        const docs = [...store.entries()].filter(([k, d]) => k.startsWith(c + '/') && k.split('/').length === 2 && d && d[field] === val)
+          .map(([k, d]) => ({ id: k.split('/')[1], data: () => JSON.parse(JSON.stringify(d)) }));
+        return { docs };
+      } }),
+    };
   }
   return {
     store, notes,
@@ -83,6 +91,12 @@ function seed(db, lead, jobs) {
   db.store.set('leads/L1', JSON.parse(JSON.stringify(lead)));
   db.store.set('referrals/R1', { userId: 'u1', companyId: 'c1', code: 'PAT-AB12', rewardsOwedTotal: 0 });
   for (const [id, j] of Object.entries(jobs)) db.store.set('leads/L1/jobs/' + id, j);
+  // Since 2026-10-16 the bonus waits for PAID IN FULL (referral-paid-in-full-
+  // 2026-10-16.test.js): every job here carries one paid invoice, received
+  // yesterday, so these per-job rules are tested on paid jobs.
+  for (const id of Object.keys(jobs)) {
+    db.store.set('invoices/inv_' + id, { leadId: 'L1', userId: 'u1', companyId: 'c1', jobId: id, status: 'paid', total: 1000, paidAt: new Date(Date.now() - 86400000).toISOString() });
+  }
 }
 const lead = (db) => db.store.get('leads/L1');
 const job = (db, id) => db.store.get('leads/L1/jobs/' + id);

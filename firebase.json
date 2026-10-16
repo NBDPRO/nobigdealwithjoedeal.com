@@ -191,6 +191,13 @@
         ]
       },
       {
+        "_comment": "Typeset guide PDFs from NBD Docs Studio (2026-10-16). A rebuilt PDF replaces the file at the same URL, so cache for a day, not a month. guide-pdf-slot.js checks them with a no-cache HEAD before showing the download link.",
+        "source": "/guides/pdf/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=86400" }
+        ]
+      },
+      {
         "_comment": "Static brand/manufacturer images and the homepage welcome video live outside /assets/images/, so they fell through to the ** rule's 5-minute cache (site QA 2026-10-14, M-3). Same 30-day policy as /assets/images/**: these files rarely change, and the homepage video/poster/captions carry ?v= (bump it when they change, per the comment in docs/index.html). Cache-Control only; CORP keeps the stricter default. Placed AFTER the ** rule so last-match-wins lets it stick.",
         "source": "/assets/@(gaf|gaf-pivot-boot|tamko|lumanail|roofivent|american-operator|img|video)/**",
         "headers": [
