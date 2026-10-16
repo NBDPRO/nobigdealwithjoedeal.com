@@ -88,7 +88,7 @@ html[data-layout="inbox"] .ib-timer {
   flex: 0 0 auto; font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-html[data-layout="inbox"] .ib-timer-red { color: var(--red, #dc2626); background: color-mix(in srgb, var(--red, #dc2626) 12%, transparent); }
+html[data-layout="inbox"] .ib-timer-red { color: var(--ui-danger-text, var(--red, #dc2626)); border-color: var(--red, #dc2626); background: color-mix(in srgb, var(--red, #dc2626) 12%, transparent); }
 html[data-layout="inbox"] .ib-timer-gold { color: var(--gold, #b8860b); background: color-mix(in srgb, var(--gold, #b8860b) 14%, transparent); }
 html[data-layout="inbox"] .ib-timer-green { color: var(--green, #16a34a); background: color-mix(in srgb, var(--green, #16a34a) 12%, transparent); }
 
