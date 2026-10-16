@@ -71,6 +71,7 @@
         '<div><div class="t-k">Asked</div><div class="t-v">' + esc(fmtDate(p.createdAt)) + '</div></div>' +
         '<div><div class="t-k">Tips OK</div><div class="t-v ' + (p.emailConsent ? 'ok' : 'warn') + '">' + (p.emailConsent ? 'yes' : 'playbook only') + '</div></div>' +
         '<div><div class="t-k">Page</div><div class="t-v">' + esc(p.source || '—') + '</div></div>' +
+        '<div><div class="t-k">Welcome email</div><div class="t-v ' + (p.welcome === 'sent' ? 'ok' : (p.welcome ? 'warn' : '')) + '">' + esc(p.welcome || '—') + '</div></div>' +
         '<div><div class="t-k">Campaign</div><div class="t-v">' + esc([p.utmSource, p.utmCampaign].filter(Boolean).join(' / ') || '—') + '</div></div>' +
       '</div></div>';
   }

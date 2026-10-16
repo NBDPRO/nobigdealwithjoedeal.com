@@ -2,31 +2,48 @@
  * functions/pro-prospects.js — NBD Pro prospects from the free playbook form
  * (2026-10-16). Pure rules: pro-prospects-logic.js.
  *
- *   onGuideLeadCreated     Firestore  guide_leads/{id} created → an alert
- *                                     email to Jo (email_queue, deterministic
- *                                     id so a retried trigger never sends
- *                                     twice). Internal mail only.
+ *   onGuideLeadCreated     Firestore  guide_leads/{id} created →
+ *                                     1. an alert email to Jo (email_queue,
+ *                                        deterministic id so a retried trigger
+ *                                        never sends twice). Internal mail.
+ *                                     2. ONE welcome email to the contractor
+ *                                        with the playbook link (and the PDF
+ *                                        once it is published). Commercial:
+ *                                        gated by email-suppression.js
+ *                                        (unsubscribe register, postal
+ *                                        address, one-click headers).
  *   adminListProProspects  onCall     Platform admin only (role 'admin' claim
  *                                     or the NBD owner uid): the newest guide
  *                                     requests for /admin/tenants.html.
  *
- * Before this, guide_leads had no reader at all: no alert, no admin list, no
- * email (site-docs audit 2026-10-16, P0-1). Prospects stay OUT of the
- * homeowner pipeline (lead-bridge never bridges guide_leads).
+ * Before 2026-10-16, guide_leads had no reader at all: no alert, no admin
+ * list, no email (site-docs audit, P0-1). Prospects stay OUT of the homeowner
+ * pipeline (lead-bridge never bridges guide_leads).
+ *
+ * Abuse limits on the welcome email (it goes to an address a visitor TYPED):
+ * one per destination inbox per 24h (alert-recipients.capRecipients), a fixed
+ * body with only a one-word greeting name echoed (safeGreetingName), and the
+ * per-IP limit already on submitPublicLead.
  */
 'use strict';
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { defineSecret } = require('firebase-functions/params');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { CORS_ORIGINS } = require('./handlers/_shared');
 const { callableRateLimit } = require('./shared');
 const P = require('./pro-prospects-logic');
 
+const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
+const EMAIL_FROM = defineSecret('EMAIL_FROM');
+
 const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const PLATFORM_ALERT_EMAIL = process.env.PLATFORM_ALERT_EMAIL || 'jd@nobigdealwithjoedeal.com';
+const REPLY_TO = 'jd@nobigdealwithjoedeal.com';
 const DAY_MS = 24 * 60 * 60 * 1000;
+const WELCOME_RECIPIENT_DAILY_CAP = 1;
 
 async function alertAllowed() {
   try {
@@ -61,13 +78,117 @@ async function handleGuideLead(db, leadId, lead, opts) {
   return { alerted: true };
 }
 
-exports.onGuideLeadCreated = onDocumentCreated({ document: 'guide_leads/{leadId}', region: 'us-central1', memory: '256MiB', timeoutSeconds: 60 }, async (event) => {
+// Is the printable PDF published yet? A HEAD on the public URL, 3s max. Any
+// doubt = no PDF line (the playbook link is always there).
+async function pdfPublished(fetchImpl) {
+  const f = fetchImpl || (typeof fetch === 'function' ? fetch : null);
+  if (!f) return false;
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  const t = ctrl ? setTimeout(() => ctrl.abort(), 3000) : null;
+  try {
+    const r = await f(P.PLAYBOOK_PDF_URL, { method: 'HEAD', redirect: 'manual', signal: ctrl ? ctrl.signal : undefined });
+    const type = String((r && r.headers && r.headers.get && r.headers.get('content-type')) || '').toLowerCase();
+    return !!(r && r.status === 200 && type.indexOf('application/pdf') !== -1);
+  } catch (_) {
+    return false;
+  } finally {
+    if (t) clearTimeout(t);
+  }
+}
+
+/**
+ * Send the one welcome email. Every outcome is stamped on the guide lead
+ * (welcomeEmailedAt / welcomeSkipped) so Jo can see it on the admin list.
+ * deps: { resend, from, gate, capRecipients, pdfReady, serverTimestamp }
+ */
+async function sendWelcome(db, leadId, lead, deps) {
+  const d = deps || {};
+  const plan = P.welcomePlan(lead);
+  if (!plan.send) return { sent: false, reason: plan.reason };
+  const ref = db.doc('guide_leads/' + leadId);
+  const ts = d.serverTimestamp || (() => FieldValue.serverTimestamp());
+  const skip = async (reason) => { await ref.set({ welcomeSkipped: reason }, { merge: true }); return { sent: false, reason }; };
+
+  // Claim first: triggers are at-least-once, so a redelivery is a no-op.
+  let claimed = false;
+  try {
+    claimed = await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(ref);
+      if (!fresh.exists) return false;
+      const cur = fresh.data() || {};
+      if (cur.welcomeClaimedAt || cur.welcomeEmailedAt) return false;
+      tx.update(ref, { welcomeClaimedAt: ts() });
+      return true;
+    });
+  } catch (e) {
+    logger.error('proWelcome: claim failed', { leadId, err: e && e.message });
+    return { sent: false, reason: 'claim_failed' };
+  }
+  if (!claimed) return { sent: false, reason: 'claimed' };
+
+  const email = String(lead.email).trim();
+  const cap = d.capRecipients || require('./alert-recipients').capRecipients;
+  const capR = await cap('proWelcome', [email], { limit: WELCOME_RECIPIENT_DAILY_CAP });
+  if (!capR || !capR.allowed || !capR.allowed.length) return skip('recipient_cap');
+
+  const Suppression = require('./email-suppression');
+  const gateArgs = [db, { companyId: NBD_OWNER_UID, email, leadId, source: 'pro-playbook-welcome' },
+    { timeoutMs: Suppression.READ_TIMEOUT_MS, serverTimestamp: ts }];
+  let gate;
+  try {
+    gate = d.gate ? await d.gate(...gateArgs) : await Suppression.gateCommercialEmail(...gateArgs);
+  } catch (e) {
+    logger.warn('proWelcome: suppression unverified — not sent', { leadId, err: e && e.message });
+    return skip('suppression_unverified');
+  }
+  if (gate.suppressed) return skip('unsubscribed');
+  if (gate.blocked) {
+    logger.warn('proWelcome: no mailing address on the NBD Company Profile — not sent', { leadId });
+    return skip('no_postal_address');
+  }
+
+  const firstName = require('./public-lead-guard').safeGreetingName(lead.name);
+  const pdfReady = typeof d.pdfReady === 'function' ? await d.pdfReady() : await pdfPublished();
+  const c = P.welcomeEmail({ firstName, pdfReady });
+  const body = Suppression.applyFooter(gate, c.html, c.text);
+  if (!d.resend) return skip('no_sender');
+  try {
+    // Email category: COMMERCIAL — delivers the requested playbook and mentions NBD Pro; gated above (email-suppression.js SEND_PATHS).
+    const r = await d.resend.emails.send({
+      from: d.from, to: email, reply_to: REPLY_TO, subject: c.subject, html: body.html, text: body.text,
+      headers: Object.assign({ 'X-NBD-Campaign': 'pro-playbook-welcome-v1' }, gate.headers), tags: gate.tags,
+    });
+    const { resendRejected, resendErrorMessage } = require('./resend-guard');
+    if (resendRejected(r)) throw new Error(resendErrorMessage(r));
+    const id = (r && r.data && r.data.id) || (r && r.id) || null;
+    await ref.set({ welcomeEmailedAt: ts(), welcomeEmailId: id, welcomePdf: pdfReady }, { merge: true });
+    return { sent: true, id };
+  } catch (e) {
+    logger.error('proWelcome: send failed', { leadId, err: e && e.message });
+    await ref.set({ welcomeSkipped: 'send_failed', welcomeError: String((e && e.message) || e).slice(0, 200) }, { merge: true });
+    return { sent: false, reason: 'send_failed' };
+  }
+}
+
+exports.onGuideLeadCreated = onDocumentCreated({ document: 'guide_leads/{leadId}', region: 'us-central1', memory: '256MiB', timeoutSeconds: 60, secrets: [RESEND_API_KEY, EMAIL_FROM] }, async (event) => {
   const lead = event.data && event.data.data();
   if (!lead) return;
+  const db = getFirestore();
+  const leadId = event.params.leadId;
   try {
-    await handleGuideLead(getFirestore(), event.params.leadId, lead);
+    await handleGuideLead(db, leadId, lead);
   } catch (e) {
-    logger.error('onGuideLeadCreated failed', { leadId: event.params.leadId, err: e && e.message });
+    logger.error('onGuideLeadCreated: alert failed', { leadId, err: e && e.message });
+  }
+  try {
+    const { Resend } = require('resend');
+    const { secretOr } = require('./integrations/_shared');
+    await sendWelcome(db, leadId, lead, {
+      resend: new Resend(RESEND_API_KEY.value()),
+      from: secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com'),
+    });
+  } catch (e) {
+    logger.error('onGuideLeadCreated: welcome failed', { leadId, err: e && e.message });
   }
 });
 
@@ -81,4 +202,4 @@ exports.adminListProProspects = onCall({ region: 'us-central1', cors: CORS_ORIGI
   return { prospects: snap.docs.map((d) => P.prospectRow(d.id, d.data())), generatedAt: new Date().toISOString() };
 });
 
-exports._test = { handleGuideLead };
+exports._test = { handleGuideLead, sendWelcome, pdfPublished, WELCOME_RECIPIENT_DAILY_CAP };
