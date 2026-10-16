@@ -1,7 +1,7 @@
 ---
 title: Paying for a Roof, Explained
 short_title: Roof Financing Explained
-subtitle: Cash, financing or insurance: how each one works, what a soft credit check really means, and the questions to ask before you sign for a loan.
+subtitle: "Cash, financing or insurance: how each one works, what a soft credit check really means, and the questions to ask before you sign for a loan."
 eyebrow: Free homeowner guide · 2026 edition
 slug: roof-financing-explained
 url: https://nobigdealwithjoedeal.com/guides/roof-financing-explained
