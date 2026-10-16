@@ -551,8 +551,8 @@ const settle = () => new Promise((r) => setImmediate(r));
     ok('the date is validated before the write', /P\(\)\.completionIssue\(date, todayYmd\(\)\)/.test(ui));
     ok('the offer is re-judged at tap time (a stale row cannot move a lead that already moved)', /if \(!offerCompleted\(lead\)\)/.test(ui));
     ok('it says out loud that no final invoice was drafted', /No final invoice was drafted for this one/.test(ui));
-    ok('cache-busters were bumped for every changed served script', ['schedule-planner-logic.js?v=3', 'schedule-planner.js?v=5', 'review-engine.js?v=10', 'review-deck.js?v=3', 'ask-joe-proactive.js?v=6']
-      .every((x) => read('docs/pro/dashboard.html').includes(x)) && read('docs/pro/customer.html').includes('review-engine.js?v=10') && read('docs/pro/customer.html').includes('schedule-planner-logic.js?v=3')
+    ok('cache-busters were bumped for every changed served script', ['schedule-planner-logic.js?v=3', 'schedule-planner.js?v=5', 'review-engine.js?v=11', 'review-deck.js?v=3', 'ask-joe-proactive.js?v=6']
+      .every((x) => read('docs/pro/dashboard.html').includes(x)) && read('docs/pro/customer.html').includes('review-engine.js?v=11') && read('docs/pro/customer.html').includes('schedule-planner-logic.js?v=3')
       && read('docs/pro/js/script-loader.js').includes('winback-logic.js?v=2'));
     ok('the toast says what Jo asked for and keeps a one-tap Undo', /'Marked completed ✓ - now '/.test(ui) && /undoText: snap \? 'Undo'/.test(ui) && /undoBackfillCompletion\(id, snap\)/.test(ui));
     ok('viewers never see the panel (existing) and the offer itself checks the role', /role: claims\.role/.test(ui) && /role\(\) === 'viewer'/.test(ui));

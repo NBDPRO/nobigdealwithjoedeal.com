@@ -10,6 +10,7 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "field-rules-ky-emergency-2026-10-16.test.js",
     "technical-illustrations-2026-10-16.test.js",
     "photo-match-2026-10-15.test.js",
     "closes-week-2026-10-15.test.js",
