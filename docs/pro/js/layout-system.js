@@ -226,7 +226,9 @@
     blurb: 'Today\'s stops, big-thumb buttons, a test-square camera and a sunlight mode.',
     surfaces: ['phone', 'tablet'], tier: 'free',
     script: 'js/layouts/field.js', css: 'css/layouts/field.css',
-    needs: { script: ['js/layouts/kit.js'], css: ['css/layouts/kit.css'] },
+    // qr-code.js + review-handoff.js: the "Job done" review QR (2026-10-16), loaded
+    // only with this layout so the dashboard's boot budget does not grow.
+    needs: { script: ['js/layouts/kit.js', 'js/qr-code.js?v=1', 'js/review-handoff.js?v=1'], css: ['css/layouts/kit.css', 'css/review-handoff.css?v=1'] },
     supports: { wallpaper: false, glass: false, sunlight: true },
   });
 

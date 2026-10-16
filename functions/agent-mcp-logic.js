@@ -153,6 +153,13 @@ const TOOLS = {
       reason: { type: 'string', maxLength: REASON_MAX },
     }, required: ['brand', 'platform', 'caption', 'reason'], additionalProperties: false },
   },
+  // ── Review sprint (2026-10-16): a one-time read for the review asks ──
+  review_sprint: {
+    description: 'ONE-TIME REVIEW SPRINT (read only). The company\'s customers whose job was PAID IN FULL with the money received in 2026 (on or after 2026-01-01: work before 2026, such as jobs the owner did under another company\'s name, is never listed) who have never been asked for a Google review. Same exclusions as the automatic review ask: another company\'s customer, deleted, lost, a job marked finished after the fact (quiet backfill), do not contact, review already asked or tried, "don\'t ask this one", and a review-ask draft already waiting in the Agent inbox. Each row: lead_id, short name, town, paid_on (date received), job, and channel: "email" (draft it with draft_email), "text_consented" (no email; the customer gave written texting consent, so draft_text is allowed) or "in_person" (no email and no texting consent: never text; Joe shows the Job done QR at the next visit). Also review_url and the plain ask wording to use. ONE draft per customer at most; ask everyone the same way: no rating first, no "if you were happy", nothing offered in return. Never phone or email.',
+    inputSchema: { type: 'object', properties: {
+      limit: { type: 'integer', minimum: 1, maximum: MAX_LIST, description: 'Rows (default 50, max 50); total says how many there are.' },
+    }, additionalProperties: false },
+  },
   // ── Personal scope (Jo's own tracker; personal keys only) ─────────────
   my_today: {
     description: 'The key owner\'s day in their personal tracker: today\'s floors (their daily promises) met or open, the floor streak ("don\'t miss twice": one miss warns, two in a row end it), and the latest weight. Read only.',
@@ -192,9 +199,9 @@ const FILE = ['file_note', 'file_reminder', 'file_report'];
 // Nova is deliberately absent: no NBD key can be made for her.
 const BOTS = {
   cos:    { name: 'Chief of Staff', tools: ['crm_summary', 'schedule', 'overdue_followups', 'collected_revenue', 'lead_sources', 'inbox_pending', 'team_activity', 'closes_this_week', 'file_report'] },
-  marcus: { name: 'Marcus · NBD Ops', tools: READ.concat(['estimates_status', 'closes_this_week', 'storm_near_customers', 'match_photo_location', 'rules_reference'], FILE, ['draft_text', 'draft_email']) },
+  marcus: { name: 'Marcus · NBD Ops', tools: READ.concat(['estimates_status', 'closes_this_week', 'storm_near_customers', 'match_photo_location', 'rules_reference', 'review_sprint'], FILE, ['draft_text', 'draft_email']) },
   quinn:  { name: 'Quinn · Fact & Compliance', tools: READ.concat(['estimates_status', 'collected_revenue', 'rules_reference', 'storm_near_customers', 'inbox_pending', 'verify_item', 'file_report']) },
-  tucker: { name: 'Tucker · Customer Care', tools: ['post_job', 'list_leads', 'lead_detail', 'overdue_followups', 'estimates_status', 'rules_reference', 'file_note', 'file_reminder', 'draft_text', 'draft_email'] },
+  tucker: { name: 'Tucker · Customer Care', tools: ['post_job', 'list_leads', 'lead_detail', 'overdue_followups', 'estimates_status', 'rules_reference', 'review_sprint', 'file_note', 'file_reminder', 'draft_text', 'draft_email'] },
   dana:   { name: 'Dana · Marketing', tools: ['crm_summary', 'lead_sources', 'rules_reference', 'file_report', 'file_social_draft'] },
   frank:  { name: 'Frank · Finance', tools: ['crm_summary', 'collected_revenue', 'job_profit', 'lead_sources', 'estimates_status', 'closes_this_week', 'post_job', 'file_report', 'file_reminder'] },
   priya:  { name: 'Priya · Product Manager', tools: ['team_activity', 'file_report', 'file_social_draft'] },
@@ -686,6 +693,101 @@ function stormNearCustomers(events, leads, nowMs, args) {
     });
   return { days, miles, events: out, customers_without_location: activeLeads(leads).length - located.length,
     note: 'NWS local storm reports (area reports, not per-roof proof). Never promise a homeowner their claim will be paid.' };
+}
+
+// ── Review sprint (2026-10-16) ─────────────────────────────────────────
+// Joe: one pass over every 2026 customer who was paid in full and never asked
+// for a Google review, so Marcus / Tucker can DRAFT the asks for him to send
+// (draft_email / draft_text: nothing is sent from here). The automatic ask
+// (review-ask-auto-logic.js) only covers money received 3-21 days ago; this
+// is the backlog before it. Eligibility is that ask's, plus:
+//   - money received on or after 2026-01-01 (Eastern). NBD started in 2026;
+//     jobs before that were Joe's work for other companies, and those
+//     customers are never asked for an NBD review (vault Facts & Credentials).
+//     A paid job with no dated payment cannot be shown to be 2026: left out.
+//     A job finished (installCompletedAt / completedAt) before 2026: left out.
+//   - a lead tagged pre-NBD / other company ("pre-nbd", "before nbd",
+//     "other company", "prior company") is left out.
+//   - a review-ask draft already in the Agent inbox (pending or sent) for the
+//     lead: left out, so a second run never drafts twice.
+// Paid in full = paid-in-full.js (a won stage at or after Final Payment and no
+// invoice owing), for the lead or any of its jobs.
+const SPRINT_FROM_MS = Date.parse('2026-01-01T05:00:00Z');   // 2026-01-01 00:00 America/New_York
+const PRE_NBD_TAG = /\b(pre[- ]?nbd|before[- ]nbd|other[- ]compan(y|ies)|prior[- ]compan(y|ies))\b/i;
+function sprintTruthy(v) { return v === true || v === 1 || (typeof v === 'string' && /^(true|yes|y|1|on)$/i.test(v.trim())); }
+function sprintAsked(rec) {
+  const r = rec || {};
+  const a = r.reviewAutoAsk;
+  return r.reviewRequested === true || !!ms(r.reviewRequestedAt) || (!!a && typeof a === 'object' && !!a.status);
+}
+function reviewDraftWaiting(item) {
+  const it = item || {};
+  if (it.kind !== 'draft_email' && it.kind !== 'draft_text') return false;
+  if (!(it.status === 'pending' || it.status === 'sent' || it.status === 'approved')) return false;
+  return /\breview\b/i.test(String(it.title || '') + ' ' + String(it.text || '') + ' ' + String(it.reason || ''));
+}
+/**
+ * leads, invoices (the company's), jobsByLead ({ leadId: [job] } or null),
+ * inbox (the company's agent_inbox rows), company (its id), nowMs.
+ * → { from, total, customers: [...], skipped: { reason: n } }
+ */
+function reviewSprint(leads, invoices, jobsByLead, inbox, company, nowMs, args, tz) {
+  const PIF = require('./paid-in-full');
+  const RA = require('./review-ask-auto-logic');
+  const { isQuietBackfill } = require('./quiet-backfill');
+  const a = args || {};
+  const limit = Math.min(Math.max(Math.floor(Number(a.limit)) || MAX_LIST, 1), MAX_LIST);
+  const drafted = {};
+  (inbox || []).forEach((it) => { if (it && it.leadId && reviewDraftWaiting(it)) drafted[String(it.leadId)] = true; });
+  const skipped = {};
+  const skip = (why) => { skipped[why] = (skipped[why] || 0) + 1; };
+  const rows = [];
+  for (const l of activeLeads(leads)) {
+    if (l.isProspect) continue;
+    if (company && String(l.companyId || '') !== String(company) && String(l.userId || '') !== String(company)) { skip('other_company'); continue; }
+    if (_SRK.isLost(l)) { skip('lost'); continue; }
+    if (sprintTruthy(l.doNotContact) || sprintTruthy(l.dnc)) { skip('do_not_contact'); continue; }
+    if (l.reviewAskDeclined === true) { skip('declined'); continue; }
+    const tags = Array.isArray(l.tags) ? l.tags.join(' ') : String(l.tags || '');
+    if (PRE_NBD_TAG.test(tags)) { skip('pre_nbd'); continue; }
+    const jobs = (jobsByLead && Array.isArray(jobsByLead[l.id]) ? jobsByLead[l.id] : []).filter((j) => j && j.deleted !== true);
+    if (sprintAsked(l) || jobs.some(sprintAsked)) { skip('already_asked'); continue; }
+    if (drafted[l.id]) { skip('draft_waiting'); continue; }
+    // The lead itself, then each of its jobs: the newest one paid in full in 2026.
+    const recs = [{ rec: l, jobId: null }].concat(jobs.map((j) => ({ rec: Object.assign({}, j, { companyId: l.companyId, userId: l.userId }), jobId: j.id || j.jobId || null })));
+    let best = null, why = 'not_paid_in_full';
+    for (const r of recs) {
+      if (_SRK.isLost(r.rec)) continue;
+      if (isQuietBackfill(r.rec)) { why = 'quiet_backfill'; continue; }
+      const invs = PIF.invoicesForLead(invoices, l, l.id, r.jobId);
+      if (!PIF.paidInFull(r.rec, invs)) continue;
+      const recv = RA.receivedMs(invs);
+      if (!recv) { if (why === 'not_paid_in_full') why = 'no_received_date'; continue; }
+      const doneAt = ms(r.rec.installCompletedAt) || ms(r.rec.completedAt);
+      if (recv < SPRINT_FROM_MS || (doneAt && doneAt < SPRINT_FROM_MS)) { why = 'before_2026'; continue; }
+      if (!best || recv > best.recv) best = { recv, rec: r.rec, jobId: r.jobId };
+    }
+    if (!best) { skip(why); continue; }
+    const email = RA.validEmail(l.email);
+    const digits = String(l.phone || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+    const noText = sprintTruthy(l.doNotText) || sprintTruthy(l.smsOptOut) || sprintTruthy(l.smsOptedOut);
+    const channel = email ? 'email' : (digits.length === 10 && l.tcpaConsent === true && !noText ? 'text_consented' : 'in_person');
+    rows.push({ lead_id: l.id, first_name: firstNameForAsk(l), name: shortName(l), town: townOf(l), paid_on: nyDay(best.recv, tz), job: String((best.rec && best.rec.title) || l.jobType || '').slice(0, 80), channel, _recv: best.recv });
+  }
+  rows.sort((x, y) => y._recv - x._recv || String(x.lead_id).localeCompare(String(y.lead_id)));
+  return { from: '2026-01-01', total: rows.length, customers: rows.slice(0, limit).map((r) => { const o = Object.assign({}, r); delete o._recv; return o; }), skipped };
+}
+function firstNameForAsk(l) {
+  return String((l && (l.firstName || l.name)) || '').trim().split(/\s+/)[0].replace(/[^A-Za-zÀ-ɏ' -]/g, '').slice(0, 40);
+}
+/** The one plain ask the sprint drafts: the automatic email's words. No rating, no incentive, the same for everyone. */
+function reviewSprintAsk(reviewUrl, companyName) {
+  const co = String(companyName || '').trim() || 'us';
+  return {
+    subject: 'Would you leave ' + co + ' a quick Google review?',
+    email_body: 'Hi {first},\n\nThank you for trusting ' + co + ' with your project. Would you take a minute to leave us a Google review? Honest feedback, whatever it is, helps your neighbors pick a contractor.\n\n' + reviewUrl + '\n\nIf anything about the job is not right, reply to this email and I will take care of it.\n\nThank you',
+    text_body: 'Hi {first}, thank you for choosing ' + co + '. Would you leave us a Google review? Honest feedback helps your neighbors pick a contractor: ' + reviewUrl,
+  };
 }
 
 // ── Photo → customer (2026-10-15) ──────────────────────────────────────
@@ -1349,6 +1451,7 @@ module.exports = {
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
   TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
+  reviewSprint, reviewSprintAsk, reviewDraftWaiting, SPRINT_FROM_MS,
   PHOTO_MATCH, photoTimeMs, validatePhotoMatch, photoVisits, matchPhotoLocation, townOf, shortName,
   botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,
   SMS_MAX, STOP_LINE, EMAIL_FROM, SOCIAL_BRANDS, DRAFT_TOOLS, DRAFT_KINDS, companyNames, hasStopLine, editedTextProblem, buildTextDraft, buildStormCheckIn, textGate, buildEmailDraft, emailGate, buildSocialDraft,

@@ -320,6 +320,28 @@ async function runTool(name, args, key) {
     return L.toolText({ jobs: L.postJob(leads, invoices, Date.now(), args, tz) });
   }
 
+  if (name === 'review_sprint') {
+    // One-time review sprint (2026-10-16): read only. The drafts themselves go
+    // through draft_email / draft_text, which run their own unsubscribe /
+    // Do-Not-Text gates and file to the Agent inbox; nothing is sent here.
+    const [leads, invoices, jobsByLead, inbox, rep] = await Promise.all([
+      companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy']), companyJobsByLead(company),
+      db().collection('agent_inbox').where('companyId', '==', company).limit(5000).get().then((s) => s.docs.map((d) => d.data())),
+      db().collection('users').doc(String(key.routeUid)).get().then((s) => (s.exists ? s.data() || {} : null)).catch(() => null),
+    ]);
+    const RA = require('./review-ask-auto-logic');
+    // The rep's own link, else NBD's for NBD (review-ask-auto-logic.js reviewUrlFor).
+    const reviewUrl = RA.reviewUrlFor(key.isNbd ? { companyId: RA.NBD_OWNER_UID } : {}, rep && rep.googleReviewUrl);
+    const out = L.reviewSprint(leads, invoices, jobsByLead, inbox, company, Date.now(), args, tz);
+    const co = key.isNbd ? 'No Big Deal Home Solutions' : (L.companyNames(key.profile, false)[0] || '');
+    return L.toolText(Object.assign(out, {
+      review_url: reviewUrl || null,
+      ask: reviewUrl ? L.reviewSprintAsk(reviewUrl, co) : null,
+      note: (reviewUrl ? '' : 'No Google review link is set (Settings → Google review link): add one before drafting. ')
+        + 'Draft at most ONE ask per customer: draft_email for channel "email"; draft_text ONLY for "text_consented"; "in_person" gets no message (Joe shows the Job done QR). Put {first} = first_name. Same words for everyone: no rating, no "if you were happy", nothing offered. Nothing is sent until the owner sends it.',
+    }));
+  }
+
   if (name === 'lead_sources') {
     const [leads, expenses] = await Promise.all([companyLeads(company), companyDocs('expenses', company, ['companyId', 'userId'])]);
     return L.toolText(L.leadSources(leads, expenses, Date.now(), args.days));

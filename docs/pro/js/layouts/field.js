@@ -95,6 +95,13 @@
     for (var i = 0; i < list.length; i++) if (list[i] && String(list[i].id) === String(id)) return list[i];
     return null;
   }
+  // The "Job done" hand-off (js/review-handoff.js, 2026-10-16): a lead at Install
+  // Done or later gets a Review QR button; review-handoff.js's own document-level
+  // listener opens it from [data-rh-open]. Nothing is sent or marked by opening it.
+  function jobDone(lead) { var H = W.NBDReviewHandoff; return !!(lead && H && typeof H.isJobDone === 'function' && H.isJobDone(lead)); }
+  function handoffBtn(leadId, cls, label) {
+    return '<button type="button" class="' + cls + '" data-rh-open data-lead-id="' + esc(leadId) + '">' + esc(label) + '</button>';
+  }
   function timeOf(ms) { try { return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } }
 
   // ── data: today's stops ──────────────────────────────────────────────
@@ -276,8 +283,21 @@
     var sync = K._sync || {};
     var lines = wrapLines({ total: total, done: done, photos: d.photos || 0, queued: S.queued != null ? S.queued : sync.queued, visits: visitsToday, tomorrow: m && m.tomorrow });
     return '<section class="fa-wrap" data-fa-group="wrap" aria-label="Day wrap-up"><h3 class="fa-h">That\'s the day</h3><ul class="fa-wrap-lines">' +
-      lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
+      lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' + wrapHandoffs(d) +
       K.recordEntry({ source: 'field-wrap', cls: 'fa-rec' }) + '</section>';
+  }
+  // Today's finished stops whose job is done: one "Review QR" button each (no
+  // filtering by how the visit went: every customer gets the same card).
+  function wrapHandoffs(d) {
+    var seen = {}, out = [];
+    stopsFrom(plan()).forEach(function (s) {
+      if (!d.done[s.key] || !s.leadId || seen[s.leadId]) return;
+      var l = leadById(s.leadId);
+      if (!jobDone(l)) return;
+      seen[s.leadId] = 1;
+      out.push(handoffBtn(s.leadId, 'fa-big fa-ghost', 'Review QR · ' + (s.name || K.fromLead(l).name || 'customer')));
+    });
+    return out.length ? '<div class="fa-handoff-row">' + out.join('') + '</div>' : '';
   }
 
   function stopByKey(key) {
@@ -305,6 +325,7 @@
       (sms ? '<a class="fa-tile" href="' + esc(sms) + '">' + K.icon('text') + '<span>Text</span></a>' : '<button type="button" class="fa-tile fa-off" disabled>' + K.icon('text') + '<span>Text</span></button>') +
       '<button type="button" class="fa-tile" data-fa="voice">' + K.icon('voice') + '<span>Voice note</span></button>' +
       '</div>' + K.recordEntry({ source: 'field', leadId: it.id, appointmentId: apptIdOf(stop), cls: 'fa-rec' });
+    if (it.id && jobDone(lead || leadById(it.id))) h += '<div class="fa-handoff-row">' + handoffBtn(it.id, 'fa-big', 'Job done: show the review QR') + '</div>';
     h += '<h3 class="fa-h">Checklist</h3><ul class="fa-check">' + CHECKLIST.map(function (c) {
       return '<li><label><input type="checkbox" data-fa-check="' + c.id + '"' + (checks[c.id] ? ' checked' : '') + '> <span>' + esc(c.text) + '</span></label></li>';
     }).join('') + '</ul>';
@@ -450,7 +471,12 @@
     var it = barCustomer();
     if (!it) return '';
     return '<div class="fa-bar" role="toolbar" aria-label="Actions for ' + esc(it.name || 'this customer') + '">' +
-      K.actionBar(it, ['navigate', 'call', 'text', 'photo'], { size: 'sm' }) + collectHtml(it) + '</div>';
+      K.actionBar(it, ['navigate', 'call', 'text', 'photo'], { size: 'sm' }) + collectHtml(it) + reviewHtml(it) + '</div>';
+  }
+  function reviewHtml(it) {
+    if (!it || !it.id || !jobDone(leadById(it.id))) return '';
+    return '<button type="button" class="lk-act fa-review" data-rh-open data-lead-id="' + esc(it.id) + '" aria-label="Job done: show the review QR">' +
+      K.icon('done') + '<span class="lk-act-lbl">Review</span></button>';
   }
   var lastNav = '';
   function paintNav() {
