@@ -1103,3 +1103,8 @@ exports.onCompanyCreated = tenantOps.onCompanyCreated;
 exports.exportCompanyData = tenantOps.exportCompanyData;
 exports.uploadCompanyLogo = tenantOps.uploadCompanyLogo;
 exports.tenantLogo = tenantOps.tenantLogo;
+// NBD Pro prospects (2026-10-16): free-playbook requests (guide_leads) alert
+// Jo and list on /admin/tenants.html. Never bridged into the homeowner pipeline.
+const proProspects = require('./pro-prospects');
+exports.onGuideLeadCreated = proProspects.onGuideLeadCreated;
+exports.adminListProProspects = proProspects.adminListProProspects;

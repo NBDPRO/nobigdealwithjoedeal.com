@@ -60,8 +60,42 @@
     }
   }
 
+  // NBD Pro prospects (2026-10-16): free-playbook requests from guide_leads,
+  // via the admin-only adminListProProspects callable (functions/pro-prospects.js).
+  function prospectCard(p) {
+    const mail = p.email ? '<a href="mailto:' + esc(p.email) + '" class="t-link">' + esc(p.email) + '</a>' : 'no email';
+    return '<div class="t-card">' +
+      '<div class="t-name">' + esc(p.name || '(no name)') + '</div>' +
+      '<div class="t-sub">' + mail + '</div>' +
+      '<div class="t-grid">' +
+        '<div><div class="t-k">Asked</div><div class="t-v">' + esc(fmtDate(p.createdAt)) + '</div></div>' +
+        '<div><div class="t-k">Tips OK</div><div class="t-v ' + (p.emailConsent ? 'ok' : 'warn') + '">' + (p.emailConsent ? 'yes' : 'playbook only') + '</div></div>' +
+        '<div><div class="t-k">Page</div><div class="t-v">' + esc(p.source || '—') + '</div></div>' +
+        '<div><div class="t-k">Campaign</div><div class="t-v">' + esc([p.utmSource, p.utmCampaign].filter(Boolean).join(' / ') || '—') + '</div></div>' +
+      '</div></div>';
+  }
+
+  async function loadProspects() {
+    const list = document.getElementById('prospectsList');
+    const meta = document.getElementById('prospectsMeta');
+    if (!list) return;
+    if (meta) meta.textContent = 'Loading…';
+    try {
+      const fn = await callable('adminListProProspects');
+      const { data } = await fn();
+      const rows = (data && data.prospects) || [];
+      if (meta) meta.textContent = rows.length + ' prospect' + (rows.length === 1 ? '' : 's') + ' (newest 200)';
+      list.innerHTML = rows.length ? rows.map(prospectCard).join('') : '<div class="empty">No playbook requests yet.</div>';
+    } catch (e) {
+      if (meta) meta.textContent = '';
+      list.innerHTML = '<div class="error">Could not load prospects: ' + esc((e && e.message) || 'error') + '</div>';
+    }
+  }
+
+  function loadAll() { load(); loadProspects(); }
+
   document.addEventListener('click', (e) => {
-    if (e.target && e.target.closest && e.target.closest('#tenantsRefresh')) load();
+    if (e.target && e.target.closest && e.target.closest('#tenantsRefresh')) loadAll();
   });
-  window.addEventListener('auth-ready', load);
+  window.addEventListener('auth-ready', loadAll);
 })();

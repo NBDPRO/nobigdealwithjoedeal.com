@@ -1,8 +1,8 @@
 /* @generated — extracted from inline <script> by audit-homeowner-2026-05-22.
    Hash: 3117b8ac17.  Do not edit by hand. */
-// Optional: Add MailerLite endpoint for email marketing (leads already save to Firestore)
-        // Replace with your MailerLite form URL to also add leads to your email list
-        const FORM_ACTION_URL = 'FORM_ACTION_URL';
+// Leads save through submitPublicLead into guide_leads; onGuideLeadCreated
+        // (functions/pro-prospects.js) alerts Jo. The old MailerLite stub
+        // (FORM_ACTION_URL placeholder) was removed 2026-10-16: it never pointed anywhere.
 
         // Mobile menu toggle
         function toggleMobileNav() {
@@ -48,10 +48,13 @@
                 // Get form data
                 const nameInput = form.querySelector('input[name="name"]');
                 const emailInput = form.querySelector('input[name="email"]');
+                const consentInput = form.querySelector('input[name="emailConsent"]');
 
                 const formData = {
                     name: nameInput.value.trim(),
-                    email: emailInput.value.trim()
+                    email: emailInput.value.trim(),
+                    // Optional "also email me tips" box. Unticked = the guide only.
+                    emailConsent: !!(consentInput && consentInput.checked)
                 };
 
                 try {
@@ -61,20 +64,9 @@
                     // NOT be reported to the user as success.
                     let res = { ok: true };
                     if (window._captureGuideLeads) {
-                        res = await window._captureGuideLeads(formData.name, formData.email);
+                        res = await window._captureGuideLeads(formData.name, formData.email, formData.emailConsent);
                     }
                     if (!res || !res.ok) { showFormError(form); return; }
-
-                    // Send to form endpoint if configured
-                    if (FORM_ACTION_URL !== 'FORM_ACTION_URL') {
-                        const response = await fetch(FORM_ACTION_URL, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify(formData)
-                        });
-                    }
 
                     // Show success state
                     form.style.display = 'none';

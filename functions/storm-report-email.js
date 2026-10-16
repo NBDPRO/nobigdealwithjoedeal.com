@@ -36,6 +36,11 @@ const GUST = require('./asos-gust-logic');
 const { gustForAddressDay } = require('./integrations/asos-gust');
 const AR = require('./alert-recipients');
 const PLG = require('./public-lead-guard');
+const Suppression = require('./email-suppression');
+
+// NBD's own tenant id: its Company Profile holds the business mailing address
+// every other NBD email prints (brand.contact.mailingAddress).
+const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 
 const PHONE_DISPLAY = '(859) 420-7382';
 const PHONE_TEL = 'tel:+18594207382';
@@ -85,7 +90,7 @@ const STORM_REPORT_RECIPIENT_DAILY_CAP = 1;
 
 // Branded HTML — orange header / navy footer, matching the other NBD emails.
 // First-person voice ("I'll …", "— Joe"), consistent with the marketing site.
-const EMAIL_HTML = ({ firstName, address, summary, gust }) => {
+const EMAIL_HTML = ({ firstName, address, summary, gust, postalAddress }) => {
   const nearLine = address ? ` near ${esc(address)}` : '';
   // "Wind measured nearby" (2026-10-06): one line for the biggest storm day,
   // nearest station only, and only when that station has a reading. Escaped
@@ -146,7 +151,8 @@ const EMAIL_HTML = ({ firstName, address, summary, gust }) => {
     </div>
     <div class="footer">
       <p>No Big Deal Home Solutions &nbsp;|&nbsp; ${PHONE_DISPLAY} &nbsp;|&nbsp; ${REPLY_TO}</p>
-      <p><a href="${SITE}">nobigdealwithjoedeal.com</a></p>
+      <p><a href="${SITE}">nobigdealwithjoedeal.com</a></p>${postalAddress ? `
+      <p>${esc(postalAddress)}</p>` : ''}
     </div>
   </div>
 </body>
@@ -240,7 +246,13 @@ exports.stormReportEmail = onDocumentCreated(
     const address = zipLabel(d.address);
     const summary = summaryLine(d.story);
     const gust = await gustForLead(d, getFirestore());
-    const html = EMAIL_HTML({ firstName, address, summary, gust });
+    // Postal address in the footer (site-docs audit 2026-10-16, P2-16): the
+    // email is transactional, but it carries an inspection CTA, so it prints
+    // the business address like NBD's commercial mail does. A missing or
+    // unreadable address never blocks this transactional send.
+    const postalAddress = await Suppression.tenantPostalAddress(getFirestore(), NBD_OWNER_UID);
+    if (!postalAddress) logger.warn('stormReportEmail: no mailing address on the NBD Company Profile', { leadId });
+    const html = EMAIL_HTML({ firstName, address, summary, gust, postalAddress });
 
     try {
       const resend = new Resend(RESEND_API_KEY.value());

@@ -274,7 +274,12 @@ const PUBLIC_LEAD_KINDS = {
     collection: 'guide_leads',
     required: ['name', 'email', 'source'],
     maxLen:   { name: 200, email: 200, source: 200 },
-    optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS]
+    optional: [...PUBLIC_LEAD_OPTIONAL_DEFAULTS],
+    // Email-marketing consent (2026-10-16): the free playbook form's OPTIONAL
+    // "also email me tips" checkbox. Asking for the guide is not consent to
+    // anything beyond the guide itself; this records the extra yes, stamped
+    // with the wording version below (pro-prospects-logic.js).
+    boolOptional: ['emailConsent']
   },
   contact: {
     collection: 'contact_leads',
@@ -663,6 +668,12 @@ exports.submitPublicLead = onRequest(
       ip: data.ip,
       at: FieldValue.serverTimestamp(),
     }));
+    // Email consent RECORD for the playbook form: server-stamped time and the
+    // exact wording version, only when the box was ticked.
+    if (kind === 'guide' && data.emailConsent === true) {
+      data.emailConsentAt = FieldValue.serverTimestamp();
+      data.emailConsentVersion = require('../pro-prospects-logic').EMAIL_CONSENT_VERSION;
+    }
     // Per-kind server-set defaults (never trusted from the client). storm sets
     // active:true so the storm-alert cron's .where('active','==',true) actually
     // matches form signups — the client `active` field is intentionally dropped.

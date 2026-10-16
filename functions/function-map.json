@@ -1,6 +1,7 @@
 {
   "activateInvitedRep": "./handlers/auth",
   "adminAI": "./handlers/ai",
+  "adminListProProspects": "./pro-prospects",
   "adminListTenants": "./tenant-ops",
   "agentDraftAction": "./agent-mcp",
   "alertRecipients": "./alert-recipients-fns",
@@ -168,6 +169,7 @@
   "onCompanyCreated": "./tenant-ops",
   "onEstimateViewedStrike": "./customer-audit",
   "onFollowUpDue": "./push-functions",
+  "onGuideLeadCreated": "./pro-prospects",
   "onJobCalendarWrite": "./google-calendar",
   "onKnockCalendarWrite": "./google-calendar",
   "onKnockCreated": "./image-pipeline",
