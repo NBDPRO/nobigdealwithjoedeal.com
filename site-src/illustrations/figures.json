@@ -1,0 +1,587 @@
+{
+  "//": "Display data for each technical illustration: stamped into pages by `node scripts/build-illustrations.mjs --stamp` between <!-- ILLUS:<id>:START/END --> markers. `sources` lists ids from sources.json that are LINKED under the figure as 'Details per ...'; only verified sources may appear there (the test enforces it). `generic: true` figures carry no 'Details per' line.",
+  "figures": {
+    "roof-system-exploded": {
+      "title": "A roof is nine parts, not one",
+      "alt": "Exploded drawing of a shingle roof, bottom to top: roof deck; metal drip edge at the eave; ice and water shield lapping over that drip edge; synthetic underlayment; drip edge at the rake on top of the underlayment; starter strip; laminated shingles; ridge vent; and ridge cap.",
+      "key": [
+        [
+          "Roof deck",
+          "the plywood or OSB everything is nailed to"
+        ],
+        [
+          "Drip edge at the eave",
+          "goes on first, right on the deck"
+        ],
+        [
+          "Ice & water shield",
+          "laps over the eave drip edge"
+        ],
+        [
+          "Synthetic underlayment",
+          "covers the rest of the deck"
+        ],
+        [
+          "Drip edge at the rake",
+          "goes over the underlayment"
+        ],
+        [
+          "Starter strip",
+          "seals the first course at the edge"
+        ],
+        [
+          "Shingles",
+          "nailed in the maker’s nailing area"
+        ],
+        [
+          "Ridge vent",
+          "lets hot attic air out at the peak"
+        ],
+        [
+          "Hip & ridge cap",
+          "covers the vent and the peak"
+        ]
+      ],
+      "sources": [
+        "gaf-restl622",
+        "ohio-rco-ch9",
+        "ky-krc"
+      ]
+    },
+    "eave-edge": {
+      "title": "The eave: drip edge first, ice barrier over it",
+      "alt": "Cutaway of a roof eave: metal drip edge nailed to the deck and turned down over the fascia; ice and water shield lapped over the drip edge and running at least 24 inches past the exterior wall line; synthetic underlayment lapped over the ice barrier; starter strip and shingles hanging just past the edge.",
+      "key": [
+        [
+          "Roof deck",
+          "solid plywood or OSB; rotted boards replaced"
+        ],
+        [
+          "Drip edge goes on first",
+          "nailed to the deck at the eave and turned down over the fascia"
+        ],
+        [
+          "Ice & water shield",
+          "laps over the eave drip edge and runs at least 24 in past the inside of the exterior wall"
+        ],
+        [
+          "Synthetic underlayment",
+          "laps over the ice barrier, shingle-style, so water runs out"
+        ],
+        [
+          "Starter strip",
+          "a sealant row at the eave, set ¼–¾ in past the edge"
+        ],
+        [
+          "Shingles",
+          "the first course flush over the starter"
+        ],
+        [
+          "Exterior wall line",
+          "projected up to the deck; the 24 in is measured along the slope from here"
+        ]
+      ],
+      "sources": [
+        "gaf-restl622",
+        "ohio-rco-ch9",
+        "ky-krc"
+      ]
+    },
+    "rake-edge": {
+      "title": "The rake: the order flips",
+      "alt": "Cutaway of the corner where the eave meets the sloped side edge of a roof: the underlayment runs to the edge of the deck first and the metal drip edge goes on top of it, turned down over the rake board, with a starter strip up the rake and shingles finishing over it.",
+      "key": [
+        [
+          "Roof deck",
+          "plywood or OSB"
+        ],
+        [
+          "Rake board",
+          "the trim along the sloped side edge"
+        ],
+        [
+          "Underlayment first",
+          "runs out to the edge of the deck"
+        ],
+        [
+          "Drip edge over it",
+          "at the rake, the metal goes on top of the underlayment"
+        ],
+        [
+          "Starter strip up the rake",
+          "set over the drip edge, sealant near the edge"
+        ],
+        [
+          "Shingles",
+          "finish flush over the rake starter"
+        ]
+      ],
+      "sources": [
+        "gaf-restl622",
+        "ky-krc"
+      ]
+    },
+    "step-kickout-flashing": {
+      "title": "Where a roof meets a wall: step flashing and kick-out",
+      "alt": "Cutaway of a roof running into a two-story wall: ice and water shield turned up the wall; an L-shaped step flashing with every course of shingles, each lapping the one below; housewrap lapped over the flashing legs; siding held up off the roof; and a kick-out flashing at the bottom turning water into the gutter.",
+      "key": [
+        [
+          "Step flashing",
+          "one L-shaped piece per course: 5 in on the roof, 5 in up the wall (code minimum is 4 by 4)"
+        ],
+        [
+          "Each piece laps",
+          "the one below it by 2 in"
+        ],
+        [
+          "Kick-out flashing",
+          "required by code where a roof edge meets a wall: it turns water out into the gutter instead of down behind the siding"
+        ],
+        [
+          "Housewrap",
+          "laps over the flashing legs"
+        ],
+        [
+          "Siding",
+          "over the wrap, held up off the shingles"
+        ],
+        [
+          "Ice & water shield",
+          "turned up the wall at least 5 in"
+        ],
+        [
+          "Gutter",
+          "catches what the kick-out sends it"
+        ]
+      ],
+      "sources": [
+        "gaf-restl622",
+        "ohio-rco-ch9",
+        "ky-krc"
+      ]
+    },
+    "valley-types": {
+      "title": "Valleys: open metal or closed-cut, never woven",
+      "alt": "Two roof valleys side by side. Left, an open valley: a metal liner over ice and water shield, with the shingles on both sides cut back so the metal shows. Right, a closed-cut valley: shingles from one slope run across the valley and the other slope’s shingles are cut in a straight line 2 inches back from the centre, with no nails near the centre.",
+      "key": [
+        [
+          "Metal valley liner",
+          "at least 24 in wide by code, nailed only at its edges"
+        ],
+        [
+          "Shingles cut back",
+          "6 in apart at the top, widening a little toward the eave"
+        ],
+        [
+          "Ice & water shield",
+          "under the whole valley"
+        ],
+        [
+          "One side runs across",
+          "at least 12 in past the centreline"
+        ],
+        [
+          "Other side cut",
+          "in a straight line 2 in back from the centreline"
+        ],
+        [
+          "No nails",
+          "within 6 in of the centre, where the water is heaviest"
+        ]
+      ],
+      "note": "Woven valleys aren’t one of the methods GAF’s or TAMKO’s instructions show for these laminated shingles, so I don’t weave them.",
+      "sources": [
+        "gaf-restl622",
+        "tamko-heritage",
+        "ohio-rco-ch9"
+      ]
+    },
+    "attic-ventilation": {
+      "title": "Attic ventilation: in low, out high",
+      "alt": "A house cut in half showing attic airflow: cool air enters through soffit vents, passes through baffles over the insulation, sweeps under the roof deck, and leaves through the ridge vent at the peak.",
+      "key": [
+        [
+          "Soffit vents",
+          "fresh air in, low"
+        ],
+        [
+          "Baffles",
+          "hold the insulation back so there’s at least a 1 in air path at the vents"
+        ],
+        [
+          "Insulation on the attic floor",
+          "keeps house heat out of the attic"
+        ],
+        [
+          "Ridge vent",
+          "warm, damp air out, high"
+        ],
+        [
+          "Air sweeps the deck",
+          "drying it out and keeping it cooler"
+        ]
+      ],
+      "note": "Code minimum in Ohio and Kentucky (R806.2): 1 sq ft of net free vent area per 150 sq ft of attic floor, or 1 per 300 when 40–50% of it is high exhaust within 3 ft of the ridge and the rest is low intake. Example: a 1,500 sq ft attic ÷ 300 = 5 sq ft (720 sq in), 2–2.5 sq ft of it high.",
+      "sources": [
+        "ohio-rco-ch8",
+        "ky-krc",
+        "gaf-restl622"
+      ]
+    },
+    "hail-impact-class4": {
+      "title": "What “Class 4” actually means",
+      "alt": "Illustration of the UL 2218 impact test: a 2 inch steel ball hits two shingle samples. A shingle that is not impact-rated cracks through its mat; a UL 2218 Class 4 shingle such as GAF Timberline UHDZ shows only a mark. A row of test balls shows Class 1 at 1 and a quarter inches up to Class 4 at 2 inches.",
+      "key": [
+        [
+          "A hard hit can crack the mat",
+          "granules knocked loose; the crack is what lets water in later"
+        ],
+        [
+          "Class 4 shingles",
+          "built to pass two 2 in steel-ball hits in the same spot with no crack (the UL 2218 lab test). GAF Timberline UHDZ is UL 2218 Class 4."
+        ]
+      ],
+      "note": "A lab rating, not a promise: hail bigger or harder than the test can still damage any roof.",
+      "sources": [
+        "oc-10028281",
+        "nrca-2008"
+      ]
+    },
+    "ice-dam": {
+      "title": "Ice dams start in the attic",
+      "alt": "Two cutaways of a roof eave in winter. Left: heat leaking into the attic melts snow higher up, the water refreezes on the cold overhang into an ice dam, and meltwater backs up under the shingles. Right: an insulated, air-sealed attic floor and soffit-to-ridge airflow keep the deck cold, and ice and water shield runs at least 24 inches past the wall line as a backup.",
+      "key": [
+        [
+          "Heat leaks into the attic",
+          "and warms the roof deck"
+        ],
+        [
+          "Snow melts up high",
+          "and runs down the roof"
+        ],
+        [
+          "It refreezes on the cold eave",
+          "into a ridge of ice"
+        ],
+        [
+          "Water backs up",
+          "under the shingles, toward the wall"
+        ],
+        [
+          "An insulated, air-sealed floor",
+          "keeps house heat down"
+        ],
+        [
+          "Soffit-to-ridge airflow",
+          "keeps the deck cold"
+        ],
+        [
+          "Ice & water shield",
+          "the backup: at least 24 in past the wall line"
+        ]
+      ],
+      "note": "Ice and water shield doesn’t stop an ice dam. It keeps the water that backs up behind one out of the house.",
+      "sources": [
+        "ohio-rco-ch9",
+        "ohio-rco-ch8",
+        "ky-krc"
+      ]
+    },
+    "siding-wall-section": {
+      "title": "A siding wall, layer by layer",
+      "alt": "Cutaway of an exterior wall: wood studs, plywood or OSB sheathing, housewrap lapped upper over lower with flashing tape around a pipe, a starter strip, and fiber cement lap siding with at least 1 and a quarter inches of overlap, blind-nailed into the studs, with joint flashing behind a butt joint.",
+      "key": [
+        [
+          "Studs",
+          "siding nails go into the framing"
+        ],
+        [
+          "Sheathing",
+          "plywood or OSB"
+        ],
+        [
+          "Housewrap (WRB)",
+          "upper sheet laps over the lower, shingle-style"
+        ],
+        [
+          "Flashing tape",
+          "seals seams and anything through the wall"
+        ],
+        [
+          "Starter strip",
+          "1¼ in; sets the angle of the first board"
+        ],
+        [
+          "Fiber cement lap siding",
+          "at least 1¼ in overlap"
+        ],
+        [
+          "Blind nails",
+          "near the top of each board, so the next board hides them"
+        ],
+        [
+          "Joint flashing",
+          "behind every butt joint"
+        ]
+      ],
+      "sources": [
+        "hardie-hz5",
+        "ohio-rco-ch7",
+        "ky-krc"
+      ]
+    },
+    "window-flashing-sequence": {
+      "title": "Window flashing, bottom up",
+      "alt": "Four steps of flashing a window in a housewrapped wall: tape across the sill turned up the sides; the window installed with tape over each side flange; tape across the head flange over the side tapes; and the housewrap flap folded down over the head tape with its corners taped.",
+      "key": [
+        [
+          "Sill first",
+          "tape across the sill, turned up each side"
+        ],
+        [
+          "Window in, then sides",
+          "side tapes run past the sill tape and above the head"
+        ],
+        [
+          "Then the head",
+          "head tape laps over both side tapes"
+        ],
+        [
+          "Wrap flap down",
+          "the housewrap folds over the head tape; corners taped"
+        ]
+      ],
+      "note": "The common sequence. The window maker’s own instructions always govern.",
+      "generic": true,
+      "sources": []
+    },
+    "gutter-section": {
+      "title": "Gutters: hung right, pitched right",
+      "alt": "Cutaway of a seamless K-style gutter on the fascia: hidden hangers that clip the front lip and screw through the back into the fascia, a drip edge and shingles hanging over into the gutter, a mesh gutter guard over part of the run, and a diagram of the gutter sloping toward the downspout.",
+      "key": [
+        [
+          "Hidden hangers",
+          "clip the front lip and screw through the back into the fascia; Gentek’s maximum is 32 in apart"
+        ],
+        [
+          "Screwed into the fascia",
+          "solid wood behind it"
+        ],
+        [
+          "Drip edge over the gutter",
+          "so roof water drops in, not behind it"
+        ],
+        [
+          "Gutter guard",
+          "keeps leaves out; lifts off for cleaning"
+        ],
+        [
+          "Downspout outlet",
+          "at the low end of the run: at least ¼ in of drop per 10 ft"
+        ],
+        [
+          "Seamless K-style",
+          "one piece corner to corner, 5 in or 6 in aluminum"
+        ]
+      ],
+      "sources": [
+        "gentek-rainware"
+      ]
+    },
+    "storm-inspection-checklist": {
+      "title": "What I check after a storm",
+      "alt": "A house with eight numbered spots: shingles on every slope, ridge cap and roof vents, flashing and pipe boots, gutters and downspouts, soft metals such as vents and air-conditioner fins, siding and window trim, fascia and soffit, and the attic.",
+      "key": [
+        [
+          "Shingles, every slope",
+          "hail hits, creases, missing pieces"
+        ],
+        [
+          "Ridge cap & roof vents",
+          "cracks, lifted caps, dented vents"
+        ],
+        [
+          "Flashing & pipe boots",
+          "chimney, walls, valleys, boots"
+        ],
+        [
+          "Gutters & downspouts",
+          "dents, sags, pulled hangers"
+        ],
+        [
+          "Soft metals",
+          "vents and AC fins show how big the hail was"
+        ],
+        [
+          "Siding & window trim",
+          "dents, cracks, holes"
+        ],
+        [
+          "Fascia & soffit",
+          "rot, gaps, loose trim"
+        ],
+        [
+          "The attic, if you’re home",
+          "stains, daylight, ventilation"
+        ]
+      ],
+      "note": "Every finding gets photographed. The inspection is free; a written photo report is $150 if you want one.",
+      "generic": true,
+      "sources": []
+    },
+    "nail-zone": {
+      "title": "Four nails, right in the nailing area",
+      "alt": "A laminated shingle course with the nailing area marked and four nails in it about 6 and 7/8 inches up from the bottom edge, plus three small sections: a nail in the nailing area goes through both layers and the shingle below; a high nail misses the shingle below; a low nail lands in the exposed part.",
+      "key": [
+        [
+          "The nailing area",
+          "printed on the shingle: 4 nails (6 for the enhanced pattern), about 6⅞ in up on GAF Timberline HDZ and UHDZ"
+        ],
+        [
+          "Exposure",
+          "the part you see: 5⅝ in per course"
+        ]
+      ],
+      "note": "Too high misses the shingle below; too low leaves the nail where the next course won’t cover it. TAMKO Heritage uses its own line (6⅛ in), so it’s always the maker’s wrapper, not habit.",
+      "sources": [
+        "gaf-restl622",
+        "tamko-heritage",
+        "ohio-rco-ch9"
+      ]
+    },
+    "pipe-boot-flashing": {
+      "title": "Pipe boots: every lap points downhill",
+      "alt": "A plumbing vent pipe through a shingle roof with some shingles cut away: the boot’s flat flange has its bottom edge on top of the shingles below and its top and sides under the shingles above, with its nails covered; a rubber collar hugs the pipe.",
+      "key": [
+        [
+          "Bottom edge on top",
+          "of the shingles below, so water runs off onto them"
+        ],
+        [
+          "Top and sides under",
+          "the shingles above; nails up where they’re covered"
+        ],
+        [
+          "Rubber collar",
+          "hugs the pipe; replaced when it cracks"
+        ],
+        [
+          "Plumbing vent pipe",
+          "comes up through the deck"
+        ],
+        [
+          "Shingles fit around it",
+          "cut neatly to the collar"
+        ]
+      ],
+      "note": "A generic detail. The code sends vent-pipe flashing to the shingle maker’s instructions, which win.",
+      "generic": true,
+      "sources": []
+    },
+    "starter-overhang": {
+      "title": "The starter strip: a quarter to three quarters of an inch",
+      "alt": "Close-up of the corner where the eave meets the rake: the starter strip sits a quarter to three quarters of an inch past the drip edge along both edges, with its sealant row near the edge, and the first course of shingles lines up with it. An enlarged section shows the overhang past the drip edge.",
+      "key": [
+        [
+          "Drip edge",
+          "at the eave and up the rake"
+        ],
+        [
+          "Starter strip",
+          "a little past the drip edge, eave and rake alike"
+        ],
+        [
+          "Factory sealant row",
+          "glues down the first course at the edge"
+        ],
+        [
+          "First course",
+          "flush with the starter"
+        ]
+      ],
+      "sources": [
+        "gaf-restl622",
+        "tamko-heritage"
+      ]
+    },
+    "ice-water-valleys-penetrations": {
+      "title": "Ice & water shield: valleys and chimneys too",
+      "alt": "A roof with the shingles left off: a full-width sheet of ice and water shield centred in the valley with the underlayment lapped at least 6 inches over its edges, ice and water shield along the eaves, and ice and water shield around a chimney base turned at least 5 inches up its sides.",
+      "key": [
+        [
+          "Valley",
+          "a full-width sheet centred on the valley line"
+        ],
+        [
+          "Underlayment laps over it",
+          "at least 6 in on each side"
+        ],
+        [
+          "Eaves",
+          "at least 24 in past the inside of the wall line"
+        ],
+        [
+          "Up the chimney sides",
+          "at least 5 in, before the step and counter flashing"
+        ],
+        [
+          "Around the base",
+          "covers the deck under the flashing"
+        ]
+      ],
+      "sources": [
+        "gaf-restl622",
+        "tamko-heritage",
+        "ohio-rco-ch9"
+      ]
+    }
+  },
+  "pages": {
+    "docs/services/roof-replacement.html": [
+      "eave-edge",
+      "nail-zone"
+    ],
+    "docs/services/roof-repair.html": [
+      "step-kickout-flashing",
+      "pipe-boot-flashing",
+      "ice-dam"
+    ],
+    "docs/services/roof-inspection.html": [
+      "storm-inspection-checklist",
+      "attic-ventilation"
+    ],
+    "docs/services/storm-damage.html": [
+      "hail-impact-class4",
+      "storm-inspection-checklist"
+    ],
+    "docs/services/siding-replacement.html": [
+      "siding-wall-section",
+      "window-flashing-sequence"
+    ],
+    "docs/services/gutter-replacement.html": [
+      "gutter-section"
+    ],
+    "docs/services/gaf-timberline/index.html": [
+      "hail-impact-class4"
+    ],
+    "docs/guides/how-a-roof-works.html": [
+      "eave-edge",
+      "rake-edge",
+      "starter-overhang",
+      "nail-zone",
+      "hail-impact-class4",
+      "step-kickout-flashing",
+      "valley-types",
+      "ice-water-valleys-penetrations",
+      "pipe-boot-flashing",
+      "ice-dam",
+      "siding-wall-section",
+      "window-flashing-sequence",
+      "gutter-section",
+      "storm-inspection-checklist"
+    ],
+    "docs/services/the-nbd-build/index.html": [
+      "roof-system-exploded"
+    ]
+  }
+}
