@@ -53,7 +53,7 @@ const rel = (p) => path.relative(ROOT, p).replace(/\\/g, '/');
 
 const PRO_BLOG = ['google-maps-contractor-ranking', 'contractor-review-system', 'contractor-seo-90-day-fix', 'competition-crusher-contractor-marketing', 'ai-search-contractors-geo']
   .map((s) => 'docs/pro/blog/' + s + '.html');
-const GUIDE_SURFACES = ['docs/sites/free-guide/index.html', 'docs/pro/blog/index.html', ...PRO_BLOG];
+const GUIDE_SURFACES = ['docs/sites/free-guide/index.html', 'docs/pro/playbook.html', 'docs/pro/blog/index.html', ...PRO_BLOG];
 
 (async () => {
   console.log('A. banned claims');
@@ -97,9 +97,10 @@ const GUIDE_SURFACES = ['docs/sites/free-guide/index.html', 'docs/pro/blog/index
     ok('docs/lead-magnet.pdf is removed', !fs.existsSync(path.join(DOCS, 'lead-magnet.pdf')));
     const fb = JSON.parse(read('firebase.json'));
     const r = (fb.hosting.redirects || []).find((x) => x.source === '/lead-magnet.pdf');
-    ok('/lead-magnet.pdf 301s to the guide page', r && r.type === 301 && r.destination === '/sites/free-guide', JSON.stringify(r));
+    // Since the playbook rewrite (2026-10-16, PR 2) every old guide URL lands on /pro/playbook.
+    ok('/lead-magnet.pdf 301s to the playbook', r && r.type === 301 && r.destination === '/pro/playbook', JSON.stringify(r));
     const fg = (fb.hosting.redirects || []).find((x) => x.source === '/free-guide');
-    ok('/free-guide still 301s to /sites/free-guide', fg && fg.type === 301 && fg.destination === '/sites/free-guide');
+    ok('/free-guide 301s straight to the playbook (no double hop)', fg && fg.type === 301 && fg.destination === '/pro/playbook');
     const ga = fs.existsSync(path.join(ROOT, '.gitattributes')) ? read('.gitattributes') : '';
     ok('.gitattributes marks *.pdf binary', /^\*\.pdf\s+binary\s*$/m.test(ga));
   }
@@ -129,6 +130,8 @@ const GUIDE_SURFACES = ['docs/sites/free-guide/index.html', 'docs/pro/blog/index
       for (const m of s.matchAll(/href="(\/[^"#?]*)/g)) {
         let u = m[1];
         if (/^\/(unsubscribe|r)\b/.test(u)) continue;
+        // PDF slots: hidden until the typeset PDF is published (guide-pdf-slot.js).
+        if (/^\/guides\/pdf\/[a-z0-9-]+\.pdf$/.test(u) && new RegExp('data-pdf-slot href="' + u.replace(/[.]/g, '\\.') + '" hidden').test(s)) continue;
         const cands = [u, u + '.html', u.replace(/\/$/, '') + '/index.html', u + '/index.html'];
         if (!cands.some((c) => fs.existsSync(path.join(DOCS, c)) && fs.statSync(path.join(DOCS, c)).isFile())) missing.push(f + ' → ' + u);
       }
@@ -141,7 +144,7 @@ const GUIDE_SURFACES = ['docs/sites/free-guide/index.html', 'docs/pro/blog/index
     const s = read(f);
     ok(f + ': no empty inline <script> (CSP violation)', !/<script>\s*<\/script>/.test(s) && !/<script>(?!\s*$)/.test(s.replace(/<script type="application\/ld\+json">/g, '')));
     ok(f + ': sidebar and series CTAs go to NBD Pro sign-up', /href="\/pro\/register\.html\?utm_source=pro-blog&amp;utm_medium=sidebar/.test(s) && /href="\/pro\/register\.html\?utm_source=pro-blog&amp;utm_medium=series/.test(s));
-    ok(f + ': no "Chapter N of the masterclass" label', !/Chapter \d+ of the/i.test(s));
+    ok(f + ': no "Chapter N of the masterclass" label', !/Chapter \d+ of the (NBD Pro )?(masterclass|Local Authority)/i.test(s) && !/masterclass/i.test(s));
   }
 
   console.log('E. server: consent, alert, admin list, no pipeline');
@@ -202,7 +205,7 @@ const GUIDE_SURFACES = ['docs/sites/free-guide/index.html', 'docs/pro/blog/index
     ok('the deploy workflow will pick both up (exports.X = onCall/onDocumentCreated( at line start)', /^exports\.onGuideLeadCreated = onDocumentCreated\(/m.test(src) && /^exports\.adminListProProspects = onCall\(/m.test(src));
     const adm = read('docs/admin/js/pages/tenants.js');
     const admHtml = read('docs/admin/tenants.html');
-    ok('/admin/tenants.html lists the prospects (escaped, callable, cache-busted)', /callable\('adminListProProspects'\)/.test(adm) && /esc\(p\.name/.test(adm) && /id="prospectsList"/.test(admHtml) && /tenants\.js\?v=3/.test(admHtml));
+    ok('/admin/tenants.html lists the prospects (escaped, callable, cache-busted)', /callable\('adminListProProspects'\)/.test(adm) && /esc\(p\.name/.test(adm) && /id="prospectsList"/.test(admHtml) && /tenants\.js\?v=\d+/.test(admHtml));
     ok('the admin list has no inline style attribute (CSP)', !/style="/.test(adm));
   }
 
