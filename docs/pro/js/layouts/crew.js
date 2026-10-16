@@ -678,8 +678,9 @@
     var focusLead = doc.activeElement && doc.activeElement.getAttribute && rootEl.contains(doc.activeElement) ? doc.activeElement.getAttribute('data-lead') : null;
     // "What closes this week" (js/closes-week.js, 2026-10-15) fills [data-cwk-slot];
     // compact (one line that opens the card) so the week grid stays on screen.
-    // Next stop (js/next-stop.js) and Cash (js/cash-card.js) fill their slots as strips.
-    var html = '<div class="cw-wrap' + (canWrite() ? '' : ' cw-ro') + '">' + topBar() + '<div data-ns-slot="crew" data-ns-variant="compact"></div><div data-cash-slot="crew" data-cash-variant="compact"></div><div class="cw-cwk" data-cwk-slot="crew" data-cwk-compact="1"></div>' + body + '</div>' + drawerHtml();
+    // Next stop (js/next-stop.js) fills [data-ns-slot] as a strip above the grid; the
+    // Cash strip (js/cash-card.js) sits under the schedule, so the grid stays on screen.
+    var html = '<div class="cw-wrap' + (canWrite() ? '' : ' cw-ro') + '">' + topBar() + '<div data-ns-slot="crew" data-ns-variant="compact"></div><div class="cw-cwk" data-cwk-slot="crew" data-cwk-compact="1"></div>' + body + '<div class="cw-cash" data-cash-slot="crew" data-cash-variant="compact"></div></div>' + drawerHtml();
     K.setOverlay(rootEl, homeActive());
     // A repaint that would change nothing is skipped: data callbacks fire in
     // bursts, and swapping identical nodes only costs focus, hover and drags.
