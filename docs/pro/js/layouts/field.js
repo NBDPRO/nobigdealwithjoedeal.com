@@ -163,6 +163,12 @@
   function header(title, right) {
     return '<div class="fa-top"><div class="fa-title">' + esc(title) + '</div>' + (right || '') + '</div>';
   }
+  // Search (2026-10-16): the command palette's customer search (typo-tolerant,
+  // js/lead-search.js) from Field's own header, where the dashboard's search box
+  // is covered by the shell.
+  function searchBtn() {
+    return '<button type="button" class="fa-sun fa-search" data-fa="search" aria-label="Search customers">Search</button>';
+  }
   function sunBtn() {
     var on = doc.documentElement.classList.contains('sun');
     return '<button type="button" class="fa-sun" data-fa="sun" aria-pressed="' + on + '">' + (on ? 'Sun: on' : 'Sun') + '</button>';
@@ -177,7 +183,7 @@
     var current = pending[0] || null;
     // the sync dot (kit.js): online / offline and photos still waiting, since the
     // shell covers the header's own connection dot
-    var h = header(new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }), '<span class="fa-top-end">' + K.syncDot() + sunBtn() + '</span>');
+    var h = header(new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }), '<span class="fa-top-end">' + K.syncDot() + searchBtn() + sunBtn() + '</span>');
 
     var lead0 = current && current.leadId ? leadById(current.leadId) : null;
     if (lead0 && lead0.lat != null) loadWeather(lead0.lat, lead0.lng);
@@ -702,6 +708,11 @@
     }
     ev.preventDefault();
     if (a === 'sun') { setSun(!doc.documentElement.classList.contains('sun')); return; }
+    if (a === 'search') {
+      if (W.NBDCommand && typeof W.NBDCommand.open === 'function') W.NBDCommand.open();
+      else toast('Search is still loading. Try again in a moment.', 'info');
+      return;
+    }
     if (a === 'back') { S.screen = 'today'; if (!homeActive() && W.goTo) W.goTo('home'); render(); return; }
     if (a === 'goto') { go(t.getAttribute('data-to')); return; }
     if (a === 'lead') {

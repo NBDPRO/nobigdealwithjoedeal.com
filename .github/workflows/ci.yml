@@ -1201,11 +1201,16 @@ jobs:
         run: |
           cd tests
           npx playwright install --with-deps chromium webkit
+      # /search needs the Pagefind index the deploy builds (2026-10-16).
+      - name: Build the site search index (Pagefind)
+        run: |
+          node scripts/build-site-search.mjs --install
+          node scripts/build-site-search.mjs
       - name: Run public-surface specs against the hosting emulator
         run: |
           cd tests
           npx firebase-tools emulators:exec --only hosting --project nobigdeal-pro \
-            'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --workers=1 pro-public.spec.js marketing.spec.js nav-drawer.spec.js'
+            'PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 playwright test --config=playwright.config.js --workers=1 pro-public.spec.js marketing.spec.js nav-drawer.spec.js site-search.spec.js'
       - name: Upload Playwright traces on failure
         if: failure()
         uses: actions/upload-artifact@v7

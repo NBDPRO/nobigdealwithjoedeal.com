@@ -466,7 +466,51 @@
     }
   }
 
+  /* ── Site search entry (2026-10-16) ─────────────────────────────────────
+     A magnifier in the header and "Search the site" at the top of the drawer,
+     both to /search (Pagefind). Added here rather than in the nav partials so
+     ~245 stamped pages did not need restamping; only on the homeowner site
+     (never /pro, /admin, /sites, /tools) and never on /search itself. The icon
+     is built with createElementNS (no markup strings, no inline style). */
+  function addSearchEntry() {
+    var p = window.location.pathname || '/';
+    if (/^\/(pro|admin|sites|tools|dev)(\/|$)/.test(p) || /^\/search(\.html)?$/.test(p)) return;
+    var links = document.getElementById('navLinks');
+    if (links && !links.querySelector('.nav-search')) {
+      var li = document.createElement('li');
+      var a = document.createElement('a');
+      a.href = '/search';
+      a.className = 'nav-search';
+      a.setAttribute('aria-label', 'Search the site');
+      a.setAttribute('title', 'Search');
+      var NS = 'http://www.w3.org/2000/svg';
+      var svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('class', 'nav-ico nav-search-ico');
+      var c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', '11'); c.setAttribute('cy', '11'); c.setAttribute('r', '7');
+      var l = document.createElementNS(NS, 'line');
+      l.setAttribute('x1', '16.5'); l.setAttribute('y1', '16.5'); l.setAttribute('x2', '21'); l.setAttribute('y2', '21');
+      svg.appendChild(c); svg.appendChild(l);
+      a.appendChild(svg);
+      li.appendChild(a);
+      var cta = links.querySelector('.nav-cta');
+      var before = cta && cta.parentNode && cta.parentNode.parentNode === links ? cta.parentNode : null;
+      links.insertBefore(li, before);
+    }
+    var drawer = document.getElementById('mobileNav');
+    if (drawer && !drawer.querySelector('.mnav-search')) {
+      var m = document.createElement('a');
+      m.href = '/search';
+      m.className = 'mnav-search';
+      m.textContent = 'Search the site';
+      drawer.insertBefore(m, drawer.firstChild);
+    }
+  }
+
   function init() {
+    addSearchEntry();
     syncHeaderHeight();
     initDrawer();
     initDropdowns();

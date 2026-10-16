@@ -91,7 +91,8 @@ module.exports = defineConfig({
       // profile are untouched, and sized to an iPod touch minus Safari's
       // chrome — the smallest screen the site has to serve.
       name: 'mobile-webkit',
-      testMatch: /nav-drawer\.spec\.js/,
+      // + site-search (2026-10-16): Pagefind's WebAssembly index on iOS Safari.
+      testMatch: /(nav-drawer|site-search)\.spec\.js/,
       use: {
         ...devices['iPhone SE'],
         viewport: { width: 320, height: 508 },
