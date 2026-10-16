@@ -475,6 +475,7 @@
     "pro-demo-story-2026-10-06.test.js",
     "homeowner-claims-honesty-2026-10-05.test.js",
     "public-insurance-wording-2026-10-16.test.js",
+    "no-hardcoded-rating-2026-10-16.test.js",
     "credentials-2026-10-13.test.js",
     "crm-homeowner-claims-honesty-2026-10-07.test.js",
     "homeowner-honesty-schema-reviews-2026-10-06.test.js",
