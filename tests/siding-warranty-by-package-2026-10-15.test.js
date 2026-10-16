@@ -583,7 +583,7 @@ const has = (html, s) => !!html && (html.indexOf(s) !== -1 || html.indexOf(esc(s
     ok('roof job with a damage type: unchanged', hail.work === 'Hail damage' && hail.tier === 'standard');
     const src = read(path.join(ROOT, 'docs', 'pro', 'js', 'warranty-cert.js'));
     ok('blank Work Performed falls back to "Siding installation" on siding, "Roofing installation" otherwise',
-      /_wcCurrentJob\.siding \? 'Siding installation' : 'Roofing installation'/.test(src));
+      /_wcCurrentJob\.siding \? 'Siding installation' : \(product === 'other' \? 'Installation' : 'Roofing installation'\)/.test(src));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
