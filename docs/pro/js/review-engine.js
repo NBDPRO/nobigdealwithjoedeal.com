@@ -530,6 +530,9 @@
     isPaidInFull: isPaidInFull,
     paidInFullFor: paidInFullFor,
     paidSinceMs: paidSinceMs,
+    // the review link the asks use (Settings link -> tenant brand -> legacy): the
+    // Needs-you strip's "Draft an ask" (home-attention.js) writes it into a draft
+    getReviewLink: getReviewLink,
     referralLinkFor: referralLinkFor,
     assignReferralCode,
     sendReferralSMS,

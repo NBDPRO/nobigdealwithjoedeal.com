@@ -150,21 +150,24 @@
     if (N) N.reviewAsksFromLeads(window._leads || []).forEach(function (r) { if (!seen[r.leadId]) out.push(r); });
     return out;
   }
-  var _reviews = null;
+  var _reviews = null, _reviewsOk = false;
   async function loadReviews() {
     if (_reviews) return _reviews;
     try {
       var res = await fetch('/api/google-reviews', { credentials: 'omit' });
       var body = res.ok ? await res.json() : {};
+      _reviewsOk = !!(res.ok && Array.isArray(body.reviews));
       _reviews = Array.isArray(body.reviews) ? body.reviews.map(function (r) { return { time: Number(r.time) || 0 }; }) : [];
-    } catch (e) { _reviews = []; }
+    } catch (e) { _reviews = []; _reviewsOk = false; }
     return _reviews;
   }
+  // Did the last loadReviews() really answer? ([] also means "could not read".)
+  function reviewsOk() { return _reviewsOk; }
 
   window.NBDNumbersData = {
     isOwner: isOwner, companyId: companyId,
     loadSpend: loadSpend, cachedSpend: cachedSpend, saveSpendMonth: saveSpendMonth, mergeSpendMonths: mergeSpendMonths,
     loadWeekNote: loadWeekNote, saveWeekNote: saveWeekNote,
-    loadClicks: loadClicks, loadExpenses: loadExpenses, loadReviewAsks: loadReviewAsks, loadReviews: loadReviews,
+    loadClicks: loadClicks, loadExpenses: loadExpenses, loadReviewAsks: loadReviewAsks, loadReviews: loadReviews, reviewsOk: reviewsOk,
   };
 })();

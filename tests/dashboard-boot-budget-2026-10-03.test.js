@@ -125,6 +125,12 @@ CEILING.localBytes += 2 * 1024;
 // every layout switch, saving it); shape-preboot.js stamps it before paint (+~0.3 KB); script-loader.js registers
 // the lazy 'layoutusage' bundle (+~0.2 KB). Measured 4847 of 4846 KB.
 CEILING.localBytes += 2 * 1024;
+// +3 KB, deliberate (2026-10-16, layouts extras: review velocity): no new script, no new tag. home-attention.js
+// (deferred) adds the reviews-in-30-days count and the "Draft a review ask" sms: draft to the Needs-you chip
+// (+~2.2 KB: reviewVelocity, reviewAskBody, the chip markup); numbers-data.js says whether the Google read
+// answered (+~0.3 KB); review-engine.js exports its review link (+~0.1 KB). Field's wrap-up is in the lazy
+// field.js. Measured 4850 of 4848 KB.
+CEILING.localBytes += 3 * 1024;
 // +5 KB, deliberate (2026-10-15, siding warranty by package, #2463 + its follow-up): no new script tag.
 // The siding kind + package table in estimate-config.js and customer-estimate-rows.js (both deferred),
 // the Package row in job-templates-ui.js, the signed-package lock and the certificate's signed view in
