@@ -582,6 +582,14 @@
     ],
     "docs/services/the-nbd-build/index.html": [
       "roof-system-exploded"
+    ],
+    "docs/blog/how-a-roof-works-layer-by-layer.html": [
+      "eave-edge",
+      "step-kickout-flashing",
+      "ice-dam"
+    ],
+    "docs/blog/vinyl-vs-lp-smartside-vs-fiber-cement-siding.html": [
+      "siding-wall-section"
     ]
   }
 }
