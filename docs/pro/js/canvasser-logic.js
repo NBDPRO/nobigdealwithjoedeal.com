@@ -21,7 +21,13 @@
  * on file and with me (if the town requires one), my ID badge is on me, I hand
  * over the 3-day cancel notice at signing (Kentucky insurance jobs: the
  * 5-business-day notice too), and the town's door-knocking hours. A town that
- * bans door-to-door (Batavia) cannot be started. The town rules are the
+ * bans door-to-door (Batavia) cannot be started. Legal cross-check
+ * 2026-10-16: the cancel line also says never to present yourself as a
+ * specialist or expert on claims or insurance (KRS 367.628(1)(a)2), and a Kentucky town's knocking line
+ * says to check for an Attorney General emergency order first (KRS 367.379:
+ * no in-person soliciting in a designated area for 90 days after a declared
+ * emergency without the owner's prior approval). Same four ticks, so the
+ * saved doc and firestore.rules are unchanged. The town rules are the
  * 2026-10-15 permit research (nbd-agents reports/canvassing-permits-*):
  * research, not legal advice; the checklist says to confirm with the town.
  *
@@ -47,7 +53,7 @@
     { id: 'batavia-oh', name: 'Batavia (village), OH', state: 'OH', permit: 'banned', hours: 'n/a', note: 'Uninvited door-to-door soliciting is banned (Sec. 113.15). Mail only.' },
     { id: 'loveland-oh', name: 'Loveland, OH', state: 'OH', permit: 'yes', hours: '9 a.m. to 9 p.m.', note: 'Per-person permit with fingerprints; city No-Solicitation lists.' },
     { id: 'madeira-oh', name: 'Madeira, OH', state: 'OH', permit: 'yes', hours: 'Not set in what we found: call the city', note: 'Solicitation Permit through the police.' },
-    { id: 'montgomery-oh', name: 'Montgomery, OH', state: 'OH', permit: 'yes', hours: 'No knocking 9 p.m. to 8 a.m.', note: 'Register with Police; registered no-knock homes with a sign are off-limits.' },
+    { id: 'montgomery-oh', name: 'Montgomery, OH', state: 'OH', permit: 'yes', hours: '8 a.m. to 9 p.m. (no knocking 9 p.m. to 8 a.m.)', note: 'Register with Police; registered no-knock homes with a sign are off-limits.' },
     { id: 'blue-ash-oh', name: 'Blue Ash, OH', state: 'OH', permit: 'no', hours: 'None in the code', note: 'No permit found; no knocking or flyers where a No Peddlers sign is posted.' },
     { id: 'anderson-oh', name: 'Anderson Twp, OH', state: 'OH', permit: 'check', hours: 'Unverified', note: 'No permit resolution found; confirm first.' },
     { id: 'mason-oh', name: 'Mason, OH', state: 'OH', permit: 'yes', hours: '9 a.m. to 8 p.m. Apr-Oct; 9 a.m. to 6 p.m. Nov-Mar', note: 'Register with Police; ID with the registration number.' },
@@ -56,7 +62,7 @@
     { id: 'cincinnati-oh', name: 'Cincinnati, OH', state: 'OH', permit: 'check', hours: 'No rule found', note: 'Unclear for roofing services: ask the City Treasurer.' },
     { id: 'florence-ky', name: 'Florence, KY', state: 'KY', permit: 'no', hours: 'Unverified', note: 'No door-to-door ordinance found; occupational license.' },
     { id: 'union-ky', name: 'Union, KY', state: 'KY', permit: 'yes', hours: '10 a.m. to 7 p.m.', note: 'Business license plus a $5 / 60-day solicitor permit; NO KNOCK list.' },
-    { id: 'covington-ky', name: 'Covington, KY', state: 'KY', permit: 'yes', hours: 'No knocking 9 p.m. to 9 a.m.', note: '$50 permit per solicitor; $500 bond when taking contracts; no-solicitation list.' },
+    { id: 'covington-ky', name: 'Covington, KY', state: 'KY', permit: 'yes', hours: '9 a.m. to 9 p.m. (no knocking 9 p.m. to 9 a.m.)', note: '$50 permit per solicitor; $500 bond when taking contracts; no-solicitation list.' },
     { id: 'fort-thomas-ky', name: 'Fort Thomas, KY', state: 'KY', permit: 'yes', hours: 'Unverified', note: 'City permit; Licensed Solicitor card.' },
     { id: 'independence-ky', name: 'Independence, KY', state: 'KY', permit: 'yes', hours: '9 a.m. to 9 p.m. or sunset if earlier, Mon-Sat', note: 'City license and ID badge; Zero Knock List.' },
     { id: 'newport-ky', name: 'Newport, KY', state: 'KY', permit: 'check', hours: 'Unverified', note: 'Occupational license; call first.' },
@@ -156,15 +162,18 @@
       : t.permit === 'no' ? 'No permit found for ' + t.name + ': I checked for signs and the town\'s no-knock list'
       : 'I called ' + t.name + ' (permit rule unverified) and have what it requires';
     var hours = t && !/^unverified|^not set|^none|^no rule|^n\/a|^your planned/i.test(t.hours) ? t.hours : DEFAULT_HOURS;
+    var ky = (t && t.state === 'KY') || !t;
+    var noTitle = '; I never present myself as a specialist or expert on claims or insurance, or say I work with any insurer';
+    var kyOrder = ky ? '; and I checked the Kentucky Attorney General\'s site: if an emergency order covers this area, I knock only where the owner asked me to come (90 days from the declaration)' : '';
     return {
       town: t, blocked: false, hours: hours,
       items: [
         { id: 'permit', label: permitLabel },
         { id: 'badge', label: 'My ID badge / photo ID is on me and visible' },
         { id: 'cancelNotice', label: (t && t.state === 'KY') || !t
-          ? 'At signing I hand over the 3-day cancel notice (Kentucky insurance jobs: the 5-business-day notice too) and say it out loud'
-          : 'At signing I hand over the 3-day cancel notice in duplicate and say it out loud' },
-        { id: 'quietHours', label: 'I knock only ' + hours + ', never at a No Soliciting sign, and leave when asked' },
+          ? 'At signing I hand over the 3-day cancel notice (Kentucky insurance jobs: the 5-business-day notice too) and say it out loud' + noTitle
+          : 'At signing I hand over the 3-day cancel notice in duplicate and say it out loud' + noTitle },
+        { id: 'quietHours', label: 'I knock only ' + hours + ', never at a No Soliciting sign, and leave when asked' + kyOrder },
       ],
     };
   }

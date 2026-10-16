@@ -202,7 +202,7 @@
     const phone = lead.phone.replace(/\D/g, '');
 
     const message =
-      `Hi${firstName ? ' ' + firstName : ''}, thank you so much for trusting ${brandName()} with your project! We'd love to hear how we did. If you have 30 seconds, a Google review means the world to us: ${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.${referralLine(referLink)}\n\nThank you! — ${brandSignOff()}`;
+      `Hi${firstName ? ' ' + firstName : ''}, thank you so much for trusting ${brandName()} with your project! We'd love to hear how we did. If you have 30 seconds, a Google review means the world to us: ${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.${referralLine(referLink)}\n\nThank you! — ${brandSignOff()}\n\nReply STOP to opt out.`;
 
     // Through the platform sender, not a raw sms: link (2026-10-01). The raw
     // link opened the phone's Messages app and skipped the server's STOP
