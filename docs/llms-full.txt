@@ -1500,7 +1500,7 @@ Drag to turn it. Tap a number to find that part.
 CODE Required by the Ohio and Kentucky residential codes. Plenty of roofs get these skipped; every NBD roof gets them. Also code: kick-out flashing wherever a roof edge runs into a wall.
 
 - 1Roof deckInspected; rotted boards replaced
-- 2CODE Drip edgeMetal at every eave and rake
+- 2Drip edgeMetal at every eave and rake. Kentucky code requires it; in Ohio the code defers to the manufacturer, and GAF requires it.
 - 3Ice & water shieldAlong the eaves
 - 4CODE Synthetic underlaymentOver the whole deck
 - 5CODE Starter stripSeals the first course at the eave

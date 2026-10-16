@@ -282,9 +282,8 @@
   <path d="M797.4 340 L928 372 L937 372" class="lead"/>
   <circle cx="797.4" cy="340" r="3" fill="#6b7385"/>
   <circle cx="950" cy="372" r="13" fill="#1a3057"/><text x="950" y="377" text-anchor="middle" class="num">2</text>
-  <rect x="972" y="355" width="38" height="16" rx="3" fill="#bd5728"/><text x="991" y="366.5" text-anchor="middle" class="code">CODE</text>
-  <text x="1018" y="368" class="lbl">Drip edge</text>
-  <text x="972" y="387" class="sub">Every eave and rake</text>
+  <text x="972" y="368" class="lbl">Drip edge</text>
+  <text x="972" y="387" class="sub">Every eave and rake (KY code; OH: GAF requires it)</text>
   <path d="M705 351 L928 436 L937 436" class="lead"/>
   <circle cx="705" cy="351" r="3" fill="#6b7385"/>
   <circle cx="950" cy="436" r="13" fill="#1a3057"/><text x="950" y="441" text-anchor="middle" class="num">10</text>
