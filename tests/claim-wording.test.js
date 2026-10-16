@@ -19,7 +19,7 @@
  * towns from one set of pages, so the whole public tree uses ONE compliant
  * vocabulary: Joe inspects and documents the damage, writes the line-item
  * estimate, meets the adjuster on the roof after the homeowner files, and
- * submits supplements (his own updated estimate for missed line items). The
+ * writes supplements (his own updated estimate for missed line items) for the homeowner to send. The
  * homeowner owns and decides the claim.
  *
  * Before this gate the banner on 224 pages read "I Handle the Insurance
@@ -250,7 +250,7 @@ const GOOD = [
   'You can request a reinspection in writing, and many policies include an appraisal clause.',
   'Once you get through the claim, the build itself takes a day.',
   'You file the claim with your carrier; once you have, I meet the adjuster on the roof.',
-  'I meet the adjuster on the roof after you file and send a supplement (my updated estimate) for anything the first scope missed.',
+  'I meet the adjuster on the roof after you file and write a supplement (my updated estimate) covering anything the first scope missed, for you to send your insurer.',
   'We tear off, dry in, and handle the rest of the build in one day.',
   // 2026-10-03 rules: describing payouts, homeowners acting, and the reworded lines pass.
   'Supplement documentation if the initial payout is below actual scope',

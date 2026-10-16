@@ -6,7 +6,7 @@
  *
  * Compliance: this tool NEVER guarantees a claim is approved or will pay
  * out — it only tells the homeowner it's worth a free inspection and that
- * Joe documents + files the claim. No dollar figures are promised.
+ * Joe documents the damage and meets the adjuster; the homeowner files and owns the claim. No dollar figures are promised.
  */
 (function () {
   'use strict';

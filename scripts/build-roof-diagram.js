@@ -107,7 +107,9 @@ const callouts = [
   [1, P(0.93, 0.55), 'R', 180, 'Roof deck', 'Rotted boards replaced', false],
   [4, P(0.67, 0.65), 'R', 244, 'Synthetic underlayment', 'Over the whole deck', true],
   [3, P(0.8, 0.15), 'R', 308, 'Ice & water shield', 'Along the eaves', false],
-  [2, P(0.97, 0), 'R', 372, 'Drip edge', 'Every eave and rake', true],
+  // Not tagged CODE for both states: Kentucky's code requires drip edge; Ohio's
+  // R905.2.8.5 defers to the manufacturer, and GAF's instructions require it.
+  [2, P(0.97, 0), 'R', 372, 'Drip edge', 'Every eave and rake (KY code; OH: GAF requires it)', false],
   [10, add(P(0.75, 0), [0, 11]), 'R', 436, 'Soffit intake vents', 'Fresh air in at the eaves', true],
   [8, P(0.43, 0.6), 'L', 116, 'Step + counter flashing', 'At chimneys and walls', true],
   [6, P(0.1, 0.75), 'L', 190, 'Shingles', 'GAF or TAMKO, maker’s nail pattern', true],

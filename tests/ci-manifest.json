@@ -30,6 +30,7 @@
     "deal-check-rate-2026-10-15.test.js",
     "review-ask-auto-2026-10-15.test.js",
     "review-ask-photo-2026-10-16.test.js",
+    "site-legal-crosscheck-2026-10-16.test.js",
     "review-handoff-2026-10-16.test.js",
     "review-sprint-2026-10-16.test.js",
     "d2d-door-import-2026-10-16.test.js",
