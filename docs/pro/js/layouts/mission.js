@@ -615,7 +615,7 @@
   var built = false;
   function shell() {
     // Next stop (js/next-stop.js, 2026-10-15) and Cash (js/cash-card.js): strips under the header.
-    rootEl.innerHTML = '<div class="mc-wrap"><div data-mc-slot="top"></div><div class="mc-ns" data-ns-slot="mission" data-ns-variant="compact"></div><div class="mc-cash" data-cash-slot="mission" data-cash-variant="compact"></div>' +
+    rootEl.innerHTML = '<div class="mc-wrap"><div data-mc-slot="top"></div><div class="mc-ns" data-ns-slot="mission" data-ns-variant="compact"></div><div class="mc-cash" data-cash-slot="mission" data-cash-variant="compact"></div><div class="mc-ny" data-ny-slot="mission"></div>' +
       '<div class="mc-body"><aside class="mc-side mc-left" data-mc-slot="left"></aside>' +
       '<section class="mc-center"><div class="mc-map" aria-label="Storm map"></div><div data-mc-slot="tl"></div></section>' +
       '<aside class="mc-side mc-right" data-mc-slot="right"></aside>' +

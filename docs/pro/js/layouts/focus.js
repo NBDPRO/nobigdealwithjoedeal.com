@@ -202,7 +202,8 @@
 
   function renderToday(q) {
     // Next stop (js/next-stop.js, 2026-10-15) fills [data-ns-slot].
-    var h = topBar(true) + '<div data-ns-slot="focus"></div>';
+    // and "Call back now" (js/home-strips.js, 2026-10-16) under it
+    var h = topBar(true) + '<div data-ns-slot="focus"></div><div data-stl-slot="focus"></div>';
     if (!q) return h + '<div class="fo-empty">Loading your day…</div>';
     var c = counts(q);
     if (!q.length) {

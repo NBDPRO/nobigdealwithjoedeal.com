@@ -43,14 +43,17 @@
     island: HOME,
     field: [
       { id: 'nextstop', label: 'Next stop', sel: '[data-ns-slot="field"]' },
+      { id: 'callback', label: 'Call back now', sel: '[data-stl-slot="field"]' },
       { id: 'now', label: 'Current stop', sel: '#nbdFieldRoot .fa-now' },
       { id: 'upnext', label: 'Up next', sel: '[data-fa-group="upnext"]' },
       { id: 'done', label: 'Done today', sel: '[data-fa-group="done"]' },
+      { id: 'needsyou', label: 'Needs you', sel: '[data-ny-slot="field"]' },
       { id: 'cash', label: 'Cash collected', sel: '[data-cash-slot="field"]' },
       { id: 'closesweek', label: 'What closes this week', sel: '[data-cwk-slot="field"]' },
     ],
     focus: [
       { id: 'nextstop', label: 'Next stop', sel: '[data-ns-slot="focus"]' },
+      { id: 'callback', label: 'Call back now', sel: '[data-stl-slot="focus"]' },
       { id: 'queue', label: 'Today\'s queue', sel: '.fo-wrap .fo-queue' },
       { id: 'cash', label: 'Cash collected', sel: '[data-cash-slot="focus"]' },
       { id: 'closesweek', label: 'What closes this week', sel: '[data-cwk-slot="focus"]' },
@@ -68,6 +71,7 @@
     mission: [
       { id: 'nextstop', label: 'Next stop', sel: '[data-ns-slot="mission"]' },
       { id: 'cash', label: 'Cash collected', sel: '[data-cash-slot="mission"]' },
+      { id: 'needsyou', label: 'Needs you', sel: '[data-ny-slot="mission"]' },
       { id: 'closesweek', label: 'What closes this week', sel: '[data-cwk-slot="mission"]' },
     ],
   };
