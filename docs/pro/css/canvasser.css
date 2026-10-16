@@ -1,0 +1,72 @@
+/* canvasser.css — Canvasser mode (js/canvasser-ui.js, 2026-10-16). Theme tokens only;
+   44 px targets; accent and danger TEXT use --ui-accent-text / --ui-danger-text. */
+
+/* The rep's menu: Door-to-Door and their own Pipeline only (the rules already scope the data). */
+html.nbd-canvasser .ni[data-target]:not([data-target="d2d"]):not([data-target="crm"]):not([data-target="settings"]),
+html.nbd-canvasser #nav-map, html.nbd-canvasser #nav-roofrep, html.nbd-canvasser #nav-daily,
+html.nbd-canvasser .mm-item[data-target]:not([data-target="d2d"]):not([data-target="crm"]):not([data-target="settings"]) { display: none; }
+
+/* "Today's checklist" pill, over the map, clear of the D2D FAB */
+.cv-pill {
+  position: fixed; top: calc(env(safe-area-inset-top, 0px) + 72px); right: 12px; z-index: 9000;
+  min-height: 44px; padding: 0 14px; border-radius: var(--ui-radius-pill, 999px);
+  background: var(--s2); color: var(--t); border: 1px solid var(--br); box-shadow: var(--ui-elev-2, none);
+  font: inherit; font-size: var(--ui-fs-body-sm, 14px); font-weight: var(--ui-fw-bold, 700); cursor: pointer;
+}
+html:not(.nbd-canvasser) .cv-pill { display: none; }
+
+/* the pre-knock checklist sheet */
+.cv-overlay {
+  position: fixed; inset: 0; z-index: 100001; display: flex; align-items: flex-end; justify-content: center;
+  background: color-mix(in srgb, var(--bg, #0a0c0f) 80%, transparent); padding: 0;
+}
+.cv-card {
+  width: 100%; max-width: 520px; max-height: 92vh; overflow-y: auto; box-sizing: border-box;
+  padding: var(--ui-space-5, 20px); background: var(--s2); color: var(--t);
+  border: 1px solid var(--ui-line-hair, var(--br)); border-radius: 16px 16px 0 0; box-shadow: var(--ui-elev-3, none);
+}
+@media (min-width: 641px) { .cv-overlay { align-items: center; padding: 16px; } .cv-card { border-radius: max(var(--r-card, 8px), var(--ui-radius-lg, 12px)); } }
+.cv-title { margin: 0 0 4px; font-size: var(--ui-fs-title, 20px); font-weight: var(--ui-fw-heavy, 800); }
+.cv-sub { margin: 0 0 12px; font-size: var(--ui-fs-body-sm, 14px); color: var(--m); }
+.cv-lbl { display: block; margin: 8px 0 4px; font-size: var(--ui-fs-caption, 12px); font-weight: var(--ui-fw-bold, 700); color: var(--m); }
+.cv-select { width: 100%; min-height: 44px; box-sizing: border-box; font: inherit; font-size: 16px; color: var(--t); background: var(--s); border: 1px solid var(--br); border-radius: 8px; padding: 0 10px; }
+.cv-note { margin: 10px 0; font-size: var(--ui-fs-body-sm, 14px); }
+.cv-stop { margin: 12px 0; padding: 12px; border: 1px solid var(--red); border-radius: 8px; color: var(--ui-danger-text, var(--red)); font-weight: var(--ui-fw-bold, 700); }
+.cv-items { list-style: none; margin: 8px 0 12px; padding: 0; }
+.cv-item { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 10px 4px; border-top: 1px solid var(--ui-line-hair, var(--br)); cursor: pointer; font-size: var(--ui-fs-body, 15px); line-height: 1.4; }
+.cv-item input { width: 22px; height: 22px; margin-top: 1px; flex: none; accent-color: var(--orange); }
+.cv-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.cv-btn { min-height: 44px; padding: 0 16px; border-radius: var(--ui-radius-pill, 999px); font: inherit; font-weight: var(--ui-fw-bold, 700); cursor: pointer; }
+.cv-ghost { background: transparent; color: var(--t); border: 1px solid var(--br); }
+.cv-go { background: var(--orange); color: var(--accent-fg, #fff); border: 0; }
+.cv-go[disabled] { opacity: .45; cursor: not-allowed; }
+.cv-btn:focus-visible, .cv-select:focus-visible, .cv-item input:focus-visible, .cv-pill:focus-visible, .cv-chip:focus-visible { outline: none; box-shadow: var(--ui-focus-ring, 0 0 0 3px var(--orange)); }
+
+/* the owner's panel (Settings → Team) */
+#canvasserPanel[hidden] { display: none; }
+.cv-panel .cv-range { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.cv-chip { min-height: 44px; padding: 0 14px; border-radius: var(--ui-radius-pill, 999px); background: transparent; color: var(--t); border: 1px solid var(--br); font: inherit; cursor: pointer; }
+.cv-chip.is-on { border-color: var(--orange); color: var(--ui-accent-text, var(--orange)); font-weight: var(--ui-fw-bold, 700); }
+.cv-warn { color: var(--ui-danger-text, var(--red)); font-size: var(--ui-fs-body-sm, 14px); }
+.cv-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 0 12px; }
+.cv-table { width: 100%; border-collapse: collapse; font-size: var(--ui-fs-body-sm, 14px); font-variant-numeric: tabular-nums; }
+.cv-table th, .cv-table td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--ui-line-hair, var(--br)); white-space: nowrap; }
+.cv-table th { font-size: var(--ui-fs-caption, 12px); color: var(--m); font-weight: var(--ui-fw-bold, 700); }
+.cv-pct { width: 72px; min-height: 44px; box-sizing: border-box; font: inherit; font-size: 16px; color: var(--t); background: var(--s); border: 1px solid var(--br); border-radius: 8px; padding: 0 8px; }
+.cv-ok { color: var(--t); }
+.cv-miss { color: var(--ui-danger-text, var(--red)); }
+.cv-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.cv-row .cv-select { flex: 1 1 200px; width: auto; min-width: 0; max-width: 100%; }
+/* phone: each rep becomes a card, every number labelled, commission owed visible without scrolling */
+@media (max-width: 640px) {
+  .cv-table thead { display: none; }
+  .cv-table, .cv-table tbody { display: block; }
+  .cv-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; padding: 10px 0; border-bottom: 1px solid var(--ui-line-hair, var(--br)); }
+  .cv-table td { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; border: 0; white-space: normal; }
+  .cv-table td::before { content: attr(data-l); color: var(--m); font-size: var(--ui-fs-caption, 12px); }
+  .cv-table td[data-l="#"] { display: none; }
+  .cv-table td.cv-rep { grid-column: 1 / -1; font-weight: var(--ui-fw-bold, 700); }
+  .cv-table td.cv-rep::before { content: none; }
+}
+.cv-add { border-top: 1px solid var(--br); padding-top: 12px; margin-top: 8px; }
+.cv-empty { margin: 8px 0 12px; }

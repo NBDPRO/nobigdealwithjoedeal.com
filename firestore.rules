@@ -2400,6 +2400,69 @@ service cloud.firestore {
       allow delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
     }
 
+    // ── CANVASSERS (2026-10-16) ───────────────────────
+    // Canvasser mode (js/canvasser-ui.js): the company owner marks a Sales Rep
+    // teammate as a commission-only canvasser with a commission %. Doc id =
+    // <companyId>__<uid>. Written ONLY by the company owner (company_admin of
+    // that company, or a solo owner whose uid is the company); read by the
+    // company's owner / managers and by the rep it names. A rep can never set
+    // their own %. Tracking only: nothing here pays anyone.
+    // tests/firestore-rules.canvassers.test.js.
+    function canvasserOwner(cid) {
+      return isAdmin()
+        || (isCompanyAdmin() && myCompanyId() == cid)
+        || (request.auth.token.get('companyId', '') == '' && ownsTenantByUid(cid))
+        || (request.auth.token.get('role', '') == '' && ownsTenantByUid(cid));
+    }
+    function canvasserShapeOk(d, docId) {
+      return d.keys().hasOnly(['companyId', 'uid', 'name', 'pct', 'active', 'updatedBy', 'updatedAt'])
+        && d.companyId is string && d.uid is string && docId == d.companyId + '__' + d.uid
+        && d.pct is number && d.pct >= 0 && d.pct <= 50
+        && (!('name' in d) || (d.name is string && d.name.size() <= 80))
+        && (!('active' in d) || d.active is bool)
+        && d.updatedBy == request.auth.uid;
+    }
+    match /canvassers/{docId} {
+      allow read: if isAdmin()
+        || (isAuth() && resource.data.uid == request.auth.uid)
+        || (isCompanyStaff() && sameCompanyAsResource())
+        || canvasserOwner(resource.data.companyId);
+      allow create: if canvasserOwner(request.resource.data.companyId) && canvasserShapeOk(request.resource.data, docId);
+      allow update: if canvasserOwner(resource.data.companyId)
+        && didNotChange(['companyId', 'uid'])
+        && canvasserShapeOk(request.resource.data, docId);
+      allow delete: if canvasserOwner(resource.data.companyId);
+    }
+
+    // ── CANVASS CHECKS (2026-10-16) ───────────────────
+    // The rep's pre-knock checklist for one town on one day: permit, ID badge,
+    // cancel notice at signing, knocking hours. Created by the rep for
+    // themselves in their own company with every item ticked; never edited
+    // (a record of what was confirmed). Read by the rep and their company's
+    // owner / managers. tests/firestore-rules.canvassers.test.js.
+    match /canvass_checks/{checkId} {
+      allow read: if isAdmin()
+        || isOwner(resource.data.userId)
+        || (isCompanyStaff() && sameCompanyAsResource())
+        || canvasserOwner(resource.data.companyId);
+      allow create: if isAuth() && notViewer()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.companyId is string
+        && (request.resource.data.companyId == myCompanyId()
+            || (request.auth.token.get('companyId', '') == ''
+                && ownsTenantByUid(request.resource.data.companyId)))
+        && request.resource.data.keys().hasOnly(['userId', 'companyId', 'ymd', 'townId', 'town', 'items', 'hours', 'createdAt'])
+        && request.resource.data.ymd is string && request.resource.data.ymd.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.town is string && request.resource.data.town.size() <= 80
+        && request.resource.data.townId is string && request.resource.data.townId.size() <= 60
+        && (!('hours' in request.resource.data) || (request.resource.data.hours is string && request.resource.data.hours.size() <= 120))
+        && request.resource.data.items.keys().hasOnly(['permit', 'badge', 'cancelNotice', 'quietHours'])
+        && request.resource.data.items.permit == true && request.resource.data.items.badge == true
+        && request.resource.data.items.cancelNotice == true && request.resource.data.items.quietHours == true;
+      allow update: if false;
+      allow delete: if isAdmin() || canvasserOwner(resource.data.companyId);
+    }
+
     // ── PRODUCTS ──────────────────────────────────────
     // Read split from the writes 2026-09-25 so they can carry notViewer().
     match /products/{productId} {
