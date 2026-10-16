@@ -470,6 +470,13 @@
         ]
       },
       {
+        "_comment": "Background hero video loops + their posters (2026-10-16). Every file name carries the first 10 hex of its own sha256 (scripts/hero-video.mjs --import names them, --check and tests/hero-video.test.js verify the hash matches the bytes), so a URL never changes content and a one-year immutable cache is safe. Must sit after the /assets/@(...|video)/** 30-day rule: last match wins.",
+        "source": "/assets/video/hero/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
+      },
+      {
         "_comment": "Self-hosted woff2 files are stable binaries (a family change would ship under a new filename), so 1yr immutable is safe — the URL changes when the content does (Jul 2026 remediation; was 30d). Rename-on-change is repo convention, not build-enforced: git history shows zero in-place font edits ever, but if you must alter a font binary, ship it under a NEW filename and update nbd-fonts.css — immutable means browsers will never revalidate the old URL. NOTE: the same remediation package proposed 1yr immutable for /assets/js/inline/** too, but per the F2 comment above those filenames are NOT re-hashed on edit (4053149b2f.js alone was edited in place 4× recently, and adding a blog post edits c00f1acac9.js in place), so an immutable year there would strand repeat visitors on stale code — inline JS deliberately stays on the 24h /assets/js/** rule.",
         "source": "/assets/fonts/**",
         "headers": [
