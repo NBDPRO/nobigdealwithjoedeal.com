@@ -41,3 +41,12 @@
   box-shadow: 0 -6px 24px rgba(0, 0, 0, .35);
 }
 .lp-bar-msg { font-size: 14px; }
+/* More layouts, button size, team usage (2026-10-16) */
+.lp-more{margin:12px 0;}
+.lp-more > summary{min-height:44px;line-height:44px;cursor:pointer;font-weight:700;color:var(--t);}
+.lp-size{margin:12px 0;}
+.lp-size-row{display:flex;flex-wrap:wrap;gap:8px;}
+.lp-size-opt{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border:1px solid var(--br);border-radius:8px;background:var(--s2);color:var(--t);cursor:pointer;}
+.lp-size-opt input{width:20px;height:20px;margin:0;accent-color:var(--orange);}
+.lp-size-px{font-size:12px;color:var(--m);}
+.lp-usage{margin-top:12px;}

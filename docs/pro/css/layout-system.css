@@ -8,3 +8,5 @@
  */
 :root { --tap: 56px; }
 :root[data-tap="glove"] { --tap: 64px; }
+/* Button size per layout (2026-10-16): Compact. 48px still clears the 44px minimum. */
+:root[data-tap="compact"] { --tap: 48px; }
