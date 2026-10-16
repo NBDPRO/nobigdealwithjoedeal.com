@@ -443,7 +443,7 @@
         'Wait until they\'ve seen the finished job and said something positive',
         'Thank them: "Thanks for trusting us with this"',
         'Referral ask: "I\'d love to help 3 more families on your street — who do you know?"',
-        'Offer (cash jobs): "$100 referral credit for every neighbor who signs" — never a credit against an insurance job\'s price (KRS 367.628(2)(c)-(d) in Kentucky)',
+        'Offer (cash jobs): "$100 referral credit for every neighbor whose job is paid in full" — never a credit against an insurance job\'s price (KRS 367.628(2)(c)-(d) in Kentucky)',
         'Make it easy: "Here are 5 cards with my photo and direct line"',
         'Ask permission to mention them: "Can I say \'Jennifer sent me\' when I knock?"',
         'Leave a small thank-you (cookies, a card) within a week — Kentucky bars giving an insured anything worth more than $100 (KRS 367.628(2)(d))'

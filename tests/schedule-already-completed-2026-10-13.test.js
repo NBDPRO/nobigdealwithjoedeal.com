@@ -466,8 +466,10 @@ const settle = () => new Promise((r) => setImmediate(r));
     const closed = RR.projectClosed;
     const q = { completedBackfill: { quiet: true } };
     ok('referral: a quiet backfill sitting at Install Done is not a closed project yet', closed(Object.assign({ stage: 'install_complete', stageRole: 'won' }, q)) === false);
-    ok('control: an ordinary Install Done still credits (the project is won)', closed({ stage: 'install_complete', stageRole: 'won' }) === true);
-    ok('…and the backfilled job credits once it moves PAST Install Done', closed(Object.assign({ stage: 'final_photos', stageRole: 'won' }, q)) === true);
+    // Since 2026-10-16 (Joe) the bonus waits for PAID IN FULL: no Install Done or Final Photos
+    // credits it (tests/referral-paid-in-full-2026-10-16.test.js), backfill or not.
+    ok('an ordinary Install Done does not credit either (paid in full only)', closed({ stage: 'install_complete', stageRole: 'won' }) === false);
+    ok('…and the backfilled job reaches the paid stage once it moves to Final Payment', closed(Object.assign({ stage: 'final_payment', stageRole: 'won' }, q)) === true);
   }
   {
     // The homeowner's tracker dates the walkthrough by the day it finished, not the day it was keyed in.
