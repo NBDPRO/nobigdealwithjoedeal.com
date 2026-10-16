@@ -11,6 +11,7 @@
   ],
   "node": [
     "ky-home-solicitation-notice-2026-10-16.test.js",
+    "technical-illustrations-2026-10-16.test.js",
     "photo-match-2026-10-15.test.js",
     "closes-week-2026-10-15.test.js",
     "crm-layouts-audit-fixes-2026-10-15.test.js",
@@ -38,6 +39,7 @@
     "free-guide-honesty-2026-10-16.test.js",
     "pro-playbook-2026-10-16.test.js",
     "homeowner-guides-2026-10-16.test.js",
+    "guide-pdfs-2026-10-16.test.js",
     "handle-optout-controls-2026-10-13.test.js",
     "away-mode-2026-10-12.test.js",
     "layout-mapview-2026-10-12.test.js",

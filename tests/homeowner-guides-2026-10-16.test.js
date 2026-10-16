@@ -207,7 +207,11 @@ const guides = B.GUIDES.filter((g) => g.page.startsWith('docs/guides/'));
     const ft = read('docs/free-tools/index.html');
     const cards = [...ft.matchAll(/<a href="\/guides\/([a-z0-9-]+)" class="tool-card">/g)].map((m) => m[1]);
     ok('/free-tools has a "Free guides & checklists" row', /<h2 class="guides-head" id="guides-h">Free guides &amp; checklists<\/h2>/.test(ft));
-    ok('one /free-tools card per guide page', guides.every((g) => cards.includes(g.slug)) && cards.every((c) => guides.some((g) => g.slug === c)), cards.join(','));
+    // /guides pages that are not Markdown guides: how-a-roof-works is the
+    // technical-drawing explainer built by scripts/build-illustrations.mjs
+    // (guarded by tests/technical-illustrations-2026-10-16.test.js).
+    const NON_MARKDOWN_GUIDES = ['how-a-roof-works'];
+    ok('one /free-tools card per guide page', guides.every((g) => cards.includes(g.slug)) && cards.every((c) => guides.some((g) => g.slug === c) || NON_MARKDOWN_GUIDES.includes(c)), cards.join(','));
     const fb = JSON.parse(read('firebase.json'));
     const r = (fb.hosting.redirects || []).find((x) => x.source === '/guides');
     ok('/guides 301s to the hub', r && r.type === 301 && r.destination === '/free-tools');

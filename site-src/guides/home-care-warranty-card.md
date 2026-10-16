@@ -11,6 +11,7 @@ author: Joe Deal
 description: Seasonal roof, gutter and siding maintenance checklist from No Big Deal Home Solutions, plus a plain-English summary of NBD's written labor warranties, the NBD Pledge and the $100 referral credit.
 keywords: [roof maintenance, gutter maintenance, siding, roof warranty, Cincinnati, Northern Kentucky]
 date: 2026-10-16
+compact: true
 compliance:
   - Labor warranty by package - roof Standard 5 / Preferred 10 (transferable once, within 30 days of sale) / Elite 20 (fully transferable); siding by package 5/10/20; gutter system 5; guards only 2; other installs 2; repairs 1 year when written on the invoice.
   - GAF System Plus covers GAF materials, not workmanship. The NBD Pledge is a promise, not a warranty term. Never "lifetime warranty".
