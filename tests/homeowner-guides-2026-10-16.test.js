@@ -62,12 +62,23 @@ const REQUIRED = {
     'Whether insurance covers it depends on your policy and the damage.',
     'Date: ____',
   ],
+  'compare-roofing-quotes-checklist': [
+    '| Written labor warranty | 5 years | 10 years | 20 years |',
+    '| Transfers when you sell | No | Once, within 30 days of the sale | Fully |',
+    "It doesn't cover workmanship; that's what the written labor warranty is for.",
+    'UL 2218 Class 4',
+    'Are you fully insured?',
+    "I'll write a full report for $150",
+    'a promise, not a warranty term',
+    "In Kentucky, a contractor can't require payment until the cancellation window after that decision has passed.",
+  ],
 };
 
 // Pages that must link each guide (the audit's "lives on" list).
 const LINKED_FROM = {
   'kentucky-ohio-storm-claim-guide': ['docs/services/storm-damage.html', 'docs/services/hail-damage-insurance-claim.html', 'docs/storm-report.html', 'docs/storm-check.html', 'docs/blog/hail-season-prep-checklist.html', 'docs/free-tools/index.html'],
   'hail-photo-baseline-sheet': ['docs/blog/hail-season-prep-checklist.html', 'docs/services/storm-damage.html', 'docs/free-tools/index.html'],
+  'compare-roofing-quotes-checklist': ['docs/services/roof-replacement.html', 'docs/estimate.html', 'docs/blog/how-to-choose-a-roofer-after-a-storm.html', 'docs/free-tools/index.html'],
 };
 
 // Wording Rules: never said or implied anywhere in a homeowner guide.
