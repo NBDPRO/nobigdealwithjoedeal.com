@@ -504,9 +504,9 @@
   function open() {
     if (document.getElementById(MODAL_ID)) return;
     _ensureScopes();
-    _ensureLeadSearch();
     const wrap = _buildModal();
     document.body.appendChild(wrap);
+    _ensureLeadSearch();
     _selectedIndex = 0;
     if (_X()) { _X().onOpen(); _X().decorate(wrap); }
     _renderResults('');
