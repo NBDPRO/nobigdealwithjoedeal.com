@@ -565,6 +565,7 @@ jobs:
           npx firebase-tools emulators:exec --only firestore --project nbd-ddrafts-test 'node firestore-rules.doc-drafts.test.js'
           npx firebase-tools emulators:exec --only firestore --project nbd-commlog-test 'node communication-log-contract.test.js'
           npx firebase-tools emulators:exec --only firestore --project nbd-vcap-test 'node firestore-rules.visit-captures.test.js'
+          npx firebase-tools emulators:exec --only firestore --project nbd-doorlists-test 'node firestore-rules.d2d-doorlists.test.js'
           npx firebase-tools emulators:exec --only storage --project nbd-storage-test 'node storage-rules.test.js'
 
       # Rules deploy is idempotent. The CLI intermittently fails the FIRST

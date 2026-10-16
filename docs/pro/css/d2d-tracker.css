@@ -66,3 +66,17 @@
 .d2d-appt-section { margin-top: 12px; padding: 12px; background: var(--s2); border: 1px solid var(--br); border-radius: 8px; }
 .d2d-appt-section[hidden] { display: none; }
 .d2d-appt-input.d2d-appt-input { font-size: 16px; min-height: 44px; width: 100%; box-sizing: border-box; }
+/* Door lists (js/d2d-door-import.js, 2026-10-16): imported address CSVs as walkable routes. */
+.d2d-doorlists { margin-top: 16px; }
+.d2d-doorlist-help { margin: 4px 0 10px; font-size: 13px; color: var(--m); }
+.d2d-doorlist { margin: 10px 0; padding: 12px; background: var(--s2); border: 1px solid var(--br); border-radius: 8px; }
+.d2d-doorlist.is-on { border-color: var(--orange); }
+.d2d-doorlist-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 8px; }
+.d2d-doorlist-name { font-weight: 700; color: var(--t); overflow-wrap: anywhere; }
+.d2d-doorlist-stat { font-size: 12px; color: var(--m); font-variant-numeric: tabular-nums; }
+.d2d-doorlist .d2d-action-btn { min-height: 44px; }
+.d2d-doorlist-notes { margin: 8px 0; padding-left: 18px; font-size: 13px; color: var(--t); }
+.d2d-doorlist-age { font-size: 12px; color: var(--m); }
+.d2d-doorlist .d2d-route-stop { min-height: 44px; }
+.d2d-doorlist .d2d-route-stop.is-done { opacity: .6; }
+.d2d-doorlist .d2d-route-addr { min-width: 0; overflow-wrap: anywhere; }

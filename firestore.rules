@@ -2365,6 +2365,41 @@ service cloud.firestore {
       allow delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
     }
 
+    // ── D2D DOOR LISTS (2026-10-16) ───────────────────
+    // Imported address lists (js/d2d-door-import.js): an aging-roof list or any
+    // CSV of doors, shown as walkable routes in the D2D tracker. Addresses and
+    // roof-age estimates only — the importer never stores a person's name,
+    // phone or email (the keys below are the whole allowlist).
+    // Read: the importer, their company's owner / managers (same company), and
+    // the teammate it is assigned to (same company). Write: the importer only,
+    // never a viewer; companyId must be the importer's own tenant and is frozen.
+    // tests/firestore-rules.d2d-doorlists.test.js.
+    function doorListShapeOk(d) {
+      return d.keys().hasOnly(['userId', 'companyId', 'assignedTo', 'name', 'source', 'createdAt', 'rowCount', 'doors', 'notes'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 80
+        && (!('source' in d) || (d.source is string && d.source.size() <= 120))
+        && d.doors is list && d.doors.size() <= 1500
+        && (!('notes' in d) || (d.notes is list && d.notes.size() <= 40))
+        && (!('rowCount' in d) || (d.rowCount is int && d.rowCount >= 0 && d.rowCount <= 1500))
+        && (!('assignedTo' in d) || d.assignedTo == null || (d.assignedTo is string && d.assignedTo.size() <= 128));
+    }
+    match /d2d_doorlists/{listId} {
+      allow read: if isAdmin()
+        || isOwner(resource.data.userId)
+        || (isCompanyStaff() && sameCompanyAsResource())
+        || (isAuth() && resource.data.get('assignedTo', null) == request.auth.uid && sameCompanyAsResource());
+      allow create: if isAuth() && notViewer() && request.resource.data.userId == request.auth.uid
+        && request.resource.data.companyId is string
+        && (request.resource.data.companyId == myCompanyId()
+            || (request.auth.token.get('companyId', '') == ''
+                && ownsTenantByUid(request.resource.data.companyId)))
+        && doorListShapeOk(request.resource.data);
+      allow update: if isOwner(resource.data.userId) && notViewer()
+        && didNotChange(['userId', 'companyId'])
+        && doorListShapeOk(request.resource.data);
+      allow delete: if (isOwner(resource.data.userId) && notViewer()) || isAdmin();
+    }
+
     // ── PRODUCTS ──────────────────────────────────────
     // Read split from the writes 2026-09-25 so they can carry notViewer().
     match /products/{productId} {

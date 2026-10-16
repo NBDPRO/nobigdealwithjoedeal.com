@@ -1496,6 +1496,9 @@
           }).join('')}
         </div>
       `;
+      // Imported door lists (js/d2d-door-import.js, 2026-10-16): aging-roof lists
+      // and any address CSV, as walkable routes; each stop opens the knock sheet.
+      if (window.NBDDoorImport && typeof window.NBDDoorImport.html === 'function') html += window.NBDDoorImport.html();
     }
 
     // ─── GAMIFY TAB ───
