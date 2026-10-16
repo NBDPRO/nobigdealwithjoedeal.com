@@ -203,6 +203,17 @@ jobs:
           node scripts/build-llms.mjs --write \
             || echo "::warning::llms regeneration failed — deploying the committed llms files as-is"
 
+      # Site search (2026-10-16): Pagefind 1.5.2 (pinned) indexes exactly the
+      # public pages the sitemap regenerated above lists (never /pro, /admin,
+      # /sites, /tools, /dev or a noindex page) into docs/pagefind (gitignored),
+      # which /search loads. Soft-fail like the generators above: without it
+      # /search finds nothing; nothing else depends on it.
+      - name: Build the site search index (Pagefind)
+        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        run: |
+          node scripts/build-site-search.mjs --install && node scripts/build-site-search.mjs \
+            || echo "::warning::site search index failed — /search will not find anything until the next deploy"
+
       - name: Install Cloud Functions dependencies
         working-directory: functions
         run: |

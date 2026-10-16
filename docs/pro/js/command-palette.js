@@ -216,6 +216,30 @@
     s.onerror = () => { _scopesLoading = false; };
     document.head.appendChild(s);
   }
+  // Typo-tolerant lead search (2026-10-16): lead-search.js + MiniSearch load
+  // the first time the palette opens (never at boot) and index window._leads,
+  // the same array searched below. Until they arrive the classic match runs.
+  const LEAD_SEARCH_SRC = '/pro/js/lead-search.js?v=1';
+  let _leadSearchLoading = false;
+  function _ensureLeadSearch() {
+    if (_leadSearchLoading) return;
+    _leadSearchLoading = true;
+    const after = () => {
+      if (!window.NBDLeadSearch) { _leadSearchLoading = false; return; }
+      window.NBDLeadSearch.load().then((ok) => {
+        if (!ok) { _leadSearchLoading = false; return; }
+        const i = document.getElementById('nbd-cmd-input');
+        if (i && i.value) _renderResults(i.value);
+      });
+    };
+    if (window.NBDLeadSearch) { after(); return; }
+    const s = document.createElement('script');
+    s.src = LEAD_SEARCH_SRC;
+    s.async = true;
+    s.onload = after;
+    s.onerror = () => { _leadSearchLoading = false; };
+    document.head.appendChild(s);
+  }
   function _usageBoost(id) { const x = _X(); return x ? x.usageBoost(id) : 0; }
 
   // ─── Fuzzy match (simple) ───────────────────────────────────────
@@ -285,6 +309,13 @@
     // single digit doesn't light up the whole cache.
     const qDigits = q.replace(/\D/g, '');
     const qLower = q.toLowerCase();
+    // MiniSearch ranks (0 = best) when lead-search.js is loaded: prefix +
+    // fuzzy over name, address, claim, phone, email and notes.
+    const msRank = new Map();
+    try {
+      const hits = window.NBDLeadSearch && window.NBDLeadSearch.search(q, leads, 40);
+      if (hits) hits.forEach((h, i) => { if (!msRank.has(String(h.lead.id))) msRank.set(String(h.lead.id), i); });
+    } catch (_) { /* classic match only */ }
     const scored = [];
     for (const l of leads) {
       const name = ((l.firstName || '') + ' ' + (l.lastName || '')).trim();
@@ -303,6 +334,10 @@
         const email = String(l.email || '').toLowerCase();
         if (email && email.includes(qLower)) fuzzy = Math.max(fuzzy, 70);
       }
+      const ms = msRank.get(String(l.id));
+      // A typo-tolerant hit the classic match missed ("jordn" for Jordan) ranks
+      // under every exact match; one it also found gets a small nudge.
+      if (ms != null) fuzzy = fuzzy > 0 ? fuzzy + 5 : Math.max(10, 35 - ms);
       if (fuzzy <= 0) continue;
       // Boost: small additive nudge from the W135 score so two
       // equally-fuzzy-matching leads rank with the hotter one first.
@@ -469,6 +504,7 @@
   function open() {
     if (document.getElementById(MODAL_ID)) return;
     _ensureScopes();
+    _ensureLeadSearch();
     const wrap = _buildModal();
     document.body.appendChild(wrap);
     _selectedIndex = 0;
