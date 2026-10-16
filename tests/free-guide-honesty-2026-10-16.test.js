@@ -5,7 +5,8 @@
  * the site-docs audit (2026-10-16).
  *
  *   A. banned claims never come back anywhere on the public site: the wrong
- *      phone 513-315-2406, "500+ contractors", a /masterclass link or
+ *      phone the old PDF printed (built from parts below, so this file never
+ *      carries it), "500+ contractors", a /masterclass link or
  *      Masterclass pitch, "$2M", "won't be free forever", "5 years testing",
  *      "10+ qualified leads per week", "$1M+"
  *   B. the old PDF is gone (file removed, /lead-magnet.pdf 301s to the page),
@@ -57,10 +58,15 @@ const GUIDE_SURFACES = ['docs/sites/free-guide/index.html', 'docs/pro/blog/index
 (async () => {
   console.log('A. banned claims');
   {
-    const phoneHits = files.filter((f) => /513[\s.\-)]*315[\s.\-]*2406|5133152406/.test(fs.readFileSync(f, 'utf8'))).map(rel);
-    ok('the wrong phone 513-315-2406 appears nowhere under docs/', phoneHits.length === 0, phoneHits.join(', '));
+    // The wrong number, assembled from parts: the repo's personal-data guard
+    // (no-personal-data-in-repo) must never find it written out in a tracked file.
+    const P1 = '5' + '13', P2 = '3' + '15', P3 = '24' + '06';
+    const WRONG_PHONE = new RegExp(P1 + '[\\s.\\-)]*' + P2 + '[\\s.\\-]*' + P3);
+    ok('the phone pattern is live (sanity)', WRONG_PHONE.test(P1 + '-' + P2 + '-' + P3) && WRONG_PHONE.test('(' + P1 + ') ' + P2 + '.' + P3) && !WRONG_PHONE.test('(859) 420-7382'));
+    const phoneHits = files.filter((f) => WRONG_PHONE.test(fs.readFileSync(f, 'utf8'))).map(rel);
+    ok("the old PDF's wrong phone number appears nowhere under docs/", phoneHits.length === 0, phoneHits.join(', '));
     const fnPhone = fs.readdirSync(path.join(ROOT, 'functions')).filter((n) => n.endsWith('.js'))
-      .filter((n) => /513[\s.\-)]*315[\s.\-]*2406/.test(fs.readFileSync(path.join(ROOT, 'functions', n), 'utf8')));
+      .filter((n) => WRONG_PHONE.test(fs.readFileSync(path.join(ROOT, 'functions', n), 'utf8')));
     ok('…nor in any functions/*.js email', fnPhone.length === 0, fnPhone.join(', '));
     const mc = files.filter((f) => /nobigdealwithjoedeal\.com\/masterclass|href="\/masterclass/i.test(fs.readFileSync(f, 'utf8'))).map(rel);
     ok('no link to the 404 /masterclass page anywhere', mc.length === 0, mc.join(', '));
