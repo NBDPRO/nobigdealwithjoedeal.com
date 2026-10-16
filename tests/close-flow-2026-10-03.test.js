@@ -16,8 +16,9 @@
  *      tierWarrantyText; no deal-wide badge.
  *   C. Financing (Reg Z). The deal page printed "~$X/mo" at 7.99% / 60 mo and
  *      offered 0–11.99% plans; the public estimator uses Acorn's 11.49–19.99%
- *      band. Both now read /assets/js/financing-band.js and print the SAME
- *      low–high range (parity checked on the real estimator code).
+ *      band. Both read /assets/js/financing-band.js. Since 2026-10-16 the
+ *      public pages print no monthly payment at all (a payment in an ad needs
+ *      the APR beside it); the deal page's range is checked against the band.
  *   D. "Create Deal Room" lost the estimate (never called save()). The one
  *      "Send to homeowner" flow saves (stamps the lead), creates the deal,
  *      mints the link, then opens the share sheet — in that order — and stays
@@ -381,29 +382,23 @@ section('B. Warranty — each tier its own; Economy is 1-year labor, no lifetime
   ok('tier prices unchanged on the page', /\$9,000\.00/.test(html) && /\$17,000\.00/.test(html));
 });
 
-section('C. Financing — one shared band, public estimator and deal page agree', () => {
-  // Real public estimator code, fake DOM.
+section('C. Financing — one shared band; the deal page prints its range', () => {
+  // The band's own math (the public estimator that used to print it was
+  // removed 2026-10-16: public pages show no monthly payment).
   function publicRange(amount, years) {
-    const els = {};
-    ['fe-amount', 'fe-term-group', 'fe-amt', 'fe-lo', 'fe-hi'].forEach((i) => { els[i] = { textContent: '', value: String(amount), addEventListener() {}, querySelectorAll: () => [] }; });
-    const win = {};
-    const c = { window: win, document: { getElementById: (i) => els[i] || null }, Math };
-    vm.createContext(c);
-    vm.runInContext(read('docs/assets/js/financing-band.js'), c);
-    vm.runInContext(read('docs/assets/js/financing-estimator.js'), c);
-    return els['fe-lo'].textContent + '–' + els['fe-hi'].textContent;
+    const r = BAND.range(amount, years * 12);
+    return BAND.fmtWhole(r.lo) + '–' + BAND.fmtWhole(r.hi);
   }
   const { CB } = loadCB(true, true);
   const html = CB.generatePageHTML(DEAL5);
   for (const [t, p] of [['economy', 9000], ['better', 13000], ['beyond', 17000]]) {
     const pub = publicRange(p, BAND.defaultTermYears);
     const m = /Estimated payment: (\$[\d,]+–\$[\d,]+)\/mo/.exec(tierBlock(html, t));
-    ok(t + ' $' + p + ': deal page range = public estimator range (' + pub + ')', m && m[1] === pub, m && m[1]);
+    ok(t + ' $' + p + ': deal page range = the shared band (' + pub + ')', m && m[1] === pub, m && m[1]);
   }
-  ok('the public estimator reads the shared band (no own APR constants)', !/0\.1149|0\.1999/.test(read('docs/assets/js/financing-estimator.js')));
   const fin = read('docs/services/financing.html');
-  ok('financing.html loads financing-band.js before financing-estimator.js',
-    fin.indexOf('/assets/js/financing-band.js') !== -1 && fin.indexOf('/assets/js/financing-band.js') < fin.indexOf('/assets/js/financing-estimator.js'));
+  ok('the public financing page loads no payment estimator (removed 2026-10-16)',
+    !fs.existsSync(path.join(ROOT, 'docs/assets/js/financing-estimator.js')) && fin.indexOf('financing-estimator.js') === -1);
   ok('no 7.99% / 5.99% / same-as-cash plans on the deal page', !/(^|[^\d.])(7\.99|5\.99|9\.99|11\.99)%|Same-as-Cash/.test(html));
   ok('disclaimer: "Estimate only. Subject to credit approval. Rates and terms vary."', html.indexOf('Estimate only. Subject to credit approval. Rates and terms vary.') !== -1);
   ok('the site\'s Acorn pre-qualification link', html.indexOf('https://www.acornfinance.com/pre-qualify/?d=QU6WZ') !== -1);

@@ -20,7 +20,7 @@
       document.removeEventListener(t, load, true);
     });
     var s = document.createElement('script');
-    s.src = '/assets/js/inline/4053149b2f.js?v=5';
+    s.src = '/assets/js/inline/4053149b2f.js?v=6';
     document.body.appendChild(s);
   }
   ['pointerdown', 'focusin', 'keydown', 'touchstart'].forEach(function (t) {

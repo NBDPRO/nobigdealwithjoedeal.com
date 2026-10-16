@@ -157,27 +157,16 @@ function roundTo25(n) {
   return Math.round(n / 25) * 25;
 }
 
-/* ── Monthly-payment framing on the results card ──
- * Same published Acorn marketplace APR band and amortization formula as
- * /services/financing (financing-estimator.js) so both surfaces always show
- * identical numbers. Illustration only — the on-page small print carries the
- * not-an-offer disclosure. Hidden for storm claims (the range shown there is
- * a deductible, which keeps its own framing) and for sub-$3k projects
- * (financing-page FAQ: financing generally fits $3,000+). */
-const FIN_APR_LO = 0.1149, FIN_APR_HI = 0.1999, FIN_TERM_MONTHS = 120, FIN_MIN_PROJECT = 3000;
-function finPay(P, apr, n) { const r = apr / 12; return P * r / (1 - Math.pow(1 + r, -n)); }
-function renderMonthlyLine(min, max) {
-  const wrap = document.getElementById('resultMonthly');
+/* ── Financing link on the results card ──
+ * No monthly payment is printed (2026-10-16: a payment amount in an ad needs
+ * the APR beside it under Reg Z; the lender sets rate, term and payment).
+ * The link to /services/financing shows for projects of $3,000 and up and
+ * stays hidden for storm claims (the range there is a deductible). */
+const FIN_MIN_PROJECT = 3000;
+function renderFinancingLink(min) {
+  const wrap = document.getElementById('resultFinancing');
   if (!wrap) return;
-  if (funnelData.service === 'storm-damage' || !min || min < FIN_MIN_PROJECT) {
-    wrap.hidden = true;
-    return;
-  }
-  const lo = Math.round(finPay(min, FIN_APR_LO, FIN_TERM_MONTHS));
-  const hi = Math.round(finPay(max, FIN_APR_HI, FIN_TERM_MONTHS));
-  document.getElementById('resultMonthlyFigs').textContent =
-    '$' + lo.toLocaleString('en-US') + ' – $' + hi.toLocaleString('en-US');
-  wrap.hidden = false;
+  wrap.hidden = funnelData.service === 'storm-damage' || !min || min < FIN_MIN_PROJECT;
 }
 
 /* ── Progress Bar ── */
@@ -1306,7 +1295,7 @@ async function submitAndGetEstimate() {
       ' or better shingle; never describe the Good/Standard tier as "3-tab" or "economy":\n' +
       '- Good (Standard, architectural):        $' + matPricing.good[0]   + '-$' + matPricing.good[1]   + '/square\n' +
       '- Better (Preferred, architectural):     $' + matPricing.better[0] + '-$' + matPricing.better[1] + '/square\n' +
-      '- Best (Elite, lifetime designer):       $' + matPricing.best[0]   + '-$' + matPricing.best[1]   + '/square\n' +
+      '- Best (Elite, architectural):           $' + matPricing.best[0]   + '-$' + matPricing.best[1]   + '/square\n' +
       'These per-square ranges already include pitch-based waste — do not add more.\n\n' +
       'Return JSON with:\n' +
       '1. roofSqft: estimated roof area in sq ft\n' +
@@ -1536,7 +1525,7 @@ function showResults(est) {
       ? STORM_PRICE_HTML
       : '$' + est.range.min.toLocaleString() + ' <span>&#8211; $' + est.range.max.toLocaleString() + '</span>';
     document.getElementById('detailTier').textContent = est.serviceLabel || '—';
-    renderMonthlyLine(est.range.min, est.range.max);
+    renderFinancingLink(est.range.min);
   } else {
     // Default to "better" tier
     switchTier('better');
@@ -1600,7 +1589,7 @@ function showResults(est) {
 // architectural-or-better shingle. Customer-facing names now match the
 // site's own Standard/Preferred/Elite branding (the-nbd-guarantee) instead
 // of the internal good/better/best jargon this tool previously leaked.
-var TIER_LABELS = { good: 'Standard (Architectural)', better: 'Preferred (Architectural)', best: 'Elite (Lifetime Designer)' };
+var TIER_LABELS = { good: 'Standard (Architectural)', better: 'Preferred (Architectural)', best: 'Elite (Architectural)' };
 
 function switchTier(tier) {
   var est = funnelData.estimate;
@@ -1609,7 +1598,7 @@ function switchTier(tier) {
   var t = est.tiers[tier];
   document.getElementById('resultPrice').innerHTML = '$' + t.min.toLocaleString() + ' <span>&#8211; $' + t.max.toLocaleString() + '</span>';
   document.getElementById('detailTier').textContent = TIER_LABELS[tier] || tier;
-  renderMonthlyLine(t.min, t.max);
+  renderFinancingLink(t.min);
 
   document.querySelectorAll('.tier-tab').forEach(function(btn) {
     if (btn.getAttribute('data-tier') === tier) {
