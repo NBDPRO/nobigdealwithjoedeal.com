@@ -8,9 +8,10 @@ url: https://nobigdealwithjoedeal.com/guides/hail-photo-baseline-sheet
 pdf_url: https://nobigdealwithjoedeal.com/guides/pdf/hail-photo-baseline-sheet.pdf
 audience: Homeowners in Greater Cincinnati and Northern Kentucky, before hail season.
 author: Joe Deal
-description: A one-page pre-storm photo checklist for homeowners: what to photograph before hail season and where to keep it, with date boxes to fill in.
+description: "A one-page pre-storm photo checklist for homeowners: what to photograph before hail season and where to keep it, with date boxes to fill in."
 keywords: [hail, photo checklist, storm season, roof, homeowners]
 date: 2026-10-16
+compact: true
 compliance:
   - Ground-level only; never tells a homeowner to climb a ladder or get on the roof.
   - No insurance-outcome promises. "Whether insurance covers it depends on your policy and the damage."
