@@ -26,8 +26,9 @@
  *   underpaid / underpay / "harder to underpay", undervalued, "getting them corrected",
  *   "recoverable" (except "recoverable depreciation", a policy term),
  *   "denied claims", "fully paid claim", "supplement the claim".
- * Ohio pages are not scanned for these: there "I send a supplement (my
- * updated estimate)" is allowed and the Ohio copy is reviewed on its own.
+ * Ohio pages are not scanned for these; tests/oh-claims-wording-scan.test.js
+ * covers them (since 2026-10-16 Ohio uses the same "I write a supplement for
+ * you to send your insurer" model, ORC 3951.01(B)).
  * KY pages are picked by FILE NAME, not content: every page carries the shared
  * schema block naming Kentucky towns, so a content test would pull in every
  * Ohio page. Each KY page's JSON-LD must also parse, and each FAQPage answer

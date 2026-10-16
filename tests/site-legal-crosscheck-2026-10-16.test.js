@@ -55,6 +55,14 @@ console.log('\n3. KRS 367.628(1)(a)1: the homeowner sends the supplement');
 const llms = read('docs/llms.txt');
 ok('llms.txt: no "submits a supplement"', !/submits? (a|the) supplement/i.test(llms));
 ok('llms.txt: the supplement is for the homeowner to send', /supplement \(his updated estimate for his own work\) for the homeowner to send to their insurer/.test(llms));
+console.log('\n4. Credentials: GAF Certified #1162011, no stale "application in progress" line');
+{
+  const walk = (d, out) => { for (const e of fs.readdirSync(path.join(ROOT, d), { withFileTypes: true })) {
+    const p = d + '/' + e.name; if (e.isDirectory()) { if (p !== 'docs/pro' && !/vendor/.test(p)) walk(p, out); } else if (/\.html$/.test(e.name)) out.push(p); } return out; };
+  const stale = walk('docs', []).filter((p) => /application in progress|certification (is )?pending|GAF (certification )?(pending|in progress)/i.test(read(p)));
+  ok('no public page says a credential is "in progress" / "pending"', stale.length === 0, stale.join(', '));
+  ok('field-notes footer names the GAF certification', /GAF Certified Contractor #1162011/.test(read('docs/blog/field-notes-joes-notebook-goes-public.html')));
+}
 ok('storm-check.js: no "files the claim" note left to copy', !/files the claim/i.test(read('docs/assets/js/storm-check.js')));
 
 console.log('\n' + (fail ? 'FAILED' : 'OK') + ' -- ' + pass + ' passed, ' + fail + ' failed');
