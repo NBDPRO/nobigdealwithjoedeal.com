@@ -82,7 +82,7 @@ html[data-layout="crew"] .cw-lane-name {
 }
 html[data-layout="crew"] .cw-lane-name b { font-size: 15px; }
 html[data-layout="crew"] .cw-lane-name small { color: var(--m); font-size: 12px; }
-html[data-layout="crew"] .cw-lane-name .cw-cert { color: var(--red, #e5484d); font-weight: 700; }
+html[data-layout="crew"] .cw-lane-name .cw-cert { color: var(--ui-danger-text, var(--red, #e5484d)); font-weight: 700; }
 html[data-layout="crew"] .cw-track { position: relative; min-height: calc(var(--tap) + 12px); }
 html[data-layout="crew"] .cw-cells { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, 1fr); }
 html[data-layout="crew"] .cw-cell { border-left: 1px solid var(--rule); }
@@ -199,7 +199,7 @@ html[data-layout="crew"] .cw-form select, html[data-layout="crew"] .cw-form inpu
   min-height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--rule); background: var(--s2); color: var(--t); font: inherit; font-size: 15px;
 }
 html[data-layout="crew"] .cw-form label:first-child { grid-column: 1 / -1; }
-html[data-layout="crew"] .cw-msg { min-height: 18px; color: var(--red, #e5484d); font-size: 13px; margin: 6px 0 0; }
+html[data-layout="crew"] .cw-msg { min-height: 18px; color: var(--ui-danger-text, var(--red, #e5484d)); font-size: 13px; margin: 6px 0 0; }
 html[data-layout="crew"] .cw-d-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 html[data-layout="crew"] .cw-btn {
   min-height: var(--tap); padding: 0 16px; display: inline-flex; align-items: center; border-radius: 12px; border: 1px solid var(--rule);

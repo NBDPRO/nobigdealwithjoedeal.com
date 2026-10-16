@@ -237,6 +237,18 @@ function pageHelpers() {
         return { compact: !!(slot && slot.querySelector('.cwk-compact')), gridTop: sc ? Math.round(sc.getBoundingClientRect().top) : 9999, order: t ? getComputedStyle(t).order : null };
       });
       ok('D4 Crew (laptop): the week grid starts near the top (< 260 px), not at the bottom of the screen', crewL.compact && crewL.gridTop < 260, JSON.stringify(crewL));
+      // "Certificate expired" (2026-10-16, --ui-danger-text): measured on a real lane. The sample
+      // account may have no lapsed sub, so a lane without one gets the exact markup crew.js writes.
+      const certC = await lp.evaluate(() => {
+        let el = [...document.querySelectorAll('.cw-lane-name .cw-cert')].find((e) => window.__lx.visible(e));
+        let added = null;
+        const lane = document.querySelector('.cw-lane-name');
+        if (!el && lane) { added = document.createElement('small'); added.className = 'cw-cert'; added.textContent = 'Certificate expired'; lane.appendChild(added); el = added; }
+        const c = el && window.__lx.visible(el) ? Math.round(window.__lx.contrast(el) * 100) / 100 : 0;
+        if (added) added.remove();
+        return c;
+      });
+      ok('Crew: red "Certificate expired" text clears 4.5:1 against its lane', certC >= 4.5, String(certC));
       await lp.locator('[data-cwk-slot="crew"] .cwk-sum').click();
       const crewOpen = await lp.evaluate(() => {
         const hdr = document.querySelector('[data-cwk-slot="crew"] .cwk-hdr'), title = document.querySelector('[data-cwk-slot="crew"] .cwk-title'), aside = document.querySelector('[data-cwk-slot="crew"] .cwk-aside');

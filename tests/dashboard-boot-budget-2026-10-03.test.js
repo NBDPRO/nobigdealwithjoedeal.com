@@ -161,6 +161,11 @@ CEILING.localBytes += 6 * 1024;
 // kicking the bundles (+~0.6 KB) and the Settings goal panel's markup lives in dashboard.html (html, not
 // scripts). Main sat at 4842 of 4842 KB with the Next stop card; this PR measures 4843.
 CEILING.localBytes += 2 * 1024;
+// +3 KB, deliberate (2026-10-16, Revenue tile goal = the Cash card's rule): no new script, no new tag. widgets.js
+// (deferred, already on the page) drops the assumed $50k goal and gains the "Set a goal" link to Settings >
+// Profile plus the nbd:monthly-goal repaint (+~2.2 KB). Main sat at 4851 of 4851 KB; this PR measures 4853,
+// so the ceiling keeps ~1 KB of slack.
+CEILING.localBytes += 3 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
