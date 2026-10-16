@@ -187,8 +187,8 @@ const stop = (key, minFromNow, extra) => Object.assign({ key, sortMs: NOW + minF
     const sl = read('docs/pro/js/script-loader.js');
     const dash = read('docs/pro/dashboard.html');
     const th = read('docs/pro/js/today-home.js');
-    ok('lazy bundle "nextstop" (css + routeplan + card, each ?v=), no boot <script> tag',
-      /nextstop: \[\s*'css\/next-stop\.css\?v=\d+',\s*'js\/layouts\/routeplan\.js\?v=\d+',\s*'js\/next-stop\.js\?v=\d+'\s*\]/.test(sl) && !/<script[^>]*next-stop/.test(dash));
+    ok('lazy bundle "nextstop" (css + routeplan + route-drive + card, each ?v=), no boot <script> tag',
+      /nextstop: \[\s*'css\/next-stop\.css\?v=\d+',\s*'js\/layouts\/routeplan\.js\?v=\d+',\s*(\/\/[^\n]*\n\s*)?'js\/route-drive\.js\?v=\d+',\s*'js\/next-stop\.js\?v=\d+'\s*\]/.test(sl) && !/<script[^>]*next-stop/.test(dash));
     ok('today-home.js kicks it at Home boot', /loadBundle\('nextstop'\)/.test(th));
     ok('#homeNextStop sits above the Needs-you strip and Today', dash.indexOf('id="homeNextStop"') > 0 && dash.indexOf('id="homeNextStop"') < dash.indexOf('id="homeAttention"') && dash.indexOf('id="homeAttention"') < dash.indexOf('id="todayPlan"'));
     ok('today-home exposes the raw rows and the failure flag', /appointmentRows: function/.test(th) && /appointmentsFailed: function/.test(th));

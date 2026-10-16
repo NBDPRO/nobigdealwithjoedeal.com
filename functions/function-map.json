@@ -231,6 +231,7 @@
   "revokeMySessions": "./handlers/auth",
   "revokePortalToken": "./portal",
   "rotateAccessCodes": "./handlers/admin",
+  "routeDrive": "./route-drive",
   "runAbandonRecovery": "./funnel-recovery",
   "runMigrations": "./migrations/runner",
   "saveAgentBot": "./agent-mcp",

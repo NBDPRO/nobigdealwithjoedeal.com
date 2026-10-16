@@ -19,8 +19,11 @@
  * appointment read (it reaches into tomorrow) through the same rule
  * (NBDTodayPlan.collectTodayItems for tomorrow's date).
  *
- * Drive time is routeplan.js's estimate (straight-line miles x 1.3 at 28 mph),
- * from where the phone is. Location is asked for ONLY when the rep taps "Drive
+ * Drive time is the real road time from where the phone is (2026-10-16:
+ * NBDRouteDrive -> routeDrive -> the private OSRM service), "Calculating
+ * drive time…" while it is asked; on a timeout, offline or outside the routed
+ * area it falls back to routeplan.js's estimate (straight-line miles x 1.3 at
+ * 28 mph), labelled "(est.)". Location is asked for ONLY when the rep taps "Drive
  * time" (or silently used when the browser already has permission); without
  * it the card says "Tap for drive time".
  *
@@ -44,6 +47,7 @@
   var fix = null;                      // { lat, lng, at }
   var geo = 'idle';                    // idle | asking | ok | denied | unavailable
   var omw = null;                      // { key, text, href } | { key, error } | { key, busy }
+  var real = {};                       // route key -> { status: 'pending' | 'ok' | 'fail', min, mi }
 
   function RP() { return w.NBDRoutePlan || null; }
   function esc(s) {
@@ -133,7 +137,24 @@
     if (!pt) return { none: true };
     if (!fix || Date.now() - fix.at > FIX_TTL_MS) return { need: true };
     var mi = R.distMi(fix, pt);
-    return { min: R.driveMin(mi), roadMi: R.roadMi(mi) };
+    var est = { min: R.driveMin(mi), roadMi: R.roadMi(mi), est: true };
+    var r = realDrive(fix, pt);
+    if (r && r.status === 'ok') return { min: r.min, roadMi: r.mi, est: false };
+    if (r && r.status === 'pending') { est.pending = true; return est; }
+    return est;
+  }
+  // Real road time (route-drive.js). Asked once per (fix, stop) pair, ~100 m apart.
+  function realDrive(from, to) {
+    var RD = w.NBDRouteDrive;
+    if (!RD || typeof RD.get !== 'function') return null;
+    var key = from.lat.toFixed(3) + ',' + from.lng.toFixed(3) + '>' + to.lat.toFixed(4) + ',' + to.lng.toFixed(4);
+    if (real[key]) return real[key];
+    real[key] = { status: 'pending' };
+    RD.get([{ lat: from.lat, lng: from.lng }, { lat: to.lat, lng: to.lng }]).then(function (r) {
+      real[key] = r && r.ok && r.legs && r.legs[0] ? { status: 'ok', min: r.legs[0].min, mi: r.legs[0].mi } : { status: 'fail' };
+      schedule();
+    }, function () { real[key] = { status: 'fail' }; schedule(); });
+    return real[key];
   }
   function askLocation(prompted) {
     if (geo === 'asking') return;
@@ -172,7 +193,8 @@
       if (geo === 'unavailable') return '<button type="button" class="ns-drive-btn" data-ns="drive">No fix yet. Tap to try again</button>';
       return '<button type="button" class="ns-drive-btn" data-ns="drive">Tap for drive time</button>';
     }
-    return '<span class="ns-drive">About ' + d.min + ' min drive · ' + d.roadMi + ' mi (est.)</span>';
+    if (d.pending) return '<span class="ns-drive" role="status">Calculating drive time…</span>';
+    return '<span class="ns-drive">About ' + d.min + ' min drive · ' + d.roadMi + ' mi' + (d.est ? ' (est.)' : '') + '</span>';
   }
   function navHref(addr) {
     var R = RP();

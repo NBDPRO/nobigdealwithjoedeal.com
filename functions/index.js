@@ -1108,3 +1108,6 @@ exports.tenantLogo = tenantOps.tenantLogo;
 const proProspects = require('./pro-prospects');
 exports.onGuideLeadCreated = proProspects.onGuideLeadCreated;
 exports.adminListProProspects = proProspects.adminListProProspects;
+// Real drive times (2026-10-16): routeDrive answers the Next stop card and
+// Mission Control's day route from the private OSRM service (routing/osrm).
+exports.routeDrive = require('./route-drive').routeDrive;
