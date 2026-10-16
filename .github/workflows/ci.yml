@@ -555,6 +555,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-doorlists-test 'node firestore-rules.d2d-doorlists.test.js'
+      # Canvasser mode (2026-10-16): canvassers + canvass_checks, and a rep's own-data isolation.
+      - name: Run canvasser rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-canvass-test 'node firestore-rules.canvassers.test.js'
       - name: Run Storage rules tests under emulator
         run: |
           cd tests

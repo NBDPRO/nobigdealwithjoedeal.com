@@ -490,6 +490,14 @@
     // What closes this week (2026-10-15): the Home card in every layout. Kicked
     // by today-home.js at Home boot like 'away' (no boot <script> tag).
     // closes-week-logic.js is byte-identical to functions/closes-week-logic.js.
+    // Canvasser mode (2026-10-16): the rep's pre-knock checklist and Door-to-Door-only
+    // menu, and the owner's Canvassers panel (Settings → Team). Kicked by
+    // dashboard-bootstrap.module.js once the claims are known (no boot <script> tag).
+    canvasser: [
+      'css/canvasser.css?v=1',
+      'js/canvasser-logic.js?v=1',
+      'js/canvasser-ui.js?v=1'
+    ],
     closesweek: [
       'css/closes-week.css?v=2',
       'js/closes-week-logic.js?v=1',

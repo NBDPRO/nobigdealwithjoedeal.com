@@ -83,6 +83,13 @@ const FLAT_USER_COLLECTIONS = [
   { name: 'dailyTracker' },
   { name: 'knocks' },
   { name: 'territories' },
+  // D2D door lists (2026-10-16, js/d2d-door-import.js): imported address lists
+  // (addresses + roof-age estimates, no people). Owner-keyed on userId.
+  { name: 'd2d_doorlists' },
+  // Canvasser mode (2026-10-16, js/canvasser-ui.js): the rep's pre-knock
+  // checklists (userId) and the owner's canvasser record naming the rep (uid).
+  { name: 'canvass_checks' },
+  { name: 'canvassers', ownerField: 'uid' },
   { name: 'products' },
   { name: 'templates' },
   // Close Board deal rooms (close-board.js syncDealToFirestore). Owner-keyed
