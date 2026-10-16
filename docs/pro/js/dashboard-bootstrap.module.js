@@ -1877,6 +1877,9 @@
     try {
       const tokenResult = await user.getIdTokenResult();
       window._userClaims = tokenResult.claims || {};
+      // Canvasser mode (2026-10-16): lazy bundle for reps / owners / managers (canvasser-ui.js).
+      { const _cvRole = window._userClaims.role || '';
+        if ((['sales_rep', 'company_admin', 'manager', 'admin'].includes(_cvRole) || (!_cvRole && (!window._userClaims.companyId || window._userClaims.companyId === user.uid))) && window.ScriptLoader) { try { window.ScriptLoader.loadBundle('canvasser'); } catch (_) {} } }
       // Invite-check flags are keyed PER UID and cleared on sign-out. The old
       // device-global 'nbd_invite_checked' bricked invite claiming in three
       // ordinary scenarios (gauntlet blocker #1): rep signed up before the
