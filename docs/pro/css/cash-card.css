@@ -1,0 +1,45 @@
+/* cash-card.css — the "Cash collected" card (js/cash-card.js, 2026-10-15).
+   Same card shell as "What closes this week"; it renders in the
+   [data-cash-slot] of Field, Crew, Focus, Inbox and Mission. .cc-compact is
+   the one-line strip. Plus the goal row in Settings > Profile. */
+.cc-card{margin:0 0 var(--ui-space-5, 20px);padding:var(--ui-space-4, 16px) var(--ui-space-5, 20px);background:var(--s2);border:1px solid var(--ui-line-hair, rgba(127,127,127,.2));border-radius:max(var(--r-card, 8px), var(--ui-radius-lg, 12px));box-shadow:var(--elevation-card, var(--ui-elev-1, none));color:var(--t);}
+.cc-hdr{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;margin-bottom:8px;}
+.cc-title{margin:0;font-family:var(--ui-font-display, inherit);font-size:var(--ui-fs-title, 18px);font-weight:var(--ui-fw-heavy, 800);color:var(--t);}
+.cc-aside{font-size:var(--ui-fs-caption, 12px);color:var(--m);font-variant-numeric:tabular-nums;}
+.cc-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.cc-ring{flex:none;}
+.cc-ring-bg{stroke:var(--s3, rgba(127,127,127,.25));}
+.cc-ring-on{stroke:var(--green, #16a34a);}
+.cc-fig{display:flex;flex-direction:column;min-width:0;}
+.cc-num{font-family:var(--ui-font-display, inherit);font-size:24px;font-weight:var(--ui-fw-heavy, 800);line-height:1.1;font-variant-numeric:tabular-nums;color:var(--t);}
+.cc-lbl{font-size:var(--ui-fs-caption, 12px);color:var(--m);}
+.cc-open{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;margin-top:12px;padding-top:10px;border-top:1px solid var(--ui-line-hair, rgba(127,127,127,.2));}
+.cc-open-txt{font-size:var(--ui-fs-body-sm, 13px);font-weight:var(--ui-fw-bold, 700);color:var(--t);font-variant-numeric:tabular-nums;}
+.cc-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding:0 16px;border-radius:var(--r-card, 8px);border:1px solid var(--br, rgba(127,127,127,.35));background:var(--s3, var(--s2));color:var(--t);font:inherit;font-size:var(--ui-fs-body-sm, 14px);font-weight:var(--ui-fw-bold, 700);text-decoration:none;cursor:pointer;white-space:nowrap;}
+.cc-btn-primary{background:var(--orange);border-color:var(--orange);color:var(--accent-fg, #fff);}
+.cc-btn:focus-visible{outline:2px solid var(--t);outline-offset:2px;}
+.cc-note,.cc-fine{margin:6px 0 0;font-size:var(--ui-fs-caption, 12px);color:var(--m);line-height:1.45;}
+.cc-warn{color:var(--t);}
+.cc-warn::before{content:"! ";font-weight:800;color:var(--red, #dc2626);}
+[data-cash-slot]{display:block;}
+[data-cash-slot]:empty{display:none;}
+/* the strip */
+.cc-compact{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:0 0 var(--ui-space-3, 12px);padding:10px 14px;}
+.cc-compact .cc-hdr{margin:0;}
+.cc-compact .cc-title{font-size:var(--ui-fs-body, 15px);}
+.cc-compact .cc-row{gap:12px;}
+.cc-compact .cc-ring{width:36px;height:36px;}
+.cc-compact .cc-num{font-size:18px;}
+.cc-compact .cc-open{margin:0;padding:0;border:0;flex:1 1 220px;}
+@media (max-width:480px){
+  .cc-card{padding:14px 16px;}
+  .cc-open .cc-btn{flex:1 1 auto;}
+}
+/* Settings > Profile: the goal row */
+.cc-goal-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;}
+.cc-goal-lbl{flex-basis:100%;font-size:var(--ui-fs-body-sm, 13px);font-weight:var(--ui-fw-bold, 700);color:var(--t);}
+.cc-goal-in{flex:1 1 160px;max-width:220px;min-height:44px;padding:0 12px;font:inherit;color:var(--t);}
+.cc-goal-btn{min-height:44px;}
+/* where a layout places it */
+html[data-layout="mission"] .mc-cash{flex:none;padding:8px 10px 0;}
+html[data-layout="mission"] .mc-cash .cc-card{margin:0;}
