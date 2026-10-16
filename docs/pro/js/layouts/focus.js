@@ -246,7 +246,7 @@
       '<div class="fo-draft"><div class="fo-draft-k">Drafted text &middot; opens in your messages, you press Send</div><p>' + esc(draft) + '</p></div>' +
       '<div class="fo-actions">' +
       (tel ? '<a class="fo-act fo-act-primary" data-fo-call href="' + esc(tel) + '"><span>Call</span><kbd>C</kbd></a>' : '<button type="button" class="fo-act" disabled><span>No phone</span></button>') +
-      (sms ? '<a class="fo-act" data-fo-text href="' + esc(sms) + '"><span>Text</span><kbd>T</kbd></a>' : '<button type="button" class="fo-act" disabled><span>Text</span></button>') +
+      (sms ? '<a class="fo-act" data-fo-text data-ps-check="1" data-ps-lead="' + esc(it.id) + '" href="' + esc(sms) + '"><span>Text</span><kbd>T</kbd></a>' : '<button type="button" class="fo-act" disabled><span>Text</span></button>') +
       '<button type="button" class="fo-act" data-fo="snooze"' + (it.id ? '' : ' disabled') + '><span>Snooze</span><kbd>S</kbd></button>' +
       '<button type="button" class="fo-act" data-fo="done"><span>' + esc(doneLbl) + '</span><kbd>D</kbd></button>' +
       '</div>' +
@@ -272,8 +272,8 @@
     var q = queue();
     var html = S.screen === 'focus' ? renderFocus(q) : S.screen === 'wrap' ? renderWrap(q) : renderToday(q);
     rootEl.setAttribute('data-screen', S.screen);
-    // "What closes this week" (js/closes-week.js, 2026-10-15) fills [data-cw-slot].
-    rootEl.innerHTML = '<div class="fo-wrap">' + html + (S.screen === 'today' ? '<div data-cw-slot="focus"></div>' : '') + '</div>';
+    // "What closes this week" (js/closes-week.js, 2026-10-15) fills [data-cwk-slot].
+    rootEl.innerHTML = '<div class="fo-wrap">' + html + (S.screen === 'today' ? '<div data-cwk-slot="focus"></div>' : '') + '</div>';
     K.setOverlay(rootEl, homeActive());
   }
   function activeView() { var v = doc.querySelector('.view.active'); return v && v.id ? v.id.replace(/^view-/, '') : ''; }

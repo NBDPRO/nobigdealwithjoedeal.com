@@ -39,6 +39,8 @@
  *                                  minted) so the share sheet keeps the tap
  *   NBDPhoneShare.checkText(opts)  → { ok, reason?, code? } — never throws
  *   NBDPhoneShare.reportStop(opts) "They replied STOP" ({ leadId, logId?, phone? })
+ *   <a href="sms:…" data-ps-check data-ps-lead="id">  a plain text-draft link
+ *                                  held until checkText says yes (see the end)
  *
  * Pure helpers (smsHref, mailtoHref, withLink) are exported for tests.
  */
@@ -207,7 +209,41 @@
     return yes ? done({ shared: true, via }) : { shared: false, via: null, cancelled: true };
   }
 
-  const api = { share, checkText, precheck, reportStop, smsHref, mailtoHref, withLink, digits };
+  // ── <a href="sms:…" data-ps-check> (CRM layouts audit D16, 2026-10-15) ──
+  // A pre-written text that is a plain link (the "What closes this week" card,
+  // the layouts' Text buttons: kit.js ActionBar, Focus) is held on the tap:
+  // the same checkText as every other text button, then Messages opens only on
+  // a yes. A "no", or a check that could not run, shows the reason and nothing
+  // opens. data-ps-lead names the customer (a homeowner text needs it). One
+  // capture-phase listener on the document, so a layout repainting its links
+  // needs no wiring. Touch/mouse down starts the check early so the tap stays
+  // inside the gesture.
+  function _smsLinkPhone(href) { return digits(String(href || '').replace(/^sms:/i, '').split('?')[0]); }
+  function _checkedLink(ev) {
+    const t = ev && ev.target;
+    const a = t && t.closest ? t.closest('a[data-ps-check]') : null;
+    const href = a ? String(a.getAttribute('href') || '') : '';
+    return /^sms:/i.test(href) ? { a, href, opts: { phone: _smsLinkPhone(href), leadId: a.getAttribute('data-ps-lead') || '' } } : null;
+  }
+  function onCheckedSmsDown(ev) { const c = _checkedLink(ev); if (c) precheck(c.opts); }
+  function onCheckedSmsClick(ev) {
+    const c = _checkedLink(ev);
+    if (!c) return;
+    ev.preventDefault();
+    if (c.a.__psBusy) return;
+    c.a.__psBusy = true;
+    return checkText(c.opts).then((chk) => {
+      if (chk && chk.ok === true) _open(c.href);
+      else _toast((chk && chk.reason) || COULD_NOT_CHECK, 'error');
+      return chk;
+    }).finally(() => { c.a.__psBusy = false; });
+  }
+  if (root && root.document && typeof root.document.addEventListener === 'function') {
+    root.document.addEventListener('click', onCheckedSmsClick, true);
+    root.document.addEventListener('pointerdown', onCheckedSmsDown, true);
+  }
+
+  const api = { share, checkText, precheck, reportStop, smsHref, mailtoHref, withLink, digits, _onCheckedSmsClick: onCheckedSmsClick };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root && root.document) root.NBDPhoneShare = api;
 })(typeof window !== 'undefined' ? window : null);

@@ -50,16 +50,16 @@ html[data-layout="bento"] .bn-open {
   position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; border: 0; border-radius: 12px;
   background: transparent; color: var(--m); font: inherit; font-size: 18px; cursor: pointer;
 }
-html[data-layout="bento"] .bn-open:hover { color: var(--orange); }
+html[data-layout="bento"] .bn-open:hover { color: var(--ui-accent-text, var(--orange)); }
 
 /* ── native tile bits ── */
-html[data-layout="bento"] .bn-big { font-size: 32px; line-height: 1; font-weight: 900; color: var(--orange); font-variant-numeric: tabular-nums; }
+html[data-layout="bento"] .bn-big { font-size: 32px; line-height: 1; font-weight: 900; color: var(--ui-accent-text, var(--orange)); font-variant-numeric: tabular-nums; }
 html[data-layout="bento"] .bn-sub { font-size: 13px; color: var(--m); margin-top: 4px; }
 html[data-layout="bento"] .bn-note { font-size: 13px; color: var(--m); padding: 4px 0; }
 html[data-layout="bento"] .bn-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 html[data-layout="bento"] .bn-li { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
 html[data-layout="bento"] .bn-link { color: var(--t); font-weight: 700; text-decoration: none; overflow-wrap: anywhere; }
-html[data-layout="bento"] .bn-chip { flex: none; padding: 1px 8px; border-radius: 999px; background: var(--og); color: var(--orange); font-size: 12px; font-weight: 800; }
+html[data-layout="bento"] .bn-chip { flex: none; padding: 1px 8px; border-radius: 999px; background: var(--og); color: var(--ui-accent-text, var(--orange)); font-size: 12px; font-weight: 800; }
 html[data-layout="bento"] .bn-go {
   margin-top: 10px; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--rule);
   background: var(--s2); color: var(--t); font: inherit; font-weight: 700; cursor: pointer;
@@ -95,7 +95,7 @@ html[data-layout="bento"] .bn-tbtn {
   background: var(--s2); color: var(--t); font: inherit; font-size: 14px; font-weight: 800; cursor: pointer;
 }
 html[data-layout="bento"] .bn-tbtn[disabled] { opacity: .35; cursor: not-allowed; }
-html[data-layout="bento"] .bn-t-remove { color: var(--orange); }
+html[data-layout="bento"] .bn-t-remove { color: var(--ui-accent-text, var(--orange)); }
 html[data-layout="bento"] .bn-dragging { z-index: 5; opacity: .88; }
 @media (hover: hover) and (min-width: 769px) {
   html[data-layout="bento"] .bn-editing .bn-cell { cursor: grab; touch-action: none; }

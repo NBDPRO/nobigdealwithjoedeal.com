@@ -571,10 +571,23 @@ window.NBD_THEME_ENGINE = true;
     // Auto theme (nbd_auto_theme=1) needs the engine at boot even for a
     // default-theme user: the scheduler lives in the theme bundle.
     const autoOn = localStorage.getItem('nbd_auto_theme') === '1' || localStorage.getItem('nbd_storm_mode') === '1';
-    if (((saved && saved !== 'default') || glass || autoOn)
-        && !document.querySelector('script[src*="theme-engine"]')
-        && window.ScriptLoader && window.ScriptLoader.loadBundle) {
-      window.ScriptLoader.loadBundle('theme');
+    // Light mode needs the engine too: theme-mode-preboot.js stamps
+    // data-mode="light" (a light pref, or "auto" on a phone set to light), but
+    // the default theme's light palette is built by ThemeEngine, so without it
+    // the page painted dark navy until Settings opened (layouts audit D21).
+    const light = document.documentElement.getAttribute('data-mode') === 'light';
+    const kick = function () {
+      if (!document.querySelector('script[src*="theme-engine"]') && window.ScriptLoader && window.ScriptLoader.loadBundle) {
+        window.ScriptLoader.loadBundle('theme');
+      }
+    };
+    if ((saved && saved !== 'default') || glass || autoOn || light) kick();
+    // "auto" follows the phone: a switch to light later in the session needs it as well
+    else if ((localStorage.getItem('nbd_pro_mode_pref') || 'auto') === 'auto' && window.matchMedia) {
+      const mq = window.matchMedia('(prefers-color-scheme: light)');
+      const onChange = function (ev) { if (ev.matches) kick(); };
+      if (mq.addEventListener) mq.addEventListener('change', onChange);
+      else if (mq.addListener) mq.addListener(onChange);
     }
   } catch (e) {}
 })();

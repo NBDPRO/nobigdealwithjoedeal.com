@@ -255,14 +255,19 @@
   }
 
   // ── persistence ──────────────────────────────────────────────────────
+  // Resolves 'none' (nothing to save), true (saved) or false (not saved). A
+  // failed save leaves the board dirty, so Done retries it and can say so
+  // (audit D12: S.source flipped to 'user' on ANY result, which silenced the
+  // toast, and an unchanged Done could claim a failure).
   function flushSave() {
     if (S.saveT) { clearTimeout(S.saveT); S.saveT = null; }
-    if (!S.local) return Promise.resolve(false);
+    if (!S.local) return Promise.resolve('none');
     S.local = false;
     return Promise.resolve(E.saveUser({ layoutState: { bento: S.board } })).then(function (r) {
-      S.source = 'user';
-      return !!(r && r.saved);
-    }, function () { return false; });
+      if (r && r.saved) { S.source = 'user'; return true; }
+      S.local = true;
+      return false;
+    }, function () { S.local = true; return false; });
   }
   function scheduleSave() {
     S.local = true;
@@ -512,7 +517,7 @@
 
   function topAction(act) {
     if (act === 'edit') { S.edit = true; S.drawer = false; render(); say('Editing your board. Use the buttons on each tile, or arrow keys; Shift with an arrow resizes.'); return; }
-    if (act === 'done') { S.edit = false; S.drawer = false; flushSave().then(function (ok) { if (!ok && S.source !== 'user') toast('Board kept on this screen; it could not be saved yet.', 'error'); }); render(); return; }
+    if (act === 'done') { S.edit = false; S.drawer = false; flushSave().then(function (ok) { if (ok === false) toast('Board kept on this screen; it could not be saved yet.', 'error'); }); render(); return; }
     if (act === 'add') { S.drawer = !S.drawer; var d = rootEl.querySelector('#bnDrawer'); if (d) d.hidden = !S.drawer; var b = rootEl.querySelector('[data-bn-top="add"]'); if (b) b.setAttribute('aria-expanded', S.drawer ? 'true' : 'false'); return; }
     if (act === 'reset') {
       // forget my board: back to the company default (new-hire board) or the

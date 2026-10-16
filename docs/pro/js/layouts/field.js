@@ -293,7 +293,10 @@
     return n + (n === 1 ? ' hit' : ' hits') + ' counted in this square · example guide: ' + EXAMPLE_THRESHOLD +
       ' (your carrier sets the real number)';
   }
+  // S.queued is the durable queue's count, or null when it could not be read:
+  // "All uploaded" only ever follows a real 0 (audit D30).
   function queueLine() {
+    if (S.queued == null) return S.shots > 0 ? 'Checking uploads... photos are saved on this phone' : '';
     if (!S.online && S.queued > 0) return 'No signal · ' + S.queued + ' queued';
     if (!S.online) return 'No signal · photos will wait on this phone';
     if (S.queued > 0) return S.queued + ' uploading';
@@ -333,8 +336,8 @@
     else html = renderToday();
     rootEl.setAttribute('data-screen', S.screen);
     doc.documentElement.setAttribute('data-fa-screen', S.screen);   // css hides the nav under the camera
-    // "What closes this week" (js/closes-week.js, 2026-10-15) fills [data-cw-slot].
-    rootEl.innerHTML = '<div class="fa-scroll">' + html + (S.screen === 'today' ? '<div data-cw-slot="field"></div>' : '') + '</div>';
+    // "What closes this week" (js/closes-week.js, 2026-10-15) fills [data-cwk-slot].
+    rootEl.innerHTML = '<div class="fa-scroll">' + html + (S.screen === 'today' ? '<div data-cwk-slot="field"></div>' : '') + '</div>';
     if (S.screen === 'capture') startCamera();
     else stopCamera();
     paintNav();
@@ -477,16 +480,22 @@
     div.innerHTML = esc(S.camError) + ' <button type="button" class="fa-big" data-fa="file">Use the phone camera</button>';
     cam.appendChild(div);
   }
+  // The upload line reads the durable queue. While photos are waiting (or the
+  // count can't be read) it looks again every few seconds, so it moves to
+  // "All uploaded" when the drain empties the queue, not before.
+  var qTimer = null;
   function refreshQueue() {
     var P = W.PhotoEngine;
     S.online = navigator.onLine !== false;
+    if (qTimer) { clearTimeout(qTimer); qTimer = null; }
     var done = function (n) {
-      S.queued = n || 0;
+      S.queued = typeof n === 'number' && n >= 0 ? n : null;
       var q = doc.getElementById('faQ');
       if (q) q.textContent = queueLine();
+      if (mountedOn && S.shots > 0 && S.queued !== 0) qTimer = setTimeout(refreshQueue, 4000);
     };
-    if (P && typeof P.queuedPhotoCountDurable === 'function') P.queuedPhotoCountDurable().then(done, function () { done(0); });
-    else done(0);
+    if (P && typeof P.queuedPhotoCountDurable === 'function') P.queuedPhotoCountDurable().then(done, function () { done(null); });
+    else done(S.shots > 0 ? null : 0);
   }
   function setCount(delta) {
     var n = Math.max(0, (S.hits[S.slope] || 0) + delta);
@@ -718,6 +727,7 @@
   }
   function unmount() {
     mountedOn = false;
+    if (qTimer) { clearTimeout(qTimer); qTimer = null; }
     stopCamera();
     timers.forEach(function (t) { clearInterval(t); });
     timers = [];

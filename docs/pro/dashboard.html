@@ -123,7 +123,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=198"></script>
+<script src="js/script-loader.js?v=199"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -147,8 +147,8 @@
 <!-- Main app CSS — extracted to css/dashboard-app.css (Rock 4 Phase 2b).
      Was a 4,500-line anonymous inline <style>; external file caches per the
      /pro/css revalidation policy instead of shipping in every HTML load. -->
-<link rel="stylesheet" href="css/dashboard-app.css?v=14">
-<link rel="stylesheet" href="css/ui-primitives.css?v=13">
+<link rel="stylesheet" href="css/dashboard-app.css?v=15">
+<link rel="stylesheet" href="css/ui-primitives.css?v=14">
 <link rel="stylesheet" href="css/care-plan.css?v=1">
 <link rel="stylesheet" href="css/invoice-pipeline.css?v=5">
 <link rel="stylesheet" href="css/rep-os.css?v=1">
@@ -909,7 +909,7 @@
       <!-- What closes this week (js/closes-week.js, lazy bundle 'closesweek',
            2026-10-15): open estimates and deals ranked by likelihood x
            projected value, one next action each. Full-screen layouts carry
-           their own [data-cw-slot]. -->
+           their own [data-cwk-slot]. -->
       <section id="homeClosesWeek" aria-label="What closes this week" hidden></section>
       <!-- Roof Rep game card: off by default — a rep who turned it on in
            Settings chose to see it, so it stays out of the fold below. -->
@@ -6193,7 +6193,7 @@
 <!-- Canonical customer URL builder (window.NBDUrl). Loaded BEFORE
      dashboard-actions.js because that file calls NBDUrl.customer(). -->
 <script defer src="js/nbd-url.js?v=1"></script>
-<script defer src="js/dashboard-state.js?v=11"></script>
+<script defer src="js/dashboard-state.js?v=12"></script>
 <!-- uid → teammate display name for the leaderboards (window.NBDTeamNames). -->
 <script defer src="js/team-names.js?v=1"></script>
 <script defer src="js/dashboard-api.js?v=8"></script>
@@ -7224,7 +7224,7 @@
 <!-- Send from Jo's own phone (share sheet / Messages) + the estimate follow-up
      cadence and its Home card (2026-10-03). phone-share.js first: close-board.js
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
-<script defer src="js/phone-share.js?v=2"></script>
+<script defer src="js/phone-share.js?v=3"></script>
 <script defer src="js/estimate-followups.js?v=3"></script>
 <script defer src="js/game-sprite.js?v=1"></script>
 <script defer src="js/game-card.js?v=3"></script>
@@ -7246,7 +7246,7 @@
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=6"></script>
 <script defer src="js/my-skin.js?v=9"></script>
-<script defer src="js/layout-system.js?v=2"></script>
+<script defer src="js/layout-system.js?v=3"></script>
 <script defer src="js/pixel-mode.js?v=2"></script>
 <script defer src="js/ui.js?v=10"></script>
 <script defer src="js/demo.js?v=5"></script>

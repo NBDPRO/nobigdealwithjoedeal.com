@@ -10,7 +10,8 @@
  *      fires layoutchange once per real change, mounts/unmounts, lets a newer
  *      apply() supersede a slower one, writes the per-surface resolved cache,
  *      saveUser() writes a MERGE with nulls for cleared overrides, and a
- *      failed company read never drops a cached lock
+ *      failed company read never drops a cached lock; with NO cache a failed
+ *      read fails closed and retries (layouts audit D14, 2026-10-15)
  *   3. wiring: the preboot rides in the existing blocking shape-preboot.js (the
  *      boot budget allows no new blocking tag) and is run for real; layout-system.js
  *      is one deferred tag; nothing inline; the resolved-cache key survives sign-out
@@ -278,6 +279,40 @@ const tick = (ms) => new Promise((r) => setTimeout(r, ms || 5));
     ctx.LayoutRegistry.register({ id: 'focus', name: 'F', surfaces: ['desktop', 'phone', 'tablet'] });
     await tick(30);
     ok('a different uid\'s cached lock never applies to this account', ctx.LayoutEngine.current().id === 'focus');
+  }
+  {
+    // layouts audit D14 (2026-10-15): no cache + the settings reads FAIL ->
+    // fail CLOSED (settings not "loaded", a layout pick is held, nothing
+    // cached) and ask again until they load; then the company lock applies.
+    const docs = { 'userSettings/u4': 'FAIL', 'companies/u4/settings/layout': 'FAIL' };
+    const b = makeBrowser({ uid: 'u4', width: 1280, docs });
+    const ctx = loadEngine(b);
+    const E = ctx.LayoutEngine;
+    await tick(30);
+    ok('D14: no cache + both reads failed -> settings NOT marked loaded, half an answer NOT cached',
+      E.prefs().hydrated === false && !b.store.nbd_layout_prefs && E.current().id === 'classic');
+    const writes = b.writes.length;
+    const r = await E.saveUser({ id: 'bento', device: 'desktop' });
+    ok('D14: a layout pick while the company\'s lock is unknown changes nothing (blocked, no write, same layout)',
+      r.blocked === true && r.saved === false && b.writes.length === writes && E.current().id === 'classic', JSON.stringify(r));
+    docs['userSettings/u4'] = { layout: { id: 'bento' } };
+    docs['companies/u4/settings/layout'] = { defaultLayout: 'focus', locked: true };
+    await tick(2300);   // the first retry is 2 s after the failure
+    ok('D14: the retry loads the settings by itself and the company lock wins', E.prefs().hydrated === true
+      && E.current().id === 'focus' && E.current().source === 'company-lock', JSON.stringify(E.current()));
+  }
+  {
+    // D14: the company answered but the rep's own settings did not -> the lock
+    // applies at once; settings stay "not loaded" until the retry gets both
+    const docs = { 'userSettings/u5': 'FAIL', 'companies/u5/settings/layout': { defaultLayout: 'focus', locked: true } };
+    const b = makeBrowser({ uid: 'u5', width: 1280, docs });
+    const ctx = loadEngine(b);
+    await tick(30);
+    ok('D14: a company lock that DID load is enforced even while the rep\'s settings failed',
+      ctx.LayoutEngine.current().id === 'focus' && ctx.LayoutEngine.prefs().hydrated === false);
+    docs['userSettings/u5'] = { layout: { id: 'bento' } };
+    await tick(2300);
+    ok('D14: …and the retry completes the load', ctx.LayoutEngine.prefs().hydrated === true && ctx.LayoutEngine.current().id === 'focus');
   }
 
   console.log('\n3. wiring');

@@ -336,6 +336,8 @@
   var mounted = null;      // id of the layout whose mount() ran
   var applySeq = 0;
   var hydrated = false;
+  var hydrating = null;     // the read in flight (one at a time)
+  var retryN = 0, retryT = null;
 
   // ── surface ──────────────────────────────────────────────────────────
   function coarse() {
@@ -555,8 +557,26 @@
     });
   }
 
+  // Settings could not be read and nothing is cached for this account: ask
+  // again with a backoff (2s, 4s ... 60s) and the moment the connection is back.
+  var RETRY_MAX = 20;
+  function scheduleHydrateRetry() {
+    if (retryT || hydrated || retryN >= RETRY_MAX) return;
+    var ms = Math.min(60000, 2000 * Math.pow(2, Math.min(retryN, 5)));
+    retryN++;
+    retryT = setTimeout(function () {
+      retryT = null;
+      if (!hydrated) hydrate().catch(function (e) { console.warn('[layout] hydrate retry failed:', e && e.message); });
+    }, ms);
+  }
+
   function hydrate() {
     if (!dbReady()) return Promise.resolve(false);
+    if (hydrating) return hydrating;
+    hydrating = hydrateOnce().then(function (ok) { hydrating = null; return ok; }, function (e) { hydrating = null; throw e; });
+    return hydrating;
+  }
+  function hydrateOnce() {
     uid = window._user.uid;
     var cached = parse(lsGet(PREFS_KEY));
     if (cached && cached.uid === uid) {
@@ -576,10 +596,20 @@
     return Promise.all([userRead, companyRead]).then(function (res) {
       // undefined = the read FAILED: keep what the cache said rather than
       // silently dropping a company lock because of a flaky connection.
-      if (res[0] === undefined && res[1] === undefined && !(cached && cached.uid === uid)) return false;
+      var haveCache = !!(cached && cached.uid === uid);
       if (res[0] !== undefined) user = R.normalizeUser(res[0]);
       if (res[1] !== undefined) company = R.normalizeCompany(res[1]);
+      if (!haveCache && (res[0] === undefined || res[1] === undefined)) {
+        // FAIL CLOSED (audit D14). With no cache, a failed read leaves the
+        // company's lock or the rep's own pick unknown: do not mark settings
+        // loaded (saveUser holds a layout pick until they are), do not cache
+        // half an answer, and ask again. A company answer we did get applies
+        // now, so a lock is enforced without waiting for the rep's settings.
+        scheduleHydrateRetry();
+        return (res[1] !== undefined ? refresh() : Promise.resolve()).then(function () { return false; });
+      }
       hydrated = true;
+      retryN = 0;
       writePrefsCache();
       return refresh().then(function () { return true; });
     });
@@ -590,6 +620,14 @@
   //   device omitted -> the desktop choice `id`
   function saveUser(patch) {
     var p = patch || {};
+    // A layout PICK before the settings are loaded could step around a company
+    // lock nobody has read yet: load them first, and if that fails change
+    // nothing ({ saved:false, blocked:true }; the picker says why).
+    if ('id' in p && !hydrated) {
+      return hydrate().then(function (ok) { return ok; }, function () { return false; }).then(function (ok) {
+        return ok && hydrated ? saveUser(p) : { id: current.id, saved: false, blocked: true };
+      });
+    }
     var next = {
       id: user.id, byDevice: Object.assign({}, user.byDevice),
       layoutState: Object.assign({}, user.layoutState), glove: user.glove,
@@ -694,6 +732,12 @@
   // ── boot ─────────────────────────────────────────────────────────────
   function boot() {
     watchPicker();
+    window.addEventListener('online', function () {
+      if (hydrated || !dbReady()) return;
+      if (retryT) { clearTimeout(retryT); retryT = null; }
+      retryN = 0;
+      hydrate().catch(function (e) { console.warn('[layout] hydrate failed:', e && e.message); });
+    });
     var tries = 0;
     (function poll() {
       if (dbReady()) { hydrate().catch(function (e) { console.warn('[layout] hydrate failed:', e && e.message); }); return; }

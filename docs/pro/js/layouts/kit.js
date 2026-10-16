@@ -106,9 +106,11 @@
   // ── ActionBar: ONE definition of every action ────────────────────────
   // kind 'link': a plain anchor, the browser does it (works with no JS).
   // kind 'button': data-lk-act, handled by bind() below.
+  // check: an sms: link phone-share.js holds until the server's "ok to text?"
+  // (checkText: STOP, Do Not Text, consent, texting hours) says yes (D16).
   var ACTIONS = {
     call:     { label: 'Call',     icon: 'call',     kind: 'link',   href: function (it) { return telUrl(it.phone); } },
-    text:     { label: 'Text',     icon: 'text',     kind: 'link',   href: function (it) { return smsUrl(it.phone); } },
+    text:     { label: 'Text',     icon: 'text',     kind: 'link',   href: function (it) { return smsUrl(it.phone); }, check: true },
     navigate: { label: 'Navigate', icon: 'navigate', kind: 'link',   href: function (it) { return mapsUrl(it.address); }, external: true },
     open:     { label: 'Open',     icon: 'open',     kind: 'link',   href: function (it) { return customerUrl(it.id); } },
     snooze:   { label: 'Snooze',   icon: 'snooze',   kind: 'button' },
@@ -139,6 +141,7 @@
           out += '<button type="button" class="' + cls + ' lk-act-off" disabled aria-disabled="true">' + inner + '</button>';
         } else {
           out += '<a class="' + cls + '" href="' + esc(href) + '" data-lk-link="' + id + '"' +
+            (a.check ? ' data-ps-check="1" data-ps-lead="' + esc(it.id) + '"' : '') +
             (a.external ? ' target="_blank" rel="noopener"' : '') + '>' + inner + '</a>';
         }
       } else {

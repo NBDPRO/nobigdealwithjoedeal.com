@@ -29,18 +29,22 @@
 }
 .lk-card-current { border-color: var(--orange); box-shadow: 0 0 0 1px var(--orange) inset; }
 .lk-card-done { opacity: .6; }
-.lk-time { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--orange); }
+.lk-time { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ui-accent-text, var(--orange)); }
 .lk-name { font-weight: 800; font-size: 17px; line-height: 1.2; overflow-wrap: anywhere; }
 .lk-addr { font-size: 14px; color: var(--m); overflow-wrap: anywhere; }
 .lk-why { font-size: 14px; color: var(--t); }
 .lk-phone { font-size: 15px; font-weight: 700; color: var(--m); }
 .lk-badge {
   display: inline-block; vertical-align: middle; padding: 2px 8px; border-radius: 999px;
-  background: var(--og); color: var(--orange); font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+  background: var(--og); color: var(--ui-accent-text, var(--orange)); font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
 }
-.lk-card-row { flex-direction: row; align-items: center; padding: 10px 12px; gap: 12px; min-height: var(--tap); }
-.lk-card-row .lk-time { flex: none; min-width: 64px; }
-.lk-card-row .lk-main { flex: 1 1 auto; min-width: 0; }
+/* Row: time | name+address | arrow. The time may shrink and wrap, and the name
+   column keeps at least ~11em; when both can't fit (a phone, a long label such
+   as "7:00 AM · DAY 2 OF 3") the name drops under the time instead of being
+   squeezed to 0 px and painting one letter per line (layouts audit D1). */
+.lk-card-row { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 10px 12px; gap: 4px 12px; min-height: var(--tap); }
+.lk-card-row .lk-time { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.lk-card-row .lk-main { flex: 1 1 11em; min-width: 0; }
 .lk-open { flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: var(--tap); min-height: var(--tap); color: var(--m); }
 .lk-card-hero { padding: 20px; gap: 14px; }
 .lk-card-hero .lk-name { font-size: 28px; }
@@ -69,7 +73,7 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
   font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
-.lk-nav-active { color: var(--orange); }
+.lk-nav-active { color: var(--ui-accent-text, var(--orange)); }
 .lk-nav-raised {
   flex: 0 0 auto; align-self: flex-start; margin-top: -22px;
   min-width: calc(var(--tap) + 8px); min-height: calc(var(--tap) + 8px); border-radius: 50%;
