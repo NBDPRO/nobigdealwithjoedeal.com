@@ -696,8 +696,8 @@
     rootEl.setAttribute('data-sel', it ? '1' : '0');
     var listRec = K.recordEntry({ source: 'inbox', cls: 'ib-rec ib-rec-list' });
     var head = S.pane === 'inbox'
-      ? '<div class="ib-headline"><span><b>' + items.length + '</b> ' + (items.length === 1 ? 'person needs' : 'people need') + ' a reply</span>' + listRec + '</div>'
-      : '<div class="ib-headline"><span><b>' + leads().length + '</b> leads on your pipeline</span>' + listRec + '</div>';
+      ? '<div class="ib-headline"><span><b>' + items.length + '</b> ' + (items.length === 1 ? 'person needs' : 'people need') + ' a reply</span>' + K.syncDot() + listRec + '</div>'
+      : '<div class="ib-headline"><span><b>' + leads().length + '</b> leads on your pipeline</span>' + K.syncDot() + listRec + '</div>';
     // data-cwk-slot: "What closes this week" (js/closes-week.js) as ONE line
     // above the list that opens the card, so the replies stay in view (audit D4).
     var html = '<div class="ib-wrap">' + railHtml(counts) +

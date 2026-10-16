@@ -194,6 +194,7 @@
     return '<div class="fo-top"><button type="button" class="fo-pill" data-fo="today">Today</button>' +
       '<button type="button" class="fo-pill" data-fo="wrap">Wrap-up</button>' +
       (withRecord ? K.recordEntry({ source: 'focus', cls: 'fo-rec' }) : '') +
+      K.syncDot() +
       '<button type="button" class="fo-pill fo-menu" data-fo="menu" aria-expanded="' + S.menu + '">Menu</button></div>' +
       (S.menu ? '<div class="fo-sheet" role="menu">' + K.menuItems('fo') +
         '<button type="button" role="menuitem" data-fo="today">Back to Focus</button></div>' : '');

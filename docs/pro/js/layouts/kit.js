@@ -305,12 +305,67 @@
   }
   function clearOverlay() { setOverlay(null, false); }
 
+  // ── sync / offline dot (2026-10-15, layouts feature N5) ──────────────
+  // The full-screen layouts cover the header's connection dot, so each one
+  // carries this small status in its own top bar: online or offline, and how
+  // many photos are still waiting in the durable upload queue
+  // (PhotoEngine.queuedPhotoCountDurable, the count Field's camera line uses).
+  // A count that cannot be read is never shown as "all uploaded": the dot then
+  // says nothing about photos. PhotoEngine is not loaded just for this.
+  var SYNC = { online: true, queued: null };
+  function syncView(s) {
+    var n = s.queued;
+    var photos = n > 0 ? n + (n === 1 ? ' photo' : ' photos') : '';
+    if (!s.online) return { state: 'offline', text: photos ? 'Offline · ' + photos + ' waiting' : 'Offline · saved on this phone' };
+    if (photos) return { state: 'waiting', text: photos + ' uploading' };
+    return { state: 'online', text: 'Online' };
+  }
+  function syncDot() {
+    var v = syncView(SYNC);
+    return '<span class="lk-sync" data-lk-sync="" data-state="' + v.state + '" role="status">' + esc(v.text) + '</span>';
+  }
+  function paintSync() {
+    var d = root && root.document;
+    if (!d || !d.querySelectorAll) return 0;
+    var v = syncView(SYNC);
+    var els = d.querySelectorAll('[data-lk-sync]');
+    for (var i = 0; i < els.length; i++) {
+      if (els[i].textContent !== v.text) els[i].textContent = v.text;
+      if (els[i].getAttribute('data-state') !== v.state) els[i].setAttribute('data-state', v.state);
+    }
+    return els.length;
+  }
+  function refreshSync() {
+    var nav = root && root.navigator;
+    SYNC.online = !(nav && nav.onLine === false);
+    var P = root && root.PhotoEngine;
+    if (P && typeof P.queuedPhotoCountDurable === 'function') {
+      Promise.resolve().then(function () { return P.queuedPhotoCountDurable(); }).then(function (n) {
+        SYNC.queued = typeof n === 'number' && n >= 0 ? n : null; paintSync();
+      }, function () { SYNC.queued = null; paintSync(); });
+    } else { SYNC.queued = null; }
+    return paintSync();
+  }
+  var syncTimer = null;
+  function startSync() {
+    if (syncTimer || !root || !root.addEventListener) return;
+    root.addEventListener('online', refreshSync);
+    root.addEventListener('offline', refreshSync);
+    syncTimer = root.setInterval(function () {
+      if (root.document && root.document.hidden) return;
+      refreshSync();
+    }, 10000);
+    refreshSync();
+  }
+  if (root && root.document) startSync();
+
   var api = {
     esc: esc, digits10: digits10, fmtPhone: fmtPhone, leadName: leadName, customerUrl: customerUrl,
     mapsUrl: mapsUrl, telUrl: telUrl, smsUrl: smsUrl, fromLead: fromLead, icon: icon,
     ACTIONS: ACTIONS, DENSITIES: DENSITIES, SIZES: SIZES, MENU: MENU, CUSTOMIZE_LABEL: CUSTOMIZE_LABEL, RECORD_LABEL: RECORD_LABEL, RECENT_LABEL: RECENT_LABEL,
     actionBar: actionBar, card: card, widget: widget, nav: nav, bind: bind,
     recordButton: recordButton, recentButton: recentButton, recordEntry: recordEntry, menuItems: menuItems, setOverlay: setOverlay, clearOverlay: clearOverlay,
+    syncDot: syncDot, syncView: syncView, refreshSync: refreshSync, _sync: SYNC,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDLayoutKit = api;

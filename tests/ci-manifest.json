@@ -16,6 +16,7 @@
     "next-stop-2026-10-15.test.js",
     "cash-card-2026-10-15.test.js",
     "card-prefs-2026-10-15.test.js",
+    "layout-offer-field-bar-2026-10-15.test.js",
     "deal-check-rate-2026-10-15.test.js",
     "review-ask-auto-2026-10-15.test.js",
     "missed-call-reply-2026-10-15.test.js",

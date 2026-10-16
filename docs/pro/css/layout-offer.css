@@ -1,0 +1,23 @@
+/* layout-offer.css — "Day and night layouts" (js/layout-offer.js, 2026-10-15):
+   the one-tap suggestion banner and its Settings > Appearance panel. */
+.lo-banner{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom, 0px));z-index:2050;box-sizing:border-box;width:min(560px, calc(100% - 24px));padding:12px 14px;background:var(--s2);color:var(--t);border:1px solid var(--br, rgba(127,127,127,.35));border-left:4px solid var(--orange);border-radius:var(--ui-radius-lg, 12px);box-shadow:var(--ui-elev-3, 0 8px 30px rgba(0,0,0,.35));}
+.lo-banner[hidden]{display:none;}
+.lo-msg{margin:0 0 10px;font-size:var(--ui-fs-body-sm, 14px);line-height:1.45;}
+.lo-acts{display:flex;flex-wrap:wrap;gap:8px;}
+.lo-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding:0 14px;border-radius:var(--r-card, 8px);border:1px solid var(--br, rgba(127,127,127,.35));background:var(--s3, var(--s));color:var(--t);font:inherit;font-size:var(--ui-fs-body-sm, 14px);font-weight:var(--ui-fw-bold, 700);cursor:pointer;}
+.lo-btn-primary{background:var(--orange);border-color:var(--orange);color:var(--accent-fg, #fff);}
+.lo-btn-quiet{background:transparent;}
+.lo-btn:focus-visible{outline:2px solid var(--t);outline-offset:2px;}
+/* a phone's bottom nav (the app's, or a full-screen layout's) sits at the bottom edge: clear it */
+@media (max-width:768px){.lo-banner{bottom:calc(92px + env(safe-area-inset-bottom, 0px));}}
+html.lk-overlay-on .lo-banner{bottom:calc(96px + env(safe-area-inset-bottom, 0px));}
+/* Settings > Appearance > Day and night layouts */
+.lo-row{display:flex;align-items:flex-start;gap:10px;min-height:44px;padding:6px 0;font-size:var(--ui-fs-body-sm, 14px);line-height:1.45;color:var(--t);cursor:pointer;}
+.lo-row input{width:22px;height:22px;margin:2px 0 0;flex:none;accent-color:var(--orange);}
+.lo-hours{margin:8px 0 12px;padding:8px 12px 12px;border:1px solid var(--ui-line-hair, rgba(127,127,127,.25));border-radius:var(--r-card, 8px);}
+.lo-hours legend{padding:0 6px;font-size:var(--ui-fs-caption, 12px);font-weight:var(--ui-fw-bold, 700);color:var(--m);}
+.lo-range{display:flex;flex-wrap:wrap;gap:10px 16px;padding-left:32px;}
+.lo-range label{display:inline-flex;align-items:center;gap:8px;font-size:var(--ui-fs-body-sm, 14px);}
+.lo-range select{min-height:44px;padding:0 10px;font:inherit;color:var(--t);}
+.lo-save{min-height:44px;}
+.lo-saved{margin-left:8px;font-size:var(--ui-fs-caption, 12px);color:var(--m);}

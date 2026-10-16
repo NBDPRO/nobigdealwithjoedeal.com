@@ -493,7 +493,7 @@
       return '<button type="button" class="mc-tab' + (S.tab === t[0] ? ' mc-tab-on' : '') + '" data-mc="tab" data-to="' + t[0] + '"' + (S.tab === t[0] ? ' aria-current="page"' : '') + '>' + t[1] + '</button>';
     }).join('');
     return '<div class="mc-top"><div class="mc-title">Mission Control</div><nav class="mc-tabs" aria-label="Mission Control screens">' + tabs + '</nav>' +
-      statusChip() +
+      statusChip() + K.syncDot() +
       '<div class="mc-top-end"><button type="button" class="mc-btn" data-mc="refresh">Refresh</button>' +
       '<button type="button" class="mc-btn mc-menu" data-mc="menu" aria-haspopup="true" aria-expanded="' + (S.menu ? 'true' : 'false') + '">Menu</button></div>' +
       // The way out, like Crew's: the app's pages, plus stepping out of the war room.

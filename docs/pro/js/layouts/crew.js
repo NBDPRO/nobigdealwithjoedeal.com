@@ -520,6 +520,7 @@
         '<button type="button" class="cw-pill cw-icon" data-cw="next" aria-label="Next ' + (S.view === 'week' ? 'week' : 'day') + '">&rsaquo;</button>' +
       '</div>' +
       '<div class="cw-title" aria-live="polite">' + esc(title) + '</div>' +
+      K.syncDot() +
       '<button type="button" class="cw-pill cw-menu" data-cw="menu" aria-expanded="' + S.menu + '">Menu</button>' +
       '</div>' +
       (S.menu ? '<div class="cw-sheet" role="menu">' + K.menuItems('cw') + '</div>' : '') +

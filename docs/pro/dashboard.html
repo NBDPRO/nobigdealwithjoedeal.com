@@ -123,7 +123,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=202"></script>
+<script src="js/script-loader.js?v=203"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -3400,6 +3400,14 @@
         <div class="panel mb-md" id="layoutsPanel">
           <div class="panel-hdr"><div><div class="panel-label">Appearance</div><div class="panel-title">Layouts</div></div></div>
           <div class="panel-body" id="layoutsPanelBody"><div class="meta-12-mb14">Loading layouts…</div></div>
+        </div>
+
+        <!-- Day and night layouts (js/layout-offer.js, lazy bundle 'layoutoffer',
+             2026-10-15): OFFER Field App on a phone by day and Mission Control on
+             a computer at night. Only ever asks; saved on this device. -->
+        <div class="panel mb-md" id="layoutOfferPanel">
+          <div class="panel-hdr"><div><div class="panel-label">Appearance</div><div class="panel-title">Day and night layouts</div></div></div>
+          <div class="panel-body" id="layoutOfferBody"><div class="meta-12-mb14">Loading…</div></div>
         </div>
 
         <!-- Theme picker: filter buttons + flat grid -->
@@ -7267,7 +7275,7 @@
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=16"></script>
-<script defer src="js/today-home.js?v=20"></script>
+<script defer src="js/today-home.js?v=21"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=6"></script>

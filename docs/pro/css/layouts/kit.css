@@ -112,3 +112,9 @@
 /* The app's phone nav is hidden ONLY while a layout's overlay is on screen;
    on every other view it is back, so Home is always one tap away. */
 html.lk-overlay-on #mobile-nav { display: none !important; }
+/* sync / offline dot (kit.js syncDot, 2026-10-15): online / offline / photos waiting */
+.lk-sync { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; font-size: 12px; font-weight: 700; color: var(--m); white-space: nowrap; }
+.lk-sync::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--green); flex: none; }
+.lk-sync[data-state="waiting"]::before { background: var(--gold); }
+.lk-sync[data-state="offline"] { color: var(--t); }
+.lk-sync[data-state="offline"]::before { background: var(--red); }
