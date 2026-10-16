@@ -357,7 +357,8 @@ console.log('\nInvitee register bypass (?invite=1)');
   assert('invite intent parsed from ?invite=1',
     /get\('invite'\) === '1'/.test(reg));
   assert('email path: invitees skip solo provisioning + owner wizard',
-    /if \(inviteIntent\) \{\s*window\.location\.replace\('\/pro\/dashboard\.html'\);/.test(reg));
+    // markSignedIn(): the layout preboot's "who signed in" marker (2026-10-16, #2467 D34)
+    /if \(inviteIntent\) \{\s*(markSignedIn\(\); )?window\.location\.replace\('\/pro\/dashboard\.html'\);/.test(reg));
   assert('google path: invitees not provisioned, routed to dashboard (via ownerDest reorder)',
     /isNewUser && !inviteIntent/.test(reg)
     && /isNewOwner = !code && isNewUser && !inviteIntent/.test(reg)
