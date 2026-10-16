@@ -29,7 +29,9 @@ const KEYS = ['deck', 'drip', 'ice', 'under', 'starter', 'shingles', 'boot', 'fl
   ok('the diagram has real alt text naming the code items', /alt="A gable roof cut away layer by layer: roof deck, drip edge/.test(page));
   const legend = [...page.matchAll(/data-roof3d-item="([a-z]+)"/g)].map((m) => m[1]);
   ok('legend lists all 10 items in order', legend.join() === KEYS.join(), legend.join());
-  ok('code items are tagged CODE in the legend (7 of 10)', (page.match(/<li data-roof3d-item="[a-z]+"><span class="roof3d-n">\d+<\/span><span class="roof3d-t"><span class="roof3d-code">CODE<\/span>/g) || []).length === 7);
+  // Drip edge is no longer tagged CODE (2026-10-16): Kentucky code requires it, Ohio's R905.2.8.5 defers to
+  // the manufacturer (GAF requires it). The legend says so in words instead.
+  ok('code items are tagged CODE in the legend (6 of 10; drip edge says KY code / OH GAF)', (page.match(/<li data-roof3d-item="[a-z]+"><span class="roof3d-n">\d+<\/span><span class="roof3d-t"><span class="roof3d-code">CODE<\/span>/g) || []).length === 6 && /Kentucky code requires it; in Ohio the code defers to the manufacturer, and GAF requires it\./.test(page));
   ok('kick-out flashing is named (code, not drawn)', /kick-out flashing wherever a roof edge runs into a wall/.test(page));
   ok('3D is opt-in: a "See it in 3D" button, module script, external CSS', /data-roof3d-start>See it in 3D</.test(page) && /<script type="module" src="\/assets\/js\/roof-3d\.js"><\/script>/.test(page) && /href="\/assets\/css\/roof-3d\.css"/.test(page));
   ok('no inline handlers on the section', !/\son[a-z]+=/.test(page.slice(page.indexOf('id="code-correct-roof"'), page.indexOf('STRAIGHT FROM THE MANUFACTURER'))));
@@ -38,7 +40,7 @@ const KEYS = ['deck', 'drip', 'ice', 'under', 'starter', 'shingles', 'boot', 'fl
   const svg = read('docs/assets/images/roof-layers.svg');
   ok('accessible SVG (role img, title, desc)', /role="img"/.test(svg) && /<title id="t">/.test(svg) && /<desc id="d">/.test(svg));
   ok('10 numbered callouts', [...svg.matchAll(/class="num">(\d+)</g)].map((m) => +m[1]).sort((a, b) => a - b).join() === '1,2,3,4,5,6,7,8,9,10');
-  ok('7 CODE tags on callouts + 1 in the key', (svg.match(/class="code">CODE</g) || []).length === 8);
+  ok('6 CODE tags on callouts + 1 in the key (drip edge: KY code; OH: GAF)', (svg.match(/class="code">CODE</g) || []).length === 7 && /KY code; OH: GAF requires it/.test(svg));
   ok('motion respects prefers-reduced-motion', /@media \(prefers-reduced-motion: reduce\)/.test(svg));
   ok('no script in the SVG', !/<script/i.test(svg));
   const before = svg;

@@ -497,7 +497,7 @@
     // dashboard-bootstrap.module.js once the claims are known (no boot <script> tag).
     canvasser: [
       'css/canvasser.css?v=1',
-      'js/canvasser-logic.js?v=1',
+      'js/canvasser-logic.js?v=2',
       'js/canvasser-ui.js?v=1'
     ],
     closesweek: [

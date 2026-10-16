@@ -306,6 +306,7 @@ function extractIds(html) {
 /* ── main check ─────────────────────────────────────────────────────────── */
 
 const SKIP_SCHEME = /^(javascript|mailto|tel|sms|data|blob):/i;
+const GENERATED_AT_DEPLOY = /^\/pagefind\//;
 
 const pages = walkHtml(DOCS, []).sort();
 const pageHtml = new Map(pages.map((rel) => [rel, fs.readFileSync(path.join(DOCS, rel), 'utf8')]));
@@ -354,6 +355,9 @@ for (const rel of pages) {
 
     refsChecked++;
     const urlPath = target.pathname;
+    // /pagefind/** (the site search index and its UI) is generated at deploy by
+    // scripts/build-site-search.mjs and gitignored, so it is not in the tree.
+    if (GENERATED_AT_DEPLOY.test(urlPath)) continue;
     const res = resolvePath(urlPath);
     if (!res) {
       fail(rel, `${why} → unresolvable target: ${ref} (path ${urlPath})`);

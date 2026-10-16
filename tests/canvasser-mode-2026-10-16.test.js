@@ -142,7 +142,7 @@ console.log('D. the screens');
 console.log('E. wiring');
 {
   const sl = read('docs/pro/js/script-loader.js');
-  ok('lazy bundle: CSS, logic, UI, cache-busted', /canvasser: \[\n\s*'css\/canvasser\.css\?v=1',\n\s*'js\/canvasser-logic\.js\?v=1',\n\s*'js\/canvasser-ui\.js\?v=1'\n\s*\]/.test(sl));
+  ok('lazy bundle: CSS, logic, UI, cache-busted', /canvasser: \[\n\s*'css\/canvasser\.css\?v=1',\n\s*'js\/canvasser-logic\.js\?v=2',\n\s*'js\/canvasser-ui\.js\?v=1'\n\s*\]/.test(sl));
   const boot = read('docs/pro/js/dashboard-bootstrap.module.js');
   ok('kicked once the claims are known, for reps / owners / managers', /window\._userClaims = tokenResult\.claims \|\| \{\};\n[\s\S]{0,1200}window\.ScriptLoader\.loadBundle\('canvasser'\)/.test(boot) && /\['sales_rep', 'company_admin', 'manager', 'admin'\]\.includes\(_cvRole\)/.test(boot));
   const dash = read('docs/pro/dashboard.html');

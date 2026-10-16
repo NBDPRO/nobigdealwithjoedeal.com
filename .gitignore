@@ -93,3 +93,4 @@ globals-xref.json
 # Deploy-time version stamp (scripts/verify-live-deploy.js stamp) — written on
 # the deploy runner only, never committed.
 docs/version.json
+docs/pagefind/

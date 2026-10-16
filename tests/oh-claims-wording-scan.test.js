@@ -6,9 +6,10 @@
  * Kentucky pages (picked by file name). Jo's insurance rule is the same in
  * Ohio and Kentucky: no claim-outcome promises, and never say Joe handles or
  * negotiates the claim. Allowed: Joe inspects, photographs, documents, writes
- * the estimate, meets the adjuster, and sends a supplement (his updated
- * estimate) if the adjuster's scope misses damage; the homeowner files and
- * owns the claim, and what it pays is up to the insurer.
+ * the estimate, meets the adjuster, and writes a supplement (his updated
+ * estimate) for the homeowner to send if the adjuster's scope misses damage
+ * (since 2026-10-16: Joe no longer "sends" it, ORC 3951.01(B)); the homeowner
+ * files and owns the claim, and what it pays is up to the insurer.
  *
  * The 2026-10-06 sweep found the KY-banned phrases on ~30 Ohio service pages,
  * blog posts and /about, in body text AND FAQ JSON-LD ("underpaid and denied
@@ -57,6 +58,12 @@ const BANNED = [
   /supplement the claim/i,
   /\b(I|we|Joe)( will| can|'ll| also)? (handle|handles|negotiate|negotiates)\b[^.<"]{0,40}\bclaims?\b/i,
   /\b(handl(e|es|ing)|negotiat(e|es|ing)) (the|your|their) (insurance |entire )?claim/i,
+  // Ohio too (legal cross-check 2026-10-16): ORC 3951.01(B) makes anyone who
+  // "for compensation, acts on behalf of or aids in any manner ... an insured
+  // ... in negotiating for, or effecting the settlement of a claim" a public
+  // insurance adjuster, and 3951.01(E) has no contractor exemption. Joe WRITES
+  // the supplement; the homeowner sends it (the Kentucky pages' model).
+  /\b(I|we|Joe|he|contractor)( can| will|'ll| also)? (send|sends|submit|submits|submitting)( a| the| detailed| any)? supplements?\b(?! request)/i,
 ];
 
 // Blog excerpt sources (copied into blog/index.html and feed.xml) and the
@@ -96,8 +103,11 @@ ok('self-test: catches "I handle your insurance claim"', scanSource('<p>I handle
 ok('self-test: catches "we negotiate the claim"', scanSource('<p>We negotiate the claim with your carrier.</p>').length >= 1);
 ok('self-test: catches "get them corrected"', scanSource('I have experience getting them corrected.').length === 1);
 ok('self-test: "recoverable depreciation" is a policy term, not a promise', scanSource('<p>release the recoverable depreciation</p>').length === 0);
-ok('self-test: the allowed supplement wording passes',
-  scanSource("<p>If the adjuster's scope misses damage, I send a supplement (my updated estimate). You file and own the claim, and what it pays is up to your insurer.</p>").length === 0);
+ok('self-test: the allowed supplement wording passes (Joe writes it, the homeowner sends it)',
+  scanSource("<p>If the adjuster's scope misses damage, I write a supplement (my updated estimate) for you to send your insurer. You file and own the claim, and what it pays is up to your insurer.</p>").length === 0);
+ok('self-test: catches Joe sending the supplement himself (ORC 3951.01(B))',
+  scanSource("<p>If the adjuster's scope misses damage, I send a supplement (my updated estimate).</p>").length === 1 &&
+  scanSource('<p>I submit supplements with photos.</p>').length === 1 && scanSource('<p>Joe can send a supplement.</p>').length === 1);
 ok('self-test: "a public adjuster to negotiate on your behalf" (not Joe) passes', scanSource('hire a public adjuster to negotiate on your behalf').length === 0);
 ok('self-test: an HTML comment naming the phrase does not count', scanSource('<!-- was: underpaid claims -->\n<p>ok</p>').length === 0);
 

@@ -88,7 +88,7 @@ function fieldApi() {
     ok('the link is the one every ask uses (ReviewEngine.getReviewLink, now exported)', /await RE\.getReviewLink\(\)/.test(src) && /getReviewLink: getReviewLink,/.test(read('docs/pro/js/review-engine.js')));
     ok('nothing is marked asked or sent by drafting', !/markAsked|sendReviewSMS|reviewRequested\s*[:=]/.test(src.slice(src.indexOf('async function reviewVelocity'), src.indexOf('async function count()'))));
     const dash = read('docs/pro/dashboard.html');
-    ok('home-attention, numbers-data and review-engine were cache-busted', /home-attention\.js\?v=25/.test(dash) && /numbers-data\.js\?v=2/.test(dash) && /review-engine\.js\?v=10/.test(dash) && /review-engine\.js\?v=10/.test(read('docs/pro/customer.html')));
+    ok('home-attention, numbers-data and review-engine were cache-busted', /home-attention\.js\?v=25/.test(dash) && /numbers-data\.js\?v=2/.test(dash) && /review-engine\.js\?v=11/.test(dash) && /review-engine\.js\?v=11/.test(read('docs/pro/customer.html')));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -10,11 +10,13 @@
     "the step environment before touching the test."
   ],
   "node": [
+    "field-rules-ky-emergency-2026-10-16.test.js",
     "technical-illustrations-2026-10-16.test.js",
     "photo-match-2026-10-15.test.js",
     "closes-week-2026-10-15.test.js",
     "crm-layouts-audit-fixes-2026-10-15.test.js",
     "next-stop-2026-10-15.test.js",
+    "site-search-2026-10-16.test.js",
     "route-drive-2026-10-16.test.js",
     "cash-card-2026-10-15.test.js",
     "card-prefs-2026-10-15.test.js",
@@ -29,6 +31,7 @@
     "deal-check-rate-2026-10-15.test.js",
     "review-ask-auto-2026-10-15.test.js",
     "review-ask-photo-2026-10-16.test.js",
+    "site-legal-crosscheck-2026-10-16.test.js",
     "review-handoff-2026-10-16.test.js",
     "review-sprint-2026-10-16.test.js",
     "d2d-door-import-2026-10-16.test.js",
