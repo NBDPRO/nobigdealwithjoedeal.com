@@ -306,6 +306,41 @@ jobs:
             echo "::warning::sentry-config.js not found — skipping release stamp"
           fi
 
+      # Minify the CRM's first-party JS + CSS (docs/pro, vendor and service
+      # workers excluded) for THIS deploy only — repos report 2026-10-16:
+      # the dashboard's 202 boot scripts go from 4.8 MB readable to ~2.7 MB.
+      # scripts/minify-shipped.js documents exactly what changes (whitespace +
+      # syntax, no renaming, keepNames, esbuild pinned). Runs AFTER the Sentry
+      # stamp above, whose sed matches the readable source, and BEFORE Hosting.
+      # Soft-fail on purpose, like the generators above: if esbuild cannot be
+      # installed or any file will not minify, the script writes NOTHING (it
+      # minifies everything in memory first) and the readable code deploys
+      # (it works, it is just bigger). The parse check after it is hard:
+      # nothing that does not parse ships.
+      # Source maps go to the runner's temp dir and up as a workflow artifact
+      # (never into docs/, never served, no sourceMappingURL comment).
+      - name: Minify the CRM's JS and CSS for this deploy
+        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        run: |
+          set +e
+          node scripts/minify-shipped.js --install \
+            && node scripts/minify-shipped.js --write --maps-dir "$RUNNER_TEMP/nbd-sourcemaps"
+          rc=$?
+          set -e
+          if [ $rc -ne 0 ]; then
+            echo "::warning::Minify failed (exit $rc) — nothing was rewritten; deploying the readable code."
+          fi
+          node scripts/check-js-syntax.js --shipped-only
+
+      - name: Keep the deploy's source maps (artifact, not served)
+        if: ${{ github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: shipped-sourcemaps-${{ github.sha }}
+          path: ${{ runner.temp }}/nbd-sourcemaps/
+          retention-days: 30
+          if-no-files-found: warn
+
       # Hosting deploys FIRST — before rules / indexes / storage / functions —
       # so a transient auth-race flake on the rules deploy (the recurring
       # "Failed to authenticate" abort that took out deploys #732 + #736) can
@@ -354,6 +389,13 @@ jobs:
           done
           echo "::error::Hosting deploy failed after 3 attempts."
           exit 1
+
+      # Put the readable docs/pro back. Hosting already has the minified copy;
+      # every gate below (the function smoke suite greps docs/pro source) must
+      # read the code as committed. always(): restore even if Hosting failed.
+      - name: Restore readable docs/pro after the Hosting deploy
+        if: ${{ always() && (github.event_name == 'push' || github.event.inputs.scope == 'all' || github.event.inputs.scope == 'hosting') }}
+        run: git checkout -- docs/pro
 
       # IndexNow: announce the public pages this push changed (Bing's index
       # feeds ChatGPT search). PRODUCTION ONLY — a push to main whose Hosting

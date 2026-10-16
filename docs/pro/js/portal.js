@@ -1561,7 +1561,7 @@
           '<p style="color:var(--muted);margin:0 0 14px;font-size:13px;line-height:1.5;">Send your neighbor our way — they get a no-pressure roof check, you get our thanks.</p>' +
           (statPill ? '<div style="margin-bottom:14px;">' + statPill + '</div>' : '') +
           '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
-            '<input id="rf-link" type="text" readonly value="' + esc(referLink) + '" style="flex:1;padding:10px;border-radius:6px;border:1px solid var(--br, #2a3344);background:var(--bg, #0a1424);color:inherit;font:inherit;font-size:12px;">' +
+            '<input id="rf-link" type="text" readonly aria-label="Your referral link" value="' + esc(referLink) + '" style="flex:1;padding:10px;border-radius:6px;border:1px solid var(--br, #2a3344);background:var(--bg, #0a1424);color:inherit;font:inherit;font-size:12px;">' +
             '<button id="rf-copy" type="button" style="padding:0 14px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:var(--surface-2,#13243d);color:var(--text);border:1px solid var(--br, #2a3344);border-radius:6px;cursor:pointer;white-space:nowrap;">Copy</button>' +
           '</div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +

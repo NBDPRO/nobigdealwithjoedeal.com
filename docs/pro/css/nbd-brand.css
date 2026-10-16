@@ -37,7 +37,7 @@
   /* ── Ink (text) colors ── */
   --nbd-ink:          #1a1612;  /* primary — near-black with a hint of warmth */
   --nbd-ink-muted:    #6b6357;  /* secondary text, captions */
-  --nbd-ink-subtle:   #9a9388;  /* tertiary, helper text */
+  --nbd-ink-subtle:   #706a60;  /* tertiary, helper text (was #9a9388: 3.0:1 on white, under AA; axe 2026-10-16) */
   --nbd-ink-on-orange:#ffffff;  /* text rendered on a saturated orange surface */
 
   /* ── Lines ── */

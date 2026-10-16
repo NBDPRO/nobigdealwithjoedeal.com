@@ -172,6 +172,31 @@ CEILING.localBytes += 3 * 1024;
 // so the ceiling keeps ~2 KB of slack.
 CEILING.localBytes += 3 * 1024;
 
+// ── SHIPPED BYTES (2026-10-16, deploy-time minify) ─────────────────────────
+// Since the deploy minifies docs/pro with esbuild (scripts/minify-shipped.js:
+// whitespace + syntax only, no renaming), the readable bytes above are not
+// what a phone downloads. The BYTE gates now measure the minified bytes that
+// ship: each local script is run through the same minifySource() the deploy
+// uses. The readable-source numbers above (CEILING.blockingBytes /
+// localBytes / templateBytes, and the += history) are still measured and
+// printed so growth stays visible, but they no longer fail the test. Raise
+// a SHIPPED ceiling below, in the same PR and with a reason, the same way.
+//   measured 2026-10-16 on main e1433a7e (202 boot scripts):
+//     local    4854 KB readable -> 2654 KB shipped (gzip 1557 -> 856 KB, brotli 1321 -> 743 KB)
+//     blocking  175 KB readable ->   78 KB shipped
+//     template  130 KB readable ->   69 KB shipped
+// (keepNames' __name() calls cost ~150 KB raw of that; they are what keeps fn.name right.)
+// Ceilings keep ~5% headroom over that, so steady growth still trips them.
+// The script COUNT ceilings above are unchanged and still enforced.
+// esbuild must be the pinned version: `node scripts/minify-shipped.js --install`.
+// Without it the shipped gates fail under CI (process.env.CI) and are skipped
+// with a warning on a laptop, where the readable gates are enforced instead.
+const SHIPPED_CEILING = {
+  blockingBytes: 82 * 1024,
+  localBytes: 2790 * 1024,
+  templateBytes: 73 * 1024,
+};
+
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
   if (cond) { passed++; console.log('  ✓ ' + name); }
@@ -241,10 +266,22 @@ function tokenizeTags(html) {
   }
   return tags;
 }
+// The deploy's own minifier (null when the pinned esbuild is not installed).
+const MINIFY = require('../scripts/minify-shipped.js');
+let ESBUILD = null, ESBUILD_ERR = '';
+try { ESBUILD = MINIFY.loadEsbuild(); } catch (e) { ESBUILD_ERR = e.message; }
+// Bytes the deploy actually serves for this file: minified when the deploy minifies it.
+function shippedSize(file) {
+  const rel = path.relative(path.join(__dirname, '..', 'docs'), file).replace(/\\/g, '/');
+  const src = fs.readFileSync(file, 'utf8').replace(/\r/g, '');
+  if (!MINIFY.shouldMinify(rel)) return Buffer.byteLength(src);
+  return Buffer.byteLength(MINIFY.minifySource(ESBUILD, src, rel, false).code);
+}
 function measure(html, root) {
   const out = {
     htmlBytes: Buffer.byteLength(html.replace(/\r/g, '')), localScripts: 0, localBytes: 0, blockingScripts: 0, blockingBytes: 0,
     templateBlockingScripts: 0, templateBlockingBytes: 0, templateFiles: [], tplDepthAtEof: 0, strayTemplateClose: 0, missing: [],
+    shippedLocalBytes: 0, shippedBlockingBytes: 0, shippedTemplateBytes: 0,
   };
   let tplDepth = 0;
   for (const t of tokenizeTags(html)) {
@@ -261,10 +298,11 @@ function measure(html, root) {
     const file = path.join(root, rel.replace(/^\/pro\//, ''));
     if (!fs.existsSync(file)) { out.missing.push(src); continue; }
     const n = lfSize(file);
-    out.localScripts++; out.localBytes += n;
+    const s = ESBUILD ? shippedSize(file) : 0;
+    out.localScripts++; out.localBytes += n; out.shippedLocalBytes += s;
     const blocking = !('defer' in t.attrs) && !('async' in t.attrs) && String(t.attrs.type || '').toLowerCase() !== 'module';
-    if (blocking && tplDepth > 0) { out.templateBlockingScripts++; out.templateBlockingBytes += n; out.templateFiles.push(rel); }
-    else if (blocking) { out.blockingScripts++; out.blockingBytes += n; }
+    if (blocking && tplDepth > 0) { out.templateBlockingScripts++; out.templateBlockingBytes += n; out.shippedTemplateBytes += s; out.templateFiles.push(rel); }
+    else if (blocking) { out.blockingScripts++; out.blockingBytes += n; out.shippedBlockingBytes += s; }
   }
   out.tplDepthAtEof = tplDepth;
   return out;
@@ -272,20 +310,52 @@ function measure(html, root) {
 console.log('\nDASHBOARD BOOT BUDGET');
 const m = measure(fs.readFileSync(path.join(PRO, 'dashboard.html'), 'utf8'), PRO);
 const kb = (n) => Math.round(n / 1024) + ' KB';
+// Readable-source byte gates: enforced only when the shipped gates cannot run (laptop without esbuild).
+const SHIPPED_GATES = !!ESBUILD;
+function srcBytes(name, got, ceil) {
+  if (SHIPPED_GATES) console.log('  · readable ' + name + ': ' + kb(got) + ' (history ceiling ' + kb(ceil) + ', informational: the shipped gate below is enforced)');
+  else ok('readable ' + name + ': ' + kb(got) + ' ≤ ' + kb(ceil), got <= ceil);
+}
 ok('every local script tag resolves to a file', m.missing.length === 0, m.missing.join(', '));
 ok('blocking scripts: ' + m.blockingScripts + ' ≤ ' + CEILING.blockingScripts + ' (new code loads deferred or lazily)', m.blockingScripts <= CEILING.blockingScripts);
-ok('blocking bytes: ' + kb(m.blockingBytes) + ' ≤ ' + kb(CEILING.blockingBytes), m.blockingBytes <= CEILING.blockingBytes);
+srcBytes('blocking bytes', m.blockingBytes, CEILING.blockingBytes);
 console.log('  · template-deferred (not parser-blocking; hydrate with their view, ON BOOT for deep links like #/settings): ' + m.templateBlockingScripts + ' scripts, ' + kb(m.templateBlockingBytes));
 ok('template-deferred scripts: ' + m.templateBlockingScripts + ' ≤ ' + CEILING.templateScripts, m.templateBlockingScripts <= CEILING.templateScripts);
-ok('template-deferred bytes: ' + kb(m.templateBlockingBytes) + ' ≤ ' + kb(CEILING.templateBytes), m.templateBlockingBytes <= CEILING.templateBytes);
+srcBytes('template-deferred bytes', m.templateBlockingBytes, CEILING.templateBytes);
 ok('<template> tags balance to depth 0 at EOF, no stray </template> (else every later script is misfiled)', m.tplDepthAtEof === 0 && m.strayTemplateClose === 0,
   'depth ' + m.tplDepthAtEof + ', stray closes ' + m.strayTemplateClose);
 ok('template-deferred set is exactly the known set (a new template script is a conscious change)',
   JSON.stringify(m.templateFiles.slice().sort()) === JSON.stringify(KNOWN_TEMPLATE_SCRIPTS.slice().sort()),
   'got: ' + m.templateFiles.slice().sort().join(', '));
 ok('local script tags: ' + m.localScripts + ' ≤ ' + CEILING.localScripts, m.localScripts <= CEILING.localScripts);
-ok('local script bytes: ' + kb(m.localBytes) + ' ≤ ' + kb(CEILING.localBytes), m.localBytes <= CEILING.localBytes);
+srcBytes('local script bytes', m.localBytes, CEILING.localBytes);
 ok('dashboard.html: ' + kb(m.htmlBytes) + ' ≤ ' + kb(CEILING.htmlBytes), m.htmlBytes <= CEILING.htmlBytes);
+
+console.log('\nSHIPPED (minified at deploy, scripts/minify-shipped.js)');
+if (!SHIPPED_GATES) {
+  const why = 'esbuild ' + MINIFY.ESBUILD_VERSION + ' not available' + (ESBUILD_ERR ? ' (' + ESBUILD_ERR + ')' : '') + ': run node scripts/minify-shipped.js --install';
+  if (process.env.CI) ok('shipped-byte gates can run (pinned esbuild installed)', false, why);
+  else console.log('  ! SKIPPED: ' + why + ' (the readable gates above were enforced instead)');
+} else {
+  ok('shipped blocking bytes: ' + kb(m.shippedBlockingBytes) + ' ≤ ' + kb(SHIPPED_CEILING.blockingBytes), m.shippedBlockingBytes <= SHIPPED_CEILING.blockingBytes);
+  ok('shipped template-deferred bytes: ' + kb(m.shippedTemplateBytes) + ' ≤ ' + kb(SHIPPED_CEILING.templateBytes), m.shippedTemplateBytes <= SHIPPED_CEILING.templateBytes);
+  ok('shipped local script bytes: ' + kb(m.shippedLocalBytes) + ' ≤ ' + kb(SHIPPED_CEILING.localBytes), m.shippedLocalBytes <= SHIPPED_CEILING.localBytes);
+  // Controls: the shipped measure really is the minified output, and minifying keeps what the CRM relies on.
+  ok('control: shipped bytes are the minified bytes (well under the readable bytes)', m.shippedLocalBytes > 0 && m.shippedLocalBytes < m.localBytes * 0.8,
+    kb(m.shippedLocalBytes) + ' vs ' + kb(m.localBytes));
+  // A fixed probe (not a real file), evaluated after minifying: every .name the CRM can observe.
+  const probe = "'use strict';\nfunction debounce(fn){ return fn.name; } // crm-leads.js keys timers on fn.name\n" +
+    "const w = {};\nw.saveNote = function saveNote() {};\nconst a = function b() {};\nconst o = { x: function b() {} };\nclass Klass { m() { return Klass; } }\n" +
+    "const PROBE = [debounce(function save() {}), w.saveNote.name, a.name, o.x.name, Klass.name, typeof debounce];\n";
+  const WANT = 'save,saveNote,b,b,Klass,function';
+  const run = (code) => { try { return new Function(code + '\nreturn PROBE.join();')(); } catch (e) { return String(e); } };
+  const out = MINIFY.minifySource(ESBUILD, probe, 'pro/js/probe.js', false).code;
+  ok('control: minified code keeps every function and class .name (keepNames) and the top-level names', run(out) === WANT, run(out) + ' :: ' + out);
+  ok('control: no class static {} block in the output (a syntax error before Safari 16.4)', !/static\s*\{/.test(out), out);
+  // The same probe without keepNames really loses names, so the check above can fail.
+  const bare = ESBUILD.transformSync(probe, Object.assign({}, MINIFY.OPTIONS, { loader: 'js', keepNames: false })).code;
+  ok('control: without keepNames esbuild drops names (the reason keepNames is on)', run(bare) !== WANT, run(bare));
+}
 
 // Positive controls: the counter must see what it claims to count.
 const ctl = measure('<script src="js/a.js"></script><script defer src="js/a.js"></script><script type="module" src="js/a.js"></script><!-- <script src="js/a.js"></script> --><script src="https://x.test/b.js"></script>', path.join(__dirname));

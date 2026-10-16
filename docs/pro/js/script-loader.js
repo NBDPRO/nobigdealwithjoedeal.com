@@ -347,14 +347,16 @@
       'js/d2d-tracker-ui-2026b.js?v=12',
       'js/d2d-tracker-2026b.js?v=6'
     ],
-    // PDF export libs (PR 2b2). jsPDF + html2pdf — ~1.1 MB combined (html2pdf
-    // bundles html2canvas + its own jsPDF). The ONLY dashboard consumer is the
-    // doc-viewer's "Download PDF" handler (nbd-doc-viewer.js handlePdf), which
-    // load-then-runs this bundle on demand. Standalone jsPDF is unused on the
-    // dashboard (only customer.html instantiates it) but kept here for safety.
+    // PDF export libs (PR 2b2). Consumers: the doc-viewer's "Download PDF"
+    // (nbd-doc-viewer.js handlePdf -> window.html2pdf) and customer.html's
+    // estimate export (window.jspdf). 2026-10-16: jsPDF 4.2.1 + html2pdf 0.14.0
+    // (security advisories). html2pdf is built by scripts/vendor-pdf-libs.js
+    // WITHOUT its own jsPDF copy and uses window.jspdf, so jsPDF downloads once
+    // (it used to load twice: standalone + inside html2pdf). Order matters:
+    // jsPDF first (loadBundle runs these in order). ~670 KB, was ~1.2 MB.
     pdfexport: [
-      '/assets/vendor/jspdf/jspdf.umd.min.js',
-      '/assets/vendor/html2pdf/html2pdf.bundle.min.js'
+      '/assets/vendor/jspdf/4.2.1/jspdf.umd.min.js',
+      '/assets/vendor/html2pdf/0.14.0/html2pdf.nbd.min.js'
     ],
     // Warranty cert wizard — opened from the Docs view only.
     warranty: [

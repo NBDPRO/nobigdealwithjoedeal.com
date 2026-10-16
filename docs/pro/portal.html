@@ -170,7 +170,7 @@
     border-radius: var(--nbd-radius-pill);
     border: 1px solid var(--nbd-line);
   }
-  .pill-green  { color: var(--nbd-success); border-color: rgba(22,163,74,.35); background: var(--nbd-success-soft); }
+  .pill-green  { color: #166534; border-color: rgba(22,163,74,.35); background: var(--nbd-success-soft); }
   .pill-orange { color: var(--nbd-orange-ink); border-color: var(--nbd-orange-medium); background: var(--nbd-orange-soft); }
   .pill-red    { color: var(--nbd-danger); border-color: rgba(220,38,38,.35); background: var(--nbd-danger-soft); }
   .btn {
@@ -196,7 +196,7 @@
   .btn:active { transform: scale(.98); }
   .btn-ghost {
     background: transparent;
-    color: var(--nbd-orange);
+    color: var(--nbd-orange-deep); /* text on cream: brand orange is 3.9:1 there (axe, 2026-10-16) */
     border: 1px solid var(--nbd-orange);
   }
   .btn-ghost:hover { background: var(--nbd-orange-soft); }
@@ -409,7 +409,7 @@
     font-size: var(--nbd-text-xs);
     text-align: center;
   }
-  footer a { color: var(--nbd-orange); text-decoration: none; }
+  footer a { color: var(--nbd-orange-deep); text-decoration: none; }
 
   /* ── Project progress tracker (9 steps, 2026-10-03) ──────────────
      Phone-first: the current step + "N of 9 done", a 9-segment bar, the
@@ -494,7 +494,7 @@
   }
   .progress-next-label{
     font-size:10px; font-weight:700; letter-spacing: var(--nbd-tracking-widest);
-    text-transform: uppercase; color: var(--nbd-orange); margin-bottom: var(--nbd-space-1);
+    text-transform: uppercase; color: var(--nbd-orange-deep); margin-bottom: var(--nbd-space-1);
   }
   /* The install date. Weightier than "Next up" because it is the more
      specific fact — a homeowner opens this page for the date, not the
@@ -602,7 +602,7 @@
 <!-- D-2.7: Before/After draggable slider. Loaded after the main
      page body so the portal's render path can call NBDBeforeAfter
      once view data lands. Self-contained — no Firebase deps. -->
-<script defer src="./js/before-after-slider.js?v=3"></script>
+<script defer src="./js/before-after-slider.js?v=4"></script>
 
 <script defer src="js/booking-events.js?v=2"></script>
 <!-- Phone reading layout for "Your Documents → View" (shared with sign.html
@@ -614,6 +614,6 @@
 <!-- "A video from Thursday" card (NBD only; ships dark until a video is
      configured). Before portal.js, which reads window.NBDThursdayVideo. -->
 <script defer src="js/thursday-video.js?v=1"></script>
-<script src="js/portal.js?v=17" defer></script>
+<script src="js/portal.js?v=18" defer></script>
 </body>
 </html>

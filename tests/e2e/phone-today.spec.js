@@ -119,3 +119,30 @@ test.describe('phone: ONE Home = Today @shard2', () => {
     await expect.poll(() => activeView(page)).toBe('view-dash');
   });
 });
+
+// Accessibility (axe-core, 2026-10-16): Today on the installed iPhone app, as
+// it boots. Fails on serious/critical WCAG 2.x A/AA violations inside
+// #view-home; moderate/minor ones go to the report. axe is injected as a
+// script, so THIS block's context bypasses the page CSP (fixtures/axe.js).
+test.describe('phone: Today accessibility (axe) @shard1', () => {
+  const { expectNoSeriousA11y } = require('./fixtures/axe');
+  test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
+  test.use({ ...IPHONE, bypassCSP: true });
+
+  test('Today has no serious or critical axe violations', async ({ page }, testInfo) => {
+    test.setTimeout(120_000);
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('nbd-onboarding-complete', '1');
+        localStorage.setItem('nbd_push_optin_snoozed_until', String(Date.now() + 3600_000));
+      } catch (e) { /* storage blocked */ }
+    });
+    await loginAs(page, creds);
+    await forceStandalone(page);
+    await expect.poll(() => activeView(page), { message: 'the boot view is Home/Today' }).toBe('view-home');
+    const plan = page.locator('#view-home #todayPlan');
+    await expect(plan).toBeVisible({ timeout: 30_000 });
+    await expect(plan.locator('.tp-title')).toHaveText(/things? today|Nothing due today/, { timeout: 30_000 });
+    await expectNoSeriousA11y(page, testInfo, { include: '#view-home', label: 'today' });
+  });
+});

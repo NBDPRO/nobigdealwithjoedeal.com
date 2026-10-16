@@ -6,7 +6,7 @@
 /* ── Setup checklist (js/setup-checklist.js) ── */
 .sc-card { margin: 12px; padding: 14px 16px; background: var(--s, #161b22); border: 1px solid var(--br, #2a2f36); border-left: 3px solid var(--orange, #BD5728); border-radius: 10px; }
 .sc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.sc-kicker { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--orange, #BD5728); font-weight: 700; }
+.sc-kicker { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ui-accent-text, var(--orange, #BD5728)); font-weight: 700; }
 .sc-title { font-size: 16px; font-weight: 700; color: var(--t, #e6e6e6); margin-top: 2px; }
 .sc-hide { background: none; border: 0; color: var(--m, #8b949e); font-size: 12px; cursor: pointer; padding: 4px 6px; min-height: 32px; }
 .sc-bar { height: 6px; border-radius: 3px; background: var(--s2, #21262d); margin: 10px 0 12px; overflow: hidden; }
