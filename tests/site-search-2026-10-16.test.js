@@ -99,6 +99,7 @@ function ok(label, cond, detail) {
     ok('pagefind is pinned to 1.5.2', S.PAGEFIND_VERSION === '1.5.2');
     ok('nav, header, footer and forms are not indexed', ['nav', 'header', 'footer', 'form'].every((x) => S.EXCLUDE_SELECTORS.indexOf(x) !== -1));
     ok('noindex pages are skipped at build time', /NOINDEX_RE\.test\(html\)/.test(read('scripts/build-site-search.mjs')));
+    ok('site-integrity skips only /pagefind/ (generated at deploy), nothing else', read('scripts/check-site-integrity.js').includes('const GENERATED_AT_DEPLOY = /^\\/pagefind\\//;'));
     ok('docs/pagefind is generated, never committed', /^docs\/pagefind\/\r?$/m.test(read('.gitignore')));
   }
 
