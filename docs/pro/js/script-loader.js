@@ -514,7 +514,7 @@
     // saved on this device. Kicked by today-home.js at Home boot.
     cardprefs: [
       'css/card-prefs.css?v=1',
-      'js/card-prefs.js?v=3'
+      'js/card-prefs.js?v=4'
     ],
     // Day and night layouts (2026-10-15): offers Field on a phone by day and
     // Mission Control on a computer at night (never switches by itself), plus

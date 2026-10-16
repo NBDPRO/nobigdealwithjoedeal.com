@@ -62,8 +62,8 @@
     ],
     crew: [
       { id: 'nextstop', label: 'Next stop', sel: '[data-ns-slot="crew"]' },
-      { id: 'cash', label: 'Cash collected', sel: '[data-cash-slot="crew"]' },
       { id: 'closesweek', label: 'What closes this week', sel: '[data-cwk-slot="crew"]' },
+      { id: 'cash', label: 'Cash collected', sel: '[data-cash-slot="crew"]' },   // under the schedule
     ],
     inbox: [
       { id: 'nextstop', label: 'Next stop', sel: '[data-ns-slot="inbox"]' },
@@ -197,6 +197,10 @@
       if (!g) { g = { parent: f.el.parentNode, items: [] }; groups.push(g); }
       g.items.push(f);
     });
+    // Nothing saved: leave every card where its layout put it. (A default order
+    // was being "applied" too, which moved Crew's Cash strip back above the
+    // week grid it had been put under.) Only a rep's own order moves cards.
+    if (isDefault(p, idsOf(layout))) return;
     groups.forEach(function (g) {
       if (g.items.length < 2) return;
       var inDom = g.items.slice().sort(function (a, b) {
