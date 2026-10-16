@@ -13,6 +13,10 @@
  *     Home (where the full-screen layouts draw) and returns to Settings after,
  *     and it is offered only when the chosen device is this screen.
  *   - Glove mode: the --tap token goes 56px -> 64px.
+ *   - Button size per layout (2026-10-16): Compact 48 / Comfortable 56 / Big 64
+ *     for the layout this device shows (userSettings.layout.density).
+ *   - Field, Classic, Focus and Mission first; the rest under "More layouts".
+ *     The owner's section shows the team's anonymous usage (layout-usage.js).
  *   - Company default / lock (owner or company_admin only; the rules enforce
  *     it): a default per device, which layouts are offered, and Lock.
  *
@@ -64,6 +68,16 @@
     island: 'No sidebar: a nav pill on top, a dock with Record visit at the bottom, and your pages as glass panels over your wallpaper.',
     inbox: 'Texts, calls, new leads and nudges in one list, each with a reply-by timer and a drafted reply you send yourself.',
   };
+
+  // Shown first (layouts idea #13): the ones built for a solo roofer's day.
+  // The rest sit under "More layouts" (still one tap), open when one of them
+  // is the layout in use.
+  var FIRST = ['field', 'classic', 'focus', 'mission'];
+  var SIZES = [
+    { id: 'compact', label: 'Compact', note: '48px' },
+    { id: 'comfortable', label: 'Comfortable', note: '56px' },
+    { id: 'big', label: 'Big', note: '64px' },
+  ];
 
   var state = { device: E.surface(), preview: null, timer: null, tick: null, left: 0, busy: false, adminOpen: false, returnTo: null };
 
@@ -133,7 +147,21 @@
       '</article>';
     return h;
   }
+  function usageHtml() {
+    var U = state.usage;
+    var names = function (id) { var d = R.get(id); return d ? d.name : id; };
+    var body = U === undefined ? 'Loading…' : U === null ? 'Could not load the usage counts just now.'
+      : !U.length ? 'No layout has been counted yet. Each device counts once a day, when a layout is on screen.'
+      : U.map(function (x) { return esc(names(x.id)) + ' ' + x.n; }).join(' · ');
+    return '<p class="lp-note lp-usage"><strong>Used by your team, last 7 days</strong> (devices per day, no names): ' + body + '</p>';
+  }
+  function loadUsage() {
+    if (state.usageAsked || !window.NBDLayoutUsage || typeof window.NBDLayoutUsage.lastWeek !== 'function') return;
+    state.usageAsked = true;
+    window.NBDLayoutUsage.lastWeek(7).then(function (rows) { state.usage = rows; render(); });
+  }
   function adminHtml() {
+    loadUsage();
     var p = prefs();
     var c = p.company;
     var opts = R.forSurface(state.device);
@@ -152,13 +180,15 @@
       }).join('') + '</fieldset>' +
       '<label class="lp-chk"><input type="checkbox" id="lpCompanyLock"' + (c.locked ? ' checked' : '') + '> Lock the layout (the team cannot change it)</label>' +
       '<div class="lp-btns"><button type="button" class="btn btn-orange lp-btn" data-lp="save-company">Save company layout</button>' +
-      '<span class="lp-status" id="lpCompanyStatus" aria-live="polite"></span></div></details>';
+      '<span class="lp-status" id="lpCompanyStatus" aria-live="polite"></span></div>' + usageHtml() + '</details>';
     return h;
   }
   function render() {
     // keep the admin <details> open/closed across repaints (layoutchange repaints it)
     var openNow = document.querySelector('#layoutsPanelBody .lp-admin');
     if (openNow) state.adminOpen = openNow.open;
+    var moreNow = document.querySelector('#layoutsPanelBody .lp-more');
+    if (moreNow) state.moreOpen = moreNow.open;
     var lock = lockInfo();
     var eff = effectiveFor(state.device);
     var h = '<div class="lp-devices" role="group" aria-label="Choose layout for">' +
@@ -168,13 +198,31 @@
     if (lock) {
       h += '<p class="lp-lock" role="status">Your company has set the layout for this screen to <strong>' + esc(lock.name) + '</strong>. It cannot be changed here.</p>';
     }
-    h += '<div class="lp-grid">' + R.forSurface(state.device).filter(function (d) { return companyAllows(d.id); })
-      .map(function (d) { return cardHtml(d, eff, lock); }).join('') + '</div>';
+    var all = R.forSurface(state.device).filter(function (d) { return companyAllows(d.id); });
+    var first = FIRST.map(function (id) { return all.filter(function (d) { return d.id === id; })[0]; }).filter(Boolean);
+    var more = all.filter(function (d) { return FIRST.indexOf(d.id) === -1; });
+    h += '<div class="lp-grid">' + first.map(function (d) { return cardHtml(d, eff, lock); }).join('') + '</div>';
+    if (more.length) {
+      var openMore = state.moreOpen || more.some(function (d) { return d.id === eff.id || d.id === mineFor(state.device); });
+      h += '<details class="lp-more"' + (openMore ? ' open' : '') + '><summary>More layouts (' + more.length + ')</summary>' +
+        '<div class="lp-grid">' + more.map(function (d) { return cardHtml(d, eff, lock); }).join('') + '</div></details>';
+    }
     var u = prefs().user;
     if (mineFor(state.device) && !lock) {
       h += '<p><button type="button" class="btn btn-ghost lp-btn" data-lp="clear" data-id="' + esc(state.device) + '">Use my company\'s default</button></p>';
     }
-    h += '<label class="lp-chk lp-glove"><input type="checkbox" id="lpGlove"' + (u.glove ? ' checked' : '') + '> Glove mode — bigger buttons (64px instead of 56px)</label>';
+    // Button size, per layout (2026-10-16): the layout this device shows.
+    // Classic keeps its own sizes, so it gets no choice.
+    var sizeFor = eff.id && eff.id !== R.FALLBACK ? R.get(eff.id) : null;
+    if (sizeFor) {
+      var cur = R.densityFor(u, sizeFor.id);
+      h += '<fieldset class="lp-fs lp-size"><legend>Button size in ' + esc(sizeFor.name) + '</legend><div class="lp-size-row">' +
+        SIZES.map(function (s) {
+          return '<label class="lp-size-opt"><input type="radio" name="lpSize" value="' + s.id + '" data-lp-size="' + esc(sizeFor.id) + '"' + (cur === s.id ? ' checked' : '') + (lock ? ' disabled' : '') + '> ' +
+            esc(s.label) + ' <span class="lp-size-px">' + s.note + '</span></label>';
+        }).join('') + '</div></fieldset>';
+    }
+    h += '<label class="lp-chk lp-glove"><input type="checkbox" id="lpGlove"' + (u.glove ? ' checked' : '') + '> Glove mode — big buttons (64px) in every layout you haven\'t sized yourself</label>';
     if (state.device !== E.surface()) h += '<p class="lp-note">Try it previews on the screen you are using. To try a ' + esc(DEVICES.filter(function (d) { return d.id === state.device; })[0].label.toLowerCase()) + ' layout, open Settings on that device; Use this saves it for that device from here.</p>';
     h += '<p class="lp-note">Your theme and My Skin work with every layout.</p>';
     if (canAdmin()) h += adminHtml();
@@ -300,6 +348,15 @@
     var t = ev.target;
     if (t && t.id === 'lpGlove') {
       E.saveUser({ glove: !!t.checked }).then(function () { render(); });
+      return;
+    }
+    var sz = t && t.getAttribute && t.getAttribute('data-lp-size');
+    if (sz && t.checked && !lockInfo()) {
+      var patch = {}; patch[sz] = t.value;
+      E.saveUser({ density: patch }).then(function (r) {
+        render();
+        toast(r && r.saved ? 'Button size saved.' : 'Button size applied on this device. Couldn\'t sync it; check your connection.', r && r.saved ? 'success' : 'info');
+      });
     }
   }
 

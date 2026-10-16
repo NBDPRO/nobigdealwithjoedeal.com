@@ -528,6 +528,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-thandled-test 'node firestore-rules.thursday-handled.test.js'
+      # Anonymous "layout used today" counter (2026-10-16): companies/{cid}/layoutUsage.
+      - name: Run layout-usage rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-lusage-test 'node firestore-rules.layout-usage.test.js'
       # Stage-triggered "Docs to review" drafts (2026-10-13): leads/{id}/doc_drafts.
       - name: Run doc-drafts rules tests under emulator
         run: |

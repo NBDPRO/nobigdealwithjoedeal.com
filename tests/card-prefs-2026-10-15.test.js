@@ -148,6 +148,20 @@ console.log('\nB. applying prefs to the screen');
   ok('company layout lock: the screen stays in the default order', seen3().join() === 'top,nextstop,prog,now,upnext,cash,closesweek', seen3().join());
 }
 
+{
+  // Default prefs never move a card, even where the list order differs from
+  // the layout's own (Crew puts Cash UNDER the schedule, Next stop above it).
+  const sb = sandbox({ layout: 'crew' });
+  const wrap = sb.dom.node('div', { class: 'cw-wrap', 'data-k': 'wrap' });
+  sb.dom.body.appendChild(wrap);
+  [['div', { class: 'cw-top', 'data-k': 'top' }], ['div', { 'data-ns-slot': 'crew', 'data-k': 'nextstop' }], ['div', { 'data-cash-slot': 'crew', 'data-k': 'cash' }],
+    ['div', { 'data-cwk-slot': 'crew', 'data-k': 'closesweek' }], ['div', { class: 'cw-grid', 'data-k': 'grid' }]].forEach((x) => wrap.appendChild(sb.dom.node(x[0], x[1])));
+  const before = wrap.children.map((c) => c.attrs['data-k']).join();
+  sb.CP.apply();
+  ok('no saved prefs: every card stays where the layout put it (Crew\'s Cash stays under the grid)', wrap.children.map((c) => c.attrs['data-k']).join() === before, wrap.children.map((c) => c.attrs['data-k']).join());
+  ok('the Crew list matches its layout\'s own order', P.idsOf('crew').join() === 'nextstop,closesweek,cash');
+}
+
 console.log('\nC. the sheet');
 {
   const sb = sandbox({});

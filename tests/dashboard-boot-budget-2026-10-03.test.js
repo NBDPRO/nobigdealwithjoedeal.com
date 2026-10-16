@@ -120,6 +120,11 @@ CEILING.localBytes += 2 * 1024;
 // the lazy 'homestrips' and 'stormstrip' bundles and today-home.js kicks them (+~0.8 KB); Field's old cached
 // storm line went away (-0.3 KB, field.js is lazy anyway). Main + this stack measures 4845 of 4844 KB.
 CEILING.localBytes += 2 * 1024;
+// +2 KB, deliberate (2026-10-16, layouts extras: button size per layout + layout usage): no new script, no new
+// tag. layout-system.js (deferred) learns density per layout (+~1.3 KB: cleanDensity, densityFor, applying it on
+// every layout switch, saving it); shape-preboot.js stamps it before paint (+~0.3 KB); script-loader.js registers
+// the lazy 'layoutusage' bundle (+~0.2 KB). Measured 4847 of 4846 KB.
+CEILING.localBytes += 2 * 1024;
 // +5 KB, deliberate (2026-10-15, siding warranty by package, #2463 + its follow-up): no new script tag.
 // The siding kind + package table in estimate-config.js and customer-estimate-rows.js (both deferred),
 // the Package row in job-templates-ui.js, the signed-package lock and the certificate's signed view in

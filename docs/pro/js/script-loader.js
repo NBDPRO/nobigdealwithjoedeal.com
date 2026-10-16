@@ -514,7 +514,7 @@
     // saved on this device. Kicked by today-home.js at Home boot.
     cardprefs: [
       'css/card-prefs.css?v=1',
-      'js/card-prefs.js?v=3'
+      'js/card-prefs.js?v=4'
     ],
     // Day and night layouts (2026-10-15): offers Field on a phone by day and
     // Mission Control on a computer at night (never switches by itself), plus
@@ -536,6 +536,11 @@
     stormstrip: [
       'css/storm-strip.css?v=1',
       'js/storm-strip.js?v=1'
+    ],
+    // Layout usage (2026-10-16): an anonymous, company-scoped "this layout was
+    // used today" count, one per device per day. Kicked by today-home.js.
+    layoutusage: [
+      'js/layout-usage.js?v=1'
     ]
   };
 

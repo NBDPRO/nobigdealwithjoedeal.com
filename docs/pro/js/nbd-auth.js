@@ -827,6 +827,9 @@ export const NBDAuth = {
         // "Day and night layouts" (js/layout-offer.js): this screen's on/off and
         // daytime hours, and which day/night offers were already answered.
         'nbd_layout_offer', 'nbd_layout_offer_seen',
+        // layout-usage.js: which layouts this device already counted today (ids
+        // only), so signing out and back in never counts a device twice.
+        'nbd_layout_used',
       ]);
       const drop = [];
       for (let i = 0; i < localStorage.length; i++) {

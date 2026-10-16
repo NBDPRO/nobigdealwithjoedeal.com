@@ -93,13 +93,33 @@
   function forSurface(surface) { return list().filter(function (d) { return d.surfaces.indexOf(surface) !== -1; }); }
 
   // ── settings shapes ──────────────────────────────────────────────────
-  // userSettings/{uid}.layout = { id, byDevice:{phone,tablet,desktop}, layoutState:{<id>:...}, glove }
+  // userSettings/{uid}.layout = { id, byDevice:{phone,tablet,desktop}, layoutState:{<id>:...}, glove, density:{<id>:size} }
   function cleanByDevice(raw) {
     var out = {};
     if (raw && typeof raw === 'object') {
       SURFACES.forEach(function (s) { if (isId(raw[s])) out[s] = raw[s]; });
     }
     return out;
+  }
+  // Button size per layout (2026-10-16): 'compact' (48px), 'comfortable' (the
+  // 56px default) or 'big' (64px, what glove mode gives every layout). Unknown
+  // sizes and ids are dropped; at most 12 entries, so the settings doc stays small.
+  var DENSITIES = ['compact', 'comfortable', 'big'];
+  function cleanDensity(raw) {
+    var out = {}, n = 0;
+    if (raw && typeof raw === 'object') {
+      Object.keys(raw).forEach(function (k) {
+        if (n < 12 && isId(k) && DENSITIES.indexOf(raw[k]) !== -1) { out[k] = raw[k]; n++; }
+      });
+    }
+    return out;
+  }
+  /** The tap size a layout gets: its own choice, else glove ('big'), else the default. */
+  function densityFor(user, id) {
+    var u = user || {};
+    var d = u.density && u.density[id];
+    if (DENSITIES.indexOf(d) !== -1) return d;
+    return u.glove === true ? 'big' : 'comfortable';
   }
   function normalizeUser(raw) {
     var r = raw && typeof raw === 'object' ? raw : {};
@@ -117,6 +137,7 @@
       byDevice: cleanByDevice(r.byDevice),
       layoutState: state,
       glove: r.glove === true,
+      density: cleanDensity(r.density),
     };
   }
   // companies/{companyId}/settings/layout. `defaultWidgets` is the admin's
@@ -284,7 +305,7 @@
     SURFACES: SURFACES, FALLBACK: FALLBACK, ID_RE: ID_RE, MAX_STATE_JSON: MAX_STATE_JSON,
     register: register, get: get, list: list, forSurface: forSurface,
     normalizeUser: normalizeUser, normalizeCompany: normalizeCompany,
-    resolve: resolve, surfaceFor: surfaceFor, isId: isId,
+    resolve: resolve, surfaceFor: surfaceFor, isId: isId, densityFor: densityFor, DENSITIES: DENSITIES,
     // test hook: forget everything but Classic
     _reset: function () { defs = {}; order = []; register({ id: FALLBACK, name: 'Classic' }); },
   };
@@ -485,6 +506,7 @@
       if (previous !== def.id) unmountMounted();
       current = { id: def.id, source: o.source || null, surface: surf };
       root.setAttribute('data-layout', def.id);
+      applyGlove(def.id);
       mountCurrent();
       if (previous !== def.id) {
         var ev = new CustomEvent('layoutchange', {
@@ -509,13 +531,16 @@
     if (c.uid && uid && c.uid !== uid) c = {};
     var by = c.byDevice && typeof c.byDevice === 'object' ? c.byDevice : {};
     by[surf] = id;
-    lsSet(RESOLVED_KEY, JSON.stringify({ uid: uid, byDevice: by, glove: user.glove === true }));
+    lsSet(RESOLVED_KEY, JSON.stringify({ uid: uid, byDevice: by, glove: user.glove === true, density: user.density || {} }));
   }
   function writePrefsCache() {
     lsSet(PREFS_KEY, JSON.stringify({ uid: uid, user: user, company: company }));
   }
-  function applyGlove() {
-    if (user.glove === true) root.setAttribute('data-tap', 'glove');
+  // <html data-tap>: 'glove' = 64px, 'compact' = 48px, absent = 56px (layout-system.css).
+  function applyGlove(id) {
+    var d = R.densityFor(user, id || current.id);
+    if (d === 'big') root.setAttribute('data-tap', 'glove');
+    else if (d === 'compact') root.setAttribute('data-tap', 'compact');
     else root.removeAttribute('data-tap');
   }
 
@@ -615,7 +640,7 @@
     });
   }
 
-  // Persist the user's own choice. patch: { id?, device?, glove?, layoutState? }
+  // Persist the user's own choice. patch: { id?, device?, glove?, layoutState?, density?:{<id>: size|null} }
   //   device given   -> byDevice[device] = id   (null clears the override)
   //   device omitted -> the desktop choice `id`
   function saveUser(patch) {
@@ -631,6 +656,7 @@
     var next = {
       id: user.id, byDevice: Object.assign({}, user.byDevice),
       layoutState: Object.assign({}, user.layoutState), glove: user.glove,
+      density: Object.assign({}, user.density),
     };
     if ('id' in p) {
       if (p.device && R.SURFACES.indexOf(p.device) !== -1) {
@@ -640,6 +666,9 @@
       }
     }
     if ('glove' in p) next.glove = p.glove === true;
+    if (p.density && typeof p.density === 'object') {
+      Object.keys(p.density).forEach(function (k) { if (p.density[k] == null) delete next.density[k]; else next.density[k] = p.density[k]; });
+    }
     if (p.layoutState && typeof p.layoutState === 'object') {
       Object.keys(p.layoutState).forEach(function (k) { next.layoutState[k] = p.layoutState[k]; });
     }
@@ -649,7 +678,7 @@
     try {
       if (uid && window.db && window.doc && window.setDoc) {
         // null (not absent) so a cleared override is cleared in the merged doc.
-        var out = { id: user.id, byDevice: {}, glove: user.glove, layoutState: user.layoutState };
+        var out = { id: user.id, byDevice: {}, glove: user.glove, layoutState: user.layoutState, density: user.density };
         R.SURFACES.forEach(function (s) { out.byDevice[s] = user.byDevice[s] || null; });
         wrote = Promise.resolve(window.setDoc(window.doc(window.db, 'userSettings', uid), { layout: out }, { merge: true }))
           .then(function () { return true; }, function (err) {

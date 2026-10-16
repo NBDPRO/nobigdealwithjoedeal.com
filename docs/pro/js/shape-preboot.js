@@ -63,6 +63,11 @@
     // picker paints Classic and asks for no missing pixel.css.
     if (typeof id !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(id) || id === 'classic' || id === 'pixel') return;
     de.setAttribute('data-layout', id);
+    // this layout's own button size (layout-system.js densityFor): big = glove, compact = 48px
+    var dz = c.density && typeof c.density === 'object' ? c.density[id] : null;
+    if (dz === 'big') de.setAttribute('data-tap', 'glove');
+    else if (dz === 'compact') de.setAttribute('data-tap', 'compact');
+    else if (dz === 'comfortable') de.removeAttribute('data-tap');
     if (document.readyState === 'loading') {
       document.write('<link rel="stylesheet" id="nbd-layout-css" data-layout-css="' + id + '" href="/pro/css/layouts/' + id + '.css">');
     }
