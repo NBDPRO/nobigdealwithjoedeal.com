@@ -527,6 +527,26 @@ const SIDING_PACKAGES = [
 const DEPOSIT = { cashNoDepositUnderCents: 200000, cashDepositPct: 50, insurance: 'Kentucky insurance job: nothing due at signing; deductible + ACV due after the carrier\'s written decision and the 5-business-day cancellation window.' };
 let KY = null;
 try { KY = require('./ky-insurance-law'); } catch (_) { KY = null; }
+
+// State and federal rules every bot checks a draft or plan against (legal
+// cross-check 2026-10-16; each line names its primary source; research, not
+// legal advice). Shared by NBD's reference and every tenant's.
+const KY_NEVER_SAY = [
+  'we handle your claim', 'we negotiate with your insurance', 'we manage / deal with / fight the adjuster for you',
+  // KRS 367.628(1)(a)2 (2026 Ky. Acts ch. 54, eff. 2026-07-15): never market the company or anyone in it as one of these.
+  'claims specialist / claims expert', 'insurance specialist / insurance expert',
+  'affiliated with, approved by or working for an insurance company or agent',
+];
+const LAW_LINES = {
+  ohio_down_payment: 'Ohio property, contract OVER $25,000 (ORC 4722.01(C) "exceeding twenty-five thousand dollars"; ORC 4722.04): no more than 10% may be taken before work begins, plus up to 75% of a special-order, non-returnable item. A roof replacement is a home construction service (4722.01(B)). The CRM deposit rule applies it; never promise a bigger up-front payment.',
+  cancellation: 'Every contract signed at the home: the buyer may cancel until midnight of the third business day (16 CFR 429.1; ORC 1345.22; KRS 367.420). Tell the buyer about it out loud at signing (16 CFR 429.1(e); ORC 1345.23(D)(2)). Ohio: do not start the work inside that window (ORC 1345.22(B)). Kentucky insurance jobs: a second right to cancel until midnight of the fifth business day after the insurer\'s written notice that any part is not covered (KRS 367.622), and no payment may be required before that window ends (KRS 367.626).',
+  kentucky_declared_emergency: 'Kentucky, after a declared state of emergency for an event that destroyed real estate: if the Attorney General issues an order for the designated area (KRS 367.379, from 2026 SB 153), a roofing or siding contractor may not solicit business in person there for 90 days after the declaration without the owner\'s prior approval, and must register with the Attorney General and post the certificate at each job site. Still allowed: going when the owner asks, public advertising, and phone or digital contact (consent rules still apply). Check the AG\'s site before any knock plan in a Kentucky storm zone.',
+  texting: 'Texts: name the company and end with "Reply STOP to opt out." Marketing texts need prior express written consent (47 CFR 64.1200(a)(2), (f)(9)). No telephone solicitation before 8 a.m. or after 9 p.m. at the homeowner\'s location (47 CFR 64.1200(c)(1)). An opt-out by any reasonable means (STOP, quit, end, revoke, cancel, unsubscribe, or plain words) is honored within 10 business days (47 CFR 64.1200(a)(10)).',
+  email: 'Commercial email carries the company\'s valid postal address and a working unsubscribe (15 U.S.C. 7704(a)(5); 16 CFR 316); honor the suppression list.',
+  reviews: 'Reviews: ask every customer, not only happy ones; never offer anything for a review or for a positive or negative one (16 CFR 465.4); never write, buy or post a fake review (16 CFR 465.2); never hide bad reviews (16 CFR 465.7).',
+  financing: 'Financing: a monthly payment, number of payments, term or down payment may be stated only with the APR (using that term), the repayment terms and the down payment (12 CFR 1026.24(d)). Safest: no figures; point to the lender.',
+};
+
 function rulesReference() {
   const msg = (KY && KY.MSG) || {};
   return {
@@ -538,9 +558,10 @@ function rulesReference() {
     repair_warranty_note: 'Repairs (siding repair included) carry 1 year only when the rep ticks the box.',
     pledge: PLEDGE_PROMISE,
     pledge_note: 'The NBD Pledge is a promise on every NBD job, every tier. It is not a warranty term: the written labor warranty is by package (1 to 20 years, above). Never write "lifetime warranty" or "lifetime workmanship", and never call a product warranty lifetime.',
-    deposit: { cash_under_2000: 'no deposit', cash_2000_and_up: DEPOSIT.cashDepositPct + '% at signing', insurance: DEPOSIT.insurance },
+    deposit: { cash_under_2000: 'no deposit', cash_2000_and_up: DEPOSIT.cashDepositPct + '% at signing', insurance: DEPOSIT.insurance, ohio_over_25000: LAW_LINES.ohio_down_payment },
+    law: Object.assign({}, LAW_LINES),
     kentucky_insurance_jobs: {
-      never_say: ['we handle your claim', 'we negotiate with your insurance', 'we manage / deal with / fight the adjuster for you'],
+      never_say: KY_NEVER_SAY.slice(),
       never_do: ['Assignment of Benefits or Direction to Pay', 'take payment before the carrier\'s written decision + 5 business days (emergency tarp/repair excepted)', 'give the insured more than $100 in value'],
       say_instead: 'We document the damage and meet the adjuster; the claim stays the homeowner\'s.',
       crm_messages: { depositHold: msg.depositHold || null, payLinkHeld: msg.payLinkHeld || null, aobRetired: msg.aobRetired || null },
@@ -1117,8 +1138,15 @@ function validateFiling(tool, args, leadExists) {
 // gate and Ask Joe rules hold): a filing that promises to handle / negotiate
 // / manage the insurance claim is refused outright.
 const CLAIM_PROMISE = /\b(we|i|nbd|joe)\b[^.\n]{0,40}\b(handle|negotiate|manage|deal with|take care of|fight)\b[^.\n]{0,30}\b(claim|insurance|adjuster)\b/i;
+// KRS 367.628(1)(a)2 (2026 SB 153): never market the company or anyone in it
+// as a claims / insurance specialist or expert, or as affiliated with an
+// insurer or its agent. "I'm not a claims specialist" stays allowed.
+const CLAIM_TITLE = /(?<!\bnot (?:an? )?(?:insurance )?)\b(?:claims?|insurance(?: claims?)?)[ -](?:specialists?|experts?)\b|\b(?:approved|preferred|endorsed|recommended) by (?:your |the |all )?(?:insurance(?: compan(?:y|ies))?|insurers?|carriers?|state farm|allstate|nationwide|progressive|liberty mutual|usaa|erie|travelers)\b|\b(?:affiliated|partnered) with (?:your |the )?(?:insurance|insurer|carrier|state farm|allstate)/i;
 function claimWordingProblem(text) {
-  return CLAIM_PROMISE.test(String(text || '')) ? 'Kentucky rule: we never handle, negotiate or manage the homeowner\'s insurance claim — reword it (we document the damage and meet the adjuster; the claim stays theirs).' : null;
+  const t = String(text || '');
+  if (CLAIM_PROMISE.test(t)) return 'Kentucky rule: we never handle, negotiate or manage the homeowner\'s insurance claim — reword it (we document the damage and meet the adjuster; the claim stays theirs).';
+  if (CLAIM_TITLE.test(t)) return 'Kentucky rule (KRS 367.628(1)(a)2): never call us a claims or insurance specialist or expert, or say we are approved by or affiliated with an insurer — reword it (we document the damage and meet the adjuster; the claim stays theirs).';
+  return null;
 }
 
 // ── Drafts the owner sends (Jo, 2026-10-06) ───────────────────────────
@@ -1407,9 +1435,10 @@ function rulesReferenceFor(o) {
     deposit: deposit || 'Not set here — ask the owner.',
     house_rules: own,
     general_guidance: NEUTRAL_GUIDANCE.slice(),
+    law: Object.assign({}, LAW_LINES),
     kentucky_insurance_jobs: {
       applies_to: 'Insurance jobs on a Kentucky property (state law, every company).',
-      never_say: ['we handle your claim', 'we negotiate with your insurance', 'we manage / deal with / fight the adjuster for you'],
+      never_say: KY_NEVER_SAY.slice(),
       never_do: ['Assignment of Benefits or Direction to Pay', 'take payment before the carrier\'s written decision + 5 business days (emergency tarp/repair excepted)', 'give the insured more than $100 in value'],
       say_instead: 'We document the damage and meet the adjuster; the claim stays the homeowner\'s.',
       crm_messages: { depositHold: msg.depositHold || null, payLinkHeld: msg.payLinkHeld || null, aobRetired: msg.aobRetired || null },
