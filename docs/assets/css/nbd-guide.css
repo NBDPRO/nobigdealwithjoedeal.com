@@ -66,6 +66,7 @@ body.g-page{font-family:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-ser
 .g-toc li{margin:4px 0;break-inside:avoid}
 .g-toc a{display:flex;gap:10px;align-items:baseline;min-height:var(--tap-min);padding:8px 0;font-weight:600;color:var(--navy);text-decoration:none;line-height:1.35}
 .g-toc-num{flex:0 0 1.6rem;text-align:right;color:var(--orange-dark);font-weight:800}
+.g-toc-num:empty{display:none}
 .g-toc a:hover{color:var(--orange-dark);text-decoration:underline}
 @media(min-width:720px){.g-toc ul{columns:2}}
 
@@ -124,6 +125,21 @@ body.g-page{font-family:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-ser
 .g-panel a,.g-next a{color:var(--orange-light)}
 .g-panel a:hover{color:#fff}
 @media(min-width:720px){.g-panel{padding:32px}.g-next{grid-template-columns:1fr 1fr}}
+
+/* ── Related guides ── */
+.g-related{background:#fff;border:1px solid var(--light-gray);border-radius:8px;padding:18px;margin:0 0 8px}
+.g-related-title{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:.03em;color:var(--navy-dark);margin-bottom:6px}
+.g-related ul{list-style:none;padding:0;display:grid;gap:2px}
+.g-related a{display:flex;align-items:center;min-height:var(--tap-min);font-weight:600;color:var(--navy);text-decoration:none}
+.g-related a::before{content:'\2192';color:var(--orange);margin-right:10px;font-weight:800}
+.g-related a:hover{color:var(--orange-dark);text-decoration:underline}
+@media(min-width:720px){.g-related ul{grid-template-columns:1fr 1fr;column-gap:24px}}
+
+/* ── Compare tables ── */
+.g-caption{font-size:.74rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--orange-dark);margin:16px 0 0}
+.g-compare .g-table-wrap{margin-top:6px}
+.g-compare .g-table td{text-align:center}
+.g-compare .g-table thead th:not(:first-child){text-align:center}
 
 /* ── Footer (Pro) ── */
 .g-pro-foot{background:var(--navy-dark);color:rgba(255,255,255,.72);text-align:center;padding:28px 16px 32px;font-size:.82rem;line-height:1.8}

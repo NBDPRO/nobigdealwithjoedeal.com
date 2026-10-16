@@ -405,6 +405,19 @@ function generate(prevLastmod, warn) {
   }
   lines.push('');
 
+  // Free homeowner guides (2026-10-16): every docs/guides/*.html page,
+  // discovered from disk (noindexed ones dropped). The PDFs are not listed.
+  const guideSlugs = dropNoindexed(
+    listHtml(path.join(DOCS, 'guides')),
+    (slug) => path.join(DOCS, 'guides', slug + '.html'),
+    'guides/'
+  );
+  if (guideSlugs.length) {
+    lines.push('  <!-- Free homeowner guides and checklists -->');
+    for (const slug of guideSlugs) lines.push(entry(urlFor('guides/' + slug), 'monthly', '0.7'));
+    lines.push('');
+  }
+
   lines.push(...PRO_FOOTNOTE);
   lines.push('');
   lines.push('</urlset>');

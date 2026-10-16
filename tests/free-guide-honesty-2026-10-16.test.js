@@ -127,7 +127,7 @@ const GUIDE_SURFACES = ['docs/sites/free-guide/index.html', 'docs/pro/playbook.h
     const missing = [];
     for (const f of GUIDE_SURFACES) {
       const s = read(f);
-      for (const m of s.matchAll(/href="(\/[^"#?]*)/g)) {
+      for (const m of s.matchAll(/\shref="(\/[^"#?]*)/g)) {
         let u = m[1];
         if (/^\/(unsubscribe|r)\b/.test(u)) continue;
         // PDF slots: hidden until the typeset PDF is published (guide-pdf-slot.js).

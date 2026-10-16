@@ -39,6 +39,8 @@
       { "source": "/sites/free-guide/**", "destination": "/pro/playbook", "type": 301 },
       { "_comment": "The old contractor guide PDF (2026-03, ReportLab) printed a wrong phone number on every page and sold a Masterclass that never existed, so it was removed 2026-10-16 (site-docs audit P0-2/P0-3). Old links land on the guide page, which emails the rewritten 2026 playbook.",
         "source": "/lead-magnet.pdf", "destination": "/pro/playbook", "type": 301 },
+      { "_comment": "Free homeowner guides live at /guides/<slug> (2026-10-16); the hub is the Free guides & checklists row on /free-tools.",
+        "source": "/guides", "destination": "/free-tools", "type": 301 },
       { "_comment": "/financing (root) was a client-side meta-refresh stub to the canonical /services/financing. Replaced with a proper server 301 (better SEO, no redirect flash); the stub file was removed.",
         "source": "/financing", "destination": "/services/financing", "type": 301 },
       { "_comment": "TAMKO page renamed (2026-09-27, Jo's call): \"Storm Series\" was a name we invented — TAMKO has no product line or page by that name — so /services/tamko-storm-series became /services/tamko-impact-resistant-shingles (Titan XT, StormFighter FLEX, HailGuard + Heritage). The old page was a DIRECTORY index, so every form it was reachable at is listed: extensionless, .html, trailing slash, /index and /index.html. With the directory gone cleanUrls no longer normalises any of them, so a missing form would 404 an old backlink. tests/tamko-page-rename.test.js pins these.",

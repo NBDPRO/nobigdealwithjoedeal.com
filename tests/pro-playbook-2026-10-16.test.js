@@ -119,7 +119,7 @@ const MD = 'site-src/guides/nbd-pro-playbook.md';
     ok('changed assets are cache-busted', /nbd-guide\.css\?v=\d+/.test(h) && /playbook-form\.js\?v=\d+/.test(h) && /guide-pdf-slot\.js\?v=\d+/.test(h));
     ok('no on*= handlers and no inline style attributes', !/\son[a-z]+=\s*"/i.test(h) && !/\sstyle="/.test(h));
     ok('fonts are self-hosted and preloaded (no Google Fonts)', /nbd-fonts\.css/.test(h) && /rel="preload" href="\/assets\/fonts\/bebas-neue/.test(h) && !/fonts\.googleapis/.test(h));
-    ok('the PDF link is hidden until the PDF exists, with a "coming soon" note', /<a class="g-btn g-btn-ghost" data-pdf-slot href="\/guides\/pdf\/nbd-pro-playbook\.pdf" hidden>/.test(h) && /data-pdf-soon>Printable PDF coming soon/.test(h));
+    ok('the PDF link is hidden until the PDF exists, with a "coming soon" note', /<a class="g-btn g-btn-ghost" data-pdf-slot data-pdf-href="\/guides\/pdf\/nbd-pro-playbook\.pdf" hidden>/.test(h) && !/\shref="\/guides\/pdf\//.test(h) && /data-pdf-soon>Printable PDF coming soon/.test(h));
     const slot = read('docs/assets/js/guide-pdf-slot.js');
     ok('the slot shows the link only for a same-origin 200 application/pdf', /method: 'HEAD'/.test(slot) && /res\.ok && type\.indexOf\('application\/pdf'\) !== -1/.test(slot) && /\^\\\/guides\\\/pdf\\\/\[a-z0-9-\]\+\\\.pdf\$/.test(slot));
     ok('the whole guide is on the page, ungated (no form before the contents)', h.indexOf('id="playbookForm"') > h.indexOf('GUIDE-BODY:END'));
