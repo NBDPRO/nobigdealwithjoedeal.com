@@ -11,7 +11,10 @@
  *   email (REVIEW_ASK_AUTO_EMAIL_ENABLED === 'true'): from jd@, through the
  *     email-suppression gate (an unsubscribed address is skipped and the
  *     footer carries the postal address + a working unsubscribe link and the
- *     one-click headers; no postal address = not sent).
+ *     one-click headers; no postal address = not sent). With
+ *     REVIEW_ASK_EMAIL_PHOTO_ENABLED === 'true' it shows the customer's own
+ *     before/after first (review-ask-photo.js: that lead's photos only,
+ *     EXIF/GPS stripped, inline cid: images; none found = the same email).
  *   text (REVIEW_ASK_AUTO_TEXT_ENABLED === 'true', DARK until A2P approval):
  *     only a customer with no usable email, with stored web-form texting
  *     consent, 8am–9pm their time, after the STOP / Do Not Text register,
@@ -32,6 +35,7 @@ const { defineSecret } = require('firebase-functions/params');
 const { logger: fnLogger } = require('firebase-functions/v2');
 const { FieldPath, FieldValue, getFirestore } = require('firebase-admin/firestore');
 const RA = require('./review-ask-auto-logic');
+const RP = require('./review-ask-photo');
 const Suppression = require('./email-suppression');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const OptOut = require('./sms-optout');
@@ -127,15 +131,24 @@ async function askOne(db, entry, uid, deps) {
       // No CAN-SPAM postal address: not sent, and the job goes back to the rep
       // nudge (stamped, so the nudge stops waiting for this sweep).
       if (gate.blocked) { await settle(db, entry.id, entry.jobId, 'email', 'blocked_no_postal_address', { atMs: nowMs }); return { sent: false, reason: 'no_postal_address' }; }
+      // The customer's own before/after (REVIEW_ASK_EMAIL_PHOTO_ENABLED): this
+      // lead's photos only, re-encoded without EXIF/GPS, inline. null = the
+      // email exactly as before. Read before the claim so the claim-to-send
+      // gap stays short; it never throws and never blocks the ask.
+      const photo = RP.photoFlagOn(d.env || process.env)
+        ? await RP.photoForEmail(db, entry, { loader: d.photoLoader, bucket: d.bucket, logger: log })
+        : null;
       if (!(await claim(db, entry.id, entry.jobId, 'email', nowMs))) return { sent: false, reason: 'claimed' };
-      const c = RA.emailContent(entry, reviewUrl);
+      const c = RA.emailContent(entry, reviewUrl, photo ? photo.content : null);
       const body = Suppression.applyFooter(gate, c.html, c.text);
       let delivered = false;
       try {
-        const r = await d.resend.emails.send({
+        const msg = {
           from: FROM, to: pe.to, reply_to: REPLY_TO, subject: c.subject, html: body.html, text: body.text,
           headers: Object.assign({ 'X-NBD-Campaign': 'review-ask-auto-v1' }, gate.headers), tags: gate.tags,
-        });
+        };
+        if (photo) msg.attachments = photo.attachments;
+        const r = await d.resend.emails.send(msg);
         if (resendRejected(r)) throw new Error(resendErrorMessage(r));
         delivered = true;
       } catch (e) {
@@ -143,6 +156,7 @@ async function askOne(db, entry, uid, deps) {
         await settle(db, entry.id, entry.jobId, 'email', 'failed', { atMs: nowMs, error: String((e && e.message) || e).slice(0, 200) });
         return { sent: false, reason: 'send_failed' };
       }
+      if (delivered && photo) log.info('review_auto_photo', { leadId: entry.id, kind: photo.kind, photoIds: photo.photoIds });
       if (delivered) await recordSent(db, entry, uid, 'email', nowMs, FV);
       return { sent: true, channel: 'email', reason: 'sent' };
     }

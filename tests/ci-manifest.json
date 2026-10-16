@@ -25,6 +25,7 @@
     "revenue-goal-danger-text-2026-10-16.test.js",
     "deal-check-rate-2026-10-15.test.js",
     "review-ask-auto-2026-10-15.test.js",
+    "review-ask-photo-2026-10-16.test.js",
     "missed-call-reply-2026-10-15.test.js",
     "csp-report-noise-2026-10-15.test.js",
     "public-intake-hardening-2026-10-15.test.js",

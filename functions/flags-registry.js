@@ -100,6 +100,8 @@ const ROWS = {
     meaning: 'Job-anniversary note to past customers. Off = dry run, logs only.' },
   REVIEW_ASK_AUTO_EMAIL_ENABLED: { group: 'Customer follow-ups', doc: ENV_DOC,
     meaning: 'Emails each paid-in-full customer one Google review ask from jd@, 3-21 days after the money came in. Off = the rep nudge only.' },
+  REVIEW_ASK_EMAIL_PHOTO_ENABLED: { group: 'Customer follow-ups', kind: 'enabled', file: 'review-ask-photo.js', doc: ENV_DOC,
+    meaning: 'Puts the customer\'s own before/after photo (from their job in the CRM) in the review ask email. Off = the email without a photo.' },
   REVIEW_ASK_AUTO_TEXT_ENABLED: { group: 'Customer follow-ups', dark: true, doc: 'documentation/runbooks/TWILIO-LINE-GO-LIVE.md',
     meaning: 'Texts the review ask to a customer with no email who gave texting consent on a web form (8am-9pm). Waits on A2P.' },
   REVIEW_NUDGE_ENABLED: { group: 'Customer follow-ups', doc: ENV_DOC,

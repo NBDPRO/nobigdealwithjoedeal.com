@@ -21,6 +21,8 @@
  *
  * Flags (functions/.env.nobigdeal-pro; anything but the literal 'true' is off):
  *   REVIEW_ASK_AUTO_EMAIL_ENABLED — the email, from jd@, CAN-SPAM footer.
+ *   REVIEW_ASK_EMAIL_PHOTO_ENABLED — the customer's own before/after photo
+ *     above the ask (review-ask-photo.js; emailContent's optional `photo`).
  *   REVIEW_ASK_AUTO_TEXT_ENABLED  — DARK until the Twilio A2P campaign is
  *     approved. Only for a customer with no usable email, only with a stored
  *     web-form texting consent, 8am–9pm their time, STOP / Do Not Text and the
@@ -166,14 +168,50 @@ function esc(s) {
 const firstNameOf = (lead) => String((lead && (lead.firstName || lead.name)) || '').trim().split(/\s+/)[0].slice(0, 40);
 
 /**
- * The email. One plain ask, the same words to everyone: no rating first, no
- * "if you were happy", nothing offered in return.
+ * The customer's own photos above the ask (review-ask-photo.js, flag
+ * REVIEW_ASK_EMAIL_PHOTO_ENABLED). `photo` is its contentFor() shape:
+ * { kind: 'pair' | 'single', word: 'roof' | 'project', images: [{ cid, label, alt }] }.
+ * The images are inline (cid:) attachments, never a URL. One line that shows
+ * the work and nothing else: the ask below it is unchanged.
  */
-function emailContent(lead, reviewUrl) {
+function photoBlock(photo) {
+  const imgs = (photo && Array.isArray(photo.images) ? photo.images : [])
+    .filter((im) => im && /^[a-z0-9-]{1,40}$/.test(String(im.cid || '')));
+  const word = photo && photo.word === 'project' ? 'project' : 'roof';
+  const img = (im, w) => '<img src="cid:' + im.cid + '" alt="' + esc(im.alt) + '" width="' + w + '" '
+    + 'style="display:block;width:100%;max-width:' + w + 'px;height:auto;border:0;border-radius:6px;">';
+  if (photo && photo.kind === 'pair' && imgs.length === 2) {
+    const cell = (im, pad) => '<td width="50%" valign="top" style="padding:' + pad + ';vertical-align:top;">' + img(im, 252)
+      + '<div style="font-size:13px;color:#6b7280;text-align:center;padding-top:4px;">' + esc(im.label) + '</div></td>';
+    return {
+      text: "Here's your " + word + ', before and after (the two photos are in this email).\n\n',
+      html: '<p>Here&#39;s your ' + word + ', before and after:</p>'
+        + '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 16px;"><tr>'
+        + cell(imgs[0], '0 4px 0 0') + cell(imgs[1], '0 0 0 4px') + '</tr></table>',
+    };
+  }
+  if (photo && photo.kind === 'single' && imgs.length === 1) {
+    return {
+      text: "Here's your finished " + word + ' (the photo is in this email).\n\n',
+      html: '<p>Here&#39;s your finished ' + word + ':</p><div style="margin:0 0 16px;">' + img(imgs[0], 512) + '</div>',
+    };
+  }
+  return { text: '', html: '' };
+}
+
+/**
+ * The email. One plain ask, the same words to everyone: no rating first, no
+ * "if you were happy", nothing offered in return. `photo` (optional) puts the
+ * customer's own before/after above the ask; without it the email is exactly
+ * the one sent since 2026-10-15.
+ */
+function emailContent(lead, reviewUrl, photo) {
   const first = firstNameOf(lead);
   const hi = first ? 'Hi ' + first + ',' : 'Hi,';
   const subject = 'Would you leave No Big Deal a quick Google review?';
+  const pb = photoBlock(photo);
   const text = hi + '\n\n'
+    + pb.text
     + 'Thank you for trusting No Big Deal Home Solutions with your project. '
     + 'Would you take a minute to leave us a Google review? Honest feedback, whatever it is, helps your neighbors pick a contractor.\n\n'
     + reviewUrl + '\n\n'
@@ -184,6 +222,7 @@ function emailContent(lead, reviewUrl) {
     + '<body style="margin:0;padding:0;background:#f5f5f5;font-family:Segoe UI,Roboto,Arial,sans-serif;color:#1f2937;line-height:1.6;">'
     + '<div style="max-width:560px;margin:0 auto;background:#ffffff;padding:28px 24px;">'
     + '<p>' + esc(hi) + '</p>'
+    + pb.html
     + '<p>Thank you for trusting No Big Deal Home Solutions with your project. Would you take a minute to leave us a Google review? '
     + 'Honest feedback, whatever it is, helps your neighbors pick a contractor.</p>'
     + '<p style="text-align:center;margin:22px 0;"><a href="' + esc(reviewUrl) + '" style="display:inline-block;padding:12px 24px;background:#BD5728;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:600;">Leave a Google review</a></p>'
