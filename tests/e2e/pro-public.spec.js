@@ -73,6 +73,13 @@ test.describe('Pricing page', () => {
     await page.goto('/pro/pricing.html');
     // Just verify the subscribe function is wired — click doesn't need
     // to complete; we only care that window.subscribe exists.
+    // pricing-page.module.js assigns window.subscribe AFTER a top-level
+    // `await connectEmulatorsIfLocal(...)` (dynamic SDK imports on 127.0.0.1),
+    // and a module with top-level await does not hold back the load event that
+    // goto() waits for. Reading it right after goto() raced that await and
+    // failed on a slow runner (main run 38972362040). Wait for the module to
+    // finish instead; a page that never wires subscribe still fails here.
+    await page.waitForFunction(() => typeof window.subscribe === 'function', null, { timeout: 10_000 }).catch(() => {});
     const hasSubscribe = await page.evaluate(() => typeof window.subscribe === 'function');
     expect(hasSubscribe).toBe(true);
   });
