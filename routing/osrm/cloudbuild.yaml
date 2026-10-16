@@ -1,0 +1,17 @@
+# routing/osrm/cloudbuild.yaml — build the routing image (graph baked in).
+# Run by hand from the repo root when the map should be refreshed (monthly is
+# plenty); see documentation/runbooks/OSRM-ROUTING.md:
+#   gcloud builds submit routing/osrm --config routing/osrm/cloudbuild.yaml \
+#     --substitutions=_TAG=$(date -u +%Y%m%d) --project nobigdeal-pro
+# Default e2-standard-2 worker (8 GB RAM, inside Cloud Build's free minutes);
+# the clipped region needs ~3 GB to extract.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/routing/osrm-cincy:${_TAG}', '.']
+images:
+  - us-central1-docker.pkg.dev/$PROJECT_ID/routing/osrm-cincy:${_TAG}
+substitutions:
+  _TAG: manual
+timeout: 3600s
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -512,7 +512,9 @@
     nextstop: [
       'css/next-stop.css?v=1',
       'js/layouts/routeplan.js?v=2',
-      'js/next-stop.js?v=1'
+      // Real road times (2026-10-16): routeDrive callable; the estimate stays the fallback.
+      'js/route-drive.js?v=1',
+      'js/next-stop.js?v=2'
     ],
     // Cash collected (2026-10-15): this week / this month against the monthly
     // goal, open invoices and a Collect button, in the five layouts that showed
