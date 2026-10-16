@@ -347,7 +347,7 @@ const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowM
     const tAt = cli.indexOf('thanksEl.style.display = \'block\'');
     const thanks = cli.slice(tAt, tAt + 4000);
     ok('after rating, the low-star thank-you offers the review link too', /'<\/div>' \+ reviewBtn;/.test(thanks));
-    ok('portal.html bumped portal.js and styles the link by class', /js\/portal\.js\?v=17/.test(read('docs/pro/portal.html')) && /a\.cr-review-link \{/.test(read('docs/pro/portal.html')));
+    ok('portal.html bumped portal.js and styles the link by class', /js\/portal\.js\?v=18/.test(read('docs/pro/portal.html')) && /a\.cr-review-link \{/.test(read('docs/pro/portal.html')));
   }
 
   // ═══ I ═══

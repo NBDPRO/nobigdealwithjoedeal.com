@@ -89,9 +89,12 @@ if (!body) {
   const stampAt = lines.findIndex((l) => l.trim() === '- name: Stamp Sentry release with git SHA');
   const deployAt = lines.findIndex((l) => l.trim() === '- name: Deploy Hosting');
   ok('Deploy Hosting step exists', deployAt > -1);
-  ok('the stamp step runs immediately before Deploy Hosting (no other step name between them)',
+  // 2026-10-16: the deploy-time minify and its source-map upload sit between them on purpose: the
+  // minify must run AFTER the stamp, whose sed matches the readable source. No other step may.
+  const ALLOWED_BETWEEN = ["- name: Minify the CRM's JS and CSS for this deploy", "- name: Keep the deploy's source maps (artifact, not served)"];
+  ok('the stamp step runs immediately before Deploy Hosting (only the deploy-time minify steps between them)',
     stampAt > -1 && deployAt > stampAt
-    && !lines.slice(stampAt + 1, deployAt).some((l) => /^\s*- name:/.test(l)),
+    && !lines.slice(stampAt + 1, deployAt).some((l) => /^\s*- name:/.test(l) && ALLOWED_BETWEEN.indexOf(l.trim()) === -1),
     'stampAt=' + stampAt + ' deployAt=' + deployAt);
 
   const stampIf = extractIfCondition('Stamp Sentry release with git SHA');
