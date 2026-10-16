@@ -19,7 +19,7 @@ compliance:
   - Text templates name the business and include "Reply STOP to opt out". TCPA notes (consent, 8am-9pm, opt-out honored promptly, registered 10DLC sender) are general information, not legal advice.
   - Email advice follows CAN-SPAM (postal address, working unsubscribe honored within 10 business days, honest subject lines).
   - SEO advice follows Google Search Essentials and spam policies (no doorway pages, no scaled content, no bought links); no invented ranking-factor weights.
-  - Contact for NBD Pro is jd@nobigdealwithjoedeal.com and (859) 420-7382. Never 513-315-2406.
+  - Contact for NBD Pro is jd@nobigdealwithjoedeal.com and (859) 420-7382. Never the wrong number the old 2026-03 PDF printed.
 back_cover:
   headline: [Run it in, NBD Pro]
 ---
