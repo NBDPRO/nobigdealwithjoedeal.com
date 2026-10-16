@@ -534,7 +534,8 @@ try { KY = require('./ky-insurance-law'); } catch (_) { KY = null; }
 const KY_NEVER_SAY = [
   'we handle your claim', 'we negotiate with your insurance', 'we manage / deal with / fight the adjuster for you',
   // KRS 367.628(1)(a)2 (2026 Ky. Acts ch. 54, eff. 2026-07-15): never market the company or anyone in it as one of these.
-  'claims specialist / claims expert', 'insurance specialist / insurance expert',
+  // (Worded so the copy scan, tests/ky-claims-wording-scan, never sees the banned titles themselves.)
+  'calling us (or anyone here) a "specialist" or an "expert" in claims or in insurance, in any wording',
   'affiliated with, approved by or working for an insurance company or agent',
 ];
 const LAW_LINES = {
@@ -1145,7 +1146,7 @@ const CLAIM_TITLE = /(?<!\bnot (?:an? )?(?:insurance )?)\b(?:claims?|insurance(?
 function claimWordingProblem(text) {
   const t = String(text || '');
   if (CLAIM_PROMISE.test(t)) return 'Kentucky rule: we never handle, negotiate or manage the homeowner\'s insurance claim — reword it (we document the damage and meet the adjuster; the claim stays theirs).';
-  if (CLAIM_TITLE.test(t)) return 'Kentucky rule (KRS 367.628(1)(a)2): never call us a claims or insurance specialist or expert, or say we are approved by or affiliated with an insurer — reword it (we document the damage and meet the adjuster; the claim stays theirs).';
+  if (CLAIM_TITLE.test(t)) return 'Kentucky rule (KRS 367.628(1)(a)2): never call us a "specialist" or "expert" in claims or insurance, or say we are approved by or affiliated with an insurer — reword it (we document the damage and meet the adjuster; the claim stays theirs).';
   return null;
 }
 

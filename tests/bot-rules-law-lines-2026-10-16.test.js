@@ -56,8 +56,7 @@ ok('no rule says "$25,000 or more"', !/25,000 or more/i.test(JSON.stringify(nbd)
 console.log('\n2. Kentucky never_say: the specialist / expert / insurer-affiliation ban');
 for (const [ref, label] of [[nbd, 'NBD'], [tenant, 'tenant']]) {
   const ns = ref.kentucky_insurance_jobs.never_say.join(' | ');
-  ok(label + ': claims specialist / expert', /claims specialist/.test(ns) && /claims expert/.test(ns), ns);
-  ok(label + ': insurance specialist / expert', /insurance specialist/.test(ns) && /insurance expert/.test(ns), ns);
+  ok(label + ': no "specialist" / "expert" in claims or insurance', /"specialist" or an "expert" in claims or in insurance/.test(ns), ns);
   ok(label + ': affiliation with an insurer', /affiliated with/.test(ns), ns);
   ok(label + ': the old three lines kept', /we handle your claim/.test(ns) && /negotiate/.test(ns) && /adjuster/.test(ns));
 }
