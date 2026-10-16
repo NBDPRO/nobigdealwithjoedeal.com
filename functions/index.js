@@ -955,9 +955,9 @@ exports.submitReferral = referrals.submitReferral;
 // session; counter only — no lead lookup result is ever returned.
 exports.referralLinkOpened = require('./referral-clicks').referralLinkOpened;
 
-// Referral-CODE redemption + $100 bonus crediting on close. A single
+// Referral-CODE redemption + $100 bonus crediting once paid in full. A single
 // leads/{leadId} onWrite trigger: attributes a redeemed code to its referrer,
-// then records the bonus as OWED when the referred project closes. Self-
+// then records the bonus as OWED when the referred job is paid in full. Self-
 // exports its trigger (literal onDocumentWritten for the CI allowlist), so
 // merge the whole module — same pattern as lead-bridge above.
 const referralRewards = require('./referral-rewards');
@@ -1108,3 +1108,6 @@ exports.tenantLogo = tenantOps.tenantLogo;
 const proProspects = require('./pro-prospects');
 exports.onGuideLeadCreated = proProspects.onGuideLeadCreated;
 exports.adminListProProspects = proProspects.adminListProProspects;
+// Real drive times (2026-10-16): routeDrive answers the Next stop card and
+// Mission Control's day route from the private OSRM service (routing/osrm).
+exports.routeDrive = require('./route-drive').routeDrive;

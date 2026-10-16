@@ -1,0 +1,180 @@
+{
+  "//": "Primary sources behind every technical illustration (scripts/illustrations/*). One entry per source; each figure in figures.json lists the source ids it relies on and the exact claims each one verifies. `verified: true` means the cited text was read in the primary document (not a summary) on `checked`; only verified sources are linked from the pages. Quotes are short excerpts for traceability. Researched 2026-10-16.",
+  "sources": {
+    "gaf-restl622": {
+      "title": "GAF Installation Instructions: Timberline HDZ, Timberline UHDZ, Timberline AS II, Timberline CS, Timberline HDZ RS / RS+ (form RESTL622-PDF-0423, ©2023 GAF)",
+      "publisher": "GAF",
+      "url": "https://www.gaf.com/en-us/roofing-materials/residential-roofing-materials/shingles/timberline-uhdz-with-ultramat",
+      "copyRead": "https://images.thdstatic.com/catalog/pdfImages/ce/ce744b21-6c3d-4c1e-9396-919c6ffa7fe8.pdf",
+      "copyNote": "gaf.com blocks automated downloads, so the identical GAF PDF (form number RESTL622-PDF-0423 printed on it) was read from the retailer-hosted copy in copyRead. The page links to GAF's own product page, where the same instructions are published; they are also printed on every bundle wrapper.",
+      "linkLabel": "GAF Timberline installation instructions",
+      "verified": true,
+      "checked": "2026-10-16",
+      "facts": [
+        "Eaves: 'Along eaves, put GAF Leak Barrier on top of non-corrosive metal drip edge.'",
+        "Rakes: 'Along rake, put non-corroding metal drip edge on top of GAF Roof Deck Protection.'",
+        "Eave flashing (leak barrier) must extend 24 in (610 mm) beyond the inside wall line (both slope ranges); on 2:12 to <4:12 it must not overhang the eave edge by more than 1/4 in.",
+        "Starter: 'Place starter strip shingles 1/4\" – 3/4\" (6–19 mm) over eave and rake edges to provide drip edge.' Starter strips recommended at rakes, required for enhanced warranty on certain products.",
+        "Standard nailing pattern: 4 nails approximately 6 7/8 in (174 mm) from the bottom of the shingle, in the nailing area; 'Nails must not be exposed.' Enhanced pattern: 6 nails. Exposure 5 5/8 in; shingle 13 1/4 in tall.",
+        "Wall flashing: 'Extend GAF Leak Barrier at least 5\" (127 mm) up wall'; step flashing 'just up slope from exposed edge of shingle', extending 5 in over the underlying shingle and 5 in up the wall; pieces overlap 2 in; 2 nails per step flashing.",
+        "Chimney: leak barrier over roof deck protection and up the chimney sides at least 5 in; counter flashing over base flashing; crickets.",
+        "Open valley: metal at least 20 in wide (24 ga min), nailed only at its edges, laps 12 in embedded in cement; shingles overlap the metal at least 4 in; shingles 6 in apart at the top of the valley, separation increasing 1/8 in per foot toward the eave.",
+        "Closed-cut valley: full-width roll of GAF Leak Barrier centred in the valley; underlayment carried at least 6 in over it; one side's shingles extend at least 12 in past the centreline; the other side cut 2 in back from the centreline; no fasteners within 6 in of the centreline.",
+        "Ventilation: 'Ventilation must be designed to meet or exceed current F.H.A., H.U.D., or local code minimum requirements.'",
+        "The instructions show only open and closed-cut valley methods; a woven valley is not shown."
+      ]
+    },
+    "tamko-heritage": {
+      "title": "TAMKO Heritage Architectural Asphalt Shingles: Application Instructions (Rev. 07/31/2024)",
+      "publisher": "TAMKO Building Products LLC",
+      "url": "https://www.tamko.com/",
+      "localCopy": "NBD document library: TAMKO - Heritage Application Instructions.pdf",
+      "linkLabel": "TAMKO Heritage application instructions",
+      "verified": true,
+      "checked": "2026-10-16",
+      "facts": [
+        "Standard fastening: 4 fasteners 6-1/8 in from the bottom edge of the shingle, penetrating through the common bond (all lines except Tuscaloosa Line 2); exposure 5-5/8 in; shingle 13-1/4 in tall. Misplaced fasteners terminate TAMKO's liabilities under the limited warranty.",
+        "Starter: overhang the eave 1/4 to 3/4 in; if drip edge is present, install even with it or overhang up to 3/4 in.",
+        "Valley: centre a minimum 36 in wide sheet of Moisture Guard or ASTM D1970 self-adhered underlayment in the valley; shingle underlayment extends over it 6 in; closed-cut method with the vertical shingle row 2 in back from the centreline; no fastener within 6 in of the valley centreline.",
+        "Specialty eaves flashing may be applied to eaves, rakes, ridges, valleys, around chimneys, skylights or dormers.",
+        "The method shown is closed-cut (only the first course is woven); a fully woven valley is not shown."
+      ],
+      "linkNote": "Public link goes to tamko.com (the instructions are published there and printed on the wrapper); the text was read from the local PDF copy."
+    },
+    "ohio-rco-ch9": {
+      "title": "Residential Code of Ohio, Chapter 9 Roof Assemblies (OAC 4101:8-9-01, effective 7/1/2019)",
+      "publisher": "Ohio Board of Building Standards / Legislative Service Commission",
+      "url": "https://codes.ohio.gov/ohio-administrative-code/rule-4101:8-9-01",
+      "linkLabel": "Ohio residential code ch. 9",
+      "verified": true,
+      "checked": "2026-10-16",
+      "facts": [
+        "905.1.2 Ice barriers: two layers cemented together or a self-adhering polymer-modified bitumen sheet, 'from the lowest edges of all roof surfaces to a point not less than 24 inches (610 mm) inside the exterior wall line of the building', measured along the slope from where the projected outside face of the wall intersects the roof deck; 36 in on slopes of 8:12 or more.",
+        "Table 301.2(1) (OAC 4101:8-3-01): ice barrier underlayment required: Yes.",
+        "903.2.1: 'A flashing shall be installed to divert the water away from where the eave of a sloped roof intersects a vertical sidewall.' (kick-out)",
+        "905.2.8.3 Sidewall flashing: continuous or step flashing, not less than 4 in high and 4 in wide; the vertical leg continuous under the siding.",
+        "905.2.8.2 Valleys: open metal valley lining not less than 24 in wide; closed valleys may use 36 in roll roofing or ASTM D1970 self-adhering underlayment.",
+        "905.2.8.4: vent pipe flashing per the asphalt shingle manufacturer's printed instructions.",
+        "905.2.6: at least the manufacturer's number of fasteners, not fewer than four per strip shingle.",
+        "905.2.8.5 Drip edge (Ohio): 'Refer to Sections 903.1 and 905.1' (i.e. per the approved manufacturer's instructions); Ohio does not carry the model IRC drip-edge text."
+      ]
+    },
+    "ohio-rco-ch8": {
+      "title": "Residential Code of Ohio, Chapter 8 Roof-Ceiling Construction (OAC 4101:8-8-01, effective 7/1/2019)",
+      "publisher": "Ohio Board of Building Standards",
+      "url": "https://codes.ohio.gov/ohio-administrative-code/rule-4101:8-8-01",
+      "linkLabel": "Ohio residential code R806",
+      "verified": true,
+      "checked": "2026-10-16",
+      "facts": [
+        "806.2: minimum net free ventilating area 1/150 of the vented space; 1/300 when not less than 40% and not more than 50% of the required area is in the upper portion, not more than 3 ft below the ridge, with the balance in the bottom one-third of the attic (Ohio deleted the vapor-retarder alternative).",
+        "806.3: insulation must not block the free flow of air at eave or cornice vents; not less than a 1 in space between the insulation and the roof sheathing at the vent."
+      ]
+    },
+    "ohio-rco-ch7": {
+      "title": "Residential Code of Ohio, Chapter 7 Wall Covering (OAC 4101:8-7-01, effective 7/1/2019)",
+      "publisher": "Ohio Board of Building Standards",
+      "url": "https://codes.ohio.gov/ohio-administrative-code/rule-4101:8-7-01",
+      "linkLabel": "Ohio residential code R703",
+      "verified": true,
+      "checked": "2026-10-16",
+      "facts": [
+        "703.2 Water-resistive barrier over studs or sheathing of all exterior walls; No. 15 felt lapped upper over lower not less than 2 in; other approved materials per the WRB manufacturer; continuous to the top of walls and terminated at penetrations to meet the envelope requirements.",
+        "703.4 Flashing applied shingle-fashion; at window and door openings per the fenestration manufacturer's instructions; where none are provided, pan flashing at the sill with flashing or protection at the head and sides; also at wall and roof intersections."
+      ]
+    },
+    "ky-krc": {
+      "title": "Kentucky Residential Code: 2015 IRC with Kentucky amendments (2018 KRC, 3rd Ed., Aug 2024, adopted by 815 KAR 7:125)",
+      "publisher": "Kentucky Department of Housing, Buildings and Construction",
+      "url": "https://apps.legislature.ky.gov/law/kar/titles/815/007/125/",
+      "localCopy": "NBD document library: Kentucky - 2018 Residential Code 2nd Ed (2020, superseded by 3rd Ed).pdf",
+      "textRead": "https://up.codes/viewer/kentucky/irc-2015/chapter/9/roof-assemblies",
+      "linkLabel": "Kentucky residential code (815 KAR 7:125)",
+      "verified": true,
+      "checked": "2026-10-16",
+      "facts": [
+        "Kentucky amendment R905.2.8.5 Drip edge (local KRC copy): drip edge at eaves and gables; laps 2 in; extends 1/4 in below the sheathing and 2 in up the deck; fastened at most 12 in o.c.; 'Underlayment shall be installed over the drip edge along eaves and under the drip edge on gables.'",
+        "R905.1.2 Ice barriers (2015 IRC base, read via the UpCodes Kentucky viewer): from the lowest edges to not less than 24 in inside the exterior wall line; 36 in along the slope on 8:12 and steeper.",
+        "R903.2.1 kick-out flashing, R905.2.8.3 sidewall flashing (4 in x 4 in min), R905.2.8.2 valleys (24 in open metal), R806.2 (1/150, or 1/300 with 40–50% upper ventilators within 3 ft of the ridge and the balance at eave or cornice vents), R806.3 (1 in air space), R703.2/R703.4: same as the Ohio text in substance.",
+        "Edition caveat: the KRC 3rd Edition (Aug 2024) amendment text itself was not available locally; the 2nd Edition amendment file and the 2015 IRC base text were read. The base sections cited did not change between the editions as far as the 815 KAR 7:125 incorporation shows."
+      ]
+    },
+    "hardie-hz5": {
+      "title": "James Hardie HardiePlank Lap Siding Installation Instructions, HZ5 (HS11117, effective September 2019)",
+      "publisher": "James Hardie Building Products",
+      "url": "https://www.jameshardiepros.com/",
+      "localCopy": "NBD document library: James Hardie - HardiePlank HZ5 Installation Instructions.pdf",
+      "linkLabel": "James Hardie HardiePlank installation instructions",
+      "verified": true,
+      "checked": "2026-10-16",
+      "facts": [
+        "A water-resistive barrier is required per local code, installed with penetration and junction flashing.",
+        "Install a 1 1/4 in starter strip to ensure a consistent plank angle.",
+        "Minimum 1 1/4 in overlap for both face and blind nailing; blind nailing is preferred; nail line (or 3/4 in to 1 in from the top of the plank).",
+        "Fasteners into framing 24 in o.c. max (studs max 24 in o.c.).",
+        "Joint treatment: joint flashing (James Hardie recommended), caulking, or an H-jointer.",
+        "Kickout flashing and roof-to-wall clearance figures are part of the instructions (dimensions not used: the figure text did not extract cleanly)."
+      ]
+    },
+    "gentek-rainware": {
+      "title": "Gentek Aluminum Soffit, Fascia and Rainware Installation Guide (010213)",
+      "publisher": "Gentek Building Products",
+      "url": "https://www.gentek.ca/wp-content/uploads/sites/2/2021/01/Aluminum_Soffit_Fascia_And_Rainware_INSTALLATION-GUIDE_010213_ENG-1.pdf",
+      "linkLabel": "Gentek rainware installation guide",
+      "verified": true,
+      "checked": "2026-10-16",
+      "facts": [
+        "'slope the gutter at least 6 mm per 3 metres (1/4\" per 10 ft) of run toward the nearest outlet'; long runs may slope both ways from the middle.",
+        "'Either spikes and ferrules or gutter brackets should be spaced not more than 800 mm (32\") apart.'",
+        "One downpipe usually serves 475–600 sq ft of roof (not used in the drawing).",
+        "Caveat: this is one gutter maker's guide (5 in K-style); hidden-hanger spacing can be tighter per the hanger maker. NBD's exact hanger spacing was not confirmed."
+      ]
+    },
+    "oc-10028281": {
+      "title": "Owens Corning Woodcrest/Woodmoor Class 4 one-pager (Pub. No. 10028281, January 2026): 'Testing for impact resistance'",
+      "publisher": "Owens Corning",
+      "url": "https://www.owenscorning.com/dms/10028281",
+      "linkLabel": "Owens Corning: how UL 2218 is tested",
+      "verified": true,
+      "checked": "2026-10-16",
+      "facts": [
+        "UL drops different-sized steel balls from various heights; shingles are struck twice in the same spot and assessed for cracking on the back; Class 4 is the highest.",
+        "Ball diameters: Class 1 1.25 in, Class 2 1.5 in, Class 3 1.75 in, Class 4 2 in.",
+        "Lab test results do not guarantee the shingle will resist all weather conditions."
+      ]
+    },
+    "nrca-2008": {
+      "title": "Mark S. Graham, 'Impact testing may not replicate products' hail resistances', Professional Roofing (NRCA), October 2008",
+      "publisher": "NRCA / Professional Roofing",
+      "url": "https://www.professionalroofing.net/articles/article/1363",
+      "linkLabel": "NRCA Professional Roofing on UL 2218",
+      "verified": true,
+      "checked": "2026-10-16",
+      "facts": [
+        "UL 2218: two coincident drops of a steel ball of a specified size at each of six locations; passing means no tearing, fracturing, cracking, splitting, rupturing, crazing or opening on the exposed or back surfaces or underlying layers; cosmetic damage alone is not a failure; Class 1 to Class 4."
+      ]
+    },
+    "nbd-facts": {
+      "title": "NBD Facts & Credentials (Joe Deal, confirmed 2026-10-14/15) and the public roof-inspection / gutter pages",
+      "publisher": "No Big Deal Home Solutions",
+      "url": "",
+      "verified": true,
+      "checked": "2026-10-16",
+      "facts": [
+        "GAF Timberline UHDZ as NBD installs it is UL 2218 Class 4 impact-rated.",
+        "Free inspection with photos; a written photo report is $150; 45–60 minutes; attic check when the homeowner is home.",
+        "Seamless 5 in and 6 in K-style aluminum gutters with a hidden hanger system; gutter guards available (docs/services/gutter-replacement.html).",
+        "Inspection scope on docs/services/roof-inspection.html: every section and pitch; flashing, valleys and penetrations; fascia, soffit and gutters; storm damage documentation."
+      ],
+      "linkNote": "Internal facts; not linked as an outside source."
+    }
+  },
+  "unverified": [
+    "Pipe boot (pipe-boot-flashing): no manufacturer instruction for vent-pipe flashing was available (the GAF RESTL622 instructions don't cover it; the code defers to the shingle maker's printed instructions). Drawn as the generic shingle-fashion lap and labelled 'Generic detail'.",
+    "Window flashing (window-flashing-sequence): the sill-sides-head-flap order is the common sequence consistent with R703.4's shingle-fashion rule; no window maker's instructions were checked, so it is labelled generic and says the window maker's instructions govern.",
+    "Ice dam formation (ice-dam): the melt-and-refreeze explanation is general building science, not a code or manufacturer statement; only the ice-barrier and ventilation details are code-sourced.",
+    "Storm inspection checklist: reflects NBD's own published inspection scope; 'soft metals show hail size' is common inspector practice, not a cited standard.",
+    "UL 2218 drop heights are not given (no primary source read for them); only ball diameters, two hits on the same spot, and the pass criteria are stated.",
+    "GAF's StrikeZone nailing-area width is not stated: the GAF data sheet read gives no number, so the nailing area is drawn without a width."
+  ]
+}

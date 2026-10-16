@@ -61,7 +61,7 @@
       reports: [], reportState: 'loading', win: { start: null, end: null, items: [] }, cursor: null, playing: false,
       turfN: 3, reps: {}, sheet: false,
       knocks: [], knockState: 'idle',
-      route: { mode: 'time', layers: { jobs: false, leads: false, swaths: true, roofage: false }, extra: [], sel: null, peek: null, omw: null },
+      route: { mode: 'time', layers: { jobs: false, leads: false, swaths: true, roofage: false }, extra: [], sel: null, peek: null, omw: null, real: null },
     };
   }
 
@@ -316,12 +316,40 @@
     }
     var t = order === ident ? byTime : RP.totals(order, pts);
     var ordered = order.map(function (i) { return located[i]; });
-    var tight = RP.conflicts(ordered, t.legs);
+    // Real road times (2026-10-16, route-drive.js): once routeDrive answers for
+    // exactly these stops in this order, they replace the straight-line legs.
+    // "Shortest" still orders by straight-line distance; the savings line
+    // compares estimates with estimates.
+    var rd = realRoute(ordered);
+    var legsOut = t.legs, minOut = t.min, miOut = t.roadMi;
+    if (rd && rd.status === 'ok') {
+      legsOut = t.legs.map(function (l, i) { return Object.assign({}, l, { min: rd.legs[i].min, roadMi: rd.legs[i].mi }); });
+      minOut = rd.min; miOut = rd.mi;
+    }
+    var tight = RP.conflicts(ordered, legsOut);
     return {
-      stops: ordered, unlocated: unlocated, legs: t.legs, roadMi: t.roadMi, min: t.min,
+      stops: ordered, unlocated: unlocated, legs: legsOut, roadMi: miOut, min: minOut,
+      real: !!(rd && rd.status === 'ok'), pending: !!(rd && rd.status === 'pending'), path: rd && rd.status === 'ok' ? rd.path : null,
       byTime: byTime, savedMin: Math.max(0, byTime.min - t.min), savedMi: Math.max(0, Math.round((byTime.roadMi - t.roadMi) * 10) / 10),
       tight: tight, reordered: order.some(function (v, i) { return v !== i; }),
     };
+  }
+  /** The road route for these stops in this order: asked once, then repaints. */
+  function realRoute(ordered) {
+    var RD = W.NBDRouteDrive;
+    if (!RD || typeof RD.get !== 'function' || ordered.length < 2 || ordered.length > 25) return null;
+    var key = ordered.map(function (s) { return Number(s.lat).toFixed(4) + ',' + Number(s.lng).toFixed(4); }).join(';');
+    var cur = S.route.real;
+    if (cur && cur.key === key) return cur;
+    var mine = { key: key, status: 'pending' };
+    S.route.real = mine;
+    RD.get(ordered.map(function (s) { return { lat: Number(s.lat), lng: Number(s.lng) }; }), { geometry: true }).then(function (r) {
+      if (!mounted || S.route.real !== mine) return;
+      if (r && r.ok) { mine.status = 'ok'; mine.legs = r.legs; mine.min = r.min; mine.mi = r.mi; mine.path = r.path || null; }
+      else mine.status = 'fail';
+      render();
+    }, function () { if (mounted && S.route.real === mine) { mine.status = 'fail'; render(); } });
+    return mine;
   }
   function stopByKey(key) {
     var all = routeStops();
@@ -344,7 +372,8 @@
       return h + '<p class="mc-note">No appointments on today\'s schedule. Tap a customer on the map (the Leads layer shows them), then Add to today\'s route.</p>';
     }
     h += '<p class="mc-note"><strong>' + m.stops.length + ' stop' + (m.stops.length === 1 ? '' : 's') + '</strong>' +
-      (m.stops.length > 1 ? ' · about ' + m.min + ' min driving · ' + m.roadMi + ' mi (est.)' : '') + '</p>';
+      (m.stops.length > 1 ? ' · about ' + m.min + ' min driving · ' + m.roadMi + ' mi' + (m.real ? '' : ' (est.)') : '') + '</p>' +
+      (m.pending ? '<p class="mc-note" role="status">Calculating road times…</p>' : '');
     if (S.route.mode === 'short' && m.stops.length > 2) {
       h += '<p class="mc-note">' + (m.savedMin > 0 ? 'Saves about ' + m.savedMin + ' min and ' + m.savedMi + ' mi against appointment order.' : 'Appointment order is already the shortest.') +
         (m.reordered ? ' <span class="mc-chip mc-chip-warn">Order differs from appointment times</span>' : '') + '</p>';
@@ -356,7 +385,7 @@
       h += '<li><button type="button" class="mc-stop' + (S.route.sel === s.key ? ' mc-row-on' : '') + '" data-mc="stop" data-key="' + esc(s.key) + '">' +
         '<span class="mc-num">' + (i + 1) + '</span><span class="mc-stop-main"><span class="mc-row-name">' + esc(s.name) + '</span>' +
         '<span class="mc-row-sub">' + esc([s.timeLabel, String(s.address).split(',')[0]].filter(Boolean).join(' · ')) + '</span>' +
-        (leg ? '<span class="mc-drive">' + leg.min + ' min · ' + leg.roadMi + ' mi (est.)' + (isTight ? ' <span class="mc-chip mc-chip-warn">Tight</span>' : '') + '</span>' : '<span class="mc-drive">Start</span>') +
+        (leg ? '<span class="mc-drive">' + leg.min + ' min · ' + leg.roadMi + ' mi' + (m.real ? '' : ' (est.)') + (isTight ? ' <span class="mc-chip mc-chip-warn">Tight</span>' : '') + '</span>' : '<span class="mc-drive">Start</span>') +
         '</span></button></li>';
     });
     h += '</ol>';
@@ -365,7 +394,10 @@
         return '<li class="mc-note">' + esc(s.name) + (s.timeLabel ? ' · ' + esc(s.timeLabel) : '') + '</li>';
       }).join('') + '</ul>';
     }
-    if (m.stops.length > 1) h += '<p class="mc-fine">Drive time is an estimate: straight-line miles x 1.3 at 28 mph. "Tight" assumes ' + RP.ON_SITE_MIN + ' minutes on site.</p>';
+    if (m.stops.length > 1) {
+      h += '<p class="mc-fine">' + (m.real ? 'Drive times are road times (routing data © OpenStreetMap contributors).'
+        : 'Drive time is an estimate: straight-line miles x 1.3 at 28 mph.') + ' "Tight" assumes ' + RP.ON_SITE_MIN + ' minutes on site.</p>';
+    }
     return h;
   }
   function stopDetail(s, model) {
@@ -376,7 +408,7 @@
     var st = RP.stageGroup(s.stage);
     var h = '<div class="mc-block"><div class="mc-cust-name">' + esc(s.name) + '</div><div class="mc-cust-addr">' + esc(s.address) + '</div>' +
       '<p class="mc-line">' + esc((s.timeLabel ? s.timeLabel + ' · ' : '') + (s.type ? s.type + ' · ' : '') + st.label) + '</p>' +
-      (leg ? '<p class="mc-line">About ' + leg.min + ' min from the previous stop (est.)</p>' : '') + '</div>';
+      (leg ? '<p class="mc-line">About ' + leg.min + ' min from the previous stop' + (model.real ? '' : ' (est.)') + '</p>' : '') + '</div>';
     h += K.actionBar(item, ['call', 'navigate', 'open'], { size: 'lg' });
     h += '<button type="button" class="mc-btn mc-btn-primary" data-mc="omw" data-key="' + esc(s.key) + '">On my way</button>';
     h += K.recordEntry({ source: 'mission-route', leadId: s.leadId, cls: 'mc-rec' });
@@ -444,7 +476,8 @@
       map.setSwaths(L.swaths ? S.warnings.map(function (w, i) {
         return { id: 'W:' + i, rings: w.rings, level: w.hailIn > 0 ? MV.levelForHail(w.hailIn) : 'warn', title: w.event + (w.hailIn ? ' · hail up to ' + fmtIn(w.hailIn) : '') };
       }) : []);
-      map.setRoutes(m.stops.length > 1 ? [{ id: 'route', points: m.stops.map(function (s) { return [s.lat, s.lng]; }), color: 'orange' }] : []);
+      // The road itself once routeDrive answered; straight hops until then.
+      map.setRoutes(m.stops.length > 1 ? [{ id: 'route', points: m.path && m.path.length > 1 ? m.path : m.stops.map(function (s) { return [s.lat, s.lng]; }), color: 'orange' }] : []);
       if (fit) map.fit(70);
     }
   }

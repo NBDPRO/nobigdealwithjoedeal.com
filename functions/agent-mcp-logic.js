@@ -28,7 +28,11 @@ const SMS_MAX = 480;
 // it, and records it with "They replied STOP" (phone-text-check.js 'stop').
 // TODO(TWILIO_INBOUND_ENABLED): once the business line's inbound is live,
 // drafts should go through it, where a STOP is recorded by itself.
-const STOP_LINE = "Reply STOP and we'll stop texting.";
+// The rulebook's one opt-out line (vault Wording Rules, Jo): "Reply STOP to
+// opt out." — the same words as every CRM template and the registered A2P
+// samples. A STOP reply to a phone-sent draft lands on the owner's phone; the
+// "They replied STOP" button records it like an inbound STOP (R2-3-1).
+const STOP_LINE = 'Reply STOP to opt out.';
 const REASON_MAX = 300;
 const EMAIL_SUBJECT_MAX = 140;
 

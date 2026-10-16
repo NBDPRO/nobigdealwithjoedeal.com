@@ -544,6 +544,10 @@ const VERDICTS = {
   // the per-uid daily quota (lead_brief_quota caps fresh AI generations), so
   // a viewer reading a customer may be briefed on it.
   leadBrief: 'read-paid',
+  // Real drive times (route-drive.js, 2026-10-16): minutes and miles between
+  // points the caller sends; writes only the server's own route_cache (a hash,
+  // no coordinates). A viewer looking at the day route may see road times.
+  routeDrive: 'read',
   // HTTP functions
   adminAI: 'role-gated', analyzeRoofPhoto: 'refused', calcomWebhook: 'public', claudeProxy: 'read-paid',
   confirmAccountErasure: 'public', createCheckoutSession: 'refused', createCustomerPortalSession: 'refused',
