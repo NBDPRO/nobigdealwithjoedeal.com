@@ -1252,7 +1252,7 @@
           </div>
 
           <!-- Ohio ORC 4722.04 payment terms (2026-10-11, deposit-rule.js): on an
-               Ohio job of $25,000 or more only 10% may be taken before work
+               Ohio job over $25,000 only 10% may be taken before work
                begins, plus 75% of any special-order, non-returnable item. Both
                inputs are optional and show up in the deposit line below. -->
           <div class="v2-field" id="v2ohioTerms">

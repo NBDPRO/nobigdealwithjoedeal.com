@@ -54,10 +54,13 @@ section('1. Ohio cash job — the $25,000 boundary');
   ok('$24,999.99 Ohio cash: not covered, 50% as before ($12,500)', cents(below) === 1250000, cents(below));
   ok('$24,999.99: no Ohio block, no warning', !below.ohio && !below.stateWarning);
   const at = R.compute({ total: 25000.00, address: OH });
-  ok('$25,000.00 Ohio cash: covered (safe side of 4722.02(A) "equals or exceeds"), signing $2,500', cents(at) === 250000, cents(at));
-  ok('$25,000.00: second payment $10,000 due on delivery / start, balance $12,500', rowOf(at, 'milestone').amountCents === 1000000 && rowOf(at, 'balance').amountCents === 1250000);
+  // ORC 4722.01(C): the covered contract is one "for an amount exceeding"
+  // $25,000 (legal cross-check 2026-10-16), so exactly $25,000.00 is NOT capped.
+  ok('$25,000.00 Ohio cash: not covered (4722.01(C) "exceeding"), 50% as before ($12,500)', cents(at) === 1250000, cents(at));
+  ok('$25,000.00: no Ohio block, no warning', !at.ohio && !at.stateWarning);
   const over = R.compute({ total: 25000.01, address: OH });
-  ok('$25,000.01 Ohio cash: signing $2,500 (10% rounded DOWN to the $25 step, never over the cap)', cents(over) === 250000, cents(over));
+  ok('$25,000.01 Ohio cash: covered, signing $2,500 (10% rounded DOWN to the $25 step, never over the cap)', cents(over) === 250000, cents(over));
+  ok('$25,000.01: second payment $10,000 due on delivery / start', rowOf(over, 'milestone') && rowOf(over, 'milestone').amountCents === 1000000);
   ok('$25,000.01: cap is never exceeded', cents(over) <= Math.floor(2500001 * 10 / 100));
   invariants('$24,999.99', below); invariants('$25,000.00', at); invariants('$25,000.01', over);
   const odd = R.compute({ total: 27432.18, address: OH });
@@ -192,9 +195,9 @@ section('8. fromEstimate, toStored, invoiceDeposit, policyText');
   ok('cash invoice: deposit = the 10% signing amount, milestone $12,000 held', invD.depositCents === 300000 && invD.milestoneCents === 1200000, JSON.stringify(invD));
   ok('non-Ohio invoice: no milestone', R.invoiceDeposit(R.compute({ total: 30000, address: KY })).milestoneCents === 0);
   const pol = R.policyText();
-  ok('policyText states the Ohio limit with the threshold', /Ohio jobs of \$25,000 or more/.test(pol) && /limited to 10%/.test(pol) && /75%/.test(pol));
+  ok('policyText states the Ohio limit with the threshold', /Ohio jobs over \$25,000:/.test(pol) && !/25,000 or more/.test(pol) && /limited to 10%/.test(pol) && /75%/.test(pol));
   ok('policyText keeps the KY and deductible sentences', /Kentucky insurance claims: nothing is due at signing/.test(pol) && /never waived or reduced/.test(pol));
-  ok('policyText omits the Ohio sentence when the cap is off', !/Ohio jobs of/.test(R.policyText({ OH_CAP_ENABLED: 0 })));
+  ok('policyText omits the Ohio sentence when the cap is off', !/Ohio jobs over/.test(R.policyText({ OH_CAP_ENABLED: 0 })));
 }
 
 // ── 9. Source-level guards ───────────────────────────────────────────────

@@ -49,11 +49,14 @@
  * documentation/audit/GROK-SITE-AUDIT-OHIO-4722-2026-10-11.md and
  * documentation/projects/OHIO-4722-DEPOSIT-CAP-2026-10-11.md): on an OHIO
  * property (the PROPERTY address state, never the company's home state) whose
- * contract price is at or above OH_CAP_MIN_CENTS ($25,000), the amount taken
+ * contract price is OVER OH_CAP_MIN_CENTS ($25,000.00), the amount taken
  * before performance begins is capped at OH_CAP_PCT (10%) of the contract
- * price. The statute defines the covered contract as one "exceeding" $25,000
- * (4722.01(C)) but 4722.02(A) says "equals or exceeds"; we err to the safe
- * side and treat >= $25,000.00 as covered. Legal routes, all config-driven:
+ * price. The cap reaches a "home construction service contract", which
+ * 4722.01(C) defines as one "for an amount exceeding twenty-five thousand
+ * dollars" (statute in force since 2012-08-31, HB 383): so a contract of
+ * exactly $25,000.00 is NOT covered and $25,000.01 is (legal cross-check
+ * 2026-10-16). 4722.02(A)'s "equals or exceeds" governs the written-contract
+ * contents, not this cap. Legal routes, all config-driven:
  *   1. the 10% cap itself (cash: min(rule deposit, 10%));
  *   2. special-order allowance: up to OH_SPECIAL_ORDER_PCT (75%) of the
  *      amount of special-order, non-returnable items (input.specialOrder,
@@ -69,7 +72,7 @@
  *      exceed the cap it is capped and the rest of the deductible, with the
  *      ACV payment, moves to the milestone — the deductible is still always
  *      collected. Kentucky logic is untouched (the KY hold runs first).
- * Unknown property state on a job at or above the threshold: no cap, but the
+ * Unknown property state on a job over the threshold: no cap, but the
  * plan carries stateWarning (repNote) so the rep sees the check was not made.
  * Cost-plus contracts are deliberately NOT modelled (not recommended without
  * counsel).
@@ -85,9 +88,9 @@
     CASH_NO_DEPOSIT_UNDER_CENTS: 200000, // cash under $2,000.00 → no deposit
     CASH_DEPOSIT_PCT: 50,                // cash $2,000.00 and up → 50% at signing
     CASH_DEPOSIT_ROUND_TO_CENTS: 2500,   // the percentage deposit rounds to the nearest $25 (the grand-total step)
-    // Ohio ORC 4722.04 (2026-10-11) — see the header. All overridable.
+    // Ohio ORC 4722.04 (in force since 2012; built here 2026-10-11) — see the header. All overridable.
     OH_CAP_ENABLED: 1,                   // 0 switches the Ohio cap off (counsel says otherwise)
-    OH_CAP_MIN_CENTS: 2500000,           // contract price at or above $25,000.00 is covered (safe side)
+    OH_CAP_MIN_CENTS: 2500000,           // contract price OVER $25,000.00 is covered (4722.01(C) "exceeding")
     OH_CAP_PCT: 10,                      // most that may be taken at signing, % of contract price
     OH_SPECIAL_ORDER_PCT: 75,            // of a special-order, non-returnable item, on top of the cap
     OH_MILESTONE_ENABLED: 1,             // payment 2 due when materials are delivered / work begins
@@ -545,7 +548,7 @@
   // { covered, state, unknown, loanExempt } for a job of totalCents.
   function _ohioCoverage(input, totalCents, c) {
     var out = { covered: false, state: '', unknown: false, loanExempt: false };
-    if (!c.OH_CAP_ENABLED || !(totalCents > 0) || totalCents < c.OH_CAP_MIN_CENTS) return out;
+    if (!c.OH_CAP_ENABLED || !(totalCents > 0) || totalCents <= c.OH_CAP_MIN_CENTS) return out;
     var st = _propertyState(input);
     out.state = st;
     if (!st) { out.unknown = true; return out; }
@@ -560,7 +563,7 @@
     return Math.floor(cents / st) * st;
   }
 
-  var OH_WHY = 'Ohio home-construction contract of $25,000 or more (ORC 4722.04): no more than the cap may be taken before work begins.';
+  var OH_WHY = 'Ohio home-construction contract over $25,000 (ORC 4722.04): no more than the cap may be taken before work begins.';
 
   function _ohioAdjust(plan, input) {
     if (!plan || !(plan.totalCents > 0) || plan.kyHold) return plan;
@@ -597,7 +600,7 @@
 
     if (insurance && plan.needsDeductible) {
       plan.ohio = info;
-      plan.repNote = join(plan.repNote, 'Ohio job of $25,000 or more: once the deductible is entered, no more than ' + fmtCents(capTotal) +
+      plan.repNote = join(plan.repNote, 'Ohio job over $25,000: once the deductible is entered, no more than ' + fmtCents(capTotal) +
         ' (' + c.OH_CAP_PCT + '%) will be due at signing (ORC 4722.04).');
       return plan;
     }
@@ -872,7 +875,7 @@
           'Cash jobs of ' + under + ' or more: ' + c.CASH_DEPOSIT_PCT + '% deposit at contract signing, balance on completion. '
         : 'Cash jobs: ' + c.CASH_DEPOSIT_PCT + '% deposit at contract signing, balance on completion. ');
     var ohio = (c.OH_CAP_ENABLED && c.CASH_DEPOSIT_PCT > c.OH_CAP_PCT)
-      ? 'Ohio jobs of ' + fmtCents(c.OH_CAP_MIN_CENTS) + ' or more: the deposit at signing is limited to ' + c.OH_CAP_PCT +
+      ? 'Ohio jobs over ' + fmtCents(c.OH_CAP_MIN_CENTS) + ': the deposit at signing is limited to ' + c.OH_CAP_PCT +
         '% of the contract price' + (c.OH_SPECIAL_ORDER_PCT > 0 ? ' (plus up to ' + c.OH_SPECIAL_ORDER_PCT + '% of any special-order, non-returnable materials)' : '') +
         (c.OH_MILESTONE_ENABLED && c.OH_MILESTONE_PCT > 0 ? '; a second payment of ' + c.OH_MILESTONE_PCT + '% is due when materials are delivered or work begins' : '') +
         '; the balance is due on completion. '

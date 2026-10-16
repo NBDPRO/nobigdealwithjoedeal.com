@@ -1743,7 +1743,7 @@
               source: 'computed.todayISO', persist: PERSIST.DOCUMENT },
             { key: 'payment2Amount', label: 'Payment 2 Amount', type: 'currency',
               source: 'computed.depositPayment2', persist: PERSIST.DOCUMENT,
-              help: 'Insurance: the ACV check, due when the carrier releases it (leave the date blank). On an Ohio job of $25,000 or more: the payment due when materials are delivered or work begins. The balance prints as the final payment.' },
+              help: 'Insurance: the ACV check, due when the carrier releases it (leave the date blank). On an Ohio job over $25,000: the payment due when materials are delivered or work begins. The balance prints as the final payment.' },
             { key: 'payment2Date', label: 'Payment 2 Date', type: 'date',
               source: 'literal:', persist: PERSIST.DOCUMENT },
             { key: 'paymentTerms', label: 'Terms', type: 'textarea', rows: 2,
