@@ -8,6 +8,30 @@
 // ──────────────────────────────────────────────────────────────────
 const POSTS = [
   {
+    url: "/blog/how-a-roof-works-layer-by-layer",
+    tag: "How It Works",
+    title: "How a Roof Actually Works, Layer by Layer",
+    meta: "By Joe Deal · October 2026 · 6 min read",
+    excerpt: "A roof is a stack of parts, and each one hands water to the next. The eave, the nails, what Class 4 really means, flashing, valleys and attic airflow, walked through with the drawings from my new guide.",
+    published: "2026-10-16",
+  },
+  {
+    url: "/blog/free-homeowner-guides-printable-pdfs",
+    tag: "Free Guides",
+    title: "My Free Homeowner Guides, Now as Printable PDFs",
+    meta: "By Joe Deal · October 2026 · 4 min read",
+    excerpt: "Six free guides, now typeset PDFs you can print or save: storm claims in Kentucky and Ohio, a pre-storm photo sheet, comparing roof quotes, home care, paying for a roof, and siding and gutters. What each one is for.",
+    published: "2026-10-16",
+  },
+  {
+    url: "/blog/vinyl-vs-lp-smartside-vs-fiber-cement-siding",
+    tag: "Siding",
+    title: "Vinyl vs. LP SmartSide vs. Fiber Cement: An Honest Comparison",
+    meta: "By Joe Deal · October 2026 · 6 min read",
+    excerpt: "I install all three. How vinyl, LP SmartSide and fiber cement compare on upkeep, look and how they take a hit in Cincinnati and Northern Kentucky, and why what goes behind the siding matters as much.",
+    published: "2026-10-16",
+  },
+  {
     url: "/blog/is-the-class-4-upgrade-worth-it",
     tag: "Reader Questions",
     title: "The Same Question, a 12% Answer — Is Class 4 Worth It?",
