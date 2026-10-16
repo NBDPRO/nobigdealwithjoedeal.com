@@ -146,8 +146,8 @@ console.log('CLAIM HONESTY 2026-10-13 — (4) referral bonus is the code constan
   ok('referral preflight bonus literal equals REFERRAL_BONUS_USD (' + codeBonus + ')',
     !!bonus && bonus.source === 'literal:' + codeBonus);
   const terms = fields.find((f) => f.key === 'terms');
-  ok('referral terms say the bonus is paid when the job closes (matches the credit trigger)',
-    !!terms && /when the referred job closes/.test(terms.source));
+  ok('referral terms say the bonus is paid after the job is paid in full (matches the credit trigger, Joe 2026-10-16)',
+    !!terms && /after the referred job is paid in full/.test(terms.source));
   absent('doc-preflight.js has no $250 referral literal', /literal:250\b/, stripComments(read('docs/pro/js/doc-preflight.js')), "source: 'literal:250'");
 }
 

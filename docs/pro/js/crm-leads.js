@@ -417,7 +417,7 @@ async function saveLead(){
       source: document.getElementById('lSource')?.value || '',
       // Referral-code redemption: the code this lead was referred with (if any).
       // Stamped raw + uppercased; the server-side onReferralLeadWrite trigger
-      // resolves it to the referrer and credits the $100 bonus on close.
+      // resolves it to the referrer and credits the $100 bonus once the job is paid in full.
       redeemReferralCode: (document.getElementById('lReferralCode')?.value || '').toUpperCase().replace(/[^A-Z0-9-]/g, ''),
       damageType: document.getElementById('lDamageType')?.value||'',
       claimStatus: document.getElementById('lClaimStatus')?.value||'No Claim',

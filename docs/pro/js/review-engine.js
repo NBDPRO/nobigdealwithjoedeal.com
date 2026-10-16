@@ -479,7 +479,7 @@
     const firstName = lead.firstName || lead.fname || '';
     const phone = lead.phone.replace(/\D/g, '');
     const message =
-      `Hey${firstName ? ' ' + firstName : ''}, thanks again for choosing ${brandName()}! Here's your personal referral code: ${code}\n\nShare it with friends & neighbors — they get a free inspection, and you get a $100 bonus when their project closes. Win-win!`;
+      `Hey${firstName ? ' ' + firstName : ''}, thanks again for choosing ${brandName()}! Here's your personal referral code: ${code}\n\nShare it with friends & neighbors — they get a free inspection, and you get a $100 bonus once their project is paid in full. Win-win!`;
     // Platform sender, same as the review ask above (2026-10-01): the raw sms:
     // link skipped the server's STOP register.
     if (!window.NBDComms || typeof window.NBDComms.sendSMS !== 'function') {
@@ -494,7 +494,7 @@
   // to functions/referral-rewards.js (onReferralLeadWrite). Intake now just
   // stamps `redeemReferralCode` on the lead (rep Add/Edit Lead modal or the
   // public /inspect form) and the trigger resolves the code to its referrer
-  // and records the bonus as owed when the project closes. The old client-side
+  // and records the bonus as owed once the job is paid in full (Joe, 2026-10-16). The old client-side
   // trackReferral() that lived here had ZERO callers and no crediting path, so
   // the $100 promised in sendReferralSMS was unbacked — removed to avoid a
   // second, drifting attribution lane.
