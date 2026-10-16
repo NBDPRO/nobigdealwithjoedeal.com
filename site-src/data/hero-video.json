@@ -1,0 +1,20 @@
+{
+  "_about": "Background hero video loops: which page shows which loop. scripts/hero-video.mjs renders the partials (site-src/partials/hero-video-<clip>.html, plus hero-video-<clip>-poster.html for clips with poster: true, used by the plain navy service heroes that have no photo of their own), places the marker in each matched page's hero and the hero-video.css link (and poster preloads) in that page's <head>; scripts/apply-partials.js stamps the markup. Edit this file, then run: node scripts/hero-video.mjs. The first rule whose regex matches a page (path relative to docs/, forward slashes) wins; a page no rule matches gets no video. Footage is Joe's own drone video of his own jobs (ORC clips: his crew, confirmed 2026-10-16), re-encoded muted with every metadata atom stripped (tests/hero-video.test.js scans the bytes). Pages whose hero photo is captioned as one specific job (svc-hero--photo, 'see this job') are deliberately NOT mapped: a loop from a different job would make that caption untrue.",
+  "clips": {
+    "topdown-install-spin": { "what": "Crew mid-install, slow top-down drone orbit (ORC job, May 2026)", "poster": false },
+    "shingle-reveal-pullback": { "what": "Close-up of new shingles pulling back to the finished roof line (ORC job, May 2026)", "poster": true },
+    "snow-orbit-2026": { "what": "Snow-covered neighbourhood roofs, slow aerial orbit (winter 2026)", "poster": true },
+    "neighborhood-pond-flyover": { "what": "Suburban neighbourhood and pond flyover, high altitude (Sept 2024)", "poster": false },
+    "crew-treeline-hover": { "what": "Crew on the ridge of a finished roof, steady hover against the treeline (ORC job, May 2026)", "poster": true }
+  },
+  "rules": [
+    { "pages": "^index\\.html$", "clip": "topdown-install-spin" },
+    { "pages": "^services/emergency-roof-tarping\\.html$", "clip": "snow-orbit-2026" },
+    { "pages": "^services/financing\\.html$", "clip": "crew-treeline-hover" },
+    { "pages": "^services/(fire-water-smoke-damage|roof-care-plan|roof-cleaning-soft-wash)\\.html$", "clip": "shingle-reveal-pullback" },
+    { "pages": "^services/(hail-damage|storm-damage)-[a-z-]+-(oh|ky)\\.html$", "clip": "snow-orbit-2026" },
+    { "pages": "^services/roof-replacement-[a-z-]+-(oh|ky)\\.html$", "clip": "crew-treeline-hover" },
+    { "pages": "^services/(roof-repair|roof-inspection)-[a-z-]+-(oh|ky)\\.html$", "clip": "shingle-reveal-pullback" },
+    { "pages": "^areas/[a-z-]+-(oh|ky)\\.html$", "clip": "neighborhood-pond-flyover" }
+  ]
+}

@@ -259,6 +259,7 @@
     "seo-surface.test.js",
     "schema-entity-address-2026-10-06.test.js",
     "tamko-page-rename.test.js",
+    "hero-video.test.js",
     "smart-calendar-forecast.test.js",
     "schedule-events-2026-09-28.test.js",
     "hd-import-2026-09-29.test.js",

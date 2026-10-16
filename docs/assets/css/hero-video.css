@@ -1,0 +1,43 @@
+/* hero-video.css — background hero loops (component: site-src/partials/hero-video-*.html,
+   mapping: site-src/data/hero-video.json, behaviour: /assets/js/hero-video.js).
+   The video is decoration: it sits under the hero's text, starts transparent and
+   fades in only once it is actually playing, so a slow, blocked or reduced-motion
+   load shows exactly the hero the page had before (its own photo), or on the plain
+   navy service heroes the loop's poster.
+   Bump ASSET_VERSION in scripts/hero-video.mjs when this file changes. */
+
+.hv{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.hv-poster,.hv-poster img{position:absolute;inset:0;display:block;width:100%;height:100%}
+.hv-poster img{max-width:none;object-fit:cover}
+.hx-bg{position:absolute;inset:0;display:block;width:100%;height:100%;max-width:none;object-fit:cover;opacity:0;transition:opacity .9s ease}
+.hx-bg.is-playing{opacity:1}
+
+/* Scrim above the footage, below the words. Sized against the brightest frame
+   of each loop under the hero's text boxes (snow-orbit-2026 is the brightest):
+   white text stays at or above 4.5:1 on every sampled frame (measured per page
+   family at 390 and 1440 wide; numbers in the PR). Darkest behind the
+   left-aligned text column, lighter where only footage shows. It fades in with
+   the video, so until then the hero's own photo and gradient look exactly as
+   before; on a poster hero it is always on, because the poster is the footage. */
+.hv::after{content:"";position:absolute;inset:0;opacity:0;transition:opacity .9s ease;background:linear-gradient(90deg,rgba(18,34,61,.9) 0%,rgba(18,34,61,.82) 55%,rgba(18,34,61,.6) 100%)}
+.hv--city::after{background:rgba(18,34,61,.82)}
+@media (max-width:600px){.hv::after,.hv--city::after{background:rgba(18,34,61,.84)}}
+.hv:has(> .hx-bg.is-playing)::after,.hv:has(> .hv-poster)::after{opacity:1}
+.hv:has(> .hv-poster){background:#12223d}
+
+/* Homepage: the crew photo stays the LCP and the no-video fallback, and the
+   section's own gradient (.hx-hero::after, painted after this layer) does most
+   of the work; this layer only adds a little behind the words while the loop
+   plays, because the footage is brighter than the photo that gradient was
+   tuned for. */
+.hv--home::after{background:linear-gradient(90deg,rgba(18,34,61,.55) 0%,rgba(18,34,61,.5) 55%,rgba(18,34,61,0) 82%)}
+@media (max-width:600px){.hv--home::after{background:linear-gradient(180deg,rgba(18,34,61,0) 0%,rgba(18,34,61,.25) 20%,rgba(18,34,61,.6) 38%,rgba(18,34,61,.6) 100%)}}
+
+/* Accent words over moving footage use the light brand orange, as the photo
+   heroes already do (service-revamp.css .svc-hero--photo h1 span): #bd5728 is
+   below 3:1 over the brighter frames even under the scrim. The small badges get
+   a darker pill so their text holds 4.5:1. */
+.combo-hero:has(> .hv) h1 span,.city-hero:has(> .hv) h1 span,.service-hero:has(> .hv) h1 span,.service-hero:has(> .hv) .hero-badge,.service-hero:has(> .hv) .hero-trust-item span{color:#dd875f}
+.combo-hero:has(> .hv) .combo-badge,.city-hero:has(> .hv) .city-badge,.service-hero:has(> .hv) .hero-badge{background:rgba(18,34,61,.75)}
+
+@media (prefers-reduced-motion:reduce){.hx-bg{display:none}}
