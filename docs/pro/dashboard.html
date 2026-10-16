@@ -123,7 +123,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=204"></script>
+<script src="js/script-loader.js?v=205"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -904,6 +904,10 @@
            next appointment with drive time, Navigate and a checked "On my way"
            draft. At the top of Home (Classic, Bento above its board, Island
            under its hero); full-screen layouts carry their own [data-ns-slot]. -->
+      <!-- Storm strip (js/storm-strip.js, lazy bundle 'stormstrip', 2026-10-16): only
+           when an NWS warning or a hail report touches the territory or a
+           customer; "Storm feed unavailable" when the read fails; nothing when clear. -->
+      <section id="homeStorm" aria-label="Storm" hidden></section>
       <section id="homeNextStop" aria-label="Next stop" hidden></section>
       <!-- Needs-you strip (js/home-attention.js): phone calls that need you
            (counted in PEOPLE, the Call Center's rule), Stripe payments to
@@ -7254,7 +7258,7 @@
 <!-- W139: Hot-lead threshold-crossing alert -->
 <script defer src="js/lead-score-alert.js?v=3"></script>
 <script defer src="js/smart-followup-briefing.js?v=2"></script>
-<script defer src="js/home-attention.js?v=23"></script>
+<script defer src="js/home-attention.js?v=24"></script>
 <!-- Send from Jo's own phone (share sheet / Messages) + the estimate follow-up
      cadence and its Home card (2026-10-03). phone-share.js first: close-board.js
      (ScriptLoader) and estimate-followups.js both call window.NBDPhoneShare. -->
@@ -7275,7 +7279,7 @@
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=16"></script>
-<script defer src="js/today-home.js?v=22"></script>
+<script defer src="js/today-home.js?v=23"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=6"></script>

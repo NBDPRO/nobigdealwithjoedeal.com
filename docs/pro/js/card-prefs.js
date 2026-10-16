@@ -31,6 +31,7 @@
   'use strict';
 
   var HOME = [
+    { id: 'storm', label: 'Storm', sel: '#homeStorm' },
     { id: 'nextstop', label: 'Next stop', sel: '#homeNextStop' },
     { id: 'attention', label: 'Needs you', sel: '#homeAttention' },
     { id: 'today', label: 'Today list', sel: '#todayPlan' },
@@ -42,6 +43,7 @@
     bento: HOME.filter(function (c) { return c.id !== 'more'; }),   // Bento hides .home-more: its board is the widgets
     island: HOME,
     field: [
+      { id: 'storm', label: 'Storm', sel: '[data-storm-slot="field"]' },
       { id: 'nextstop', label: 'Next stop', sel: '[data-ns-slot="field"]' },
       { id: 'callback', label: 'Call back now', sel: '[data-stl-slot="field"]' },
       { id: 'now', label: 'Current stop', sel: '#nbdFieldRoot .fa-now' },

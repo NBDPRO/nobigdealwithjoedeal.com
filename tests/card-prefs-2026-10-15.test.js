@@ -170,9 +170,10 @@ console.log('\nC. the sheet');
   };
   // the sheet's contains() must see the clicked button: give the scrim one
   scrim.contains = () => true;
-  fire('click', { 'data-hc': 'down', 'data-hc-id': 'nextstop' });
+  const first = p0.order[0];
+  fire('click', { 'data-hc': 'down', 'data-hc-id': first });
   const p1 = sb.CP._load('field');
-  ok('Move down saves the new order on this device', p1.order[1] === 'nextstop' && p0.order[0] === 'nextstop' && /"field"/.test(sb.store.nbd_card_prefs || ''), JSON.stringify(p1));
+  ok('Move down saves the new order on this device', p1.order[1] === first && p1.order[0] === p0.order[1] && /"field"/.test(sb.store.nbd_card_prefs || ''), JSON.stringify(p1));
   fire('change', { 'data-hc': 'show', 'data-hc-id': 'cash' }, { checked: false });
   ok('switching a card off saves it hidden', sb.CP._load('field').off.indexOf('cash') !== -1);
   P.idsOf('field').forEach((id) => fire('change', { 'data-hc': 'show', 'data-hc-id': id }, { checked: false }));
