@@ -169,7 +169,7 @@ console.log('\nF. the Home card');
   })(), [...read('docs/pro/js/layout-system.js').matchAll(/id: '([a-z-]+)', name:/g)].map((x) => x[1]).join());
   const sl = read('docs/pro/js/script-loader.js');
   ok('lazy bundle "closesweek" (css + logic + card), no boot <script> tag', /closesweek: \[\s*'css\/closes-week\.css\?v=2',\s*'js\/closes-week-logic\.js\?v=1',\s*'js\/closes-week\.js\?v=2'\s*\]/.test(sl) && !/<script[^>]*closes-week/.test(dash));
-  ok('today-home.js kicks it at Home boot', /loadBundle\('closesweek'\)/.test(read('docs/pro/js/today-home.js')) && /today-home\.js\?v=18/.test(dash));
+  ok('today-home.js kicks it at Home boot', /loadBundle\('closesweek'\)/.test(read('docs/pro/js/today-home.js')) && /today-home\.js\?v=19/.test(dash));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

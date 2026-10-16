@@ -339,8 +339,9 @@
     else html = renderToday();
     rootEl.setAttribute('data-screen', S.screen);
     doc.documentElement.setAttribute('data-fa-screen', S.screen);   // css hides the nav under the camera
-    // "What closes this week" (js/closes-week.js, 2026-10-15) fills [data-cwk-slot].
-    rootEl.innerHTML = '<div class="fa-scroll">' + html + (S.screen === 'today' ? '<div data-cwk-slot="field"></div>' : '') + '</div>';
+    // "What closes this week" (js/closes-week.js, 2026-10-15) fills [data-cwk-slot];
+    // the Cash strip (js/cash-card.js) fills [data-cash-slot].
+    rootEl.innerHTML = '<div class="fa-scroll">' + html + (S.screen === 'today' ? '<div data-cash-slot="field" data-cash-variant="compact"></div><div data-cwk-slot="field"></div>' : '') + '</div>';
     if (S.screen === 'capture') startCamera();
     else stopCamera();
     paintNav();

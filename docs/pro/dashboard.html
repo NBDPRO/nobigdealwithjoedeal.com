@@ -123,7 +123,7 @@
      anyone who owns a company. Before the bootstrap, which calls it. -->
 <script defer src="js/invite-join.js?v=1"></script>
 <!-- Lazy script loader — must load BEFORE any code that calls goTo(). -->
-<script src="js/script-loader.js?v=200"></script>
+<script src="js/script-loader.js?v=201"></script>
 <!-- nbdModal — canonical .modal-bg/.modal open/close/confirm helper.
      Eager (like the other small utilities above) so converted subsystems
      can call window.nbdModal from their first render. Contract lives in
@@ -3335,6 +3335,22 @@
               <button class="btn btn-ghost fs-11" data-action="call" data-fn="clearJoeKey">Clear previously saved key</button>
             </div>
             <div id="joeKeyStatus" class="meta-11"></div>
+          </div>
+        </div>
+
+        <!-- Monthly collected goal (js/cash-card.js, 2026-10-15): the ring on the
+             Cash card in Field, Crew, Focus, Inbox and Mission, and the Revenue
+             tile's goal (the same userSettings/{uid}.monthlyGoal). Empty = no goal. -->
+        <div class="panel mb-md" id="cashGoalPanel">
+          <div class="panel-hdr"><div><div class="panel-label">Money</div><div class="panel-title">Monthly collected goal</div></div></div>
+          <div class="panel-body">
+            <p class="meta-12-mb14">Money actually collected in a month (payments received), not jobs sold. Leave it empty for no goal: the Cash card then shows no progress ring.</p>
+            <div class="cc-goal-row">
+              <label for="cashGoalInput" class="cc-goal-lbl">Goal per month, in dollars</label>
+              <input type="text" id="cashGoalInput" class="ui-input cc-goal-in" inputmode="numeric" autocomplete="off" placeholder="No goal">
+              <button type="button" class="btn btn-orange cc-goal-btn" data-cc="goal-save">Save goal</button>
+              <button type="button" class="btn btn-ghost cc-goal-btn" data-cc="goal-clear">Clear</button>
+            </div>
           </div>
         </div>
 
@@ -7246,7 +7262,7 @@
 <script defer src="js/numbers-data.js?v=1"></script>
 <script defer src="js/lost-reason-picker.js?v=2"></script>
 <script defer src="js/widgets.js?v=16"></script>
-<script defer src="js/today-home.js?v=18"></script>
+<script defer src="js/today-home.js?v=19"></script>
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=6"></script>

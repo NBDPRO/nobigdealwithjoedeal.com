@@ -138,6 +138,12 @@ CEILING.localBytes += 1 * 1024;
 // engine at boot when the phone prefers light (+~0.9 KB, D21). All deferred code already on the page. Main sat at
 // 4836 of 4836 KB; this PR measures 4841, so the ceiling keeps ~1 KB of slack.
 CEILING.localBytes += 6 * 1024;
+// +2 KB, deliberate (2026-10-15, layouts N1 + N2: Next stop and Cash cards): no new script, no new tag. Both
+// cards are lazy ScriptLoader bundles ('nextstop', 'cashcard'); what counts here is their registration in
+// script-loader.js (+~1 KB of bundle lists and comments), today-home.js exposing its appointment rows and
+// kicking the bundles (+~0.6 KB) and the Settings goal panel's markup lives in dashboard.html (html, not
+// scripts). Main sat at 4842 of 4842 KB with the Next stop card; this PR measures 4843.
+CEILING.localBytes += 2 * 1024;
 
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {

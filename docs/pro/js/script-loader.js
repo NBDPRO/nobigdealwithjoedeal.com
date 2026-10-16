@@ -501,6 +501,14 @@
       'css/next-stop.css?v=1',
       'js/layouts/routeplan.js?v=2',
       'js/next-stop.js?v=1'
+    ],
+    // Cash collected (2026-10-15): this week / this month against the monthly
+    // goal, open invoices and a Collect button, in the five layouts that showed
+    // no money (Field, Crew, Focus, Inbox, Mission) and the goal in Settings.
+    // Kicked by today-home.js at Home boot. Reads NBDRevenue only.
+    cashcard: [
+      'css/cash-card.css?v=1',
+      'js/cash-card.js?v=1'
     ]
   };
 
