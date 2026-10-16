@@ -36,6 +36,7 @@
     "missed-call-reply-2026-10-15.test.js",
     "csp-report-noise-2026-10-15.test.js",
     "public-intake-hardening-2026-10-15.test.js",
+    "claim-cleanups-2026-10-16.test.js",
     "free-guide-honesty-2026-10-16.test.js",
     "pro-playbook-2026-10-16.test.js",
     "homeowner-guides-2026-10-16.test.js",

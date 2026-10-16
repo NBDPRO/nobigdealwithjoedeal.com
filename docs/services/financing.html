@@ -714,7 +714,7 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
   <div class="hero-inner">
     <div class="hero-badge">Homeowner Financing · Greater Cincinnati</div>
     <h1>Your Home Can't Wait.<br><span>Your Budget Shouldn't Have To.</span></h1>
-    <p class="hero-sub">Financing runs through the Acorn Finance marketplace: pre-qualify in about a minute with a soft credit pull that doesn&rsquo;t touch your score, and no home equity required. It makes most sense on projects of $3,000 and up &mdash; a typical $15,500 roof over 10 years illustrates at roughly $218&ndash;$299 a month. Rates and terms vary by lender and credit.</p>
+    <p class="hero-sub">Financing runs through the Acorn Finance marketplace: pre-qualify in about a minute with a soft credit pull that doesn&rsquo;t touch your score, and no home equity required. It makes most sense on projects of $3,000 and up. Your rate, term and payment come from the lender after approval, and they vary by lender and credit.</p>
     <div class="hero-btns">
       <a href="/#contact" class="btn-primary">Get My Free Estimate →</a>
       <a href="tel:+18594207382" class="btn-outline">📞 (859) 420-7382</a>
@@ -795,12 +795,11 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 <!-- OUTCOME COMPARISON (financing-benefits session 2026-08-17) — the
      "right-size the payment, not the project" argument. The $15,500 example is
      the tool's own typical-home architectural range midpoint (20 sq × $740–825
-     = $14,800–$16,500, midpoint $15,650 → the slider's nearest $500 step;
-     inline/4053149b2f.js PRICING, repriced 2026-10-02); repair range is the same file's roofRepair
-     band. Monthly figures use the identical amortization formula + published
-     Acorn APR band (11.49–19.99%) as financing-estimator.js, so sliding the
-     estimator below to $15,500 / 10 yr reproduces them exactly. Illustration
-     only — layered disclosure in .oc-disc + estimator + page small print. -->
+     = $14,800–$16,500; inline/4053149b2f.js PRICING, repriced 2026-10-02);
+     repair range is the same file's roofRepair band. No monthly payment and no
+     rate is printed (2026-10-16): under Reg Z a payment amount in an ad needs
+     the APR next to it, and the lender, not NBD, sets the rate, term and
+     payment. Same rule as the CRM deal room (PR #2475). -->
 <style>
 .oc-wrap{max-width:960px;margin:0 auto}
 .oc-grid{display:grid;grid-template-columns:1fr 56px 1fr;gap:14px;align-items:stretch;margin-top:40px}
@@ -854,8 +853,8 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       <div class="oc-vs"><span>VS</span></div>
       <div class="oc-card want">
         <span class="oc-tag">Sized to what the house needs</span>
-        <div class="oc-price">$218&#8211;$299<small>/mo &#183; illustrative*</small></div>
-        <div class="oc-sub">A typical $15,500 architectural replacement, spread over a 10-year term at the marketplace's published APR range.*</div>
+        <div class="oc-price">Paid over time</div>
+        <div class="oc-sub">A typical $15,500 architectural replacement, spread into monthly payments. The lender sets the rate, term and payment after approval.</div>
         <ul class="oc-list">
           <li>The full tear-off replacement &#8212; done once, warrantied</li>
           <li>Same price as cash &#8212; my price is my price, financed or not</li>
@@ -865,62 +864,10 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
       </div>
     </div>
     <p class="oc-quote">The most expensive roof out there is the one you pay for twice &#8212; <strong>once in patches, then again in full.</strong></p>
-    <p class="oc-bridge">Your number isn't $15,500? Slide your real project into the estimator below, then <a href="https://www.acornfinance.com/pre-qualify/?d=QU6WZ" target="_blank" rel="noopener noreferrer">check actual offers</a> with a soft pull that never touches your score.</p>
-    <p class="oc-disc">*Illustration only, not an offer of credit &#8212; a fixed, fully-amortizing loan at the Acorn Finance marketplace's published 11.49%&#8211;19.99% APR range over 120 months. Your actual rate, term, and payment are set by a third-party lender based on your credit. And if a repair is truly all your roof needs, that's what I'll tell you &#8212; and quote.</p>
+    <p class="oc-bridge">Want real numbers for your project? <a href="https://www.acornfinance.com/pre-qualify/?d=QU6WZ" target="_blank" rel="noopener noreferrer">Check actual offers</a> with a soft pull that never touches your score.</p>
+    <p class="oc-disc">Financing is not an offer of credit. Loans come from third-party lenders in the Acorn Finance marketplace and are subject to credit approval; the lender sets your rate, term and payment. And if a repair is truly all your roof needs, that's what I'll tell you &#8212; and quote.</p>
   </div>
 </section>
-<!-- FINANCING ESTIMATOR (T9) — illustrative only; layered disclosure in-widget + page small print. Acorn published range: 11.49–19.99% APR / 2–15 yr. -->
-<style>
-.fe-wrap{max-width:640px;margin:0 auto}
-.fe-card{background:var(--white,#fff);border:1px solid var(--light-gray,#e8e5e0);border-radius:16px;padding:28px 26px;box-shadow:0 8px 30px rgba(18,34,61,.08)}
-.fe-row{margin-bottom:22px}
-.fe-label{display:flex;justify-content:space-between;align-items:baseline;font-size:.82rem;font-weight:700;color:var(--navy,#1a3057);margin-bottom:10px}
-.fe-label b{font-family:'Bebas Neue',sans-serif;font-size:1.35rem;color:var(--orange,#bd5728);font-weight:400;letter-spacing:.02em}
-.fe-range{width:100%;accent-color:var(--orange,#bd5728);height:6px}
-.fe-terms{display:flex;flex-wrap:wrap;gap:8px}
-.fe-term{flex:1;min-width:52px;background:var(--off-white,#f5f3ef);border:2px solid var(--light-gray,#e8e5e0);border-radius:8px;padding:9px 4px;font-weight:700;font-size:.8rem;color:var(--navy,#1a3057);cursor:pointer;font-family:inherit;text-align:center}
-.fe-term.sel{border-color:var(--orange,#bd5728);background:rgba(189,87,40,.08);box-shadow:inset 0 0 0 1px var(--orange,#bd5728)}
-.fe-out{background:var(--navy-dark,#12223d);border-radius:12px;padding:22px;text-align:center;color:#fff}
-.fe-out .fe-pay{font-family:'Bebas Neue',sans-serif;font-size:2.6rem;line-height:1;color:var(--orange-light,#dd875f)}
-.fe-out .fe-pay small{font-size:1rem;color:rgba(255,255,255,.7)}
-.fe-out .fe-pay-fallback{font-size:1.5rem}
-.fe-out .fe-cap{font-size:.78rem;color:rgba(255,255,255,.72);margin-top:8px;line-height:1.5}
-.fe-cta{display:block;text-align:center;background:#BD5728;color:#fff;text-decoration:none;font-weight:800;border-radius:10px;padding:15px;margin-top:18px;letter-spacing:.02em}
-.fe-cta:hover{background:#A14A22}
-.fe-disc{font-size:.72rem;color:var(--gray,#5d6673);line-height:1.65;margin-top:16px;text-align:center}
-</style>
-<section class="section">
-  <div class="fe-wrap">
-    <span class="section-label" style="text-align:center;display:block">Payment Estimator</span>
-    <h2 class="section-title" style="text-align:center">What Might It Cost<br>Per Month?</h2>
-    <p class="section-intro" style="text-align:center;margin:0 auto 32px">Slide to a rough monthly payment for a project financed through the Acorn Finance marketplace. It's only an estimate &mdash; your real rate and term come from the lender when you check your options.</p>
-    <div class="fe-card">
-      <div class="fe-row">
-        <div class="fe-label"><span>Project amount</span><b id="fe-amt">$12,000</b></div>
-        <input type="range" class="fe-range" id="fe-amount" min="3000" max="50000" step="500" value="12000" aria-label="Project amount">
-      </div>
-      <div class="fe-row">
-        <div class="fe-label"><span>Term length</span></div>
-        <div class="fe-terms" id="fe-term-group" role="group" aria-label="Term length in years">
-          <button type="button" class="fe-term" data-yrs="2">2 yr</button>
-          <button type="button" class="fe-term" data-yrs="3">3 yr</button>
-          <button type="button" class="fe-term sel" data-yrs="5">5 yr</button>
-          <button type="button" class="fe-term" data-yrs="7">7 yr</button>
-          <button type="button" class="fe-term" data-yrs="10">10 yr</button>
-          <button type="button" class="fe-term" data-yrs="12">12 yr</button>
-          <button type="button" class="fe-term" data-yrs="15">15 yr</button>
-        </div>
-      </div>
-      <div class="fe-out">
-        <div class="fe-pay"><span id="fe-pay-range" hidden><span id="fe-lo"></span> <small>to</small> <span id="fe-hi"></span> <small>/mo</small></span><span class="fe-pay-fallback" id="fe-pay-fallback">Check your real rate below</span></div>
-        <div class="fe-cap">Estimated range at 11.49%&ndash;19.99% APR. Not an offer of credit.</div>
-      </div>
-      <a class="fe-cta" href="https://www.acornfinance.com/pre-qualify/?d=QU6WZ" target="_blank" rel="noopener noreferrer">Check my real rate &mdash; soft pull, no score hit &rarr;</a>
-    </div>
-    <p class="fe-disc">Estimates are for illustration only and are <strong>not an offer or guarantee of credit</strong>. Payments assume a fixed, fully-amortizing loan at the APRs shown and exclude any taxes or fees. In the Acorn Finance marketplace, APRs currently range from <strong>11.49% to 19.99%</strong> and terms from <strong>2 to 15 years</strong>; your actual rate, term, and payment are set by a third-party lender based on your credit when you apply and are subject to change. No Big Deal Home Solutions is not a lender and does not make credit decisions.</p>
-  </div>
-</section>
-
 <section class="section section-alt">
   <div style="max-width:640px;">
     <span class="section-label">FAQ</span>
@@ -1089,8 +1036,6 @@ a.nav-cta,nav .nav-cta{font-size:.8rem!important;letter-spacing:.05em;font-weigh
 
 <script defer  src="/assets/js/inline/b1d1695580.js"></script>
 <script defer src="/assets/js/ann-bar.js"></script>
-<script defer src="/assets/js/financing-band.js"></script>
-<script defer src="/assets/js/financing-estimator.js?v=2"></script>
 <!-- STICKY MOBILE CTA STRIP (site-wide, conversion audit 2026-07-03) -->
 <!-- nbd:partial mobile-cta book_href="/inspect" -->
 <div class="mobile-cta-strip mobile-cta-bookfirst" aria-label="Quick contact options">
