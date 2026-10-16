@@ -58,6 +58,83 @@ function _wcIsSidingJob(lead) {
   return ['standard', 'preferred', 'elite'].indexOf(String(lead.warrantyPackage || '').toLowerCase()) !== -1;
 }
 
+// THE ESTIMATE DECIDES (Jo, 2026-10-15: "lock at signing"). When the lead has
+// an estimate, the certificate certifies that estimate's warranty: its roof
+// tier, its siding package, or its job-type years (gutters 5, guards 2,
+// repairs 1 when ticked), read as SIGNED when it changed after signing (the
+// same rule as doc-preflight.js and customer.html's certificate). The rep
+// cannot pick another tier. Only a job with no estimate keeps the manual pick.
+var WC_CERT_TIERS = ['economy', 'standard', 'preferred', 'elite', 'beyond'];
+var WC_NO_WARRANTY_MSG = 'This estimate carries no workmanship warranty, so there is no warranty to certify.';
+function _wcMs(t) {
+  if (!t) return 0;
+  if (typeof t.toMillis === 'function') return t.toMillis();
+  if (typeof t.seconds === 'number') return t.seconds * 1000;
+  var n = Date.parse(t);
+  return isFinite(n) ? n : 0;
+}
+// The lead's estimates, newest first, without duplicates or deleted ones.
+function _wcLeadEstimates(leadId) {
+  var seen = {};
+  return [].concat(window._estimates || [], window._customerEstimates || []).filter(function (e) {
+    if (!e || !leadId || e.leadId !== leadId || e.deleted === true || e.deletedAt || seen[e.id]) return false;
+    seen[e.id] = true;
+    return true;
+  }).sort(function (a, b) { return _wcMs(b.updatedAt || b.createdAt) - _wcMs(a.updatedAt || a.createdAt); });
+}
+// The lead's estimate: its primary, else the newest signed, else the newest.
+function _wcEstimateFor(lead) {
+  if (!lead || typeof lead !== 'object' || !lead.id) return null;
+  var list = _wcLeadEstimates(lead.id);
+  var signed = function (e) { return !!(e.signedPrice || e.signedAt || e.status === 'signed'); };
+  return list.filter(function (e) { return lead.primaryEstimateId && e.id === lead.primaryEstimateId; })[0]
+    || list.filter(signed)[0] || list[0] || null;
+}
+// → null (no estimate, or one with no tier to read: manual pick)
+//   | { none: true } (the estimate carries no workmanship warranty)
+//   | { tier, product: 'roof' | 'siding' | 'other', jobText, years, name }
+//   tier is a cert tier, or 'workmanship' for a job-type warranty (jobText).
+function _wcFromEstimate(lead) {
+  var est0 = _wcEstimateFor(lead);
+  if (!est0) return null;
+  var rows = window.NBDCustomerEstimateRows;
+  var est = (rows && typeof rows.hasUnsignedChanges === 'function' && rows.hasUnsignedChanges(est0))
+    ? rows.signedView(est0) : est0;
+  var w = (rows && typeof rows.estimateWarranty === 'function') ? rows.estimateWarranty(est) : null;
+  var cfg = window.NBD_ESTIMATE_CONFIG;
+  var toCert = function (t) {
+    var k = String(t || '').toLowerCase();
+    if (WC_CERT_TIERS.indexOf(k) !== -1) return k;
+    var m = String((cfg && typeof cfg.tierLabel === 'function' ? cfg.tierLabel(k) : k) || '').toLowerCase();
+    return WC_CERT_TIERS.indexOf(m) !== -1 ? m : '';
+  };
+  var name = String(est.name || est.title || '').trim();
+  if (!w || w.kind === 'roof') {
+    var t = toCert(w ? w.wordingTier : (est.tier || est.selectedTier || est.tierName));
+    return t ? { tier: t, product: 'roof', jobText: '', years: 0, name: name } : null;
+  }
+  if (!w.text) return { none: true };
+  if (w.kind === 'siding' && rows && typeof rows.warrantyPackageOf === 'function') {
+    return { tier: rows.warrantyPackageOf(est), product: 'siding', jobText: '', years: w.years || 0, name: name };
+  }
+  return { tier: 'workmanship', product: 'other', jobText: w.text, years: w.years || 0, name: name };
+}
+
+// The tier the certificate prints: the estimate's when it has one, else the pick.
+function _wcTier() {
+  var fx = _wcCurrentJob.fixed;
+  if (fx && fx.tier) return fx.tier;
+  var sel = document.getElementById('wcTier');
+  return (sel && sel.value) || 'standard';
+}
+
+// Terms for a tier; a job-type warranty ('workmanship') is the estimate's own sentence.
+function _wcTierDesc(tier) {
+  var fx = _wcCurrentJob.fixed;
+  if (tier === 'workmanship') return (fx && fx.jobText) || '';
+  return WC_TIER_DESCS[tier] || '';
+}
+
 // The two warranty lines (2026-10-06): workmanship (NBD: the NBD Pledge;
 // another company: its own sentence or none) and the manufacturer warranty the
 // job actually bought. tenant-rules.js builds both; without it, the honest
@@ -76,6 +153,21 @@ function _wcLines(tier, isNbd) {
     isPledge: isNbd,
     maker: (tier === 'beyond' && isNbd) ? 'TAMKO' : null,
     manufacturer: 'Manufacturer warranty: ' + (eco ? 'the shingle manufacturer’s standard limited warranty on the shingles; no system warranty' : (tier === 'beyond' && isNbd ? 'TAMKO HailGuard hail warranty on the TAMKO HailGuard shingles (manufacturer terms apply)' : 'per manufacturer — see your estimate'))
+  };
+}
+
+// The lines for a job-type warranty (gutters, guards, a repair, mixed): the
+// estimate's own sentence as the written warranty, the Pledge for NBD, and no
+// shingle or package manufacturer claim (none comes with this certificate).
+function _wcJobLines(isNbd, fx) {
+  const base = _wcLines('standard', isNbd);
+  const text = String((fx && fx.jobText) || '').replace(/\.\s*$/, '');
+  return {
+    pledge: base.pledge,
+    workmanship: text ? 'Written workmanship (labor) warranty: ' + text : null,
+    isPledge: base.isPledge,
+    maker: null,
+    manufacturer: 'Manufacturer warranty: per manufacturer — see your estimate'
   };
 }
 
@@ -101,8 +193,18 @@ function openWarrantyCertWizard(lead) {
     extendedWarranty: (lead && typeof lead === 'object' && lead.extendedWarranty) || null,
     // Siding replacement (2026-10-15): the same Standard / Preferred / Elite
     // labor terms as a roof, so the certificate names siding, not a roof.
-    siding: _wcIsSidingJob(lead)
+    siding: _wcIsSidingJob(lead),
+    // The estimate's warranty, when the lead has an estimate (null = manual).
+    fixed: (lead && typeof lead === 'object') ? _wcFromEstimate(lead) : null
   };
+  if (_wcCurrentJob.fixed && _wcCurrentJob.fixed.none) {
+    _wcCurrentJob.fixed = null;
+    if (typeof showToast === 'function') showToast(WC_NO_WARRANTY_MSG, 'error');
+    return;
+  }
+  if (_wcCurrentJob.fixed) _wcCurrentJob.siding = _wcCurrentJob.fixed.product === 'siding';
+  const _wcSel = document.getElementById('wcTier');
+  if (_wcSel) _wcSel.disabled = !!_wcCurrentJob.fixed;
   // Pre-fill from lead if provided
   if (lead) {
     const owner = `${lead.firstName||''} ${lead.lastName||''}`.trim() || '';
@@ -118,7 +220,10 @@ function openWarrantyCertWizard(lead) {
       const _res = window.NBDDocGen && window.NBDDocGen.resolveDocManufacturer && window.NBDDocGen.resolveDocManufacturer(_li);
       if (_res && _res.manufacturerName && _res.manufacturerName !== _res.manufacturer + ' shingles') _mfgWork = _res.manufacturerName;
     } catch (_) { /* name no shingle */ }
-    const _workBase = _wcCurrentJob.siding ? 'Siding replacement' : (lead.damageType || 'Roof replacement');
+    const _fx = _wcCurrentJob.fixed;
+    const _workBase = _wcCurrentJob.siding ? 'Siding replacement'
+      : (_fx && _fx.product === 'other') ? (_fx.name || 'Installation')
+      : (lead.damageType || 'Roof replacement');
     document.getElementById('wcWork').value = _mfgWork ? `${_workBase} — ${_mfgWork}` : _workBase;
     // GBB audit §7.3, 2026-09-09: this certificate is the roofing job's
     // actual warranty, not a separate rep-picked product — pre-fill the
@@ -126,7 +231,11 @@ function openWarrantyCertWizard(lead) {
     // at (good/better/best -> standard/preferred/elite via the shared
     // config), instead of always silently defaulting to Standard. Still
     // rep-overridable below — not every lead carries a resolvable tier.
-    try {
+    if (_fx) {
+      // The estimate's tier or package. The select shows it, disabled.
+      const _ts = document.getElementById('wcTier');
+      if (_ts && WC_CERT_TIERS.indexOf(_fx.tier) !== -1) _ts.value = _fx.tier;
+    } else try {
       // A siding job's package (standard/preferred/elite) is already a cert tier key.
       const soldTier = String((_wcCurrentJob.siding && lead.warrantyPackage) || lead.warrantyTier || lead.tier || lead.tierName || '').toLowerCase();
       const cfg = window.NBD_ESTIMATE_CONFIG;
@@ -144,7 +253,7 @@ function openWarrantyCertWizard(lead) {
 }
 
 function updateCertPreview() {
-  const tier = document.getElementById('wcTier')?.value || 'standard';
+  const tier = _wcTier();
   const desc = document.getElementById('wcTierDesc');
   if (!desc) return;
   // gauntlet Batch 3 — the tier descriptions name their subject 'NBD'; keep it
@@ -152,10 +261,14 @@ function updateCertPreview() {
   // otherwise so the wizard preview matches the de-branded cert it generates.
   const _b = (window._brand && window._brand()) || null;
   const isNbd = !_b || !_b.legalName || _b.legalName === 'No Big Deal Home Solutions';
-  const raw = WC_TIER_DESCS[tier] || '';
+  const raw = _wcTierDesc(tier);
   // Another company never inherits NBD's lifetime terms (2026-10-06): its own
-  // configured workmanship sentence, or nothing.
-  desc.textContent = isNbd ? raw : _wcOwnWorkmanship(tier);
+  // configured workmanship sentence, or nothing. A job-type warranty is the
+  // estimate's own sentence, whoever the company is.
+  const _terms = (isNbd || tier === 'workmanship') ? raw : _wcOwnWorkmanship(tier);
+  desc.textContent = _wcCurrentJob.fixed
+    ? (_terms ? _terms + ' ' : '') + '(From the estimate. To change it, make a new estimate for the homeowner to sign.)'
+    : _terms;
   // The Guarantee Tier <select> is static markup in dashboard.html whose first
   // option read "Standard — NBD …Pledge" for EVERY tenant's rep. The
   // Pledge is NBD's alone (2026-10-06); another company sees the plain name.
@@ -191,8 +304,12 @@ async function generateWarrantyCertPDF() {
   const owner = document.getElementById('wcOwner').value.trim() || '___________________';
   const addr  = document.getElementById('wcAddr').value.trim()  || '___________________';
   const date  = document.getElementById('wcDate').value         || '';
-  const tier  = document.getElementById('wcTier').value         || 'standard';
-  const work  = document.getElementById('wcWork').value.trim()  || (_wcCurrentJob.siding ? 'Siding installation' : 'Roofing installation');
+  const tier  = _wcTier();
+  const _fxJob = _wcCurrentJob.fixed;
+  const isJobType = tier === 'workmanship';
+  // The product the certificate covers: roof (shingles), siding, or another job.
+  const product = _fxJob ? _fxJob.product : (_wcCurrentJob.siding ? 'siding' : 'roof');
+  const work  = document.getElementById('wcWork').value.trim()  || (_wcCurrentJob.siding ? 'Siding installation' : (product === 'other' ? 'Installation' : 'Roofing installation'));
 
   const dateFormatted = date ? new Date(date + 'T12:00:00').toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'}) : '___________________';
 
@@ -220,7 +337,7 @@ async function generateWarrantyCertPDF() {
   // guarantee descriptions name.
   const brandSeal = isNbd ? 'NBD' : (_b.seal || _b.legalName || '');
   const _lab = (k) => 'NBD Pledge · ' + WC_LABOR_YEARS[k] + '-Year Labor Warranty';
-  const lines = _wcLines(tier, isNbd);
+  const lines = isJobType ? _wcJobLines(isNbd, _fxJob) : _wcLines(tier, isNbd);
   const _cfgW = window.NBD_ESTIMATE_CONFIG;
   const _pkg = (k, fb) => (_cfgW && typeof _cfgW.tierLabel === 'function') ? (_cfgW.tierLabel(k) || fb) : fb;
 
@@ -234,10 +351,14 @@ async function generateWarrantyCertPDF() {
     economy: _pkg('economy', 'Economy'), standard: _pkg('good', 'Standard'), preferred: _pkg('better', 'Preferred'),
     elite: _pkg('best', 'Elite'), beyond: _pkg('beyond', 'Beyond')
   };
-  const tierLabel = tierLabels[tier] || tierLabels.standard;
-  // WC_TIER_DESCS are NBD's terms; another company's are its own sentence.
-  const _rawDesc = WC_TIER_DESCS[tier] || WC_TIER_DESCS.standard;
-  const tierDesc = isNbd ? _rawDesc : _wcOwnWorkmanship(tier);
+  const _jobYears = isJobType ? (Number(_fxJob.years) || 0) : 0;
+  const tierLabel = isJobType
+    ? ((isNbd ? 'NBD Pledge · ' : '') + (_jobYears ? _jobYears + '-Year Labor Warranty' : 'Workmanship (Labor) Warranty'))
+    : (tierLabels[tier] || tierLabels.standard);
+  // WC_TIER_DESCS are NBD's terms; another company's are its own sentence. A
+  // job-type warranty prints the estimate's own sentence.
+  const _rawDesc = _wcTierDesc(tier) || WC_TIER_DESCS.standard;
+  const tierDesc = (isNbd || isJobType) ? _rawDesc : _wcOwnWorkmanship(tier);
 
   // NBD's tier perks (transfer, inspection) are NBD's terms — never another company's.
   const _flags = _wcTierFlags(tier);
@@ -265,7 +386,8 @@ async function generateWarrantyCertPDF() {
       owner, addr, date, tier, work, dateFormatted, certNum,
       tierLabel, tierLabelLong: tierLabel, tierTerms: tierDesc,
       isElite, isPreferred, isEconomy, isBeyond,
-      pledgeLine: lines.pledge || '', laborYears: isNbd ? (WC_LABOR_YEARS[tier] || 0) : 0,
+      pledgeLine: lines.pledge || '', laborYears: isNbd ? (isJobType ? _jobYears : (WC_LABOR_YEARS[tier] || 0)) : 0,
+      product,
       workmanshipLine: lines.workmanship || '', manufacturerLine: lines.manufacturer,
       isPledge: !!lines.isPledge, manufacturerName: lines.maker || ''
     });
@@ -358,7 +480,9 @@ async function generateWarrantyCertPDF() {
     <div class="feature"><div class="feature-dot"></div>${isNbd ? 'Recorded on file at NBD Home Solutions' : ('Recorded on file at ' + escCert(_b.legalName))}</div>
   </div>
 
-  <p style="font-size:11px;color:#666;margin-top:16px;line-height:1.7;">${termFeature ? 'This guarantee covers defects in labor and workmanship only. It does not cover damage caused by acts of nature, severe weather events, improper maintenance, or modifications made by parties other than ' + (isNbd ? 'No Big Deal Home Solutions' : escCert(_b.legalName)) + '. ' : ''}The ${escCert(mfgName)} shingle warranty${isBeyond && lines.maker === 'TAMKO' ? ' (including the HailGuard hail warranty)' : ''} is a separate warranty provided directly by ${(isEconomy || !lines.maker) ? 'the shingle manufacturer' : escCert(lines.maker)} and is not administered by ${isNbd ? 'No Big Deal Home Solutions' : escCert(_b.legalName)}.</p>
+  <p style="font-size:11px;color:#666;margin-top:16px;line-height:1.7;">${termFeature ? 'This guarantee covers defects in labor and workmanship only. It does not cover damage caused by acts of nature, severe weather events, improper maintenance, or modifications made by parties other than ' + (isNbd ? 'No Big Deal Home Solutions' : escCert(_b.legalName)) + '. ' : ''}${product === 'roof'
+    ? 'The ' + escCert(mfgName) + ' shingle warranty' + (isBeyond && lines.maker === 'TAMKO' ? ' (including the HailGuard hail warranty)' : '') + ' is a separate warranty provided directly by ' + ((isEconomy || !lines.maker) ? 'the shingle manufacturer' : escCert(lines.maker))
+    : 'Any manufacturer warranty on the ' + (product === 'siding' ? 'siding' : 'materials') + ' is a separate warranty provided directly by the manufacturer'} and is not administered by ${isNbd ? 'No Big Deal Home Solutions' : escCert(_b.legalName)}.</p>
 
   <h2>Signatures</h2>
   <div class="sig-section">
@@ -544,6 +668,10 @@ async function _tryServerRender(payload) {
       manufacturerLine:            payload.manufacturerLine || '',
       isPledge:                    !!payload.isPledge,
       manufacturer:                payload.manufacturerName || '',
+      // The product covered (2026-10-15): the disclaimer names shingles only
+      // on a roof. Absent (an older caller) reads as a roof.
+      notRoof:                     !!payload.product && payload.product !== 'roof',
+      productWord:                 payload.product === 'siding' ? 'siding' : 'materials',
       // D-2.5 cover fields
       preparedFor,
       preparedBy,

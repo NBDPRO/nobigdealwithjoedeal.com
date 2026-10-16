@@ -622,17 +622,27 @@
   // is a signed term like the roof tier: it locks at signing the same way
   // (signed copy, versioned, so a package changed after signing shows as an
   // unsigned change and the warranty certificate prints the signed package).
+  // repairWarranty (the 1-year repair box) locks at signing the same way (Jo,
+  // 2026-10-15: "lock at signing"). The snapshot always records it as a
+  // boolean, so every stamp made from now on carries the key; only a ticked
+  // box (true) is part of the version, so an unticked estimate keeps the
+  // fingerprint it always had. A stamp WITHOUT the key was made before this
+  // lock: that estimate is compared and viewed as it always was
+  // (LEGACY_UNLOCKED below), so old signed paperwork does not change.
   const PRICED_FIELDS = [
     'grandTotal', 'total', 'amount', 'subtotal', 'tax', 'taxAmount', 'taxRate',
     'rows', 'lineItems', 'prices', 'priceMode', 'tier', 'selectedTier', 'tierName',
     'tierApplies', 'builder', 'sourceTemplates', 'materialMarkupPct', 'overhead',
     'profit', 'overheadPct', 'profitPct', 'minJobApplied', 'mode', 'jobMode',
     'claim', 'deposit', 'depositPlan', 'depositPctOverride', 'depositOverridePct',
-    'warrantyPackage',
+    'warrantyPackage', 'repairWarranty',
   ];
   // Carried with the signed price, but not part of its version: the deposit
   // stamp is derived from the price (and carries display text).
   const UNVERSIONED = { deposit: true, depositPlan: true };
+  // Locked fields that a stamp made before their lock does not carry: for such
+  // a stamp they stay as saved (signedView) and out of the comparison.
+  const LEGACY_UNLOCKED = ['repairWarranty'];
 
   // Only the claim's money inputs are priced (the deposit rule's deductible +
   // ACV); its carrier / claim number are not, and stay as saved.
@@ -680,17 +690,34 @@
       // all, so an estimate signed before warrantyPackage existed and re-saved
       // since keeps its fingerprint and does not show an unsigned change.
       if (k === 'warrantyPackage' && est[k] == null) return;
+      if (k === 'repairWarranty') return; // always recorded, below
       out[k] = (k === 'claim') ? _claimMoney(est[k]) : est[k];
     });
+    out.repairWarranty = est.repairWarranty === true;
     return out;
   }
 
-  /** The version of an estimate's price — changes when any priced field does. */
-  function pricedFingerprint(est) {
+  /**
+   * The version of an estimate's price — changes when any priced field does.
+   * `omit` (internal): fields left out, for a stamp made before their lock.
+   */
+  function pricedFingerprint(est, omit) {
     const snap = signedPriceSnapshot(est);
     const versioned = {};
-    Object.keys(snap).forEach(function (k) { if (!UNVERSIONED[k]) versioned[k] = snap[k]; });
+    Object.keys(snap).forEach(function (k) {
+      if (UNVERSIONED[k] || (omit && omit.indexOf(k) !== -1)) return;
+      // An unticked repair box is the same version as no box at all.
+      if (k === 'repairWarranty' && snap[k] !== true) return;
+      versioned[k] = snap[k];
+    });
     return 'p1-' + _hash53(JSON.stringify(_canon(versioned)));
+  }
+
+  // The locked fields a signed copy does not carry (it predates their lock).
+  function _legacyOmit(fields) {
+    return LEGACY_UNLOCKED.filter(function (k) {
+      return !(fields && Object.prototype.hasOwnProperty.call(fields, k));
+    });
   }
 
   function _signed(est) {
@@ -718,6 +745,7 @@
         return;
       }
       if (Object.prototype.hasOwnProperty.call(sp.fields, k)) out[k] = sp.fields[k];
+      else if (LEGACY_UNLOCKED.indexOf(k) !== -1) return; // signed before its lock: as saved
       else delete out[k];
     });
     return out;
@@ -727,7 +755,8 @@
   function hasUnsignedChanges(est) {
     const sp = _signed(est);
     if (!sp) return false;
-    return pricedFingerprint(est) !== (sp.fingerprint || pricedFingerprint(signedView(est)));
+    const omit = _legacyOmit(sp.fields);
+    return pricedFingerprint(est, omit) !== (sp.fingerprint || pricedFingerprint(signedView(est), omit));
   }
 
   /** The signed total in cents, or null when the estimate has no signed price. */
