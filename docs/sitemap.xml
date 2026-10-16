@@ -310,6 +310,10 @@
   <url><loc>https://nobigdealwithjoedeal.com/services/tamko-impact-resistant-shingles</loc><lastmod>2026-09-27</lastmod><changefreq>monthly</changefreq><priority>0.85</priority></url>
   <url><loc>https://nobigdealwithjoedeal.com/blog/why-class-4-impact-shingles</loc><lastmod>2026-08-17</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
 
+  <!-- Free homeowner guides and checklists -->
+  <url><loc>https://nobigdealwithjoedeal.com/guides/hail-photo-baseline-sheet</loc><lastmod>2026-10-16</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nobigdealwithjoedeal.com/guides/kentucky-ohio-storm-claim-guide</loc><lastmod>2026-10-16</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
   <!-- /pro/ B2B content is intentionally NOT in this sitemap. If contractor SEO needs
        sitemap visibility, host it at /sitemap-pro.xml and reference it separately. Mixing
        homeowner + B2B audiences in one sitemap dilutes topical focus for both. -->

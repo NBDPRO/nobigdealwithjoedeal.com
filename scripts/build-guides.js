@@ -39,6 +39,9 @@ const ROOT = path.join(__dirname, '..');
 // slug → the page that carries its body. Add a row when a guide ships.
 const GUIDES = [
   { slug: 'nbd-pro-playbook', page: 'docs/pro/playbook.html' },
+  // Homeowner guides (/guides/<slug>), 2026-10-16 onward.
+  { slug: 'kentucky-ohio-storm-claim-guide', page: 'docs/guides/kentucky-ohio-storm-claim-guide.html' },
+  { slug: 'hail-photo-baseline-sheet', page: 'docs/guides/hail-photo-baseline-sheet.html' },
 ];
 
 function esc(s) {
@@ -136,7 +139,8 @@ function renderBody(body) {
       if (name === 'lede') {
         out.push('<p class="g-lede">' + inline(inner.filter((l) => l.trim()).join(' ')) + '</p>');
       } else {
-        out.push('<div class="g-' + name + '">' + renderBody(inner.join('\n')).html + '</div>');
+        const cap = (m[2].match(/caption="([^"]*)"/) || [])[1];
+        out.push('<div class="g-' + name + '">' + (cap ? '<p class="g-caption">' + inline(cap) + '</p>' : '') + renderBody(inner.join('\n')).html + '</div>');
       }
       continue;
     }
@@ -212,6 +216,69 @@ function render(md) {
   return { meta, html: nav + html };
 }
 
+// Plain text for JSON-LD: links keep their label, emphasis is dropped.
+function plain(s) {
+  return String(s).replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/\s+/g, ' ').trim();
+}
+
+// Lines of one "# Chapter" (by exact title), up to the next chapter.
+function chapterLines(body, title) {
+  const lines = body.replace(/\r\n/g, '\n').split('\n');
+  const at = lines.findIndex((l) => l.trim() === '# ' + title);
+  if (at === -1) return null;
+  const out = [];
+  for (let i = at + 1; i < lines.length && !/^# /.test(lines[i]); i++) out.push(lines[i]);
+  return out;
+}
+
+/**
+ * Schema.org JSON-LD built from the SAME Markdown, so it can never disagree
+ * with the visible text: FAQPage from the front matter's faq_chapter (each
+ * "## question" + its paragraphs), HowTo from howto_chapter (its numbered
+ * list, "**Step name:** text"). Returns '' when the guide names neither.
+ */
+function schema(md) {
+  const { meta, body } = splitFrontMatter(md);
+  const blocks = [];
+  if (meta.faq_chapter) {
+    const ls = chapterLines(body, meta.faq_chapter);
+    if (!ls) throw new Error('build-guides: faq_chapter "' + meta.faq_chapter + '" not found');
+    const qa = [];
+    for (const l of ls) {
+      const q = l.match(/^## (.+)$/);
+      if (q) { qa.push({ q: plain(q[1]), a: [] }); continue; }
+      if (qa.length && l.trim()) qa[qa.length - 1].a.push(l.trim());
+    }
+    blocks.push({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: qa.map((x) => ({ '@type': 'Question', name: x.q, acceptedAnswer: { '@type': 'Answer', text: plain(x.a.join(' ')) } })) });
+  }
+  if (meta.howto_chapter) {
+    const ls = chapterLines(body, meta.howto_chapter);
+    if (!ls) throw new Error('build-guides: howto_chapter "' + meta.howto_chapter + '" not found');
+    const steps = ls.filter((l) => /^\d+\. /.test(l)).map((l) => {
+      const t = l.replace(/^\d+\. /, '');
+      const n = t.match(/^\*\*([^*]+?):?\*\*:?\s*(.*)$/);
+      return n ? { '@type': 'HowToStep', name: plain(n[1]), text: plain(n[2] || n[1]) } : { '@type': 'HowToStep', text: plain(t) };
+    });
+    blocks.push({ '@context': 'https://schema.org', '@type': 'HowTo', name: meta.howto_name || meta.title, step: steps });
+  }
+  return blocks.map((b) => '<script type="application/ld+json">' + JSON.stringify(b).replace(/</g, '\\u003c') + '</script>').join('\n');
+}
+
+// Stamp an optional second region (GUIDE-SCHEMA in <head>).
+function stampRegion(pageSrc, kind, slug, html, optional) {
+  const start = '<!-- GUIDE-' + kind + ':START ' + slug + ' -->';
+  const end = '<!-- GUIDE-' + kind + ':END ' + slug + ' -->';
+  if (optional && pageSrc.indexOf(start) === -1 && pageSrc.indexOf(end) === -1) return pageSrc;
+  const crlf = /\r\n/.test(pageSrc);
+  const src = pageSrc.replace(/\r\n/g, '\n');
+  const a = src.indexOf(start);
+  const b = src.indexOf(end);
+  if (a === -1 || b === -1 || b < a) throw new Error('build-guides: ' + kind + ' markers for ' + slug + ' not found');
+  let next = src.slice(0, a + start.length) + '\n' + html + '\n' + src.slice(b);
+  if (crlf) next = next.replace(/\n/g, '\r\n');
+  return next;
+}
+
 function stamp(pageSrc, slug, html) {
   const crlf = /\r\n/.test(pageSrc);
   const src = pageSrc.replace(/\r\n/g, '\n');
@@ -232,7 +299,8 @@ function main() {
     const md = fs.readFileSync(path.join(ROOT, 'site-src/guides', g.slug + '.md'), 'utf8');
     const pagePath = path.join(ROOT, g.page);
     const cur = fs.readFileSync(pagePath, 'utf8');
-    const next = stamp(cur, g.slug, render(md).html);
+    const sch = schema(md);
+    const next = stampRegion(stamp(cur, g.slug, render(md).html), 'SCHEMA', g.slug, sch, !sch);
     if (next === cur) continue;
     if (check) { stale++; console.error('build-guides: ' + g.page + ' is stale — run node scripts/build-guides.js'); }
     else { fs.writeFileSync(pagePath, next); console.log('build-guides: wrote ' + g.page); }
@@ -243,4 +311,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { GUIDES, render, renderBody, inline, stamp, splitFrontMatter, slugify };
+module.exports = { GUIDES, render, renderBody, inline, stamp, stampRegion, schema, plain, splitFrontMatter, slugify };
