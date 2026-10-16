@@ -58,6 +58,8 @@ const m = /const message =\s*`Hi\$\{firstName[^`]*`/.exec(re);
 ok('review ask template found', !!m);
 ok('review ask ends with "Reply STOP to opt out."', m && /Reply STOP to opt out\.`$/.test(m[0]), m && m[0].slice(-80));
 ok('review ask names the company', m && /\$\{brandName\(\)\}/.test(m[0]));
+const r2 = /const message =\s*`Hey\$\{firstName[^`]*`/.exec(re);
+ok('referral-code text ends with "Reply STOP to opt out."', r2 && /Reply STOP to opt out\.`$/.test(r2[0]), r2 && r2[0].slice(-80));
 
 console.log('\n' + (fail ? 'FAILED' : 'OK') + ' -- ' + pass + ' passed, ' + fail + ' failed');
 if (fail) process.exit(1);
