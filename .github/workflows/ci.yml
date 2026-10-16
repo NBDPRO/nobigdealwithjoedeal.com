@@ -550,6 +550,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-vcap-test 'node firestore-rules.visit-captures.test.js'
+      # D2D door lists (2026-10-16): d2d_doorlists tenant + rep isolation. Own file.
+      - name: Run d2d-doorlists rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-doorlists-test 'node firestore-rules.d2d-doorlists.test.js'
       - name: Run Storage rules tests under emulator
         run: |
           cd tests

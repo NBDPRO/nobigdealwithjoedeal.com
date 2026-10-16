@@ -107,6 +107,11 @@
     },
     recordSmsConsent: (knockId) => state.recordSmsConsent && state.recordSmsConsent(knockId),
     exportCSV: state.exportKnocksCSV,
+    // Door lists (js/d2d-door-import.js, 2026-10-16): import a CSV of doors, show / hide one on the map, delete one.
+    importDoors: () => window.NBDDoorImport && window.NBDDoorImport.pickFile(),
+    showDoorList: (id) => window.NBDDoorImport && window.NBDDoorImport.show(id),
+    hideDoorList: () => window.NBDDoorImport && window.NBDDoorImport.hide(),
+    deleteDoorList: (id) => window.NBDDoorImport && window.NBDDoorImport.remove(id),
     calcRoute: () => {
       state.calculateWalkingRoute();
       state.drawWalkingRoute();
