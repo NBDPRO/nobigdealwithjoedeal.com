@@ -52,6 +52,10 @@
       const mod = await import('/assets/vendor/firebase/10.12.2/firebase-functions.js');
       window._httpsCallable = mod.httpsCallable;
     }
+    // The ?settings=bots deep link can open this tab before the dashboard has
+    // set window._functions (dashboard-bootstrap, after auth). Wait for it a
+    // few seconds instead of failing the whole panel on a race.
+    for (let i = 0; i < 40 && !window._functions; i++) await new Promise((r) => setTimeout(r, 200));
     if (!window._functions) throw new Error('Functions SDK unavailable');
     const res = await window._httpsCallable(window._functions, name)(payload || {});
     return res && res.data;
