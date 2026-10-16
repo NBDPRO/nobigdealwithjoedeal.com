@@ -196,7 +196,7 @@
       'js/document-generator.js?v=24',
       'js/document-generator-templates.js?v=19',
       'js/document-generator-library.js?v=5', // 2026-10-04 template library; needs -templates' _tpl
-      'js/doc-preflight.js?v=13',
+      'js/doc-preflight.js?v=14',
       // Mobile job-detail Documents tab (dashboard-actions.js
       // _mountDocumentsHub) reads leads/{id}/documents through this same
       // store customer.html uses — one reader, not a second copy of the
@@ -272,7 +272,7 @@
       'js/estimate-finalization.js?v=11',
       // The send-time packet choice (2026-10-04), before the builder uses it.
       'js/deal-packet.js?v=1',
-      'js/estimate-v2-ui.js?v=35',
+      'js/estimate-v2-ui.js?v=36',
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=5',
@@ -497,7 +497,7 @@
     // dashboard-bootstrap.module.js once the claims are known (no boot <script> tag).
     canvasser: [
       'css/canvasser.css?v=1',
-      'js/canvasser-logic.js?v=1',
+      'js/canvasser-logic.js?v=2',
       'js/canvasser-ui.js?v=1'
     ],
     closesweek: [

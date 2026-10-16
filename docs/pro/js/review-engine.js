@@ -202,7 +202,7 @@
     const phone = lead.phone.replace(/\D/g, '');
 
     const message =
-      `Hi${firstName ? ' ' + firstName : ''}, thank you so much for trusting ${brandName()} with your project! We'd love to hear how we did. If you have 30 seconds, a Google review means the world to us: ${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.${referralLine(referLink)}\n\nThank you! — ${brandSignOff()}`;
+      `Hi${firstName ? ' ' + firstName : ''}, thank you so much for trusting ${brandName()} with your project! We'd love to hear how we did. If you have 30 seconds, a Google review means the world to us: ${reviewLink}\n\nIf you mention your town and what we did (like 'roof replacement in Mason'), it helps your neighbors find us.${referralLine(referLink)}\n\nThank you! — ${brandSignOff()}\n\nReply STOP to opt out.`;
 
     // Through the platform sender, not a raw sms: link (2026-10-01). The raw
     // link opened the phone's Messages app and skipped the server's STOP
@@ -479,7 +479,7 @@
     const firstName = lead.firstName || lead.fname || '';
     const phone = lead.phone.replace(/\D/g, '');
     const message =
-      `Hey${firstName ? ' ' + firstName : ''}, thanks again for choosing ${brandName()}! Here's your personal referral code: ${code}\n\nShare it with friends & neighbors — they get a free inspection, and you get a $100 bonus once their project is paid in full. Win-win!`;
+      `Hey${firstName ? ' ' + firstName : ''}, thanks again for choosing ${brandName()}! Here's your personal referral code: ${code}\n\nShare it with friends & neighbors — they get a free inspection, and you get a $100 bonus once their project is paid in full. Win-win!\n\nReply STOP to opt out.`;
     // Platform sender, same as the review ask above (2026-10-01): the raw sms:
     // link skipped the server's STOP register.
     if (!window.NBDComms || typeof window.NBDComms.sendSMS !== 'function') {

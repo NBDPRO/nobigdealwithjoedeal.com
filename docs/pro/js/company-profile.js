@@ -32,7 +32,7 @@
     if (R && typeof R.policyText === 'function') return R.policyText();
     return 'Cash jobs under $2,000: no deposit — payment in full on completion. ' +
       'Cash jobs of $2,000 or more: 50% deposit at contract signing, balance on completion. ' +
-      'Ohio jobs of $25,000 or more: the deposit at signing is limited to 10% of the contract price ' +
+      'Ohio jobs over $25,000: the deposit at signing is limited to 10% of the contract price ' +
       '(plus up to 75% of any special-order, non-returnable materials); a second payment of 40% is due when ' +
       'materials are delivered or work begins; the balance is due on completion. ' +
       'Insurance claims: the homeowner’s deductible is due at signing and the insurance ACV payment (the carrier’s first check) ' +
