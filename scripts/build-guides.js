@@ -44,6 +44,8 @@ const GUIDES = [
   { slug: 'hail-photo-baseline-sheet', page: 'docs/guides/hail-photo-baseline-sheet.html' },
   { slug: 'compare-roofing-quotes-checklist', page: 'docs/guides/compare-roofing-quotes-checklist.html' },
   { slug: 'home-care-warranty-card', page: 'docs/guides/home-care-warranty-card.html' },
+  { slug: 'roof-financing-explained', page: 'docs/guides/roof-financing-explained.html' },
+  { slug: 'siding-gutter-buyers-guide', page: 'docs/guides/siding-gutter-buyers-guide.html' },
 ];
 
 function esc(s) {

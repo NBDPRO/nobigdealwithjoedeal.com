@@ -87,6 +87,28 @@ const REQUIRED = {
     'Stay on the ground',
     'Whether insurance covers it depends on your policy and the damage.',
   ],
+  'roof-financing-explained': [
+    "I'm a roofer, not a lender",
+    "it doesn't affect your credit score",
+    'Rates and terms depend on your credit and on the lender you pick.',
+    "That's why I won't quote you a rate or a monthly payment",
+    'your estimated payment',
+    'My price is the same however you pay.',
+    'The deductible is always yours to pay',
+    'Whether insurance covers it depends on your policy and the damage.',
+    'nothing is due at signing',
+    'Acorn Finance',
+  ],
+  'siding-gutter-buyers-guide': [
+    "We're a James Hardie Alliance member",
+    '| Siding replacement | 5 years | 10 years | 20 years |',
+    '| Gutter system | 5 years |',
+    '| Gutter guards only | 2 years |',
+    "| Repairs | 1 year, when it's written on your invoice |",
+    'Are you fully insured?',
+    'A promise, not a warranty term',
+    'Your written estimate is the real number for your house.',
+  ],
 };
 
 // Pages that must link each guide (the audit's "lives on" list).
@@ -98,6 +120,8 @@ const LINKED_FROM = {
   // multi-tenant and pinned to a single "Open review page" link, so the card
   // is not linked from there yet (noted for Jo in the PR).
   'home-care-warranty-card': ['docs/review.html', 'docs/services/roof-care-plan.html', 'docs/free-tools/index.html'],
+  'roof-financing-explained': ['docs/services/financing.html', 'docs/blog/how-roof-financing-actually-works.html', 'docs/guides/compare-roofing-quotes-checklist.html', 'docs/free-tools/index.html'],
+  'siding-gutter-buyers-guide': ['docs/services/siding-replacement.html', 'docs/services/gutter-replacement.html', 'docs/free-tools/index.html'],
 };
 
 // Wording Rules: never said or implied anywhere in a homeowner guide.
