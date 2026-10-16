@@ -3,11 +3,11 @@
  *
  * 1. Credit advertising — Reg Z 12 CFR 1026.24(d)(1)-(2): an ad that states
  *    "the amount of any payment" or "the number of payments or period of
- *    repayment" must also state "the amount or percentage of the
- *    downpayment", "the terms of repayment" and "the 'annual percentage
- *    rate,' using that term". The financing hero stated $218–$299 a month
- *    over 10 years with no APR in the sentence; the footnotes gave no down
- *    payment.
+ *    repayment" must also state the down payment, "the terms of repayment"
+ *    and "the 'annual percentage rate,' using that term". PR #2510 removed
+ *    the payment figures from /services/financing and /estimate; this guard
+ *    fails if a financed $/month figure comes back on a public page without
+ *    the APR in the same paragraph.
  * 2. Review asks — 16 CFR 465 / FTC: ask everyone, not only happy customers.
  *    /review asked "Had a Great Experience? If Joe and the crew took care of
  *    you, we'd love a quick review."
@@ -31,18 +31,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').replace(/&rsquo;|&#8217;/g, '’')
   .replace(/&ndash;|&#8211;/g, '–').replace(/&mdash;|&#8212;/g, '—').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
 
-console.log('\n1. Reg Z 1026.24(d): a stated payment carries APR, repayment terms and the down payment');
-const fin = read('docs/services/financing.html');
-const hero = (/<p class="hero-sub">([\s\S]*?)<\/p>/.exec(fin) || [])[1] || '';
-const heroT = text(hero);
-ok('financing hero: states the monthly payment', /\$218–\$299 a month/.test(heroT), heroT);
-ok('financing hero: the same sentence names the APR range ("APR")', /11\.49%–19\.99% APR/.test(heroT), heroT);
-ok('financing hero: repayment terms (120 monthly payments)', /120 monthly payments/.test(heroT), heroT);
-ok('financing hero: the down payment (nothing down)', /nothing down/.test(heroT), heroT);
-const disc = text((/<p class="oc-disc">([\s\S]*?)<\/p>/.exec(fin) || [])[1] || '');
-ok('financing footnote: APR, 120 monthly payments and no down payment', /APR/.test(disc) && /120 monthly payments/.test(disc) && /no down payment/.test(disc), disc);
-const est = text((/<div class="rm-disc">([\s\S]*?)<\/div>/.exec(read('docs/estimate.html')) || [])[1] || '');
-ok('/estimate monthly footnote: APR, 120 monthly payments and no down payment', /APR/.test(est) && /120 monthly payments/.test(est) && /no down payment/.test(est), est);
+console.log('\n1. Reg Z 1026.24(d): no financed $/month figure without its APR');
 
 // Any public paragraph that pairs financing words with a $/month figure
 // must say "APR" in the same paragraph or point to a footnote (*).
