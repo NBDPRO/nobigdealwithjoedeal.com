@@ -437,8 +437,8 @@
       CASH_NO_DEPOSIT_UNDER_CENTS: 200000,
       CASH_DEPOSIT_PCT: 50,
       CASH_DEPOSIT_ROUND_TO_CENTS: 2500,
-      // Ohio ORC 4722.04 (Jo, 2026-10-11): on an Ohio PROPERTY, a contract at
-      // or above $25,000 may take only 10% before work begins (+75% of any
+      // Ohio ORC 4722.04 (Jo, 2026-10-11): on an Ohio PROPERTY, a contract
+      // over $25,000 (4722.01(C) "exceeding") may take only 10% before work begins (+75% of any
       // special-order, non-returnable item); payment 2 (40%) is due when
       // materials are delivered / work begins, the balance on completion.
       // Counsel should confirm — documentation/projects/OHIO-4722-DEPOSIT-CAP-2026-10-11.md.

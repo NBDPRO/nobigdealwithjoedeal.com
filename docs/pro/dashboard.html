@@ -7346,12 +7346,12 @@
 <script defer src="js/voicemail.js?v=4"></script>
 <!-- estimate-config.js MUST load before estimates.js + estimate-builder-v2.js;
      it exposes window.NBD_ESTIMATE_CONFIG which both engines read. -->
-<script defer src="js/estimate-config.js?v=9"></script>
+<script defer src="js/estimate-config.js?v=10"></script>
 <!-- deposit-rule.js (2026-09-25): the ONE deposit rule every quote, contract,
      invoice, Job Template and Close Board deal reads. Eager and small; after
      estimate-config (its thresholds) and before company-profile.js (whose
      payment-terms defaults are the rule's own sentence). -->
-<script defer src="js/deposit-rule.js?v=5"></script>
+<script defer src="js/deposit-rule.js?v=6"></script>
 <!-- ky-insurance-law.js (2026-09-27): which law a contract is written under —
      Kentucky insurance jobs get the KRS 367.624 notices + detachable Notice of
      Cancellation, no AOB. Eager: the docgen bundle, the Next Actions panel and
@@ -7361,13 +7361,13 @@
      `estimates` bundle (PR 2c). estimate-config stays eager (prerequisite read
      at load by the builder). -->
 
-<script defer src="js/ask-joe-rules.js?v=1"></script>
+<script defer src="js/ask-joe-rules.js?v=2"></script>
 <script defer src="js/ask-joe-actions.js?v=2"></script>
 <script defer src="js/ai.js?v=11"></script>
 <script defer src="js/review-engine.js?v=11"></script>
 <script defer src="js/review-deck.js?v=3"></script>
 <script defer src="js/referral-rewards-ui.js?v=2"></script>
-<script defer src="js/company-profile.js?v=10"></script>
+<script defer src="js/company-profile.js?v=11"></script>
 <!-- tenant-rules.js (2026-10-04, tenant-ready): each company's own business
      rules (tiers, names, warranties, shingle locks, deposit) with NBD-only
      defaults. After company-profile.js (reads _companyProfile at call time);
