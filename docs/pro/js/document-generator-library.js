@@ -336,6 +336,8 @@
       '<div class="section"><div class="section-title">How to cancel</div><ol class="lib-steps">' +
         steps.map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol></div>' +
       (j ? j.ftcStatementHtml() : '') +
+      // KRS 367.430(2): Kentucky (or unreadable-state) property.
+      ((j && j.kyHomeSolicitationApplies && j.kyHomeSolicitationApplies(st)) ? j.kyHomeSolicitationHtml({ sellerName: co, sellerAddress: addr }) : '') +
       kyPart +
       '<div class="section lib-mt"><div class="section-title">Acknowledgment</div>' +
         '<p class="lib-body">I received this notice and two completed copies of the Notice of Cancellation form on ' + esc(dateText) + '.</p></div>' +

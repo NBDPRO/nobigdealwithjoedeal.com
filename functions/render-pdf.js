@@ -610,7 +610,7 @@ function buildContractStatutory(payload, contractor, company) {
   const out = {
     css: '', kyInsurance, contractorAddress: '', contractorFax: '',
     kyNoticesHtml: '', kyFormsHtml: '', lienClause: '',
-    ftcStatementHtml: '', ftcFormsHtml: '', missingAddress: false,
+    ftcStatementHtml: '', kyHssaHtml: '', ftcFormsHtml: '', missingAddress: false,
     // The plain Payment clause, every contract (Jo, 2026-09-27) — the same
     // string the client contract prints.
     paymentClause: KyLaw.PAYMENT_CLAUSE,
@@ -620,6 +620,14 @@ function buildContractStatutory(payload, contractor, company) {
   if (/notice of cancellation/i.test(String(p.rightToCancel || ''))) {
     out.css = KyLaw.STATUTORY_CSS;
     out.ftcStatementHtml = KyLaw.ftcStatementHtml();
+    // KRS 367.430: a Kentucky (or unreadable-state) property also gets the
+    // BUYER'S RIGHT TO CANCEL statement in the agreement itself.
+    if (KyLaw.kyHomeSolicitationApplies(j.state || facts.state || '')) {
+      out.kyHssaHtml = KyLaw.kyHomeSolicitationHtml({
+        sellerName: (company && company.footerName) || '',
+        sellerAddress: c.address || '',
+      });
+    }
     out.ftcFormsHtml = KyLaw.ftcCancellationFormsHtml({
       transactionDate: txDate, timeZone,
       sellerName: (company && company.footerName) || '',

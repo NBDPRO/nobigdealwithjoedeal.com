@@ -189,12 +189,23 @@ async function buildEstimateContractPdf(input) {
     ' accept' + (signers.length > 1 ? '' : 's') + ' this proposal as a contract and authorize ' + company +
     ' to perform the work described above for the contract price shown, on the payment terms above.';
   const SIG_BLOCK = 92;
-  const need = L.textHeight(accept, BODY, false) + L.textHeight(KyLaw.FTC_STATEMENT, 10.5, true) + 24 + signers.length * SIG_BLOCK;
+  // KRS 367.430(2): a Kentucky (or unreadable-state) property also carries the
+  // BUYER'S RIGHT TO CANCEL statement in the agreement.
+  const kyHssa = KyLaw.kyHomeSolicitationApplies(i.state);
+  const hssaLines = [KyLaw.KY_HSSA_CAPTION, KyLaw.KY_HSSA_TEXT, company, i.sellerAddress || '________________________________'];
+  const hssaH = kyHssa ? hssaLines.reduce((h, t) => h + L.textHeight(t, 10.5, true) + 3, 8) : 0;
+  const need = L.textHeight(accept, BODY, false) + L.textHeight(KyLaw.FTC_STATEMENT, 10.5, true) + hssaH + 24 + signers.length * SIG_BLOCK;
   if (L.y - need < M) L.newPage();
   L.text('ACCEPTANCE', { size: 8.5, bold: true, gap: 3, color: [0.35, 0.37, 0.42] })
     .text(accept, { gap: 8 })
     // 16 CFR 429.1(a): in immediate proximity to the buyer's signature, bold, >= 10 pt.
     .text(KyLaw.FTC_STATEMENT, { size: 10.5, bold: true, gap: 10 });
+  if (kyHssa) {
+    L.text(KyLaw.KY_HSSA_CAPTION, { size: 10.5, bold: true, gap: 3 })
+      .text(KyLaw.KY_HSSA_TEXT, { size: 10.5, bold: true, gap: 3 })
+      .text(company, { size: 10.5, bold: true, gap: 3 })
+      .text(i.sellerAddress || '________________________________', { size: 10.5, bold: true, gap: 10 });
+  }
 
   const fields = [];
   signers.forEach((s, idx) => {

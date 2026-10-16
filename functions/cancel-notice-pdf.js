@@ -129,6 +129,13 @@ async function appendCancelNotice(pdfBytes, opts) {
     .forEach((step, i) => w.text((i + 1) + '. ' + plain(step), { gap: 4 }));
   w.y -= 6;
   w.text(KyLaw.FTC_STATEMENT, { bold: true, gap: 10 });
+  // KRS 367.430(2): Kentucky (or unreadable-state) property.
+  if (KyLaw.kyHomeSolicitationApplies(o.state)) {
+    w.text(KyLaw.KY_HSSA_CAPTION, { bold: true, gap: 4 })
+      .text(KyLaw.KY_HSSA_TEXT, { bold: true, gap: 4 })
+      .text(seller, { bold: true, gap: 2 })
+      .text(addr || '________________________', { bold: true, gap: 10 });
+  }
   if (o.kyInsurance === true) {
     w.text('KENTUCKY INSURANCE JOB: A SECOND RIGHT TO CANCEL', { bold: true, gap: 4 })
       .text(KyLaw.KY_NOTICE_CANCEL, { bold: true, gap: 6 })
