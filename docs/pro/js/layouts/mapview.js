@@ -219,24 +219,49 @@
       return L.divIcon({ className: 'mv-pin-wrap', html: '<span class="' + cls + '">' + inner + '</span>', iconSize: [30, 30], iconAnchor: [15, 15] });
     }
 
+    // Redraw only what changed (#2467 follow-up, 2026-10-16): a Mission repaint
+    // used to throw away and rebuild every pin (500 of them on a canvass day) on
+    // each tab switch, layer toggle and poll. A pin with an id keeps its marker
+    // while its drawn facts are the same; a changed one is replaced; a gone one
+    // removed. Pins without an id are redrawn as before.
+    var anonMarkers = [];
+    function pinSig(p) { return [p.lat, p.lng, p.kind, p.color, p.num, p.title, p.selected ? 1 : 0, p.size].join('|'); }
+    function makeMarker(p) {
+      var m;
+      if (p.kind === 'dot') {
+        m = L.circleMarker([p.lat, p.lng], { radius: p.size && p.size > 0 ? Math.min(16, p.size) : 5, className: 'mv-dot mv-c-' + p.color, weight: 1 });
+        if (p.title && m.bindTooltip) m.bindTooltip(p.title);
+      } else {
+        m = L.marker([p.lat, p.lng], { icon: pinIcon(p), title: p.title || undefined, keyboard: true, riseOnHover: true });
+      }
+      // the pin as drawn NOW (a kept marker outlives the list it came from)
+      m.on('click', function () { emit('pinclick', { pin: p.id && pinIndex[p.id] ? pinIndex[p.id].pin : p }); });
+      return m;
+    }
     function setPins(list) {
-      pinLayer.clearLayers();
-      pinIndex = {};
+      var next = {}, order = [], anon = [];
       (list || []).forEach(function (raw) {
         var p = normalizePin(raw);
         if (!p) return;
         if (p.id && p.id === selectedId) p.selected = true;
-        var m;
-        if (p.kind === 'dot') {
-          m = L.circleMarker([p.lat, p.lng], { radius: p.size && p.size > 0 ? Math.min(16, p.size) : 5, className: 'mv-dot mv-c-' + p.color, weight: 1 });
-          if (p.title && m.bindTooltip) m.bindTooltip(p.title);
-        } else {
-          m = L.marker([p.lat, p.lng], { icon: pinIcon(p), title: p.title || undefined, keyboard: true, riseOnHover: true });
-        }
-        m.on('click', function () { emit('pinclick', { pin: p }); });
-        m.addTo(pinLayer);
-        if (p.id) pinIndex[p.id] = { pin: p, marker: m };
+        if (!p.id || next[p.id]) { anon.push(p); return; }
+        next[p.id] = p; order.push(p.id);
       });
+      Object.keys(pinIndex).forEach(function (id) {
+        var cur = pinIndex[id], n = next[id];
+        if (n && pinSig(n) === cur.sig) { cur.pin = n; return; }
+        pinLayer.removeLayer(cur.marker);
+        delete pinIndex[id];
+      });
+      anonMarkers.forEach(function (m) { pinLayer.removeLayer(m); });
+      anonMarkers = [];
+      order.forEach(function (id) {
+        if (pinIndex[id]) return;
+        var p = next[id], m = makeMarker(p);
+        m.addTo(pinLayer);
+        pinIndex[id] = { pin: p, marker: m, sig: pinSig(p) };
+      });
+      anon.forEach(function (p) { var m = makeMarker(p); m.addTo(pinLayer); anonMarkers.push(m); });
       collect();
     }
     function setSwaths(list) {
@@ -282,6 +307,7 @@
         if (e.pin.selected === want) return;
         e.pin.selected = want;
         if (e.pin.kind !== 'dot' && e.marker.setIcon) e.marker.setIcon(pinIcon(e.pin));
+        e.sig = pinSig(e.pin);
       });
       var hit = selectedId && pinIndex[selectedId];
       if (hit) map.panTo([hit.pin.lat, hit.pin.lng]);
@@ -326,7 +352,7 @@
         if (ro) { try { ro.disconnect(); } catch (e) {} }
         try { map.remove(); } catch (e) {}
         el.classList.remove('nbd-mv', 'mv-dark', 'mv-light');
-        listeners = {}; pinIndex = {}; swathIndex = {};
+        listeners = {}; pinIndex = {}; swathIndex = {}; anonMarkers = [];
       },
     };
   }

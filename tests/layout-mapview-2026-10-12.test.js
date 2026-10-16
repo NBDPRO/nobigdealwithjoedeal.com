@@ -86,7 +86,7 @@ console.log('\n4. instance against a fake Leaflet');
     bindTooltip() { return this; },
     setIcon(i) { this.icon = i; calls.push('setIcon'); },
   });
-  const layerGroup = () => { const g = { bucket: [], addTo() { return g; }, clearLayers() { g.bucket.length = 0; } }; return g; };
+  const layerGroup = () => { const g = { bucket: [], addTo() { return g; }, clearLayers() { g.bucket.length = 0; }, removeLayer(m) { const i = g.bucket.indexOf(m); if (i !== -1) g.bucket.splice(i, 1); } }; return g; };
   let mapObj; const groups = [];
   const L = {
     map() {

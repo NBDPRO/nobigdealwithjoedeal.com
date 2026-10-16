@@ -57,6 +57,8 @@ try {
   }
 } catch (_) {}
 const auth = getAuth(app);
+// Whose layout cache the preboot may paint (see login.js goDashboard; #2467 D34).
+function markSignedIn() { try { if (auth.currentUser) localStorage.setItem('nbd_signin_uid', auth.currentUser.uid); } catch (_) { /* best-effort */ } }
 const db = getFirestore(app);
 const functions = getFunctions(app);
 await connectEmulatorsIfLocal({ auth, db, functions }); // Audit #3: localhost-only, no-op in prod
@@ -237,7 +239,7 @@ async function register(e) {
       // provisioning AND the owner wizard entirely: the dashboard's
       // claimInvite joins them to their team once the email is verified.
       if (inviteIntent) {
-        window.location.replace('/pro/dashboard.html');
+        markSignedIn(); window.location.replace('/pro/dashboard.html');
         return;
       }
       // PILLAR1 Phase 2: turn the account into a real tenant (companies/{uid}
@@ -255,7 +257,7 @@ async function register(e) {
           ? 'Account created — taking you to checkout…'
           : 'Account created — setting up your workspace…';
       }
-      window.location.replace(dest);
+      markSignedIn(); window.location.replace(dest);
       return;
     } catch (e2) {
       errEl.textContent = e2.code === 'auth/email-already-in-use'
@@ -301,7 +303,7 @@ async function register(e) {
       await ensureProvisioned(cred.user, () => createCompanyFn({ name: company || `${firstName} ${lastName}`.trim() }));
       okEl.textContent = 'Account created on the free tier — your access code could not be applied right now. Email jd@nobigdealwithjoedeal.com and Joe will upgrade you.';
       btn.textContent = '✓ Done';
-      setTimeout(() => { window.location.replace('/pro/onboarding.html'); }, 3000);
+      setTimeout(() => { markSignedIn(); window.location.replace('/pro/onboarding.html'); }, 3000);
       return;
     }
     if (!result?.data?.success) {
@@ -321,7 +323,7 @@ async function register(e) {
     await ensureProvisioned(auth.currentUser, () => createCompanyFn({ name: company || `${firstName} ${lastName}`.trim() }));
     okEl.textContent = 'Account created! Setting up your workspace...';
     btn.textContent = '✓ Done';
-    setTimeout(() => { window.location.replace('/pro/onboarding.html'); }, 1200);
+    setTimeout(() => { markSignedIn(); window.location.replace('/pro/onboarding.html'); }, 1200);
   } catch (err) {
     btn.disabled = false;
     btn.textContent = 'Create Account';

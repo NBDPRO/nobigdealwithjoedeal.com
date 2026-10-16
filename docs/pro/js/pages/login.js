@@ -52,6 +52,13 @@ try {
   }
 } catch (_) {}
 const auth = getAuth(app);
+// The layout preboot (shape-preboot.js) paints the layout cached on this
+// device before Firebase knows who is signed in. Saying who just signed in
+// lets it skip a cache another account left behind (#2467 follow-up D34).
+function goDashboard() {
+  try { if (auth.currentUser) localStorage.setItem('nbd_signin_uid', auth.currentUser.uid); } catch (_) { /* private mode: the engine corrects it */ }
+  window.location.replace(POST_LOGIN_DEST);
+}
 const db = getFirestore(app);
 const functions = getFunctions(app);
 await connectEmulatorsIfLocal({ auth, db, functions }); // Audit #3: localhost-only, no-op in prod
@@ -196,7 +203,7 @@ async function doLogin() {
         await navigator.credentials.store(cred);
       } catch (_) { /* silent — fallback is the form-submit save prompt */ }
     }
-    window.location.replace(POST_LOGIN_DEST);
+    goDashboard();
   } catch (err) {
     loginErrorMsg.textContent = friendlyError(err.code);
     loginError.classList.add('show');
@@ -312,7 +319,7 @@ async function doGoogleLogin() {
       return;
     }
     await setPersistence(auth, rememberMe.checked ? browserLocalPersistence : browserSessionPersistence);
-    window.location.replace(POST_LOGIN_DEST);
+    goDashboard();
   } catch (err) {
     console.warn('[login] Google sign-in failed:', (err && err.code) || err);
     // Signed in but the profile check (or persistence) failed: we cannot
@@ -415,7 +422,7 @@ async function doCodeLogin() {
     // ever leaves the server.
     if (data.customToken) {
       await signInWithCustomToken(auth, data.customToken);
-      window.location.replace(POST_LOGIN_DEST);
+      goDashboard();
       return;
     }
     // Transitional compat shim — DELETE after `firebase deploy --only functions`
@@ -428,7 +435,7 @@ async function doCodeLogin() {
     if (data.email && data.password) {
       console.warn('[login] Using legacy email/password path — deploy the hardened validateAccessCode and remove this shim.');
       await signInWithEmailAndPassword(auth, data.email, data.password);
-      window.location.replace(POST_LOGIN_DEST);
+      goDashboard();
       return;
     }
     codeErrorMsg.textContent = 'Server returned an unexpected response. Contact Joe.';
@@ -461,13 +468,13 @@ async function doDemoLogin() {
     // Hardened path
     if (data.customToken) {
       await signInWithCustomToken(auth, data.customToken);
-      window.location.replace(POST_LOGIN_DEST);
+      goDashboard();
       return;
     }
     // Transitional compat shim — DELETE after hardened validateAccessCode ships.
     if (data.email && data.password) {
       await signInWithEmailAndPassword(auth, data.email, data.password);
-      window.location.replace(POST_LOGIN_DEST);
+      goDashboard();
       return;
     }
     throw new Error('unexpected server response');

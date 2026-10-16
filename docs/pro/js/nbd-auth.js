@@ -830,6 +830,9 @@ export const NBDAuth = {
         // layout-usage.js: which layouts this device already counted today (ids
         // only), so signing out and back in never counts a device twice.
         'nbd_layout_used',
+        // login.js / register.js: who signed in last on this device, so the
+        // layout preboot never paints another account's cached layout.
+        'nbd_signin_uid',
       ]);
       const drop = [];
       for (let i = 0; i < localStorage.length; i++) {

@@ -695,21 +695,9 @@
       ensureMap();
       return;
     }
-    if (a === 'tab') {
-      S.tab = t.getAttribute('data-to') || 'watch';
-      S.menu = false;
-      if (S.tab === 'canvass') loadKnocks();
-      if (S.tab === 'route') {
-        // An empty day: show the customers the empty-state copy points at.
-        if (!routeStops().length && !S.route.layersTouched) S.route.layers.leads = true;
-        routeKick(0);
-      }
-      render();
-      if (map) drawMap(S.tab === 'canvass' || S.tab === 'route');
-      return;
-    }
-    if (a === 'mode') { S.route.mode = t.getAttribute('data-m') === 'short' ? 'short' : 'time'; render(); return; }
-    if (a === 'layer') { var lid = t.getAttribute('data-l'); if (S.route.layers.hasOwnProperty(lid)) { S.route.layersTouched = true; S.route.layers[lid] = !S.route.layers[lid]; render(); } return; }
+    if (a === 'tab') { goTab(t.getAttribute('data-to') || 'watch'); saveState(); return; }
+    if (a === 'mode') { S.route.mode = t.getAttribute('data-m') === 'short' ? 'short' : 'time'; render(); saveState(); return; }
+    if (a === 'layer') { var lid = t.getAttribute('data-l'); if (S.route.layers.hasOwnProperty(lid)) { S.route.layersTouched = true; S.route.layers[lid] = !S.route.layers[lid]; render(); saveState(); } return; }
     if (a === 'stop') { S.route.sel = t.getAttribute('data-key'); S.route.peek = null; S.route.omw = null; render(); var sp = stopByKey(S.route.sel); if (map && sp && sp.lat != null) map.select('S:' + sp.key); return; }
     if (a === 'addstop') { var aid = t.getAttribute('data-id'); if (aid && S.route.extra.indexOf(aid) === -1) S.route.extra.push(aid); S.route.peek = null; render(); return; }
     if (a === 'omw') { onMyWay(t.getAttribute('data-key')); return; }
@@ -749,10 +737,64 @@
   }
 
   // ── lifecycle ────────────────────────────────────────────────────────
+  function goTab(to) {
+    S.tab = TABS.indexOf(to) !== -1 ? to : 'watch';
+    S.menu = false;
+    if (S.tab === 'canvass') loadKnocks();
+    if (S.tab === 'route') {
+      // An empty day: show the customers the empty-state copy points at.
+      if (!routeStops().length && !S.route.layersTouched) S.route.layers.leads = true;
+      routeKick(0);
+    }
+    render();
+    if (map) drawMap(S.tab === 'canvass' || S.tab === 'route');
+  }
+  // ── saved per user (#2467 follow-up, 2026-10-16) ─────────────────────
+  // The tab, the day route's order and its map layers come back the next time
+  // Mission opens: userSettings.layout.layoutState.mission through
+  // LayoutEngine.saveUser (the same bounded store Bento's board uses).
+  var TABS = ['watch', 'customer', 'canvass', 'route'];
+  var LAYERS = ['jobs', 'leads', 'swaths', 'roofage'];
+  function cleanState(raw) {
+    var r = raw && typeof raw === 'object' ? raw : {};
+    var out = { tab: TABS.indexOf(r.tab) !== -1 ? r.tab : 'watch', mode: r.mode === 'short' ? 'short' : 'time', layers: null };
+    if (r.layers && typeof r.layers === 'object') {
+      out.layers = {};
+      LAYERS.forEach(function (k) { if (typeof r.layers[k] === 'boolean') out.layers[k] = r.layers[k]; });
+    }
+    return out;
+  }
+  var saveT = null;
+  function saveState() {
+    if (!E || typeof E.saveUser !== 'function' || !S) return;
+    var cur = E.current ? E.current() : null;
+    // Only when this IS the rep's resolved layout: saveUser re-resolves, so saving
+    // from a preview, a storm switch or a day/night offer would flip the screen back.
+    if (cur && ['preview', 'storm', 'auto', 'fallback'].indexOf(cur.source) !== -1) return;
+    if (saveT) clearTimeout(saveT);
+    saveT = setTimeout(function () {
+      saveT = null;
+      if (!S) return;
+      var layers = {};
+      LAYERS.forEach(function (k) { layers[k] = !!S.route.layers[k]; });
+      Promise.resolve(E.saveUser({ layoutState: { mission: { tab: S.tab, mode: S.route.mode, layers: layers } } })).catch(function () {});
+    }, 800);
+  }
+  function restoreState() {
+    var p = E && typeof E.prefs === 'function' ? E.prefs() : null;
+    var saved = p && p.user && p.user.layoutState ? p.user.layoutState.mission : null;
+    if (!saved) return null;
+    var st = cleanState(saved);
+    S.route.mode = st.mode;
+    if (st.layers) { Object.keys(st.layers).forEach(function (k) { S.route.layers[k] = st.layers[k]; }); S.route.layersTouched = true; }
+    return st.tab;
+  }
+
   function mount() {
     if (mounted) return;
     mounted = true;
     S = fresh();
+    var savedTab = restoreState();
     built = false;
     rootEl = doc.createElement('div');
     rootEl.id = 'nbdMissionRoot';
@@ -773,7 +815,7 @@
       mo = new MutationObserver(function () { if (raf) return; raf = setTimeout(function () { raf = null; if (rootEl) K.setOverlay(rootEl, homeActive()); if (map && rootEl && !rootEl.hidden) map.invalidate(); }, 60); });
       mo.observe(doc.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
     } catch (e) {}
-    render();
+    if (savedTab && savedTab !== 'watch') goTab(savedTab); else render();
     loadWarnings(); loadReports();
     timers.push(setInterval(function () { if (!doc.hidden) loadWarnings(); }, POLL_MS));
     timers.push(setInterval(function () { if (!doc.hidden) loadReports(); }, REPORTS_MS));
@@ -781,6 +823,7 @@
   }
   function unmount() {
     mounted = false;
+    if (saveT) { clearTimeout(saveT); saveT = null; }
     mapSeq++;            // a create() still in flight destroys what it built
     mapLoading = false;  // ...and the next mount is free to build a new map
     timers.forEach(function (t) { clearInterval(t); }); timers = [];

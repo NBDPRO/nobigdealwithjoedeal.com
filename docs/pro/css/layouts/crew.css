@@ -17,16 +17,22 @@ html[data-layout="crew"] .cw-wrap {
   padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(48px + env(safe-area-inset-bottom, 0px));
 }
 
-/* crew palette (the lane index picks one; "No crew yet" is neutral) */
-html[data-layout="crew"] .cw-k0 { --cw-k: var(--orange); }
-html[data-layout="crew"] .cw-k1 { --cw-k: #3b82f6; }
-html[data-layout="crew"] .cw-k2 { --cw-k: #14b8a6; }
-html[data-layout="crew"] .cw-k3 { --cw-k: #a855f7; }
-html[data-layout="crew"] .cw-k4 { --cw-k: #eab308; }
-html[data-layout="crew"] .cw-k5 { --cw-k: #ec4899; }
-html[data-layout="crew"] .cw-k6 { --cw-k: #22c55e; }
-html[data-layout="crew"] .cw-k7 { --cw-k: #06b6d4; }
-html[data-layout="crew"] .cw-kn { --cw-k: var(--m); }
+/* crew palette (the lane index picks one; "No crew yet" is neutral).
+   Colour-blind-safe since 2026-10-16 (#2467 follow-up): the Okabe-Ito set,
+   which stays distinct under protanopia, deuteranopia and tritanopia, after
+   the brand orange for the first crew. --cw-k-fg is the ink for a number or
+   label ON the crew colour, picked per colour for 4.5:1 (white on blue
+   and the brand orange; near-black on the rest). Audit D10: white on the
+   old yellow was 1.92:1 and on green 2.28:1. */
+html[data-layout="crew"] .cw-k0 { --cw-k: var(--orange); --cw-k-fg: var(--accent-fg, #fff); }
+html[data-layout="crew"] .cw-k1 { --cw-k: #0072b2; --cw-k-fg: #fff; }
+html[data-layout="crew"] .cw-k2 { --cw-k: #009e73; --cw-k-fg: #111; }
+html[data-layout="crew"] .cw-k3 { --cw-k: #cc79a7; --cw-k-fg: #111; }
+html[data-layout="crew"] .cw-k4 { --cw-k: #f0e442; --cw-k-fg: #111; }
+html[data-layout="crew"] .cw-k5 { --cw-k: #56b4e9; --cw-k-fg: #111; }
+html[data-layout="crew"] .cw-k6 { --cw-k: #e69f00; --cw-k-fg: #111; }
+html[data-layout="crew"] .cw-k7 { --cw-k: #d55e00; --cw-k-fg: #111; }
+html[data-layout="crew"] .cw-kn { --cw-k: var(--m); --cw-k-fg: var(--bg); }
 
 /* top bar */
 html[data-layout="crew"] .cw-top { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
@@ -165,7 +171,7 @@ html[data-layout="crew"] .cw-daycard-h { padding: 12px 14px; display: flex; flex
 html[data-layout="crew"] .cw-daycard-h span { font-size: 13px; color: var(--m); }
 html[data-layout="crew"] .cw-stops { list-style: none; margin: 0; padding: 0; }
 html[data-layout="crew"] .cw-stop { display: flex; align-items: center; gap: 10px; min-height: var(--tap); padding: 8px 12px; border-top: 1px solid var(--rule); cursor: pointer; }
-html[data-layout="crew"] .cw-stop-n { flex: 0 0 28px; height: 28px; border-radius: 50%; background: var(--cw-k, var(--orange)); color: var(--accent-fg, #fff); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; }
+html[data-layout="crew"] .cw-stop-n { flex: 0 0 28px; height: 28px; border-radius: 50%; background: var(--cw-k, var(--orange)); color: var(--cw-k-fg, var(--accent-fg, #fff)); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; }
 html[data-layout="crew"] .cw-stop-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 html[data-layout="crew"] .cw-stop-main small, html[data-layout="crew"] .cw-stop-when small { color: var(--m); font-size: 12px; }
 html[data-layout="crew"] .cw-stop-when { display: flex; flex-direction: column; align-items: flex-end; font-size: 13px; font-weight: 700; white-space: nowrap; }

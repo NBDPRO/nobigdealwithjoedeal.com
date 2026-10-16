@@ -893,7 +893,7 @@
     if (a === 'dismiss') { S.notice = null; S.busyHtml = ''; render(); return; }
     if (a === 'menu') { S.menu = !S.menu; render(); return; }
     if (a === 'goto') { S.menu = false; if (typeof W.goTo === 'function') W.goTo(t.getAttribute('data-to')); setTimeout(render, 80); return; }
-    if (a === 'view') { S.view = t.getAttribute('data-v') === 'day' ? 'day' : 'week'; S.menu = false; render(); return; }
+    if (a === 'view') { S.view = t.getAttribute('data-v') === 'day' ? 'day' : 'week'; S.menu = false; render(); saveView(); return; }
     if (a === 'today') { S.day = todayYmd(); S.monday = mondayOf(S.day); render(); return; }
     if (a === 'prev' || a === 'next') {
       var n = a === 'next' ? 1 : -1;
@@ -935,12 +935,33 @@
   }
 
   // ── mount ────────────────────────────────────────────────────────────
+  // Week or Day, saved per user and per screen size (#2467 follow-up, 2026-10-16):
+  // userSettings.layout.layoutState.crew = { phone: 'day', desktop: 'week' } via
+  // LayoutEngine.saveUser. A phone keeps opening on Day until the rep picks Week.
+  function surfaceKey() { return W.innerWidth <= 768 ? 'phone' : 'desktop'; }
+  function savedView() {
+    var p = E && typeof E.prefs === 'function' ? E.prefs() : null;
+    var c = p && p.user && p.user.layoutState ? p.user.layoutState.crew : null;
+    var v = c && typeof c === 'object' ? c[surfaceKey()] : null;
+    return v === 'day' || v === 'week' ? v : null;
+  }
+  function saveView() {
+    if (!E || typeof E.saveUser !== 'function') return;
+    var cur = E.current ? E.current() : null;
+    // only when Crew IS the resolved layout (saveUser re-resolves: see mission.js saveState)
+    if (cur && ['preview', 'storm', 'auto', 'fallback'].indexOf(cur.source) !== -1) return;
+    var p = E.prefs ? E.prefs() : null;
+    var prev = p && p.user && p.user.layoutState && p.user.layoutState.crew;
+    var next = { phone: prev && (prev.phone === 'day' || prev.phone === 'week') ? prev.phone : null, desktop: prev && (prev.desktop === 'day' || prev.desktop === 'week') ? prev.desktop : null };
+    next[surfaceKey()] = S.view;
+    Promise.resolve(E.saveUser({ layoutState: { crew: next } })).catch(function () {});
+  }
   function mount() {
     if (mounted) return;
     mounted = true;
     S.monday = mondayOf(todayYmd());
     S.day = todayYmd();
-    S.view = W.innerWidth <= 768 ? 'day' : 'week';
+    S.view = savedView() || (W.innerWidth <= 768 ? 'day' : 'week');
     rootEl = doc.createElement('div');
     rootEl.id = 'nbdCrewRoot';
     rootEl.className = 'cw-root';
