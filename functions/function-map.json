@@ -45,6 +45,7 @@
   "claudeProxy": "./handlers/ai",
   "cleanupE2ETestData": "./handlers/auth",
   "clientError": "./handlers/monitoring",
+  "companyDocExpiryWatch": "./company-doc-expiry",
   "confirmAccountErasure": "./integrations/compliance",
   "confirmAlertRecipient": "./alert-recipients-fns",
   "convertUnmatchedSms": "./handlers/inbound-sms-convert",
