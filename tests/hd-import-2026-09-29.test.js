@@ -72,6 +72,8 @@ ok('"$1,171.97" with a thousands comma parses', rec.find((r) => r.txn === '6003'
 ok('store number from "#1111, Test Town"', smith.store === '1111' && smith.storeName === 'Test Town');
 ok('online order keyed by order number', rec.find((r) => r.order === 'WH00000001').key === 'hd-o-WH00000001');
 ok('receipt keys are unique', new Set(rec.map((r) => r.key)).size === rec.length);
+const BLANKDATE = 'Date,Receipt Added Date,Order Origin,Transaction ID,Job Name,Pre-tax Amount,Total Amount Paid,Order Number\n,2026-10-16,"#1111, Test Town",7762,NBD-0001 Test,$10.00,$10.70,\n';
+ok('Summary with a blank Date falls back to Receipt Added Date', H.parseSummary(BLANKDATE).length === 1 && H.parseSummary(BLANKDATE)[0].date === '2026-10-16');
 
 console.log('\n2. details join + categories');
 const plan = H.plan(SUMMARY, DETAILS, LEADS, {}, []);

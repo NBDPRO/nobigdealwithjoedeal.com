@@ -112,7 +112,8 @@
     if (!t || t.col('Total Amount Paid') < 0) return [];
     const g = (r, name) => { const i = t.col(name); return i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : ''; };
     return t.rows.map((r) => {
-      const date = ymd(g(r, 'Date'));
+      // Oct-2026 exports leave the Summary 'Date' blank and fill 'Receipt Added Date'.
+      const date = ymd(g(r, 'Date') || g(r, 'Receipt Added Date'));
       const origin = g(r, 'Order Origin');
       const store = storeNum(origin) || g(r, 'Store Number');
       const txn = g(r, 'Transaction ID');
@@ -138,7 +139,8 @@
     if (!t) return [];
     const g = (r, name) => { const i = t.col(name); return i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : ''; };
     return t.rows.map((r) => {
-      const date = ymd(g(r, 'Date'));
+      // Oct-2026 exports leave the Summary 'Date' blank and fill 'Receipt Added Date'.
+      const date = ymd(g(r, 'Date') || g(r, 'Receipt Added Date'));
       return {
         key: receiptKey(date, g(r, 'Store Number'), g(r, 'Transaction ID'), g(r, 'Order Number')),
         desc: g(r, 'SKU Description').replace(/�/g, ''),
