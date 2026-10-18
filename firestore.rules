@@ -2192,6 +2192,23 @@ service cloud.firestore {
         || (isCompanyAdmin() && companyId == myCompanyId());
     }
 
+    // Job-name memory (hd-import.js, receipt sorter 2026-10-18): which lead a
+    // PO/Job name on a Home Depot / Lowe's receipt means, learned from the
+    // company's own past assignments. One doc per company: any non-viewer
+    // member of the tenant reads and writes it (whoever sorts the receipts);
+    // a viewer can read nothing here and write nothing; another tenant sees
+    // nothing. Bounded: only these keys, at most 2000 entries.
+    match /companyAliases/{companyId} {
+      allow read: if isAuth() && notViewer() && (companyId == myCompanyId() || ownsTenantByUid(companyId));
+      allow create, update: if isAuth() && notViewer()
+        && (companyId == myCompanyId() || ownsTenantByUid(companyId))
+        && request.resource.data.keys().hasOnly(['aliases', 'updatedAt', 'updatedBy'])
+        && request.resource.data.aliases is map
+        && request.resource.data.aliases.size() <= 2000
+        && request.resource.data.updatedBy == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
     // Agent inbox (2026-10-02): what the Grok Bot team FILES through the NBD
     // CRM connection — notes, reminders, reports — for the owner to review.
     // Items are created server-side only (the connection's function, admin

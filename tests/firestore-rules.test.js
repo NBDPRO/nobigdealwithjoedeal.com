@@ -813,6 +813,17 @@ async function run() {
     expDoc('solo1', 'co-a', null, 'forged')));
   // ✅ owner reads her own
   await assertSucceeds(getDoc(doc(alice, 'expenses/exp-alice')));
+  // ── Receipt sorter: tenant job-name memory (companyAliases) ──
+  await assertSucceeds(setDoc(doc(alice, 'companyAliases/co-a'), { aliases: { lora: 'leadA' }, updatedAt: new Date(), updatedBy: 'alice' }));
+  await assertSucceeds(getDoc(doc(alice, 'companyAliases/co-a')));
+  await assertSucceeds(getDoc(doc(coAdmin, 'companyAliases/co-a')));          // same tenant, other member
+  await assertFails(getDoc(doc(bob, 'companyAliases/co-a')));                  // other tenant
+  await assertFails(setDoc(doc(bob, 'companyAliases/co-a'), { aliases: { x: 'y' }, updatedAt: new Date(), updatedBy: 'bob' }));
+  await assertFails(setDoc(doc(viewer, 'companyAliases/co-v'), { aliases: {}, updatedAt: new Date(), updatedBy: 'vic' })); // viewer
+  await assertFails(setDoc(doc(alice, 'companyAliases/co-a'), { aliases: { a: 'b' }, updatedAt: new Date(), updatedBy: 'someone-else' })); // forged author
+  await assertFails(setDoc(doc(alice, 'companyAliases/co-a'), { aliases: 'nope', updatedAt: new Date(), updatedBy: 'alice' }));       // not a map
+  await assertFails(setDoc(doc(alice, 'companyAliases/co-a'), { aliases: {}, updatedAt: new Date(), updatedBy: 'alice', extra: 1 }));  // stray key
+  await assertFails(deleteDoc(doc(alice, 'companyAliases/co-a')));
   // ✅ company_admin in the SAME tenant reads a rep's expense (team rollup)
   await assertSucceeds(getDoc(doc(coAdmin, 'expenses/exp-alice')));
   // ❌ a rep in ANOTHER tenant cannot read it

@@ -328,13 +328,52 @@
 
   function leadsList() { return (window._leads || []).filter((l) => l && !l.deleted); }
 
+  // Job-name memory (PO text → lead). It used to live on the importing USER
+  // (userSettings/{uid}.hdJobAliases), so a second person or device started
+  // from nothing. With the `receiptSorterAliases` flag on it lives on the
+  // COMPANY (companyAliases/{companyId}), the legacy per-user map is still read
+  // as a fallback (the one-time migration: the next save writes the merged
+  // map to the company doc), and the company's own entries win. Flag off =
+  // the legacy behaviour exactly.
+  const ALIAS_FLAG = 'receiptSorterAliases';
+  const MAX_ALIASES = 2000;
+  function aliasesOn() {
+    return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled(ALIAS_FLAG));
+  }
+  function cleanAliases(a) {
+    const out = {};
+    if (!a || typeof a !== 'object') return out;
+    Object.keys(a).forEach((k) => {
+      const v = a[k];
+      if (typeof k === 'string' && k && k.length <= 120 && typeof v === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(v)) out[k] = v;
+    });
+    return out;
+  }
+  // tenant entries win over the legacy per-user ones
+  function mergeAliases(legacy, tenant) {
+    return Object.assign({}, cleanAliases(legacy), cleanAliases(tenant));
+  }
+  function aliasCompanyId() {
+    const c = window._userClaims || {};
+    return c.companyId || (window._user && window._user.uid) || null;
+  }
+
   async function loadAliases() {
     try {
       const uid = window._user && window._user.uid;
       if (!uid || !window.getDoc) return {};
       const snap = await window.getDoc(window.doc(window.db, 'userSettings', uid));
-      const a = snap.exists() ? (snap.data() || {}).hdJobAliases : null;
-      return (a && typeof a === 'object') ? a : {};
+      const legacy = snap.exists() ? (snap.data() || {}).hdJobAliases : null;
+      if (!aliasesOn()) return (legacy && typeof legacy === 'object') ? legacy : {};
+      let tenant = null;
+      const cid = aliasCompanyId();
+      if (cid) {
+        try {
+          const t = await window.getDoc(window.doc(window.db, 'companyAliases', cid));
+          tenant = t.exists() ? (t.data() || {}).aliases : null;
+        } catch (e) { tenant = null; }
+      }
+      return mergeAliases(legacy, tenant);
     } catch (e) { return {}; }
   }
 
@@ -342,6 +381,15 @@
     try {
       const uid = window._user && window._user.uid;
       if (!uid || !window.setDoc) return;
+      if (aliasesOn()) {
+        const cid = aliasCompanyId();
+        const clean = cleanAliases(aliases);
+        if (cid && Object.keys(clean).length <= MAX_ALIASES) {
+          await window.setDoc(window.doc(window.db, 'companyAliases', cid),
+            { aliases: clean, updatedAt: window.serverTimestamp ? window.serverTimestamp() : new Date(), updatedBy: uid }, { merge: true });
+          return;
+        }
+      }
       await window.setDoc(window.doc(window.db, 'userSettings', uid), { hdJobAliases: aliases }, { merge: true });
     } catch (e) { console.warn('[hd-import] could not save job-name memory', e && e.code); }
   }
@@ -523,7 +571,7 @@
   window.NBDHdImport = {
     open, close,
     // pure — exported for tests
-    parseCsv, kindOf, parseSummary, parseDetails, unitCentsOf, attachDetails, suggestCategory, matchJob, plan, expenseDoc, receiptKey,
+    parseCsv, kindOf, parseSummary, parseDetails, unitCentsOf, mergeAliases, cleanAliases, loadAliases, saveAliases, attachDetails, suggestCategory, matchJob, plan, expenseDoc, receiptKey,
     SOURCE,
   };
 })();
