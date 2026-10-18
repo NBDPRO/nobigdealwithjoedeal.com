@@ -752,7 +752,7 @@
       // active tenant's contact info (NBD keeps its byte-identical hardcoded block).
       const pe = _parentEstimate || {};
       const ins = pe.insurance || {};
-      const html = window.EstimateSupplement.formatSupplementLetter(_currentSupplement, {
+      const letter = window.EstimateSupplement.formatSupplementLetter(_currentSupplement, {
         customer: {
           name: pe.customerName || pe.customer || '',
           address: pe.customerAddress || pe.address || '',
@@ -765,6 +765,14 @@
         },
         estimate: { preparedBy: pe.preparedBy || (window._currentRep && window._currentRep.name) || '' },
       });
+      const html = letter.html;
+      // KY claim wording: tell the rep what the filter took out of the letter
+      // (never silent) so they can reword it in their own terms.
+      const removed = letter.wordingRemoved || [];
+      if (removed.length) {
+        _toast('Kentucky claim-wording rules: removed text from ' + removed.map(r => r.field).join('; ')
+          + '. Edit the wording and preview again.', 'error');
+      }
       if (window.NBDDocViewer && typeof window.NBDDocViewer.open === 'function') {
         window.NBDDocViewer.open({
           title: 'Supplement #' + _currentSupplement.version + ' — preview',
