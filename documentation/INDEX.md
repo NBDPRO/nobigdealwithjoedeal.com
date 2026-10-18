@@ -136,6 +136,7 @@ bd-ops`), §2 held PRs, §4 Jo's list.
 
 - [BIG_ROCKS](projects/BIG_ROCKS.md) — the standing priority list
 - [BUILD-PLAN-2026-10-18](projects/BUILD-PLAN-2026-10-18.md) — locked phased plan for personal, business and home network: two Grok critique rounds plus a repo cross-check, what already exists vs genuinely new, guardrails, corrections to Grok's advice, and the seven phases
+- [NOTIFICATION-POLICY-2026-10-18](projects/NOTIFICATION-POLICY-2026-10-18.md) — draft policy for how much the system tells Jo: three tiers (interrupt, one morning brief, Sunday review), delta-only briefs, caps, and the four build steps
 - [WEEKLY_CADENCE](projects/WEEKLY_CADENCE.md) — standing weekly checklist (see "Standing notes" above)
 - [AWAY-MODE-BACKUP-2026-10-12](projects/AWAY-MODE-BACKUP-2026-10-12.md) — design for the backup person + Away mode + auto hand-back (never-forget lane): data model (away_mode / away_private / away_windows, Admin-SDK-write only), the pure resolver rules (ack window, away strictness, quiet hours, delivery truth), what the backup can and cannot see, Thursday and auto-reply gates, integration points for the reliability lane, deferred list and seven decisions for Jo
 - [THEME-POLISH-LANE-2026-10-11](projects/THEME-POLISH-LANE-2026-10-11.md) — CRM style integration Track A as built: Theme Morph (view-transition circle wipe + reduced-motion crossfade), then the 12 new themes, glass surface style and the live-preview picker
