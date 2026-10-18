@@ -30,6 +30,8 @@ const CRON_GATES = [
   // One morning email (2026-10-04): the 6:45 brief absorbs the 07:00 lead
   // digest, the 07:15 "said you'd do" sweep and the owner's 08:15 review asks.
   { name: 'MORNING_BRIEF_ABSORB_ENABLED', polarity: 'enabled', file: 'morning-brief-absorb.js' },
+  // Brief delta mode (2026-10-18, notification policy step 1): new-since-yesterday only. Off = today's full brief.
+  { name: 'MORNING_BRIEF_DELTA_ENABLED', polarity: 'enabled', file: 'morning-brief.js' },
   // Nightly promise cleanup (2026-10-04): Haiku marks a call promise kept only
   // on explicit later evidence; every change logged to promise_cleanup_log.
   { name: 'PROMISE_CLEANUP_ENABLED', polarity: 'enabled', file: 'promise-cleanup.js' },

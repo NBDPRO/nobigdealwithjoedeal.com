@@ -82,6 +82,8 @@ const ROWS = {
     meaning: 'The 6:45 AM appointment email to you. Off = no brief.' },
   MORNING_BRIEF_ABSORB_ENABLED: { group: 'Alerts & away', doc: 'documentation/projects/AI-AUTOMATIONS-2026-10-04.md',
     meaning: 'Folds the lead digest, call promises and review asks into the 6:45 brief. Off = three separate emails.' },
+  MORNING_BRIEF_DELTA_ENABLED: { group: 'Alerts & away', dark: true, doc: 'documentation/projects/MORNING-BRIEF-DELTA-2026-10-18.md',
+    meaning: 'The 6:45 brief shows only what is new since yesterday and collapses the standing lists (signed jobs needing a week, open promises, review asks) to a count plus a link. Off = the brief repeats the full lists, as today.' },
   COMPANY_DOC_EXPIRY_ENABLED: { group: 'Alerts & away', dark: true, doc: 'documentation/projects/COMPANY-DOC-EXPIRY-2026-10-18.md',
     meaning: 'Daily 9 AM: a note in your Agent inbox when your own insurance certificate, license or certification is 30, 14 or 7 days from expiring, or has expired. Never goes to a customer. Off = dry run, logs only.' },
   WEEKLY_DIGEST_ENABLED: { group: 'Alerts & away', doc: 'documentation/runbooks/SPEND_KILLSWITCH.md',

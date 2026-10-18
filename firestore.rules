@@ -2116,6 +2116,15 @@ service cloud.firestore {
     // the pending tokens. Admin SDK only (functions/alert-recipients*.js).
     match /alertRecipients/{companyId}      { allow read, write: if false; }
     match /alertRecipientTokens/{tokenHash} { allow read, write: if false; }
+
+    // ── MORNING BRIEF STATE (2026-10-18) ──────────────
+    // morningBriefState/{companyId} -> { companyId, snapshot: { lists: { <list>:
+    // { atMs, ids[] } } } }: the IDS the previous 06:45 brief listed, so delta
+    // mode (MORNING_BRIEF_DELTA_ENABLED) can name only what is new. Ids only, no
+    // names or contact data. A client that could write it could hide items from
+    // the owner's brief; one that could read it learns nothing it can't already
+    // see, but there is no reason to allow it. Admin SDK only (morning-brief.js).
+    match /morningBriefState/{companyId} { allow read, write: if false; }
     match /_rate_limits_ip/{docId}  { allow read, write: if false; }
 
     // ── PER-TENANT CATALOG COST BOOK ──────────────────

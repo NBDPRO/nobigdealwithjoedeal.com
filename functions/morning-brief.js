@@ -28,6 +28,13 @@
  * and sends on a day with no appointments when any of those has content.
  * Each appointment also gets ONE line from "Brief me" (lead-brief.js).
  *
+ * Delta mode (2026-10-18, MORNING_BRIEF_DELTA_ENABLED, ships dark): the standing
+ * lists (signed jobs needing a week, open promises, review asks) collapse to a
+ * count + link and are named only when new since the previous brief. The previous
+ * brief is a snapshot of ids only in morningBriefState/{owner} (server-only),
+ * written after a live send. See morning-brief-delta.js and
+ * documentation/projects/NOTIFICATION-POLICY-2026-10-18.md.
+ *
  * Per-user opt-out: users/{owner}.morningBriefEnabled === false.
  * Ships DRY-RUN by default: unless MORNING_BRIEF_ENABLED=true on the
  * morningBrief Cloud Run revision, the brief is built and logged, never sent.
@@ -48,6 +55,7 @@ const SW = require('./schedule-window');
 const CF = require('./calendar-feed-logic');
 const MB = require('./morning-brief-logic');
 const Absorb = require('./morning-brief-absorb');
+const Delta = require('./morning-brief-delta');
 // Brief me's model call needs the key bound on THIS function too.
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 const MAX_BRIEF_LINES = 10;
@@ -57,6 +65,9 @@ const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM     = defineSecret('EMAIL_FROM');
 
 const OWNER = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
+
+// Server-only (firestore.rules): ids of what the previous live brief listed.
+const STATE_COLLECTION = 'morningBriefState';
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || ''));
@@ -236,6 +247,7 @@ async function runMorningBrief(deps) {
   const owner = (deps && deps.owner) || OWNER;
   const enabled = env.MORNING_BRIEF_ENABLED === 'true';
   const absorb = Absorb.absorbConfigured(env);
+  const deltaMode = env.MORNING_BRIEF_DELTA_ENABLED === 'true';
 
   const userSnap = await db.collection('users').doc(owner).get();
   const user = (userSnap && userSnap.exists && userSnap.data()) || {};
@@ -277,11 +289,26 @@ async function runMorningBrief(deps) {
     try { const w = await weatherFor(lead); if (w) weatherByLead[id] = w; } catch (_) { /* no weather line */ }
   }
 
+  // Delta mode: what did the previous live brief list? An unreadable snapshot
+  // is the same as none: every list shows in full, exactly like the old brief.
+  let delta = null;
+  if (deltaMode) {
+    let prev = null;
+    try {
+      const ps = await db.collection(STATE_COLLECTION).doc(owner).get();
+      prev = (ps && ps.exists && ps.data()) || null;
+      if (prev && prev.companyId !== owner) prev = null;   // tenant check: only this owner's snapshot counts
+      if (prev && !prev.snapshot) prev = null;
+      if (prev) prev = prev.snapshot;
+    } catch (e) { log.warn('morning_brief_snapshot_read_failed', { err: e && e.message }); prev = null; }
+    delta = Delta.computeDelta({ prev, needsWeek, sections, nowMs });
+  }
+
   const brief = MB.buildBrief({
     appointments: day.appointments, leads: day.leads, jobs: day.jobs, nowMs,
     invoices: hist.invoices, activityByLead: hist.activityByLead, stormProofsByLead: hist.stormProofsByLead,
     sections, briefLines,
-    weatherByLead, needsWeek,
+    weatherByLead, needsWeek, delta,
   });
 
   if (!enabled) {
@@ -313,7 +340,18 @@ async function runMorningBrief(deps) {
   if (sections && Array.isArray(sections.promises) && sections.promises.length && sections.promiseCheckFailed !== true) {
     try { await require('./call-center').stampDigest(db, sections.promises, nowMs, 'brief'); } catch (e) { log.warn('morning_brief_digest_stamp_failed', { err: e && e.message }); }
   }
-  log.info('morning_brief_sent', { owner, date: brief.today, items: brief.items.length, sections: brief.sectionCounts });
+  // Delta mode: remember what this brief covered (ids only) so tomorrow's names
+  // only what is new. Only after a real send; a failed write just means
+  // tomorrow shows a little more, never less.
+  if (deltaMode) {
+    try {
+      await db.collection(STATE_COLLECTION).doc(owner).set({
+        companyId: owner, updatedAtMs: nowMs,
+        snapshot: Delta.buildSnapshot({ needsWeek, sections, nowMs }),
+      }, { merge: true });
+    } catch (e) { log.warn('morning_brief_snapshot_write_failed', { err: e && e.message }); }
+  }
+  log.info('morning_brief_sent', { owner, date: brief.today, items: brief.items.length, sections: brief.sectionCounts, delta: deltaMode ? brief.deltaNews : undefined });
   return { status: 'sent', items: brief.items.length, emailed: true, sections: brief.sectionCounts };
 }
 
@@ -333,6 +371,7 @@ exports.morningBrief = onSchedule(
     const env = {
       MORNING_BRIEF_ENABLED: process.env.MORNING_BRIEF_ENABLED,
       MORNING_BRIEF_ABSORB_ENABLED: process.env.MORNING_BRIEF_ABSORB_ENABLED,
+      MORNING_BRIEF_DELTA_ENABLED: process.env.MORNING_BRIEF_DELTA_ENABLED,
       RESEND_API_KEY: process.env.RESEND_API_KEY,
       EMAIL_FROM: process.env.EMAIL_FROM,
     };
@@ -347,4 +386,4 @@ exports.morningBrief = onSchedule(
   }
 );
 
-exports._test = { runMorningBrief, readDay, readHistory, gatherSections, gatherBriefLines, OWNER };
+exports._test = { runMorningBrief, readDay, readHistory, gatherSections, gatherBriefLines, OWNER, STATE_COLLECTION };
