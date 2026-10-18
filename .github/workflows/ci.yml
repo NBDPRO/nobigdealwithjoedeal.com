@@ -538,6 +538,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-lusage-test 'node firestore-rules.layout-usage.test.js'
+      # Company documents (own-document expiry, 2026-10-18): companies/{cid}/companyDocs. Own file.
+      - name: Run company-docs rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-cdocs-test 'node firestore-rules.company-docs.test.js'
       # Stage-triggered "Docs to review" drafts (2026-10-13): leads/{id}/doc_drafts.
       - name: Run doc-drafts rules tests under emulator
         run: |

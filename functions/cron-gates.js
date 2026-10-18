@@ -41,6 +41,8 @@ const CRON_GATES = [
   { name: 'CALL_CENTER_SWEEP_ENABLED', polarity: 'enabled', file: 'call-center.js' },
   // Every-2-hours call check (8 AM-8 PM ET): new calls needing Jo + slow updates (bell + push).
   { name: 'CALL_WATCH_ENABLED', polarity: 'enabled', file: 'call-watch.js' },
+  // Daily own-document expiry watch (2026-10-18): Agent-inbox reports to the owner at 30/14/7 days and on expiry. Dark until Jo says go.
+  { name: 'COMPANY_DOC_EXPIRY_ENABLED', polarity: 'enabled', file: 'company-doc-expiry.js' },
   // Away mode: the 15-min tick that tells the backup person (dry-run until Jo
   // says go). Ending an expired window is NOT behind this gate.
   { name: 'AWAY_MODE_ENABLED', polarity: 'enabled', file: 'away-mode.js' },

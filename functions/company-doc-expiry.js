@@ -1,0 +1,99 @@
+'use strict';
+/**
+ * company-doc-expiry.js — companyDocExpiryWatch (2026-10-18): daily 09:00
+ * Eastern, look at every company's OWN documents (companies/{id}/companyDocs:
+ * general-liability COI, workers' comp, licenses, manufacturer certs, vehicle
+ * papers) and tell the OWNER when one reaches 30 / 14 / 7 days or expires.
+ * Rules and wording: company-doc-expiry-logic.js.
+ *
+ * Writes (only when live): one Agent-inbox `report` per document per stage
+ * (agent_inbox/docexp_<company>_<doc>_<expiry>_<stage>, created with create(),
+ * so a daily run files each stage ONCE and a renewal starts fresh) and one bell
+ * notification per company per day. NOTHING goes to a customer: no SMS, no
+ * email, no draft. Reads only companies/{id}/companyDocs and the company doc.
+ *
+ * Gate: COMPANY_DOC_EXPIRY_ENABLED=true. Anything else computes and LOGS what
+ * it would file (counts only; no document names), writes nothing.
+ */
+const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
+const { logger } = require('firebase-functions/v2');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const L = require('./company-doc-expiry-logic');
+
+const enabled = () => process.env.COMPANY_DOC_EXPIRY_ENABLED === 'true';
+const isAlreadyExists = (e) => !!e && (e.code === 6 || /already exists/i.test(String(e.message || '')));
+
+/** The company's time zone (companyProfile/{id}.timezone, an IANA name) or Eastern. */
+async function zoneFor(db, companyId) {
+  try {
+    const s = await db.doc('companyProfile/' + companyId).get();
+    const tz = s.exists ? String((s.data() || {}).timezone || '') : '';
+    if (tz) { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return tz; }
+  } catch (_) { /* unreadable or not an IANA name: Eastern */ }
+  return L.DEFAULT_TZ;
+}
+
+/** Who the bell goes to: the company doc's ownerId, else the company id (a solo owner's uid). */
+async function ownerFor(db, companyId) {
+  try {
+    const s = await db.doc('companies/' + companyId).get();
+    const o = s.exists ? String((s.data() || {}).ownerId || '') : '';
+    if (o) return o;
+  } catch (_) { /* fall through */ }
+  return companyId;
+}
+
+async function runWatch({ db, nowMs, live }) {
+  // No where() on purpose: a collection-group filter needs a deployed index, and
+  // the emulator would never tell us it is missing (it does not enforce indexes).
+  const snap = await db.collectionGroup('companyDocs').limit(5000).get();
+  const byCompany = {};
+  snap.forEach((d) => {
+    const m = /^companies\/([^/]+)\/companyDocs\/([^/]+)$/.exec(d.ref.path);
+    if (!m) return;
+    (byCompany[m[1]] = byCompany[m[1]] || []).push(Object.assign({ id: m[2] }, d.data()));
+  });
+
+  const out = { companies: 0, due: 0, filed: 0, alreadyFiled: 0, failed: 0 };
+  for (const companyId of Object.keys(byCompany)) {
+    out.companies++;
+    const today = L.ymdInZone(nowMs, await zoneFor(db, companyId));
+    const alerts = L.planAlerts(companyId, byCompany[companyId], today);
+    out.due += alerts.length;
+    if (!alerts.length || !live) continue;
+    let filedHere = 0;
+    for (const a of alerts) {
+      try {
+        await db.doc('agent_inbox/' + a.id).create(Object.assign({
+          companyId, bot: 'Document watch', botId: 'doc-watch', status: 'pending', verified: false,
+          createdAt: FieldValue.serverTimestamp(), keyId: 'doc-watch', stage: a.stage,
+        }, a.item));
+        out.filed++; filedHere++;
+      } catch (e) {
+        if (isAlreadyExists(e)) out.alreadyFiled++;
+        else { out.failed++; logger.warn('[companyDocExpiry] write failed', { msg: e && e.message }); }
+      }
+    }
+    if (filedHere) {
+      const ownerUid = await ownerFor(db, companyId);
+      await db.doc('notifications/docexp_' + companyId + '_' + today).set({
+        userId: ownerUid, companyId, type: 'agent_inbox', priority: 'normal',
+        title: '📄 ' + filedHere + (filedHere === 1 ? ' company document needs renewing' : ' company documents need renewing'),
+        message: 'Check your Agent inbox, or Settings > Company Profile > Company documents.',
+        count: filedHere, read: false, dismissed: false,
+        createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true }).catch((e) => logger.warn('[companyDocExpiry] bell failed', { msg: e && e.message }));
+    }
+  }
+  return out;
+}
+
+exports.runWatch = runWatch;
+exports.companyDocExpiryWatch = onSchedule(
+  { schedule: '0 9 * * *', timeZone: 'America/New_York', maxInstances: 1, timeoutSeconds: 120, memory: '256MiB' },
+  async () => {
+    const live = enabled();
+    const r = await runWatch({ db: getFirestore(), nowMs: Date.now(), live });
+    logger.info(live ? 'company_doc_expiry_run' : 'company_doc_expiry_dry_run', r);
+  },
+);
