@@ -120,7 +120,9 @@
       'js/hd-import.js?v=3',
       // The company price book (2026-10-02) — hd-import.js records each
       // receipt's SKU prices into it; loads after, read at call time.
-      'js/price-book.js?v=2'
+      'js/price-book.js?v=2',
+      // Receipt sorter queue (2026-10-18): inert until the receiptSorterQueue flag is on.
+      'css/receipt-sorter.css?v=1', 'js/receipt-sorter-logic.js?v=1', 'js/receipt-sorter.js?v=1'
     ],
     // Money / P&L capstone — self-contained (reads doc fields directly, no
     // ExpenseConfig dependency), so it's a single-module bundle.
