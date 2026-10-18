@@ -276,8 +276,11 @@
       // V3 (2026-10-02): the one-thumb step-by-step layer over the V2 modal.
       // V2's open()/render() call it if present, so it may load after.
       'js/estimate-v3-wizard.js?v=5',
-      'js/estimate-supplement.js?v=4',
-      'js/supplement-ui.js?v=3',
+      // KY claim wording (2026-10-18): the supplement letter runs its free text
+      // through window.NBDClaimWording and refuses to build without it.
+      'js/claim-wording-filter.js?v=1',
+      'js/estimate-supplement.js?v=5',
+      'js/supplement-ui.js?v=4',
       // Job templates ride the estimates bundle: data is inert, the engine
       // resolves through EstimateLogic + registers custom items into
       // EstimateBuilderV2.CATALOG (so it must load after both), and the UI

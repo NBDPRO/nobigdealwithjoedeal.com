@@ -93,3 +93,35 @@ internal training).
 - The homepage banner text changed, so the CI "Visual regression (public pro
   pages)" `landing` shot will go red — re-bless from CI's `-actual.png`.
 - Re-paste the changed citation-kit / GBP-services blocks on live directories.
+
+## Update 2026-10-18 — the supplement letter now runs through the runtime filter
+
+Audit finding: `docs/pro/js/claim-wording-filter.js` guarded only
+`inspection-report-engine.js` and `photo-report.js`. The insurance supplement
+letter (`estimate-supplement.js` `formatSupplementLetter`, previewed from
+`supplement-ui.js`, printed from the doc viewer) printed the rep's typed text to
+the carrier's adjuster unchecked, and `tests/claim-wording.test.js` skips
+`docs/pro/`.
+
+Fixed (same pattern as the two existing call sites: sentences that trip a rule are
+**dropped, not rewritten**):
+
+- Filtered on the letter: supplement reason, each added item's name, justification
+  and code reference, each quantity adjustment's name and justification. A reason
+  that filters to empty falls back to "Additional work required".
+- Not silent: `formatSupplementLetter` returns `wordingRemoved` (field, original
+  text, rule ids) and the preview toast tells the rep which fields lost text. The
+  saved supplement keeps what the rep typed; only the letter is filtered.
+- Fail closed: no `window.NBDClaimWording` means no letter (throws; the preview
+  toasts "Preview failed"), never unchecked text. The filter now loads before
+  `estimate-supplement.js` in both load paths (`customer.html` tags and the
+  script-loader `estimates` bundle).
+- Test: `tests/supplement-letter-claim-wording-2026-10-18.test.js` runs the real
+  filter and the real letter builder in a vm and scans the output; break-tested
+  (filter call removed -> the absence assertions go red, the positive controls stay
+  green).
+
+Left alone: the letter's own "Insurance Restoration Supplement" subtitle and the
+introduction text (they pass the filter; wording is Jo's call), and the
+flags-not-fixed above (the signed-document negotiate authorization, the $200
+referral bonus).

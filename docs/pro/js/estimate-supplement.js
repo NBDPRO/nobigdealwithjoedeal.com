@@ -477,6 +477,28 @@
     const fmtDate = EF ? EF.fmtDate : (d => new Date(d).toLocaleDateString());
     const baseCSS = EF ? EF.BASE_CSS : '';
 
+    // KY claim wording (2026-10-18): the rep's free text (reason, per-line
+    // justifications, line names, code refs) goes to the carrier's adjuster on
+    // the contractor's letterhead, so it passes the shared filter
+    // (claim-wording-filter.js — same rules as inspection-report-engine.js and
+    // photo-report.js): a sentence that promises to handle/negotiate the claim,
+    // an assignment of benefits, etc. is dropped, not rewritten. Dropped text is
+    // reported back in wordingRemoved so the UI can tell the rep. Filter missing
+    // -> no letter (fail closed), never unchecked text on a printed page.
+    const CW = (typeof window !== 'undefined') ? window.NBDClaimWording : null;
+    if (!CW || typeof CW.cleanText !== 'function' || typeof CW.scanText !== 'function') {
+      throw new Error('Claim-wording filter not loaded; supplement letter not generated');
+    }
+    const wordingRemoved = [];
+    const cw = (field, text) => {
+      const s = String(text == null ? '' : text);
+      const out = CW.cleanText(s);
+      if (out !== s) {
+        wordingRemoved.push({ field: field, text: s, rules: CW.scanText(s).map(h => h.rule) });
+      }
+      return out;
+    };
+
     // Per-item photo strip — when the picker attached {id,url} entries,
     // embed the actual documentation images in the letter (print-safe).
     // Legacy string photo ids only get the count badge.
@@ -493,7 +515,7 @@
       const photoFlag = item.photos && item.photos.length
         ? `<span style="display:inline-block;font-size:8px;font-weight:700;color:#065f46;background:#ecfdf5;padding:2px 6px;border-radius:2px;letter-spacing:.08em;margin-left:6px;">${item.photos.length} PHOTO${item.photos.length > 1 ? 'S' : ''}</span>`
         : '';
-      const codeRefText = item.codeRef || (item.codeRefs && Object.values(item.codeRefs).filter(Boolean).join(' · ')) || '';
+      const codeRefText = cw('Added item ' + (i + 1) + ' code reference', item.codeRef || (item.codeRefs && Object.values(item.codeRefs).filter(Boolean).join(' · ')) || '');
       const codeRef = codeRefText
         ? `<div class="code-refs">${escape(codeRefText)}</div>`
         : '';
@@ -502,8 +524,8 @@
           <td style="font-weight:700;color:#333;">${i + 1}.</td>
           <td class="code">${escape(item.code || '')}</td>
           <td>
-            <strong>${escape(item.name || '')}</strong>${photoFlag}
-            <div class="reason">${escape(item.justification || item.reason || '')}</div>
+            <strong>${escape(cw('Added item ' + (i + 1) + ' name', item.name || ''))}</strong>${photoFlag}
+            <div class="reason">${escape(cw('Added item ' + (i + 1) + ' justification', item.justification || item.reason || ''))}</div>
             ${codeRef}
             ${photoStripHtml(item.photos)}
           </td>
@@ -525,8 +547,8 @@
           <td style="font-weight:700;color:#333;">${i + 1}.</td>
           <td class="code">${escape(mod.originalCode || '')}</td>
           <td>
-            <strong>${escape(mod.name || '')}</strong>${photoFlag}
-            <div class="reason">${escape(mod.justification || '')}</div>
+            <strong>${escape(cw('Quantity adjustment ' + (i + 1) + ' name', mod.name || ''))}</strong>${photoFlag}
+            <div class="reason">${escape(cw('Quantity adjustment ' + (i + 1) + ' justification', mod.justification || ''))}</div>
             ${photoStripHtml(mod.photos)}
           </td>
           <td class="num">${fmtQty(mod.originalQuantity, mod.unit)} → <strong>${fmtQty(mod.newQuantity, mod.unit)}</strong></td>
@@ -648,7 +670,7 @@
         <div class="field"><label>Adjuster</label><div class="v">${escape(claim.adjuster || '—')}</div></div>
         <div class="field"><label>Date of Loss</label><div class="v">${escape(claim.dateOfLoss || '—')}</div></div>
         <div class="field"><label>Original Est. Amount</label><div class="v">${fmtMoneyBig(supplement.originalTotal)}</div></div>
-        <div class="field"><label>Supplement Reason</label><div class="v">${escape(supplement.reason || 'Additional work required')}</div></div>
+        <div class="field"><label>Supplement Reason</label><div class="v">${escape(cw('Supplement reason', supplement.reason) || 'Additional work required')}</div></div>
       </div>
     `;
 
@@ -727,7 +749,8 @@ ${signBlock}
       modifiedCount: supplement.modifiedItems.length,
       supplementTotal: supplement.supplementTotal,
       newGrandTotal: supplement.newGrandTotal,
-      deltaPct: supplement.deltaPct
+      deltaPct: supplement.deltaPct,
+      wordingRemoved
     };
   }
 
