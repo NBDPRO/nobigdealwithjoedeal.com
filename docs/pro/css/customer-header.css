@@ -100,3 +100,6 @@
 .csf-btn.is-off{opacity:.4;cursor:not-allowed;}
 .csf-btn.csf-dismiss{margin-left:auto;padding:9px 12px;background:transparent;color:var(--m);border-color:var(--ui-line-divider);font-weight:var(--ui-fw-semibold);}
 .csf-btn.csf-dismiss:hover{color:var(--t);border-color:var(--ui-line-strong);}
+
+/* Copy PO name button next to the customer-number chip (po-name.js, 2026-10-18). */
+.po-copy-btn { margin-left: 6px; min-height: 32px; padding: 2px 10px; border-radius: 6px; border: 1px solid var(--orange); background: transparent; color: var(--orange); font-size: 12px; font-weight: 600; cursor: pointer; }
