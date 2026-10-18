@@ -98,6 +98,7 @@ const PLAN = {
   onYardSignPickupDue:       { slug: 'daily-customer-touches' },
   anniversaryAutoTouch:      { slug: 'daily-customer-touches' },
   reviewRequestNudge:        { slug: 'daily-customer-touches' },
+  companyDocExpiryWatch:     { slug: 'daily-customer-touches' }, // 2026-10-18: 09:00 ET, own-document expiry reports to the owner (no customer is touched; shares the daily-to-Jo check)
   onAfterInstallDay:         { slug: 'daily-customer-touches' }, // #2147: 07:15 ET push to Jo
   esignReminderSweep:        { slug: 'daily-customer-touches' }, // #2166: 10:00 ET signer reminders
   reviewAskAutoSweep:        { slug: 'daily-customer-touches' }, // 2026-10-15: 10:00 ET automatic review ask

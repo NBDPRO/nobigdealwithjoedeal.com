@@ -899,6 +899,8 @@
     // Away mode (js/away-mode.js): status line / hand-back card / backup cover list
     // on Home. A lazy bundle, so it adds no boot <script> tag; best-effort.
     try { if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') { w.ScriptLoader.loadBundle('away'); w.ScriptLoader.loadBundle('closesweek'); w.ScriptLoader.loadBundle('nextstop'); w.ScriptLoader.loadBundle('cashcard'); w.ScriptLoader.loadBundle('cardprefs'); w.ScriptLoader.loadBundle('layoutoffer'); w.ScriptLoader.loadBundle('homestrips'); w.ScriptLoader.loadBundle('stormstrip'); w.ScriptLoader.loadBundle('layoutusage'); } } catch (_) { /* optional surface */ }
+    // Company documents (js/company-docs-ui.js): the Home expiry warning. Its own line so the shared bundle list above stays untouched.
+    try { if (w.ScriptLoader && typeof w.ScriptLoader.loadBundle === 'function') w.ScriptLoader.loadBundle('companydocs'); } catch (_) { /* optional surface */ }
     // Home is a <template> mounted on navigation: paint when #todayPlan appears.
     try {
       new MutationObserver(function () {

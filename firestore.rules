@@ -2781,6 +2781,45 @@ service cloud.firestore {
               || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
       }
 
+      // ── COMPANY DOCUMENTS (own-document expiry, 2026-10-18) ──
+      // companies/{companyId}/companyDocs/{docId}: the company's OWN papers that
+      // expire (GL certificate, workers' comp, licenses, manufacturer certs,
+      // vehicle papers): type, name, issuer, expiry (YYYY-MM-DD), notes, and a
+      // PRIVATE file reference (text saying where the file lives; a URL or a
+      // Storage ?token= link is refused here, so none can reach a page). The
+      // subcontractors' certificates stay on companies/{id}/subs above.
+      // Read: the solo owner, the company's company_admin / manager / viewer
+      // (never a sales_rep) and the platform admin. Write: the solo owner or the
+      // company's company_admin ONLY; never a viewer (decision B, 2026-09-25).
+      function companyDocOk() {
+        let d = request.resource.data;
+        let exp = d.get('expiry', null);
+        return d.keys().hasOnly(['type', 'name', 'issuer', 'expiry', 'notes', 'fileRef', 'active', 'createdAt', 'updatedAt', 'updatedBy'])
+          && d.get('type', '') in ['gl_coi', 'workers_comp', 'license', 'manufacturer_cert', 'vehicle', 'other']
+          && d.get('name', null) is string && d.name.size() > 0 && d.name.size() <= 80
+          && (!('issuer' in d) || d.issuer == null || (d.issuer is string && d.issuer.size() <= 80))
+          && (exp == null || exp == '' || (exp is string && exp.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
+          && (!('notes' in d) || d.notes == null || (d.notes is string && d.notes.size() <= 1000))
+          && (!('fileRef' in d) || d.fileRef == null
+              || (d.fileRef is string && d.fileRef.size() <= 300
+                  && !d.fileRef.lower().matches('.*(https?://|token=|firebasestorage|storage[.]googleapis).*')))
+          && (!('active' in d) || d.active is bool)
+          && (!('updatedBy' in d) || d.updatedBy == request.auth.uid);
+      }
+      function companyDocWriter() {
+        return isAuth() && notViewer()
+          && (ownsTenantByUid(companyId)
+              || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
+      }
+      match /companyDocs/{docId} {
+        allow read: if isAdmin()
+          || ownsTenantByUid(companyId)
+          || (isAuth() && request.auth.token.get('companyId', '') == companyId
+              && request.auth.token.get('role', '') in ['company_admin', 'manager', 'viewer']);
+        allow create, update: if companyDocWriter() && companyDocOk();
+        allow delete: if companyDocWriter();
+      }
+
       // Per-number contact labels (2026-10-12). Read: the solo owner, the
       // company's pipeline readers (company_admin / manager / viewer — the
       // phone_calls audience) and the platform admin. A sales_rep never reads

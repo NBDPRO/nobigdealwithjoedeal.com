@@ -909,6 +909,8 @@
            customer; "Storm feed unavailable" when the read fails; nothing when clear. -->
       <section id="homeStorm" aria-label="Storm" hidden></section>
       <section id="homeNextStop" aria-label="Next stop" hidden></section>
+      <!-- Company documents expiry warning (js/company-docs-ui.js, lazy bundle companydocs, 2026-10-18): a GL certificate, license or cert within 30 days of expiring, or expired. Hidden when all are fine. -->
+      <section id="homeDocExpiry" aria-label="Company documents" hidden></section>
       <!-- Needs-you strip (js/home-attention.js): phone calls that need you
            (counted in PEOPLE, the Call Center's rule), Stripe payments to
            assign, yard signs to pick up, review asks. Hidden when all are zero.
@@ -4523,6 +4525,9 @@
             </div>
           </div>
         </div>
+
+        <!-- Company documents (js/company-docs-ui.js; owner / company_admin edit, manager / viewer read) -->
+        <div id="companyDocsMount"></div>
 
         <div style="display:flex;gap:8px;margin-top:4px;">
           <button class="btn btn-orange" data-action="call" data-fn="_saveCompanyProfileSettings">💾 Save Company Profile</button>

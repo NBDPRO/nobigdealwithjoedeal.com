@@ -540,6 +540,13 @@
     // Call back now + Needs you (2026-10-16): the speed-to-lead strip in Field
     // and Focus and the money-and-momentum chips in Field and Mission. Kicked by
     // today-home.js at Home boot. Reads what Home already holds.
+    // Company documents (2026-10-18): the Settings -> Company Profile card and the
+    // Home expiry warning (js/company-docs-ui.js). Kicked by today-home.js boot.
+    companydocs: [
+      'css/company-docs.css?v=1',
+      'js/company-docs-logic.js?v=1',
+      'js/company-docs-ui.js?v=1'
+    ],
     homestrips: [
       'css/home-strips.css?v=1',
       'js/home-strips.js?v=1'
@@ -586,7 +593,7 @@
     reports:     ['reports'],
     map:         ['mapvendor'],
     draw:        ['mapvendor', 'drawtool'],
-    settings:    ['theme', 'tenantsettings']
+    settings:    ['theme', 'tenantsettings', 'companydocs']
   };
 
   // A bundle entry ending in .css is injected as a stylesheet instead of a

@@ -899,6 +899,10 @@ exports.callCenterSweep = require('./call-center').callCenterSweep;
 // whether calls/transcripts/Thursday are keeping up (bell + push to Jo only).
 // CALL_WATCH_ENABLED=true sends; otherwise it computes and logs.
 exports.callWatch = require('./call-watch').callWatch;
+// Daily 09:00 ET: the company's OWN documents (COI, comp, licenses, certs,
+// vehicle papers) at 30 / 14 / 7 days or expired -> one Agent-inbox report to
+// the owner per stage. Never a customer. DRY-RUN unless COMPANY_DOC_EXPIRY_ENABLED=true.
+exports.companyDocExpiryWatch = require('./company-doc-expiry').companyDocExpiryWatch;
 // The Call Center screen's writes (handled / attach) — phone_calls is
 // server-written only. Owner, admin, same-company admin/manager.
 exports.callCenterAction = require('./call-center').callCenterAction;
