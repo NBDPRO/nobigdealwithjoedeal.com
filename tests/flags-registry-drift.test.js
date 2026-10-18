@@ -91,8 +91,9 @@ for (const f of FLAGS) {
 // 41 (2026-10-15): + REVIEW_ASK_AUTO_EMAIL_ENABLED / REVIEW_ASK_AUTO_TEXT_ENABLED (two more gates).
 // 42 (2026-10-16): + REVIEW_ASK_EMAIL_PHOTO_ENABLED (a non-gate 'enabled' flag inside the review ask).
 // 43 (2026-10-18): + COMPANY_DOC_EXPIRY_ENABLED (a gate: the own-document expiry watch, dark).
-ok('registry pins 43 flags (update deliberately: 36 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag + the review photo)',
-  FLAGS.length === 43, String(FLAGS.length));
+// 44 (2026-10-18): + MORNING_BRIEF_DELTA_ENABLED (a gate: the brief's delta mode, dark).
+ok('registry pins 44 flags (update deliberately: 37 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag + the review photo)',
+  FLAGS.length === 44, String(FLAGS.length));
 
 // ── cron-gates.js stays the single polarity source ────────────────────────
 const gateNames = new Set(CRON_GATES.map((g) => g.name));
@@ -137,7 +138,7 @@ ok('no registry name looks like a secret (KEY/SECRET/TOKEN/PASSWORD)', FLAGS.eve
 ok('every group in GROUPS is used by at least one flag', GROUPS.every((g) => FLAGS.some((f) => f.group === g)));
 ok('the ships-dark hints are exactly the flags that shipped dark awaiting Jo\'s go',
   JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()) === JSON.stringify([
-    'AWAY_MODE_ENABLED', 'CARE_PLAN_MODE', 'COMPANY_DOC_EXPIRY_ENABLED', 'MISSED_CALL_AUTOTEXT_ENABLED', 'REVIEW_ASK_AUTO_TEXT_ENABLED', 'SOCIAL_GBP_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED',
+    'AWAY_MODE_ENABLED', 'CARE_PLAN_MODE', 'COMPANY_DOC_EXPIRY_ENABLED', 'MISSED_CALL_AUTOTEXT_ENABLED', 'MORNING_BRIEF_DELTA_ENABLED', 'REVIEW_ASK_AUTO_TEXT_ENABLED', 'SOCIAL_GBP_ENABLED', 'TEXT_INBOX_ENABLED', 'TEXT_NOTES_ENABLED',
     'THURSDAY_LABEL_PLAYBOOKS_ENABLED', 'TWILIO_INBOUND_ENABLED']),
   JSON.stringify(FLAGS.filter((f) => f.dark).map((f) => f.name).sort()));
 

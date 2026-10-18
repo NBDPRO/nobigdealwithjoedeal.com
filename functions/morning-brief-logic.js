@@ -589,11 +589,138 @@ function sectionsText(sec) {
   return out.join('\n');
 }
 
+// ─── delta mode (2026-10-18, MORNING_BRIEF_DELTA_ENABLED) ─────────────
+// Notification policy step 1. buildBrief gets `delta` (morning-brief-delta.js
+// computeDelta) only when the flag is on; without it none of this runs and the
+// brief is exactly the full-list brief above. New leads, the promise-read
+// warning and the repeat-number line are unchanged; the three standing lists
+// show as a count + link, named only when new / escalated / past a threshold.
+const DELTA_SHOW = 10;
+const PROMISES_URL = DASHBOARD_URL + '#/calls';
+
+function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+
+/** What changed, as short phrases (the subject). */
+function deltaNews(delta, sections) {
+  const L = (delta && delta.lists) || {};
+  const out = [];
+  const nl = ((sections && sections.newLeads) || []).length;
+  if (nl) out.push(plural(nl, 'new lead', 'new leads'));
+  if (L.needsWeek && L.needsWeek.shown.length) out.push(plural(L.needsWeek.shown.length, 'new signed job needs a week', 'new signed jobs need a week'));
+  if (L.promises && L.promises.shown.length) out.push(plural(L.promises.shown.length, "new said-you'd-do", "new said-you'd-dos"));
+  if (L.reviewAsks && L.reviewAsks.shown.length) out.push(plural(L.reviewAsks.shown.length, 'new review ask', 'new review asks'));
+  const nouns = { needsWeek: 'signed jobs', promises: 'promises', reviewAsks: 'review asks' };
+  for (const k of Object.keys(nouns)) {
+    const d = L[k];
+    if (d && d.crossed.length) out.push(nouns[k] + ' passed ' + d.crossed[d.crossed.length - 1]);
+  }
+  return out;
+}
+
+/** One standing-list count line: "17 open promises (3 new, 2 cleared)". */
+function standingLine(noun1, nounN, d) {
+  if (!d || !d.count) return '';
+  const bits = [];
+  if (!d.first && d.newCount) bits.push(d.newCount + ' new');
+  if (d.cleared) bits.push(d.cleared + ' cleared');
+  if (d.crossed.length) bits.push('passed ' + d.crossed[d.crossed.length - 1]);
+  if (!d.first && !bits.length) bits.push('no change');
+  return plural(d.count, noun1, nounN) + (bits.length ? ' (' + bits.join(', ') + ')' : '');
+}
+
+function deltaRows(delta) {
+  const L = (delta && delta.lists) || {};
+  const named = {
+    needsWeek: L.needsWeek ? L.needsWeek.shown : [],
+    promises: L.promises ? L.promises.shown : [],
+    reviewAsks: L.reviewAsks ? L.reviewAsks.shown : [],
+  };
+  const standing = [
+    { line: standingLine('signed job needs a week', 'signed jobs need a week', L.needsWeek), href: DASHBOARD_URL + '#/schedule', cta: 'Schedule → Plan Jobs' },
+    { line: standingLine('open promise', 'open promises', L.promises), href: PROMISES_URL, cta: "Call Center → Said you'd do" },
+    { line: standingLine('job ready for a review ask', 'jobs ready for a review ask', L.reviewAsks), href: DASHBOARD_URL + '#/home', cta: 'Home' },
+  ].filter((r) => r.line);
+  return { named, standing };
+}
+
+function deltaHtml(delta, sections) {
+  const s = sections || {};
+  const { named, standing } = deltaRows(delta);
+  const parts = [];
+  // Unchanged pieces first: new leads, the promise-read warning, repeat numbers.
+  const base = sectionsHtml({ newLeads: s.newLeads, promiseCheckFailed: s.promiseCheckFailed, quietLines: s.quietLines });
+  if (base) parts.push(base);
+  if (named.needsWeek.length) {
+    const n = named.needsWeek.length;
+    parts.push('<div class="section"><h2>New: ' + escapeHtml(plural(n, 'signed job needs a week', 'signed jobs need a week')) + '</h2>'
+      + named.needsWeek.slice(0, DELTA_SHOW).map((r) => '<div class="row"><a href="' + escapeHtml(customerUrl(r.leadId)) + '">' + escapeHtml(r.name) + '</a></div>').join('')
+      + (n > DELTA_SHOW ? '<div class="sub">…and ' + (n - DELTA_SHOW) + ' more in Plan Jobs.</div>' : '') + '</div>');
+  }
+  if (named.promises.length) {
+    const n = named.promises.length;
+    parts.push('<div class="section"><h2>New: you said you&#39;d… (' + n + ')</h2>'
+      + named.promises.slice(0, DELTA_SHOW).map((i) => {
+        const p = promiseLine(i);
+        const who = p.leadId ? '<a href="' + escapeHtml(customerUrl(p.leadId)) + '">' + escapeHtml(p.who) + '</a>' : escapeHtml(p.who);
+        return '<div class="row"><span class="pill">' + escapeHtml(p.label) + '</span> ' + who
+          + (p.due ? ' <span class="sub">· ' + escapeHtml(p.due) + '</span>' : '')
+          + '<div class="sub">' + escapeHtml(truncate(p.what, 220)) + '</div></div>';
+      }).join('')
+      + (n > DELTA_SHOW ? '<div class="sub">…and ' + (n - DELTA_SHOW) + ' more on the Call Center list.</div>' : '') + '</div>');
+  }
+  if (named.reviewAsks.length) {
+    const n = named.reviewAsks.length;
+    parts.push('<div class="section"><h2>New: ready for a review ask (' + n + ')</h2>'
+      + named.reviewAsks.slice(0, DELTA_SHOW).map((l) => '<div class="row"><a href="' + escapeHtml(customerUrl(l.id)) + '">' + escapeHtml(reviewAskName(l)) + '</a>'
+        + '<div class="sub">' + escapeHtml(l.jobTitle ? l.jobTitle + ' job wrapped' : 'Job wrapped') + '</div></div>').join('')
+      + (n > DELTA_SHOW ? '<div class="sub">…and ' + (n - DELTA_SHOW) + ' more.</div>' : '') + '</div>');
+  }
+  if (standing.length) {
+    parts.push('<div class="section"><h2>Standing — counts only</h2>'
+      + standing.map((r) => '<div class="row">' + escapeHtml(r.line) + ' · <a href="' + escapeHtml(r.href) + '">' + escapeHtml(r.cta) + '</a></div>').join('')
+      + '</div>');
+  }
+  return parts.join('');
+}
+
+function deltaText(delta, sections) {
+  const s = sections || {};
+  const { named, standing } = deltaRows(delta);
+  const out = [];
+  const base = sectionsText({ newLeads: s.newLeads, promiseCheckFailed: s.promiseCheckFailed, quietLines: s.quietLines });
+  if (base) out.push(base);
+  if (named.needsWeek.length) {
+    out.push('NEW: ' + plural(named.needsWeek.length, 'SIGNED JOB NEEDS A WEEK', 'SIGNED JOBS NEED A WEEK'));
+    for (const r of named.needsWeek.slice(0, DELTA_SHOW)) out.push('  ' + plain(r.name) + '\n    ' + customerUrl(r.leadId));
+    if (named.needsWeek.length > DELTA_SHOW) out.push('  …and ' + (named.needsWeek.length - DELTA_SHOW) + ' more in Plan Jobs.');
+    out.push('');
+  }
+  if (named.promises.length) {
+    out.push("NEW: YOU SAID YOU'D… (" + named.promises.length + ')');
+    for (const i of named.promises.slice(0, DELTA_SHOW)) { const p = promiseLine(i); out.push('  [' + p.label + '] ' + plain(p.who) + (p.due ? ' · ' + p.due : '') + ' — ' + truncate(p.what, 220) + (p.leadId ? '\n    ' + customerUrl(p.leadId) : '')); }
+    if (named.promises.length > DELTA_SHOW) out.push('  …and ' + (named.promises.length - DELTA_SHOW) + ' more on the Call Center list.');
+    out.push('');
+  }
+  if (named.reviewAsks.length) {
+    out.push('NEW: READY FOR A REVIEW ASK (' + named.reviewAsks.length + ')');
+    for (const l of named.reviewAsks.slice(0, DELTA_SHOW)) out.push('  ' + plain(reviewAskName(l)) + '  ' + customerUrl(l.id));
+    if (named.reviewAsks.length > DELTA_SHOW) out.push('  …and ' + (named.reviewAsks.length - DELTA_SHOW) + ' more.');
+    out.push('');
+  }
+  if (standing.length) {
+    out.push('STANDING — counts only');
+    for (const r of standing) out.push('  ' + r.line + ' — ' + r.href);
+    out.push('');
+  }
+  return out.join('\n');
+}
+
 /**
  * Build the whole brief.
  * @param {object} o  collectTodayItems' inputs plus:
  *   invoices: raw invoice docs (leadId on each)
  *   activityByLead / stormProofsByLead: { [leadId]: docs[] } (or Map)
+ *   delta: morning-brief-delta computeDelta result (delta mode only; absent = the full brief)
  * @returns {{ today, items, subject, html, text }}  items [] → nothing to send
  */
 function buildBrief(o) {
@@ -627,6 +754,7 @@ function buildBrief(o) {
   const briefLines = toMap(opts.briefLines);
   for (const it of items) if (it.leadId && briefLines.get(String(it.leadId))) it.briefLine = truncate(briefLines.get(String(it.leadId)), 200);
   const sections = opts.sections || null;
+  const delta = opts.delta || null;
   const hasSections = sectionsHaveContent(sections);
   const counts = sectionCounts(sections);
   const extra = [
@@ -652,12 +780,13 @@ function buildBrief(o) {
   const needsLabel = `${k} signed job${k === 1 ? '' : 's'} need${k === 1 ? 's' : ''} a week`;
   // Everything besides appointments, for the subject: signed jobs needing a
   // week (production flow) first, then the absorbed sections.
-  const tail = [k ? needsLabel : '', extra].filter(Boolean).join(' · ');
+  const news = delta ? deltaNews(delta, sections) : [];
+  const tail = delta ? (news.length ? news.join(' · ') : 'nothing new') : [k ? needsLabel : '', extra].filter(Boolean).join(' · ');
   // One morning email: sends on a day with no appointments when signed jobs
   // need a week or another section has content.
   const sendable = n > 0 || k > 0 || hasSections;
   const subject = !sendable ? '' : n === 0
-    ? (k ? `Today (${dateLabel}): ${tail}` : `Today (${dateLabel}): no appointments — ${extra}`)
+    ? (delta ? `Today (${dateLabel}): no appointments — ${tail}` : k ? `Today (${dateLabel}): ${tail}` : `Today (${dateLabel}): no appointments — ${extra}`)
     : `Today (${dateLabel}): ${n} appointment${n === 1 ? '' : 's'}`
       + (firstTimed ? ` — first at ${SW.fmtTime12(hmToMin(nyHm(firstTimed.sortMs)))}` : '')
       + (tail ? ` · ${tail}` : '');
@@ -679,8 +808,8 @@ function buildBrief(o) {
     </div>
     <div class="content">
       ${items.map(itemHtml).join('')}
-      ${needsWeekHtml(needsWeek)}
-      ${hasSections ? sectionsHtml(sections) : ''}
+      ${delta ? '' : needsWeekHtml(needsWeek)}
+      ${delta ? deltaHtml(delta, sections) : hasSections ? sectionsHtml(sections) : ''}
       <p style="font-size:12px;color:#6b7280;text-align:center;margin-top:16px;">
         From the CRM only — open a customer for the full record. <a href="${DASHBOARD_URL}#settings">Manage email preferences</a>.
       </p>
@@ -696,13 +825,13 @@ function buildBrief(o) {
     `${headline} — ${dateLabel}`,
     '',
     items.map(itemText).join('\n\n'),
-    k ? '\n' + needsWeekText(needsWeek) : '',
+    !delta && k ? '\n' + needsWeekText(needsWeek) : '',
     '',
-    hasSections ? sectionsText(sections) : '',
+    delta ? deltaText(delta, sections) : hasSections ? sectionsText(sections) : '',
     'Internal brief for the account owner. Preferences: ' + DASHBOARD_URL + '#settings',
   ].join('\n');
 
-  return { today, items, subject, html, text, sendable, sectionCounts: counts };
+  return { today, items, subject, html, text, sendable, sectionCounts: counts, deltaNews: news };
 }
 
 module.exports = {
