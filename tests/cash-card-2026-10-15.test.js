@@ -96,8 +96,10 @@ const invs = [
   { id: 'c', leadId: 'Lc', customerName: 'Cara Diaz', total: 1000, balanceDue: 600, status: 'partial', createdAt: iso(NOW - 40 * DAY), payments: [] },
   // sent, owes 2000, newer
   { id: 'd', leadId: 'Ld', customerName: 'Dev Patel', total: 2000, balanceDue: 2000, status: 'sent', createdAt: iso(NOW - 3 * DAY) },
-  // paid the day before Monday: inside a rolling 7 days, NOT this week
-  { id: 'g', leadId: 'Lg', total: 300, balanceDue: 0, status: 'paid', payments: [{ amount: 300, at: iso(weekStart - DAY) }] },
+  // paid the last millisecond before Monday: inside a rolling 7 days, NOT this week.
+  // (weekStart - DAY fell OUTSIDE the rolling window on every Sunday, so the
+  // 'not a rolling 7 days' check went red once a week.)
+  { id: 'g', leadId: 'Lg', total: 300, balanceDue: 0, status: 'paid', payments: [{ amount: 300, at: iso(weekStart - 1) }] },
   // a draft and a void are never "open"
   { id: 'e', leadId: 'Le', total: 900, balanceDue: 900, status: 'draft', createdAt: iso(NOW - 90 * DAY) },
   { id: 'f', leadId: 'Lf', total: 900, balanceDue: 0, status: 'void', createdAt: iso(NOW - 90 * DAY) },
