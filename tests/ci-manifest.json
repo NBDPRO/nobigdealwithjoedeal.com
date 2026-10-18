@@ -216,6 +216,7 @@
     "estimate-v2-payload.test.js",
     "estimate-rounding-line-2026-09-28.test.js",
     "expenses-logic.test.js",
+    "receipt-health-2026-10-18.test.js",
     "function-orphans.test.js",
     "funnel-recovery-hardening.test.js",
     "background-job-reliability-2026-10-03.test.js",
