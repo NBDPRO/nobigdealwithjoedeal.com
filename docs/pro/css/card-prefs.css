@@ -25,5 +25,7 @@
 @media (max-width:768px){html[data-layout="bento"] .home-hdr-acts > .hc-home-open{display:inline-flex;}
   /* with Arrange showing, two equal-basis buttons (today-home.css flex:1 1 0) cannot wrap, so at a 320 px
      phone with Large text "New estimate" ran off the edge (visual audit 2026-10-19): size by content, wrap */
+  /* ...and the title kept 49 px ("WE...") beside them at 390: let the header wrap so the actions drop under it */
+  html[data-layout="bento"] #view-home .page-hdr{flex-wrap:wrap;}
   html[data-layout="bento"] .home-hdr-acts{flex-wrap:wrap;max-width:100%;}
   html[data-layout="bento"] .home-hdr-acts > .btn{flex:1 1 auto;}}

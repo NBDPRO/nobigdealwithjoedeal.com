@@ -16,5 +16,11 @@ module.exports = {
     ok('every Home header button ends inside the screen', r.right <= r.vw, JSON.stringify(r));
     ok('Bento: nothing scrolls sideways', (await sideScroll(P.page)) === 0);
     await P.ctx.close();
+    // 390 px (no Large text needed): the greeting must keep a readable width beside Arrange / New estimate
+    const W = await open({ w: 390, h: 844, touch: true, scheme: 'dark' });
+    await useLayout(W.page, 'bento');
+    const g = await W.page.evaluate(() => { const h = document.querySelector('#homeGreeting'); return h ? Math.round(h.getBoundingClientRect().width) : null; });
+    ok('Bento 390: the Home greeting keeps >= 150 px (it was 49 px: "WE...")', g !== null && g >= 150, String(g));
+    await W.ctx.close();
   },
 };
