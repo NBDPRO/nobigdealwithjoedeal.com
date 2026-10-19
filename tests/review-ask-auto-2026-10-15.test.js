@@ -173,6 +173,25 @@ const deps = (o) => Object.assign({ env: ON, FieldValue: FV, logger: quiet, nowM
       && RA.reviewUrlFor(leadOf({ companyId: 'x', userId: 'x' }), '') === '');
   }
 
+  // ═══ D0: caps (2026-10-19) ═══
+  console.log('\nD0. per-run cap and age limit (messaging_controls)');
+  {
+    const seed = () => makeDb(Object.assign(baseSeed(), {
+      'leads/L1': leadOf(), 'invoices/i1': paidInvOf('L1', ago(8)),
+      'leads/L2': leadOf({ email: 'two@example.com' }), 'invoices/i2': paidInvOf('L2', ago(8)),
+    }));
+    const resend = fakeResend();
+    const r = await AUTO.runForUser(seed(), NBD, deps({ resend, maxAsks: 1 }));
+    ok('maxAsks 1 with two eligible jobs -> ONE email, the other held (per_run_cap)', r.asked === 1 && resend.sent.length === 1 && r.results.some((x) => x.reason === 'per_run_cap'), JSON.stringify(r.results));
+    const r0 = await AUTO.runForUser(seed(), NBD, deps({ resend: fakeResend(), maxAsks: 0 }));
+    ok('maxAsks 0 -> nothing is sent (zero is zero)', r0.asked === 0);
+    const old = fakeResend();
+    const ra = await AUTO.runForUser(seed(), NBD, deps({ resend: old, maxAgeDays: 7 }));
+    ok('maxAgeDays 7 -> a job paid 8 days ago is never asked (too_old), however wide the planner window is', ra.asked === 0 && old.sent.length === 0 && ra.results.every((x) => x.reason === 'too_old'), JSON.stringify(ra.results));
+    const rb = await AUTO.runForUser(seed(), NBD, deps({ resend: fakeResend(), maxAgeDays: 9 }));
+    ok('...and with a 9-day limit the same jobs are asked (positive control)', rb.asked === 2, JSON.stringify(rb.results));
+  }
+
   // ═══ D ═══
   console.log('\nD. the sweep end to end');
   {

@@ -169,6 +169,22 @@ const GLOBAL_ON = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: 
     ok('an unknown value falls back to the safe default (this webhook replies)', /<Message>/.test(String(r.res.body)));
   }
 
+  console.log('G. sms-texting-gate asks the master switch');
+  {
+    const closed = W.makeWorld({ noControls: true, docs: { 'messaging_controls/global': Object.assign({}, GLOBAL_ON, { customerSendsEnabled: false }) } });
+    const Gt = W.load(closed, 'sms-texting-gate.js');
+    const s = await Gt.textingStatus(closed.db, NBD);
+    ok('textingStatus: master switch closed -> not allowed, reason messaging_paused (every existing sender already calls this)', s.allowed === false && s.reason === 'messaging_paused', JSON.stringify(s));
+    const s2 = await Gt.textingStatus(closed.db, NBD, { ignoreGlobal: true });
+    ok('textingStatus: ignoreGlobal (company settings screen, rep-own-phone check) -> the company answer only', s2.allowed === true && s2.reason === null, JSON.stringify(s2));
+    const open = W.makeWorld({});
+    const s3 = await W.load(open, 'sms-texting-gate.js').textingStatus(open.db, NBD);
+    ok('textingStatus: switches open -> allowed', s3.allowed === true);
+    const missing = W.makeWorld({ noControls: true });
+    const s4 = await W.load(missing, 'sms-texting-gate.js').textingStatus(missing.db, NBD);
+    ok('textingStatus: no controls doc -> not allowed', s4.allowed === false && s4.reason === 'messaging_paused');
+  }
+
   console.log('\n' + passed + ' passed, ' + failed + ' failed');
   process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

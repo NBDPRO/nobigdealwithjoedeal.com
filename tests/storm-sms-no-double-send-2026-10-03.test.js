@@ -678,6 +678,13 @@ const nwsFetched = (w) => w.fetchLog.some((f) => f.url.includes('api.weather.gov
   ok('7h. a YES from the number we texted confirms exactly that subscriber', n === 1 && confirmedDocs.length === 1, n + ' ' + confirmedDocs.length);
   const again = await SC.confirmFromReply(w.db, asked, { serverTimestamp: () => fakeTs(clock.ms) });
   ok('7h. a second YES changes nothing', again === 0);
+  mk('c5', { phone: '(859) 555-0155', smsConfirmPhone: '+18595550155' });   // a phone on file but we never asked (no smsConfirmRequestedAt)
+  const corrupt = await SC.confirmFromReply(w.db, '+18595550155', { serverTimestamp: () => fakeTs(clock.ms) });
+  ok('7h. a YES only confirms a subscriber we actually asked (smsConfirmRequestedAt), not any doc carrying the phone', corrupt === 0 && !w.db.store.get('storm_alert_subscribers/c5').smsConfirmedAt);
+  mk('c6', { phone: '(859) 555-0166', smsConfirmedAt: fakeTs(clock.ms - 86400000) });   // already confirmed some other way
+  const before6 = out.length;
+  await SC.sendPendingConfirmations(args());
+  ok('7g. an already-confirmed subscriber is never sent a confirmation text', !out.slice(before6).some((m) => /0166/.test(m.to)), JSON.stringify(out.slice(before6).map((m) => m.to)));
 }
 {
   // The confirmation step is a text to a customer: it goes through the same switches.
