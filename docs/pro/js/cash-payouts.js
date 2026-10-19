@@ -271,6 +271,7 @@
         if (!note) { showErr('Say why you are voiding it.'); return; }
         await w.updateDoc(w.doc(w.db, 'expenses', S.id), {
           deleted: true,
+          deletedAt: w.serverTimestamp(),
           editLog: appendLog(prev.editLog, logEntry(me, note, 'void', Date.now())),
           updatedAt: w.serverTimestamp(),
         });

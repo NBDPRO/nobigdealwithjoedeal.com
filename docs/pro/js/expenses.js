@@ -94,7 +94,7 @@
     }
     try {
       var snap = await window.getDocs(q);
-      // A voided row (cash payouts, deleted:true) is kept in Firestore for its
+      // A voided row (a cash payout marked deleted) is kept in Firestore for its
       // audit note but must not count in any total.
       return snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); })
         .filter(function (e) { return e.deleted !== true; });
