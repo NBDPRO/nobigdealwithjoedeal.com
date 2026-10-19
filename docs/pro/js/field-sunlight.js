@@ -9,10 +9,15 @@
  *           brings the rep's theme straight back.
  *   - Auto  turns it on while the phone is within 150 m of a customer's
  *           address and off again once it is more than 250 m away (the gap
- *           stops it flapping at the edge). It follows the same at-a-customer
- *           rule the Auto theme uses (js/auto-theme.js): lead coordinates
- *           from window._leads, location only if the browser ALREADY granted
- *           it, never a prompt from a timer, nothing stored or logged.
+ *           stops it flapping at the edge). It runs its OWN geofence with the
+ *           same thresholds and privacy rules as auto-theme.js's
+ *           refreshJobSite (that one only runs when the Auto theme "at a
+ *           customer" box is ticked, so Sunlight cannot depend on it, and it
+ *           is not a registerRule theme rule): lead coordinates from
+ *           window._leads, location only if the browser ALREADY granted it,
+ *           never a prompt from a timer, nothing stored or logged.
+ *           FAILS CLOSED: permission revoked turns it off at once; a fix that
+ *           errors or times out turns it off after MISS_LIMIT polls in a row.
  *
  * The preference is a device key (nbd_sunlight: 'off' | 'on' | 'auto') kept
  * across sign-out like nbd_field_sun. 'on' is stamped before first paint by
@@ -31,6 +36,7 @@
   var MODES = ['off', 'on', 'auto'];
   var ENTER_M = 150, LEAVE_M = 250;
   var POLL_MS = 90000;
+  var MISS_LIMIT = 2;        // consecutive polls without a fix before Auto lets go
   var RAD = Math.PI / 180;
 
   // ── pure rules ───────────────────────────────────────────────────────
@@ -75,7 +81,7 @@
   };
 
   // ── glue ─────────────────────────────────────────────────────────────
-  var mode = 'off', onSite = false, timer = null;
+  var mode = 'off', onSite = false, timer = null, misses = 0;
 
   function lsGet() { try { return W.localStorage.getItem(KEY); } catch (e) { return null; } }
   function lsSet(v) { try { W.localStorage.setItem(KEY, v); } catch (e) {} }
@@ -98,14 +104,19 @@
     if (mode !== 'auto' || doc.hidden) return;
     var nav = W.navigator;
     if (!nav || !nav.geolocation || !nav.permissions || !nav.permissions.query) return;
+    // Fail closed: "no answer" must never leave Sunlight stuck on after the rep
+    // has left the address (and the hint claiming they are still there).
+    function drop() { misses = 0; if (onSite) { onSite = false; paint(); } }
+    function miss() { misses++; if (misses >= MISS_LIMIT) drop(); }
     nav.permissions.query({ name: 'geolocation' }).then(function (st) {
-      if (st.state !== 'granted') return;            // never prompt from a timer
+      if (st.state !== 'granted') { drop(); return; }   // never prompt from a timer
       nav.geolocation.getCurrentPosition(function (pos) {
+        misses = 0;
         var m = nearestMeters([pos.coords.latitude, pos.coords.longitude], W._leads || []);
         var next = nextOnSite(onSite, m);
         if (next !== onSite) { onSite = next; paint(); }
-      }, function () {}, { maximumAge: 60000, timeout: 8000 });
-    }).catch(function () {});
+      }, miss, { maximumAge: 60000, timeout: 8000 });
+    }).catch(miss);
   }
 
   function schedule() {
@@ -117,6 +128,7 @@
     mode = normalizeMode(next);
     lsSet(mode);
     if (mode !== 'auto') onSite = false;
+    misses = 0;
     paint();
     schedule();
   }

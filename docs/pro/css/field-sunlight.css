@@ -19,3 +19,18 @@ html.sun-all body * { text-shadow: none; }
 /* no frosted glass or wallpaper behind text in the sun */
 html.sun-all body { background-image: none; }
 html.sun-all *, html.sun-all *::before, html.sun-all *::after { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+/* My Skin pictures never sit behind sunlight text: the ::before wallpaper, the
+ * per-theme .myskin-layer pair, the mascot and the animated theme overlay. */
+html.sun-all.my-skin-wallpaper::before { content: none; }
+html.sun-all .myskin-layer, html.sun-all .myskin-mascot, html.sun-all #te-overlay { display: none !important; }
+html.sun-all:not(#fa-sun) { background-color: #ffffff; }
+
+/* OS high contrast (ui-primitives.css) forces --m/--rule/--br to 60-88% of the text colour with
+ * !important; in sunlight they must stay pure black. Higher specificity wins between !importants. */
+@media (prefers-contrast: more) {
+  html.sun-all:not(#fa-sun) {
+    --m: #000000 !important; --rule: #000000 !important; --br: #000000 !important;
+    --ui-line-hair: #000000 !important; --ui-line-divider: #000000 !important; --ui-line-strong: #000000 !important;
+  }
+}
