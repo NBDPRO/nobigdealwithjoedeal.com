@@ -1,0 +1,15 @@
+/* Customer payment backfill (js/payment-backfill.js, 2026-10-19). Reuses the sp-* sheet
+   classes from sub-payments.css (same bundle); only the extras live here. Mobile-first. */
+.pb-overlay { z-index: 10080; }
+.pb-ta { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; min-height: 160px; white-space: pre; overflow-x: auto; }
+.pb-one summary { list-style: none; display: flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; }
+.pb-one summary::-webkit-details-marker { display: none; }
+.pb-drop { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 12px; border: 1px dashed var(--br, #2a2f37); }
+.pb-tray { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.pb-file { display: grid; grid-template-columns: 56px 1fr; gap: 8px; align-items: center; }
+.pb-file .sp-btn { grid-column: 1 / -1; }
+.pb-prev { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; border: 1px solid var(--br, #2a2f37); }
+.pb-prevpdf { display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; }
+.pb-pick { height: auto; padding-top: 8px; padding-bottom: 8px; text-align: left; line-height: 1.3; }
+.pb-errs, .pb-hits { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+.pb-errs li { margin: 2px 0; }

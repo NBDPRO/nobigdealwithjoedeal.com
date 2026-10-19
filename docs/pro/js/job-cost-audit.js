@@ -379,6 +379,7 @@
       '<div class="jc-sub">' + esc(PHASE_LABEL[j.phase] || '') + ' · ' + esc(j.trade === 'general' ? 'no trade set' : j.trade.replace(/\+/g, ' + ')) + '</div>' + numsHtml(c.s) +
       '<div class="jc-kinds">' + kindChips(c.s) + '</div>' + estPromptHtml(j.id) + flagCardsHtml(c) +
       '<div class="jc-sec"><h4 class="jc-h">Costs on this job</h4>' + costRowsHtml(c) + '</div>' +
+      (w.NBDSubPayments && w.NBDSubPayments.enabled() ? '<div class="jc-sec"><button type="button" class="jc-btn jc-primary jc-wide" data-sp-action="log-for-job" data-sp-job="' + esc(j.id) + '">Log a sub payment (pick sub, amount, method, photo)</button></div>' : '') +
       '<div class="jc-sec" id="jcEntry"><h4 class="jc-h">Add a cost</h4>' + entryHtml(c, false) +
       '<button type="button" class="jc-btn jc-primary jc-wide" data-jc-action="save">Save cost</button></div>' +
       '<div class="jc-act"><button type="button" class="jc-btn" data-jc-action="complete" data-jc-id="' + esc(j.id) + '">' + (needsConfirm ? 'Yes, costs are complete' : 'Costs complete') + '</button>' +
@@ -754,5 +755,30 @@
     return '<button type="button" class="btn btn-ghost" data-jc-open="1" title="Find jobs with missing sub and labor costs">🔎 Job cost audit</button>';
   }
 
-  w.NBDJobCostAuditor = { enabled, canWrite, open, panelHtml, buttonHtml, buildCost, parseCents, TYPES, SOURCE };
+  // Direction A of the Sub payments sorter (flag subPaymentsSorter): the jobs whose
+  // queue row says "No labor / sub cost logged". Same load and same rules as the
+  // queue above, nothing drawn; the auditor's own open sheet (S) is left alone.
+  // -> { rows:[{id,name,phase,collectedCents,directCents,marginPct}], collectedBy{} } | null
+  async function noSubQueue() {
+    if (!canWrite() || !LG()) return null;
+    const keep = S;
+    S = null;
+    try {
+      if (!(await load())) return null;
+      const rows = S.queue.rows.filter((r) => r.groups.indexOf('no_sub') !== -1).map((r) => ({
+        id: r.id, name: r.name, phase: r.phase, collectedCents: r.summary.collectedCents, directCents: r.summary.directCents, marginPct: r.summary.marginPct,
+      }));
+      return { rows, collectedBy: S.collected, hasSubByLead: Object.keys(S.by).reduce((o, k) => { o[k] = S.by[k].some((e) => LG().isLiveDirect(e) && LG().kindOf(e) === 'sub'); return o; }, {}) };
+    } finally { S = keep; }
+  }
+  // A sub payment was saved from the sorter while this sheet is open: show it.
+  if (typeof w.addEventListener === 'function' && !w._NBD_JC_SUBPAY) {
+    w._NBD_JC_SUBPAY = true;
+    w.addEventListener('nbd:sub-payment-saved', (ev) => {
+      if (!S || !ev || !ev.detail || !ev.detail.row) return;
+      S.expenses.push(ev.detail.row); S.changed = true; derive(); render();
+    });
+  }
+
+  w.NBDJobCostAuditor = { enabled, canWrite, open, panelHtml, buttonHtml, buildCost, parseCents, noSubQueue, TYPES, SOURCE };
 })();

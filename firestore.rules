@@ -762,6 +762,8 @@ service cloud.firestore {
           // (functions/jobs-mirror.js). Server-owned in phase 1: a client
           // re-saving the same value is fine, changing it is not.
           && didNotChange(['activeJobId'])
+          // paymentBackfill is set once at create by the owner side, never toggled after.
+          && didNotChange(['paymentBackfill'])
           // leads/{id}.carePlan mirrors the Roof Care Plan membership
           // (functions/care-plan.js webhook). It drives the member badge, the
           // 10% repair discount and storm priority, so only the server sets it.
@@ -820,6 +822,8 @@ service cloud.firestore {
         // The first job is made by the server (jobs-mirror.js), never claimed
         // by the client.
         && !('activeJobId' in request.resource.data)
+        // paymentBackfill silences every after-install automation: owner side only.
+        && (!('paymentBackfill' in request.resource.data) || backfillWriterOk())
         // Plan lead cap, enforced here and metered by the server (above).
         && leadMeterOk(request.resource.data);
 
@@ -1337,6 +1341,45 @@ service cloud.firestore {
     // a negative/huge amount or flip costType to corrupt every downstream total.
     // Absence-safe (taxCents/costType validated only when present) so a legacy or
     // fallback-costType doc still edits; amountCents is required + a non-negative int.
+    // Payment backfill (2026-10-19, docs/pro/js/payment-backfill.js): only the
+    // OWNER side may write the backfill markers. The screen is owner-only in the UI;
+    // this makes it true at the rules layer: platform admin, company_admin, or a solo
+    // operator (no role, no company claim or the company is their own uid).
+    function backfillWriterOk() {
+      return isAdmin()
+        || request.auth.token.get('role', '') == 'company_admin'
+        || (request.auth.token.get('role', '') == ''
+            && (request.auth.token.get('companyId', '') == '' || request.auth.token.get('companyId', '') == request.auth.uid));
+    }
+    function hasBackfillMark(d) {
+      return d.get('source', '') == 'backfill' || d.get('backfilled', false) == true || d.get('backfillKey', '') != ''
+        || d.get('paymentBackfill', false) == true;
+    }
+    // On an update the markers are frozen: set at create, never added, changed or removed.
+    function backfillMarksFrozen() {
+      return request.resource.data.get('backfilled', false) == resource.data.get('backfilled', false)
+        && request.resource.data.get('backfillKey', '') == resource.data.get('backfillKey', '')
+        && request.resource.data.get('paymentBackfill', false) == resource.data.get('paymentBackfill', false)
+        && ((request.resource.data.get('source', '') == 'backfill') == (resource.data.get('source', '') == 'backfill'));
+    }
+    // A void (deleted false -> true) on an invoice carries a plain-text note.
+    function invoiceVoidNoted() {
+      return !(request.resource.data.get('deleted', false) == true && resource.data.get('deleted', false) != true)
+        || (request.resource.data.get('voidNote', null) is string
+            && request.resource.data.get('voidNote', '').size() > 0
+            && request.resource.data.get('voidNote', '').size() <= 300);
+    }
+    // Sub-payment proof photos: each entry is a path inside THE WRITER'S OWN receipts/sub-proofs
+    // folder (the Storage rules make that folder owner-only), never a URL.
+    function proofPathAt(p, i) {
+      return p.size() <= i
+        || (p[i] is string && p[i].matches('receipts/' + request.auth.uid + '/sub-proofs/[A-Za-z0-9._-]+'));
+    }
+    function proofPathsOk(p) {
+      return p.size() <= 10
+        && proofPathAt(p, 0) && proofPathAt(p, 1) && proofPathAt(p, 2) && proofPathAt(p, 3) && proofPathAt(p, 4)
+        && proofPathAt(p, 5) && proofPathAt(p, 6) && proofPathAt(p, 7) && proofPathAt(p, 8) && proofPathAt(p, 9);
+    }
     function validExpenseMoney() {
       let d = request.resource.data;
       return d.amountCents is int && d.amountCents >= 0 && d.amountCents < 1000000000
@@ -1349,7 +1392,12 @@ service cloud.firestore {
         // Cash payouts (cash-payouts.js, 2026-10-19): how the crew was paid and
         // a bounded edit/void audit trail.
         && (!('paymentMethod' in d) || d.paymentMethod in ['cash', 'zelle', 'check', 'other'])
-        && (!('editLog' in d) || (d.editLog is list && d.editLog.size() <= 25));
+        && (!('editLog' in d) || (d.editLog is list && d.editLog.size() <= 25))
+        // Sub payments sorter (sub-payments.js, 2026-10-19): the proof photos are
+        // Storage PATHS (receipts/{uid}/sub-proofs/...), a bounded list, and the
+        // "Not a job cost" answer is a plain boolean.
+        && (!('proofPaths' in d) || (d.proofPaths is list && (isAdmin() || proofPathsOk(d.proofPaths))))
+        && (!('notJobCost' in d) || d.notJobCost is bool);
     }
     // Yard signs (yard-signs.js, 2026-09-29): where each sign is, a photo,
     // placed / pickup dates. The rep who placed it owns it; the company
@@ -3121,7 +3169,10 @@ service cloud.firestore {
         // …and (R3-6, 2026-10-06) the id is a plain doc id naming only the
         // writer's own / company's lead: payment-timeline.js writes a
         // payment note onto it.
-        && dealLeadOk(request.resource.data);
+        && dealLeadOk(request.resource.data)
+        // Backfill markers are owner-side only (a rep cannot mint or fake a backfill invoice).
+        && (!hasBackfillMark(request.resource.data) || backfillWriterOk())
+        && (!('payments' in request.resource.data) || (request.resource.data.payments is list && request.resource.data.payments.size() <= 200));
       // .get('role','') — reading an absent claim with != THROWS (solo owners
       // have no role claim). Freeze owner/tenant/provenance and the lead/job
       // it bills (R3-6); money fields stay mutable (markPaid rewrites
@@ -3139,6 +3190,9 @@ service cloud.firestore {
           // (leadIdStable, 2026-10-05).
           && didNotChange(['createdBy', 'companyId', 'estimateId', 'createdAt', 'jobId'])
           && leadIdStable()
+          && backfillMarksFrozen()
+          && invoiceVoidNoted()
+          && (!('payments' in request.resource.data) || (request.resource.data.payments is list && request.resource.data.payments.size() <= 200))
         );
       allow delete: if isAdmin()
         || (isOwner(resource.data.createdBy) && notViewer())

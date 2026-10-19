@@ -30,7 +30,7 @@
  */
 
 const roles = require('./stage-roles');
-const { isQuietBackfill } = require('./quiet-backfill');
+const { isQuietBackfill, isBackfillInvoice } = require('./quiet-backfill');
 const MCR = require('./missed-call-reply-logic');
 const SendWindow = require('./sms-send-window');
 
@@ -75,6 +75,8 @@ function receivedMs(invoices) {
   let m = 0;
   for (const inv of Array.isArray(invoices) ? invoices : []) {
     if (!inv || inv.deleted === true || DEAD[String(inv.status || '').toLowerCase()]) continue;
+    // A payment-backfill invoice records money collected long ago: its date never opens the ask window.
+    if (isBackfillInvoice(inv)) continue;
     const pays = (Array.isArray(inv.payments) ? inv.payments : []).filter((p) => p && !p.refund && Number(p.amount) > 0);
     if (pays.length) { for (const p of pays) m = Math.max(m, ms(p.at)); continue; }
     if (String(inv.status || '').toLowerCase() === 'paid') m = Math.max(m, ms(inv.paidAt));

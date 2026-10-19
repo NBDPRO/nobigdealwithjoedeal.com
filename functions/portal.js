@@ -59,7 +59,7 @@ const { reencodePhoto } = require('./photo-reencode');
 // contractor's COST basis.
 const { buildDisplayRows, buildDocLineItems, tierApplies } = require('./customer-estimate-rows');
 const { portalPriced } = require('./signed-price');
-const { isQuietBackfill } = require('./quiet-backfill');
+const { isQuietBackfill, hasBackfillInvoice } = require('./quiet-backfill');
 // Pay link (stripePaymentLink OR stripeHostedUrl) + the Kentucky hold in one
 // call: the homeowner never sees a link the KRS 367.626 window still holds.
 const KyLaw = require('./ky-insurance-law');
@@ -1272,7 +1272,7 @@ exports.getHomeownerPortalView = onRequest(
         // Not for a job marked "already completed" after the fact (Jo,
         // 2026-10-13: no review ask for those) — the card, and with it the
         // Google review link, never shows.
-        canRate: hp.paidInFull && !isQuietBackfill(lead),
+        canRate: hp.paidInFull && !isQuietBackfill(lead) && !hasBackfillInvoice(tenantInvoices),
         submitted: typeof lead.customerRating === 'number' && lead.customerRating > 0,
         stars: typeof lead.customerRating === 'number' ? lead.customerRating : null,
         // W134 CRITICAL fix: enforce https?:// scheme so a rep with a
@@ -2146,7 +2146,7 @@ exports.submitCustomerRating = onRequest(
         // the card the homeowner sees and the gate that accepts their rating
         // agree by construction rather than by two lists staying in sync.
         const ratingInvoices = _tenantInvoices(invDocs, portalTenant(tok, lead));
-        if (!paidInFullFor(lead, ratingInvoices) || isQuietBackfill(lead)) {
+        if (!paidInFullFor(lead, ratingInvoices) || isQuietBackfill(lead) || hasBackfillInvoice(ratingInvoices)) {
           const e = new Error('not-complete'); e._http = 409; e._msg = 'You can rate once the job is complete.'; throw e;
         }
         tx.update(leadRef, {

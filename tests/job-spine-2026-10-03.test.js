@@ -379,7 +379,7 @@ const C = sb.__out;
       /trigger === 'BOOKING_CREATED' && leadId\)[\s\S]{0,200}spineAfterBooking\(db, \{ leadId/.test(cc));
     const mp = strip(read('functions/money-paper.js'));
     ok('money-paper.js handle runs the spine first, before the kill switch',
-      /async function handle\([^)]*\) \{\s*const spine = await spineOnInvoice\(/.test(mp));
+      /async function handle\([^)]*\) \{\s*(?:if \(require\('\.\/quiet-backfill'\)\.isBackfillInvoice\(after\)\) \{[\s\S]*?\n  \}\s*)?const spine = await spineOnInvoice\(/.test(mp));
     const st = strip(read('functions/stripe.js'));
     ok('stripe.js no longer writes the lead stage on a payoff (one path: the invoice trigger)',
       !/stage: 'final_payment'/.test(st) && !/lead_auto_advanced_on_payment/.test(st));

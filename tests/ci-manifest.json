@@ -220,6 +220,8 @@
     "cash-payouts-2026-10-19.test.js",
     "messaging-center-2026-10-19.test.js",
     "job-cost-audit-2026-10-19.test.js",
+    "sub-payments-2026-10-19.test.js",
+    "payment-backfill-2026-10-19.test.js",
     "function-orphans.test.js",
     "funnel-recovery-hardening.test.js",
     "background-job-reliability-2026-10-03.test.js",

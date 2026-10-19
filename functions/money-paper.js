@@ -379,6 +379,15 @@ async function flagPaidNotClosed(deps, invoiceId, inv) {
 }
 
 async function handle(invoiceId, after, deps, before) {
+  // A payment-backfill invoice (docs/pro/js/payment-backfill.js) records money
+  // collected long ago: nothing here may react to it. The timeline note is the
+  // only thing still written; no spine move, no filed paper, no task.
+  if (require('./quiet-backfill').isBackfillInvoice(after)) {
+    const tl = before !== undefined
+      ? await (deps.writePaymentTimeline || require('./payment-timeline').writePaymentTimeline)(deps.db, invoiceId, before, after, { FieldValue: deps.FieldValue })
+      : null;
+    return tl && (tl.written || tl.existing) ? { skipped: 'backfill', timeline: tl } : { skipped: 'backfill' };
+  }
   const spine = await spineOnInvoice(deps, invoiceId, before, after);
   // One timeline line per NEW payment, every tenant, every path (the Stripe
   // webhook, the ledger, Mark Paid, Record payment) — payment-timeline.js,

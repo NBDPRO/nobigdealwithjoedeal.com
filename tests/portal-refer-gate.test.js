@@ -71,7 +71,7 @@ group('It renders only when the job is paid in full', () => {
 
 group('canRate is the server\'s paid-in-full gate', () => {
   assert('the rating card flag is the resolver\'s paidInFull',
-    /canRate: hp\.paidInFull(?: && !isQuietBackfill\(lead\))?,/.test(PORTAL_FN),
+    /canRate: hp\.paidInFull(?: && !isQuietBackfill\(lead\))?(?: && !hasBackfillInvoice\(tenantInvoices\))?,/.test(PORTAL_FN),
     'refer + rate should agree; if this moves, move the referral gate with it');
   const HP = require(path.join(ROOT, 'functions', 'homeowner-progress.js'));
   assert('an unpaid finished roof does not unlock it',

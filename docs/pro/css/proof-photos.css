@@ -1,0 +1,6 @@
+/* Shared proof thumbnails (js/proof-photos.js, 2026-10-19). 48px targets. */
+.pp-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+.pp-thumb { position: relative; width: 56px; height: 56px; padding: 0; border-radius: 10px; border: 1px solid var(--br, #2a2f37); background: var(--s2, rgba(255, 255, 255, .04)); overflow: hidden; cursor: pointer; }
+.pp-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pp-pdf { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 13px; font-weight: 800; color: var(--t, #fff); }
+.pp-missing::after { content: "?"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--m, #9ca3af); }

@@ -76,6 +76,8 @@ function projectClosed(lead) {
   // A job marked "already completed" after the fact (schedule planner,
   // 2026-10-13) sits at Install Done, which never counts now anyway.
   if (String(lead.stage || '') === 'install_complete' && _isQuietBackfill(lead)) return false;
+  // A customer made by the payment backfill never earns a referral bonus, at any stage (closed included).
+  if (lead.paymentBackfill === true) return false;
   return PIF.isPaidStage(lead);
 }
 /** PURE. Paid in full for the referral bonus: the stage, nothing owing, money received. */

@@ -669,6 +669,13 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       entry.proofStoragePath = String(input.proofStoragePath);
       entry.proofName = _cleanText(input.proofName, PROOF_NAME_MAX) || 'proof';
     }
+    // More photos of the same payment (payment backfill, 2026-10-19: both sides of a
+    // check, a deposit slip). Paths only, the same private payment-proofs/ folder,
+    // at most 5 beyond the first; anything else is dropped.
+    if (Array.isArray(input.proofPaths)) {
+      const extra = input.proofPaths.filter((p) => typeof p === 'string' && /^payment-proofs\/[A-Za-z0-9_-]{1,128}\/[A-Za-z0-9_-]{1,80}\/[A-Za-z0-9._-]{1,160}$/.test(p) && p.indexOf('..') === -1).slice(0, 5);
+      if (extra.length) entry.proofPaths = extra;
+    }
     // A receipt DRAFT for this payment (Jo, 2026-10-04): never emailed on its
     // own — the rep taps "Send receipt" (sendReceipt below).
     entry.receipt = { status: 'draft' };
@@ -2595,6 +2602,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         note: details.note,
         proofStoragePath: details.proofStoragePath,
         proofName: details.proofName,
+        proofPaths: details.proofPaths,
         payer: details.payer,
         depositedTo: depositedToOn() ? details.depositedTo : undefined,
         basis: details.basis,
