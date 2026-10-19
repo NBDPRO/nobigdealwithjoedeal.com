@@ -84,6 +84,18 @@ An independent review of PR #2572 found the following; each was confirmed agains
 | N6 | `legalCopiesEnabled` added to the callable's fields and audit. |
 | Canary matrix | absent / "true" / 1 / null / "false" / 0 / true: redirected for SMS and email; only `false` is live. |
 
+### Third review round (on PR #2574)
+
+| Finding | Result |
+|---|---|
+| A `email-queue-worker.js` sends raw | Exempt on purpose: every `email_queue` row is account mail to a contractor (dunning, trial, erasure, health) or to the owner, never a homeowner. The set of files that can queue a row is now pinned in `messaging-senders-guarded` (a new writer fails until reviewed). |
+| B public-form flood starves the internal-alert cap | `internalAlertStatus` takes a `bucket`: public-form lead alerts (`lead-alert.js`, `verify-functions.js`) have their own hourly allowance, so a flood cannot use up the storm/call alert cap. The flood is still capped (the cost bound holds). |
+| C claim consumed when canary/pause flips after the pre-check | `estimate-email`, `storm-report-email`, `pro-prospects` release the claim when the guard refuses or redirects to the owner, and never stamp "emailed". Test: the welcome flow with a canary flip between the pre-check and the send. |
+| D `sms_log` rows without `toDigits` | Every current writer stamps `toDigits` and `date`; the YES check now ALSO queries by the E.164 `to`, so a row missing `toDigits` still blocks a YES (test mutation-checked). |
+| E signature before `confirmFromReply` | Confirmed: 403 before any YES handling; a structural test pins the order. |
+| F `toSms` can it be a customer? | No: it is `target.sms` only, which is the owner contact from config (NBD) or the verified tenant owner phone, else null; pinned by a structural test. |
+| G canary email headers | `headers` (List-Unsubscribe / one-click) are dropped from the owner's canary copy. |
+
 **Not changed (decisions for Jo):** the personal/business email constants in `lead-alert.js`, `storm-watch.js`, `lead-digest.js`, `marketing-report.js`, `thursday.js`, `verify-functions.js`, `handlers/_shared.js` and `THURSDAY_NUMBER` stay in code: moving them to config would silence Jo's alert EMAILS (the most reliable channel) until `ownerEmail` is set, which is worse than a constant that is already public. Thursday: with `OWNER_NUMBERS_DEFAULT=[]`, Jo's own test calls count as leads if `messaging_controls/internal` is unreadable.
 
 ## IMPORTANT: merging deploys this, and customer sends default to OFF

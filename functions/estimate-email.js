@@ -350,7 +350,8 @@ exports.estimateEmail = onDocumentCreated(
       });
       if (!gated.send) {
         logger.warn('estimate_email_held_messaging_paused', { leadId, reason: gated.reason });
-        await snap.ref.update({ estimateEmailStatus: 'held_paused' }).catch(() => {});
+        // Release the claim: nothing went out, so the doc must not look emailed.
+        await snap.ref.update({ estimateEmailStatus: 'held_paused', estimateEmailedAt: FieldValue.delete() }).catch(() => {});
         return;
       }
       const response = await resend.emails.send(gated.msg);
@@ -361,6 +362,13 @@ exports.estimateEmail = onDocumentCreated(
         throw new Error(resendErrorMessage(response));
       }
 
+      if (gated.canary) {
+        // Canary flipped on between the pre-check and the guard: the copy went to the OWNER, so the customer
+        // was not emailed. Release the claim instead of stamping it sent.
+        await snap.ref.update({ estimateEmailStatus: 'canary_redirected', estimateEmailedAt: FieldValue.delete() }).catch(() => {});
+        logger.info('estimate_email_canary_redirected', { leadId });
+        return;
+      }
       await snap.ref.update({ estimateEmailStatus: 'sent' });
       logger.info('estimate_email_sent', { leadId });
     } catch (err) {

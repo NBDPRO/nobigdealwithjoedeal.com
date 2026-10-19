@@ -214,6 +214,8 @@ const GLOBAL_ON = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: 
     // fail closed: an undated outbound row, and a full page of rows.
     r = await yes({ 'storm_alert_subscribers/s1': sub(), 'sms_log/o2': { to: PH, toDigits: KEY, status: 'sent', body: 'Are you home?', companyId: NBD } });
     ok('an outbound row with NO usable date is unknown -> not confirmed (fail closed)', !r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
+    r = await yes({ 'storm_alert_subscribers/s1': sub(), 'sms_log/o3': { to: PH, status: 'sent', body: 'Quick question about your roof', companyId: NBD, uid: 'rep-1', date: NOON - 600e3 } });
+    ok('D: a rep text logged WITHOUT toDigits (found by its E.164 to) still means the YES answers the rep -> not confirmed', !r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
     const many = { 'storm_alert_subscribers/s1': sub() };
     for (let i = 0; i < 50; i++) many['sms_log/old' + i] = { to: PH, toDigits: KEY, status: 'received', body: 'hi ' + i, companyId: NBD, date: NOON - 5 * DAY };
     r = await yes(many);
@@ -236,6 +238,28 @@ const GLOBAL_ON = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: 
     const missing = W.makeWorld({ noControls: true });
     const s4 = await W.load(missing, 'sms-texting-gate.js').textingStatus(missing.db, NBD);
     ok('textingStatus: no controls doc -> not allowed', s4.allowed === false && s4.reason === 'messaging_paused');
+  }
+
+  {
+    // E. A forged YES: the Twilio signature is verified (403 on failure) BEFORE the storm confirmation runs.
+    const src = require('./lib/strip-js-comments').stripJsComments(require('fs').readFileSync(require('path').join(__dirname, '..', 'functions', 'sms-functions.js'), 'utf8'));
+    const start = src.indexOf('exports.incomingSMS');
+    const iVal = src.indexOf('validateRequest(', start), iFail = src.indexOf('403', iVal), iYes = src.indexOf('confirmFromReply(', start);
+    ok('E: incomingSMS verifies the Twilio signature (403) before it can confirm a storm subscriber', start > 0 && iVal > start && iFail > iVal && iYes > iFail, [start, iVal, iFail, iYes].join(','));
+  }
+
+  {
+    // F. lead-alert's NBD branch sends WITHOUT guardTwilio (an internal alert), so prove the number can only be
+    // the owner's: toSms comes from target.sms (or null), and target.sms is only ever the owner contact from
+    // config (NBD), the tenant owner's verified Auth phone (tenant) or null - never a field of the lead.
+    const la = require('./lib/strip-js-comments').stripJsComments(require('fs').readFileSync(require('path').join(__dirname, '..', 'functions', 'lead-alert.js'), 'utf8'));
+    const toSmsAssigns = (la.match(/\btoSms\s*=\s*[^;]+;/g) || []).map((s) => s.replace(/\s+/g, ' '));
+    ok('F: toSms is only ever target.sms or null', toSmsAssigns.length > 0 && toSmsAssigns.every((s) => /^toSms = (target\.sms \|\| null|null);$/.test(s)), toSmsAssigns.join(' | '));
+    const fb = (la.match(/fallback\.sms\s*=\s*[^;]+;/g) || []).map((s) => s.replace(/\s+/g, ' '));
+    const tn = (la.match(/\bsms:\s*rr\.[^,\n]+/g) || []).map((s) => s.trim());
+    ok('F: target.sms is assigned only from the owner config (NBD) or the verified tenant owner phone (rr.sms), else null',
+      fb.length === 1 && fb[0] === 'fallback.sms = owner.phone || null;' && tn.length === 1 && tn[0] === 'sms: rr.sms || null', fb.join('|') + ' / ' + tn.join('|'));
+    ok('F: the only Twilio `to` in lead-alert.js is toSms', (la.match(/messages\.create\(\{\s*to:\s*([a-zA-Z.]+)/g) || []).every((s) => /to:\s*toSms$/.test(s)));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

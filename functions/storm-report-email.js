@@ -284,6 +284,7 @@ exports.stormReportEmail = onDocumentCreated(
       });
       if (!gated.send) {
         logger.warn('stormReportEmail: held, customer messaging paused', { leadId, reason: gated.reason });
+        await ref.update({ reportEmailedAt: FieldValue.delete() }).catch(() => {});
         return;
       }
       const resp = await resend.emails.send(gated.msg);
@@ -293,6 +294,12 @@ exports.stormReportEmail = onDocumentCreated(
       // logged and left as if it had gone out, with no retry ever coming.
       if (resendRejected(resp)) {
         throw new Error(resendErrorMessage(resp));
+      }
+      if (gated.canary) {
+        // Canary flipped on after the pre-check: the copy went to the OWNER, so release the claim (not emailed).
+        await ref.update({ reportEmailedAt: FieldValue.delete() }).catch(() => {});
+        logger.info('stormReportEmail: canary redirect - claim released', { leadId });
+        return;
       }
       const id = (resp && resp.data && resp.data.id) || (resp && resp.id) || null;
       await ref.update({ reportEmailId: id });

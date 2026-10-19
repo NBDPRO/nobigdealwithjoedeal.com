@@ -143,6 +143,8 @@ function mc(opts) {
     const e2 = mc({ docs: { 'messaging_controls/global': Object.assign({}, base, { canary: true }), 'messaging_controls/internal': OWNER } });
     const em = await e2.m.guardEmail(e2.db, { to: 'c@x.test', subject: 's', text: 't', tags: [{ name: 'nbd_unsub', value: 'tok' }] });
     ok("the owner's canary email drops the customer's unsubscribe/bounce tags", em.send && !('tags' in em.msg));
+    const emh = await e2.m.guardEmail(e2.db, { to: 'c@x.test', subject: 's', text: 't', headers: { 'List-Unsubscribe': '<https://x.test/u?t=cust>', 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click', 'X-NBD-Campaign': 'c' } });
+    ok("the owner's canary email carries NO headers (List-Unsubscribe one-click would unsubscribe the real customer)", emh.send && !('headers' in emh.msg));
     const M = mc({}).m;
     ok('maxPerRun cleaning: absent 5; 0; 7; null/false/"abc"/-1/3.5/99 -> 0 (fewer, never more)',
       M.cleanMaxPerRun(undefined) === 5 && M.cleanMaxPerRun(0) === 0 && M.cleanMaxPerRun(7) === 7 && [null, false, 'abc', -1, 3.5, 501].every((v) => M.cleanMaxPerRun(v) === 0));
@@ -212,6 +214,12 @@ function mc(opts) {
     const dr = [];
     for (const k of ['lead-a', 'lead-b', 'lead-b', 'lead-b', 'lead-a']) dr.push((await m.internalAlertStatus(db, 'sms', { nowMs: t + 20, force: true, key: k })).allowed);
     ok('a lead DENIED by the cap is denied again on retry (no marker written) while the allowed lead repeats free', JSON.stringify(dr) === '[true,false,false,false,true]', JSON.stringify(dr));
+    process.env.INTERNAL_SMS_PER_HOUR = '1';
+    ({ m, db } = mc({ docs: { 'messaging_controls/internal': OWNER } }));
+    const fl = [];
+    for (const k of ['f1', 'f2', 'f3']) fl.push((await m.internalAlertStatus(db, 'sms', { nowMs: t + 30, force: true, key: k, bucket: 'lead' })).allowed);
+    fl.push((await m.internalAlertStatus(db, 'sms', { nowMs: t + 30, force: true })).allowed);
+    ok('a public-form lead flood uses up only the lead bucket: a storm/call alert still gets its own allowance', JSON.stringify(fl) === '[true,false,false,true]', JSON.stringify(fl));
     process.env.INTERNAL_SMS_PER_HOUR = '0';
     ({ m, db } = mc({ docs: { 'messaging_controls/internal': OWNER } }));
     ok('cap 0 means no internal SMS (zero is zero)', !(await m.internalAlertStatus(db, 'sms', { nowMs: t })).allowed);

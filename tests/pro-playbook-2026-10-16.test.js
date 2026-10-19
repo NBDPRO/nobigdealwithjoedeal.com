@@ -215,6 +215,21 @@ const MD = 'site-src/guides/nbd-pro-playbook.md';
       ok('canary: the welcome is NOT sent and the one-shot claim is NOT consumed', rc.reason === 'canary_not_claimed' && sentC.length === 0 && !dbC.docs['guide_leads/L1'].welcomeClaimedAt, JSON.stringify(rc));
       require(path.join(ROOT, 'functions/messaging-controls.js'))._resetCache();
     }
+    {
+      // Canary flips on AFTER the pre-check (a race): the copy goes to the owner, so the claim is released and
+      // the lead is not stamped emailed.
+      const MC = require(path.join(ROOT, 'functions/messaging-controls.js'));
+      const dbR = fakeDb(lead);
+      dbR.docs['messaging_controls/internal'] = { ownerEmail: 'owner@nbd.test', ownerPhone: '+18595550100', internalAlertsEnabled: true };
+      MC._resetCache();
+      const sentR = [];
+      const flipGate = async () => { dbR.docs['messaging_controls/global'] = Object.assign({}, dbR.docs['messaging_controls/global'], { canary: true }); MC._resetCache(); return { suppressed: false, headers: {}, tags: [], footerHtml: '', footerText: '' }; };
+      const rr = await _test.sendWelcome(dbR, 'L1', lead, Object.assign({}, base, { gate: flipGate, resend: { emails: { send: async (m) => { sentR.push(m); return { data: { id: 'x' } }; } } } }));
+      const docR = dbR.docs['guide_leads/L1'];
+      ok('canary flipped after the pre-check: only the owner got a copy, the claim is released, never stamped emailed',
+        rr.sent === false && sentR.length === 1 && [].concat(sentR[0].to).indexOf(lead.email) === -1 && docR.welcomeClaimedAt !== 'TS' && !docR.welcomeEmailedAt, JSON.stringify([rr, sentR.map((m) => m.to), docR]));
+      MC._resetCache();
+    }
     let db = fakeDb(lead);
     const r1 = await _test.sendWelcome(db, 'L1', lead, base);
     const m = sent[0] || {};

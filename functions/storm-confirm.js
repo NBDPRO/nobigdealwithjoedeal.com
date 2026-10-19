@@ -163,10 +163,16 @@ async function outboundSince(db, e164, sinceMs) {
   if (key.length !== 10) return true;
   const LIMIT = 50;
   const snap = await db.collection('sms_log').where('toDigits', '==', key).limit(LIMIT).get();
+  // A row written without toDigits is invisible to that query, so ask again by the number as we store it
+  // (E.164). Every current writer stamps toDigits; this closes the gap for any that does not.
+  const byTo = await db.collection('sms_log').where('to', '==', String(e164)).limit(LIMIT).get();
   // A full page cannot be shown to contain everything (no ordering is guaranteed): fail CLOSED.
-  if (snap.docs.length >= LIMIT) return true;
+  if (snap.docs.length >= LIMIT || byTo.docs.length >= LIMIT) return true;
   const confirmation = confirmBody();
-  for (const d of snap.docs) {
+  const seen = new Set();
+  for (const d of snap.docs.concat(byTo.docs)) {
+    if (seen.has(d.id)) continue;
+    seen.add(d.id);
     const r = d.data() || {};
     if (r.status === 'received' || r.direction === 'inbound') continue;
     // Our own confirmation text, if it was ever logged, is not "something newer" than itself.

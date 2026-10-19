@@ -215,5 +215,29 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
   ok('a send that only appears in a comment is NOT a site', SENDER.scan("// await c.messages.create({})\nconst a = 1;").sites.length === 0);
 }
 
+// G. email_queue: the worker sends raw (RAW_PINS above) because every row is account mail to a contractor
+//    or the owner. The set of files that can QUEUE a row is pinned, so a new writer (for example one that
+//    queues a homeowner email) must be reviewed and added here on purpose.
+{
+  const QUEUE_WRITERS = ['backup-freshness.js', 'care-plan.js', 'health-digest.js', 'integrations/compliance.js',
+    'messaging-controls-fns.js', 'monthly-overhead-alert.js', 'pro-prospects.js', 'stripe.js', 'tenant-ops.js'];
+  const QUEUE_READERS = ['integrations/email-queue-worker.js', 'messaging-center.js'];
+  const found = files.filter((f) => /email_queue['"\/`]/.test(stripJsComments(fs.readFileSync(path.join(ROOT, f.rel), 'utf8'))))
+    .map((f) => f.rel.replace(/^functions\//, '')).filter((r) => QUEUE_READERS.indexOf(r) === -1).sort();
+  ok('email_queue writers are exactly the reviewed account-mail set', JSON.stringify(found) === JSON.stringify(QUEUE_WRITERS.slice().sort()), found.join(', '));
+}
+
+// H. One-shot triggers (Cloud Function bodies, no test hook): a pause OR a canary redirect that lands AFTER the
+//    pre-check (a flip between the pre-check and guardEmail) must release the claim, never leave it stamped emailed.
+{
+  for (const [rel, field] of [['estimate-email.js', 'estimateEmailedAt'], ['storm-report-email.js', 'reportEmailedAt']]) {
+    const src = stripJsComments(fs.readFileSync(path.join(FN, rel), 'utf8'));
+    const afterGuard = src.slice(src.indexOf('guardEmail('));
+    const release = new RegExp(field + ': FieldValue\\.delete\\(\\)', 'g');
+    ok(rel + ': releases the claim when the guard refuses AND when it redirects to the owner (canary)',
+      (afterGuard.match(release) || []).length >= 2 && /gated\.canary/.test(afterGuard));
+  }
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

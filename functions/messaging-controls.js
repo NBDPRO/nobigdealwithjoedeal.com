@@ -180,6 +180,7 @@ function canaryEmail(owner, msg) {
   const out = Object.assign({}, msg, { to: [owner.email], subject: '[CANARY] ' + String(msg.subject || '') });
   delete out.cc; delete out.bcc; delete out.tags;   // tags attribute bounces/unsubscribes to the REAL customer: never on the owner's copy
   delete out.reply_to; delete out.replyTo;
+  delete out.headers;   // List-Unsubscribe / one-click carry the REAL customer's token: never on the owner's copy
   if (typeof msg.html === 'string' && msg.html) {
     out.html = '<p style="font:14px monospace;background:#fff3cd;padding:8px;margin:0 0 12px">' + _escHtml(banner) + '</p>' + msg.html;
   }
@@ -405,13 +406,16 @@ async function internalAlertStatus(db, channel, opts) {
   if (cap === 0) return Object.assign({ allowed: false, reason: 'internal_rate_limited' }, base);
   const nowMs = o.nowMs != null ? o.nowMs : Date.now();
   const hour = new Date(nowMs).toISOString().slice(0, 13).replace(/[-T]/g, '');
-  const ref = db.doc(COUNTER_COLLECTION + '/internal_' + channel + '_' + hour);
+  // opts.bucket gives a source its own allowance: a flood of fake public-form leads ('lead') cannot use up the
+  // hour's cap for storm or call alerts (and the reverse).
+  const bucket = o.bucket ? '_' + String(o.bucket).replace(/[^a-z0-9]/gi, '').slice(0, 12) : '';
+  const ref = db.doc(COUNTER_COLLECTION + '/internal_' + channel + bucket + '_' + hour);
   try {
     // Cap by DISTINCT subject (a lead id), not by attempts, in ONE transaction: a repeat of an alert that was
     // already let through this hour is free (a retry / watchdog re-send cannot eat the allowance), while a lead
     // that was DENIED by the cap leaves no marker, so its retry is denied again (the flood cap holds).
     const seenRef = o.key
-      ? db.doc(COUNTER_COLLECTION + '/seen_' + channel + '_' + hour + '_' + require('crypto').createHash('sha256').update(String(o.key)).digest('hex').slice(0, 24))
+      ? db.doc(COUNTER_COLLECTION + '/seen_' + channel + bucket + '_' + hour + '_' + require('crypto').createHash('sha256').update(String(o.key)).digest('hex').slice(0, 24))
       : null;
     const allowed = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
