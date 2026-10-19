@@ -173,8 +173,8 @@
     card.setAttribute('role', 'dialog');
     card.style.cssText = [
       'position:fixed', 'right:16px', 'bottom:16px', 'z-index:9999',
-      'max-width:320px', 'background:var(--nbd-surface,#fff)',
-      'color:var(--nbd-text,#1a1a1a)', 'border:1px solid var(--nbd-border,#e2e2e2)',
+      'max-width:320px', 'background:var(--s,#fff)',
+      'color:var(--t,#1a1a1a)', 'border:1px solid var(--rule,#e2e2e2)',
       'border-radius:12px', 'box-shadow:0 8px 28px rgba(0,0,0,.18)',
       'padding:14px 16px', 'font-family:inherit', 'font-size:14px', 'line-height:1.4'
     ].join(';');
@@ -207,13 +207,13 @@
     no.textContent = 'Not now';
     // min-height:44px on both (2026-10-03): they measured 27px tall on an
     // iPhone — under the 44px floor every other phone control holds to.
-    no.style.cssText = 'background:transparent;border:0;color:var(--nbd-muted,#666);cursor:pointer;padding:6px 12px;min-height:44px;';
+    no.style.cssText = 'background:transparent;border:0;color:var(--m,#666);cursor:pointer;padding:6px 12px;min-height:44px;';
     no.addEventListener('click', function () { snooze(); card.remove(); });
 
     var yes = document.createElement('button');
     yes.type = 'button';
     yes.textContent = 'Enable';
-    yes.style.cssText = 'background:var(--nbd-accent,#e8511f);color:#fff;border:0;border-radius:8px;cursor:pointer;padding:6px 16px;font-weight:600;min-height:44px;';
+    yes.style.cssText = 'background:var(--orange,#BD5728);color:#fff;border:0;border-radius:8px;cursor:pointer;padding:6px 16px;font-weight:600;min-height:44px;';
     yes.addEventListener('click', function () {
       card.remove();
       registerAndMint({ requestPermission: true }).then(function (r) {
