@@ -1,0 +1,53 @@
+/* lead-source-fixer.css - "Where customers came from" modal (js/lead-source-fixer.js,
+   2026-10-19, flag leadSourceFixer). Phone-first: one decision per screen, 56px answer
+   buttons, and under 480px the report table becomes one card per source. */
+
+#leadSourceFixerBtn[hidden] { display: none; }
+
+.lsf-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0, 0, 0, .6); overflow-y: auto; overflow-x: hidden; padding: 12px; display: flex; align-items: flex-start; justify-content: center; }
+.lsf-box { width: 100%; max-width: 720px; margin: 8px 0; background: var(--s, #1a1d23); color: var(--t); border: 1px solid var(--br, #2a2d35); border-radius: 12px; padding: 14px; box-sizing: border-box; min-width: 0; }
+.lsf-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lsf-title { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.lsf-x { font: inherit; font-size: 22px; min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--m); cursor: pointer; }
+
+.lsf-tabs { display: flex; gap: 6px; margin: 8px 0 10px; }
+.lsf-tab { flex: 1; font: inherit; font-size: 14px; font-weight: 700; min-height: 44px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s2, #22252c); color: var(--m); cursor: pointer; touch-action: manipulation; }
+.lsf-tab.on { color: #fff; background: var(--orange); border-color: var(--orange); }
+
+.lsf-prog { margin: 0 0 10px; font-size: 13px; color: var(--m); }
+.lsf-empty { padding: 18px 0; text-align: center; color: var(--m); }
+.lsf-undo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; margin-bottom: 10px; border-radius: 8px; background: var(--s2, #22252c); font-size: 13px; }
+
+.lsf-card { padding: 4px 0; }
+.lsf-name { font-size: 22px; font-weight: 800; overflow-wrap: anywhere; }
+.lsf-money { font-size: 18px; font-weight: 700; color: var(--orange); margin-top: 2px; }
+.lsf-hint { font-size: 12px; color: var(--m); margin: 4px 0 12px; }
+.lsf-q { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+.lsf-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lsf-opt { font: inherit; font-size: 15px; font-weight: 700; min-height: 56px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--br, #2a2d35); background: var(--s2, #22252c); color: var(--t); cursor: pointer; touch-action: manipulation; overflow-wrap: anywhere; }
+.lsf-opt:active { background: var(--orange); color: #fff; }
+.lsf-opt:disabled, .lsf-btn:disabled { opacity: .45; cursor: not-allowed; }
+.lsf-f { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--m); min-width: 0; }
+.lsf-note, .lsf-sel { font: inherit; font-size: 15px; min-height: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s2, #22252c); color: var(--t); max-width: 100%; box-sizing: border-box; text-transform: none; letter-spacing: normal; font-weight: 400; }
+.lsf-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.lsf-btn { font: inherit; font-size: 14px; font-weight: 700; min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s2, #22252c); color: var(--t); cursor: pointer; touch-action: manipulation; }
+
+.lsf-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.lsf-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lsf-table th { text-align: left; padding: 6px 8px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--m); border-bottom: 1px solid var(--br, #2a2d35); }
+.lsf-table td { padding: 8px; border-bottom: 1px solid var(--br, #2a2d35); overflow-wrap: anywhere; }
+.lsf-c-name { font-weight: 700; }
+.lsf-foot-note { margin: 10px 0 0; font-size: 12px; color: var(--m); }
+
+@media (max-width: 480px) {
+  .lsf-overlay { padding: 6px; }
+  .lsf-box { padding: 10px; }
+  .lsf-opts { grid-template-columns: 1fr; }
+  .lsf-table, .lsf-table tbody, .lsf-table tr, .lsf-table td { display: block; width: auto; }
+  .lsf-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .lsf-row { margin-bottom: 8px; padding: 8px; border: 1px solid var(--br, #2a2d35); border-radius: 10px; }
+  .lsf-table td { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; border: 0; }
+  .lsf-table td[data-label]::before { content: attr(data-label); flex: none; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--m); }
+  .lsf-foot { flex-direction: column-reverse; }
+  .lsf-foot .lsf-btn { width: 100%; }
+}

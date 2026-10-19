@@ -548,6 +548,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-mbstate-test 'node firestore-rules.morning-brief-state.test.js'
+      # Owner-confirmed lead source (2026-10-19): leads/{id}.confirmedSource, owner/company_admin only. Own file.
+      - name: Run confirmed-source rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-csource-test 'node firestore-rules.confirmed-source.test.js'
       # Stage-triggered "Docs to review" drafts (2026-10-13): leads/{id}/doc_drafts.
       - name: Run doc-drafts rules tests under emulator
         run: |
