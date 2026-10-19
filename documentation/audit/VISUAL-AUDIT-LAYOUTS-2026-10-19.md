@@ -78,20 +78,14 @@ phones 844x390, 932x430; tablets 768x1024, 820x1180, landscape 1024x768; laptops
 
 ### Limits (say so, do not pretend)
 
-- **Wallpaper** was simulated: the My Skin classes and variables were set with a
-  generated busy picture. The upload path and per-theme layers were not exercised,
-  so the sibling wallpaper work needs its own pass.
-- **prefers-contrast: more** was not emulated, only an attribute set, so it proves
-  nothing. The shipped CSS has `prefers-contrast` rules in Bento, Island, the job
-  island, Pixel mode and theme art only; Mission, Focus, Inbox, Crew and Field have
-  none. Worth a real emulated pass.
-- **iPhone safe-area insets** cannot be set in Chromium. Read from code: every
-  layout with a fixed root (Crew, Field, Focus, Inbox, Island, Mission) uses
-  `env(safe-area-inset-*)`; Bento and the map views use none but are not fixed.
-  Needs a look on the installed iPhone app.
-- **WebKit / iOS Safari** was not run (the installed WebKit does not match this
-  Playwright). Keyboard focus order, hover states and screen-reader output were
-  not tested.
+- Pass 2 simulated wallpaper (the My Skin classes and variables with a generated
+  picture); pass 7 below replaces that with real uploads. The first-pass wallpaper
+  rows are kept only as a layout check.
+- **iPhone safe-area insets** cannot be set in Chromium or in WebKit automation. Read
+  from code: every layout with a fixed root (Crew, Field, Focus, Inbox, Island,
+  Mission) uses `env(safe-area-inset-*)`; Bento and the map views use none but are not
+  fixed. Needs a look on the installed iPhone app (see Needs Jo).
+- Keyboard focus order, hover states and screen-reader output were not tested.
 
 ## Defects fixed (each PR has a render test that fails on `main`)
 
@@ -112,28 +106,78 @@ on the sample account) with one section file per fix in
 | 8 | Medium | Inbox | Green and gold reply-by timers 2.7:1 and 1.8:1 on a light row (green failed in dark too) | [#2547](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2547) |
 | 9 | Medium | header and nav, all layouts | "Sign Out" 1.5:1 on the dark header in light mode; red count badges (sidebar Pipeline, bottom-nav CRM) 3.05:1 dark / 3.7:1 light | [#2548](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2548) |
 
+## Second pass: the other screens, real wallpaper, prefers-contrast, WebKit
+
+Jo asked for the same standard on the screens that carry real work, so a second
+pass ran the same way (emulator only, Playwright, computed colours first).
+
+| Pass | What | Captures |
+|---|---|---|
+| 6 | Screens beyond Home: Pipeline board (default, Compact, Rich and Photo card styles), customer detail page, Estimates, the estimate builder, Schedule, Expenses (the receipt health panel is flag-gated and was not on), Settings > Appearance (My Skin, layout picker, theme picker with its live preview), command palette, Pixel World; at 390x844, 844x390, 768x1024, 1440x900 and 2560x1080, light and dark, in `nbd-original`, `paper`, `obsidian`, `pokemon` and `storm-season` | 600 |
+| 7 | **Real** My Skin wallpaper: generated pictures fed through the actual per-theme uploader into the Storage emulator (one picture, then a 3-picture slideshow) in the five themes, 6 wallpaper-capable layouts, 390 and 1440, light and dark; text contrast sampled from pixels under glass and solid cards, phone scroll, and a theme-switch flash probe | 240 + 20 probes |
+| 8 | `prefers-contrast: more` truly emulated (Playwright `contrast: 'more'`) in Mission, Focus, Inbox, Crew and Field at 390 and 1440 | 20 |
+| 9 | WebKit 26.5 (the iPhone engine) on the installed build: all 8 layouts at 393x852, 852x393 and 820x1180, light and dark, plus input sizes on six screens | about 50 |
+
+### Clean results
+
+- No sideways scroll and no clipped control on any of the 600 screen captures (the
+  one "clipped" hit is Pixel World's visually hidden live region).
+- **WebKit: all 8 layouts render and fit** at iPhone portrait, iPhone landscape and
+  iPad; `color-mix`, `dvh` and `backdrop-filter` are all supported; no field is under
+  16 px on the six working screens (iOS would otherwise zoom on focus). For anyone
+  re-testing: on a first visit with no cached layout, WebKit against the emulator took
+  about 8 s to read the saved layout, so Classic showed until it landed. That is the
+  emulator's WebKit transport, not a product defect: a returning user is painted from
+  the preboot cache.
+- **Wallpaper: no theme-switch flash.** The two picture layers cross-fade and the
+  summed opacity never dips below one opaque layer; going to a theme with no picture
+  fades out over 0.3 s. **Phone scroll:** the layers stay fixed (position and top
+  unchanged after a 500 px scroll) in every layout. The slideshow behaves like the
+  single picture for contrast.
+
+### Fixed in the second pass
+
+| # | Sev | Area | Defect | PR |
+|---|---|---|---|---|
+| 10 | High | My Skin wallpaper, light mode | The frosted header and tab bar turn light but the light-mode chrome rules assume a dark bar: wordmark 1.05:1, idle tab labels 2.3:1. Bare text on the picture (page subtitle, Bento "Your board", the sync status) sat muted straight on the wallpaper (1.3 to 2.3:1): now the text colour with a soft halo | [#2553](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2553) |
+| 11 | Medium | Mission, Focus, Inbox, Crew, Field (and Classic) | No `prefers-contrast: more` rule: the next-stop and closes-week card edges were 1.2:1 against the page, muted text 4 to 6:1. Under the OS setting only, the hairline and muted tokens now come from the text colour | [#2550](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2550) |
+| 12 | Medium | Pipeline board | The "PIPELINE" title in brand orange was 3.2:1 on navy; "Drop leads here" was muted at opacity .6 (2.3:1) | [#2552](https://github.com/NBDPRO/nobigdealwithjoedeal.com/pull/2552) |
+
 ## Open (not fixed; each needs a decision or is out of scope)
 
 | Sev | Where | Finding | Why it is open |
 |---|---|---|---|
-| Medium | all layouts | White text on the accent fill is only 3.4:1 in 12 theme and mode combinations (New estimate, Record visit, Navigate, the Mission tab, the logo mark). `--accent-fg` flips to dark ink only below 3:1, a deliberate large-text floor in `theme-engine.js` | Raising it to 4.5:1 restyles every accent button in many themes: a design call for Jo |
-| Medium | header and bottom nav, dark-accent light themes | On Paper, Minimalist, Brutalist, Ink, Typewriter and a few more, the "PRO" mark and the active tab label paint in the theme accent (near black) on the always-dark bar: under 3:1 in 13 combinations, under 4.5:1 in 112. The brand orange on that bar is 4.2:1 at 8.5 px | Needs a lighter accent-on-dark token; changes the brand lockup, so a decision |
+| Medium | all layouts | White text on the accent fill is under 4.5:1 in 209 of 414 theme and mode combinations (worst about 3.05:1: Tundra and Marble light, Powerpuff Girls dark). The engine flips to dark ink only when white is under 3:1 (`accentFg` in `theme-engine.js`). `nbd-original` is 4.61:1 and is not affected | **Decision: see the recommendation below** |
+| Medium | header and bottom nav, dark-accent light themes | On Paper, Minimalist, Brutalist, Ink, Typewriter and a few more, the "PRO" mark and the active tab label paint in the theme accent (near black) on the always-dark bar: under 3:1 in 13 combinations, under 4.5:1 in 112 | Needs a lighter accent-on-dark token; changes the brand lockup |
+| Medium | Pipeline cards (every card style) | The chips and meta on a card are 1.8 to 3.4:1 in most themes: the `kc-tag` age and "Today" chips, the phone link, "1d ago", the aging chip, the lead-stage chip. Their colours are spread over inline styles in `crm-pipeline.js` and the kanban sheets | Needs one chip palette, not a patch per chip; a design call |
+| Medium | Customer page and estimate builder | Brand orange as text (panel titles "Numbers", "Production", "Jobs"; the score label; the customer ID; "Copy PO name"; the builder "Back") is 1.9 to 3.4:1 on navy. The page does not load the shared accent-text token | Same fix as the layouts audit D5; needs a sweep of that page |
+| Medium | wallpaper | Quiet buttons sitting straight on the picture (Island's "Customize", the Home quick actions) have no card behind them (about 2.3:1 on a busy picture) | Needs a per-control scrim; do it once with the My Skin owner |
+| Low | Pixel World | The START button and some labels are 9 px orange on navy (2.8:1) | Retro look |
 | Low | Mission, 320 px | The three header rows take 26% of a 568 px screen and the tab strip cuts "Day route" mid-word (it scrolls) | Works; polish only |
-| Low | classic and Bento | 10 px lead-stage chips (Contacted, 3.3:1), the `· collected` caption (opacity .7, 2.7:1), sidebar TOOLS and INSIGHTS labels (9 px, 2.8:1) | Small text on the type scale audit already tracks (130 rules at 9.5 px or less) |
 | Low | all layouts | The classic dashboard (header controls, customer-card buttons) stays in the DOM under a layout's full-screen root. Whether those controls take keyboard focus was not tested | Needs a keyboard pass |
 | Low | header, browser zoom 200% on a phone | Below 200 px wide the header's right cluster runs past the edge | Under the 320 px reflow floor |
-| Info | Bento, Island, Classic | Pixel-sampled contrast over wallpaper and glass looked low in 20 to 50 pages, but the computed colours behind them are fine; no defect was filed from sampling alone | Re-test with the real wallpaper upload once the My Skin work lands |
 
 ## Needs Jo
 
-1. Decide the accent-text rule (first two open rows): lighter accent on the dark
-   header and nav for dark-accent themes, and whether `--accent-fg` should flip at
-   4.5:1 instead of 3:1.
-2. An iPhone installed-app look at safe areas (Field, Focus, Inbox, Mission) and
-   Bento's lack of any inset handling.
-3. After the My Skin wallpaper work merges, re-run the wallpaper rows on real
-   uploads (this audit only simulated one).
+1. **One yes/no on accent text.** Recommendation: change the one rule in
+   `theme-engine.js` that picks `--accent-fg`: flip to dark ink when white is under
+   4.5:1 (it flips under 3:1 today) and ink reads better. It is a one-line change,
+   leaves `nbd-original` and every theme already at 4.5:1 byte-identical (the default
+   navy and orange theme measures 4.61:1), and fixes 205 of the 209 failing
+   combinations. The visible change is white text becoming near-black text on
+   mid-tone accent buttons (New estimate, Record visit, Navigate, the Mission tab, the
+   logo mark) in those themes. The alternative is to leave it: those buttons stay at
+   about 3 to 4.4:1, which meets large-text AA but not body text.
+2. An iPhone installed-app look at things automation cannot set: safe-area insets
+   (Field, Focus, Inbox, Mission, the bottom bar, the Island dock; Bento has no inset
+   handling), the home-bar overlap, the Dynamic Island clearance in landscape,
+   pull-to-refresh against the fixed bars, and the on-screen keyboard over the
+   estimate builder and the lead form.
+3. After #2553 merges, glance at one real wallpaper on the phone in light mode (the
+   header should now read) and decide whether quiet buttons on the picture need a
+   scrim (open row 5).
 
 Method and harness: the Playwright scripts stay outside the repo in
 `nbd-ops/visual-audit-2026-10-19/`; the permanent guard is the render test above,
-wired into CI next to `crm-layouts-render-2026-10-15`.
+wired into CI next to `crm-layouts-render-2026-10-15`. The second-pass fixes add
+section files only (`wallpaper-chrome`, `prefers-contrast`, `pipeline-text`).
