@@ -117,7 +117,8 @@ function pageHelpers() {
     for (const f of files) {
       const sec = require(path.join(dir, f));
       console.log('\n' + (sec.name || f));
-      await sec.run({ open, useLayout, ok, sideScroll, ORIGIN });
+      try { await sec.run({ open, useLayout, ok, sideScroll, ORIGIN }); }
+      catch (e) { ok(f + ' ran to the end', false, e && e.stack); }
     }
   } catch (e) {
     ok('the walk ran to the end', false, e && e.stack);
