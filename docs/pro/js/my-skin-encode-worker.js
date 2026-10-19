@@ -12,7 +12,7 @@
  * decode (HEIC off Safari) answers "decode" and the caller retries there.
  */
 'use strict';
-importScripts('my-skin-logic.js?v=6');
+importScripts('my-skin-logic.js?v=7');
 var L = self.NBDMySkinLogic;
 var LIN = null;
 
