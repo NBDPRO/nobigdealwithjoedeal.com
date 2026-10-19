@@ -72,7 +72,7 @@ const hrs = (n, o) => Array.from({ length: n }, () => P(o));
   ok('chip renders in the route panel and stop detail', /h \+= wxChip\(m\)/.test(m) && /\+ wxs \+ '<\/div>'/.test(m));
   ok('says forecast, not a safety clearance', /not a safety clearance/.test(m));
   ok('no crew-location claims added', !/crews? (are|is) (on|at)/i.test(m));
-  ok('mission needs roof-weather.js lazily', /'js\/route-drive\.js', 'js\/roof-weather\.js'/.test(rd('docs/pro/js/layout-system.js')));
+  ok('mission needs roof-weather.js lazily', /'js\/layouts\/kit\.js', 'js\/roof-weather\.js', 'js\/layouts\/mapview\.js'/.test(rd('docs/pro/js/layout-system.js')));
 
   console.log('\n─'.repeat(1) + '─'.repeat(49));
   console.log(`${passed} passed, ${failed} failed`);
