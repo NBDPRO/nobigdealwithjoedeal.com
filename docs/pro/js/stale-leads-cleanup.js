@@ -132,6 +132,7 @@
       if (!last || last > cutoff) return;
       out.push({
         id: l.id, lead: l, name: nameOf(l), source: sourceLabel(l),
+        evidence: typeof env.evidence === 'function' ? (env.evidence(l) || []) : [],
         createdMs: toMs(l.createdAt), lastMs: last,
         ageDays: Math.max(0, Math.floor((now - last) / DAY)),
       });
@@ -151,6 +152,25 @@
     });
     return Object.keys(by).map(function (k) { return by[k]; })
       .sort(function (a, b) { return b.count - a.count || (a.label < b.label ? -1 : 1); });
+  }
+
+  /**
+   * Signs that somebody DID work this lead although its own date fields are old:
+   * an estimate, a task, a note, a logged contact. Such rows start UNCHECKED.
+   * @param {Object} lead
+   * @param {{estimates?:Array, taskCache?:Object}} ctx  window._estimates / window._taskCache
+   * @returns {string[]} e.g. ['estimate','task','notes','contact']
+   */
+  function evidenceOf(lead, ctx) {
+    ctx = ctx || {};
+    var out = [];
+    var ests = Array.isArray(ctx.estimates) ? ctx.estimates : [];
+    for (var i = 0; i < ests.length; i++) { if (ests[i] && ests[i].leadId === lead.id) { out.push('estimate'); break; } }
+    var tasks = (ctx.taskCache && ctx.taskCache[lead.id]) || [];
+    if (tasks.length) out.push('task');
+    if (typeof lead.notes === 'string' && lead.notes.trim()) out.push('notes');
+    if (lead.lastContactType || toMs(lead.lastContactedAt)) out.push('contact');
+    return out;
   }
 
   /** Ids that will be closed: the candidates minus the unchecked ones. Order preserved. */
@@ -178,13 +198,16 @@
   }
 
   /**
+   * (opts.now: the value for updatedAt, a server timestamp in the browser, so an
+   * undo never rewinds the time of a later edit. Fields the lead did not have
+   * before go back as null; the app reads null and absent alike.)
    * The Firestore patch that puts a closed lead back, or null when the lead
    * is no longer in the state this cleanup left it (moved, reopened, or lost
    * for a different reason) and must be left alone.
    * Never sets `deleted`. Fields the lead did not have before go back to null
    * (the app reads null and absent alike).
    */
-  function undoPatch(cur, snap) {
+  function undoPatch(cur, snap, opts) {
     if (!cur || !snap) return null;
     if (!/^lost$/i.test(String(cur.stage || ''))) return null;
     if (cur.lostReason !== REASON) return null;
@@ -193,7 +216,7 @@
       stageRole: snap.stageRole,
       stageStartedAt: snap.stageStartedAt,
       closedAt: snap.closedAt,
-      updatedAt: snap.updatedAt,
+      updatedAt: opts && opts.now !== undefined ? opts.now : snap.updatedAt,
       lostReason: null, lostReasonKey: null, lostReasonNote: null,
     };
   }
@@ -204,7 +227,7 @@
 
   var pure = {
     lastActivityMs: lastActivityMs, selectStale: selectStale, sourceOptions: sourceOptions,
-    selectedIds: selectedIds, chunk: chunk, snapshotForUndo: snapshotForUndo, undoPatch: undoPatch,
+    selectedIds: selectedIds, evidenceOf: evidenceOf, chunk: chunk, snapshotForUndo: snapshotForUndo, undoPatch: undoPatch,
     isNewStageLead: isNewStageLead, hasPlannedNextStep: hasPlannedNextStep, confirmText: confirmText,
     DAY_CHOICES: DAY_CHOICES, DEFAULT_DAYS: DEFAULT_DAYS, CHUNK: CHUNK, REASON: REASON, REASON_KEY: REASON_KEY, FLAG: FLAG,
   };
@@ -216,7 +239,7 @@
   if (w.NBDStaleLeads) return;
 
   var overlay = null;
-  var st = { days: DEFAULT_DAYS, source: '', unchecked: new Set(), confirming: false, busy: false, progress: '', result: '' };
+  var st = { days: DEFAULT_DAYS, source: '', unchecked: new Set(), frozen: null, confirming: false, busy: false, progress: '', result: '' };
   var lastBatch = null;          // { snaps: [...], at, count } — in memory, this session only
 
   function esc(s) {
@@ -233,7 +256,16 @@
     if (role === 'admin' || !l.userId || !uid || l.userId === uid) return true;
     return (role === 'company_admin' || role === 'manager') && !!c.companyId && l.companyId === c.companyId;
   }
-  function env() { return { normalizeStage: w.normalizeStage, canChange: canChange }; }
+  function env() {
+    return {
+      normalizeStage: w.normalizeStage, canChange: canChange,
+      evidence: function (l) { return evidenceOf(l, { estimates: w._estimates, taskCache: w._taskCache }); },
+    };
+  }
+  // Rows with signs of real work start unchecked (Select all still includes them).
+  function defaultUnchecked() {
+    return new Set(candidates().filter(function (r) { return r.evidence.length; }).map(function (r) { return r.id; }));
+  }
   function flagOn() {
     return !!(w.NBDFlags && typeof w.NBDFlags.enabled === 'function' && w.NBDFlags.enabled(FLAG));
   }
@@ -259,7 +291,7 @@
     var checked = !st.unchecked.has(r.id);
     return '<tr class="slc-row">' +
       '<td class="slc-c-check" data-label=""><input type="checkbox" class="slc-check" data-slc-id="' + esc(r.id) + '"' + (checked ? ' checked' : '') + (st.busy ? ' disabled' : '') + ' aria-label="Include ' + esc(r.name) + '"></td>' +
-      '<td class="slc-c-name" data-label="Name">' + esc(r.name) + '</td>' +
+      '<td class="slc-c-name" data-label="Name">' + esc(r.name) + (r.evidence.length ? ' <span class="slc-ev">has ' + esc(r.evidence.join(', ')) + '</span>' : '') + '</td>' +
       '<td data-label="Source">' + esc(r.source) + '</td>' +
       '<td data-label="Created">' + esc(fmtDate(r.createdMs)) + '</td>' +
       '<td data-label="Last activity">' + esc(fmtDate(r.lastMs)) + '</td>' +
@@ -270,7 +302,7 @@
   function bodyHtml() {
     var list = candidates();
     var ids = selectedIds(list, st.unchecked);
-    var n = ids.length;
+    var n = st.confirming && st.frozen ? st.frozen.length : ids.length;
     var opts = sourceOptions(w._leads || [], { days: st.days }, env());
     var dis = st.busy ? ' disabled' : '';
     var h = '<div class="slc-head"><h2 class="slc-title" id="slcTitle">Clean up stale leads</h2>' +
@@ -319,11 +351,12 @@
   function open() {
     if (!available()) return false;           // flag off / viewer: nothing renders
     if (overlay) { paint(); return true; }
-    st.days = DEFAULT_DAYS; st.source = ''; st.unchecked = new Set(); st.confirming = false; st.busy = false; st.progress = ''; st.result = '';
+    st.days = DEFAULT_DAYS; st.source = ''; st.frozen = null; st.confirming = false; st.busy = false; st.progress = ''; st.result = '';
     overlay = doc.createElement('div');
     overlay.className = 'slc-overlay';
     overlay.setAttribute('data-slc-overlay', '1');
     doc.body.appendChild(overlay);
+    st.unchecked = defaultUnchecked();
     paint();
     return true;
   }
@@ -340,10 +373,11 @@
   async function closeSelected() {
     if (typeof w.moveCard !== 'function') { toast('Pipeline not loaded — open the board once and try again', 'error'); return; }
     // Re-read at write time: only leads that are still stale, still New and still allowed.
+    // Allow-list frozen at review time: a lead that turned stale after the preview was never shown, so it is never closed.
     var fresh = new Set(candidates().map(function (r) { return r.id; }));
-    var ids = selectedIds(candidates(), st.unchecked).filter(function (id) { return fresh.has(id); });
+    var ids = (st.frozen || []).filter(function (id) { return fresh.has(id); });
     if (!ids.length) return;
-    st.busy = true; st.confirming = false; st.result = '';
+    st.busy = true; st.confirming = false; st.frozen = null; st.result = '';
     var done = [], failed = 0, chunks = chunk(ids, CHUNK);
     for (var c = 0; c < chunks.length; c++) {
       for (var i = 0; i < chunks[c].length; i++) {
@@ -359,14 +393,15 @@
     }
     st.busy = false;
     st.unchecked = new Set();
-    if (done.length) lastBatch = { snaps: done, at: Date.now() };
+    var batch = done.length ? { snaps: done, at: Date.now() } : null;
+    if (batch) lastBatch = batch;
     st.result = 'Closed ' + done.length + ' lead' + (done.length === 1 ? '' : 's') + ' as Lost' + (failed ? ' · ' + failed + ' not moved (open them to see why)' : '') + '.';
     paint();
     if (done.length && typeof w.showToast === 'function') {
       w.showToast({
         message: 'Closed ' + done.length + ' stale lead' + (done.length === 1 ? '' : 's'),
         type: failed ? 'warning' : 'success', duration: 10000, undoText: 'Undo',
-        undoAction: function () { undoLast(); },
+        undoAction: function () { undoLast(batch); },
       });
     }
   }
@@ -381,11 +416,12 @@
     return a;
   }
 
-  async function undoLast() {
-    if (!lastBatch || st.busy) return;
+  async function undoLast(which) {
+    var batch = which || lastBatch;
+    if (!batch || batch.undone || st.busy) return;
     if (typeof w.runTransaction !== 'function' || !w.db) { toast('Undo unavailable on this page — reload the board', 'error'); return; }
-    var batch = lastBatch, actor = await actorFields();
-    st.busy = true; st.result = ''; paint();
+    st.busy = true; batch.undone = true; st.result = ''; paint();    // before the first await: a double-tap cannot start a second undo
+    var actor = await actorFields();
     var back = 0, skipped = 0, failed = 0;
     for (var c = 0, chunks = chunk(batch.snaps, CHUNK); c < chunks.length; c++) {
       for (var i = 0; i < chunks[c].length; i++) {
@@ -397,10 +433,9 @@
             applied = false;
             var s = await tx.get(ref);
             if (!s.exists()) return;
-            var patch = undoPatch(s.data() || {}, snap);
+            var patch = undoPatch(s.data() || {}, snap, { now: w.serverTimestamp() });
             if (!patch) return;
             if (patch.stageStartedAt == null) patch.stageStartedAt = w.serverTimestamp();
-            if (patch.updatedAt == null) patch.updatedAt = w.serverTimestamp();
             var ev = { from: 'lost', to: snap.stage, timestamp: new Date().toISOString(), user: actor.label, by: actor.uid, staleCleanupUndo: true };
             if (actor.email) ev.byEmail = actor.email;
             patch.stageHistory = w.arrayUnion(ev);
@@ -426,7 +461,7 @@
       }
     }
     st.busy = false;
-    lastBatch = null;
+    if (lastBatch === batch) lastBatch = null;
     st.result = 'Undone: ' + back + ' lead' + (back === 1 ? '' : 's') + ' back in New' +
       (skipped ? ' · ' + skipped + ' left alone (changed since)' : '') + (failed ? ' · ' + failed + ' failed' : '') + '.';
     if (typeof w.renderLeads === 'function') { try { w.renderLeads(w._leads, w._filteredLeads); } catch (_) {} }
@@ -441,10 +476,10 @@
     if (!overlay || !available()) return;
     var act = t.getAttribute('data-slc-act');
     if (act === 'close') close();
-    else if (act === 'all') { st.unchecked = new Set(); st.confirming = false; paint(); }
-    else if (act === 'none') { st.unchecked = new Set(candidates().map(function (r) { return r.id; })); st.confirming = false; paint(); }
-    else if (act === 'review') { if (selectedIds(candidates(), st.unchecked).length) { st.confirming = true; paint(); } }
-    else if (act === 'back') { st.confirming = false; paint(); }
+    else if (act === 'all') { st.unchecked = new Set(); st.confirming = false; st.frozen = null; paint(); }
+    else if (act === 'none') { st.unchecked = new Set(candidates().map(function (r) { return r.id; })); st.confirming = false; st.frozen = null; paint(); }
+    else if (act === 'review') { var pick = selectedIds(candidates(), st.unchecked); if (pick.length) { st.frozen = pick; st.confirming = true; paint(); } }
+    else if (act === 'back') { st.confirming = false; st.frozen = null; paint(); }
     else if (act === 'go') { if (st.confirming && !st.busy) closeSelected().catch(function (e) { st.busy = false; toast('Could not finish: ' + (e && e.message || 'unknown error'), 'error'); paint(); }); }
     else if (act === 'undo') { undoLast().catch(function (e) { st.busy = false; toast('Undo failed: ' + (e && e.message || 'unknown error'), 'error'); paint(); }); }
   });
@@ -454,13 +489,14 @@
     if (f) {
       if (f === 'days') st.days = parseInt(el.value, 10) || DEFAULT_DAYS;
       if (f === 'source') st.source = String(el.value || '');
-      st.unchecked = new Set(); st.confirming = false; st.result = '';      // a new list starts all-checked
+      st.confirming = false; st.frozen = null; st.result = '';
+      st.unchecked = defaultUnchecked();      // a new list starts all-checked, except rows with signs of work
       paint(); return;
     }
     var id = el.getAttribute && el.getAttribute('data-slc-id');
     if (id) {
       if (el.checked) st.unchecked.delete(id); else st.unchecked.add(id);
-      st.confirming = false; paint();
+      st.confirming = false; st.frozen = null; paint();
     }
   });
   doc.addEventListener('keydown', function (ev) { if (overlay && ev.key === 'Escape') close(); });

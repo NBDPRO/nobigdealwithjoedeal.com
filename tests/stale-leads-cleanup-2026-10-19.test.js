@@ -130,6 +130,8 @@ function boot(opts) {
   const win = {
     document,
     _leads: opts.leads || [],
+    _estimates: opts.estimates || [],
+    _taskCache: opts.taskCache || {},
     _userClaims: opts.claims || { role: 'owner' },
     _user: { uid: 'u1' },
     NBDFlags: { enabled: (n) => !!opts.flag && n === 'bulkCloseStaleLeads', load: () => Promise.resolve() },
@@ -241,6 +243,66 @@ const staleLeads = () => [mk('ZZ_QA_1'), mk('ZZ_QA_2'), mk('ZZ_QA_3'), mk('ZZ_QA
       ok('the previous stageStartedAt comes back', e.txWrites.find((t) => t.id === 'ZZ_QA_U1').patch.stageStartedAt === 7);
       ok('no deleted flag is ever written', e.txWrites.every((t) => !('deleted' in t.patch)));
       ok('the undo button is gone once used', !/data-slc-act="undo"/.test(e.overlay().innerHTML));
+    }
+    console.log('review fixes: frozen allow-list, batch-bound undo, evidence');
+    {
+      // 1. a lead that turns stale AFTER the preview is never closed
+      const leads = [mk('ZZ_QA_F1'), mk('ZZ_QA_F2')];
+      const e = boot({ flag: true, leads });
+      e.clickBtn(); e.clickAct('review');
+      leads.push(mk('ZZ_QA_LATE'));                       // refresh brings in a newly stale lead mid-review
+      ok('confirm count is the frozen count', /Mark 2 leads as Lost/.test(e.overlay().innerHTML));
+      e.clickAct('go');
+      await until(() => /Closed 2 leads/.test(e.overlay().innerHTML), 'frozen close');
+      ok('only the previewed leads were closed', e.moves.map((m) => m.id).join() === 'ZZ_QA_F1,ZZ_QA_F2');
+      // a previewed lead that stopped being stale before the write is skipped too
+      const l2 = [mk('ZZ_QA_S1'), mk('ZZ_QA_S2')];
+      const e2 = boot({ flag: true, leads: l2 });
+      e2.clickBtn(); e2.clickAct('review');
+      l2[1].lastContactedAt = NOW - DAY;                  // called yesterday, meanwhile
+      e2.clickAct('go');
+      await until(() => /Closed 1 lead /.test(e2.overlay().innerHTML), 'skip fresh');
+      ok('a lead that became active after the preview is not closed', e2.moves.map((m) => m.id).join() === 'ZZ_QA_S1');
+    }
+    {
+      // 2. toast Undo is bound to ITS batch; double tap is single-flight
+      const toasts = [];
+      const leads = [mk('ZZ_QA_B1'), mk('ZZ_QA_B2')];
+      const e = boot({
+        flag: true, leads,
+        moveCard: async (id) => { const l = leads.find((x) => x.id === id); l.stage = 'lost'; l._stageKey = 'lost'; e.stored[id] = { stage: 'lost', lostReason: 'Stale - no response' }; return true; },
+      });
+      e.win.showToast = (m) => { if (m && m.undoAction) toasts.push(m); };
+      e.clickBtn(); e.clickAct('review'); e.clickAct('go');
+      await until(() => toasts.length === 1, 'first toast');
+      leads.push(mk('ZZ_QA_B3')); e.clickAct('close');       // second cleanup, one more lead
+      e.clickBtn(); e.clickAct('review'); e.clickAct('go');
+      await until(() => toasts.length === 2, 'second toast');
+      toasts[0].undoAction(); toasts[0].undoAction();         // first toast, tapped twice
+      await until(() => e.txWrites.length >= 2, 'undo writes');
+      await tick(); await tick();
+      ok('the first toast undoes the FIRST batch only, once', e.txWrites.map((t) => t.id).sort().join() === 'ZZ_QA_B1,ZZ_QA_B2');
+      ok('undo stamps updatedAt with the server time, not the old value', e.txWrites.every((t) => t.patch.updatedAt === 'SERVER_TS'));
+    }
+    {
+      // 4. signs of real work start unchecked
+      const leads = [mk('ZZ_QA_E1'), mk('ZZ_QA_E2'), mk('ZZ_QA_E3', { notes: 'spoke at the door' }), mk('ZZ_QA_E4')];
+      const e = boot({ flag: true, leads, estimates: [{ leadId: 'ZZ_QA_E1' }], taskCache: { ZZ_QA_E2: [{ done: true }] } });
+      e.clickBtn();
+      const h = e.overlay().innerHTML;
+      ok('leads with an estimate / task / notes start unchecked and say why', /1 of 4 selected/.test(h) && /has estimate/.test(h) && /has task/.test(h) && /has notes/.test(h));
+      e.clickAct('all');
+      ok('Select all still lets the user include them', /4 of 4 selected/.test(e.overlay().innerHTML));
+      ok('evidenceOf is pure and empty for an untouched lead', P.evidenceOf(mk('x'), {}).length === 0 && P.evidenceOf(mk('y', { lastContactType: 'call' }), {}).join() === 'contact');
+    }
+    {
+      // real moveCard contract: a supplied reason skips the Why-Lost sheet and is stored with its key
+      const mp = fs.readFileSync(path.join(ROOT, 'docs/pro/js/crm-pipeline.js'), 'utf8');
+      const fn = /function _lostFieldsFromText\(text, key\) \{[\s\S]*?\n\}/.exec(mp);
+      const fields = fn && vm.runInNewContext('window={NBDNumbers:null};' + fn[0] + ';_lostFieldsFromText("Stale - no response","no_response")');
+      ok('moveCard stores the supplied reason and key verbatim', !!fields && fields.lostReason === 'Stale - no response' && fields.lostReasonKey === 'no_response');
+      const given = mp.indexOf('if (_givenLostReason) {');
+      ok('moveCard checks the supplied reason before it can open the Why-Lost sheet', given > 0 && given < mp.indexOf('await promptLostReason(lead)', given));
     }
   } finally { Date.now = realNow; }
 
