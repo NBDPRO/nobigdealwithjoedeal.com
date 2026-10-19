@@ -903,6 +903,10 @@ exports.callWatch = require('./call-watch').callWatch;
 // vehicle papers) at 30 / 14 / 7 days or expired -> one Agent-inbox report to
 // the owner per stage. Never a customer. DRY-RUN unless COMPANY_DOC_EXPIRY_ENABLED=true.
 exports.companyDocExpiryWatch = require('./company-doc-expiry').companyDocExpiryWatch;
+// Read-only Messaging Control Center (2026-10-19, flag messagingControlCenter, dark): masked overview
+// for the owner/admin + an hourly alert watch (Agent inbox + bell + push to the owner, never a customer).
+exports.messagingCenter = require('./messaging-center').messagingCenter;
+exports.messagingWatch = require('./messaging-center').messagingWatch;
 // The Call Center screen's writes (handled / attach) — phone_calls is
 // server-written only. Owner, admin, same-company admin/manager.
 exports.callCenterAction = require('./call-center').callCenterAction;

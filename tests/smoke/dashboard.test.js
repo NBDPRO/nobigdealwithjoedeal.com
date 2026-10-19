@@ -1887,14 +1887,16 @@ section('Phase C.4 mobile-nav — bottom-nav and More-drawer items');
   // (Sunday Review added 2026-10-04 — the weekly business review.)
   // (Care Plan added 2026-10-05 — the Roof Care Plan members view; ships
   // hidden, shown only while the plan is on.)
-  assert('mobileNav conversions: 32 (3 bottom-nav + 29 more-drawer)',
-    mnCount === 32,
-    'expected 32 mobileNav data-actions; got ' + mnCount);
+  // (Messaging added 2026-10-19 — the Messaging Control Center; hidden until
+  // js/messaging-nav.js sees the flag + an owner/admin.)
+  assert('mobileNav conversions: 33 (3 bottom-nav + 30 more-drawer)',
+    mnCount === 33,
+    'expected 33 mobileNav data-actions; got ' + mnCount);
 
   const closeMoreCount = (dash.match(/data-action="mobileNav"\s+data-target="[a-z]+"\s+data-close-more/g) || []).length;
-  assert('29 mobileNav items carry data-close-more (More-drawer items)',
-    closeMoreCount === 29,
-    'expected 29 data-close-more flags; got ' + closeMoreCount);
+  assert('30 mobileNav items carry data-close-more (More-drawer items)',
+    closeMoreCount === 30,
+    'expected 30 data-close-more flags; got ' + closeMoreCount);
 
   // C.4 finale: every mobileNav handler is delegated (no inline onclicks).
   const remaining = (dash.match(/onclick="mobileNav\(/g) || []).length;

@@ -564,6 +564,11 @@
       'js/company-docs-logic.js?v=1',
       'js/company-docs-ui.js?v=1'
     ],
+    // Messaging Control Center (2026-10-19): read-only owner/admin view, dark behind the messagingControlCenter flag.
+    messaging: [
+      'css/messaging-center.css?v=1',
+      'js/messaging-center.js?v=1'
+    ],
     homestrips: [
       'css/home-strips.css?v=1',
       'js/home-strips.js?v=1'
@@ -605,6 +610,7 @@
     repos:       ['repos'],
     'talk-tank': ['talktank'],
     calls:       ['callcenter'],
+    messaging:   ['messaging'],
     aitree:      ['decision'],
     understand:  ['decision'],
     reports:     ['reports'],
