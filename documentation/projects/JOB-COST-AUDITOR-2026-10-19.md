@@ -145,3 +145,10 @@ Checked and not changed:
   company_admin void any row needs a rules change; not done here.
 - The agent tool's duplicate-cost reasons name suppliers (sub identities). The
   tool is Frank-only; if Jo prefers, the reasons can carry row ids instead.
+
+Agent tool, same review (this PR): the unit is the lead (customer), not each job
+record, so Frank's rows and fingerprints match the CRM panel and an owner's "It's
+right" / "Costs complete" holds in both. Estimate-only jobs are listed as
+`estimated_only`. A finished job with no date is kept (only a known-old date drops
+it). The answer carries `totals.truncated` and the real flagged total when the
+limit cuts the list.

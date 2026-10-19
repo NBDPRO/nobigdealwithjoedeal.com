@@ -357,6 +357,15 @@ async function runTool(name, args, key) {
     return L.toolText(L.jobProfit(leads, invoices, expenses, Date.now(), args, tz, jobsByLead));
   }
 
+  if (name === 'cost_audit') {
+    // Read only (2026-10-19): the same company data job_profit reads, judged by
+    // job-cost-audit-logic.js. Never writes a cost; the bot files a report.
+    const [leads, invoices, expenses] = await Promise.all([
+      companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy']), companyDocs('expenses', company, ['companyId', 'userId']),
+    ]);
+    return L.toolText(L.costAudit(leads, invoices, expenses, Date.now(), args));
+  }
+
   if (name === 'storm_near_customers') {
     // storm_events is the shared NWS feed stormWatch writes (no owner); only
     // this company's customers are matched against it.
