@@ -63,6 +63,7 @@ const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
+const MessagingControls = require('./messaging-controls');
 const { awaitBriefly } = require('./await-briefly');
 const AR = require('./alert-recipients');
 // Platform tenant (lead-alert.js convention): NBD = the tenant key is this uid.
@@ -541,7 +542,7 @@ exports.createReportShareToken = onCall(
         // separate is what makes the /reports path byte-identical here.
         const reportName = escHtml(cleanLabel(subject.bodyNoun, 80) || 'inspection report');
         // Email category: TRANSACTIONAL — delivers a report / document the customer is receiving. Not gated by the unsubscribe register (email-suppression.js SEND_PATHS).
-        const response = await resend.emails.send({
+        const response = await MessagingControls.guardResend(getFirestore(), resend).emails.send({
           from: fromEmail,
           to: toEmail,
           // NBD's name only on NBD's own report (tenant key = the NBD owner

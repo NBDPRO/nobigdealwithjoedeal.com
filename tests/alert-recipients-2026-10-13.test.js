@@ -104,6 +104,7 @@ const fakeDb = {
 
 class HttpsError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
 const stubs = {
+  './messaging-controls': require('./lib/messaging-controls-stub'),
   'firebase-functions/v2/firestore': { onDocumentCreated: (o, h) => ({ __opts: o, __handler: h }) },
   'firebase-functions/v2/https': { onRequest: (o, h) => ({ __handler: h }), onCall: (o, h) => ({ __handler: h }), HttpsError },
   'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'test-' + n }) },
@@ -172,7 +173,7 @@ function fresh(file) {
 const AR = fresh('alert-recipients.js');
 const LA = fresh('lead-alert.js')._internal;
 const JOE_EMAILS = ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'];
-const JOE_SMS = '+18594207382';
+const JOE_SMS = '+18595550100';
 
 function tenant(companyId, contact, auth) {
   world.docs['companyProfile/' + companyId] = { brand: { legalName: 'Acme Roofing', seal: 'ACM', contact } };

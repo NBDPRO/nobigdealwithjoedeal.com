@@ -51,6 +51,7 @@ const T = require('./thursday-logic');
 const PB = require('./thursday-playbooks');
 const PV = require('../ping-volume-logic'); // quiet-hours hold for her own channels (audit F8)
 const AWAY = require('../away-mode-logic');
+const MessagingControls = require('../messaging-controls'); // owner contact (config) + internal-alert switch
 const { createLeadWithCustomerId, isAlreadyExists } = require('../customer-id-mint');
 
 const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
@@ -75,7 +76,7 @@ const DEFAULT_CONFIG = {
   enabled: true,
   agentNumber: T.THURSDAY_NUMBER,
   smsEnabled: false,           // Bland SMS needs the Agent Phone Plan
-  smsTo: '+18594207382',       // same cell as lead-alert.js ALERT_SMS
+  smsTo: '',                   // owner phone: thursday_config.smsTo, else messaging_controls/internal.ownerPhone
   emailTo: ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'],
   pushEnabled: true,
   ownerNumbers: T.OWNER_NUMBERS_DEFAULT,   // Jo's phones — calls from them are tests
@@ -87,15 +88,16 @@ async function loadConfig(companyId) {
   try {
     const snap = await db().doc('thursday_config/' + companyId).get();
     const c = snap.exists ? snap.data() || {} : {};
+    const owner = await MessagingControls.readOwnerContact(db());
     return {
       enabled: c.enabled !== false,
       agentNumber: T.toE164(c.agentNumber) || DEFAULT_CONFIG.agentNumber,
       smsEnabled: c.smsEnabled === true,
-      smsTo: T.toE164(c.smsTo) || DEFAULT_CONFIG.smsTo,
+      smsTo: T.toE164(c.smsTo) || owner.phone || DEFAULT_CONFIG.smsTo,
       emailTo: Array.isArray(c.emailTo) && c.emailTo.length ? c.emailTo.map(String) : DEFAULT_CONFIG.emailTo,
       pushEnabled: c.pushEnabled !== false,
       pushUid: String(c.pushUid || companyId),
-      ownerNumbers: [].concat(DEFAULT_CONFIG.ownerNumbers, Array.isArray(c.ownerNumbers) ? c.ownerNumbers.map(String) : []),
+      ownerNumbers: [].concat(DEFAULT_CONFIG.ownerNumbers, owner.phone ? [owner.phone] : [], Array.isArray(c.ownerNumbers) ? c.ownerNumbers.map(String) : []),
     };
   } catch (e) {
     logger.warn('thursday: config read failed, using defaults', { err: e && e.message });
@@ -389,6 +391,10 @@ async function sendSms(cfg, text) {
   if (!cfg.smsEnabled) return 'skipped:flag-off';
   const key = blandKey();
   if (!key) return 'skipped:no-bland-key';
+  // INTERNAL alert to the owner: own switch + hourly cap, never a customer.
+  const ia = await MessagingControls.internalAlertStatus(db(), 'sms');
+  if (!ia.allowed) return 'skipped:' + ia.reason;
+  if (!cfg.smsTo) return 'skipped:owner_phone_not_configured';
   const r = await fetch(BLAND_API + '/sms/send', {
     method: 'POST',
     headers: { authorization: key, 'content-type': 'application/json' },

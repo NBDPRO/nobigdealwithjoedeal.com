@@ -59,6 +59,6 @@
       return;
     }
     form.reset();
-    say('ok', "Done. Check your inbox for the link in the next few minutes (and your spam folder, just in case).");
+    say('ok', "Done. Your link is on its way. If it has not arrived in a few minutes (check spam too), email jd@nobigdealwithjoedeal.com and I will send it.");
   });
 })();

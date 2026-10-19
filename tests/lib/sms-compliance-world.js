@@ -141,11 +141,16 @@ function makeDb(w) {
  *   twilioListError: thrown by messages.list
  *   readThrows(path) → true to make that doc read throw
  */
+// Every world starts with customer messaging OPEN (messaging_controls, 2026-10-19:
+// the real default is fail-closed, so a test that exercises a send path needs
+// these). A test of the kill switch itself passes { noControls: true }.
+const { OPEN_CONTROLS } = require('./messaging-controls-open');
+
 function makeWorld(opts) {
   opts = opts || {};
   const w = {
     opts,
-    store: new Map(Object.entries(opts.docs || {})),
+    store: new Map(Object.entries(Object.assign({}, opts.noControls ? {} : OPEN_CONTROLS, opts.docs || {}))),
     events: [],
     twilioCalls: [],
     twilioAccepted: [],
@@ -275,4 +280,19 @@ async function invoke(handler, req) {
   return res;
 }
 
-module.exports = { makeWorld, load, invoke, mkRes, HttpsError, FUNCTIONS };
+/**
+ * A lead carrying stored web-form texting consent for `digits` in `companyId`
+ * (tcpaConsent true + the server's tcpaConsentAt stamp): the consent basis a
+ * rep's text now needs (sms-consent-declined.js consentBasis, 2026-10-19).
+ * Spread into a world's docs: { ...W.consentDocs('8595550134', 'co-1') }.
+ */
+function consentDocs(digits, companyId, userId) {
+  const d = {};
+  d['leads/consent-' + digits + '-' + (companyId || 'co-1')] = {
+    userId: userId || 'rep-1', companyId: companyId || 'co-1', phoneDigits: digits, phone: digits,
+    tcpaConsent: true, tcpaConsentAt: Date.parse('2026-09-01T12:00:00Z'), createdAt: Date.parse('2026-09-01T12:00:00Z'),
+  };
+  return d;
+}
+
+module.exports = { makeWorld, load, invoke, mkRes, HttpsError, FUNCTIONS, consentDocs };

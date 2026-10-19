@@ -53,6 +53,8 @@ const C = require('./tcpa-consent');
 // Homeowner-ack text: the checks every send path makes (2026-10-05).
 const OptOut = require('./sms-optout');
 const TextingGate = require('./sms-texting-gate');
+// The ONE customer kill switch + canary + owner contact (2026-10-19).
+const MessagingControls = require('./messaging-controls');
 const SendWindow = require('./sms-send-window');
 const Outbox = require('./sms-outbox-guard');   // nowMs: the one clock seam the send paths share
 const CL = require('./integrations/calcom-logic');
@@ -92,7 +94,6 @@ const TENANT_ALERT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const TENANT_ALERT_IP_DAILY_CAP = 10;
 
 const ALERT_EMAILS = ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'];
-const ALERT_SMS = '+18594207382'; // Joe's cell — default when a lead has no tenant contact
 
 // Platform-tenant gate (same convention as render-pdf.js NBD_OWNER_UID): the
 // "is this NBD's lead" signal must be the lead's companyId, NOT the resolved
@@ -116,13 +117,21 @@ const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1
 async function resolveAlertTarget(companyId) {
   const isNbd = !companyId || String(companyId) === NBD_OWNER_UID;
   const fallback = isNbd
-    ? { emails: ALERT_EMAILS, sms: ALERT_SMS, name: 'No Big Deal Home Solutions', seal: 'NBD', isNbd: true, pushUid: NBD_OWNER_UID }
+    ? { emails: ALERT_EMAILS, sms: null, name: 'No Big Deal Home Solutions', seal: 'NBD', isNbd: true, pushUid: NBD_OWNER_UID }
     // Unresolved NON-NBD tenant: no routing at all (never Joe's inbox or
     // cell) and never his brand — empty strings per the #1129 convention, and
     // isNbd:false keeps the homeowner acks (Joe-branded copy) from firing at
     // another company's customer. The lead itself is still in their CRM.
     : { emails: null, sms: null, name: '', seal: '', isNbd: false, pushUid: null };
-  if (isNbd) return fallback;
+  if (isNbd) {
+    // Jo's cell comes from messaging_controls/internal (config), never a
+    // constant in this public repo. Not configured = no alert text (email and
+    // push still go), logged so it is not a silent gap.
+    const owner = await MessagingControls.readOwnerContact(getFirestore());
+    fallback.sms = owner.phone || null;
+    if (!owner.phone) logger.warn('leadAlert: owner_phone_not_configured — no alert text for NBD leads');
+    return fallback;
+  }
   try {
     const snap = await getFirestore().collection('companyProfile').doc(String(companyId)).get();
     if (snap.exists) {
@@ -312,6 +321,15 @@ async function ackHomeowner(collection, d, leadId, target) {
   // Resend domain mail the same stranger once per submit. One ack per
   // destination inbox per 24h, across every form. A limiter outage fails
   // open (capRecipients), same as every other alert path.
+  // Kill switch BEFORE the per-recipient cap: a paused send must not use up
+  // the homeowner's one ack slot for the day.
+  // Automated => it needs its OWN explicit entry (messaging_controls/automations
+  // leadAckEmail === true) as well as the global switch; default OFF.
+  const ackSwitch = await MessagingControls.automationStatus(getFirestore(), 'leadAckEmail', 'email', true);
+  if (!ackSwitch.enabled) {
+    logger.info('leadAck: email held — not enabled', { collection, leadId, reason: ackSwitch.reason });
+    return;
+  }
   const capAck = await AR.capRecipients('leadAck', [email], { limit: ACK_RECIPIENT_DAILY_CAP });
   if (!capAck.allowed.length) {
     logger.info('leadAck: email skipped — recipient already acked in the last 24h', { collection, leadId });
@@ -323,7 +341,7 @@ async function ackHomeowner(collection, d, leadId, target) {
     // never echo arbitrary visitor text to a third-party inbox.
     const firstName = PLG.safeGreetingName(d.firstName || d.name);
     // Email category: TRANSACTIONAL — acknowledges the homeowner's own request, sent once at submit time. Not gated by the unsubscribe register (email-suppression.js SEND_PATHS).
-    const response = await resend.emails.send({
+    const ackGate = await MessagingControls.guardEmail(getFirestore(), {
       from: 'Joe Deal <jd@nobigdealwithjoedeal.com>',
       to: email,
       reply_to: 'jd@nobigdealwithjoedeal.com',
@@ -332,6 +350,11 @@ async function ackHomeowner(collection, d, leadId, target) {
       text: ackEmailText(collection, firstName),
       headers: { 'X-NBD-Campaign': 'lead-ack-v1' },
     });
+    if (!ackGate.send) {
+      logger.info('leadAck: email held — customer messaging paused', { collection, leadId, reason: ackGate.reason });
+      return;
+    }
+    const response = await resend.emails.send(ackGate.msg);
     // Resend resolves { data: null, error } on an API-level rejection
     // instead of throwing — without this check ackEmailSentAt gets stamped
     // (and "sent" logged) on a homeowner ack that never left Resend.
@@ -529,8 +552,21 @@ async function alertJoe(collection, d, leadId, opts = {}) {
 
   // Text via Twilio (works once the number is A2P 10DLC approved). Skip when
   // the tenant configured no alert SMS — never fall back to Joe's cell.
-  if (toSms && !opts.skipSms && !capped) try {
-    const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
+  // NBD's own alert (to Jo) is an INTERNAL alert: its own switch + an hourly
+  // cap, never the customer switch. A non-NBD tenant owner's text goes out on
+  // NBD's campaign number, so it passes the customer switch like any other.
+  let smsHeld = null;
+  if (toSms && !opts.skipSms && !capped && target.isNbd) {
+    const ia = await MessagingControls.internalAlertStatus(getFirestore(), 'sms', { key: collection + '/' + leadId, bucket: 'lead' });
+    if (!ia.allowed) smsHeld = ia.reason;
+  }
+  if (smsHeld) {
+    outcomes.sms = 'skipped:' + smsHeld;
+    logger.warn('leadAlert: internal alert text held', { collection, leadId, reason: smsHeld });
+  }
+  if (toSms && !opts.skipSms && !capped && !smsHeld) try {
+    const rawClient = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
+    const client = target.isNbd ? rawClient : MessagingControls.guardTwilio(getFirestore(), rawClient);
     const msg = await client.messages.create({
       to: toSms,
       from: TWILIO_PHONE_NUMBER.value(),
@@ -545,6 +581,16 @@ async function alertJoe(collection, d, leadId, opts = {}) {
   } catch (e) {
     outcomes.sms = 'failed:' + String(e && e.message || e).slice(0, 200);
     logger.error('leadAlert: sms failed', { collection, leadId, err: e.message });
+  }
+
+  // NBD's alert email to Jo: own switch + hourly cap (internal, never the customer switch).
+  if (toEmails && toEmails.length && !capped && target.isNbd) {
+    const ie = await MessagingControls.internalAlertStatus(getFirestore(), 'email', { key: collection + '/' + leadId, bucket: 'lead' });
+    if (!ie.allowed && ie.reason !== 'owner_email_not_configured') {
+      toEmails = null;
+      outcomes.email = 'skipped:' + ie.reason;
+      logger.warn('leadAlert: internal alert email held', { collection, leadId, reason: ie.reason });
+    }
   }
 
   // Detailed email → the tenant's alert inbox(es). Skip when none configured.
@@ -615,8 +661,12 @@ async function alertJoe(collection, d, leadId, opts = {}) {
 //
 // Delivery still requires the Twilio number's A2P 10DLC approval.
 async function ackHomeownerSms(collection, d, leadId, target) {
+  // BOTH the env flag and an explicit messaging_controls/automations entry
+  // (leadAckSms === true) and the global SMS switch; any one missing = no text.
+  const ackAuto = await MessagingControls.automationStatus(
+    getFirestore(), 'leadAckSms', 'sms', process.env.LEAD_ACK_SMS_ENABLED === 'true');
   const gate = C.smsAckGate({
-    enabled: process.env.LEAD_ACK_SMS_ENABLED === 'true',
+    enabled: ackAuto.enabled,
     collection,
     doc: d,
     target,
@@ -653,8 +703,17 @@ async function ackHomeownerSms(collection, d, leadId, target) {
     logger.info('leadAck: sms suppressed', { collection, leadId, reason: 'quiet_hours' });
     return;
   }
+  // Idempotency per (recipient, template, lead): a retried trigger can never
+  // send the same ack twice. An unverifiable marker is no send.
   try {
-    const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
+    const first = await MessagingControls.claimSendOnce(getFirestore(), to, 'lead_ack_sms', collection + '/' + (leadId || ''));
+    if (!first) { logger.info('leadAck: sms suppressed', { collection, leadId, reason: 'already_sent' }); return; }
+  } catch (e) {
+    logger.error('leadAck: sms suppressed — dedupe unverifiable', { collection, leadId, err: e && e.message });
+    return;
+  }
+  try {
+    const client = MessagingControls.guardTwilio(getFirestore(), _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value()));
     const firstName = String(d.firstName || '').trim();
     const msg = await client.messages.create({
       to,

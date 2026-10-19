@@ -497,8 +497,8 @@ function preflightEnv(est) {
   // R6-3-8 ─ storm alerts de-duplicate per sign-up, not per phone
   {
     const w = W.makeWorld({ clockMs: NOON_ET, docs: {
-      'storm_alert_subscribers/s1': { phone: '8595550134', zip: '41011', active: true, tcpaConsent: true },
-      'storm_alert_subscribers/s2': { phone: '(859) 555-0134', zip: '41011', active: true, tcpaConsent: true },
+      'storm_alert_subscribers/s1': { phone: '8595550134', zip: '41011', active: true, tcpaConsent: true, smsConfirmedAt: 1 },
+      'storm_alert_subscribers/s2': { phone: '(859) 555-0134', zip: '41011', active: true, tcpaConsent: true, smsConfirmedAt: 1 },
     } });
     const G = W.load(w, 'storm-sms-guard.js');
     let sends = 0;

@@ -48,7 +48,7 @@ function ok(name, cond, detail) {
 }
 
 const OWNER_UID = 'owner-uid-test';
-const JOE_SMS = '+18594207382';
+const JOE_SMS = '+18595550100';
 const JOE_EMAILS = ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'];
 
 // ── In-memory Firestore (just what these modules call) ───────────────────
@@ -104,6 +104,8 @@ function reset() {
 }
 
 const stubs = {
+
+  './messaging-controls': require('./lib/messaging-controls-stub'),
   'firebase-functions/v2/firestore': { onDocumentCreated: (opts, handler) => ({ __opts: opts, __handler: handler }) },
   './integrations/heartbeat': { onSchedule: (opts, handler) => ({ __opts: opts, __handler: handler }) },
   'firebase-functions/params': { defineSecret: (name) => ({ name, value: () => 'test-' + name }) },

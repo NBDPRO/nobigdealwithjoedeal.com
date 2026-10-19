@@ -53,6 +53,8 @@ const REGISTERED_CO1 = { 'sms_settings/co-1': { registered: true }, 'companyProf
 const OH_LEAD = { userId: 'joe', companyId: NBD, phone: PHONE, phoneDigits: KEY, address: '12 Main St, Goshen, OH 45122' };
 
 async function sendSMS(opts, body, endpoint) {
+  // A rep's text needs stored form consent for the number (2026-10-19): both tenants have it here.
+  opts = Object.assign({}, opts, { docs: Object.assign({}, W.consentDocs(KEY, NBD, 'joe'), W.consentDocs(KEY, 'co-1'), (opts && opts.docs) || {}) });
   const w = W.makeWorld(opts);
   const mod = W.load(w, 'sms-functions.js');
   const res = await W.invoke(mod[endpoint || 'sendSMS'].__handler, { body });
@@ -337,7 +339,8 @@ const queuedBody = (w, over) => Object.assign({
   for (const [label, sub, want] of [
     ['a pre-10/03 signup with no consent field', { phone: PHONE, active: true, zip: '45122' }, 'no_consent'],
     ['tcpaConsent "true" (a string)', { phone: PHONE, active: true, zip: '45122', tcpaConsent: 'true' }, 'no_consent'],
-    ['tcpaConsent true', { phone: PHONE, active: true, zip: '45122', tcpaConsent: true }, 'sent'],
+    ['tcpaConsent true but never replied YES (double opt-in, 2026-10-19)', { phone: PHONE, active: true, zip: '45122', tcpaConsent: true }, 'not_confirmed'],
+    ['tcpaConsent true AND confirmed by replying YES', { phone: PHONE, active: true, zip: '45122', tcpaConsent: true, smsConfirmedAt: 1 }, 'sent'],
   ]) {
     const w = W.makeWorld({ docs: { 'storm_alert_subscribers/s1': sub } });
     const Guard = W.load(w, 'storm-sms-guard.js');

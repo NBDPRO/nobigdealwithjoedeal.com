@@ -52,12 +52,17 @@ const { resendRejected, resendErrorMessage } = require('./resend-guard');
 // spammed.
 const JOE_PHONE_SECRET = defineSecret('JOE_NOTIFY_PHONE');
 const JOE_EMAIL_SECRET = defineSecret('JOE_NOTIFY_EMAIL');
-const JOE_PHONE_FALLBACK = '+18594207382';
 const JOE_EMAIL_FALLBACK = 'jonathandeal459@gmail.com';
 
 // Format phone to E.164 — US/Canada only. International numbers are explicitly
 // rejected to block SMS-pumping fraud. Shared with submitPublicLead (2026-10-15).
 const { formatPhone } = require('./phone-utils');
+const { envCap } = require('./env-number');
+// The shared STOP register + company Do Not Text list, the owner's customer
+// kill switch, and the internal-alert switch (2026-10-19).
+const OptOut = require('./sms-optout');
+const MessagingControls = require('./messaging-controls');
+const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 /**
  * Rate limit check — prevents abuse of OTP sends
  * Max 3 OTP requests per phone per 10 minutes
@@ -85,8 +90,14 @@ async function checkOTPRateLimit(db, phone) {
 const OTP_PHONE_DAILY_CAP = 5;
 const OTP_DAY_MS = 24 * 60 * 60 * 1000;
 function otpGlobalDailyCap(env) {
-  const n = Number((env || process.env).OTP_GLOBAL_DAILY_CAP);
-  return Number.isFinite(n) && n >= 1 && n <= 100000 ? Math.floor(n) : 200;
+  // A real 0 means NO codes (envCap keeps it); unset / junk / over 100000 -> 200.
+  const n = envCap((env || process.env).OTP_GLOBAL_DAILY_CAP, 200);
+  return n <= 100000 ? n : 200;
+}
+// Per-IP daily ceiling on top of the 10-minute one (5 per 10 min = 720 a day
+// from one address, still a pumping route). 0 = none.
+function otpIpDailyCap(env) {
+  return envCap((env || process.env).OTP_IP_DAILY_CAP, 15);
 }
 async function enforceOtpDailyCaps(formatted, deps) {
   const enforce = (deps && deps.enforce) || enforceRateLimit;
@@ -100,6 +111,10 @@ async function enforceOtpDailyCaps(formatted, deps) {
     }
     logger.error('otp_daily_cap_unavailable', { err: e && e.message });
     return { ok: false, reason: 'error', error: 'Failed to send verification code. Please try again.' };
+  }
+  if (otpGlobalDailyCap(env) === 0) {
+    logger.warn('otp_global_cap_zero');
+    return { ok: false, reason: 'global', error: 'Text verification is busy right now. Please try again later or call (859) 420-7382.' };
   }
   try {
     await enforce('sendVerificationCode:globalDay', 'all', otpGlobalDailyCap(env), OTP_DAY_MS);
@@ -140,6 +155,20 @@ exports.sendVerificationCode = onCall(
       throw e;
     }
 
+    // Per-IP DAILY cap (10-minute cap above stays). 0 = text verification off.
+    {
+      const ipCap = otpIpDailyCap();
+      if (ipCap === 0) return { success: false, error: 'Text verification is busy right now. Please call (859) 420-7382.' };
+      try {
+        await enforceRateLimit('sendVerificationCode:ipDay', ip, ipCap, OTP_DAY_MS);
+      } catch (e) {
+        if (e && e.rateLimited) {
+          throw new HttpsError('resource-exhausted', 'Too many verification requests today. Please call (859) 420-7382.');
+        }
+        throw e;
+      }
+    }
+
     const { phone } = request.data || {};
     if (!phone) {
       return { success: false, error: 'Phone number required' };
@@ -153,6 +182,29 @@ exports.sendVerificationCode = onCall(
 
     try {
       const db = getFirestore();
+
+      // The owner's kill switch (messaging_controls/global otpEnabled, fail
+      // closed). A canary is NOT a preview for a code: the code would go to the
+      // owner while the visitor types it against their own number, so canary
+      // pauses OTP too. Checked before the per-PHONE limits, caps and the otp_requests row, so a paused
+      // send burns none of those (the per-IP counters above are already spent: they bound abuse of this endpoint).
+      const otpSwitch = await MessagingControls.channelStatus(db, 'otp');
+      if (!otpSwitch.allowed || otpSwitch.canary) {
+        logger.info('otp_paused', { reason: otpSwitch.canary ? 'canary' : otpSwitch.reason });
+        return { success: false, error: 'Text verification is paused right now. Please call (859) 420-7382 and we will take it from here.' };
+      }
+
+      // The shared STOP register + NBD's Do Not Text list: a number that texted
+      // STOP gets no code from us either (Twilio Verify keeps its own list; this
+      // is ours, and it is read first). An unreadable register is no send (the
+      // catch below answers the generic failure).
+      const optOut = await OptOut.isOptedOut(db, formatted, { companyId: NBD_OWNER_UID, timeoutMs: OptOut.READ_TIMEOUT_MS });
+      if (optOut.optedOut) {
+        logger.info('otp_opted_out');
+        // Deliberately the SAME wording as any other refusal: a different message would tell a stranger
+        // whether a number has ever texted STOP (an oracle).
+        return { success: false, error: 'We cannot send a text code to this number right now. Please call (859) 420-7382 and we will take it from here.' };
+      }
 
       // Per-phone cap — 3 OTP sends per 10 minutes.
       const allowed = await checkOTPRateLimit(db, formatted);
@@ -359,8 +411,14 @@ exports.notifyNewLead = onCall(
       // ── SMS to Joe (only when the lead phone is OTP-verified) ──
       // Unverified leads still email Joe, but skip SMS so the lead form cannot
       // be used as a cost-DoS vector against Joe's phone.
-      const joePhone = secretOr(JOE_PHONE_SECRET, JOE_PHONE_FALLBACK); // stub → fallback, never the string '__unset__'
-      if (trulyVerified) {
+      // The number is config: the JOE_NOTIFY_PHONE secret if set, else the owner
+      // contact in messaging_controls/internal. Never a constant in this repo.
+      // INTERNAL alert: its own switch + hourly cap, not the customer switch.
+      const ia = trulyVerified
+        ? await MessagingControls.internalAlertStatus(getFirestore(), 'sms', { bucket: 'lead' })
+        : { allowed: false, reason: 'unverified', phone: '' };
+      const joePhone = secretOr(JOE_PHONE_SECRET, '') || ia.phone; // stub → '', never the string '__unset__'
+      if (trulyVerified && joePhone && ia.allowed) {
         let smsBody = `${urgencyFlag}NEW LEAD 🏠\n` +
           `${name} — ${serviceName}\n` +
           `📞 ${formattedLeadPhone} ${verifiedBadge}\n` +
@@ -380,7 +438,7 @@ exports.notifyNewLead = onCall(
         });
         logger.info('lead_sms_sent_to_joe', { nameHash });
       } else {
-        logger.info('lead_sms_skipped_unverified', { nameHash });
+        logger.info('lead_sms_skipped', { nameHash, verified: !!trulyVerified, reason: trulyVerified ? (ia.reason || 'owner_phone_not_configured') : 'unverified' });
       }
 
       // ── Email to Joe ──
@@ -453,6 +511,11 @@ exports.notifyNewLead = onCall(
 </html>`;
 
       const joeEmail = secretOr(JOE_EMAIL_SECRET, JOE_EMAIL_FALLBACK);
+      const ie = await MessagingControls.internalAlertStatus(getFirestore(), 'email', { bucket: 'lead' });
+      if (!ie.allowed && ie.reason !== 'owner_email_not_configured') {
+        logger.warn('lead_notification_email_held', { reason: ie.reason });
+        return { success: true, held: true };
+      }
       const response = await resend.emails.send({
         from: fromEmail,
         to: joeEmail,
@@ -482,7 +545,7 @@ exports.notifyNewLead = onCall(
 // deployed export surface.
 Object.defineProperty(exports, '_internal', {
   enumerable: false,
-  value: { enforceOtpDailyCaps, otpGlobalDailyCap, OTP_PHONE_DAILY_CAP, formatPhone },
+  value: { enforceOtpDailyCaps, otpGlobalDailyCap, otpIpDailyCap, OTP_PHONE_DAILY_CAP, formatPhone },
 });
 
 logger.info('verify_functions_loaded');

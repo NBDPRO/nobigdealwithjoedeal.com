@@ -37,6 +37,7 @@ const { FieldPath, FieldValue, getFirestore } = require('firebase-admin/firestor
 const RA = require('./review-ask-auto-logic');
 const RP = require('./review-ask-photo');
 const Suppression = require('./email-suppression');
+const MessagingControls = require('./messaging-controls');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const OptOut = require('./sms-optout');
 const TextingGate = require('./sms-texting-gate');
@@ -113,6 +114,10 @@ async function askOne(db, entry, uid, deps) {
   const nowMs = Number(d.nowMs) || Date.now();
   const args = { env: d.env || process.env, lead: entry, job: entry.job || null, jobId: entry.jobId || null, recvMs: entry.receivedMs, nowMs };
   try {
+    // An automation never reaches back: only a job paid in the last 7 days
+    // (MessagingControls.MAX_AUTOMATION_AGE_DAYS), however wide the window in
+    // review-ask-auto-logic.js is, so switching this on cannot ask the backlog.
+    if (d.maxAgeDays != null && !MessagingControls.withinAutomationAge(entry.receivedMs, nowMs, d.maxAgeDays)) return { sent: false, reason: 'too_old' };
     const reviewUrl = RA.reviewUrlFor(entry, d.repUrl);
     const pe = RA.planEmail(args);
     if (pe.send) {
@@ -138,6 +143,10 @@ async function askOne(db, entry, uid, deps) {
       const photo = RP.photoFlagOn(d.env || process.env)
         ? await RP.photoForEmail(db, entry, { loader: d.photoLoader, bucket: d.bucket, logger: log })
         : null;
+      // The owner's customer-send switch BEFORE the once-per-job claim: a paused
+      // send must not use up the job's single ask. Retried next run while in window.
+      const sw = await MessagingControls.channelStatus(db, 'email');
+      if (!sw.allowed) return { sent: false, reason: 'messaging_paused' };
       if (!(await claim(db, entry.id, entry.jobId, 'email', nowMs))) return { sent: false, reason: 'claimed' };
       const c = RA.emailContent(entry, reviewUrl, photo ? photo.content : null);
       const body = Suppression.applyFooter(gate, c.html, c.text);
@@ -148,7 +157,9 @@ async function askOne(db, entry, uid, deps) {
           headers: Object.assign({ 'X-NBD-Campaign': 'review-ask-auto-v1' }, gate.headers), tags: gate.tags,
         };
         if (photo) msg.attachments = photo.attachments;
-        const r = await d.resend.emails.send(msg);
+        const gated = await MessagingControls.guardEmail(db, msg);
+        if (!gated.send) throw new Error('messaging_paused:' + gated.reason);
+        const r = await d.resend.emails.send(gated.msg);
         if (resendRejected(r)) throw new Error(resendErrorMessage(r));
         delivered = true;
       } catch (e) {
@@ -169,6 +180,7 @@ async function askOne(db, entry, uid, deps) {
     if (!reviewUrl) return { sent: false, reason: 'no_review_url' };
     if (typeof d.sendText !== 'function') return { sent: false, reason: 'no_sender' };
     const tenantKey = RA.NBD_OWNER_UID;
+    // Idempotency per (recipient, template, job): a rerun can never text twice.
     const opt = await OptOut.isOptedOut(db, pt.to, { companyId: tenantKey, timeoutMs: OptOut.READ_TIMEOUT_MS });
     if (opt.optedOut) { await settle(db, entry.id, entry.jobId, 'text', 'opted_out', { atMs: nowMs }); return { sent: false, reason: 'opted_out' }; }
     const cd = await ConsentDeclined.decide(db, {
@@ -180,6 +192,9 @@ async function askOne(db, entry, uid, deps) {
     if (!status.allowed) return { sent: false, reason: 'texting_' + status.reason };
     if (!(await claim(db, entry.id, entry.jobId, 'text', nowMs))) return { sent: false, reason: 'claimed' };
     try {
+      if (!(await MessagingControls.claimSendOnce(db, pt.to, 'review_ask_text', entry.jobId || entry.id))) {
+        return { sent: false, reason: 'duplicate' };
+      }
       await d.sendText({ to: pt.to, body: RA.textBody(entry, reviewUrl) });
     } catch (e) {
       log.warn('review_auto_text_failed', { leadId: entry.id, err: e && e.message });
@@ -204,6 +219,7 @@ async function runForUser(db, uid, deps) {
   const results = [];
   let asked = 0;
   for (const entry of due) {
+    if (d.maxAsks != null && asked >= d.maxAsks) { results.push({ leadId: entry.id, jobId: entry.jobId || null, sent: false, reason: 'per_run_cap' }); break; }
     const r = await askOne(db, entry, uid, d);
     results.push(Object.assign({ leadId: entry.id, jobId: entry.jobId || null }, r));
     if (r.sent) asked++;
@@ -215,7 +231,7 @@ async function sendTextTwilio({ to, body }) {
   const { secretValue: sv } = require('./integrations/_shared');
   const sid = sv(TWILIO_ACCOUNT_SID), tok = sv(TWILIO_AUTH_TOKEN), from = sv(TWILIO_PHONE_NUMBER);
   if (!sid || !tok || !from) throw new Error('twilio-not-configured');
-  return require('twilio')(sid, tok).messages.create({ to, from, body });
+  return MessagingControls.guardTwilio(getFirestore(), require('twilio')(sid, tok)).messages.create({ to, from, body });
 }
 
 exports.reviewAskAutoSweep = onSchedule(
@@ -224,10 +240,21 @@ exports.reviewAskAutoSweep = onSchedule(
     secrets: [RESEND_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER],
   },
   async () => {
-    const emailOn = process.env.REVIEW_ASK_AUTO_EMAIL_ENABLED === 'true';
-    const textOn = process.env.REVIEW_ASK_AUTO_TEXT_ENABLED === 'true';
-    if (!emailOn && !textOn) { fnLogger.info('review_auto_disabled'); return; }
     const db = getFirestore();
+    // Each channel needs its env flag AND an explicit messaging_controls/
+    // automations entry AND the global switch (2026-10-19, fail closed). The
+    // combined answer is written back into the env the planners read, so the
+    // pure planning code is unchanged. maxPerRun caps the whole sweep.
+    const autoEmail = await MessagingControls.automationStatus(db, 'reviewAskAutoEmail', 'email', process.env.REVIEW_ASK_AUTO_EMAIL_ENABLED === 'true');
+    const autoText = await MessagingControls.automationStatus(db, 'reviewAskAutoText', 'sms', process.env.REVIEW_ASK_AUTO_TEXT_ENABLED === 'true');
+    const emailOn = autoEmail.enabled;
+    const textOn = autoText.enabled;
+    if (!emailOn && !textOn) { fnLogger.info('review_auto_disabled', { email: autoEmail.reason, text: autoText.reason }); return; }
+    const runEnv = Object.assign({}, process.env, {
+      REVIEW_ASK_AUTO_EMAIL_ENABLED: emailOn ? 'true' : 'false',
+      REVIEW_ASK_AUTO_TEXT_ENABLED: textOn ? 'true' : 'false',
+    });
+    const runCap = Math.min(emailOn ? autoEmail.maxPerRun : Infinity, textOn ? autoText.maxPerRun : Infinity);
     const { Resend } = require('resend');
     const resend = emailOn && process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
     // Every rep's book, paginated (the nudge's lesson: a bare limit drops
@@ -242,8 +269,9 @@ exports.reviewAskAutoSweep = onSchedule(
       if (snap.empty) break;
       for (const u of snap.docs) {
         if ((u.data() || {}).e2eTestAccount) continue;
+        if (asked >= runCap) break;
         try {
-          const out = await runForUser(db, u.id, { env: process.env, resend, sendText: textOn ? sendTextTwilio : null, logger: fnLogger });
+          const out = await runForUser(db, u.id, { env: runEnv, resend, sendText: textOn ? sendTextTwilio : null, logger: fnLogger, maxAsks: runCap - asked, maxAgeDays: MessagingControls.MAX_AUTOMATION_AGE_DAYS });
           asked += out.asked;
           for (const r of out.results) counts[r.reason] = (counts[r.reason] || 0) + 1;
         } catch (e) {

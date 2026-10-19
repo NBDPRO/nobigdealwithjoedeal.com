@@ -38,6 +38,7 @@ function ok(name, cond, detail) {
 }
 
 const FUNCTIONS = path.join(__dirname, '..', 'functions');
+process.env.STORM_NWS_TEXT_ENABLED = 'true';   // the NWS half is default OFF (2026-10-19)
 
 // ── Fake clock ───────────────────────────────────────────────────────────
 const realDateNow = Date.now;
@@ -170,6 +171,15 @@ function makeWorld(opts) {
   opts = opts || {};
   clock.ms = opts.clockMs || BASE_MS;
   const db = opts.db || makeDb();
+  // 2026-10-19: storm texts are DEFAULT OFF. A scenario that tests the send
+  // path opens every gate explicitly (messaging_controls + the stormAlerts
+  // switch); the confirmed-subscriber (double opt-in) field is in seedSub.
+  if (!opts.noControls) {
+    db.store.set('messaging_controls/global', { customerSendsEnabled: true, smsEnabled: true, emailEnabled: true, otpEnabled: true, canary: false });
+    db.store.set('messaging_controls/automations', { stormText: true, stormNwsText: true, maxPerRun: 500 });
+    db.store.set('messaging_controls/internal', { ownerPhone: '+18595550100' });
+    if (!db.store.has('integrations/stormAlerts')) db.store.set('integrations/stormAlerts', { enabled: true });
+  }
   const sent = [];          // every Twilio messages.create
   const logs = { error: [], warn: [], info: [] };
   const slackPosts = [];
@@ -238,7 +248,7 @@ function makeWorld(opts) {
 }
 
 const FRESH = ['storm-poller.js', 'sms-functions.js', 'storm-watch.js', 'storm-sms-guard.js', 'sms-optout.js', 'phone-utils.js',
-  'integrations/slack.js', 'integrations/storm-briefing.js'];
+  'integrations/slack.js', 'integrations/storm-briefing.js', 'messaging-controls.js', 'storm-confirm.js', 'sms-texting-gate.js'];
 function load(w, rel) {
   world = w;
   for (const f of FRESH) {
@@ -251,7 +261,7 @@ function load(w, rel) {
 const SUB_PHONE = '(859) 555-0134';
 const SUB_E164 = '+18595550134';
 function seedSub(db, id, fields) {
-  db.store.set('storm_alert_subscribers/' + id, Object.assign({ active: true, zip: '41017', phone: SUB_PHONE, tcpaConsent: true }, fields || {}));
+  db.store.set('storm_alert_subscribers/' + id, Object.assign({ active: true, zip: '41017', phone: SUB_PHONE, tcpaConsent: true, smsConfirmedAt: fakeTs(BASE_MS - 86400000) }, fields || {}));
 }
 function nwsAlert(id, extra) {
   return {
@@ -366,7 +376,7 @@ const LSR = [{
   geometry: { type: 'Point', coordinates: [-84.55, 39.04] },
   properties: { typetext: 'HAIL', magf: '1.25', valid: '2026-10-03T18:00:00', city: 'Erlanger', county: 'Kenton', st: 'KY' },
 }];
-const JOE = '+18594207382';
+const JOE = '+18595550100';
 const subscriberTexts = (w) => w.sent.filter((m) => m.to !== JOE);
 process.env.STORM_TEXT_ENABLED = 'true';
 {
@@ -377,7 +387,11 @@ process.env.STORM_TEXT_ENABLED = 'true';
   }
   w.lsrFeatures = LSR;
   const mod = load(w, 'storm-watch.js');
-  await mod.runStormWatch({});
+  // maxPerRun caps one run at 500 (2026-10-19): three ticks reach all 1201, none twice.
+  for (let tick = 0; tick < 3; tick++) {
+    for (const k of [...w.db.store.keys()]) if (k.startsWith('storm_events/')) w.db.store.delete(k);
+    await mod.runStormWatch({});
+  }
   ok('2a. all 1201 in-range subscribers are texted (no silent .limit(1000) drop)',
     subscriberTexts(w).length === 1201, { texts: subscriberTexts(w).length });
 }
@@ -539,7 +553,10 @@ const TEN_PM_EDT = Date.parse('2026-10-04T02:00:00Z');   // 22:00 America/New_Yo
   w.db.store.delete('integrations/stormAlerts');
   for (const k of [...w.db.store.keys()]) if (k.startsWith('storm_events/')) w.db.store.delete(k);
   await load(w, 'sms-functions.js').runCheckStormAlerts({});
-  ok('6b. with the switch doc absent the default is ENABLED (positive control)', sentTo(w, SUB_E164) === 1);
+  ok('6b. with the switch doc ABSENT the default is OFF (2026-10-19: was on)', sentTo(w, SUB_E164) === 0, sentTo(w, SUB_E164));
+  w.db.store.set('integrations/stormAlerts', { enabled: true });
+  await load(w, 'sms-functions.js').runCheckStormAlerts({});
+  ok('6b. enabled === true opens it (positive control)', sentTo(w, SUB_E164) === 1, sentTo(w, SUB_E164));
 }
 {
   let Guard = null;
@@ -556,6 +573,155 @@ const TEN_PM_EDT = Date.parse('2026-10-04T02:00:00Z');   // 22:00 America/New_Yo
     w.db.doc = ((orig) => (p) => (p === 'integrations/stormAlerts' ? { get: async () => { throw new Error('UNAVAILABLE'); } } : orig(p)))(w.db.doc);
     ok('6c. an unreadable switch fails closed', (await Guard.stormAlertsEnabled(w.db)) === false);
   }
+}
+
+// ═════════════════════════════════════════════════════════════════
+console.log('7. A2P-live gates (2026-10-19): default OFF, explicit switches, double opt-in, zero caps, confirmation flow');
+// ═════════════════════════════════════════════════════════════════
+const nwsFetched = (w) => w.fetchLog.some((f) => f.url.includes('api.weather.gov'));
+{
+  const prev = process.env.STORM_NWS_TEXT_ENABLED;
+  delete process.env.STORM_NWS_TEXT_ENABLED;
+  const w = makeWorld();
+  seedSub(w.db, 'g1');
+  w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.g01.001.1')];
+  await load(w, 'sms-functions.js').runCheckStormAlerts({});
+  ok('7a. the NWS half is OFF without STORM_NWS_TEXT_ENABLED: no text, and the NWS feed is not even fetched', sentTo(w, SUB_E164) === 0 && !nwsFetched(w), { texts: sentTo(w, SUB_E164), fetched: nwsFetched(w) });
+  process.env.STORM_NWS_TEXT_ENABLED = prev;
+  await load(w, 'sms-functions.js').runCheckStormAlerts({});
+  ok('7a. positive control: with the env flag back on, the same world texts', sentTo(w, SUB_E164) === 1, sentTo(w, SUB_E164));
+}
+{
+  const w = makeWorld();
+  seedSub(w.db, 'g2');
+  w.db.store.set('messaging_controls/automations', { stormNwsText: false, maxPerRun: 5000 });
+  w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.g02.001.1')];
+  await load(w, 'sms-functions.js').runCheckStormAlerts({});
+  ok('7b. env on but messaging_controls/automations.stormNwsText not true -> no text, no fetch', sentTo(w, SUB_E164) === 0 && !nwsFetched(w));
+  w.db.store.delete('messaging_controls/automations');
+  await load(w, 'sms-functions.js').runCheckStormAlerts({});
+  ok('7b. ...and with no automations doc at all -> still OFF', sentTo(w, SUB_E164) === 0 && !nwsFetched(w));
+}
+{
+  const w = makeWorld();
+  w.db.store.set('messaging_controls/global', { customerSendsEnabled: false, smsEnabled: true, emailEnabled: true, otpEnabled: true });
+  seedSub(w.db, 'g3');
+  w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.g03.001.1')];
+  await load(w, 'sms-functions.js').runCheckStormAlerts({});
+  ok('7c. the master kill switch (customerSendsEnabled:false) stops the NWS half too', sentTo(w, SUB_E164) === 0);
+}
+{
+  const w = makeWorld();
+  seedSub(w.db, 'g4', { smsConfirmedAt: undefined });
+  w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.g04.001.1')];
+  await load(w, 'sms-functions.js').runCheckStormAlerts({});
+  ok('7d. a subscriber with tcpaConsent only (never replied YES) is NOT texted, every gate open', sentTo(w, SUB_E164) === 0, sentTo(w, SUB_E164));
+  w.db.store.set('storm_alert_subscribers/g4', Object.assign({}, w.db.store.get('storm_alert_subscribers/g4'), { smsConfirmedAt: fakeTs(clock.ms - 3600000), lastStormTextAt: undefined }));
+  for (const k of [...w.db.store.keys()]) if (k.startsWith('storm_events/') || k.startsWith('storm_alerts_sent/')) w.db.store.delete(k);
+  await load(w, 'sms-functions.js').runCheckStormAlerts({});
+  ok('7d. positive control: after the YES reply is recorded, the same subscriber is texted', sentTo(w, SUB_E164) === 1, sentTo(w, SUB_E164));
+}
+{
+  const prevDay = process.env.STORM_MAX_SMS_PER_DAY;
+  process.env.STORM_MAX_SMS_PER_DAY = '0';
+  const w = makeWorld();
+  seedSub(w.db, 'g5');
+  w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.g05.001.1')];
+  await load(w, 'sms-functions.js').runCheckStormAlerts({});
+  ok('7e. STORM_MAX_SMS_PER_DAY=0 sends NOTHING (was: 0 became 2000)', sentTo(w, SUB_E164) === 0, sentTo(w, SUB_E164));
+  process.env.STORM_MAX_SMS_PER_DAY = '1';
+  await load(w, 'sms-functions.js').runCheckStormAlerts({});
+  ok('7e. positive control: =1 sends', sentTo(w, SUB_E164) === 1, sentTo(w, SUB_E164));
+  if (prevDay === undefined) delete process.env.STORM_MAX_SMS_PER_DAY; else process.env.STORM_MAX_SMS_PER_DAY = prevDay;
+  const prevRun = process.env.STORM_MAX_SMS_PER_RUN;
+  process.env.STORM_MAX_SMS_PER_RUN = '0';
+  const w2 = makeWorld();
+  seedSub(w2.db, 'g6');
+  w2.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.g06.001.1')];
+  await load(w2, 'sms-functions.js').runCheckStormAlerts({});
+  ok('7e. STORM_MAX_SMS_PER_RUN=0 sends NOTHING', sentTo(w2, SUB_E164) === 0, sentTo(w2, SUB_E164));
+  if (prevRun === undefined) delete process.env.STORM_MAX_SMS_PER_RUN; else process.env.STORM_MAX_SMS_PER_RUN = prevRun;
+}
+{
+  const w = makeWorld();
+  w.db.store.set('messaging_controls/automations', { stormNwsText: true, maxPerRun: 1 });
+  seedSub(w.db, 'h1', { phone: '(859) 555-0111' });
+  seedSub(w.db, 'h2', { phone: '(859) 555-0122' });
+  w.nwsFeatures = [nwsAlert('urn:oid:2.49.0.1.840.0.h01.001.1')];
+  await load(w, 'sms-functions.js').runCheckStormAlerts({});
+  ok('7f. messaging_controls/automations.maxPerRun=1 caps ONE run at one text (two eligible subscribers)', subscriberTexts(w).length === 1, subscriberTexts(w).length);
+}
+{
+  // The confirmation text (double opt-in) and the YES reply.
+  const w = makeWorld();
+  world = w;
+  const SC = load(w, 'storm-confirm.js');
+  const mk = (id, fields) => w.db.store.set('storm_alert_subscribers/' + id, Object.assign({ active: true, zip: '41017', phone: '(859) 555-0134', tcpaConsent: true, createdAt: fakeTs(clock.ms - 3600000) }, fields || {}));
+  mk('c1');
+  mk('c2', { phone: '(859) 555-0122' });
+  mk('c3', { phone: '(859) 555-0133', tcpaConsent: false });
+  mk('c4', { phone: '(859) 555-0144', createdAt: fakeTs(clock.ms - 9 * 86400000) });
+  const out = [];
+  const args = (over) => Object.assign({ db: w.db, nowMs: clock.ms, companyId: '1phDvAVXHSg82wDLegAbQFq14Ci1', maxPerRun: 5, send: async (to, body) => { out.push({ to, body }); return { sid: 'x' }; }, serverTimestamp: () => fakeTs(clock.ms) }, over || {});
+  const r1 = await SC.sendPendingConfirmations(args({ maxPerRun: 1 }));
+  ok('7g. confirmation: maxPerRun 1 -> ONE confirmation text this run', out.length === 1 && r1.requested === 1, JSON.stringify(r1));
+  await SC.sendPendingConfirmations(args());
+  ok('7g. ...the next run texts the other eligible subscriber, never the same one twice', out.length === 2 && new Set(out.map((m) => m.to)).size === 2, JSON.stringify(out.map((m) => m.to)));
+  ok('7g. no consent (c3) and a signup older than 7 days (c4) get NO confirmation text', !out.some((m) => /0133|0144/.test(m.to)), JSON.stringify(out.map((m) => m.to)));
+  ok('7g. the text asks for YES, names the business, has STOP and HELP, and promises 2-4 a season', /Reply YES/.test(out[0].body) && /No Big Deal Home Solutions/.test(out[0].body) && /STOP/.test(out[0].body) && /HELP/.test(out[0].body) && /2-4/.test(out[0].body), out[0].body);
+  {
+    // M2: the company texting switch (sms_settings.enabled=false) stops the confirmation text too.
+    const w2 = makeWorld();
+    world = w2;
+    const SC2 = load(w2, 'storm-confirm.js');
+    w2.db.store.set('sms_settings/1phDvAVXHSg82wDLegAbQFq14Ci1', { enabled: false });
+    w2.db.store.set('storm_alert_subscribers/z1', { active: true, zip: '41017', phone: '(859) 555-0188', tcpaConsent: true, createdAt: fakeTs(clock.ms - 3600000) });
+    const out2 = [];
+    const rz = await SC2.sendPendingConfirmations({ db: w2.db, nowMs: clock.ms, companyId: '1phDvAVXHSg82wDLegAbQFq14Ci1', maxPerRun: 5, send: async (to) => { out2.push(to); return { sid: 'x' }; }, serverTimestamp: () => fakeTs(clock.ms) });
+    ok('7j. the company texting switch off -> no confirmation text', out2.length === 0 && rz.requested === 0, JSON.stringify(rz));
+    world = w;
+  }
+  const r3 = await SC.sendPendingConfirmations(args());
+  ok('7g. a third run sends nothing more (each subscriber is asked once, ever)', out.length === 2 && r3.requested === 0, JSON.stringify(r3));
+  const before = w.db.store.get('storm_alert_subscribers/c1');
+  ok('7h. before a reply nobody is confirmed', !before.smsConfirmedAt && !SC.isConfirmed(before));
+  ok('7h. isYes: YES / yes / Y / "Yes." count; "yes please", "no", "yesterday" do not', ['YES', 'yes', 'Y', ' Yes. '].every(SC.isYes) && !['yes please', 'no', 'yesterday', 'STOP', ''].some(SC.isYes));
+  const stranger = await SC.confirmFromReply(w.db, '+18595559999', { serverTimestamp: () => fakeTs(clock.ms) });
+  ok('7h. a YES from a number we never texted confirms nobody', stranger === 0);
+  const asked = out[0].to;
+  const n = await SC.confirmFromReply(w.db, asked, { serverTimestamp: () => fakeTs(clock.ms) });
+  const confirmedDocs = [...w.db.store.entries()].filter(([k, v]) => k.indexOf('storm_alert_subscribers/') === 0 && v.smsConfirmedAt);
+  ok('7h. a YES from the number we texted confirms exactly that subscriber', n === 1 && confirmedDocs.length === 1, n + ' ' + confirmedDocs.length);
+  const again = await SC.confirmFromReply(w.db, asked, { serverTimestamp: () => fakeTs(clock.ms) });
+  ok('7h. a second YES changes nothing', again === 0);
+  mk('c5', { phone: '(859) 555-0155', smsConfirmPhone: '+18595550155' });   // a phone on file but we never asked (no smsConfirmRequestedAt)
+  const corrupt = await SC.confirmFromReply(w.db, '+18595550155', { serverTimestamp: () => fakeTs(clock.ms) });
+  ok('7h. a YES only confirms a subscriber we actually asked (smsConfirmRequestedAt), not any doc carrying the phone', corrupt === 0 && !w.db.store.get('storm_alert_subscribers/c5').smsConfirmedAt);
+  mk('c6', { phone: '(859) 555-0166', smsConfirmedAt: fakeTs(clock.ms - 86400000) });   // already confirmed some other way
+  const before6 = out.length;
+  await SC.sendPendingConfirmations(args());
+  ok('7g. an already-confirmed subscriber is never sent a confirmation text', !out.slice(before6).some((m) => /0166/.test(m.to)), JSON.stringify(out.slice(before6).map((m) => m.to)));
+}
+{
+  // The confirmation step is a text to a customer: it goes through the same switches.
+  const w = makeWorld();
+  world = w;
+  seedSub(w.db, 'p1', { smsConfirmedAt: undefined, createdAt: fakeTs(clock.ms - 3600000) });
+  const poller = load(w, 'storm-poller.js');
+  const sentConfirm = [];
+  const prev = process.env.STORM_CONFIRM_TEXT_ENABLED;
+  delete process.env.STORM_CONFIRM_TEXT_ENABLED;
+  const run = () => poller._test.runStormConfirmations({ db: w.db, send: async (to) => { sentConfirm.push(to); return { sid: 'x' }; } });
+  let r = await run();
+  ok('7i. confirmation texts are OFF without STORM_CONFIRM_TEXT_ENABLED', sentConfirm.length === 0 && r.skipped === 'env_flag_off', JSON.stringify(r));
+  process.env.STORM_CONFIRM_TEXT_ENABLED = 'true';
+  r = await run();
+  ok('7i. env on but no stormConfirmText automation -> still OFF', sentConfirm.length === 0 && r.skipped === 'automation_off', JSON.stringify(r));
+  w.db.store.set('messaging_controls/automations', { stormConfirmText: true, maxPerRun: 5 });
+  require(path.join(FUNCTIONS, 'messaging-controls.js'))._resetCache();   // the 10s cache would still show the doc as it was
+  r = await run();
+  ok('7i. both on -> one confirmation text', sentConfirm.length === 1, JSON.stringify(r));
+  if (prev === undefined) delete process.env.STORM_CONFIRM_TEXT_ENABLED; else process.env.STORM_CONFIRM_TEXT_ENABLED = prev;
 }
 
 Date.now = realDateNow;

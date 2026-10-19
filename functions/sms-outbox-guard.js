@@ -63,6 +63,10 @@ const ACTIVITY_SKEW_MS = 60 * 1000;
 
 // A queued text is anything younger than a week; older is a stale device.
 const MAX_QUEUE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+// ...and (2026-10-19, A2P live) one older than a DAY is not sent at all, even
+// with the rep's override tap: the situation it was written for has changed.
+// The rep re-sends it from the customer's thread (a fresh, deliberate send).
+const MAX_RECONFIRM_AGE_MS = 24 * 60 * 60 * 1000;
 // How far in the future a bare queuedAt (no queuedAgeMs) may be before it is a
 // 400. Deliberately NOT larger than ACTIVITY_SKEW_MS: a device clock that ran
 // minutes fast used to be accepted here while the activity lookback covered
@@ -226,6 +230,9 @@ function validateQueuedFields(body, now) {
   const effective = effectiveQueuedAt(queuedAt, queuedAgeMs, now);
   if (effective < now - MAX_QUEUE_AGE_MS) {
     return { ok: false, error: 'queuedAt is more than 7 days old' };
+  }
+  if (effective < now - MAX_RECONFIRM_AGE_MS) {
+    return { ok: false, error: 'queuedAt is more than 24 hours old - send it again from the thread to re-confirm', code: 'queued_too_old' };
   }
   let leadStageAtQueue = null;
   if (b.leadStageAtQueue != null && b.leadStageAtQueue !== '') {
@@ -450,6 +457,7 @@ module.exports = {
   STALE_MS,
   SEND_WINDOW,
   MAX_QUEUE_AGE_MS,
+  MAX_RECONFIRM_AGE_MS,
   FUTURE_SKEW_MS,
   CLAIM_TTL_MS,
   MAX_SUPERSEDES,

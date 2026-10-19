@@ -68,7 +68,7 @@ console.log('\n4. the public AI endpoints have a whole-endpoint daily cap');
     /'publicFunnelAI:ip', 10, 3_600_000\)\)\) return;\s*if \(!\(await publicAiDailyCap\(res, 'publicFunnelAI'\)\)\) return;/.test(src)
     && /'publicVisualizerAI:ip', 5, 3_600_000\)\)\) return;\s*if \(!\(await publicAiDailyCap\(res, 'publicVisualizerAI'\)\)\) return;/.test(src));
   ok('one counter for everyone (fixed key), 300/day default, refuses when the store fails',
-    /enforceRateLimit\(name \+ ':global', 'GLOBAL_DAILY', cap, 86_400_000\)/.test(src) && /: 300;/.test(src) && /res\.status\(503\)/.test(src));
+    /enforceRateLimit\(name \+ ':global', 'GLOBAL_DAILY', cap, 86_400_000\)/.test(src) && /envCap\(process\.env\.PUBLIC_AI_DAILY_CAP,\s*300\)/.test(src) && /res\.status\(503\)/.test(src));
 }
 
 console.log('\n5. .gitignore keeps every env / key / credential shape out of the public repo');

@@ -48,6 +48,9 @@ const KeywordReplies = require('./sms-keyword-replies');
 // Whose texting a send is (tenant key) — whose Do Not Text list applies —
 // and the per-company master switch every send path checks.
 const TextingGate = require('./sms-texting-gate');
+const { envCap } = require('./env-number');
+const MessagingControls = require('./messaging-controls');
+const StormConfirm = require('./storm-confirm');
 // Texting hours in the HOMEOWNER's local time, for every outbound path.
 const SendWindow = require('./sms-send-window');
 // Storm texts: opt-out → claim → send (never double-sends). See the module.
@@ -782,6 +785,51 @@ async function complianceGate(db, decoded, a) {
     }
   }
 
+  // 2c. The positive consent basis (2026-10-19): a rep's text goes only to a
+  //     number with stored form consent (server-stamped) or a recent inbound
+  //     text from the customer. Owner-only override with a typed reason, logged.
+  //     A door-knock text carries its own smsConsent (checked above).
+  if (!a.knockId) {
+    const basis = await ConsentDeclined.consentBasis(db, {
+      phone: a.to,
+      lead: a.lead || null,
+      leadId: a.leadId || null,
+      tenants: a.tenants || [TextingGate.tenantKeyOf(decoded), decoded && decoded.uid],
+      kind: a.kind || 'reply',
+      nowMs: Outbox.nowMs(),
+      logger,
+    });
+    if (!basis.allowed) {
+      const reason = typeof a.consentOverrideReason === 'string' ? a.consentOverrideReason.trim() : '';
+      if (basis.code === ConsentDeclined.CODES.NO_CONSENT && reason) {
+        const tenantKey = TextingGate.tenantKeyOf(decoded);
+        const isOwner = !!decoded && (decoded.role === 'owner' || decoded.uid === tenantKey);
+        if (!isOwner) {
+          return { respond: { status: 403, body: { error: 'Only the owner can override a missing-consent block. Nothing was sent.', code: 'override_owner_only', reason: basis.code } }, consentRefusal: basis };
+        }
+        if (reason.length < 5 || reason.length > 300) {
+          return { respond: { status: 400, body: { error: 'Type a reason (5-300 characters) to override. Nothing was sent.', code: 'override_reason_required', reason: basis.code } }, consentRefusal: basis };
+        }
+        try {
+          await db.collection('sms_consent_overrides').add({
+            uid: decoded.uid, companyId: tenantKey, toKey: OptOut.optOutKey(a.to), reason,
+            leadId: a.leadId || null, at: FieldValue.serverTimestamp(),
+          });
+        } catch (e) {
+          logger.error('consent_override_log_failed', { err: e && e.message });
+          return { respond: { status: 503, body: Object.assign({}, TextingGate.UNVERIFIED_BODY) } };
+        }
+        logger.warn('consent_override', { uid: decoded.uid, companyId: tenantKey, leadId: a.leadId || null, reason });
+      } else {
+        const unverified = basis.code === ConsentDeclined.CODES.UNVERIFIED;
+        return {
+          respond: { status: unverified ? 503 : 403, body: { error: basis.message, code: basis.code, reason: basis.code } },
+          consentRefusal: basis,
+        };
+      }
+    }
+  }
+
   // 3. Texting hours in the homeowner's local time. A queued send is held
   //    for this inside queuedSendGate (409 held quiet_hours) instead.
   if (a.live) {
@@ -956,12 +1004,14 @@ async function handleSendSMS(req, res, queuedEndpoint) {
       lead: recip.lead,
       leadId: recip.leadId,
       kind: ConsentDeclined.kindForSource(req.body && req.body.source),
+      consentOverrideReason: req.body && req.body.consentOverrideReason,
     });
     if (compliance.respond) {
       // A declined-consent refusal leaves a visible 'failed' row with its
       // reason code on the customer's Comm Log: never a silent drop, never
       // 'sent'. ('failed' is what the outbox activity check already ignores.)
-      if (compliance.consentRefusal && compliance.consentRefusal.code === ConsentDeclined.CODES.DECLINED
+      if (compliance.consentRefusal && (compliance.consentRefusal.code === ConsentDeclined.CODES.DECLINED
+        || compliance.consentRefusal.code === ConsentDeclined.CODES.NO_CONSENT)
         && !(await recentRefusalRow(getFirestore(), to, TextingGate.tenantKeyOf(decoded)))) {
         await logSMSToFirestore(getFirestore(), to, body, decoded.uid, recip.leadId, 'failed', null,
           TextingGate.tenantKeyOf(decoded), {
@@ -1160,11 +1210,11 @@ async function handleSendSMS(req, res, queuedEndpoint) {
     // construction, a secret read, a bad number) never reached Twilio.
     let twilioAttempted = false;
     try {
-      // Initialize Twilio client
-      const client = _twilio()(
+      // Initialize Twilio client (guarded: kill switch + canary at the send)
+      const client = MessagingControls.guardTwilio(db, _twilio()(
         TWILIO_ACCOUNT_SID.value(),
         TWILIO_AUTH_TOKEN.value()
-      );
+      ));
 
       const formattedTo = formatPhoneNumber(to);
       const fromPhone = TWILIO_PHONE_NUMBER.value();
@@ -1199,6 +1249,13 @@ async function handleSendSMS(req, res, queuedEndpoint) {
       const failExtra = definite ? outboxLog : Object.assign({}, outboxLog || {}, { deliveryUnknown: true });
       await logSMSToFirestore(db, to, outBody, decoded.uid, leadId || null, 'failed', null, companyId, failExtra);
 
+      // The owner paused customer messaging between the early check and the
+      // send: refuse as the texting switch does (403), NOT a 502 that would
+      // hand the text to the rep's own Messages app.
+      if (e && e.messagingPaused) {
+        res.status(403).json(TextingGate.refusalBody({ reason: 'messaging_paused' }));
+        return;
+      }
       if (isTwilioUnsubscribed(e)) {
         await recordCarrierOptOut(db, to, 'sendSMS');
         res.status(403).json({
@@ -1504,10 +1561,10 @@ exports.sendD2DSMS = onRequest(
       // outer 500.
       let message;
       try {
-        const client = _twilio()(
+        const client = MessagingControls.guardTwilio(db, _twilio()(
           TWILIO_ACCOUNT_SID.value(),
           TWILIO_AUTH_TOKEN.value()
-        );
+        ));
         message = await client.messages.create({
           body,
           from: TWILIO_PHONE_NUMBER.value(),
@@ -1515,6 +1572,10 @@ exports.sendD2DSMS = onRequest(
         });
       } catch (e) {
         logger.error('sendD2DSMS error', { err: e && e.message, code: e && e.code });
+        if (e && e.messagingPaused) {
+          res.status(403).json(TextingGate.refusalBody({ reason: 'messaging_paused' }));
+          return;
+        }
         if (isTwilioUnsubscribed(e)) {
           await recordCarrierOptOut(db, phoneNumber, 'sendD2DSMS');
           res.status(403).json({
@@ -1561,6 +1622,25 @@ exports.sendD2DSMS = onRequest(
  * Webhook for Twilio incoming SMS messages
  * Verifies Twilio signature instead of Firebase auth
  */
+// WHO answers STOP / HELP / START? Twilio's Messaging Service can answer them
+// itself (Advanced Opt-Out) AND this webhook's TwiML would too: two replies.
+// Which one the live number uses is a Twilio console setting that is NOT in
+// the repo, so it is a CONFIG CONSTANT, not a guess: STOP_HELP_REPLIES_FROM =
+//   'app'    (default, today's behaviour): this webhook replies; Twilio's
+//            Advanced Opt-Out must be OFF for the number's Messaging Service.
+//   'twilio' Twilio replies; this webhook still RECORDS the opt-out (the
+//            register is authoritative either way) but answers with an empty
+//            <Response/>.
+// JO TO VERIFY IN TWILIO: Messaging > Services > (the service) > Opt-Out
+// Management, and the number's inbound webhook URL. If Advanced Opt-Out is on,
+// set STOP_HELP_REPLIES_FROM=twilio. Documented in
+// documentation/audit/MESSAGING-HARDENING-2026-10-19.md.
+const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+function stopHelpReplyOwner() { return process.env.STOP_HELP_REPLIES_FROM === 'twilio' ? 'twilio' : 'app'; }
+function keywordResponse(text) {
+  return stopHelpReplyOwner() === 'twilio' ? EMPTY_TWIML : KeywordReplies.twiml(text);
+}
+
 exports.incomingSMS = onRequest(
   {
     cors: false, // Webhooks don't use CORS
@@ -1664,13 +1744,13 @@ exports.incomingSMS = onRequest(
         // failure falls back to NBD's name and never undoes the STOP.
         const stopBrand = await KeywordReplies.resolveBrand(db, req.body.To, secretValue(TWILIO_PHONE_NUMBER) || '', logger);
         res.set('Content-Type', 'text/xml');
-        res.status(200).send(KeywordReplies.twiml(KeywordReplies.stopReply(stopBrand)));
+        res.status(200).send(keywordResponse(KeywordReplies.stopReply(stopBrand)));
         return;
       }
       if (phoneDigits && intent.intent === 'help') {
         const helpBrand = await KeywordReplies.resolveBrand(db, req.body.To, secretValue(TWILIO_PHONE_NUMBER) || '', logger);
         res.set('Content-Type', 'text/xml');
-        res.status(200).send(KeywordReplies.twiml(KeywordReplies.helpReply(helpBrand)));
+        res.status(200).send(keywordResponse(KeywordReplies.helpReply(helpBrand)));
         return;
       }
       if (phoneDigits && intent.intent === 'start') {
@@ -1698,7 +1778,7 @@ exports.incomingSMS = onRequest(
         }
         const startBrand = await KeywordReplies.resolveBrand(db, req.body.To, secretValue(TWILIO_PHONE_NUMBER) || '', logger);
         res.set('Content-Type', 'text/xml');
-        res.status(200).send(KeywordReplies.twiml(KeywordReplies.startReply(startBrand)));
+        res.status(200).send(keywordResponse(KeywordReplies.startReply(startBrand)));
         return;
       }
 
@@ -1722,6 +1802,24 @@ exports.incomingSMS = onRequest(
           res.set('Content-Type', 'text/xml');
           res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
           return;
+        }
+      }
+
+      // Storm Alert double opt-in (2026-10-19). A bare YES from a number we texted a confirmation to
+      // confirms that subscriber - AFTER the MessageSid claim above (a Twilio redelivery cannot confirm
+      // twice) and as a SIDE EFFECT only: the message is still filed as the customer's reply (note, AI
+      // draft, rep bell) below, because a real customer's "Yes" to a rep must never be swallowed.
+      let stormConfirmed = 0;
+      let stormThanks = false;   // the one-line thank-you is a customer text: only when texting is not paused
+      if (phoneDigits && StormConfirm.isYes(messageBody)) {
+        try {
+          stormConfirmed = await StormConfirm.confirmFromReply(db, formatPhoneNumber(fromPhone) || fromPhone,
+            { serverTimestamp: () => FieldValue.serverTimestamp(), nowMs: Outbox.nowMs() });
+        } catch (e) {
+          logger.error('storm_confirm_reply_failed', { err: e && e.message });
+        }
+        if (stormConfirmed > 0) {
+          try { stormThanks = (await TextingGate.textingStatus(db, TextingGate.NBD_OWNER_UID)).allowed === true; } catch (_) { stormThanks = false; }
         }
       }
 
@@ -2014,8 +2112,10 @@ exports.incomingSMS = onRequest(
         leadId, 'received', messageSid,
         lead ? (lead.companyId || lead.userId || null) : null);
 
-      // Return TwiML response (empty OK)
-      res.type('text/xml').send(`<?xml version="1.0" encoding="UTF-8"?>
+      // Return TwiML response (empty OK; the one-line thank-you only when a Storm Alert YES was just confirmed)
+      res.type('text/xml').send(stormConfirmed > 0 && stormThanks
+        ? KeywordReplies.twiml(StormConfirm.confirmedReply())
+        : `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
 </Response>`);
 
@@ -2055,6 +2155,8 @@ logger.info('sms_functions_loaded');
 // the next tick), well inside STORM_TIMEOUT_S, so a kill is never the normal
 // way a big run ends.
 const STORM_TIMEOUT_S = 540;
+/** An AI reply draft older than this is never sent on an approval tap (re-confirm with a fresh reply). */
+const STALE_DRAFT_MS = 24 * 60 * 60 * 1000;
 const STORM_RUN_BUDGET_MS = 420_000;
 const STORM_NWS_FETCH_TIMEOUT_MS = 20_000;
 const STORM_SMS_PACING_MS = 1100;
@@ -2072,7 +2174,17 @@ async function runCheckStormAlerts(event) {
   const runStartMs = Date.now();
 
   try {
-    // TCPA master switch (integrations/stormAlerts.enabled; absent = on).
+    // 2026-10-19 (A2P live): the NWS half is DEFAULT OFF. It texts only when
+    // ALL of: env STORM_NWS_TEXT_ENABLED === 'true', an explicit
+    // messaging_controls/automations stormNwsText === true, the global SMS
+    // switch, and integrations/stormAlerts.enabled === true (below). Off means
+    // it does not even fetch the NWS feed. maxPerRun caps one run (default 5).
+    const nwsAuto = await MessagingControls.automationStatus(db, 'stormNwsText', 'sms', process.env.STORM_NWS_TEXT_ENABLED === 'true');
+    if (!nwsAuto.enabled) {
+      logger.info('storm_alerts_nws_texts_off', { reason: nwsAuto.reason });
+      return;
+    }
+    // TCPA master switch (integrations/stormAlerts.enabled; ONLY exactly true = on).
     if (!(await StormGuard.stormAlertsEnabled(db, logger))) {
       logger.info('storm_alerts_switched_off', { switchDoc: StormGuard.STORM_SWITCH_DOC });
       return;
@@ -2156,7 +2268,7 @@ async function runCheckStormAlerts(event) {
       if (ms >= startOfTodayMs) sentToday++;
     });
 
-    const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
+    const client = MessagingControls.guardTwilio(db, _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value()));
     const fromPhone = TWILIO_PHONE_NUMBER.value();
     // 2.3: hard ceiling on SMS per run. A large multi-county Severe/
     // Extreme event × many subscribers could otherwise blast thousands of
@@ -2164,10 +2276,11 @@ async function runCheckStormAlerts(event) {
     // trips we stop and log loudly; remaining subscribers are picked up
     // on the next 30-min tick (the claim + shared cooldown prevent anyone
     // being messaged twice). Override via env.
-    const MAX_SMS_PER_RUN = Number(process.env.STORM_MAX_SMS_PER_RUN) || 250;
+    const MAX_SMS_PER_RUN = Math.min(envCap(process.env.STORM_MAX_SMS_PER_RUN, 250), nwsAuto.maxPerRun);
     // Daily ceiling across all runs (defends a multi-day storm event). Set
-    // STORM_MAX_SMS_PER_DAY=0 to halt storm SMS entirely (kill-switch).
-    const MAX_SMS_PER_DAY = Number(process.env.STORM_MAX_SMS_PER_DAY) || 2000;
+    // STORM_MAX_SMS_PER_DAY=0 to halt storm SMS entirely (kill-switch): envCap
+    // keeps a real 0 (the old `Number(x) || 2000` turned it into 2000).
+    const MAX_SMS_PER_DAY = envCap(process.env.STORM_MAX_SMS_PER_DAY, 2000);
     let totalSent = 0;   // claims spent this run (sent or failed after claim)
     let capHit = false;
     let capScope = null;
@@ -2476,6 +2589,23 @@ exports.onAiDraftApproved = onDocumentUpdated(
       });
       if (!cd.allowed) { await fail(cd.code, cd.message); return; }
     }
+    // 2026-10-19: a reply drafted more than 24 hours ago is not sent on an old
+    // approval tap — the conversation has moved on and the customer may have
+    // texted again or said stop. It ends as 'failed / stale_draft' (the panel
+    // says it did NOT send); the rep re-confirms by sending a fresh reply.
+    // generatedAt is stamped by the server on every draft and the rules deny a
+    // client create, so a draft without it cannot occur; if one ever did, its
+    // age is unknown and it is let through here (the approval tap itself is the
+    // human confirmation) with a warning.
+    {
+      const g = after.generatedAt;
+      const genMs = g && typeof g.toMillis === 'function' ? g.toMillis() : (typeof g === 'number' ? g : 0);
+      if (!genMs) logger.warn('[ai-draft-send] draft has no generatedAt - age unknown', { leadId, draftId });
+      if (genMs && Outbox.nowMs() - genMs > STALE_DRAFT_MS) {
+        await fail('stale_draft', 'This reply was drafted more than 24 hours ago. Nothing was sent. Write a fresh reply.');
+        return;
+      }
+    }
     const hours = SendWindow.checkRecipientWindow(Outbox.nowMs(), lead);
     if (!hours.ok) {
       // Not a failure: the reply goes back to the rep's queue, marked, and
@@ -2512,7 +2642,7 @@ exports.onAiDraftApproved = onDocumentUpdated(
     let client;
     let formattedTo;
     try {
-      client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
+      client = MessagingControls.guardTwilio(db, _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value()));
       formattedTo = formatPhoneNumber(to);
     } catch (e) {
       await fail('twilio_error', e && e.message); return; // nothing was requested

@@ -121,7 +121,10 @@ async function okToText(db, a) {
   let status;
   try {
     optOut = await OptOut.isOptedOut(db, a.phone, { companyId: a.tenants, timeoutMs: OptOut.READ_TIMEOUT_MS });
-    status = await TextingGate.textingStatus(db, a.switchTenant);
+    // ignoreGlobal: this check is for a rep texting one-to-one from their OWN
+    // phone (not the campaign number); the owner's customer-send pause does
+    // not apply to that.
+    status = await TextingGate.textingStatus(db, a.switchTenant, { ignoreGlobal: true });
   } catch (e) {
     logger.error('phone_text_check_unreadable', { err: e && e.message, code: e && e.code });
     return refusal('unverified');

@@ -106,6 +106,7 @@ function leadFollowupWorld(opts) {
   };
   const db = { collection: coll, doc: ref };
   stubs = {
+    './messaging-controls': require('./lib/messaging-controls-stub'),
     'firebase-admin/firestore': {
       getFirestore: () => db,
       FieldValue: { serverTimestamp: () => '__ts__' },
@@ -197,6 +198,7 @@ function thursdayWorld(opts) {
       getSecret: () => '', hasSecret: () => false, secretValue: () => '', secretOr: (s, d) => d,
     },
     './upstash-ratelimit': { enforceRateLimit: async () => ({}), clientIp: () => '203.0.113.1' },
+    '../messaging-controls': require('./lib/messaging-controls-stub'),
     '../customer-id-mint': { createLeadWithCustomerId: async () => ({}), isAlreadyExists: () => false },
   };
   const mod = fresh('integrations/thursday.js');

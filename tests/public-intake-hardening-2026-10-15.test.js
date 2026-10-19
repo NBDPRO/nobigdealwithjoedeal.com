@@ -70,6 +70,7 @@ function fresh(file) { delete require.cache[file]; return require(file); }
 
 const noopLogger = { info() {}, warn() {}, error() {} };
 const baseStubs = () => ({
+  './messaging-controls': require('./lib/messaging-controls-stub'),
   'firebase-functions/v2/https': { onRequest: (o, h) => ({ __opts: o, __handler: h }), onCall: (o, h) => ({ __opts: o, __handler: h }), HttpsError: class extends Error {} },
   'firebase-functions/v2/firestore': { onDocumentCreated: (o, h) => ({ __opts: o, __handler: h }) },
   'firebase-functions/params': { defineSecret: (name) => ({ name, value: () => 'test-' + name }) },

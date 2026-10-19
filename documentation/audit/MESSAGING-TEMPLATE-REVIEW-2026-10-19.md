@@ -1,0 +1,32 @@
+# Outbound template review list — for Jo / counsel (2026-10-19)
+
+**Nothing here was reworded.** This is a list of wording that touches the rules in `messaging-rules-reference` (Kentucky insurance-job law: no "we handle/negotiate your claim", no deductible promises; crews are independent subcontractors, never "in-house"/W-2; say "fully insured", not "licensed"). Each row needs a decision: keep, reword, or remove. Not legal advice.
+
+Scanned (comments stripped): every file that sends a customer SMS/email or builds a customer document: `sms-functions.js`, `sms-keyword-replies.js`, `lead-alert.js`, `lead-followup.js`, `funnel-recovery.js`, `review-ask-auto*.js`, `missed-call-*.js`, `storm-watch.js`, `storm-confirm.js`, `storm-report-email.js`, `estimate-email.js`, `email-functions.js`, e-sign / remote-signing / report-sharing, `pro-prospects.js`, `doc-drafts-logic.js`, `render-pdf.js`, `verify-functions.js`, `alert-recipients-fns.js`, and the CRM-side builders `agent-inbox.js`, `estimate-followups.js`, `invoice-reminder.js`, `review-engine.js`, `smart-followup.js`, `winback*.js`, `nbd-comms.js`, `document-generator-templates.js`, `document-generator-library.js`. A test (`tests/outbound-template-banned-phrases-2026-10-19.test.js`) now fails if any of these gains a NEW occurrence of: `we handle` / `we'll handle`, `documents damage free before you call insurance`, `exactly what homeowners insurance is meant to cover`, `handle everything from the first inspection`, `in-house`, `W-2`, `licensed`. The five rows below (six scanner hits) are pinned there as "known, pending review"; when you decide, change the wording and delete the pin in the same commit (the test also fails on a stale pin).
+
+## Hits in outbound templates (file:line, full sentence)
+
+| # | Where | Phrase flagged | Sentence as it stands today | Why flagged | Decide |
+|---|---|---|---|---|---|
+| 1 | `functions/storm-watch.js:297` (Storm Watch subscriber text; dark) | documents damage free before you call insurance | "No Big Deal Home Solutions Storm Alert: {event} reported near {city}. If your roof took it, Joe documents damage free before you call insurance: nobigdealwithjoedeal.com/storm-check or call/text (859) 420-7382. Reply STOP to opt out." | Steers the homeowner to the contractor before their insurer; reads like claim assistance. **This is also the carrier-REGISTERED storm sample #2**, so changing the live text without updating the 10DLC registration risks a campaign mismatch. | Reword both together (registration + code), or keep as registered. |
+| 2 | `functions/storm-report-email.js:141` (report the homeowner asked for) | exactly what homeowners insurance is meant to cover | "Storms like these are exactly what homeowners insurance is meant to cover. The catch: hail and wind damage usually isn't visible from the ground, but it's the first thing an adjuster looks for." | A coverage statement / outcome promise. | Keep, soften, or drop the first sentence. |
+| 3 | `docs/pro/js/document-generator-templates.js:1610` (customer proposal copy) | we handle / handle everything from the first inspection | "We handle everything from the first inspection to the final nail, so you don't have to stress." | "Handle everything" starting at the inspection reads as handling the claim. (Counted twice by the scanner: two phrase rules.) | Reword to what NBD actually does (inspection, estimate, installation). |
+| 4 | `docs/pro/js/document-generator-templates.js:2298` (insurance process steps) | we handle | "Once you have your insurer's decision and approve the scope of work, we handle scheduling, permits and coordination for the repair." | After the insurer's decision, so it is about the repair, not the claim; still a "we handle". | Probably fine; counsel to confirm. |
+| 5 | `docs/pro/js/document-generator-library.js:553` (insurance guide text) | licensed | "If you want someone to represent you on your claim, that is a licensed public adjuster or an attorney you choose." | Names who may represent the homeowner (a good statement); the word "licensed" is not a claim about NBD. | Keep (names a third party); remove the pin if you agree. |
+
+## Not caught by the phrase list, but worth a look
+
+| Where | Text | Note |
+|---|---|---|
+| `docs/pro/js/document-generator-templates.js:2033, 2037, 2433` | "our crew will position them", "our crew will handle everything on project day" | "our crew" can imply employees; crews are independent subcontractors. "handle everything" here is about project day, not the claim. |
+| `functions/doc-drafts-logic.js:260-269` | "we order your materials and book your crew", "Your crew date with ..." | Same "crew" wording, in the post-signing email draft. |
+| `functions/sms-functions.js:126-145` (door-knock templates; the endpoint is not called from the site) | "I noticed some storm damage on your roof today" | A solicitation framed as an observation; keep dark. |
+| `functions/lead-followup.js` (live email, now behind `automations.leadFollowupEmail`) | "We haven't connected yet — Joe" | A follow-up/nurture message: NOT in what the carriers registered if it were ever sent as a text; as an email it is a commercial message (footer + one-click unsubscribe are in place). |
+| `functions/review-ask-auto-logic.js` | review request by text/email | Review requests are not in the registered SMS use case; gray-zone under TCPA. Now needs its own automation entry and a 7-day age limit. |
+| New: `functions/storm-confirm.js` `confirmBody()` | "No Big Deal Home Solutions: Reply YES to confirm you want Storm Alert texts for your zip (2-4 per season). Msg & data rates may apply. Reply HELP for help, STOP to opt out." | New wording written to sit next to registered sample #3 ("You're subscribed to our texts..."). Compare to the registration before enabling `stormConfirmText`. |
+
+## How to use this list
+
+1. Decide each row. If wording changes, change it in the source file, and in the same commit remove its entry from `KNOWN_PENDING_REVIEW` in the test (a stale pin fails the test, so a fix cannot be forgotten).
+2. Row 1 also needs the 10DLC sample updated in the Twilio console before the new text is sent.
+3. Anything the AI writes (Ask Joe, Marcus/Tucker drafts, AI reply drafts) is governed by the rule files (`agent-mcp-logic.js` 535-577, `claim-wording-filter.js`, `social-claim-wording.js`) which contain the banned phrases only as prohibitions; they are intentionally NOT in the scan.

@@ -93,7 +93,7 @@ module.exports.run = function run(ctx) {
     assert('sendEsignEnvelope requires resend-guard',
       /require\('\.\/resend-guard'\)/.test(ee));
     assert('sendEsignEnvelope throws on resendRejected(response) before setting emailed = true',
-      /if \(resendRejected\(response\)\) throw new Error\(resendErrorMessage\(response\)\);\s*return \{ emailed: true/.test(ee));
+      /if \(resendRejected\(response\)\) throw new Error\(resendErrorMessage\(response\)\);[\s\S]{0,260}return \{ emailed: true/.test(ee));
     assert('esign-envelope.js sends no email except through esign-io.js',
       !/resend\.emails\.send/.test(read(path.join(FUNCTIONS, 'esign-envelope.js'))));
 
@@ -111,7 +111,7 @@ module.exports.run = function run(ctx) {
     assert('stormReportEmail requires resend-guard',
       /require\('\.\/resend-guard'\)/.test(sr));
     assert('stormReportEmail throws on resendRejected(resp) before recording reportEmailId as sent',
-      /if \(resendRejected\(resp\)\) \{[\s\S]{0,60}throw new Error\(resendErrorMessage\(resp\)\);[\s\S]{0,20}\}\s*const id = /.test(sr));
+      /if \(resendRejected\(resp\)\) \{[\s\S]{0,60}throw new Error\(resendErrorMessage\(resp\)\);[\s\S]{0,20}\}\s*(?:if \(gated\.canary\) \{[\s\S]{0,500}?\n\s*\}\s*)?const id = /.test(sr));
 
     // ── functions/handlers/invites.js (teamInviteEmail) ──
     const inv = read(path.join(FUNCTIONS, 'handlers/invites.js'));
@@ -125,7 +125,7 @@ module.exports.run = function run(ctx) {
     assert('estimate-email.js requires resend-guard',
       /require\('\.\/resend-guard'\)/.test(est));
     assert('estimate-email throws on resendRejected(response) before estimateEmailStatus: \'sent\'',
-      /if \(resendRejected\(response\)\) \{[\s\S]{0,60}throw new Error\(resendErrorMessage\(response\)\);[\s\S]{0,60}\}[\s\S]{0,60}estimateEmailStatus: 'sent'/.test(est));
+      /if \(resendRejected\(response\)\) \{[\s\S]{0,60}throw new Error\(resendErrorMessage\(response\)\);[\s\S]{0,60}\}[\s\S]{0,60}(?:if \(gated\.canary\) \{[\s\S]{0,500}?\n\s*\}\s*)?(?:await snap\.ref\.update\(\{ )?estimateEmailStatus: 'sent'/.test(est));
 
     // ── functions/funnel-recovery.js ──
     const fr = read(path.join(FUNCTIONS, 'funnel-recovery.js'));

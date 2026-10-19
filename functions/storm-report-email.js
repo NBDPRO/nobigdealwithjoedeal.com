@@ -32,6 +32,7 @@ const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
+const MessagingControls = require('./messaging-controls');
 const GUST = require('./asos-gust-logic');
 const { gustForAddressDay } = require('./integrations/asos-gust');
 const AR = require('./alert-recipients');
@@ -214,6 +215,20 @@ exports.stormReportEmail = onDocumentCreated(
     // Idempotency: at-least-once delivery means this can fire more than once.
     // Transactionally claim the doc before sending so a redelivery is a no-op.
     const ref = snap.ref;
+    // Pause checked BEFORE the claim; a visible marker says this report needs a manual send.
+    {
+      const sw = await MessagingControls.channelStatus(getFirestore(), 'email');
+      if (!sw.allowed) {
+        logger.warn('stormReportEmail: held, customer messaging paused', { leadId, reason: sw.reason });
+        await ref.update({ reportEmailHeld: 'messaging_paused' }).catch(() => {});
+        return;
+      }
+      // Canary: do not consume the one-shot claim on a redirect (nothing is claimed, stamped or sent).
+      if (sw.canary) {
+        logger.info('stormReportEmail: canary - not claimed, not sent', { leadId });
+        return;
+      }
+    }
     let claimed = false;
     try {
       claimed = await getFirestore().runTransaction(async (tx) => {
@@ -258,19 +273,33 @@ exports.stormReportEmail = onDocumentCreated(
       const resend = new Resend(RESEND_API_KEY.value());
       const from = secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com');
       // Email category: TRANSACTIONAL — the homeowner asked for this storm-history report on /storm-report. Not gated by the unsubscribe register (email-suppression.js SEND_PATHS).
-      const resp = await resend.emails.send({
+      // The owner's kill switch / canary (2026-10-19, fail closed). A paused
+      // send is dropped (the doc is already claimed; no retry comes).
+      const gated = await MessagingControls.guardEmail(getFirestore(), {
         from,
         to: d.email,
         subject: 'Your 5-Year Storm History Report — No Big Deal Home Solutions',
         html,
         reply_to: REPLY_TO,
       });
+      if (!gated.send) {
+        logger.warn('stormReportEmail: held, customer messaging paused', { leadId, reason: gated.reason });
+        await ref.update({ reportEmailedAt: FieldValue.delete() }).catch(() => {});
+        return;
+      }
+      const resp = await resend.emails.send(gated.msg);
       // Resend resolves { data: null, error } on an API-level rejection
       // instead of throwing — without this check the doc is already
       // claimed (see the transaction above) so a rejected send would be
       // logged and left as if it had gone out, with no retry ever coming.
       if (resendRejected(resp)) {
         throw new Error(resendErrorMessage(resp));
+      }
+      if (gated.canary) {
+        // Canary flipped on after the pre-check: the copy went to the OWNER, so release the claim (not emailed).
+        await ref.update({ reportEmailedAt: FieldValue.delete() }).catch(() => {});
+        logger.info('stormReportEmail: canary redirect - claim released', { leadId });
+        return;
       }
       const id = (resp && resp.data && resp.data.id) || (resp && resp.id) || null;
       await ref.update({ reportEmailId: id });

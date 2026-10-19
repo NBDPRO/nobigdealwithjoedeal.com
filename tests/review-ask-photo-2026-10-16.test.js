@@ -108,6 +108,7 @@ const paidInvOf = (leadId, receivedAt) => ({
   payments: [{ amount: 12000, at: receivedAt, recordedAt: receivedAt, method: 'check' }],
 });
 const baseSeed = () => ({
+  ...require('./lib/messaging-controls-open').OPEN_CONTROLS,
   ['users/' + NBD]: { email: 'jd@nobigdealwithjoedeal.com' },
   ['companyProfile/' + NBD]: { brand: { contact: { mailingAddress: POSTAL } } },
 });

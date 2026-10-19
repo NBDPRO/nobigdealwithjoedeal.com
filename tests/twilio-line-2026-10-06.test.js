@@ -102,6 +102,8 @@ function makeDb(seed) {
       };
     },
   };
+  // 2026-10-19: the line is live only with an explicit automations entry too.
+  store.set('messaging_controls/automations', { twilioInbound: true });
   for (const [p, d] of Object.entries(seed || {})) store.set(p, clone(d));
   return db;
 }
@@ -399,6 +401,35 @@ const docsIn = (db, col) => [...db.store.keys()].filter((k) => k.startsWith(col 
     ok('losing a concurrent-retry race → 200 empty, no partial writes', r3.statusCode === 200 && !db3.store.has('sms_log/in_' + sid(51)));
   }
 
+  // ── 6b. dark voice still says who to call (owner number is CONFIG now, 2026-10-19) ──
+  {
+    const prevEnabled = process.env.TWILIO_INBOUND_ENABLED, prevFwd = process.env.TWILIO_VOICE_FORWARD_TO;
+    process.env.TWILIO_INBOUND_ENABLED = 'false';
+    delete process.env.TWILIO_VOICE_FORWARD_TO;
+    const dbCfg = makeDb({ 'messaging_controls/internal': { ownerPhone: '+18595550177' } });
+    let r = await call(X.handleVoice, signedReq('/api/twilio/voice', { CallSid: sid(80, 'CA'), From: '+15135550100', To: '+19375550144' }), dbCfg);
+    ok('dark voice names the owner number read from messaging_controls/internal (no env value in the repo)', r.statusCode === 200 && /8 5 9, 5 5 5, 0 1 7 7/.test(r.body) && !/<Dial/.test(r.body), r.body);
+    // N1: an UNSIGNED request (dark or live) never gets the number and never costs a config read.
+    require('../functions/messaging-controls')._resetCache();
+    const dbU = makeDb({ 'messaging_controls/internal': { ownerPhone: '+18595550177' } });
+    const readsBefore = dbU.reads;
+    r = await call(X.handleVoice, signedReq('/api/twilio/voice', { CallSid: sid(83, 'CA'), From: '+15135550100', To: '+19375550144' }, { signature: 'bogus' }), dbU);
+    ok('dark + UNSIGNED: the generic line, not the owner number, and zero Firestore reads', r.statusCode === 200 && /call back later/.test(r.body) && !/5 5 5, 0 1 7 7/.test(r.body) && dbU.reads === readsBefore, r.body);
+    process.env.TWILIO_INBOUND_ENABLED = 'true';
+    require('../functions/messaging-controls')._resetCache();
+    r = await call(X.handleVoice, signedReq('/api/twilio/voice', { CallSid: sid(84, 'CA'), From: '+15135550100', To: '+19375550144' }, { signature: 'bogus' }), dbU);
+    ok('live + UNSIGNED: 403, no number, zero reads', r.statusCode === 403 && !/5 5 5, 0 1 7 7|177/.test(String(r.body && r.body.error ? '' : r.body)) && dbU.reads === readsBefore);
+    process.env.TWILIO_INBOUND_ENABLED = 'false';
+    require('../functions/messaging-controls')._resetCache();   // the owner contact is cached for 10 s
+    r = await call(X.handleVoice, signedReq('/api/twilio/voice', { CallSid: sid(81, 'CA'), From: '+15135550100', To: '+19375550144' }), makeDb({}));
+    ok('no owner number configured anywhere -> the generic line, not an error', r.statusCode === 200 && /call back later/.test(r.body));
+    require('../functions/messaging-controls')._resetCache();
+    r = await call(X.handleVoice, signedReq('/api/twilio/voice', { CallSid: sid(82, 'CA'), From: '+15135550100', To: '+19375550144' }), trapDb());
+    ok('an unreadable config falls back to the generic line, never a 5xx', r.statusCode === 200 && /call back later/.test(r.body));
+    if (prevEnabled === undefined) delete process.env.TWILIO_INBOUND_ENABLED; else process.env.TWILIO_INBOUND_ENABLED = prevEnabled;
+    if (prevFwd === undefined) delete process.env.TWILIO_VOICE_FORWARD_TO; else process.env.TWILIO_VOICE_FORWARD_TO = prevFwd;
+  }
+
   // ── 7. delivery status callback ─────────────────────────────────────────
   console.log('\n— status callback');
   {
@@ -495,7 +526,7 @@ const docsIn = (db, col) => [...db.store.keys()].filter((k) => k.startsWith(col 
     ok('Jo\'s cell is not hard-coded in the line code (config only)', !/4207382|420-7382/.test(code));
     const env = fs.readFileSync(path.join(FN, '.env.nobigdeal-pro'), 'utf8');
     ok('.env.nobigdeal-pro ships DARK (TWILIO_INBOUND_ENABLED=false)', /^TWILIO_INBOUND_ENABLED=false\s*$/m.test(env) && !/^TWILIO_INBOUND_ENABLED=true/m.test(env));
-    ok('.env.nobigdeal-pro configures the forward number once, valid E.164', (env.match(/^TWILIO_VOICE_FORWARD_TO=/gm) || []).length === 1 && L.forwardTo({ TWILIO_VOICE_FORWARD_TO: (env.match(/^TWILIO_VOICE_FORWARD_TO=(.*)$/m) || [])[1].trim() }) === '+18594207382');
+    ok('.env.nobigdeal-pro (tracked, public repo) no longer carries the forward number: it is config (2026-10-19)', (env.match(/^TWILIO_VOICE_FORWARD_TO=/gm) || []).length === 0 && /messaging_controls\/internal\.ownerPhone/.test(env));
     ok('spoken + display forms of the forward number', L.spokenPhone('+18594207382') === '8 5 9, 4 2 0, 7 3 8 2' && L.displayPhone('+18594207382') === '(859) 420-7382');
 
     const fb = JSON.parse(fs.readFileSync(path.join(ROOT, 'firebase.json'), 'utf8'));

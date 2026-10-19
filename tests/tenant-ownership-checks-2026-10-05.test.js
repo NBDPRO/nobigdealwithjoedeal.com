@@ -184,6 +184,7 @@ const FILE_STUBS = {
   [fnPath('integrations/upstash-ratelimit.js')]: limiter,
   [fnPath('rate-limit.js')]: Object.assign({ rateLimitIpKey: (ip) => ip }, limiter),
   [fnPath('push-functions.js')]: pushStub,
+  [fnPath('messaging-controls.js')]: require('./lib/messaging-controls-stub'),
   [fnPath('integrations/sentry.js')]: { withSentry: (n, fn) => fn, captureException: () => {}, ensureInit: () => {}, installRejectionHook: () => {} },
 };
 const realLoad = Module._load;

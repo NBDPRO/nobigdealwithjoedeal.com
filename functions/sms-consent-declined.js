@@ -70,6 +70,7 @@ const READ_TIMEOUT_MS = 8000;
 const CODES = Object.freeze({
   DECLINED: 'consent_declined',
   UNVERIFIED: 'consent_check_unverified',
+  NO_CONSENT: 'no_consent_on_file',
 });
 
 /**
@@ -93,9 +94,19 @@ function cleanSource(v) {
   return SOURCE_RE.test(s) ? s : '';
 }
 
-/** 'automated' for a campaign label, else 'reply' (a person-initiated send). */
+/**
+ * Labels the CRM sends for a person-initiated reply. An ABSENT label (the plain Text button) is a reply;
+ * a label on this list is a reply; ANY OTHER label - a campaign, or one nobody has classified - is
+ * 'automated' (no inbound exemption), so a new or mistyped label can only make the policy stricter.
+ */
+const REPLY_SOURCES = Object.freeze(['reply', 'rep', 'manual', 'ask_joe', 'agent_inbox', 'inbox', 'thread']);
+
+/** 'reply' for no label or a listed reply label; 'automated' for everything else. */
 function kindForSource(source) {
-  return AUTOMATED_SOURCES.indexOf(cleanSource(source)) !== -1 ? 'automated' : 'reply';
+  const s = cleanSource(source);
+  if (!s) return 'reply';
+  if (AUTOMATED_SOURCES.indexOf(s) !== -1) return 'automated';
+  return REPLY_SOURCES.indexOf(s) !== -1 ? 'reply' : 'automated';
 }
 
 /** Strictly the explicit decline. Absent / null / 'false' is NOT a decline (nor consent). */
@@ -105,6 +116,9 @@ function isDeclined(lead) {
 
 /** What the rep is told. Plain words, with the manual alternative. */
 function refusalMessage(code) {
+  if (code === CODES.NO_CONSENT) {
+    return 'Blocked: no consent on file. We only text people who ticked the texting box on one of our website forms, or who texted us first. Call or email them, or text from your own phone.';
+  }
   if (code === CODES.UNVERIFIED) {
     return 'Couldn\'t check whether this customer may be texted — nothing was sent. Call them instead, or try again in a moment.';
   }
@@ -356,13 +370,65 @@ async function decide(db, a) {
   }
 }
 
+/**
+ * The POSITIVE consent basis for a text a rep sends (2026-10-19, A2P campaign
+ * scope: "we only text people who checked an unchecked consent box on one of
+ * our website forms"). decide() above only refuses an explicit NO; this
+ * refuses the absence of a YES:
+ *
+ *   allowed when, inside the caller's tenant, EITHER
+ *     'form_consent'   a lead on this number carries tcpaConsent === true AND
+ *                      the server's own tcpaConsentAt stamp (an unstamped true
+ *                      is hand-typed / imported / spoofed: not evidence), OR
+ *     'inbound_recent' (kind 'reply' only) the number texted us within
+ *                      DECLINED_REPLY_WINDOW_DAYS — an answer to their text.
+ *   otherwise NO_CONSENT ("Blocked: no consent on file"); a read error or a
+ *   full page that might hide the proof is UNVERIFIED. Never throws.
+ * An automated/campaign send (kind 'automated') gets no inbound exemption.
+ * STOP / Do Not Text and a declined form are checked by the caller first.
+ */
+async function consentBasis(db, a) {
+  const o = a || {};
+  const key = OptOut.optOutKey(o.phone);
+  if (!key) return { allowed: true, reason: 'no_number' };
+  const tenants = tenantList(o.tenants);
+  const refuse = (code) => ({ allowed: false, code, reason: code, message: refusalMessage(code) });
+  if (!tenants.length) return refuse(CODES.UNVERIFIED);
+  const nowMs = typeof o.nowMs === 'number' ? o.nowMs : Date.now();
+  try {
+    return await withDeadline((async () => {
+      const found = await leadsForNumber(db, key, tenants, o.lead, o.leadId);
+      if (found.leads.some((l) => l.tcpaConsent === true && toMillis(l.tcpaConsentAt) != null)) {
+        return { allowed: true, reason: 'form_consent' };
+      }
+      if (o.kind !== 'automated') {
+        const since = nowMs - DECLINED_REPLY_WINDOW_MS;
+        const log = await inboundFromSmsLog(db, key, tenants, since);
+        if (newestQualifying(log.rows, since, nowMs) != null) return { allowed: true, reason: 'inbound_recent' };
+        const texts = await inboundFromPhoneTexts(db, key, tenants, since);
+        if (newestQualifying(texts.rows, since, nowMs) != null) return { allowed: true, reason: 'inbound_recent' };
+        if (log.truncated || texts.truncated) return refuse(CODES.UNVERIFIED);
+      }
+      if (found.truncated) return refuse(CODES.UNVERIFIED);
+      return refuse(CODES.NO_CONSENT);
+    })(), READ_TIMEOUT_MS);
+  } catch (e) {
+    if (o.logger && typeof o.logger.error === 'function') {
+      o.logger.error('consent_basis_check_unreadable', { err: e && e.message, code: e && e.code });
+    }
+    return refuse(CODES.UNVERIFIED);
+  }
+}
+
 module.exports = {
+  consentBasis,
   DECLINED_REPLY_WINDOW_DAYS,
   DECLINED_REPLY_WINDOW_MS,
   SCAN_LIMIT,
   READ_TIMEOUT_MS,
   CODES,
   AUTOMATED_SOURCES,
+  REPLY_SOURCES,
   LEAD_SCAN_LIMIT,
   cleanSource,
   kindForSource,

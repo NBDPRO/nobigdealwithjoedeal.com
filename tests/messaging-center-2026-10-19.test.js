@@ -130,6 +130,8 @@ console.log('\nAGGREGATION');
   ok('per-channel switches and canary are read exactly', cOk.customerSends === 'on' && cOk.sms === 'on' && cOk.email === 'off' && cOk.otp === 'on' && cOk.canary === 'on');
   ok('a channel is OFF when the master is not exactly true, whatever the channel field says', L.controlsFrom({ state: 'ok', doc: { smsEnabled: true } }).customerSends === 'off' && L.controlsFrom({ state: 'ok', doc: { smsEnabled: true } }).sms === 'off' &&
     L.controlsFrom({ state: 'ok', doc: { customerSendsEnabled: 'true', smsEnabled: true } }).customerSends === 'off' && L.controlsFrom({ state: 'ok', doc: { customerSendsEnabled: true, smsEnabled: 1 } }).sms === 'off');
+  const live = L.controlsFrom({ state: 'ok', doc: { customerSendsEnabled: true, smsEnabled: false, emailEnabled: true, otpEnabled: true, canary: false } });
+  ok('the live messaging_controls/global shape (2026-10-19): master on, SMS off, email + codes on, canary off', live.customerSends === 'on' && live.sms === 'off' && live.email === 'on' && live.otp === 'on' && live.canary === 'off');
   const rowsOf = (ctl, autos) => L.automationRows([{ name: 'LEAD_FOLLOWUP_ENABLED', state: 'ON' }, { name: 'STORM_TEXT_ENABLED', state: 'ON' }], L.controlsFrom(ctl), autos);
   const eff = (rows, k) => rows.find((r) => r.key === k);
   ok('effective state: master off overrides an ON env flag and says why', eff(rowsOf({ state: 'ok', doc: { customerSendsEnabled: false } }, { state: 'ok', doc: { leadFollowupEmail: true } }), 'lead_followup_email').effective === 'OFF' && /master switch/.test(eff(rowsOf({ state: 'ok', doc: { customerSendsEnabled: false } }, { state: 'ok', doc: {} }), 'lead_followup_email').reason));

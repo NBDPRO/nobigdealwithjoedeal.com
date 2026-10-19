@@ -52,13 +52,15 @@ function ok(name, cond, detail) {
 
 // ── Recorders + stubs (as in lead-alert-calcom.test.js) ─────────────────
 const OWNER_UID = 'owner-uid-test';
-const JOE_SMS = '+18594207382';
+const JOE_SMS = '+18595550100';
 const JOE_EMAILS = ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'];
 
 const rec = { emails: [], sms: [], outbox: [], updates: [], logs: [], pushes: [] };
 function resetRec() { rec.pushes = []; rec.emails = []; rec.sms = []; rec.outbox = []; rec.updates = []; rec.logs = []; }
 
 const stubs = {
+
+  './messaging-controls': require('./lib/messaging-controls-stub'),
   'firebase-functions/v2/firestore': {
     onDocumentCreated: (opts, handler) => ({ __opts: opts, __handler: handler }),
   },

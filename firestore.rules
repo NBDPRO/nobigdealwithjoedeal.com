@@ -240,7 +240,11 @@ service cloud.firestore {
         // someone from these, so a client must not be able to assert them
         // (2026-10-13: lead-alert provenance hardening).
         'publicLeadKind', 'publicLeadCollection', 'publicLeadId',
-        'webLead', 'calcomBookingId', 'backfilledBy'
+        'webLead', 'calcomBookingId', 'backfilledBy',
+        // Texting consent evidence is server-captured only (2026-10-19, see the update rule).
+        'tcpaConsent', 'tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource', 'tcpaConsentIp', 'tcpaConsentVersion',
+        // Owner-confirmed source (2026-10-19): set only by the owner, on an update.
+        'confirmedSource', 'confirmedSourceNote', 'confirmedSourceBy', 'confirmedSourceAt'
       ]);
     }
     // A customerId whose leading segment is a RESERVED prefix
@@ -447,6 +451,41 @@ service cloud.firestore {
           && _paperworkFieldOk('aobFiledAt')
           && _paperworkFieldOk('warrantyCertFiledAt')
           && _paperworkFieldOk('cocFiledAt');
+    }
+
+    // 2026-10-19 (Lead source fixer, flag leadSourceFixer) — leads/{id}.confirmedSource
+    // is the OWNER's own answer to "where did this customer really come from",
+    // the basis for collected-dollars-per-ad-dollar. It is never inferred, so
+    // only the tenant owner may set or clear it: a platform admin, a
+    // company_admin of the lead's company (the outer update clause already pins
+    // the tenant), or a solo operator (no role claim, no foreign companyId)
+    // who owns the lead. Managers, reps and viewers cannot, even though they
+    // can otherwise edit the lead. When any of the four fields change the
+    // value must be well-formed: a known source (or null to clear), a note of
+    // 300 chars at most, confirmedSourceBy == the caller, confirmedSourceAt ==
+    // request.time (no backdating). Unchanged fields never trigger the check,
+    // so ordinary lead saves by any writer are unaffected.
+    function confirmedSourceRoleOk() {
+      return isAdmin() || isCompanyAdmin()
+        || (request.auth.token.get('role', '') == ''
+            && isOwner(resource.data.userId)
+            && request.auth.token.get('companyId', request.auth.uid) == request.auth.uid);
+    }
+    function confirmedSourceShapeOk() {
+      let d = request.resource.data;
+      let src = d.get('confirmedSource', null);
+      let note = d.get('confirmedSourceNote', null);
+      return (src == null
+              || (src is string && src in ['yelp', 'thumbtack_paid', 'thumbtack_direct', 'referral',
+                                           'repeat', 'door_knock', 'google', 'manufacturer_locator', 'other']))
+        && (note == null || (note is string && note.size() <= 300))
+        && d.get('confirmedSourceBy', null) == request.auth.uid
+        && d.get('confirmedSourceAt', null) == request.time;
+    }
+    function confirmedSourceWriteOk() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+               .hasAny(['confirmedSource', 'confirmedSourceNote', 'confirmedSourceBy', 'confirmedSourceAt'])
+        || (confirmedSourceRoleOk() && confirmedSourceShapeOk());
     }
 
     // 2026-09-15 (Warranty Claim lane) — the denormalized pointer to the
@@ -727,6 +766,10 @@ service cloud.firestore {
           // (functions/care-plan.js webhook). It drives the member badge, the
           // 10% repair discount and storm priority, so only the server sets it.
           && didNotChange(['carePlan'])
+          // Texting consent is evidence the SERVER captured from a website form (submitPublicLead / the
+          // bridge, admin SDK). A rep must not be able to write it onto a lead to unlock texting a cold
+          // number (messaging hardening 2026-10-19; sms-consent-declined.js consentBasis reads these).
+          && didNotChange(['tcpaConsent', 'tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource', 'tcpaConsentIp', 'tcpaConsentVersion'])
           // customerId is the key the PUBLIC referral resolver matches on, so
           // a lead whose customerId can be repointed can be aimed at another
           // tenant's customer. Write-once rather than frozen because the
@@ -742,6 +785,7 @@ service cloud.firestore {
           && referralStatusTransitionOk()
           && stageWriteOk()
           && paperworkFieldsOk()
+          && confirmedSourceWriteOk()
           && openClaimIdOk()
           && scheduleWindowOk()
         );
@@ -3449,6 +3493,22 @@ service cloud.firestore {
     // registered: true and text another business's customers under NBD's
     // registered brand, or switch a company's texting back on.
     match /sms_settings/{id} {
+      allow read, write: if false;
+    }
+
+    // ── MESSAGING KILL SWITCH (admin-SDK only, 2026-10-19) ──
+    // messaging_controls/{global,internal}: the master customer-send switch,
+    // canary flag and the owner's alert contact. messaging_controls_audit and
+    // messaging_controls_counters: append-only flip log and the internal-alert
+    // hourly counters. Written only by manageMessagingControls / the send
+    // paths; a client write could switch customer messaging back on.
+    match /messaging_controls/{id} {
+      allow read, write: if false;
+    }
+    match /messaging_controls_audit/{id} {
+      allow read, write: if false;
+    }
+    match /messaging_controls_counters/{id} {
       allow read, write: if false;
     }
 

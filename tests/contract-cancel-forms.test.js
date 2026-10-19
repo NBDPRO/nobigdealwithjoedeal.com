@@ -264,6 +264,7 @@ function packetComplete(html) {
     class HttpsError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
     const logger = { info() {}, warn() {}, error() {} };
     const stubs = Object.assign({
+      './messaging-controls': require('./lib/messaging-controls-stub'),
       'firebase-functions/v2/https': { onCall: (o, h) => h, onRequest: (o, h) => h, HttpsError },
       'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'stub' }) },
       'firebase-functions/v2': { logger },

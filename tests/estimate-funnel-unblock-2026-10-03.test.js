@@ -411,6 +411,7 @@ function fillContact(d) {
   async function gateway(body) {
     const added = [], grants = [];
     const stubs = {
+      './messaging-controls': require('./lib/messaging-controls-stub'),
       'firebase-functions/v2/https': { onRequest: (o, h) => ({ __handler: h }), onCall: (o, h) => ({ __handler: h }), HttpsError: Error },
       'firebase-admin/firestore': {
         getFirestore: () => ({
@@ -455,6 +456,7 @@ function fillContact(d) {
     // Joe's alert on exactly that document (lead-alert.js, real; Twilio/Resend stubbed — nothing is sent).
     const rec = { emails: [], sms: [] };
     const aStubs = {
+      './messaging-controls': require('./lib/messaging-controls-stub'),
       'firebase-functions/v2/firestore': { onDocumentCreated: (o, h) => ({ __handler: h }) },
       'firebase-functions/params': { defineSecret: (name) => ({ name, value: () => 'test-' + name }) },
       'firebase-functions/v2': { logger: { info() {}, warn() {}, error() {} } },
