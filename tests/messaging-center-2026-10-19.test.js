@@ -299,6 +299,8 @@ Module._load = function (request, parent, isMain) {
 let S;
 try { S = require(path.join(ROOT, 'functions', 'messaging-center.js')); } finally { /* keep the hook until the end */ }
 const OWNER = '1phDvAVXHSg82wDLegAbQFq14Ci1';
+// messaging-controls.js is on main now, so by default the kill switch counts as deployed: start from the 'not deployed' case explicitly.
+S._internal.deps.killSwitchDeployed = () => false;
 
 const T0 = Date.now();
 const mins = (n) => new Date(T0 - n * 60000);
