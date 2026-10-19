@@ -67,7 +67,7 @@ ok('no Number(process.env.X) || default left on a cap/switch', offenders.length 
 // C
 function code(rel) { return stripJsComments(fs.readFileSync(path.join(FN, rel), 'utf8')); }
 ok('storm per-run cap reads envCap',
-  /MAX_SMS_PER_RUN\s*=\s*envCap\(process\.env\.STORM_MAX_SMS_PER_RUN,\s*250\)/.test(code('sms-functions.js')));
+  /MAX_SMS_PER_RUN\s*=[^;]*envCap\(process\.env\.STORM_MAX_SMS_PER_RUN,\s*250\)/.test(code('sms-functions.js')));
 ok('storm per-day cap reads envCap',
   /MAX_SMS_PER_DAY\s*=\s*envCap\(process\.env\.STORM_MAX_SMS_PER_DAY,\s*2000\)/.test(code('sms-functions.js')));
 ok('estimate-email global cap reads envCap',

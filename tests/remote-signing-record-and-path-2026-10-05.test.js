@@ -88,6 +88,7 @@ function loadFn(db, storage) {
     './shared': { callableRateLimit: async () => {}, assertNotViewer: () => {} },
     './estimate-view-alert': { recordEstimateView: async () => {} },
     './integrations/_shared': { secretOr: (_s, d) => d },
+    './messaging-controls': require('./lib/messaging-controls-stub'),
     './resend-guard': { resendRejected: () => false, resendErrorMessage: () => '' },
     './job-spine': { spineAfterRemoteSign: async () => ({}) },
     resend: { Resend: class { constructor() { this.emails = { send: async () => ({ data: { id: 'm1' } }) }; } } },

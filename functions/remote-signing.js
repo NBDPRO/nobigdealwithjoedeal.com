@@ -42,6 +42,7 @@ const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
+const MessagingControls = require('./messaging-controls');
 const { spineAfterRemoteSign } = require('./job-spine');
 const KyLaw = require('./ky-insurance-law');
 const CW = require('./cancel-window');
@@ -466,7 +467,7 @@ exports.createSignRequest = onCall(
       const docName = escHtml(docMeta.typeName || docMeta.type || 'document');
       const repName = escHtml(tenantName || lead.repName || 'No Big Deal Home Solutions');
       // Email category: TRANSACTIONAL — a document signing link. Not gated by the unsubscribe register (email-suppression.js SEND_PATHS).
-      const response = await resend.emails.send({
+      const response = await MessagingControls.guardResend(getFirestore(), resend).emails.send({
         from: fromEmail,
         to: signerEmail,
         // Subject is plain text: the tenant-written type name is cleaned, NOT

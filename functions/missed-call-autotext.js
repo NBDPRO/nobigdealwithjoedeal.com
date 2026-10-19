@@ -30,6 +30,7 @@ const R = require('./missed-call-reply-logic');
 const OptOut = require('./sms-optout');
 const TextingGate = require('./sms-texting-gate');
 const ConsentDeclined = require('./sms-consent-declined');
+const MessagingControls = require('./messaging-controls');
 
 const CLAIMS = 'missed_call_autotext';
 
@@ -76,6 +77,9 @@ async function maybeAutoTextMissedCall(args) {
     if (!claimed) return done('cooldown');
 
     if (typeof a.send !== 'function') return done('no_sender');
+    // Idempotency per (recipient, template, call): a re-ingest of the same
+    // call can never text twice. An unverifiable marker is no send.
+    if (!(await MessagingControls.claimSendOnce(db, plan.to, 'missed_call_autotext', call.id || ('lead:' + call.leadId)))) return done('duplicate');
     let sid = null;
     try {
       const msg = await a.send({ to: plan.to, body: plan.body });

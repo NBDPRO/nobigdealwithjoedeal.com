@@ -203,6 +203,7 @@ function loadEsignHandlers(db) {
     // (real source, run under these same stubs — see loadIo below).
     './esign-logic': require(path.join(ROOT, 'functions', 'esign-logic.js')),
     './integrations/_shared': { secretOr: (_secret, def) => def },
+    './messaging-controls': require('./lib/messaging-controls-stub'),
     './resend-guard': { resendRejected: () => false, resendErrorMessage: () => 'rejected' },
     // Job spine (2026-10-03) — its own suite is tests/job-spine-2026-10-03.test.js.
     './job-spine': { spineAfterEsign: async () => ({ skipped: 'stub' }) },

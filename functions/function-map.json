@@ -149,6 +149,7 @@
   "listTeamMembers": "./handlers/admin",
   "lookupParcel": "./integrations/parcel",
   "manageAway": "./away-mode",
+  "manageMessagingControls": "./messaging-controls-fns",
   "manageSmsCompliance": "./sms-dnc",
   "markEmailUnsubscribed": "./email-unsubscribe",
   "measureNewWebLead": "./integrations/public-measure",

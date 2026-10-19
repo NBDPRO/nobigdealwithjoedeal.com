@@ -59,6 +59,7 @@ function makeDb(seed) {
     collection: (c) => col(p + '/' + c),
     async get() { const d = store.get(p); return { exists: d !== undefined, id: p.split('/').pop(), data: () => (d === undefined ? undefined : clone(d)) }; },
     async update(patch) { if (!store.has(p)) throw new Error('NOT_FOUND ' + p); writes.push(['update', p, patch]); store.set(p, apply(store.get(p), patch)); },
+    async create(data) { if (store.has(p)) { const e = new Error('6 ALREADY_EXISTS'); e.code = 6; throw e; } writes.push(['create', p, data]); store.set(p, clone(data)); },
     async set(data, o) { writes.push(['set', p, data]); store.set(p, o && o.merge ? apply(store.get(p) || {}, data) : apply({}, data)); },
   });
   const query = (c, filters, lim, group) => ({
@@ -111,6 +112,7 @@ const paidInvOf = (leadId, receivedAt, recordedAt, o) => Object.assign({
   payments: [{ amount: 12000, at: receivedAt, recordedAt: recordedAt == null ? receivedAt : recordedAt, method: 'check' }],
 }, o || {});
 const baseSeed = () => ({
+  ...require('./lib/messaging-controls-open').OPEN_CONTROLS,
   ['users/' + NBD]: { email: 'jd@nobigdealwithjoedeal.com' },
   ['companyProfile/' + NBD]: { brand: { contact: { mailingAddress: POSTAL } } },
 });

@@ -26,6 +26,7 @@
 const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped drop-in for firebase-functions/v2/scheduler
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
+const MessagingControls = require('./messaging-controls');
 const { getStorage } = require('firebase-admin/storage');
 const L = require('./call-center-logic');
 const PR = require('./promise-logic');
@@ -45,7 +46,7 @@ async function sendAutoText({ to, body }) {
   const { secretValue: sv } = require('./integrations/_shared');
   const sid = sv(TWILIO_ACCOUNT_SID), tok = sv(TWILIO_AUTH_TOKEN), from = sv(TWILIO_PHONE_NUMBER);
   if (!sid || !tok || !from) throw new Error('twilio-not-configured');
-  return require('twilio')(sid, tok).messages.create({ to, from, body });
+  return MessagingControls.guardTwilio(getFirestore(), require('twilio')(sid, tok)).messages.create({ to, from, body });
 }
 const CONFIG = 'integrations/callCenter';
 const COLLECTION = 'phone_calls';
@@ -197,11 +198,17 @@ async function runIngest({ db, bucket, live, nowMs }) {
         counts.stored++;
         // Speed-to-lead auto-text (2026-10-15): dark unless
         // MISSED_CALL_AUTOTEXT_ENABLED === 'true'; consented customers only.
+        // 2026-10-19: ALSO needs messaging_controls/automations
+        // missedCallAutotext === true and the global SMS switch (fail closed),
+        // and at most maxPerRun per ingest run.
         if (callDoc.replyDraft && process.env.MISSED_CALL_AUTOTEXT_ENABLED === 'true') {
-          const r = await require('./missed-call-autotext').maybeAutoTextMissedCall({
-            db, call: Object.assign({ id: docRef.id }, callDoc), nowMs, tenantKey: OWNER, send: sendAutoText, logger,
-          });
-          if (r.sent) counts.autoTexted = (counts.autoTexted || 0) + 1;
+          const auto = await MessagingControls.automationStatus(db, 'missedCallAutotext', 'sms', true);
+          if (auto.enabled && (counts.autoTexted || 0) < auto.maxPerRun) {
+            const r = await require('./missed-call-autotext').maybeAutoTextMissedCall({
+              db, call: Object.assign({ id: docRef.id }, callDoc), nowMs, tenantKey: OWNER, send: sendAutoText, logger,
+            });
+            if (r.sent) counts.autoTexted = (counts.autoTexted || 0) + 1;
+          }
         }
       } catch (e) {
         counts.failed++;

@@ -38,6 +38,8 @@ const { envCap } = require('./env-number');
 
 const GLOBAL_DOC = 'messaging_controls/global';
 const INTERNAL_DOC = 'messaging_controls/internal';
+const AUTOMATIONS_DOC = 'messaging_controls/automations';
+const DEDUPE_COLLECTION = 'messaging_dedupe';
 const AUDIT_COLLECTION = 'messaging_controls_audit';
 const COUNTER_COLLECTION = 'messaging_controls_counters';
 
@@ -58,7 +60,7 @@ const REFUSAL = Object.freeze({
 let _cache = null;       // { at, controls }
 let _ownerCache = null;  // { at, owner }
 
-function _resetCache() { _cache = null; _ownerCache = null; }
+function _resetCache() { _cache = null; _ownerCache = null; _autoCache = null; }
 
 function withTimeout(p, ms) {
   let t;
@@ -197,6 +199,26 @@ async function guardEmail(db, msg, opts) {
 }
 
 /**
+ * Wrap a Resend client so its `emails.send(msg)` passes the kill switch and
+ * canary first: `MessagingControls.guardResend(db, resend).emails.send(msg)`.
+ * A paused send RESOLVES the way Resend resolves an API rejection
+ * ({ data: null, error }), so every caller's existing resendRejected() branch
+ * treats it as "not sent" without new control flow. The call site still reads
+ * `.emails.send(`, which the SEND_PATHS registry (email-suppression.js) scans.
+ */
+function guardResend(db, resend, opts) {
+  return {
+    emails: {
+      send: async (msg) => {
+        const g = await guardEmail(db, msg, opts);
+        if (!g.send) return { data: null, error: { name: 'messaging_paused', message: 'messaging_paused:' + g.reason, statusCode: 403 } };
+        return resend.emails.send(g.msg);
+      },
+    },
+  };
+}
+
+/**
  * The SMS choke point for a message about to go to a customer.
  * @returns {Promise<{send:boolean, to:string, body:string, reason:string|null, canary:boolean}>}
  */
@@ -208,6 +230,135 @@ async function guardSms(db, to, body, opts) {
   const r = canarySms(owner, to, body);
   if (!r) return { send: false, to, body, reason: 'canary_no_target', canary: true };
   return { send: true, to: r.to, body: r.body, reason: null, canary: true };
+}
+
+// ── automations: every AUTOMATED customer send needs its own explicit entry ──
+//
+//   messaging_controls/automations
+//     leadAckSms, leadAckEmail, leadFollowupEmail, reviewAskAutoText,
+//     reviewAskAutoEmail, missedCallAutotext, stormText, stormNwsText,
+//     funnelRecoveryEmail, twilioInbound: boolean — exactly true or OFF
+//     maxPerRun: number — most automated customer messages ONE sweep may send
+//                (absent = 5; 0 = none). So switching one on can never flood.
+//
+// An env flag alone is no longer enough (and neither is this doc alone): the
+// sender needs BOTH, plus the global channel switch. Absent doc = all OFF.
+const AUTOMATION_KEYS = Object.freeze([
+  'leadAckSms', 'leadAckEmail', 'leadFollowupEmail', 'reviewAskAutoText', 'reviewAskAutoEmail',
+  'missedCallAutotext', 'stormText', 'stormNwsText', 'funnelRecoveryEmail', 'twilioInbound',
+  'a2pServerTexts', 'stormConfirmText',
+]);
+const DEFAULT_MAX_PER_RUN = 5;
+/** A backlog item older than this is never sent by an automation (the first sweep after enabling cannot reach back). */
+const MAX_AUTOMATION_AGE_DAYS = 7;
+
+let _autoCache = null;
+
+async function readAutomations(db, opts) {
+  const o = opts || {};
+  const nowMs = o.nowMs != null ? o.nowMs : Date.now();
+  if (!o.force && _autoCache && nowMs - _autoCache.at < CACHE_MS) return _autoCache.value;
+  try {
+    const snap = await withTimeout(db.doc(AUTOMATIONS_DOC).get(), o.timeoutMs || READ_TIMEOUT_MS);
+    const d = snap && snap.exists ? (snap.data() || {}) : null;
+    const flags = {};
+    for (const k of AUTOMATION_KEYS) flags[k] = !!d && d[k] === true;
+    const value = { readable: true, exists: !!d, flags, maxPerRun: d ? envCap(d.maxPerRun, DEFAULT_MAX_PER_RUN) : DEFAULT_MAX_PER_RUN };
+    _autoCache = { at: nowMs, value };
+    return value;
+  } catch (e) {
+    _autoCache = null;
+    const flags = {};
+    for (const k of AUTOMATION_KEYS) flags[k] = false;
+    return { readable: false, exists: false, flags, maxPerRun: 0, error: (e && e.message) || 'read failed' };
+  }
+}
+
+/**
+ * May this AUTOMATION send to customers at all right now?
+ *   envOn: the existing env flag already evaluated by the caller (=== 'true').
+ *   channel: 'sms' | 'email'.
+ * @returns {Promise<{enabled:boolean, reason:null|string, maxPerRun:number, canary:boolean}>}
+ */
+async function automationStatus(db, key, channel, envOn, opts) {
+  const none = (reason) => ({ enabled: false, reason, maxPerRun: 0, canary: false });
+  if (AUTOMATION_KEYS.indexOf(key) === -1) return none('unknown_automation');
+  if (envOn !== true) return none('env_flag_off');
+  const ch = await channelStatus(db, channel, opts);
+  if (!ch.allowed) return none(ch.reason);
+  const a = await readAutomations(db, opts);
+  if (!a.readable) return none('automations_unreadable');
+  if (a.flags[key] !== true) return none('automation_off');
+  return { enabled: true, reason: null, maxPerRun: a.maxPerRun, canary: ch.canary };
+}
+
+/**
+ * integrations/sms.a2pApproved only switches the CRM from "send from my phone"
+ * to "send from the server" when the owner ALSO has a2pServerTexts on here and
+ * the global SMS switch is open. a2pDoc: the integrations/sms data (or null).
+ */
+async function a2pServerTextsAllowed(db, a2pDoc, opts) {
+  if (!a2pDoc || a2pDoc.a2pApproved !== true) return false;
+  return (await automationStatus(db, 'a2pServerTexts', 'sms', true, opts)).enabled;
+}
+
+/** true when ms is within MAX_AUTOMATION_AGE_DAYS before nowMs (and not in the future by more than a day). */
+function withinAutomationAge(ms, nowMs, days) {
+  const t = Number(ms);
+  if (!Number.isFinite(t) || t <= 0) return false;
+  const age = (nowMs != null ? nowMs : Date.now()) - t;
+  return age <= (days || MAX_AUTOMATION_AGE_DAYS) * 86_400_000 && age >= -86_400_000;
+}
+
+/**
+ * Idempotency per (recipient, template, job): create-once marker. true for the
+ * FIRST caller, false for every retry (Firestore create conflict). REJECTS on
+ * any other error (caller: do not send — an unverifiable dedupe is not a green light).
+ */
+async function claimSendOnce(db, recipient, template, jobKey, opts) {
+  const crypto = require('crypto');
+  // A phone is keyed by its last 10 digits, so '(859) 555-0134' and '+18595550134' are one recipient.
+  const digits = String(recipient || '').replace(/\D/g, '');
+  const who = digits.length >= 10 ? digits.slice(-10) : (digits || String(recipient || '').toLowerCase());
+  const raw = [who, String(template || ''), String(jobKey || '')].join('|');
+  const id = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 40);
+  const ref = db.collection(DEDUPE_COLLECTION).doc(id);
+  try {
+    await ref.create({ template: String(template || ''), jobKey: String(jobKey || ''), at: (opts && opts.nowMs) || Date.now() });
+    return true;
+  } catch (e) {
+    if (e && (e.code === 6 || e.code === 'already-exists' || /ALREADY_EXISTS|already exists/i.test(String(e.message || '')))) return false;
+    throw e;
+  }
+}
+
+/**
+ * Wrap a Twilio client so EVERY customer text it creates passes the kill
+ * switch and the canary at the moment of sending (defence in depth: the
+ * send paths also ask textingStatus earlier, but a flip landing between the
+ * early check and the send, or a path nobody remembered, still stops here).
+ * A refused send throws an error with status 403 / code 'messaging_paused'
+ * (a definite "did not go" for the outbox claim logic). Only messages.create
+ * is guarded; messages.list passes through (read-only).
+ */
+function guardTwilio(db, client, opts) {
+  return {
+    messages: {
+      create: async (msg) => {
+        const g = await guardSms(db, msg && msg.to, msg && msg.body, opts);
+        if (!g.send) {
+          const e = new Error('messaging_paused:' + g.reason);
+          e.code = 'messaging_paused';
+          e.status = 403;
+          e.messagingPaused = true;
+          e.reason = g.reason;
+          throw e;
+        }
+        return client.messages.create(Object.assign({}, msg, { to: g.to, body: g.body }));
+      },
+      list: (...a) => client.messages.list(...a),
+    },
+  };
 }
 
 // ── internal alerts to Jo: own switch, rate-limited ──────────────────────
@@ -252,8 +403,10 @@ module.exports = {
   GLOBAL_DOC, INTERNAL_DOC, AUDIT_COLLECTION, COUNTER_COLLECTION,
   CACHE_MS, READ_TIMEOUT_MS, CHANNELS, REFUSAL,
   readControls, channelStatus, readOwnerContact,
-  canarySms, canaryEmail, guardEmail, guardSms,
+  canarySms, canaryEmail, guardEmail, guardSms, guardTwilio, guardResend,
   internalAlertStatus,
+  AUTOMATIONS_DOC, DEDUPE_COLLECTION, AUTOMATION_KEYS, DEFAULT_MAX_PER_RUN, MAX_AUTOMATION_AGE_DAYS,
+  readAutomations, automationStatus, a2pServerTextsAllowed, withinAutomationAge, claimSendOnce,
   normPhone, normEmail,
   _resetCache,
 };

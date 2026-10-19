@@ -31,10 +31,11 @@ function ok(label, cond, detail) {
 
 // A minimal Firestore double: doc().get/set, collection().doc(), runTransaction.
 function fakeDb(seed) {
-  const store = new Map(Object.entries(seed || {}));
+  const store = new Map(Object.entries(Object.assign({}, require('./lib/messaging-controls-open').OPEN_CONTROLS, seed || {})));
   let reads = 0;
   const ref = (p) => ({
     id: p.split('/').pop(), path: p,
+    async create(v) { if (store.has(p)) { const e = new Error('6 ALREADY_EXISTS'); e.code = 6; throw e; } store.set(p, v); },
     async get() { reads++; const v = store.get(p); return { exists: v !== undefined, id: p.split('/').pop(), data: () => (v === undefined ? undefined : JSON.parse(JSON.stringify(v))) }; },
     async set(v, o) { store.set(p, o && o.merge ? Object.assign({}, store.get(p) || {}, v) : v); },
     async update(v) { if (!store.has(p)) throw new Error('missing'); store.set(p, Object.assign({}, store.get(p), v)); },

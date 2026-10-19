@@ -310,7 +310,8 @@ exports.createDealAcceptToken = onCall(
     let a2pApproved = false;
     try {
       const s = await db.doc('integrations/sms').get();
-      a2pApproved = ESL.smsA2pApproved(s.exists ? s.data() : null);
+      a2pApproved = ESL.smsA2pApproved(s.exists ? s.data() : null)
+        && await require('./messaging-controls').a2pServerTextsAllowed(db, s.exists ? s.data() : null);
     } catch (_) { /* default: phone */ }
     return { token, acceptUrl: DEAL_URL_BASE + token, expiresAt: expiresAt.toMillis(), ttlDays, a2pApproved };
   }

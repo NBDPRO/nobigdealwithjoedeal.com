@@ -104,6 +104,7 @@ const fakeDb = {
 
 class HttpsError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
 const stubs = {
+  './messaging-controls': require('./lib/messaging-controls-stub'),
   'firebase-functions/v2/firestore': { onDocumentCreated: (o, h) => ({ __opts: o, __handler: h }) },
   'firebase-functions/v2/https': { onRequest: (o, h) => ({ __handler: h }), onCall: (o, h) => ({ __handler: h }), HttpsError },
   'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'test-' + n }) },

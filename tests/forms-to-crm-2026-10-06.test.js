@@ -74,6 +74,7 @@ console.log('\nBridge — CRM lead notes');
 console.log('\nAlert — email + SMS');
 const rec = { emails: [], sms: [] };
 const alertStubs = {
+  './messaging-controls': require('./lib/messaging-controls-stub'),
   'firebase-functions/v2/firestore': { onDocumentCreated: (opts, handler) => ({ __opts: opts, __handler: handler }) },
   'firebase-functions/params': { defineSecret: (name) => ({ name, value: () => 'test-' + name }) },
   'firebase-functions/v2': { logger: { info() {}, warn() {}, error() {} } },

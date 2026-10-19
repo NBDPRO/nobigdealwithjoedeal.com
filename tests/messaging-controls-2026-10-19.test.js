@@ -32,7 +32,7 @@ const ALL_ON = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: tru
 const OWNER = { ownerPhone: '(859) 555-0199', ownerEmail: 'Owner@Example.test' };
 
 function mc(opts) {
-  const w = W.makeWorld(opts);
+  const w = W.makeWorld(Object.assign({ noControls: true }, opts));
   const m = W.load(w, 'messaging-controls.js');
   m._resetCache();
   return { w, m, db: w.db };
@@ -79,7 +79,7 @@ function mc(opts) {
     w.store.set('messaging_controls/global', ALL_ON);
     ok('force bypasses the cache', (await m.channelStatus(db, 'sms', { nowMs: 1000 + m.CACHE_MS + 2, force: true })).allowed);
     // an unreadable read is NOT cached as "on" or "off": the next read retries
-    const w2 = W.makeWorld({ docs: { 'messaging_controls/global': ALL_ON }, readThrows: () => w2.fail });
+    const w2 = W.makeWorld({ noControls: true, docs: { 'messaging_controls/global': ALL_ON }, readThrows: () => w2.fail });
     w2.fail = true;
     const m2 = W.load(w2, 'messaging-controls.js'); m2._resetCache();
     ok('read error -> closed', !(await m2.channelStatus(w2.db, 'sms', { nowMs: 5 })).allowed);
@@ -150,7 +150,7 @@ function mc(opts) {
   console.log('E. manageMessagingControls callable');
   {
     async function call(data, uid, docs) {
-      const w = W.makeWorld({ docs: docs || {} });
+      const w = W.makeWorld({ noControls: true, docs: docs || {} });
       const mod = W.load(w, 'messaging-controls-fns.js');
       let out, err;
       try { out = await mod.manageMessagingControls.__handler({ auth: uid ? { uid, token: {} } : null, data }); } catch (e) { err = e; }

@@ -203,6 +203,7 @@ let currentResendSend = async () => ({ data: { id: 'stub' }, error: null });
 let currentLimiter = makeRateLimiterStub();
 
 const stubs = {
+  './messaging-controls': require('./lib/messaging-controls-stub'),
   'firebase-admin/firestore': {
     Timestamp: { fromDate: (d) => fakeTs(d.getTime()) },
     FieldValue: { serverTimestamp: () => ({ __serverTimestamp: true, ms: Date.now() }) },

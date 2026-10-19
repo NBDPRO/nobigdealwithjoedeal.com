@@ -42,6 +42,7 @@ const { Resend } = require('resend');
 const { httpRateLimit, enforceRateLimit } = require('./integrations/upstash-ratelimit');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const Suppression = require('./email-suppression');
+const MessagingControls = require('./messaging-controls');
 const AR = require('./alert-recipients');
 // A visitor typed the address into a public form, so anyone can name anyone:
 // one destination is mailed at most this many recovery emails a day, across
@@ -305,8 +306,12 @@ exports.runAbandonRecovery = onSchedule(
     memory: '256MiB',
   },
   async (event) => {
-    const enabled = process.env.FUNNEL_RECOVERY_ENABLED === 'true';
     const db = getFirestore();
+    // LIVE only when the env flag AND an explicit messaging_controls/automations
+    // funnelRecoveryEmail === true AND the global email switch all say so
+    // (2026-10-19, fail closed). Otherwise the dry run below. maxPerRun caps one sweep.
+    const auto = await MessagingControls.automationStatus(db, 'funnelRecoveryEmail', 'email', process.env.FUNNEL_RECOVERY_ENABLED === 'true');
+    const enabled = auto.enabled;
     const now = Date.now();
     const cutoffOld = new Date(now - ABANDON_WINDOW_MS);
     const cutoffTooOld = new Date(now - RECOVERY_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
@@ -378,6 +383,7 @@ exports.runAbandonRecovery = onSchedule(
     }
 
     for (const doc of snap.docs) {
+      if (enabled && sent >= auto.maxPerRun) { logger.info('funnel_recovery_per_run_cap', { cap: auto.maxPerRun }); break; }
       const data = doc.data() || {};
 
       // Skip if already completed or already sent recovery
@@ -478,7 +484,7 @@ exports.runAbandonRecovery = onSchedule(
       try {
         const body = Suppression.applyFooter(unsub,
           buildRecoveryEmailHtml({ firstName }), buildRecoveryEmailText({ firstName }));
-        const response = await resend.emails.send({
+        const gated = await MessagingControls.guardEmail(db, {
           from: fromAddress,
           to: data.email,
           replyTo: REPLY_TO,
@@ -492,6 +498,8 @@ exports.runAbandonRecovery = onSchedule(
           // functions/resend-webhook.js.
           tags: unsub.tags,
         });
+        if (!gated.send) throw new Error('messaging_paused:' + gated.reason);
+        const response = await resend.emails.send(gated.msg);
         // Resend resolves { data: null, error } on an API-level rejection
         // instead of throwing — without this check recoveryEmailSentAt
         // gets stamped and the top-of-loop `if (data.recoveryEmailSentAt)

@@ -271,7 +271,8 @@ const FV = { serverTimestamp: () => 'TS', increment: (n) => n, arrayUnion: (...a
         './shared': { callableRateLimit: async (_r, name, n, ms) => { limits.push([name, n, ms]); }, assertNotViewer: () => {} },
         './estimate-view-alert': { recordEstimateView: async () => {} },
         './integrations/_shared': { secretOr: (_s, d) => d },
-        './resend-guard': { resendRejected: () => false, resendErrorMessage: () => '' },
+        './messaging-controls': require('./lib/messaging-controls-stub'),
+    './resend-guard': { resendRejected: () => false, resendErrorMessage: () => '' },
         './job-spine': { spineAfterRemoteSign: async () => ({}) },
         resend: { Resend: class { constructor() { this.emails = { send: async (m) => { sent.push(m.to); return { data: { id: 'm1' } }; } }; } } },
       };

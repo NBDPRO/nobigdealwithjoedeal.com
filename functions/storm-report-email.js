@@ -32,6 +32,7 @@ const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
+const MessagingControls = require('./messaging-controls');
 const GUST = require('./asos-gust-logic');
 const { gustForAddressDay } = require('./integrations/asos-gust');
 const AR = require('./alert-recipients');
@@ -258,13 +259,20 @@ exports.stormReportEmail = onDocumentCreated(
       const resend = new Resend(RESEND_API_KEY.value());
       const from = secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com');
       // Email category: TRANSACTIONAL — the homeowner asked for this storm-history report on /storm-report. Not gated by the unsubscribe register (email-suppression.js SEND_PATHS).
-      const resp = await resend.emails.send({
+      // The owner's kill switch / canary (2026-10-19, fail closed). A paused
+      // send is dropped (the doc is already claimed; no retry comes).
+      const gated = await MessagingControls.guardEmail(getFirestore(), {
         from,
         to: d.email,
         subject: 'Your 5-Year Storm History Report — No Big Deal Home Solutions',
         html,
         reply_to: REPLY_TO,
       });
+      if (!gated.send) {
+        logger.warn('stormReportEmail: held, customer messaging paused', { leadId, reason: gated.reason });
+        return;
+      }
+      const resp = await resend.emails.send(gated.msg);
       // Resend resolves { data: null, error } on an API-level rejection
       // instead of throwing — without this check the doc is already
       // claimed (see the transaction above) so a rejected send would be

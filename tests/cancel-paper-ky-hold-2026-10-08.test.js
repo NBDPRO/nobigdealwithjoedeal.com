@@ -109,6 +109,7 @@ function loadFn(rel, db, storage, extra) {
   const logs = [];
   const logger = { info() {}, warn: (m) => logs.push(['warn', m]), error: (m) => logs.push(['error', m]) };
   const stubs = Object.assign({
+    './messaging-controls': require('./lib/messaging-controls-stub'),
     'firebase-functions/v2/https': { onCall: (o, h) => h, onRequest: (o, h) => h, HttpsError },
     'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => 'stub' }) },
     'firebase-functions/v2': { logger },

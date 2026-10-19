@@ -142,6 +142,7 @@ function makeWorld(opts) {
     fromDate: (d) => ({ toMillis: () => d.getTime() }),
   };
   const stubs = {
+    './messaging-controls': require('./lib/messaging-controls-stub'),
     'firebase-functions/v2/https': {
       onRequest: (o, h) => ({ __opts: o, __handler: h }),
       onCall: (o, h) => ({ __opts: o, __handler: h }),

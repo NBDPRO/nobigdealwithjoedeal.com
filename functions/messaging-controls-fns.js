@@ -10,6 +10,11 @@
  *         otpEnabled, canary — booleans only. `reason` (3-300 chars) is
  *         required for EVERY change and is written, with who / when / before /
  *         after, to messaging_controls_audit (append-only; no client access).
+ *     setAutomations { patch, reason } → { ok, automations }
+ *         patch: any of the MC.AUTOMATION_KEYS (boolean) and maxPerRun (whole
+ *         number 0-50). Each AUTOMATED customer send (lead ack, follow-up,
+ *         review ask, missed-call text, storm text...) needs its own entry
+ *         === true here AND its env flag AND the global switch.
  *     setInternal { patch, reason } → { ok, internal }
  *         patch: internalAlertsEnabled (boolean), ownerPhone, ownerEmail
  *         (canary copies and internal alerts go there; never logged in full).
@@ -66,8 +71,10 @@ async function handleManageMessagingControls(request) {
   if (action === 'get') {
     const controls = await MC.readControls(db, { force: true });
     const owner = await MC.readOwnerContact(db, { force: true });
+    const automations = await MC.readAutomations(db, { force: true });
     return {
       controls,
+      automations: { flags: automations.flags, maxPerRun: automations.maxPerRun },
       internal: { internalAlertsEnabled: owner.internalAlertsEnabled, ownerPhoneSet: !!owner.phone, ownerEmailSet: !!owner.email },
     };
   }
@@ -89,6 +96,32 @@ async function handleManageMessagingControls(request) {
     await audit(db, { kind: 'controls', byUid: auth.uid, reason, patch: next, before: pick(before), after: pick(after) });
     logger.info('messaging_controls_changed', { byUid: auth.uid, patch: next, reason });
     return { ok: true, controls: after };
+  }
+
+  if (action === 'setAutomations') {
+    const reason = reasonOf(data);
+    const patch = data.patch && typeof data.patch === 'object' ? data.patch : {};
+    const next = {};
+    for (const k of Object.keys(patch)) {
+      if (k === 'maxPerRun') {
+        const n = patch[k];
+        if (!Number.isInteger(n) || n < 0 || n > 50) throw new HttpsError('invalid-argument', 'maxPerRun must be a whole number from 0 to 50');
+        next.maxPerRun = n;
+      } else if (MC.AUTOMATION_KEYS.indexOf(k) !== -1) {
+        if (typeof patch[k] !== 'boolean') throw new HttpsError('invalid-argument', k + ' must be true or false');
+        next[k] = patch[k];
+      } else {
+        throw new HttpsError('invalid-argument', 'Unknown automation: ' + k);
+      }
+    }
+    if (Object.keys(next).length === 0) throw new HttpsError('invalid-argument', 'Nothing to change');
+    const before = await MC.readAutomations(db, { force: true });
+    await db.doc(MC.AUTOMATIONS_DOC).set(Object.assign({}, next, { updatedAt: FieldValue.serverTimestamp(), updatedBy: auth.uid }), { merge: true });
+    MC._resetCache();
+    const after = await MC.readAutomations(db, { force: true });
+    await audit(db, { kind: 'automations', byUid: auth.uid, reason, patch: next, before: { flags: before.flags, maxPerRun: before.maxPerRun }, after: { flags: after.flags, maxPerRun: after.maxPerRun } });
+    logger.info('messaging_automations_changed', { byUid: auth.uid, patch: next, reason });
+    return { ok: true, automations: { flags: after.flags, maxPerRun: after.maxPerRun } };
   }
 
   if (action === 'setInternal') {

@@ -166,6 +166,7 @@ function makeWorld(opts) {
     clientIp: () => '203.0.113.9', rateLimitIpKey: (ip) => ip,
   };
   const stubs = {
+    './messaging-controls': require('./lib/messaging-controls-stub'),
     'firebase-functions/v2/https': { onRequest: (o, h) => ({ __opts: o, __handler: h }), onCall: (o, h) => ({ __opts: o, __handler: h }), HttpsError },
     'firebase-functions/params': { defineSecret: (n) => ({ name: n, value: () => { if (opts.secretThrows) throw new Error('no secret'); return 'secret-' + n; } }) },
     'firebase-functions/v2': { logger: { error: (...a) => logs.error.push(a), warn: (...a) => logs.warn.push(a), info: (...a) => logs.info.push(a) } },

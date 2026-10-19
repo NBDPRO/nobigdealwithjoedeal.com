@@ -209,6 +209,7 @@ function load(db, storage, extraStubs) {
     './integrations/upstash-ratelimit': { httpRateLimit: async () => true, clientIp: (req) => req.__ip || '203.0.113.9' },
     './shared': { callableRateLimit: async () => {}, assertNotViewer: () => {} },
     './integrations/_shared': { secretOr: (_s, d) => d },
+    './messaging-controls': require('./lib/messaging-controls-stub'),
     './resend-guard': { resendRejected: () => false, resendErrorMessage: () => 'rejected' },
     './job-spine': { spineAfterEsign: async (_db, env, id) => { spine.push(id); return {}; } },
     './esign-stamp': require(path.join(FN, 'esign-stamp.js')),
