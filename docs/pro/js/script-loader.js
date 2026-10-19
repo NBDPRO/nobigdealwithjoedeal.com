@@ -121,7 +121,9 @@
       'css/receipt-health.css?v=1', 'js/receipt-health.js?v=1',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
-      'js/hd-import.js?v=3',
+      'js/hd-import.js?v=4',
+      // Receipt import search / filter + type-ahead job picker (2026-10-19): inert until the receiptSorterQueue flag is on.
+      'css/receipt-review.css?v=1', 'js/receipt-filter-logic.js?v=1', 'js/receipt-review-ui.js?v=1',
       'css/lowes-import.css?v=1', 'js/lowes-import.js?v=1', // Lowe's (flag lowesImport)
       // The company price book (2026-10-02) — hd-import.js records each
       // receipt's SKU prices into it; loads after, read at call time.
