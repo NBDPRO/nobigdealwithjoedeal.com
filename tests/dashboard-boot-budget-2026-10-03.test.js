@@ -171,6 +171,10 @@ CEILING.localBytes += 3 * 1024;
 // (+~4 KB LF); customer-estimate-rows.js locks repairWarranty at signing (+~1 KB). Measured 4855 of 4854 KB,
 // so the ceiling keeps ~2 KB of slack.
 CEILING.localBytes += 3 * 1024;
+// +1 local tag / +26 KB, deliberate (2026-10-19, bulk close stale leads): js/stale-leads-cleanup.js (deferred, flag
+// bulkCloseStaleLeads, absent = off). No boot-time reads; with the flag off it only keeps the toolbar button hidden. Own line.
+CEILING.localScripts += 1;
+CEILING.localBytes += 26 * 1024;
 
 // ── SHIPPED BYTES (2026-10-16, deploy-time minify) ─────────────────────────
 // Since the deploy minifies docs/pro with esbuild (scripts/minify-shipped.js:

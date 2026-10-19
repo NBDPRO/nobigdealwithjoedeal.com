@@ -283,6 +283,7 @@
     "mark-paid-methods-2026-09-29.test.js",
     "deposited-to-2026-10-19.test.js",
     "deposited-to-ui-2026-10-19.test.js",
+    "stale-leads-cleanup-2026-10-19.test.js",
     "markpaid-concurrent-payments-2026-10-05.test.js",
     "stripe-ledger-logic-2026-09-29.test.js",
     "stripe-ledger-ingest-2026-09-29.test.js",

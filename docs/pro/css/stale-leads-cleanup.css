@@ -1,0 +1,52 @@
+/* stale-leads-cleanup.css - "Clean up stale leads" modal (js/stale-leads-cleanup.js,
+   2026-10-19, flag bulkCloseStaleLeads). Phone-first: 44px tap targets, and under
+   480px the table becomes one card per lead so nothing scrolls sideways. */
+
+#staleLeadsBtn[hidden] { display: none; }
+
+.slc-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0, 0, 0, .6); overflow-y: auto; overflow-x: hidden; padding: 12px; display: flex; align-items: flex-start; justify-content: center; }
+.slc-box { width: 100%; max-width: 860px; margin: 8px 0; background: var(--s, #1a1d23); color: var(--t); border: 1px solid var(--br, #2a2d35); border-radius: 12px; padding: 14px; box-sizing: border-box; min-width: 0; }
+.slc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.slc-title { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.slc-x { font: inherit; font-size: 22px; min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--m); cursor: pointer; }
+.slc-sub { margin: 4px 0 10px; font-size: 13px; color: var(--m); }
+
+.slc-filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.slc-f { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--m); min-width: 0; }
+.slc-sel { font: inherit; font-size: 14px; min-height: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s2, #22252c); color: var(--t); max-width: 100%; }
+
+.slc-undo, .slc-result { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; margin-bottom: 10px; border-radius: 8px; background: var(--s2, #22252c); font-size: 13px; }
+.slc-empty { padding: 18px 0; text-align: center; color: var(--m); }
+
+.slc-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+.slc-count { font-size: 14px; font-weight: 700; }
+.slc-link { font: inherit; font-size: 13px; font-weight: 600; min-height: 44px; padding: 0 10px; border: 0; background: transparent; color: var(--orange); cursor: pointer; }
+
+.slc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.slc-table th { text-align: left; padding: 6px 8px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--m); border-bottom: 1px solid var(--br, #2a2d35); }
+.slc-table td { padding: 6px 8px; border-bottom: 1px solid var(--br, #2a2d35); overflow-wrap: anywhere; }
+.slc-c-check { width: 44px; text-align: center; }
+.slc-check { width: 22px; height: 22px; accent-color: var(--orange); }
+.slc-c-name { font-weight: 700; }
+.slc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.slc-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.slc-confirm { margin-top: 12px; padding: 10px; border-radius: 8px; border: 1px solid var(--red, #ef4444); }
+.slc-confirm p { margin: 0 0 4px; font-size: 14px; }
+.slc-progress { font-size: 14px; font-weight: 700; }
+.slc-btn { font: inherit; font-size: 14px; font-weight: 700; min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s2, #22252c); color: var(--t); cursor: pointer; touch-action: manipulation; }
+.slc-btn.slc-danger { color: #fff; background: var(--red, #ef4444); border-color: var(--red, #ef4444); }
+.slc-btn:disabled, .slc-link:disabled { opacity: .45; cursor: not-allowed; }
+
+@media (max-width: 480px) {
+  .slc-overlay { padding: 6px; }
+  .slc-box { padding: 10px; }
+  .slc-table, .slc-table tbody, .slc-table tr, .slc-table td { display: block; width: auto; }
+  .slc-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .slc-row { position: relative; margin-bottom: 8px; padding: 8px 8px 8px 52px; border: 1px solid var(--br, #2a2d35); border-radius: 10px; }
+  .slc-table td { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; border: 0; }
+  .slc-table td[data-label]:not([data-label=""])::before { content: attr(data-label); flex: none; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--m); }
+  .slc-table td.slc-c-check { position: absolute; left: 4px; top: 4px; width: 44px; height: 44px; align-items: center; justify-content: center; }
+  .slc-foot { flex-direction: column-reverse; }
+  .slc-foot .slc-btn { width: 100%; }
+}
