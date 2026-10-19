@@ -4379,6 +4379,9 @@ body {
      to Settings. 44 fits inside the 48px bar and the 7px gap to the bell. */
   .upill{ position:relative; }
   .upill::after{ content:''; position:absolute; left:50%; top:50%; width:max(100%, 44px); height:max(100%, 44px); transform:translate(-50%, -50%); }
+  /* Same invisible 44x44 hit area for the header icon buttons (40x40) and the What's New bell
+     (41x36): visual audit 2026-10-19. Nothing paints or lays out differently. */
+  header .hdr-tool::after, #nbd-whats-new-bell::after{ content:''; position:absolute; left:50%; top:50%; width:max(100%, 44px); height:max(100%, 44px); transform:translate(-50%, -50%); }
   body{padding-bottom:62px;}
   .app-body{flex-direction:column;}
   .content{width:100%;}
