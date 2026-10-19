@@ -70,7 +70,9 @@ Viewer is read only (sees the payment tabs, no buttons); sales reps see nothing.
 
 ## Proof photos
 
-Stored at `receipts/{uid}/sub-proofs/{ts}_{i}_{name}.jpg|pdf`: the **existing
+Handled by the shared `proof-photos.js` (also used by the customer side, see
+[PAYMENT-BACKFILL-2026-10-19](PAYMENT-BACKFILL-2026-10-19.md)); thumbnails show on
+the cards and in the job money view. Stored at `receipts/{uid}/sub-proofs/{ts}_{i}_{name}.jpg|pdf`: the **existing
 receipts rules** (owner-only read, owner write, images + PDF, 25 MB), so no
 `storage.rules` change. Every image is re-drawn on a canvas and saved as JPEG
 (max 2000 px): that drops EXIF, GPS included. A photo the browser cannot decode
@@ -140,7 +142,7 @@ production flags and this PR wrote none.
 - Existing rows keep `supplier` as typed; only totals and groups resolve names.
   Rewriting old rows to a `subId` needs the writer (or an admin script, dry run
   first).
-- Proof thumbnails inline: "View" opens each file in a new tab.
+- Tapping a thumbnail opens the full file in a new tab (no in-app zoom).
 - A company admin cannot attach a proof to, or assign, a rep's payment (expense
   rules limit updates to the writer or platform admin).
 - The agent `job_profit` tool and the 1099 view do not read `proofPaths` yet.

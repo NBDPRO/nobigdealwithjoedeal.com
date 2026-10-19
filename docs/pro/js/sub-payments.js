@@ -128,7 +128,7 @@
   function proofLine(e) {
     const n = logic().proofCount(e);
     if (!n) return '<span class="sp-flag">No proof</span>';
-    return '<button type="button" class="sp-link" data-sp-action="view-proof" data-sp-id="' + esc(e.id) + '">View ' + n + ' proof' + (n === 1 ? '' : 's') + '</button>';
+    return n + ' proof' + (n === 1 ? '' : 's') + PP().thumbsHtml(proofPathsOf(e));
   }
 
   function cardHtml(e) {
@@ -136,7 +136,7 @@
     const needs = logic().needsJob(e);
     const overhead = e.notJobCost === true;
     let job;
-    if (e.leadId) job = esc(jobText(e.leadId));
+    if (e.leadId) job = '<button type="button" class="sp-link" data-sp-action="job-money" data-sp-job="' + esc(e.leadId) + '">' + esc(jobText(e.leadId)) + '</button>';
     else if (overhead) job = '<span class="sp-tag">Not a job cost</span>';
     else job = '<span class="sp-flag">No job</span>';
     let acts = '';
@@ -208,7 +208,8 @@
     if (!rows.length) return '<div class="sp-empty">' + (S.noSub.rows.length ? 'No job matches that search.' : 'Every job has a sub cost, or you marked it not applicable.') + '</div>';
     return rows.map((r) => '<article class="sp-card"><div class="sp-card-top"><b class="sp-payee">' + esc(r.name) + '</b><span class="sp-tag">' + esc(({ finished: 'Finished', production: 'In production', signed: 'Signed' })[r.phase] || '') + '</span></div>' +
       '<div class="sp-nums"><span><i>Collected</i><b>' + money(r.collectedCents) + '</b></span><span><i>Costs</i><b>' + money(r.directCents) + '</b></span><span><i>Margin</i><b>' + (r.marginPct == null ? '-' : r.marginPct + '%') + '</b></span></div>' +
-      '<div class="sp-act"><button type="button" class="sp-btn sp-primary" data-sp-action="log-for-job" data-sp-job="' + esc(r.id) + '">Log sub payment</button></div></article>').join('');
+      '<div class="sp-act"><button type="button" class="sp-btn sp-primary" data-sp-action="log-for-job" data-sp-job="' + esc(r.id) + '">Log sub payment</button>' +
+      '<button type="button" class="sp-btn" data-sp-action="job-money" data-sp-job="' + esc(r.id) + '">Job money</button></div></article>').join('');
   }
 
   function payTabHtml() {
@@ -261,6 +262,89 @@
     return '<div class="sp-sug" role="status"><div>' + text + ' Nothing changes until you tap.</div><div class="sp-act">' +
       (canWrite() ? '<button type="button" class="sp-btn sp-primary" data-sp-action="merge" data-sp-sug="' + k + '">' + yes + '</button>' : '') +
       '<button type="button" class="sp-btn" data-sp-action="dismiss" data-sp-sug="' + k + '">Not the same</button></div></div>';
+  }
+
+  // ── job money: the customer's payments and the sub payments, side by side ──
+  async function loadJobInvoices() {
+    const R = w.NBDRevenue;
+    if (!R || typeof R.loadInvoices !== 'function') return null;
+    const list = await R.loadInvoices();
+    if (typeof R.cached === 'function' && !R.cached()) return null;   // the read failed: NOT "no payments"
+    return list || [];
+  }
+  function customerPaymentsOf(leadId) {
+    const out = [];
+    (S.invoices || []).forEach((inv) => {
+      if (!inv || inv.deleted === true || inv.leadId !== leadId) return;
+      (Array.isArray(inv.payments) ? inv.payments : []).forEach((p) => {
+        const amt = parseFloat(p && p.amount);
+        if (!(amt > 0)) return;
+        const proofs = [];
+        if (p.proofStoragePath) proofs.push(p.proofStoragePath);
+        (Array.isArray(p.proofPaths) ? p.proofPaths : []).forEach((x) => proofs.push(x));
+        out.push({ invoiceId: inv.id, cents: Math.round(amt * 100), at: p.at, method: p.method || '', ref: p.reference || '', note: p.note || '', backfilled: inv.source === 'backfill' || inv.backfilled === true, proofs: proofs, invoice: inv });
+      });
+    });
+    return out.sort((a, b) => ((toDate(b.at) || 0) - (toDate(a.at) || 0)));
+  }
+  async function openJobMoney(leadId) {
+    if (!enabled() || !canRead() || !leadId) return false;
+    if (!S) { S = await base(); S.standalone = true; }
+    S.view = 'job'; S.jobLeadId = leadId; S.invoices = null; S.jvVoid = null; S.jvNote = '';
+    render();
+    const inv = await loadJobInvoices();
+    if (!S) return true;
+    S.invoices = inv; S.invoicesFailed = inv == null;
+    render();
+    const m = document.getElementById('spOverlay'); if (m) m.scrollTop = 0;
+    return true;
+  }
+  function jobMoneyHtml() {
+    const L = logic(), id = S.jobLeadId;
+    const subs = S.expenses.filter((e) => e && e.leadId === id && e.deleted !== true && L.isSubPayment(e) && e.costType === 'direct');
+    const direct = S.expenses.filter((e) => e && e.leadId === id && e.deleted !== true && e.costType === 'direct' && L.centsOf(e) > 0);
+    const costs = direct.reduce((t, e) => t + L.centsOf(e), 0);
+    const subCents = subs.reduce((t, e) => t + L.centsOf(e), 0);
+    const pays = S.invoices ? customerPaymentsOf(id) : [];
+    const collected = pays.reduce((t, p) => t + p.cents, 0);
+    const owner = !!(w.NBDPaymentBackfill && w.NBDPaymentBackfill.isOwner && w.NBDPaymentBackfill.isOwner());
+    let h = '<div class="sp-head"><button type="button" class="sp-x" data-sp-action="back" aria-label="Back">←</button><h3 class="sp-title">' + esc(jobText(id)) + '</h3><button type="button" class="sp-x" data-sp-action="close" aria-label="Close">✕</button></div>' +
+      '<div class="sp-sub">Job money: what the customer paid and what the subs were paid, with the photos.</div>';
+    if (S.invoices === null && !S.invoicesFailed) return h + '<div class="sp-empty">Loading the customer payments…</div>';
+    if (S.invoicesFailed) h += '<div class="sp-warn" role="status">The customer payments did not load, so collected and profit are not shown. Nothing was changed.</div>';
+    else h += '<div class="sp-nums"><span><i>Collected</i><b>' + money(collected) + '</b></span><span><i>Job costs</i><b>' + money(costs) + '</b></span><span><i>Profit so far</i><b>' + money(collected - costs) + '</b></span></div>';
+    const payCards = pays.length ? pays.map((p) => {
+      let c = '<article class="sp-card"><div class="sp-card-top"><b>' + money(p.cents) + '</b><span class="sp-card-sub">' + esc(dateText(p.at)) + '</span></div>' +
+        '<div class="sp-card-sub">' + esc(METHOD_LABEL[p.method] || p.method || 'Payment') + (p.ref ? ' #' + esc(p.ref) : '') + (p.backfilled ? ' · <span class="sp-tag">Backfilled</span>' : '') + '</div>' +
+        (p.note ? '<div class="sp-note">' + esc(p.note) + '</div>' : '') +
+        (p.proofs.length ? '<div class="sp-card-sub">' + p.proofs.length + ' photo' + (p.proofs.length === 1 ? '' : 's') + '</div>' + PP().thumbsHtml(p.proofs) : '<div class="sp-card-sub"><span class="sp-flag">No photo</span></div>');
+      if (owner && p.backfilled) {
+        c += S.jvVoid === p.invoiceId
+          ? '<div class="sp-pick"><label class="sp-lab" for="spJvNote">Why void it? (required. It is kept with your note.)</label><input id="spJvNote" class="sp-in" maxlength="300" autocomplete="off" data-sp-f="jvnote" value="' + esc(S.jvNote) + '"><div class="sp-err" id="spErr" role="alert"></div>' +
+            '<div class="sp-act"><button type="button" class="sp-btn sp-primary" data-sp-action="jv-void-go" data-sp-inv="' + esc(p.invoiceId) + '">Void this payment</button><button type="button" class="sp-btn" data-sp-action="jv-void-cancel">Cancel</button></div></div>'
+          : '<div class="sp-act"><button type="button" class="sp-btn" data-sp-action="jv-void" data-sp-inv="' + esc(p.invoiceId) + '">Void backfilled payment</button></div>';
+      }
+      return c + '</article>';
+    }).join('') : '<div class="sp-empty">' + (S.invoicesFailed ? 'Not loaded.' : 'No customer payments are recorded on this job.') + '</div>';
+    const subCards = subs.length ? subs.sort((a, b) => ((toDate(b.date) || 0) - (toDate(a.date) || 0))).map((e) =>
+      '<article class="sp-card"><div class="sp-card-top"><b class="sp-payee">' + esc(e.supplier || 'Unknown') + '</b><b>' + money(L.centsOf(e)) + '</b></div>' +
+      '<div class="sp-card-sub">' + esc(dateText(e.date)) + ' · ' + esc(METHOD_LABEL[e.paymentMethod] || 'Cash') + '</div>' + (e.note ? '<div class="sp-note">' + esc(e.note) + '</div>' : '') +
+      (L.proofCount(e) ? '<div class="sp-card-sub">' + L.proofCount(e) + ' photo' + (L.proofCount(e) === 1 ? '' : 's') + '</div>' + PP().thumbsHtml(proofPathsOf(e)) : '<div class="sp-card-sub"><span class="sp-flag">No proof</span></div>') + '</article>').join('')
+      : '<div class="sp-empty">No sub payments are logged on this job.</div>';
+    return h + '<div class="sp-cols"><div><div class="sp-lab">Customer payments (' + pays.length + ')</div>' + payCards + '</div>' +
+      '<div><div class="sp-lab">Sub payments (' + subs.length + ', ' + money(subCents) + ')</div>' + subCards + '</div></div>' +
+      (canWrite() ? '<button type="button" class="sp-btn sp-wide" data-sp-action="log-for-job" data-sp-job="' + esc(id) + '">Log a sub payment on this job</button>' : '');
+  }
+  async function voidBackfilledPayment(invId) {
+    const inv = (S.invoices || []).find((i) => i && i.id === invId);
+    const PB = w.NBDPaymentBackfillLogic;
+    if (!inv || !PB || !(w.NBDPaymentBackfill && w.NBDPaymentBackfill.isOwner())) return;
+    const built = PB.voidPatch(inv, S.jvNote, uid(), Date.now());
+    if (built.error) { showErr(built.error); return; }
+    try { await w.updateDoc(w.doc(w.db, 'invoices', invId), Object.assign({}, built.patch, { deletedAt: w.serverTimestamp(), updatedAt: w.serverTimestamp() })); }
+    catch (e) { console.warn('[sub-payments] void backfilled payment failed', e && e.code); toast('Could not void that. Nothing changed.', 'error'); return; }
+    Object.assign(inv, built.patch); S.changed = true; S.jvVoid = null; S.jvNote = '';
+    toast('Payment voided (kept with your note)', 'ok'); render();
   }
 
   // ── sub detail ──────────────────────────────────────────────────────────
@@ -364,8 +448,13 @@
     let body;
     if (S.view === 'log' && S.form) body = formHtml();
     else if (S.view === 'sub') body = subViewHtml();
+    else if (S.view === 'job' && S.jobLeadId) body = jobMoneyHtml();
     else body = mainHtml();
-    overlay().innerHTML = '<div class="sp-sheet">' + body + '</div>';
+    const m = overlay();
+    // Opened from the backfill screen ("Open job money"): sit above it.
+    m.classList.toggle('sp-top', !!document.getElementById('pbOverlay'));
+    m.innerHTML = '<div class="sp-sheet">' + body + '</div>';
+    PP().hydrate(m);
   }
   function close() {
     const m = document.getElementById('spOverlay'); if (m) m.remove();
@@ -375,61 +464,22 @@
   }
   const showErr = (m) => { const el = document.getElementById('spErr'); if (el) el.textContent = m; };
 
-  // ── proof photos ────────────────────────────────────────────────────────
-  // Always re-encoded through a canvas: that drops EXIF / GPS. A PDF is kept as is.
-  function prepareProof(file) {
-    return new Promise((resolve, reject) => {
-      const t = (file && file.type) || '';
-      if (t === 'application/pdf') return file.size > 25 * 1024 * 1024 ? reject(new Error('over 25MB')) : resolve(file);
-      if (!/^image\//.test(t)) return reject(new Error('type'));
-      let url;
-      try { url = URL.createObjectURL(file); } catch (e) { return reject(e); }
-      const img = new Image();
-      const done = (fn, v) => { try { URL.revokeObjectURL(url); } catch (e) { /* nothing to free */ } fn(v); };
-      img.onload = () => {
-        try {
-          const max = 2000, scale = Math.min(1, max / Math.max(img.width, img.height));
-          const cv = document.createElement('canvas');
-          cv.width = Math.max(1, Math.round(img.width * scale)); cv.height = Math.max(1, Math.round(img.height * scale));
-          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-          cv.toBlob((b) => (b ? done(resolve, b) : done(reject, new Error('encode'))), 'image/jpeg', 0.85);
-        } catch (e) { done(reject, e); }
-      };
-      img.onerror = () => done(reject, new Error('decode'));
-      img.src = url;
-    });
-  }
+  // ── proof photos (the shared component: proof-photos.js) ────────────────
+  // Every image is re-drawn on a canvas (EXIF dropped), stored under the
+  // receipts rules at receipts/{uid}/sub-proofs/; the doc keeps the path only.
+  const PP = () => w.NBDProofPhotos;
+  function prepareProof(file) { return PP().prepare(file); }
   async function uploadProofs(files) {
     const me = uid();
-    if (!w.storage || !w.ref || !w.uploadBytes) throw new Error('storage unavailable');
-    const paths = [];
-    for (let i = 0; i < files.length; i++) {
-      const body = await prepareProof(files[i]);
-      const isPdf = (body.type || '') === 'application/pdf';
-      const base = String(files[i].name || 'proof').replace(/\.[A-Za-z0-9]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60) || 'proof';
-      const path = 'receipts/' + me + '/sub-proofs/' + Date.now() + '_' + i + '_' + base + (isPdf ? '.pdf' : '.jpg');
-      await w.uploadBytes(w.ref(w.storage, path), body, { contentType: isPdf ? 'application/pdf' : 'image/jpeg' });
-      paths.push(path);
-    }
+    const stamp = Date.now();
+    const got = await PP().upload(files, (i, base, ext) => 'receipts/' + me + '/sub-proofs/' + stamp + '_' + i + '_' + base + '.' + ext);
+    return got.map((g) => g.path);
+  }
+  const chooseFiles = (cb) => PP().choose(cb);
+  function proofPathsOf(e) {
+    const paths = (Array.isArray(e.proofPaths) ? e.proofPaths : []).filter((p) => logic().proofPathOk(p));
+    if (typeof e.receiptStoragePath === 'string' && PP().pathOk(e.receiptStoragePath)) paths.push(e.receiptStoragePath);
     return paths;
-  }
-  function chooseFiles(cb) {
-    const inp = document.createElement('input');
-    inp.type = 'file'; inp.accept = 'image/*,application/pdf'; inp.multiple = true; inp.style.display = 'none';
-    inp.addEventListener('change', () => { const fs = Array.prototype.slice.call(inp.files || []); inp.remove(); if (fs.length) cb(fs); });
-    document.body.appendChild(inp);
-    inp.click();
-  }
-  async function viewProof(id) {
-    const row = S && S.expenses.find((e) => e && e.id === id);
-    if (!row || !w.getDownloadURL || !w.ref) return;
-    const paths = (Array.isArray(row.proofPaths) ? row.proofPaths : []).filter((p) => logic().proofPathOk(p));
-    if (typeof row.receiptStoragePath === 'string' && /^receipts\/[A-Za-z0-9_-]+\/[A-Za-z0-9._-]+$/.test(row.receiptStoragePath)) paths.push(row.receiptStoragePath);
-    if (!paths.length) { toast('No proof file to open', 'warn'); return; }
-    for (const p of paths) {
-      try { const url = await w.getDownloadURL(w.ref(w.storage, p)); w.open(url, '_blank', 'noopener'); }
-      catch (e) { toast('Could not open a proof file. Only the person who uploaded it can open it.', 'error'); }
-    }
   }
 
   // ── writes ──────────────────────────────────────────────────────────────
@@ -618,7 +668,11 @@
     }
     if (!S) return;
     if (a === 'close') close();
-    else if (a === 'back') { S.view = 'main'; S.form = null; S.editSub = null; render(); }
+    else if (a === 'back') { if (S.view === 'job' && S.standalone) { close(); return; } S.view = 'main'; S.form = null; S.editSub = null; render(); }
+    else if (a === 'job-money') openJobMoney(t.dataset.spJob);
+    else if (a === 'jv-void') { S.jvVoid = t.dataset.spInv; S.jvNote = ''; render(); }
+    else if (a === 'jv-void-cancel') { S.jvVoid = null; render(); }
+    else if (a === 'jv-void-go') voidBackfilledPayment(t.dataset.spInv);
     else if (a === 'tab') { S.tab = t.dataset.spTab; S.pick = null; render(); }
     else if (a === 'scope') { S.f.scope = t.dataset.spScope; S.pick = null; render(); }
     else if (a === 'noproof') { S.f.proof = S.f.proof === 'none' ? 'all' : 'none'; S.f.scope = 'all'; render(); }
@@ -632,7 +686,6 @@
     else if (a === 'void-ask') { S.voidId = id; S.voidNote = ''; S.pick = null; render(); }
     else if (a === 'void-cancel') { S.voidId = null; render(); }
     else if (a === 'void-go') voidRow(id);
-    else if (a === 'view-proof') viewProof(id);
     else if (a === 'open-sub') { S.view = 'sub'; S.subKey = t.dataset.spKey; S.editSub = null; render(); const m = document.getElementById('spOverlay'); if (m) m.scrollTop = 0; }
     else if (a === 'edit-sub') {
       const g = logic().perSub(S.expenses, S.roster).find((x) => x.key === S.subKey);
@@ -662,7 +715,7 @@
     if (!f) return;
     const F = S.form;
     // Typing in a search box redraws only the result list, so the keyboard and the cursor stay put.
-    const into = (id, html) => { const box = document.getElementById(id); if (box) box.innerHTML = html; };
+    const into = (id, html) => { const box = document.getElementById(id); if (box) { box.innerHTML = html; PP().hydrate(box); } };
     if (f === 'query' || f === 'subq') {
       S.f[f] = el.value;
       into('spRows', S.tab === 'jobs' ? jobsRowsHtml() : S.tab === 'subs' ? subsRowsHtml() : payRowsHtml());
@@ -671,6 +724,7 @@
     if (f === 'method' || f === 'sub' || f === 'sort') { S.f[f] = el.value; into('spRows', payRowsHtml()); return; }
     if (f === 'jobq') { S.jobq = el.value; into('spJobRes', S.pick ? pickResHtml(S.pick) : ''); return; }
     if (f === 'voidnote') { S.voidNote = el.value; return; }
+    if (f === 'jvnote') { S.jvNote = el.value; return; }
     if (f.indexOf('es-') === 0 && S.editSub) { S.editSub[f.slice(3)] = el.value; return; }
     if (!F) return;
     if (f === 'f-jq') { F.jq = el.value; into('spFJobRes', formJobResHtml()); return; }
@@ -731,5 +785,5 @@
     return '<button type="button" class="btn btn-ghost" data-sp-action="open" data-sp-tab="' + (canWrite() ? 'jobs' : 'pay') + '" title="Match sub and crew payments to jobs">🧾 Sub payments</button>';
   }
 
-  w.NBDSubPayments = { enabled, canWrite, canRead, open, panelHtml, buttonHtml, prepareProof, FLAG };
+  w.NBDSubPayments = { enabled, canWrite, canRead, open, openJobMoney, panelHtml, buttonHtml, prepareProof, FLAG };
 })();

@@ -836,6 +836,23 @@ async function run() {
   await assertSucceeds(updateDoc(doc(alice, 'expenses/sp-nojob'), { costType: 'direct', notJobCost: false, leadId: 'leadA', jobId: null, proofPaths: ['receipts/alice/sub-proofs/2_b.jpg'] }));
   await assertFails(updateDoc(doc(alice, 'expenses/sp-nojob'), { proofPaths: new Array(11).fill('receipts/alice/sub-proofs/x.jpg') }));
   await assertSucceeds(updateDoc(doc(alice, 'expenses/sp-ok'), { deleted: true, editLog: [{ at: 2, by: 'alice', what: 'void', note: 'entered twice' }] }));
+  // ── Customer payment backfill (2026-10-19): a finished, quiet customer + a paid backfill invoice ──
+  const bfLead = (extra) => Object.assign({ userId: 'alice', companyId: 'co-a', meter: 'manual', firstName: 'Zed', lastName: 'Sample', address: '3 New Ln', stage: 'closed', stageRole: 'won', jobType: 'cash', source: 'Other',
+    paymentBackfill: true, completedBackfill: { date: '2026-10-01', quiet: true, reason: 'payment_backfill' }, stageHistory: [{ to: 'install_complete', backfill: true }], deleted: false }, extra || {});
+  await assertSucceeds(setDoc(doc(alice, 'leads/bf-lead'), bfLead()));
+  await assertFails(setDoc(doc(alice, 'leads/bf-confirmed'), bfLead({ confirmedSource: 'yelp' })));   // the source is never guessed on create
+  await assertFails(setDoc(doc(alice, 'leads/bf-job'), bfLead({ activeJobId: 'j1' })));               // the job is made by the server mirror
+  await assertFails(setDoc(doc(alice, 'leads/bf-consent'), bfLead({ tcpaConsent: true })));           // no texting consent can be written
+  await assertFails(setDoc(doc(alice, 'leads/bf-tenant'), bfLead({ companyId: 'co-b' })));
+  await assertFails(setDoc(doc(viewer, 'leads/bf-viewer'), bfLead({ userId: 'vic', companyId: 'co-v' })));   // a viewer cannot add a customer
+  await assertSucceeds(setDoc(doc(alice, 'invoices/bf-inv'), { createdBy: 'alice', companyId: 'co-a', leadId: 'bf-lead', createdAt: 3, source: 'backfill', backfilled: true, backfillKey: 'k1', status: 'paid', total: 5340, amountPaid: 5340, balanceDue: 0,
+    payments: [{ amount: 5340, at: 1, method: 'check', reference: '1042', paymentId: 'bf_k1', proofStoragePath: 'payment-proofs/alice/bf-inv/1_a.jpg' }] }));
+  await assertFails(setDoc(doc(alice, 'invoices/bf-inv-forge'), { createdBy: 'alice', companyId: 'co-a', leadId: 'leadB-not-mine', createdAt: 3, source: 'backfill', backfilled: true, balanceDue: 0 }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/bf-inv'), { deleted: true, voidNote: 'undone', editLog: [{ at: 2, by: 'alice', what: 'void', note: 'undone' }] }));
+  await assertSucceeds(updateDoc(doc(alice, 'leads/bf-lead'), { deleted: true, voidNote: 'undone' }));
+  await assertFails(getDoc(doc(bob, 'invoices/bf-inv')));
+  await assertFails(getDoc(doc(bob, 'leads/bf-lead')));
+  await assertFails(updateDoc(doc(bob, 'invoices/bf-inv'), { deleted: false }));
   // another tenant can neither read, assign nor re-answer a sub payment
   await assertFails(getDoc(doc(bob, 'expenses/sp-nojob')));
   await assertFails(updateDoc(doc(bob, 'expenses/sp-nojob'), { leadId: 'leadB' }));

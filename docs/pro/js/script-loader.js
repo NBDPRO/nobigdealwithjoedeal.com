@@ -114,13 +114,16 @@
       // cannot be lazy there. Same cache key on both pages.
       'css/profit-tracker-view.css?v=1',
       'js/profit-tracker.js?v=5',
-      'js/expenses.js?v=13',
+      'js/expenses.js?v=14',
       // Cash paid out to crew / subs (2026-10-19): inert until the cashPayoutsLog flag is on.
       'css/cash-payouts.css?v=1', 'js/cash-payouts.js?v=1',
       // Job cost auditor (2026-10-19): inert until the jobCostAuditor flag is on.
       'css/job-cost-audit.css?v=1', 'js/job-cost-audit-logic.js?v=2', 'js/job-cost-audit.js?v=3',
       // Sub payments sorter (2026-10-19): inert until the subPaymentsSorter flag is on.
-      'css/sub-payments.css?v=1', 'js/sub-payments-logic.js?v=1', 'js/sub-payments.js?v=1',
+      'css/proof-photos.css?v=1', 'js/proof-photos.js?v=1',
+      'css/sub-payments.css?v=2', 'js/sub-payments-logic.js?v=1', 'js/sub-payments.js?v=2',
+      // Customer payment backfill (2026-10-19): inert until the paymentBackfill flag is on (owner only).
+      'css/payment-backfill.css?v=1', 'js/payment-backfill-logic.js?v=1', 'js/payment-backfill.js?v=1',
       // "Are the receipts all in?" panel (2026-10-18): read-only, read at render time.
       'css/receipt-health.css?v=1', 'js/receipt-health.js?v=2',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only

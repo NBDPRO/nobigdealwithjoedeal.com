@@ -83,3 +83,4 @@
 @media (min-width: 560px) { .sp-cols { grid-template-columns: 1fr 1fr; } }
 .sp-list { margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .sp-list li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-top: 1px solid var(--br, #2a2f37); overflow-wrap: anywhere; }
+.sp-overlay.sp-top { z-index: 10090; }

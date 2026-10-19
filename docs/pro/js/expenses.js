@@ -706,6 +706,7 @@
         (window.NBDCashPayouts ? window.NBDCashPayouts.buttonHtml() : '') +
         (window.NBDJobCostAuditor ? window.NBDJobCostAuditor.buttonHtml() : '') +
         (window.NBDSubPayments ? window.NBDSubPayments.buttonHtml() : '') +
+        (window.NBDPaymentBackfill ? window.NBDPaymentBackfill.buttonHtml() : '') +
         '<button type="button" class="btn btn-orange" data-exp-action="open-form">+ Log Expense</button>' +
       '</div>' +
       '</div>';
@@ -796,6 +797,9 @@
 
     // Sub payments sorter (flag subPaymentsSorter; empty string when off).
     if (window.NBDSubPayments) html += window.NBDSubPayments.panelHtml(_expenses);
+
+    // Customer payment backfill (flag paymentBackfill, owner only; empty string when off).
+    if (window.NBDPaymentBackfill) html += window.NBDPaymentBackfill.panelHtml();
 
     // Per-job rollup with margin
     var jobIds = Object.keys(agg.byJob).filter(function (k) { return k !== '__unassigned__'; });
