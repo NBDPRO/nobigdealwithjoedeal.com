@@ -23,8 +23,11 @@
 .nbd-mv .leaflet-bar a, .nbd-mv .leaflet-touch .leaflet-bar a, .nbd-mv.leaflet-touch .leaflet-bar a {
   width: 44px; height: 44px; line-height: 44px; font-size: 22px;
 }
-.nbd-mv .leaflet-control-attribution { background: color-mix(in srgb, var(--s) 80%, transparent); color: var(--m); }
-.nbd-mv .leaflet-control-attribution a { color: var(--m); }
+/* .leaflet-container doubles the weight: leaflet.css loads after this sheet with
+   `.leaflet-container .leaflet-control-attribution` and used to win, leaving the
+   muted grey on Leaflet's white strip (~2.5:1) */
+.nbd-mv.leaflet-container .leaflet-control-attribution { background: color-mix(in srgb, var(--s) 80%, transparent); color: var(--m); }
+.nbd-mv.leaflet-container .leaflet-control-attribution a { color: var(--m); }
 .nbd-mv .leaflet-tooltip { background: var(--s); color: var(--t); border: 1px solid var(--rule); box-shadow: none; }
 .nbd-mv .leaflet-popup-content-wrapper, .nbd-mv .leaflet-popup-tip { background: var(--s); color: var(--t); border: 1px solid var(--rule); }
 
