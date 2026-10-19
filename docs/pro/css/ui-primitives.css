@@ -463,3 +463,19 @@
   font-family: var(--font-money);
   font-variant-numeric: tabular-nums;
 }
+
+/* prefers-contrast: more (visual audit 2026-10-19, emulated for the first time). Mission, Focus,
+   Inbox, Crew and Field carried no rule for it: card edges measured 1.2:1 against the page
+   (.ns-card, .cwk-card, rows) and muted text 4 to 6:1. One token move reaches every layout and
+   the classic dashboard: hairlines and muted text come from the text colour. !important because
+   the theme engine writes these tokens on :root at higher weight. Only under the OS setting. */
+@media (prefers-contrast: more) {
+  :root {
+    --m: color-mix(in srgb, var(--t) 88%, var(--bg)) !important;
+    --rule: color-mix(in srgb, var(--t) 60%, transparent) !important;
+    --br: color-mix(in srgb, var(--t) 60%, transparent) !important;
+    --ui-line-hair: color-mix(in srgb, var(--t) 55%, transparent) !important;
+    --ui-line-divider: color-mix(in srgb, var(--t) 60%, transparent) !important;
+    --ui-line-strong: color-mix(in srgb, var(--t) 75%, transparent) !important;
+  }
+}

@@ -77,7 +77,7 @@ function pageHelpers() {
   async function open(o) {
     const w = o.w || 1440, h = o.h || 900;
     const ctx = await browser.newContext(Object.assign({
-      viewport: { width: w, height: h }, serviceWorkers: 'allow', colorScheme: o.scheme || 'dark',
+      viewport: { width: w, height: h }, serviceWorkers: 'allow', colorScheme: o.scheme || 'dark', contrast: o.contrast || 'no-preference',
     }, o.touch ? { isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : {}));
     await ctx.route('**/*', async (route) => {
       const u = route.request().url();
