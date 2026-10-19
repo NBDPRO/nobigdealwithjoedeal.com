@@ -110,6 +110,15 @@ async function sendWelcome(db, leadId, lead, deps) {
   const ts = d.serverTimestamp || (() => FieldValue.serverTimestamp());
   const skip = async (reason) => { await ref.set({ welcomeSkipped: reason }, { merge: true }); return { sent: false, reason }; };
 
+  // The owner's pause is checked BEFORE the claim, and stamped (welcomeSkipped) so the admin list shows
+  // this one needs a manual send.
+  {
+    const sw = await MessagingControls.channelStatus(db, 'email');
+    if (!sw.allowed) return skip('held_messaging_paused');
+    // Canary: do not consume the one-shot claim on a redirect (nothing is claimed, stamped or sent).
+    if (sw.canary) return { sent: false, reason: 'canary_not_claimed' };
+  }
+
   // Claim first: triggers are at-least-once, so a redelivery is a no-op.
   let claimed = false;
   try {
@@ -161,6 +170,11 @@ async function sendWelcome(db, leadId, lead, deps) {
     });
     const { resendRejected, resendErrorMessage } = require('./resend-guard');
     if (resendRejected(r)) throw new Error(resendErrorMessage(r));
+    if (r && r.canary) {
+      // Canary flipped on after the pre-check: the copy went to the OWNER. Release the claim; do not stamp emailed.
+      await ref.set({ welcomeClaimedAt: FieldValue.delete(), welcomeSkipped: 'canary_redirect' }, { merge: true });
+      return { sent: false, reason: 'canary_redirect' };
+    }
     const id = (r && r.data && r.data.id) || (r && r.id) || null;
     await ref.set({ welcomeEmailedAt: ts(), welcomeEmailId: id, welcomePdf: pdfReady }, { merge: true });
     return { sent: true, id };

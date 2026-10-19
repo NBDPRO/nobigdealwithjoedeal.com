@@ -33,7 +33,7 @@ function ok(name, cond, detail) {
 const NBD = '1phDvAVXHSg82wDLegAbQFq14Ci1';
 const KEY = '8595550134';
 const TO = '(859) 555-0134';
-const OWNER = '+18594207382';
+const OWNER = '+18595550100';
 const OWNER_TOKEN = { uid: NBD, companyId: NBD, email_verified: true };
 const REP_TOKEN = { uid: 'rep-9', companyId: NBD, email_verified: true };
 const NOON = Date.parse('2026-10-05T16:00:00Z');
@@ -47,7 +47,7 @@ async function send(opts, body, endpoint) {
   const res = await W.invoke(mod[endpoint || 'sendSMS'].__handler, { body });
   return { w, res };
 }
-const GLOBAL_ON = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: true, otpEnabled: true };
+const GLOBAL_ON = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: true, otpEnabled: true, canary: false };
 
 (async () => {
   console.log('A. kill switch');
@@ -169,6 +169,61 @@ const GLOBAL_ON = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: 
     ok('an unknown value falls back to the safe default (this webhook replies)', /<Message>/.test(String(r.res.body)));
   }
 
+  console.log('I. campaign vs reply labels (kindForSource)');
+  {
+    const CD = W.load(W.makeWorld({}), 'sms-consent-declined.js');
+    ok('no label (the plain Text button) -> reply', CD.kindForSource(undefined) === 'reply' && CD.kindForSource('') === 'reply');
+    ok('a listed reply label -> reply', ['ask_joe', 'reply', 'manual', 'agent_inbox'].every((s) => CD.kindForSource(s) === 'reply'));
+    ok('a campaign label -> automated', ['review_request', 'winback', 'estimate_followup', 'storm_alert'].every((s) => CD.kindForSource(s) === 'automated'));
+    ok('an UNKNOWN or mistyped label -> automated (stricter, never looser)', ['whatever', 'new_campaign_2027', 'Review-Request2'].every((s) => CD.kindForSource(s) === 'automated'));
+    ok('a label with hostile characters cleans to nothing -> reply, and cannot unlock anything extra', CD.kindForSource('x'.repeat(200)) === 'reply' && CD.kindForSource('<script>') === 'reply');
+  }
+
+  console.log('H. Storm Alert YES: confirms as a side effect, never swallows a real reply');
+  {
+    const PH = '+18595550134';
+    const sub = (over) => Object.assign({ active: true, tcpaConsent: true, phone: TO, zip: '41011', smsConfirmPhone: PH, smsConfirmRequestedAt: NOON - 3600e3 }, over || {});
+    async function yes(docs, sid, body) {
+      const w = W.makeWorld({ clockMs: NOON, docs: Object.assign({ 'leads/L1': Object.assign({}, CONSENTED, { phone: TO }) }, docs), secrets: { TWILIO_PHONE_NUMBER: '+19377644855' } });
+      const mod = W.load(w, 'sms-functions.js');
+      const call = () => W.invoke(mod.incomingSMS.__handler, { headers: { 'x-twilio-signature': 'sig' }, body: { From: PH, Body: body || 'Yes', MessageSid: sid || 'SMyes0001' } });
+      const res = await call();
+      return { w, res, call };
+    }
+    const notes = (w) => [...w.store.keys()].filter((k) => k.indexOf('leads/L1/notes/') === 0).length;
+    let r = await yes({ 'storm_alert_subscribers/s1': sub() });
+    ok('a YES to our confirmation text confirms the subscriber...', !!r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
+    ok('...AND is still filed as the customer reply (inbound note + AI draft), not swallowed', notes(r.w) === 1 && r.w.aiDrafts.length === 1, notes(r.w) + '/' + r.w.aiDrafts.length);
+    ok('...and the reply carries the one-line thank-you', /confirmed for Storm Alerts/.test(String(r.res.body)));
+    const again = await r.call();
+    ok('Twilio redelivering the same MessageSid confirms/files nothing twice', notes(r.w) === 1 && r.w.aiDrafts.length === 1 && !/<Message>/.test(String(again.body)), notes(r.w) + '/' + String(again.body).slice(0, 80));
+    r = await yes({ 'storm_alert_subscribers/s1': sub({ smsConfirmRequestedAt: NOON - 30 * DAY }) });
+    ok('a confirmation request 30 days old is stale: the YES confirms nothing (still filed as a reply)', !r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt && notes(r.w) === 1);
+    r = await yes({ 'storm_alert_subscribers/s1': sub(), 'sms_log/out1': { to: PH, toDigits: KEY, status: 'sent', body: 'Are you home Tuesday?', companyId: NBD, uid: 'rep-1', leadId: 'L1', date: NOON - 600e3 } });
+    ok('a rep texted the number AFTER our confirmation: that "Yes" answers the rep, not us -> not confirmed', !r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt && notes(r.w) === 1);
+    r = await yes({ 'storm_alert_subscribers/s1': sub({ smsConfirmPhone: undefined, smsConfirmRequestedAt: undefined }) });
+    ok('a customer who was never asked (a normal "Yes" to a rep): nothing confirmed, reply filed', !r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt && notes(r.w) === 1 && r.w.aiDrafts.length === 1);
+    r = await yes({ 'storm_alert_subscribers/s1': sub() }, 'SMyes0002', 'yes please call me');
+    ok('"yes please call me" is not a confirmation', !r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
+    r = await yes({ 'storm_alert_subscribers/s1': sub(), ['sms_settings/' + NBD]: { enabled: false } }, 'SMyes0008');
+    ok('N3: texting paused -> the YES still confirms, but NO thank-you text is sent', !!r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt && !/<Message>/.test(String(r.res.body)), String(r.res.body).slice(0, 100));
+    // send-then-YES: our own confirmation text, even if it was logged AFTER the request, does not block the YES.
+    const SCt = W.load(W.makeWorld({}), 'storm-confirm.js');
+    r = await yes({ 'storm_alert_subscribers/s1': sub(), 'sms_log/conf1': { to: PH, toDigits: KEY, status: 'sent', body: SCt.confirmBody(), companyId: NBD, date: NOON - 3000e3 } });
+    ok('send-then-YES: the logged confirmation text itself does not count as a newer outbound -> confirmed', !!r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
+    // fail closed: an undated outbound row, and a full page of rows.
+    r = await yes({ 'storm_alert_subscribers/s1': sub(), 'sms_log/o2': { to: PH, toDigits: KEY, status: 'sent', body: 'Are you home?', companyId: NBD } });
+    ok('an outbound row with NO usable date is unknown -> not confirmed (fail closed)', !r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
+    r = await yes({ 'storm_alert_subscribers/s1': sub(), 'sms_log/o3': { to: PH, status: 'sent', body: 'Quick question about your roof', companyId: NBD, uid: 'rep-1', date: NOON - 600e3 } });
+    ok('D: a rep text logged WITHOUT toDigits (found by its E.164 to) still means the YES answers the rep -> not confirmed', !r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
+    const many = { 'storm_alert_subscribers/s1': sub() };
+    for (let i = 0; i < 50; i++) many['sms_log/old' + i] = { to: PH, toDigits: KEY, status: 'received', body: 'hi ' + i, companyId: NBD, date: NOON - 5 * DAY };
+    r = await yes(many);
+    ok('a full page of sms_log rows cannot prove nothing newer exists -> not confirmed (fail closed)', !r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
+    r = await yes({ 'storm_alert_subscribers/s1': sub() }, 'SMyes0009', 'Y');
+    ok('control: a bare "Y" with nothing newer confirms', !!r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
+  }
+
   console.log('G. sms-texting-gate asks the master switch');
   {
     const closed = W.makeWorld({ noControls: true, docs: { 'messaging_controls/global': Object.assign({}, GLOBAL_ON, { customerSendsEnabled: false }) } });
@@ -183,6 +238,28 @@ const GLOBAL_ON = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: 
     const missing = W.makeWorld({ noControls: true });
     const s4 = await W.load(missing, 'sms-texting-gate.js').textingStatus(missing.db, NBD);
     ok('textingStatus: no controls doc -> not allowed', s4.allowed === false && s4.reason === 'messaging_paused');
+  }
+
+  {
+    // E. A forged YES: the Twilio signature is verified (403 on failure) BEFORE the storm confirmation runs.
+    const src = require('./lib/strip-js-comments').stripJsComments(require('fs').readFileSync(require('path').join(__dirname, '..', 'functions', 'sms-functions.js'), 'utf8'));
+    const start = src.indexOf('exports.incomingSMS');
+    const iVal = src.indexOf('validateRequest(', start), iFail = src.indexOf('403', iVal), iYes = src.indexOf('confirmFromReply(', start);
+    ok('E: incomingSMS verifies the Twilio signature (403) before it can confirm a storm subscriber', start > 0 && iVal > start && iFail > iVal && iYes > iFail, [start, iVal, iFail, iYes].join(','));
+  }
+
+  {
+    // F. lead-alert's NBD branch sends WITHOUT guardTwilio (an internal alert), so prove the number can only be
+    // the owner's: toSms comes from target.sms (or null), and target.sms is only ever the owner contact from
+    // config (NBD), the tenant owner's verified Auth phone (tenant) or null - never a field of the lead.
+    const la = require('./lib/strip-js-comments').stripJsComments(require('fs').readFileSync(require('path').join(__dirname, '..', 'functions', 'lead-alert.js'), 'utf8'));
+    const toSmsAssigns = (la.match(/\btoSms\s*=\s*[^;]+;/g) || []).map((s) => s.replace(/\s+/g, ' '));
+    ok('F: toSms is only ever target.sms or null', toSmsAssigns.length > 0 && toSmsAssigns.every((s) => /^toSms = (target\.sms \|\| null|null);$/.test(s)), toSmsAssigns.join(' | '));
+    const fb = (la.match(/fallback\.sms\s*=\s*[^;]+;/g) || []).map((s) => s.replace(/\s+/g, ' '));
+    const tn = (la.match(/\bsms:\s*rr\.[^,\n]+/g) || []).map((s) => s.trim());
+    ok('F: target.sms is assigned only from the owner config (NBD) or the verified tenant owner phone (rr.sms), else null',
+      fb.length === 1 && fb[0] === 'fallback.sms = owner.phone || null;' && tn.length === 1 && tn[0] === 'sms: rr.sms || null', fb.join('|') + ' / ' + tn.join('|'));
+    ok('F: the only Twilio `to` in lead-alert.js is toSms', (la.match(/messages\.create\(\{\s*to:\s*([a-zA-Z.]+)/g) || []).every((s) => /to:\s*toSms$/.test(s)));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

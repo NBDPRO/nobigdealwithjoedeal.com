@@ -186,7 +186,8 @@ exports.sendVerificationCode = onCall(
       // The owner's kill switch (messaging_controls/global otpEnabled, fail
       // closed). A canary is NOT a preview for a code: the code would go to the
       // owner while the visitor types it against their own number, so canary
-      // pauses OTP too. Checked first so a paused send burns no rate limit.
+      // pauses OTP too. Checked before the per-PHONE limits, caps and the otp_requests row, so a paused
+      // send burns none of those (the per-IP counters above are already spent: they bound abuse of this endpoint).
       const otpSwitch = await MessagingControls.channelStatus(db, 'otp');
       if (!otpSwitch.allowed || otpSwitch.canary) {
         logger.info('otp_paused', { reason: otpSwitch.canary ? 'canary' : otpSwitch.reason });
@@ -200,7 +201,9 @@ exports.sendVerificationCode = onCall(
       const optOut = await OptOut.isOptedOut(db, formatted, { companyId: NBD_OWNER_UID, timeoutMs: OptOut.READ_TIMEOUT_MS });
       if (optOut.optedOut) {
         logger.info('otp_opted_out');
-        return { success: false, error: 'This number has opted out of our texts, so we cannot send a code. Please call (859) 420-7382.' };
+        // Deliberately the SAME wording as any other refusal: a different message would tell a stranger
+        // whether a number has ever texted STOP (an oracle).
+        return { success: false, error: 'We cannot send a text code to this number right now. Please call (859) 420-7382 and we will take it from here.' };
       }
 
       // Per-phone cap — 3 OTP sends per 10 minutes.
@@ -412,7 +415,7 @@ exports.notifyNewLead = onCall(
       // contact in messaging_controls/internal. Never a constant in this repo.
       // INTERNAL alert: its own switch + hourly cap, not the customer switch.
       const ia = trulyVerified
-        ? await MessagingControls.internalAlertStatus(getFirestore(), 'sms')
+        ? await MessagingControls.internalAlertStatus(getFirestore(), 'sms', { bucket: 'lead' })
         : { allowed: false, reason: 'unverified', phone: '' };
       const joePhone = secretOr(JOE_PHONE_SECRET, '') || ia.phone; // stub → '', never the string '__unset__'
       if (trulyVerified && joePhone && ia.allowed) {
@@ -508,7 +511,7 @@ exports.notifyNewLead = onCall(
 </html>`;
 
       const joeEmail = secretOr(JOE_EMAIL_SECRET, JOE_EMAIL_FALLBACK);
-      const ie = await MessagingControls.internalAlertStatus(getFirestore(), 'email');
+      const ie = await MessagingControls.internalAlertStatus(getFirestore(), 'email', { bucket: 'lead' });
       if (!ie.allowed && ie.reason !== 'owner_email_not_configured') {
         logger.warn('lead_notification_email_held', { reason: ie.reason });
         return { success: true, held: true };

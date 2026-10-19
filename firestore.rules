@@ -241,6 +241,8 @@ service cloud.firestore {
         // (2026-10-13: lead-alert provenance hardening).
         'publicLeadKind', 'publicLeadCollection', 'publicLeadId',
         'webLead', 'calcomBookingId', 'backfilledBy',
+        // Texting consent evidence is server-captured only (2026-10-19, see the update rule).
+        'tcpaConsent', 'tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource', 'tcpaConsentIp', 'tcpaConsentVersion',
         // Owner-confirmed source (2026-10-19): set only by the owner, on an update.
         'confirmedSource', 'confirmedSourceNote', 'confirmedSourceBy', 'confirmedSourceAt'
       ]);
@@ -764,6 +766,10 @@ service cloud.firestore {
           // (functions/care-plan.js webhook). It drives the member badge, the
           // 10% repair discount and storm priority, so only the server sets it.
           && didNotChange(['carePlan'])
+          // Texting consent is evidence the SERVER captured from a website form (submitPublicLead / the
+          // bridge, admin SDK). A rep must not be able to write it onto a lead to unlock texting a cold
+          // number (messaging hardening 2026-10-19; sms-consent-declined.js consentBasis reads these).
+          && didNotChange(['tcpaConsent', 'tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource', 'tcpaConsentIp', 'tcpaConsentVersion'])
           // customerId is the key the PUBLIC referral resolver matches on, so
           // a lead whose customerId can be repointed can be aimed at another
           // tenant's customer. Write-once rather than frozen because the

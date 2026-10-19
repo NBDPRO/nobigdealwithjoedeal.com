@@ -215,6 +215,23 @@ exports.estimateEmail = onDocumentCreated(
       return;
     }
 
+    // The owner's pause is checked BEFORE the claim, and leaves a visible marker (the trigger is one-shot,
+    // so a paused request is not retried: the marker tells whoever looks that this one needs a manual send).
+    {
+      const sw = await MessagingControls.channelStatus(getFirestore(), 'email');
+      if (!sw.allowed) {
+        logger.warn('estimate_email_held_messaging_paused', { leadId, reason: sw.reason });
+        await snap.ref.update({ estimateEmailStatus: 'held_paused', estimateEmailHeldReason: sw.reason }).catch(() => {});
+        return;
+      }
+      // Canary: a redirect to the owner must not CONSUME the customer's one-shot claim - nothing is claimed,
+      // stamped or sent (the owner's canary test of the CRM email/text paths is the preview).
+      if (sw.canary) {
+        logger.info('estimate_email_canary_not_claimed', { leadId });
+        return;
+      }
+    }
+
     // Idempotency: at-least-once delivery means this can fire more than once.
     // Transactionally claim the doc before sending so a redelivery is a no-op.
     let claimed = false;
@@ -333,7 +350,8 @@ exports.estimateEmail = onDocumentCreated(
       });
       if (!gated.send) {
         logger.warn('estimate_email_held_messaging_paused', { leadId, reason: gated.reason });
-        await snap.ref.update({ estimateEmailStatus: 'held_paused' }).catch(() => {});
+        // Release the claim: nothing went out, so the doc must not look emailed.
+        await snap.ref.update({ estimateEmailStatus: 'held_paused', estimateEmailedAt: FieldValue.delete() }).catch(() => {});
         return;
       }
       const response = await resend.emails.send(gated.msg);
@@ -344,6 +362,13 @@ exports.estimateEmail = onDocumentCreated(
         throw new Error(resendErrorMessage(response));
       }
 
+      if (gated.canary) {
+        // Canary flipped on between the pre-check and the guard: the copy went to the OWNER, so the customer
+        // was not emailed. Release the claim instead of stamping it sent.
+        await snap.ref.update({ estimateEmailStatus: 'canary_redirected', estimateEmailedAt: FieldValue.delete() }).catch(() => {});
+        logger.info('estimate_email_canary_redirected', { leadId });
+        return;
+      }
       await snap.ref.update({ estimateEmailStatus: 'sent' });
       logger.info('estimate_email_sent', { leadId });
     } catch (err) {

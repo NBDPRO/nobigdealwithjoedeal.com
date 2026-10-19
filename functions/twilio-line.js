@@ -102,6 +102,14 @@ function sendXml(res, status, xml) {
  * already answered (503 no secret, 403 bad signature) — or, for voice, played
  * the call-Jo message, so a caller is never left on an error tone.
  */
+/** Pure signature check (no response written): true only for a request signed with our auth token. */
+function signatureOk(req, deps) {
+  const token = deps && deps.authToken !== undefined ? deps.authToken : secretValue(TWILIO_AUTH_TOKEN);
+  const params = req.body && typeof req.body === 'object' ? req.body : {};
+  return L.verifySignature(token, (req.headers || {})['x-twilio-signature'],
+    L.candidateUrls(req.headers, req.originalUrl || req.url), params).ok === true;
+}
+
 function gate(req, res, deps, fn, voiceFallback) {
   const token = deps.authToken !== undefined ? deps.authToken : secretValue(TWILIO_AUTH_TOKEN);
   const params = req.body && typeof req.body === 'object' ? req.body : {};
@@ -303,18 +311,26 @@ async function handleSmsStatus(req, res, deps) {
 async function handleVoice(req, res, deps) {
   deps = deps || {};
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
-  // The forward-to number is config, not a constant in this public repo: the
-  // TWILIO_VOICE_FORWARD_TO env var set by hand on the Cloud Run service, else
-  // messaging_controls/internal.ownerPhone (read only AFTER the signature).
-  const dark = L.darkVoiceTwiml(process.env);
+  // The forward-to number is config, not a constant in this public repo: the TWILIO_VOICE_FORWARD_TO env
+  // var set by hand on the Cloud Run service, else messaging_controls/internal.ownerPhone. The owner phone
+  // is read ONLY for a request that carries a valid Twilio signature: an unsigned POST gets the generic
+  // line (and costs no read), so the number is never handed to a stranger poking the webhook.
+  const generic = L.darkVoiceTwiml(process.env);
+  if (!signatureOk(req, deps)) {
+    if (!enabled()) { sendXml(res, 200, generic); return; }
+    gate(req, res, deps, 'twilioVoiceWebhook', generic);   // answers 403 / the call-Jo line itself
+    return;
+  }
+  // Signed. Dark mode must still tell the caller WHO to call; a failed read falls back to the generic line.
+  let ownerPhone = '';
+  try { ownerPhone = (await MessagingControls.readOwnerContact((deps && deps.db) || getFirestore())).phone || ''; } catch (_) { ownerPhone = ''; }
+  const voiceEnv = Object.assign({}, process.env, { TWILIO_VOICE_FORWARD_TO: process.env.TWILIO_VOICE_FORWARD_TO || ownerPhone || '' });
+  const dark = L.darkVoiceTwiml(voiceEnv);
   if (!enabled()) { sendXml(res, 200, dark); return; }
-  if (!gate(req, res, deps, 'twilioVoiceWebhook', dark)) return;
   // Caller ID on Jo's cell = the caller's own number (`From`); `To` (ours —
   // the request is signed) is the fallback for an anonymous/invalid caller.
   const b = req.body || {};
-  const owner = await MessagingControls.readOwnerContact((deps && deps.db) || getFirestore());
-  const voiceEnv = Object.assign({}, process.env, { TWILIO_VOICE_FORWARD_TO: process.env.TWILIO_VOICE_FORWARD_TO || owner.phone || '' });
-  if (!(await automationOn(deps))) { sendXml(res, 200, L.darkVoiceTwiml(voiceEnv)); return; }
+  if (!(await automationOn(deps))) { sendXml(res, 200, dark); return; }
   sendXml(res, 200, L.forwardTwiml(voiceEnv, String(b.To || ''), String(b.From || '')));
 }
 
