@@ -30,6 +30,17 @@ no flag for Jo to flip for most of them.
 | 11 | Job map: crew day route | partial | `layouts/mission.js` + `routeplan.js` (nearest-neighbour + 2-opt; real drive times #2506), stage pins, layers bar (jobs, leads, swaths, roof age), "On my way" draft (413), tests `layout-mission-2026-10-12`, #2360 #2365 #2506 | Mission Control layout. **Gaps:** Crews chip is a disabled stub ("No live crew locations are collected yet", `mission.js:435`: there is no truck-location data source); no "safe to be on a roof" weather chip on the stop or route (only hail/wind warnings) |
 | 12 | Field Sunlight Mode | partial | `layouts/field.js` (Sun toggle 173, stored `nbd_field_sun`, `html.sun`; test-square Capture with +/- counter and carrier-threshold hint 367-397), `layouts/picker.js:225,349` (Glove mode = 64px taps), test `layout-field-2026-10-11`, #2349 | Field App layout only. **Gaps:** the spec's `body.field-mode` token reset in Comfort (usable in *any* layout/screen) does not exist, sunlight is scoped to the Field layout; it does not turn on automatically at a job site (auto-theme's GPS rule is not hooked to it); glove checklist with per-item photo counts is not separate from the 64px tap setting |
 
+## Update 2026-10-19 (same day, after building)
+
+- **#02 glass guard: NOT a gap.** I read `nbdSurfaceMinFrost` in
+  `surface-style.js` wrongly. It raises frost until text clears 4.5:1 over
+  BOTH a black and a white backdrop, so it is readable over any wallpaper and
+  stricter than the spec's "sample the wallpaper". Nothing to build.
+- **#12** shipped as PR #2551 (Comfort > Sunlight mode Off / On / Auto at a
+  customer, `html.sun-all`, default off, no flag needed).
+- **#11** weather chip shipped as PR #2554 behind flag `roofWeatherChip`
+  (absent = off). Crews chip stays a stub (no truck-location data source).
+
 ## What is actually left to build (smallest first)
 
 1. **#12 sunlight everywhere + job-site auto-on.** Promote Sun from Field-layout
