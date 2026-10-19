@@ -59,7 +59,7 @@ async function runAlert(opts, env, fireTwice) {
   if (fireTwice) await mod.leadAlertEstimate.__handler(ev());
   for (const k of Object.keys(saved)) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
   const toHomeowner = w.twilioCalls.filter((m) => m.to === '+18595550134');
-  const toOwner = w.twilioCalls.filter((m) => m.to === '+18594207382');
+  const toOwner = w.twilioCalls.filter((m) => m.to === '+18595550100');
   return { w, mails, toHomeowner, toOwner, ackMails: mails.filter((m) => String(m.to) === 'sam@example.test') };
 }
 
@@ -69,7 +69,7 @@ async function runAlert(opts, env, fireTwice) {
   ok('env flag unset -> no ack text', r.toHomeowner.length === 0);
   r = await runAlert({ docs: { 'messaging_controls/automations': { leadAckSms: false, maxPerRun: 50 } } }, { LEAD_ACK_SMS_ENABLED: 'true' });
   ok('env on but automations.leadAckSms not true -> no ack text', r.toHomeowner.length === 0);
-  r = await runAlert({ noControls: true, docs: { 'messaging_controls/internal': { ownerPhone: '+18594207382' } } }, { LEAD_ACK_SMS_ENABLED: 'true' });
+  r = await runAlert({ noControls: true, docs: { 'messaging_controls/internal': { ownerPhone: '+18595550100' } } }, { LEAD_ACK_SMS_ENABLED: 'true' });
   ok('env on, no messaging_controls at all -> no ack text', r.toHomeowner.length === 0);
   r = await runAlert({ docs: { 'messaging_controls/global': Object.assign({}, G, { customerSendsEnabled: false }) } }, { LEAD_ACK_SMS_ENABLED: 'true' });
   ok('both on but the MASTER switch off -> no ack text', r.toHomeowner.length === 0);
@@ -84,27 +84,27 @@ async function runAlert(opts, env, fireTwice) {
   ok('canary: the ack goes to the OWNER with [would send to ...], never to the homeowner', r.toHomeowner.length === 0 && r.toOwner.some((m) => /^\[would send to \+18595550134\]/.test(m.body)), JSON.stringify(r.w.twilioCalls.map((m) => m.to + ' ' + m.body.slice(0, 40))));
 
   console.log('B. homeowner ack email');
-  r = await runAlert({ noControls: true, docs: { 'messaging_controls/global': G, 'messaging_controls/internal': { ownerPhone: '+18594207382' } } }, {});
+  r = await runAlert({ noControls: true, docs: { 'messaging_controls/global': G, 'messaging_controls/internal': { ownerPhone: '+18595550100' } } }, {});
   ok('default: NO ack email without automations.leadAckEmail (global email is on)', r.ackMails.length === 0, String(r.ackMails.length));
   r = await runAlert({ docs: { 'messaging_controls/automations': { leadAckEmail: true, maxPerRun: 50 } } }, {});
   ok('automations.leadAckEmail true (+ global email on) -> one ack email', r.ackMails.length === 1, String(r.ackMails.length));
   r = await runAlert({ docs: { 'messaging_controls/automations': { leadAckEmail: true, maxPerRun: 50 }, 'messaging_controls/global': Object.assign({}, G, { emailEnabled: false }) } }, {});
   ok('global emailEnabled:false stops it', r.ackMails.length === 0);
-  r = await runAlert({ docs: { 'messaging_controls/automations': { leadAckEmail: true, maxPerRun: 50 }, 'messaging_controls/global': Object.assign({}, G, { canary: true }), 'messaging_controls/internal': { ownerPhone: '+18594207382', ownerEmail: 'jo@example.test' } } }, {});
+  r = await runAlert({ docs: { 'messaging_controls/automations': { leadAckEmail: true, maxPerRun: 50 }, 'messaging_controls/global': Object.assign({}, G, { canary: true }), 'messaging_controls/internal': { ownerPhone: '+18595550100', ownerEmail: 'jo@example.test' } } }, {});
   ok('canary: the ack email goes ONLY to the owner, banner shows the homeowner', r.ackMails.length === 0 && r.mails.some((m) => String(m.to) === 'jo@example.test' && /\[would send to sam@example\.test\]/.test(m.text || '')), JSON.stringify(r.mails.map((m) => String(m.to))));
 
   console.log('C. alert to Jo is internal');
-  r = await runAlert({ noControls: true, docs: { 'messaging_controls/internal': { ownerPhone: '+18594207382' } } }, {});
+  r = await runAlert({ noControls: true, docs: { 'messaging_controls/internal': { ownerPhone: '+18595550100' } } }, {});
   ok('works with NO customer switch at all (separate switch): the text to Jo goes, from the config number', r.toOwner.length === 1 && /lead/i.test(r.toOwner[0].body), JSON.stringify(r.w.twilioCalls.map((m) => m.to)));
   r = await runAlert({ noControls: true }, {});
   ok('no owner phone configured -> no text to anyone (the email alert still goes)', r.w.twilioCalls.length === 0 && r.mails.some((m) => /New lead/.test(m.subject || '')), JSON.stringify({ calls: r.w.twilioCalls.length, mails: r.mails.map((m) => m.subject) }));
-  r = await runAlert({ noControls: true, docs: { 'messaging_controls/internal': { ownerPhone: '+18594207382', internalAlertsEnabled: false } } }, {});
+  r = await runAlert({ noControls: true, docs: { 'messaging_controls/internal': { ownerPhone: '+18595550100', internalAlertsEnabled: false } } }, {});
   ok('internalAlertsEnabled:false -> Jo gets no alert text', r.toOwner.length === 0);
-  r = await runAlert({ noControls: true, docs: { 'messaging_controls/internal': { ownerPhone: '+18594207382' } } }, { INTERNAL_SMS_PER_HOUR: '0' });
+  r = await runAlert({ noControls: true, docs: { 'messaging_controls/internal': { ownerPhone: '+18595550100' } } }, { INTERNAL_SMS_PER_HOUR: '0' });
   ok('INTERNAL_SMS_PER_HOUR=0 -> none (rate limit, zero is zero)', r.toOwner.length === 0);
   ok('the repo carries no hard-coded OWNER number (E.164) in lead-alert.js / storm-watch.js / verify-functions.js / thursday*.js',
     ['lead-alert.js', 'storm-watch.js', 'verify-functions.js', 'integrations/thursday.js', 'integrations/thursday-logic.js']
-      .every((f) => !/\+18594207382/.test(stripJsComments(fs.readFileSync(path.join(__dirname, '..', 'functions', f), 'utf8')))));
+      .every((f) => !new RegExp('\\+1859' + '4207382').test(stripJsComments(fs.readFileSync(path.join(__dirname, '..', 'functions', f), 'utf8')))));
 
   console.log('D. helpers');
   {

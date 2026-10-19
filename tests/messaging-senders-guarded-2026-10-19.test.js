@@ -129,5 +129,78 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
   ok('the only writer of the control docs is the Jo-only callable', JSON.stringify(writers) === JSON.stringify(['functions/messaging-controls-fns.js']), writers.join(', '));
 }
 
+// E2. ignoreGlobal (the company-only answer that skips the owner's pause) is for exactly two callers.
+{
+  const users = files.filter((f) => /ignoreGlobal\s*:\s*true/.test(f.code)).map((f) => f.rel).sort();
+  ok('only phone-text-check.js (rep texting from their OWN phone) and sms-dnc.js (the settings screen) skip the global pause',
+    JSON.stringify(users) === JSON.stringify(['functions/phone-text-check.js', 'functions/sms-dnc.js']), users.join(', '));
+}
+
+// F. Site-level scan: every send call site is guarded, or is a PINNED internal/account raw site.
+{
+  const SENDER = require('./lib/sender-scan');
+  // file -> exact number of RAW (unguarded) send sites, with why each is not a customer message.
+  // A NEW raw site in an already-listed file changes the count and fails here.
+  const RAW_PINS = {
+    'functions/alert-recipients-fns.js': [1, 'security notice to the account owner\'s own verified address'],
+    'functions/anniversary-touch.js': [1, 'rep digest'],
+    'functions/call-center.js': [1, 'owner reminder digest'],
+    'functions/call-watch.js': [1, 'owner alert ladder'],
+    'functions/dormant-leads.js': [1, 'rep digest'],
+    'functions/email-functions.js': [1, 'doc-draft send: the message was already built by guardEmail in buildMessage'],
+    'functions/handlers/invites.js': [1, 'team invite (account mail)'],
+    'functions/integrations/email-queue-worker.js': [1, 'account mail queue (dunning, erasure, health) to contractors and the owner'],
+    'functions/integrations/thursday.js': [1, 'call alert to the owner'],
+    'functions/lead-alert.js': [1, 'new-lead alert email to the owner / tenant alert inbox'],
+    'functions/lead-digest.js': [1, 'owner digest'],
+    'functions/marketing-report.js': [1, 'owner monthly report'],
+    'functions/messaging-controls.js': [1, 'the guardTwilio wrapper itself'],
+    'functions/morning-brief.js': [1, 'owner brief'],
+    'functions/review-request-nudge.js': [1, 'rep digest'],
+    'functions/storm-watch.js': [2, 'owner storm SMS + owner storm email (internal alerts, internalAlertStatus)'],
+    'functions/verify-functions.js': [3, 'the OTP call (switch + STOP register checked first), the owner new-lead SMS and email (internalAlertStatus)'],
+    'functions/weekly-digest.js': [1, 'rep digest'],
+  };
+  // Shapes that look like a hidden send but are not (file -> kinds): Anthropic "messages", read-only Twilio status GETs.
+  const BANNED_OK = {
+    'functions/handlers/ai.js': ['destructured-client'],
+    'functions/text-inbox.js': ['destructured-client'],
+    'functions/messaging-center-logic.js': ['aliased-client'],
+    'functions/call-watch.js': ['raw-http-host'],
+    'functions/lead-alert-watchdog.js': ['raw-http-host'],
+  };
+  for (const f of files) {
+    const r = SENDER.scan(fs.readFileSync(path.join(ROOT, f.rel), 'utf8'));
+    const raw = r.sites.filter((s) => !s.guarded).length;
+    const want = RAW_PINS[f.rel] ? RAW_PINS[f.rel][0] : 0;
+    if (raw !== want) ok(f.rel + ': unguarded send sites = ' + raw + ' (pinned ' + want + ')', false, r.sites.filter((s) => !s.guarded).map((s) => 'line ' + s.line + ' ' + s.receiver).join('; '));
+    const badBanned = r.banned.filter((b) => (BANNED_OK[f.rel] || []).indexOf(b.kind) === -1);
+    if (badBanned.length) ok(f.rel + ': banned send shape', false, badBanned.map((b) => 'line ' + b.line + ' ' + b.kind + ' ' + b.text).join('; '));
+  }
+  ok('every pinned raw file really has that many raw sites (no stale pins)', Object.keys(RAW_PINS).every((rel) => {
+    const r = SENDER.scan(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+    return r.sites.filter((s) => !s.guarded).length === RAW_PINS[rel][0];
+  }));
+
+  // NEGATIVE FIXTURES: shapes a careless (or hostile) change could use. Each must be CAUGHT.
+  const caught = (src) => { const r = SENDER.scan(src); return r.sites.some((s) => !s.guarded) || r.banned.length > 0; };
+  const clean = (src) => { const r = SENDER.scan(src); return r.sites.length > 0 && r.sites.every((s) => s.guarded) && r.banned.length === 0; };
+  ok('control: a guarded twilio client is clean', clean("const c = MessagingControls.guardTwilio(db, twilio(a, b));\nawait c.messages.create({ to, body });"));
+  ok('control: an inline guarded resend chain is clean', clean("await MessagingControls.guardResend(db, new Resend(k)).emails.send({ to });"));
+  ok('control: sending guardEmail output is clean', clean("const g = await MessagingControls.guardEmail(db, m);\nawait resend.emails.send(g.msg);"));
+  ok('RAW twilio client is caught', caught("const c = twilio(a, b);\nawait c.messages.create({ to, body });"));
+  ok('RAW resend is caught', caught("const r = new Resend(k);\nawait r.emails.send({ to });"));
+  ok('a client re-assigned to a raw one AFTER the guarded one is caught (nearest assignment wins)',
+    caught("let c = MessagingControls.guardTwilio(db, twilio(a, b));\nc = twilio(a, b);\nawait c.messages.create({ to, body });"));
+  ok('destructuring the client is caught', caught("const { messages } = twilio(a, b);\nawait messages.create({ to });"));
+  ok('aliasing .messages is caught', caught("const m = twilio(a, b).messages;\nawait m.create({ to });"));
+  ok('bracket access is caught', caught("await twilio(a, b)['messages']['create']({ to });") || caught("await client.messages['create']({ to });"));
+  ok('resend.batch.send is caught', caught("await resend.batch.send([{ to }]);"));
+  ok('.bind on the send is caught', caught("const f = client.messages.create.bind(client.messages);"));
+  ok('a raw fetch POST to api.resend.com is caught', caught("await fetch('https://api.resend.com/emails', { method: 'POST', body });"));
+  ok('a raw fetch POST to api.twilio.com is caught', caught("await fetch('https://api.twilio.com/2010-04-01/Accounts/AC/Messages.json', { method: 'POST' });"));
+  ok('a send that only appears in a comment is NOT a site', SENDER.scan("// await c.messages.create({})\nconst a = 1;").sites.length === 0);
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

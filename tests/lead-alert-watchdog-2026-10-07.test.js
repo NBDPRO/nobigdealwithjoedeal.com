@@ -48,7 +48,7 @@ function ok(name, cond, detail) {
 }
 
 const OWNER_UID = 'owner-uid-test';
-const JOE_SMS = '+18594207382';
+const JOE_SMS = '+18595550100';
 const JOE_EMAILS = ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'];
 
 // ── In-memory Firestore (just what these modules call) ───────────────────

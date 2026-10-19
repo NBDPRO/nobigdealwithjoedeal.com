@@ -94,9 +94,19 @@ function cleanSource(v) {
   return SOURCE_RE.test(s) ? s : '';
 }
 
-/** 'automated' for a campaign label, else 'reply' (a person-initiated send). */
+/**
+ * Labels the CRM sends for a person-initiated reply. An ABSENT label (the plain Text button) is a reply;
+ * a label on this list is a reply; ANY OTHER label - a campaign, or one nobody has classified - is
+ * 'automated' (no inbound exemption), so a new or mistyped label can only make the policy stricter.
+ */
+const REPLY_SOURCES = Object.freeze(['reply', 'rep', 'manual', 'ask_joe', 'agent_inbox', 'inbox', 'thread']);
+
+/** 'reply' for no label or a listed reply label; 'automated' for everything else. */
 function kindForSource(source) {
-  return AUTOMATED_SOURCES.indexOf(cleanSource(source)) !== -1 ? 'automated' : 'reply';
+  const s = cleanSource(source);
+  if (!s) return 'reply';
+  if (AUTOMATED_SOURCES.indexOf(s) !== -1) return 'automated';
+  return REPLY_SOURCES.indexOf(s) !== -1 ? 'reply' : 'automated';
 }
 
 /** Strictly the explicit decline. Absent / null / 'false' is NOT a decline (nor consent). */
@@ -418,6 +428,7 @@ module.exports = {
   READ_TIMEOUT_MS,
   CODES,
   AUTOMATED_SOURCES,
+  REPLY_SOURCES,
   LEAD_SCAN_LIMIT,
   cleanSource,
   kindForSource,

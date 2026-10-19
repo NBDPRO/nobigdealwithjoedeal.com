@@ -215,6 +215,15 @@ exports.stormReportEmail = onDocumentCreated(
     // Idempotency: at-least-once delivery means this can fire more than once.
     // Transactionally claim the doc before sending so a redelivery is a no-op.
     const ref = snap.ref;
+    // Pause checked BEFORE the claim; a visible marker says this report needs a manual send.
+    {
+      const sw = await MessagingControls.channelStatus(getFirestore(), 'email');
+      if (!sw.allowed) {
+        logger.warn('stormReportEmail: held, customer messaging paused', { leadId, reason: sw.reason });
+        await ref.update({ reportEmailHeld: 'messaging_paused' }).catch(() => {});
+        return;
+      }
+    }
     let claimed = false;
     try {
       claimed = await getFirestore().runTransaction(async (tx) => {

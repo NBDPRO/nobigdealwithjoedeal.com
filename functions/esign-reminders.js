@@ -92,6 +92,18 @@ async function runSweep(db, now) {
       continue;
     }
     const mail = await IO.emailLink(env, signer, IO.SIGN_URL_BASE + token, { reminder: true });
+    // A reminder that did not actually go out (paused, bad address, provider error) must NOT use up a
+    // reminder slot: keep the count, try again tomorrow, and give up after a few misses.
+    if (!mail.emailed && !mail.stubbed) {
+      const failed = (Number(rem.failedCount) || 0) + 1;
+      await d.ref.set({
+        reminders: { enabled: true, count, lastAt: rem.lastAt || null, failedCount: failed },
+        remindNextAt: failed < 5 ? now + ESL.REMINDER_EVERY_MS : FieldValue.delete(),
+        audit: FieldValue.arrayUnion({ event: 'reminder_not_sent', at: now, signerId: signer.id, error: String(mail.error || 'not sent').slice(0, 120), failed }),
+      }, { merge: true });
+      out.notSent = (out.notSent || 0) + 1;
+      continue;
+    }
     const n = count + 1;
     await d.ref.set({
       reminders: { enabled: true, count: n, lastAt: now },

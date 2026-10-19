@@ -1044,7 +1044,7 @@
         '<div class="card" style="border-color:var(--orange);">' +
           '<div class="card-label">Sign Your Contract</div>' +
           '<div class="card-title">Check your email</div>' +
-          '<p style="color:var(--muted);margin:0 0 14px;">We\'ve sent the signing link. If you can\'t find it, reply to any message from your rep and we\'ll re-send.</p>' +
+          '<p style="color:var(--muted);margin:0 0 14px;">Your rep sends you the signing link. If you don\'t have it yet, reply to any message from your rep and they will send it.</p>' +
         '</div>'
       );
     }

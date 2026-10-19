@@ -31,6 +31,8 @@ const { formatPhone } = require('./phone-utils');
 
 const SUBSCRIBERS = 'storm_alert_subscribers';
 const MAX_AGE_DAYS = 7;
+/** A YES confirms only within this long of the confirmation text. */
+const CONFIRM_WINDOW_MS = 48 * 3600 * 1000;
 
 /** Close to registered sample message 3; Jo/counsel to confirm the wording. */
 function confirmBody() {
@@ -70,6 +72,17 @@ async function sendPendingConfirmations(args) {
   const log = logger || { info() {}, warn() {}, error() {} };
   const out = { requested: 0, skipped: {} };
   const skip = (r) => { out.skipped[r] = (out.skipped[r] || 0) + 1; };
+  // NBD's company texting switch (sms_settings, plus the global customer switch inside it) stops this too.
+  // An unreadable switch is a no (fail closed).
+  try {
+    const TG = require('./sms-texting-gate');
+    const st = await TG.textingStatus(db, args.companyId || TG.NBD_OWNER_UID);
+    if (!st.allowed) { skip('texting_' + st.reason); log.info('storm_confirm_texting_off', { reason: st.reason }); return out; }
+  } catch (e) {
+    skip('texting_switch_unreadable');
+    log.error('storm_confirm_texting_switch_unreadable', { err: e && e.message });
+    return out;
+  }
   let docs;
   try {
     docs = await StormGuard.loadActiveSubscribers(db, { logger: log });
@@ -123,15 +136,39 @@ async function sendPendingConfirmations(args) {
 async function confirmFromReply(db, fromE164, opts) {
   const o = opts || {};
   const ts = o.serverTimestamp || (() => Date.now());
+  const nowMs = o.nowMs != null ? o.nowMs : Date.now();
   const snap = await db.collection(SUBSCRIBERS).where('smsConfirmPhone', '==', fromE164).get();
   let n = 0;
   for (const d of snap.docs) {
     const s = d.data() || {};
     if (s.active !== true || !s.smsConfirmRequestedAt || isConfirmed(s)) continue;
+    // The request must be recent: a YES weeks later is a reply to something else.
+    const askedMs = createdMs({ createdAt: s.smsConfirmRequestedAt });
+    if (!askedMs || nowMs - askedMs > CONFIRM_WINDOW_MS || askedMs > nowMs + 60_000) continue;
+    // ...and the confirmation must still be the LAST thing we texted this number: if a rep (or an
+    // approved AI reply) texted them since, a bare "yes" answers THAT message, not ours.
+    // An unreadable log is a no (fail closed).
+    let newer;
+    try { newer = await outboundSince(db, fromE164, askedMs); } catch (e) { continue; }
+    if (newer) continue;
     await d.ref.update({ smsConfirmedAt: ts() });
     n++;
   }
   return n;
+}
+
+/** Any text WE sent this number after sinceMs (sms_log rows that are not inbound). */
+async function outboundSince(db, e164, sinceMs) {
+  const key = String(e164 || '').replace(/\D/g, '').slice(-10);
+  if (key.length !== 10) return true;
+  const snap = await db.collection('sms_log').where('toDigits', '==', key).limit(50).get();
+  for (const d of snap.docs) {
+    const r = d.data() || {};
+    if (r.status === 'received' || r.direction === 'inbound') continue;
+    const at = createdMs({ createdAt: r.date });
+    if (!at || at > sinceMs) return true;
+  }
+  return false;
 }
 
 module.exports = { confirmBody, confirmedReply, isYes, isConfirmed, sendPendingConfirmations, confirmFromReply, MAX_AGE_DAYS };

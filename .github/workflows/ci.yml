@@ -522,6 +522,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-xtenant-test 'node firestore-rules.cross-tenant.test.js'
+      # Messaging kill switch + consent-field rules (2026-10-19).
+      - name: Run messaging-controls rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-msgctl-test 'node firestore-rules.messaging-controls.test.js'
       # Per-number contact labels (2026-10-12): companies/{cid}/contact_labels.
       # Own file so a parallel rules PR never conflicts with firestore-rules.test.js.
       - name: Run contact-labels rules tests under emulator

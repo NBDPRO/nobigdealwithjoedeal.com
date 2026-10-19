@@ -68,13 +68,13 @@ async function otp(opts, env) {
   ok('otpEnabled:false -> blocked', r.out && r.out.success === false && r.verifyCalls.length === 0);
   r = await otp({ noControls: true, docs: { 'messaging_controls/global': Object.assign({}, G, { customerSendsEnabled: false }) } });
   ok('master customerSendsEnabled:false -> blocked', r.out && r.out.success === false && r.verifyCalls.length === 0);
-  r = await otp({ noControls: true, docs: { 'messaging_controls/global': Object.assign({}, G, { canary: true }), 'messaging_controls/internal': { ownerPhone: '+18594207382' } } });
+  r = await otp({ noControls: true, docs: { 'messaging_controls/global': Object.assign({}, G, { canary: true }), 'messaging_controls/internal': { ownerPhone: '+18595550100' } } });
   ok('canary on -> OTP is paused (a code cannot be previewed)', r.out && r.out.success === false && r.verifyCalls.length === 0 && /paused/i.test(r.out.error), JSON.stringify(r.out));
   r = await otp({ readThrows: (p) => p === 'messaging_controls/global' });
   ok('unreadable controls -> blocked (fail closed)', r.out && r.out.success === false && r.verifyCalls.length === 0);
 
   r = await otp({ docs: { ['sms_opt_outs/' + KEY]: { phone: '+1' + KEY, keyword: 'STOP' } } });
-  ok('a number on the STOP register gets NO code', r.out && r.out.success === false && r.verifyCalls.length === 0 && /opted out/i.test(r.out.error), JSON.stringify(r.out));
+  ok('a number on the STOP register gets NO code', r.out && r.out.success === false && r.verifyCalls.length === 0 && /cannot send a text code/i.test(r.out.error) && !/opt|stop/i.test(r.out.error), JSON.stringify(r.out));
   r = await otp({ docs: { ['sms_dnc/' + NBD + '__' + KEY]: { companyId: NBD, key: KEY, phone: '(859) 555-0134', source: 'manual' } } });
   ok("NBD's own Do Not Text list is honoured too", r.out && r.out.success === false && r.verifyCalls.length === 0);
   r = await otp({ readThrows: (p) => p.indexOf('sms_opt_outs/') === 0 });

@@ -13,9 +13,9 @@ const ALL_AUTOMATIONS = {
 };
 
 const OPEN_CONTROLS = {
-  'messaging_controls/global': { customerSendsEnabled: true, smsEnabled: true, emailEnabled: true, otpEnabled: true },
+  'messaging_controls/global': { customerSendsEnabled: true, smsEnabled: true, emailEnabled: true, otpEnabled: true, canary: false },
   'messaging_controls/automations': ALL_AUTOMATIONS,
-  'messaging_controls/internal': { ownerPhone: '+18594207382' },
+  'messaging_controls/internal': { ownerPhone: '+18595550100' },
 };
 
 module.exports = { OPEN_CONTROLS, ALL_AUTOMATIONS };

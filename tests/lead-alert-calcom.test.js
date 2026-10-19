@@ -52,7 +52,7 @@ function ok(name, cond, detail) {
 
 // ── Recorders + stubs ────────────────────────────────────────────────────
 const OWNER_UID = 'owner-uid-test';
-const JOE_SMS = '+18594207382';
+const JOE_SMS = '+18595550100';
 const JOE_EMAILS = ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'];
 
 const rec = { emails: [], sms: [], outbox: [], updates: [], logs: [], pushes: [] };

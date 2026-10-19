@@ -70,7 +70,7 @@ function withTimeout(p, ms) {
 
 const CLOSED = Object.freeze({
   readable: false, exists: false,
-  customerSendsEnabled: false, smsEnabled: false, emailEnabled: false, otpEnabled: false, canary: false,
+  customerSendsEnabled: false, smsEnabled: false, emailEnabled: false, otpEnabled: false, canary: true, legalCopiesEnabled: true,
 });
 
 /**
@@ -91,7 +91,11 @@ async function readControls(db, opts) {
         smsEnabled: d.smsEnabled === true,
         emailEnabled: d.emailEnabled === true,
         otpEnabled: d.otpEnabled === true,
-        canary: d.canary === true,
+        // Narrow switch for LEGAL/transactional copies (a signed document the signer must receive). Defaults ON; only an explicit false stops them.
+        legalCopiesEnabled: d.legalCopiesEnabled !== false,
+        // FAIL SAFE: live only when canary is the boolean false. Absent, 'true', 1, null... = canary ON
+        // (redirect to the owner, or nothing if no owner contact), so a typo never means live sends.
+        canary: d.canary !== false,
       }
       : Object.assign({}, CLOSED, { readable: true, exists: false });
     _cache = { at: nowMs, controls };
@@ -174,7 +178,7 @@ function canaryEmail(owner, msg) {
   const was = _list(msg.to) + (msg.cc ? ' (cc ' + _list(msg.cc) + ')' : '') + (msg.bcc ? ' (bcc ' + _list(msg.bcc) + ')' : '');
   const banner = '[would send to ' + was + ']';
   const out = Object.assign({}, msg, { to: [owner.email], subject: '[CANARY] ' + String(msg.subject || '') });
-  delete out.cc; delete out.bcc;
+  delete out.cc; delete out.bcc; delete out.tags;   // tags attribute bounces/unsubscribes to the REAL customer: never on the owner's copy
   delete out.reply_to; delete out.replyTo;
   if (typeof msg.html === 'string' && msg.html) {
     out.html = '<p style="font:14px monospace;background:#fff3cd;padding:8px;margin:0 0 12px">' + _escHtml(banner) + '</p>' + msg.html;
@@ -189,6 +193,12 @@ function canaryEmail(owner, msg) {
  * @returns {Promise<{send:boolean, msg:object|null, reason:string|null, canary:boolean}>}
  */
 async function guardEmail(db, msg, opts) {
+  // A signed copy of a document the signer just executed is a LEGAL/transactional copy, not a campaign:
+  // it ignores the customer pause and the canary, and has its own narrow switch (legalCopiesEnabled, default ON).
+  if (opts && opts.legal === true) {
+    const c = await readControls(db, opts);
+    if (c.legalCopiesEnabled !== false) return { send: true, msg, reason: null, canary: false, legal: true };
+  }
   const st = await channelStatus(db, 'email', opts);
   if (!st.allowed) return { send: false, msg: null, reason: st.reason, canary: false };
   if (!st.canary) return { send: true, msg, reason: null, canary: false };
@@ -252,7 +262,14 @@ const DEFAULT_MAX_PER_RUN = 5;
 /** A backlog item older than this is never sent by an automation (the first sweep after enabling cannot reach back). */
 const MAX_AUTOMATION_AGE_DAYS = 7;
 
+const MAX_MAX_PER_RUN = 500;   // hard ceiling on a hand-edited value (the callable only allows 0-50)
 let _autoCache = null;
+
+/** Absent -> 5. A present value must be a whole number 0-500; anything else (null, false, 'abc', negative, 3.5, 99) -> 0 (fewer, never more). */
+function cleanMaxPerRun(v) {
+  if (v === undefined) return DEFAULT_MAX_PER_RUN;
+  return Number.isInteger(v) && v >= 0 && v <= MAX_MAX_PER_RUN ? v : 0;
+}
 
 async function readAutomations(db, opts) {
   const o = opts || {};
@@ -263,7 +280,7 @@ async function readAutomations(db, opts) {
     const d = snap && snap.exists ? (snap.data() || {}) : null;
     const flags = {};
     for (const k of AUTOMATION_KEYS) flags[k] = !!d && d[k] === true;
-    const value = { readable: true, exists: !!d, flags, maxPerRun: d ? envCap(d.maxPerRun, DEFAULT_MAX_PER_RUN) : DEFAULT_MAX_PER_RUN };
+    const value = { readable: true, exists: !!d, flags, maxPerRun: d ? cleanMaxPerRun(d.maxPerRun) : DEFAULT_MAX_PER_RUN };
     _autoCache = { at: nowMs, value };
     return value;
   } catch (e) {
@@ -387,6 +404,16 @@ async function internalAlertStatus(db, channel, opts) {
   const hour = new Date(nowMs).toISOString().slice(0, 13).replace(/[-T]/g, '');
   const ref = db.doc(COUNTER_COLLECTION + '/internal_' + channel + '_' + hour);
   try {
+    // Cap by DISTINCT subject (a lead id), not by attempts: a retry or watchdog re-send of the same lead is
+    // free, so a retry storm cannot use up the hour's allowance and suppress the next real lead's alert.
+    if (o.key) {
+      const seen = db.doc(COUNTER_COLLECTION + '/seen_' + channel + '_' + hour + '_' + require('crypto').createHash('sha256').update(String(o.key)).digest('hex').slice(0, 24));
+      try { await seen.create({ at: nowMs }); }
+      catch (e) {
+        if (e && (e.code === 6 || /ALREADY_EXISTS|already exists/i.test(String(e.message || '')))) return Object.assign({ allowed: true, reason: null }, base);
+        /* any other error: fall through to the plain counter */
+      }
+    }
     const allowed = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const n = snap.exists ? Number((snap.data() || {}).count) || 0 : 0;
@@ -403,7 +430,7 @@ module.exports = {
   GLOBAL_DOC, INTERNAL_DOC, AUDIT_COLLECTION, COUNTER_COLLECTION,
   CACHE_MS, READ_TIMEOUT_MS, CHANNELS, REFUSAL,
   readControls, channelStatus, readOwnerContact,
-  canarySms, canaryEmail, guardEmail, guardSms, guardTwilio, guardResend,
+  cleanMaxPerRun, canarySms, canaryEmail, guardEmail, guardSms, guardTwilio, guardResend,
   internalAlertStatus,
   AUTOMATIONS_DOC, DEDUPE_COLLECTION, AUTOMATION_KEYS, DEFAULT_MAX_PER_RUN, MAX_AUTOMATION_AGE_DAYS,
   readAutomations, automationStatus, a2pServerTextsAllowed, withinAutomationAge, claimSendOnce,

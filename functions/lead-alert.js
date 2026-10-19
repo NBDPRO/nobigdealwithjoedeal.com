@@ -557,7 +557,7 @@ async function alertJoe(collection, d, leadId, opts = {}) {
   // NBD's campaign number, so it passes the customer switch like any other.
   let smsHeld = null;
   if (toSms && !opts.skipSms && !capped && target.isNbd) {
-    const ia = await MessagingControls.internalAlertStatus(getFirestore(), 'sms');
+    const ia = await MessagingControls.internalAlertStatus(getFirestore(), 'sms', { key: collection + '/' + leadId });
     if (!ia.allowed) smsHeld = ia.reason;
   }
   if (smsHeld) {
@@ -585,7 +585,7 @@ async function alertJoe(collection, d, leadId, opts = {}) {
 
   // NBD's alert email to Jo: own switch + hourly cap (internal, never the customer switch).
   if (toEmails && toEmails.length && !capped && target.isNbd) {
-    const ie = await MessagingControls.internalAlertStatus(getFirestore(), 'email');
+    const ie = await MessagingControls.internalAlertStatus(getFirestore(), 'email', { key: collection + '/' + leadId });
     if (!ie.allowed && ie.reason !== 'owner_email_not_configured') {
       toEmails = null;
       outcomes.email = 'skipped:' + ie.reason;

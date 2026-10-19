@@ -49,7 +49,7 @@ function inEmulator() {
  * Throws on a send failure so the caller decides whether that is fatal (it
  * never is for a signing link — the link is always returned to the rep).
  */
-async function sendMail(msg) {
+async function sendMail(msg, opts) {
   if (inEmulator()) {
     logger.info('[esign] email NOT sent (emulator stub)', { to: msg && msg.to, subject: msg && msg.subject });
     return { emailed: false, stubbed: true };
@@ -60,7 +60,7 @@ async function sendMail(msg) {
   // Email category: TRANSACTIONAL — a document the recipient was sent to sign,
   // or their signed copy. Not gated by the unsubscribe register
   // (email-suppression.js SEND_PATHS).
-  const response = await MessagingControls.guardResend(require('firebase-admin/firestore').getFirestore(), resend).emails.send(Object.assign({ from }, msg));
+  const response = await MessagingControls.guardResend(require('firebase-admin/firestore').getFirestore(), resend, { legal: !!(opts && opts.legal) }).emails.send(Object.assign({ from }, msg));
   if (resendRejected(response)) throw new Error(resendErrorMessage(response));
   return { emailed: true, stubbed: false };
 }
