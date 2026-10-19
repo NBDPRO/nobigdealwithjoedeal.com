@@ -1,0 +1,44 @@
+/* Cash paid out log (js/cash-payouts.js, 2026-10-19). Mobile-first: one column,
+   48px targets, 16px inputs (no iOS zoom), nothing wider than the viewport. */
+.cp-panel { margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cp-title { margin: 0; font-size: 16px; }
+.cp-add { min-height: 44px; }
+.cp-sum { font-size: 13px; color: var(--m, #9ca3af); }
+.cp-sum b { color: var(--t, #fff); }
+.cp-warn { font-size: 13px; line-height: 1.4; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--gold, #eab308); color: var(--gold, #eab308); }
+.cp-empty, .cp-sub { font-size: 12px; color: var(--m, #9ca3af); }
+.cp-cols { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 560px) { .cp-cols { grid-template-columns: 1fr 1fr; } }
+.cp-list, .cp-rows { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.cp-list li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-top: 1px solid var(--br, #2a2f37); overflow-wrap: anywhere; }
+.cp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--br, #2a2f37); min-height: 48px; }
+.cp-row-main { min-width: 0; flex: 1 1 auto; }
+.cp-row-top { display: flex; justify-content: space-between; gap: 8px; }
+.cp-payee { overflow-wrap: anywhere; }
+.cp-row-sub { font-size: 12px; color: var(--m, #9ca3af); overflow-wrap: anywhere; }
+.cp-flag { color: var(--gold, #eab308); font-weight: 700; }
+.cp-row-act { display: flex; gap: 6px; flex: 0 0 auto; }
+.cp-row-act .btn { min-height: 44px; }
+
+.cp-overlay { position: fixed; inset: 0; z-index: 10060; background: rgba(0, 0, 0, .72); overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: max(10px, env(safe-area-inset-top)) 10px max(14px, env(safe-area-inset-bottom)); box-sizing: border-box; }
+.cp-sheet { box-sizing: border-box; width: 100%; max-width: 480px; margin: 0 auto; background: var(--s, #12223D); color: var(--t, #fff);
+  border: 1px solid var(--br, #2a2f37); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.cp-sheet *, .cp-sheet *::before, .cp-sheet *::after { box-sizing: border-box; }
+.cp-x { min-width: 44px; min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--t, #fff); font-size: 18px; cursor: pointer; }
+.cp-lab { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--m, #9ca3af); margin-top: 4px; }
+.cp-in { width: 100%; min-height: 48px; border-radius: 10px; border: 1px solid var(--br, #2a2f37); background: var(--s2, rgba(255, 255, 255, .04)); color: var(--t, #fff); font-size: 16px; padding: 0 10px; }
+.cp-big { font-size: 26px; font-weight: 800; min-height: 56px; }
+.cp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cp-chip { min-height: 40px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--br, #2a2f37); background: transparent; color: var(--t, #fff); font-size: 14px; cursor: pointer; }
+.cp-methods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.cp-method { position: relative; min-width: 0; }
+.cp-method input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.cp-method span { display: flex; align-items: center; justify-content: center; min-height: 48px; border-radius: 10px; border: 1px solid var(--br, #2a2f37); font-size: 14px; font-weight: 700; }
+.cp-method input:checked + span { background: var(--orange, #BD5728); border-color: var(--orange, #BD5728); color: #fff; }
+.cp-method input:focus-visible + span { outline: 2px solid var(--t, #fff); outline-offset: 2px; }
+.cp-err { min-height: 18px; font-size: 13px; color: var(--red, #dc2626); }
+.cp-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.cp-btn { min-height: 48px; border-radius: 10px; border: 1px solid var(--br, #2a2f37); background: transparent; color: var(--t, #fff); font-size: 15px; font-weight: 700; cursor: pointer; padding: 6px 12px; }
+.cp-primary { background: var(--orange, #BD5728); border-color: var(--orange, #BD5728); color: #fff; }

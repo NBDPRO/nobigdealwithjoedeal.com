@@ -111,6 +111,7 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
     expenses = expenses || [];
     var matCents = 0, laborCents = 0, miscCents = 0;
     expenses.forEach(function(e) {
+      if (!e || e.deleted === true) return; // voided (cash payout) rows never count
       // COGS = the tax-INCLUDED total (amount + tax): sales tax on materials
       // is real cash paid to the supplier, so it belongs in job cost (product
       // decision 2026-07-08). Kept dependency-free — same amount+tax rule is
@@ -327,7 +328,7 @@ let _NBD_PT_DELEGATE; // module-local (globals Tranche 1 — was window.*)
       const scope = staff ? window.where('companyId', '==', claims.companyId) : window.where('userId', '==', uid);
       const snap = await window.getDocs(window.query(
         window.collection(db, 'expenses'), scope, window.where('leadId', '==', leadId)));
-      return snap.docs.map(function (d) { return d.data(); });
+      return snap.docs.map(function (d) { return d.data(); }).filter(function (e) { return e.deleted !== true; });
     } catch (e) { return []; }
   }
 

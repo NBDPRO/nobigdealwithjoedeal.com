@@ -812,6 +812,20 @@ async function run() {
   // the rep can move a receipt through the review states on their own expense
   await assertSucceeds(updateDoc(doc(alice, 'expenses/ok-items'), { reviewState: 'assigned', leadId: 'leadA' }));
   await assertFails(updateDoc(doc(alice, 'expenses/ok-items'), { reviewState: 'nonsense' }));
+  // ── Cash payouts (2026-10-19): method + bounded audit trail ──
+  const payoutDoc = (extra) => Object.assign(expDoc('alice', 'co-a', 'leadA', 'Sample Crew'),
+    { category: 'subcontractor', source: 'cash_payout', paymentMethod: 'cash', editLog: [] }, extra || {});
+  await assertSucceeds(setDoc(doc(alice, 'expenses/payout-ok'), payoutDoc()));
+  await assertSucceeds(setDoc(doc(alice, 'expenses/payout-nojob'), payoutDoc({ leadId: null })));
+  await assertFails(setDoc(doc(alice, 'expenses/payout-bad-method'), payoutDoc({ paymentMethod: 'bitcoin' })));
+  await assertFails(setDoc(doc(alice, 'expenses/payout-bad-log'), payoutDoc({ editLog: 'none' })));
+  await assertFails(setDoc(doc(alice, 'expenses/payout-big-log'), payoutDoc({ editLog: new Array(26).fill({ note: 'x' }) })));
+  // the writer can void with an audit entry; the amount stays a valid int
+  await assertSucceeds(updateDoc(doc(alice, 'expenses/payout-ok'), { deleted: true, editLog: [{ at: 1, by: 'alice', what: 'void', note: 'paid twice' }] }));
+  await assertFails(updateDoc(doc(alice, 'expenses/payout-nojob'), { paymentMethod: 'barter' }));
+  // another tenant can neither read nor void a payout
+  await assertFails(getDoc(doc(bob, 'expenses/payout-nojob')));
+  await assertFails(updateDoc(doc(bob, 'expenses/payout-nojob'), { deleted: true }));
   // another tenant can neither read nor re-sort it
   await assertFails(getDoc(doc(bob, 'expenses/ok-items')));
   await assertFails(updateDoc(doc(bob, 'expenses/ok-items'), { reviewState: 'overhead' }));
