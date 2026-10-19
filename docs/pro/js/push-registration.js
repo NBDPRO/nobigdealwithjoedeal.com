@@ -184,13 +184,19 @@
     // swallowed every tap on the nav — "buttons do nothing" until the card
     // was dismissed.
     try {
-      var nav = document.getElementById('mobile-nav');
-      if (nav) {
+      // The bottom bar is #mobile-nav in Classic and most layouts, but Field has its own
+      // (#nbdFieldNav) and Island floats a dock; the card sat on top of those and hid the
+      // tabs until it was dismissed (visual audit 2026-10-19). Clear the tallest one showing.
+      var lift = 0;
+      ['#mobile-nav', '#nbdFieldNav', '.isl-dock-in'].forEach(function (sel) {
+        var nav = document.querySelector(sel);
+        if (!nav) return;
         var r = nav.getBoundingClientRect();
         if (r.height > 0 && getComputedStyle(nav).display !== 'none' && r.top < window.innerHeight) {
-          card.style.bottom = (Math.round(window.innerHeight - r.top) + 12) + 'px';
+          lift = Math.max(lift, Math.round(window.innerHeight - r.top));
         }
-      }
+      });
+      if (lift) card.style.bottom = (lift + 12) + 'px';
     } catch (e) { /* keep the default offset */ }
 
     var title = document.createElement('div');
