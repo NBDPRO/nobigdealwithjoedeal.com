@@ -26,7 +26,7 @@ module.exports = {
     }, themes);
     ok('the avatar was found in every theme/mode', res.every((o) => o.r !== null), JSON.stringify(res.filter((o) => o.r === null)));
     const bad = res.filter((o) => o.r !== null && o.r < 3);
-    ok('the avatar initial clears 3:1 on its circle (the engine's --accent-fg floor) in every sampled theme and mode', bad.length === 0, JSON.stringify(bad));
+    ok('the avatar initial clears 3:1 on its circle (the --accent-fg floor) in every sampled theme and mode', bad.length === 0, JSON.stringify(bad));
     await P.ctx.close();
   },
 };
