@@ -94,7 +94,10 @@
     }
     try {
       var snap = await window.getDocs(q);
-      return snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+      // A voided row (a cash payout marked deleted) is kept in Firestore for its
+      // audit note but must not count in any total.
+      return snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); })
+        .filter(function (e) { return e.deleted !== true; });
     } catch (e) {
       console.warn('[expenses] fetch failed', e);
       toast('Could not load expenses', 'error');
@@ -699,6 +702,7 @@
       '<div class="exx-dflex-gap8px">' +
         (_expenses.length ? '<button type="button" class="btn btn-ghost" data-exp-action="export-csv" title="Download CSV for your accountant">⬇ Export CSV</button>' : '') +
         (window.NBDLowesImport ? window.NBDLowesImport.buttonHtml() : '') + (window.NBDHdImport ? '<button type="button" class="btn btn-ghost" data-hd-action="open" title="Import Home Depot Pro Xtra purchases (Purchase History › Export)">🧡 Import Home Depot</button>' : '') + (window.NBDReceiptSorter && window.NBDReceiptSorter.enabled() ? window.NBDReceiptSorter.buttonHtml() : '') +
+        (window.NBDCashPayouts ? window.NBDCashPayouts.buttonHtml() : '') +
         '<button type="button" class="btn btn-orange" data-exp-action="open-form">+ Log Expense</button>' +
       '</div>' +
       '</div>';
@@ -780,6 +784,9 @@
 
     // Receipt health: unsorted receipts, finished jobs with no costs, PO-name copy.
     if (window.NBDReceiptHealth) html += window.NBDReceiptHealth.panelHtml(_expenses, window._leads || []);
+
+    // Cash paid out to crew / subs (flag cashPayoutsLog; empty string when off).
+    if (window.NBDCashPayouts) html += window.NBDCashPayouts.panelHtml(_expenses);
 
     // Per-job rollup with margin
     var jobIds = Object.keys(agg.byJob).filter(function (k) { return k !== '__unassigned__'; });
