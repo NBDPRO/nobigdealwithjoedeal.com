@@ -67,8 +67,10 @@ const SILENT_WORD_THRESHOLD = 4;
 
 // Jo's own phones. A call from one is Jo testing the line, never a lead
 // (the first real call, 2026-09-24, was Jo — it would have become "Caller
-// 7382"). thursday_config.ownerNumbers extends this list without a deploy.
-const OWNER_NUMBERS_DEFAULT = ['+18594207382'];
+// 7382"). The list is CONFIG, not a constant in this public repo:
+// thursday_config.ownerNumbers plus the owner phone in
+// messaging_controls/internal (thursday.js loadConfig adds both).
+const OWNER_NUMBERS_DEFAULT = [];
 
 // ── Small utils ─────────────────────────────────────────────────────────────
 

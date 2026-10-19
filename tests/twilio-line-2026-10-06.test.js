@@ -102,6 +102,8 @@ function makeDb(seed) {
       };
     },
   };
+  // 2026-10-19: the line is live only with an explicit automations entry too.
+  store.set('messaging_controls/automations', { twilioInbound: true });
   for (const [p, d] of Object.entries(seed || {})) store.set(p, clone(d));
   return db;
 }
@@ -495,7 +497,7 @@ const docsIn = (db, col) => [...db.store.keys()].filter((k) => k.startsWith(col 
     ok('Jo\'s cell is not hard-coded in the line code (config only)', !/4207382|420-7382/.test(code));
     const env = fs.readFileSync(path.join(FN, '.env.nobigdeal-pro'), 'utf8');
     ok('.env.nobigdeal-pro ships DARK (TWILIO_INBOUND_ENABLED=false)', /^TWILIO_INBOUND_ENABLED=false\s*$/m.test(env) && !/^TWILIO_INBOUND_ENABLED=true/m.test(env));
-    ok('.env.nobigdeal-pro configures the forward number once, valid E.164', (env.match(/^TWILIO_VOICE_FORWARD_TO=/gm) || []).length === 1 && L.forwardTo({ TWILIO_VOICE_FORWARD_TO: (env.match(/^TWILIO_VOICE_FORWARD_TO=(.*)$/m) || [])[1].trim() }) === '+18594207382');
+    ok('.env.nobigdeal-pro (tracked, public repo) no longer carries the forward number: it is config (2026-10-19)', (env.match(/^TWILIO_VOICE_FORWARD_TO=/gm) || []).length === 0 && /messaging_controls\/internal\.ownerPhone/.test(env));
     ok('spoken + display forms of the forward number', L.spokenPhone('+18594207382') === '8 5 9, 4 2 0, 7 3 8 2' && L.displayPhone('+18594207382') === '(859) 420-7382');
 
     const fb = JSON.parse(fs.readFileSync(path.join(ROOT, 'firebase.json'), 'utf8'));
