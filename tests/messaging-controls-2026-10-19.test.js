@@ -129,6 +129,8 @@ function mc(opts) {
       const withOwner = mc({ docs: { 'messaging_controls/global': g, 'messaging_controls/internal': OWNER } });
       const s = await withOwner.m.guardSms(withOwner.db, '+18595550123', 'hi');
       ok('canary ' + label + ' -> NOT live: redirected to the owner', s.send && s.canary && s.to === '+18595550199', JSON.stringify(s));
+      const emOwner = await withOwner.m.guardEmail(withOwner.db, { to: 'c@x.test', subject: 's', text: 't' });
+      ok('canary ' + label + ' -> guardEmail redirects to the owner too', emOwner.send && emOwner.canary && JSON.stringify(emOwner.msg.to) === '["owner@example.test"]', JSON.stringify(emOwner.msg && emOwner.msg.to));
       const noOwner = mc({ docs: { 'messaging_controls/global': g } });
       const s2 = await noOwner.m.guardSms(noOwner.db, '+18595550123', 'hi');
       ok('canary ' + label + ' and no owner contact -> nothing is sent', !s2.send, JSON.stringify(s2));
@@ -144,6 +146,20 @@ function mc(opts) {
     const M = mc({}).m;
     ok('maxPerRun cleaning: absent 5; 0; 7; null/false/"abc"/-1/3.5/99 -> 0 (fewer, never more)',
       M.cleanMaxPerRun(undefined) === 5 && M.cleanMaxPerRun(0) === 0 && M.cleanMaxPerRun(7) === 7 && [null, false, 'abc', -1, 3.5, 501].every((v) => M.cleanMaxPerRun(v) === 0));
+  }
+
+  console.log('C2b. a canary redirect is flagged so callers do not count it as a delivery');
+  {
+    const t = mc({ docs: { 'messaging_controls/global': Object.assign({}, ALL_ON, { canary: true }), 'messaging_controls/internal': OWNER } });
+    const sent = [];
+    const fake = { emails: { send: async (m) => { sent.push(m); return { data: { id: 'x' }, error: null }; } } };
+    const r = await t.m.guardResend(t.db, fake).emails.send({ to: 'c@x.test', subject: 's', text: 't' });
+    ok('canary: the response carries canary:true and went to the owner', r.canary === true && JSON.stringify(sent[0].to) === '["owner@example.test"]', JSON.stringify(r));
+    const live = mc({ docs: { 'messaging_controls/global': ALL_ON } });
+    const r2 = await live.m.guardResend(live.db, fake).emails.send({ to: 'c@x.test', subject: 's', text: 't' });
+    ok('live: no canary flag', !r2.canary);
+    const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'functions', 'esign-io.js'), 'utf8');
+    ok('esign-io.sendMail treats a canary response as NOT emailed', /response\.canary === true\) return \{ emailed: false/.test(src));
   }
 
   console.log('C3. legal copies (a signed document) are not paused by the customer pause');
@@ -191,6 +207,11 @@ function mc(opts) {
     const kr = [];
     for (const k of ['lead-1', 'lead-1', 'lead-1', 'lead-2', 'lead-3', 'lead-2']) kr.push((await m.internalAlertStatus(db, 'sms', { nowMs: t + 10, force: true, key: k })).allowed);
     ok('cap of 2 by DISTINCT lead: repeats of a lead are free, the third distinct lead is refused', JSON.stringify(kr) === '[true,true,true,true,false,true]', JSON.stringify(kr));
+    process.env.INTERNAL_SMS_PER_HOUR = '1';
+    ({ m, db } = mc({ docs: { 'messaging_controls/internal': OWNER } }));
+    const dr = [];
+    for (const k of ['lead-a', 'lead-b', 'lead-b', 'lead-b', 'lead-a']) dr.push((await m.internalAlertStatus(db, 'sms', { nowMs: t + 20, force: true, key: k })).allowed);
+    ok('a lead DENIED by the cap is denied again on retry (no marker written) while the allowed lead repeats free', JSON.stringify(dr) === '[true,false,false,false,true]', JSON.stringify(dr));
     process.env.INTERNAL_SMS_PER_HOUR = '0';
     ({ m, db } = mc({ docs: { 'messaging_controls/internal': OWNER } }));
     ok('cap 0 means no internal SMS (zero is zero)', !(await m.internalAlertStatus(db, 'sms', { nowMs: t })).allowed);

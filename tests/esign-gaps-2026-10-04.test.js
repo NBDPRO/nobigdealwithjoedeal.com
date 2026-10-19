@@ -553,10 +553,11 @@ const tokenFor = (db, envelopeId, signerId) => {
     const envRef = 'esign_envelopes/' + e;
     const later = Date.now() + 2 * 86_400_000 + 1000;
     const calls = [];
+    const bells = [];
     const stubIO = {
       EMAIL_FROM: { name: 'EMAIL_FROM' }, RESEND_API_KEY: { name: 'RESEND_API_KEY' }, SIGN_URL_BASE: 'https://x/sign/',
       emailLink: async () => { calls.push(1); return { emailed: false, stubbed: false, error: 'messaging_paused:controls_missing' }; },
-      notifyRep: async () => {}, syncEstimate: async () => false,
+      notifyRep: async (_db, _env, n) => { bells.push(n); }, syncEstimate: async () => false,
     };
     const LR = load(dbR, makeStorage(), { './esign-io': stubIO });
     const r1 = await LR.rem._runSweep(dbR, later);
@@ -565,6 +566,7 @@ const tokenFor = (db, envelopeId, signerId) => {
     for (let k = 1; k <= 6; k++) await LR.rem._runSweep(dbR, later + k * 2 * 86_400_000 + k);
     ok('...and it gives up after 5 misses without ever burning the reminder budget', dbR._get(envRef).reminders.failedCount === 5 && dbR._get(envRef).remindNextAt === undefined && (dbR._get(envRef).reminders.count || 0) === 0, JSON.stringify(dbR._get(envRef).reminders));
     ok('...exactly 5 attempts', calls.length === 5, String(calls.length));
+    ok('...and giving up raises a HIGH bell to the rep (not just an audit row)', bells.filter((b) => b.type === 'esign_reminders_stopped').length === 1 && bells.find((b) => b.type === 'esign_reminders_stopped').priority === 'high', JSON.stringify(bells.map((b) => b.type)));
   }
   {
     const dbR = makeDb(seed());

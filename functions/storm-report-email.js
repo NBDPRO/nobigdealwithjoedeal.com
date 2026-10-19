@@ -223,6 +223,11 @@ exports.stormReportEmail = onDocumentCreated(
         await ref.update({ reportEmailHeld: 'messaging_paused' }).catch(() => {});
         return;
       }
+      // Canary: do not consume the one-shot claim on a redirect (nothing is claimed, stamped or sent).
+      if (sw.canary) {
+        logger.info('stormReportEmail: canary - not claimed, not sent', { leadId });
+        return;
+      }
     }
     let claimed = false;
     try {

@@ -46,7 +46,7 @@ const CORS_ORIGINS = [
   'https://nobigdeal-pro.web.app',
 ];
 
-const CONTROL_FIELDS = Object.freeze(['customerSendsEnabled', 'smsEnabled', 'emailEnabled', 'otpEnabled', 'canary']);
+const CONTROL_FIELDS = Object.freeze(['customerSendsEnabled', 'smsEnabled', 'emailEnabled', 'otpEnabled', 'canary', 'legalCopiesEnabled']);
 const RECENT_LOGIN_MS = 15 * 60 * 1000;
 
 function maskPhone(p) { const d = String(p || '').replace(/\D/g, ''); return d ? '***' + d.slice(-2) : ''; }
@@ -91,7 +91,7 @@ async function auditDone(ref, after) {
 }
 
 function pick(c) {
-  return { customerSendsEnabled: c.customerSendsEnabled, smsEnabled: c.smsEnabled, emailEnabled: c.emailEnabled, otpEnabled: c.otpEnabled, canary: c.canary };
+  return { customerSendsEnabled: c.customerSendsEnabled, smsEnabled: c.smsEnabled, emailEnabled: c.emailEnabled, otpEnabled: c.otpEnabled, canary: c.canary, legalCopiesEnabled: c.legalCopiesEnabled };
 }
 function internalView(o) {
   return { internalAlertsEnabled: o.internalAlertsEnabled, ownerPhoneSet: !!o.phone, ownerPhone: maskPhone(o.phone), ownerEmailSet: !!o.email };

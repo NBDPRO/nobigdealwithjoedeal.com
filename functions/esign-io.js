@@ -62,6 +62,8 @@ async function sendMail(msg, opts) {
   // (email-suppression.js SEND_PATHS).
   const response = await MessagingControls.guardResend(require('firebase-admin/firestore').getFirestore(), resend, { legal: !!(opts && opts.legal) }).emails.send(Object.assign({ from }, msg));
   if (resendRejected(response)) throw new Error(resendErrorMessage(response));
+  // Canary: the mail went to the owner, not the signer - NOT a delivery (a reminder must not be counted).
+  if (response && response.canary === true) return { emailed: false, stubbed: false, canary: true };
   return { emailed: true, stubbed: false };
 }
 

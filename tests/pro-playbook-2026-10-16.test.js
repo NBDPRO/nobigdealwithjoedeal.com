@@ -206,6 +206,15 @@ const MD = 'site-src/guides/nbd-pro-playbook.md';
       ok('paused: no email, no claim taken, a visible marker says it was held', rp.sent === false && sentP.length === 0 && !dbP.docs['guide_leads/L1'].welcomeClaimedAt && dbP.docs['guide_leads/L1'].welcomeSkipped === 'held_messaging_paused', JSON.stringify(rp));
       require(path.join(ROOT, 'functions/messaging-controls.js'))._resetCache();   // the 10 s cache would carry "paused" into the next case
     }
+    {
+      const dbC = fakeDb(lead);
+      dbC.docs['messaging_controls/global'] = Object.assign({}, dbC.docs['messaging_controls/global'], { canary: true });
+      require(path.join(ROOT, 'functions/messaging-controls.js'))._resetCache();
+      const sentC = [];
+      const rc = await _test.sendWelcome(dbC, 'L1', lead, Object.assign({}, base, { resend: { emails: { send: async (m) => { sentC.push(m); return { data: { id: 'x' } }; } } } }));
+      ok('canary: the welcome is NOT sent and the one-shot claim is NOT consumed', rc.reason === 'canary_not_claimed' && sentC.length === 0 && !dbC.docs['guide_leads/L1'].welcomeClaimedAt, JSON.stringify(rc));
+      require(path.join(ROOT, 'functions/messaging-controls.js'))._resetCache();
+    }
     let db = fakeDb(lead);
     const r1 = await _test.sendWelcome(db, 'L1', lead, base);
     const m = sent[0] || {};

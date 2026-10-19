@@ -224,6 +224,12 @@ exports.estimateEmail = onDocumentCreated(
         await snap.ref.update({ estimateEmailStatus: 'held_paused', estimateEmailHeldReason: sw.reason }).catch(() => {});
         return;
       }
+      // Canary: a redirect to the owner must not CONSUME the customer's one-shot claim - nothing is claimed,
+      // stamped or sent (the owner's canary test of the CRM email/text paths is the preview).
+      if (sw.canary) {
+        logger.info('estimate_email_canary_not_claimed', { leadId });
+        return;
+      }
     }
 
     // Idempotency: at-least-once delivery means this can fire more than once.

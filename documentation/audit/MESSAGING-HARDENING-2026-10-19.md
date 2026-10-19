@@ -68,6 +68,22 @@ An independent review of PR #2572 found the following; each was confirmed agains
 | M7 no rules tests | `tests/firestore-rules.messaging-controls.test.js` (208 checks; wired into `ci.yml` and `firebase-deploy.yml`). |
 | LOW | `maxPerRun` invalid values -> 0, ceiling 500; canary email drops customer unsubscribe `tags`; OTP refusal wording no longer reveals STOP status; internal-alert cap counts DISTINCT leads; `ignoreGlobal` callers pinned by a test; the business number literal is out of the new test fixtures. |
 
+### Second review round (on PR #2574)
+
+| Finding | Result |
+|---|---|
+| N1 dark voice leaked the number to an unsigned POST | Fixed: the owner phone is read only after the Twilio signature passes; an unsigned request gets the generic line and costs no read. Tested (unsigned dark and live: no number, zero reads). |
+| N2 internal cap: denied lead got through on retry; marker never cleaned | Fixed: one transaction; the marker is written only when the count increments, so a denied lead stays denied; markers and counters carry `expireAt` (3 h) for a Firestore TTL policy (create one on `messaging_controls_counters.expireAt` to auto-clean). |
+| H2 partial: reminders gave up silently; canary counted as sent | Fixed: giving up raises a high "E-sign reminders stopped" bell; a canary redirect is flagged `canary:true` by `guardResend` and `esign-io` treats it as NOT emailed. |
+| M3 partial: canary consumed one-shot claims | Fixed: under canary the estimate email, storm report and pro-playbook welcome claim nothing, stamp nothing, send nothing. |
+| H3 caveats | The logged confirmation text itself is ignored by the "newer outbound" check (send-then-YES test); a full page of 50 sms_log rows or a row with no usable date fails closed. |
+| M1 | Rules tests added: delete-field, company_admin and manager on an own-tenant lead, another tenant, and forged/edited/deleted `sms_log` + `phone_texts` evidence rows (both are server-write-only). 249 checks. `consentBasis` reads only `leads.tcpaConsent*` (now frozen), `sms_log` and `phone_texts` (server-write-only). |
+| N3 storm thank-you under a pause | The YES still confirms; the one-line thank-you text is sent only when texting is not paused. |
+| N4 scanner labels | Every send site is already either guarded or pinned with a reason; a new site changes a count and fails. |
+| N5 `notifyRep` wrap | Disproved: `notifyRep` already has its own try/catch and never throws. |
+| N6 | `legalCopiesEnabled` added to the callable's fields and audit. |
+| Canary matrix | absent / "true" / 1 / null / "false" / 0 / true: redirected for SMS and email; only `false` is live. |
+
 **Not changed (decisions for Jo):** the personal/business email constants in `lead-alert.js`, `storm-watch.js`, `lead-digest.js`, `marketing-report.js`, `thursday.js`, `verify-functions.js`, `handlers/_shared.js` and `THURSDAY_NUMBER` stay in code: moving them to config would silence Jo's alert EMAILS (the most reliable channel) until `ownerEmail` is set, which is worse than a constant that is already public. Thursday: with `OWNER_NUMBERS_DEFAULT=[]`, Jo's own test calls count as leads if `messaging_controls/internal` is unreadable.
 
 ## IMPORTANT: merging deploys this, and customer sends default to OFF

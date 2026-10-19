@@ -54,7 +54,9 @@ async function run() {
   const nbdAdmin = ctx(NBD_OWNER, { role: 'admin' });
   const joe = ctx('joe', { role: 'admin' });                                        // platform admin
   const anon = env.unauthenticatedContext().firestore();
-  const { setDoc, doc, getDoc, getDocs, collection, deleteDoc, updateDoc } = require('firebase/firestore');
+  const { setDoc, doc, getDoc, getDocs, collection, deleteDoc, updateDoc, deleteField } = require('firebase/firestore');
+  const coAdminA = ctx('carol-a', { role: 'company_admin', companyId: 'co-a' });
+  const managerA = ctx('mgr-a', { role: 'manager', companyId: 'co-a' });
 
   const COLLS = {
     messaging_controls: 'global',
@@ -63,9 +65,12 @@ async function run() {
     messaging_dedupe: 'd1',
     sms_consent_overrides: 'o1',
   };
+  // The OTHER evidence consentBasis reads (an inbound text in the last 7 days): server-written only.
+  const EVIDENCE = { sms_log: 'e1', phone_texts: 'e2' };
   await env.withSecurityRulesDisabled(async (c) => {
     const db = c.firestore();
     for (const [coll, id] of Object.entries(COLLS)) await setDoc(doc(db, coll + '/' + id), { customerSendsEnabled: true, smsEnabled: true, n: 1 });
+    for (const [coll, id] of Object.entries(EVIDENCE)) await setDoc(doc(db, coll + '/' + id), { uid: 'alice', userId: 'alice', companyId: 'co-a', status: 'received', toDigits: '5550142222' });
     await setDoc(doc(db, 'leads/lead-a'), { userId: 'alice', companyId: 'co-a', firstName: 'Sam', phoneDigits: '5550142222' });
     await setDoc(doc(db, 'leads/lead-c'), { userId: 'alice', companyId: 'co-a', firstName: 'Cy', phoneDigits: '5550142223', tcpaConsent: true, tcpaConsentAt: 1 });
   });
@@ -81,11 +86,24 @@ async function run() {
     }
   }
 
+  for (const [coll, id] of Object.entries(EVIDENCE)) {
+    for (const [who, db] of Object.entries({ viewer: vic, sales_rep: alice, company_admin: coAdminA, manager: managerA, otherTenantAdmin: carolOther, solo })) {
+      await check(coll + ': ' + who + ' cannot forge an inbound row (create)', 'deny', setDoc(doc(db, coll + '/forged-' + who), { uid: who, userId: who, companyId: 'co-a', status: 'received', toDigits: '5550142222', date: Date.now() }));
+      await check(coll + ': ' + who + ' cannot edit an evidence row', 'deny', updateDoc(doc(db, coll + '/' + id), { status: 'received', date: Date.now() }));
+      await check(coll + ': ' + who + ' cannot delete an evidence row', 'deny', deleteDoc(doc(db, coll + '/' + id)));
+    }
+  }
+
   // The consent spoof: a rep writing the evidence the server reads.
   await check('lead update: the rep CANNOT set tcpaConsent on a cold lead', 'deny', updateDoc(doc(alice, 'leads/lead-a'), { tcpaConsent: true }));
   await check('lead update: ...nor tcpaConsent + tcpaConsentAt together', 'deny', updateDoc(doc(alice, 'leads/lead-a'), { tcpaConsent: true, tcpaConsentAt: 1760000000000 }));
   await check('lead update: ...nor tcpaConsentText / Source / Ip / Version', 'deny', updateDoc(doc(alice, 'leads/lead-a'), { tcpaConsentText: 'tcpa-v3', tcpaConsentSource: '/inspect', tcpaConsentIp: '1.2.3.4', tcpaConsentVersion: 'v3' }));
   await check('lead update: ...nor flip a real consent record to something else', 'deny', updateDoc(doc(alice, 'leads/lead-c'), { tcpaConsent: false }));
+  await check('lead update: ...nor DELETE a real consent field (deleteField)', 'deny', updateDoc(doc(alice, 'leads/lead-c'), { tcpaConsentAt: deleteField() }));
+  await check('lead update: a company_admin (staff) CANNOT set it on an own-tenant lead either', 'deny', updateDoc(doc(coAdminA, 'leads/lead-a'), { tcpaConsent: true, tcpaConsentAt: 1760000000000 }));
+  await check('lead update: a manager CANNOT either', 'deny', updateDoc(doc(managerA, 'leads/lead-a'), { tcpaConsent: true }));
+  await check('lead update: a rep of ANOTHER tenant cannot write the lead at all', 'deny', updateDoc(doc(carolOther, 'leads/lead-a'), { tcpaConsent: true }));
+  await check('lead update: control - staff can still edit an ordinary field', 'allow', updateDoc(doc(coAdminA, 'leads/lead-a'), { firstName: 'Sammy' }));
   await check('lead update: control - the same rep edits an ordinary field', 'allow', updateDoc(doc(alice, 'leads/lead-a'), { firstName: 'Samuel' }));
   await check('lead update: control - re-saving the unchanged consent record is fine', 'allow', updateDoc(doc(alice, 'leads/lead-c'), { tcpaConsent: true, tcpaConsentAt: 1, firstName: 'Cyrus' }));
   await check('lead create: a rep CANNOT create a lead already carrying tcpaConsent', 'deny',

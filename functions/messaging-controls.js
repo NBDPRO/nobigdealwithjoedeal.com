@@ -222,7 +222,10 @@ function guardResend(db, resend, opts) {
       send: async (msg) => {
         const g = await guardEmail(db, msg, opts);
         if (!g.send) return { data: null, error: { name: 'messaging_paused', message: 'messaging_paused:' + g.reason, statusCode: 403 } };
-        return resend.emails.send(g.msg);
+        const r = await resend.emails.send(g.msg);
+        // A canary redirect went to the OWNER, not the customer: flag it so a caller that counts "emailed"
+        // (reminders, one-shot stamps) does not treat it as a real send.
+        return g.canary && r && typeof r === 'object' ? Object.assign({}, r, { canary: true }) : r;
       },
     },
   };
@@ -404,21 +407,20 @@ async function internalAlertStatus(db, channel, opts) {
   const hour = new Date(nowMs).toISOString().slice(0, 13).replace(/[-T]/g, '');
   const ref = db.doc(COUNTER_COLLECTION + '/internal_' + channel + '_' + hour);
   try {
-    // Cap by DISTINCT subject (a lead id), not by attempts: a retry or watchdog re-send of the same lead is
-    // free, so a retry storm cannot use up the hour's allowance and suppress the next real lead's alert.
-    if (o.key) {
-      const seen = db.doc(COUNTER_COLLECTION + '/seen_' + channel + '_' + hour + '_' + require('crypto').createHash('sha256').update(String(o.key)).digest('hex').slice(0, 24));
-      try { await seen.create({ at: nowMs }); }
-      catch (e) {
-        if (e && (e.code === 6 || /ALREADY_EXISTS|already exists/i.test(String(e.message || '')))) return Object.assign({ allowed: true, reason: null }, base);
-        /* any other error: fall through to the plain counter */
-      }
-    }
+    // Cap by DISTINCT subject (a lead id), not by attempts, in ONE transaction: a repeat of an alert that was
+    // already let through this hour is free (a retry / watchdog re-send cannot eat the allowance), while a lead
+    // that was DENIED by the cap leaves no marker, so its retry is denied again (the flood cap holds).
+    const seenRef = o.key
+      ? db.doc(COUNTER_COLLECTION + '/seen_' + channel + '_' + hour + '_' + require('crypto').createHash('sha256').update(String(o.key)).digest('hex').slice(0, 24))
+      : null;
     const allowed = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
+      const seen = seenRef ? await tx.get(seenRef) : null;
+      if (seen && seen.exists) return true;
       const n = snap.exists ? Number((snap.data() || {}).count) || 0 : 0;
       if (n >= cap) return false;
-      tx.set(ref, { count: n + 1, channel, hour, updatedAtMs: nowMs }, { merge: true });
+      tx.set(ref, { count: n + 1, channel, hour, updatedAtMs: nowMs, expireAt: new Date(nowMs + 3 * 3600_000) }, { merge: true });
+      if (seenRef) tx.set(seenRef, { at: nowMs, channel, hour, expireAt: new Date(nowMs + 3 * 3600_000) });
       return true;
     });
     if (!allowed) return Object.assign({ allowed: false, reason: 'internal_rate_limited' }, base);

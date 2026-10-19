@@ -409,6 +409,17 @@ const docsIn = (db, col) => [...db.store.keys()].filter((k) => k.startsWith(col 
     const dbCfg = makeDb({ 'messaging_controls/internal': { ownerPhone: '+18595550177' } });
     let r = await call(X.handleVoice, signedReq('/api/twilio/voice', { CallSid: sid(80, 'CA'), From: '+15135550100', To: '+19375550144' }), dbCfg);
     ok('dark voice names the owner number read from messaging_controls/internal (no env value in the repo)', r.statusCode === 200 && /8 5 9, 5 5 5, 0 1 7 7/.test(r.body) && !/<Dial/.test(r.body), r.body);
+    // N1: an UNSIGNED request (dark or live) never gets the number and never costs a config read.
+    require('../functions/messaging-controls')._resetCache();
+    const dbU = makeDb({ 'messaging_controls/internal': { ownerPhone: '+18595550177' } });
+    const readsBefore = dbU.reads;
+    r = await call(X.handleVoice, signedReq('/api/twilio/voice', { CallSid: sid(83, 'CA'), From: '+15135550100', To: '+19375550144' }, { signature: 'bogus' }), dbU);
+    ok('dark + UNSIGNED: the generic line, not the owner number, and zero Firestore reads', r.statusCode === 200 && /call back later/.test(r.body) && !/5 5 5, 0 1 7 7/.test(r.body) && dbU.reads === readsBefore, r.body);
+    process.env.TWILIO_INBOUND_ENABLED = 'true';
+    require('../functions/messaging-controls')._resetCache();
+    r = await call(X.handleVoice, signedReq('/api/twilio/voice', { CallSid: sid(84, 'CA'), From: '+15135550100', To: '+19375550144' }, { signature: 'bogus' }), dbU);
+    ok('live + UNSIGNED: 403, no number, zero reads', r.statusCode === 403 && !/5 5 5, 0 1 7 7|177/.test(String(r.body && r.body.error ? '' : r.body)) && dbU.reads === readsBefore);
+    process.env.TWILIO_INBOUND_ENABLED = 'false';
     require('../functions/messaging-controls')._resetCache();   // the owner contact is cached for 10 s
     r = await call(X.handleVoice, signedReq('/api/twilio/voice', { CallSid: sid(81, 'CA'), From: '+15135550100', To: '+19375550144' }), makeDb({}));
     ok('no owner number configured anywhere -> the generic line, not an error', r.statusCode === 200 && /call back later/.test(r.body));

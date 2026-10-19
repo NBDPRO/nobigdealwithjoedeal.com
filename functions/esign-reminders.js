@@ -102,6 +102,15 @@ async function runSweep(db, now) {
         audit: FieldValue.arrayUnion({ event: 'reminder_not_sent', at: now, signerId: signer.id, error: String(mail.error || 'not sent').slice(0, 120), failed }),
       }, { merge: true });
       out.notSent = (out.notSent || 0) + 1;
+      if (failed >= 5) {
+        // Giving up is something the rep must hear about, not an audit row nobody reads.
+        await IO.notifyRep(db, env, {
+          type: 'esign_reminders_stopped',
+          title: 'E-sign reminders stopped',
+          message: `Reminders for ${env.title || 'a document'} could not be sent after 5 tries (messaging paused or the address failed). Send the signing link yourself.`,
+          priority: 'high',
+        });
+      }
       continue;
     }
     const n = count + 1;

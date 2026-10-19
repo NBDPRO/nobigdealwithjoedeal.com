@@ -115,6 +115,8 @@ async function sendWelcome(db, leadId, lead, deps) {
   {
     const sw = await MessagingControls.channelStatus(db, 'email');
     if (!sw.allowed) return skip('held_messaging_paused');
+    // Canary: do not consume the one-shot claim on a redirect (nothing is claimed, stamped or sent).
+    if (sw.canary) return { sent: false, reason: 'canary_not_claimed' };
   }
 
   // Claim first: triggers are at-least-once, so a redelivery is a no-op.

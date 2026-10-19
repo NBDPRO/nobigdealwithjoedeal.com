@@ -161,12 +161,18 @@ async function confirmFromReply(db, fromE164, opts) {
 async function outboundSince(db, e164, sinceMs) {
   const key = String(e164 || '').replace(/\D/g, '').slice(-10);
   if (key.length !== 10) return true;
-  const snap = await db.collection('sms_log').where('toDigits', '==', key).limit(50).get();
+  const LIMIT = 50;
+  const snap = await db.collection('sms_log').where('toDigits', '==', key).limit(LIMIT).get();
+  // A full page cannot be shown to contain everything (no ordering is guaranteed): fail CLOSED.
+  if (snap.docs.length >= LIMIT) return true;
+  const confirmation = confirmBody();
   for (const d of snap.docs) {
     const r = d.data() || {};
     if (r.status === 'received' || r.direction === 'inbound') continue;
+    // Our own confirmation text, if it was ever logged, is not "something newer" than itself.
+    if (String(r.body || '').trim() === confirmation) continue;
     const at = createdMs({ createdAt: r.date });
-    if (!at || at > sinceMs) return true;
+    if (!at || at > sinceMs) return true;   // a row with no usable date is unknown, so counts as newer
   }
   return false;
 }

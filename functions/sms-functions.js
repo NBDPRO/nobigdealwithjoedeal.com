@@ -1810,12 +1810,16 @@ exports.incomingSMS = onRequest(
       // twice) and as a SIDE EFFECT only: the message is still filed as the customer's reply (note, AI
       // draft, rep bell) below, because a real customer's "Yes" to a rep must never be swallowed.
       let stormConfirmed = 0;
+      let stormThanks = false;   // the one-line thank-you is a customer text: only when texting is not paused
       if (phoneDigits && StormConfirm.isYes(messageBody)) {
         try {
           stormConfirmed = await StormConfirm.confirmFromReply(db, formatPhoneNumber(fromPhone) || fromPhone,
             { serverTimestamp: () => FieldValue.serverTimestamp(), nowMs: Outbox.nowMs() });
         } catch (e) {
           logger.error('storm_confirm_reply_failed', { err: e && e.message });
+        }
+        if (stormConfirmed > 0) {
+          try { stormThanks = (await TextingGate.textingStatus(db, TextingGate.NBD_OWNER_UID)).allowed === true; } catch (_) { stormThanks = false; }
         }
       }
 
@@ -2109,7 +2113,7 @@ exports.incomingSMS = onRequest(
         lead ? (lead.companyId || lead.userId || null) : null);
 
       // Return TwiML response (empty OK; the one-line thank-you only when a Storm Alert YES was just confirmed)
-      res.type('text/xml').send(stormConfirmed > 0
+      res.type('text/xml').send(stormConfirmed > 0 && stormThanks
         ? KeywordReplies.twiml(StormConfirm.confirmedReply())
         : `<?xml version="1.0" encoding="UTF-8"?>
 <Response>

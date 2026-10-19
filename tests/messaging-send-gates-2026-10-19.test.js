@@ -205,6 +205,21 @@ const GLOBAL_ON = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: 
     ok('a customer who was never asked (a normal "Yes" to a rep): nothing confirmed, reply filed', !r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt && notes(r.w) === 1 && r.w.aiDrafts.length === 1);
     r = await yes({ 'storm_alert_subscribers/s1': sub() }, 'SMyes0002', 'yes please call me');
     ok('"yes please call me" is not a confirmation', !r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
+    r = await yes({ 'storm_alert_subscribers/s1': sub(), ['sms_settings/' + NBD]: { enabled: false } }, 'SMyes0008');
+    ok('N3: texting paused -> the YES still confirms, but NO thank-you text is sent', !!r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt && !/<Message>/.test(String(r.res.body)), String(r.res.body).slice(0, 100));
+    // send-then-YES: our own confirmation text, even if it was logged AFTER the request, does not block the YES.
+    const SCt = W.load(W.makeWorld({}), 'storm-confirm.js');
+    r = await yes({ 'storm_alert_subscribers/s1': sub(), 'sms_log/conf1': { to: PH, toDigits: KEY, status: 'sent', body: SCt.confirmBody(), companyId: NBD, date: NOON - 3000e3 } });
+    ok('send-then-YES: the logged confirmation text itself does not count as a newer outbound -> confirmed', !!r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
+    // fail closed: an undated outbound row, and a full page of rows.
+    r = await yes({ 'storm_alert_subscribers/s1': sub(), 'sms_log/o2': { to: PH, toDigits: KEY, status: 'sent', body: 'Are you home?', companyId: NBD } });
+    ok('an outbound row with NO usable date is unknown -> not confirmed (fail closed)', !r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
+    const many = { 'storm_alert_subscribers/s1': sub() };
+    for (let i = 0; i < 50; i++) many['sms_log/old' + i] = { to: PH, toDigits: KEY, status: 'received', body: 'hi ' + i, companyId: NBD, date: NOON - 5 * DAY };
+    r = await yes(many);
+    ok('a full page of sms_log rows cannot prove nothing newer exists -> not confirmed (fail closed)', !r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
+    r = await yes({ 'storm_alert_subscribers/s1': sub() }, 'SMyes0009', 'Y');
+    ok('control: a bare "Y" with nothing newer confirms', !!r.w.store.get('storm_alert_subscribers/s1').smsConfirmedAt);
   }
 
   console.log('G. sms-texting-gate asks the master switch');
