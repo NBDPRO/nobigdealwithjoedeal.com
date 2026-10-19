@@ -1150,6 +1150,12 @@ jobs:
         run: |
           cd tests
           node crm-layouts-render-2026-10-15.test.js
+      # The overnight visual audit's fixes (2026-10-19), one section file per cluster
+      # in tests/layouts-visual-audit/. Same server, same Chromium.
+      - name: Run the layouts visual-audit checks
+        run: |
+          cd tests
+          node layouts-visual-audit-2026-10-19.test.js
       # The client PDF engines on the same sample account (2026-10-16: jsPDF
       # 4.2.1 + the html2pdf 0.14.0 build on that one jsPDF): Download PDF on
       # an invoice and a signed contract, and the estimate export.
@@ -1175,6 +1181,10 @@ jobs:
         run: |
           cd tests
           node crm-layouts-render-2026-10-15.test.js
+      - name: Run the layouts visual-audit checks against the minified build
+        run: |
+          cd tests
+          node layouts-visual-audit-2026-10-19.test.js
       - name: Run the PDF export walk against the minified build
         run: |
           cd tests
