@@ -35,7 +35,7 @@ const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[\s;{}(),])\
 process.env.NBD_OWNER_UID = 'nbd-owner';
 const NBD = 'nbd-owner';
 const BRAND = 'No Big Deal Home Solutions';
-const OWNER_CELL = '+18594207382';
+const OWNER_CELL = '+18595550100';   // the world's fake owner phone (messaging_controls/internal), not a real number
 const PHONE = '(859) 555-0134';
 const HOMEOWNER = '+18595550134';
 // Noon in America/New_York on 2026-10-05 (EDT, UTC-4): inside texting hours.

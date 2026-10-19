@@ -169,6 +169,16 @@ const GLOBAL_ON = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: 
     ok('an unknown value falls back to the safe default (this webhook replies)', /<Message>/.test(String(r.res.body)));
   }
 
+  console.log('I. campaign vs reply labels (kindForSource)');
+  {
+    const CD = W.load(W.makeWorld({}), 'sms-consent-declined.js');
+    ok('no label (the plain Text button) -> reply', CD.kindForSource(undefined) === 'reply' && CD.kindForSource('') === 'reply');
+    ok('a listed reply label -> reply', ['ask_joe', 'reply', 'manual', 'agent_inbox'].every((s) => CD.kindForSource(s) === 'reply'));
+    ok('a campaign label -> automated', ['review_request', 'winback', 'estimate_followup', 'storm_alert'].every((s) => CD.kindForSource(s) === 'automated'));
+    ok('an UNKNOWN or mistyped label -> automated (stricter, never looser)', ['whatever', 'new_campaign_2027', 'Review-Request2'].every((s) => CD.kindForSource(s) === 'automated'));
+    ok('a label with hostile characters cleans to nothing -> reply, and cannot unlock anything extra', CD.kindForSource('x'.repeat(200)) === 'reply' && CD.kindForSource('<script>') === 'reply');
+  }
+
   console.log('H. Storm Alert YES: confirms as a side effect, never swallows a real reply');
   {
     const PH = '+18595550134';

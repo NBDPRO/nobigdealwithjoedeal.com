@@ -129,6 +129,19 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
   ok('the only writer of the control docs is the Jo-only callable', JSON.stringify(writers) === JSON.stringify(['functions/messaging-controls-fns.js']), writers.join(', '));
 }
 
+// E3. One-shot triggers check the pause BEFORE they take their claim (a pause must not burn the claim).
+{
+  for (const [rel, claimToken] of [['functions/estimate-email.js', 'runTransaction('], ['functions/storm-report-email.js', 'runTransaction('], ['functions/pro-prospects.js', 'runTransaction(']]) {
+    const code = byRel(rel);
+    const iCheck = code.indexOf('channelStatus(');
+    const iClaim = code.indexOf(claimToken, iCheck > 0 ? 0 : 0);
+    // the FIRST claim transaction in the handler comes after the first pause check
+    const firstClaim = code.indexOf(claimToken);
+    ok(rel + ': the pause check comes before the one-shot claim', iCheck > 0 && firstClaim > iCheck, 'check@' + iCheck + ' claim@' + firstClaim);
+    void iClaim;
+  }
+}
+
 // E2. ignoreGlobal (the company-only answer that skips the owner's pause) is for exactly two callers.
 {
   const users = files.filter((f) => /ignoreGlobal\s*:\s*true/.test(f.code)).map((f) => f.rel).sort();

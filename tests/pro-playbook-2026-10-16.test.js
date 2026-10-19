@@ -197,6 +197,15 @@ const MD = 'site-src/guides/nbd-pro-playbook.md';
     const base = { resend, from: 'NBD <noreply@x>', gate: gateOk, capRecipients: capOk, pdfReady: async () => false, serverTimestamp: () => 'TS' };
     const lead = { name: 'Sam <a href=x>click</a>', email: 'sam@example.com', source: 'pro-playbook' };
 
+    {
+      // 2026-10-19: a paused customer-send switch is checked BEFORE the one-shot claim, so a pause burns nothing.
+      const dbP = fakeDb(lead);
+      delete dbP.docs['messaging_controls/global'];
+      const sentP = [];
+      const rp = await _test.sendWelcome(dbP, 'L1', lead, Object.assign({}, base, { resend: { emails: { send: async (m) => { sentP.push(m); return { data: { id: 'x' } }; } } } }));
+      ok('paused: no email, no claim taken, a visible marker says it was held', rp.sent === false && sentP.length === 0 && !dbP.docs['guide_leads/L1'].welcomeClaimedAt && dbP.docs['guide_leads/L1'].welcomeSkipped === 'held_messaging_paused', JSON.stringify(rp));
+      require(path.join(ROOT, 'functions/messaging-controls.js'))._resetCache();   // the 10 s cache would carry "paused" into the next case
+    }
     let db = fakeDb(lead);
     const r1 = await _test.sendWelcome(db, 'L1', lead, base);
     const m = sent[0] || {};
