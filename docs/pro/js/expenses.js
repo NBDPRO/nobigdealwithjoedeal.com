@@ -276,6 +276,7 @@
     if (!name) return 0;
     return (expenses || []).reduce(function (sum, e) {
       if (!e || (e.category !== 'subcontractor' && e.category !== 'direct_labor')) return sum;
+      if (e.estimated === true) return sum; // an estimate was never paid: not a 1099 payment
       if (nv(e.supplier) !== name) return sum;
       var d = toDate(e.date);
       if (!d || d.getFullYear() !== year) return sum;
@@ -1123,7 +1124,7 @@
   function exportCSV() {
     var c = EC();
     if (!_expenses.length) { toast('No expenses to export', 'warn'); return; }
-    var cols = ['Date', 'Supplier', 'Category', 'Cost Type', 'Amount', 'Sales Tax', 'Job', 'Note', 'Source', 'Schedule C (suggested)'];
+    var cols = ['Date', 'Supplier', 'Category', 'Cost Type', 'Amount', 'Sales Tax', 'Job', 'Note', 'Source', 'Estimated', 'Schedule C (suggested)'];
     var rows = _expenses.map(function (e) {
       var d = toDate(e.date);
       var lead = e.leadId ? leadById(e.leadId) : null;
@@ -1138,6 +1139,7 @@
         lead ? leadName(lead) : '',
         e.note || '',
         e.source || 'manual',
+        e.estimated === true ? 'Yes' : '',
         hint
       ].map(csvCell).join(',');
     });

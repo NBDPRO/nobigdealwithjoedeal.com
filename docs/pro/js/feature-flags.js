@@ -43,6 +43,8 @@
       state.flags = Object.assign({}, def, mine);
       state.loaded = true;
       state.loadedAt = Date.now();
+      // Surfaces drawn before the flags arrived (the Expenses buttons) redraw on this.
+      try { window.dispatchEvent(new CustomEvent('nbd:flags-loaded')); } catch (e) { /* no DOM events: nothing to redraw */ }
     } catch (e) {
       // Swallow — rules may deny the per-uid doc for a user who
       // hasn't had any overrides written. That's fine; the default

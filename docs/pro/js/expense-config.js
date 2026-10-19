@@ -52,6 +52,9 @@
     // overhead: the fee bought THIS job, so it belongs against THIS job's
     // margin. Logging lead fees under 'marketing' (overhead) is precisely why
     // lead spend never reached the per-job gross-margin line.
+    // A job cost that is none of the above (Job cost auditor "Other"). Neutral
+    // hint: it is not rent or a lease.
+    { key: 'other_direct',      label: 'Other job cost',       costType: COST_TYPE.DIRECT,   scheduleCHint: 'Other Expenses (L27a)' },
     { key: 'lead_acquisition',  label: 'Lead / Acquisition Cost', costType: COST_TYPE.DIRECT, scheduleCHint: 'Advertising (L8)' },
     // Overhead / operating (company-level; do not hit per-job margin)
     { key: 'vehicle_fuel',      label: 'Vehicle & Fuel',       costType: COST_TYPE.OVERHEAD, scheduleCHint: 'Car & Truck (L9)' },
