@@ -82,7 +82,7 @@ function makeWorld(opts) {
   // 2026-10-05: co-1 is a registered company with a name (the texting master
   // switch and the door-knock company line, sms-texting-gate.js /
   // sms-functions.js complianceGate) — not what this suite is about.
-  const docs = Object.assign({
+  const docs = Object.assign({}, require('./lib/messaging-controls-open').OPEN_CONTROLS, {
     'sms_settings/co-1': { registered: true },
     'companyProfile/co-1': { brand: { legalName: 'Acme Roofing' } },
   }, opts.docs || {});
@@ -129,7 +129,9 @@ function makeWorld(opts) {
       // sms_log only: the declined-consent gate (C-7) reads leads by number
       // on every send and must fail closed on ITS read errors, not this one.
       if (opts.smsLogQueryThrows && name === 'sms_log') throw new Error('simulated query failure');
-      const rows = (name === 'sms_log' ? (opts.priorSmsLog || []) : [])
+      // 2026-10-19: every tenant here has stored form consent for the number (consentBasis).
+      const consentLeads = ['co-1', 'rep-1'].map((t) => ({ companyId: t, userId: t, phoneDigits: '8595550134', tcpaConsent: true, tcpaConsentAt: 1, createdAt: 1 }));
+      const rows = (name === 'sms_log' ? (opts.priorSmsLog || []) : (name === 'leads' ? consentLeads : []))
         .filter((r) => filters.every(([f, v]) => r[f] === v));
       return { empty: rows.length === 0, size: rows.length, docs: rows.map((r) => ({ data: () => r })) };
     },

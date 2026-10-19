@@ -122,7 +122,7 @@ Module._load = function (request) {
 
 function makeWorld(opts) {
   opts = opts || {};
-  const m = makeDb(Object.assign({
+  const m = makeDb(Object.assign({}, require('./lib/messaging-controls-open').OPEN_CONTROLS, {
     'sms_settings/co-1': { registered: true },
     'companyProfile/co-1': { brand: { legalName: 'Acme Roofing' } },
   }, opts.docs || {}), opts.hooks);
@@ -370,7 +370,7 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
       again.statusCode === 403 && failedRows(w).length === 1, again.statusCode + ' rows=' + failedRows(w).length);
   }
   {
-    const { res, w } = await sendSMS({ docs: { 'leads/lead-1': LEAD({ tcpaConsent: true }) } });
+    const { res, w } = await sendSMS({ docs: { 'leads/lead-1': LEAD({ tcpaConsent: true, tcpaConsentAt: ms(NOW - 30 * DAY) }) } });
     ok('control: consented lead sends (200, Twilio called once)', res.statusCode === 200 && w.twilioCalls.length === 1, res.statusCode + ' ' + JSON.stringify(res.body));
   }
   {
@@ -416,7 +416,7 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
     ok('an unreadable inbound check → 503 consent_check_unverified, nothing sent', res.statusCode === 503 && res.body.code === 'consent_check_unverified' && w.twilioCalls.length === 0, res.statusCode + ' ' + JSON.stringify(res.body));
   }
   {
-    const { res, w } = await sendSMS({ docs: { 'leads/lead-1': LEAD({ companyId: 'co-OTHER', userId: 'x' }) } });
+    const { res, w } = await sendSMS({ docs: { 'leads/lead-1': LEAD({ companyId: 'co-OTHER', userId: 'x' }), 'leads/lead-own': LEAD({ tcpaConsent: true, tcpaConsentAt: ms(NOW - 30 * DAY) }) } });
     ok('control: a declined lead of ANOTHER tenant does not block this tenant\'s send (and leaks nothing)', res.statusCode === 200 && w.twilioCalls.length === 1, res.statusCode + ' ' + JSON.stringify(res.body));
   }
   {
@@ -428,7 +428,7 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
     });
     ok('sendQueuedSMS, declined + no inbound → 403 consent_declined, nothing sent',
       res.statusCode === 403 && res.body && res.body.code === 'consent_declined' && w.twilioCalls.length === 0, res.statusCode + ' ' + JSON.stringify(res.body));
-    const c = load({ docs: { 'leads/lead-1': LEAD({ tcpaConsent: true }) } });
+    const c = load({ docs: { 'leads/lead-1': LEAD({ tcpaConsent: true, tcpaConsentAt: ms(NOW - 30 * DAY) }) } });
     const r2 = await invoke(c.exported.sendQueuedSMS.__handler, {
       method: 'POST', headers: { authorization: 'Bearer t' },
       body: { to: PHONE_TYPED, body: 'Running late', leadId: 'lead-1', queued: true, clientMsgId: 'cm-0123456789abcdef', queuedAt: NOW - 120000 },
@@ -541,6 +541,8 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
       'call-center.js': { covered: ['missed-call-autotext.js'], note: 'sendAutoText is the missed-call auto-text\'s Twilio sender (dark: MISSED_CALL_AUTOTEXT_ENABLED); maybeAutoTextMissedCall requires a web-form tcpaConsent === true, the STOP/DNT register, then ConsentDeclined.decide kind automated, all before the claim and the send' },
       'review-ask-auto.js': { covered: ['askOne'], note: 'the automatic review ask by text (dark: REVIEW_ASK_AUTO_TEXT_ENABLED); planText requires a web-form tcpaConsent === true and the 8am-9pm window, then the STOP/DNT register, ConsentDeclined.decide kind automated and the texting switch, all before the claim and the send' },
       'verify-functions.js': { exempt: 'one-time verification code to the number the user is verifying; not a customer message' },
+      'messaging-controls.js': { exempt: 'the kill-switch wrapper around the SDK call itself (guardTwilio); it sends nothing of its own' },
+      'storm-poller.js': { exempt: 'the Storm Alert double-opt-in confirmation text (storm-confirm.js): subscriber tcpaConsent === true, STOP register, quiet hours, once per subscriber; default OFF' },
     };
     const files = fs.readdirSync(FUNCTIONS).filter((f) => f.endsWith('.js'));
     // Comments only: a '//' inside a string (a URL) must not eat the rest of its line.
@@ -600,6 +602,8 @@ const sentRows = (w) => w.m.rows('sms_log').filter((r) => r.status === 'sent');
       'pixel-draft.js': 'drafts only; refuses declined (agent-mcp-logic)',
       'storm-sms-guard.js': 'subscriber consent === true is its own positive gate',
       'email-suppression.js': 'comment only',
+      'storm-confirm.js': 'the double-opt-in confirmation to a subscriber with tcpaConsent === true (a separate signup consent); STOP register read, once per subscriber, default OFF',
+      'verify-functions.js': 'OTP to the number the visitor typed (user-initiated, immediate); STOP register read first, not a declined-consent decision',
     };
     const readers = allFiles.filter((f) => /isOptedOut\(/.test(stripComments(fs.readFileSync(path.join(FUNCTIONS, f), 'utf8'))));
     const wired = readers.filter((f) => /sms-consent-declined/.test(stripComments(fs.readFileSync(path.join(FUNCTIONS, f), 'utf8'))));
