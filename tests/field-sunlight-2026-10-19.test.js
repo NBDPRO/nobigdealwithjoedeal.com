@@ -23,6 +23,28 @@ const ROOT = path.join(__dirname, '..');
 const rd = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 const SRC = rd('docs/pro/js/field-sunlight.js');
 
+// Wiring checks read CODE, not prose: a comment that still quotes a removed
+// line must not keep a check green (mutation audit 2026-10-19). String-aware so
+// 'https://' inside a literal is not taken for a // comment.
+function stripJs(src) {
+  let out = '', i = 0;
+  while (i < src.length) {
+    const c = src[i], n = src[i + 1];
+    if (c === '/' && n === '*') { const e = src.indexOf('*/', i + 2); i = e < 0 ? src.length : e + 2; continue; }
+    if (c === '/' && n === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
+    if (c === '\'' || c === '"' || c === '`') {
+      let j = i + 1;
+      while (j < src.length && src[j] !== c) { if (src[j] === '\\') j++; j++; }
+      out += src.slice(i, j + 1); i = j + 1; continue;
+    }
+    out += c; i++;
+  }
+  return out;
+}
+const stripCss = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');
+const stripHtml = (s) => s.replace(/<!--[\s\S]*?-->/g, '');
+const rdJs = (p) => stripJs(rd(p));
+
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
   if (cond) { passed++; console.log('  ✓ ' + name); }
@@ -39,7 +61,7 @@ function boot(o) {
   const timers = [];
   const geoCalls = { n: 0, pos: o.pos || null, perm: o.perm || 'granted', err: false };
   const doc = {
-    readyState: 'complete', hidden: false,
+    readyState: 'complete', hidden: !!o.hidden,
     documentElement: { classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c), contains: (c) => classes.has(c), toggle: (c, on) => { if (on) classes.add(c); else classes.delete(c); return !!on; } } },
     getElementById: (id) => (id === 'npm-sunlight' ? sel : id === 'npm-sunlight-hint' ? hint : null),
     addEventListener: (t, f) => { (listeners[t] = listeners[t] || []).push(f); },
@@ -59,7 +81,7 @@ function boot(o) {
   win.window = win;
   vm.createContext(Object.assign(win, { CustomEvent: function (t, d) { this.type = t; this.detail = d && d.detail; }, Math, Number, isFinite, Promise, Infinity }));
   vm.runInContext(SRC, win);
-  return { win, store, classes, sel, geoCalls, listeners, setPos: (p) => { geoCalls.pos = p; }, change: (v) => { sel.value = v; listeners.change.forEach((f) => f({ target: sel })); } };
+  return { win, doc, store, classes, sel, geoCalls, listeners, setPos: (p) => { geoCalls.pos = p; }, change: (v) => { sel.value = v; listeners.change.forEach((f) => f({ target: sel })); } };
 }
 const tick = () => new Promise((r) => setTimeout(r, 5));
 
@@ -85,7 +107,7 @@ const tick = () => new Promise((r) => setTimeout(r, 5));
   console.log('\nauto at a customer');
   b = boot({ leads: [LEAD], pos: AT });
   b.change('auto');
-  ok('auto alone does not turn it on before a fix', !b.classes.has('sun-all') || b.geoCalls.n > 0);
+  ok('auto alone does not turn it on before a fix (checked before any fix can arrive)', !b.classes.has('sun-all'));
   await tick();
   ok('auto turns on inside 150 m of a lead', b.classes.has('sun-all'));
   b.setPos(NEAR200); b.win.NBDFieldSunlight._poll(); await tick();
@@ -106,7 +128,7 @@ const tick = () => new Promise((r) => setTimeout(r, 5));
   b.change('off');
   ok('leaving auto turns it off', !b.classes.has('sun-all'));
   b.change('on'); b.change('auto');
-  ok('re-entering auto does not inherit the old on-site latch', !b.classes.has('sun-all') || b.geoCalls.n > 1);
+  ok('re-entering auto does not inherit the old on-site latch (checked before the new fix)', !b.classes.has('sun-all'));
 
   console.log('\npure rules');
   const C = boot().win.NBDFieldSunlight.core;
@@ -134,18 +156,26 @@ const tick = () => new Promise((r) => setTimeout(r, 5));
   b.win._leads = []; b.win.NBDFieldSunlight._poll(); await tick();
   ok('leads list emptied -> off', !b.classes.has('sun-all'));
 
+  console.log('\nhidden tab');
+  b = boot({ leads: [LEAD], pos: AT, hidden: true });
+  b.change('auto'); await tick();
+  b.win.NBDFieldSunlight._poll(); await tick();
+  ok('a hidden document never asks for a position', b.geoCalls.n === 0 && !b.classes.has('sun-all'));
+  b.doc.hidden = false; b.win.NBDFieldSunlight._poll(); await tick();
+  ok('control: the same poll in a visible document does', b.geoCalls.n === 1 && b.classes.has('sun-all'));
+
   ok('shouldBeOn: on / auto+onsite only', C.shouldBeOn('on', false) && C.shouldBeOn('auto', true) && !C.shouldBeOn('auto', false) && !C.shouldBeOn('off', true));
   ok('nextOnSite thresholds', C.nextOnSite(false, 149) && !C.nextOnSite(false, 151) && C.nextOnSite(true, 249) && !C.nextOnSite(true, 251) && !C.nextOnSite(true, Infinity));
 
   console.log('\nwiring');
-  const pre = rd('docs/pro/js/shape-preboot.js');
+  const pre = rdJs('docs/pro/js/shape-preboot.js');
   ok('preboot stamps sun-all from nbd_sunlight === on', /nbd_sunlight'\) === 'on'\) document\.documentElement\.classList\.add\('sun-all'\)/.test(pre));
-  ok('sign-out keeps nbd_sunlight', /'nbd_sunlight'/.test(rd('docs/pro/js/nbd-auth.js')));
-  const html = rd('docs/pro/dashboard.html');
+  ok('sign-out keeps nbd_sunlight', /'nbd_sunlight'/.test(rdJs('docs/pro/js/nbd-auth.js')));
+  const html = stripHtml(rd('docs/pro/dashboard.html'));
   ok('Comfort markup has the select with off/on/auto', /id="npm-sunlight"[\s\S]{0,300}value="off"[\s\S]{0,80}value="on"[\s\S]{0,80}value="auto"/.test(html));
-  ok('stylesheet linked; script rides the theme bundle (boot script budget)', /css\/field-sunlight\.css/.test(html) && /'js\/field-sunlight\.js/.test(rd('docs/pro/js/script-loader.js')));
-  ok('boot kicks the bundle when sunlight is on/auto', /nbd_sunlight'\)\) >= 0/.test(rd('docs/pro/js/dashboard-state.js')));
-  const css = rd('docs/pro/css/field-sunlight.css');
+  ok('stylesheet linked; script rides the theme bundle (boot script budget)', /css\/field-sunlight\.css/.test(html) && /'js\/field-sunlight\.js/.test(rdJs('docs/pro/js/script-loader.js')));
+  ok('boot kicks the bundle when sunlight is on/auto', /nbd_sunlight'\)\) >= 0/.test(rdJs('docs/pro/js/dashboard-state.js')));
+  const css = stripCss(rd('docs/pro/css/field-sunlight.css'));
   ok('css: black on white tokens under html.sun-all', /html\.sun-all:not\(#fa-sun\)\s*\{[^}]*--bg:\s*#ffffff[^}]*--t:\s*#000000/.test(css));
   console.log('\nCSS vs My Skin and OS high contrast');
   ok('wallpaper ::before, .myskin-layer, mascot and overlay are hidden under sun-all',
