@@ -386,6 +386,22 @@ function guardTwilio(db, client, opts) {
 
 const INTERNAL_LIMITS = Object.freeze({ sms: 'INTERNAL_SMS_PER_HOUR', email: 'INTERNAL_EMAIL_PER_HOUR' });
 const INTERNAL_DEFAULTS = Object.freeze({ sms: 30, email: 120 });
+const DEFAULT_PER_SOURCE = 3;   // alerts one source (address) may cause per hour inside a bucket
+
+/** One alert "source": an IPv4 address as is, an IPv6 address collapsed to its /64. */
+function sourceKey(raw) {
+  const s = String(raw || '').trim().toLowerCase();
+  if (!s || s === 'unknown') return '';
+  if (s.indexOf(':') === -1) return s;
+  if (/^::ffff:\d+\.\d+\.\d+\.\d+$/.test(s)) return s.slice(7);
+  const halves = s.split('::');
+  if (halves.length > 2) return s;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const fill = halves.length === 2 ? new Array(Math.max(0, 8 - head.length - tail.length)).fill('0') : [];
+  const groups = head.concat(fill, tail).map((g) => g.replace(/^0+(?=.)/, ''));
+  return groups.slice(0, 4).join(':') + '::/64';
+}
 
 /**
  * May an internal alert to the owner go out? Never touches the customer
@@ -417,17 +433,37 @@ async function internalAlertStatus(db, channel, opts) {
     const seenRef = o.key
       ? db.doc(COUNTER_COLLECTION + '/seen_' + channel + bucket + '_' + hour + '_' + require('crypto').createHash('sha256').update(String(o.key)).digest('hex').slice(0, 24))
       : null;
+    // Per-SOURCE pre-cap (opts.source, e.g. the submitter's address): one source can take only a few slots of the
+    // bucket per hour, so a flood from one address cannot use up the allowance that real leads from other
+    // addresses need. A source-limited alert does NOT spend the bucket count.
+    //  - An IPv6 address is collapsed to its /64 (one household / one attacker's whole range is ONE source).
+    //  - The first alert from a source may use the whole bucket; a source's 2nd+ alert only while the bucket is
+    //    under two-thirds full, so a real lead from a new source always finds headroom behind a many-address flood.
+    //  - INTERNAL_PER_SOURCE_PER_HOUR=0 DISABLES the per-source cap (it never blocks every sourced alert).
+    const skey = o.source ? sourceKey(o.source) : '';
+    const srcCap = skey ? envCap(process.env.INTERNAL_PER_SOURCE_PER_HOUR, DEFAULT_PER_SOURCE) : 0;
+    const srcOn = !!skey && srcCap > 0;
+    const srcRef = srcOn
+      ? db.doc(COUNTER_COLLECTION + '/src_' + channel + bucket + '_' + hour + '_' + require('crypto').createHash('sha256').update(skey).digest('hex').slice(0, 24))
+      : null;
     const allowed = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const seen = seenRef ? await tx.get(seenRef) : null;
-      if (seen && seen.exists) return true;
+      const srcSnap = srcRef ? await tx.get(srcRef) : null;
+      if (seen && seen.exists) return 'ok';
+      const sn = srcSnap && srcSnap.exists ? Number((srcSnap.data() || {}).count) || 0 : 0;
       const n = snap.exists ? Number((snap.data() || {}).count) || 0 : 0;
-      if (n >= cap) return false;
+      if (srcRef && sn >= srcCap) return 'source';
+      if (srcRef && sn >= 1 && n >= Math.floor(cap * 2 / 3)) return 'source';
+      if (n >= cap) return 'rate';
+      if (srcRef) tx.set(srcRef, { count: sn + 1, channel, hour, updatedAtMs: nowMs, expireAt: new Date(nowMs + 3 * 3600_000) }, { merge: true });
       tx.set(ref, { count: n + 1, channel, hour, updatedAtMs: nowMs, expireAt: new Date(nowMs + 3 * 3600_000) }, { merge: true });
       if (seenRef) tx.set(seenRef, { at: nowMs, channel, hour, expireAt: new Date(nowMs + 3 * 3600_000) });
-      return true;
+      return 'ok';
     });
-    if (!allowed) return Object.assign({ allowed: false, reason: 'internal_rate_limited' }, base);
+    // A distinct reason keeps a source-limited alert visible (alert_outbox 'skipped:internal_source_limited').
+    if (allowed === 'source') return Object.assign({ allowed: false, reason: 'internal_source_limited' }, base);
+    if (allowed !== 'ok') return Object.assign({ allowed: false, reason: 'internal_rate_limited' }, base);
   } catch (_) { /* counter unreadable: allow */ }
   return Object.assign({ allowed: true, reason: null }, base);
 }
@@ -437,7 +473,7 @@ module.exports = {
   CACHE_MS, READ_TIMEOUT_MS, CHANNELS, REFUSAL,
   readControls, channelStatus, readOwnerContact,
   cleanMaxPerRun, canarySms, canaryEmail, guardEmail, guardSms, guardTwilio, guardResend,
-  internalAlertStatus,
+  internalAlertStatus, sourceKey,
   AUTOMATIONS_DOC, DEDUPE_COLLECTION, AUTOMATION_KEYS, DEFAULT_MAX_PER_RUN, MAX_AUTOMATION_AGE_DAYS,
   readAutomations, automationStatus, a2pServerTextsAllowed, withinAutomationAge, claimSendOnce,
   normPhone, normEmail,

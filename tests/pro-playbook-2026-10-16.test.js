@@ -226,8 +226,42 @@ const MD = 'site-src/guides/nbd-pro-playbook.md';
       const flipGate = async () => { dbR.docs['messaging_controls/global'] = Object.assign({}, dbR.docs['messaging_controls/global'], { canary: true }); MC._resetCache(); return { suppressed: false, headers: {}, tags: [], footerHtml: '', footerText: '' }; };
       const rr = await _test.sendWelcome(dbR, 'L1', lead, Object.assign({}, base, { gate: flipGate, resend: { emails: { send: async (m) => { sentR.push(m); return { data: { id: 'x' } }; } } } }));
       const docR = dbR.docs['guide_leads/L1'];
-      ok('canary flipped after the pre-check: only the owner got a copy, the claim is released, never stamped emailed',
-        rr.sent === false && sentR.length === 1 && [].concat(sentR[0].to).indexOf(lead.email) === -1 && docR.welcomeClaimedAt !== 'TS' && !docR.welcomeEmailedAt, JSON.stringify([rr, sentR.map((m) => m.to), docR]));
+      ok('canary flipped after the pre-check: nothing sent to the visitor, the claim is released, never stamped emailed',
+        rr.sent === false && sentR.length === 0 && docR.welcomeClaimedAt !== 'TS' && !docR.welcomeEmailedAt, JSON.stringify([rr, sentR.map((m) => m.to), docR]));
+      MC._resetCache();
+    }
+    {
+      // The PAUSE lands after the pre-check (a race): nothing is sent, the claim is released, a marker says it was held.
+      const MC = require(path.join(ROOT, 'functions/messaging-controls.js'));
+      const dbQ = fakeDb(lead);
+      MC._resetCache();
+      const sentQ = [];
+      const pauseGate = async () => { delete dbQ.docs['messaging_controls/global']; MC._resetCache(); return { suppressed: false, headers: {}, tags: [], footerHtml: '', footerText: '' }; };
+      const rq = await _test.sendWelcome(dbQ, 'L1', lead, Object.assign({}, base, { gate: pauseGate, resend: { emails: { send: async (m) => { sentQ.push(m); return { data: { id: 'x' } }; } } } }));
+      const docQ = dbQ.docs['guide_leads/L1'];
+      ok('pause landing after the pre-check: nothing sent, claim released (a later retry can send), marked held, not send_failed',
+        rq.sent === false && rq.reason === 'held_messaging_paused' && sentQ.length === 0 && docQ.welcomeClaimedAt !== 'TS' && docQ.welcomeSkipped === 'held_messaging_paused' && !docQ.welcomeError, JSON.stringify([rq, docQ]));
+      MC._resetCache();
+    }
+    {
+      // The recipient allowance is spent only AFTER the guard: a released (paused) send burns nothing, so the
+      // retry after the pause lifts still sends and is not refused as recipient_cap.
+      const MC = require(path.join(ROOT, 'functions/messaging-controls.js'));
+      const dbK = fakeDb(lead);
+      const openGlobal = JSON.parse(JSON.stringify(dbK.docs['messaging_controls/global']));
+      MC._resetCache();
+      const spent = {};
+      const oneEach = async (kind, addrs) => { const a = addrs[0]; spent[a] = (spent[a] || 0) + 1; return spent[a] > 1 ? { allowed: [], capped: addrs } : { allowed: addrs, capped: [] }; };
+      const sentK = [];
+      const mkResend = () => ({ emails: { send: async (m) => { sentK.push(m); return { data: { id: 'x' } }; } } });
+      const pauseGate = async () => { delete dbK.docs['messaging_controls/global']; MC._resetCache(); return { suppressed: false, headers: {}, tags: [], footerHtml: '', footerText: '' }; };
+      const r1k = await _test.sendWelcome(dbK, 'L1', lead, Object.assign({}, base, { gate: pauseGate, capRecipients: oneEach, resend: mkResend() }));
+      ok('pause release spends no recipient allowance', r1k.reason === 'held_messaging_paused' && !spent['sam@example.com'], JSON.stringify([r1k, spent]));
+      // The fake db stores the FieldValue.delete() sentinel as a value; real Firestore removes the field.
+      if (dbK.docs['guide_leads/L1'].welcomeClaimedAt !== 'TS') delete dbK.docs['guide_leads/L1'].welcomeClaimedAt;
+      dbK.docs['messaging_controls/global'] = openGlobal; MC._resetCache();
+      const r2k = await _test.sendWelcome(dbK, 'L1', lead, Object.assign({}, base, { capRecipients: oneEach, resend: mkResend() }));
+      ok('the retry after the pause lifts sends (not recipient_cap) and spends the allowance exactly once', r2k.sent === true && sentK.length === 1 && spent['sam@example.com'] === 1, JSON.stringify([r2k, spent]));
       MC._resetCache();
     }
     let db = fakeDb(lead);

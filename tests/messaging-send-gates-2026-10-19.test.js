@@ -259,6 +259,8 @@ const GLOBAL_ON = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: 
     const tn = (la.match(/\bsms:\s*rr\.[^,\n]+/g) || []).map((s) => s.trim());
     ok('F: target.sms is assigned only from the owner config (NBD) or the verified tenant owner phone (rr.sms), else null',
       fb.length === 1 && fb[0] === 'fallback.sms = owner.phone || null;' && tn.length === 1 && tn[0] === 'sms: rr.sms || null', fb.join('|') + ' / ' + tn.join('|'));
+    ok('webhook-minted leads (Cal.com / Thumbtack / backfill) never carry a source, so the per-source cap cannot drop their alerts',
+      /webhookMinted = !!\(d\.webLead \|\| d\.calcomBookingId \|\| d\.backfilledBy\)/.test(la) && /leadSrc = \(!webhookMinted && typeof d\.ip === 'string'/.test(la) && (la.match(/source: leadSrc/g) || []).length === 2);
     ok('F: the only Twilio `to` in lead-alert.js is toSms', (la.match(/messages\.create\(\{\s*to:\s*([a-zA-Z.]+)/g) || []).every((s) => /to:\s*toSms$/.test(s)));
   }
 

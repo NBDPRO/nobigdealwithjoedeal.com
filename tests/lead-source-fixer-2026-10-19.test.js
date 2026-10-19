@@ -294,7 +294,7 @@ const QI = () => [inv('ZZ_QA_1', [[400, D(2026, 5, 5)]]), inv('ZZ_QA_2', [[15, D
   ok('no delete, no batch write, no deleted flag', !/deleteDoc|writeBatch|deleted\s*:\s*true/.test(CODE));
   ok('writes only through updateDoc on leads, with the answer patch', (CODE.match(/updateDoc\(/g) || []).length === 1 && /updateDoc\(w\.doc\(db, 'leads', id\), patch\)/.test(CODE));
   ok('collected money comes from the shared ledger, not a copy', /NBDRevenue\.paymentsOf/.test(CODE) && !/inv\.(total|balanceDue|amountPaid)/.test(CODE) && !/balanceDue/.test(CODE));
-  ok('no boot-time reads: loading happens inside open()', !/loadInvoices|loadSpend/.test(CODE.replace(/async function loadData[\s\S]*?\n  \}\n/, '')));
+  ok('no boot-time reads: loading happens inside open()', !/loadInvoices|loadSpend/.test(CODE.replace(/\r\n/g, '\n').replace(/async function loadData[\s\S]*?\n  \}\n/, '')));
   ok('no inline handlers or styles in generated markup', !/\son[a-z]+=/.test(CODE) && !/style="/.test(CODE));
   const html = fs.readFileSync(path.join(ROOT, 'docs/pro/dashboard.html'), 'utf8');
   ok('dashboard: button ships hidden', /id="leadSourceFixerBtn"[^>]*\shidden/.test(html));

@@ -415,7 +415,7 @@ exports.notifyNewLead = onCall(
       // contact in messaging_controls/internal. Never a constant in this repo.
       // INTERNAL alert: its own switch + hourly cap, not the customer switch.
       const ia = trulyVerified
-        ? await MessagingControls.internalAlertStatus(getFirestore(), 'sms', { bucket: 'lead' })
+        ? await MessagingControls.internalAlertStatus(getFirestore(), 'sms', { bucket: 'lead', source: ip && ip !== 'unknown' ? ip : undefined })
         : { allowed: false, reason: 'unverified', phone: '' };
       const joePhone = secretOr(JOE_PHONE_SECRET, '') || ia.phone; // stub → '', never the string '__unset__'
       if (trulyVerified && joePhone && ia.allowed) {
@@ -511,7 +511,7 @@ exports.notifyNewLead = onCall(
 </html>`;
 
       const joeEmail = secretOr(JOE_EMAIL_SECRET, JOE_EMAIL_FALLBACK);
-      const ie = await MessagingControls.internalAlertStatus(getFirestore(), 'email', { bucket: 'lead' });
+      const ie = await MessagingControls.internalAlertStatus(getFirestore(), 'email', { bucket: 'lead', source: ip && ip !== 'unknown' ? ip : undefined });
       if (!ie.allowed && ie.reason !== 'owner_email_not_configured') {
         logger.warn('lead_notification_email_held', { reason: ie.reason });
         return { success: true, held: true };

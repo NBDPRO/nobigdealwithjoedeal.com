@@ -236,6 +236,10 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
     const release = new RegExp(field + ': FieldValue\\.delete\\(\\)', 'g');
     ok(rel + ': releases the claim when the guard refuses AND when it redirects to the owner (canary)',
       (afterGuard.match(release) || []).length >= 2 && /gated\.canary/.test(afterGuard));
+    // The per-recipient / global caps are spent only AFTER the guard says the send is real (a released send
+    // must not burn them). estimate-email wraps them in spendCaps(); storm-report calls capRecipients inline.
+    const spendAt = src.indexOf(rel === 'estimate-email.js' ? 'await spendCaps()' : 'AR.capRecipients(');
+    ok(rel + ': recipient caps are spent after guardEmail, not before', spendAt > src.indexOf('guardEmail(') && src.indexOf('guardEmail(') > 0);
   }
 }
 

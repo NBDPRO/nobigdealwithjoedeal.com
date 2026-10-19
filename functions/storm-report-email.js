@@ -247,14 +247,6 @@ exports.stormReportEmail = onDocumentCreated(
       return;
     }
 
-    // Per-recipient cap, checked after the claim so a redelivered event (a
-    // no-op above) never spends it. Limiter outage fails open (capRecipients).
-    const capR = await AR.capRecipients('stormReport', [d.email], { limit: STORM_REPORT_RECIPIENT_DAILY_CAP });
-    if (!capR.allowed.length) {
-      logger.info('stormReportEmail: skip — recipient already sent a report in the last 24h', { leadId });
-      return;
-    }
-
     // Nothing the visitor typed is echoed as-is: a one-word greeting name, a
     // ZIP, and a summary rebuilt from numbers only.
     const firstName = PLG.safeGreetingName(d.name) || 'there';
@@ -287,6 +279,20 @@ exports.stormReportEmail = onDocumentCreated(
         await ref.update({ reportEmailedAt: FieldValue.delete() }).catch(() => {});
         return;
       }
+      if (gated.canary) {
+        // Canary flipped on after the pre-check: nothing goes to the customer, so release the claim.
+        await ref.update({ reportEmailedAt: FieldValue.delete() }).catch(() => {});
+        logger.info('stormReportEmail: canary - claim released, not sent', { leadId });
+        return;
+      }
+      // Per-recipient cap, spent only now that the guard has said this send is real (a pause/canary release
+      // above must not burn it). Checked after the claim so a redelivered event (a no-op above) never spends
+      // it. Limiter outage fails open (capRecipients).
+      const capR = await AR.capRecipients('stormReport', [d.email], { limit: STORM_REPORT_RECIPIENT_DAILY_CAP });
+      if (!capR.allowed.length) {
+        logger.info('stormReportEmail: skip — recipient already sent a report in the last 24h', { leadId });
+        return;
+      }
       const resp = await resend.emails.send(gated.msg);
       // Resend resolves { data: null, error } on an API-level rejection
       // instead of throwing — without this check the doc is already
@@ -294,12 +300,6 @@ exports.stormReportEmail = onDocumentCreated(
       // logged and left as if it had gone out, with no retry ever coming.
       if (resendRejected(resp)) {
         throw new Error(resendErrorMessage(resp));
-      }
-      if (gated.canary) {
-        // Canary flipped on after the pre-check: the copy went to the OWNER, so release the claim (not emailed).
-        await ref.update({ reportEmailedAt: FieldValue.delete() }).catch(() => {});
-        logger.info('stormReportEmail: canary redirect - claim released', { leadId });
-        return;
       }
       const id = (resp && resp.data && resp.data.id) || (resp && resp.id) || null;
       await ref.update({ reportEmailId: id });
