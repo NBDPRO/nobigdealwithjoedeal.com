@@ -126,9 +126,9 @@ console.log('\n5. More drawer: field tools first');
   });
   ok('the first four items are Call Center, Schedule, Close Board, Door-to-Door', JSON.stringify(items.slice(0, 4)) === JSON.stringify(['calls', 'schedule', 'closeboard', 'd2d']), items.slice(0, 6).join(','));
   ok('they sit under the first heading, "Field"', /^[\s\S]*?<div class="mm-section[^"]*">Field<\/div>/.test(menu) && menu.indexOf('>Field</div>') < menu.indexOf('data-target="calls"'));
-  const want = ['home', 'dash', 'crm', 'prospects', 'est', 'd2d', 'map', 'photos', 'docs', 'products', 'job-templates', 'draw', 'training', 'academy', 'storm', 'closeboard', 'repos', 'talk-tank', 'calls', 'board', 'reports', 'expenses', 'schedule', 'signs', 'winback', 'careplan', 'money', 'weekreview', 'refrewards', 'openDailyProgramFromMore', 'mm-social', 'mm-roofrep', 'aiusage', 'joe', 'NBDAgentInbox.open', 'settings'];
+  const want = ['home', 'dash', 'crm', 'prospects', 'est', 'd2d', 'map', 'photos', 'docs', 'products', 'job-templates', 'draw', 'training', 'academy', 'storm', 'closeboard', 'repos', 'talk-tank', 'calls', 'board', 'reports', 'expenses', 'schedule', 'signs', 'winback', 'careplan', 'money', 'weekreview', 'refrewards', 'openDailyProgramFromMore', 'mm-social', 'mm-roofrep', 'aiusage', 'joe', 'NBDAgentInbox.open', 'messaging', 'settings'];
   const missing = want.filter((k) => !items.includes(k));
-  ok('no drawer item was lost (36)', missing.length === 0 && items.length === want.length, 'missing=' + missing.join(',') + ' n=' + items.length);
+  ok('no drawer item was lost (37)', missing.length === 0 && items.length === want.length, 'missing=' + missing.join(',') + ' n=' + items.length);
   ok('no item appears twice', new Set(items).size === items.length);
 }
 

@@ -175,6 +175,11 @@ CEILING.localBytes += 3 * 1024;
 // bulkCloseStaleLeads, absent = off). No boot-time reads; with the flag off it only keeps the toolbar button hidden. Own line.
 CEILING.localScripts += 1;
 CEILING.localBytes += 26 * 1024;
+// +1 local tag, deliberate (2026-10-19, Messaging Control Center): js/messaging-nav.js (deferred, ~1 KB, flag
+// messagingControlCenter, absent = off). It only un-hides two menu entries for owner/admin; the view itself is the lazy
+// 'messaging' ScriptLoader bundle. No boot-time reads. Own lines.
+CEILING.localScripts += 1;
+CEILING.localBytes += 2 * 1024;
 
 // ── SHIPPED BYTES (2026-10-16, deploy-time minify) ─────────────────────────
 // Since the deploy minifies docs/pro with esbuild (scripts/minify-shipped.js:

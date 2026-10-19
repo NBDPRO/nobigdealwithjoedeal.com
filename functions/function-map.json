@@ -154,6 +154,8 @@
   "markEmailUnsubscribed": "./email-unsubscribe",
   "measureNewWebLead": "./integrations/public-measure",
   "measurementWebhook": "./integrations/measurement",
+  "messagingCenter": "./messaging-center",
+  "messagingWatch": "./messaging-center",
   "meterLeadCreate": "./lead-cap",
   "migrationsTick": "./migrations/runner",
   "mintOwnerClaims": "./handlers/auth",
