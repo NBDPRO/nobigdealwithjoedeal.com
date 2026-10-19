@@ -414,6 +414,7 @@ header{flex-shrink:0;background:rgba(10,12,15,.97);-webkit-backdrop-filter:blur(
    (--s2 / --s) and must keep reading palette tokens. */
 :root[data-mode="light"] header .logo{ color:#e8eaf0; }
 :root[data-mode="light"] header .hdr-tool{ color:#9ca3af; }
+:root[data-mode="light"] header .so{ color:#9ca3af; } /* Sign Out: the muted token is a dark slate in light mode, 1.5:1 on the dark bar (visual audit 2026-10-19) */
 :root[data-mode="light"] header .hdr-tool:hover{ color:#e8eaf0; background:rgba(232,234,240,.08); }
 :root[data-mode="light"] #mobile-nav .mn-item:not(.active):not(.mn-fab) .mn-icon,
 :root[data-mode="light"] #mobile-nav .mn-item:not(.active):not(.mn-fab) .mn-lbl{ color:#9ca3af; }
@@ -1649,7 +1650,7 @@ body:has(#view-prospects.active) .breadcrumb-container{
 .ni-icon{font-size:15px;width:20px;text-align:center;transition:transform .2s;}
 /* Nav items that are real links (Roof Rep, 2026-10-03): same look, no underline. */
 a.ni, a.mm-item{text-decoration:none;}
-.nbadge{margin-left:auto;background:var(--red);color:var(--t);font-size:9px;font-weight:700;border-radius:10px;padding:2px 7px;min-width:18px;text-align:center;}
+.nbadge{margin-left:auto;background:color-mix(in srgb, var(--red) 80%, #000);color:#fff;font-size:9px;font-weight:700;border-radius:10px;padding:2px 7px;min-width:18px;text-align:center;}
 .health-indicator{
   display:inline-block;width:9px;height:9px;border-radius:50%;margin-left:7px;
   transition:all .3s ease;opacity:0;box-shadow:0 0 0 0 currentColor;
@@ -4620,7 +4621,7 @@ body {
   .mn-item.mn-fab.active{ background:var(--orange); }
   .mn-item.mn-fab.active::before{ display:none; }
   .mn-lbl{font-size:8.5px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--m);transition:all .18s ease;white-space:nowrap;font-weight:600;}
-  .mn-badge{position:absolute;top:3px;right:calc(50% - 18px);background:var(--red);color:var(--t);font-size:8px;font-weight:700;border-radius:8px;padding:1px 5px;min-width:14px;text-align:center;line-height:1.4;}
+  .mn-badge{position:absolute;top:3px;right:calc(50% - 18px);background:color-mix(in srgb, var(--red) 80%, #000);color:#fff;font-size:8px;font-weight:700;border-radius:8px;padding:1px 5px;min-width:14px;text-align:center;line-height:1.4;}
   #mobile-more-menu.open{display:block;}
   .mm-overlay.open{display:block;}
 
