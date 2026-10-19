@@ -3452,6 +3452,22 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── MESSAGING KILL SWITCH (admin-SDK only, 2026-10-19) ──
+    // messaging_controls/{global,internal}: the master customer-send switch,
+    // canary flag and the owner's alert contact. messaging_controls_audit and
+    // messaging_controls_counters: append-only flip log and the internal-alert
+    // hourly counters. Written only by manageMessagingControls / the send
+    // paths; a client write could switch customer messaging back on.
+    match /messaging_controls/{id} {
+      allow read, write: if false;
+    }
+    match /messaging_controls_audit/{id} {
+      allow read, write: if false;
+    }
+    match /messaging_controls_counters/{id} {
+      allow read, write: if false;
+    }
+
     // ── EMAIL UNSUBSCRIBE REGISTER (2026-09-22, CAN-SPAM) ──
     // email_suppressions/{companyId}__{sha256(email)} — per TENANT. Written
     // ONLY by the admin SDK (functions/email-unsubscribe.js: the public

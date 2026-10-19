@@ -502,6 +502,11 @@ Object.assign(exports, emailUnsubscribeFunctions);
 // which every send path calls. See functions/sms-dnc.js.
 exports.manageSmsCompliance = require('./sms-dnc').manageSmsCompliance;
 
+// The ONE kill switch for every customer-facing send (2026-10-19, A2P live):
+// messaging_controls/global, fail closed, Jo-only callable, audit-logged.
+// See functions/messaging-controls.js + messaging-controls-fns.js.
+exports.manageMessagingControls = require('./messaging-controls-fns').manageMessagingControls;
+
 // "Ok to text this customer from my phone?" (review R2-3-1 / R2-3-2,
 // 2026-10-06): the server check every phone send asks before Messages opens
 // (STOP register + Do Not Text, consent, switch, homeowner-time hours), the
