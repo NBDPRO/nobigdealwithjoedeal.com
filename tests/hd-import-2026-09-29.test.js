@@ -111,5 +111,20 @@ ok('job link and direct cost type', doc.leadId === 'L42' && doc.costType === 'di
 ok('the note lists what was bought', /Drip Edge/.test(doc.note));
 ok('owner stamping matches the rules', doc.userId === 'u1' && doc.companyId === 'c1');
 
+console.log('\n5. receipt sorter: line items, review state, duplicate rows');
+ok('the readable line items are kept on the expense', Array.isArray(doc.items) && doc.items.length === 1 && /Drip Edge/.test(doc.items[0].desc) && doc.items[0].qty > 0 && Number.isInteger(doc.items[0].unitCents), JSON.stringify(doc.items));
+const many = { items: Array.from({ length: 60 }, (_, i) => ({ desc: 'Item ' + i, sku: 'S' + i, qty: 1, unitCents: 100 })) };
+ok('items are capped so one receipt can never blow the document', H.lineItems(many.items).length === 40);
+ok('a description is clipped and never negative money', H.lineItems([{ desc: 'x'.repeat(500), qty: -3, unitCents: -5 }])[0].desc.length === 120 && H.lineItems([{ desc: 'a', qty: -3, unitCents: -5 }])[0].unitCents === 0 && H.lineItems([{ desc: 'a', qty: -3, unitCents: -5 }])[0].qty === 0);
+ok('review state: a chosen job is assigned', doc.reviewState === 'assigned');
+ok('review state: no job and no decision is unsorted', H.reviewStateOf({ leadId: null, category: 'materials', match: { status: 'none' } }) === 'unsorted');
+ok('review state: an explicit "No job" or a shop word is overhead', H.reviewStateOf({ leadId: null, noJob: true, category: 'materials' }) === 'overhead' && H.reviewStateOf({ leadId: null, category: 'materials', match: { status: 'overhead' } }) === 'overhead');
+const DUP = 'Date,Receipt Added Date,Order Origin,Transaction ID,Job Name,Pre-tax Amount,Total Amount Paid,Order Number\n'
+  + ',2026-08-26,online,7686,,$118.97,$127.00,WH0001\n,2026-08-26,online,4723,,$118.97,$127.00,WH0001\n'
+  + ',2026-08-27,online,9001,,$10.00,$10.70,WH0002\n,2026-08-27,online,9002,,$20.00,$21.40,WH0002\n';
+const dupRec = H.parseSummary(DUP);
+ok('an order listed twice with identical money is ONE purchase', dupRec.filter((r) => r.order === 'WH0001').length === 1);
+ok('a split shipment (same order, different money) keeps both, under distinct keys', dupRec.filter((r) => r.order === 'WH0002').length === 2 && new Set(dupRec.map((r) => r.key)).size === dupRec.length);
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if (failed) { console.log('Failures:'); fails.forEach((x) => console.log('  - ' + x)); process.exit(1); }
