@@ -275,6 +275,7 @@
     "price-book-2026-10-02.test.js",
     "lowes-import-2026-10-18.test.js",
     "hd-aliases-2026-10-18.test.js",
+    "receipt-sorter-logic-2026-10-18.test.js",
     "notify-new-lead-email-escape-2026-09-29.test.js",
     "escape-user-text-sinks-2026-09-29.test.js",
     "yard-signs-2026-09-29.test.js",
