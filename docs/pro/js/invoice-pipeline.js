@@ -3702,7 +3702,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         <input id="nbd-mp-ref" type="text" class="fi ipx-field" maxlength="${PAYMENT_REF_MAX}" autocomplete="off">
         <label for="nbd-mp-note" style="${lbl}">Note (optional)</label>
         <input id="nbd-mp-note" type="text" class="fi ipx-field" maxlength="${PAYMENT_NOTE_MAX}" autocomplete="off">
-        ${depositedToOn() ? `<label for="nbd-mp-dep" style="${lbl}">Deposited to</label>
+        ${depositedToOn() ? `<label for="nbd-mp-dep" class="ipx-dep-label">Deposited to</label>
         <select id="nbd-mp-dep" class="fi ipx-field">${depositedToOptionsHtml('')}</select>` : ''}
         <div style="${lbl}margin-bottom:6px;">Proof — photo or PDF</div>
         <div class="ipx-g2">
