@@ -3670,6 +3670,12 @@
           <div class="panel-hdr"><div><div class="panel-label">Appearance</div><div class="panel-title">My Skin</div></div></div>
           <div class="panel-body">
             <p class="myskin-note">Your own pictures as the CRM's background, card texture and a corner mascot. Only you see them: they stay in your private storage, never on the website, in customer documents or on anyone else's account. Works on top of any color theme.</p>
+            <fieldset class="myskin-style" id="myskinStyle">
+              <legend class="myskin-slot-title">Background style</legend>
+              <label class="myskin-row" for="myskinStyleColor"><span>Color theme (default)</span><input type="radio" name="myskinStyle" id="myskinStyleColor" value="color"></label>
+              <label class="myskin-row" for="myskinStyleWallpaper"><span>Real theme wallpaper</span><input type="radio" name="myskinStyle" id="myskinStyleWallpaper" value="wallpaper"></label>
+              <p class="myskin-note" id="myskinStyleNote" aria-live="polite">Color theme is the look you have today. Real theme wallpaper paints your own picture for each theme: add them below or import a pack. Themes without one keep the color theme.</p>
+            </fieldset>
             <label class="myskin-row" for="myskinEnabled"><span>Use My Skin</span><input type="checkbox" id="myskinEnabled"></label>
 
             <div class="myskin-slot" data-myskin-slot="wallpaper">
@@ -3697,7 +3703,9 @@
               <label class="myskin-row" for="myskinCoShow"><span>Show my company's backgrounds</span><input type="checkbox" id="myskinCoShow"></label>
               <p class="myskin-note" id="myskinCoLocked" hidden>Your company has turned this switch off for everyone.</p>
             </div>
-            <label class="myskin-row" for="myskinPerTheme"><span>Different background per theme</span><input type="checkbox" id="myskinPerTheme"></label>
+            <div hidden>
+              <label class="myskin-row" for="myskinPerTheme"><span>Different background per theme</span><input type="checkbox" id="myskinPerTheme"></label>
+            </div>
             <div class="myskin-theme-card" id="myskinThemeCard" hidden>
               <div class="myskin-slot-title">Background for <span id="myskinThemeName">this theme</span></div>
               <p class="myskin-note" id="myskinCoThemeNote" hidden></p>
@@ -7292,7 +7300,7 @@
 <!-- Sheets above the iPhone keyboard (2026-10-08). -->
 <script defer src="js/keyboard-viewport.js?v=1"></script>
 <script defer src="js/my-skin-logic.js?v=6"></script>
-<script defer src="js/my-skin.js?v=9"></script>
+<script defer src="js/my-skin.js?v=10"></script>
 <script defer src="js/layout-system.js?v=5"></script>
 <script defer src="js/pixel-mode.js?v=2"></script>
 <script defer src="js/ui.js?v=10"></script>
