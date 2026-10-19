@@ -273,8 +273,12 @@ html[data-layout="island"] .kanban-col { scroll-snap-align: start; }
 @media (max-width: 359px) {
   html[data-layout="island"] .isl-pill { padding: 10px 8px 0; }
   html[data-layout="island"] .isl-pill-in { gap: 0; padding: 4px; }
-  html[data-layout="island"] .isl-pill-in .isl-item { padding: 0 1px; gap: 2px; font-size: 10px; letter-spacing: -.01em; }
-  html[data-layout="island"] .isl-pill-in .isl-lbl { min-width: 0; max-width: 100%; }
+  /* six words do not fit at 12 px: only the active tab keeps its word; the others are icon-only
+     (the label stays as the accessible name, as the dock does) */
+  html[data-layout="island"] .isl-pill-in .isl-item { padding: 0 2px; gap: 2px; position: relative; }
+  html[data-layout="island"] .isl-pill-in .isl-item:not(.isl-active) .isl-lbl {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
   html[data-layout="island"] .isl-dock { padding: 0 8px; }
   html[data-layout="island"] .isl-dock-in { gap: 2px; padding: 4px; }
   html[data-layout="island"] .isl-dock .isl-primary { padding: 0 10px; gap: 5px; font-size: 12px; }
