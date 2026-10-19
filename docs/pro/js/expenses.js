@@ -705,6 +705,7 @@
         (window.NBDLowesImport ? window.NBDLowesImport.buttonHtml() : '') + (window.NBDHdImport ? '<button type="button" class="btn btn-ghost" data-hd-action="open" title="Import Home Depot Pro Xtra purchases (Purchase History › Export)">🧡 Import Home Depot</button>' : '') + (window.NBDReceiptSorter && window.NBDReceiptSorter.enabled() ? window.NBDReceiptSorter.buttonHtml() : '') +
         (window.NBDCashPayouts ? window.NBDCashPayouts.buttonHtml() : '') +
         (window.NBDJobCostAuditor ? window.NBDJobCostAuditor.buttonHtml() : '') +
+        (window.NBDSubPayments ? window.NBDSubPayments.buttonHtml() : '') +
         '<button type="button" class="btn btn-orange" data-exp-action="open-form">+ Log Expense</button>' +
       '</div>' +
       '</div>';
@@ -792,6 +793,9 @@
 
     // Job cost auditor (flag jobCostAuditor; empty string when off).
     if (window.NBDJobCostAuditor) html += window.NBDJobCostAuditor.panelHtml();
+
+    // Sub payments sorter (flag subPaymentsSorter; empty string when off).
+    if (window.NBDSubPayments) html += window.NBDSubPayments.panelHtml(_expenses);
 
     // Per-job rollup with margin
     var jobIds = Object.keys(agg.byJob).filter(function (k) { return k !== '__unassigned__'; });

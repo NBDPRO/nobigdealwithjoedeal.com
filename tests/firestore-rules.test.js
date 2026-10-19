@@ -823,6 +823,23 @@ async function run() {
   // the writer can void with an audit entry; the amount stays a valid int
   await assertSucceeds(updateDoc(doc(alice, 'expenses/payout-ok'), { deleted: true, editLog: [{ at: 1, by: 'alice', what: 'void', note: 'paid twice' }] }));
   await assertFails(updateDoc(doc(alice, 'expenses/payout-nojob'), { paymentMethod: 'barter' }));
+  // ── Sub payments sorter (2026-10-19): proof paths + "Not a job cost" ──
+  const subPay = (extra) => Object.assign(expDoc('alice', 'co-a', 'leadA', 'Sample Crew'),
+    { category: 'subcontractor', source: 'sub_payments', paymentMethod: 'check', subId: 'sub1', notJobCost: false, proofPaths: ['receipts/alice/sub-proofs/1_a.jpg'], editLog: [] }, extra || {});
+  await assertSucceeds(setDoc(doc(alice, 'expenses/sp-ok'), subPay()));
+  await assertSucceeds(setDoc(doc(alice, 'expenses/sp-nojob'), subPay({ leadId: null, proofPaths: [] })));
+  await assertFails(setDoc(doc(alice, 'expenses/sp-proofs-str'), subPay({ proofPaths: 'receipts/alice/x.jpg' })));
+  await assertFails(setDoc(doc(alice, 'expenses/sp-proofs-big'), subPay({ proofPaths: new Array(11).fill('receipts/alice/sub-proofs/x.jpg') })));
+  await assertFails(setDoc(doc(alice, 'expenses/sp-notjob-str'), subPay({ notJobCost: 'yes' })));
+  // the writer answers "Not a job cost", picks a job later, adds proof, voids; each with an audit entry
+  await assertSucceeds(updateDoc(doc(alice, 'expenses/sp-nojob'), { costType: 'overhead', notJobCost: true, editLog: [{ at: 1, by: 'alice', what: 'not-a-job-cost', note: 'overhead' }] }));
+  await assertSucceeds(updateDoc(doc(alice, 'expenses/sp-nojob'), { costType: 'direct', notJobCost: false, leadId: 'leadA', jobId: null, proofPaths: ['receipts/alice/sub-proofs/2_b.jpg'] }));
+  await assertFails(updateDoc(doc(alice, 'expenses/sp-nojob'), { proofPaths: new Array(11).fill('receipts/alice/sub-proofs/x.jpg') }));
+  await assertSucceeds(updateDoc(doc(alice, 'expenses/sp-ok'), { deleted: true, editLog: [{ at: 2, by: 'alice', what: 'void', note: 'entered twice' }] }));
+  // another tenant can neither read, assign nor re-answer a sub payment
+  await assertFails(getDoc(doc(bob, 'expenses/sp-nojob')));
+  await assertFails(updateDoc(doc(bob, 'expenses/sp-nojob'), { leadId: 'leadB' }));
+  await assertFails(updateDoc(doc(bob, 'expenses/sp-nojob'), { notJobCost: true, costType: 'overhead' }));
   // another tenant can neither read nor void a payout
   await assertFails(getDoc(doc(bob, 'expenses/payout-nojob')));
   await assertFails(updateDoc(doc(bob, 'expenses/payout-nojob'), { deleted: true }));
