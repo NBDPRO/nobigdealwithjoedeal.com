@@ -176,6 +176,7 @@
       var made = toMs(l.createdAt);
       if (!made || now - made > 7 * DAY) return;
       if (leadSnoozed(l.id)) return;
+      if (toMs(l.firstRespondedAt)) return;     // a reply is on file (speedToLead): the "nobody has been in touch" timer is over
       var p = person('lead:' + l.id, String(l.id));
       if (!p.name) p.name = ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.address || 'New lead';
       if (!p.phone) p.phone = digits10(l.phone || l.phoneDigits);
