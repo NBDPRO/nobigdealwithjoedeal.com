@@ -702,75 +702,67 @@ function jobProfit(leads, invoices, expenses, nowMs, args, tz, jobsByLead) {
 }
 // ── Cost audit (2026-10-19) ────────────────────────────────────────────
 // The rules live in job-cost-audit-logic.js (a byte-identical copy of the CRM's
-// docs/pro/js/job-cost-audit-logic.js, so the panel and this tool agree). Read
-// only: this lists jobs whose cost books look wrong. It never writes a cost.
-function costAudit(leads, invoices, expenses, nowMs, args, tz, jobsByLead) {
+// docs/pro/js/job-cost-audit-logic.js, so the panel and this tool agree). The
+// unit is the LEAD, as in the panel: all of a customer's invoices and cost rows,
+// one phase rule (phaseFor), one fingerprint (signature) so "It's right" and
+// "Costs complete" given in the CRM hold here too. Read only: this lists jobs
+// whose cost books look wrong. It never writes a cost.
+function costAudit(leads, invoices, expenses, nowMs, args) {
   const A = require('./job-cost-audit-logic');
   const a = args || {};
   const cut = nowMs - (Math.min(Math.max(Math.floor(Number(a.days)) || 365, 7), 730)) * 86400000;
-  const recs = jobRecords(activeLeads(leads), jobsByLead);
-  const jobOf = (r) => r._jobId || r.activeJobId || null;
-  const known = {};
-  recs.forEach((r) => { const j = jobOf(r); if (j) known[r.id + '/' + j] = 1; });
-  const keyOf = (leadId, jobId) => ((jobId && known[leadId + '/' + jobId]) ? leadId + '/' + jobId : leadId);
   const got = {}, rows = {};
   (invoices || []).forEach((inv) => {
     if (!inv || !inv.leadId || inv.deleted === true || inv.e2eTestData) return;
-    paymentsOf(inv).forEach((p) => { const k = keyOf(inv.leadId, inv.jobId); got[k] = (got[k] || 0) + Math.round(p.amount * 100); });
+    paymentsOf(inv).forEach((p) => { got[inv.leadId] = (got[inv.leadId] || 0) + Math.round(p.amount * 100); });
   });
   (expenses || []).forEach((e) => {
     if (!e || !e.leadId || e.deleted === true || e.costType !== DIRECT) return;
-    const k = keyOf(e.leadId, e.jobId);
-    (rows[k] = rows[k] || []).push(e);
+    (rows[e.leadId] = rows[e.leadId] || []).push(e);
   });
-  const home = {};
-  recs.forEach((r) => {
-    if (roleOf(r) !== 'won') return;
-    const h = home[r.id];
-    if (!h || (h._jobId && (!r._jobId || completedMs(r) > completedMs(h)))) home[r.id] = r;
-  });
-  const items = recs.map((r) => {
-    const j = jobOf(r), own = j ? r.id + '/' + j : null;
-    const shared = !r._jobId || home[r.id] === r;
-    const collectedCents = (own ? got[own] || 0 : 0) + (shared ? got[r.id] || 0 : 0);
-    const costs = (own ? rows[own] || [] : []).concat(shared ? rows[r.id] || [] : []);
-    const role = roleOf(r);
-    const phase = role === 'lost' ? null : role === 'won' ? 'finished' : role === 'job' ? 'production' : collectedCents > 0 ? 'signed' : null;
+  const owed = balanceByLead(invoices);
+  const items = activeLeads(leads).map((r) => {
+    const collectedCents = got[r.id] || 0;
+    const costs = rows[r.id] || [];
+    const phase = A.phaseFor(roleOf(r), collectedCents);
     return { r, phase, collectedCents, costs, job: {
-      id: r.id + '/' + (j || ''), phase, collectedCents, createdMs: ms(r.createdAt) || 0, trade: A.tradeKeyOf(r), squares: A.squaresOf(r),
+      id: r.id, phase, settled: !(owed[r.id] > 0), collectedCents, createdMs: ms(r.createdAt) || 0, trade: A.tradeKeyOf(r), squares: A.squaresOf(r),
     } };
   });
-  const peers = A.buildPeers(items.filter((x) => x.collectedCents > 0 || x.costs.length).map((x) => ({
-    id: x.job.id, trade: x.job.trade, squares: x.job.squares, summary: A.summarize(x.collectedCents, x.costs),
-  })));
+  const peers = A.buildPeers(items.filter((x) => x.collectedCents > 0 || x.costs.length).map((x) => Object.assign({}, x.job, { summary: A.summarize(x.collectedCents, x.costs) })));
   let checked = 0, markedComplete = 0;
   const flagged = [];
   items.forEach((x) => {
     if (!x.phase) return;
-    if (x.phase === 'finished' && completedMs(x.r) < cut) return;
+    // A finished job whose finish date is KNOWN and older than the window is out;
+    // one with no date at all is kept (it cannot be shown to be old).
+    const done = completedMs(x.r);
+    if (x.phase === 'finished' && done && done < cut) return;
     checked++;
     const audit = x.r.costAudit && typeof x.r.costAudit === 'object' ? x.r.costAudit : {};
-    if (audit.complete === true) { markedComplete++; return; }
     const s = A.summarize(x.collectedCents, x.costs);
+    if (A.isComplete(audit, s)) { markedComplete++; return; }
     const flags = A.applyAcks(A.jobCostFlags(x.job, x.costs, peers), audit, s).filter((f) => f.severity !== 'info');
-    const asked = audit.asked && typeof audit.asked === 'object' ? audit.asked : {};
-    const missingSub = x.phase === 'finished' && x.collectedCents > 0 && !s.hasSubLabor && asked.sub !== 'na';
-    if (!flags.length && !missingSub) return;
+    const missingSub = x.phase === 'finished' && x.collectedCents > 0 && !s.hasAnySub && A.askedAnswer(audit, 'sub', s) !== 'na';
+    const estimatedOnly = x.phase === 'finished' && s.estimatedOnly;
+    if (!flags.length && !missingSub && !estimatedOnly) return;
     const reasons = flags.map((f) => ({ code: f.code, severity: f.severity, reason: f.reason }));
     if (missingSub && !flags.some((f) => f.code === 'high_margin_no_sub')) reasons.push({ code: 'no_sub_labor', severity: 'warn', reason: 'No sub or labor cost is logged on this finished job, so its margin reads too high.' });
+    if (estimatedOnly) reasons.push({ code: 'estimated_only', severity: 'info', reason: 'The only sub or labor cost on this job is an estimate (' + A.money(s.estimatedCents) + '), not a real payment.' });
     const d = (c) => c / 100;
     flagged.push({
-      lead_id: x.r.id, job_id: x.r._jobId || x.r.activeJobId || null, name: minimalLead(x.r).name, phase: x.phase, trade: x.job.trade,
+      lead_id: x.r.id, name: minimalLead(x.r).name, phase: x.phase, trade: x.job.trade,
       collected: d(s.collectedCents), direct_costs: d(s.directCents), margin_pct: s.marginPct, estimated_costs: d(s.estimatedCents),
       costs_by_type: { materials: d(s.byKind.materials), sub_labor: d(s.subLaborCents), dumpster: d(s.byKind.dumpster), permit: d(s.byKind.permit), disposal: d(s.byKind.disposal), other: d(s.byKind.other) },
-      missing_sub_labor: missingSub, reasons,
+      missing_sub_labor: missingSub, estimated_only: estimatedOnly, reasons,
       _w: reasons.some((q) => q.severity === 'bad') ? 0 : 1,
     });
   });
   flagged.sort((p, q) => (p._w - q._w) || (q.collected - p.collected));
-  const jobs = flagged.slice(0, clampLimit(a.limit)).map((j) => { const o = Object.assign({}, j); delete o._w; return o; });
-  return { jobs, totals: { checked, flagged: flagged.length, marked_complete: markedComplete },
-    note: 'INTERNAL. Read only: this never changes a cost. Thresholds come from the company\'s own other jobs of the same trade (median margin plus or minus ' + A.CONFIG.pointsAboveMedian + ' points) when it has at least ' + A.CONFIG.minPeers + ' of them, else a fixed fallback. Estimated costs are counted but marked. Crews are independent subcontractors.' };
+  const lim = clampLimit(a.limit);
+  const jobs = flagged.slice(0, lim).map((j) => { const o = Object.assign({}, j); delete o._w; return o; });
+  return { jobs, totals: { checked, flagged: flagged.length, marked_complete: markedComplete, shown: jobs.length, truncated: flagged.length > jobs.length },
+    note: 'INTERNAL. Read only: this never changes a cost. Thresholds come from the company\'s own finished, fully paid jobs of the same trade that have materials and a real sub cost logged (median margin plus or minus ' + A.CONFIG.pointsAboveMedian + ' points) when it has at least ' + A.CONFIG.minPeers + ' of them, else a fixed fallback. Estimated costs are counted but marked. Crews are independent subcontractors.' + (flagged.length > jobs.length ? ' The list is cut at ' + lim + ' of ' + flagged.length + ' flagged jobs: ask again with a larger limit.' : '') };
 }
 function haversineMi(la1, lo1, la2, lo2) {
   const R = 3958.8, toR = (x) => x * Math.PI / 180;

@@ -107,7 +107,10 @@
     return {
       collectedCents: collected, directCents: direct, byKind: by,
       subLaborCents: sub, realSubLaborCents: realSub, estimatedCents: est, count: count,
-      hasSubLabor: sub > 0, hasMaterials: by.materials > 0,
+      // hasSubLabor = a REAL (not estimated) sub / labor cost. hasAnySub also counts
+      // an estimate, so an estimate-only job is its own group, never "done".
+      hasSubLabor: realSub > 0, hasAnySub: sub > 0, estimatedOnly: sub > 0 && realSub === 0,
+      hasMaterials: by.materials > 0,
       marginPct: collected > 0 ? Math.round((collected - direct) / collected * 100) : null
     };
   }
@@ -141,15 +144,18 @@
   }
 
   /**
-   * jobs: [{ id, trade, squares, collectedCents, summary }]. A PEER is a job
-   * that was paid (collected > 0) and has a REAL sub / labor cost logged.
-   * Estimated costs never make a peer (an estimate must not teach the next one).
+   * jobs: [{ id, trade, squares, phase, settled, collectedCents, summary }]. A PEER
+   * is a FINISHED job with nothing left owed (settled), money collected, a REAL
+   * sub / labor cost AND materials logged: the only jobs whose margin is a whole
+   * margin. A deposit-only job, an unpaid one or one with no materials would
+   * teach the wrong median. Estimated costs never make a peer.
    */
   function buildPeers(jobs) {
     var out = [];
     (jobs || []).forEach(function (j) {
       var s = j && j.summary;
-      if (!s || s.collectedCents <= 0 || s.realSubLaborCents <= 0) return;
+      if (!s || j.phase !== 'finished' || j.settled !== true) return;
+      if (s.collectedCents <= 0 || s.realSubLaborCents <= 0 || !s.hasMaterials) return;
       var sq = j.squares > 0 ? j.squares : 0;
       out.push({
         id: j.id, trade: j.trade || 'general', collectedCents: s.collectedCents,
@@ -251,16 +257,16 @@
       add('costs_no_payment', 'info', 'Costs but no payment',
         money(s.directCents) + ' of costs are logged and no money has been collected on this job yet.');
     }
-    if (s.collectedCents > 0 && s.directCents > s.collectedCents) {
+    if (judge && s.collectedCents > 0 && s.directCents > s.collectedCents) {
       add('negative_margin', 'bad', 'Lost money on paper',
         'Costs of ' + money(s.directCents) + ' are more than the ' + money(s.collectedCents) + ' collected (margin ' + m + '%).');
     }
-    if (s.collectedCents > 0 && s.subLaborCents > s.collectedCents) {
+    if (judge && s.collectedCents > 0 && s.subLaborCents > s.collectedCents) {
       add('sub_exceeds_collected', 'bad', 'Sub cost is more than the customer paid',
         'Sub / labor cost of ' + money(s.subLaborCents) + ' is more than the ' + money(s.collectedCents) + ' collected.');
     }
     var noSubHigh = false;
-    if (judge && s.collectedCents >= c.minJobCents && !s.hasSubLabor && m != null && m > c.highMarginPct) {
+    if (judge && s.collectedCents >= c.minJobCents && !s.hasAnySub && m != null && m > c.highMarginPct) {
       noSubHigh = true;
       add('high_margin_no_sub', 'warn', 'Margin looks too good',
         'Margin is ' + m + '% on a ' + money(s.collectedCents) + ' job and no sub or labor cost is logged. A crew did this work.');
@@ -309,12 +315,35 @@
     return (flags || []).filter(function (f) { return ack[f.code] !== sig; });
   }
 
+  // "Costs complete" and Skip / Unsure hold only while the numbers they were given
+  // on hold (signature). "Not applicable" is a deliberate answer and stays.
+  function isComplete(audit, summary) {
+    return !!audit && audit.complete === true && audit.completeSig === signature(summary);
+  }
+  function askedValue(answer, summary) { return answer === 'na' ? 'na' : answer + '@' + signature(summary); }
+  function askedAnswer(audit, key, summary) {
+    var v = audit && audit.asked && audit.asked[key];
+    if (v === 'na') return 'na';
+    if (typeof v !== 'string') return null;
+    var i = v.indexOf('@');
+    return i > 0 && v.slice(i + 1) === signature(summary) ? v.slice(0, i) : null;
+  }
+  // One phase rule for the panel and the agent tool. role = the stage role
+  // (won / job / lost / other); the unit is the lead.
+  function phaseFor(role, collectedCents) {
+    if (role === 'lost') return null;
+    if (role === 'won') return 'finished';
+    if (role === 'job') return 'production';
+    return collectedCents > 0 ? 'signed' : null;
+  }
+
   // ── the queue ─────────────────────────────────────────────────────────
   var GROUPS = [
     { key: 'too_low', label: 'Margin looks too low or negative' },
     { key: 'too_high', label: 'Margin looks too high' },
     { key: 'no_payment', label: 'Costs but no payment' },
     { key: 'no_sub', label: 'No labor / sub cost logged' },
+    { key: 'estimated_only', label: 'Only an estimated sub cost' },
     { key: 'no_materials', label: 'No materials logged' },
     { key: 'other', label: 'Other things to check' }
   ];
@@ -332,15 +361,15 @@
   function auditRow(job, costs, peers, config) {
     var j = job || {};
     var audit = j.audit || {};
-    if (audit.complete === true) return null;
-    var asked = audit.asked || {};
     var s = summarize(j.collectedCents, costs);
+    if (isComplete(audit, s)) return null;
     var flags = applyAcks(jobCostFlags(j, costs, peers, config), audit, s);
     var groups = [];
     var add = function (g) { if (groups.indexOf(g) === -1) groups.push(g); };
     flags.forEach(function (f) { if (FLAG_GROUP[f.code]) add(FLAG_GROUP[f.code]); });
-    if (!s.hasSubLabor && asked.sub !== 'na') add('no_sub');
-    if (!s.hasMaterials && asked.materials !== 'na') add('no_materials');
+    if (!s.hasAnySub && askedAnswer(audit, 'sub', s) !== 'na') add('no_sub');
+    if (s.estimatedOnly) add('estimated_only');
+    if (!s.hasMaterials && askedAnswer(audit, 'materials', s) !== 'na') add('no_materials');
     // "no materials" as a flag card is redundant with its group
     flags = flags.filter(function (f) { return f.code !== 'no_materials'; });
     if (!groups.length) return null;
@@ -349,7 +378,7 @@
     return {
       id: j.id, name: j.name, phase: j.phase, trade: j.trade || 'general',
       summary: s, flags: flags, groups: groups, primary: groups[0],
-      estimatedOnly: s.subLaborCents > 0 && s.realSubLaborCents === 0
+      estimatedOnly: s.estimatedOnly
     };
   }
 
@@ -400,10 +429,9 @@
     { key: 'materials', text: 'Are all the material receipts in?', kind: 'materials' }
   ];
   function nextQuestion(summary, audit) {
-    var asked = (audit && audit.asked) || {};
     var open = QUESTIONS.filter(function (q) {
-      var have = q.key === 'sub' ? summary.hasSubLabor : summary.byKind[q.kind] > 0;
-      return !have && !asked[q.key];
+      var have = q.key === 'sub' ? summary.hasAnySub : summary.byKind[q.kind] > 0;
+      return !have && !askedAnswer(audit, q.key, summary);
     });
     return open.length ? open[0] : null;
   }
@@ -413,7 +441,7 @@
     centsOf: centsOf, isLiveDirect: isLiveDirect, kindOf: kindOf, summarize: summarize, signature: signature,
     tradeKeyOf: tradeKeyOf, squaresOf: squaresOf, median: median, stats: stats,
     buildPeers: buildPeers, peersFor: peersFor, suggest: suggest, thresholds: thresholds,
-    jobCostFlags: jobCostFlags, applyAcks: applyAcks, auditRow: auditRow, auditQueue: auditQueue,
+    jobCostFlags: jobCostFlags, applyAcks: applyAcks, isComplete: isComplete, askedValue: askedValue, askedAnswer: askedAnswer, phaseFor: phaseFor, auditRow: auditRow, auditQueue: auditQueue,
     filterRows: filterRows, nextQuestion: nextQuestion, money: money
   };
   if (root && typeof root === 'object') root.NBDJobCostAudit = API;

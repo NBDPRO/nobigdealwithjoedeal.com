@@ -360,11 +360,10 @@ async function runTool(name, args, key) {
   if (name === 'cost_audit') {
     // Read only (2026-10-19): the same company data job_profit reads, judged by
     // job-cost-audit-logic.js. Never writes a cost; the bot files a report.
-    const [leads, invoices, expenses, jobsByLead] = await Promise.all([
+    const [leads, invoices, expenses] = await Promise.all([
       companyLeads(company), companyDocs('invoices', company, ['companyId', 'createdBy']), companyDocs('expenses', company, ['companyId', 'userId']),
-      companyJobsByLead(company),
     ]);
-    return L.toolText(L.costAudit(leads, invoices, expenses, Date.now(), args, tz, jobsByLead));
+    return L.toolText(L.costAudit(leads, invoices, expenses, Date.now(), args));
   }
 
   if (name === 'storm_near_customers') {

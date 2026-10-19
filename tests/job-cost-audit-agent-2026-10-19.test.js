@@ -50,9 +50,9 @@ console.log('\n2. the read-only cost_audit agent tool');
 const L = require(path.join(ROOT, 'functions/agent-mcp-logic.js'));
 const NOW = Date.UTC(2026, 9, 19, 16);
 const iso = (d) => new Date(NOW - d * 86400000).toISOString();
-const lead = (id, name, o) => Object.assign({ id, firstName: name, lastName: 'Sample', stage: 'closed', completedAt: iso(10), createdAt: iso(90), phone: '5135550100', email: 'x@example.com', trades: ['roof'] }, o);
+const lead = (id, name, o) => Object.assign({ id, firstName: name, lastName: 'Sample', stage: 'closed', completedAt: iso(10), createdAt: iso(90), phone: '5135550100', email: 'x@example.com', address: '12 Private Lane, Hidden Town, OH 45000', trades: ['roof'] }, o);
 const inv = (leadId, total) => ({ leadId, total, payments: [{ amount: total, at: iso(12) }] });
-const cl = [lead('L1', 'Alpha'), lead('L2', 'Bravo'), lead('L3', 'Charlie'), lead('L4', 'Delta'), lead('L5', 'Echo'), lead('L6', 'Foxtrot', { costAudit: { complete: true } }),
+const cl = [lead('L1', 'Alpha'), lead('L2', 'Bravo'), lead('L3', 'Charlie'), lead('L4', 'Delta'), lead('L5', 'Echo'), lead('L6', 'Foxtrot', { costAudit: { complete: true, completeSig: A.signature(A.summarize(900000, [])) } }),
   lead('L7', 'Golf', { stage: 'lost' })];
 const ci = [inv('L1', 12000), inv('L2', 10000), inv('L3', 10000), inv('L4', 10000), inv('L5', 10000), inv('L6', 9000), inv('L7', 5000)];
 const cexp = (leadId, e) => Object.assign({ leadId, costType: 'direct', category: 'materials', amountCents: 100000, taxCents: 0, date: D(2026, 9, 10) }, e);
@@ -70,7 +70,7 @@ ok('a voided sub row does not count (L5 is still missing its sub cost)', J('L5')
 ok('jobs with a sub cost, in line with their peers, are not listed', !J('L2') && !J('L3') && !J('L4'), out.jobs.map((j) => j.lead_id).join());
 ok('a job marked complete, and a lost one, are left out', !J('L6') && !J('L7') && out.totals.marked_complete === 1);
 ok('totals', out.totals.checked === 6 && out.totals.flagged === out.jobs.length);
-ok('no phone, email or address anywhere in the answer', !/5135550100|example\.com|phone|email/i.test(JSON.stringify(out).replace(/The tool.*/, '')) && out.jobs.every((j) => !('phone' in j) && !('email' in j) && !('address' in j)));
+ok('no phone, email or address anywhere in the answer (and the fixtures do carry them)', cl[0].phone === '5135550100' && cl[0].address.indexOf('Private Lane') !== -1 && !/5135550100|example\.com|Private Lane|Hidden Town|45000/i.test(JSON.stringify(out)) && out.jobs.length > 0 && out.jobs.every((j) => !('phone' in j) && !('email' in j) && !('address' in j)));
 const sigL1 = A.signature(A.summarize(1200000, [cexp('L1', { amountCents: 200000 })]));
 const ackOnly = cl.map((l) => (l.id === 'L1' ? Object.assign({}, l, { costAudit: { ack: { margin_above_peers: sigL1 } } }) : l));
 const naOnly = cl.map((l) => (l.id === 'L1' ? Object.assign({}, l, { costAudit: { asked: { sub: 'na' } } }) : l));
@@ -89,6 +89,52 @@ const handler = stripComments(read('functions/agent-mcp.js'));
 const block = handler.slice(handler.indexOf("name === 'cost_audit'"), handler.indexOf("name === 'storm_near_customers'"));
 ok('the handler reads company data and writes nothing', /L\.costAudit\(/.test(block) && !/\.(set|add|update|delete|create)\(/.test(block) && !/serverTimestamp|FieldValue/.test(block));
 ok('the tool text says it never changes a cost', /never changes a cost/.test(L.TOOLS.cost_audit.description) && /READ ONLY/.test(L.TOOLS.cost_audit.description));
+
+
+console.log('\n3. review fixes: estimates, signatures, one unit, window, truncation, peers');
+const row = (id) => out.jobs.find((j) => j.lead_id === id);
+// 1. estimate-only stays visible
+const estCl = cl.concat([lead('LE', 'Estimate')]);
+const estInv = ci.concat([inv('LE', 10000)]);
+const estRows = ce.concat([cexp('LE', { amountCents: 100000 }), cexp('LE', { category: 'subcontractor', amountCents: 500000, estimated: true })]);
+const eo = L.costAudit(estCl, estInv, estRows, NOW, {});
+const le = eo.jobs.find((j) => j.lead_id === 'LE');
+ok('an estimate-only job is still reported, as estimated_only, with its estimate shown', le && le.estimated_only === true && le.missing_sub_labor === false && le.estimated_costs === 5000 && le.reasons.some((r) => r.code === 'estimated_only'), JSON.stringify(le));
+const realRows = estRows.map((r) => (r.estimated ? Object.assign({}, r, { estimated: false }) : r));
+ok('...and leaves the list once the same cost is real', !L.costAudit(estCl, estInv, realRows, NOW, {}).jobs.find((j) => j.lead_id === 'LE'));
+// 4 + 8. complete and skip hold only for the numbers
+ok('"Costs complete" with no or a stale fingerprint does not hide a job', (() => {
+  const mkc = (audit) => cl.map((l) => (l.id === 'L1' ? Object.assign({}, l, { costAudit: audit }) : l));
+  const sigNow = A.signature(A.summarize(1200000, [cexp('L1', { amountCents: 200000 })]));
+  const hidden = !L.costAudit(mkc({ complete: true, completeSig: sigNow }), ci, ce, NOW, {}).jobs.find((j) => j.lead_id === 'L1');
+  const noSig = !!L.costAudit(mkc({ complete: true }), ci, ce, NOW, {}).jobs.find((j) => j.lead_id === 'L1');
+  const stale = !!L.costAudit(mkc({ complete: true, completeSig: 'old' }), ci, ce, NOW, {}).jobs.find((j) => j.lead_id === 'L1');
+  return hidden && noSig && stale;
+})());
+// 7. one unit: a repeat customer's invoices and costs are one picture, and the CRM's fingerprint matches
+const repeat = lead('LR', 'Repeat');
+const repInv = [inv('LR', 6000), inv('LR', 6000)];
+const repRows = [cexp('LR', { amountCents: 100000 }), cexp('LR', { amountCents: 100000 })];
+const ro = L.costAudit([repeat], repInv, repRows, NOW, {});
+ok('a customer with two jobs is ONE row with both jobs\' money and costs (as the panel sees it)', L.costAudit([repeat], repInv, repRows, NOW, {}).jobs.length === 1 && ro.jobs[0].collected === 12000 && ro.jobs[0].direct_costs === 2000, JSON.stringify(ro.jobs));
+const repSig = A.signature(A.summarize(1200000, repRows));
+const repAcked = Object.assign({}, repeat, { costAudit: { ack: { duplicate_costs: repSig }, asked: { sub: 'na' } } });
+ok('the CRM\'s fingerprint of those same numbers quiets Frank\'s list', L.costAudit([repAcked], repInv, repRows, NOW, {}).jobs.length === 0);
+ok('...and a new cost on the second job re-opens it', L.costAudit([repAcked], repInv, repRows.concat([cexp('LR', { amountCents: 5000, date: D(2026, 9, 12) })]), NOW, {}).jobs.length === 1);
+// 11. window
+const undated = lead('LU', 'Undated', { completedAt: undefined, createdAt: undefined });
+delete undated.completedAt; delete undated.createdAt;
+ok('a finished job with NO date is kept; one with a known old date is dropped by the window', L.costAudit([undated], [inv('LU', 10000)], [], NOW, { days: 30 }).jobs.length === 1 && L.costAudit([lead('LO', 'Old', { completedAt: iso(400) })], [inv('LO', 10000)], [], NOW, { days: 30 }).jobs.length === 0);
+// 12. truncation
+const many = []; const manyInv = [];
+for (let i = 0; i < 5; i++) { many.push(lead('M' + i, 'Many' + i)); manyInv.push(inv('M' + i, 10000 + i)); }
+const mo = L.costAudit(many, manyInv, [], NOW, { limit: 2 });
+ok('a cut list says so, with the real total', mo.jobs.length === 2 && mo.totals.flagged === 5 && mo.totals.truncated === true && mo.totals.shown === 2 && /cut at 2 of 5/.test(mo.note) && L.costAudit(many, manyInv, [], NOW, { limit: 10 }).totals.truncated === false);
+// 6. peers are settled finished jobs
+const owedInv = ci.map((i) => (['L2', 'L3', 'L4'].indexOf(i.leadId) !== -1 ? Object.assign({}, i, { balanceDue: 100 }) : i));
+ok('jobs that still owe money do not set the median', !!row('L1') && JSON.stringify(row('L1').reasons).indexOf('margin_above_peers') !== -1 && JSON.stringify(L.costAudit(cl, owedInv, ce, NOW, {}).jobs.find((j) => j.lead_id === 'L1').reasons).indexOf('margin_above_peers') === -1);
+const hsrc = stripComments(read('functions/agent-mcp.js'));
+ok('the handler no longer loads per-job records (the unit is the lead)', !/L\.costAudit\([^)]*jobsByLead/.test(hsrc));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
