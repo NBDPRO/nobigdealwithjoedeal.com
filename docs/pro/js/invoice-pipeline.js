@@ -483,6 +483,30 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     { key: 'mortgage',  label: 'Mortgage company' },
   ];
   function isPayer(p) { return PAYERS.some(x => x.key === p); }
+  // Which account the money landed in (flag `depositedToField`, absent = off).
+  // Optional on a payment; old payments simply lack the key. Sample list only:
+  // the real account numbers never live in the CRM.
+  const DEPOSIT_ACCOUNTS = [
+    { key: 'chase_business', label: 'Chase business' },
+    { key: 'chase_personal', label: 'Chase personal' },
+    { key: 'chime',          label: 'Chime' },
+    { key: 'cash',           label: 'Cash' },
+    { key: 'stripe_payout',  label: 'Stripe payout' },
+    { key: 'other',          label: 'Other' },
+  ];
+  function isDepositAccount(k) { return DEPOSIT_ACCOUNTS.some(x => x.key === k); }
+  function depositAccountLabel(k) {
+    const hit = DEPOSIT_ACCOUNTS.find(x => x.key === k);
+    return hit ? hit.label : '';
+  }
+  function depositedToOn() {
+    return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('depositedToField'));
+  }
+  // The <select> options shared by both payment sheets and the history rows.
+  function depositedToOptionsHtml(selected) {
+    return '<option value="">Not set</option>' + DEPOSIT_ACCOUNTS.map(a =>
+      `<option value="${escHtml(a.key)}"${a.key === selected ? ' selected' : ''}>${escHtml(a.label)}</option>`).join('');
+  }
   // A stable id per payment, so the timeline entry the server writes for it
   // (functions/payment-timeline.js) is written exactly once.
   function newPaymentId(nowMs) {
@@ -612,6 +636,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         ? input.paymentId : newPaymentId(recordedAt.getTime()),
     };
     if (isPayer(input.payer)) entry.payer = input.payer;
+    if (isDepositAccount(input.depositedTo)) entry.depositedTo = input.depositedTo;
     // "Catch up my numbers" → "Paid in full? Yes" (catchup.js): a balancing
     // entry for the whole job total, not one itemised payment. The Stripe
     // ledger replaces part of it when a real Stripe payment for the job turns
@@ -728,6 +753,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         note: p.note ? String(p.note) : '',
         proofStoragePath: p.proofStoragePath ? String(p.proofStoragePath) : '',
         proofName: p.proofName ? String(p.proofName) : '',
+        depositedTo: isDepositAccount(p.depositedTo) ? p.depositedTo : '',
         isStripe,
         canAttach: !isStripe && !p.proofStoragePath,
         keyRecordedAtMs: k.recordedAtMs,
@@ -746,6 +772,10 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       const date = Number.isFinite(r.atMs) ? new Date(r.atMs).toLocaleDateString() : '—';
       const ref = r.reference ? ` · #${escHtml(r.reference)}` : '';
       const note = r.note ? `<div class="ipx-m11 ipx-mt2">${escHtml(r.note)}</div>` : '';
+      let acct = '';
+      if (depositedToOn() && !r.isStripe) {
+        acct = `<label class="ipx-m11 ipx-mt2">Deposited to <select class="fi ipx-field" data-ip-deposit data-ip-id="${id}" data-ip-idx="${r.index}"${Number.isFinite(r.keyRecordedAtMs) ? ` data-ip-rec="${r.keyRecordedAtMs}"` : ''}>${depositedToOptionsHtml(r.depositedTo)}</select></label>`;
+      }
       let proof = '';
       if (r.proofStoragePath) {
         proof = `<button type="button" class="btn btn-ghost ipx-btn40" data-ip-action="viewProof" data-ip-id="${id}" data-ip-idx="${r.index}" title="${escHtml(r.proofName || 'Proof')}">📎 View</button>`;
@@ -764,6 +794,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
           <div class="ipx-minw0">
             <div><strong>${escHtml(date)}</strong> · ${escHtml(r.methodLabel)}${ref}</div>
             ${note}
+            ${acct}
           </div>
           <div class="ipx-row-fixed">
             <span class="ipx-b">${escHtml(formatCurrency(r.amount))}</span>
@@ -2546,6 +2577,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         proofStoragePath: details.proofStoragePath,
         proofName: details.proofName,
         payer: details.payer,
+        depositedTo: depositedToOn() ? details.depositedTo : undefined,
         basis: details.basis,
         paymentId: details.paymentId,
         recordedBy: (window._auth && window._auth.currentUser && window._auth.currentUser.uid)
@@ -3554,6 +3586,54 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     }
   }
 
+  // New payments[] with depositedTo set (or cleared with '') on the matched
+  // entry. Stripe entries are refused: the webhook / ledger own them.
+  function setDepositedToOnPayments(payments, index, key, value) {
+    const i = findPaymentIndex(payments, index, key);
+    if (i < 0) throw new Error('That payment changed — reopen the invoice and try again');
+    const cur = payments[i] || {};
+    if (cur.method === 'stripe') throw new Error('Stripe payments are tracked by Stripe');
+    if (value && !isDepositAccount(value)) throw new Error('Pick one of the listed accounts');
+    const next = payments.slice();
+    const upd = Object.assign({}, cur);
+    if (value) upd.depositedTo = value; else delete upd.depositedTo;
+    next[i] = upd;
+    return next;
+  }
+
+  // Flag `depositedToField`: change the account on an already-recorded payment.
+  // Same read-match-write as attachProofUI, in one transaction.
+  async function setDepositedToUI(invoiceId, index, recordedAtMs, value) {
+    if (!invoiceId || !depositedToOn()) return false;
+    const db = getDb();
+    const invRef = window.doc(db, 'invoices', invoiceId);
+    try {
+      const snap = await window.getDoc(invRef);
+      const pays = (snap.exists() && Array.isArray(snap.data().payments)) ? snap.data().payments : [];
+      const p = pays[index];
+      if (!p) throw new Error('That payment changed — reopen the invoice and try again');
+      const key = paymentKey(p);
+      if (Number.isFinite(recordedAtMs) && key.recordedAtMs !== recordedAtMs) {
+        throw new Error('That payment changed — reopen the invoice and try again');
+      }
+      if (typeof window.runTransaction === 'function') {
+        await window.runTransaction(db, async (tx) => {
+          const s = await tx.get(invRef);
+          if (!s.exists()) throw new Error('Invoice not found');
+          tx.update(invRef, { payments: setDepositedToOnPayments(s.data().payments || [], index, key, value), updatedAt: new Date() });
+        });
+      } else {
+        await window.updateDoc(invRef, { payments: setDepositedToOnPayments(pays, index, key, value), updatedAt: new Date() });
+      }
+      _toast(value ? 'Deposit account saved' : 'Deposit account cleared', 'success');
+      return true;
+    } catch (e) {
+      _toast('Could not save the deposit account: ' + ((e && e.message) || 'try again'), 'error');
+      if (document.getElementById('nbd-inv-detail-host')) renderInvoiceDetail('nbd-inv-detail-host', invoiceId);
+      return false;
+    }
+  }
+
   // "📎 View" — opens the proof through getDownloadURL (Storage rules apply:
   // the uploader and a platform admin can read it). The tab is opened
   // synchronously first so a phone's popup blocker doesn't eat it after the
@@ -3622,6 +3702,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         <input id="nbd-mp-ref" type="text" class="fi ipx-field" maxlength="${PAYMENT_REF_MAX}" autocomplete="off">
         <label for="nbd-mp-note" style="${lbl}">Note (optional)</label>
         <input id="nbd-mp-note" type="text" class="fi ipx-field" maxlength="${PAYMENT_NOTE_MAX}" autocomplete="off">
+        ${depositedToOn() ? `<label for="nbd-mp-dep" class="ipx-dep-label">Deposited to</label>
+        <select id="nbd-mp-dep" class="fi ipx-field">${depositedToOptionsHtml('')}</select>` : ''}
         <div style="${lbl}margin-bottom:6px;">Proof — photo or PDF</div>
         <div class="ipx-g2">
           <button type="button" id="nbd-mp-proof-cam" class="btn btn-ghost ipx-btn48">📷 Take photo</button>
@@ -3711,6 +3793,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         }
         if (!isManualPaymentMethod(method)) { _toast('Pick a payment method', 'error'); return; }
         const details = { at, reference: $('#nbd-mp-ref').value, note: $('#nbd-mp-note').value };
+        const depSel = $('#nbd-mp-dep');
+        if (depSel && depSel.value) details.depositedTo = depSel.value;
         saveBtn.disabled = true;
         saveBtn.textContent = 'Saving…';
         // Proof first, so the ledger entry can carry its path. An upload that
@@ -3927,7 +4011,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       throw new Error('The invoice for this job is already paid in full — record extra money on the invoice itself.');
     }
     await markPaid(invoiceId, o.amount, o.method, {
-      at: o.at, reference: o.reference, payer: o.payer, basis: o.basis,
+      at: o.at, reference: o.reference, payer: o.payer, basis: o.basis, depositedTo: o.depositedTo,
     });
     return invoiceId;
   }
@@ -4028,6 +4112,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         <input id="nbd-rp-date" type="date" class="fi ipx-field ipx-rp-input" value="${escHtml(today)}" max="${escHtml(today)}">
         <label for="nbd-rp-ref" id="nbd-rp-ref-label" class="ipx-label">${escHtml(PAYMENT_METHODS[0].refLabel)}</label>
         <input id="nbd-rp-ref" type="text" class="fi ipx-field ipx-rp-input" maxlength="${PAYMENT_REF_MAX}" autocomplete="off">
+        ${depositedToOn() ? `<label for="nbd-rp-dep" class="ipx-label">Deposited to</label>
+        <select id="nbd-rp-dep" class="fi ipx-field ipx-rp-input">${depositedToOptionsHtml('')}</select>` : ''}
         <div class="ipx-m11 ipx-rp-note" data-rp-receipt-note>A receipt is drafted — nothing is sent until you tap Send receipt.</div>
         <button id="nbd-rp-save" type="button" class="btn btn-green ipx-btn-save">Save payment</button>
         <button id="nbd-rp-cancel" type="button" class="btn btn-ghost ipx-btn-full44">Cancel</button>
@@ -4091,6 +4177,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
             leadId, lead, target, totalCents, amount, method, payer, at,
             invoiceId: (target.kind === 'existing') ? (invSel ? invSel.value : target.invoices[0].id) : null,
             reference: $('#nbd-rp-ref').value,
+            depositedTo: ($('#nbd-rp-dep') || {}).value || undefined,
           });
           _toast('Payment recorded — receipt drafted (tap Send receipt to email it)', 'success');
           mo.disconnect();
@@ -4153,6 +4240,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     markPaidUI,
     attachProofUI,
     viewProofUI,
+    // Deposited-to account (flag depositedToField, 2026-10-19,
+    // tests/deposited-to-2026-10-19.test.js)
+    DEPOSIT_ACCOUNTS,
+    isDepositAccount,
+    depositAccountLabel,
+    depositedToOn,
+    setDepositedToOnPayments,
+    setDepositedToUI,
     uploadPaymentProof,
     // Manual-payment pure helpers (tests/mark-paid-methods-2026-09-29.test.js)
     PAYMENT_METHODS,
@@ -4242,6 +4337,15 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       return !!ok;
     } catch (_) { return false; }
   }
+  // Deposited-to select on a payment-history row (flag depositedToField).
+  document.addEventListener('change', function (ev) {
+    const t = ev.target && ev.target.closest && ev.target.closest('select[data-ip-deposit]');
+    if (!t) return;
+    const IP = window.InvoicePipeline || {};
+    const idx = parseInt(t.dataset.ipIdx, 10);
+    const rec = t.dataset.ipRec != null ? Number(t.dataset.ipRec) : NaN;
+    if (typeof IP.setDepositedToUI === 'function' && Number.isInteger(idx)) IP.setDepositedToUI(t.dataset.ipId, idx, rec, t.value);
+  });
   document.addEventListener('click', function (ev) {
     const t = ev.target.closest && ev.target.closest('[data-ip-action]');
     if (!t) return;

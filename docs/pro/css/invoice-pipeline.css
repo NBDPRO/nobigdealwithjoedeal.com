@@ -131,3 +131,4 @@
 .ipx-btn-save.ipx-btn-save.ipx-btn-save.ipx-btn-save.btn-green:hover { filter: brightness(1.08); }
 .ipx-btn-save.ipx-btn-save.ipx-btn-save.ipx-btn-save.btn-green:disabled { opacity: .6; }
 .invoice-paynote.invoice-paynote { font-size: 11px; line-height: 1.35; color: var(--m); margin-top: 4px; max-width: 180px; }
+.ipx-dep-label { font-size: 10px; font-weight: 600; color: var(--m); text-transform: uppercase; letter-spacing: .08em; }
