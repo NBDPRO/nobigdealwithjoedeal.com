@@ -87,16 +87,61 @@ const AUTOMATIONS = Object.freeze({
   owner_lead_alert_push:  { label: 'New-lead push to owner',     channel: 'push',  risk: 'LOW',  customer: false, auto: true,  campaign: 'manual',     perDay: 60 },
 });
 
-/** Automations whose sends the center cannot see yet (no ledger row exists). */
-const BLIND_SPOTS = Object.freeze([
-  { key: 'funnel_recovery_email', label: 'Abandoned-estimate recovery email', note: 'Claim doc only; dark until FUNNEL_RECOVERY_ENABLED.' },
-  { key: 'otp_sms', label: 'Verification code texts (Twilio Verify)', note: 'Twilio Verify keeps its own log: use Twilio console.' },
-  { key: 'queue_email', label: 'Dunning, trial, erasure and health emails (email_queue)', note: 'Shown under Queue backlog, not in counts.' },
-  { key: 'refusals', label: 'Refusals that write no row (STOP, DNC, quiet hours, master switch, daily cap)', note: 'Returned to the caller as an error; nothing is stored. Closing this needs one shared ledger (follow-up).' },
-  { key: 'voice', label: 'Outbound voice', note: 'No outbound calling code exists in the repo.' },
+/**
+ * EVERY sender in the 2026-10-19 messaging inventory, with whether this page
+ * can see it. seen: 'yes' (a ledger row is read and counted), 'partly',
+ * 'no' (invisible here: use the named place). Nothing is omitted so a zero
+ * never hides a sender the page cannot see.
+ */
+const INVENTORY = Object.freeze([
+  { id: 'S1', label: 'CRM Text button (rep-typed)', seen: 'yes', via: 'sms_log' },
+  { id: 'S2', label: 'Offline outbox replay', seen: 'yes', via: 'sms_log' },
+  { id: 'S3', label: 'Door-knock template text', seen: 'yes', via: 'sms_log' },
+  { id: 'S4', label: 'AI reply sent on approval', seen: 'yes', via: 'sms_log' },
+  { id: 'S5', label: 'Storm alert texts (NWS half)', seen: 'yes', via: 'storm_alerts_sent claims' },
+  { id: 'S6', label: 'Storm Watch subscriber texts', seen: 'yes', via: 'storm_alerts_sent claims' },
+  { id: 'S7', label: 'Estimate-request ack text', seen: 'yes', via: 'ackSmsSentAt on the public lead' },
+  { id: 'S8', label: 'Missed-call auto text', seen: 'yes', via: 'missed_call_autotext claims' },
+  { id: 'S9', label: 'Review ask text', seen: 'yes', via: 'leads.reviewAutoAsk' },
+  { id: 'S10', label: 'New-lead text to owner', seen: 'yes', via: 'alert_outbox' },
+  { id: 'S11', label: 'Storm Watch text to owner', seen: 'no', via: 'no ledger' },
+  { id: 'S12', label: 'notifyNewLead text to owner', seen: 'no', via: 'no ledger' },
+  { id: 'S13', label: 'Verification code texts (Twilio Verify)', seen: 'no', via: 'Twilio console' },
+  { id: 'S14', label: 'Thursday call alert via Bland SMS', seen: 'no', via: 'Bland console' },
+  { id: 'S15', label: 'Automatic STOP / HELP / START replies', seen: 'no', via: 'Twilio console (opt-outs themselves are counted)' },
+  { id: 'S16', label: 'Twilio webhooks (no send)', seen: 'no', via: 'not a sender' },
+  { id: 'S17', label: 'Texts sent from the rep’s own phone', seen: 'no', via: 'the phone; not Twilio' },
+  { id: 'E1', label: 'Lead ack email', seen: 'yes', via: 'ackEmailSentAt' },
+  { id: 'E2', label: '20-48h follow-up email', seen: 'yes', via: 'followUpEmailSentAt' },
+  { id: 'E3', label: 'Abandoned-estimate recovery email', seen: 'no', via: 'claim doc only (dark)' },
+  { id: 'E4', label: 'Estimate email (estimateEmail)', seen: 'no', via: 'Resend dashboard' },
+  { id: 'E5', label: 'Storm report email', seen: 'no', via: 'Resend dashboard' },
+  { id: 'E6', label: 'Review ask email', seen: 'yes', via: 'leads.reviewAutoAsk' },
+  { id: 'E7', label: 'CRM sendEmail (rep)', seen: 'yes', via: 'email_log' },
+  { id: 'E8', label: 'E-sign links and reminders', seen: 'no', via: 'Resend dashboard' },
+  { id: 'E9', label: 'Remote signing / report share emails', seen: 'no', via: 'Resend dashboard' },
+  { id: 'E10', label: 'Team invite email', seen: 'no', via: 'internal' },
+  { id: 'E11', label: 'Alert-address confirmation email', seen: 'no', via: 'Resend dashboard' },
+  { id: 'E12', label: 'Pro guide welcome email', seen: 'no', via: 'Resend dashboard' },
+  { id: 'E13', label: 'New-lead email to owner', seen: 'yes', via: 'alert_outbox' },
+  { id: 'E14', label: 'Owner digests and alerts', seen: 'no', via: 'internal' },
+  { id: 'E15', label: 'Rep digests', seen: 'no', via: 'internal' },
+  { id: 'E16', label: 'Platform email queue (dunning, trial, erasure, health)', seen: 'partly', via: 'backlog only (Queue backlog), not counts' },
+  { id: 'E17', label: 'Stripe receipts and Cal.com confirmations', seen: 'no', via: 'vendor dashboards' },
+  { id: 'P1', label: 'Push to reps and owner', seen: 'partly', via: 'new-lead push only (alert_outbox)' },
+  { id: 'V1', label: 'Outbound voice calls', seen: 'no', via: 'none exist in the code; inbound calls are in the Call Center' },
 ]);
+/** Always true until every email sender has a ledger the page reads. */
+const EMAIL_PARTLY_UNSEEN = true;
+/** Back-compat name: the unseen rows. */
+const BLIND_SPOTS = Object.freeze(INVENTORY.filter((x) => x.seen !== 'yes'));
+
+/** Critical sources: if one is not 'ok' the page must NOT read "nothing to look at". */
+const CRITICAL_SOURCES = Object.freeze(['sms_log', 'email_log', 'alert_outbox', 'sms_dnc', 'lead_lookup', 'storm_alerts_sent', 'storm_subscriber_lookup', 'sms_opt_outs', 'missed_call_autotext', 'public_lead_stamps', 'review_asks']);
 
 const BLOCK_REASONS = Object.freeze(['no_consent', 'opted_out', 'quiet_hours', 'kill_switch', 'daily_cap', 'dnc', 'other']);
+/** Whether a refusal of this kind leaves a row anywhere. false = counted as "not recorded", never 0. */
+const BLOCK_RECORDED = Object.freeze({ no_consent: true, opted_out: true, quiet_hours: false, kill_switch: false, daily_cap: false, dnc: false, other: true });
 const BLOCK_LABELS = Object.freeze({
   no_consent: 'No consent', opted_out: 'Opted out (STOP)', quiet_hours: 'Quiet hours', kill_switch: 'Kill switch / texting off',
   daily_cap: 'Daily cap', dnc: 'Do-not-text list', other: 'Other refusal',
@@ -148,7 +193,7 @@ function clipLine(text, max) {
 function scrubText(t) {
   return str(t)
     .replace(/[^\s@<>()]+@[^\s@<>()]+\.[a-z]{2,}/gi, (m) => maskEmail(m))
-    .replace(/\+?\d[\d\s().-]{7,}\d/g, (m) => (digits(m).length >= 7 ? maskPhone(m) : m));
+    .replace(/\+?\d[\d\s().-]{5,}\d/g, (m) => (digits(m).length >= 7 && !/^\d{4}-\d{2}-\d{2}$/.test(m.trim()) ? maskPhone(m) : m));
 }
 function shortName(n) {
   const s = str(n).trim().replace(/\s+/g, ' ');
@@ -191,10 +236,14 @@ function startOfDay(ms, tz) {
   }
   return t;
 }
-/** Zones a recipient's local-time window must hold in (KY straddles two). */
+const MOUNTAIN_TZ = 'America/Denver';
+/** States that straddle a zone line: the window must hold in EVERY zone listed. Unknown = Eastern (what the senders do). */
+const STATE_ZONES = Object.freeze({
+  KY: [DEFAULT_TZ, CENTRAL_TZ], TN: [DEFAULT_TZ, CENTRAL_TZ], IN: [DEFAULT_TZ, CENTRAL_TZ], FL: [DEFAULT_TZ, CENTRAL_TZ],
+  MI: [DEFAULT_TZ, CENTRAL_TZ], TX: [CENTRAL_TZ, MOUNTAIN_TZ],
+});
 function zonesFor(state) {
-  const s = str(state).toUpperCase();
-  return s === 'KY' ? [DEFAULT_TZ, CENTRAL_TZ] : [DEFAULT_TZ];
+  return STATE_ZONES[str(state).toUpperCase()] || [DEFAULT_TZ];
 }
 function outsideWindow(ms, state) {
   return zonesFor(state).some((tz) => {
@@ -206,7 +255,8 @@ function outsideWindow(ms, state) {
 // ── consent ───────────────────────────────────────────────────────────────
 /** What the stored record says about texting this person. */
 function consentOf(rec) {
-  if (!rec) return 'none';
+  // No record = the lookup failed or the doc is gone: UNKNOWN, never "none" (a failed read must not raise a no-consent alert).
+  if (!rec) return 'unknown';
   if (rec.tcpaConsent === true || rec.smsConsent === true) return 'form';
   return 'none';
 }
@@ -250,11 +300,13 @@ function smsAutomation(d) {
 /** blocked reason for a refusal that DID leave a row. '' when the row is not a refusal. */
 function blockedReasonOf(failureReason, errorCode, status) {
   const f = str(failureReason);
-  if (f === 'consent_declined') return 'no_consent';
+  if (f === 'consent_declined' || f === 'no_consent_on_file') return 'no_consent';
+  if (/^(customer_sends_off|controls_missing|controls_unreadable|channel_off|messaging_paused|switched_off|not_registered|no_tenant)/.test(f)) return 'kill_switch';
   if (f === 'opted_out' || errorCode === '21610') return 'opted_out';
   if (f === 'consent_check_unverified') return 'other';
   if (/quiet/.test(f)) return 'quiet_hours';
-  if (/texting_|switched_off|kill/.test(f)) return 'kill_switch';
+  if (/texting_|kill|paused/.test(f)) return 'kill_switch';
+  if (f === 'canary_no_target') return 'other';
   if (/cap|limit/.test(f)) return 'daily_cap';
   if (/dnc/.test(f)) return 'dnc';
   if (status === 'suppressed') return 'opted_out';
@@ -337,10 +389,12 @@ function fromStormClaim(id, d, sub) {
   const st = str(d.status);
   return base({
     id: 'storm_' + id, channel: 'sms', automation: 'storm_alert', atMs: toMs(d.sentAt || d.claimedAt),
-    outcome: st === 'failed' ? 'failed' : (st === 'sent' ? 'sent' : 'sent'),
+    // The claim is created BEFORE the send, so 'claimed' is unconfirmed, not 'sent'; a failed send is not retried.
+    outcome: st === 'failed' ? 'failed' : (st === 'sent' ? 'sent' : 'unknown'),
     errorCode: '', toKey: phoneKey(sub && sub.phone), toDisplay: maskPhone(sub && sub.phone), name: shortName(sub && sub.name),
     templateId: 'storm_alert', text: 'Storm Alert: ' + str(d.event) + ' near ' + str(d.zip),
-    consent: sub && sub.tcpaConsent === true ? 'subscriber' : 'none', state: str(sub && sub.state), source: 'storm_alerts_sent',
+    // No subscriber doc (lookup failed or deleted) = UNKNOWN, never "no consent".
+    consent: !sub ? 'unknown' : (sub.tcpaConsent === true ? 'subscriber' : 'none'), state: str(sub && sub.state), source: 'storm_alerts_sent',
   });
 }
 
@@ -394,6 +448,9 @@ function fromReviewAsk(id, d) {
   });
 }
 
+/** A canary send went to the owner, not the customer (subject / text carries the [CANARY] tag). */
+function isCanary(ev) { return /^\s*\[CANARY/i.test(str(ev && ev.text)); }
+
 // ── gate result for one event ─────────────────────────────────────────────
 function gateOf(ev, ctx) {
   const c = ctx || {};
@@ -404,6 +461,7 @@ function gateOf(ev, ctx) {
   if (ev.outcome === 'blocked') return { result: 'blocked', notes: ['Refused: ' + (BLOCK_LABELS[ev.blockedReason] || 'refused')] };
   if (spec.customer && ev.channel === 'sms') {
     if (ev.consent === 'none') { notes.push('no consent record'); bump(spec.auto ? 'fail' : 'warn'); }
+    else if (ev.consent === 'unknown') { notes.push('consent could not be checked'); bump('warn'); }
     else if (ev.consent === 'form') notes.push('consent: website form');
     else if (ev.consent === 'subscriber') notes.push('consent: storm signup');
     else if (ev.consent === 'inbound') notes.push('customer texted first');
@@ -423,7 +481,7 @@ function publicEvent(ev, ctx) {
   const g = gateOf(ev, ctx);
   return {
     id: ev.id, atMs: ev.atMs, channel: ev.channel, automation: ev.automation, automationLabel: spec.label, risk: spec.risk,
-    internal: !!ev.internal, name: scrubText(ev.name || ''), recipient: ev.toDisplay || '', templateId: ev.templateId,
+    internal: !!ev.internal, canary: isCanary(ev), name: scrubText(ev.name || ''), recipient: ev.toDisplay || '', templateId: ev.templateId,
     firstLine: clipLine(scrubText(ev.text), LINE_MAX), outcome: ev.outcome, errorCode: ev.errorCode || '',
     errorLabel: CARRIER_CODES[ev.errorCode] || '', gate: g.result, gateNotes: g.notes, consent: ev.consent,
   };
@@ -435,15 +493,18 @@ function emptyChannels() { return { sms: 0, email: 0, push: 0, voice: 0 }; }
 function countWindow(events, sinceMs, untilMs) {
   const byChannel = emptyChannels();
   const byAutomation = {};
+  const internal = { total: 0, byChannel: emptyChannels() };
   let total = 0;
   for (const e of events) {
     if (e.outcome === 'blocked') continue;
     if (e.atMs < sinceMs || e.atMs > untilMs) continue;
+    if (!(AUTOMATIONS[e.automation] || {}).customer) { internal.byChannel[e.channel] = (internal.byChannel[e.channel] || 0) + 1; internal.total++; continue; }
     byChannel[e.channel] = (byChannel[e.channel] || 0) + 1;
     byAutomation[e.automation] = (byAutomation[e.automation] || 0) + 1;
     total++;
   }
-  return { total, byChannel, byAutomation };
+  // total / byChannel / byAutomation are CUSTOMER messages only (the same population the alert thresholds use).
+  return { total, byChannel, byAutomation, internal };
 }
 
 function outcomesOf(events, sinceMs) {
@@ -482,9 +543,13 @@ function lookItem(kind, severity, title, ev, ctx, extra) {
   return Object.assign({ id: kind + ':' + ev.id, kind, severity, title, atMs: ev.atMs, event: publicEvent(ev, ctx) }, extra || {});
 }
 
-function needsLook(events, nowMs, cfg, ctx) {
+function needsLook(allEvents, nowMs, cfg, ctx) {
   const t = cfg || THRESHOLDS;
   const items = [];
+  const events = allEvents.filter((e) => !isCanary(e));
+  if (ctx && ctx.blind && ctx.blind.length) {
+    items.push({ id: 'monitor_blind', kind: 'monitor_blind', severity: 'high', title: 'Some data could not be read: ' + ctx.blind.join(', '), atMs: nowMs, event: null });
+  }
   const since = nowMs - 7 * DAY;
   const recent = events.filter((e) => e.atMs >= since);
 
@@ -558,9 +623,14 @@ function needsLook(events, nowMs, cfg, ctx) {
  * { key, severity, title, detail, count }. Pure: the watch and the banner
  * call it with the same arguments and get the same answer.
  */
-function evaluateAlerts(events, nowMs, cfg, ctx) {
+function evaluateAlerts(allEvents, nowMs, cfg, ctx) {
   const t = cfg || THRESHOLDS;
   const out = [];
+  const events = allEvents.filter((e) => !isCanary(e));
+  if (ctx && ctx.blind && ctx.blind.length) {
+    out.push({ key: 'monitor_blind', severity: 'high', count: ctx.blind.length, title: 'The messaging monitor is blind: it could not read ' + ctx.blind.join(', '),
+      detail: 'A quiet page means nothing while a source is unreadable. Likely a missing Firestore index or a permissions problem.' });
+  }
   const hourAgo = nowMs - HOUR;
   const cust = events.filter((e) => (AUTOMATIONS[e.automation] || {}).customer && e.outcome !== 'blocked');
   const lastH = cust.filter((e) => e.atMs > hourAgo && e.atMs <= nowMs);
@@ -594,7 +664,8 @@ function evaluateAlerts(events, nowMs, cfg, ctx) {
     out.push({ key: 'no_consent', severity: 'high', count: noC.length, title: noC.length + ' automated text(s) went to a number with no consent record',
       detail: 'Should always be zero. Open the Messaging view and read the Needs-a-look list.' });
   }
-  const hi = day.filter((e) => (AUTOMATIONS[e.automation] || {}).risk === 'HIGH' && (AUTOMATIONS[e.automation] || {}).customer && e.outcome !== 'blocked');
+  // SMS only: the email automations rated HIGH (lead ack, follow-up, review ask) are live today by design and would alert every day.
+  const hi = day.filter((e) => e.channel === 'sms' && (AUTOMATIONS[e.automation] || {}).risk === 'HIGH' && (AUTOMATIONS[e.automation] || {}).customer && e.outcome !== 'blocked');
   if (hi.length > t.highRiskFiredMax) {
     const names = Array.from(new Set(hi.map((e) => AUTOMATIONS[e.automation].label)));
     out.push({ key: 'high_risk', severity: 'warn', count: hi.length, title: 'HIGH-risk automation fired: ' + names.join(', '),
@@ -614,35 +685,68 @@ function evaluateAlerts(events, nowMs, cfg, ctx) {
   return out.sort((a, b) => rank[a.severity] - rank[b.severity]);
 }
 
-/** Dedupe key for one alert: one per alert kind per local day. */
+/** Count tier: a materially bigger incident is a new key (re-alerts); a same-sized one is not. */
+function countTier(n) { const c = Number(n) || 0; return c <= 0 ? 0 : c === 1 ? 1 : c <= 4 ? 2 : c <= 9 ? 3 : c <= 24 ? 4 : 5; }
+/** Dedupe key for one alert: kind + local day + size tier. */
 function alertKey(alert, nowMs, tz) {
-  return 'msgwatch_' + String(alert.key).replace(/[^a-z0-9_]/gi, '') + '_' + ymdIn(nowMs, tz || DEFAULT_TZ);
+  return 'msgwatch_' + String(alert.key).replace(/[^a-z0-9_]/gi, '') + '_' + ymdIn(nowMs, tz || DEFAULT_TZ) + '_t' + countTier(alert.count);
 }
 
 // ── status strip ──────────────────────────────────────────────────────────
-function boolOrUnknown(v) { return v === true ? 'on' : (v === false ? 'off' : 'unknown'); }
-/** messaging_controls/global is owned by another session: read it loosely, never create it. */
-function controlsFrom(doc) {
-  if (!doc) return { killSwitch: 'unknown', canary: 'unknown', present: false };
-  const kill = doc.killSwitch !== undefined ? doc.killSwitch : (doc.kill !== undefined ? doc.kill : (doc.paused !== undefined ? doc.paused : (doc.enabled === false ? true : (doc.enabled === true ? false : undefined))));
-  const canary = doc.canary !== undefined ? doc.canary : (doc.canaryMode !== undefined ? doc.canaryMode : (doc.mode ? doc.mode === 'canary' : undefined));
-  return { killSwitch: boolOrUnknown(kill), canary: boolOrUnknown(canary === 'on' ? true : canary), present: true };
+/**
+ * messaging_controls/global as PR #2572 defines it, FAIL CLOSED: absent, unreadable, or any field that is not
+ * exactly true means that channel is OFF. input.state: 'ok' | 'absent' | 'unreadable' | 'not_deployed'
+ * ('not_deployed' = this deployment has no kill-switch code, so nothing enforces the doc yet).
+ */
+function controlsFrom(input) {
+  const i = input || {};
+  const state = i.state || (i.doc ? 'ok' : 'absent');
+  if (state === 'not_deployed') return { state, present: false, enforced: false, customerSends: 'not_enforced', sms: 'not_enforced', email: 'not_enforced', otp: 'not_enforced', canary: 'unknown', reason: 'not_deployed' };
+  if (state === 'unreadable') return { state, present: false, enforced: true, customerSends: 'off', sms: 'off', email: 'off', otp: 'off', canary: 'unknown', reason: 'unreadable' };
+  if (state === 'absent' || !i.doc) return { state: 'absent', present: false, enforced: true, customerSends: 'off', sms: 'off', email: 'off', otp: 'off', canary: 'off', reason: 'absent' };
+  const d = i.doc;
+  const master = d.customerSendsEnabled === true;
+  const ch = (k) => (master && d[k] === true ? 'on' : 'off');
+  return { state: 'ok', present: true, enforced: true, customerSends: master ? 'on' : 'off', sms: ch('smsEnabled'), email: ch('emailEnabled'), otp: ch('otpEnabled'),
+    canary: d.canary === true ? 'on' : 'off', reason: master ? '' : 'off' };
 }
 
-function automationRows(flagRows) {
+/** automation (this page) -> keys in messaging_controls/automations; any one true enables it. */
+const AUTOMATION_CONTROL_KEYS = Object.freeze({
+  storm_alert: ['stormText', 'stormNwsText'], lead_ack_text: ['leadAckSms'], lead_ack_email: ['leadAckEmail'], lead_followup_email: ['leadFollowupEmail'],
+  review_ask_text: ['reviewAskAutoText'], review_ask_email: ['reviewAskAutoEmail'], missed_call_text: ['missedCallAutotext'],
+});
+
+/**
+ * One row per automation with its EFFECTIVE state: the env flag AND (when the kill-switch code is deployed) the master
+ * switch, the channel switch and messaging_controls/automations.<key> === true. reason says why it is OFF.
+ */
+function automationRows(flagRows, controls, autos) {
   const byName = {};
   (flagRows || []).forEach((r) => { byName[r.name] = r; });
+  const c = controls || controlsFrom({ state: 'not_deployed' });
+  const a = autos || { state: 'not_deployed' };
   return Object.keys(AUTOMATIONS).map((k) => {
     const spec = AUTOMATIONS[k];
     const names = AUTOMATION_FLAGS[k] || [];
-    let state = 'ON';
+    let env = 'ON';
     let flag = '';
     if (names.length) {
       flag = names[0];
       const r = byName[flag];
-      state = r ? str(r.state).toUpperCase() : 'UNKNOWN';
+      env = r ? str(r.state).toUpperCase() : 'UNKNOWN';
     }
-    return { key: k, label: spec.label, channel: spec.channel, risk: spec.risk, customer: spec.customer, campaign: spec.campaign, flag, state };
+    let effective = env;
+    let reason = '';
+    if (spec.customer && c.enforced) {
+      const chState = c[spec.channel === 'email' ? 'email' : 'sms'];
+      const keys = AUTOMATION_CONTROL_KEYS[k];
+      if (c.customerSends !== 'on') { effective = 'OFF'; reason = c.reason === 'unreadable' ? 'kill switch unreadable (fails closed)' : (c.reason === 'absent' ? 'no controls document (fails closed)' : 'master switch is off'); }
+      else if (chState !== 'on') { effective = 'OFF'; reason = spec.channel === 'email' ? 'email switch is off' : 'SMS switch is off'; }
+      else if (keys && (a.state !== 'ok' || !keys.some((x) => a.doc && a.doc[x] === true))) { effective = 'OFF'; reason = a.state === 'unreadable' ? 'automations doc unreadable (fails closed)' : 'not enabled in messaging_controls/automations'; }
+      else if (env !== 'ON' && names.length) { reason = 'env flag ' + env.toLowerCase(); }
+    } else if (names.length && env !== 'ON') reason = 'env flag ' + env.toLowerCase();
+    return { key: k, label: spec.label, channel: spec.channel, risk: spec.risk, customer: spec.customer, campaign: spec.campaign, flag, state: env, effective, reason };
   });
 }
 
@@ -652,19 +756,30 @@ function buildOverview(input) {
   const nowMs = i.nowMs;
   const tz = i.tz || DEFAULT_TZ;
   const events = (i.events || []).filter((e) => e && e.atMs).sort((a, b) => b.atMs - a.atMs);
-  const ctx = { tz, optOutAtMs: i.optOutAtMs || {}, bounces: i.bounces || [] };
+  const sources = i.sources || {};
+  const blind = CRITICAL_SOURCES.filter((k) => sources[k] === 'unavailable');
+  const truncated = Object.keys(i.truncated || {}).filter((k) => i.truncated[k]);
+  const ctx = { tz, optOutAtMs: i.optOutAtMs || {}, bounces: i.bounces || [], blind };
+  const controls = controlsFrom(i.controls || { state: 'not_deployed' });
   const dayStart = startOfDay(nowMs, tz);
   const cfg = i.thresholds || THRESHOLDS;
   const alerts = evaluateAlerts(events, nowMs, cfg, ctx);
   return {
     generatedAtMs: nowMs,
     tz,
-    status: Object.assign({
+    dataComplete: blind.length === 0,
+    unreadable: blind,
+    truncated,
+    blockedRecorded: BLOCK_RECORDED,
+    emailPartlyUnseen: EMAIL_PARTLY_UNSEEN,
+    canaryOn: controls.canary === 'on',
+    status: {
       texting: i.texting || { enabled: null, registered: null },
       a2pRegistered: i.a2pRegistered === true ? 'yes' : (i.a2pRegistered === false ? 'no' : 'unknown'),
       lastSendAtMs: lastSendAt(events),
-      automations: automationRows(i.flagRows),
-    }, controlsFrom(i.controls)),
+      controls,
+      automations: automationRows(i.flagRows, controls, i.automationsDoc),
+    },
     counts: {
       today: countWindow(events, dayStart, nowMs),
       d7: countWindow(events, nowMs - 7 * DAY, nowMs),
@@ -678,7 +793,7 @@ function buildOverview(input) {
     needsLook: needsLook(events, nowMs, cfg, ctx).slice(0, 60).map((x) => x),
     alerts,
     events: events.slice(0, 100).map((e) => publicEvent(e, ctx)),
-    coverage: { sources: i.sources || {}, blind: BLIND_SPOTS },
+    coverage: { sources, truncated: i.truncated || {}, inventory: INVENTORY, blind: BLIND_SPOTS },
     thresholds: cfg,
   };
 }
@@ -692,13 +807,13 @@ function optOutRows(entries, limit) {
 
 /** Queue rows (email_queue, pending Agent-inbox drafts) -> aged backlog items, oldest first. */
 function queueRows(items, nowMs) {
-  const rows = (items || []).map((q) => ({ queue: q.queue, status: q.status, ageMs: Math.max(0, nowMs - toMs(q.atMs)), label: clipLine(q.label, 60), attempts: q.attempts || 0 }))
+  const rows = (items || []).map((q) => ({ queue: q.queue, status: q.status, ageMs: Math.max(0, nowMs - toMs(q.atMs)), label: clipLine(scrubText(q.label), 60), attempts: q.attempts || 0 }))
     .sort((a, b) => b.ageMs - a.ageMs);
   return { items: rows.slice(0, 40), pending: rows.filter((r) => r.status === 'pending').length, failed: rows.filter((r) => r.status === 'failed').length };
 }
 
 module.exports = {
-  HOUR, DAY, DEFAULT_TZ, WINDOW_START_H, WINDOW_END_H, LINE_MAX, VIEW_ROLES, THRESHOLDS, CARRIER_CODES, AUTOMATIONS, BLIND_SPOTS,
+  HOUR, DAY, DEFAULT_TZ, WINDOW_START_H, WINDOW_END_H, LINE_MAX, VIEW_ROLES, THRESHOLDS, CARRIER_CODES, AUTOMATIONS, BLIND_SPOTS, INVENTORY, CRITICAL_SOURCES, BLOCK_RECORDED, AUTOMATION_CONTROL_KEYS, STATE_ZONES, EMAIL_PARTLY_UNSEEN, isCanary, countTier,
   BLOCK_REASONS, BLOCK_LABELS, AUTOMATION_FLAGS,
   maskPhone, maskEmail, scrubText, clipLine, shortName, phoneKey, toMs, canView, hourIn, ymdIn, startOfDay, outsideWindow, zonesFor, consentOf,
   smsOutcome, parseDelivery, blockedReasonOf,

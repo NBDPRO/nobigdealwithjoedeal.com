@@ -47,9 +47,9 @@
   function scrub(t) {
     return String(t == null ? '' : t)
       .replace(/[^\s@<>()]+@[^\s@<>()]+\.[a-z]{2,}/gi, function (m) { return m.charAt(0) + '•••@•••'; })
-      .replace(/\+?\d[\d\s().-]{7,}\d/g, function (m) {
+      .replace(/\+?\d[\d\s().-]{5,}\d/g, function (m) {
         var d = m.replace(/\D/g, '');
-        return d.length >= 7 ? '(•••) •••-' + d.slice(-4) : m;
+        return d.length >= 7 && !/^\d{4}-\d{2}-\d{2}$/.test(m.trim()) ? '(•••) •••-' + d.slice(-4) : m;
       });
   }
   function clip(t, n) {
@@ -84,10 +84,28 @@
     var cls = s === 'on' || s === 'yes' ? 'mc-ok' : (s === 'off' || s === 'no' || s === 'paused' ? 'mc-off' : 'mc-unk');
     return chip(String(v || 'unknown').toUpperCase(), cls);
   }
+  // The kill switch reads in plain words, never a bare ON/OFF whose colour means the opposite.
+  function sendChip(v, reason) {
+    if (v === 'on') return chip('SENDING ALLOWED', 'mc-ok');
+    if (v === 'not_enforced') return chip('NOT ENFORCED YET', 'mc-warn');
+    var why = reason === 'unreadable' ? ' (could not read the controls)' : (reason === 'absent' ? ' (no controls document)' : '');
+    return chip('CUSTOMER SENDS OFF' + why, 'mc-bad');
+  }
+  function channelChip(v) { return v === 'on' ? chip('on', 'mc-ok') : (v === 'not_enforced' ? chip('not enforced', 'mc-warn') : chip('OFF', 'mc-bad')); }
+  function canaryChip(v) { return v === 'on' ? chip('CANARY: sends go to you, not customers', 'mc-warn') : (v === 'off' ? chip('off (real customers)', 'mc-ok') : chip('unknown', 'mc-unk')); }
   var OUTCOME_CLS = { sent: 'mc-ok', delivered: 'mc-ok', failed: 'mc-bad', undelivered: 'mc-bad', blocked: 'mc-warn', unknown: 'mc-unk' };
   var GATE_CLS = { pass: 'mc-ok', warn: 'mc-warn', fail: 'mc-bad', blocked: 'mc-warn' };
   var RISK_CLS = { HIGH: 'mc-bad', MED: 'mc-warn', LOW: 'mc-unk' };
 
+  function incompleteHtml(o) {
+    var un = (o && o.unreadable) || [];
+    if (!un.length) return '';
+    return '<div class="mc-banner" role="alert"><b>Some data could not be read</b><span class="mc-sub">Not read: ' + esc(un.join(', ')) +
+      '. Nothing below can be trusted as complete (a missing Firestore index or a permissions problem is the usual cause).</span></div>';
+  }
+  function canaryHtml(o) {
+    return o && o.canaryOn ? '<div class="mc-note" role="status"><b>Canary is on.</b> Customer messages are being redirected to you, so rows below may show the original customer as the recipient.</div>' : '';
+  }
   function bannerHtml(alerts) {
     if (!alerts || !alerts.length) return '';
     return '<div class="mc-banner" role="alert"><b>' + alerts.length + (alerts.length === 1 ? ' alert' : ' alerts') + ' need a look</b><ul>' +
@@ -99,45 +117,46 @@
   function statusHtml(o) {
     var s = o.status || {};
     var t = s.texting || {};
+    var c = s.controls || {};
     var texting = t.enabled === true ? 'on' : (t.enabled === false ? 'off' : 'unknown');
     var rows = (s.automations || []).filter(function (a) { return a.customer || a.flag; }).map(function (a) {
-      return '<li><span class="mc-aname">' + esc(a.label) + '</span>' + chip(a.risk, RISK_CLS[a.risk]) + stateChip(a.state) + '</li>';
+      var eff = a.effective || a.state;
+      return '<li><span class="mc-aname">' + esc(a.label) + (a.reason ? '<span class="mc-sub">' + esc(a.reason) + '</span>' : '') + '</span>' + chip(a.risk, RISK_CLS[a.risk]) + stateChip(eff) + '</li>';
     }).join('');
     return '<section class="mc-card"><h3>Status</h3><div class="mc-chips">' +
-      '<div><span class="mc-lab">Kill switch</span>' + stateChip(s.killSwitch) + '</div>' +
-      '<div><span class="mc-lab">Canary mode</span>' + stateChip(s.canary) + '</div>' +
+      '<div class="mc-wide"><span class="mc-lab">Master kill switch</span>' + sendChip(c.customerSends, c.reason) + '</div>' +
+      '<div><span class="mc-lab">SMS</span>' + channelChip(c.sms) + '</div>' +
+      '<div><span class="mc-lab">Email</span>' + channelChip(c.email) + '</div>' +
+      '<div><span class="mc-lab">Verification codes</span>' + channelChip(c.otp) + '</div>' +
+      '<div class="mc-wide"><span class="mc-lab">Canary mode</span>' + canaryChip(c.canary) + '</div>' +
       '<div><span class="mc-lab">Texting master switch</span>' + stateChip(texting) + '</div>' +
       '<div><span class="mc-lab">A2P campaign registered</span>' + stateChip(s.a2pRegistered) + '</div>' +
       '<div><span class="mc-lab">Last customer send</span><b>' + esc(ago(s.lastSendAtMs, o.generatedAtMs)) + '</b></div></div>' +
-      (s.present === false ? '<p class="mc-sub">Kill switch and canary read <b>unknown</b> until the master kill-switch document exists. This page never creates it.</p>' : '') +
-      '<h4>Automations</h4><ul class="mc-list">' + rows + '</ul></section>';
+      (c.enforced === false ? '<p class="mc-sub">The master kill switch is not in this deployment yet, so each automation still runs on its own switch below.</p>' : '') +
+      '<h4>Automations (effective state)</h4><ul class="mc-list">' + rows + '</ul></section>';
   }
 
   function countsHtml(o) {
     var c = o.counts || {};
     var names = {};
     (o.status && o.status.automations || []).forEach(function (a) { names[a.key] = a.label; });
-    function col(k, label) {
-      var w = c[k] || { total: 0, byChannel: {}, byAutomation: {} };
-      return '<td><b>' + w.total + '</b></td>';
-    }
+    var KEYS = ['today', 'd7', 'd30'];
     var head = '<tr><th></th><th>Today</th><th>7 days</th><th>30 days</th></tr>';
-    var chRows = CHANNELS.map(function (ch) {
-      return '<tr><th>' + esc(ch.toUpperCase()) + '</th>' + ['today', 'd7', 'd30'].map(function (k) {
-        return '<td>' + ((c[k] && c[k].byChannel && c[k].byChannel[ch]) || 0) + '</td>';
-      }).join('') + '</tr>';
+    function cell(k, fn) { return '<td>' + (fn(c[k] || {}) || 0) + '</td>'; }
+    var chRows = ['sms', 'email', 'push'].map(function (ch) {
+      return '<tr><th>' + esc(ch.toUpperCase()) + '</th>' + KEYS.map(function (k) { return cell(k, function (w) { return (w.byChannel || {})[ch]; }); }).join('') + '</tr>';
     }).join('');
     var keys = {};
-    ['today', 'd7', 'd30'].forEach(function (k) { Object.keys((c[k] && c[k].byAutomation) || {}).forEach(function (a) { keys[a] = 1; }); });
+    KEYS.forEach(function (k) { Object.keys((c[k] && c[k].byAutomation) || {}).forEach(function (a) { keys[a] = 1; }); });
     var autoRows = Object.keys(keys).sort().map(function (a) {
-      return '<tr><th>' + esc(names[a] || a) + '</th>' + ['today', 'd7', 'd30'].map(function (k) {
-        return '<td>' + ((c[k] && c[k].byAutomation && c[k].byAutomation[a]) || 0) + '</td>';
-      }).join('') + '</tr>';
+      return '<tr><th>' + esc(names[a] || a) + '</th>' + KEYS.map(function (k) { return cell(k, function (w) { return (w.byAutomation || {})[a]; }); }).join('') + '</tr>';
     }).join('');
-    return '<section class="mc-card"><h3>What was sent</h3><table class="mc-table">' + head + chRows +
-      '<tr class="mc-total"><th>Total</th>' + col('today') + col('d7') + col('d30') + '</tr></table>' +
-      '<h4>By automation</h4>' + (autoRows ? '<table class="mc-table">' + head + autoRows + '</table>' : '<p class="mc-sub">Nothing sent in the last 30 days.</p>') +
-      '<p class="mc-sub">Voice is always 0: the CRM has no outbound calling code.</p></section>';
+    return '<section class="mc-card"><h3>Customer messages sent</h3><table class="mc-table">' + head + chRows +
+      '<tr class="mc-total"><th>Total</th>' + KEYS.map(function (k) { return cell(k, function (w) { return w.total; }); }).join('') + '</tr></table>' +
+      '<h4>Internal alerts to you (not customers)</h4><table class="mc-table">' + head +
+      '<tr><th>All channels</th>' + KEYS.map(function (k) { return cell(k, function (w) { return w.internal && w.internal.total; }); }).join('') + '</tr></table>' +
+      '<h4>By automation</h4>' + (autoRows ? '<table class="mc-table">' + head + autoRows + '</table>' : '<p class="mc-sub">No customer messages in the last 30 days.</p>') +
+      '<p class="mc-sub">Counts only what this page can read. Voice is not tracked, and some email senders are not visible: see Coverage.</p></section>';
   }
 
   function outcomesHtml(o) {
@@ -157,10 +176,12 @@
   function blockedHtml(o) {
     var b = o.blocked || { total: 0, byReason: {} };
     var labels = o.blockedLabels || {};
+    var rec = o.blockedRecorded || {};
     var rows = Object.keys(b.byReason || {}).map(function (k) {
-      return '<tr><th>' + esc(labels[k] || k) + '</th><td>' + (b.byReason[k] || 0) + '</td></tr>';
+      var shown = rec[k] === false ? '<span class="mc-sub">not recorded</span>' : (b.byReason[k] || 0);
+      return '<tr><th>' + esc(labels[k] || k) + '</th><td>' + shown + '</td></tr>';
     }).join('');
-    return '<section class="mc-card"><h3>Blocked by a gate (30 days)</h3><p class="mc-big">' + (b.total || 0) + '</p><table class="mc-table">' + rows + '</table>' +
+    return '<section class="mc-card"><h3>Blocked by a gate (30 days)</h3><p class="mc-big">' + (b.total || 0) + '<span class="mc-sub"> that left a row</span></p><table class="mc-table">' + rows + '</table>' +
       '<p class="mc-sub">Counts only refusals that left a row. STOP, do-not-text, quiet-hours, master-switch and daily-cap refusals are returned to the caller without writing anything today, so a low number here is not proof nothing was blocked. See Coverage.</p></section>';
   }
 
@@ -187,7 +208,7 @@
 
   function eventHtml(e, tz) {
     return '<li class="mc-row"><div class="mc-row-top"><b>' + esc(e.automationLabel || e.automation) + '</b>' +
-      chip(String(e.channel || '').toUpperCase(), 'mc-unk') + chip(e.outcome, OUTCOME_CLS[e.outcome]) + (e.errorCode ? chip('err ' + e.errorCode, 'mc-bad') : '') + '</div>' +
+      chip(String(e.channel || '').toUpperCase(), 'mc-unk') + (e.canary ? chip('CANARY (went to you)', 'mc-warn') : '') + chip(e.outcome, OUTCOME_CLS[e.outcome]) + (e.errorCode ? chip('err ' + e.errorCode, 'mc-bad') : '') + '</div>' +
       '<div class="mc-row-who">' + esc(scrub(e.name || '')) + (e.name ? ' · ' : '') + esc(scrub(e.recipient || '')) + '</div>' +
       '<div class="mc-sub">' + esc(e.templateId || '') + ' · ' + esc(when(e.atMs, tz)) + '</div>' +
       (e.firstLine ? '<div class="mc-line">“' + esc(clip(e.firstLine, 80)) + '”</div>' : '') +
@@ -197,7 +218,8 @@
 
   function needsLookHtml(o) {
     var items = o.needsLook || [];
-    if (!items.length) return '<section class="mc-card"><h3>Needs a look</h3><p class="mc-ok-text">Nothing to look at in the last 7 days.</p></section>';
+    if (!items.length && (o.unreadable || []).length) return '<section class="mc-card"><h3>Needs a look</h3><p class="mc-bad-text">Cannot say: some data could not be read (see the red banner).</p></section>';
+    if (!items.length) return '<section class="mc-card"><h3>Needs a look</h3><p class="mc-ok-text">Nothing to look at in the last 7 days' + ((o.truncated || []).length ? ', in the rows that were read (some sources were capped, see Coverage)' : '') + '.</p></section>';
     return '<section class="mc-card"><h3>Needs a look <span class="mc-count">' + items.length + '</span></h3><ul class="mc-rows">' + items.slice(0, 40).map(function (i) {
       return '<li class="mc-look mc-sev-' + esc(i.severity) + '"><div class="mc-row-top"><b>' + esc(scrub(i.title)) + '</b>' + chip(i.kind.replace(/_/g, ' '), i.severity === 'high' ? 'mc-bad' : 'mc-warn') + '</div>' +
         '<div class="mc-sub">' + esc(when(i.atMs, o.tz)) + '</div>' + (i.event ? '<ul class="mc-rows">' + eventHtml(i.event, o.tz) + '</ul>' : '') + '</li>';
@@ -214,12 +236,20 @@
   }
 
   function coverageHtml(o) {
-    var cv = o.coverage || { sources: {}, blind: [] };
+    var cv = o.coverage || { sources: {}, inventory: [] };
+    var trunc = cv.truncated || {};
     var src = Object.keys(cv.sources || {}).map(function (k) {
-      return '<li><span>' + esc(k) + '</span>' + chip(cv.sources[k], cv.sources[k] === 'ok' ? 'mc-ok' : (cv.sources[k] === 'absent' ? 'mc-unk' : 'mc-bad')) + '</li>';
+      var st = cv.sources[k];
+      return '<li><span>' + esc(k) + (trunc[k] ? '<span class="mc-sub"> capped: oldest rows not shown</span>' : '') + '</span>' + chip(st, st === 'ok' ? 'mc-ok' : (st === 'absent' || st === 'not deployed' ? 'mc-unk' : 'mc-bad')) + '</li>';
     }).join('');
-    var blind = (cv.blind || []).map(function (b) { return '<li><b>' + esc(b.label) + '</b><span class="mc-sub">' + esc(b.note) + '</span></li>'; }).join('');
-    return '<section class="mc-card"><h3>Coverage</h3><h4>Ledgers read</h4><ul class="mc-list">' + src + '</ul><h4>What this page cannot see</h4><ul class="mc-list mc-stack">' + blind + '</ul></section>';
+    var inv = (cv.inventory || []).map(function (b) {
+      return '<li><span><b>' + esc(b.id) + '</b> ' + esc(b.label) + '<span class="mc-sub">' + esc(b.via) + '</span></span>' +
+        chip(b.seen === 'yes' ? 'seen' : (b.seen === 'partly' ? 'partly' : 'NOT SEEN'), b.seen === 'yes' ? 'mc-ok' : (b.seen === 'partly' ? 'mc-warn' : 'mc-bad')) + '</li>';
+    }).join('');
+    return '<section class="mc-card"><h3>Coverage</h3>' +
+      (o.emailPartlyUnseen ? '<p class="mc-bad-text">Customer email is only partly visible: several email senders have no ledger this page can read.</p>' : '') +
+      '<h4>Ledgers read</h4><ul class="mc-list">' + src + '</ul><h4>Every sender in the inventory</h4><ul class="mc-list mc-stack">' + inv + '</ul>' +
+      '<p class="mc-sub">Refusals that write no row (STOP, do-not-text, quiet hours, master switch, daily cap) are returned to the caller and stored nowhere, so the Blocked table cannot count them.</p></section>';
   }
 
   function howHtml() {
@@ -235,15 +265,15 @@
 
   function viewHtml(o, filter) {
     if (!o) return '<p class="mc-sub">Loading…</p>';
-    if (o.enabled === false) return '<section class="mc-card"><h3>Messaging</h3><p class="mc-sub">The Messaging Control Center is switched off for this account.</p></section>';
-    return bannerHtml(o.alerts) +
+    if (o.enabled === false) return '<section class="mc-card"><h3>Messaging</h3><p class="' + (o.flagsUnread ? 'mc-bad-text' : 'mc-sub') + '">' + (o.flagsUnread ? 'The feature flags could not be read yet, so this page cannot tell whether Messaging is on. Reload in a moment.' : 'The Messaging Control Center is switched off for this account.') + '</p></section>';
+    return incompleteHtml(o) + canaryHtml(o) + bannerHtml(o.alerts) +
       '<div class="mc-head"><h2>Messaging</h2><div class="mc-head-act"><button type="button" class="btn mc-refresh" data-mc-refresh>Refresh</button>' +
       '<a class="btn mc-twilio" href="' + TWILIO_LOGS + '" target="_blank" rel="noopener noreferrer">Twilio logs</a></div></div>' +
       '<p class="mc-sub">Updated ' + esc(when(o.generatedAtMs, o.tz)) + '. Read-only. Phone numbers show the last 4 digits only.</p>' +
       needsLookHtml(o) + statusHtml(o) + countsHtml(o) + outcomesHtml(o) + blockedHtml(o) + optOutsHtml(o) + queuesHtml(o) + eventsHtml(o, filter) + coverageHtml(o) + howHtml();
   }
 
-  var pure = { esc: esc, canView: canView, scrub: scrub, clip: clip, ago: ago, age: age, bannerHtml: bannerHtml, statusHtml: statusHtml, countsHtml: countsHtml,
+  var pure = { sendChip: sendChip, canaryChip: canaryChip, incompleteHtml: incompleteHtml, canaryHtml: canaryHtml, esc: esc, canView: canView, scrub: scrub, clip: clip, ago: ago, age: age, bannerHtml: bannerHtml, statusHtml: statusHtml, countsHtml: countsHtml,
     outcomesHtml: outcomesHtml, blockedHtml: blockedHtml, optOutsHtml: optOutsHtml, queuesHtml: queuesHtml, eventHtml: eventHtml, needsLookHtml: needsLookHtml,
     eventsHtml: eventsHtml, coverageHtml: coverageHtml, howHtml: howHtml, viewHtml: viewHtml, FLAG: FLAG, VIEW_ROLES: VIEW_ROLES, TWILIO_LOGS: TWILIO_LOGS };
 
@@ -259,6 +289,7 @@
   function uid() { return (w._user && w._user.uid) || null; }
   function allowed() { return canView(claims(), uid()); }
   function flagOn() { return !!(w.NBDFlags && typeof w.NBDFlags.enabled === 'function' && w.NBDFlags.enabled(FLAG)); }
+  function flagsLoaded() { return !!(w.NBDFlags && typeof w.NBDFlags.isLoaded === 'function' && w.NBDFlags.isLoaded()); }
   function mount() { var v = document.getElementById('view-messaging'); return v && (v.querySelector('.view-scroll') || v); }
 
   function paint() {
@@ -280,7 +311,13 @@
 
   function load() {
     var mine = ++seq;
-    if (!allowed() || !flagOn()) { state.data = { enabled: false }; paint(); return Promise.resolve(); }
+    if (!allowed()) { state.data = { enabled: false }; paint(); return Promise.resolve(); }
+    if (!flagOn()) {
+      // "Off" and "could not read the flags" are different answers: say which.
+      state.data = flagsLoaded() ? { enabled: false } : { enabled: false, flagsUnread: true };
+      paint();
+      return Promise.resolve();
+    }
     state.error = '';
     if (!state.data) paint();
     return Promise.resolve(callable()).then(function (fn) { return fn({}); }).then(function (res) {

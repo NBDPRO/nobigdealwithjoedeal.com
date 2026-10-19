@@ -102,11 +102,12 @@ console.log('\nAGGREGATION');
   const dayStart = L.startOfDay(NOW, 'America/New_York');
   ok('startOfDay is local midnight ET', L.ymdIn(dayStart, 'America/New_York') === '2026-10-20' && L.ymdIn(dayStart - 1, 'America/New_York') === '2026-10-19');
   const today = L.countWindow(events, dayStart, NOW);
-  ok('today counts: blocked rows excluded, by channel', today.total === 3 && today.byChannel.sms === 2 && today.byChannel.push === 1 && today.byChannel.email === 0, JSON.stringify(today));
+  ok('today counts: customer messages only (blocked and internal excluded), by channel', today.total === 2 && today.byChannel.sms === 2 && today.byChannel.push === 0 && today.byChannel.email === 0, JSON.stringify(today));
+  ok('internal alerts to the owner are counted separately, never in the customer total', today.internal.total === 1 && today.internal.byChannel.push === 1);
   ok('today counts by automation', today.byAutomation.rep_text === 1 && today.byAutomation.storm_alert === 1);
   const d7 = L.countWindow(events, NOW - 7 * DAY, NOW);
   const d30 = L.countWindow(events, NOW - 30 * DAY, NOW);
-  ok('7d and 30d windows widen', d7.total === 5 && d30.total === 6, d7.total + '/' + d30.total);
+  ok('7d and 30d windows widen', d7.total === 4 && d30.total === 5, d7.total + '/' + d30.total);
   ok('voice channel is always present and 0', d30.byChannel.voice === 0);
   const oc = L.outcomesOf(events, NOW - 30 * DAY);
   ok('outcomes: delivered / failed / undelivered counted with the error code', oc.sms.delivered === 1 && oc.email.failed === 1 && oc.sms.undelivered === 1 && oc.errorCodes['30007'] === 1, JSON.stringify(oc));
@@ -118,11 +119,25 @@ console.log('\nAGGREGATION');
   const q = L.queueRows([{ queue: 'email_queue', status: 'pending', atMs: new Date(at(5)), label: 'a' }, { queue: 'email_queue', status: 'failed', atMs: new Date(at(50)), label: 'b', attempts: 5 }], NOW);
   ok('queue backlog: oldest first with age, pending/failed split', q.items[0].label === 'b' && q.items[0].ageMs === 50 * HOUR && q.pending === 1 && q.failed === 1);
   const ov = L.buildOverview({ nowMs: NOW, events, flagRows: [{ name: 'STORM_TEXT_ENABLED', state: 'OFF' }], controls: null, texting: { enabled: true, registered: true }, a2pRegistered: true });
-  ok('overview: kill switch and canary unknown when the controls doc is absent', ov.status.killSwitch === 'unknown' && ov.status.canary === 'unknown');
+  ok('overview: with no kill-switch code deployed the switch reads NOT ENFORCED (never a false red or green)', ov.status.controls.customerSends === 'not_enforced' && ov.status.controls.canary === 'unknown' && ov.status.controls.enforced === false);
+  ok('overview: data is complete when no critical source failed', ov.dataComplete === true && ov.unreadable.length === 0);
   ok('overview: A2P + texting + per-automation flag state', ov.status.a2pRegistered === 'yes' && ov.status.texting.enabled === true && ov.status.automations.find((a) => a.key === 'storm_alert').state === 'OFF');
   ok('overview: last customer send ignores internal alerts and blocked rows', ov.status.lastSendAtMs === at(1));
-  const c1 = L.controlsFrom({ killSwitch: true, canary: false });
-  ok('controls doc read loosely: killSwitch true -> on, canary false -> off', c1.killSwitch === 'on' && c1.canary === 'off' && c1.present === true);
+  const cAbs = L.controlsFrom({ state: 'absent' }), cUnr = L.controlsFrom({ state: 'unreadable' });
+  ok('FAIL CLOSED: an absent controls doc means customer sends are OFF', cAbs.customerSends === 'off' && cAbs.sms === 'off' && cAbs.email === 'off' && cAbs.otp === 'off' && cAbs.reason === 'absent');
+  ok('FAIL CLOSED: an unreadable controls doc is OFF and says "unreadable", distinct from absent', cUnr.customerSends === 'off' && cUnr.reason === 'unreadable' && cUnr.reason !== cAbs.reason);
+  const cOk = L.controlsFrom({ state: 'ok', doc: { customerSendsEnabled: true, smsEnabled: true, emailEnabled: false, otpEnabled: true, canary: true } });
+  ok('per-channel switches and canary are read exactly', cOk.customerSends === 'on' && cOk.sms === 'on' && cOk.email === 'off' && cOk.otp === 'on' && cOk.canary === 'on');
+  ok('a channel is OFF when the master is not exactly true, whatever the channel field says', L.controlsFrom({ state: 'ok', doc: { smsEnabled: true } }).customerSends === 'off' && L.controlsFrom({ state: 'ok', doc: { smsEnabled: true } }).sms === 'off' &&
+    L.controlsFrom({ state: 'ok', doc: { customerSendsEnabled: 'true', smsEnabled: true } }).customerSends === 'off' && L.controlsFrom({ state: 'ok', doc: { customerSendsEnabled: true, smsEnabled: 1 } }).sms === 'off');
+  const rowsOf = (ctl, autos) => L.automationRows([{ name: 'LEAD_FOLLOWUP_ENABLED', state: 'ON' }, { name: 'STORM_TEXT_ENABLED', state: 'ON' }], L.controlsFrom(ctl), autos);
+  const eff = (rows, k) => rows.find((r) => r.key === k);
+  ok('effective state: master off overrides an ON env flag and says why', eff(rowsOf({ state: 'ok', doc: { customerSendsEnabled: false } }, { state: 'ok', doc: { leadFollowupEmail: true } }), 'lead_followup_email').effective === 'OFF' && /master switch/.test(eff(rowsOf({ state: 'ok', doc: { customerSendsEnabled: false } }, { state: 'ok', doc: {} }), 'lead_followup_email').reason));
+  ok('effective state: needs messaging_controls/automations.<key> === true too', eff(rowsOf({ state: 'ok', doc: { customerSendsEnabled: true, emailEnabled: true } }, { state: 'ok', doc: {} }), 'lead_followup_email').effective === 'OFF' &&
+    /automations/.test(eff(rowsOf({ state: 'ok', doc: { customerSendsEnabled: true, emailEnabled: true } }, { state: 'ok', doc: {} }), 'lead_followup_email').reason) &&
+    eff(rowsOf({ state: 'ok', doc: { customerSendsEnabled: true, emailEnabled: true } }, { state: 'ok', doc: { leadFollowupEmail: true } }), 'lead_followup_email').effective === 'ON');
+  ok('effective state: the channel switch matters (SMS off blocks the storm text)', eff(rowsOf({ state: 'ok', doc: { customerSendsEnabled: true, smsEnabled: false } }, { state: 'ok', doc: { stormText: true } }), 'storm_alert').effective === 'OFF');
+  ok('effective state: not-deployed kill switch leaves the env state alone', eff(rowsOf({ state: 'not_deployed' }, null), 'lead_followup_email').effective === 'ON');
   ok('overview exposes the threshold config', ov.thresholds.errorRatePctPerHour === 10);
 }
 
@@ -200,7 +215,25 @@ console.log('\nROLE GATING');
 
 console.log('\nCALLABLE + WATCH (in-memory Firestore, firebase stubbed)');
 // ── fake firestore ───────────────────────────────────────────────────────
-function makeDb(seed) {
+const INDEXES = JSON.parse(read('firestore.indexes.json')).indexes;
+/** Firestore's rule, simplified: equality fields + (range or orderBy field) need a composite index unless it is one field. */
+function indexError(c, f, ord, indexes) {
+  const eq = f.filter((x) => x[1] === '==').map((x) => x[0]);
+  const rng = f.filter((x) => x[1] !== '==').map((x) => x[0]);
+  const orderField = ord ? ord[0] : (rng[0] || null);
+  const dir = ord ? (ord[1] === 'desc' ? 'DESCENDING' : 'ASCENDING') : 'ASCENDING';
+  if (!orderField) return null;
+  if (!eq.length && (!rng.length || !ord || rng[0] === ord[0])) return null;
+  if (rng.length && ord && rng[0] !== ord[0]) return 'range and orderBy must share a field';
+  const want = eq.slice().sort();
+  const hit = indexes.some((i) => i.collectionGroup === c && i.fields.length === eq.length + 1 &&
+    i.fields.slice(0, eq.length).map((x) => x.fieldPath).sort().join() === want.join() &&
+    i.fields[eq.length].fieldPath === orderField && (i.fields[eq.length].order || 'ASCENDING') === dir);
+  return hit ? null : 'FAILED_PRECONDITION: the query requires an index (' + c + ': ' + eq.join('+') + ' + ' + orderField + ' ' + dir + ')';
+}
+function makeDb(seed, opts) {
+  const o = opts || {};
+  const indexes = o.indexes || INDEXES;
   const data = JSON.parse(JSON.stringify(seed || {}), (k, v) => v);
   Object.keys(seed || {}).forEach((c) => Object.keys(seed[c]).forEach((id) => { data[c][id] = Object.assign({}, seed[c][id]); }));
   const log = { reads: [], writes: [] };
@@ -209,7 +242,7 @@ function makeDb(seed) {
   function docRef(c, id) {
     return {
       id, path: c + '/' + id,
-      get: async () => { log.reads.push(c + '/' + id); return snapOf(c, id); },
+      get: async () => { log.reads.push(c + '/' + id); if (o.failDocs && o.failDocs.test(c + '/' + id)) throw new Error('permission-denied'); return snapOf(c, id); },
       create: async (v) => { log.writes.push({ op: 'create', path: c + '/' + id }); data[c] = data[c] || {}; if (data[c][id]) { const e = new Error('ALREADY_EXISTS'); e.code = 6; throw e; } data[c][id] = v; },
       set: async (v, o) => { log.writes.push({ op: 'set', path: c + '/' + id }); data[c] = data[c] || {}; data[c][id] = o && o.merge ? Object.assign({}, data[c][id] || {}, v) : v; },
       update: async (v) => { log.writes.push({ op: 'update', path: c + '/' + id }); Object.assign(data[c][id], v); },
@@ -223,8 +256,13 @@ function makeDb(seed) {
       limit: (n) => query(c, f, ord, n),
       get: async () => {
         log.reads.push(c + '?' + f.map((x) => x[0] + x[1]).join('&'));
+        if (o.failColl && o.failColl.test(c)) throw new Error('unavailable');
+        const ie = indexError(c, f, ord, indexes);
+        if (ie) throw new Error(ie);
         let rows = Object.keys(data[c] || {}).map((id) => ({ id, d: data[c][id] }));
         f.forEach(([field, op, val]) => { rows = rows.filter((r) => { const x = cmp(r.d[field]); const y = cmp(val); return op === '==' ? x === y : (op === '>=' ? x >= y : (op === '>' ? x > y : false)); }); });
+        // No orderBy = document-id order (Firestore's default), which drops the NEWEST rows under a limit.
+        rows.sort((a, b) => (a.id < b.id ? -1 : 1));
         if (ord) rows.sort((a, b) => (ord[1] === 'desc' ? -1 : 1) * (cmp(a.d[ord[0]]) - cmp(b.d[ord[0]])));
         if (lim) rows = rows.slice(0, lim);
         return { docs: rows.map((r) => ({ id: r.id, data: () => r.d, ref: docRef(c, r.id) })), size: rows.length };
@@ -236,7 +274,7 @@ function makeDb(seed) {
     data, log,
     collection: (c) => Object.assign(query(c, [], null, 0), { doc: (id) => docRef(c, id), add: async (v) => { log.writes.push({ op: 'add', path: c }); data[c] = data[c] || {}; data[c]['auto' + Object.keys(data[c]).length] = v; } }),
     doc: (p) => { const i = p.indexOf('/'); return docRef(p.slice(0, i), p.slice(i + 1)); },
-    getAll: async (...refs) => refs.map((r) => { const i = r.path.indexOf('/'); return snapOf(r.path.slice(0, i), r.path.slice(i + 1)); }),
+    getAll: async (...refs) => { if (o.failGetAll && refs.some((r) => o.failGetAll.test(r.path))) throw new Error('getAll denied'); return refs.map((r) => { const i = r.path.indexOf('/'); return snapOf(r.path.slice(0, i), r.path.slice(i + 1)); }); },
   };
 }
 
@@ -318,15 +356,22 @@ const request = (token, uid) => ({ auth: uid ? { uid, token: token || {} } : nul
   ok('callable: tenant scoped, another tenant’s text never appears', !/secret other tenant|Zed/.test(json) && res.events.every((e) => e.recipient.indexOf('0000') === -1 && e.name.indexOf('Zed') === -1));
   ok('callable: no full phone number or e-mail address anywhere in the response', !/\d{7,}/.test(json.replace(/"(atMs|generatedAtMs|ageMs|lastSendAtMs)":\d+/g, '')) && !/pat\.lee@|joe@example/.test(json), (json.match(/\d{7,}/g) || []).slice(0, 3).join());
   ok('callable: a customer reply is clipped to 80 and the number typed into it is masked', res.events.every((e) => e.firstLine.length <= 80) && res.events.some((e) => /my other number is \(•••\) •••-0199/.test(e.firstLine)));
-  ok('callable: tenant events counted (2 sms rows + email + storm + 3 alert_outbox legs)', res.counts.d30.total >= 5, String(res.counts.d30.total));
+  ok('callable: customer messages (2 sms + email + storm) counted apart from the 3 internal alert legs', res.counts.d30.total === 4 && res.counts.d30.internal.total === 3, JSON.stringify(res.counts.d30));
   ok('callable: delivery outcome with the carrier code surfaces', res.outcomes.errorCodes['30007'] === 1);
   ok('callable: the declined/failed send is in Needs a look', res.needsLook.some((i) => i.kind === 'failed'));
   ok('callable: storm text to a subscriber with consent false is flagged no_consent', res.needsLook.some((i) => i.kind === 'no_consent' && i.event.automation === 'storm_alert'));
   ok('callable: the STOP list shows last 4 only', res.optOuts.total === 1 && res.optOuts.recent[0].last4 === '0142');
   ok('callable: queue backlog lists the email queue and the pending draft, oldest first', res.queues.items.length === 2 && res.queues.items[0].ageMs >= res.queues.items[1].ageMs);
-  ok('callable: kill switch + canary unknown (no controls doc), and it did not create one', res.status.killSwitch === 'unknown' && !db.data.messaging_controls && res.coverage.sources.messaging_controls === 'absent');
+  ok('callable: kill-switch code not deployed -> NOT ENFORCED, and it never created a controls doc', res.status.controls.customerSends === 'not_enforced' && !db.data.messaging_controls && res.coverage.sources.messaging_controls === 'not deployed');
   ok('callable: A2P registered read from integrations/sms', res.status.a2pRegistered === 'yes');
-  ok('callable: coverage lists the blind spots', res.coverage.blind.some((b) => /Refusals/.test(b.label)));
+  ok('callable: coverage lists EVERY inventory sender and which are not seen', ['S1', 'S9', 'S11', 'S14', 'S15', 'E4', 'E5', 'E8', 'E9', 'E11', 'E12', 'V1'].every((id) => res.coverage.inventory.some((b) => b.id === id)) &&
+    res.coverage.inventory.find((b) => b.id === 'E8').seen === 'no' && res.coverage.inventory.find((b) => b.id === 'S1').seen === 'yes' && res.emailPartlyUnseen === true);
+  ok('callable: every source answered under the REAL composite indexes', Object.keys(res.coverage.sources).every((k) => ['ok', 'absent', 'not deployed'].indexOf(res.coverage.sources[k]) !== -1), JSON.stringify(res.coverage.sources));
+  ok('control: with one needed index removed the same query FAILS (the fake can fail)', await (async () => {
+    const d = makeDb(seed(), { indexes: INDEXES.filter((i) => !(i.collectionGroup === 'sms_log' && i.fields.length === 2 && i.fields[0].fieldPath === 'companyId' && i.fields[1].fieldPath === 'date')) });
+    const r = await run(request({ role: 'admin', companyId: OWNER }, OWNER), d);
+    return r.coverage.sources.sms_log === 'unavailable' && r.dataComplete === false;
+  })());
   ok('callable: a non-NBD tenant never sees NBD-only ledgers (storm, email queue)', await (async () => {
     const d = makeDb(seed());
     const r = await run(request({ role: 'company_admin', companyId: 'OTHER_TENANT' }, 'otherAdmin'), d);
@@ -371,6 +416,146 @@ const request = (token, uid) => ({ auth: uid ? { uid, token: token || {} } : nul
   const quiet = await S._internal.runWatch({ db: quietDb, nowMs: T0, live: true, push });
   ok('watch: a quiet system files nothing', quiet.alerts === 0 && quietDb.log.writes.length === 0);
 
+  // ── review fixes ───────────────────────────────────────────────────────
+  console.log('\nREVIEW FIXES');
+  const adminReq = request({ role: 'admin', companyId: OWNER }, OWNER);
+
+  // kill switch deployed: fail closed, absent vs unreadable
+  S._internal.deps.killSwitchDeployed = () => true;
+  {
+    const rAbsent = await run(adminReq, makeDb(seed()));
+    ok('kill switch deployed + no doc: CUSTOMER SENDS OFF (absent), every channel off', rAbsent.status.controls.customerSends === 'off' && rAbsent.status.controls.reason === 'absent' && rAbsent.status.controls.sms === 'off');
+    const rUnread = await run(adminReq, makeDb(seed(), { failDocs: /^messaging_controls\/global$/ }));
+    ok('kill switch deployed + unreadable doc: OFF with reason "unreadable", not "absent"', rUnread.status.controls.customerSends === 'off' && rUnread.status.controls.reason === 'unreadable');
+    const rOk = await run(adminReq, makeDb(Object.assign(seed(), { messaging_controls: { global: { customerSendsEnabled: true, smsEnabled: true, emailEnabled: true, otpEnabled: false, canary: true }, automations: { stormText: true } } })));
+    ok('kill switch deployed + doc: per-channel switches and canary are surfaced', rOk.status.controls.customerSends === 'on' && rOk.status.controls.sms === 'on' && rOk.status.controls.otp === 'off' && rOk.canaryOn === true);
+    ok('effective storm state follows messaging_controls/automations', rOk.status.automations.find((a) => a.key === 'storm_alert').reason !== 'not enabled in messaging_controls/automations');
+    ok('the callable still never creates messaging_controls', !makeDb(seed()).data.messaging_controls);
+  }
+  S._internal.deps.killSwitchDeployed = () => false;
+
+  // a failing critical source must never read as green
+  {
+    const bad = await run(adminReq, makeDb(seed(), { failColl: /^email_log$/ }));
+    ok('failing source: dataComplete false and the source is named', bad.dataComplete === false && bad.unreadable.indexOf('email_log') !== -1);
+    ok('failing source: Needs a look gets a high monitor_blind item', bad.needsLook.some((i) => i.kind === 'monitor_blind' && i.severity === 'high'));
+    const quiet = JSON.parse(JSON.stringify(bad)); quiet.needsLook = []; quiet.alerts = [];
+    const htmlBad = C.viewHtml(quiet, 'all');
+    ok('failing source: red "could not be read" banner, and NO green "Nothing to look at"', /Some data could not be read/.test(htmlBad) && !/Nothing to look at/.test(htmlBad) && /Cannot say/.test(htmlBad));
+    const good = await run(adminReq, makeDb(seed()));
+    const quietGood = JSON.parse(JSON.stringify(good)); quietGood.needsLook = []; quietGood.alerts = [];
+    const htmlGood = C.viewHtml(quietGood, 'all');
+    ok('control: with every source read, the quiet page IS green and has no banner', /Nothing to look at/.test(htmlGood) && !/Some data could not be read/.test(htmlGood));
+    const lookupFail = await run(adminReq, makeDb(seed(), { failGetAll: /^storm_alert_subscribers\// }));
+    ok('storm subscriber lookup failing: critical source flagged, consent is UNKNOWN, NO false "no consent" alert or item', lookupFail.unreadable.indexOf('storm_subscriber_lookup') !== -1 &&
+      !lookupFail.needsLook.some((i) => i.kind === 'no_consent') && !lookupFail.alerts.some((a) => a.key === 'no_consent') && lookupFail.events.find((e) => e.automation === 'storm_alert').consent === 'unknown');
+    const wdbBlind = makeDb(seed(), { failColl: /^email_log$/ });
+    const b1 = await S._internal.runWatch({ db: wdbBlind, nowMs: T0, live: true, push });
+    const blindIds = Object.keys(wdbBlind.data.agent_inbox || {}).filter((k) => /^msgwatch_monitor_blind_/.test(k));
+    ok('watch: blind sources file a "monitor is blind" report', b1.blind > 0 && blindIds.length === 1);
+    const b2 = await S._internal.runWatch({ db: wdbBlind, nowMs: T0 + 120000, live: true, push });
+    ok('watch: the blind report is deduped (second run files nothing new)', Object.keys(wdbBlind.data.agent_inbox).filter((k) => /^msgwatch_monitor_blind_/.test(k)).length === 1 && b2.alreadyFiled >= 1);
+  }
+
+  // newest rows survive a cap; a capped source says so
+  {
+    const big = {};
+    for (let i = 0; i < 1510; i++) big['r' + String(i).padStart(5, '0')] = { companyId: OWNER, to: '+1859555' + String(1000 + (i % 900)), toDigits: '859555' + String(1000 + (i % 900)), body: i === 1509 ? 'NEWEST-ROW' : 'old', status: 'sent', date: new Date(T0 - (1510 - i) * 1000) };
+    const r = await run(adminReq, makeDb({ feature_flags: { _default: { messagingControlCenter: true } }, sms_log: big }));
+    ok('cap: with 1510 rows the NEWEST row is kept (orderBy date desc), the oldest are dropped', r.events.some((e) => e.firstLine === 'NEWEST-ROW'));
+    ok('cap: a source that returns exactly its limit is reported as truncated and shown in Coverage', r.truncated.indexOf('sms_log') !== -1 && /capped/.test(C.coverageHtml(r)));
+    ok('control: an uncapped source is not marked truncated', (await run(adminReq, makeDb(seed()))).truncated.length === 0);
+  }
+
+  // blocked reasons written by the hardening PR
+  {
+    const mk = (fr) => L.fromSmsLog('b' + fr, { to: '+18595550142', body: 'x', status: 'failed', failureReason: fr, date: new Date(T0 - 60000) }, { name: 'A B' });
+    ok('hardening reasons map to BLOCKED reasons', mk('no_consent_on_file').blockedReason === 'no_consent' && mk('customer_sends_off').blockedReason === 'kill_switch' && mk('messaging_paused').blockedReason === 'kill_switch' && mk('controls_unreadable').blockedReason === 'kill_switch' && mk('channel_off').blockedReason === 'kill_switch');
+    const refusals = []; for (let i = 0; i < 12; i++) refusals.push(Object.assign(mk('messaging_paused'), { atMs: T0 - 1000 * i, id: 'x' + i }));
+    ok('refusals do not inflate the error rate', !L.evaluateAlerts(refusals, T0, L.THRESHOLDS, {}).some((a) => a.key === 'error_rate') && refusals.every((e) => e.outcome === 'blocked'));
+    ok('control: genuine failures still trip it', L.evaluateAlerts(refusals.map((e) => Object.assign({}, e, { outcome: 'failed', blockedReason: '' })), T0, L.THRESHOLDS, {}).some((a) => a.key === 'error_rate'));
+  }
+
+  // storm claim shape, canary, tiers, zones, scrubbing
+  ok('storm claim: "claimed" (created before the send) is unknown, only "sent" is sent, "failed" is failed',
+    L.fromStormClaim('a', { status: 'claimed', sentAt: new Date(T0) }, { phone: '8595550123', tcpaConsent: true }).outcome === 'unknown' &&
+    L.fromStormClaim('b', { status: 'sent', sentAt: new Date(T0) }, { phone: '8595550123', tcpaConsent: true }).outcome === 'sent' &&
+    L.fromStormClaim('c', { status: 'failed', sentAt: new Date(T0) }, { phone: '8595550123', tcpaConsent: true }).outcome === 'failed');
+  ok('consent is "unknown" (not "none") when the lead or subscriber record is missing', L.consentOf(null) === 'unknown' && L.consentOf(undefined) === 'unknown' && L.consentOf({ name: 'x' }) === 'none' && L.fromStormClaim('d', { sentAt: new Date(T0) }, null).consent === 'unknown');
+  {
+    const canaryEv = ev({ automation: 'lead_ack_text', consent: 'none', text: '[CANARY] Got your estimate request', atMs: NOW - 1000 });
+    ok('canary rows are marked and never raise consent alerts (they went to the owner)', L.publicEvent(canaryEv, {}).canary === true && !L.evaluateAlerts([canaryEv], NOW, L.THRESHOLDS, {}).some((a) => a.key === 'no_consent') && L.needsLook([canaryEv], NOW, L.THRESHOLDS, {}).length === 0);
+    ok('control: the same row without the tag DOES alert', L.evaluateAlerts([Object.assign({}, canaryEv, { text: 'Got your estimate request' })], NOW, L.THRESHOLDS, {}).some((a) => a.key === 'no_consent'));
+    ok('client marks a canary row and shows the canary banner', /CANARY \(went to you\)/.test(C.eventHtml(L.publicEvent(canaryEv, {}), 'America/New_York')) && /Canary is on/.test(C.canaryHtml({ canaryOn: true })) && C.canaryHtml({ canaryOn: false }) === '');
+  }
+  ok('alert dedupe: a bigger incident is a NEW key the same day, a same-sized one is not', L.alertKey({ key: 'no_consent', count: 1 }, NOW) !== L.alertKey({ key: 'no_consent', count: 12 }, NOW) && L.alertKey({ key: 'no_consent', count: 5 }, NOW) === L.alertKey({ key: 'no_consent', count: 8 }, NOW));
+  ok('high_risk ignores the email automations that are live by design, but not SMS', !L.evaluateAlerts([ev({ channel: 'email', automation: 'lead_ack_email', consent: 'n/a', atMs: NOW - 1000, toKey: 'a@x.com' })], NOW, L.THRESHOLDS, {}).some((a) => a.key === 'high_risk') &&
+    L.evaluateAlerts([ev({ automation: 'storm_alert', consent: 'subscriber', atMs: NOW - 1000 })], NOW, L.THRESHOLDS, {}).some((a) => a.key === 'high_risk'));
+  ok('scrubText masks 7 and 8 digit numbers but not a date', !/5551234/.test(L.scrubText('ring 555-1234 now')) && !/55512345/.test(L.scrubText('ring 5551-2345')) && L.scrubText('on 2026-10-19 we') === 'on 2026-10-19 we');
+  ok('multi-zone states hold in every zone (TN, IN, FL, MI, TX)', ['TN', 'IN', 'FL', 'MI'].every((st) => L.zonesFor(st).length === 2) && L.zonesFor('TX').indexOf('America/Denver') !== -1 && L.zonesFor('OH').length === 1 && L.zonesFor('').length === 1 &&
+    L.outsideWindow(Date.UTC(2026, 9, 20, 12, 30, 0), 'TN') && !L.outsideWindow(Date.UTC(2026, 9, 20, 12, 30, 0), 'OH'));
+  ok('queue labels are scrubbed of names/numbers typed into a title', !/859/.test(JSON.stringify(L.queueRows([{ queue: 'agent_inbox', status: 'pending', atMs: T0, label: 'Draft to 859-555-0142 about roof' }], T0))));
+
+  // malformed rows never crash the page
+  {
+    const messy = Object.assign(seed(), {
+      sms_log: { m1: { companyId: OWNER, date: mins(5) }, m2: { companyId: OWNER, date: mins(4), body: null, to: null, status: 7 }, m3: { companyId: OWNER, date: mins(3), toDigits: 'abc', leadId: 'GONE' } },
+      alert_outbox: { x1: { companyId: OWNER, createdAt: mins(5), target: null, smsStatus: 'accepted' }, x2: { companyId: OWNER, createdAt: mins(5) } },
+      email_log: { y1: { companyId: OWNER, date: mins(5) } },
+      storm_alerts_sent: { z1: { sentAt: mins(5) } },
+    });
+    let r2 = null, e2 = null;
+    try { r2 = await run(adminReq, makeDb(messy)); } catch (e) { e2 = e; }
+    ok('messy rows (missing fields, nulls, gone leads) do not throw and the page still renders', !e2 && r2 && r2.enabled === true && C.viewHtml(r2, 'all').length > 1000, e2 && e2.message);
+  }
+
+  // flags: a failed flag read must not look like "off"
+  {
+    const flagFailDb = makeDb(seed(), { failDocs: /^feature_flags\/_default$/ });
+    calls.db = flagFailDb;
+    let thrown = null;
+    try { await calls.lastSchedule(); } catch (e) { thrown = e; }
+    ok('watch: an unreadable flag THROWS (heartbeat goes red) instead of silently dry-running', !!thrown && /flag/.test(thrown.message));
+    const okFlagDb = makeDb(Object.assign(seed(), { sms_log: {} }), { failDocs: new RegExp('^feature_flags/' + OWNER + '$') });
+    ok('flag read: a denied per-user flags doc does not hide _default', await S._internal.flagOn(okFlagDb, OWNER) === true);
+    ok('control: a denied _default is an error, not "off"', await S._internal.flagOn(makeDb(seed(), { failDocs: /^feature_flags\/_default$/ }), OWNER).then(() => false, () => true));
+  }
+  {
+    const ffSrc = read('docs/pro/js/feature-flags.js');
+    const run1 = async (failMine, failDefault) => {
+      const win = { db: {}, doc: (db, c, id) => ({ id }), getDoc: async (r) => { if (r.id === '_default') { if (failDefault) throw new Error('x'); return { exists: () => true, data: () => ({ messagingControlCenter: true }) }; } if (failMine) throw new Error('denied'); return { exists: () => false, data: () => ({}) }; }, _user: { uid: 'u1' }, dispatchEvent() {}, CustomEvent: function () {} };
+      const sb = { window: win, CustomEvent: win.CustomEvent, setInterval: () => 0, clearInterval() {}, console };
+      vm.runInNewContext(ffSrc, sb);
+      await win.NBDFlags.load();
+      return { on: win.NBDFlags.enabled('messagingControlCenter'), loaded: win.NBDFlags.isLoaded() };
+    };
+    const a = await run1(true, false), b = await run1(false, true);
+    ok('feature-flags: a denied per-user doc keeps the readable _default flags', a.on === true && a.loaded === true, JSON.stringify(a));
+    ok('feature-flags: an unreadable _default leaves flags UNLOADED (distinguishable from off)', b.on === false && b.loaded === false, JSON.stringify(b));
+  }
+  {
+    const unread = C.viewHtml({ enabled: false, flagsUnread: true }, 'all'), off = C.viewHtml({ enabled: false }, 'all');
+    ok('#/messaging says "flags could not be read" differently from "switched off"', /could not be read/.test(unread) && !/switched off/.test(unread) && /switched off/.test(off) && !/could not be read/.test(off));
+  }
+
+  // client: status strip wording and colours
+  {
+    const strip = (controls) => C.statusHtml({ generatedAtMs: T0, status: { controls, texting: { enabled: true }, a2pRegistered: 'yes', automations: [] } });
+    const off = strip(L.controlsFrom({ state: 'absent' })), on = strip(L.controlsFrom({ state: 'ok', doc: { customerSendsEnabled: true, smsEnabled: true, emailEnabled: true, otpEnabled: true } })), ne = strip(L.controlsFrom({ state: 'not_deployed' }));
+    ok('status strip: absent doc reads red CUSTOMER SENDS OFF (no controls document)', /mc-bad">CUSTOMER SENDS OFF \(no controls document\)/.test(off));
+    ok('status strip: unreadable reads red and says so', /CUSTOMER SENDS OFF \(could not read the controls\)/.test(strip(L.controlsFrom({ state: 'unreadable' }))));
+    ok('status strip: allowed is green SENDING ALLOWED, not "ON"', /mc-ok">SENDING ALLOWED/.test(on) && /Master kill switch<\/span><span class="mc-chip mc-ok">SENDING ALLOWED/.test(on));
+    ok('status strip: not-deployed is amber, with the explanation', /mc-warn">NOT ENFORCED YET/.test(ne) && /not in this deployment yet/.test(ne));
+    ok('status strip: canary wording and per-channel chips', /CANARY: sends go to you/.test(strip(L.controlsFrom({ state: 'ok', doc: { customerSendsEnabled: true, canary: true } }))) && /Verification codes/.test(on) && /Email/.test(on));
+  }
+  {
+    const o2 = JSON.parse(JSON.stringify(res));
+    const html2 = C.blockedHtml(o2);
+    ok('blocked table says "not recorded" for reasons that write no row, never a reassuring 0', /not recorded/.test(html2) && (html2.match(/not recorded/g) || []).length === 4);
+    ok('counts: customer table and internal table are separate, no hard-coded "Voice is always 0"', /Customer messages sent/.test(C.countsHtml(o2)) && /Internal alerts to you/.test(C.countsHtml(o2)) && !/always 0/.test(C.countsHtml(o2)));
+    ok('coverage shows every inventory sender with a seen / NOT SEEN chip and the email caveat', /NOT SEEN/.test(C.coverageHtml(o2)) && /Customer email is only partly visible/.test(C.coverageHtml(o2)) && /E8/.test(C.coverageHtml(o2)));
+  }
+
   // source shape
   console.log('\nSOURCE SHAPE (comments stripped)');
   const src = stripComments(read('functions/messaging-center.js'));
@@ -382,13 +567,24 @@ const request = (token, uid) => ({ auth: uid ? { uid, token: token || {} } : nul
   ok('callable requires App Check', /enforceAppCheck: true/.test(callable));
   ok('never creates messaging_controls', !/messaging_controls.*(set|create|update)\(|(set|create|update)\([^)]*messaging_controls/.test(src));
   ok('the watch never touches a customer collection for writing', !/collection\('(sms_log|email_log|leads|sms_dnc|sms_opt_outs)'\)\.(add|set|doc\([^)]*\)\.(set|update|create))/.test(src));
+  // positive controls: each regex above must be able to FAIL, and each slice must be non-empty
+  const writeRx = /\.(set|add|create|update|delete)\(/;
+  ok('control: the sliced bodies are real (an empty slice would pass every absence check)', gatherBody.length > 3000 && callable.length > 300 && src.length > 8000);
+  ok('control: the write regex catches add / set / create / update / delete', ["db.collection('x').add({})", "db.doc('a/b').set({})", "ref.create({})", "ref.update({})", "ref.delete()"].every((t) => writeRx.test(t)));
+  ok('control: the messaging_controls guard catches a write to it', /messaging_controls.*(set|create|update)\(|(set|create|update)\([^)]*messaging_controls/.test("db.doc('messaging_controls/global').set({})"));
+  ok('control: the customer-collection guard catches a write to sms_log', /collection\('(sms_log|email_log|leads|sms_dnc|sms_opt_outs)'\)\.(add|set|doc\([^)]*\)\.(set|update|create))/.test("db.collection('sms_log').add({})"));
+  ok('control: the App Check check fails when it is switched off', !/enforceAppCheck: true/.test(callable.replace('enforceAppCheck: true', 'enforceAppCheck: false')));
+  ok('control: the order check fails when the flag check moves before the role check', (() => {
+    const order = (c) => { const a = c.indexOf('unauthenticated'), b = c.indexOf('canView'), d = c.indexOf('flagOn'), e = c.indexOf('overview('); return a > 0 && a < b && b < d && d < e; };
+    return order(callable) && !order(callable.replace('canView', 'XX').replace('flagOn(db, request.auth.uid)', 'flagOn(db, request.auth.uid) canView'));
+  })());
   ok('the flag name is the same in the server, the client and the nav', /FLAG = 'messagingControlCenter'/.test(src) && /FLAG = 'messagingControlCenter'/.test(stripComments(read('docs/pro/js/messaging-center.js'))) && /enabled\('messagingControlCenter'\)/.test(stripComments(read('docs/pro/js/messaging-nav.js'))));
 
   // client render
   console.log('\nCLIENT RENDER');
   const overview = res;
   const html = C.viewHtml(overview, 'all');
-  ok('renders every section', ['Needs a look', 'Status', 'What was sent', 'Delivery outcomes', 'Blocked by a gate', 'STOP / opt-outs', 'Queue backlog', 'Recent messages', 'Coverage', 'How to read this'].every((h) => html.indexOf(h) !== -1));
+  ok('renders every section', ['Needs a look', 'Status', 'Customer messages sent', 'Delivery outcomes', 'Blocked by a gate', 'STOP / opt-outs', 'Queue backlog', 'Recent messages', 'Coverage', 'How to read this'].every((h) => html.indexOf(h) !== -1));
   ok('Twilio logs link opens safely in a new tab', /href="https:\/\/console\.twilio\.com\/us1\/monitor\/logs\/sms" target="_blank" rel="noopener noreferrer"/.test(html));
   ok('rendered HTML has no style attribute and no inline handler', !/\sstyle=/.test(html) && !/\son[a-z]+=/i.test(html));
   ok('rendered HTML has no full phone number or e-mail', !/859-?555-?0(142|199|143)|8595550|pat\.lee@|joe@example/.test(html) && /0199/.test(html));
