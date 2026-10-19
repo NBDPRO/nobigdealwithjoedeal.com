@@ -703,6 +703,7 @@
         (_expenses.length ? '<button type="button" class="btn btn-ghost" data-exp-action="export-csv" title="Download CSV for your accountant">⬇ Export CSV</button>' : '') +
         (window.NBDLowesImport ? window.NBDLowesImport.buttonHtml() : '') + (window.NBDHdImport ? '<button type="button" class="btn btn-ghost" data-hd-action="open" title="Import Home Depot Pro Xtra purchases (Purchase History › Export)">🧡 Import Home Depot</button>' : '') + (window.NBDReceiptSorter && window.NBDReceiptSorter.enabled() ? window.NBDReceiptSorter.buttonHtml() : '') +
         (window.NBDCashPayouts ? window.NBDCashPayouts.buttonHtml() : '') +
+        (window.NBDJobCostAuditor ? window.NBDJobCostAuditor.buttonHtml() : '') +
         '<button type="button" class="btn btn-orange" data-exp-action="open-form">+ Log Expense</button>' +
       '</div>' +
       '</div>';
@@ -787,6 +788,9 @@
 
     // Cash paid out to crew / subs (flag cashPayoutsLog; empty string when off).
     if (window.NBDCashPayouts) html += window.NBDCashPayouts.panelHtml(_expenses);
+
+    // Job cost auditor (flag jobCostAuditor; empty string when off).
+    if (window.NBDJobCostAuditor) html += window.NBDJobCostAuditor.panelHtml();
 
     // Per-job rollup with margin
     var jobIds = Object.keys(agg.byJob).filter(function (k) { return k !== '__unassigned__'; });
