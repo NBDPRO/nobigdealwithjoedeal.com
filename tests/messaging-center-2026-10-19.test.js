@@ -47,15 +47,15 @@ const ev = (o) => Object.assign({ id: 'e' + Math.random().toString(36).slice(2),
 console.log('\nMASKING');
 ok('maskPhone shows last 4 only', L.maskPhone('(859) 555-0142') === '(•••) •••-0142');
 ok('maskPhone of garbage is not a number', !/\d/.test(L.maskPhone('12')));
-ok('maskEmail keeps first letters only', L.maskEmail('Pat.Lee@Gmail.com') === 'p•••@g•••.com');
+ok('maskEmail keeps first letters only', L.maskEmail('Pat.Lee@Example.com') === 'p•••@e•••.com');
 ok('maskEmail of garbage', L.maskEmail('nope') === 'unknown email');
 ok('clipLine takes the first line and caps at 80', L.clipLine('a'.repeat(200) + '\nsecond').length === 80 && !/second/.test(L.clipLine('hi\nsecond')));
 ok('scrubText masks a phone typed into a reply', !/5550142/.test(L.scrubText('call me at 859-555-0142 please')) && /0142/.test(L.scrubText('call me at 859-555-0142 please')));
-ok('scrubText masks an e-mail typed into a reply', !/pat\.lee/.test(L.scrubText('mail pat.lee@gmail.com')));
-const leaky = ev({ text: 'Reply from 859-555-0142 or pat@gmail.com ' + 'z'.repeat(200), name: 'Pat 8595550142', toDisplay: L.maskPhone('8595550142') });
+ok('scrubText masks an e-mail typed into a reply', !/pat\.lee/.test(L.scrubText('mail pat.lee@example.com')));
+const leaky = ev({ text: 'Reply from 859-555-0142 or pat@example.com ' + 'z'.repeat(200), name: 'Pat 8595550142', toDisplay: L.maskPhone('8595550142') });
 const pub = L.publicEvent(leaky, {});
 ok('publicEvent: first line <= 80 chars', pub.firstLine.length <= 80);
-ok('publicEvent: no raw 7+ digit run and no raw e-mail anywhere in the JSON', !/\d{7,}/.test(JSON.stringify(pub).replace(/"atMs":\d+/, '')) && !/pat@gmail/.test(JSON.stringify(pub)), JSON.stringify(pub));
+ok('publicEvent: no raw 7+ digit run and no raw e-mail anywhere in the JSON', !/\d{7,}/.test(JSON.stringify(pub).replace(/"atMs":\d+/, '')) && !/pat@example/.test(JSON.stringify(pub)), JSON.stringify(pub));
 ok('publicEvent never carries the raw recipient key', !('toKey' in pub));
 
 console.log('\nNORMALISERS (one ledger row -> one event)');
@@ -93,7 +93,7 @@ console.log('\nAGGREGATION');
     ev({ id: '1', channel: 'sms', automation: 'rep_text', atMs: at(1) }),
     ev({ id: '2', channel: 'sms', automation: 'storm_alert', atMs: at(2), consent: 'subscriber', outcome: 'delivered' }),
     ev({ id: '3', channel: 'email', automation: 'lead_ack_email', atMs: at(30), consent: 'n/a', toKey: 'a@b.com' }),
-    ev({ id: '4', channel: 'email', automation: 'rep_email', atMs: at(24 * 6), consent: 'n/a', toKey: 'c@d.com', outcome: 'failed' }),
+    ev({ id: '4', channel: 'email', automation: 'rep_email', atMs: at(24 * 6), consent: 'n/a', toKey: 'c@example.com', outcome: 'failed' }),
     ev({ id: '5', channel: 'sms', automation: 'rep_text', atMs: at(24 * 20), outcome: 'undelivered', errorCode: '30007' }),
     ev({ id: '6', channel: 'sms', automation: 'rep_text', atMs: at(1.5), outcome: 'blocked', blockedReason: 'no_consent' }),
     ev({ id: '7', channel: 'sms', automation: 'rep_text', atMs: at(2.5), outcome: 'blocked', blockedReason: 'opted_out' }),
@@ -270,7 +270,7 @@ function seed() {
       b: { companyId: OWNER, to: '+18595550143', toDigits: '8595550143', body: 'Hello', status: 'failed', date: mins(20), leadId: 'L2' },
       c: { companyId: 'OTHER_TENANT', to: '+15135550000', toDigits: '5135550000', body: 'secret other tenant', status: 'sent', date: mins(10), leadId: 'LX' },
     },
-    email_log: { e1: { companyId: OWNER, to: 'pat.lee@gmail.com', subject: 'Your estimate', status: 'sent', date: mins(15), leadId: 'L1' } },
+    email_log: { e1: { companyId: OWNER, to: 'pat.lee@example.com', subject: 'Your estimate', status: 'sent', date: mins(15), leadId: 'L1' } },
     alert_outbox: { o1: { companyId: OWNER, createdAt: mins(12), collection: 'inspect_leads', target: { sms: '+18595550199', emails: ['joe@example.com'], name: 'NBD' }, smsStatus: 'accepted', smsDelivery: 'undelivered:30007', emailStatus: 'sent', pushStatus: 'sent' } },
     leads: { L1: { name: 'Pat Lee', tcpaConsent: true, state: 'OH' }, L2: { name: 'Al Boe', state: 'OH' }, LX: { name: 'Zed Other' } },
     storm_alerts_sent: { s1: { sentAt: mins(40), status: 'sent', event: 'Hail', zip: '41011', subscriberId: 'sub1' } },
