@@ -173,7 +173,7 @@ function fresh(file) {
 const AR = fresh('alert-recipients.js');
 const LA = fresh('lead-alert.js')._internal;
 const JOE_EMAILS = ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'];
-const JOE_SMS = '+18594207382';
+const JOE_SMS = '+18595550100';
 
 function tenant(companyId, contact, auth) {
   world.docs['companyProfile/' + companyId] = { brand: { legalName: 'Acme Roofing', seal: 'ACM', contact } };

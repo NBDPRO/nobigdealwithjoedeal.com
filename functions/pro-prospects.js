@@ -110,6 +110,13 @@ async function sendWelcome(db, leadId, lead, deps) {
   const ts = d.serverTimestamp || (() => FieldValue.serverTimestamp());
   const skip = async (reason) => { await ref.set({ welcomeSkipped: reason }, { merge: true }); return { sent: false, reason }; };
 
+  // The owner's pause is checked BEFORE the claim, and stamped (welcomeSkipped) so the admin list shows
+  // this one needs a manual send.
+  {
+    const sw = await MessagingControls.channelStatus(db, 'email');
+    if (!sw.allowed) return skip('held_messaging_paused');
+  }
+
   // Claim first: triggers are at-least-once, so a redelivery is a no-op.
   let claimed = false;
   try {

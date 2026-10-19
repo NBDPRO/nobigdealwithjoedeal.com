@@ -1209,7 +1209,7 @@ exports.submitEsignEnvelope = onRequest(
       try {
         const m = ESL.signedCopyEmail({ brand: env.companyName, tenantKey: env.companyId || env.ownerUid, name: s.typedName || s.name, title: env.title, attached: attach });
         const r = await IO.sendMail(Object.assign({ to: s.email, subject: m.subject, html: m.html },
-          attach ? { attachments: [{ filename: 'signed-' + tok.envelopeId + '.pdf', content: signedBuf.toString('base64') }] } : {}));
+          attach ? { attachments: [{ filename: 'signed-' + tok.envelopeId + '.pdf', content: signedBuf.toString('base64') }] } : {}), { legal: true });
         copies.push({ signerId: s.id, emailed: !!r.emailed, stubbed: !!r.stubbed, at: Date.now() });
       } catch (e) {
         logger.error('[submitEsignEnvelope] signed copy email failed', { envelopeId: tok.envelopeId, err: e.message });
@@ -1255,6 +1255,18 @@ exports.submitEsignEnvelope = onRequest(
       title: 'Document signed',
       message: `${signersAfter.map((s) => s.typedName || s.name).filter(Boolean).join(' & ') || 'A homeowner'} signed ${env.title || 'a document'}.`,
     });
+
+    // A signer who gave an email and did NOT get their copy is something the rep must act on:
+    // a HIGH bell, not a silent copiesDelivered entry (the signing page promises the copy by email).
+    const missed = copies.filter((c) => !c.emailed && !c.stubbed && c.reason !== 'no email');
+    if (missed.length) {
+      await IO.notifyRep(db, env, {
+        type: 'esign_copy_failed',
+        title: 'Signed copy NOT emailed',
+        message: `${env.title || 'A document'} was signed but the signed copy could not be emailed to ${missed.length} signer${missed.length === 1 ? '' : 's'}. Send it to them yourself from the envelope.`,
+        priority: 'high',
+      });
+    }
 
     res.status(200).json({ ok: true, complete: true, copyEmailed: copies.some((c) => c.emailed) });
   }

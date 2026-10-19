@@ -175,9 +175,9 @@ function makeWorld(opts) {
   // path opens every gate explicitly (messaging_controls + the stormAlerts
   // switch); the confirmed-subscriber (double opt-in) field is in seedSub.
   if (!opts.noControls) {
-    db.store.set('messaging_controls/global', { customerSendsEnabled: true, smsEnabled: true, emailEnabled: true, otpEnabled: true });
-    db.store.set('messaging_controls/automations', { stormText: true, stormNwsText: true, maxPerRun: 5000 });
-    db.store.set('messaging_controls/internal', { ownerPhone: '+18594207382' });
+    db.store.set('messaging_controls/global', { customerSendsEnabled: true, smsEnabled: true, emailEnabled: true, otpEnabled: true, canary: false });
+    db.store.set('messaging_controls/automations', { stormText: true, stormNwsText: true, maxPerRun: 500 });
+    db.store.set('messaging_controls/internal', { ownerPhone: '+18595550100' });
     if (!db.store.has('integrations/stormAlerts')) db.store.set('integrations/stormAlerts', { enabled: true });
   }
   const sent = [];          // every Twilio messages.create
@@ -376,7 +376,7 @@ const LSR = [{
   geometry: { type: 'Point', coordinates: [-84.55, 39.04] },
   properties: { typetext: 'HAIL', magf: '1.25', valid: '2026-10-03T18:00:00', city: 'Erlanger', county: 'Kenton', st: 'KY' },
 }];
-const JOE = '+18594207382';
+const JOE = '+18595550100';
 const subscriberTexts = (w) => w.sent.filter((m) => m.to !== JOE);
 process.env.STORM_TEXT_ENABLED = 'true';
 {
@@ -387,7 +387,11 @@ process.env.STORM_TEXT_ENABLED = 'true';
   }
   w.lsrFeatures = LSR;
   const mod = load(w, 'storm-watch.js');
-  await mod.runStormWatch({});
+  // maxPerRun caps one run at 500 (2026-10-19): three ticks reach all 1201, none twice.
+  for (let tick = 0; tick < 3; tick++) {
+    for (const k of [...w.db.store.keys()]) if (k.startsWith('storm_events/')) w.db.store.delete(k);
+    await mod.runStormWatch({});
+  }
   ok('2a. all 1201 in-range subscribers are texted (no silent .limit(1000) drop)',
     subscriberTexts(w).length === 1201, { texts: subscriberTexts(w).length });
 }
@@ -665,6 +669,18 @@ const nwsFetched = (w) => w.fetchLog.some((f) => f.url.includes('api.weather.gov
   ok('7g. ...the next run texts the other eligible subscriber, never the same one twice', out.length === 2 && new Set(out.map((m) => m.to)).size === 2, JSON.stringify(out.map((m) => m.to)));
   ok('7g. no consent (c3) and a signup older than 7 days (c4) get NO confirmation text', !out.some((m) => /0133|0144/.test(m.to)), JSON.stringify(out.map((m) => m.to)));
   ok('7g. the text asks for YES, names the business, has STOP and HELP, and promises 2-4 a season', /Reply YES/.test(out[0].body) && /No Big Deal Home Solutions/.test(out[0].body) && /STOP/.test(out[0].body) && /HELP/.test(out[0].body) && /2-4/.test(out[0].body), out[0].body);
+  {
+    // M2: the company texting switch (sms_settings.enabled=false) stops the confirmation text too.
+    const w2 = makeWorld();
+    world = w2;
+    const SC2 = load(w2, 'storm-confirm.js');
+    w2.db.store.set('sms_settings/1phDvAVXHSg82wDLegAbQFq14Ci1', { enabled: false });
+    w2.db.store.set('storm_alert_subscribers/z1', { active: true, zip: '41017', phone: '(859) 555-0188', tcpaConsent: true, createdAt: fakeTs(clock.ms - 3600000) });
+    const out2 = [];
+    const rz = await SC2.sendPendingConfirmations({ db: w2.db, nowMs: clock.ms, companyId: '1phDvAVXHSg82wDLegAbQFq14Ci1', maxPerRun: 5, send: async (to) => { out2.push(to); return { sid: 'x' }; }, serverTimestamp: () => fakeTs(clock.ms) });
+    ok('7j. the company texting switch off -> no confirmation text', out2.length === 0 && rz.requested === 0, JSON.stringify(rz));
+    world = w;
+  }
   const r3 = await SC.sendPendingConfirmations(args());
   ok('7g. a third run sends nothing more (each subscriber is asked once, ever)', out.length === 2 && r3.requested === 0, JSON.stringify(r3));
   const before = w.db.store.get('storm_alert_subscribers/c1');

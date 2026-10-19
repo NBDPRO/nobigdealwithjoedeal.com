@@ -215,6 +215,17 @@ exports.estimateEmail = onDocumentCreated(
       return;
     }
 
+    // The owner's pause is checked BEFORE the claim, and leaves a visible marker (the trigger is one-shot,
+    // so a paused request is not retried: the marker tells whoever looks that this one needs a manual send).
+    {
+      const sw = await MessagingControls.channelStatus(getFirestore(), 'email');
+      if (!sw.allowed) {
+        logger.warn('estimate_email_held_messaging_paused', { leadId, reason: sw.reason });
+        await snap.ref.update({ estimateEmailStatus: 'held_paused', estimateEmailHeldReason: sw.reason }).catch(() => {});
+        return;
+      }
+    }
+
     // Idempotency: at-least-once delivery means this can fire more than once.
     // Transactionally claim the doc before sending so a redelivery is a no-op.
     let claimed = false;

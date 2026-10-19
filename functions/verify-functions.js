@@ -186,7 +186,8 @@ exports.sendVerificationCode = onCall(
       // The owner's kill switch (messaging_controls/global otpEnabled, fail
       // closed). A canary is NOT a preview for a code: the code would go to the
       // owner while the visitor types it against their own number, so canary
-      // pauses OTP too. Checked first so a paused send burns no rate limit.
+      // pauses OTP too. Checked before the per-PHONE limits, caps and the otp_requests row, so a paused
+      // send burns none of those (the per-IP counters above are already spent: they bound abuse of this endpoint).
       const otpSwitch = await MessagingControls.channelStatus(db, 'otp');
       if (!otpSwitch.allowed || otpSwitch.canary) {
         logger.info('otp_paused', { reason: otpSwitch.canary ? 'canary' : otpSwitch.reason });
@@ -200,7 +201,9 @@ exports.sendVerificationCode = onCall(
       const optOut = await OptOut.isOptedOut(db, formatted, { companyId: NBD_OWNER_UID, timeoutMs: OptOut.READ_TIMEOUT_MS });
       if (optOut.optedOut) {
         logger.info('otp_opted_out');
-        return { success: false, error: 'This number has opted out of our texts, so we cannot send a code. Please call (859) 420-7382.' };
+        // Deliberately the SAME wording as any other refusal: a different message would tell a stranger
+        // whether a number has ever texted STOP (an oracle).
+        return { success: false, error: 'We cannot send a text code to this number right now. Please call (859) 420-7382 and we will take it from here.' };
       }
 
       // Per-phone cap — 3 OTP sends per 10 minutes.

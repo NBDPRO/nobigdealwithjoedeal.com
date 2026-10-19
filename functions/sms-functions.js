@@ -1782,23 +1782,6 @@ exports.incomingSMS = onRequest(
         return;
       }
 
-      // Storm Alert double opt-in (2026-10-19): a bare YES from a number we sent
-      // a confirmation text to confirms that subscriber. A YES from anyone we
-      // did NOT ask is not swallowed: it falls through to the normal pipeline.
-      if (phoneDigits && StormConfirm.isYes(messageBody)) {
-        let confirmed = 0;
-        try {
-          confirmed = await StormConfirm.confirmFromReply(db, formatPhoneNumber(fromPhone) || fromPhone, { serverTimestamp: () => FieldValue.serverTimestamp() });
-        } catch (e) {
-          logger.error('storm_confirm_reply_failed', { err: e && e.message });
-        }
-        if (confirmed > 0) {
-          res.set('Content-Type', 'text/xml');
-          res.status(200).send(KeywordReplies.twiml(StormConfirm.confirmedReply()));
-          return;
-        }
-      }
-
       // 2026-10-07 (R6-3-1): a STOP word the classifier can't read safely
       // ("thanks but stop", "I want to cancel"). Not an opt-out — nothing is
       // recorded — but no AI reply is drafted for it, and the rep gets a
@@ -1819,6 +1802,20 @@ exports.incomingSMS = onRequest(
           res.set('Content-Type', 'text/xml');
           res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
           return;
+        }
+      }
+
+      // Storm Alert double opt-in (2026-10-19). A bare YES from a number we texted a confirmation to
+      // confirms that subscriber - AFTER the MessageSid claim above (a Twilio redelivery cannot confirm
+      // twice) and as a SIDE EFFECT only: the message is still filed as the customer's reply (note, AI
+      // draft, rep bell) below, because a real customer's "Yes" to a rep must never be swallowed.
+      let stormConfirmed = 0;
+      if (phoneDigits && StormConfirm.isYes(messageBody)) {
+        try {
+          stormConfirmed = await StormConfirm.confirmFromReply(db, formatPhoneNumber(fromPhone) || fromPhone,
+            { serverTimestamp: () => FieldValue.serverTimestamp(), nowMs: Outbox.nowMs() });
+        } catch (e) {
+          logger.error('storm_confirm_reply_failed', { err: e && e.message });
         }
       }
 
@@ -2111,8 +2108,10 @@ exports.incomingSMS = onRequest(
         leadId, 'received', messageSid,
         lead ? (lead.companyId || lead.userId || null) : null);
 
-      // Return TwiML response (empty OK)
-      res.type('text/xml').send(`<?xml version="1.0" encoding="UTF-8"?>
+      // Return TwiML response (empty OK; the one-line thank-you only when a Storm Alert YES was just confirmed)
+      res.type('text/xml').send(stormConfirmed > 0
+        ? KeywordReplies.twiml(StormConfirm.confirmedReply())
+        : `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
 </Response>`);
 

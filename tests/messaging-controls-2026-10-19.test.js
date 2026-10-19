@@ -28,7 +28,7 @@ function ok(name, cond, detail) {
 }
 
 const NBD = '1phDvAVXHSg82wDLegAbQFq14Ci1';
-const ALL_ON = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: true, otpEnabled: true };
+const ALL_ON = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: true, otpEnabled: true, canary: false };
 const OWNER = { ownerPhone: '(859) 555-0199', ownerEmail: 'Owner@Example.test' };
 
 function mc(opts) {
@@ -121,6 +121,50 @@ function mc(opts) {
     ok('canary off: customer number and body untouched', s3.send && !s3.canary && s3.to === '+18595550123' && s3.body === 'hi');
   }
 
+  console.log('C2. canary fails SAFE: live only when canary is the boolean false');
+  {
+    const base = { customerSendsEnabled: true, smsEnabled: true, emailEnabled: true, otpEnabled: true };
+    for (const [label, val, hasKey] of [['absent', undefined, false], ['string "true"', 'true', true], ['number 1', 1, true], ['null', null, true], ['string "false"', 'false', true], ['0', 0, true]]) {
+      const g = Object.assign({}, base); if (hasKey) g.canary = val;
+      const withOwner = mc({ docs: { 'messaging_controls/global': g, 'messaging_controls/internal': OWNER } });
+      const s = await withOwner.m.guardSms(withOwner.db, '+18595550123', 'hi');
+      ok('canary ' + label + ' -> NOT live: redirected to the owner', s.send && s.canary && s.to === '+18595550199', JSON.stringify(s));
+      const noOwner = mc({ docs: { 'messaging_controls/global': g } });
+      const s2 = await noOwner.m.guardSms(noOwner.db, '+18595550123', 'hi');
+      ok('canary ' + label + ' and no owner contact -> nothing is sent', !s2.send, JSON.stringify(s2));
+      const e = await noOwner.m.guardEmail(noOwner.db, { to: 'c@x.test', subject: 's', text: 't' });
+      ok('canary ' + label + ' and no owner address -> no email', !e.send);
+    }
+    const live = mc({ docs: { 'messaging_controls/global': Object.assign({}, base, { canary: false }) } });
+    const sl = await live.m.guardSms(live.db, '+18595550123', 'hi');
+    ok('canary boolean false is the ONLY live state', sl.send && !sl.canary && sl.to === '+18595550123');
+    const e2 = mc({ docs: { 'messaging_controls/global': Object.assign({}, base, { canary: true }), 'messaging_controls/internal': OWNER } });
+    const em = await e2.m.guardEmail(e2.db, { to: 'c@x.test', subject: 's', text: 't', tags: [{ name: 'nbd_unsub', value: 'tok' }] });
+    ok("the owner's canary email drops the customer's unsubscribe/bounce tags", em.send && !('tags' in em.msg));
+    const M = mc({}).m;
+    ok('maxPerRun cleaning: absent 5; 0; 7; null/false/"abc"/-1/3.5/99 -> 0 (fewer, never more)',
+      M.cleanMaxPerRun(undefined) === 5 && M.cleanMaxPerRun(0) === 0 && M.cleanMaxPerRun(7) === 7 && [null, false, 'abc', -1, 3.5, 501].every((v) => M.cleanMaxPerRun(v) === 0));
+  }
+
+  console.log('C3. legal copies (a signed document) are not paused by the customer pause');
+  {
+    const msg = { to: 'signer@x.test', subject: 'Your signed copy', text: 't' };
+    let t = mc({});
+    ok('no controls doc: a normal email is blocked...', !(await t.m.guardEmail(t.db, msg)).send);
+    ok('...but the signed copy (legal) still goes, to the signer, not redirected', (await t.m.guardEmail(t.db, msg, { legal: true })).send === true);
+    t = mc({ docs: { 'messaging_controls/global': Object.assign({}, ALL_ON, { customerSendsEnabled: false, canary: true }), 'messaging_controls/internal': OWNER } });
+    const g = await t.m.guardEmail(t.db, msg, { legal: true });
+    ok('master off + canary on: the signed copy still goes to the signer (ignores both)', g.send && !g.canary && g.msg.to === 'signer@x.test', JSON.stringify(g));
+    t = mc({ docs: { 'messaging_controls/global': Object.assign({}, ALL_ON, { customerSendsEnabled: false, legalCopiesEnabled: false }) } });
+    ok('legalCopiesEnabled:false (the narrow switch) puts the signed copy back under the pause', (await t.m.guardEmail(t.db, msg, { legal: true })).send === false);
+    t = mc({ readThrows: (p) => p === 'messaging_controls/global' });
+    ok('unreadable controls: the signed copy still goes (default ON for legal copies)', (await t.m.guardEmail(t.db, msg, { legal: true })).send === true);
+    ok('a NON-legal email stays blocked when controls are unreadable', (await t.m.guardEmail(t.db, msg)).send === false);
+    const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'functions', 'esign-envelope.js'), 'utf8');
+    ok('esign-envelope: the signed copy is sent with { legal: true } and a failed copy raises a high "NOT emailed" bell',
+      /\{ legal: true \}\);/.test(src) && /Signed copy NOT emailed/.test(src));
+  }
+
   console.log('D. internal alerts');
   {
     let { m, db } = mc({});
@@ -141,6 +185,12 @@ function mc(opts) {
     for (let i = 0; i < 4; i++) r.push((await m.internalAlertStatus(db, 'sms', { nowMs: t + i, force: true })).allowed);
     ok('hourly cap of 2: third and fourth are refused', JSON.stringify(r) === '[true,true,false,false]', JSON.stringify(r));
     ok('next hour starts a fresh count', (await m.internalAlertStatus(db, 'sms', { nowMs: t + 3600_000, force: true })).allowed);
+    // distinct-subject cap: repeats of the SAME lead do not use up the hour
+    process.env.INTERNAL_SMS_PER_HOUR = '2';
+    ({ m, db } = mc({ docs: { 'messaging_controls/internal': OWNER } }));
+    const kr = [];
+    for (const k of ['lead-1', 'lead-1', 'lead-1', 'lead-2', 'lead-3', 'lead-2']) kr.push((await m.internalAlertStatus(db, 'sms', { nowMs: t + 10, force: true, key: k })).allowed);
+    ok('cap of 2 by DISTINCT lead: repeats of a lead are free, the third distinct lead is refused', JSON.stringify(kr) === '[true,true,true,true,false,true]', JSON.stringify(kr));
     process.env.INTERNAL_SMS_PER_HOUR = '0';
     ({ m, db } = mc({ docs: { 'messaging_controls/internal': OWNER } }));
     ok('cap 0 means no internal SMS (zero is zero)', !(await m.internalAlertStatus(db, 'sms', { nowMs: t })).allowed);
@@ -149,11 +199,16 @@ function mc(opts) {
 
   console.log('E. manageMessagingControls callable');
   {
-    async function call(data, uid, docs) {
+    async function call(data, uid, docs, o) {
       const w = W.makeWorld({ noControls: true, docs: docs || {} });
       const mod = W.load(w, 'messaging-controls-fns.js');
+      if (o && o.auditFails) {
+        const orig = w.db.collection;
+        w.db.collection = (n) => (n === 'messaging_controls_audit' ? { doc: () => ({ set: async () => { throw new Error('audit down'); } }) } : orig(n));
+      }
+      const authTime = o && o.authTime !== undefined ? o.authTime : Math.floor(Date.now() / 1000);
       let out, err;
-      try { out = await mod.manageMessagingControls.__handler({ auth: uid ? { uid, token: {} } : null, data }); } catch (e) { err = e; }
+      try { out = await mod.manageMessagingControls.__handler({ auth: uid ? { uid, token: authTime === null ? {} : { auth_time: authTime } } : null, data }); } catch (e) { err = e; }
       return { w, out, err };
     }
     let r = await call({ action: 'get' }, null);
@@ -185,6 +240,29 @@ function mc(opts) {
     ok('no app log line carries the phone digits', JSON.stringify(r.w.logs.info).indexOf('5550177') === -1);
     r = await call({ action: 'setInternal', patch: { ownerPhone: '123' }, reason: 'bad' }, NBD);
     ok('bad owner phone -> invalid-argument', r.err && r.err.code === 'invalid-argument');
+    const stale = Math.floor(Date.now() / 1000) - 3600;
+    r = await call({ action: 'set', patch: { customerSendsEnabled: true }, reason: 'turn on' }, NBD, {}, { authTime: stale });
+    ok('turning sends ON needs a recent sign-in (stale auth_time -> failed-precondition), nothing written', r.err && r.err.code === 'failed-precondition' && !r.w.store.has('messaging_controls/global'));
+    r = await call({ action: 'set', patch: { customerSendsEnabled: true }, reason: 'turn on' }, NBD, {}, { authTime: null });
+    ok('...a token with no auth_time at all is treated as stale', r.err && r.err.code === 'failed-precondition');
+    r = await call({ action: 'set', patch: { canary: false }, reason: 'go live' }, NBD, {}, { authTime: stale });
+    ok('canary -> false (going live) needs a recent sign-in too', r.err && r.err.code === 'failed-precondition');
+    r = await call({ action: 'set', patch: { customerSendsEnabled: false, canary: true }, reason: 'stop' }, NBD, {}, { authTime: stale });
+    ok('turning things OFF never needs a recent sign-in', !r.err && r.out.ok === true, r.err && r.err.message);
+    r = await call({ action: 'setInternal', patch: { ownerPhone: '(859) 555-0177' }, reason: 'contact' }, NBD, {}, { authTime: stale });
+    ok('changing the owner contact needs a recent sign-in', r.err && r.err.code === 'failed-precondition' && !r.w.store.has('messaging_controls/internal'));
+    r = await call({ action: 'setAutomations', patch: { leadAckSms: true }, reason: 'switch it on' }, NBD, {}, { authTime: stale });
+    ok('turning an automation ON needs a recent sign-in', r.err && r.err.code === 'failed-precondition');
+    r = await call({ action: 'setAutomations', patch: { leadAckSms: false }, reason: 'switch it off' }, NBD, {}, { authTime: stale });
+    ok('...turning one OFF does not', !r.err && r.out.ok);
+    r = await call({ action: 'set', patch: { customerSendsEnabled: true }, reason: 'turn on' }, NBD, {}, { auditFails: true });
+    ok('AUDIT FIRST: if the audit row cannot be written the flip does not happen', r.err && r.err.code === 'unavailable' && !r.w.store.has('messaging_controls/global'), r.err && r.err.code);
+    r = await call({ action: 'set', patch: { customerSendsEnabled: true }, reason: 'turn on' }, NBD);
+    const rows2 = [...r.w.store.entries()].filter(([k]) => k.indexOf('messaging_controls_audit/') === 0).map(([, v]) => v);
+    ok('the audit row records intent -> applied with before and after', rows2.length === 1 && rows2[0].status === 'applied' && rows2[0].before.customerSendsEnabled === false && rows2[0].after.customerSendsEnabled === true, JSON.stringify(rows2));
+    r = await call({ action: 'setInternal', patch: { ownerPhone: '(859) 555-0166' }, reason: 'new phone' }, NBD, { 'messaging_controls/internal': { ownerPhone: '+18595550177', ownerEmail: 'old@example.test' } });
+    const q = [...r.w.store.entries()].filter(([k]) => k.indexOf('email_queue/') === 0).map(([, v]) => v);
+    ok('a contact change queues a notice to the PREVIOUS owner email (no phone digits in it)', q.length === 1 && q[0].to === 'old@example.test' && q[0].status === 'pending' && !/5550166|5550177/.test(JSON.stringify(q)), JSON.stringify(q));
     r = await call({ action: 'get' }, NBD, { 'messaging_controls/internal': { ownerPhone: '+18595550177' } });
     ok('get reports presence, never the number', !r.err && r.out.internal.ownerPhoneSet === true && JSON.stringify(r.out).indexOf('5550177') === -1);
     r = await call({ action: 'wat' }, NBD);

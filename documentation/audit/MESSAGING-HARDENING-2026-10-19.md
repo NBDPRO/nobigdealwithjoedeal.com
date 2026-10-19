@@ -50,6 +50,26 @@ Sender map (what a closed switch does):
 
 A structural test (`tests/messaging-senders-guarded-2026-10-19.test.js`) fails when any function calls Twilio or Resend without going through the guard, and when anything but `messaging-controls*.js` names the control docs.
 
+## Security-review round (same day, after the first PR)
+
+An independent review of PR #2572 found the following; each was confirmed against current `main` and fixed on the same branch.
+
+| Finding | Fix |
+|---|---|
+| H1 canary failed OPEN (`canary` as `"true"`, `1` or absent meant LIVE) | Live only when `canary` is the boolean `false`. Absent / string / number / null = canary ON (redirect to the owner, or nothing if no owner contact). **A `messaging_controls/global` doc with no `canary` field is now canary, not live.** |
+| H2 signed copies and e-sign reminders dropped silently under a pause | Signed copies are transactional/legal: they ignore the customer pause and canary and have their own narrow switch `legalCopiesEnabled` (default ON, only an explicit `false` stops them). A signed copy that still could not be emailed raises a high "Signed copy NOT emailed" bell. A reminder that did not go out no longer burns a reminder slot (retried daily, 5 misses then stops, audited). |
+| H3 Storm "YES" hijack | The YES is a side effect AFTER the `sms_inbound_seen` claim; the inbound is still filed (note, AI draft, rep bell) and the one-line thank-you is added to the reply. Confirms only if the confirmation request is under 48 h old and nothing was texted to that number since. Replays of one MessageSid change nothing. |
+| M1 consent evidence spoofable by a rep | `firestore.rules`: `tcpaConsent`, `tcpaConsentAt/Text/Source/Ip/Version` are frozen on lead update and refused on lead create (admin SDK / bridge only). Emulator test `firestore-rules.messaging-controls.test.js` (mutation-checked). Campaign vs reply: an unknown `source` label is now "automated" (no inbound exemption); an absent label (the plain Text button) is a reply. |
+| M2 storm confirmation ignored the company texting switch | `sendPendingConfirmations` calls `textingStatus` first (fail closed). |
+| M3 a pause burned one-shot claims | Pro-playbook welcome, storm report and estimate email check the pause BEFORE taking their claim and leave a visible marker (`welcomeSkipped: held_messaging_paused`, `reportEmailHeld`, `estimateEmailStatus: held_paused`). Playbook and portal copy no longer promise an email/signing link was already sent. |
+| M4 voice regression | Dark voice reads the owner phone from `messaging_controls/internal` (public, non-sensitive; read failure = generic line, never an error). |
+| M5 callable audit | Audit-first: an `intent` row is written before the flip and the flip does not happen if it fails; `before`/`after` logged; turning sends ON, an automation ON, or any owner-contact change needs a sign-in within 15 minutes (`auth_time`); a contact change queues a notice to the PREVIOUS owner email. **A flip made directly in the Firebase console is not audited by this code.** |
+| M6 weak sender scanner | Site-by-site scanner (`tests/lib/sender-scan.js`): resolves each send's receiver to its nearest assignment, flags destructuring / aliasing / bracket access / bind / batch / raw `api.resend.com`+`api.twilio.com`, pins the exact number of raw (internal) sites per file, with negative fixtures that must fail. No parser is vendored, so this is a scanner, not an AST. |
+| M7 no rules tests | `tests/firestore-rules.messaging-controls.test.js` (208 checks; wired into `ci.yml` and `firebase-deploy.yml`). |
+| LOW | `maxPerRun` invalid values -> 0, ceiling 500; canary email drops customer unsubscribe `tags`; OTP refusal wording no longer reveals STOP status; internal-alert cap counts DISTINCT leads; `ignoreGlobal` callers pinned by a test; the business number literal is out of the new test fixtures. |
+
+**Not changed (decisions for Jo):** the personal/business email constants in `lead-alert.js`, `storm-watch.js`, `lead-digest.js`, `marketing-report.js`, `thursday.js`, `verify-functions.js`, `handlers/_shared.js` and `THURSDAY_NUMBER` stay in code: moving them to config would silence Jo's alert EMAILS (the most reliable channel) until `ownerEmail` is set, which is worse than a constant that is already public. Thursday: with `OWNER_NUMBERS_DEFAULT=[]`, Jo's own test calls count as leads if `messaging_controls/internal` is unreadable.
+
 ## IMPORTANT: merging deploys this, and customer sends default to OFF
 
 Because the controls fail closed, **the moment this merges and deploys, every customer message stops** (rep texts, CRM emails, e-sign links, lead ack, follow-ups, OTP) until `messaging_controls/global` exists. That is the requested default. If you want customer email/CRM to keep working through the deploy, create the docs below **before** the merge deploys (Firestore console is instant; nothing needs a deploy).
@@ -62,12 +82,12 @@ Because the controls fail closed, **the moment this merges and deploys, every cu
    - `internalAlertsEnabled` (boolean) = `true`
    Without `ownerPhone` your new-lead alert TEXT stops (email + push still go) and Thursday cannot recognise your own test calls.
 2. Create `messaging_controls/global` for the **canary test**:
-   `customerSendsEnabled` = true, `smsEnabled` = true, `emailEnabled` = true, `otpEnabled` = **false**, `canary` = **true** (all booleans).
+   `customerSendsEnabled` = true, `smsEnabled` = true, `emailEnabled` = true, `otpEnabled` = **false**, `canary` = **true** (all booleans; `canary` must be written explicitly: absent now means canary ON, and ONLY the boolean `false` is live).
 3. Do NOT create `messaging_controls/automations` yet: no automation sends.
 4. Wait about 15 seconds (the controls are cached for 10 s).
 5. Canary test (sends ONLY to you): on https://nobigdealwithjoedeal.com/inspect submit a request with **your own phone and email** and tick the text consent box (that creates a lead with stored consent). In the CRM open that lead, tap **Text**, send "canary test", then use **Email** on the same lead. Expected: a text on your phone starting `[would send to +1…]` and an email titled `[CANARY] …` with `[would send to …]` at the top. Nothing reaches the address you typed other than you.
 6. If anything looks wrong: set `customerSendsEnabled` = false (or delete the doc). Effect within ~10 s.
-7. **Go live later**: set `canary` = false and `otpEnabled` = true. Texts to people with no stored consent will answer "Blocked: no consent on file" (by design: text those from your own phone).
+7. **Go live later**: set `canary` = **false** (the boolean; the console field type must be boolean) and `otpEnabled` = true. Texts to people with no stored consent will answer "Blocked: no consent on file" (by design: text those from your own phone).
 8. Automations later, one at a time, only inside the registered use case: set the entry in `messaging_controls/automations` (e.g. `leadAckSms` = true) **and** its env flag; leave `maxPerRun` at 5. Review requests, follow-up nudges, nurture and reactivation are NOT in what was registered with the carriers.
 
 The callable `manageMessagingControls` (`get`, `set`, `setAutomations`, `setInternal`, owner uid only, reason required, audit-logged) exists for a future settings screen; there is no UI yet, so use the console.
