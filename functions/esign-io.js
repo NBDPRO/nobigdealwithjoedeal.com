@@ -20,6 +20,7 @@ const { Timestamp, FieldValue } = require('firebase-admin/firestore');
 const crypto = require('crypto');
 const { secretOr } = require('./integrations/_shared');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
+const MessagingControls = require('./messaging-controls');
 const ESL = require('./esign-logic');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -59,7 +60,7 @@ async function sendMail(msg) {
   // Email category: TRANSACTIONAL — a document the recipient was sent to sign,
   // or their signed copy. Not gated by the unsubscribe register
   // (email-suppression.js SEND_PATHS).
-  const response = await resend.emails.send(Object.assign({ from }, msg));
+  const response = await MessagingControls.guardResend(require('firebase-admin/firestore').getFirestore(), resend).emails.send(Object.assign({ from }, msg));
   if (resendRejected(response)) throw new Error(resendErrorMessage(response));
   return { emailed: true, stubbed: false };
 }

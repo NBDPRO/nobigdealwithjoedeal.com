@@ -135,7 +135,7 @@ console.log('\nSOURCE CONTRACT — no bare truthiness fallback on a secret outsi
   // registry hasSecret() like dictate and binds no Deepgram secret at all.
   ok('voice-memo gates on the registry hasSecret(GROQ_API_KEY), no Deepgram left', /hasSecret\(\s*'GROQ_API_KEY'\s*\)/.test(vm) && !/DEEPGRAM/.test(vm) && !/GROQ_API_KEY\.value\(\)/.test(vm));
   const vf = codeOnly(fs.readFileSync(path.join(FUNCTIONS, 'verify-functions.js'), 'utf8'));
-  ok("notifyNewLead: Jo's phone falls back through secretOr", /secretOr\(JOE_PHONE_SECRET,\s*JOE_PHONE_FALLBACK\)/.test(vf));
+  ok("notifyNewLead: Jo's phone falls back through secretOr", /secretOr\(JOE_PHONE_SECRET,\s*''\)\s*\|\|\s*ia\.phone/.test(vf) && !/JOE_PHONE_FALLBACK/.test(vf));
   ok("notifyNewLead: Jo's email falls back through secretOr", /secretOr\(JOE_EMAIL_SECRET,\s*JOE_EMAIL_FALLBACK\)/.test(vf));
   ok('notifyNewLead: EMAIL_FROM falls back through secretOr', /secretOr\(EMAIL_FROM,/.test(vf));
   const di = codeOnly(fs.readFileSync(path.join(FUNCTIONS, 'dictate.js'), 'utf8'));

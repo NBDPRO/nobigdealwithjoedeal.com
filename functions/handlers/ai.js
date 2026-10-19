@@ -16,6 +16,7 @@ const { defineSecret } = require('firebase-functions/params');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
+const { envCap } = require('../env-number');
 
 const { httpRateLimit, enforceRateLimit } = require('../integrations/upstash-ratelimit');
 
@@ -26,8 +27,7 @@ const { httpRateLimit, enforceRateLimit } = require('../integrations/upstash-rat
 // Override with PUBLIC_AI_DAILY_CAP (env). A limiter-store failure refuses
 // (503): for a public paid endpoint, unknown spend is "no".
 async function publicAiDailyCap(res, name) {
-  const parsed = Number(process.env.PUBLIC_AI_DAILY_CAP);
-  const cap = Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 300;
+  const cap = envCap(process.env.PUBLIC_AI_DAILY_CAP, 300);
   try {
     await enforceRateLimit(name + ':global', 'GLOBAL_DAILY', cap, 86_400_000);
     return true;

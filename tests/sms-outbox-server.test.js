@@ -101,6 +101,13 @@ function makeWorld(opts) {
   // (sms-texting-gate.js). Every tenant in these scenarios (co-1, and the
   // solo reps keyed by uid) is a registered company — see get() below.
   for (const [p, d] of Object.entries(opts.docs || {})) docs.set(p, d);
+  // 2026-10-19: a rep's text needs stored form consent for the number (consentBasis).
+  // This suite is about the outbox, so every tenant it uses has it for PHONE_TYPED.
+  if (!opts.noConsent) {
+    for (const t of ['co-1', 'co-2', 'rep-1', 'rep-2', 'u1']) {
+      docs.set('leads/zz-consent-' + t, { companyId: t, userId: t, phoneDigits: KEY, tcpaConsent: true, tcpaConsentAt: 1, createdAt: 1 });
+    }
+  }
 
   function docRef(p) {
     return {
@@ -122,6 +129,9 @@ function makeWorld(opts) {
           const f = maybeFail('lead'); if (f) return f;
         } else if (p.startsWith('sms_settings/') && !docs.has(p) && !opts.noSettings) {
           return { exists: true, data: () => ({ registered: true }) };
+        } else if (p.startsWith('messaging_controls/') && !docs.has(p)) {
+          // customer messaging OPEN (the real default is fail-closed, 2026-10-19)
+          return { exists: true, data: () => require('./lib/messaging-controls-open').OPEN_CONTROLS[p] };
         }
         return { exists: docs.has(p), data: () => docs.get(p) };
       },
@@ -996,7 +1006,7 @@ const logRow = (over) => Object.assign({
     body: { From: '+18595550134', Body: 'Actually can you come tomorrow instead?', MessageSid: 'SMin1' },
   };
   {
-    const ctx = load({ docs: { 'leads/lead-1': Object.assign({}, LEAD, { phone: PHONE_TYPED, phoneDigits: KEY }) } });
+    const ctx = load({ noConsent: true, docs: { 'leads/lead-1': Object.assign({}, LEAD, { phone: PHONE_TYPED, phoneDigits: KEY }) } });
     const inbound = await invoke(ctx.exported.incomingSMS.__handler, inboundReq);
     const recv = smsRows(ctx.w).find((r) => r.status === 'received') || {};
     ok('incomingSMS routes the reply to the tenant\'s lead: toDigits = the sender\'s key, companyId = that lead\'s',

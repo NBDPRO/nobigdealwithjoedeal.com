@@ -32,6 +32,7 @@ const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { defineSecret } = require('firebase-functions/params');
 const { logger } = require('firebase-functions/v2');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const MessagingControls = require('./messaging-controls');
 const { CORS_ORIGINS } = require('./handlers/_shared');
 const { callableRateLimit } = require('./shared');
 const P = require('./pro-prospects-logic');
@@ -154,7 +155,7 @@ async function sendWelcome(db, leadId, lead, deps) {
   if (!d.resend) return skip('no_sender');
   try {
     // Email category: COMMERCIAL — delivers the requested playbook and mentions NBD Pro; gated above (email-suppression.js SEND_PATHS).
-    const r = await d.resend.emails.send({
+    const r = await MessagingControls.guardResend(db, d.resend).emails.send({
       from: d.from, to: email, reply_to: REPLY_TO, subject: c.subject, html: body.html, text: body.text,
       headers: Object.assign({ 'X-NBD-Campaign': 'pro-playbook-welcome-v1' }, gate.headers), tags: gate.tags,
     });

@@ -59,6 +59,8 @@ const CRON_GATES = [
   { name: 'TEXT_NOTES_ENABLED', polarity: 'enabled', file: 'text-inbox.js' },
   { name: 'REVIEW_NUDGE_ENABLED', polarity: 'enabled', file: 'review-request-nudge.js' },
   { name: 'STORM_TEXT_ENABLED', polarity: 'enabled', file: 'storm-watch.js' },
+  { name: 'STORM_NWS_TEXT_ENABLED', polarity: 'enabled', file: 'sms-functions.js' },
+  { name: 'STORM_CONFIRM_TEXT_ENABLED', polarity: 'enabled', file: 'storm-poller.js' },
   // Social Studio publisher kill switch (per-company on/off lives in
   // companies/{id}/social_settings/config, default OFF).
   { name: 'SOCIAL_PUBLISHER_DISABLED', polarity: 'disabled', file: 'social-studio.js' },

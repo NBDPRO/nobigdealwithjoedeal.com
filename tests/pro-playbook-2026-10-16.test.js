@@ -172,9 +172,10 @@ const MD = 'site-src/guides/nbd-pro-playbook.md';
       && P.welcomePlan({ email: 'a@b.co', source: 'pro-playbook', welcomeEmailedAt: 1 }).reason === 'already_sent'
       && P.welcomePlan({ email: 'a@b.co', source: 'free-guide' }).send === true);
     function fakeDb(lead) {
-      const docs = { 'guide_leads/L1': Object.assign({}, lead) };
+      const docs = Object.assign({}, require('./lib/messaging-controls-open').OPEN_CONTROLS, { 'guide_leads/L1': Object.assign({}, lead) });
       const ref = (p) => ({
         path: p,
+        async get() { return { exists: !!docs[p], data: () => docs[p] }; },
         async set(v) { docs[p] = Object.assign({}, docs[p] || {}, v); },
         async create(v) { if (docs[p]) { const e = new Error('already exists'); e.code = 6; throw e; } docs[p] = v; },
       });

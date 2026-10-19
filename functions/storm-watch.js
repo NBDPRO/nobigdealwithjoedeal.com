@@ -38,6 +38,7 @@ const _twilio = () => (_twilioSdk = _twilioSdk || require('twilio'));
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const StormGuard = require('./storm-sms-guard');
 const TextingGate = require('./sms-texting-gate');
+const MessagingControls = require('./messaging-controls');
 const StormTime = require('./storm-time'); // IEM valid is UTC: print it in Eastern
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -47,7 +48,6 @@ const TWILIO_AUTH_TOKEN = defineSecret('TWILIO_AUTH_TOKEN');
 const TWILIO_PHONE_NUMBER = defineSecret('TWILIO_PHONE_NUMBER');
 
 const ALERT_EMAILS = ['jd@nobigdealwithjoedeal.com', 'jonathandeal459@gmail.com'];
-const JOE_SMS = '+18594207382';
 
 const LOOKBACK_H = 3;            // re-fetch overlap; dedupe absorbs repeats
 const SERVICE_RADIUS_MI = 25;    // event must be this close to a service city
@@ -194,7 +194,12 @@ async function runStormWatch() {
   // and that person would get recurring storm texts they never asked for. The
   // subscriber must reply YES to a confirmation text before the first alert;
   // that design is a separate PR (see the Twilio packet's follow-ups).
-  const textEnabled = process.env.STORM_TEXT_ENABLED === 'true' && switchOn && companyOn;
+  // 2026-10-19: ALSO an explicit messaging_controls/automations stormText ===
+  // true and the global SMS switch (fail closed); the stormAlerts switch is
+  // now ONLY on when exactly true; and a subscriber is texted only after the
+  // double opt-in (they replied YES; storm-sms-guard.js claimStormText).
+  const stormAuto = await MessagingControls.automationStatus(db, 'stormText', 'sms', process.env.STORM_TEXT_ENABLED === 'true');
+  const textEnabled = stormAuto.enabled && switchOn && companyOn;
   const nowMs = Date.now();
   // active:true is server-stamped on every subscriber (functions/handlers/
   // integrations.js's serverDefaults, never client-trusted) specifically so
@@ -230,11 +235,23 @@ async function runStormWatch() {
     `⛈️ NBD Storm Watch — map: ${mapLink} — ${evLines.join(' | ')}. ` +
     `${affected.length} subscriber${affected.length === 1 ? '' : 's'} in range` +
     (textEnabled ? ' — texting them now.' : ' (texting OFF — see email).');
+  // INTERNAL alert to Jo: own switch + hourly cap; the number is config
+  // (messaging_controls/internal), never a constant in this public repo.
   try {
-    const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
-    await client.messages.create({ to: JOE_SMS, from: TWILIO_PHONE_NUMBER.value(), body: smsToJoe.slice(0, 480) });
+    const ia = await MessagingControls.internalAlertStatus(db, 'sms');
+    if (ia.allowed) {
+      const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
+      await client.messages.create({ to: ia.phone, from: TWILIO_PHONE_NUMBER.value(), body: smsToJoe.slice(0, 480) });
+    } else {
+      logger.warn('stormWatch: joe sms held', { reason: ia.reason });
+    }
   } catch (e) { logger.error('stormWatch: joe sms failed', { err: e.message }); }
   try {
+    const ie = await MessagingControls.internalAlertStatus(db, 'email');
+    if (!ie.allowed && ie.reason !== 'owner_email_not_configured') {
+      logger.warn('stormWatch: joe email held', { reason: ie.reason });
+      throw new Error('held:' + ie.reason);
+    }
     const resend = new Resend(RESEND_API_KEY.value());
     const zipCounts = {};
     for (const a of affected) zipCounts[a.zip] = (zipCounts[a.zip] || 0) + 1;
@@ -259,8 +276,9 @@ async function runStormWatch() {
   let texted = 0;
   const skipped = {};
   if (textEnabled && affected.length) {
-    const client = _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
+    const client = MessagingControls.guardTwilio(db, _twilio()(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value()));
     for (const a of affected) {
+      if (texted >= stormAuto.maxPerRun) { skipped.per_run_cap = (skipped.per_run_cap || 0) + 1; continue; }
       const result = await StormGuard.sendGuardedStormText({
         db,
         subscriberRef: a.ref,

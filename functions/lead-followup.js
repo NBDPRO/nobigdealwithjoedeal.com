@@ -31,6 +31,7 @@ const { Timestamp, FieldValue, getFirestore } = require('firebase-admin/firestor
 const L = require('./lead-bridge-logic');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const Suppression = require('./email-suppression');
+const MessagingControls = require('./messaging-controls');
 
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const EMAIL_FROM = defineSecret('EMAIL_FROM');
@@ -90,11 +91,16 @@ exports.leadFollowUpSweep = onSchedule(
     memory: '256MiB',
   },
   async () => {
-    if (process.env.LEAD_FOLLOWUP_ENABLED === 'false') {
-      logger.info('leadFollowUp: disabled via env — skipping');
+    const db = getFirestore();
+    // Automated customer email => the env flag (on unless 'false') AND an
+    // explicit messaging_controls/automations leadFollowupEmail === true AND
+    // the global email switch (2026-10-19; fail closed). maxPerRun caps one
+    // sweep so enabling it can never flood.
+    const auto = await MessagingControls.automationStatus(db, 'leadFollowupEmail', 'email', process.env.LEAD_FOLLOWUP_ENABLED !== 'false');
+    if (!auto.enabled) {
+      logger.info('leadFollowUp: not enabled — skipping', { reason: auto.reason });
       return;
     }
-    const db = getFirestore();
     const now = Date.now();
     const oldest = Timestamp.fromMillis(now - WINDOW_OLDEST_H * 3600_000);
     const youngest = Timestamp.fromMillis(now - WINDOW_YOUNGEST_H * 3600_000);
@@ -104,6 +110,7 @@ exports.leadFollowUpSweep = onSchedule(
     let blockedNoAddress = 0; // CAN-SPAM: no postal address configured (2026-10-03)
     let resend = null;
 
+    sweep:
     for (const collection of SOURCES) {
       const snap = await db.collection(collection)
         .where('createdAt', '>=', oldest)
@@ -112,6 +119,7 @@ exports.leadFollowUpSweep = onSchedule(
         .get();
 
       for (const doc of snap.docs) {
+        if (sent >= auto.maxPerRun) { logger.info('leadFollowUp: per-run cap reached', { cap: auto.maxPerRun }); break sweep; }
         const d = doc.data() || {};
         if (L.isFollowUpEvent(collection, d)) { skipped++; continue; }
         if (d.followUpEmailSentAt) { skipped++; continue; }
@@ -200,7 +208,7 @@ exports.leadFollowUpSweep = onSchedule(
           if (!resend) resend = new Resend(RESEND_API_KEY.value());
           const firstName = String(d.firstName || d.name || '').trim().split(/\s+/)[0] || '';
           const body = Suppression.applyFooter(unsub, followUpHtml(firstName), followUpText(firstName));
-          const response = await resend.emails.send({
+          const gated = await MessagingControls.guardEmail(db, {
             from: 'Joe Deal <jd@nobigdealwithjoedeal.com>',
             to: email,
             reply_to: 'jd@nobigdealwithjoedeal.com',
@@ -212,6 +220,8 @@ exports.leadFollowUpSweep = onSchedule(
             // functions/resend-webhook.js.
             tags: unsub.tags,
           });
+          if (!gated.send) throw new Error('messaging_paused:' + gated.reason);
+          const response = await resend.emails.send(gated.msg);
           // Resend resolves { data: null, error } on an API-level rejection
           // instead of throwing — without this check followUpEmailSentAt
           // gets stamped, and per this file's own header comment ("one

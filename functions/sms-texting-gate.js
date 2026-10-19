@@ -19,6 +19,12 @@
 
 const NBD_OWNER_UID = process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1';
 
+// The platform-wide customer kill switch (messaging_controls/global, read
+// FAIL CLOSED — functions/messaging-controls.js). Asked from textingStatus so
+// every sender that already asks "is this company's texting on?" is covered
+// by the same call instead of a second, forgotten one.
+const MessagingControls = require('./messaging-controls');
+
 /** The tenant key of an authenticated caller (decoded ID token). '' if none. */
 function tenantKeyOf(decoded) {
   if (!decoded) return '';
@@ -54,11 +60,13 @@ function tenantKeyOfRecord(rec) {
 const SETTINGS_COLLECTION = 'sms_settings';
 
 /**
- * @returns {Promise<{allowed: boolean, reason: null|'no_tenant'|'not_registered'|'switched_off',
- *   isNbd: boolean, registered: boolean, enabled: boolean}>}
+ * @param {{ignoreGlobal?: boolean}} [opts] ignoreGlobal: the company-only answer,
+ *   for the settings screen (it shows THIS company's toggle, not the owner's pause).
+ * @returns {Promise<{allowed: boolean, reason: null|'no_tenant'|'not_registered'|'switched_off'|'messaging_paused',
+ *   isNbd: boolean, registered: boolean, enabled: boolean, pausedReason?: string}>}
  *   REJECTS on a read error (callers: do not send).
  */
-async function textingStatus(db, tenantKey) {
+async function textingStatus(db, tenantKey, opts) {
   const key = String(tenantKey || '');
   if (!key || key.indexOf('/') !== -1) {
     return { allowed: false, reason: 'no_tenant', isNbd: false, registered: false, enabled: false };
@@ -69,6 +77,10 @@ async function textingStatus(db, tenantKey) {
   const registered = isNbd || d.registered === true;
   const enabled = d.enabled !== false;
   const reason = !registered ? 'not_registered' : (!enabled ? 'switched_off' : null);
+  if (!reason && !(opts && opts.ignoreGlobal)) {
+    const g = await MessagingControls.channelStatus(db, 'sms');
+    if (!g.allowed) return { allowed: false, reason: 'messaging_paused', pausedReason: g.reason, isNbd, registered, enabled };
+  }
   return { allowed: !reason, reason, isNbd, registered, enabled };
 }
 
@@ -76,6 +88,7 @@ const REFUSAL_MESSAGES = Object.freeze({
   not_registered: 'Texting needs registration for your company — coming soon. Nothing was sent.',
   switched_off: 'Texting is switched off for your company (Settings → Texting). Nothing was sent.',
   no_tenant: 'Texting is not set up for this account. Nothing was sent.',
+  messaging_paused: 'Customer messaging is paused by the owner. Nothing was sent.',
 });
 
 /** The 403 body a send path answers when the switch says no. */

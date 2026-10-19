@@ -46,6 +46,7 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { callableRateLimit, assertNotViewer } = require('./shared');
 const { enforceRateLimit, clientIp, rateLimitIpKey } = require('./rate-limit');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
+const MessagingControls = require('./messaging-controls');
 const { secretOr } = require('./integrations/_shared');
 const AR = require('./alert-recipients');
 
@@ -238,7 +239,7 @@ exports.alertRecipients = onCall(
     const url = CONFIRM_URL_BASE + token;
     try {
       const { Resend } = require('resend');
-      const resp = await new Resend(RESEND_API_KEY.value()).emails.send({
+      const resp = await MessagingControls.guardResend(getFirestore(), new Resend(RESEND_API_KEY.value())).emails.send({
         from: secretOr(EMAIL_FROM, 'noreply@nobigdealwithjoedeal.com'),
         to: contact.email,
         subject: 'Confirm this address for new-lead alerts',

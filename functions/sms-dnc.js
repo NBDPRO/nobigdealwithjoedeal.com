@@ -129,7 +129,7 @@ async function handleManageSmsCompliance(request) {
 
   // ── The master switch (sms-texting-gate.js) ──
   if (action === 'getSettings') {
-    const s = await TextingGate.textingStatus(db, caller.companyId);
+    const s = await TextingGate.textingStatus(db, caller.companyId, { ignoreGlobal: true });
     return {
       allowed: s.allowed, reason: s.reason, registered: s.registered, enabled: s.enabled,
       // The CRM shows "needs registration — coming soon" from this.
@@ -141,7 +141,7 @@ async function handleManageSmsCompliance(request) {
     // Owner or company_admin of the caller's own company.
     await requireTeamAdmin(request);
     if (typeof data.enabled !== 'boolean') throw new HttpsError('invalid-argument', 'enabled must be true or false');
-    const s = await TextingGate.textingStatus(db, caller.companyId);
+    const s = await TextingGate.textingStatus(db, caller.companyId, { ignoreGlobal: true });
     // Turning OFF is always allowed. Turning ON cannot get past registration:
     // `registered` is admin-SDK only and this callable never writes it.
     if (data.enabled && !s.registered) {
@@ -153,7 +153,7 @@ async function handleManageSmsCompliance(request) {
       updatedBy: caller.uid,
     }, { merge: true });
     logger.info('sms_texting_switch', { companyId: caller.companyId, enabled: data.enabled });
-    const after = await TextingGate.textingStatus(db, caller.companyId);
+    const after = await TextingGate.textingStatus(db, caller.companyId, { ignoreGlobal: true });
     return { ok: true, allowed: after.allowed, reason: after.reason, registered: after.registered, enabled: after.enabled };
   }
 

@@ -255,7 +255,8 @@ console.log('\nTHURSDAY — real-call tuning (2026-09-26 dry-run)');
   ok('hung up 3 s into Thursday\'s greeting → inbox, no alerts', (() => { const r = T.decideRoute(T.silentExtraction(greeted), none); return r.action === 'inbox' && !r.notifyEmail && !r.notifyPush && !r.notifySms; })());
   const blip = T.silentExtraction(T.normalizeCall({ call_id: 'tune1239', transcripts: [], call_length: 0.0166666666666667 }));
   ok('1 s line blip → log only', T.decideRoute(blip, none).action === 'log_only');
-  const own = T.applyCallOverrides(ex({ caller_type: 'new_lead', caller_name: '' }), call({ from: '+18594207382' }), {});
+  const own = T.applyCallOverrides(ex({ caller_type: 'new_lead', caller_name: '' }), call({ from: '+18594207382' }), { ownerNumbers: ['+18594207382'] });   // owner numbers are CONFIG now (2026-10-19), passed in by loadConfig
+  ok('the repo carries NO default owner number (it is config)', T.OWNER_NUMBERS_DEFAULT.length === 0);
   const rOwn = T.decideRoute(own, none);
   ok('call from Jo\'s own cell → test, log only, no lead', own.caller_type === 'test' && rOwn.action === 'log_only' && !rOwn.createTask);
   const extra = T.applyCallOverrides(ex({ caller_type: 'new_lead' }), call({ from: '+15135550123' }), { ownerNumbers: ['513-555-0123'] });

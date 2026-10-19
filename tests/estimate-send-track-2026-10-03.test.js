@@ -174,6 +174,7 @@ const PKG_STUBS = {
   'firebase-functions/params': { defineSecret: secret, defineString: secret, defineInt: (n) => ({ name: n, value: () => 0 }), defineBoolean: (n) => ({ name: n, value: () => false }) },
   'firebase-functions/v2/firestore': { onDocumentCreated: () => ({}), onDocumentWritten: () => ({}), onDocumentUpdated: () => ({}), onDocumentDeleted: () => ({}) },
   'firebase-functions/v2/scheduler': { onSchedule: () => ({}) },
+  './messaging-controls': require('./lib/messaging-controls-stub'),
   'firebase-admin/firestore': { getFirestore: () => DB, FieldValue, Timestamp, FieldPath: { documentId: () => '__name__' } },
   'firebase-admin/storage': { getStorage: () => ({ bucket: () => bucket }) },
   'firebase-admin/auth': { getAuth: () => ({}) },

@@ -67,6 +67,8 @@ const authUsers = {};
 function resetRec() { rec.pushes = []; rec.emails = []; rec.sms = []; rec.outbox = []; rec.updates = []; rec.logs = []; }
 
 const stubs = {
+
+  './messaging-controls': require('./lib/messaging-controls-stub'),
   'firebase-functions/v2/firestore': {
     onDocumentCreated: (opts, handler) => ({ __opts: opts, __handler: handler }),
   },

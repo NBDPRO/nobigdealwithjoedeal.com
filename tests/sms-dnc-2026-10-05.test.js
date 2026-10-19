@@ -42,7 +42,7 @@ const KEY = '8595550134';
 const DNC_CO1 = { ['sms_dnc/co-1__' + KEY]: { companyId: 'co-1', key: KEY, phone: PHONE, source: 'manual' } };
 // Every scenario's tenant is allowed to text (the master switch, when present,
 // is not what these tests are about).
-const OPEN = { 'sms_settings/co-1': { registered: true, enabled: true } };
+const OPEN = Object.assign({ 'sms_settings/co-1': { registered: true, enabled: true } }, W.consentDocs(KEY, 'co-1'));
 
 function seed(extra) { return Object.assign({}, OPEN, extra || {}); }
 

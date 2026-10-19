@@ -73,7 +73,8 @@ function _spine() {
 async function _smsA2pApproved(db) {
   try {
     const s = await db.doc('integrations/sms').get();
-    return L.smsA2pApproved(s.exists ? s.data() : null);
+    return L.smsA2pApproved(s.exists ? s.data() : null)
+      && await require('./messaging-controls').a2pServerTextsAllowed(db, s.exists ? s.data() : null);
   } catch (_) { return false; }
 }
 

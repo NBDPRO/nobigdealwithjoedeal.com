@@ -104,6 +104,8 @@ function reset() {
 }
 
 const stubs = {
+
+  './messaging-controls': require('./lib/messaging-controls-stub'),
   'firebase-functions/v2/firestore': { onDocumentCreated: (opts, handler) => ({ __opts: opts, __handler: handler }) },
   './integrations/heartbeat': { onSchedule: (opts, handler) => ({ __opts: opts, __handler: handler }) },
   'firebase-functions/params': { defineSecret: (name) => ({ name, value: () => 'test-' + name }) },

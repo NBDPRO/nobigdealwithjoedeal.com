@@ -20,6 +20,7 @@ const { enforceRateLimit, httpRateLimit } = require('./rate-limit');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
 const Suppression = require('./email-suppression');
 const SendGuard = require('./email-send-guard');
+const MessagingControls = require('./messaging-controls'); // the ONE customer kill switch + canary (2026-10-19)
 
 // Secrets
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
@@ -623,7 +624,17 @@ exports.sendEmail = onRequest(
       // attribute the event to this tenant (functions/resend-webhook.js).
       if (unsubGate && unsubGate.tags) message.tags = unsubGate.tags;
 
-      const response = await resend.emails.send(message);
+      // The owner's kill switch / canary (messaging_controls/global, fail
+      // closed). A rep-tapped email is still a customer send: paused = a plain
+      // 403 the CRM can show, nothing leaves.
+      const gated = await MessagingControls.guardEmail(db, message);
+      if (!gated.send) {
+        logger.warn('sendEmail blocked: customer messaging paused', { reason: gated.reason });
+        await logEmailToFirestore(db, to, subject, decoded.uid, 'blocked_paused', leadId || null, companyId, kindLog);
+        res.status(403).json({ error: MessagingControls.REFUSAL[gated.reason] || MessagingControls.REFUSAL.customer_sends_off, code: 'messaging_paused' });
+        return;
+      }
+      const response = await resend.emails.send(gated.msg);
 
       // The Resend SDK does NOT throw on an API-level rejection (bad/expired
       // key, suspended account, invalid sender domain, etc.) — it resolves
@@ -706,7 +717,11 @@ async function handleDraftSend(req, res, decoded, b) {
       if (sender.replyTo) message.reply_to = sender.replyTo;
       if (p.unsubGate && p.unsubGate.headers) message.headers = p.unsubGate.headers;
       if (p.unsubGate && p.unsubGate.tags) message.tags = p.unsubGate.tags;
-      return message;
+      // Kill switch / canary. Thrown here = nothing sent, the claim is released
+      // (executeDraftSend build_failed).
+      const gated = await MessagingControls.guardEmail(db, message);
+      if (!gated.send) throw new Error('messaging_paused:' + gated.reason);
+      return gated.msg;
     },
     send: (message) => resend.emails.send(message),
     logEmail: (status, extra) => logEmailToFirestore(db, plan.to, plan.subject, decoded.uid, status, plan.leadId, companyId, extra),

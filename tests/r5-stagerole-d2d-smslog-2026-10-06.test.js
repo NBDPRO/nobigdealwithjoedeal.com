@@ -279,6 +279,7 @@ const VALID_ROLES = ['new', 'active', 'job', 'won', 'lost'];
         collection: (sub) => colRef(p + '/' + sub),
         get: async () => {
           if (p.startsWith('sms_settings/') && !docs.has(p)) return { exists: true, data: () => ({ registered: true }) };
+          if (p.startsWith('messaging_controls/') && !docs.has(p)) return { exists: true, data: () => require('./lib/messaging-controls-open').OPEN_CONTROLS[p] };
           return { exists: docs.has(p), data: () => docs.get(p) };
         },
         set: async (d, o) => { docs.set(p, (o && o.merge && docs.has(p)) ? Object.assign({}, docs.get(p), resolve(d)) : resolve(d)); },
@@ -288,8 +289,10 @@ const VALID_ROLES = ['new', 'active', 'job', 'won', 'lost'];
       };
     }
     function q(name) {
+      // 2026-10-19: the rep's tenant has stored form consent for the number (consentBasis).
+      const consent = name === 'leads' ? [{ id: 'consent', data: () => ({ companyId: 'co-1', userId: 'rep-1', phoneDigits: '8595550134', tcpaConsent: true, tcpaConsentAt: 1, createdAt: 1 }) }] : [];
       const self = { where: () => self, orderBy: () => self, limit: () => self,
-        get: async () => ({ empty: true, size: 0, docs: [] }) };
+        get: async () => ({ empty: consent.length === 0, size: consent.length, docs: consent }) };
       return self;
     }
     function colRef(name) {

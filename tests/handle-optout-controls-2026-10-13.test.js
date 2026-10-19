@@ -96,6 +96,7 @@ function fresh(file) {
     const db = { collection: coll, doc: ref };
     const logger = { error() {}, warn() {}, info() {}, debug() {} };
     stubs = {
+      './messaging-controls': require('./lib/messaging-controls-stub'),
       'firebase-admin/firestore': {
         getFirestore: () => db,
         FieldValue: { serverTimestamp: () => '__ts__' },

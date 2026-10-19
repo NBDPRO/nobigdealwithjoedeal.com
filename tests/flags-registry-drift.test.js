@@ -92,8 +92,8 @@ for (const f of FLAGS) {
 // 42 (2026-10-16): + REVIEW_ASK_EMAIL_PHOTO_ENABLED (a non-gate 'enabled' flag inside the review ask).
 // 43 (2026-10-18): + COMPANY_DOC_EXPIRY_ENABLED (a gate: the own-document expiry watch, dark).
 // 44 (2026-10-18): + MORNING_BRIEF_DELTA_ENABLED (a gate: the brief's delta mode, dark).
-ok('registry pins 44 flags (update deliberately: 37 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag + the review photo)',
-  FLAGS.length === 44, String(FLAGS.length));
+ok('registry pins 46 flags (2026-10-19: +2 storm gates; update deliberately: 39 gates + CARE_PLAN_MODE + TURNSTILE_REQUIRED + 3 off-switches + the QA test-mode flag + the review photo)',
+  FLAGS.length === 46, String(FLAGS.length));
 
 // ── cron-gates.js stays the single polarity source ────────────────────────
 const gateNames = new Set(CRON_GATES.map((g) => g.name));

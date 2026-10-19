@@ -72,8 +72,10 @@ const STORM_QUIET_HOURS = Object.freeze({ startHour: SEND_WINDOW.startHour, endH
 /** Recipient time zone when the subscriber doc carries no `tz`. */
 const STORM_DEFAULT_TZ = SEND_WINDOW.timeZone;   // 'America/New_York'
 
-/** Master on/off switch doc. `enabled: false` stops every storm text from
- *  both crons; an ABSENT doc / field means enabled (pre-switch behaviour). */
+/** Master switch doc. Storm subscriber texts go ONLY while
+ *  integrations/stormAlerts.enabled is exactly true (2026-10-19, A2P live):
+ *  an ABSENT doc, a missing field or an unreadable doc all mean OFF. Before
+ *  today absent meant on. */
 const STORM_SWITCH_DOC = 'integrations/stormAlerts';
 
 function localHour(nowMs, tz) {
@@ -91,16 +93,17 @@ function withinStormSendWindow(nowMs, tz) {
 }
 
 /**
- * Read the master switch. true unless integrations/stormAlerts.enabled is
- * exactly false. A read ERROR answers false (fail closed): a switch nobody
- * can read is not permission to text homeowners — the run is skipped and
- * logged, and the next 30-minute tick tries again.
+ * Read the master switch. true ONLY when integrations/stormAlerts.enabled is
+ * exactly true. Absent doc / field, anything else, or a read ERROR answers
+ * false (fail closed): a switch nobody can read is not permission to text
+ * homeowners — the run is skipped and logged, and the next 30-minute tick
+ * tries again.
  */
 async function stormAlertsEnabled(db, logger) {
   try {
     const snap = await db.doc(STORM_SWITCH_DOC).get();
     const d = snap.exists ? (snap.data() || {}) : {};
-    return d.enabled !== false;
+    return d.enabled === true;
   } catch (e) {
     if (logger) logger.error('storm_alerts_switch_unreadable', { err: e && e.message });
     return false;
@@ -127,6 +130,16 @@ function toMillis(v) {
   if (v instanceof Date) return v.getTime();
   if (typeof v === 'number') return v;
   return 0;
+}
+
+/**
+ * Double opt-in (2026-10-19): the subscriber replied YES to our confirmation
+ * text (smsConfirmedAt, written by storm-confirm.js from the inbound reply).
+ * tcpaConsent — the box ticked on a form anyone can fill in with any number —
+ * is NOT enough on its own.
+ */
+function isDoubleOptedIn(sub) {
+  return !!sub && sub.tcpaConsent === true && !!sub.smsConfirmedAt;
 }
 
 /** Is this subscriber inside the shared storm-text cooldown? */
@@ -183,6 +196,8 @@ async function claimStormText(db, args) {
     // whose signup stored an explicit tcpaConsent === true is texted. Older
     // signups carry no consent record and are skipped, not guessed at.
     if (sub.tcpaConsent !== true) { verdict = { claimed: false, reason: 'no_consent' }; return; }
+    // ...and, since 2026-10-19, only after they confirmed by replying YES.
+    if (!isDoubleOptedIn(sub)) { verdict = { claimed: false, reason: 'not_confirmed' }; return; }
     if (inStormCooldown(sub, nowMs, args.cooldownH)) { verdict = { claimed: false, reason: 'cooldown' }; return; }
     if (claimSnap && claimSnap.exists) { verdict = { claimed: false, reason: 'already_claimed' }; return; }
     if (claimRef) {
@@ -304,6 +319,7 @@ module.exports = {
   STORM_SWITCH_DOC,
   withinStormSendWindow,
   stormAlertsEnabled,
+  isDoubleOptedIn,
   SUBSCRIBER_PAGE_SIZE,
   MAX_SUBSCRIBER_PAGES,
   claimDocId,
