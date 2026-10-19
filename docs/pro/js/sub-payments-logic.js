@@ -390,7 +390,7 @@
   function voidPatch(row, note, by, nowMs) {
     var n = String(note || '').trim();
     if (!n) return { error: 'Say why you are voiding it.' };
-    return { patch: { deleted: true, editLog: appendLog(row.editLog, logEntry(by, 'void', n, nowMs)) } };
+    return { patch: { deleted: true, deletedAt: new Date(nowMs || Date.now()), editLog: appendLog(row.editLog, logEntry(by, 'void', n, nowMs)) } };
   }
 
   var API = {

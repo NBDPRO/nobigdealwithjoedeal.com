@@ -404,7 +404,7 @@
     if (!n) return { error: 'Say why you are voiding it.' };
     var log = Array.isArray(doc && doc.editLog) ? doc.editLog.slice() : [];
     log.push({ at: nowMs || Date.now(), by: by || null, what: 'void', source: 'payment-backfill', note: n.slice(0, 300) });
-    return { patch: { deleted: true, voidNote: n.slice(0, 300), editLog: log.slice(-25) } };
+    return { patch: { deleted: true, deletedAt: new Date(nowMs || Date.now()), voidNote: n.slice(0, 300), editLog: log.slice(-25) } };
   }
   function logEntry(by, what, note, nowMs) { return { at: nowMs || Date.now(), by: by || null, what: what, source: 'payment-backfill', note: clean(note).slice(0, 300) }; }
 

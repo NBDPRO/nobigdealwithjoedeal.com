@@ -109,9 +109,9 @@ group('One owner, two call sites', () => {
   assert('the portal view resolves progress through the module',
     /const hp = resolveHomeownerProgress\(lead, \{/.test(SRC));
   assert('canRate is derived from that same resolution',
-    /canRate: hp\.paidInFull(?: && !isQuietBackfill\(lead\))?,/.test(SRC));
+    /canRate: hp\.paidInFull(?: && !isQuietBackfill\(lead\))?(?: && !hasBackfillInvoice\(tenantInvoices\))?,/.test(SRC));
   assert('the rating submit gate resolves through it too',
-    /if \(!paidInFullFor\(lead, ratingInvoices\)(?: \|\| isQuietBackfill\(lead\))?\) \{/.test(SRC));
+    /if \(!paidInFullFor\(lead, ratingInvoices\)(?: \|\| isQuietBackfill\(lead\))?(?: \|\| hasBackfillInvoice\(ratingInvoices\))?\) \{/.test(SRC));
   assert('both read the SAME tenant-filtered invoice list builder',
     /const tenantInvoices = _tenantInvoices\(invSnap\.docs, tenant\);/.test(SRC)
       && /const ratingInvoices = _tenantInvoices\(invDocs, portalTenant\(tok, lead\)\);/.test(SRC));
