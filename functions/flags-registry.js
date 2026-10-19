@@ -69,7 +69,11 @@ const ROWS = {
   LEAD_ACK_SMS_ENABLED: { group: 'Calls & texts', doc: ENV_DOC,
     meaning: 'Texts the homeowner a quick acknowledgement when a new lead arrives. Off = no acknowledgement text.' },
   STORM_TEXT_ENABLED: { group: 'Calls & texts', doc: 'documentation/projects/AI-AUTOMATIONS-2026-10-04.md',
-    meaning: 'Storm-watch texts to past customers after hail. Off = the watch runs but sends nothing.' },
+    meaning: 'Storm-watch texts to Storm Alert subscribers after hail. Also needs messaging_controls/automations stormText and a confirmed (replied YES) subscriber. Off = the watch runs but sends nothing.' },
+  STORM_NWS_TEXT_ENABLED: { group: 'Calls & texts', doc: 'documentation/audit/MESSAGING-HARDENING-2026-10-19.md',
+    meaning: 'NWS weather-alert texts to confirmed Storm Alert subscribers. Also needs messaging_controls/automations stormNwsText and integrations/stormAlerts.enabled=true. Off = the NWS half does not even fetch.' },
+  STORM_CONFIRM_TEXT_ENABLED: { group: 'Calls & texts', doc: 'documentation/audit/MESSAGING-HARDENING-2026-10-19.md',
+    meaning: 'Sends the one "reply YES to confirm" text to a new Storm Alert subscriber (double opt-in). Also needs messaging_controls/automations stormConfirmText. Off = nobody can become confirmed.' },
 
   // ── Alerts & away ───────────────────────────────────────────────────────
   AWAY_MODE_ENABLED: { group: 'Alerts & away', dark: true, doc: 'documentation/projects/AWAY-MODE-BACKUP-2026-10-12.md',

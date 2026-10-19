@@ -24,6 +24,11 @@ const { onSchedule } = require('./integrations/heartbeat'); // heartbeat-wrapped
 const { logger } = require('firebase-functions/v2');
 const SW = require('./storm-watch');
 const SMS = require('./sms-functions');
+const SC = require('./storm-confirm');
+const MC = require('./messaging-controls');
+const { secretValue } = require('./integrations/_shared');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const NBD_OWNER_UID = require('./sms-texting-gate').NBD_OWNER_UID;
 
 // Union by secret name (each module defines its own param objects).
 const SECRETS = [];
@@ -31,14 +36,35 @@ for (const s of SW.STORM_WATCH_SECRETS.concat(SMS.STORM_ALERT_SECRETS)) {
   if (!SECRETS.some((x) => x.name === s.name)) SECRETS.push(s);
 }
 
+/**
+ * Step 3 (2026-10-19): the double-opt-in confirmation texts. DARK unless env
+ * STORM_CONFIRM_TEXT_ENABLED === 'true' AND messaging_controls/automations
+ * stormConfirmText === true AND the global SMS switch. At most maxPerRun per tick.
+ */
+async function runStormConfirmations(deps) {
+  const d = deps || {};
+  const db = d.db || getFirestore();
+  const envOn = d.env ? d.env.STORM_CONFIRM_TEXT_ENABLED === 'true' : process.env.STORM_CONFIRM_TEXT_ENABLED === 'true';
+  const auto = await MC.automationStatus(db, 'stormConfirmText', 'sms', envOn);
+  if (!auto.enabled) return { skipped: auto.reason };
+  const sec = (n) => secretValue(SECRETS.find((x) => x.name === n));
+  const send = d.send || ((to, body) => MC.guardTwilio(db, require('twilio')(sec('TWILIO_ACCOUNT_SID'), sec('TWILIO_AUTH_TOKEN')))
+    .messages.create({ to, from: sec('TWILIO_PHONE_NUMBER'), body }));
+  return SC.sendPendingConfirmations({
+    db, send, logger, maxPerRun: auto.maxPerRun, companyId: NBD_OWNER_UID,
+    serverTimestamp: () => FieldValue.serverTimestamp(),
+  });
+}
+
 async function runStormPoller(deps) {
   const d = deps || {};
   const watch = d.runStormWatch || SW.runStormWatch;
   const alerts = d.runCheckStormAlerts || SMS.runCheckStormAlerts;
   const log = d.log || logger;
-  const out = { reports: 'ok', alerts: 'ok' };
+  const out = { reports: 'ok', alerts: 'ok', confirm: 'ok' };
   try { await watch(); } catch (e) { out.reports = 'failed'; log.error('stormPoller: reports half failed', { err: e && e.message }); }
   try { await alerts({}); } catch (e) { out.alerts = 'failed'; log.error('stormPoller: alerts half failed', { err: e && e.message }); }
+  try { await (d.runStormConfirmations || runStormConfirmations)(d); } catch (e) { out.confirm = 'failed'; log.error('stormPoller: confirm step failed', { err: e && e.message }); }
   return out;
 }
 
@@ -54,4 +80,4 @@ exports.stormPoller = onSchedule(
   () => runStormPoller()
 );
 
-exports._test = { runStormPoller, SECRETS };
+exports._test = { runStormPoller, runStormConfirmations, SECRETS };
