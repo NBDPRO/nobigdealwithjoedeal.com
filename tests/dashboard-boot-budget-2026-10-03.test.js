@@ -184,6 +184,10 @@ CEILING.localBytes += 2 * 1024;
 // leadSourceFixer, absent = off). No boot-time reads: invoices and spend load only when the modal opens. Own line.
 CEILING.localScripts += 1;
 CEILING.localBytes += 16 * 1024;
+// +1 local tag / +16 KB, deliberate (2026-10-19, speed to lead): js/speed-to-lead.js (deferred, flag speedToLead,
+// absent = off). No boot-time reads; with the flag off it only keeps the toolbar button hidden. Own line.
+CEILING.localScripts += 1;
+CEILING.localBytes += 16 * 1024;
 
 // ── SHIPPED BYTES (2026-10-16, deploy-time minify) ─────────────────────────
 // Since the deploy minifies docs/pro with esbuild (scripts/minify-shipped.js:
