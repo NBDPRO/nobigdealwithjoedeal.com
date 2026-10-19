@@ -47,6 +47,10 @@
       if (sb >= 0 && sb <= 30) document.documentElement.style.setProperty('--glass-blur', sb + 'px');
       if (sf >= 40 && sf <= 95) document.documentElement.style.setProperty('--glass-frost', sf + '%');
     }
+    // Sunlight mode in every layout (idea #12): 'on' paints black-on-white from
+    // the first frame. 'auto' starts off and field-sunlight.js turns it on at a
+    // customer's address. Absent / 'off' is the no-op default.
+    if (localStorage.getItem('nbd_sunlight') === 'on') document.documentElement.classList.add('sun-all');
   } catch (e) {}
   try {
     var de = document.documentElement;
