@@ -303,6 +303,16 @@
     return out;
   }
 
+  // The Background style radios. Wallpaper needs My Skin on AND per-theme on, and
+  // remembers whether My Skin was on before; Color theme turns per-theme off and
+  // gives My Skin back exactly as it was, so a saved wallpaper/texture/mascot the
+  // user had switched OFF never wakes up. prev: null = nothing remembered.
+  function backgroundStyleChange(cfg, style, prev) {
+    var en = !!(cfg && cfg.enabled);
+    if (style === 'wallpaper') return { enabled: true, perTheme: true, prev: prev == null ? en : prev };
+    return { enabled: prev == null ? en : prev, perTheme: false, prev: null };
+  }
+
   // What paints for theme T (spec 2.3). enabled off → nothing personal. With
   // the per-theme switch on: the theme's own pictures, then "use for all
   // themes". Then the global wallpaper, then nothing (the theme's built-in
@@ -851,6 +861,7 @@
     THEME_ID_RE: THEME_ID_RE, IMAGE_ID_RE: IMAGE_ID_RE,
     storagePath: storagePath, themeStoragePath: themeStoragePath, normalize: normalize, trustedPath: trustedPath,
     normalizeCompany: normalizeCompany, companyStoragePath: companyStoragePath, trustedCompanyImagePath: trustedCompanyImagePath,
+    backgroundStyleChange: backgroundStyleChange,
     resolveWithCompany: resolveWithCompany, COMPANY_CAP_BYTES: COMPANY_CAP_BYTES,
     trustedThemePath: trustedThemePath, trustedImagePath: trustedImagePath, referencedPaths: referencedPaths,
     resolveBackground: resolveBackground, effectiveDim: effectiveDim, checkInput: checkInput,

@@ -290,14 +290,28 @@ console.log('\n8. CSS, panel, wiring');
     P.indexOf('data-myskin-slot="wallpaper"') < P.indexOf('id="myskinPerTheme"') && P.indexOf('id="myskinPerTheme"') < P.indexOf('data-myskin-slot="texture"'));
   ok('cache-busters bumped on both pages',
     ['docs/pro/dashboard.html', 'docs/pro/customer.html'].every((p) => { const h = read(p);
-      return /css\/my-skin\.css\?v=6/.test(h) && /js\/my-skin-logic\.js\?v=6/.test(h) && /js\/my-skin\.js\?v=10/.test(h); }));
+      return /css\/my-skin\.css\?v=6/.test(h) && /js\/my-skin-logic\.js\?v=7/.test(h) && /js\/my-skin\.js\?v=11/.test(h); }));
 
   ok('Background style: two radios (Color theme default, Real theme wallpaper) sit above Use My Skin',
     /id="myskinStyleColor"[^>]*value="color"/.test(P) && /id="myskinStyleWallpaper"[^>]*value="wallpaper"/.test(P)
       && P.indexOf('id="myskinStyleColor"') < P.indexOf('id="myskinEnabled"') && /Color theme \(default\)/.test(P) && /Real theme wallpaper/.test(P));
   const MS = strip(read('docs/pro/js/my-skin.js'));
-  ok('the wallpaper radio turns My Skin AND per-theme on; the color radio only turns per-theme off',
-    /myskinStyleWallpaper'[^]*?cfg\.enabled = true; cfg\.perTheme = true;[^]*?else \{ cfg\.perTheme = false; \}/.test(MS));
+  {
+    const bs = L.backgroundStyleChange;
+    const off = { enabled: false, perTheme: false }, on = { enabled: true, perTheme: false };
+    const w1 = bs(off, 'wallpaper', null);
+    ok('wallpaper turns My Skin AND per-theme on and remembers it was off', w1.enabled === true && w1.perTheme === true && w1.prev === false);
+    const c1 = bs({ enabled: w1.enabled, perTheme: w1.perTheme }, 'color', w1.prev);
+    ok('back to Color theme: My Skin is off again (a saved wallpaper/texture/mascot does not wake up)', c1.enabled === false && c1.perTheme === false && c1.prev === null);
+    const w2 = bs(on, 'wallpaper', null), c2 = bs({ enabled: true, perTheme: true }, 'color', w2.prev);
+    ok('a user who had My Skin on keeps it on after Color theme', c2.enabled === true && c2.perTheme === false);
+    ok('picking wallpaper twice keeps the first remembered value', bs({ enabled: true, perTheme: true }, 'wallpaper', false).prev === false);
+    ok('Color theme with nothing remembered leaves My Skin as it is', bs(on, 'color', null).enabled === true && bs(off, 'color', null).enabled === false);
+  }
+  ok('the radios call the logic and a manual Use My Skin switch drops the remembered value',
+    MS.includes('backgroundStyleChange(cfg,') && MS.includes("myskinEnabled') { enabledBeforeWallpaper = null;"));
+  ok('a company picture painting is named when the radio says Color theme',
+    P.includes('id="myskinStyleCo"') && MS.includes("$('myskinStyleCo'); if (sco) sco.hidden = !(companyActive() && !real)"));
   ok('the panel shows wallpaper only when it would really paint (enabled AND perTheme)', /real = !!\(cfg\.enabled && cfg\.perTheme\)/.test(MS));
   ok('the old per-theme checkbox stays in the page (hidden) so saved state and tests keep one binding', /<div hidden>\s*<label class="myskin-row" for="myskinPerTheme">/.test(P));
 

@@ -37,7 +37,7 @@ function boot(o) {
   const sel = { id: 'npm-sunlight', value: 'off' };
   const hint = { id: 'npm-sunlight-hint', textContent: '' };
   const timers = [];
-  const geoCalls = { n: 0, pos: o.pos || null };
+  const geoCalls = { n: 0, pos: o.pos || null, perm: o.perm || 'granted', err: false };
   const doc = {
     readyState: 'complete', hidden: false,
     documentElement: { classList: { add: (c) => classes.add(c), remove: (c) => classes.delete(c), contains: (c) => classes.has(c), toggle: (c, on) => { if (on) classes.add(c); else classes.delete(c); return !!on; } } },
@@ -52,8 +52,8 @@ function boot(o) {
     setInterval: (f) => { timers.push(f); return timers.length; },
     clearInterval: () => {},
     navigator: {
-      permissions: { query: () => Promise.resolve({ state: o.perm || 'granted' }) },
-      geolocation: { getCurrentPosition: (cb) => { geoCalls.n++; if (geoCalls.pos) cb({ coords: { latitude: geoCalls.pos[0], longitude: geoCalls.pos[1] } }); } }
+      permissions: { query: () => Promise.resolve({ state: geoCalls.perm }) },
+      geolocation: { getCurrentPosition: (cb, errCb) => { geoCalls.n++; if (geoCalls.err) errCb({ code: 3 }); else if (geoCalls.pos) cb({ coords: { latitude: geoCalls.pos[0], longitude: geoCalls.pos[1] } }); } }
     }
   };
   win.window = win;
@@ -110,6 +110,30 @@ const tick = () => new Promise((r) => setTimeout(r, 5));
 
   console.log('\npure rules');
   const C = boot().win.NBDFieldSunlight.core;
+  console.log('\nfails closed (reviewer findings 2026-10-19)');
+  b = boot({ leads: [LEAD], pos: AT });
+  b.change('auto'); await tick();
+  ok('precondition: on at the address', b.classes.has('sun-all'));
+  b.geoCalls.perm = 'denied'; b.win.NBDFieldSunlight._poll(); await tick();
+  ok('permission revoked -> off at once', !b.classes.has('sun-all'));
+  b = boot({ leads: [LEAD], pos: AT });
+  b.change('auto'); await tick();
+  b.geoCalls.err = true;
+  b.win.NBDFieldSunlight._poll(); await tick();
+  ok('one failed fix keeps it on (a single GPS blip does not flicker it)', b.classes.has('sun-all'));
+  b.win.NBDFieldSunlight._poll(); await tick();
+  ok('two failed fixes in a row -> off', !b.classes.has('sun-all'));
+  b = boot({ leads: [LEAD], pos: AT });
+  b.change('auto'); await tick();
+  b.geoCalls.err = true; b.win.NBDFieldSunlight._poll(); await tick();
+  b.geoCalls.err = false; b.win.NBDFieldSunlight._poll(); await tick();
+  b.geoCalls.err = true; b.win.NBDFieldSunlight._poll(); await tick();
+  ok('a good fix between failures resets the miss count', b.classes.has('sun-all'));
+  b = boot({ leads: [LEAD], pos: AT });
+  b.change('auto'); await tick();
+  b.win._leads = []; b.win.NBDFieldSunlight._poll(); await tick();
+  ok('leads list emptied -> off', !b.classes.has('sun-all'));
+
   ok('shouldBeOn: on / auto+onsite only', C.shouldBeOn('on', false) && C.shouldBeOn('auto', true) && !C.shouldBeOn('auto', false) && !C.shouldBeOn('off', true));
   ok('nextOnSite thresholds', C.nextOnSite(false, 149) && !C.nextOnSite(false, 151) && C.nextOnSite(true, 249) && !C.nextOnSite(true, 251) && !C.nextOnSite(true, Infinity));
 
@@ -123,6 +147,13 @@ const tick = () => new Promise((r) => setTimeout(r, 5));
   ok('boot kicks the bundle when sunlight is on/auto', /nbd_sunlight'\)\) >= 0/.test(rd('docs/pro/js/dashboard-state.js')));
   const css = rd('docs/pro/css/field-sunlight.css');
   ok('css: black on white tokens under html.sun-all', /html\.sun-all:not\(#fa-sun\)\s*\{[^}]*--bg:\s*#ffffff[^}]*--t:\s*#000000/.test(css));
+  console.log('\nCSS vs My Skin and OS high contrast');
+  ok('wallpaper ::before, .myskin-layer, mascot and overlay are hidden under sun-all',
+    /html\.sun-all\.my-skin-wallpaper::before\s*\{\s*content:\s*none/.test(css) && /html\.sun-all \.myskin-layer[^{]*\.myskin-mascot[^{]*\{[^}]*display:\s*none\s*!important/.test(css));
+  ok('prefers-contrast: more keeps sunlight pure black (specific !important block)',
+    /@media \(prefers-contrast: more\)\s*\{\s*html\.sun-all:not\(#fa-sun\)\s*\{[^}]*--m:\s*#000000 !important[^}]*--rule:\s*#000000 !important[^}]*--br:\s*#000000 !important/.test(css));
+  ok('header documents its own geofence, not a registerRule', /OWN geofence/.test(rd('docs/pro/js/field-sunlight.js')));
+
   ok('css: no inline handlers / no external urls', !/url\(/.test(css));
 
   console.log('\n─'.repeat(1) + '─'.repeat(49));

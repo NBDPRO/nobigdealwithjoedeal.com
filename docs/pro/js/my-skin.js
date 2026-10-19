@@ -1338,12 +1338,16 @@
     var fo = $('myskinShowFadeOut'); if (fo) fo.textContent = fadeLabel(cfg.show.fadeMs);
   }
 
+  // whether My Skin was on before "Real theme wallpaper" was picked (null = nothing to restore)
+  var enabledBeforeWallpaper = null;
+
   function renderPanel() {
     var panel = $('myskinPanel');
     if (!panel || !cfg) return;
     var en = $('myskinEnabled'); if (en) en.checked = !!cfg.enabled;
     var stW = $('myskinStyleWallpaper'), stC = $('myskinStyleColor');
-    if (stW && stC) { var real = !!(cfg.enabled && cfg.perTheme); stW.checked = real; stC.checked = !real; }
+    if (stW && stC) { var real = !!(cfg.enabled && cfg.perTheme); stW.checked = real; stC.checked = !real;
+      var sco = $('myskinStyleCo'); if (sco) sco.hidden = !(companyActive() && !real); }
     var dim = $('myskinDim'); if (dim && document.activeElement !== dim) dim.value = String(Math.round(cfg.dim * 100));
     var dimOut = $('myskinDimOut'); if (dimOut) dimOut.textContent = Math.round(cfg.dim * 100) + '%';
     var tex = $('myskinTexture'); if (tex && document.activeElement !== tex) tex.value = String(Math.round(cfg.texture * 100));
@@ -1403,10 +1407,11 @@
 
   function onChange(e) {
     var t = e.target; if (!t || !cfg) return;
-    if (t.id === 'myskinEnabled') { cfg.enabled = !!t.checked; showCurrent().then(renderPanel); save(); }
+    if (t.id === 'myskinEnabled') { enabledBeforeWallpaper = null; cfg.enabled = !!t.checked; showCurrent().then(renderPanel); save(); }
     else if (t.id === 'myskinStyleWallpaper' || t.id === 'myskinStyleColor') {
       // one clear choice over the two switches: wallpaper needs My Skin on AND per-theme on; color theme only turns per-theme off (wallpaper, texture and mascot stay as they were)
-      if (t.id === 'myskinStyleWallpaper') { cfg.enabled = true; cfg.perTheme = true; } else { cfg.perTheme = false; }
+      var ch = L().backgroundStyleChange(cfg, t.id === 'myskinStyleWallpaper' ? 'wallpaper' : 'color', enabledBeforeWallpaper);
+      cfg.enabled = ch.enabled; cfg.perTheme = ch.perTheme; enabledBeforeWallpaper = ch.prev;
       showCurrent().then(renderPanel); save();
     }
     else if (t.id === 'myskinPerTheme') {
