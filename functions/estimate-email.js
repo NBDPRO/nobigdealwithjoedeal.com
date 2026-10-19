@@ -46,6 +46,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const { FieldValue } = require('firebase-admin/firestore');
 const { Resend } = require('resend');
 const { resendRejected, resendErrorMessage } = require('./resend-guard');
+const { envCap } = require('./env-number');
 
 // ───────────────────────────────────────────────────────────────
 // Config
@@ -290,8 +291,7 @@ exports.estimateEmail = onDocumentCreated(
         const cur = await tx.get(ref);
         const now = Date.now();
         const DAY = 86400000;
-        const parsedCap = Number(process.env.ESTIMATE_EMAIL_GLOBAL_CAP);
-        const CAP = Number.isFinite(parsedCap) && parsedCap > 0 ? Math.floor(parsedCap) : 100;
+        const CAP = envCap(process.env.ESTIMATE_EMAIL_GLOBAL_CAP, 100);
         let count = 0, windowStartMs = now;
         if (cur.exists) {
           const d = cur.data() || {};

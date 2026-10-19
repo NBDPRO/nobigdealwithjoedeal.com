@@ -48,6 +48,7 @@ const KeywordReplies = require('./sms-keyword-replies');
 // Whose texting a send is (tenant key) — whose Do Not Text list applies —
 // and the per-company master switch every send path checks.
 const TextingGate = require('./sms-texting-gate');
+const { envCap } = require('./env-number');
 // Texting hours in the HOMEOWNER's local time, for every outbound path.
 const SendWindow = require('./sms-send-window');
 // Storm texts: opt-out → claim → send (never double-sends). See the module.
@@ -2164,10 +2165,11 @@ async function runCheckStormAlerts(event) {
     // trips we stop and log loudly; remaining subscribers are picked up
     // on the next 30-min tick (the claim + shared cooldown prevent anyone
     // being messaged twice). Override via env.
-    const MAX_SMS_PER_RUN = Number(process.env.STORM_MAX_SMS_PER_RUN) || 250;
+    const MAX_SMS_PER_RUN = envCap(process.env.STORM_MAX_SMS_PER_RUN, 250);
     // Daily ceiling across all runs (defends a multi-day storm event). Set
-    // STORM_MAX_SMS_PER_DAY=0 to halt storm SMS entirely (kill-switch).
-    const MAX_SMS_PER_DAY = Number(process.env.STORM_MAX_SMS_PER_DAY) || 2000;
+    // STORM_MAX_SMS_PER_DAY=0 to halt storm SMS entirely (kill-switch): envCap
+    // keeps a real 0 (the old `Number(x) || 2000` turned it into 2000).
+    const MAX_SMS_PER_DAY = envCap(process.env.STORM_MAX_SMS_PER_DAY, 2000);
     let totalSent = 0;   // claims spent this run (sent or failed after claim)
     let capHit = false;
     let capScope = null;
