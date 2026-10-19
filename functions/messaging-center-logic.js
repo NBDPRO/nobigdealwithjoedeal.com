@@ -624,7 +624,9 @@ function boolOrUnknown(v) { return v === true ? 'on' : (v === false ? 'off' : 'u
 /** messaging_controls/global is owned by another session: read it loosely, never create it. */
 function controlsFrom(doc) {
   if (!doc) return { killSwitch: 'unknown', canary: 'unknown', present: false };
-  const kill = doc.killSwitch !== undefined ? doc.killSwitch : (doc.kill !== undefined ? doc.kill : (doc.paused !== undefined ? doc.paused : (doc.enabled === false ? true : (doc.enabled === true ? false : undefined))));
+  // messaging_controls/global as written by manageMessagingControls (messaging-controls.js): customerSendsEnabled
+  // is the master (true = sending allowed), so the kill switch is ON when it is anything but true.
+  const kill = doc.customerSendsEnabled !== undefined ? doc.customerSendsEnabled !== true : doc.killSwitch !== undefined ? doc.killSwitch : (doc.kill !== undefined ? doc.kill : (doc.paused !== undefined ? doc.paused : (doc.enabled === false ? true : (doc.enabled === true ? false : undefined))));
   const canary = doc.canary !== undefined ? doc.canary : (doc.canaryMode !== undefined ? doc.canaryMode : (doc.mode ? doc.mode === 'canary' : undefined));
   return { killSwitch: boolOrUnknown(kill), canary: boolOrUnknown(canary === 'on' ? true : canary), present: true };
 }

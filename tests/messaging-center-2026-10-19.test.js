@@ -123,6 +123,11 @@ console.log('\nAGGREGATION');
   ok('overview: last customer send ignores internal alerts and blocked rows', ov.status.lastSendAtMs === at(1));
   const c1 = L.controlsFrom({ killSwitch: true, canary: false });
   ok('controls doc read loosely: killSwitch true -> on, canary false -> off', c1.killSwitch === 'on' && c1.canary === 'off' && c1.present === true);
+  const c2 = L.controlsFrom({ customerSendsEnabled: false, smsEnabled: true, canary: true });
+  const c3 = L.controlsFrom({ customerSendsEnabled: true, canary: false });
+  const c4 = L.controlsFrom({ smsEnabled: true });
+  ok('controls doc as manageMessagingControls writes it: customerSendsEnabled false -> kill switch ON, true -> off; canary read as-is (2026-10-19)',
+    c2.killSwitch === 'on' && c2.canary === 'on' && c3.killSwitch === 'off' && c3.canary === 'off' && c4.killSwitch === 'unknown');
   ok('overview exposes the threshold config', ov.thresholds.errorRatePctPerHour === 10);
 }
 
