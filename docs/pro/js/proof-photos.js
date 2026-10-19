@@ -107,9 +107,21 @@
     inp.click();
   }
 
+  // The photo is fetched through the signed-in SDK (getBlob) and shown from a blob: URL,
+  // the same way the call recordings are. Never a download URL: those carry a permanent
+  // ?token= that works for anyone who has the link.
+  async function sdk() {
+    return w._nbdStorageSdk || (w._nbdStorageSdk = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js'));
+  }
+  var blobUrls = {};
   async function urlFor(path) {
-    if (!pathOk(path) || !w.getDownloadURL || !w.ref || !w.storage) return '';
-    try { return await w.getDownloadURL(w.ref(w.storage, path)); } catch (e) { return ''; }
+    if (!pathOk(path) || !w.storage) return '';
+    if (blobUrls[path]) return blobUrls[path];
+    try {
+      var st = await sdk();
+      var blob = await st.getBlob(st.ref(w.storage, path));
+      return (blobUrls[path] = w.URL.createObjectURL(blob));
+    } catch (e) { return ''; }
   }
   /** Open one proof in a new tab (a short-lived URL, never stored). */
   async function open(path) {

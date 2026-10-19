@@ -96,6 +96,13 @@ service firebase.storage {
              'application/pdf|application/msword|application/vnd\\.openxmlformats-officedocument\\..+|text/plain|text/csv|image/(jpeg|png|webp|heic|heif|avif|gif)'
            );
     }
+    // Proof of a payment (a check photo, a Zelle screenshot, a deposit slip, a bank PDF):
+    // an image or a PDF, nothing else (no Word / text / CSV).
+    function isProofType() {
+      return request.resource != null
+        && request.resource.contentType != null
+        && request.resource.contentType.matches('application/pdf|image/(jpeg|png|webp|heic|heif)');
+    }
     function isHtmlOnly() {
       return request.resource != null
         && request.resource.contentType != null
@@ -301,7 +308,9 @@ service firebase.storage {
       allow read: if isOwner(uid) || isAdmin();
       allow write: if ownerWrites(uid)
         && request.resource.size < 25 * 1024 * 1024
-        && isDocType();
+        && isDocType()
+        // receipts/{uid}/sub-proofs/** (sub payment proof): image or PDF only.
+        && (!request.resource.name.matches('receipts/[^/]+/sub-proofs/.*') || isProofType());
       allow delete: if ownerWrites(uid) || isAdmin();
     }
     match /receipts/{file} {
@@ -321,7 +330,7 @@ service firebase.storage {
       allow read: if isOwner(uid) || isAdmin();
       allow write: if ownerWrites(uid)
         && request.resource.size < 25 * 1024 * 1024
-        && isDocType();
+        && isProofType();
       allow delete: if ownerWrites(uid) || isAdmin();
     }
     match /payment-proofs/{file} {

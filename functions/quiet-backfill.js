@@ -49,4 +49,14 @@ function isBackfillInvoice(inv) {
   return !!inv && typeof inv === 'object' && (inv.source === 'backfill' || inv.backfilled === true);
 }
 
-module.exports = { isQuietBackfill, isBackfillInvoice };
+/**
+ * Any live invoice on the list is a payment-backfill invoice. A backfilled payment
+ * can land on a REAL, unfinished customer ("same customer" in the backfill screen);
+ * money recorded after the fact must not start the customer-facing clocks that
+ * key off a payment date (review ask, referral credit, portal rating).
+ */
+function hasBackfillInvoice(invoices) {
+  return (Array.isArray(invoices) ? invoices : []).some((i) => !!i && i.deleted !== true && isBackfillInvoice(i));
+}
+
+module.exports = { isQuietBackfill, isBackfillInvoice, hasBackfillInvoice };

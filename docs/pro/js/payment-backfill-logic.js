@@ -206,13 +206,25 @@
     return !!x.house && x.house === y.house && !!x.street.length && !!y.street.length && x.street[0] === y.street[0];
   }
 
-  /** A short stable key for "this exact payment": who + where + day + cents + check no. (FNV-1a, 32-bit.) */
+  /** A short stable key for "this exact payment": who + where + day + cents + check no. */
   function paymentKey(v) {
     var ap = addrParts(v.address);
     var base = nameTokens(v.name).sort().join(' ') + '|' + ap.house + ' ' + (ap.street[0] || '') + '|' + v.ymd + '|' + v.cents + '|' + clean(v.ref).toLowerCase();
-    var h = 0x811c9dc5;
-    for (var i = 0; i < base.length; i++) { h ^= base.charCodeAt(i); h = (h * 0x01000193) >>> 0; }
-    return h.toString(36);
+    return hash85(base);
+  }
+  // Two independent hashes side by side (a 53-bit cyrb53 and a 32-bit FNV-1a): about 85 bits, so
+  // two different payments sharing a key is not a real-world event. The create step also checks
+  // the amount before it reuses a half-finished earlier run.
+  function hash85(str) {
+    var h1 = 0xdeadbeef, h2 = 0x41c6ce57, f = 0x811c9dc5, i, ch;
+    for (i = 0; i < str.length; i++) {
+      ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677);
+      f ^= ch; f = Math.imul(f, 0x01000193) >>> 0;
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36) + (f >>> 0).toString(36);
   }
   function paymentIdFor(v) { return 'bf_' + paymentKey(v); }
 

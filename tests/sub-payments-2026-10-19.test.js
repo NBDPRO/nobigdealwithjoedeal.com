@@ -246,7 +246,7 @@ ok('auditor exposes the Direction A queue', /noSubQueue/.test(read('docs/pro/js/
 ok('auditor sheet gets the one-thumb "Log a sub payment" button only when the sorter is on', /NBDSubPayments\.enabled\(\)/.test(read('docs/pro/js/job-cost-audit.js')));
 ok('expenses.js mounts the button and the panel', /NBDSubPayments\.buttonHtml\(\)/.test(read('docs/pro/js/expenses.js')) && /NBDSubPayments\.panelHtml\(_expenses\)/.test(read('docs/pro/js/expenses.js')));
 ok('script-loader loads css + logic + ui in the expenses bundle', /sub-payments\.css/.test(read('docs/pro/js/script-loader.js')) && /sub-payments-logic\.js/.test(read('docs/pro/js/script-loader.js')) && /js\/sub-payments\.js/.test(read('docs/pro/js/script-loader.js')));
-ok('rules bound proofPaths and type notJobCost', /d\.proofPaths\.size\(\) <= 10/.test(read('firestore.rules')) && /d\.notJobCost is bool/.test(read('firestore.rules')));
+ok('rules bound proofPaths and type notJobCost', /proofPathsOk\(d\.proofPaths\)/.test(read('firestore.rules')) && /d\.notJobCost is bool/.test(read('firestore.rules')));
 ok('the flag is documented as default off (no flag write in the repo)', !/feature_flags[^\n]*subPaymentsSorter\s*:\s*true/.test(read('docs/pro/js/sub-payments.js')));
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

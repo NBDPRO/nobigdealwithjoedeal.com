@@ -62,8 +62,8 @@ operator, company_admin or platform admin; never a manager, rep or viewer):
   invoice proof already uses), `receipts/{uid}/sub-proofs/...` for sub payments.
   The doc keeps the path only (`proofStoragePath` + `proofName`, extra photos in
   `proofPaths`); no download URL or `?token=` link is stored anywhere;
-- "View" asks Storage for a short-lived URL on demand, for a path that matches
-  the two private folders only; thumbnails show in the row and in the job money
+- "View" fetches the file through the signed-in SDK and shows it from a `blob:` URL
+  (never a download URL), for a path that matches the two private folders only; thumbnails show in the row and in the job money
   view; you can drop several files on the screen and assign each to a row, or add
   photos to a row directly;
 - **the MICR line** (routing and account numbers) is never read: the component
@@ -108,13 +108,55 @@ every scheduled job that reads leads:
   `firestore.rules` on a client create.
 - The messaging kill switch is untouched; this code calls no messaging function.
 
-## Rules
+## Rules (tightened after the independent security review, 2026-10-19)
 
-No `firestore.rules` change for this half: a client may already create a lead
-(without server-owned keys) and an invoice for a lead it can reach. New rules test
-cases pin it: the backfill lead is accepted, `confirmedSource` / `activeJobId` /
-`tcpaConsent` / a foreign tenant / a viewer are refused, a backfill invoice is
-accepted and voidable, and another tenant can neither read nor change either.
+- **Owner side only, at the rules layer.** The backfill markers (`source:
+  'backfill'`, `backfilled`, `backfillKey` on an invoice, `paymentBackfill` on a
+  lead) can only be written by a platform admin, a `company_admin` or a solo
+  operator (`backfillWriterOk`). A sales rep or manager cannot mint a backfill
+  invoice, set `paymentBackfill` to silence the automations, or flip an ordinary
+  invoice into one. After create the markers are frozen (`backfillMarksFrozen`).
+- **A void carries a note.** An invoice going `deleted: false -> true` needs a plain
+  `voidNote` (1 to 300 characters), so no one can silently void an invoice.
+- `payments[]` is bounded (at most 200). A rep may still record an ordinary payment
+  (that is the Record Payment feature); the rules do not try to judge amounts.
+- **Sub-payment proof paths** (`expenses.proofPaths`): each entry must be a string
+  in the writer's own `receipts/{uid}/sub-proofs/` folder; a URL, a number or another
+  user's folder is refused (checked entry by entry, up to 10).
+- **Storage:** `payment-proofs/**` and `receipts/{uid}/sub-proofs/**` now accept only
+  `image/jpeg|png|webp|heic|heif` and `application/pdf` (no Word, text or CSV);
+  other `receipts/` files keep their wider list. The EXIF strip is client-side
+  (a canvas re-draw before upload); there is no server-side strip for receipts to
+  reuse, so it is not enforced by the bucket.
+- Rules tests: viewer denied, rep denied on every marker, company_admin and solo
+  allowed, frozen markers, void note, cross-tenant read / write denied (Firestore and
+  both Storage folders), and a company_admin cannot void another writer's expense.
+
+## Security review fixes (same day)
+
+- **Same customer + a backfilled payment.** A backfill invoice can land on a real,
+  unfinished customer. Its payment date must not open customer-facing clocks:
+  `review-ask-auto-logic.receivedMs` now ignores backfill invoices (so no review-ask
+  window, no auto-ask email, no referral "paid" date), `referral-rewards.projectClosed`
+  refuses a `paymentBackfill` customer at any stage (it only skipped `install_complete`
+  before), and the portal rating card and its server gate refuse a customer who has a
+  backfill invoice (`hasBackfillInvoice`). Tests use the real eligibility functions with
+  a paid-stage customer who has an email and a backfill payment dated 5 days ago.
+- **Lead cap.** The backfill creates leads with `meter: 'import'` (the one-time
+  onboarding allowance), not `'manual'`, so a pasted batch cannot use up the monthly
+  cap real leads need.
+- **No tokenised URLs.** Photos are fetched with the signed-in SDK (`getBlob`) and shown
+  from a `blob:` URL, like the call recordings; `getDownloadURL` is no longer used for
+  proofs, so no permanent `?token=` link is ever produced by this feature (the upload
+  itself still mints an object token in storage metadata, as every upload does; nothing
+  here reads or stores it).
+- **Payment key** is now about 85 bits (a 53-bit hash plus FNV-1a), and a resumed run
+  also checks the amount before reusing an earlier invoice.
+- **No hard delete** anywhere in the backfill, sub sorter or job money view (tested).
+  The rules still allow an owner or company_admin to delete invoices, leads and
+  expenses globally; changing that is out of scope here.
+- There is no CSV or spreadsheet export in these screens, so no formula-injection
+  surface; if one is added, neutralise cells starting with `= + - @`.
 
 ## Turn it on
 
@@ -152,4 +194,5 @@ money view. Both default off. The assistant cannot write production flags.
   re-adding them from the job money view is not built (use the invoice's Attach
   proof).
 - "Read the check for me" is skipped on purpose (see above).
-- The backfilled customer counts toward the plan lead cap like any lead.
+- The backfilled customers use the one-time import allowance (1000 leads), not the
+  monthly cap.

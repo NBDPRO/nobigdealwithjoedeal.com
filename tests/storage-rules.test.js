@@ -257,6 +257,23 @@ async function run() {
     buf(26 * 1024 * 1024),
     { contentType: 'application/pdf' }
   ));
+  // 22b2. (2026-10-19 review) a proof is an image or a PDF: no Word, text or CSV, here or in receipts/{uid}/sub-proofs/
+  const docx = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  await assertFails(uploadBytes(ref(alice, 'payment-proofs/alice/inv1/notes.docx'), buf(1024), { contentType: docx }));
+  await assertFails(uploadBytes(ref(alice, 'payment-proofs/alice/inv1/notes.txt'), buf(1024), { contentType: 'text/plain' }));
+  await assertFails(uploadBytes(ref(alice, 'payment-proofs/alice/inv1/notes.csv'), buf(1024), { contentType: 'text/csv' }));
+  await assertSucceeds(uploadBytes(ref(alice, 'payment-proofs/alice/inv1/1790000000002_zelle.png'), buf(1024), { contentType: 'image/png' }));
+  await assertSucceeds(uploadBytes(ref(alice, 'receipts/alice/sub-proofs/1790000000003_0_check.jpg'), buf(1024), { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(alice, 'receipts/alice/sub-proofs/1790000000003_1_slip.pdf'), buf(1024), { contentType: 'application/pdf' }));
+  await assertFails(uploadBytes(ref(alice, 'receipts/alice/sub-proofs/x.docx'), buf(1024), { contentType: docx }));
+  await assertFails(uploadBytes(ref(alice, 'receipts/alice/sub-proofs/x.csv'), buf(1024), { contentType: 'text/csv' }));
+  // control: the older receipts/{uid}/ files keep their wider list (a docx receipt is still fine)
+  await assertSucceeds(uploadBytes(ref(alice, 'receipts/alice/vendor-invoice.docx'), buf(1024), { contentType: docx }));
+  // another tenant can neither write into nor read a sub-proof
+  await assertFails(uploadBytes(ref(bob, 'receipts/alice/sub-proofs/sneak.jpg'), buf(1024), { contentType: 'image/jpeg' }));
+  await assertFails(getBytes(ref(bob, 'receipts/alice/sub-proofs/1790000000003_0_check.jpg')));
+  await assertFails(getBytes(ref(anon, 'receipts/alice/sub-proofs/1790000000003_0_check.jpg')));
+  await assertSucceeds(getBytes(ref(alice, 'receipts/alice/sub-proofs/1790000000003_0_check.jpg')));
   // 22c. bob cannot write into or read alice's proofs; admin reads; anon never
   await assertFails(uploadBytes(
     ref(bob, 'payment-proofs/alice/inv1/sneak.jpg'),

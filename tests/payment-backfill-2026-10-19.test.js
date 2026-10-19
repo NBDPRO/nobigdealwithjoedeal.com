@@ -88,6 +88,7 @@ const v1 = mk({ payer: 'Ann Sample', address: '12 Oak Street', date: '10/3/2026'
 const v2 = mk({ payer: 'sample, ann', address: '12 OAK ST, Town', date: '2026-10-03', amount: '5340.00', ref: '1042' });
 ok('the same payment typed two ways has one key', B.paymentKey(v1) === B.paymentKey(v2));
 ok('another amount / date / check no. changes the key', ['amount', 'date', 'ref'].every((f) => { const o = { payer: 'Ann Sample', address: '12 Oak Street', date: '10/3/2026', amount: '$5,340', ref: '#1042' }; const o2 = Object.assign({}, o, { amount: { amount: '5341' }, date: { date: '10/4/2026' }, ref: { ref: '1043' } }[f]); return B.paymentKey(mk(o2)) !== B.paymentKey(v1); }));
+ok('the key is wide (about 85 bits) and has no collisions over 20000 distinct payments', (() => { const seen = new Set(); for (let i = 0; i < 20000; i++) seen.add(B.paymentKey(mk({ payer: 'Name ' + (i % 997), address: (i % 413) + ' Oak St', date: '2026-10-0' + (1 + (i % 9)), amount: String(10 + i), ref: String(i % 31) }))); return seen.size === 20000 && B.paymentKey(v1).length >= 14; })());
 ok('the payment id is bf_ + key', B.paymentIdFor(v1) === 'bf_' + B.paymentKey(v1));
 const inv = (o) => Object.assign({ id: 'I1', leadId: 'L1', status: 'paid', payments: [{ amount: 5340, at: new Date(2026, 9, 5, 12), method: 'check', reference: '1042', paymentId: 'x' }] }, o || {});
 const idx = B.paymentsIndex([inv()], leads);
@@ -173,7 +174,27 @@ if (RA) {
   ok('review ask: a backfilled customer WITH an email is never asked', RA.planEmail({ env, lead: full, jobId: null, recvMs: recv, nowMs: now }).send === false && RA.baseEligibility({ lead: full, recvMs: recv, nowMs: now }).reason === 'quiet_backfill');
   ok('review ask control: the same customer without the backfill marks WOULD be asked', RA.planEmail({ env, lead: noMark, jobId: null, recvMs: recv, nowMs: now }).send === true);
   ok('doc drafts: a backfilled customer gets no drafted paperwork', DD.shouldDraft(full, 'thank_you', {}).reason === 'quiet_backfill' && DD.shouldDraft(noMark, 'thank_you', {}).ok === true);
+
+  // HIGH-1 (security review): "same customer" lands a backfill payment on a REAL lead. Its payment date must not open the ask window.
+  const real = { companyId: nbd, userId: nbd, stage: 'closed', stageRole: 'won', email: 'customer@example.invalid', phone: '513-555-0101', stageHistory: [] };
+  const bfInvoice = { id: 'b1', source: 'backfill', backfilled: true, status: 'paid', total: 500, amountPaid: 500, balanceDue: 0, payments: [{ amount: 500, at: new Date(recv), method: 'check' }] };
+  const okInvoice = { id: 'r1', status: 'paid', total: 500, amountPaid: 500, balanceDue: 0, payments: [{ amount: 500, at: new Date(recv), method: 'check' }] };
+  ok('receivedMs ignores a backfill invoice', RA.receivedMs([bfInvoice]) === 0);
+  ok('control: receivedMs counts an ordinary invoice', RA.receivedMs([okInvoice]) === recv);
+  ok('an existing paid-stage customer + a backfill payment dated 5 days ago is NOT asked for a review', RA.planEmail({ env, lead: real, jobId: null, recvMs: RA.receivedMs([bfInvoice]), nowMs: now }).send === false);
+  ok('control: the same customer with an ordinary payment 5 days ago IS asked', RA.planEmail({ env, lead: real, jobId: null, recvMs: RA.receivedMs([okInvoice]), nowMs: now }).send === true);
+  ok('a real payment still counts when a backfill invoice sits beside it', RA.receivedMs([bfInvoice, Object.assign({}, okInvoice, { payments: [{ amount: 1, at: new Date(recv - 86400000), method: 'cash' }] })]) === recv - 86400000);
+  ok('hasBackfillInvoice: true with a live backfill invoice, false for ordinary, voided or none', Q.hasBackfillInvoice([okInvoice, bfInvoice]) && !Q.hasBackfillInvoice([okInvoice]) && !Q.hasBackfillInvoice([Object.assign({}, bfInvoice, { deleted: true })]) && !Q.hasBackfillInvoice(null));
+  let RR = null;
+  try { RR = require(path.join(ROOT, 'functions/referral-rewards.js')); } catch (e) { console.log('  (referral-rewards not loadable here: ' + String(e.message).split('\n')[0] + ')'); }
+  if (RR && RR._internal) {
+    ok('referral: a customer the backfill made earns no bonus even at stage closed', RR._internal.projectClosed(Object.assign({}, real, { paymentBackfill: true })) === false);
+    ok('referral control: the same stage without the marker counts as closed', RR._internal.projectClosed(real) === true);
+    ok('referral: a backfill payment alone never dates a payment received', RR._internal.paidForReferral(real, [bfInvoice]) === false);
+  }
 }
+const portalSrc = stripComments(read('functions/portal.js'));
+ok('portal: the rating card and the rating gate both refuse a customer with a backfill invoice', /canRate: hp\.paidInFull && !isQuietBackfill\(lead\) && !hasBackfillInvoice\(tenantInvoices\)/.test(portalSrc) && /hasBackfillInvoice\(ratingInvoices\)/.test(portalSrc));
 const mpSrc = stripComments(read('functions/money-paper.js'));
 const hStart = mpSrc.indexOf('async function handle(invoiceId, after, deps, before) {');
 const guardAt = mpSrc.indexOf('isBackfillInvoice(after)', hStart);
@@ -229,7 +250,7 @@ function done() {
   ok('reads the paymentBackfill flag', /FLAG = 'paymentBackfill'/.test(ui));
   ok('nothing here can message anyone (no send / callable / network call)', !/httpsCallable|sendSms|sendEmail|sendInvoice|sendReceipt|sendMessage|\bfetch\(|XMLHttpRequest|twilio|resend|mailto:|sms:/i.test(ui + lg + ppSrc));
   ok('the payment goes through the CRM\'s own paths: jobValueInvoiceDoc, then markPaid', /IP\(\)\.jobValueInvoiceDoc\(/.test(ui) && /IP\(\)\.markPaid\(/.test(ui));
-  ok('the customer is made by an addDoc on leads with the Add Lead stamps (userId, companyId, meter, createdAt)', /collection\(w\.db, 'leads'\)/.test(ui) && /meter: 'manual'/.test(ui) && /userId: me, companyId: cid/.test(ui));
+  ok('the customer is made by an addDoc on leads with the Add Lead stamps (userId, companyId, meter, createdAt)', /collection\(w\.db, 'leads'\)/.test(ui) && /meter: 'import'/.test(ui) && !/meter: 'manual'/.test(ui) && /userId: me, companyId: cid/.test(ui));
   ok('no hard delete, undo is a soft void with a note', !/deleteDoc/.test(ui) && /softVoid\(/.test(ui) && /Say why you are voiding it/.test(lg));
   ok('a half-made customer is voided if the payment fails (nothing dangling)', (ui.match(/Backfill failed midway/g) || []).length === 2);
   ok('an interrupted run is resumed, not repeated (prior lead / invoice looked up by key)', /backfill\.key === r\.key/.test(ui) && /i\.backfillKey === r\.key/.test(ui));
@@ -237,6 +258,7 @@ function done() {
   ok('a possible duplicate needs an explicit "create anyway"', /if \(r\.status === 'dup' && !ch\.override\) return rowErr/.test(ui));
   ok('the image is never read: no OCR, no pixel access, no MICR handling', !/getImageData|tesseract|ocr\b|scanReceipt|vision|micr\b/i.test(ui + ppSrc.replace(/MICR line[^\n]*/g, '')));
   ok('file names, sizes and URLs are never logged', !/console\.(log|info|warn|error)\([^)]*(\.name|\.size|file|url|path)/i.test(ui + ppSrc));
+  ok('photos are shown from the signed-in SDK (getBlob), never a tokenised download URL', /getBlob\(/.test(ppSrc) && !/getDownloadURL/.test(ppSrc + ui));
   ok('no inline handlers or scripts', !/\son[a-z]+=/.test(ui + ppSrc) && !/<script/i.test(ui + ppSrc));
   ok('no old brand oranges, no employee wording', !/E8720C|F08030/i.test(read('docs/pro/css/payment-backfill.css') + read('docs/pro/css/proof-photos.css')) && !/employee|payroll|in-house|W-?2/i.test(ui + lg));
   ok('the invoice-pipeline accepts extra proof paths only from payment-proofs/', /proofPaths: details\.proofPaths/.test(read('docs/pro/js/invoice-pipeline.js')) && /\^payment-proofs/.test(read('docs/pro/js/invoice-pipeline.js')));

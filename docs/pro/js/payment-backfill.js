@@ -331,7 +331,8 @@
           const data = L.buildLead({ v: r.v, jobType: jobType }, { stageRole: typeof w.stageRole === 'function' ? w.stageRole('closed') : 'won', uid: me, nowMs: Date.now() });
           const ref = await w.addDoc(w.collection(w.db, 'leads'), Object.assign({}, data, {
             createdAt: w.serverTimestamp(), updatedAt: w.serverTimestamp(), stageStartedAt: w.serverTimestamp(),
-            meter: 'manual', userId: me, companyId: cid,
+            // 'import', not 'manual': a pasted batch must not eat the monthly lead cap that real leads need.
+            meter: 'import', userId: me, companyId: cid,
           }));
           leadId = ref.id; createdLead = true;
           made.lead = { id: leadId, data: data };
@@ -343,7 +344,7 @@
       }
       // 2. the invoice that carries the payment (the CRM's own minimal-invoice builder).
       let invoiceId = '';
-      const priorInv = S.invoices.find((i) => i && i.deleted !== true && i.backfillKey === r.key && i.leadId === leadId);
+      const priorInv = S.invoices.find((i) => i && i.deleted !== true && i.backfillKey === r.key && i.leadId === leadId && Math.round((Number(i.total) || 0) * 100) === r.v.cents);
       if (priorInv) invoiceId = priorInv.id;
       else {
         const now = new Date();
