@@ -360,9 +360,41 @@
     for (var i = 0; i < model.stops.length; i++) if (model.stops[i].key === key) return i > 0 ? model.legs[i - 1] : null;
     return null;
   }
+  // Roofing-weather chip (idea #11): forecast at the first stop, from
+  // js/roof-weather.js. Behind the roofWeatherChip flag (absent = off). It is a
+  // forecast, not a safety clearance, and says so.
+  function wxOn() {
+    var F = W.NBDFlags;
+    if (!F || typeof F.enabled !== 'function') return false;
+    if (!F.enabled('roofWeatherChip')) {
+      if (!wxOn._tried && typeof F.load === 'function') { wxOn._tried = true; F.load().then(function () { if (mounted && F.enabled('roofWeatherChip')) render(); }, function () {}); }
+      return false;
+    }
+    return !!W.NBDRoofWeather;
+  }
+  function wxFor(model) {
+    if (!wxOn() || !model.stops.length) return null;
+    var s0 = model.stops[0], RW = W.NBDRoofWeather, key = RW.core.cell(s0.lat, s0.lng);
+    var cur = S.route.wx;
+    if (!cur || cur.key !== key) {
+      var mine = S.route.wx = { key: key, res: null };
+      RW.forecast(s0.lat, s0.lng).then(function (r) { if (mounted && S.route.wx === mine) { mine.res = r; render(); } });
+      return mine;
+    }
+    return cur;
+  }
+  function wxChip(model) {
+    var w = wxFor(model);
+    if (!w) return '';
+    if (!w.res) return '<p><span class="mc-chip">Checking the forecast...</span></p>';
+    var cls = w.res.level === 'poor' ? 'mc-chip mc-chip-hot' : (w.res.level === 'ok' ? 'mc-chip' : 'mc-chip mc-chip-warn');
+    return '<p><span class="' + cls + '" role="status">' + esc(w.res.text) + '</span></p>' +
+      '<p class="mc-fine">Forecast at the first stop from the National Weather Service. It is not a safety clearance; the crew lead decides on the roof.</p>';
+  }
   function routeLeft() {
     var m = routeModel();
     var h = '<h2 class="mc-h">Day route</h2>';
+    h += wxChip(m);
     h += '<div class="mc-seg" role="group" aria-label="Route order">' +
       '<button type="button" class="mc-btn' + (S.route.mode === 'time' ? ' mc-tab-on' : '') + '" data-mc="mode" data-m="time">By time</button>' +
       '<button type="button" class="mc-btn' + (S.route.mode === 'short' ? ' mc-tab-on' : '') + '" data-mc="mode" data-m="short">Shortest</button></div>';
@@ -406,9 +438,10 @@
     var item = K.fromLead({ id: s.leadId, firstName: '', lastName: '', name: s.name, address: s.address, phone: s.phone, _stageKey: s.stage });
     item.name = s.name; item.address = s.address; item.phone = s.phone;
     var st = RP.stageGroup(s.stage);
+    var wxs = wxOn() && S.route.wx && S.route.wx.res ? '<p class="mc-fine">' + esc(S.route.wx.res.text) + '</p>' : '';
     var h = '<div class="mc-block"><div class="mc-cust-name">' + esc(s.name) + '</div><div class="mc-cust-addr">' + esc(s.address) + '</div>' +
       '<p class="mc-line">' + esc((s.timeLabel ? s.timeLabel + ' · ' : '') + (s.type ? s.type + ' · ' : '') + st.label) + '</p>' +
-      (leg ? '<p class="mc-line">About ' + leg.min + ' min from the previous stop' + (model.real ? '' : ' (est.)') + '</p>' : '') + '</div>';
+      (leg ? '<p class="mc-line">About ' + leg.min + ' min from the previous stop' + (model.real ? '' : ' (est.)') + '</p>' : '') + wxs + '</div>';
     h += K.actionBar(item, ['call', 'navigate', 'open'], { size: 'lg' });
     h += '<button type="button" class="mc-btn mc-btn-primary" data-mc="omw" data-key="' + esc(s.key) + '">On my way</button>';
     h += K.recordEntry({ source: 'mission-route', leadId: s.leadId, cls: 'mc-rec' });
