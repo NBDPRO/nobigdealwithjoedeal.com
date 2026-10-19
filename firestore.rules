@@ -1297,7 +1297,11 @@ service cloud.firestore {
       let d = request.resource.data;
       return d.amountCents is int && d.amountCents >= 0 && d.amountCents < 1000000000
         && (!('taxCents' in d) || (d.taxCents is int && d.taxCents >= 0))
-        && (!('costType' in d) || d.costType in ['direct', 'overhead']);
+        && (!('costType' in d) || d.costType in ['direct', 'overhead'])
+        // Receipt sorter (2026-10-18): the kept line items are a bounded list and
+        // the review state is one of four words; nothing else rides in either.
+        && (!('items' in d) || (d.items is list && d.items.size() <= 60))
+        && (!('reviewState' in d) || d.reviewState in ['unsorted', 'suggested', 'assigned', 'overhead']);
     }
     // Yard signs (yard-signs.js, 2026-09-29): where each sign is, a photo,
     // placed / pickup dates. The rep who placed it owns it; the company

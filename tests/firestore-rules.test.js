@@ -800,6 +800,21 @@ async function run() {
   // ✅ a valid taxCents is accepted (proves the guard isn't over-broad)
   await assertSucceeds(setDoc(doc(alice, 'expenses/ok-tax'),
     Object.assign(expDoc('alice', 'co-a', 'leadA', 'ABC Supply'), { taxCents: 825 })));
+  // ── Receipt sorter (2026-10-18): kept line items + review state ──
+  await assertSucceeds(setDoc(doc(alice, 'expenses/ok-items'),
+    Object.assign(expDoc('alice', 'co-a', 'leadA', 'Home Depot'), { items: [{ sku: '1', desc: 'Drip Edge', qty: 2, unitCents: 500 }], reviewState: 'unsorted' })));
+  await assertFails(setDoc(doc(alice, 'expenses/bad-state'),
+    Object.assign(expDoc('alice', 'co-a', 'leadA', 'Home Depot'), { reviewState: 'whatever' })));
+  await assertFails(setDoc(doc(alice, 'expenses/bad-items-type'),
+    Object.assign(expDoc('alice', 'co-a', 'leadA', 'Home Depot'), { items: 'lots' })));
+  await assertFails(setDoc(doc(alice, 'expenses/bad-items-size'),
+    Object.assign(expDoc('alice', 'co-a', 'leadA', 'Home Depot'), { items: new Array(61).fill({ desc: 'x', qty: 1, unitCents: 1 }) })));
+  // the rep can move a receipt through the review states on their own expense
+  await assertSucceeds(updateDoc(doc(alice, 'expenses/ok-items'), { reviewState: 'assigned', leadId: 'leadA' }));
+  await assertFails(updateDoc(doc(alice, 'expenses/ok-items'), { reviewState: 'nonsense' }));
+  // another tenant can neither read nor re-sort it
+  await assertFails(getDoc(doc(bob, 'expenses/ok-items')));
+  await assertFails(updateDoc(doc(bob, 'expenses/ok-items'), { reviewState: 'overhead' }));
   // ── #12: a MEMBER (companyId claim co-a) cannot stamp companyId = own uid ──
   // The `== uid` fallback is solo-only; else a rep could hide the expense from
   // the company_admin/manager rollup + the overhead cron (both filter by tenant).

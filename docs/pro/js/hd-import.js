@@ -111,7 +111,7 @@
     const t = table(text);
     if (!t || t.col('Total Amount Paid') < 0) return [];
     const g = (r, name) => { const i = t.col(name); return i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : ''; };
-    return t.rows.map((r) => {
+    const rows = t.rows.map((r) => {
       // Oct-2026 exports leave the Summary 'Date' blank and fill 'Receipt Added Date'.
       const date = ymd(g(r, 'Date') || g(r, 'Receipt Added Date'));
       const origin = g(r, 'Order Origin');
@@ -131,6 +131,26 @@
         items: [], departments: {},
       };
     }).filter((x) => x.date && (x.txn || x.order) && x.totalCents > 0);
+    return dedupeKeys(rows);
+  }
+
+  // The same online order can list twice in one export (one row per register
+  // number) with identical money: that is ONE purchase, so the second is
+  // dropped. Same order number with DIFFERENT money is a split shipment: it
+  // stays, under a key that adds the transaction id. (Found in Jo's 2026-10-18
+  // export: two orders each appeared twice and would have been imported twice.)
+  function dedupeKeys(rows) {
+    const seen = {};
+    const out = [];
+    rows.forEach((x) => {
+      const prev = seen[x.key];
+      if (!prev) { seen[x.key] = x; out.push(x); return; }
+      if (prev.totalCents === x.totalCents && prev.pretaxCents === x.pretaxCents) return;
+      x.key = x.key + '-t' + String(x.txn || '').replace(/[^A-Za-z0-9-]/g, '');
+      seen[x.key] = x;
+      out.push(x);
+    });
+    return out;
   }
 
   // ── DETAILS → line items attached to receipts ───────────────────────
@@ -281,6 +301,21 @@
     }).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   }
 
+  const MAX_ITEMS = 40;
+  function lineItems(items) {
+    return (items || []).slice(0, MAX_ITEMS).map((i) => ({
+      sku: String(i.sku || '').slice(0, 20),
+      desc: String(i.desc || '').slice(0, 120),
+      qty: Math.max(0, Math.min(9999, Number(i.qty) || 0)),
+      unitCents: Math.max(0, Math.round(Number(i.unitCents) || 0)),
+    })).filter((i) => i.desc);
+  }
+  function reviewStateOf(r) {
+    if (r.leadId) return 'assigned';
+    if (r.noJob || (r.match && r.match.status === 'overhead') || r.category === 'tools_small_equipment') return 'overhead';
+    return 'unsorted';
+  }
+
   // The expense document for one reviewed receipt (same shape as
   // expenses.js createExpense, plus the import provenance fields).
   function expenseDoc(r, ctx) {
@@ -312,6 +347,13 @@
       storeNumber: r.store || null,
       orderNumber: r.order || null,
       itemCount: r.items.length,
+      // Receipt sorter (2026-10-18): keep the readable line items so a job's
+      // materials can be checked against what was bought, and say where the
+      // receipt stands. 'assigned' = a job was chosen; 'overhead' = Jo chose
+      // no job / it is a shop or tool buy; 'unsorted' = nobody decided yet.
+      items: lineItems(r.items),
+      reviewState: reviewStateOf(r),
+      matchEvidence: r.match && r.match.reason ? [String(r.match.reason).slice(0, 160)] : [],
       ocrConfidence: null,
       needsReview: false,
     };
@@ -515,7 +557,7 @@
       const el = ev.target;
       if (!_state || !el || !el.dataset) return;
       if (el.dataset.hdInc != null) { _state.rows[+el.dataset.hdInc].include = !!el.checked; renderReview(); }
-      else if (el.dataset.hdLead != null) { const r = _state.rows[+el.dataset.hdLead]; r.leadId = el.value || null; }
+      else if (el.dataset.hdLead != null) { const r = _state.rows[+el.dataset.hdLead]; r.leadId = el.value || null; r.noJob = !el.value; }
       else if (el.dataset.hdCat != null) { _state.rows[+el.dataset.hdCat].category = el.value; }
     });
   }
@@ -523,7 +565,7 @@
   window.NBDHdImport = {
     open, close,
     // pure — exported for tests
-    parseCsv, kindOf, parseSummary, parseDetails, unitCentsOf, attachDetails, suggestCategory, matchJob, plan, expenseDoc, receiptKey,
+    parseCsv, kindOf, parseSummary, parseDetails, unitCentsOf, lineItems, reviewStateOf, attachDetails, suggestCategory, matchJob, plan, expenseDoc, receiptKey,
     SOURCE,
   };
 })();
