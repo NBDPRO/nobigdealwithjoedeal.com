@@ -115,6 +115,8 @@
       'css/profit-tracker-view.css?v=1',
       'js/profit-tracker.js?v=4',
       'js/expenses.js?v=9',
+      // "Are the receipts all in?" panel (2026-10-18): read-only, read at render time.
+      'css/receipt-health.css?v=1', 'js/receipt-health.js?v=1',
       // Home Depot Pro Xtra CSV import (2026-09-29) — the header button only
       // renders when this has loaded.
       'js/hd-import.js?v=3',

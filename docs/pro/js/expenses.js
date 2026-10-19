@@ -778,6 +778,9 @@
     html += '</div>';
     html += '</div>';
 
+    // Receipt health: unsorted receipts, finished jobs with no costs, PO-name copy.
+    if (window.NBDReceiptHealth) html += window.NBDReceiptHealth.panelHtml(_expenses, window._leads || []);
+
     // Per-job rollup with margin
     var jobIds = Object.keys(agg.byJob).filter(function (k) { return k !== '__unassigned__'; });
     if (jobIds.length) {
@@ -876,7 +879,8 @@
       html += '<div class="ui-list-row">' +
         '<div class="exx-minw0-fx1">' +
         '<div class="exx-fs13px-ct-whinowrap">' + esc(e.supplier || 'Unknown') +
-        ' <span class="ui-hint">· ' + esc(EC() ? EC().labelFor(e.category) : e.category) + '</span></div>' +
+        ' <span class="ui-hint">· ' + esc(EC() ? EC().labelFor(e.category) : e.category) + '</span>' +
+        (window.NBDReceiptHealth && window.NBDReceiptHealth.isUnsorted(e) ? ' <span class="rh-chip">UNSORTED</span>' : '') + '</div>' +
         '<div class="ui-note">' + esc(fmtDate(e.date)) + (lead ? ' · ' + esc(leadName(lead)) : '') + (e.note ? ' · ' + esc(e.note) : '') + (e.source === 'ocr' ? ' · scanned' : e.source === 'import_homedepot' ? ' · Home Depot import' : '') + '</div></div>' +
         (e.needsReview ? '<span title="AI scan — review the amount/vendor" class="exx-cgold-fs13px">⚠</span>' : '') +
         (e.receiptStoragePath
