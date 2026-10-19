@@ -290,7 +290,16 @@ console.log('\n8. CSS, panel, wiring');
     P.indexOf('data-myskin-slot="wallpaper"') < P.indexOf('id="myskinPerTheme"') && P.indexOf('id="myskinPerTheme"') < P.indexOf('data-myskin-slot="texture"'));
   ok('cache-busters bumped on both pages',
     ['docs/pro/dashboard.html', 'docs/pro/customer.html'].every((p) => { const h = read(p);
-      return /css\/my-skin\.css\?v=6/.test(h) && /js\/my-skin-logic\.js\?v=6/.test(h) && /js\/my-skin\.js\?v=9/.test(h); }));
+      return /css\/my-skin\.css\?v=6/.test(h) && /js\/my-skin-logic\.js\?v=6/.test(h) && /js\/my-skin\.js\?v=10/.test(h); }));
+
+  ok('Background style: two radios (Color theme default, Real theme wallpaper) sit above Use My Skin',
+    /id="myskinStyleColor"[^>]*value="color"/.test(P) && /id="myskinStyleWallpaper"[^>]*value="wallpaper"/.test(P)
+      && P.indexOf('id="myskinStyleColor"') < P.indexOf('id="myskinEnabled"') && /Color theme \(default\)/.test(P) && /Real theme wallpaper/.test(P));
+  const MS = strip(read('docs/pro/js/my-skin.js'));
+  ok('the wallpaper radio turns My Skin AND per-theme on; the color radio only turns per-theme off',
+    /myskinStyleWallpaper'[^]*?cfg\.enabled = true; cfg\.perTheme = true;[^]*?else \{ cfg\.perTheme = false; \}/.test(MS));
+  ok('the panel shows wallpaper only when it would really paint (enabled AND perTheme)', /real = !!\(cfg\.enabled && cfg\.perTheme\)/.test(MS));
+  ok('the old per-theme checkbox stays in the page (hidden) so saved state and tests keep one binding', /<div hidden>\s*<label class="myskin-row" for="myskinPerTheme">/.test(P));
 
   const A = read('docs/pro/js/nbd-auth.js');
   ok('sign-out / account-switch purge calls NBDMySkin.purgeLocal (with an IndexedDB fallback)',
