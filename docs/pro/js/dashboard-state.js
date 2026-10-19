@@ -570,7 +570,8 @@ window.NBD_THEME_ENGINE = true;
     const glass = localStorage.getItem('nbd_surface_style') === 'glass';
     // Auto theme (nbd_auto_theme=1) needs the engine at boot even for a
     // default-theme user: the scheduler lives in the theme bundle.
-    const autoOn = localStorage.getItem('nbd_auto_theme') === '1' || localStorage.getItem('nbd_storm_mode') === '1';
+    const autoOn = localStorage.getItem('nbd_auto_theme') === '1' || localStorage.getItem('nbd_storm_mode') === '1' ||
+      ['on', 'auto'].indexOf(localStorage.getItem('nbd_sunlight')) >= 0;
     // Light mode needs the engine too: theme-mode-preboot.js stamps
     // data-mode="light" (a light pref, or "auto" on a phone set to light), but
     // the default theme's light palette is built by ThemeEngine, so without it

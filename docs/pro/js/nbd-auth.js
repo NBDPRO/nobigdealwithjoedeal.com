@@ -820,6 +820,9 @@ export const NBDAuth = {
         // Field App sunlight mode (js/layouts/field.js): a device preference
         // — the phone is in the sun, not the account — so a sign-out keeps it.
         'nbd_field_sun',
+        // Sunlight mode in every layout (js/field-sunlight.js): same reason, a
+        // device preference ('off' | 'on' | 'auto').
+        'nbd_sunlight',
         // "Customize this screen" (js/card-prefs.js): which cards each layout
         // shows, in what order, on THIS device (keyed by uid inside; card ids
         // only, no account data). Kept like the other layout preferences.
