@@ -266,3 +266,21 @@ html[data-layout="island"] .kanban-col { scroll-snap-align: start; }
   html[data-layout="island"] .isl-item.isl-active,
   html[data-layout="island"] .isl-dock .isl-on { outline: 2px solid var(--orange); }
 }
+
+/* 320 px phones (visual audit 2026-10-19): six pill labels ("PipelineSchedule") ran into each
+   other and the dock's last button sat on the bar's edge. Tighter type and gaps only; every
+   target stays 44 px. */
+@media (max-width: 359px) {
+  html[data-layout="island"] .isl-pill { padding: 10px 8px 0; }
+  html[data-layout="island"] .isl-pill-in { gap: 0; padding: 4px; }
+  /* six words do not fit at 12 px: only the active tab keeps its word; the others are icon-only
+     (the label stays as the accessible name, as the dock does) */
+  html[data-layout="island"] .isl-pill-in .isl-item { padding: 0 2px; gap: 2px; position: relative; }
+  html[data-layout="island"] .isl-pill-in .isl-item:not(.isl-active) .isl-lbl {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  html[data-layout="island"] .isl-dock { padding: 0 8px; }
+  html[data-layout="island"] .isl-dock-in { gap: 2px; padding: 4px; }
+  html[data-layout="island"] .isl-dock .isl-primary { padding: 0 10px; gap: 5px; font-size: 12px; }
+  html[data-layout="island"] .isl-dock .isl-act:not(.isl-primary) { padding: 0 8px; min-width: 44px; }
+}
