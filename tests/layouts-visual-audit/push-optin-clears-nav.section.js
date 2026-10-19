@@ -6,7 +6,10 @@ module.exports = {
   name: 'Global chrome: the push opt-in card clears Field\'s tab bar and Island\'s dock',
   async run({ open, useLayout, ok }) {
     // the module is inert without a VAPID key: give the sample page one so the card can show
-    const init = () => { Object.defineProperty(window, '__NBD_VAPID_KEY', { get: () => 'audit-test-key', set: () => {}, configurable: true }); };
+    const init = () => { Object.defineProperty(window, '__NBD_VAPID_KEY', { get: () => 'audit-test-key', set: () => {}, configurable: true });
+      // CI's headless Chromium reports 'denied' (no card); a real phone before the first ask reports 'default'
+      try { Object.defineProperty(Notification, 'permission', { get: () => 'default', configurable: true }); } catch (_) {}
+    };
     for (const [layout, nav] of [['field', '#nbdFieldNav'], ['island', '.isl-dock-in']]) {
       const P = await open({ w: 390, h: 844, touch: true, scheme: 'dark', init });
       await useLayout(P.page, layout);
