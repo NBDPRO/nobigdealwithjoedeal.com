@@ -89,8 +89,9 @@ html[data-layout="inbox"] .ib-timer {
   font-variant-numeric: tabular-nums;
 }
 html[data-layout="inbox"] .ib-timer-red { color: var(--ui-danger-text, var(--red, #dc2626)); border-color: var(--red, #dc2626); background: color-mix(in srgb, var(--red, #dc2626) 12%, transparent); }
-html[data-layout="inbox"] .ib-timer-gold { color: var(--gold, #b8860b); background: color-mix(in srgb, var(--gold, #b8860b) 14%, transparent); }
-html[data-layout="inbox"] .ib-timer-green { color: var(--green, #16a34a); background: color-mix(in srgb, var(--green, #16a34a) 12%, transparent); }
+/* gold and green as TEXT: pulled toward the text colour like --ui-danger-text (2.7:1 / 1.8:1 plain on a light row; visual audit 2026-10-19) */
+html[data-layout="inbox"] .ib-timer-gold { color: color-mix(in srgb, var(--gold, #b8860b) 40%, var(--t, #e8eaf0)); background: color-mix(in srgb, var(--gold, #b8860b) 14%, transparent); }
+html[data-layout="inbox"] .ib-timer-green { color: color-mix(in srgb, var(--green, #16a34a) 40%, var(--t, #e8eaf0)); background: color-mix(in srgb, var(--green, #16a34a) 12%, transparent); }
 
 html[data-layout="inbox"] .ib-state { padding: 28px 18px; text-align: center; color: var(--m); font-size: 15px; line-height: 1.5; }
 html[data-layout="inbox"] .ib-state-warn { color: var(--t); }
