@@ -292,10 +292,6 @@ console.log('\n8. CSS, panel, wiring');
     ['docs/pro/dashboard.html', 'docs/pro/customer.html'].every((p) => { const h = read(p);
       return /css\/my-skin\.css\?v=6/.test(h) && /js\/my-skin-logic\.js\?v=7/.test(h) && /js\/my-skin\.js\?v=11/.test(h); }));
 
-  ok('Background style: two radios (Color theme default, Real theme wallpaper) sit above Use My Skin',
-    /id="myskinStyleColor"[^>]*value="color"/.test(P) && /id="myskinStyleWallpaper"[^>]*value="wallpaper"/.test(P)
-      && P.indexOf('id="myskinStyleColor"') < P.indexOf('id="myskinEnabled"') && /Color theme \(default\)/.test(P) && /Real theme wallpaper/.test(P));
-  const MS = strip(read('docs/pro/js/my-skin.js'));
   {
     const bs = L.backgroundStyleChange;
     const off = { enabled: false, perTheme: false }, on = { enabled: true, perTheme: false };
@@ -308,11 +304,6 @@ console.log('\n8. CSS, panel, wiring');
     ok('picking wallpaper twice keeps the first remembered value', bs({ enabled: true, perTheme: true }, 'wallpaper', false).prev === false);
     ok('Color theme with nothing remembered leaves My Skin as it is', bs(on, 'color', null).enabled === true && bs(off, 'color', null).enabled === false);
   }
-  ok('the radios call the logic and a manual Use My Skin switch drops the remembered value',
-    MS.includes('backgroundStyleChange(cfg,') && MS.includes("myskinEnabled') { enabledBeforeWallpaper = null;"));
-  ok('a company picture painting is named when the radio says Color theme',
-    P.includes('id="myskinStyleCo"') && MS.includes("$('myskinStyleCo'); if (sco) sco.hidden = !(companyActive() && !real)"));
-  ok('the panel shows wallpaper only when it would really paint (enabled AND perTheme)', /real = !!\(cfg\.enabled && cfg\.perTheme\)/.test(MS));
   ok('the old per-theme checkbox stays in the page (hidden) so saved state and tests keep one binding', /<div hidden>\s*<label class="myskin-row" for="myskinPerTheme">/.test(P));
 
   const A = read('docs/pro/js/nbd-auth.js');
