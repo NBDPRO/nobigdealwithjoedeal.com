@@ -266,3 +266,17 @@ html[data-layout="island"] .kanban-col { scroll-snap-align: start; }
   html[data-layout="island"] .isl-item.isl-active,
   html[data-layout="island"] .isl-dock .isl-on { outline: 2px solid var(--orange); }
 }
+
+/* 320 px phones (visual audit 2026-10-19): six pill labels ("PipelineSchedule") ran into each
+   other and the dock's last button sat on the bar's edge. Tighter type and gaps only; every
+   target stays 44 px. */
+@media (max-width: 359px) {
+  html[data-layout="island"] .isl-pill { padding: 10px 8px 0; }
+  html[data-layout="island"] .isl-pill-in { gap: 0; padding: 4px; }
+  html[data-layout="island"] .isl-pill-in .isl-item { padding: 0 1px; gap: 2px; font-size: 10px; letter-spacing: -.01em; }
+  html[data-layout="island"] .isl-pill-in .isl-lbl { min-width: 0; max-width: 100%; }
+  html[data-layout="island"] .isl-dock { padding: 0 8px; }
+  html[data-layout="island"] .isl-dock-in { gap: 2px; padding: 4px; }
+  html[data-layout="island"] .isl-dock .isl-primary { padding: 0 10px; gap: 5px; font-size: 12px; }
+  html[data-layout="island"] .isl-dock .isl-act:not(.isl-primary) { padding: 0 8px; min-width: 44px; }
+}
