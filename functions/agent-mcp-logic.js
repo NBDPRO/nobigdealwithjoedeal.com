@@ -107,6 +107,10 @@ const TOOLS = {
     description: 'Per finished job: money COLLECTED on its invoices (refunds off) minus the DIRECT costs logged against it (materials, subs, labor, dumpster, permits, disposal — tax included), giving profit and margin. Jobs still being paid show low until the final payment lands. Internal only — never put these cost or margin figures anywhere public.',
     inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 7, maximum: 730, description: 'Jobs finished in the last N days (default 180)' }, limit: { type: 'integer', minimum: 1, maximum: MAX_LIST } }, additionalProperties: false },
   },
+  cost_audit: {
+    description: 'Jobs whose cost books look wrong, so the owner can fix them: finished or in-production jobs with money collected but no sub / labor cost logged, margins far above or below the company\'s own other jobs of the same trade, costs larger than the money collected, duplicate cost rows, and costs dated before the customer existed. Per job: collected, direct costs by type (materials, sub_labor, dumpster, permit, disposal, other), estimated costs, margin and the plain reasons. Jobs the owner marked "costs complete", and flags the owner called right, are left out. READ ONLY: this never changes a cost and never contacts anyone; file a report or reminder for the owner with file_report / file_reminder. Internal only: never put these figures anywhere public. No phone or email.',
+    inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 7, maximum: 730, description: 'Finished jobs from the last N days (default 365); in-production and signed jobs are always included' }, limit: { type: 'integer', minimum: 1, maximum: MAX_LIST } }, additionalProperties: false },
+  },
   storm_near_customers: {
     description: 'Hail / wind / tornado reports from the NWS storm feed (stormWatch) in the last N days (default 14), each with the customers whose address lies within R miles (default 3). For storm response: knock plans, checking a date of loss, proof for an adjuster meeting. Names + addresses only.',
     inputSchema: { type: 'object', properties: { days: { type: 'integer', minimum: 1, maximum: 60 }, miles: { type: 'number', minimum: 0.5, maximum: 10 } }, additionalProperties: false },
@@ -207,7 +211,7 @@ const BOTS = {
   quinn:  { name: 'Quinn · Fact & Compliance', tools: READ.concat(['estimates_status', 'collected_revenue', 'rules_reference', 'storm_near_customers', 'inbox_pending', 'verify_item', 'file_report']) },
   tucker: { name: 'Tucker · Customer Care', tools: ['post_job', 'list_leads', 'lead_detail', 'overdue_followups', 'estimates_status', 'rules_reference', 'review_sprint', 'file_note', 'file_reminder', 'draft_text', 'draft_email'] },
   dana:   { name: 'Dana · Marketing', tools: ['crm_summary', 'lead_sources', 'rules_reference', 'file_report', 'file_social_draft'] },
-  frank:  { name: 'Frank · Finance', tools: ['crm_summary', 'collected_revenue', 'job_profit', 'lead_sources', 'estimates_status', 'closes_this_week', 'post_job', 'file_report', 'file_reminder'] },
+  frank:  { name: 'Frank · Finance', tools: ['crm_summary', 'collected_revenue', 'job_profit', 'cost_audit', 'lead_sources', 'estimates_status', 'closes_this_week', 'post_job', 'file_report', 'file_reminder'] },
   priya:  { name: 'Priya · Product Manager', tools: ['team_activity', 'file_report', 'file_social_draft'] },
   theo:   { name: 'Theo · Venture Scout', tools: ['crm_summary', 'lead_sources', 'file_report'] },
   // Personal side (Jo, 2026-10-02): these read ONLY the key owner's own
@@ -695,6 +699,78 @@ function jobProfit(leads, invoices, expenses, nowMs, args, tz, jobsByLead) {
   const tc = jobs.reduce((s, j) => s + Math.round(j.collected * 100), 0), tk = jobs.reduce((s, j) => s + Math.round(j.direct_costs * 100), 0);
   return { jobs, totals: { collected: tc / 100, direct_costs: tk / 100, profit: (tc - tk) / 100, margin_pct: tc > 0 ? Math.round((tc - tk) / tc * 100) : null },
     note: 'INTERNAL. Collected money minus direct job costs. A job with no costs logged (costs_logged false) overstates profit until its receipts are added.' };
+}
+// ── Cost audit (2026-10-19) ────────────────────────────────────────────
+// The rules live in job-cost-audit-logic.js (a byte-identical copy of the CRM's
+// docs/pro/js/job-cost-audit-logic.js, so the panel and this tool agree). Read
+// only: this lists jobs whose cost books look wrong. It never writes a cost.
+function costAudit(leads, invoices, expenses, nowMs, args, tz, jobsByLead) {
+  const A = require('./job-cost-audit-logic');
+  const a = args || {};
+  const cut = nowMs - (Math.min(Math.max(Math.floor(Number(a.days)) || 365, 7), 730)) * 86400000;
+  const recs = jobRecords(activeLeads(leads), jobsByLead);
+  const jobOf = (r) => r._jobId || r.activeJobId || null;
+  const known = {};
+  recs.forEach((r) => { const j = jobOf(r); if (j) known[r.id + '/' + j] = 1; });
+  const keyOf = (leadId, jobId) => ((jobId && known[leadId + '/' + jobId]) ? leadId + '/' + jobId : leadId);
+  const got = {}, rows = {};
+  (invoices || []).forEach((inv) => {
+    if (!inv || !inv.leadId || inv.deleted === true || inv.e2eTestData) return;
+    paymentsOf(inv).forEach((p) => { const k = keyOf(inv.leadId, inv.jobId); got[k] = (got[k] || 0) + Math.round(p.amount * 100); });
+  });
+  (expenses || []).forEach((e) => {
+    if (!e || !e.leadId || e.deleted === true || e.costType !== DIRECT) return;
+    const k = keyOf(e.leadId, e.jobId);
+    (rows[k] = rows[k] || []).push(e);
+  });
+  const home = {};
+  recs.forEach((r) => {
+    if (roleOf(r) !== 'won') return;
+    const h = home[r.id];
+    if (!h || (h._jobId && (!r._jobId || completedMs(r) > completedMs(h)))) home[r.id] = r;
+  });
+  const items = recs.map((r) => {
+    const j = jobOf(r), own = j ? r.id + '/' + j : null;
+    const shared = !r._jobId || home[r.id] === r;
+    const collectedCents = (own ? got[own] || 0 : 0) + (shared ? got[r.id] || 0 : 0);
+    const costs = (own ? rows[own] || [] : []).concat(shared ? rows[r.id] || [] : []);
+    const role = roleOf(r);
+    const phase = role === 'lost' ? null : role === 'won' ? 'finished' : role === 'job' ? 'production' : collectedCents > 0 ? 'signed' : null;
+    return { r, phase, collectedCents, costs, job: {
+      id: r.id + '/' + (j || ''), phase, collectedCents, createdMs: ms(r.createdAt) || 0, trade: A.tradeKeyOf(r), squares: A.squaresOf(r),
+    } };
+  });
+  const peers = A.buildPeers(items.filter((x) => x.collectedCents > 0 || x.costs.length).map((x) => ({
+    id: x.job.id, trade: x.job.trade, squares: x.job.squares, summary: A.summarize(x.collectedCents, x.costs),
+  })));
+  let checked = 0, markedComplete = 0;
+  const flagged = [];
+  items.forEach((x) => {
+    if (!x.phase) return;
+    if (x.phase === 'finished' && completedMs(x.r) < cut) return;
+    checked++;
+    const audit = x.r.costAudit && typeof x.r.costAudit === 'object' ? x.r.costAudit : {};
+    if (audit.complete === true) { markedComplete++; return; }
+    const s = A.summarize(x.collectedCents, x.costs);
+    const flags = A.applyAcks(A.jobCostFlags(x.job, x.costs, peers), audit, s).filter((f) => f.severity !== 'info');
+    const asked = audit.asked && typeof audit.asked === 'object' ? audit.asked : {};
+    const missingSub = x.phase === 'finished' && x.collectedCents > 0 && !s.hasSubLabor && asked.sub !== 'na';
+    if (!flags.length && !missingSub) return;
+    const reasons = flags.map((f) => ({ code: f.code, severity: f.severity, reason: f.reason }));
+    if (missingSub && !flags.some((f) => f.code === 'high_margin_no_sub')) reasons.push({ code: 'no_sub_labor', severity: 'warn', reason: 'No sub or labor cost is logged on this finished job, so its margin reads too high.' });
+    const d = (c) => c / 100;
+    flagged.push({
+      lead_id: x.r.id, job_id: x.r._jobId || x.r.activeJobId || null, name: minimalLead(x.r).name, phase: x.phase, trade: x.job.trade,
+      collected: d(s.collectedCents), direct_costs: d(s.directCents), margin_pct: s.marginPct, estimated_costs: d(s.estimatedCents),
+      costs_by_type: { materials: d(s.byKind.materials), sub_labor: d(s.subLaborCents), dumpster: d(s.byKind.dumpster), permit: d(s.byKind.permit), disposal: d(s.byKind.disposal), other: d(s.byKind.other) },
+      missing_sub_labor: missingSub, reasons,
+      _w: reasons.some((q) => q.severity === 'bad') ? 0 : 1,
+    });
+  });
+  flagged.sort((p, q) => (p._w - q._w) || (q.collected - p.collected));
+  const jobs = flagged.slice(0, clampLimit(a.limit)).map((j) => { const o = Object.assign({}, j); delete o._w; return o; });
+  return { jobs, totals: { checked, flagged: flagged.length, marked_complete: markedComplete },
+    note: 'INTERNAL. Read only: this never changes a cost. Thresholds come from the company\'s own other jobs of the same trade (median margin plus or minus ' + A.CONFIG.pointsAboveMedian + ' points) when it has at least ' + A.CONFIG.minPeers + ' of them, else a fixed fallback. Estimated costs are counted but marked. Crews are independent subcontractors.' };
 }
 function haversineMi(la1, lo1, la2, lo2) {
   const R = 3958.8, toR = (x) => x * Math.PI / 180;
@@ -1484,7 +1560,7 @@ module.exports = {
   estimatesStatus, closesThisWeek, estimateTotal, paymentsOf, collectedRevenue,
   PERSONAL_TOOLS, isPersonalBot, isPersonalTool, personalToday, personalWeek, personalReviews, personalMoney,
   teamActivity, annotationsFor, WRITES,
-  TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, jobProfit, stormNearCustomers, haversineMi, roleOf,
+  TIERS, WORKMANSHIP_YEARS, DEPOSIT, PLEDGE_PROMISE, rulesReference, postJob, leadSources, jobProfit, costAudit, stormNearCustomers, haversineMi, roleOf,
   reviewSprint, reviewSprintAsk, reviewDraftWaiting, SPRINT_FROM_MS,
   PHOTO_MATCH, photoTimeMs, validatePhotoMatch, photoVisits, matchPhotoLocation, townOf, shortName,
   botFor, CUSTOM_TOOLS, ROUTE_TO, MAX_CUSTOM_BOTS, customBotKey, customBotIdFromKey, normalizeBotInput, customBotView,

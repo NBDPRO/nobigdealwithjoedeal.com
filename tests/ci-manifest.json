@@ -219,6 +219,7 @@
     "receipt-health-2026-10-18.test.js",
     "cash-payouts-2026-10-19.test.js",
     "job-cost-audit-2026-10-19.test.js",
+    "job-cost-audit-agent-2026-10-19.test.js",
     "function-orphans.test.js",
     "funnel-recovery-hardening.test.js",
     "background-job-reliability-2026-10-03.test.js",
