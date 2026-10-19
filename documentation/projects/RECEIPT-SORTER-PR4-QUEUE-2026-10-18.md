@@ -1,6 +1,6 @@
 # Receipt sorter, piece 4: the review queue (2026-10-18)
 
-Part of the receipt-sorter build ([audit](RECEIPT-CAPTURE-AUDIT-2026-10-18.md)). **Depends on piece 1** (kept line items, `reviewState`; PR #2532) **and piece 2** (company job-name memory; PR #2533). This branch contains both of their changes so it can be tested; enqueue them first, in that order.
+Part of the receipt-sorter build ([audit](RECEIPT-CAPTURE-AUDIT-2026-10-18.md)). **Builds on piece 1** (kept line items, `reviewState`; PR #2532) **and piece 2** (company job-name memory; PR #2533), both now on main.
 
 **What it is:** Expenses › **Sort receipts (N)**. A full-screen sheet shows one unsorted receipt at a time: the **PO/Job name first and large**, then store #, date, total, and what was bought. Under it, the three most likely jobs, each with a plain-language list of why. One tap: **Assign to this job**, **Overhead / shop**, **Skip for now**, **Undo last**; a "Pick another job" menu covers the rest. A counter shows what is left.
 
