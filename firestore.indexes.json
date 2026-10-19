@@ -795,6 +795,24 @@
       ]
     },
     {
+      "_comment": "Messaging Control Center (functions/messaging-center.js, 2026-10-19): where('companyId','==',tenant).where('date','>=',since).orderBy('date','desc') over the last 30 days of sms_log for the owner/admin overview. Without it the source answers FAILED_PRECONDITION and Coverage shows it unavailable.",
+      "collectionGroup": "sms_log",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "_comment": "Messaging Control Center (functions/messaging-center.js, 2026-10-19): where('companyId','==',tenant).where('date','>=',since).orderBy('date','desc') over the last 30 days of email_log for the owner/admin overview. Without it the source answers FAILED_PRECONDITION and Coverage shows it unavailable.",
+      "collectionGroup": "email_log",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "DESCENDING" }
+      ]
+    },
+    {
       "_comment": "Offline SMS outbox (functions/sms-functions.js queuedSendGate), company reps: where('toDigits','==',key).where('companyId','==',claim).where('date','>',writtenAt-60s).orderBy('date','desc').limit(25) — did anyone IN THIS TENANT text this number, or did the homeowner text back, since a queued text was written? Scoped to the caller's tenant (sms-outbox-guard.js activityScope) so another company's thread neither holds the text nor leaks through the answer. toDigits is stamped on every sms_log row by logSMSToFirestore. Without this composite the query throws FAILED_PRECONDITION and every queued text answers 503 outbox_unverified (fails closed: nothing is sent, texts stay in Pending texts).",
       "collectionGroup": "sms_log",
       "queryScope": "COLLECTION",

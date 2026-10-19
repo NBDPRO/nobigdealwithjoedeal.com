@@ -79,6 +79,7 @@ const PLAN = {
 
   runAbandonRecovery:        { slug: 'hourly-crons' },
   textInboxNotes:            { slug: 'hourly-crons' },
+  messagingWatch:            { slug: 'hourly-crons' }, // 2026-10-19: :05 past each hour, alert thresholds over the send ledgers (owner only, never a customer)
 
   callWatch:                 { slug: 'call-followups' },
   callCenterSweep:           { slug: 'call-followups' },

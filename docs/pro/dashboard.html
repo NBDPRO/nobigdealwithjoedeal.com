@@ -857,6 +857,8 @@
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="projectcodex" id="nav-projectcodex"><span class="ni-icon">📋</span>Project Intel</div>
       <div class="ni" role="button" tabindex="0" data-action="goTo" data-target="aiusage" id="nav-aiusage"><span class="ni-icon">📊</span>AI Usage</div>
       <div class="ni dn" role="button" tabindex="0" data-action="module" data-target="NBDAgentInbox.open" id="nav-agentinbox"><span class="ni-icon">📥</span>Agent inbox</div>
+      <!-- Messaging Control Center (2026-10-19, flag messagingControlCenter): revealed by js/messaging-nav.js for owner/admin only. -->
+      <div class="ni dn" role="button" tabindex="0" data-action="goTo" data-target="messaging" id="nav-messaging"><span class="ni-icon">📡</span>Messaging</div>
     </div>
   </div>
 
@@ -2473,6 +2475,9 @@
        js/call-center-view.js (lazy bundle 'callcenter') renders into .view-scroll. -->
   <div class="view" id="view-calls" data-view-template="tpl-view-calls"></div>
   <template id="tpl-view-calls"><div class="view-scroll"></div></template>
+  <!-- Messaging Control Center (2026-10-19): read-only, owner/admin; js/messaging-center.js (lazy bundle 'messaging') renders into .view-scroll. -->
+  <div class="view" id="view-messaging" data-view-template="tpl-view-messaging"></div>
+  <template id="tpl-view-messaging"><div class="view-scroll"></div></template>
   <template id="tpl-view-talk-tank"><div class="view-scroll"></div></template>
   <!-- Expenses: template-hydrated mount; expenses.js renders into .view-scroll on init. -->
   <div class="view" id="view-expenses" data-view-template="tpl-view-expenses"></div>
@@ -6541,6 +6546,9 @@
   <div class="mm-item dn" data-action="module" data-target="NBDAgentInbox.open" id="mm-agentinbox">
     <span class="mm-item-icon">📥</span>Agent inbox
   </div>
+  <div class="mm-item dn" data-action="mobileNav" data-target="messaging" data-close-more id="mm-messaging">
+    <span class="mm-item-icon">📡</span>Messaging
+  </div>
   <div class="mm-item" data-action="mobileNav" data-target="settings" data-close-more>
     <span class="mm-item-icon">⚙️</span>Settings
   </div>
@@ -7259,6 +7267,8 @@
 <script defer src="js/dol-fill.js?v=3"></script>
 <script defer src="js/notif-bell.js?v=8"></script>
 <script defer src="js/agent-inbox.js?v=8"></script>
+<!-- Messaging Control Center nav reveal (2026-10-19): flag messagingControlCenter, owner/admin only. -->
+<script defer src="js/messaging-nav.js?v=1"></script>
 <script defer src="js/agent-bots-settings.js?v=6"></script>
 <script defer src="js/buying-intent-strike.js?v=3"></script>
 <script defer src="js/lead-dedup.js?v=4"></script>
