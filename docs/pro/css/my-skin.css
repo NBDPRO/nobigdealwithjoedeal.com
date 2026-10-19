@@ -87,6 +87,23 @@
   background: color-mix(in srgb, var(--s) 86%, transparent) !important;
 }
 
+/* Light mode over a wallpaper (visual audit 2026-10-19, found on real uploads): the frosted header and
+   tab bar above take --s, but the light-mode chrome rules in dashboard-app.css assume an always-dark bar
+   (logo #e8eaf0, tools and idle tabs #9ca3af): the wordmark was 1.05:1 and the tab labels 2.3:1. On
+   the frosted bar they follow the theme's own text colours instead. */
+:root.my-skin-wallpaper[data-mode="light"] header .logo { color: var(--t); }
+:root.my-skin-wallpaper[data-mode="light"] header .hdr-tool,
+:root.my-skin-wallpaper[data-mode="light"] header .so { color: color-mix(in srgb, var(--t) 75%, var(--s)); }
+:root.my-skin-wallpaper[data-mode="light"] header .hdr-tool:hover { color: var(--t); background: color-mix(in srgb, var(--t) 8%, transparent); }
+:root.my-skin-wallpaper[data-mode="light"] #mobile-nav .mn-item:not(.active):not(.mn-fab) :is(.mn-icon, .mn-lbl) { color: color-mix(in srgb, var(--t) 75%, var(--s)); }
+
+/* Text that sits straight on the picture (the page subtitle, a section heading, the sync status) has no
+   card behind it: the text colour, plus a soft halo in the page colour, keeps it readable on any picture. */
+:root.my-skin-wallpaper :is(.page-sub, .bn-heading, .lk-sync) {
+  color: var(--t);
+  text-shadow: 0 1px 3px color-mix(in srgb, var(--bg) 90%, transparent), 0 0 10px color-mix(in srgb, var(--bg) 75%, transparent);
+}
+
 /* Card texture: the card's own surface colour over the user's tile, so the
  * texture shows only as much as the strength slider allows. */
 :root.my-skin-texture :is(.w-card, .stat-card, .ui-card, .ui-panel, .panel, .k-card, .cl-card) {
