@@ -121,8 +121,8 @@ for (const rel of ['functions/esign-io.js', 'functions/remote-signing.js', 'func
 {
   const touching = files.filter((f) => /messaging_controls/.test(f.code)).map((f) => f.rel).sort();
   // flags-registry.js only DESCRIBES the gates in plain-English strings.
-  // messaging-center.js is the read-only owner view (reads messaging_controls/global, never writes).
-  const allowedTouch = ['functions/flags-registry.js', 'functions/messaging-center.js', 'functions/messaging-controls-fns.js', 'functions/messaging-controls.js'];
+  // messaging-center.js / messaging-center-logic.js are the read-only owner view (read messaging_controls/*, never write).
+  const allowedTouch = ['functions/flags-registry.js', 'functions/messaging-center-logic.js', 'functions/messaging-center.js', 'functions/messaging-controls-fns.js', 'functions/messaging-controls.js'];
   ok('only messaging-controls.js, its callable and the flag descriptions name the messaging_controls docs',
     JSON.stringify(touching) === JSON.stringify(allowedTouch), touching.join(', '));
   const writers = files.filter((f) => /messaging_controls[^']*'\)\s*\.(set|update|delete)\(|GLOBAL_DOC\)\.(set|update|delete)\(|AUTOMATIONS_DOC\)\.(set|update|delete)\(|INTERNAL_DOC\)\.(set|update|delete)\(/.test(f.code)).map((f) => f.rel);

@@ -34,12 +34,17 @@
     if (state.loaded && (Date.now() - state.loadedAt) < TTL_MS) return state.flags;
     if (!snapshotReady() || !window._user) return state.flags;
     try {
-      const [defSnap, mySnap] = await Promise.all([
+      // allSettled: a denied per-user doc must not throw away a readable _default (the header says the
+      // default doc alone is enough). Only an unreadable _default leaves the flags unloaded.
+      const [defRes, myRes] = await Promise.allSettled([
         window.getDoc(window.doc(window.db, 'feature_flags', '_default')),
         window.getDoc(window.doc(window.db, 'feature_flags', window._user.uid))
       ]);
+      if (defRes.status !== 'fulfilled') throw defRes.reason;
+      const defSnap = defRes.value;
+      const mySnap = myRes.status === 'fulfilled' ? myRes.value : null;
       const def = defSnap.exists() ? defSnap.data() : {};
-      const mine = mySnap.exists() ? mySnap.data() : {};
+      const mine = mySnap && mySnap.exists() ? mySnap.data() : {};
       state.flags = Object.assign({}, def, mine);
       state.loaded = true;
       state.loadedAt = Date.now();
@@ -68,6 +73,7 @@
 
   window.NBDFlags = {
     __sentinel: 'nbd-flags-v1',
-    load, get, enabled, gate
+    load, get, enabled, gate,
+    isLoaded: function () { return state.loaded; }
   };
 })();

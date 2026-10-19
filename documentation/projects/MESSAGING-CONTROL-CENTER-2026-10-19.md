@@ -111,3 +111,20 @@ matrix (server and client in step), the callable and the watch against an in-mem
 Firestore (role gate before any read, flag gate, tenant scope, read-only, dedupe,
 no spam), client rendering (escaping, no style attrs / handlers), wiring.
 Mutation-checked: each guard was broken and the named assertion went red.
+
+## Review fixes (2026-10-19, same day, follow-up PR)
+
+An independent review of the first version found these; each was confirmed against `main` and PR #2572 and fixed, with a test that can fail:
+
+- **Kill switch reads like #2572 defines it, fail closed.** `messaging_controls/global` absent, unreadable, or `customerSendsEnabled` not exactly `true` shows red "CUSTOMER SENDS OFF" (absent vs unreadable are different words). Each channel (SMS, email, verification codes) and canary is shown. Until the kill-switch code is part of the deployment (`require.resolve('./messaging-controls')`), the strip says "NOT ENFORCED YET" in amber instead of a false red. Each automation shows its **effective** state (env flag AND master AND channel AND `messaging_controls/automations.<key> === true`) and the reason it is off.
+- **A failed source can no longer look healthy.** Critical sources that fail turn on a red "Some data could not be read" banner, "Needs a look" says "Cannot say", and the hourly watch files a deduped "monitor is blind" report. A flag read that fails makes the watch error (heartbeat red) instead of silently dry-running.
+- **Newest rows first, caps reported.** Every range query now orders newest-first; a source that returns exactly its limit is shown as "capped" in Coverage. New indexes: `missed_call_autotext`, `leads` (companyId / userId + reviewRequestedAt), `sms_dnc`, `email_suppressions`, `agent_inbox`. The review-ask query is now tenant-scoped.
+- **Hardening reasons mapped** (`no_consent_on_file`, `customer_sends_off`, `messaging_paused`, ...) to Blocked reasons, so refusals no longer inflate the error rate.
+- **Coverage lists every inventory sender** (seen / partly / NOT SEEN) and says customer email is only partly visible. "Voice is always 0" removed.
+- **Storm claims:** a claim is created before the send, so "claimed" is unconfirmed (not "sent"); a missing subscriber or lead record is consent **unknown**, never "none", so a failed lookup cannot raise a false no-consent alert.
+- Customer messages and internal owner alerts are counted separately (same population as the alert thresholds); kill switch / canary use dedicated wording and colours; canary rows are marked; the "Blocked" table shows "not recorded" for reasons that write no row; alerts re-fire per incident size, not per day; the HIGH-risk alert ignores the email automations that are live by design; the bell write is its own create-only write; multi-zone quiet hours for KY, TN, IN, FL, MI, TX; 7 and 8 digit numbers are masked (dates are not).
+- `feature-flags.js`: a denied per-user flags doc no longer throws away a readable `_default`, and `NBDFlags.isLoaded()` lets the view say "flags could not be read" instead of "off".
+
+**Disproved:** "nbd:flags-loaded is never dispatched" is wrong: `feature-flags.js` dispatches it after every successful load. Not changed: short codes are shown whole (the masked last 4 of a 5-digit code is the whole code; nothing sensitive).
+
+**Still true:** refusals that write no row (STOP, DNC, quiet hours, master switch, daily cap) are not countable until a shared sender ledger exists. PR #2572 also edits `controlsFrom` in this file's first version; this PR replaces that function wholesale, so #2572 should take this version on rebase.

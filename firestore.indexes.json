@@ -795,6 +795,61 @@
       ]
     },
     {
+      "_comment": "Messaging Control Center (functions/messaging-center.js, 2026-10-19 review fix): where companyId == tenant, lastSentAtMs >= since, newest first.",
+      "collectionGroup": "missed_call_autotext",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "lastSentAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "_comment": "Messaging Control Center (functions/messaging-center.js, 2026-10-19 review fix): review asks sent in the last 30 days for a company, newest first.",
+      "collectionGroup": "leads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "reviewRequestedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "_comment": "Messaging Control Center (functions/messaging-center.js, 2026-10-19 review fix): the same for a solo owner whose leads carry only userId.",
+      "collectionGroup": "leads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "reviewRequestedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "_comment": "Messaging Control Center (functions/messaging-center.js, 2026-10-19 review fix): the company's newest STOP / do-not-text entries.",
+      "collectionGroup": "sms_dnc",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "addedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "_comment": "Messaging Control Center (functions/messaging-center.js, 2026-10-19 review fix): the company's newest bounces and complaints.",
+      "collectionGroup": "email_suppressions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "_comment": "Messaging Control Center (functions/messaging-center.js, 2026-10-19 review fix): pending drafts for a company, oldest first (queue backlog).",
+      "collectionGroup": "agent_inbox",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "companyId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "_comment": "Messaging Control Center (functions/messaging-center.js, 2026-10-19): where('companyId','==',tenant).where('date','>=',since).orderBy('date','desc') over the last 30 days of sms_log for the owner/admin overview. Without it the source answers FAILED_PRECONDITION and Coverage shows it unavailable.",
       "collectionGroup": "sms_log",
       "queryScope": "COLLECTION",

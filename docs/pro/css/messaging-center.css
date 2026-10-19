@@ -61,3 +61,6 @@ p.mc-sub { margin: 6px 0 0; }
 .mc-how summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 700; }
 .mc-how ul { margin: 8px 0; padding-left: 18px; font-size: 13px; line-height: 1.5; }
 .mc-link { color: var(--o, #DD875F); }
+.mc-wide { grid-column: 1 / -1; }
+.mc-note { background: #854d0e; color: #fff; border: 1px solid #eab308; border-radius: 12px; padding: 12px; max-width: 480px; width: 100%; overflow-wrap: anywhere; }
+@media (min-width: 768px) { .mc-note { max-width: 720px; } }
