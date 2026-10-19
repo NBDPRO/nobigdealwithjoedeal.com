@@ -698,7 +698,7 @@
       '<div class="exx-fs12px-cm-mt2px">' + (isStaff() && claims().companyId ? 'Team-wide (all reps)' : 'Your expenses') + ' · ' + _expenses.length + ' logged</div></div>' +
       '<div class="exx-dflex-gap8px">' +
         (_expenses.length ? '<button type="button" class="btn btn-ghost" data-exp-action="export-csv" title="Download CSV for your accountant">⬇ Export CSV</button>' : '') +
-        (window.NBDHdImport ? '<button type="button" class="btn btn-ghost" data-hd-action="open" title="Import Home Depot Pro Xtra purchases (Purchase History › Export)">🧡 Import Home Depot</button>' : '') +
+        (window.NBDLowesImport ? window.NBDLowesImport.buttonHtml() : '') + (window.NBDHdImport ? '<button type="button" class="btn btn-ghost" data-hd-action="open" title="Import Home Depot Pro Xtra purchases (Purchase History › Export)">🧡 Import Home Depot</button>' : '') +
         '<button type="button" class="btn btn-orange" data-exp-action="open-form">+ Log Expense</button>' +
       '</div>' +
       '</div>';
