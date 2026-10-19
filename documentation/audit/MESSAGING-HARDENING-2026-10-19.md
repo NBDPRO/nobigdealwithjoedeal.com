@@ -96,6 +96,16 @@ An independent review of PR #2572 found the following; each was confirmed agains
 | F `toSms` can it be a customer? | No: it is `target.sms` only, which is the owner contact from config (NBD) or the verified tenant owner phone, else null; pinned by a structural test. |
 | G canary email headers | `headers` (List-Unsubscribe / one-click) are dropped from the owner's canary copy. |
 
+### Follow-up PR (after #2574 merged)
+
+| Item | Result |
+|---|---|
+| B flood starves real lead alerts inside the lead bucket | `internalAlertStatus` takes a per-source pre-cap (`source` = the submitter's address; default 3 alerts per source per hour, `INTERNAL_PER_SOURCE_PER_HOUR`): a source over its share is refused WITHOUT spending the bucket, so 31 fakes from one address cost 3 slots and a real lead from another address is still alerted. A distributed flood from many addresses can still use the bucket (the cost cap holds). |
+| C pause after the pre-check in `pro-prospects.js` | The pause now releases the claim and marks `welcomeSkipped: held_messaging_paused` instead of `send_failed` with the claim kept. |
+| C caps spent before the guard | `estimate-email.js` (`spendCaps()`) and `storm-report-email.js` spend the per-recipient / global caps only AFTER `guardEmail` says the send is real; a late canary now releases the claim and sends nothing to anyone. |
+| A enforce the `email_queue` exemption | `tests/email-queue-recipients-2026-10-19.test.js` pins every queued recipient expression with proof it is a platform address, the owner, or the account holder's own Auth email; the worker header states the rule. |
+| CRLF regex | The `lead-source-fixer` "no boot-time reads" check normalises CRLF. |
+
 **Not changed (decisions for Jo):** the personal/business email constants in `lead-alert.js`, `storm-watch.js`, `lead-digest.js`, `marketing-report.js`, `thursday.js`, `verify-functions.js`, `handlers/_shared.js` and `THURSDAY_NUMBER` stay in code: moving them to config would silence Jo's alert EMAILS (the most reliable channel) until `ownerEmail` is set, which is worse than a constant that is already public. Thursday: with `OWNER_NUMBERS_DEFAULT=[]`, Jo's own test calls count as leads if `messaging_controls/internal` is unreadable.
 
 ## IMPORTANT: merging deploys this, and customer sends default to OFF

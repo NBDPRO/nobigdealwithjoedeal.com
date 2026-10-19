@@ -220,6 +220,17 @@ function mc(opts) {
     for (const k of ['f1', 'f2', 'f3']) fl.push((await m.internalAlertStatus(db, 'sms', { nowMs: t + 30, force: true, key: k, bucket: 'lead' })).allowed);
     fl.push((await m.internalAlertStatus(db, 'sms', { nowMs: t + 30, force: true })).allowed);
     ok('a public-form lead flood uses up only the lead bucket: a storm/call alert still gets its own allowance', JSON.stringify(fl) === '[true,false,false,true]', JSON.stringify(fl));
+    // Per-source pre-cap: ~30 fake leads from ONE address cannot starve a real lead from another address.
+    process.env.INTERNAL_SMS_PER_HOUR = '30';
+    ({ m, db } = mc({ docs: { 'messaging_controls/internal': OWNER } }));
+    let fakeOk = 0;
+    for (let i = 0; i < 31; i++) if ((await m.internalAlertStatus(db, 'sms', { nowMs: t + 40, force: true, key: 'fake-' + i, bucket: 'lead', source: '203.0.113.9' })).allowed) fakeOk++;
+    const real = await m.internalAlertStatus(db, 'sms', { nowMs: t + 40, force: true, key: 'real-1', bucket: 'lead', source: '198.51.100.7' });
+    ok('31 fake leads from one address take only 3 slots (per-source pre-cap), and a real lead from another address is still alerted', fakeOk === 3 && real.allowed === true, fakeOk + '/' + real.allowed);
+    const nosrc = await m.internalAlertStatus(db, 'sms', { nowMs: t + 40, force: true, key: 'real-2', bucket: 'lead' });
+    ok('a source-limited alert spent none of the bucket (a lead with no recorded address is still allowed)', nosrc.allowed === true);
+    const again = await m.internalAlertStatus(db, 'sms', { nowMs: t + 40, force: true, key: 'fake-0', bucket: 'lead', source: '203.0.113.9' });
+    ok('a lead already alerted this hour repeats free even from a limited source', again.allowed === true);
     process.env.INTERNAL_SMS_PER_HOUR = '0';
     ({ m, db } = mc({ docs: { 'messaging_controls/internal': OWNER } }));
     ok('cap 0 means no internal SMS (zero is zero)', !(await m.internalAlertStatus(db, 'sms', { nowMs: t })).allowed);

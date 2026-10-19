@@ -230,6 +230,19 @@ const MD = 'site-src/guides/nbd-pro-playbook.md';
         rr.sent === false && sentR.length === 1 && [].concat(sentR[0].to).indexOf(lead.email) === -1 && docR.welcomeClaimedAt !== 'TS' && !docR.welcomeEmailedAt, JSON.stringify([rr, sentR.map((m) => m.to), docR]));
       MC._resetCache();
     }
+    {
+      // The PAUSE lands after the pre-check (a race): nothing is sent, the claim is released, a marker says it was held.
+      const MC = require(path.join(ROOT, 'functions/messaging-controls.js'));
+      const dbQ = fakeDb(lead);
+      MC._resetCache();
+      const sentQ = [];
+      const pauseGate = async () => { delete dbQ.docs['messaging_controls/global']; MC._resetCache(); return { suppressed: false, headers: {}, tags: [], footerHtml: '', footerText: '' }; };
+      const rq = await _test.sendWelcome(dbQ, 'L1', lead, Object.assign({}, base, { gate: pauseGate, resend: { emails: { send: async (m) => { sentQ.push(m); return { data: { id: 'x' } }; } } } }));
+      const docQ = dbQ.docs['guide_leads/L1'];
+      ok('pause landing after the pre-check: nothing sent, claim released (a later retry can send), marked held, not send_failed',
+        rq.sent === false && rq.reason === 'held_messaging_paused' && sentQ.length === 0 && docQ.welcomeClaimedAt !== 'TS' && docQ.welcomeSkipped === 'held_messaging_paused' && !docQ.welcomeError, JSON.stringify([rq, docQ]));
+      MC._resetCache();
+    }
     let db = fakeDb(lead);
     const r1 = await _test.sendWelcome(db, 'L1', lead, base);
     const m = sent[0] || {};

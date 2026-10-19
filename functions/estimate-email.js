@@ -258,6 +258,9 @@ exports.estimateEmail = onDocumentCreated(
     // trusted domain). The per-doc idempotency above stops re-sends of the SAME
     // request; this bounds DISTINCT requests to one address (3/day). Fails OPEN
     // on a throttle error so a transient blip never drops a legitimate estimate.
+    // Both caps are SPENT only after the kill switch / canary guard below has said this send is real, so a
+    // pause or canary release never burns a recipient's allowance (a released send must stay retryable).
+    const spendCaps = async () => {
     const emailKey = String(data.email).toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 200);
     try {
       const db2 = getFirestore();
@@ -279,7 +282,7 @@ exports.estimateEmail = onDocumentCreated(
       });
       if (!allowed) {
         logger.warn('estimate_email_recipient_throttled', { leadId });
-        return;
+        return false;
       }
     } catch (e) {
       logger.warn('estimate_email_throttle_failed', { leadId, err: e && e.message });
@@ -323,11 +326,13 @@ exports.estimateEmail = onDocumentCreated(
       });
       if (!allowed) {
         logger.warn('estimate_email_global_throttled', { leadId });
-        return;
+        return false;
       }
     } catch (e) {
       logger.warn('estimate_email_global_throttle_failed', { leadId, err: e && e.message });
     }
+      return true;
+    };
 
     const resend = new Resend(apiKey);
     let fromAddress = 'Joe Deal <jd@nobigdealwithjoedeal.com>';
@@ -354,6 +359,13 @@ exports.estimateEmail = onDocumentCreated(
         await snap.ref.update({ estimateEmailStatus: 'held_paused', estimateEmailedAt: FieldValue.delete() }).catch(() => {});
         return;
       }
+      if (gated.canary) {
+        // Canary flipped on after the pre-check: nothing goes to the customer. Release the claim.
+        await snap.ref.update({ estimateEmailStatus: 'canary_redirected', estimateEmailedAt: FieldValue.delete() }).catch(() => {});
+        logger.info('estimate_email_canary_redirected', { leadId });
+        return;
+      }
+      if (!(await spendCaps())) return;
       const response = await resend.emails.send(gated.msg);
       // Resend resolves { data: null, error } on an API-level rejection
       // instead of throwing — without this check estimateEmailStatus gets
@@ -362,13 +374,6 @@ exports.estimateEmail = onDocumentCreated(
         throw new Error(resendErrorMessage(response));
       }
 
-      if (gated.canary) {
-        // Canary flipped on between the pre-check and the guard: the copy went to the OWNER, so the customer
-        // was not emailed. Release the claim instead of stamping it sent.
-        await snap.ref.update({ estimateEmailStatus: 'canary_redirected', estimateEmailedAt: FieldValue.delete() }).catch(() => {});
-        logger.info('estimate_email_canary_redirected', { leadId });
-        return;
-      }
       await snap.ref.update({ estimateEmailStatus: 'sent' });
       logger.info('estimate_email_sent', { leadId });
     } catch (err) {

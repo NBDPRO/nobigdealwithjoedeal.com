@@ -169,6 +169,11 @@ async function sendWelcome(db, leadId, lead, deps) {
       headers: Object.assign({ 'X-NBD-Campaign': 'pro-playbook-welcome-v1' }, gate.headers), tags: gate.tags,
     });
     const { resendRejected, resendErrorMessage } = require('./resend-guard');
+    if (r && r.error && r.error.name === 'messaging_paused') {
+      // The pause landed AFTER the pre-check: nothing was sent, so release the claim and mark it held (a manual send).
+      await ref.set({ welcomeClaimedAt: FieldValue.delete(), welcomeSkipped: 'held_messaging_paused' }, { merge: true });
+      return { sent: false, reason: 'held_messaging_paused' };
+    }
     if (resendRejected(r)) throw new Error(resendErrorMessage(r));
     if (r && r.canary) {
       // Canary flipped on after the pre-check: the copy went to the OWNER. Release the claim; do not stamp emailed.

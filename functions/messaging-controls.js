@@ -386,6 +386,7 @@ function guardTwilio(db, client, opts) {
 
 const INTERNAL_LIMITS = Object.freeze({ sms: 'INTERNAL_SMS_PER_HOUR', email: 'INTERNAL_EMAIL_PER_HOUR' });
 const INTERNAL_DEFAULTS = Object.freeze({ sms: 30, email: 120 });
+const DEFAULT_PER_SOURCE = 3;   // alerts one source (address) may cause per hour inside a bucket
 
 /**
  * May an internal alert to the owner go out? Never touches the customer
@@ -417,12 +418,23 @@ async function internalAlertStatus(db, channel, opts) {
     const seenRef = o.key
       ? db.doc(COUNTER_COLLECTION + '/seen_' + channel + bucket + '_' + hour + '_' + require('crypto').createHash('sha256').update(String(o.key)).digest('hex').slice(0, 24))
       : null;
+    // Per-SOURCE pre-cap (opts.source, e.g. the submitter's address): one source can take only a few slots of the
+    // bucket per hour, so a flood from one address cannot use up the allowance that real leads from other
+    // addresses need. A source-limited alert does NOT spend the bucket count.
+    const srcCap = o.source ? envCap(process.env.INTERNAL_PER_SOURCE_PER_HOUR, DEFAULT_PER_SOURCE) : 0;
+    const srcRef = o.source
+      ? db.doc(COUNTER_COLLECTION + '/src_' + channel + bucket + '_' + hour + '_' + require('crypto').createHash('sha256').update(String(o.source)).digest('hex').slice(0, 24))
+      : null;
     const allowed = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const seen = seenRef ? await tx.get(seenRef) : null;
+      const srcSnap = srcRef ? await tx.get(srcRef) : null;
       if (seen && seen.exists) return true;
+      const sn = srcSnap && srcSnap.exists ? Number((srcSnap.data() || {}).count) || 0 : 0;
+      if (srcRef && sn >= srcCap) return false;
       const n = snap.exists ? Number((snap.data() || {}).count) || 0 : 0;
       if (n >= cap) return false;
+      if (srcRef) tx.set(srcRef, { count: sn + 1, channel, hour, updatedAtMs: nowMs, expireAt: new Date(nowMs + 3 * 3600_000) }, { merge: true });
       tx.set(ref, { count: n + 1, channel, hour, updatedAtMs: nowMs, expireAt: new Date(nowMs + 3 * 3600_000) }, { merge: true });
       if (seenRef) tx.set(seenRef, { at: nowMs, channel, hour, expireAt: new Date(nowMs + 3 * 3600_000) });
       return true;

@@ -11,6 +11,12 @@
  *   - We can bulk-audit email traffic by inspecting the collection.
  *   - The sending domain rate limit is one choke point, not two.
  *
+ * ACCOUNT MAIL ONLY (2026-10-19). This worker sends raw: it does NOT go through the customer kill switch / canary
+ * (messaging-controls.js), because every row it carries is mail to the owner, to a platform address, or to a
+ * contractor's own Auth email (dunning, trial, erasure, health). Never queue a homeowner / lead email here: that
+ * belongs in a guarded sender. tests/email-queue-recipients-2026-10-19.test.js pins every recipient and fails
+ * on a new writer or a recipient taken from a lead field.
+ *
  * State machine on each row:
  *   (no status)           → picked up, marked 'sending'
  *   sending  + success    → 'sent' + sentAt

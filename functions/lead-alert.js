@@ -555,9 +555,11 @@ async function alertJoe(collection, d, leadId, opts = {}) {
   // NBD's own alert (to Jo) is an INTERNAL alert: its own switch + an hourly
   // cap, never the customer switch. A non-NBD tenant owner's text goes out on
   // NBD's campaign number, so it passes the customer switch like any other.
+  // The submitter's address (when the form recorded one): the internal-alert per-source pre-cap keys on it.
+  const leadSrc = (typeof d.ip === 'string' && d.ip.trim() && d.ip.trim().toLowerCase() !== 'unknown') ? d.ip.trim() : undefined;
   let smsHeld = null;
   if (toSms && !opts.skipSms && !capped && target.isNbd) {
-    const ia = await MessagingControls.internalAlertStatus(getFirestore(), 'sms', { key: collection + '/' + leadId, bucket: 'lead' });
+    const ia = await MessagingControls.internalAlertStatus(getFirestore(), 'sms', { key: collection + '/' + leadId, bucket: 'lead', source: leadSrc });
     if (!ia.allowed) smsHeld = ia.reason;
   }
   if (smsHeld) {
@@ -585,7 +587,7 @@ async function alertJoe(collection, d, leadId, opts = {}) {
 
   // NBD's alert email to Jo: own switch + hourly cap (internal, never the customer switch).
   if (toEmails && toEmails.length && !capped && target.isNbd) {
-    const ie = await MessagingControls.internalAlertStatus(getFirestore(), 'email', { key: collection + '/' + leadId, bucket: 'lead' });
+    const ie = await MessagingControls.internalAlertStatus(getFirestore(), 'email', { key: collection + '/' + leadId, bucket: 'lead', source: leadSrc });
     if (!ie.allowed && ie.reason !== 'owner_email_not_configured') {
       toEmails = null;
       outcomes.email = 'skipped:' + ie.reason;
