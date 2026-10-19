@@ -42,7 +42,7 @@ function flag(on) { global.window.NBDFlags = { enabled: (n) => !!on && n === 'de
   const base = { amount: 100, method: 'check', at, recordedBy: 'zzqa-uid' };
   const withAcct = IP.buildManualPaymentEntry(Object.assign({ depositedTo: 'chase_business' }, base));
   ok('a valid account is stored', withAcct.depositedTo === 'chase_business');
-  ok('an invalid account is dropped, not stored', !('depositedTo' in IP.buildManualPaymentEntry(Object.assign({ depositedTo: 'venmo' }, base))));
+  ok('an invalid account is refused, not silently dropped', throws(() => IP.buildManualPaymentEntry(Object.assign({ depositedTo: 'venmo' }, base)), /listed accounts/));
   ok('no account = no key (old payments untouched)', !('depositedTo' in IP.buildManualPaymentEntry(base)));
 
   console.log('\n3. markPaid: flag on saves it, flag off is unchanged');
@@ -98,6 +98,40 @@ function flag(on) { global.window.NBDFlags = { enabled: (n) => !!on && n === 'de
   ok('Stripe entry refused', throws(() => IP.setDepositedToOnPayments(pays, 1, IP.paymentKey(pays[1]), 'cash'), /Stripe/));
   ok('unknown account refused', throws(() => IP.setDepositedToOnPayments(pays, 0, key0, 'venmo'), /listed accounts/));
   ok('a payment that moved is refused', throws(() => IP.setDepositedToOnPayments([], 0, key0, 'cash'), /changed/));
+
+  console.log('\n6. customer page: NBDFlags is NOT loaded up front (only dashboard.html loads it)');
+  // ScriptLoader installs a flag reader like feature-flags.js does; load() sets the flags.
+  function customerPage(flagValue, authReady) {
+    let loads = 0;
+    global.window.NBDFlags = undefined;
+    global.window.ScriptLoader = { load: async (src) => {
+      loads++;
+      if (!/feature-flags\.js/.test(src)) return;
+      const st = { on: false };
+      global.window.NBDFlags = {
+        load: async () => { if (authReady) st.on = !!flagValue; },
+        enabled: (n) => n === 'depositedToField' && st.on,
+      };
+    } };
+    return () => loads;
+  }
+  writes.length = 0;
+  let n = customerPage(true, true);
+  await IP.markPaid('zzqa-inv', 400, 'check', { at, depositedTo: 'chime' });
+  ok('flag on, reader absent at start: it is loaded on demand and the account saves', n() === 1 && writes[0].data.payments[0].depositedTo === 'chime');
+  ok('ensureDepositedToFlag reports on', await IP.ensureDepositedToFlag() === true);
+  writes.length = 0;
+  n = customerPage(false, true);
+  await IP.markPaid('zzqa-inv', 400, 'check', { at, depositedTo: 'chime' });
+  ok('flag off, reader absent at start: still not saved', !('depositedTo' in writes[0].data.payments[0]));
+  writes.length = 0;
+  n = customerPage(true, false);
+  await IP.markPaid('zzqa-inv', 400, 'check', { at, depositedTo: 'chime' });
+  ok('auth not ready yet: stays off, payment still records', writes.length === 1 && !('depositedTo' in writes[0].data.payments[0]));
+  global.window.ScriptLoader = { load: async () => { throw new Error('boom'); } };
+  global.window.NBDFlags = undefined;
+  ok('a failing loader never throws, flag off', await IP.ensureDepositedToFlag() === false);
+  global.window.ScriptLoader = undefined;
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

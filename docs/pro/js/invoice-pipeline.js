@@ -502,6 +502,21 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   function depositedToOn() {
     return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('depositedToField'));
   }
+  // customer.html does not load feature-flags.js (only dashboard.html does), so
+  // the flag read above would be false there for good. Every async entry that
+  // decides whether to show or save the field awaits this first: load the flag
+  // reader on demand, then refresh it (load() is a no-op while fresh, and while
+  // auth is not ready it leaves the flag off). Never throws.
+  async function ensureDepositedToFlag() {
+    try {
+      if (!(window.NBDFlags && typeof window.NBDFlags.load === 'function')
+          && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') {
+        await window.ScriptLoader.load('js/feature-flags.js?v=1');
+      }
+      if (window.NBDFlags && typeof window.NBDFlags.load === 'function') await window.NBDFlags.load();
+    } catch (_) { /* flag stays off */ }
+    return depositedToOn();
+  }
   // The <select> options shared by both payment sheets and the history rows.
   function depositedToOptionsHtml(selected) {
     return '<option value="">Not set</option>' + DEPOSIT_ACCOUNTS.map(a =>
@@ -636,7 +651,10 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         ? input.paymentId : newPaymentId(recordedAt.getTime()),
     };
     if (isPayer(input.payer)) entry.payer = input.payer;
-    if (isDepositAccount(input.depositedTo)) entry.depositedTo = input.depositedTo;
+    if (input.depositedTo) {
+      if (!isDepositAccount(input.depositedTo)) throw new Error('Pick one of the listed accounts');
+      entry.depositedTo = input.depositedTo;
+    }
     // "Catch up my numbers" → "Paid in full? Yes" (catchup.js): a balancing
     // entry for the whole job total, not one itemised payment. The Stripe
     // ledger replaces part of it when a real Stripe payment for the job turns
@@ -2554,6 +2572,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    *   proofStoragePath, proofName } — all optional; `at` defaults to now.
    */
   async function markPaid(invoiceId, amount, method, details) {
+    await ensureDepositedToFlag();
     const db = getDb();
     details = details || {};
 
@@ -2800,6 +2819,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   }
 
   async function renderInvoiceDetail(containerId, invoiceId) {
+    await ensureDepositedToFlag();
     const container = document.getElementById(containerId);
     if (!container) return;
     _ensureInvoiceDetailStyles();
@@ -3604,7 +3624,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   // Flag `depositedToField`: change the account on an already-recorded payment.
   // Same read-match-write as attachProofUI, in one transaction.
   async function setDepositedToUI(invoiceId, index, recordedAtMs, value) {
-    if (!invoiceId || !depositedToOn()) return false;
+    if (!invoiceId || !(await ensureDepositedToFlag())) return false;
     const db = getDb();
     const invRef = window.doc(db, 'invoices', invoiceId);
     try {
@@ -3662,6 +3682,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * today), and proof recommended but never required.
    */
   async function markPaidUI(invoiceId) {
+    await ensureDepositedToFlag();
     let balanceDefault = '';
     try {
       const snap = await window.getDoc(window.doc(getDb(), 'invoices', invoiceId));
@@ -4052,6 +4073,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * screen cannot email a customer.
    */
   async function recordPaymentUI(leadId, opts) {
+    await ensureDepositedToFlag();
     if (!leadId) return false;
     let lead = null, target = null;
     try {
@@ -4246,6 +4268,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     isDepositAccount,
     depositAccountLabel,
     depositedToOn,
+    ensureDepositedToFlag,
     setDepositedToOnPayments,
     setDepositedToUI,
     uploadPaymentProof,
