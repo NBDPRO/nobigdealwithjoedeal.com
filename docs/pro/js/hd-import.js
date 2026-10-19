@@ -382,6 +382,10 @@
   function aliasesOn() {
     return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled(ALIAS_FLAG));
   }
+  function reviewProOn() {
+    return !!(window.NBDFlags && typeof window.NBDFlags.enabled === 'function' && window.NBDFlags.enabled('receiptSorterQueue') &&
+      window.NBDReceiptReviewUI && window.NBDReceiptFilter);
+  }
   function cleanAliases(a) {
     const out = {};
     if (!a || typeof a !== 'object') return out;
@@ -496,6 +500,12 @@
         (first.length ? '<optgroup label="Best matches">' + first.map((id) => opt(byId[id])).join('') + '</optgroup>' : '') +
         '<optgroup label="All jobs">' + rest.map(opt).join('') + '</optgroup>';
     };
+    // Search / filter bar + type-ahead job picker (2026-10-19), behind the
+    // receiptSorterQueue flag. Flag off (or the files not loaded) = the table below.
+    if (reviewProOn()) {
+      window.NBDReceiptReviewUI.mount({ state: _state, leads, byId, leadLabel, catOpts, esc, money, BADGE, shell, modalEl, rerender: renderReview });
+      return;
+    }
     const rows = _state.rows;
     const todo = rows.filter((r) => !r.already);
     const total = todo.filter((r) => r.include).reduce((a, r) => a + r.totalCents, 0);
