@@ -227,6 +227,33 @@ function mc(opts) {
     for (let i = 0; i < 31; i++) if ((await m.internalAlertStatus(db, 'sms', { nowMs: t + 40, force: true, key: 'fake-' + i, bucket: 'lead', source: '203.0.113.9' })).allowed) fakeOk++;
     const real = await m.internalAlertStatus(db, 'sms', { nowMs: t + 40, force: true, key: 'real-1', bucket: 'lead', source: '198.51.100.7' });
     ok('31 fake leads from one address take only 3 slots (per-source pre-cap), and a real lead from another address is still alerted', fakeOk === 3 && real.allowed === true, fakeOk + '/' + real.allowed);
+    const lim = await m.internalAlertStatus(db, 'sms', { nowMs: t + 40, force: true, key: 'fake-99', bucket: 'lead', source: '203.0.113.9' });
+    ok('a source-limited alert reports its OWN reason (visible in alert_outbox), not a generic rate limit', lim.allowed === false && lim.reason === 'internal_source_limited', lim.reason);
+    // 10 distinct sources x 3 slots, then a real lead from a NEW source still gets through (headroom).
+    ({ m, db } = mc({ docs: { 'messaging_controls/internal': OWNER } }));
+    let used = 0;
+    for (let s = 1; s <= 10; s++) for (let i = 0; i < 3; i++) if ((await m.internalAlertStatus(db, 'sms', { nowMs: t + 50, force: true, key: 'f' + s + '-' + i, bucket: 'lead', source: '198.51.100.' + s })).allowed) used++;
+    const realNew = await m.internalAlertStatus(db, 'sms', { nowMs: t + 50, force: true, key: 'real-new', bucket: 'lead', source: '192.0.2.77' });
+    ok('10 distinct sources x 3 slots: the bucket keeps a third in reserve, so a real lead from a new source is still alerted', used < 30 && used >= 20 && realNew.allowed === true, used + '/' + realNew.allowed);
+    // IPv6: every address in one /64 is ONE source.
+    ({ m, db } = mc({ docs: { 'messaging_controls/internal': OWNER } }));
+    let v6 = 0;
+    for (const a of ['2001:db8:1:2::1', '2001:db8:1:2:aaaa::2', '2001:0db8:0001:0002:1:2:3:4', '2001:db8:1:2:ffff:ffff:ffff:ffff', '2001:db8:1:2::9']) if ((await m.internalAlertStatus(db, 'sms', { nowMs: t + 60, force: true, key: 'v6-' + a, bucket: 'lead', source: a })).allowed) v6++;
+    ok('an IPv6 /64 is ONE source (5 addresses in a /64 take 3 slots)', v6 === 3, String(v6));
+    ok('sourceKey: v4 as is, v4-mapped unwrapped, v6 collapsed to /64, unknown is no source', m.sourceKey('203.0.113.9') === '203.0.113.9' && m.sourceKey('::ffff:1.2.3.4') === '1.2.3.4' && m.sourceKey('2001:db8::1') === m.sourceKey('2001:db8:0:0:5::1') && m.sourceKey('unknown') === '');
+    // INTERNAL_PER_SOURCE_PER_HOUR=0 DISABLES the per-source cap (it must not block every sourced alert).
+    const prevSrc = process.env.INTERNAL_PER_SOURCE_PER_HOUR;
+    process.env.INTERNAL_PER_SOURCE_PER_HOUR = '0';
+    ({ m, db } = mc({ docs: { 'messaging_controls/internal': OWNER } }));
+    const off = await m.internalAlertStatus(db, 'sms', { nowMs: t + 70, force: true, key: 'z1', bucket: 'lead', source: '203.0.113.50' });
+    const off2 = await m.internalAlertStatus(db, 'sms', { nowMs: t + 70, force: true, key: 'z2', bucket: 'lead', source: '203.0.113.50' });
+    ok('INTERNAL_PER_SOURCE_PER_HOUR=0 disables the per-source cap (sourced alerts are NOT blocked)', off.allowed && off2.allowed);
+    if (prevSrc === undefined) delete process.env.INTERNAL_PER_SOURCE_PER_HOUR; else process.env.INTERNAL_PER_SOURCE_PER_HOUR = prevSrc;
+    ({ m, db } = mc({ docs: { 'messaging_controls/internal': OWNER } }));
+    let unsrc = 0;
+    for (let i = 0; i < 31; i++) if ((await m.internalAlertStatus(db, 'sms', { nowMs: t + 80, force: true, key: 'w' + i, bucket: 'lead' })).allowed) unsrc++;
+    ok('alerts with NO source (webhook-minted leads) are not source-limited: the whole bucket (30) is theirs', unsrc === 30, String(unsrc));
+    ({ m, db } = mc({ docs: { 'messaging_controls/internal': OWNER } }));
     const nosrc = await m.internalAlertStatus(db, 'sms', { nowMs: t + 40, force: true, key: 'real-2', bucket: 'lead' });
     ok('a source-limited alert spent none of the bucket (a lead with no recorded address is still allowed)', nosrc.allowed === true);
     const again = await m.internalAlertStatus(db, 'sms', { nowMs: t + 40, force: true, key: 'fake-0', bucket: 'lead', source: '203.0.113.9' });

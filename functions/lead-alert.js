@@ -556,7 +556,10 @@ async function alertJoe(collection, d, leadId, opts = {}) {
   // cap, never the customer switch. A non-NBD tenant owner's text goes out on
   // NBD's campaign number, so it passes the customer switch like any other.
   // The submitter's address (when the form recorded one): the internal-alert per-source pre-cap keys on it.
-  const leadSrc = (typeof d.ip === 'string' && d.ip.trim() && d.ip.trim().toLowerCase() !== 'unknown') ? d.ip.trim() : undefined;
+  // Webhook-minted leads (Cal.com, Thumbtack, the bridge, backfills) are not public-form spam: they never carry
+  // a source, so the per-source pre-cap does not apply to them.
+  const webhookMinted = !!(d.webLead || d.calcomBookingId || d.backfilledBy);
+  const leadSrc = (!webhookMinted && typeof d.ip === 'string' && d.ip.trim() && d.ip.trim().toLowerCase() !== 'unknown') ? d.ip.trim() : undefined;
   let smsHeld = null;
   if (toSms && !opts.skipSms && !capped && target.isNbd) {
     const ia = await MessagingControls.internalAlertStatus(getFirestore(), 'sms', { key: collection + '/' + leadId, bucket: 'lead', source: leadSrc });

@@ -68,9 +68,11 @@ async function handleGuideLead(db, leadId, lead, opts) {
     await db.doc('email_queue/pro-prospect-alert-' + leadId).create(Object.assign({
       status: 'pending',
       createdAt: FieldValue.serverTimestamp(),
+    }, mail, {
+      // After `mail` so nothing in it can ever redirect the alert (email-queue-recipients test pins this).
       to: PLATFORM_ALERT_EMAIL,
       source: 'pro_prospect_alert',
-    }, mail));
+    }));
   } catch (e) {
     if (e && (e.code === 6 || /already exists/i.test(String(e.message)))) return { alerted: false, reason: 'duplicate' };
     throw e;
@@ -137,10 +139,6 @@ async function sendWelcome(db, leadId, lead, deps) {
   if (!claimed) return { sent: false, reason: 'claimed' };
 
   const email = String(lead.email).trim();
-  const cap = d.capRecipients || require('./alert-recipients').capRecipients;
-  const capR = await cap('proWelcome', [email], { limit: WELCOME_RECIPIENT_DAILY_CAP });
-  if (!capR || !capR.allowed || !capR.allowed.length) return skip('recipient_cap');
-
   const Suppression = require('./email-suppression');
   const gateArgs = [db, { companyId: NBD_OWNER_UID, email, leadId, source: 'pro-playbook-welcome' },
     { timeoutMs: Suppression.READ_TIMEOUT_MS, serverTimestamp: ts }];
@@ -164,22 +162,29 @@ async function sendWelcome(db, leadId, lead, deps) {
   if (!d.resend) return skip('no_sender');
   try {
     // Email category: COMMERCIAL — delivers the requested playbook and mentions NBD Pro; gated above (email-suppression.js SEND_PATHS).
-    const r = await MessagingControls.guardResend(db, d.resend).emails.send({
+    const gated = await MessagingControls.guardEmail(db, {
       from: d.from, to: email, reply_to: REPLY_TO, subject: c.subject, html: body.html, text: body.text,
       headers: Object.assign({ 'X-NBD-Campaign': 'pro-playbook-welcome-v1' }, gate.headers), tags: gate.tags,
     });
-    const { resendRejected, resendErrorMessage } = require('./resend-guard');
-    if (r && r.error && r.error.name === 'messaging_paused') {
+    if (!gated.send) {
       // The pause landed AFTER the pre-check: nothing was sent, so release the claim and mark it held (a manual send).
       await ref.set({ welcomeClaimedAt: FieldValue.delete(), welcomeSkipped: 'held_messaging_paused' }, { merge: true });
       return { sent: false, reason: 'held_messaging_paused' };
     }
-    if (resendRejected(r)) throw new Error(resendErrorMessage(r));
-    if (r && r.canary) {
-      // Canary flipped on after the pre-check: the copy went to the OWNER. Release the claim; do not stamp emailed.
+    if (gated.canary) {
+      // Canary flipped on after the pre-check: nothing goes to the visitor. Release the claim; do not stamp emailed.
       await ref.set({ welcomeClaimedAt: FieldValue.delete(), welcomeSkipped: 'canary_redirect' }, { merge: true });
       return { sent: false, reason: 'canary_redirect' };
     }
+    // The per-recipient welcome allowance is spent only now that the guard says this send is real, so a pause or
+    // canary release never burns it (a later retry must not hit recipient_cap).
+    const cap = d.capRecipients || require('./alert-recipients').capRecipients;
+    const capR = await cap('proWelcome', [email], { limit: WELCOME_RECIPIENT_DAILY_CAP });
+    if (!capR || !capR.allowed || !capR.allowed.length) return skip('recipient_cap');
+    // Sent through the guarded client too (belt and braces: the guard is the one choke point for a customer send).
+    const r = await MessagingControls.guardResend(db, d.resend).emails.send(gated.msg);
+    const { resendRejected, resendErrorMessage } = require('./resend-guard');
+    if (resendRejected(r)) throw new Error(resendErrorMessage(r));
     const id = (r && r.data && r.data.id) || (r && r.id) || null;
     await ref.set({ welcomeEmailedAt: ts(), welcomeEmailId: id, welcomePdf: pdfReady }, { merge: true });
     return { sent: true, id };

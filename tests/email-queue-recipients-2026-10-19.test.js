@@ -26,7 +26,11 @@ const PLATFORM = /'jd@nobigdealwithjoedeal\.com'/;
 const WRITERS = {
   'backup-freshness.js': { to: ['RECIPIENT'], proof: [/const RECIPIENT = 'jd@nobigdealwithjoedeal\.com'/] },
   'health-digest.js': { to: ['RECIPIENT'], proof: [/const RECIPIENT = 'jd@nobigdealwithjoedeal\.com'/] },
-  'pro-prospects.js': { to: ['PLATFORM_ALERT_EMAIL'], proof: [/PLATFORM_ALERT_EMAIL = process\.env\.PLATFORM_ALERT_EMAIL \|\| 'jd@nobigdealwithjoedeal\.com'/] },
+  // `to` is assigned AFTER `mail` (Object.assign({..}, mail, { to })) so nothing in the built email can redirect the alert.
+  'pro-prospects.js': {
+    to: ['PLATFORM_ALERT_EMAIL'],
+    proof: [/PLATFORM_ALERT_EMAIL = process\.env\.PLATFORM_ALERT_EMAIL \|\| 'jd@nobigdealwithjoedeal\.com'/, /\}, mail, \{\s*to: PLATFORM_ALERT_EMAIL,/],
+  },
   'tenant-ops.js': {
     to: ['PLATFORM_ALERT_EMAIL', 'ownerEmail'],
     proof: [/PLATFORM_ALERT_EMAIL = process\.env\.PLATFORM_ALERT_EMAIL \|\| 'jd@nobigdealwithjoedeal\.com'/, /ownerEmail = \(await auth\.getUser\(co\.ownerId\)\)\.email/],
@@ -66,6 +70,8 @@ for (const [rel, spec] of Object.entries(WRITERS)) {
   ok(rel + ': queued recipients are exactly the pinned set (' + spec.to.join(', ') + ')', JSON.stringify(got) === JSON.stringify(spec.to), got.join(' | '));
   ok(rel + ': each recipient is provably a platform address, the owner, or the account holder\'s own Auth email', spec.proof.every((p) => p.test(src)));
 }
+
+ok('all 13 queue recipients are pinned (backup-freshness, care-plan, health-digest, compliance, controls-fns, overhead, pro-prospects, stripe x4, tenant-ops x2)', Object.values(WRITERS).reduce((n, w) => n + w.to.length, 0) === 13);
 
 // Controls: the scanner is not blind, and a homeowner-sourced recipient would be caught.
 {
