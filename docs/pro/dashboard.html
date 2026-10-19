@@ -32,6 +32,7 @@
 <link rel="stylesheet" href="css/sort-customers.css?v=2">
 <link rel="stylesheet" href="css/triage-deck.css?v=2">
 <link rel="stylesheet" href="css/no-next-step.css?v=1">
+<link rel="stylesheet" href="css/stale-leads-cleanup.css?v=1">
 <link rel="stylesheet" href="css/dol-fill.css?v=1">
 <link rel="stylesheet" href="css/d2d-storm.css?v=1">
 <link rel="stylesheet" href="css/phone-calls.css?v=11">
@@ -1984,6 +1985,11 @@
               title="Show only open leads with no follow-up date and no open task" aria-pressed="false">
               🧭 <span class="crm-hdr-btn-label">No next step</span>
               <span id="noNextStepCountBadge" class="nns-filter-badge" hidden>0</span>
+            </button>
+            <!-- Clean up stale leads (js/stale-leads-cleanup.js, flag bulkCloseStaleLeads): shown only with the flag on. -->
+            <button class="btn btn-ghost crm-hdr-btn" id="staleLeadsBtn" type="button" hidden
+              title="List New leads with no activity for a while and close them as Lost in one go">
+              🧹 <span class="crm-hdr-btn-label">Clean up stale leads</span>
             </button>
             <!-- Wave 54: Stale Shares filter — customers shared 5+ days
                  ago with no customer-side response. -->
@@ -7274,6 +7280,8 @@
 <!-- "No next step" (2026-10-03): open leads with no follow-up and no open
      task — Home card #homeNoNextStep + the board filter #noNextStepBtn. -->
 <script defer src="js/no-next-step.js?v=3"></script>
+<!-- "Clean up stale leads" (2026-10-19): flag bulkCloseStaleLeads, absent = off. -->
+<script defer src="js/stale-leads-cleanup.js?v=1"></script>
 <script defer src="js/stale-shares-filter.js?v=3"></script>
 <script defer src="js/lead-snooze.js?v=6"></script>
 <script defer src="js/prefs-sync.js?v=4"></script>
