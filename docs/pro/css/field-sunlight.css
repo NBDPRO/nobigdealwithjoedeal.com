@@ -1,0 +1,21 @@
+/* field-sunlight.css — Sunlight mode in every layout (idea #12, js/field-sunlight.js).
+ * html.sun-all overrides ONLY colour tokens and border colours, so removing the
+ * class brings the rep's theme straight back. The #fa-sun id in :not() is only
+ * there to out-rank any theme / mode attribute selector (same trick as the
+ * Field App's own html.sun). Pure black on white is 21:1. */
+
+html.sun-all:not(#fa-sun) {
+  color-scheme: light;
+  --bg: #ffffff; --s: #ffffff; --s2: #ffffff; --s3: #f0f0f0;
+  --t: #000000; --m: #1a1a1a; --rule: #000000; --br: #000000;
+  --orange: #000000; --ob: #000000; --og: #e8e8e8; --accent-fg: #ffffff;
+}
+html.sun-all body { text-shadow: none; background: #ffffff; color: #000000; }
+html.sun-all .card, html.sun-all .btn, html.sun-all input, html.sun-all select, html.sun-all textarea {
+  border-color: #000000;
+}
+html.sun-all .card, html.sun-all .btn { border-width: 2px; }
+html.sun-all body * { text-shadow: none; }
+/* no frosted glass or wallpaper behind text in the sun */
+html.sun-all body { background-image: none; }
+html.sun-all *, html.sun-all *::before, html.sun-all *::after { backdrop-filter: none; -webkit-backdrop-filter: none; }

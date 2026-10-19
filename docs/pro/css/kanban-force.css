@@ -184,7 +184,7 @@
      tombstone + 'Drop leads here' that ate ~80px of vertical real
      estate. New version is a single thin dashed line of muted text. */
   .k-empty{text-align:center;padding:10px 8px;border:1px dashed color-mix(in srgb, var(--br) 65%, transparent);border-radius:6px;}
-  .k-empty-line{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--m);opacity:.6;}
+  .k-empty-line{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--m);}
   /* T3.b: NBD-ID hover-reveal. Moved off the name face to keep the
      name from wrapping on long surnames; the customer ID surfaces as
      a small monospace badge above the card on hover, plus the
@@ -963,7 +963,7 @@
     font-family:'Barlow Condensed',sans-serif;
     font-size:14px; font-weight:800;
     letter-spacing:.08em; text-transform:uppercase;
-    color:var(--orange);
+    color:var(--ui-accent-text, var(--orange)); /* brand orange as 14px text is 3.2:1 on navy (visual audit 2026-10-19) */
   }
   .crm-hdr-stat{
     font-size:11px; color:var(--m);
