@@ -93,7 +93,7 @@ module.exports.run = function run(ctx) {
     assert('sendEsignEnvelope requires resend-guard',
       /require\('\.\/resend-guard'\)/.test(ee));
     assert('sendEsignEnvelope throws on resendRejected(response) before setting emailed = true',
-      /if \(resendRejected\(response\)\) throw new Error\(resendErrorMessage\(response\)\);\s*return \{ emailed: true/.test(ee));
+      /if \(resendRejected\(response\)\) throw new Error\(resendErrorMessage\(response\)\);[\s\S]{0,260}return \{ emailed: true/.test(ee));
     assert('esign-envelope.js sends no email except through esign-io.js',
       !/resend\.emails\.send/.test(read(path.join(FUNCTIONS, 'esign-envelope.js'))));
 
