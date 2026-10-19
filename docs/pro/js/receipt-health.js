@@ -54,7 +54,7 @@
   function costsMissing(leads, expenses) {
     const withCost = {};
     (expenses || []).forEach((e) => {
-      if (!e || e.deleted === true || !e.leadId || e.costType !== 'direct') return;
+      if (!e || e.deleted === true || e.estimated === true || !e.leadId || e.costType !== 'direct') return; // an estimate is not a receipt
       if ((Number(e.amountCents) || 0) + (Number(e.taxCents) || 0) > 0) withCost[e.leadId] = true;
     });
     return (leads || []).filter((l) => l && l.id && !l.deleted && isWon(l) && !withCost[l.id]);

@@ -45,17 +45,20 @@ const STUB = () => {
   window.NBDRevenue = {
     loadInvoices: async () => INV,
     collectedByLead: () => ({ a: 12000, b: 9000, p1: 10000, p2: 10000, p3: 10000 }),
+    owedDollarsOf: () => 0,
+    cached: () => INV,
   };
   const row = (id, leadId, category, cents, extra) => Object.assign({ id, leadId, category, costType: 'direct', amountCents: cents, taxCents: 0, supplier: 'S' + id, date: new Date('2026-08-02T12:00:00'), userId: 'u1' }, extra || {});
   window.__E = [row('m1', 'a', 'materials', 200000), row('m2', 'b', 'materials', 100000),
-    row('s1', 'p1', 'subcontractor', 380000), row('s2', 'p2', 'subcontractor', 440000), row('s3', 'p3', 'subcontractor', 520000)];
+    row('s1', 'p1', 'subcontractor', 380000), row('s2', 'p2', 'subcontractor', 440000), row('s3', 'p3', 'subcontractor', 520000),
+    row('pm1', 'p1', 'materials', 300000), row('pm2', 'p2', 'materials', 300000), row('pm3', 'p3', 'materials', 200000)];
   window.Expenses = { list: () => window.__E, refresh() {} };
 };
 
 async function boot(page, withPeers) {
   await page.setContent('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body class="boot"></body></html>');
   await page.evaluate(STUB);
-  if (!withPeers) await page.evaluate(() => { window.__E = window.__E.filter((e) => e.id !== 's3' && e.id !== 's2'); });
+  if (!withPeers) await page.evaluate(() => { window.__E = window.__E.filter((e) => e.id !== 's3' && e.id !== 's2' && e.id !== 'pm3' && e.id !== 'pm2'); });
   await page.addStyleTag({ path: path.join(ROOT, 'css', 'job-cost-audit.css') });
   await page.addScriptTag({ path: path.join(ROOT, 'js', 'job-cost-audit-logic.js') });
   await page.addScriptTag({ path: path.join(ROOT, 'js', 'job-cost-audit.js') });
@@ -146,6 +149,39 @@ for (const width of [360, 412]) {
       await expect(page.locator('.jc-costs')).toContainText('estimate');
     });
 
+    test('a real sub cost offers to void the estimate it replaces', async ({ page }) => {
+      await boot(page, true);
+      await page.click('[data-jc-action="open"][data-jc-id="a"]');
+      await page.click('[data-jc-action="who"][data-jc-name="Sample Crew"]');
+      await page.fill('#jcAmount', '5000');
+      await page.click('[data-jc-action="estimate"]');
+      await page.click('[data-jc-action="save"]');
+      await expect(page.locator('.jc-warnbox')).toHaveCount(0);
+      await page.fill('#jcAmount', '5200');
+      await page.evaluate(() => { const c = document.querySelector('[data-jc-f="estimated"]'); c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); });
+      await page.click('[data-jc-action="save"]');
+      await expect(page.locator('.jc-warnbox')).toContainText('estimate of $5,000.00');
+      await page.click('[data-jc-action="est-void"]');
+      const u = await page.evaluate(() => window.__upd);
+      expect(u).toHaveLength(1);
+      expect(u[0].ref).toBe('expenses/new1');
+      expect(u[0].p.deleted).toBe(true);
+      expect(u[0].p.deletedAt).toBe('__ts__');
+      expect(u[0].p.editLog.pop().note).toBe('Replaced by the real cost');
+    });
+
+    test('invoices that failed to load: nothing opens and it says so', async ({ page }) => {
+      await page.setContent('<!doctype html><html><body></body></html>');
+      await page.evaluate(STUB);
+      await page.evaluate(() => { window.NBDRevenue.cached = () => null; window.__toasts = []; window.showToast = (m) => window.__toasts.push(m); });
+      await page.addStyleTag({ path: path.join(ROOT, 'css', 'job-cost-audit.css') });
+      await page.addScriptTag({ path: path.join(ROOT, 'js', 'job-cost-audit-logic.js') });
+      await page.addScriptTag({ path: path.join(ROOT, 'js', 'job-cost-audit.js') });
+      await page.evaluate(() => window.NBDJobCostAuditor.open());
+      expect(await page.locator('.jc-sheet').count()).toBe(0);
+      expect((await page.evaluate(() => window.__toasts))[0]).toMatch(/Could not load the invoices/);
+    });
+
     test('Ask me: Skip is remembered on the lead; Costs complete is written', async ({ page }) => {
       await boot(page, true);
       await page.click('[data-jc-action="ask-start"]');
@@ -154,7 +190,7 @@ for (const width of [360, 412]) {
       let u = await page.evaluate(() => window.__upd);
       expect(u).toHaveLength(1);
       expect(u[0].ref).toMatch(/^leads\//);
-      expect(u[0].p['costAudit.asked.sub']).toBe('skip');
+      expect(u[0].p['costAudit.asked.sub']).toMatch(/^skip@\d+:\d+:\d+$/);
       // the next question is NOT the sub question again
       await expect(page.locator('.jc-q')).not.toContainText('Did a sub do this one');
       await page.click('[data-jc-action="ask-stop"]');
@@ -166,6 +202,7 @@ for (const width of [360, 412]) {
       u = await page.evaluate(() => window.__upd);
       const c = u[u.length - 1];
       expect(c.p['costAudit.complete']).toBe(true);
+      expect(c.p['costAudit.completeSig']).toMatch(/^\d+:\d+:\d+$/);
       expect(c.p['costAudit.completeBy']).toBe('u1');
       expect(c.p['costAudit.completeAt']).toBe('__ts__');
       await expect(page.locator('[data-jc-row="a"]')).toHaveCount(0);

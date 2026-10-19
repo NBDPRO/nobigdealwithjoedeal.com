@@ -105,3 +105,43 @@ estimate, Skip remembered, Costs complete, void with reason. Mutation-checked.
 - Per-square needs a squares field on the lead; none is stored today.
 - The queue reads the loaded Expenses list (newest 1000 rows) and the cached
   invoices; a job whose costs are older than that window reads as "no cost".
+
+## Review fixes (2026-10-19, after an independent review of #2567 / #2568)
+
+Changed:
+
+- **Estimates no longer hide a job.** `hasSubLabor` is a REAL (non-estimated)
+  sub / labor cost; `hasAnySub` also counts an estimate. A job with only an
+  estimate sits in its own queue group, "Only an estimated sub cost", and Ask me
+  does not re-ask about it. When a real sub cost is saved on a job that carries
+  an estimate for the same work, the sheet offers "Void the estimate".
+- **Estimates elsewhere.** The 1099 year-to-date skips them, the accountant CSV
+  has an Estimated column, and receipt-health "costs missing" is not cleared by an
+  estimate alone. Margin still counts them (that is the point of an estimate).
+- **A failed invoice load aborts.** `NBDRevenue.cached()` is null when the read
+  failed or could not be asked yet; the panel says so and opens nothing instead of
+  showing every job as "costs but no payment".
+- **"Costs complete", Skip and Unsure hold only for the numbers they were given
+  on** (a fingerprint of costs, collected and row count). A new cost or payment
+  re-opens the job and re-asks. "Not applicable" is deliberate and stays. The unit
+  is the lead, in the panel AND the agent tool, so a repeat customer's second job
+  changes the numbers and re-opens the first.
+- **Peers** are FINISHED jobs with nothing owed, money collected, a real sub cost
+  and materials logged. Deposit-only, unpaid, lost and no-materials jobs no longer
+  set the median. Negative-margin and sub-over-collected flags apply to finished
+  jobs only. One `phaseFor(role, collected)` rule is shared by panel and tool.
+- **"Other" is a neutral category** (`other_direct`, "Other job cost").
+- A save that finishes after the sheet was closed no longer throws.
+- `nbd:flags-loaded` (new, from `feature-flags.js`) redraws an already-open
+  Expenses page so the button and card appear when the flag arrives late.
+
+Checked and not changed:
+
+- Refunds: `paymentsOf` / `collectedByLead` already net refunds (negative on their
+  own date), so collected is not overstated.
+- Voiding someone else's row: Firestore rules let only the row's writer or the
+  platform admin update an expense, so the panel says "Logged by someone else: fix
+  it in Expenses" instead of offering a button that would be refused. Letting a
+  company_admin void any row needs a rules change; not done here.
+- The agent tool's duplicate-cost reasons name suppliers (sub identities). The
+  tool is Frank-only; if Jo prefers, the reasons can carry row ids instead.

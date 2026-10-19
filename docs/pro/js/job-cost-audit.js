@@ -55,7 +55,7 @@
     { key: 'dumpster', label: 'Dumpster', short: 'Dumpster', category: 'equipment_dumpster', kind: 'dumpster' },
     { key: 'permit', label: 'Permit', short: 'Permit', category: 'permits_fees', kind: 'permit' },
     { key: 'disposal', label: 'Disposal', short: 'Disposal', category: 'disposal', kind: 'disposal' },
-    { key: 'other', label: 'Other', short: 'Other', category: 'equipment_dumpster', kind: 'other' },
+    { key: 'other', label: 'Other', short: 'Other', category: 'other_direct', kind: 'other' },
   ];
   const typeBy = (k) => TYPES.find((t) => t.key === k) || TYPES[0];
   const QTYPE = { sub: 'sub_install', dumpster: 'dumpster', permit: 'permit', disposal: 'disposal' };
@@ -99,12 +99,16 @@
   function isWon(l) { const r = roleOf(l); return r ? r === 'won' : WON.indexOf(stageKey(l)) !== -1; }
   function isLost(l) { const r = roleOf(l); return r ? r === 'lost' : /lost|dead|declin/i.test(stageKey(l)); }
   function leadName(l) { return ((l.firstName || '') + ' ' + (l.lastName || '')).trim() || l.name || String(l.address || '').split(',')[0] || 'Untitled'; }
-  function phaseOf(l, collectedCents) {
-    if (isLost(l)) return null;
-    if (isWon(l)) return 'finished';
-    if (ACTIVE_RE.test(stageKey(l))) return 'production';
-    return collectedCents > 0 ? 'signed' : null;
+  // Stage role first, the stage key as the fallback; then the ONE phase rule the
+  // agent tool also uses (job-cost-audit-logic.js phaseFor).
+  function roleFor(l) {
+    const r = roleOf(l);
+    if (r) return r;
+    if (isLost(l)) return 'lost';
+    if (isWon(l)) return 'won';
+    return ACTIVE_RE.test(stageKey(l)) ? 'job' : '';
   }
+  function phaseOf(l, collectedCents) { return LG().phaseFor(roleFor(l), collectedCents); }
   const PHASE_LABEL = { finished: 'Finished', production: 'In production', signed: 'Signed' };
 
   function copyAudit(a) {
@@ -138,8 +142,8 @@
       const trade = L.tradeKeyOf(l);
       const squares = L.squaresOf(l);
       const summary = L.summarize(collectedCents, costs);
-      if (collectedCents > 0 || costs.length) all.push({ id: l.id, trade, squares, collectedCents, summary });
       const phase = phaseOf(l, collectedCents);
+      if (collectedCents > 0 || costs.length) all.push({ id: l.id, trade, squares, collectedCents, summary, phase, settled: (S.owed[l.id] || 0) === 0 });
       if (!phase) return;
       const created = toDate(l.createdAt);
       jobs.push({
@@ -153,7 +157,7 @@
     S.jobById = {}; jobs.forEach((j) => { S.jobById[j.id] = j; });
     const all2 = L.auditQueue(jobs, by, S.peers);
     S.queue = all2;
-    S.doneCount = jobs.filter((j) => j.audit && j.audit.complete === true).length;
+    S.doneCount = jobs.filter((j) => isDone(j)).length;
   }
 
   async function loadRoster() {
@@ -183,6 +187,11 @@
     const R = w.NBDRevenue;
     if (!R || typeof R.loadInvoices !== 'function') { toast('Collected money is not loaded yet. Try again in a moment.', 'warn'); return false; }
     const invs = await R.loadInvoices();
+    // loadInvoices resolves [] when it could not ask yet or the read failed. That is
+    // NOT "nothing collected": every job would read "costs but no payment".
+    if (typeof R.cached === 'function' && !R.cached()) { toast('Could not load the invoices, so collected money is unknown. Nothing was changed. Try again in a moment.', 'warn'); return false; }
+    const owed = {};
+    (invs || []).forEach((inv) => { if (inv && inv.leadId && typeof R.owedDollarsOf === 'function') owed[inv.leadId] = (owed[inv.leadId] || 0) + Math.round((Number(R.owedDollarsOf(inv)) || 0) * 100); });
     const dollars = R.collectedByLead(invs || [], 0, FAR);
     const collected = {};
     Object.keys(dollars).forEach((k) => { collected[k] = Math.round(dollars[k] * 100); });
@@ -192,13 +201,16 @@
     const expenses = list().slice();
     const roster = await loadRoster();
     S = {
-      leads, expenses, collected, roster, audit, payees: pastPayees(expenses, roster),
+      leads, expenses, collected, owed, roster, audit, payees: pastPayees(expenses, roster),
       f: { group: 'all', phase: 'all', query: '', sort: 'worst', done: false },
       view: 'list', jobId: null, entry: null, voidId: null, hi: [], ask: null, confirmId: null, busy: false,
     };
     derive();
     return true;
   }
+
+  // Marked complete AND the numbers have not moved since.
+  function isDone(j) { return LG().isComplete(j.audit, LG().summarize(j.collectedCents, (S.by && S.by[j.id]) || [])); }
 
   // ── rows ────────────────────────────────────────────────────────────────
   function marginClass(m) { return m == null ? '' : m < 0 ? ' jc-m-bad' : m > LG().CONFIG.highMarginPct ? ' jc-m-hi' : ''; }
@@ -227,7 +239,7 @@
   function rowsHtml() {
     const L = LG();
     if (S.f.done) {
-      const done = S.jobs.filter((j) => j.audit && j.audit.complete === true);
+      const done = S.jobs.filter((j) => isDone(j));
       return done.length ? done.map((j) => '<article class="jc-card"><div class="jc-card-top"><div class="jc-name">' + esc(j.name) + '</div><span class="jc-tag">Complete</span></div>' +
         numsHtml(L.summarize(j.collectedCents, S.by[j.id] || [])) +
         '<div class="jc-act"><button type="button" class="jc-btn" data-jc-action="reopen" data-jc-id="' + esc(j.id) + '">Reopen</button></div></article>').join('')
@@ -279,6 +291,15 @@
     return { j, costs, s, flags, t, sug };
   }
 
+  function estPromptHtml(jobId) {
+    const p = S.estPrompt;
+    if (!p || p.leadId !== jobId) return '';
+    const cents = (S.by[jobId] || []).filter((e) => p.ids.indexOf(e.id) !== -1 && LG().isLiveDirect(e)).reduce((a, e) => a + LG().centsOf(e), 0);
+    if (!cents) return '';
+    return '<div class="jc-warnbox" role="status">This job also carries an estimate of ' + money(cents) + ' for the same work. Void it now that the real cost is in, or the two add up.' +
+      '<div class="jc-act"><button type="button" class="jc-btn jc-primary" data-jc-action="est-void">Void the estimate</button><button type="button" class="jc-btn" data-jc-action="est-keep">Keep both</button></div></div>';
+  }
+
   function flagCardsHtml(c) {
     const real = c.flags.filter((f) => f.severity !== 'info' || f.code === 'costs_no_payment');
     if (!real.length) return '';
@@ -301,7 +322,7 @@
       let h = '<li class="jc-cost' + (hi ? ' jc-hi' : '') + '"><div class="jc-cost-main"><div class="jc-cost-top"><b>' + esc(e.supplier || k) + '</b><b>' + money(LG().centsOf(e)) + '</b></div>' +
         '<div class="jc-cost-sub">' + esc(k) + ' · ' + esc(d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'no date') +
         (e.estimated === true ? ' · <span class="jc-est">estimate</span>' : '') + (e.source === SOURCE ? ' · logged here' : '') + '</div></div>' +
-        (mine ? '<button type="button" class="jc-btn jc-sm" data-jc-action="void-ask" data-jc-cid="' + esc(e.id) + '">Void</button>' : '') + '</li>';
+        (mine ? '<button type="button" class="jc-btn jc-sm" data-jc-action="void-ask" data-jc-cid="' + esc(e.id) + '">Void</button>' : '<span class="jc-sub jc-other">Logged by someone else: fix it in Expenses</span>') + '</li>';
       if (S.voidId === e.id) {
         h += '<li class="jc-void"><label class="jc-lab" for="jcVoidNote">Why void it? (required)</label><input id="jcVoidNote" class="jc-in" type="text" maxlength="300" autocomplete="off" data-jc-f="voidnote">' +
           '<div class="jc-act"><button type="button" class="jc-btn jc-primary" data-jc-action="void-go">Void this cost</button><button type="button" class="jc-btn" data-jc-action="void-cancel">Cancel</button></div></li>';
@@ -356,7 +377,7 @@
     return '<div class="jc-head"><button type="button" class="jc-x" data-jc-action="back" aria-label="Back to the list">←</button>' +
       '<h3 class="jc-title">' + esc(j.name) + '</h3><button type="button" class="jc-x" data-jc-action="close" aria-label="Close">✕</button></div>' +
       '<div class="jc-sub">' + esc(PHASE_LABEL[j.phase] || '') + ' · ' + esc(j.trade === 'general' ? 'no trade set' : j.trade.replace(/\+/g, ' + ')) + '</div>' + numsHtml(c.s) +
-      '<div class="jc-kinds">' + kindChips(c.s) + '</div>' + flagCardsHtml(c) +
+      '<div class="jc-kinds">' + kindChips(c.s) + '</div>' + estPromptHtml(j.id) + flagCardsHtml(c) +
       '<div class="jc-sec"><h4 class="jc-h">Costs on this job</h4>' + costRowsHtml(c) + '</div>' +
       '<div class="jc-sec" id="jcEntry"><h4 class="jc-h">Add a cost</h4>' + entryHtml(c, false) +
       '<button type="button" class="jc-btn jc-primary jc-wide" data-jc-action="save">Save cost</button></div>' +
@@ -372,7 +393,7 @@
     while (S.ask.i < S.ask.ids.length) {
       const id = S.ask.ids[S.ask.i];
       const j = S.jobById[id];
-      if (j && !(j.audit && j.audit.complete)) {
+      if (j && !isDone(j)) {
         const s = L.summarize(j.collectedCents, S.by[id] || []);
         const q = L.nextQuestion(s, j.audit);
         if (q) return { j, q, s };
@@ -440,9 +461,10 @@
     data['costAudit.updatedAt'] = w.serverTimestamp ? w.serverTimestamp() : new Date();
     try { await w.updateDoc(w.doc(w.db, 'leads', leadId), data); }
     catch (e) { console.warn('[job-cost-audit] could not save the audit note', e && e.code); toast('Could not save that. Nothing changed.', 'error'); return false; }
-    const a = S.audit[leadId] = S.audit[leadId] || copyAudit(null);
     const mirror = Object.assign({}, patch, localPatch || {});
+    const a = copyAudit(S ? S.audit[leadId] : ((w._leads || []).find((l) => l && l.id === leadId) || {}).costAudit);
     Object.keys(mirror).forEach((k) => setPath(a, k, mirror[k]));
+    if (S) S.audit[leadId] = a;
     // The CRM keeps its lead objects for the session; keep the note there too so a
     // second open of this panel does not lose it.
     const lead = (w._leads || []).find((l) => l && l.id === leadId);
@@ -500,16 +522,25 @@
       editLog: [logEntry('create', built.fields.estimated ? 'estimate' : '')],
       createdAt: w.serverTimestamp(), createdBy: me, updatedAt: w.serverTimestamp(),
     });
+    const st = S;
+    // Estimates of the same work already on this job (voided on request when a
+    // REAL cost for it arrives).
+    const L = LG();
+    const estIds = built.fields.estimated !== true && L.kindOf(built.fields) === 'sub'
+      ? S.expenses.filter((e) => e && e.leadId === leadId && e.estimated === true && L.isLiveDirect(e) && L.kindOf(e) === 'sub').map((e) => e.id) : [];
     S.busy = true;
     try {
       const ref = await w.addDoc(w.collection(w.db, 'expenses'), doc);
+      if (S !== st) { if (w.Expenses && typeof w.Expenses.refresh === 'function') w.Expenses.refresh(); return true; }
       const local = Object.assign({}, built.fields, { id: ref && ref.id, userId: me, source: SOURCE, editLog: doc.editLog });
       S.expenses.push(local);
+      S.estPrompt = estIds.length ? { leadId, ids: estIds } : null;
       S.changed = true;
       if (built.fields.category === 'subcontractor' && S.payees.indexOf(built.fields.supplier) === -1 && !S.roster.some((r) => r.name === built.fields.supplier)) S.payees.unshift(built.fields.supplier);
     } catch (e) {
       console.warn('[job-cost-audit] cost not saved', e && e.code);
-      S.busy = false; showErr('Could not save. Nothing changed.'); return false;
+      if (S === st) { S.busy = false; showErr('Could not save. Nothing changed.'); }
+      return false;
     }
     S.busy = false;
     derive();
@@ -518,20 +549,42 @@
     return true;
   }
 
+  // Void one of the user's own rows: deleted:true AND deletedAt, the row kept with its note.
+  async function voidRow(row, note) {
+    try {
+      await w.updateDoc(w.doc(w.db, 'expenses', row.id), {
+        deleted: true, deletedAt: w.serverTimestamp(),
+        editLog: appendLog(row.editLog, logEntry('void', note)), updatedAt: w.serverTimestamp(),
+      });
+    } catch (e) { console.warn('[job-cost-audit] void failed', e && e.code); toast('Could not void that. Nothing changed.', 'error'); return false; }
+    if (S) { S.expenses = S.expenses.filter((e) => e.id !== row.id); S.changed = true; }
+    return true;
+  }
   async function voidCost(id) {
     const row = S.expenses.find((e) => e && e.id === id);
     const note = String((document.getElementById('jcVoidNote') || {}).value || '').trim();
     if (!row || row.userId !== uid()) return;
     if (!note) { toast('Say why you are voiding it.', 'warn'); return; }
-    try {
-      await w.updateDoc(w.doc(w.db, 'expenses', id), {
-        deleted: true, deletedAt: w.serverTimestamp(),
-        editLog: appendLog(row.editLog, logEntry('void', note)), updatedAt: w.serverTimestamp(),
-      });
-    } catch (e) { console.warn('[job-cost-audit] void failed', e && e.code); toast('Could not void that. Nothing changed.', 'error'); return; }
-    S.expenses = S.expenses.filter((e) => e.id !== id);
-    S.voidId = null; S.changed = true;
+    if (!(await voidRow(row, note)) || !S) return;
+    S.voidId = null;
     derive(); toast('Cost voided', 'ok'); render();
+  }
+  // A real sub cost arrived and the job still carries an estimate for the same
+  // work: offer to void it, so the two do not add up.
+  async function voidEstimates() {
+    const p = S.estPrompt; S.estPrompt = null;
+    if (!p) return;
+    let n = 0, others = 0;
+    for (const id of p.ids) {
+      const row = S && S.expenses.find((e) => e && e.id === id);
+      if (!row) continue;
+      if (row.userId !== uid()) { others++; continue; }
+      if (await voidRow(row, 'Replaced by the real cost')) n++;
+    }
+    if (!S) return;
+    derive();
+    toast(n ? 'Estimate voided' + (others ? '. ' + others + ' more were logged by someone else: fix them in Expenses.' : '') : 'The estimate was logged by someone else: fix it in Expenses.', n ? 'ok' : 'warn');
+    render();
   }
 
   // ── actions ─────────────────────────────────────────────────────────────
@@ -563,7 +616,8 @@
     const j = S.jobById[id]; if (!j) return;
     const row = LG().auditRow(Object.assign({}, j, { audit: Object.assign({}, j.audit, { complete: false }) }), S.by[id] || [], S.peers);
     if (row && S.confirmId !== id) { S.confirmId = id; render(); return; }
-    if (!(await setAudit(id, { complete: true, completeBy: uid(), completeAt: w.serverTimestamp ? w.serverTimestamp() : new Date() }, { completeAt: Date.now() }))) return;
+    const sig = LG().signature(LG().summarize(j.collectedCents, S.by[id] || []));
+    if (!(await setAudit(id, { complete: true, completeBy: uid(), completeSig: sig, completeAt: w.serverTimestamp ? w.serverTimestamp() : new Date() }, { completeAt: Date.now() })) || !S) return;
     S.confirmId = null; S.changed = true;
     derive(); toast('Marked costs complete', 'ok');
     if (S.view === 'job') S.view = 'list';
@@ -572,7 +626,7 @@
 
   async function answer(a) {
     const st = askState(); if (!st) return;
-    if (!(await setAudit(st.j.id, { ['asked.' + st.q.key]: a }))) return;
+    if (!(await setAudit(st.j.id, { ['asked.' + st.q.key]: LG().askedValue(a, st.s) })) || !S) return;
     derive(); render();
   }
 
@@ -618,6 +672,8 @@
       S.entry = newEntry(sub ? 'sub_install' : 'other'); render();
       const e = document.getElementById('jcEntry'); if (e && e.scrollIntoView) e.scrollIntoView({ block: 'start' });
     }
+    else if (a === 'est-void') voidEstimates();
+    else if (a === 'est-keep') { S.estPrompt = null; render(); }
     else if (a === 'void-ask') { S.voidId = t.dataset.jcCid; render(); }
     else if (a === 'void-cancel') { S.voidId = null; render(); }
     else if (a === 'void-go') voidCost(S.voidId);
@@ -666,6 +722,17 @@
     document.addEventListener('input', onInput);
     document.addEventListener('change', (ev) => { const el = ev.target; if (el && el.dataset && el.dataset.jcF === 'estimated') onInput(ev); });
     document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && document.getElementById('jcOverlay')) close(); });
+  }
+
+  // The flags load a moment after boot. When they arrive and Expenses is already on
+  // screen, draw it again so the button and card appear without a manual reload.
+  if (typeof w.addEventListener === 'function' && !w._NBD_JC_FLAGS) {
+    w._NBD_JC_FLAGS = true;
+    w.addEventListener('nbd:flags-loaded', () => {
+      if (!on() || !w.Expenses || typeof w.Expenses.render !== 'function' || typeof w.Expenses.list !== 'function') return;
+      if (typeof document !== 'undefined' && document.getElementById('jcPanel')) return;
+      if (w.Expenses.list().length) w.Expenses.render();
+    });
   }
 
   async function open() {

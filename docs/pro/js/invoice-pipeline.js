@@ -511,7 +511,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     try {
       if (!(window.NBDFlags && typeof window.NBDFlags.load === 'function')
           && window.ScriptLoader && typeof window.ScriptLoader.load === 'function') {
-        await window.ScriptLoader.load('js/feature-flags.js?v=1');
+        await window.ScriptLoader.load('js/feature-flags.js?v=2');
       }
       if (window.NBDFlags && typeof window.NBDFlags.load === 'function') await window.NBDFlags.load();
     } catch (_) { /* flag stays off */ }

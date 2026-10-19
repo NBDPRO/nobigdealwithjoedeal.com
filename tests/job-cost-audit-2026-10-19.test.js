@@ -61,7 +61,7 @@ ok('stats: ties kept, min / max / median', st.n === 4 && st.min === 40 && st.max
 ok('stats of nothing', A.stats([]).n === 0 && A.stats([]).median === null);
 
 console.log('\n3. peers: only real sub-cost jobs');
-const mk = (id, trade, collected, costs, squares) => ({ id, trade, squares: squares || 0, collectedCents: collected, summary: A.summarize(collected, costs) });
+const mk = (id, trade, collected, costs, squares, o) => Object.assign({ id, trade, squares: squares || 0, phase: 'finished', settled: true, collectedCents: collected, summary: A.summarize(collected, costs) }, o || {});
 const jobsAll = [
   mk('p1', 'roof', 1000000, [sub(380000), mat(300000)], 20),
   mk('p2', 'roof', 1000000, [sub(440000), mat(300000)], 20),
@@ -69,10 +69,13 @@ const jobsAll = [
   mk('e1', 'roof', 1000000, [sub(100000, { estimated: true })]),
   mk('z1', 'roof', 0, [sub(100000)]),
   mk('m1', 'roof', 1000000, [mat(300000)]),
-  mk('g1', 'gutters', 400000, [sub(100000)]),
+  mk('g1', 'gutters', 400000, [sub(100000), mat(20000)]),
+  mk('d1', 'roof', 400000, [sub(600000), mat(10000)], 0, { phase: 'production' }),
+  mk('o1', 'roof', 1000000, [sub(300000), mat(10000)], 0, { settled: false }),
+  mk('n1', 'roof', 1000000, [sub(300000)]),
 ];
 const peers = A.buildPeers(jobsAll);
-ok('an estimate, an unpaid job and a materials-only job are not peers', peers.map((p) => p.id).join() === 'p1,p2,p3,g1', peers.map((p) => p.id).join());
+ok('an estimate, an unpaid job, a materials-only job, an in-production deposit, a job with money still owed and one with no materials are not peers', peers.map((p) => p.id).join() === 'p1,p2,p3,g1', peers.map((p) => p.id).join());
 ok('peer sub percent and per-square', peers[0].subPct === 38 && peers[1].subPct === 44 && peers[2].subPct === 52 && peers[0].subPerSqCents === 19000 && peers[3].subPerSqCents === null);
 
 console.log('\n4. suggestions come only from the company\'s own jobs');
@@ -87,7 +90,7 @@ ok('none at all: says so', (() => { const r = A.suggest([], 'roof', thisJob); re
 ok('another trade\'s jobs are not comparable', A.suggest(peers, 'siding', thisJob).ok === false && A.suggest(peers, 'gutters', thisJob).ok === false);
 ok('a job is never compared with itself', A.suggest(peers, 'roof', { id: 'p1', collectedCents: 1000000 }).ok === false);
 ok('nothing collected yet: the range shows, dollars do not', (() => { const r = A.suggest(peers, 'roof', { id: 'J', collectedCents: 0 }); return r.ok && r.noBase === true && r.median.cents === 0 && r.median.pct === 44; })());
-ok('ties: three identical peers give one number', (() => { const t = A.buildPeers([mk('a', 'roof', 100000, [sub(40000)]), mk('b', 'roof', 100000, [sub(40000)]), mk('c', 'roof', 100000, [sub(40000)])]); const r = A.suggest(t, 'roof', { id: 'J', collectedCents: 100000 }); return r.low.pct === 40 && r.high.pct === 40 && r.median.pct === 40; })());
+ok('ties: three identical peers give one number', (() => { const t = A.buildPeers([mk('a', 'roof', 100000, [sub(40000), mat(1000)]), mk('b', 'roof', 100000, [sub(40000), mat(1000)]), mk('c', 'roof', 100000, [sub(40000), mat(1000)])]); const r = A.suggest(t, 'roof', { id: 'J', collectedCents: 100000 }); return r.low.pct === 40 && r.high.pct === 40 && r.median.pct === 40; })());
 ok('the default minimum is 3, configurable in one place', A.CONFIG.minPeers === 3 && A.suggest(peers.slice(0, 2), 'roof', thisJob, { minPeers: 2 }).ok === true);
 
 console.log('\n5. thresholds: the company\'s own median, else a fallback');
@@ -152,7 +155,7 @@ const qjobs = [
   { id: 'A', name: 'Alpha Sample', phase: 'finished', trade: 'roof', collectedCents: 1200000, createdMs: D(2026, 1, 1).getTime(), audit: {} },
   { id: 'B', name: 'Bravo Sample', phase: 'finished', trade: 'roof', collectedCents: 900000, createdMs: D(2026, 1, 1).getTime(), audit: {} },
   { id: 'C', name: 'Charlie Sample', phase: 'production', trade: 'roof', collectedCents: 0, createdMs: D(2026, 1, 1).getTime(), audit: {} },
-  { id: 'D', name: 'Delta Sample', phase: 'finished', trade: 'roof', collectedCents: 800000, createdMs: D(2026, 1, 1).getTime(), audit: { complete: true } },
+  { id: 'D', name: 'Delta Sample', phase: 'finished', trade: 'roof', collectedCents: 800000, createdMs: D(2026, 1, 1).getTime(), audit: { complete: true, completeSig: A.signature(A.summarize(800000, [])) } },
   { id: 'E', name: 'Echo Sample', phase: 'finished', trade: 'roof', collectedCents: 500000, createdMs: D(2026, 1, 1).getTime(), audit: { asked: { sub: 'na', materials: 'na' } } },
 ];
 const byLead = {
@@ -174,7 +177,7 @@ ok('search by customer', A.filterRows(Q.rows, { query: 'brav' }).map((r) => r.id
 ok('filter by group and phase', A.filterRows(Q.rows, { group: 'no_sub' }).map((r) => r.id).join() === 'A' && A.filterRows(Q.rows, { phase: 'production' }).map((r) => r.id).join() === 'C');
 ok('sort: most collected, name, worst first', A.filterRows(Q.rows, { sort: 'collected' })[0].id === 'A' && A.filterRows(Q.rows, { sort: 'name' }).map((r) => r.id).join() === 'A,B,C' && A.filterRows(Q.rows, { sort: 'worst' })[0].id === 'B');
 const qr = A.nextQuestion(A.summarize(100, []), {});
-ok('ask me: starts with the sub question, skips what is answered or logged', qr.key === 'sub' && A.nextQuestion(A.summarize(100, []), { asked: { sub: 'skip' } }).key === 'dumpster' && A.nextQuestion(A.summarize(100, [sub(5)]), {}).key === 'dumpster' && A.nextQuestion(A.summarize(100, []), { asked: { sub: 'na', dumpster: 'skip', permit: 'unsure', disposal: 'na', materials: 'na' } }) === null);
+ok('ask me: starts with the sub question, skips what is answered or logged', qr.key === 'sub' && A.nextQuestion(A.summarize(100, []), { asked: { sub: A.askedValue('skip', A.summarize(100, [])) } }).key === 'dumpster' && A.nextQuestion(A.summarize(100, [sub(5)]), {}).key === 'dumpster' && A.nextQuestion(A.summarize(100, []), { asked: { sub: 'na', dumpster: A.askedValue('skip', A.summarize(100, [])), permit: A.askedValue('unsure', A.summarize(100, [])), disposal: 'na', materials: 'na' } }) === null);
 
 console.log('\n8. the panel: gates, the cost document, wiring');
 const base = { _user: { uid: 'u1' }, _userClaims: { companyId: 'co1' } };
@@ -192,7 +195,7 @@ const b1 = U.buildCost({ typeKey: 'sub_install', who: ' Sample Crew ', amount: '
 ok('a sub cost is a direct subcontractor expense, integer cents, tagged', b1.fields && b1.fields.category === 'subcontractor' && b1.fields.costType === 'direct' && b1.fields.amountCents === 440050 && b1.fields.taxCents === 0 && b1.fields.auditKind === 'sub' && b1.fields.supplier === 'Sample Crew' && b1.fields.subId === 'sub9' && b1.fields.leadId === 'L1' && b1.fields.jobId === 'j1' && b1.fields.estimated === false, JSON.stringify(b1));
 ok('the date is local midnight of the day picked', b1.fields.date.getDate() === 3 && b1.fields.date.getMonth() === 8 && b1.fields.date.getHours() === 0);
 ok('a sub cost needs a name; a dumpster does not', !!U.buildCost({ typeKey: 'sub_gutters', who: '', amount: '5' }, 'L1', ctx).error && U.buildCost({ typeKey: 'dumpster', who: '', amount: '450' }, 'L1', ctx).fields.supplier === 'Dumpster');
-ok('type to category: gutters, dumpster, permit, disposal, other', ['sub_gutters:subcontractor', 'dumpster:equipment_dumpster', 'permit:permits_fees', 'disposal:disposal', 'other:equipment_dumpster'].every((p) => { const [t, c] = p.split(':'); return U.buildCost({ typeKey: t, who: 'X', amount: '1' }, 'L1', ctx).fields.category === c; }));
+ok('type to category: gutters, dumpster, permit, disposal, other', ['sub_gutters:subcontractor', 'dumpster:equipment_dumpster', 'permit:permits_fees', 'disposal:disposal', 'other:other_direct'].every((p) => { const [t, c] = p.split(':'); return U.buildCost({ typeKey: t, who: 'X', amount: '1' }, 'L1', ctx).fields.category === c; }));
 ok('"Other" is counted as other, not as a dumpster', A.kindOf(U.buildCost({ typeKey: 'other', who: 'X', amount: '1' }, 'L1', ctx).fields) === 'other' && A.kindOf(U.buildCost({ typeKey: 'dumpster', who: 'X', amount: '1' }, 'L1', ctx).fields) === 'dumpster');
 ok('an estimate is saved estimated:true', U.buildCost({ typeKey: 'sub_install', who: 'X', amount: '10', estimated: true }, 'L1', ctx).fields.estimated === true);
 ['0', '', '-5', 'abc', '12.345', '1e3', '1000000000'].forEach((a) => ok('rejects amount "' + a + '"', !!U.buildCost({ typeKey: 'dumpster', who: 'X', amount: a }, 'L1', ctx).error));
@@ -215,5 +218,72 @@ const css = read('docs/pro/css/job-cost-audit.css');
 ok('phone targets: 48px buttons, 44px chips and close, 16px inputs', /\.jc-btn \{[^}]*min-height: 48px/.test(css) && /\.jc-chip \{[^}]*min-height: 44px/.test(css) && /\.jc-x \{[^}]*min-height: 44px/.test(css) && /\.jc-in \{[^}]*font-size: 16px/.test(css));
 ok('the sheet never outgrows the viewport', /\.jc-sheet \{[^}]*max-width: 640px/.test(css) && /\.jc-sheet \{[^}]*width: 100%/.test(css) && /\.jc-overlay \{[^}]*overflow-y: auto/.test(css));
 
-console.log('\n' + passed + ' passed, ' + failed + ' failed');
-process.exit(failed ? 1 : 0);
+
+console.log('\n9. review fixes (2026-10-19): estimates, signatures, phases, late flags, failed invoice load');
+// 1. an estimate must not hide the job
+const estOnly = [mat(50000), sub(300000, { estimated: true })];
+const es = A.summarize(1000000, estOnly);
+ok('estimate-only: not a real sub cost, but not "nothing logged" either', es.hasSubLabor === false && es.hasAnySub === true && es.estimatedOnly === true && es.estimatedCents === 300000);
+const eq = A.auditRow({ id: 'EO', name: 'Estimate Sample', phase: 'finished', trade: 'roof', collectedCents: 1000000, createdMs: D(2026, 1, 1).getTime(), audit: {} }, estOnly, noPeers);
+ok('an estimate-only job stays in the queue, in its own group', eq && eq.groups.indexOf('estimated_only') !== -1 && eq.groups.indexOf('no_sub') === -1 && eq.estimatedOnly === true, JSON.stringify(eq && eq.groups));
+ok('a real sub cost takes it out of both', !A.auditRow({ id: 'RS', name: 'R', phase: 'finished', trade: 'roof', collectedCents: 1000000, createdMs: 0, audit: { asked: { materials: 'na' } } }, [mat(50000), sub(300000)], noPeers));
+ok('an estimate does not stop "margin too good" from being judged against NO cost, but a real margin is not mistaken for it', codes(A.jobCostFlags(job(), estOnly, noPeers)).indexOf('high_margin_no_sub') === -1 && codes(A.jobCostFlags(job(), [mat(50000)], noPeers)).indexOf('high_margin_no_sub') !== -1);
+ok('Ask me still asks about the sub when only an estimate exists? no: an estimate answers it', A.nextQuestion(es, {}).key !== 'sub');
+// 6. peers are whole, settled, finished jobs
+ok('peers are finished AND settled AND have materials (documented in the function)', /FINISHED job with nothing left owed/.test(read('docs/pro/js/job-cost-audit-logic.js')));
+// 13. phase gates
+ok('a deposit-only job with a paid sub is not "lost money"', codes(A.jobCostFlags(job({ phase: 'production', collectedCents: 400000 }), [sub(600000)], noPeers)).indexOf('negative_margin') === -1 && codes(A.jobCostFlags(job({ phase: 'production', collectedCents: 400000 }), [sub(600000)], noPeers)).indexOf('sub_exceeds_collected') === -1);
+ok('...the same numbers on a FINISHED job are', codes(A.jobCostFlags(job({ collectedCents: 400000 }), [sub(600000)], noPeers)).indexOf('negative_margin') !== -1);
+// 4 + 8. complete / skip hold only while the numbers hold
+const sA = A.summarize(1000000, [mat(50000)]);
+const sB = A.summarize(1000000, [mat(50000), mat(1000)]);
+const aud = { complete: true, completeSig: A.signature(sA), asked: { sub: A.askedValue('skip', sA), dumpster: 'na', permit: 'skip' } };
+ok('Costs complete holds while the numbers are the same, and reopens when a cost or payment moves', A.isComplete(aud, sA) === true && A.isComplete(aud, sB) === false && A.isComplete({ complete: true }, sA) === false && A.isComplete(aud, A.summarize(1100000, [mat(50000)])) === false);
+ok('a completed job whose numbers moved is back in the queue', !A.auditRow({ id: 'C1', name: 'C', phase: 'finished', trade: 'roof', collectedCents: 1000000, createdMs: 0, audit: aud }, [mat(50000)], noPeers) && !!A.auditRow({ id: 'C1', name: 'C', phase: 'finished', trade: 'roof', collectedCents: 1000000, createdMs: 0, audit: aud }, [mat(50000), mat(1000)], noPeers));
+ok('Skip holds for the same numbers, is re-asked when they move; "not applicable" stays', A.askedAnswer(aud, 'sub', sA) === 'skip' && A.askedAnswer(aud, 'sub', sB) === null && A.askedAnswer(aud, 'dumpster', sB) === 'na' && A.askedAnswer(aud, 'permit', sA) === null);
+ok('Ask me re-asks a stale skip', A.nextQuestion(sA, aud).key === 'permit' && A.nextQuestion(sB, aud).key === 'sub');
+// 7. one phase rule
+ok('one phase rule for the panel and the tool', A.phaseFor('won', 0) === 'finished' && A.phaseFor('job', 0) === 'production' && A.phaseFor('lost', 500) === null && A.phaseFor('active', 500) === 'signed' && A.phaseFor('active', 0) === null);
+
+const ui2 = stripComments(read('docs/pro/js/job-cost-audit.js'));
+ok('"Other" is a neutral job cost, not equipment or a dumpster', /key: 'other', label: 'Other', short: 'Other', category: 'other_direct'/.test(ui2) && /key: 'other_direct',[^\n]*costType: COST_TYPE\.DIRECT/.test(read('docs/pro/js/expense-config.js')) && U.buildCost({ typeKey: 'other', who: 'X', amount: '1' }, 'L1', ctx).fields.category === 'other_direct');
+ok('a closed sheet cannot crash a save that finished (guard on S)', /if \(S !== st\)/.test(ui2) && /if \(S === st\)/.test(ui2));
+ok('voiding is possible only for the user\'s own rows; others\' rows say where to fix them', /Logged by someone else: fix it in Expenses/.test(ui2));
+
+// 2. estimates elsewhere
+const EX = sandbox(['docs/pro/js/expense-config.js', 'docs/pro/js/expenses.js'], { _leads: [], document: { addEventListener() {}, getElementById() { return null; }, querySelector() { return null; } }, addEventListener() {} });
+const ytd = EX.Expenses && EX.Expenses._test ? EX.Expenses._test : null;
+const exsrc = stripComments(read('docs/pro/js/expenses.js'));
+ok('1099 YTD skips estimates', /if \(e\.estimated === true\) return sum;/.test(exsrc));
+ok('the accountant CSV has an Estimated column', /'Source', 'Estimated', 'Schedule C \(suggested\)'/.test(exsrc) && /e\.estimated === true \? 'Yes' : ''/.test(exsrc));
+const RH = sandbox(['docs/pro/js/receipt-health.js']).NBDReceiptHealth;
+const wonLead = { id: 'W1', stage: 'closed' };
+ok('"costs missing" is not cleared by an estimate alone, but is by a real cost', RH.costsMissing([wonLead], [sub(100000, { leadId: 'W1', estimated: true })]).length === 1 && RH.costsMissing([wonLead], [sub(100000, { leadId: 'W1' })]).length === 0);
+
+// 3. failed invoice load, and 15. late flags
+const mkOpen = (cached, withFlagEvent) => {
+  const toasts = []; const listeners = {}; let rendered = 0;
+  const w = sandbox(['docs/pro/js/job-cost-audit-logic.js', 'docs/pro/js/job-cost-audit.js'], Object.assign({}, base, {
+    NBDFlags: { enabled: (nm) => nm === 'jobCostAuditor' },
+    document: { addEventListener() {}, getElementById() { return null; }, createElement() { return { setAttribute() {}, appendChild() {} }; }, body: { appendChild() {} } },
+    showToast: (m) => toasts.push(m),
+    NBDRevenue: { loadInvoices: async () => [], cached: () => cached, collectedByLead: () => ({}), owedDollarsOf: () => 0 },
+    Expenses: { list: () => (withFlagEvent ? [{ id: 'e' }] : []), render() { rendered++; }, refresh() {} },
+    _leads: [], addEventListener(n, fn) { listeners[n] = fn; },
+  }));
+  return { w, toasts, listeners, get rendered() { return rendered; } };
+};
+(async () => {
+  const bad = mkOpen(null, false);
+  await bad.w.NBDJobCostAuditor.open();
+  ok('invoices that could not be loaded: it says so and opens nothing (never "no money collected")', bad.toasts.length === 1 && /Could not load the invoices/.test(bad.toasts[0]));
+  const good = mkOpen([], false);
+  await good.w.NBDJobCostAuditor.open();
+  ok('an empty but real invoice list opens normally', good.toasts.every((t) => !/Could not load/.test(t)));
+  const late = mkOpen([], true);
+  ok('the flags-loaded event redraws Expenses so the button appears (late flag)', typeof late.listeners['nbd:flags-loaded'] === 'function' && (late.listeners['nbd:flags-loaded'](), late.rendered === 1));
+  const ff = stripComments(read('docs/pro/js/feature-flags.js'));
+  ok('feature-flags announces itself when loaded', /dispatchEvent\(new CustomEvent\('nbd:flags-loaded'\)\)/.test(ff));
+  console.log('\n' + passed + ' passed, ' + failed + ' failed');
+  process.exit(failed ? 1 : 0);
+})();
