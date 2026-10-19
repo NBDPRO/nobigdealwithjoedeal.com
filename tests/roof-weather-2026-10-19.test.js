@@ -13,6 +13,25 @@ const path = require('path');
 const vm = require('vm');
 const ROOT = path.join(__dirname, '..');
 const rd = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
+// Wiring checks read CODE, not prose (mutation audit 2026-10-19): a comment that
+// still quotes a removed line must not keep a check green. String-aware.
+function stripJs(src) {
+  let out = '', i = 0;
+  while (i < src.length) {
+    const c = src[i], n = src[i + 1];
+    if (c === '/' && n === '*') { const e = src.indexOf('*/', i + 2); i = e < 0 ? src.length : e + 2; continue; }
+    if (c === '/' && n === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
+    if (c === "'" || c === '"' || c === '`') {
+      let j = i + 1;
+      while (j < src.length && src[j] !== c) { if (src[j] === '\\') j++; j++; }
+      out += src.slice(i, j + 1); i = j + 1; continue;
+    }
+    out += c; i++;
+  }
+  return out;
+}
+const rdJs = (p) => stripJs(rd(p));
+
 let passed = 0, failed = 0; const fails = [];
 function ok(name, cond, detail) {
   if (cond) { passed++; console.log('  ✓ ' + name); }
@@ -46,6 +65,7 @@ const hrs = (n, o) => Array.from({ length: n }, () => P(o));
   ok('steady rain text is poor even with null odds', A(hrs(4, { shortForecast: 'Rain', probabilityOfPrecipitation: { value: null } })).level === 'poor');
   ok('cold and hot are check, Celsius converts',
     A(hrs(4, { temperature: 30 })).level === 'check' && A(hrs(4, { temperature: 97 })).level === 'check' && A(hrs(4, { temperature: 0, temperatureUnit: 'C' })).level === 'check');
+  ok('Celsius converts both ways (5 C = 41 F is fine, 36 C = 97 F is hot)', A(hrs(4, { temperature: 5, temperatureUnit: 'C' })).level === 'ok' && A(hrs(4, { temperature: 36, temperatureUnit: 'C' })).level === 'check');
   ok('reasons are listed in the text', /wind up to 25 mph/.test(A(hrs(2, { windSpeed: '25 mph' })).text));
   ok('only the next 8 hours count (a storm at hour 9 is ignored)', A(hrs(8).concat([P({ shortForecast: 'Thunderstorms' })])).level === 'ok');
   ok('no data is unknown and says not an all-clear', A([]).level === 'unknown' && /Not an all-clear/.test(A([]).text) && A(null).level === 'unknown');
@@ -64,15 +84,16 @@ const hrs = (n, o) => Array.from({ length: n }, () => P(o));
   ok('same quarter-degree cell is cached (no new calls)', calls.length === 2);
   const R3 = load(() => Promise.resolve({ ok: false }));
   ok('HTTP failure -> unknown, never rejects', (await R3.forecast(39.1, -84.5)).level === 'unknown');
+  ok('a rejecting fetch -> unknown, never rejects', (await load(() => Promise.reject(new Error('offline'))).forecast(39.1, -84.5)).level === 'unknown');
   ok('bad coordinates -> unknown without fetching', (await R2.forecast('x', null)).level === 'unknown' && calls.length === 2);
 
   console.log('\nMission wiring');
-  const m = rd('docs/pro/js/layouts/mission.js');
-  ok('chip is behind the roofWeatherChip flag (absent = off)', /F\.enabled\('roofWeatherChip'\)/.test(m) && /if \(!wxOn\(\) \|\| !model\.stops\.length\) return null/.test(m));
+  const m = rdJs('docs/pro/js/layouts/mission.js');
+  ok('chip is behind the roofWeatherChip flag (absent = off)', /if \(!F\.enabled\('roofWeatherChip'\)\) \{[\s\S]*?return false;\s*\}/.test(m) && /if \(!wxOn\(\) \|\| !model\.stops\.length\) return null/.test(m));
   ok('chip renders in the route panel and stop detail', /h \+= wxChip\(m\)/.test(m) && /\+ wxs \+ '<\/div>'/.test(m));
   ok('says forecast, not a safety clearance', /not a safety clearance/.test(m));
-  ok('no crew-location claims added', !/crews? (are|is) (on|at)/i.test(m));
-  ok('mission needs roof-weather.js lazily', /'js\/layouts\/kit\.js', 'js\/roof-weather\.js', 'js\/layouts\/mapview\.js'/.test(rd('docs/pro/js/layout-system.js')));
+  ok('no crew-location claims added (with a positive control that the pattern can match)', !/crews? (are|is) (on|at)/i.test(m) && /crews? (are|is) (on|at)/i.test('Crew is on site'));
+  ok('mission needs roof-weather.js lazily', /'js\/layouts\/kit\.js', 'js\/roof-weather\.js', 'js\/layouts\/mapview\.js'/.test(rdJs('docs/pro/js/layout-system.js')));
 
   console.log('\n─'.repeat(1) + '─'.repeat(49));
   console.log(`${passed} passed, ${failed} failed`);
