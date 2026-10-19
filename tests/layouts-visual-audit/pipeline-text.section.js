@@ -18,11 +18,12 @@ module.exports = {
           const col = [...document.querySelectorAll('.kcol-body')].find((x) => window.__lx.visible(x));
           if (col) { added = document.createElement('div'); added.className = 'k-empty'; added.innerHTML = '<div class="k-empty-line">Drop leads here</div>'; col.insertBefore(added, col.firstChild); empty = c('.k-empty-line'); }
         }
+        const e2 = document.querySelector('.k-empty-line'); const op = e2 ? parseFloat(getComputedStyle(e2).opacity) : null; // contrast() ignores opacity, so read it too
         if (added) added.remove();
-        return { title: c('.crm-hdr-title'), empty };
+        return { title: c('.crm-hdr-title'), empty, opacity: op };
       });
       ok('Pipeline (' + scheme + '): the title clears 4.5:1', r.title !== null && r.title >= 4.5, JSON.stringify(r));
-      ok('Pipeline (' + scheme + '): the empty-column line clears 4.5:1', r.empty !== null && r.empty >= 4.5, JSON.stringify(r));
+      ok('Pipeline (' + scheme + '): the empty-column line clears 4.5:1', r.empty !== null && r.empty >= 4.5 && r.opacity === 1, JSON.stringify(r));
       await P.ctx.close();
     }
   },
