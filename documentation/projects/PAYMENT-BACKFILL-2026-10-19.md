@@ -258,3 +258,25 @@ Checked against the other invoice writers: the send lock and its restore, milest
 state, deposit accounts, reminders and the catch-up Undo all still pass (rules tests). Older rules tests that asserted "set paid with no payment
 entry" were changed to assert the entry is required. The backfill screen's read-back after `markPaid` is `paymentLanded(invoice, paymentId)` in
 the logic file, tested directly. 22 rules mutants of the invoice money rules are all killed.
+
+### Round 5 (PR #2580): three more variants, and what is left on purpose
+
+- **The send lock holds the money.** While an invoice is `sending` its `payments` list cannot change at all (no undo, no append), so
+  `paid -> sending -> undo -> paid` cannot revive a paid status with no money. The intact round trip (paid -> sending -> paid) still works.
+- **No re-pricing through a status round trip.** An invoice goes back to `draft` only by the owner side, or as the send lock's restore of a
+  draft it had. (The app writes `draft` only at create, so nothing legitimate is lost.)
+- **Markers by key presence.** On create, the keys `backfilled`, `backfillKey`, `paymentBackfill` in ANY value or type (`'true'`, `1`,
+  `false`, `''`), or `source` equal to "backfill" in any case, make the write owner-side only; they are frozen afterwards. Consumers
+  (`isBackfillInvoice`, `hasBackfillInvoice`, `isQuietBackfill`) stay strict (`=== 'backfill'`, `=== true`) because only the owner side can
+  write those keys at all, and the owner side writes the exact values.
+- Tests added: cross-tenant manager append / tenant swap denied, same-tenant non-creator rep append denied, 15 -> 14 undo allowed, sub-cent
+  tolerance documented (`100.000009` is inside the 0.001-cent allowance, `100.004` is not).
+
+**Decisions left to the owner (not changed here):**
+- *Hard delete.* The rules still let the creator (and a company_admin) hard-delete an invoice that has payments. The catch-up "Undo" does exactly
+  that to an invoice it created, so a blanket `amountPaid == 0` rule would break it. Proposal for Jo: owner-side-only deletes of an invoice with
+  payments, with catch-up Undo switched to a soft void; follow-up before either flag is turned on.
+- *16 to 25 payments.* An invoice with more than 15 payments becomes append/undo-frozen (it can still be edited elsewhere and voided). Acceptable:
+  a job with more than 15 separate payments is not a real case today.
+- *Extra keys on a payment row and `balanceDue`* are not validated by the rules (low: nothing reads them for money; `amountPaid`, the entry
+  amount, date, method and recorder are the validated fields).
