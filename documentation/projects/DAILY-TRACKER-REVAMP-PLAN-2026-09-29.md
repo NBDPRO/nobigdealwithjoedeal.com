@@ -184,3 +184,24 @@ the plan's default. Jo can ask for barcode lookup (Open Food Facts) later.
   - A quick-add summed into the right meal.
   - The header read SAVED.
   - The card fits at 375px.
+
+## Update 2026-10-20 — what is built, and the progression charts
+
+Recon on 2026-10-20 found nearly the whole plan already on main: Phase 0
+(tombstones, 400-per-batch sync, settings synced, escaped templates; #1878),
+the Workout Coach (pattern slots with rotation, "Switch it up", per-set
+reps / weight / RPE, double-progression targets, auto-PRs), the weight trend,
+the food log, the old-workout import with a preview (#1892), the Sunday
+review and the money tab.
+
+The one Phase 1 piece still missing was charts. Added: a 📈 Progress card
+under the Weight card (program dashboard and the day page's Fitness section)
+with chips for the lifts done most in the last 180 days, an estimated-1RM line
+for the chosen lift (new bests dotted), and 12 weeks of volume
+(Monday–Sunday). It reads the coach's finished sessions, so it needs no new
+data. Estimated 1RM ignores sets over 12 reps. Test:
+[tracker-progress-charts](../../tests/tracker-progress-charts-2026-10-20.test.js).
+
+Jo's answers 2026-10-20: wants **food search and barcode scan** (Phase 2,
+Open Food Facts) — next. Hume scale import "would be cool" (Hume → Apple Health
+→ Shortcut is the likely path).
