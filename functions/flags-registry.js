@@ -90,6 +90,8 @@ const ROWS = {
     meaning: 'The 6:45 brief shows only what is new since yesterday and collapses the standing lists (signed jobs needing a week, open promises, review asks) to a count plus a link. Off = the brief repeats the full lists, as today.' },
   COMPANY_DOC_EXPIRY_ENABLED: { group: 'Alerts & away', dark: true, doc: 'documentation/projects/COMPANY-DOC-EXPIRY-2026-10-18.md',
     meaning: 'Daily 9 AM: a note in your Agent inbox when your own insurance certificate, license or certification is 30, 14 or 7 days from expiring, or has expired. Never goes to a customer. Off = dry run, logs only.' },
+  SUB_PAPERWORK_WATCH_ENABLED: { group: 'Alerts & away', dark: true, doc: 'documentation/projects/SUB-PAPERWORK-2026-10-19.md',
+    meaning: 'Daily 9:15 AM: a note in your Agent inbox when a sub insurance certificate or license is 30, 14 or 7 days from ending, or has ended. Never goes to a sub or customer. Off = dry run, logs only.' },
   WEEKLY_DIGEST_ENABLED: { group: 'Alerts & away', doc: 'documentation/runbooks/SPEND_KILLSWITCH.md',
     meaning: 'The weekly roll-up email. Off = dry run, not sent.' },
   MONTHLY_OVERHEAD_ALERT_DISABLED: { group: 'Alerts & away', doc: 'documentation/projects/WEEKLY_CADENCE.md',

@@ -29,8 +29,9 @@
   var MAX_FILES = 6;
   var MAX_BYTES = 25 * 1024 * 1024;
   var MAX_SIDE = 2000;
-  // The two private places a proof may live. Anything else is never opened.
-  var PATH_RE = /^(?:receipts\/[A-Za-z0-9_-]{1,128}\/sub-proofs|payment-proofs\/[A-Za-z0-9_-]{1,128}\/[A-Za-z0-9_-]{1,80})\/[A-Za-z0-9._-]{1,160}$/;
+  // The private places a proof may live. Anything else is never opened. The third is a sub's
+  // W-9 / insurance paper (sub-paperwork.js, flag subPaperwork): sub-papers/{companyId}/{subId}/.
+  var PATH_RE = /^(?:receipts\/[A-Za-z0-9_-]{1,128}\/sub-proofs|payment-proofs\/[A-Za-z0-9_-]{1,128}\/[A-Za-z0-9_-]{1,80}|sub-papers\/[A-Za-z0-9_-]{1,128}\/[A-Za-z0-9_-]{1,128})\/[A-Za-z0-9._-]{1,160}$/;
 
   function pathOk(p) { return typeof p === 'string' && PATH_RE.test(p) && p.indexOf('..') === -1; }
   function isPdfPath(p) { return /\.pdf$/i.test(String(p || '')); }

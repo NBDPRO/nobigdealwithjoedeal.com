@@ -45,6 +45,8 @@ const CRON_GATES = [
   { name: 'CALL_WATCH_ENABLED', polarity: 'enabled', file: 'call-watch.js' },
   // Daily own-document expiry watch (2026-10-18): Agent-inbox reports to the owner at 30/14/7 days and on expiry. Dark until Jo says go.
   { name: 'COMPANY_DOC_EXPIRY_ENABLED', polarity: 'enabled', file: 'company-doc-expiry.js' },
+  // Daily independent-sub paperwork watch (2026-10-19): Agent-inbox reports to the owner when a sub's insurance certificate or license is near its end. Never a sub or customer. Dark until Jo says go.
+  { name: 'SUB_PAPERWORK_WATCH_ENABLED', polarity: 'enabled', file: 'sub-paperwork-watch.js' },
   // Away mode: the 15-min tick that tells the backup person (dry-run until Jo
   // says go). Ending an expired window is NOT behind this gate.
   { name: 'AWAY_MODE_ENABLED', polarity: 'enabled', file: 'away-mode.js' },

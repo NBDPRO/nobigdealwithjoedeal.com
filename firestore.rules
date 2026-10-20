@@ -354,7 +354,37 @@ service cloud.firestore {
         && (!('trade' in d) || d.trade == null || (d.trade is string && d.trade.size() <= 40))
         && (!('notes' in d) || d.notes == null || (d.notes is string && d.notes.size() <= 1000))
         && (!('active' in d) || d.active is bool)
-        && (exp == null || exp == '' || (exp is string && exp.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')));
+        && (exp == null || exp == '' || (exp is string && exp.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
+        && subPaperworkOk(d);
+    }
+
+    // Sub paperwork tracker (2026-10-19, flag subPaperwork): W-9 status, liability
+    // and workers' comp end dates, license note, a legal name for the 1099 prep.
+    // Every field is optional and bounded. NO tax ID is ever stored here: a key
+    // that names one is refused, and so is free text that holds a Social Security
+    // or employer ID number (the W-9 itself is a private Storage file, see
+    // sub-papers/ in storage.rules). (?s) so a newline cannot hide the number; a
+    // space, dot or hyphen between the digit groups does not hide it either (a ZIP+4 is not caught). This
+    // is a guard against an honest slip, not against a determined admin. A sub doc
+    // may not carry an `id` field (a client that spreads the doc data over the doc
+    // id would otherwise be pointed at another sub's doc).
+    function _subYmdOk(d, k) {
+      return !(k in d) || d[k] == null || d[k] == '' || (d[k] is string && d[k].matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'));
+    }
+    function _subTextOk(d, k, max) {
+      return !(k in d) || d[k] == null
+        || (d[k] is string && d[k].size() <= max
+            && !d[k].matches('(?s).*(^|[^0-9])([0-9]{3}-[0-9]{2}-[0-9]{4}|[0-9]{3} [0-9]{2} [0-9]{4}|[0-9]{3}[.][0-9]{2}[.][0-9]{4}|[0-9]{2}[ -][0-9]{7}|[0-9]{9})([^0-9]|$).*'));
+    }
+    function subPaperworkOk(d) {
+      return !d.keys().hasAny(['ssn', 'ein', 'tin', 'fein', 'SSN', 'EIN', 'TIN', 'FEIN', 'Ssn', 'Ein', 'taxId', 'taxid', 'TaxId', 'taxID', 'tax_id', 'taxIdNumber', 'tax_id_number', 'ssnLast4', 'ssn_last4', 'einLast4', 'ein_last4', 'w9Last4', 'w9Number', 'socialSecurity', 'socialSecurityNumber', 'federalId'])
+        && (!('w9Status' in d) || d.w9Status in ['none', 'requested', 'on_file'])
+        && (!('wcExempt' in d) || d.wcExempt is bool)
+        && (!('licenseRequired' in d) || d.licenseRequired is bool)
+        && _subYmdOk(d, 'w9ReceivedOn') && _subYmdOk(d, 'glExpiry') && _subYmdOk(d, 'wcExpiry')
+        && _subYmdOk(d, 'licenseExpiry') && _subYmdOk(d, 'paperworkReviewedAt')
+        && _subTextOk(d, 'legalName', 120) && _subTextOk(d, 'entityType', 40) && _subTextOk(d, 'wcExemptNote', 200)
+        && _subTextOk(d, 'licenseNote', 200) && _subTextOk(d, 'paperworkNote', 500);
     }
 
     // 2026-10-12 — per-number contact labels (companies/{companyId}/
@@ -3134,6 +3164,17 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Sub paperwork helpers (2026-10-19; used by the subs and subs/papers rules below).
+      function subPaperworkWriter() {
+        return isAuth() && notViewer()
+          && (ownsTenantByUid(companyId)
+              || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
+      }
+      function subPaperworkKeys() {
+        return ['legalName', 'entityType', 'w9Status', 'w9ReceivedOn', 'glExpiry', 'wcExpiry', 'wcExempt', 'wcExemptNote',
+                'licenseRequired', 'licenseNote', 'licenseExpiry', 'paperworkNote', 'paperworkReviewedAt'];
+      }
+
       // ── SUB ROSTER (production flow, 2026-10-04) ──
       // The company's independent subcontractors: name, phone, trade,
       // insurance-certificate expiry, notes. Keyed under the TENANT key the
@@ -3142,17 +3183,60 @@ service cloud.firestore {
       // tenant; writable by the solo owner or same-company staff (never a
       // viewer, never a sales_rep). Soft delete (active:false) keeps a sub a
       // past job names.
+      //
+      // The paperwork fields (W-9 status, certificate dates, legal name, notes; see
+      // subPaperworkOk) are narrower: the solo owner or company_admin ONLY. A manager
+      // still edits the roster itself, but a write that sets or changes one of those
+      // fields is refused (subPaperworkWriter).
       match /subs/{subId} {
         allow read: if isAdmin()
           || ownsTenantByUid(companyId)
           || (isAuth() && request.auth.token.get('companyId', '') == companyId);
-        allow create, update: if isAuth() && notViewer()
+        allow create: if isAuth() && notViewer()
           && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
-          && subWriteOk();
+          && subWriteOk()
+          && !('id' in request.resource.data)
+          && _subTextOk(request.resource.data, 'notes', 1000)
+          && (!request.resource.data.keys().hasAny(subPaperworkKeys()) || subPaperworkWriter());
+        allow update: if isAuth() && notViewer()
+          && (ownsTenantByUid(companyId)
+              || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
+          && subWriteOk()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['notes']) || _subTextOk(request.resource.data, 'notes', 1000))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(subPaperworkKeys()) || subPaperworkWriter());
         allow delete: if isAuth() && notViewer()
           && (ownsTenantByUid(companyId)
               || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
+
+        // ── SUB PAPERS (W-9 / certificates, 2026-10-19, flag subPaperwork) ──
+        // companies/{companyId}/subs/{subId}/papers/{paperId}: a POINTER to a private
+        // Storage file (sub-papers/{companyId}/{subId}/{file}, storage.rules): the kind,
+        // the path, the display name. Never a URL or a ?token= link (the path regex
+        // refuses both), never a tax ID. Read AND write: the solo owner or the
+        // company's company_admin only: not a manager, not a sales_rep, and not a
+        // viewer (a W-9 carries a tax ID; a viewer sees the status on the sub, not the
+        // file). A paper is immutable: replace it by uploading a new one and deleting
+        // the old.
+        match /papers/{paperId} {
+          function subPapersAccess() { return subPaperworkWriter(); }
+          function subPaperOk() {
+            let d = request.resource.data;
+            return d.keys().hasOnly(['kind', 'storagePath', 'fileName', 'uploadedAt', 'uploadedBy'])
+              && d.keys().hasAll(['kind', 'storagePath', 'uploadedBy'])
+              && d.kind in ['w9', 'gl_coi', 'wc_coi', 'license', 'other']
+              && d.storagePath is string
+              && d.storagePath.matches('^sub-papers/' + companyId + '/' + subId + '/[A-Za-z0-9._-]{1,160}$')
+              && !d.storagePath.matches('.*[.][.].*')
+              && (!('fileName' in d) || (d.fileName is string && d.fileName.size() <= 120))
+              && (!('uploadedAt' in d) || d.uploadedAt is timestamp)
+              && d.uploadedBy == request.auth.uid;
+          }
+          allow read, delete: if subPapersAccess();
+          allow create: if subPapersAccess() && subPaperOk();
+          allow update: if false;
+        }
       }
 
       // ── COMPANY DOCUMENTS (own-document expiry, 2026-10-18) ──

@@ -811,6 +811,9 @@
     // Customer payment backfill (flag paymentBackfill, owner only; empty string when off).
     if (window.NBDPaymentBackfill) html += window.NBDPaymentBackfill.panelHtml();
 
+    // Sub paperwork: W-9s, insurance papers, 1099 prep (flag subPaperwork; empty string when off).
+    if (window.NBDSubPaperwork) html += window.NBDSubPaperwork.panelHtml();
+
     // Month close (flag monthClose; empty string when off).
     if (window.NBDMonthClose) html += window.NBDMonthClose.panelHtml();
 
