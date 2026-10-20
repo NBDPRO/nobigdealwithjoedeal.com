@@ -337,6 +337,28 @@ service firebase.storage {
       allow read, write: if false;
     }
 
+    // ── SUB PAPERS (W-9, insurance certificates; 2026-10-19, flag subPaperwork) ──
+    // Path: sub-papers/{companyId}/{subId}/{file}
+    // A W-9 carries a Social Security or employer ID number, so this is the most
+    // private path in the bucket. Read, create and delete: the solo owner or the
+    // company's company_admin ONLY (isCompanyAdminOf: a token claim, so a manager,
+    // a sales_rep, a viewer, another company, and the platform admin all get nothing).
+    // No update: a paper is immutable (upload a new one, delete the old). A raster
+    // image or a PDF, under 25MB. The CRM opens it through the signed-in SDK
+    // (getBlob into a blob: URL), NEVER getDownloadURL: a download URL carries a
+    // permanent ?token= that works for anyone holding the link.
+    match /sub-papers/{companyId}/{subId}/{file} {
+      allow read: if isCompanyAdminOf(companyId);
+      // resource == null: only a NEW object (an overwrite is refused even where the
+      // emulator reports it as a create, as reel-uploads/ does).
+      allow create: if isCompanyAdminOf(companyId)
+        && resource == null
+        && request.resource.size < 25 * 1024 * 1024
+        && isProofType();
+      allow update: if false;
+      allow delete: if isCompanyAdminOf(companyId);
+    }
+
     // ── YARD-SIGN PHOTOS ──────────────────────────────
     // Path: yard-signs/{uid}/{ts}_{name} — a photo of each placed yard sign
     // (yard-signs.js, 2026-09-29). Same owner posture and image limits as

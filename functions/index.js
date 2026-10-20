@@ -908,6 +908,10 @@ exports.callWatch = require('./call-watch').callWatch;
 // vehicle papers) at 30 / 14 / 7 days or expired -> one Agent-inbox report to
 // the owner per stage. Never a customer. DRY-RUN unless COMPANY_DOC_EXPIRY_ENABLED=true.
 exports.companyDocExpiryWatch = require('./company-doc-expiry').companyDocExpiryWatch;
+// Daily 09:15 ET: independent subs' liability / workers' comp certificates and licenses
+// (companies/{id}/subs) at 30 / 14 / 7 days or ended -> one Agent-inbox report to the
+// owner per stage. Never a sub or customer. DRY-RUN unless SUB_PAPERWORK_WATCH_ENABLED=true.
+exports.subPaperworkWatch = require('./sub-paperwork-watch').subPaperworkWatch;
 // Read-only Messaging Control Center (2026-10-19, flag messagingControlCenter, dark): masked overview
 // for the owner/admin + an hourly alert watch (Agent inbox + bell + push to the owner, never a customer).
 exports.messagingCenter = require('./messaging-center').messagingCenter;

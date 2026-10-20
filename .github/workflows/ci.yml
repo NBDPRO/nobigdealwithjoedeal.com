@@ -548,6 +548,16 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-cdocs-test 'node firestore-rules.company-docs.test.js'
+      # Sub paperwork tracker (2026-10-19): companies/{cid}/subs paperwork fields + subs/{id}/papers pointers. Own file.
+      - name: Run sub-paperwork rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-subpaper-test 'node firestore-rules.sub-paperwork.test.js'
+      # W-9 / insurance certificates (2026-10-19): sub-papers/{companyId}/{subId}/ is owner + company_admin only. Own file (positive control inside).
+      - name: Run sub-papers storage rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only storage --project nbd-subpapers-test 'node storage-rules.sub-papers.test.js'
       # Brief delta-mode snapshot (2026-10-18): morningBriefState/{cid} is Admin-SDK only. Own file.
       - name: Run morning-brief-state rules tests under emulator
         run: |

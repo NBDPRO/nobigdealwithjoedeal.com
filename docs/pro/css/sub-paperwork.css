@@ -1,0 +1,60 @@
+/* Sub paperwork tracker (js/sub-paperwork.js, flag subPaperwork, 2026-10-19).
+   Mobile-first: one column, 44-48px targets, 16px inputs (no iOS zoom), nothing
+   wider than the viewport. Same tokens as sub-payments.css. */
+.spw-panel { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.spw-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.spw-title { margin: 0; font-size: 16px; min-width: 0; overflow-wrap: anywhere; }
+.spw-sub, .spw-empty, .spw-hint { font-size: 12px; color: var(--m, #9ca3af); }
+.spw-empty { padding: 10px 0; }
+.spw-hint { margin: 0; line-height: 1.4; }
+.spw-lede { margin: 0; font-size: 13px; line-height: 1.4; color: var(--m, #9ca3af); }
+.spw-lede b { color: var(--t, #fff); }
+
+.spw-overlay { position: fixed; inset: 0; z-index: 10070; background: rgba(0, 0, 0, .72); overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: max(10px, env(safe-area-inset-top)) 10px max(14px, env(safe-area-inset-bottom)); box-sizing: border-box; }
+.spw-sheet { box-sizing: border-box; width: 100%; max-width: 560px; margin: 0 auto; background: var(--s, #12223D); color: var(--t, #fff);
+  border: 1px solid var(--br, #2a2f37); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.spw-sheet *, .spw-sheet *::before, .spw-sheet *::after { box-sizing: border-box; }
+.spw-x { min-width: 44px; min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--t, #fff); font-size: 18px; cursor: pointer; flex: 0 0 auto; }
+
+.spw-btn { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--br, #2a2f37); background: transparent; color: var(--t, #fff); font-size: 14px; cursor: pointer; }
+.spw-btn:disabled { opacity: .5; cursor: default; }
+.spw-primary { background: var(--orange, #BD5728); border-color: var(--orange, #BD5728); color: #fff; font-weight: 700; }
+.spw-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.spw-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.spw-tab { min-height: 44px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--br, #2a2f37); background: transparent; color: var(--t, #fff); font-size: 14px; cursor: pointer; }
+.spw-tab[aria-pressed="true"] { background: var(--orange, #BD5728); border-color: var(--orange, #BD5728); color: #fff; }
+
+.spw-card { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--br, #2a2f37);
+  background: transparent; color: var(--t, #fff); text-align: left; font: inherit; cursor: pointer; min-width: 0; }
+.spw-static { cursor: default; }
+.spw-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.spw-name { min-width: 0; overflow-wrap: anywhere; font-size: 15px; }
+.spw-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.spw-chip { display: inline-block; max-width: 100%; padding: 4px 10px; border-radius: 99px; font-size: 12px; border: 1px solid var(--br, #2a2f37); overflow-wrap: anywhere; }
+.spw-chip b { font-weight: 700; }
+.spw-ok { border-color: #22c55e; color: #86efac; }
+.spw-soon { border-color: var(--gold, #eab308); color: var(--gold, #eab308); }
+.spw-expired, .spw-missing { border-color: #ef4444; color: #fca5a5; }
+
+.spw-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.spw-lab { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--m, #9ca3af); }
+.spw-in { width: 100%; min-height: 48px; border-radius: 10px; border: 1px solid var(--br, #2a2f37); background: var(--s2, rgba(255, 255, 255, .04)); color: var(--t, #fff); font-size: 16px; padding: 0 10px; }
+.spw-ta { padding: 10px; min-height: 84px; resize: vertical; font-family: inherit; }
+.spw-check { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; }
+.spw-check input { width: 22px; height: 22px; flex: 0 0 auto; }
+.spw-err { color: #fca5a5; font-size: 13px; min-height: 0; }
+.spw-warn, .spw-banner { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--gold, #eab308); font-size: 13px; line-height: 1.4; }
+.spw-sec { display: flex; flex-direction: column; gap: 8px; padding-top: 6px; border-top: 1px solid var(--br, #2a2f37); }
+.spw-papers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.spw-paper { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.spw-pay { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+
+@media print {
+  body > *:not(#spwOverlay) { display: none !important; }
+  .spw-overlay { position: static; background: #fff; padding: 0; overflow: visible; }
+  .spw-sheet { background: #fff; color: #111; border: 0; max-width: none; }
+  .spw-sheet *, .spw-x, .spw-tabs, .spw-row { color: #111 !important; }
+  .spw-x, .spw-tabs, .spw-row { display: none !important; }
+  .spw-card, .spw-chip, .spw-banner { border-color: #999 !important; }
+}

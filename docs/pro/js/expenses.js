@@ -801,6 +801,9 @@
     // Customer payment backfill (flag paymentBackfill, owner only; empty string when off).
     if (window.NBDPaymentBackfill) html += window.NBDPaymentBackfill.panelHtml();
 
+    // Sub paperwork: W-9s, insurance papers, 1099 prep (flag subPaperwork; empty string when off).
+    if (window.NBDSubPaperwork) html += window.NBDSubPaperwork.panelHtml();
+
     // Per-job rollup with margin
     var jobIds = Object.keys(agg.byJob).filter(function (k) { return k !== '__unassigned__'; });
     if (jobIds.length) {
