@@ -118,8 +118,19 @@ every scheduled job that reads leads:
   invoice into one. After create the markers are frozen (`backfillMarksFrozen`).
 - **A void carries a note.** An invoice going `deleted: false -> true` needs a plain
   `voidNote` (1 to 300 characters), so no one can silently void an invoice.
-- `payments[]` is bounded (at most 200). A rep may still record an ordinary payment
-  (that is the Record Payment feature); the rules do not try to judge amounts.
+- **Invoice money is no longer free-form.** A new invoice must carry no money (no
+  `payments`, not `paid`, `amountPaid` 0): Record Payment appends afterwards. On update
+  the `payments` list may keep its length (a proof, a receipt state), shrink (an Undo) or
+  grow by exactly ONE entry that is valid (amount a positive number under 10 million, `at`
+  a timestamp not in the future and not before 2015, method one of check / zelle / cash /
+  card / ach / other) and `amountPaid` must rise by exactly that amount; `amountPaid`
+  cannot move without the list changing. So a rep cannot create or edit an invoice into
+  "paid" with nothing behind it. What the rules cannot stop: a rep recording a real-looking
+  payment with a date in the past (Record Payment lets you log "a check I got yesterday").
+  That is why the review-ask / referral / rating guards above key off the backfill marker
+  and the real payment dates, not off anything a rep could type.
+- **A backfill invoice is the owner side's to edit or void**: a manager cannot (rules +
+  test), a manager can still edit an ordinary invoice.
 - **Sub-payment proof paths** (`expenses.proofPaths`): each entry must be a string
   in the writer's own `receipts/{uid}/sub-proofs/` folder; a URL, a number or another
   user's folder is refused (checked entry by entry, up to 10).
@@ -147,9 +158,27 @@ every scheduled job that reads leads:
   cap real leads need.
 - **No tokenised URLs.** Photos are fetched with the signed-in SDK (`getBlob`) and shown
   from a `blob:` URL, like the call recordings; `getDownloadURL` is no longer used for
-  proofs, so no permanent `?token=` link is ever produced by this feature (the upload
-  itself still mints an object token in storage metadata, as every upload does; nothing
-  here reads or stores it).
+  proofs: not in `proof-photos.js` and not in the invoice's own "View" proof button
+  (`invoice-pipeline.js viewProofUI`), so this code produces no `?token=` link. The upload
+  itself still leaves a download token in the object's metadata, as every Storage upload
+  does. The repo has a token-clearing pattern only for photos (`image-pipeline.js`), none
+  for receipts or proofs, so those tokens stay; the bucket rules keep the objects
+  owner-read and nothing here ever reads or stores the token. A small
+  `onObjectFinalized` function that strips it from `payment-proofs/` and
+  `receipts/*/sub-proofs/` is the clean follow-up.
+- **Same-day identical payments.** Two genuine payments with the same payer, day, amount
+  and check number used to share a payment id, and the ledger's dedupe would have dropped
+  the second silently. The second identical row in a paste now gets key `<key>-2` (and so
+  on): it is flagged "possible duplicate" and needs the explicit "different payment" tap,
+  and when created it is a separate payment. After create the screen reads the invoice
+  back and refuses to say "created" if the payment did not land.
+- **Record Payment's picker** now refuses what the bucket refuses (GIF, AVIF, Word, text)
+  with a plain reason; it takes JPEG, PNG, WebP, HEIC and PDF.
+- **Portal rating.** The rating card, the Google review link and the rating gate are all
+  withheld from a customer whose job is not paid in full by REAL payments (an old
+  backfilled check beside real paid money does not block; a backfill-only customer does).
+  The rep's review nudge uses the same rule and never dates itself from a backfill
+  payment. Tested against the real `submitCustomerRating` handler (409 not-complete).
 - **Payment key** is now about 85 bits (a 53-bit hash plus FNV-1a), and a resumed run
   also checks the amount before reusing an earlier invoice.
 - **No hard delete** anywhere in the backfill, sub sorter or job money view (tested).
@@ -196,3 +225,36 @@ money view. Both default off. The assistant cannot write production flags.
 - "Read the check for me" is skipped on purpose (see above).
 - The backfilled customers use the one-time import allowance (1000 leads), not the
   monthly cap.
+
+## Round 3 and 4: the invoice "paid" bypass (2026-10-20, follow-up PR #2579)
+
+#2578 merged at its `ecfe221e` head, so the round-2 commit (`6ff282b9`) shipped in this follow-up together with these fixes.
+A rep could still create a draft invoice and then update `{status: 'paid', balanceDue: 0, paidAt: <5 days ago>}` with
+`amountPaid` and `payments` untouched; `receivedMs` falls back to `paidAt`, which would have opened the review-ask window.
+`firestore.rules` now (all on `/invoices` update unless said otherwise):
+
+- **Becoming paid.** An invoice may only BECOME `paid` with a payment entry behind it and `amountPaid` covering the total, judged against
+  the total it HAD (so lowering or omitting `total` in the same update does not help), or when the send lock restores a `paid` it was
+  `sending` from. `sendingPriorStatus: 'paid'` is refused at create and can only be written on an invoice that is already paid.
+- **The total** is the owner side's to change once an invoice has left draft or carries a payment (a draft with no payment can still be re-priced).
+- **Dates.** `paidAt` and `lastPaymentAt` change only on a valid one-entry append (or a one-entry undo), and only to the newest remaining
+  entry's `at`; a same-length update cannot move `amountPaid`, `paidAt` or `lastPaymentAt`.
+- **Entries.** A new entry must be whole cents, dated not in the future and not before 2015, a known method, and **recorded by the caller**
+  (`recordedBy == request.auth.uid`). Existing entries keep amount, date, method and recorder (a proof, receipt state or deposit account may
+  change). `amountPaid` moves by exactly the entry's amount (half a cent of tolerance, no more).
+- **Undo.** The list may shrink by ONE, only for the writer who recorded the newest payment or the owner side, and the money must follow
+  (`amountPaid` down by exactly that amount, never "paid" unless the rest still covers the total, dates only unset, unchanged or the newest
+  remaining entry's). The catch-up Undo still works.
+- **Cap.** The per-entry checks cover the first 15 entries (a rules expression budget: 25 exceeded the 1000-evaluation limit). A list longer than
+  15 can only be left exactly as it is (edits to other fields, a void and the server's own writes all still work); no client appends a 16th.
+- What the rules cannot stop: a rep who records a REAL payment entry with a past date (Record Payment lets you log "a check I got yesterday")
+  on an invoice whose total they re-priced while it was still a draft. That is why the review-ask, referral and rating guards also key off the
+  backfill marker and the real payment dates.
+- `isQuietBackfill` honours `paymentBackfill` on the LEAD (rules-locked to the owner side). `backfillKey` / `source: 'backfill'` are INVOICE
+  markers (`isBackfillInvoice`, used by money-paper, `receivedMs`, the portal and the rep nudge). A `backfill.key` object on a lead is not a
+  marker on purpose: any rep can write it, so honouring it would let a rep silence a customer.
+
+Checked against the other invoice writers: the send lock and its restore, milestone and emergency flags, the Stripe link, proofs and receipt
+state, deposit accounts, reminders and the catch-up Undo all still pass (rules tests). Older rules tests that asserted "set paid with no payment
+entry" were changed to assert the entry is required. The backfill screen's read-back after `markPaid` is `paymentLanded(invoice, paymentId)` in
+the logic file, tested directly. 22 rules mutants of the invoice money rules are all killed.
