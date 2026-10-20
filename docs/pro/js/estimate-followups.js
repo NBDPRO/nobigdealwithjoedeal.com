@@ -406,6 +406,9 @@
   const boot = () => setTimeout(render, 1500);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
   api.render = render;
+  // The follow-up board (estimate-follow-board.js, flag estimateFollowBoard) shares this one stamp and callable.
+  api.stampNudge = stampNudge;
+  api.callable = callable;
   // Today shows "Share now" for a row whose link is ready but needs a second tap.
   api.isPending = (leadId) => !!pending[leadId];
 })(typeof window !== 'undefined' ? window : null);

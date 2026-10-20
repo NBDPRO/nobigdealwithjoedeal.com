@@ -49,12 +49,18 @@ const TEMPLATES = Object.freeze({
 });
 const TEMPLATE_KEYS = Object.freeze(Object.keys(TEMPLATES));
 
+// 2026-10-19 (estimate follow-up board, flag estimateFollowBoard): four more
+// fixed wordings, same builder and same gates. TEMPLATE_KEYS stays Pixel World's
+// own four; the callable accepts either set.
+const EstimateFollow = require('./estimate-follow-templates');
+const ALL_TEMPLATES = Object.freeze(Object.assign({}, TEMPLATES, EstimateFollow.TEMPLATES));
+
 /** The words no template line may contain (see the header). Tested, not run on a finished body. */
 const FORBIDDEN_IN_TEMPLATE = /\$|\b(claims?|insur\w*|adjusters?|coverage|covered|deductibles?|advance|up[- ]?front|deposits?|waiv\w*|rebates?|assign\w*|aob|guarantee\w*|free|approved?|negotiat\w*|handle|prices?|cost|discount)\b/i;
 
 /** Is this one of the fixed template keys? (own keys only: never "__proto__" or "constructor") */
 function isTemplateKey(k) {
-  return typeof k === 'string' && Object.prototype.hasOwnProperty.call(TEMPLATES, k);
+  return typeof k === 'string' && Object.prototype.hasOwnProperty.call(ALL_TEMPLATES, k);
 }
 
 /** The lead's first name, letters only, for "Hi Maria". Never throws. */
@@ -71,7 +77,7 @@ function firstNameOf(lead) {
  */
 function buildLeadTextDraft(key, lead, names) {
   if (!isTemplateKey(key)) return { error: 'Unknown message.', code: 'unknown_template' };
-  const t = TEMPLATES[key];
+  const t = ALL_TEMPLATES[key];
   const company = (names || []).filter(Boolean)[0] || '';
   if (!company) return { error: 'The company has no name set on its profile, so a text cannot say who it is from.', code: 'no_company_name' };
   const first = firstNameOf(lead);
@@ -83,4 +89,4 @@ function buildLeadTextDraft(key, lead, names) {
   return { body: d.body, reason: d.reason };
 }
 
-module.exports = { TEMPLATES, TEMPLATE_KEYS, FORBIDDEN_IN_TEMPLATE, isTemplateKey, firstNameOf, buildLeadTextDraft };
+module.exports = { TEMPLATES, TEMPLATE_KEYS, ALL_TEMPLATES, FORBIDDEN_IN_TEMPLATE, isTemplateKey, firstNameOf, buildLeadTextDraft };
