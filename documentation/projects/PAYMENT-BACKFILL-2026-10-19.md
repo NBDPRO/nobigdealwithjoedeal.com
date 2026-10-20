@@ -118,8 +118,19 @@ every scheduled job that reads leads:
   invoice into one. After create the markers are frozen (`backfillMarksFrozen`).
 - **A void carries a note.** An invoice going `deleted: false -> true` needs a plain
   `voidNote` (1 to 300 characters), so no one can silently void an invoice.
-- `payments[]` is bounded (at most 200). A rep may still record an ordinary payment
-  (that is the Record Payment feature); the rules do not try to judge amounts.
+- **Invoice money is no longer free-form.** A new invoice must carry no money (no
+  `payments`, not `paid`, `amountPaid` 0): Record Payment appends afterwards. On update
+  the `payments` list may keep its length (a proof, a receipt state), shrink (an Undo) or
+  grow by exactly ONE entry that is valid (amount a positive number under 10 million, `at`
+  a timestamp not in the future and not before 2015, method one of check / zelle / cash /
+  card / ach / other) and `amountPaid` must rise by exactly that amount; `amountPaid`
+  cannot move without the list changing. So a rep cannot create or edit an invoice into
+  "paid" with nothing behind it. What the rules cannot stop: a rep recording a real-looking
+  payment with a date in the past (Record Payment lets you log "a check I got yesterday").
+  That is why the review-ask / referral / rating guards above key off the backfill marker
+  and the real payment dates, not off anything a rep could type.
+- **A backfill invoice is the owner side's to edit or void**: a manager cannot (rules +
+  test), a manager can still edit an ordinary invoice.
 - **Sub-payment proof paths** (`expenses.proofPaths`): each entry must be a string
   in the writer's own `receipts/{uid}/sub-proofs/` folder; a URL, a number or another
   user's folder is refused (checked entry by entry, up to 10).
@@ -147,9 +158,27 @@ every scheduled job that reads leads:
   cap real leads need.
 - **No tokenised URLs.** Photos are fetched with the signed-in SDK (`getBlob`) and shown
   from a `blob:` URL, like the call recordings; `getDownloadURL` is no longer used for
-  proofs, so no permanent `?token=` link is ever produced by this feature (the upload
-  itself still mints an object token in storage metadata, as every upload does; nothing
-  here reads or stores it).
+  proofs: not in `proof-photos.js` and not in the invoice's own "View" proof button
+  (`invoice-pipeline.js viewProofUI`), so this code produces no `?token=` link. The upload
+  itself still leaves a download token in the object's metadata, as every Storage upload
+  does. The repo has a token-clearing pattern only for photos (`image-pipeline.js`), none
+  for receipts or proofs, so those tokens stay; the bucket rules keep the objects
+  owner-read and nothing here ever reads or stores the token. A small
+  `onObjectFinalized` function that strips it from `payment-proofs/` and
+  `receipts/*/sub-proofs/` is the clean follow-up.
+- **Same-day identical payments.** Two genuine payments with the same payer, day, amount
+  and check number used to share a payment id, and the ledger's dedupe would have dropped
+  the second silently. The second identical row in a paste now gets key `<key>-2` (and so
+  on): it is flagged "possible duplicate" and needs the explicit "different payment" tap,
+  and when created it is a separate payment. After create the screen reads the invoice
+  back and refuses to say "created" if the payment did not land.
+- **Record Payment's picker** now refuses what the bucket refuses (GIF, AVIF, Word, text)
+  with a plain reason; it takes JPEG, PNG, WebP, HEIC and PDF.
+- **Portal rating.** The rating card, the Google review link and the rating gate are all
+  withheld from a customer whose job is not paid in full by REAL payments (an old
+  backfilled check beside real paid money does not block; a backfill-only customer does).
+  The rep's review nudge uses the same rule and never dates itself from a backfill
+  payment. Tested against the real `submitCustomerRating` handler (409 not-complete).
 - **Payment key** is now about 85 bits (a 53-bit hash plus FNV-1a), and a resumed run
   also checks the amount before reusing an earlier invoice.
 - **No hard delete** anywhere in the backfill, sub sorter or job money view (tested).

@@ -59,4 +59,23 @@ function hasBackfillInvoice(invoices) {
   return (Array.isArray(invoices) ? invoices : []).some((i) => !!i && i.deleted !== true && isBackfillInvoice(i));
 }
 
-module.exports = { isQuietBackfill, isBackfillInvoice, hasBackfillInvoice };
+/** The invoices that are NOT payment-backfill invoices (the real money). */
+function withoutBackfill(invoices) {
+  return (Array.isArray(invoices) ? invoices : []).filter((i) => !isBackfillInvoice(i));
+}
+
+/**
+ * Does a backfill invoice keep this customer from the customer-facing "job is done" steps
+ * (portal rating, rep review nudge)? Yes when one is on the list AND the job is not paid in
+ * full by REAL payments alone. A customer with a real, fully paid job who also had an old
+ * check backfilled is unaffected. paidFn(lead, invoices) is the caller's own paid-in-full rule.
+ */
+function backfillBlocksRating(lead, invoices, paidFn) {
+  const list = Array.isArray(invoices) ? invoices : [];
+  if (!hasBackfillInvoice(list)) return false;
+  const real = withoutBackfill(list).filter((i) => !!i && i.deleted !== true);
+  const hasRealPayment = real.some((i) => (Array.isArray(i.payments) && i.payments.some((p) => p && Number(p.amount) > 0)) || String(i.status || '').toLowerCase() === 'paid');
+  return !(hasRealPayment && paidFn(lead, real));
+}
+
+module.exports = { isQuietBackfill, isBackfillInvoice, hasBackfillInvoice, withoutBackfill, backfillBlocksRating };

@@ -227,6 +227,11 @@
     return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36) + (f >>> 0).toString(36);
   }
   function paymentIdFor(v) { return 'bf_' + paymentKey(v); }
+  // A row's own key: the payment key, plus "-2", "-3" for the 2nd, 3rd identical row in a paste
+  // (two real same-day, same-amount payments with the same check no. are distinct payments; the owner
+  // confirms each one, so neither is dropped by the ledger's payment-id dedupe).
+  function keyOf(row) { return (row && row.key) || paymentKey(row.v); }
+  function paymentIdOf(row) { return 'bf_' + keyOf(row); }
 
   // ── matching a customer (never a merge) ───────────────────────────────
   function leadName(l) { return clean(((l && l.firstName) || '') + ' ' + ((l && l.lastName) || '')) || clean(l && l.name) || ''; }
@@ -291,8 +296,8 @@
    *   { level:'none' }
    * index = paymentsIndex(...). matches = matchCustomers(...) for this row.
    */
-  function findDuplicates(v, index, matches) {
-    var id = paymentIdFor(v);
+  function findDuplicates(v, index, matches, key) {
+    var id = key ? 'bf_' + key : paymentIdFor(v);
     var exact = (index || []).filter(function (p) { return p.paymentId === id; });
     if (exact.length) return { level: 'already', hit: exact[0] };
     var ids = {};
@@ -323,11 +328,13 @@
     return (rows || []).map(function (r) {
       var o = Object.assign({}, r);
       if (r.errors.length) { o.status = 'error'; o.matches = []; o.dup = { level: 'none' }; return o; }
-      o.key = paymentKey(r.v);
+      var base = paymentKey(r.v);
+      var nth = (seen[base] || 0) + 1;
+      seen[base] = nth;
+      var again = nth > 1;
+      o.key = again ? base + '-' + nth : base;
       o.matches = matchCustomers(r.v, leads);
-      o.dup = findDuplicates(r.v, index, o.matches);
-      var again = seen[o.key];
-      seen[o.key] = true;
+      o.dup = findDuplicates(r.v, index, o.matches, o.key);
       if (o.dup.level === 'already') o.status = 'already';
       else if (again) { o.status = 'dup'; o.dup = { level: 'possible', inPaste: true, hits: [] }; }
       else if (o.dup.level === 'possible') o.status = 'dup';
@@ -376,7 +383,7 @@
         { from: null, to: 'install_complete', timestamp: iso, user: 'Payment backfill', by: c.uid || null, backfill: true, completedOn: v.ymd },
         { from: 'install_complete', to: 'closed', timestamp: iso, user: 'Payment backfill', by: c.uid || null, backfill: true }
       ],
-      backfill: { key: paymentKey(v), at: iso, by: c.uid || null, sourceHint: v.sourceHint, rowNote: 'created by Payment backfill' }
+      backfill: { key: keyOf(row), at: iso, by: c.uid || null, sourceHint: v.sourceHint, rowNote: 'created by Payment backfill' }
     };
     if (c.stageRole) data.stageRole = c.stageRole;
     return data;
@@ -387,13 +394,13 @@
     var label = 'Backfilled payment' + (v.memo ? ': ' + v.memo : '');
     return {
       items: [{ description: label, quantity: 1, unitPrice: v.cents / 100, total: v.cents / 100 }],
-      source: 'backfill', backfilled: true, backfillKey: paymentKey(v),
+      source: 'backfill', backfilled: true, backfillKey: keyOf(row),
       notes: label, dueDate: noonOf(v), terms: '', totalConfirmedBy: null
     };
   }
   /** The markPaid details: the payment lands on the check date, keeps method, check no., memo, proof. */
   function paymentDetails(row, proofs) {
-    var v = row.v, d = { at: noonOf(v), reference: v.ref, note: v.memo, payer: 'homeowner', paymentId: paymentIdFor(v) };
+    var v = row.v, d = { at: noonOf(v), reference: v.ref, note: v.memo, payer: 'homeowner', paymentId: paymentIdOf(row) };
     var p = (proofs || []).filter(function (x) { return x && x.path; });
     if (p.length) { d.proofStoragePath = p[0].path; d.proofName = p[0].name || 'proof'; if (p.length > 1) d.proofPaths = p.slice(1).map(function (x) { return x.path; }); }
     return d;
@@ -411,7 +418,7 @@
   var API = {
     CONFIG: CONFIG, METHODS: METHODS, JOB_TYPES: JOB_TYPES, STATUS_LABEL: STATUS_LABEL, POSITIONAL: POSITIONAL,
     splitTable: splitTable, parse: parse, validate: validate, parseDate: parseDate, parseCents: parseCents, parseMethod: parseMethod, parseJobType: parseJobType,
-    nameScore: nameScore, sameAddress: sameAddress, paymentKey: paymentKey, paymentIdFor: paymentIdFor, leadName: leadName,
+    nameScore: nameScore, sameAddress: sameAddress, paymentKey: paymentKey, paymentIdFor: paymentIdFor, paymentIdOf: paymentIdOf, leadName: leadName,
     matchCustomers: matchCustomers, paymentsIndex: paymentsIndex, findDuplicates: findDuplicates, review: review, checkAgainstCrm: checkAgainstCrm,
     buildLead: buildLead, invoiceOverrides: invoiceOverrides, paymentDetails: paymentDetails, voidPatch: voidPatch, logEntry: logEntry
   };
