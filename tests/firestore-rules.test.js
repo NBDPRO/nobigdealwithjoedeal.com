@@ -987,7 +987,17 @@ async function run() {
   await assertSucceeds(updateDoc(gD, { status: 'sending', sendingPriorStatus: 'sent', sendingAt: new Date() }));
   await assertFails(updateDoc(gD, { status: 'draft' }));                                              // sent -> sending -> draft
   await assertSucceeds(updateDoc(gD, { status: 'sent' }));                                            // the honest release
-  // the restore to 'paid' also needs the money to be there (seeded states the lock itself would never produce)
+  // C2 (review round 7): the marker is frozen while the invoice STAYS 'sending'
+  const gF = await fresh('x7');
+  await assertSucceeds(updateDoc(gF, { status: 'sent' }));
+  await assertSucceeds(updateDoc(gF, { status: 'sending', sendingPriorStatus: 'sent', sendingAt: new Date() }));
+  await assertFails(updateDoc(gF, { sendingPriorStatus: 'draft' }));                                   // rewrite the marker, still sending
+  await assertFails(updateDoc(gF, { status: 'sending', sendingPriorStatus: 'draft', sendingAt: new Date() }));   // same, restating the status
+  await assertFails(updateDoc(gF, { sendingPriorStatus: 'paid' }));
+  await assertSucceeds(updateDoc(gF, { status: 'sending', sendingPriorStatus: 'sent', sendingAt: new Date() }));   // a stale lock re-taken with the SAME marker still works
+  await assertFails(updateDoc(gF, { status: 'draft' }));                                               // so there is no way back to draft
+  await assertSucceeds(updateDoc(gF, { status: 'sent' }));                                             // the honest release
+  // the restore to 'paid' needs the lock's frozen money: it never gets stuck (legacy / re-priced / total 0) and never changes it
   await env.withSecurityRulesDisabled(async (ctx) => {
     const d = ctx.firestore();
     await setDoc(doc(d, 'invoices/x3'), { createdBy: 'alice', companyId: 'co-a', status: 'sending', sendingPriorStatus: 'paid', total: 5340, amountPaid: 0, payments: [], createdAt: 1 });
@@ -995,10 +1005,13 @@ async function run() {
     await setDoc(doc(d, 'invoices/x5'), { createdBy: 'alice', companyId: 'co-a', status: 'sending', sendingPriorStatus: 'paid', total: 5340, amountPaid: 100, payments: [], createdAt: 1 });      // not covered
     await setDoc(doc(d, 'invoices/x6'), { createdBy: 'alice', companyId: 'co-a', status: 'sending', sendingPriorStatus: 'paid', total: 0, amountPaid: 0, payments: [], createdAt: 1 });           // total 0, nothing paid
   });
-  await assertFails(updateDoc(doc(alice, 'invoices/x3'), { status: 'paid' }));                        // "paid" with $0
+  await assertFails(updateDoc(doc(alice, 'invoices/x3'), { status: 'paid', amountPaid: 5340 }));       // money cannot change in the restore
+  await assertFails(updateDoc(doc(alice, 'invoices/x3'), { status: 'paid', total: 1 }));
+  await assertFails(updateDoc(doc(alice, 'invoices/x3'), { status: 'paid', payments: [payEntry()] }));
   await assertSucceeds(updateDoc(doc(alice, 'invoices/x4'), { status: 'paid' }));                     // a legacy paid invoice is restored
-  await assertFails(updateDoc(doc(alice, 'invoices/x5'), { status: 'paid' }));
-  await assertFails(updateDoc(doc(alice, 'invoices/x6'), { status: 'paid' }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/x5'), { status: 'paid' }));                     // a re-priced (under-covered) paid invoice is not stuck
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/x6'), { status: 'paid' }));                     // nor a total-0 one
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/x3'), { status: 'paid' }));                     // (the locked state itself came from a truthful lock: unchanged money restores)
   // B: no re-pricing through a status round trip
   await assertSucceeds(updateDoc(await fresh('b1'), { status: 'sent' }));
   await assertFails(updateDoc(doc(alice, 'invoices/b1'), { status: 'draft' }));                       // a rep cannot send a sent invoice back to draft

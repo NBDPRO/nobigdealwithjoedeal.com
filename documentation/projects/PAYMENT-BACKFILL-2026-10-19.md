@@ -272,15 +272,19 @@ the logic file, tested directly. 22 rules mutants of the invoice money rules are
 - Tests added: cross-tenant manager append / tenant swap denied, same-tenant non-creator rep append denied, 15 -> 14 undo allowed, sub-cent
   tolerance documented (`100.000009` is inside the 0.001-cent allowance, `100.004` is not).
 
-**Round 6 (stale-marker variants).** `sendingPriorStatus` could be left behind by an earlier send lock and "restored" later:
-paid -> sending -> sent (marker stale) -> undo to $0 -> sending (marker unchanged) -> paid, and the same with a stale `draft` to re-price.
-Now the lock must tell the truth when it is taken: moving into `sending` needs `sendingPriorStatus` to equal the status the invoice has
-right then (that is what the client writes: `_priorStatusOf`; an invoice with no status reads as a draft), so an old marker is useless.
-The restore to `paid` additionally needs the money to be there: `amountPaid` covers the total and there is a payment row, or, for a
-legacy paid invoice written by the server with an `amountPaid` but no `payments` list, `amountPaid > 0`. Such legacy invoices are
-restored normally; a "paid" invoice with total 0 and nothing paid is not. Tests: the 6-step stale cycle (last write refused, an honest
-lock and release still pass), the lie about the replaced status refused, sent -> sending -> draft refused, and four seeded
-sending-with-marker states (no money, legacy paid, under-covered, total 0). 4 more rules mutants killed.
+**Round 6 and 7 (the send lock tells the truth).** `sendingPriorStatus` could be left behind by an earlier send lock, or
+rewritten while the invoice stayed `sending`, and then "restored": paid -> sending -> sent (marker stale) -> undo to $0 -> sending -> paid, and
+sent -> sending(prior sent) -> marker rewritten to `draft` -> draft -> new total -> sent. Now:
+- moving into `sending` needs `sendingPriorStatus` to equal the status the invoice has right then (what the client writes: `_priorStatusOf`;
+  an invoice with no status reads as a draft);
+- while the invoice STAYS `sending` the marker is frozen (a stale lock re-taken with the same marker still works) and so are `payments`,
+  `amountPaid` and the dates;
+- the restore to `paid` therefore brings back exactly what the lock held: the money (`payments`, `amountPaid`, `total`) must be unchanged,
+  and there is deliberately no coverage test, so a legacy paid invoice (an `amountPaid` but no `payments` list), a re-priced one or a total-0 one is
+  never stuck `sending` (which would read as A/R).
+Tests: the 6-step stale cycle, the marker rewrite while sending (and restated with a new `sendingAt`), a lie about the replaced status,
+sent -> sending -> draft, the honest lock and release, four seeded sending-with-marker states (legacy, under-covered, total 0, and money-change
+attempts refused). 8 more rules mutants killed.
 
 **Decisions left to the owner (not changed here):**
 - *Hard delete.* The rules still let the creator (and a company_admin) hard-delete an invoice that has payments. The catch-up "Undo" does exactly
@@ -290,3 +294,13 @@ sending-with-marker states (no money, legacy paid, under-covered, total 0). 4 mo
   a job with more than 15 separate payments is not a real case today.
 - *Extra keys on a payment row and `balanceDue`* are not validated by the rules (low: nothing reads them for money; `amountPaid`, the entry
   amount, date, method and recorder are the validated fields).
+
+**Owners and dates for what is deferred (all: Jo, decide before `subPaymentsSorter` or `paymentBackfill` is turned on; target 2026-10-27):**
+1. *Hard delete of an invoice that has payments* by its creator or a company_admin (the catch-up Undo does this to an invoice it made; a blanket
+   `amountPaid == 0` rule would break it). Proposal: owner-side-only deletes, with the catch-up Undo moved to a soft void.
+2. *Un-void.* `deleted: true -> false` is not guarded: the void note is required to void, not to restore. Proposal: only the owner side may
+   un-void, with a note, or never (re-create instead).
+3. *`balanceDue` and `status` values* other than the transitions guarded above (paid, draft, sending) are not validated; nothing reads them for
+   money (`amountPaid`, entry amount / date / method / recorder and `total` are the validated money fields).
+4. *Extra keys on a payment row* are not rejected.
+5. *Invoices with 16 or more payments* are append / undo frozen (void and other-field edits still work); raising the cap needs a rules-budget redesign.
