@@ -12,12 +12,12 @@
  *      incentive / gating wording (a control string proves the check can fail);
  *   5. the real module in a sandbox: flag off or non-owner renders / reads /
  *      writes nothing (with a flag-on positive control); a tap writes exactly the
- *      reputation patch; nothing is sent (no fetch except the Google summary read);
+ *      review_log doc; nothing is sent (no fetch except the Google summary read);
  *   6. the portal audit pin: every rater is offered the public review link;
  *   7. source + wiring guards (comments stripped first).
  *
  * Synthetic data only (public repo): ZZ_QA ids. The rules side is
- * tests/firestore-rules.reputation.test.js (emulator).
+ * tests/firestore-rules.reputation.test.js (emulator, review_log/{leadId}).
  * Run: node tests/reputation-2026-10-19.test.js
  */
 'use strict';
@@ -61,19 +61,20 @@ console.log('permissions and patches');
   ok('solo operator, company_admin and platform admin can see it', P.canSee({}, 'u1') && P.canSee({ companyId: 'u1' }, 'u1') && P.canSee({ role: 'company_admin', companyId: 'c' }, 'u2') && P.canSee({ role: 'admin' }, 'u3'));
   ok('manager, rep, viewer, foreign-company member and signed-out user cannot', !P.canSee({ role: 'manager', companyId: 'c' }, 'u') && !P.canSee({ role: 'sales_rep', companyId: 'c' }, 'u') && !P.canSee({ role: 'viewer' }, 'u') && !P.canSee({ companyId: 'x' }, 'u') && !P.canSee({}, null));
   ok('four platforms: Google, Yelp, Thumbtack, other', P.PLATFORMS.map((p) => p.key).join() === 'google,yelp,thumbtack,other');
-  const s = P.seenPatch(true, 'yelp', 2, 'u1', 'TS', null);
-  ok('seen patch is exactly the six rule keys', Object.keys(s.reputation).sort().join() === 'rating,responded,reviewSeen,platform,updatedAt,updatedBy'.split(',').sort().join());
-  ok('seen patch values', s.reputation.reviewSeen === true && s.reputation.platform === 'yelp' && s.reputation.rating === 2 && s.reputation.responded === false && s.reputation.updatedAt === 'TS' && s.reputation.updatedBy === 'u1');
-  ok('bad platform, half star, 0, 6, text rating and no user give no patch', [P.seenPatch(true, 'facebook', 3, 'u', 'T'), P.seenPatch(true, 'google', 3.5, 'u', 'T'), P.seenPatch(true, 'google', 0, 'u', 'T'), P.seenPatch(true, 'google', 6, 'u', 'T'), P.seenPatch(true, 'google', '5', 'u', 'T'), P.seenPatch(true, 'google', 5, null, 'T')].every((x) => x === null));
-  const u = P.seenPatch(false, null, null, 'u1', 'TS');
-  ok('undo clears platform and rating and resets replied, still stamped', u.reputation.reviewSeen === false && u.reputation.platform === null && u.reputation.rating === null && u.reputation.responded === false && u.reputation.updatedBy === 'u1');
-  const l = lead('A', { reputation: { reviewSeen: true, platform: 'google', rating: 2, responded: false } });
-  const r = P.respondedPatch(true, l, 'u1', 'TS');
-  ok('"I replied" keeps platform and rating and flips responded', r.reputation.responded === true && r.reputation.platform === 'google' && r.reputation.rating === 2);
-  ok('"I replied" on a lead with no logged review gives no patch', P.respondedPatch(true, lead('B'), 'u1', 'TS') === null);
-  const same = P.seenPatch(true, 'google', 2, 'u1', 'TS', { reputation: { reviewSeen: true, platform: 'google', rating: 2, responded: true } });
-  const diff = P.seenPatch(true, 'google', 1, 'u1', 'TS', { reputation: { reviewSeen: true, platform: 'google', rating: 2, responded: true } });
-  ok('re-logging the same review keeps "replied"; a different rating resets it', same.reputation.responded === true && diff.reputation.responded === false);
+  const ID = { companyId: 'co', leadId: 'A' };
+  const s = P.seenPatch(true, 'yelp', 2, 'u1', 'TS', null, ID);
+  ok('seen doc is exactly the eight rule keys', Object.keys(s).sort().join() === 'companyId,leadId,platform,rating,responded,reviewSeen,updatedAt,updatedBy');
+  ok('seen doc values', s.companyId === 'co' && s.leadId === 'A' && s.reviewSeen === true && s.platform === 'yelp' && s.rating === 2 && s.responded === false && s.updatedAt === 'TS' && s.updatedBy === 'u1');
+  ok('bad platform, half star, 0, 6, text rating, no user, no company and no lead give no doc', [P.seenPatch(true, 'facebook', 3, 'u', 'T', null, ID), P.seenPatch(true, 'google', 3.5, 'u', 'T', null, ID), P.seenPatch(true, 'google', 0, 'u', 'T', null, ID), P.seenPatch(true, 'google', 6, 'u', 'T', null, ID), P.seenPatch(true, 'google', '5', 'u', 'T', null, ID), P.seenPatch(true, 'google', 5, null, 'T', null, ID), P.seenPatch(true, 'google', 5, 'u', 'T', null, { leadId: 'A' }), P.seenPatch(true, 'google', 5, 'u', 'T', null, { companyId: 'co' }), P.seenPatch(true, 'google', 5, 'u', 'T', null)].every((x) => x === null));
+  const u = P.seenPatch(false, null, null, 'u1', 'TS', null, ID);
+  ok('undo clears platform and rating and resets replied, still stamped', u.reviewSeen === false && u.platform === null && u.rating === null && u.responded === false && u.updatedBy === 'u1' && u.companyId === 'co');
+  const entry = { reviewSeen: true, platform: 'google', rating: 2, responded: false };
+  const r = P.respondedPatch(true, entry, 'u1', 'TS', ID);
+  ok('"I replied" keeps platform and rating and flips responded', r.responded === true && r.platform === 'google' && r.rating === 2 && r.leadId === 'A');
+  ok('"I replied" with no logged review gives no doc', P.respondedPatch(true, undefined, 'u1', 'TS', ID) === null && P.respondedPatch(true, { reviewSeen: false }, 'u1', 'TS', ID) === null);
+  const same = P.seenPatch(true, 'google', 2, 'u1', 'TS', { reviewSeen: true, platform: 'google', rating: 2, responded: true }, ID);
+  const diff = P.seenPatch(true, 'google', 1, 'u1', 'TS', { reviewSeen: true, platform: 'google', rating: 2, responded: true }, ID);
+  ok('re-logging the same review keeps "replied"; a different rating resets it', same.responded === true && diff.responded === false);
 }
 
 // ── 2. paid jobs + ask status ──────────────────────────────────────────
@@ -101,9 +102,10 @@ const paid = P.paidLeads(invs, paymentsOf, isOwed);
     && P.askInfo(lead('G')).status === 'not_yet');
   ok('a declined flag does not hide a real ask', P.askInfo(lead('H', { reviewAskDeclined: true, reviewRequested: true })).status === 'asked');
   const leads = [lead('PAID1', { reviewRequested: true, reviewRequestedAt: D(2026, 10, 5) }), lead('PAID2'), lead('NOPAY', { reviewRequested: true, reviewRequestedAt: D(2026, 10, 5) }), lead('PAID3', { deleted: true }), lead('PAID4', { isProspect: true })];
-  const rows = P.buildRows(leads, Object.assign({ PAID3: { collectedCents: 1, lastPaidMs: 1 }, PAID4: { collectedCents: 1, lastPaidMs: 1 } }, paid));
+  const rows = P.buildRows(leads, Object.assign({ PAID3: { collectedCents: 1, lastPaidMs: 1 }, PAID4: { collectedCents: 1, lastPaidMs: 1 } }, paid), { PAID2: { reviewSeen: true, platform: 'yelp', rating: 4, responded: false } });
   ok('rows are paid customers only, newest payment first; a lead with no payment is never "asked"', rows.map((r) => r.id).join() === 'PAID1,PAID2' && !rows.some((r) => r.id === 'NOPAY'));
   ok('asked vs not asked is right per row', rows[0].ask.status === 'asked' && rows[1].ask.status === 'not_yet');
+  ok('the log joins by lead id: PAID2 has a 4-star Yelp review, PAID1 none; a lead field named reputation is ignored', rows[1].seen.seen && rows[1].seen.platform === 'yelp' && rows[1].seen.rating === 4 && !rows[0].seen.seen && !P.buildRows([lead('PAID1', { reputation: { reviewSeen: true, platform: 'google', rating: 1 } })], paid, {})[0].seen.seen);
 }
 
 // ── 3. counts + alerts ─────────────────────────────────────────────────
@@ -177,7 +179,7 @@ function boot(opts) {
     createElement() { const n = { className: '', innerHTML: '', scrollTop: 0, setAttribute() {}, remove() { body.removeChild(n); }, querySelector: () => null }; created.push(n); return n; },
     addEventListener(t, fn) { (handlers[t] = handlers[t] || []).push(fn); },
   };
-  const writes = [], reads = { invoices: 0, fetch: [] }, toasts = [];
+  const writes = [], reads = { invoices: 0, fetch: [], log: 0 }, toasts = [];
   const win = {
     document,
     _leads: opts.leads || [],
@@ -194,7 +196,9 @@ function boot(opts) {
     addEventListener() {},
     showToast: (m, t) => toasts.push([m, t]),
     db: {}, doc: (db, c, id) => ({ c, id }), serverTimestamp: () => 'SERVER_TS',
-    updateDoc: opts.updateDoc || (async (ref, patch) => { writes.push({ ref, patch }); }),
+    setDoc: opts.setDoc || (async (ref, patch) => { writes.push({ ref, patch }); }),
+    collection: (db, c) => ({ coll: c }), where: (f, op, v) => ({ f, op, v }), query: (c, w2) => ({ coll: c.coll, where: w2 }),
+    getDocs: async (q) => { reads.log++; reads.logQuery = q; return { docs: Object.keys(opts.log || {}).map((id) => ({ id, data: () => opts.log[id] })) }; },
   };
   const ctx = { window: win, document, setTimeout: () => 0, setInterval: () => 0, console, Date, Promise, Set, Math, JSON, parseInt, String, Object, Array, isFinite, Number };
   win.window = win;
@@ -211,8 +215,9 @@ const QL = () => [
   lead('ZZ_QA_1', { firstName: 'Dana', lastName: 'Payer', reviewRequested: true, reviewRequestedAt: D(2026, 10, 5), reviewRequestSource: 'auto-email' }),
   lead('ZZ_QA_2', { firstName: 'Sam', lastName: 'Payer' }),
   lead('ZZ_QA_3', { firstName: 'Lee', lastName: 'Unpaid', reviewRequested: true }),
-  lead('ZZ_QA_4', { firstName: 'Kim', lastName: 'Low', reviewRequested: true, reviewRequestedAt: D(2026, 10, 2), reputation: { reviewSeen: true, platform: 'google', rating: 2, responded: false } }),
+  lead('ZZ_QA_4', { firstName: 'Kim', lastName: 'Low', reviewRequested: true, reviewRequestedAt: D(2026, 10, 2) }),
 ];
+const QLOG = () => ({ ZZ_QA_4: { companyId: 'u1', leadId: 'ZZ_QA_4', reviewSeen: true, platform: 'google', rating: 2, responded: false, updatedBy: 'u1' } });
 const QI = () => [paidInv('ZZ_QA_1', D(2026, 10, 10)), paidInv('ZZ_QA_2', D(2026, 10, 12)), paidInv('ZZ_QA_4', D(2026, 10, 1))];
 
 (async () => {
@@ -221,26 +226,27 @@ const QI = () => [paidInv('ZZ_QA_1', D(2026, 10, 10)), paidInv('ZZ_QA_2', D(2026
   try {
     console.log('flag off / not the owner: nothing renders, reads or writes');
     {
-      const e = boot({ flag: false, leads: QL(), invoices: QI() });
+      const e = boot({ flag: false, log: QLOG(), leads: QL(), invoices: QI() });
       e.win.NBDReputation.sync();
       ok('button stays hidden, open() refuses', e.btn.hidden === true && e.win.NBDReputation.open() === false);
       e.clickBtn(); e.click({ 'data-rep-log': 'ZZ_QA_2' }); e.click({ 'data-rep-act': 'save-log' });
       await tick();
-      ok('no element, no read, no fetch, no write', e.created.length === 0 && e.reads.invoices === 0 && e.reads.fetch.length === 0 && e.writes.length === 0);
+      ok('no element, no read (payments, log, Google), no write', e.created.length === 0 && e.reads.invoices === 0 && e.reads.log === 0 && e.reads.fetch.length === 0 && e.writes.length === 0);
       ok('no alert badge when the flag is off, even with a 2-star review on file', e.badge.hidden === true && e.badge.textContent === '');
     }
     for (const role of ['manager', 'sales_rep', 'viewer']) {
-      const e = boot({ flag: true, claims: { role, companyId: 'co' }, leads: QL(), invoices: QI() });
+      const e = boot({ flag: true, log: QLOG(), claims: { role, companyId: 'co' }, leads: QL(), invoices: QI() });
       e.win.NBDReputation.sync(); e.clickBtn();
       await tick();
-      ok('flag on but ' + role + ': hidden, refuses, no read, no write, no badge', e.btn.hidden === true && e.created.length === 0 && e.reads.invoices === 0 && e.writes.length === 0 && e.badge.hidden === true);
+      ok('flag on but ' + role + ': hidden, refuses, no read (not even the log), no write, no badge', e.btn.hidden === true && e.created.length === 0 && e.reads.invoices === 0 && e.reads.log === 0 && e.writes.length === 0 && e.badge.hidden === true);
     }
 
     console.log('flag on, owner (positive control)');
     {
-      const e = boot({ flag: true, leads: QL(), invoices: QI() });
+      const e = boot({ flag: true, log: QLOG(), leads: QL(), invoices: QI() });
       e.win.NBDReputation.sync();
-      ok('button shows for the owner; the badge counts the one unreplied low review', e.btn.hidden === false && e.badge.hidden === false && e.badge.textContent === '1');
+      await until(() => e.badge.textContent === '1', 'badge');
+      ok('button shows for the owner; the log is read once, scoped to the company; the badge counts the one unreplied low review', e.btn.hidden === false && e.badge.hidden === false && e.badge.textContent === '1' && e.reads.log === 1 && e.reads.logQuery.coll === 'review_log' && e.reads.logQuery.where.f === 'companyId' && e.reads.logQuery.where.v === 'u1');
       e.clickBtn();
       await until(() => /rep-counts/.test(e.overlay().innerHTML) && /Google: 5\.0/.test(e.overlay().innerHTML), 'screen');
       const h = e.overlay().innerHTML;
@@ -259,30 +265,30 @@ const QI = () => [paidInv('ZZ_QA_1', D(2026, 10, 10)), paidInv('ZZ_QA_2', D(2026
       e.click({ 'data-rep-act': 'save-log' });
       await until(() => e.writes.length === 1, 'write');
       const w0 = e.writes[0];
-      ok('one tap writes exactly the reputation patch on that lead and nothing else', w0.ref.c === 'leads' && w0.ref.id === 'ZZ_QA_2' && Object.keys(w0.patch).join() === 'reputation');
-      ok('patch: yelp, 1 star, server time, caller', w0.patch.reputation.platform === 'yelp' && w0.patch.reputation.rating === 1 && w0.patch.reputation.updatedAt === 'SERVER_TS' && w0.patch.reputation.updatedBy === 'u1' && w0.patch.reputation.reviewSeen === true);
+      ok('one tap writes exactly one review_log doc, keyed by the lead id, and nothing else', e.writes.length === 1 && w0.ref.c === 'review_log' && w0.ref.id === 'ZZ_QA_2' && Object.keys(w0.patch).sort().join() === 'companyId,leadId,platform,rating,responded,reviewSeen,updatedAt,updatedBy');
+      ok('doc: yelp, 1 star, company, lead, server time, caller', w0.patch.platform === 'yelp' && w0.patch.rating === 1 && w0.patch.updatedAt === 'SERVER_TS' && w0.patch.updatedBy === 'u1' && w0.patch.reviewSeen === true && w0.patch.companyId === 'u1' && w0.patch.leadId === 'ZZ_QA_2');
       await until(() => e.badge.textContent === '2', 'badge');
       ok('the alert badge goes to 2 at once, and a toast tells Jo it needs a reply', e.badge.textContent === '2' && e.toasts.some((t) => /needs your reply/.test(t[0])));
       ok('nothing else was sent anywhere (only the Google summary was fetched)', e.reads.fetch.length === 1);
       e.click({ 'data-rep-act': 'toggle-replied', 'data-rep-id': 'ZZ_QA_4' });
       await until(() => e.writes.length === 2, 'replied write');
-      ok('"I replied" writes responded true and keeps google / 2', e.writes[1].patch.reputation.responded === true && e.writes[1].patch.reputation.platform === 'google' && e.writes[1].patch.reputation.rating === 2);
+      ok('"I replied" writes responded true and keeps google / 2, on the same review_log doc', e.writes[1].ref.c === 'review_log' && e.writes[1].ref.id === 'ZZ_QA_4' && e.writes[1].patch.responded === true && e.writes[1].patch.platform === 'google' && e.writes[1].patch.rating === 2);
       await until(() => e.badge.textContent === '1', 'badge after reply');
       ok('replying lowers the badge', e.badge.textContent === '1');
       e.click({ 'data-rep-reply': 'ZZ_QA_4' });
       ok('Reply draft picks the 1-2 star template and fills the first name', /call me directly/.test(e.overlay().innerHTML) && /Kim/.test(e.overlay().innerHTML));
     }
     {
-      const e = boot({ flag: true, leads: QL(), invoices: QI(), updateDoc: async () => { const x = new Error('nope'); x.code = 'permission-denied'; throw x; } });
+      const e = boot({ flag: true, log: QLOG(), leads: QL(), invoices: QI(), setDoc: async () => { const x = new Error('nope'); x.code = 'permission-denied'; throw x; } });
       e.clickBtn();
       await until(() => /rep-counts/.test(e.overlay().innerHTML), 'screen');
       e.click({ 'data-rep-log': 'ZZ_QA_2' }); e.click({ 'data-rep-plat': 'google' }); e.click({ 'data-rep-star': '5' }); e.click({ 'data-rep-act': 'save-log' });
       await until(() => e.toasts.length >= 1, 'error toast');
       await tick();
-      ok('a refused write says so and does not mark the review logged', /Could not save: permission-denied/.test(e.toasts[0][0]) && e.win._leads[1].reputation === undefined);
+      ok('a refused write says so and does not mark the review logged', /Could not save: permission-denied/.test(e.toasts[0][0]) && e.badge.textContent === '1');
     }
     {
-      const e = boot({ flag: true, leads: QL(), invoices: QI(), invoiceError: true });
+      const e = boot({ flag: true, log: QLOG(), leads: QL(), invoices: QI(), invoiceError: true });
       e.clickBtn();
       await until(() => /role="alert"/.test(e.overlay().innerHTML), 'error state');
       ok('payments that cannot be read show an error and a retry, not an empty list', /Payments could not be read/.test(e.overlay().innerHTML) && /data-rep-act="retry"/.test(e.overlay().innerHTML) && !/rep-list/.test(e.overlay().innerHTML));
@@ -295,7 +301,11 @@ const QI = () => [paidInv('ZZ_QA_1', D(2026, 10, 10)), paidInv('ZZ_QA_2', D(2026
     const portal = strip(fs.readFileSync(path.join(ROOT, 'functions/portal.js'), 'utf8'));
     const seg = portal.slice(portal.indexOf('exports.submitCustomerRating'), portal.indexOf('exports.sendPortalMessage'));
     ok('control: found the rating function', seg.length > 2000 && /googleReviewUrl/.test(seg));
-    ok('server returns the review link with no star condition around it', !/(starsNum|stars)\s*(>=|>|<=|<|===)\s*\d[^;{]*\?[^;]*googleReviewUrl/.test(seg) && !/if\s*\(\s*starsNum\s*(>=|>)\s*[34][^)]*\)\s*\{[^}]*googleReviewUrl/.test(seg));
+    const lnk = seg.slice(seg.indexOf('let googleReviewUrl = null;'), seg.indexOf('res.status(200).json({', seg.indexOf('let googleReviewUrl = null;')));
+    ok('control: found the block that resolves the review link', lnk.length > 200 && /portalReviewUrl/.test(lnk));
+    ok('server resolves and returns the review link with no star condition anywhere in that block', !/stars/i.test(lnk));
+    const resp = seg.slice(seg.indexOf('res.status(200).json({', seg.indexOf('let googleReviewUrl = null;')));
+    ok('the response carries googleReviewUrl as-is (not conditioned on tier or stars)', /\bgoogleReviewUrl,/.test(resp.slice(0, 200)));
     const client = fs.readFileSync(path.join(ROOT, 'docs/pro/js/portal.js'), 'utf8');
     const at = client.indexOf("if (json.tier === 'high')");
     const thanks = at < 0 ? '' : client.slice(at, at + 1800);
@@ -314,7 +324,7 @@ const QI = () => [paidInv('ZZ_QA_1', D(2026, 10, 10)), paidInv('ZZ_QA_2', D(2026
   ok('the flag is reputationLoop, read through NBDFlags', /FLAG = 'reputationLoop'/.test(CODE) && /NBDFlags\.enabled\(FLAG\)/.test(CODE));
   ok('no new send: no messaging, email, SMS, Cloud Function or callable code', !/sendSms|sendEmail|twilio|resend|httpsCallable|queue|mailto:|sms:|tel:|messaging_controls|email_queue|notifications/i.test(CODE));
   ok('the only network call is the Google summary read', (CODE.match(/\bfetch\(/g) || []).length === 1 && /w\.fetch\('\/api\/google-reviews'/.test(CODE));
-  ok('writes only through updateDoc on leads, one call site', (CODE.match(/updateDoc\(/g) || []).length === 1 && /updateDoc\(w\.doc\(db, 'leads', id\), patch\)/.test(CODE));
+  ok('writes only through setDoc on review_log, one call site; the lead document is never written', (CODE.match(/setDoc\(/g) || []).length === 1 && /setDoc\(w\.doc\(db, 'review_log', id\), data\)/.test(CODE) && !/updateDoc|'leads'/.test(CODE));
   ok('no delete, no batch, no review text or reviewer name is stored', !/deleteDoc|writeBatch|deleted\s*:\s*true|reviewText|comment\s*:/.test(CODE));
   ok('the alert never filters on who was asked or on a rating before asking (no "happy" screening)', !/\bhappy\b|satisf|only if/i.test(CODE));
   ok('no inline handlers or styles in generated markup', !/\son[a-z]+=/.test(CODE) && !/style="/.test(CODE));
@@ -324,9 +334,12 @@ const QI = () => [paidInv('ZZ_QA_1', D(2026, 10, 10)), paidInv('ZZ_QA_2', D(2026
   ok('dashboard: external deferred script + stylesheet, no inline script', /<script defer src="js\/reputation\.js\?v=\d+"><\/script>/.test(html) && /css\/reputation\.css/.test(html));
   const css = fs.readFileSync(path.join(ROOT, 'docs/pro/css/reputation.css'), 'utf8');
   ok('phone fit: 44px taps and a single column under 480px', /\.rep-pill[^}]*min-height: 44px/.test(css) && /\.rep-btn[^}]*min-height: 44px/.test(css) && /@media \(max-width: 480px\)/.test(css) && /\.rep-foot \{ flex-direction: column-reverse/.test(css));
-  ok('rules: the map is owner-only and reachable from the lead update rule', (() => {
-    const r = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
-    return /function reputationWriteOk/.test(r) && /&& reputationWriteOk\(\)/.test(r) && /'reputation'\s*\n\s*\]\);/.test(r);
+  ok('rules: review_log is owner-only, 8 keys, no delete, and the lead update rule is untouched', (() => {
+    const r = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8').replace(/\r\n/g, '\n');
+    const blk = r.slice(r.indexOf('match /review_log/{leadId}'), r.indexOf('// ── AWAY MODE'));
+    return blk.length > 800 && /allow read: if isAuth\(\) && reviewLogOwner/.test(blk) && /allow delete: if false/.test(blk)
+      && /hasOnly\(\['companyId', 'leadId', 'reviewSeen', 'platform', 'rating', 'responded', 'updatedAt', 'updatedBy'\]\)/.test(blk)
+      && /updatedAt == request\.time/.test(blk) && !/reputation/.test(r.replace(/\/\/[^\n]*/g, '').replace(/review_log/g, ''));
   })());
 
 

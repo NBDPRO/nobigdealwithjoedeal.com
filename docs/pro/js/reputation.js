@@ -9,10 +9,15 @@
  *   Ask status  is READ from the stamps that already exist on the lead
  *               (reviewRequested / reviewRequestedAt / reviewRequestSource /
  *               reviewAutoAsk). Nothing duplicated, nothing written.
- *   reputation  the one new map on leads/{id}, written only by the owner's tap
- *               ("Got a review", "I replied"):
- *                 { reviewSeen, platform, rating, responded, updatedAt, updatedBy }
- *               firestore.rules reputationWriteOk keeps it owner-only and well-formed.
+ *   review_log  one small doc per lead, review_log/{leadId}, written only by the
+ *               owner's tap ("Got a review", "I replied"):
+ *                 { companyId, leadId, reviewSeen, platform, rating, responded,
+ *                   updatedAt, updatedBy }
+ *               firestore.rules (match /review_log) keeps it owner-only and
+ *               well-formed. It is a separate collection, not a field on the lead,
+ *               because the lead update rule has no spare evaluation budget (an
+ *               extra clause there pushed denied writes past Firestore's
+ *               1000-expression limit, 2026-10-19).
  *
  * RULES THIS SCREEN LIVES BY (shown in the UI copy; FTC 16 CFR 465 and Google's
  * review policy):
@@ -144,8 +149,8 @@
   }
 
   /** The owner's own log for this lead (never inferred). */
-  function seenInfo(lead) {
-    var r = (lead && lead.reputation && typeof lead.reputation === 'object') ? lead.reputation : {};
+  function seenInfo(entry) {
+    var r = (entry && typeof entry === 'object') ? entry : {};
     var seen = r.reviewSeen === true;
     return {
       seen: seen,
@@ -157,11 +162,11 @@
   }
 
   /** One row per finished+paid customer, newest payment first. */
-  function buildRows(leads, paid) {
+  function buildRows(leads, paid, log) {
     var rows = [];
     (leads || []).forEach(function (l) {
       if (!countsAsCustomer(l) || !paid || !paid[l.id]) return;
-      var a = askInfo(l), s = seenInfo(l);
+      var a = askInfo(l), s = seenInfo(log && log[l.id]);
       var priv = Number(l.customerRating);
       rows.push({
         id: l.id, name: nameOf(l), first: firstNameOf(l), ask: a, seen: s,
@@ -212,23 +217,24 @@
   }
 
   /**
-   * Firestore patch for "Got a review" (seen true) or its undo (seen false).
-   * `ts` is serverTimestamp() in the browser. Returns null when invalid.
+   * The review_log/{leadId} doc for "Got a review" (seen true) or its undo (seen false).
+   * `ts` is serverTimestamp() in the browser; `ids` = { companyId, leadId }. Returns null when invalid.
    */
-  function seenPatch(seen, platform, rating, uid, ts, prev) {
-    if (!uid) return null;
-    if (seen === false) return { reputation: { reviewSeen: false, platform: null, rating: null, responded: false, updatedAt: ts, updatedBy: uid } };
+  function seenPatch(seen, platform, rating, uid, ts, prev, ids) {
+    ids = ids || {};
+    if (!uid || !ids.companyId || !ids.leadId) return null;
+    var base = { companyId: String(ids.companyId), leadId: String(ids.leadId) };
+    if (seen === false) return Object.assign(base, { reviewSeen: false, platform: null, rating: null, responded: false, updatedAt: ts, updatedBy: uid });
     if (!isPlatform(platform) || !isRating(rating)) return null;
-    var keepResp = prev && prev.reputation && prev.reputation.responded === true && prev.reputation.reviewSeen === true
-      && prev.reputation.platform === platform && prev.reputation.rating === rating;
-    return { reputation: { reviewSeen: true, platform: platform, rating: rating, responded: !!keepResp, updatedAt: ts, updatedBy: uid } };
+    var keepResp = !!prev && prev.responded === true && prev.reviewSeen === true && prev.platform === platform && prev.rating === rating;
+    return Object.assign(base, { reviewSeen: true, platform: platform, rating: rating, responded: keepResp, updatedAt: ts, updatedBy: uid });
   }
-  function respondedPatch(responded, lead, uid, ts) {
-    var s = seenInfo(lead);
-    if (!uid || !s.seen || !s.platform || !s.rating) return null;
-    return { reputation: { reviewSeen: true, platform: s.platform, rating: s.rating, responded: !!responded, updatedAt: ts, updatedBy: uid } };
+  function respondedPatch(responded, entry, uid, ts, ids) {
+    var s = seenInfo(entry);
+    ids = ids || {};
+    if (!uid || !ids.companyId || !ids.leadId || !s.seen || !s.platform || !s.rating) return null;
+    return { companyId: String(ids.companyId), leadId: String(ids.leadId), reviewSeen: true, platform: s.platform, rating: s.rating, responded: !!responded, updatedAt: ts, updatedBy: uid };
   }
-
   /** Reply draft with the reviewer's first name filled in; the name is cleaned to letters, spaces, . - '. */
   function fillTemplate(key, first) {
     var t = null;
@@ -270,7 +276,7 @@
   if (w.NBDReputation) return;
 
   var overlay = null;
-  var st = { loading: false, error: '', invoices: null, google: undefined, saving: false, filter: 'all', logId: '', pick: '', stars: 0, tplKey: 'five', tplFirst: '', last: null };
+  var st = { loading: false, error: '', invoices: null, log: null, logLoading: false, google: undefined, saving: false, filter: 'all', logId: '', pick: '', stars: 0, tplKey: 'five', tplFirst: '', last: null };
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -282,11 +288,25 @@
   function flagOn() { return !!(w.NBDFlags && typeof w.NBDFlags.enabled === 'function' && w.NBDFlags.enabled(FLAG)); }
   function available() { return flagOn() && canSee(claims(), uid()); }
   function leads() { return w._leads || []; }
+  function cid() { return claims().companyId || uid(); }
   function leadById(id) { return leads().filter(function (l) { return l && l.id === id; })[0] || null; }
 
   function rows() {
     if (!st.invoices || !w.NBDRevenue) return [];
-    return buildRows(leads(), paidLeads(st.invoices, w.NBDRevenue.paymentsOf, w.NBDRevenue.isOwedInvoice));
+    return buildRows(leads(), paidLeads(st.invoices, w.NBDRevenue.paymentsOf, w.NBDRevenue.isOwedInvoice), st.log);
+  }
+
+  /** The owner's review log: one tenant-scoped query, only for an owner with the flag on. */
+  async function loadLog() {
+    if (!available() || st.logLoading) return;
+    if (!w.getDocs || !w.query || !w.where || !w.collection || !(w.db || w._db)) return;
+    st.logLoading = true;
+    try {
+      var snap = await w.getDocs(w.query(w.collection(w.db || w._db, 'review_log'), w.where('companyId', '==', cid())));
+      var m = {}; snap.docs.forEach(function (d) { m[d.id] = d.data(); });
+      st.log = m;
+    } catch (e) { if (!st.log) st.log = null; }
+    st.logLoading = false;
   }
 
   function syncButton() {
@@ -297,8 +317,9 @@
     var badge = doc.getElementById('reputationBadge');
     if (!badge) return;
     var n = 0;
-    if (on && w.NBDRevenue && typeof w.NBDRevenue.cached === 'function' && w.NBDRevenue.cached()) {
-      n = lowAlerts(buildRows(leads(), paidLeads(w.NBDRevenue.cached(), w.NBDRevenue.paymentsOf, w.NBDRevenue.isOwedInvoice)), claims(), uid()).length;
+    if (on && !st.log) loadLog().then(syncButton, function () {});
+    if (on && st.log && w.NBDRevenue && typeof w.NBDRevenue.cached === 'function' && w.NBDRevenue.cached()) {
+      n = lowAlerts(buildRows(leads(), paidLeads(w.NBDRevenue.cached(), w.NBDRevenue.paymentsOf, w.NBDRevenue.isOwedInvoice), st.log), claims(), uid()).length;
     }
     badge.textContent = n ? String(n) : '';
     badge.hidden = !n;
@@ -310,6 +331,7 @@
       if (!w.NBDRevenue || typeof w.NBDRevenue.loadInvoices !== 'function') throw new Error('Money data is not loaded on this page');
       st.invoices = await w.NBDRevenue.loadInvoices({ force: true });
       if (w.NBDRevenue.status && w.NBDRevenue.status() === 'failed') throw new Error('Payments could not be read');
+      await loadLog();
     } catch (e) {
       st.invoices = null; st.error = (e && e.message) || 'Could not load payments';
     }
@@ -439,25 +461,26 @@
   }
 
   // ── the write (owner taps only) ──────────────────────────────────────
-  async function write(id, patch) {
-    if (!available() || !patch) return false;
+  async function write(id, data) {
+    if (!available() || !data) return false;
     var db = w.db || w._db;
-    if (!db || typeof w.updateDoc !== 'function' || typeof w.doc !== 'function') { toast('Could not save: the CRM is not ready, reload and try again', 'error'); return false; }
-    try { await w.updateDoc(w.doc(db, 'leads', id), patch); } catch (e) {
+    if (!db || typeof w.setDoc !== 'function' || typeof w.doc !== 'function') { toast('Could not save: the CRM is not ready, reload and try again', 'error'); return false; }
+    try { await w.setDoc(w.doc(db, 'review_log', id), data); } catch (e) {
       toast('Could not save: ' + ((e && e.code) || (e && e.message) || 'unknown error'), 'error');
       return false;
     }
-    var l = leadById(id);                                   // keep the board and this screen in step
-    if (l) l.reputation = Object.assign({}, patch.reputation, { updatedAt: Date.now() });
+    if (!st.log) st.log = {};                                // keep this screen and the badge in step
+    st.log[id] = Object.assign({}, data, { updatedAt: Date.now() });
     return true;
   }
+  function ids(id) { return { companyId: cid(), leadId: id }; }
   function stamp() { return typeof w.serverTimestamp === 'function' ? w.serverTimestamp() : new Date(); }
 
   async function saveLog() {
     if (st.saving || !st.logId) return;
-    var l = leadById(st.logId); if (!l) return;
+    if (!leadById(st.logId)) return;
     st.saving = true; paint();
-    var ok = await write(st.logId, seenPatch(true, st.pick, st.stars, uid(), stamp(), l));
+    var ok = await write(st.logId, seenPatch(true, st.pick, st.stars, uid(), stamp(), st.log && st.log[st.logId], ids(st.logId)));
     st.saving = false;
     if (ok) {
       var low = st.stars <= LOW_MAX;
@@ -469,7 +492,7 @@
 
   function pickReply(id) {
     var l = leadById(id); if (!l) return;
-    var s = seenInfo(l);
+    var s = seenInfo(st.log && st.log[id]);
     st.tplKey = templateFor(s.rating || 5); st.tplFirst = firstNameOf(l);
     paint();
     var ta = overlay && overlay.querySelector && overlay.querySelector('.rep-ta');
@@ -504,8 +527,8 @@
     else if (a === 'copy') copyReply();
     else if (a === 'save-log') saveLog().catch(function (e) { st.saving = false; toast('Could not save: ' + (e && e.message || 'unknown error'), 'error'); paint(); });
     else if (a === 'toggle-replied' || a === 'unlog') {
-      var l = leadById(id); if (!l || st.saving) return;
-      var patch = a === 'unlog' ? seenPatch(false, null, null, uid(), stamp()) : respondedPatch(!seenInfo(l).responded, l, uid(), stamp());
+      var entry = st.log && st.log[id]; if (!entry || st.saving) return;
+      var patch = a === 'unlog' ? seenPatch(false, null, null, uid(), stamp(), null, ids(id)) : respondedPatch(!seenInfo(entry).responded, entry, uid(), stamp(), ids(id));
       st.saving = true; paint();
       write(id, patch).then(function () { st.saving = false; syncButton(); paint(); }, function () { st.saving = false; paint(); });
     }
