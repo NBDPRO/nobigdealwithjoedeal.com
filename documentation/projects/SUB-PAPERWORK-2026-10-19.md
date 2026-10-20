@@ -164,3 +164,13 @@ Left as they are, on purpose (Jo's call if any should change):
 - **Turn-on order:** the watcher is gated only by its env switch (it does not read the `subPaperwork` flag). Flip the UI flag first, enter dates, then set `SUB_PAPERWORK_WATCH_ENABLED=true`.
 - **Download-token metadata:** the Firebase SDK stamps a download token into an object's metadata at upload even if no URL is ever made. The CRM never calls `getDownloadURL`, and reading the metadata needs the same owner / company_admin read right as the file, so nothing leaks today. A finalize function that strips the token is a follow-up (owner: Claude build session, to be scheduled by Jo).
 - **Follow-ups with owners:** (1) tombstone claim so a removed former owner keeps no Storage access: Claude build session, after Jo approves the `removeMember` change; (2) retention / erasure of tax forms: Jo with counsel, before the flag is used for real W-9s.
+
+## GATE: do not use for real W-9s yet
+
+**Do NOT flip `subPaperwork` for real W-9s until all three are done** (owner and target date):
+
+1. Tombstone claim so a removed former owner keeps no Storage access: Claude build session, with Jo approving the `removeMember` change, target 2026-10-27.
+2. Strip the SDK download token from uploaded `sub-papers/` objects (finalize function) with a test that the stored metadata has none: Claude build session, target 2026-10-27. Until then a source guard pins that nothing calls `getDownloadURL`.
+3. Retention / erasure decision for tax forms: Jo with counsel, target 2026-10-27.
+
+The tracker is safe to look at with dates and notes only (no files) before then.

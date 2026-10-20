@@ -270,6 +270,43 @@ console.log('\n— the daily watcher (owner only) —');
     ok('papers: no update, path pinned to this company and sub, no link', /match \/papers\/\{paperId\}/.test(fr) && /allow update: if false;/.test(fr.slice(fr.indexOf('match /papers/'))) && /'\^sub-papers\/' \+ companyId \+ '\/' \+ subId/.test(fr));
     ok('storage: sub-papers read/create/delete are company_admin or solo owner only; no platform admin', (() => { const b = sr.slice(sr.indexOf('match /sub-papers/'), sr.indexOf('// ── YARD-SIGN')); return /allow read: if isCompanyAdminOf\(companyId\);/.test(b) && /allow delete: if isCompanyAdminOf\(companyId\);/.test(b) && !/isAdmin\(\)|isOwner\(/.test(b) && /isProofType\(\)/.test(b) && /allow update: if false;/.test(b); })());
 
+    ok('L3 guard: no getDownloadURL in the shared proof opener or the paperwork UI/logic', !/getDownloadURL/.test(stripComments(read('docs/pro/js/proof-photos.js')) + ui + lg));
+
+    console.log('\n— BEHAVIOR: who can reach the 1099 export (fake document) —');
+    const handlers = {};
+    async function whoCanExport(claims) {
+      const els = {};
+      let blobs = 0, clicks = [];
+      const mkEl = () => ({ innerHTML: '', id: '', className: '', setAttribute() {}, remove() {}, appendChild() {}, click() { clicks.push(1); }, querySelectorAll: () => [] });
+      const doc = {
+        body: { appendChild(e) { els[e.id] = e; } },
+        createElement: () => mkEl(),
+        getElementById: (id) => els[id] || null,
+        addEventListener: (t, fn) => { handlers[t] = fn; },
+      };
+      const rows = [{ id: 's1', data: { name: 'CA Roofing', trade: 'Roofing' } }];
+      const win = { console, document: doc, Blob: class { constructor() { } }, setTimeout: () => 0,
+        URL: { createObjectURL: () => { blobs++; return 'blob:x'; }, revokeObjectURL() { } },
+        NBDFlags: { enabled: (n) => n === 'subPaperwork' }, _user: { uid: 'u1' }, _userClaims: claims,
+        db: {}, collection: (...a) => a, getDocs: async () => ({ forEach: (fn) => rows.forEach((r) => fn({ id: r.id, data: () => r.data })) }),
+        serverTimestamp: () => 'TS', Expenses: { list: () => [pay({ amountCents: 123400 })], meta: () => null }, print: () => { win.__printed = true; } };
+      win.window = win;
+      vm.createContext(win);
+      ['docs/pro/js/sub-payments-logic.js', 'docs/pro/js/sub-paperwork-logic.js', 'docs/pro/js/proof-photos.js', 'docs/pro/js/sub-paperwork.js'].forEach((f) => vm.runInContext(read(f), win, { filename: f }));
+      const click = async (act) => { await handlers.click({ target: { closest: () => ({ getAttribute: (k) => (k === 'data-spw-act' ? act : null) }) }, preventDefault() { } }); await new Promise((r) => setImmediate(r)); };
+      await win.NBDSubPaperwork.open('export');
+      const afterOpen = (els.spwOverlay || { innerHTML: '' }).innerHTML;
+      await click('tab-export');
+      const afterTab = els.spwOverlay.innerHTML;
+      await click('csv'); await click('print');
+      return { tabShown: /data-spw-act="tab-export"/.test(afterOpen), exportShown: /data-spw-act="csv"/.test(afterTab) || /data-spw-act="csv"/.test(afterOpen), csvDownloads: blobs, printed: !!win.__printed };
+    }
+    for (const [who, claims, allowed] of [['owner', {}, true], ['company_admin', { role: 'company_admin', companyId: 'co' }, true], ['manager', { role: 'manager', companyId: 'co' }, false], ['viewer', { role: 'viewer', companyId: 'co' }, false]]) {
+      const r = await whoCanExport(claims);
+      ok(who + ': export tab ' + (allowed ? 'shown' : 'NOT shown') + ', csv button ' + (allowed ? 'shown' : 'absent') + ', downloads ' + (allowed ? 1 : 0) + ', print ' + (allowed ? 'works' : 'blocked'),
+        r.tabShown === allowed && r.exportShown === allowed && r.csvDownloads === (allowed ? 1 : 0) && r.printed === allowed, JSON.stringify(r));
+    }
+
     console.log('\n' + passed + ' passed, ' + failed + ' failed');
     process.exit(failed ? 1 : 0);
   })().catch((e) => { console.error(e); process.exit(1); });

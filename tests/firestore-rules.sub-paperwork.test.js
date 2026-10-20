@@ -195,6 +195,15 @@ async function run() {
   await check('tax-id text on an EXISTING sub (updateDoc) is denied', 'deny', updateDoc(sub(owner, 's1'), { notes: 'ssn 123-45-6789' }));
   await check('control: a harmless merge on the same sub', 'allow', setDoc(sub(owner, 's1'), { paperworkNote: 'checked again' }, { merge: true }));
 
+  // -- a LEGACY sub whose old notes already hold nine digits must stay editable (notes screened only when changed)
+  await env.withSecurityRulesDisabled(async (c) => {
+    await setDoc(doc(c.firestore(), 'companies/co-a/subs/leg1'), { name: 'Legacy Crew', trade: 'Roofing', active: true, notes: 'acct 123456789 ref' });
+  });
+  await check('a manager updates the phone of a legacy sub whose old notes hold nine digits', 'allow', updateDoc(sub(mike, 'leg1'), { phone: '5135550177' }));
+  await check('the owner merge-updates a legacy sub, notes untouched', 'allow', setDoc(sub(owner, 'leg1'), { trade: 'Gutters' }, { merge: true }));
+  await check('...but CHANGING the notes to another tax-id-looking value is denied', 'deny', updateDoc(sub(owner, 'leg1'), { notes: 'ssn 987-65-4321' }));
+  await check('control: changing the notes to plain text is allowed', 'allow', updateDoc(sub(owner, 'leg1'), { notes: 'plain note' }));
+
   await env.withSecurityRulesDisabled(async (c) => {
     const s = await getDoc(doc(c.firestore(), 'companies/co-a/subs/s1'));
     const d = s.data() || {};

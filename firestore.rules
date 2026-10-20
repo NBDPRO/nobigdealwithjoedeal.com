@@ -384,8 +384,7 @@ service cloud.firestore {
         && _subYmdOk(d, 'w9ReceivedOn') && _subYmdOk(d, 'glExpiry') && _subYmdOk(d, 'wcExpiry')
         && _subYmdOk(d, 'licenseExpiry') && _subYmdOk(d, 'paperworkReviewedAt')
         && _subTextOk(d, 'legalName', 120) && _subTextOk(d, 'entityType', 40) && _subTextOk(d, 'wcExemptNote', 200)
-        && _subTextOk(d, 'licenseNote', 200) && _subTextOk(d, 'paperworkNote', 500)
-        && _subTextOk(d, 'notes', 1000);
+        && _subTextOk(d, 'licenseNote', 200) && _subTextOk(d, 'paperworkNote', 500);
     }
 
     // 2026-10-12 — per-number contact labels (companies/{companyId}/
@@ -3094,12 +3093,14 @@ service cloud.firestore {
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
           && subWriteOk()
           && !('id' in request.resource.data)
+          && _subTextOk(request.resource.data, 'notes', 1000)
           && (!request.resource.data.keys().hasAny(subPaperworkKeys()) || subPaperworkWriter());
         allow update: if isAuth() && notViewer()
           && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
           && subWriteOk()
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['notes']) || _subTextOk(request.resource.data, 'notes', 1000))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(subPaperworkKeys()) || subPaperworkWriter());
         allow delete: if isAuth() && notViewer()
           && (ownsTenantByUid(companyId)
