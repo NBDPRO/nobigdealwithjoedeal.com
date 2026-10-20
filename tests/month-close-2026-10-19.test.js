@@ -362,6 +362,33 @@ const inv = (leadId, pays, extra) => Object.assign({
     } finally { Date.now = realNow; }
   }
 
+  console.log('\n11b. the REAL expenses.js loader reports the cap on the raw rows');
+  {
+    const boot = async (n, voidedIdx) => {
+      const mkDoc = (i) => ({ id: 'e' + i, data: () => Object.assign({ costType: 'direct', amountCents: 100, leadId: 'L1', date: new Date(ET('2026-10-02T12:00:00Z').getTime() + i * 3600000) }, i === voidedIdx ? { deleted: true } : {}) });
+      const docs = Array.from({ length: n }, (_, i) => mkDoc(i));
+      const el = new Proxy(function () {}, { get: () => el, apply: () => el, set: () => true });
+      const document = { querySelector: () => null, getElementById: () => null, addEventListener() {}, createElement: () => ({ style: {}, setAttribute() {}, addEventListener() {} }), body: { appendChild() {} } };
+      const win = {
+        document, console, _user: { uid: 'u1' }, _userClaims: { role: 'company_admin', companyId: 'co' }, db: {},
+        collection: () => ({}), query: () => ({}), where: () => ({}), orderBy: () => ({}), limit: () => ({}),
+        getDocs: async () => ({ docs }), showToast() {}, addEventListener() {}, CustomEvent: function () {}, dispatchEvent() {},
+      };
+      win.window = win;
+      vm.runInNewContext(read('docs/pro/js/expenses.js'), { window: win, document, console, Date, Promise, Math, JSON, parseInt, parseFloat, String, Number, Object, Array, isFinite, isNaN, setTimeout, Set, Map, RegExp, Intl, Error });
+      try { await win.Expenses.init(); } catch (e) { /* render() touches DOM we do not model */ }
+      for (let i = 0; i < 6; i++) await new Promise((r) => setImmediate(r));
+      return win.Expenses;
+    };
+    const X = await boot(1000, 5);
+    ok('1000 raw rows with ONE voided: 999 handed over, yet meta says capped', X.list().length === 999 && X.meta().capped === true, JSON.stringify(X.meta()) + ' len ' + X.list().length);
+    ok('the oldest RAW row is reported, and that makes this month incomplete', X.meta().oldestMs === ET('2026-10-02T12:00:00Z').getTime() && P.expensesTruncated(X.meta(), '2026-09') === true);
+    const Y = await boot(999, -1);
+    ok('999 raw rows is not capped', Y.list().length === 999 && Y.meta().capped === false);
+    const Z = await boot(1000, 0);
+    ok('the voided row can be the oldest raw one and the cap still shows', Z.meta().capped === true && Z.list().length === 999);
+  }
+
   console.log('\n12. source wiring');
   {
     const logic = stripComments(read('docs/pro/js/month-close-logic.js'));
