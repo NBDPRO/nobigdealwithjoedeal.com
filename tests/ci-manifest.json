@@ -295,6 +295,7 @@
     "lead-source-fixer-2026-10-19.test.js",
     "month-close-2026-10-19.test.js",
     "reputation-2026-10-19.test.js",
+    "invoice-followups-2026-10-20.test.js",
     "speed-to-lead-2026-10-19.test.js",
     "estimate-follow-board-2026-10-19.test.js",
     "estimate-follow-callable-2026-10-19.test.js",

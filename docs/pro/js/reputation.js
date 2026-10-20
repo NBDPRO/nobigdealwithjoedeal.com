@@ -354,7 +354,7 @@
     if (a.status === 'asked') return '<span class="rep-chip rep-asked">Asked' + (a.askedAtMs ? ' ' + esc(fmtDate(a.askedAtMs)) : '') + (a.channel ? ' · ' + esc(a.channel) : '') + '</span>';
     if (a.status === 'sending') return '<span class="rep-chip rep-asked">Sending</span>';
     if (a.status === 'failed') return '<span class="rep-chip rep-warn">Ask did not send (' + esc(a.reason) + ')</span>';
-    if (a.status === 'skipped') return '<span class="rep-chip rep-warn">Marked "don\'t ask"</span>';
+    if (a.status === 'skipped') return '<span class="rep-chip rep-warn" title="Only the manual review-ask prompts honour this. The daily automatic ask does not read it, so it can still send.">Marked "don\'t ask" (daily auto-ask may still send)</span>';
     return '<span class="rep-chip">Not asked yet</span>';
   }
 

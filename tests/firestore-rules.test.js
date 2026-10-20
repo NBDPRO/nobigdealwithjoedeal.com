@@ -31,13 +31,19 @@ const PROJECT_ID = process.env.RULES_TEST_PROJECT_ID || 'nbd-rules-test';
   }
 }
 
+const RULES_OVERRIDE = process.env.RULES_PATH || '';
+if (RULES_OVERRIDE) {
+  if (process.env.CI) throw new Error('RULES_PATH is a local mutation-testing override and must not be set in CI');
+  console.warn('!!! RULES_PATH override in use: testing ' + RULES_OVERRIDE + ' instead of firestore.rules !!!');
+}
+
 async function run() {
   const env = await initializeTestEnvironment({
     projectId: PROJECT_ID,
     firestore: {
-      rules: fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8'),
+      rules: fs.readFileSync(RULES_OVERRIDE || path.resolve(__dirname, '../firestore.rules'), 'utf8'),
       host: '127.0.0.1',
-      port: 8080,
+      port: Number(String(process.env.FIRESTORE_EMULATOR_HOST || '').split(':')[1]) || 8080,   // emulators:exec sets this; 8080 is the CI default
     },
   });
 
@@ -1064,6 +1070,114 @@ async function run() {
   await assertFails(getDoc(doc(bob, 'invoices/bf-inv')));
   await assertFails(getDoc(doc(bob, 'leads/bf-lead')));
   await assertFails(updateDoc(doc(bob, 'invoices/bf-inv'), { deleted: false }));
+  // ── Pre-flag follow-ups (2026-10-20): status words, hard delete of an invoice with money, un-void ──
+  const plainNew = (extra) => newInv('alice', 'co-a', 'not-bf', Object.assign({ source: 'record_payment', backfilled: undefined, backfillKey: undefined }, extra || {}));
+  // (1) status is one of the words the app writes; 'Paid' / 'PAID' cannot dodge the lowercase 'paid' gates
+  await assertFails(setDoc(doc(alice, 'invoices/sw-c1'), plainNew({ status: 'Paid' })));
+  await assertFails(setDoc(doc(alice, 'invoices/sw-c2'), plainNew({ status: 'PAID' })));
+  await assertFails(setDoc(doc(alice, 'invoices/sw-c3'), plainNew({ status: 'paid ' })));
+  await assertFails(setDoc(doc(alice, 'invoices/sw-c4'), plainNew({ status: 'shipped' })));
+  await assertFails(setDoc(doc(alice, 'invoices/sw-c5'), plainNew({ status: null })));
+  await assertFails(setDoc(doc(alice, 'invoices/sw-c6'), plainNew({ status: ['paid'] })));
+  await assertSucceeds(setDoc(doc(alice, 'invoices/sw-c7'), plainNew({ status: 'sent' })));
+  await assertSucceeds(setDoc(doc(alice, 'invoices/sw-c8'), plainNew({ status: undefined })));                       // no status key yet: reads as a draft
+  await assertFails(updateDoc(await fresh('sw-u1'), { status: 'Paid' }));
+  await assertFails(updateDoc(await fresh('sw-u2'), { status: 'PAID', balanceDue: 0 }));
+  await assertFails(updateDoc(await fresh('sw-u3'), paidPatch(payEntry({ at: when }), { status: 'Paid', paidAt: when, lastPaymentAt: when })));   // even with a real payment behind it
+  await assertFails(updateDoc(await fresh('sw-u4'), { status: 'unpaid' }));
+  const swSent = await fresh('sw-u5');
+  await assertSucceeds(updateDoc(swSent, { status: 'sent' }));
+  for (const w of ['viewed', 'overdue', 'partial', 'void', 'cancelled', 'sent']) await assertSucceeds(updateDoc(swSent, { status: w }));   // every word the app writes
+  await assertFails(updateDoc(swSent, { status: deleteField() }));                                                    // the status cannot be dropped
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/sw-legacy'), { createdBy: 'alice', companyId: 'co-a', status: 'Sent', total: 100, amountPaid: 0, payments: [], createdAt: 1 }); });
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/sw-legacy'), { notes: 'an old odd status stays editable' }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/sw-legacy'), { status: 'Sent', notes: 'restating it is fine' }));
+  await assertFails(updateDoc(doc(alice, 'invoices/sw-legacy'), { status: 'Paid' }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/sw-legacy'), { status: 'sent' }));                              // and it can be moved onto a real word
+  // (2) a hard delete of an invoice that carries money is the owner side's
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    const paidRow = (by, cid) => ({ createdBy: by, companyId: cid, status: 'partial', total: 500, amountPaid: 100, balanceDue: 400, payments: [{ amount: 100, at: new Date(), method: 'cash', recordedBy: by }], createdAt: 1 });
+    await setDoc(doc(d, 'invoices/del-rep'), paidRow('alice', 'co-a'));
+    await setDoc(doc(d, 'invoices/del-rep2'), paidRow('alice', 'co-a'));
+    await setDoc(doc(d, 'invoices/del-mgr'), paidRow('mgr-bf', 'co-a'));
+    await setDoc(doc(d, 'invoices/del-solo'), paidRow('solo1', 'solo1'));
+    await setDoc(doc(d, 'invoices/del-admin'), paidRow('carol', 'co-a'));
+    await setDoc(doc(d, 'invoices/del-legacy-paid'), { createdBy: 'alice', companyId: 'co-a', status: 'paid', total: 500, amountPaid: 0, createdAt: 1 });   // paid, but no amount / payments on it
+    await setDoc(doc(d, 'invoices/del-amt'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 500, amountPaid: 50, createdAt: 1 });           // an amountPaid but no payments list
+    await setDoc(doc(d, 'invoices/del-draft'), { createdBy: 'alice', companyId: 'co-a', status: 'draft', total: 500, amountPaid: 0, payments: [], createdAt: 1 });
+    await setDoc(doc(d, 'invoices/del-nopay-key'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 500, createdAt: 1 });                    // no money keys at all
+  });
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-rep')));                                                       // a rep cannot hard-delete the invoice she made once it has a payment
+  await assertFails(deleteDoc(doc(mgrBf, 'invoices/del-mgr')));                                                       // nor a manager
+  await assertFails(deleteDoc(doc(rep2, 'invoices/del-rep2')));                                                       // nor another rep (never could)
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-legacy-paid')));                                               // 'paid' with nothing recorded counts as money
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-amt')));
+  await assertSucceeds(deleteDoc(doc(alice, 'invoices/del-draft')));                                                  // a mistaken draft is still hers to delete
+  await assertSucceeds(deleteDoc(doc(alice, 'invoices/del-nopay-key')));
+  await assertSucceeds(deleteDoc(doc(solo, 'invoices/del-solo')));                                                    // a solo operator is the owner side (the catch-up Undo)
+  await assertSucceeds(deleteDoc(doc(coAdmin, 'invoices/del-rep')));                                                  // the company_admin may
+  await assertSucceeds(deleteDoc(doc(admin, 'invoices/del-admin')));                                                  // and so may the platform admin
+  await assertFails(deleteDoc(doc(bob, 'invoices/del-mgr')));                                                         // another tenant cannot
+  // each invoiceCarriesMoney clause on its own: a creator rep cannot delete these
+  const entry1 = { amount: 10, at: new Date(), method: 'cash', recordedBy: 'alice' };
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'invoices/del-iso-pay'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 500, amountPaid: 0, payments: [entry1], createdAt: 1 });      // only a payment entry
+    await setDoc(doc(d, 'invoices/del-iso-str'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 500, amountPaid: 0, payments: '', createdAt: 1 });          // payments is not a list (an empty string, so size() alone would say 0)
+    await setDoc(doc(d, 'invoices/del-iso-paid'), { createdBy: 'alice', companyId: 'co-a', status: 'paid', total: 500, amountPaid: 0, payments: [], createdAt: 1 });          // only status paid
+  });
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-iso-pay')));
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-iso-str')));
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-iso-paid')));
+  // a rep still edits an invoice that already has 15 payments (rules expression budget): a proof on entry 0 plus an allowed status change
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const list = Array.from({ length: 15 }, (_, i) => ({ amount: 10, at: new Date(Date.now() - (40 - i) * 3600000), method: 'cash', recordedBy: 'alice', paymentId: 'q' + i }));
+    await setDoc(doc(ctx.firestore(), 'invoices/pay15'), { createdBy: 'alice', companyId: 'co-a', status: 'partial', total: 1000, amountPaid: 150, balanceDue: 850, payments: list, createdAt: 1 });
+  });
+  const p15 = (await getDoc(doc(alice, 'invoices/pay15'))).data().payments;
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/pay15'), { payments: p15.map((e, i) => (i === 0 ? Object.assign({}, e, { proofStoragePath: 'payment-proofs/alice/pay15/1_a.jpg' }) : e)), status: 'overdue' }));
+  // a legacy status that the send lock holds is restored as it was; a legacy 'Paid' is never restored
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'invoices/lg-sent'), { createdBy: 'alice', companyId: 'co-a', status: 'Sent', total: 100, amountPaid: 0, payments: [], createdAt: 1 });
+    await setDoc(doc(d, 'invoices/lg-paid'), { createdBy: 'alice', companyId: 'co-a', status: 'Paid', total: 100, amountPaid: 100, payments: [], createdAt: 1 });
+  });
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/lg-sent'), { status: 'sending', sendingPriorStatus: 'Sent', sendingAt: new Date() }));
+  await assertFails(updateDoc(doc(alice, 'invoices/lg-sent'), { status: 'Other' }));                                  // not the status the lock replaced
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/lg-sent'), { status: 'Sent', sendingAt: null, sendingPriorStatus: null }));   // the restore of a legacy 'Sent'
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/lg-paid'), { status: 'sending', sendingPriorStatus: 'Paid', sendingAt: new Date() }));
+  await assertFails(updateDoc(doc(alice, 'invoices/lg-paid'), { status: 'Paid', sendingAt: null, sendingPriorStatus: null }));       // a case variant of paid is never restored
+  await assertFails(updateDoc(doc(alice, 'invoices/lg-paid'), { status: 'PAID', sendingAt: null, sendingPriorStatus: null }));
+  // the restore allowance has no side doors: nothing is born locked, an absent marker restores nothing, a leftover marker on a 'sent' invoice is not a restore
+  await assertFails(setDoc(doc(alice, 'invoices/lk-c1'), plainNew({ status: 'sending', sendingPriorStatus: 'paid ' })));
+  await assertFails(setDoc(doc(alice, 'invoices/lk-c2'), plainNew({ status: 'sending', sendingPriorStatus: 'Refunded' })));
+  await assertFails(setDoc(doc(alice, 'invoices/lk-c3'), plainNew({ status: 'sending' })));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'invoices/lk-nomark'), { createdBy: 'alice', companyId: 'co-a', status: 'sending', total: 100, amountPaid: 0, payments: [], createdAt: 1 });
+    await setDoc(doc(d, 'invoices/lk-leftover'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', sendingPriorStatus: 'Foo', total: 100, amountPaid: 0, payments: [], createdAt: 1 });
+  });
+  await assertFails(updateDoc(doc(alice, 'invoices/lk-nomark'), { status: '' }));
+  await assertFails(updateDoc(doc(alice, 'invoices/lk-leftover'), { status: 'Foo' }));
+  // (3) un-void is the owner side's, with a note
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    for (const id of ['uv1', 'uv2', 'uv3', 'uv4', 'uv5']) await setDoc(doc(d, 'invoices/' + id), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 100, amountPaid: 0, payments: [], deleted: true, voidNote: 'entered twice', createdAt: 1 });
+    await setDoc(doc(d, 'invoices/uv-solo'), { createdBy: 'solo1', companyId: 'solo1', status: 'sent', total: 100, amountPaid: 0, payments: [], deleted: true, voidNote: 'oops', createdAt: 1 });
+  });
+  await assertFails(updateDoc(doc(alice, 'invoices/uv1'), { deleted: false }));                                       // the creator rep cannot restore it
+  await assertFails(updateDoc(doc(alice, 'invoices/uv1'), { deleted: false, unvoidNote: 'my mistake' }));             // even with a note
+  await assertFails(updateDoc(doc(alice, 'invoices/uv1'), { deleted: null }));
+  await assertFails(updateDoc(doc(mgrBf, 'invoices/uv2'), { deleted: false, unvoidNote: 'manager restores' }));       // nor a manager
+  await assertFails(updateDoc(doc(coAdmin, 'invoices/uv3'), { deleted: false }));                                     // the owner side needs a note
+  await assertFails(updateDoc(doc(coAdmin, 'invoices/uv3'), { deleted: false, unvoidNote: '' }));
+  await assertFails(updateDoc(doc(coAdmin, 'invoices/uv3'), { deleted: false, unvoidNote: 'x'.repeat(301) }));
+  await assertFails(updateDoc(doc(coAdmin, 'invoices/uv3'), { deleted: false, unvoidNote: 5 }));
+  await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/uv3'), { deleted: false, unvoidNote: 'voided by mistake' }));   // owner side + note
+  await assertSucceeds(updateDoc(doc(solo, 'invoices/uv-solo'), { deleted: false, unvoidNote: 'voided by mistake' }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/uv4'), { notes: 'a voided invoice may still be annotated' }));    // staying voided is not an un-void
+  await assertFails(updateDoc(doc(bob, 'invoices/uv5'), { deleted: false, unvoidNote: 'other tenant' }));
   // sub payments: another writer (even a company_admin) cannot void or re-point someone else's expense, and a proof path must be the writer's own folder
   await assertFails(updateDoc(doc(coAdmin, 'expenses/sp-nojob'), { deleted: true }));
   await assertFails(setDoc(doc(alice, 'expenses/sp-proof-other'), subPay({ proofPaths: ['receipts/bob/sub-proofs/1_a.jpg'] })));
