@@ -101,11 +101,50 @@ message to a sub or customer. Missing dates raise no alert (the screen shows
   unmatched), CSV, watcher (fake Firestore: dry run writes nothing; live files
   once), source guards, rules text.
 - Emulator suites (see the header of each file for the command):
-  `firestore-rules.sub-paperwork.test.js` (75 checks) and
-  `storage-rules.sub-papers.test.js` (41 checks, with a positive control:
-  the same object the owner reads is refused to every other identity).
-- Mutation check (2026-10-19): each rule was removed in a scratch copy and the
-  emulator suite went red; the table is in the PR body.
+  `firestore-rules.sub-paperwork.test.js` (92 checks) and
+  `storage-rules.sub-papers.test.js` (43 checks, with a positive control: the
+  same object the owner reads is refused to every other identity).
+- **Mutation check (2026-10-19):** 25 one-line weakenings of the rules, each run
+  against the emulator suite in a scratch copy of the rules; every one turned the
+  suite red (none passed silently). Subs: manager may set paperwork fields
+  (create, update); tax-id key names; tax-id text; date format; W-9 enum; planted
+  `id` (create, update); old `notes` not screened; spaced / dotted tax ids;
+  two key spellings. Papers: any signed-in user reads; path not pinned; update
+  allowed; no key allow-list; uploadedBy not tied. Storage: read by any signed-in
+  user / by a manager / by the platform admin; content type unchecked; size cap
+  removed; create by any signed-in user; delete by any signed-in user; overwrite
+  allowed. (The first run of one mutation was a typo of mine that did not compile
+  and read as "still green"; it was redone.)
+
+## Security review (2026-10-19) and what changed
+
+An independent read-only review (nbd-security-reviewer) found, and this PR fixed:
+- a planted `id` field on a sub doc could point the UI or the watcher at another
+  sub: rules now refuse an `id` key; the roster and watcher put the real doc id
+  last;
+- the tax-id guard was narrow: more key spellings are refused, the text screen now
+  covers spaced / dotted forms and the older `notes` field (a ZIP+4 and a
+  10-digit phone are not caught). It is a guard against an honest slip, not
+  against a determined admin;
+- an upload whose pointer write failed left an invisible W-9: the file is removed.
+
+Left as they are, on purpose (Jo's call if any should change):
+- **A removed former owner.** Storage decides "solo owner" from token claims alone
+  (the same rule the company-background sets use), so a former owner whose claims
+  were stripped (uid equals the company id) reads as a solo owner of
+  `sub-papers/<companyId>/` if that account is ever re-enabled or holds an old
+  token. Their account is disabled on removal, and the Firestore pointers (which
+  check the company's `ownerId`) do deny them. Cutting the Storage side needs a
+  tombstone claim in `removeMember`: separate change.
+- A manager can still edit the older `insuranceExpiry` (the Production roster does),
+  so a manager could push a liability date out. `glExpiry` (paperwork field) wins
+  when set.
+- Every company member can read the sub doc (existing roster rule), so statuses,
+  `legalName` and the notes are readable by a viewer or sales rep through the
+  API; the screen hides them. Files and pointers are not.
+- Deleting a sub does not delete its `papers` docs or files, and nothing erases
+  them on account removal: retention of tax forms is a decision for counsel.
+- `proof-photos.js` caches blob URLs for the page's life (existing behaviour).
 
 ## Not done / follow-ups
 

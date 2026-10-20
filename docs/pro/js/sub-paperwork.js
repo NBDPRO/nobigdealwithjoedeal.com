@@ -251,8 +251,8 @@
   async function delPaper(id) {
     const p = S && S.papers.find((x) => x.id === id);
     if (!p || !canWrite()) return;
-    const ask = typeof w.nbdConfirm === 'function' ? w.nbdConfirm('Remove this file? It is deleted for good.') : Promise.resolve(w.confirm('Remove this file? It is deleted for good.'));
-    if (!(await ask)) return;
+    const ask = window.nbdConfirm || ((m) => Promise.resolve(window.confirm(m)));
+    if (!(await ask('Remove this file? It is deleted for good.'))) return;
     try {
       const st = w._nbdStorageSdk || (w._nbdStorageSdk = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js'));
       await st.deleteObject(st.ref(w.storage, p.storagePath)).catch((e) => { if (!e || e.code !== 'storage/object-not-found') throw e; });

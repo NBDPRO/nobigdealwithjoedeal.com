@@ -2917,6 +2917,17 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Sub paperwork helpers (2026-10-19; used by the subs and subs/papers rules below).
+      function subPaperworkWriter() {
+        return isAuth() && notViewer()
+          && (ownsTenantByUid(companyId)
+              || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
+      }
+      function subPaperworkKeys() {
+        return ['legalName', 'entityType', 'w9Status', 'w9ReceivedOn', 'glExpiry', 'wcExpiry', 'wcExempt', 'wcExemptNote',
+                'licenseRequired', 'licenseNote', 'licenseExpiry', 'paperworkNote', 'paperworkReviewedAt'];
+      }
+
       // ── SUB ROSTER (production flow, 2026-10-04) ──
       // The company's independent subcontractors: name, phone, trade,
       // insurance-certificate expiry, notes. Keyed under the TENANT key the
@@ -2931,15 +2942,6 @@ service cloud.firestore {
       // still edits the roster itself, but a write that sets or changes one of those
       // fields is refused (subPaperworkWriter).
       match /subs/{subId} {
-        function subPaperworkWriter() {
-          return isAuth() && notViewer()
-            && (ownsTenantByUid(companyId)
-                || (isCompanyAdmin() && request.auth.token.get('companyId', '') == companyId));
-        }
-        function subPaperworkKeys() {
-          return ['legalName', 'entityType', 'w9Status', 'w9ReceivedOn', 'glExpiry', 'wcExpiry', 'wcExempt', 'wcExemptNote',
-                  'licenseRequired', 'licenseNote', 'licenseExpiry', 'paperworkNote', 'paperworkReviewedAt'];
-        }
         allow read: if isAdmin()
           || ownsTenantByUid(companyId)
           || (isAuth() && request.auth.token.get('companyId', '') == companyId);

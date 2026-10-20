@@ -276,6 +276,7 @@
   "stripeLedgerReconcile": "./stripe-ledger",
   "stripeLedgerSync": "./stripe-ledger",
   "stripeWebhook": "./stripe",
+  "subPaperworkWatch": "./sub-paperwork-watch",
   "submitCustomerRating": "./portal",
   "submitDealAcceptance": "./deal-acceptance",
   "submitEsignEnvelope": "./esign-envelope",
