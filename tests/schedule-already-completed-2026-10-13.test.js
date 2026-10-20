@@ -482,7 +482,7 @@ const settle = () => new Promise((r) => setImmediate(r));
     ok('control: an ordinary entry keeps its own timestamp', plain[key] === '2026-10-13T15:00:00.000Z', JSON.stringify(plain));
     const portalSrc = strip(read('functions/portal.js'));
     ok('homeowner portal: no rating card and no Google review link for a quiet backfill (card and the write gate)',
-      /canRate: hp\.paidInFull && !isQuietBackfill\(lead\)/.test(portalSrc) && /googleReviewUrl: isQuietBackfill\(lead\) \? null : portalReviewUrl\(/.test(portalSrc)
+      /canRate: hp\.paidInFull && !isQuietBackfill\(lead\)/.test(portalSrc) && /googleReviewUrl: \(isQuietBackfill\(lead\) \|\| backfillBlocksRating\([^)]*\)\) \? null : portalReviewUrl\(/.test(portalSrc)
       && /!paidInFullFor\(lead, ratingInvoices\) \|\| isQuietBackfill\(lead\)/.test(portalSrc));
   }
   {

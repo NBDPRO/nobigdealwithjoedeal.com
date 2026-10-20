@@ -130,6 +130,22 @@ const chk = B.checkAgainstCrm(parsed.rows, leads, [inv()]);
 ok('Check vs CRM: row 2 is in the CRM, row 1 is not, row 5 has errors', chk[1].inCrm === true && chk[0].inCrm === false && chk[4].errors.length > 0 && chk[1].hits.length === 1);
 ok('Check vs CRM: an exact earlier import reads as exact', B.checkAgainstCrm(B.parse(HDR + 'Ann Sample\t12 Oak St\t2026-10-03\t5340\tcheck\t1042', TODAY).rows, leads, [inv({ payments: [{ amount: 5340, at: new Date(2026, 9, 3, 12), method: 'check', reference: '1042', paymentId: B.paymentIdFor(v1) }] })])[0].exact === true);
 
+console.log('\n— two genuine identical payments —');
+const twinRows = B.parse(HDR + 'Ann Sample\t12 Oak St\t2026-10-03\t100\tcheck\t7\nAnn Sample\t12 Oak St\t2026-10-03\t100\tcheck\t7', TODAY).rows;
+const twin = B.review(twinRows, [], []);
+ok('two identical rows get DIFFERENT keys / payment ids (the 2nd ends -2): the ledger dedupe can never drop one', twin[0].key !== twin[1].key && /-2$/.test(twin[1].key) && B.paymentIdOf(twin[0]) !== B.paymentIdOf(twin[1]));
+ok('the second is flagged: it needs an explicit "different payment" tap', twin[0].status === 'new' && twin[1].status === 'dup' && twin[1].dup.inPaste === true);
+ok('the lead, invoice and payment use the row key', B.invoiceOverrides(twin[1]).backfillKey === twin[1].key && B.paymentDetails(twin[1], []).paymentId === 'bf_' + twin[1].key && B.buildLead(twin[1], {}).backfill.key === twin[1].key);
+const twinInv = twin.map((r, i) => ({ id: 'T' + i, leadId: 'LX', backfilled: true, source: 'backfill', payments: [{ amount: 100, at: new Date(2026, 9, 3, 12), method: 'check', reference: '7', paymentId: B.paymentIdOf(r) }] }));
+ok('after both are imported a re-paste says "already imported" for BOTH (not for one and a duplicate for the other)', B.review(B.parse(HDR + 'Ann Sample\t12 Oak St\t2026-10-03\t100\tcheck\t7\nAnn Sample\t12 Oak St\t2026-10-03\t100\tcheck\t7', TODAY).rows, [], twinInv).map((r) => r.status).join() === 'already,already');
+const IPm = require(path.join(ROOT, 'docs/pro/js/invoice-pipeline.js'));
+ok('the Record Payment proof picker refuses what the bucket would (gif, avif, Word) with a clear reason, and takes JPEG / PNG / WebP / HEIC / PDF', ['image/gif', 'image/avif', 'application/msword', 'text/plain'].every((t) => !IPm.proofFileCheck({ type: t, size: 10 }).ok && /JPEG/.test(IPm.proofFileCheck({ type: t, size: 10 }).reason)) && ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'].every((t) => IPm.proofFileCheck({ type: t, size: 10 }).ok));
+ok('the invoice proof viewer uses the SDK bytes, never a download URL', (() => { const ip = stripComments(read('docs/pro/js/invoice-pipeline.js')); const v = ip.slice(ip.indexOf('async function viewProofUI'), ip.indexOf('async function viewProofUI') + 900); return /getBlob\(/.test(v) && !/getDownloadURL/.test(v); })());
+ok('read-back (behaviour): the payment id on the invoice = landed; missing id, empty list, no invoice = NOT landed', B.paymentLanded({ payments: [{ paymentId: 'bf_a' }, { paymentId: 'bf_b' }] }, 'bf_b') === true && B.paymentLanded({ payments: [{ paymentId: 'bf_a' }] }, 'bf_b') === false && B.paymentLanded({ payments: [] }, 'bf_b') === false && B.paymentLanded({}, 'bf_b') === false && B.paymentLanded(null, 'bf_b') === false && B.paymentLanded({ payments: [null, { paymentId: 'bf_b' }] }, 'bf_b') === true);
+ok('the screen reads the invoice back after markPaid and throws (so nothing is called "created") when paymentLanded says no', /await IP\(\)\.markPaid\([\s\S]{0,500}if \(!L\.paymentLanded\([\s\S]{0,200}details\.paymentId\)\) throw new Error/.test(stripComments(read('docs/pro/js/payment-backfill.js'))));
+ok('the portal rating card is gated by the shared guard (real handler tests: portal-rating-backfill-2026-10-19)', /canRate: hp\.paidInFull && !isQuietBackfill\(lead\) && !backfillBlocksRating\(lead, tenantInvoices, paidInFullFor\),/.test(stripComments(read('functions/portal.js'))));
+ok('the portal Google-review link is withheld from a backfill-only customer', /googleReviewUrl: \(isQuietBackfill\(lead\) \|\| backfillBlocksRating\(/.test(stripComments(read('functions/portal.js'))));
+
 console.log('\n— what one tap writes —');
 const row1 = rv[0]; row1.jobType = 'cash';
 const lead = B.buildLead(row1, { stageRole: 'won', uid: 'u1', nowMs: Date.UTC(2026, 9, 19, 15) });
@@ -193,8 +209,10 @@ if (RA) {
     ok('referral: a backfill payment alone never dates a payment received', RR._internal.paidForReferral(real, [bfInvoice]) === false);
   }
 }
-const portalSrc = stripComments(read('functions/portal.js'));
-ok('portal: the rating card and the rating gate both refuse a customer with a backfill invoice', /canRate: hp\.paidInFull && !isQuietBackfill\(lead\) && !hasBackfillInvoice\(tenantInvoices\)/.test(portalSrc) && /hasBackfillInvoice\(ratingInvoices\)/.test(portalSrc));
+const paidFn = (lead, invs) => invs.length > 0 && invs.every((x) => x.status === 'paid');
+const realPaid = { status: 'paid', payments: [{ amount: 5, at: new Date() }] }, bfPaid = { status: 'paid', source: 'backfill', payments: [{ amount: 5, at: new Date() }] };
+ok('rating guard: a backfill-only customer is blocked; real money (even beside a backfill one) is not; no backfill = never blocked (the real handler is tested in portal-rating-backfill-2026-10-19.test.js)', Q.backfillBlocksRating({}, [bfPaid], paidFn) === true && Q.backfillBlocksRating({}, [bfPaid, realPaid], paidFn) === false && Q.backfillBlocksRating({}, [realPaid], paidFn) === false && Q.backfillBlocksRating({}, [bfPaid, { status: 'sent', payments: [] }], paidFn) === true);
+ok('the portal and the rep nudge use that one guard', /backfillBlocksRating\(/.test(stripComments(read('functions/portal.js'))) && /backfillBlocksRating\(/.test(stripComments(read('functions/review-request-nudge.js'))));
 const mpSrc = stripComments(read('functions/money-paper.js'));
 const hStart = mpSrc.indexOf('async function handle(invoiceId, after, deps, before) {');
 const guardAt = mpSrc.indexOf('isBackfillInvoice(after)', hStart);
