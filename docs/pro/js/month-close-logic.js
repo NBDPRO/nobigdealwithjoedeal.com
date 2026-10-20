@@ -393,10 +393,21 @@
     if (role) return false;
     return !!uid && (!c.companyId || c.companyId === uid);
   }
-  /** Who may open the screen read-only (the rules let company readers read the saved doc). */
-  function canView(claims, uid) {
-    var role = (claims && claims.role) || '';
-    return canClose(claims, uid) || role === 'manager' || role === 'viewer';
+  /** Company money: the owner / company_admin only (and the platform admin). Managers, viewers and reps never see it. */
+  function canView(claims, uid) { return canClose(claims, uid); }
+
+  /**
+   * The Expenses list is the newest 1000 rows. When that cap was hit and the
+   * oldest row loaded is not before the month, rows of this month may be missing,
+   * so its costs (and the profit and set-aside built on them) are understated.
+   */
+  function expensesTruncated(expenses, monthKey, limit) {
+    var cap = limit || 1000;
+    if (!expenses || expenses.length < cap) return false;
+    var oldest = Infinity;
+    expenses.forEach(function (e) { var ms = toMs(e && e.date); if (ms && ms < oldest) oldest = ms; });
+    if (oldest === Infinity) return true;
+    return monthKeyOf(oldest) >= monthKey;
   }
 
   // ── the one-page summary (text / markdown) ───────────────────────────
@@ -463,7 +474,7 @@
     setAside: setAside, depositGap: depositGap, flagRows: flagRows, noJobCounts: noJobCounts,
     reminderSchedule: reminderSchedule, suggestedDueDates: suggestedDueDates, reminderText: reminderText, validYmd: validYmd,
     closeDocId: closeDocId, totalsOf: totalsOf, totalsOk: totalsOk, buildCloseDoc: buildCloseDoc, appendLog: appendLog, changedSince: changedSince,
-    canClose: canClose, canView: canView, summaryMarkdown: summaryMarkdown, toMs: toMs
+    canClose: canClose, canView: canView, expensesTruncated: expensesTruncated, summaryMarkdown: summaryMarkdown, toMs: toMs
   };
   if (root && typeof root === 'object') root.NBDMonthCloseLogic = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

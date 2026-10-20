@@ -2312,8 +2312,8 @@ service cloud.firestore {
     // Month close (month-close.js, flag monthClose, 2026-10-19): one doc per
     // company per month, id = companyId + '_' + 'YYYY-MM' — the totals the
     // owner closed on, the checked items, notes and a bounded editLog. Money is
-    // integer cents. READ: platform admin, company_admin / manager / viewer of
-    // the company, or the solo owner of the tenant. WRITE: only the owner —
+    // integer cents. READ and WRITE: only the owner (company money: managers,
+    // viewers and reps never see it) —
     // platform admin, company_admin of the company, or a solo operator (no role
     // claim) who owns the tenant. Managers, reps and viewers cannot write. The
     // doc must name its own company and month, the stamps must be the caller
@@ -2365,10 +2365,12 @@ service cloud.firestore {
         && d.updatedAt == request.time;
     }
     match /monthCloses/{closeId} {
-      allow read: if isAuth() && (
-        isAdmin()
-        || (isCompanyReader() && resource.data.companyId == myCompanyId())
-        || ownsTenantByUid(resource.data.companyId));
+      // A month with no saved close yet: reading the missing doc must be allowed
+      // for the owner (resource is null), judged by the company named in the id.
+      allow read: if isAuth() && (resource == null
+        ? (closeId.matches('^.+_[0-9]{4}-(0[1-9]|1[0-2])$')
+           && monthCloseOwnerOk(closeId[0:closeId.size() - 8]))
+        : monthCloseOwnerOk(resource.data.companyId));
       allow create: if monthCloseOwnerOk(request.resource.data.companyId)
         && monthCloseIdOk(closeId)
         && monthCloseShapeOk()

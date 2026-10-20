@@ -216,8 +216,8 @@ const inv = (leadId, pays, extra) => Object.assign({
       && !!P.buildCloseDoc(Object.assign({}, base, { totals: Object.assign({}, totals, { collectedCents: 1.5 }) })).error && !!P.buildCloseDoc(Object.assign({}, base, { totals: Object.assign({}, totals, { rateBp: 10001 }) })).error);
     ok('the doc id is companyId_YYYY-MM', P.closeDocId('co1', '2026-09') === 'co1_2026-09');
     ok('changedSince names the figures that moved', P.changedSince({ collectedCents: 1, directCents: 2, refundsCents: 3 }, { collectedCents: 1, directCents: 9, refundsCents: 3 }).join() === 'directCents');
-    ok('roles: owner/company_admin/solo edit; manager and viewer view; rep neither', P.canClose({ role: 'company_admin', companyId: 'c' }, 'u') && P.canClose({}, 'u1') && P.canClose({ companyId: 'u1' }, 'u1') && !P.canClose({ role: 'manager' }, 'u') && !P.canClose({ role: 'viewer' }, 'u') && !P.canClose({ companyId: 'other' }, 'u1')
-      && P.canView({ role: 'viewer' }, 'u') && P.canView({ role: 'manager' }, 'u') && !P.canView({ role: 'sales_rep' }, 'u') && !P.canClose(null, null));
+    ok('roles: only owner / company_admin / solo see and edit; manager, viewer and rep neither', P.canClose({ role: 'company_admin', companyId: 'c' }, 'u') && P.canClose({}, 'u1') && P.canClose({ companyId: 'u1' }, 'u1') && !P.canClose({ role: 'manager' }, 'u') && !P.canClose({ role: 'viewer' }, 'u') && !P.canClose({ companyId: 'other' }, 'u1')
+      && !P.canView({ role: 'viewer' }, 'u') && !P.canView({ role: 'manager' }, 'u') && !P.canView({ role: 'sales_rep' }, 'u') && P.canView({ role: 'company_admin', companyId: 'c' }, 'u') && P.canView({}, 'u1') && !P.canClose(null, null));
   }
 
   console.log('\n10. the one-page summary');
@@ -322,12 +322,24 @@ const inv = (leadId, pays, extra) => Object.assign({
       e.act('open'); await flush(); e.num('rate', '25abc'); e.act('save'); await flush();
       ok('a typo in the rate blocks the save and says why', e.writes.length === 0 && e.toasts.some((t) => /Rate must be/.test(t[0])));
 
-      e = boot({ flag: true, claims: { role: 'viewer', companyId: 'co' }, leads, invoices: invs, expenses: exps });
-      e.act('open'); await flush();
-      html = e.overlay().innerHTML;
-      ok('viewer sees the numbers, read-only: inputs disabled, no Save button', /\$1,940\.00/.test(html) && !/data-mc-act="save"/.test(html) && /data-mc-num="rate"[^>]*disabled/.test(html));
-      e.num('rate', '25'); e.check('collected', true); e.act('save'); await flush();
-      ok('viewer cannot write even by firing events', e.writes.length === 0);
+      for (const role of ['viewer', 'manager']) {
+        e = boot({ flag: true, claims: { role, companyId: 'co' }, leads, invoices: invs, expenses: exps });
+        e.act('open'); await flush();
+        ok(role + ' gets nothing: no panel, open() refuses, no element, no read, no write', e.win.NBDMonthClose.panelHtml() === '' && e.win.NBDMonthClose.open() === false && e.created.length === 0 && e.reads.invoices === 0 && e.reads.getDoc === 0 && e.writes.length === 0);
+        e.num('rate', '25'); e.act('save'); await flush();
+        ok(role + ' cannot write even by firing events', e.writes.length === 0);
+      }
+      ok('1000 expenses newest-first that all post-date the month are flagged incomplete; 999, or a list reaching back before it, is not', (() => {
+        const mk = (n, d0) => Array.from({ length: n }, (_, i) => ({ costType: 'direct', amountCents: 1, date: new Date(d0.getTime() + i * 3600000) }));
+        return P.expensesTruncated(mk(1000, ET('2026-10-02T12:00:00Z')), '2026-09') === true && P.expensesTruncated(mk(999, ET('2026-10-02T12:00:00Z')), '2026-09') === false
+          && P.expensesTruncated(mk(1000, ET('2026-08-02T12:00:00Z')), '2026-09') === false && P.expensesTruncated(mk(1000, ET('2026-09-05T12:00:00Z')), '2026-09') === true && P.expensesTruncated(mk(1000, ET('2026-10-02T12:00:00Z')), '2026-12') === false;
+      })());
+      {
+        const many = Array.from({ length: 1000 }, (_, i) => ({ costType: 'direct', amountCents: 1, date: new Date(ET('2026-10-02T12:00:00Z').getTime() + i * 3600000), leadId: 'L1' }));
+        e = boot({ flag: true, claims: { role: 'company_admin', companyId: 'co' }, leads, invoices: invs, expenses: many });
+        e.act('open'); await flush(); e.num('rate', '25'); e.act('save'); await flush();
+        ok('a capped expense list shows the banner and blocks Save', /may reach past them/.test(e.overlay().innerHTML) && e.writes.length === 0 && e.toasts.some((x) => /incomplete/.test(x[0])));
+      }
 
       e = boot({ flag: true, claims: { role: 'company_admin', companyId: 'co' }, leads, invoices: invs, expenses: exps,
         saved: { totals: { collectedCents: 100, directCents: 91000, refundsCents: 0, overheadCents: 5000, depositsCents: 7000, rateBp: 2250, profitCents: 0, grossCents: 100, setAsideCents: 0 }, checks: { costs: true }, explain: { deposits: 'saved text' }, notes: 'reopened', updatedAt: D(2026, 10, 2) } });

@@ -4,7 +4,7 @@
 
 **Flag:** `monthClose` in `feature_flags/_default` (or per user in `feature_flags/{uid}`). Absent or false = no panel, nothing renders, no reads, no writes. Jo flips it in the Firebase console (Claude cannot write prod flags); reload the CRM afterwards (flags are cached up to 10 minutes). Same pattern as `leadSourceFixer` ([LEAD-SOURCE-FIXER-2026-10-19](LEAD-SOURCE-FIXER-2026-10-19.md)).
 
-**Where:** Expenses view, a "Month close" card with one button. Owner / company_admin / platform admin (and a solo operator) can edit and save; manager and viewer see the screen read-only; sales reps do not see it. Opens on **last month**; the month picker is a native month input.
+**Where:** Expenses view, a "Month close" card with one button. Owner / company_admin / platform admin (and a solo operator) only: it is company money, so managers, viewers and sales reps do not see the card, cannot open it, and the rules refuse their reads. Opens on **last month**; the month picker is a native month input.
 
 **What it shows (all computed in the browser from data already loaded; nothing new is collected):**
 1. **Collected**: payments by the day each arrived, refunds subtracted, through the one ledger `NBDRevenue.paymentsOf` (`collected-revenue.js`, the same definition behind the agent `collected_revenue` tool). Integer cents. If payments could not be read it says so instead of showing $0.
@@ -17,11 +17,13 @@
 
 **The saved close:** `monthCloses/{companyId}_{YYYY-MM}` = `{companyId, monthKey, totals{collectedCents, grossCents, refundsCents, directCents, overheadCents, profitCents, depositsCents|null, rateBp|null, setAsideCents|null}, checks{id:true}, explain{id:text<=300}, notes<=2000, editLog[<=25 {at, by, what, note}], createdAt/By, updatedAt/By}`. Reopening a month restores the entries and warns when collected or cost figures have moved since the save.
 
-**Rules** (`firestore.rules`, `monthCloses`): read by platform admin, company_admin / manager / viewer of the company, or the solo owner; create and update only by platform admin, company_admin of the company, or the solo owner (no role claim); the id must be `companyId_monthKey`; the shape is an allowlist with integer cents; `updatedBy` = caller and `updatedAt` = server time; `companyId`, `monthKey` and `createdAt/By` cannot change; no client delete.
+**Rules** (`firestore.rules`, `monthCloses`): read and write only by platform admin, company_admin of the company, or the solo owner (no role claim). Reading a month with no saved close yet is allowed for the owner (the id names the company), so the first open of a month is not a permission error, and another tenant still cannot probe it; the id must be `companyId_monthKey`; the shape is an allowlist with integer cents; `updatedBy` = caller and `updatedAt` = server time; `companyId`, `monthKey` and `createdAt/By` cannot change; no client delete.
+
+**Cost cap:** Expenses loads the newest 1000 rows. If that cap is hit and the oldest loaded row is not before the month, the screen shows a red banner and blocks Save, because costs, profit and set-aside would read too low. Also note an expense is dated by the instant it was saved (local midnight of the day typed); a phone set to a non-Eastern zone could land a 1st-of-month receipt in the neighbouring Eastern month.
 
 **Time zone:** a month is the **Eastern (America/New_York)** calendar month, the house convention already used by the older "Close last month" card on #/money (`money-dashboard.js`, which stays as is and stores on `userSettings`), so a payment at 11:59:59.999pm Eastern on the 30th is in that month on every device and a payment a millisecond later is not, across both daylight-saving changes and year end. The unit tests pin those instants and re-run under four device time zones.
 
-**Tests:** `tests/month-close-2026-10-19.test.js` (116 checks, run under New York, Auckland, UTC and Honolulu; 15 mutations of the logic tried and all caught), `tests/firestore-rules.month-close.test.js` (46 emulator checks, 6 rule mutations caught, wired into `ci.yml`). Fixtures are synthetic; no real names or figures are in the repo.
+**Tests:** `tests/month-close-2026-10-19.test.js` (120 checks, run under New York, Auckland, UTC and Honolulu; 15 mutations of the logic tried and all caught), `tests/firestore-rules.month-close.test.js` (54 emulator checks, 9 rule mutations caught, wired into `ci.yml`). Fixtures are synthetic; no real names or figures are in the repo.
 
 **Files:** `docs/pro/js/month-close-logic.js` (pure math), `docs/pro/js/month-close.js` (screen), `docs/pro/css/month-close.css`, `docs/pro/js/script-loader.js` (rides the lazy `expenses` bundle, so no change to the boot budget), `docs/pro/js/expenses.js` (mounts the card), `firestore.rules`, `tests/ci-manifest.json`, `.github/workflows/ci.yml`.
 

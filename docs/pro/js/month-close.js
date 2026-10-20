@@ -220,6 +220,7 @@
     if (st.loading) return h + '<p class="mc-empty" role="status">Loading the month…</p>';
     if (!st.invoices) return h + '<p class="mc-empty" role="alert">' + esc(st.error || 'Could not load') + '</p><div class="mc-row"><button type="button" class="mc-btn" data-mc-act="retry">Try again</button></div>';
     if (st.error) h += '<p class="mc-err" role="alert">' + esc(st.error) + '</p>';
+    if (L.expensesTruncated(st.expenses, st.monthKey)) h += '<p class="mc-err" role="alert">Only the newest 1000 expenses are loaded and this month may reach past them, so costs, profit and the set-aside can read too low. You cannot save this month until the costs are complete (export the expenses CSV to check).</p>';
     var c = compute(), t = c.costs, cl = c.coll;
     h += '<section class="mc-sec"><h3>1. Collected</h3>' +
       '<div class="mc-kv"><span>Collected (payments in, refunds out)</span><b>' + esc(L.fmtMoney(cl.collectedCents)) + '</b></div>' +
@@ -293,6 +294,7 @@
   // ── save ─────────────────────────────────────────────────────────────
   async function save() {
     if (!st || st.saving || !canEdit() || !flagOn() || !st.invoices) return;
+    if (L.expensesTruncated(st.expenses, st.monthKey)) { toast('Costs for this month may be incomplete (only the newest 1000 expenses are loaded). Not saved.', 'warn'); return; }
     var s = snapshot();
     if (!s.inp.ok) { toast(s.inp.errors[0], 'warn'); return; }
     var db = w.db || w._db;
@@ -306,7 +308,7 @@
     st.saving = true; paintResult();
     try {
       await w.setDoc(w.doc(db, 'monthCloses', L.closeDocId(companyId(), st.monthKey)), built.doc);
-      try { applySaved(await readSaved(st.monthKey)); } catch (e) { st.saved = built.doc; st.dirty = false; }
+      try { applySaved(await readSaved(st.monthKey)); } catch (e) { st.saved = null; st.dirty = false; toast('Saved, but could not read it back. Reopen the month before saving again.', 'warn'); }
       toast('Month close saved', 'success');
     } catch (e) {
       toast('Could not save: ' + ((e && e.code) || (e && e.message) || 'unknown error'), 'error');

@@ -4,8 +4,8 @@
  * One saved close per company per month: totals in integer cents, checked
  * items, notes, a bounded editLog. Only the OWNER writes it: a platform admin, a
  * company_admin of the company, or a solo operator (no role claim) who owns the
- * tenant. Managers, reps and viewers cannot write; company readers (company_admin,
- * manager, viewer) and the solo owner can read; another tenant and anonymous
+ * tenant. It is company money, so ONLY the owner reads or writes: managers, reps
+ * and viewers can do neither; another tenant and anonymous
  * cannot do either. SYNTHETIC ids and numbers only (public repo).
  *
  * RUN (proxy env scrubbed, throwaway emulator):
@@ -107,16 +107,29 @@ async function run() {
   await check('viewer cannot update', 'deny', updateDoc(ref(vera, 'co-a_2026-08'), upd('vera')));
   await check('sales rep cannot update', 'deny', updateDoc(ref(rep, 'co-a_2026-08'), upd('rep1')));
   await check('another tenant\'s admin cannot update', 'deny', updateDoc(ref(eve, 'co-a_2026-08'), upd('eve')));
-  await check('the month key cannot change', 'deny', updateDoc(ref(solo, 'co-a_2026-08'), upd('co-a', { monthKey: '2026-07' })));
-  await check('the company cannot change', 'deny', updateDoc(ref(solo, 'co-a_2026-08'), upd('co-a', { companyId: 'co-b' })));
+  const seedOdd = (id, over) => env.withSecurityRulesDisabled(async (c) => { const ts = new Date('2026-09-05T12:00:00Z'); await setDoc(doc(c.firestore(), 'monthCloses/' + id), Object.assign({ companyId: 'co-a', monthKey: '2026-08', totals: totals(), checks: {}, explain: {}, notes: '', editLog: [{ at: 1, by: 'co-a', what: 'x', note: '' }], createdAt: ts, createdBy: 'co-a', updatedAt: ts, updatedBy: 'co-a' }, over)); });
+  // seeded so the doc id already matches the NEW value: only the immutability rule can refuse these two
+  await seedOdd('co-a_2026-06', { monthKey: '2026-08' });
+  await seedOdd('co-b_2026-08', { companyId: 'co-a' });
+  await check('the month key cannot change', 'deny', updateDoc(ref(solo, 'co-a_2026-06'), upd('co-a', { monthKey: '2026-06' })));
+  await check('the company cannot change', 'deny', updateDoc(ref(solo, 'co-b_2026-08'), upd('co-a', { companyId: 'co-b' })));
   await check('createdBy cannot be rewritten', 'deny', updateDoc(ref(solo, 'co-a_2026-08'), upd('co-a', { createdBy: 'mallory' })));
   await check('createdAt cannot be rewritten', 'deny', updateDoc(ref(solo, 'co-a_2026-08'), upd('co-a', { createdAt: serverTimestamp() })));
 
   // ── read ──
   await check('solo owner can read', 'allow', getDoc(ref(solo, 'co-a_2026-08')));
   await check('company_admin can read', 'allow', getDoc(ref(carol, 'co-a_2026-08')));
-  await check('manager can read', 'allow', getDoc(ref(mike, 'co-a_2026-08')));
-  await check('viewer can read (read-only)', 'allow', getDoc(ref(vera, 'co-a_2026-08')));
+  await check('manager cannot read (company money)', 'deny', getDoc(ref(mike, 'co-a_2026-08')));
+  await check('viewer cannot read (company money)', 'deny', getDoc(ref(vera, 'co-a_2026-08')));
+  // a month with no saved close yet: the owner's first open must not be an error
+  await check('solo owner reads a month that has no close yet', 'allow', getDoc(ref(solo, 'co-a_2025-01')));
+  await check('company_admin reads a month that has no close yet', 'allow', getDoc(ref(carol, 'co-a_2025-01')));
+  await check('platform admin reads a month that has no close yet', 'allow', getDoc(ref(joe, 'co-a_2025-01')));
+  await check('another tenant\'s admin cannot read this company\'s empty month', 'deny', getDoc(ref(eve, 'co-a_2025-01')));
+  await check('anonymous cannot read an empty month', 'deny', getDoc(ref(anon, 'co-a_2025-01')));
+  await check('manager cannot read an empty month', 'deny', getDoc(ref(mike, 'co-a_2025-01')));
+  await check('viewer cannot read an empty month', 'deny', getDoc(ref(vera, 'co-a_2025-01')));
+  await check('a malformed id cannot be probed', 'deny', getDoc(ref(solo, 'co-a_junk')));
   await check('platform admin can read', 'allow', getDoc(ref(joe, 'co-a_2026-08')));
   await check('sales rep cannot read', 'deny', getDoc(ref(rep, 'co-a_2026-08')));
   await check('another tenant\'s admin cannot read', 'deny', getDoc(ref(eve, 'co-a_2026-08')));
