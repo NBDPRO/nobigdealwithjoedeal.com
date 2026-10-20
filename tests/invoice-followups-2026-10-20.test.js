@@ -15,6 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
+const BS = String.fromCharCode(92);
 let pass = 0, fail = 0;
 function ok(label, cond) { if (cond) { pass++; console.log('  ✓ ' + label); } else { fail++; console.log('  ✗ ' + label); } }
 
@@ -40,9 +41,13 @@ ok('no marker, amountPaid covers but no payment entries (legacy) -> partial, nev
 const keys = Object.keys(a.patch).sort().join(',');
 ok('the patch touches only status / lock fields / updatedAt (no money keys)', keys === 'sendingAt,sendingPriorStatus,status,updatedAt');
 
+ok("a marker like 'constructor' / 'toString' is not a real status (own-property lookup)", IP.releaseStuckLockPatch({ status: 'sending', sendingPriorStatus: 'constructor', total: 100, amountPaid: 0 }, NOW).inferred === true && IP.releaseStuckLockPatch({ status: 'sending', sendingPriorStatus: 'toString', total: 100, amountPaid: 0 }, NOW).status === 'sent');
+
+ok("a marker like 'constructor' / 'toString' is not a real status (own-property lookup)", IP.releaseStuckLockPatch({ status: 'sending', sendingPriorStatus: 'constructor', total: 100, amountPaid: 0 }, NOW).inferred === true && IP.releaseStuckLockPatch({ status: 'sending', sendingPriorStatus: 'toString', total: 100, amountPaid: 0 }, NOW).status === 'sent');
+
 console.log('button and wiring');
-const src = fs.readFileSync(path.join(ROOT, 'docs/pro/js/invoice-pipeline.js'), 'utf8');
-ok("the button shows only for a 'sending' invoice and only to the owner side", /inv\.status === 'sending' && _isOwnerSide\(\)\) \? `<button[^`]*data-ip-action="releaseSendLock"/.test(src));
+const src = fs.readFileSync(path.join(ROOT, 'docs/pro/js/invoice-pipeline.js'), 'utf8').split(String.fromCharCode(13)).join('');
+ok("the button shows only for a 'sending' invoice and only to the owner side", /inv\.status === 'sending' && _isOwnerSide\(\) && !_lockIsFresh\(inv\)\) \? `<button[^`]*data-ip-action="releaseSendLock"/.test(src));
 ok('the action is dispatched through the delegate (no inline handler)', /case 'releaseSendLock':[^\n]*releaseSendLockUI/.test(src));
 ok('the UI function refuses a non-owner', /async function releaseSendLockUI[\s\S]{0,200}if \(!_isOwnerSide\(\)\)/.test(src));
 const claimsSandbox = (claims, uid) => {
@@ -52,6 +57,45 @@ const claimsSandbox = (claims, uid) => {
 ok('owner side: solo operator, company_admin, admin', claimsSandbox({}, 'u1') && claimsSandbox({ companyId: 'u1' }, 'u1') && claimsSandbox({ role: 'company_admin', companyId: 'co' }, 'u1') && claimsSandbox({ role: 'admin' }, 'u1'));
 ok('not owner side: manager, rep, viewer, member of a company, signed out', !claimsSandbox({ role: 'manager', companyId: 'co' }, 'u1') && !claimsSandbox({ role: 'sales_rep', companyId: 'co' }, 'u1') && !claimsSandbox({ role: 'viewer', companyId: 'co' }, 'u1') && !claimsSandbox({ companyId: 'co' }, 'u1') && !claimsSandbox({}, null));
 
+console.log('release UI (mocked Firestore)');
+const run = async (docs, sandboxOver) => {
+  const grab = (re) => re.exec(src)[0];
+  const m = grab(new RegExp('async function releaseSendLockUI[' + BS + 's' + BS + 'S]*?' + BS + 'n  }' + BS + 'n'));
+  const lockM = grab(new RegExp('function _lockIsFresh[' + BS + 's' + BS + 'S]*?' + BS + 'n  }' + BS + 'n'));
+  const ownM = grab(new RegExp('function _isOwnerSide' + BS + '(' + BS + ') {[' + BS + 's' + BS + 'S]*?' + BS + 'n  }'));
+  const tg = grab(new RegExp('const _RELEASE_TARGETS = [^;]*;'));
+  const pt = grab(new RegExp('function releaseStuckLockPatch[' + BS + 's' + BS + 'S]*?' + BS + 'n  }' + BS + 'n'));
+  const writes = [];
+  const state = { cur: docs.first };
+  const w = Object.assign({
+    _userClaims: {}, _user: { uid: 'u1' },
+    doc: () => ({}),
+    getDoc: async () => ({ exists: () => true, data: () => state.cur }),
+    updateDoc: async (r, p) => { writes.push(p); },
+    runTransaction: async (db, fn) => fn({ get: async () => ({ exists: () => true, data: () => state.cur }), update: (r, p) => { writes.push(p); } }),
+    nbdConfirm: async () => { if (docs.flip) state.cur = docs.flip; return true; },
+    showInvoiceDetailModal: () => {},
+  }, sandboxOver || {});
+  const fn = new Function('window', 'getDb', 'showToast', 'showInvoiceDetailModal', ownM + lockM + tg + pt + m + '; return releaseSendLockUI;')(w, () => ({}), () => {}, () => {});
+  const result = await fn('inv1');
+  return { writes, result };
+};
+(async () => {
+  const locked = { status: 'sending', sendingPriorStatus: 'sent', total: 100, amountPaid: 0, sendingAt: new Date(Date.now() - 600000) };
+  const a1 = await run({ first: locked });
+  ok('positive control: a still-locked, stale invoice is released with one write', a1.result === true && a1.writes.length === 1 && a1.writes[0].status === 'sent');
+  const a2 = await run({ first: locked, flip: { status: 'paid', total: 100, amountPaid: 100, payments: pay } });
+  ok('Stripe marks it paid while the confirm is open -> NO write (status stays paid)', a2.result === false && a2.writes.length === 0);
+  const a3 = await run({ first: locked, flip: Object.assign({}, locked, { sendingPriorStatus: 'partial', amountPaid: 40 }) });
+  ok('it changed to a different restore status while the confirm was open -> no write', a3.writes.length === 0);
+  const a4 = await run({ first: locked }, { runTransaction: undefined });
+  ok('no runTransaction on the page: fresh read + status check, still one write', a4.writes.length === 1);
+  const a5 = await run({ first: locked, flip: { status: 'paid', total: 100, amountPaid: 100, payments: pay } }, { runTransaction: undefined });
+  ok('...and the fallback also refuses once it is paid', a5.writes.length === 0);
+  const a6 = await run({ first: Object.assign({}, locked, { sendingAt: new Date(Date.now() - 20000) }) });
+  ok('a send that started 20 seconds ago is not released (it may still be running)', a6.writes.length === 0);
+  ok('the detail button is hidden for a fresh lock too', src.includes('_isOwnerSide() && !_lockIsFresh(inv)'));
+})().then(() => {
 console.log('audit script');
 const rows = [
   { id: 's1', companyId: 'A', status: 'sending' },
@@ -76,7 +120,8 @@ ok('a status word list matches the one in firestore.rules', (() => {
   return words.join(',') === AU.STATUS_WORDS.join(',');
 })());
 const auSrc = fs.readFileSync(path.join(ROOT, 'scripts/audit-invoice-money-prechecks.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-ok('the script never writes (no set / update / delete / add / batch / commit)', !/\.(set|update|delete|add|create|commit)\(|\bbatch\(|\bbulkWriter\(/.test(auSrc));
+ok('the script never writes (no set / update / delete / add / batch / commit)', !/\.(set|update|delete|add|create|commit|recursiveDelete|runTransaction)\(|\bbatch\(|\bbulkWriter\(|\brecursiveDelete\(|\brunTransaction\(/.test(auSrc));
+ok('the script refuses to run with no project (no silent default to production)', (() => { const r = require('child_process').spawnSync(process.execPath, [path.join(ROOT, 'scripts/audit-invoice-money-prechecks.js')], { encoding: 'utf8', env: Object.assign({}, process.env, { FIRESTORE_EMULATOR_HOST: '' }) }); return r.status === 2 && /--project/.test(r.stderr); })());
 ok('positive control: the write pattern does match a write', /\.(set|update|delete|add|create|commit)\(/.test("db.collection('x').doc('y').update({})"));
 
 console.log('reputation chip');
@@ -87,3 +132,4 @@ ok('...because the auto-ask does not read reviewAskDeclined (if it ever does, re
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
+}).catch((e) => { console.error(e); process.exit(1); });

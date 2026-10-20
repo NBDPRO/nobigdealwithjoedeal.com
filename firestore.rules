@@ -1525,8 +1525,11 @@ service cloud.firestore {
     }
     function invoiceStatusOk() {
       let d = request.resource.data;
-      return (invoiceStatusWord(d) || d.get('status', null) == resource.data.get('status', null))
-        && ('status' in d || !('status' in resource.data));
+      return (invoiceStatusWord(d) || d.get('status', null) == resource.data.get('status', null)
+              // the send lock's restore of a legacy status the invoice truly had ('Sent'); never a case variant of paid
+              || (resource.data.get('status', '') == 'sending' && d.get('status', null) is string
+                  && d.status == resource.data.get('sendingPriorStatus', '') && d.status.lower() != 'paid'))
+        &&('status' in d || !('status' in resource.data));
     }
     // A hard delete of an invoice that carries money is the owner side's (platform admin, company_admin, a solo owner).
     // A rep / manager who created it may delete only one with no payment on it (a mistaken draft).

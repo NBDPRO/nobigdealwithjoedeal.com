@@ -2972,7 +2972,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
               : `<button type="button" class="btn btn-orange" data-ip-action="sendInvoice" data-ip-id="${_escJs(invoiceId)}">Send to Customer</button>`}
             ${inv.status !== 'paid' ? `<button type="button" class="btn btn-green" data-ip-action="markPaid" data-ip-id="${_escJs(invoiceId)}">Record Payment (Check/Zelle/Cash)</button>` : ''}
             ${_payUrl ? `<button type="button" class="btn btn-ghost" data-ip-action="copyStripeLink" data-ip-id="${_esc(_payUrl)}">Copy Payment Link</button>` : ''}
-            ${(inv.status === 'sending' && _isOwnerSide()) ? `<button type="button" class="btn btn-ghost" data-ip-action="releaseSendLock" data-ip-id="${_escJs(invoiceId)}">Release send lock</button>` : ''}
+            ${(inv.status === 'sending' && _isOwnerSide() && !_lockIsFresh(inv)) ? `<button type="button" class="btn btn-ghost" data-ip-action="releaseSendLock" data-ip-id="${_escJs(invoiceId)}">Release send lock</button>` : ''}
             ${(inv.ohioHold === true && inv.milestoneReleased !== true && inv.status !== 'paid') ? `<button type="button" class="btn btn-ghost" data-ip-action="releaseMilestone" data-ip-id="${_escJs(invoiceId)}">Materials delivered / work begun — release next payment</button>` : ''}
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold) ? `<button type="button" class="btn btn-ghost" data-ip-action="createPayLink" data-ip-id="${_escJs(invoiceId)}">Create Payment Link</button>` : ''}
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold && !inv.emergencyServices) ? `<button type="button" class="btn btn-ghost" data-ip-action="markEmergency" data-ip-id="${_escJs(invoiceId)}">Emergency tarp / repair invoice</button>` : ''}
@@ -3398,7 +3398,14 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     if (role) return false;
     return !!u && (!c.companyId || c.companyId === u);
   }
-  const _RELEASE_TARGETS = { draft: 1, sent: 1, viewed: 1, partial: 1, paid: 1, overdue: 1, void: 1, cancelled: 1 };
+  const _RELEASE_TARGETS = ['draft', 'sent', 'viewed', 'partial', 'paid', 'overdue', 'void', 'cancelled'];
+  // A send started under 2 minutes ago may still be running (the same window sendInvoiceUI uses); releasing it then could double-send.
+  function _lockIsFresh(inv) {
+    const at = inv && inv.sendingAt;
+    const started = at && at.toDate ? at.toDate() : at;
+    const ageMs = started ? (Date.now() - new Date(started).getTime()) : 0;
+    return ageMs > 0 && ageMs < 120000;
+  }
   /**
    * The patch that releases an invoice stuck in 'sending' (a send that never finished and left the lock on), or null when
    * the invoice is not locked. It goes back to the status the lock recorded (sendingPriorStatus). With no marker (an older
@@ -3408,7 +3415,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   function releaseStuckLockPatch(inv, now) {
     if (!inv || inv.status !== 'sending') return null;
     const marker = String(inv.sendingPriorStatus || '');
-    let target = _RELEASE_TARGETS[marker] ? marker : '';
+    let target = _RELEASE_TARGETS.indexOf(marker) !== -1 ? marker : '';
     let inferred = false;
     if (!target) {
       inferred = true;
@@ -3428,16 +3435,45 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       || ((m) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(m) : false));
     const ref = window.doc(getDb(), 'invoices', invoiceId);
     const snap = await window.getDoc(ref);
-    const plan = snap && snap.exists() ? releaseStuckLockPatch(snap.data() || {}) : null;
+    const first = snap && snap.exists() ? snap.data() || {} : null;
+    const plan = releaseStuckLockPatch(first);
     if (!plan) {
       if (typeof showToast === 'function') showToast('This invoice is not locked.', 'info');
+      return false;
+    }
+    if (_lockIsFresh(first)) {
+      if (typeof showToast === 'function') showToast('A send started a moment ago. Wait two minutes before releasing it.', 'info');
       return false;
     }
     const ok = await _ask('This invoice has been stuck "sending". Put it back as "' + plan.status + '"'
       + (plan.inferred ? ' (the lock did not record what it was, so this is the closest match)' : '')
       + '? Nothing is sent and no money changes.');
     if (!ok) return false;
-    await window.updateDoc(ref, plan.patch);
+    // The confirm can sit open while a Stripe webhook or Record Payment lands, so the write is decided on FRESH data, in one step:
+    // still 'sending', not a send that just started, and the same status the owner agreed to. Otherwise nothing is written.
+    const decide = (cur) => {
+      const p2 = releaseStuckLockPatch(cur);
+      return (p2 && !_lockIsFresh(cur) && p2.status === plan.status) ? p2 : null;
+    };
+    let wrote = false;
+    if (typeof window.runTransaction === 'function') {
+      wrote = await window.runTransaction(getDb(), async (tx) => {
+        const s2 = await tx.get(ref);
+        const p2 = s2.exists() ? decide(s2.data() || {}) : null;
+        if (!p2) return false;
+        tx.update(ref, p2.patch);
+        return true;
+      });
+    } else {
+      const s2 = await window.getDoc(ref);
+      const p2 = s2.exists() ? decide(s2.data() || {}) : null;
+      if (p2) { await window.updateDoc(ref, p2.patch); wrote = true; }
+    }
+    if (!wrote) {
+      if (typeof showToast === 'function') showToast('This invoice changed while you were deciding, so nothing was changed. Open it again.', 'info');
+      try { showInvoiceDetailModal(invoiceId); } catch (_) { /* best-effort */ }
+      return false;
+    }
     if (typeof showToast === 'function') showToast('Send lock released.', 'success');
     try { showInvoiceDetailModal(invoiceId); } catch (_) { /* modal refresh is best-effort */ }
     return true;

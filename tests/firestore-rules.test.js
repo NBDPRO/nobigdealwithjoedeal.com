@@ -31,11 +31,17 @@ const PROJECT_ID = process.env.RULES_TEST_PROJECT_ID || 'nbd-rules-test';
   }
 }
 
+const RULES_OVERRIDE = process.env.RULES_PATH || '';
+if (RULES_OVERRIDE) {
+  if (process.env.CI) throw new Error('RULES_PATH is a local mutation-testing override and must not be set in CI');
+  console.warn('!!! RULES_PATH override in use: testing ' + RULES_OVERRIDE + ' instead of firestore.rules !!!');
+}
+
 async function run() {
   const env = await initializeTestEnvironment({
     projectId: PROJECT_ID,
     firestore: {
-      rules: fs.readFileSync(process.env.RULES_PATH || path.resolve(__dirname, '../firestore.rules'), 'utf8'),
+      rules: fs.readFileSync(RULES_OVERRIDE || path.resolve(__dirname, '../firestore.rules'), 'utf8'),
       host: '127.0.0.1',
       port: Number(String(process.env.FIRESTORE_EMULATOR_HOST || '').split(':')[1]) || 8080,   // emulators:exec sets this; 8080 is the CI default
     },
@@ -1113,6 +1119,36 @@ async function run() {
   await assertSucceeds(deleteDoc(doc(coAdmin, 'invoices/del-rep')));                                                  // the company_admin may
   await assertSucceeds(deleteDoc(doc(admin, 'invoices/del-admin')));                                                  // and so may the platform admin
   await assertFails(deleteDoc(doc(bob, 'invoices/del-mgr')));                                                         // another tenant cannot
+  // each invoiceCarriesMoney clause on its own: a creator rep cannot delete these
+  const entry1 = { amount: 10, at: new Date(), method: 'cash', recordedBy: 'alice' };
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'invoices/del-iso-pay'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 500, amountPaid: 0, payments: [entry1], createdAt: 1 });      // only a payment entry
+    await setDoc(doc(d, 'invoices/del-iso-str'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', total: 500, amountPaid: 0, payments: '', createdAt: 1 });          // payments is not a list (an empty string, so size() alone would say 0)
+    await setDoc(doc(d, 'invoices/del-iso-paid'), { createdBy: 'alice', companyId: 'co-a', status: 'paid', total: 500, amountPaid: 0, payments: [], createdAt: 1 });          // only status paid
+  });
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-iso-pay')));
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-iso-str')));
+  await assertFails(deleteDoc(doc(alice, 'invoices/del-iso-paid')));
+  // a rep still edits an invoice that already has 15 payments (rules expression budget): a proof on entry 0 plus an allowed status change
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const list = Array.from({ length: 15 }, (_, i) => ({ amount: 10, at: new Date(Date.now() - (40 - i) * 3600000), method: 'cash', recordedBy: 'alice', paymentId: 'q' + i }));
+    await setDoc(doc(ctx.firestore(), 'invoices/pay15'), { createdBy: 'alice', companyId: 'co-a', status: 'partial', total: 1000, amountPaid: 150, balanceDue: 850, payments: list, createdAt: 1 });
+  });
+  const p15 = (await getDoc(doc(alice, 'invoices/pay15'))).data().payments;
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/pay15'), { payments: p15.map((e, i) => (i === 0 ? Object.assign({}, e, { proofStoragePath: 'payment-proofs/alice/pay15/1_a.jpg' }) : e)), status: 'overdue' }));
+  // a legacy status that the send lock holds is restored as it was; a legacy 'Paid' is never restored
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'invoices/lg-sent'), { createdBy: 'alice', companyId: 'co-a', status: 'Sent', total: 100, amountPaid: 0, payments: [], createdAt: 1 });
+    await setDoc(doc(d, 'invoices/lg-paid'), { createdBy: 'alice', companyId: 'co-a', status: 'Paid', total: 100, amountPaid: 100, payments: [], createdAt: 1 });
+  });
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/lg-sent'), { status: 'sending', sendingPriorStatus: 'Sent', sendingAt: new Date() }));
+  await assertFails(updateDoc(doc(alice, 'invoices/lg-sent'), { status: 'Other' }));                                  // not the status the lock replaced
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/lg-sent'), { status: 'Sent', sendingAt: null, sendingPriorStatus: null }));   // the restore of a legacy 'Sent'
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/lg-paid'), { status: 'sending', sendingPriorStatus: 'Paid', sendingAt: new Date() }));
+  await assertFails(updateDoc(doc(alice, 'invoices/lg-paid'), { status: 'Paid', sendingAt: null, sendingPriorStatus: null }));       // a case variant of paid is never restored
+  await assertFails(updateDoc(doc(alice, 'invoices/lg-paid'), { status: 'PAID', sendingAt: null, sendingPriorStatus: null }));
   // (3) un-void is the owner side's, with a note
   await env.withSecurityRulesDisabled(async (ctx) => {
     const d = ctx.firestore();

@@ -341,5 +341,16 @@ Closes deferred items 1, 2 and 3 above, and the reviewers' small leftovers. Stil
 - **Sub paperwork.** The `Expenses.meta()` "(new" wording is gone from `SUB-PAPERWORK-2026-10-19.md`. The test that a legacy sub whose old notes hold nine digits can still
   have its phone updated by a manager already exists (`firestore-rules.sub-paperwork.test.js`, `leg1`).
 
+**Review round (same PR).** Release send lock now decides on fresh data inside a transaction (still `sending`, not a send under 2 minutes old, same status the owner
+confirmed; otherwise nothing is written) and the button hides for a fresh lock. The status rule lets the lock restore a legacy status it replaced (`Sent`) but never a
+case variant of `paid`. The audit script has no default project (`--project=` or an emulator host is required).
+
+**Plain statements for Jo (product calls, owner Jo, decide by 2026-10-27):**
+- The status rule is **live on deploy**, not behind a flag: it applies to every invoice write the moment the rules ship.
+- A rep can still undo their own newest payment (rules allow the recorder) and then hard-delete the now-empty invoice they created.
+- A rep can still soft-void (note required) an invoice that carries money.
+- Un-void is blocked by the `deleted` rule, but a rep can still move a voided invoice's `status` from `void` back to `sent`; the void note and `deleted: true` stay. Decide
+  whether `void` should become terminal for non-owner writers.
+
 Tests: `tests/firestore-rules.test.js` (new block "Pre-flag follow-ups"), `tests/firestore-rules.reputation.test.js`, `tests/invoice-followups-2026-10-20.test.js`.
 Each new negative rules test was shown to fail with its clause reverted (mutation runs against temp copies of `firestore.rules`).

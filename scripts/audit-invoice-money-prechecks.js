@@ -21,8 +21,9 @@
  * and prints counts plus up to 10 sample ids per bucket. Voided invoices (deleted === true) are
  * skipped. Not run against production by the session that wrote it; Jo or an admin runs it.
  *
- * RUN
- *   node scripts/audit-invoice-money-prechecks.js [--company=<id>] [--ids=25]
+ * RUN (the project is explicit: there is no default, so it can never silently read production)
+ *   node scripts/audit-invoice-money-prechecks.js --project=<firebase-project-id> [--company=<id>] [--ids=25]
+ *   FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 node scripts/audit-invoice-money-prechecks.js --project=demo-x   (an emulator)
  */
 'use strict';
 
@@ -65,12 +66,16 @@ module.exports = { classifyInvoice, tally, STATUS_WORDS };
 
 if (require.main === module) {
   const { initAdmin, getFirestore } = require('./_admin');
-  const PROJECT = process.env.NBD_PROJECT || 'nobigdeal-pro';
   const args = process.argv.slice(2);
+  const PROJECT = (args.find((a) => a.startsWith('--project=')) || '').split('=')[1] || '';
+  if (!PROJECT && !process.env.FIRESTORE_EMULATOR_HOST) {
+    console.error('Pass --project=<firebase-project-id> (or set FIRESTORE_EMULATOR_HOST). There is no default project.');
+    process.exit(2);
+  }
   const COMPANY = (args.find((a) => a.startsWith('--company=')) || '').split('=')[1] || '';
   const IDS = Number((args.find((a) => a.startsWith('--ids=')) || '').split('=')[1]) || 10;
   (async () => {
-    initAdmin({ projectId: PROJECT });
+    initAdmin({ projectId: PROJECT || 'demo-nbd-audit' });
     const db = getFirestore();
     const q = COMPANY ? db.collection('invoices').where('companyId', '==', COMPANY) : db.collection('invoices');
     const snap = await q.get();

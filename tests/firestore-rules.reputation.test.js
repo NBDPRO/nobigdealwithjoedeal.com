@@ -25,6 +25,11 @@ const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@fir
 const fs = require('fs');
 const path = require('path');
 
+const RULES_OVERRIDE = process.env.RULES_PATH || '';
+if (RULES_OVERRIDE) {
+  if (process.env.CI) throw new Error('RULES_PATH is a local mutation-testing override and must not be set in CI');
+  console.warn('!!! RULES_PATH override in use: testing ' + RULES_OVERRIDE + ' instead of firestore.rules !!!');
+}
 const PROJECT_ID = process.env.RULES_TEST_PROJECT_ID || 'nbd-reputation-test';
 {
   const rc = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../.firebaserc'), 'utf8'));
@@ -46,7 +51,7 @@ async function check(label, expect, promise) {
 async function run() {
   const env = await initializeTestEnvironment({
     projectId: PROJECT_ID,
-    firestore: { rules: fs.readFileSync(process.env.RULES_PATH || path.resolve(__dirname, '../firestore.rules'), 'utf8'),
+    firestore: { rules: fs.readFileSync(RULES_OVERRIDE || path.resolve(__dirname, '../firestore.rules'), 'utf8'),
       host: String(process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':')[0], port: Number(String(process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':')[1]) || 8080 },
   });
   const ctx = (uid, claims) => env.authenticatedContext(uid, claims).firestore();
@@ -72,6 +77,8 @@ async function run() {
     await setDoc(doc(f, 'review_log/L_done'), { companyId: 'co-a', leadId: 'L_done', reviewSeen: true, platform: 'yelp', rating: 1, responded: false, updatedAt: new Date('2026-10-01'), updatedBy: 'co-a' });
     await setDoc(doc(f, 'review_log/L_b'), { companyId: 'co-b', leadId: 'L_b', reviewSeen: true, platform: 'google', rating: 5, responded: false, updatedAt: new Date('2026-10-01'), updatedBy: 'co-b' });
     await setDoc(doc(f, 'leads/L_done'), base);
+    await setDoc(doc(f, 'leads/L_x'), base);                                      // a co-a lead whose log (below) is filed under co-b
+    await setDoc(doc(f, 'review_log/L_x'), { companyId: 'co-b', leadId: 'L_x', reviewSeen: true, platform: 'google', rating: 5, responded: false, updatedAt: new Date('2026-10-01'), updatedBy: 'co-b' });
     await setDoc(doc(f, 'leads/L_b'), Object.assign({}, base, { companyId: 'co-b', userId: 'co-b' }));
   });
 
@@ -121,6 +128,7 @@ async function run() {
   await check("another tenant's solo owner CANNOT update this company's existing log", 'deny', setDoc(log(bob, 'L_done'), entry('co-b', 'L_done', { platform: 'google', rating: 5 })));
   await check("another tenant's company_admin CANNOT create a log for this company's lead under their own companyId", 'deny', setDoc(log(eve, 'L23'), entry('eve', 'L23', { companyId: 'co-b' })));
   await check('control: the other tenant solo owner CAN update their own log', 'allow', setDoc(log(bob, 'L_b'), entry('co-b', 'L_b', { companyId: 'co-b', rating: 4 })));
+  await check('isolates the companyId-unchanged clause: the lead IS co-a, the caller owns the co-b doc, only the company change is wrong', 'deny', setDoc(log(bob, 'L_x'), entry('co-b', 'L_x', { companyId: 'co-a' })));
   await check('a solo owner CANNOT hand their own log to another company (ownership transfer)', 'deny', setDoc(log(bob, 'L_b'), entry('co-b', 'L_b', { companyId: 'co-a' })));
   await check('manager CANNOT change an existing log', 'deny', setDoc(log(mike, 'L_done'), entry('mike', 'L_done', { rating: 5 })));
   await check('owner CANNOT move an existing log to another company', 'deny', setDoc(log(solo, 'L_b'), entry('co-a', 'L_b')));
