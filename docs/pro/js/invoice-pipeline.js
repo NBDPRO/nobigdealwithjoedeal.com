@@ -2972,6 +2972,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
               : `<button type="button" class="btn btn-orange" data-ip-action="sendInvoice" data-ip-id="${_escJs(invoiceId)}">Send to Customer</button>`}
             ${inv.status !== 'paid' ? `<button type="button" class="btn btn-green" data-ip-action="markPaid" data-ip-id="${_escJs(invoiceId)}">Record Payment (Check/Zelle/Cash)</button>` : ''}
             ${_payUrl ? `<button type="button" class="btn btn-ghost" data-ip-action="copyStripeLink" data-ip-id="${_esc(_payUrl)}">Copy Payment Link</button>` : ''}
+            ${(inv.status === 'sending' && _isOwnerSide()) ? `<button type="button" class="btn btn-ghost" data-ip-action="releaseSendLock" data-ip-id="${_escJs(invoiceId)}">Release send lock</button>` : ''}
             ${(inv.ohioHold === true && inv.milestoneReleased !== true && inv.status !== 'paid') ? `<button type="button" class="btn btn-ghost" data-ip-action="releaseMilestone" data-ip-id="${_escJs(invoiceId)}">Materials delivered / work begun — release next payment</button>` : ''}
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold) ? `<button type="button" class="btn btn-ghost" data-ip-action="createPayLink" data-ip-id="${_escJs(invoiceId)}">Create Payment Link</button>` : ''}
             ${(!inv.stripePaymentLink && inv.status !== 'paid' && inv.kyInsuranceHold && !inv.emergencyServices) ? `<button type="button" class="btn btn-ghost" data-ip-action="markEmergency" data-ip-id="${_escJs(invoiceId)}">Emergency tarp / repair invoice</button>` : ''}
@@ -3387,6 +3388,60 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
    * materials are delivered / work has begun. The rep's attestation, recorded;
    * invoice-charge.js then charges the milestone (and the balance after it).
    */
+  // Owner side = the platform admin, a company_admin, or a solo operator (no role, no company or the company is their own
+  // uid); the same set firestore.rules calls backfillWriterOk(). A manager or rep never sees the release button.
+  function _isOwnerSide() {
+    const c = (typeof window !== 'undefined' && window._userClaims) || {};
+    const u = (typeof window !== 'undefined' && window._user && window._user.uid) || null;
+    const role = c.role || '';
+    if (role === 'admin' || role === 'company_admin') return !!u;
+    if (role) return false;
+    return !!u && (!c.companyId || c.companyId === u);
+  }
+  const _RELEASE_TARGETS = { draft: 1, sent: 1, viewed: 1, partial: 1, paid: 1, overdue: 1, void: 1, cancelled: 1 };
+  /**
+   * The patch that releases an invoice stuck in 'sending' (a send that never finished and left the lock on), or null when
+   * the invoice is not locked. It goes back to the status the lock recorded (sendingPriorStatus). With no marker (an older
+   * lock) it infers: 'paid' only when payment entries cover the total, 'partial' when something is paid, else 'sent'.
+   * Money is never touched; the rules hold payments / amountPaid / total frozen while 'sending'.
+   */
+  function releaseStuckLockPatch(inv, now) {
+    if (!inv || inv.status !== 'sending') return null;
+    const marker = String(inv.sendingPriorStatus || '');
+    let target = _RELEASE_TARGETS[marker] ? marker : '';
+    let inferred = false;
+    if (!target) {
+      inferred = true;
+      const paidC = Math.round((Number(inv.amountPaid) || 0) * 100);
+      const totalC = Math.round((Number(inv.total) || 0) * 100);
+      const pays = Array.isArray(inv.payments) ? inv.payments.length : 0;
+      target = (pays > 0 && paidC > 0 && paidC >= totalC) ? 'paid' : (paidC > 0 ? 'partial' : 'sent');
+    }
+    return { status: target, inferred, patch: { status: target, sendingAt: null, sendingPriorStatus: null, updatedAt: now || new Date() } };
+  }
+  async function releaseSendLockUI(invoiceId) {
+    if (!_isOwnerSide()) {
+      if (typeof showToast === 'function') showToast('Only the owner can release a stuck send lock.', 'error');
+      return false;
+    }
+    const _ask = window.nbdConfirm
+      || ((m) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(m) : false));
+    const ref = window.doc(getDb(), 'invoices', invoiceId);
+    const snap = await window.getDoc(ref);
+    const plan = snap && snap.exists() ? releaseStuckLockPatch(snap.data() || {}) : null;
+    if (!plan) {
+      if (typeof showToast === 'function') showToast('This invoice is not locked.', 'info');
+      return false;
+    }
+    const ok = await _ask('This invoice has been stuck "sending". Put it back as "' + plan.status + '"'
+      + (plan.inferred ? ' (the lock did not record what it was, so this is the closest match)' : '')
+      + '? Nothing is sent and no money changes.');
+    if (!ok) return false;
+    await window.updateDoc(ref, plan.patch);
+    if (typeof showToast === 'function') showToast('Send lock released.', 'success');
+    try { showInvoiceDetailModal(invoiceId); } catch (_) { /* modal refresh is best-effort */ }
+    return true;
+  }
   async function releaseMilestoneUI(invoiceId) {
     const _ask = window.nbdConfirm
       || ((m) => Promise.resolve(typeof window.confirm === 'function' ? window.confirm(m) : false));
@@ -4313,6 +4368,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     createPayLinkUI,
     markEmergencyUI,
     releaseMilestoneUI,
+    releaseSendLockUI,
+    releaseStuckLockPatch,
     // Pure helpers, exported for unit tests
     // (tests/invoice-pipeline.test.js) — no DOM/Firestore dependency.
     invoiceTotalsFromEstimate,
@@ -4412,6 +4469,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
         case 'createPayLink':   if (typeof IP.createPayLinkUI === 'function') IP.createPayLinkUI(id); break;
         case 'markEmergency':   if (typeof IP.markEmergencyUI === 'function') IP.markEmergencyUI(id); break;
         case 'releaseMilestone': if (typeof IP.releaseMilestoneUI === 'function') IP.releaseMilestoneUI(id); break;
+        case 'releaseSendLock': if (typeof IP.releaseSendLockUI === 'function') IP.releaseSendLockUI(id); break;
         case 'print':           window.print(); break;
         // "Connect Stripe" on an invoice (2026-10-04): Settings → Billing,
         // where the Stripe Connect card lives.

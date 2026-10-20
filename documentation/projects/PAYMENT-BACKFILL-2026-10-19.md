@@ -312,3 +312,34 @@ attempts refused). 8 more rules mutants killed.
 - legacy paid: `status == 'paid'`, `payments` empty or absent, `amountPaid > 0`;
 - stuck locks: `status == 'sending'` with no `sendingPriorStatus` (the rules compare the absent marker to the client's `draft`, so such a lock cannot be re-taken; the client proceeds without a lock, so nothing blocks, but release them by hand).
 Split each by companyId.
+
+## Pre-flag follow-ups (2026-10-20, dark; no flag is flipped here)
+
+Closes deferred items 1, 2 and 3 above, and the reviewers' small leftovers. Still Jo's to decide: items 4 and 5 (extra keys on a payment row; 16+ payments).
+
+- **Status words (item 3, `status` half).** `/invoices` create and update accept only `draft, sent, sending, viewed, partial, paid, overdue, void, cancelled`
+  (the words the app writes; server writes skip rules). `Paid`, `PAID`, `paid ` and anything else are refused, so a case variant can no longer dodge the lowercase
+  `paid` gates. An invoice already holding an odd legacy value keeps it (it can be edited with the value unchanged, or moved onto a real word), and the status key
+  cannot be removed. `balanceDue` is still not validated (nothing reads it for money).
+- **Hard delete (item 1).** The creator of an invoice may hard-delete it only while it carries no money (no payment entry, `amountPaid` 0, not `paid`; a mistaken draft).
+  Once money is on it, only the owner side deletes: platform admin, `company_admin` of the company, or a solo operator. The catch-up Undo (owner-only UI) keeps working;
+  a rep or manager who somehow reaches it gets the existing "Could not undo" toast. I did not switch the catch-up Undo to a soft void: it is owner-side already, and
+  that would change a tested flow for no gain. Say so if you want it anyway.
+- **Un-void (item 2).** `deleted: true -> false` is the owner side's, and needs a plain-text `unvoidNote` (1 to 300 characters). No screen un-voids an invoice today
+  (nothing writes `deleted:false` on `/invoices`), so no flow is lost. A voided invoice can still be annotated while it stays voided.
+- **Release send lock.** Invoice detail shows **Release send lock** on a `sending` invoice to the owner side only. It puts the invoice back as the status the lock recorded
+  (`sendingPriorStatus`); with no marker it infers `paid` only when payment entries cover the total, `partial` when something is paid, else `sent`, and the confirm
+  says the match is inferred. It writes `status`, `sendingAt: null`, `sendingPriorStatus: null` and `updatedAt` only; money is untouched and the rules keep it frozen while locked.
+  Nothing is sent. Pure helper: `releaseStuckLockPatch` in `invoice-pipeline.js`.
+- **Pre-flag count script (read only).** `node scripts/audit-invoice-money-prechecks.js [--company=<id>]` prints, per company, stuck `sending` locks with and without a marker,
+  `paid` invoices with `amountPaid < total - 0.005`, legacy paid invoices (no payment entries), and odd status values, with sample ids. It never writes. It was **not run
+  against production** by the session that wrote it; Jo or an admin runs it, then releases any stuck locks by hand, before either flag is turned on.
+- **Reputation.** The `Marked "don't ask"` chip now reads `Marked "don't ask" (daily auto-ask may still send)`: `reviewAskDeclined` is honoured by the manual review
+  deck, nudge and drafts, but `review-ask-auto.js` does not read it. The test pins that and says to drop the wording if the auto-ask ever honours it. Teaching the
+  auto-ask to honour it would change customer messaging, so it is not done here. Five `review_log` rules tests added (foreign admin update, foreign solo update,
+  foreign admin create for another company's lead, company_admin update allowed, a solo owner cannot hand a log to another company).
+- **Sub paperwork.** The `Expenses.meta()` "(new" wording is gone from `SUB-PAPERWORK-2026-10-19.md`. The test that a legacy sub whose old notes hold nine digits can still
+  have its phone updated by a manager already exists (`firestore-rules.sub-paperwork.test.js`, `leg1`).
+
+Tests: `tests/firestore-rules.test.js` (new block "Pre-flag follow-ups"), `tests/firestore-rules.reputation.test.js`, `tests/invoice-followups-2026-10-20.test.js`.
+Each new negative rules test was shown to fail with its clause reverted (mutation runs against temp copies of `firestore.rules`).

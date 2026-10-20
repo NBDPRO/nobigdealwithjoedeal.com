@@ -116,6 +116,12 @@ async function run() {
   // update / undo / delete
   await check('owner CAN mark replied', 'allow', setDoc(log(solo, 'L_done'), entry('co-a', 'L_done', { platform: 'yelp', rating: 1, responded: true })));
   await check('owner CAN undo a log (not seen, nulls, stamped)', 'allow', setDoc(log(solo, 'L_done'), entry('co-a', 'L_done', { reviewSeen: false, platform: null, rating: null, responded: false })));
+  await check('company_admin of that company CAN update an existing log', 'allow', setDoc(log(carol, 'L_done'), entry('carol', 'L_done', { platform: 'google', rating: 4 })));
+  await check("another tenant's company_admin CANNOT update this company's existing log", 'deny', setDoc(log(eve, 'L_done'), entry('eve', 'L_done', { platform: 'google', rating: 5 })));
+  await check("another tenant's solo owner CANNOT update this company's existing log", 'deny', setDoc(log(bob, 'L_done'), entry('co-b', 'L_done', { platform: 'google', rating: 5 })));
+  await check("another tenant's company_admin CANNOT create a log for this company's lead under their own companyId", 'deny', setDoc(log(eve, 'L23'), entry('eve', 'L23', { companyId: 'co-b' })));
+  await check('control: the other tenant solo owner CAN update their own log', 'allow', setDoc(log(bob, 'L_b'), entry('co-b', 'L_b', { companyId: 'co-b', rating: 4 })));
+  await check('a solo owner CANNOT hand their own log to another company (ownership transfer)', 'deny', setDoc(log(bob, 'L_b'), entry('co-b', 'L_b', { companyId: 'co-a' })));
   await check('manager CANNOT change an existing log', 'deny', setDoc(log(mike, 'L_done'), entry('mike', 'L_done', { rating: 5 })));
   await check('owner CANNOT move an existing log to another company', 'deny', setDoc(log(solo, 'L_b'), entry('co-a', 'L_b')));
   await check('owner CANNOT delete a log', 'deny', deleteDoc(log(solo, 'L_done')));
