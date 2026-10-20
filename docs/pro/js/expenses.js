@@ -71,6 +71,10 @@
   }
 
   var _expenses = [];
+  // What the 1000-row cap did to the last load, judged on the RAW rows (voided ones included):
+  // { capped, count, cap, oldestMs|null }. Month close reads it so a capped list cannot pass as complete.
+  var EXPENSE_CAP = 1000;
+  var _expMeta = { capped: false, count: 0, cap: EXPENSE_CAP, oldestMs: null };
   var _loaded = false;
   var _scannedPath = null;       // receipt uploaded during an AI scan (reused on save)
   var _scanExtraction = null;    // last extraction (carries source/needsReview to save)
@@ -94,6 +98,12 @@
     }
     try {
       var snap = await window.getDocs(q);
+      var oldest = 0;
+      snap.docs.forEach(function (d) {
+        var v = d.data().date, ms = !v ? 0 : (typeof v.toMillis === 'function' ? v.toMillis() : (v instanceof Date ? v.getTime() : (typeof v.seconds === 'number' ? v.seconds * 1000 : new Date(v).getTime())));
+        if (ms && (!oldest || ms < oldest)) oldest = ms;
+      });
+      _expMeta = { capped: snap.docs.length >= EXPENSE_CAP, count: snap.docs.length, cap: EXPENSE_CAP, oldestMs: oldest || null };
       // A voided row (a cash payout marked deleted) is kept in Firestore for its
       // audit note but must not count in any total.
       return snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); })
@@ -801,6 +811,9 @@
     // Customer payment backfill (flag paymentBackfill, owner only; empty string when off).
     if (window.NBDPaymentBackfill) html += window.NBDPaymentBackfill.panelHtml();
 
+    // Month close (flag monthClose; empty string when off).
+    if (window.NBDMonthClose) html += window.NBDMonthClose.panelHtml();
+
     // Per-job rollup with margin
     var jobIds = Object.keys(agg.byJob).filter(function (k) { return k !== '__unassigned__'; });
     if (jobIds.length) {
@@ -1285,6 +1298,7 @@
     exportCSV: exportCSV,
     // Loaded expenses (hd-import.js skips receipts already imported).
     list: function () { return _expenses.slice(); },
+    meta: function () { return { capped: _expMeta.capped, count: _expMeta.count, cap: _expMeta.cap, oldestMs: _expMeta.oldestMs }; },
     saveAttachedReceipt: saveAttachedReceipt,
     // pure functions (exported for unit tests)
     aggregate: aggregate,

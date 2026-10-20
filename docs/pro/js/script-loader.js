@@ -114,7 +114,7 @@
       // cannot be lazy there. Same cache key on both pages.
       'css/profit-tracker-view.css?v=1',
       'js/profit-tracker.js?v=5',
-      'js/expenses.js?v=14',
+      'js/expenses.js?v=15',
       // Cash paid out to crew / subs (2026-10-19): inert until the cashPayoutsLog flag is on.
       'css/cash-payouts.css?v=1', 'js/cash-payouts.js?v=1',
       // Job cost auditor (2026-10-19): inert until the jobCostAuditor flag is on.
@@ -122,6 +122,8 @@
       // Sub payments sorter (2026-10-19): inert until the subPaymentsSorter flag is on.
       'css/proof-photos.css?v=1', 'js/proof-photos.js?v=1',
       'css/sub-payments.css?v=2', 'js/sub-payments-logic.js?v=1', 'js/sub-payments.js?v=2',
+      // Month close (2026-10-19): inert until the monthClose flag is on.
+      'css/month-close.css?v=1', 'js/month-close-logic.js?v=1', 'js/month-close.js?v=1',
       // Customer payment backfill (2026-10-19): inert until the paymentBackfill flag is on (owner only).
       'css/payment-backfill.css?v=1', 'js/payment-backfill-logic.js?v=1', 'js/payment-backfill.js?v=1',
       // "Are the receipts all in?" panel (2026-10-18): read-only, read at render time.

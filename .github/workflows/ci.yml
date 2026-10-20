@@ -558,6 +558,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only firestore --project nbd-csource-test 'node firestore-rules.confirmed-source.test.js'
+      # Month close (2026-10-19): monthCloses/{companyId_YYYY-MM}, owner-only writes. Own file.
+      - name: Run month-close rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-mclose-test 'node firestore-rules.month-close.test.js'
       # Reputation review log (2026-10-19): review_log/{leadId}, owner/company_admin only. Own file.
       - name: Run review-log rules tests under emulator
         run: |
