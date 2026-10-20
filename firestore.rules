@@ -2436,6 +2436,55 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
+    // ── REPUTATION: the owner's review log (2026-10-19, flag reputationLoop) ──
+    // review_log/{leadId}: the OWNER's own record that a review was posted for a
+    // customer: { companyId, leadId, reviewSeen, platform, rating, responded,
+    // updatedAt, updatedBy }. It is a collection of its own, NOT a field on the
+    // lead, because the lead update rule has no spare evaluation budget (one extra
+    // clause there pushed denied writes past Firestore's 1000-expression limit).
+    // Whether a customer was ASKED is not stored here; it is read from the
+    // server's reviewRequested / reviewAutoAsk stamps. No review text, no reviewer
+    // name. Owner-only for read AND write: a platform admin, a company_admin of the
+    // company, or a solo operator who owns the tenant by uid. Managers, reps,
+    // viewers, other tenants and anonymous get nothing. The doc id is the lead id,
+    // the lead must belong to the same company, and the map is exactly the eight
+    // keys, well-formed, stamped with the caller and the server time. No delete
+    // (undo is a stamped write of reviewSeen:false).
+    match /review_log/{leadId} {
+      function reviewLogOwner(cid) {
+        return isAdmin()
+          || (isCompanyAdmin() && cid != null && cid == myCompanyId())
+          || (isAuth() && request.auth.token.get('role', '') == '' && ownsTenantByUid(cid));
+      }
+      function reviewLogShapeOk(leadId) {
+        let d = request.resource.data;
+        let lead = get(/databases/$(database)/documents/leads/$(leadId)).data;
+        return d.keys().hasOnly(['companyId', 'leadId', 'reviewSeen', 'platform', 'rating', 'responded', 'updatedAt', 'updatedBy'])
+          && d.keys().hasAll(['companyId', 'leadId', 'reviewSeen', 'platform', 'rating', 'responded', 'updatedAt', 'updatedBy'])
+          && d.leadId == leadId
+          && lead.get('companyId', lead.get('userId', '')) == d.companyId
+          && d.reviewSeen is bool
+          && d.responded is bool
+          && (d.platform == null || (d.platform is string && d.platform in ['google', 'yelp', 'thumbtack', 'other']))
+          && (d.rating == null || (d.rating is int && d.rating >= 1 && d.rating <= 5))
+          && (d.reviewSeen == true
+                ? (d.platform != null && d.rating != null)
+                : (d.platform == null && d.rating == null && d.responded == false))
+          && d.updatedBy == request.auth.uid
+          && d.updatedAt == request.time;
+      }
+      allow read: if isAuth() && reviewLogOwner(resource.data.get('companyId', null));
+      allow create: if isAuth()
+        && reviewLogOwner(request.resource.data.get('companyId', null))
+        && exists(/databases/$(database)/documents/leads/$(leadId))
+        && reviewLogShapeOk(leadId);
+      allow update: if isAuth()
+        && reviewLogOwner(resource.data.get('companyId', null))
+        && request.resource.data.companyId == resource.data.companyId
+        && reviewLogShapeOk(leadId);
+      allow delete: if false;
+    }
+
     // ── AWAY MODE + BACKUP PERSON (never-forget lane, 2026-10-12) ──────────
     // Design + security model: documentation/projects/AWAY-MODE-BACKUP-2026-10-12.md.
     // Every write is the Admin SDK's (the manageAway callable and the

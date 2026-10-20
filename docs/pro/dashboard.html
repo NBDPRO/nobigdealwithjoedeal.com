@@ -34,6 +34,7 @@
 <link rel="stylesheet" href="css/no-next-step.css?v=1">
 <link rel="stylesheet" href="css/stale-leads-cleanup.css?v=1">
 <link rel="stylesheet" href="css/lead-source-fixer.css?v=1">
+<link rel="stylesheet" href="css/reputation.css?v=1">
 <link rel="stylesheet" href="css/speed-to-lead.css?v=1">
 <link rel="stylesheet" href="css/dol-fill.css?v=1">
 <link rel="stylesheet" href="css/d2d-storm.css?v=1">
@@ -2003,6 +2004,11 @@
             <button class="btn btn-ghost crm-hdr-btn" id="speedToLeadBtn" type="button" hidden
               title="Mark new leads as replied, and see how fast you answer by source">
               ⚡ <span class="crm-hdr-btn-label">Speed to lead</span><span class="stl-badge" id="speedToLeadBadge" hidden>0</span>
+            </button>
+            <!-- Reputation (js/reputation.js, flag reputationLoop): owner / company_admin only, shown only with the flag on. -->
+            <button class="btn btn-ghost crm-hdr-btn" id="reputationBtn" type="button" hidden
+              title="Who was asked for a review, what was posted, and which reviews need your reply">
+              ⭐ <span class="crm-hdr-btn-label">Reputation</span><span class="rep-badge" id="reputationBadge" hidden></span>
             </button>
             <!-- Wave 54: Stale Shares filter — customers shared 5+ days
                  ago with no customer-side response. -->
@@ -7305,6 +7311,8 @@
 <script defer src="js/stale-leads-cleanup.js?v=1"></script>
 <!-- "Where customers came from" (2026-10-19): flag leadSourceFixer, absent = off. -->
 <script defer src="js/lead-source-fixer.js?v=1"></script>
+<!-- "Reputation" (2026-10-19): flag reputationLoop, absent = off. -->
+<script defer src="js/reputation.js?v=1"></script>
 <!-- "Speed to lead" (2026-10-19): flag speedToLead, absent = off. -->
 <script defer src="js/speed-to-lead.js?v=1"></script>
 <script defer src="js/stale-shares-filter.js?v=3"></script>
