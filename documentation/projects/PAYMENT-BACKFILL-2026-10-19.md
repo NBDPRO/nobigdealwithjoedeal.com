@@ -258,3 +258,57 @@ Checked against the other invoice writers: the send lock and its restore, milest
 state, deposit accounts, reminders and the catch-up Undo all still pass (rules tests). Older rules tests that asserted "set paid with no payment
 entry" were changed to assert the entry is required. The backfill screen's read-back after `markPaid` is `paymentLanded(invoice, paymentId)` in
 the logic file, tested directly. 22 rules mutants of the invoice money rules are all killed.
+
+### Round 5 (PR #2580): three more variants, and what is left on purpose
+
+- **The send lock holds the money.** While an invoice is `sending` its `payments` list cannot change at all (no undo, no append), so
+  `paid -> sending -> undo -> paid` cannot revive a paid status with no money. The intact round trip (paid -> sending -> paid) still works.
+- **No re-pricing through a status round trip.** An invoice goes back to `draft` only by the owner side, or as the send lock's restore of a
+  draft it had. (The app writes `draft` only at create, so nothing legitimate is lost.)
+- **Markers by key presence.** On create, the keys `backfilled`, `backfillKey`, `paymentBackfill` in ANY value or type (`'true'`, `1`,
+  `false`, `''`), or `source` equal to "backfill" in any case, make the write owner-side only; they are frozen afterwards. Consumers
+  (`isBackfillInvoice`, `hasBackfillInvoice`, `isQuietBackfill`) stay strict (`=== 'backfill'`, `=== true`) because only the owner side can
+  write those keys at all, and the owner side writes the exact values.
+- Tests added: cross-tenant manager append / tenant swap denied, same-tenant non-creator rep append denied, 15 -> 14 undo allowed, sub-cent
+  tolerance documented (`100.000009` is inside the 0.001-cent allowance, `100.004` is not).
+
+**Round 6 and 7 (the send lock tells the truth).** `sendingPriorStatus` could be left behind by an earlier send lock, or
+rewritten while the invoice stayed `sending`, and then "restored": paid -> sending -> sent (marker stale) -> undo to $0 -> sending -> paid, and
+sent -> sending(prior sent) -> marker rewritten to `draft` -> draft -> new total -> sent. Now:
+- moving into `sending` needs `sendingPriorStatus` to equal the status the invoice has right then (what the client writes: `_priorStatusOf`;
+  an invoice with no status reads as a draft);
+- while the invoice STAYS `sending` the marker is frozen (a stale lock re-taken with the same marker still works) and so are `payments`,
+  `amountPaid` and the dates;
+- the restore to `paid` therefore brings back exactly what the lock held: the money (`payments`, `amountPaid`, `total`) must be unchanged,
+  and there is deliberately no coverage test, so a legacy paid invoice (an `amountPaid` but no `payments` list), a re-priced one or a total-0 one is
+  never stuck `sending` (which would read as A/R).
+Tests: the 6-step stale cycle, the marker rewrite while sending (and restated with a new `sendingAt`), a lie about the replaced status,
+sent -> sending -> draft, the honest lock and release, four seeded sending-with-marker states (legacy, under-covered, total 0, and money-change
+attempts refused). 8 more rules mutants killed.
+
+**Decisions left to the owner (not changed here):**
+- *Hard delete.* The rules still let the creator (and a company_admin) hard-delete an invoice that has payments. The catch-up "Undo" does exactly
+  that to an invoice it created, so a blanket `amountPaid == 0` rule would break it. Proposal for Jo: owner-side-only deletes of an invoice with
+  payments, with catch-up Undo switched to a soft void; follow-up before either flag is turned on.
+- *16 to 25 payments.* An invoice with more than 15 payments becomes append/undo-frozen (it can still be edited elsewhere and voided). Acceptable:
+  a job with more than 15 separate payments is not a real case today.
+- *Extra keys on a payment row and `balanceDue`* are not validated by the rules (low: nothing reads them for money; `amountPaid`, the entry
+  amount, date, method and recorder are the validated fields).
+
+**Owners and dates for what is deferred (all: Jo, decide before `subPaymentsSorter` or `paymentBackfill` is turned on; target 2026-10-27):**
+1. *Hard delete of an invoice that has payments* by its creator or a company_admin (the catch-up Undo does this to an invoice it made; a blanket
+   `amountPaid == 0` rule would break it). Proposal: owner-side-only deletes, with the catch-up Undo moved to a soft void.
+2. *Un-void.* `deleted: true -> false` is not guarded: the void note is required to void, not to restore. Proposal: only the owner side may
+   un-void, with a note, or never (re-create instead).
+3. *`balanceDue` and `status` values* other than the transitions guarded above (paid, draft, sending) are not validated; nothing reads them for
+   money (`amountPaid`, entry amount / date / method / recorder and `total` are the validated money fields).
+4. *Extra keys on a payment row* are not rejected.
+5. *Invoices with 16 or more payments* are append / undo frozen (void and other-field edits still work); raising the cap needs a rules-budget redesign.
+
+**Round 8 (lock-entry write).** The write that ENTERS `sending` could also shrink the money (`payments` minus the newest, `amountPaid` reduced) under a truthful `paid` marker, and the restore then brought back a `paid` with nothing paid. The payments freeze in `invoicePaymentsOk` now covers the entry write too (old OR new status `sending`). Tests: entry with `payments: []` + `amountPaid: 0` refused, entry with only `amountPaid: 0` refused, the honest lock from paid still passes; reverting the clause makes the suite fail.
+
+**Pre-flag read-only checklist (Jo / an admin, before either flag is on; owner Jo, before 2026-10-27):**
+- paid but under-covered: `status == 'paid'` and `amountPaid < total - 0.005`;
+- legacy paid: `status == 'paid'`, `payments` empty or absent, `amountPaid > 0`;
+- stuck locks: `status == 'sending'` with no `sendingPriorStatus` (the rules compare the absent marker to the client's `draft`, so such a lock cannot be re-taken; the client proceeds without a lock, so nothing blocks, but release them by hand).
+Split each by companyId.

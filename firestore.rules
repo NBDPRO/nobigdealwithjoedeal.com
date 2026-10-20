@@ -1401,6 +1401,9 @@ service cloud.firestore {
       let d = request.resource.data;
       let r = resource.data;
       return n is list && o is list
+        // the send lock holds the invoice as it is: no payment added, removed or rewritten while 'sending' - nor on the very
+        // write that ENTERS 'sending' (else the money is shrunk under a truthful 'paid' marker and then "restored")
+        && ((r.get('status', '') != 'sending' && d.get('status', '') != 'sending') || n == o)
         && (n == o
             ? (d.get('amountPaid', 0) == r.get('amountPaid', 0)
                 && d.get('paidAt', null) == r.get('paidAt', null)
@@ -1435,10 +1438,34 @@ service cloud.firestore {
     function invoicePaidOk() {
       return request.resource.data.get('status', '') != 'paid'
         || resource.data.get('status', '') == 'paid'
-        || (resource.data.get('status', '') == 'sending' && resource.data.get('sendingPriorStatus', '') == 'paid')
+        // The send lock's restore of a 'paid' the invoice truly had: the marker is truthful (invoiceLockOk) and frozen while
+        // sending, and the money is frozen too (checked again here), so whatever the invoice was when locked is what comes back.
+        // No coverage test on purpose: a legacy or re-priced paid invoice must never be stuck 'sending'.
+        || (resource.data.get('status', '') == 'sending' && resource.data.get('sendingPriorStatus', '') == 'paid'
+            && request.resource.data.get('total', 0) == resource.data.get('total', 0)
+            && request.resource.data.get('amountPaid', 0) == resource.data.get('amountPaid', 0)
+            && request.resource.data.get('payments', []) == resource.data.get('payments', []))
         || (request.resource.data.get('payments', []).size() > 0
             && request.resource.data.get('amountPaid', 0) >= resource.data.get('total', 0) - 0.005
             && request.resource.data.get('amountPaid', 0) >= request.resource.data.get('total', 0) - 0.005);
+    }
+    // The send lock records the status it REPLACES, truthfully: moving into 'sending' needs sendingPriorStatus to equal the
+    // status the invoice has right now (what the client writes: _sendLock priorStatus = the current status). So an old marker
+    // left behind by an earlier lock can never be "restored" later.
+    // While the invoice STAYS 'sending' the marker is frozen (a retaken stale lock rewrites the same value the client reads back).
+    function invoiceLockOk() {
+      return request.resource.data.get('status', '') != 'sending'
+        || (resource.data.get('status', '') == 'sending'
+            ? request.resource.data.get('sendingPriorStatus', '') == resource.data.get('sendingPriorStatus', '')
+            : request.resource.data.get('sendingPriorStatus', '') == resource.data.get('status', 'draft'));   // (an invoice with no status reads as a draft, like the client)
+    }
+    // An invoice does not go BACK to draft except by the owner side or as the send lock's restore of a draft it had
+    // (otherwise sent -> draft -> new total -> sent would be a re-price).
+    function invoiceDraftOk() {
+      return request.resource.data.get('status', '') != 'draft'
+        || resource.data.get('status', '') == 'draft'
+        || (resource.data.get('status', '') == 'sending' && resource.data.get('sendingPriorStatus', '') == 'draft')
+        || backfillWriterOk();
     }
     // The total is the owner side's to change once an invoice has left draft or carries a payment.
     function invoiceTotalOk() {
@@ -1446,16 +1473,19 @@ service cloud.firestore {
         || backfillWriterOk()
         || (resource.data.get('status', '') == 'draft' && resource.data.get('payments', []).size() == 0);
     }
+    // Presence of the key is enough (any value, any type: 'true', 1, 'yes'), and 'source' is compared without case:
+    // a rep cannot slip a near-miss marker past the owner-side check.
     function hasBackfillMark(d) {
-      return d.get('source', '') == 'backfill' || d.get('backfilled', false) == true || d.get('backfillKey', '') != ''
-        || d.get('paymentBackfill', false) == true;
+      return d.keys().hasAny(['backfilled', 'backfillKey', 'paymentBackfill'])
+        || (d.get('source', '') is string && d.get('source', '').lower() == 'backfill');
     }
     // On an update the markers are frozen: set at create, never added, changed or removed.
     function backfillMarksFrozen() {
-      return request.resource.data.get('backfilled', false) == resource.data.get('backfilled', false)
-        && request.resource.data.get('backfillKey', '') == resource.data.get('backfillKey', '')
-        && request.resource.data.get('paymentBackfill', false) == resource.data.get('paymentBackfill', false)
-        && ((request.resource.data.get('source', '') == 'backfill') == (resource.data.get('source', '') == 'backfill'));
+      return request.resource.data.get('backfilled', null) == resource.data.get('backfilled', null)
+        && request.resource.data.get('backfillKey', null) == resource.data.get('backfillKey', null)
+        && request.resource.data.get('paymentBackfill', null) == resource.data.get('paymentBackfill', null)
+        && ((request.resource.data.get('source', '') is string && request.resource.data.get('source', '').lower() == 'backfill')
+            == (resource.data.get('source', '') is string && resource.data.get('source', '').lower() == 'backfill'));
     }
     // A void (deleted false -> true) on an invoice carries a plain-text note.
     function invoiceVoidNoted() {
@@ -3419,6 +3449,8 @@ service cloud.firestore {
           && invoicePaidOk()
           && invoicePriorStatusOk()
           && invoiceTotalOk()
+          && invoiceDraftOk()
+          && invoiceLockOk()
           // A backfill invoice is the owner side's to edit or void (a manager cannot).
           && (resource.data.get('source', '') != 'backfill' || backfillWriterOk())
         );

@@ -955,11 +955,95 @@ async function run() {
     const bad2 = cur.map((e, j) => (j === idx ? Object.assign({}, e, { at: daysAgo(40) }) : e));
     await assertFails(updateDoc(k0, { payments: bad2 }));                                                              // (date)
   }
+  await assertSucceeds(updateDoc(k0, { payments: cur.slice(0, 14), amountPaid: 140, status: 'partial', balanceDue: 99860 }));   // undo of the newest of 15: 15 -> 14 passes
   await assertSucceeds(updateDoc(k0, { deleted: true, voidNote: 'void of a full invoice' }));                          // a full list can still be voided
   // a legacy list longer than 15 (written by the server) can still be voided / edited elsewhere
   await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/legacy30'), { createdBy: 'alice', companyId: 'co-a', status: 'paid', total: 30, amountPaid: 30, payments: Array.from({ length: 30 }, (_, i) => ({ amount: 1, at: new Date(2026, 0, 1 + i), method: 'cash' })), createdAt: 1 }); });
   await assertSucceeds(updateDoc(doc(alice, 'invoices/legacy30'), { notes: 'still editable' }));
   await assertSucceeds(updateDoc(doc(alice, 'invoices/legacy30'), { deleted: true, voidNote: 'legacy void' }));
+  // ── review round 5 ──
+  // A: the send-lock restore cannot revive 'paid' once the money is gone
+  const gA = await fresh('a1');
+  await assertSucceeds(updateDoc(gA, paidPatch(payEntry({ at: when }), { paidAt: when, lastPaymentAt: when })));
+  // round 8: the lock-ENTRY write cannot shrink the money under a truthful 'paid' marker
+  await assertFails(updateDoc(gA, { status: 'sending', sendingPriorStatus: 'paid', payments: [], amountPaid: 0, sendingAt: new Date() }));
+  await assertFails(updateDoc(gA, { status: 'sending', sendingPriorStatus: 'paid', amountPaid: 0, sendingAt: new Date() }));
+  await assertSucceeds(updateDoc(gA, { status: 'sending', sendingPriorStatus: 'paid', sendingAt: new Date() }));
+  await assertFails(updateDoc(gA, { payments: [], amountPaid: 0 }));                                  // undo while the invoice is 'sending'
+  await assertFails(updateDoc(gA, { payments: [], amountPaid: 0, status: 'paid' }));
+  await assertFails(updateDoc(gA, { amountPaid: 0 }));
+  await assertSucceeds(updateDoc(gA, { status: 'paid' }));                                            // the intact round trip still works
+  // A2 (review round 6): a STALE sendingPriorStatus marker cannot be used later. The lock must tell the truth when it is taken.
+  const gS = await fresh('x1');
+  await assertSucceeds(updateDoc(gS, paidPatch(payEntry({ at: when }), { paidAt: when, lastPaymentAt: when })));
+  await assertSucceeds(updateDoc(gS, { status: 'sending', sendingPriorStatus: 'paid', sendingAt: new Date() }));
+  await assertSucceeds(updateDoc(gS, { status: 'sent' }));                                            // the marker is left behind, stale
+  await assertSucceeds(updateDoc(gS, { payments: [], amountPaid: 0, balanceDue: 5340 }));              // an ordinary undo while not sending
+  await assertFails(updateDoc(gS, { status: 'sending' }));                                            // re-lock with the stale 'paid' marker: refused
+  await assertFails(updateDoc(gS, { status: 'sending', sendingPriorStatus: 'paid' }));
+  await assertSucceeds(updateDoc(gS, { status: 'sending', sendingPriorStatus: 'sent', sendingAt: new Date() }));   // the honest lock is fine
+  await assertFails(updateDoc(gS, { status: 'paid' }));                                               // and it cannot restore to 'paid'
+  // B2: the same for a stale 'draft' marker (re-pricing)
+  const gD = await fresh('x2');
+  await assertSucceeds(updateDoc(gD, { status: 'sent' }));
+  await assertFails(updateDoc(gD, { status: 'sending', sendingPriorStatus: 'draft', sendingAt: new Date() }));   // a lie about the status it replaces
+  await assertSucceeds(updateDoc(gD, { status: 'sending', sendingPriorStatus: 'sent', sendingAt: new Date() }));
+  await assertFails(updateDoc(gD, { status: 'draft' }));                                              // sent -> sending -> draft
+  await assertSucceeds(updateDoc(gD, { status: 'sent' }));                                            // the honest release
+  // C2 (review round 7): the marker is frozen while the invoice STAYS 'sending'
+  const gF = await fresh('x7');
+  await assertSucceeds(updateDoc(gF, { status: 'sent' }));
+  await assertSucceeds(updateDoc(gF, { status: 'sending', sendingPriorStatus: 'sent', sendingAt: new Date() }));
+  await assertFails(updateDoc(gF, { sendingPriorStatus: 'draft' }));                                   // rewrite the marker, still sending
+  await assertFails(updateDoc(gF, { status: 'sending', sendingPriorStatus: 'draft', sendingAt: new Date() }));   // same, restating the status
+  await assertFails(updateDoc(gF, { sendingPriorStatus: 'paid' }));
+  await assertSucceeds(updateDoc(gF, { status: 'sending', sendingPriorStatus: 'sent', sendingAt: new Date() }));   // a stale lock re-taken with the SAME marker still works
+  await assertFails(updateDoc(gF, { status: 'draft' }));                                               // so there is no way back to draft
+  await assertSucceeds(updateDoc(gF, { status: 'sent' }));                                             // the honest release
+  // the restore to 'paid' needs the lock's frozen money: it never gets stuck (legacy / re-priced / total 0) and never changes it
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'invoices/x3'), { createdBy: 'alice', companyId: 'co-a', status: 'sending', sendingPriorStatus: 'paid', total: 5340, amountPaid: 0, payments: [], createdAt: 1 });
+    await setDoc(doc(d, 'invoices/x4'), { createdBy: 'alice', companyId: 'co-a', status: 'sending', sendingPriorStatus: 'paid', total: 5340, amountPaid: 5340, payments: [], createdAt: 1 });   // legacy: paid, amountPaid but no payments list
+    await setDoc(doc(d, 'invoices/x5'), { createdBy: 'alice', companyId: 'co-a', status: 'sending', sendingPriorStatus: 'paid', total: 5340, amountPaid: 100, payments: [], createdAt: 1 });      // not covered
+    await setDoc(doc(d, 'invoices/x6'), { createdBy: 'alice', companyId: 'co-a', status: 'sending', sendingPriorStatus: 'paid', total: 0, amountPaid: 0, payments: [], createdAt: 1 });           // total 0, nothing paid
+  });
+  await assertFails(updateDoc(doc(alice, 'invoices/x3'), { status: 'paid', amountPaid: 5340 }));       // money cannot change in the restore
+  await assertFails(updateDoc(doc(alice, 'invoices/x3'), { status: 'paid', total: 1 }));
+  await assertFails(updateDoc(doc(alice, 'invoices/x3'), { status: 'paid', payments: [payEntry()] }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/x4'), { status: 'paid' }));                     // a legacy paid invoice is restored
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/x5'), { status: 'paid' }));                     // a re-priced (under-covered) paid invoice is not stuck
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/x6'), { status: 'paid' }));                     // nor a total-0 one
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/x3'), { status: 'paid' }));                     // (the locked state itself came from a truthful lock: unchanged money restores)
+  // B: no re-pricing through a status round trip
+  await assertSucceeds(updateDoc(await fresh('b1'), { status: 'sent' }));
+  await assertFails(updateDoc(doc(alice, 'invoices/b1'), { status: 'draft' }));                       // a rep cannot send a sent invoice back to draft
+  await assertFails(updateDoc(doc(alice, 'invoices/b1'), { status: 'draft', total: 1 }));
+  await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/b1'), { status: 'draft' }));                  // the owner side may
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/b2'), { createdBy: 'alice', companyId: 'co-a', status: 'draft', total: 5340, amountPaid: 10, balanceDue: 5330, payments: [{ amount: 10, at: new Date(), method: 'cash', recordedBy: 'alice' }], createdAt: 1 }); });
+  await assertFails(updateDoc(doc(alice, 'invoices/b2'), { total: 1 }));                              // a draft that carries a payment cannot be re-priced
+  await assertSucceeds(updateDoc(await fresh('b3'), { status: 'sending', sendingPriorStatus: 'draft', sendingAt: new Date() }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/b3'), { status: 'draft' }));                    // the send lock's own restore of a draft
+  // the ONE rule that stops these: total on a SENT invoice with nothing else moving (fails only via invoiceTotalOk)
+  await assertSucceeds(updateDoc(await fresh('b4'), { status: 'sent' }));
+  await assertFails(updateDoc(doc(alice, 'invoices/b4'), { total: 4000 }));
+  // C: backfill markers by KEY PRESENCE, any value or type, any case
+  const markCases = [['backfilled "true"', { backfilled: 'true' }], ['backfilled 1', { backfilled: 1 }], ['backfilled false', { backfilled: false }], ['source Backfill', { source: 'Backfill' }], ['source BACKFILL', { source: 'BACKFILL' }],
+    ['paymentBackfill "yes"', { paymentBackfill: 'yes' }], ['backfillKey ""', { backfillKey: '' }], ['backfillKey 7', { backfillKey: 7 }]];
+  for (let i = 0; i < markCases.length; i++) {
+    await assertFails(setDoc(doc(alice, 'invoices/mk' + i), newInv('alice', 'co-a', 'not-bf', Object.assign({ source: 'record_payment', backfilled: undefined, backfillKey: undefined }, markCases[i][1]))));
+  }
+  await assertFails(updateDoc(await fresh('mk-u'), { backfilled: 'true' }));                          // nor added later
+  await assertFails(updateDoc(doc(alice, 'invoices/mk-u'), { source: 'Backfill' }));
+  // tenants and creators
+  const mgrCoB = env.authenticatedContext('mgr-cob', { role: 'manager', companyId: 'co-b' }).firestore();
+  const rep2 = env.authenticatedContext('rep2', { role: 'sales_rep', companyId: 'co-a' }).firestore();
+  await assertFails(updateDoc(doc(mgrCoB, 'invoices/b4'), paidPatch(payEntry({ recordedBy: 'mgr-cob' }))));      // another tenant's manager appends
+  await assertFails(updateDoc(doc(mgrCoB, 'invoices/b4'), { companyId: 'co-b' }));                           // swaps the tenant
+  await assertFails(updateDoc(doc(rep2, 'invoices/b4'), paidPatch(payEntry({ recordedBy: 'rep2' }))));        // same tenant, not the creator
+  // cents: the tolerance is documented, not accidental
+  await assertSucceeds(updateDoc(await fresh('sc1'), { payments: [payEntry({ amount: 100.000009 })], amountPaid: 100.000009, status: 'partial' }));   // 0.0009 of a cent is inside the 0.001-cent tolerance
+  await assertFails(updateDoc(await fresh('sc2'), { payments: [payEntry({ amount: 100.004 })], amountPaid: 100.004, status: 'partial' }));            // 0.4 of a cent is not
   // a viewer cannot update an invoice at all
   await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/vic-inv'), { createdBy: 'vic', companyId: 'co-v', status: 'draft', total: 100, amountPaid: 0, balanceDue: 100, payments: [], createdAt: 1 }); });
   await assertFails(updateDoc(doc(viewer, 'invoices/vic-inv'), paidPatch(payEntry({ amount: 100 }), { amountPaid: 100 })));
