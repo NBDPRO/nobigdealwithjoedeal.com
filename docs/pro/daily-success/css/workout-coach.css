@@ -120,3 +120,14 @@ body.wc-lock { overflow: hidden; }
 .pg-bar.now { opacity: 1; }
 .pg-ax { font-size: 9px; fill: var(--muted, #6b7280); }
 .pg-note { font-size: 11px; color: var(--muted, #6b7280); margin-top: 6px; }
+
+/* Find a food (js/food-search-ui.js) */
+.fs-card { border-left-color: #0891b2; }
+.fs-q { flex: 1; min-width: 160px; }
+.fs-list { list-style: none; margin: 10px 0 4px; padding: 0; }
+.fs-item { padding: 10px 0; border-top: 1px solid var(--rule, #d4c9b0); }
+.fs-name { font-weight: 600; font-size: 14px; }
+.fs-name small { font-weight: 400; color: var(--muted, #6b7280); }
+.fs-macros { font-size: 12px; color: var(--muted, #6b7280); margin: 2px 0 6px; }
+.fs-qty { width: 72px; }
+.fs-cam video { width: 100%; max-height: 260px; border-radius: 10px; background: #000; display: block; margin: 8px 0; }
