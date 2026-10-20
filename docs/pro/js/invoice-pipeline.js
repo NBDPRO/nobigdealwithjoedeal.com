@@ -624,7 +624,8 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
   function proofFileCheck(file) {
     if (!file) return { ok: true, none: true };
     const t = String(file.type || '');
-    if (!(/^image\//.test(t) || t === 'application/pdf')) return { ok: false, reason: 'Proof must be a photo or PDF' };
+    // The bucket accepts only these (storage.rules isProofType): say so here, not as a silent upload failure.
+    if (!/^(application\/pdf|image\/(jpeg|png|webp|heic|heif))$/.test(t)) return { ok: false, reason: 'Proof must be a JPEG, PNG, WebP or HEIC photo, or a PDF' };
     if (!(Number(file.size) <= PROOF_MAX_BYTES)) return { ok: false, reason: 'Proof is over the 25MB limit' };
     return { ok: true };
   }
@@ -3662,7 +3663,7 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
     }
   }
 
-  // "📎 View" — opens the proof through getDownloadURL (Storage rules apply:
+  // "📎 View" — opens the proof from the SDK's own bytes (Storage rules apply:
   // the uploader and a platform admin can read it). The tab is opened
   // synchronously first so a phone's popup blocker doesn't eat it after the
   // await.
@@ -3673,8 +3674,10 @@ let _NBD_IP_DELEGATE_BOUND; // module-local (globals Tranche 1 — was window.*)
       const snap = await window.getDoc(window.doc(getDb(), 'invoices', invoiceId));
       const pays = (snap.exists() && Array.isArray(snap.data().payments)) ? snap.data().payments : [];
       const path = pays[index] && pays[index].proofStoragePath;
-      if (!path || !window.getDownloadURL || !window.ref) throw new Error('no proof');
-      const url = await window.getDownloadURL(window.ref(window.storage, path));
+      if (!path || !window.ref || !window.storage) throw new Error('no proof');
+      // Fetched through the signed-in SDK and shown from a blob: URL (never a download URL: those carry a permanent ?token=).
+      const st = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js');
+      const url = URL.createObjectURL(await st.getBlob(st.ref(window.storage, path)));
       if (w) w.location.href = url; else window.open(url, '_blank', 'noopener');
     } catch (e) {
       if (w) { try { w.close(); } catch (_) {} }

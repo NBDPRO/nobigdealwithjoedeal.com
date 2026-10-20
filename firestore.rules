@@ -1351,6 +1351,74 @@ service cloud.firestore {
         || (request.auth.token.get('role', '') == ''
             && (request.auth.token.get('companyId', '') == '' || request.auth.token.get('companyId', '') == request.auth.uid));
     }
+    // One payments[] entry as the Record Payment flow writes it: a positive amount (dollars), a real
+    // date (not in the future, not before 2015), and one of the manual methods. (Stripe's own
+    // entries are written by the server, which skips rules.)
+    function paymentEntryOk(p) {
+      return p is map
+        && p.get('amount', 0) is number && p.get('amount', 0) > 0 && p.get('amount', 0) < 10000000
+        && p.get('at', null) is timestamp
+        && p.get('at', null) <= request.time + duration.value(1, 'd')
+        && p.get('at', null) >= timestamp.date(2015, 1, 1)
+        && p.get('method', '') in ['check', 'zelle', 'cash', 'card', 'ach', 'other'];
+    }
+    // An EXISTING payment entry keeps its amount, date and method (a proof, a receipt state or a
+    // deposit account may change; the money may not). Checked for the first 25 entries; the list is capped at 25.
+    function payKept(n, o, i) {
+      return o.size() <= i || n.size() <= i
+        || (n[i].get('amount', 0) == o[i].get('amount', 0)
+            && n[i].get('at', null) == o[i].get('at', null)
+            && n[i].get('method', '') == o[i].get('method', ''));
+    }
+    function paymentsKept(n, o) {
+      return payKept(n, o, 0) && payKept(n, o, 1) && payKept(n, o, 2) && payKept(n, o, 3) && payKept(n, o, 4)
+        && payKept(n, o, 5) && payKept(n, o, 6) && payKept(n, o, 7) && payKept(n, o, 8) && payKept(n, o, 9)
+        && payKept(n, o, 10) && payKept(n, o, 11) && payKept(n, o, 12) && payKept(n, o, 13) && payKept(n, o, 14)
+        && payKept(n, o, 15) && payKept(n, o, 16) && payKept(n, o, 17) && payKept(n, o, 18) && payKept(n, o, 19)
+        && payKept(n, o, 20) && payKept(n, o, 21) && payKept(n, o, 22) && payKept(n, o, 23) && payKept(n, o, 24);
+    }
+    // On update the payments list may:
+    //   keep its length: nothing about the money moves (amountPaid, paidAt, lastPaymentAt unchanged);
+    //   shrink by ONE (an Undo of the newest payment): only the writer who recorded it, or the owner side;
+    //   grow by exactly ONE valid entry: amountPaid rises by exactly that amount and paidAt / lastPaymentAt
+    //   may only be set to THAT entry's date (never a date a rep types into the invoice itself).
+    // Existing entries are never rewritten.
+    function invoicePaymentsOk() {
+      let n = request.resource.data.get('payments', []);
+      let o = resource.data.get('payments', []);
+      let d = request.resource.data;
+      let r = resource.data;
+      return n is list && n.size() <= 25 && o is list
+        && (n.size() < o.size()
+            ? (n.size() == o.size() - 1
+                && (backfillWriterOk() || o[o.size() - 1].get('recordedBy', '') == request.auth.uid)
+                && paymentsKept(n, o))
+            : (paymentsKept(n, o)
+                && (n.size() == o.size()
+                    ? (d.get('amountPaid', 0) == r.get('amountPaid', 0)
+                        && d.get('paidAt', null) == r.get('paidAt', null)
+                        && d.get('lastPaymentAt', null) == r.get('lastPaymentAt', null))
+                    : (n.size() == o.size() + 1
+                        && paymentEntryOk(n[n.size() - 1])
+                        && math.abs(d.get('amountPaid', 0) - (r.get('amountPaid', 0) + n[n.size() - 1].amount)) < 0.02
+                        && (d.get('paidAt', null) == r.get('paidAt', null) || d.get('paidAt', null) == n[n.size() - 1].at)
+                        && (d.get('lastPaymentAt', null) == r.get('lastPaymentAt', null) || d.get('lastPaymentAt', null) == n[n.size() - 1].at)))));
+    }
+    // An invoice may only BECOME 'paid' when it is: amountPaid covers the total (or the send flow is restoring
+    // the 'paid' it had before it went 'sending').
+    // sendingPriorStatus (the send lock's "put it back as") may only say 'paid' on an invoice that IS paid,
+    // so the restore path above cannot be used to claim a paid status.
+    function invoicePriorStatusOk() {
+      return request.resource.data.get('sendingPriorStatus', '') != 'paid'
+        || resource.data.get('sendingPriorStatus', '') == 'paid'
+        || resource.data.get('status', '') == 'paid';
+    }
+    function invoicePaidOk() {
+      return request.resource.data.get('status', '') != 'paid'
+        || resource.data.get('status', '') == 'paid'
+        || resource.data.get('sendingPriorStatus', '') == 'paid'
+        || request.resource.data.get('amountPaid', 0) >= request.resource.data.get('total', 0) - 0.005;
+    }
     function hasBackfillMark(d) {
       return d.get('source', '') == 'backfill' || d.get('backfilled', false) == true || d.get('backfillKey', '') != ''
         || d.get('paymentBackfill', false) == true;
@@ -3172,7 +3240,11 @@ service cloud.firestore {
         && dealLeadOk(request.resource.data)
         // Backfill markers are owner-side only (a rep cannot mint or fake a backfill invoice).
         && (!hasBackfillMark(request.resource.data) || backfillWriterOk())
-        && (!('payments' in request.resource.data) || (request.resource.data.payments is list && request.resource.data.payments.size() <= 200));
+        // A new invoice carries no money: payments arrive one at a time through Record Payment (checked on update),
+        // so nobody can create an invoice that is already "paid" with a back-dated payment.
+        && request.resource.data.get('payments', []) is list && request.resource.data.get('payments', []).size() == 0
+        && request.resource.data.get('status', '') != 'paid'
+        && request.resource.data.get('amountPaid', 0) == 0;
       // .get('role','') — reading an absent claim with != THROWS (solo owners
       // have no role claim). Freeze owner/tenant/provenance and the lead/job
       // it bills (R3-6); money fields stay mutable (markPaid rewrites
@@ -3192,7 +3264,11 @@ service cloud.firestore {
           && leadIdStable()
           && backfillMarksFrozen()
           && invoiceVoidNoted()
-          && (!('payments' in request.resource.data) || (request.resource.data.payments is list && request.resource.data.payments.size() <= 200))
+          && invoicePaymentsOk()
+          && invoicePaidOk()
+          && invoicePriorStatusOk()
+          // A backfill invoice is the owner side's to edit or void (a manager cannot).
+          && (resource.data.get('source', '') != 'backfill' || backfillWriterOk())
         );
       allow delete: if isAdmin()
         || (isOwner(resource.data.createdBy) && notViewer())
