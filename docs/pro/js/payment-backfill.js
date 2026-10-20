@@ -365,7 +365,12 @@
         } catch (e) { proofsFailed = true; console.warn('[payment-backfill] proof upload failed', e && e.message); }
       }
       // 4. the payment, on the path the CRM already uses (idempotent by payment id).
-      await IP().markPaid(invoiceId, r.v.cents / 100, r.v.method, L.paymentDetails(r, proofs));
+      const details = L.paymentDetails(r, proofs);
+      await IP().markPaid(invoiceId, r.v.cents / 100, r.v.method, details);
+      // markPaid skips a payment whose id is already on the invoice: never report "created" for a payment that did not land.
+      const landed = await w.getDoc(w.doc(w.db, 'invoices', invoiceId));
+      const paysNow = landed && typeof landed.exists === 'function' && landed.exists() ? (landed.data().payments || []) : [];
+      if (!paysNow.some((p) => p && p.paymentId === details.paymentId)) throw new Error('the payment was not recorded on the invoice');
       S.done[n] = { leadId: leadId, invoiceId: invoiceId, createdLead: createdLead, proofs: proofs, proofsFailed: proofsFailed };
       toast(createdLead ? 'Customer, job and payment created' : 'Payment added to the customer', 'ok');
     } catch (e) {

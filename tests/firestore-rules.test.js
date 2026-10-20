@@ -836,13 +836,16 @@ async function run() {
   await assertSucceeds(updateDoc(doc(alice, 'expenses/sp-nojob'), { costType: 'direct', notJobCost: false, leadId: 'leadA', jobId: null, proofPaths: ['receipts/alice/sub-proofs/2_b.jpg'] }));
   await assertFails(updateDoc(doc(alice, 'expenses/sp-nojob'), { proofPaths: new Array(11).fill('receipts/alice/sub-proofs/x.jpg') }));
   await assertSucceeds(updateDoc(doc(alice, 'expenses/sp-ok'), { deleted: true, editLog: [{ at: 2, by: 'alice', what: 'void', note: 'entered twice' }] }));
-  // ── Customer payment backfill (2026-10-19): a finished, quiet customer + a paid backfill invoice.
-  //    OWNER SIDE ONLY at the rules layer (platform admin, company_admin, solo operator): a rep cannot write the markers.
+  // ── Customer payment backfill (2026-10-19): a finished, quiet customer + a backfill invoice.
+  //    OWNER SIDE ONLY at the rules layer (platform admin, company_admin, solo operator): a rep or manager cannot write or edit the markers.
   const dropUndef = (o) => { Object.keys(o).forEach((k) => { if (o[k] === undefined) delete o[k]; }); return o; };
   const bfLead = (uid, cid, extra) => dropUndef(Object.assign({ userId: uid, companyId: cid, meter: 'import', firstName: 'Zed', lastName: 'Sample', address: '3 New Ln', stage: 'closed', stageRole: 'won', jobType: 'cash', source: 'Other',
     paymentBackfill: true, completedBackfill: { date: '2026-10-01', quiet: true, reason: 'payment_backfill' }, stageHistory: [{ to: 'install_complete', backfill: true }], deleted: false }, extra || {}));
-  const bfInv = (uid, cid, lead, extra) => dropUndef(Object.assign({ createdBy: uid, companyId: cid, leadId: lead, createdAt: 3, source: 'backfill', backfilled: true, backfillKey: 'k1', status: 'paid', total: 5340, amountPaid: 5340, balanceDue: 0,
-    payments: [{ amount: 5340, at: 1, method: 'check', reference: '1042', paymentId: 'bf_k1', proofStoragePath: 'payment-proofs/' + uid + '/bf-inv/1_a.jpg' }] }, extra || {}));
+  // a NEW invoice carries no money (the CRM makes it draft, then Record Payment appends the payment)
+  const newInv = (uid, cid, lead, extra) => dropUndef(Object.assign({ createdBy: uid, companyId: cid, leadId: lead, createdAt: 3, source: 'backfill', backfilled: true, backfillKey: 'k1', status: 'draft', total: 5340, amountPaid: 0, balanceDue: 5340, payments: [] }, extra || {}));
+  const payEntry = (extra) => dropUndef(Object.assign({ amount: 5340, at: new Date(), method: 'check', reference: '1042', paymentId: 'bf_k1' }, extra || {}));
+  const paidPatch = (entry, extra) => Object.assign({ amountPaid: 5340, balanceDue: 0, status: 'paid', payments: [entry] }, extra || {});
+  const mgrBf = env.authenticatedContext('mgr-bf', { role: 'manager', companyId: 'co-a' }).firestore();
   await assertSucceeds(setDoc(doc(coAdmin, 'leads/bf-lead'), bfLead('carol', 'co-a')));                       // the owner side may
   await assertSucceeds(setDoc(doc(solo, 'leads/bf-solo'), bfLead('solo1', 'solo1')));                        // a solo operator is the owner
   await assertFails(setDoc(doc(alice, 'leads/bf-rep'), bfLead('alice', 'co-a')));                             // a sales rep may not write paymentBackfill
@@ -853,17 +856,46 @@ async function run() {
   await assertFails(setDoc(doc(coAdmin, 'leads/bf-tenant'), bfLead('carol', 'co-b')));
   await assertFails(setDoc(doc(viewer, 'leads/bf-viewer'), bfLead('vic', 'co-v')));                           // a viewer cannot add a customer
   await assertFails(updateDoc(doc(coAdmin, 'leads/bf-lead'), { paymentBackfill: false }));                    // never toggled after create
-  await assertSucceeds(setDoc(doc(coAdmin, 'invoices/bf-inv'), bfInv('carol', 'co-a', 'bf-lead')));
-  await assertFails(setDoc(doc(alice, 'invoices/bf-inv-rep'), bfInv('alice', 'co-a', 'not-bf')));              // a rep cannot mint a backfill invoice
-  await assertFails(setDoc(doc(alice, 'invoices/bf-inv-rep2'), bfInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined })));
-  await assertFails(setDoc(doc(alice, 'invoices/bf-inv-rep3'), bfInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined, paymentBackfill: true })));
-  await assertSucceeds(setDoc(doc(alice, 'invoices/plain-inv'), bfInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined })));   // a rep still records ordinary payments
-  await assertFails(setDoc(doc(viewer, 'invoices/bf-inv-viewer'), bfInv('vic', 'co-v', 'x')));
-  await assertFails(setDoc(doc(coAdmin, 'invoices/bf-inv-forge'), bfInv('carol', 'co-a', 'leadB-not-mine')));
-  await assertFails(setDoc(doc(coAdmin, 'invoices/bf-inv-big'), bfInv('carol', 'co-a', 'bf-lead', { payments: new Array(201).fill({ amount: 1, at: 1, method: 'cash' }) })));
-  // the markers are frozen: a rep cannot flip an ordinary invoice into (or out of) a backfill one
+
+  // invoices: create
+  await assertSucceeds(setDoc(doc(coAdmin, 'invoices/bf-inv'), newInv('carol', 'co-a', 'bf-lead')));
+  await assertFails(setDoc(doc(alice, 'invoices/bf-inv-rep'), newInv('alice', 'co-a', 'not-bf')));              // a rep cannot mint a backfill invoice
+  await assertFails(setDoc(doc(mgrBf, 'invoices/bf-inv-mgr'), newInv('mgr-bf', 'co-a', 'not-bf')));            // nor a manager
+  await assertFails(setDoc(doc(alice, 'invoices/bf-inv-rep3'), newInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined, paymentBackfill: true })));
+  await assertSucceeds(setDoc(doc(alice, 'invoices/plain-inv'), newInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined })));   // a rep still makes ordinary invoices
+  await assertFails(setDoc(doc(alice, 'invoices/forged-paid'), newInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined, status: 'paid', amountPaid: 5340, balanceDue: 0 })));          // no already-paid invoice
+  await assertFails(setDoc(doc(alice, 'invoices/forged-pay'), newInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined, payments: [payEntry()] })));                                          // no invoice born with a payment
+  await assertFails(setDoc(doc(alice, 'invoices/forged-amt'), newInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined, amountPaid: 100 })));
+  await assertFails(setDoc(doc(alice, 'invoices/forged-status'), newInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined, status: 'paid' })));   // "paid" alone, with no money, is refused too
+  await assertFails(setDoc(doc(viewer, 'invoices/bf-inv-viewer'), newInv('vic', 'co-v', 'x')));
+  await assertFails(setDoc(doc(coAdmin, 'invoices/bf-inv-forge'), newInv('carol', 'co-a', 'leadB-not-mine')));
+
+  // invoices: Record Payment appends ONE valid entry and amountPaid moves by exactly that amount
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/plain-inv'), paidPatch(payEntry({ paymentId: 'p1' }))));                 // the owner's legitimate flow still works
+  await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/bf-inv'), paidPatch(payEntry())));
+  await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/bf-inv'), { payments: [Object.assign(payEntry(), { proofStoragePath: 'payment-proofs/carol/bf-inv/1_a.jpg' })] }));   // same length (a proof) is fine
+  // negative: every way to forge a payment is denied (each on a fresh draft invoice)
+  const fresh = async (id) => { await assertSucceeds(setDoc(doc(alice, 'invoices/' + id), newInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined }))); return doc(alice, 'invoices/' + id); };
+  await assertFails(updateDoc(await fresh('f1'), paidPatch(payEntry({ amount: '5340' }))));                        // a string amount
+  await assertFails(updateDoc(await fresh('f2'), paidPatch(payEntry({ amount: 0 }), { amountPaid: 0 })));         // zero
+  await assertFails(updateDoc(await fresh('f3'), paidPatch(payEntry({ amount: -5 }), { amountPaid: -5 })));       // negative
+  await assertFails(updateDoc(await fresh('f4'), paidPatch(payEntry({ at: new Date(Date.now() + 10 * 86400000) }))));   // in the future
+  await assertFails(updateDoc(await fresh('f5'), paidPatch(payEntry({ at: new Date(2010, 0, 1) }))));             // absurdly old
+  await assertFails(updateDoc(await fresh('f6'), paidPatch(payEntry({ at: '2026-10-03' }))));                      // a string date
+  await assertFails(updateDoc(await fresh('f7'), paidPatch(payEntry({ method: 'bitcoin' }))));                     // not a payment method
+  await assertFails(updateDoc(await fresh('f8'), paidPatch(payEntry(), { amountPaid: 999999 })));                  // amountPaid does not match the entry
+  await assertFails(updateDoc(await fresh('f9'), { status: 'paid', amountPaid: 5340, balanceDue: 0, payments: [payEntry(), payEntry({ paymentId: 'p2' })] }));   // two at once
+  await assertFails(updateDoc(await fresh('f10'), { status: 'paid', amountPaid: 5340, balanceDue: 0 }));          // "paid" with no payment entry still moves amountPaid with nothing behind it? (amount-only forgery has no entry: caught by the sum check on growth only)
+  // a viewer cannot update an invoice at all
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/vic-inv'), { createdBy: 'vic', companyId: 'co-v', status: 'draft', total: 100, amountPaid: 0, balanceDue: 100, payments: [], createdAt: 1 }); });
+  await assertFails(updateDoc(doc(viewer, 'invoices/vic-inv'), paidPatch(payEntry({ amount: 100 }), { amountPaid: 100 })));
+
+  // the markers are frozen, and a backfill invoice is the owner side's to edit or void
   await assertFails(updateDoc(doc(alice, 'invoices/plain-inv'), { source: 'backfill', backfilled: true, backfillKey: 'kx' }));
   await assertFails(updateDoc(doc(coAdmin, 'invoices/bf-inv'), { source: 'record_payment', backfilled: false }));
+  await assertFails(updateDoc(doc(mgrBf, 'invoices/bf-inv'), { deleted: true, voidNote: 'manager tries' }));        // a manager cannot void a backfill invoice
+  await assertFails(updateDoc(doc(mgrBf, 'invoices/bf-inv'), { notes: 'edit' }));                                  // nor edit it
+  await assertSucceeds(updateDoc(doc(mgrBf, 'invoices/plain-inv'), { notes: 'a manager may still edit an ordinary invoice' }));
   // a void carries a note
   await assertFails(updateDoc(doc(coAdmin, 'invoices/bf-inv'), { deleted: true }));
   await assertFails(updateDoc(doc(coAdmin, 'invoices/bf-inv'), { deleted: true, voidNote: '' }));
@@ -1536,7 +1568,9 @@ async function run() {
   await assertFails(setDoc(doc(alice,    'invoices/inv-forge3'), { createdBy: 'alice', companyId: '',     estimateId: 'est-ok', createdAt: 2, balanceDue: 1 }));
   await assertSucceeds(setDoc(doc(solo,  'invoices/inv-solo'),   { createdBy: 'solo1', companyId: 'solo1', estimateId: 'est-s', createdAt: 2, balanceDue: 1 }));
   await assertFails(setDoc(doc(solo,     'invoices/inv-solo2'),  { createdBy: 'solo1', companyId: 'co-a',  estimateId: 'est-s', createdAt: 2, balanceDue: 1 }));
-  await assertSucceeds(updateDoc(doc(alice, 'invoices/inv-a'), { balanceDue: 0, amountPaid: 10000, status: 'paid' }));
+  // (2026-10-19: Mark Paid appends ONE valid payment entry and moves amountPaid by exactly that amount; "paid" with no entry behind it is refused)
+  await assertFails(updateDoc(doc(alice, 'invoices/inv-a'), { balanceDue: 0, amountPaid: 10000, status: 'paid' }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/inv-a'), { balanceDue: 0, amountPaid: 10000, status: 'paid', payments: [{ amount: 10000, at: new Date(), method: 'check' }] }));
   await assertFails(updateDoc(doc(alice,    'invoices/inv-a'), { companyId: 'co-b' }));
   await assertFails(updateDoc(doc(alice,    'invoices/inv-a'), { createdBy: 'bob' }));
   await assertFails(updateDoc(doc(alice,    'invoices/inv-a'), { estimateId: 'est-other' }));
@@ -2738,7 +2772,7 @@ async function run() {
   await x58('invoice on ANOTHER tenant\'s lead', 'deny', setDoc(doc(alice, 'invoices/c54-xt'), inv54('alice', { leadId: 'leadB' })));
   await x58('invoice on a lead that does not exist', 'deny', setDoc(doc(alice, 'invoices/c54-ghost'), inv54('alice', { leadId: 'no-such-lead-54' })));
   // /invoices UPDATE
-  await x58('invoice money update (leadId unchanged)', 'allow', updateDoc(doc(alice, 'invoices/i54'), { status: 'paid', amountPaid: 100 }));
+  await x58('invoice money update (leadId unchanged)', 'allow', updateDoc(doc(alice, 'invoices/i54'), { status: 'paid', amountPaid: 100, payments: [{ amount: 100, at: new Date(), method: 'cash' }] }));
   await x58('invoice moved to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'invoices/i54'), { leadId: 'leadB' }));
   await x58('lead-less invoice attached to own lead', 'allow', updateDoc(doc(alice, 'invoices/i54-loose'), { leadId: 'leadA2' }));
   console.log('  58: ' + s58Pass + ' flat-collection lead-binding checks passed, ' + s58Fail.length + ' failed');
