@@ -332,7 +332,7 @@ const inv = (leadId, pays, extra) => Object.assign({
       ok('capped + oldest row not before the month = incomplete; not capped, or reaching back before the month, is fine', P.expensesTruncated({ capped: true, oldestMs: ET('2026-10-02T12:00:00Z').getTime() }, '2026-09') === true
         && P.expensesTruncated({ capped: false, oldestMs: ET('2026-10-02T12:00:00Z').getTime() }, '2026-09') === false && P.expensesTruncated({ capped: true, oldestMs: ET('2026-08-02T12:00:00Z').getTime() }, '2026-09') === false
         && P.expensesTruncated({ capped: true, oldestMs: ET('2026-09-05T12:00:00Z').getTime() }, '2026-09') === true && P.expensesTruncated({ capped: true, oldestMs: ET('2026-10-02T12:00:00Z').getTime() }, '2026-12') === false
-        && P.expensesTruncated({ capped: true, oldestMs: 0 }, '2026-09') === true && P.expensesTruncated(null, '2026-09') === false);
+        && P.expensesTruncated({ capped: true, oldestMs: 0 }, '2026-09') === true && P.expensesTruncated({ capped: true, oldestMs: null }, '2026-09') === true && P.expensesTruncated(null, '2026-09') === false);
       {
         // the loader hit its 1000-row cap, but one row was voided and dropped: 999 rows are handed over, meta still says capped
         const many = Array.from({ length: 999 }, (_, i) => ({ costType: 'direct', amountCents: 1, date: new Date(ET('2026-10-02T12:00:00Z').getTime() + i * 3600000), leadId: 'L1' }));
@@ -385,6 +385,7 @@ const inv = (leadId, pays, extra) => Object.assign({
     ok('the oldest RAW row is reported, and that makes this month incomplete', X.meta().oldestMs === ET('2026-10-02T12:00:00Z').getTime() && P.expensesTruncated(X.meta(), '2026-09') === true);
     const Y = await boot(999, -1);
     ok('999 raw rows is not capped', Y.list().length === 999 && Y.meta().capped === false);
+    ok('meta is the shape other screens reuse: { capped, count, cap, oldestMs }, a copy each time', (() => { const m = X.meta(); m.capped = false; return Object.keys(X.meta()).sort().join() === 'cap,capped,count,oldestMs' && X.meta().count === 1000 && X.meta().cap === 1000 && X.meta().capped === true && Y.meta().count === 999; })());
     const Z = await boot(1000, 0);
     ok('the voided row can be the oldest raw one and the cap still shows', Z.meta().capped === true && Z.list().length === 999);
   }
