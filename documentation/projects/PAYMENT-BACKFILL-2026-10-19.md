@@ -305,10 +305,10 @@ attempts refused). 8 more rules mutants killed.
 4. *Extra keys on a payment row* are not rejected.
 5. *Invoices with 16 or more payments* are append / undo frozen (void and other-field edits still work); raising the cap needs a rules-budget redesign.
 
-**Round 8 (lock-entry write).** The write that ENTERS  could also shrink the money ( minus the newest,  reduced) under a truthful  marker, and the restore then brought back a  with nothing paid. The payments freeze in  now covers the entry write too (old OR new status ). Tests: entry with  +  refused, entry with only  refused, the honest lock from paid still passes; reverting the clause makes the suite fail.
+**Round 8 (lock-entry write).** The write that ENTERS `sending` could also shrink the money (`payments` minus the newest, `amountPaid` reduced) under a truthful `paid` marker, and the restore then brought back a `paid` with nothing paid. The payments freeze in `invoicePaymentsOk` now covers the entry write too (old OR new status `sending`). Tests: entry with `payments: []` + `amountPaid: 0` refused, entry with only `amountPaid: 0` refused, the honest lock from paid still passes; reverting the clause makes the suite fail.
 
-**Pre-flag read-only checklist (Jo / an admin, before either flag is on):**
-- paid but under-covered:  and ;
-- legacy paid: ,  empty or absent, ;
-- stuck locks:  with no  (rules compare the absent marker to the client's , so such a lock cannot be re-taken; the client proceeds without a lock, so nothing blocks, but they should be released by hand).
-Split each by companyId. Owner: Jo, before 2026-10-27.
+**Pre-flag read-only checklist (Jo / an admin, before either flag is on; owner Jo, before 2026-10-27):**
+- paid but under-covered: `status == 'paid'` and `amountPaid < total - 0.005`;
+- legacy paid: `status == 'paid'`, `payments` empty or absent, `amountPaid > 0`;
+- stuck locks: `status == 'sending'` with no `sendingPriorStatus` (the rules compare the absent marker to the client's `draft`, so such a lock cannot be re-taken; the client proceeds without a lock, so nothing blocks, but release them by hand).
+Split each by companyId.
