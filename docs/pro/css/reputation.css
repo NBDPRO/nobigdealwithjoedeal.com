@@ -1,0 +1,58 @@
+/* reputation.css - "Reputation" modal (js/reputation.js, 2026-10-19, flag reputationLoop).
+   Phone-first: 44px+ taps, one column, rows stack under 480px. */
+
+#reputationBtn[hidden] { display: none; }
+.rep-badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: #c0392b; color: #fff; font-size: 11px; font-weight: 800; text-align: center; }
+.rep-badge[hidden] { display: none; }
+
+.rep-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0, 0, 0, .6); overflow-y: auto; overflow-x: hidden; padding: 12px; display: flex; align-items: flex-start; justify-content: center; }
+.rep-box { width: 100%; max-width: 720px; margin: 8px 0; background: var(--s, #1a1d23); color: var(--t); border: 1px solid var(--br, #2a2d35); border-radius: 12px; padding: 14px; box-sizing: border-box; min-width: 0; }
+.rep-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rep-title { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.rep-x { font: inherit; font-size: 22px; min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--m); cursor: pointer; }
+
+.rep-alert { margin: 10px 0; padding: 10px 12px; border-radius: 10px; border: 1px solid #c0392b; background: rgba(192, 57, 43, .12); }
+.rep-alert ul { margin: 6px 0 0; padding: 0; list-style: none; }
+.rep-alert li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 0; overflow-wrap: anywhere; }
+
+.rep-counts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.rep-count { padding: 8px 10px; border-radius: 10px; background: var(--s2, #22252c); min-width: 0; }
+.rep-count b { display: block; font-size: 22px; font-weight: 800; }
+.rep-count span { font-size: 12px; color: var(--m); }
+
+.rep-sub { margin: 4px 0 8px; font-size: 13px; color: var(--m); overflow-wrap: anywhere; }
+.rep-rules { margin: 6px 0 10px; padding-left: 18px; font-size: 12px; color: var(--m); }
+.rep-empty { padding: 18px 0; text-align: center; color: var(--m); }
+.rep-h { margin: 0 0 4px; font-size: 15px; font-weight: 800; }
+.rep-sec { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--br, #2a2d35); }
+
+.rep-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.rep-pill { font: inherit; font-size: 14px; font-weight: 700; min-height: 44px; min-width: 44px; padding: 0 12px; border-radius: 22px; border: 1px solid var(--br, #2a2d35); background: var(--s2, #22252c); color: var(--t); cursor: pointer; touch-action: manipulation; }
+.rep-pill.on { color: #fff; background: var(--orange); border-color: var(--orange); }
+
+.rep-list { list-style: none; margin: 0; padding: 0; }
+.rep-row { padding: 10px 0; border-bottom: 1px solid var(--br, #2a2d35); }
+.rep-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.rep-name { font-size: 16px; font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
+.rep-chip { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 10px; background: var(--s2, #22252c); color: var(--m); }
+.rep-chip.rep-asked { color: var(--t); }
+.rep-chip.rep-seen { background: var(--orange); color: #fff; }
+.rep-chip.rep-warn { color: #e0a000; }
+.rep-acts, .rep-foot { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.rep-foot { justify-content: flex-end; }
+.rep-q { margin-top: 8px; font-size: 14px; font-weight: 700; }
+
+.rep-btn { font: inherit; font-size: 14px; font-weight: 700; min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s2, #22252c); color: var(--t); cursor: pointer; touch-action: manipulation; }
+.rep-btn.rep-go { background: var(--orange); border-color: var(--orange); color: #fff; }
+.rep-btn:disabled, .rep-pill:disabled { opacity: .45; cursor: not-allowed; }
+.rep-f { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--m); }
+.rep-in, .rep-ta { font: inherit; font-size: 15px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s2, #22252c); color: var(--t); max-width: 100%; box-sizing: border-box; text-transform: none; letter-spacing: normal; font-weight: 400; }
+.rep-in { min-height: 44px; }
+.rep-ta { width: 100%; padding: 8px 10px; resize: vertical; }
+
+@media (max-width: 480px) {
+  .rep-overlay { padding: 6px; }
+  .rep-box { padding: 10px; }
+  .rep-foot { flex-direction: column-reverse; }
+  .rep-foot .rep-btn { width: 100%; }
+}

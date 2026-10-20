@@ -57,7 +57,7 @@ const { FieldPath, FieldValue, getFirestore } = require('firebase-admin/firestor
 const { Resend } = require('resend');
 const AR = require('./alert-recipients');
 const roles = require('./stage-roles');
-const { isQuietBackfill } = require('./quiet-backfill');
+const { isQuietBackfill, backfillBlocksRating, withoutBackfill } = require('./quiet-backfill');
 // Paid in full (Jo, 2026-10-03): the ask waits until the job's money is in —
 // the ONE rule the client bell / review deck / spine task also use.
 const PIF = require('./paid-in-full');
@@ -282,6 +282,10 @@ async function paidAnchor(db, rec, leadId, jobId, fallbackTs) {
   try { invoices = await PIF.loadLeadInvoices(db, leadId, rec, jobId || null); }
   catch (e) { logger.warn('review_nudge_invoices_read_failed', { leadId, err: e.message }); return null; }
   if (!PIF.paidInFull(rec, invoices)) return null;
+  // A payment-backfill invoice (money recorded after the fact) neither makes the job "done" for the
+  // nudge nor dates it: only the real payments count.
+  if (backfillBlocksRating(rec, invoices, PIF.paidInFull)) return null;
+  invoices = withoutBackfill(invoices);
   // receivedMs: the latest payment's DATE RECEIVED only (no stage date, no
   // recordedAt) — the automatic ask's window (review-ask-auto-logic.js).
   return { ms: Math.max(stageMs, PIF.lastPaidMs(invoices)), receivedMs: RA.receivedMs(invoices) };
