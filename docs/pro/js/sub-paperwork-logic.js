@@ -222,7 +222,8 @@
    * -> { year, subs:[{ sub, totals }], unassigned:[{ name, totals }], estimated:{ cents, count, rows }, all:{ cents, count } }
    */
   function yearTotals(expenses, roster, year) {
-    var subs = {}, un = {}, est = { cents: 0, count: 0 }, all = { cents: 0, count: 0 };
+    // null-prototype maps: a payee called "constructor" or "__proto__" must be just a name
+    var subs = Object.create(null), un = Object.create(null), est = { cents: 0, count: 0 }, all = { cents: 0, count: 0 };
     var list = roster || [];
     list.forEach(function (r) { subs[r.id] = blankTotals(); });
     (expenses || []).forEach(function (e) {
@@ -292,6 +293,16 @@
     });
     return rows;
   }
+  /**
+   * The expense load is capped at the newest 1000 rows (Expenses.meta()). When the cap was hit
+   * and the oldest loaded row is after Jan 1 of the year asked for, that year is incomplete.
+   * Returns a sentence, or '' when the year is fully covered (or nothing is known).
+   */
+  function capWarning(meta, year) {
+    if (!meta || !(meta.count >= meta.cap) || meta.oldestMs == null) return '';
+    if (new Date(meta.oldestMs) <= new Date(year, 0, 1)) return '';
+    return 'Only the newest ' + meta.cap + ' expense rows are loaded (back to ' + shortDate(localYmd(new Date(meta.oldestMs))) + '), so ' + year + ' totals can be too low. Do not use this export for filing.';
+  }
   var CSV_HEAD = ['Legal name', 'Name on the roster', 'Entity type', 'W-9', 'W-9 received', 'Total paid', 'Payments',
     'Cash', 'Zelle', 'Check', 'Other', 'No method logged', 'Flags'];
   function csv1099(yt, opts) {
@@ -315,6 +326,7 @@
     lines.push(['Total paid, all rows above', '', '', '', '', dollars(tot), n].map(cell).join(','));
     if (yt.estimated.count) lines.push(cell('Left out: ' + yt.estimated.count + ' estimated cost row(s) totalling ' + dollars(yt.estimated.cents) + ' that were never paid'));
     lines.push('');
+    if (opts && opts.capNote) lines.push(cell('WARNING: ' + opts.capNote));
     lines.push(cell(CPA_NOTE));
     lines.push(cell(COVERAGE_NOTE));
     lines.push(cell('This file holds no Social Security or tax ID numbers. Read those from the W-9 itself.'));
@@ -328,7 +340,7 @@
     glExpiryOf: glExpiryOf, chipsFor: chipsFor, worstOf: worstOf, needsAttention: needsAttention,
     looksLikeTaxId: looksLikeTaxId, cleanPaperwork: cleanPaperwork, paperPathOk: paperPathOk, kindLabel: kindLabel,
     payeeKey: payeeKey, yearOf: yearOf, centsOf: centsOf, methodOf: methodOf, resolveSub: resolveSub,
-    yearTotals: yearTotals, paymentsFor: paymentsFor, dollars: dollars, prepRows: prepRows, csv1099: csv1099
+    yearTotals: yearTotals, paymentsFor: paymentsFor, dollars: dollars, prepRows: prepRows, csv1099: csv1099, capWarning: capWarning
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   if (root) root.NBDSubPaperworkLogic = API;

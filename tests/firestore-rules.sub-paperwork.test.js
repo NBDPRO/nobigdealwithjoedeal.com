@@ -181,10 +181,24 @@ async function run() {
   await check('a paper cannot be changed by a merge either', 'deny', setDoc(paper(owner, 'sp14'), { kind: 'other' }, { merge: true }));
   await check('the owner deletes a paper', 'allow', deleteDoc(paper(owner, 'sp0')));
 
+  // -- UPDATE paths on EXISTING docs (s1 and papers/p1 exist by now)
+  const { updateDoc } = require('firebase/firestore');
+  await check('another tenant company_admin CANNOT merge-update an existing sub of co-a', 'deny', setDoc(sub(bobCA, 's1'), { glExpiry: '2099-01-01' }, { merge: true }));
+  await check('another tenant company_admin CANNOT updateDoc an existing sub of co-a', 'deny', updateDoc(sub(bobCA, 's1'), { glExpiry: '2099-01-01' }));
+  await check('another tenant OWNER CANNOT update an existing sub of co-a', 'deny', updateDoc(sub(bobOwner, 's1'), { w9Status: 'none' }));
+  await check('control: the owner updates the same field on the same sub', 'allow', updateDoc(sub(owner, 's1'), { glExpiry: '2027-04-01' }));
+  await check('a manager CANNOT update an existing paper', 'deny', updateDoc(paper(mike, 'p1'), { kind: 'other' }));
+  await check('another tenant CANNOT update an existing paper', 'deny', updateDoc(paper(bobCA, 'p1'), { kind: 'other' }));
+  await check('even the owner cannot update a paper (immutable)', 'deny', updateDoc(paper(owner, 'p1'), { kind: 'other' }));
+  await check('tax-id key on an EXISTING sub (merge) is denied', 'deny', setDoc(sub(owner, 's1'), { ssn: 'x' }, { merge: true }));
+  await check('tax-id text on an EXISTING sub (merge) is denied', 'deny', setDoc(sub(owner, 's1'), { paperworkNote: '123-45-6789' }, { merge: true }));
+  await check('tax-id text on an EXISTING sub (updateDoc) is denied', 'deny', updateDoc(sub(owner, 's1'), { notes: 'ssn 123-45-6789' }));
+  await check('control: a harmless merge on the same sub', 'allow', setDoc(sub(owner, 's1'), { paperworkNote: 'checked again' }, { merge: true }));
+
   await env.withSecurityRulesDisabled(async (c) => {
     const s = await getDoc(doc(c.firestore(), 'companies/co-a/subs/s1'));
     const d = s.data() || {};
-    results.push({ label: 'the stored sub is exactly what the owner wrote (denied writes changed nothing)', ok: d.glExpiry === '2027-03-01' && d.ssn === undefined && d.legalName === 'CA Roofing LLC', note: JSON.stringify(d) });
+    results.push({ label: 'the stored sub is exactly what the owner wrote (denied writes changed nothing)', ok: d.glExpiry === '2027-04-01' && d.ssn === undefined && d.legalName === 'CA Roofing LLC', note: JSON.stringify(d) });
   });
 
   await env.cleanup();

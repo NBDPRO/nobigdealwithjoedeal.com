@@ -162,6 +162,28 @@ console.log('\n— 1099 prep rows and CSV —');
   ok('CSV: an empty year still has the notes (no crash)', /Calendar year 2031/.test(L.csv1099(L.yearTotals([], roster, 2031), {})) && /CPA/.test(L.csv1099(L.yearTotals([], roster, 2031), {})));
 }
 
+console.log('\n— export is owner-only, capped loads are flagged, odd payee names —');
+{
+  const cons = [pay({ supplier: 'constructor' }), pay({ supplier: '__proto__', amountCents: 500 }), pay({ supplier: 'toString', amountCents: 700 })];
+  let yt2; let threw = false;
+  try { yt2 = L.yearTotals(cons, roster, 2026); } catch (e) { threw = true; }
+  ok('a payee named constructor / __proto__ / toString is just a name (no crash, own bucket)', !threw && yt2.unassigned.length === 3 && yt2.all.cents === 101200);
+  ok('a roster sub whose id is "constructor" still totals', L.yearTotals([pay({ subId: 'constructor' })], [{ id: 'constructor', name: 'CA Roofing' }], 2026).subs[0].totals.count === 1);
+  const cap = (c, o) => L.capWarning({ count: c, cap: 1000, oldestMs: o }, 2026);
+  ok('cap hit and oldest row after Jan 1 of the year: warns', /can be too low/.test(cap(1000, new Date(2026, 3, 1).getTime())) && /not use this export for filing/.test(cap(1000, new Date(2026, 3, 1).getTime())));
+  ok('cap hit but the load reaches back before the year: no warning', cap(1000, new Date(2025, 11, 31).getTime()) === '');
+  ok('cap not hit (999 raw rows): no warning', cap(999, new Date(2026, 3, 1).getTime()) === '');
+  ok('no meta known: no warning, no crash', L.capWarning(null, 2026) === '' && L.capWarning({ count: 1000, cap: 1000, oldestMs: null }, 2026) === '');
+  ok('the CSV carries the warning line when capped, not otherwise', /WARNING: Only the newest 1000/.test(L.csv1099(L.yearTotals([], roster, 2026), { capNote: cap(1000, new Date(2026, 3, 1).getTime()) })) && !/WARNING/.test(L.csv1099(L.yearTotals([], roster, 2026), {})));
+  const ex = stripComments(read('docs/pro/js/expenses.js'));
+  ok('Expenses.meta() counts the RAW rows (voided included) before they are dropped', ex.indexOf('_loadMeta = { count: snap.docs.length') > 0 && ex.indexOf('_loadMeta = { count: snap.docs.length') < ex.indexOf('.filter(function (e) { return e.deleted !== true; })') && ex.includes('meta: function ()'));
+  const ui2 = stripComments(read('docs/pro/js/sub-paperwork.js'));
+  ok('export is owner/company_admin only: exportHtml, downloadCsv, print and the tab each check canWrite()',
+    /function exportHtml\(\) \{\s*if \(!canWrite\(\)\) return ''/.test(ui2) && /function downloadCsv\(\) \{\s*if \(!canWrite\(\) \|\| !S\) return/.test(ui2) &&
+    ui2.includes("a === 'print') { if (canWrite())") && ui2.includes("a === 'tab-export') { if (!canWrite()) return") && ui2.includes("(canWrite() ? '<button type=\"button\" class=\"spw-tab\" data-spw-act=\"tab-export\""));
+  ok('a viewer / manager cannot even open the export view', ui2.includes("view === 'export' && !canWrite() ? 'list'"));
+}
+
 console.log('\n— the daily watcher (owner only) —');
 {
   const subs = [

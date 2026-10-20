@@ -71,6 +71,7 @@
   }
 
   var _expenses = [];
+  var _loadMeta = null;
   var _loaded = false;
   var _scannedPath = null;       // receipt uploaded during an AI scan (reused on save)
   var _scanExtraction = null;    // last extraction (carries source/needsReview to save)
@@ -94,6 +95,14 @@
     }
     try {
       var snap = await window.getDocs(q);
+      // Raw size and oldest date BEFORE voided rows are dropped: the load is capped at
+      // 1000 newest rows, and a report that spans a year needs to know if it hit the cap.
+      var oldest = null;
+      snap.docs.forEach(function (d) {
+        var v = (d.data() || {}).date, ms = v && typeof v.toMillis === 'function' ? v.toMillis() : v instanceof Date ? v.getTime() : v ? new Date(v).getTime() : NaN;
+        if (isFinite(ms) && (oldest === null || ms < oldest)) oldest = ms;
+      });
+      _loadMeta = { count: snap.docs.length, cap: 1000, oldestMs: oldest };
       // A voided row (a cash payout marked deleted) is kept in Firestore for its
       // audit note but must not count in any total.
       return snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); })
@@ -1288,6 +1297,8 @@
     exportCSV: exportCSV,
     // Loaded expenses (hd-import.js skips receipts already imported).
     list: function () { return _expenses.slice(); },
+    // { count, cap, oldestMs } of the last load, counted from the RAW rows (voided included).
+    meta: function () { return _loadMeta ? Object.assign({}, _loadMeta) : null; },
     saveAttachedReceipt: saveAttachedReceipt,
     // pure functions (exported for unit tests)
     aggregate: aggregate,

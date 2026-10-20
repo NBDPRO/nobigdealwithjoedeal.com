@@ -69,7 +69,7 @@
   async function open(view) {
     if (!enabled() || !canRead()) return;
     const roster = await loadRoster();
-    S = { view: view || 'list', roster: roster || [], loadErr: roster === null, year: new Date().getFullYear(), subId: null, papers: [], busy: false, err: '', kind: 'w9' };
+    S = { view: view === 'export' && !canWrite() ? 'list' : (view || 'list'), roster: roster || [], loadErr: roster === null, year: new Date().getFullYear(), subId: null, papers: [], busy: false, err: '', kind: 'w9' };
     render();
   }
   function close() { const el = document.getElementById('spwOverlay'); if (el) el.remove(); S = null; }
@@ -87,7 +87,7 @@
     if (S.loadErr) return '<div class="spw-warn" role="alert">Could not load your subs. Nothing was changed.</div>';
     if (!S.roster.length) return '<div class="spw-empty">No subs on your roster yet. Add them under Production, then come back here.</div>';
     const yt = L.yearTotals(expenses(), S.roster, new Date().getFullYear());
-    const paid = {}; yt.subs.forEach((x) => { paid[x.sub.id] = x.totals; });
+    const paid = Object.create(null); yt.subs.forEach((x) => { paid[x.sub.id] = x.totals; });
     const need = S.roster.filter((s) => L.needsAttention(s, t)).length;
     return '<p class="spw-lede"><b>' + need + '</b> of ' + S.roster.length + ' sub' + (S.roster.length === 1 ? '' : 's') + ' need paperwork attention. Paid this year is what is logged in the CRM.</p>' +
       sortedRoster().map((s) => {
@@ -153,12 +153,15 @@
     return isNaN(ms.getTime()) ? 'no date' : ms.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
+  const capNote = () => LG().capWarning((w.Expenses && typeof w.Expenses.meta === 'function') ? w.Expenses.meta() : null, S.year);
   function exportHtml() {
+    if (!canWrite()) return '';
     const L = LG();
     const yt = L.yearTotals(expenses(), S.roster, S.year);
     const rows = L.prepRows(yt, {});
     const years = []; for (let y = new Date().getFullYear(); y >= new Date().getFullYear() - 4; y--) years.push(y);
-    let h = '<div class="spw-banner" role="note"><b>' + esc(L.CPA_NOTE) + '</b><br>' + esc(L.COVERAGE_NOTE) + '</div>' +
+    const cap = capNote();
+    let h = (cap ? '<div class="spw-warn" role="alert">' + esc(cap) + '</div>' : '') + '<div class="spw-banner" role="note"><b>' + esc(L.CPA_NOTE) + '</b><br>' + esc(L.COVERAGE_NOTE) + '</div>' +
       '<label class="spw-field"><span class="spw-lab">Calendar year</span><select class="spw-in" id="spwYear">' + years.map((y) => '<option' + (y === S.year ? ' selected' : '') + '>' + y + '</option>').join('') + '</select></label>';
     if (!rows.length) h += '<div class="spw-empty">No logged payments to subs in ' + S.year + '.</div>';
     rows.forEach((r) => {
@@ -184,7 +187,7 @@
     const title = S.view === 'sheet' ? (sub ? sub.name : 'Sub') : S.view === 'export' ? '1099 prep' : 'Sub paperwork';
     const tabs = S.view === 'sheet' ? '<button type="button" class="spw-btn" data-spw-act="back">‹ All subs</button>' :
       '<div class="spw-tabs" role="group"><button type="button" class="spw-tab" data-spw-act="tab-list" aria-pressed="' + (S.view === 'list') + '">Subs</button>' +
-      '<button type="button" class="spw-tab" data-spw-act="tab-export" aria-pressed="' + (S.view === 'export') + '">1099 prep</button></div>';
+      (canWrite() ? '<button type="button" class="spw-tab" data-spw-act="tab-export" aria-pressed="' + (S.view === 'export') + '">1099 prep</button>' : '') + '</div>';
     const body = S.view === 'sheet' ? sheetHtml() : S.view === 'export' ? exportHtml() : listHtml();
     el.innerHTML = '<div class="spw-sheet"><div class="spw-head"><h2 class="spw-title">' + esc(title) + '</h2><button type="button" class="spw-x" data-spw-act="close" aria-label="Close">✕</button></div>' + tabs + body + '</div>';
     if (S.view === 'sheet' && PP()) PP().hydrate(el);
@@ -262,8 +265,9 @@
   }
 
   function downloadCsv() {
+    if (!canWrite() || !S) return;
     const L = LG();
-    const text = L.csv1099(L.yearTotals(expenses(), S.roster, S.year), {});
+    const text = L.csv1099(L.yearTotals(expenses(), S.roster, S.year), { capNote: capNote() });
     const blob = new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -280,7 +284,7 @@
     if (!S) return;
     if (a === 'close') close();
     else if (a === 'back' || a === 'tab-list') { S.view = 'list'; S.subId = null; S.err = ''; render(); }
-    else if (a === 'tab-export') { S.view = 'export'; render(); }
+    else if (a === 'tab-export') { if (!canWrite()) return; S.view = 'export'; render(); }
     else if (a === 'sheet') {
       S.view = 'sheet'; S.subId = t.getAttribute('data-spw-sub'); S.err = ''; S.papers = []; render();
       const id = S.subId; const p = await loadPapers(id);
@@ -290,7 +294,7 @@
     else if (a === 'add-paper') addPaper();
     else if (a === 'del-paper') delPaper(t.getAttribute('data-spw-paper'));
     else if (a === 'csv') downloadCsv();
-    else if (a === 'print') w.print();
+    else if (a === 'print') { if (canWrite()) w.print(); }
   }
   function onChange(ev) {
     if (S && ev.target && ev.target.id === 'spwYear') { S.year = parseInt(ev.target.value, 10) || S.year; render(); }

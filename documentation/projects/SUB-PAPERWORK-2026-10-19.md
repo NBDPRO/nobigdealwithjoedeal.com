@@ -155,3 +155,12 @@ Left as they are, on purpose (Jo's call if any should change):
   layout gate will see it once a page renders the overlay).
 - A one-time import of Alex's (CA Roofing) dates is by hand: tell Claude the
   dates and enter them in the sheet; nothing here writes prod data.
+
+## Second review round (2026-10-19, PR #2585)
+
+- **1099 export is owner / company_admin only.** The tab, the export view, Download CSV and Print all check `canWrite()`; a manager or viewer sees the status list but no export tab.
+- **Capped loads are flagged.** `Expenses.list()` is the newest 1000 rows. `Expenses.meta()` (new, from the RAW rows before voided ones are dropped) gives count and oldest date; when the cap was hit and the oldest loaded row is after Jan 1 of the chosen year, the screen and the CSV carry "totals can be too low. Do not use this export for filing." A year-scoped query is the proper fix and is a follow-up.
+- `yearTotals` uses null-prototype maps (a payee called "constructor" is just a name).
+- **Turn-on order:** the watcher is gated only by its env switch (it does not read the `subPaperwork` flag). Flip the UI flag first, enter dates, then set `SUB_PAPERWORK_WATCH_ENABLED=true`.
+- **Download-token metadata:** the Firebase SDK stamps a download token into an object's metadata at upload even if no URL is ever made. The CRM never calls `getDownloadURL`, and reading the metadata needs the same owner / company_admin read right as the file, so nothing leaks today. A finalize function that strips the token is a follow-up (owner: Claude build session, to be scheduled by Jo).
+- **Follow-ups with owners:** (1) tombstone claim so a removed former owner keeps no Storage access: Claude build session, after Jo approves the `removeMember` change; (2) retention / erasure of tax forms: Jo with counsel, before the flag is used for real W-9s.
