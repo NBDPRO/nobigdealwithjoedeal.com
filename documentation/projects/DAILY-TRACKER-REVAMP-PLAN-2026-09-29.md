@@ -202,6 +202,30 @@ for the chosen lift (new bests dotted), and 12 weeks of volume
 data. Estimated 1RM ignores sets over 12 reps. Test:
 [tracker-progress-charts](../../tests/tracker-progress-charts-2026-10-20.test.js).
 
-Jo's answers 2026-10-20: wants **food search and barcode scan** (Phase 2,
-Open Food Facts) — next. Hume scale import "would be cool" (Hume → Apple Health
-→ Shortcut is the likely path).
+### Food search + barcode (built 2026-10-20, #2590)
+
+Jo wanted food search and barcode scan. A 🔎 Find a food card sits above the Diet
+section: search by name (Open Food Facts, free, no key), or scan / type a
+barcode; macros per serving with a servings box; Add goes through the food log's
+own `addToMeal`, so totals, targets and sync behave like a favorite. Only the
+typed words or the barcode number leave the device. The security policy allows
+`world.openfoodfacts.org` on `/pro/daily-success` only (per-page blocks, same
+pattern as `/pro/portal`). Test:
+[tracker-food-search](../../tests/tracker-food-search-2026-10-20.test.js).
+
+**Camera scanning needs the browser's `BarcodeDetector`** (Chrome / Android).
+iPhone Safari does not have it, so there the card asks for the digits under the
+barcode. True iPhone scanning needs a decoder library vendored into `docs/`
+(ZXing-class); held for Jo's OK.
+
+### Weight import (open — needs a sample)
+
+Jo's own scale is an **Active Era**, with years of history; he has been weighing
+on his girlfriend's **Hume** lately. Hume's app only shows each login's own
+readings, so Jo's Hume login holds only his. Plan: a one-time file import
+(Active Era app export, or an Apple Health export) into a small separate weight
+history that the weight card also reads, so years of readings do not create
+hundreds of empty day pages. Preview first (count, date range, anything outside
+60–700 lb skipped); re-runs never duplicate; a weight typed on a day page wins
+over an imported one. Blocked on a few sample rows of the export. Hume → Apple
+Health → Shortcut stays the follow-up for ongoing readings.
