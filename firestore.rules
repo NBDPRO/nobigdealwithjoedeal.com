@@ -244,7 +244,9 @@ service cloud.firestore {
         // Texting consent evidence is server-captured only (2026-10-19, see the update rule).
         'tcpaConsent', 'tcpaConsentAt', 'tcpaConsentText', 'tcpaConsentSource', 'tcpaConsentIp', 'tcpaConsentVersion',
         // Owner-confirmed source (2026-10-19): set only by the owner, on an update.
-        'confirmedSource', 'confirmedSourceNote', 'confirmedSourceBy', 'confirmedSourceAt'
+        'confirmedSource', 'confirmedSourceNote', 'confirmedSourceBy', 'confirmedSourceAt',
+        // Owner's review log (2026-10-19, flag reputationLoop): set only by the owner, on an update.
+        'reputation'
       ]);
     }
     // A customerId whose leading segment is a RESERVED prefix
@@ -486,6 +488,33 @@ service cloud.firestore {
       return !request.resource.data.diff(resource.data).affectedKeys()
                .hasAny(['confirmedSource', 'confirmedSourceNote', 'confirmedSourceBy', 'confirmedSourceAt'])
         || (confirmedSourceRoleOk() && confirmedSourceShapeOk());
+    }
+
+    // 2026-10-19 (Reputation, flag reputationLoop) - leads/{id}.reputation is the
+    // OWNER's own log of a posted review: { reviewSeen, platform, rating, responded,
+    // updatedAt, updatedBy }. Whether a customer was ASKED is not stored here (it is
+    // read from the server's reviewRequested / reviewAutoAsk stamps). Owner-only,
+    // same bar as confirmedSource: platform admin, company_admin of the lead's
+    // company, or a solo operator who owns the lead. When the map changes it must
+    // be exactly those six keys, a known platform (or null), a whole-star rating
+    // 1-5 (or null), booleans, updatedBy == caller, updatedAt == request.time.
+    // Saving a lead with the map unchanged never triggers the check.
+    function reputationShapeOk() {
+      let r = request.resource.data.get('reputation', null);
+      return r is map
+        && r.keys().hasOnly(['reviewSeen', 'platform', 'rating', 'responded', 'updatedAt', 'updatedBy'])
+        && r.keys().hasAll(['reviewSeen', 'platform', 'rating', 'responded', 'updatedAt', 'updatedBy'])
+        && r.reviewSeen is bool
+        && r.responded is bool
+        && (r.platform == null || (r.platform is string && r.platform in ['google', 'yelp', 'thumbtack', 'other']))
+        && (r.rating == null || (r.rating is int && r.rating >= 1 && r.rating <= 5))
+        && (r.reviewSeen == true ? (r.platform != null && r.rating != null) : (r.platform == null && r.rating == null && r.responded == false))
+        && r.updatedBy == request.auth.uid
+        && r.updatedAt == request.time;
+    }
+    function reputationWriteOk() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['reputation'])
+        || (confirmedSourceRoleOk() && reputationShapeOk());
     }
 
     // 2026-09-15 (Warranty Claim lane) — the denormalized pointer to the
@@ -788,6 +817,7 @@ service cloud.firestore {
           && stageWriteOk()
           && paperworkFieldsOk()
           && confirmedSourceWriteOk()
+          && reputationWriteOk()
           && openClaimIdOk()
           && scheduleWindowOk()
         );
