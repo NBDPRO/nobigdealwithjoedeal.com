@@ -258,10 +258,10 @@ const inv = (leadId, pays, extra) => Object.assign({
         NBDFlags: { enabled: (n) => !!opts.flag && n === 'monthClose' },
         NBDMonthCloseLogic: P,
         NBDRevenue: { paymentsOf, status: () => 'ok', cached: () => opts.invoices || [], loadInvoices: async () => { reads.invoices++; return opts.invoices || []; } },
-        Expenses: { list: () => opts.expenses || [] },
+        Expenses: { list: () => opts.expenses || [], meta: () => opts.meta || { capped: false, oldestMs: 0 } },
         showToast: (m, t) => toasts.push([m, t]),
         db: {}, doc: (db, c, id) => ({ c, id }), serverTimestamp: () => 'SERVER_TS',
-        getDoc: async () => { reads.getDoc++; return opts.saved ? { exists: () => true, data: () => opts.saved } : { exists: () => false, data: () => null }; },
+        getDoc: async () => { reads.getDoc++; if (opts.getDocFailsAfterSet && writes.length) throw new Error('offline'); return opts.saved ? { exists: () => true, data: () => opts.saved } : { exists: () => false, data: () => null }; },
         setDoc: async (ref, data) => { writes.push({ ref, data }); },
         navigator: {}, URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
       };
@@ -329,16 +329,23 @@ const inv = (leadId, pays, extra) => Object.assign({
         e.num('rate', '25'); e.act('save'); await flush();
         ok(role + ' cannot write even by firing events', e.writes.length === 0);
       }
-      ok('1000 expenses newest-first that all post-date the month are flagged incomplete; 999, or a list reaching back before it, is not', (() => {
-        const mk = (n, d0) => Array.from({ length: n }, (_, i) => ({ costType: 'direct', amountCents: 1, date: new Date(d0.getTime() + i * 3600000) }));
-        return P.expensesTruncated(mk(1000, ET('2026-10-02T12:00:00Z')), '2026-09') === true && P.expensesTruncated(mk(999, ET('2026-10-02T12:00:00Z')), '2026-09') === false
-          && P.expensesTruncated(mk(1000, ET('2026-08-02T12:00:00Z')), '2026-09') === false && P.expensesTruncated(mk(1000, ET('2026-09-05T12:00:00Z')), '2026-09') === true && P.expensesTruncated(mk(1000, ET('2026-10-02T12:00:00Z')), '2026-12') === false;
-      })());
+      ok('capped + oldest row not before the month = incomplete; not capped, or reaching back before the month, is fine', P.expensesTruncated({ capped: true, oldestMs: ET('2026-10-02T12:00:00Z').getTime() }, '2026-09') === true
+        && P.expensesTruncated({ capped: false, oldestMs: ET('2026-10-02T12:00:00Z').getTime() }, '2026-09') === false && P.expensesTruncated({ capped: true, oldestMs: ET('2026-08-02T12:00:00Z').getTime() }, '2026-09') === false
+        && P.expensesTruncated({ capped: true, oldestMs: ET('2026-09-05T12:00:00Z').getTime() }, '2026-09') === true && P.expensesTruncated({ capped: true, oldestMs: ET('2026-10-02T12:00:00Z').getTime() }, '2026-12') === false
+        && P.expensesTruncated({ capped: true, oldestMs: 0 }, '2026-09') === true && P.expensesTruncated(null, '2026-09') === false);
       {
-        const many = Array.from({ length: 1000 }, (_, i) => ({ costType: 'direct', amountCents: 1, date: new Date(ET('2026-10-02T12:00:00Z').getTime() + i * 3600000), leadId: 'L1' }));
-        e = boot({ flag: true, claims: { role: 'company_admin', companyId: 'co' }, leads, invoices: invs, expenses: many });
+        // the loader hit its 1000-row cap, but one row was voided and dropped: 999 rows are handed over, meta still says capped
+        const many = Array.from({ length: 999 }, (_, i) => ({ costType: 'direct', amountCents: 1, date: new Date(ET('2026-10-02T12:00:00Z').getTime() + i * 3600000), leadId: 'L1' }));
+        e = boot({ flag: true, claims: { role: 'company_admin', companyId: 'co' }, leads, invoices: invs, expenses: many, meta: { capped: true, oldestMs: ET('2026-10-02T12:00:00Z').getTime() } });
         e.act('open'); await flush(); e.num('rate', '25'); e.act('save'); await flush();
-        ok('a capped expense list shows the banner and blocks Save', /may reach past them/.test(e.overlay().innerHTML) && e.writes.length === 0 && e.toasts.some((x) => /incomplete/.test(x[0])));
+        ok('999 handed over from a capped 1000 (one voided): banner shown and Save blocked', /may reach past them/.test(e.overlay().innerHTML) && e.writes.length === 0 && e.toasts.some((x) => /incomplete/.test(x[0])));
+      }
+      {
+        e = boot({ flag: true, claims: { role: 'company_admin', companyId: 'co' }, leads, invoices: invs, expenses: exps, getDocFailsAfterSet: true });
+        e.act('open'); await flush(); e.num('rate', '25'); e.act('save'); await flush();
+        ok('a failed read-back after a good write warns and does NOT say saved', e.writes.length === 1 && e.toasts.some((x) => /could not read it back/.test(x[0])) && !e.toasts.some((x) => /Month close saved/.test(x[0])));
+        e.act('save'); await flush();
+        ok('a second Save is refused until the month is reopened (cannot clobber createdAt/createdBy)', e.writes.length === 1 && e.toasts.some((x) => /Reopen this month/.test(x[0])));
       }
 
       e = boot({ flag: true, claims: { role: 'company_admin', companyId: 'co' }, leads, invoices: invs, expenses: exps,

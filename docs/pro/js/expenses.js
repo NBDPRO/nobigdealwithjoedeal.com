@@ -71,6 +71,9 @@
   }
 
   var _expenses = [];
+  // What the 1000-row cap did to the last load, judged on the RAW rows (voided ones included):
+  // { capped, oldestMs }. Month close reads it so a capped list cannot pass as complete.
+  var _expMeta = { capped: false, oldestMs: 0 };
   var _loaded = false;
   var _scannedPath = null;       // receipt uploaded during an AI scan (reused on save)
   var _scanExtraction = null;    // last extraction (carries source/needsReview to save)
@@ -94,6 +97,12 @@
     }
     try {
       var snap = await window.getDocs(q);
+      var oldest = 0;
+      snap.docs.forEach(function (d) {
+        var v = d.data().date, ms = !v ? 0 : (typeof v.toMillis === 'function' ? v.toMillis() : (v instanceof Date ? v.getTime() : (typeof v.seconds === 'number' ? v.seconds * 1000 : new Date(v).getTime())));
+        if (ms && (!oldest || ms < oldest)) oldest = ms;
+      });
+      _expMeta = { capped: snap.docs.length >= 1000, oldestMs: oldest };
       // A voided row (a cash payout marked deleted) is kept in Firestore for its
       // audit note but must not count in any total.
       return snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); })
@@ -1288,6 +1297,7 @@
     exportCSV: exportCSV,
     // Loaded expenses (hd-import.js skips receipts already imported).
     list: function () { return _expenses.slice(); },
+    meta: function () { return { capped: _expMeta.capped, oldestMs: _expMeta.oldestMs }; },
     saveAttachedReceipt: saveAttachedReceipt,
     // pure functions (exported for unit tests)
     aggregate: aggregate,

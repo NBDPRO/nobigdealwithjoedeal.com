@@ -129,6 +129,11 @@ async function run() {
   await check('anonymous cannot read an empty month', 'deny', getDoc(ref(anon, 'co-a_2025-01')));
   await check('manager cannot read an empty month', 'deny', getDoc(ref(mike, 'co-a_2025-01')));
   await check('viewer cannot read an empty month', 'deny', getDoc(ref(vera, 'co-a_2025-01')));
+  await check('solo owner cannot read another company\'s empty month', 'deny', getDoc(ref(solo, 'co-b_2025-01')));
+  await check('company_admin cannot read another company\'s empty month', 'deny', getDoc(ref(carol, 'co-b_2025-01')));
+  await check('an id with an extra underscore cannot be used to read as the owner', 'deny', getDoc(ref(solo, 'co-a_x_2025-01')));
+  await check('company_admin of co-a cannot update a co-b close', 'deny', updateDoc(ref(carol, 'co-b_2026-06'), upd('carol')));
+  await check('co-b admin cannot update a close whose company is co-a, even under a co-b id', 'deny', updateDoc(ref(eve, 'co-b_2026-08'), upd('eve')));
   await check('a malformed id cannot be probed', 'deny', getDoc(ref(solo, 'co-a_junk')));
   await check('platform admin can read', 'allow', getDoc(ref(joe, 'co-a_2026-08')));
   await check('sales rep cannot read', 'deny', getDoc(ref(rep, 'co-a_2026-08')));

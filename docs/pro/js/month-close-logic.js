@@ -397,17 +397,15 @@
   function canView(claims, uid) { return canClose(claims, uid); }
 
   /**
-   * The Expenses list is the newest 1000 rows. When that cap was hit and the
-   * oldest row loaded is not before the month, rows of this month may be missing,
+   * The Expenses list is the newest 1000 rows. meta = { capped, oldestMs } measured
+   * on the RAW loaded rows (a voided row still takes a slot). When the cap was hit
+   * and the oldest row is not before the month, rows of this month may be missing,
    * so its costs (and the profit and set-aside built on them) are understated.
    */
-  function expensesTruncated(expenses, monthKey, limit) {
-    var cap = limit || 1000;
-    if (!expenses || expenses.length < cap) return false;
-    var oldest = Infinity;
-    expenses.forEach(function (e) { var ms = toMs(e && e.date); if (ms && ms < oldest) oldest = ms; });
-    if (oldest === Infinity) return true;
-    return monthKeyOf(oldest) >= monthKey;
+  function expensesTruncated(meta, monthKey) {
+    if (!meta || !meta.capped) return false;
+    if (!meta.oldestMs) return true;
+    return monthKeyOf(meta.oldestMs) >= monthKey;
   }
 
   // ── the one-page summary (text / markdown) ───────────────────────────
