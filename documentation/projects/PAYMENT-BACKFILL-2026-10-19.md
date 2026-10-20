@@ -348,6 +348,18 @@ case variant of `paid`. The audit script has no default project (`--project=` or
 Second review: an invoice cannot be created already `sending`, and the legacy-status restore needs a recorded, non-empty marker on a `sending` invoice.
 When you release stuck locks by hand, note that a legacy `Paid` (capital P) invoice stuck in `sending` cannot be restored by the app (a case variant of paid is never restored); fix it from the console or tell me and we handle it case by case.
 
+## Void rule: owner side only (2026-10-20, Jo's decision, rules only, no flag)
+
+Jo decided on 2026-10-20 that voiding money is the owner side's. `firestore.rules` `invoiceVoidOwnerOk`:
+
+- A rep or manager can no longer void an invoice that carries money (a payment entry, `amountPaid` > 0, or `paid`), by the `deleted` flag or by setting `status: 'void'`.
+  Platform admin, `company_admin` and a solo operator still can. A rep or manager can still void an invoice with no money on it (note still required).
+- Void is final for a rep or manager: `status` cannot move off `void`. The owner side can reopen.
+- This **supersedes** the two "rep can still ..." statements in the 2026-10-20 product-calls list below (a rep can soft-void an invoice that carries money; a rep can move `void` back to `sent`). Both are now refused. A rep can still undo their own newest payment and then delete the empty invoice they created.
+- No screen is affected: the two client voiders (backfill failure cleanup, "void backfilled payment") are owner-only.
+- **Cost, and a new ceiling.** The invoice update rule runs at Firestore's 1000-expression limit. The void check costs about a dozen expressions, which takes the number of payments an invoice is **guaranteed** to accept from 15 to **14** (the payment-entry checks are unrolled for 15 entries; a 15th append may or may not fit depending on the data, so treat 14 as the cap). Backfill writes one payment per row and jobs rarely exceed a handful, so nothing real is near it. Raising it needs the payments rules redesigned. Tests: `tests/firestore-rules.test.js` section (4) and the 14-append loop.
+- Decisions 4 (extra keys on a payment row) and 5 (the cap) from the same review were accepted as they are: deferred, nothing reads the extra keys for money.
+
 **Plain statements for Jo (product calls, owner Jo, decide by 2026-10-27):**
 - The status rule is **live on deploy**, not behind a flag: it applies to every invoice write the moment the rules ship.
 - A rep can still undo their own newest payment (rules allow the recorder) and then hard-delete the now-empty invoice they created.

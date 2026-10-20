@@ -944,29 +944,31 @@ async function run() {
   await assertFails(updateDoc(await fresh('r2'), paidPatch(payEntry({ recordedBy: undefined }))));                              // no recorder at all
   await assertSucceeds(updateDoc(await fresh('r3'), paidPatch(payEntry({ at: when }), { paidAt: when, lastPaymentAt: when })));
   await assertFails(updateDoc(doc(alice, 'invoices/r3'), { payments: [payEntry({ at: when, recordedBy: 'carol' })] }));       // same-size recorder rewrite
-  // (5) cents only, and the 15-entry unroll covers every index
+  // (5) cents only, and the entry unroll covers every index (14 appends are guaranteed to fit the rules expression budget since the 2026-10-20 void rule; 16 entries are always refused)
   await assertFails(updateDoc(await fresh('c1'), paidPatch(payEntry({ amount: 5339.997 }), { amountPaid: 5339.997 })));
   await assertSucceeds(updateDoc(await fresh('k0'), { total: 100000 }));
   await assertSucceeds(updateDoc(doc(alice, 'invoices/k0'), { status: 'sent' }));
   const k0 = doc(alice, 'invoices/k0');
   let cur = [];
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 14; i++) {
     cur = cur.concat([payEntry({ amount: 10, paymentId: 'k' + i, at: new Date(Date.now() - (30 - i) * 3600000) })]);
     await assertSucceeds(updateDoc(k0, { payments: cur, amountPaid: 10 * (i + 1), status: 'partial', balanceDue: 100000 - 10 * (i + 1) }));
   }
-  await assertFails(updateDoc(k0, { payments: cur.concat([payEntry({ amount: 10, paymentId: 'k15' })]), amountPaid: 160, balanceDue: 99840 }));   // the 16th is refused
-  for (const idx of [1, 5, 9, 13, 14]) {
+  await assertFails(updateDoc(k0, { payments: cur.concat([payEntry({ amount: 10, paymentId: 'k14' }), payEntry({ amount: 10, paymentId: 'k15' })]), amountPaid: 160, balanceDue: 99840 }));   // 16 entries are refused
+  for (const idx of [1, 5, 9, 13]) {   // (index 14 is only reachable on a 15-entry invoice, which the app can no longer build: the cap is 14 since the void rule)
     const bad = cur.map((e, j) => (j === idx ? Object.assign({}, e, { amount: 11 }) : e));
     await assertFails(updateDoc(k0, { payments: bad }));                                                               // every index is guarded (amount)
     const bad2 = cur.map((e, j) => (j === idx ? Object.assign({}, e, { at: daysAgo(40) }) : e));
     await assertFails(updateDoc(k0, { payments: bad2 }));                                                              // (date)
   }
   await assertSucceeds(updateDoc(k0, { payments: cur.slice(0, 14), amountPaid: 140, status: 'partial', balanceDue: 99860 }));   // undo of the newest of 15: 15 -> 14 passes
-  await assertSucceeds(updateDoc(k0, { deleted: true, voidNote: 'void of a full invoice' }));                          // a full list can still be voided
+  await assertFails(updateDoc(k0, { deleted: true, voidNote: 'void of a full invoice' }));                             // the rep who recorded it cannot void money (2026-10-20)
+  await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/k0'), { deleted: true, voidNote: 'void of a full invoice' }));   // the owner side can: a full list can still be voided
   // a legacy list longer than 15 (written by the server) can still be voided / edited elsewhere
   await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/legacy30'), { createdBy: 'alice', companyId: 'co-a', status: 'paid', total: 30, amountPaid: 30, payments: Array.from({ length: 30 }, (_, i) => ({ amount: 1, at: new Date(2026, 0, 1 + i), method: 'cash' })), createdAt: 1 }); });
   await assertSucceeds(updateDoc(doc(alice, 'invoices/legacy30'), { notes: 'still editable' }));
-  await assertSucceeds(updateDoc(doc(alice, 'invoices/legacy30'), { deleted: true, voidNote: 'legacy void' }));
+  await assertFails(updateDoc(doc(alice, 'invoices/legacy30'), { deleted: true, voidNote: 'legacy void' }));            // a rep cannot void a paid one (2026-10-20)
+  await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/legacy30'), { deleted: true, voidNote: 'legacy void' }));
   // ── review round 5 ──
   // A: the send-lock restore cannot revive 'paid' once the money is gone
   const gA = await fresh('a1');
@@ -1065,7 +1067,8 @@ async function run() {
   await assertFails(updateDoc(doc(coAdmin, 'invoices/bf-inv'), { deleted: true, voidNote: '' }));
   await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/bf-inv'), { deleted: true, voidNote: 'undone', editLog: [{ at: 2, by: 'carol', what: 'void', note: 'undone' }] }));
   await assertFails(updateDoc(doc(alice, 'invoices/plain-inv'), { deleted: true }));                          // a rep cannot silently void an invoice either
-  await assertSucceeds(updateDoc(doc(alice, 'invoices/plain-inv'), { deleted: true, voidNote: 'entered twice' }));
+  await assertFails(updateDoc(doc(alice, 'invoices/plain-inv'), { deleted: true, voidNote: 'entered twice' }));          // it carries a payment: voiding it is the owner side's (2026-10-20)
+  await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/plain-inv'), { deleted: true, voidNote: 'entered twice' }));
   await assertSucceeds(updateDoc(doc(coAdmin, 'leads/bf-lead'), { deleted: true, voidNote: 'undone' }));
   await assertFails(getDoc(doc(bob, 'invoices/bf-inv')));
   await assertFails(getDoc(doc(bob, 'leads/bf-lead')));
@@ -1087,7 +1090,7 @@ async function run() {
   await assertFails(updateDoc(await fresh('sw-u4'), { status: 'unpaid' }));
   const swSent = await fresh('sw-u5');
   await assertSucceeds(updateDoc(swSent, { status: 'sent' }));
-  for (const w of ['viewed', 'overdue', 'partial', 'void', 'cancelled', 'sent']) await assertSucceeds(updateDoc(swSent, { status: w }));   // every word the app writes
+  for (const w of ['viewed', 'overdue', 'partial', 'cancelled', 'sent', 'void']) await assertSucceeds(updateDoc(swSent, { status: w }));   // every word the app writes (void last: it is final for a rep)
   await assertFails(updateDoc(swSent, { status: deleteField() }));                                                    // the status cannot be dropped
   await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/sw-legacy'), { createdBy: 'alice', companyId: 'co-a', status: 'Sent', total: 100, amountPaid: 0, payments: [], createdAt: 1 }); });
   await assertSucceeds(updateDoc(doc(alice, 'invoices/sw-legacy'), { notes: 'an old odd status stays editable' }));
@@ -1130,10 +1133,10 @@ async function run() {
   await assertFails(deleteDoc(doc(alice, 'invoices/del-iso-pay')));
   await assertFails(deleteDoc(doc(alice, 'invoices/del-iso-str')));
   await assertFails(deleteDoc(doc(alice, 'invoices/del-iso-paid')));
-  // a rep still edits an invoice that already has 15 payments (rules expression budget): a proof on entry 0 plus an allowed status change
+  // a rep still edits an invoice that already has 14 payments (rules expression budget): a proof on entry 0 plus an allowed status change
   await env.withSecurityRulesDisabled(async (ctx) => {
-    const list = Array.from({ length: 15 }, (_, i) => ({ amount: 10, at: new Date(Date.now() - (40 - i) * 3600000), method: 'cash', recordedBy: 'alice', paymentId: 'q' + i }));
-    await setDoc(doc(ctx.firestore(), 'invoices/pay15'), { createdBy: 'alice', companyId: 'co-a', status: 'partial', total: 1000, amountPaid: 150, balanceDue: 850, payments: list, createdAt: 1 });
+    const list = Array.from({ length: 14 }, (_, i) => ({ amount: 10, at: new Date(Date.now() - (40 - i) * 3600000), method: 'cash', recordedBy: 'alice', paymentId: 'q' + i }));
+    await setDoc(doc(ctx.firestore(), 'invoices/pay15'), { createdBy: 'alice', companyId: 'co-a', status: 'partial', total: 1000, amountPaid: 140, balanceDue: 860, payments: list, createdAt: 1 });
   });
   const p15 = (await getDoc(doc(alice, 'invoices/pay15'))).data().payments;
   await assertSucceeds(updateDoc(doc(alice, 'invoices/pay15'), { payments: p15.map((e, i) => (i === 0 ? Object.assign({}, e, { proofStoragePath: 'payment-proofs/alice/pay15/1_a.jpg' }) : e)), status: 'overdue' }));
@@ -1178,6 +1181,39 @@ async function run() {
   await assertSucceeds(updateDoc(doc(solo, 'invoices/uv-solo'), { deleted: false, unvoidNote: 'voided by mistake' }));
   await assertSucceeds(updateDoc(doc(alice, 'invoices/uv4'), { notes: 'a voided invoice may still be annotated' }));    // staying voided is not an un-void
   await assertFails(updateDoc(doc(bob, 'invoices/uv5'), { deleted: false, unvoidNote: 'other tenant' }));
+  // (4) voiding money is the owner side's; void is final for a rep / manager (2026-10-20)
+  const vmoney = (by, cid, extra) => Object.assign({ createdBy: by, companyId: cid, status: 'partial', total: 500, amountPaid: 100, balanceDue: 400, payments: [{ amount: 100, at: new Date(), method: 'cash', recordedBy: by }], createdAt: 1 }, extra || {});
+  const vfree = (by, cid, extra) => Object.assign({ createdBy: by, companyId: cid, status: 'sent', total: 500, amountPaid: 0, payments: [], createdAt: 1 }, extra || {});
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    for (const id of ['vm1', 'vm2', 'vm3', 'vm4', 'vm5', 'vm6']) await setDoc(doc(d, 'invoices/' + id), vmoney('alice', 'co-a'));
+    await setDoc(doc(d, 'invoices/vm-solo'), vmoney('solo1', 'solo1'));
+    for (const id of ['vf1', 'vf2', 'vf3']) await setDoc(doc(d, 'invoices/' + id), vfree('alice', 'co-a'));
+    await setDoc(doc(d, 'invoices/vl-rep'), vfree('alice', 'co-a', { status: 'void', deleted: true, voidNote: 'x' }));
+    await setDoc(doc(d, 'invoices/vl-mgr'), vfree('alice', 'co-a', { status: 'void' }));
+    await setDoc(doc(d, 'invoices/vl-co'), vfree('alice', 'co-a', { status: 'void' }));
+    await setDoc(doc(d, 'invoices/vl-ann'), vfree('alice', 'co-a', { status: 'void' }));
+    await setDoc(doc(d, 'invoices/vl-money'), vmoney('alice', 'co-a', { status: 'void', deleted: true, voidNote: 'x' }));
+  });
+  await assertFails(updateDoc(doc(alice, 'invoices/vm1'), { deleted: true, voidNote: 'rep voids money' }));             // a rep cannot void an invoice with a payment
+  await assertFails(updateDoc(doc(mgrBf, 'invoices/vm2'), { deleted: true, voidNote: 'manager voids money' }));        // nor a manager
+  await assertFails(updateDoc(doc(alice, 'invoices/vm3'), { status: 'void' }));                                         // nor by the void status word
+  await assertFails(updateDoc(doc(alice, 'invoices/vm3'), { status: 'void', deleted: true, voidNote: 'both' }));
+  await assertFails(updateDoc(doc(bob, 'invoices/vm4'), { deleted: true, voidNote: 'other tenant' }));
+  await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/vm5'), { deleted: true, voidNote: 'owner side voids money' })); // the company_admin may
+  await assertSucceeds(updateDoc(doc(solo, 'invoices/vm-solo'), { status: 'void', deleted: true, voidNote: 'solo owner' }));
+  await assertSucceeds(updateDoc(doc(admin, 'invoices/vm6'), { deleted: true, voidNote: 'platform admin' }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/vf1'), { deleted: true, voidNote: 'empty draft-like invoice' }));   // a rep may still void one with no money
+  await assertSucceeds(updateDoc(doc(mgrBf, 'invoices/vf2'), { status: 'void' }));
+  await assertFails(updateDoc(doc(alice, 'invoices/vf3'), { deleted: true }));                                          // the void note is still required
+  // void is final for a rep / manager: status cannot leave 'void'
+  await assertFails(updateDoc(doc(alice, 'invoices/vl-rep'), { status: 'sent' }));
+  await assertFails(updateDoc(doc(mgrBf, 'invoices/vl-mgr'), { status: 'sent' }));
+  await assertFails(updateDoc(doc(alice, 'invoices/vl-mgr'), { status: 'paid' }));
+  await assertFails(updateDoc(doc(alice, 'invoices/vl-money'), { status: 'sent' }));
+  await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/vl-co'), { status: 'sent' }));                                  // the owner side may reopen it
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/vl-ann'), { notes: 'a voided invoice may still be annotated' })); // staying void is fine
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/vl-ann'), { status: 'void', notes: 'restating void is fine' }));
   // sub payments: another writer (even a company_admin) cannot void or re-point someone else's expense, and a proof path must be the writer's own folder
   await assertFails(updateDoc(doc(coAdmin, 'expenses/sp-nojob'), { deleted: true }));
   await assertFails(setDoc(doc(alice, 'expenses/sp-proof-other'), subPay({ proofPaths: ['receipts/bob/sub-proofs/1_a.jpg'] })));

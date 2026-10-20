@@ -1545,6 +1545,25 @@ service cloud.firestore {
             && request.resource.data.get('unvoidNote', '').size() > 0
             && request.resource.data.get('unvoidNote', '').size() <= 300);
     }
+    // Voiding money is the owner side's (2026-10-20 decision): a rep / manager may void an invoice with no money on it, but
+    // not one that carries a payment (collected revenue would silently drop), and void is final for them: a voided invoice's
+    // status cannot be moved back off 'void'. Covers both ways to void: the deleted flag and the 'void' status word.
+    // Kept as cheap as possible on purpose: the invoice update rule runs at the 1000-expression budget (the 15-payment
+    // test pins it), so the common case (no void involved) is decided by three comparisons before anything else is read.
+    function invoiceVoidOwnerOk() {
+      return (request.resource.data.get('status', '') != 'void' && resource.data.get('status', '') != 'void'
+              && request.resource.data.get('deleted', false) != true)
+        || invoiceVoidMoveOk();
+    }
+    function invoiceVoidMoveOk() {
+      let d = request.resource.data;
+      let leaves = resource.data.get('status', '') == 'void' && d.get('status', '') != 'void';
+      let enters = resource.data.get('status', '') != 'void' && d.get('status', '') == 'void';
+      let newlyDeleted = d.get('deleted', false) == true && resource.data.get('deleted', false) != true;
+      return (!leaves && !enters && !newlyDeleted)
+        || backfillWriterOk()
+        || (!leaves && !invoiceCarriesMoney(resource.data));
+    }
     // A void (deleted false -> true) on an invoice carries a plain-text note.
     function invoiceVoidNoted() {
       return !(request.resource.data.get('deleted', false) == true && resource.data.get('deleted', false) != true)
@@ -3560,6 +3579,7 @@ service cloud.firestore {
           && leadIdStable()
           && backfillMarksFrozen()
           && invoiceVoidNoted()
+          && invoiceVoidOwnerOk()
           && invoiceUnvoidOk()
           && invoiceStatusOk()
           && invoicePaymentsOk()
