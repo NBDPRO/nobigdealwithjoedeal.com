@@ -107,7 +107,17 @@ async function pdfInfo(download) {
 
     console.log('2. a signed contract -> Download PDF');
     await generateDoc('contract');
-    const frame = page.frames().find((f) => f !== page.mainFrame() && f.parentFrame() === page.mainFrame());
+    // generateDoc returns once srcdoc is set; the iframe may not have loaded and drawn its
+    // signature canvases yet (CI flake: "pads 0"). Wait for the pads, then look for them.
+    const padFrame = () => page.frames().find((f) => f !== page.mainFrame() && f.parentFrame() === page.mainFrame());
+    const t0 = Date.now();
+    while (Date.now() - t0 < 20000) {
+      const fr = padFrame();
+      const n = fr ? await fr.evaluate(() => Array.from(document.querySelectorAll('canvas')).filter((c) => c.getBoundingClientRect().width >= 50).length).catch(() => 0) : 0;
+      if (n >= 2) break;
+      await page.waitForTimeout(200);
+    }
+    const frame = padFrame();
     let pads = 0;
     for (const c of (frame ? await frame.locator('canvas').elementHandles() : [])) {
       await c.scrollIntoViewIfNeeded().catch(() => {});
