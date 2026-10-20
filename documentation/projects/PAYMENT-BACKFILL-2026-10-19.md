@@ -272,6 +272,16 @@ the logic file, tested directly. 22 rules mutants of the invoice money rules are
 - Tests added: cross-tenant manager append / tenant swap denied, same-tenant non-creator rep append denied, 15 -> 14 undo allowed, sub-cent
   tolerance documented (`100.000009` is inside the 0.001-cent allowance, `100.004` is not).
 
+**Round 6 (stale-marker variants).** `sendingPriorStatus` could be left behind by an earlier send lock and "restored" later:
+paid -> sending -> sent (marker stale) -> undo to $0 -> sending (marker unchanged) -> paid, and the same with a stale `draft` to re-price.
+Now the lock must tell the truth when it is taken: moving into `sending` needs `sendingPriorStatus` to equal the status the invoice has
+right then (that is what the client writes: `_priorStatusOf`; an invoice with no status reads as a draft), so an old marker is useless.
+The restore to `paid` additionally needs the money to be there: `amountPaid` covers the total and there is a payment row, or, for a
+legacy paid invoice written by the server with an `amountPaid` but no `payments` list, `amountPaid > 0`. Such legacy invoices are
+restored normally; a "paid" invoice with total 0 and nothing paid is not. Tests: the 6-step stale cycle (last write refused, an honest
+lock and release still pass), the lie about the replaced status refused, sent -> sending -> draft refused, and four seeded
+sending-with-marker states (no money, legacy paid, under-covered, total 0). 4 more rules mutants killed.
+
 **Decisions left to the owner (not changed here):**
 - *Hard delete.* The rules still let the creator (and a company_admin) hard-delete an invoice that has payments. The catch-up "Undo" does exactly
   that to an invoice it created, so a blanket `amountPaid == 0` rule would break it. Proposal for Jo: owner-side-only deletes of an invoice with
