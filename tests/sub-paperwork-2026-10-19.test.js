@@ -169,14 +169,19 @@ console.log('\n— export is owner-only, capped loads are flagged, odd payee nam
   try { yt2 = L.yearTotals(cons, roster, 2026); } catch (e) { threw = true; }
   ok('a payee named constructor / __proto__ / toString is just a name (no crash, own bucket)', !threw && yt2.unassigned.length === 3 && yt2.all.cents === 101200);
   ok('a roster sub whose id is "constructor" still totals', L.yearTotals([pay({ subId: 'constructor' })], [{ id: 'constructor', name: 'CA Roofing' }], 2026).subs[0].totals.count === 1);
-  const cap = (c, o) => L.capWarning({ count: c, cap: 1000, oldestMs: o }, 2026);
-  ok('cap hit and oldest row after Jan 1 of the year: warns', /can be too low/.test(cap(1000, new Date(2026, 3, 1).getTime())) && /not use this export for filing/.test(cap(1000, new Date(2026, 3, 1).getTime())));
-  ok('cap hit but the load reaches back before the year: no warning', cap(1000, new Date(2025, 11, 31).getTime()) === '');
-  ok('cap not hit (999 raw rows): no warning', cap(999, new Date(2026, 3, 1).getTime()) === '');
-  ok('no meta known: no warning, no crash', L.capWarning(null, 2026) === '' && L.capWarning({ count: 1000, cap: 1000, oldestMs: null }, 2026) === '');
-  ok('the CSV carries the warning line when capped, not otherwise', /WARNING: Only the newest 1000/.test(L.csv1099(L.yearTotals([], roster, 2026), { capNote: cap(1000, new Date(2026, 3, 1).getTime()) })) && !/WARNING/.test(L.csv1099(L.yearTotals([], roster, 2026), {})));
+  const cap = (m) => L.capWarning(m, 2026);
+  const apr = new Date(2026, 3, 1).getTime(), dec = new Date(2025, 11, 31).getTime();
+  ok('capped (shared meta shape) and oldest row after Jan 1: warns', /can be too low/.test(cap({ capped: true, count: 1000, cap: 1000, oldestMs: apr })) && /not use this export for filing/.test(cap({ capped: true, count: 1000, cap: 1000, oldestMs: apr })));
+  ok('count >= cap counts as capped even without the flag', /can be too low/.test(cap({ count: 1000, cap: 1000, oldestMs: apr })));
+  ok('capped but the load reaches back before the year: no warning', cap({ capped: true, count: 1000, cap: 1000, oldestMs: dec }) === '');
+  ok('not capped (999 rows): complete, no warning', cap({ capped: false, count: 999, cap: 1000, oldestMs: apr }) === '' && cap({ capped: false, count: 0, cap: 1000, oldestMs: null }) === '');
+  const unk = /Could not confirm the 2026 list is complete/;
+  ok('FAIL CLOSED: missing meta, non-object meta, or no count is UNKNOWN', unk.test(cap(null)) && unk.test(cap(undefined)) && unk.test(cap('x')) && unk.test(cap({ capped: false })));
+  ok('FAIL CLOSED: capped with a missing or 0 oldest date is UNKNOWN', unk.test(cap({ capped: true, count: 1000, cap: 1000, oldestMs: null })) && unk.test(cap({ capped: true, count: 1000, cap: 1000, oldestMs: 0 })));
+  ok('the CSV carries the warning line when there is one, not otherwise', /WARNING: Only the newest 1000/.test(L.csv1099(L.yearTotals([], roster, 2026), { capNote: cap({ capped: true, count: 1000, cap: 1000, oldestMs: apr }) })) && !/WARNING/.test(L.csv1099(L.yearTotals([], roster, 2026), {})));
   const ex = stripComments(read('docs/pro/js/expenses.js'));
-  ok('Expenses.meta() counts the RAW rows (voided included) before they are dropped', ex.indexOf('_loadMeta = { count: snap.docs.length') > 0 && ex.indexOf('_loadMeta = { count: snap.docs.length') < ex.indexOf('.filter(function (e) { return e.deleted !== true; })') && ex.includes('meta: function ()'));
+  ok('the shared Expenses.meta() exists on main and this PR adds no meta of its own', ex.includes('meta: function ()') && !ex.includes('_loadMeta'));
+  ok('the UI passes null (fail closed) when Expenses.meta is not a function', read('docs/pro/js/sub-paperwork.js').includes("typeof w.Expenses.meta === 'function') ? w.Expenses.meta() : null"));
   const ui2 = stripComments(read('docs/pro/js/sub-paperwork.js'));
   ok('export is owner/company_admin only: exportHtml, downloadCsv, print and the tab each check canWrite()',
     /function exportHtml\(\) \{\s*if \(!canWrite\(\)\) return ''/.test(ui2) && /function downloadCsv\(\) \{\s*if \(!canWrite\(\) \|\| !S\) return/.test(ui2) &&

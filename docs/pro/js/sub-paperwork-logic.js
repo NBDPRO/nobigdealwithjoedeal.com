@@ -294,14 +294,20 @@
     return rows;
   }
   /**
-   * The expense load is capped at the newest 1000 rows (Expenses.meta()). When the cap was hit
-   * and the oldest loaded row is after Jan 1 of the year asked for, that year is incomplete.
-   * Returns a sentence, or '' when the year is fully covered (or nothing is known).
+   * The expense load is capped at the newest rows (Expenses.meta() = { capped, count, cap, oldestMs }).
+   * Fail CLOSED: with no usable meta, or rows but no oldest date, we cannot say the year is complete.
+   * Returns a sentence, or '' when the year is known to be fully covered.
    */
   function capWarning(meta, year) {
-    if (!meta || !(meta.count >= meta.cap) || meta.oldestMs == null) return '';
+    var UNKNOWN = 'Could not confirm the ' + year + ' list is complete (the expense load size is unknown), so totals may be too low. Do not use this export for filing.';
+    if (!meta || typeof meta !== 'object') return UNKNOWN;
+    var count = Number(meta.count), cap = Number(meta.cap);
+    var capped = meta.capped === true || (isFinite(count) && isFinite(cap) && cap > 0 && count >= cap);
+    if (!isFinite(count)) return UNKNOWN;
+    if (!capped) return '';
+    if (!(meta.oldestMs > 0)) return UNKNOWN;
     if (new Date(meta.oldestMs) <= new Date(year, 0, 1)) return '';
-    return 'Only the newest ' + meta.cap + ' expense rows are loaded (back to ' + shortDate(localYmd(new Date(meta.oldestMs))) + '), so ' + year + ' totals can be too low. Do not use this export for filing.';
+    return 'Only the newest ' + (cap || count) + ' expense rows are loaded (back to ' + shortDate(localYmd(new Date(meta.oldestMs))) + '), so ' + year + ' totals can be too low. Do not use this export for filing.';
   }
   var CSV_HEAD = ['Legal name', 'Name on the roster', 'Entity type', 'W-9', 'W-9 received', 'Total paid', 'Payments',
     'Cash', 'Zelle', 'Check', 'Other', 'No method logged', 'Flags'];

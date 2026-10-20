@@ -1,0 +1,57 @@
+/* estimate-follow-board.css - "Estimate follow-ups" board (js/estimate-follow-board.js,
+   2026-10-19, flag estimateFollowBoard). One column, 44px+ targets, no horizontal scroll. */
+
+#estimateFollowBoardBtn[hidden] { display: none; }
+
+.efb-overlay { position: fixed; inset: 0; z-index: 10050; background: rgba(0, 0, 0, .6); overflow-y: auto; overflow-x: hidden; padding: 12px; display: flex; align-items: flex-start; justify-content: center; }
+.efb-box { width: 100%; max-width: 640px; margin: 8px 0; background: var(--s, #1a1d23); color: var(--t); border: 1px solid var(--br, #2a2d35); border-radius: 12px; padding: 14px; box-sizing: border-box; min-width: 0; }
+.efb-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.efb-title { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.efb-x { font: inherit; font-size: 22px; min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--m); cursor: pointer; }
+
+.efb-tabs { display: flex; gap: 6px; margin: 8px 0 10px; }
+.efb-tab { flex: 1; font: inherit; font-size: 14px; font-weight: 700; min-height: 44px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s2, #22252c); color: var(--m); cursor: pointer; touch-action: manipulation; }
+.efb-tab.on { color: #fff; background: var(--orange); border-color: var(--orange); }
+
+.efb-sub { margin: 0 0 10px; font-size: 13px; color: var(--m); }
+.efb-result { padding: 8px 10px; margin-bottom: 10px; border-radius: 8px; background: var(--s2, #22252c); font-size: 13px; overflow-wrap: anywhere; }
+.efb-empty { padding: 18px 0; text-align: center; color: var(--m); }
+.efb-total { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
+.efb-proj, .efb-gv { font-size: 12px; font-weight: 600; color: var(--m); }
+
+.efb-group { margin-top: 12px; }
+.efb-gh { margin: 0 0 6px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.efb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.efb-row { padding: 10px; border: 1px solid var(--br, #2a2d35); border-radius: 10px; background: var(--s2, #22252c); min-width: 0; }
+.efb-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.efb-name { font-size: 17px; font-weight: 800; color: var(--t); text-decoration: none; overflow-wrap: anywhere; min-width: 0; }
+.efb-val { flex: none; font-size: 16px; font-weight: 800; color: var(--orange); }
+.efb-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 12px; color: var(--m); }
+.efb-opened { color: #16a34a; font-weight: 700; }
+.efb-unopened { color: #d97706; font-weight: 700; }
+.efb-step { font-weight: 700; color: var(--t); }
+.efb-note { margin-top: 8px; font-size: 12px; color: var(--m); }
+.efb-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.efb-chan { flex: 1 1 100%; font-size: 12px; color: var(--m); }
+.efb-btn { font: inherit; font-size: 14px; font-weight: 700; min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s, #1a1d23); color: var(--t); cursor: pointer; touch-action: manipulation; }
+.efb-go { background: var(--orange); border-color: var(--orange); color: #fff; }
+.efb-btn:disabled { opacity: .45; cursor: not-allowed; }
+.efb-copy { margin-top: 8px; }
+.efb-ta { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; padding: 8px; border-radius: 8px; border: 1px solid var(--br, #2a2d35); background: var(--s, #1a1d23); color: var(--t); }
+.efb-hint, .efb-foot { margin: 6px 0; font-size: 12px; color: var(--m); }
+.efb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+.efb-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.efb-stat { display: flex; flex-direction: column; padding: 10px; border-radius: 10px; background: var(--s2, #22252c); }
+.efb-stat b { font-size: 24px; }
+.efb-stat span { font-size: 12px; color: var(--m); }
+.efb-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.efb-table th, .efb-table td { text-align: left; padding: 8px 0; border-bottom: 1px solid var(--br, #2a2d35); overflow-wrap: anywhere; }
+.efb-table th { font-weight: 600; color: var(--m); padding-right: 10px; }
+.efb-table td { text-align: right; font-weight: 700; }
+
+@media (max-width: 480px) {
+  .efb-overlay { padding: 6px; }
+  .efb-box { padding: 10px; }
+  .efb-acts .efb-btn { flex: 1 1 140px; }
+}

@@ -2434,6 +2434,80 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Month close (month-close.js, flag monthClose, 2026-10-19): one doc per
+    // company per month, id = companyId + '_' + 'YYYY-MM' — the totals the
+    // owner closed on, the checked items, notes and a bounded editLog. Money is
+    // integer cents. READ and WRITE: only the owner (company money: managers,
+    // viewers and reps never see it) —
+    // platform admin, company_admin of the company, or a solo operator (no role
+    // claim) who owns the tenant. Managers, reps and viewers cannot write. The
+    // doc must name its own company and month, the stamps must be the caller
+    // and server time, and nothing outside the allowlist rides along. No client
+    // delete (a platform admin can).
+    function monthCloseIdOk(closeId) {
+      let d = request.resource.data;
+      return d.companyId is string && d.monthKey is string
+        && d.monthKey.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')
+        && closeId == d.companyId + '_' + d.monthKey;
+    }
+    function monthCloseOwnerOk(companyId) {
+      return isAuth() && (
+        isAdmin()
+        || (isCompanyAdmin() && companyId == myCompanyId())
+        || (request.auth.token.get('role', '') == '' && ownsTenantByUid(companyId)
+            && request.auth.token.get('companyId', request.auth.uid) == request.auth.uid));
+    }
+    function monthCloseCentsOk(v, lo) {
+      return v is int && v >= lo && v <= 99999999999;
+    }
+    function monthCloseTotalsOk(t) {
+      return t is map
+        && t.keys().hasOnly(['collectedCents', 'grossCents', 'refundsCents', 'directCents', 'overheadCents',
+                             'profitCents', 'depositsCents', 'rateBp', 'setAsideCents'])
+        && monthCloseCentsOk(t.get('collectedCents', null), -99999999999)
+        && monthCloseCentsOk(t.get('grossCents', null), 0)
+        && monthCloseCentsOk(t.get('refundsCents', null), 0)
+        && monthCloseCentsOk(t.get('directCents', null), 0)
+        && monthCloseCentsOk(t.get('overheadCents', null), 0)
+        && monthCloseCentsOk(t.get('profitCents', null), -99999999999)
+        && (t.get('depositsCents', null) == null || monthCloseCentsOk(t.get('depositsCents', null), 0))
+        && (t.get('setAsideCents', null) == null || monthCloseCentsOk(t.get('setAsideCents', null), 0))
+        && (t.get('rateBp', null) == null
+            || (t.get('rateBp', null) is int && t.get('rateBp', null) >= 0 && t.get('rateBp', null) <= 10000));
+    }
+    function monthCloseShapeOk() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['companyId', 'monthKey', 'totals', 'checks', 'explain', 'notes', 'editLog',
+                               'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+        && d.keys().hasAll(['companyId', 'monthKey', 'totals', 'checks', 'explain', 'notes', 'editLog',
+                            'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+        && monthCloseTotalsOk(d.totals)
+        && d.checks is map && d.checks.size() <= 20
+        && d.explain is map && d.explain.size() <= 20
+        && d.notes is string && d.notes.size() <= 2000
+        && d.editLog is list && d.editLog.size() >= 1 && d.editLog.size() <= 25
+        && d.updatedBy == request.auth.uid
+        && d.updatedAt == request.time;
+    }
+    match /monthCloses/{closeId} {
+      // A month with no saved close yet: reading the missing doc must be allowed
+      // for the owner (resource is null), judged by the company named in the id.
+      allow read: if isAuth() && (resource == null
+        ? (closeId.matches('^.+_[0-9]{4}-(0[1-9]|1[0-2])$')
+           && monthCloseOwnerOk(closeId[0:closeId.size() - 8]))
+        : monthCloseOwnerOk(resource.data.companyId));
+      allow create: if monthCloseOwnerOk(request.resource.data.companyId)
+        && monthCloseIdOk(closeId)
+        && monthCloseShapeOk()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update: if monthCloseOwnerOk(resource.data.companyId)
+        && monthCloseIdOk(closeId)
+        && monthCloseShapeOk()
+        && didNotChange(['companyId', 'monthKey', 'createdAt', 'createdBy']);
+      allow delete: if isAdmin();
+    }
+
     // Agent inbox (2026-10-02): what the Grok Bot team FILES through the NBD
     // CRM connection — notes, reminders, reports — for the owner to review.
     // Items are created server-side only (the connection's function, admin
