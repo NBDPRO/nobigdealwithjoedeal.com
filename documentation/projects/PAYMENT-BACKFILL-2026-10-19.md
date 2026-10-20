@@ -226,29 +226,35 @@ money view. Both default off. The assistant cannot write production flags.
 - The backfilled customers use the one-time import allowance (1000 leads), not the
   monthly cap.
 
-## Round 3: the invoice "paid" bypass (2026-10-20, follow-up PR)
+## Round 3 and 4: the invoice "paid" bypass (2026-10-20, follow-up PR #2579)
 
-#2578 merged at its `ecfe221e` head, so the round-2 commit (`6ff282b9`) shipped in this
-follow-up together with this fix. A rep could still create a draft invoice and then update
-`{status: 'paid', balanceDue: 0, paidAt: <5 days ago>}` with `amountPaid` and `payments`
-untouched; `receivedMs` falls back to `paidAt`, which would have opened the review-ask window.
-`firestore.rules` now:
+#2578 merged at its `ecfe221e` head, so the round-2 commit (`6ff282b9`) shipped in this follow-up together with these fixes.
+A rep could still create a draft invoice and then update `{status: 'paid', balanceDue: 0, paidAt: <5 days ago>}` with
+`amountPaid` and `payments` untouched; `receivedMs` falls back to `paidAt`, which would have opened the review-ask window.
+`firestore.rules` now (all on `/invoices` update unless said otherwise):
 
-- lets an invoice BECOME `paid` only when `amountPaid` covers `total` (or the send lock is
-  restoring a `paid` it had: `sendingPriorStatus == 'paid'`, and that marker can only be
-  written on an invoice that is already paid);
-- lets `paidAt` and `lastPaymentAt` change only on a valid one-entry append, and only to THAT
-  entry's `at` (what `applyPaymentToInvoice` writes); nothing else may set them;
-- same-length updates cannot move `amountPaid`, `paidAt` or `lastPaymentAt`;
-- existing `payments[]` entries keep their amount, date and method (first 25; the list is
-  capped at 25) so a same-size rewrite is refused;
-- the list may shrink by ONE only for the writer who recorded the newest payment
-  (`recordedBy`) or the owner side (the catch-up Undo path); a manager cannot remove
-  someone else's payment.
+- **Becoming paid.** An invoice may only BECOME `paid` with a payment entry behind it and `amountPaid` covering the total, judged against
+  the total it HAD (so lowering or omitting `total` in the same update does not help), or when the send lock restores a `paid` it was
+  `sending` from. `sendingPriorStatus: 'paid'` is refused at create and can only be written on an invoice that is already paid.
+- **The total** is the owner side's to change once an invoice has left draft or carries a payment (a draft with no payment can still be re-priced).
+- **Dates.** `paidAt` and `lastPaymentAt` change only on a valid one-entry append (or a one-entry undo), and only to the newest remaining
+  entry's `at`; a same-length update cannot move `amountPaid`, `paidAt` or `lastPaymentAt`.
+- **Entries.** A new entry must be whole cents, dated not in the future and not before 2015, a known method, and **recorded by the caller**
+  (`recordedBy == request.auth.uid`). Existing entries keep amount, date, method and recorder (a proof, receipt state or deposit account may
+  change). `amountPaid` moves by exactly the entry's amount (half a cent of tolerance, no more).
+- **Undo.** The list may shrink by ONE, only for the writer who recorded the newest payment or the owner side, and the money must follow
+  (`amountPaid` down by exactly that amount, never "paid" unless the rest still covers the total, dates only unset, unchanged or the newest
+  remaining entry's). The catch-up Undo still works.
+- **Cap.** The per-entry checks cover the first 15 entries (a rules expression budget: 25 exceeded the 1000-evaluation limit). A list longer than
+  15 can only be left exactly as it is (edits to other fields, a void and the server's own writes all still work); no client appends a 16th.
+- What the rules cannot stop: a rep who records a REAL payment entry with a past date (Record Payment lets you log "a check I got yesterday")
+  on an invoice whose total they re-priced while it was still a draft. That is why the review-ask, referral and rating guards also key off the
+  backfill marker and the real payment dates.
+- `isQuietBackfill` honours `paymentBackfill` on the LEAD (rules-locked to the owner side). `backfillKey` / `source: 'backfill'` are INVOICE
+  markers (`isBackfillInvoice`, used by money-paper, `receivedMs`, the portal and the rep nudge). A `backfill.key` object on a lead is not a
+  marker on purpose: any rep can write it, so honouring it would let a rep silence a customer.
 
-Checked against the other invoice writers: the send lock and its restore, milestone and
-emergency flags, the Stripe link, proofs and receipt state, deposit accounts, reminders and
-the catch-up Undo all still pass (rules tests). Two older rules tests that asserted "set
-paid with no payment entry" were changed to assert the entry is required. The backfill
-screen's read-back after `markPaid` is now `paymentLanded(invoice, paymentId)` in the logic
-file, tested directly.
+Checked against the other invoice writers: the send lock and its restore, milestone and emergency flags, the Stripe link, proofs and receipt
+state, deposit accounts, reminders and the catch-up Undo all still pass (rules tests). Older rules tests that asserted "set paid with no payment
+entry" were changed to assert the entry is required. The backfill screen's read-back after `markPaid` is `paymentLanded(invoice, paymentId)` in
+the logic file, tested directly. 22 rules mutants of the invoice money rules are all killed.
