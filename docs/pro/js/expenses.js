@@ -801,6 +801,9 @@
     // Customer payment backfill (flag paymentBackfill, owner only; empty string when off).
     if (window.NBDPaymentBackfill) html += window.NBDPaymentBackfill.panelHtml();
 
+    // Month close (flag monthClose; empty string when off).
+    if (window.NBDMonthClose) html += window.NBDMonthClose.panelHtml();
+
     // Per-job rollup with margin
     var jobIds = Object.keys(agg.byJob).filter(function (k) { return k !== '__unassigned__'; });
     if (jobIds.length) {
