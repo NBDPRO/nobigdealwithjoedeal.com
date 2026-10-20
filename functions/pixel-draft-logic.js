@@ -54,6 +54,7 @@ const TEMPLATE_KEYS = Object.freeze(Object.keys(TEMPLATES));
 // own four; the callable accepts either set.
 const EstimateFollow = require('./estimate-follow-templates');
 const ALL_TEMPLATES = Object.freeze(Object.assign({}, TEMPLATES, EstimateFollow.TEMPLATES));
+const ALL_TEMPLATE_KEYS = Object.freeze(Object.keys(ALL_TEMPLATES));
 
 /** The words no template line may contain (see the header). Tested, not run on a finished body. */
 const FORBIDDEN_IN_TEMPLATE = /\$|\b(claims?|insur\w*|adjusters?|coverage|covered|deductibles?|advance|up[- ]?front|deposits?|waiv\w*|rebates?|assign\w*|aob|guarantee\w*|free|approved?|negotiat\w*|handle|prices?|cost|discount)\b/i;
@@ -89,4 +90,4 @@ function buildLeadTextDraft(key, lead, names) {
   return { body: d.body, reason: d.reason };
 }
 
-module.exports = { TEMPLATES, TEMPLATE_KEYS, ALL_TEMPLATES, FORBIDDEN_IN_TEMPLATE, isTemplateKey, firstNameOf, buildLeadTextDraft };
+module.exports = { TEMPLATES, TEMPLATE_KEYS, ALL_TEMPLATES, ALL_TEMPLATE_KEYS, FORBIDDEN_IN_TEMPLATE, isTemplateKey, firstNameOf, buildLeadTextDraft };

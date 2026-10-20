@@ -314,6 +314,7 @@
     const lead = (Array.isArray(w._leads) ? w._leads.find((l) => l && l.id === leadId) : null) || {};
     patchLead(leadId, { lastEstimateNudgeAt: now, estimateNudgeCount: (Number(lead.estimateNudgeCount) || 0) + 1 });
     render();
+    let saved = false;
     try {
       if (w.db && w.doc && w.updateDoc) {
         await w.updateDoc(w.doc(w.db, 'leads', leadId), {
@@ -321,8 +322,13 @@
           lastEstimateNudgeVia: via || 'phone_share',
           estimateNudgeCount: (Number(lead.estimateNudgeCount) || 0) + 1,
         });
+        saved = true;
       }
     } catch (e) { console.warn('[estimate-followups] nudge stamp failed', e && e.message); }
+    // Returned so the follow-up board can say so when the write did not land; the local stamp is undone then,
+    // so the row does not look handled when the server never heard about it.
+    if (!saved) { patchLead(leadId, { lastEstimateNudgeAt: lead.lastEstimateNudgeAt, estimateNudgeCount: lead.estimateNudgeCount }); render(); }
+    return saved;
   }
 
   async function shareFor(leadId, text, opts) {

@@ -32,7 +32,7 @@ const TEMPLATES = Object.freeze({
   est_follow_d7: Object.freeze({
     label: 'Estimate follow-up, day 7',
     day: 7,
-    line: 'I am checking in on your roof estimate. If something did not fit, tell me and I will see what I can change.',
+    line: 'I am checking in on your roof estimate. If anything is unclear or you would like to talk it over, just reply and I will go through it with you.',
     reason: 'Estimate follow-up board: day 7 check-in. Edit it, then send it from your phone.',
   }),
   est_follow_d14: Object.freeze({

@@ -48,7 +48,7 @@
   // Same words as functions/estimate-follow-templates.js (a test pins them equal).
   var LINES = [
     'I wanted to make sure your roof estimate came through okay. If you have any questions, I am happy to walk through it with you.',
-    'I am checking in on your roof estimate. If something did not fit, tell me and I will see what I can change.',
+    'I am checking in on your roof estimate. If anything is unclear or you would like to talk it over, just reply and I will go through it with you.',
     'I wanted to check in one more time on your roof estimate. If you went another direction, no hard feelings, just let me know either way.',
     'I will close out your estimate for now. If your plans change, just reply and I will pick it back up.'
   ];
@@ -354,9 +354,11 @@
     if (!ef || typeof ef.stampNudge !== 'function') { toast('Still loading, try again', 'error'); return; }
     st.busy[leadId] = true; paint();
     try {
-      await ef.stampNudge(leadId, 'board_' + channel);
-      delete st.waitingIds[leadId]; delete st.drafted[leadId];
-      st.msg = 'Marked. The next step comes back on schedule.';
+      var saved = await ef.stampNudge(leadId, 'board_' + channel);
+      if (saved === true) {
+        delete st.waitingIds[leadId]; delete st.drafted[leadId];
+        st.msg = 'Marked. The next step comes back on schedule.';
+      } else st.msg = 'Could not save that. Nothing was marked; try again.';
     } catch (e) { st.msg = 'Could not save: ' + ((e && e.message) || 'unknown error'); }
     st.busy[leadId] = false; syncButton(); paint();
   }

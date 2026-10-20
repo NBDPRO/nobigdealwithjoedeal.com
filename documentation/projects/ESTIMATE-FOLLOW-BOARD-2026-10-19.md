@@ -42,13 +42,20 @@ Four fixed wordings in `functions/estimate-follow-templates.js` (keys `est_follo
 
 ## What it does not do
 
-No automatic send, no text, no email, no mailto, no `sms_log` row, no new callable, no change to `lead-followup.js`, the Agent inbox, the kill switch (`messaging_controls/global`) or any messaging code. The only server change is data: four more template keys for the existing draft callable (a deploy of `fileLeadTextDraft` is needed for the keys to be accepted; until then the callable answers invalid-argument and the board shows that). Customer texting is OFF today; texts go one to one from Jo's own phone.
+No automatic send, no text, no email, no mailto, no `sms_log` row, no new callable, no change to `lead-followup.js`, the Agent inbox, the kill switch (`messaging_controls/global`) or any messaging code. The only server change is four more template keys for the existing draft callable, **gated on the server by the same flag**: `fileLeadTextDraft` refuses `est_follow_*` (`not_allowed`, "not turned on yet") unless `estimateFollowBoard` is on for the caller (`feature_flags/_default` merged with `feature_flags/{uid}`); an unreadable flag doc fails closed (`unavailable`). Pixel World's own keys are not gated. A deploy of `fileLeadTextDraft` is needed for the keys to be accepted at all. Customer texting is OFF today; texts go one to one from Jo's own phone.
+
+## Questions for counsel (flag stays off until answered)
+
+- Are estimate follow-ups marketing? (Same as the messaging rules reference "HOLD" list.)
+- The day-7 wording was changed before shipping from "I will see what I can change" to "If anything is unclear or you would like to talk it over, just reply and I will go through it with you", because "change" could read as price or deductible flexibility on a Kentucky insurance job. Counsel should still read all four lines, especially for insurance-track customers.
+- Jo's own emails (including the copy-only wording pasted into his mail app) do not pass through the guarded path: the board only reads the lead's `unsubscribed` / `emailUnsubscribed` fields, not the company suppression list. Texts go through the Agent inbox, which re-checks at send.
 
 ## Known limits (follow-ups, not built)
 
 - Counsel has not ruled whether estimate follow-ups are marketing (messaging rules reference, "HOLD" list). Drafts to Jo are fine; any automation (plan P4) needs Jo's explicit go and counsel.
 - Waiting-draft detection reads `agent_inbox`, which only the owner and company admins can read; for other roles the callable's once-a-day idempotency is the only guard.
-- Estimates the CRM only knows through the Home card's old nudge count use that count as "touches since sent".
+- Touches since sent come from `estimateNudgeCount`, which the browser computes and writes (it is not a server-side counter), so it can drift if two devices stamp at once; the cadence step follows it.
+- `stampNudge` now returns whether the write landed and undoes its local stamp when it did not; the board then says "Could not save" instead of "Marked".
 - Replies come from `lastInboundAt` / `lastReplyAt`; if those are not stamped for a customer, the reply is not counted.
 - The Chief of Staff weekly line (plan item) is not built.
 - `docs/pro/dashboard.html` already has a missing close tag on `#leadSourceFixerBtn` (browsers auto-close it; not touched here).

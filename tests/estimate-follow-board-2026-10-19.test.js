@@ -215,10 +215,12 @@ function boot(opts) {
     _leads: opts.leads || [],
     _userClaims: opts.claims || {},
     _user: { uid: 'u1', displayName: 'Jo Tester' },
-    NBDFlags: { enabled: (n) => !!opts.flag && n === 'estimateFollowBoard', load: () => Promise.resolve() },
+    NBDFlags: opts.realFlags ? undefined : { enabled: (n) => !!opts.flag && n === 'estimateFollowBoard', load: () => Promise.resolve() },
+    doc: (db, c, id) => ({ c, id }),
+    getDoc: async (ref) => ({ exists: () => !!(opts.flagDocs && opts.flagDocs[ref.id]), data: () => (opts.flagDocs && opts.flagDocs[ref.id]) || {} }),
     NBDEstimateFollowups: Object.assign({}, EF, {
       callable: async (name, data) => { calls.push({ name, data }); return opts.callResult || { ok: true, status: 'filed', message: 'Draft filed. It is in the Agent inbox for the owner or an admin to send. Nothing was texted.' }; },
-      stampNudge: async (id, via) => { stamps.push({ id, via }); },
+      stampNudge: async (id, via) => { stamps.push({ id, via }); return opts.stampResult === undefined ? true : opts.stampResult; },
     }),
     NBDRevenue: { loadInvoices: async () => { fsReads.push('invoices'); return []; }, collectedByLead: () => ({}) },
     getDocs: async () => { fsReads.push('agent_inbox'); return { docs: (opts.inbox || []).map((x) => ({ data: () => x })) }; },
@@ -229,6 +231,7 @@ function boot(opts) {
   };
   const ctx = { window: win, document, setTimeout: () => 0, setInterval: () => 0, console, Date, Promise, Set, Math, JSON, parseInt, String, Object, Array, isFinite, Number, RegExp };
   win.window = win;
+  if (opts.realFlags) vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'docs/pro/js/feature-flags.js'), 'utf8'), ctx, { filename: 'feature-flags.js' });
   vm.runInNewContext(SRC, ctx, { filename: 'estimate-follow-board.js' });
   const fire = (type, ev) => (handlers[type] || []).forEach((fn) => fn(ev));
   const target = (attrs) => { const t = { id: '', getAttribute: (n) => (attrs[n] === undefined ? null : attrs[n]) }; t.closest = () => t; return t; };
@@ -306,6 +309,54 @@ const QL = () => [est('ZZ_QA_1', 9, { firstName: 'Big', lastName: 'Deal', jobVal
       ok('the refusal text is on screen and the button stays (nothing was filed)', /data-efb-act="draft" data-efb-id="ZZ_QA_1"/.test(e.overlay().innerHTML) && !/Draft waiting in your Agent inbox/.test(e.overlay().innerHTML));
     }
 
+    console.log('a failed stamp is not reported as success');
+    {
+      const e = boot({ flag: true, leads: QL(), stampResult: false });
+      e.clickBtn();
+      await until(() => e.created[0] && /efb-row/.test(e.overlay().innerHTML), 'board');
+      e.act('sent', 'ZZ_QA_1', { 'data-efb-chan': 'text' });
+      await until(() => e.stamps.length === 1 && /Could not save that/.test(e.overlay().innerHTML), 'failure message');
+      ok('stamp failed: says so, never "Marked."', !/Marked\./.test(e.overlay().innerHTML) && /Nothing was marked/.test(e.overlay().innerHTML));
+    }
+
+    console.log('the real feature-flags.js: an absent flag is off, a set flag is on');
+    {
+      const off = boot({ realFlags: true, leads: QL(), flagDocs: { _default: { somethingElse: true } } });
+      await off.win.NBDFlags.load();
+      off.win.NBDEstimateFollowBoard.sync();
+      ok('absent flag (real NBDFlags): hidden, open() refuses, nothing created', off.win.NBDFlags.enabled('estimateFollowBoard') === false && off.btn.hidden === true && (await off.win.NBDEstimateFollowBoard.open()) === false && off.created.length === 0);
+      const on = boot({ realFlags: true, leads: QL(), flagDocs: { _default: { estimateFollowBoard: true } } });
+      await on.win.NBDFlags.load();
+      on.win.NBDEstimateFollowBoard.sync();
+      ok('control: flag true in feature_flags/_default (real NBDFlags): button shows', on.win.NBDFlags.enabled('estimateFollowBoard') === true && on.btn.hidden === false);
+      const mine = boot({ realFlags: true, leads: QL(), flagDocs: { _default: { estimateFollowBoard: true }, u1: { estimateFollowBoard: false } } });
+      await mine.win.NBDFlags.load();
+      mine.win.NBDEstimateFollowBoard.sync();
+      ok('a per-user false overrides the default (real NBDFlags)', mine.btn.hidden === true);
+    }
+
+    console.log('hostile text never becomes markup');
+    {
+      const evil = '<img src=x onerror=alert(1)>';
+      const ls = [
+        est('a"><img src=x onerror=alert(2)>', 9, { firstName: evil, lastName: '<script>alert(3)</script>', jobType: evil, claimStatus: evil, tcpaConsent: false, email: 'zz_qa@example.com' }),
+        est('b', 9, { firstName: 'Bee', name: '', lastName: '', jobType: 'insurance' }),
+        est('c"><img src=x onerror=alert(5)>', 9, { firstName: 'Cee' }),
+      ];
+      const e = boot({ flag: true, leads: ls, callResult: { ok: true, status: 'filed', message: '<b>x</b><img src=y onerror=alert(4)>' } });
+      e.win._brand = () => ({ shortName: evil + ' Roofing' });
+      e.win._user.displayName = '<i>Jo</i>';
+      e.clickBtn();
+      await until(() => e.created[0] && /efb-row/.test(e.overlay().innerHTML), 'board');
+      e.act('emailpanel', 'a"><img src=x onerror=alert(2)>');
+      e.act('draft', 'b', { 'data-efb-key': 'est_follow_d7' });
+      await until(() => /Draft waiting/.test(e.overlay().innerHTML), 'draft msg');
+      const h = e.overlay().innerHTML;
+      ok('no raw tag from a name, id, job type, brand, owner name or the server message', !/<img|<script|<b>|<i>/i.test(h.replace(/<(\/?)(div|span|a|ul|li|h[1-3]|p|b|section|button|label|textarea|table|tbody|tr|th|td)\b/gi, '')) && !/onerror=alert/.test(h.replace(/&lt;[^&]*&gt;/g, '')), h.slice(0, 300));
+      ok('the hostile text IS on the page, escaped (positive control)', /&lt;img src=x onerror=alert\(1\)&gt;/.test(h) && /&lt;b&gt;x&lt;\/b&gt;/.test(h));
+      ok('the id inside href / data attributes cannot break out of the attribute', !/data-efb-id="a"><img/.test(h) && !/id="a"><img/.test(h));
+    }
+
     console.log('a rep sees only their own leads');
     {
       const ls = [est('mine', 9, { userId: 'u1' }), est('theirs', 9, { userId: 'u2' })];
@@ -333,7 +384,10 @@ const QL = () => [est('ZZ_QA_1', 9, { firstName: 'Big', lastName: 'Deal', jobVal
     ok('the callable file is untouched: still gates on isTemplateKey and never writes sms_log', /P\.isTemplateKey\(data\.template\)/.test(pd) && !/sms_log/.test(strip(pd)));
     const tpl = strip(fs.readFileSync(path.join(ROOT, 'functions/estimate-follow-templates.js'), 'utf8'));
     ok('template file is pure data: no require, no Firestore, no send', !/require\(|firebase|getFirestore|\.send\(|fetch/.test(tpl));
-    ok('flag is not turned on anywhere in the repo', !/estimateFollowBoard\s*[:=]\s*true/.test(CODE + dash));
+    const tracked = require('child_process').execSync('git ls-files docs functions firestore.rules firebase.json scripts', { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 28 }).split('\n').filter((f) => /\.(js|mjs|json|html|rules)$/.test(f));
+    const turnedOn = tracked.filter((f) => { try { return /estimateFollowBoard['"]?\]?\s*[:=]\s*(true|1)\b/.test(fs.readFileSync(path.join(ROOT, f), 'utf8')); } catch (e) { return false; } });
+    ok('flag is not turned on anywhere in docs/, functions/, scripts/ or the rules (' + tracked.length + ' files)', tracked.length > 500 && turnedOn.length === 0, turnedOn.join());
+    ok('control: the same scan finds a flag that IS written on', /estimateFollowBoard['"]?\]?\s*[:=]\s*(true|1)\b/.test('x = { estimateFollowBoard: true }') && /estimateFollowBoard['"]?\]?\s*[:=]\s*(true|1)\b/.test("flags['estimateFollowBoard'] = true"));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

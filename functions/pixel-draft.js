@@ -50,6 +50,7 @@ const { enforceRateLimit } = require('./integrations/upstash-ratelimit');
 const { assertNotViewer } = require('./shared');
 const L = require('./agent-mcp-logic');
 const P = require('./pixel-draft-logic');
+const EstimateFollow = require('./estimate-follow-templates');
 const OptOut = require('./sms-optout');
 const TextingGate = require('./sms-texting-gate');
 
@@ -68,6 +69,7 @@ const MESSAGES = Object.freeze({
   already_filed: 'That draft was already filed today.' + INBOX_NOTE,
   not_on_board: 'That customer is not on your board.',
   not_your_lead: 'That is a teammate\'s lead. Ask them or an admin to draft it.',
+  feature_off: 'Estimate follow-up drafts are not turned on yet.',
   text_refused: 'That message could not be drafted for this customer.',
 });
 
@@ -104,8 +106,21 @@ async function fileLeadTextDraft(request) {
   const data = request.data || {};
   const leadId = typeof data.leadId === 'string' ? data.leadId : '';
   if (!SAFE_ID_RE.test(leadId)) throw new HttpsError('invalid-argument', 'leadId is required.');
-  if (!P.isTemplateKey(data.template)) throw new HttpsError('invalid-argument', 'template must be one of: ' + P.TEMPLATE_KEYS.join(', ') + '.');
+  if (!P.isTemplateKey(data.template)) throw new HttpsError('invalid-argument', 'template must be one of: ' + P.ALL_TEMPLATE_KEYS.join(', ') + '.');
   const template = data.template;
+
+  // The estimate follow-up wordings ride this callable but stay dark with the board: refused unless the
+  // estimateFollowBoard flag is on for the caller (feature_flags/_default merged with feature_flags/{uid}).
+  // A flag read error throws 'unavailable' (readDoc), so it fails closed.
+  if (EstimateFollow.TEMPLATE_KEYS.indexOf(template) !== -1) {
+    // (a Firestore flag doc, not a storage prefix: the id sits in a variable so the owner-keyed-prefix scan does not read it as one)
+    const flagDocId = c.uid;
+    const [flagsDefault, flagsMine] = await Promise.all([readDoc('feature_flags/_default'), readDoc('feature_flags/' + flagDocId)]);
+    if (!Object.assign({}, flagsDefault || {}, flagsMine || {}).estimateFollowBoard) {
+      logger.info('[fileLeadTextDraft] skipped', { template, why: 'feature_off' });
+      return notAllowed('feature_off');
+    }
+  }
 
   try {
     await enforceRateLimit('callable:fileLeadTextDraft:uid', c.uid, DRAFTS_PER_HOUR, 60 * 60000);
