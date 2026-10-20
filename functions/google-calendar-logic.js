@@ -500,7 +500,33 @@ function conflictsWith(blocks, startMs, endMs, ignoreEventCalendar) {
     && !(ignoreEventCalendar && b.calendars.length === 1 && b.calendars[0] === ignoreEventCalendar));
 }
 
+/**
+ * A new Cal.com booking [startMs, endMs) against the NBD Jobs events: the
+ * overlapping ones, as { title, startMs, endMs }. Only the jobs calendar is
+ * read — the booking itself lands on Jo's main calendar, which would always
+ * "conflict" with itself. Uses jobsBusy, so free (date-only plan) events and
+ * cancelled ones never count.
+ */
+function bookingOverlaps(events, startMs, endMs, localToUtcMs) {
+  if (!isFinite(startMs) || !isFinite(endMs) || endMs <= startMs) return [];
+  return jobsBusy(events, null, localToUtcMs)
+    .map((b) => ({ title: b.title, startMs: Date.parse(b.start), endMs: Date.parse(b.end) }))
+    .filter((b) => b.startMs < endMs && b.endMs > startMs);
+}
+
+/** The bell row Jo sees when a booking lands on a job. Warn only; nothing is sent to the customer. */
+function bookingConflictNotice(attendeeName, startMs, overlaps) {
+  const when = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(startMs));
+  const who = String(attendeeName || 'A customer').slice(0, 60);
+  const names = [...new Set((overlaps || []).map((o) => String(o.title || 'NBD job').slice(0, 60)))].slice(0, 3);
+  return {
+    title: 'Booking overlaps a job',
+    message: who + ' booked ' + when + ', which overlaps ' + names.join('; ') + '. Contact them to reschedule, or move the job.',
+  };
+}
+
 module.exports = {
+  bookingOverlaps, bookingConflictNotice,
   TZ, eventIdFor, toGoogleEvent, desiredEventsForLead, allIdsForLead, eventSignature, planSync,
   calendarFieldsChanged, busyBlocks, jobsBusy, conflictsWith, WATCHED, weekEventFor,
   desiredEventsForJob, allIdsForJob, jobCalendarFieldsChanged, JOB_WATCHED,

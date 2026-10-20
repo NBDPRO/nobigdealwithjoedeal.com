@@ -358,3 +358,24 @@ unchanged: warn, never block; a job is a start day + a length.
   [phone-production-flow](../../tests/e2e/phone-production-flow.spec.js).
 
 Phase 4 polish is unchanged.
+
+## Update 2026-10-20 — the after-the-fact conflict alert (Jo's answer #4)
+
+Recon on 2026-10-20 found the hub already built: Phase 0 windows
+(start + length), the deal→lead install-date sync, the NBD Jobs sync (jobs,
+adjuster meetings, yard signs, timed follow-ups), the free/busy warning, and the
+portal window. The one piece of answer #4 still missing was the *alert*: Cal.com
+hides slots that are busy on the connected calendars, but a booking that still
+lands on a job (or a job moved onto a booking) was silent.
+
+Built: after the Cal.com webhook writes the appointment, it asks
+`google-calendar.js` `_internal.bookingConflicts` whether the slot overlaps an
+NBD Jobs event (timed or multi-day; free date-only reminders never count). On a
+hit Jo gets one bell row — "Booking overlaps a job" — with a link to Schedule.
+Warn only: nothing is blocked and nothing is sent to the customer. Owner
+bookings only; best-effort; the existing `GOOGLE_CALENDAR_SYNC_DISABLED` switch
+silences it. Test: [calendar-booking-conflict](../../tests/calendar-booking-conflict-2026-10-20.test.js).
+
+Not built, by design: the reverse direction (a job moved onto an existing
+booking). Jo's date picker already warns there, and Cal.com bookings sit on his
+main calendar, which the free/busy read covers when it is shared.

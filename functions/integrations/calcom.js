@@ -275,6 +275,26 @@ exports.calcomWebhook = onRequest(
           }
         }
 
+        // Calendar hub (Jo's answer #4, 2026-09-29): warn, never block. Cal.com
+        // already hides slots that are busy on the connected calendars; if a
+        // booking still lands on a job, tell Jo (one bell row per booking) so he
+        // can contact the customer. Best-effort — a failure never fails the webhook.
+        if (startTime && endTime && repUid === (process.env.NBD_OWNER_UID || '1phDvAVXHSg82wDLegAbQFq14Ci1')) {
+          try {
+            const gcal = require('../google-calendar');
+            const GL = require('../google-calendar-logic');
+            const overlaps = await gcal._internal.bookingConflicts(db, startTime.getTime(), endTime.getTime());
+            if (overlaps.length) {
+              const n = GL.bookingConflictNotice(attendee && attendee.name, startTime.getTime(), overlaps);
+              await db.doc(`notifications/calcom-conflict-${bookingId}-${startTime.getTime()}`).set({
+                userId: repUid, type: 'booking_conflict', title: n.title, message: n.message, priority: 'high',
+                clickUrl: '/pro/dashboard.html#/schedule', read: false, dismissed: false, createdAt: FieldValue.serverTimestamp(),
+              });
+              await apptRef.set({ conflictsWithJob: true }, { merge: true });
+            }
+          } catch (e) { logger.warn('calcomWebhook: conflict check skipped', { bookingId, err: e && e.message }); }
+        }
+
         // Job spine (2026-10-03): a new booking means the homeowner has been
         // reached — New → Contacted (forward only, never a lost/closed lead),
         // plus a timeline note naming the appointment. Once per booking uid;

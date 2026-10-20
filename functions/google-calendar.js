@@ -383,6 +383,26 @@ async function busy(db, fromMs, toMs, excludeLeadId) {
   return { configured: true, primaryShared, blocks: G.busyBlocks({ calendars: cals }), jobsCalendarId: cfg.calendarId, primaryCalendarId: cfg.sharedWith || null };
 }
 
+/**
+ * Cal.com booking → does it land on a job? Reads the NBD Jobs calendar only
+ * (the booking is on Jo's main calendar). Never throws; inert until set up.
+ */
+async function bookingConflicts(db, startMs, endMs) {
+  if (disabled()) return [];
+  try {
+    const cfg = await loadConfig(db);
+    if (!cfg || !cfg.calendarId) return [];
+    const SW = require('./schedule-window');
+    const r = await call('GET', '/calendars/' + encodeURIComponent(cfg.calendarId) + '/events', undefined, {
+      timeMin: new Date(startMs).toISOString(), timeMax: new Date(endMs).toISOString(), singleEvents: true, maxResults: 50, showDeleted: false,
+    });
+    return G.bookingOverlaps(r.items || [], startMs, endMs, SW.localToUtcMs);
+  } catch (e) {
+    logger.warn('[googleCalendar] booking conflict check failed', { status: statusOf(e), msg: e && e.message });
+    return [];
+  }
+}
+
 // ── exports ─────────────────────────────────────────────────────────────
 exports.setupGoogleCalendar = onCall(
   { region: 'us-central1', cors: CORS_ORIGINS, enforceAppCheck: true, timeoutSeconds: 300, memory: '512MiB' },
@@ -593,7 +613,7 @@ exports.googleCalendarReconcile = onSchedule(
   }
 );
 
-module.exports._internal = { setup, reconcile, syncLead, syncJob, syncSwappedJobs, syncSign, syncKnockDoor, busy, upsertEvent, deleteEvent, listManaged, isOwnerLead,
+module.exports._internal = { bookingConflicts, setup, reconcile, syncLead, syncJob, syncSwappedJobs, syncSign, syncKnockDoor, busy, upsertEvent, deleteEvent, listManaged, isOwnerLead,
   syncLeadEvent, syncLeadEvents, syncOrder,
   setClient: (c) => { _testClient = c; },
   setWeather: (fn) => { _weatherFn = fn; } };
