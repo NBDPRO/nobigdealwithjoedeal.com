@@ -843,7 +843,7 @@ async function run() {
     paymentBackfill: true, completedBackfill: { date: '2026-10-01', quiet: true, reason: 'payment_backfill' }, stageHistory: [{ to: 'install_complete', backfill: true }], deleted: false }, extra || {}));
   // a NEW invoice carries no money (the CRM makes it draft, then Record Payment appends the payment)
   const newInv = (uid, cid, lead, extra) => dropUndef(Object.assign({ createdBy: uid, companyId: cid, leadId: lead, createdAt: 3, source: 'backfill', backfilled: true, backfillKey: 'k1', status: 'draft', total: 5340, amountPaid: 0, balanceDue: 5340, payments: [] }, extra || {}));
-  const payEntry = (extra) => dropUndef(Object.assign({ amount: 5340, at: new Date(), method: 'check', reference: '1042', paymentId: 'bf_k1' }, extra || {}));
+  const payEntry = (extra) => dropUndef(Object.assign({ amount: 5340, at: new Date(), method: 'check', reference: '1042', paymentId: 'bf_k1', recordedBy: 'alice' }, extra || {}));   // recordedBy = the caller (alice by default)
   const paidPatch = (entry, extra) => Object.assign({ amountPaid: 5340, balanceDue: 0, status: 'paid', payments: [entry] }, extra || {});
   const mgrBf = env.authenticatedContext('mgr-bf', { role: 'manager', companyId: 'co-a' }).firestore();
   await assertSucceeds(setDoc(doc(coAdmin, 'leads/bf-lead'), bfLead('carol', 'co-a')));                       // the owner side may
@@ -872,7 +872,7 @@ async function run() {
 
   // invoices: Record Payment appends ONE valid entry and amountPaid moves by exactly that amount
   await assertSucceeds(updateDoc(doc(alice, 'invoices/plain-inv'), paidPatch(payEntry({ paymentId: 'p1' }))));                 // the owner's legitimate flow still works
-  const bfEntry = payEntry();
+  const bfEntry = payEntry({ recordedBy: 'carol' });
   await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/bf-inv'), paidPatch(bfEntry)));
   await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/bf-inv'), { payments: [Object.assign({}, bfEntry, { proofStoragePath: 'payment-proofs/carol/bf-inv/1_a.jpg' })] }));   // same length (a proof) is fine
   // negative: every way to forge a payment is denied (each on a fresh draft invoice)
@@ -914,6 +914,52 @@ async function run() {
   await assertSucceeds(updateDoc(doc(alice, 'invoices/h1'), { payments: [], amountPaid: 0, status: 'sent', balanceDue: 5340 })); // alice undoes her own newest
   await assertSucceeds(updateDoc(await fresh('h2'), paidPatch(payEntry({ recordedBy: 'alice' }))));
   await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/h2'), { payments: [], amountPaid: 0, status: 'sent', balanceDue: 5340 })); // the owner side may undo anyone's
+  // ── review round 4: three more variants of the same bypass, and the recorder ──
+  // (1) the total cannot be lowered or omitted to make "paid" true
+  await assertFails(updateDoc(await fresh('t1'), { status: 'paid', total: 0 }));
+  await assertFails(updateDoc(await fresh('t2'), { status: 'paid', balanceDue: 0, amountPaid: 1, total: 1, payments: [payEntry({ amount: 1 })] }));   // total lowered AND a $1 entry in one update: judged against the total it had
+  await assertFails(updateDoc(await fresh('t3'), { total: 1 }).then(() => updateDoc(doc(alice, 'invoices/t3'), { status: 'paid' })));   // lower the total first, then claim paid with nothing behind it
+  await assertSucceeds(updateDoc(await fresh('t4'), { total: 4000 }));                           // a DRAFT with no payment may still be re-priced
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/t4'), { status: 'sent' }));
+  await assertFails(updateDoc(doc(alice, 'invoices/t4'), { total: 1 }));                           // once it has left draft the total is the owner side's
+  await assertSucceeds(updateDoc(doc(coAdmin, 'invoices/t4'), { total: 4100 }));                  // ...and the owner side may
+  // (2) sendingPriorStatus cannot claim "paid"
+  await assertFails(setDoc(doc(alice, 'invoices/s1'), newInv('alice', 'co-a', 'not-bf', { source: 'record_payment', backfilled: undefined, backfillKey: undefined, sendingPriorStatus: 'paid' })));
+  await assertFails(updateDoc(await fresh('s2'), { sendingPriorStatus: 'paid' }));
+  await assertFails(updateDoc(await fresh('s3'), { status: 'paid', sendingPriorStatus: 'paid' }));
+  // (3) shrinking cannot be used to move money
+  await assertSucceeds(updateDoc(await fresh('u1'), { payments: [payEntry({ amount: 1, recordedBy: 'alice' })], amountPaid: 1, status: 'partial', balanceDue: 5339 }));
+  await assertFails(updateDoc(doc(alice, 'invoices/u1'), { payments: [], amountPaid: 5340, status: 'paid', balanceDue: 0, paidAt: daysAgo(5) }));   // remove the $1, claim paid
+  await assertFails(updateDoc(doc(alice, 'invoices/u1'), { payments: [], amountPaid: 0, status: 'paid', balanceDue: 0 }));                         // 'paid' with nothing left
+  await assertFails(updateDoc(doc(alice, 'invoices/u1'), { payments: [], amountPaid: 500, status: 'partial', balanceDue: 4840 }));                // amountPaid does not follow the removal
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/u1'), { payments: [], amountPaid: 0, status: 'sent', balanceDue: 5340 }));                  // a clean Undo
+  // (4) the recorder: set by the caller, never rewritten
+  await assertFails(updateDoc(await fresh('r1'), paidPatch(payEntry({ recordedBy: 'bob' }))));                                  // recorded "by" someone else
+  await assertFails(updateDoc(await fresh('r2'), paidPatch(payEntry({ recordedBy: undefined }))));                              // no recorder at all
+  await assertSucceeds(updateDoc(await fresh('r3'), paidPatch(payEntry({ at: when }), { paidAt: when, lastPaymentAt: when })));
+  await assertFails(updateDoc(doc(alice, 'invoices/r3'), { payments: [payEntry({ at: when, recordedBy: 'carol' })] }));       // same-size recorder rewrite
+  // (5) cents only, and the 15-entry unroll covers every index
+  await assertFails(updateDoc(await fresh('c1'), paidPatch(payEntry({ amount: 5339.997 }), { amountPaid: 5339.997 })));
+  await assertSucceeds(updateDoc(await fresh('k0'), { total: 100000 }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/k0'), { status: 'sent' }));
+  const k0 = doc(alice, 'invoices/k0');
+  let cur = [];
+  for (let i = 0; i < 15; i++) {
+    cur = cur.concat([payEntry({ amount: 10, paymentId: 'k' + i, at: new Date(Date.now() - (30 - i) * 3600000) })]);
+    await assertSucceeds(updateDoc(k0, { payments: cur, amountPaid: 10 * (i + 1), status: 'partial', balanceDue: 100000 - 10 * (i + 1) }));
+  }
+  await assertFails(updateDoc(k0, { payments: cur.concat([payEntry({ amount: 10, paymentId: 'k15' })]), amountPaid: 160, balanceDue: 99840 }));   // the 16th is refused
+  for (const idx of [1, 5, 9, 13, 14]) {
+    const bad = cur.map((e, j) => (j === idx ? Object.assign({}, e, { amount: 11 }) : e));
+    await assertFails(updateDoc(k0, { payments: bad }));                                                               // every index is guarded (amount)
+    const bad2 = cur.map((e, j) => (j === idx ? Object.assign({}, e, { at: daysAgo(40) }) : e));
+    await assertFails(updateDoc(k0, { payments: bad2 }));                                                              // (date)
+  }
+  await assertSucceeds(updateDoc(k0, { deleted: true, voidNote: 'void of a full invoice' }));                          // a full list can still be voided
+  // a legacy list longer than 15 (written by the server) can still be voided / edited elsewhere
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/legacy30'), { createdBy: 'alice', companyId: 'co-a', status: 'paid', total: 30, amountPaid: 30, payments: Array.from({ length: 30 }, (_, i) => ({ amount: 1, at: new Date(2026, 0, 1 + i), method: 'cash' })), createdAt: 1 }); });
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/legacy30'), { notes: 'still editable' }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/legacy30'), { deleted: true, voidNote: 'legacy void' }));
   // a viewer cannot update an invoice at all
   await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), 'invoices/vic-inv'), { createdBy: 'vic', companyId: 'co-v', status: 'draft', total: 100, amountPaid: 0, balanceDue: 100, payments: [], createdAt: 1 }); });
   await assertFails(updateDoc(doc(viewer, 'invoices/vic-inv'), paidPatch(payEntry({ amount: 100 }), { amountPaid: 100 })));
@@ -1598,7 +1644,7 @@ async function run() {
   await assertFails(setDoc(doc(solo,     'invoices/inv-solo2'),  { createdBy: 'solo1', companyId: 'co-a',  estimateId: 'est-s', createdAt: 2, balanceDue: 1 }));
   // (2026-10-19: Mark Paid appends ONE valid payment entry and moves amountPaid by exactly that amount; "paid" with no entry behind it is refused)
   await assertFails(updateDoc(doc(alice, 'invoices/inv-a'), { balanceDue: 0, amountPaid: 10000, status: 'paid' }));
-  await assertSucceeds(updateDoc(doc(alice, 'invoices/inv-a'), { balanceDue: 0, amountPaid: 10000, status: 'paid', payments: [{ amount: 10000, at: new Date(), method: 'check' }] }));
+  await assertSucceeds(updateDoc(doc(alice, 'invoices/inv-a'), { balanceDue: 0, amountPaid: 10000, status: 'paid', payments: [{ amount: 10000, at: new Date(), method: 'check', recordedBy: 'alice' }] }));
   await assertFails(updateDoc(doc(alice,    'invoices/inv-a'), { companyId: 'co-b' }));
   await assertFails(updateDoc(doc(alice,    'invoices/inv-a'), { createdBy: 'bob' }));
   await assertFails(updateDoc(doc(alice,    'invoices/inv-a'), { estimateId: 'est-other' }));
@@ -1831,7 +1877,7 @@ async function run() {
     territories:       { mk: (u) => ({ userId: u, companyId: CO, name: 'Terr' }),                 upd: { name: 'Terr 2' } },
     products:          { mk: (u) => ({ userId: u, name: 'Shingle' }),                             upd: { name: 'Shingle 2' } },
     templates:         { mk: (u) => ({ userId: u, name: 'Tpl' }),                                 upd: { name: 'Tpl 2' } },
-    invoices:          { mk: (u) => ({ createdBy: u, companyId: CO, totalCents: 1000 }),          upd: { status: 'paid' } },
+    invoices:          { mk: (u) => ({ createdBy: u, companyId: CO, totalCents: 1000 }),          upd: { status: 'sent' } },   // (a generic edit; 'paid' now needs a payment behind it)
     drip_queue:        { mk: (u) => ({ userId: u, leadId: LEAD[u], step: 1 }),                    upd: { step: 2 } },
     lead_documents:    { mk: (u) => ({ userId: u, leadId: LEAD[u], name: 'x.pdf' }),              upd: { name: 'y.pdf' } },
     // referrals: companyId + referrerLeadId pinned to the writer's company, and
@@ -2800,7 +2846,7 @@ async function run() {
   await x58('invoice on ANOTHER tenant\'s lead', 'deny', setDoc(doc(alice, 'invoices/c54-xt'), inv54('alice', { leadId: 'leadB' })));
   await x58('invoice on a lead that does not exist', 'deny', setDoc(doc(alice, 'invoices/c54-ghost'), inv54('alice', { leadId: 'no-such-lead-54' })));
   // /invoices UPDATE
-  await x58('invoice money update (leadId unchanged)', 'allow', updateDoc(doc(alice, 'invoices/i54'), { status: 'paid', amountPaid: 100, payments: [{ amount: 100, at: new Date(), method: 'cash' }] }));
+  await x58('invoice money update (leadId unchanged)', 'allow', updateDoc(doc(alice, 'invoices/i54'), { status: 'paid', amountPaid: 100, payments: [{ amount: 100, at: new Date(), method: 'cash', recordedBy: 'alice' }] }));
   await x58('invoice moved to another tenant\'s lead', 'deny', updateDoc(doc(alice, 'invoices/i54'), { leadId: 'leadB' }));
   await x58('lead-less invoice attached to own lead', 'allow', updateDoc(doc(alice, 'invoices/i54-loose'), { leadId: 'leadA2' }));
   console.log('  58: ' + s58Pass + ' flat-collection lead-binding checks passed, ' + s58Fail.length + ' failed');
@@ -3070,7 +3116,7 @@ async function run() {
   await x59('invoice create: a leadId with a slash', 'deny', setDoc(doc(a58, 'invoices/i58-5'), inv58('a/b')));
   await x59('invoice create: solo owner on own legacy lead', 'allow', setDoc(doc(s58, 'invoices/i58-6'), { createdBy: 's58', companyId: 's58', leadId: 'lead58-solo', createdAt: 2, total: 1 }));
   // invoices — UPDATE
-  await x59('invoice update: money fields, lead unchanged', 'allow', updateDoc(doc(a58, 'invoices/inv58'), { status: 'paid', balanceDue: 0, amountPaid: 100, payments: [{ amount: 100, at: new Date(), method: 'check' }] }));
+  await x59('invoice update: money fields, lead unchanged', 'allow', updateDoc(doc(a58, 'invoices/inv58'), { status: 'paid', balanceDue: 0, amountPaid: 100, payments: [{ amount: 100, at: new Date(), method: 'check', recordedBy: 'a58' }] }));
   await x59('invoice update: "paid" with nothing paid (2026-10-20: refused)', 'deny', updateDoc(doc(a58, 'invoices/inv58-b'), { status: 'paid', balanceDue: 0 }));
   await x59('invoice update: re-point leadId at another company\'s lead', 'deny', updateDoc(doc(a58, 'invoices/inv58'), { leadId: 'lead58-victim' }));
   await x59('invoice update: re-point leadId at a teammate\'s lead (frozen)', 'deny', updateDoc(doc(a58, 'invoices/inv58'), { leadId: 'lead58-mate' }));
