@@ -52,8 +52,10 @@ async function runWatch({ db, nowMs, live }) {
   snap.forEach((d) => {
     const m = /^companies\/([^/]+)\/subs\/([^/]+)$/.exec(d.ref.path);
     if (!m) return;
-    (byCompany[m[1]] = byCompany[m[1]] || []).push(Object.assign({ id: m[2] }, d.data()));
+    // the path's id goes LAST: a stray `id` field in the data must never win
+    (byCompany[m[1]] = byCompany[m[1]] || []).push(Object.assign({}, d.data(), { id: m[2] }));
   });
+  if (snap.size >= 5000) logger.warn('[subPaperworkWatch] 5000 subs read: the list may be cut short');
 
   const out = { companies: 0, due: 0, filed: 0, alreadyFiled: 0, failed: 0 };
   for (const companyId of Object.keys(byCompany)) {

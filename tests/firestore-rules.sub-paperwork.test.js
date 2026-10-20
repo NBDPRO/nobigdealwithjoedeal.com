@@ -116,6 +116,27 @@ async function run() {
   await check('nine digits in a row in a note are denied', 'deny', setDoc(sub(owner, 't8'), goodSub({ licenseNote: 'tin: 123456789' })));
   await check('a tax ID after a newline is still denied', 'deny', setDoc(sub(owner, 't9'), goodSub({ paperworkNote: 'hello\n123456789' })));
   await check('control: a 10-digit phone number in a note is fine', 'allow', setDoc(sub(owner, 't10'), goodSub({ paperworkNote: 'call 5135550100 after 5' })));
+  await check('a tax ID with spaces between the groups is denied', 'deny', setDoc(sub(owner, 't11'), goodSub({ paperworkNote: 'ssn 123 45 6789' })));
+  await check('a tax ID with dots between the groups is denied', 'deny', setDoc(sub(owner, 't12'), goodSub({ paperworkNote: '123.45.6789' })));
+  await check('an EIN with a space is denied', 'deny', setDoc(sub(owner, 't13'), goodSub({ licenseNote: '12 3456789' })));
+  await check('control: a dashed phone number and a ZIP+4 are fine', 'allow', setDoc(sub(owner, 't14'), goodSub({ paperworkNote: 'call 513-555-0100, 45202-1234' })));
+  await check('an SSN pasted into the OLD notes field is denied too', 'deny', setDoc(sub(owner, 't15'), goodSub({ notes: 'ssn 123-45-6789' })));
+  await check('control: ordinary old notes still save', 'allow', setDoc(sub(owner, 't16'), goodSub({ notes: 'Does metal and shingle. Call after 5.' })));
+  await check('upper-case SSN key is denied', 'deny', setDoc(sub(owner, 't17'), goodSub({ SSN: 'x' })));
+  await check('taxIdNumber key is denied', 'deny', setDoc(sub(owner, 't18'), goodSub({ taxIdNumber: 'x' })));
+  await check('ssn_last4 key is denied', 'deny', setDoc(sub(owner, 't19'), goodSub({ ssn_last4: '6789' })));
+
+  // -- a planted id field (a client spreading doc data over the doc id could be pointed at another sub)
+  await check('a sub doc with an id field is denied (create, even for the owner)', 'deny', setDoc(sub(owner, 'id1'), goodSub({ id: 's1' })));
+  await check('a manager planting an id on their own sub is denied', 'deny', setDoc(sub(mike, 'id2'), { name: 'Plain Crew', active: true, id: 's1' }));
+  await check('adding an id field to an existing sub is denied', 'deny', setDoc(sub(owner, 's1'), { id: 'other' }, { merge: true }));
+  await check('control: a merge that touches only the phone', 'allow', setDoc(sub(owner, 's1'), { phone: '5135550123' }, { merge: true }));
+
+  // -- who is staff (a role-less token with a companyId is nobody)
+  await check('a token with a companyId but no role CANNOT write a sub', 'deny', setDoc(sub(ctx('norole', { companyId: 'co-a' }), 'nr1'), goodSub()));
+  await check('a token with a companyId but no role does NOT read a paper', 'deny', getDoc(paper(ctx('norole', { companyId: 'co-a' }))));
+  // -- pinned, on purpose: the older insuranceExpiry is a roster field the Production screen edits (a manager may)
+  await check('PIN: a manager may still edit the older insuranceExpiry (Production roster)', 'allow', setDoc(sub(mike, 's1'), goodSub({ insuranceExpiry: '2027-03-01' })));
 
   // -- papers: who reads
   await check('the solo owner adds a paper', 'allow', setDoc(paper(owner), goodPaper()));
@@ -157,6 +178,7 @@ async function run() {
   await check('a file name over 120 characters is denied', 'deny', setDoc(paper(owner, 'sp12'), goodPaper({ fileName: 'f'.repeat(121) })));
   await check('uploadedAt must be a timestamp', 'deny', setDoc(paper(owner, 'sp13'), goodPaper({ uploadedAt: 'yesterday' })));
   await check('control: a real Timestamp for uploadedAt', 'allow', setDoc(paper(owner, 'sp14'), goodPaper({ uploadedAt: Timestamp.now() })));
+  await check('a paper cannot be changed by a merge either', 'deny', setDoc(paper(owner, 'sp14'), { kind: 'other' }, { merge: true }));
   await check('the owner deletes a paper', 'allow', deleteDoc(paper(owner, 'sp0')));
 
   await env.withSecurityRulesDisabled(async (c) => {

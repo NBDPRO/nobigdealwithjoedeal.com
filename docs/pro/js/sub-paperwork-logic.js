@@ -118,7 +118,7 @@
   // ── the form -> the sub doc fields ────────────────────────────────────
   // A tax ID typed into a note is refused: 123-45-6789, 12-3456789, or nine digits in a row.
   // (A 10-digit phone number is not caught: the nine digits must stand alone.) Same pattern as the rules.
-  var TAXID_RE = /(^|[^0-9])([0-9]{3}-[0-9]{2}-[0-9]{4}|[0-9]{2}-[0-9]{7}|[0-9]{9})([^0-9]|$)/;
+  var TAXID_RE = /(^|[^0-9])([0-9]{3}-[0-9]{2}-[0-9]{4}|[0-9]{3} [0-9]{2} [0-9]{4}|[0-9]{3}[.][0-9]{2}[.][0-9]{4}|[0-9]{2}[ -][0-9]{7}|[0-9]{9})([^0-9]|$)/;
   function looksLikeTaxId(s) { return TAXID_RE.test(String(s == null ? '' : s)); }
 
   /** { ok, fields } or { ok:false, message }. Only the whitelisted keys leave here. */

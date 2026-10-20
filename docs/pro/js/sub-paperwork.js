@@ -51,7 +51,8 @@
     const out = [];
     try {
       const snap = await w.getDocs(w.collection(w.db, 'companies', tenant(), 'subs'));
-      snap.forEach((d) => { const s = d.data() || {}; if (s.active !== false && s.name) out.push(Object.assign({ id: d.id }, s, { aliases: Array.isArray(s.aliases) ? s.aliases.filter((a) => typeof a === 'string') : [] })); });
+      // The real doc id goes LAST: a stray `id` field in the data must never win.
+      snap.forEach((d) => { const s = d.data() || {}; if (s.active !== false && s.name) out.push(Object.assign({}, s, { id: d.id, aliases: Array.isArray(s.aliases) ? s.aliases.filter((a) => typeof a === 'string') : [] })); });
     } catch (e) { console.warn('[sub-paperwork] roster not loaded', e && e.code); return null; }
     return out.sort((a, b) => String(a.name).localeCompare(String(b.name)));
   }
@@ -224,16 +225,23 @@
     PP().choose(async (files) => {
       if (!S || S.subId !== subId) return;
       S.busy = true; S.err = ''; render();
+      let uploaded = [];
       try {
         const done = await PP().upload(files.slice(0, 1), (i, base, ext) => 'sub-papers/' + t + '/' + subId + '/' + Date.now() + '_' + base + '.' + ext);
+        uploaded = done.map((f) => f.path);
         for (const f of done) {
           if (!LG().paperPathOk(f.path)) throw new Error('bad path');
           await w.addDoc(w.collection(w.db, 'companies', t, 'subs', subId, 'papers'), { kind: kind, storagePath: f.path, fileName: f.name.slice(0, 120), uploadedAt: w.serverTimestamp(), uploadedBy: uid() });
         }
+        uploaded = [];
         if (S && S.subId === subId) S.papers = await loadPapers(subId);
         toast('File saved', 'success');
       } catch (e) {
         console.warn('[sub-paperwork] upload failed', e && e.message);
+        // An upload with no pointer doc would be an orphan nobody can see: remove it (best effort).
+        for (const p of uploaded) {
+          try { const st = w._nbdStorageSdk || (w._nbdStorageSdk = await import('/assets/vendor/firebase/10.12.2/firebase-storage.js')); await st.deleteObject(st.ref(w.storage, p)); } catch (x) { /* nothing more to do */ }
+        }
         if (S) S.err = 'Could not save that file. It must be a photo or a PDF under 25MB. Nothing was changed.';
       }
       if (S) { S.busy = false; render(); }

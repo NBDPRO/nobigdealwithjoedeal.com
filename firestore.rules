@@ -363,24 +363,29 @@ service cloud.firestore {
     // Every field is optional and bounded. NO tax ID is ever stored here: a key
     // that names one is refused, and so is free text that holds a Social Security
     // or employer ID number (the W-9 itself is a private Storage file, see
-    // sub-papers/ in storage.rules). (?s) so a newline cannot hide the number.
+    // sub-papers/ in storage.rules). (?s) so a newline cannot hide the number; a
+    // space, dot or hyphen between the digit groups does not hide it either (a ZIP+4 is not caught). This
+    // is a guard against an honest slip, not against a determined admin. A sub doc
+    // may not carry an `id` field (a client that spreads the doc data over the doc
+    // id would otherwise be pointed at another sub's doc).
     function _subYmdOk(d, k) {
       return !(k in d) || d[k] == null || d[k] == '' || (d[k] is string && d[k].matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'));
     }
     function _subTextOk(d, k, max) {
       return !(k in d) || d[k] == null
         || (d[k] is string && d[k].size() <= max
-            && !d[k].matches('(?s).*(^|[^0-9])([0-9]{3}-[0-9]{2}-[0-9]{4}|[0-9]{2}-[0-9]{7}|[0-9]{9})([^0-9]|$).*'));
+            && !d[k].matches('(?s).*(^|[^0-9])([0-9]{3}-[0-9]{2}-[0-9]{4}|[0-9]{3} [0-9]{2} [0-9]{4}|[0-9]{3}[.][0-9]{2}[.][0-9]{4}|[0-9]{2}[ -][0-9]{7}|[0-9]{9})([^0-9]|$).*'));
     }
     function subPaperworkOk(d) {
-      return !d.keys().hasAny(['ssn', 'ein', 'tin', 'taxId', 'taxid', 'tax_id', 'ssnLast4', 'einLast4', 'w9Last4', 'socialSecurity'])
+      return !d.keys().hasAny(['ssn', 'ein', 'tin', 'fein', 'SSN', 'EIN', 'TIN', 'FEIN', 'Ssn', 'Ein', 'taxId', 'taxid', 'TaxId', 'taxID', 'tax_id', 'taxIdNumber', 'tax_id_number', 'ssnLast4', 'ssn_last4', 'einLast4', 'ein_last4', 'w9Last4', 'w9Number', 'socialSecurity', 'socialSecurityNumber', 'federalId'])
         && (!('w9Status' in d) || d.w9Status in ['none', 'requested', 'on_file'])
         && (!('wcExempt' in d) || d.wcExempt is bool)
         && (!('licenseRequired' in d) || d.licenseRequired is bool)
         && _subYmdOk(d, 'w9ReceivedOn') && _subYmdOk(d, 'glExpiry') && _subYmdOk(d, 'wcExpiry')
         && _subYmdOk(d, 'licenseExpiry') && _subYmdOk(d, 'paperworkReviewedAt')
         && _subTextOk(d, 'legalName', 120) && _subTextOk(d, 'entityType', 40) && _subTextOk(d, 'wcExemptNote', 200)
-        && _subTextOk(d, 'licenseNote', 200) && _subTextOk(d, 'paperworkNote', 500);
+        && _subTextOk(d, 'licenseNote', 200) && _subTextOk(d, 'paperworkNote', 500)
+        && _subTextOk(d, 'notes', 1000);
     }
 
     // 2026-10-12 — per-number contact labels (companies/{companyId}/
@@ -2942,11 +2947,13 @@ service cloud.firestore {
           && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
           && subWriteOk()
+          && !('id' in request.resource.data)
           && (!request.resource.data.keys().hasAny(subPaperworkKeys()) || subPaperworkWriter());
         allow update: if isAuth() && notViewer()
           && (ownsTenantByUid(companyId)
               || (isCompanyStaff() && request.auth.token.get('companyId', '') == companyId))
           && subWriteOk()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['id'])
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(subPaperworkKeys()) || subPaperworkWriter());
         allow delete: if isAuth() && notViewer()
           && (ownsTenantByUid(companyId)

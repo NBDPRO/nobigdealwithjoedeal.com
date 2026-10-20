@@ -112,6 +112,8 @@ async function run() {
   await check('control: the W-9 is still there after every denied delete', 'allow', getBytes(ref(owner, P('w9.pdf'))));
   await check('a company_admin deletes a paper', 'allow', deleteObject(ref(carol, P('coi.jpg'))));
   await check('the solo owner deletes a paper', 'allow', deleteObject(ref(owner, P('w9.pdf'))));
+  await check('after a delete the same name is a NEW object and can be created again', 'allow', uploadBytes(ref(owner, P('w9.pdf')), buf(100), PDF));
+  await check('...and an overwrite of that one is refused again', 'deny', uploadBytes(ref(owner, P('w9.pdf')), buf(200), PDF));
 
   await env.cleanup();
   const bad = results.filter((r) => !r.ok);
