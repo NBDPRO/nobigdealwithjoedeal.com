@@ -965,6 +965,9 @@ async function run() {
   // A: the send-lock restore cannot revive 'paid' once the money is gone
   const gA = await fresh('a1');
   await assertSucceeds(updateDoc(gA, paidPatch(payEntry({ at: when }), { paidAt: when, lastPaymentAt: when })));
+  // round 8: the lock-ENTRY write cannot shrink the money under a truthful 'paid' marker
+  await assertFails(updateDoc(gA, { status: 'sending', sendingPriorStatus: 'paid', payments: [], amountPaid: 0, sendingAt: new Date() }));
+  await assertFails(updateDoc(gA, { status: 'sending', sendingPriorStatus: 'paid', amountPaid: 0, sendingAt: new Date() }));
   await assertSucceeds(updateDoc(gA, { status: 'sending', sendingPriorStatus: 'paid', sendingAt: new Date() }));
   await assertFails(updateDoc(gA, { payments: [], amountPaid: 0 }));                                  // undo while the invoice is 'sending'
   await assertFails(updateDoc(gA, { payments: [], amountPaid: 0, status: 'paid' }));

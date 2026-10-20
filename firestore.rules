@@ -1401,8 +1401,9 @@ service cloud.firestore {
       let d = request.resource.data;
       let r = resource.data;
       return n is list && o is list
-        // the send lock holds the invoice as it is: no payment added, removed or rewritten while 'sending'
-        && (r.get('status', '') != 'sending' || n == o)
+        // the send lock holds the invoice as it is: no payment added, removed or rewritten while 'sending' - nor on the very
+        // write that ENTERS 'sending' (else the money is shrunk under a truthful 'paid' marker and then "restored")
+        && ((r.get('status', '') != 'sending' && d.get('status', '') != 'sending') || n == o)
         && (n == o
             ? (d.get('amountPaid', 0) == r.get('amountPaid', 0)
                 && d.get('paidAt', null) == r.get('paidAt', null)
