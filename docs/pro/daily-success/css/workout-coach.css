@@ -105,3 +105,18 @@ body.wc-lock { overflow: hidden; }
 .fl-field { display: flex; flex-direction: column; font-size: 11px; gap: 2px; }
 .fl-favlist { margin: 4px 0 0 16px; padding: 0; font-size: 13px; line-height: 1.8; }
 .fl-x { font: inherit; border: none; background: transparent; color: #b91c1c; cursor: pointer; min-width: 32px; min-height: 32px; }
+
+/* Progress card (js/progress-charts-ui.js) */
+.pg-card { border-left-color: #7c3aed; }
+.pg-dash .pg-card { margin: 0 0 14px; }
+.pg-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.pg-chip { font: inherit; font-size: 12px; min-height: 36px; padding: 6px 12px; border-radius: 18px; border: 1px solid var(--rule, #d4c9b0); background: transparent; color: inherit; cursor: pointer; }
+.pg-chip.on { background: var(--ac, #BD5728); border-color: var(--ac, #BD5728); color: #fff; }
+.pg-chart { margin: 8px 0 4px; max-width: 100%; color: #7c3aed; }
+.pg-chart svg { display: block; width: 100%; max-width: 100%; height: auto; }
+.pg-line { stroke: currentColor; }
+.pg-pr { fill: #f59e0b; stroke: #fff; stroke-width: 1; }
+.pg-bar { fill: currentColor; opacity: .45; }
+.pg-bar.now { opacity: 1; }
+.pg-ax { font-size: 9px; fill: var(--muted, #6b7280); }
+.pg-note { font-size: 11px; color: var(--muted, #6b7280); margin-top: 6px; }
