@@ -225,3 +225,30 @@ money view. Both default off. The assistant cannot write production flags.
 - "Read the check for me" is skipped on purpose (see above).
 - The backfilled customers use the one-time import allowance (1000 leads), not the
   monthly cap.
+
+## Round 3: the invoice "paid" bypass (2026-10-20, follow-up PR)
+
+#2578 merged at its `ecfe221e` head, so the round-2 commit (`6ff282b9`) shipped in this
+follow-up together with this fix. A rep could still create a draft invoice and then update
+`{status: 'paid', balanceDue: 0, paidAt: <5 days ago>}` with `amountPaid` and `payments`
+untouched; `receivedMs` falls back to `paidAt`, which would have opened the review-ask window.
+`firestore.rules` now:
+
+- lets an invoice BECOME `paid` only when `amountPaid` covers `total` (or the send lock is
+  restoring a `paid` it had: `sendingPriorStatus == 'paid'`, and that marker can only be
+  written on an invoice that is already paid);
+- lets `paidAt` and `lastPaymentAt` change only on a valid one-entry append, and only to THAT
+  entry's `at` (what `applyPaymentToInvoice` writes); nothing else may set them;
+- same-length updates cannot move `amountPaid`, `paidAt` or `lastPaymentAt`;
+- existing `payments[]` entries keep their amount, date and method (first 25; the list is
+  capped at 25) so a same-size rewrite is refused;
+- the list may shrink by ONE only for the writer who recorded the newest payment
+  (`recordedBy`) or the owner side (the catch-up Undo path); a manager cannot remove
+  someone else's payment.
+
+Checked against the other invoice writers: the send lock and its restore, milestone and
+emergency flags, the Stripe link, proofs and receipt state, deposit accounts, reminders and
+the catch-up Undo all still pass (rules tests). Two older rules tests that asserted "set
+paid with no payment entry" were changed to assert the entry is required. The backfill
+screen's read-back after `markPaid` is now `paymentLanded(invoice, paymentId)` in the logic
+file, tested directly.

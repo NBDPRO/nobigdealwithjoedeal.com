@@ -405,6 +405,10 @@
     if (p.length) { d.proofStoragePath = p[0].path; d.proofName = p[0].name || 'proof'; if (p.length > 1) d.proofPaths = p.slice(1).map(function (x) { return x.path; }); }
     return d;
   }
+  /** Did the payment with this id land on the invoice (the read-back after markPaid)? A missing invoice is "no". */
+  function paymentLanded(invoice, paymentId) {
+    return !!invoice && Array.isArray(invoice.payments) && invoice.payments.some(function (p) { return !!p && p.paymentId === paymentId; });
+  }
   /** Soft void of a backfilled lead / invoice: the row is kept, a note is required. */
   function voidPatch(doc, note, by, nowMs) {
     var n = clean(note);
@@ -420,7 +424,7 @@
     splitTable: splitTable, parse: parse, validate: validate, parseDate: parseDate, parseCents: parseCents, parseMethod: parseMethod, parseJobType: parseJobType,
     nameScore: nameScore, sameAddress: sameAddress, paymentKey: paymentKey, paymentIdFor: paymentIdFor, paymentIdOf: paymentIdOf, leadName: leadName,
     matchCustomers: matchCustomers, paymentsIndex: paymentsIndex, findDuplicates: findDuplicates, review: review, checkAgainstCrm: checkAgainstCrm,
-    buildLead: buildLead, invoiceOverrides: invoiceOverrides, paymentDetails: paymentDetails, voidPatch: voidPatch, logEntry: logEntry
+    buildLead: buildLead, invoiceOverrides: invoiceOverrides, paymentDetails: paymentDetails, voidPatch: voidPatch, paymentLanded: paymentLanded, logEntry: logEntry
   };
   if (root && typeof root === 'object') root.NBDPaymentBackfillLogic = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
