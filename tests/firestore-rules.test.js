@@ -1149,6 +1149,17 @@ async function run() {
   await assertSucceeds(updateDoc(doc(alice, 'invoices/lg-paid'), { status: 'sending', sendingPriorStatus: 'Paid', sendingAt: new Date() }));
   await assertFails(updateDoc(doc(alice, 'invoices/lg-paid'), { status: 'Paid', sendingAt: null, sendingPriorStatus: null }));       // a case variant of paid is never restored
   await assertFails(updateDoc(doc(alice, 'invoices/lg-paid'), { status: 'PAID', sendingAt: null, sendingPriorStatus: null }));
+  // the restore allowance has no side doors: nothing is born locked, an absent marker restores nothing, a leftover marker on a 'sent' invoice is not a restore
+  await assertFails(setDoc(doc(alice, 'invoices/lk-c1'), plainNew({ status: 'sending', sendingPriorStatus: 'paid ' })));
+  await assertFails(setDoc(doc(alice, 'invoices/lk-c2'), plainNew({ status: 'sending', sendingPriorStatus: 'Refunded' })));
+  await assertFails(setDoc(doc(alice, 'invoices/lk-c3'), plainNew({ status: 'sending' })));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const d = ctx.firestore();
+    await setDoc(doc(d, 'invoices/lk-nomark'), { createdBy: 'alice', companyId: 'co-a', status: 'sending', total: 100, amountPaid: 0, payments: [], createdAt: 1 });
+    await setDoc(doc(d, 'invoices/lk-leftover'), { createdBy: 'alice', companyId: 'co-a', status: 'sent', sendingPriorStatus: 'Foo', total: 100, amountPaid: 0, payments: [], createdAt: 1 });
+  });
+  await assertFails(updateDoc(doc(alice, 'invoices/lk-nomark'), { status: '' }));
+  await assertFails(updateDoc(doc(alice, 'invoices/lk-leftover'), { status: 'Foo' }));
   // (3) un-void is the owner side's, with a note
   await env.withSecurityRulesDisabled(async (ctx) => {
     const d = ctx.firestore();

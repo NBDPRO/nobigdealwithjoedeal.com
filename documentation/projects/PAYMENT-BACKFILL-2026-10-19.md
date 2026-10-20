@@ -345,6 +345,9 @@ Closes deferred items 1, 2 and 3 above, and the reviewers' small leftovers. Stil
 confirmed; otherwise nothing is written) and the button hides for a fresh lock. The status rule lets the lock restore a legacy status it replaced (`Sent`) but never a
 case variant of `paid`. The audit script has no default project (`--project=` or an emulator host is required).
 
+Second review: an invoice cannot be created already `sending`, and the legacy-status restore needs a recorded, non-empty marker on a `sending` invoice.
+When you release stuck locks by hand, note that a legacy `Paid` (capital P) invoice stuck in `sending` cannot be restored by the app (a case variant of paid is never restored); fix it from the console or tell me and we handle it case by case.
+
 **Plain statements for Jo (product calls, owner Jo, decide by 2026-10-27):**
 - The status rule is **live on deploy**, not behind a flag: it applies to every invoice write the moment the rules ship.
 - A rep can still undo their own newest payment (rules allow the recorder) and then hard-delete the now-empty invoice they created.
