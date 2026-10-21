@@ -1,7 +1,7 @@
 /* Sunday review + "don't miss twice" streak card (js/review-ui.js, 2026-10-02).
    Builds on workout-coach.css (.wc-card, .wc-ov, .wc-box, .wc-in …). */
 .rv-dash { margin-bottom: 12px; }
-.rv-card .rv-count { float: right; font-size: 22px; color: var(--ac, #BD5728); letter-spacing: 0; }
+.rv-card .rv-count { float: right; font-size: 22px; color: var(--ac-text, var(--ac, #BD5728)); letter-spacing: 0; }
 .rv-card .rv-warn { color: var(--gold, #b45309); font-weight: 700; }
 .rv-goal { margin-top: 10px; }
 .rv-goal-bar { height: 8px; border-radius: 4px; background: var(--rule, #d4c9b0); overflow: hidden; }

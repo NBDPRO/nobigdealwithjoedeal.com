@@ -264,7 +264,7 @@ return `<div class="rl">Your daily blueprint — the schedule that produces the 
 function buildDietSection(p){
 const d=p.data||{};
 const rows=MEALS.map((meal,i)=>`<tr><td><input data-k="diet-m${i}-name" placeholder="${meal}" value="${E(d['diet-m'+i+'-name'])}" data-input-action="calc-macros"></td><td><input data-k="diet-m${i}-p" placeholder="—" value="${E(d['diet-m'+i+'-p'])}" data-input-action="calc-macros"></td><td><input data-k="diet-m${i}-c" placeholder="—" value="${E(d['diet-m'+i+'-c'])}" data-input-action="calc-macros"></td><td><input data-k="diet-m${i}-f" placeholder="—" value="${E(d['diet-m'+i+'-f'])}" data-input-action="calc-macros"></td><td><input data-k="diet-m${i}-cal" placeholder="—" value="${E(d['diet-m'+i+'-cal'])}" data-input-action="calc-macros"></td></tr>`).join('');
-return `<div class="tbl-wrap"><table class="dt"><thead><tr><th>Meal</th><th>Protein (g)</th><th>Carbs (g)</th><th>Fat (g)</th><th>Calories</th></tr></thead><tbody>${rows}<tr class="dt-total"><td><input readonly placeholder="DAILY TOTAL" style="font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:11px;width:100%;background:transparent;border:none;outline:none;padding:5px 7px;"></td><td><input id="dt-p" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac);padding:5px 7px;"></td><td><input id="dt-c" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac);padding:5px 7px;"></td><td><input id="dt-f" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac);padding:5px 7px;"></td><td><input id="dt-cal" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac);padding:5px 7px;"></td></tr></tbody></table></div> <div class="macro-summary"><div class="mpill protein"><div class="mpill-val" id="ms-p">—</div><div class="mpill-lbl">Protein g</div></div><div class="mpill carbs"><div class="mpill-val" id="ms-c">—</div><div class="mpill-lbl">Carbs g</div></div><div class="mpill fat"><div class="mpill-val" id="ms-f">—</div><div class="mpill-lbl">Fat g</div></div><div class="mpill cals"><div class="mpill-val" id="ms-cal">—</div><div class="mpill-lbl">Calories</div></div></div> <div><div class="rl">Energy / hunger notes</div><div class="rln"><textarea class="ed" data-k="diet-notes" placeholder="Energy levels, cravings, anything to adjust…" rows="2">${E(d['diet-notes'])}</textarea></div></div>`;
+return `<div class="tbl-wrap"><table class="dt"><thead><tr><th>Meal</th><th>Protein (g)</th><th>Carbs (g)</th><th>Fat (g)</th><th>Calories</th></tr></thead><tbody>${rows}<tr class="dt-total"><td><input readonly placeholder="DAILY TOTAL" style="font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:11px;width:100%;background:transparent;border:none;outline:none;padding:5px 7px;"></td><td><input id="dt-p" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac-text,var(--ac));padding:5px 7px;"></td><td><input id="dt-c" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac-text,var(--ac));padding:5px 7px;"></td><td><input id="dt-f" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac-text,var(--ac));padding:5px 7px;"></td><td><input id="dt-cal" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac-text,var(--ac));padding:5px 7px;"></td></tr></tbody></table></div> <div class="macro-summary"><div class="mpill protein"><div class="mpill-val" id="ms-p">—</div><div class="mpill-lbl">Protein g</div></div><div class="mpill carbs"><div class="mpill-val" id="ms-c">—</div><div class="mpill-lbl">Carbs g</div></div><div class="mpill fat"><div class="mpill-val" id="ms-f">—</div><div class="mpill-lbl">Fat g</div></div><div class="mpill cals"><div class="mpill-val" id="ms-cal">—</div><div class="mpill-lbl">Calories</div></div></div> <div><div class="rl">Energy / hunger notes</div><div class="rln"><textarea class="ed" data-k="diet-notes" placeholder="Energy levels, cravings, anything to adjust…" rows="2">${E(d['diet-notes'])}</textarea></div></div>`;
 }
 
 function calcMacros(){
@@ -511,7 +511,7 @@ function buildIntelligenceBrief(p){
 
 function buildCRMContext(){
   const cache = localStorage.getItem('nbd_pipeline_cache');
-  if(!cache) return '<div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted);text-align:center;padding:16px;">Connect your CRM to see pipeline data here. <br><a href="/pro/dashboard.html" style="color:var(--ac);">Open CRM →</a></div>';
+  if(!cache) return '<div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted);text-align:center;padding:16px;">Connect your CRM to see pipeline data here. <br><a href="/pro/dashboard.html" style="color:var(--ac-text,var(--ac));">Open CRM →</a></div>';
 
   try {
     const data = JSON.parse(cache);
@@ -521,7 +521,7 @@ function buildCRMContext(){
     const hot = data.hotLeads || 0;
 
     let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:10px;">';
-    html += `<div style="text-align:center;padding:10px;background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;color:var(--ac);line-height:1;">${total}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.12em;color:var(--muted);margin-top:2px;">ACTIVE LEADS</div></div>`;
+    html += `<div style="text-align:center;padding:10px;background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;color:var(--ac-text,var(--ac));line-height:1;">${total}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.12em;color:var(--muted);margin-top:2px;">ACTIVE LEADS</div></div>`;
     html += `<div style="text-align:center;padding:10px;background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;color:var(--grn);line-height:1;">$${Math.round(value).toLocaleString()}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.12em;color:var(--muted);margin-top:2px;">PIPELINE VALUE</div></div>`;
     html += `<div style="text-align:center;padding:10px;background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;color:var(--gold);line-height:1;">${hot}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.12em;color:var(--muted);margin-top:2px;">HOT LEADS</div></div>`;
     html += '</div>';
@@ -536,7 +536,7 @@ function buildCRMContext(){
       html += '</div>';
     }
 
-    html += `<div style="margin-top:8px;text-align:right;"><a href="/pro/dashboard.html" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;color:var(--ac);text-decoration:none;">OPEN FULL CRM →</a></div>`;
+    html += `<div style="margin-top:8px;text-align:right;"><a href="/pro/dashboard.html" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;color:var(--ac-text,var(--ac));text-decoration:none;">OPEN FULL CRM →</a></div>`;
     return html;
   } catch(e){
     return '<div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted);text-align:center;padding:16px;">Pipeline data unavailable</div>';
@@ -635,7 +635,7 @@ if(cfg&&cfg.northStar){
 const ns=cfg.northStar;
 const isRevGoal=ns.category==='Make more money'||ns.category==='Grow my business';
 const nsPct=isRevGoal&&gt.r?Math.min(totR/gt.r*100,100):0;
-northStarHtml=`<div class="dc wide"><div class="dct">⭐ North Star <small>YOUR PRIMARY GOAL</small></div> <div style="margin-bottom:10px;padding:10px 0;border-bottom:1px solid var(--rule);"> <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--ac);letter-spacing:.05em;">${E(ns.category)}</div> <div style="font-size:13px;color:var(--ink);margin-top:3px;">${ns.target?E(ns.target):'No specific target set — click ⚙️ to update'}</div> ${ns.deadline?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:4px;letter-spacing:.1em;">DEADLINE: ${E(ns.deadline)}</div>`:''} </div> ${isRevGoal?`<div class="pace-wrap" style="margin-top:8px;">
+northStarHtml=`<div class="dc wide"><div class="dct">⭐ North Star <small>YOUR PRIMARY GOAL</small></div> <div style="margin-bottom:10px;padding:10px 0;border-bottom:1px solid var(--rule);"> <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--ac-text,var(--ac));letter-spacing:.05em;">${E(ns.category)}</div> <div style="font-size:13px;color:var(--ink);margin-top:3px;">${ns.target?E(ns.target):'No specific target set — click ⚙️ to update'}</div> ${ns.deadline?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:4px;letter-spacing:.1em;">DEADLINE: ${E(ns.deadline)}</div>`:''} </div> ${isRevGoal?`<div class="pace-wrap" style="margin-top:8px;">
 <div class="pace-row"><span class="pace-lbl">Revenue</span><div class="pace-bg"><div class="pace-bar" style="width:${gt.r?Math.min(totR/gt.r*100,100):0}%;background:var(--grn)"></div></div><span class="pace-stat">$${Math.round(totR).toLocaleString()}</span></div>
 <div class="pace-row"><span class="pace-lbl">On Pace</span><div class="pace-bg"><div class="pace-bar" style="width:${gt.r?Math.min(paceTarget/gt.r*100,100):0}%;background:rgba(245,158,11,.5)"></div></div><span class="pace-stat">$${Math.round(paceTarget).toLocaleString()}</span></div>
 <div class="pace-row"><span class="pace-lbl">Goal</span><div class="pace-bg"><div class="pace-bar" style="width:100%;background:rgba(0,0,0,.07)"></div></div><span class="pace-stat">$${Number(gt.r||0).toLocaleString()}</span></div>
@@ -866,7 +866,7 @@ function delta(cur,prev,prefix){
 if(prev===null||prev===undefined)return'<span style="color:#8fa1b8;">—</span>';
 const d=cur-prev;
 if(d===0)return'<span style="color:#8fa1b8;">—</span>';
-return d>0?`<span style="color:var(--grn);">▲${prefix||''}${Math.abs(d)}</span>`:`<span style="color:var(--ac);">▼${prefix||''}${Math.abs(d)}</span>`;
+return d>0?`<span style="color:var(--grn);">▲${prefix||''}${Math.abs(d)}</span>`:`<span style="color:var(--ac-text,var(--ac));">▼${prefix||''}${Math.abs(d)}</span>`;
 }
 const pD=prev?(prev.kpi?.doors||0):null;
 const pR=prev?parseFloat(prev.data?.['s-revenue']||0)||0:null;
@@ -973,7 +973,7 @@ if(wrap){
 const btn=document.createElement('button');
 btn.id='floor-regen-hint';
 btn.className='addbtn';
-btn.style.cssText='margin-top:6px;margin-bottom:2px;border-color:var(--ac);color:var(--ac);';
+btn.style.cssText='margin-top:6px;margin-bottom:2px;border-color:var(--ac);color:var(--ac-text,var(--ac));';
 btn.textContent='↺ Regenerate suggestions from Step 1 & 2';
 btn.onclick=()=>{
 const cat=document.getElementById('ob-cat')?.value||'Other';
@@ -1078,109 +1078,18 @@ initTheme();loadPages();cur=-1;renderTabs();renderDash();markSaved();checkOnboar
    DO NOT EDIT independently in each file — keep in sync.
    ═══════════════════════════════════════════════════════════════════ */
 
-/* ── THEME REGISTRY (100 themes) ──────────────────────────────────── */
+/* ── THEME REGISTRY (10 brand-safe skins; each is a token row in index.html) ── */
 const NBD_THEMES = [
-  // STANDARD
-  {id:'default',          name:'NBD Default',       cat:'standard', plan:'blueprint', accent:'#BD5728', bg:'#0A0C0F', s:'#13171d', jp:true},
-  {id:'matrix',           name:'Matrix',            cat:'standard', plan:'blueprint', accent:'#00ff41', bg:'#000300', s:'#000800'},
-  {id:'neon',             name:'Neon',              cat:'standard', plan:'foundation',accent:'#ff00ff', bg:'#08000f', s:'#120018'},
-  {id:'galaxy',           name:'Galaxy',            cat:'standard', plan:'foundation',accent:'#9c27b0', bg:'#06000e', s:'#0e0020'},
-  {id:'space',            name:'Space',             cat:'standard', plan:'blueprint', accent:'#4fc3f7', bg:'#000508', s:'#000e18'},
-  {id:'ghost',            name:'Ghost',             cat:'standard', plan:'blueprint', accent:'#aab8e0', bg:'#050810', s:'#0c1020'},
-  {id:'glow',             name:'Glow',              cat:'standard', plan:'blueprint', accent:'#ff6d00', bg:'#050200', s:'#0e0600'},
-  {id:'grayscale',        name:'Grayscale',         cat:'standard', plan:'blueprint', accent:'#c8c8c8', bg:'#0a0a0a', s:'#141414'},
-  {id:'blackwhite',       name:'Black & White',     cat:'standard', plan:'blueprint', accent:'#ffffff', bg:'#000000', s:'#0a0a0a'},
-  {id:'old-timey',        name:'Old Timey',         cat:'standard', plan:'blueprint', accent:'#c8840a', bg:'#1e1408', s:'#2c1e10'},
-  // HEROES
-  {id:'batman',           name:'Batman',            cat:'heroes',   plan:'foundation',accent:'#f5c518', bg:'#080808', s:'#111115', jp:true},
-  {id:'superman',         name:'Superman',          cat:'heroes',   plan:'foundation',accent:'#e53935', bg:'#030060', s:'#050090'},
-  {id:'captain-america',  name:'Captain America',  cat:'heroes',   plan:'foundation',accent:'#b71c1c', bg:'#030a20', s:'#071430'},
-  {id:'wolverine',        name:'Wolverine',         cat:'heroes',   plan:'infused',   accent:'#ffd600', bg:'#0e0a00', s:'#1e1600'},
-  {id:'magneto',          name:'Magneto',           cat:'heroes',   plan:'infused',   accent:'#ce0000', bg:'#0e000a', s:'#1e0018'},
-  {id:'darth-vader',      name:'Darth Vader',       cat:'heroes',   plan:'foundation',accent:'#cc0000', bg:'#000000', s:'#080808', jp:true},
-  {id:'stormtrooper',     name:'Stormtrooper',      cat:'heroes',   plan:'foundation',accent:'#111118', bg:'#f2f2f4', s:'#ffffff', lt:true},
-  {id:'lightsaber',       name:'Lightsaber',        cat:'heroes',   plan:'foundation',accent:'#00e5ff', bg:'#000508', s:'#000d14'},
-  {id:'halo',             name:'Halo',              cat:'heroes',   plan:'foundation',accent:'#00e676', bg:'#010a04', s:'#031408'},
-  // GAMING
-  {id:'pokemon',          name:'Pokémon',           cat:'gaming',   plan:'foundation',accent:'#ffcc02', bg:'#12223D', s:'#16213e'},
-  {id:'mario',            name:'Mario',             cat:'gaming',   plan:'foundation',accent:'#e52222', bg:'#1a0800', s:'#2e1200'},
-  {id:'mario-underground',name:'Mario Underground',cat:'gaming',   plan:'infused',   accent:'#6666ff', bg:'#000018', s:'#00002e'},
-  {id:'kirby',            name:'Kirby',             cat:'gaming',   plan:'infused',   accent:'#ff4081', bg:'#120008', s:'#200014'},
-  {id:'zelda',            name:'Zelda',             cat:'gaming',   plan:'infused',   accent:'#c8a800', bg:'#060e00', s:'#0e1c00'},
-  {id:'megaman',          name:'Mega Man',          cat:'gaming',   plan:'infused',   accent:'#00a8e8', bg:'#00060e', s:'#000e20'},
-  {id:'digimon',          name:'Digimon',           cat:'gaming',   plan:'team',      accent:'#ff6600', bg:'#0a0014', s:'#160028'},
-  {id:'lego',             name:'Lego',              cat:'gaming',   plan:'team',      accent:'#ffd700', bg:'#0c0c00', s:'#1c1c00'},
-  {id:'retro',            name:'Retro',             cat:'gaming',   plan:'blueprint', accent:'#ff8c00', bg:'#120a00', s:'#201400'},
-  {id:'arcade',           name:'Arcade',            cat:'gaming',   plan:'blueprint', accent:'#ff0055', bg:'#000018', s:'#000030', jp:true},
-  // OS / TECH
-  {id:'android',          name:'Android',           cat:'os',       plan:'blueprint', accent:'#4caf50', bg:'#0a0f0a', s:'#141c14'},
-  {id:'ios',              name:'iOS',               cat:'os',       plan:'blueprint', accent:'#0a84ff', bg:'#000000', s:'#1c1c1e'},
-  {id:'ios26',            name:'iOS 26',            cat:'os',       plan:'foundation',accent:'#30d158', bg:'#050508', s:'#0e0e14', jp:true},
-  {id:'windows',          name:'Windows',           cat:'os',       plan:'foundation',accent:'#0078d4', bg:'#001828', s:'#002040'},
-  {id:'terminal',         name:'Terminal',          cat:'os',       plan:'blueprint', accent:'#00ff00', bg:'#000000', s:'#0a0a0a'},
-  // MATERIAL
-  {id:'liquid',           name:'Liquid',            cat:'material', plan:'foundation',accent:'#78c8e8', bg:'#080c12', s:'#101820'},
-  {id:'material-metal',   name:'Metal',             cat:'material', plan:'team',      accent:'#c8ccd8', bg:'#0e0e10', s:'#1a1a1e'},
-  {id:'translucent',      name:'Translucent',       cat:'material', plan:'infused',   accent:'#e8eeff', bg:'#030408', s:'#080c14'},
-  {id:'frosted',          name:'Frosted',           cat:'material', plan:'infused',   accent:'#5064c8', bg:'#e8eaf2', s:'#f0f2fa', lt:true},
-  {id:'glass',            name:'Glass',             cat:'material', plan:'team',      accent:'#64c8f8', bg:'#010610', s:'#081828'},
-  // AMBIENT / MOOD
-  {id:'candlelit',        name:'Candlelit',         cat:'ambient',  plan:'blueprint', accent:'#e8820a', bg:'#0c0600', s:'#180e00', jp:true},
-  {id:'ember',            name:'Ember',             cat:'ambient',  plan:'blueprint', accent:'#ff4500', bg:'#0a0300', s:'#160800'},
-  {id:'midnight-oil',     name:'Midnight Oil',      cat:'ambient',  plan:'foundation',accent:'#d4900a', bg:'#060402', s:'#100c06'},
-  {id:'deep-focus',       name:'Deep Focus',        cat:'ambient',  plan:'foundation',accent:'#0d9488', bg:'#020404', s:'#060c0c'},
-  {id:'neon-rain',        name:'Neon Rain',         cat:'ambient',  plan:'infused',   accent:'#ff2d9b', bg:'#06000e', s:'#0e0018'},
-  {id:'noir',             name:'Noir',              cat:'ambient',  plan:'team',      accent:'#d8cfa8', bg:'#080604', s:'#121008'},
-  {id:'blood-moon',       name:'Blood Moon',        cat:'ambient',  plan:'team',      accent:'#e8001a', bg:'#080002', s:'#140006'},
-  {id:'aurora',           name:'Aurora',            cat:'ambient',  plan:'infused',   accent:'#00ffc0', bg:'#020810', s:'#040e18'},
-  {id:'obsidian',         name:'Obsidian',          cat:'ambient',  plan:'infused',   accent:'#8b5cf6', bg:'#06040a', s:'#0e0c14'},
-  {id:'copper',           name:'Copper',            cat:'ambient',  plan:'foundation',accent:'#b87333', bg:'#0c0800', s:'#1a1200'},
-  {id:'sakura',           name:'Sakura',            cat:'ambient',  plan:'team',      accent:'#e8346c', bg:'#fff0f4', s:'#ffe8f0', lt:true},
-  // ABSTRACT
-  {id:'typewriter',       name:'Typewriter',        cat:'abstract', plan:'blueprint', accent:'#8b4513', bg:'#f0e8d4', s:'#e8dfc8', lt:true},
-  {id:'ink',              name:'Ink',               cat:'abstract', plan:'blueprint', accent:'#0f0a04', bg:'#f5f0e8', s:'#ece6d8', lt:true},
-  {id:'brutalist',        name:'Brutalist',         cat:'abstract', plan:'command',   accent:'#000000', bg:'#e8e8e8', s:'#ffffff', lt:true},
-  {id:'vapor',            name:'Vaporwave',         cat:'abstract', plan:'infused',   accent:'#ff71ce', bg:'#0a0014', s:'#140028'},
-  {id:'chalk',            name:'Chalk',             cat:'abstract', plan:'team',      accent:'#f8f8f8', bg:'#12223D', s:'#202040'},
-  {id:'blueprint-art',    name:'Blueprint',         cat:'abstract', plan:'foundation',accent:'#ffffff', bg:'#001428', s:'#001e3c'},
-  // TACTICAL
-  {id:'army',             name:'Army',              cat:'tactical', plan:'infused',   accent:'#6a8c2a', bg:'#060a02', s:'#0e1808'},
-  {id:'cia',              name:'CIA',               cat:'tactical', plan:'infused',   accent:'#c8a000', bg:'#020202', s:'#0c0c0c'},
-  {id:'fbi',              name:'FBI',               cat:'tactical', plan:'infused',   accent:'#c0c8d8', bg:'#000410', s:'#000820'},
-  {id:'ninja',            name:'Ninja',             cat:'tactical', plan:'foundation',accent:'#cc0000', bg:'#040400', s:'#0c0c00'},
-  {id:'stoic',            name:'Stoic',             cat:'tactical', plan:'blueprint', accent:'#8a8a8a', bg:'#080808', s:'#101010'},
-  // SEASONAL
-  {id:'halloween',        name:'Halloween',         cat:'seasonal', plan:'blueprint', accent:'#ff6d00', bg:'#080200', s:'#100400'},
-  {id:'christmas',        name:'Christmas',         cat:'seasonal', plan:'blueprint', accent:'#e53935', bg:'#000e04', s:'#001808'},
-  {id:'easter',           name:'Easter',            cat:'seasonal', plan:'blueprint', accent:'#9c27b0', bg:'#f0e8f8', s:'#ffe8f8', lt:true},
-  {id:'thanksgiving',     name:'Thanksgiving',      cat:'seasonal', plan:'blueprint', accent:'#bf6000', bg:'#120800', s:'#201200'},
-  {id:'usa',              name:'USA',               cat:'seasonal', plan:'blueprint', accent:'#cc0000', bg:'#010614', s:'#020c28'},
-  // NATURE
-  {id:'underwater',       name:'Underwater',        cat:'nature',   plan:'foundation',accent:'#00e5cc', bg:'#000c14', s:'#001828'},
-  {id:'forest',           name:'Forest',            cat:'nature',   plan:'infused',   accent:'#4caf50', bg:'#010a02', s:'#03140a'},
-  {id:'ocean',            name:'Ocean',             cat:'nature',   plan:'infused',   accent:'#1565c0', bg:'#000612', s:'#000e22'},
-  {id:'desert',           name:'Desert',            cat:'nature',   plan:'infused',   accent:'#d4870a', bg:'#100800', s:'#201400'},
-  {id:'storm',            name:'Storm',             cat:'nature',   plan:'infused',   accent:'#7eb8f7', bg:'#04060e', s:'#080e18'},
-  {id:'tundra',           name:'Tundra',            cat:'nature',   plan:'team',      accent:'#a8e8f0', bg:'#040e1c', s:'#081a2e'},
-  {id:'volcanic',         name:'Volcanic',          cat:'nature',   plan:'team',      accent:'#ff3d00', bg:'#120000', s:'#220000'},
-  // MUSIC
-  {id:'hiphop',           name:'Hip Hop',           cat:'music',    plan:'team',      accent:'#ffd600', bg:'#08040c', s:'#120818'},
-  {id:'jazz',             name:'Jazz',              cat:'music',    plan:'team',      accent:'#d4a020', bg:'#0e0800', s:'#1e1400'},
-  {id:'metal',            name:'Heavy Metal',       cat:'music',    plan:'team',      accent:'#888888', bg:'#000000', s:'#080808'},
-  {id:'synthwave',        name:'Synthwave',         cat:'music',    plan:'infused',   accent:'#f706cf', bg:'#0d0018', s:'#180030'},
-  {id:'lofi',             name:'Lo-Fi',             cat:'music',    plan:'foundation',accent:'#c8a878', bg:'#f2ede4', s:'#ebe4d8', lt:true},
-  {id:'punk',             name:'Punk',              cat:'music',    plan:'team',      accent:'#ff1744', bg:'#0e0000', s:'#1e0000'},
-  // REGION
-  {id:'japan',            name:'Japan',             cat:'region',   plan:'team',      accent:'#c41c24', bg:'#0a0608', s:'#180e12'},
-  {id:'viking',           name:'Viking',            cat:'region',   plan:'team',      accent:'#9a7c28', bg:'#080c14', s:'#101820'},
-  {id:'roman',            name:'Roman',             cat:'region',   plan:'team',      accent:'#c8960a', bg:'#100e08', s:'#1e1c10'},
-  {id:'wildwest',         name:'Wild West',         cat:'region',   plan:'command',   accent:'#c87840', bg:'#120a00', s:'#201400'},
-  {id:'samurai',          name:'Samurai',           cat:'region',   plan:'command',   accent:'#cc2200', bg:'#080208', s:'#120810'},
-  {id:'pharaoh',          name:'Pharaoh',           cat:'region',   plan:'command',   accent:'#c8980a', bg:'#0e0c00', s:'#1e1c00'},
-  // CULTURE
-  {id:'american-dad',     name:'American Dad',      cat:'culture',  plan:'command',   accent:'#e53935', bg:'#010614', s:'#030e28'},
-  {id:'family-guy',       name:'Family Guy',        cat:'culture',  plan:'command',   accent:'#f5c518', bg:'#001020', s:'#001c38'},
-  {id:'south-park',       name:'South Park',        cat:'culture',  plan:'command',   accent:'#ff8c00', bg:'#08100a', s:'#101e12'},
+  {id:'default', name:'NBD Default', cat:'dark', plan:'blueprint', accent:'#BD5728', bg:'#0A0C0F', s:'#13171d'},
+  {id:'light', name:'NBD Light', cat:'light', plan:'blueprint', accent:'#BD5728', bg:'#eef1f5', s:'#12223D'},
+  {id:'paper', name:'Warm Paper', cat:'light', plan:'blueprint', accent:'#8A4B14', bg:'#f2ede3', s:'#2b2216'},
+  {id:'contrast', name:'High Contrast', cat:'contrast', plan:'blueprint', accent:'#B54500', bg:'#000000', s:'#000000'},
+  {id:'midnight', name:'Midnight', cat:'dark', plan:'blueprint', accent:'#5B5FD6', bg:'#0a0a18', s:'#12122e'},
+  {id:'forest', name:'Forest', cat:'dark', plan:'blueprint', accent:'#2A7F46', bg:'#040e06', s:'#081808'},
+  {id:'ocean', name:'Ocean', cat:'dark', plan:'blueprint', accent:'#1F6FB5', bg:'#03101c', s:'#071a2c'},
+  {id:'ember', name:'Ember', cat:'dark', plan:'blueprint', accent:'#C2410C', bg:'#0e0500', s:'#1a0a02'},
+  {id:'graphite', name:'Graphite', cat:'dark', plan:'blueprint', accent:'#3F63D9', bg:'#08090b', s:'#0e1014'},
+  {id:'terminal', name:'Terminal', cat:'dark', plan:'blueprint', accent:'#0B7A0B', bg:'#000000', s:'#030803'},
 ];
 
 /* ── FONT PAIRINGS (8 fonts) ──────────────────────────────────────── */
@@ -1344,8 +1253,8 @@ function nbdRenderThemes() {
 function nbdRenderCats() {
   const el = document.getElementById('npm-cats');
   if (!el) return;
-  const cats = ['all','standard','heroes','gaming','os','material','ambient','abstract','tactical','nature','music','region','seasonal','culture','custom'];
-  const labels = {all:'All',standard:'Standard',heroes:'Heroes',gaming:'Gaming',os:'OS/Tech',material:'Material',ambient:'Ambient',abstract:'Abstract',tactical:'Tactical',nature:'Nature',music:'Music',region:'Region',seasonal:'Seasonal',culture:'Culture',custom:'⚡ Custom'};
+  const cats = ['all','dark','light','contrast','custom'];
+  const labels = {all:'All',dark:'Dark',light:'Light',contrast:'High contrast',custom:'Custom'};
   el.innerHTML = cats.map(c => `<button class="npm-cat${_nbd_activeCat===c?' on':''}" data-action="nbd-set-cat" data-cat="${c}">${labels[c]||c}</button>`).join('');
 }
 
@@ -1407,7 +1316,6 @@ function _nbdApplyCustomVars(accent,bg,s,text,muted) {
 
 /* ── COPY HELPERS ─────────────────────────────────────────────────── */
 function nbdCopyClass() { const c=_nbd_activeTheme==='default'?'(default — no class needed)':`body.theme-${_nbd_activeTheme}`; navigator.clipboard?.writeText(c); nbdToast('Copied: '+c); }
-function nbdCopyFS()    { const c=`await db.collection('users').doc(uid).update({ theme: '${_nbd_activeTheme}', font: '${_nbd_activeFont}' });`; navigator.clipboard?.writeText(c); nbdToast('Firestore write copied'); }
 
 /* ── HOW-TO MODAL ─────────────────────────────────────────────────── */
 function nbdHowtoOpen()  { document.getElementById('nbd-howto-modal').classList.add('open'); }
@@ -1496,7 +1404,6 @@ window.buildWelcomeThemePicker = () => {};  // DS welcome modal — no-op, full 
     'nbd-save-custom':     () => nbdSaveCustom(),
     'nbd-howto-open':      () => nbdHowtoOpen(),
     'nbd-howto-close':     () => nbdHowtoClose(),
-    'nbd-copy-fs':         () => nbdCopyFS(),
     'nbd-set-cat':         (el) => nbdSetCat(el.dataset.cat, el),
     'switch-to':           (el) => switchTo(+el.dataset.pageIdx),
     'search-jump':         (el) => { switchTo(+el.dataset.pageIdx); toggleSearch(); },
