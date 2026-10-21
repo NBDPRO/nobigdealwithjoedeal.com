@@ -22,7 +22,12 @@ anything newer is live.
 | Research note: GitHub + Grok ideas for the tracker (all ten ideas were then built) | #2597 |
 | Coach: last-time line + live PR trophy; rep-range PR (volume sets earn their own trophy, e1RM trophies only up to 12 reps) | #2612, #2614 |
 | Daily Success audit and revamp (Jo: "looks wrong, barely readable"): default-theme colour tokens, phone layer (two-row header, 12px type, 44px targets, tables that fit), the CRM's dark card skin, ten brand-safe themes, developer button removed | #2613, #2615, #2616, #2617 |
-| **Queued when this was written (check the merge queue):** coach Previous per set + rest alert (#2618), collapsible day sections + sticky Today bar + door stats hidden until used (#2619), Call Center filters (#2620) | #2618-#2620 |
+| Coach Previous per set + rest alert setting; collapsible day sections + sticky Today bar + door stats hidden until used; Call Center filters (date / range / Today / Last 24 h / direction / order); coach workout history | #2618, #2619, #2620, #2622 |
+| Light-skin contrast fixes; Call Center review fixes (filter count wording, storage guard, oldest/newest footer) | #2623, #2624 |
+| Silent-failure review fixes: a failed save keeps the workout open (no more lost workout), bodyweight live Rep PR, section-toggle storage guard | #2625 |
+| Test hardening from the vacuous-test audit (logic gaps, comment-blind pins, type floor incl. rem/em/`font:`, real Call Center tab click) | #2626, #2628, #2633 |
+| Phone header strip fades at the right edge (DELETE / CSV / PDF / SAVE were off-screen with no hint); tab-close x and week-strip letters follow the theme | #2630, #2632 |
+| Docs: overnight log, forward roadmap ([DAILY-SUCCESS-ROADMAP-2026-10-21](DAILY-SUCCESS-ROADMAP-2026-10-21.md)) | #2627, #2629, #2631 |
 
 Live checks done: decoder file sha256 matches the reviewed build, tracker scripts served, CSP allows
 the food database only on the tracker pages (not `/`, not `/pro/dashboard`), health ingest answers 404 to
@@ -35,7 +40,9 @@ anonymous POSTs. Not done: anything on a real phone.
 - **CI backlog stalls the queue**: stacked PRs re-run the whole stack's CI each; seven stacked coach PRs
   plus others held the queue for an hour. Land a stack through its top PR, or one bundle PR.
 - **`@shard2` has never finished** (25 min cap): failing specs burn three attempts each. `@shard3` now
-  mostly finishes (181 pass; the remaining failures are in `visit-recorder`). See
+  mostly finishes (181 pass), but the failing specs **rotate run to run** (`visit-recorder`, `phone-quick-wins-part2`,
+  `yard-signs-edit`: 5 s expect timeouts, sometimes the job cap) - an overloaded shard, not a broken test and
+  not the tracker changes. Proposed: split `@shard3` in two or raise the emulator-spec expect timeout (Jo's call). See
   [shard2-e2e-never-finishes-2026-10-20](../qa/shard2-e2e-never-finishes-2026-10-20.md).
 - **A spec that never ran to completion in CI is probably stale**: four of them had drifted from the
   product, and one exposed a real bug (the Record visit bar covering Home's last card).
@@ -66,7 +73,9 @@ anonymous POSTs. Not done: anything on a real phone.
   (layouts, layout-island, crew-calendar, call-center-card, bento-board retries).
 - Active Era weight import, then the Hume -> Apple Health -> Shortcut path is already built (dark).
 - Keep an eye on CI queue depth before opening more than one PR at a time.
-- **Daily Success revamp, the rest:** coach workout history (built on branch `feat/coach-history`, open it after #2618 merges); a real-iPhone
-  pass of everything in the audit note; light-theme sweep; Apple Health setup walk-through. Decisions Jo already made are in the memory note
-  `daily-success-revamp-decisions-2026-10-21` (themes, dev button, accordion day page, door stats, coach extras, rollout).
-- **Call Center:** filters are in #2620; ask Jo what else he wants (status filters like Handled / Urgent / Has promise, a missed-call filter).
+- **Daily Success revamp, the rest:** a real-iPhone pass of everything in the audit note; Apple Health setup walk-through. The light-theme /
+  phone sweep is done (ten skins x 360 / 390 / 412, no overflow; fixes in #2630 and #2632; the dark hero cover cannot be read by the contrast
+  probe). Decisions Jo already made are in the memory note `daily-success-revamp-decisions-2026-10-21`.
+- **Forward plan:** [DAILY-SUCCESS-ROADMAP-2026-10-21](DAILY-SUCCESS-ROADMAP-2026-10-21.md) - workout templates first, then set types + finish
+  summary, exercise library depth, measurements/photos, Sunday weekly review.
+- **Call Center:** filters are live; ask Jo what else he wants (status filters like Handled / Urgent / Has promise, a missed-call filter, saved views).
