@@ -20,6 +20,9 @@ anything newer is live.
 | E2E shard2 spec races fixed + `@shard2` split into `@shard2` / `@shard3` | #2609 |
 | Phone Home: the last card ("More on Home") was hidden under the Record visit bar - fixed, plus four stale E2E specs repaired | #2610 |
 | Research note: GitHub + Grok ideas for the tracker (all ten ideas were then built) | #2597 |
+| Coach: last-time line + live PR trophy; rep-range PR (volume sets earn their own trophy, e1RM trophies only up to 12 reps) | #2612, #2614 |
+| Daily Success audit and revamp (Jo: "looks wrong, barely readable"): default-theme colour tokens, phone layer (two-row header, 12px type, 44px targets, tables that fit), the CRM's dark card skin, ten brand-safe themes, developer button removed | #2613, #2615, #2616, #2617 |
+| **Queued when this was written (check the merge queue):** coach Previous per set + rest alert (#2618), collapsible day sections + sticky Today bar + door stats hidden until used (#2619), Call Center filters (#2620) | #2618-#2620 |
 
 Live checks done: decoder file sha256 matches the reviewed build, tracker scripts served, CSP allows
 the food database only on the tracker pages (not `/`, not `/pro/dashboard`), health ingest answers 404 to
@@ -63,3 +66,7 @@ anonymous POSTs. Not done: anything on a real phone.
   (layouts, layout-island, crew-calendar, call-center-card, bento-board retries).
 - Active Era weight import, then the Hume -> Apple Health -> Shortcut path is already built (dark).
 - Keep an eye on CI queue depth before opening more than one PR at a time.
+- **Daily Success revamp, the rest:** coach workout history (built on branch `feat/coach-history`, open it after #2618 merges); a real-iPhone
+  pass of everything in the audit note; light-theme sweep; Apple Health setup walk-through. Decisions Jo already made are in the memory note
+  `daily-success-revamp-decisions-2026-10-21` (themes, dev button, accordion day page, door stats, coach extras, rollout).
+- **Call Center:** filters are in #2620; ask Jo what else he wants (status filters like Handled / Urgent / Has promise, a missed-call filter).
