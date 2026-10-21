@@ -268,7 +268,7 @@
         : `<span class="wc-pr" title="Beats your best estimated 1RM (${esc(Math.round(lp.prev))} lb)">\u{1F3C6} PR</span>`)
       : '';
     return `<div class="wc-set${st.done ? ' done' : ''}${st.warm ? ' warm' : ''}${next ? ' next' : ''}">
-        <span class="wc-n">${st.warm ? 'W' : (tag || n)}</span>
+        ${st.warm ? '<span class="wc-n">W</span>' : `<button class="wc-n wc-kind${st.kind ? ' k-' + esc(st.kind) : ''}" data-coach-action="kind" data-i="${i}" data-s="${j}" aria-label="${who}Set ${n}${st.kind === 'drop' ? ', drop set' : st.kind === 'fail' ? ', to failure' : ''}. Tap to change the set type">${esc(tag || n)}${esc(C().setKindLabel(st.kind))}</button>`}
         <input class="wc-in" inputmode="decimal" placeholder="lb" aria-label="Weight, ${who}${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : n}" value="${esc(st.weight)}" data-coach-field="weight" data-i="${i}" data-s="${j}">
         <span class="wc-x-sep">×</span>
         <input class="wc-in" inputmode="numeric" placeholder="${esc(st.warm ? st.plan : x.target && x.target.reps)}" aria-label="Reps, ${who}${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : n}" value="${esc(st.reps)}" data-coach-field="reps" data-i="${i}" data-s="${j}">
@@ -509,7 +509,7 @@
     const session = {
       id: live.id, date: live.date || today(), split: live.split, startedAt: live.startedAt, finishedAt: now, mt: now,
       exercises: live.exercises.map((x, k) => Object.assign({ exId: x.exId, name: x.name, slot: x.slot, repRange: x.repRange,
-        sets: (x.sets || []).filter((st) => st.done).map((st) => Object.assign({ reps: parseFloat(st.reps) || 0, weight: st.weight === '' ? '' : (parseFloat(st.weight) || 0), rpe: parseFloat(st.rpe) || '', done: true }, st.warm ? { warm: true } : {})) }, x.deload ? { deload: true } : {}, x.pair && pairStarts(live.exercises).includes(k) && ((live.exercises[k + 1] || {}).sets || []).some((st) => st.done) ? { pair: true } : {}))
+        sets: (x.sets || []).filter((st) => st.done).map((st) => Object.assign({ reps: parseFloat(st.reps) || 0, weight: st.weight === '' ? '' : (parseFloat(st.weight) || 0), rpe: parseFloat(st.rpe) || '', done: true }, st.warm ? { warm: true } : {}, !st.warm && (st.kind === 'drop' || st.kind === 'fail') ? { kind: st.kind } : {})) }, x.deload ? { deload: true } : {}, x.pair && pairStarts(live.exercises).includes(k) && ((live.exercises[k + 1] || {}).sets || []).some((st) => st.done) ? { pair: true } : {}))
         .filter((x) => x.sets.length),
     };
     const all = C().mergeSessions([session].concat(prior), []);
@@ -692,6 +692,13 @@
         live.exercises[i] = Object.assign({}, x, { exId, name: ex.name, target, sets: rebuildSets(x, exId, target), ready: undefined });
         applyReadyTo(live);
         swapOpen = -1; swapShowAvoided = false; persistLive(); render(); return;
+      }
+      case 'kind': {
+        const st = live.exercises[i] && live.exercises[i].sets[j];
+        if (!st || st.warm) return;
+        const k = C().nextSetKind(st.kind);
+        if (k) st.kind = k; else delete st.kind;
+        persistLive(); render(); return;
       }
       case 'done': {
         unlockAudio();

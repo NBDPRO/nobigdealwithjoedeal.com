@@ -568,6 +568,7 @@
     for (const ex of (session && session.exercises) || []) {
       let best = 0, bestSet = null, repSet = null, repHit = null;
       for (const set of workingSets(ex)) {
+        if (set.kind === 'drop') continue;
         if (Math.round(num(set.reps)) <= HIGH_REP) { const v = e1rm(set.weight, set.reps); if (v > best) { best = v; bestSet = set; } }
         const hit = repPRCheck(ex.exId, set.weight, set.reps, priorSessions);
         if (hit && (!repSet || Math.round(num(set.reps)) > Math.round(num(repSet.reps)))) { repSet = set; repHit = hit; }
@@ -805,7 +806,7 @@
     if (!historyOf(ex.exId, priorSessions).length) return null;
     let e = null, r = null;
     (ex.sets || []).forEach((s, j) => {
-      if (!s || s.warm || s.done !== true || !(num(s.reps) > 0)) return;
+      if (!s || s.warm || s.kind === 'drop' || s.done !== true || !(num(s.reps) > 0)) return;
       const reps = Math.round(num(s.reps));
       if (prevE > 0 && reps <= HIGH_REP) {
         const v = e1rm(s.weight, s.reps);
@@ -845,10 +846,16 @@
       return {
         id: s.id, date: s.date, label: SPLITS[s.split] ? SPLITS[s.split].label : String(s.split || 'Workout'),
         sets: v.sets, lbs: v.lbs, minutes: mins, prCount: prs.length, prs,
-        exercises: (s.exercises || []).map((ex) => ({ exId: ex.exId, name: ex.name || (BY_ID[ex.exId] || {}).name || ex.exId, sets: workingSets(ex).map((st) => prevText({ weight: num(st.weight), reps: Math.round(num(st.reps)) })) })).filter((e) => e.sets.length),
+        exercises: (s.exercises || []).map((ex) => ({ exId: ex.exId, name: ex.name || (BY_ID[ex.exId] || {}).name || ex.exId, sets: workingSets(ex).map((st) => prevText({ weight: num(st.weight), reps: Math.round(num(st.reps)) }) + (setKindLabel(st.kind) ? ' ' + setKindLabel(st.kind) : '')) })).filter((e) => e.sets.length),
       };
     });
   }
+
+  /** Set tags (tap the set number to cycle): normal -> drop set -> to failure -> normal. Warm-ups are their own thing and never cycle. */
+  const SET_KINDS = ['', 'drop', 'fail'];
+  const nextSetKind = (k) => SET_KINDS[(Math.max(0, SET_KINDS.indexOf(k)) + 1) % SET_KINDS.length];   // unknown / missing counts as normal
+  /** 'D' / 'F' / '' - the short mark shown next to the set number and in history. */
+  const setKindLabel = (k) => (k === 'drop' ? 'D' : k === 'fail' ? 'F' : '');
 
   /** What the rest timer does when it hits zero. iPhone Safari has no navigator.vibrate, so sound is the default. */
   const REST_ALERTS = ['both', 'sound', 'vibrate', 'off'];
@@ -862,7 +869,7 @@
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
     MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
     DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, repPRCheck, HIGH_REP, previousSets, prevText, historyList, REST_ALERTS, normRestAlert, restAlertPlan, daysSince, candidatesFor, pickForSlot, targetFor,
-    nextSplit, buildSession, repeatSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
+    nextSplit, buildSession, repeatSession, SET_KINDS, nextSetKind, setKindLabel, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCoach = api;

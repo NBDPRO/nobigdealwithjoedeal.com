@@ -152,6 +152,12 @@ body.wc-lock { overflow: hidden; }
 .wc-prev { grid-column: 2 / 6; font-size: 12px; color: var(--muted, #9aa6b6); margin: -2px 0 2px; }
 .wc-pr { font-size: 11px; font-weight: 700; color: #1a1300; background: #f5c27a; border-radius: 999px; padding: 2px 8px; grid-column: 1 / -1; justify-self: start; margin: -2px 0 2px 28px; white-space: nowrap; }
 .wc-set.warm .wc-n { color: #f5c27a; font-weight: 700; }
+/* the set number is a button: tap to mark a drop set (D) or a set taken to failure (F) */
+button.wc-kind { background: transparent; border: 0; padding: 0; min-height: 44px; min-width: 28px; cursor: pointer; font-family: inherit; }
+button.wc-kind { position: relative; }
+button.wc-kind::after { content: ""; position: absolute; top: 0; bottom: 0; left: -8px; right: -8px; }   /* the column is ~28px wide: widen the tap area to 44px */
+button.wc-kind.k-drop { color: #7dd3fc; font-weight: 700; }
+button.wc-kind.k-fail { color: #fda4af; font-weight: 700; }
 .wc-set.warm .wc-in, .wc-set.warm .wc-rpe { background: rgba(245, 194, 122, .08); }
 .wc-stall { background: rgba(245, 158, 11, .1); border: 1px solid rgba(245, 158, 11, .45); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; font-size: 12px; color: #fcd9a0; }
 .wc-stall-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
