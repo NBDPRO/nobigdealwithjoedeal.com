@@ -25,9 +25,11 @@
  *     resurrected (health-shortcut-logic.js decidePageWrite).
  *
  * Gates, in order: POST only -> kill switch (HEALTH_SHORTCUT_DISABLED=true) ->
- * system/healthShortcut {enabled:true} (Jo flips it in the Firebase console;
- * absent = off = 404, the endpoint is inert) -> per-IP limit -> size and
- * content-type -> key -> per-key and per-user limits -> body -> write.
+ * system/healthShortcut {enabled:true, allowedUids?:[...]} (Jo flips it in the
+ * Firebase console; absent = off = 404, the endpoint is inert and writes
+ * nothing, not even a limiter doc) -> per-IP limit -> size and content-type ->
+ * key -> per-key limit -> body -> per-user daily cap (well-formed readings
+ * only) -> write. Turn off works even while the flag is off.
  *
  * Sleep: the day page has no sleep-hours field today (l-sleep is a checkbox),
  * so v1 validates sleepHours and discards it. The response says so.
@@ -60,13 +62,17 @@ const realDeps = () => ({
   killed: () => process.env.HEALTH_SHORTCUT_DISABLED === 'true',
 });
 
-async function flagOn(d) {
-  if (d.killed()) return false;
+// The flag doc: { enabled:true, allowedUids?:[uid,...] }. With allowedUids set,
+// only those accounts may create a key or write a reading (flag-wide otherwise).
+async function readFlag(d) {
+  if (d.killed()) return null;
   try {
     const s = await d.db.doc(FLAG_DOC).get();
-    return !!(s.exists && s.data() && s.data().enabled === true);
-  } catch (e) { return false; }   // fail closed
+    const x = s.exists ? s.data() : null;
+    return x && x.enabled === true ? x : null;
+  } catch (e) { return null; }   // fail closed
 }
+const permits = (flag, uid) => !!flag && (!Array.isArray(flag.allowedUids) || flag.allowedUids.length === 0 || flag.allowedUids.includes(uid));
 
 // ── the Shortcut's POST ───────────────────────────────────────────────────
 function makeIngest(getDeps) {
@@ -79,8 +85,10 @@ function makeIngest(getDeps) {
 
     if (req.method !== 'POST') { res.set('Allow', 'POST'); send(405, { error: 'method_not_allowed' }); return; }
     if (d.killed()) { send(404, { error: 'not_found' }); return; }
+    // Flag BEFORE the limiter: while dark nothing is written, not even a limiter doc.
+    const flag = await readFlag(d);
+    if (!flag) { send(404, { error: 'not_found' }); return; }
     if (!(await d.httpRateLimit(req, res, 'healthshortcut:ip', IP_LIMIT, IP_WINDOW))) return;
-    if (!(await flagOn(d))) { send(404, { error: 'not_found' }); return; }
 
     // Size and type come before the body is looked at.
     const raw = req.rawBody;
@@ -99,10 +107,10 @@ function makeIngest(getDeps) {
     if (!key || !L.safeEqualHex(key.hash, hash) || typeof key.uid !== 'string' || !key.uid) { send(401, { error: 'unauthorized' }); return; }
     const uid = key.uid;
     const tag = uid.slice(0, 6);
+    if (!permits(flag, uid)) { send(401, { error: 'unauthorized' }); return; }
 
     try {
       await d.enforceRateLimit('healthshortcut:key', hash, KEY_LIMIT, KEY_WINDOW);
-      await d.enforceRateLimit('healthshortcut:day', uid, L.DAILY_CAP, DAY_WINDOW);
     } catch (e) {
       if (e && e.rateLimited) {
         d.logger.warn('healthShortcut: rate limited', { uid: tag });
@@ -118,6 +126,22 @@ function makeIngest(getDeps) {
     const now = d.now();
     const v = L.validateBody(req.body, now);
     if (!v.ok) { d.logger.info('healthShortcut: rejected', { uid: tag, status: 400 }); send(400, { error: 'bad_request' }); return; }
+
+    // The daily cap counts only well-formed readings, so a leaked key cannot
+    // burn the owner's day with junk bodies (the per-key hourly cap covers those).
+    try {
+      await d.enforceRateLimit('healthshortcut:day', uid, L.DAILY_CAP, DAY_WINDOW);
+    } catch (e) {
+      if (e && e.rateLimited) {
+        d.logger.warn('healthShortcut: daily cap', { uid: tag });
+        res.set('Retry-After', String(Math.ceil((e.retryAfterMs || DAY_WINDOW) / 1000)));
+        send(429, { error: 'too_many_requests' });
+        return;
+      }
+      d.logger.error('healthShortcut: limiter failed', { uid: tag });
+      send(503, { error: 'unavailable' });
+      return;
+    }
 
     let result;
     try {
@@ -159,7 +183,8 @@ function makeIngest(getDeps) {
 
 // ── the settings card's calls ─────────────────────────────────────────────
 async function manageCore(d, uid, action) {
-  const on = await flagOn(d);
+  const flag = await readFlag(d);
+  const on = permits(flag, uid);
   const stRef = d.db.doc(STATE + '/' + uid);
   const view = (sd) => ({
     available: true,
@@ -177,7 +202,9 @@ async function manageCore(d, uid, action) {
     if (!on) return { available: false, enabled: false };
     return view(await snapshot());
   }
-  if (!on) throw Object.assign(new Error('off'), { code: 'failed-precondition' });
+  // Turn off always works, even with the flag off or the kill switch on: a key
+  // leaked during an incident must be revocable during the incident.
+  if (!on && action !== 'off') throw Object.assign(new Error('off'), { code: 'failed-precondition' });
 
   if (action === 'create') {
     const token = L.mintToken();

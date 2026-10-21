@@ -97,7 +97,12 @@ console.log('\nESCAPING');
 console.log('\nCSP + WIRING');
 {
   const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/mg, '');
-  ok('no inline on* handlers in the generated markup', !/\son[a-z]+=/.test(code.replace(/\bon[A-Z]\w*/g, '')) || !/'\s*<[^']*\son[a-z]+=/.test(code));
+  const ON = /\son[a-z]+\s*=/;
+  ok('no inline on* handler attributes anywhere in the script markup strings', !ON.test(code));
+  ok('NEGATIVE CONTROL: the same scan flags a string with an onclick attribute', ON.test('<button onclick="x()">'));
+  const AUTH = fs.readFileSync(path.join(DS, 'js', 'auth-init.js'), 'utf8');
+  const NBDAUTH = fs.readFileSync(path.join(__dirname, '..', 'docs', 'pro', 'js', 'nbd-auth.js'), 'utf8');
+  ok('the tracker page initialises App Check the way the callable needs (NBDAuth.init + key config)', HTML.includes('/pro/js/dashboard-appcheck-config.js') && /NBDAuth\.init/.test(AUTH) && /initializeAppCheck/.test(NBDAUTH));
   ok('one delegated document click listener, no per-element listeners', (code.match(/addEventListener\('click'/g) || []).length === 1 && !/\.onclick\s*=/.test(code));
   ok('the key is never written to storage', !/localStorage|sessionStorage|indexedDB/.test(code));
   ok('index.html loads the script (external, deferred) and the stylesheet', /<script src="\/pro\/daily-success\/js\/health-shortcut-ui\.js\?v=1" defer><\/script>/.test(HTML) && HTML.includes('/pro/daily-success/css/health-shortcut.css'));

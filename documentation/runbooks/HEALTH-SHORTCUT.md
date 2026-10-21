@@ -18,7 +18,9 @@ Code: `functions/health-shortcut.js` + `health-shortcut-logic.js`; card:
    endpoint answers **404 to everyone** and the tracker shows no card.
 2. Firebase console → Firestore → collection `system` → document
    `healthShortcut` (create it) → field `enabled` = boolean `true`.
-   (A string `"true"` does not count.)
+   (A string `"true"` does not count.) **Also add `allowedUids` = array containing
+   your own uid** so only your account can make a key; without it any signed-in
+   CRM user could.
 3. Open the tracker on the phone → the dashboard shows **⌚ Apple Health
    weight** → **Create Shortcut key** → copy the key → follow the steps on the
    card (they are written for the Shortcuts app, tap by tap).
@@ -71,7 +73,13 @@ Known limit: a weight typed on the phone while it is offline, with an edit time
 older than the server's write, can lose to the server copy on the next sync
 (newer `mt` wins). In practice sync runs two seconds after a save.
 
+Known limits kept on purpose: a suspended account's key still writes (it only ever
+writes that user's own weight; offboarding does not delete keys yet), and the
+Copy button puts the key on the iOS clipboard, which Universal Clipboard may
+sync to your other devices: paste it into the Shortcut, then copy something else.
+
 ## Rotate / revoke
 
 Card → **Rotate key** (tap twice) shows a new key once; paste it into the
-Shortcut's Authorization header. **Turn off** (tap twice) deletes the key.
+Shortcut's Authorization header. **Turn off** (tap twice) deletes the key, and still works if the flag is off
+or the kill switch is on.

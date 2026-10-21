@@ -113,6 +113,7 @@ async function call(world, o) {
   const body = o.body === undefined ? { date: '2026-10-20', weightLbs: 185.24 } : o.body;
   const rawStr = typeof body === 'string' ? body : JSON.stringify(body);
   const req = {
+    query: o.query || {},
     method: o.method || 'POST',
     headers: Object.assign({ 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(rawStr)) },
       o.token === null ? {} : { authorization: 'Bearer ' + (o.token || world.token) }, o.headers || {}),
@@ -174,7 +175,7 @@ const logText = (w) => JSON.stringify(w.logs);
     ok('no Authorization header -> 401', (await call(w, { token: null })).code === 401);
     ok('wrong key (same shape) -> 401', (await call(w, { token: L.mintToken() })).code === 401);
     ok('malformed bearer -> 401', (await call(w, { rawAuth: 'Bearer nope' })).code === 401);
-    ok('a key in the query string is not accepted: no header + ?token=<key> -> 401', (await call(w, { token: null, headers: {} })).code === 401);
+    ok('a key in the query string is not accepted: no header + ?token=<key> -> 401', (await call(w, { token: null, query: { token: w.token, key: w.token } })).code === 401);
     const old = w.token;
     const rot = await HS._manageCore(w.deps(), 'jo-uid', 'create');
     ok('rotating returns a different key', rot.token && rot.token !== old);
@@ -212,6 +213,23 @@ const logText = (w) => JSON.stringify(w.logs);
     ok('flag off: create is refused (failed-precondition) and mints nothing', threw && threw.code === 'failed-precondition' && wm.db.store.size === 0);
     const st = await HS._manageCore(wm.deps(), 'jo-uid', 'status');
     ok('flag off: status says available:false (the card stays hidden)', st.available === false);
+    const wd = await setup();
+    wd.db.store.delete('system/healthShortcut'); wd.counters.clear();
+    await call(wd, {}); await call(wd, { token: L.mintToken() });
+    ok('dark: a POST touches no rate-limit counter and writes no page (nothing is written while off)', wd.counters.size === 0 && pagesOf(wd).length === 0);
+    ok('control: with the flag on the same POST does touch the limiter', (wd.db.store.set('system/healthShortcut', { enabled: true }), await call(wd, {}), wd.counters.size > 0));
+    const wo = await setup();
+    wo.db.store.delete('system/healthShortcut');
+    const offDark = await HS._manageCore(wo.deps(), 'jo-uid', 'off');
+    ok('Turn off works while the flag is off, and the key doc is deleted', offDark.enabled === false && !wo.db.store.has('health_shortcut_keys/' + wo.hash));
+    const wk = await setup(); wk.env.HEALTH_SHORTCUT_DISABLED = 'true';
+    await HS._manageCore(wk.deps(), 'jo-uid', 'off');
+    ok('...and under the kill switch too', !wk.db.store.has('health_shortcut_keys/' + wk.hash));
+    const wa = await setup(); wa.db.store.set('system/healthShortcut', { enabled: true, allowedUids: ['someone-else'] });
+    ok('allowedUids: a key for an unlisted user is refused (401)', (await call(wa, {})).code === 401 && pagesOf(wa).length === 0);
+    ok('allowedUids: an unlisted user sees no card and cannot create', (await HS._manageCore(wa.deps(), 'jo-uid', 'status')).available === false);
+    wa.db.store.set('system/healthShortcut', { enabled: true, allowedUids: ['jo-uid'] });
+    ok('control: the listed user works', (await call(wa, {})).code === 200 && (await HS._manageCore(wa.deps(), 'jo-uid', 'status')).available === true);
   }
 
   console.log('\nVALIDATION (every failure is the same generic 400)');
@@ -284,6 +302,10 @@ const logText = (w) => JSON.stringify(w.logs);
     const c3 = []; for (let i = 0; i < 3; i++) c3.push((await call(w3, { body: { date: '2026-10-1' + (i + 5), weightLbs: 180 + i } })).code);
     ok('per-user daily cap trips -> 429, and the 3rd reading was not written', c3.join() === '200,200,429' && pagesOf(w3, '2026-10-17').length === 0, c3.join());
     ok('the real daily cap is 50 and the key window is 10/hour, the IP window 20/10min (source pins)', L.DAILY_CAP === 50 && /KEY_LIMIT = 10/.test(fs.readFileSync(path.join(ROOT, 'functions', 'health-shortcut.js'), 'utf8')) && /IP_LIMIT = 20/.test(fs.readFileSync(path.join(ROOT, 'functions', 'health-shortcut.js'), 'utf8')));
+    const w5 = await setup({ limits: { 'healthshortcut:day': 2, 'healthshortcut:ip': 1000, 'healthshortcut:key': 1000 } });
+    for (let i = 0; i < 5; i++) await call(w5, { body: { date: 'bad', weightLbs: 1 } });
+    const okc = []; for (let i = 0; i < 3; i++) okc.push((await call(w5, { body: { date: '2026-10-1' + (i + 5), weightLbs: 180 + i } })).code);
+    ok('junk bodies do not burn the daily cap: 5 rejected, then 2 good readings still pass and the 3rd trips', okc.join() === '200,200,429', okc.join());
     const w4 = await setup();
     const bad401 = await call(w4, { token: L.mintToken() });
     ok('control: with the default limits the same request is not 429', (await call(w4, {})).code === 200 && bad401.code === 401);
@@ -366,7 +388,8 @@ const logText = (w) => JSON.stringify(w.logs);
     const wf = makeWorld();
     wf.db.doc = () => ({ get: async () => { throw new Error('down'); } });
     const rf = await wf.handler({ method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + L.mintToken() }, body: {}, rawBody: Buffer.from('{}') }, mkRes());
-    ok('the flag read failing closes the endpoint (no throw)', rf === undefined);
+    const rfRes = mkRes(); await wf.handler({ method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + L.mintToken() }, body: {}, rawBody: Buffer.from('{}') }, rfRes);
+    ok('the flag read failing closes the endpoint: 404, no throw', rf === undefined && rfRes.code === 404, String(rfRes.code));
   }
 
   console.log('\nLOGS: no token, no body, no header');
