@@ -159,7 +159,7 @@
         <button class="btn wc-go" data-coach-action="open">Resume workout</button>`;
     } else {
       body = `<div class="wc-line">Next in your rotation: <b>${esc(C().SPLITS[next].label)}</b></div>
-        <button class="btn wc-go" data-coach-action="start">Start today's workout</button>`;
+        <button class="btn wc-go" data-coach-action="start">Start today's workout</button>${all.some((x) => x.finishedAt && x.split === next) ? `<button class="btn btn-ghost wc-repeat" data-coach-action="repeat">Repeat last ${esc(C().SPLITS[next].label)}</button>` : ''}`;
     }
     const meta = [];
     if (last) meta.push('Last: ' + esc(C().SPLITS[last.split] ? C().SPLITS[last.split].label : last.split) + ' · ' + esc(fmtDay(last.date)));
@@ -478,6 +478,17 @@
   }
 
   // ── actions ──────────────────────────────────────────────────────────
+  // Same lifts and weights as the last time this split was done, reps blank (Previous shows what to beat).
+  function repeatLast() {
+    if (live) { open(); return; }
+    const so = settings();
+    const built = C().repeatSession(C().nextSplit(sessions(), so.rotation), sessions(), { today: today(), avoid: so.avoid, warmups: so.warmups, plates: so.plates });
+    if (!built) { toast('Nothing to repeat yet - do this workout once first'); return; }
+    live = Object.assign(built, { id: 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), seed: Date.now() % 1000000007, startedAt: Date.now() });
+    persistLive();
+    open();
+  }
+
   function start() {
     if (!live) { live = newSession(C().nextSplit(sessions(), settings().rotation)); persistLive(); }
     open();
@@ -544,6 +555,7 @@
     if (a !== 'discard' && !String(a).startsWith('split') && a !== 'swap-to' && a !== 'avoid-ex') armed = '';
     switch (a) {
       case 'start': start(); return;
+      case 'repeat': repeatLast(); return;
       case 'open': histView = false; open(); return;
       case 'hist-open': histView = true; histId = null; summary = null; open(); return;
       case 'hist-toggle': histId = histId === String(t.dataset.id) ? null : String(t.dataset.id); render(); return;

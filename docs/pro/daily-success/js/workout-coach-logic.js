@@ -439,6 +439,35 @@
     return { split, label: def.label, date: o.today, exercises };
   }
 
+  /**
+   * "Repeat last <split>": the same lifts, working-set count and per-set weights as the last finished session of that split,
+   * reps left blank so the Previous column shows what to beat. Warm-ups are regenerated for the first weight. Lifts that are now
+   * on the avoid list are skipped. -> null when that split was never finished (or nothing usable is left).
+   */
+  function repeatSession(split, sessions, o) {
+    o = o || {};
+    const def = SPLITS[split];
+    const last = def && finished(sessions).find((s) => s.split === split);
+    if (!last) return null;
+    const exercises = [];
+    (last.exercises || []).forEach((ex) => {
+      const lib = BY_ID[ex.exId];
+      if (!lib || isAvoided(lib, o.avoid)) return;
+      const work = workingSets(ex);
+      if (!work.length) return;
+      const slot = def.slots[ex.slot] || null;
+      const sets = setsFor(slot, ex.exId, { weight: num(work[0].weight) }, work.length, o);
+      let k = 0;
+      sets.forEach((st) => {
+        if (st.warm) return;
+        const w = work[k++];
+        st.weight = w.weight === '' || w.weight == null ? '' : num(w.weight);
+      });
+      exercises.push({ exId: ex.exId, name: ex.name || lib.name, slot: ex.slot, repRange: slot ? slot.reps.slice() : (ex.repRange || []).slice(), target: ex.target || null, sets });
+    });
+    return exercises.length ? { split, label: def.label, date: o.today, exercises, repeatOf: last.id } : null;
+  }
+
   /** Other exercises that could fill this slot today, least-recent first. */
   function swapOptions(split, slotIdx, currentIds, sessions, opts) {
     const def = SPLITS[split];
@@ -825,7 +854,7 @@
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
     MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
     DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, repPRCheck, HIGH_REP, previousSets, prevText, historyList, REST_ALERTS, normRestAlert, restAlertPlan, daysSince, candidatesFor, pickForSlot, targetFor,
-    nextSplit, buildSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
+    nextSplit, buildSession, repeatSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCoach = api;
