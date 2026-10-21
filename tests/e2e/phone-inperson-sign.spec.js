@@ -114,7 +114,7 @@ async function signInPerson(page, leadId) {
   await page.locator('.nbdv-action-btn', { hasText: 'Save to Customer' }).tap();
 }
 
-test.describe('phone: in-person signing moves the card @shard2', () => {
+test.describe('phone: in-person signing moves the card @shard3', () => {
   test.skip(!creds, 'needs PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD');
   test.use(IPHONE);
 

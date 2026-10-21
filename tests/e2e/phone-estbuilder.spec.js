@@ -194,7 +194,7 @@ async function foldedPaneFillsScreen(page, paneSel) {
 
 // ── 1. Layout of the three steps, at the small-Android width ───────────────
 
-test.describe('phone estbuilder: V2 steps open usable at 360px @shard2', () => {
+test.describe('phone estbuilder: V2 steps open usable at 360px @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.use({ ...ANDROID, viewport: { width: 360, height: 860 } });
 
@@ -303,7 +303,7 @@ test.describe('phone estbuilder: V2 steps open usable at 360px @shard2', () => {
 
 // ── 2. Review scope-row controls at Jo's width ─────────────────────────────
 
-test.describe('phone estbuilder: scope rows at 412px @shard2', () => {
+test.describe('phone estbuilder: scope rows at 412px @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.use({ ...ANDROID, viewport: { width: 412, height: 860 } });
 
@@ -371,7 +371,7 @@ test.describe('phone estbuilder: scope rows at 412px @shard2', () => {
 
 // ── 3. Reopen keeps the customer's contact (data bug, any width) ───────────
 
-test.describe('phone estbuilder: reopened estimate keeps contact @shard2', () => {
+test.describe('phone estbuilder: reopened estimate keeps contact @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.use({ ...ANDROID, viewport: { width: 412, height: 860 } });
 
@@ -506,7 +506,7 @@ async function tapSettled(target, taken, what) {
 
 const dollarsToCents = (s) => Math.round(Number(String(s).replace(/[$,]/g, '')) * 100);
 
-test.describe('phone estbuilder: Job Templates upgrades, installed app at 412px @shard2', () => {
+test.describe('phone estbuilder: Job Templates upgrades, installed app at 412px @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.use({ ...ANDROID, viewport: { width: 412, height: 860 } });
 
@@ -752,7 +752,7 @@ test.describe('phone estbuilder: Job Templates upgrades, installed app at 412px 
 
 // ── 4. Desktop keeps its layout; Job Templates modal is opaque + readable ──
 
-test.describe('phone estbuilder: desktop + Job Templates modal @shard2', () => {
+test.describe('phone estbuilder: desktop + Job Templates modal @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.use({ viewport: { width: 1280, height: 860 } });
 

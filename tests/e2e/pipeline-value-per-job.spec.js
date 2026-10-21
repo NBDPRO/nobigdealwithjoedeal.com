@@ -7,7 +7,7 @@
  * job; the customer's own record is unchanged. The server mirror is not
  * running here, so the test seeds the jobs + activeJobId with the admin SDK.
  *
- * @shard2 — runs in the Authed E2E (emulators) job.
+ * @shard3 — runs in the Authed E2E (emulators) job.
  */
 const { test, expect } = require('@playwright/test');
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
@@ -22,7 +22,7 @@ function adb() {
   return _db;
 }
 
-test.describe.serial('Pipeline value per job @shard2', () => {
+test.describe.serial('Pipeline value per job @shard3', () => {
   test('a customer\'s second open job adds its own value to the KPI pipeline', async ({ page }) => {
     const creds = requireTestUser();
     await page.addInitScript(() => { try { localStorage.setItem('nbd-onboarding-complete', '1'); } catch (_) {} });

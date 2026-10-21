@@ -11,7 +11,7 @@
  *  e) Remove (soft delete): gone from the view, `deleted: true` in Firestore.
  *
  * Nominatim and map tiles are stubbed; the geolocation API is replaced with a
- * counting fake. @shard2 — runs in the Authed E2E (emulators) job.
+ * counting fake. @shard3 — runs in the Authed E2E (emulators) job.
  */
 const { test, expect } = require('@playwright/test');
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
@@ -33,7 +33,7 @@ async function openSigns(page) {
   await expect(page.locator('[data-ys-action="open-place"]')).toBeVisible({ timeout: 20_000 });
 }
 
-test.describe.serial('Yard signs — edit, no auto-GPS, scheduled, remove @shard2', () => {
+test.describe.serial('Yard signs — edit, no auto-GPS, scheduled, remove @shard3', () => {
   test.beforeEach(async ({ page }) => {
     const creds = requireTestUser();
     await page.addInitScript(() => {

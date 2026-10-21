@@ -71,9 +71,18 @@ test.describe.serial('Bento Board @shard2', () => {
 
     // a customer with a hail stamp so the native tile has something to say
     const s = Date.now();
-    const leadId = await safeEvaluate(page, (st) => window._saveLead({
-      firstName: 'ZZBN', lastName: 'Hail' + st, address: '9 Bento Way, Mason, OH 45040', phone: '5135550188', stage: 'new', lat: 39.3, lng: -84.3,
-    }), s);
+    // The SDK can replay a create (ALREADY_EXISTS naming the doc it already wrote): that id is the lead.
+    const leadId = await safeEvaluate(page, async (st) => {
+      try {
+        return await window._saveLead({
+          firstName: 'ZZBN', lastName: 'Hail' + st, address: '9 Bento Way, Mason, OH 45040', phone: '5135550188', stage: 'new', lat: 39.3, lng: -84.3,
+        });
+      } catch (e) {
+        const m = /ALREADY_EXISTS[^\n]*path=\/leads\/([A-Za-z0-9_-]+)/.exec(String((e && e.message) || e));
+        if (!m) throw e;
+        return m[1];
+      }
+    }, s);
     expect(leadId).toBeTruthy();
     await adb().doc('leads/' + leadId).update({ hailHit: { sizeInches: 1.75, date: '2026-10-01' } });
 
@@ -182,6 +191,15 @@ test.describe.serial('Bento Board @shard2', () => {
       const snap = await window.getDoc(window.doc(window.db, 'companies', k, 'settings', 'layout'));
       const d = snap.exists() ? snap.data() : null;
       return !!(d && d.defaultWidgets && Array.isArray(d.defaultWidgets.bento) && d.defaultWidgets.bento.length > 0);
+    }, null, { timeout: 20_000 });
+    // getDoc (and the engine's state read through it) overlays the browser's own pending write,
+    // so the wait above can pass before the server has the doc. The Admin read below would miss
+    // it, and the next saveCompany (which carries the engine's defaultWidgets forward) could
+    // write without it. Wait for the server's copy, then for the engine to hold it.
+    await expect.poll(async () => (((await adb().doc('companies/' + uid + '/settings/layout').get()).data() || {}).defaultWidgets ? 'saved' : 'missing'), { timeout: 20_000 }).toBe('saved');
+    await safeWaitForFunction(page, () => {
+      const c = window.LayoutEngine.prefs().company;
+      return !!(c && c.defaultWidgets && Array.isArray(c.defaultWidgets.bento) && c.defaultWidgets.bento.length > 0);
     }, null, { timeout: 20_000 });
     const company = await adb().doc('companies/' + uid + '/settings/layout').get();
     const cd = company.data();

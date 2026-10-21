@@ -47,7 +47,7 @@ async function forceStandalone(page) {
 const localYmd = (offsetDays) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + offsetDays); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const activeView = (page) => page.evaluate(() => (document.querySelector('.view.active') || {}).id || '');
 
-test.describe('phone: ONE Home = Today @shard2', () => {
+test.describe('phone: ONE Home = Today @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.use(IPHONE);
 

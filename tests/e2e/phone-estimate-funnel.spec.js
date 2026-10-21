@@ -33,7 +33,7 @@ const FIREBASE_FNS = 'export function getFunctions() { return {}; }\n' +
   'export function httpsCallable(f, name) { return async () => { (window.__callables = window.__callables || []).push(name); return { data: { success: true } }; }; }';
 const TURNSTILE = 'window.turnstile = { render: function (el, cfg) { window.__tcfg = cfg; return 1; }, execute: function () { var c = window.__tcfg; setTimeout(function () { c.callback("e2e-turnstile-token"); }, 10); }, reset: function () {} };';
 
-test.describe('phone estimate funnel — no text code @shard2', () => {
+test.describe('phone estimate funnel — no text code @shard3', () => {
   test.skip(!LOCAL, 'local server only — this spec must never drive the live funnel');
   test.use({ viewport: { width: 390, height: 844 } });
 

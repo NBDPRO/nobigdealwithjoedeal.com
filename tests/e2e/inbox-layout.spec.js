@@ -27,13 +27,25 @@ function adb() {
 }
 
 async function seed(page, tag) {
+  // The claims arrive after _user: read too early, companyId is null, the rows below are
+  // written without it, and the thread (scoped by companyId for a company admin) shows none.
+  await safeWaitForFunction(page, () => !!window._userClaims, null, { timeout: 30_000 });
   const uid = await safeEvaluate(page, () => window._user.uid);
   const companyId = await safeEvaluate(page, () => (window._userClaims || {}).companyId || null);
   const s = Date.now();
   const name = 'ZZIB' + tag + String(s).slice(-5);
-  const leadId = await safeEvaluate(page, (a) => window._saveLead({
-    firstName: a.name, lastName: 'Reply' + a.s, address: '9 Inbox Ln, Mason, OH 45040', phone: '5135550188', stage: 'new',
-  }), { name, s });
+  // The SDK can replay a create (ALREADY_EXISTS naming the doc it already wrote): that id is the lead.
+  const leadId = await safeEvaluate(page, async (a) => {
+    try {
+      return await window._saveLead({
+        firstName: a.name, lastName: 'Reply' + a.s, address: '9 Inbox Ln, Mason, OH 45040', phone: '5135550188', stage: 'new',
+      });
+    } catch (e) {
+      const m = /ALREADY_EXISTS[^\n]*path=\/leads\/([A-Za-z0-9_-]+)/.exec(String((e && e.message) || e));
+      if (!m) throw e;
+      return m[1];
+    }
+  }, { name, s });
   expect(leadId).toBeTruthy();
   const db = adb();
   const { Timestamp } = require('firebase-admin/firestore');
@@ -128,7 +140,8 @@ test.describe.serial('Triage Inbox @shard2', () => {
 
     // E is Done here. The dashboard's own global E (New Estimate) must NOT also fire: the page stays on Home.
     // (The server is unreachable, so Done fails loudly and nothing is marked handled.)
-    await page.locator('.ib-thread-head').click();
+    // a corner of the head: its middle can be the Record visit button (a mic prompt modal that blocks the page)
+    await page.locator('.ib-thread-head').click({ position: { x: 4, y: 4 } });
     await page.keyboard.press('e');
     await expect(page.getByText(/Could not save that/).first()).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(800);

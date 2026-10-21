@@ -71,7 +71,7 @@ const knocksAt = (page, address) => safeEvaluate(page, async (addr) => {
   return snap.docs.map((d) => Object.assign({ id: d.id, keys: Object.keys(d.data()).sort() }, d.data()));
 }, address);
 
-test.describe.serial('phone knock sheet fast path at 390px, installed app @shard2', () => {
+test.describe.serial('phone knock sheet fast path at 390px, installed app @shard3', () => {
   /** @type {import('@playwright/test').BrowserContext} */ let context;
   /** @type {import('@playwright/test').Page} */ let page;
   let stamp = 0;

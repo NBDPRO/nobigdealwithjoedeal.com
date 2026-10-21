@@ -60,7 +60,7 @@ const SWN = require('../../functions/schedule-window.js');
 const nyToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const nyDay = (n) => SWN.addDays(nyToday(), n);
 
-test.describe.serial('phone production flow at 390px, installed app @shard2', () => {
+test.describe.serial('phone production flow at 390px, installed app @shard3', () => {
   /** @type {import('@playwright/test').BrowserContext} */ let context;
   /** @type {import('@playwright/test').Page} */ let page;
   let run = '';

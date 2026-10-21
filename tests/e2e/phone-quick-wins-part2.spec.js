@@ -41,7 +41,7 @@ async function stubFunctions(page) {
   return calls;
 }
 
-test.describe('phone quick wins part 2: CRM default view, Presentation icon, Schedule targets @shard2', () => {
+test.describe('phone quick wins part 2: CRM default view, Presentation icon, Schedule targets @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.use(IPHONE);
 

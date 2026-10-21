@@ -64,7 +64,7 @@ const initStorage = () => {
 };
 const boxOf = (page, sel) => page.locator(sel).first().boundingBox();
 
-test.describe('phone: Home leads with people who need you; field tools pinned; one-tap stage move @shard2', () => {
+test.describe('phone: Home leads with people who need you; field tools pinned; one-tap stage move @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.describe.configure({ mode: 'serial' });
   const stamp = Date.now();

@@ -132,7 +132,7 @@ async function checkSheet(page) {
   expect(r.sideways, 'no sideways scroll').toBe(false);
 }
 
-test.describe('phone invoice: record payments, installed iPhone app @shard2', () => {
+test.describe('phone invoice: record payments, installed iPhone app @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.use(IPHONE);
 

@@ -40,7 +40,7 @@ async function reachable(locator) {
 const CARD = { totalXp: 1840, level: 7, title: 'Roof boss', levelFloor: 1400, levelNext: 2800, week: { start: '2026-09-28', xp: 410 }, lastWeek: { start: '2026-09-21', xp: 355 },
   breakdown: [{ kind: 'task', label: 'Follow-ups done', count: 11, xp: 110 }, { kind: 'collected', label: 'Money collected', count: 6000, xp: 60 }], partial: [] };
 
-test.describe('phone: optional game card @shard2', () => {
+test.describe('phone: optional game card @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.use(IPHONE);
 

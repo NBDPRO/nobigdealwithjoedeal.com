@@ -56,7 +56,7 @@ const readLead = (page, id) => safeEvaluate(page, async (leadId) => {
   return s.exists() ? s.data() : null;
 }, id);
 
-test.describe.serial('phone stage flow at 390px, installed app @shard2', () => {
+test.describe.serial('phone stage flow at 390px, installed app @shard3', () => {
   /** @type {import('@playwright/test').BrowserContext} */ let context;
   /** @type {import('@playwright/test').Page} */ let page;
   let run = '';

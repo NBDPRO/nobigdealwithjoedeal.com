@@ -31,7 +31,7 @@ const readDoc = (page, path) => safeEvaluate(page, async (p) => {
   return s.exists() ? s.data() : null;
 }, path);
 
-test.describe.serial('phone numbers: lost reason + Sunday review at 390px @shard2', () => {
+test.describe.serial('phone numbers: lost reason + Sunday review at 390px @shard3', () => {
   /** @type {import('@playwright/test').BrowserContext} */ let context;
   /** @type {import('@playwright/test').Page} */ let page;
   let run = '';

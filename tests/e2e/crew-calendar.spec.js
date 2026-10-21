@@ -38,9 +38,16 @@ test.describe.serial('Crew Calendar @shard2', () => {
     const subIds = await safeEvaluate(page, async (a) => {
       const t = (window._userClaims || {}).companyId || window._user.uid;
       const col = window.collection(window.db, 'companies', t, 'subs');
-      const mk = async (name) => (await window.addDoc(col, { name, phone: '', email: '', trade: 'Roofing', insuranceExpiry: null, notes: '', active: true,
-        createdAt: window.serverTimestamp(), updatedAt: window.serverTimestamp() })).id;
-      return { alpha: await mk('ZZCW Alpha ' + a.s), bravo: await mk('ZZCW Bravo ' + a.s) };
+      // Fixed ids: safeEvaluate re-runs this whole function when a navigation destroys the page
+      // mid-call, and addDoc would then leave a second Alpha/Bravo. The lanes merge same-named
+      // crews, so a drop aimed at the second id's lane found no cell.
+      const mk = async (key, name) => {
+        const ref = window.doc(col, 'zzcw-' + key + '-' + a.s);
+        await window.setDoc(ref, { name, phone: '', email: '', trade: 'Roofing', insuranceExpiry: null, notes: '', active: true,
+          createdAt: window.serverTimestamp(), updatedAt: window.serverTimestamp() });
+        return ref.id;
+      };
+      return { alpha: await mk('alpha', 'ZZCW Alpha ' + a.s), bravo: await mk('bravo', 'ZZCW Bravo ' + a.s) };
     }, { s });
     const wed = weekDay(2);
     const thu = weekDay(3);
@@ -87,13 +94,25 @@ test.describe.serial('Crew Calendar @shard2', () => {
       // a repaint can detach the handle between resolve and measure: re-resolve until it measures
       let a = null;
       await expect.poll(async () => { a = await from.first().boundingBox(); return a !== null; }, { timeout: 10_000 }).toBe(true);
-      const b = await to.boundingBox();
+      // the drop cell repaints too (the move re-renders the board): same re-resolve
+      let b = null;
+      await expect.poll(async () => { b = await to.boundingBox(); return b !== null; }, { timeout: 10_000 }).toBe(true);
       // grab near the left edge, so a multi-day block is held by its FIRST day
       const gx = a.x + Math.min(30, a.width / 2);
       await page.mouse.move(gx, a.y + a.height / 2);
       await page.mouse.down();
       await page.mouse.move(gx + 20, a.y + a.height / 2 + 6, { steps: 3 });
-      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 8 });
+      // The strips above the grid (stops, closes, rain) load while the board is up and push the
+      // lanes down: a drop cell measured before the drag can be a lane off by the time of the drop
+      // (day moved, crew did not). Aim at where the cell is now, then again just before release.
+      const centre = (r) => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
+      let at = centre((await to.boundingBox()) || b);
+      await page.mouse.move(at.x, at.y, { steps: 8 });
+      const now = await to.boundingBox();
+      if (now && (Math.abs(centre(now).x - at.x) > 2 || Math.abs(centre(now).y - at.y) > 2)) {
+        at = centre(now);
+        await page.mouse.move(at.x, at.y, { steps: 3 });
+      }
       await page.mouse.up();
     }
     const cell = (lane, date) => page.locator('.cw-cell[data-lane="' + lane + '"][data-date="' + date + '"]');
