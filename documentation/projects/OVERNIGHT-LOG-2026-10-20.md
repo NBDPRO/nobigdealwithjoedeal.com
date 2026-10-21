@@ -97,3 +97,25 @@ questionnaire (themes, dev button, day layout, door stats, coach extras, rollout
   Epley above 12 reps (it agrees it drifts; we keep high-rep sets via the rep-range PR) and adaptive-calories windows (ours
   match its ranges).
 - **Left for Jo:** nothing new needs a decision tonight; see the handoff.
+
+## Cycle 5 - 07:30-10:00 EDT (theme: adversarial review of the new tracker code)
+
+Two review passes, both on code merged in cycle 4. Findings were verified before acting.
+
+- **Silent-failure review** (read-only agent): three real defects, fixed in #2625 - finishing a workout cleared the live
+  session even when the phone refused the write (workout lost); a bodyweight lift (0 lb) never earned a live Rep PR because the
+  gate was "best 1RM above zero"; the section toggle wrote storage unguarded. New test
+  `coach-save-failure-2026-10-21.test.js` is red against the old sources. Call Center review fixes merged as #2624 (filter
+  count wording, storage guard, footer oldest/newest).
+- **Vacuous-test audit** (about 330 mutations over the seven 2026-10-21 tests): the logic tests are sound (themes contrast 100/100,
+  filters 48/54). Behaviour gaps closed in #2626 (filter validation, describe labels, most-reps rep PR, no done flag, first-ever
+  lift claims no PR, percent rounding), each mutant verified killed. **Left open:** source-regex pins that a commented-out
+  line or reworded value still satisfies (Today-bar call sites, tap-target and `font-size` pins that miss `rem`, `on'+'click`
+  concat, `.btn` rule membership), `?v=` literal pins, and the Call Center tab-click path never being driven
+  (a tab click calling `clearFlt()` would pass). Worth one cleanup PR.
+- **Merge-queue note:** #2625 left the queue on a manifest conflict (my two new tests added adjacent entries); resolved by
+  keeping both. GitHub's PR head then stayed on the old SHA after the merge push (branch ref was right); an empty commit
+  did not help, close + reopen did. Queue entry cleared the auto-merge flag again.
+- **CI:** @shard2 and @shard3 fail on every recent PR (including docs-only-adjacent ones); both are non-required. Cause still
+  unexplained; shard3 passes locally.
+- **Left for Jo:** nothing new needs a decision.
