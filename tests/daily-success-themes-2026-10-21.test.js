@@ -14,8 +14,10 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const DIR = path.join(__dirname, '..', 'docs', 'pro', 'daily-success');
-const HTML = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
-const APP = fs.readFileSync(path.join(DIR, 'js', 'app.js'), 'utf8').replace(/\r\n/g, '\n');
+// Pins read the source with comments removed: a commented-out line must not satisfy a pin (vacuous-test audit, 2026-10-21).
+const stripComments = (s) => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/[^\n]*/g, '$1');
+const HTML = stripComments(fs.readFileSync(path.join(DIR, 'index.html'), 'utf8').replace(/\r\n/g, '\n'));
+const APP = stripComments(fs.readFileSync(path.join(DIR, 'js', 'app.js'), 'utf8').replace(/\r\n/g, '\n'));
 
 let passed = 0, failed = 0;
 function ok(label, cond, detail) {
