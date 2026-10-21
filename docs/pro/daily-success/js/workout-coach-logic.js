@@ -870,6 +870,93 @@
     });
   }
 
+  /**
+   * Jo's own lifts: { id, name, pattern, equip, compound }. Unknown patterns / equipment, blank names and duplicates are dropped;
+   * ids are forced into the my_ namespace so a stored list can never overwrite a built-in lift.
+   */
+  function normCustom(list) {
+    const out = [], seen = new Set();
+    (Array.isArray(list) ? list : []).forEach((c) => {
+      if (!c || typeof c !== 'object') return;
+      const name = String(c.name == null ? '' : c.name).replace(/\s+/g, ' ').trim().slice(0, 40);
+      if (!name || !PATTERN_LABELS[c.pattern] || EQUIP.indexOf(c.equip) === -1) return;
+      let id = String(c.id || '').replace(/[^a-z0-9_]/g, '');
+      if (id.indexOf('my_') !== 0) id = 'my_' + (name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'lift');
+      if (seen.has(id) || (BY_ID[id] && !BY_ID[id].custom)) return;
+      seen.add(id);
+      out.push({ id, name, pattern: c.pattern, equip: c.equip, compound: !!c.compound });
+    });
+    return out;
+  }
+  /** Replace the custom lifts in the live library (call on load and after every add / remove). -> the cleaned list. */
+  function setCustomExercises(list) {
+    for (let k = EXERCISES.length - 1; k >= 0; k--) if (EXERCISES[k].custom) { delete BY_ID[EXERCISES[k].id]; EXERCISES.splice(k, 1); }
+    const clean = normCustom(list);
+    clean.forEach((c) => { const e = X(c.id, c.name, c.pattern, c.equip, c.compound); e.custom = true; e.muscle = MUSCLE_OF_PATTERN[e.pattern]; EXERCISES.push(e); BY_ID[e.id] = e; });
+    return clean;
+  }
+
+  /**
+   * Saved routines: { id, name, split, lifts: [{ exId, name, slot, sets }] } - a workout's lifts and set counts, no weights or reps
+   * (starting one builds today's targets from history, like a fresh workout). Junk entries are dropped; at most 30 routines of
+   * 20 lifts.
+   */
+  function normRoutines(list) {
+    const out = [], seen = new Set();
+    (Array.isArray(list) ? list : []).forEach((r) => {
+      if (!r || typeof r !== 'object' || !SPLITS[r.split]) return;
+      const name = String(r.name == null ? '' : r.name).replace(/\s+/g, ' ').trim().slice(0, 40);
+      const id = String(r.id == null ? '' : r.id).replace(/[^a-zA-Z0-9_]/g, '');
+      if (!name || !id || seen.has(id)) return;
+      const lifts = (Array.isArray(r.lifts) ? r.lifts : []).map((l) => {
+        if (!l || typeof l !== 'object' || !l.exId) return null;
+        const n = Math.round(num(l.sets));
+        return { exId: String(l.exId), name: String(l.name == null ? '' : l.name).slice(0, 60), slot: Number.isInteger(l.slot) && l.slot >= 0 ? l.slot : 0, sets: n >= 1 && n <= 10 ? n : 3 };
+      }).filter(Boolean).slice(0, 20);
+      if (!lifts.length) return;
+      seen.add(id);
+      out.push({ id, name, split: r.split, lifts });
+    });
+    return out.slice(0, 30);
+  }
+  /** The routine a workout (live or finished) would save as, or null when it has no working sets. */
+  function routineFromSession(session, name, id) {
+    const lifts = ((session && session.exercises) || []).map((ex) => {
+      const n = (ex.sets || []).filter((st) => st && !st.warm).length;   // planned sets count too: a live workout has blank reps
+      return n ? { exId: ex.exId, name: ex.name || (BY_ID[ex.exId] || {}).name || ex.exId, slot: ex.slot, sets: n } : null;
+    }).filter(Boolean);
+    return normRoutines([{ id, name, split: session && session.split, lifts }])[0] || null;
+  }
+  /** "Push Day A", "Push Day B", ... the first name not already used. */
+  function nextRoutineName(list, split) {
+    const base = (SPLITS[split] || {}).label || 'Workout';
+    const used = new Set((list || []).map((r) => String(r.name).toLowerCase()));
+    for (let k = 0; k < 26; k++) { const n = base + ' ' + String.fromCharCode(65 + k); if (!used.has(n.toLowerCase())) return n; }
+    return base + ' ' + ((list || []).length + 1);
+  }
+  /**
+   * Today's workout from a routine: its lifts, with the coach's normal target for each (progression and stall checks), warm-ups
+   * regenerated. Lifts that are now avoided, unknown or need equipment Jo does not have are skipped and counted.
+   * -> null when nothing usable is left.
+   */
+  function buildFromRoutine(routine, sessions, o) {
+    o = o || {};
+    const def = routine && SPLITS[routine.split];
+    if (!def) return null;
+    const equip = new Set(o.equip && o.equip.length ? o.equip : EQUIP);
+    const exercises = [];
+    let skipped = 0;
+    (routine.lifts || []).forEach((l) => {
+      const lib = BY_ID[l.exId];
+      if (!lib || isAvoided(lib, o.avoid) || !equip.has(lib.equip)) { skipped++; return; }
+      const slot = def.slots[l.slot] || null;
+      const repRange = slot ? slot.reps.slice() : [8, 12];
+      const target = targetFor(l.exId, repRange, sessions, { plates: o.plates });
+      exercises.push({ exId: l.exId, name: l.name || lib.name, slot: l.slot, repRange, target, sets: setsFor(slot, l.exId, target, l.sets, o) });
+    });
+    return exercises.length ? { split: routine.split, label: routine.name, date: o.today, exercises, routineId: routine.id, skipped } : null;
+  }
+
   /** Set tags (tap the set number to cycle): normal -> drop set -> to failure -> normal. Warm-ups are their own thing and never cycle. */
   const SET_KINDS = ['', 'drop', 'fail'];
   const nextSetKind = (k) => SET_KINDS[(Math.max(0, SET_KINDS.indexOf(k)) + 1) % SET_KINDS.length];   // unknown / missing counts as normal
@@ -888,7 +975,7 @@
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
     MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
     DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, repPRCheck, HIGH_REP, previousSets, prevText, historyList, REST_ALERTS, normRestAlert, restAlertPlan, daysSince, candidatesFor, pickForSlot, targetFor,
-    nextSplit, buildSession, repeatSession, SET_KINDS, nextSetKind, setKindLabel, swapOptions, detectPRs, variety, volume, sessionRecap, toPageRows, restFor, mergeSessions,
+    nextSplit, buildSession, repeatSession, SET_KINDS, nextSetKind, setKindLabel, normRoutines, routineFromSession, nextRoutineName, buildFromRoutine, normCustom, setCustomExercises, swapOptions, detectPRs, variety, volume, sessionRecap, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCoach = api;

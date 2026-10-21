@@ -445,6 +445,8 @@
     "coach-last-time-pr-2026-10-21.test.js",
     "daily-success-default-theme-2026-10-21.test.js",
     "coach-rep-range-pr-2026-10-21.test.js",
+    "coach-routines-2026-10-21.test.js",
+    "coach-custom-exercises-2026-10-21.test.js",
     "coach-recap-2026-10-21.test.js",
     "coach-set-kinds-2026-10-21.test.js",
     "coach-repeat-last-2026-10-21.test.js",
