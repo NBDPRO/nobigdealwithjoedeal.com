@@ -442,18 +442,22 @@
   /**
    * "Repeat last <split>": the same lifts, working-set count and per-set weights as the last finished session of that split,
    * reps left blank so the Previous column shows what to beat. Warm-ups are regenerated for the first weight. Lifts that are now
-   * on the avoid list are skipped. -> null when that split was never finished (or nothing usable is left).
+   * on the avoid list, or that need equipment Jo does not have, are skipped (counted in .skipped). Each lift gets a real target
+   * (reps to beat, stall check) because the screen reads x.target when a set is ticked without typing reps - history never stores one.
+   * -> null when that split was never finished (or nothing usable is left).
    */
   function repeatSession(split, sessions, o) {
     o = o || {};
     const def = SPLITS[split];
     const last = def && finished(sessions).find((s) => s.split === split);
     if (!last) return null;
+    const equip = new Set(o.equip && o.equip.length ? o.equip : EQUIP);
     const exercises = [];
+    let skipped = 0;
     (last.exercises || []).forEach((ex) => {
       const lib = BY_ID[ex.exId];
-      if (!lib || isAvoided(lib, o.avoid)) return;
       const work = workingSets(ex);
+      if (!lib || isAvoided(lib, o.avoid) || !equip.has(lib.equip)) { if (work.length) skipped++; return; }
       if (!work.length) return;
       const slot = def.slots[ex.slot] || null;
       const sets = setsFor(slot, ex.exId, { weight: num(work[0].weight) }, work.length, o);
@@ -463,9 +467,13 @@
         const w = work[k++];
         st.weight = w.weight === '' || w.weight == null ? '' : num(w.weight);
       });
-      exercises.push({ exId: ex.exId, name: ex.name || lib.name, slot: ex.slot, repRange: slot ? slot.reps.slice() : (ex.repRange || []).slice(), target: ex.target || null, sets });
+      const repRange = slot ? slot.reps.slice() : (ex.repRange || []).slice();
+      const t = targetFor(ex.exId, repRange, sessions, { plates: o.plates });
+      const target = { weight: sets.find((st) => !st.warm).weight, reps: t.reps, note: 'Repeat of ' + last.date + ' - same weights, beat the reps' };
+      if (t.stall) target.stall = t.stall;
+      exercises.push({ exId: ex.exId, name: ex.name || lib.name, slot: ex.slot, repRange, target, sets });
     });
-    return exercises.length ? { split, label: def.label, date: o.today, exercises, repeatOf: last.id } : null;
+    return exercises.length ? { split, label: def.label, date: o.today, exercises, repeatOf: last.id, skipped } : null;
   }
 
   /** Other exercises that could fill this slot today, least-recent first. */

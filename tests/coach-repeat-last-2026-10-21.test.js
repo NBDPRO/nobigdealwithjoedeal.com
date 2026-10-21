@@ -92,6 +92,30 @@ console.log('\n2. the real screen');
   g.click('repeat');
   ok('a stray Repeat tap while a workout is in progress resumes it - it never replaces the live session', g.live() && g.live().id === keep);
 
+  // review fixes: a repeated lift has a real target (history never stores one), so a bare tick keeps the set
+  const t = makeHarness({ storage: { nbd_ds_workouts: hist }, today: '2026-10-21', fitness: true });
+  t.click('repeat');
+  const tl = t.live();
+  const wi = tl.exercises[0].sets.findIndex((s) => !s.warm);
+  ok('every repeated lift carries a target with reps, weight and a note', tl.exercises.every((e) => e.target && e.target.reps && e.target.weight > 0 && /Repeat of/.test(e.target.note)), JSON.stringify(tl.exercises[0].target));
+  t.click('done', { i: 0, s: wi });
+  ok('ticking a set without typing reps fills the target reps (it used to store 0 and vanish from history)', String(t.live().exercises[0].sets[wi].reps) === String(tl.exercises[0].target.reps) && Number(t.live().exercises[0].sets[wi].reps) > 0, JSON.stringify(t.live().exercises[0].sets[wi]));
+  t.click('finish');
+  ok('...and that set is in the saved history', t.saved().some((s) => s.exercises.some((e) => e.sets.some((x) => x.done && Number(x.reps) > 0 && Number(x.weight) === Number(tl.exercises[0].sets[wi].weight)))));
+
+  const eq = makeHarness({ storage: { nbd_ds_workouts: hist, nbd_ds_coach: { equip: ['dumbbell'] } }, today: '2026-10-21', fitness: true });
+  ok('with only dumbbells, a barbell-only last workout offers nothing to repeat (no button)', !/data-coach-action="repeat"/.test(eq.card()));
+  ok('...logic: equipment skips the lift and counts it', C.repeatSession(next, hist, { equip: ['dumbbell'] }) === null);
+  const mixed = [sess('2026-10-16', 'push', [['bb_bench', 0, [[135, 8]]], ['incline_db', 1, [[50, 10]]]])];
+  const mx = C.repeatSession('push', mixed, { equip: ['dumbbell'] });
+  ok('a mixed day keeps the dumbbell lift, skips the barbell one and says how many', !!mx && mx.exercises.length === 1 && mx.exercises[0].exId === 'incline_db' && mx.skipped === 1, mx && JSON.stringify([mx.exercises.length, mx.skipped]));
+  const av = C.repeatSession('push', mixed, { avoid: { exercises: ['bb_bench'] } });
+  ok('an avoided lift counts as skipped too', !!av && av.skipped === 1);
+
+  const rd = makeHarness({ storage: { nbd_ds_workouts: hist, nbd_ds_coach_ready: { '2026-10-21': { sleep: 2, sore: 2, energy: 2 } } }, today: '2026-10-21', fitness: true });
+  rd.click('repeat');
+  ok('today\'s saved readiness check-in is carried onto a repeated workout (no second prompt)', !!rd.live() && !!rd.live().ready && rd.live().ready.sleep === 2, JSON.stringify(rd.live() && rd.live().ready));
+
   const fresh = makeHarness({ storage: { nbd_ds_workouts: [] }, today: '2026-10-21', fitness: true });
   ok('control: with no history there is no Repeat button', !/data-coach-action="repeat"/.test(fresh.card()));
   fresh.click('repeat');

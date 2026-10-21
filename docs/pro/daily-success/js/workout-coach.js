@@ -159,7 +159,7 @@
         <button class="btn wc-go" data-coach-action="open">Resume workout</button>`;
     } else {
       body = `<div class="wc-line">Next in your rotation: <b>${esc(C().SPLITS[next].label)}</b></div>
-        <button class="btn wc-go" data-coach-action="start">Start today's workout</button>${all.some((x) => x.finishedAt && x.split === next) ? `<button class="btn btn-ghost wc-repeat" data-coach-action="repeat">Repeat last ${esc(C().SPLITS[next].label)}</button>` : ''}`;
+        <button class="btn wc-go" data-coach-action="start">Start today's workout</button>${C().repeatSession(next, all, repeatOpts()) ? `<button class="btn btn-ghost wc-repeat" data-coach-action="repeat">Repeat last ${esc(C().SPLITS[next].label)}</button>` : ''}`;
     }
     const meta = [];
     if (last) meta.push('Last: ' + esc(C().SPLITS[last.split] ? C().SPLITS[last.split].label : last.split) + ' · ' + esc(fmtDay(last.date)));
@@ -478,15 +478,20 @@
   }
 
   // ── actions ──────────────────────────────────────────────────────────
+  const repeatOpts = () => { const so = settings(); return { today: today(), avoid: so.avoid, equip: so.equip, warmups: so.warmups, plates: so.plates }; };
   // Same lifts and weights as the last time this split was done, reps blank (Previous shows what to beat).
   function repeatLast() {
     if (live) { open(); return; }
     const so = settings();
-    const built = C().repeatSession(C().nextSplit(sessions(), so.rotation), sessions(), { today: today(), avoid: so.avoid, warmups: so.warmups, plates: so.plates });
+    const built = C().repeatSession(C().nextSplit(sessions(), so.rotation), sessions(), repeatOpts());
     if (!built) { toast('Nothing to repeat yet - do this workout once first'); return; }
     live = Object.assign(built, { id: 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), seed: Date.now() % 1000000007, startedAt: Date.now() });
+    // Already checked in today? Carry it over (and apply it) like a fresh workout does.
+    const rec = readJson(READY, {})[today()];
+    if (rec) { live.ready = Object.assign({}, rec); applyReadyTo(live); }
     persistLive();
     open();
+    if (built.skipped) toast('Skipped ' + built.skipped + ' lift' + (built.skipped === 1 ? '' : 's') + ' you avoid or have no equipment for');
   }
 
   function start() {
