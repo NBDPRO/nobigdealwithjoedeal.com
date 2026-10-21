@@ -255,6 +255,8 @@
 
   // One set row. Inside a superset, who = 'A ' / 'B ' (for screen readers) and tag = the A1 / B1 label.
   function setRowHtml(x, i, st, j, n, who, tag, next) {
+    const lp = st.warm ? null : C().livePR(x, sessions());
+    const pr = lp && lp.index === j ? `<span class="wc-pr" title="Beats your best estimated 1RM (${esc(Math.round(lp.prev))} lb)">\u{1F3C6} PR</span>` : '';
     return `<div class="wc-set${st.done ? ' done' : ''}${st.warm ? ' warm' : ''}${next ? ' next' : ''}">
         <span class="wc-n">${st.warm ? 'W' : (tag || n)}</span>
         <input class="wc-in" inputmode="decimal" placeholder="lb" aria-label="Weight, ${who}${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : n}" value="${esc(st.weight)}" data-coach-field="weight" data-i="${i}" data-s="${j}">
@@ -263,7 +265,7 @@
         <select class="wc-rpe" aria-label="RPE, ${who}${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : n}" data-coach-field="rpe" data-i="${i}" data-s="${j}">
           <option value="">RPE</option>${RPES.map((r) => `<option value="${r}"${String(st.rpe) === r ? ' selected' : ''}>${r}</option>`).join('')}
         </select>
-        <button class="wc-check${st.done ? ' on' : ''}" data-coach-action="done" data-i="${i}" data-s="${j}" aria-label="${who}${st.warm ? 'Warm-up' : 'Set'} ${st.warm ? j + 1 : n} done">✓</button>
+        <button class="wc-check${st.done ? ' on' : ''}" data-coach-action="done" data-i="${i}" data-s="${j}" aria-label="${who}${st.warm ? 'Warm-up' : 'Set'} ${st.warm ? j + 1 : n} done">✓</button>${pr}
       </div>`;
   }
 
@@ -324,6 +326,12 @@
     startRest(Math.max(C().restFor(a.exId), C().restFor(b.exId)), label);
   }
 
+  // "Last time (Oct 14): 135×8, 135×8" — read-only context; never fills or changes a number.
+  function lastTimeHtml(x) {
+    const lt = C().lastTime(x.exId, sessions());
+    return lt ? `<div class="wc-last">${esc(lt.text)}</div>` : '';
+  }
+
   function exerciseHtml(x, i, role) {
     const ex = C().BY_ID[x.exId] || {};
     let workN = 0;
@@ -351,6 +359,7 @@
         <div class="wc-ex-btns"><button class="btn btn-ghost wc-swap" data-coach-action="avoid-ex" data-i="${i}" title="Stop offering this one">${armed === 'avoidx:' + i ? 'Sure? Tap again' : 'Avoid'}</button>
         <button class="btn btn-ghost wc-swap" data-coach-action="swap" data-i="${i}">${swapOpen === i ? 'Cancel' : 'Swap'}</button></div></div>
       <div class="wc-target">🎯 ${esc(x.target && x.target.note)}</div>
+      ${lastTimeHtml(x)}
       ${stallHtml(x, i)}
       ${platesHtml(x, ex)}
       ${swaps}${rows}
