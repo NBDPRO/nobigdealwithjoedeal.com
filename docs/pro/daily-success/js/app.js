@@ -221,7 +221,8 @@ const metCount=floors.filter(f=>d['floormet-'+f.id]==='1').length;
 const total=floors.length;
 const pct=total?Math.round(metCount/total*100):0;
 const allMet=total>0&&metCount===total;
-const scoreColor=allMet?'#4caf82':pct>=67?'var(--gold)':'var(--ac)';
+// the Floor Score panel is always dark, so its numbers use the on-dark colours (a light skin's --gold / --ac are dark browns there)
+const scoreColor=allMet?'#4caf82':pct>=67?'var(--gold-on-dark,var(--gold))':'var(--ac-on-dark,var(--ac))';
 const lbl=allMet?'PERFECT DAY':pct>=67?'SOLID DAY':pct>=34?'KEEP GRINDING':'RESET + PUSH';
 const goose=cfg?cfg.goose:'';
 const showGoose=cfg?cfg.showGoose:false;

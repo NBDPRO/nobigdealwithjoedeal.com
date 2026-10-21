@@ -39,9 +39,10 @@
   // Date / direction / sort filters (call-center-filters-logic.js, Jo 2026-10-21). They narrow the same list the tabs and the
   // search narrow; the choice is saved between visits. customOpen keeps the two date boxes showing while Jo picks.
   var FX = window.NBDCallCenterFilters || null;
-  var flt = FX ? FX.load(window.localStorage || null) : { range: 'all', from: '', to: '', dir: 'all', sort: 'new' };
+  function lsStore() { try { return window.localStorage || null; } catch (_) { return null; } }
+  var flt = FX ? FX.load(lsStore()) : { range: 'all', from: '', to: '', dir: 'all', sort: 'new' };
   state.customOpen = false;
-  function fltSave() { if (FX) FX.save(window.localStorage || null, flt); }
+  function fltSave() { if (FX) FX.save(lsStore(), flt); }
   function fltPass(c) { return !FX || FX.passes(c, flt, todayYmd(), Date.now()); }
   function setFlt(patch) {
     if (!FX) return;
@@ -451,7 +452,7 @@
 
   // "When" chips (Today / Yesterday / Last 24 hours / 7 / 30 days / Pick dates), two date boxes while picking, direction and
   // order chips, and a one-line summary with a Clear button whenever something narrows the list.
-  function filterBar(shown) {
+  function filterBar(shown, people) {
     if (!FX) return '';
     function chipBtn(kind, id, label, on) {
       return '<button type="button" class="cc-tab cc-fchip' + (on ? ' is-on' : '') + '" aria-pressed="' + (on ? 'true' : 'false') + '" data-cc="' + kind + '" data-arg="' + id + '">' + esc(label) + '</button>';
@@ -464,7 +465,7 @@
     var dirs = FX.DIRS.map(function (d) { return chipBtn('dir', d[0], d[1], flt.dir === d[0]); }).join('');
     var sorts = state.filter === 'attention' ? '' : '<span class="cc-sep" aria-hidden="true"></span>' + FX.SORTS.map(function (o) { return chipBtn('sort', o[0], o[1], flt.sort === o[0]); }).join('');
     var sum = FX.isActive(flt)
-      ? '<div class="cc-filter-sum" role="status">Showing ' + shown + ' of ' + state.calls.length + ' \u00b7 ' + esc(FX.describe(flt, todayYmd()).join(' \u00b7 ')) + ' <button type="button" class="cc-clear" data-cc="clearfilters">Clear</button></div>'
+      ? '<div class="cc-filter-sum" role="status">Showing ' + shown + (people ? (shown === 1 ? ' person' : ' people') : ' of ' + state.calls.length) + ' \u00b7 ' + esc(FX.describe(flt, todayYmd()).join(' \u00b7 ')) + ' <button type="button" class="cc-clear" data-cc="clearfilters">Clear</button></div>'
       : '';
     return '<div class="cc-fbar cc-when" role="group" aria-label="When">' + when + '</div>' + dates +
       '<div class="cc-fbar cc-dirsort" role="group" aria-label="Direction and order">' + dirs + sorts + '</div>' + sum;
@@ -487,6 +488,13 @@
     var active = filtersNow().filter(function (f) { return f[0] === state.filter; })[0] || FILTERS[0];
     var rows = base.filter(active[2]).filter(function (c) { return matchesSearch(c, L); });
     if (FX && state.filter !== 'attention') rows = FX.sortCalls(rows, flt.sort);
+    // what the filter line reports: the people shown on Needs attention, the rows everywhere else
+    var shownN = rows.length;
+    if (state.filter === 'attention') {
+      var seen = {};
+      rows.forEach(function (c) { seen[c.id] = true; });
+      shownN = groupNeeds(base).filter(function (g) { return g.calls.some(function (c) { return seen[c.id]; }); }).length;
+    }
     var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title">📞 Call Center</h1>' +
       '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p>' +
       (navCount && !isViewer() && window.NBDTriageDeck ? '<button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="deck">One at a time (' + navCount + ')</button>' : '') +
@@ -498,7 +506,7 @@
       '<div class="cc-filters" role="tablist">' + filtersNow().map(function (f) {
         return '<button type="button" role="tab" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
           esc(f[1]) + ' <span class="cc-count">' + counts[f[0]] + '</span></button>';
-      }).join('') + '</div>' + filterBar(base.length) + '</div>';
+      }).join('') + '</div>' + filterBar(shownN, state.filter === 'attention') + '</div>';
     var body;
     if (!state.loaded) body = '<div class="cc-empty">Loading calls…</div>';
     else if (state.error && !state.calls.length) body = '<div class="cc-empty">' + esc(state.error) + '</div>';
@@ -512,7 +520,7 @@
         .map(function (g) { return g.calls.length === 1 ? renderCall(g.calls[0], L) : renderGroup(g, L); }).join('');
     }
     else body = rows.slice(0, 150).map(function (c) { return renderCall(c, L); }).join('') +
-      (rows.length > 150 ? '<div class="cc-empty">Showing the newest 150. Search to narrow it down.</div>' : '');
+      (rows.length > 150 ? '<div class="cc-empty">Showing the ' + (FX && flt.sort === 'old' ? 'oldest' : 'newest') + ' 150. Search or filter to narrow it down.</div>' : '');
     if (state.loaded && state.cappedBefore) body = capBanner() + body;
     if (state.loaded && readProblems().length) body = readBanner() + body;
     var hadFocus = document.activeElement && document.activeElement.id === 'ccSearch';
