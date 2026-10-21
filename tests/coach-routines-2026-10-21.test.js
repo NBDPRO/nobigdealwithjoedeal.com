@@ -136,6 +136,11 @@ console.log('\n4. the real screen');
   const big = sess('2026-10-20', 'push', [['bb_bench', 0, Array.from({ length: 12 }, () => [135, 8])]]);
   big.exercises[0].sets.forEach((x) => { x.done = false; x.reps = ''; });
   ok('a lift with 12 planned sets saves as 10, not 3', C.routineFromSession(big, 'Big', 'b1').lifts[0].sets === 10);
+  // phone sweep finding: .btn is nowrap and 32px tall, so a long routine name ran out of the coach card (overflow 143px at 360 wide)
+  const CSS = fs.readFileSync(path.join(DIR, '..', 'css', 'workout-coach.css'), 'utf8').replace(/\r\n/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = (CSS.match(/\.wc-routine \{([^}]*)\}/) || ['', ''])[1];
+  ok('a long routine name wraps inside the card (white-space normal, break anywhere, height auto, still a 44px target)', /white-space:\s*normal/.test(rule) && /overflow-wrap:\s*anywhere/.test(rule) && /height:\s*auto/.test(rule) && /min-height:\s*44px/.test(rule), rule);
+  ok('control: a commented-out rule would not satisfy that pin', !/white-space:\s*normal/.test('/* .wc-routine { white-space: normal; } */'.replace(/\/\*[\s\S]*?\*\//g, '')));
   ok('handlers go through the delegated switch (no inline handler)', /case 'routine-save': saveRoutine\(\); return;/.test(UI) && /case 'routine-start':/.test(UI) && /case 'routine-del':/.test(UI) && !/onclick=/.test(UI));
 }
 
