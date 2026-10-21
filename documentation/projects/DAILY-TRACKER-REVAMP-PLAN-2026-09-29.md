@@ -229,3 +229,19 @@ hundreds of empty day pages. Preview first (count, date range, anything outside
 60–700 lb skipped); re-runs never duplicate; a weight typed on a day page wins
 over an imported one. Blocked on a few sample rows of the export. Hume → Apple
 Health → Shortcut stays the follow-up for ongoing readings.
+
+### 2026-10-20 - Real maintenance calories (research idea #7, built)
+
+A "Your real maintenance" card on the day page's Diet section
+(`adaptive-calories-logic.js` + `-ui.js`, test
+`tests/tracker-adaptive-calories-2026-10-20.test.js`). Maintenance = average
+logged calories - (weight change per day x 3,500). Window: 21 days ending
+yesterday. Food: only days with calories typed, 800-8,000 (blank/zero and
+partial days are left out and counted). Weight: average of the first 7 days'
+weigh-ins vs the last 7 days', over the real gap between them. Needs 14+ food
+days, 2+ weigh-ins at each end, weigh-ins spanning 14+ days - otherwise the card
+says "Not enough data yet" and names what is missing, never a number. Shows the
+last 7 days' pace against that maintenance, a "How is this worked out?"
+disclosure, and a one-tap "Use my maintenance as the calorie target" (only when
+no target is set; writes on tap only). It reads any `[{dk, lbs}]` weight series,
+so the Active Era import plugs in with no change.
