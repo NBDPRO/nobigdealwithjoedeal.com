@@ -13,7 +13,9 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const ROOT = path.join(__dirname, '..');
-const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+// Pins read the source with comments removed: a commented-out line must not satisfy a pin (vacuous-test audit, 2026-10-21).
+const stripComments = (s) => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/[^\n]*/g, '$1');
+const read = (p) => stripComments(fs.readFileSync(path.join(ROOT, p), 'utf8'));
 const FX = require(path.join(ROOT, 'docs/pro/js/call-center-filters-logic.js'));
 
 let passed = 0, failed = 0;
