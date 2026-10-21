@@ -73,7 +73,7 @@ test.describe('phone: Home leads with people who need you; field tools pinned; o
   test.describe('390 installed app', () => {
     test.use(IPHONE);
 
-    test('Home: needs-you chip and appointments in the first screen; the rest behind More on Home', async ({ page }) => {
+    test('Home: the call that needs Jo and appointments in the first screen; the rest behind More on Home', async ({ page }) => {
       test.setTimeout(150_000);
       seeded = await seed(stamp);
       await page.addInitScript(initStorage);
@@ -81,10 +81,16 @@ test.describe('phone: Home leads with people who need you; field tools pinned; o
       expect(await forceStandalone(page)).toBeGreaterThan(200);
       await safeEvaluate(page, () => window.goTo('home'));
       await safeEvaluate(page, () => window.scrollTo(0, 0));
-      const chip = page.locator('#homeAttention [data-target="calls"]');
-      await expect(chip, 'the needs-you chip shows').toBeVisible({ timeout: 30_000 });
-      await expect(chip).toHaveText(/\d+ (people need|person needs) you/);
       await expect(page.locator('#todayPlan .tp-title')).toHaveText(/things? today|Nothing/, { timeout: 30_000 });
+      // Since the 2026-10-13/14 phone UX pass the strip's 'N people need you' chip is a DUPLICATE of
+      // Today's own 'Calls owed' row, so on a phone it is dropped while Today is on the page
+      // (home-attention.js data-ha-dup + today-home.css) and the first screen is the work itself.
+      const owed = page.locator('#todayPlan').getByText('Calls owed');
+      await expect(owed, 'Today lists the call that needs Jo').toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('#todayPlan'), 'the row names the caller').toContainText('(513) 555-0177');
+      await expect(page.locator('#homeAttention [data-target="calls"]'), 'the strip drops the duplicate chip while Today shows the row').toBeHidden();
+      const callBtn = page.locator('#todayPlan a[href="tel:+15135550177"]').first();
+      await expect(callBtn, 'one tap to call them back').toBeVisible();
       await safeEvaluate(page, () => window.scrollTo(0, 0));
       const nav = await boxOf(page, '#mobile-nav');
       // A NEW tenant's "Get set up" card (setup-checklist.js) sits above
@@ -97,9 +103,9 @@ test.describe('phone: Home leads with people who need you; field tools pinned; o
         return Math.round(n ? n.getBoundingClientRect().top - sc.getBoundingClientRect().top : sc.getBoundingClientRect().height);
       });
       const fold = (nav ? nav.y : 844) + setupCard;
-      const c = await chip.boundingBox();
-      expect(c.y + c.height, 'the needs-you chip is above the bottom nav on the first screen').toBeLessThanOrEqual(fold);
-      expect(Math.round(c.height), 'the chip is thumb-sized').toBeGreaterThanOrEqual(44);
+      const c = await callBtn.boundingBox();
+      expect(c.y + c.height, 'the call-back button is above the bottom nav on the first screen').toBeLessThanOrEqual(fold);
+      expect(Math.round(c.height), 'the call-back button is thumb-sized').toBeGreaterThanOrEqual(44);
       // The Today card starts in the first screen (appointments are its first section).
       const plan = await boxOf(page, '#todayPlan');
       expect(plan.y, 'the Today list starts in the first screen').toBeLessThan(fold - 120);

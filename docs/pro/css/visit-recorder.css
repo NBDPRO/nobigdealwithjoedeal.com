@@ -21,6 +21,13 @@ html[data-layout="mission"] .nbd-vr-bar,
 html[data-layout="crew"] .nbd-vr-bar{ display:none; }
 /* 56px bar + 18px gap above it, on top of the nav room body already has */
 html.nbd-vr-bar-on #view-home .view-scroll{ padding-bottom:calc(74px + env(safe-area-inset-bottom, 0px)); }
+/* Phone (2026-10-21): dashboard-app.css forces `.view-scroll{ padding-bottom:calc(80px + safe-area) !important }`
+   at max-width:768px, which beats the plain rule above, so Home only cleared the NAV and its last card
+   ("More on Home") sat UNDER this bar and could not be tapped (caught by the phone-home-nav E2E). Same
+   room as the comment above promises - the nav's 80px PLUS the bar's 74px - but !important so it wins. */
+@media (max-width:768px){
+  html.nbd-vr-bar-on #view-home .view-scroll{ padding-bottom:calc(80px + 74px + env(safe-area-inset-bottom, 0px)) !important; }
+}
 .nbd-vr-bar[hidden]{ display:none; }
 .nbd-vr-barbtn, .nbd-vr-unfiled{ pointer-events:auto; }
 .nbd-vr-barbtn{
