@@ -213,10 +213,16 @@ typed words or the barcode number leave the device. The security policy allows
 pattern as `/pro/portal`). Test:
 [tracker-food-search](../../tests/tracker-food-search-2026-10-20.test.js).
 
-**Camera scanning needs the browser's `BarcodeDetector`** (Chrome / Android).
-iPhone Safari does not have it, so there the card asks for the digits under the
-barcode. True iPhone scanning needs a decoder library vendored into `docs/`
-(ZXing-class); held for Jo's OK.
+**Camera scanning (updated 2026-10-20):** Chrome / Android use the browser's own
+`BarcodeDetector`. iPhone Safari does not have it, so there the card loads a
+vendored ZXing build (`@zxing/library` 0.21.3, pure JS, ~336 KB, pinned by
+sha256 in [VENDOR.txt](../../docs/assets/vendor/zxing/VENDOR.txt)) on demand, only
+when Scan is tapped. It reads EAN-13 / EAN-8 / UPC-A and only looks up a number
+whose check digit is valid. If the camera or the download fails the card asks for
+the digits instead. Test:
+[tracker-barcode-decoder](../../tests/tracker-barcode-decoder-2026-10-20.test.js)
+decodes a barcode image rendered from the spec with the real vendored file, and
+has negative controls. Not yet tried on Jo's actual iPhone in daylight.
 
 ### Weight import (open — needs a sample)
 
