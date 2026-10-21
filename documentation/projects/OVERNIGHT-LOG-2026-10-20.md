@@ -136,3 +136,18 @@ Two review passes, both on code merged in cycle 4. Findings were verified before
 - **PRs open from me:** #2628 (comment-blind test pins), #2629 (roadmap), #2630 (header strip). No new build this cycle (three
   open, queue busy).
 - **Left for Jo:** the shard3 split-vs-timeout call above.
+
+## Cycle 7 - 12:00-14:30 EDT (theme: adversarial review of the new Repeat-last feature, plus merges)
+
+- **Shipped:** #2633 (type floor now catches rem/em and `font:` shorthand and covers every tracker sheet; a test drives the real
+  Call Center tab click), #2634 (handoff refresh) and #2635 **Repeat last workout** (same lifts, per-set weights, blank reps; the
+  coach card button sits beside Start; first item of the roadmap).
+- **Silent-failure review of #2635** (read-only agent, then verified by reading the code): one real defect - a repeated lift had
+  no target, because history never stores one, so ticking a set without typing reps stored `reps: 0` and the set vanished from
+  history, PRs, volume and Previous. Fixed in the same PR: every repeated lift now carries a target (weight, reps to beat, stall
+  check). Also fixed: equipment setting honoured, today's readiness carried, "Skipped N lifts" toast, button shown only when there is
+  something to repeat. Low items left: a non-numeric stored weight reads as bodyweight.
+- **Merge queue:** #2634 left the queue once on a required `@stranger` failure (the first provisioning step timed out at 30 s on a
+  loaded runner, then the retries cascaded); it was docs-only and merged on the next queue attempt. Jo authorised me to decide merge
+  order and timing ("everything up and live"), so I re-queue my own green PRs after a runner-timing failure.
+- **Left for Jo:** the shard3 split-vs-timeout call (cycle 6); nothing new.
