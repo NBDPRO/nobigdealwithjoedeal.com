@@ -285,3 +285,20 @@ readiness check-in, supersets.
   count (it takes 3 fresh sessions to flag again). It reads through
   `workingSets()` so warm-ups neither cause nor hide a stall. No planned-deload
   scheduling in v1. Test: [coach-stall](../../tests/coach-stall-2026-10-20.test.js).
+
+- **#1 Muscle balance nudge — shipped (PR open, stacked on the stall PR).** Every
+  exercise now carries a static primary-muscle tag (`e.muscle`: chest, shoulders,
+  back, biceps, triceps, quads, hams & glutes, calves, core, derived from its
+  pattern). `balance()` counts **hard sets** (= working sets; warm-ups never
+  count) per muscle over the last 7 days and flags groups at **0** or **under 4**
+  sets; push : pull is counted from presses/triceps vs rows/pulls/rear delts/
+  curls (lateral raises and legs are neutral) and flagged past 1.5×. It stays
+  silent until there is a session this week and at least 6 sets, and never
+  flags a group Jo can't train (equipment, or every lift in it is on the avoid
+  list). Shown on the **coach card** on the day page (chips + "Behind this
+  week: Back (Pull day)…") and as one line in the logger. **Switch it up**
+  leans toward the groups that are behind — honestly, only where a slot can be
+  filled from more than one group (squat-or-hinge, lunge-or-hinge in the full-body
+  rotation); the pattern slots on push/pull/legs days are single-muscle, so there
+  the nudge names the day that covers the gap instead. Test:
+  [coach-balance](../../tests/coach-balance-2026-10-20.test.js).

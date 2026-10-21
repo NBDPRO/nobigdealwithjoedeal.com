@@ -142,3 +142,11 @@ body.wc-lock { overflow: hidden; }
 .wc-stall { background: rgba(245, 158, 11, .1); border: 1px solid rgba(245, 158, 11, .45); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; font-size: 12px; color: #fcd9a0; }
 .wc-stall-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .wc-stall-btn { min-height: 40px; padding: 0 12px; font-size: 13px; }
+.wc-bal { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--rule, #d4c9b0); }
+.wc-bal-h { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted, #6b7280); margin-bottom: 4px; }
+.wc-bal-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.wc-bal-chip { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(0, 0, 0, .06); color: var(--ink, #1a1a1a); }
+.wc-bal-chip.low { background: rgba(245, 158, 11, .22); }
+.wc-bal-chip.none { background: rgba(220, 38, 38, .16); font-weight: 700; }
+.wc-bal-note { font-size: 12px; margin-top: 6px; color: var(--ink, #1a1a1a); }
+.wc-behind { margin: 0 0 8px; color: #f5c27a; }

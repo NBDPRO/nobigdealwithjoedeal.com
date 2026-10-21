@@ -54,6 +54,8 @@ function makeHarness(opts) {
   sandbox.todayKey = () => o.today || '2026-10-20';
   sandbox.toast = (m) => { toasts.push(String(m)); };
   sandbox.dsSettingsChanged = () => {};
+  // The day page's Fitness section the coach card gets prepended to (opts.fitness).
+  if (o.fitness) sandbox.buildFitnessSection = function () { return '<div id="fit-orig">fitness</div>'; };
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(path.join(DIR, 'workout-coach-logic.js'), 'utf8'), sandbox, { filename: 'workout-coach-logic.js' });
   vm.runInContext(fs.readFileSync(path.join(DIR, 'workout-coach.js'), 'utf8'), sandbox, { filename: 'workout-coach.js' });
@@ -73,6 +75,7 @@ function makeHarness(opts) {
     saved() { return read('nbd_ds_workouts') || []; },
     settings() { return read('nbd_ds_coach'); },
     html() { return els.wcOverlay ? els.wcOverlay.innerHTML : ''; },
+    card() { return typeof sandbox.buildFitnessSection === 'function' ? sandbox.buildFitnessSection({}) : ''; },
   };
 }
 

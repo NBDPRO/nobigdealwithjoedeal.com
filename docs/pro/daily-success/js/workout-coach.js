@@ -47,6 +47,24 @@
     if (typeof window.dsSettingsChanged === 'function') window.dsSettingsChanged(CFG);
   }
   const sessions = () => readJson(SESS, []) || [];
+  // Hard sets per muscle group over the last 7 days (warm-ups excluded), for the nudge.
+  function weekBalance() { const s = settings(); return C().balance(sessions(), today(), { equip: s.equip, avoid: s.avoid }); }
+  function balanceHtml() {
+    const b = weekBalance();
+    if (!b.enough) return '';
+    const chips = C().MUSCLES.map((m) => `<span class="wc-bal-chip${b.zero.includes(m) ? ' none' : b.low.includes(m) ? ' low' : ''}">${esc(C().MUSCLE_LABELS[m])} ${b.byMuscle[m]}</span>`).join('');
+    const rot = C().ROTATIONS[settings().rotation];
+    const needs = b.neglected.slice(0, 3).map((m) => {
+      const sp = C().splitsFor(m);
+      const day = sp.find((k) => rot.includes(k)) || sp[0];
+      return esc(C().MUSCLE_LABELS[m]) + (day ? ' (' + esc(C().SPLITS[day].label) + ' day)' : '');
+    });
+    const lines = [];
+    if (needs.length) lines.push('Behind this week: ' + needs.join(', ') + '.');
+    if (b.tilt === 'push') lines.push('Pushing ' + b.push + ' sets vs pulling ' + b.pull + ' — add some pulling.');
+    if (b.tilt === 'pull') lines.push('Pulling ' + b.pull + ' sets vs pushing ' + b.push + ' — add some pressing.');
+    return `<div class="wc-bal"><div class="wc-bal-h">Hard sets, last 7 days</div><div class="wc-bal-chips">${chips}</div>${lines.length ? `<div class="wc-bal-note">${lines.join(' ')}</div>` : ''}</div>`;
+  }
   let live = readJson(LIVE, null);
   let summary = null;          // the just-finished session's report
   let swapOpen = -1;
@@ -61,7 +79,7 @@
   function newSession(split, opts) {
     const s = settings();
     const seed = (opts && opts.seed) || (Date.now() % 1000000007);
-    const built = C().buildSession(split, sessions(), { today: today(), equip: s.equip, avoid: s.avoid, warmups: s.warmups, plates: s.plates, freshness: s.freshness, seed, reroll: opts && opts.reroll });
+    const built = C().buildSession(split, sessions(), { today: today(), equip: s.equip, avoid: s.avoid, warmups: s.warmups, plates: s.plates, freshness: s.freshness, seed, reroll: opts && opts.reroll, bias: opts && opts.bias });
     return Object.assign(built, { id: 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), seed, startedAt: Date.now() });
   }
 
@@ -97,7 +115,7 @@
     // A variety score over one or two workouts is noise — show it once there's a pattern to read.
     if (v.total >= 12) meta.push('Variety (4 wks): ' + v.pct + '%');
     return `<div class="wc-card" id="wcCard"><div class="wc-card-h">🏋️ Workout Coach</div>${body}
-      ${meta.length ? `<div class="wc-meta">${meta.join(' · ')}</div>` : ''}</div>`;
+      ${meta.length ? `<div class="wc-meta">${meta.join(' · ')}</div>` : ''}${balanceHtml()}</div>`;
   }
   function refreshCard() { const el = document.getElementById('wcCard'); if (el) el.outerHTML = cardHtml(); }
 
@@ -152,6 +170,7 @@
         <button class="btn btn-ghost" data-coach-action="reroll">🔀 Switch it up</button>
         <span class="wc-hint">RPE = effort: 10 nothing left · 8 two reps in the tank</span>
       </div>
+      ${behindHint()}
       ${cards}
       <div class="wc-foot">
         <button class="btn wc-finish" data-coach-action="finish">Finish workout</button>
@@ -176,6 +195,13 @@
       ? `<button class="btn wc-stall-btn" data-coach-action="deload" data-i="${i}">Deload to ${esc(st.deloadWeight)} lb (−10%)</button>` : '';
     return `<div class="wc-stall">⚠ Same best (${esc(st.label)}) for ${esc(st.sessions)} sessions. Take a lighter week, or try a different lift.
       <div class="wc-stall-btns">${dl}<button class="btn btn-ghost wc-stall-btn" data-coach-action="swap" data-i="${i}">Swap it</button></div></div>`;
+  }
+
+  // One line under the Switch-it-up button when a muscle group is behind: re-rolling leans toward it.
+  function behindHint() {
+    const b = weekBalance();
+    if (!b.neglected.length) return '';
+    return `<div class="wc-hint wc-behind">Behind this week: ${b.neglected.slice(0, 3).map((m) => esc(C().MUSCLE_LABELS[m])).join(', ')} — 🔀 Switch it up leans that way.</div>`;
   }
 
   function exerciseHtml(x, i) {
@@ -401,7 +427,7 @@
         if (!live) return;
         // Keep any exercise already started; re-roll the rest.
         const kept = live.exercises.filter((x) => doneCount(x));
-        const fresh = newSession(live.split, { seed: (live.seed || 1) + 7919, reroll: true });
+        const fresh = newSession(live.split, { seed: (live.seed || 1) + 7919, reroll: true, bias: weekBalance().neglected });
         const keepIds = kept.map((x) => x.exId);
         live.seed = fresh.seed;
         live.exercises = live.exercises.map((x) => {

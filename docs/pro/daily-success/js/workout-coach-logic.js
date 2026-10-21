@@ -120,8 +120,17 @@
     X('pallof', 'Pallof Press', 'core', 'cable', 0, 5),
     X('farmer', 'Farmer Carry (40 yd)', 'core', 'dumbbell', 0, 10),
   ];
+  // The primary muscle group each pattern trains — a static tag on every
+  // exercise (e.muscle). Drives the weekly balance nudge.
+  const MUSCLE_OF_PATTERN = {
+    h_push: 'chest', incline_push: 'chest', chest_iso: 'chest', v_push: 'shoulders', lateral: 'shoulders', rear_delt: 'shoulders',
+    triceps: 'triceps', v_pull: 'back', h_pull: 'back', biceps: 'biceps', squat: 'quads', lunge: 'quads', quad_iso: 'quads',
+    hinge: 'hams', ham_iso: 'hams', calves: 'calves', core: 'core',
+  };
+  const MUSCLES = ['chest', 'shoulders', 'back', 'biceps', 'triceps', 'quads', 'hams', 'calves', 'core'];
+  const MUSCLE_LABELS = { chest: 'Chest', shoulders: 'Shoulders', back: 'Back', biceps: 'Biceps', triceps: 'Triceps', quads: 'Quads', hams: 'Hams & glutes', calves: 'Calves', core: 'Core' };
   const BY_ID = Object.create(null);
-  EXERCISES.forEach((e) => { BY_ID[e.id] = e; });
+  EXERCISES.forEach((e) => { e.muscle = MUSCLE_OF_PATTERN[e.pattern]; BY_ID[e.id] = e; });
   const EQUIP = ['barbell', 'dumbbell', 'cable', 'machine', 'bodyweight'];
 
   // Plain-English names for the movement patterns (the "Avoid" chips).
@@ -293,19 +302,23 @@
         if (run < hold) return BY_ID[last.exId];
         // Held long enough — rotate to anything else.
         const others = cands.filter((c) => c.id !== last.exId);
-        if (others.length) return leastRecent(others, sessions, today, o.rng, true);
+        if (others.length) return leastRecent(others, sessions, today, o.rng, true, o.bias);
       }
     }
     // An anchor with nothing to go on starts on a staple (the library lists
     // each pattern's staple first) — a first Push day opens on bench press,
     // not a random pick. "Switch it up" (reroll) stays random.
-    return leastRecent(cands, sessions, today, o.rng, slot.anchor && !o.reroll);
+    return leastRecent(cands, sessions, today, o.rng, slot.anchor && !o.reroll, o.bias);
   }
 
-  function leastRecent(cands, sessions, today, rng, staplesFirst) {
+  // bias (optional): muscle groups that are behind this week. A candidate in
+  // one of them goes first; with no bias every candidate ties and the order is
+  // exactly the least-recent / seeded order it always was.
+  function leastRecent(cands, sessions, today, rng, staplesFirst, bias) {
     const r = rng || Math.random;
-    const scored = cands.map((c, idx) => ({ c, age: daysSince(c.id, sessions, today), tie: staplesFirst ? idx : r() }));
-    scored.sort((a, b) => (b.age - a.age) || (a.tie - b.tie));
+    const want = Array.isArray(bias) && bias.length ? bias : null;
+    const scored = cands.map((c, idx) => ({ c, age: daysSince(c.id, sessions, today), tie: staplesFirst ? idx : r(), pref: want && want.includes(c.muscle) ? 0 : 1 }));
+    scored.sort((a, b) => (a.pref - b.pref) || (b.age - a.age) || (a.tie - b.tie));
     return scored[0].c;
   }
 
@@ -518,6 +531,55 @@
     return { total, distinct: ids.size, pct: total ? Math.round(ids.size / total * 100) : 0 };
   }
 
+  // ── weekly balance ────────────────────────────────────────────────────
+  // Hard sets (= working sets; warm-ups never count) per muscle group over the
+  // last 7 days, plus push : pull. It only speaks up once there is something to
+  // read (a session this week and at least 6 sets) — no data, no nagging.
+  const LOW_SETS = 4;
+  const PUSH_PATTERNS = ['h_push', 'incline_push', 'v_push', 'chest_iso', 'triceps'];
+  const PULL_PATTERNS = ['v_pull', 'h_pull', 'rear_delt', 'biceps'];
+  const ageDays = (ymd, todayYmd) => {
+    const [y1, m1, d1] = String(ymd).split('-').map(Number);
+    const [y2, m2, d2] = String(todayYmd).split('-').map(Number);
+    return Math.round((new Date(y2, m2 - 1, d2) - new Date(y1, m1 - 1, d1)) / 86400000);
+  };
+  function balance(sessions, todayYmd, opts) {
+    const o = opts || {};
+    const days = o.days || 7;
+    const by = {}; MUSCLES.forEach((m) => { by[m] = 0; });
+    let push = 0, pull = 0, total = 0, count = 0;
+    for (const s of finished(sessions)) {
+      const age = ageDays(s.date, todayYmd);
+      if (!(age >= 0 && age < days)) continue;
+      count++;
+      for (const ex of s.exercises || []) {
+        const lib = BY_ID[ex.exId];
+        if (!lib) continue;
+        const n = workingSets(ex).length;
+        by[lib.muscle] += n; total += n;
+        if (PUSH_PATTERNS.includes(lib.pattern)) push += n; else if (PULL_PATTERNS.includes(lib.pattern)) pull += n;
+      }
+    }
+    // A group Jo can't train (equipment, or everything in it is on the avoid list) is never flagged.
+    const equip = new Set((o.equip && o.equip.length) ? o.equip : EQUIP);
+    const trainable = MUSCLES.filter((m) => EXERCISES.some((e) => e.muscle === m && equip.has(e.equip) && !isAvoided(e, o.avoid)));
+    const enough = count > 0 && total >= 6;
+    const zero = trainable.filter((m) => by[m] === 0);
+    const low = trainable.filter((m) => by[m] > 0 && by[m] < LOW_SETS).sort((a, b) => by[a] - by[b]);
+    let tilt = null;
+    if (enough && push + pull >= 6) {
+      if (pull === 0 || push / pull > 1.5) tilt = 'push';
+      else if (push === 0 || pull / push > 1.5) tilt = 'pull';
+    }
+    return { days, sessions: count, total, byMuscle: by, push, pull, enough, zero: enough ? zero : [], low: enough ? low : [],
+      neglected: enough ? zero.concat(low) : [], tilt };
+  }
+
+  /** Split days that train a muscle group (for "Legs day covers that"). */
+  function splitsFor(muscle) {
+    return Object.keys(SPLITS).filter((k) => SPLITS[k].slots.some((sl) => patternsOf(sl).some((p) => MUSCLE_OF_PATTERN[p] === muscle)));
+  }
+
   function volume(session) {
     let sets = 0, lbs = 0;
     for (const ex of (session && session.exercises) || []) for (const s of workingSets(ex)) { sets++; lbs += num(s.weight) * num(s.reps); }
@@ -564,6 +626,7 @@
 
   const api = {
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
+    MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor,
     DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, daysSince, candidatesFor, pickForSlot, targetFor,
     nextSplit, buildSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };
