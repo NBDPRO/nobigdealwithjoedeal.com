@@ -91,6 +91,10 @@ const CRON_GATES = [
   // the email is live on nobigdeal-pro; the text is DARK until A2P approval.
   { name: 'REVIEW_ASK_AUTO_EMAIL_ENABLED', polarity: 'enabled', file: 'review-ask-auto.js' },
   { name: 'REVIEW_ASK_AUTO_TEXT_ENABLED', polarity: 'enabled', file: 'review-ask-auto.js' },
+  // Not a cron: the Apple Health weight Shortcut endpoint (2026-10-20). Its real
+  // on-switch is the Firestore doc system/healthShortcut {enabled:true} (dark
+  // until Jo flips it in the console); this env var is the emergency kill switch.
+  { name: 'HEALTH_SHORTCUT_DISABLED', polarity: 'disabled', file: 'health-shortcut.js' },
 ];
 
 /**

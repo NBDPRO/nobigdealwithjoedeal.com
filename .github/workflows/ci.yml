@@ -558,6 +558,11 @@ jobs:
         run: |
           cd tests
           firebase emulators:exec --only storage --project nbd-subpapers-test 'node storage-rules.sub-papers.test.js'
+      # Apple Health weight Shortcut (2026-10-20): health_shortcut_keys / health_shortcut_state / system flag are Admin-SDK only. Own file (positive controls inside).
+      - name: Run health-shortcut rules tests under emulator
+        run: |
+          cd tests
+          firebase emulators:exec --only firestore --project nbd-hshortcut-test 'node firestore-rules.health-shortcut.test.js'
       # Brief delta-mode snapshot (2026-10-18): morningBriefState/{cid} is Admin-SDK only. Own file.
       - name: Run morning-brief-state rules tests under emulator
         run: |

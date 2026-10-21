@@ -490,6 +490,14 @@ Object.assign(exports, alertRecipientFunctions);
 const calendarFeedFunctions = require('./calendar-feed');
 Object.assign(exports, calendarFeedFunctions);
 
+// Apple Health weight via an iPhone Shortcut (2026-10-20): a per-user secret key
+// in an Authorization header, hash-only at rest. DARK until system/healthShortcut
+// {enabled:true}. Named exports, so the module's test seams are not deployed.
+// See functions/health-shortcut.js and documentation/runbooks/HEALTH-SHORTCUT.md.
+const healthShortcutFunctions = require('./health-shortcut');
+exports.healthShortcutIngest = healthShortcutFunctions.healthShortcutIngest;
+exports.healthShortcutManage = healthShortcutFunctions.healthShortcutManage;
+
 // Email unsubscribe (CAN-SPAM, 2026-09-22): public /unsubscribe/<token> page +
 // RFC 8058 one-click POST (emailUnsubscribe), and the rep's "Mark
 // unsubscribed" callable. Register + commercial-send gate live in

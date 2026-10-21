@@ -577,6 +577,12 @@ const VERDICTS = {
   // Thursday: Bland's signed post-call webhook, and the mid-call caller lookup
   // (Bland's bearer token, no signed-in user).
   thursdayCallerLookup: 'public', thursdayWebhook: 'public',
+  // Apple Health weight (health-shortcut.js, 2026-10-20, ships dark behind system/healthShortcut):
+  // the ingest is called by an iPhone Shortcut with the user's own bearer key - no signed-in
+  // caller, like the Thursday webhooks. The manage callable only creates / rotates / revokes
+  // the CALLER'S OWN key for their own personal tracker (users/{uid}/ds_pages), never company
+  // data, and is further limited to the uids in the flag doc's allowedUids - so it is 'self'.
+  healthShortcutIngest: 'public', healthShortcutManage: 'self',
 };
 const VERDICT_KINDS = new Set(['refused', 'role-gated', 'already', 'read', 'read-paid', 'self', 'public']);
 

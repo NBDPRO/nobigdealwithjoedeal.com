@@ -122,6 +122,8 @@
   "googleCalendarReconcile": "./google-calendar",
   "hailMatchCron": "./integrations/hail-cron",
   "healthDigestCron": "./health-digest",
+  "healthShortcutIngest": "./health-shortcut",
+  "healthShortcutManage": "./health-shortcut",
   "imageProxy": "./handlers/photo",
   "incomingSMS": "./sms-functions",
   "integrationAvailability": "./handlers/integrations",
