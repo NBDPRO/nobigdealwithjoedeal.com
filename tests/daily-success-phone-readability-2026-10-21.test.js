@@ -116,5 +116,15 @@ console.log('\n5. the theme code keeps has-banner');
   ok('both call sites (boot and apply) use the helper', (APP.match(/nbdSetThemeClass\(/g) || []).length >= 3);
 }
 
+console.log('\n9. header strip says it scrolls');
+{
+  const noComments = HTML.replace(/\/\*[\s\S]*?\*\//g, '');
+  const phone = noComments.slice(noComments.lastIndexOf('<style'));
+  ok('the right edge fades (mask) so a half-cut button reads as "more this way"', /\.tbr\{[^}]*mask-image:linear-gradient\(to right,#000 calc\(100% - 28px\),transparent\)/.test(phone));
+  ok('the strip ends with a spacer wider than the fade so the last button stays clear of it', /\.tbr::after\{content:"";flex:0 0 30px;\}/.test(phone));
+  ok('control: the strip still scrolls sideways (hidden scrollbar, overflow-x auto)', /\.tbr\{[^}]*overflow-x:auto/.test(noComments));
+  ok('control: a commented-out rule would not satisfy the pin', !/\.tbr\{[^}]*mask-image/.test('/* .tbr{mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)} */'.replace(/\/\*[\s\S]*?\*\//g, '')));
+}
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);
