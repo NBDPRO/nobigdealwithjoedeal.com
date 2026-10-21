@@ -403,13 +403,22 @@
     if (!routines.length) return '<div class="wc-lbl">My routines</div><div class="wc-hint">None yet - open a workout and tap Save as routine.</div>';
     return `<div class="wc-lbl">My routines</div>${routines.map((r) => `<div class="wc-cx"><input class="wc-in wc-cx-name" maxlength="40" aria-label="Routine name" value="${esc(r.name)}" data-coach-field="rt-name" data-id="${esc(r.id)}"><button class="btn btn-ghost wc-cx-del" data-coach-action="routine-del" data-id="${esc(r.id)}" aria-label="Remove ${esc(r.name)}">Remove</button></div>`).join('')}`;
   }
+  // The lists live on this device only; another tab or the installed app may have changed them since this page loaded, so every
+  // mutator re-reads storage first (otherwise its save would silently overwrite the other copy's changes).
+  function reloadLists() {
+    try { routines = C().normRoutines(readJson(ROUTINES, [])); custom = C().setCustomExercises(readJson(CUSTOM, [])); } catch (_) { /* keep what we have */ }
+  }
+  const SAVE_FAILED = "Couldn't save that on this phone - storage is full or blocked";
   function saveRoutine() {
     if (!live) return;
+    reloadLists();
+    if (routines.length >= 30) { toast('That is plenty of routines - remove one first'); return; }
     const name = C().nextRoutineName(routines, live.split);
     const r = C().routineFromSession(live, name, 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
     if (!r) { toast('Add a set first - there is nothing to save yet'); return; }
+    const before = routines;
     routines = C().normRoutines(routines.concat([r]));
-    writeJson(ROUTINES, routines);
+    if (!writeJson(ROUTINES, routines)) { routines = before; toast(SAVE_FAILED); return; }
     toast('Saved as ' + name + ' - rename it under the gear');
     render();
   }
@@ -424,22 +433,26 @@
     if (rec) { live.ready = Object.assign({}, rec); applyReadyTo(live); }
     persistLive();
     open();
-    if (built.skipped) toast('Skipped ' + built.skipped + ' lift' + (built.skipped === 1 ? '' : 's') + ' you avoid or have no equipment for');
+    if (built.skipped) toast('Skipped ' + built.skipped + ' lift' + (built.skipped === 1 ? '' : 's') + ' you avoid, can\'t do with your equipment, or have removed');
   }
   function addCustom() {
+    reloadLists();
     const name = String(cxDraft.name || '').replace(/\s+/g, ' ').trim();
     if (!name) { toast('Type a name first'); return; }
     if (custom.length >= 30) { toast('That is plenty - remove one first'); return; }
     const next = C().setCustomExercises(custom.concat([{ name, pattern: cxDraft.pattern, equip: cxDraft.equip, compound: false }]));
     if (next.length === custom.length) { toast('You already have that one (or it is not valid)'); C().setCustomExercises(custom); return; }
-    custom = next; writeJson(CUSTOM, custom);
+    if (!writeJson(CUSTOM, next)) { C().setCustomExercises(custom); toast(SAVE_FAILED); return; }
+    custom = next;
     cxDraft = { name: '', pattern: cxDraft.pattern, equip: cxDraft.equip };
     toast('Added ' + name);
     render();
   }
   function removeCustom(id) {
+    reloadLists();
+    const before = custom;
     custom = C().setCustomExercises(custom.filter((c) => c.id !== id));
-    writeJson(CUSTOM, custom);
+    if (!writeJson(CUSTOM, custom)) { custom = C().setCustomExercises(before); toast(SAVE_FAILED); return; }
     render();
   }
 
@@ -567,7 +580,7 @@
     if (rec) { live.ready = Object.assign({}, rec); applyReadyTo(live); }
     persistLive();
     open();
-    if (built.skipped) toast('Skipped ' + built.skipped + ' lift' + (built.skipped === 1 ? '' : 's') + ' you avoid or have no equipment for');
+    if (built.skipped) toast('Skipped ' + built.skipped + ' lift' + (built.skipped === 1 ? '' : 's') + ' you avoid, can\'t do with your equipment, or have removed');
   }
 
   function start() {
@@ -644,7 +657,13 @@
       case 'settings': showSettings = !showSettings; render(); return;
       case 'routine-save': saveRoutine(); return;
       case 'routine-start': startRoutine(String(t.dataset.id || '')); return;
-      case 'routine-del': routines = routines.filter((r) => r.id !== String(t.dataset.id || '')); writeJson(ROUTINES, routines); render(); return;
+      case 'routine-del': {
+        reloadLists();
+        const before = routines;
+        routines = routines.filter((r) => r.id !== String(t.dataset.id || ''));
+        if (!writeJson(ROUTINES, routines)) { routines = before; toast(SAVE_FAILED); return; }
+        render(); return;
+      }
       case 'custom-add': addCustom(); return;
       case 'custom-del': removeCustom(String(t.dataset.id || '')); return;
       case 'set-restalert': {
@@ -817,8 +836,9 @@
   function onField(ev) {
     const el = ev.target;
     if (el && el.dataset && el.dataset.coachField === 'rt-name') {
+      reloadLists();
       const r = routines.find((x) => x.id === el.dataset.id), nm = String(el.value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
-      if (r && nm) { r.name = nm; writeJson(ROUTINES, routines); }
+      if (r && nm) { r.name = nm; if (!writeJson(ROUTINES, routines)) toast(SAVE_FAILED); }
       return;
     }
     if (el && el.dataset && el.dataset.coachField === 'cx') { if (el.dataset.k in cxDraft) cxDraft[el.dataset.k] = el.value; return; }

@@ -875,16 +875,18 @@
    * ids are forced into the my_ namespace so a stored list can never overwrite a built-in lift.
    */
   function normCustom(list) {
-    const out = [], seen = new Set();
+    const out = [], seen = new Set(), names = new Set();
     (Array.isArray(list) ? list : []).forEach((c) => {
       if (!c || typeof c !== 'object') return;
       const name = String(c.name == null ? '' : c.name).replace(/\s+/g, ' ').trim().slice(0, 40);
       if (!name || !PATTERN_LABELS[c.pattern] || EQUIP.indexOf(c.equip) === -1) return;
       let id = String(c.id || '').replace(/[^a-z0-9_]/g, '');
       if (id.indexOf('my_') !== 0) id = 'my_' + (name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'lift');
-      if (seen.has(id) || (BY_ID[id] && !BY_ID[id].custom)) return;
-      seen.add(id);
-      out.push({ id, name, pattern: c.pattern, equip: c.equip, compound: !!c.compound });
+      if (names.has(name.toLowerCase())) return;
+      let uid = id, k = 2;
+      while (seen.has(uid) || (BY_ID[uid] && !BY_ID[uid].custom)) uid = id + '_' + (k++);
+      names.add(name.toLowerCase()); seen.add(uid);
+      out.push({ id: uid, name, pattern: c.pattern, equip: c.equip, compound: !!c.compound });
     });
     return out;
   }
@@ -911,7 +913,7 @@
       const lifts = (Array.isArray(r.lifts) ? r.lifts : []).map((l) => {
         if (!l || typeof l !== 'object' || !l.exId) return null;
         const n = Math.round(num(l.sets));
-        return { exId: String(l.exId), name: String(l.name == null ? '' : l.name).slice(0, 60), slot: Number.isInteger(l.slot) && l.slot >= 0 ? l.slot : 0, sets: n >= 1 && n <= 10 ? n : 3 };
+        return { exId: String(l.exId), name: String(l.name == null ? '' : l.name).slice(0, 60), slot: Number.isInteger(l.slot) && l.slot >= 0 ? l.slot : 0, sets: n >= 1 ? Math.min(10, n) : 3 };
       }).filter(Boolean).slice(0, 20);
       if (!lifts.length) return;
       seen.add(id);

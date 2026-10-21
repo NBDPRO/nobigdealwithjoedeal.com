@@ -40,7 +40,7 @@ console.log('\n1. normRoutines');
   ok('keeps the good ones, drops duplicates / blank names / missing ids / unknown splits / empty lifts / junk', n.length === 2 && n[0].id === 'r1' && n[1].id === 'r6', JSON.stringify(n.map((r) => r.id)));
   ok('ids are sanitised and names trimmed and collapsed', n[1].id === 'r6' && n[1].name === 'Pull B');
   ok('non-array input is an empty list', C.normRoutines(undefined).length === 0 && C.normRoutines({}).length === 0 && C.normRoutines('x').length === 0);
-  ok('set counts outside 1-10 fall back to 3', C.normRoutines([R({ lifts: [{ exId: 'bb_bench', slot: 0, sets: 99 }, { exId: 'ohp', slot: 2, sets: 0 }, { exId: 'incline_db', slot: 1, sets: 4 }] })])[0].lifts.map((l) => l.sets).join() === '3,3,4');
+  ok('set counts: more than 10 keep 10 (it used to become 3), none/zero fall back to 3, others kept', C.normRoutines([R({ lifts: [{ exId: 'bb_bench', slot: 0, sets: 99 }, { exId: 'ohp', slot: 2, sets: 0 }, { exId: 'incline_db', slot: 1, sets: 4 }, { exId: 'ohp', slot: 2, sets: 12 }] })])[0].lifts.map((l) => l.sets).join() === '10,3,4,10');
   ok('capped at 30 routines and 20 lifts each', C.normRoutines(Array.from({ length: 40 }, (_, i) => R({ id: 'x' + i, name: 'n' + i }))).length === 30 && C.normRoutines([R({ lifts: Array.from({ length: 30 }, () => ({ exId: 'bb_bench', slot: 0, sets: 3 })) })])[0].lifts.length === 20);
 }
 
@@ -110,6 +110,32 @@ console.log('\n4. the real screen');
   const blocked = makeHarness({ storage: { nbd_ds_workouts: hist, nbd_ds_coach_routines: [R({ id: 'rb', lifts: [{ exId: 'bb_bench', name: 'Bench', slot: 0, sets: 3 }] })], nbd_ds_coach: { avoid: { exercises: ['bb_bench'] } } }, today: '2026-10-21', fitness: true });
   blocked.click('routine-start', { id: 'rb' });
   ok('control: a routine whose every lift is now avoided starts nothing and says why', blocked.live() === null && blocked.toasts.some((t) => /Nothing left/i.test(t)), blocked.toasts.join('|'));
+  // review fixes: the 31st routine is refused out loud, a failed write is reported and rolled back, another tab's changes are not overwritten
+  const many = Array.from({ length: 30 }, (_, i) => R({ id: 'm' + i, name: 'Routine ' + i }));
+  const full = makeHarness({ storage: { nbd_ds_workouts: hist, nbd_ds_coach_routines: many }, today: '2026-10-21', fitness: true });
+  full.click('set-freshness', { val: 'steady' }); full.click('start'); full.click('routine-save');
+  ok('the 31st routine is refused with a message (it used to say "Saved" and drop it)', full.toasts.some((t) => /plenty of routines/i.test(t)) && !full.toasts.some((t) => /^Saved as/.test(t)) && JSON.parse(full.store.get('nbd_ds_coach_routines')).length === 30);
+
+  const fl = makeHarness({ storage: { nbd_ds_workouts: hist }, today: '2026-10-21', fitness: true });
+  fl.click('set-freshness', { val: 'steady' }); fl.click('start');
+  const realSet = fl.sandbox.localStorage.setItem;
+  fl.sandbox.localStorage.setItem = (k, v) => { if (k === 'nbd_ds_coach_routines') throw new Error('QuotaExceededError'); return realSet(k, v); };
+  fl.click('routine-save');
+  ok('a failed write says so and does not claim "Saved"', fl.toasts.some((t) => /Couldn't save that/.test(t)) && !fl.toasts.some((t) => /^Saved as/.test(t)));
+  fl.sandbox.localStorage.setItem = realSet;
+  fl.click('routine-save');
+  ok('control: once storage works again the same tap saves it (the failed attempt left nothing behind)', JSON.parse(fl.store.get('nbd_ds_coach_routines') || '[]').length === 1);
+
+  const tab = makeHarness({ storage: { nbd_ds_workouts: hist }, today: '2026-10-21', fitness: true });
+  tab.click('set-freshness', { val: 'steady' }); tab.click('start');
+  tab.store.set('nbd_ds_coach_routines', JSON.stringify([R({ id: 'other', name: 'From another tab' })]));
+  tab.click('routine-save');
+  const both = JSON.parse(tab.store.get('nbd_ds_coach_routines'));
+  ok('a routine saved in another tab since this page loaded is kept (the list is re-read before every change)', both.length === 2 && both.some((r) => r.id === 'other'), JSON.stringify(both.map((r) => r.name)));
+
+  const big = sess('2026-10-20', 'push', [['bb_bench', 0, Array.from({ length: 12 }, () => [135, 8])]]);
+  big.exercises[0].sets.forEach((x) => { x.done = false; x.reps = ''; });
+  ok('a lift with 12 planned sets saves as 10, not 3', C.routineFromSession(big, 'Big', 'b1').lifts[0].sets === 10);
   ok('handlers go through the delegated switch (no inline handler)', /case 'routine-save': saveRoutine\(\); return;/.test(UI) && /case 'routine-start':/.test(UI) && /case 'routine-del':/.test(UI) && !/onclick=/.test(UI));
 }
 
