@@ -413,6 +413,13 @@
       <div class="wc-foot"><button class="btn wc-finish" data-coach-action="close">Close</button></div></div>`;
   }
 
+  // Volume vs last time + each lift's best set. Hidden when there is nothing to compare / list.
+  function recapHtml(rc) {
+    if (!rc) return '';
+    const vs = rc.vs ? `<div class="wc-vs ${rc.vs.pct >= 0 ? 'up' : 'down'}">${rc.vs.pct >= 0 ? '▲' : '▼'} ${Math.abs(rc.vs.pct)}% volume vs ${esc(fmtDay(rc.vs.date))} <small>(${esc(rc.vs.prevLbs.toLocaleString())} lb)</small></div>` : '';
+    const lifts = rc.lifts.length ? `<div class="wc-lifts">${rc.lifts.map((l) => `<div><span>${esc(l.name)}</span><b>${esc(l.sets)} set${l.sets === 1 ? '' : 's'} · top ${esc(l.top)}</b></div>`).join('')}</div>` : '';
+    return vs + lifts;
+  }
   function summaryHtml(r) {
     const prs = r.prs.length
       ? `<div class="wc-prs">${r.prs.map((p) => (p.kind === 'reps'
@@ -422,6 +429,7 @@
     return `<div class="wc-box"><div class="wc-top"><button class="wc-x" data-coach-action="close" aria-label="Close">✕</button>
       <div class="wc-title">${esc(r.label)} day done ✓</div><span></span></div>
       <div class="wc-sum"><div><b>${r.vol.sets}</b> sets</div><div><b>${r.vol.lbs.toLocaleString()}</b> lb moved</div><div><b>${r.minutes}</b> min</div></div>
+      ${recapHtml(r.recap)}
       ${prs}
       ${r.variety.total >= 12 ? `<div class="wc-hint">Variety over the last 4 weeks: ${r.variety.pct}% — ${r.variety.distinct} different lifts across ${r.variety.total} exercise slots</div>` : ''}
       ${r.wrotePage ? '<div class="wc-hint">Logged to today\'s Exercise Log.</div>' : ''}
@@ -520,7 +528,7 @@
     summary = {
       label: live.label, prs: C().detectPRs(session, prior), vol: C().volume(session),
       minutes: Math.max(1, Math.round((now - (live.startedAt || now)) / 60000)),
-      variety: C().variety(all, today(), 28), wrotePage,
+      variety: C().variety(all, today(), 28), wrotePage, recap: C().sessionRecap(session, prior),
     };
     live = null; persistLive(); stopRest(); swapOpen = -1; armed = '';
     render();

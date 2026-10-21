@@ -738,6 +738,25 @@
     return { sets, lbs: Math.round(lbs) };
   }
 
+  /**
+   * The finish screen's "how did it go": total volume against the last finished session of the same split, and each lift's
+   * best set (weight x reps; bodyweight lifts by reps). -> { vs: { date, prevLbs, pct } | null, lifts: [{ name, sets, top }] }
+   */
+  function sessionRecap(session, priorSessions) {
+    const vol = volume(session);
+    const last = finished(priorSessions).find((s) => s.id !== (session && session.id) && s.split === (session && session.split));
+    const lv = last ? volume(last) : null;
+    const vs = last && lv.lbs > 0 ? { date: last.date, prevLbs: lv.lbs, pct: Math.round((vol.lbs - lv.lbs) / lv.lbs * 100) } : null;
+    const score = (st) => (num(st.weight) > 0 ? num(st.weight) * num(st.reps) : num(st.reps));
+    const lifts = ((session && session.exercises) || []).map((ex) => {
+      const ws = workingSets(ex);
+      if (!ws.length) return null;
+      const best = ws.reduce((b, st) => (score(st) > score(b) ? st : b), ws[0]);
+      return { name: ex.name || (BY_ID[ex.exId] || {}).name || ex.exId, sets: ws.length, top: prevText({ weight: num(best.weight), reps: Math.round(num(best.reps)) }) };
+    }).filter(Boolean);
+    return { vs, lifts };
+  }
+
   /** Rows for the day page's old free-text Exercise Log table. */
   function toPageRows(session) {
     return ((session && session.exercises) || []).map((ex) => {
@@ -869,7 +888,7 @@
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
     MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
     DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, repPRCheck, HIGH_REP, previousSets, prevText, historyList, REST_ALERTS, normRestAlert, restAlertPlan, daysSince, candidatesFor, pickForSlot, targetFor,
-    nextSplit, buildSession, repeatSession, SET_KINDS, nextSetKind, setKindLabel, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
+    nextSplit, buildSession, repeatSession, SET_KINDS, nextSetKind, setKindLabel, swapOptions, detectPRs, variety, volume, sessionRecap, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCoach = api;
