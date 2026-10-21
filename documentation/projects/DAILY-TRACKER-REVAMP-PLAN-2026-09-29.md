@@ -247,3 +247,11 @@ readiness check-in, supersets.
   takes a second tap. Stored as `avoid: {patterns, exercises}` in the coach
   settings (`dsCoach`, synced). Wording is "avoiding" — not medical advice.
   Test: [coach-avoid-list](../../tests/coach-avoid-list-2026-10-20.test.js).
+
+- **#4 Plate calculator — shipped (PR open, stacked on the avoid-list PR).**
+  Under the target on every barbell lift: "45 / 25 / 10 per side", from a bar
+  weight (35 or 45) and a plate inventory set once in ⚙ (`plates` in the synced
+  coach settings; defaults 45 lb bar, 45/35/25/10/5/2.5). Greedy arithmetic in
+  hundredths of a lb (no float drift); a weight the plates cannot make loads
+  what it can and says how many lb short — it never rounds silently. Test:
+  [coach-plate-calc](../../tests/coach-plate-calc-2026-10-20.test.js).

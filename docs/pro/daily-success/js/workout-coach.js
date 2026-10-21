@@ -38,6 +38,7 @@
       freshness: C().FRESHNESS[s.freshness] ? s.freshness : 'mixed',
       equip: Array.isArray(s.equip) && s.equip.length ? s.equip.filter((e) => C().EQUIP.includes(e)) : C().EQUIP.slice(),
       avoid: C().normAvoid(s.avoid),
+      plates: C().normPlates(s.plates),
     };
   }
   function saveSettings(s) {
@@ -152,6 +153,13 @@
     </div>`;
   }
 
+  // "45 / 25 / 10 per side" under the target — barbell lifts with a target weight only.
+  function platesHtml(x, ex) {
+    if (ex.equip !== 'barbell' || !(x.target && parseFloat(x.target.weight) > 0)) return '';
+    const p = C().platesPerSide(x.target.weight, settings().plates);
+    return p ? `<div class="wc-plates">🏋 ${esc(p.text)}</div>` : '';
+  }
+
   function exerciseHtml(x, i) {
     const ex = C().BY_ID[x.exId] || {};
     const rows = (x.sets || []).map((st, j) => `<div class="wc-set${st.done ? ' done' : ''}">
@@ -185,6 +193,7 @@
         <div class="wc-ex-btns"><button class="btn btn-ghost wc-swap" data-coach-action="avoid-ex" data-i="${i}" title="Stop offering this one">${armed === 'avoidx:' + i ? 'Sure? Tap again' : 'Avoid'}</button>
         <button class="btn btn-ghost wc-swap" data-coach-action="swap" data-i="${i}">${swapOpen === i ? 'Cancel' : 'Swap'}</button></div></div>
       <div class="wc-target">🎯 ${esc(x.target && x.target.note)}</div>
+      ${platesHtml(x, ex)}
       ${swaps}${rows}
       <button class="wc-add" data-coach-action="add-set" data-i="${i}">+ set</button>
     </div>`;
@@ -196,6 +205,7 @@
       <div class="wc-lbl">Rotation</div><div class="wc-chips">${radio('rotation', 'ppl', 'Push / Pull / Legs', s.rotation)}${radio('rotation', 'ul', 'Upper / Lower', s.rotation)}${radio('rotation', 'full', 'Full Body', s.rotation)}</div>
       <div class="wc-lbl">Main lift changes</div><div class="wc-chips">${radio('freshness', 'steady', 'Every 6 sessions', s.freshness)}${radio('freshness', 'mixed', 'Every 3', s.freshness)}${radio('freshness', 'fresh', 'Every session', s.freshness)}</div>
       <div class="wc-lbl">Equipment I have</div><div class="wc-chips">${C().EQUIP.map((e) => `<button class="wc-chip${s.equip.includes(e) ? ' on' : ''}" data-coach-action="toggle-equip" data-val="${e}">${e}</button>`).join('')}</div>
+      <div class="wc-lbl">Bar &amp; plates (for the per-side math)</div><div class="wc-chips">${[35, 45].map((b) => `<button class="wc-chip${s.plates.bar === b ? ' on' : ''}" data-coach-action="set-bar" data-val="${b}">${b} lb bar</button>`).join('')}${C().PLATE_SIZES.map((p) => `<button class="wc-chip${s.plates.plates.includes(p) ? ' on' : ''}" data-coach-action="toggle-plate" data-val="${p}">${p}</button>`).join('')}</div>
       <div class="wc-lbl">Avoiding for now (sore spot?)</div><div class="wc-chips">${Object.keys(C().PATTERN_LABELS).map((p) => `<button class="wc-chip${s.avoid.patterns.includes(p) ? ' on' : ''}" data-coach-action="toggle-avoid-pat" data-val="${p}">${esc(C().PATTERN_LABELS[p])}</button>`).join('')}${s.avoid.exercises.map((id) => `<button class="wc-chip on" data-coach-action="unavoid-ex" data-val="${esc(id)}">${esc((C().BY_ID[id] || {}).name || id)} ✕</button>`).join('')}</div>
       <div class="wc-hint">The coach won't offer anything you're avoiding. This is your own list, not medical advice.</div>
       <div class="wc-hint">Changes apply to the next workout you build (or tap 🔀 now).</div>
@@ -312,6 +322,15 @@
         s.equip = s.equip.includes(v) ? s.equip.filter((e) => e !== v) : s.equip.concat(v);
         if (!s.equip.length) { toast('Keep at least one'); return; }
         saveSettings(s); render(); return;
+      }
+      case 'set-bar': {
+        const s = settings(); s.plates.bar = +t.dataset.val; saveSettings(s); render(); return;
+      }
+      case 'toggle-plate': {
+        const s = settings(); const v = +t.dataset.val;
+        const next = s.plates.plates.includes(v) ? s.plates.plates.filter((p) => p !== v) : s.plates.plates.concat(v);
+        if (!next.length) { toast('Keep at least one plate size'); return; }
+        s.plates.plates = next; saveSettings(s); render(); return;
       }
       case 'toggle-avoid-pat': {
         const s = settings(); const v = t.dataset.val;

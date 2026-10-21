@@ -129,6 +129,42 @@
     quad_iso: 'Quad isolation', ham_iso: 'Hamstring curls', calves: 'Calves', core: 'Core',
   };
 
+  // ── plate calculator ──────────────────────────────────────────────────
+  // Set once in the coach settings: the bar and which plate sizes are in the
+  // rack. Pure arithmetic — greedy, biggest plate first.
+  const DEFAULT_PLATES = { bar: 45, plates: [45, 35, 25, 10, 5, 2.5] };
+  const PLATE_SIZES = [100, 55, 45, 35, 25, 15, 10, 5, 2.5, 1.25];
+  function normPlates(p) {
+    const bar = num(p && p.bar);
+    const list = Array.isArray(p && p.plates) ? p.plates.map(num).filter((v) => PLATE_SIZES.includes(v)) : [];
+    return {
+      bar: bar >= 10 && bar <= 100 ? bar : DEFAULT_PLATES.bar,
+      plates: list.length ? [...new Set(list)].sort((a, b) => b - a) : DEFAULT_PLATES.plates.slice(),
+    };
+  }
+  const fmtLb = (x) => String(Math.round(x * 100) / 100);
+  /**
+   * What goes on each side for a target weight. Returns null for no weight;
+   * { perSide:[45,25,10], achieved, remainder, text }. A weight the plates
+   * cannot make exactly loads what it can and reports the remainder (lb,
+   * both sides together) — it never rounds the target silently.
+   */
+  function platesPerSide(weight, cfg) {
+    const w = num(weight);
+    if (w <= 0) return null;
+    const c = normPlates(cfg);
+    if (w < c.bar) return { bar: c.bar, perSide: [], achieved: c.bar, remainder: 0, underBar: true, text: 'Lighter than the ' + fmtLb(c.bar) + ' lb bar' };
+    const q = (x) => Math.round(x * 100);        // hundredths of a lb: no float drift
+    let side = q((w - c.bar) / 2);
+    const perSide = [];
+    for (const p of c.plates) { while (side >= q(p)) { perSide.push(p); side -= q(p); } }
+    const remainder = (side * 2) / 100;
+    const achieved = Math.round((w - remainder) * 100) / 100;
+    let text = perSide.length ? perSide.map(fmtLb).join(' / ') + ' per side' : 'Just the bar';
+    if (remainder > 0) text += ' — plates make ' + fmtLb(achieved) + ' (' + fmtLb(remainder) + ' lb short)';
+    return { bar: c.bar, perSide, achieved, remainder, underBar: false, text };
+  }
+
   /**
    * The "avoiding for now" list (sore shoulder, bad knee…): whole movement
    * patterns and/or single exercises the coach must not offer. Unknown ids
@@ -439,7 +475,7 @@
 
   const api = {
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
-    normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, daysSince, candidatesFor, pickForSlot, targetFor,
+    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, daysSince, candidatesFor, pickForSlot, targetFor,
     nextSplit, buildSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
