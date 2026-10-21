@@ -799,6 +799,10 @@ body.has-banner .today-bar{top:148px;}
   .tbl{width:100%;height:52px;}
   .tbr{width:100%;height:48px;flex-shrink:0;gap:6px;}
   .tbr > *{flex-shrink:0;}
+  /* the strip scrolls sideways (DELETE / CSV / PDF / SAVE live past the edge), and the scrollbar is hidden: fade the right edge so a
+     half-cut button reads as "more this way", and end the strip with a spacer so the last button is clear of the fade once scrolled */
+  .tbr{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);}
+  .tbr::after{content:"";flex:0 0 30px;}
   .tabrow{top:100px;}
   .tabrow.sp{top:148px;}
   .main{margin-top:150px;}
