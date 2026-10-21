@@ -63,3 +63,57 @@ The date / range / Today / Last 24 hours / direction / order system is live. Nex
 - Jo reports something broken on his phone -> that goes first.
 - A required CI check starts failing on main -> fix before any new work.
 - Jo picks a different top feature in Horizon 2 -> reorder; items 1 and 2 are the most Strong-like and the best bet.
+
+## Update 2026-10-21 (afternoon): second opinion and the next build phases
+
+Shipped since the first version of this plan: Repeat last workout (#2635), drop / failure set tags (#2637), the finish-screen
+recap (#2638), custom exercises ("My exercises"), plus the phone sweep fixes (#2630, #2632) and the test-hardening PRs.
+
+**Second opinion (Grok, asked 2026-10-21; claims as it tagged them).** Ranking by real daily value for serious lifters:
+
+1. **Saved routines / templates** - highest daily value; the core Strong / Hevy loop (VERIFIED by its sources).
+2. **Offline-first reliability** - basement gyms and dead zones; logging must never depend on the network (VERIFIED).
+3. **RPE / RIR auto-regulation** - strong for intermediate-plus lifters (LEAD).
+4. **Weekly review page** - useful, secondary to in-session logging (LEAD).
+5. **Body measurements + progress photos** - lowest daily value for strength-focused users (LEAD).
+
+Its "most wanted and still missing": Apple Watch logging (a web app cannot do this - needs a native app, so **not planned**),
+first-class RPE / RIR history, and muscle-volume maps / weekly set-balance visuals (we already show a balance card; a weekly
+view is the gap). Public review threads agree on simplicity, a free tier without caps, routines and custom lifts. Treat all of
+this as leads, not requirements; Jo's own gym use outranks it.
+
+### Phase 2A - Saved routines (build next)
+
+- Save the current or a finished workout as a named routine ("Push A"); a routine is the lifts, set counts and weights, no reps.
+- The coach card lists routines under Start; tapping one opens the workout from it (same path as Repeat last, with last weights
+  refreshed from history and warm-ups regenerated).
+- Rename, delete, reorder; device-local like the other coach settings (cloud copy only if Jo wants it).
+- Done when: save / start / rename / delete / corrupted-storage tests with mutation checks, and a real-browser run at 390 px.
+
+### Phase 2B - RPE as a first-class number
+
+- RPE history per lift (trend of top-set RPE next to the e1RM line) on Progress and in workout history.
+- RPE-aware targets that **explain** themselves ("last top set was RPE 7 - add 5 lb") and never change a weight silently;
+  hold when the last top set was RPE 9.5+. Off by default until Jo turns it on.
+- Done when: pure-logic tests for every branch (no RPE logged = today's behaviour), and the screen shows the reason.
+
+### Phase 2C - Offline confidence
+
+- Recon first (do not guess): what `docs/pro/sw.js` already caches for `/pro/daily-success`, and whether a cold open with no
+  network works. Logging already writes to the device first; the gap is opening the page offline and showing "not synced yet".
+- A visible sync state ("saved on this phone" vs "synced") on the finish screen and the day page.
+- The service worker touches cached signed-in pages, so any change there gets the security reviewer and Jo's morning look
+  before it is queued.
+
+### Phase 3 - Weekly review and the volume map
+
+- Sunday review page: floors hit, workouts, calories vs target, PRs, volume by muscle (sets per week, this week vs last),
+  one thing to change. Uses stored data only; no new collection.
+- Muscle-volume map: weekly working sets per muscle group as bars with the target band, building on the balance card.
+
+### Phase 4 - Measurements and photos (last)
+
+- Body measurements next to weight on the Progress tab; progress photos stay on-device or in the signed-in user's own
+  Storage, never a public path (see the public-repo constraint).
+
+Order can change if Jo reports something broken on his phone or a required CI check fails on main.
