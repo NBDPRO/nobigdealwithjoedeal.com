@@ -38,6 +38,16 @@ function makeHarness(opts) {
     createElement(tag) { return mkEl(tag); },
   };
   const toasts = [];
+  // opts.freeze: a fixed clock and a repeatable Math.random, so ids, seeds and the
+  // rest-timer text come out identical on every run (golden comparisons).
+  const NOW = 1760000000000;
+  const FrozenDate = class extends Date {
+    constructor(...a) { if (a.length) super(...a); else super(NOW); }
+    static now() { return NOW; }
+  };
+  let rnd = 12345;
+  const FrozenMath = Object.create(Math);
+  FrozenMath.random = () => { rnd = (Math.imul(rnd, 1103515245) + 12345) & 0x7fffffff; return rnd / 0x80000000; };
   const sandbox = {
     document,
     localStorage: {
@@ -48,7 +58,7 @@ function makeHarness(opts) {
     navigator: {},
     console,
     setInterval: () => 0, clearInterval: () => {},
-    Math, Date, JSON, Object, Array, Set, Map, String, Number, parseFloat, isFinite,
+    Math: o.freeze ? FrozenMath : Math, Date: o.freeze ? FrozenDate : Date, JSON, Object, Array, Set, Map, String, Number, parseFloat, isFinite,
   };
   sandbox.window = sandbox;
   sandbox.todayKey = () => o.today || '2026-10-20';
