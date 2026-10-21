@@ -4,7 +4,9 @@
  * Every phone call Jo's phone recorded (Cube ACR → functions/call-center.js
  * → phone_calls), newest first:
  *   - filters: Needs attention / All / Customers / Insurance / Contacts /
- *     Unknown, plus search over name, number, summary and transcript
+ *     Unknown, plus search over name, number, summary and transcript, plus
+ *     when (Today / Yesterday / Last 24 hours / 7 / 30 days / a date range),
+ *     who called (They called / You called) and the order (call-center-filters-logic.js)
  *   - each call: who, when, direction, the AI notes (summary, You/They
  *     promises, follow-up, urgent), the transcript, and Play (Storage
  *     getBlob → blob: <audio>, owner-only path — never a download URL)
@@ -33,6 +35,26 @@
   // readFailed: which reads came back as errors on the last load (QA 2026-10-13).
   // A list built from a failed read is NOT "nothing needs you"; render says so.
   var state = { calls: [], filter: 'attention', q: '', loading: false, loaded: false, error: '', readFailed: [], cappedBefore: 0, blobUrls: {}, busy: {} };
+
+  // Date / direction / sort filters (call-center-filters-logic.js, Jo 2026-10-21). They narrow the same list the tabs and the
+  // search narrow; the choice is saved between visits. customOpen keeps the two date boxes showing while Jo picks.
+  var FX = window.NBDCallCenterFilters || null;
+  var flt = FX ? FX.load(window.localStorage || null) : { range: 'all', from: '', to: '', dir: 'all', sort: 'new' };
+  state.customOpen = false;
+  function fltSave() { if (FX) FX.save(window.localStorage || null, flt); }
+  function fltPass(c) { return !FX || FX.passes(c, flt, todayYmd(), Date.now()); }
+  function setFlt(patch) {
+    if (!FX) return;
+    var n = {};
+    Object.keys(flt).forEach(function (k) { n[k] = flt[k]; });
+    Object.keys(patch).forEach(function (k) { n[k] = patch[k]; });
+    flt = FX.normalize(n);
+    state.customOpen = patch.range === 'custom' ? true : (patch.range ? false : state.customOpen);
+    state.focusId = null;
+    fltSave();
+    render();
+  }
+  function clearFlt() { if (!FX) return; flt = FX.defaults(); state.customOpen = false; state.focusId = null; fltSave(); render(); }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -427,21 +449,47 @@
       '). An open promise from before that is not on this list - Home counts it.</div>';
   }
 
+  // "When" chips (Today / Yesterday / Last 24 hours / 7 / 30 days / Pick dates), two date boxes while picking, direction and
+  // order chips, and a one-line summary with a Clear button whenever something narrows the list.
+  function filterBar(shown) {
+    if (!FX) return '';
+    function chipBtn(kind, id, label, on) {
+      return '<button type="button" class="cc-tab cc-fchip' + (on ? ' is-on' : '') + '" aria-pressed="' + (on ? 'true' : 'false') + '" data-cc="' + kind + '" data-arg="' + id + '">' + esc(label) + '</button>';
+    }
+    var when = FX.RANGES.map(function (r) { return chipBtn('range', r[0], r[1], flt.range === r[0] || (r[0] === 'custom' && state.customOpen)); }).join('');
+    var dates = (flt.range === 'custom' || state.customOpen)
+      ? '<div class="cc-date-row"><label class="cc-date-lbl">From <input type="date" class="cc-date" data-cc-date="from" value="' + esc(flt.from) + '" aria-label="From date"></label>' +
+        '<label class="cc-date-lbl">To <input type="date" class="cc-date" data-cc-date="to" value="' + esc(flt.to) + '" aria-label="To date"></label></div>'
+      : '';
+    var dirs = FX.DIRS.map(function (d) { return chipBtn('dir', d[0], d[1], flt.dir === d[0]); }).join('');
+    var sorts = state.filter === 'attention' ? '' : '<span class="cc-sep" aria-hidden="true"></span>' + FX.SORTS.map(function (o) { return chipBtn('sort', o[0], o[1], flt.sort === o[0]); }).join('');
+    var sum = FX.isActive(flt)
+      ? '<div class="cc-filter-sum" role="status">Showing ' + shown + ' of ' + state.calls.length + ' \u00b7 ' + esc(FX.describe(flt, todayYmd()).join(' \u00b7 ')) + ' <button type="button" class="cc-clear" data-cc="clearfilters">Clear</button></div>'
+      : '';
+    return '<div class="cc-fbar cc-when" role="group" aria-label="When">' + when + '</div>' + dates +
+      '<div class="cc-fbar cc-dirsort" role="group" aria-label="Direction and order">' + dirs + sorts + '</div>' + sum;
+  }
+
   function render() {
     var el = root();
     if (!el) return;
     var L = leadsById();
     var counts = {};
-    filtersNow().forEach(function (f) { counts[f[0]] = state.calls.filter(f[2]).length; });
+    // base = the list after the date / direction filters; the tab counts, the list and the people-grouping all read it.
+    var base = FX && FX.isActive(flt) ? state.calls.filter(fltPass) : state.calls;
+    filtersNow().forEach(function (f) { counts[f[0]] = base.filter(f[2]).length; });
     // Needs attention counts PEOPLE (Jo, 2026-10-02), like Home and the alert.
-    counts.attention = groupNeeds(state.calls).length;
+    counts.attention = groupNeeds(base).length;
+    // The sidebar badge and the "One at a time" deck are never narrowed by the filters: they are the real open list.
+    var navCount = base === state.calls ? counts.attention : groupNeeds(state.calls).length;
     var badge = document.getElementById('callsNavBadge');
-    if (badge) { badge.textContent = counts.attention ? String(counts.attention) : ''; badge.classList.toggle('dn', !counts.attention); }
+    if (badge) { badge.textContent = navCount ? String(navCount) : ''; badge.classList.toggle('dn', !navCount); }
     var active = filtersNow().filter(function (f) { return f[0] === state.filter; })[0] || FILTERS[0];
-    var rows = state.calls.filter(active[2]).filter(function (c) { return matchesSearch(c, L); });
+    var rows = base.filter(active[2]).filter(function (c) { return matchesSearch(c, L); });
+    if (FX && state.filter !== 'attention') rows = FX.sortCalls(rows, flt.sort);
     var head = '<div class="page-hdr cc-hdr"><h1 class="cc-title">📞 Call Center</h1>' +
       '<p class="cc-sub">Calls and texts from your phone, filed automatically. AI notes list who promised what. "Needs attention" covers the last 14 days.</p>' +
-      (counts.attention && !isViewer() && window.NBDTriageDeck ? '<button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="deck">One at a time (' + counts.attention + ')</button>' : '') +
+      (navCount && !isViewer() && window.NBDTriageDeck ? '<button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="deck">One at a time (' + navCount + ')</button>' : '') +
       (promises.items.length && !isViewer() && window.NBDTriageDeck ? ' <button type="button" class="btn btn-orange pc-play cc-deck-btn" data-cc="promises">Said you\'d do (' + groupPromises(promises.items).length + ')</button>' : '') +
       // Owner only (the callable refuses anyone else; promises.denied = not the owner).
       (promises.loaded && !promises.denied && !isViewer() ? ' <button type="button" class="btn btn-ghost pc-play cc-deck-btn" data-cc="tagmatch">Match my tagged contacts</button>' : '') +
@@ -450,17 +498,17 @@
       '<div class="cc-filters" role="tablist">' + filtersNow().map(function (f) {
         return '<button type="button" role="tab" class="cc-tab' + (state.filter === f[0] ? ' is-on' : '') + '" aria-selected="' + (state.filter === f[0]) + '" data-cc="filter" data-arg="' + f[0] + '">' +
           esc(f[1]) + ' <span class="cc-count">' + counts[f[0]] + '</span></button>';
-      }).join('') + '</div></div>';
+      }).join('') + '</div>' + filterBar(base.length) + '</div>';
     var body;
     if (!state.loaded) body = '<div class="cc-empty">Loading calls…</div>';
     else if (state.error && !state.calls.length) body = '<div class="cc-empty">' + esc(state.error) + '</div>';
     else if (!state.calls.length) body = '<div class="cc-empty">No calls yet. Recordings from your phone (Cube ACR) show up here within about 30 minutes of the call.</div>';
-    else if (!rows.length) body = '<div class="cc-empty">' + (state.filter === 'attention' && !state.q ? (readProblems().length ? 'Nothing in what loaded needs you.' : 'Nothing needs you. Every call is handled or filed.') : 'No calls match.') + '</div>';
+    else if (!rows.length) body = '<div class="cc-empty">' + (state.filter === 'attention' && !state.q ? (readProblems().length ? 'Nothing in what loaded needs you.' : 'Nothing needs you. Every call is handled or filed.') : (FX && FX.isActive(flt) ? 'No calls match these filters. <button type="button" class="cc-clear" data-cc="clearfilters">Clear filters</button>' : 'No calls match.')) + '</div>';
     else if (state.filter === 'attention') {
       // A person shows when any of their open calls matches the search.
       var hit = {};
       rows.forEach(function (c) { hit[c.id] = true; });
-      body = groupNeeds(state.calls).filter(function (g) { return g.calls.some(function (c) { return hit[c.id]; }); })
+      body = groupNeeds(base).filter(function (g) { return g.calls.some(function (c) { return hit[c.id]; }); })
         .map(function (g) { return g.calls.length === 1 ? renderCall(g.calls[0], L) : renderGroup(g, L); }).join('');
     }
     else body = rows.slice(0, 150).map(function (c) { return renderCall(c, L); }).join('') +
@@ -983,6 +1031,7 @@
         return;
       }
       state.filter = t.filter; state.q = ''; state.focusId = id;
+      if (FX) { flt = FX.defaults(); state.customOpen = false; fltSave(); }
       render();
       var card = focusedCard();
       if (!card) return;
@@ -1179,6 +1228,10 @@
     if (!b || !b.closest('#view-calls')) return;
     var a = b.getAttribute('data-cc'), id = b.getAttribute('data-id');
     if (a === 'filter') { state.filter = b.getAttribute('data-arg') || 'attention'; state.focusId = null; render(); }
+    else if (a === 'range') setFlt({ range: b.getAttribute('data-arg') });
+    else if (a === 'dir') setFlt({ dir: b.getAttribute('data-arg') });
+    else if (a === 'sort') setFlt({ sort: b.getAttribute('data-arg') });
+    else if (a === 'clearfilters') clearFlt();
     else if (a === 'play') play(id);
     else if (a === 'handled' || a === 'unhandled' || a === 'notpersonal') act(id, a);
     else if (a === 'handledgroup') actMany(idsOf(b), 'handled');
@@ -1218,6 +1271,15 @@
   document.addEventListener('input', function (e) {
     if (e.target && e.target.id === 'ccSearch') { state.q = e.target.value || ''; render(); }
   });
+  // The two date boxes of "Pick dates": a change re-filters (an empty box means open-ended on that side).
+  document.addEventListener('change', function (e) {
+    var t = e.target, k = t && t.getAttribute ? t.getAttribute('data-cc-date') : null;
+    if (!k || !t.closest || !t.closest('#view-calls')) return;
+    var p = { range: 'custom', from: flt.from, to: flt.to };
+    p[k] = t.value || '';
+    setFlt(p);
+    state.customOpen = true;
+  });
 
   window.NBDCallCenter = {
     init: function () { load(); loadPromises(); loadHealth(); deepLink(); },
@@ -1233,5 +1295,8 @@
     _telOf: telOf,
     focusCall: focusCall,
     setFilter: function (f) { state.filter = f; state.focusId = null; render(); },
+    _flt: function () { return flt; },
+    _setFlt: setFlt,
+    _clearFlt: clearFlt,
   };
 })();

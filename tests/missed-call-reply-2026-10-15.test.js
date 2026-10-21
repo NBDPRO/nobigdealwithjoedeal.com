@@ -144,8 +144,8 @@ function fakeDb(seed) {
   const ccv = read('docs/pro/js/call-center-view.js');
   ok('Call Center card leads with Text back on an open missed call', /c\.replyDraft && SMS_HREF_RE\.test/.test(ccv) && /cc-textback" href="' \+ esc\(c\.replyDraft\.smsHref\)/.test(ccv) && /var actions = textBack \+ reachButtons/.test(ccv));
   ok('no inline handler in the new markup', !/notif-textback[^>]*\son[a-z]+=/.test(bell) && !/cc-textback[^>]*\son[a-z]+=/.test(ccv));
-  ok('cache-busts bumped (notif-bell v8, phone-calls.css v11, call-center-view v21)', /js\/notif-bell\.js\?v=8/.test(read('docs/pro/dashboard.html')) && /css\/phone-calls\.css\?v=11/.test(read('docs/pro/dashboard.html'))
-    && /css\/phone-calls\.css\?v=11/.test(read('docs/pro/customer.html')) && /js\/call-center-view\.js\?v=21/.test(read('docs/pro/js/script-loader.js')));
+  ok('cache-busts bumped (notif-bell v8, phone-calls.css v12, call-center-view v22)', /js\/notif-bell\.js\?v=8/.test(read('docs/pro/dashboard.html')) && /css\/phone-calls\.css\?v=12/.test(read('docs/pro/dashboard.html'))
+    && /css\/phone-calls\.css\?v=12/.test(read('docs/pro/customer.html')) && /js\/call-center-view\.js\?v=22/.test(read('docs/pro/js/script-loader.js')));
   ok('styles live in phone-calls.css', /\.notif-textback\s*\{/.test(read('docs/pro/css/phone-calls.css')) && /\.cc-textback\s*\{/.test(read('docs/pro/css/phone-calls.css')));
   ok('the Twilio line\'s missed-call bell carries the link too', /smsHref: require\('\.\/missed-call-reply-logic'\)\.smsHref\(from\)/.test(read('functions/twilio-line.js')));
 
