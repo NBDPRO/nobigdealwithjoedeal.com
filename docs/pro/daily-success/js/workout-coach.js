@@ -22,6 +22,7 @@
   const SESS = 'nbd_ds_workouts';
   const LIVE = 'nbd_ds_coach_live';
   const CFG = 'nbd_ds_coach';
+  const READY = 'nbd_ds_coach_ready';   // { 'YYYY-MM-DD': { sleep, sore, energy } } — one per day, this device only
   const RPES = ['6', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -80,7 +81,52 @@
     const s = settings();
     const seed = (opts && opts.seed) || (Date.now() % 1000000007);
     const built = C().buildSession(split, sessions(), { today: today(), equip: s.equip, avoid: s.avoid, warmups: s.warmups, plates: s.plates, freshness: s.freshness, seed, reroll: opts && opts.reroll, bias: opts && opts.bias });
-    return Object.assign(built, { id: 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), seed, startedAt: Date.now() });
+    const sess = Object.assign(built, { id: 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), seed, startedAt: Date.now() });
+    // Already checked in today? Carry it over (and apply it) instead of asking again.
+    const rec = readJson(READY, {})[today()];
+    if (rec) { sess.ready = Object.assign({}, rec); applyReadyTo(sess); }
+    return sess;
+  }
+
+  // ── readiness check-in ───────────────────────────────────────────────
+  const READY_ROWS = [
+    { k: 'sleep', label: 'Sleep', opts: ['Rough', 'OK', 'Good'] },
+    { k: 'sore', label: 'Soreness', opts: ['Very sore', 'Some', 'Fresh'] },
+    { k: 'energy', label: 'Energy', opts: ['Low', 'OK', 'High'] },
+  ];
+  function saveReady(r) {
+    const all = readJson(READY, {}) || {};
+    all[today()] = { sleep: r.sleep, sore: r.sore, energy: r.energy };
+    Object.keys(all).sort().slice(0, Math.max(0, Object.keys(all).length - 30)).forEach((k) => { delete all[k]; });
+    writeJson(READY, all);
+  }
+  // Rough day -> trim a set / hold the load on lifts nothing has been logged on. Safe to call again.
+  function applyReadyTo(sess) {
+    const r = sess && sess.ready;
+    if (!r || r.skipped || r.undone) return;
+    const q = C().readiness(r);
+    if (!q.complete) return;
+    r.total = q.total; r.level = q.level;
+    if (q.level !== 'low') return;
+    sess.exercises = C().applyReadiness(sess.exercises, q.level, sessions(), { plates: settings().plates }).exercises;
+  }
+  function readyHtml() {
+    const r = live && live.ready;
+    if (r && r.skipped) return '';
+    const q = C().readiness(r);
+    if (q.complete) {
+      const ex = live.exercises;
+      const t = ex.filter((x) => x.ready && x.ready.trimmed).length, h = ex.filter((x) => x.ready && x.ready.held).length;
+      let msg;
+      if (r.undone) msg = `Readiness ${q.total}/9 — plan left as it was.`;
+      else if (q.level === 'low') msg = `Readiness ${q.total}/9 — rough day. ${t || h ? [t ? 'Dropped a set on ' + t + ' lift' + (t === 1 ? '' : 's') : '', h ? 'held the weight on ' + h : ''].filter(Boolean).join(' and ') + '.' : 'Nothing needed trimming.'} Go by feel.`;
+      else msg = `Readiness ${q.total}/9 — ${q.level === 'good' ? 'good to go' : 'steady day'}. Plan unchanged.`;
+      const undo = !r.undone && q.level === 'low' && (t || h) ? '<button class="btn btn-ghost wc-ready-btn" data-coach-action="ready-undo">Undo</button>' : '';
+      return `<div class="wc-ready done"><span>${esc(msg)}</span>${undo}<button class="btn btn-ghost wc-ready-btn" data-coach-action="ready-reset">Change</button></div>`;
+    }
+    if (setsDone(live)) return '';
+    const rows = READY_ROWS.map((row) => `<div class="wc-ready-row"><span class="wc-ready-l">${row.label}</span>${row.opts.map((o, n) => `<button class="wc-chip${r && r[row.k] === n + 1 ? ' on' : ''}" data-coach-action="ready-set" data-k="${row.k}" data-v="${n + 1}">${esc(o)}</button>`).join('')}</div>`).join('');
+    return `<div class="wc-ready"><div class="wc-ready-h">How are you today? <button class="wc-link" data-coach-action="ready-skip">Skip</button></div>${rows}<div class="wc-hint">Optional. A rough day trims a set and holds the weight — nothing else changes.</div></div>`;
   }
 
   // Warm-ups never count as sets done / total (they are not work).
@@ -91,7 +137,9 @@
   function rebuildSets(x, exId, target) {
     const so = settings();
     const slot = (C().SPLITS[live.split] || { slots: [] }).slots[x.slot];
-    return C().setsFor(slot, exId, target, (x.sets || []).filter((s) => !s.warm).length, { warmups: so.warmups, plates: so.plates });
+    // A set the rough-day check-in trimmed counts as planned: it is trimmed again after the swap, not twice.
+    const planned = x.ready && x.ready.trimmed ? x.ready.setsWas : (x.sets || []).filter((s) => !s.warm).length;
+    return C().setsFor(slot, exId, target, planned, { warmups: so.warmups, plates: so.plates });
   }
 
   // ── the card on the day page ─────────────────────────────────────────
@@ -171,6 +219,7 @@
         <span class="wc-hint">RPE = effort: 10 nothing left · 8 two reps in the tank</span>
       </div>
       ${behindHint()}
+      ${readyHtml()}
       ${cards}
       <div class="wc-foot">
         <button class="btn wc-finish" data-coach-action="finish">Finish workout</button>
@@ -396,8 +445,32 @@
         const st = x && x.target && x.target.stall;
         if (!st || st.deloadWeight == null || doneCount(x)) return;
         const target = { weight: st.deloadWeight, reps: x.target.reps, note: 'Deload: ' + st.deloadWeight + ' lb (10% off) — easy, crisp reps, then build back up' };
-        live.exercises[i] = Object.assign({}, x, { target, deload: true, sets: rebuildSets(x, x.exId, target) });
+        live.exercises[i] = Object.assign({}, x, { target, deload: true, sets: rebuildSets(x, x.exId, target), ready: undefined });
+        applyReadyTo(live);
         persistLive(); toast('Deload set: ' + st.deloadWeight + ' lb'); render(); return;
+      }
+      case 'ready-set': {
+        if (!live) return;
+        live.ready = Object.assign({}, live.ready && !live.ready.skipped ? live.ready : {}, { [t.dataset.k]: +t.dataset.v });
+        delete live.ready.undone;
+        const q = C().readiness(live.ready);
+        if (q.complete) {
+          saveReady(live.ready);
+          applyReadyTo(live);
+          toast(q.level === 'low' ? 'Rough day: lighter plan set (Undo is on the card)' : 'Check-in saved');
+        }
+        persistLive(); render(); return;
+      }
+      case 'ready-skip': if (live) { live.ready = { skipped: true }; persistLive(); render(); } return;
+      case 'ready-undo': {
+        if (!live || !live.ready) return;
+        live.exercises = C().undoReadiness(live.exercises, { plates: settings().plates });
+        live.ready.undone = true; persistLive(); render(); return;
+      }
+      case 'ready-reset': {
+        if (!live) return;
+        live.exercises = C().undoReadiness(live.exercises, { plates: settings().plates });
+        live.ready = null; persistLive(); render(); return;
       }
       case 'show-avoided': swapShowAvoided = true; render(); return;
       case 'avoid-ex': {
@@ -411,7 +484,8 @@
         const alt = doneCount(x) ? null : C().swapOptions(live.split, x.slot, live.exercises.map((e) => e.exId), sessions(), { today: today(), equip: s.equip, avoid: s.avoid })[0];
         if (alt) {
           const target = C().targetFor(alt.id, x.repRange, sessions(), { plates: s.plates });
-          live.exercises[i] = Object.assign({}, x, { exId: alt.id, name: alt.name, target, sets: rebuildSets(x, alt.id, target) });
+          live.exercises[i] = Object.assign({}, x, { exId: alt.id, name: alt.name, target, sets: rebuildSets(x, alt.id, target), ready: undefined });
+          applyReadyTo(live);
           persistLive();
           toast('Avoiding ' + x.name + ' — swapped to ' + alt.name);
         } else toast('Avoiding ' + x.name + " — it won't be offered again");
@@ -436,6 +510,7 @@
           if (alt) keepIds.push(alt.exId);
           return alt || x;
         });
+        applyReadyTo(live);
         persistLive(); swapOpen = -1; render(); return;
       }
       case 'swap': swapOpen = swapOpen === i ? -1 : i; swapShowAvoided = false; render(); return;
@@ -447,7 +522,8 @@
         if (C().isAvoided(ex, settings().avoid) && armed !== 'avoid:' + exId) { armed = 'avoid:' + exId; render(); return; }
         armed = '';
         const target = C().targetFor(exId, x.repRange, sessions(), { plates: settings().plates });
-        live.exercises[i] = Object.assign({}, x, { exId, name: ex.name, target, sets: rebuildSets(x, exId, target) });
+        live.exercises[i] = Object.assign({}, x, { exId, name: ex.name, target, sets: rebuildSets(x, exId, target), ready: undefined });
+        applyReadyTo(live);
         swapOpen = -1; swapShowAvoided = false; persistLive(); render(); return;
       }
       case 'done': {

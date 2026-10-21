@@ -531,6 +531,92 @@
     return { total, distinct: ids.size, pct: total ? Math.round(ids.size / total * 100) : 0 };
   }
 
+  // ── readiness check-in ───────────────────────────────────────────────
+  // Three taps at the start of a session — sleep, soreness, energy — each
+  // 1 (rough) to 3 (great; "Fresh" is 3 for soreness). A total of 4 or less is
+  // a rough day: every lift with 3+ untouched working sets drops one set, and a
+  // lift that was about to GO UP in weight holds last time's weight instead.
+  // It never blocks anything, always shows what it did (and can be undone),
+  // and good days change nothing — it never pushes the load up.
+  const READY_LOW = 4, READY_GOOD = 8;
+  function readiness(rec) {
+    const v = (k) => { const n = Math.round(num(rec && rec[k])); return n >= 1 && n <= 3 ? n : 0; };
+    const sleep = v('sleep'), sore = v('sore'), energy = v('energy');
+    if (!(sleep && sore && energy)) return { complete: false, total: 0, level: null };
+    const total = sleep + sore + energy;
+    return { complete: true, total, level: total <= READY_LOW ? 'low' : total >= READY_GOOD ? 'good' : 'ok' };
+  }
+
+  /**
+   * Apply a rough-day check-in to a list of live exercises. Returns copies:
+   * { exercises, trimmed, held, changed }. Only touches lifts with nothing
+   * logged or typed yet, skips ones already adjusted (x.ready), and marks what
+   * it changed so undoReadiness() can put it back exactly. Warm-ups are not
+   * working sets: they are never trimmed (and are re-made under a held weight).
+   */
+  function applyReadiness(exercises, level, sessions, opts) {
+    const o = opts || {};
+    const list = exercises || [];
+    if (level !== 'low') return { exercises: list, trimmed: 0, held: 0, changed: false };
+    let trimmed = 0, held = 0;
+    const out = list.map((x) => {
+      const sets = x.sets || [];
+      if (x.ready || sets.some((s) => s.done || num(s.reps) > 0)) return x;
+      const work = sets.filter((s) => !s.warm);
+      const h = historyOf(x.exId, sessions)[0];
+      const lastTop = h ? Math.max.apply(null, workingSets(h.ex).map((s) => num(s.weight)).concat([0])) : 0;
+      const tw = num(x.target && x.target.weight);
+      const earned = lastTop > 0 && tw > lastTop;
+      const trim = work.length >= 3;
+      if (!earned && !trim) return x;
+      const mark = { trimmed: trim, held: earned, setsWas: work.length, weightWas: x.target ? x.target.weight : null, targetWas: x.target || null };
+      let target = x.target;
+      let next = sets.map((s) => Object.assign({}, s));
+      if (earned) {
+        held++;
+        target = Object.assign({}, x.target, { weight: lastTop, note: 'Hold ' + lastTop + ' lb today (rough-day check-in) — the bump waits for a better day' });
+        next = next.map((s) => (!s.warm && String(s.weight) === String(x.target.weight) ? Object.assign(s, { weight: lastTop }) : s));
+        if (next.some((s) => s.warm)) {
+          const warm = warmupSets(x.exId, lastTop, o.plates).map((r) => ({ reps: '', weight: r.weight, rpe: '', done: false, warm: true, plan: r.reps }));
+          next = warm.concat(next.filter((s) => !s.warm));
+        }
+      }
+      if (trim) {
+        trimmed++;
+        for (let k = next.length - 1; k >= 0; k--) if (!next[k].warm) { next.splice(k, 1); break; }
+      }
+      return Object.assign({}, x, { target, sets: next, ready: mark });
+    });
+    return { exercises: out, trimmed, held, changed: trimmed + held > 0 };
+  }
+
+  /** Put back what applyReadiness changed (sets, held weight, target). */
+  function undoReadiness(exercises, opts) {
+    const o = opts || {};
+    return (exercises || []).map((x) => {
+      if (!x.ready) return x;
+      const m = x.ready;
+      let next = (x.sets || []).map((s) => Object.assign({}, s));
+      if (m.held) {
+        const cur = x.target ? x.target.weight : null;
+        next = next.map((s) => (!s.warm && String(s.weight) === String(cur) ? Object.assign(s, { weight: m.weightWas == null ? '' : m.weightWas }) : s));
+        if (next.some((s) => s.warm)) {
+          const warm = warmupSets(x.exId, m.weightWas, o.plates).map((r) => ({ reps: '', weight: r.weight, rpe: '', done: false, warm: true, plan: r.reps }));
+          next = warm.concat(next.filter((s) => !s.warm));
+        }
+      }
+      let work = next.filter((s) => !s.warm).length;
+      while (work < m.setsWas) {
+        const last = next.filter((s) => !s.warm).slice(-1)[0] || {};
+        next.push({ reps: '', weight: last.weight == null ? '' : last.weight, rpe: '', done: false });
+        work++;
+      }
+      const back = Object.assign({}, x, { target: m.targetWas || x.target, sets: next });
+      delete back.ready;
+      return back;
+    });
+  }
+
   // ── weekly balance ────────────────────────────────────────────────────
   // Hard sets (= working sets; warm-ups never count) per muscle group over the
   // last 7 days, plus push : pull. It only speaks up once there is something to
@@ -626,7 +712,7 @@
 
   const api = {
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
-    MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor,
+    MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
     DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, daysSince, candidatesFor, pickForSlot, targetFor,
     nextSplit, buildSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };

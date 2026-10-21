@@ -302,3 +302,17 @@ readiness check-in, supersets.
   rotation); the pattern slots on push/pull/legs days are single-muscle, so there
   the nudge names the day that covers the gap instead. Test:
   [coach-balance](../../tests/coach-balance-2026-10-20.test.js).
+
+- **#6 Readiness check-in — shipped (PR open, stacked on the balance PR).** At
+  the top of the logger: Sleep / Soreness / Energy, three taps each of three
+  choices (1 rough … 3 great). **Optional** — Skip hides it, it disappears once a
+  set is logged, and nothing about starting or logging waits on it. A total of
+  4 or less is a rough day: lifts with 3+ untouched working sets drop one set,
+  and a lift that was about to go UP holds last time's weight (warm-ups are not
+  working sets and are never trimmed). Good and OK days change nothing — it never
+  pushes load up. It always says what it did ("Dropped a set on 5 lifts and held
+  the weight on 1") with **Undo** and **Change**. One record per day under
+  `nbd_ds_coach_ready` (this device only, last 30 days kept; a second session
+  the same day picks it up without asking). Re-rolls, swaps and split changes keep
+  the lighter plan (a trimmed set is trimmed once, not twice). Test:
+  [coach-readiness](../../tests/coach-readiness-2026-10-20.test.js).

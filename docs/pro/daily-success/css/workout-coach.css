@@ -150,3 +150,9 @@ body.wc-lock { overflow: hidden; }
 .wc-bal-chip.none { background: rgba(220, 38, 38, .16); font-weight: 700; }
 .wc-bal-note { font-size: 12px; margin-top: 6px; color: var(--ink, #1a1a1a); }
 .wc-behind { margin: 0 0 8px; color: #f5c27a; }
+.wc-ready { background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .12); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+.wc-ready.done { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: #cfd8e3; }
+.wc-ready-h { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.wc-ready-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
+.wc-ready-l { width: 70px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8b9bb4; }
+.wc-ready-btn { height: 34px; padding: 0 12px; font-size: 12px; }
