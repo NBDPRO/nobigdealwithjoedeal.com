@@ -763,6 +763,12 @@ canvas{max-width:100%;display:block;}
    Every direct child now fills the column up to the page max. */
 .main > *{width:100%;max-width:760px;box-sizing:border-box;}
 
+/* STICKY TODAY BAR (2026-10-21): floors met / calories / protein / workout, pinned under the tab row on the day page. */
+.today-bar{position:sticky;top:106px;z-index:240;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:6px 14px;background:var(--bar);border:1px solid var(--rule);border-radius:10px;box-shadow:var(--shad);font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:.04em;color:var(--on-dark,#c3cfdf);white-space:nowrap;}
+.today-bar b{color:#fff;font-weight:700;}
+.today-bar .tb-i.ok,.today-bar .tb-i.ok b{color:var(--ac-on-dark,#E4783F);}
+body.has-banner .today-bar{top:148px;}
+
 /* PHONE TAP TARGETS (2026-10-21): the header buttons, tabs, habit dots and small chips were 15-36 px tall. Apple's
    floor is 44. Visual size stays small where it must (habit dots, tab close); the hit area grows with a pseudo-element. */
 @media (max-width:768px){
@@ -800,6 +806,8 @@ canvas{max-width:100%;display:block;}
   .sdrop{top:148px;}
   .onboard-banner{top:100px;height:96px;padding:6px 12px;gap:4px;align-content:center;}
   .ob-msg{white-space:normal;text-align:center;width:100%;line-height:1.25;}
+  .today-bar{top:150px;font-size:13px;gap:6px;padding:6px 10px;}
+  body.has-banner .today-bar{top:246px;}
   body.has-banner .tabrow{top:196px;}
   body.has-banner .main{margin-top:248px;}
   body.has-banner .sbar{top:196px;}
@@ -1076,6 +1084,7 @@ canvas{max-width:100%;display:block;}
 <script src="/pro/js/toast.js?v=1"></script>
 <script src="/pro/daily-success/js/ds-sync-logic.js"></script>
 <script src="/pro/daily-success/js/review-logic.js?v=3"></script>
+<script src="/pro/daily-success/js/day-layout-logic.js?v=1"></script>
 <script src="/pro/daily-success/js/app.js"></script>
 <script src="/pro/daily-success/js/workout-coach-logic.js?v=9"></script>
 <script src="/pro/daily-success/js/workout-coach.js?v=10"></script>
