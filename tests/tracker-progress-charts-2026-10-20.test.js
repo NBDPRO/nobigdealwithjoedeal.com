@@ -107,7 +107,7 @@ console.log('\n5. wired into the page, safely');
   const at = (s) => html.indexOf(s);
   ok('logic loads before the ui, both after the coach and the weight card',
     at('js/progress-charts-logic.js') > at('js/tracker-history-ui.js') && at('js/progress-charts-ui.js') > at('js/progress-charts-logic.js'));
-  ok('both are external deferred scripts (strict CSP, no inline)', /<script src="\/pro\/daily-success\/js\/progress-charts-logic\.js\?v=2" defer><\/script>/.test(html)
+  ok('both are external deferred scripts (strict CSP, no inline)', /<script src="\/pro\/daily-success\/js\/progress-charts-logic\.js\?v=\d+" defer><\/script>/.test(html)
     && /<script src="\/pro\/daily-success\/js\/progress-charts-ui\.js\?v=1" defer><\/script>/.test(html));
   ok('the stylesheet version was bumped so phones refetch it', /workout-coach\.css\?v=([4-9]|\d\d)\b/.test(html));
   const ui = fs.readFileSync(path.join(DS, 'js', 'progress-charts-ui.js'), 'utf8').replace(/\r\n/g, '\n');
