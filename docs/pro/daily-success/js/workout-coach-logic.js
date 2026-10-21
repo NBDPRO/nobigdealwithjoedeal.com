@@ -501,15 +501,43 @@
       .filter((e) => isAvoided(e, o.avoid));
   }
 
-  /** New bests in a finished session vs everything before it. */
+  /** Above this many reps the Epley estimate is too rough to call a strength PR. */
+  const HIGH_REP = 12;
+  const SAME_WEIGHT = 2.5;                       // lb: "the same weight" (plate rounding)
+
+  /**
+   * Volume PR: more reps than you have ever done at this weight or heavier — but only
+   * where you HAVE done roughly this weight before (a lighter back-off set on a lift you
+   * never trained there is not a record). -> { prev, weight } | null
+   */
+  function repPRCheck(exId, weight, reps, priorSessions) {
+    const w = num(weight), r = Math.round(num(reps));
+    if (!(r > 0)) return null;
+    let seen = false, best = 0;
+    for (const h of historyOf(exId, priorSessions)) {
+      for (const s of workingSets(h.ex)) {
+        const sw = num(s.weight);
+        if (sw < w - SAME_WEIGHT) continue;
+        if (Math.abs(sw - w) <= SAME_WEIGHT) seen = true;
+        best = Math.max(best, Math.round(num(s.reps)));
+      }
+    }
+    return seen && r > best ? { prev: best, weight: w } : null;
+  }
+
+  /** New bests in a finished session vs everything before it (est. 1RM up to HIGH_REP reps, plus rep records). */
   function detectPRs(session, priorSessions) {
     const prs = [];
     for (const ex of (session && session.exercises) || []) {
-      let best = 0, bestSet = null;
-      for (const set of workingSets(ex)) { const v = e1rm(set.weight, set.reps); if (v > best) { best = v; bestSet = set; } }
-      if (!best) continue;
+      let best = 0, bestSet = null, repSet = null, repHit = null;
+      for (const set of workingSets(ex)) {
+        if (Math.round(num(set.reps)) <= HIGH_REP) { const v = e1rm(set.weight, set.reps); if (v > best) { best = v; bestSet = set; } }
+        const hit = repPRCheck(ex.exId, set.weight, set.reps, priorSessions);
+        if (hit && (!repSet || Math.round(num(set.reps)) > Math.round(num(repSet.reps)))) { repSet = set; repHit = hit; }
+      }
       const prev = bestE1rm(ex.exId, priorSessions);
-      if (prev > 0 && best > prev) prs.push({ exId: ex.exId, name: ex.name, e1rm: best, prev, set: bestSet });
+      if (best && prev > 0 && best > prev) prs.push({ kind: 'e1rm', exId: ex.exId, name: ex.name, e1rm: best, prev, set: bestSet });
+      else if (repSet) prs.push({ kind: 'reps', exId: ex.exId, name: ex.name, reps: Math.round(num(repSet.reps)), weight: repHit.weight, prev: repHit.prev, set: repSet });
     }
     return prs;
   }
@@ -725,22 +753,30 @@
   }
 
   /**
-   * Live PR check while a workout is open: which ticked working set of this lift beats the
-   * best estimated 1RM from earlier finished sessions? Only the single best set is flagged,
-   * and nothing counts as a PR until the lift has history to beat.
-   * -> { index, e1rm, prev } | null
+   * Live PR check while a workout is open. Two kinds, one trophy per lift (strength wins):
+   *   'e1rm' - a ticked set of up to HIGH_REP reps beats the best estimated 1RM from earlier
+   *            finished sessions;
+   *   'reps' - a ticked set beats the most reps ever done at that weight or heavier
+   *            (so a 20-rep volume set can earn a trophy without a bogus 1RM).
+   * Nothing counts until the lift has history to beat.
+   * -> { kind, index, prev, e1rm? | reps?, weight? } | null
    */
   function livePR(ex, priorSessions) {
     if (!ex) return null;
-    const prev = bestE1rm(ex.exId, priorSessions);
-    if (!(prev > 0)) return null;
-    let best = prev, index = -1;
+    const prevE = bestE1rm(ex.exId, priorSessions);
+    if (!(prevE > 0)) return null;
+    let e = null, r = null;
     (ex.sets || []).forEach((s, j) => {
       if (!s || s.warm || s.done !== true || !(num(s.reps) > 0)) return;
-      const v = e1rm(s.weight, s.reps);
-      if (v > best) { best = v; index = j; }
+      const reps = Math.round(num(s.reps));
+      if (reps <= HIGH_REP) {
+        const v = e1rm(s.weight, s.reps);
+        if (v > (e ? e.e1rm : prevE)) e = { kind: 'e1rm', index: j, e1rm: v, prev: prevE };
+      }
+      const hit = repPRCheck(ex.exId, s.weight, s.reps, priorSessions);
+      if (hit && (!r || reps > r.reps)) r = { kind: 'reps', index: j, reps, weight: hit.weight, prev: hit.prev };
     });
-    return index < 0 ? null : { index, e1rm: best, prev };
+    return e || r;
   }
 
   /** A timer length (s) after a set: compounds rest longer. */
@@ -749,7 +785,7 @@
   const api = {
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
     MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
-    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, daysSince, candidatesFor, pickForSlot, targetFor,
+    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, repPRCheck, HIGH_REP, daysSince, candidatesFor, pickForSlot, targetFor,
     nextSplit, buildSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

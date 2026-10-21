@@ -50,3 +50,29 @@ the new tests red.
 - Local E2E needs a free port 8080 for the Firestore emulator; another local process held it, so the runs
   used a temporary local-only port change that was not committed.
 - Not done on purpose: anything that needs a phone in hand (barcode camera, downloads, the Apple Health Shortcut).
+
+## Cycle 3 - 08:00-09:00 UTC (theme: CI health + a Grok conferral)
+
+**Checked.** Open PRs: #2611 (this handoff, docs) and #2612 (below), both waiting on CI, auto-merge on, nothing failing.
+
+**`@shard3` reproduced locally.** The full shard run locally under CI conditions (`CI=1`, same spec order, local
+emulators only) finished **185 passed (18.1 min)**, including all four `visit-recorder` tests. So the CI-only
+failures are environmental, not a plain product bug. What the CI log and trace artifact show on main (run
+39540483464): `visit-recorder.spec.js:105` fails on its retries with 3 `.nbd-vr-item` rows where it expects 1
+(unfiled visits accumulate in the shared emulator between attempts; the first attempt's own error is not printed by
+the line reporter), and `:201` ends on the Estimates view, never showing the "marked do not record" sheet. Next:
+download the retry traces and read attempt 0, or make the spec clean its own `visit_captures` first. `@shard3` is
+not a required check. `@shard2` is still to reproduce.
+
+**Built (#2612).** Workout Coach: read-only "Last time (Oct 16): 185x5, 185x5" under each lift's target, and a live
+trophy on the single best ticked set that beats the lift's prior best estimated 1RM (warm-ups, unticked sets and
+ties never count). Pure logic in `workout-coach-logic.js` (`lastTime`, `livePR`); 23 new checks with controls; the
+existing coach suites pass.
+
+**Grok conferral (Jo's go-ahead).** One chat on grok.com, no repo, no customer data. Its tracker gap list
+(prefill, rest timer, Watch, last-time + PR, big targets) overlapped what we had apart from the last-time/PR
+context, which is what #2612 adds; Apple Watch is not feasible in a web app. Its CRM advice (audit speed-to-lead
+first, then estimate follow-up) and its benchmark numbers are **leads, unverified**. A second question on Epley for
+high-rep sets and the adaptive-calories window did not send (the page froze while typing); retry later.
+
+**Left for Jo.** Same list as the handoff; nothing new needs a decision.
