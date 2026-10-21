@@ -34,3 +34,15 @@ average about 8-9 per minute, so a clean run is ~40 min against a 25 min cap. Th
 two full runs were different sets each time (a "rotating victim" pattern, which ci.yml's own comment
 says to answer by splitting). Proposal, not applied: move about half the specs to a new `@shard3`
 tag plus a matrix entry, or raise the cap to ~45 min as a stopgap.
+
+## Update 2026-10-20 (later): split applied, per Jo
+
+`@shard2` was split alphabetically after `phone-draw-crosshair.spec.js`: `@shard2` keeps 168 tests
+(bento … phone-draw-crosshair, including `call-center-view`), the new `@shard3` takes the other 184
+(35 spec files retagged by title; matrix entry added in `ci.yml`). Estimated from the first full run's
+pace (about 8.7 tests/min early, 14/min mid, 10/min late): `@shard2` roughly 16-18 min, `@shard3`
+roughly 18-20 min, against the 25 min cap. These are estimates; no full per-shard run was timed.
+`call-center-view` stays in `@shard2`: it is a plain test that fails at a 5 s expect, so a red
+costs seconds, not a test timeout. Runner-minutes: two jobs of ~18 min plus a second install/JVM boot
+(~3-4 min) versus one job that burned its full 25 min and was cancelled every time. Neither shard is in
+the merge-queue ruleset; add `@shard2` and `@shard3` once both have passed on main.

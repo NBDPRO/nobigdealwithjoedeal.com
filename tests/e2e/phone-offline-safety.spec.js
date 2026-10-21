@@ -19,7 +19,7 @@
 //     back in the D2D flush sends it.
 //
 // Service workers are ALLOWED here (most phone specs block them). One login,
-// one seeded lead (deleted by tag in afterAll). Tagged @shard2.
+// one seeded lead (deleted by tag in afterAll). Tagged @shard3.
 // Local run (from tests/, emulator up):
 //   PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 \
 //   PLAYWRIGHT_TEST_USER_EMAIL=playwright-e2e@nbd.test \
@@ -82,7 +82,7 @@ async function dashboardReady(page, timeout) {
     && window.NBDOfflineSync && window.NBDFirestoreSync), { timeout: timeout || 45_000 });
 }
 
-test.describe('installed iPhone app — offline safety @shard2', () => {
+test.describe('installed iPhone app — offline safety @shard3', () => {
   test.describe.configure({ mode: 'serial' });
   /** @type {import('@playwright/test').BrowserContext} */ let ctx;
   /** @type {import('@playwright/test').Page} */ let page;

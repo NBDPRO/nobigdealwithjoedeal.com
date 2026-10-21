@@ -15,7 +15,7 @@
 // this spec refuses to run against anything but a local server, and it fails
 // if the browser ever tried to reach a submitPublicLead it did not intercept.
 //
-// Phone scale: 390x844 with touch, the size Jo tests on. Tagged @shard2.
+// Phone scale: 390x844 with touch, the size Jo tests on. Tagged @shard3.
 // Local run (from tests/, hosting emulator only — no functions):
 //   env -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u http_proxy \
 //     npx firebase emulators:exec --only hosting --project nobigdeal-pro \
@@ -84,7 +84,7 @@ async function fillForm(page) {
   return form;
 }
 
-test.describe('Oaks tenant site — quote form posts to our own intake @shard2', () => {
+test.describe('Oaks tenant site — quote form posts to our own intake @shard3', () => {
   test.skip(!LOCAL, 'local server only — a public lead must never be posted to a live intake');
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 

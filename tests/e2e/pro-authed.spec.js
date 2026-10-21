@@ -737,7 +737,7 @@ test.describe.serial('Authenticated destructive flows @shard1', () => {
 // ci.yml). Scaffolding (creds gate + prod-mode cleanup) is duplicated
 // deliberately: each shard must be self-sufficient.
 // ───────────────────────────────────────────────────────────────
-test.describe.serial('Authenticated destructive flows @shard2', () => {
+test.describe.serial('Authenticated destructive flows @shard3', () => {
   let creds;
   test.beforeAll(() => {
     try { creds = requireTestUser(); }
@@ -1475,7 +1475,7 @@ test.describe.serial('Authenticated destructive flows @shard2', () => {
 
 
 // ───────────────────────────────────────────────────────────────
-test.describe('Signup funnel — free tier reaches the dashboard @shard2', () => {
+test.describe('Signup funnel — free tier reaches the dashboard @shard3', () => {
   test.beforeEach(async ({}, testInfo) => {
     // Only meaningful against the emulator: prod runs must not mint accounts.
     if (!/localhost|127\.0\.0\.1/.test(process.env.PLAYWRIGHT_BASE_URL || '')) {
@@ -1598,7 +1598,7 @@ test.describe('Signup funnel — free tier reaches the dashboard @shard2', () =>
 // (all victims of script-src-attr 'none' / stale selectors). These
 // journeys close each blind spot so the next regression fails CI
 // instead of shipping silently.
-test.describe.serial('CSP-fix regressions @shard2', () => {
+test.describe.serial('CSP-fix regressions @shard3', () => {
   let creds;
   test.beforeAll(() => {
     try { creds = requireTestUser(); }
@@ -2224,7 +2224,7 @@ test.describe(`CRM mobile layout geometry @${VW}px @shard1`, () => {
 // refuse (a viewer-owner updating their own lead doc, Audit #3 F-1), so it
 // behaves the same on a shared local rig whose rules are main's.
 // ─────────────────────────────────────────────────────────────────────
-test.describe.serial("Viewer role is read-only (Jo's decision B) @shard2", () => {
+test.describe.serial("Viewer role is read-only (Jo's decision B) @shard3", () => {
   const EMU = /localhost|127\.0\.0\.1/.test(process.env.PLAYWRIGHT_BASE_URL || '')
     && !!process.env.FIRESTORE_EMULATOR_HOST && !!process.env.FIREBASE_AUTH_EMULATOR_HOST;
   const TAG = 'e2e-viewer-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);

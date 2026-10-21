@@ -9,7 +9,7 @@
 // step, done count, next step), the date fill, the pay link, the review gate,
 // and the expandable list with 44px rows — by behaviour, not class names.
 //
-// Tagged @shard2 for the authed emulator job (it skips without that job's
+// Tagged @shard3 for the authed emulator job (it skips without that job's
 // credentials, like phone-portal.spec.js, so it never runs against prod).
 const { test, expect } = require('@playwright/test');
 const { requireTestUser, safeEvaluate } = require('./fixtures/auth');
@@ -79,7 +79,7 @@ async function noSideScroll(page) {
   expect(w.sw, 'no horizontal scroll at 390').toBeLessThanOrEqual(w.cw);
 }
 
-test.describe('portal progress tracker, 9 steps on a phone @shard2 @phoneportal', () => {
+test.describe('portal progress tracker, 9 steps on a phone @shard3 @phoneportal', () => {
   test.use(PHONE);
   test.skip(skipWithoutCreds(), 'PLAYWRIGHT_TEST_USER_* not set');
 

@@ -942,7 +942,11 @@ jobs:
         # authed-emu file list untagged since 2026-09-06, so no shard ran
         # them; run-test-manifest.js check (c) now reads THIS list and fails
         # on an untagged authed spec instead of silently skipping.
-        shard: ['@shard1', '@shard2', '@audit', '@stranger', '@gauntlet', '@engines']
+        # 2026-10-20: @shard3 = the second half of what @shard2 held. @shard2 had grown to
+        # 352 tests (~40 min locally, 25 min cap: cancelled on every main commit). Split
+        # alphabetically after phone-draw-crosshair.spec.js; neither is in the merge-queue
+        # ruleset yet (Jo adds @shard2 and @shard3 once both have passed on main).
+        shard: ['@shard1', '@shard2', '@shard3', '@audit', '@stranger', '@gauntlet', '@engines']
     # Rock 3: hermetic authed journey — seed a tenant in the Auth/Firestore
     # emulators, serve docs/ from the hosting emulator (the client SDK
     # auto-connects to emulators on localhost via nbd-emulator-connect.js),

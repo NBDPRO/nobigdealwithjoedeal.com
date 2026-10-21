@@ -34,7 +34,7 @@
 // capture), Save/Load at window.addDoc/getDocs — nothing is written to the
 // shared Firestore emulator.
 //
-// @shard2. Phones at 412 and 360 (one login each, serial), desktop 1280 with
+// @shard3. Phones at 412 and 360 (one login each, serial), desktop 1280 with
 // a mouse. Run locally against a served worktree:
 //   cd tests && PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 \
 //     PLAYWRIGHT_TEST_USER_EMAIL=playwright-e2e@nbd.test \
@@ -97,7 +97,7 @@ function dialogs(page) {
 // One describe per device. `touch` = CDP finger (phones) or null (mouse).
 function suite(label, ctxOpts, opts) {
   const phone = !!opts.phone;
-  test.describe.serial(`draw money fixes ${label} @shard2`, () => {
+  test.describe.serial(`draw money fixes ${label} @shard3`, () => {
     /** @type {import('@playwright/test').BrowserContext} */ let context;
     /** @type {import('@playwright/test').Page} */ let page;
     let touch = null;
@@ -761,7 +761,7 @@ function suite(label, ctxOpts, opts) {
 // 412 runs everything; 360 the money paths again at the narrowest width (the
 // chooser must fit it); desktop the paths where the mouse differs (Enter to
 // finish a run, a click on a line, a dead-centre corner drag) plus the money
-// basics. Keeps the file near 3 minutes for @shard2.
+// basics. Keeps the file near 3 minutes for @shard3.
 suite('412px', T.phoneContextOptions(412), {
   phone: true, fullTypes: true,
   tests: ['b4', 'ghost', 'b5', 'b7', 'gutterOnly', 'carry', 'lineGutter', 'b3', 'b8', 'b9', 'undo', 'structures', 'h4', 'timers', 'saveLoad', 'reload', 'classic'],

@@ -187,7 +187,7 @@ async function checkStep(page, expectTitle, idx, total) {
 const tapNext = (page) => page.locator('#estV2Modal .v3-next').tap();
 const money = (s) => Math.round(Number(String(s).replace(/[^0-9.]/g, '')) * 100);
 
-test.describe('phone V3 wizard: installed iPhone app @shard2', () => {
+test.describe('phone V3 wizard: installed iPhone app @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.use(IPHONE);
 

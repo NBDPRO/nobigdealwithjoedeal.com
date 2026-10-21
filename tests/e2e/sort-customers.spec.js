@@ -11,12 +11,12 @@
  *  - A NEW lead can't be saved from the form without a job type.
  *  - Phone width (390px): controls are 44px, nothing overflows.
  *
- * @shard2 — runs in the Authed E2E (emulators) job.
+ * @shard3 — runs in the Authed E2E (emulators) job.
  */
 const { test, expect } = require('@playwright/test');
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
 
-test.describe.serial('Sort my customers @shard2', () => {
+test.describe.serial('Sort my customers @shard3', () => {
   test('suggest, pick, save; new leads need a type', async ({ page }) => {
     test.setTimeout(150_000);
     const creds = requireTestUser();

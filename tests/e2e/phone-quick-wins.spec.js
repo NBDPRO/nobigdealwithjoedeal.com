@@ -57,7 +57,7 @@ async function stubFunctions(page) {
 }
 const sends = (calls) => calls.filter((u) => /sendEmail|sendSMS|sendSms|send-email|send-sms/i.test(u));
 
-test.describe('phone quick wins: Record payment one tap from Home @shard2', () => {
+test.describe('phone quick wins: Record payment one tap from Home @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.use(IPHONE);
 

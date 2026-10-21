@@ -47,7 +47,7 @@ async function forceStandalone(page) {
   });
 }
 
-test.describe('phone record payment: a won job with no invoice @shard2', () => {
+test.describe('phone record payment: a won job with no invoice @shard3', () => {
   test.skip(!creds, 'needs PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD');
   test.use(IPHONE);
   test.setTimeout(150_000);

@@ -65,7 +65,7 @@ async function swipe(page, dir) {
   await page.mouse.up();
 }
 
-test.describe('phone: one at a time @shard2', () => {
+test.describe('phone: one at a time @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.use(IPHONE);
 

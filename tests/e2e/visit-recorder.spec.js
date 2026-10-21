@@ -91,7 +91,7 @@ async function waitForRecorder(page) {
 }
 const visitDocs = async (db, uid) => (await db.collection('users/' + uid + '/visit_captures').get()).docs.map((d) => Object.assign({ id: d.id }, d.data()));
 
-test.describe('visit recorder: record first, save on the phone, upload later, attach by a tap @shard2', () => {
+test.describe('visit recorder: record first, save on the phone, upload later, attach by a tap @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.describe.configure({ mode: 'serial' });
   const stamp = Date.now();

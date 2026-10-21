@@ -34,7 +34,7 @@
 // behaviour there: a tap places a point, the pinch drifts, the toggle sits
 // on the map). Nothing is written to Firestore.
 //
-// @shard2 (registered in tests/package.json by L1). Phones at 412 and 360
+// @shard3 (registered in tests/package.json by L1). Phones at 412 and 360
 // (one login each, serial), desktop 1280 with a mouse. Run locally:
 //   cd tests && PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 \
 //     PLAYWRIGHT_TEST_USER_EMAIL=playwright-e2e@nbd.test \
@@ -117,7 +117,7 @@ function helpers(ctx) {
 // Phones: 412 and 360, real CDP touch.
 // ─────────────────────────────────────────────────────────────────────
 for (const width of [412, 360]) {
-  test.describe.serial(`draw seam ${width}px @shard2`, () => {
+  test.describe.serial(`draw seam ${width}px @shard3`, () => {
     /** @type {import('@playwright/test').BrowserContext} */ let context;
     const ctx = { page: null };
     let touch = null;
@@ -520,7 +520,7 @@ for (const width of [412, 360]) {
 // ─────────────────────────────────────────────────────────────────────
 // Desktop parity: 1280, a mouse. Nothing about the crosshair reaches it.
 // ─────────────────────────────────────────────────────────────────────
-test.describe.serial('draw seam desktop 1280 @shard2', () => {
+test.describe.serial('draw seam desktop 1280 @shard3', () => {
   /** @type {import('@playwright/test').BrowserContext} */ let context;
   const ctx = { page: null };
   const pageErrors = [];

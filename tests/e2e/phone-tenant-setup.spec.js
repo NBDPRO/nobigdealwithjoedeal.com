@@ -80,7 +80,7 @@ async function goHome(page) {
   await safeEvaluate(page, () => window.NBDSetupChecklist && window.NBDSetupChecklist.refresh());
 }
 
-test.describe('phone tenant setup: a new contractor sets up alone @shard2', () => {
+test.describe('phone tenant setup: a new contractor sets up alone @shard3', () => {
   test.skip(!EMULATOR_MODE, 'needs the auth + firestore emulators (PLAYWRIGHT_BASE_URL on localhost)');
   test.use(IPHONE);
 

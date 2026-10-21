@@ -120,7 +120,7 @@ console.log('\nTHE AUTHED E2E MATRIX IS REQUIRABLE');
   const e2e = js['e2e-authed-emulator'];
   ok('e2e-authed-emulator job exists', !!e2e);
   const shards = (e2e && e2e.matrix.shard) || [];
-  for (const s of ['@shard1', '@shard2', '@audit', '@stranger', '@gauntlet', '@engines']) {
+  for (const s of ['@shard1', '@shard2', '@shard3', '@audit', '@stranger', '@gauntlet', '@engines']) {
     ok('check "Authed E2E (emulators, ' + s + ')" is produced', names.includes('Authed E2E (emulators, ' + s + ')'), shards.join(','));
   }
 }

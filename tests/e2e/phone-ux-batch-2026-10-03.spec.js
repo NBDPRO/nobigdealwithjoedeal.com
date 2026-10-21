@@ -36,7 +36,7 @@
 // control first, so a browser that ignores the override fails loudly
 // instead of passing every inset check at 0px.
 //
-// One login, one seeded lead (deleted by tag in afterAll). Tagged @shard2.
+// One login, one seeded lead (deleted by tag in afterAll). Tagged @shard3.
 // Local run (from tests/, emulator up):
 //   PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 \
 //   PLAYWRIGHT_TEST_USER_EMAIL=playwright-e2e@nbd.test \
@@ -177,7 +177,7 @@ async function goView(page, view) {
   await dropToasts(page);
 }
 
-test.describe('installed iPhone app — tap targets and safe areas @shard2', () => {
+test.describe('installed iPhone app — tap targets and safe areas @shard3', () => {
   // NOT serial: one failing check must not skip the other nine. Each test
   // gets itself onto the page it measures (onDashboard / onCustomer), so a
   // worker restarted after a failure (fresh login in beforeAll) still works.

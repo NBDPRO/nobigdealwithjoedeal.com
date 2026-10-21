@@ -163,7 +163,7 @@ async function smallText(page, rootSel) {
   }, rootSel);
 }
 
-test.describe('phone field photos: burst capture + daylight editor @shard2', () => {
+test.describe('phone field photos: burst capture + daylight editor @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.use(IPHONE);
 

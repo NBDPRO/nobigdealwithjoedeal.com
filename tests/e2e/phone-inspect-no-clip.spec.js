@@ -23,7 +23,7 @@ const BASE = process.env.PLAYWRIGHT_BASE_URL || '';
 const LOCAL = /^https?:\/\/(127\.0\.0\.1|localhost)([:/]|$)/.test(BASE);
 
 for (const [width, height] of [[375, 812], [390, 844]]) {
-  test.describe(`phone /inspect fits ${width}px @shard2`, () => {
+  test.describe(`phone /inspect fits ${width}px @shard3`, () => {
     test.skip(!LOCAL, 'local server only');
     test.use({ viewport: { width, height } });
 

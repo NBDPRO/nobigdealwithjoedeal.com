@@ -8,7 +8,7 @@
  * production sendSMS function) and stamps lastWinbackAt, after which the
  * customer drops off the list for the cooldown.
  *
- * @shard2 — runs in the Authed E2E (emulators) job.
+ * @shard3 — runs in the Authed E2E (emulators) job.
  */
 const { test, expect } = require('@playwright/test');
 const { requireTestUser, loginAs, safeEvaluate, safeWaitForFunction } = require('./fixtures/auth');
@@ -23,7 +23,7 @@ function adb() {
   return _db;
 }
 
-test.describe.serial('Past Customers: win-back list @shard2', () => {
+test.describe.serial('Past Customers: win-back list @shard3', () => {
   test('a finished customer is listed; Reach out drafts a check-in; Text it sends through NBDComms and takes them off the list', async ({ page }) => {
     test.setTimeout(120_000);
     const creds = requireTestUser();

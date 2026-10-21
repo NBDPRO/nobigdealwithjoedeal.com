@@ -6,7 +6,7 @@
 // phone: the lines render under the main date, a past day says nothing, a
 // title with markup is shown as text, and nothing widens the page.
 //
-// Tagged @shard2 for the authed emulator job (it only needs the hosting
+// Tagged @shard3 for the authed emulator job (it only needs the hosting
 // emulator, like phone-portal.spec.js).
 const { test, expect } = require('@playwright/test');
 const { requireTestUser } = require('./fixtures/auth');
@@ -43,7 +43,7 @@ function view() {
   };
 }
 
-test.describe('Portal: a customer\'s other jobs @shard2', () => {
+test.describe('Portal: a customer\'s other jobs @shard3', () => {
   test.skip(() => { try { requireTestUser(); return false; } catch (_) { return true; } }, 'emulator job only');
   test.use(PHONE);
 

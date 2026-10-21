@@ -16,7 +16,7 @@
 // retired 2026-10-04 — signing is a link to esign.html now): nothing
 // leaves the machine except Google Fonts.
 //
-// Tagged @shard2 for the authed emulator job. Run locally:
+// Tagged @shard3 for the authed emulator job. Run locally:
 //   cd tests && PLAYWRIGHT_BASE_URL=http://127.0.0.1:5000 \
 //     PLAYWRIGHT_TEST_USER_EMAIL=... PLAYWRIGHT_TEST_USER_PASSWORD=... \
 //     npx playwright test --config=playwright.config.js phone-portal.spec.js --workers=1
@@ -189,7 +189,7 @@ async function openContractInPortal(page, kind, { touch = true } = {}) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-test.describe('phone portal: the estimate page @shard2 @phoneportal', () => {
+test.describe('phone portal: the estimate page @shard3 @phoneportal', () => {
   test.use(PHONE);
   test.skip(skipWithoutCreds(), 'PLAYWRIGHT_TEST_USER_* not set');
 
@@ -291,7 +291,7 @@ test.describe('phone portal: the estimate page @shard2 @phoneportal', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-test.describe('phone portal: the project page @shard2 @phoneportal', () => {
+test.describe('phone portal: the project page @shard3 @phoneportal', () => {
   test.use(PHONE);
   test.skip(skipWithoutCreds(), 'PLAYWRIGHT_TEST_USER_* not set');
 
@@ -505,7 +505,7 @@ test.describe('phone portal: the project page @shard2 @phoneportal', () => {
 // ═══════════════════════════════════════════════════════════════════
 // The same pages at 1280 with a mouse: the phone fixes above are scoped,
 // so desktop keeps its table, its inline calendar and its field sizes.
-test.describe('phone portal: desktop unchanged @shard2 @phoneportal', () => {
+test.describe('phone portal: desktop unchanged @shard3 @phoneportal', () => {
   test.use({ viewport: { width: 1280, height: 860 }, serviceWorkers: 'block' });
   test.skip(skipWithoutCreds(), 'PLAYWRIGHT_TEST_USER_* not set');
 
@@ -557,7 +557,7 @@ test.describe('phone portal: desktop unchanged @shard2 @phoneportal', () => {
 // ═══════════════════════════════════════════════════════════════════
 // homeowner#11's other surface: the rep's own 🔍 Preview Portal modal,
 // which frames the portal at 318px on a 360 phone.
-test.describe('phone portal: the rep preview @shard2 @phoneportal', () => {
+test.describe('phone portal: the rep preview @shard3 @phoneportal', () => {
   test.use({ ...PHONE, viewport: { width: 360, height: 800 } });
   test.skip(skipWithoutCreds(), 'PLAYWRIGHT_TEST_USER_* not set');
 
