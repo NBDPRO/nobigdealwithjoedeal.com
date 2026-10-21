@@ -229,3 +229,13 @@ hundreds of empty day pages. Preview first (count, date range, anything outside
 60–700 lb skipped); re-runs never duplicate; a weight typed on a day page wins
 over an imported one. Blocked on a few sample rows of the export. Hume → Apple
 Health → Shortcut stays the follow-up for ongoing readings.
+
+### Apple Health ongoing weight (built dark, 2026-10-20)
+
+The "Hume → Apple Health → Shortcut" follow-up is built and ships **dark**:
+`healthShortcutIngest` (a key-in-header POST from an iPhone Shortcut) writes that
+day's `bm-wt`, and a ⌚ card in the tracker creates, rotates and turns off the
+key. Hand-typed weight wins, a deleted day stays deleted, sleep is not stored
+yet (no sleep-hours field on the day page). Off until Jo sets
+`system/healthShortcut` `{enabled:true}` in the Firebase console. How it works
+and how to turn it on: [HEALTH-SHORTCUT](../runbooks/HEALTH-SHORTCUT.md).

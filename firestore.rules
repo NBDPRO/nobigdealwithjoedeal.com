@@ -3856,6 +3856,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Apple Health weight Shortcut (functions/health-shortcut.js, 2026-10-20).
+    // health_shortcut_keys/{sha256-of-key} maps a key HASH to its uid;
+    // health_shortcut_state/{uid} holds the one live hash, the last reading and
+    // the on/off state. Admin SDK only: a readable hash is a lookup handle for
+    // a credential, and a client-writable state doc would let a user mint a key
+    // that bypasses the flag and the limits. No client ever touches either.
+    match /health_shortcut_keys/{hash} {
+      allow read, write: if false;
+    }
+    match /health_shortcut_state/{uid} {
+      allow read, write: if false;
+    }
+
     // ── PARCEL CACHE (admin-SDK only) ──────────────────
     // Regrid lookup cache — reads are a privacy issue (address →
     // owner name). Only the Cloud Function accesses via admin SDK.

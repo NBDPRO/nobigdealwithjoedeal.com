@@ -150,6 +150,8 @@ const ROWS = {
     meaning: 'Social Studio posting to Google Business. Off until Google API access is granted.' },
   GOOGLE_CALENDAR_SYNC_DISABLED: { group: 'Experiments', doc: ENV_DOC,
     meaning: 'Two-way Google Calendar sync. PAUSED = no sync.' },
+  HEALTH_SHORTCUT_DISABLED: { group: 'Experiments', doc: 'documentation/runbooks/HEALTH-SHORTCUT.md',
+    meaning: 'Kill switch for the Apple Health weight Shortcut. PAUSED = the endpoint answers 404 to everyone.' },
   AGENT_MCP_DISABLED: { group: 'Experiments', doc: 'documentation/projects/AI-AUTOMATIONS-2026-10-04.md',
     meaning: 'The Grok Bot team\'s read/notes connection to the CRM. PAUSED = bots are locked out.' },
 };
