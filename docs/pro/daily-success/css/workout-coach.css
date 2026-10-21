@@ -139,6 +139,10 @@ body.wc-lock { overflow: hidden; }
 .wc-plates { font-size: 12px; color: #cfd8e3; margin: -2px 0 8px; }
 .wc-last { font-size: 12px; color: #9fb0c3; margin: -2px 0 8px; }
 .wc-hist-btn { margin-top: 8px; min-height: 44px; }
+.wc-routines { margin-top: 10px; display: grid; gap: 6px; }
+.wc-routine { min-height: 44px; justify-content: flex-start; text-align: left; }
+.wc-routine small { color: #8b9bb4; margin-left: 6px; }
+.wc-save-routine { min-height: 44px; }
 .wc-cx { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 4px 0; font-size: 13px; }
 .wc-cx-del { min-height: 44px; }
 .wc-cx-add { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }

@@ -23,6 +23,7 @@
   const LIVE = 'nbd_ds_coach_live';
   const CFG = 'nbd_ds_coach';
   const CUSTOM = 'nbd_ds_coach_custom';   // [{ id, name, pattern, equip, compound }] - Jo's own lifts, this device
+  const ROUTINES = 'nbd_ds_coach_routines';   // [{ id, name, split, lifts: [{ exId, name, slot, sets }] }] - this device
   const READY = 'nbd_ds_coach_ready';   // { 'YYYY-MM-DD': { sleep, sore, energy } } — one per day, this device only
   const RPES = ['6', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
 
@@ -70,6 +71,8 @@
     return `<div class="wc-bal"><div class="wc-bal-h">Hard sets, last 7 days</div><div class="wc-bal-chips">${chips}</div>${lines.length ? `<div class="wc-bal-note">${lines.join(' ')}</div>` : ''}</div>`;
   }
   let live = readJson(LIVE, null);
+  let routines = [];           // saved routines (device-local)
+  try { if (C()) routines = C().normRoutines(readJson(ROUTINES, [])); } catch (_) { routines = []; }
   let custom = [];             // Jo's own lifts, loaded into the library below
   let cxDraft = { name: '', pattern: 'h_push', equip: 'barbell' };   // the add-a-lift form (typing never re-renders)
   try { if (C()) custom = C().setCustomExercises(readJson(CUSTOM, [])); } catch (_) { custom = []; }
@@ -165,6 +168,7 @@
       body = `<div class="wc-line">Next in your rotation: <b>${esc(C().SPLITS[next].label)}</b></div>
         <button class="btn wc-go" data-coach-action="start">Start today's workout</button>${C().repeatSession(next, all, repeatOpts()) ? `<button class="btn btn-ghost wc-repeat" data-coach-action="repeat">Repeat last ${esc(C().SPLITS[next].label)}</button>` : ''}`;
     }
+    if (!live && routines.length) body += `<div class="wc-routines"><div class="wc-lbl">My routines</div>${routines.map((r) => `<button class="btn btn-ghost wc-routine" data-coach-action="routine-start" data-id="${esc(r.id)}">▶ ${esc(r.name)} <small>${esc(r.lifts.length)} lifts</small></button>`).join('')}</div>`;
     const meta = [];
     if (last) meta.push('Last: ' + esc(C().SPLITS[last.split] ? C().SPLITS[last.split].label : last.split) + ' · ' + esc(fmtDay(last.date)));
     // A variety score over one or two workouts is noise — show it once there's a pattern to read.
@@ -232,6 +236,7 @@
       <div class="wc-foot">
         <button class="btn wc-finish" data-coach-action="finish">Finish workout</button>
         <button class="btn btn-ghost" data-coach-action="discard">${armed === 'discard' ? 'Tap again to discard' : 'Discard'}</button>
+        <button class="btn btn-ghost wc-save-routine" data-coach-action="routine-save">Save as routine</button>
       </div>
       ${rest ? `<div class="wc-rest" id="wcRest">${restText()}</div>` : ''}
     </div>`;
@@ -393,6 +398,34 @@
         <button class="btn wc-go" data-coach-action="custom-add">Add</button>
       </div>`;
   }
+  // "My routines" in the settings: rename (just type) and remove. Saving happens from a workout.
+  function routinesHtml() {
+    if (!routines.length) return '<div class="wc-lbl">My routines</div><div class="wc-hint">None yet - open a workout and tap Save as routine.</div>';
+    return `<div class="wc-lbl">My routines</div>${routines.map((r) => `<div class="wc-cx"><input class="wc-in wc-cx-name" maxlength="40" aria-label="Routine name" value="${esc(r.name)}" data-coach-field="rt-name" data-id="${esc(r.id)}"><button class="btn btn-ghost wc-cx-del" data-coach-action="routine-del" data-id="${esc(r.id)}" aria-label="Remove ${esc(r.name)}">Remove</button></div>`).join('')}`;
+  }
+  function saveRoutine() {
+    if (!live) return;
+    const name = C().nextRoutineName(routines, live.split);
+    const r = C().routineFromSession(live, name, 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
+    if (!r) { toast('Add a set first - there is nothing to save yet'); return; }
+    routines = C().normRoutines(routines.concat([r]));
+    writeJson(ROUTINES, routines);
+    toast('Saved as ' + name + ' - rename it under the gear');
+    render();
+  }
+  function startRoutine(id) {
+    if (live) { open(); return; }
+    const r = routines.find((x) => x.id === id);
+    const so = settings();
+    const built = r && C().buildFromRoutine(r, sessions(), repeatOpts());
+    if (!built) { toast('Nothing left to build from that routine - check your avoid list and equipment'); return; }
+    live = Object.assign(built, { id: 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), seed: Date.now() % 1000000007, startedAt: Date.now() });
+    const rec = readJson(READY, {})[today()];
+    if (rec) { live.ready = Object.assign({}, rec); applyReadyTo(live); }
+    persistLive();
+    open();
+    if (built.skipped) toast('Skipped ' + built.skipped + ' lift' + (built.skipped === 1 ? '' : 's') + ' you avoid or have no equipment for');
+  }
   function addCustom() {
     const name = String(cxDraft.name || '').replace(/\s+/g, ' ').trim();
     if (!name) { toast('Type a name first'); return; }
@@ -423,6 +456,7 @@
       <div class="wc-lbl">Avoiding for now (sore spot?)</div><div class="wc-chips">${Object.keys(C().PATTERN_LABELS).map((p) => `<button class="wc-chip${s.avoid.patterns.includes(p) ? ' on' : ''}" data-coach-action="toggle-avoid-pat" data-val="${p}">${esc(C().PATTERN_LABELS[p])}</button>`).join('')}${s.avoid.exercises.map((id) => `<button class="wc-chip on" data-coach-action="unavoid-ex" data-val="${esc(id)}">${esc((C().BY_ID[id] || {}).name || id)} ✕</button>`).join('')}</div>
       <div class="wc-hint">The coach won't offer anything you're avoiding. This is your own list, not medical advice.</div>
       ${customHtml()}
+      ${routinesHtml()}
       <div class="wc-hint">Changes apply to the next workout you build (or tap 🔀 now).</div>
     </div>`;
   }
@@ -600,6 +634,9 @@
       case 'hist-toggle': histId = histId === String(t.dataset.id) ? null : String(t.dataset.id); render(); return;
       case 'close': close(); return;
       case 'settings': showSettings = !showSettings; render(); return;
+      case 'routine-save': saveRoutine(); return;
+      case 'routine-start': startRoutine(String(t.dataset.id || '')); return;
+      case 'routine-del': routines = routines.filter((r) => r.id !== String(t.dataset.id || '')); writeJson(ROUTINES, routines); render(); return;
       case 'custom-add': addCustom(); return;
       case 'custom-del': removeCustom(String(t.dataset.id || '')); return;
       case 'set-restalert': {
@@ -771,6 +808,11 @@
 
   function onField(ev) {
     const el = ev.target;
+    if (el && el.dataset && el.dataset.coachField === 'rt-name') {
+      const r = routines.find((x) => x.id === el.dataset.id), nm = String(el.value || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+      if (r && nm) { r.name = nm; writeJson(ROUTINES, routines); }
+      return;
+    }
     if (el && el.dataset && el.dataset.coachField === 'cx') { if (el.dataset.k in cxDraft) cxDraft[el.dataset.k] = el.value; return; }
     if (!el || !el.dataset || !el.dataset.coachField || !live) return;
     const st = live.exercises[+el.dataset.i] && live.exercises[+el.dataset.i].sets[+el.dataset.s];
