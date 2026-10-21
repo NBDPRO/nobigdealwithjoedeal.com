@@ -91,6 +91,32 @@ console.log('\n3. the real settings panel');
   ok('control: a corrupted stored list is ignored, the coach still starts', (() => { junk.click('start'); return !!junk.live(); })());
   ok('handlers go through the delegated switch (no inline handler)', /case 'custom-add': addCustom\(\); return;/.test(UI) && /case 'custom-del':/.test(UI) && !/onclick=/.test(UI));
 }
+console.log('\n4. review fixes');
+{
+  const mk = (name) => ({ name, pattern: 'chest_iso', equip: 'cable' });
+  const n = C.normCustom([mk('Ü'), mk('Ñ'), mk('Hübner curl'), mk('H-übner curl'), mk('ü')]);
+  ok('names that slug to the same id both survive with a suffix (they used to be refused)', n.length === 4 && n.map((c) => c.id).join() === 'my_lift,my_lift_2,my_h_bner_curl,my_h_bner_curl_2', JSON.stringify(n.map((c) => c.id)));
+  ok('...but the same NAME (any case) is still a duplicate', !n.some((c) => c.name === 'ü'));
+  ok('suffixed ids are stable through a second pass', C.normCustom(n).map((c) => c.id).join() === n.map((c) => c.id).join());
+
+  const f = makeHarness({ storage: { nbd_ds_workouts: [] }, today: '2026-10-21' });
+  f.click('set-freshness', { val: 'steady' }); f.click('start'); f.click('settings');
+  const realSet = f.sandbox.localStorage.setItem;
+  f.sandbox.localStorage.setItem = (k, v) => { if (k === 'nbd_ds_coach_custom') throw new Error('QuotaExceededError'); return realSet(k, v); };
+  f.field('cx', 0, 0, 'Cable fly', { k: 'name' }); f.field('cx', 0, 0, 'chest_iso', { k: 'pattern' }); f.field('cx', 0, 0, 'cable', { k: 'equip' });
+  f.click('custom-add');
+  ok('a failed write says so, does not claim "Added", and the lift is not left in the library', f.toasts.some((t) => /Couldn't save that/.test(t)) && !f.toasts.some((t) => /^Added/.test(t)) && !f.sandbox.NBDCoach.BY_ID.my_cable_fly);
+  f.sandbox.localStorage.setItem = realSet;
+  f.click('custom-add');
+  ok('control: once storage works the same tap adds it', !!f.sandbox.NBDCoach.BY_ID.my_cable_fly && JSON.parse(f.store.get('nbd_ds_coach_custom')).length === 1);
+
+  const t2 = makeHarness({ storage: { nbd_ds_workouts: [] }, today: '2026-10-21' });
+  t2.click('set-freshness', { val: 'steady' }); t2.click('start'); t2.click('settings');
+  t2.store.set('nbd_ds_coach_custom', JSON.stringify([{ name: 'From other tab', pattern: 'chest_iso', equip: 'cable' }]));
+  t2.field('cx', 0, 0, 'Mine', { k: 'name' }); t2.field('cx', 0, 0, 'chest_iso', { k: 'pattern' }); t2.field('cx', 0, 0, 'cable', { k: 'equip' });
+  t2.click('custom-add');
+  ok('a lift added in another tab since this page loaded is kept (the list is re-read before every change)', JSON.parse(t2.store.get('nbd_ds_coach_custom')).map((c) => c.name).join() === 'From other tab,Mine');
+}
 C.setCustomExercises([]);
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
