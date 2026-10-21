@@ -151,3 +151,20 @@ Two review passes, both on code merged in cycle 4. Findings were verified before
   loaded runner, then the retries cascaded); it was docs-only and merged on the next queue attempt. Jo authorised me to decide merge
   order and timing ("everything up and live"), so I re-queue my own green PRs after a runner-timing failure.
 - **Left for Jo:** the shard3 split-vs-timeout call (cycle 6); nothing new.
+
+## Cycle 8 - 14:30-17:30 EDT (theme: Repeat-last follow-ons, custom lifts + routines, and the review of both)
+
+- **Shipped:** #2635 Repeat last workout, #2637 drop / failure set tags, #2638 finish-screen recap (volume vs last time, best set
+  per lift), #2640 **My exercises** (custom lifts) + **saved routines**, #2639 roadmap update with the second opinion.
+- **Second opinion (Grok, asked via its chat; claims tagged by it):** routines > offline reliability > RPE auto-regulation > weekly
+  review > measurements/photos; Apple Watch logging is the biggest gap but a web app cannot do it (not planned). Folded into
+  [DAILY-SUCCESS-ROADMAP-2026-10-21](DAILY-SUCCESS-ROADMAP-2026-10-21.md) as phases 2A-4. Public review threads agree (simplicity,
+  free tier without caps, routines, custom lifts).
+- **Silent-failure reviews (read-only agent, every claim traced before acting):** #2635 had one real defect (repeated lifts had no
+  target, so a bare tick stored `reps: 0`); #2640 had six (31st routine dropped but "Saved", >10 sets became 3, failed storage
+  writes ignored, stale tab overwrites, slug collisions, misleading skip toast) - all fixed in #2641 with tests and mutation
+  checks. **Left open:** custom lift definitions and routines are device-local (a session with a custom lift logged on another
+  device is skipped by the weekly balance card), custom lifts are always non-compound (no warm-ups), routines drop the superset flag.
+- **Queue notes:** #2634 left the queue once on a required `@stranger` timeout (runner load) and merged on the next attempt; a
+  conflicting PR after another asset-version bump (#2638 vs #2640) was resolved by keeping both sides and the higher versions.
+- **Left for Jo:** nothing new needs a decision. Next: phase 2B (RPE history and explained targets), then 2C (offline recon).
