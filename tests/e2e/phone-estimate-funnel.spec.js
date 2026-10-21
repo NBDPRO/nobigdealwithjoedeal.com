@@ -37,7 +37,10 @@ test.describe('phone estimate funnel — no text code @shard3', () => {
   test.skip(!LOCAL, 'local server only — this spec must never drive the live funnel');
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('a visitor completes the funnel with first name + phone + consent', async ({ page }) => {
+  // The SMS box is OPTIONAL since 2026-10-15 (#2461, Twilio A2P reapply): the funnel must work
+  // either way, never refuse Continue for it, never tick it for the visitor, and post the
+  // box's real value as tcpaConsent (a boolean, never omitted).
+  for (const tick of [true, false]) test(`a visitor completes the funnel with first name + phone, SMS box ${tick ? 'ticked' : 'left unticked'}`, async ({ page }) => {
     const posts = { submitPublicLead: [], updatePublicLeadIntake: [] };
     const unexpected = [];
     const origin = new URL(BASE).origin;
@@ -89,17 +92,17 @@ test.describe('phone estimate funnel — no text code @shard3', () => {
     expect(Math.max(box.height, labelBox.height), 'consent tap target >= 44px').toBeGreaterThanOrEqual(44);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), 'no sideways scroll on first paint').toBeLessThanOrEqual(0);
 
-    // Continue without consent is refused and does not tick the box for them.
+    // Fill step 1. The box is optional: tick it only on the ticked path.
     await page.locator('#addressInput').fill('12 Nowhere Rd, Mason OH');
     await page.locator('#firstName').fill('Pat');
     await page.locator('#phoneNumber').fill('5135550100');
+    if (tick) await consent.check();
     await page.locator('#step1 [data-step="2"]').click();
-    await expect(page.locator('#step1')).toHaveClass(/active/);
-    await expect(consent).not.toBeChecked();
-    await expect(page.locator('#tcpaConsent-err')).toBeVisible();
+    // Continue is never refused for the SMS box, and there is no consent error element either way.
+    await expect(page.locator('#tcpaConsent-err')).toHaveCount(0);
+    if (tick) await expect(consent).toBeChecked(); else await expect(consent).not.toBeChecked(); // never ticked for them
 
     // Step 1 — an address the map cannot match.
-    await consent.check();
     await page.locator('#step1 [data-step="2"]').click();
     const useTyped = page.locator('#btnUseTyped');
     await expect(useTyped).toBeVisible({ timeout: 10_000 });
@@ -120,7 +123,7 @@ test.describe('phone estimate funnel — no text code @shard3', () => {
     // who it is going to and Submit is already live (consent was given on step 1).
     await expect(page.locator('#btnSendCode')).toBeHidden();
     await expect(page.locator('#otpSkip')).toBeHidden();
-    await expect(page.locator('#step5 .nbd-trust-line')).toContainText('on Google · Fully insured · Joe on every roof');
+    await expect(page.locator('#step5 .nbd-trust-line')).toContainText('Real Google reviews · Fully insured · Joe on every roof');
     await expect(page.locator('#contactRecap')).toContainText('Pat');
     await expect(page.locator('#contactRecap')).toContainText('(513) 555-0100');
     await expect(page.locator('#step5 #phoneNumber')).toHaveCount(0);
@@ -134,7 +137,7 @@ test.describe('phone estimate funnel — no text code @shard3', () => {
     await expect(page.locator('#stepResults')).toHaveClass(/active/, { timeout: 15_000 });
     expect(posts.submitPublicLead.length).toBeGreaterThanOrEqual(1);
     const lead = posts.submitPublicLead[0];
-    expect(lead).toMatchObject({ kind: 'estimate', firstName: 'Pat', phone: '(513) 555-0100', tcpaConsent: true, wantsFollowUp: true, address: '12 Nowhere Rd, Mason OH' });
+    expect(lead).toMatchObject({ kind: 'estimate', firstName: 'Pat', phone: '(513) 555-0100', tcpaConsent: tick, wantsFollowUp: true, address: '12 Nowhere Rd, Mason OH' });
     expect(lead.turnstileToken).toBe('e2e-turnstile-token');
     expect(lead.scheduling).toBeUndefined();
 
