@@ -345,12 +345,13 @@
     const grind = rpes.some((v) => v >= 9.5);
     const inc = ex ? ex.inc : 5;
     const repsList = atTop.map((s) => num(s.reps)).join('/');
-    const last = top > 0 ? top + ' × ' + repsList : repsList + ' reps';
+    const rpeTxt = rpes.length ? ' at RPE ' + (Math.round(avgRpe * 10) / 10) : '';   // only when Jo logged one: no RPE, no mention
+    const last = (top > 0 ? top + ' × ' + repsList : repsList + ' reps') + rpeTxt;
     if (minReps >= hi && avgRpe <= 8.5 && !grind) {
       if (inc > 0 && top > 0) return { weight: roundTo(top + inc, inc >= 5 ? 5 : 2.5), reps: lo, note: 'Earned it: +' + inc + ' lb (last ' + last + ')' };
       return { weight: top || null, reps: hi + 1, note: 'Top of the range — add reps or slow the tempo (last ' + last + ')' };
     }
-    if (minReps < lo || grind) return { weight: top || null, reps: lo, note: 'Hold ' + (top ? top + ' lb' : 'the weight') + ' — own the bottom of the range (last ' + last + ')' };
+    if (minReps < lo || grind) return { weight: top || null, reps: lo, note: 'Hold ' + (top ? top + ' lb' : 'the weight') + (grind && minReps >= lo ? ' — a set hit RPE 9.5+ (a grind), so own this weight before adding' : ' — own the bottom of the range') + ' (last ' + last + ')' };
     // The best set already reached the top: the job now is every set there.
     if (maxReps >= hi) return { weight: top || null, reps: hi, note: 'Every set to ' + hi + (top ? ' at ' + top + ' lb' : '') + ', then the weight goes up (last ' + last + ')' };
     return { weight: top || null, reps: maxReps + 1, note: 'Beat last time: ' + (top ? top + ' × ' : '') + (maxReps + 1) + ' (last ' + last + ')' };
@@ -398,6 +399,31 @@
     };
   }
   const topWeight = (ex) => Math.max.apply(null, workingSets(ex).map((s) => num(s.weight)).concat([0]));
+
+  /** The effort of a finished session's top-weight working sets: the average logged RPE (1 decimal), or null when none was logged. */
+  function topRpe(ex) {
+    const sets = workingSets(ex);
+    if (!sets.length) return null;
+    const top = Math.max.apply(null, sets.map((st) => num(st.weight)));
+    const rpes = sets.filter((st) => num(st.weight) === top).map((st) => num(st.rpe)).filter((v) => v > 0);
+    return rpes.length ? Math.round(rpes.reduce((a, b) => a + b, 0) / rpes.length * 10) / 10 : null;
+  }
+  /** Top-set RPE of the last n sessions that logged one, oldest first: [{ date, rpe }]. */
+  function rpeTrend(exId, sessions, n) {
+    const out = [];
+    for (const h of historyOf(exId, sessions)) {   // newest first
+      const r = topRpe(h.ex);
+      if (r != null) out.push({ date: h.date, rpe: r });
+      if (out.length >= (n || 6)) break;
+    }
+    return out.reverse();
+  }
+  /** "RPE 7 → 7.5 → 8 (getting harder)"; '' until three sessions have an RPE (two points are not a trend). */
+  function rpeTrendText(trend) {
+    if (!trend || trend.length < 3) return '';
+    const d = trend[trend.length - 1].rpe - trend[0].rpe;
+    return 'RPE ' + trend.map((t) => t.rpe).join(' → ') + ' (' + (d >= 1 ? 'getting harder' : d <= -1 ? 'getting easier' : 'steady') + ')';
+  }
 
   /** The target, plus target.stall when the lift has stalled (informational only). opts: { plates }. */
   function targetFor(exId, repRange, sessions, opts) {
@@ -977,7 +1003,7 @@
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
     MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
     DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, repPRCheck, HIGH_REP, previousSets, prevText, historyList, REST_ALERTS, normRestAlert, restAlertPlan, daysSince, candidatesFor, pickForSlot, targetFor,
-    nextSplit, buildSession, repeatSession, SET_KINDS, nextSetKind, setKindLabel, normRoutines, routineFromSession, nextRoutineName, buildFromRoutine, normCustom, setCustomExercises, swapOptions, detectPRs, variety, volume, sessionRecap, toPageRows, restFor, mergeSessions,
+    nextSplit, buildSession, repeatSession, SET_KINDS, nextSetKind, setKindLabel, topRpe, rpeTrend, rpeTrendText, normRoutines, routineFromSession, nextRoutineName, buildFromRoutine, normCustom, setCustomExercises, swapOptions, detectPRs, variety, volume, sessionRecap, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCoach = api;

@@ -348,7 +348,8 @@
   // "Last time (Oct 14): 135×8, 135×8" — read-only context; never fills or changes a number.
   function lastTimeHtml(x) {
     const lt = C().lastTime(x.exId, sessions());
-    return lt ? `<div class="wc-last">${esc(lt.text)}</div>` : '';
+    const rt = C().rpeTrendText(C().rpeTrend(x.exId, sessions(), 6));
+    return (lt ? `<div class="wc-last">${esc(lt.text)}</div>` : '') + (rt ? `<div class="wc-last wc-rpe-trend">${esc(rt)}</div>` : '');
   }
 
   function exerciseHtml(x, i, role) {

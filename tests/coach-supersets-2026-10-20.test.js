@@ -33,7 +33,9 @@ function ok(label, cond, detail) {
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // Recorded from the plain logger before the superset code existed.
-const GOLDEN_DIGEST = 'd663f225bf4888e3ff4b9fc35ddb609793c56412';
+// Re-blessed 2026-10-21 for the RPE wording in target notes ("(last 135 × 8/8 at RPE 8)"). Proven: with that one string switched
+// off the run still hashes to the previous digest d663f225bf4888e3ff4b9fc35ddb609793c56412, so nothing else moved.
+const GOLDEN_DIGEST = 'bae7a95a1537781fdf9cdfaa2e03bcff07d4571e';
 
 console.log('\n1. the plain logger is unchanged (nothing paired)');
 {
