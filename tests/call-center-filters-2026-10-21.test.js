@@ -106,13 +106,14 @@ const call = (id, ms, extra) => Object.assign({ id, startedAtMs: ms, direction: 
       ],
       phone_text_days: [{ id: 'txt_5135550105_1', userId: 'U', channel: 'text', phoneDigits: '5135550105', status: 'noted', startedAtMs: Date.now() - 3 * H, messageCount: 2, contactName: 'Kim' }],
     };
-    function boot(saved) {
+    function boot(saved, throwingStorage) {
       const listeners = {}; const view = { innerHTML: '' }; const badge = { textContent: '', dn: false, classList: { toggle(c, on) { badge.dn = !!on; } } };
       const mem = saved ? { [FX.KEY]: JSON.stringify(saved) } : {};
       const document = { readyState: 'complete', addEventListener: (t, f) => { (listeners[t] = listeners[t] || []).push(f); }, querySelector: (sel) => (sel === '#view-calls .view-scroll' ? view : null), getElementById: (id) => (id === 'callsNavBadge' ? badge : null), activeElement: null };
       const win = { document, NBDTriageDeck: { open() {} }, _userClaims: {}, _user: { uid: 'U' }, _leads: [], db: {}, collection: (d, n) => n, where: () => null, orderBy: () => null, limit: () => null, query: (c) => c,
         getDocs: async (c) => ({ docs: (rowsDb[c] || []).map((r) => ({ id: r.id, data: () => Object.assign({}, r) })) }), location: { search: '', pathname: '/pro/dashboard.html', hash: '#/calls' }, _functions: {}, _httpsCallable: () => async () => ({ data: { items: [] } }),
         localStorage: { getItem: (k) => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); } } };
+      if (throwingStorage) Object.defineProperty(win, 'localStorage', { get() { throw new Error('SecurityError'); } });
       const sandbox = { window: win, document, console, setTimeout, Promise, URLSearchParams, Date, Object, Array, String, Number, JSON, Math, RegExp, CSS: { escape: (s) => String(s) }, history: { replaceState() {} } };
       win.history = sandbox.history; vm.createContext(sandbox);
       vm.runInContext(read('docs/pro/js/call-center-filters-logic.js'), sandbox);
@@ -171,6 +172,34 @@ const call = (id, ms, extra) => Object.assign({ id, startedAtMs: ms, direction: 
     ok('sort chips are hidden on Needs attention (it is grouped by person)', !/data-cc="sort"/.test(v.view.innerHTML));
     v.click({ 'data-cc': 'clearfilters' });
 
+    // review fixes (independent silent-failure review, 2026-10-21)
+    v.CC.setFilter('attention');
+    v.click({ 'data-cc': 'range', 'data-arg': 'today' });
+    ok('Needs attention reports PEOPLE in its filter line, not a row count', /Showing 1 person · Today/.test(v.view.innerHTML) && !/Showing \d+ of /.test(v.view.innerHTML), (v.view.innerHTML.match(/cc-filter-sum[^<]*/) || [''])[0]);
+    v.click({ 'data-cc': 'clearfilters' });
+    v.CC.setFilter('all');
+    v.click({ 'data-cc': 'range', 'data-arg': '30d' });
+    ok('other tabs still say "of N" and count the rows shown', /Showing 5 of 6 · Last 30 days/.test(v.view.innerHTML), (v.view.innerHTML.match(/cc-filter-sum[^<]*/) || [''])[0]);
+    v.click({ 'data-cc': 'clearfilters' });
+    const extra = [];
+    for (let i = 0; i < 155; i++) extra.push({ id: 'bulk_' + i, userId: 'U', bucket: 'unknown', phoneDigits: '51355599' + String(10 + (i % 80)), direction: 'inbound', status: 'noted', startedAtMs: Date.now() - (100 + i) * H, summary: 'bulk ' + i });
+    rowsDb.phone_calls.push.apply(rowsDb.phone_calls, extra);
+    await v.CC.reload(); v.CC.setFilter('all');
+    ok('the 150-row cap says "newest" under Newest first', /Showing the newest 150\./.test(v.view.innerHTML));
+    v.click({ 'data-cc': 'sort', 'data-arg': 'old' });
+    ok('...and "oldest" under Oldest first (it showed the oldest 150 but still said newest)', /Showing the oldest 150\./.test(v.view.innerHTML) && !/Showing the newest 150/.test(v.view.innerHTML));
+    rowsDb.phone_calls.splice(rowsDb.phone_calls.length - 155, 155);
+    v.click({ 'data-cc': 'clearfilters' });
+    await v.CC.reload();
+
+    // a browser where touching window.localStorage THROWS (Safari with storage blocked) must not kill the view at load
+    const vs = boot(null, true);
+    ok('with a throwing localStorage the Call Center module still defines itself', !!vs.CC && typeof vs.CC.reload === 'function');
+    await vs.CC.reload(); vs.CC.setFilter('all');
+    ok('...loads and lists the calls', ids(vs).length === 6, JSON.stringify(ids(vs)));
+    vs.click({ 'data-cc': 'range', 'data-arg': 'today' });
+    ok('...filters still work for the visit (they just are not saved)', ids(vs).length === 3 && /Showing 3 of 6/.test(vs.view.innerHTML));
+
     // a saved choice is restored at boot
     const v2 = boot({ range: '7d', dir: 'in', sort: 'new' });
     await v2.CC.reload(); v2.CC.setFilter('all');
@@ -186,7 +215,7 @@ const call = (id, ms, extra) => Object.assign({ id, startedAtMs: ms, direction: 
   console.log('\n6. wiring');
   {
     const view = read('docs/pro/js/call-center-view.js'), css = read('docs/pro/css/phone-calls.css'), loader = read('docs/pro/js/script-loader.js'), dash = read('docs/pro/dashboard.html');
-    ok('the filter module loads before the view, in the lazy callcenter bundle (view version bumped)', /callcenter: \[\s*'js\/call-center-filters-logic\.js\?v=1',\s*'js\/call-center-view\.js\?v=22'\s*\]/.test(loader));
+    ok('the filter module loads before the view, in the lazy callcenter bundle (view version bumped)', /callcenter: \[\s*'js\/call-center-filters-logic\.js\?v=1',\s*'js\/call-center-view\.js\?v=23'\s*\]/.test(loader));
     ok('the stylesheet version was bumped for the new rules', /css\/phone-calls\.css\?v=12/.test(dash) && /\.cc-fbar \{/.test(css));
     ok('chips, date boxes and Clear are 44px targets', /\.cc-date \{[^}]*min-height: 44px/.test(css) && /\.cc-clear \{[^}]*min-height: 44px/.test(css) && /\.cc-tab \{\s*min-height: 44px/.test(css));
     ok('no inline handlers or inline styles in the new markup (CSP)', !/cc-fchip[^>]*(onclick|style=)/.test(view) && !/cc-date[^>]*(onclick|style=)/.test(view));
