@@ -316,3 +316,20 @@ readiness check-in, supersets.
   the same day picks it up without asking). Re-rolls, swaps and split changes keep
   the lighter plan (a trimmed set is trimmed once, not twice). Test:
   [coach-readiness](../../tests/coach-readiness-2026-10-20.test.js).
+
+- **#10 Supersets — shipped (PR open, stacked on the readiness PR).** Under each
+  lift's "+ set" is **⇄ Pair with next lift (superset)**. Paired lifts render as
+  one block: heads for A and B, then the sets in the order they are done —
+  **A1, B1, A2, B2 …** (warm-ups first, the next undone row highlighted, a lift
+  with extra sets finishes alone). The rest timer runs **once per pair**: nothing
+  after A1, then one rest when B1 is also done (either order), for the longer of
+  the two lifts' rests (compound 2:30, isolation 1:15). Warm-ups keep their own
+  60 s. Unpair any time; a paired lift that gets swapped or re-rolled stays
+  paired; a new split starts unpaired. Saved sessions mark the A lift
+  `pair: true` when its partner was logged too (nothing reads it yet).
+  **The plain logger is unchanged**: `tests/helpers/coach-golden-script.js`
+  drives a fixed 27-step workout with nothing paired (frozen clock) and hashes
+  every live-session state, rest-timer text, toast and the saved session; the
+  digest was recorded before the change and the test pins it (a control run with a
+  pair must differ). If you ever change the plain logger on purpose, re-bless
+  that digest. Test: [coach-supersets](../../tests/coach-supersets-2026-10-20.test.js).

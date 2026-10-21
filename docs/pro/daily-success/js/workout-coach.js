@@ -205,7 +205,7 @@
       const inRot = rot.includes(k);
       return `<button class="wc-chip${on ? ' on' : ''}${inRot ? '' : ' off-rot'}" data-coach-action="split" data-split="${k}">${esc(C().SPLITS[k].label)}${armed === 'split:' + k ? ' — tap again' : ''}</button>`;
     }).join('');
-    const cards = live.exercises.map((x, i) => exerciseHtml(x, i)).join('');
+    const cards = cardsHtml();
     el.innerHTML = `<div class="wc-box">
       <div class="wc-top">
         <button class="wc-x" data-coach-action="close" aria-label="Close">✕</button>
@@ -253,19 +253,83 @@
     return `<div class="wc-hint wc-behind">Behind this week: ${b.neglected.slice(0, 3).map((m) => esc(C().MUSCLE_LABELS[m])).join(', ')} — 🔀 Switch it up leans that way.</div>`;
   }
 
-  function exerciseHtml(x, i) {
-    const ex = C().BY_ID[x.exId] || {};
-    let workN = 0;
-    const rows = (x.sets || []).map((st, j) => `<div class="wc-set${st.done ? ' done' : ''}${st.warm ? ' warm' : ''}">
-        <span class="wc-n">${st.warm ? 'W' : ++workN}</span>
-        <input class="wc-in" inputmode="decimal" placeholder="lb" aria-label="Weight, ${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : workN}" value="${esc(st.weight)}" data-coach-field="weight" data-i="${i}" data-s="${j}">
+  // One set row. Inside a superset, who = 'A ' / 'B ' (for screen readers) and tag = the A1 / B1 label.
+  function setRowHtml(x, i, st, j, n, who, tag, next) {
+    return `<div class="wc-set${st.done ? ' done' : ''}${st.warm ? ' warm' : ''}${next ? ' next' : ''}">
+        <span class="wc-n">${st.warm ? 'W' : (tag || n)}</span>
+        <input class="wc-in" inputmode="decimal" placeholder="lb" aria-label="Weight, ${who}${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : n}" value="${esc(st.weight)}" data-coach-field="weight" data-i="${i}" data-s="${j}">
         <span class="wc-x-sep">×</span>
-        <input class="wc-in" inputmode="numeric" placeholder="${esc(st.warm ? st.plan : x.target && x.target.reps)}" aria-label="Reps, ${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : workN}" value="${esc(st.reps)}" data-coach-field="reps" data-i="${i}" data-s="${j}">
-        <select class="wc-rpe" aria-label="RPE, ${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : workN}" data-coach-field="rpe" data-i="${i}" data-s="${j}">
+        <input class="wc-in" inputmode="numeric" placeholder="${esc(st.warm ? st.plan : x.target && x.target.reps)}" aria-label="Reps, ${who}${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : n}" value="${esc(st.reps)}" data-coach-field="reps" data-i="${i}" data-s="${j}">
+        <select class="wc-rpe" aria-label="RPE, ${who}${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : n}" data-coach-field="rpe" data-i="${i}" data-s="${j}">
           <option value="">RPE</option>${RPES.map((r) => `<option value="${r}"${String(st.rpe) === r ? ' selected' : ''}>${r}</option>`).join('')}
         </select>
-        <button class="wc-check${st.done ? ' on' : ''}" data-coach-action="done" data-i="${i}" data-s="${j}" aria-label="${st.warm ? 'Warm-up' : 'Set'} ${st.warm ? j + 1 : workN} done">✓</button>
-      </div>`).join('');
+        <button class="wc-check${st.done ? ' on' : ''}" data-coach-action="done" data-i="${i}" data-s="${j}" aria-label="${who}${st.warm ? 'Warm-up' : 'Set'} ${st.warm ? j + 1 : n} done">✓</button>
+      </div>`;
+  }
+
+  // ── supersets ────────────────────────────────────────────────────────
+  // x.pair = "paired with the next lift". Reading left to right, a flagged lift
+  // starts a pair and the one after it is its B (a stray flag on a B is ignored).
+  function pairStarts(exs) {
+    const out = [];
+    for (let k = 0; k < exs.length - 1; k++) { if (exs[k].pair) { out.push(k); k++; } }
+    return out;
+  }
+  function pairOf(i) {
+    const s = pairStarts(live.exercises).find((k) => i === k || i === k + 1);
+    return s === undefined ? null : { a: s, b: s + 1 };
+  }
+  // The rows of a pair in the order they are done: warm-ups first, then A1 B1 A2 B2 …
+  function pairRowsHtml(a) {
+    const A = live.exercises[a], B = live.exercises[a + 1];
+    const split = (x) => { const warm = [], work = []; (x.sets || []).forEach((st, j) => (st.warm ? warm : work).push({ st, j })); return { warm, work }; };
+    const sa = split(A), sb = split(B);
+    const out = [];
+    sa.warm.forEach((r, n) => out.push({ x: A, i: a, r, n: n + 1, who: 'A ', tag: '' }));
+    sb.warm.forEach((r, n) => out.push({ x: B, i: a + 1, r, n: n + 1, who: 'B ', tag: '' }));
+    for (let k = 0; k < Math.max(sa.work.length, sb.work.length); k++) {
+      if (sa.work[k]) out.push({ x: A, i: a, r: sa.work[k], n: k + 1, who: 'A ', tag: 'A' + (k + 1) });
+      if (sb.work[k]) out.push({ x: B, i: a + 1, r: sb.work[k], n: k + 1, who: 'B ', tag: 'B' + (k + 1) });
+    }
+    const nextAt = out.findIndex((o) => !o.r.st.done);
+    return out.map((o, idx) => setRowHtml(o.x, o.i, o.r.st, o.r.j, o.n, o.who, o.tag, idx === nextAt)).join('');
+  }
+  function pairHtml(a) {
+    return `<div class="wc-ss"><div class="wc-ss-h"><span>⇄ Superset — do A, then B; one rest after each pair</span><button class="wc-link" data-coach-action="pair-next" data-i="${a}">Unpair</button></div>
+      ${exerciseHtml(live.exercises[a], a, 'A')}${exerciseHtml(live.exercises[a + 1], a + 1, 'B')}
+      <div class="wc-ss-rows">${pairRowsHtml(a)}</div>
+      <div class="wc-ss-add"><button class="wc-add" data-coach-action="add-set" data-i="${a}">+ set A</button><button class="wc-add" data-coach-action="add-set" data-i="${a + 1}">+ set B</button></div></div>`;
+  }
+  function cardsHtml() {
+    const starts = pairStarts(live.exercises);
+    let out = '';
+    for (let i = 0; i < live.exercises.length; i++) {
+      if (starts.includes(i)) { out += pairHtml(i); i++; } else out += exerciseHtml(live.exercises[i], i);
+    }
+    return out;
+  }
+  // One rest per pair: only once BOTH lifts' sets of this round are done (either order).
+  function pairRest(pr, i, j) {
+    const a = live.exercises[pr.a], b = live.exercises[pr.b];
+    const mine = i === pr.a ? a : b, other = i === pr.a ? b : a;
+    const r = mine.sets.slice(0, j + 1).filter((s) => !s.warm).length - 1;
+    const ps = other.sets.filter((s) => !s.warm)[r];
+    if (ps && !ps.done) return;
+    const wa = a.sets.filter((s) => !s.warm), wb = b.sets.filter((s) => !s.warm);
+    let label = 'next exercise';
+    for (let k = 0; k < Math.max(wa.length, wb.length); k++) {
+      if (wa[k] && !wa[k].done) { label = 'next: ' + a.name + ' set ' + (k + 1); break; }
+      if (wb[k] && !wb[k].done) { label = 'next: ' + b.name + ' set ' + (k + 1); break; }
+    }
+    startRest(Math.max(C().restFor(a.exId), C().restFor(b.exId)), label);
+  }
+
+  function exerciseHtml(x, i, role) {
+    const ex = C().BY_ID[x.exId] || {};
+    let workN = 0;
+    const rows = role ? '' : (x.sets || []).map((st, j) => setRowHtml(x, i, st, j, st.warm ? workN : ++workN, '', '', false)).join('');
+    const nx = live.exercises[i + 1];
+    const pairBtn = !role && nx && !nx.pair ? `<button class="wc-link" data-coach-action="pair-next" data-i="${i}">⇄ Pair with next lift (superset)</button>` : '';
     let swaps = '';
     if (swapOpen === i) {
       const so = settings();
@@ -281,8 +345,8 @@
           : `<button class="wc-link" data-coach-action="show-avoided">Show ${avoided.length} I'm avoiding</button>`;
       }
     }
-    return `<div class="wc-ex">
-      <div class="wc-ex-h"><div><div class="wc-ex-name">${esc(x.name)}</div>
+    return `<div class="wc-ex${role ? ' wc-ss-ex' : ''}">
+      <div class="wc-ex-h"><div><div class="wc-ex-name">${role ? `<span class="wc-ss-tag">${role}</span> ` : ''}${esc(x.name)}</div>
         <div class="wc-ex-sub">${esc(x.repRange[0])}–${esc(x.repRange[1])} reps · ${esc(ex.equip || '')}</div></div>
         <div class="wc-ex-btns"><button class="btn btn-ghost wc-swap" data-coach-action="avoid-ex" data-i="${i}" title="Stop offering this one">${armed === 'avoidx:' + i ? 'Sure? Tap again' : 'Avoid'}</button>
         <button class="btn btn-ghost wc-swap" data-coach-action="swap" data-i="${i}">${swapOpen === i ? 'Cancel' : 'Swap'}</button></div></div>
@@ -290,7 +354,7 @@
       ${stallHtml(x, i)}
       ${platesHtml(x, ex)}
       ${swaps}${rows}
-      <button class="wc-add" data-coach-action="add-set" data-i="${i}">+ set</button>
+      ${role ? '' : `<button class="wc-add" data-coach-action="add-set" data-i="${i}">+ set</button>${pairBtn}`}
     </div>`;
   }
 
@@ -356,8 +420,8 @@
     const now = Date.now();
     const session = {
       id: live.id, date: live.date || today(), split: live.split, startedAt: live.startedAt, finishedAt: now, mt: now,
-      exercises: live.exercises.map((x) => Object.assign({ exId: x.exId, name: x.name, slot: x.slot, repRange: x.repRange,
-        sets: (x.sets || []).filter((st) => st.done).map((st) => Object.assign({ reps: parseFloat(st.reps) || 0, weight: st.weight === '' ? '' : (parseFloat(st.weight) || 0), rpe: parseFloat(st.rpe) || '', done: true }, st.warm ? { warm: true } : {})) }, x.deload ? { deload: true } : {}))
+      exercises: live.exercises.map((x, k) => Object.assign({ exId: x.exId, name: x.name, slot: x.slot, repRange: x.repRange,
+        sets: (x.sets || []).filter((st) => st.done).map((st) => Object.assign({ reps: parseFloat(st.reps) || 0, weight: st.weight === '' ? '' : (parseFloat(st.weight) || 0), rpe: parseFloat(st.rpe) || '', done: true }, st.warm ? { warm: true } : {})) }, x.deload ? { deload: true } : {}, x.pair && pairStarts(live.exercises).includes(k) && ((live.exercises[k + 1] || {}).sets || []).some((st) => st.done) ? { pair: true } : {}))
         .filter((x) => x.sets.length),
     };
     const all = C().mergeSessions([session].concat(prior), []);
@@ -449,6 +513,14 @@
         applyReadyTo(live);
         persistLive(); toast('Deload set: ' + st.deloadWeight + ' lb'); render(); return;
       }
+      case 'pair-next': {
+        const ex = live && live.exercises;
+        if (!ex || !ex[i] || i >= ex.length - 1) return;
+        if (ex[i].pair) { delete ex[i].pair; persistLive(); render(); return; }
+        if (pairStarts(ex).includes(i - 1)) { toast('That one is already the B of a superset'); return; }
+        if (ex[i + 1].pair) { toast('Unpair the next lift first'); return; }
+        ex[i].pair = true; persistLive(); render(); return;
+      }
       case 'ready-set': {
         if (!live) return;
         live.ready = Object.assign({}, live.ready && !live.ready.skipped ? live.ready : {}, { [t.dataset.k]: +t.dataset.v });
@@ -508,7 +580,7 @@
           if (doneCount(x)) return x;
           const alt = fresh.exercises.find((f) => f.slot === x.slot && !keepIds.includes(f.exId));
           if (alt) keepIds.push(alt.exId);
-          return alt || x;
+          return alt ? (x.pair ? Object.assign({ pair: true }, alt) : alt) : x;
         });
         applyReadyTo(live);
         persistLive(); swapOpen = -1; render(); return;
@@ -534,8 +606,12 @@
         persistLive();
         if (st.done) {
           const x = live.exercises[i];
-          const nextSet = x.sets.findIndex((s2) => !s2.done);
-          startRest(st.warm ? 60 : C().restFor(x.exId), nextSet > -1 ? 'next: ' + x.name + ' set ' + (nextSet + 1) : 'next exercise');
+          const pr = st.warm ? null : pairOf(i);
+          if (pr) pairRest(pr, i, j);
+          else {
+            const nextSet = x.sets.findIndex((s2) => !s2.done);
+            startRest(st.warm ? 60 : C().restFor(x.exId), nextSet > -1 ? 'next: ' + x.name + ' set ' + (nextSet + 1) : 'next exercise');
+          }
         }
         render(); return;
       }

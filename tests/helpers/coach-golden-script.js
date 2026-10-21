@@ -28,7 +28,8 @@ function sess(date, split, exs) {
 const bench = (date, w) => sess(date, 'push', [['bb_bench', 0, [[w, 8, 7], [w, 8, 7], [w, 8, 7], [w, 8, 7]]]]);
 const HIST = [bench('2026-10-12', 175), bench('2026-10-14', 180), bench('2026-10-16', 185), sess('2026-10-18', 'legs', [['back_squat', 0, [[225, 5, 8]]]])];
 
-function run() {
+// opts.pair: the control run — pairs the first two lifts, which must change the digest.
+function run(opts) {
   const h = makeHarness({ storage: { nbd_ds_workouts: HIST }, today: '2026-10-20', freeze: true });
   const snaps = [];
   const rest = () => { const m = h.html().match(/<div class="wc-rest"[^>]*>([\s\S]*?)<\/div>/); return m ? m[1] : null; };
@@ -37,6 +38,7 @@ function run() {
 
   step('freshness', () => h.click('set-freshness', { val: 'steady' }));
   step('start', () => h.click('start'));
+  if (opts && opts.pair) step('pair', () => h.click('pair-next', { i: 0 }));
   const x0 = () => h.live().exercises[0];
   const firstWork = () => x0().sets.findIndex((s) => !s.warm);
   step('warm-up 1 done', () => h.click('done', { i: 0, s: 0 }));

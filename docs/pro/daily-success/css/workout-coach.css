@@ -156,3 +156,12 @@ body.wc-lock { overflow: hidden; }
 .wc-ready-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
 .wc-ready-l { width: 70px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8b9bb4; }
 .wc-ready-btn { height: 34px; padding: 0 12px; font-size: 12px; }
+.wc-ss { border-left: 3px solid var(--ac, #BD5728); padding-left: 8px; margin: 10px 0; }
+.wc-ss-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #f5c27a; margin-bottom: 2px; }
+.wc-ss-ex { margin: 4px 0; }
+.wc-ss-tag { display: inline-block; min-width: 18px; text-align: center; border-radius: 4px; background: var(--ac, #BD5728); color: #fff; font-size: 12px; padding: 0 4px; margin-right: 4px; }
+.wc-ss-rows { background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .08); border-radius: 10px; padding: 8px 12px; margin: 6px 0; }
+.wc-ss-rows .wc-n { font-weight: 700; color: #cfd8e3; }
+.wc-set.next { box-shadow: -3px 0 0 var(--ac, #BD5728); padding-left: 2px; }
+.wc-ss-add { display: flex; gap: 6px; }
+.wc-ss-add .wc-add { margin-top: 0; }
