@@ -119,3 +119,20 @@ Two review passes, both on code merged in cycle 4. Findings were verified before
 - **CI:** @shard2 and @shard3 fail on every recent PR (including docs-only-adjacent ones); both are non-required. Cause still
   unexplained; shard3 passes locally.
 - **Left for Jo:** nothing new needs a decision.
+
+## Cycle 6 - 10:00-12:00 EDT (theme: CI health, plus the phone sweep Jo asked for)
+
+- **Shard failures explained (no longer "unexplained").** Read the real job logs. The failing @shard3 specs are **different on
+  every run**: a PR run failed `phone-quick-wins-part2` ("a saved choice still wins") and `yard-signs-edit` (map off-pin text),
+  both on 5000 ms expect timeouts, then hit the job cap ("The operation was canceled"); a main run failed `visit-recorder`
+  (181 passed, 13.7 min). A rotating set of 5 s timeouts at the cap is a **slow / overloaded shard**, not one broken test and
+  not our tracker changes. Both shards stay non-required. Proposed fix (not built; CI config, wants Jo's nod because it
+  changes the E2E split): split @shard3 in two or raise the expect timeout for emulator specs. Logged in the roadmap, item 4.
+- **Light-theme / phone sweep** (ten skins x 360 / 390 / 412 px, real browser, overflow + tap targets + text contrast): no
+  horizontal overflow anywhere. Real finding: the header button strip scrolls sideways with a hidden scrollbar, so DELETE, CSV,
+  PDF and SAVE are off-screen with nothing saying so; fixed in #2630 (edge fade + end spacer, pinned). Open: a few 11 px labels
+  at the floor, the 15 px tab-close x, one orange chip at 4.14:1 on the dark card. The contrast probe cannot read the dark hero
+  cover (image background), so those hits are noise.
+- **PRs open from me:** #2628 (comment-blind test pins), #2629 (roadmap), #2630 (header strip). No new build this cycle (three
+  open, queue busy).
+- **Left for Jo:** the shard3 split-vs-timeout call above.
