@@ -381,6 +381,7 @@
     "call-center-action-2026-10-01.test.js",
     "call-center-crm-update-2026-10-03.test.js",
     "call-center-matching-2026-10-03.test.js",
+    "call-center-filters-2026-10-21.test.js",
     "never-forget-server-2026-10-13.test.js",
     "needs-you-lifecycle-fixes-2026-10-13.test.js",
     "needs-you-volume-sim-2026-10-13.test.js",

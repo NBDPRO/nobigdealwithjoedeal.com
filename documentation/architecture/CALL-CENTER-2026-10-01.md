@@ -7,6 +7,24 @@
 > the push result was not checked. Full hop-by-hop map, failure modes and the
 > fixes: [NEVER-FORGET-RELIABILITY-AUDIT-2026-10-12](../audit/NEVER-FORGET-RELIABILITY-AUDIT-2026-10-12.md).
 
+> **Update 2026-10-21 (date / direction / order filters).** Jo asked for "a full filter
+> system for the call center ... date selection or range, click today or most recent".
+> The category tabs (Needs attention / All / Customers / ...) and search stay; a second
+> bar now narrows the **same list** by *when* (Any time, Today, Yesterday, Last 24 hours,
+> Last 7 days, Last 30 days, or a Pick dates range with either end open), *who called*
+> (Either way / They called / You called) and the *order* (Newest / Oldest first). This
+> is a view filter, not the ingest rule above: every call is still filed ("sort, never
+> filter" is about what gets stored, and nothing is dropped).
+> Rules worth knowing: dates are America/New_York calendar days (the Call Center's
+> `todayYmd`), Last 24 hours is a rolling window, a day of texts has no direction so any
+> direction filter leaves texts out, a call with no time only shows under Any time, tab
+> counts and the list follow the filters, the sidebar badge and the "One at a time"
+> deck never do (they are the real open list), Needs attention stays grouped by person
+> (a person's card holds only their in-range calls), and a `?call=<id>` deep link
+> clears the filters so its card is on screen. The choice is saved in
+> `localStorage.nbd_cc_filters`. Pure rules: `docs/pro/js/call-center-filters-logic.js`;
+> wiring: `call-center-view.js`; tests: `tests/call-center-filters-2026-10-21.test.js`.
+
 **What Jo asked for:**
 - the phone's call recordings go into the CRM automatically, on a timer;
 - they get transcribed and AI-sorted;

@@ -34,6 +34,18 @@
 }
 .cc-tab.is-on { background: var(--orange, #e8720c); border-color: var(--orange, #e8720c); color: var(--accent-fg, #fff); }
 .cc-count { font-weight: 400; opacity: .85; }
+/* When / direction / order chips + the two date boxes (js/call-center-filters-logic.js, 2026-10-21): one scrolling row each,
+   44px targets, so a phone never wraps them into a wall. */
+.cc-fbar { display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; align-items: center; }
+.cc-fbar::-webkit-scrollbar { display: none; }
+.cc-fchip { flex: 0 0 auto; white-space: nowrap; }
+.cc-sep { flex: 0 0 1px; align-self: stretch; margin: 6px 4px; background: var(--br, rgba(255,255,255,.15)); }
+.cc-date-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.cc-date-lbl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--m); flex: 1 1 150px; }
+.cc-date { flex: 1 1 auto; min-height: 44px; box-sizing: border-box; padding: 0 10px; border-radius: 8px; font: inherit; min-width: 0;
+  background: var(--s2, rgba(255,255,255,.05)); color: var(--t, inherit); border: 1px solid var(--br, rgba(255,255,255,.15)); }
+.cc-filter-sum { font-size: 13px; color: var(--m); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cc-clear { min-height: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--br, rgba(255,255,255,.15)); background: transparent; color: var(--orange, #e8720c); font: inherit; font-weight: 700; cursor: pointer; }
 .cc-chip {
   display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
   padding: 2px 7px; border-radius: 999px; margin: 0 4px 4px 0;
