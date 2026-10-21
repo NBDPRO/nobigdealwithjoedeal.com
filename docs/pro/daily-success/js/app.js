@@ -473,19 +473,19 @@ function buildIntelligenceBrief(p){
 
   let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">';
 
-  const streakColor = streak >= 7 ? 'var(--grn)' : streak >= 3 ? 'var(--gold)' : streak >= 1 ? 'var(--ac)' : '#445566';
+  const streakColor = streak >= 7 ? 'var(--grn)' : streak >= 3 ? 'var(--gold)' : streak >= 1 ? 'var(--ac)' : '#8fa1b8';
   html += `<div style="background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;padding:12px;text-align:center;">
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;color:${streakColor};line-height:1;">${streak}</div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:8px;letter-spacing:.15em;color:var(--muted);margin-top:2px;">FLOOR STREAK</div>
   </div>`;
 
   html += `<div style="background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;padding:12px;text-align:center;">
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;color:${workoutStreak >= 3 ? 'var(--grn)' : '#445566'};line-height:1;">${workoutStreak}</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;color:${workoutStreak >= 3 ? 'var(--grn)' : '#8fa1b8'};line-height:1;">${workoutStreak}</div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:8px;letter-spacing:.15em;color:var(--muted);margin-top:2px;">WORKOUT STREAK</div>
   </div>`;
 
   html += `<div style="background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;padding:12px;text-align:center;">
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;color:${habitPct >= 70 ? 'var(--grn)' : habitPct >= 40 ? 'var(--gold)' : '#445566'};line-height:1;">${habitPct}%</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;color:${habitPct >= 70 ? 'var(--grn)' : habitPct >= 40 ? 'var(--gold)' : '#8fa1b8'};line-height:1;">${habitPct}%</div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:8px;letter-spacing:.15em;color:var(--muted);margin-top:2px;">HABIT RATE (7D)</div>
   </div>`;
 
@@ -551,7 +551,7 @@ main.dataset.dsPage=String(p&&p.id);
 
 const wrap=document.createElement('div');
 wrap.style.cssText='width:100%;max-width:760px;display:flex;flex-direction:column;gap:18px;';
-wrap.innerHTML=` ${buildCover(p,cur%QUOTES.length)} <div id="week-glance-wrap" style="background:#0a1018;width:100%;max-width:760px;border-radius:8px;padding:12px 18px;border:1px solid #1e2d40;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#445566;margin-bottom:8px;text-align:center;">THIS WEEK AT A GLANCE</div>${buildWeekGlance()}</div> <div id="day-score-wrap">${buildDayScore(p)}</div> <div id="comparison-wrap">${buildDailyComparison(p)}</div> <div class="pc" data-sec="intel"><div class="ph" data-action="toggle-section"><span class="badge" style="background:linear-gradient(135deg,#1A3057,#5a2a7e);">INTEL</span><div class="pt">Intelligence Brief</div><span class="collapse-ico">▾</span></div><div class="pb" id="intel-pb"></div></div> <div class="pc" data-sec="pipeline"><div class="ph" data-action="toggle-section"><span class="badge" style="background:linear-gradient(135deg,#0d4a3a,#1e6a4e);">PIPELINE</span><div class="pt">CRM Pipeline Snapshot</div><span class="collapse-ico">▾</span></div><div class="pb" id="pipeline-pb"></div></div> <div class="pc" data-sec="mindset"><div class="ph" data-action="toggle-section"><span class="badge b-mindset">01 · MINDSET</span><div class="pt">Morning Mindset & Non-Negotiables</div><span class="collapse-ico">▾</span></div><div class="pb" id="mindset-pb"></div></div> <div class="pc" data-sec="regiment"><div class="ph" data-action="toggle-section"><span class="badge b-daily">02 · REGIMENT</span><div class="pt">Optimal Daily Regiment</div><span class="collapse-ico">▾</span></div><div class="pb" id="regiment-pb"></div></div> <div class="pc" data-sec="diet"><div class="ph" data-action="toggle-section"><span class="badge b-diet">03 · DIET</span><div class="pt">Diet Protocol & Macro Tracker</div><span class="collapse-ico">▾</span></div><div class="pb" id="diet-pb"></div></div> <div class="pc" data-sec="fitness"><div class="ph" data-action="toggle-section"><span class="badge b-fitness">04 · FITNESS</span><div class="pt">Fitness Log</div><span class="collapse-ico">▾</span></div><div class="pb" id="fit-pb"></div></div> <div class="pc" data-sec="pr"><div class="ph" data-action="toggle-section"><span class="badge b-pr">05 · PR TRACKER</span><div class="pt">Personal Records & Body Metrics</div><span class="collapse-ico">▾</span></div><div class="pb" id="pr-pb"></div></div> <div class="pc" data-sec="log"><div class="ph" data-action="toggle-section"><span class="badge b-log">06 · LOG</span><div class="pt">Daily Log & Reflection</div><span class="collapse-ico">▾</span></div><div class="pb" id="log-pb"></div></div> <div class="pc" data-sec="goals"><div class="ph" data-action="toggle-section"><span class="badge b-goals">07 · GOALS</span><div class="pt">Goals & Vision</div><span class="collapse-ico">▾</span></div><div class="pb" id="goals-pb"></div></div> <div class="pc" data-sec="habits"><div class="ph" data-action="toggle-section"><span class="badge b-habits">08 · HABITS</span><div class="pt">Weekly Habit Tracker & Monthly Scorecard</div><span class="collapse-ico">▾</span></div><div class="pb"><div class="rl">Check each habit for each day of the week</div><div style="overflow-x:auto;" id="habits-table-wrap"></div><div class="dv"><span class="dvt">Monthly Scorecard</span></div><div class="rl">Rate each month 1–10 or log a key result</div><div id="scorecard-wrap"></div></div></div> <div class="footer">NO BIG DEAL WITH JOE DEAL · DAILY SUCCESS PROGRAM · ${p.dk}</div>`;
+wrap.innerHTML=` ${buildCover(p,cur%QUOTES.length)} <div id="week-glance-wrap" style="background:#0a1018;width:100%;max-width:760px;border-radius:8px;padding:12px 18px;border:1px solid #1e2d40;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#8fa1b8;margin-bottom:8px;text-align:center;">THIS WEEK AT A GLANCE</div>${buildWeekGlance()}</div> <div id="day-score-wrap">${buildDayScore(p)}</div> <div id="comparison-wrap">${buildDailyComparison(p)}</div> <div class="pc" data-sec="intel"><div class="ph" data-action="toggle-section"><span class="badge" style="background:linear-gradient(135deg,#1A3057,#5a2a7e);">INTEL</span><div class="pt">Intelligence Brief</div><span class="collapse-ico">▾</span></div><div class="pb" id="intel-pb"></div></div> <div class="pc" data-sec="pipeline"><div class="ph" data-action="toggle-section"><span class="badge" style="background:linear-gradient(135deg,#0d4a3a,#1e6a4e);">PIPELINE</span><div class="pt">CRM Pipeline Snapshot</div><span class="collapse-ico">▾</span></div><div class="pb" id="pipeline-pb"></div></div> <div class="pc" data-sec="mindset"><div class="ph" data-action="toggle-section"><span class="badge b-mindset">01 · MINDSET</span><div class="pt">Morning Mindset & Non-Negotiables</div><span class="collapse-ico">▾</span></div><div class="pb" id="mindset-pb"></div></div> <div class="pc" data-sec="regiment"><div class="ph" data-action="toggle-section"><span class="badge b-daily">02 · REGIMENT</span><div class="pt">Optimal Daily Regiment</div><span class="collapse-ico">▾</span></div><div class="pb" id="regiment-pb"></div></div> <div class="pc" data-sec="diet"><div class="ph" data-action="toggle-section"><span class="badge b-diet">03 · DIET</span><div class="pt">Diet Protocol & Macro Tracker</div><span class="collapse-ico">▾</span></div><div class="pb" id="diet-pb"></div></div> <div class="pc" data-sec="fitness"><div class="ph" data-action="toggle-section"><span class="badge b-fitness">04 · FITNESS</span><div class="pt">Fitness Log</div><span class="collapse-ico">▾</span></div><div class="pb" id="fit-pb"></div></div> <div class="pc" data-sec="pr"><div class="ph" data-action="toggle-section"><span class="badge b-pr">05 · PR TRACKER</span><div class="pt">Personal Records & Body Metrics</div><span class="collapse-ico">▾</span></div><div class="pb" id="pr-pb"></div></div> <div class="pc" data-sec="log"><div class="ph" data-action="toggle-section"><span class="badge b-log">06 · LOG</span><div class="pt">Daily Log & Reflection</div><span class="collapse-ico">▾</span></div><div class="pb" id="log-pb"></div></div> <div class="pc" data-sec="goals"><div class="ph" data-action="toggle-section"><span class="badge b-goals">07 · GOALS</span><div class="pt">Goals & Vision</div><span class="collapse-ico">▾</span></div><div class="pb" id="goals-pb"></div></div> <div class="pc" data-sec="habits"><div class="ph" data-action="toggle-section"><span class="badge b-habits">08 · HABITS</span><div class="pt">Weekly Habit Tracker & Monthly Scorecard</div><span class="collapse-ico">▾</span></div><div class="pb"><div class="rl">Check each habit for each day of the week</div><div style="overflow-x:auto;" id="habits-table-wrap"></div><div class="dv"><span class="dvt">Monthly Scorecard</span></div><div class="rl">Rate each month 1–10 or log a key result</div><div id="scorecard-wrap"></div></div></div> <div class="footer">NO BIG DEAL WITH JOE DEAL · DAILY SUCCESS PROGRAM · ${p.dk}</div>`;
 
 main.appendChild(wrap);
 
@@ -649,7 +649,7 @@ let floorsStatusHtml='';
 const todayD=todayPage?todayPage.data||{}:{};
 const floorRows=floors.map(f=>{
 const met=todayD['floormet-'+f.id]==='1';
-return `<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--rule);"> <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${met?'var(--grn)':'transparent'};border:1.5px solid ${met?'var(--grn)':'#445566'};"></div> <span style="flex:1;font-family:'Barlow Condensed',sans-serif;font-size:10px;color:${met?'#4caf82':'var(--muted)'};">${E(f.label)}</span> <span style="font-family:'Barlow Condensed',sans-serif;font-size:9px;color:#334455;">≥${E(f.targetValue)} ${E(f.unit)}</span> </div>`;
+return `<div style="display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--rule);"> <div style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:${met?'var(--grn)':'transparent'};border:1.5px solid ${met?'var(--grn)':'#8fa1b8'};"></div> <span style="flex:1;font-family:'Barlow Condensed',sans-serif;font-size:10px;color:${met?'#4caf82':'var(--muted)'};">${E(f.label)}</span> <span style="font-family:'Barlow Condensed',sans-serif;font-size:9px;color:#334455;">≥${E(f.targetValue)} ${E(f.unit)}</span> </div>`;
 }).join('');
 const metToday=todayPage?floors.filter(f=>todayD['floormet-'+f.id]==='1').length:0;
 floorsStatusHtml=`<div class="dc"><div class="dct">Daily Floors <small>TODAY'S STATUS</small></div> ${todayPage?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:9px;color:${metToday===floors.length?'#4caf82':'var(--gold)'};margin-bottom:8px;letter-spacing:.1em;">${metToday}/${floors.length} FLOORS MET</div>`:`<div class="de">No entry for today yet</div>`} ${floorRows} <button class="btn btn-ghost" style="margin-top:12px;width:100%;justify-content:center;font-size:9px;" data-action="quick-start-defaults">↺ Reset to Quick Start Defaults</button> </div>`;
@@ -832,7 +832,7 @@ const pd=pg?pg.data||{}:{};
 const metCount=floors.filter(f=>pd['floormet-'+f.id]==='1').length;
 const total=floors.length;
 const isToday=dk===todayKey();
-let bg='transparent',border='#334455',color='#556677';
+let bg='transparent',border='#334455',color='#8fa1b8';
 if(pg&&total>0){
 const pct=metCount/total;
 if(pct>=1){bg='var(--grn)';border='var(--grn)';color='#fff';}
@@ -840,7 +840,7 @@ else if(pct>=.5){bg='var(--gold)';border='var(--gold)';color='#fff';}
 else if(pct>0){bg='rgba(249,115,22,.3)';border='var(--ac)';color='var(--ac)';}
 }
 const ring=isToday?'box-shadow:0 0 0 2px var(--ac);':'';
-html+=`<div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;" ${pg?`data-action="switch-to" data-page-idx="${pages.indexOf(pg)}"`:''}><div style="font-family:'Barlow Condensed',sans-serif;font-size:8px;color:${isToday?'var(--ac)':'#445566'};letter-spacing:.1em;font-weight:${isToday?'700':'400'}">${days[i]}</div><div style="width:28px;height:28px;border-radius:50%;background:${bg};border:1.5px solid ${border};display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:10px;color:${color};${ring}">${pg&&total>0?metCount:d.getDate()}</div></div>`;
+html+=`<div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;" ${pg?`data-action="switch-to" data-page-idx="${pages.indexOf(pg)}"`:''}><div style="font-family:'Barlow Condensed',sans-serif;font-size:8px;color:${isToday?'var(--ac)':'#8fa1b8'};letter-spacing:.1em;font-weight:${isToday?'700':'400'}">${days[i]}</div><div style="width:28px;height:28px;border-radius:50%;background:${bg};border:1.5px solid ${border};display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:10px;color:${color};${ring}">${pg&&total>0?metCount:d.getDate()}</div></div>`;
 }
 html+='</div>';
 return html;
@@ -863,9 +863,9 @@ if((k.doors||0)>bestDoors){bestDoors=k.doors;bestPage=tlbl(pg);}
 const r=parseFloat(dd['s-revenue']||0)||0;if(r>bestRev)bestRev=r;
 });
 function delta(cur,prev,prefix){
-if(prev===null||prev===undefined)return'<span style="color:#445566;">—</span>';
+if(prev===null||prev===undefined)return'<span style="color:#8fa1b8;">—</span>';
 const d=cur-prev;
-if(d===0)return'<span style="color:#445566;">—</span>';
+if(d===0)return'<span style="color:#8fa1b8;">—</span>';
 return d>0?`<span style="color:var(--grn);">▲${prefix||''}${Math.abs(d)}</span>`:`<span style="color:var(--ac);">▼${prefix||''}${Math.abs(d)}</span>`;
 }
 const pD=prev?(prev.kpi?.doors||0):null;
@@ -874,14 +874,14 @@ const pCon=prev?(prev.kpi?.contacts||0):null;
 const pCl=prev?(prev.kpi?.closes||0):null;
 return `<div style="background:#0a1018;width:100%;max-width:760px;border-radius:4px;padding:14px 22px;border:1px solid #1e2d40;border-left:4px solid var(--blu);">
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-<span style="font-family:'Barlow Condensed',sans-serif;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#445566;">TODAY VS YESTERDAY</span>
+<span style="font-family:'Barlow Condensed',sans-serif;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#8fa1b8;">TODAY VS YESTERDAY</span>
 <span style="font-family:'Barlow Condensed',sans-serif;font-size:9px;color:var(--gold);letter-spacing:.08em;">${prev?'vs '+E(tlbl(prev)):'No previous day'}</span>
 </div>
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
-<div style="text-align:center;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#f4efe6;">${doors}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:8px;color:#445566;letter-spacing:.1em;">DOORS</div><div style="font-size:10px;margin-top:2px;">${delta(doors,pD)}</div></div>
-<div style="text-align:center;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#f4efe6;">${contacts}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:8px;color:#445566;letter-spacing:.1em;">CONTACTS</div><div style="font-size:10px;margin-top:2px;">${delta(contacts,pCon)}</div></div>
-<div style="text-align:center;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#f4efe6;">${closes}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:8px;color:#445566;letter-spacing:.1em;">CLOSES</div><div style="font-size:10px;margin-top:2px;">${delta(closes,pCl)}</div></div>
-<div style="text-align:center;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#f4efe6;">$${Math.round(rev).toLocaleString()}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:8px;color:#445566;letter-spacing:.1em;">REVENUE</div><div style="font-size:10px;margin-top:2px;">${delta(rev,pR,'$')}</div></div>
+<div style="text-align:center;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#f4efe6;">${doors}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:8px;color:#8fa1b8;letter-spacing:.1em;">DOORS</div><div style="font-size:10px;margin-top:2px;">${delta(doors,pD)}</div></div>
+<div style="text-align:center;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#f4efe6;">${contacts}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:8px;color:#8fa1b8;letter-spacing:.1em;">CONTACTS</div><div style="font-size:10px;margin-top:2px;">${delta(contacts,pCon)}</div></div>
+<div style="text-align:center;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#f4efe6;">${closes}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:8px;color:#8fa1b8;letter-spacing:.1em;">CLOSES</div><div style="font-size:10px;margin-top:2px;">${delta(closes,pCl)}</div></div>
+<div style="text-align:center;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#f4efe6;">$${Math.round(rev).toLocaleString()}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:8px;color:#8fa1b8;letter-spacing:.1em;">REVENUE</div><div style="font-size:10px;margin-top:2px;">${delta(rev,pR,'$')}</div></div>
 </div>
 ${bestDoors>0?`<div style="display:flex;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid #1e2d40;"><span style="font-family:'Barlow Condensed',sans-serif;font-size:9px;color:#334455;">🏆 Best: ${bestDoors} doors · $${Math.round(bestRev).toLocaleString()} rev</span></div>`:''}
 </div>`;
@@ -898,7 +898,7 @@ checkStreakCelebration();
 syncToWidgetKeys();
 // Refresh week glance
 const wg=document.getElementById('week-glance-wrap');
-if(wg){wg.innerHTML='<div style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#445566;margin-bottom:8px;text-align:center;">THIS WEEK AT A GLANCE</div>'+buildWeekGlance();}
+if(wg){wg.innerHTML='<div style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#8fa1b8;margin-bottom:8px;text-align:center;">THIS WEEK AT A GLANCE</div>'+buildWeekGlance();}
 }
 window.toggleFloor=toggleFloorPatched;
 // Patch collectPage to sync widget keys after save
