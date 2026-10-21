@@ -232,7 +232,7 @@ Health → Shortcut stays the follow-up for ongoing readings.
 
 ## 2026-10-20 — Coach upgrades from the ideas research (seven items, one PR each)
 
-Source: [TRACKER-IDEAS-RESEARCH-2026-10-20](TRACKER-IDEAS-RESEARCH-2026-10-20.md).
+Source: `TRACKER-IDEAS-RESEARCH-2026-10-20` (PR #2597).
 Jo approved building all ten; seven edit the Workout Coach and ship in this
 order: avoid list, plate calculator, warm-ups, stall detection, muscle balance,
 readiness check-in, supersets.
