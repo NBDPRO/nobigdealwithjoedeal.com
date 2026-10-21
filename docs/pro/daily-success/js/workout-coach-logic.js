@@ -779,13 +779,31 @@
     return e || r;
   }
 
+  /**
+   * "Previous" for each working set of a lift: the sets of its most recent finished session, in order (warm-ups out).
+   * The screen shows set N next to the previous session's set N, like Strong's Previous column.
+   * -> [{ weight, reps }] ([] when the lift was never logged)
+   */
+  function previousSets(exId, sessions) {
+    const h = historyOf(exId, sessions)[0];
+    if (!h) return [];
+    return workingSets(h.ex).map((s) => ({ weight: num(s.weight), reps: Math.round(num(s.reps)) }));
+  }
+  /** "185 × 5" (bodyweight: "8 reps"). */
+  function prevText(p) { return p ? (p.weight > 0 ? fmtW(p.weight) + '\u00d7' + p.reps : p.reps + ' reps') : ''; }
+
+  /** What the rest timer does when it hits zero. iPhone Safari has no navigator.vibrate, so sound is the default. */
+  const REST_ALERTS = ['both', 'sound', 'vibrate', 'off'];
+  function normRestAlert(v) { return REST_ALERTS.indexOf(v) > -1 ? v : 'both'; }
+  function restAlertPlan(mode) { const m = normRestAlert(mode); return { sound: m === 'both' || m === 'sound', vibrate: m === 'both' || m === 'vibrate' }; }
+
   /** A timer length (s) after a set: compounds rest longer. */
   function restFor(exId) { const e = BY_ID[exId]; return e && e.compound ? 150 : 75; }
 
   const api = {
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
     MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
-    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, repPRCheck, HIGH_REP, daysSince, candidatesFor, pickForSlot, targetFor,
+    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, repPRCheck, HIGH_REP, previousSets, prevText, REST_ALERTS, normRestAlert, restAlertPlan, daysSince, candidatesFor, pickForSlot, targetFor,
     nextSplit, buildSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

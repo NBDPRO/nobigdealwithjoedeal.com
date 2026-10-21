@@ -41,6 +41,7 @@
       avoid: C().normAvoid(s.avoid),
       plates: C().normPlates(s.plates),
       warmups: s.warmups !== false,
+      restAlert: C().normRestAlert(s.restAlert),
     };
   }
   function saveSettings(s) {
@@ -256,6 +257,8 @@
   // One set row. Inside a superset, who = 'A ' / 'B ' (for screen readers) and tag = the A1 / B1 label.
   function setRowHtml(x, i, st, j, n, who, tag, next) {
     const lp = st.warm ? null : C().livePR(x, sessions());
+    const prevSet = st.warm ? null : C().previousSets(x.exId, sessions())[n - 1];
+    const prevHtml = prevSet ? `<div class="wc-prev">Previous ${esc(C().prevText(prevSet))}</div>` : '';
     const pr = lp && lp.index === j
       ? (lp.kind === 'reps'
         ? `<span class="wc-pr" title="Most reps you have done at ${esc(lp.weight)} lb or heavier (was ${esc(lp.prev)})">\u{1F3C6} Rep PR</span>`
@@ -269,7 +272,7 @@
         <select class="wc-rpe" aria-label="RPE, ${who}${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : n}" data-coach-field="rpe" data-i="${i}" data-s="${j}">
           <option value="">RPE</option>${RPES.map((r) => `<option value="${r}"${String(st.rpe) === r ? ' selected' : ''}>${r}</option>`).join('')}
         </select>
-        <button class="wc-check${st.done ? ' on' : ''}" data-coach-action="done" data-i="${i}" data-s="${j}" aria-label="${who}${st.warm ? 'Warm-up' : 'Set'} ${st.warm ? j + 1 : n} done">✓</button>${pr}
+        <button class="wc-check${st.done ? ' on' : ''}" data-coach-action="done" data-i="${i}" data-s="${j}" aria-label="${who}${st.warm ? 'Warm-up' : 'Set'} ${st.warm ? j + 1 : n} done">✓</button>${prevHtml}${pr}
       </div>`;
   }
 
@@ -378,6 +381,8 @@
       <div class="wc-lbl">Main lift changes</div><div class="wc-chips">${radio('freshness', 'steady', 'Every 6 sessions', s.freshness)}${radio('freshness', 'mixed', 'Every 3', s.freshness)}${radio('freshness', 'fresh', 'Every session', s.freshness)}</div>
       <div class="wc-lbl">Equipment I have</div><div class="wc-chips">${C().EQUIP.map((e) => `<button class="wc-chip${s.equip.includes(e) ? ' on' : ''}" data-coach-action="toggle-equip" data-val="${e}">${e}</button>`).join('')}</div>
       <div class="wc-lbl">Warm-up sets (first lift of the day)</div><div class="wc-chips">${radio('warmups', 'on', 'On', s.warmups ? 'on' : 'off')}${radio('warmups', 'off', 'Off', s.warmups ? 'on' : 'off')}</div>
+      <div class="wc-lbl">When the rest timer ends</div><div class="wc-chips">${radio('restalert', 'both', 'Sound + vibrate', s.restAlert)}${radio('restalert', 'sound', 'Sound', s.restAlert)}${radio('restalert', 'vibrate', 'Vibrate', s.restAlert)}${radio('restalert', 'off', 'Off', s.restAlert)}</div>
+      <div class="wc-hint">iPhone Safari cannot vibrate a web page, so Sound is the one that works there (and your ringer switch must be on).</div>
       <div class="wc-lbl">Bar &amp; plates (for the per-side math)</div><div class="wc-chips">${[35, 45].map((b) => `<button class="wc-chip${s.plates.bar === b ? ' on' : ''}" data-coach-action="set-bar" data-val="${b}">${b} lb bar</button>`).join('')}${C().PLATE_SIZES.map((p) => `<button class="wc-chip${s.plates.plates.includes(p) ? ' on' : ''}" data-coach-action="toggle-plate" data-val="${p}">${p}</button>`).join('')}</div>
       <div class="wc-lbl">Avoiding for now (sore spot?)</div><div class="wc-chips">${Object.keys(C().PATTERN_LABELS).map((p) => `<button class="wc-chip${s.avoid.patterns.includes(p) ? ' on' : ''}" data-coach-action="toggle-avoid-pat" data-val="${p}">${esc(C().PATTERN_LABELS[p])}</button>`).join('')}${s.avoid.exercises.map((id) => `<button class="wc-chip on" data-coach-action="unavoid-ex" data-val="${esc(id)}">${esc((C().BY_ID[id] || {}).name || id)} ✕</button>`).join('')}</div>
       <div class="wc-hint">The coach won't offer anything you're avoiding. This is your own list, not medical advice.</div>
@@ -415,10 +420,39 @@
       if (!rest) { clearInterval(restTick); return; }
       const el = document.getElementById('wcRest');
       if (el) el.innerHTML = restText();
-      if (!rest.buzzed && Date.now() >= rest.until) { rest.buzzed = true; try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (_) {} }
+      if (!rest.buzzed && Date.now() >= rest.until) { rest.buzzed = true; alertRestDone(); }
     }, 1000);
   }
   function stopRest() { rest = null; clearInterval(restTick); }
+
+  // Rest-over alert. iPhone Safari has no navigator.vibrate, so the default also beeps; WebAudio only plays after a tap,
+  // so the audio context is unlocked inside the set's checkmark tap (unlockAudio) and reused when the timer ends.
+  let audioCtx = null;
+  function unlockAudio() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === 'suspended' && audioCtx.resume) audioCtx.resume();
+    } catch (_) {}
+  }
+  function beep() {
+    try {
+      if (!audioCtx) return;
+      [0, 0.22].forEach((t0) => {
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.type = 'sine'; o.frequency.value = 880; o.connect(g); g.connect(audioCtx.destination);
+        const t = audioCtx.currentTime + t0;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+        o.start(t); o.stop(t + 0.2);
+      });
+    } catch (_) {}
+  }
+  function alertRestDone() {
+    const plan = C().restAlertPlan(settings().restAlert);
+    if (plan.vibrate) { try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (_) {} }
+    if (plan.sound) beep();
+  }
 
   // ── actions ──────────────────────────────────────────────────────────
   function start() {
@@ -489,6 +523,9 @@
       case 'open': open(); return;
       case 'close': close(); return;
       case 'settings': showSettings = !showSettings; render(); return;
+      case 'set-restalert': {
+        const s = settings(); s.restAlert = C().normRestAlert(t.dataset.val); saveSettings(s); render(); return;
+      }
       case 'set-warmups': {
         const s = settings(); s.warmups = t.dataset.val === 'on'; saveSettings(s); render(); return;
       }
@@ -614,6 +651,7 @@
         swapOpen = -1; swapShowAvoided = false; persistLive(); render(); return;
       }
       case 'done': {
+        unlockAudio();
         const st = live.exercises[i] && live.exercises[i].sets[j];
         if (!st) return;
         st.done = !st.done;
