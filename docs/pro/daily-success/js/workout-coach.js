@@ -39,6 +39,7 @@
       equip: Array.isArray(s.equip) && s.equip.length ? s.equip.filter((e) => C().EQUIP.includes(e)) : C().EQUIP.slice(),
       avoid: C().normAvoid(s.avoid),
       plates: C().normPlates(s.plates),
+      warmups: s.warmups !== false,
     };
   }
   function saveSettings(s) {
@@ -60,13 +61,20 @@
   function newSession(split, opts) {
     const s = settings();
     const seed = (opts && opts.seed) || (Date.now() % 1000000007);
-    const built = C().buildSession(split, sessions(), { today: today(), equip: s.equip, avoid: s.avoid, freshness: s.freshness, seed, reroll: opts && opts.reroll });
+    const built = C().buildSession(split, sessions(), { today: today(), equip: s.equip, avoid: s.avoid, warmups: s.warmups, plates: s.plates, freshness: s.freshness, seed, reroll: opts && opts.reroll });
     return Object.assign(built, { id: 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), seed, startedAt: Date.now() });
   }
 
-  const doneCount = (x) => (x.sets || []).filter((s) => s.done).length;
+  // Warm-ups never count as sets done / total (they are not work).
+  const doneCount = (x) => (x.sets || []).filter((s) => s.done && !s.warm).length;
   const setsDone = (sess) => (sess.exercises || []).reduce((n, x) => n + doneCount(x), 0);
-  const setsTotal = (sess) => (sess.exercises || []).reduce((n, x) => n + (x.sets || []).length, 0);
+  const setsTotal = (sess) => (sess.exercises || []).reduce((n, x) => n + (x.sets || []).filter((s) => !s.warm).length, 0);
+  // Fresh rows for an exercise that replaces another (swap / avoid): same number of working sets, warm-ups re-made for the new lift.
+  function rebuildSets(x, exId, target) {
+    const so = settings();
+    const slot = (C().SPLITS[live.split] || { slots: [] }).slots[x.slot];
+    return C().setsFor(slot, exId, target, (x.sets || []).filter((s) => !s.warm).length, { warmups: so.warmups, plates: so.plates });
+  }
 
   // ── the card on the day page ─────────────────────────────────────────
   function cardHtml() {
@@ -162,15 +170,16 @@
 
   function exerciseHtml(x, i) {
     const ex = C().BY_ID[x.exId] || {};
-    const rows = (x.sets || []).map((st, j) => `<div class="wc-set${st.done ? ' done' : ''}">
-        <span class="wc-n">${j + 1}</span>
-        <input class="wc-in" inputmode="decimal" placeholder="lb" aria-label="Weight, set ${j + 1}" value="${esc(st.weight)}" data-coach-field="weight" data-i="${i}" data-s="${j}">
+    let workN = 0;
+    const rows = (x.sets || []).map((st, j) => `<div class="wc-set${st.done ? ' done' : ''}${st.warm ? ' warm' : ''}">
+        <span class="wc-n">${st.warm ? 'W' : ++workN}</span>
+        <input class="wc-in" inputmode="decimal" placeholder="lb" aria-label="Weight, ${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : workN}" value="${esc(st.weight)}" data-coach-field="weight" data-i="${i}" data-s="${j}">
         <span class="wc-x-sep">×</span>
-        <input class="wc-in" inputmode="numeric" placeholder="${esc(x.target && x.target.reps)}" aria-label="Reps, set ${j + 1}" value="${esc(st.reps)}" data-coach-field="reps" data-i="${i}" data-s="${j}">
-        <select class="wc-rpe" aria-label="RPE, set ${j + 1}" data-coach-field="rpe" data-i="${i}" data-s="${j}">
+        <input class="wc-in" inputmode="numeric" placeholder="${esc(st.warm ? st.plan : x.target && x.target.reps)}" aria-label="Reps, ${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : workN}" value="${esc(st.reps)}" data-coach-field="reps" data-i="${i}" data-s="${j}">
+        <select class="wc-rpe" aria-label="RPE, ${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : workN}" data-coach-field="rpe" data-i="${i}" data-s="${j}">
           <option value="">RPE</option>${RPES.map((r) => `<option value="${r}"${String(st.rpe) === r ? ' selected' : ''}>${r}</option>`).join('')}
         </select>
-        <button class="wc-check${st.done ? ' on' : ''}" data-coach-action="done" data-i="${i}" data-s="${j}" aria-label="Set ${j + 1} done">✓</button>
+        <button class="wc-check${st.done ? ' on' : ''}" data-coach-action="done" data-i="${i}" data-s="${j}" aria-label="${st.warm ? 'Warm-up' : 'Set'} ${st.warm ? j + 1 : workN} done">✓</button>
       </div>`).join('');
     let swaps = '';
     if (swapOpen === i) {
@@ -205,6 +214,7 @@
       <div class="wc-lbl">Rotation</div><div class="wc-chips">${radio('rotation', 'ppl', 'Push / Pull / Legs', s.rotation)}${radio('rotation', 'ul', 'Upper / Lower', s.rotation)}${radio('rotation', 'full', 'Full Body', s.rotation)}</div>
       <div class="wc-lbl">Main lift changes</div><div class="wc-chips">${radio('freshness', 'steady', 'Every 6 sessions', s.freshness)}${radio('freshness', 'mixed', 'Every 3', s.freshness)}${radio('freshness', 'fresh', 'Every session', s.freshness)}</div>
       <div class="wc-lbl">Equipment I have</div><div class="wc-chips">${C().EQUIP.map((e) => `<button class="wc-chip${s.equip.includes(e) ? ' on' : ''}" data-coach-action="toggle-equip" data-val="${e}">${e}</button>`).join('')}</div>
+      <div class="wc-lbl">Warm-up sets (first lift of the day)</div><div class="wc-chips">${radio('warmups', 'on', 'On', s.warmups ? 'on' : 'off')}${radio('warmups', 'off', 'Off', s.warmups ? 'on' : 'off')}</div>
       <div class="wc-lbl">Bar &amp; plates (for the per-side math)</div><div class="wc-chips">${[35, 45].map((b) => `<button class="wc-chip${s.plates.bar === b ? ' on' : ''}" data-coach-action="set-bar" data-val="${b}">${b} lb bar</button>`).join('')}${C().PLATE_SIZES.map((p) => `<button class="wc-chip${s.plates.plates.includes(p) ? ' on' : ''}" data-coach-action="toggle-plate" data-val="${p}">${p}</button>`).join('')}</div>
       <div class="wc-lbl">Avoiding for now (sore spot?)</div><div class="wc-chips">${Object.keys(C().PATTERN_LABELS).map((p) => `<button class="wc-chip${s.avoid.patterns.includes(p) ? ' on' : ''}" data-coach-action="toggle-avoid-pat" data-val="${p}">${esc(C().PATTERN_LABELS[p])}</button>`).join('')}${s.avoid.exercises.map((id) => `<button class="wc-chip on" data-coach-action="unavoid-ex" data-val="${esc(id)}">${esc((C().BY_ID[id] || {}).name || id)} ✕</button>`).join('')}</div>
       <div class="wc-hint">The coach won't offer anything you're avoiding. This is your own list, not medical advice.</div>
@@ -252,7 +262,7 @@
   }
 
   function finish() {
-    const done = live.exercises.some((x) => (x.sets || []).some((st) => st.done || parseFloat(st.reps) > 0));
+    const done = live.exercises.some((x) => (x.sets || []).some((st) => !st.warm && (st.done || parseFloat(st.reps) > 0)));
     if (!done) { toast('Log at least one set first'); return; }
     const prior = sessions();
     // A set with reps typed counts even if ✓ was never tapped.
@@ -261,7 +271,7 @@
     const session = {
       id: live.id, date: live.date || today(), split: live.split, startedAt: live.startedAt, finishedAt: now, mt: now,
       exercises: live.exercises.map((x) => ({ exId: x.exId, name: x.name, slot: x.slot, repRange: x.repRange,
-        sets: (x.sets || []).filter((st) => st.done).map((st) => ({ reps: parseFloat(st.reps) || 0, weight: st.weight === '' ? '' : (parseFloat(st.weight) || 0), rpe: parseFloat(st.rpe) || '', done: true })) }))
+        sets: (x.sets || []).filter((st) => st.done).map((st) => Object.assign({ reps: parseFloat(st.reps) || 0, weight: st.weight === '' ? '' : (parseFloat(st.weight) || 0), rpe: parseFloat(st.rpe) || '', done: true }, st.warm ? { warm: true } : {})) }))
         .filter((x) => x.sets.length),
     };
     const all = C().mergeSessions([session].concat(prior), []);
@@ -314,6 +324,9 @@
       case 'open': open(); return;
       case 'close': close(); return;
       case 'settings': showSettings = !showSettings; render(); return;
+      case 'set-warmups': {
+        const s = settings(); s.warmups = t.dataset.val === 'on'; saveSettings(s); render(); return;
+      }
       case 'set-rotation': case 'set-freshness': {
         const s = settings(); s[a.slice(4)] = t.dataset.val; saveSettings(s); render(); return;
       }
@@ -353,8 +366,7 @@
         const alt = doneCount(x) ? null : C().swapOptions(live.split, x.slot, live.exercises.map((e) => e.exId), sessions(), { today: today(), equip: s.equip, avoid: s.avoid })[0];
         if (alt) {
           const target = C().targetFor(alt.id, x.repRange, sessions());
-          live.exercises[i] = Object.assign({}, x, { exId: alt.id, name: alt.name, target,
-            sets: x.sets.map(() => ({ reps: '', weight: target.weight == null ? '' : target.weight, rpe: '', done: false })) });
+          live.exercises[i] = Object.assign({}, x, { exId: alt.id, name: alt.name, target, sets: rebuildSets(x, alt.id, target) });
           persistLive();
           toast('Avoiding ' + x.name + ' — swapped to ' + alt.name);
         } else toast('Avoiding ' + x.name + " — it won't be offered again");
@@ -390,20 +402,19 @@
         if (C().isAvoided(ex, settings().avoid) && armed !== 'avoid:' + exId) { armed = 'avoid:' + exId; render(); return; }
         armed = '';
         const target = C().targetFor(exId, x.repRange, sessions());
-        live.exercises[i] = Object.assign({}, x, { exId, name: ex.name, target,
-          sets: x.sets.map(() => ({ reps: '', weight: target.weight == null ? '' : target.weight, rpe: '', done: false })) });
+        live.exercises[i] = Object.assign({}, x, { exId, name: ex.name, target, sets: rebuildSets(x, exId, target) });
         swapOpen = -1; swapShowAvoided = false; persistLive(); render(); return;
       }
       case 'done': {
         const st = live.exercises[i] && live.exercises[i].sets[j];
         if (!st) return;
         st.done = !st.done;
-        if (st.done && !(parseFloat(st.reps) > 0)) st.reps = live.exercises[i].target ? live.exercises[i].target.reps : '';
+        if (st.done && !(parseFloat(st.reps) > 0)) st.reps = st.warm ? (st.plan || '') : (live.exercises[i].target ? live.exercises[i].target.reps : '');
         persistLive();
         if (st.done) {
           const x = live.exercises[i];
           const nextSet = x.sets.findIndex((s2) => !s2.done);
-          startRest(C().restFor(x.exId), nextSet > -1 ? 'next: ' + x.name + ' set ' + (nextSet + 1) : 'next exercise');
+          startRest(st.warm ? 60 : C().restFor(x.exId), nextSet > -1 ? 'next: ' + x.name + ' set ' + (nextSet + 1) : 'next exercise');
         }
         render(); return;
       }

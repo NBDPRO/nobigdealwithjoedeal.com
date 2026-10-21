@@ -255,3 +255,20 @@ readiness check-in, supersets.
   hundredths of a lb (no float drift); a weight the plates cannot make loads
   what it can and says how many lb short — it never rounds silently. Test:
   [coach-plate-calc](../../tests/coach-plate-calc-2026-10-20.test.js).
+
+- **#3 Warm-up sets — shipped (PR open, stacked on the plate-calculator PR).**
+  The first compound of the day (the anchor slot) gets warm-up rows ahead of its
+  working sets: the bar ×8, then 40 / 60 / 80% of the first working weight ×5 /
+  3 / 2, each rounded **down** to a weight the plates make (non-barbell lifts
+  round down to 5 lb and skip the bar row). Rows carry `warm: true` and show as
+  **W** in the logger; ⚙ has an On/Off switch (`warmups` in the synced coach
+  settings). **Warm-ups never count**: `workingSets()` drops them, which covers
+  volume, est. 1RM, PRs, targets, variety and `toPageRows()`; the Progress card
+  has its own set filter in `progress-charts-logic.js`, patched the same way
+  (weekly volume, lift series and top lifts). The logger's "x/y sets" counts
+  work only, and a workout of warm-ups alone cannot be finished. Tests:
+  [coach-warmups](../../tests/coach-warmups-2026-10-20.test.js) — every guard
+  has a negative control (the same set without the flag *does* change the
+  number) and drives the real screen file through a small DOM stub
+  (`tests/helpers/coach-ui-harness.js`). Stall detection (next) must keep
+  reading through `workingSets()`.

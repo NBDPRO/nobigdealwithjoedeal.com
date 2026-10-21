@@ -96,7 +96,7 @@ console.log('\n5. swapOptions + the explicit override');
 console.log('\n6. the screen wires it through');
 {
   ok('settings() normalises the stored avoid object', /avoid:\s*C\(\)\.normAvoid\(s\.avoid\)/.test(UI));
-  ok('new sessions are built with the avoid list', /avoid:\s*s\.avoid,\s*freshness/.test(UI));
+  ok('new sessions are built with the avoid list', /avoid:\s*s\.avoid,/.test(UI));
   ok('swap panel passes the list to swapOptions', /swapOptions\(live\.split, x\.slot, ids, sessions\(\), \{[^}]*avoid:\s*so\.avoid/.test(UI));
   ok('using an avoided swap needs a second tap', /isAvoided\(ex, settings\(\)\.avoid\) && armed !== 'avoid:'/.test(UI));
   ok('settings chip row is saved through saveSettings', /toggle-avoid-pat[\s\S]{0,300}saveSettings\(s\)/.test(UI));

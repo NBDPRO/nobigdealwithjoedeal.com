@@ -22,7 +22,10 @@
  * Session shape (stored per user in users/{uid}/ds_workouts/{id}):
  *   { id, date:'YYYY-MM-DD', split, startedAt, finishedAt, mt,
  *     exercises:[{ exId, name, slot, repRange:[lo,hi],
- *                  sets:[{ reps, weight, rpe, done }] }], notes }
+ *                  sets:[{ reps, weight, rpe, done, warm? }] }], notes }
+ * A set with warm:true is a warm-up. It is never a "working set": every
+ * number below (volume, est. 1RM, PRs, targets, variety, the old-page rows)
+ * goes through workingSets(), which drops it.
  *
  * Exposed as window.NBDCoach and module.exports (tests).
  */
@@ -229,7 +232,7 @@
   }
 
   function workingSets(ex) {
-    return ((ex && ex.sets) || []).filter((s) => s && s.done !== false && num(s.reps) > 0);
+    return ((ex && ex.sets) || []).filter((s) => s && !s.warm && s.done !== false && num(s.reps) > 0);
   }
 
   /** Every logged appearance of an exercise, newest first. */
@@ -366,7 +369,7 @@
       const target = targetFor(pick.id, slot.reps, sessions);
       exercises.push({
         exId: pick.id, name: pick.name, slot: i, repRange: slot.reps.slice(), target,
-        sets: Array.from({ length: slot.sets }, () => ({ reps: '', weight: target.weight == null ? '' : target.weight, rpe: '', done: false })),
+        sets: setsFor(slot, pick.id, target, slot.sets, o),
       });
     });
     return { split, label: def.label, date: o.today, exercises };
@@ -384,6 +387,41 @@
       .sort((a, b) => b.age - a.age || a.c.name.localeCompare(b.c.name))
       .slice(0, o.limit || 5)
       .map((x) => x.c);
+  }
+
+  // ── warm-up sets ──────────────────────────────────────────────────────
+  // The first heavy compound of a day (the anchor slot) gets warm-up rows
+  // ahead of its working sets: the bar, then 40 / 60 / 80% of the first
+  // working weight, each rounded DOWN to a weight the plates can make. Each
+  // row carries warm:true so nothing that measures work ever counts it.
+  const WARM_STEPS = [{ pct: 0.4, reps: 5 }, { pct: 0.6, reps: 3 }, { pct: 0.8, reps: 2 }];
+  function warmupSets(exId, workWeight, platesCfg) {
+    const ex = BY_ID[exId];
+    const w = num(workWeight);
+    if (!ex || !ex.compound || w <= 0) return [];
+    const barbell = ex.equip === 'barbell';
+    const bar = normPlates(platesCfg).bar;
+    if (barbell ? w <= bar : w < 20) return [];
+    const makeable = (x) => (barbell ? platesPerSide(x, platesCfg).achieved : Math.floor(x / 5) * 5);
+    const plan = [];
+    if (barbell) plan.push({ weight: bar, reps: 8 });
+    for (const st of WARM_STEPS) plan.push({ weight: makeable(w * st.pct), reps: st.reps });
+    const rows = [];
+    let prev = 0;
+    for (const r of plan) {                       // strictly rising, always lighter than the work
+      if (r.weight > prev && r.weight < w) { rows.push({ weight: r.weight, reps: r.reps }); prev = r.weight; }
+    }
+    return rows;
+  }
+
+  /** The set rows for one exercise: warm-ups (first compound only) then `count` working sets. */
+  function setsFor(slot, exId, target, count, opts) {
+    const o = opts || {};
+    const w = target && target.weight;
+    const work = Array.from({ length: count }, () => ({ reps: '', weight: w == null ? '' : w, rpe: '', done: false }));
+    if (!o.warmups || !slot || !slot.anchor || !(num(w) > 0)) return work;
+    const warm = warmupSets(exId, w, o.plates).map((r) => ({ reps: '', weight: r.weight, rpe: '', done: false, warm: true, plan: r.reps }));
+    return warm.concat(work);
   }
 
   /**
@@ -475,7 +513,7 @@
 
   const api = {
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
-    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, daysSince, candidatesFor, pickForSlot, targetFor,
+    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, daysSince, candidatesFor, pickForSlot, targetFor,
     nextSplit, buildSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
