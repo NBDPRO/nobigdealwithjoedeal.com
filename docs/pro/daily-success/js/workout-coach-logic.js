@@ -851,6 +851,32 @@
     });
   }
 
+  /**
+   * Jo's own lifts: { id, name, pattern, equip, compound }. Unknown patterns / equipment, blank names and duplicates are dropped;
+   * ids are forced into the my_ namespace so a stored list can never overwrite a built-in lift.
+   */
+  function normCustom(list) {
+    const out = [], seen = new Set();
+    (Array.isArray(list) ? list : []).forEach((c) => {
+      if (!c || typeof c !== 'object') return;
+      const name = String(c.name == null ? '' : c.name).replace(/\s+/g, ' ').trim().slice(0, 40);
+      if (!name || !PATTERN_LABELS[c.pattern] || EQUIP.indexOf(c.equip) === -1) return;
+      let id = String(c.id || '').replace(/[^a-z0-9_]/g, '');
+      if (id.indexOf('my_') !== 0) id = 'my_' + (name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'lift');
+      if (seen.has(id) || (BY_ID[id] && !BY_ID[id].custom)) return;
+      seen.add(id);
+      out.push({ id, name, pattern: c.pattern, equip: c.equip, compound: !!c.compound });
+    });
+    return out;
+  }
+  /** Replace the custom lifts in the live library (call on load and after every add / remove). -> the cleaned list. */
+  function setCustomExercises(list) {
+    for (let k = EXERCISES.length - 1; k >= 0; k--) if (EXERCISES[k].custom) { delete BY_ID[EXERCISES[k].id]; EXERCISES.splice(k, 1); }
+    const clean = normCustom(list);
+    clean.forEach((c) => { const e = X(c.id, c.name, c.pattern, c.equip, c.compound); e.custom = true; e.muscle = MUSCLE_OF_PATTERN[e.pattern]; EXERCISES.push(e); BY_ID[e.id] = e; });
+    return clean;
+  }
+
   /** Set tags (tap the set number to cycle): normal -> drop set -> to failure -> normal. Warm-ups are their own thing and never cycle. */
   const SET_KINDS = ['', 'drop', 'fail'];
   const nextSetKind = (k) => SET_KINDS[(Math.max(0, SET_KINDS.indexOf(k)) + 1) % SET_KINDS.length];   // unknown / missing counts as normal
@@ -869,7 +895,7 @@
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
     MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
     DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, repPRCheck, HIGH_REP, previousSets, prevText, historyList, REST_ALERTS, normRestAlert, restAlertPlan, daysSince, candidatesFor, pickForSlot, targetFor,
-    nextSplit, buildSession, repeatSession, SET_KINDS, nextSetKind, setKindLabel, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
+    nextSplit, buildSession, repeatSession, SET_KINDS, nextSetKind, setKindLabel, normCustom, setCustomExercises, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDCoach = api;

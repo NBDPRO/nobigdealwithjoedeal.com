@@ -78,8 +78,8 @@ function makeHarness(opts) {
       const dataset = Object.assign({ coachAction: action }, Object.fromEntries(Object.entries(data || {}).map(([k, v]) => [k === 's' ? 's' : k, String(v)])));
       fire('click', { target: { closest: () => ({ dataset }) } });
     },
-    field(name, i, s, value) {
-      fire('input', { target: { value: String(value), dataset: { coachField: name, i: String(i), s: String(s) } } });
+    field(name, i, s, value, extra) {
+      fire('input', { target: { value: String(value), dataset: Object.assign({ coachField: name, i: String(i), s: String(s) }, extra || {}) } });
     },
     live() { return read('nbd_ds_coach_live'); },
     saved() { return read('nbd_ds_workouts') || []; },

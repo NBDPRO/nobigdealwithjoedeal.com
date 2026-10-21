@@ -139,6 +139,11 @@ body.wc-lock { overflow: hidden; }
 .wc-plates { font-size: 12px; color: #cfd8e3; margin: -2px 0 8px; }
 .wc-last { font-size: 12px; color: #9fb0c3; margin: -2px 0 8px; }
 .wc-hist-btn { margin-top: 8px; min-height: 44px; }
+.wc-cx { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 4px 0; font-size: 13px; }
+.wc-cx-del { min-height: 44px; }
+.wc-cx-add { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.wc-cx-add .wc-cx-name { grid-column: 1 / -1; width: 100%; }
+.wc-cx-add .wc-go { grid-column: 1 / -1; }
 .wc-repeat { margin-top: 8px; min-height: 44px; }
 .wc-hist-item { border: 1px solid var(--rule, rgba(255,255,255,.12)); border-radius: 10px; margin: 8px 0; overflow: hidden; }
 .wc-hist-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; width: 100%; min-height: 44px; padding: 10px 12px; background: transparent; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }

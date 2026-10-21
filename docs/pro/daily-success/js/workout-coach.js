@@ -22,6 +22,7 @@
   const SESS = 'nbd_ds_workouts';
   const LIVE = 'nbd_ds_coach_live';
   const CFG = 'nbd_ds_coach';
+  const CUSTOM = 'nbd_ds_coach_custom';   // [{ id, name, pattern, equip, compound }] - Jo's own lifts, this device
   const READY = 'nbd_ds_coach_ready';   // { 'YYYY-MM-DD': { sleep, sore, energy } } — one per day, this device only
   const RPES = ['6', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
 
@@ -69,6 +70,9 @@
     return `<div class="wc-bal"><div class="wc-bal-h">Hard sets, last 7 days</div><div class="wc-bal-chips">${chips}</div>${lines.length ? `<div class="wc-bal-note">${lines.join(' ')}</div>` : ''}</div>`;
   }
   let live = readJson(LIVE, null);
+  let custom = [];             // Jo's own lifts, loaded into the library below
+  let cxDraft = { name: '', pattern: 'h_push', equip: 'barbell' };   // the add-a-lift form (typing never re-renders)
+  try { if (C()) custom = C().setCustomExercises(readJson(CUSTOM, [])); } catch (_) { custom = []; }
   let summary = null;          // the just-finished session's report
   let histView = false, histId = null;   // the history screen and which row is expanded
   let swapOpen = -1;
@@ -377,6 +381,35 @@
     </div>`;
   }
 
+  // "My exercises": lifts the built-in library does not have. They join the rotation and the swap list like any other lift.
+  function customHtml() {
+    const rows = custom.map((c) => `<div class="wc-cx"><span><b>${esc(c.name)}</b> · ${esc(C().PATTERN_LABELS[c.pattern])} · ${esc(c.equip)}</span><button class="btn btn-ghost wc-cx-del" data-coach-action="custom-del" data-id="${esc(c.id)}" aria-label="Remove ${esc(c.name)}">Remove</button></div>`).join('');
+    const opt = (v, label, cur) => `<option value="${esc(v)}"${cur === v ? ' selected' : ''}>${esc(label)}</option>`;
+    return `<div class="wc-lbl">My exercises</div>${rows || '<div class="wc-hint">None yet.</div>'}
+      <div class="wc-cx-add">
+        <input class="wc-in wc-cx-name" maxlength="40" placeholder="Name, e.g. Cable fly" aria-label="New exercise name" value="${esc(cxDraft.name)}" data-coach-field="cx" data-k="name">
+        <select class="wc-rpe" aria-label="Movement" data-coach-field="cx" data-k="pattern">${Object.keys(C().PATTERN_LABELS).map((p) => opt(p, C().PATTERN_LABELS[p], cxDraft.pattern)).join('')}</select>
+        <select class="wc-rpe" aria-label="Equipment" data-coach-field="cx" data-k="equip">${C().EQUIP.map((e) => opt(e, e, cxDraft.equip)).join('')}</select>
+        <button class="btn wc-go" data-coach-action="custom-add">Add</button>
+      </div>`;
+  }
+  function addCustom() {
+    const name = String(cxDraft.name || '').replace(/\s+/g, ' ').trim();
+    if (!name) { toast('Type a name first'); return; }
+    if (custom.length >= 30) { toast('That is plenty - remove one first'); return; }
+    const next = C().setCustomExercises(custom.concat([{ name, pattern: cxDraft.pattern, equip: cxDraft.equip, compound: false }]));
+    if (next.length === custom.length) { toast('You already have that one (or it is not valid)'); C().setCustomExercises(custom); return; }
+    custom = next; writeJson(CUSTOM, custom);
+    cxDraft = { name: '', pattern: cxDraft.pattern, equip: cxDraft.equip };
+    toast('Added ' + name);
+    render();
+  }
+  function removeCustom(id) {
+    custom = C().setCustomExercises(custom.filter((c) => c.id !== id));
+    writeJson(CUSTOM, custom);
+    render();
+  }
+
   function settingsHtml(s) {
     const radio = (name, val, label, cur) => `<button class="wc-chip${cur === val ? ' on' : ''}" data-coach-action="set-${name}" data-val="${val}">${label}</button>`;
     return `<div class="wc-settings">
@@ -389,6 +422,7 @@
       <div class="wc-lbl">Bar &amp; plates (for the per-side math)</div><div class="wc-chips">${[35, 45].map((b) => `<button class="wc-chip${s.plates.bar === b ? ' on' : ''}" data-coach-action="set-bar" data-val="${b}">${b} lb bar</button>`).join('')}${C().PLATE_SIZES.map((p) => `<button class="wc-chip${s.plates.plates.includes(p) ? ' on' : ''}" data-coach-action="toggle-plate" data-val="${p}">${p}</button>`).join('')}</div>
       <div class="wc-lbl">Avoiding for now (sore spot?)</div><div class="wc-chips">${Object.keys(C().PATTERN_LABELS).map((p) => `<button class="wc-chip${s.avoid.patterns.includes(p) ? ' on' : ''}" data-coach-action="toggle-avoid-pat" data-val="${p}">${esc(C().PATTERN_LABELS[p])}</button>`).join('')}${s.avoid.exercises.map((id) => `<button class="wc-chip on" data-coach-action="unavoid-ex" data-val="${esc(id)}">${esc((C().BY_ID[id] || {}).name || id)} ✕</button>`).join('')}</div>
       <div class="wc-hint">The coach won't offer anything you're avoiding. This is your own list, not medical advice.</div>
+      ${customHtml()}
       <div class="wc-hint">Changes apply to the next workout you build (or tap 🔀 now).</div>
     </div>`;
   }
@@ -566,6 +600,8 @@
       case 'hist-toggle': histId = histId === String(t.dataset.id) ? null : String(t.dataset.id); render(); return;
       case 'close': close(); return;
       case 'settings': showSettings = !showSettings; render(); return;
+      case 'custom-add': addCustom(); return;
+      case 'custom-del': removeCustom(String(t.dataset.id || '')); return;
       case 'set-restalert': {
         const s = settings(); s.restAlert = C().normRestAlert(t.dataset.val); saveSettings(s); render(); return;
       }
@@ -735,6 +771,7 @@
 
   function onField(ev) {
     const el = ev.target;
+    if (el && el.dataset && el.dataset.coachField === 'cx') { if (el.dataset.k in cxDraft) cxDraft[el.dataset.k] = el.value; return; }
     if (!el || !el.dataset || !el.dataset.coachField || !live) return;
     const st = live.exercises[+el.dataset.i] && live.exercises[+el.dataset.i].sets[+el.dataset.s];
     if (!st) return;
