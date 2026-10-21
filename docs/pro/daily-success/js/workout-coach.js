@@ -256,7 +256,11 @@
   // One set row. Inside a superset, who = 'A ' / 'B ' (for screen readers) and tag = the A1 / B1 label.
   function setRowHtml(x, i, st, j, n, who, tag, next) {
     const lp = st.warm ? null : C().livePR(x, sessions());
-    const pr = lp && lp.index === j ? `<span class="wc-pr" title="Beats your best estimated 1RM (${esc(Math.round(lp.prev))} lb)">\u{1F3C6} PR</span>` : '';
+    const pr = lp && lp.index === j
+      ? (lp.kind === 'reps'
+        ? `<span class="wc-pr" title="Most reps you have done at ${esc(lp.weight)} lb or heavier (was ${esc(lp.prev)})">\u{1F3C6} Rep PR</span>`
+        : `<span class="wc-pr" title="Beats your best estimated 1RM (${esc(Math.round(lp.prev))} lb)">\u{1F3C6} PR</span>`)
+      : '';
     return `<div class="wc-set${st.done ? ' done' : ''}${st.warm ? ' warm' : ''}${next ? ' next' : ''}">
         <span class="wc-n">${st.warm ? 'W' : (tag || n)}</span>
         <input class="wc-in" inputmode="decimal" placeholder="lb" aria-label="Weight, ${who}${st.warm ? 'warm-up' : 'set'} ${st.warm ? j + 1 : n}" value="${esc(st.weight)}" data-coach-field="weight" data-i="${i}" data-s="${j}">
@@ -383,7 +387,9 @@
 
   function summaryHtml(r) {
     const prs = r.prs.length
-      ? `<div class="wc-prs">${r.prs.map((p) => `<div>🏆 ${esc(p.name)}: est. 1RM ${esc(Math.round(p.e1rm))} lb <small>(was ${esc(Math.round(p.prev))})</small></div>`).join('')}</div>`
+      ? `<div class="wc-prs">${r.prs.map((p) => (p.kind === 'reps'
+        ? `<div>🏆 ${esc(p.name)}: ${esc(p.reps)} reps${p.weight > 0 ? ' at ' + esc(p.weight) + ' lb' : ''} <small>(was ${esc(p.prev)})</small></div>`
+        : `<div>🏆 ${esc(p.name)}: est. 1RM ${esc(Math.round(p.e1rm))} lb <small>(was ${esc(Math.round(p.prev))})</small></div>`)).join('')}</div>`
       : '<div class="wc-hint">No new PRs this time — the targets are set for next time.</div>';
     return `<div class="wc-box"><div class="wc-top"><button class="wc-x" data-coach-action="close" aria-label="Close">✕</button>
       <div class="wc-title">${esc(r.label)} day done ✓</div><span></span></div>
