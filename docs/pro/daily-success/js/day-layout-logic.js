@@ -47,7 +47,20 @@
     };
   }
 
-  const api = { OPEN_BY_DEFAULT, sectionCollapsed, workoutDone, todaySummary };
+  /**
+   * Door-knocking / sales stats (Activity Totals, Revenue Pace, Doors / Revenue / Closes charts, monthly sales goals) are
+   * hidden for someone who has never used them. pref is Jo's explicit switch ('1' on, '0' off) and always wins; with no
+   * switch they appear on their own as soon as there is anything to show: a logged door, contact, appointment, close or
+   * revenue, or a monthly goal. totals = { doors, contacts, appts, closes, revenue, goals:{d,r,c} }.
+   */
+  function salesVisible(pref, totals) {
+    if (pref === '1' || pref === 1 || pref === true) return true;
+    if (pref === '0' || pref === 0 || pref === false) return false;
+    const t = totals || {}, g = t.goals || {};
+    return [t.doors, t.contacts, t.appts, t.closes, t.revenue, g.d, g.r, g.c].some((v) => (num(v) || 0) > 0);
+  }
+
+  const api = { OPEN_BY_DEFAULT, sectionCollapsed, workoutDone, todaySummary, salesVisible };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.NBDDayLayout = api;
 })(typeof window !== 'undefined' ? window : null);
