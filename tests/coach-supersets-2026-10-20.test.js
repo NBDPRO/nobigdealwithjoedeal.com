@@ -52,7 +52,7 @@ function fresh(opts) {
   h.click('start');
   return h;
 }
-const labels = (h) => { const m = h.html().match(/<div class="wc-ss-rows">([\s\S]*?)<div class="wc-ss-add">/); return m ? [...m[1].matchAll(/<span class="wc-n">([^<]*)<\/span>/g)].map((x) => x[1]) : null; };
+const labels = (h) => { const m = h.html().match(/<div class="wc-ss-rows">([\s\S]*?)<div class="wc-ss-add">/); return m ? [...m[1].matchAll(/<(?:span|button) class="wc-n[^"]*"[^>]*>([^<]*)<\/(?:span|button)>/g)].map((x) => x[1]) : null; };
 const restText = (h) => { const m = h.html().match(/<div class="wc-rest"[^>]*>([\s\S]*?)<\/div>/); return m ? m[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim() : null; };
 const tick = (h, i, s, reps) => { h.field('reps', i, s, reps || '8'); h.click('done', { i, s }); };
 
@@ -90,10 +90,10 @@ console.log('\n3. the order of the rows: A1 B1 A2 B2 …');
   ok('rows alternate, then the longer lift finishes alone', same(labels(h), ['A1', 'B1', 'A2', 'B2', 'A3', 'B3', 'A4']), JSON.stringify(labels(h)));
   h.click('add-set', { i: 1 });
   ok('+ set B adds a B round', same(labels(h), ['A1', 'B1', 'A2', 'B2', 'A3', 'B3', 'A4', 'B4']));
-  ok('the first undone row is marked as next', (h.html().match(/class="wc-set next"/g) || []).length === 1 && /class="wc-set next">\s*<span class="wc-n">A1</.test(h.html()));
+  ok('the first undone row is marked as next', (h.html().match(/class="wc-set next"/g) || []).length === 1 && /class="wc-set next">\s*<(?:span|button) class="wc-n[^"]*"[^>]*>A1</.test(h.html()));
   h.click('done', { i: 0, s: 0 });
-  ok('...and moves to B1 after A1', /class="wc-set next">\s*<span class="wc-n">B1</.test(h.html()));
-  ok('lifts outside the pair keep plain numbers', /<span class="wc-n">1<\/span>/.test(h.html().split('wc-ss-add')[1] || ''));
+  ok('...and moves to B1 after A1', /class="wc-set next">\s*<(?:span|button) class="wc-n[^"]*"[^>]*>B1</.test(h.html()));
+  ok('lifts outside the pair keep plain numbers', /<(?:span|button) class="wc-n[^"]*"[^>]*>1<\/(?:span|button)>/.test(h.html().split('wc-ss-add')[1] || ''));
   const w = fresh();
   w.click('set-warmups', { val: 'on' });
   w.click('discard'); w.click('discard'); w.click('start');
