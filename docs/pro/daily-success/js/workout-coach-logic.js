@@ -707,13 +707,49 @@
     return [...map.values()].sort(byDateDesc);
   }
 
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const fmtW = (w) => String(Math.round(num(w) * 10) / 10);
+
+  /**
+   * "Last time (Oct 14): 135×8, 135×8, 135×7" for one lift — the working sets of its
+   * most recent finished appearance. null when it was never logged.
+   */
+  function lastTime(exId, sessions) {
+    const h = historyOf(exId, sessions)[0];
+    if (!h) return null;
+    const sets = workingSets(h.ex).map((s) => ({ weight: num(s.weight), reps: Math.round(num(s.reps)) }));
+    const [, m, d] = String(h.date).split('-').map(Number);
+    const when = m >= 1 && m <= 12 && d ? MON[m - 1] + ' ' + d : String(h.date);
+    const text = sets.map((s) => (s.weight > 0 ? fmtW(s.weight) + '\u00d7' + s.reps : s.reps + ' reps')).join(', ');
+    return { date: h.date, sets, text: 'Last time (' + when + '): ' + text };
+  }
+
+  /**
+   * Live PR check while a workout is open: which ticked working set of this lift beats the
+   * best estimated 1RM from earlier finished sessions? Only the single best set is flagged,
+   * and nothing counts as a PR until the lift has history to beat.
+   * -> { index, e1rm, prev } | null
+   */
+  function livePR(ex, priorSessions) {
+    if (!ex) return null;
+    const prev = bestE1rm(ex.exId, priorSessions);
+    if (!(prev > 0)) return null;
+    let best = prev, index = -1;
+    (ex.sets || []).forEach((s, j) => {
+      if (!s || s.warm || s.done !== true || !(num(s.reps) > 0)) return;
+      const v = e1rm(s.weight, s.reps);
+      if (v > best) { best = v; index = j; }
+    });
+    return index < 0 ? null : { index, e1rm: best, prev };
+  }
+
   /** A timer length (s) after a set: compounds rest longer. */
   function restFor(exId) { const e = BY_ID[exId]; return e && e.compound ? 150 : 75; }
 
   const api = {
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
     MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
-    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, daysSince, candidatesFor, pickForSlot, targetFor,
+    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, daysSince, candidatesFor, pickForSlot, targetFor,
     nextSplit, buildSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
