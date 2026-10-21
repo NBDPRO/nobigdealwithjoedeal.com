@@ -69,6 +69,7 @@
   }
   let live = readJson(LIVE, null);
   let summary = null;          // the just-finished session's report
+  let histView = false, histId = null;   // the history screen and which row is expanded
   let swapOpen = -1;
   let swapShowAvoided = false; // the "avoiding" exercises, behind a warning
   let showSettings = false;
@@ -163,7 +164,7 @@
     if (last) meta.push('Last: ' + esc(C().SPLITS[last.split] ? C().SPLITS[last.split].label : last.split) + ' · ' + esc(fmtDay(last.date)));
     // A variety score over one or two workouts is noise — show it once there's a pattern to read.
     if (v.total >= 12) meta.push('Variety (4 wks): ' + v.pct + '%');
-    return `<div class="wc-card" id="wcCard"><div class="wc-card-h">🏋️ Workout Coach</div>${body}
+    return `<div class="wc-card" id="wcCard"><div class="wc-card-h">🏋️ Workout Coach</div>${body}${last ? '<button class="btn btn-ghost wc-hist-btn" data-coach-action="hist-open">Workout history</button>' : ""}
       ${meta.length ? `<div class="wc-meta">${meta.join(' · ')}</div>` : ''}${balanceHtml()}</div>`;
   }
   function refreshCard() { const el = document.getElementById('wcCard'); if (el) el.outerHTML = cardHtml(); }
@@ -192,12 +193,13 @@
     return el;
   }
   function open() { overlay().classList.add('open'); document.body.classList.add('wc-lock'); render(); }
-  function close() { overlay().classList.remove('open'); document.body.classList.remove('wc-lock'); summary = null; refreshCard(); }
+  function close() { overlay().classList.remove('open'); document.body.classList.remove('wc-lock'); summary = null; histView = false; histId = null; refreshCard(); }
 
   function render() {
     const el = overlay();
     if (!C()) { el.innerHTML = ''; return; }
     if (summary) { el.innerHTML = summaryHtml(summary); return; }
+    if (histView) { el.innerHTML = historyHtml(); return; }
     if (!live) { el.innerHTML = ''; return; }
     const s = settings();
     const rot = C().ROTATIONS[s.rotation];
@@ -390,6 +392,26 @@
     </div>`;
   }
 
+  // ── workout history ──────────────────────────────────────────────────
+  function historyHtml() {
+    const list = C().historyList(sessions());
+    const rows = list.map((h) => {
+      const open = histId === String(h.id);
+      const bits = [h.sets + (h.sets === 1 ? ' set' : ' sets'), h.lbs.toLocaleString() + ' lb'];
+      if (h.minutes) bits.push(h.minutes + ' min');
+      const pr = h.prCount ? `<span class="wc-hist-pr" title="${esc(h.prs.map((p) => p.name).join(', '))}">\u{1F3C6} ${esc(h.prCount)}</span>` : '';
+      const detail = open
+        ? `<div class="wc-hist-detail">${h.exercises.map((e) => `<div class="wc-hist-ex"><b>${esc(e.name)}</b><span>${esc(e.sets.join(', '))}</span></div>`).join('') || '<div class="wc-hint">No working sets logged.</div>'}${h.prs.length ? `<div class="wc-hist-prs">${h.prs.map((p) => '\u{1F3C6} ' + esc(p.name) + (p.kind === 'reps' ? ': ' + esc(p.reps) + ' reps' + (p.weight > 0 ? ' at ' + esc(p.weight) + ' lb' : '') : ': est. 1RM ' + esc(Math.round(p.e1rm)) + ' lb')).join('<br>')}</div>` : ''}</div>`
+        : '';
+      return `<div class="wc-hist-item${open ? ' open' : ''}"><button type="button" class="wc-hist-row" data-coach-action="hist-toggle" data-id="${esc(h.id)}" aria-expanded="${open ? 'true' : 'false'}">
+        <span class="wc-hist-main"><b>${esc(fmtDay(h.date))}</b> · ${esc(h.label)}</span><span class="wc-hist-sub">${esc(bits.join(' · '))}</span>${pr}</button>${detail}</div>`;
+    }).join('');
+    return `<div class="wc-box"><div class="wc-top"><button class="wc-x" data-coach-action="close" aria-label="Close">\u2715</button>
+      <div class="wc-title">Workout history <small>${esc(list.length)} workout${list.length === 1 ? '' : 's'}</small></div><span></span></div>
+      ${rows || '<div class="wc-hint">No finished workouts yet. Finish one and it shows up here.</div>'}
+      <div class="wc-foot"><button class="btn wc-finish" data-coach-action="close">Close</button></div></div>`;
+  }
+
   function summaryHtml(r) {
     const prs = r.prs.length
       ? `<div class="wc-prs">${r.prs.map((p) => (p.kind === 'reps'
@@ -520,7 +542,9 @@
     if (a !== 'discard' && !String(a).startsWith('split') && a !== 'swap-to' && a !== 'avoid-ex') armed = '';
     switch (a) {
       case 'start': start(); return;
-      case 'open': open(); return;
+      case 'open': histView = false; open(); return;
+      case 'hist-open': histView = true; histId = null; summary = null; open(); return;
+      case 'hist-toggle': histId = histId === String(t.dataset.id) ? null : String(t.dataset.id); render(); return;
       case 'close': close(); return;
       case 'settings': showSettings = !showSettings; render(); return;
       case 'set-restalert': {

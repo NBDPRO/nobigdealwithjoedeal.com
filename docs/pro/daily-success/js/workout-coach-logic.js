@@ -792,6 +792,26 @@
   /** "185 × 5" (bodyweight: "8 reps"). */
   function prevText(p) { return p ? (p.weight > 0 ? fmtW(p.weight) + '\u00d7' + p.reps : p.reps + ' reps') : ''; }
 
+  /**
+   * The workout history list, newest first: one row per finished session with its totals and the PRs it set (each
+   * session is compared only with the sessions BEFORE it, so an old PR stays an old PR), plus its working sets as text
+   * for the expanded view. limit caps the list (default 60).
+   * -> [{ id, date, label, sets, lbs, minutes|null, prCount, prs, exercises:[{ exId, name, sets:['185\u00d75', ...] }] }]
+   */
+  function historyList(sessions, limit) {
+    const fin = finished(sessions);
+    return fin.slice(0, limit > 0 ? limit : 60).map((s, i) => {
+      const v = volume(s);
+      const prs = detectPRs(s, fin.slice(i + 1));
+      const mins = num(s.startedAt) > 1e11 && num(s.finishedAt) > num(s.startedAt) ? Math.max(1, Math.round((num(s.finishedAt) - num(s.startedAt)) / 60000)) : null;
+      return {
+        id: s.id, date: s.date, label: SPLITS[s.split] ? SPLITS[s.split].label : String(s.split || 'Workout'),
+        sets: v.sets, lbs: v.lbs, minutes: mins, prCount: prs.length, prs,
+        exercises: (s.exercises || []).map((ex) => ({ exId: ex.exId, name: ex.name || (BY_ID[ex.exId] || {}).name || ex.exId, sets: workingSets(ex).map((st) => prevText({ weight: num(st.weight), reps: Math.round(num(st.reps)) })) })).filter((e) => e.sets.length),
+      };
+    });
+  }
+
   /** What the rest timer does when it hits zero. iPhone Safari has no navigator.vibrate, so sound is the default. */
   const REST_ALERTS = ['both', 'sound', 'vibrate', 'off'];
   function normRestAlert(v) { return REST_ALERTS.indexOf(v) > -1 ? v : 'both'; }
@@ -803,7 +823,7 @@
   const api = {
     EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
     MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
-    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, repPRCheck, HIGH_REP, previousSets, prevText, REST_ALERTS, normRestAlert, restAlertPlan, daysSince, candidatesFor, pickForSlot, targetFor,
+    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, lastTime, livePR, repPRCheck, HIGH_REP, previousSets, prevText, historyList, REST_ALERTS, normRestAlert, restAlertPlan, daysSince, candidatesFor, pickForSlot, targetFor,
     nextSplit, buildSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
