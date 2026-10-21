@@ -447,6 +447,7 @@
     "coach-rep-range-pr-2026-10-21.test.js",
     "coach-routines-2026-10-21.test.js",
     "coach-custom-exercises-2026-10-21.test.js",
+    "coach-recap-2026-10-21.test.js",
     "coach-set-kinds-2026-10-21.test.js",
     "coach-repeat-last-2026-10-21.test.js",
     "coach-save-failure-2026-10-21.test.js",

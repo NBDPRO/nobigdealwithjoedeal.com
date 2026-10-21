@@ -148,6 +148,13 @@ body.wc-lock { overflow: hidden; }
 .wc-cx-add { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
 .wc-cx-add .wc-cx-name { grid-column: 1 / -1; width: 100%; }
 .wc-cx-add .wc-go { grid-column: 1 / -1; }
+.wc-vs { margin: 10px 0 4px; font-size: 13px; font-weight: 700; }
+.wc-vs.up { color: #86efac; }
+.wc-vs.down { color: #fda4af; }
+.wc-vs small { font-weight: 400; color: #8b9bb4; }
+.wc-lifts { margin: 8px 0; display: grid; gap: 4px; font-size: 13px; }
+.wc-lifts > div { display: flex; justify-content: space-between; gap: 10px; }
+.wc-lifts b { font-weight: 600; color: #cfd8e3; text-align: right; }
 .wc-repeat { margin-top: 8px; min-height: 44px; }
 .wc-hist-item { border: 1px solid var(--rule, rgba(255,255,255,.12)); border-radius: 10px; margin: 8px 0; overflow: hidden; }
 .wc-hist-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; width: 100%; min-height: 44px; padding: 10px 12px; background: transparent; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
