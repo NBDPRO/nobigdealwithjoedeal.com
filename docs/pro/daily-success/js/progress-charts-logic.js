@@ -35,7 +35,7 @@
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const live = (sessions) => (sessions || []).filter((s) => s && !s.deleted && s.finishedAt && validYmd(s.date));
-  const done = (ex) => ((ex && ex.sets) || []).filter((s) => s && s.done !== false && num(s.reps) > 0);
+  const done = (ex) => ((ex && ex.sets) || []).filter((s) => s && !s.warm && s.done !== false && num(s.reps) > 0);
 
   /**
    * Oldest → newest, one point per day the lift was done:

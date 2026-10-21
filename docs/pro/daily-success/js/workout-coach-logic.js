@@ -22,7 +22,10 @@
  * Session shape (stored per user in users/{uid}/ds_workouts/{id}):
  *   { id, date:'YYYY-MM-DD', split, startedAt, finishedAt, mt,
  *     exercises:[{ exId, name, slot, repRange:[lo,hi],
- *                  sets:[{ reps, weight, rpe, done }] }], notes }
+ *                  sets:[{ reps, weight, rpe, done, warm? }] }], notes }
+ * A set with warm:true is a warm-up. It is never a "working set": every
+ * number below (volume, est. 1RM, PRs, targets, variety, the old-page rows)
+ * goes through workingSets(), which drops it.
  *
  * Exposed as window.NBDCoach and module.exports (tests).
  */
@@ -117,9 +120,81 @@
     X('pallof', 'Pallof Press', 'core', 'cable', 0, 5),
     X('farmer', 'Farmer Carry (40 yd)', 'core', 'dumbbell', 0, 10),
   ];
+  // The primary muscle group each pattern trains — a static tag on every
+  // exercise (e.muscle). Drives the weekly balance nudge.
+  const MUSCLE_OF_PATTERN = {
+    h_push: 'chest', incline_push: 'chest', chest_iso: 'chest', v_push: 'shoulders', lateral: 'shoulders', rear_delt: 'shoulders',
+    triceps: 'triceps', v_pull: 'back', h_pull: 'back', biceps: 'biceps', squat: 'quads', lunge: 'quads', quad_iso: 'quads',
+    hinge: 'hams', ham_iso: 'hams', calves: 'calves', core: 'core',
+  };
+  const MUSCLES = ['chest', 'shoulders', 'back', 'biceps', 'triceps', 'quads', 'hams', 'calves', 'core'];
+  const MUSCLE_LABELS = { chest: 'Chest', shoulders: 'Shoulders', back: 'Back', biceps: 'Biceps', triceps: 'Triceps', quads: 'Quads', hams: 'Hams & glutes', calves: 'Calves', core: 'Core' };
   const BY_ID = Object.create(null);
-  EXERCISES.forEach((e) => { BY_ID[e.id] = e; });
+  EXERCISES.forEach((e) => { e.muscle = MUSCLE_OF_PATTERN[e.pattern]; BY_ID[e.id] = e; });
   const EQUIP = ['barbell', 'dumbbell', 'cable', 'machine', 'bodyweight'];
+
+  // Plain-English names for the movement patterns (the "Avoid" chips).
+  const PATTERN_LABELS = {
+    h_push: 'Bench / chest press', incline_push: 'Incline press', v_push: 'Overhead press', chest_iso: 'Chest fly',
+    lateral: 'Lateral raise', rear_delt: 'Rear delts', triceps: 'Triceps', v_pull: 'Pull-ups / pulldowns',
+    h_pull: 'Rows', biceps: 'Biceps', squat: 'Squats', hinge: 'Hinge / deadlift', lunge: 'Lunges / step-ups',
+    quad_iso: 'Quad isolation', ham_iso: 'Hamstring curls', calves: 'Calves', core: 'Core',
+  };
+
+  // ── plate calculator ──────────────────────────────────────────────────
+  // Set once in the coach settings: the bar and which plate sizes are in the
+  // rack. Pure arithmetic — greedy, biggest plate first.
+  const DEFAULT_PLATES = { bar: 45, plates: [45, 35, 25, 10, 5, 2.5] };
+  const PLATE_SIZES = [100, 55, 45, 35, 25, 15, 10, 5, 2.5, 1.25];
+  function normPlates(p) {
+    const bar = num(p && p.bar);
+    const list = Array.isArray(p && p.plates) ? p.plates.map(num).filter((v) => PLATE_SIZES.includes(v)) : [];
+    return {
+      bar: bar >= 10 && bar <= 100 ? bar : DEFAULT_PLATES.bar,
+      plates: list.length ? [...new Set(list)].sort((a, b) => b - a) : DEFAULT_PLATES.plates.slice(),
+    };
+  }
+  const fmtLb = (x) => String(Math.round(x * 100) / 100);
+  /**
+   * What goes on each side for a target weight. Returns null for no weight;
+   * { perSide:[45,25,10], achieved, remainder, text }. A weight the plates
+   * cannot make exactly loads what it can and reports the remainder (lb,
+   * both sides together) — it never rounds the target silently.
+   */
+  function platesPerSide(weight, cfg) {
+    const w = num(weight);
+    if (w <= 0) return null;
+    const c = normPlates(cfg);
+    if (w < c.bar) return { bar: c.bar, perSide: [], achieved: c.bar, remainder: 0, underBar: true, text: 'Lighter than the ' + fmtLb(c.bar) + ' lb bar' };
+    const q = (x) => Math.round(x * 100);        // hundredths of a lb: no float drift
+    let side = q((w - c.bar) / 2);
+    const perSide = [];
+    for (const p of c.plates) { while (side >= q(p)) { perSide.push(p); side -= q(p); } }
+    const remainder = (side * 2) / 100;
+    const achieved = Math.round((w - remainder) * 100) / 100;
+    let text = perSide.length ? perSide.map(fmtLb).join(' / ') + ' per side' : 'Just the bar';
+    if (remainder > 0) text += ' — plates make ' + fmtLb(achieved) + ' (' + fmtLb(remainder) + ' lb short)';
+    return { bar: c.bar, perSide, achieved, remainder, underBar: false, text };
+  }
+
+  /**
+   * The "avoiding for now" list (sore shoulder, bad knee…): whole movement
+   * patterns and/or single exercises the coach must not offer. Unknown ids
+   * and junk are dropped so a stale synced setting can't break a build.
+   */
+  function normAvoid(a) {
+    const pats = Array.isArray(a && a.patterns) ? a.patterns : [];
+    const exs = Array.isArray(a && a.exercises) ? a.exercises : [];
+    const knownPat = new Set(EXERCISES.map((e) => e.pattern));
+    return {
+      patterns: [...new Set(pats.filter((p) => knownPat.has(p)))],
+      exercises: [...new Set(exs.filter((id) => BY_ID[id]))],
+    };
+  }
+  function isAvoided(ex, avoid) {
+    const a = normAvoid(avoid);
+    return !!ex && (a.patterns.includes(ex.pattern) || a.exercises.includes(ex.id));
+  }
 
   // ── splits: a day is slots, each slot a pattern (or a choice of patterns) ─
   const S = (pattern, reps, sets, anchor) => ({ pattern, reps, sets: sets || 3, anchor: !!anchor });
@@ -166,7 +241,7 @@
   }
 
   function workingSets(ex) {
-    return ((ex && ex.sets) || []).filter((s) => s && s.done !== false && num(s.reps) > 0);
+    return ((ex && ex.sets) || []).filter((s) => s && !s.warm && s.done !== false && num(s.reps) > 0);
   }
 
   /** Every logged appearance of an exercise, newest first. */
@@ -198,7 +273,9 @@
   function candidatesFor(slot, opts) {
     const equip = new Set((opts && opts.equip && opts.equip.length) ? opts.equip : EQUIP);
     const pats = patternsOf(slot);
-    return EXERCISES.filter((e) => pats.includes(e.pattern) && equip.has(e.equip) && !((opts && opts.exclude) || []).includes(e.id));
+    const keepAvoided = !!(opts && opts.includeAvoided);
+    return EXERCISES.filter((e) => pats.includes(e.pattern) && equip.has(e.equip) && !((opts && opts.exclude) || []).includes(e.id)
+      && (keepAvoided || !isAvoided(e, opts && opts.avoid)));
   }
 
   /**
@@ -225,19 +302,23 @@
         if (run < hold) return BY_ID[last.exId];
         // Held long enough — rotate to anything else.
         const others = cands.filter((c) => c.id !== last.exId);
-        if (others.length) return leastRecent(others, sessions, today, o.rng, true);
+        if (others.length) return leastRecent(others, sessions, today, o.rng, true, o.bias);
       }
     }
     // An anchor with nothing to go on starts on a staple (the library lists
     // each pattern's staple first) — a first Push day opens on bench press,
     // not a random pick. "Switch it up" (reroll) stays random.
-    return leastRecent(cands, sessions, today, o.rng, slot.anchor && !o.reroll);
+    return leastRecent(cands, sessions, today, o.rng, slot.anchor && !o.reroll, o.bias);
   }
 
-  function leastRecent(cands, sessions, today, rng, staplesFirst) {
+  // bias (optional): muscle groups that are behind this week. A candidate in
+  // one of them goes first; with no bias every candidate ties and the order is
+  // exactly the least-recent / seeded order it always was.
+  function leastRecent(cands, sessions, today, rng, staplesFirst, bias) {
     const r = rng || Math.random;
-    const scored = cands.map((c, idx) => ({ c, age: daysSince(c.id, sessions, today), tie: staplesFirst ? idx : r() }));
-    scored.sort((a, b) => (b.age - a.age) || (a.tie - b.tie));
+    const want = Array.isArray(bias) && bias.length ? bias : null;
+    const scored = cands.map((c, idx) => ({ c, age: daysSince(c.id, sessions, today), tie: staplesFirst ? idx : r(), pref: want && want.includes(c.muscle) ? 0 : 1 }));
+    scored.sort((a, b) => (a.pref - b.pref) || (b.age - a.age) || (a.tie - b.tie));
     return scored[0].c;
   }
 
@@ -248,7 +329,7 @@
    *   any set under the bottom, or a set at RPE ≥ 9.5            → hold weight
    *   otherwise            → same weight, one more rep than the best set
    */
-  function targetFor(exId, repRange, sessions) {
+  function baseTarget(exId, repRange, sessions) {
     const ex = BY_ID[exId];
     const [lo, hi] = repRange || [8, 12];
     const h = historyOf(exId, sessions)[0];
@@ -275,6 +356,57 @@
     return { weight: top || null, reps: maxReps + 1, note: 'Beat last time: ' + (top ? top + ' × ' : '') + (maxReps + 1) + ' (last ' + last + ')' };
   }
 
+  // ── stall detection ───────────────────────────────────────────────────
+  // If an exercise's best (est. 1RM, or reps for a bodyweight lift) has not
+  // beaten the first of its last 3 sessions, it is stalled. targetFor() only
+  // REPORTS this (target.stall); nothing about the weight or reps is changed
+  // until Jo taps Deload. A session saved with deload:true resets the count
+  // (the deload and everything older is ignored), so a deload is not nagged
+  // as another stall. Reads through historyOf(), so warm-ups never count.
+  const STALL_SESSIONS = 3;
+  const DELOAD_PCT = 0.10;
+  const setScore = (s) => (num(s.weight) > 0 ? e1rm(s.weight, s.reps) : Math.round(num(s.reps)));
+  function bestSetOf(ex) {
+    let best = null, score = 0;
+    for (const s of workingSets(ex)) { const v = setScore(s); if (v > score) { score = v; best = s; } }
+    return best ? { score, weight: num(best.weight), reps: Math.round(num(best.reps)) } : null;
+  }
+  function deloadWeightFor(exId, top, platesCfg) {
+    const ex = BY_ID[exId];
+    if (!ex || !(top > 0)) return null;
+    const raw = top * (1 - DELOAD_PCT);
+    let w;
+    if (ex.equip === 'barbell') w = platesPerSide(raw, platesCfg).achieved;   // rounds down to a loadable weight
+    else { const step = ex.inc >= 5 ? 5 : 2.5; w = roundTo(raw, step); if (w >= top) w -= step; }
+    return w > 0 && w < top ? w : null;
+  }
+  function stallFor(exId, sessions, platesCfg) {
+    let hist = historyOf(exId, sessions);                       // newest first, working sets only
+    const cut = hist.findIndex((h) => h.ex.deload);
+    if (cut >= 0) hist = hist.slice(0, cut);
+    if (hist.length < STALL_SESSIONS) return null;
+    const recent = hist.slice(0, STALL_SESSIONS).map((h) => bestSetOf(h.ex));
+    if (recent.some((r) => !r)) return null;
+    const oldest = recent[STALL_SESSIONS - 1].score;
+    if (!(oldest > 0) || !recent.slice(0, STALL_SESSIONS - 1).every((r) => r.score <= oldest)) return null;
+    const best = recent.reduce((a, b) => (b.score > a.score ? b : a));
+    return {
+      sessions: STALL_SESSIONS,
+      best: { weight: best.weight, reps: best.reps },
+      label: best.weight > 0 ? best.weight + ' × ' + best.reps : best.reps + ' reps',
+      deloadWeight: deloadWeightFor(exId, topWeight(hist[0].ex), platesCfg),
+    };
+  }
+  const topWeight = (ex) => Math.max.apply(null, workingSets(ex).map((s) => num(s.weight)).concat([0]));
+
+  /** The target, plus target.stall when the lift has stalled (informational only). opts: { plates }. */
+  function targetFor(exId, repRange, sessions, opts) {
+    const t = baseTarget(exId, repRange, sessions);
+    const st = stallFor(exId, sessions, opts && opts.plates);
+    if (st) t.stall = st;
+    return t;
+  }
+
   /** Next day in the rotation after the last finished session. */
   function nextSplit(sessions, rotation) {
     const rot = ROTATIONS[rotation] || ROTATIONS.ppl;
@@ -298,10 +430,10 @@
       const pick = pickForSlot(slot, i, split, sessions, Object.assign({}, o, { rng, exclude: used.concat(o.exclude || []) }));
       if (!pick) return;
       used.push(pick.id);
-      const target = targetFor(pick.id, slot.reps, sessions);
+      const target = targetFor(pick.id, slot.reps, sessions, { plates: o.plates });
       exercises.push({
         exId: pick.id, name: pick.name, slot: i, repRange: slot.reps.slice(), target,
-        sets: Array.from({ length: slot.sets }, () => ({ reps: '', weight: target.weight == null ? '' : target.weight, rpe: '', done: false })),
+        sets: setsFor(slot, pick.id, target, slot.sets, o),
       });
     });
     return { split, label: def.label, date: o.today, exercises };
@@ -319,6 +451,54 @@
       .sort((a, b) => b.age - a.age || a.c.name.localeCompare(b.c.name))
       .slice(0, o.limit || 5)
       .map((x) => x.c);
+  }
+
+  // ── warm-up sets ──────────────────────────────────────────────────────
+  // The first heavy compound of a day (the anchor slot) gets warm-up rows
+  // ahead of its working sets: the bar, then 40 / 60 / 80% of the first
+  // working weight, each rounded DOWN to a weight the plates can make. Each
+  // row carries warm:true so nothing that measures work ever counts it.
+  const WARM_STEPS = [{ pct: 0.4, reps: 5 }, { pct: 0.6, reps: 3 }, { pct: 0.8, reps: 2 }];
+  function warmupSets(exId, workWeight, platesCfg) {
+    const ex = BY_ID[exId];
+    const w = num(workWeight);
+    if (!ex || !ex.compound || w <= 0) return [];
+    const barbell = ex.equip === 'barbell';
+    const bar = normPlates(platesCfg).bar;
+    if (barbell ? w <= bar : w < 20) return [];
+    const makeable = (x) => (barbell ? platesPerSide(x, platesCfg).achieved : Math.floor(x / 5) * 5);
+    const plan = [];
+    if (barbell) plan.push({ weight: bar, reps: 8 });
+    for (const st of WARM_STEPS) plan.push({ weight: makeable(w * st.pct), reps: st.reps });
+    const rows = [];
+    let prev = 0;
+    for (const r of plan) {                       // strictly rising, always lighter than the work
+      if (r.weight > prev && r.weight < w) { rows.push({ weight: r.weight, reps: r.reps }); prev = r.weight; }
+    }
+    return rows;
+  }
+
+  /** The set rows for one exercise: warm-ups (first compound only) then `count` working sets. */
+  function setsFor(slot, exId, target, count, opts) {
+    const o = opts || {};
+    const w = target && target.weight;
+    const work = Array.from({ length: count }, () => ({ reps: '', weight: w == null ? '' : w, rpe: '', done: false }));
+    if (!o.warmups || !slot || !slot.anchor || !(num(w) > 0)) return work;
+    const warm = warmupSets(exId, w, o.plates).map((r) => ({ reps: '', weight: r.weight, rpe: '', done: false, warm: true, plan: r.reps }));
+    return warm.concat(work);
+  }
+
+  /**
+   * Exercises that fit this slot but are on the avoid list — only ever shown
+   * behind an explicit "show anyway" with a warning, never offered by default.
+   */
+  function avoidedOptions(split, slotIdx, currentIds, opts) {
+    const def = SPLITS[split];
+    const slot = def && def.slots[slotIdx];
+    if (!slot) return [];
+    const o = opts || {};
+    return candidatesFor(slot, Object.assign({}, o, { exclude: currentIds || [], includeAvoided: true }))
+      .filter((e) => isAvoided(e, o.avoid));
   }
 
   /** New bests in a finished session vs everything before it. */
@@ -349,6 +529,141 @@
       for (const ex of s.exercises || []) if (workingSets(ex).length) { total++; ids.add(ex.exId); }
     }
     return { total, distinct: ids.size, pct: total ? Math.round(ids.size / total * 100) : 0 };
+  }
+
+  // ── readiness check-in ───────────────────────────────────────────────
+  // Three taps at the start of a session — sleep, soreness, energy — each
+  // 1 (rough) to 3 (great; "Fresh" is 3 for soreness). A total of 4 or less is
+  // a rough day: every lift with 3+ untouched working sets drops one set, and a
+  // lift that was about to GO UP in weight holds last time's weight instead.
+  // It never blocks anything, always shows what it did (and can be undone),
+  // and good days change nothing — it never pushes the load up.
+  const READY_LOW = 4, READY_GOOD = 8;
+  function readiness(rec) {
+    const v = (k) => { const n = Math.round(num(rec && rec[k])); return n >= 1 && n <= 3 ? n : 0; };
+    const sleep = v('sleep'), sore = v('sore'), energy = v('energy');
+    if (!(sleep && sore && energy)) return { complete: false, total: 0, level: null };
+    const total = sleep + sore + energy;
+    return { complete: true, total, level: total <= READY_LOW ? 'low' : total >= READY_GOOD ? 'good' : 'ok' };
+  }
+
+  /**
+   * Apply a rough-day check-in to a list of live exercises. Returns copies:
+   * { exercises, trimmed, held, changed }. Only touches lifts with nothing
+   * logged or typed yet, skips ones already adjusted (x.ready), and marks what
+   * it changed so undoReadiness() can put it back exactly. Warm-ups are not
+   * working sets: they are never trimmed (and are re-made under a held weight).
+   */
+  function applyReadiness(exercises, level, sessions, opts) {
+    const o = opts || {};
+    const list = exercises || [];
+    if (level !== 'low') return { exercises: list, trimmed: 0, held: 0, changed: false };
+    let trimmed = 0, held = 0;
+    const out = list.map((x) => {
+      const sets = x.sets || [];
+      if (x.ready || sets.some((s) => s.done || num(s.reps) > 0)) return x;
+      const work = sets.filter((s) => !s.warm);
+      const h = historyOf(x.exId, sessions)[0];
+      const lastTop = h ? Math.max.apply(null, workingSets(h.ex).map((s) => num(s.weight)).concat([0])) : 0;
+      const tw = num(x.target && x.target.weight);
+      const earned = lastTop > 0 && tw > lastTop;
+      const trim = work.length >= 3;
+      if (!earned && !trim) return x;
+      const mark = { trimmed: trim, held: earned, setsWas: work.length, weightWas: x.target ? x.target.weight : null, targetWas: x.target || null };
+      let target = x.target;
+      let next = sets.map((s) => Object.assign({}, s));
+      if (earned) {
+        held++;
+        target = Object.assign({}, x.target, { weight: lastTop, note: 'Hold ' + lastTop + ' lb today (rough-day check-in) — the bump waits for a better day' });
+        next = next.map((s) => (!s.warm && String(s.weight) === String(x.target.weight) ? Object.assign(s, { weight: lastTop }) : s));
+        if (next.some((s) => s.warm)) {
+          const warm = warmupSets(x.exId, lastTop, o.plates).map((r) => ({ reps: '', weight: r.weight, rpe: '', done: false, warm: true, plan: r.reps }));
+          next = warm.concat(next.filter((s) => !s.warm));
+        }
+      }
+      if (trim) {
+        trimmed++;
+        for (let k = next.length - 1; k >= 0; k--) if (!next[k].warm) { next.splice(k, 1); break; }
+      }
+      return Object.assign({}, x, { target, sets: next, ready: mark });
+    });
+    return { exercises: out, trimmed, held, changed: trimmed + held > 0 };
+  }
+
+  /** Put back what applyReadiness changed (sets, held weight, target). */
+  function undoReadiness(exercises, opts) {
+    const o = opts || {};
+    return (exercises || []).map((x) => {
+      if (!x.ready) return x;
+      const m = x.ready;
+      let next = (x.sets || []).map((s) => Object.assign({}, s));
+      if (m.held) {
+        const cur = x.target ? x.target.weight : null;
+        next = next.map((s) => (!s.warm && String(s.weight) === String(cur) ? Object.assign(s, { weight: m.weightWas == null ? '' : m.weightWas }) : s));
+        if (next.some((s) => s.warm)) {
+          const warm = warmupSets(x.exId, m.weightWas, o.plates).map((r) => ({ reps: '', weight: r.weight, rpe: '', done: false, warm: true, plan: r.reps }));
+          next = warm.concat(next.filter((s) => !s.warm));
+        }
+      }
+      let work = next.filter((s) => !s.warm).length;
+      while (work < m.setsWas) {
+        const last = next.filter((s) => !s.warm).slice(-1)[0] || {};
+        next.push({ reps: '', weight: last.weight == null ? '' : last.weight, rpe: '', done: false });
+        work++;
+      }
+      const back = Object.assign({}, x, { target: m.targetWas || x.target, sets: next });
+      delete back.ready;
+      return back;
+    });
+  }
+
+  // ── weekly balance ────────────────────────────────────────────────────
+  // Hard sets (= working sets; warm-ups never count) per muscle group over the
+  // last 7 days, plus push : pull. It only speaks up once there is something to
+  // read (a session this week and at least 6 sets) — no data, no nagging.
+  const LOW_SETS = 4;
+  const PUSH_PATTERNS = ['h_push', 'incline_push', 'v_push', 'chest_iso', 'triceps'];
+  const PULL_PATTERNS = ['v_pull', 'h_pull', 'rear_delt', 'biceps'];
+  const ageDays = (ymd, todayYmd) => {
+    const [y1, m1, d1] = String(ymd).split('-').map(Number);
+    const [y2, m2, d2] = String(todayYmd).split('-').map(Number);
+    return Math.round((new Date(y2, m2 - 1, d2) - new Date(y1, m1 - 1, d1)) / 86400000);
+  };
+  function balance(sessions, todayYmd, opts) {
+    const o = opts || {};
+    const days = o.days || 7;
+    const by = {}; MUSCLES.forEach((m) => { by[m] = 0; });
+    let push = 0, pull = 0, total = 0, count = 0;
+    for (const s of finished(sessions)) {
+      const age = ageDays(s.date, todayYmd);
+      if (!(age >= 0 && age < days)) continue;
+      count++;
+      for (const ex of s.exercises || []) {
+        const lib = BY_ID[ex.exId];
+        if (!lib) continue;
+        const n = workingSets(ex).length;
+        by[lib.muscle] += n; total += n;
+        if (PUSH_PATTERNS.includes(lib.pattern)) push += n; else if (PULL_PATTERNS.includes(lib.pattern)) pull += n;
+      }
+    }
+    // A group Jo can't train (equipment, or everything in it is on the avoid list) is never flagged.
+    const equip = new Set((o.equip && o.equip.length) ? o.equip : EQUIP);
+    const trainable = MUSCLES.filter((m) => EXERCISES.some((e) => e.muscle === m && equip.has(e.equip) && !isAvoided(e, o.avoid)));
+    const enough = count > 0 && total >= 6;
+    const zero = trainable.filter((m) => by[m] === 0);
+    const low = trainable.filter((m) => by[m] > 0 && by[m] < LOW_SETS).sort((a, b) => by[a] - by[b]);
+    let tilt = null;
+    if (enough && push + pull >= 6) {
+      if (pull === 0 || push / pull > 1.5) tilt = 'push';
+      else if (push === 0 || pull / push > 1.5) tilt = 'pull';
+    }
+    return { days, sessions: count, total, byMuscle: by, push, pull, enough, zero: enough ? zero : [], low: enough ? low : [],
+      neglected: enough ? zero.concat(low) : [], tilt };
+  }
+
+  /** Split days that train a muscle group (for "Legs day covers that"). */
+  function splitsFor(muscle) {
+    return Object.keys(SPLITS).filter((k) => SPLITS[k].slots.some((sl) => patternsOf(sl).some((p) => MUSCLE_OF_PATTERN[p] === muscle)));
   }
 
   function volume(session) {
@@ -396,8 +711,9 @@
   function restFor(exId) { const e = BY_ID[exId]; return e && e.compound ? 150 : 75; }
 
   const api = {
-    EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS,
-    rngFrom, e1rm, historyOf, bestE1rm, daysSince, candidatesFor, pickForSlot, targetFor,
+    EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
+    MUSCLES, MUSCLE_LABELS, LOW_SETS, balance, splitsFor, READY_LOW, READY_GOOD, readiness, applyReadiness, undoReadiness,
+    DEFAULT_PLATES, PLATE_SIZES, normPlates, platesPerSide, warmupSets, setsFor, stallFor, STALL_SESSIONS, normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, daysSince, candidatesFor, pickForSlot, targetFor,
     nextSplit, buildSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

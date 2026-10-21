@@ -106,7 +106,7 @@ console.log('\n5. wired into the page, safely');
   ok('logic then ui, after food-log.js, both external deferred (strict CSP)',
     at('js/food-search-logic.js') > at('js/food-log.js') && at('js/food-search-ui.js') > at('js/food-search-logic.js')
     && /food-search-logic\.js\?v=1" defer><\/script>/.test(html) && /food-search-ui\.js\?v=1" defer><\/script>/.test(html));
-  ok('stylesheet version bumped for phones', /workout-coach\.css\?v=5/.test(html));
+  ok('stylesheet version bumped for phones', /workout-coach\.css\?v=([5-9]|\d\d)\b/.test(html));
   const raw = fs.readFileSync(path.join(DS, 'js', 'food-search-ui.js'), 'utf8').replace(/\r\n/g, '\n');
   const code = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   ok('no inline handlers, eval or document.write', !/\bon[a-z]+\s*=\s*["']/.test(code) && !/\beval\(|new Function|document\.write/.test(code));
