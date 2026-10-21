@@ -76,3 +76,24 @@ first, then estimate follow-up) and its benchmark numbers are **leads, unverifie
 high-rep sets and the adaptive-calories window did not send (the page froze while typing); retry later.
 
 **Left for Jo.** Same list as the handoff; nothing new needs a decision.
+
+## Cycle 4 - 05:00-07:30 EDT (theme: the tracker on a phone, at Jo's direction)
+
+Jo took over the cycle with "visually inspect, scrutinize and fix the daily success program" and answered a short
+questionnaire (themes, dev button, day layout, door stats, coach extras, rollout). Done in this stretch:
+
+- **Audit and fixes (merged):** #2613 audit note, #2615 default-theme tokens, #2616 phone layer, #2617 dark card skin + ten
+  themes; root causes, numbers and the one correction are in
+  [daily-success-visual-audit-2026-10-21](../qa/daily-success-visual-audit-2026-10-21.md).
+- **Coach (merged):** #2612 last-time line + live PR trophy, #2614 rep-range PR (volume sets earn their own trophy; Jo likes high-rep
+  days).
+- **Queued in the merge queue:** #2618 coach Previous per set + rest alert setting, #2619 collapsible day sections + sticky
+  Today bar + door stats hidden until used, #2620 Call Center filters (date / range / Today / Last 24 hours / direction / order,
+  Jo's other request). Coach workout history is built and waits behind #2618.
+- **Method:** every behaviour change got a test with controls and a mutation run (each new guard proven red); layout was
+  checked in a real browser at 360, 390, 412 and 1100px; a real-data run exercised the main flows. The shard3 CI-only
+  failures (visit-recorder) remain unexplained: all 185 pass locally.
+- **Housekeeping:** five merged scratch worktrees removed; page storage key learned (`nbd_dsp_v1`); the Grok conferral covered
+  Epley above 12 reps (it agrees it drifts; we keep high-rep sets via the rep-range PR) and adaptive-calories windows (ours
+  match its ranges).
+- **Left for Jo:** nothing new needs a decision tonight; see the handoff.

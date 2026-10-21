@@ -8,6 +8,26 @@ blocked, demo data in localStorage). Nothing here has been fixed yet - this is t
 should be built from. Tools are throwaway scripts (screenshots, per-theme contrast counts, a tap-everything crawl);
 they are not committed.
 
+## Update 2026-10-21 (later): what was fixed, one correction, Jo's decisions
+
+- **Correction:** the two "JavaScript errors" below (the 📖 guide button and "Reset to Quick Start Defaults") were an
+  artifact of the crawl script, which deleted `#welcomeModal` and `#onboard-banner` from the page before tapping. Both
+  elements always exist in the real page, so neither is a real bug. The numbers and findings below that mention them are kept
+  as originally measured.
+- **Fixed on main:** #2615 (default-theme colour tokens: failing text 217 -> 17 of 249), #2616 (phone layer: two-row header
+  because the ten header buttons ran off a 390px screen, the `has-banner` class that theme code wiped, 12px type floor, 44px
+  targets, Exercise Log / Diet / PR / habit tables that fit, one card width, stray ``` text around the goal wizard),
+  #2617 (the CRM's dark card skin on the default theme + ten brand-safe themes replacing ~100 + the developer button
+  removed). Final iPhone sweep: text under 11px 151 -> 0; targets under 40px 118 -> 6.
+- **Queued as PRs:** #2619 (collapsible day sections with Food and Fitness open on a phone, a sticky Today bar, door-knocking
+  stats hidden until used with a Door stats switch), #2618 (coach: Previous per set, rest-timer sound or vibrate setting).
+  Coach workout history follows #2618.
+- **Jo's answers (2026-10-21):** about 10 brand-safe themes with no trademarked names (done), remove the developer button
+  (done), accordion day page (done in #2619), hide door stats unless used (done in #2619), ship each fix as it goes green.
+- **Real-data run:** money planner, goal wizard, day entries across a reload, food search to the diet table, a full coach
+  session, weekly review and JSON export passed 20/20 at 360, 390 and 412px with no script errors.
+- **Still not covered:** a real iPhone, light themes end to end, Apple Health setup, the barcode camera.
+
 ## Headline numbers (day page, default theme)
 
 | Check | Result |
@@ -16,7 +36,7 @@ they are not committed.
 | Elements with text under 11 px | 151 (24 rules at 9 px, 11 at 8 px) |
 | Tap targets under 44 px | **103 of 124 controls** on the day page; 21 of 25 on the dashboard |
 | Horizontal overflow | none |
-| JavaScript errors on tap | 2 (below) |
+| JavaScript errors on tap | 2 reported by the crawl - both were the crawler's own doing (see the update above), 0 real |
 
 ## Root cause #1 - the default theme has no colour tokens
 
