@@ -121,6 +121,33 @@
   EXERCISES.forEach((e) => { BY_ID[e.id] = e; });
   const EQUIP = ['barbell', 'dumbbell', 'cable', 'machine', 'bodyweight'];
 
+  // Plain-English names for the movement patterns (the "Avoid" chips).
+  const PATTERN_LABELS = {
+    h_push: 'Bench / chest press', incline_push: 'Incline press', v_push: 'Overhead press', chest_iso: 'Chest fly',
+    lateral: 'Lateral raise', rear_delt: 'Rear delts', triceps: 'Triceps', v_pull: 'Pull-ups / pulldowns',
+    h_pull: 'Rows', biceps: 'Biceps', squat: 'Squats', hinge: 'Hinge / deadlift', lunge: 'Lunges / step-ups',
+    quad_iso: 'Quad isolation', ham_iso: 'Hamstring curls', calves: 'Calves', core: 'Core',
+  };
+
+  /**
+   * The "avoiding for now" list (sore shoulder, bad knee…): whole movement
+   * patterns and/or single exercises the coach must not offer. Unknown ids
+   * and junk are dropped so a stale synced setting can't break a build.
+   */
+  function normAvoid(a) {
+    const pats = Array.isArray(a && a.patterns) ? a.patterns : [];
+    const exs = Array.isArray(a && a.exercises) ? a.exercises : [];
+    const knownPat = new Set(EXERCISES.map((e) => e.pattern));
+    return {
+      patterns: [...new Set(pats.filter((p) => knownPat.has(p)))],
+      exercises: [...new Set(exs.filter((id) => BY_ID[id]))],
+    };
+  }
+  function isAvoided(ex, avoid) {
+    const a = normAvoid(avoid);
+    return !!ex && (a.patterns.includes(ex.pattern) || a.exercises.includes(ex.id));
+  }
+
   // ── splits: a day is slots, each slot a pattern (or a choice of patterns) ─
   const S = (pattern, reps, sets, anchor) => ({ pattern, reps, sets: sets || 3, anchor: !!anchor });
   const SPLITS = {
@@ -198,7 +225,9 @@
   function candidatesFor(slot, opts) {
     const equip = new Set((opts && opts.equip && opts.equip.length) ? opts.equip : EQUIP);
     const pats = patternsOf(slot);
-    return EXERCISES.filter((e) => pats.includes(e.pattern) && equip.has(e.equip) && !((opts && opts.exclude) || []).includes(e.id));
+    const keepAvoided = !!(opts && opts.includeAvoided);
+    return EXERCISES.filter((e) => pats.includes(e.pattern) && equip.has(e.equip) && !((opts && opts.exclude) || []).includes(e.id)
+      && (keepAvoided || !isAvoided(e, opts && opts.avoid)));
   }
 
   /**
@@ -321,6 +350,19 @@
       .map((x) => x.c);
   }
 
+  /**
+   * Exercises that fit this slot but are on the avoid list — only ever shown
+   * behind an explicit "show anyway" with a warning, never offered by default.
+   */
+  function avoidedOptions(split, slotIdx, currentIds, opts) {
+    const def = SPLITS[split];
+    const slot = def && def.slots[slotIdx];
+    if (!slot) return [];
+    const o = opts || {};
+    return candidatesFor(slot, Object.assign({}, o, { exclude: currentIds || [], includeAvoided: true }))
+      .filter((e) => isAvoided(e, o.avoid));
+  }
+
   /** New bests in a finished session vs everything before it. */
   function detectPRs(session, priorSessions) {
     const prs = [];
@@ -396,8 +438,8 @@
   function restFor(exId) { const e = BY_ID[exId]; return e && e.compound ? 150 : 75; }
 
   const api = {
-    EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS,
-    rngFrom, e1rm, historyOf, bestE1rm, daysSince, candidatesFor, pickForSlot, targetFor,
+    EXERCISES, BY_ID, EQUIP, SPLITS, ROTATIONS, FRESHNESS, PATTERN_LABELS,
+    normAvoid, isAvoided, avoidedOptions, rngFrom, e1rm, historyOf, bestE1rm, daysSince, candidatesFor, pickForSlot, targetFor,
     nextSplit, buildSession, swapOptions, detectPRs, variety, volume, toPageRows, restFor, mergeSessions,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -131,3 +131,8 @@ body.wc-lock { overflow: hidden; }
 .fs-macros { font-size: 12px; color: var(--muted, #6b7280); margin: 2px 0 6px; }
 .fs-qty { width: 72px; }
 .fs-cam video { width: 100%; max-height: 260px; border-radius: 10px; background: #000; display: block; margin: 8px 0; }
+
+/* Avoid list (2026-10-20) */
+.wc-ex-btns { display: flex; gap: 6px; flex-shrink: 0; }
+.wc-link { background: none; border: 0; padding: 6px 0; color: #8b9bb4; font-size: 12px; text-decoration: underline; cursor: pointer; min-height: 36px; }
+.wc-swap-opt.wc-avoided { border-color: rgba(245, 158, 11, .6); background: rgba(245, 158, 11, .1); color: #fcd9a0; }

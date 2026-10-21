@@ -37,6 +37,7 @@
       rotation: C().ROTATIONS[s.rotation] ? s.rotation : 'ppl',
       freshness: C().FRESHNESS[s.freshness] ? s.freshness : 'mixed',
       equip: Array.isArray(s.equip) && s.equip.length ? s.equip.filter((e) => C().EQUIP.includes(e)) : C().EQUIP.slice(),
+      avoid: C().normAvoid(s.avoid),
     };
   }
   function saveSettings(s) {
@@ -47,6 +48,7 @@
   let live = readJson(LIVE, null);
   let summary = null;          // the just-finished session's report
   let swapOpen = -1;
+  let swapShowAvoided = false; // the "avoiding" exercises, behind a warning
   let showSettings = false;
   let armed = '';              // two-tap confirms ('discard' | 'split:legs')
   let rest = null;             // { until, label }
@@ -57,7 +59,7 @@
   function newSession(split, opts) {
     const s = settings();
     const seed = (opts && opts.seed) || (Date.now() % 1000000007);
-    const built = C().buildSession(split, sessions(), { today: today(), equip: s.equip, freshness: s.freshness, seed, reroll: opts && opts.reroll });
+    const built = C().buildSession(split, sessions(), { today: today(), equip: s.equip, avoid: s.avoid, freshness: s.freshness, seed, reroll: opts && opts.reroll });
     return Object.assign(built, { id: 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), seed, startedAt: Date.now() });
   }
 
@@ -162,14 +164,26 @@
         </select>
         <button class="wc-check${st.done ? ' on' : ''}" data-coach-action="done" data-i="${i}" data-s="${j}" aria-label="Set ${j + 1} done">✓</button>
       </div>`).join('');
-    const swaps = swapOpen === i
-      ? `<div class="wc-swaps">${C().swapOptions(live.split, x.slot, live.exercises.map((e) => e.exId), sessions(), { today: today(), equip: settings().equip })
-          .map((o) => `<button class="wc-swap-opt" data-coach-action="swap-to" data-i="${i}" data-ex="${esc(o.id)}">${esc(o.name)}</button>`).join('') || '<span class="wc-hint">No other options with your equipment</span>'}</div>`
-      : '';
+    let swaps = '';
+    if (swapOpen === i) {
+      const so = settings();
+      const ids = live.exercises.map((e) => e.exId);
+      const opts = C().swapOptions(live.split, x.slot, ids, sessions(), { today: today(), equip: so.equip, avoid: so.avoid });
+      const avoided = C().avoidedOptions(live.split, x.slot, ids, { equip: so.equip, avoid: so.avoid });
+      swaps = `<div class="wc-swaps">${opts
+        .map((o) => `<button class="wc-swap-opt" data-coach-action="swap-to" data-i="${i}" data-ex="${esc(o.id)}">${esc(o.name)}</button>`).join('') || '<span class="wc-hint">No other options with your equipment</span>'}</div>`;
+      if (avoided.length) {
+        swaps += swapShowAvoided
+          ? `<div class="wc-hint">⚠ You're avoiding these. Tap one twice to use it anyway.</div><div class="wc-swaps">${avoided
+              .map((o) => `<button class="wc-swap-opt wc-avoided" data-coach-action="swap-to" data-i="${i}" data-ex="${esc(o.id)}">${esc(o.name)}${armed === 'avoid:' + o.id ? ' — tap again' : ''}</button>`).join('')}</div>`
+          : `<button class="wc-link" data-coach-action="show-avoided">Show ${avoided.length} I'm avoiding</button>`;
+      }
+    }
     return `<div class="wc-ex">
       <div class="wc-ex-h"><div><div class="wc-ex-name">${esc(x.name)}</div>
         <div class="wc-ex-sub">${esc(x.repRange[0])}–${esc(x.repRange[1])} reps · ${esc(ex.equip || '')}</div></div>
-        <button class="btn btn-ghost wc-swap" data-coach-action="swap" data-i="${i}">${swapOpen === i ? 'Cancel' : 'Swap'}</button></div>
+        <div class="wc-ex-btns"><button class="btn btn-ghost wc-swap" data-coach-action="avoid-ex" data-i="${i}" title="Stop offering this one">${armed === 'avoidx:' + i ? 'Sure? Tap again' : 'Avoid'}</button>
+        <button class="btn btn-ghost wc-swap" data-coach-action="swap" data-i="${i}">${swapOpen === i ? 'Cancel' : 'Swap'}</button></div></div>
       <div class="wc-target">🎯 ${esc(x.target && x.target.note)}</div>
       ${swaps}${rows}
       <button class="wc-add" data-coach-action="add-set" data-i="${i}">+ set</button>
@@ -182,6 +196,8 @@
       <div class="wc-lbl">Rotation</div><div class="wc-chips">${radio('rotation', 'ppl', 'Push / Pull / Legs', s.rotation)}${radio('rotation', 'ul', 'Upper / Lower', s.rotation)}${radio('rotation', 'full', 'Full Body', s.rotation)}</div>
       <div class="wc-lbl">Main lift changes</div><div class="wc-chips">${radio('freshness', 'steady', 'Every 6 sessions', s.freshness)}${radio('freshness', 'mixed', 'Every 3', s.freshness)}${radio('freshness', 'fresh', 'Every session', s.freshness)}</div>
       <div class="wc-lbl">Equipment I have</div><div class="wc-chips">${C().EQUIP.map((e) => `<button class="wc-chip${s.equip.includes(e) ? ' on' : ''}" data-coach-action="toggle-equip" data-val="${e}">${e}</button>`).join('')}</div>
+      <div class="wc-lbl">Avoiding for now (sore spot?)</div><div class="wc-chips">${Object.keys(C().PATTERN_LABELS).map((p) => `<button class="wc-chip${s.avoid.patterns.includes(p) ? ' on' : ''}" data-coach-action="toggle-avoid-pat" data-val="${p}">${esc(C().PATTERN_LABELS[p])}</button>`).join('')}${s.avoid.exercises.map((id) => `<button class="wc-chip on" data-coach-action="unavoid-ex" data-val="${esc(id)}">${esc((C().BY_ID[id] || {}).name || id)} ✕</button>`).join('')}</div>
+      <div class="wc-hint">The coach won't offer anything you're avoiding. This is your own list, not medical advice.</div>
       <div class="wc-hint">Changes apply to the next workout you build (or tap 🔀 now).</div>
     </div>`;
   }
@@ -282,7 +298,7 @@
     if (!t || !C()) return;
     const a = t.dataset.coachAction;
     const i = +t.dataset.i, j = +t.dataset.s;
-    if (a !== 'discard' && !String(a).startsWith('split')) armed = '';
+    if (a !== 'discard' && !String(a).startsWith('split') && a !== 'swap-to' && a !== 'avoid-ex') armed = '';
     switch (a) {
       case 'start': start(); return;
       case 'open': open(); return;
@@ -296,6 +312,34 @@
         s.equip = s.equip.includes(v) ? s.equip.filter((e) => e !== v) : s.equip.concat(v);
         if (!s.equip.length) { toast('Keep at least one'); return; }
         saveSettings(s); render(); return;
+      }
+      case 'toggle-avoid-pat': {
+        const s = settings(); const v = t.dataset.val;
+        s.avoid.patterns = s.avoid.patterns.includes(v) ? s.avoid.patterns.filter((p) => p !== v) : s.avoid.patterns.concat(v);
+        saveSettings(s); render(); return;
+      }
+      case 'unavoid-ex': {
+        const s = settings(); s.avoid.exercises = s.avoid.exercises.filter((id) => id !== t.dataset.val);
+        saveSettings(s); render(); return;
+      }
+      case 'show-avoided': swapShowAvoided = true; render(); return;
+      case 'avoid-ex': {
+        const x = live && live.exercises[i]; if (!x) return;
+        if (armed !== 'avoidx:' + i) { armed = 'avoidx:' + i; render(); return; }
+        armed = '';
+        const s = settings();
+        if (!s.avoid.exercises.includes(x.exId)) s.avoid.exercises = s.avoid.exercises.concat(x.exId);
+        saveSettings(s);
+        // Nothing logged yet: swap it out right away for the best other option.
+        const alt = doneCount(x) ? null : C().swapOptions(live.split, x.slot, live.exercises.map((e) => e.exId), sessions(), { today: today(), equip: s.equip, avoid: s.avoid })[0];
+        if (alt) {
+          const target = C().targetFor(alt.id, x.repRange, sessions());
+          live.exercises[i] = Object.assign({}, x, { exId: alt.id, name: alt.name, target,
+            sets: x.sets.map(() => ({ reps: '', weight: target.weight == null ? '' : target.weight, rpe: '', done: false })) });
+          persistLive();
+          toast('Avoiding ' + x.name + ' — swapped to ' + alt.name);
+        } else toast('Avoiding ' + x.name + " — it won't be offered again");
+        swapOpen = -1; render(); return;
       }
       case 'split': {
         const k = t.dataset.split;
@@ -318,15 +362,18 @@
         });
         persistLive(); swapOpen = -1; render(); return;
       }
-      case 'swap': swapOpen = swapOpen === i ? -1 : i; render(); return;
+      case 'swap': swapOpen = swapOpen === i ? -1 : i; swapShowAvoided = false; render(); return;
       case 'swap-to': {
         const x = live.exercises[i]; const exId = t.dataset.ex; const ex = C().BY_ID[exId];
         if (!x || !ex) return;
         if (doneCount(x)) { toast('Sets already logged on this one'); return; }
+        // An exercise Jo is avoiding needs a second, deliberate tap.
+        if (C().isAvoided(ex, settings().avoid) && armed !== 'avoid:' + exId) { armed = 'avoid:' + exId; render(); return; }
+        armed = '';
         const target = C().targetFor(exId, x.repRange, sessions());
         live.exercises[i] = Object.assign({}, x, { exId, name: ex.name, target,
           sets: x.sets.map(() => ({ reps: '', weight: target.weight == null ? '' : target.weight, rpe: '', done: false })) });
-        swapOpen = -1; persistLive(); render(); return;
+        swapOpen = -1; swapShowAvoided = false; persistLive(); render(); return;
       }
       case 'done': {
         const st = live.exercises[i] && live.exercises[i].sets[j];

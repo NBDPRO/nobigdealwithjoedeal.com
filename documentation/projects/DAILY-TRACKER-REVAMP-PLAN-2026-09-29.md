@@ -229,3 +229,21 @@ hundreds of empty day pages. Preview first (count, date range, anything outside
 60–700 lb skipped); re-runs never duplicate; a weight typed on a day page wins
 over an imported one. Blocked on a few sample rows of the export. Hume → Apple
 Health → Shortcut stays the follow-up for ongoing readings.
+
+## 2026-10-20 — Coach upgrades from the ideas research (seven items, one PR each)
+
+Source: [TRACKER-IDEAS-RESEARCH-2026-10-20](TRACKER-IDEAS-RESEARCH-2026-10-20.md).
+Jo approved building all ten; seven edit the Workout Coach and ship in this
+order: avoid list, plate calculator, warm-ups, stall detection, muscle balance,
+readiness check-in, supersets.
+
+- **#5 Avoid list — shipped (PR open).** ⚙ in the logger has an "Avoiding for
+  now" chip row (one chip per movement pattern, plus a chip for each single
+  exercise avoided, tap to undo). Each exercise has an **Avoid** button (two
+  taps) that avoids that lift and swaps it out if nothing is logged yet.
+  `candidatesFor()` drops avoided lifts, so `buildSession`, "Switch it up" and
+  `swapOptions` never offer them; an anchor held from last time is dropped too.
+  The swap panel shows "Show N I'm avoiding" behind a warning, and using one
+  takes a second tap. Stored as `avoid: {patterns, exercises}` in the coach
+  settings (`dsCoach`, synced). Wording is "avoiding" — not medical advice.
+  Test: [coach-avoid-list](../../tests/coach-avoid-list-2026-10-20.test.js).
