@@ -229,3 +229,15 @@ hundreds of empty day pages. Preview first (count, date range, anything outside
 60–700 lb skipped); re-runs never duplicate; a weight typed on a day page wins
 over an imported one. Blocked on a few sample rows of the export. Hume → Apple
 Health → Shortcut stays the follow-up for ongoing readings.
+
+### Export everything (2026-10-20)
+
+A **Download my data** card on the dashboard (idea #8 of
+TRACKER-IDEAS-RESEARCH-2026-10-20 (PR 2597)). On the device only: one JSON
+with everything (day pages, workouts, coach and food settings, floors, goal targets, reviews,
+money plan, streak, weigh-ins) and three Excel-safe CSVs (workouts one row per set, weight,
+food). Deleted and tombstoned pages are left out; CSV cells starting `=` `+` `-` `@` are
+defused; CSVs carry a BOM. Each file is its own tap, plus Share / Save to Files where the
+browser can share files. Code: `docs/pro/daily-success/js/export-logic.js`, `export-ui.js`;
+test `tests/tracker-export-2026-10-20.test.js`. iPhone installed-app download behaviour
+still to be tried by Jo.

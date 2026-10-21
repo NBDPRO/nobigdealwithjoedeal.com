@@ -1,0 +1,9 @@
+/* "Download my data" card (export-ui.js). */
+.ex-dash { margin-bottom: 12px; }
+.ex-list { margin-top: 10px; }
+.ex-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--rule, #d4c9b0); }
+.ex-info { flex: 1 1 100%; display: flex; flex-direction: column; gap: 2px; }
+.ex-dl, .ex-sh, .ex-open { min-height: 44px; justify-content: center; }
+.ex-dl { background: var(--ac, #BD5728); color: #fff; border-color: var(--ac, #BD5728); }
+.ex-open { width: 100%; margin-top: 12px; }
+.ex-note { margin-top: 8px; }
