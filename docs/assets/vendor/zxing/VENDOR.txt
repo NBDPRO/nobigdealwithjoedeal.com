@@ -1,0 +1,23 @@
+@zxing/library 0.21.3 - TypeScript port of ZXing (1D/2D barcode reader)
+
+Why: iPhone Safari has no BarcodeDetector, so the Daily Success "Find a food"
+card (docs/pro/daily-success/js/food-search-ui.js) loads this to read EAN-13 /
+EAN-8 / UPC-A barcodes from the camera. Loaded on demand only, when Jo taps
+Scan on a browser without BarcodeDetector. Pure JavaScript, no WebAssembly, no
+network calls, no eval (checked when vendored).
+
+Source:    https://www.npmjs.com/package/@zxing/library/v/0.21.3
+           https://github.com/zxing-js/library
+File:      zxing-library-0.21.3.min.js  = umd/index.min.js from the npm tarball,
+           byte-identical (no newlines, so line-ending conversion cannot alter it)
+sha256:    d7cc8f69dd70bdcf3ac00c9ae572bf2acb9f4132ba379c72df842e4db918652d
+Tarball:   sha512-hZHqFe2JyH/ZxviJZosZjV+2s6EDSY0O24R+FQmlWZBZXP9IqMo7S3nb3+2LBWxodJQkSurdQGnqE7KXqrYgow==
+           (the npm registry's dist.integrity; the downloaded tarball matched it)
+License:   package.json declares MIT; the LICENSE file shipped in the package is
+           the Apache License 2.0 text (ZXing's own license). Both permit this
+           use. The package's LICENSE is kept next to the file as LICENSE.
+
+To update: npm pack @zxing/library@<version> --ignore-scripts into an empty
+directory, check the tarball against the registry's dist.integrity, copy
+umd/index.min.js here under the new version name, update the sha256 above, the
+path in food-search-ui.js, and tests/tracker-food-search-2026-10-20.test.js.
