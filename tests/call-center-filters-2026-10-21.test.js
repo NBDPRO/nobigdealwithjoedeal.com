@@ -158,6 +158,15 @@ const call = (id, ms, extra) => Object.assign({ id, startedAtMs: ms, direction: 
     ok('an empty result says so and offers a way out', /No calls match these filters/.test(v.view.innerHTML) && /data-cc="clearfilters"/.test(v.view.innerHTML));
     v.click({ 'data-cc': 'clearfilters' });
 
+    // Switching category tabs through the real tab click keeps the date filter (a tab click that cleared it would pass every setFilter-driven check)
+    v.CC.setFilter('all');
+    v.click({ 'data-cc': 'range', 'data-arg': 'today' });
+    v.click({ 'data-cc': 'filter', 'data-arg': 'attention' });
+    v.click({ 'data-cc': 'filter', 'data-arg': 'all' });
+    ok('a category tab click keeps the saved date filter (Today still on, three rows)', JSON.parse(v.mem[FX.KEY]).range === 'today' && ids(v).length === 3 && /Showing 3 of 6 · Today/.test(v.view.innerHTML), JSON.stringify(ids(v)));
+    v.click({ 'data-cc': 'clearfilters' });
+    ok('control: and Clear still empties it (the check above is not just "nothing ever resets")', JSON.parse(v.mem[FX.KEY]).range === 'all' && ids(v).length === 6);
+
     // Needs attention counts PEOPLE and the filters narrow what is shown but never the real open list
     v.CC.setFilter('attention');
     const badgeAll = v.badge.textContent;

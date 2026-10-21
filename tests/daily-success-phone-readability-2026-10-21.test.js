@@ -16,7 +16,9 @@ const DIR = path.join(__dirname, '..', 'docs', 'pro', 'daily-success');
 const stripComments = (s) => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/[^\n]*/g, '$1');
 const read = (p) => stripComments(fs.readFileSync(path.join(DIR, p), 'utf8').replace(/\r\n/g, '\n'));
 const HTML = read('index.html'), APP = read('js/app.js');
-const SOURCES = { 'index.html': HTML, 'js/app.js': APP };
+const SOURCES = { 'index.html': HTML, 'js/app.js': APP, 'css/workout-coach.css': read('css/workout-coach.css'), 'css/money.css': read('css/money.css'), 'css/review.css': read('css/review.css'), 'css/export.css': read('css/export.css'), 'js/workout-coach.js': read('js/workout-coach.js') };
+// px under 11, rem/em under 0.6875 (= 11px), and the font: shorthand
+const SMALL_TYPE = /font-size:\s*(?:(?:[1-9]|10)(?:\.[0-9]+)?px|0?\.(?:[0-5][0-9]*|6(?:[0-7][0-9]*)?(?![0-9]))(?:rem|em)\b)|font:[^;}]*[^0-9.](?:[1-9]|10)(?:\.[0-9]+)?px/;
 fs.readdirSync(path.join(DIR, 'css')).forEach((f) => { SOURCES['css/' + f] = read('css/' + f); });
 fs.readdirSync(path.join(DIR, 'js')).forEach((f) => { SOURCES['js/' + f] = read('js/' + f); });
 
@@ -31,9 +33,12 @@ const tableBlock = (HTML.match(/@media \(max-width:560px\)\{\n  \.pr-grid[\s\S]*
 console.log('\n1. type floor');
 {
   Object.keys(SOURCES).forEach((name) => {
-    const m = SOURCES[name].match(/font-size:\s*(?:[1-9]|10)(?:\.\d+)?px/g);
-    ok(name + ' has no font-size under 11 px', !m, m && m.slice(0, 3).join(', '));
+    const m = SOURCES[name].match(SMALL_TYPE);
+    ok(name + ' has no font-size under 11 px (px, rem/em under 0.6875, or font: shorthand)', !m, m && m.slice(0, 3).join(', '));
   });
+  // The floor used to look only at "font-size: Npx", so .5rem or "font:700 8px Barlow" walked past it (vacuous-test audit).
+  ['font-size:8px', 'font-size: 10.5px', 'font-size:.5rem', 'font-size:0.6em', 'font:700 8px Barlow', 'font:600 9px/1.2 Barlow'].forEach((bad) => ok('control: the floor catches "' + bad + '"', SMALL_TYPE.test(bad)));
+  ['font-size:11px', 'font-size:.6875rem', 'font-size:0.75em', 'font:700 12px Barlow', 'font:600 11px/1.2 Barlow', 'font-size:1rem'].forEach((fine) => ok('control: the floor lets "' + fine + '" through', !SMALL_TYPE.test(fine)));
   const elevens = Object.keys(SOURCES).reduce((n, k) => n + (SOURCES[k].match(/font-size:\s*11px/g) || []).length, 0);
   ok('control: 11 px captions still exist (the sweep is on 8-10 px, the floor is not loosened silently)', elevens > 0);
 }
