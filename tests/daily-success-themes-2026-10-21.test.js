@@ -37,7 +37,9 @@ const THEMES = vm.runInNewContext(reg);
 // --- the skins in the page: the default token row + one :root[data-theme] row per other skin ---
 const skins = {};
 const defRow = (HTML.match(/\n\[data-theme="default"\]\{([^}]*)\}/) || [])[1] || '';
-skins.default = readVars(defRow);
+// the default skin's tab bar / gold come from the shared base block it also matches; its own row overrides
+const baseRow = (HTML.match(/\n\[data-theme="dark"\][^{]*\{([^}]*)\}/) || [])[1] || '';
+skins.default = Object.assign({}, readVars(baseRow), readVars(defRow));
 for (const m of HTML.matchAll(/\n:root\[data-theme="([a-z-]+)"\]\{([^}]*)\}/g)) skins[m[1]] = readVars(m[2]);
 
 console.log('\n1. ten brand-safe themes');
@@ -76,8 +78,18 @@ console.log('\n2. every skin is readable (real WCAG ratios)');
     if (R(k['--on-dark'], k['--bar']) < 4.5) fails.push('header text/bar ' + R(k['--on-dark'], k['--bar']).toFixed(1));
     if (R(k['--ac-on-dark'], k['--bar']) < 4.5) fails.push('header orange/bar ' + R(k['--ac-on-dark'], k['--bar']).toFixed(1));
     if (R(k['--footer'], k['--bg']) < 4.5) fails.push('footer/page ' + R(k['--footer'], k['--bg']).toFixed(1));
+    // text that sits straight on the page, on the tab bar, and on the always-dark Floor Score panel (#0a1018)
+    if (R(k['--ac-text'], k['--bg']) < 4.5) fails.push('ac-text/page (the NOT EARNED banner) ' + R(k['--ac-text'], k['--bg']).toFixed(1));
+    if (R(k['--ac-on-dark'], k['--tabbar']) < 4.5) fails.push('inactive tab/tab bar ' + R(k['--ac-on-dark'], k['--tabbar']).toFixed(1));
+    if (R(k['--ac-on-dark'], k['--taboff']) < 4.5) fails.push('inactive tab/tab off ' + R(k['--ac-on-dark'], k['--taboff']).toFixed(1));
+    if (R(k['--gold-on-dark'] || k['--gold'], '#0a1018') < 4.5) fails.push('score gold/Floor panel ' + R(k['--gold-on-dark'] || k['--gold'], '#0a1018').toFixed(1));
+    if (R(k['--ac-on-dark'], '#0a1018') < 4.5) fails.push('score orange/Floor panel ' + R(k['--ac-on-dark'], '#0a1018').toFixed(1));
     ok(id + ': text, muted, orange text, button fill, ghost, input, header and footer all >= AA', !fails.length, fails.join('; '));
   });
+  ok('the NOT EARNED banner uses the readable text orange (it was a fixed gold, 2.8:1 on the light skins)', /\.floor-egg\.not-earned\{background:transparent;border:2px dashed var\(--ac-text,#d97706\);\}/.test(HTML) && /\.floor-egg\.not-earned \.floor-egg-title\{color:var\(--ac-text,#d97706\);\}/.test(HTML));
+  ok('the Floor Score numbers use the on-dark colours (their panel is dark in every skin)', /const scoreColor=allMet\?'#4caf82':pct>=67\?'var\(--gold-on-dark,var\(--gold\)\)':'var\(--ac-on-dark,var\(--ac\)\)';/.test(APP));
+  ok('control: the old fixed gold on the light page is NOT readable', ratio('#d97706', '#eef1f5') < 3);
+  ok('control: the light skin\'s old on-dark orange was below AA on its tab bar (so the tab check is not vacuous)', ratio('#E4783F', '#1A3057') < 4.5);
   ok('control: the old cream-era muted (#8a9ab0) on a white card is NOT readable (what these ratios guard against)', ratio('#8a9ab0', '#ffffff') < 4.5);
   ok('control: the checker is not vacuous - a bad row would be caught', ratio('#777777', '#808080') < 4.5);
 }
