@@ -1,0 +1,94 @@
+/**
+ * tests/daily-success-themes-2026-10-21.test.js
+ *
+ * Daily Success shipped ~100 themes, many named after trademarked characters and franchises (Batman, Mario,
+ * Darth Vader...), each with legacy cream-card colours that were never contrast-checked, plus a "Copy Firestore
+ * Write" developer button in the picker. Jo (2026-10-21): keep ~10-12 brand-safe themes, remove the dev button.
+ * Now there are TEN skins, each one token row, and this test checks every one of them with real WCAG maths.
+ *
+ * Run: node tests/daily-success-themes-2026-10-21.test.js
+ */
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+const DIR = path.join(__dirname, '..', 'docs', 'pro', 'daily-success');
+const HTML = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8').replace(/\r\n/g, '\n');
+const APP = fs.readFileSync(path.join(DIR, 'js', 'app.js'), 'utf8').replace(/\r\n/g, '\n');
+
+let passed = 0, failed = 0;
+function ok(label, cond, detail) {
+  if (cond) { console.log('  ✓ ' + label); passed++; }
+  else { console.log('  ✗ ' + label + (detail ? ' — ' + detail : '')); failed++; }
+}
+function parse(hex) {
+  if (/^rgba/.test(hex)) return null;
+  const h = hex.replace('#', ''); const f = h.length === 3 ? h.replace(/./g, (c) => c + c) : h;
+  return [0, 2, 4].map((i) => parseInt(f.slice(i, i + 2), 16));
+}
+function lum(hex) { return parse(hex).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); }
+function ratio(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+const readVars = (css) => { const o = {}; css.replace(/(--[a-z-]+)\s*:\s*([^;}]+)/g, (_, k, v) => { o[k] = v.trim(); return ''; }); return o; };
+
+// --- the registry in app.js, evaluated as written ---
+const reg = (APP.match(/const NBD_THEMES = (\[[\s\S]*?\n\]);/) || [])[1] || '[]';
+const THEMES = vm.runInNewContext(reg);
+// --- the skins in the page: the default token row + one :root[data-theme] row per other skin ---
+const skins = {};
+const defRow = (HTML.match(/\n\[data-theme="default"\]\{([^}]*)\}/) || [])[1] || '';
+skins.default = readVars(defRow);
+for (const m of HTML.matchAll(/\n:root\[data-theme="([a-z-]+)"\]\{([^}]*)\}/g)) skins[m[1]] = readVars(m[2]);
+
+console.log('\n1. ten brand-safe themes');
+{
+  ok('the registry has exactly ten themes', THEMES.length === 10, String(THEMES.length));
+  ok('every registry id has a skin row in the page and vice versa', JSON.stringify(THEMES.map((t) => t.id).sort()) === JSON.stringify(Object.keys(skins).sort()), JSON.stringify(Object.keys(skins).sort()));
+  const BANNED = /batman|superman|captain|wolverine|magneto|darth|vader|stormtrooper|lightsaber|halo|mario|kirby|zelda|mega ?man|digimon|pok[eé]mon|lego|american dad|family guy|south park|fbi|cia|ios|android|windows/i;
+  ok('no trademarked / third-party names in the picker', THEMES.every((t) => !BANNED.test(t.name) && !BANNED.test(t.id)), THEMES.map((t) => t.name).join(', '));
+  ok('control: the checker really does catch one', BANNED.test('Darth Vader') && BANNED.test('Mario Underground'));
+  ok('the default theme is NBD Default and is first', THEMES[0].id === 'default' && THEMES[0].name === 'NBD Default');
+  ok('there are light, dark and high-contrast options', ['light', 'dark', 'contrast'].every((c) => THEMES.some((t) => t.cat === c)));
+  ok('no legacy theme blocks are left in the page (176 of them used to be)', !/:root\[data-theme="(batman|mario|matrix|neon|galaxy|obsidian|sakura|cobalt|volcanic|halloween)"/.test(HTML) && (HTML.match(/\n:root\[data-theme="/g) || []).length === 9);
+  ok('the developer "Copy Firestore Write" button and its handler are gone', !/Copy Firestore Write/.test(HTML) && !/nbdCopyFS|nbd-copy-fs/.test(APP) && !/nbd-copy-fs/.test(HTML));
+  ok('the page starts on the default theme (no flash of another theme)', /<html lang="en" data-theme="default">/.test(HTML));
+  ok('a saved theme that no longer exists falls back to default at boot', /_nbdGetTheme\(saved\) \|\| _nbdGetTheme\('default'\)/.test(APP));
+  ok('the category chips match the new groups', /const cats = \['all','dark','light','contrast','custom'\];/.test(APP));
+}
+
+console.log('\n2. every skin is readable (real WCAG ratios)');
+{
+  const REQUIRED = ['--ac', '--ac-text', '--on-dark', '--ac-on-dark', '--bg', '--bar', '--paper', '--ink', '--rule', '--muted', '--ghost', '--input-bg', '--ph', '--footer', '--mbg', '--stxt', '--sbg'];
+  Object.keys(skins).forEach((id) => {
+    const k = skins[id];
+    const miss = REQUIRED.filter((v) => !k[v]);
+    ok(id + ': defines every token', !miss.length, miss.join(', '));
+    if (miss.length) return;
+    const R = (a, b) => ratio(a, b);
+    const fails = [];
+    if (R(k['--ink'], k['--paper']) < 7) fails.push('ink/paper ' + R(k['--ink'], k['--paper']).toFixed(1));
+    if (R(k['--muted'], k['--paper']) < 4.5) fails.push('muted/paper ' + R(k['--muted'], k['--paper']).toFixed(1));
+    if (R(k['--ac-text'], k['--paper']) < 4.5) fails.push('ac-text/paper ' + R(k['--ac-text'], k['--paper']).toFixed(1));
+    if (R('#ffffff', k['--ac']) < 4.5) fails.push('white/accent-fill ' + R('#ffffff', k['--ac']).toFixed(1));
+    if (R(k['--ghost'], k['--paper']) < 4.5) fails.push('ghost/paper ' + R(k['--ghost'], k['--paper']).toFixed(1));
+    if (R(k['--ph'], k['--input-bg']) < 4.5) fails.push('placeholder/input ' + R(k['--ph'], k['--input-bg']).toFixed(1));
+    if (R(k['--ink'], k['--input-bg']) < 7) fails.push('ink/input ' + R(k['--ink'], k['--input-bg']).toFixed(1));
+    if (R(k['--on-dark'], k['--bar']) < 4.5) fails.push('header text/bar ' + R(k['--on-dark'], k['--bar']).toFixed(1));
+    if (R(k['--ac-on-dark'], k['--bar']) < 4.5) fails.push('header orange/bar ' + R(k['--ac-on-dark'], k['--bar']).toFixed(1));
+    if (R(k['--footer'], k['--bg']) < 4.5) fails.push('footer/page ' + R(k['--footer'], k['--bg']).toFixed(1));
+    ok(id + ': text, muted, orange text, button fill, ghost, input, header and footer all >= AA', !fails.length, fails.join('; '));
+  });
+  ok('control: the old cream-era muted (#8a9ab0) on a white card is NOT readable (what these ratios guard against)', ratio('#8a9ab0', '#ffffff') < 4.5);
+  ok('control: the checker is not vacuous - a bad row would be caught', ratio('#777777', '#808080') < 4.5);
+}
+
+console.log('\n3. picker entries agree with the skins');
+{
+  THEMES.forEach((t) => {
+    const k = skins[t.id] || {};
+    ok(t.id + ': picker swatches match the skin (accent, page, bar)', t.accent.toLowerCase() === (k['--ac'] || '').toLowerCase() && t.bg.toLowerCase() === (k['--bg'] || '').toLowerCase() && t.s.toLowerCase() === (k['--bar'] || '').toLowerCase(), JSON.stringify([t.accent, k['--ac'], t.bg, k['--bg'], t.s, k['--bar']]));
+  });
+}
+
+console.log('\n' + passed + ' passed, ' + failed + ' failed');
+process.exit(failed ? 1 : 0);

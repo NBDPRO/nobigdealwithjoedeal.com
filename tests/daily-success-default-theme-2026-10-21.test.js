@@ -62,11 +62,11 @@ console.log('\n2. the dark card skin (the CRM look) and its readability');
   const allCss = [HTML, APP, ...['export', 'money', 'review', 'workout-coach'].map((n) => fs.readFileSync(path.join(DIR, 'css', n + '.css'), 'utf8'))].join('\n');
   ok('--ac-text is only ever used as a text colour, never a fill or border (white button text needs the brand orange)', !/(?:background(?:-color)?|border(?:-[a-z]+)?-color|border|fill|stroke):\s*var\(--ac-text/.test(allCss));
   ok('control: fills still use the brand orange', /background:\s*var\(--ac(?:,\s*#BD5728)?\)/.test(allCss));
-  const badges = [...HTML.matchAll(/\[data-theme="default"\] \.b-([a-z, .\[\]="-]*?)\{background:(#[0-9a-f]{6});\}/g)];
+  const badges = [...HTML.matchAll(/:root \.b-([a-z, .\[\]="-]*?)\{background:(#[0-9a-f]{6});\}/g)];
   ok('the recoloured section badges carry white text at >= 4.5:1', badges.length >= 2 && badges.every((m) => ratio(m[2], '#ffffff') >= AA), badges.map((m) => m[2] + ' ' + ratio(m[2], '#ffffff').toFixed(1)).join(', '));
   ok('placeholders are readable on the card (>= 4.5:1)', ratio('#8793a4', paper) >= AA, ratio('#8793a4', paper).toFixed(2));
-  ok('ghost buttons are light text on the dark card (>= 4.5:1)', /\[data-theme="default"\] \.btn-ghost\{color:#c3cfdf;\}/.test(HTML) && ratio('#c3cfdf', paper) >= AA);
-  ok('inputs get dark backgrounds and the dark colour scheme (no white boxes)', /\.fl-in,\[data-theme="default"\] \.sinp,\[data-theme="default"\] \.minp\{background:#0d1015;/.test(HTML) && /color-scheme:dark;/.test(HTML));
+  ok('ghost buttons are light text on the dark card (>= 4.5:1)', /:root \.btn-ghost\{color:var\(--ghost,#c3cfdf\);\}/.test(HTML) && /--ghost:#c3cfdf;/.test(defRule) && ratio('#c3cfdf', paper) >= AA);
+  ok('inputs get dark backgrounds and the dark colour scheme (no white boxes)', /:root \.fl-in,:root \.sinp,:root \.minp\{background:var\(--input-bg,#0d1015\);/.test(HTML) && /--input-bg:#0d1015;/.test(defRule) && /color-scheme:dark;/.test(HTML));
   ok('the old cream-card rules are gone (.pc darker orange, ghost-on-cream)', !/\.pc\{--ac:var\(--ac-ink\);\}/.test(HTML) && !/--ac-ink/.test(HTML));
 }
 
