@@ -445,6 +445,7 @@
     "coach-last-time-pr-2026-10-21.test.js",
     "daily-success-default-theme-2026-10-21.test.js",
     "coach-rep-range-pr-2026-10-21.test.js",
+    "coach-save-failure-2026-10-21.test.js",
     "review-hardening-2026-10-21.test.js",
     "coach-previous-rest-2026-10-21.test.js",
     "coach-history-2026-10-21.test.js",

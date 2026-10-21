@@ -604,9 +604,9 @@ window.scrollTo({top:0,behavior:'smooth'});
 
 function toggleSection(ph){
 const card=ph.closest('.pc');if(!card)return;card.classList.toggle('collapsed');
-const st=JSON.parse(localStorage.getItem('nbd_collapsed')||'{}');
+let st={};try{st=JSON.parse(localStorage.getItem('nbd_collapsed')||'{}')||{};}catch(e){}
 st[card.dataset.sec]=card.classList.contains('collapsed');
-localStorage.setItem('nbd_collapsed',JSON.stringify(st));
+try{localStorage.setItem('nbd_collapsed',JSON.stringify(st));}catch(e){}
 }
 
 // Door-knocking stats on/off (Jo's explicit choice, stored locally; with no choice they appear once there is data).
