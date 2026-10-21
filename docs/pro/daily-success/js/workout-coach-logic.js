@@ -764,12 +764,13 @@
   function livePR(ex, priorSessions) {
     if (!ex) return null;
     const prevE = bestE1rm(ex.exId, priorSessions);
-    if (!(prevE > 0)) return null;
+    // "history" is not "a best 1RM above zero": a bodyweight lift logged at 0 lb has history but no e1RM, and its rep PR must still fire live
+    if (!historyOf(ex.exId, priorSessions).length) return null;
     let e = null, r = null;
     (ex.sets || []).forEach((s, j) => {
       if (!s || s.warm || s.done !== true || !(num(s.reps) > 0)) return;
       const reps = Math.round(num(s.reps));
-      if (reps <= HIGH_REP) {
+      if (prevE > 0 && reps <= HIGH_REP) {
         const v = e1rm(s.weight, s.reps);
         if (v > (e ? e.e1rm : prevE)) e = { kind: 'e1rm', index: j, e1rm: v, prev: prevE };
       }

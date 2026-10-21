@@ -27,7 +27,8 @@
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const readJson = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (_) { return d; } };
-  const writeJson = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
+  // true when the write landed. Callers that must not lose data (finish) check it; the rest may ignore it.
+  const writeJson = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (_) { return false; } };
   const today = () => (typeof window.todayKey === 'function' ? window.todayKey() : new Date().toISOString().slice(0, 10));
   const toast = (m) => { if (typeof window.toast === 'function') window.toast(m); };
   const fmtDay = (ymd) => { const [y, m, d] = String(ymd).split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); };
@@ -474,8 +475,9 @@
         .filter((x) => x.sets.length),
     };
     const all = C().mergeSessions([session].concat(prior), []);
-    writeJson(SESS, all);
-    if (window.NBDDsCloud && typeof window.NBDDsCloud.pushWorkout === 'function') window.NBDDsCloud.pushWorkout(session);
+    // If the device will not store it (full / blocked storage) keep the workout open instead of showing "done" and losing it.
+    if (!writeJson(SESS, all)) { toast("Couldn't save this workout on your phone - it's still open. Free some space or try again."); return; }
+    try { const pushed = window.NBDDsCloud && typeof window.NBDDsCloud.pushWorkout === 'function' ? window.NBDDsCloud.pushWorkout(session) : null; if (pushed && typeof pushed.catch === 'function') pushed.catch(() => {}); } catch (_) { /* the cloud copy is best-effort; the device copy above is saved */ }
     const wrotePage = writeToPage(session);
     summary = {
       label: live.label, prs: C().detectPRs(session, prior), vol: C().volume(session),
