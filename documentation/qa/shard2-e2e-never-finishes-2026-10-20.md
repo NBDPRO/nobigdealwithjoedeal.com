@@ -46,3 +46,11 @@ roughly 18-20 min, against the 25 min cap. These are estimates; no full per-shar
 costs seconds, not a test timeout. Runner-minutes: two jobs of ~18 min plus a second install/JVM boot
 (~3-4 min) versus one job that burned its full 25 min and was cancelled every time. Neither shard is in
 the merge-queue ruleset; add `@shard2` and `@shard3` once both have passed on main.
+
+## Update 2026-10-21: first full run of the split, and what the failures were
+
+Main run 39532002721 (commit 1a64f75e): `@shard3` finished in 21.9 min - 174 passed, 4 failed, 6 did not run (serial specs stop after a failure). `@shard2` was still cancelled at 25 min after ~38 of 168 tests, because its failing specs burn three attempts each. So the split fixed the size problem only for `@shard3`; the remaining cost is failing specs, not volume.
+
+The four `@shard3` failures, reproduced locally against the emulators and fixed (see [OVERNIGHT-LOG-2026-10-20](../projects/OVERNIGHT-LOG-2026-10-20.md)): the estimate funnel spec still asserted the pre-#2461 refused-without-consent behaviour and old trust-line copy; the Home nav spec looked for a strip chip the phone UX pass deliberately hides; the visit-recorder spec used a class selector that now matches two buttons (and had a comment and a tap merged onto one line); and two specs could not tap Home's last card because the fixed Record visit bar covered it - a real product bug, fixed in `visit-recorder.css`. Lesson: a spec that has never run to completion in CI should be assumed stale, not trusted.
+
+Still open in `@shard2`: call-center-card, crew-calendar, inbox-layout, layouts, mission-control.

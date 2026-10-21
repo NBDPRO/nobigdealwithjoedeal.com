@@ -91,6 +91,10 @@ async function waitForRecorder(page) {
 }
 const visitDocs = async (db, uid) => (await db.collection('users/' + uid + '/visit_captures').get()).docs.map((d) => Object.assign({ id: d.id }, d.data()));
 
+// The Home bar has TWO buttons with the .nbd-vr-unfiled class: the 'Unfiled visits (n)' badge and the
+// 'Recent visits' button (visit-recorder-launcher.js reuses the class). Address the badge, not both.
+const UNFILED = '.nbd-vr-unfiled:not(.nbd-vr-recent)';
+
 test.describe('visit recorder: record first, save on the phone, upload later, attach by a tap @shard3', () => {
   test.skip(!creds, 'PLAYWRIGHT_TEST_USER_EMAIL / _PASSWORD not set');
   test.describe.configure({ mode: 'serial' });
@@ -144,7 +148,7 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
       expect(before[0].status).toBe('stored');
       expect(before[0].sizeBytes).toBeGreaterThan(500);
       await sheet.locator('.nbd-vr-btn', { hasText: 'Save unattached' }).tap();
-      await expect(page.locator('.nbd-vr-unfiled')).toHaveText('Unfiled visits (1)');
+      await expect(page.locator(UNFILED)).toHaveText('Unfiled visits (1)');
 
       // signal returns: no tap needed
       await context.setOffline(false);
@@ -178,7 +182,8 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
         await route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ result: { ok: true, leadId: body.leadId || null, tasksMade: 0 } }) });
       });
 
-      // attach by search, from the Unfiled list      await page.locator('.nbd-vr-unfiled').tap();
+      // attach by search, from the Unfiled list
+      await page.locator(UNFILED).tap();
       const list = page.locator('.nbd-vr-sheet');
       await expect(list.locator('.nbd-vr-title')).toHaveText('Unfiled visits');
       await expect(list.locator('.nbd-vr-item')).toHaveCount(1);
@@ -190,7 +195,7 @@ test.describe('visit recorder: record first, save on the phone, upload later, at
       await expect.poll(async () => ((await S.db.doc('users/' + S.uid + '/visit_captures/' + id).get()).data() || {}).leadId, { timeout: 20_000 }).toBe(S.lead);
       expect(attachCalls.length, 'the server was asked once, for this visit and this customer').toBe(1);
       expect(attachCalls[0]).toMatchObject({ visitId: id, action: 'attach', leadId: S.lead });
-      await expect(page.locator('.nbd-vr-unfiled'), 'the Home badge clears').toBeHidden();
+      await expect(page.locator(UNFILED), 'the Home badge clears').toBeHidden();
     });
 
     test('customer page: Record visit is pre-attached; do-not-record is respected, including the deep link', async ({ page }) => {

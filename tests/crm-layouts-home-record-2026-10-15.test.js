@@ -91,7 +91,7 @@ const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
       /closest\('\[data-nbd-recent-visits\]'\)[\s\S]{0,80}openRecent\(\)/.test(lsrc)
       && /function openRecent\(\) \{\s*return load\(\)\.then\(function \(\) \{\s*var UI = window\.NBDVisitRecorderUI;\s*if \(UI && typeof UI\.openRecent === 'function'\) \{ UI\.openRecent\(\); return; \}/.test(lsrc)
       && /openRecent: openRecent/.test(lsrc));
-    ok('the bar stylesheet is re-versioned (and only it)', /BAR_CSS = '\/pro\/css\/visit-recorder\.css\?v=3'/.test(lsrc) && /visit-recorder-ui\.js\?v=' \+ V/.test(lsrc));
+    ok('the bar stylesheet is re-versioned (and only it)', /BAR_CSS = '\/pro\/css\/visit-recorder\.css\?v=([3-9]|[1-9]\d)(?!\d)'/.test(lsrc)   /* >= 3: 4 since the phone Home clearance fix (2026-10-21) */ && /visit-recorder-ui\.js\?v=' \+ V/.test(lsrc));
   }
   {
     // the launcher's bar, run for real in a stub page: Classic shows it, Island does not
@@ -408,7 +408,7 @@ const K = require(path.join(ROOT, 'docs/pro/js/layouts/kit.js'));
     const dash = read('docs/pro/dashboard.html');
     ok('dashboard tags are re-versioned for the files changed',
       /today-home\.css\?v=6/.test(dash) && /home-attention\.js\?v=(2[3-9]|[3-9]\d)(?!\d)/.test(dash)   /* >= 23: 24 since the app badge (2026-10-16) */ && /today-home\.js\?v=(1[6-9]|[2-9]\d)(?!\d)/.test(dash)   /* >= 16: 17 since the closes-this-week kick (2026-10-15) */ && /layout-system\.js\?v=([2-9]|[1-9]\d)(?!\d)/.test(dash)   /* >= 2: 3 since the fail-closed hydrate (layouts audit D14, 2026-10-15) */
-      && /pixel-mode\.js\?v=2/.test(dash) && /visit-recorder-launcher\.js\?v=2/.test(dash) && /shape-preboot\.js\?v=([3-9]|[1-9]\d)(?!\d)/.test(dash)   /* >= 3: 4 since per-layout button size (2026-10-16) */ && /standalone-compat\.js\?v=2/.test(dash));
+      && /pixel-mode\.js\?v=2/.test(dash) && /visit-recorder-launcher\.js\?v=([2-9]|[1-9]\d)(?!\d)/.test(dash)   /* >= 2: 3 since the phone Home clearance fix (2026-10-21) */ && /shape-preboot\.js\?v=([3-9]|[1-9]\d)(?!\d)/.test(dash)   /* >= 3: 4 since per-layout button size (2026-10-16) */ && /standalone-compat\.js\?v=2/.test(dash));
   }
 
   console.log('\n' + passed + ' passed, ' + failed + ' failed');

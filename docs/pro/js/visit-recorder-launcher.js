@@ -30,7 +30,7 @@
 
   var V = '3';
   var FILES = [
-    '/pro/css/visit-recorder.css?v=3',   // = BAR_CSS below
+    '/pro/css/visit-recorder.css?v=4',   // = BAR_CSS below
     '/pro/js/visit-recorder-logic.js?v=' + V,
     '/pro/js/visit-recorder.js?v=' + V,
     '/pro/js/visit-recorder-ui.js?v=' + V,
@@ -40,7 +40,7 @@
   var TODAY_FILE = '/pro/js/visit-unfiled-today.js?v=' + V;
   // The bar's stylesheet has its own version: only its bar placement changes
   // here, and the recorder files above keep theirs.
-  var BAR_CSS = '/pro/css/visit-recorder.css?v=3';
+  var BAR_CSS = '/pro/css/visit-recorder.css?v=4';
   // The same words on every entry point, in every layout (kit.js RECORD_LABEL).
   var RECORD_LABEL = 'Record visit';
   var RECENT_LABEL = 'Recent visits';
