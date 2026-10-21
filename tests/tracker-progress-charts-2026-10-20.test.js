@@ -116,7 +116,7 @@ console.log('\n5. wired into the page, safely');
   ok('lift names (user data) are escaped into the chips', /esc\(l\.name\)/.test(code) && /esc\(l\.exId\)/.test(code));
   ok('it re-wraps the weight card\'s hooks without dropping their flags', /Object\.keys\(origFit\)\.forEach/.test(code) && /Object\.keys\(origDash\)\.forEach/.test(code));
   const css = fs.readFileSync(path.join(DS, 'css', 'workout-coach.css'), 'utf8');
-  ok('the chip is a 36px+ tap target like the other chips', /\.pg-chip \{[^}]*min-height: 36px/.test(css));
+  ok('the chip is a 44px tap target like the other chips (was 36px until the 2026-10-21 phone audit)', /\.pg-chip \{[^}]*min-height: 44px/.test(css));
 }
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
