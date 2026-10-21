@@ -264,7 +264,7 @@ return `<div class="rl">Your daily blueprint — the schedule that produces the 
 function buildDietSection(p){
 const d=p.data||{};
 const rows=MEALS.map((meal,i)=>`<tr><td><input data-k="diet-m${i}-name" placeholder="${meal}" value="${E(d['diet-m'+i+'-name'])}" data-input-action="calc-macros"></td><td><input data-k="diet-m${i}-p" placeholder="—" value="${E(d['diet-m'+i+'-p'])}" data-input-action="calc-macros"></td><td><input data-k="diet-m${i}-c" placeholder="—" value="${E(d['diet-m'+i+'-c'])}" data-input-action="calc-macros"></td><td><input data-k="diet-m${i}-f" placeholder="—" value="${E(d['diet-m'+i+'-f'])}" data-input-action="calc-macros"></td><td><input data-k="diet-m${i}-cal" placeholder="—" value="${E(d['diet-m'+i+'-cal'])}" data-input-action="calc-macros"></td></tr>`).join('');
-return `<div class="tbl-wrap"><table class="dt"><thead><tr><th>Meal</th><th>Protein (g)</th><th>Carbs (g)</th><th>Fat (g)</th><th>Calories</th></tr></thead><tbody>${rows}<tr class="dt-total"><td><input readonly placeholder="DAILY TOTAL" style="font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:11px;width:100%;background:transparent;border:none;outline:none;padding:5px 7px;"></td><td><input id="dt-p" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac);padding:5px 7px;"></td><td><input id="dt-c" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac);padding:5px 7px;"></td><td><input id="dt-f" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac);padding:5px 7px;"></td><td><input id="dt-cal" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac);padding:5px 7px;"></td></tr></tbody></table></div> <div class="macro-summary"><div class="mpill protein"><div class="mpill-val" id="ms-p">—</div><div class="mpill-lbl">Protein g</div></div><div class="mpill carbs"><div class="mpill-val" id="ms-c">—</div><div class="mpill-lbl">Carbs g</div></div><div class="mpill fat"><div class="mpill-val" id="ms-f">—</div><div class="mpill-lbl">Fat g</div></div><div class="mpill cals"><div class="mpill-val" id="ms-cal">—</div><div class="mpill-lbl">Calories</div></div></div> <div><div class="rl">Energy / hunger notes</div><div class="rln"><textarea class="ed" data-k="diet-notes" placeholder="Energy levels, cravings, anything to adjust…" rows="2">${E(d['diet-notes'])}</textarea></div></div>`;
+return `<div class="tbl-wrap"><table class="dt"><thead><tr><th>Meal</th><th>Protein (g)</th><th>Carbs (g)</th><th>Fat (g)</th><th>Calories</th></tr></thead><tbody>${rows}<tr class="dt-total"><td><input readonly placeholder="DAILY TOTAL" style="font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:11px;width:100%;background:transparent;border:none;outline:none;padding:5px 7px;"></td><td><input id="dt-p" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac-text,var(--ac));padding:5px 7px;"></td><td><input id="dt-c" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac-text,var(--ac));padding:5px 7px;"></td><td><input id="dt-f" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac-text,var(--ac));padding:5px 7px;"></td><td><input id="dt-cal" readonly placeholder="—" style="width:100%;background:transparent;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;color:var(--ac-text,var(--ac));padding:5px 7px;"></td></tr></tbody></table></div> <div class="macro-summary"><div class="mpill protein"><div class="mpill-val" id="ms-p">—</div><div class="mpill-lbl">Protein g</div></div><div class="mpill carbs"><div class="mpill-val" id="ms-c">—</div><div class="mpill-lbl">Carbs g</div></div><div class="mpill fat"><div class="mpill-val" id="ms-f">—</div><div class="mpill-lbl">Fat g</div></div><div class="mpill cals"><div class="mpill-val" id="ms-cal">—</div><div class="mpill-lbl">Calories</div></div></div> <div><div class="rl">Energy / hunger notes</div><div class="rln"><textarea class="ed" data-k="diet-notes" placeholder="Energy levels, cravings, anything to adjust…" rows="2">${E(d['diet-notes'])}</textarea></div></div>`;
 }
 
 function calcMacros(){
@@ -511,7 +511,7 @@ function buildIntelligenceBrief(p){
 
 function buildCRMContext(){
   const cache = localStorage.getItem('nbd_pipeline_cache');
-  if(!cache) return '<div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted);text-align:center;padding:16px;">Connect your CRM to see pipeline data here. <br><a href="/pro/dashboard.html" style="color:var(--ac);">Open CRM →</a></div>';
+  if(!cache) return '<div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted);text-align:center;padding:16px;">Connect your CRM to see pipeline data here. <br><a href="/pro/dashboard.html" style="color:var(--ac-text,var(--ac));">Open CRM →</a></div>';
 
   try {
     const data = JSON.parse(cache);
@@ -521,7 +521,7 @@ function buildCRMContext(){
     const hot = data.hotLeads || 0;
 
     let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:10px;">';
-    html += `<div style="text-align:center;padding:10px;background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;color:var(--ac);line-height:1;">${total}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.12em;color:var(--muted);margin-top:2px;">ACTIVE LEADS</div></div>`;
+    html += `<div style="text-align:center;padding:10px;background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;color:var(--ac-text,var(--ac));line-height:1;">${total}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.12em;color:var(--muted);margin-top:2px;">ACTIVE LEADS</div></div>`;
     html += `<div style="text-align:center;padding:10px;background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;color:var(--grn);line-height:1;">$${Math.round(value).toLocaleString()}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.12em;color:var(--muted);margin-top:2px;">PIPELINE VALUE</div></div>`;
     html += `<div style="text-align:center;padding:10px;background:rgba(0,0,0,.03);border:1px solid var(--rule);border-radius:6px;"><div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;color:var(--gold);line-height:1;">${hot}</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.12em;color:var(--muted);margin-top:2px;">HOT LEADS</div></div>`;
     html += '</div>';
@@ -536,7 +536,7 @@ function buildCRMContext(){
       html += '</div>';
     }
 
-    html += `<div style="margin-top:8px;text-align:right;"><a href="/pro/dashboard.html" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;color:var(--ac);text-decoration:none;">OPEN FULL CRM →</a></div>`;
+    html += `<div style="margin-top:8px;text-align:right;"><a href="/pro/dashboard.html" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:.1em;color:var(--ac-text,var(--ac));text-decoration:none;">OPEN FULL CRM →</a></div>`;
     return html;
   } catch(e){
     return '<div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--muted);text-align:center;padding:16px;">Pipeline data unavailable</div>';
@@ -635,7 +635,7 @@ if(cfg&&cfg.northStar){
 const ns=cfg.northStar;
 const isRevGoal=ns.category==='Make more money'||ns.category==='Grow my business';
 const nsPct=isRevGoal&&gt.r?Math.min(totR/gt.r*100,100):0;
-northStarHtml=`<div class="dc wide"><div class="dct">⭐ North Star <small>YOUR PRIMARY GOAL</small></div> <div style="margin-bottom:10px;padding:10px 0;border-bottom:1px solid var(--rule);"> <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--ac);letter-spacing:.05em;">${E(ns.category)}</div> <div style="font-size:13px;color:var(--ink);margin-top:3px;">${ns.target?E(ns.target):'No specific target set — click ⚙️ to update'}</div> ${ns.deadline?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:4px;letter-spacing:.1em;">DEADLINE: ${E(ns.deadline)}</div>`:''} </div> ${isRevGoal?`<div class="pace-wrap" style="margin-top:8px;">
+northStarHtml=`<div class="dc wide"><div class="dct">⭐ North Star <small>YOUR PRIMARY GOAL</small></div> <div style="margin-bottom:10px;padding:10px 0;border-bottom:1px solid var(--rule);"> <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--ac-text,var(--ac));letter-spacing:.05em;">${E(ns.category)}</div> <div style="font-size:13px;color:var(--ink);margin-top:3px;">${ns.target?E(ns.target):'No specific target set — click ⚙️ to update'}</div> ${ns.deadline?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);margin-top:4px;letter-spacing:.1em;">DEADLINE: ${E(ns.deadline)}</div>`:''} </div> ${isRevGoal?`<div class="pace-wrap" style="margin-top:8px;">
 <div class="pace-row"><span class="pace-lbl">Revenue</span><div class="pace-bg"><div class="pace-bar" style="width:${gt.r?Math.min(totR/gt.r*100,100):0}%;background:var(--grn)"></div></div><span class="pace-stat">$${Math.round(totR).toLocaleString()}</span></div>
 <div class="pace-row"><span class="pace-lbl">On Pace</span><div class="pace-bg"><div class="pace-bar" style="width:${gt.r?Math.min(paceTarget/gt.r*100,100):0}%;background:rgba(245,158,11,.5)"></div></div><span class="pace-stat">$${Math.round(paceTarget).toLocaleString()}</span></div>
 <div class="pace-row"><span class="pace-lbl">Goal</span><div class="pace-bg"><div class="pace-bar" style="width:100%;background:rgba(0,0,0,.07)"></div></div><span class="pace-stat">$${Number(gt.r||0).toLocaleString()}</span></div>
@@ -866,7 +866,7 @@ function delta(cur,prev,prefix){
 if(prev===null||prev===undefined)return'<span style="color:#8fa1b8;">—</span>';
 const d=cur-prev;
 if(d===0)return'<span style="color:#8fa1b8;">—</span>';
-return d>0?`<span style="color:var(--grn);">▲${prefix||''}${Math.abs(d)}</span>`:`<span style="color:var(--ac);">▼${prefix||''}${Math.abs(d)}</span>`;
+return d>0?`<span style="color:var(--grn);">▲${prefix||''}${Math.abs(d)}</span>`:`<span style="color:var(--ac-text,var(--ac));">▼${prefix||''}${Math.abs(d)}</span>`;
 }
 const pD=prev?(prev.kpi?.doors||0):null;
 const pR=prev?parseFloat(prev.data?.['s-revenue']||0)||0:null;
@@ -973,7 +973,7 @@ if(wrap){
 const btn=document.createElement('button');
 btn.id='floor-regen-hint';
 btn.className='addbtn';
-btn.style.cssText='margin-top:6px;margin-bottom:2px;border-color:var(--ac);color:var(--ac);';
+btn.style.cssText='margin-top:6px;margin-bottom:2px;border-color:var(--ac);color:var(--ac-text,var(--ac));';
 btn.textContent='↺ Regenerate suggestions from Step 1 & 2';
 btn.onclick=()=>{
 const cat=document.getElementById('ob-cat')?.value||'Other';

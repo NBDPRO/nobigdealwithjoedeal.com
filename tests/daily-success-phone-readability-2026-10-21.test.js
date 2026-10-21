@@ -85,15 +85,13 @@ console.log('\n4a. one card width');
   ok('control: the old classic card already had this width (so the new rule matches the existing design)', /\.pc\{[^}]*width:100%;max-width:760px/.test(HTML));
 }
 
-console.log('\n4b. ghost buttons read on both surfaces');
+console.log('\n4b. ghost buttons read on the dark card skin');
 {
-  const lum = (hex) => [0, 2, 4].map((i) => parseInt(hex.slice(1 + i, 3 + i), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
-  const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
-  ok('light ghost text is scoped to the dark header + banner', /\[data-theme="default"\] \.topbar \.btn-ghost,\[data-theme="default"\] \.onboard-banner \.btn-ghost\{color:#c3cfdf;\}/.test(HTML));
-  ok('...and is >= 4.5:1 on the dark bar', ratio('#c3cfdf', '#151e2b') >= 4.5, ratio('#c3cfdf', '#151e2b').toFixed(1));
-  ok('ghost buttons on cream cards / modals use dark ink', /\.wc-card \.btn-ghost,\[data-theme="default"\] \.mbox \.btn-ghost,\[data-theme="default"\] \.pc \.btn-ghost\{color:#3a4659;/.test(HTML));
-  ok('...>= 4.5:1 on the cream paper', ratio('#3a4659', '#f5f3ef') >= 4.5, ratio('#3a4659', '#f5f3ef').toFixed(1));
-  ok('control: the pale header colour on cream is unreadable (the bug this scoping fixes)', ratio('#c3cfdf', '#f5f3ef') < 2);
+  const lum = (hex) => [0, 2, 4].map((i) => parseInt(hex.slice(1 + i, 3 + i), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))).reduce((x, v, i) => x + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const ratio = (x, y) => (Math.max(lum(x), lum(y)) + 0.05) / (Math.min(lum(x), lum(y)) + 0.05);
+  ok('one light ghost-button colour for every dark surface (header, banner, cards, modals)', /\[data-theme="default"\] \.btn-ghost\{color:#c3cfdf;\}/.test(HTML));
+  ok('...>= 4.5:1 on the dark bar and on the dark card', ratio('#c3cfdf', '#151e2b') >= 4.5 && ratio('#c3cfdf', '#12161c') >= 4.5, ratio('#c3cfdf', '#12161c').toFixed(1));
+  ok('control: the old cream-era dark ink would vanish on the dark card', ratio('#3a4659', '#12161c') < 2, ratio('#3a4659', '#12161c').toFixed(2));
 }
 
 console.log('\n5. the theme code keeps has-banner');

@@ -4,7 +4,7 @@
 .wc-card { background: var(--paper, #f5f3ef); border: 1px solid var(--rule, #d4c9b0); border-left: 4px solid var(--ac, #BD5728);
   border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; color: var(--ink, #1a1a1a); }
 .wc-card-h { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-  font-size: 11px; color: var(--ac, #BD5728); margin-bottom: 6px; }
+  font-size: 11px; color: var(--ac-text, var(--ac, #BD5728)); margin-bottom: 6px; }
 .wc-line { font-size: 14px; margin-bottom: 10px; }
 .wc-meta { font-size: 11px; color: var(--muted, #6b7280); margin-top: 8px; }
 .wc-go, .wc-finish { background: var(--ac, #BD5728); color: #fff; height: 44px; padding: 0 18px; font-size: 13px; justify-content: center; }
@@ -20,7 +20,7 @@ body.wc-lock { overflow: hidden; }
 .wc-title small { font-size: 12px; color: #8b9bb4; letter-spacing: .06em; margin-left: 6px; }
 .wc-x, .wc-gear { width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(255, 255, 255, .15); background: transparent;
   color: #eef2f7; font-size: 18px; cursor: pointer; flex-shrink: 0; }
-.wc-gear.on { border-color: var(--ac, #BD5728); color: var(--ac, #BD5728); }
+.wc-gear.on { border-color: var(--ac, #BD5728); color: var(--ac-text, var(--ac, #BD5728)); }
 
 .wc-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .wc-chip { min-height: 44px; padding: 6px 12px; border-radius: 18px; border: 1px solid rgba(255, 255, 255, .15);
@@ -82,7 +82,7 @@ body.wc-lock { overflow: hidden; }
 .wt-down { color: #16a34a; }
 .wt-up { color: #b45309; }
 .wt-flat { color: var(--muted, #6b7280); }
-.wt-import-link { display: block; width: 100%; text-align: left; margin: -6px 0 14px; padding: 10px 12px; border: 1px dashed var(--rule, #d4c9b0); border-radius: 8px; background: transparent; font: inherit; font-size: 12px; color: var(--ac, #BD5728); cursor: pointer; }
+.wt-import-link { display: block; width: 100%; text-align: left; margin: -6px 0 14px; padding: 10px 12px; border: 1px dashed var(--rule, #d4c9b0); border-radius: 8px; background: transparent; font: inherit; font-size: 12px; color: var(--ac-text, var(--ac, #BD5728)); cursor: pointer; }
 .th-list { margin: 6px 0 12px 18px; padding: 0; font-size: 13px; color: #cbd5e1; line-height: 1.6; }
 
 /* Food card (js/food-log.js) */
