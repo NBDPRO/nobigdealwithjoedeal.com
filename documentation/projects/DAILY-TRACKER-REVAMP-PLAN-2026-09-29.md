@@ -213,10 +213,16 @@ typed words or the barcode number leave the device. The security policy allows
 pattern as `/pro/portal`). Test:
 [tracker-food-search](../../tests/tracker-food-search-2026-10-20.test.js).
 
-**Camera scanning needs the browser's `BarcodeDetector`** (Chrome / Android).
-iPhone Safari does not have it, so there the card asks for the digits under the
-barcode. True iPhone scanning needs a decoder library vendored into `docs/`
-(ZXing-class); held for Jo's OK.
+**Camera scanning (updated 2026-10-20):** Chrome / Android use the browser's own
+`BarcodeDetector`. iPhone Safari does not have it, so there the card loads a
+vendored ZXing build (`@zxing/library` 0.21.3, pure JS, ~336 KB, pinned by
+sha256 in [VENDOR.txt](../../docs/assets/vendor/zxing/VENDOR.txt)) on demand, only
+when Scan is tapped. It reads EAN-13 / EAN-8 / UPC-A and only looks up a number
+whose check digit is valid. If the camera or the download fails the card asks for
+the digits instead. Test:
+[tracker-barcode-decoder](../../tests/tracker-barcode-decoder-2026-10-20.test.js)
+decodes a barcode image rendered from the spec with the real vendored file, and
+has negative controls. Not yet tried on Jo's actual iPhone in daylight.
 
 ### Weight import (open — needs a sample)
 
@@ -239,3 +245,132 @@ key. Hand-typed weight wins, a deleted day stays deleted, sleep is not stored
 yet (no sleep-hours field on the day page). Off until Jo sets
 `system/healthShortcut` `{enabled:true}` in the Firebase console. How it works
 and how to turn it on: [HEALTH-SHORTCUT](../runbooks/HEALTH-SHORTCUT.md).
+### Export everything (2026-10-20)
+
+A **Download my data** card on the dashboard (idea #8 of
+TRACKER-IDEAS-RESEARCH-2026-10-20 (PR 2597)). On the device only: one JSON
+with everything (day pages, workouts, coach and food settings, floors, goal targets, reviews,
+money plan, streak, weigh-ins) and three Excel-safe CSVs (workouts one row per set, weight,
+food). Deleted and tombstoned pages are left out; CSV cells starting `=` `+` `-` `@` are
+defused; CSVs carry a BOM. Each file is its own tap, plus Share / Save to Files where the
+browser can share files. Code: `docs/pro/daily-success/js/export-logic.js`, `export-ui.js`;
+test `tests/tracker-export-2026-10-20.test.js`. iPhone installed-app download behaviour
+still to be tried by Jo.
+### 2026-10-20 - Real maintenance calories (research idea #7, built)
+
+A "Your real maintenance" card on the day page's Diet section
+(`adaptive-calories-logic.js` + `-ui.js`, test
+`tests/tracker-adaptive-calories-2026-10-20.test.js`). Maintenance = average
+logged calories - (weight change per day x 3,500). Window: 21 days ending
+yesterday. Food: only days with calories typed, 800-8,000 (blank/zero and
+partial days are left out and counted). Weight: average of the first 7 days'
+weigh-ins vs the last 7 days', over the real gap between them. Needs 14+ food
+days, 2+ weigh-ins at each end, weigh-ins spanning 14+ days - otherwise the card
+says "Not enough data yet" and names what is missing, never a number. Shows the
+last 7 days' pace against that maintenance, a "How is this worked out?"
+disclosure, and a one-tap "Use my maintenance as the calorie target" (only when
+no target is set; writes on tap only). It reads any `[{dk, lbs}]` weight series,
+so the Active Era import plugs in with no change.
+## 2026-10-20 — Coach upgrades from the ideas research (seven items, one PR each)
+
+Source: `TRACKER-IDEAS-RESEARCH-2026-10-20` (PR #2597).
+Jo approved building all ten; seven edit the Workout Coach and ship in this
+order: avoid list, plate calculator, warm-ups, stall detection, muscle balance,
+readiness check-in, supersets.
+
+- **#5 Avoid list — shipped (PR open).** ⚙ in the logger has an "Avoiding for
+  now" chip row (one chip per movement pattern, plus a chip for each single
+  exercise avoided, tap to undo). Each exercise has an **Avoid** button (two
+  taps) that avoids that lift and swaps it out if nothing is logged yet.
+  `candidatesFor()` drops avoided lifts, so `buildSession`, "Switch it up" and
+  `swapOptions` never offer them; an anchor held from last time is dropped too.
+  The swap panel shows "Show N I'm avoiding" behind a warning, and using one
+  takes a second tap. Stored as `avoid: {patterns, exercises}` in the coach
+  settings (`dsCoach`, synced). Wording is "avoiding" — not medical advice.
+  Test: [coach-avoid-list](../../tests/coach-avoid-list-2026-10-20.test.js).
+
+- **#4 Plate calculator — shipped (PR open, stacked on the avoid-list PR).**
+  Under the target on every barbell lift: "45 / 25 / 10 per side", from a bar
+  weight (35 or 45) and a plate inventory set once in ⚙ (`plates` in the synced
+  coach settings; defaults 45 lb bar, 45/35/25/10/5/2.5). Greedy arithmetic in
+  hundredths of a lb (no float drift); a weight the plates cannot make loads
+  what it can and says how many lb short — it never rounds silently. Test:
+  [coach-plate-calc](../../tests/coach-plate-calc-2026-10-20.test.js).
+
+- **#3 Warm-up sets — shipped (PR open, stacked on the plate-calculator PR).**
+  The first compound of the day (the anchor slot) gets warm-up rows ahead of its
+  working sets: the bar ×8, then 40 / 60 / 80% of the first working weight ×5 /
+  3 / 2, each rounded **down** to a weight the plates make (non-barbell lifts
+  round down to 5 lb and skip the bar row). Rows carry `warm: true` and show as
+  **W** in the logger; ⚙ has an On/Off switch (`warmups` in the synced coach
+  settings). **Warm-ups never count**: `workingSets()` drops them, which covers
+  volume, est. 1RM, PRs, targets, variety and `toPageRows()`; the Progress card
+  has its own set filter in `progress-charts-logic.js`, patched the same way
+  (weekly volume, lift series and top lifts). The logger's "x/y sets" counts
+  work only, and a workout of warm-ups alone cannot be finished. Tests:
+  [coach-warmups](../../tests/coach-warmups-2026-10-20.test.js) — every guard
+  has a negative control (the same set without the flag *does* change the
+  number) and drives the real screen file through a small DOM stub
+  (`tests/helpers/coach-ui-harness.js`). Stall detection (next) must keep
+  reading through `workingSets()`.
+
+- **#2 Stall detection — shipped (PR open, stacked on the warm-ups PR).** If a
+  lift's best (est. 1RM, or reps for bodyweight) has not beaten the first of its
+  last 3 sessions, `targetFor()` adds `target.stall` and the exercise card shows
+  "Same best (185 × 5) for 3 sessions" with **Deload to 165 lb (−10%)** and
+  **Swap it** (opens the normal swap panel). The deload weight rounds down to
+  plates the bar can load (other lifts round to their own step). **Nothing
+  changes a number until Jo taps**: weight, reps and note from `targetFor` are
+  identical with or without the stall; the banner hides once a set is logged. A
+  tapped deload is saved as `deload: true` on that exercise, which resets the
+  count (it takes 3 fresh sessions to flag again). It reads through
+  `workingSets()` so warm-ups neither cause nor hide a stall. No planned-deload
+  scheduling in v1. Test: [coach-stall](../../tests/coach-stall-2026-10-20.test.js).
+
+- **#1 Muscle balance nudge — shipped (PR open, stacked on the stall PR).** Every
+  exercise now carries a static primary-muscle tag (`e.muscle`: chest, shoulders,
+  back, biceps, triceps, quads, hams & glutes, calves, core, derived from its
+  pattern). `balance()` counts **hard sets** (= working sets; warm-ups never
+  count) per muscle over the last 7 days and flags groups at **0** or **under 4**
+  sets; push : pull is counted from presses/triceps vs rows/pulls/rear delts/
+  curls (lateral raises and legs are neutral) and flagged past 1.5×. It stays
+  silent until there is a session this week and at least 6 sets, and never
+  flags a group Jo can't train (equipment, or every lift in it is on the avoid
+  list). Shown on the **coach card** on the day page (chips + "Behind this
+  week: Back (Pull day)…") and as one line in the logger. **Switch it up**
+  leans toward the groups that are behind — honestly, only where a slot can be
+  filled from more than one group (squat-or-hinge, lunge-or-hinge in the full-body
+  rotation); the pattern slots on push/pull/legs days are single-muscle, so there
+  the nudge names the day that covers the gap instead. Test:
+  [coach-balance](../../tests/coach-balance-2026-10-20.test.js).
+
+- **#6 Readiness check-in — shipped (PR open, stacked on the balance PR).** At
+  the top of the logger: Sleep / Soreness / Energy, three taps each of three
+  choices (1 rough … 3 great). **Optional** — Skip hides it, it disappears once a
+  set is logged, and nothing about starting or logging waits on it. A total of
+  4 or less is a rough day: lifts with 3+ untouched working sets drop one set,
+  and a lift that was about to go UP holds last time's weight (warm-ups are not
+  working sets and are never trimmed). Good and OK days change nothing — it never
+  pushes load up. It always says what it did ("Dropped a set on 5 lifts and held
+  the weight on 1") with **Undo** and **Change**. One record per day under
+  `nbd_ds_coach_ready` (this device only, last 30 days kept; a second session
+  the same day picks it up without asking). Re-rolls, swaps and split changes keep
+  the lighter plan (a trimmed set is trimmed once, not twice). Test:
+  [coach-readiness](../../tests/coach-readiness-2026-10-20.test.js).
+
+- **#10 Supersets — shipped (PR open, stacked on the readiness PR).** Under each
+  lift's "+ set" is **⇄ Pair with next lift (superset)**. Paired lifts render as
+  one block: heads for A and B, then the sets in the order they are done —
+  **A1, B1, A2, B2 …** (warm-ups first, the next undone row highlighted, a lift
+  with extra sets finishes alone). The rest timer runs **once per pair**: nothing
+  after A1, then one rest when B1 is also done (either order), for the longer of
+  the two lifts' rests (compound 2:30, isolation 1:15). Warm-ups keep their own
+  60 s. Unpair any time; a paired lift that gets swapped or re-rolled stays
+  paired; a new split starts unpaired. Saved sessions mark the A lift
+  `pair: true` when its partner was logged too (nothing reads it yet).
+  **The plain logger is unchanged**: `tests/helpers/coach-golden-script.js`
+  drives a fixed 27-step workout with nothing paired (frozen clock) and hashes
+  every live-session state, rest-timer text, toast and the saved session; the
+  digest was recorded before the change and the test pins it (a control run with a
+  pair must differ). If you ever change the plain logger on purpose, re-bless
+  that digest. Test: [coach-supersets](../../tests/coach-supersets-2026-10-20.test.js).

@@ -27,7 +27,28 @@
   let stream = null, scanTimer = null;
 
   const mealIndex = () => (st.meal != null ? st.meal : F().mealForHour(new Date().getHours()));
-  const canScan = () => 'BarcodeDetector' in window && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  const hasCamera = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  // Chrome / Android read barcodes natively. iPhone Safari does not, so there a
+  // vendored pure-JS decoder (ZXing, docs/assets/vendor/zxing/VENDOR.txt) is
+  // loaded on demand - only when Jo taps Scan, never on page load.
+  const hasNativeDetector = () => 'BarcodeDetector' in window;
+  const DECODER_SRC = '/assets/vendor/zxing/zxing-library-0.21.3.min.js';
+  const DECODER_TIMEOUT_MS = 10000;
+  let decoderPromise = null;
+  function loadDecoder() {
+    if (window.ZXing) return Promise.resolve(window.ZXing);
+    if (!decoderPromise) {
+      decoderPromise = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        const timer = setTimeout(() => reject(new Error('decoder timeout')), DECODER_TIMEOUT_MS);
+        s.src = DECODER_SRC;
+        s.onload = () => { clearTimeout(timer); window.ZXing ? resolve(window.ZXing) : reject(new Error('decoder missing')); };
+        s.onerror = () => { clearTimeout(timer); reject(new Error('decoder failed to load')); };
+        document.head.appendChild(s);
+      }).catch((e) => { decoderPromise = null; throw e; });
+    }
+    return decoderPromise;
+  }
 
   async function getJson(url) {
     const ctl = typeof AbortController === 'function' ? new AbortController() : null;
@@ -124,28 +145,63 @@
     if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
     if (st.scanning) { st.scanning = false; refresh(); }
   }
+  // One decode attempt per tick, whichever engine is in use: returns the
+  // barcode text of a valid GTIN, or '' (nothing readable / not a valid check digit).
+  async function makeReader(video) {
+    if (hasNativeDetector()) {
+      const det = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
+      return async () => {
+        const found = await det.detect(video);
+        const hit = found && found.find((x) => S().validBarcode(x.rawValue));
+        return hit ? hit.rawValue : '';
+      };
+    }
+    const Z = await loadDecoder();
+    const reader = new Z.MultiFormatReader();
+    reader.setHints(new Map([
+      [Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A]],
+      [Z.DecodeHintType.TRY_HARDER, true],
+    ]));
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    return async () => {
+      const w = video.videoWidth, h = video.videoHeight;
+      if (!w || !h) return '';
+      const scale = Math.min(1, 720 / w);
+      canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      try {
+        const bitmap = new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(canvas)));
+        const text = reader.decodeWithState(bitmap).getText();
+        return S().validBarcode(text) ? text : '';
+      } catch (_) { return ''; }   // NotFoundException on most frames is normal
+    };
+  }
+
   async function startScan() {
-    if (!canScan()) { st.codeBox = true; st.status = 'Camera scanning is not available in this browser — type the digits under the barcode.'; refresh(); return; }
-    st.scanning = true; st.status = ''; st.codeBox = false; refresh();
+    if (!hasCamera()) { st.codeBox = true; st.status = 'This browser has no camera access here - type the digits under the barcode.'; refresh(); return; }
+    st.scanning = true; st.status = hasNativeDetector() ? '' : 'Starting the scanner...'; st.codeBox = false; refresh();
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
       const v = document.getElementById('fsVideo');
       if (!v) { stopScan(); return; }
+      v.setAttribute('playsinline', ''); v.muted = true;
       v.srcObject = stream; await v.play();
-      const det = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
+      const read = await makeReader(v);
+      if (!st.scanning) return;                      // Stop was tapped while the decoder loaded
+      st.status = ''; const note = document.querySelector('#fsCard .fl-note[role="status"]'); if (note) note.remove();
       let busy = false;
       scanTimer = setInterval(async () => {
         if (busy) return; busy = true;
         try {
-          const found = await det.detect(v);
-          const hit = found && found.find((b) => S().validBarcode(b.rawValue));
-          if (hit) { const code = hit.rawValue; stopScan(); lookupCode(code); }
+          const code = await read();
+          if (code) { stopScan(); lookupCode(code); }
         } catch (_) { /* keep trying */ }
         busy = false;
-      }, 400);
+      }, 350);
     } catch (_) {
       stopScan();
-      st.codeBox = true; st.status = 'Could not open the camera — allow camera access, or type the digits under the barcode.'; refresh();
+      st.codeBox = true; st.status = 'Could not start the scanner - allow camera access, or type the digits under the barcode.'; refresh();
     }
   }
 
