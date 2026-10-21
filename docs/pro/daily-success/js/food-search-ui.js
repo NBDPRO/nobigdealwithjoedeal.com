@@ -80,7 +80,7 @@
     return '<div class="wc-card fl-card fs-card" id="fsCard"><div class="wc-card-h">🔎 Find a food</div>' +
       '<div class="fl-row"><input id="fsQuery" class="fl-in fs-q" type="search" enterkeyhint="search" placeholder="Greek yogurt, chicken breast…" value="' + esc(st.q) + '" aria-label="Search foods">' +
       '<button type="button" class="fl-btn fl-primary" data-fs-action="search"' + (st.busy ? ' disabled' : '') + '>' + (st.busy ? 'Searching…' : 'Search') + '</button>' +
-      '<button type="button" class="fl-btn" data-fs-action="scan">▮▯▮ Scan</button></div>' +
+      '<button type="button" class="fl-btn" data-fs-action="scan">📷 Scan</button></div>' +
       '<div class="fl-lbl">Add to</div><div class="fl-meals">' + meals + '</div>' +
       codeBox + video +
       (st.status ? '<div class="fl-note" role="status">' + esc(st.status) + '</div>' : '') + list +
